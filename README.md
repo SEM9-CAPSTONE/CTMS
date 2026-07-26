@@ -21,26 +21,29 @@ CTMS focuses on:
 - Evaluating route safety based on weather factors such as rain, wind, temperature, and visibility, then generating clear safety advisories for users.
 - Delivering low-latency emergency broadcasts through WebSocket communication for connected devices.
 
-## Expected Core Features
+## Project Structure
 
-- User Authentication & Role-Based Access Control for Camper, Host, and Porter roles.
-- Real-time booking and anti-overbooking slot locking.
-- Local navigation and GPS deviation alerting.
-- Offline survival pre-cache package.
-- Asynchronous trekker tracking with buffer and sync.
-- Rule-based weather risk assessment combined with LLM advisories.
-- WebSocket emergency broadcasts.
-- Host logistics and trail management dashboard.
-- QR check-in/check-out verification.
+```text
+apps/
+  web/        ReactJS web dashboard
+  mobile/     React Native mobile app powered by Expo
+services/
+  api/        NestJS backend API and WebSocket gateway
+  ai/         Python AI/NLP service for LLM, RAG, and safety advisories
+infra/
+  docker/     Docker and Nginx deployment assets
+.github/
+  workflows/ GitHub Actions CI/CD workflows
+```
 
-## Proposed Tech Stack
+## Tech Stack
 
-- Web frontend: ReactJS
-- Mobile: React Native or Flutter
-- Backend: NodeJS, Express
-- Database: PostgreSQL, Redis
-- Real-time communication: WebSocket or Socket.io
-- AI/NLP: Python, LLM, RAG, prompt engineering
+- Web frontend: ReactJS, Vite
+- Mobile: React Native, Expo
+- Backend: NestJS
+- Database/cache: PostgreSQL, Redis
+- Real-time communication: Socket.io via NestJS WebSocket Gateway
+- AI/NLP: Python, FastAPI, LLM, RAG, prompt engineering
 - Maps: Leaflet or Mapbox
 - Deployment: AWS EC2, Docker, Nginx, GitHub Actions
 - API documentation/testing: Swagger/OpenAPI, Postman

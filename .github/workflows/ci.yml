@@ -1,0 +1,47 @@
+name: CI Verification
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+
+jobs:
+  quality:
+    name: Code Quality & Build Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - name: Install Node dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Lint Node workspaces
+        run: pnpm lint:all
+
+      - name: Build Node workspaces
+        run: pnpm build:all
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install AI service dependencies
+        run: pip install -r services/ai/requirements.txt
+
+      - name: Validate AI service import
+        run: python -m compileall services/ai/app
