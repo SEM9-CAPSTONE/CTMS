@@ -24,26 +24,41 @@ CTMS focuses on:
 ## Project Structure
 
 ```text
-apps/
-  web/        ReactJS web dashboard
-  mobile/     React Native mobile app powered by Expo
-services/
-  api/        NestJS backend API and WebSocket gateway
-  ai/         Python AI/NLP service for LLM, RAG, and safety advisories
-infra/
-  docker/     Docker and Nginx deployment assets
-.github/
-  workflows/ GitHub Actions CI/CD workflows
+ctms/
+├── apps/
+│   ├── web/                     # React 18 + Vite + TypeScript Web App
+│   │   ├── src/
+│   │   │   ├── core/            # Core system abstractions (API endpoints, queryKeys, httpClient, AppLayout, Brand assets)
+│   │   │   ├── routes/          # Clean HTML5 router & AppRoleGuard (camper, host, porter, admin)
+│   │   │   ├── shared/          # Shared components (Button, Card), types & pages (NotFound, Unauthorized, Error, EdgeCase)
+│   │   │   ├── features/        # Feature-based modular architecture
+│   │   │   │   ├── auth/        # Login, 3-step Role-based Registration (Camper, Host, Porter)
+│   │   │   │   └── landing/     # Landing page, Mobile app preview & AI survival assistant
+│   │   │   └── index.css        # Global CSS design tokens, typography, glassmorphism & custom scrollbars
+│   ├── mobile/                  # React Native mobile app powered by Expo
+│   └── docs/                    # System architecture & database diagrams
+├── services/
+│   ├── api/                     # NestJS + TypeScript Backend Service
+│   │   ├── src/
+│   │   │   ├── modules/         # NestJS feature modules (Auth, Realtime Gateway, Campsites, Safety)
+│   │   │   └── shared/          # Shared DTOs, guards, decorators & utilities
+│   └── ai/                      # Python AI/NLP service for LLM, RAG & offline survival advisories
+├── scripts/                     # Monorepo automation scripts (validate-branch-name.js)
+├── .husky/                      # Git hooks (pre-commit: Biome + lint-staged, pre-push: branch validator)
+├── biome.json                   # Biome linter & formatter configuration (tab indent, double quotes)
+├── pnpm-workspace.yaml          # Monorepo workspace configuration
+└── package.json                 # Monorepo root dependencies & scripts
 ```
 
 ## Tech Stack
 
-- Web frontend: ReactJS, Vite
-- Mobile: React Native, Expo
-- Backend: NestJS
-- Database/cache: PostgreSQL, Redis
-- Real-time communication: Socket.io via NestJS WebSocket Gateway
-- AI/NLP: Python, FastAPI, LLM, RAG, prompt engineering
-- Maps: Leaflet or Mapbox
-- Deployment: AWS EC2, Docker, Nginx, GitHub Actions
-- API documentation/testing: Swagger/OpenAPI, Postman
+- **Web Frontend**: React 18, Vite, TypeScript, Tailwind CSS v4, Lucide Icons
+- **Mobile**: React Native, Expo
+- **Backend**: NestJS, TypeScript
+- **Database & Cache**: PostgreSQL, Redis
+- **Code Quality & Git Hooks**: Biome (Linter/Formatter), Husky, Lint-Staged, Branch Name Validator
+- **Real-time Communication**: Socket.io via NestJS WebSocket Gateway
+- **AI/NLP**: Python, FastAPI, LLM, RAG, prompt engineering
+- **Maps & Navigation**: Leaflet / Mapbox
+- **Deployment**: AWS EC2, Docker, Nginx, GitHub Actions
+- **API Documentation & Testing**: Swagger/OpenAPI, Postman

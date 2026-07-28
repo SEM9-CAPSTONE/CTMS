@@ -1,0 +1,78 @@
+@import "tailwindcss";
+
+/* ==========================================================================
+   CTMS Global Design System & CSS Synchronization
+   ========================================================================== */
+
+:root {
+	/* Brand Color Tokens */
+	--brand-primary: #164027;
+	--brand-secondary: #2d5a27;
+	--brand-accent: #276143;
+	--brand-light: #eef7f0;
+	--brand-bg: #f4f7f2;
+	--brand-dark: #10221b;
+
+	/* Status Colors */
+	--status-success: #16a34a;
+	--status-warning: #d97706;
+	--status-danger: #dc2626;
+	--status-info: #0284c7;
+}
+
+html {
+	scroll-behavior: smooth;
+	font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,
+		Cantarell, sans-serif;
+	background-color: var(--brand-bg);
+	color: var(--brand-dark);
+}
+
+body {
+	min-height: 100vh;
+	overflow-x: hidden;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
+
+/* Card Hover Lift Effect */
+.hover-lift {
+	transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s
+		cubic-bezier(0.4, 0, 0.2, 1);
+}
+.hover-lift:hover {
+	transform: translateY(-3px);
+	box-shadow: 0 12px 24px -6px rgba(22, 64, 39, 0.08);
+}
+
+/* Glassmorphism Utility Classes */
+.glass-card {
+	background: rgba(255, 255, 255, 0.85);
+	backdrop-filter: blur(12px);
+	-webkit-backdrop-filter: blur(12px);
+	border: 1px solid rgba(224, 235, 224, 0.8);
+}
+
+.glass-dark {
+	background: rgba(22, 64, 39, 0.85);
+	backdrop-filter: blur(12px);
+	-webkit-backdrop-filter: blur(12px);
+	border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+/* Custom Scrollbar Styles */
+.custom-scrollbar::-webkit-scrollbar {
+	width: 6px;
+	height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+	background: #f4f7f2;
+	border-radius: 9999px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+	background: #cbd5e1;
+	border-radius: 9999px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+	background: #164027;
+}

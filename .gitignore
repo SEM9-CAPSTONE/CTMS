@@ -9,6 +9,7 @@ build/
 .expo/
 web-build/
 coverage/
+*.tsbuildinfo
 
 # Environment files
 .env
