@@ -1,0 +1,50 @@
+export const API_ENDPOINTS = {
+	AUTH: {
+		LOGIN: "/auth/login",
+		REGISTER: "/auth/register",
+		REFRESH: "/auth/refresh",
+		LOGOUT: "/auth/logout",
+		ME: "/auth/me",
+	},
+	CAMPSITES: {
+		GET_ALL: "/campsites",
+		GET_BY_ID: (id: string) => `/campsites/${id}`,
+		CREATE: "/campsites",
+		UPDATE: (id: string) => `/campsites/${id}`,
+		DELETE: (id: string) => `/campsites/${id}`,
+		ZONES: (campsiteId: string) => `/campsites/${campsiteId}/zones`,
+		SLOTS: (zoneId: string) => `/campsite-zones/${zoneId}/slots`,
+	},
+	BOOKINGS: {
+		GET_ALL: "/bookings",
+		GET_BY_ID: (id: string) => `/bookings/${id}`,
+		CREATE: "/bookings",
+		CANCEL: (id: string) => `/bookings/${id}/cancel`,
+		PAYMENTS: (id: string) => `/bookings/${id}/payments`,
+	},
+	TREKKING: {
+		ROUTES: "/trekking-routes",
+		ROUTE_BY_ID: (id: string) => `/trekking-routes/${id}`,
+		CHECKPOINTS: (routeId: string) => `/trekking-routes/${routeId}/checkpoints`,
+		DANGER_ZONES: (routeId: string) => `/trekking-routes/${routeId}/danger-zones`,
+	},
+	TRIPS: {
+		GET_ALL: "/trips",
+		GET_BY_ID: (id: string) => `/trips/${id}`,
+		MEMBERS: (tripId: string) => `/trips/${tripId}/members`,
+		GPS_LOGS: (tripId: string) => `/trips/${tripId}/gps-logs`,
+	},
+	WEATHER: {
+		RISK_ASSESSMENT: "/weather/risk-assessment",
+		SNAPSHOT: "/weather/snapshots",
+	},
+	AI: {
+		CONVERSATIONS: "/ai/conversations",
+		MESSAGES: (conversationId: string) => `/ai/conversations/${conversationId}/messages`,
+		FEEDBACK: "/ai/messages/feedback",
+	},
+	SOS: {
+		ALERTS: "/sos-alerts",
+		ALERT_BY_ID: (id: string) => `/sos-alerts/${id}`,
+	},
+} as const;

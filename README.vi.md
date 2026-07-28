@@ -1,5 +1,7 @@
 # CTMS - Camping Site and Trekking Management System
 
+[English version](README.md)
+
 ## Description
 
 CTMS (Camping Site and Trekking Management System) là hệ thống quản lý điểm cắm trại và trekking tích hợp Trợ lý Sinh tồn AI. Dự án hướng tới việc xây dựng một hệ sinh thái đồng bộ gồm ứng dụng di động cho camper/porter và web dashboard cho host nhằm hỗ trợ quản lý đặt chỗ, vận hành logistics, theo dõi trekking và điều phối an toàn trong các môi trường ngoài trời có rủi ro cao.
@@ -19,26 +21,44 @@ Cụ thể, CTMS hướng đến:
 - Đánh giá rủi ro tuyến đường dựa trên các yếu tố thời tiết như mưa, gió, nhiệt độ, tầm nhìn và sinh cảnh báo an toàn dễ hiểu cho người dùng.
 - Đảm bảo cảnh báo khẩn cấp thời gian thực qua WebSocket với độ trễ thấp cho các thiết bị đang kết nối.
 
-## Expected Core Features
+## Cấu trúc dự án (Project Structure)
 
-- User Authentication & Role-Based Access Control cho các vai trò Camper, Host và Porter.
-- Real-time booking và anti-overbooking slot lock.
-- Local navigation và GPS deviation alerting.
-- Offline survival pre-cache package.
-- Asynchronous trekker tracking với cơ chế buffer & sync.
-- Rule-based weather risk assessment kết hợp LLM advisories.
-- WebSocket emergency broadcasts.
-- Host logistics và trail management dashboard.
-- QR check-in/check-out verification.
+```text
+ctms/
+├── apps/
+│   ├── web/                     # React 18 + Vite + TypeScript Web Dashboard
+│   │   ├── src/
+│   │   │   ├── core/            # Core system (API endpoints, queryKeys, httpClient, AppLayout, Brand logo)
+│   │   │   ├── routes/          # Bộ định tuyến HTML5 Clean URL & AppRoleGuard (camper, host, porter, admin)
+│   │   │   ├── shared/          # Shared components (Button, Card), types & trang dùng chung (NotFound, Unauthorized, Error, EdgeCase)
+│   │   │   ├── features/        # Kiến trúc mô-đun theo tính năng (Feature-based Modular)
+│   │   │   │   ├── auth/        # Đăng nhập Email & Đăng ký 3 bước phân quyền (Camper, Host, Porter)
+│   │   │   │   └── landing/     # Màn hình giới thiệu, Mobile mockup preview & Trợ lý Sinh tồn AI
+│   │   │   └── index.css        # Hệ thống CSS Design Tokens, Typography, Glassmorphic & Custom Scrollbar
+│   ├── mobile/                  # Ứng dụng di động React Native (Expo)
+│   └── docs/                    # Tài liệu kiến trúc hệ thống & Sơ đồ CSDL
+├── services/
+│   ├── api/                     # Backend API NestJS + TypeScript
+│   │   ├── src/
+│   │   │   ├── modules/         # Các mô-đun NestJS (Auth, Realtime Gateway, Campsites, Safety)
+│   │   │   └── shared/          # Shared DTOs, guards, decorators & utilities
+│   └── ai/                      # Dịch vụ AI/NLP Python hỗ trợ LLM, RAG & Cẩm nang sinh tồn ngoại tuyến
+├── scripts/                     # Automation scripts (validate-branch-name.js)
+├── .husky/                      # Git hooks (pre-commit: Biome + lint-staged, pre-push: branch validator)
+├── biome.json                   # Biome linter & formatter configuration (tab indent, double quotes)
+├── pnpm-workspace.yaml          # Cấu hình pnpm monorepo workspace
+└── package.json                 # Monorepo root scripts & dependencies
+```
 
 ## Proposed Tech Stack
 
-- Frontend web: ReactJS
-- Mobile: React Native hoặc Flutter
-- Backend: NodeJS, Express
-- Database: PostgreSQL, Redis
-- Real-time communication: WebSocket hoặc Socket.io
-- AI/NLP: Python, LLM, RAG, prompt engineering
-- Maps: Leaflet hoặc Mapbox
-- Deployment: AWS EC2, Docker, Nginx, GitHub Actions
-- API documentation/testing: Swagger/OpenAPI, Postman
+- **Web Frontend**: React 18, Vite, TypeScript, Tailwind CSS v4, Lucide Icons
+- **Mobile**: React Native, Expo
+- **Backend**: NestJS, TypeScript
+- **Database & Cache**: PostgreSQL, Redis
+- **Code Quality & Git Hooks**: Biome (Linter/Formatter), Husky, Lint-Staged, Branch Name Validator
+- **Real-time Communication**: Socket.io via NestJS WebSocket Gateway
+- **AI/NLP**: Python, FastAPI, LLM, RAG, prompt engineering
+- **Maps**: Leaflet / Mapbox
+- **Deployment**: AWS EC2, Docker, Nginx, GitHub Actions
+- **API documentation/testing**: Swagger/OpenAPI, Postman
