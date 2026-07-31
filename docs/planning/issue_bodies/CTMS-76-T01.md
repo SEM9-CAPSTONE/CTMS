@@ -1,0 +1,36 @@
+## Parent Story
+- External Story ID: `CTMS-76`
+- Story title: Tự động nhận biết người dùng đã đến checkpoint
+- Epic: `ctms-epic-10`
+- Sprint: `Sprint 4`
+
+## Requirement
+- Implement API/service logic, persistence contract and authorization checks.
+- Acceptance Criteria: Xác nhận khi vào bán kính checkpoint; lưu thời gian và vị trí; tránh ghi nhận trùng.
+
+## Implementation Checklist
+- [ ] Confirm roles/permissions and request/response contract.
+- [ ] Implement the smallest usable vertical feature slice.
+- [ ] Persist/read data using the database-aligned CTMS model.
+- [ ] Handle success, validation, authorization and dependency failure paths.
+
+## Unit Test Checklist
+- [ ] Valid input succeeds and returns/persists expected state.
+- [ ] Invalid, duplicate, unauthorized or out-of-range input is rejected safely.
+- [ ] Database/status enum values match reviewed CTMS schema.
+- [ ] Edge cases from acceptance criteria are covered.
+
+## E2E Test Checklist
+- [ ] User can complete happy path from UI/API entry to persisted result.
+- [ ] Negative path displays actionable error and does not corrupt state.
+- [ ] Refresh/reload still shows persisted result correctly.
+
+## Linked Items
+- Blocked by: `None`
+- Story dependency: `CTMS-20, CTMS-74`
+
+## Definition of Done
+- [ ] Implementation complete.
+- [ ] Unit tests pass.
+- [ ] E2E checklist passes or evidence is attached.
+- [ ] Story acceptance criteria verified.
