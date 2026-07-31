@@ -1,0 +1,41 @@
+# CTMS 5-Sprint Plan
+
+## Sprint 1 (2026-07-26 - 2026-08-08)
+
+Goal: Auth, RBAC, audit base. Engineering foundation completed from 2026-07-26.
+
+Committed: CTMS-ENG-01, CTMS-01, CTMS-02, CTMS-03, CTMS-04, CTMS-06, CTMS-08, CTMS-125
+
+Stretch: CTMS-05, CTMS-07, CTMS-09, CTMS-110, CTMS-124
+
+## Sprint 2 (2026-08-09 - 2026-08-29)
+
+Goal: Core booking demo for Review 1 on 2026-08-27/28.
+
+Committed: CTMS-10, CTMS-12, CTMS-19, CTMS-20, CTMS-23, CTMS-24, CTMS-31, CTMS-32, CTMS-33, CTMS-34, CTMS-35, CTMS-36, CTMS-40, CTMS-41, CTMS-42
+
+Stretch: CTMS-11, CTMS-13, CTMS-14, CTMS-15, CTMS-16, CTMS-21, CTMS-22, CTMS-25, CTMS-26, CTMS-27, CTMS-28, CTMS-37, CTMS-38, CTMS-39
+
+## Sprint 3 (2026-08-30 - 2026-09-19)
+
+Goal: Booking lifecycle, payment/mock payment, check-in, equipment and porter basics.
+
+Committed: CTMS-43, CTMS-44, CTMS-45, CTMS-48, CTMS-49, CTMS-52, CTMS-53, CTMS-57, CTMS-58, CTMS-59, CTMS-60, CTMS-61, CTMS-62
+
+Stretch: CTMS-46, CTMS-47, CTMS-50, CTMS-51, CTMS-54, CTMS-55, CTMS-56, CTMS-63, CTMS-64
+
+## Sprint 4 (2026-09-20 - 2026-10-10)
+
+Goal: Offline package MVP, offline map, GPS logging and sync.
+
+Committed: CTMS-65, CTMS-66, CTMS-MVP-67A, CTMS-68, CTMS-69, CTMS-70, CTMS-73, CTMS-74, CTMS-75, CTMS-80, CTMS-81, CTMS-82, CTMS-83
+
+Stretch: CTMS-71, CTMS-72, CTMS-76, CTMS-77, CTMS-78, CTMS-84, CTMS-85, CTMS-89, CTMS-95, CTMS-96
+
+## Sprint 5 (2026-10-11 - 2026-10-31)
+
+Goal: SOS, realtime, AI survival assistant and defense metrics.
+
+Committed: CTMS-87, CTMS-88, CTMS-90, CTMS-93, CTMS-98, CTMS-99, CTMS-100, CTMS-117, CTMS-118, CTMS-119, CTMS-120, CTMS-122
+
+Stretch: CTMS-91, CTMS-92, CTMS-94, CTMS-97, CTMS-101, CTMS-102, CTMS-103, CTMS-104, CTMS-105, CTMS-106, CTMS-107, CTMS-108, CTMS-109, CTMS-111, CTMS-112

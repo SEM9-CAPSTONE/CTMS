@@ -1,0 +1,6 @@
+﻿title,due_on,description
+Sprint 1,2026-08-08T23:59:59Z,"2026-07-26 to 2026-08-08. Goal: Auth, RBAC, audit base. Engineering foundation completed from 2026-07-26."
+Sprint 2,2026-08-29T23:59:59Z,2026-08-09 to 2026-08-29. Goal: Core booking demo for Review 1 on 2026-08-27/28.
+Sprint 3,2026-09-19T23:59:59Z,"2026-08-30 to 2026-09-19. Goal: Booking lifecycle, payment/mock payment, check-in, equipment and porter basics."
+Sprint 4,2026-10-10T23:59:59Z,"2026-09-20 to 2026-10-10. Goal: Offline package MVP, offline map, GPS logging and sync."
+Sprint 5,2026-10-31T23:59:59Z,"2026-10-11 to 2026-10-31. Goal: SOS, realtime, AI survival assistant and defense metrics."

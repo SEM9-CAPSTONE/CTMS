@@ -1,0 +1,36 @@
+## Parent Story
+- External Story ID: `CTMS-50`
+- Story title: Đánh dấu thành viên không xuất hiện
+- Epic: `ctms-epic-06`
+- Sprint: `Sprint 3`
+
+## Requirement
+- Wire integration where applicable and capture evidence for acceptance criteria.
+- Acceptance Criteria: Sau thời điểm khởi hành, thành viên có member_status = registered nhưng chưa check-in có thể chuyển member_status = no_show; lưu người thao tác và thời gian; booking không có status no_show vì trạng thái này thuộc từng booking_member.
+
+## Implementation Checklist
+- [ ] Confirm roles/permissions and request/response contract.
+- [ ] Implement the smallest usable vertical feature slice.
+- [ ] Persist/read data using the database-aligned CTMS model.
+- [ ] Handle success, validation, authorization and dependency failure paths.
+
+## Unit Test Checklist
+- [ ] Valid input succeeds and returns/persists expected state.
+- [ ] Invalid, duplicate, unauthorized or out-of-range input is rejected safely.
+- [ ] Database/status enum values match reviewed CTMS schema.
+- [ ] Edge cases from acceptance criteria are covered.
+
+## E2E Test Checklist
+- [ ] User can complete happy path from UI/API entry to persisted result.
+- [ ] Negative path displays actionable error and does not corrupt state.
+- [ ] Refresh/reload still shows persisted result correctly.
+
+## Linked Items
+- Blocked by: `CTMS-50-T01`
+- Story dependency: `CTMS-48`
+
+## Definition of Done
+- [ ] Implementation complete.
+- [ ] Unit tests pass.
+- [ ] E2E checklist passes or evidence is attached.
+- [ ] Story acceptance criteria verified.
