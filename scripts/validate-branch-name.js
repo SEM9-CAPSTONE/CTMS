@@ -1,13 +1,13 @@
 const { execSync } = require("node:child_process");
 
 const ALLOWED_BRANCH_PATTERNS = [
-	/^(feature|feat)\/[a-z0-9._-]+$/,
-	/^(bugfix|fix)\/[a-z0-9._-]+$/,
-	/^hotfix\/[a-z0-9._-]+$/,
-	/^refactor\/[a-z0-9._-]+$/,
-	/^chore\/[a-z0-9._-]+$/,
-	/^docs\/[a-z0-9._-]+$/,
-	/^test\/[a-z0-9._-]+$/,
+	/^(feature|feat)\/[A-Z][A-Z0-9]+-[0-9]+(-[a-z0-9._-]+)?$/,
+	/^(bugfix|fix)\/[A-Z][A-Z0-9]+-[0-9]+(-[a-z0-9._-]+)?$/,
+	/^hotfix\/[A-Z][A-Z0-9]+-[0-9]+(-[a-z0-9._-]+)?$/,
+	/^refactor\/[A-Z][A-Z0-9]+-[0-9]+(-[a-z0-9._-]+)?$/,
+	/^chore\/[A-Z][A-Z0-9]+-[0-9]+(-[a-z0-9._-]+)?$/,
+	/^docs\/[A-Z][A-Z0-9]+-[0-9]+(-[a-z0-9._-]+)?$/,
+	/^test\/[A-Z][A-Z0-9]+-[0-9]+(-[a-z0-9._-]+)?$/,
 	/^release\/[a-z0-9._-]+$/,
 	/^(main|master|develop|staging)$/,
 ];
@@ -30,14 +30,21 @@ function main() {
 	if (!isValid) {
 		console.error("\n❌ Tên branch không tuân thủ quy chuẩn dự án!");
 		console.error(`👉 Tên branch hiện tại: "${branchName}"`);
-		console.error("\n✅ Vui lòng đặt tên branch theo định dạng:");
-		console.error("   - feature/<tên-tính-năng> hoặc feat/<tên-tính-năng>");
-		console.error("   - fix/<tên-lỗi> hoặc bugfix/<tên-lỗi>");
-		console.error("   - hotfix/<nội-dung-vá>");
-		console.error("   - refactor/<nội-dung-tối-ưu>");
-		console.error("   - chore/<tác-vụ-cấu-hình>");
-		console.error("   - docs/<tài-liệu>");
-		console.error("   - Ví dụ: feat/auth-login, fix/header-logo, refactor/route-guard\n");
+		console.error(
+			"\n✅ Vui lòng đặt tên branch theo định dạng: <loại-branch>/<mã-Jira-issue>-<nội-dung>"
+		);
+		console.error("   Trong đó, mã Jira issue phải viết hoa (ví dụ: CTMS-123).");
+		console.error("   Các loại branch được phép:");
+		console.error("   - feature/<mã-Jira>-<nội-dung> hoặc feat/<mã-Jira>-<nội-dung>");
+		console.error("   - fix/<mã-Jira>-<nội-dung> hoặc bugfix/<mã-Jira>-<nội-dung>");
+		console.error("   - hotfix/<mã-Jira>-<nội-dung>");
+		console.error("   - refactor/<mã-Jira>-<nội-dung>");
+		console.error("   - chore/<mã-Jira>-<nội-dung>");
+		console.error("   - docs/<mã-Jira>-<nội-dung>");
+		console.error("   - test/<mã-Jira>-<nội-dung>");
+		console.error(
+			"   - Ví dụ: feat/CTMS-123-auth-login, fix/CTMS-456-header-logo, refactor/CTMS-789-route-guard\n"
+		);
 		process.exit(1);
 	}
 
