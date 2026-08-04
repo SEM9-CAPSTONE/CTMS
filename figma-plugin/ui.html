@@ -1,0 +1,107 @@
+<style>
+	* { box-sizing: border-box; }
+	body {
+		margin: 0;
+		font: 12px/1.5 "Inter", -apple-system, "Segoe UI", Roboto, sans-serif;
+		color: #10221b;
+		background: #ffffff;
+		display: flex;
+		flex-direction: column;
+		height: 100vh;
+	}
+	header {
+		padding: 12px 14px;
+		border-bottom: 1px solid #e5eae6;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 10px;
+		flex: 0 0 auto;
+	}
+	h1 { font-size: 13px; font-weight: 700; margin: 0; color: #164027; }
+	#status { font-size: 11px; color: #4b5563; }
+	#log {
+		flex: 1 1 auto;
+		overflow-y: auto;
+		padding: 10px 14px;
+		font-family: "SF Mono", Menlo, Consolas, monospace;
+		font-size: 11px;
+		line-height: 1.65;
+		background: #f8faf8;
+	}
+	.row { white-space: pre-wrap; word-break: break-word; padding: 1px 0; }
+	.ok { color: #16a34a; }
+	.warn { color: #d97706; }
+	.err { color: #dc2626; font-weight: 600; }
+	.dim { color: #9ca3af; }
+	footer {
+		padding: 10px 14px;
+		border-top: 1px solid #e5eae6;
+		display: flex;
+		gap: 8px;
+		flex: 0 0 auto;
+	}
+	button {
+		flex: 1;
+		height: 34px;
+		border-radius: 8px;
+		border: 1px solid #cbd5e1;
+		background: #fff;
+		font: inherit;
+		font-weight: 600;
+		cursor: pointer;
+	}
+	button.primary { background: #164027; border-color: #164027; color: #fff; }
+	button:disabled { opacity: .45; cursor: default; }
+</style>
+
+<header>
+	<h1>CTMS Mobile UI Generator</h1>
+	<span id="status">đang chạy…</span>
+</header>
+
+<div id="log"></div>
+
+<footer>
+	<button id="copy">Sao chép log</button>
+	<button id="close" class="primary">Đóng</button>
+</footer>
+
+<script>
+	const logEl = document.getElementById("log");
+	const statusEl = document.getElementById("status");
+	const lines = [];
+
+	function add(msg, level) {
+		lines.push(msg);
+		const d = document.createElement("div");
+		d.className = "row " + (level || "");
+		d.textContent = msg;
+		logEl.appendChild(d);
+		logEl.scrollTop = logEl.scrollHeight;
+	}
+
+	onmessage = (event) => {
+		const m = event.data.pluginMessage;
+		if (!m) return;
+		if (m.type === "log") add(m.msg, m.level);
+		if (m.type === "done") {
+			statusEl.textContent = m.ok ? "hoàn tất" : "có lỗi";
+			statusEl.style.color = m.ok ? "#16a34a" : "#dc2626";
+		}
+	};
+
+	document.getElementById("close").onclick = () => parent.postMessage({ pluginMessage: { type: "close" } }, "*");
+
+	document.getElementById("copy").onclick = () => {
+		const ta = document.createElement("textarea");
+		ta.value = lines.join("\n");
+		document.body.appendChild(ta);
+		ta.select();
+		document.execCommand("copy");
+		document.body.removeChild(ta);
+		const b = document.getElementById("copy");
+		b.textContent = "Đã sao chép ✓";
+		setTimeout(() => (b.textContent = "Sao chép log"), 1500);
+	};
+</script>

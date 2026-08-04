@@ -35,7 +35,7 @@ ctms/
 │   │   │   │   ├── auth/        # Đăng nhập Email & Đăng ký 3 bước phân quyền (Camper, Host, Porter)
 │   │   │   │   └── landing/     # Màn hình giới thiệu, Mobile mockup preview & Trợ lý Sinh tồn AI
 │   │   │   └── index.css        # Hệ thống CSS Design Tokens, Typography, Glassmorphic & Custom Scrollbar
-│   ├── mobile/                  # Ứng dụng di động React Native (Expo)
+│   ├── mobile/                  # Ứng dụng di động Flutter cho Camper & Porter (Riverpod, go_router)
 │   └── docs/                    # Tài liệu kiến trúc hệ thống & Sơ đồ CSDL
 ├── services/
 │   ├── api/                     # Backend API NestJS + TypeScript
@@ -53,7 +53,7 @@ ctms/
 ## Proposed Tech Stack
 
 - **Web Frontend**: React 18, Vite, TypeScript, Tailwind CSS v4, Lucide Icons
-- **Mobile**: React Native, Expo
+- **Mobile**: Flutter, Riverpod, go_router
 - **Backend**: NestJS, TypeScript
 - **Database & Cache**: PostgreSQL, Redis
 - **Code Quality & Git Hooks**: Biome (Linter/Formatter), Husky, Lint-Staged, Branch Name Validator
