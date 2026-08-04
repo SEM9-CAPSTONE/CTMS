@@ -1,22 +1,39 @@
+## Jira
+
+- Jira key: `CTMS-XX`
+- Jira link: https://thuha140105.atlassian.net/browse/CTMS-XX
+
 ## Description
-<!-- Mô tả ngắn gọn thay đổi và gắn Issue/Task ID nếu có (#123) -->
+
+<!-- Summarize what changed and why. Include related Jira keys if this PR covers more than one story/task. -->
 
 ## Type of Change
-- [ ] `feat`: Tính năng mới
-- [ ] `fix`: Sửa lỗi
-- [ ] `refactor`: Tái cấu trúc / Tối ưu code
-- [ ] `chore`: Cấu hình hệ thống / Thư viện
+
+- [ ] `feat`: New feature
+- [ ] `fix`: Bug fix
+- [ ] `refactor`: Code restructuring or optimization
+- [ ] `docs`: Documentation or planning update
+- [ ] `test`: Test-only change
+- [ ] `chore`: Tooling, configuration, or maintenance
 
 ## Scope
+
 - [ ] Web (`apps/web`)
 - [ ] Mobile (`apps/mobile`)
 - [ ] API (`services/api`)
-- [ ] Other (`infra`, `scripts`, `docs`)
+- [ ] Docs / Planning (`docs`, `file/spec`)
+- [ ] Other (`infra`, `scripts`, config)
 
-## Screenshots / Evidence (Optional)
-<!-- Chèn hình ảnh hoặc video minh họa nếu có thay đổi giao diện UI -->
+## Screenshots / Evidence
 
-## Checklist
-- [ ] Đã chạy `pnpm lint` và không có lỗi.
-- [ ] Đã chạy `pnpm build:all` kiểm tra build thành công.
-- [ ] Tên branch tuân thủ quy chuẩn (`feat/*`, `fix/*`, `refactor/*`, v.v.).
+<!-- Add screenshots, videos, logs, generated files, or command output when relevant. -->
+
+## Validation
+
+- [ ] Branch name follows the project convention: `<type>/<JIRA-KEY>-<short-description>`.
+- [ ] Commit messages follow Conventional Commits with Jira scope, for example `feat(CTMS-01): implement account registration`.
+- [ ] Jira key appears in the branch, commit, and PR title/description.
+- [ ] `pnpm lint:all` passed, or not required for this change.
+- [ ] `pnpm build:all` passed, or not required for this change.
+- [ ] `pnpm test:all` passed, or not required for this change.
+- [ ] Documentation, CSV, or spec files were manually reviewed when changed.

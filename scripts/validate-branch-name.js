@@ -16,39 +16,39 @@ function getCurrentBranch() {
 	try {
 		return execSync("git rev-parse --abbrev-ref HEAD").toString().trim();
 	} catch (_error) {
-		console.error("❌ Không thể xác định tên Git branch hiện tại.");
+		console.error("Cannot determine the current Git branch name.");
 		process.exit(1);
 	}
 }
 
 function main() {
 	const branchName = getCurrentBranch();
-	console.log(`🔍 Checking Git branch name: "${branchName}"...`);
+	console.log(`Checking Git branch name: "${branchName}"...`);
 
 	const isValid = ALLOWED_BRANCH_PATTERNS.some((pattern) => pattern.test(branchName));
 
 	if (!isValid) {
-		console.error("\n❌ Tên branch không tuân thủ quy chuẩn dự án!");
-		console.error(`👉 Tên branch hiện tại: "${branchName}"`);
+		console.error("\nBranch name does not follow the project convention.");
+		console.error(`Current branch: "${branchName}"`);
 		console.error(
-			"\n✅ Vui lòng đặt tên branch theo định dạng: <loại-branch>/<mã-Jira-issue>-<nội-dung>"
+			"\nUse this format: <branch-type>/<JIRA-KEY>-<short-kebab-description>",
 		);
-		console.error("   Trong đó, mã Jira issue phải viết hoa (ví dụ: CTMS-123).");
-		console.error("   Các loại branch được phép:");
-		console.error("   - feature/<mã-Jira>-<nội-dung> hoặc feat/<mã-Jira>-<nội-dung>");
-		console.error("   - fix/<mã-Jira>-<nội-dung> hoặc bugfix/<mã-Jira>-<nội-dung>");
-		console.error("   - hotfix/<mã-Jira>-<nội-dung>");
-		console.error("   - refactor/<mã-Jira>-<nội-dung>");
-		console.error("   - chore/<mã-Jira>-<nội-dung>");
-		console.error("   - docs/<mã-Jira>-<nội-dung>");
-		console.error("   - test/<mã-Jira>-<nội-dung>");
+		console.error("The Jira key must be uppercase, for example CTMS-123.");
+		console.error("Allowed branch types:");
+		console.error("- feature/<JIRA-KEY>-<description> or feat/<JIRA-KEY>-<description>");
+		console.error("- fix/<JIRA-KEY>-<description> or bugfix/<JIRA-KEY>-<description>");
+		console.error("- hotfix/<JIRA-KEY>-<description>");
+		console.error("- refactor/<JIRA-KEY>-<description>");
+		console.error("- chore/<JIRA-KEY>-<description>");
+		console.error("- docs/<JIRA-KEY>-<description>");
+		console.error("- test/<JIRA-KEY>-<description>");
 		console.error(
-			"   - Ví dụ: feat/CTMS-123-auth-login, fix/CTMS-456-header-logo, refactor/CTMS-789-route-guard\n"
+			"Examples: feat/CTMS-123-auth-login, fix/CTMS-456-header-logo, docs/CTMS-789-route-guard\n",
 		);
 		process.exit(1);
 	}
 
-	console.log("✅ Tên branch hợp lệ. Tiến hành push!\n");
+	console.log("Branch name is valid.\n");
 }
 
 main();
