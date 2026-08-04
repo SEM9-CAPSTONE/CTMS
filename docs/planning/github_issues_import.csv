@@ -1,4 +1,4 @@
-external_id,issue_type,title,description,spec_ref,business_rules,business_rule_details,labels,milestone,priority,story_points,sprint,scope
+﻿external_id,issue_type,title,description,spec_ref,business_rules,business_rule_details,labels,milestone,priority,story_points,sprint,scope
 ctms-epic-00,epic,Engineering Foundation,"## Module
 EPIC 0. Engineering Foundation
 
@@ -12,253 +12,676 @@ EPIC 0. Engineering Foundation
 ## Notes
 This epic groups CTMS backlog stories for GitHub Issues/Projects tracking.
 ",,,,"ctms,epic,ctms-epic-00",,,,,
-ctms-epic-01,epic,Authentication and User Management,"## Module
-EPIC 1. Authentication and User Management
+ctms-epic-01,epic,Authentication,"## Module
+EPIC 1. Authentication
 
 ## External Epic ID
 `ctms-epic-01`
 
-## Scope
-- Committed: CTMS-01, CTMS-02, CTMS-03, CTMS-04, CTMS-06, CTMS-08
-- Stretch: CTMS-05, CTMS-07, CTMS-09
+## Plan Summary
+- Sprints: Sprint 1
+- Story count: 9
+- Total story points: 44
+- Committed stories: 6
+- Stretch stories: 3
+- In Progress stories: 4
+- To Do stories: 5
 
-## Notes
-This epic groups CTMS backlog stories for GitHub Issues/Projects tracking.
-",,,,"ctms,epic,ctms-epic-01",,,,,
-ctms-epic-02,epic,Campsite and Zone Management,"## Module
-EPIC 2. Campsite and Zone Management
+## Stories
+- `CTMS-01`
+- `CTMS-02`
+- `CTMS-03`
+- `CTMS-04`
+- `CTMS-05`
+- `CTMS-06`
+- `CTMS-07`
+- `CTMS-08`
+- `CTMS-09`
+
+## Spec References
+- `/file/spec/ctms-01-register-with-email-or-phone-number.md`
+- `/file/spec/ctms-02-verify-account-via-otp-or-email.md`
+- `/file/spec/ctms-03-log-in.md`
+- `/file/spec/ctms-04-refresh-authentication-session.md`
+- `/file/spec/ctms-05-reset-forgotten-password.md`
+- `/file/spec/ctms-06-manage-role-based-access-for-camper-host-porter-and-admin.md`
+- `/file/spec/ctms-07-update-personal-profile-and-emergency-contact.md`
+- `/file/spec/ctms-08-log-out-from-current-device-or-all-devices.md`
+- `/file/spec/ctms-09-store-important-health-information.md`
+
+## Source of Truth
+This epic is generated from `docs/planning/jira-ctms-epic-backlog-plan.csv` and should stay aligned with the sprint plan and `/file/spec` references.
+",,,,"ctms,epic,ctms-epic-01",,,44,Sprint 1,committed:6; stretch:3
+ctms-epic-02,epic,Campsite,"## Module
+EPIC 2. Campsite 
 
 ## External Epic ID
 `ctms-epic-02`
 
-## Scope
-- Committed: CTMS-10, CTMS-12
-- Stretch: CTMS-11, CTMS-13, CTMS-14, CTMS-15, CTMS-16
+## Plan Summary
+- Sprints: Sprint 2
+- Story count: 9
+- Total story points: 44
+- Committed stories: 1
+- Stretch stories: 8
+- In Progress stories: 0
+- To Do stories: 9
 
-## Notes
-This epic groups CTMS backlog stories for GitHub Issues/Projects tracking.
-",,,,"ctms,epic,ctms-epic-02",,,,,
-ctms-epic-03,epic,Trekking Route and Checkpoint Management,"## Module
-EPIC 3. Trekking Route and Checkpoint Management
+## Stories
+- `CTMS-10`
+- `CTMS-11`
+- `CTMS-12`
+- `CTMS-13`
+- `CTMS-14`
+- `CTMS-15`
+- `CTMS-16`
+- `CTMS-17`
+- `CTMS-18`
+
+## Spec References
+- `/file/spec/ctms-10-create-campsite.md`
+- `/file/spec/ctms-11-edit-campsite-information.md`
+- `/file/spec/ctms-12-create-zones-in-campsite.md`
+- `/file/spec/ctms-13-schedule-campsite-or-zone-closure.md`
+- `/file/spec/ctms-14-update-zone-status.md`
+- `/file/spec/ctms-15-manage-campsite-images.md`
+- `/file/spec/ctms-16-approve-campsite-before-publishing.md`
+- `/file/spec/ctms-17-search-campsites.md`
+- `/file/spec/ctms-18-view-campsite-details.md`
+
+## Source of Truth
+This epic is generated from `docs/planning/jira-ctms-epic-backlog-plan.csv` and should stay aligned with the sprint plan and `/file/spec` references.
+",,,,"ctms,epic,ctms-epic-02",,,44,Sprint 2,committed:1; stretch:8
+ctms-epic-03,epic,Trekking Route,"## Module
+EPIC 3. Trekking Route
 
 ## External Epic ID
 `ctms-epic-03`
 
-## Scope
-- Committed: CTMS-19, CTMS-20, CTMS-23, CTMS-24
-- Stretch: CTMS-21, CTMS-22
+## Plan Summary
+- Sprints: Sprint 2
+- Story count: 6
+- Total story points: 31
+- Committed stories: 4
+- Stretch stories: 2
+- In Progress stories: 0
+- To Do stories: 6
 
-## Notes
-This epic groups CTMS backlog stories for GitHub Issues/Projects tracking.
-",,,,"ctms,epic,ctms-epic-03",,,,,
-ctms-epic-04,epic,Weather Risk Assessment,"## Module
-EPIC 4. Weather Risk Assessment
+## Stories
+- `CTMS-19`
+- `CTMS-20`
+- `CTMS-21`
+- `CTMS-22`
+- `CTMS-23`
+- `CTMS-24`
+
+## Spec References
+- `/file/spec/ctms-19-create-trekking-route-on-map.md`
+- `/file/spec/ctms-20-create-checkpoint-on-route.md`
+- `/file/spec/ctms-21-close-or-open-route-when-conditions-change.md`
+- `/file/spec/ctms-22-approve-route.md`
+- `/file/spec/ctms-23-mark-danger-zones-and-shelters.md`
+- `/file/spec/ctms-24-view-route-information-before-joining.md`
+
+## Source of Truth
+This epic is generated from `docs/planning/jira-ctms-epic-backlog-plan.csv` and should stay aligned with the sprint plan and `/file/spec` references.
+",,,,"ctms,epic,ctms-epic-03",,,31,Sprint 2,committed:4; stretch:2
+ctms-epic-04,epic,Weather Risk,"## Module
+EPIC 4. Weather Risk 
 
 ## External Epic ID
 `ctms-epic-04`
 
-## Scope
-- Committed: None
-- Stretch: CTMS-25, CTMS-26, CTMS-27, CTMS-28, CTMS-37
+## Plan Summary
+- Sprints: Sprint 2, Sprint 3
+- Story count: 7
+- Total story points: 35
+- Committed stories: 6
+- Stretch stories: 1
+- In Progress stories: 0
+- To Do stories: 7
 
-## Notes
-This epic groups CTMS backlog stories for GitHub Issues/Projects tracking.
-",,,,"ctms,epic,ctms-epic-04",,,,,
+## Stories
+- `CTMS-25`
+- `CTMS-26`
+- `CTMS-27`
+- `CTMS-28`
+- `CTMS-29`
+- `CTMS-30`
+- `CTMS-37`
+
+## Spec References
+- `/file/spec/ctms-25-fetch-weather-data-for-trekking-area.md`
+- `/file/spec/ctms-26-calculate-weather-risk-score-by-multiple-criteria.md`
+- `/file/spec/ctms-27-explain-risk-level-reasons.md`
+- `/file/spec/ctms-28-block-new-registration-when-route-is-red.md`
+- `/file/spec/ctms-29-use-llm-to-explain-weather-risk-as-clear-advice.md`
+- `/file/spec/ctms-30-configure-weather-risk-rules.md`
+- `/file/spec/ctms-37-view-risk-level-before-trekking-registration.md`
+
+## Source of Truth
+This epic is generated from `docs/planning/jira-ctms-epic-backlog-plan.csv` and should stay aligned with the sprint plan and `/file/spec` references.
+",,,,"ctms,epic,ctms-epic-04",,,35,"Sprint 2, Sprint 3",committed:6; stretch:1
 ctms-epic-05,epic,Trip Management,"## Module
 EPIC 5. Trip Management
 
 ## External Epic ID
 `ctms-epic-05`
 
-## Scope
-- Committed: CTMS-31, CTMS-32, CTMS-33, CTMS-34, CTMS-35, CTMS-36
-- Stretch: CTMS-38, CTMS-39, CTMS-47
+## Plan Summary
+- Sprints: Sprint 3
+- Story count: 9
+- Total story points: 64
+- Committed stories: 4
+- Stretch stories: 5
+- In Progress stories: 0
+- To Do stories: 9
 
-## Notes
-This epic groups CTMS backlog stories for GitHub Issues/Projects tracking.
-",,,,"ctms,epic,ctms-epic-05",,,,,
-ctms-epic-06,epic,Booking and Payment,"## Module
-EPIC 6. Booking and Payment
+## Stories
+- `CTMS-31`
+- `CTMS-32`
+- `CTMS-33`
+- `CTMS-34`
+- `CTMS-35`
+- `CTMS-36`
+- `CTMS-38`
+- `CTMS-39`
+- `CTMS-47`
+
+## Spec References
+- `/file/spec/ctms-31-check-zone-capacity-by-date.md`
+- `/file/spec/ctms-32-create-trip.md`
+- `/file/spec/ctms-33-configure-overnight-stays-for-trip.md`
+- `/file/spec/ctms-34-approve-and-publish-trip.md`
+- `/file/spec/ctms-35-prevent-trip-and-zone-overcapacity.md`
+- `/file/spec/ctms-36-search-and-view-trip-details.md`
+- `/file/spec/ctms-38-edit-trip.md`
+- `/file/spec/ctms-39-manage-trip-images.md`
+- `/file/spec/ctms-47-cancel-trip-with-insufficient-participants.md`
+
+## Source of Truth
+This epic is generated from `docs/planning/jira-ctms-epic-backlog-plan.csv` and should stay aligned with the sprint plan and `/file/spec` references.
+",,,,"ctms,epic,ctms-epic-05",,,64,Sprint 3,committed:4; stretch:5
+ctms-epic-06,epic,Booking Lifecycle,"## Module
+EPIC 6. Booking Lifecycle
 
 ## External Epic ID
 `ctms-epic-06`
 
-## Scope
-- Committed: CTMS-40, CTMS-41, CTMS-42, CTMS-43, CTMS-44, CTMS-45, CTMS-48, CTMS-49
-- Stretch: CTMS-46, CTMS-50, CTMS-51
+## Plan Summary
+- Sprints: Sprint 3
+- Story count: 11
+- Total story points: 56
+- Committed stories: 5
+- Stretch stories: 6
+- In Progress stories: 0
+- To Do stories: 11
 
-## Notes
-This epic groups CTMS backlog stories for GitHub Issues/Projects tracking.
-",,,,"ctms,epic,ctms-epic-06",,,,,
+## Stories
+- `CTMS-40`
+- `CTMS-41`
+- `CTMS-42`
+- `CTMS-43`
+- `CTMS-44`
+- `CTMS-45`
+- `CTMS-46`
+- `CTMS-48`
+- `CTMS-49`
+- `CTMS-50`
+- `CTMS-51`
+
+## Spec References
+- `/file/spec/ctms-40-create-booking-for-trip.md`
+- `/file/spec/ctms-41-add-members-to-booking.md`
+- `/file/spec/ctms-42-view-booking-details.md`
+- `/file/spec/ctms-43-pay-for-booking.md`
+- `/file/spec/ctms-44-automatically-expire-booking.md`
+- `/file/spec/ctms-45-cancel-booking-by-policy.md`
+- `/file/spec/ctms-46-process-refund.md`
+- `/file/spec/ctms-48-check-in-member.md`
+- `/file/spec/ctms-49-complete-booking.md`
+- `/file/spec/ctms-50-mark-member-as-no-show.md`
+- `/file/spec/ctms-51-add-services-to-booking.md`
+
+## Source of Truth
+This epic is generated from `docs/planning/jira-ctms-epic-backlog-plan.csv` and should stay aligned with the sprint plan and `/file/spec` references.
+",,,,"ctms,epic,ctms-epic-06",,,56,Sprint 3,committed:5; stretch:6
 ctms-epic-07,epic,Equipment and Logistics,"## Module
 EPIC 7. Equipment and Logistics
 
 ## External Epic ID
 `ctms-epic-07`
 
-## Scope
-- Committed: CTMS-52, CTMS-53
-- Stretch: CTMS-54, CTMS-55, CTMS-56
+## Plan Summary
+- Sprints: Sprint 3
+- Story count: 5
+- Total story points: 21
+- Committed stories: 0
+- Stretch stories: 5
+- In Progress stories: 0
+- To Do stories: 5
 
-## Notes
-This epic groups CTMS backlog stories for GitHub Issues/Projects tracking.
-",,,,"ctms,epic,ctms-epic-07",,,,,
+## Stories
+- `CTMS-52`
+- `CTMS-53`
+- `CTMS-54`
+- `CTMS-55`
+- `CTMS-56`
+
+## Spec References
+- `/file/spec/ctms-52-manage-equipment-catalog.md`
+- `/file/spec/ctms-53-rent-equipment-with-booking.md`
+- `/file/spec/ctms-54-record-equipment-handover-at-check-in.md`
+- `/file/spec/ctms-55-record-damaged-lost-or-returned-equipment.md`
+- `/file/spec/ctms-56-receive-personalized-packing-list-for-trip.md`
+
+## Source of Truth
+This epic is generated from `docs/planning/jira-ctms-epic-backlog-plan.csv` and should stay aligned with the sprint plan and `/file/spec` references.
+",,,,"ctms,epic,ctms-epic-07",,,21,Sprint 3,committed:0; stretch:5
 ctms-epic-08,epic,Porter Management,"## Module
 EPIC 8. Porter Management
 
 ## External Epic ID
 `ctms-epic-08`
 
-## Scope
-- Committed: CTMS-57, CTMS-58, CTMS-59, CTMS-60, CTMS-61, CTMS-62
-- Stretch: CTMS-63, CTMS-64, CTMS-71
+## Plan Summary
+- Sprints: Sprint 3, Sprint 4
+- Story count: 9
+- Total story points: 43
+- Committed stories: 0
+- Stretch stories: 9
+- In Progress stories: 0
+- To Do stories: 9
 
-## Notes
-This epic groups CTMS backlog stories for GitHub Issues/Projects tracking.
-",,,,"ctms,epic,ctms-epic-08",,,,,
-ctms-epic-12,epic,AI Survival Assistant and RAG,"## Module
-EPIC 12. AI Survival Assistant and RAG
+## Stories
+- `CTMS-57`
+- `CTMS-58`
+- `CTMS-59`
+- `CTMS-60`
+- `CTMS-61`
+- `CTMS-62`
+- `CTMS-63`
+- `CTMS-64`
+- `CTMS-71`
+
+## Spec References
+- `/file/spec/ctms-57-create-experience-and-certification-profile.md`
+- `/file/spec/ctms-58-view-available-porters.md`
+- `/file/spec/ctms-59-invite-porter-to-campsite.md`
+- `/file/spec/ctms-60-respond-to-campsite-invitation.md`
+- `/file/spec/ctms-61-verify-porter-qualification-for-route.md`
+- `/file/spec/ctms-62-assign-porter-to-trekking-trip.md`
+- `/file/spec/ctms-63-view-assigned-trips.md`
+- `/file/spec/ctms-64-report-incident-during-trip.md`
+- `/file/spec/ctms-71-confirm-group-arrival-at-checkpoint.md`
+
+## Source of Truth
+This epic is generated from `docs/planning/jira-ctms-epic-backlog-plan.csv` and should stay aligned with the sprint plan and `/file/spec` references.
+",,,,"ctms,epic,ctms-epic-08",,,43,"Sprint 3, Sprint 4",committed:0; stretch:9
+ctms-epic-12,epic,AI Survival & RAG,"## Module
+EPIC 12. AI Survival & RAG
 
 ## External Epic ID
 `ctms-epic-12`
 
-## Scope
-- Committed: CTMS-65, CTMS-66, CTMS-87, CTMS-88, CTMS-90
-- Stretch: CTMS-89, CTMS-91, CTMS-92, CTMS-94
+## Plan Summary
+- Sprints: Sprint 4, Sprint 5
+- Story count: 9
+- Total story points: 64
+- Committed stories: 5
+- Stretch stories: 4
+- In Progress stories: 0
+- To Do stories: 9
 
-## Notes
-This epic groups CTMS backlog stories for GitHub Issues/Projects tracking.
-",,,,"ctms,epic,ctms-epic-12",,,,,
+## Stories
+- `CTMS-65`
+- `CTMS-66`
+- `CTMS-86`
+- `CTMS-87`
+- `CTMS-88`
+- `CTMS-89`
+- `CTMS-90`
+- `CTMS-91`
+- `CTMS-93`
+
+## Spec References
+- `/file/spec/ctms-65-manage-survival-documents.md`
+- `/file/spec/ctms-66-split-documents-into-knowledge-chunks.md`
+- `/file/spec/ctms-86-use-rag.md`
+- `/file/spec/ctms-87-ask-ai-about-first-aid-and-survival.md`
+- `/file/spec/ctms-88-search-survival-guidance-offline.md`
+- `/file/spec/ctms-89-view-knowledge-sources-for-ai-answers.md`
+- `/file/spec/ctms-90-rate-ai-answers.md`
+- `/file/spec/ctms-91-view-ai-answers-reported-as-unsafe.md`
+- `/file/spec/ctms-93-detect-emergency-questions.md`
+
+## Source of Truth
+This epic is generated from `docs/planning/jira-ctms-epic-backlog-plan.csv` and should stay aligned with the sprint plan and `/file/spec` references.
+",,,,"ctms,epic,ctms-epic-12",,,64,"Sprint 4, Sprint 5",committed:5; stretch:4
 ctms-epic-09,epic,Offline Package,"## Module
 EPIC 9. Offline Package
 
 ## External Epic ID
 `ctms-epic-09`
 
-## Scope
-- Committed: CTMS-MVP-67A, CTMS-68, CTMS-69, CTMS-70
-- Stretch: CTMS-72
+## Plan Summary
+- Sprints: Sprint 4
+- Story count: 5
+- Total story points: 32
+- Committed stories: 4
+- Stretch stories: 1
+- In Progress stories: 0
+- To Do stories: 5
 
-## Notes
-This epic groups CTMS backlog stories for GitHub Issues/Projects tracking.
-",,,,"ctms,epic,ctms-epic-09",,,,,
-ctms-epic-10,epic,GPS Navigation and Route Deviation,"## Module
-EPIC 10. GPS Navigation and Route Deviation
+## Stories
+- `CTMS-67`
+- `CTMS-68`
+- `CTMS-69`
+- `CTMS-70`
+- `CTMS-72`
+
+## Spec References
+- `/file/spec/ctms-67-create-offline-package-for-each-trip.md`
+- `/file/spec/ctms-68-download-offline-package-before-departure.md`
+- `/file/spec/ctms-69-verify-offline-package-integrity.md`
+- `/file/spec/ctms-70-view-route-checkpoints-and-survival-guidance-offline.md`
+- `/file/spec/ctms-72-warn-when-offline-package-is-outdated.md`
+
+## Source of Truth
+This epic is generated from `docs/planning/jira-ctms-epic-backlog-plan.csv` and should stay aligned with the sprint plan and `/file/spec` references.
+",,,,"ctms,epic,ctms-epic-09",,,32,Sprint 4,committed:4; stretch:1
+ctms-epic-10,epic,GPS Navigation,"## Module
+EPIC 10. GPS Navigation
 
 ## External Epic ID
 `ctms-epic-10`
 
-## Scope
-- Committed: CTMS-73, CTMS-74, CTMS-75
-- Stretch: CTMS-76, CTMS-77, CTMS-78
+## Plan Summary
+- Sprints: Sprint 4
+- Story count: 7
+- Total story points: 61
+- Committed stories: 3
+- Stretch stories: 4
+- In Progress stories: 0
+- To Do stories: 7
 
-## Notes
-This epic groups CTMS backlog stories for GitHub Issues/Projects tracking.
-",,,,"ctms,epic,ctms-epic-10",,,,,
-ctms-epic-11,epic,Buffer and Synchronization,"## Module
-EPIC 11. Buffer and Synchronization
+## Stories
+- `CTMS-73`
+- `CTMS-74`
+- `CTMS-75`
+- `CTMS-76`
+- `CTMS-77`
+- `CTMS-78`
+- `CTMS-79`
+
+## Spec References
+- `/file/spec/ctms-73-view-current-location-on-offline-map.md`
+- `/file/spec/ctms-74-record-gps-breadcrumbs-during-trekking.md`
+- `/file/spec/ctms-75-warn-when-user-deviates-from-route.md`
+- `/file/spec/ctms-76-automatically-detect-checkpoint-arrival.md`
+- `/file/spec/ctms-77-show-direction-and-distance-back-to-route.md`
+- `/file/spec/ctms-78-adjust-gps-sampling-frequency.md`
+- `/file/spec/ctms-79-warn-when-progress-is-delayed.md`
+
+## Source of Truth
+This epic is generated from `docs/planning/jira-ctms-epic-backlog-plan.csv` and should stay aligned with the sprint plan and `/file/spec` references.
+",,,,"ctms,epic,ctms-epic-10",,,61,Sprint 4,committed:3; stretch:4
+ctms-epic-11,epic,Buffer & Sync,"## Module
+EPIC 11. Buffer & Sync
 
 ## External Epic ID
 `ctms-epic-11`
 
-## Scope
-- Committed: CTMS-80, CTMS-81, CTMS-82, CTMS-83
-- Stretch: CTMS-84, CTMS-85, CTMS-96
+## Plan Summary
+- Sprints: Sprint 4, Sprint 5
+- Story count: 7
+- Total story points: 42
+- Committed stories: 6
+- Stretch stories: 1
+- In Progress stories: 0
+- To Do stories: 7
 
-## Notes
-This epic groups CTMS backlog stories for GitHub Issues/Projects tracking.
-",,,,"ctms,epic,ctms-epic-11",,,,,
-ctms-epic-13,epic,SOS and Emergency Management,"## Module
-EPIC 13. SOS and Emergency Management
+## Stories
+- `CTMS-80`
+- `CTMS-81`
+- `CTMS-82`
+- `CTMS-83`
+- `CTMS-84`
+- `CTMS-85`
+- `CTMS-95`
+
+## Spec References
+- `/file/spec/ctms-80-store-gps-logs-locally-when-offline.md`
+- `/file/spec/ctms-81-automatically-sync-gps-when-connection-returns.md`
+- `/file/spec/ctms-82-prevent-duplicate-gps-log-submission.md`
+- `/file/spec/ctms-83-retry-failed-synchronization.md`
+- `/file/spec/ctms-84-view-latest-synced-location-of-each-member.md`
+- `/file/spec/ctms-85-view-device-synchronization-status.md`
+- `/file/spec/ctms-95-prioritize-sos-and-dangerous-events-during-sync.md`
+
+## Source of Truth
+This epic is generated from `docs/planning/jira-ctms-epic-backlog-plan.csv` and should stay aligned with the sprint plan and `/file/spec` references.
+",,,,"ctms,epic,ctms-epic-11",,,42,"Sprint 4, Sprint 5",committed:6; stretch:1
+ctms-epic-13,epic,Emergency Management,"## Module
+EPIC 13. Emergency Management
 
 ## External Epic ID
 `ctms-epic-13`
 
-## Scope
-- Committed: CTMS-93, CTMS-99, CTMS-100
-- Stretch: CTMS-95, CTMS-97, CTMS-101, CTMS-111
+## Plan Summary
+- Sprints: Sprint 5
+- Story count: 7
+- Total story points: 42
+- Committed stories: 6
+- Stretch stories: 1
+- In Progress stories: 0
+- To Do stories: 7
 
-## Notes
-This epic groups CTMS backlog stories for GitHub Issues/Projects tracking.
-",,,,"ctms,epic,ctms-epic-13",,,,,
+## Stories
+- `CTMS-92`
+- `CTMS-94`
+- `CTMS-96`
+- `CTMS-98`
+- `CTMS-99`
+- `CTMS-100`
+- `CTMS-110`
+
+## Spec References
+- `/file/spec/ctms-92-send-sos-when-in-danger.md`
+- `/file/spec/ctms-94-create-sos-even-when-offline.md`
+- `/file/spec/ctms-96-cancel-accidental-sos.md`
+- `/file/spec/ctms-98-receive-sos-alerts-in-real-time.md`
+- `/file/spec/ctms-99-acknowledge-sos-handling.md`
+- `/file/spec/ctms-100-broadcast-emergency-alert-to-a-trip.md`
+- `/file/spec/ctms-110-review-missed-alerts-after-reconnection.md`
+
+## Source of Truth
+This epic is generated from `docs/planning/jira-ctms-epic-backlog-plan.csv` and should stay aligned with the sprint plan and `/file/spec` references.
+",,,,"ctms,epic,ctms-epic-13",,,42,Sprint 5,committed:6; stretch:1
 ctms-epic-14,epic,Real-Time Communication,"## Module
 EPIC 14. Real-Time Communication
 
 ## External Epic ID
 `ctms-epic-14`
 
-## Scope
-- Committed: CTMS-98
-- Stretch: CTMS-102, CTMS-103, CTMS-104
+## Plan Summary
+- Sprints: Sprint 5
+- Story count: 4
+- Total story points: 23
+- Committed stories: 2
+- Stretch stories: 2
+- In Progress stories: 0
+- To Do stories: 4
 
-## Notes
-This epic groups CTMS backlog stories for GitHub Issues/Projects tracking.
-",,,,"ctms,epic,ctms-epic-14",,,,,
+## Stories
+- `CTMS-97`
+- `CTMS-101`
+- `CTMS-102`
+- `CTMS-103`
+
+## Spec References
+- `/file/spec/ctms-97-establish-authenticated-websocket-connection.md`
+- `/file/spec/ctms-101-automatically-reconnect-websocket.md`
+- `/file/spec/ctms-102-update-trip-seat-availability-in-real-time.md`
+- `/file/spec/ctms-103-measure-websocket-latency.md`
+
+## Source of Truth
+This epic is generated from `docs/planning/jira-ctms-epic-backlog-plan.csv` and should stay aligned with the sprint plan and `/file/spec` references.
+",,,,"ctms,epic,ctms-epic-14",,,23,Sprint 5,committed:2; stretch:2
 ctms-epic-15,epic,Host Monitoring Dashboard,"## Module
 EPIC 15. Host Monitoring Dashboard
 
 ## External Epic ID
 `ctms-epic-15`
 
-## Scope
-- Committed: None
-- Stretch: CTMS-105, CTMS-106, CTMS-107, CTMS-108, CTMS-109
+## Plan Summary
+- Sprints: Sprint 5
+- Story count: 5
+- Total story points: 29
+- Committed stories: 2
+- Stretch stories: 3
+- In Progress stories: 0
+- To Do stories: 5
 
-## Notes
-This epic groups CTMS backlog stories for GitHub Issues/Projects tracking.
-",,,,"ctms,epic,ctms-epic-15",,,,,
+## Stories
+- `CTMS-104`
+- `CTMS-105`
+- `CTMS-106`
+- `CTMS-107`
+- `CTMS-108`
+
+## Spec References
+- `/file/spec/ctms-104-view-active-trekking-trips-on-map.md`
+- `/file/spec/ctms-105-distinguish-real-time-and-last-seen-data.md`
+- `/file/spec/ctms-106-view-members-deviating-from-route-or-behind-schedule.md`
+- `/file/spec/ctms-107-manage-trip-incidents.md`
+- `/file/spec/ctms-108-view-booking-route-porter-and-alert-overview.md`
+
+## Source of Truth
+This epic is generated from `docs/planning/jira-ctms-epic-backlog-plan.csv` and should stay aligned with the sprint plan and `/file/spec` references.
+",,,,"ctms,epic,ctms-epic-15",,,29,Sprint 5,committed:2; stretch:3
 ctms-epic-16,epic,Notifications,"## Module
 EPIC 16. Notifications
 
 ## External Epic ID
 `ctms-epic-16`
 
-## Scope
-- Committed: None
-- Stretch: CTMS-110, CTMS-112
+## Plan Summary
+- Sprints: Sprint 5
+- Story count: 3
+- Total story points: 16
+- Committed stories: 1
+- Stretch stories: 2
+- In Progress stories: 0
+- To Do stories: 3
 
-## Notes
-This epic groups CTMS backlog stories for GitHub Issues/Projects tracking.
-",,,,"ctms,epic,ctms-epic-16",,,,,
+## Stories
+- `CTMS-109`
+- `CTMS-111`
+- `CTMS-112`
+
+## Spec References
+- `/file/spec/ctms-109-receive-in-app-notifications.md`
+- `/file/spec/ctms-111-receive-push-notifications-in-background.md`
+- `/file/spec/ctms-112-configure-normal-notification-types.md`
+
+## Source of Truth
+This epic is generated from `docs/planning/jira-ctms-epic-backlog-plan.csv` and should stay aligned with the sprint plan and `/file/spec` references.
+",,,,"ctms,epic,ctms-epic-16",,,16,Sprint 5,committed:1; stretch:2
 ctms-epic-17,epic,Reviews and Feedback,"## Module
 EPIC 17. Reviews and Feedback
 
 ## External Epic ID
 `ctms-epic-17`
 
-## Scope
-- Committed: None
-- Stretch: None
+## Plan Summary
+- Sprints: Sprint 5
+- Story count: 3
+- Total story points: 13
+- Committed stories: 0
+- Stretch stories: 3
+- In Progress stories: 0
+- To Do stories: 3
 
-## Notes
-This epic groups CTMS backlog stories for GitHub Issues/Projects tracking.
-",,,,"ctms,epic,ctms-epic-17",,,,,
-ctms-epic-18,epic,Reports and Evaluation Metrics,"## Module
-EPIC 18. Reports and Evaluation Metrics
+## Stories
+- `CTMS-113`
+- `CTMS-114`
+- `CTMS-115`
+
+## Spec References
+- `/file/spec/ctms-113-review-campsite-trip-or-route.md`
+- `/file/spec/ctms-114-review-porter-after-trip.md`
+- `/file/spec/ctms-115-report-incorrect-information-or-dangerous-content.md`
+
+## Source of Truth
+This epic is generated from `docs/planning/jira-ctms-epic-backlog-plan.csv` and should stay aligned with the sprint plan and `/file/spec` references.
+",,,,"ctms,epic,ctms-epic-17",,,13,Sprint 5,committed:0; stretch:3
+ctms-epic-18,epic,Reports,"## Module
+EPIC 18. Reports
 
 ## External Epic ID
 `ctms-epic-18`
 
-## Scope
-- Committed: CTMS-117, CTMS-118, CTMS-119, CTMS-120, CTMS-122
-- Stretch: None
+## Plan Summary
+- Sprints: Sprint 5
+- Story count: 7
+- Total story points: 47
+- Committed stories: 0
+- Stretch stories: 7
+- In Progress stories: 0
+- To Do stories: 7
 
-## Notes
-This epic groups CTMS backlog stories for GitHub Issues/Projects tracking.
-",,,,"ctms,epic,ctms-epic-18",,,,,
-ctms-epic-19,epic,Administration and Audit,"## Module
-EPIC 19. Administration and Audit
+## Stories
+- `CTMS-116`
+- `CTMS-117`
+- `CTMS-118`
+- `CTMS-119`
+- `CTMS-120`
+- `CTMS-121`
+- `CTMS-122`
+
+## Spec References
+- `/file/spec/ctms-116-evaluate-overcapacity-prevention-mechanism.md`
+- `/file/spec/ctms-117-evaluate-gps-deviation-detection.md`
+- `/file/spec/ctms-118-evaluate-buffer-and-sync.md`
+- `/file/spec/ctms-119-evaluate-ai-survival-assistant.md`
+- `/file/spec/ctms-120-compare-weather-risk-with-manual-assessment.md`
+- `/file/spec/ctms-121-measure-websocket-latency.md`
+- `/file/spec/ctms-122-view-booking-and-trip-zone-utilization-report.md`
+
+## Source of Truth
+This epic is generated from `docs/planning/jira-ctms-epic-backlog-plan.csv` and should stay aligned with the sprint plan and `/file/spec` references.
+",,,,"ctms,epic,ctms-epic-18",,,47,Sprint 5,committed:0; stretch:7
+ctms-epic-19,epic,Administration,"## Module
+EPIC 19. Administration
 
 ## External Epic ID
 `ctms-epic-19`
 
-## Scope
-- Committed: CTMS-125
-- Stretch: CTMS-124
+## Plan Summary
+- Sprints: Sprint 1
+- Story count: 4
+- Total story points: 23
+- Committed stories: 1
+- Stretch stories: 3
+- In Progress stories: 0
+- To Do stories: 4
 
-## Notes
-This epic groups CTMS backlog stories for GitHub Issues/Projects tracking.
-",,,,"ctms,epic,ctms-epic-19",,,,,
+## Stories
+- `CTMS-123`
+- `CTMS-124`
+- `CTMS-125`
+- `CTMS-126`
+
+## Spec References
+- `/file/spec/ctms-123-manage-user-accounts.md`
+- `/file/spec/ctms-124-write-audit-log-for-important-actions.md`
+- `/file/spec/ctms-125-view-audit-log.md`
+- `/file/spec/ctms-126-handle-content-reports.md`
+
+## Source of Truth
+This epic is generated from `docs/planning/jira-ctms-epic-backlog-plan.csv` and should stay aligned with the sprint plan and `/file/spec` references.
+",,,,"ctms,epic,ctms-epic-19",,,23,Sprint 1,committed:1; stretch:3
 CTMS-ENG-01,story,[CTMS-ENG-01] Engineering foundation,"## User Story
 Nền tảng kỹ thuật đã hoàn thành để bắt đầu sprint.
 

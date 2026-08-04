@@ -1,4 +1,4 @@
-# CTMS-18 - View Campsite Details
+﻿# CTMS-18 - View Campsite Details
 
 **Spec Reference**  
 /file/spec/ctms-18-view-campsite-details.md
@@ -16,69 +16,70 @@ As a Host, I want to view Campsite Details so that the CTMS workflow is complete
 - [ ] Show images, description, location, amenities, policies, zones, upcoming Trips with status = published, weather, and reviews.
 - [ ] do not show slots because the system manages campsites by zone.
 
-### Business Rules Checklist
-- [ ] BR-202: Enforce this mapped business rule for View Campsite Details; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-204: Enforce this mapped business rule for View Campsite Details; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-205: Enforce this mapped business rule for View Campsite Details; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-230: Enforce this mapped business rule for View Campsite Details; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-231: Enforce this mapped business rule for View Campsite Details; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-242: Enforce this mapped business rule for View Campsite Details; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-243: Enforce this mapped business rule for View Campsite Details; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-244: Enforce this mapped business rule for View Campsite Details; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-210: Enforce this mapped business rule for View Campsite Details; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-211: Enforce this mapped business rule for View Campsite Details; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-228: Enforce this mapped business rule for View Campsite Details; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-229: Enforce this mapped business rule for View Campsite Details; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-232: Enforce this mapped business rule for View Campsite Details; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-233: Enforce this mapped business rule for View Campsite Details; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-234: Enforce this mapped business rule for View Campsite Details; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-235: Enforce this mapped business rule for View Campsite Details; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-048: Enforce this mapped business rule for View Campsite Details; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-049: Enforce this mapped business rule for View Campsite Details; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
+## Business Rules Checklist
+- [ ] BR-048: Results must include name, location, representative image, and active routes.
+- [ ] BR-049: The system must display images, description, location, amenities, policies, zones, upcoming published Trips, weather, and reviews.
+- [ ] BR-202: Accounts in pending_verification, suspended, or deleted status must not use functions that require an active account, except allowed verification or recovery flows.
+- [ ] BR-204: Users may only view or change data they own unless their role and business relationship allow access to another user's data.
+- [ ] BR-205: All input data must be validated for required fields, data type, format, length, enum values, and cross-field relationships before processing.
+- [ ] BR-210: When concurrent requests change the same resource, the system must use transactions, locking, or version control to prevent overwrites and business limit violations.
+- [ ] BR-211: Every stateful resource must follow the defined state transitions and must not use values outside the database enum.
+- [ ] BR-228: Users may disable ordinary notifications, but mandatory safety or emergency alerts cannot be disabled while participating in the related Trip.
+- [ ] BR-229: When an external service times out or returns incomplete data, the system must record the error, must not assume success, and must not create unverifiable data.
+- [ ] BR-230: External-service retries must have limits and backoff; retries must not create duplicate records or transactions.
+- [ ] BR-231: APIs must return consistent error codes: 401 for authentication failure, 403 for insufficient permission, 404 for not found, 409 for business conflict, and 422 for invalid data.
+- [ ] BR-232: Error messages must be clear, actionable, and must not expose stack traces, secrets, or resources the user is not authorized to view.
+- [ ] BR-233: List APIs must support pagination and record limits; filtering and sorting may only use published fields.
+- [ ] BR-234: Public lists may only contain resources in public-allowed states; draft, suspended, closed, or archived resources must not be shown unless another rule explicitly allows it.
+- [ ] BR-235: Media must store URL and required metadata; client-provided URLs are valid only after the upload/verification flow is complete.
+- [ ] BR-242: When the backend rejects a request because data changed concurrently, the UI must preserve entered data, display the reason, and allow reload or retry.
+- [ ] BR-243: Cases with insufficient permission or unmet business conditions must not create any side effect.
+- [ ] BR-244: Changes to Business Rules, enums, state transitions, or API contracts must update the Spec, test cases, and data documentation together before Done.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
 - Priority: `Must Have`; Story points: `5`; Commitment: `Stretch`.
-- Epic: `EPIC 2. Campsite and Zone Management`.
+- Epic: `EPIC 2. Campsite`.
 - Sprint: `Sprint 2`; planned window: `2026-08-09` to `2026-08-22`.
 - Keep API, UI, database, tests, and Jira references aligned with the exact Spec Reference path above.
 
 ## Story-Specific Implementation Tasks
-- CTMS-18-T01 [Backend Preparation, Logic, and Tests] Define preconditions, request/response contract, authorization, validation, domain service behavior, persistence mapping, transaction handling, and backend tests for `View Campsite Details`. Ref: /file/spec/ctms-18-view-campsite-details.md#backend-preparation-logic-and-tests
-- CTMS-18-T02 [UI and Tests] Implement the user-facing flow, API integration, loading/error/empty/success states, validation messaging, and component/E2E coverage for `View Campsite Details`. Ref: /file/spec/ctms-18-view-campsite-details.md#ui-and-tests
+- CTMS-18-T01 [BE / Shared Logic] Implement `View Campsite Details` for this task scope and enforce mapped BRs: BR-202, BR-204, BR-205, BR-230, BR-231, BR-242, BR-243, BR-244, BR-210, BR-211, BR-228, BR-229, BR-232, BR-233, BR-234, BR-235, BR-048, BR-049, BR-206, BR-207. Ref: /file/spec/ctms-18-view-campsite-details.md#backend-preparation-logic-and-tests
+- CTMS-18-T02 [UI Web/Mobile/Consumer] Implement `View Campsite Details` for this task scope and enforce mapped BRs: BR-202, BR-204, BR-205, BR-230, BR-231, BR-240, BR-241, BR-242, BR-048, BR-049. Ref: /file/spec/ctms-18-view-campsite-details.md#ui-and-tests
 
 ## Task to Acceptance Criteria Traceability
 | Acceptance criterion / BR | Covered by tasks | Evidence expected |
 | --- | --- | --- |
 | AC1: Show images, description, location, amenities, policies, zones, upcoming Trips with status = published, weather, and reviews | CTMS-18-T01, CTMS-18-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC2: do not show slots because the system manages campsites by zone | CTMS-18-T01, CTMS-18-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-202 | CTMS-18-T01, CTMS-18-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-204 | CTMS-18-T01, CTMS-18-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-205 | CTMS-18-T01, CTMS-18-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-230 | CTMS-18-T01, CTMS-18-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-231 | CTMS-18-T01, CTMS-18-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-242 | CTMS-18-T01, CTMS-18-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-243 | CTMS-18-T01, CTMS-18-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-244 | CTMS-18-T01, CTMS-18-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-210 | CTMS-18-T01, CTMS-18-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-211 | CTMS-18-T01, CTMS-18-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-228 | CTMS-18-T01, CTMS-18-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-229 | CTMS-18-T01, CTMS-18-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-232 | CTMS-18-T01, CTMS-18-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-233 | CTMS-18-T01, CTMS-18-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-234 | CTMS-18-T01, CTMS-18-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-235 | CTMS-18-T01, CTMS-18-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-048 | CTMS-18-T01, CTMS-18-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-049 | CTMS-18-T01, CTMS-18-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
+| BR-202: Accounts in pending_verification, suspended, or deleted status must not use functions that require an active account, except allowed verification or recovery flows. | CTMS-18-T01, CTMS-18-T02 | Tests and review evidence must prove this exact rule is enforced: Accounts in pending_verification, suspended, or deleted status must not use functions that require an active account, except allowed verification or recovery flows. |
+| BR-204: Users may only view or change data they own unless their role and business relationship allow access to another user's data. | CTMS-18-T01, CTMS-18-T02 | Tests and review evidence must prove this exact rule is enforced: Users may only view or change data they own unless their role and business relationship allow access to another user's data. |
+| BR-205: All input data must be validated for required fields, data type, format, length, enum values, and cross-field relationships before processing. | CTMS-18-T01, CTMS-18-T02 | Tests and review evidence must prove this exact rule is enforced: All input data must be validated for required fields, data type, format, length, enum values, and cross-field relationships before processing. |
+| BR-230: External-service retries must have limits and backoff; retries must not create duplicate records or transactions. | CTMS-18-T01, CTMS-18-T02 | Tests and review evidence must prove this exact rule is enforced: External-service retries must have limits and backoff; retries must not create duplicate records or transactions. |
+| BR-231: APIs must return consistent error codes: 401 for authentication failure, 403 for insufficient permission, 404 for not found, 409 for business conflict, and 422 for invalid data. | CTMS-18-T01, CTMS-18-T02 | Tests and review evidence must prove this exact rule is enforced: APIs must return consistent error codes: 401 for authentication failure, 403 for insufficient permission, 404 for not found, 409 for business conflict, and 422 for invalid data. |
+| BR-242: When the backend rejects a request because data changed concurrently, the UI must preserve entered data, display the reason, and allow reload or retry. | CTMS-18-T01, CTMS-18-T02 | Tests and review evidence must prove this exact rule is enforced: When the backend rejects a request because data changed concurrently, the UI must preserve entered data, display the reason, and allow reload or retry. |
+| BR-243: Cases with insufficient permission or unmet business conditions must not create any side effect. | CTMS-18-T01 | Tests and review evidence must prove this exact rule is enforced: Cases with insufficient permission or unmet business conditions must not create any side effect. |
+| BR-244: Changes to Business Rules, enums, state transitions, or API contracts must update the Spec, test cases, and data documentation together before Done. | CTMS-18-T01 | Tests and review evidence must prove this exact rule is enforced: Changes to Business Rules, enums, state transitions, or API contracts must update the Spec, test cases, and data documentation together before Done. |
+| BR-210: When concurrent requests change the same resource, the system must use transactions, locking, or version control to prevent overwrites and business limit violations. | CTMS-18-T01 | Tests and review evidence must prove this exact rule is enforced: When concurrent requests change the same resource, the system must use transactions, locking, or version control to prevent overwrites and business limit violations. |
+| BR-211: Every stateful resource must follow the defined state transitions and must not use values outside the database enum. | CTMS-18-T01 | Tests and review evidence must prove this exact rule is enforced: Every stateful resource must follow the defined state transitions and must not use values outside the database enum. |
+| BR-228: Users may disable ordinary notifications, but mandatory safety or emergency alerts cannot be disabled while participating in the related Trip. | CTMS-18-T01 | Tests and review evidence must prove this exact rule is enforced: Users may disable ordinary notifications, but mandatory safety or emergency alerts cannot be disabled while participating in the related Trip. |
+| BR-229: When an external service times out or returns incomplete data, the system must record the error, must not assume success, and must not create unverifiable data. | CTMS-18-T01 | Tests and review evidence must prove this exact rule is enforced: When an external service times out or returns incomplete data, the system must record the error, must not assume success, and must not create unverifiable data. |
+| BR-232: Error messages must be clear, actionable, and must not expose stack traces, secrets, or resources the user is not authorized to view. | CTMS-18-T01 | Tests and review evidence must prove this exact rule is enforced: Error messages must be clear, actionable, and must not expose stack traces, secrets, or resources the user is not authorized to view. |
+| BR-233: List APIs must support pagination and record limits; filtering and sorting may only use published fields. | CTMS-18-T01 | Tests and review evidence must prove this exact rule is enforced: List APIs must support pagination and record limits; filtering and sorting may only use published fields. |
+| BR-234: Public lists may only contain resources in public-allowed states; draft, suspended, closed, or archived resources must not be shown unless another rule explicitly allows it. | CTMS-18-T01 | Tests and review evidence must prove this exact rule is enforced: Public lists may only contain resources in public-allowed states; draft, suspended, closed, or archived resources must not be shown unless another rule explicitly allows it. |
+| BR-235: Media must store URL and required metadata; client-provided URLs are valid only after the upload/verification flow is complete. | CTMS-18-T01 | Tests and review evidence must prove this exact rule is enforced: Media must store URL and required metadata; client-provided URLs are valid only after the upload/verification flow is complete. |
+| BR-048: Results must include name, location, representative image, and active routes. | CTMS-18-T01, CTMS-18-T02 | Tests and review evidence must prove this exact rule is enforced: Results must include name, location, representative image, and active routes. |
+| BR-049: The system must display images, description, location, amenities, policies, zones, upcoming published Trips, weather, and reviews. | CTMS-18-T01, CTMS-18-T02 | Tests and review evidence must prove this exact rule is enforced: The system must display images, description, location, amenities, policies, zones, upcoming published Trips, weather, and reviews. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, campsites, or bookings.
 - Concurrent requests, duplicate submissions, stale reads, and retry behavior can create inconsistent state if transactions and idempotency are not handled.
 - UI validation must improve the user experience but must never replace backend validation or permission checks.
 - State transitions must reject invalid source states and preserve a clear error response for the user or calling service.
+- Any mapped BR missing from tests creates a release risk and must be resolved before Done.
 
 ## Functional and Domain Requirements
-- Implement the `View Campsite Details` workflow exactly within `EPIC 2. Campsite and Zone Management`.
+- Implement the `View Campsite Details` workflow exactly within `EPIC 2. Campsite`.
 - Enforce role-based access before executing any domain action.
 - Validate all required fields, enum values, date ranges, ownership boundaries, and cross-entity references before writing data.
 - Return consistent API errors: 401 for authentication failures, 403 for authorization failures, 404 for missing resources, 409 for business conflicts, and 422 for invalid input.
@@ -112,13 +113,16 @@ As a Host, I want to view Campsite Details so that the CTMS workflow is complete
 - Add API or integration tests for success, invalid input, unauthorized access, missing resource, conflict, and rollback cases.
 - Add UI/component tests for rendering, validation messages, disabled states, loading states, error handling, and successful submission where UI exists.
 - Add E2E coverage for the primary user journey and at least one critical failure path.
+- Every BR listed in the Business Rules Checklist must appear in at least one test or review evidence item.
 
 ## References
 - Story ID: `CTMS-18`
-- Epic: `EPIC 2. Campsite and Zone Management`
+- Epic: `EPIC 2. Campsite`
 - Sprint: `Sprint 2`
 - Dependencies: `CTMS-17`
 - Linked items: `Blocked by: CTMS-17
+
 Blocks: None`
 - Spec Reference: `/file/spec/ctms-18-view-campsite-details.md`
-- Business Rules: `BR-202, BR-204, BR-205, BR-230, BR-231, BR-242, BR-243, BR-244, BR-210, BR-211, BR-228, BR-229, BR-232, BR-233, BR-234, BR-235, BR-048, BR-049`
+- Business Rules workbook: `C:/Users/admin/Downloads/CTMS_Global_Business_Rules_Sprint_1-3.xlsx`
+- Story-level BRs: `BR-202, BR-204, BR-205, BR-230, BR-231, BR-242, BR-243, BR-244, BR-210, BR-211, BR-228, BR-229, BR-232, BR-233, BR-234, BR-235, BR-048, BR-049`

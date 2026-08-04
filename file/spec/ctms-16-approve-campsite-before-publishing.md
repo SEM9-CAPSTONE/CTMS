@@ -1,4 +1,4 @@
-# CTMS-16 - Approve Campsite Before Publishing
+﻿# CTMS-16 - Approve Campsite Before Publishing
 
 **Spec Reference**  
 /file/spec/ctms-16-approve-campsite-before-publishing.md
@@ -17,37 +17,37 @@ As an Admin, I want to approve Campsite Before Publishing so that the CTMS workf
 - [ ] approval changes status to active. If not approved, status returns to draft for Host edits and the reason is saved in audit_logs/notifications.
 - [ ] do not use rejected because the database does not define that status.
 
-### Business Rules Checklist
-- [ ] BR-202: Enforce this mapped business rule for Approve Campsite Before Publishing; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-204: Enforce this mapped business rule for Approve Campsite Before Publishing; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-205: Enforce this mapped business rule for Approve Campsite Before Publishing; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-230: Enforce this mapped business rule for Approve Campsite Before Publishing; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-231: Enforce this mapped business rule for Approve Campsite Before Publishing; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-242: Enforce this mapped business rule for Approve Campsite Before Publishing; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-243: Enforce this mapped business rule for Approve Campsite Before Publishing; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-244: Enforce this mapped business rule for Approve Campsite Before Publishing; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-210: Enforce this mapped business rule for Approve Campsite Before Publishing; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-211: Enforce this mapped business rule for Approve Campsite Before Publishing; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-221: Enforce this mapped business rule for Approve Campsite Before Publishing; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-222: Enforce this mapped business rule for Approve Campsite Before Publishing; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-223: Enforce this mapped business rule for Approve Campsite Before Publishing; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-224: Enforce this mapped business rule for Approve Campsite Before Publishing; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-225: Enforce this mapped business rule for Approve Campsite Before Publishing; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-226: Enforce this mapped business rule for Approve Campsite Before Publishing; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-042: Enforce this mapped business rule for Approve Campsite Before Publishing; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-043: Enforce this mapped business rule for Approve Campsite Before Publishing; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-044: Enforce this mapped business rule for Approve Campsite Before Publishing; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
+## Business Rules Checklist
+- [ ] BR-042: Only the Host who owns the campsite may update it.
+- [ ] BR-043: Only campsites with status = pending_approval may be reviewed.
+- [ ] BR-044: Approval changes status to active. Rejection returns the campsite to draft so the Host can edit it, and the reason must be stored in audit_logs/notifications.
+- [ ] BR-202: Accounts in pending_verification, suspended, or deleted status must not use functions that require an active account, except allowed verification or recovery flows.
+- [ ] BR-204: Users may only view or change data they own unless their role and business relationship allow access to another user's data.
+- [ ] BR-205: All input data must be validated for required fields, data type, format, length, enum values, and cross-field relationships before processing.
+- [ ] BR-210: When concurrent requests change the same resource, the system must use transactions, locking, or version control to prevent overwrites and business limit violations.
+- [ ] BR-211: Every stateful resource must follow the defined state transitions and must not use values outside the database enum.
+- [ ] BR-221: OTP TTL, token TTL, retry count, rate limit, booking hold duration, and retry deadline must be configurable and not hard-coded in logic.
+- [ ] BR-222: Important actions must be written to the audit log with actor, action, target, timestamp, before/after data, or change reason.
+- [ ] BR-223: Audit logs are append-only; users and Admins must not edit or delete audit logs through normal business functions.
+- [ ] BR-224: Audit logs must not contain passwords, OTPs, tokens, sensitive payment data, or unnecessary health data.
+- [ ] BR-225: Automated actions must record actor_id = NULL or a system actor and include a clear execution reason.
+- [ ] BR-226: Notifications may only be emitted after the business change succeeds; notification delivery failure must not undo the main transaction result.
+- [ ] BR-230: External-service retries must have limits and backoff; retries must not create duplicate records or transactions.
+- [ ] BR-231: APIs must return consistent error codes: 401 for authentication failure, 403 for insufficient permission, 404 for not found, 409 for business conflict, and 422 for invalid data.
+- [ ] BR-242: When the backend rejects a request because data changed concurrently, the UI must preserve entered data, display the reason, and allow reload or retry.
+- [ ] BR-243: Cases with insufficient permission or unmet business conditions must not create any side effect.
+- [ ] BR-244: Changes to Business Rules, enums, state transitions, or API contracts must update the Spec, test cases, and data documentation together before Done.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
 - Priority: `Should Have`; Story points: `5`; Commitment: `Stretch`.
-- Epic: `EPIC 2. Campsite and Zone Management`.
+- Epic: `EPIC 2. Campsite`.
 - Sprint: `Sprint 2`; planned window: `2026-08-09` to `2026-08-22`.
 - Keep API, UI, database, tests, and Jira references aligned with the exact Spec Reference path above.
 
 ## Story-Specific Implementation Tasks
-- CTMS-16-T01 [Backend Preparation, Logic, and Tests] Define preconditions, request/response contract, authorization, validation, domain service behavior, persistence mapping, transaction handling, and backend tests for `Approve Campsite Before Publishing`. Ref: /file/spec/ctms-16-approve-campsite-before-publishing.md#backend-preparation-logic-and-tests
-- CTMS-16-T02 [UI and Tests] Implement the user-facing flow, API integration, loading/error/empty/success states, validation messaging, and component/E2E coverage for `Approve Campsite Before Publishing`. Ref: /file/spec/ctms-16-approve-campsite-before-publishing.md#ui-and-tests
+- CTMS-16-T01 [BE / Shared Logic] Implement `Approve Campsite Before Publishing` for this task scope and enforce mapped BRs: BR-202, BR-204, BR-205, BR-230, BR-231, BR-242, BR-243, BR-244, BR-210, BR-211, BR-221, BR-222, BR-223, BR-224, BR-225, BR-226, BR-042, BR-043, BR-044, BR-206, BR-207. Ref: /file/spec/ctms-16-approve-campsite-before-publishing.md#backend-preparation-logic-and-tests
+- CTMS-16-T02 [UI Web/Mobile/Consumer] Implement `Approve Campsite Before Publishing` for this task scope and enforce mapped BRs: BR-202, BR-204, BR-205, BR-230, BR-231, BR-240, BR-241, BR-242, BR-042, BR-043, BR-044. Ref: /file/spec/ctms-16-approve-campsite-before-publishing.md#ui-and-tests
 
 ## Task to Acceptance Criteria Traceability
 | Acceptance criterion / BR | Covered by tasks | Evidence expected |
@@ -55,34 +55,35 @@ As an Admin, I want to approve Campsite Before Publishing so that the CTMS workf
 | AC1: Only campsites with status = pending_approval can be reviewed | CTMS-16-T01, CTMS-16-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC2: approval changes status to active. If not approved, status returns to draft for Host edits and the reason is saved in audit_logs/notifications | CTMS-16-T01, CTMS-16-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: do not use rejected because the database does not define that status | CTMS-16-T01, CTMS-16-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-202 | CTMS-16-T01, CTMS-16-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-204 | CTMS-16-T01, CTMS-16-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-205 | CTMS-16-T01, CTMS-16-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-230 | CTMS-16-T01, CTMS-16-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-231 | CTMS-16-T01, CTMS-16-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-242 | CTMS-16-T01, CTMS-16-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-243 | CTMS-16-T01, CTMS-16-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-244 | CTMS-16-T01, CTMS-16-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-210 | CTMS-16-T01, CTMS-16-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-211 | CTMS-16-T01, CTMS-16-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-221 | CTMS-16-T01, CTMS-16-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-222 | CTMS-16-T01, CTMS-16-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-223 | CTMS-16-T01, CTMS-16-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-224 | CTMS-16-T01, CTMS-16-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-225 | CTMS-16-T01, CTMS-16-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-226 | CTMS-16-T01, CTMS-16-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-042 | CTMS-16-T01, CTMS-16-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-043 | CTMS-16-T01, CTMS-16-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-044 | CTMS-16-T01, CTMS-16-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
+| BR-202: Accounts in pending_verification, suspended, or deleted status must not use functions that require an active account, except allowed verification or recovery flows. | CTMS-16-T01, CTMS-16-T02 | Tests and review evidence must prove this exact rule is enforced: Accounts in pending_verification, suspended, or deleted status must not use functions that require an active account, except allowed verification or recovery flows. |
+| BR-204: Users may only view or change data they own unless their role and business relationship allow access to another user's data. | CTMS-16-T01, CTMS-16-T02 | Tests and review evidence must prove this exact rule is enforced: Users may only view or change data they own unless their role and business relationship allow access to another user's data. |
+| BR-205: All input data must be validated for required fields, data type, format, length, enum values, and cross-field relationships before processing. | CTMS-16-T01, CTMS-16-T02 | Tests and review evidence must prove this exact rule is enforced: All input data must be validated for required fields, data type, format, length, enum values, and cross-field relationships before processing. |
+| BR-230: External-service retries must have limits and backoff; retries must not create duplicate records or transactions. | CTMS-16-T01, CTMS-16-T02 | Tests and review evidence must prove this exact rule is enforced: External-service retries must have limits and backoff; retries must not create duplicate records or transactions. |
+| BR-231: APIs must return consistent error codes: 401 for authentication failure, 403 for insufficient permission, 404 for not found, 409 for business conflict, and 422 for invalid data. | CTMS-16-T01, CTMS-16-T02 | Tests and review evidence must prove this exact rule is enforced: APIs must return consistent error codes: 401 for authentication failure, 403 for insufficient permission, 404 for not found, 409 for business conflict, and 422 for invalid data. |
+| BR-242: When the backend rejects a request because data changed concurrently, the UI must preserve entered data, display the reason, and allow reload or retry. | CTMS-16-T01, CTMS-16-T02 | Tests and review evidence must prove this exact rule is enforced: When the backend rejects a request because data changed concurrently, the UI must preserve entered data, display the reason, and allow reload or retry. |
+| BR-243: Cases with insufficient permission or unmet business conditions must not create any side effect. | CTMS-16-T01 | Tests and review evidence must prove this exact rule is enforced: Cases with insufficient permission or unmet business conditions must not create any side effect. |
+| BR-244: Changes to Business Rules, enums, state transitions, or API contracts must update the Spec, test cases, and data documentation together before Done. | CTMS-16-T01 | Tests and review evidence must prove this exact rule is enforced: Changes to Business Rules, enums, state transitions, or API contracts must update the Spec, test cases, and data documentation together before Done. |
+| BR-210: When concurrent requests change the same resource, the system must use transactions, locking, or version control to prevent overwrites and business limit violations. | CTMS-16-T01 | Tests and review evidence must prove this exact rule is enforced: When concurrent requests change the same resource, the system must use transactions, locking, or version control to prevent overwrites and business limit violations. |
+| BR-211: Every stateful resource must follow the defined state transitions and must not use values outside the database enum. | CTMS-16-T01 | Tests and review evidence must prove this exact rule is enforced: Every stateful resource must follow the defined state transitions and must not use values outside the database enum. |
+| BR-221: OTP TTL, token TTL, retry count, rate limit, booking hold duration, and retry deadline must be configurable and not hard-coded in logic. | CTMS-16-T01 | Tests and review evidence must prove this exact rule is enforced: OTP TTL, token TTL, retry count, rate limit, booking hold duration, and retry deadline must be configurable and not hard-coded in logic. |
+| BR-222: Important actions must be written to the audit log with actor, action, target, timestamp, before/after data, or change reason. | CTMS-16-T01 | Tests and review evidence must prove this exact rule is enforced: Important actions must be written to the audit log with actor, action, target, timestamp, before/after data, or change reason. |
+| BR-223: Audit logs are append-only; users and Admins must not edit or delete audit logs through normal business functions. | CTMS-16-T01 | Tests and review evidence must prove this exact rule is enforced: Audit logs are append-only; users and Admins must not edit or delete audit logs through normal business functions. |
+| BR-224: Audit logs must not contain passwords, OTPs, tokens, sensitive payment data, or unnecessary health data. | CTMS-16-T01 | Tests and review evidence must prove this exact rule is enforced: Audit logs must not contain passwords, OTPs, tokens, sensitive payment data, or unnecessary health data. |
+| BR-225: Automated actions must record actor_id = NULL or a system actor and include a clear execution reason. | CTMS-16-T01 | Tests and review evidence must prove this exact rule is enforced: Automated actions must record actor_id = NULL or a system actor and include a clear execution reason. |
+| BR-226: Notifications may only be emitted after the business change succeeds; notification delivery failure must not undo the main transaction result. | CTMS-16-T01 | Tests and review evidence must prove this exact rule is enforced: Notifications may only be emitted after the business change succeeds; notification delivery failure must not undo the main transaction result. |
+| BR-042: Only the Host who owns the campsite may update it. | CTMS-16-T01, CTMS-16-T02 | Tests and review evidence must prove this exact rule is enforced: Only the Host who owns the campsite may update it. |
+| BR-043: Only campsites with status = pending_approval may be reviewed. | CTMS-16-T01, CTMS-16-T02 | Tests and review evidence must prove this exact rule is enforced: Only campsites with status = pending_approval may be reviewed. |
+| BR-044: Approval changes status to active. Rejection returns the campsite to draft so the Host can edit it, and the reason must be stored in audit_logs/notifications. | CTMS-16-T01, CTMS-16-T02 | Tests and review evidence must prove this exact rule is enforced: Approval changes status to active. Rejection returns the campsite to draft so the Host can edit it, and the reason must be stored in audit_logs/notifications. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, campsites, or bookings.
 - Concurrent requests, duplicate submissions, stale reads, and retry behavior can create inconsistent state if transactions and idempotency are not handled.
 - UI validation must improve the user experience but must never replace backend validation or permission checks.
 - State transitions must reject invalid source states and preserve a clear error response for the user or calling service.
+- Any mapped BR missing from tests creates a release risk and must be resolved before Done.
 
 ## Functional and Domain Requirements
-- Implement the `Approve Campsite Before Publishing` workflow exactly within `EPIC 2. Campsite and Zone Management`.
+- Implement the `Approve Campsite Before Publishing` workflow exactly within `EPIC 2. Campsite`.
 - Enforce role-based access before executing any domain action.
 - Validate all required fields, enum values, date ranges, ownership boundaries, and cross-entity references before writing data.
 - Return consistent API errors: 401 for authentication failures, 403 for authorization failures, 404 for missing resources, 409 for business conflicts, and 422 for invalid input.
@@ -116,13 +117,16 @@ As an Admin, I want to approve Campsite Before Publishing so that the CTMS workf
 - Add API or integration tests for success, invalid input, unauthorized access, missing resource, conflict, and rollback cases.
 - Add UI/component tests for rendering, validation messages, disabled states, loading states, error handling, and successful submission where UI exists.
 - Add E2E coverage for the primary user journey and at least one critical failure path.
+- Every BR listed in the Business Rules Checklist must appear in at least one test or review evidence item.
 
 ## References
 - Story ID: `CTMS-16`
-- Epic: `EPIC 2. Campsite and Zone Management`
+- Epic: `EPIC 2. Campsite`
 - Sprint: `Sprint 2`
 - Dependencies: `CTMS-06, CTMS-10`
 - Linked items: `Blocked by: CTMS-06, CTMS-10
+
 Blocks: CTMS-17`
 - Spec Reference: `/file/spec/ctms-16-approve-campsite-before-publishing.md`
-- Business Rules: `BR-202, BR-204, BR-205, BR-230, BR-231, BR-242, BR-243, BR-244, BR-210, BR-211, BR-221, BR-222, BR-223, BR-224, BR-225, BR-226, BR-042, BR-043, BR-044`
+- Business Rules workbook: `C:/Users/admin/Downloads/CTMS_Global_Business_Rules_Sprint_1-3.xlsx`
+- Story-level BRs: `BR-202, BR-204, BR-205, BR-230, BR-231, BR-242, BR-243, BR-244, BR-210, BR-211, BR-221, BR-222, BR-223, BR-224, BR-225, BR-226, BR-042, BR-043, BR-044`
