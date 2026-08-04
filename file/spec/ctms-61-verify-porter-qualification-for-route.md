@@ -1,4 +1,4 @@
-# CTMS-61 - Verify Porter Qualification for Route
+﻿# CTMS-61 - Verify Porter Qualification for Route
 
 **Spec Reference**  
 /file/spec/ctms-61-verify-porter-qualification-for-route.md
@@ -18,21 +18,21 @@ As a Porter, I want to verify Porter Qualification for Route so that the CTMS wo
 - [ ] save times_led, verified_by, and verified_at.
 - [ ] each Porter has only one profile per route.
 
-### Business Rules Checklist
-- [ ] BR-202: Enforce this mapped business rule for Verify Porter Qualification for Route; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-204: Enforce this mapped business rule for Verify Porter Qualification for Route; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-205: Enforce this mapped business rule for Verify Porter Qualification for Route; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-230: Enforce this mapped business rule for Verify Porter Qualification for Route; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-231: Enforce this mapped business rule for Verify Porter Qualification for Route; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-242: Enforce this mapped business rule for Verify Porter Qualification for Route; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-243: Enforce this mapped business rule for Verify Porter Qualification for Route; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-244: Enforce this mapped business rule for Verify Porter Qualification for Route; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-210: Enforce this mapped business rule for Verify Porter Qualification for Route; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-211: Enforce this mapped business rule for Verify Porter Qualification for Route; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-181: Enforce this mapped business rule for Verify Porter Qualification for Route; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-182: Enforce this mapped business rule for Verify Porter Qualification for Route; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-183: Enforce this mapped business rule for Verify Porter Qualification for Route; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-184: Enforce this mapped business rule for Verify Porter Qualification for Route; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
+## Business Rules Checklist
+- [ ] BR-181: The Host receives a notification.
+- [ ] BR-182: Only Porters with campsite_porters.status = active at the route campsite may be assigned proficiency.
+- [ ] BR-183: Porter_routes.proficiency must use learning, proficient, or expert.
+- [ ] BR-184: The system must store times_led, verified_by, and verified_at.
+- [ ] BR-202: Accounts in pending_verification, suspended, or deleted status must not use functions that require an active account, except allowed verification or recovery flows.
+- [ ] BR-204: Users may only view or change data they own unless their role and business relationship allow access to another user's data.
+- [ ] BR-205: All input data must be validated for required fields, data type, format, length, enum values, and cross-field relationships before processing.
+- [ ] BR-210: When concurrent requests change the same resource, the system must use transactions, locking, or version control to prevent overwrites and business limit violations.
+- [ ] BR-211: Every stateful resource must follow the defined state transitions and must not use values outside the database enum.
+- [ ] BR-230: External-service retries must have limits and backoff; retries must not create duplicate records or transactions.
+- [ ] BR-231: APIs must return consistent error codes: 401 for authentication failure, 403 for insufficient permission, 404 for not found, 409 for business conflict, and 422 for invalid data.
+- [ ] BR-242: When the backend rejects a request because data changed concurrently, the UI must preserve entered data, display the reason, and allow reload or retry.
+- [ ] BR-243: Cases with insufficient permission or unmet business conditions must not create any side effect.
+- [ ] BR-244: Changes to Business Rules, enums, state transitions, or API contracts must update the Spec, test cases, and data documentation together before Done.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -42,8 +42,8 @@ As a Porter, I want to verify Porter Qualification for Route so that the CTMS wo
 - Keep API, UI, database, tests, and Jira references aligned with the exact Spec Reference path above.
 
 ## Story-Specific Implementation Tasks
-- CTMS-61-T01 [Backend Preparation, Logic, and Tests] Define preconditions, request/response contract, authorization, validation, domain service behavior, persistence mapping, transaction handling, and backend tests for `Verify Porter Qualification for Route`. Ref: /file/spec/ctms-61-verify-porter-qualification-for-route.md#backend-preparation-logic-and-tests
-- CTMS-61-T02 [UI and Tests] Implement the user-facing flow, API integration, loading/error/empty/success states, validation messaging, and component/E2E coverage for `Verify Porter Qualification for Route`. Ref: /file/spec/ctms-61-verify-porter-qualification-for-route.md#ui-and-tests
+- CTMS-61-T01 [BE / Shared Logic] Implement `Verify Porter Qualification for Route` for this task scope and enforce mapped BRs: BR-202, BR-204, BR-205, BR-230, BR-231, BR-242, BR-243, BR-244, BR-210, BR-211, BR-181, BR-182, BR-183, BR-184, BR-206, BR-207. Ref: /file/spec/ctms-61-verify-porter-qualification-for-route.md#backend-preparation-logic-and-tests
+- CTMS-61-T02 [UI Web/Mobile/Consumer] Implement `Verify Porter Qualification for Route` for this task scope and enforce mapped BRs: BR-202, BR-204, BR-205, BR-230, BR-231, BR-240, BR-241, BR-242, BR-181, BR-182, BR-183, BR-184. Ref: /file/spec/ctms-61-verify-porter-qualification-for-route.md#ui-and-tests
 
 ## Task to Acceptance Criteria Traceability
 | Acceptance criterion / BR | Covered by tasks | Evidence expected |
@@ -52,26 +52,27 @@ As a Porter, I want to verify Porter Qualification for Route so that the CTMS wo
 | AC2: porter_routes.proficiency uses learning, proficient, or expert | CTMS-61-T01, CTMS-61-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: save times_led, verified_by, and verified_at | CTMS-61-T01, CTMS-61-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: each Porter has only one profile per route | CTMS-61-T01, CTMS-61-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-202 | CTMS-61-T01, CTMS-61-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-204 | CTMS-61-T01, CTMS-61-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-205 | CTMS-61-T01, CTMS-61-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-230 | CTMS-61-T01, CTMS-61-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-231 | CTMS-61-T01, CTMS-61-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-242 | CTMS-61-T01, CTMS-61-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-243 | CTMS-61-T01, CTMS-61-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-244 | CTMS-61-T01, CTMS-61-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-210 | CTMS-61-T01, CTMS-61-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-211 | CTMS-61-T01, CTMS-61-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-181 | CTMS-61-T01, CTMS-61-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-182 | CTMS-61-T01, CTMS-61-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-183 | CTMS-61-T01, CTMS-61-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-184 | CTMS-61-T01, CTMS-61-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
+| BR-202: Accounts in pending_verification, suspended, or deleted status must not use functions that require an active account, except allowed verification or recovery flows. | CTMS-61-T01, CTMS-61-T02 | Tests and review evidence must prove this exact rule is enforced: Accounts in pending_verification, suspended, or deleted status must not use functions that require an active account, except allowed verification or recovery flows. |
+| BR-204: Users may only view or change data they own unless their role and business relationship allow access to another user's data. | CTMS-61-T01, CTMS-61-T02 | Tests and review evidence must prove this exact rule is enforced: Users may only view or change data they own unless their role and business relationship allow access to another user's data. |
+| BR-205: All input data must be validated for required fields, data type, format, length, enum values, and cross-field relationships before processing. | CTMS-61-T01, CTMS-61-T02 | Tests and review evidence must prove this exact rule is enforced: All input data must be validated for required fields, data type, format, length, enum values, and cross-field relationships before processing. |
+| BR-230: External-service retries must have limits and backoff; retries must not create duplicate records or transactions. | CTMS-61-T01, CTMS-61-T02 | Tests and review evidence must prove this exact rule is enforced: External-service retries must have limits and backoff; retries must not create duplicate records or transactions. |
+| BR-231: APIs must return consistent error codes: 401 for authentication failure, 403 for insufficient permission, 404 for not found, 409 for business conflict, and 422 for invalid data. | CTMS-61-T01, CTMS-61-T02 | Tests and review evidence must prove this exact rule is enforced: APIs must return consistent error codes: 401 for authentication failure, 403 for insufficient permission, 404 for not found, 409 for business conflict, and 422 for invalid data. |
+| BR-242: When the backend rejects a request because data changed concurrently, the UI must preserve entered data, display the reason, and allow reload or retry. | CTMS-61-T01, CTMS-61-T02 | Tests and review evidence must prove this exact rule is enforced: When the backend rejects a request because data changed concurrently, the UI must preserve entered data, display the reason, and allow reload or retry. |
+| BR-243: Cases with insufficient permission or unmet business conditions must not create any side effect. | CTMS-61-T01 | Tests and review evidence must prove this exact rule is enforced: Cases with insufficient permission or unmet business conditions must not create any side effect. |
+| BR-244: Changes to Business Rules, enums, state transitions, or API contracts must update the Spec, test cases, and data documentation together before Done. | CTMS-61-T01 | Tests and review evidence must prove this exact rule is enforced: Changes to Business Rules, enums, state transitions, or API contracts must update the Spec, test cases, and data documentation together before Done. |
+| BR-210: When concurrent requests change the same resource, the system must use transactions, locking, or version control to prevent overwrites and business limit violations. | CTMS-61-T01 | Tests and review evidence must prove this exact rule is enforced: When concurrent requests change the same resource, the system must use transactions, locking, or version control to prevent overwrites and business limit violations. |
+| BR-211: Every stateful resource must follow the defined state transitions and must not use values outside the database enum. | CTMS-61-T01 | Tests and review evidence must prove this exact rule is enforced: Every stateful resource must follow the defined state transitions and must not use values outside the database enum. |
+| BR-181: The Host receives a notification. | CTMS-61-T01, CTMS-61-T02 | Tests and review evidence must prove this exact rule is enforced: The Host receives a notification. |
+| BR-182: Only Porters with campsite_porters.status = active at the route campsite may be assigned proficiency. | CTMS-61-T01, CTMS-61-T02 | Tests and review evidence must prove this exact rule is enforced: Only Porters with campsite_porters.status = active at the route campsite may be assigned proficiency. |
+| BR-183: Porter_routes.proficiency must use learning, proficient, or expert. | CTMS-61-T01, CTMS-61-T02 | Tests and review evidence must prove this exact rule is enforced: Porter_routes.proficiency must use learning, proficient, or expert. |
+| BR-184: The system must store times_led, verified_by, and verified_at. | CTMS-61-T01, CTMS-61-T02 | Tests and review evidence must prove this exact rule is enforced: The system must store times_led, verified_by, and verified_at. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, campsites, or bookings.
 - Concurrent requests, duplicate submissions, stale reads, and retry behavior can create inconsistent state if transactions and idempotency are not handled.
 - UI validation must improve the user experience but must never replace backend validation or permission checks.
 - State transitions must reject invalid source states and preserve a clear error response for the user or calling service.
+- Any mapped BR missing from tests creates a release risk and must be resolved before Done.
 
 ## Functional and Domain Requirements
 - Implement the `Verify Porter Qualification for Route` workflow exactly within `EPIC 8. Porter Management`.
@@ -108,6 +109,7 @@ As a Porter, I want to verify Porter Qualification for Route so that the CTMS wo
 - Add API or integration tests for success, invalid input, unauthorized access, missing resource, conflict, and rollback cases.
 - Add UI/component tests for rendering, validation messages, disabled states, loading states, error handling, and successful submission where UI exists.
 - Add E2E coverage for the primary user journey and at least one critical failure path.
+- Every BR listed in the Business Rules Checklist must appear in at least one test or review evidence item.
 
 ## References
 - Story ID: `CTMS-61`
@@ -115,6 +117,8 @@ As a Porter, I want to verify Porter Qualification for Route so that the CTMS wo
 - Sprint: `Sprint 3`
 - Dependencies: `CTMS-22, CTMS-60`
 - Linked items: `Blocked by: CTMS-22, CTMS-60
+
 Blocks: CTMS-62`
 - Spec Reference: `/file/spec/ctms-61-verify-porter-qualification-for-route.md`
-- Business Rules: `BR-202, BR-204, BR-205, BR-230, BR-231, BR-242, BR-243, BR-244, BR-210, BR-211, BR-181, BR-182, BR-183, BR-184`
+- Business Rules workbook: `C:/Users/admin/Downloads/CTMS_Global_Business_Rules_Sprint_1-3.xlsx`
+- Story-level BRs: `BR-202, BR-204, BR-205, BR-230, BR-231, BR-242, BR-243, BR-244, BR-210, BR-211, BR-181, BR-182, BR-183, BR-184`

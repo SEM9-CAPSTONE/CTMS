@@ -1,4 +1,4 @@
-# CTMS-44 - Automatically Expire Booking
+﻿# CTMS-44 - Automatically Expire Booking
 
 **Spec Reference**  
 /file/spec/ctms-44-automatically-expire-booking.md
@@ -19,46 +19,46 @@ As the system, I want to automatically Expire Booking so that the CTMS workflow 
 - [ ] write audit_logs with action = booking_expired, target_type = booking, target_id = booking_id, actor_id = NULL, before_value, after_value, and reason.
 - [ ] then notify the booking owner.
 
-### Business Rules Checklist
-- [ ] BR-202: Enforce this mapped business rule for Automatically Expire Booking; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-204: Enforce this mapped business rule for Automatically Expire Booking; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-205: Enforce this mapped business rule for Automatically Expire Booking; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-230: Enforce this mapped business rule for Automatically Expire Booking; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-231: Enforce this mapped business rule for Automatically Expire Booking; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-242: Enforce this mapped business rule for Automatically Expire Booking; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-243: Enforce this mapped business rule for Automatically Expire Booking; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-244: Enforce this mapped business rule for Automatically Expire Booking; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-210: Enforce this mapped business rule for Automatically Expire Booking; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-211: Enforce this mapped business rule for Automatically Expire Booking; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-206: Enforce this mapped business rule for Automatically Expire Booking; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-207: Enforce this mapped business rule for Automatically Expire Booking; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-209: Enforce this mapped business rule for Automatically Expire Booking; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-221: Enforce this mapped business rule for Automatically Expire Booking; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-222: Enforce this mapped business rule for Automatically Expire Booking; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-223: Enforce this mapped business rule for Automatically Expire Booking; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-224: Enforce this mapped business rule for Automatically Expire Booking; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-225: Enforce this mapped business rule for Automatically Expire Booking; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-226: Enforce this mapped business rule for Automatically Expire Booking; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-236: Enforce this mapped business rule for Automatically Expire Booking; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-237: Enforce this mapped business rule for Automatically Expire Booking; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-218: Enforce this mapped business rule for Automatically Expire Booking; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-219: Enforce this mapped business rule for Automatically Expire Booking; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-121: Enforce this mapped business rule for Automatically Expire Booking; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-122: Enforce this mapped business rule for Automatically Expire Booking; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-123: Enforce this mapped business rule for Automatically Expire Booking; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-124: Enforce this mapped business rule for Automatically Expire Booking; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-125: Enforce this mapped business rule for Automatically Expire Booking; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
+## Business Rules Checklist
+- [ ] BR-121: Duplicate transactions must not be recorded more than once.
+- [ ] BR-122: Bookings with status = pending_payment beyond hold_expires_at must move to expired.
+- [ ] BR-123: Decrease seats_taken if the booking was holding seats.
+- [ ] BR-124: Related equipment_reservations with status = reserved must move to cancelled.
+- [ ] BR-125: Write the change to audit_logs with action = booking_expired, target_type = booking, target_id = booking_id, actor_id = NULL, before_value, after_value, and reason.
+- [ ] BR-202: Accounts in pending_verification, suspended, or deleted status must not use functions that require an active account, except allowed verification or recovery flows.
+- [ ] BR-204: Users may only view or change data they own unless their role and business relationship allow access to another user's data.
+- [ ] BR-205: All input data must be validated for required fields, data type, format, length, enum values, and cross-field relationships before processing.
+- [ ] BR-206: The backend is the final authority for permissions, status, pricing, capacity, inventory, risk level, and transaction results; clients must not set these values by themselves.
+- [ ] BR-207: Every change involving multiple tables or records must run in a transaction; if one step fails, the whole business operation must roll back.
+- [ ] BR-209: Operations that may be retried, such as payment, refund, callback, and synchronization, must support idempotency so one request cannot be successfully processed more than once.
+- [ ] BR-210: When concurrent requests change the same resource, the system must use transactions, locking, or version control to prevent overwrites and business limit violations.
+- [ ] BR-211: Every stateful resource must follow the defined state transitions and must not use values outside the database enum.
+- [ ] BR-218: Access to health data must be based on consent and the relationship to the Trip; when consent is withdrawn, access must end immediately.
+- [ ] BR-219: All times must be stored as timestamptz and displayed using the configured user or location time zone.
+- [ ] BR-221: OTP TTL, token TTL, retry count, rate limit, booking hold duration, and retry deadline must be configurable and not hard-coded in logic.
+- [ ] BR-222: Important actions must be written to the audit log with actor, action, target, timestamp, before/after data, or change reason.
+- [ ] BR-223: Audit logs are append-only; users and Admins must not edit or delete audit logs through normal business functions.
+- [ ] BR-224: Audit logs must not contain passwords, OTPs, tokens, sensitive payment data, or unnecessary health data.
+- [ ] BR-225: Automated actions must record actor_id = NULL or a system actor and include a clear execution reason.
+- [ ] BR-226: Notifications may only be emitted after the business change succeeds; notification delivery failure must not undo the main transaction result.
+- [ ] BR-230: External-service retries must have limits and backoff; retries must not create duplicate records or transactions.
+- [ ] BR-231: APIs must return consistent error codes: 401 for authentication failure, 403 for insufficient permission, 404 for not found, 409 for business conflict, and 422 for invalid data.
+- [ ] BR-236: Users may only add, delete, or reorder media for resources they own or are authorized to manage.
+- [ ] BR-237: Background jobs must re-check business conditions at execution time and must not rely only on stale state.
+- [ ] BR-242: When the backend rejects a request because data changed concurrently, the UI must preserve entered data, display the reason, and allow reload or retry.
+- [ ] BR-243: Cases with insufficient permission or unmet business conditions must not create any side effect.
+- [ ] BR-244: Changes to Business Rules, enums, state transitions, or API contracts must update the Spec, test cases, and data documentation together before Done.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
 - Priority: `Must Have`; Story points: `5`; Commitment: `Stretch`.
-- Epic: `EPIC 6. Booking and Payment`.
+- Epic: `EPIC 6. Booking Lifecycle`.
 - Sprint: `Sprint 3`; planned window: `2026-08-23` to `2026-09-05`.
 - Keep API, UI, database, tests, and Jira references aligned with the exact Spec Reference path above.
 
 ## Story-Specific Implementation Tasks
-- CTMS-44-T01 [Backend Preparation, Logic, and Tests] Define preconditions, request/response contract, authorization, validation, domain service behavior, persistence mapping, transaction handling, and backend tests for `Automatically Expire Booking`. Ref: /file/spec/ctms-44-automatically-expire-booking.md#backend-preparation-logic-and-tests
-- CTMS-44-T02 [UI and Tests] Implement the user-facing flow, API integration, loading/error/empty/success states, validation messaging, and component/E2E coverage for `Automatically Expire Booking`. Ref: /file/spec/ctms-44-automatically-expire-booking.md#ui-and-tests
+- CTMS-44-T01 [BE / Shared Logic] Implement `Automatically Expire Booking` for this task scope and enforce mapped BRs: BR-202, BR-204, BR-205, BR-230, BR-231, BR-242, BR-243, BR-244, BR-210, BR-211, BR-206, BR-207, BR-209, BR-221, BR-222, BR-223, BR-224, BR-225, BR-226, BR-236, BR-237, BR-218, BR-219, BR-121, BR-122, BR-123, BR-124, BR-125. Ref: /file/spec/ctms-44-automatically-expire-booking.md#backend-preparation-logic-and-tests
+- CTMS-44-T02 [UI Web/Mobile/Consumer] Implement `Automatically Expire Booking` for this task scope and enforce mapped BRs: BR-202, BR-204, BR-205, BR-230, BR-231, BR-240, BR-241, BR-242, BR-121, BR-122, BR-123, BR-124, BR-125. Ref: /file/spec/ctms-44-automatically-expire-booking.md#ui-and-tests
 
 ## Task to Acceptance Criteria Traceability
 | Acceptance criterion / BR | Covered by tasks | Evidence expected |
@@ -68,43 +68,44 @@ As the system, I want to automatically Expire Booking so that the CTMS workflow 
 | AC3: related equipment_reservations with status = reserved move to cancelled | CTMS-44-T01, CTMS-44-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: write audit_logs with action = booking_expired, target_type = booking, target_id = booking_id, actor_id = NULL, before_value, after_value, and reason | CTMS-44-T01, CTMS-44-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC5: then notify the booking owner | CTMS-44-T01, CTMS-44-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-202 | CTMS-44-T01, CTMS-44-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-204 | CTMS-44-T01, CTMS-44-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-205 | CTMS-44-T01, CTMS-44-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-230 | CTMS-44-T01, CTMS-44-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-231 | CTMS-44-T01, CTMS-44-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-242 | CTMS-44-T01, CTMS-44-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-243 | CTMS-44-T01, CTMS-44-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-244 | CTMS-44-T01, CTMS-44-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-210 | CTMS-44-T01, CTMS-44-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-211 | CTMS-44-T01, CTMS-44-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-206 | CTMS-44-T01, CTMS-44-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-207 | CTMS-44-T01, CTMS-44-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-209 | CTMS-44-T01, CTMS-44-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-221 | CTMS-44-T01, CTMS-44-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-222 | CTMS-44-T01, CTMS-44-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-223 | CTMS-44-T01, CTMS-44-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-224 | CTMS-44-T01, CTMS-44-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-225 | CTMS-44-T01, CTMS-44-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-226 | CTMS-44-T01, CTMS-44-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-236 | CTMS-44-T01, CTMS-44-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-237 | CTMS-44-T01, CTMS-44-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-218 | CTMS-44-T01, CTMS-44-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-219 | CTMS-44-T01, CTMS-44-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-121 | CTMS-44-T01, CTMS-44-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-122 | CTMS-44-T01, CTMS-44-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-123 | CTMS-44-T01, CTMS-44-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-124 | CTMS-44-T01, CTMS-44-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-125 | CTMS-44-T01, CTMS-44-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
+| BR-202: Accounts in pending_verification, suspended, or deleted status must not use functions that require an active account, except allowed verification or recovery flows. | CTMS-44-T01, CTMS-44-T02 | Tests and review evidence must prove this exact rule is enforced: Accounts in pending_verification, suspended, or deleted status must not use functions that require an active account, except allowed verification or recovery flows. |
+| BR-204: Users may only view or change data they own unless their role and business relationship allow access to another user's data. | CTMS-44-T01, CTMS-44-T02 | Tests and review evidence must prove this exact rule is enforced: Users may only view or change data they own unless their role and business relationship allow access to another user's data. |
+| BR-205: All input data must be validated for required fields, data type, format, length, enum values, and cross-field relationships before processing. | CTMS-44-T01, CTMS-44-T02 | Tests and review evidence must prove this exact rule is enforced: All input data must be validated for required fields, data type, format, length, enum values, and cross-field relationships before processing. |
+| BR-230: External-service retries must have limits and backoff; retries must not create duplicate records or transactions. | CTMS-44-T01, CTMS-44-T02 | Tests and review evidence must prove this exact rule is enforced: External-service retries must have limits and backoff; retries must not create duplicate records or transactions. |
+| BR-231: APIs must return consistent error codes: 401 for authentication failure, 403 for insufficient permission, 404 for not found, 409 for business conflict, and 422 for invalid data. | CTMS-44-T01, CTMS-44-T02 | Tests and review evidence must prove this exact rule is enforced: APIs must return consistent error codes: 401 for authentication failure, 403 for insufficient permission, 404 for not found, 409 for business conflict, and 422 for invalid data. |
+| BR-242: When the backend rejects a request because data changed concurrently, the UI must preserve entered data, display the reason, and allow reload or retry. | CTMS-44-T01, CTMS-44-T02 | Tests and review evidence must prove this exact rule is enforced: When the backend rejects a request because data changed concurrently, the UI must preserve entered data, display the reason, and allow reload or retry. |
+| BR-243: Cases with insufficient permission or unmet business conditions must not create any side effect. | CTMS-44-T01 | Tests and review evidence must prove this exact rule is enforced: Cases with insufficient permission or unmet business conditions must not create any side effect. |
+| BR-244: Changes to Business Rules, enums, state transitions, or API contracts must update the Spec, test cases, and data documentation together before Done. | CTMS-44-T01 | Tests and review evidence must prove this exact rule is enforced: Changes to Business Rules, enums, state transitions, or API contracts must update the Spec, test cases, and data documentation together before Done. |
+| BR-210: When concurrent requests change the same resource, the system must use transactions, locking, or version control to prevent overwrites and business limit violations. | CTMS-44-T01 | Tests and review evidence must prove this exact rule is enforced: When concurrent requests change the same resource, the system must use transactions, locking, or version control to prevent overwrites and business limit violations. |
+| BR-211: Every stateful resource must follow the defined state transitions and must not use values outside the database enum. | CTMS-44-T01 | Tests and review evidence must prove this exact rule is enforced: Every stateful resource must follow the defined state transitions and must not use values outside the database enum. |
+| BR-206: The backend is the final authority for permissions, status, pricing, capacity, inventory, risk level, and transaction results; clients must not set these values by themselves. | CTMS-44-T01 | Tests and review evidence must prove this exact rule is enforced: The backend is the final authority for permissions, status, pricing, capacity, inventory, risk level, and transaction results; clients must not set these values by themselves. |
+| BR-207: Every change involving multiple tables or records must run in a transaction; if one step fails, the whole business operation must roll back. | CTMS-44-T01 | Tests and review evidence must prove this exact rule is enforced: Every change involving multiple tables or records must run in a transaction; if one step fails, the whole business operation must roll back. |
+| BR-209: Operations that may be retried, such as payment, refund, callback, and synchronization, must support idempotency so one request cannot be successfully processed more than once. | CTMS-44-T01 | Tests and review evidence must prove this exact rule is enforced: Operations that may be retried, such as payment, refund, callback, and synchronization, must support idempotency so one request cannot be successfully processed more than once. |
+| BR-221: OTP TTL, token TTL, retry count, rate limit, booking hold duration, and retry deadline must be configurable and not hard-coded in logic. | CTMS-44-T01 | Tests and review evidence must prove this exact rule is enforced: OTP TTL, token TTL, retry count, rate limit, booking hold duration, and retry deadline must be configurable and not hard-coded in logic. |
+| BR-222: Important actions must be written to the audit log with actor, action, target, timestamp, before/after data, or change reason. | CTMS-44-T01 | Tests and review evidence must prove this exact rule is enforced: Important actions must be written to the audit log with actor, action, target, timestamp, before/after data, or change reason. |
+| BR-223: Audit logs are append-only; users and Admins must not edit or delete audit logs through normal business functions. | CTMS-44-T01 | Tests and review evidence must prove this exact rule is enforced: Audit logs are append-only; users and Admins must not edit or delete audit logs through normal business functions. |
+| BR-224: Audit logs must not contain passwords, OTPs, tokens, sensitive payment data, or unnecessary health data. | CTMS-44-T01 | Tests and review evidence must prove this exact rule is enforced: Audit logs must not contain passwords, OTPs, tokens, sensitive payment data, or unnecessary health data. |
+| BR-225: Automated actions must record actor_id = NULL or a system actor and include a clear execution reason. | CTMS-44-T01 | Tests and review evidence must prove this exact rule is enforced: Automated actions must record actor_id = NULL or a system actor and include a clear execution reason. |
+| BR-226: Notifications may only be emitted after the business change succeeds; notification delivery failure must not undo the main transaction result. | CTMS-44-T01 | Tests and review evidence must prove this exact rule is enforced: Notifications may only be emitted after the business change succeeds; notification delivery failure must not undo the main transaction result. |
+| BR-236: Users may only add, delete, or reorder media for resources they own or are authorized to manage. | CTMS-44-T01 | Tests and review evidence must prove this exact rule is enforced: Users may only add, delete, or reorder media for resources they own or are authorized to manage. |
+| BR-237: Background jobs must re-check business conditions at execution time and must not rely only on stale state. | CTMS-44-T01 | Tests and review evidence must prove this exact rule is enforced: Background jobs must re-check business conditions at execution time and must not rely only on stale state. |
+| BR-218: Access to health data must be based on consent and the relationship to the Trip; when consent is withdrawn, access must end immediately. | CTMS-44-T01 | Tests and review evidence must prove this exact rule is enforced: Access to health data must be based on consent and the relationship to the Trip; when consent is withdrawn, access must end immediately. |
+| BR-219: All times must be stored as timestamptz and displayed using the configured user or location time zone. | CTMS-44-T01 | Tests and review evidence must prove this exact rule is enforced: All times must be stored as timestamptz and displayed using the configured user or location time zone. |
+| BR-121: Duplicate transactions must not be recorded more than once. | CTMS-44-T01, CTMS-44-T02 | Tests and review evidence must prove this exact rule is enforced: Duplicate transactions must not be recorded more than once. |
+| BR-122: Bookings with status = pending_payment beyond hold_expires_at must move to expired. | CTMS-44-T01, CTMS-44-T02 | Tests and review evidence must prove this exact rule is enforced: Bookings with status = pending_payment beyond hold_expires_at must move to expired. |
+| BR-123: Decrease seats_taken if the booking was holding seats. | CTMS-44-T01, CTMS-44-T02 | Tests and review evidence must prove this exact rule is enforced: Decrease seats_taken if the booking was holding seats. |
+| BR-124: Related equipment_reservations with status = reserved must move to cancelled. | CTMS-44-T01, CTMS-44-T02 | Tests and review evidence must prove this exact rule is enforced: Related equipment_reservations with status = reserved must move to cancelled. |
+| BR-125: Write the change to audit_logs with action = booking_expired, target_type = booking, target_id = booking_id, actor_id = NULL, before_value, after_value, and reason. | CTMS-44-T01, CTMS-44-T02 | Tests and review evidence must prove this exact rule is enforced: Write the change to audit_logs with action = booking_expired, target_type = booking, target_id = booking_id, actor_id = NULL, before_value, after_value, and reason. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, campsites, or bookings.
 - Concurrent requests, duplicate submissions, stale reads, and retry behavior can create inconsistent state if transactions and idempotency are not handled.
 - UI validation must improve the user experience but must never replace backend validation or permission checks.
 - State transitions must reject invalid source states and preserve a clear error response for the user or calling service.
+- Any mapped BR missing from tests creates a release risk and must be resolved before Done.
 
 ## Functional and Domain Requirements
-- Implement the `Automatically Expire Booking` workflow exactly within `EPIC 6. Booking and Payment`.
+- Implement the `Automatically Expire Booking` workflow exactly within `EPIC 6. Booking Lifecycle`.
 - Enforce role-based access before executing any domain action.
 - Validate all required fields, enum values, date ranges, ownership boundaries, and cross-entity references before writing data.
 - Return consistent API errors: 401 for authentication failures, 403 for authorization failures, 404 for missing resources, 409 for business conflicts, and 422 for invalid input.
@@ -138,13 +139,16 @@ As the system, I want to automatically Expire Booking so that the CTMS workflow 
 - Add API or integration tests for success, invalid input, unauthorized access, missing resource, conflict, and rollback cases.
 - Add UI/component tests for rendering, validation messages, disabled states, loading states, error handling, and successful submission where UI exists.
 - Add E2E coverage for the primary user journey and at least one critical failure path.
+- Every BR listed in the Business Rules Checklist must appear in at least one test or review evidence item.
 
 ## References
 - Story ID: `CTMS-44`
-- Epic: `EPIC 6. Booking and Payment`
+- Epic: `EPIC 6. Booking Lifecycle`
 - Sprint: `Sprint 3`
 - Dependencies: `CTMS-40, CTMS-43`
 - Linked items: `Blocked by: CTMS-40, CTMS-43
+
 Blocks: None`
 - Spec Reference: `/file/spec/ctms-44-automatically-expire-booking.md`
-- Business Rules: `BR-202, BR-204, BR-205, BR-230, BR-231, BR-242, BR-243, BR-244, BR-210, BR-211, BR-206, BR-207, BR-209, BR-221, BR-222, BR-223, BR-224, BR-225, BR-226, BR-236, BR-237, BR-218, BR-219, BR-121, BR-122, BR-123, BR-124, BR-125`
+- Business Rules workbook: `C:/Users/admin/Downloads/CTMS_Global_Business_Rules_Sprint_1-3.xlsx`
+- Story-level BRs: `BR-202, BR-204, BR-205, BR-230, BR-231, BR-242, BR-243, BR-244, BR-210, BR-211, BR-206, BR-207, BR-209, BR-221, BR-222, BR-223, BR-224, BR-225, BR-226, BR-236, BR-237, BR-218, BR-219, BR-121, BR-122, BR-123, BR-124, BR-125`

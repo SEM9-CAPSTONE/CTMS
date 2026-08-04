@@ -1,4 +1,4 @@
-# CTMS-33 - Configure Overnight Stays for Trip
+﻿# CTMS-33 - Configure Overnight Stays for Trip
 
 **Spec Reference**  
 /file/spec/ctms-33-configure-overnight-stays-for-trip.md
@@ -19,23 +19,23 @@ As a Host, I want to configure Overnight Stays for Trip so that the CTMS workflo
 - [ ] day_trip Trips have no trip_camp_stays.
 - [ ] capacity is checked using CTMS-31.
 
-### Business Rules Checklist
-- [ ] BR-202: Enforce this mapped business rule for Configure Overnight Stays for Trip; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-204: Enforce this mapped business rule for Configure Overnight Stays for Trip; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-205: Enforce this mapped business rule for Configure Overnight Stays for Trip; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-230: Enforce this mapped business rule for Configure Overnight Stays for Trip; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-231: Enforce this mapped business rule for Configure Overnight Stays for Trip; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-242: Enforce this mapped business rule for Configure Overnight Stays for Trip; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-243: Enforce this mapped business rule for Configure Overnight Stays for Trip; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-244: Enforce this mapped business rule for Configure Overnight Stays for Trip; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-206: Enforce this mapped business rule for Configure Overnight Stays for Trip; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-207: Enforce this mapped business rule for Configure Overnight Stays for Trip; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-209: Enforce this mapped business rule for Configure Overnight Stays for Trip; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-086: Enforce this mapped business rule for Configure Overnight Stays for Trip; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-087: Enforce this mapped business rule for Configure Overnight Stays for Trip; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-088: Enforce this mapped business rule for Configure Overnight Stays for Trip; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-089: Enforce this mapped business rule for Configure Overnight Stays for Trip; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
-- [ ] BR-090: Enforce this mapped business rule for Configure Overnight Stays for Trip; validate the positive path, violation path, permission boundary, and persistence side effects before marking the story Done.
+## Business Rules Checklist
+- [ ] BR-086: A new Trip must start with status = pending_approval.
+- [ ] BR-087: Each night must have night_number, stay_date, zone_id, and tents_needed.
+- [ ] BR-088: night_number and stay_date must not be duplicated within the same Trip.
+- [ ] BR-089: The number of rows must equal duration_nights.
+- [ ] BR-090: Trips with trip_type = day_trip must not have trip_camp_stays.
+- [ ] BR-202: Accounts in pending_verification, suspended, or deleted status must not use functions that require an active account, except allowed verification or recovery flows.
+- [ ] BR-204: Users may only view or change data they own unless their role and business relationship allow access to another user's data.
+- [ ] BR-205: All input data must be validated for required fields, data type, format, length, enum values, and cross-field relationships before processing.
+- [ ] BR-206: The backend is the final authority for permissions, status, pricing, capacity, inventory, risk level, and transaction results; clients must not set these values by themselves.
+- [ ] BR-207: Every change involving multiple tables or records must run in a transaction; if one step fails, the whole business operation must roll back.
+- [ ] BR-209: Operations that may be retried, such as payment, refund, callback, and synchronization, must support idempotency so one request cannot be successfully processed more than once.
+- [ ] BR-230: External-service retries must have limits and backoff; retries must not create duplicate records or transactions.
+- [ ] BR-231: APIs must return consistent error codes: 401 for authentication failure, 403 for insufficient permission, 404 for not found, 409 for business conflict, and 422 for invalid data.
+- [ ] BR-242: When the backend rejects a request because data changed concurrently, the UI must preserve entered data, display the reason, and allow reload or retry.
+- [ ] BR-243: Cases with insufficient permission or unmet business conditions must not create any side effect.
+- [ ] BR-244: Changes to Business Rules, enums, state transitions, or API contracts must update the Spec, test cases, and data documentation together before Done.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -45,8 +45,8 @@ As a Host, I want to configure Overnight Stays for Trip so that the CTMS workflo
 - Keep API, UI, database, tests, and Jira references aligned with the exact Spec Reference path above.
 
 ## Story-Specific Implementation Tasks
-- CTMS-33-T01 [Backend Preparation, Logic, and Tests] Define preconditions, request/response contract, authorization, validation, domain service behavior, persistence mapping, transaction handling, and backend tests for `Configure Overnight Stays for Trip`. Ref: /file/spec/ctms-33-configure-overnight-stays-for-trip.md#backend-preparation-logic-and-tests
-- CTMS-33-T02 [UI and Tests] Implement the user-facing flow, API integration, loading/error/empty/success states, validation messaging, and component/E2E coverage for `Configure Overnight Stays for Trip`. Ref: /file/spec/ctms-33-configure-overnight-stays-for-trip.md#ui-and-tests
+- CTMS-33-T01 [BE / Shared Logic] Implement `Configure Overnight Stays for Trip` for this task scope and enforce mapped BRs: BR-202, BR-204, BR-205, BR-230, BR-231, BR-242, BR-243, BR-244, BR-206, BR-207, BR-209, BR-086, BR-087, BR-088, BR-089, BR-090. Ref: /file/spec/ctms-33-configure-overnight-stays-for-trip.md#backend-preparation-logic-and-tests
+- CTMS-33-T02 [UI Web/Mobile/Consumer] Implement `Configure Overnight Stays for Trip` for this task scope and enforce mapped BRs: BR-202, BR-204, BR-205, BR-230, BR-231, BR-240, BR-241, BR-242, BR-086, BR-087, BR-088, BR-089, BR-090. Ref: /file/spec/ctms-33-configure-overnight-stays-for-trip.md#ui-and-tests
 
 ## Task to Acceptance Criteria Traceability
 | Acceptance criterion / BR | Covered by tasks | Evidence expected |
@@ -56,28 +56,29 @@ As a Host, I want to configure Overnight Stays for Trip so that the CTMS workflo
 | AC3: row count equals duration_nights | CTMS-33-T01, CTMS-33-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: day_trip Trips have no trip_camp_stays | CTMS-33-T01, CTMS-33-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC5: capacity is checked using CTMS-31 | CTMS-33-T01, CTMS-33-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-202 | CTMS-33-T01, CTMS-33-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-204 | CTMS-33-T01, CTMS-33-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-205 | CTMS-33-T01, CTMS-33-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-230 | CTMS-33-T01, CTMS-33-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-231 | CTMS-33-T01, CTMS-33-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-242 | CTMS-33-T01, CTMS-33-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-243 | CTMS-33-T01, CTMS-33-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-244 | CTMS-33-T01, CTMS-33-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-206 | CTMS-33-T01, CTMS-33-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-207 | CTMS-33-T01, CTMS-33-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-209 | CTMS-33-T01, CTMS-33-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-086 | CTMS-33-T01, CTMS-33-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-087 | CTMS-33-T01, CTMS-33-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-088 | CTMS-33-T01, CTMS-33-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-089 | CTMS-33-T01, CTMS-33-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
-| BR-090 | CTMS-33-T01, CTMS-33-T02 | Positive-path and violation-path tests proving the mapped rule is enforced |
+| BR-202: Accounts in pending_verification, suspended, or deleted status must not use functions that require an active account, except allowed verification or recovery flows. | CTMS-33-T01, CTMS-33-T02 | Tests and review evidence must prove this exact rule is enforced: Accounts in pending_verification, suspended, or deleted status must not use functions that require an active account, except allowed verification or recovery flows. |
+| BR-204: Users may only view or change data they own unless their role and business relationship allow access to another user's data. | CTMS-33-T01, CTMS-33-T02 | Tests and review evidence must prove this exact rule is enforced: Users may only view or change data they own unless their role and business relationship allow access to another user's data. |
+| BR-205: All input data must be validated for required fields, data type, format, length, enum values, and cross-field relationships before processing. | CTMS-33-T01, CTMS-33-T02 | Tests and review evidence must prove this exact rule is enforced: All input data must be validated for required fields, data type, format, length, enum values, and cross-field relationships before processing. |
+| BR-230: External-service retries must have limits and backoff; retries must not create duplicate records or transactions. | CTMS-33-T01, CTMS-33-T02 | Tests and review evidence must prove this exact rule is enforced: External-service retries must have limits and backoff; retries must not create duplicate records or transactions. |
+| BR-231: APIs must return consistent error codes: 401 for authentication failure, 403 for insufficient permission, 404 for not found, 409 for business conflict, and 422 for invalid data. | CTMS-33-T01, CTMS-33-T02 | Tests and review evidence must prove this exact rule is enforced: APIs must return consistent error codes: 401 for authentication failure, 403 for insufficient permission, 404 for not found, 409 for business conflict, and 422 for invalid data. |
+| BR-242: When the backend rejects a request because data changed concurrently, the UI must preserve entered data, display the reason, and allow reload or retry. | CTMS-33-T01, CTMS-33-T02 | Tests and review evidence must prove this exact rule is enforced: When the backend rejects a request because data changed concurrently, the UI must preserve entered data, display the reason, and allow reload or retry. |
+| BR-243: Cases with insufficient permission or unmet business conditions must not create any side effect. | CTMS-33-T01 | Tests and review evidence must prove this exact rule is enforced: Cases with insufficient permission or unmet business conditions must not create any side effect. |
+| BR-244: Changes to Business Rules, enums, state transitions, or API contracts must update the Spec, test cases, and data documentation together before Done. | CTMS-33-T01 | Tests and review evidence must prove this exact rule is enforced: Changes to Business Rules, enums, state transitions, or API contracts must update the Spec, test cases, and data documentation together before Done. |
+| BR-206: The backend is the final authority for permissions, status, pricing, capacity, inventory, risk level, and transaction results; clients must not set these values by themselves. | CTMS-33-T01 | Tests and review evidence must prove this exact rule is enforced: The backend is the final authority for permissions, status, pricing, capacity, inventory, risk level, and transaction results; clients must not set these values by themselves. |
+| BR-207: Every change involving multiple tables or records must run in a transaction; if one step fails, the whole business operation must roll back. | CTMS-33-T01 | Tests and review evidence must prove this exact rule is enforced: Every change involving multiple tables or records must run in a transaction; if one step fails, the whole business operation must roll back. |
+| BR-209: Operations that may be retried, such as payment, refund, callback, and synchronization, must support idempotency so one request cannot be successfully processed more than once. | CTMS-33-T01 | Tests and review evidence must prove this exact rule is enforced: Operations that may be retried, such as payment, refund, callback, and synchronization, must support idempotency so one request cannot be successfully processed more than once. |
+| BR-086: A new Trip must start with status = pending_approval. | CTMS-33-T01, CTMS-33-T02 | Tests and review evidence must prove this exact rule is enforced: A new Trip must start with status = pending_approval. |
+| BR-087: Each night must have night_number, stay_date, zone_id, and tents_needed. | CTMS-33-T01, CTMS-33-T02 | Tests and review evidence must prove this exact rule is enforced: Each night must have night_number, stay_date, zone_id, and tents_needed. |
+| BR-088: night_number and stay_date must not be duplicated within the same Trip. | CTMS-33-T01, CTMS-33-T02 | Tests and review evidence must prove this exact rule is enforced: night_number and stay_date must not be duplicated within the same Trip. |
+| BR-089: The number of rows must equal duration_nights. | CTMS-33-T01, CTMS-33-T02 | Tests and review evidence must prove this exact rule is enforced: The number of rows must equal duration_nights. |
+| BR-090: Trips with trip_type = day_trip must not have trip_camp_stays. | CTMS-33-T01, CTMS-33-T02 | Tests and review evidence must prove this exact rule is enforced: Trips with trip_type = day_trip must not have trip_camp_stays. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, campsites, or bookings.
 - Concurrent requests, duplicate submissions, stale reads, and retry behavior can create inconsistent state if transactions and idempotency are not handled.
 - UI validation must improve the user experience but must never replace backend validation or permission checks.
 - State transitions must reject invalid source states and preserve a clear error response for the user or calling service.
+- Any mapped BR missing from tests creates a release risk and must be resolved before Done.
 
 ## Functional and Domain Requirements
 - Implement the `Configure Overnight Stays for Trip` workflow exactly within `EPIC 5. Trip Management`.
@@ -114,6 +115,7 @@ As a Host, I want to configure Overnight Stays for Trip so that the CTMS workflo
 - Add API or integration tests for success, invalid input, unauthorized access, missing resource, conflict, and rollback cases.
 - Add UI/component tests for rendering, validation messages, disabled states, loading states, error handling, and successful submission where UI exists.
 - Add E2E coverage for the primary user journey and at least one critical failure path.
+- Every BR listed in the Business Rules Checklist must appear in at least one test or review evidence item.
 
 ## References
 - Story ID: `CTMS-33`
@@ -121,6 +123,8 @@ As a Host, I want to configure Overnight Stays for Trip so that the CTMS workflo
 - Sprint: `Sprint 3`
 - Dependencies: `CTMS-31, CTMS-32`
 - Linked items: `Blocked by: CTMS-31, CTMS-32
+
 Blocks: CTMS-34, CTMS-35, CTMS-38, CTMS-116, CTMS-122`
 - Spec Reference: `/file/spec/ctms-33-configure-overnight-stays-for-trip.md`
-- Business Rules: `BR-202, BR-204, BR-205, BR-230, BR-231, BR-242, BR-243, BR-244, BR-206, BR-207, BR-209, BR-086, BR-087, BR-088, BR-089, BR-090`
+- Business Rules workbook: `C:/Users/admin/Downloads/CTMS_Global_Business_Rules_Sprint_1-3.xlsx`
+- Story-level BRs: `BR-202, BR-204, BR-205, BR-230, BR-231, BR-242, BR-243, BR-244, BR-206, BR-207, BR-209, BR-086, BR-087, BR-088, BR-089, BR-090`
