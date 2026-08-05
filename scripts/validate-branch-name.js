@@ -1,13 +1,13 @@
 const { execSync } = require("node:child_process");
 
 const ALLOWED_BRANCH_PATTERNS = [
-	/^(feature|feat)\/[A-Z][A-Z0-9]+-[0-9]+(-[a-z0-9._-]+)?$/,
-	/^(bugfix|fix)\/[A-Z][A-Z0-9]+-[0-9]+(-[a-z0-9._-]+)?$/,
-	/^hotfix\/[A-Z][A-Z0-9]+-[0-9]+(-[a-z0-9._-]+)?$/,
-	/^refactor\/[A-Z][A-Z0-9]+-[0-9]+(-[a-z0-9._-]+)?$/,
-	/^chore\/[A-Z][A-Z0-9]+-[0-9]+(-[a-z0-9._-]+)?$/,
-	/^docs\/[A-Z][A-Z0-9]+-[0-9]+(-[a-z0-9._-]+)?$/,
-	/^test\/[A-Z][A-Z0-9]+-[0-9]+(-[a-z0-9._-]+)?$/,
+	/^(feature|feat)\/[A-Za-z][A-Za-z0-9]+-[0-9]+(-[a-z0-9._-]+)?$/,
+	/^(bugfix|fix)\/[A-Za-z][A-Za-z0-9]+-[0-9]+(-[a-z0-9._-]+)?$/,
+	/^hotfix\/[A-Za-z][A-Za-z0-9]+-[0-9]+(-[a-z0-9._-]+)?$/,
+	/^refactor\/[A-Za-z][A-Za-z0-9]+-[0-9]+(-[a-z0-9._-]+)?$/,
+	/^chore\/[A-Za-z][A-Za-z0-9]+-[0-9]+(-[a-z0-9._-]+)?$/,
+	/^docs\/[A-Za-z][A-Za-z0-9]+-[0-9]+(-[a-z0-9._-]+)?$/,
+	/^test\/[A-Za-z][A-Za-z0-9]+-[0-9]+(-[a-z0-9._-]+)?$/,
 	/^release\/[a-z0-9._-]+$/,
 	/^(main|master|develop|staging)$/,
 ];
@@ -30,10 +30,8 @@ function main() {
 	if (!isValid) {
 		console.error("\nBranch name does not follow the project convention.");
 		console.error(`Current branch: "${branchName}"`);
-		console.error(
-			"\nUse this format: <branch-type>/<JIRA-KEY>-<short-kebab-description>",
-		);
-		console.error("The Jira key must be uppercase, for example CTMS-123.");
+		console.error("\nUse this format: <branch-type>/<JIRA-KEY>-<short-kebab-description>");
+		console.error("The Jira key can be CTMS-123 or ctms-123.");
 		console.error("Allowed branch types:");
 		console.error("- feature/<JIRA-KEY>-<description> or feat/<JIRA-KEY>-<description>");
 		console.error("- fix/<JIRA-KEY>-<description> or bugfix/<JIRA-KEY>-<description>");
@@ -43,7 +41,7 @@ function main() {
 		console.error("- docs/<JIRA-KEY>-<description>");
 		console.error("- test/<JIRA-KEY>-<description>");
 		console.error(
-			"Examples: feat/CTMS-123-auth-login, fix/CTMS-456-header-logo, docs/CTMS-789-route-guard\n",
+			"Examples: feat/CTMS-123-auth-login, feat/ctms-9-store-important-health-information-ui\n"
 		);
 		process.exit(1);
 	}
