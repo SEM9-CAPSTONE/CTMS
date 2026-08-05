@@ -15,5 +15,6 @@
 		"vitest.setup.ts",
 		"playwright.config.ts",
 		"tests/e2e"
-	]
+	],
+	"exclude": ["src/**/__tests__/**"]
 }
