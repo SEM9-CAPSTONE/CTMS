@@ -1,4 +1,5 @@
-import type { LoginFormData } from "../types";
+import { API_ENDPOINTS, httpClient } from "../../../core/api";
+import type { LoginFormData, RegisterApiPayload, RegisterApiResponse } from "../types";
 
 export const authService = {
 	login: async (
@@ -17,5 +18,9 @@ export const authService = {
 
 	loginWithGoogle: async (): Promise<{ success: boolean }> => {
 		return Promise.resolve({ success: true });
+	},
+
+	register: async (payload: RegisterApiPayload): Promise<RegisterApiResponse> => {
+		return httpClient.post<RegisterApiResponse>(API_ENDPOINTS.AUTH.REGISTER, payload);
 	},
 };

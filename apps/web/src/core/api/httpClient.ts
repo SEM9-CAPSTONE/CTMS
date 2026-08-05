@@ -5,6 +5,24 @@ export interface RequestOptions extends Omit<RequestInit, "body"> {
 	params?: Record<string, string | number | boolean | undefined>;
 }
 
+/**
+ * Thrown instead of a plain Error when the response is not ok, so callers can
+ * read the HTTP status and raw parsed body (needed to distinguish 409 vs 422
+ * and to read structured field errors) without changing the public request API.
+ * Still an Error — existing `.message` usage keeps working unchanged.
+ */
+export class HttpError extends Error {
+	readonly status: number;
+	readonly errorData: unknown;
+
+	constructor(message: string, status: number, errorData: unknown) {
+		super(message);
+		this.name = "HttpError";
+		this.status = status;
+		this.errorData = errorData;
+	}
+}
+
 class HttpClient {
 	private getAuthToken(): string | null {
 		return localStorage.getItem("accessToken");
@@ -51,7 +69,11 @@ class HttpClient {
 
 		if (!response.ok) {
 			const errorData = await response.json().catch(() => ({}));
-			throw new Error(errorData.message || `Request failed with status ${response.status}`);
+			const message =
+				typeof errorData.message === "string"
+					? errorData.message
+					: `Request failed with status ${response.status}`;
+			throw new HttpError(message, response.status, errorData);
 		}
 
 		return response.json() as Promise<T>;

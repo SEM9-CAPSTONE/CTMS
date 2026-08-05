@@ -18,8 +18,14 @@ type MockUsersRepository = {
 	createUser: jest.Mock;
 };
 
+// Email and phone are both mandatory (business flow update) — a RegisterDto
+// reaching AuthService always has both fields by the time it passes the
+// controller's ValidationPipe, so every test below constructs a dto with
+// both present rather than the old "email only / phone only" shapes.
 function buildDto(overrides: Partial<RegisterDto> = {}): RegisterDto {
 	return {
+		email: "default@example.com",
+		phone: "+84900000001",
 		password: "plain-password",
 		role: UserRole.CAMPER,
 		...overrides,
@@ -29,8 +35,8 @@ function buildDto(overrides: Partial<RegisterDto> = {}): RegisterDto {
 function buildUser(overrides: Record<string, unknown> = {}) {
 	return {
 		id: "11111111-1111-1111-1111-111111111111",
-		email: null,
-		phone: null,
+		email: "default@example.com",
+		phone: "+84900000001",
 		passwordHash: HASHED_PASSWORD,
 		role: UserRole.CAMPER,
 		status: UserStatus.PENDING_VERIFICATION,
@@ -74,58 +80,9 @@ describe("AuthService.register", () => {
 		loggerLogSpy.mockRestore();
 	});
 
-	// --- Success paths -------------------------------------------------
+	// --- Success path (email and phone are both mandatory) -------------------
 
-	it("registers successfully with email only", async () => {
-		const dto = buildDto({ email: "camper@example.com" });
-		const createdUser = buildUser({ email: "camper@example.com" });
-		usersRepository.findByEmailOrPhone.mockResolvedValue(null);
-		transactionalUsersRepository.createUser.mockResolvedValue(createdUser);
-
-		const result = await authService.register(dto);
-
-		expect(usersRepository.findByEmailOrPhone).toHaveBeenCalledTimes(1);
-		expect(usersRepository.findByEmailOrPhone).toHaveBeenCalledWith("camper@example.com", null);
-		expect(dataSource.transaction).toHaveBeenCalledTimes(1);
-		expect(manager.withRepository).toHaveBeenCalledTimes(1);
-		expect(manager.withRepository).toHaveBeenCalledWith(usersRepository);
-		expect(transactionalUsersRepository.createUser).toHaveBeenCalledTimes(1);
-		expect(transactionalUsersRepository.createUser).toHaveBeenCalledWith({
-			email: "camper@example.com",
-			phone: null,
-			passwordHash: HASHED_PASSWORD,
-			role: UserRole.CAMPER,
-		});
-		expect(result).toEqual({
-			id: createdUser.id,
-			email: "camper@example.com",
-			phone: null,
-			role: UserRole.CAMPER,
-			status: UserStatus.PENDING_VERIFICATION,
-			createdAt: FIXED_DATE,
-		});
-	});
-
-	it("registers successfully with phone only", async () => {
-		const dto = buildDto({ phone: "+84912345678", role: UserRole.PORTER });
-		const createdUser = buildUser({ phone: "+84912345678", role: UserRole.PORTER });
-		usersRepository.findByEmailOrPhone.mockResolvedValue(null);
-		transactionalUsersRepository.createUser.mockResolvedValue(createdUser);
-
-		const result = await authService.register(dto);
-
-		expect(usersRepository.findByEmailOrPhone).toHaveBeenCalledWith(null, "+84912345678");
-		expect(transactionalUsersRepository.createUser).toHaveBeenCalledWith({
-			email: null,
-			phone: "+84912345678",
-			passwordHash: HASHED_PASSWORD,
-			role: UserRole.PORTER,
-		});
-		expect(result.phone).toBe("+84912345678");
-		expect(result.role).toBe(UserRole.PORTER);
-	});
-
-	it("registers successfully when both email and phone are provided and unique", async () => {
+	it("registers successfully with email and phone", async () => {
 		const dto = buildDto({ email: "host@example.com", phone: "+84987654321", role: UserRole.HOST });
 		const createdUser = buildUser({
 			email: "host@example.com",
@@ -137,82 +94,56 @@ describe("AuthService.register", () => {
 
 		const result = await authService.register(dto);
 
+		expect(usersRepository.findByEmailOrPhone).toHaveBeenCalledTimes(1);
 		expect(usersRepository.findByEmailOrPhone).toHaveBeenCalledWith(
 			"host@example.com",
 			"+84987654321"
 		);
+		expect(dataSource.transaction).toHaveBeenCalledTimes(1);
+		expect(manager.withRepository).toHaveBeenCalledTimes(1);
+		expect(manager.withRepository).toHaveBeenCalledWith(usersRepository);
+		expect(transactionalUsersRepository.createUser).toHaveBeenCalledTimes(1);
 		expect(transactionalUsersRepository.createUser).toHaveBeenCalledWith({
 			email: "host@example.com",
 			phone: "+84987654321",
 			passwordHash: HASHED_PASSWORD,
 			role: UserRole.HOST,
 		});
-		expect(result.email).toBe("host@example.com");
-		expect(result.phone).toBe("+84987654321");
+		expect(result).toEqual({
+			id: createdUser.id,
+			email: "host@example.com",
+			phone: "+84987654321",
+			role: UserRole.HOST,
+			status: UserStatus.PENDING_VERIFICATION,
+			createdAt: FIXED_DATE,
+		});
 	});
 
 	// --- Normalized-value propagation (normalization logic itself is
-	// RegisterDto's responsibility, covered in Step 2's tests; these verify
+	// RegisterDto's responsibility, covered in Step 2's tests; this verifies
 	// AuthService correctly propagates already-normalized values unchanged) --
 
-	it("passes the already-normalized email through unchanged to createUser", async () => {
+	it("passes the already-normalized email and phone through unchanged to createUser", async () => {
 		const normalizedEmail = "already.normalized@example.com";
-		const dto = buildDto({ email: normalizedEmail });
-		usersRepository.findByEmailOrPhone.mockResolvedValue(null);
-		transactionalUsersRepository.createUser.mockResolvedValue(
-			buildUser({ email: normalizedEmail })
-		);
-
-		await authService.register(dto);
-
-		expect(usersRepository.findByEmailOrPhone).toHaveBeenCalledWith(normalizedEmail, null);
-		expect(transactionalUsersRepository.createUser).toHaveBeenCalledWith(
-			expect.objectContaining({ email: normalizedEmail })
-		);
-	});
-
-	it("passes the already-normalized E.164 phone through unchanged to createUser", async () => {
 		const normalizedPhone = "+84912345678";
-		const dto = buildDto({ phone: normalizedPhone });
+		const dto = buildDto({ email: normalizedEmail, phone: normalizedPhone });
 		usersRepository.findByEmailOrPhone.mockResolvedValue(null);
 		transactionalUsersRepository.createUser.mockResolvedValue(
-			buildUser({ phone: normalizedPhone })
+			buildUser({ email: normalizedEmail, phone: normalizedPhone })
 		);
 
 		await authService.register(dto);
 
-		expect(usersRepository.findByEmailOrPhone).toHaveBeenCalledWith(null, normalizedPhone);
+		expect(usersRepository.findByEmailOrPhone).toHaveBeenCalledWith(
+			normalizedEmail,
+			normalizedPhone
+		);
 		expect(transactionalUsersRepository.createUser).toHaveBeenCalledWith(
-			expect.objectContaining({ phone: normalizedPhone })
+			expect.objectContaining({ email: normalizedEmail, phone: normalizedPhone })
 		);
 	});
 
 	// --- Duplicate detection --------------------------------------------
-
-	it("throws ConflictException when email is already registered", async () => {
-		const dto = buildDto({ email: "dup@example.com" });
-		usersRepository.findByEmailOrPhone.mockResolvedValue(buildUser({ email: "dup@example.com" }));
-
-		const error = await authService.register(dto).catch((e) => e);
-
-		expect(error).toBeInstanceOf(ConflictException);
-		expect((error as ConflictException).getStatus()).toBe(409);
-		expect(usersRepository.findByEmailOrPhone).toHaveBeenCalledTimes(1);
-		expect(usersRepository.findByEmailOrPhone).toHaveBeenCalledWith("dup@example.com", null);
-		expect(dataSource.transaction).not.toHaveBeenCalled();
-		expect(transactionalUsersRepository.createUser).not.toHaveBeenCalled();
-	});
-
-	it("throws ConflictException when phone is already registered", async () => {
-		const dto = buildDto({ phone: "+84912345678" });
-		usersRepository.findByEmailOrPhone.mockResolvedValue(buildUser({ phone: "+84912345678" }));
-
-		await expect(authService.register(dto)).rejects.toBeInstanceOf(ConflictException);
-
-		expect(usersRepository.findByEmailOrPhone).toHaveBeenCalledWith(null, "+84912345678");
-		expect(dataSource.transaction).not.toHaveBeenCalled();
-		expect(transactionalUsersRepository.createUser).not.toHaveBeenCalled();
-	});
 
 	it("throws ConflictException when both email and phone are provided but only email is duplicate", async () => {
 		const dto = buildDto({ email: "dup@example.com", phone: "+84900000000" });
@@ -244,10 +175,10 @@ describe("AuthService.register", () => {
 	// --- Password hashing -------------------------------------------------
 
 	it("hashes the password with bcrypt using cost factor 10 before persisting", async () => {
-		const dto = buildDto({ email: "hash@example.com", password: "s3cret" });
+		const dto = buildDto({ email: "hash@example.com", phone: "+84911111111", password: "s3cret" });
 		usersRepository.findByEmailOrPhone.mockResolvedValue(null);
 		transactionalUsersRepository.createUser.mockResolvedValue(
-			buildUser({ email: "hash@example.com" })
+			buildUser({ email: "hash@example.com", phone: "+84911111111" })
 		);
 
 		await authService.register(dto);
@@ -260,10 +191,10 @@ describe("AuthService.register", () => {
 	});
 
 	it("never includes passwordHash in the returned profile", async () => {
-		const dto = buildDto({ email: "safe@example.com" });
+		const dto = buildDto({ email: "safe@example.com", phone: "+84922222222" });
 		usersRepository.findByEmailOrPhone.mockResolvedValue(null);
 		transactionalUsersRepository.createUser.mockResolvedValue(
-			buildUser({ email: "safe@example.com", passwordHash: HASHED_PASSWORD })
+			buildUser({ email: "safe@example.com", phone: "+84922222222", passwordHash: HASHED_PASSWORD })
 		);
 
 		const result = await authService.register(dto);
@@ -277,7 +208,7 @@ describe("AuthService.register", () => {
 	// --- Postgres error mapping / race condition --------------------------
 
 	it("maps a Postgres unique_violation (23505) thrown during insert to ConflictException", async () => {
-		const dto = buildDto({ email: "race@example.com" });
+		const dto = buildDto({ email: "race@example.com", phone: "+84933333333" });
 		usersRepository.findByEmailOrPhone.mockResolvedValue(null);
 		const uniqueViolationError = new QueryFailedError(
 			'INSERT INTO "users" ...',
@@ -295,7 +226,7 @@ describe("AuthService.register", () => {
 	});
 
 	it("propagates a non-unique-violation error from createUser without converting it to ConflictException", async () => {
-		const dto = buildDto({ email: "dberror@example.com" });
+		const dto = buildDto({ email: "dberror@example.com", phone: "+84944444444" });
 		usersRepository.findByEmailOrPhone.mockResolvedValue(null);
 		const connectionError = new Error("connection terminated unexpectedly");
 		transactionalUsersRepository.createUser.mockRejectedValue(connectionError);
@@ -310,7 +241,7 @@ describe("AuthService.register", () => {
 	// --- Transaction rollback contract -------------------------------------
 
 	it("propagates rejection when the transaction callback throws (rollback contract honored)", async () => {
-		const dto = buildDto({ email: "rollback@example.com" });
+		const dto = buildDto({ email: "rollback@example.com", phone: "+84955555555" });
 		usersRepository.findByEmailOrPhone.mockResolvedValue(null);
 		const txError = new Error("simulated transaction failure");
 		transactionalUsersRepository.createUser.mockRejectedValue(txError);
@@ -321,7 +252,11 @@ describe("AuthService.register", () => {
 	});
 
 	it("does not open a transaction or hash the password when a duplicate is found by the pre-check", async () => {
-		const dto = buildDto({ email: "skip@example.com", password: "should-not-be-hashed" });
+		const dto = buildDto({
+			email: "skip@example.com",
+			phone: "+84966666666",
+			password: "should-not-be-hashed",
+		});
 		usersRepository.findByEmailOrPhone.mockResolvedValue(buildUser({ email: "skip@example.com" }));
 
 		await expect(authService.register(dto)).rejects.toBeInstanceOf(ConflictException);
