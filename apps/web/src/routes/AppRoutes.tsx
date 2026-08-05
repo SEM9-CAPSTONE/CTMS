@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { LoginPage } from "../features/auth/pages/LoginPage";
 import { RegisterPage } from "../features/auth/pages/RegisterPage";
+import { CamperProfilePage } from "../features/camper-profile/pages/CamperProfilePage";
 import { LandingPage } from "../features/landing/pages/LandingPage";
 import { EdgeCasePage, ErrorPage, NotFoundPage, UnauthorizedPage } from "../shared/pages";
 import { RoutePath } from "./routes.config";
@@ -58,6 +59,10 @@ export function AppRoutes() {
 					onNavigateToLogin={() => navigateTo(RoutePath.LOGIN)}
 				/>
 			);
+
+		case RoutePath.CAMPER_PROFILE:
+		case RoutePath.PROFILE:
+			return <CamperProfilePage onBackHome={() => navigateTo(RoutePath.HOME)} />;
 
 		case RoutePath.UNAUTHORIZED:
 			return (
