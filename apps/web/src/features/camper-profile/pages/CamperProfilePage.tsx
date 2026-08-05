@@ -26,10 +26,7 @@ export function CamperProfilePage({ onBackHome }: CamperProfilePageProps) {
 		isSaving,
 		saveSuccessMessage,
 		form,
-		languages,
 		isFormDirty,
-		handleAddLanguage,
-		handleRemoveLanguage,
 		handleResetForm,
 		handleAvatarChange,
 		handleSubmit,
@@ -92,12 +89,7 @@ export function CamperProfilePage({ onBackHome }: CamperProfilePageProps) {
 								{activeTab === SettingsTabEnum.PERSONAL_PROFILE && (
 									<form onSubmit={handleSubmit} className="flex flex-col gap-6">
 										<PersonalProfileForm form={form} />
-										<ExperienceSkillsForm
-											form={form}
-											languages={languages}
-											onAddLanguage={handleAddLanguage}
-											onRemoveLanguage={handleRemoveLanguage}
-										/>
+										<ExperienceSkillsForm form={form} />
 									</form>
 								)}
 
