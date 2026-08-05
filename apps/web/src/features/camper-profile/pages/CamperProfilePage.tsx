@@ -76,10 +76,18 @@ export function CamperProfilePage({ onBackHome }: CamperProfilePageProps) {
 
 						{/* Main Settings Grid */}
 						<div className="flex flex-col md:flex-row items-start gap-6">
-							{/* Left Settings Sub-Nav */}
-							<SettingsSubNav activeTab={activeTab} onTabChange={(tab) => setActiveTab(tab)} />
+							{/* Left Settings Sub-Nav & Completion Widget */}
+							<div className="flex w-full md:w-64 shrink-0 flex-col gap-4">
+								<SettingsSubNav activeTab={activeTab} onTabChange={(tab) => setActiveTab(tab)} />
+								{profile && (
+									<ProfileCompletionCard
+										profile={profile}
+										onSelectTab={(tab) => setActiveTab(tab)}
+									/>
+								)}
+							</div>
 
-							{/* Center Form Panels */}
+							{/* Center Main Form Panels (Expands across full remaining width) */}
 							<div className="flex-1 flex flex-col gap-6 w-full min-w-0">
 								{activeTab === SettingsTabEnum.PERSONAL_PROFILE && (
 									<form onSubmit={handleSubmit} className="flex flex-col gap-6">
@@ -115,16 +123,6 @@ export function CamperProfilePage({ onBackHome }: CamperProfilePageProps) {
 										</div>
 									)}
 							</div>
-
-							{/* Right Sidebar Widget: Profile Completion */}
-							{profile && (
-								<div className="w-full md:w-80 shrink-0">
-									<ProfileCompletionCard
-										profile={profile}
-										onSelectTab={(tab) => setActiveTab(tab)}
-									/>
-								</div>
-							)}
 						</div>
 					</div>
 				</main>
