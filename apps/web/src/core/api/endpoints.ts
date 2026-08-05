@@ -47,4 +47,10 @@ export const API_ENDPOINTS = {
 		ALERTS: "/sos-alerts",
 		ALERT_BY_ID: (id: string) => `/sos-alerts/${id}`,
 	},
+	HEALTH_PROFILE: {
+		GET: "/camper/health-profile",
+		UPDATE: "/camper/health-profile",
+		GRANT_CONSENT: "/camper/health-profile/consent/grant",
+		REVOKE_CONSENT: "/camper/health-profile/consent/revoke",
+	},
 } as const;

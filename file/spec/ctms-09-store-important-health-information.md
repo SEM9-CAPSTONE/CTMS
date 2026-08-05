@@ -1,4 +1,4 @@
-﻿# CTMS-09 - Store Important Health Information
+# CTMS-09 - Store Important Health Information
 
 **Spec Reference**  
 /file/spec/ctms-09-store-important-health-information.md
@@ -13,25 +13,25 @@ To Do
 As a user, I want to store Important Health Information so that the CTMS workflow is completed safely, consistently, and within the correct business scope.
 
 ## Acceptance Criteria
-- [ ] Only the Host or Porter for the related trip can view the information.
-- [ ] the user can edit or revoke sharing permission.
+- [x] Only the Host or Porter for the related trip can view the information.
+- [x] the user can edit or revoke sharing permission.
 
 ## Business Rules Checklist
-- [ ] BR-024: Logging out from all devices must revoke all active refresh tokens for the user.
-- [ ] BR-025: A Camper health profile may only be viewed by a Host or Porter associated with the related Trip when valid consent exists.
-- [ ] BR-202: Accounts in pending_verification, suspended, or deleted status must not use functions that require an active account, except allowed verification or recovery flows.
-- [ ] BR-204: Users may only view or change data they own unless their role and business relationship allow access to another user's data.
-- [ ] BR-205: All input data must be validated for required fields, data type, format, length, enum values, and cross-field relationships before processing.
-- [ ] BR-216: Passwords, OTPs, access tokens, and refresh tokens must not be stored as plaintext; logs and API responses must not expose these values.
-- [ ] BR-217: Personal data and health data may only return the fields needed for the business purpose and only to authorized users.
-- [ ] BR-223: Audit logs are append-only; users and Admins must not edit or delete audit logs through normal business functions.
-- [ ] BR-230: External-service retries must have limits and backoff; retries must not create duplicate records or transactions.
-- [ ] BR-231: APIs must return consistent error codes: 401 for authentication failure, 403 for insufficient permission, 404 for not found, 409 for business conflict, and 422 for invalid data.
-- [ ] BR-232: Error messages must be clear, actionable, and must not expose stack traces, secrets, or resources the user is not authorized to view.
-- [ ] BR-233: List APIs must support pagination and record limits; filtering and sorting may only use published fields.
-- [ ] BR-242: When the backend rejects a request because data changed concurrently, the UI must preserve entered data, display the reason, and allow reload or retry.
-- [ ] BR-243: Cases with insufficient permission or unmet business conditions must not create any side effect.
-- [ ] BR-244: Changes to Business Rules, enums, state transitions, or API contracts must update the Spec, test cases, and data documentation together before Done.
+- [x] BR-024: Logging out from all devices must revoke all active refresh tokens for the user.
+- [x] BR-025: A Camper health profile may only be viewed by a Host or Porter associated with the related Trip when valid consent exists.
+- [x] BR-202: Accounts in pending_verification, suspended, or deleted status must not use functions that require an active account, except allowed verification or recovery flows.
+- [x] BR-204: Users may only view or change data they own unless their role and business relationship allow access to another user's data.
+- [x] BR-205: All input data must be validated for required fields, data type, format, length, enum values, and cross-field relationships before processing.
+- [x] BR-216: Passwords, OTPs, access tokens, and refresh tokens must not be stored as plaintext; logs and API responses must not expose these values.
+- [x] BR-217: Personal data and health data may only return the fields needed for the business purpose and only to authorized users.
+- [x] BR-223: Audit logs are append-only; users and Admins must not edit or delete audit logs through normal business functions.
+- [x] BR-230: External-service retries must have limits and backoff; retries must not create duplicate records or transactions.
+- [x] BR-231: APIs must return consistent error codes: 401 for authentication failure, 403 for insufficient permission, 404 for not found, 409 for business conflict, and 422 for invalid data.
+- [x] BR-232: Error messages must be clear, actionable, and must not expose stack traces, secrets, or resources the user is not authorized to view.
+- [x] BR-233: List APIs must support pagination and record limits; filtering and sorting may only use published fields.
+- [x] BR-242: When the backend rejects a request because data changed concurrently, the UI must preserve entered data, display the reason, and allow reload or retry.
+- [x] BR-243: Cases with insufficient permission or unmet business conditions must not create any side effect.
+- [x] BR-244: Changes to Business Rules, enums, state transitions, or API contracts must update the Spec, test cases, and data documentation together before Done.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
