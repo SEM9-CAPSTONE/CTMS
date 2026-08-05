@@ -35,6 +35,7 @@ export function MedicalConditionsList({
 
 	return (
 		<div className="flex flex-col gap-4 rounded-2xl border border-[#e0ebe0] bg-white p-6 shadow-sm">
+			{/* Component Header */}
 			<div className="flex items-center justify-between border-b border-[#f0f4f1] pb-3">
 				<div>
 					<h3 className="text-base font-extrabold text-[#164027] flex items-center gap-2">
@@ -45,7 +46,7 @@ export function MedicalConditionsList({
 						Khai báo các bệnh mạn tính (hen suyễn, tim mạch, khớp...) và thuốc cá nhân cần sử dụng.
 					</p>
 				</div>
-				<span className="rounded-full bg-[#eef7f0] px-3 py-1 text-xs font-bold text-[#164027]">
+				<span className="rounded-full bg-[#eef7f0] border border-[#d6ebd9] px-3 py-1 text-xs font-bold text-[#164027]">
 					{conditions.length} mục
 				</span>
 			</div>
@@ -86,31 +87,57 @@ export function MedicalConditionsList({
 				</div>
 			)}
 
-			{/* Add Condition Input Row */}
+			{/* Add Medical Condition Grid Form */}
 			{!disabled && (
-				<div className="mt-2 flex flex-col sm:flex-row items-center gap-2 rounded-xl border border-[#dfe8df] bg-[#f8faf8] p-3">
-					<input
-						type="text"
-						value={name}
-						onChange={(e) => setName(e.target.value)}
-						placeholder="Tên bệnh lý (ví dụ: Hen suyễn)"
-						className="h-9 flex-1 rounded-xl border border-[#dfe8df] bg-white px-3 text-xs text-[#10221b] outline-none focus:border-[#164027]"
-					/>
-					<input
-						type="text"
-						value={medication}
-						onChange={(e) => setMedication(e.target.value)}
-						placeholder="Tên thuốc cá nhân mang theo"
-						className="h-9 flex-1 rounded-xl border border-[#dfe8df] bg-white px-3 text-xs text-[#10221b] outline-none focus:border-[#164027]"
-					/>
-					<button
-						type="button"
-						onClick={handleAdd}
-						className="inline-flex h-9 items-center justify-center gap-1 rounded-xl bg-[#164027] px-3.5 text-xs font-bold text-white hover:bg-[#276143] transition shrink-0"
-					>
+				<div className="mt-2 flex flex-col gap-3.5 rounded-xl border border-[#dfe8df] bg-[#f8faf8] p-4">
+					<div className="flex items-center gap-1.5 text-xs font-extrabold text-[#164027]">
 						<Plus size={14} />
-						<span>Thêm</span>
-					</button>
+						<span>Thêm bệnh lý mạn tính mới</span>
+					</div>
+
+					<div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+						{/* Condition Name */}
+						<div className="sm:col-span-6 flex flex-col gap-1">
+							<label htmlFor="conditionName" className="text-[11px] font-bold text-[#4a5e51]">
+								Tên bệnh lý <span className="text-red-500">*</span>
+							</label>
+							<input
+								id="conditionName"
+								type="text"
+								value={name}
+								onChange={(e) => setName(e.target.value)}
+								placeholder="Ví dụ: Hen suyễn, Tim mạch..."
+								className="h-9 w-full rounded-xl border border-[#dfe8df] bg-white px-3 text-xs text-[#10221b] outline-none transition focus:border-[#164027] focus:ring-2 focus:ring-[#164027]/10"
+							/>
+						</div>
+
+						{/* Personal Medication */}
+						<div className="sm:col-span-6 flex flex-col gap-1">
+							<label htmlFor="medicationName" className="text-[11px] font-bold text-[#4a5e51]">
+								Thuốc cá nhân mang theo (tùy chọn)
+							</label>
+							<input
+								id="medicationName"
+								type="text"
+								value={medication}
+								onChange={(e) => setMedication(e.target.value)}
+								placeholder="Ví dụ: Salbutamol, Insulin..."
+								className="h-9 w-full rounded-xl border border-[#dfe8df] bg-white px-3 text-xs text-[#10221b] outline-none transition focus:border-[#164027] focus:ring-2 focus:ring-[#164027]/10"
+							/>
+						</div>
+					</div>
+
+					<div className="flex justify-end pt-1">
+						<button
+							type="button"
+							onClick={handleAdd}
+							disabled={!name.trim()}
+							className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-[#164027] px-4 text-xs font-bold text-white shadow-xs hover:bg-[#276143] transition disabled:opacity-40"
+						>
+							<Plus size={14} />
+							<span>Thêm bệnh lý</span>
+						</button>
+					</div>
 				</div>
 			)}
 		</div>

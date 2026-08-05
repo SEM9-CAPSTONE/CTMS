@@ -45,6 +45,7 @@ export function AllergiesList({
 
 	return (
 		<div className="flex flex-col gap-4 rounded-2xl border border-[#e0ebe0] bg-white p-6 shadow-sm">
+			{/* Component Header */}
 			<div className="flex items-center justify-between border-b border-[#f0f4f1] pb-3">
 				<div>
 					<h3 className="text-base font-extrabold text-[#164027] flex items-center gap-2">
@@ -56,7 +57,7 @@ export function AllergiesList({
 						đi.
 					</p>
 				</div>
-				<span className="rounded-full bg-[#eef7f0] px-3 py-1 text-xs font-bold text-[#164027]">
+				<span className="rounded-full bg-[#eef7f0] border border-[#d6ebd9] px-3 py-1 text-xs font-bold text-[#164027]">
 					{allergies.length} dị ứng
 				</span>
 			</div>
@@ -90,7 +91,7 @@ export function AllergiesList({
 									<button
 										type="button"
 										onClick={() => onRemoveAllergy(item.id)}
-										className="rounded-lg p-1 text-[#889b8f] hover:bg-red-50 hover:text-red-600 transition"
+										className="rounded-lg p-1 text-[#889b8f] hover:bg-red-50 hover:text-red-600 transition shrink-0"
 										title="Xóa dị ứng"
 									>
 										<Trash2 size={15} />
@@ -102,41 +103,75 @@ export function AllergiesList({
 				</div>
 			)}
 
-			{/* Add Allergy Input Row */}
+			{/* Add Allergy Grid Form */}
 			{!disabled && (
-				<div className="mt-2 flex flex-col sm:flex-row items-center gap-2 rounded-xl border border-[#dfe8df] bg-[#f8faf8] p-3">
-					<input
-						type="text"
-						value={name}
-						onChange={(e) => setName(e.target.value)}
-						placeholder="Tên dị ứng (ví dụ: Penicillin)"
-						className="h-9 flex-1 rounded-xl border border-[#dfe8df] bg-white px-3 text-xs text-[#10221b] outline-none focus:border-[#164027]"
-					/>
-					<select
-						value={severity}
-						onChange={(e) => setSeverity(e.target.value as AllergySeverity)}
-						className="h-9 rounded-xl border border-[#dfe8df] bg-white px-2.5 text-xs font-semibold text-[#10221b] outline-none focus:border-[#164027]"
-					>
-						<option value="LOW">Nhẹ</option>
-						<option value="MEDIUM">Vừa</option>
-						<option value="HIGH">Nặng</option>
-						<option value="CRITICAL">Nguy hiểm</option>
-					</select>
-					<input
-						type="text"
-						value={reaction}
-						onChange={(e) => setReaction(e.target.value)}
-						placeholder="Triệu chứng (tùy chọn)"
-						className="h-9 flex-1 rounded-xl border border-[#dfe8df] bg-white px-3 text-xs text-[#10221b] outline-none focus:border-[#164027]"
-					/>
-					<button
-						type="button"
-						onClick={handleAdd}
-						className="inline-flex h-9 items-center justify-center gap-1 rounded-xl bg-[#164027] px-3.5 text-xs font-bold text-white hover:bg-[#276143] transition shrink-0"
-					>
+				<div className="mt-2 flex flex-col gap-3.5 rounded-xl border border-[#dfe8df] bg-[#f8faf8] p-4">
+					<div className="flex items-center gap-1.5 text-xs font-extrabold text-[#164027]">
 						<Plus size={14} />
-						<span>Thêm</span>
-					</button>
+						<span>Thêm dị ứng mới</span>
+					</div>
+
+					<div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+						{/* Allergy Name */}
+						<div className="sm:col-span-5 flex flex-col gap-1">
+							<label htmlFor="allergyName" className="text-[11px] font-bold text-[#4a5e51]">
+								Tên dị ứng <span className="text-red-500">*</span>
+							</label>
+							<input
+								id="allergyName"
+								type="text"
+								value={name}
+								onChange={(e) => setName(e.target.value)}
+								placeholder="Ví dụ: Penicillin, Hải sản..."
+								className="h-9 w-full rounded-xl border border-[#dfe8df] bg-white px-3 text-xs text-[#10221b] outline-none transition focus:border-[#164027] focus:ring-2 focus:ring-[#164027]/10"
+							/>
+						</div>
+
+						{/* Severity */}
+						<div className="sm:col-span-3 flex flex-col gap-1">
+							<label htmlFor="allergySeverity" className="text-[11px] font-bold text-[#4a5e51]">
+								Mức độ
+							</label>
+							<select
+								id="allergySeverity"
+								value={severity}
+								onChange={(e) => setSeverity(e.target.value as AllergySeverity)}
+								className="h-9 w-full rounded-xl border border-[#dfe8df] bg-white px-2.5 text-xs font-semibold text-[#10221b] outline-none transition focus:border-[#164027] focus:ring-2 focus:ring-[#164027]/10"
+							>
+								<option value="LOW">Nhẹ</option>
+								<option value="MEDIUM">Vừa</option>
+								<option value="HIGH">Nặng</option>
+								<option value="CRITICAL">Nguy hiểm</option>
+							</select>
+						</div>
+
+						{/* Symptoms / Reaction */}
+						<div className="sm:col-span-4 flex flex-col gap-1">
+							<label htmlFor="allergyReaction" className="text-[11px] font-bold text-[#4a5e51]">
+								Triệu chứng (tùy chọn)
+							</label>
+							<input
+								id="allergyReaction"
+								type="text"
+								value={reaction}
+								onChange={(e) => setReaction(e.target.value)}
+								placeholder="Ví dụ: Phát ban, khó thở..."
+								className="h-9 w-full rounded-xl border border-[#dfe8df] bg-white px-3 text-xs text-[#10221b] outline-none transition focus:border-[#164027] focus:ring-2 focus:ring-[#164027]/10"
+							/>
+						</div>
+					</div>
+
+					<div className="flex justify-end pt-1">
+						<button
+							type="button"
+							onClick={handleAdd}
+							disabled={!name.trim()}
+							className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-[#164027] px-4 text-xs font-bold text-white shadow-xs hover:bg-[#276143] transition disabled:opacity-40"
+						>
+							<Plus size={14} />
+							<span>Thêm dị ứng</span>
+						</button>
+					</div>
 				</div>
 			)}
 		</div>
