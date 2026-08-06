@@ -40,6 +40,14 @@ services:
       REDIS_URL: redis://redis:6379
       AI_SERVICE_URL: http://ai:8000
       JWT_SECRET: ${JWT_SECRET:-change-me}
+      # CTMS-02: account verification OTP (BR-006 expiry, BR-007 resend limit).
+      # Same development defaults as .env.example — without these, issueOtp()
+      # reads undefined -> NaN and silently breaks BR-220/BR-006 (Known Bug,
+      # Step 4/6/8 review). Not previously set here; added now per Step 8
+      # final verification (task 1).
+      OTP_TTL_MINUTES: ${OTP_TTL_MINUTES:-10}
+      OTP_RESEND_MAX_ATTEMPTS: ${OTP_RESEND_MAX_ATTEMPTS:-5}
+      OTP_RESEND_WINDOW_MINUTES: ${OTP_RESEND_WINDOW_MINUTES:-1440}
     ports:
       - "3000:3000"
     depends_on:
