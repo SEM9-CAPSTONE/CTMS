@@ -23,7 +23,17 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onBackToHome, onNavi
 		handleNextStep,
 		handlePrevStep,
 		handleRegisterSubmit,
+		isSubmitting,
+		submitError,
 	} = useRegisterForm();
+
+	// 409 -> submitError.message directly; 422 -> flatten backend's per-field
+	// errors (also covers "Either email or phone must be provided").
+	const errorMessages = submitError
+		? submitError.fieldErrors
+			? submitError.fieldErrors.flatMap((fieldError) => fieldError.errors)
+			: [submitError.message]
+		: [];
 
 	const renderRoleForm = () => {
 		switch (selectedRole) {
@@ -122,6 +132,17 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onBackToHome, onNavi
 
 							{renderRoleForm()}
 
+							{/* Submit error summary (409 duplicate / 422 validation) */}
+							{errorMessages.length > 0 && (
+								<div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+									{errorMessages.map((msg) => (
+										<p key={msg} className="text-xs font-semibold text-red-700">
+											{msg}
+										</p>
+									))}
+								</div>
+							)}
+
 							{/* Form Action Buttons */}
 							<div className="mt-6 flex items-center justify-between border-t border-[#f0f4f0] pt-4">
 								<button
@@ -135,9 +156,10 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onBackToHome, onNavi
 
 								<button
 									type="submit"
-									className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl bg-[#164027] px-7 py-3 text-sm font-bold text-white shadow-md transition hover:bg-[#0f2e1c] hover:shadow-lg"
+									disabled={isSubmitting}
+									className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl bg-[#164027] px-7 py-3 text-sm font-bold text-white shadow-md transition hover:bg-[#0f2e1c] hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60"
 								>
-									<span>Đăng ký ngay</span>
+									<span>{isSubmitting ? "Đang xử lý..." : "Đăng ký ngay"}</span>
 									<ArrowRight size={16} />
 								</button>
 							</div>

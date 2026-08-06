@@ -57,3 +57,41 @@ export interface PorterRegisterFormData extends BaseRegisterFormData {
 export interface AdminRegisterFormData extends BaseRegisterFormData {
 	adminSecretKey: string;
 }
+
+/**
+ * Request payload accepted by POST /api/auth/register (CTMS-01-T01 API contract).
+ * Only these 4 fields — the backend rejects any other property (whitelist +
+ * forbidNonWhitelisted), so form-only fields (fullName, bloodType, etc.) must
+ * never be included here. Email and phone are both mandatory (business flow
+ * update: registration no longer accepts "email or phone", both are required).
+ */
+export interface RegisterApiPayload {
+	email: string;
+	phone: string;
+	password: string;
+	role: "camper" | "host" | "porter";
+}
+
+/** Response body on 201 (matches services/api's UserProfileDto). */
+export interface RegisterApiResponse {
+	id: string;
+	email: string | null;
+	phone: string | null;
+	role: "camper" | "host" | "porter";
+	status: "pending_verification" | "active" | "suspended" | "deleted";
+	createdAt: string;
+}
+
+/** Error body on 422 (custom ValidationPipe exceptionFactory, BR-231). */
+export interface RegisterValidationErrorResponse {
+	statusCode: 422;
+	error: string;
+	message: Array<{ field: string; errors: string[] }>;
+}
+
+/** Error body on 409 (duplicate email/phone, BR-231). */
+export interface RegisterConflictErrorResponse {
+	statusCode: 409;
+	message: string;
+	error: string;
+}

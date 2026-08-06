@@ -1,6 +1,7 @@
 import { Award, Compass, Lock, Mail, Phone, User } from "lucide-react";
 import type React from "react";
 import type { PorterRegisterFormData } from "../types";
+import { isValidEmail, isValidPhoneNumber } from "../utils/auth.utils";
 
 interface PorterRegisterFormProps {
 	formData: PorterRegisterFormData;
@@ -8,6 +9,15 @@ interface PorterRegisterFormProps {
 }
 
 export const PorterRegisterForm: React.FC<PorterRegisterFormProps> = ({ formData, onChange }) => {
+	// Email and phone are both required (business flow update) — format still
+	// checked with the existing utils.
+	const emailError =
+		formData.email && !isValidEmail(formData.email) ? "Email không đúng định dạng" : null;
+	const phoneError =
+		formData.phone && !isValidPhoneNumber(formData.phone)
+			? "Số điện thoại không đúng định dạng (VD: 0912345678)"
+			: null;
+
 	return (
 		<div className="space-y-3.5 text-left">
 			{/* Full Name & Email */}
@@ -40,6 +50,7 @@ export const PorterRegisterForm: React.FC<PorterRegisterFormProps> = ({ formData
 							className="w-full bg-transparent outline-none text-[#10221b]"
 						/>
 					</div>
+					{emailError && <p className="mt-1 text-xs font-semibold text-red-600">{emailError}</p>}
 				</div>
 			</div>
 
@@ -96,6 +107,7 @@ export const PorterRegisterForm: React.FC<PorterRegisterFormProps> = ({ formData
 							className="w-full bg-transparent outline-none text-[#10221b]"
 						/>
 					</div>
+					{phoneError && <p className="mt-1 text-xs font-semibold text-red-600">{phoneError}</p>}
 				</div>
 
 				<div>
