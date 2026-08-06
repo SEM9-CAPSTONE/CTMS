@@ -12,7 +12,8 @@
 		"test:integration": "jest --config ./test/jest-integration.json --runInBand",
 		"migration:run": "typeorm-ts-node-commonjs migration:run -d src/shared/database/data-source.ts",
 		"migration:revert": "typeorm-ts-node-commonjs migration:revert -d src/shared/database/data-source.ts",
-		"migration:generate": "typeorm-ts-node-commonjs migration:generate -d src/shared/database/data-source.ts"
+		"migration:generate": "typeorm-ts-node-commonjs migration:generate -d src/shared/database/data-source.ts",
+		"seed:dev-admin": "ts-node src/seeds/dev-admin.seed.ts"
 	},
 	"dependencies": {
 		"@nestjs/common": "^10.4.15",

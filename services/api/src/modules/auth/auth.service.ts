@@ -30,7 +30,10 @@ import { RefreshTokenRepository } from "./refresh-token.repository";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { VerificationOtpRepository } from "./verification-otp.repository";
 
-const BCRYPT_COST_FACTOR = 10;
+/** Exported so the dev-only admin seed script (src/seeds/dev-admin.seed.ts)
+ * hashes with the exact same cost factor as Register, per its requirement
+ * to reuse Register's hashing flow rather than duplicate the constant. */
+export const BCRYPT_COST_FACTOR = 10;
 const DUPLICATE_CONTACT_MESSAGE = "Email or phone already registered";
 const RESEND_LIMIT_MESSAGE = "OTP resend limit reached, try again later";
 const OTP_NOT_FOUND_MESSAGE = "No pending OTP found for this account";
