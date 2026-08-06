@@ -2,6 +2,9 @@ import { Body, Controller, HttpCode, HttpStatus, Post } from "@nestjs/common";
 import { ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { AuthService } from "./auth.service";
+import { LoginResponseDto } from "./dto/login-response.dto";
+// biome-ignore lint/style/useImportType: used as a @Body() parameter type, needs design:paramtypes metadata for NestJS's validation/transform pipeline
+import { LoginDto } from "./dto/login.dto";
 // biome-ignore lint/style/useImportType: used as a @Body() parameter type, needs design:paramtypes metadata for NestJS's validation/transform pipeline
 import { RegisterDto } from "./dto/register.dto";
 // biome-ignore lint/style/useImportType: used as a @Body() parameter type, needs design:paramtypes metadata for NestJS's validation/transform pipeline
@@ -55,5 +58,15 @@ export class AuthController {
 	@ApiResponse({ status: 422, description: "Invalid input" })
 	resend(@Body() dto: ResendOtpDto): Promise<UserProfileDto> {
 		return this.authService.resendOtp(dto);
+	}
+
+	@Post("login")
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({ summary: "Log in with email/phone and password" })
+	@ApiResponse({ status: 200, description: "Login successful", type: LoginResponseDto })
+	@ApiResponse({ status: 401, description: "Invalid credentials, or account is not active" })
+	@ApiResponse({ status: 422, description: "Invalid input" })
+	login(@Body() dto: LoginDto): Promise<LoginResponseDto> {
+		return this.authService.login(dto);
 	}
 }
