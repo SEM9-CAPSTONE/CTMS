@@ -28,8 +28,17 @@ const SUCCESS_RESPONSE = {
 	createdAt: new Date().toISOString(),
 };
 
-async function renderAndGoToStep2(user: ReturnType<typeof userEvent.setup>) {
-	render(<RegisterPage onBackToHome={vi.fn()} onNavigateToLogin={vi.fn()} />);
+async function renderAndGoToStep2(
+	user: ReturnType<typeof userEvent.setup>,
+	onNavigateToVerifyOtp: () => void = vi.fn()
+) {
+	render(
+		<RegisterPage
+			onBackToHome={vi.fn()}
+			onNavigateToLogin={vi.fn()}
+			onNavigateToVerifyOtp={onNavigateToVerifyOtp}
+		/>
+	);
 	await user.click(screen.getByRole("button", { name: /tiếp tục nhập thông tin/i }));
 }
 
@@ -50,11 +59,18 @@ function submitButton() {
 describe("RegisterPage", () => {
 	beforeEach(() => {
 		registerMock.mockReset();
+		sessionStorage.clear();
 	});
 
 	// TC1 — Render email/phone registration modes correctly (step 1 default)
 	it("renders the role selection step by default", () => {
-		render(<RegisterPage onBackToHome={vi.fn()} onNavigateToLogin={vi.fn()} />);
+		render(
+			<RegisterPage
+				onBackToHome={vi.fn()}
+				onNavigateToLogin={vi.fn()}
+				onNavigateToVerifyOtp={vi.fn()}
+			/>
+		);
 		expect(
 			screen.getByText("Chào bạn, bạn muốn tham gia CTMS với vai trò nào?")
 		).toBeInTheDocument();
@@ -209,17 +225,28 @@ describe("RegisterPage", () => {
 		).toBeInTheDocument();
 	});
 
-	// TC11 — Success state only after the backend confirms with 201
-	it("shows the success screen after the backend confirms with 201", async () => {
+	// TC11 — Success: navigates to Verify OTP and stores the registration
+	// context in sessionStorage (Phase 2 Decision Gate), instead of showing a
+	// static success screen.
+	it("stores the registration context in sessionStorage and navigates to Verify OTP after the backend confirms with 201", async () => {
 		const user = userEvent.setup();
+		const onNavigateToVerifyOtp = vi.fn();
 		registerMock.mockResolvedValueOnce(SUCCESS_RESPONSE);
 
-		await renderAndGoToStep2(user);
+		await renderAndGoToStep2(user, onNavigateToVerifyOtp);
 		await fillRequiredCommonFields(user);
 		await user.type(screen.getByPlaceholderText("camper@example.com"), "camper@example.com");
 		await user.type(screen.getByPlaceholderText("0912345678"), "0912345678");
 		await user.click(submitButton());
 
-		expect(await screen.findByText("Đăng ký tài khoản thành công!")).toBeInTheDocument();
+		await waitFor(() => expect(onNavigateToVerifyOtp).toHaveBeenCalledTimes(1));
+
+		// userId must be carried via sessionStorage, never a URL query param.
+		const stored = JSON.parse(sessionStorage.getItem("verify-registration") ?? "null");
+		expect(stored).toEqual({
+			userId: SUCCESS_RESPONSE.id,
+			email: SUCCESS_RESPONSE.email,
+			phone: SUCCESS_RESPONSE.phone,
+		});
 	});
 });

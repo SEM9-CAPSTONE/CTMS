@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { LoginPage } from "../features/auth/pages/LoginPage";
 import { RegisterPage } from "../features/auth/pages/RegisterPage";
+import { VerifyOtpPage } from "../features/auth/pages/VerifyOtpPage";
 import { CamperProfilePage } from "../features/camper-profile/pages/CamperProfilePage";
 import { LandingPage } from "../features/landing/pages/LandingPage";
 import { EdgeCasePage, ErrorPage, NotFoundPage, UnauthorizedPage } from "../shared/pages";
@@ -57,6 +58,16 @@ export function AppRoutes() {
 				<RegisterPage
 					onBackToHome={() => navigateTo(RoutePath.HOME)}
 					onNavigateToLogin={() => navigateTo(RoutePath.LOGIN)}
+					onNavigateToVerifyOtp={() => navigateTo(RoutePath.VERIFY_OTP)}
+				/>
+			);
+
+		case RoutePath.VERIFY_OTP:
+			return (
+				<VerifyOtpPage
+					onBackToHome={() => navigateTo(RoutePath.HOME)}
+					onNavigateToLogin={() => navigateTo(RoutePath.LOGIN)}
+					onNavigateToRegister={() => navigateTo(RoutePath.REGISTER)}
 				/>
 			);
 

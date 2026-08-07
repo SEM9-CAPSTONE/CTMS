@@ -8,7 +8,7 @@ import { LoginDto } from "./dto/login.dto";
 // biome-ignore lint/style/useImportType: used as a @Body() parameter type, needs design:paramtypes metadata for NestJS's validation/transform pipeline
 import { RegisterDto } from "./dto/register.dto";
 // biome-ignore lint/style/useImportType: used as a @Body() parameter type, needs design:paramtypes metadata for NestJS's validation/transform pipeline
-import { ResendOtpDto } from "./dto/resend-otp.dto";
+import { SendOtpDto } from "./dto/send-otp.dto";
 import { UserProfileDto } from "./dto/user-profile.dto";
 // biome-ignore lint/style/useImportType: used as a @Body() parameter type, needs design:paramtypes metadata for NestJS's validation/transform pipeline
 import { VerifyOtpDto } from "./dto/verify-otp.dto";
@@ -40,24 +40,32 @@ export class AuthController {
 	}
 
 	/**
-	 * Response shape is a TEMPORARY PLACEHOLDER (aligned with register/verify's
-	 * UserProfileDto convention) — no API contract for resend has been
-	 * confirmed. Open Decision Gate, see AuthService.resendOtp() docstring.
+	 * First OTP issuance for an account — distinct route from /resend for REST
+	 * clarity to API consumers, even though both call the same AuthService
+	 * method (see SendOtpDto's docstring for why: the underlying business
+	 * rule genuinely does not distinguish "first send" from "resend").
 	 */
-	@Post("resend")
+	@Post("send-otp")
 	@HttpCode(HttpStatus.OK)
 	@ApiOperation({
-		summary: "Resend OTP for account verification (response shape not yet confirmed)",
+		summary: "Send an OTP to verify an account via the chosen channel (phone or email)",
 	})
-	@ApiResponse({
-		status: 200,
-		description: "OTP resent — placeholder response, pending contract confirmation",
-		type: UserProfileDto,
-	})
-	@ApiResponse({ status: 409, description: "Resend limit reached" })
+	@ApiResponse({ status: 200, description: "OTP sent", type: UserProfileDto })
+	@ApiResponse({ status: 409, description: "Resend limit reached, or delivery failed" })
 	@ApiResponse({ status: 422, description: "Invalid input" })
-	resend(@Body() dto: ResendOtpDto): Promise<UserProfileDto> {
-		return this.authService.resendOtp(dto);
+	sendOtp(@Body() dto: SendOtpDto): Promise<UserProfileDto> {
+		return this.authService.sendOtp(dto);
+	}
+
+	/** Resend an OTP — same body and same underlying operation as /send-otp; see its docstring. */
+	@Post("resend")
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({ summary: "Resend an OTP for account verification via the chosen channel" })
+	@ApiResponse({ status: 200, description: "OTP resent", type: UserProfileDto })
+	@ApiResponse({ status: 409, description: "Resend limit reached, or delivery failed" })
+	@ApiResponse({ status: 422, description: "Invalid input" })
+	resend(@Body() dto: SendOtpDto): Promise<UserProfileDto> {
+		return this.authService.sendOtp(dto);
 	}
 
 	@Post("login")

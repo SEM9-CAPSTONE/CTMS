@@ -42,7 +42,12 @@ test.describe("Register (E2E, real backend)", () => {
 	// only" happy-path tests are no longer reachable: the email and phone
 	// inputs are both `required`, so a real browser blocks submission when
 	// either is empty, before the request ever reaches the backend.
-	test("registers successfully with email and phone", async ({ page }) => {
+	//
+	// Success now navigates to /verify-otp (CTMS-02-T02) instead of showing a
+	// static success screen on /register.
+	test("registers successfully with email and phone and navigates to Verify OTP", async ({
+		page,
+	}) => {
 		await goToRegisterStep2(page);
 		await fillRequiredCommonFields(page);
 		await page.getByPlaceholder("camper@example.com").fill(uniqueEmail("tc1"));
@@ -50,7 +55,8 @@ test.describe("Register (E2E, real backend)", () => {
 
 		await submitButton(page).click();
 
-		await expect(page.getByText("Đăng ký tài khoản thành công!")).toBeVisible();
+		await expect(page).toHaveURL(/\/verify-otp$/);
+		await expect(page.getByText("Xác minh tài khoản")).toBeVisible();
 	});
 
 	// E2E-TC2 — Duplicate account (409)
@@ -64,7 +70,7 @@ test.describe("Register (E2E, real backend)", () => {
 		await page.getByPlaceholder("camper@example.com").fill(email);
 		await page.getByPlaceholder("0912345678").fill(uniqueLocalPhone());
 		await submitButton(page).click();
-		await expect(page.getByText("Đăng ký tài khoản thành công!")).toBeVisible();
+		await expect(page).toHaveURL(/\/verify-otp$/);
 
 		// Second registration attempt with the same email (fresh phone, so the
 		// 409 is attributable only to the duplicated email).

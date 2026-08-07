@@ -2,6 +2,7 @@ export enum RoutePath {
 	HOME = "/",
 	LOGIN = "/login",
 	REGISTER = "/register",
+	VERIFY_OTP = "/verify-otp",
 	DASHBOARD = "/dashboard",
 	CAMPSITES = "/campsites",
 	TREKKING = "/trekking",

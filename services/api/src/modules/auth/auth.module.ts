@@ -12,6 +12,13 @@ import { RefreshToken } from "./entities/refresh-token.entity";
 import { VerificationOtp } from "./entities/verification-otp.entity";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
 import { JwtStrategy } from "./jwt.strategy";
+import { OtpDeliveryService } from "./otp-delivery.service";
+import { EmailOtpProvider } from "./providers/email-otp.provider";
+import {
+	EMAIL_OTP_PROVIDER,
+	SMS_OTP_PROVIDER,
+} from "./providers/otp-notification-provider.interface";
+import { SmsOtpProvider } from "./providers/sms-otp.provider";
 import { RefreshTokenRepository } from "./refresh-token.repository";
 import { VerificationOtpRepository } from "./verification-otp.repository";
 
@@ -35,6 +42,9 @@ import { VerificationOtpRepository } from "./verification-otp.repository";
 	controllers: [AuthController],
 	providers: [
 		AuthService,
+		OtpDeliveryService,
+		{ provide: SMS_OTP_PROVIDER, useClass: SmsOtpProvider },
+		{ provide: EMAIL_OTP_PROVIDER, useClass: EmailOtpProvider },
 		JwtStrategy,
 		JwtAuthGuard,
 		{

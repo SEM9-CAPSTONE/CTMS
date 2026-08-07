@@ -48,6 +48,18 @@ services:
       OTP_TTL_MINUTES: ${OTP_TTL_MINUTES:-10}
       OTP_RESEND_MAX_ATTEMPTS: ${OTP_RESEND_MAX_ATTEMPTS:-5}
       OTP_RESEND_WINDOW_MINUTES: ${OTP_RESEND_WINDOW_MINUTES:-1440}
+      # Real OTP delivery (phone via Twilio, email via plain SMTP). Empty by
+      # default is fine for the container to boot; only a live send needs
+      # real values supplied via the host's .env.
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_FROM_NUMBER: ${TWILIO_FROM_NUMBER:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
       # CTMS-03: login token lifetimes (BR-009).
       JWT_ACCESS_TOKEN_TTL: ${JWT_ACCESS_TOKEN_TTL:-15m}
       JWT_REFRESH_TOKEN_TTL: ${JWT_REFRESH_TOKEN_TTL:-7d}

@@ -34,6 +34,13 @@ export interface LoginApiResponse {
 export interface RegisterPageProps {
 	onBackToHome: () => void;
 	onNavigateToLogin: () => void;
+	onNavigateToVerifyOtp: () => void;
+}
+
+export interface VerifyOtpPageProps {
+	onBackToHome: () => void;
+	onNavigateToLogin: () => void;
+	onNavigateToRegister: () => void;
 }
 
 export interface RoleOption {
@@ -115,3 +122,33 @@ export interface RegisterConflictErrorResponse {
 	message: string;
 	error: string;
 }
+
+/** Request payload accepted by POST /api/auth/verify (CTMS-02 API contract). */
+export interface VerifyOtpApiPayload {
+	userId: string;
+	code: string;
+}
+
+/**
+ * Which contact method to deliver the OTP through — chosen by the user on
+ * the Verify page, never inferred. Mirrors services/api's OtpChannel enum.
+ */
+export type OtpChannel = "phone" | "email";
+
+/**
+ * Request payload shared by POST /api/auth/send-otp and POST /api/auth/resend
+ * (CTMS-02 real-delivery API contract) — the two routes exist for REST-client
+ * clarity (first send vs. resend), but accept the identical body.
+ */
+export interface SendOtpApiPayload {
+	userId: string;
+	channel: OtpChannel;
+}
+
+/**
+ * Response body for /verify (200), /send-otp (200), and /resend (200) — all
+ * three return the same UserProfileDto shape as /register on the backend
+ * (services/api).
+ */
+export type VerifyOtpApiResponse = RegisterApiResponse;
+export type SendOtpApiResponse = RegisterApiResponse;
