@@ -8,8 +8,10 @@ import { UserRole, UserStatus } from "../users/entities/user.entity";
 import type { UsersRepository } from "../users/users.repository";
 import { AuthService } from "./auth.service";
 import type { RegisterDto } from "./dto/register.dto";
-import type { ResendOtpDto } from "./dto/resend-otp.dto";
+import { OtpChannel } from "./dto/send-otp.dto";
+import type { SendOtpDto } from "./dto/send-otp.dto";
 import type { VerifyOtpDto } from "./dto/verify-otp.dto";
+import type { OtpDeliveryService } from "./otp-delivery.service";
 import type { VerificationOtpRepository } from "./verification-otp.repository";
 
 jest.mock("bcrypt");
@@ -99,13 +101,15 @@ describe("AuthService.register", () => {
 
 		bcryptHash.mockResolvedValue(HASHED_PASSWORD);
 
-		// register() never touches the OTP repository or ConfigService — passed
-		// as empty stubs purely to satisfy AuthService's constructor signature.
+		// register() never touches the OTP repository, ConfigService, or
+		// OtpDeliveryService — passed as empty stubs purely to satisfy
+		// AuthService's constructor signature.
 		authService = new AuthService(
 			usersRepository as unknown as UsersRepository,
 			{} as VerificationOtpRepository,
 			dataSource as unknown as DataSource,
-			{ get: jest.fn() } as unknown as ConfigService
+			{ get: jest.fn() } as unknown as ConfigService,
+			{} as OtpDeliveryService
 		);
 	});
 
@@ -349,7 +353,8 @@ describe("AuthService.issueOtp", () => {
 			usersRepository as unknown as UsersRepository,
 			otpRepository as unknown as VerificationOtpRepository,
 			dataSource as unknown as DataSource,
-			configService as unknown as ConfigService
+			configService as unknown as ConfigService,
+			{} as OtpDeliveryService // issueOtp() never delivers -- kept for tests only, see its docstring
 		);
 	});
 
@@ -512,7 +517,8 @@ describe("AuthService.verifyOtp", () => {
 			usersRepository as unknown as UsersRepository,
 			otpRepository as unknown as VerificationOtpRepository,
 			dataSource as unknown as DataSource,
-			{ get: jest.fn() } as unknown as ConfigService
+			{ get: jest.fn() } as unknown as ConfigService,
+			{} as OtpDeliveryService // verifyOtp() is channel-agnostic, never delivers
 		);
 	});
 
@@ -607,49 +613,78 @@ describe("AuthService.verifyOtp", () => {
 	});
 });
 
-describe("AuthService.resendOtp", () => {
+describe("AuthService.sendOtp", () => {
 	let authService: AuthService;
 	let usersRepository: { findOneByOrFail: jest.Mock };
-	let issueOtpSpy: jest.SpyInstance;
+	let otpRepository: MockOtpRepository;
+	let transactionalOtpRepository: MockOtpRepository;
+	let manager: { withRepository: jest.Mock };
+	let dataSource: { transaction: jest.Mock };
+	let configService: { get: jest.Mock };
+	let otpDeliveryService: { send: jest.Mock };
+	let loggerLogSpy: jest.SpyInstance;
+	const bcryptHash = bcrypt.hash as unknown as jest.Mock;
+	const cryptoRandomInt = randomInt as unknown as jest.Mock;
 
 	const USER_ID = "11111111-1111-1111-1111-111111111111";
 	const RAW_OTP = "654321";
 
-	function buildDto(overrides: Partial<ResendOtpDto> = {}): ResendOtpDto {
-		return { userId: USER_ID, ...overrides } as ResendOtpDto;
+	function buildDto(overrides: Partial<SendOtpDto> = {}): SendOtpDto {
+		return { userId: USER_ID, channel: OtpChannel.PHONE, ...overrides } as SendOtpDto;
 	}
 
 	beforeEach(() => {
 		jest.clearAllMocks();
+		loggerLogSpy = jest.spyOn(Logger.prototype, "log").mockImplementation(() => undefined);
 
 		usersRepository = { findOneByOrFail: jest.fn() };
+		transactionalOtpRepository = { findOneBy: jest.fn(), save: jest.fn() };
+		otpRepository = { findOneBy: jest.fn(), save: jest.fn() };
+		manager = { withRepository: jest.fn().mockReturnValue(transactionalOtpRepository) };
+		dataSource = {
+			transaction: jest.fn(async (callback: (manager: EntityManager) => unknown) =>
+				callback(manager as unknown as EntityManager)
+			),
+		};
+		configService = { get: jest.fn((key: string) => OTP_CONFIG[key]) };
+		otpDeliveryService = { send: jest.fn().mockResolvedValue(undefined) };
 
-		// resendOtp() is a thin wrapper over issueOtp() (Step 4, not re-tested
-		// here) — spy on the real instance method rather than re-mocking its
-		// internals (DataSource/OTP repository/ConfigService are irrelevant to
-		// this wrapper's own logic).
+		bcryptHash.mockResolvedValue(HASHED_OTP);
+		cryptoRandomInt.mockReturnValue(Number(RAW_OTP));
+		transactionalOtpRepository.findOneBy.mockResolvedValue(null); // default: first issuance
+
 		authService = new AuthService(
 			usersRepository as unknown as UsersRepository,
-			{} as VerificationOtpRepository,
-			{} as DataSource,
-			{ get: jest.fn() } as unknown as ConfigService
+			otpRepository as unknown as VerificationOtpRepository,
+			dataSource as unknown as DataSource,
+			configService as unknown as ConfigService,
+			otpDeliveryService as unknown as OtpDeliveryService
 		);
-		issueOtpSpy = jest.spyOn(authService, "issueOtp");
 	});
 
 	afterEach(() => {
-		issueOtpSpy.mockRestore();
+		loggerLogSpy.mockRestore();
 	});
 
-	it("calls issueOtp with the given userId and returns the user's profile", async () => {
-		issueOtpSpy.mockResolvedValue(RAW_OTP);
+	// --- Generate -> Deliver -> Persist, success path -----------------------
+
+	it("delivers via the phone channel to the user's phone, then persists, then returns the profile", async () => {
 		const user = buildUser({ status: UserStatus.PENDING_VERIFICATION });
 		usersRepository.findOneByOrFail.mockResolvedValue(user);
 
-		const result = await authService.resendOtp(buildDto());
+		const result = await authService.sendOtp(buildDto({ channel: OtpChannel.PHONE }));
 
-		expect(issueOtpSpy).toHaveBeenCalledWith(USER_ID);
 		expect(usersRepository.findOneByOrFail).toHaveBeenCalledWith({ id: USER_ID });
+		expect(otpDeliveryService.send).toHaveBeenCalledWith(
+			OtpChannel.PHONE,
+			{ email: user.email, phone: user.phone },
+			RAW_OTP
+		);
+		expect(transactionalOtpRepository.save).toHaveBeenCalledTimes(1);
+		const saved = transactionalOtpRepository.save.mock.calls[0][0];
+		expect(saved.userId).toBe(USER_ID);
+		expect(saved.sendCount).toBe(1);
+		expect(saved.codeHash).toBe(HASHED_OTP);
 		expect(result).toEqual({
 			id: user.id,
 			email: user.email,
@@ -658,28 +693,96 @@ describe("AuthService.resendOtp", () => {
 			status: user.status,
 			createdAt: user.createdAt,
 		});
+
+		// Deliver must happen before Persist, not after.
+		const deliverOrder = otpDeliveryService.send.mock.invocationCallOrder[0];
+		const persistOrder = transactionalOtpRepository.save.mock.invocationCallOrder[0];
+		expect(deliverOrder).toBeLessThan(persistOrder);
+	});
+
+	it("delivers via the email channel to the user's email", async () => {
+		const user = buildUser({ email: "camper@example.com", phone: "+84900000001" });
+		usersRepository.findOneByOrFail.mockResolvedValue(user);
+
+		await authService.sendOtp(buildDto({ channel: OtpChannel.EMAIL }));
+
+		expect(otpDeliveryService.send).toHaveBeenCalledWith(
+			OtpChannel.EMAIL,
+			{ email: user.email, phone: user.phone },
+			RAW_OTP
+		);
+	});
+
+	it("increments sendCount on a resend within the window and under the limit, same as issueOtp", async () => {
+		const existing = {
+			userId: USER_ID,
+			codeHash: "old-hash",
+			expiresAt: new Date(Date.now() + 60_000),
+			sendCount: 2,
+			windowStartedAt: new Date(Date.now() - 60_000),
+		};
+		transactionalOtpRepository.findOneBy.mockResolvedValue(existing);
+		usersRepository.findOneByOrFail.mockResolvedValue(buildUser());
+
+		await authService.sendOtp(buildDto());
+
+		const saved = transactionalOtpRepository.save.mock.calls[0][0];
+		expect(saved.sendCount).toBe(3);
+	});
+
+	// --- Resend limit reached: never even attempts delivery (BR-007, BR-243) -
+
+	it("throws before attempting delivery when the resend limit was already reached", async () => {
+		const existing = {
+			userId: USER_ID,
+			codeHash: "old-hash",
+			expiresAt: new Date(Date.now() + 60_000),
+			sendCount: 5,
+			windowStartedAt: new Date(Date.now() - 60_000),
+		};
+		transactionalOtpRepository.findOneBy.mockResolvedValue(existing);
+		usersRepository.findOneByOrFail.mockResolvedValue(buildUser());
+
+		const error = await authService.sendOtp(buildDto()).catch((e) => e);
+
+		expect(error).toBeInstanceOf(ConflictException);
+		expect(otpDeliveryService.send).not.toHaveBeenCalled();
+		expect(transactionalOtpRepository.save).not.toHaveBeenCalled();
+	});
+
+	// --- Dispatch failure: the whole point of the Generate -> Deliver ->
+	// Persist ordering (Tech Lead requirement) — send_count must NOT be
+	// consumed when the provider fails, so the user doesn't lose an attempt
+	// to a Twilio/Resend outage they never caused. ----------------------------
+
+	it("does not persist (no send_count increment) when delivery fails", async () => {
+		const deliveryError = new Error("Twilio: Invalid 'To' Phone Number");
+		otpDeliveryService.send.mockRejectedValue(deliveryError);
+		usersRepository.findOneByOrFail.mockResolvedValue(buildUser());
+
+		const error = await authService.sendOtp(buildDto()).catch((e) => e);
+
+		expect(error).toBe(deliveryError);
+		expect(transactionalOtpRepository.save).not.toHaveBeenCalled();
+	});
+
+	it("propagates the delivery error unchanged to the caller", async () => {
+		const deliveryError = new Error("Resend: Invalid from address");
+		otpDeliveryService.send.mockRejectedValue(deliveryError);
+		usersRepository.findOneByOrFail.mockResolvedValue(buildUser());
+
+		await expect(authService.sendOtp(buildDto({ channel: OtpChannel.EMAIL }))).rejects.toBe(
+			deliveryError
+		);
 	});
 
 	// --- No OTP exposure ------------------------------------------------
 
-	it("never exposes the raw OTP anywhere in the response", async () => {
-		issueOtpSpy.mockResolvedValue(RAW_OTP);
+	it("never exposes the raw OTP anywhere in the returned profile", async () => {
 		usersRepository.findOneByOrFail.mockResolvedValue(buildUser());
 
-		const result = await authService.resendOtp(buildDto());
+		const result = await authService.sendOtp(buildDto());
 
 		expect(Object.values(result)).not.toContain(RAW_OTP);
-	});
-
-	// --- Error propagation from issueOtp() (e.g. resend limit reached) ---
-
-	it("propagates the error from issueOtp without fetching the user profile", async () => {
-		const limitError = new ConflictException("OTP resend limit reached, try again later");
-		issueOtpSpy.mockRejectedValue(limitError);
-
-		const error = await authService.resendOtp(buildDto()).catch((e) => e);
-
-		expect(error).toBe(limitError);
-		expect(usersRepository.findOneByOrFail).not.toHaveBeenCalled();
 	});
 });

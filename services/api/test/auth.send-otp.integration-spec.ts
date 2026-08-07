@@ -10,12 +10,20 @@ import {
 } from "../src/modules/auth/providers/otp-notification-provider.interface";
 import { validationExceptionFactory } from "../src/shared/pipes/validation-exception-factory";
 
-/** See auth.send-otp.integration-spec.ts's comment on why fake providers replace the real SDKs here. */
+/**
+ * Fake providers replace the real Twilio/Resend clients for this whole
+ * suite (see the .overrideProvider() calls below) -- integration tests
+ * exercise the real HTTP -> AuthService -> Postgres path without spending
+ * real money or depending on a real network call to an external vendor.
+ * SmsOtpProvider/EmailOtpProvider themselves already have their own unit
+ * tests (sms-otp.provider.spec.ts, email-otp.provider.spec.ts) proving the
+ * real SDK wiring; that is not re-proven here.
+ */
 function buildFakeProvider(): jest.Mocked<OtpNotificationProvider> {
 	return { send: jest.fn().mockResolvedValue(undefined) };
 }
 
-describe("POST /api/auth/resend (integration, real Postgres, fake delivery providers)", () => {
+describe("POST /api/auth/send-otp (integration, real Postgres, fake delivery providers)", () => {
 	let app: INestApplication;
 	let dataSource: DataSource;
 	let cleanupEmails: string[];
@@ -72,9 +80,6 @@ describe("POST /api/auth/resend (integration, real Postgres, fake delivery provi
 	});
 
 	afterEach(async () => {
-		// FK: verification_otps.user_id -> users.id, no ON DELETE CASCADE
-		// (removed at Step 1 review) -- must delete verification_otps rows
-		// before deleting their owning users row.
 		if (cleanupUserIds.length > 0) {
 			await dataSource.query('DELETE FROM "verification_otps" WHERE "user_id" = ANY($1)', [
 				cleanupUserIds,
@@ -97,131 +102,126 @@ describe("POST /api/auth/resend (integration, real Postgres, fake delivery provi
 		return `09${String(10000000 + phoneSeq).padStart(8, "0")}`;
 	}
 
-	/** Registers a user and sends the first OTP via /send-otp, so there is an
-	 * existing verification_otps row for /resend to act on. */
-	async function registerAndSendFirstOtp(tag: string): Promise<string> {
+	async function registerUser(
+		tag: string
+	): Promise<{ userId: string; email: string; phone: string }> {
 		const email = uniqueEmail(tag);
 		const local = uniqueLocalPhone();
 		const phone = `+84${local.slice(1)}`;
 		cleanupEmails.push(email);
 		cleanupPhones.push(phone);
 
-		const registerResponse = await request(app.getHttpServer())
+		const response = await request(app.getHttpServer())
 			.post("/api/auth/register")
 			.send({ email, phone: local, password: "x", role: "camper" })
 			.expect(201);
 
-		const userId: string = registerResponse.body.id;
+		const userId: string = response.body.id;
 		cleanupUserIds.push(userId);
-
-		await request(app.getHttpServer())
-			.post("/api/auth/send-otp")
-			.send({ userId, channel: "phone" })
-			.expect(200);
-
-		return userId;
+		return { userId, email, phone };
 	}
 
-	// --- Success path (AC2, BR-007) -------------------------------------------
+	// --- Success, phone channel ------------------------------------------
 
-	it("regenerates the code, increments send_count, and dispatches again", async () => {
-		const userId = await registerAndSendFirstOtp("resend-success");
-		fakeSmsProvider.send.mockClear();
+	it("creates a verification_otps row and dispatches via the phone provider when channel=phone", async () => {
+		const { userId, phone } = await registerUser("send-otp-phone");
 
 		const response = await request(app.getHttpServer())
-			.post("/api/auth/resend")
+			.post("/api/auth/send-otp")
 			.send({ userId, channel: "phone" })
 			.expect(200);
 
 		expect(JSON.stringify(response.body)).not.toMatch(/"code"/);
 		expect(fakeSmsProvider.send).toHaveBeenCalledTimes(1);
+		expect(fakeSmsProvider.send).toHaveBeenCalledWith(phone, expect.stringMatching(/^\d{6}$/));
+		expect(fakeEmailProvider.send).not.toHaveBeenCalled();
 
 		const otpRows = await dataSource.query(
 			'SELECT "send_count" FROM "verification_otps" WHERE "user_id" = $1',
 			[userId]
 		);
 		expect(otpRows).toHaveLength(1);
-		expect(otpRows[0].send_count).toBe(2); // 1 from send-otp + 1 from this resend
+		expect(otpRows[0].send_count).toBe(1);
 	});
 
-	// --- Switching channel mid-flow ------------------------------------------
+	// --- Success, email channel -------------------------------------------
 
-	it("allows switching channel on resend (e.g. phone didn't arrive, try email)", async () => {
-		const userId = await registerAndSendFirstOtp("resend-switch-channel");
-		fakeSmsProvider.send.mockClear();
+	it("creates a verification_otps row and dispatches via the email provider when channel=email", async () => {
+		const { userId, email } = await registerUser("send-otp-email");
 
 		await request(app.getHttpServer())
-			.post("/api/auth/resend")
+			.post("/api/auth/send-otp")
 			.send({ userId, channel: "email" })
 			.expect(200);
 
 		expect(fakeEmailProvider.send).toHaveBeenCalledTimes(1);
+		expect(fakeEmailProvider.send).toHaveBeenCalledWith(email, expect.stringMatching(/^\d{6}$/));
 		expect(fakeSmsProvider.send).not.toHaveBeenCalled();
 	});
 
-	// --- Validation (422, BR-205) ---------------------------------------------
-
-	it("rejects an invalid userId (not a uuid) with 422", async () => {
-		const response = await request(app.getHttpServer())
-			.post("/api/auth/resend")
-			.send({ userId: "not-a-uuid", channel: "phone" })
-			.expect(422);
-
-		expect(response.body.statusCode).toBe(422);
-	});
+	// --- Validation (422, BR-205) -------------------------------------------
 
 	it("rejects a missing channel with 422", async () => {
-		const userId = await registerAndSendFirstOtp("resend-missing-channel");
+		const { userId } = await registerUser("send-otp-missing-channel");
 
 		const response = await request(app.getHttpServer())
-			.post("/api/auth/resend")
+			.post("/api/auth/send-otp")
 			.send({ userId })
 			.expect(422);
 
 		expect(response.body.statusCode).toBe(422);
 	});
 
-	// --- Resend limit (409, AC2, BR-007) ---------------------------------------
-	// Default OTP_RESEND_MAX_ATTEMPTS=5 (.env.example): 1 initial send (via
-	// /send-otp) + 4 more successful /resend calls = 5 total before the 6th
-	// call within the window is rejected.
-
-	it("returns 409 once the configured resend limit is exceeded within the window", async () => {
-		const userId = await registerAndSendFirstOtp("resend-limit");
-		fakeSmsProvider.send.mockClear(); // registerAndSendFirstOtp already made 1 call
-
-		for (let i = 0; i < 4; i++) {
-			await request(app.getHttpServer())
-				.post("/api/auth/resend")
-				.send({ userId, channel: "phone" })
-				.expect(200);
-		}
+	it("rejects an invalid channel value with 422", async () => {
+		const { userId } = await registerUser("send-otp-bad-channel");
 
 		const response = await request(app.getHttpServer())
-			.post("/api/auth/resend")
-			.send({ userId, channel: "phone" })
-			.expect(409);
+			.post("/api/auth/send-otp")
+			.send({ userId, channel: "zalo" })
+			.expect(422);
 
-		expect(response.body.statusCode).toBe(409);
-		// The 6th (rejected) call must never have reached the provider.
-		expect(fakeSmsProvider.send).toHaveBeenCalledTimes(4);
+		expect(response.body.statusCode).toBe(422);
 	});
 
-	// --- Dispatch failure does not consume a resend attempt --------------------
+	it("rejects an invalid userId (not a uuid) with 422", async () => {
+		const response = await request(app.getHttpServer())
+			.post("/api/auth/send-otp")
+			.send({ userId: "not-a-uuid", channel: "phone" })
+			.expect(422);
 
-	it("does not increment send_count when the provider fails on resend", async () => {
-		const userId = await registerAndSendFirstOtp("resend-dispatch-fail");
+		expect(response.body.statusCode).toBe(422);
+	});
+
+	// --- Dispatch failure: Generate -> Deliver -> Persist ordering
+	// (Tech Lead requirement) — a failed delivery must NOT create/update the
+	// verification_otps row, so the attempt is not counted against BR-007. ---
+
+	it("does not create a verification_otps row when the provider fails to deliver", async () => {
+		const { userId } = await registerUser("send-otp-dispatch-fail");
 		fakeSmsProvider.send.mockRejectedValueOnce(new Error("Twilio: simulated outage"));
 
 		await request(app.getHttpServer())
-			.post("/api/auth/resend")
+			.post("/api/auth/send-otp")
 			.send({ userId, channel: "phone" })
 			.expect(500);
 
 		const otpRows = await dataSource.query(
+			'SELECT * FROM "verification_otps" WHERE "user_id" = $1',
+			[userId]
+		);
+		expect(otpRows).toHaveLength(0);
+
+		// The user can immediately retry and it succeeds -- no attempt was burned.
+		const retryResponse = await request(app.getHttpServer())
+			.post("/api/auth/send-otp")
+			.send({ userId, channel: "phone" })
+			.expect(200);
+		expect(retryResponse.status).toBe(200);
+
+		const retriedRows = await dataSource.query(
 			'SELECT "send_count" FROM "verification_otps" WHERE "user_id" = $1',
 			[userId]
 		);
-		expect(otpRows[0].send_count).toBe(1); // unchanged -- still just the initial send-otp
+		expect(retriedRows[0].send_count).toBe(1); // still 1, not 2 -- the failed attempt was never counted
 	});
 });

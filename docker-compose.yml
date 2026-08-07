@@ -48,6 +48,14 @@ services:
       OTP_TTL_MINUTES: ${OTP_TTL_MINUTES:-10}
       OTP_RESEND_MAX_ATTEMPTS: ${OTP_RESEND_MAX_ATTEMPTS:-5}
       OTP_RESEND_WINDOW_MINUTES: ${OTP_RESEND_WINDOW_MINUTES:-1440}
+      # Real OTP delivery (phone via Twilio, email via Resend). Empty by
+      # default is fine for the container to boot; only a live send needs
+      # real values supplied via the host's .env.
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_FROM_NUMBER: ${TWILIO_FROM_NUMBER:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-}
     ports:
       - "3000:3000"
     depends_on:

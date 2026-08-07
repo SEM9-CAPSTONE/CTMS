@@ -4,15 +4,17 @@ import { ConflictException, Injectable, Logger, NotFoundException } from "@nestj
 import { ConfigService } from "@nestjs/config";
 import * as bcrypt from "bcrypt";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
-import { DataSource } from "typeorm";
+import { DataSource, type EntityManager } from "typeorm";
 import { isUniqueViolation } from "../../shared/database/postgres-error-codes";
 import { UserStatus } from "../users/entities/user.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { UsersRepository } from "../users/users.repository";
 import type { RegisterDto } from "./dto/register.dto";
-import type { ResendOtpDto } from "./dto/resend-otp.dto";
+import type { SendOtpDto } from "./dto/send-otp.dto";
 import { type UserProfileDto, toUserProfile } from "./dto/user-profile.dto";
 import type { VerifyOtpDto } from "./dto/verify-otp.dto";
+// biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
+import { OtpDeliveryService } from "./otp-delivery.service";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { VerificationOtpRepository } from "./verification-otp.repository";
 
@@ -34,6 +36,17 @@ function generateOtpCode(): string {
 	return randomInt(100000, 1000000).toString();
 }
 
+/** What an OTP row would become on the next issuance — computed but not yet
+ * written. Lets "decide the next state" and "write the next state" be two
+ * separate, orderable steps instead of one inline computation. */
+interface OtpPlan {
+	code: string;
+	codeHash: string;
+	expiresAt: Date;
+	sendCount: number;
+	windowStartedAt: Date;
+}
+
 @Injectable()
 export class AuthService {
 	private readonly logger = new Logger(AuthService.name);
@@ -42,7 +55,8 @@ export class AuthService {
 		private readonly usersRepository: UsersRepository,
 		private readonly verificationOtpRepository: VerificationOtpRepository,
 		private readonly dataSource: DataSource,
-		private readonly configService: ConfigService
+		private readonly configService: ConfigService,
+		private readonly otpDeliveryService: OtpDeliveryService
 	) {}
 
 	async register(dto: RegisterDto): Promise<UserProfileDto> {
@@ -80,21 +94,23 @@ export class AuthService {
 	}
 
 	/**
-	 * Generates (or regenerates, on resend) and persists an OTP for `userId`.
-	 * Not wired to any endpoint yet (Step 4 scope: generate + persist + hash +
-	 * TTL + resend window only — no verify/resend API, no delivery/sending).
-	 * Returns the raw code so a future sending step can dispatch it; only the
-	 * hash is ever persisted (Decision Gate v2 assumption #6).
+	 * Decides what the next OTP issuance for `userId` would look like, without
+	 * writing anything — a pure computation against the transactional
+	 * snapshot, read-only except for the in-memory bcrypt hash. Shared by
+	 * issueOtp() (immediate persist, used directly by tests) and sendOtp()
+	 * (persist only after a successful delivery).
 	 *
 	 * BR-006/AC1: expiresAt = now + OTP_TTL_MINUTES.
 	 * BR-007/AC2: sendCount is capped at OTP_RESEND_MAX_ATTEMPTS within a
 	 * rolling OTP_RESEND_WINDOW_MINUTES window; the very first issuance for a
-	 * user is not counted as a "resend" and always succeeds.
-	 * BR-230: single row per user (PK = userId, Step 1) — a second concurrent
-	 * call resolves as an UPDATE on the same locked row inside the
-	 * transaction, not a duplicate record.
+	 * user is not counted as a "resend" and always succeeds. Throws
+	 * ConflictException *before* any delivery is attempted if the limit was
+	 * already reached — no point paying for an SMS/email that can't count.
 	 */
-	async issueOtp(userId: string): Promise<string> {
+	private async planOtp(
+		transactionalOtpRepository: VerificationOtpRepository,
+		userId: string
+	): Promise<OtpPlan> {
 		const ttlMinutes = Number(this.configService.get<string>("OTP_TTL_MINUTES"));
 		const windowMinutes = Number(this.configService.get<string>("OTP_RESEND_WINDOW_MINUTES"));
 		const maxAttempts = Number(this.configService.get<string>("OTP_RESEND_MAX_ATTEMPTS"));
@@ -104,41 +120,66 @@ export class AuthService {
 		const now = new Date();
 		const expiresAt = new Date(now.getTime() + ttlMinutes * 60_000);
 
+		const existing = await transactionalOtpRepository.findOneBy({ userId });
+
+		if (!existing) {
+			return { code, codeHash, expiresAt, sendCount: 1, windowStartedAt: now };
+		}
+
+		const windowElapsed =
+			now.getTime() - existing.windowStartedAt.getTime() > windowMinutes * 60_000;
+
+		if (windowElapsed) {
+			return { code, codeHash, expiresAt, sendCount: 1, windowStartedAt: now };
+		}
+		if (existing.sendCount >= maxAttempts) {
+			throw new ConflictException(RESEND_LIMIT_MESSAGE);
+		}
+		return {
+			code,
+			codeHash,
+			expiresAt,
+			sendCount: existing.sendCount + 1,
+			windowStartedAt: existing.windowStartedAt,
+		};
+	}
+
+	/** Writes a planned OTP state (BR-230: single row per user — an UPSERT via save(), not a duplicate insert). */
+	private async persistOtp(
+		transactionalOtpRepository: VerificationOtpRepository,
+		userId: string,
+		plan: OtpPlan
+	): Promise<void> {
+		await transactionalOtpRepository.save({
+			userId,
+			codeHash: plan.codeHash,
+			expiresAt: plan.expiresAt,
+			sendCount: plan.sendCount,
+			windowStartedAt: plan.windowStartedAt,
+		});
+	}
+
+	/**
+	 * Generates (or regenerates, on resend) and persists an OTP for `userId`,
+	 * with no delivery step — kept for direct use by tests that need a raw
+	 * code without triggering a real SMS/email send (e.g. building verify-flow
+	 * fixtures). Public behavior is unchanged from before the Generate ->
+	 * Deliver -> Persist split (sendOtp()) was introduced: both steps still
+	 * happen, just always together, immediately.
+	 */
+	async issueOtp(userId: string): Promise<string> {
+		let issuedCode = "";
+
 		await this.dataSource.transaction(async (manager) => {
 			const transactionalOtpRepository = manager.withRepository(this.verificationOtpRepository);
-			const existing = await transactionalOtpRepository.findOneBy({ userId });
-
-			if (!existing) {
-				await transactionalOtpRepository.save({
-					userId,
-					codeHash,
-					expiresAt,
-					sendCount: 1,
-					windowStartedAt: now,
-				});
-				return;
-			}
-
-			const windowElapsed =
-				now.getTime() - existing.windowStartedAt.getTime() > windowMinutes * 60_000;
-
-			if (windowElapsed) {
-				existing.sendCount = 1;
-				existing.windowStartedAt = now;
-			} else if (existing.sendCount >= maxAttempts) {
-				throw new ConflictException(RESEND_LIMIT_MESSAGE);
-			} else {
-				existing.sendCount += 1;
-			}
-
-			existing.codeHash = codeHash;
-			existing.expiresAt = expiresAt;
-			await transactionalOtpRepository.save(existing);
+			const plan = await this.planOtp(transactionalOtpRepository, userId);
+			await this.persistOtp(transactionalOtpRepository, userId, plan);
+			issuedCode = plan.code;
 		});
 
 		this.logger.log(`OTP issued for user: ${userId}`);
 
-		return code;
+		return issuedCode;
 	}
 
 	/**
@@ -164,6 +205,10 @@ export class AuthService {
 	 * entity has no consumedAt/used flag (removed at Step 1 review), so delete
 	 * is the only spec-consistent way to invalidate it without touching the
 	 * Step 4 entity.
+	 *
+	 * Channel-agnostic by design (does not take a `channel`, does not change
+	 * for this feature): comparing a submitted code against its hash has
+	 * nothing to do with which delivery method produced that code.
 	 */
 	async verifyOtp(dto: VerifyOtpDto): Promise<UserProfileDto> {
 		const otp = await this.verificationOtpRepository.findOneBy({ userId: dto.userId });
@@ -196,28 +241,51 @@ export class AuthService {
 	}
 
 	/**
-	 * Step 6 scope only: thin wrapper exposing issueOtp() (Step 4) over HTTP.
-	 * Calls issueOtp() exactly as implemented — no modification, no added
-	 * concurrency handling, no fix for the Step 4/5 known risks (unhandled
-	 * unique_violation / foreign_key_violation, Invalid Date on invalid TTL
-	 * config, missing user.status check). Errors from issueOtp() (e.g. the
-	 * resend-limit ConflictException) propagate unchanged.
+	 * Backs both POST /auth/send-otp and POST /auth/resend (see SendOtpDto's
+	 * docstring for why one method serves two routes). Three explicit,
+	 * sequential phases — no callback parameter, reads top-to-bottom:
 	 *
-	 * Does not implement any form of OTP exposure: the raw code returned by
-	 * issueOtp() is discarded here, never logged, never included in the
-	 * response. Does not implement SMS/email sending.
+	 *   1. Generate — plan the next OTP state (BR-007 limit check happens
+	 *      here; a limit-exceeded user never reaches step 2).
+	 *   2. Deliver  — send the code via the chosen channel. If this throws,
+	 *      execution never reaches step 3.
+	 *   3. Persist  — write the planned state. Only reached after a
+	 *      successful delivery.
 	 *
-	 * Response shape (UserProfileDto): TEMPORARY PLACEHOLDER only — aligned
-	 * with the existing register()/verifyOtp() controller convention because
-	 * no API contract for resend exists anywhere (spec, OpenAPI, or a
-	 * dedicated response DTO — confirmed absent by investigation). This is an
-	 * open Decision Gate, not a confirmed contract; the response shape may
-	 * change once Tech Lead/PO confirms it.
+	 * All three run inside one DB transaction. If Deliver throws, the
+	 * transaction is never committed — Generate's read is discarded and
+	 * Persist never runs, so send_count is not incremented and no user
+	 * loses a resend attempt to a provider outage (Twilio/Resend down,
+	 * timeout, invalid destination, etc.). The user can retry immediately.
+	 *
+	 * Known trade-off, accepted for this project's scale (documented, not
+	 * hidden): this holds a DB row lock for the duration of a real network
+	 * call to the delivery provider. Under real concurrent load that's a
+	 * recognized anti-pattern (external I/O inside a transaction); a fully
+	 * production-grade version would use an outbox/async-confirmation
+	 * pattern instead. Not justified at this project's scale.
 	 */
-	async resendOtp(dto: ResendOtpDto): Promise<UserProfileDto> {
-		await this.issueOtp(dto.userId);
-
+	async sendOtp(dto: SendOtpDto): Promise<UserProfileDto> {
 		const user = await this.usersRepository.findOneByOrFail({ id: dto.userId });
+
+		await this.dataSource.transaction(async (manager: EntityManager) => {
+			const transactionalOtpRepository = manager.withRepository(this.verificationOtpRepository);
+
+			// 1. Generate
+			const plan = await this.planOtp(transactionalOtpRepository, dto.userId);
+
+			// 2. Deliver
+			await this.otpDeliveryService.send(
+				dto.channel,
+				{ email: user.email, phone: user.phone },
+				plan.code
+			);
+
+			// 3. Persist
+			await this.persistOtp(transactionalOtpRepository, dto.userId, plan);
+		});
+
+		this.logger.log(`OTP sent for user: ${dto.userId} via ${dto.channel}`);
 
 		return toUserProfile(user);
 	}
