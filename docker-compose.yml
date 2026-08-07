@@ -56,6 +56,9 @@ services:
       TWILIO_FROM_NUMBER: ${TWILIO_FROM_NUMBER:-}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-}
+      # CTMS-03: login token lifetimes (BR-009).
+      JWT_ACCESS_TOKEN_TTL: ${JWT_ACCESS_TOKEN_TTL:-15m}
+      JWT_REFRESH_TOKEN_TTL: ${JWT_REFRESH_TOKEN_TTL:-7d}
     ports:
       - "3000:3000"
     depends_on:

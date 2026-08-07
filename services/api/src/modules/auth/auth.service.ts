@@ -1,29 +1,51 @@
-import { randomInt } from "node:crypto";
-import { ConflictException, Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { createHash, randomBytes, randomInt } from "node:crypto";
+import {
+	ConflictException,
+	Injectable,
+	Logger,
+	NotFoundException,
+	UnauthorizedException,
+} from "@nestjs/common";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { ConfigService } from "@nestjs/config";
+// biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
+import { JwtService } from "@nestjs/jwt";
 import * as bcrypt from "bcrypt";
+import ms from "ms";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { DataSource, type EntityManager } from "typeorm";
 import { isUniqueViolation } from "../../shared/database/postgres-error-codes";
+import { normalizeEmail, normalizeVietnamPhone } from "../../shared/utils/normalize.util";
 import { UserStatus } from "../users/entities/user.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { UsersRepository } from "../users/users.repository";
+import type { LoginResponseDto } from "./dto/login-response.dto";
+import type { LoginDto } from "./dto/login.dto";
 import type { RegisterDto } from "./dto/register.dto";
 import type { SendOtpDto } from "./dto/send-otp.dto";
 import { type UserProfileDto, toUserProfile } from "./dto/user-profile.dto";
 import type { VerifyOtpDto } from "./dto/verify-otp.dto";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { OtpDeliveryService } from "./otp-delivery.service";
+import type { RefreshTokenRepository } from "./refresh-token.repository";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { VerificationOtpRepository } from "./verification-otp.repository";
 
-const BCRYPT_COST_FACTOR = 10;
+/** Exported so the dev-only admin seed script (src/seeds/dev-admin.seed.ts)
+ * hashes with the exact same cost factor as Register, per its requirement
+ * to reuse Register's hashing flow rather than duplicate the constant. */
+export const BCRYPT_COST_FACTOR = 10;
 const DUPLICATE_CONTACT_MESSAGE = "Email or phone already registered";
 const RESEND_LIMIT_MESSAGE = "OTP resend limit reached, try again later";
 const OTP_NOT_FOUND_MESSAGE = "No pending OTP found for this account";
 const OTP_EXPIRED_MESSAGE = "OTP has expired";
 const OTP_INCORRECT_MESSAGE = "Incorrect OTP";
+/** BR-010: same message for "no such account" and "wrong password" — a
+ * different message would let a caller enumerate which identifiers exist. */
+const INVALID_CREDENTIALS_MESSAGE = "Invalid credentials";
+/** Deliberately one message for all three non-ACTIVE statuses (pending_verification,
+ * suspended, deleted) rather than inventing per-status copy the spec never specifies. */
+const ACCOUNT_NOT_ACTIVE_MESSAGE = "Account is not active";
 
 /**
  * Implementation Assumption (NOT part of the API/request contract — see Step 3
@@ -54,9 +76,11 @@ export class AuthService {
 	constructor(
 		private readonly usersRepository: UsersRepository,
 		private readonly verificationOtpRepository: VerificationOtpRepository,
+		private readonly refreshTokenRepository: RefreshTokenRepository,
 		private readonly dataSource: DataSource,
 		private readonly configService: ConfigService,
-		private readonly otpDeliveryService: OtpDeliveryService
+		private readonly otpDeliveryService: OtpDeliveryService,
+		private readonly jwtService: JwtService
 	) {}
 
 	async register(dto: RegisterDto): Promise<UserProfileDto> {
@@ -288,5 +312,76 @@ export class AuthService {
 		this.logger.log(`OTP sent for user: ${dto.userId} via ${dto.channel}`);
 
 		return toUserProfile(user);
+	}
+
+	/**
+	 * CTMS-03 scope only. AC1/BR-009: valid credentials return an access
+	 * token and a refresh token. AC2/BR-010: invalid credentials return an
+	 * appropriate message and create no session (no refresh_tokens row).
+	 * AC3: non-active accounts (pending_verification, suspended, deleted —
+	 * BR-202's "locked" is modeled as any non-ACTIVE status, no separate
+	 * lockout-counter feature exists or is specified) cannot log in.
+	 *
+	 * Order matters (Tech Lead review): the refresh token is only generated
+	 * *after* the password is confirmed correct — a rejected login should
+	 * not spend random bytes on a token that will never be used. The DB
+	 * transaction wraps only the refresh_tokens insert (BR-207); the access
+	 * JWT is signed after that transaction commits, since signing is pure
+	 * in-memory work with nothing to roll back.
+	 *
+	 * Identifier lookup reuses UsersRepository.findByEmailOrPhone() as-is —
+	 * normalizing the same raw identifier through both normalizeEmail() and
+	 * normalizeVietnamPhone() is safe even when the identifier is the "wrong"
+	 * kind for one of them (each normalizer is a no-op on input it doesn't
+	 * recognize), so both candidates can always be passed together without a
+	 * branch to decide which kind the caller sent (BR-215).
+	 */
+	async login(dto: LoginDto): Promise<LoginResponseDto> {
+		const normalizedEmail = normalizeEmail(dto.identifier);
+		const normalizedPhone = normalizeVietnamPhone(dto.identifier);
+
+		const user = await this.usersRepository.findByEmailOrPhone(normalizedEmail, normalizedPhone);
+		if (!user) {
+			throw new UnauthorizedException(INVALID_CREDENTIALS_MESSAGE);
+		}
+
+		if (user.status !== UserStatus.ACTIVE) {
+			throw new UnauthorizedException(ACCOUNT_NOT_ACTIVE_MESSAGE);
+		}
+
+		const passwordMatches = await bcrypt.compare(dto.password, user.passwordHash);
+		if (!passwordMatches) {
+			throw new UnauthorizedException(INVALID_CREDENTIALS_MESSAGE);
+		}
+
+		// Only reached once the password is confirmed correct.
+		const rawRefreshToken = randomBytes(32).toString("hex");
+		const tokenHash = createHash("sha256").update(rawRefreshToken).digest("hex");
+		// Cast: the duration string is runtime-configured (env), so it can't be
+		// checked against ms's compile-time-only template-literal StringValue type.
+		const refreshTtlConfig = (this.configService.get<string>("JWT_REFRESH_TOKEN_TTL") ??
+			"7d") as ms.StringValue;
+		const refreshTtlMs = ms(refreshTtlConfig);
+		const expiresAt = new Date(Date.now() + refreshTtlMs);
+
+		await this.dataSource.transaction(async (manager) => {
+			const transactionalRefreshTokenRepository = manager.withRepository(
+				this.refreshTokenRepository
+			);
+			await transactionalRefreshTokenRepository.save({
+				userId: user.id,
+				tokenHash,
+				expiresAt,
+				revokedAt: null,
+			});
+		});
+
+		// Signing happens after the transaction commits -- nothing here
+		// touches the database, so there is nothing to roll back.
+		const accessToken = this.jwtService.sign({ sub: user.id, roles: [user.role] });
+
+		this.logger.log(`User logged in: ${user.id}`);
+
+		return { accessToken, refreshToken: rawRefreshToken, user: toUserProfile(user) };
 	}
 }

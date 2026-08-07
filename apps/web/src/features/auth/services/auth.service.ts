@@ -1,6 +1,7 @@
 import { API_ENDPOINTS, HttpError, httpClient } from "../../../core/api";
 import type {
-	LoginFormData,
+	LoginApiPayload,
+	LoginApiResponse,
 	RegisterApiPayload,
 	RegisterApiResponse,
 	SendOtpApiPayload,
@@ -19,18 +20,8 @@ function logAuthCall(label: string, meta: Record<string, unknown>) {
 }
 
 export const authService = {
-	login: async (
-		data: LoginFormData
-	): Promise<{ success: boolean; user: { name: string; email: string } }> => {
-		// Service API call handler
-		return new Promise((resolve) => {
-			setTimeout(() => {
-				resolve({
-					success: true,
-					user: { name: "Người dùng CTMS", email: data.email },
-				});
-			}, 300);
-		});
+	login: async (payload: LoginApiPayload): Promise<LoginApiResponse> => {
+		return httpClient.post<LoginApiResponse>(API_ENDPOINTS.AUTH.LOGIN, payload);
 	},
 
 	loginWithGoogle: async (): Promise<{ success: boolean }> => {

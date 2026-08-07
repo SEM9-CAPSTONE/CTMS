@@ -6,10 +6,18 @@ import {
 	UpdateDateColumn,
 } from "typeorm";
 
+/**
+ * `ADMIN` added by a dev-tooling migration (AddAdminRoleToUsersRoleEnum) as
+ * a schema-level prerequisite for a dev-only seed account — CTMS-06 still
+ * owns the full "manage role-based access" feature (authorization guards,
+ * admin-specific endpoints, etc.), not yet implemented. Public registration
+ * (RegisterDto) deliberately does NOT accept this value — see its comment.
+ */
 export enum UserRole {
 	CAMPER = "camper",
 	HOST = "host",
 	PORTER = "porter",
+	ADMIN = "admin",
 }
 
 export enum UserStatus {

@@ -3,8 +3,8 @@ import type { RoleOption } from "../types";
 export const AUTH_MESSAGES = {
 	TITLE: "Chào mừng trở lại",
 	SUBTITLE: "Đăng nhập để tiếp tục hành trình của bạn.",
-	IDENTIFIER_LABEL: "Địa chỉ Email",
-	IDENTIFIER_PLACEHOLDER: "your@email.com",
+	IDENTIFIER_LABEL: "Email hoặc số điện thoại",
+	IDENTIFIER_PLACEHOLDER: "your@email.com hoặc 09xxxxxxxx",
 	PASSWORD_LABEL: "Mật khẩu",
 	REMEMBER_ME: "Ghi nhớ",
 	FORGOT_PASSWORD: "Quên mật khẩu?",

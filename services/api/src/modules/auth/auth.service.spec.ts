@@ -1,17 +1,25 @@
-import { randomInt } from "node:crypto";
-import { ConflictException, Logger, NotFoundException } from "@nestjs/common";
+import { createHash, randomBytes, randomInt } from "node:crypto";
+import {
+	ConflictException,
+	Logger,
+	NotFoundException,
+	UnauthorizedException,
+} from "@nestjs/common";
 import type { ConfigService } from "@nestjs/config";
+import type { JwtService } from "@nestjs/jwt";
 import * as bcrypt from "bcrypt";
 import type { DataSource, EntityManager } from "typeorm";
 import { QueryFailedError } from "typeorm";
 import { UserRole, UserStatus } from "../users/entities/user.entity";
 import type { UsersRepository } from "../users/users.repository";
 import { AuthService } from "./auth.service";
+import type { LoginDto } from "./dto/login.dto";
 import type { RegisterDto } from "./dto/register.dto";
 import { OtpChannel } from "./dto/send-otp.dto";
 import type { SendOtpDto } from "./dto/send-otp.dto";
 import type { VerifyOtpDto } from "./dto/verify-otp.dto";
 import type { OtpDeliveryService } from "./otp-delivery.service";
+import type { RefreshTokenRepository } from "./refresh-token.repository";
 import type { VerificationOtpRepository } from "./verification-otp.repository";
 
 jest.mock("bcrypt");
@@ -101,15 +109,17 @@ describe("AuthService.register", () => {
 
 		bcryptHash.mockResolvedValue(HASHED_PASSWORD);
 
-		// register() never touches the OTP repository, ConfigService, or
-		// OtpDeliveryService — passed as empty stubs purely to satisfy
-		// AuthService's constructor signature.
+		// register() never touches the OTP repository, refresh tokens,
+		// ConfigService, OtpDeliveryService, or JwtService — passed as empty
+		// stubs purely to satisfy AuthService's constructor signature.
 		authService = new AuthService(
 			usersRepository as unknown as UsersRepository,
 			{} as VerificationOtpRepository,
+			{} as RefreshTokenRepository,
 			dataSource as unknown as DataSource,
 			{ get: jest.fn() } as unknown as ConfigService,
-			{} as OtpDeliveryService
+			{} as OtpDeliveryService,
+			{} as JwtService
 		);
 	});
 
@@ -352,9 +362,11 @@ describe("AuthService.issueOtp", () => {
 		authService = new AuthService(
 			usersRepository as unknown as UsersRepository,
 			otpRepository as unknown as VerificationOtpRepository,
+			{} as RefreshTokenRepository, // issueOtp() never touches refresh tokens or JwtService
 			dataSource as unknown as DataSource,
 			configService as unknown as ConfigService,
-			{} as OtpDeliveryService // issueOtp() never delivers -- kept for tests only, see its docstring
+			{} as OtpDeliveryService, // issueOtp() never delivers -- kept for tests only, see its docstring
+			{} as JwtService
 		);
 	});
 
@@ -516,9 +528,11 @@ describe("AuthService.verifyOtp", () => {
 		authService = new AuthService(
 			usersRepository as unknown as UsersRepository,
 			otpRepository as unknown as VerificationOtpRepository,
+			{} as RefreshTokenRepository, // verifyOtp() never touches refresh tokens or JwtService
 			dataSource as unknown as DataSource,
 			{ get: jest.fn() } as unknown as ConfigService,
-			{} as OtpDeliveryService // verifyOtp() is channel-agnostic, never delivers
+			{} as OtpDeliveryService, // verifyOtp() is channel-agnostic, never delivers
+			{} as JwtService
 		);
 	});
 
@@ -656,9 +670,11 @@ describe("AuthService.sendOtp", () => {
 		authService = new AuthService(
 			usersRepository as unknown as UsersRepository,
 			otpRepository as unknown as VerificationOtpRepository,
+			{} as RefreshTokenRepository, // sendOtp() never touches refresh tokens or JwtService
 			dataSource as unknown as DataSource,
 			configService as unknown as ConfigService,
-			otpDeliveryService as unknown as OtpDeliveryService
+			otpDeliveryService as unknown as OtpDeliveryService,
+			{} as JwtService
 		);
 	});
 
@@ -784,5 +800,241 @@ describe("AuthService.sendOtp", () => {
 		const result = await authService.sendOtp(buildDto());
 
 		expect(Object.values(result)).not.toContain(RAW_OTP);
+	});
+});
+
+describe("AuthService.login", () => {
+	let authService: AuthService;
+	let usersRepository: { findByEmailOrPhone: jest.Mock };
+	let refreshTokenRepository: { save: jest.Mock };
+	let transactionalRefreshTokenRepository: { save: jest.Mock };
+	let manager: { withRepository: jest.Mock };
+	let dataSource: { transaction: jest.Mock };
+	let configService: { get: jest.Mock };
+	let jwtService: { sign: jest.Mock };
+	let loggerLogSpy: jest.SpyInstance;
+	const bcryptCompare = bcrypt.compare as unknown as jest.Mock;
+	const cryptoRandomBytes = randomBytes as unknown as jest.Mock;
+	const cryptoCreateHash = createHash as unknown as jest.Mock;
+
+	const USER_ID = "11111111-1111-1111-1111-111111111111";
+	const RAW_REFRESH_TOKEN = "raw-refresh-token-hex-value";
+	const TOKEN_HASH = "sha256-hash-hex-value";
+	const ACCESS_TOKEN = "signed.jwt.token";
+
+	function buildDto(overrides: Partial<LoginDto> = {}): LoginDto {
+		return {
+			identifier: "camper@example.com",
+			password: "correct-password",
+			...overrides,
+		} as LoginDto;
+	}
+
+	function buildActiveUser(overrides: Record<string, unknown> = {}) {
+		return buildUser({ id: USER_ID, status: UserStatus.ACTIVE, ...overrides });
+	}
+
+	beforeEach(() => {
+		jest.clearAllMocks();
+		loggerLogSpy = jest.spyOn(Logger.prototype, "log").mockImplementation(() => undefined);
+
+		usersRepository = { findByEmailOrPhone: jest.fn() };
+		transactionalRefreshTokenRepository = { save: jest.fn() };
+		refreshTokenRepository = { save: jest.fn() };
+		manager = { withRepository: jest.fn().mockReturnValue(transactionalRefreshTokenRepository) };
+		dataSource = {
+			transaction: jest.fn(async (callback: (manager: EntityManager) => unknown) =>
+				callback(manager as unknown as EntityManager)
+			),
+		};
+		configService = {
+			get: jest.fn((key: string) => (key === "JWT_REFRESH_TOKEN_TTL" ? "7d" : undefined)),
+		};
+		jwtService = { sign: jest.fn().mockReturnValue(ACCESS_TOKEN) };
+
+		bcryptCompare.mockResolvedValue(true);
+		cryptoRandomBytes.mockReturnValue({ toString: () => RAW_REFRESH_TOKEN });
+		cryptoCreateHash.mockReturnValue({
+			update: jest.fn().mockReturnThis(),
+			digest: jest.fn().mockReturnValue(TOKEN_HASH),
+		});
+
+		authService = new AuthService(
+			usersRepository as unknown as UsersRepository,
+			{} as VerificationOtpRepository,
+			refreshTokenRepository as unknown as RefreshTokenRepository,
+			dataSource as unknown as DataSource,
+			configService as unknown as ConfigService,
+			{} as OtpDeliveryService, // login() never delivers OTP
+			jwtService as unknown as JwtService
+		);
+	});
+
+	afterEach(() => {
+		loggerLogSpy.mockRestore();
+	});
+
+	// --- Success path (AC1, BR-009) -----------------------------------------
+
+	it("returns access token, raw refresh token, and user profile on correct credentials", async () => {
+		const user = buildActiveUser();
+		usersRepository.findByEmailOrPhone.mockResolvedValue(user);
+
+		const result = await authService.login(buildDto());
+
+		expect(result).toEqual({
+			accessToken: ACCESS_TOKEN,
+			refreshToken: RAW_REFRESH_TOKEN,
+			user: {
+				id: user.id,
+				email: user.email,
+				phone: user.phone,
+				role: user.role,
+				status: user.status,
+				createdAt: user.createdAt,
+			},
+		});
+	});
+
+	// --- Identifier normalization / findByEmailOrPhone reuse (BR-215) --------
+
+	it("looks up the user with the same normalized value as both email and phone candidates when given an email", async () => {
+		usersRepository.findByEmailOrPhone.mockResolvedValue(buildActiveUser());
+
+		await authService.login(buildDto({ identifier: "camper@example.com" }));
+
+		// normalizeVietnamPhone() is a no-op on a non-VN-phone-shaped string,
+		// so both candidates end up identical here -- proving the same raw
+		// identifier is threaded through both normalizers, not just one.
+		expect(usersRepository.findByEmailOrPhone).toHaveBeenCalledWith(
+			"camper@example.com",
+			"camper@example.com"
+		);
+	});
+
+	it("normalizes a local-format phone identifier to E.164 before lookup", async () => {
+		usersRepository.findByEmailOrPhone.mockResolvedValue(buildActiveUser());
+
+		await authService.login(buildDto({ identifier: "0912345678" }));
+
+		expect(usersRepository.findByEmailOrPhone).toHaveBeenCalledWith(
+			"0912345678", // normalizeEmail() is trim+lowercase only, a no-op here
+			"+84912345678" // normalizeVietnamPhone() converts local -> E.164
+		);
+	});
+
+	// --- Unknown identifier (AC2, BR-010) -------------------------------------
+
+	it("throws UnauthorizedException and never compares a password when the identifier matches no user", async () => {
+		usersRepository.findByEmailOrPhone.mockResolvedValue(null);
+
+		const error = await authService.login(buildDto()).catch((e) => e);
+
+		expect(error).toBeInstanceOf(UnauthorizedException);
+		expect(bcryptCompare).not.toHaveBeenCalled();
+		expect(dataSource.transaction).not.toHaveBeenCalled();
+	});
+
+	// --- Non-active accounts (AC3, BR-202) ------------------------------------
+
+	it.each([UserStatus.PENDING_VERIFICATION, UserStatus.SUSPENDED, UserStatus.DELETED])(
+		"throws UnauthorizedException and never compares a password when account status is %s",
+		async (status) => {
+			usersRepository.findByEmailOrPhone.mockResolvedValue(buildActiveUser({ status }));
+
+			const error = await authService.login(buildDto()).catch((e) => e);
+
+			expect(error).toBeInstanceOf(UnauthorizedException);
+			expect(bcryptCompare).not.toHaveBeenCalled();
+			expect(dataSource.transaction).not.toHaveBeenCalled();
+		}
+	);
+
+	// --- Wrong password (AC2, BR-010, BR-243: no side effect) -----------------
+
+	it("throws UnauthorizedException and creates no refresh token when the password is wrong", async () => {
+		usersRepository.findByEmailOrPhone.mockResolvedValue(buildActiveUser());
+		bcryptCompare.mockResolvedValue(false);
+
+		const error = await authService.login(buildDto()).catch((e) => e);
+
+		expect(error).toBeInstanceOf(UnauthorizedException);
+		expect(dataSource.transaction).not.toHaveBeenCalled();
+		// Tech Lead requirement: a rejected login must not spend random bytes
+		// generating a refresh token that will never be used.
+		expect(cryptoRandomBytes).not.toHaveBeenCalled();
+	});
+
+	it("uses the same error message for an unknown identifier and a wrong password (no enumeration)", async () => {
+		usersRepository.findByEmailOrPhone.mockResolvedValueOnce(null);
+		const notFoundError = await authService.login(buildDto()).catch((e) => e);
+
+		usersRepository.findByEmailOrPhone.mockResolvedValueOnce(buildActiveUser());
+		bcryptCompare.mockResolvedValueOnce(false);
+		const wrongPasswordError = await authService.login(buildDto()).catch((e) => e);
+
+		expect(notFoundError.message).toBe(wrongPasswordError.message);
+	});
+
+	// --- Ordering (Tech Lead review) ------------------------------------------
+
+	it("generates the refresh token only after the password check succeeds", async () => {
+		usersRepository.findByEmailOrPhone.mockResolvedValue(buildActiveUser());
+
+		await authService.login(buildDto());
+
+		const compareOrder = bcryptCompare.mock.invocationCallOrder[0];
+		const randomBytesOrder = cryptoRandomBytes.mock.invocationCallOrder[0];
+		expect(compareOrder).toBeLessThan(randomBytesOrder);
+	});
+
+	it("signs the access JWT only after the refresh-token transaction has committed", async () => {
+		usersRepository.findByEmailOrPhone.mockResolvedValue(buildActiveUser());
+
+		await authService.login(buildDto());
+
+		const transactionOrder = dataSource.transaction.mock.invocationCallOrder[0];
+		const signOrder = jwtService.sign.mock.invocationCallOrder[0];
+		expect(transactionOrder).toBeLessThan(signOrder);
+	});
+
+	// --- Refresh token never stored raw ---------------------------------------
+
+	it("persists only the hashed refresh token, never the raw value", async () => {
+		usersRepository.findByEmailOrPhone.mockResolvedValue(buildActiveUser());
+
+		await authService.login(buildDto());
+
+		expect(transactionalRefreshTokenRepository.save).toHaveBeenCalledWith(
+			expect.objectContaining({ tokenHash: TOKEN_HASH })
+		);
+		const saved = transactionalRefreshTokenRepository.save.mock.calls[0][0];
+		expect(Object.values(saved)).not.toContain(RAW_REFRESH_TOKEN);
+	});
+
+	// --- JWT claims (Decision Gate D8: minimal, roles as an array) ------------
+
+	it("signs the access token with sub and roles claims", async () => {
+		const user = buildActiveUser({ role: UserRole.HOST });
+		usersRepository.findByEmailOrPhone.mockResolvedValue(user);
+
+		await authService.login(buildDto());
+
+		expect(jwtService.sign).toHaveBeenCalledWith({ sub: user.id, roles: [UserRole.HOST] });
+	});
+
+	// --- No secret exposure in logs -------------------------------------------
+
+	it("never logs the password or any token value", async () => {
+		usersRepository.findByEmailOrPhone.mockResolvedValue(buildActiveUser());
+
+		await authService.login(buildDto({ password: "super-secret-password" }));
+
+		for (const call of loggerLogSpy.mock.calls) {
+			const serialized = JSON.stringify(call);
+			expect(serialized).not.toContain("super-secret-password");
+			expect(serialized).not.toContain(RAW_REFRESH_TOKEN);
+			expect(serialized).not.toContain(ACCESS_TOKEN);
+		}
 	});
 });
