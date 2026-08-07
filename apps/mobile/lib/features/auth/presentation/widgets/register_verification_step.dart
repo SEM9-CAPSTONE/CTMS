@@ -4,6 +4,7 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../core/widgets/ctms_alert_banner.dart';
 import '../../../../core/widgets/ctms_section_card.dart';
+import '../../application/register_controller.dart';
 import '../../domain/register_models.dart';
 import '../register_strings.dart';
 import 'register_summary_row.dart';
@@ -28,11 +29,23 @@ class RegisterVerificationStep extends StatelessWidget {
   final RegisterFormData data;
   final bool acceptedTerms;
   final ValueChanged<bool> onAcceptedTermsChanged;
-  final Object? submitError;
+  final RegisterSubmitError? submitError;
+
+  /// 409 (duplicate email/phone) has no field to point at -> [message]
+  /// alone; 422 always carries [RegisterSubmitError.fieldErrors] -> flatten
+  /// every field's messages, same pattern as
+  /// apps/web/src/features/auth/pages/RegisterPage.tsx's `errorMessages`.
+  List<String> _errorMessages(RegisterSubmitError error) {
+    final fieldErrors = error.fieldErrors;
+    if (fieldErrors == null || fieldErrors.isEmpty) return [error.message];
+    return fieldErrors.expand((fieldError) => fieldError.errors).toList();
+  }
 
   @override
   Widget build(BuildContext context) {
     final mutedColor = Theme.of(context).colorScheme.onSurfaceVariant;
+    final error = submitError;
+    final errorMessages = error == null ? const <String>[] : _errorMessages(error);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -63,11 +76,11 @@ class RegisterVerificationStep extends StatelessWidget {
           ),
         ),
         const SizedBox(height: AppSpacing.lg),
-        if (submitError != null) ...[
+        if (errorMessages.isNotEmpty) ...[
           CtmsAlertBanner(
             severity: CtmsAlertSeverity.danger,
             title: RegisterStrings.submitErrorTitle,
-            message: RegisterStrings.registerFailed(submitError!),
+            message: errorMessages.join('\n'),
           ),
           const SizedBox(height: AppSpacing.lg),
         ],

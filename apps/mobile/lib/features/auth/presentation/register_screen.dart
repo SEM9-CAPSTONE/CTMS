@@ -41,15 +41,47 @@ class RegisterScreen extends ConsumerStatefulWidget {
   ConsumerState<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _RegisterScreenState extends ConsumerState<RegisterScreen> {
+class _RegisterScreenState extends ConsumerState<RegisterScreen> with RestorationMixin {
   final _accountFormKey = GlobalKey<FormState>();
   final _personalFormKey = GlobalKey<FormState>();
 
-  final _emailController = TextEditingController();
+  // CTMS-01-T03 checklist: "Preserve only non-sensitive form data when the
+  // app temporarily moves to the background." These 3 survive the OS
+  // reclaiming the process (restoration, not just a simple background/
+  // foreground cycle, which Flutter already keeps widget state across for
+  // free). Password/confirmPassword are deliberately plain
+  // TextEditingControllers below, NOT restorable -- they must never survive
+  // process death.
+  final _emailController = RestorableTextEditingController();
+  final _fullNameController = RestorableTextEditingController();
+  final _phoneController = RestorableTextEditingController();
+
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  final _fullNameController = TextEditingController();
-  final _phoneController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    // registerControllerProvider isn't scoped to this screen's lifetime
+    // (see RegisterController.reset's doc comment) -- a fresh mount (first
+    // visit, or coming back via Login's "Đăng ký tài khoản mới" after a
+    // prior attempt) must not resume wherever that prior attempt left off.
+    // In-wizard back navigation doesn't recreate this State, so it never
+    // re-fires this. Riverpod forbids mutating a provider mid-build
+    // (initState included), so this is deferred a microtask -- runs before
+    // anything else the user can interact with.
+    Future(() => ref.read(registerControllerProvider.notifier).reset());
+  }
+
+  @override
+  String? get restorationId => 'register_screen';
+
+  @override
+  void restoreState(RestorationBucket? oldBucket, bool initialRestore) {
+    registerForRestoration(_emailController, 'email');
+    registerForRestoration(_fullNameController, 'fullName');
+    registerForRestoration(_phoneController, 'phone');
+  }
 
   @override
   void dispose() {
@@ -71,15 +103,15 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       case RegisterStep.account:
         if (!_accountFormKey.currentState!.validate()) return;
         controller.updateAccount(
-          email: _emailController.text.trim(),
+          email: _emailController.value.text.trim(),
           password: _passwordController.text,
         );
         controller.goNext();
       case RegisterStep.personal:
         if (!_personalFormKey.currentState!.validate()) return;
         controller.updatePersonal(
-          fullName: _fullNameController.text.trim(),
-          phone: _phoneController.text.trim(),
+          fullName: _fullNameController.value.text.trim(),
+          phone: _phoneController.value.text.trim(),
         );
         controller.goNext();
       case RegisterStep.verification:
@@ -98,14 +130,14 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       ),
       RegisterStep.account => RegisterAccountStep(
         formKey: _accountFormKey,
-        emailController: _emailController,
+        emailController: _emailController.value,
         passwordController: _passwordController,
         confirmPasswordController: _confirmPasswordController,
       ),
       RegisterStep.personal => RegisterPersonalStep(
         formKey: _personalFormKey,
-        fullNameController: _fullNameController,
-        phoneController: _phoneController,
+        fullNameController: _fullNameController.value,
+        phoneController: _phoneController.value,
       ),
       RegisterStep.verification => RegisterVerificationStep(
         data: wizardState.data,

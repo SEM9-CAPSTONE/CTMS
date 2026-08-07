@@ -48,6 +48,7 @@ class LoginStrings {
   static const invalidCredentials = 'Email/số điện thoại hoặc mật khẩu không chính xác.';
   static const accountNotActive =
       'Tài khoản của bạn chưa được kích hoạt hoặc đã bị khoá. Vui lòng xác minh tài khoản.';
+  static const serverError = 'Máy chủ đang gặp sự cố. Vui lòng thử lại sau.';
   static const genericError = 'Đăng nhập thất bại. Vui lòng thử lại.';
 
   static const verifyAccountAction = 'Xác minh tài khoản';

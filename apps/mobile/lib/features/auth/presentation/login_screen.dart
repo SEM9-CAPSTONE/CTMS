@@ -86,12 +86,27 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _isAccountNotActive(Object error) =>
       error is ApiException && error.message == _accountNotActiveMessage;
 
+  /// CTMS-03-T03 checklist: "Handle offline, timeout, server-error, ...
+  /// states" as distinct cases. [ApiExceptionKind.network]/`.timeout`
+  /// messages are already Vietnamese copy set by [ApiClient] itself (every
+  /// caller in the app wants the same wording for those); only
+  /// `.response` (a real backend reply) needs mapping here, since only this
+  /// screen knows what "Invalid credentials"/"Account is not active" mean.
   String _mapLoginError(Object error) {
-    if (error is ApiException) {
-      if (error.message == _accountNotActiveMessage) return LoginStrings.accountNotActive;
-      if (error.statusCode == 401) return LoginStrings.invalidCredentials;
+    if (error is! ApiException) return LoginStrings.genericError;
+
+    switch (error.kind) {
+      case ApiExceptionKind.network:
+      case ApiExceptionKind.timeout:
+        return error.message;
+      case ApiExceptionKind.response:
+        if (error.message == _accountNotActiveMessage) return LoginStrings.accountNotActive;
+        if (error.statusCode == 401) return LoginStrings.invalidCredentials;
+        if ((error.statusCode ?? 0) >= 500) return LoginStrings.serverError;
+        return LoginStrings.genericError;
+      case ApiExceptionKind.unknown:
+        return LoginStrings.genericError;
     }
-    return LoginStrings.genericError;
   }
 
   /// CTMS-03-T03 checklist: "navigation to ... Account Verification ...

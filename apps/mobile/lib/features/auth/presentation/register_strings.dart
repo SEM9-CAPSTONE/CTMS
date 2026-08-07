@@ -66,6 +66,4 @@ class RegisterStrings {
   static const continueLabel = 'Tiếp tục';
   static const alreadyHaveAccount = 'Bạn đã có tài khoản?';
   static const loginNow = 'Đăng nhập ngay';
-
-  static String registerFailed(Object error) => 'Đăng ký thất bại: $error';
 }
