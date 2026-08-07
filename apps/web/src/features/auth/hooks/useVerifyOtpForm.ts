@@ -16,6 +16,16 @@ import {
 const RESEND_COOLDOWN_SECONDS = 60;
 
 /**
+ * How long the success message stays on screen before auto-navigating to
+ * Login. UX fix: verifying used to call onVerifySuccess() immediately,
+ * leaving the user with no confirmation that anything happened before being
+ * yanked to a different page. A manual "go now" action is still offered
+ * (VerifyOtpPage renders its own button calling onNavigateToLogin directly),
+ * this delay only governs the automatic redirect.
+ */
+const VERIFY_SUCCESS_REDIRECT_DELAY_MS = 2500;
+
+/**
  * First-OTP-trigger Decision Gate (resolved, Option B): no spec, BR, or
  * backend contract assigns any component the responsibility of auto-issuing
  * the first OTP — register() doesn't call issueOtp(), and the send/resend
@@ -33,6 +43,7 @@ export function useVerifyOtpForm(onNoContext: () => void, onVerifySuccess: () =>
 	const [hasSentCode, setHasSentCode] = useState(false);
 	const [submitError, setSubmitError] = useState<ApiSubmitError | null>(null);
 	const [countdown, setCountdown] = useState(0);
+	const [verifySuccess, setVerifySuccess] = useState(false);
 
 	// Read the register-flow context once on mount. If it's missing (direct
 	// URL visit, or sessionStorage cleared), there is nothing to verify —
@@ -74,7 +85,12 @@ export function useVerifyOtpForm(onNoContext: () => void, onVerifySuccess: () =>
 		try {
 			await authService.verifyOtp({ userId: context.userId, code });
 			clearVerifyRegistration();
-			onVerifySuccess();
+			// Show the success message first -- the auto-navigation is delayed,
+			// not instant, so the user actually sees confirmation. A manual
+			// "go now" button (VerifyOtpPage) can still call onVerifySuccess
+			// immediately, bypassing this timer.
+			setVerifySuccess(true);
+			window.setTimeout(onVerifySuccess, VERIFY_SUCCESS_REDIRECT_DELAY_MS);
 		} catch (error) {
 			// Entered code is left untouched (same convention as BR-242 on
 			// register) — only the error is captured, code stays for retry.
@@ -130,6 +146,7 @@ export function useVerifyOtpForm(onNoContext: () => void, onVerifySuccess: () =>
 		hasSentCode,
 		submitError,
 		countdown,
+		verifySuccess,
 		handleVerifySubmit,
 		handleSendCode,
 	};

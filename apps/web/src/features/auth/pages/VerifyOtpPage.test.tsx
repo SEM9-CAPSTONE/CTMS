@@ -275,8 +275,11 @@ describe("VerifyOtpPage", () => {
 		expect(await screen.findByRole("button", { name: /đang xác minh/i })).toBeDisabled();
 	});
 
-	// TC9 — Success: verify resolves, sessionStorage is cleared, navigates to Login.
-	it("clears sessionStorage and navigates to Login after a successful verify", async () => {
+	// TC9 — Success: verify resolves, sessionStorage is cleared immediately,
+	// but navigation to Login is delayed -- the user must see a confirmation
+	// message first, not get yanked to a different page with no feedback.
+	it("shows a success message immediately, then auto-navigates to Login only after the delay", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
 		const user = userEvent.setup();
 		setVerifyRegistration(CONTEXT);
 		const { onNavigateToLogin } = renderPage();
@@ -285,7 +288,30 @@ describe("VerifyOtpPage", () => {
 		verifyOtpMock.mockResolvedValueOnce(VERIFY_SUCCESS_RESPONSE);
 		await user.click(verifyButton());
 
-		await waitFor(() => expect(onNavigateToLogin).toHaveBeenCalledTimes(1));
+		expect(await screen.findByText("Xác thực thành công!")).toBeInTheDocument();
 		expect(getVerifyRegistration()).toBeNull();
+		expect(onNavigateToLogin).not.toHaveBeenCalled();
+
+		vi.advanceTimersByTime(2500);
+		await waitFor(() => expect(onNavigateToLogin).toHaveBeenCalledTimes(1));
+
+		vi.useRealTimers();
+	});
+
+	// TC10 — The success screen's own button lets an impatient user skip the
+	// delay and navigate to Login immediately.
+	it("navigates to Login immediately when the success screen's button is clicked", async () => {
+		const user = userEvent.setup();
+		setVerifyRegistration(CONTEXT);
+		const { onNavigateToLogin } = renderPage();
+		await sendCodeAndType(user, "123456");
+
+		verifyOtpMock.mockResolvedValueOnce(VERIFY_SUCCESS_RESPONSE);
+		await user.click(verifyButton());
+
+		const goNowButton = await screen.findByRole("button", { name: /đến trang đăng nhập ngay/i });
+		await user.click(goNowButton);
+
+		expect(onNavigateToLogin).toHaveBeenCalledTimes(1);
 	});
 });

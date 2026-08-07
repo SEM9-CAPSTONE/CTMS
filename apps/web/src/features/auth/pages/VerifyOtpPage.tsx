@@ -19,6 +19,7 @@ export const VerifyOtpPage: React.FC<VerifyOtpPageProps> = ({
 		hasSentCode,
 		submitError,
 		countdown,
+		verifySuccess,
 		handleVerifySubmit,
 		handleSendCode,
 	} = useVerifyOtpForm(onNavigateToRegister, onNavigateToLogin);
@@ -28,6 +29,35 @@ export const VerifyOtpPage: React.FC<VerifyOtpPageProps> = ({
 	// mount effect; render nothing here to avoid flashing an unusable form.
 	if (!context) {
 		return null;
+	}
+
+	// Verify succeeded -- show confirmation instead of yanking the user
+	// straight to Login with no feedback. useVerifyOtpForm auto-navigates
+	// after a short delay; the button below lets an impatient user skip it.
+	if (verifySuccess) {
+		return (
+			<div className="flex h-screen min-h-screen w-full items-center justify-center bg-[#f4f7f2] p-3 font-sans text-[#10221b] antialiased md:p-6">
+				<div className="w-full max-w-[420px] rounded-[28px] border border-[#e0ebe0] bg-white p-6 text-center shadow-xl shadow-[#164027]/6 md:p-8">
+					<div className="mx-auto mb-3 flex size-14 items-center justify-center rounded-full bg-[#eef7f0] text-[#164027]">
+						<ShieldCheck size={28} />
+					</div>
+					<h1 className="text-2xl font-extrabold tracking-tight text-[#164027]">
+						Xác thực thành công!
+					</h1>
+					<p className="mt-2 text-sm font-medium text-[#54655a]">
+						Tài khoản của bạn đã được kích hoạt. Đang chuyển đến trang đăng nhập...
+					</p>
+					<button
+						type="button"
+						onClick={onNavigateToLogin}
+						className="mt-5 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-[#164027] px-7 py-3 text-sm font-bold text-white shadow-md transition hover:bg-[#0f2e1c] hover:shadow-lg"
+					>
+						<span>Đến trang đăng nhập ngay</span>
+						<ArrowRight size={16} />
+					</button>
+				</div>
+			</div>
+		);
 	}
 
 	// Decision Gate (First OTP Trigger, resolved: Option B) -- no API call
