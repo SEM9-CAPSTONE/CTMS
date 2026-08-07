@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, CheckCircle2, HelpCircle, Home } from "lucide-react";
+import { ArrowLeft, ArrowRight, HelpCircle, Home } from "lucide-react";
 import type React from "react";
 import { CamperRegisterForm } from "../components/CamperRegisterForm";
 import { HostRegisterForm } from "../components/HostRegisterForm";
@@ -9,7 +9,11 @@ import { ROLE_OPTIONS } from "../constants";
 import { useRegisterForm } from "../hooks/useRegisterForm";
 import type { RegisterPageProps } from "../types";
 
-export const RegisterPage: React.FC<RegisterPageProps> = ({ onBackToHome, onNavigateToLogin }) => {
+export const RegisterPage: React.FC<RegisterPageProps> = ({
+	onBackToHome,
+	onNavigateToLogin,
+	onNavigateToVerifyOtp,
+}) => {
 	const {
 		currentStep,
 		selectedRole,
@@ -23,7 +27,17 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onBackToHome, onNavi
 		handleNextStep,
 		handlePrevStep,
 		handleRegisterSubmit,
-	} = useRegisterForm();
+		isSubmitting,
+		submitError,
+	} = useRegisterForm(onNavigateToVerifyOtp);
+
+	// 409 -> submitError.message directly; 422 -> flatten backend's per-field
+	// errors (also covers "Either email or phone must be provided").
+	const errorMessages = submitError
+		? submitError.fieldErrors
+			? submitError.fieldErrors.flatMap((fieldError) => fieldError.errors)
+			: [submitError.message]
+		: [];
 
 	const renderRoleForm = () => {
 		switch (selectedRole) {
@@ -60,7 +74,7 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onBackToHome, onNavi
 						<h1 className="text-2xl font-extrabold tracking-tight text-[#164027]">Tham gia CTMS</h1>
 					</div>
 
-					{/* 3-Step Stepper Progress Bar */}
+					{/* Stepper Progress Bar (Step 3 "Xác minh OTP" happens on VerifyOtpPage) */}
 					<RegisterStepper currentStep={currentStep} />
 
 					<div className="my-4 border-t border-[#f0f4f0]" />
@@ -122,6 +136,17 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onBackToHome, onNavi
 
 							{renderRoleForm()}
 
+							{/* Submit error summary (409 duplicate / 422 validation) */}
+							{errorMessages.length > 0 && (
+								<div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+									{errorMessages.map((msg) => (
+										<p key={msg} className="text-xs font-semibold text-red-700">
+											{msg}
+										</p>
+									))}
+								</div>
+							)}
+
 							{/* Form Action Buttons */}
 							<div className="mt-6 flex items-center justify-between border-t border-[#f0f4f0] pt-4">
 								<button
@@ -135,40 +160,14 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onBackToHome, onNavi
 
 								<button
 									type="submit"
-									className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl bg-[#164027] px-7 py-3 text-sm font-bold text-white shadow-md transition hover:bg-[#0f2e1c] hover:shadow-lg"
+									disabled={isSubmitting}
+									className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl bg-[#164027] px-7 py-3 text-sm font-bold text-white shadow-md transition hover:bg-[#0f2e1c] hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60"
 								>
-									<span>Đăng ký ngay</span>
+									<span>{isSubmitting ? "Đang xử lý..." : "Đăng ký ngay"}</span>
 									<ArrowRight size={16} />
 								</button>
 							</div>
 						</form>
-					)}
-
-					{/* Step 3: Success Completion */}
-					{currentStep === 3 && (
-						<div className="py-6 text-center">
-							<div className="mx-auto mb-4 flex size-16 items-center justify-center rounded-full bg-[#eef7f0] text-[#164027]">
-								<CheckCircle2 size={36} />
-							</div>
-							<h2 className="text-2xl font-extrabold text-[#164027]">
-								Đăng ký tài khoản thành công!
-							</h2>
-							<p className="mt-2 text-sm text-[#54655a]">
-								Chào mừng bạn gia nhập CTMS với vai trò{" "}
-								<strong className="uppercase text-[#164027]">{selectedRole}</strong>.
-							</p>
-
-							<div className="mt-8 flex justify-center gap-4">
-								<button
-									type="button"
-									onClick={onNavigateToLogin}
-									className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl bg-[#164027] px-8 py-3.5 text-sm font-bold text-white shadow-md transition hover:bg-[#0f2e1c]"
-								>
-									<span>Đăng nhập ngay</span>
-									<ArrowRight size={16} />
-								</button>
-							</div>
-						</div>
 					)}
 				</div>
 

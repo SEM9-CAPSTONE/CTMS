@@ -1,13 +1,13 @@
 const { execSync } = require("node:child_process");
 
 const ALLOWED_BRANCH_PATTERNS = [
-	/^(feature|feat)\/[a-z0-9._-]+$/,
-	/^(bugfix|fix)\/[a-z0-9._-]+$/,
-	/^hotfix\/[a-z0-9._-]+$/,
-	/^refactor\/[a-z0-9._-]+$/,
-	/^chore\/[a-z0-9._-]+$/,
-	/^docs\/[a-z0-9._-]+$/,
-	/^test\/[a-z0-9._-]+$/,
+	/^(feature|feat)\/[A-Za-z][A-Za-z0-9]+-[0-9]+(-[a-z0-9._-]+)?$/,
+	/^(bugfix|fix)\/[A-Za-z][A-Za-z0-9]+-[0-9]+(-[a-z0-9._-]+)?$/,
+	/^hotfix\/[A-Za-z][A-Za-z0-9]+-[0-9]+(-[a-z0-9._-]+)?$/,
+	/^refactor\/[A-Za-z][A-Za-z0-9]+-[0-9]+(-[a-z0-9._-]+)?$/,
+	/^chore\/[A-Za-z][A-Za-z0-9]+-[0-9]+(-[a-z0-9._-]+)?$/,
+	/^docs\/[A-Za-z][A-Za-z0-9]+-[0-9]+(-[a-z0-9._-]+)?$/,
+	/^test\/[A-Za-z][A-Za-z0-9]+-[0-9]+(-[a-z0-9._-]+)?$/,
 	/^release\/[a-z0-9._-]+$/,
 	/^(main|master|develop|staging)$/,
 ];
@@ -16,32 +16,37 @@ function getCurrentBranch() {
 	try {
 		return execSync("git rev-parse --abbrev-ref HEAD").toString().trim();
 	} catch (_error) {
-		console.error("❌ Không thể xác định tên Git branch hiện tại.");
+		console.error("Cannot determine the current Git branch name.");
 		process.exit(1);
 	}
 }
 
 function main() {
 	const branchName = getCurrentBranch();
-	console.log(`🔍 Checking Git branch name: "${branchName}"...`);
+	console.log(`Checking Git branch name: "${branchName}"...`);
 
 	const isValid = ALLOWED_BRANCH_PATTERNS.some((pattern) => pattern.test(branchName));
 
 	if (!isValid) {
-		console.error("\n❌ Tên branch không tuân thủ quy chuẩn dự án!");
-		console.error(`👉 Tên branch hiện tại: "${branchName}"`);
-		console.error("\n✅ Vui lòng đặt tên branch theo định dạng:");
-		console.error("   - feature/<tên-tính-năng> hoặc feat/<tên-tính-năng>");
-		console.error("   - fix/<tên-lỗi> hoặc bugfix/<tên-lỗi>");
-		console.error("   - hotfix/<nội-dung-vá>");
-		console.error("   - refactor/<nội-dung-tối-ưu>");
-		console.error("   - chore/<tác-vụ-cấu-hình>");
-		console.error("   - docs/<tài-liệu>");
-		console.error("   - Ví dụ: feat/auth-login, fix/header-logo, refactor/route-guard\n");
+		console.error("\nBranch name does not follow the project convention.");
+		console.error(`Current branch: "${branchName}"`);
+		console.error("\nUse this format: <branch-type>/<JIRA-KEY>-<short-kebab-description>");
+		console.error("The Jira key can be CTMS-123 or ctms-123.");
+		console.error("Allowed branch types:");
+		console.error("- feature/<JIRA-KEY>-<description> or feat/<JIRA-KEY>-<description>");
+		console.error("- fix/<JIRA-KEY>-<description> or bugfix/<JIRA-KEY>-<description>");
+		console.error("- hotfix/<JIRA-KEY>-<description>");
+		console.error("- refactor/<JIRA-KEY>-<description>");
+		console.error("- chore/<JIRA-KEY>-<description>");
+		console.error("- docs/<JIRA-KEY>-<description>");
+		console.error("- test/<JIRA-KEY>-<description>");
+		console.error(
+			"Examples: feat/CTMS-123-auth-login, feat/ctms-9-store-important-health-information-ui\n"
+		);
 		process.exit(1);
 	}
 
-	console.log("✅ Tên branch hợp lệ. Tiến hành push!\n");
+	console.log("Branch name is valid.\n");
 }
 
 main();

@@ -1,264 +1,163 @@
-﻿from_id,link_type,to_id,reason
+from_id,link_type,to_id,reason
 CTMS-01-T02,blocked by,CTMS-01-T01,Task execution order
-CTMS-01-T03,blocked by,CTMS-01-T01,Task execution order
 CTMS-02,blocked by,CTMS-01,Story dependency
 CTMS-02-T02,blocked by,CTMS-02-T01,Task execution order
-CTMS-02-T03,blocked by,CTMS-02-T01,Task execution order
 CTMS-03,blocked by,CTMS-02,Story dependency
 CTMS-03-T02,blocked by,CTMS-03-T01,Task execution order
-CTMS-03-T03,blocked by,CTMS-03-T01,Task execution order
 CTMS-04,blocked by,CTMS-03,Story dependency
 CTMS-04-T02,blocked by,CTMS-04-T01,Task execution order
-CTMS-04-T03,blocked by,CTMS-04-T01,Task execution order
 CTMS-05,blocked by,CTMS-01,Story dependency
 CTMS-05-T02,blocked by,CTMS-05-T01,Task execution order
-CTMS-05-T03,blocked by,CTMS-05-T01,Task execution order
 CTMS-06,blocked by,CTMS-03,Story dependency
 CTMS-06-T02,blocked by,CTMS-06-T01,Task execution order
-CTMS-06-T03,blocked by,CTMS-06-T01,Task execution order
-CTMS-06-T04,blocked by,CTMS-06-T01,Task execution order
 CTMS-07,blocked by,CTMS-03,Story dependency
 CTMS-07-T02,blocked by,CTMS-07-T01,Task execution order
-CTMS-07-T03,blocked by,CTMS-07-T01,Task execution order
 CTMS-08,blocked by,CTMS-03,Story dependency
 CTMS-08-T02,blocked by,CTMS-08-T01,Task execution order
 CTMS-09,blocked by,CTMS-07,Story dependency
 CTMS-09-T02,blocked by,CTMS-09-T01,Task execution order
-CTMS-09-T03,blocked by,CTMS-09-T01,Task execution order
 CTMS-10,blocked by,CTMS-06,Story dependency
 CTMS-10-T02,blocked by,CTMS-10-T01,Task execution order
-CTMS-10-T03,blocked by,CTMS-10-T01,Task execution order
-CTMS-10-T04,blocked by,CTMS-10-T01,Task execution order
 CTMS-11,blocked by,CTMS-10,Story dependency
 CTMS-11-T02,blocked by,CTMS-11-T01,Task execution order
-CTMS-11-T03,blocked by,CTMS-11-T01,Task execution order
-CTMS-11-T04,blocked by,CTMS-11-T01,Task execution order
 CTMS-12,blocked by,CTMS-10,Story dependency
 CTMS-12-T02,blocked by,CTMS-12-T01,Task execution order
-CTMS-12-T03,blocked by,CTMS-12-T01,Task execution order
-CTMS-12-T04,blocked by,CTMS-12-T01,Task execution order
 CTMS-13,blocked by,CTMS-10,Story dependency
 CTMS-13,blocked by,CTMS-12,Story dependency
 CTMS-13-T02,blocked by,CTMS-13-T01,Task execution order
-CTMS-13-T03,blocked by,CTMS-13-T01,Task execution order
-CTMS-13-T04,blocked by,CTMS-13-T01,Task execution order
 CTMS-14,blocked by,CTMS-12,Story dependency
 CTMS-14-T02,blocked by,CTMS-14-T01,Task execution order
-CTMS-14-T03,blocked by,CTMS-14-T01,Task execution order
-CTMS-14-T04,blocked by,CTMS-14-T01,Task execution order
 CTMS-15,blocked by,CTMS-10,Story dependency
 CTMS-15-T02,blocked by,CTMS-15-T01,Task execution order
-CTMS-15-T03,blocked by,CTMS-15-T01,Task execution order
 CTMS-16,blocked by,CTMS-06,Story dependency
 CTMS-16,blocked by,CTMS-10,Story dependency
 CTMS-16-T02,blocked by,CTMS-16-T01,Task execution order
-CTMS-16-T03,blocked by,CTMS-16-T01,Task execution order
-CTMS-16-T04,blocked by,CTMS-16-T01,Task execution order
 CTMS-17,blocked by,CTMS-16,Story dependency
 CTMS-17-T02,blocked by,CTMS-17-T01,Task execution order
-CTMS-17-T03,blocked by,CTMS-17-T01,Task execution order
-CTMS-17-T04,blocked by,CTMS-17-T01,Task execution order
 CTMS-18,blocked by,CTMS-17,Story dependency
 CTMS-18-T02,blocked by,CTMS-18-T01,Task execution order
-CTMS-18-T03,blocked by,CTMS-18-T01,Task execution order
-CTMS-18-T04,blocked by,CTMS-18-T01,Task execution order
 CTMS-19,blocked by,CTMS-10,Story dependency
 CTMS-19-T02,blocked by,CTMS-19-T01,Task execution order
-CTMS-19-T03,blocked by,CTMS-19-T01,Task execution order
-CTMS-19-T04,blocked by,CTMS-19-T01,Task execution order
 CTMS-20,blocked by,CTMS-19,Story dependency
 CTMS-20-T02,blocked by,CTMS-20-T01,Task execution order
-CTMS-20-T03,blocked by,CTMS-20-T01,Task execution order
-CTMS-20-T04,blocked by,CTMS-20-T01,Task execution order
 CTMS-21,blocked by,CTMS-19,Story dependency
 CTMS-21-T02,blocked by,CTMS-21-T01,Task execution order
-CTMS-21-T03,blocked by,CTMS-21-T01,Task execution order
-CTMS-21-T04,blocked by,CTMS-21-T01,Task execution order
 CTMS-22,blocked by,CTMS-06,Story dependency
 CTMS-22,blocked by,CTMS-19,Story dependency
 CTMS-22-T02,blocked by,CTMS-22-T01,Task execution order
-CTMS-22-T03,blocked by,CTMS-22-T01,Task execution order
-CTMS-22-T04,blocked by,CTMS-22-T01,Task execution order
 CTMS-23,blocked by,CTMS-19,Story dependency
 CTMS-23-T02,blocked by,CTMS-23-T01,Task execution order
-CTMS-23-T03,blocked by,CTMS-23-T01,Task execution order
 CTMS-24,blocked by,CTMS-19,Story dependency
 CTMS-24,blocked by,CTMS-20,Story dependency
 CTMS-24,blocked by,CTMS-23,Story dependency
 CTMS-24-T02,blocked by,CTMS-24-T01,Task execution order
-CTMS-24-T03,blocked by,CTMS-24-T01,Task execution order
-CTMS-24-T04,blocked by,CTMS-24-T01,Task execution order
 CTMS-25,blocked by,CTMS-19,Story dependency
 CTMS-25-T02,blocked by,CTMS-25-T01,Task execution order
-CTMS-25-T03,blocked by,CTMS-25-T01,Task execution order
 CTMS-26,blocked by,CTMS-25,Story dependency
 CTMS-26-T02,blocked by,CTMS-26-T01,Task execution order
-CTMS-26-T03,blocked by,CTMS-26-T01,Task execution order
 CTMS-27,blocked by,CTMS-26,Story dependency
 CTMS-27-T02,blocked by,CTMS-27-T01,Task execution order
-CTMS-27-T03,blocked by,CTMS-27-T01,Task execution order
 CTMS-28,blocked by,CTMS-26,Story dependency
 CTMS-28-T02,blocked by,CTMS-28-T01,Task execution order
-CTMS-28-T03,blocked by,CTMS-28-T01,Task execution order
 CTMS-29,blocked by,CTMS-26,Story dependency
 CTMS-29-T02,blocked by,CTMS-29-T01,Task execution order
-CTMS-29-T03,blocked by,CTMS-29-T01,Task execution order
 CTMS-30,blocked by,CTMS-06,Story dependency
 CTMS-30,blocked by,CTMS-25,Story dependency
 CTMS-30-T02,blocked by,CTMS-30-T01,Task execution order
-CTMS-30-T03,blocked by,CTMS-30-T01,Task execution order
-CTMS-30-T04,blocked by,CTMS-30-T01,Task execution order
 CTMS-31,blocked by,CTMS-12,Story dependency
 CTMS-31,blocked by,CTMS-13,Story dependency
 CTMS-31,blocked by,CTMS-14,Story dependency
 CTMS-31-T02,blocked by,CTMS-31-T01,Task execution order
-CTMS-31-T03,blocked by,CTMS-31-T01,Task execution order
-CTMS-31-T04,blocked by,CTMS-31-T01,Task execution order
 CTMS-32,blocked by,CTMS-19,Story dependency
 CTMS-32-T02,blocked by,CTMS-32-T01,Task execution order
-CTMS-32-T03,blocked by,CTMS-32-T01,Task execution order
-CTMS-32-T04,blocked by,CTMS-32-T01,Task execution order
 CTMS-33,blocked by,CTMS-31,Story dependency
 CTMS-33,blocked by,CTMS-32,Story dependency
 CTMS-33-T02,blocked by,CTMS-33-T01,Task execution order
-CTMS-33-T03,blocked by,CTMS-33-T01,Task execution order
-CTMS-33-T04,blocked by,CTMS-33-T01,Task execution order
 CTMS-34,blocked by,CTMS-06,Story dependency
 CTMS-34,blocked by,CTMS-32,Story dependency
 CTMS-34,blocked by,CTMS-33,Story dependency
 CTMS-34-T02,blocked by,CTMS-34-T01,Task execution order
-CTMS-34-T03,blocked by,CTMS-34-T01,Task execution order
-CTMS-34-T04,blocked by,CTMS-34-T01,Task execution order
 CTMS-35,blocked by,CTMS-32,Story dependency
 CTMS-35,blocked by,CTMS-33,Story dependency
 CTMS-35-T02,blocked by,CTMS-35-T01,Task execution order
-CTMS-35-T03,blocked by,CTMS-35-T01,Task execution order
 CTMS-36,blocked by,CTMS-34,Story dependency
 CTMS-36,blocked by,CTMS-24,Story dependency
 CTMS-36-T02,blocked by,CTMS-36-T01,Task execution order
-CTMS-36-T03,blocked by,CTMS-36-T01,Task execution order
-CTMS-36-T04,blocked by,CTMS-36-T01,Task execution order
 CTMS-37,blocked by,CTMS-36,Story dependency
 CTMS-37,blocked by,CTMS-26,Story dependency
 CTMS-37-T02,blocked by,CTMS-37-T01,Task execution order
-CTMS-37-T03,blocked by,CTMS-37-T01,Task execution order
-CTMS-37-T04,blocked by,CTMS-37-T01,Task execution order
 CTMS-38,blocked by,CTMS-32,Story dependency
 CTMS-38,blocked by,CTMS-33,Story dependency
 CTMS-38-T02,blocked by,CTMS-38-T01,Task execution order
-CTMS-38-T03,blocked by,CTMS-38-T01,Task execution order
-CTMS-38-T04,blocked by,CTMS-38-T01,Task execution order
 CTMS-39,blocked by,CTMS-32,Story dependency
 CTMS-39-T02,blocked by,CTMS-39-T01,Task execution order
-CTMS-39-T03,blocked by,CTMS-39-T01,Task execution order
 CTMS-40,blocked by,CTMS-34,Story dependency
 CTMS-40,blocked by,CTMS-35,Story dependency
 CTMS-40,blocked by,CTMS-28,Story dependency
 CTMS-40-T02,blocked by,CTMS-40-T01,Task execution order
-CTMS-40-T03,blocked by,CTMS-40-T01,Task execution order
-CTMS-40-T04,blocked by,CTMS-40-T01,Task execution order
 CTMS-41,blocked by,CTMS-40,Story dependency
 CTMS-41-T02,blocked by,CTMS-41-T01,Task execution order
-CTMS-41-T03,blocked by,CTMS-41-T01,Task execution order
-CTMS-41-T04,blocked by,CTMS-41-T01,Task execution order
 CTMS-42,blocked by,CTMS-40,Story dependency
 CTMS-42-T02,blocked by,CTMS-42-T01,Task execution order
-CTMS-42-T03,blocked by,CTMS-42-T01,Task execution order
-CTMS-42-T04,blocked by,CTMS-42-T01,Task execution order
 CTMS-43,blocked by,CTMS-40,Story dependency
 CTMS-43-T02,blocked by,CTMS-43-T01,Task execution order
-CTMS-43-T03,blocked by,CTMS-43-T01,Task execution order
-CTMS-43-T04,blocked by,CTMS-43-T01,Task execution order
 CTMS-44,blocked by,CTMS-40,Story dependency
 CTMS-44,blocked by,CTMS-43,Story dependency
 CTMS-44-T02,blocked by,CTMS-44-T01,Task execution order
-CTMS-44-T03,blocked by,CTMS-44-T01,Task execution order
 CTMS-45,blocked by,CTMS-40,Story dependency
 CTMS-45-T02,blocked by,CTMS-45-T01,Task execution order
-CTMS-45-T03,blocked by,CTMS-45-T01,Task execution order
-CTMS-45-T04,blocked by,CTMS-45-T01,Task execution order
 CTMS-46,blocked by,CTMS-45,Story dependency
 CTMS-46,blocked by,CTMS-43,Story dependency
 CTMS-46-T02,blocked by,CTMS-46-T01,Task execution order
-CTMS-46-T03,blocked by,CTMS-46-T01,Task execution order
 CTMS-47,blocked by,CTMS-34,Story dependency
 CTMS-47,blocked by,CTMS-43,Story dependency
 CTMS-47,blocked by,CTMS-46,Story dependency
 CTMS-47-T02,blocked by,CTMS-47-T01,Task execution order
-CTMS-47-T03,blocked by,CTMS-47-T01,Task execution order
 CTMS-48,blocked by,CTMS-41,Story dependency
 CTMS-48,blocked by,CTMS-42,Story dependency
 CTMS-48-T02,blocked by,CTMS-48-T01,Task execution order
-CTMS-48-T03,blocked by,CTMS-48-T01,Task execution order
 CTMS-49,blocked by,CTMS-48,Story dependency
 CTMS-49-T02,blocked by,CTMS-49-T01,Task execution order
-CTMS-49-T03,blocked by,CTMS-49-T01,Task execution order
-CTMS-49-T04,blocked by,CTMS-49-T01,Task execution order
 CTMS-50,blocked by,CTMS-48,Story dependency
 CTMS-50-T02,blocked by,CTMS-50-T01,Task execution order
-CTMS-50-T03,blocked by,CTMS-50-T01,Task execution order
 CTMS-51,blocked by,CTMS-40,Story dependency
 CTMS-51-T02,blocked by,CTMS-51-T01,Task execution order
-CTMS-51-T03,blocked by,CTMS-51-T01,Task execution order
 CTMS-52,blocked by,CTMS-06,Story dependency
 CTMS-52,blocked by,CTMS-10,Story dependency
 CTMS-52-T02,blocked by,CTMS-52-T01,Task execution order
-CTMS-52-T03,blocked by,CTMS-52-T01,Task execution order
-CTMS-52-T04,blocked by,CTMS-52-T01,Task execution order
 CTMS-53,blocked by,CTMS-52,Story dependency
 CTMS-53,blocked by,CTMS-40,Story dependency
 CTMS-53-T02,blocked by,CTMS-53-T01,Task execution order
-CTMS-53-T03,blocked by,CTMS-53-T01,Task execution order
 CTMS-54,blocked by,CTMS-53,Story dependency
 CTMS-54,blocked by,CTMS-48,Story dependency
 CTMS-54-T02,blocked by,CTMS-54-T01,Task execution order
-CTMS-54-T03,blocked by,CTMS-54-T01,Task execution order
-CTMS-54-T04,blocked by,CTMS-54-T01,Task execution order
 CTMS-55,blocked by,CTMS-54,Story dependency
 CTMS-55-T02,blocked by,CTMS-55-T01,Task execution order
-CTMS-55-T03,blocked by,CTMS-55-T01,Task execution order
-CTMS-55-T04,blocked by,CTMS-55-T01,Task execution order
 CTMS-56,blocked by,CTMS-40,Story dependency
 CTMS-56,blocked by,CTMS-19,Story dependency
 CTMS-56,blocked by,CTMS-26,Story dependency
 CTMS-56-T02,blocked by,CTMS-56-T01,Task execution order
-CTMS-56-T03,blocked by,CTMS-56-T01,Task execution order
 CTMS-57,blocked by,CTMS-06,Story dependency
 CTMS-57-T02,blocked by,CTMS-57-T01,Task execution order
-CTMS-57-T03,blocked by,CTMS-57-T01,Task execution order
-CTMS-57-T04,blocked by,CTMS-57-T01,Task execution order
 CTMS-58,blocked by,CTMS-57,Story dependency
 CTMS-58-T02,blocked by,CTMS-58-T01,Task execution order
-CTMS-58-T03,blocked by,CTMS-58-T01,Task execution order
-CTMS-58-T04,blocked by,CTMS-58-T01,Task execution order
 CTMS-59,blocked by,CTMS-06,Story dependency
 CTMS-59,blocked by,CTMS-10,Story dependency
 CTMS-59,blocked by,CTMS-57,Story dependency
 CTMS-59-T02,blocked by,CTMS-59-T01,Task execution order
-CTMS-59-T03,blocked by,CTMS-59-T01,Task execution order
-CTMS-59-T04,blocked by,CTMS-59-T01,Task execution order
 CTMS-60,blocked by,CTMS-59,Story dependency
 CTMS-60-T02,blocked by,CTMS-60-T01,Task execution order
-CTMS-60-T03,blocked by,CTMS-60-T01,Task execution order
-CTMS-60-T04,blocked by,CTMS-60-T01,Task execution order
 CTMS-61,blocked by,CTMS-22,Story dependency
 CTMS-61,blocked by,CTMS-60,Story dependency
 CTMS-61-T02,blocked by,CTMS-61-T01,Task execution order
-CTMS-61-T03,blocked by,CTMS-61-T01,Task execution order
-CTMS-61-T04,blocked by,CTMS-61-T01,Task execution order
 CTMS-62,blocked by,CTMS-32,Story dependency
 CTMS-62,blocked by,CTMS-58,Story dependency
 CTMS-62,blocked by,CTMS-61,Story dependency
 CTMS-62-T02,blocked by,CTMS-62-T01,Task execution order
-CTMS-62-T03,blocked by,CTMS-62-T01,Task execution order
-CTMS-62-T04,blocked by,CTMS-62-T01,Task execution order
 CTMS-63,blocked by,CTMS-62,Story dependency
 CTMS-63-T02,blocked by,CTMS-63-T01,Task execution order
-CTMS-63-T03,blocked by,CTMS-63-T01,Task execution order
-CTMS-63-T04,blocked by,CTMS-63-T01,Task execution order
 CTMS-64,blocked by,CTMS-63,Story dependency
 CTMS-64-T02,blocked by,CTMS-64-T01,Task execution order
-CTMS-64-T03,blocked by,CTMS-64-T01,Task execution order
 CTMS-65,blocked by,CTMS-06,Story dependency
 CTMS-65-T02,blocked by,CTMS-65-T01,Task execution order
 CTMS-65-T03,blocked by,CTMS-65-T01,Task execution order
@@ -502,18 +401,12 @@ CTMS-123,blocked by,CTMS-40,Story dependency
 CTMS-123,blocked by,CTMS-45,Story dependency
 CTMS-123,blocked by,CTMS-49,Story dependency
 CTMS-123-T02,blocked by,CTMS-123-T01,Task execution order
-CTMS-123-T03,blocked by,CTMS-123-T01,Task execution order
 CTMS-124,blocked by,CTMS-06,Story dependency
 CTMS-124-T02,blocked by,CTMS-124-T01,Task execution order
-CTMS-124-T03,blocked by,CTMS-124-T01,Task execution order
-CTMS-124-T04,blocked by,CTMS-124-T01,Task execution order
 CTMS-125,blocked by,CTMS-06,Story dependency
 CTMS-125-T02,blocked by,CTMS-125-T01,Task execution order
-CTMS-125-T03,blocked by,CTMS-125-T01,Task execution order
 CTMS-126,blocked by,CTMS-125,Story dependency
 CTMS-126-T02,blocked by,CTMS-126-T01,Task execution order
-CTMS-126-T03,blocked by,CTMS-126-T01,Task execution order
-CTMS-126-T04,blocked by,CTMS-126-T01,Task execution order
 CTMS-127,blocked by,CTMS-06,Story dependency
 CTMS-127,blocked by,CTMS-116,Story dependency
 CTMS-127-T02,blocked by,CTMS-127-T01,Task execution order

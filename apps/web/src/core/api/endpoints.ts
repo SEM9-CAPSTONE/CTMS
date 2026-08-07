@@ -2,6 +2,9 @@ export const API_ENDPOINTS = {
 	AUTH: {
 		LOGIN: "/auth/login",
 		REGISTER: "/auth/register",
+		VERIFY: "/auth/verify",
+		SEND_OTP: "/auth/send-otp",
+		RESEND: "/auth/resend",
 		REFRESH: "/auth/refresh",
 		LOGOUT: "/auth/logout",
 		ME: "/auth/me",
@@ -46,5 +49,11 @@ export const API_ENDPOINTS = {
 	SOS: {
 		ALERTS: "/sos-alerts",
 		ALERT_BY_ID: (id: string) => `/sos-alerts/${id}`,
+	},
+	HEALTH_PROFILE: {
+		GET: "/camper/health-profile",
+		UPDATE: "/camper/health-profile",
+		GRANT_CONSENT: "/camper/health-profile/consent/grant",
+		REVOKE_CONSENT: "/camper/health-profile/consent/revoke",
 	},
 } as const;

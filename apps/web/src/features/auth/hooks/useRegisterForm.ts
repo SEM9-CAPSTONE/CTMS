@@ -1,13 +1,51 @@
 import { useState } from "react";
+import { authService } from "../services/auth.service";
 import type {
 	AdminRegisterFormData,
+	BaseRegisterFormData,
 	CamperRegisterFormData,
 	HostRegisterFormData,
 	PorterRegisterFormData,
+	RegisterApiPayload,
 	UserRole,
 } from "../types";
+import {
+	type ApiSubmitError,
+	isValidEmail,
+	isValidPhoneNumber,
+	toApiSubmitError,
+} from "../utils/auth.utils";
+import { setVerifyRegistration } from "../utils/verifyRegistrationStorage";
 
-export function useRegisterForm() {
+function selectActiveForm(
+	role: UserRole,
+	camperForm: CamperRegisterFormData,
+	hostForm: HostRegisterFormData,
+	porterForm: PorterRegisterFormData
+): BaseRegisterFormData {
+	// Same role -> form mapping (default camper) already used in RegisterPage's renderRoleForm().
+	switch (role) {
+		case "host":
+			return hostForm;
+		case "porter":
+			return porterForm;
+		default:
+			return camperForm;
+	}
+}
+
+function buildRegisterPayload(role: UserRole, formData: BaseRegisterFormData): RegisterApiPayload {
+	// Email and phone are both mandatory (business flow update) — the form's
+	// `required` fields guarantee non-empty values by the time this runs.
+	return {
+		email: formData.email,
+		phone: formData.phone,
+		password: formData.password,
+		role: role === "host" || role === "porter" ? role : "camper",
+	};
+}
+
+export function useRegisterForm(onRegisterSuccess: () => void) {
 	const [currentStep, setCurrentStep] = useState(1);
 	const [selectedRole, setSelectedRole] = useState<UserRole>("camper");
 
@@ -70,7 +108,9 @@ export function useRegisterForm() {
 	};
 
 	const handleNextStep = () => {
-		if (currentStep < 3) {
+		// Only role-selection (1) -> form (2) now; Step 3 was the static
+		// success screen, replaced by navigating to VerifyOtpPage on success.
+		if (currentStep < 2) {
 			setCurrentStep((prev) => prev + 1);
 		}
 	};
@@ -81,9 +121,52 @@ export function useRegisterForm() {
 		}
 	};
 
-	const handleRegisterSubmit = (e: React.FormEvent) => {
+	const [isSubmitting, setIsSubmitting] = useState(false);
+	const [submitError, setSubmitError] = useState<ApiSubmitError | null>(null);
+
+	const handleRegisterSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
-		handleNextStep();
+
+		// BR-241: ignore additional submits while a request is already in flight.
+		if (isSubmitting) {
+			return;
+		}
+
+		setSubmitError(null);
+		setIsSubmitting(true);
+
+		try {
+			const activeForm = selectActiveForm(selectedRole, camperForm, hostForm, porterForm);
+			const payload = buildRegisterPayload(selectedRole, activeForm);
+
+			// Block only on wrong format for a filled field. Both email and phone
+			// empty is intentionally left to the backend, which returns 422 per
+			// the existing API contract (no cross-field validation added here).
+			if (payload.email && !isValidEmail(payload.email)) {
+				setSubmitError({ message: "Email không đúng định dạng" });
+				return;
+			}
+			if (payload.phone && !isValidPhoneNumber(payload.phone)) {
+				setSubmitError({ message: "Số điện thoại không đúng định dạng" });
+				return;
+			}
+
+			const result = await authService.register(payload);
+
+			// Phase 2 Decision Gate: userId/email/phone are handed to
+			// VerifyOtpPage via sessionStorage, never a URL query param.
+			setVerifyRegistration({
+				userId: result.id,
+				email: result.email ?? "",
+				phone: result.phone ?? "",
+			});
+			onRegisterSuccess();
+		} catch (error) {
+			// BR-242: entered data is left untouched (no reset), only the error is captured.
+			setSubmitError(toApiSubmitError(error, "Đăng ký thất bại. Vui lòng thử lại."));
+		} finally {
+			setIsSubmitting(false);
+		}
 	};
 
 	return {
@@ -101,5 +184,7 @@ export function useRegisterForm() {
 		handleNextStep,
 		handlePrevStep,
 		handleRegisterSubmit,
+		isSubmitting,
+		submitError,
 	};
 }

@@ -3,8 +3,8 @@ import type { RoleOption } from "../types";
 export const AUTH_MESSAGES = {
 	TITLE: "Chào mừng trở lại",
 	SUBTITLE: "Đăng nhập để tiếp tục hành trình của bạn.",
-	IDENTIFIER_LABEL: "Địa chỉ Email",
-	IDENTIFIER_PLACEHOLDER: "your@email.com",
+	IDENTIFIER_LABEL: "Email hoặc số điện thoại",
+	IDENTIFIER_PLACEHOLDER: "your@email.com hoặc 09xxxxxxxx",
 	PASSWORD_LABEL: "Mật khẩu",
 	REMEMBER_ME: "Ghi nhớ",
 	FORGOT_PASSWORD: "Quên mật khẩu?",
@@ -24,10 +24,13 @@ export const AUTH_HERO_BADGES = [
 	{ label: "GPS Tracking" },
 ];
 
+// Step 3 ("Xác minh OTP") is rendered on RegisterPage's stepper for context,
+// but is completed on VerifyOtpPage after navigating away — RegisterPage
+// itself never reaches currentStep 3.
 export const REGISTER_STEPS = [
 	{ step: 1, label: "Chọn vai trò" },
 	{ step: 2, label: "Nhập thông tin" },
-	{ step: 3, label: "Hoàn tất" },
+	{ step: 3, label: "Xác minh OTP" },
 ];
 
 export const ROLE_OPTIONS: RoleOption[] = [
