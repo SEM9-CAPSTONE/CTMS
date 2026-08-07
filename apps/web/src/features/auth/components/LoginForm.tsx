@@ -9,8 +9,24 @@ interface LoginFormProps {
 }
 
 export const LoginForm: React.FC<LoginFormProps> = ({ onBackToHome, onNavigateToRegister }) => {
-	const { formData, showPassword, togglePasswordVisibility, updateField, handleLoginSubmit } =
-		useLoginForm();
+	const {
+		formData,
+		showPassword,
+		isSubmitting,
+		submitError,
+		loginResult,
+		togglePasswordVisibility,
+		updateField,
+		handleLoginSubmit,
+	} = useLoginForm();
+
+	// 401 (Invalid credentials / Account is not active) -> banner; 422 -> flatten
+	// backend's per-field errors, same pattern as RegisterPage's errorMessages.
+	const errorMessages = submitError
+		? submitError.fieldErrors
+			? submitError.fieldErrors.flatMap((fieldError) => fieldError.errors)
+			: [submitError.message]
+		: [];
 
 	return (
 		<div className="flex flex-1 flex-col items-center justify-center p-6 lg:p-8 xl:p-10 overflow-y-auto h-full">
@@ -33,11 +49,11 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onBackToHome, onNavigateTo
 						<div className="flex items-center gap-3 rounded-2xl border border-[#dfe8df] bg-white px-4 py-3 shadow-sm transition focus-within:border-[#164027] focus-within:ring-2 focus-within:ring-[#164027]/10">
 							<Mail size={18} className="shrink-0 text-[#8a9990]" />
 							<input
-								type="email"
+								type="text"
 								required
 								placeholder={AUTH_MESSAGES.IDENTIFIER_PLACEHOLDER}
-								value={formData.email}
-								onChange={(e) => updateField("email", e.target.value)}
+								value={formData.identifier}
+								onChange={(e) => updateField("identifier", e.target.value)}
 								className="w-full bg-transparent text-sm text-[#10221b] placeholder-[#8a9990] outline-none"
 							/>
 						</div>
@@ -82,11 +98,31 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onBackToHome, onNavigateTo
 						</a>
 					</div>
 
+					{/* Submit error summary (401 invalid credentials / not-active, 422 validation) */}
+					{errorMessages.length > 0 && (
+						<div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+							{errorMessages.map((msg) => (
+								<p key={msg} className="text-xs font-semibold text-red-700">
+									{msg}
+								</p>
+							))}
+						</div>
+					)}
+
+					{loginResult && (
+						<div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3">
+							<p className="text-xs font-semibold text-green-700">
+								Đăng nhập thành công! Chào mừng {loginResult.user.email ?? loginResult.user.phone}.
+							</p>
+						</div>
+					)}
+
 					<button
 						type="submit"
-						className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-[#164027] py-3.5 text-base font-bold text-white shadow-md transition hover:bg-[#0f2e1c] hover:shadow-lg mt-2"
+						disabled={isSubmitting}
+						className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-[#164027] py-3.5 text-base font-bold text-white shadow-md transition hover:bg-[#0f2e1c] hover:shadow-lg mt-2 disabled:cursor-not-allowed disabled:opacity-60"
 					>
-						<span>{AUTH_MESSAGES.SUBMIT_BUTTON}</span>
+						<span>{isSubmitting ? "Đang xử lý..." : AUTH_MESSAGES.SUBMIT_BUTTON}</span>
 						<ArrowRight size={18} />
 					</button>
 
