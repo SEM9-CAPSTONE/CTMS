@@ -24,7 +24,7 @@ class CamperProfileScreen extends ConsumerWidget {
         title: 'Hồ sơ & Cài đặt',
         message: user == null
             ? 'Frame #25 · Đang được xây dựng.'
-            : '${user.fullName} · ${user.email}\nFrame #25 · Đang được xây dựng.',
+            : '${user.fullName ?? user.email} · ${user.email}\nFrame #25 · Đang được xây dựng.',
         action: CtmsButton(
           label: 'Đăng xuất',
           variant: CtmsButtonVariant.danger,

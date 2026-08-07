@@ -11,27 +11,32 @@ class AuthRepository {
   final AuthApi _api;
   final TokenStorage _tokenStorage;
 
-  Future<AuthUser> login({required String email, required String password}) async {
-    final result = await _api.login(email: email, password: password);
-    await _tokenStorage.saveTokens(
+  Future<AuthUser> login({required String identifier, required String password}) async {
+    final result = await _api.login(identifier: identifier, password: password);
+    await _tokenStorage.saveSession(
       accessToken: result.accessToken,
       refreshToken: result.refreshToken,
+      user: result.user,
     );
     return result.user;
   }
 
-  /// Called once at startup. Returns null (without hitting the network) when
-  /// there is no stored token, otherwise re-validates it against `/auth/me`.
+  /// Called once at startup. Local-only by necessity — see TokenStorage's
+  /// class doc for why (no `/auth/me` to validate against yet). "Session
+  /// restored" means both a token AND a decodable cached profile exist;
+  /// either missing/corrupt is treated as "failed session-initialization"
+  /// (CTMS-03-T03's explicit test case) and clears whatever partial state
+  /// is left, the same as an expired/invalid session would.
   Future<AuthUser?> tryRestoreSession() async {
     final token = await _tokenStorage.readAccessToken();
     if (token == null) return null;
 
-    try {
-      return await _api.me();
-    } catch (_) {
+    final cachedUser = await _tokenStorage.readCachedUser();
+    if (cachedUser == null) {
       await _tokenStorage.clear();
       return null;
     }
+    return cachedUser;
   }
 
   Future<void> logout() => _tokenStorage.clear();

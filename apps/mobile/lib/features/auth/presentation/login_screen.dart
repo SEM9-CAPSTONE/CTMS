@@ -2,16 +2,24 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/api/api_exception.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/ctms_alert_banner.dart';
 import '../../../core/widgets/ctms_button.dart';
 import '../application/auth_controller.dart';
+import '../data/auth_api.dart';
+import '../domain/user_role.dart';
 import 'login_strings.dart';
 import 'widgets/login_divider.dart';
 import 'widgets/login_hero_panel.dart';
 import 'widgets/login_remember_row.dart';
 import 'widgets/social_login_button.dart';
+
+/// Backend (CTMS-03-T01) only ever sends these 2 message strings for a
+/// login failure — see LoginStrings.accountNotActive's doc comment for why
+/// there's nothing more specific to map "locked"/"unverified" to.
+const _accountNotActiveMessage = 'Account is not active';
 
 /// `/login` — §A.2 in `docs/design/FIGMA-SCREEN-INVENTORY.md`. The desktop
 /// frame is a 50/50 split (mountain photo | white form); on a phone that
@@ -64,17 +72,47 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    // TODO(api): backend contract for phone-based login is unresolved —
-    // services/api only documents an `email` field on POST /auth/login.
     await ref
         .read(authControllerProvider.notifier)
-        .login(email: _identifierController.text.trim(), password: _passwordController.text);
+        .login(identifier: _identifierController.text.trim(), password: _passwordController.text);
   }
 
   void _showComingSoon() {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text(LoginStrings.comingSoon)));
+  }
+
+  bool _isAccountNotActive(Object error) =>
+      error is ApiException && error.message == _accountNotActiveMessage;
+
+  String _mapLoginError(Object error) {
+    if (error is ApiException) {
+      if (error.message == _accountNotActiveMessage) return LoginStrings.accountNotActive;
+      if (error.statusCode == 401) return LoginStrings.invalidCredentials;
+    }
+    return LoginStrings.genericError;
+  }
+
+  /// CTMS-03-T03 checklist: "navigation to ... Account Verification ...
+  /// where applicable" — applicable here means the login failure was
+  /// specifically "account not active". There is no id to hand off (a
+  /// failed login never reveals it, on purpose — same anti-enumeration
+  /// reasoning as the shared invalid-credentials message), so /verify
+  /// receives only whichever of email/phone the user actually typed.
+  void _navigateToVerify() {
+    final identifier = _identifierController.text.trim();
+    final isEmail = _emailPattern.hasMatch(identifier);
+    context.push(
+      '/verify',
+      extra: RegisterResult(
+        id: '',
+        email: isEmail ? identifier : null,
+        phone: isEmail ? null : identifier,
+        role: UserRole.camper,
+        status: 'pending_verification',
+      ),
+    );
   }
 
   @override
@@ -108,8 +146,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       if (error != null) ...[
                         CtmsAlertBanner(
                           severity: CtmsAlertSeverity.danger,
-                          title: 'Không thể đăng nhập',
-                          message: LoginStrings.loginFailed(error),
+                          title: LoginStrings.loginErrorTitle,
+                          message: _mapLoginError(error),
+                          actions: _isAccountNotActive(error)
+                              ? [
+                                  CtmsButton(
+                                    label: LoginStrings.verifyAccountAction,
+                                    size: CtmsButtonSize.md,
+                                    onPressed: _navigateToVerify,
+                                  ),
+                                ]
+                              : const [],
                         ),
                         const SizedBox(height: AppSpacing.lg),
                       ],

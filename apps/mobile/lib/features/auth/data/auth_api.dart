@@ -53,10 +53,16 @@ class AuthApi {
 
   final ApiClient _client;
 
-  Future<LoginResult> login({required String email, required String password}) async {
+  /// `identifier` -- never `email` -- matches `LoginDto` (CTMS-03-T01,
+  /// services/api) exactly: the backend accepts an email OR a Vietnamese
+  /// phone number in this one field and normalizes/tries both internally.
+  /// Sending `email` as the key (the previous bug) fails every login with
+  /// 422 under the backend's `forbidNonWhitelisted: true` ValidationPipe --
+  /// `identifier` missing, `email` an unrecognized property.
+  Future<LoginResult> login({required String identifier, required String password}) async {
     final response = await _client.post<Map<String, dynamic>>(
       ApiEndpoints.auth.login,
-      data: {'email': email, 'password': password},
+      data: {'identifier': identifier, 'password': password},
     );
     final data = response.data ?? const {};
     return LoginResult(
@@ -66,6 +72,11 @@ class AuthApi {
     );
   }
 
+  /// Not called anywhere yet -- `GET /auth/me` does not exist on the
+  /// backend (confirmed against auth.controller.ts: only register/verify/
+  /// send-otp/resend/login are mapped). Kept declared, unused, for when it
+  /// does; see TokenStorage's class doc for how session restore works
+  /// without it in the meantime.
   Future<AuthUser> me() async {
     final response = await _client.get<Map<String, dynamic>>(ApiEndpoints.auth.me);
     return AuthUser.fromJson(response.data ?? const {});

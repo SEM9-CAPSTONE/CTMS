@@ -35,5 +35,20 @@ class LoginStrings {
   static const noAccountYet = 'Bạn chưa có tài khoản?';
   static const registerNow = 'Đăng ký ngay';
 
-  static String loginFailed(Object error) => 'Đăng nhập thất bại: $error';
+  static const loginErrorTitle = 'Không thể đăng nhập';
+
+  /// Backend (CTMS-03-T01, services/api) only distinguishes 2 login-failure
+  /// cases at the message level: "Invalid credentials" (unknown identifier
+  /// OR wrong password — deliberately the same message for both, so a
+  /// caller can't tell which one to enumerate accounts) and "Account is not
+  /// active" (covers pending_verification/suspended/deleted alike — no
+  /// separate "locked" vs "inactive" vs "unverified" copy exists server-side
+  /// to map to). Any other error (network, timeout, unexpected 4xx/5xx)
+  /// falls through to [genericError].
+  static const invalidCredentials = 'Email/số điện thoại hoặc mật khẩu không chính xác.';
+  static const accountNotActive =
+      'Tài khoản của bạn chưa được kích hoạt hoặc đã bị khoá. Vui lòng xác minh tài khoản.';
+  static const genericError = 'Đăng nhập thất bại. Vui lòng thử lại.';
+
+  static const verifyAccountAction = 'Xác minh tài khoản';
 }

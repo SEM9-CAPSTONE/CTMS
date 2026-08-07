@@ -23,7 +23,9 @@ class PorterSettingsScreen extends ConsumerWidget {
       body: CtmsEmptyState(
         icon: Icons.person_outline,
         title: 'Hồ sơ & cài đặt',
-        message: user == null ? 'Đang được xây dựng.' : '${user.fullName} · ${user.email}\nĐang được xây dựng.',
+        message: user == null
+            ? 'Đang được xây dựng.'
+            : '${user.fullName ?? user.email} · ${user.email}\nĐang được xây dựng.',
         action: CtmsButton(
           label: 'Đăng xuất',
           variant: CtmsButtonVariant.danger,

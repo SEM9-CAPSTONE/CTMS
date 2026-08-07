@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -17,7 +19,7 @@ import 'package:mobile/features/auth/domain/user_role.dart';
 /// under flutter_test) and the network — [login]/[register] return
 /// [loginResult] directly instead of calling the (stubbed) backend.
 class _FakeAuthRepository extends AuthRepository {
-  _FakeAuthRepository({this.loginResult})
+  _FakeAuthRepository({this.loginResult, this.loginFailure, this.loginGate})
     : super(
         AuthApi(ApiClient(TokenStorage(const FlutterSecureStorage()))),
         TokenStorage(const FlutterSecureStorage()),
@@ -25,13 +27,36 @@ class _FakeAuthRepository extends AuthRepository {
 
   final AuthUser? loginResult;
 
+  /// Lets a test choose exactly which backend error `login()` throws
+  /// (defaults to "Invalid credentials" when unset, matching an unknown
+  /// account/wrong password) — CTMS-03-T03 requires distinguishing the
+  /// mapped Vietnamese message per case.
+  final ApiException? loginFailure;
+
+  /// Without this, `login()` resolves on the next microtask (no real
+  /// `await` in its body) — fast enough that `await tester.tap()`'s own
+  /// microtask turns let one full login cycle finish before the next tap
+  /// fires, so a rapid-triple-tap test would never actually observe two
+  /// calls racing. Blocking on an uncompleted [Completer] (rather than a
+  /// real `Future.delayed`, which leaves a real Timer that
+  /// `flutter_test`'s binding flags as "still pending" if the test ends
+  /// before it fires) keeps the first call "in flight" for exactly as long
+  /// as the test needs, with no real-clock timer involved.
+  final Completer<void>? loginGate;
+
+  int loginCallCount = 0;
+
   @override
   Future<AuthUser?> tryRestoreSession() async => null;
 
   @override
-  Future<AuthUser> login({required String email, required String password}) async {
+  Future<AuthUser> login({required String identifier, required String password}) async {
+    loginCallCount++;
+    if (loginGate != null) await loginGate!.future;
     final user = loginResult;
-    if (user == null) throw ApiException('Sai email hoặc mật khẩu');
+    if (user == null) {
+      throw loginFailure ?? ApiException('Invalid credentials', statusCode: 401);
+    }
     return user;
   }
 
@@ -92,6 +117,131 @@ void main() {
 
     expect(find.text('CTMS'), findsOneWidget);
     expect(find.widgetWithText(ElevatedButton, 'Đăng nhập →'), findsOneWidget);
+  });
+
+  testWidgets('shows a Vietnamese message for invalid credentials, never the raw exception', (
+    WidgetTester tester,
+  ) async {
+    final repository = _FakeAuthRepository();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [authRepositoryProvider.overrideWithValue(repository)],
+        child: const CtmsApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextFormField).at(0), 'camper@example.com');
+    await tester.enterText(find.byType(TextFormField).at(1), 'wrong-password');
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Đăng nhập →'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Email/số điện thoại hoặc mật khẩu không chính xác.'),
+      findsOneWidget,
+    );
+    // CTMS-03-T03: "API errors do not expose sensitive authentication
+    // details" -- the raw ApiException/statusCode formatting must never
+    // reach the screen.
+    expect(find.textContaining('ApiException'), findsNothing);
+    expect(find.byType(NavigationBar), findsNothing);
+  });
+
+  testWidgets(
+    'shows a Vietnamese message and a verify-account action when the account is not active',
+    (WidgetTester tester) async {
+      final repository = _FakeAuthRepository(
+        loginFailure: ApiException('Account is not active', statusCode: 401),
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [authRepositoryProvider.overrideWithValue(repository)],
+          child: const CtmsApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextFormField).at(0), 'pending@example.com');
+      await tester.enterText(find.byType(TextFormField).at(1), 'correct-password');
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Đăng nhập →'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.textContaining('chưa được kích hoạt hoặc đã bị khoá'),
+        findsOneWidget,
+      );
+
+      // "Navigation to ... Account Verification ... where applicable"
+      // (CTMS-03-T03 checklist) -- applicable here means exactly this case.
+      await _tapVisible(tester, find.widgetWithText(ElevatedButton, 'Xác minh tài khoản'));
+      expect(find.text('Xác minh tài khoản của bạn'), findsOneWidget);
+    },
+  );
+
+  testWidgets('toggling password visibility reveals the typed password', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [authRepositoryProvider.overrideWithValue(_FakeAuthRepository())],
+        child: const CtmsApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final passwordField = find.byType(TextFormField).at(1);
+    await tester.enterText(passwordField, 's3cretPass');
+
+    TextField textFieldOf(Finder formField) =>
+        tester.widget<TextField>(find.descendant(of: formField, matching: find.byType(TextField)));
+
+    expect(textFieldOf(passwordField).obscureText, isTrue);
+
+    await tester.tap(find.byIcon(Icons.visibility_outlined));
+    await tester.pump();
+
+    expect(textFieldOf(passwordField).obscureText, isFalse);
+  });
+
+  testWidgets('repeated taps on the submit button produce only one login request', (
+    WidgetTester tester,
+  ) async {
+    final repository = _FakeAuthRepository(
+      loginResult: const AuthUser(
+        id: '1',
+        fullName: 'Minh Trần',
+        email: 'camper@ctms.dev',
+        role: UserRole.camper,
+      ),
+      // See loginGate's doc comment -- keeps the first call "in flight"
+      // across all 3 taps below, same as a real network round-trip would.
+      // Never completed -- this test only needs the in-flight window, not
+      // the eventual success screen.
+      loginGate: Completer<void>(),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [authRepositoryProvider.overrideWithValue(repository)],
+        child: const CtmsApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextFormField).at(0), 'camper@ctms.dev');
+    await tester.enterText(find.byType(TextFormField).at(1), 'password123');
+
+    final submitButton = find.widgetWithText(ElevatedButton, 'Đăng nhập →');
+    // Fire 3 taps back-to-back, same as a user double/triple tapping an
+    // unresponsive-feeling button. loginGate is never completed, so the
+    // submit button's spinner animates indefinitely -- pumpAndSettle()
+    // would hang waiting for it to stop; a single pump() is enough to let
+    // the synchronous parts of each tap's handler run.
+    await tester.tap(submitButton);
+    await tester.tap(submitButton);
+    await tester.tap(submitButton);
+    await tester.pump();
+
+    expect(repository.loginCallCount, 1);
   });
 
   testWidgets('camper lands on the overview tab and can switch tabs', (
@@ -192,7 +342,7 @@ void main() {
     // đây (CTMS-01-T03 rút wizard về đúng hợp đồng thật của
     // POST /auth/register — xem register_models.dart).
     expect(find.text('Thông tin cá nhân'), findsOneWidget);
-    await tester.enterText(find.byType(TextFormField).at(0), newUser.fullName);
+    await tester.enterText(find.byType(TextFormField).at(0), newUser.fullName!);
     await tester.enterText(find.byType(TextFormField).at(1), '0912345678');
     await _tapVisible(tester, find.widgetWithText(ElevatedButton, 'Tiếp tục'));
 

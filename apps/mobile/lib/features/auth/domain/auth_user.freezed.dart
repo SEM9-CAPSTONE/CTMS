@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$AuthUser {
 
- String get id; String get fullName; String get email;@UserRoleConverter() UserRole get role;
+ String get id; String? get fullName; String get email; String? get phone;@UserRoleConverter() UserRole get role;
 /// Create a copy of AuthUser
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +28,16 @@ $AuthUserCopyWith<AuthUser> get copyWith => _$AuthUserCopyWithImpl<AuthUser>(thi
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is AuthUser&&(identical(other.id, id) || other.id == id)&&(identical(other.fullName, fullName) || other.fullName == fullName)&&(identical(other.email, email) || other.email == email)&&(identical(other.role, role) || other.role == role));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is AuthUser&&(identical(other.id, id) || other.id == id)&&(identical(other.fullName, fullName) || other.fullName == fullName)&&(identical(other.email, email) || other.email == email)&&(identical(other.phone, phone) || other.phone == phone)&&(identical(other.role, role) || other.role == role));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,fullName,email,role);
+int get hashCode => Object.hash(runtimeType,id,fullName,email,phone,role);
 
 @override
 String toString() {
-  return 'AuthUser(id: $id, fullName: $fullName, email: $email, role: $role)';
+  return 'AuthUser(id: $id, fullName: $fullName, email: $email, phone: $phone, role: $role)';
 }
 
 
@@ -48,7 +48,7 @@ abstract mixin class $AuthUserCopyWith<$Res>  {
   factory $AuthUserCopyWith(AuthUser value, $Res Function(AuthUser) _then) = _$AuthUserCopyWithImpl;
 @useResult
 $Res call({
- String id, String fullName, String email,@UserRoleConverter() UserRole role
+ String id, String? fullName, String email, String? phone,@UserRoleConverter() UserRole role
 });
 
 
@@ -65,12 +65,13 @@ class _$AuthUserCopyWithImpl<$Res>
 
 /// Create a copy of AuthUser
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? fullName = null,Object? email = null,Object? role = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? fullName = freezed,Object? email = null,Object? phone = freezed,Object? role = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
-as String,fullName: null == fullName ? _self.fullName : fullName // ignore: cast_nullable_to_non_nullable
-as String,email: null == email ? _self.email : email // ignore: cast_nullable_to_non_nullable
-as String,role: null == role ? _self.role : role // ignore: cast_nullable_to_non_nullable
+as String,fullName: freezed == fullName ? _self.fullName : fullName // ignore: cast_nullable_to_non_nullable
+as String?,email: null == email ? _self.email : email // ignore: cast_nullable_to_non_nullable
+as String,phone: freezed == phone ? _self.phone : phone // ignore: cast_nullable_to_non_nullable
+as String?,role: null == role ? _self.role : role // ignore: cast_nullable_to_non_nullable
 as UserRole,
   ));
 }
@@ -156,10 +157,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String fullName,  String email, @UserRoleConverter()  UserRole role)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String? fullName,  String email,  String? phone, @UserRoleConverter()  UserRole role)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _AuthUser() when $default != null:
-return $default(_that.id,_that.fullName,_that.email,_that.role);case _:
+return $default(_that.id,_that.fullName,_that.email,_that.phone,_that.role);case _:
   return orElse();
 
 }
@@ -177,10 +178,10 @@ return $default(_that.id,_that.fullName,_that.email,_that.role);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String fullName,  String email, @UserRoleConverter()  UserRole role)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String? fullName,  String email,  String? phone, @UserRoleConverter()  UserRole role)  $default,) {final _that = this;
 switch (_that) {
 case _AuthUser():
-return $default(_that.id,_that.fullName,_that.email,_that.role);case _:
+return $default(_that.id,_that.fullName,_that.email,_that.phone,_that.role);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -197,10 +198,10 @@ return $default(_that.id,_that.fullName,_that.email,_that.role);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String fullName,  String email, @UserRoleConverter()  UserRole role)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String? fullName,  String email,  String? phone, @UserRoleConverter()  UserRole role)?  $default,) {final _that = this;
 switch (_that) {
 case _AuthUser() when $default != null:
-return $default(_that.id,_that.fullName,_that.email,_that.role);case _:
+return $default(_that.id,_that.fullName,_that.email,_that.phone,_that.role);case _:
   return null;
 
 }
@@ -212,12 +213,13 @@ return $default(_that.id,_that.fullName,_that.email,_that.role);case _:
 @JsonSerializable()
 
 class _AuthUser implements AuthUser {
-  const _AuthUser({required this.id, required this.fullName, required this.email, @UserRoleConverter() required this.role});
+  const _AuthUser({required this.id, this.fullName, required this.email, this.phone, @UserRoleConverter() required this.role});
   factory _AuthUser.fromJson(Map<String, dynamic> json) => _$AuthUserFromJson(json);
 
 @override final  String id;
-@override final  String fullName;
+@override final  String? fullName;
 @override final  String email;
+@override final  String? phone;
 @override@UserRoleConverter() final  UserRole role;
 
 /// Create a copy of AuthUser
@@ -233,16 +235,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AuthUser&&(identical(other.id, id) || other.id == id)&&(identical(other.fullName, fullName) || other.fullName == fullName)&&(identical(other.email, email) || other.email == email)&&(identical(other.role, role) || other.role == role));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AuthUser&&(identical(other.id, id) || other.id == id)&&(identical(other.fullName, fullName) || other.fullName == fullName)&&(identical(other.email, email) || other.email == email)&&(identical(other.phone, phone) || other.phone == phone)&&(identical(other.role, role) || other.role == role));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,fullName,email,role);
+int get hashCode => Object.hash(runtimeType,id,fullName,email,phone,role);
 
 @override
 String toString() {
-  return 'AuthUser(id: $id, fullName: $fullName, email: $email, role: $role)';
+  return 'AuthUser(id: $id, fullName: $fullName, email: $email, phone: $phone, role: $role)';
 }
 
 
@@ -253,7 +255,7 @@ abstract mixin class _$AuthUserCopyWith<$Res> implements $AuthUserCopyWith<$Res>
   factory _$AuthUserCopyWith(_AuthUser value, $Res Function(_AuthUser) _then) = __$AuthUserCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String fullName, String email,@UserRoleConverter() UserRole role
+ String id, String? fullName, String email, String? phone,@UserRoleConverter() UserRole role
 });
 
 
@@ -270,12 +272,13 @@ class __$AuthUserCopyWithImpl<$Res>
 
 /// Create a copy of AuthUser
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? fullName = null,Object? email = null,Object? role = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? fullName = freezed,Object? email = null,Object? phone = freezed,Object? role = null,}) {
   return _then(_AuthUser(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
-as String,fullName: null == fullName ? _self.fullName : fullName // ignore: cast_nullable_to_non_nullable
-as String,email: null == email ? _self.email : email // ignore: cast_nullable_to_non_nullable
-as String,role: null == role ? _self.role : role // ignore: cast_nullable_to_non_nullable
+as String,fullName: freezed == fullName ? _self.fullName : fullName // ignore: cast_nullable_to_non_nullable
+as String?,email: null == email ? _self.email : email // ignore: cast_nullable_to_non_nullable
+as String,phone: freezed == phone ? _self.phone : phone // ignore: cast_nullable_to_non_nullable
+as String?,role: null == role ? _self.role : role // ignore: cast_nullable_to_non_nullable
 as UserRole,
   ));
 }

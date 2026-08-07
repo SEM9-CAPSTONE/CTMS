@@ -59,9 +59,8 @@ class CamperOverviewScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final overviewAsync = ref.watch(camperOverviewProvider);
     final user = ref.watch(authControllerProvider).valueOrNull;
-    final firstName = (user?.fullName.isEmpty ?? true)
-        ? 'bạn'
-        : user!.fullName.trim().split(' ').last;
+    final fullName = (user?.fullName ?? user?.email ?? '').trim();
+    final firstName = fullName.isEmpty ? 'bạn' : fullName.split(' ').last;
 
     return Scaffold(
       appBar: AppBar(title: const Text(CamperOverviewStrings.appBarTitle)),
