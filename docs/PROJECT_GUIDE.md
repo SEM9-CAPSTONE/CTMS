@@ -221,7 +221,7 @@ pnpm test:all
 - `pnpm dev:quick`: chạy nhanh API và Web cùng lúc.
 - `pnpm dev:api`: chạy NestJS API ở chế độ watch.
 - `pnpm dev:web`: chạy React web dashboard.
-- `pnpm dev:mobile`: chạy Expo mobile app.
+- `pnpm dev:mobile`: chạy Flutter mobile app (tương đương `cd apps/mobile && flutter run`).
 - `pnpm lint:all`: chạy lint cho các workspace có script `lint`.
 - `pnpm build:all`: build các workspace có script `build`.
 - `pnpm test:all`: chạy test cho các workspace có script `test`.
@@ -248,23 +248,27 @@ pnpm --filter @ctms/web lint
 
 ## apps/mobile
 
-React Native mobile app dùng Expo, dành cho camper và porter.
+Flutter mobile app dành cho camper và porter — 1 codebase, điều hướng theo role sau đăng nhập (xem `lib/core/router/app_router.dart`). Không thuộc pnpm workspace (không có `package.json`), quản lý dependency qua `pubspec.yaml`.
+
+Kiến trúc: Riverpod (state/DI) + Clean Architecture theo feature (`domain/` thuần Dart, `data/` gọi API, `application/` chứa Riverpod controller, `presentation/` chứa UI).
 
 Các phần sẽ làm việc chính:
 
-- `apps/mobile/App.tsx`: entry UI hiện tại của mobile app.
-- `apps/mobile/app.json`: cấu hình Expo.
-- `apps/mobile/tsconfig.json`: cấu hình TypeScript cho mobile.
+- `apps/mobile/lib/main.dart`, `lib/app.dart`: entry point, wiring theme + router.
+- `apps/mobile/lib/core/`: hạ tầng dùng chung (api client, router, theme, storage, env).
+- `apps/mobile/lib/features/auth/`: đăng nhập + khôi phục phiên (đăng ký 3 bước theo role còn là placeholder, để sprint sau).
+- `apps/mobile/lib/features/camper/`, `apps/mobile/lib/features/porter/`: shell điều hướng theo role (bottom navigation), các tab tính năng còn là "Sắp ra mắt" chờ đúng sprint.
+- `apps/mobile/pubspec.yaml`: khai báo dependency (flutter_riverpod, go_router, dio, freezed, flutter_secure_storage...).
 
 Scripts:
 
 ```bash
-pnpm --filter @ctms/mobile start
-pnpm --filter @ctms/mobile android
-pnpm --filter @ctms/mobile ios
-pnpm --filter @ctms/mobile web
-pnpm --filter @ctms/mobile build
-pnpm --filter @ctms/mobile lint
+cd apps/mobile
+flutter pub get
+flutter run
+flutter analyze
+flutter test
+flutter pub run build_runner build --delete-conflicting-outputs   # sau khi sửa model dùng freezed/json_serializable
 ```
 
 ## services/api

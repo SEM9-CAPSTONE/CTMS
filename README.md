@@ -35,7 +35,7 @@ ctms/
 │   │   │   │   ├── auth/        # Login, 3-step Role-based Registration (Camper, Host, Porter)
 │   │   │   │   └── landing/     # Landing page, Mobile app preview & AI survival assistant
 │   │   │   └── index.css        # Global CSS design tokens, typography, glassmorphism & custom scrollbars
-│   ├── mobile/                  # React Native mobile app powered by Expo
+│   ├── mobile/                  # Flutter mobile app for Camper & Porter (Riverpod, go_router)
 │   └── docs/                    # System architecture & database diagrams
 ├── services/
 │   ├── api/                     # NestJS + TypeScript Backend Service
@@ -53,7 +53,7 @@ ctms/
 ## Tech Stack
 
 - **Web Frontend**: React 18, Vite, TypeScript, Tailwind CSS v4, Lucide Icons
-- **Mobile**: React Native, Expo
+- **Mobile**: Flutter, Riverpod, go_router
 - **Backend**: NestJS, TypeScript
 - **Database & Cache**: PostgreSQL, Redis
 - **Code Quality & Git Hooks**: Biome (Linter/Formatter), Husky, Lint-Staged, Branch Name Validator
