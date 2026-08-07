@@ -769,7 +769,7 @@ describe("AuthService.sendOtp", () => {
 	// --- Dispatch failure: the whole point of the Generate -> Deliver ->
 	// Persist ordering (Tech Lead requirement) — send_count must NOT be
 	// consumed when the provider fails, so the user doesn't lose an attempt
-	// to a Twilio/Resend outage they never caused. ----------------------------
+	// to a Twilio/SMTP outage they never caused. ----------------------------
 
 	it("does not persist (no send_count increment) when delivery fails", async () => {
 		const deliveryError = new Error("Twilio: Invalid 'To' Phone Number");

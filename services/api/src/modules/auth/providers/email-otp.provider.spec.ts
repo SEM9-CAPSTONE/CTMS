@@ -1,34 +1,44 @@
 import type { ConfigService } from "@nestjs/config";
-import { Resend } from "resend";
+import { createTransport } from "nodemailer";
 import { EmailOtpProvider } from "./email-otp.provider";
 
-jest.mock("resend");
+jest.mock("nodemailer");
 
 function buildConfigService(): ConfigService {
 	const values: Record<string, string> = {
-		RESEND_API_KEY: "re_test_key",
-		RESEND_FROM_EMAIL: "otp@ctms.example.com",
+		SMTP_HOST: "smtp.gmail.com",
+		SMTP_PORT: "587",
+		SMTP_SECURE: "false",
+		SMTP_USER: "ctms.test@gmail.com",
+		SMTP_PASSWORD: "app-password-value",
+		SMTP_FROM_EMAIL: "otp@ctms.example.com",
 	};
 	return { get: jest.fn((key: string) => values[key]) } as unknown as ConfigService;
 }
 
 describe("EmailOtpProvider", () => {
-	let emailsSend: jest.Mock;
+	let sendMail: jest.Mock;
 
 	beforeEach(() => {
-		emailsSend = jest.fn();
-		(Resend as unknown as jest.Mock).mockImplementation(() => ({
-			emails: { send: emailsSend },
-		}));
+		sendMail = jest.fn();
+		(createTransport as unknown as jest.Mock).mockReset().mockReturnValue({ sendMail });
 	});
 
-	it("sends via Resend with the destination, configured from-address, and the code embedded in the HTML body", async () => {
-		emailsSend.mockResolvedValue({ data: { id: "email_test" }, error: null });
+	it("sends via SMTP with the destination, configured from-address, and the code embedded in the HTML body", async () => {
+		sendMail.mockResolvedValue({ messageId: "email_test" });
 		const provider = new EmailOtpProvider(buildConfigService());
 
 		await provider.send("camper@example.com", "123456");
 
-		expect(emailsSend).toHaveBeenCalledWith(
+		expect(createTransport).toHaveBeenCalledWith(
+			expect.objectContaining({
+				host: "smtp.gmail.com",
+				port: 587,
+				secure: false,
+				auth: { user: "ctms.test@gmail.com", pass: "app-password-value" },
+			})
+		);
+		expect(sendMail).toHaveBeenCalledWith(
 			expect.objectContaining({
 				to: "camper@example.com",
 				from: "otp@ctms.example.com",
@@ -37,19 +47,27 @@ describe("EmailOtpProvider", () => {
 		);
 	});
 
-	// Resend's SDK resolves with { data: null, error: {...} } on API failure
-	// instead of rejecting -- confirmed against its own .d.ts, not assumed.
-	// EmailOtpProvider must translate that into a thrown error, otherwise a
-	// failed send would look like a success to AuthService.sendOtp().
-	it("throws when Resend resolves with an error object instead of rejecting", async () => {
-		emailsSend.mockResolvedValue({
-			data: null,
-			error: { message: "Invalid from address", statusCode: 422, name: "invalid_from_address" },
-		});
+	// nodemailer's sendMail() rejects the promise on an SMTP-level failure
+	// (unlike Resend, which resolved with an error object) — EmailOtpProvider
+	// must translate the rejection into a stable, prefixed error message.
+	it("throws a stable error message when sendMail rejects", async () => {
+		sendMail.mockRejectedValue(
+			new Error("Invalid login: 535-5.7.8 Username and Password not accepted")
+		);
 		const provider = new EmailOtpProvider(buildConfigService());
 
 		await expect(provider.send("camper@example.com", "123456")).rejects.toThrow(
-			"Invalid from address"
+			"Email delivery failed: Invalid login: 535-5.7.8 Username and Password not accepted"
 		);
+	});
+
+	it("builds the transporter only once across multiple sends", async () => {
+		sendMail.mockResolvedValue({ messageId: "email_test" });
+		const provider = new EmailOtpProvider(buildConfigService());
+
+		await provider.send("camper@example.com", "111111");
+		await provider.send("camper2@example.com", "222222");
+
+		expect(createTransport).toHaveBeenCalledTimes(1);
 	});
 });

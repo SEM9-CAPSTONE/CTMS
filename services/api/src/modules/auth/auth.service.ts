@@ -27,7 +27,8 @@ import { type UserProfileDto, toUserProfile } from "./dto/user-profile.dto";
 import type { VerifyOtpDto } from "./dto/verify-otp.dto";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { OtpDeliveryService } from "./otp-delivery.service";
-import type { RefreshTokenRepository } from "./refresh-token.repository";
+// biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
+import { RefreshTokenRepository } from "./refresh-token.repository";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { VerificationOtpRepository } from "./verification-otp.repository";
 
@@ -279,7 +280,7 @@ export class AuthService {
 	 * All three run inside one DB transaction. If Deliver throws, the
 	 * transaction is never committed — Generate's read is discarded and
 	 * Persist never runs, so send_count is not incremented and no user
-	 * loses a resend attempt to a provider outage (Twilio/Resend down,
+	 * loses a resend attempt to a provider outage (Twilio/SMTP down,
 	 * timeout, invalid destination, etc.). The user can retry immediately.
 	 *
 	 * Known trade-off, accepted for this project's scale (documented, not

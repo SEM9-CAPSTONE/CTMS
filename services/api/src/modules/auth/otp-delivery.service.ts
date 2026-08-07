@@ -16,7 +16,7 @@ export interface OtpDeliveryTarget {
 /**
  * The only thing in this module that knows "phone -> SmsOtpProvider" and
  * "email -> EmailOtpProvider". AuthService talks only to this service, never
- * to Twilio/Resend directly (see otp-notification-provider.interface.ts for
+ * to Twilio/SMTP directly (see otp-notification-provider.interface.ts for
  * why). Adding a new channel later (Telegram, WhatsApp, Zalo, Push) means
  * one new provider class + one new branch here — AuthService never changes.
  */
