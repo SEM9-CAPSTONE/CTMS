@@ -36,16 +36,12 @@ class AuthRepository {
 
   Future<void> logout() => _tokenStorage.clear();
 
-  /// Registration auto-signs the new account in, same as [login] — the
-  /// backend is expected to return a token pair alongside the created user.
-  Future<AuthUser> register(RegisterFormData data) async {
-    final result = await _api.register(data);
-    await _tokenStorage.saveTokens(
-      accessToken: result.accessToken,
-      refreshToken: result.refreshToken,
-    );
-    return result.user;
-  }
+  /// Registration does NOT sign the account in — `POST /auth/register`
+  /// returns no token pair (see [RegisterResult]'s doc comment), and the
+  /// created account starts as `pending_verification`. Nothing is saved to
+  /// [TokenStorage] here; [RegisterController.submit] navigates to
+  /// `/verify` instead of adopting a session.
+  Future<RegisterResult> register(RegisterFormData data) => _api.register(data);
 }
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {

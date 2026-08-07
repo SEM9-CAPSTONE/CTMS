@@ -12,7 +12,6 @@ import 'package:mobile/features/auth/data/auth_repository.dart';
 import 'package:mobile/features/auth/domain/auth_user.dart';
 import 'package:mobile/features/auth/domain/register_models.dart';
 import 'package:mobile/features/auth/domain/user_role.dart';
-import 'package:mobile/features/auth/presentation/widgets/register_date_of_birth_field.dart';
 
 /// Avoids touching the flutter_secure_storage platform channel (unavailable
 /// under flutter_test) and the network — [login]/[register] return
@@ -36,11 +35,21 @@ class _FakeAuthRepository extends AuthRepository {
     return user;
   }
 
+  /// Register does not return an [AuthUser] (no session is adopted — see
+  /// RegisterScreen's class doc), so this synthesizes a plausible
+  /// [RegisterResult] from [loginResult] instead of echoing it back
+  /// directly.
   @override
-  Future<AuthUser> register(RegisterFormData data) async {
+  Future<RegisterResult> register(RegisterFormData data) async {
     final user = loginResult;
     if (user == null) throw ApiException('Không thể đăng ký');
-    return user;
+    return RegisterResult(
+      id: user.id,
+      email: user.email,
+      phone: '0912345678',
+      role: user.role,
+      status: 'pending_verification',
+    );
   }
 
   @override
@@ -144,7 +153,7 @@ void main() {
     expect(find.text('Hồ sơ & cài đặt'), findsOneWidget);
   });
 
-  testWidgets('porter completes registration and sees the pending-review notice', (
+  testWidgets('porter completes registration and is routed to the verify screen', (
     WidgetTester tester,
   ) async {
     const newUser = AuthUser(
@@ -179,54 +188,25 @@ void main() {
     await tester.enterText(find.byType(TextFormField).at(2), 'password123');
     await _tapVisible(tester, find.widgetWithText(ElevatedButton, 'Tiếp tục'));
 
-    // Step 3 — Thông tin cá nhân & xác thực: họ tên, ngày sinh (date
-    // picker), giới tính, rồi xác thực số điện thoại qua OTP. Không còn
-    // CCCD/OCR — chỉ field của bảng users.
-    expect(find.text('Thông tin cá nhân & xác thực'), findsOneWidget);
+    // Step 3 — Thông tin cá nhân: Camper và Porter dùng chung bước này giờ
+    // đây (CTMS-01-T03 rút wizard về đúng hợp đồng thật của
+    // POST /auth/register — xem register_models.dart).
+    expect(find.text('Thông tin cá nhân'), findsOneWidget);
     await tester.enterText(find.byType(TextFormField).at(0), newUser.fullName);
-
-    await _tapVisible(tester, find.byType(RegisterDateOfBirthField));
-    await tester.tap(find.text('OK'));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byType(DropdownButtonFormField<String>));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Nam'));
-    await tester.pumpAndSettle();
-
     await tester.enterText(find.byType(TextFormField).at(1), '0912345678');
-    await _tapVisible(tester, find.widgetWithText(OutlinedButton, 'Gửi mã OTP'));
-    await tester.enterText(find.byType(TextFormField).at(2), '123456');
-    await _tapVisible(tester, find.widgetWithText(ElevatedButton, 'Xác thực'));
-    expect(find.text('Đã xác thực số điện thoại'), findsOneWidget);
-
     await _tapVisible(tester, find.widgetWithText(ElevatedButton, 'Tiếp tục'));
 
-    // Step 4 — Nghiệp vụ (Porter): experience, district select, then the
-    // campsite multi-select that only appears once a district is chosen.
-    expect(find.text('Kinh nghiệm & phạm vi hỗ trợ'), findsOneWidget);
-    await tester.enterText(find.byType(TextFormField).at(0), '5');
-    await tester.tap(find.byType(DropdownButtonFormField<String>));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Đức Trọng (Tà Năng), Lâm Đồng'));
-    await tester.pumpAndSettle();
-    expect(find.text('Địa điểm có thể dẫn đoàn'), findsOneWidget);
-    await _tapVisible(tester, find.text('Bãi Đá Đen'));
-    await _tapVisible(tester, find.widgetWithText(ElevatedButton, 'Tiếp tục'));
-
-    // Step 5 — Xác nhận đăng ký: recap theo 3 nhóm + accuracy checkbox.
+    // Step 4 — Xác nhận đăng ký: accuracy checkbox rồi submit.
     expect(find.text('Xác nhận đăng ký'), findsOneWidget);
-    expect(find.text('Đức Trọng (Tà Năng), Lâm Đồng'), findsOneWidget);
-    expect(find.textContaining('Bãi Đá Đen'), findsOneWidget);
-    expect(find.text('Nam'), findsOneWidget);
     await _tapVisible(tester, find.byType(Checkbox));
-    await _tapVisible(tester, find.widgetWithText(ElevatedButton, 'Gửi hồ sơ'));
+    await _tapVisible(tester, find.widgetWithText(ElevatedButton, 'Hoàn tất đăng ký'));
 
-    // Porter applications are pending Host review — no auto sign-in.
-    expect(find.text('Hồ sơ đã được gửi'), findsOneWidget);
+    // Register không tự đăng nhập (không có token trả về) — điều hướng
+    // sang /verify thay vào đó. Xem class doc của RegisterScreen.
+    expect(find.text('Xác minh tài khoản của bạn'), findsOneWidget);
     expect(find.byType(NavigationBar), findsNothing);
 
-    await _tapVisible(tester, find.widgetWithText(ElevatedButton, 'Về Trang chủ'));
+    await _tapVisible(tester, find.widgetWithText(TextButton, 'Quay lại đăng nhập'));
     expect(find.text('CTMS'), findsOneWidget);
   });
 }

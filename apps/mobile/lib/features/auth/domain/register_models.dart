@@ -4,14 +4,34 @@ import 'user_role.dart';
 
 part 'register_models.freezed.dart';
 
-/// §A.3 in `docs/design/FIGMA-SCREEN-INVENTORY.md` — the 5-step stepper.
-/// Mobile only offers [UserRole.camper]/[UserRole.porter] at [role] (Host/
-/// Admin register on the web dashboard — see `core/router/app_router.dart`).
-enum RegisterStep { role, account, personal, professional, verification }
+/// CTMS-01-T03 scope only — 4-step wizard matching exactly what
+/// `POST /auth/register` (CTMS-01-T01) accepts: `email`, `phone`,
+/// `password`, `role`. Mobile only offers [UserRole.camper]/
+/// [UserRole.porter] at [role] (Host/Admin register on the web dashboard —
+/// see `core/router/app_router.dart`).
+///
+/// A previous version of this wizard had a 5th "professional" step
+/// (bloodType/fitnessLevel/emergencyContact for Camper; experienceYears/
+/// operatingDistrict/campsites/certification for Porter) and a Porter-only
+/// in-wizard phone-OTP step. Neither maps to any column the real `users`
+/// table has, and the backend's global ValidationPipe
+/// (`forbidNonWhitelisted: true`) rejects the request outright if those
+/// fields are sent — so that step was removed rather than fixed. The
+/// widgets for it still exist under `presentation/widgets/` (unreferenced,
+/// not deleted) in case a later story reuses them for a profile-completion
+/// flow.
+enum RegisterStep { role, account, personal, verification }
 
 /// Draft form data accumulated across the wizard. Never (de)serialized
 /// directly — `AuthApi.register` reads these fields to build the request
 /// payload, so this stays a plain freezed value type (no `fromJson`).
+///
+/// [fullName] is UI-only: the real `users` table has no such column, so it
+/// is never sent to `POST /auth/register`, never stored on [AuthUser], and
+/// never persisted to local storage or logs. It exists purely so the
+/// Personal step can ask "what should we call you" without that value
+/// going anywhere yet — a later profile-completion story can pick it back
+/// up once there is somewhere on the backend to store it.
 @freezed
 abstract class RegisterFormData with _$RegisterFormData {
   const factory RegisterFormData({
@@ -20,27 +40,6 @@ abstract class RegisterFormData with _$RegisterFormData {
     @Default('') String password,
     @Default('') String fullName,
     @Default('') String phone,
-    // Trekker-only (all optional, mirrors CamperRegisterFormData on web).
-    String? bloodType,
-    String? fitnessLevel,
-    String? emergencyContactName,
-    String? emergencyContactPhone,
-    // Porter-only — Step 3 "Thông tin cá nhân & xác thực". Every field
-    // here maps 1:1 to a `users` column (dateOfBirth -> dob, gender ->
-    // gender, phoneVerifiedAt -> phone_verified_at) — current business
-    // rules keep CCCD/OCR/selfie/emergency-contact/avatar out of signup
-    // entirely (avatar is set later, from the profile screen).
-    DateTime? dateOfBirth,
-    String? gender,
-    DateTime? phoneVerifiedAt,
-    // Porter-only — Step 4 "Kinh nghiệm & phạm vi hỗ trợ". A Porter isn't
-    // tied to one campsite — they cover whichever Host-managed locations
-    // they know the terrain for, within one district at a time (see
-    // PorterCoverageRepository).
-    int? experienceYears,
-    String? operatingDistrictId,
-    @Default(<String>[]) List<String> preferredCampsiteIds,
-    String? certificationCode,
     @Default(false) bool acceptedTerms,
   }) = _RegisterFormData;
 }

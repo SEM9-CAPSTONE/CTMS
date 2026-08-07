@@ -9,6 +9,27 @@
 # packages, and plugins designed to encourage good coding practices.
 include: package:flutter_lints/flutter.yaml
 
+analyzer:
+  # CTMS-01-T03 (Register – Mobile): these widgets backed the register
+  # wizard's old "professional" step and Porter in-wizard phone-OTP step,
+  # neither of which maps to the real POST /auth/register contract
+  # (CTMS-01-T01) — see register_models.dart's doc comment. Deliberately
+  # NOT deleted (unlike a full rewrite, this keeps them available if a
+  # later story — profile completion, Porter coverage areas — wants to
+  # reuse them) and deliberately NOT left to error out under `flutter
+  # analyze`/CI just because they're unreferenced. Remove this exclude
+  # list (and the files, if genuinely still unused) once that's decided.
+  exclude:
+    - lib/features/auth/presentation/widgets/register_camper_professional_step.dart
+    - lib/features/auth/presentation/widgets/register_campsite_multi_select.dart
+    - lib/features/auth/presentation/widgets/register_date_of_birth_field.dart
+    - lib/features/auth/presentation/widgets/register_district_field.dart
+    - lib/features/auth/presentation/widgets/register_personal_verification_step.dart
+    - lib/features/auth/presentation/widgets/register_phone_otp_section.dart
+    - lib/features/auth/presentation/widgets/register_porter_coverage_summary.dart
+    - lib/features/auth/presentation/widgets/register_porter_professional_step.dart
+    - lib/features/auth/presentation/widgets/register_submitted_notice.dart
+
 linter:
   # The lint rules applied to this project can be customized in the
   # section below to disable rules from the `package:flutter_lints/flutter.yaml`

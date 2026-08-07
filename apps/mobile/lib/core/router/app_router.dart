@@ -3,8 +3,10 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/auth/application/auth_controller.dart';
 import '../../features/auth/domain/user_role.dart';
+import '../../features/auth/data/auth_api.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/register_screen.dart';
+import '../../features/auth/presentation/verify_screen.dart';
 import '../../features/camper/presentation/camper_ai_assistant_screen.dart';
 import '../../features/camper/presentation/camper_explore_screen.dart';
 import '../../features/camper/overview/presentation/camper_overview_screen.dart';
@@ -40,7 +42,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       final user = authState.valueOrNull;
       final onAuthScreen =
-          state.matchedLocation == '/login' || state.matchedLocation == '/register';
+          state.matchedLocation == '/login' ||
+          state.matchedLocation == '/register' ||
+          // Reached only right after a successful register — the account
+          // exists but is pending_verification, so it has no session (see
+          // RegisterScreen's class doc). Must not bounce to /login before
+          // the account context (route `extra`) has been read.
+          state.matchedLocation == '/verify';
 
       if (user == null) {
         return onAuthScreen ? null : '/login';
@@ -62,6 +70,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
       GoRoute(path: '/register', builder: (context, state) => const RegisterScreen()),
+      GoRoute(
+        path: '/verify',
+        builder: (context, state) => VerifyScreen(account: state.extra! as RegisterResult),
+      ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) =>
             CamperShellScreen(navigationShell: navigationShell),

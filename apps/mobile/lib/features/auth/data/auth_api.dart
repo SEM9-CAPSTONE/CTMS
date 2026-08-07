@@ -14,6 +14,40 @@ class LoginResult {
   final AuthUser user;
 }
 
+/// Response of `POST /auth/register` (CTMS-01-T01's `UserProfileDto`) — a
+/// distinct shape from [LoginResult] on purpose. Registration does NOT log
+/// the user in: no `accessToken`/`refreshToken` is returned, and the
+/// account's `status` starts as `pending_verification` (the account only
+/// becomes usable after CTMS-02's OTP verification). Deliberately not
+/// [AuthUser] either — [AuthUser] models an authenticated session and has
+/// no `status` field; conflating the two would make an unverified account
+/// look signed-in.
+class RegisterResult {
+  const RegisterResult({
+    required this.id,
+    required this.email,
+    required this.phone,
+    required this.role,
+    required this.status,
+  });
+
+  factory RegisterResult.fromJson(Map<String, dynamic> json) {
+    return RegisterResult(
+      id: json['id'] as String,
+      email: json['email'] as String?,
+      phone: json['phone'] as String?,
+      role: UserRole.fromWire(json['role'] as String),
+      status: json['status'] as String,
+    );
+  }
+
+  final String id;
+  final String? email;
+  final String? phone;
+  final UserRole role;
+  final String status;
+}
+
 class AuthApi {
   AuthApi(this._client);
 
@@ -37,58 +71,25 @@ class AuthApi {
     return AuthUser.fromJson(response.data ?? const {});
   }
 
-  /// Builds the request payload from [data]. Every key maps to a `users`
-  /// column — dateOfBirth/gender/phoneVerifiedAt included whenever set
-  /// (only the Porter flow collects them today, but they're general
-  /// account fields, not Porter-specific ones) — role-specific fields
-  /// beyond that are only included for the matching role, keeping the
-  /// request lean.
-  Future<LoginResult> register(RegisterFormData data) async {
+  /// Sends exactly the 4 fields `RegisterDto` (CTMS-01-T01, services/api)
+  /// accepts — nothing else. The backend's global `ValidationPipe` has
+  /// `forbidNonWhitelisted: true`, so any extra property (fullName,
+  /// dateOfBirth, ...) makes the whole request fail with 422, not just get
+  /// ignored. [RegisterFormData.fullName] is UI-only for exactly this
+  /// reason — see its doc comment.
+  Future<RegisterResult> register(RegisterFormData data) async {
     final payload = <String, dynamic>{
-      'role': data.role?.name,
-      'fullName': data.fullName,
       'email': data.email,
       'phone': data.phone,
       'password': data.password,
-      if (data.dateOfBirth != null) 'dateOfBirth': data.dateOfBirth!.toIso8601String(),
-      if (data.gender != null) 'gender': data.gender,
-      if (data.phoneVerifiedAt != null)
-        'phoneVerifiedAt': data.phoneVerifiedAt!.toIso8601String(),
+      'role': data.role?.name,
     };
-
-    switch (data.role) {
-      case UserRole.camper:
-        payload.addAll({
-          if (data.bloodType != null) 'bloodType': data.bloodType,
-          if (data.fitnessLevel != null) 'fitnessLevel': data.fitnessLevel,
-          if (data.emergencyContactName != null)
-            'emergencyContactName': data.emergencyContactName,
-          if (data.emergencyContactPhone != null)
-            'emergencyContactPhone': data.emergencyContactPhone,
-        });
-      case UserRole.porter:
-        payload.addAll({
-          'experienceYears': data.experienceYears,
-          'operatingDistrictId': data.operatingDistrictId,
-          'preferredCampsiteIds': data.preferredCampsiteIds,
-          if (data.certificationCode != null) 'certificationCode': data.certificationCode,
-        });
-      case UserRole.host:
-      case UserRole.admin:
-      case null:
-        break;
-    }
 
     final response = await _client.post<Map<String, dynamic>>(
       ApiEndpoints.auth.register,
       data: payload,
     );
-    final responseData = response.data ?? const {};
-    return LoginResult(
-      accessToken: responseData['accessToken'] as String,
-      refreshToken: responseData['refreshToken'] as String?,
-      user: AuthUser.fromJson(responseData['user'] as Map<String, dynamic>),
-    );
+    return RegisterResult.fromJson(response.data ?? const {});
   }
 }
 
