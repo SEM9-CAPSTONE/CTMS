@@ -17,6 +17,10 @@ class CtmsApp extends ConsumerWidget {
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
       routerConfig: router,
+      // Required for RestorationMixin anywhere in the tree (e.g.
+      // RegisterScreen) to actually persist/restore state across the app
+      // being backgrounded and the OS reclaiming the process.
+      restorationScopeId: 'ctms',
     );
   }
 }
