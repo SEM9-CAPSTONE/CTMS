@@ -19,7 +19,7 @@ import 'package:mobile/features/auth/domain/user_role.dart';
 /// under flutter_test) and the network — [login]/[register] return
 /// [loginResult] directly instead of calling the (stubbed) backend.
 class _FakeAuthRepository extends AuthRepository {
-  _FakeAuthRepository({this.loginResult, this.loginFailure, this.loginGate})
+  _FakeAuthRepository({this.loginResult, this.loginFailure, this.loginGate, this.registerGate})
     : super(
         AuthApi(ApiClient(TokenStorage(const FlutterSecureStorage()))),
         TokenStorage(const FlutterSecureStorage()),
@@ -55,10 +55,17 @@ class _FakeAuthRepository extends AuthRepository {
     if (loginGate != null) await loginGate!.future;
     final user = loginResult;
     if (user == null) {
-      throw loginFailure ?? ApiException('Invalid credentials', statusCode: 401);
+      throw loginFailure ??
+          ApiException('Invalid credentials', statusCode: 401, kind: ApiExceptionKind.response);
     }
     return user;
   }
+
+  /// Same reasoning as [loginGate] -- keeps `register()` in flight across a
+  /// rapid-triple-tap test instead of resolving on the next microtask.
+  final Completer<void>? registerGate;
+
+  int registerCallCount = 0;
 
   /// Register does not return an [AuthUser] (no session is adopted — see
   /// RegisterScreen's class doc), so this synthesizes a plausible
@@ -66,6 +73,8 @@ class _FakeAuthRepository extends AuthRepository {
   /// directly.
   @override
   Future<RegisterResult> register(RegisterFormData data) async {
+    registerCallCount++;
+    if (registerGate != null) await registerGate!.future;
     final user = loginResult;
     if (user == null) throw ApiException('Không thể đăng ký');
     return RegisterResult(
@@ -151,7 +160,11 @@ void main() {
     'shows a Vietnamese message and a verify-account action when the account is not active',
     (WidgetTester tester) async {
       final repository = _FakeAuthRepository(
-        loginFailure: ApiException('Account is not active', statusCode: 401),
+        loginFailure: ApiException(
+          'Account is not active',
+          statusCode: 401,
+          kind: ApiExceptionKind.response,
+        ),
       );
       await tester.pumpWidget(
         ProviderScope(
@@ -242,6 +255,79 @@ void main() {
     await tester.pump();
 
     expect(repository.loginCallCount, 1);
+  });
+
+  testWidgets('shows a Vietnamese message when there is no network connection', (
+    WidgetTester tester,
+  ) async {
+    final repository = _FakeAuthRepository(
+      loginFailure: ApiException(
+        'Không có kết nối mạng. Vui lòng kiểm tra và thử lại.',
+        kind: ApiExceptionKind.network,
+      ),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [authRepositoryProvider.overrideWithValue(repository)],
+        child: const CtmsApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextFormField).at(0), 'camper@ctms.dev');
+    await tester.enterText(find.byType(TextFormField).at(1), 'password123');
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Đăng nhập →'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Không có kết nối mạng. Vui lòng kiểm tra và thử lại.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('repeated taps on the register submit button produce only one registration request', (
+    WidgetTester tester,
+  ) async {
+    final repository = _FakeAuthRepository(
+      loginResult: const AuthUser(
+        id: '1',
+        fullName: 'Minh Trần',
+        email: 'camper@ctms.dev',
+        role: UserRole.camper,
+      ),
+      // Never completed -- this test only needs the in-flight window.
+      registerGate: Completer<void>(),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [authRepositoryProvider.overrideWithValue(repository)],
+        child: const CtmsApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await _tapVisible(tester, find.widgetWithText(OutlinedButton, 'Đăng ký tài khoản mới'));
+    await _tapVisible(tester, find.text('Camper (Khách cắm trại)'));
+    await _tapVisible(tester, find.widgetWithText(ElevatedButton, 'Tiếp tục'));
+
+    await tester.enterText(find.byType(TextFormField).at(0), 'camper@ctms.dev');
+    await tester.enterText(find.byType(TextFormField).at(1), 'password123');
+    await tester.enterText(find.byType(TextFormField).at(2), 'password123');
+    await _tapVisible(tester, find.widgetWithText(ElevatedButton, 'Tiếp tục'));
+
+    await tester.enterText(find.byType(TextFormField).at(0), 'Minh Trần');
+    await tester.enterText(find.byType(TextFormField).at(1), '0912345678');
+    await _tapVisible(tester, find.widgetWithText(ElevatedButton, 'Tiếp tục'));
+
+    await _tapVisible(tester, find.byType(Checkbox));
+
+    final submitButton = find.widgetWithText(ElevatedButton, 'Hoàn tất đăng ký');
+    await tester.tap(submitButton);
+    await tester.tap(submitButton);
+    await tester.tap(submitButton);
+    await tester.pump();
+
+    expect(repository.registerCallCount, 1);
   });
 
   testWidgets('camper lands on the overview tab and can switch tabs', (
