@@ -1,7 +1,7 @@
 export type UserRole = "camper" | "host" | "porter" | "admin";
 
 export interface LoginFormData {
-	email: string;
+	identifier: string;
 	password: string;
 	rememberMe: boolean;
 }
@@ -9,6 +9,26 @@ export interface LoginFormData {
 export interface LoginPageProps {
 	onBackToHome: () => void;
 	onNavigateToRegister?: () => void;
+}
+
+/** Request payload accepted by POST /api/auth/login (CTMS-03-T01 API contract). */
+export interface LoginApiPayload {
+	identifier: string;
+	password: string;
+}
+
+/** Response body on 200 (matches services/api's LoginResponseDto). */
+export interface LoginApiResponse {
+	accessToken: string;
+	refreshToken: string;
+	user: {
+		id: string;
+		email: string | null;
+		phone: string | null;
+		role: UserRole;
+		status: "pending_verification" | "active" | "suspended" | "deleted";
+		createdAt: string;
+	};
 }
 
 export interface RegisterPageProps {
