@@ -1,21 +1,58 @@
-import { ConflictException, Logger } from "@nestjs/common";
+import { createHash, randomBytes, randomInt } from "node:crypto";
+import {
+	ConflictException,
+	Logger,
+	NotFoundException,
+	UnauthorizedException,
+} from "@nestjs/common";
+import type { ConfigService } from "@nestjs/config";
+import type { JwtService } from "@nestjs/jwt";
 import * as bcrypt from "bcrypt";
 import type { DataSource, EntityManager } from "typeorm";
 import { QueryFailedError } from "typeorm";
 import { UserRole, UserStatus } from "../users/entities/user.entity";
 import type { UsersRepository } from "../users/users.repository";
 import { AuthService } from "./auth.service";
+import type { LoginDto } from "./dto/login.dto";
 import type { RegisterDto } from "./dto/register.dto";
+import type { ResendOtpDto } from "./dto/resend-otp.dto";
+import type { VerifyOtpDto } from "./dto/verify-otp.dto";
+import type { RefreshTokenRepository } from "./refresh-token.repository";
+import type { VerificationOtpRepository } from "./verification-otp.repository";
 
 jest.mock("bcrypt");
+jest.mock("node:crypto");
 
 const BCRYPT_COST_FACTOR = 10;
 const HASHED_PASSWORD = "$2b$10$mockedHashValueForTestingPurposesOnly";
+const HASHED_OTP = "$2b$10$mockedHashValueForOtpTestingOnly";
 const FIXED_DATE = new Date("2026-08-04T00:00:00.000Z");
 
 type MockUsersRepository = {
 	findByEmailOrPhone: jest.Mock;
 	createUser: jest.Mock;
+};
+
+type MockOtpRepository = {
+	findOneBy: jest.Mock;
+	save: jest.Mock;
+};
+
+type MockUsersRepositoryForVerify = {
+	update: jest.Mock;
+	findOneByOrFail: jest.Mock;
+};
+
+type MockOtpRepositoryForVerify = {
+	findOneBy: jest.Mock;
+	delete: jest.Mock;
+};
+
+/** Matches .env.example defaults (Step 2) — string, as ConfigService.get returns raw env strings. */
+const OTP_CONFIG: Record<string, string> = {
+	OTP_TTL_MINUTES: "10",
+	OTP_RESEND_MAX_ATTEMPTS: "5",
+	OTP_RESEND_WINDOW_MINUTES: "1440",
 };
 
 // Email and phone are both mandatory (business flow update) — a RegisterDto
@@ -70,9 +107,16 @@ describe("AuthService.register", () => {
 
 		bcryptHash.mockResolvedValue(HASHED_PASSWORD);
 
+		// register() never touches the OTP repository, refresh tokens,
+		// ConfigService, or JwtService — passed as empty stubs purely to
+		// satisfy AuthService's constructor signature.
 		authService = new AuthService(
 			usersRepository as unknown as UsersRepository,
-			dataSource as unknown as DataSource
+			{} as VerificationOtpRepository,
+			{} as RefreshTokenRepository,
+			dataSource as unknown as DataSource,
+			{ get: jest.fn() } as unknown as ConfigService,
+			{} as JwtService
 		);
 	});
 
@@ -265,5 +309,629 @@ describe("AuthService.register", () => {
 		expect(dataSource.transaction).not.toHaveBeenCalled();
 		expect(manager.withRepository).not.toHaveBeenCalled();
 		expect(transactionalUsersRepository.createUser).not.toHaveBeenCalled();
+	});
+});
+
+describe("AuthService.issueOtp", () => {
+	let authService: AuthService;
+	let usersRepository: MockUsersRepository;
+	let otpRepository: MockOtpRepository;
+	let transactionalOtpRepository: MockOtpRepository;
+	let manager: { withRepository: jest.Mock };
+	let dataSource: { transaction: jest.Mock };
+	let configService: { get: jest.Mock };
+	let loggerLogSpy: jest.SpyInstance;
+	const bcryptHash = bcrypt.hash as unknown as jest.Mock;
+	const cryptoRandomInt = randomInt as unknown as jest.Mock;
+
+	const USER_ID = "11111111-1111-1111-1111-111111111111";
+	const RAW_OTP = "654321";
+
+	function buildOtpRow(overrides: Record<string, unknown> = {}) {
+		return {
+			userId: USER_ID,
+			codeHash: "old-hash",
+			expiresAt: new Date(Date.now() + 60_000),
+			sendCount: 1,
+			windowStartedAt: new Date(),
+			...overrides,
+		};
+	}
+
+	beforeEach(() => {
+		jest.clearAllMocks();
+		loggerLogSpy = jest.spyOn(Logger.prototype, "log").mockImplementation(() => undefined);
+
+		usersRepository = { findByEmailOrPhone: jest.fn(), createUser: jest.fn() };
+		transactionalOtpRepository = { findOneBy: jest.fn(), save: jest.fn() };
+		otpRepository = { findOneBy: jest.fn(), save: jest.fn() };
+		manager = { withRepository: jest.fn().mockReturnValue(transactionalOtpRepository) };
+		dataSource = {
+			transaction: jest.fn(async (callback: (manager: EntityManager) => unknown) =>
+				callback(manager as unknown as EntityManager)
+			),
+		};
+		configService = { get: jest.fn((key: string) => OTP_CONFIG[key]) };
+
+		bcryptHash.mockResolvedValue(HASHED_OTP);
+		cryptoRandomInt.mockReturnValue(Number(RAW_OTP));
+
+		authService = new AuthService(
+			usersRepository as unknown as UsersRepository,
+			otpRepository as unknown as VerificationOtpRepository,
+			{} as RefreshTokenRepository, // issueOtp() never touches refresh tokens or JwtService
+			dataSource as unknown as DataSource,
+			configService as unknown as ConfigService,
+			{} as JwtService
+		);
+	});
+
+	afterEach(() => {
+		loggerLogSpy.mockRestore();
+	});
+
+	// --- First issuance (no existing row) -----------------------------------
+
+	it("creates a new row with sendCount 1 when no OTP exists yet for the user (BR-214, BR-220, AC1)", async () => {
+		transactionalOtpRepository.findOneBy.mockResolvedValue(null);
+
+		const before = Date.now();
+		const result = await authService.issueOtp(USER_ID);
+		const after = Date.now();
+
+		expect(dataSource.transaction).toHaveBeenCalledTimes(1);
+		expect(manager.withRepository).toHaveBeenCalledWith(otpRepository);
+		expect(transactionalOtpRepository.save).toHaveBeenCalledTimes(1);
+
+		const saved = transactionalOtpRepository.save.mock.calls[0][0];
+		expect(saved.userId).toBe(USER_ID);
+		expect(saved.sendCount).toBe(1);
+		expect(saved.codeHash).toBe(HASHED_OTP);
+		// BR-220: expiresAt must be later than the moment the row was created.
+		expect(saved.expiresAt.getTime()).toBeGreaterThan(saved.windowStartedAt.getTime());
+		// OTP_TTL_MINUTES=10 -> expiresAt ~= now + 10min, bounded to tolerate test execution time.
+		const expectedExpiryMs = 10 * 60_000;
+		expect(saved.expiresAt.getTime() - before).toBeGreaterThanOrEqual(expectedExpiryMs - 1000);
+		expect(saved.expiresAt.getTime() - after).toBeLessThanOrEqual(expectedExpiryMs + 1000);
+
+		expect(result).toBe(RAW_OTP);
+	});
+
+	it("never persists the raw OTP, only the bcrypt hash (Decision Gate v2 assumption #6)", async () => {
+		transactionalOtpRepository.findOneBy.mockResolvedValue(null);
+
+		await authService.issueOtp(USER_ID);
+
+		const saved = transactionalOtpRepository.save.mock.calls[0][0];
+		expect(saved.codeHash).toBe(HASHED_OTP);
+		expect(Object.values(saved)).not.toContain(RAW_OTP);
+		expect(bcryptHash).toHaveBeenCalledWith(RAW_OTP, BCRYPT_COST_FACTOR);
+	});
+
+	// --- Resend within window, under the limit (BR-007, AC2) ----------------
+
+	it("increments sendCount and regenerates the code on resend within the window and under the limit", async () => {
+		const existing = buildOtpRow({ sendCount: 2, windowStartedAt: new Date(Date.now() - 60_000) });
+		transactionalOtpRepository.findOneBy.mockResolvedValue(existing);
+
+		const result = await authService.issueOtp(USER_ID);
+
+		expect(transactionalOtpRepository.save).toHaveBeenCalledTimes(1);
+		const saved = transactionalOtpRepository.save.mock.calls[0][0];
+		expect(saved.sendCount).toBe(3);
+		expect(saved.codeHash).toBe(HASHED_OTP);
+		// windowStartedAt must NOT reset while still inside the window.
+		expect(saved.windowStartedAt).toBe(existing.windowStartedAt);
+		expect(result).toBe(RAW_OTP);
+	});
+
+	// --- Resend limit reached within window (BR-007, AC2, BR-243) -----------
+
+	it("throws ConflictException and does not save when sendCount already reached the limit within the window", async () => {
+		const existing = buildOtpRow({
+			sendCount: 5,
+			windowStartedAt: new Date(Date.now() - 60_000),
+		});
+		transactionalOtpRepository.findOneBy.mockResolvedValue(existing);
+
+		const error = await authService.issueOtp(USER_ID).catch((e) => e);
+
+		expect(error).toBeInstanceOf(ConflictException);
+		expect((error as ConflictException).getStatus()).toBe(409);
+		// BR-243: no side effect when the business condition is not met.
+		expect(transactionalOtpRepository.save).not.toHaveBeenCalled();
+	});
+
+	// --- Window elapsed -> counter resets (BR-007, AC2) ----------------------
+
+	it("resets sendCount to 1 and restarts the window when the previous window has elapsed", async () => {
+		const windowMinutes = Number(OTP_CONFIG.OTP_RESEND_WINDOW_MINUTES);
+		const elapsedWindowStart = new Date(Date.now() - (windowMinutes * 60_000 + 60_000));
+		const existing = buildOtpRow({ sendCount: 5, windowStartedAt: elapsedWindowStart });
+		transactionalOtpRepository.findOneBy.mockResolvedValue(existing);
+
+		const result = await authService.issueOtp(USER_ID);
+
+		const saved = transactionalOtpRepository.save.mock.calls[0][0];
+		expect(saved.sendCount).toBe(1);
+		expect(saved.windowStartedAt).not.toBe(elapsedWindowStart);
+		expect(saved.windowStartedAt.getTime()).toBeGreaterThan(elapsedWindowStart.getTime());
+		expect(result).toBe(RAW_OTP);
+	});
+
+	// --- Transaction usage (BR-230: no duplicate record on concurrent retry) -
+
+	it("performs the read-then-write inside a single transaction", async () => {
+		transactionalOtpRepository.findOneBy.mockResolvedValue(null);
+
+		await authService.issueOtp(USER_ID);
+
+		expect(dataSource.transaction).toHaveBeenCalledTimes(1);
+		expect(transactionalOtpRepository.findOneBy).toHaveBeenCalledWith({ userId: USER_ID });
+	});
+});
+
+describe("AuthService.verifyOtp", () => {
+	let authService: AuthService;
+	let usersRepository: MockUsersRepository;
+	let otpRepository: { findOneBy: jest.Mock };
+	let transactionalUsersRepository: MockUsersRepositoryForVerify;
+	let transactionalOtpRepository: MockOtpRepositoryForVerify;
+	let manager: { withRepository: jest.Mock };
+	let dataSource: { transaction: jest.Mock };
+	let loggerLogSpy: jest.SpyInstance;
+	const bcryptCompare = bcrypt.compare as unknown as jest.Mock;
+
+	const USER_ID = "11111111-1111-1111-1111-111111111111";
+	const SUBMITTED_CODE = "654321";
+
+	function buildDto(overrides: Partial<VerifyOtpDto> = {}): VerifyOtpDto {
+		return { userId: USER_ID, code: SUBMITTED_CODE, ...overrides } as VerifyOtpDto;
+	}
+
+	function buildOtpRow(overrides: Record<string, unknown> = {}) {
+		return {
+			userId: USER_ID,
+			codeHash: HASHED_OTP,
+			expiresAt: new Date(Date.now() + 60_000),
+			sendCount: 1,
+			windowStartedAt: new Date(Date.now() - 60_000),
+			...overrides,
+		};
+	}
+
+	beforeEach(() => {
+		jest.clearAllMocks();
+		loggerLogSpy = jest.spyOn(Logger.prototype, "log").mockImplementation(() => undefined);
+
+		usersRepository = { findByEmailOrPhone: jest.fn(), createUser: jest.fn() };
+		otpRepository = { findOneBy: jest.fn() };
+		transactionalUsersRepository = { update: jest.fn(), findOneByOrFail: jest.fn() };
+		transactionalOtpRepository = { findOneBy: jest.fn(), delete: jest.fn() };
+		manager = {
+			withRepository: jest.fn((repo: unknown) =>
+				repo === usersRepository ? transactionalUsersRepository : transactionalOtpRepository
+			),
+		};
+		dataSource = {
+			transaction: jest.fn(async (callback: (manager: EntityManager) => unknown) =>
+				callback(manager as unknown as EntityManager)
+			),
+		};
+
+		bcryptCompare.mockResolvedValue(true);
+
+		authService = new AuthService(
+			usersRepository as unknown as UsersRepository,
+			otpRepository as unknown as VerificationOtpRepository,
+			{} as RefreshTokenRepository, // verifyOtp() never touches refresh tokens or JwtService
+			dataSource as unknown as DataSource,
+			{ get: jest.fn() } as unknown as ConfigService,
+			{} as JwtService
+		);
+	});
+
+	afterEach(() => {
+		loggerLogSpy.mockRestore();
+	});
+
+	// --- Success path (AC3, BR-207) ------------------------------------------
+
+	it("activates the user and deletes the OTP row when the code matches and is not expired", async () => {
+		const otp = buildOtpRow();
+		otpRepository.findOneBy.mockResolvedValue(otp);
+		const activatedUser = buildUser({ status: UserStatus.ACTIVE });
+		transactionalUsersRepository.findOneByOrFail.mockResolvedValue(activatedUser);
+
+		const result = await authService.verifyOtp(buildDto());
+
+		expect(otpRepository.findOneBy).toHaveBeenCalledWith({ userId: USER_ID });
+		expect(bcryptCompare).toHaveBeenCalledWith(SUBMITTED_CODE, otp.codeHash);
+		expect(dataSource.transaction).toHaveBeenCalledTimes(1);
+		expect(transactionalUsersRepository.update).toHaveBeenCalledWith(USER_ID, {
+			status: UserStatus.ACTIVE,
+		});
+		expect(transactionalOtpRepository.delete).toHaveBeenCalledWith({ userId: USER_ID });
+		expect(transactionalUsersRepository.findOneByOrFail).toHaveBeenCalledWith({ id: USER_ID });
+		expect(result).toEqual({
+			id: activatedUser.id,
+			email: activatedUser.email,
+			phone: activatedUser.phone,
+			role: activatedUser.role,
+			status: UserStatus.ACTIVE,
+			createdAt: activatedUser.createdAt,
+		});
+	});
+
+	it("never includes passwordHash in the returned profile", async () => {
+		otpRepository.findOneBy.mockResolvedValue(buildOtpRow());
+		transactionalUsersRepository.findOneByOrFail.mockResolvedValue(
+			buildUser({ status: UserStatus.ACTIVE, passwordHash: HASHED_PASSWORD })
+		);
+
+		const result = await authService.verifyOtp(buildDto());
+
+		expect(Object.hasOwn(result, "passwordHash")).toBe(false);
+		expect(Object.keys(result).sort()).toEqual(
+			["createdAt", "email", "id", "phone", "role", "status"].sort()
+		);
+	});
+
+	// --- Not found (AC3, BR-231: 404) ----------------------------------------
+
+	it("throws NotFoundException when no OTP row exists for the userId", async () => {
+		otpRepository.findOneBy.mockResolvedValue(null);
+
+		const error = await authService.verifyOtp(buildDto()).catch((e) => e);
+
+		expect(error).toBeInstanceOf(NotFoundException);
+		expect((error as NotFoundException).getStatus()).toBe(404);
+		// BR-243: no side effect.
+		expect(bcryptCompare).not.toHaveBeenCalled();
+		expect(dataSource.transaction).not.toHaveBeenCalled();
+	});
+
+	// --- Expired (AC3, BR-231: 409) ------------------------------------------
+
+	it("throws ConflictException and does not compare the code when the OTP is expired", async () => {
+		otpRepository.findOneBy.mockResolvedValue(
+			buildOtpRow({ expiresAt: new Date(Date.now() - 1000) })
+		);
+
+		const error = await authService.verifyOtp(buildDto()).catch((e) => e);
+
+		expect(error).toBeInstanceOf(ConflictException);
+		expect((error as ConflictException).getStatus()).toBe(409);
+		// BR-243: no side effect — code comparison and the transaction never run.
+		expect(bcryptCompare).not.toHaveBeenCalled();
+		expect(dataSource.transaction).not.toHaveBeenCalled();
+	});
+
+	// --- Incorrect code (AC3, BR-231: 409, BR-243) ---------------------------
+
+	it("throws ConflictException and does not open a transaction when the OTP code is incorrect", async () => {
+		otpRepository.findOneBy.mockResolvedValue(buildOtpRow());
+		bcryptCompare.mockResolvedValue(false);
+
+		const error = await authService.verifyOtp(buildDto()).catch((e) => e);
+
+		expect(error).toBeInstanceOf(ConflictException);
+		expect((error as ConflictException).getStatus()).toBe(409);
+		// BR-243: no side effect.
+		expect(dataSource.transaction).not.toHaveBeenCalled();
+	});
+});
+
+describe("AuthService.resendOtp", () => {
+	let authService: AuthService;
+	let usersRepository: { findOneByOrFail: jest.Mock };
+	let issueOtpSpy: jest.SpyInstance;
+
+	const USER_ID = "11111111-1111-1111-1111-111111111111";
+	const RAW_OTP = "654321";
+
+	function buildDto(overrides: Partial<ResendOtpDto> = {}): ResendOtpDto {
+		return { userId: USER_ID, ...overrides } as ResendOtpDto;
+	}
+
+	beforeEach(() => {
+		jest.clearAllMocks();
+
+		usersRepository = { findOneByOrFail: jest.fn() };
+
+		// resendOtp() is a thin wrapper over issueOtp() (Step 4, not re-tested
+		// here) — spy on the real instance method rather than re-mocking its
+		// internals (DataSource/OTP repository/ConfigService are irrelevant to
+		// this wrapper's own logic).
+		authService = new AuthService(
+			usersRepository as unknown as UsersRepository,
+			{} as VerificationOtpRepository,
+			{} as RefreshTokenRepository,
+			{} as DataSource,
+			{ get: jest.fn() } as unknown as ConfigService,
+			{} as JwtService
+		);
+		issueOtpSpy = jest.spyOn(authService, "issueOtp");
+	});
+
+	afterEach(() => {
+		issueOtpSpy.mockRestore();
+	});
+
+	it("calls issueOtp with the given userId and returns the user's profile", async () => {
+		issueOtpSpy.mockResolvedValue(RAW_OTP);
+		const user = buildUser({ status: UserStatus.PENDING_VERIFICATION });
+		usersRepository.findOneByOrFail.mockResolvedValue(user);
+
+		const result = await authService.resendOtp(buildDto());
+
+		expect(issueOtpSpy).toHaveBeenCalledWith(USER_ID);
+		expect(usersRepository.findOneByOrFail).toHaveBeenCalledWith({ id: USER_ID });
+		expect(result).toEqual({
+			id: user.id,
+			email: user.email,
+			phone: user.phone,
+			role: user.role,
+			status: user.status,
+			createdAt: user.createdAt,
+		});
+	});
+
+	// --- No OTP exposure ------------------------------------------------
+
+	it("never exposes the raw OTP anywhere in the response", async () => {
+		issueOtpSpy.mockResolvedValue(RAW_OTP);
+		usersRepository.findOneByOrFail.mockResolvedValue(buildUser());
+
+		const result = await authService.resendOtp(buildDto());
+
+		expect(Object.values(result)).not.toContain(RAW_OTP);
+	});
+
+	// --- Error propagation from issueOtp() (e.g. resend limit reached) ---
+
+	it("propagates the error from issueOtp without fetching the user profile", async () => {
+		const limitError = new ConflictException("OTP resend limit reached, try again later");
+		issueOtpSpy.mockRejectedValue(limitError);
+
+		const error = await authService.resendOtp(buildDto()).catch((e) => e);
+
+		expect(error).toBe(limitError);
+		expect(usersRepository.findOneByOrFail).not.toHaveBeenCalled();
+	});
+});
+
+describe("AuthService.login", () => {
+	let authService: AuthService;
+	let usersRepository: { findByEmailOrPhone: jest.Mock };
+	let refreshTokenRepository: { save: jest.Mock };
+	let transactionalRefreshTokenRepository: { save: jest.Mock };
+	let manager: { withRepository: jest.Mock };
+	let dataSource: { transaction: jest.Mock };
+	let configService: { get: jest.Mock };
+	let jwtService: { sign: jest.Mock };
+	let loggerLogSpy: jest.SpyInstance;
+	const bcryptCompare = bcrypt.compare as unknown as jest.Mock;
+	const cryptoRandomBytes = randomBytes as unknown as jest.Mock;
+	const cryptoCreateHash = createHash as unknown as jest.Mock;
+
+	const USER_ID = "11111111-1111-1111-1111-111111111111";
+	const RAW_REFRESH_TOKEN = "raw-refresh-token-hex-value";
+	const TOKEN_HASH = "sha256-hash-hex-value";
+	const ACCESS_TOKEN = "signed.jwt.token";
+
+	function buildDto(overrides: Partial<LoginDto> = {}): LoginDto {
+		return {
+			identifier: "camper@example.com",
+			password: "correct-password",
+			...overrides,
+		} as LoginDto;
+	}
+
+	function buildActiveUser(overrides: Record<string, unknown> = {}) {
+		return buildUser({ id: USER_ID, status: UserStatus.ACTIVE, ...overrides });
+	}
+
+	beforeEach(() => {
+		jest.clearAllMocks();
+		loggerLogSpy = jest.spyOn(Logger.prototype, "log").mockImplementation(() => undefined);
+
+		usersRepository = { findByEmailOrPhone: jest.fn() };
+		transactionalRefreshTokenRepository = { save: jest.fn() };
+		refreshTokenRepository = { save: jest.fn() };
+		manager = { withRepository: jest.fn().mockReturnValue(transactionalRefreshTokenRepository) };
+		dataSource = {
+			transaction: jest.fn(async (callback: (manager: EntityManager) => unknown) =>
+				callback(manager as unknown as EntityManager)
+			),
+		};
+		configService = {
+			get: jest.fn((key: string) => (key === "JWT_REFRESH_TOKEN_TTL" ? "7d" : undefined)),
+		};
+		jwtService = { sign: jest.fn().mockReturnValue(ACCESS_TOKEN) };
+
+		bcryptCompare.mockResolvedValue(true);
+		cryptoRandomBytes.mockReturnValue({ toString: () => RAW_REFRESH_TOKEN });
+		cryptoCreateHash.mockReturnValue({
+			update: jest.fn().mockReturnThis(),
+			digest: jest.fn().mockReturnValue(TOKEN_HASH),
+		});
+
+		authService = new AuthService(
+			usersRepository as unknown as UsersRepository,
+			{} as VerificationOtpRepository,
+			refreshTokenRepository as unknown as RefreshTokenRepository,
+			dataSource as unknown as DataSource,
+			configService as unknown as ConfigService,
+			jwtService as unknown as JwtService
+		);
+	});
+
+	afterEach(() => {
+		loggerLogSpy.mockRestore();
+	});
+
+	// --- Success path (AC1, BR-009) -----------------------------------------
+
+	it("returns access token, raw refresh token, and user profile on correct credentials", async () => {
+		const user = buildActiveUser();
+		usersRepository.findByEmailOrPhone.mockResolvedValue(user);
+
+		const result = await authService.login(buildDto());
+
+		expect(result).toEqual({
+			accessToken: ACCESS_TOKEN,
+			refreshToken: RAW_REFRESH_TOKEN,
+			user: {
+				id: user.id,
+				email: user.email,
+				phone: user.phone,
+				role: user.role,
+				status: user.status,
+				createdAt: user.createdAt,
+			},
+		});
+	});
+
+	// --- Identifier normalization / findByEmailOrPhone reuse (BR-215) --------
+
+	it("looks up the user with the same normalized value as both email and phone candidates when given an email", async () => {
+		usersRepository.findByEmailOrPhone.mockResolvedValue(buildActiveUser());
+
+		await authService.login(buildDto({ identifier: "camper@example.com" }));
+
+		// normalizeVietnamPhone() is a no-op on a non-VN-phone-shaped string,
+		// so both candidates end up identical here -- proving the same raw
+		// identifier is threaded through both normalizers, not just one.
+		expect(usersRepository.findByEmailOrPhone).toHaveBeenCalledWith(
+			"camper@example.com",
+			"camper@example.com"
+		);
+	});
+
+	it("normalizes a local-format phone identifier to E.164 before lookup", async () => {
+		usersRepository.findByEmailOrPhone.mockResolvedValue(buildActiveUser());
+
+		await authService.login(buildDto({ identifier: "0912345678" }));
+
+		expect(usersRepository.findByEmailOrPhone).toHaveBeenCalledWith(
+			"0912345678", // normalizeEmail() is trim+lowercase only, a no-op here
+			"+84912345678" // normalizeVietnamPhone() converts local -> E.164
+		);
+	});
+
+	// --- Unknown identifier (AC2, BR-010) -------------------------------------
+
+	it("throws UnauthorizedException and never compares a password when the identifier matches no user", async () => {
+		usersRepository.findByEmailOrPhone.mockResolvedValue(null);
+
+		const error = await authService.login(buildDto()).catch((e) => e);
+
+		expect(error).toBeInstanceOf(UnauthorizedException);
+		expect(bcryptCompare).not.toHaveBeenCalled();
+		expect(dataSource.transaction).not.toHaveBeenCalled();
+	});
+
+	// --- Non-active accounts (AC3, BR-202) ------------------------------------
+
+	it.each([UserStatus.PENDING_VERIFICATION, UserStatus.SUSPENDED, UserStatus.DELETED])(
+		"throws UnauthorizedException and never compares a password when account status is %s",
+		async (status) => {
+			usersRepository.findByEmailOrPhone.mockResolvedValue(buildActiveUser({ status }));
+
+			const error = await authService.login(buildDto()).catch((e) => e);
+
+			expect(error).toBeInstanceOf(UnauthorizedException);
+			expect(bcryptCompare).not.toHaveBeenCalled();
+			expect(dataSource.transaction).not.toHaveBeenCalled();
+		}
+	);
+
+	// --- Wrong password (AC2, BR-010, BR-243: no side effect) -----------------
+
+	it("throws UnauthorizedException and creates no refresh token when the password is wrong", async () => {
+		usersRepository.findByEmailOrPhone.mockResolvedValue(buildActiveUser());
+		bcryptCompare.mockResolvedValue(false);
+
+		const error = await authService.login(buildDto()).catch((e) => e);
+
+		expect(error).toBeInstanceOf(UnauthorizedException);
+		expect(dataSource.transaction).not.toHaveBeenCalled();
+		// Tech Lead requirement: a rejected login must not spend random bytes
+		// generating a refresh token that will never be used.
+		expect(cryptoRandomBytes).not.toHaveBeenCalled();
+	});
+
+	it("uses the same error message for an unknown identifier and a wrong password (no enumeration)", async () => {
+		usersRepository.findByEmailOrPhone.mockResolvedValueOnce(null);
+		const notFoundError = await authService.login(buildDto()).catch((e) => e);
+
+		usersRepository.findByEmailOrPhone.mockResolvedValueOnce(buildActiveUser());
+		bcryptCompare.mockResolvedValueOnce(false);
+		const wrongPasswordError = await authService.login(buildDto()).catch((e) => e);
+
+		expect(notFoundError.message).toBe(wrongPasswordError.message);
+	});
+
+	// --- Ordering (Tech Lead review) ------------------------------------------
+
+	it("generates the refresh token only after the password check succeeds", async () => {
+		usersRepository.findByEmailOrPhone.mockResolvedValue(buildActiveUser());
+
+		await authService.login(buildDto());
+
+		const compareOrder = bcryptCompare.mock.invocationCallOrder[0];
+		const randomBytesOrder = cryptoRandomBytes.mock.invocationCallOrder[0];
+		expect(compareOrder).toBeLessThan(randomBytesOrder);
+	});
+
+	it("signs the access JWT only after the refresh-token transaction has committed", async () => {
+		usersRepository.findByEmailOrPhone.mockResolvedValue(buildActiveUser());
+
+		await authService.login(buildDto());
+
+		const transactionOrder = dataSource.transaction.mock.invocationCallOrder[0];
+		const signOrder = jwtService.sign.mock.invocationCallOrder[0];
+		expect(transactionOrder).toBeLessThan(signOrder);
+	});
+
+	// --- Refresh token never stored raw ---------------------------------------
+
+	it("persists only the hashed refresh token, never the raw value", async () => {
+		usersRepository.findByEmailOrPhone.mockResolvedValue(buildActiveUser());
+
+		await authService.login(buildDto());
+
+		expect(transactionalRefreshTokenRepository.save).toHaveBeenCalledWith(
+			expect.objectContaining({ tokenHash: TOKEN_HASH })
+		);
+		const saved = transactionalRefreshTokenRepository.save.mock.calls[0][0];
+		expect(Object.values(saved)).not.toContain(RAW_REFRESH_TOKEN);
+	});
+
+	// --- JWT claims (Decision Gate D8: minimal, roles as an array) ------------
+
+	it("signs the access token with sub and roles claims", async () => {
+		const user = buildActiveUser({ role: UserRole.HOST });
+		usersRepository.findByEmailOrPhone.mockResolvedValue(user);
+
+		await authService.login(buildDto());
+
+		expect(jwtService.sign).toHaveBeenCalledWith({ sub: user.id, roles: [UserRole.HOST] });
+	});
+
+	// --- No secret exposure in logs -------------------------------------------
+
+	it("never logs the password or any token value", async () => {
+		usersRepository.findByEmailOrPhone.mockResolvedValue(buildActiveUser());
+
+		await authService.login(buildDto({ password: "super-secret-password" }));
+
+		for (const call of loggerLogSpy.mock.calls) {
+			const serialized = JSON.stringify(call);
+			expect(serialized).not.toContain("super-secret-password");
+			expect(serialized).not.toContain(RAW_REFRESH_TOKEN);
+			expect(serialized).not.toContain(ACCESS_TOKEN);
+		}
 	});
 });
