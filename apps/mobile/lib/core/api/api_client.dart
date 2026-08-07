@@ -51,11 +51,42 @@ class ApiClient {
     try {
       return await request();
     } on DioException catch (error) {
-      final data = error.response?.data;
-      final message = data is Map && data['message'] != null
-          ? data['message'].toString()
-          : (error.message ?? 'Đã xảy ra lỗi không xác định');
-      throw ApiException(message, statusCode: error.response?.statusCode);
+      final statusCode = error.response?.statusCode;
+
+      if (statusCode != null) {
+        // A real response came back from the server -- surface its message
+        // and raw body as-is; feature screens map `message` to copy and
+        // read `errorData` for field-level detail (see ApiException's doc).
+        final data = error.response?.data;
+        final message = data is Map && data['message'] != null
+            ? data['message'].toString()
+            : 'Đã xảy ra lỗi không xác định';
+        throw ApiException(
+          message,
+          statusCode: statusCode,
+          errorData: data,
+          kind: ApiExceptionKind.response,
+        );
+      }
+
+      // No response at all -- a transport-level problem, not a business
+      // one. The Vietnamese copy lives here (not per-screen) because every
+      // caller in the app wants the same generic offline/timeout message;
+      // business-specific messages (invalid credentials, duplicate email,
+      // ...) stay mapped at the screen that knows what they mean.
+      final kind = switch (error.type) {
+        DioExceptionType.connectionTimeout ||
+        DioExceptionType.sendTimeout ||
+        DioExceptionType.receiveTimeout => ApiExceptionKind.timeout,
+        DioExceptionType.connectionError => ApiExceptionKind.network,
+        _ => ApiExceptionKind.unknown,
+      };
+      final message = switch (kind) {
+        ApiExceptionKind.timeout => 'Yêu cầu quá thời gian chờ. Vui lòng thử lại.',
+        ApiExceptionKind.network => 'Không có kết nối mạng. Vui lòng kiểm tra và thử lại.',
+        _ => error.message ?? 'Đã xảy ra lỗi không xác định',
+      };
+      throw ApiException(message, kind: kind);
     }
   }
 }
