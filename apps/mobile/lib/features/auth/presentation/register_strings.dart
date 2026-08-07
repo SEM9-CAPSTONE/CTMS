@@ -12,20 +12,24 @@ class RegisterStrings {
 
   // Step 1 — Vai trò. Host is dropped: it's a web-only role
   // (core/router/app_router.dart bounces Host/Admin back to /login).
+  // Title/description/badge/benefits kept in sync with
+  // apps/web/src/features/auth/constants/index.ts's ROLE_OPTIONS —
+  // same role, same copy, on both platforms.
   static const roleStepTitle = 'Chào bạn, bạn là ai?';
-  static const camperTitle = 'Trekker';
+  static const camperTitle = 'Camper (Khách cắm trại)';
   static const camperDescription =
-      'Yêu thiên nhiên, muốn khám phá và trải nghiệm các chuyến trekking.';
+      'Yêu thiên nhiên, muốn khám phá bãi cắm trại và trải nghiệm các chuyến trekking.';
   static const camperBenefits = [
-    'Đặt chỗ campsite & tuyến trekking nhanh chóng',
-    'Bản đồ ngoại tuyến & trợ lý AI đồng hành',
+    'Đặt bãi cắm trại & tour trekking',
+    'Xem bản đồ offline & an toàn thời tiết',
   ];
-  static const porterTitle = 'Porter';
-  static const porterDescription = 'Người dẫn đường (Guide), hỗ trợ dẫn đoàn trekking/camping.';
-  static const porterBadge = 'CẦN MÃ MỜI/XÁC MINH';
+  static const porterTitle = 'Porter (Người dẫn đường)';
+  static const porterDescription =
+      'Người dẫn đường chuyên nghiệp, hỗ trợ vận chuyển trang thiết bị leo núi.';
+  static const porterBadge = 'CẦN XÁC MINH/CHỨNG CHỈ';
   static const porterBenefits = [
-    'Nhận phân công dẫn đoàn phù hợp kinh nghiệm',
-    'Quản lý lịch trình & báo cáo sự cố tại hiện trường',
+    'Nhận dẫn đoàn & hỗ trợ vận chuyển',
+    'Cập nhật chứng chỉ hành nghề trekking',
   ];
 
   // Step 2 — Tài khoản. Số điện thoại được xác thực OTP riêng ở bước 3

@@ -328,7 +328,7 @@ void main() {
     expect(find.text('Tham gia CTMS'), findsOneWidget);
 
     // Step 1 — Vai trò.
-    await _tapVisible(tester, find.text('Porter'));
+    await _tapVisible(tester, find.text('Porter (Người dẫn đường)'));
     await _tapVisible(tester, find.widgetWithText(ElevatedButton, 'Tiếp tục'));
 
     // Step 2 — Tài khoản: Email + Mật khẩu + Xác nhận mật khẩu.
