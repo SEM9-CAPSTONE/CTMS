@@ -18,6 +18,8 @@ class AuthEndpoints {
 
   String get login => '/auth/login';
   String get register => '/auth/register';
+  String get forgotPassword => '/auth/forgot-password';
+  String get resetPassword => '/auth/reset-password';
   String get refresh => '/auth/refresh';
   String get logout => '/auth/logout';
   String get me => '/auth/me';
@@ -51,7 +53,8 @@ class TrekkingEndpoints {
   String get routes => '/trekking-routes';
   String routeById(String id) => '/trekking-routes/$id';
   String checkpoints(String routeId) => '/trekking-routes/$routeId/checkpoints';
-  String dangerZones(String routeId) => '/trekking-routes/$routeId/danger-zones';
+  String dangerZones(String routeId) =>
+      '/trekking-routes/$routeId/danger-zones';
 }
 
 class TripEndpoints {
@@ -74,7 +77,8 @@ class AiEndpoints {
   const AiEndpoints();
 
   String get conversations => '/ai/conversations';
-  String messages(String conversationId) => '/ai/conversations/$conversationId/messages';
+  String messages(String conversationId) =>
+      '/ai/conversations/$conversationId/messages';
   String get feedback => '/ai/messages/feedback';
 }
 

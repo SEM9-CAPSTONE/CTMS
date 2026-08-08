@@ -11,7 +11,10 @@ class AuthRepository {
   final AuthApi _api;
   final TokenStorage _tokenStorage;
 
-  Future<AuthUser> login({required String identifier, required String password}) async {
+  Future<AuthUser> login({
+    required String identifier,
+    required String password,
+  }) async {
     final result = await _api.login(identifier: identifier, password: password);
     await _tokenStorage.saveSession(
       accessToken: result.accessToken,
@@ -47,8 +50,26 @@ class AuthRepository {
   /// [TokenStorage] here; [RegisterController.submit] navigates to
   /// `/verify` instead of adopting a session.
   Future<RegisterResult> register(RegisterFormData data) => _api.register(data);
+
+  Future<void> forgotPassword({
+    required String identifier,
+    required String channel,
+  }) => _api.forgotPassword(identifier: identifier, channel: channel);
+
+  Future<void> resetPassword({
+    required String identifier,
+    required String code,
+    required String newPassword,
+  }) => _api.resetPassword(
+    identifier: identifier,
+    code: code,
+    newPassword: newPassword,
+  );
 }
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
-  return AuthRepository(ref.watch(authApiProvider), ref.watch(tokenStorageProvider));
+  return AuthRepository(
+    ref.watch(authApiProvider),
+    ref.watch(tokenStorageProvider),
+  );
 });

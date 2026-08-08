@@ -62,19 +62,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   String? _validateIdentifier(String? value) {
     final trimmed = value?.trim() ?? '';
-    if (_emailPattern.hasMatch(trimmed) || _phonePattern.hasMatch(trimmed)) return null;
+    if (_emailPattern.hasMatch(trimmed) || _phonePattern.hasMatch(trimmed)) {
+      return null;
+    }
     return LoginStrings.emailError;
   }
 
   String? _validatePassword(String? value) {
-    return (value == null || value.length < 6) ? LoginStrings.passwordError : null;
+    return (value == null || value.length < 6)
+        ? LoginStrings.passwordError
+        : null;
   }
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     await ref
         .read(authControllerProvider.notifier)
-        .login(identifier: _identifierController.text.trim(), password: _passwordController.text);
+        .login(
+          identifier: _identifierController.text.trim(),
+          password: _passwordController.text,
+        );
   }
 
   void _showComingSoon() {
@@ -100,7 +107,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       case ApiExceptionKind.timeout:
         return error.message;
       case ApiExceptionKind.response:
-        if (error.message == _accountNotActiveMessage) return LoginStrings.accountNotActive;
+        if (error.message == _accountNotActiveMessage) {
+          return LoginStrings.accountNotActive;
+        }
         if (error.statusCode == 401) return LoginStrings.invalidCredentials;
         if ((error.statusCode ?? 0) >= 500) return LoginStrings.serverError;
         return LoginStrings.genericError;
@@ -200,8 +209,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                   ? Icons.visibility_outlined
                                   : Icons.visibility_off_outlined,
                             ),
-                            onPressed: () =>
-                                setState(() => _obscurePassword = !_obscurePassword),
+                            onPressed: () => setState(
+                              () => _obscurePassword = !_obscurePassword,
+                            ),
                           ),
                         ),
                         validator: _validatePassword,
@@ -209,8 +219,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       const SizedBox(height: AppSpacing.sm),
                       LoginRememberRow(
                         rememberMe: _rememberMe,
-                        onRememberMeChanged: (value) => setState(() => _rememberMe = value),
-                        onForgotPassword: _showComingSoon,
+                        onRememberMeChanged: (value) =>
+                            setState(() => _rememberMe = value),
+                        onForgotPassword: () =>
+                            context.push('/forgot-password'),
                       ),
                       const SizedBox(height: AppSpacing.lg),
                       CtmsButton(
@@ -253,7 +265,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           Text(
                             LoginStrings.noAccountYet,
                             style: AppTypography.body.copyWith(
-                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
                             ),
                           ),
                           TextButton(

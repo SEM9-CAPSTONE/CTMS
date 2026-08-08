@@ -3,11 +3,19 @@ import { LoginForm } from "../components/LoginForm";
 import { LoginHeroBanner } from "../components/LoginHeroBanner";
 import type { LoginPageProps } from "../types";
 
-export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onNavigateToRegister }) => {
+export const LoginPage: React.FC<LoginPageProps> = ({
+	onBackToHome,
+	onNavigateToRegister,
+	onNavigateToForgotPassword,
+}) => {
 	return (
 		<div className="flex h-screen w-full overflow-y-auto lg:overflow-hidden bg-[#f8faf7] font-sans text-[#10221b] antialiased">
 			<LoginHeroBanner />
-			<LoginForm onBackToHome={onBackToHome} onNavigateToRegister={onNavigateToRegister} />
+			<LoginForm
+				onBackToHome={onBackToHome}
+				onNavigateToRegister={onNavigateToRegister}
+				onNavigateToForgotPassword={onNavigateToForgotPassword}
+			/>
 		</div>
 	);
 };

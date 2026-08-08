@@ -6,9 +6,14 @@ import { useLoginForm } from "../hooks/useLoginForm";
 interface LoginFormProps {
 	onBackToHome: () => void;
 	onNavigateToRegister?: () => void;
+	onNavigateToForgotPassword?: () => void;
 }
 
-export const LoginForm: React.FC<LoginFormProps> = ({ onBackToHome, onNavigateToRegister }) => {
+export const LoginForm: React.FC<LoginFormProps> = ({
+	onBackToHome,
+	onNavigateToRegister,
+	onNavigateToForgotPassword,
+}) => {
 	const {
 		formData,
 		showPassword,
@@ -93,9 +98,13 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onBackToHome, onNavigateTo
 							/>
 							<span>{AUTH_MESSAGES.REMEMBER_ME}</span>
 						</label>
-						<a href="#forgot" className="font-bold text-[#164027] hover:underline">
+						<button
+							type="button"
+							onClick={onNavigateToForgotPassword}
+							className="font-bold text-[#164027] hover:underline"
+						>
 							{AUTH_MESSAGES.FORGOT_PASSWORD}
-						</a>
+						</button>
 					</div>
 
 					{/* Submit error summary (401 invalid credentials / not-active, 422 validation) */}

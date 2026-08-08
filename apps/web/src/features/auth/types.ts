@@ -9,6 +9,12 @@ export interface LoginFormData {
 export interface LoginPageProps {
 	onBackToHome: () => void;
 	onNavigateToRegister?: () => void;
+	onNavigateToForgotPassword?: () => void;
+}
+
+export interface ForgotPasswordPageProps {
+	onBackToHome: () => void;
+	onNavigateToLogin: () => void;
 }
 
 /** Request payload accepted by POST /api/auth/login (CTMS-03-T01 API contract). */
@@ -152,3 +158,26 @@ export interface SendOtpApiPayload {
  */
 export type VerifyOtpApiResponse = RegisterApiResponse;
 export type SendOtpApiResponse = RegisterApiResponse;
+
+/** Request payload accepted by POST /api/auth/forgot-password (CTMS-05-T01). */
+export interface ForgotPasswordApiPayload {
+	identifier: string;
+	channel: OtpChannel;
+}
+
+/** Neutral response body: does not reveal whether the account exists/is active. */
+export interface ForgotPasswordApiResponse {
+	requestAccepted: boolean;
+}
+
+/** Request payload accepted by POST /api/auth/reset-password (CTMS-05-T01). */
+export interface ResetPasswordApiPayload {
+	identifier: string;
+	code: string;
+	newPassword: string;
+}
+
+/** Response body on successful password reset. */
+export interface ResetPasswordApiResponse {
+	passwordReset: boolean;
+}
