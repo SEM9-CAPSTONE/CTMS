@@ -17,6 +17,41 @@ As a user, I want to reset Forgotten Password so that the CTMS workflow is compl
 - [ ] the new password must satisfy password rules.
 - [ ] old login sessions are revoked.
 
+## Backend Preparation, Logic, and Tests
+
+### Actors and Preconditions
+- Actor: any user who has forgotten their password and can receive an OTP through the contact method on the account.
+- The reset request endpoint is public because the user is not logged in.
+- Reset completion requires an existing active account and a valid, unexpired OTP stored for that account.
+- Unknown, pending, suspended, or deleted accounts do not receive a reset OTP; the request response remains neutral to avoid account enumeration.
+
+### API Contract
+- `POST /auth/forgot-password`
+  - Request: `{ "identifier": "email-or-phone", "channel": "email" | "phone" }`
+  - Response: `{ "requestAccepted": true }`
+  - Behavior: normalize identifier, find an active account, generate and deliver an OTP, then persist only the OTP hash.
+- `POST /auth/reset-password`
+  - Request: `{ "identifier": "email-or-phone", "code": "otp", "newPassword": "..." }`
+  - Response: `{ "passwordReset": true }`
+  - Behavior: verify the OTP, hash the new password, delete the OTP row, revoke active refresh tokens, and append an audit log in one transaction.
+
+### Validation and Error Mapping
+- Identifier is required, normalized, and bounded to 254 characters.
+- `channel` must be `email` or `phone`.
+- `newPassword` must be 8-128 characters and contain at least one letter and one number.
+- Missing reset credential returns `404`.
+- Expired or incorrect reset credential returns `409`.
+- Invalid request shape returns `422`.
+
+### Data Mapping
+- Reset OTPs reuse `verification_otps` with one row per user; raw OTP values are never stored.
+- Passwords are persisted only as bcrypt hashes using the existing auth cost factor.
+- Refresh tokens are revoked by setting `refresh_tokens.revoked_at` for active tokens of the user.
+- Audit evidence is appended to `audit_logs` with action `auth.password_reset`, actor/target user id, before/after session-revocation state, and reason `forgot_password_otp_verified`.
+
+### Test Evidence
+- Unit tests cover neutral reset requests, OTP delivery/persistence, invalid and expired credentials, password hashing, refresh-token revocation, OTP invalidation, and audit logging.
+
 ## Business Rules Checklist
 - [ ] BR-013: Expired or revoked refresh tokens must be rejected.
 - [ ] BR-014: Password reset requests must be verified by a valid OTP or reset link.

@@ -10,4 +10,13 @@ import type { RefreshToken } from "./entities/refresh-token.entity";
  * all CTMS-03 needs; no custom query method required yet.
  */
 @Injectable()
-export class RefreshTokenRepository extends Repository<RefreshToken> {}
+export class RefreshTokenRepository extends Repository<RefreshToken> {
+	async revokeActiveTokensForUser(userId: string, revokedAt: Date): Promise<void> {
+		await this.createQueryBuilder()
+			.update()
+			.set({ revokedAt })
+			.where("user_id = :userId", { userId })
+			.andWhere("revoked_at IS NULL")
+			.execute();
+	}
+}

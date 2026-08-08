@@ -19,12 +19,17 @@ import { normalizeEmail, normalizeVietnamPhone } from "../../shared/utils/normal
 import { UserStatus } from "../users/entities/user.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { UsersRepository } from "../users/users.repository";
+import type { ForgotPasswordResponseDto } from "./dto/forgot-password-response.dto";
+import type { ForgotPasswordDto } from "./dto/forgot-password.dto";
 import type { LoginResponseDto } from "./dto/login-response.dto";
 import type { LoginDto } from "./dto/login.dto";
 import type { RegisterDto } from "./dto/register.dto";
+import type { ResetPasswordResponseDto } from "./dto/reset-password-response.dto";
+import type { ResetPasswordDto } from "./dto/reset-password.dto";
 import type { SendOtpDto } from "./dto/send-otp.dto";
 import { type UserProfileDto, toUserProfile } from "./dto/user-profile.dto";
 import type { VerifyOtpDto } from "./dto/verify-otp.dto";
+import { AuditLog } from "./entities/audit-log.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { OtpDeliveryService } from "./otp-delivery.service";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
@@ -41,6 +46,9 @@ const RESEND_LIMIT_MESSAGE = "OTP resend limit reached, try again later";
 const OTP_NOT_FOUND_MESSAGE = "No pending OTP found for this account";
 const OTP_EXPIRED_MESSAGE = "OTP has expired";
 const OTP_INCORRECT_MESSAGE = "Incorrect OTP";
+const RESET_CREDENTIAL_NOT_FOUND_MESSAGE = "No pending reset credential found";
+const RESET_CREDENTIAL_EXPIRED_MESSAGE = "Reset credential has expired";
+const RESET_CREDENTIAL_INCORRECT_MESSAGE = "Incorrect reset credential";
 /** BR-010: same message for "no such account" and "wrong password" — a
  * different message would let a caller enumerate which identifiers exist. */
 const INVALID_CREDENTIALS_MESSAGE = "Invalid credentials";
@@ -384,5 +392,85 @@ export class AuthService {
 		this.logger.log(`User logged in: ${user.id}`);
 
 		return { accessToken, refreshToken: rawRefreshToken, user: toUserProfile(user) };
+	}
+
+	async forgotPassword(dto: ForgotPasswordDto): Promise<ForgotPasswordResponseDto> {
+		const normalizedEmail = normalizeEmail(dto.identifier);
+		const normalizedPhone = normalizeVietnamPhone(dto.identifier);
+		const user = await this.usersRepository.findByEmailOrPhone(normalizedEmail, normalizedPhone);
+
+		if (!user || user.status !== UserStatus.ACTIVE) {
+			return { requestAccepted: true };
+		}
+
+		await this.dataSource.transaction(async (manager: EntityManager) => {
+			const transactionalOtpRepository = manager.withRepository(this.verificationOtpRepository);
+			const plan = await this.planOtp(transactionalOtpRepository, user.id);
+
+			await this.otpDeliveryService.send(
+				dto.channel,
+				{ email: user.email, phone: user.phone },
+				plan.code
+			);
+
+			await this.persistOtp(transactionalOtpRepository, user.id, plan);
+		});
+
+		this.logger.log(`Password reset OTP requested for user: ${user.id}`);
+
+		return { requestAccepted: true };
+	}
+
+	async resetPassword(dto: ResetPasswordDto): Promise<ResetPasswordResponseDto> {
+		const normalizedEmail = normalizeEmail(dto.identifier);
+		const normalizedPhone = normalizeVietnamPhone(dto.identifier);
+		const user = await this.usersRepository.findByEmailOrPhone(normalizedEmail, normalizedPhone);
+
+		if (!user || user.status !== UserStatus.ACTIVE) {
+			throw new NotFoundException(RESET_CREDENTIAL_NOT_FOUND_MESSAGE);
+		}
+
+		const otp = await this.verificationOtpRepository.findOneBy({ userId: user.id });
+		if (!otp) {
+			throw new NotFoundException(RESET_CREDENTIAL_NOT_FOUND_MESSAGE);
+		}
+
+		if (otp.expiresAt.getTime() <= Date.now()) {
+			throw new ConflictException(RESET_CREDENTIAL_EXPIRED_MESSAGE);
+		}
+
+		const isMatch = await bcrypt.compare(dto.code, otp.codeHash);
+		if (!isMatch) {
+			throw new ConflictException(RESET_CREDENTIAL_INCORRECT_MESSAGE);
+		}
+
+		const passwordHash = await bcrypt.hash(dto.newPassword, BCRYPT_COST_FACTOR);
+		const revokedAt = new Date();
+
+		await this.dataSource.transaction(async (manager: EntityManager) => {
+			const transactionalUsersRepository = manager.withRepository(this.usersRepository);
+			const transactionalOtpRepository = manager.withRepository(this.verificationOtpRepository);
+			const transactionalRefreshTokenRepository = manager.withRepository(
+				this.refreshTokenRepository
+			);
+			const auditLogRepository = manager.getRepository(AuditLog);
+
+			await transactionalUsersRepository.update(user.id, { passwordHash });
+			await transactionalOtpRepository.delete({ userId: user.id });
+			await transactionalRefreshTokenRepository.revokeActiveTokensForUser(user.id, revokedAt);
+			await auditLogRepository.save({
+				actorId: user.id,
+				action: "auth.password_reset",
+				targetType: "user",
+				targetId: user.id,
+				before: { refreshTokensRevoked: false },
+				after: { refreshTokensRevoked: true },
+				reason: "forgot_password_otp_verified",
+			});
+		});
+
+		this.logger.log(`Password reset completed for user: ${user.id}`);
+
+		return { passwordReset: true };
 	}
 }
