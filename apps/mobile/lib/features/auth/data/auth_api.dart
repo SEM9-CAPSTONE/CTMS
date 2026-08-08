@@ -7,7 +7,11 @@ import '../domain/register_models.dart';
 import '../domain/user_role.dart';
 
 class LoginResult {
-  const LoginResult({required this.accessToken, this.refreshToken, required this.user});
+  const LoginResult({
+    required this.accessToken,
+    this.refreshToken,
+    required this.user,
+  });
 
   final String accessToken;
   final String? refreshToken;
@@ -59,7 +63,10 @@ class AuthApi {
   /// Sending `email` as the key (the previous bug) fails every login with
   /// 422 under the backend's `forbidNonWhitelisted: true` ValidationPipe --
   /// `identifier` missing, `email` an unrecognized property.
-  Future<LoginResult> login({required String identifier, required String password}) async {
+  Future<LoginResult> login({
+    required String identifier,
+    required String password,
+  }) async {
     final response = await _client.post<Map<String, dynamic>>(
       ApiEndpoints.auth.login,
       data: {'identifier': identifier, 'password': password},
@@ -78,7 +85,9 @@ class AuthApi {
   /// does; see TokenStorage's class doc for how session restore works
   /// without it in the meantime.
   Future<AuthUser> me() async {
-    final response = await _client.get<Map<String, dynamic>>(ApiEndpoints.auth.me);
+    final response = await _client.get<Map<String, dynamic>>(
+      ApiEndpoints.auth.me,
+    );
     return AuthUser.fromJson(response.data ?? const {});
   }
 
@@ -102,6 +111,33 @@ class AuthApi {
     );
     return RegisterResult.fromJson(response.data ?? const {});
   }
+
+  Future<void> forgotPassword({
+    required String identifier,
+    required String channel,
+  }) async {
+    await _client.post<Map<String, dynamic>>(
+      ApiEndpoints.auth.forgotPassword,
+      data: {'identifier': identifier, 'channel': channel},
+    );
+  }
+
+  Future<void> resetPassword({
+    required String identifier,
+    required String code,
+    required String newPassword,
+  }) async {
+    await _client.post<Map<String, dynamic>>(
+      ApiEndpoints.auth.resetPassword,
+      data: {
+        'identifier': identifier,
+        'code': code,
+        'newPassword': newPassword,
+      },
+    );
+  }
 }
 
-final authApiProvider = Provider<AuthApi>((ref) => AuthApi(ref.watch(apiClientProvider)));
+final authApiProvider = Provider<AuthApi>(
+  (ref) => AuthApi(ref.watch(apiClientProvider)),
+);

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { ForgotPasswordPage } from "../features/auth/pages/ForgotPasswordPage";
 import { LoginPage } from "../features/auth/pages/LoginPage";
 import { RegisterPage } from "../features/auth/pages/RegisterPage";
 import { VerifyOtpPage } from "../features/auth/pages/VerifyOtpPage";
@@ -50,6 +51,15 @@ export function AppRoutes() {
 				<LoginPage
 					onBackToHome={() => navigateTo(RoutePath.HOME)}
 					onNavigateToRegister={() => navigateTo(RoutePath.REGISTER)}
+					onNavigateToForgotPassword={() => navigateTo(RoutePath.FORGOT_PASSWORD)}
+				/>
+			);
+
+		case RoutePath.FORGOT_PASSWORD:
+			return (
+				<ForgotPasswordPage
+					onBackToHome={() => navigateTo(RoutePath.HOME)}
+					onNavigateToLogin={() => navigateTo(RoutePath.LOGIN)}
 				/>
 			);
 

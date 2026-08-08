@@ -6,7 +6,7 @@ export default defineConfig({
 	retries: 0,
 	reporter: "list",
 	use: {
-		baseURL: "http://localhost:5173",
+		baseURL: "http://localhost:5174",
 		trace: "on-first-retry",
 	},
 	projects: [
@@ -16,8 +16,8 @@ export default defineConfig({
 		},
 	],
 	webServer: {
-		command: "pnpm dev",
-		url: "http://localhost:5173",
+		command: "pnpm exec vite --host 0.0.0.0 --port 5174",
+		url: "http://localhost:5174",
 		reuseExistingServer: !process.env.CI,
 		timeout: 30_000,
 	},

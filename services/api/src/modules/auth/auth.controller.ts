@@ -3,14 +3,16 @@ import { ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { AuthService } from "./auth.service";
 import { ForgotPasswordResponseDto } from "./dto/forgot-password-response.dto";
-import type { ForgotPasswordDto } from "./dto/forgot-password.dto";
+// biome-ignore lint/style/useImportType: used as a @Body() parameter type, needs design:paramtypes metadata for NestJS's validation/transform pipeline
+import { ForgotPasswordDto } from "./dto/forgot-password.dto";
 import { LoginResponseDto } from "./dto/login-response.dto";
 // biome-ignore lint/style/useImportType: used as a @Body() parameter type, needs design:paramtypes metadata for NestJS's validation/transform pipeline
 import { LoginDto } from "./dto/login.dto";
 // biome-ignore lint/style/useImportType: used as a @Body() parameter type, needs design:paramtypes metadata for NestJS's validation/transform pipeline
 import { RegisterDto } from "./dto/register.dto";
 import { ResetPasswordResponseDto } from "./dto/reset-password-response.dto";
-import type { ResetPasswordDto } from "./dto/reset-password.dto";
+// biome-ignore lint/style/useImportType: used as a @Body() parameter type, needs design:paramtypes metadata for NestJS's validation/transform pipeline
+import { ResetPasswordDto } from "./dto/reset-password.dto";
 // biome-ignore lint/style/useImportType: used as a @Body() parameter type, needs design:paramtypes metadata for NestJS's validation/transform pipeline
 import { SendOtpDto } from "./dto/send-otp.dto";
 import { UserProfileDto } from "./dto/user-profile.dto";

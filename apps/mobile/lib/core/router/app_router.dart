@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../features/auth/application/auth_controller.dart';
 import '../../features/auth/domain/user_role.dart';
 import '../../features/auth/data/auth_api.dart';
+import '../../features/auth/presentation/forgot_password_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/register_screen.dart';
 import '../../features/auth/presentation/verify_screen.dart';
@@ -44,6 +45,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final onAuthScreen =
           state.matchedLocation == '/login' ||
           state.matchedLocation == '/register' ||
+          state.matchedLocation == '/forgot-password' ||
           // Reached only right after a successful register — the account
           // exists but is pending_verification, so it has no session (see
           // RegisterScreen's class doc). Must not bounce to /login before
@@ -69,10 +71,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     },
     routes: [
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
-      GoRoute(path: '/register', builder: (context, state) => const RegisterScreen()),
+      GoRoute(
+        path: '/register',
+        builder: (context, state) => const RegisterScreen(),
+      ),
+      GoRoute(
+        path: '/forgot-password',
+        builder: (context, state) => const ForgotPasswordScreen(),
+      ),
       GoRoute(
         path: '/verify',
-        builder: (context, state) => VerifyScreen(account: state.extra! as RegisterResult),
+        builder: (context, state) =>
+            VerifyScreen(account: state.extra! as RegisterResult),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) =>
@@ -142,7 +152,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
           StatefulShellBranch(
             routes: [
-              GoRoute(path: '/porter/map', builder: (context, state) => const PorterMapScreen()),
+              GoRoute(
+                path: '/porter/map',
+                builder: (context, state) => const PorterMapScreen(),
+              ),
             ],
           ),
           StatefulShellBranch(
@@ -157,12 +170,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       // Reached from the porter shell's "Thêm" sheet, not the bottom nav —
       // pushed on top of the whole shell rather than swapping a branch.
-      GoRoute(path: '/porter/team', builder: (context, state) => const PorterTeamScreen()),
+      GoRoute(
+        path: '/porter/team',
+        builder: (context, state) => const PorterTeamScreen(),
+      ),
       GoRoute(
         path: '/porter/incidents',
         builder: (context, state) => const PorterIncidentsScreen(),
       ),
-      GoRoute(path: '/porter/settings', builder: (context, state) => const PorterSettingsScreen()),
+      GoRoute(
+        path: '/porter/settings',
+        builder: (context, state) => const PorterSettingsScreen(),
+      ),
     ],
   );
 });

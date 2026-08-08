@@ -1,9 +1,13 @@
 import { API_ENDPOINTS, HttpError, httpClient } from "../../../core/api";
 import type {
+	ForgotPasswordApiPayload,
+	ForgotPasswordApiResponse,
 	LoginApiPayload,
 	LoginApiResponse,
 	RegisterApiPayload,
 	RegisterApiResponse,
+	ResetPasswordApiPayload,
+	ResetPasswordApiResponse,
 	SendOtpApiPayload,
 	SendOtpApiResponse,
 	VerifyOtpApiPayload,
@@ -80,6 +84,43 @@ export const authService = {
 			return result;
 		} catch (error) {
 			logAuthCall("POST /auth/resend response", {
+				status: error instanceof HttpError ? error.status : "network-error",
+			});
+			throw error;
+		}
+	},
+
+	forgotPassword: async (payload: ForgotPasswordApiPayload): Promise<ForgotPasswordApiResponse> => {
+		logAuthCall("POST /auth/forgot-password request", {
+			identifier: payload.identifier,
+			channel: payload.channel,
+		});
+		try {
+			const result = await httpClient.post<ForgotPasswordApiResponse>(
+				API_ENDPOINTS.AUTH.FORGOT_PASSWORD,
+				payload
+			);
+			logAuthCall("POST /auth/forgot-password response", { status: 200 });
+			return result;
+		} catch (error) {
+			logAuthCall("POST /auth/forgot-password response", {
+				status: error instanceof HttpError ? error.status : "network-error",
+			});
+			throw error;
+		}
+	},
+
+	resetPassword: async (payload: ResetPasswordApiPayload): Promise<ResetPasswordApiResponse> => {
+		logAuthCall("POST /auth/reset-password request", { identifier: payload.identifier });
+		try {
+			const result = await httpClient.post<ResetPasswordApiResponse>(
+				API_ENDPOINTS.AUTH.RESET_PASSWORD,
+				payload
+			);
+			logAuthCall("POST /auth/reset-password response", { status: 200 });
+			return result;
+		} catch (error) {
+			logAuthCall("POST /auth/reset-password response", {
 				status: error instanceof HttpError ? error.status : "network-error",
 			});
 			throw error;
