@@ -6,8 +6,10 @@ import { PassportModule } from "@nestjs/passport";
 import type ms from "ms";
 import { DataSource } from "typeorm";
 import { UsersModule } from "../users/users.module";
+import { AuditLogRepository } from "./audit-log.repository";
 import { AuthController } from "./auth.controller";
 import { AuthService } from "./auth.service";
+import { AuditLog } from "./entities/audit-log.entity";
 import { RefreshToken } from "./entities/refresh-token.entity";
 import { VerificationOtp } from "./entities/verification-otp.entity";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
@@ -57,6 +59,12 @@ import { VerificationOtpRepository } from "./verification-otp.repository";
 			provide: RefreshTokenRepository,
 			useFactory: (dataSource: DataSource) =>
 				new RefreshTokenRepository(RefreshToken, dataSource.createEntityManager()),
+			inject: [DataSource],
+		},
+		{
+			provide: AuditLogRepository,
+			useFactory: (dataSource: DataSource) =>
+				new AuditLogRepository(AuditLog, dataSource.createEntityManager()),
 			inject: [DataSource],
 		},
 	],

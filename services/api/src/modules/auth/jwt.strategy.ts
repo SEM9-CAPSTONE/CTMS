@@ -17,10 +17,6 @@ export interface AuthenticatedUser {
 	roles: string[];
 }
 
-/**
- * Reusable validation primitive for BR-201. Not wired to any endpoint by
- * this story (CTMS-03 only builds the foundation) — see JwtAuthGuard.
- */
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
 	constructor(configService: ConfigService) {

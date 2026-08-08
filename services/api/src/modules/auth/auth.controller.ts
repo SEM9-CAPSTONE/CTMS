@@ -2,11 +2,15 @@ import { Body, Controller, HttpCode, HttpStatus, Post } from "@nestjs/common";
 import { ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { AuthService } from "./auth.service";
+import { ForgotPasswordResponseDto } from "./dto/forgot-password-response.dto";
+import type { ForgotPasswordDto } from "./dto/forgot-password.dto";
 import { LoginResponseDto } from "./dto/login-response.dto";
 // biome-ignore lint/style/useImportType: used as a @Body() parameter type, needs design:paramtypes metadata for NestJS's validation/transform pipeline
 import { LoginDto } from "./dto/login.dto";
 // biome-ignore lint/style/useImportType: used as a @Body() parameter type, needs design:paramtypes metadata for NestJS's validation/transform pipeline
 import { RegisterDto } from "./dto/register.dto";
+import { ResetPasswordResponseDto } from "./dto/reset-password-response.dto";
+import type { ResetPasswordDto } from "./dto/reset-password.dto";
 // biome-ignore lint/style/useImportType: used as a @Body() parameter type, needs design:paramtypes metadata for NestJS's validation/transform pipeline
 import { SendOtpDto } from "./dto/send-otp.dto";
 import { UserProfileDto } from "./dto/user-profile.dto";
@@ -76,5 +80,33 @@ export class AuthController {
 	@ApiResponse({ status: 422, description: "Invalid input" })
 	login(@Body() dto: LoginDto): Promise<LoginResponseDto> {
 		return this.authService.login(dto);
+	}
+
+	@Post("forgot-password")
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({ summary: "Request an OTP for forgotten-password reset" })
+	@ApiResponse({
+		status: 200,
+		description: "Password reset request accepted",
+		type: ForgotPasswordResponseDto,
+	})
+	@ApiResponse({ status: 422, description: "Invalid input" })
+	forgotPassword(@Body() dto: ForgotPasswordDto): Promise<ForgotPasswordResponseDto> {
+		return this.authService.forgotPassword(dto);
+	}
+
+	@Post("reset-password")
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({ summary: "Reset password with a valid OTP" })
+	@ApiResponse({
+		status: 200,
+		description: "Password reset successfully",
+		type: ResetPasswordResponseDto,
+	})
+	@ApiResponse({ status: 404, description: "No pending reset credential found" })
+	@ApiResponse({ status: 409, description: "Expired or incorrect reset credential" })
+	@ApiResponse({ status: 422, description: "Invalid input" })
+	resetPassword(@Body() dto: ResetPasswordDto): Promise<ResetPasswordResponseDto> {
+		return this.authService.resetPassword(dto);
 	}
 }
