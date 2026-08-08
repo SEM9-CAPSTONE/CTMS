@@ -3,6 +3,7 @@ import { ConfigModule } from "@nestjs/config";
 import { DatabaseModule } from "../shared/database/database.module";
 import { AuthModule } from "./auth/auth.module";
 import { HealthController } from "./health/health.controller";
+import { ProfilesModule } from "./profiles/profiles.module";
 import { EventsGateway } from "./realtime/events.gateway";
 
 @Module({
@@ -12,6 +13,7 @@ import { EventsGateway } from "./realtime/events.gateway";
 		}),
 		DatabaseModule,
 		AuthModule,
+		ProfilesModule,
 	],
 	controllers: [HealthController],
 	providers: [EventsGateway],

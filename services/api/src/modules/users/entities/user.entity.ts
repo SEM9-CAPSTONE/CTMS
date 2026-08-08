@@ -6,13 +6,6 @@ import {
 	UpdateDateColumn,
 } from "typeorm";
 
-/**
- * `ADMIN` added by a dev-tooling migration (AddAdminRoleToUsersRoleEnum) as
- * a schema-level prerequisite for a dev-only seed account — CTMS-06 still
- * owns the full "manage role-based access" feature (authorization guards,
- * admin-specific endpoints, etc.), not yet implemented. Public registration
- * (RegisterDto) deliberately does NOT accept this value — see its comment.
- */
 export enum UserRole {
 	CAMPER = "camper",
 	HOST = "host",
@@ -25,6 +18,12 @@ export enum UserStatus {
 	ACTIVE = "active",
 	SUSPENDED = "suspended",
 	DELETED = "deleted",
+}
+
+export enum UserGender {
+	MALE = "male",
+	FEMALE = "female",
+	OTHER = "other",
 }
 
 @Entity({ name: "users" })
@@ -50,6 +49,21 @@ export class User {
 		default: UserStatus.PENDING_VERIFICATION,
 	})
 	status!: UserStatus;
+
+	@Column({ name: "full_name", type: "varchar", length: 50, nullable: true })
+	fullName!: string | null;
+
+	@Column({ name: "date_of_birth", type: "date", nullable: true })
+	dateOfBirth!: string | null;
+
+	@Column({ type: "enum", enum: UserGender, nullable: true })
+	gender!: UserGender | null;
+
+	@Column({ type: "varchar", length: 200, nullable: true })
+	address!: string | null;
+
+	@Column({ type: "varchar", length: 500, nullable: true })
+	bio!: string | null;
 
 	@CreateDateColumn({ name: "created_at", type: "timestamptz" })
 	createdAt!: Date;
