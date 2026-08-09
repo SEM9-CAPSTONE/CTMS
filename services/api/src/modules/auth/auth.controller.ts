@@ -8,6 +8,9 @@ import { ForgotPasswordDto } from "./dto/forgot-password.dto";
 import { LoginResponseDto } from "./dto/login-response.dto";
 // biome-ignore lint/style/useImportType: used as a @Body() parameter type, needs design:paramtypes metadata for NestJS's validation/transform pipeline
 import { LoginDto } from "./dto/login.dto";
+import { RefreshTokenResponseDto } from "./dto/refresh-token-response.dto";
+// biome-ignore lint/style/useImportType: used as a @Body() parameter type, needs design:paramtypes metadata for NestJS's validation/transform pipeline
+import { RefreshTokenDto } from "./dto/refresh-token.dto";
 // biome-ignore lint/style/useImportType: used as a @Body() parameter type, needs design:paramtypes metadata for NestJS's validation/transform pipeline
 import { RegisterDto } from "./dto/register.dto";
 import { ResetPasswordResponseDto } from "./dto/reset-password-response.dto";
@@ -82,6 +85,22 @@ export class AuthController {
 	@ApiResponse({ status: 422, description: "Invalid input" })
 	login(@Body() dto: LoginDto): Promise<LoginResponseDto> {
 		return this.authService.login(dto);
+	}
+
+	/**
+	 * CTMS-04-T01, Decision Gate DG-01: refresh token travels in the request
+	 * body, not a header/cookie. Every failure (not found, expired, revoked,
+	 * reused after rotation, or account no longer active) maps to the same
+	 * 401 -- see AuthService.refresh()'s docstring.
+	 */
+	@Post("refresh")
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({ summary: "Exchange a valid refresh token for a new access/refresh token pair" })
+	@ApiResponse({ status: 200, description: "Token refreshed", type: RefreshTokenResponseDto })
+	@ApiResponse({ status: 401, description: "Invalid, expired, revoked, or reused refresh token" })
+	@ApiResponse({ status: 422, description: "Invalid input" })
+	refresh(@Body() dto: RefreshTokenDto): Promise<RefreshTokenResponseDto> {
+		return this.authService.refresh(dto);
 	}
 
 	@Post("forgot-password")

@@ -15,6 +15,7 @@ import type { UsersRepository } from "../users/users.repository";
 import { AuthService } from "./auth.service";
 import type { ForgotPasswordDto } from "./dto/forgot-password.dto";
 import type { LoginDto } from "./dto/login.dto";
+import type { RefreshTokenDto } from "./dto/refresh-token.dto";
 import type { RegisterDto } from "./dto/register.dto";
 import type { ResetPasswordDto } from "./dto/reset-password.dto";
 import { OtpChannel } from "./dto/send-otp.dto";
@@ -1037,6 +1038,295 @@ describe("AuthService.login", () => {
 			expect(serialized).not.toContain("super-secret-password");
 			expect(serialized).not.toContain(RAW_REFRESH_TOKEN);
 			expect(serialized).not.toContain(ACCESS_TOKEN);
+		}
+	});
+});
+
+describe("AuthService.refresh", () => {
+	let authService: AuthService;
+	let usersRepository: { findOneBy: jest.Mock };
+	let refreshTokenRepository: { findOneBy: jest.Mock };
+	let transactionalRefreshTokenRepository: { revokeIfActive: jest.Mock; save: jest.Mock };
+	let auditLogRepository: { save: jest.Mock };
+	let manager: { withRepository: jest.Mock; getRepository: jest.Mock };
+	let dataSource: { transaction: jest.Mock };
+	let configService: { get: jest.Mock };
+	let jwtService: { sign: jest.Mock };
+	let loggerLogSpy: jest.SpyInstance;
+	const cryptoRandomBytes = randomBytes as unknown as jest.Mock;
+	const cryptoCreateHash = createHash as unknown as jest.Mock;
+
+	const USER_ID = "11111111-1111-1111-1111-111111111111";
+	const OLD_TOKEN_ID = "22222222-2222-2222-2222-222222222222";
+	const NEW_TOKEN_ID = "33333333-3333-3333-3333-333333333333";
+	const RAW_REFRESH_TOKEN = "raw-new-refresh-token-hex-value";
+	const OLD_TOKEN_HASH = "sha256-old-token-hash";
+	const NEW_TOKEN_HASH = "sha256-new-token-hash";
+	const ACCESS_TOKEN = "signed.jwt.token";
+	const SUBMITTED_TOKEN = "submitted-raw-refresh-token";
+
+	function buildDto(overrides: Partial<RefreshTokenDto> = {}): RefreshTokenDto {
+		return { refreshToken: SUBMITTED_TOKEN, ...overrides } as RefreshTokenDto;
+	}
+
+	function buildActiveUser(overrides: Record<string, unknown> = {}) {
+		return buildUser({ id: USER_ID, status: UserStatus.ACTIVE, ...overrides });
+	}
+
+	/** A still-usable row as findOneBy({tokenHash}) would return it. */
+	function buildActiveTokenRow(overrides: Record<string, unknown> = {}) {
+		return {
+			id: OLD_TOKEN_ID,
+			userId: USER_ID,
+			tokenHash: OLD_TOKEN_HASH,
+			expiresAt: new Date(Date.now() + 60 * 60_000), // 1h in the future
+			revokedAt: null,
+			createdAt: FIXED_DATE,
+			...overrides,
+		};
+	}
+
+	beforeEach(() => {
+		jest.clearAllMocks();
+		loggerLogSpy = jest.spyOn(Logger.prototype, "log").mockImplementation(() => undefined);
+
+		usersRepository = { findOneBy: jest.fn() };
+		refreshTokenRepository = { findOneBy: jest.fn() };
+		transactionalRefreshTokenRepository = {
+			revokeIfActive: jest.fn().mockResolvedValue(1),
+			save: jest.fn(),
+		};
+		auditLogRepository = { save: jest.fn() };
+		manager = {
+			withRepository: jest.fn().mockReturnValue(transactionalRefreshTokenRepository),
+			getRepository: jest.fn().mockReturnValue(auditLogRepository),
+		};
+		dataSource = {
+			transaction: jest.fn(async (callback: (manager: EntityManager) => unknown) =>
+				callback(manager as unknown as EntityManager)
+			),
+		};
+		configService = {
+			get: jest.fn((key: string) => (key === "JWT_REFRESH_TOKEN_TTL" ? "7d" : undefined)),
+		};
+		jwtService = { sign: jest.fn().mockReturnValue(ACCESS_TOKEN) };
+
+		cryptoRandomBytes.mockReturnValue({ toString: () => RAW_REFRESH_TOKEN });
+		cryptoCreateHash.mockReturnValue({
+			update: jest.fn().mockReturnThis(),
+			digest: jest.fn().mockReturnValue(NEW_TOKEN_HASH),
+		});
+
+		transactionalRefreshTokenRepository.save.mockResolvedValue({ id: NEW_TOKEN_ID });
+
+		authService = new AuthService(
+			usersRepository as unknown as UsersRepository,
+			{} as VerificationOtpRepository,
+			refreshTokenRepository as unknown as RefreshTokenRepository,
+			dataSource as unknown as DataSource,
+			configService as unknown as ConfigService,
+			{} as OtpDeliveryService, // refresh() never delivers OTP
+			jwtService as unknown as JwtService
+		);
+	});
+
+	afterEach(() => {
+		loggerLogSpy.mockRestore();
+	});
+
+	// --- Success path (AC1, BR-012, DG-02 rotation) ---------------------------
+
+	it("returns a rotated access/refresh token pair for a valid refresh token", async () => {
+		refreshTokenRepository.findOneBy.mockResolvedValue(buildActiveTokenRow());
+		usersRepository.findOneBy.mockResolvedValue(buildActiveUser());
+
+		const result = await authService.refresh(buildDto());
+
+		expect(result).toEqual({ accessToken: ACCESS_TOKEN, refreshToken: RAW_REFRESH_TOKEN });
+		expect(jwtService.sign).toHaveBeenCalledWith({ sub: USER_ID, roles: [UserRole.CAMPER] });
+	});
+
+	it("revokes exactly the presented token and persists a new one with the configured TTL", async () => {
+		refreshTokenRepository.findOneBy.mockResolvedValue(buildActiveTokenRow());
+		usersRepository.findOneBy.mockResolvedValue(buildActiveUser());
+
+		await authService.refresh(buildDto());
+
+		expect(transactionalRefreshTokenRepository.revokeIfActive).toHaveBeenCalledWith(
+			OLD_TOKEN_ID,
+			expect.any(Date)
+		);
+		expect(transactionalRefreshTokenRepository.save).toHaveBeenCalledWith({
+			userId: USER_ID,
+			tokenHash: NEW_TOKEN_HASH,
+			expiresAt: expect.any(Date),
+			revokedAt: null,
+		});
+		const saved = transactionalRefreshTokenRepository.save.mock.calls[0][0];
+		// TTL applied, not left at whatever the old token's expiresAt was.
+		expect(saved.expiresAt.getTime()).toBeGreaterThan(Date.now() + 6 * 24 * 60 * 60_000);
+	});
+
+	// --- DG-05/BR-200: audit log ------------------------------------------------
+
+	it("writes one audit-log row referencing the old and new token ids", async () => {
+		refreshTokenRepository.findOneBy.mockResolvedValue(buildActiveTokenRow());
+		usersRepository.findOneBy.mockResolvedValue(buildActiveUser());
+
+		await authService.refresh(buildDto());
+
+		expect(auditLogRepository.save).toHaveBeenCalledWith({
+			actorId: USER_ID,
+			action: "auth.token_refreshed",
+			targetType: "user",
+			targetId: USER_ID,
+			before: { refreshTokenId: OLD_TOKEN_ID },
+			after: { refreshTokenId: NEW_TOKEN_ID },
+			reason: null,
+		});
+	});
+
+	// --- BR-207: transaction rollback when a later write fails mid-transaction --
+
+	it("propagates the error and issues no access token when the audit-log write fails after rotation (rollback contract honored)", async () => {
+		refreshTokenRepository.findOneBy.mockResolvedValue(buildActiveTokenRow());
+		usersRepository.findOneBy.mockResolvedValue(buildActiveUser());
+		const txError = new Error("simulated audit-log write failure");
+		auditLogRepository.save.mockRejectedValue(txError);
+
+		const error = await authService.refresh(buildDto()).catch((e) => e);
+
+		// The earlier mutations in this transaction (revoke the old token,
+		// insert the new one) did run before the failing write -- exactly
+		// the "mutation happened, then a later step failed" shape a real
+		// rollback has to undo. A single dataSource.transaction() call wraps
+		// all three writes, so a real DataSource rolls every one of them
+		// back together when the callback throws (same TypeORM contract
+		// already proven for this codebase's transaction pattern by
+		// "AuthService.register ... rollback contract honored").
+		expect(transactionalRefreshTokenRepository.revokeIfActive).toHaveBeenCalledWith(
+			OLD_TOKEN_ID,
+			expect.any(Date)
+		);
+		expect(transactionalRefreshTokenRepository.save).toHaveBeenCalledTimes(1);
+
+		// The raw error propagates unchanged -- a genuine mid-transaction DB
+		// failure is not swallowed into INVALID_REFRESH_TOKEN_MESSAGE the way
+		// a 0-rows-affected reuse/race is (that is a different, expected
+		// outcome, not a write failure).
+		expect(error).toBe(txError);
+
+		// No caller ever observes a token pair built on a rolled-back write.
+		expect(jwtService.sign).not.toHaveBeenCalled();
+		expect(loggerLogSpy).not.toHaveBeenCalled();
+	});
+
+	// --- AC2: not found / expired / revoked -------------------------------------
+
+	it("throws UnauthorizedException when no token row matches the submitted value", async () => {
+		refreshTokenRepository.findOneBy.mockResolvedValue(null);
+
+		const error = await authService.refresh(buildDto()).catch((e) => e);
+
+		expect(error).toBeInstanceOf(UnauthorizedException);
+		expect(dataSource.transaction).not.toHaveBeenCalled();
+	});
+
+	it("throws UnauthorizedException for an expired token", async () => {
+		refreshTokenRepository.findOneBy.mockResolvedValue(
+			buildActiveTokenRow({ expiresAt: new Date(Date.now() - 60_000) })
+		);
+
+		const error = await authService.refresh(buildDto()).catch((e) => e);
+
+		expect(error).toBeInstanceOf(UnauthorizedException);
+		expect(dataSource.transaction).not.toHaveBeenCalled();
+	});
+
+	it("throws UnauthorizedException for an already-revoked token", async () => {
+		refreshTokenRepository.findOneBy.mockResolvedValue(
+			buildActiveTokenRow({ revokedAt: new Date() })
+		);
+
+		const error = await authService.refresh(buildDto()).catch((e) => e);
+
+		expect(error).toBeInstanceOf(UnauthorizedException);
+		expect(dataSource.transaction).not.toHaveBeenCalled();
+	});
+
+	// --- BR-201/BR-202: account status re-check (source confirmed, not login-only) --
+
+	it.each([UserStatus.PENDING_VERIFICATION, UserStatus.SUSPENDED, UserStatus.DELETED])(
+		"throws UnauthorizedException and starts no transaction when the account status is %s",
+		async (status) => {
+			refreshTokenRepository.findOneBy.mockResolvedValue(buildActiveTokenRow());
+			usersRepository.findOneBy.mockResolvedValue(buildActiveUser({ status }));
+
+			const error = await authService.refresh(buildDto()).catch((e) => e);
+
+			expect(error).toBeInstanceOf(UnauthorizedException);
+			expect(dataSource.transaction).not.toHaveBeenCalled();
+		}
+	);
+
+	// --- DG-03: reuse-after-rotation / concurrent refresh, no side effect (BR-243) --
+
+	it("rejects and creates no new token when the token was already invalidated by a concurrent request", async () => {
+		refreshTokenRepository.findOneBy.mockResolvedValue(buildActiveTokenRow());
+		usersRepository.findOneBy.mockResolvedValue(buildActiveUser());
+		// Simulates DG-03's race: another request's revokeIfActive() won first.
+		transactionalRefreshTokenRepository.revokeIfActive.mockResolvedValue(0);
+
+		const error = await authService.refresh(buildDto()).catch((e) => e);
+
+		expect(error).toBeInstanceOf(UnauthorizedException);
+		expect(transactionalRefreshTokenRepository.save).not.toHaveBeenCalled();
+		expect(auditLogRepository.save).not.toHaveBeenCalled();
+	});
+
+	// --- Anti-enumeration (DG-01): every failure path is indistinguishable ------
+
+	it("uses the exact same error message for not-found, expired, revoked, reused, and inactive-account cases", async () => {
+		refreshTokenRepository.findOneBy.mockResolvedValueOnce(null);
+		const notFoundError = await authService.refresh(buildDto()).catch((e) => e);
+
+		refreshTokenRepository.findOneBy.mockResolvedValueOnce(
+			buildActiveTokenRow({ expiresAt: new Date(Date.now() - 1000) })
+		);
+		const expiredError = await authService.refresh(buildDto()).catch((e) => e);
+
+		refreshTokenRepository.findOneBy.mockResolvedValueOnce(
+			buildActiveTokenRow({ revokedAt: new Date() })
+		);
+		const revokedError = await authService.refresh(buildDto()).catch((e) => e);
+
+		refreshTokenRepository.findOneBy.mockResolvedValueOnce(buildActiveTokenRow());
+		usersRepository.findOneBy.mockResolvedValueOnce(
+			buildActiveUser({ status: UserStatus.SUSPENDED })
+		);
+		const inactiveError = await authService.refresh(buildDto()).catch((e) => e);
+
+		refreshTokenRepository.findOneBy.mockResolvedValueOnce(buildActiveTokenRow());
+		usersRepository.findOneBy.mockResolvedValueOnce(buildActiveUser());
+		transactionalRefreshTokenRepository.revokeIfActive.mockResolvedValueOnce(0);
+		const reusedError = await authService.refresh(buildDto()).catch((e) => e);
+
+		const messages = [notFoundError, expiredError, revokedError, inactiveError, reusedError].map(
+			(e) => e.message
+		);
+		expect(new Set(messages).size).toBe(1);
+	});
+
+	it("never logs the submitted or newly issued refresh token", async () => {
+		refreshTokenRepository.findOneBy.mockResolvedValue(buildActiveTokenRow());
+		usersRepository.findOneBy.mockResolvedValue(buildActiveUser());
+
+		await authService.refresh(buildDto());
+
+		for (const call of loggerLogSpy.mock.calls) {
+			const serialized = JSON.stringify(call);
+			expect(serialized).not.toContain(SUBMITTED_TOKEN);
+			expect(serialized).not.toContain(RAW_REFRESH_TOKEN);
 		}
 	});
 });
