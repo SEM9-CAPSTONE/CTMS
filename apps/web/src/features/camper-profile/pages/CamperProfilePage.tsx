@@ -1,9 +1,10 @@
-import { CheckCircle2 } from "lucide-react";
+import { AlertCircle, CheckCircle2 } from "lucide-react";
 import { useState } from "react";
 import { HealthProfileContainer } from "../../health-profile/routes";
 import { AvatarProfileCard } from "../components/AvatarProfileCard";
 import { CamperHeader } from "../components/CamperHeader";
 import { CamperSidebar } from "../components/CamperSidebar";
+import { EmergencyContactsForm } from "../components/EmergencyContactsForm";
 import { ExperienceSkillsForm } from "../components/ExperienceSkillsForm";
 import { PersonalProfileForm } from "../components/PersonalProfileForm";
 import { ProfileCompletionCard } from "../components/ProfileCompletionCard";
@@ -24,13 +25,16 @@ export function CamperProfilePage({ onBackHome }: CamperProfilePageProps) {
 		profile,
 		isLoading,
 		isSaving,
+		isProfileEditable,
 		saveSuccessMessage,
+		errorMessage,
 		form,
 		isFormDirty,
 		handleResetForm,
 		handleAvatarChange,
 		handleSubmit,
 	} = useCamperProfile();
+	const isEditingDisabled = isSaving || !isProfileEditable;
 
 	if (isLoading) {
 		return (
@@ -65,6 +69,13 @@ export function CamperProfilePage({ onBackHome }: CamperProfilePageProps) {
 					</div>
 				)}
 
+				{errorMessage && (
+					<div className="mx-8 mt-4 flex items-center gap-2 rounded-2xl border border-red-200 bg-red-50 p-4 text-xs font-bold text-red-900 shadow-sm">
+						<AlertCircle size={16} className="shrink-0 text-red-600" />
+						<span>{errorMessage}</span>
+					</div>
+				)}
+
 				{/* Page Content Container */}
 				<main className="flex-1 p-6 sm:p-8">
 					<div className="mx-auto flex max-w-7xl flex-col gap-6">
@@ -88,14 +99,25 @@ export function CamperProfilePage({ onBackHome }: CamperProfilePageProps) {
 							<div className="flex-1 flex flex-col gap-6 w-full min-w-0">
 								{activeTab === SettingsTabEnum.PERSONAL_PROFILE && (
 									<form onSubmit={handleSubmit} className="flex flex-col gap-6">
-										<PersonalProfileForm form={form} />
+										<PersonalProfileForm form={form} isDisabled={isEditingDisabled} />
 										<ExperienceSkillsForm form={form} />
+									</form>
+								)}
+
+								{activeTab === SettingsTabEnum.EMERGENCY_INFO && (
+									<form onSubmit={handleSubmit} className="flex flex-col gap-6">
+										<EmergencyContactsForm
+											form={form}
+											isSaving={isSaving}
+											isDisabled={isEditingDisabled}
+										/>
 									</form>
 								)}
 
 								{activeTab === SettingsTabEnum.HEALTH_FITNESS && <HealthProfileContainer />}
 
 								{activeTab !== SettingsTabEnum.PERSONAL_PROFILE &&
+									activeTab !== SettingsTabEnum.EMERGENCY_INFO &&
 									activeTab !== SettingsTabEnum.HEALTH_FITNESS && (
 										<div className="flex flex-col items-center justify-center rounded-2xl border border-[#e0ebe0] bg-white p-12 text-center shadow-sm">
 											<div className="flex items-center justify-center rounded-2xl bg-[#eef7f0] p-2.5 mb-3">
@@ -116,17 +138,16 @@ export function CamperProfilePage({ onBackHome }: CamperProfilePageProps) {
 									)}
 							</div>
 						</div>
+
+						<UnsavedChangesBar
+							isVisible={isFormDirty && isProfileEditable}
+							isSaving={isSaving}
+							onSave={handleSubmit}
+							onReset={handleResetForm}
+						/>
 					</div>
 				</main>
 			</div>
-
-			{/* Floating Unsaved Changes Bar */}
-			<UnsavedChangesBar
-				isVisible={isFormDirty}
-				isSaving={isSaving}
-				onSave={handleSubmit}
-				onReset={handleResetForm}
-			/>
 		</div>
 	);
 }

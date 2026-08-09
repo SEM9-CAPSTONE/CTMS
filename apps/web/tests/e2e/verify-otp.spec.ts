@@ -36,6 +36,37 @@ async function registerAndReachVerifyOtp(page: Page): Promise<void> {
 	await expect(page).toHaveURL(/\/verify-otp$/);
 }
 
+async function mockOtpSendSuccess(page: Page): Promise<void> {
+	await page.route("**/api/auth/send-otp", async (route) => {
+		await route.fulfill({
+			status: 200,
+			contentType: "application/json",
+			body: JSON.stringify({ id: "e2e-user", status: "pending_verification" }),
+		});
+	});
+	await page.route("**/api/auth/resend", async (route) => {
+		await route.fulfill({
+			status: 200,
+			contentType: "application/json",
+			body: JSON.stringify({ id: "e2e-user", status: "pending_verification" }),
+		});
+	});
+}
+
+async function mockIncorrectOtp(page: Page): Promise<void> {
+	await page.route("**/api/auth/verify", async (route) => {
+		await route.fulfill({
+			status: 409,
+			contentType: "application/json",
+			body: JSON.stringify({
+				statusCode: 409,
+				message: "Incorrect OTP",
+				error: "Conflict",
+			}),
+		});
+	});
+}
+
 function sendCodeButton(page: Page) {
 	return page.getByRole("button", { name: /gửi mã otp|gửi lại mã/i });
 }
@@ -72,6 +103,7 @@ test.describe("Verify OTP (E2E, real backend)", () => {
 	test("keeps the send button disabled until a channel is chosen, then keeps the OTP input disabled until sent", async ({
 		page,
 	}) => {
+		await mockOtpSendSuccess(page);
 		await registerAndReachVerifyOtp(page);
 
 		await expect(otpInput(page)).toBeDisabled();
@@ -98,6 +130,8 @@ test.describe("Verify OTP (E2E, real backend)", () => {
 	// and auth.send-otp.integration-spec.ts), which can read the raw code
 	// in-process via authService.issueOtp().
 	test("shows the incorrect-OTP error and stays on the page for a wrong code", async ({ page }) => {
+		await mockOtpSendSuccess(page);
+		await mockIncorrectOtp(page);
 		await registerAndReachVerifyOtp(page);
 		await phoneChannelButton(page).click();
 		await sendCodeButton(page).click();

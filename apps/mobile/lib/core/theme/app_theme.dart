@@ -159,8 +159,21 @@ class AppTheme {
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: scheme.surface,
         indicatorColor: scheme.primaryContainer,
-        labelTextStyle: WidgetStateProperty.all(
-          AppTypography.caption.copyWith(color: scheme.onSurface),
+        iconTheme: WidgetStateProperty.resolveWith((states) {
+          final color = states.contains(WidgetState.selected)
+              ? scheme.primary
+              : scheme.onSurfaceVariant;
+          return IconThemeData(color: color, size: 24);
+        }),
+        labelTextStyle: WidgetStateProperty.resolveWith(
+          (states) => AppTypography.caption.copyWith(
+            color: states.contains(WidgetState.selected)
+                ? scheme.primary
+                : scheme.onSurfaceVariant,
+            fontWeight: states.contains(WidgetState.selected)
+                ? FontWeight.w700
+                : FontWeight.w500,
+          ),
         ),
       ),
     );
