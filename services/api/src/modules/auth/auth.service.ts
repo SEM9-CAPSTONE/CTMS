@@ -23,6 +23,8 @@ import type { ForgotPasswordResponseDto } from "./dto/forgot-password-response.d
 import type { ForgotPasswordDto } from "./dto/forgot-password.dto";
 import type { LoginResponseDto } from "./dto/login-response.dto";
 import type { LoginDto } from "./dto/login.dto";
+import type { RefreshTokenResponseDto } from "./dto/refresh-token-response.dto";
+import type { RefreshTokenDto } from "./dto/refresh-token.dto";
 import type { RegisterDto } from "./dto/register.dto";
 import type { ResetPasswordResponseDto } from "./dto/reset-password-response.dto";
 import type { ResetPasswordDto } from "./dto/reset-password.dto";
@@ -55,6 +57,15 @@ const INVALID_CREDENTIALS_MESSAGE = "Invalid credentials";
 /** Deliberately one message for all three non-ACTIVE statuses (pending_verification,
  * suspended, deleted) rather than inventing per-status copy the spec never specifies. */
 const ACCOUNT_NOT_ACTIVE_MESSAGE = "Account is not active";
+/**
+ * CTMS-04-T01, Decision Gate DG-01: one message covers every way a refresh
+ * can fail -- not found, expired, already revoked, reused-after-rotation,
+ * or account no longer active. Same anti-enumeration reasoning as
+ * INVALID_CREDENTIALS_MESSAGE: a caller must not be able to tell "bad
+ * token" from "right token, but your account was suspended" from the
+ * response alone.
+ */
+const INVALID_REFRESH_TOKEN_MESSAGE = "Invalid refresh token";
 
 /**
  * Implementation Assumption (NOT part of the API/request contract — see Step 3
@@ -392,6 +403,103 @@ export class AuthService {
 		this.logger.log(`User logged in: ${user.id}`);
 
 		return { accessToken, refreshToken: rawRefreshToken, user: toUserProfile(user) };
+	}
+
+	/**
+	 * CTMS-04-T01. AC1: a valid refresh token creates a new access token.
+	 * AC2: expired or revoked tokens are rejected. DG-01: every failure path
+	 * throws the exact same message (see INVALID_REFRESH_TOKEN_MESSAGE) --
+	 * "not found", "expired", "already revoked", "reused after rotation",
+	 * and "account no longer active" are all indistinguishable from the
+	 * response, by design.
+	 *
+	 * DG-02: rotation is mandatory on every successful call -- the presented
+	 * token is always revoked and a brand-new one issued (same generation
+	 * scheme as login(): randomBytes(32) hex, SHA-256 hash, JWT_REFRESH_TOKEN_TTL).
+	 * There is no "just mint an access token, keep the same refresh token"
+	 * path.
+	 *
+	 * DG-03: the actual reuse/concurrent-refresh guard is
+	 * RefreshTokenRepository.revokeIfActive()'s single conditional UPDATE
+	 * inside the transaction below -- not the read a few lines above it. That
+	 * earlier read is only a cheap pre-check to skip starting a transaction
+	 * for the common "obviously invalid" case; it is not what makes this
+	 * safe under concurrency. If revokeIfActive() affects 0 rows, some other
+	 * request (a real concurrent refresh, or an unrelated revoke such as
+	 * resetPassword()'s revokeActiveTokensForUser()) already invalidated
+	 * this exact token first -- BR-243: rejected with no side effect, no new
+	 * token row is written.
+	 *
+	 * DG-05/BR-200: writes 1 audit-log row per successful rotation. login()
+	 * does not do the same for its own refresh-token creation -- tracked as
+	 * CTMS-03 known debt, intentionally not touched here (Decision Gate
+	 * DG-05).
+	 */
+	async refresh(dto: RefreshTokenDto): Promise<RefreshTokenResponseDto> {
+		const tokenHash = createHash("sha256").update(dto.refreshToken).digest("hex");
+		const existing = await this.refreshTokenRepository.findOneBy({ tokenHash });
+
+		const now = new Date();
+		if (!existing || existing.revokedAt !== null || existing.expiresAt.getTime() <= now.getTime()) {
+			throw new UnauthorizedException(INVALID_REFRESH_TOKEN_MESSAGE);
+		}
+
+		// BR-201/BR-202: refresh is a function that requires an active
+		// account, re-checked here independently of whatever the account's
+		// status was at the time this refresh token was originally issued.
+		const user = await this.usersRepository.findOneBy({ id: existing.userId });
+		if (!user || user.status !== UserStatus.ACTIVE) {
+			throw new UnauthorizedException(INVALID_REFRESH_TOKEN_MESSAGE);
+		}
+
+		const rawRefreshToken = randomBytes(32).toString("hex");
+		const newTokenHash = createHash("sha256").update(rawRefreshToken).digest("hex");
+		const refreshTtlConfig = (this.configService.get<string>("JWT_REFRESH_TOKEN_TTL") ??
+			"7d") as ms.StringValue;
+		const expiresAt = new Date(now.getTime() + ms(refreshTtlConfig));
+
+		const rotated = await this.dataSource.transaction(async (manager) => {
+			const transactionalRefreshTokenRepository = manager.withRepository(
+				this.refreshTokenRepository
+			);
+
+			const affected = await transactionalRefreshTokenRepository.revokeIfActive(existing.id, now);
+			if (affected === 0) {
+				return false;
+			}
+
+			const newToken = await transactionalRefreshTokenRepository.save({
+				userId: user.id,
+				tokenHash: newTokenHash,
+				expiresAt,
+				revokedAt: null,
+			});
+
+			const auditLogRepository = manager.getRepository(AuditLog);
+			await auditLogRepository.save({
+				actorId: user.id,
+				action: "auth.token_refreshed",
+				targetType: "user",
+				targetId: user.id,
+				before: { refreshTokenId: existing.id },
+				after: { refreshTokenId: newToken.id },
+				reason: null,
+			});
+
+			return true;
+		});
+
+		if (!rotated) {
+			throw new UnauthorizedException(INVALID_REFRESH_TOKEN_MESSAGE);
+		}
+
+		// Signing happens after the transaction commits -- nothing here
+		// touches the database, same reasoning as login().
+		const accessToken = this.jwtService.sign({ sub: user.id, roles: [user.role] });
+
+		this.logger.log(`Refresh token rotated for user: ${user.id}`);
+
+		return { accessToken, refreshToken: rawRefreshToken };
 	}
 
 	async forgotPassword(dto: ForgotPasswordDto): Promise<ForgotPasswordResponseDto> {
