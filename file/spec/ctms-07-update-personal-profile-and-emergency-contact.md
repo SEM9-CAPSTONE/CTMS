@@ -46,7 +46,7 @@ As a user, I want to update Personal Profile and Emergency Contact so that the C
 ## Story-Specific Implementation Tasks
 
 - [x] CTMS-07-T01 [BE / Shared Logic] Implement `Update Personal Profile and Emergency Contact` for this task scope and enforce mapped BRs: BR-202, BR-204, BR-205, BR-230, BR-231, BR-242, BR-243, BR-244, BR-216, BR-217, BR-223, BR-019, BR-020, BR-021, BR-206, BR-207. Ref: /file/spec/ctms-07-update-personal-profile-and-emergency-contact.md#backend-preparation-logic-and-tests
-- CTMS-07-T02 [UI Web/Mobile/Consumer] Implement `Update Personal Profile and Emergency Contact` for this task scope and enforce mapped BRs: BR-202, BR-204, BR-205, BR-230, BR-231, BR-240, BR-241, BR-242, BR-019, BR-020, BR-021. Ref: /file/spec/ctms-07-update-personal-profile-and-emergency-contact.md#ui-and-tests
+- [x] CTMS-07-T02 [UI Web/Mobile/Consumer] Implement `Update Personal Profile and Emergency Contact` for this task scope and enforce mapped BRs: BR-202, BR-204, BR-205, BR-230, BR-231, BR-240, BR-241, BR-242, BR-019, BR-020, BR-021. Ref: /file/spec/ctms-07-update-personal-profile-and-emergency-contact.md#ui-and-tests
 
 ## Task to Acceptance Criteria Traceability
 
@@ -210,6 +210,40 @@ Example response:
 - All backend unit tests: `pnpm --filter @ctms/api test` -> 72 passed.
 - All backend API/integration tests: `pnpm --filter @ctms/api test:integration` -> 49 passed.
 - Backend lint: `pnpm --filter @ctms/api lint` -> passed.
+
+## UI and Tests
+
+### Web UI Implementation
+
+- Camper profile screen now loads the current profile from `GET /api/profiles/me`.
+- Save uses `PATCH /api/profiles/me` and sends only editable CTMS-07 fields: `fullName`, `dateOfBirth`, `gender`, `address`, `bio`, and `emergencyContacts`.
+- Protected fields (`id`, `email`, `phone`, `role`, `status`, password/token fields) are not editable and are not included in update payloads.
+- Personal profile tab renders current profile data, client-side validation, dirty state, reset, save loading, success, and API error banners.
+- Emergency contact tab renders current contacts, empty state, add/remove controls, max-two enforcement, field validation, and save through the shared profile flow.
+- Repeated submissions are blocked while save is in progress.
+- Client-side profile validation rejects future birth dates before submitting to the API.
+- Non-active profile states disable CTMS-07 editing actions on the client and the shared save handler refuses submission.
+- Backend 422 validation responses are mapped back into matching profile form fields when the API returns structured `{ field, errors }` details.
+- After a successful save, the form is reset from the API response so the view reflects normalized backend data such as E.164 phone numbers.
+
+### Mobile UI Implementation
+
+- Camper profile screen was replaced with a real CTMS-07 form instead of the previous placeholder.
+- Mobile uses `CamperProfileRepository` and `CamperProfileController` to call `GET /profiles/me` and `PATCH /profiles/me`.
+- Account email and phone are displayed as read-only context and are not included in update payloads.
+- Personal profile and emergency contact fields support loading, error, empty, validation, save loading, and success states.
+- Mobile UI enforces the maximum of two emergency contacts and validates required names, relationships, phone format, and optional email format before save.
+- Controller prevents repeated concurrent save calls.
+
+### CTMS-07-T02 Test Evidence
+
+- Web component tests: `pnpm --filter @ctms/web test -- CamperProfilePage.test.tsx EmergencyContactsForm.test.tsx` -> 9 passed.
+- Full web unit/component tests: `pnpm --filter @ctms/web test` -> 49 passed.
+- Web lint: `pnpm --filter @ctms/web lint` -> passed.
+- Web build: `pnpm --filter @ctms/web build` -> passed.
+- Web E2E: `pnpm --filter @ctms/web test:e2e` -> 14 passed, 4 failed in existing auth flows unrelated to CTMS-07 (`forgot-password` browser launch, seed-admin login success assertion, and two verify-OTP send-code enablement assertions). No CTMS-07 profile E2E spec exists in the current repo.
+- Mobile controller test added: `apps/mobile/test/features/camper/profile/camper_profile_controller_test.dart`.
+- Mobile verification attempted: `flutter test test/features/camper/profile/camper_profile_controller_test.dart`, `flutter analyze`, and targeted `dart analyze` all timed out in the local Flutter/Dart toolchain without producing diagnostics. Source-level mobile implementation and tests are present, but Flutter tool evidence must be rerun in an environment where the Flutter command responds.
 
 ## Story-Specific Risks and Edge Cases
 

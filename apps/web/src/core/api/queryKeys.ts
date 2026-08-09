@@ -37,4 +37,7 @@ export const queryKeys = {
 		alerts: ["sos-alerts"] as const,
 		detail: (id: string) => ["sos-alerts", id] as const,
 	},
+	profile: {
+		me: ["profile", "me"] as const,
+	},
 };

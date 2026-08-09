@@ -3,6 +3,7 @@ import type { CamperProfileData, SettingsTabConfig } from "./types";
 
 export const INITIAL_MOCK_CAMPER_PROFILE: CamperProfileData = {
 	id: "cmp-001",
+	accountStatus: "active",
 	fullName: "Minh Quân",
 	email: "minhquan.camper@gmail.com",
 	phone: "0905123456",
@@ -21,6 +22,7 @@ export const INITIAL_MOCK_CAMPER_PROFILE: CamperProfileData = {
 		{ id: "lang-vi", code: "vi", name: "Tiếng Việt" },
 		{ id: "lang-en", code: "en", name: "Tiếng Anh" },
 	],
+	emergencyContacts: [],
 	completionPercentage: 80,
 	emergencyContactAdded: false,
 	phoneVerified: false,

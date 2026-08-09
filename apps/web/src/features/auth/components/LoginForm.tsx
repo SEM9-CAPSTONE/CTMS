@@ -109,7 +109,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
 
 					{/* Submit error summary (401 invalid credentials / not-active, 422 validation) */}
 					{errorMessages.length > 0 && (
-						<div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+						<div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3">
 							{errorMessages.map((msg) => (
 								<p key={msg} className="text-xs font-semibold text-red-700">
 									{msg}

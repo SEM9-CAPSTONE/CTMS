@@ -3,9 +3,10 @@ import type { CamperProfileFormValues } from "../schema/profile.schema";
 
 interface PersonalProfileFormProps {
 	form: UseFormReturn<CamperProfileFormValues>;
+	isDisabled?: boolean;
 }
 
-export function PersonalProfileForm({ form }: PersonalProfileFormProps) {
+export function PersonalProfileForm({ form, isDisabled = false }: PersonalProfileFormProps) {
 	const {
 		register,
 		formState: { errors },
@@ -29,8 +30,9 @@ export function PersonalProfileForm({ form }: PersonalProfileFormProps) {
 					<input
 						id="fullName"
 						type="text"
+						disabled={isDisabled}
 						{...register("fullName")}
-						className="h-10 rounded-xl border border-[#dfe8df] bg-white px-3.5 text-xs text-[#10221b] outline-none transition focus:border-[#164027] focus:ring-2 focus:ring-[#164027]/10"
+						className="h-10 rounded-xl border border-[#dfe8df] bg-white px-3.5 text-xs text-[#10221b] outline-none transition focus:border-[#164027] focus:ring-2 focus:ring-[#164027]/10 disabled:bg-slate-50 disabled:text-slate-500"
 						placeholder="Nhập họ và tên"
 					/>
 					{errors.fullName && (
@@ -48,8 +50,10 @@ export function PersonalProfileForm({ form }: PersonalProfileFormProps) {
 					<input
 						id="dateOfBirth"
 						type="date"
+						max={new Date().toISOString().slice(0, 10)}
+						disabled={isDisabled}
 						{...register("dateOfBirth")}
-						className="h-10 rounded-xl border border-[#dfe8df] bg-white px-3.5 text-xs text-[#10221b] outline-none transition focus:border-[#164027] focus:ring-2 focus:ring-[#164027]/10"
+						className="h-10 rounded-xl border border-[#dfe8df] bg-white px-3.5 text-xs text-[#10221b] outline-none transition focus:border-[#164027] focus:ring-2 focus:ring-[#164027]/10 disabled:bg-slate-50 disabled:text-slate-500"
 					/>
 					{errors.dateOfBirth && (
 						<span className="text-[11px] font-semibold text-red-500">
@@ -65,8 +69,9 @@ export function PersonalProfileForm({ form }: PersonalProfileFormProps) {
 					</label>
 					<select
 						id="gender"
+						disabled={isDisabled}
 						{...register("gender")}
-						className="h-10 rounded-xl border border-[#dfe8df] bg-white px-3.5 text-xs text-[#10221b] outline-none transition focus:border-[#164027] focus:ring-2 focus:ring-[#164027]/10"
+						className="h-10 rounded-xl border border-[#dfe8df] bg-white px-3.5 text-xs text-[#10221b] outline-none transition focus:border-[#164027] focus:ring-2 focus:ring-[#164027]/10 disabled:bg-slate-50 disabled:text-slate-500"
 					>
 						<option value="male">Nam</option>
 						<option value="female">Nữ</option>
@@ -85,8 +90,9 @@ export function PersonalProfileForm({ form }: PersonalProfileFormProps) {
 					<input
 						id="address"
 						type="text"
+						disabled={isDisabled}
 						{...register("address")}
-						className="h-10 rounded-xl border border-[#dfe8df] bg-white px-3.5 text-xs text-[#10221b] outline-none transition focus:border-[#164027] focus:ring-2 focus:ring-[#164027]/10"
+						className="h-10 rounded-xl border border-[#dfe8df] bg-white px-3.5 text-xs text-[#10221b] outline-none transition focus:border-[#164027] focus:ring-2 focus:ring-[#164027]/10 disabled:bg-slate-50 disabled:text-slate-500"
 						placeholder="Nhập địa chỉ của bạn"
 					/>
 					{errors.address && (
@@ -102,8 +108,9 @@ export function PersonalProfileForm({ form }: PersonalProfileFormProps) {
 					<textarea
 						id="bio"
 						rows={3}
+						disabled={isDisabled}
 						{...register("bio")}
-						className="rounded-xl border border-[#dfe8df] bg-white p-3 text-xs text-[#10221b] outline-none transition focus:border-[#164027] focus:ring-2 focus:ring-[#164027]/10 resize-none"
+						className="rounded-xl border border-[#dfe8df] bg-white p-3 text-xs text-[#10221b] outline-none transition focus:border-[#164027] focus:ring-2 focus:ring-[#164027]/10 resize-none disabled:bg-slate-50 disabled:text-slate-500"
 						placeholder="Chia sẻ ngắn gọn về đam mê cắm trại, trekking của bạn..."
 					/>
 					{errors.bio && (

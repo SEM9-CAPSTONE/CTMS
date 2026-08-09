@@ -58,4 +58,7 @@ export const API_ENDPOINTS = {
 		GRANT_CONSENT: "/camper/health-profile/consent/grant",
 		REVOKE_CONSENT: "/camper/health-profile/consent/revoke",
 	},
+	PROFILE: {
+		ME: "/profiles/me",
+	},
 } as const;

@@ -1,11 +1,38 @@
 import { z } from "zod";
 
+export const emergencyContactSchema = z.object({
+	id: z.string().optional(),
+	name: z
+		.string()
+		.min(2, "Tên liên hệ khẩn cấp phải có ít nhất 2 ký tự")
+		.max(80, "Tên liên hệ không quá 80 ký tự"),
+	relationship: z
+		.string()
+		.min(2, "Mối quan hệ phải có ít nhất 2 ký tự")
+		.max(40, "Mối quan hệ không quá 40 ký tự"),
+	phone: z.string().regex(/^(0|\+84)(3|5|7|8|9)\d{8}$/, "Số điện thoại khẩn cấp không hợp lệ"),
+	email: z
+		.string()
+		.email("Email liên hệ không hợp lệ")
+		.max(254, "Email không quá 254 ký tự")
+		.optional()
+		.or(z.literal("")),
+});
+
 export const camperProfileSchema = z.object({
 	fullName: z
 		.string()
 		.min(2, "Họ và tên phải có ít nhất 2 ký tự")
 		.max(50, "Họ và tên không vượt quá 50 ký tự"),
-	dateOfBirth: z.string().min(1, "Vui lòng chọn ngày sinh"),
+	dateOfBirth: z
+		.string()
+		.min(1, "Vui lòng chọn ngày sinh")
+		.refine((value) => {
+			const selectedDate = new Date(`${value}T00:00:00`);
+			const today = new Date();
+			today.setHours(23, 59, 59, 999);
+			return !Number.isNaN(selectedDate.getTime()) && selectedDate <= today;
+		}, "Ngày sinh không được ở tương lai"),
 	gender: z.enum(["male", "female", "other"], {
 		invalid_type_error: "Giới tính không hợp lệ",
 	}),
@@ -22,6 +49,9 @@ export const camperProfileSchema = z.object({
 		.string()
 		.max(300, "Mô tả kinh nghiệm không quá 300 ký tự")
 		.optional(),
+	emergencyContacts: z
+		.array(emergencyContactSchema)
+		.max(2, "Mỗi tài khoản chỉ được lưu tối đa 2 liên hệ khẩn cấp"),
 });
 
 export type CamperProfileFormValues = z.infer<typeof camperProfileSchema>;
