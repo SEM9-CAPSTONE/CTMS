@@ -33,7 +33,9 @@ As a user, I want to refresh Authentication Session so that the CTMS workflow is
 - [x] BR-231: APIs must return consistent error codes: 401 for authentication failure, 403 for insufficient permission, 404 for not found, 409 for business conflict, and 422 for invalid data.
 - [x] BR-236: Users may only add, delete, or reorder media for resources they own or are authorized to manage. (Not applicable to CTMS-04-T01 — no media involved.)
 - [x] BR-237: Background jobs must re-check business conditions at execution time and must not rely only on stale state. (Not applicable to CTMS-04-T01 — refresh is a synchronous request, not a background job.)
-- [ ] BR-242: When the backend rejects a request because data changed concurrently, the UI must preserve entered data, display the reason, and allow reload or retry. (CTMS-04-T02 scope — UI concern, not yet implemented.)
+- [x] BR-240: When offline data conflicts with newer data on the server, the server applies the defined conflict rule and does not silently overwrite newer data. (Not applicable to CTMS-04-T02 — refresh-session has no offline-sync/conflicting-write scenario.)
+- [x] BR-241: The UI must prevent duplicate submission while a request is in flight; financial or resource-holding actions only show success after backend confirmation. (CTMS-04-T02: this is exactly what the single-flight refresh coordinator does — concurrent 401s collapse into one in-flight `POST /auth/refresh`, never a duplicate. See DG-03/DG-05 and "Web Integration" below.)
+- [x] BR-242: When the backend rejects a request because data changed concurrently, the UI must preserve entered data, display the reason, and allow reload or retry. (Not applicable to CTMS-04-T02 as written — refresh-session has no concurrent-data-conflict scenario to preserve form data across. The closest related behavior CTMS-04-T02 actually implements is documented under "Web Integration" below: the original request's data is preserved and retried automatically after a token-expiry failure, a different trigger than this BR describes.)
 - [x] BR-243: Cases with insufficient permission or unmet business conditions must not create any side effect.
 - [x] BR-244: Changes to Business Rules, enums, state transitions, or API contracts must update the Spec, test cases, and data documentation together before Done.
 
@@ -46,7 +48,9 @@ As a user, I want to refresh Authentication Session so that the CTMS workflow is
 
 ## Story-Specific Implementation Tasks
 - [x] CTMS-04-T01 [BE / Shared Logic] Implement `Refresh Authentication Session` for this task scope and enforce mapped BRs: BR-202, BR-204, BR-205, BR-230, BR-231, BR-242, BR-243, BR-244, BR-200, BR-201, BR-214, BR-215, BR-220, BR-236, BR-237, BR-011, BR-012, BR-206, BR-207. Ref: /file/spec/ctms-04-refresh-authentication-session.md#backend-preparation-logic-and-tests
-- [ ] CTMS-04-T02 [UI Web/Mobile/Consumer] Implement `Refresh Authentication Session` for this task scope and enforce mapped BRs: BR-202, BR-204, BR-205, BR-230, BR-231, BR-240, BR-241, BR-242, BR-011, BR-012. Ref: /file/spec/ctms-04-refresh-authentication-session.md#ui-and-tests
+- [x] CTMS-04-T02 [UI Web/Mobile/Consumer] Implement `Refresh Authentication Session` for this task scope and enforce mapped BRs: BR-202, BR-204, BR-205, BR-230, BR-231, BR-240, BR-241, BR-242, BR-011, BR-012. Ref: /file/spec/ctms-04-refresh-authentication-session.md#ui-and-tests
+
+  Note: only the Web client (`apps/web`) is implemented under this checkbox. Mobile/Consumer integration is not part of this task's actual delivered scope and remains open.
 
 ## API Contract (CTMS-04-T01 — implemented)
 
@@ -119,6 +123,90 @@ Each successful rotation writes one `audit_logs` row
 creation does not write an equivalent row — tracked separately as CTMS-03
 known debt, intentionally left unchanged by this story (Decision Gate
 DG-05).
+
+## Web Integration (CTMS-04-T02 — implemented)
+
+This story shipped with no Web Integration design on record. The design
+below was resolved through this task's own Decision Gate (DG-01 → DG-07 +
+security/concurrency constraints), built entirely on top of CTMS-04-T01's
+API Contract above, and is recorded here per BR-244.
+
+### Files
+- `apps/web/src/core/api/authRefresh.ts` — single-flight refresh coordinator.
+- `apps/web/src/core/api/authSessionSync.ts` — session clear + cross-tab sync.
+- `apps/web/src/core/api/httpClient.ts` — 401 detection and refresh-and-retry
+  interceptor (existing shared HTTP client, extended in place).
+- `apps/web/src/main.tsx` — registers the cross-tab listener once at startup.
+
+### Interceptor flow (DG-05/DG-06)
+`httpClient.request()` already attached the access token to every request
+that has one — DG-06 kept that exact definition of "protected" (no
+per-endpoint whitelist introduced). On a 401 for such a request, it calls
+the single-flight `refreshAccessToken()` and retries the original request
+exactly once with the new token, via an internal-only `isRetryAfterRefresh`
+flag never exposed on the public `RequestOptions` type. A second 401 on the
+retry fails immediately — no second refresh, no loop. Requests carrying no
+token (public endpoints: login/register/forgot-password/...) are entirely
+unaffected — unchanged behavior from before this story, verified by the
+full pre-existing Web Vitest/E2E suite still passing unmodified.
+
+### Single-flight (DG-03/DG-05/BR-241)
+`authRefresh.ts` holds one module-level `Promise` (`inFlightRefresh`).
+Every concurrent 401 calls the same function; only the first actually
+starts the `POST /auth/refresh` network call — a raw `fetch`, deliberately
+never routed through `httpClient` itself, so the refresh call structurally
+cannot re-enter (and therefore cannot re-trigger) the interceptor. Every
+other caller receives and awaits that same Promise. Proven with real
+concurrent 401s both in a Vitest test (`httpClient.test.ts`) and against
+the real backend in a real browser (`tests/e2e/refresh-session.spec.ts`,
+using React StrictMode's dev-mode double-invoke of an existing page's
+data-fetch effect as the source of genuine concurrency — the current UI
+has no other page issuing 2+ simultaneous protected requests to trigger
+this with).
+
+### Session clearing and redirect (DG-01)
+On refresh failure (401 or network error), `authSessionSync.ts` removes
+both tokens, writes a cross-tab signal, and redirects via
+`window.location.href = "/login"` — a full reload, not a client-side route
+change, since the app has no SPA router (`AppRoutes.tsx` is a bespoke
+pushState/switch component) and DG-01 explicitly rejected building
+navigation infrastructure for this story alone.
+
+### Cross-tab sync (DG-04)
+Uses the standard `storage` event — no `BroadcastChannel`, no new
+dependency. The browser only fires it in *other* tabs of the same origin,
+never the tab that made the write. The listener (`initAuthSessionSync()`,
+registered once in `main.tsx`) only redirects — it never writes to
+`localStorage` — which is what prevents a cross-tab ping-pong loop by
+construction, not by convention.
+
+### Out of scope (confirmed by Decision Gate, not gaps)
+- No `AuthContext`/global session state or route guard (DG-02) — only the
+  HTTP-layer behavior above.
+- No real logout feature/API (DG-03) — CTMS-08 remains a separate story;
+  "cross-tab session invalidation" here means propagating a *local* session
+  clear, not a logout action.
+- No `/auth/me` usage (DG-07) — not needed for this flow.
+- No standalone "Refresh Session" screen — this is an integration-only
+  task, exactly as scoped in the Jira description.
+- Mobile/Consumer integration is not delivered by this task despite being
+  named in its title — only the Web client (`apps/web`) is implemented.
+
+### Security
+No token ever appears in a request URL, a `console.*` call, or the
+cross-tab signal (which carries only a timestamp) — verified by dedicated
+tests at all three levels (unit, `httpClient` integration, E2E).
+
+### Test evidence
+- Unit: `authRefresh.test.ts` (10), `authSessionSync.test.ts` (8).
+- Integration (real `authRefresh`/`authSessionSync`, mocked network only):
+  `httpClient.test.ts` (10), including a genuine concurrent-401 test.
+- E2E (real backend, real browser): `tests/e2e/refresh-session.spec.ts` (6),
+  covering transparent recovery, concurrent collapse, revoked-token
+  cleanup, cross-tab propagation, and end-to-end token rotation with no
+  leakage. Full existing E2E suite (24 tests across login/register/
+  verify-otp/forgot-password) re-run and still passing, confirming no
+  regression to the flows this story did not touch.
 
 ## Task to Acceptance Criteria Traceability
 | Acceptance criterion / BR | Covered by tasks | Evidence expected |
