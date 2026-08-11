@@ -10,6 +10,7 @@ import { EventsGateway } from "./realtime/events.gateway";
 	imports: [
 		ConfigModule.forRoot({
 			isGlobal: true,
+			envFilePath: ["../../.env", ".env"],
 		}),
 		DatabaseModule,
 		AuthModule,

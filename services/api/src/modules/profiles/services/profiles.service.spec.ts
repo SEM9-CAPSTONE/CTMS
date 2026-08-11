@@ -1,11 +1,11 @@
 import { ForbiddenException, NotFoundException } from "@nestjs/common";
 import type { DataSource, EntityManager } from "typeorm";
-import { UserGender, UserRole, UserStatus } from "../users/entities/user.entity";
-import type { User } from "../users/entities/user.entity";
-import type { UsersRepository } from "../users/users.repository";
-import type { UpdateProfileDto } from "./dto/update-profile.dto";
-import type { EmergencyContactsRepository } from "./emergency-contacts.repository";
-import type { EmergencyContact } from "./entities/emergency-contact.entity";
+import { UserGender, UserRole, UserStatus } from "../../users/entities/user.entity";
+import type { User } from "../../users/entities/user.entity";
+import type { UsersRepository } from "../../users/users.repository";
+import type { UpdateProfileDto } from "../dto/update-profile.dto";
+import type { EmergencyContactsRepository } from "../repositories/emergency-contacts.repository";
+import type { EmergencyContact } from "../entities/emergency-contact.entity";
 import { ProfilesService } from "./profiles.service";
 
 const USER_ID = "11111111-1111-1111-1111-111111111111";
