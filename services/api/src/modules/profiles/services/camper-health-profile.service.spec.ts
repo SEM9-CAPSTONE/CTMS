@@ -73,7 +73,7 @@ describe("CamperHealthProfileService", () => {
 	let auditLogRepository: { save: jest.Mock };
 	let bookingRepository: { createQueryBuilder: jest.Mock };
 	let manager: { withRepository: jest.Mock; getRepository: jest.Mock };
-	let dataSource: { transaction: jest.Mock };
+	let dataSource: { transaction: jest.Mock; getRepository: jest.Mock };
 
 	beforeEach(() => {
 		usersRepository = {
@@ -221,8 +221,8 @@ describe("CamperHealthProfileService", () => {
 			const dto: UpdateHealthProfileDto = {
 				bloodType: BloodType.O_PLUS,
 				physicalFitnessLevel: FitnessLevel.INTERMEDIATE,
-				dietaryRestrictions: null,
-				emergencyNotes: null,
+				dietaryRestrictions: undefined,
+				emergencyNotes: undefined,
 				allergies: [],
 				medicalConditions: [],
 				isConsentGranted: false,
