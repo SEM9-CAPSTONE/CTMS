@@ -22,6 +22,7 @@ describe("Camper Health Profile (integration, real Postgres)", () => {
 	const PASSWORD = "S3curePass!";
 
 	beforeAll(async () => {
+		jest.setTimeout(30000);
 		const moduleRef = await Test.createTestingModule({
 			imports: [AppModule],
 		}).compile();
@@ -48,10 +49,14 @@ describe("Camper Health Profile (integration, real Postgres)", () => {
 		}
 
 		dataSource = moduleRef.get(DataSource);
+		await dataSource.query(
+			'TRUNCATE TABLE "bookings", "trip_porters", "trips", "audit_logs", "health_profiles", "refresh_tokens", "verification_otps", "users" CASCADE'
+		);
 		authService = moduleRef.get(AuthService);
 		jwtService = moduleRef.get(JwtService);
 		expect(dataSource.isInitialized).toBe(true);
 	});
+
 
 	afterAll(async () => {
 		await app.close();
