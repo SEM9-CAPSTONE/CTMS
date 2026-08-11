@@ -155,9 +155,9 @@ export class AuthService {
 		transactionalOtpRepository: VerificationOtpRepository,
 		userId: string
 	): Promise<OtpPlan> {
-		const ttlMinutes = Number(this.configService.get<string>("OTP_TTL_MINUTES"));
-		const windowMinutes = Number(this.configService.get<string>("OTP_RESEND_WINDOW_MINUTES"));
-		const maxAttempts = Number(this.configService.get<string>("OTP_RESEND_MAX_ATTEMPTS"));
+		const ttlMinutes = Number(this.configService.get<string>("OTP_TTL_MINUTES") ?? "10");
+		const windowMinutes = Number(this.configService.get<string>("OTP_RESEND_WINDOW_MINUTES") ?? "1440");
+		const maxAttempts = Number(this.configService.get<string>("OTP_RESEND_MAX_ATTEMPTS") ?? "5");
 
 		const code = generateOtpCode();
 		const codeHash = await bcrypt.hash(code, BCRYPT_COST_FACTOR);
