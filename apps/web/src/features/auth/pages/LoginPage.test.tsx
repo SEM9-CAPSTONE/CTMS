@@ -81,6 +81,23 @@ describe("LoginPage", () => {
 		expect(getRefreshToken()).toBe("refresh-token-value");
 	});
 
+	it("reports the authenticated user after a successful login", async () => {
+		const user = userEvent.setup();
+		const onLoginSuccess = vi.fn();
+		loginMock.mockResolvedValueOnce(SUCCESS_RESPONSE);
+
+		render(
+			<LoginPage
+				onBackToHome={vi.fn()}
+				onNavigateToRegister={vi.fn()}
+				onLoginSuccess={onLoginSuccess}
+			/>
+		);
+		await fillAndSubmit(user, "admin@ctms.local", "Admin@123");
+
+		await waitFor(() => expect(onLoginSuccess).toHaveBeenCalledWith(SUCCESS_RESPONSE.user));
+	});
+
 	// TC3 — Login with phone identifier is accepted (backend supports email OR phone)
 	it("logs in with a phone number identifier", async () => {
 		const user = userEvent.setup();

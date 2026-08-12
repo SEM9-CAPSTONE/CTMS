@@ -61,4 +61,10 @@ export const API_ENDPOINTS = {
 	PROFILE: {
 		ME: "/profiles/me",
 	},
+	USERS: {
+		LIST: "/users",
+		DETAIL: (userId: string) => `/users/${userId}`,
+		LOCK: (userId: string) => `/users/${userId}/lock`,
+		UNLOCK: (userId: string) => `/users/${userId}/unlock`,
+	},
 } as const;

@@ -7,14 +7,43 @@
 Manage User Accounts
 
 **Status**  
-To Do
+In Progress
 
 **Story**  
 As an Admin, I want to manage User Accounts so that the CTMS workflow is completed safely, consistently, and within the correct business scope.
 
 ## Acceptance Criteria
-- [ ] Search, view, lock, and unlock accounts.
-- [ ] do not hard-delete related data.
+- [ ] Admins can search, filter, paginate, and view user accounts.
+- [ ] Admins can lock an active account and unlock a suspended account.
+- [ ] Locked accounts cannot log in, refresh a session, or use protected APIs.
+- [ ] Locking and unlocking never hard-delete the user or related business data.
+- [ ] Every successful lock and unlock action is recorded in `audit_logs`.
+
+## Approved Implementation Contract
+- Lock maps `active -> suspended`; unlock maps `suspended -> active`.
+- Repeating an invalid transition returns `409 Conflict` without side effects.
+- An Admin cannot lock their own account.
+- Lock/unlock reason is optional and is stored in `audit_logs.reason` when supplied.
+- Search covers `full_name`, `email`, and `phone`; list filters support `role` and `status`.
+- Pagination defaults to page `1`, limit `20`, with a maximum limit of `100`.
+- Locking revokes all active refresh tokens. Unlocking does not restore revoked sessions.
+- Notifications and all hard-delete operations are outside this story.
+- `BR-192` (offline report storage), `BR-209` (idempotent retry workflows), and `BR-230`
+  (external-service retry policy) are generic mapping artifacts with no applicable CTMS-123
+  operation. The approved `409` invalid-transition behavior remains authoritative for retries.
+- CTMS-06 role-guard infrastructure is not implemented here. Until it is available, protected
+  user-account endpoints use `JwtAuthGuard` and a narrow current-database Admin assertion in the
+  owning service; the controller is marked for CTMS-06 integration.
+
+## API Contract
+- `GET /api/users` lists accounts with search, role/status filters, and pagination.
+- `GET /api/users/:userId` returns whitelisted account details and never returns `passwordHash`.
+- `PATCH /api/users/:userId/lock` accepts optional `{ reason }` and performs lock, refresh-token
+  revocation, and audit logging in one transaction.
+- `PATCH /api/users/:userId/unlock` accepts optional `{ reason }` and performs unlock and audit
+  logging in one transaction.
+- Authentication failures return `401`, insufficient role returns `403`, missing accounts return
+  `404`, invalid state transitions return `409`, and invalid input returns `422`.
 
 ## Business Rules Checklist
 - [ ] BR-192: The system must store the report offline when network is unavailable.
