@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { Repository } from "typeorm";
-import { HealthProfile } from "../entities/health-profile.entity";
+import type { HealthProfile } from "../entities/health-profile.entity";
 
 @Injectable()
 export class HealthProfileRepository extends Repository<HealthProfile> {

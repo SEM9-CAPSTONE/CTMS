@@ -9,10 +9,10 @@ import { UsersRepository } from "../../users/users.repository";
 import type { ProfileResponseDto } from "../dto/profile-response.dto";
 import { toProfileResponse } from "../dto/profile-response.dto";
 import type { UpdateProfileDto } from "../dto/update-profile.dto";
-// biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
-import { EmergencyContactsRepository } from "../repositories/emergency-contacts.repository";
 import type { EmergencyContact } from "../entities/emergency-contact.entity";
 import type { EmergencyContactSnapshot, ProfileSnapshot } from "../profile.types";
+// biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
+import { EmergencyContactsRepository } from "../repositories/emergency-contacts.repository";
 
 const ACTIVE_ACCOUNT_REQUIRED_MESSAGE = "Account must be active";
 const PROFILE_NOT_FOUND_MESSAGE = "Profile not found";

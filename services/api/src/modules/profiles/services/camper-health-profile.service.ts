@@ -7,15 +7,15 @@ import {
 } from "@nestjs/common";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI
 import { DataSource, EntityManager } from "typeorm";
-import { User, UserRole, UserStatus } from "../../users/entities/user.entity";
+import { AuditLog } from "../../auth/entities/audit-log.entity";
+import { type User, UserRole, UserStatus } from "../../users/entities/user.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI
 import { UsersRepository } from "../../users/users.repository";
-import { AuditLog } from "../../auth/entities/audit-log.entity";
+import type { UpdateHealthProfileDto } from "../dto/update-health-profile.dto";
 import { Booking } from "../entities/booking.entity";
-import { HealthProfile } from "../entities/health-profile.entity";
+import type { HealthProfile } from "../entities/health-profile.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI
 import { HealthProfileRepository } from "../repositories/health-profile.repository";
-import type { UpdateHealthProfileDto } from "../dto/update-health-profile.dto";
 
 const ACCOUNT_NOT_ACTIVE_MESSAGE = "Account is not active";
 const ACCESS_DENIED_MESSAGE = "Access denied";
