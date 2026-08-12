@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { AdminUserAccountsPage } from "../features/admin-user-accounts/pages/AdminUserAccountsPage";
 import { ForgotPasswordPage } from "../features/auth/pages/ForgotPasswordPage";
 import { LoginPage } from "../features/auth/pages/LoginPage";
 import { RegisterPage } from "../features/auth/pages/RegisterPage";
@@ -52,6 +53,11 @@ export function AppRoutes() {
 					onBackToHome={() => navigateTo(RoutePath.HOME)}
 					onNavigateToRegister={() => navigateTo(RoutePath.REGISTER)}
 					onNavigateToForgotPassword={() => navigateTo(RoutePath.FORGOT_PASSWORD)}
+					onLoginSuccess={(user) => {
+						if (user.role === "admin") {
+							navigateTo(RoutePath.ADMIN_USERS);
+						}
+					}}
 				/>
 			);
 
@@ -84,6 +90,11 @@ export function AppRoutes() {
 		case RoutePath.CAMPER_PROFILE:
 		case RoutePath.PROFILE:
 			return <CamperProfilePage onBackHome={() => navigateTo(RoutePath.HOME)} />;
+
+		case RoutePath.ADMIN_USERS:
+			// TODO(CTMS-06): wrap this route with the shared role-aware route guard once available.
+			// The API remains protected by JwtAuthGuard and a current-database Admin check.
+			return <AdminUserAccountsPage onBackHome={() => navigateTo(RoutePath.HOME)} />;
 
 		case RoutePath.UNAUTHORIZED:
 			return (

@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { type FindOptionsWhere, Repository } from "typeorm";
 import type { User, UserRole } from "./entities/user.entity";
+import type { PaginatedUsers, UserAccountFilters } from "./users.types";
 
 interface CreateUserInput {
 	email: string | null;
@@ -17,6 +18,30 @@ interface CreateUserInput {
  */
 @Injectable()
 export class UsersRepository extends Repository<User> {
+	async findAccounts(filters: UserAccountFilters): Promise<PaginatedUsers> {
+		const query = this.createQueryBuilder("user");
+		if (filters.search) {
+			query.andWhere(
+				"(user.fullName ILIKE :search OR user.email ILIKE :search OR user.phone ILIKE :search)",
+				{ search: `%${filters.search}%` }
+			);
+		}
+		if (filters.role) {
+			query.andWhere("user.role = :role", { role: filters.role });
+		}
+		if (filters.status) {
+			query.andWhere("user.status = :status", { status: filters.status });
+		}
+
+		const [users, total] = await query
+			.orderBy("user.createdAt", "DESC")
+			.addOrderBy("user.id", "ASC")
+			.skip((filters.page - 1) * filters.limit)
+			.take(filters.limit)
+			.getManyAndCount();
+		return { users, total };
+	}
+
 	async findByEmailOrPhone(email: string | null, phone: string | null): Promise<User | null> {
 		const where: FindOptionsWhere<User>[] = [];
 		if (email) {

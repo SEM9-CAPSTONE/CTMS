@@ -10,6 +10,7 @@ export interface LoginPageProps {
 	onBackToHome: () => void;
 	onNavigateToRegister?: () => void;
 	onNavigateToForgotPassword?: () => void;
+	onLoginSuccess?: (user: LoginApiResponse["user"]) => void;
 }
 
 export interface ForgotPasswordPageProps {

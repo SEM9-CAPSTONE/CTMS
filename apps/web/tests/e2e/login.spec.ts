@@ -49,6 +49,7 @@ test.describe("Login (E2E, real backend)", () => {
 		await expect
 			.poll(() => page.evaluate(() => window.localStorage.getItem("refreshToken")))
 			.toBeTruthy();
+		await expect(page).toHaveURL(/\/admin\/users$/);
 	});
 
 	// E2E-TC2: Wrong password (401 Invalid credentials, mapped to Vietnamese copy)

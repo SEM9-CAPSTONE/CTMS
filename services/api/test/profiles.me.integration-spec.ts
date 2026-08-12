@@ -253,7 +253,7 @@ describe("PATCH /api/profiles/me (integration, real Postgres)", () => {
 			.expect(401);
 	});
 
-	it("rejects non-active accounts with 403 and no side effects", async () => {
+	it("rejects non-active authenticated sessions with 401 and no side effects", async () => {
 		const { userId, accessToken } = await registerAndActivateUser("suspended");
 		await dataSource.query('UPDATE "users" SET "status" = $1 WHERE "id" = $2', [
 			"suspended",
@@ -264,7 +264,7 @@ describe("PATCH /api/profiles/me (integration, real Postgres)", () => {
 			.patch("/api/profiles/me")
 			.set("Authorization", `Bearer ${accessToken}`)
 			.send({ fullName: "Should Not Persist" })
-			.expect(403);
+			.expect(401);
 
 		const rows = await dataSource.query('SELECT "full_name" FROM "users" WHERE "id" = $1', [
 			userId,

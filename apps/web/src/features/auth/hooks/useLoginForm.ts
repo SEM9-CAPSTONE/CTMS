@@ -45,7 +45,7 @@ function toLoginSubmitError(error: unknown): LoginSubmitError {
 	return { message: mapLoginErrorMessage(undefined, "") };
 }
 
-export function useLoginForm() {
+export function useLoginForm(onLoginSuccess?: (user: LoginApiResponse["user"]) => void) {
 	const [showPassword, setShowPassword] = useState(false);
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [submitError, setSubmitError] = useState<LoginSubmitError | null>(null);
@@ -87,6 +87,7 @@ export function useLoginForm() {
 			setAccessToken(result.accessToken);
 			setRefreshToken(result.refreshToken);
 			setLoginResult(result);
+			onLoginSuccess?.(result.user);
 		} catch (error) {
 			// BR-242: entered data is left untouched (no reset), only the error is captured.
 			setSubmitError(toLoginSubmitError(error));

@@ -2,17 +2,20 @@ import { ArrowRight, Eye, EyeOff, Home, Lock, Mail } from "lucide-react";
 import type React from "react";
 import { AUTH_MESSAGES } from "../constants";
 import { useLoginForm } from "../hooks/useLoginForm";
+import type { LoginApiResponse } from "../types";
 
 interface LoginFormProps {
 	onBackToHome: () => void;
 	onNavigateToRegister?: () => void;
 	onNavigateToForgotPassword?: () => void;
+	onLoginSuccess?: (user: LoginApiResponse["user"]) => void;
 }
 
 export const LoginForm: React.FC<LoginFormProps> = ({
 	onBackToHome,
 	onNavigateToRegister,
 	onNavigateToForgotPassword,
+	onLoginSuccess,
 }) => {
 	const {
 		formData,
@@ -23,7 +26,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
 		togglePasswordVisibility,
 		updateField,
 		handleLoginSubmit,
-	} = useLoginForm();
+	} = useLoginForm(onLoginSuccess);
 
 	// 401 (Invalid credentials / Account is not active) -> banner; 422 -> flatten
 	// backend's per-field errors, same pattern as RegisterPage's errorMessages.
