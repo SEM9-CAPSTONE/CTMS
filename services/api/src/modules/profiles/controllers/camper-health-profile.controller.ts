@@ -15,14 +15,14 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
 import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
 import type { AuthenticatedUser } from "../../auth/jwt.strategy";
-// biome-ignore lint/style/useImportType: constructor-injected by NestJS DI
-import { CamperHealthProfileService } from "../services/camper-health-profile.service";
 import {
 	HealthProfileResponseDto,
 	toHealthProfileResponse,
 } from "../dto/health-profile-response.dto";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI
 import { UpdateHealthProfileDto } from "../dto/update-health-profile.dto";
+// biome-ignore lint/style/useImportType: constructor-injected by NestJS DI
+import { CamperHealthProfileService } from "../services/camper-health-profile.service";
 
 interface AuthenticatedRequest {
 	user: AuthenticatedUser;
@@ -33,10 +33,7 @@ interface AuthenticatedRequest {
 @Controller("camper/health-profile")
 @UseGuards(JwtAuthGuard)
 export class CamperHealthProfileController {
-	constructor(
-		// biome-ignore lint/style/useImportType: constructor-injected by NestJS DI
-		private readonly camperHealthProfileService: CamperHealthProfileService
-	) {}
+	constructor(private readonly camperHealthProfileService: CamperHealthProfileService) {}
 
 	@Get()
 	@ApiOperation({ summary: "Get the authenticated camper's health profile" })
@@ -101,8 +98,10 @@ export class CamperHealthProfileController {
 		@Req() req: AuthenticatedRequest,
 		@Param("userId") camperId: string
 	): Promise<HealthProfileResponseDto> {
-		const { profile, activeTripTitle } =
-			await this.camperHealthProfileService.getCamperProfile(req.user.userId, camperId);
+		const { profile, activeTripTitle } = await this.camperHealthProfileService.getCamperProfile(
+			req.user.userId,
+			camperId
+		);
 		return toHealthProfileResponse(profile, activeTripTitle);
 	}
 }

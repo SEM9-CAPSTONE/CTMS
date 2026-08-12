@@ -4,7 +4,6 @@ import { Test } from "@nestjs/testing";
 import request from "supertest";
 import { DataSource } from "typeorm";
 import { AppModule } from "../src/modules/app.module";
-// biome-ignore lint/style/useImportType: resolved from the DI container at runtime (moduleRef.get), needs design:paramtypes metadata
 import { AuthService } from "../src/modules/auth/auth.service";
 import { validationExceptionFactory } from "../src/shared/pipes/validation-exception-factory";
 
@@ -60,15 +59,18 @@ describe("POST /api/auth/verify (integration, real Postgres)", () => {
 		// FK: verification_otps.user_id -> users.id, no ON DELETE CASCADE
 		// (removed at Step 1 review) -- must delete verification_otps rows
 		// before deleting their owning users row.
-		if (cleanupUserIds.length > 0) {
+		if (cleanupUserIds?.length) {
+			await dataSource.query('DELETE FROM "audit_logs" WHERE "actor_id" = ANY($1)', [
+				cleanupUserIds,
+			]);
 			await dataSource.query('DELETE FROM "verification_otps" WHERE "user_id" = ANY($1)', [
 				cleanupUserIds,
 			]);
 		}
-		if (cleanupEmails.length > 0) {
+		if (cleanupEmails?.length) {
 			await dataSource.query('DELETE FROM "users" WHERE "email" = ANY($1)', [cleanupEmails]);
 		}
-		if (cleanupPhones.length > 0) {
+		if (cleanupPhones?.length) {
 			await dataSource.query('DELETE FROM "users" WHERE "phone" = ANY($1)', [cleanupPhones]);
 		}
 	});
@@ -132,6 +134,17 @@ describe("POST /api/auth/verify (integration, real Postgres)", () => {
 			[userId]
 		);
 		expect(otpRows).toHaveLength(0);
+
+		// Assert on audit logs
+		const auditRows = await dataSource.query(
+			'SELECT * FROM "audit_logs" WHERE "actor_id" = $1 AND "action" = $2',
+			[userId, "auth.verify_otp"]
+		);
+		expect(auditRows).toHaveLength(1);
+		expect(auditRows[0].target_type).toBe("user");
+		expect(auditRows[0].target_id).toBe(userId);
+		expect(auditRows[0].before).toEqual({ status: "pending_verification" });
+		expect(auditRows[0].after).toEqual({ status: "active" });
 	});
 
 	// --- Validation (422, BR-205) ---------------------------------------------

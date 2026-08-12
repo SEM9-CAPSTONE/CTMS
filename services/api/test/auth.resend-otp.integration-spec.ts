@@ -76,6 +76,10 @@ describe("POST /api/auth/resend (integration, real Postgres, fake delivery provi
 		// (removed at Step 1 review) -- must delete verification_otps rows
 		// before deleting their owning users row.
 		if (cleanupUserIds.length > 0) {
+			await dataSource.query(
+				'DELETE FROM "audit_logs" WHERE "actor_id" = ANY($1) OR "target_id" = ANY($1)',
+				[cleanupUserIds]
+			);
 			await dataSource.query('DELETE FROM "verification_otps" WHERE "user_id" = ANY($1)', [
 				cleanupUserIds,
 			]);

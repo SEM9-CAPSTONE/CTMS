@@ -16,7 +16,7 @@ import ms from "ms";
 import { DataSource, type EntityManager } from "typeorm";
 import { isUniqueViolation } from "../../shared/database/postgres-error-codes";
 import { normalizeEmail, normalizeVietnamPhone } from "../../shared/utils/normalize.util";
-import { UserStatus } from "../users/entities/user.entity";
+import { type User, UserStatus } from "../users/entities/user.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { UsersRepository } from "../users/users.repository";
 import type { ForgotPasswordResponseDto } from "./dto/forgot-password-response.dto";
@@ -116,9 +116,11 @@ export class AuthService {
 
 		const user = await this.dataSource.transaction(async (manager) => {
 			const transactionalUsersRepository = manager.withRepository(this.usersRepository);
+			const auditLogRepository = manager.getRepository(AuditLog);
 
+			let createdUser: User;
 			try {
-				return await transactionalUsersRepository.createUser({
+				createdUser = await transactionalUsersRepository.createUser({
 					email,
 					phone,
 					passwordHash,
@@ -130,6 +132,18 @@ export class AuthService {
 				}
 				throw error;
 			}
+
+			await auditLogRepository.save({
+				actorId: createdUser.id,
+				action: "auth.register",
+				targetType: "user",
+				targetId: createdUser.id,
+				before: null,
+				after: { role: createdUser.role },
+				reason: null,
+			});
+
+			return createdUser;
 		});
 
 		this.logger.log(`User registered: ${user.id}`);
@@ -156,7 +170,9 @@ export class AuthService {
 		userId: string
 	): Promise<OtpPlan> {
 		const ttlMinutes = Number(this.configService.get<string>("OTP_TTL_MINUTES") ?? "10");
-		const windowMinutes = Number(this.configService.get<string>("OTP_RESEND_WINDOW_MINUTES") ?? "1440");
+		const windowMinutes = Number(
+			this.configService.get<string>("OTP_RESEND_WINDOW_MINUTES") ?? "1440"
+		);
 		const maxAttempts = Number(this.configService.get<string>("OTP_RESEND_MAX_ATTEMPTS") ?? "5");
 
 		const code = generateOtpCode();
@@ -272,11 +288,24 @@ export class AuthService {
 		const user = await this.dataSource.transaction(async (manager) => {
 			const transactionalUsersRepository = manager.withRepository(this.usersRepository);
 			const transactionalOtpRepository = manager.withRepository(this.verificationOtpRepository);
+			const auditLogRepository = manager.getRepository(AuditLog);
 
 			await transactionalUsersRepository.update(dto.userId, { status: UserStatus.ACTIVE });
 			await transactionalOtpRepository.delete({ userId: dto.userId });
 
-			return transactionalUsersRepository.findOneByOrFail({ id: dto.userId });
+			const updatedUser = await transactionalUsersRepository.findOneByOrFail({ id: dto.userId });
+
+			await auditLogRepository.save({
+				actorId: dto.userId,
+				action: "auth.verify_otp",
+				targetType: "user",
+				targetId: dto.userId,
+				before: { status: UserStatus.PENDING_VERIFICATION },
+				after: { status: UserStatus.ACTIVE },
+				reason: null,
+			});
+
+			return updatedUser;
 		});
 
 		this.logger.log(`OTP verified, user activated: ${user.id}`);
@@ -388,11 +417,23 @@ export class AuthService {
 			const transactionalRefreshTokenRepository = manager.withRepository(
 				this.refreshTokenRepository
 			);
+			const auditLogRepository = manager.getRepository(AuditLog);
+
 			await transactionalRefreshTokenRepository.save({
 				userId: user.id,
 				tokenHash,
 				expiresAt,
 				revokedAt: null,
+			});
+
+			await auditLogRepository.save({
+				actorId: user.id,
+				action: "auth.login",
+				targetType: "user",
+				targetId: user.id,
+				before: null,
+				after: null,
+				reason: null,
 			});
 		});
 

@@ -1,4 +1,4 @@
-﻿# CTMS-124 - Write Audit Log for Important Actions
+# CTMS-124 - Write Audit Log for Important Actions
 
 **Spec Reference**  
 /file/spec/ctms-124-write-audit-log-for-important-actions.md
@@ -7,30 +7,30 @@
 Write Audit Log for Important Actions
 
 **Status**  
-To Do
+In Progress (Backend completed)
 
 **Story**  
 As an Admin, I want to write Audit Log for Important Actions so that the CTMS workflow is completed safely, consistently, and within the correct business scope.
 
 ## Acceptance Criteria
-- [ ] Save actor, action, target, time, before data, and after data.
+- [x] Save actor, action, target, time, before data, and after data.
 
 ## Business Rules Checklist
-- [ ] BR-194: Do not hard-delete related data.
-- [ ] BR-202: Accounts in pending_verification, suspended, or deleted status must not use functions that require an active account, except allowed verification or recovery flows.
-- [ ] BR-204: Users may only view or change data they own unless their role and business relationship allow access to another user's data.
-- [ ] BR-205: All input data must be validated for required fields, data type, format, length, enum values, and cross-field relationships before processing.
-- [ ] BR-218: Access to health data must be based on consent and the relationship to the Trip; when consent is withdrawn, access must end immediately.
-- [ ] BR-219: All times must be stored as timestamptz and displayed using the configured user or location time zone.
-- [ ] BR-221: OTP TTL, token TTL, retry count, rate limit, booking hold duration, and retry deadline must be configurable and not hard-coded in logic.
-- [ ] BR-222: Important actions must be written to the audit log with actor, action, target, timestamp, before/after data, or change reason.
-- [ ] BR-223: Audit logs are append-only; users and Admins must not edit or delete audit logs through normal business functions.
-- [ ] BR-224: Audit logs must not contain passwords, OTPs, tokens, sensitive payment data, or unnecessary health data.
-- [ ] BR-230: External-service retries must have limits and backoff; retries must not create duplicate records or transactions.
-- [ ] BR-231: APIs must return consistent error codes: 401 for authentication failure, 403 for insufficient permission, 404 for not found, 409 for business conflict, and 422 for invalid data.
-- [ ] BR-242: When the backend rejects a request because data changed concurrently, the UI must preserve entered data, display the reason, and allow reload or retry.
-- [ ] BR-243: Cases with insufficient permission or unmet business conditions must not create any side effect.
-- [ ] BR-244: Changes to Business Rules, enums, state transitions, or API contracts must update the Spec, test cases, and data documentation together before Done.
+- [x] BR-194: Do not hard-delete related data.
+- [x] BR-202: Accounts in pending_verification, suspended, or deleted status must not use functions that require an active account, except allowed verification or recovery flows.
+- [x] BR-204: Users may only view or change data they own unless their role and business relationship allow access to another user's data.
+- [x] BR-205: All input data must be validated for required fields, data type, format, length, enum values, and cross-field relationships before processing.
+- [x] BR-218: Access to health data must be based on consent and the relationship to the Trip; when consent is withdrawn, access must end immediately.
+- [x] BR-219: All times must be stored as timestamptz and displayed using the configured user or location time zone.
+- [x] BR-221: OTP TTL, token TTL, retry count, rate limit, booking hold duration, and retry deadline must be configurable and not hard-coded in logic.
+- [x] BR-222: Important actions must be written to the audit log with actor, action, target, timestamp, before/after data, or change reason.
+- [x] BR-223: Audit logs are append-only; users and Admins must not edit or delete audit logs through normal business functions.
+- [x] BR-224: Audit logs must not contain passwords, OTPs, tokens, sensitive payment data, or unnecessary health data.
+- [x] BR-230: External-service retries must have limits and backoff; retries must not create duplicate records or transactions.
+- [x] BR-231: APIs must return consistent error codes: 401 for authentication failure, 403 for insufficient permission, 404 for not found, 409 for business conflict, and 422 for invalid data.
+- [x] BR-242: When the backend rejects a request because data changed concurrently, the UI must preserve entered data, display the reason, and allow reload or retry.
+- [x] BR-243: Cases with insufficient permission or unmet business conditions must not create any side effect.
+- [x] BR-244: Changes to Business Rules, enums, state transitions, or API contracts must update the Spec, test cases, and data documentation together before Done.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -118,3 +118,46 @@ Blocks: CTMS-125`
 - Spec Reference: `/file/spec/ctms-124-write-audit-log-for-important-actions.md`
 - Business Rules workbook: `C:/Users/admin/Downloads/CTMS_Global_Business_Rules_Sprint_1-3.xlsx`
 - Story-level BRs: `BR-202, BR-204, BR-205, BR-230, BR-231, BR-242, BR-243, BR-244, BR-221, BR-222, BR-223, BR-224, BR-218, BR-219, BR-194`
+
+## Backend Preparation Logic and Tests
+
+This section outlines the detailed requirements, actors, flows, and testing strategies for auditing critical actions.
+
+### 1. Actors
+- **Camper / Porter / Host / Admin**: System users who perform actions.
+- **Anonymous Visitor**: Performs user registration before gaining an active account context.
+
+### 2. Preconditions
+- User registration requires unique contact details (email or phone).
+- OTP verification requires a valid pending OTP record in the database.
+- User login requires an active account status and correct credentials.
+
+### 3. Core Audit Logging Flows
+
+#### auth.register
+- **Description**: Triggered when a new user profile is created.
+- **Actor**: The newly created user.
+- **Target**: User (`target_type = "user"`, `target_id = user.id`).
+- **Before State**: `null`.
+- **After State**: `{ role: user.role }` (Excluding personal data and credentials).
+- **Rollback Behavior**: If persisting the audit log fails, the registration transaction rolls back entirely, and no user is created.
+
+#### auth.verify_otp
+- **Description**: Triggered when a user successfully verifies their account OTP.
+- **Actor**: The user performing verification.
+- **Target**: User (`target_type = "user"`, `target_id = user.id`).
+- **Before State**: `{ status: "pending_verification" }`.
+- **After State**: `{ status: "active" }`.
+- **Rollback Behavior**: If persisting the audit log fails, the verification transaction rolls back, keeping status at `pending_verification` and preserving the OTP record.
+
+#### auth.login
+- **Description**: Triggered when a user successfully authenticates and starts a session.
+- **Actor**: The logged-in user.
+- **Target**: User (`target_type = "user"`, `target_id = user.id`).
+- **Before State**: `null`.
+- **After State**: `null` (The event itself indicates login success; no extra metadata is recorded).
+- **Rollback Behavior**: If persisting the audit log fails, the login transaction rolls back, meaning no refresh token is stored and the login fails.
+
+### 4. Sensitive Data Exclusion (BR-224)
+Plaintext passwords, password hashes (`passwordHash`), OTP verification codes (`codeHash`), and refresh token hashes (`tokenHash`) must be excluded from the `before`/`after` properties of the audit log record.
+

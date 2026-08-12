@@ -21,6 +21,7 @@ import type { ResetPasswordDto } from "./dto/reset-password.dto";
 import { OtpChannel } from "./dto/send-otp.dto";
 import type { SendOtpDto } from "./dto/send-otp.dto";
 import type { VerifyOtpDto } from "./dto/verify-otp.dto";
+import { AuditLog } from "./entities/audit-log.entity";
 import type { OtpDeliveryService } from "./otp-delivery.service";
 import type { RefreshTokenRepository } from "./refresh-token.repository";
 import type { VerificationOtpRepository } from "./verification-otp.repository";
@@ -92,7 +93,8 @@ describe("AuthService.register", () => {
 	let authService: AuthService;
 	let usersRepository: MockUsersRepository;
 	let transactionalUsersRepository: MockUsersRepository;
-	let manager: { withRepository: jest.Mock };
+	let auditLogRepository: { save: jest.Mock };
+	let manager: { withRepository: jest.Mock; getRepository: jest.Mock };
 	let dataSource: { transaction: jest.Mock };
 	let loggerLogSpy: jest.SpyInstance;
 	const bcryptHash = bcrypt.hash as unknown as jest.Mock;
@@ -101,8 +103,17 @@ describe("AuthService.register", () => {
 		jest.clearAllMocks();
 		loggerLogSpy = jest.spyOn(Logger.prototype, "log").mockImplementation(() => undefined);
 
+		auditLogRepository = { save: jest.fn() };
 		transactionalUsersRepository = { findByEmailOrPhone: jest.fn(), createUser: jest.fn() };
-		manager = { withRepository: jest.fn().mockReturnValue(transactionalUsersRepository) };
+		manager = {
+			withRepository: jest.fn().mockReturnValue(transactionalUsersRepository),
+			getRepository: jest.fn().mockImplementation((entityClass) => {
+				if (entityClass === AuditLog) {
+					return auditLogRepository;
+				}
+				return null;
+			}),
+		};
 		dataSource = {
 			transaction: jest.fn(async (callback: (manager: EntityManager) => unknown) =>
 				callback(manager as unknown as EntityManager)
@@ -316,6 +327,56 @@ describe("AuthService.register", () => {
 		expect(manager.withRepository).not.toHaveBeenCalled();
 		expect(transactionalUsersRepository.createUser).not.toHaveBeenCalled();
 	});
+
+	it("writes an audit log for auth.register inside the transaction", async () => {
+		const dto = buildDto({
+			email: "audit-register@example.com",
+			phone: "+84987654322",
+			role: UserRole.CAMPER,
+		});
+		const createdUser = buildUser({
+			id: "22222222-2222-2222-2222-222222222222",
+			email: "audit-register@example.com",
+			phone: "+84987654322",
+			role: UserRole.CAMPER,
+		});
+		usersRepository.findByEmailOrPhone.mockResolvedValue(null);
+		transactionalUsersRepository.createUser.mockResolvedValue(createdUser);
+
+		await authService.register(dto);
+
+		expect(auditLogRepository.save).toHaveBeenCalledTimes(1);
+		expect(auditLogRepository.save).toHaveBeenCalledWith({
+			actorId: "22222222-2222-2222-2222-222222222222",
+			action: "auth.register",
+			targetType: "user",
+			targetId: "22222222-2222-2222-2222-222222222222",
+			before: null,
+			after: { role: UserRole.CAMPER },
+			reason: null,
+		});
+	});
+
+	it("propagates error and rolls back when the audit log write fails during registration", async () => {
+		const dto = buildDto({
+			email: "audit-fail@example.com",
+			phone: "+84987654323",
+			role: UserRole.CAMPER,
+		});
+		const createdUser = buildUser({
+			id: "33333333-3333-3333-3333-333333333333",
+			email: "audit-fail@example.com",
+			phone: "+84987654323",
+			role: UserRole.CAMPER,
+		});
+		usersRepository.findByEmailOrPhone.mockResolvedValue(null);
+		transactionalUsersRepository.createUser.mockResolvedValue(createdUser);
+		const auditError = new Error("audit save error");
+		auditLogRepository.save.mockRejectedValue(auditError);
+
+		await expect(authService.register(dto)).rejects.toThrow(auditError);
+		expect(auditLogRepository.save).toHaveBeenCalledTimes(1);
+	});
 });
 
 describe("AuthService.issueOtp", () => {
@@ -484,7 +545,8 @@ describe("AuthService.verifyOtp", () => {
 	let otpRepository: { findOneBy: jest.Mock };
 	let transactionalUsersRepository: MockUsersRepositoryForVerify;
 	let transactionalOtpRepository: MockOtpRepositoryForVerify;
-	let manager: { withRepository: jest.Mock };
+	let auditLogRepository: { save: jest.Mock };
+	let manager: { withRepository: jest.Mock; getRepository: jest.Mock };
 	let dataSource: { transaction: jest.Mock };
 	let loggerLogSpy: jest.SpyInstance;
 	const bcryptCompare = bcrypt.compare as unknown as jest.Mock;
@@ -511,6 +573,7 @@ describe("AuthService.verifyOtp", () => {
 		jest.clearAllMocks();
 		loggerLogSpy = jest.spyOn(Logger.prototype, "log").mockImplementation(() => undefined);
 
+		auditLogRepository = { save: jest.fn() };
 		usersRepository = { findByEmailOrPhone: jest.fn(), createUser: jest.fn() };
 		otpRepository = { findOneBy: jest.fn() };
 		transactionalUsersRepository = { update: jest.fn(), findOneByOrFail: jest.fn() };
@@ -519,6 +582,12 @@ describe("AuthService.verifyOtp", () => {
 			withRepository: jest.fn((repo: unknown) =>
 				repo === usersRepository ? transactionalUsersRepository : transactionalOtpRepository
 			),
+			getRepository: jest.fn().mockImplementation((entityClass) => {
+				if (entityClass === AuditLog) {
+					return auditLogRepository;
+				}
+				return null;
+			}),
 		};
 		dataSource = {
 			transaction: jest.fn(async (callback: (manager: EntityManager) => unknown) =>
@@ -627,6 +696,36 @@ describe("AuthService.verifyOtp", () => {
 		expect((error as ConflictException).getStatus()).toBe(409);
 		// BR-243: no side effect.
 		expect(dataSource.transaction).not.toHaveBeenCalled();
+	});
+
+	it("writes an audit log for auth.verify_otp inside the transaction", async () => {
+		otpRepository.findOneBy.mockResolvedValue(buildOtpRow());
+		const activatedUser = buildUser({ status: UserStatus.ACTIVE });
+		transactionalUsersRepository.findOneByOrFail.mockResolvedValue(activatedUser);
+
+		await authService.verifyOtp(buildDto());
+
+		expect(auditLogRepository.save).toHaveBeenCalledTimes(1);
+		expect(auditLogRepository.save).toHaveBeenCalledWith({
+			actorId: USER_ID,
+			action: "auth.verify_otp",
+			targetType: "user",
+			targetId: USER_ID,
+			before: { status: UserStatus.PENDING_VERIFICATION },
+			after: { status: UserStatus.ACTIVE },
+			reason: null,
+		});
+	});
+
+	it("propagates error and rolls back when the audit log write fails during verification", async () => {
+		otpRepository.findOneBy.mockResolvedValue(buildOtpRow());
+		const activatedUser = buildUser({ status: UserStatus.ACTIVE });
+		transactionalUsersRepository.findOneByOrFail.mockResolvedValue(activatedUser);
+		const auditError = new Error("audit save error");
+		auditLogRepository.save.mockRejectedValue(auditError);
+
+		await expect(authService.verifyOtp(buildDto())).rejects.toThrow(auditError);
+		expect(auditLogRepository.save).toHaveBeenCalledTimes(1);
 	});
 });
 
@@ -811,7 +910,8 @@ describe("AuthService.login", () => {
 	let usersRepository: { findByEmailOrPhone: jest.Mock };
 	let refreshTokenRepository: { save: jest.Mock };
 	let transactionalRefreshTokenRepository: { save: jest.Mock };
-	let manager: { withRepository: jest.Mock };
+	let auditLogRepository: { save: jest.Mock };
+	let manager: { withRepository: jest.Mock; getRepository: jest.Mock };
 	let dataSource: { transaction: jest.Mock };
 	let configService: { get: jest.Mock };
 	let jwtService: { sign: jest.Mock };
@@ -841,10 +941,19 @@ describe("AuthService.login", () => {
 		jest.clearAllMocks();
 		loggerLogSpy = jest.spyOn(Logger.prototype, "log").mockImplementation(() => undefined);
 
+		auditLogRepository = { save: jest.fn() };
 		usersRepository = { findByEmailOrPhone: jest.fn() };
 		transactionalRefreshTokenRepository = { save: jest.fn() };
 		refreshTokenRepository = { save: jest.fn() };
-		manager = { withRepository: jest.fn().mockReturnValue(transactionalRefreshTokenRepository) };
+		manager = {
+			withRepository: jest.fn().mockReturnValue(transactionalRefreshTokenRepository),
+			getRepository: jest.fn().mockImplementation((entityClass) => {
+				if (entityClass === AuditLog) {
+					return auditLogRepository;
+				}
+				return null;
+			}),
+		};
 		dataSource = {
 			transaction: jest.fn(async (callback: (manager: EntityManager) => unknown) =>
 				callback(manager as unknown as EntityManager)
@@ -1039,6 +1148,32 @@ describe("AuthService.login", () => {
 			expect(serialized).not.toContain(RAW_REFRESH_TOKEN);
 			expect(serialized).not.toContain(ACCESS_TOKEN);
 		}
+	});
+
+	it("writes an audit log for auth.login inside the transaction", async () => {
+		usersRepository.findByEmailOrPhone.mockResolvedValue(buildActiveUser());
+
+		await authService.login(buildDto());
+
+		expect(auditLogRepository.save).toHaveBeenCalledTimes(1);
+		expect(auditLogRepository.save).toHaveBeenCalledWith({
+			actorId: USER_ID,
+			action: "auth.login",
+			targetType: "user",
+			targetId: USER_ID,
+			before: null,
+			after: null,
+			reason: null,
+		});
+	});
+
+	it("propagates error and rolls back when the audit log write fails during login", async () => {
+		usersRepository.findByEmailOrPhone.mockResolvedValue(buildActiveUser());
+		const auditError = new Error("audit save error");
+		auditLogRepository.save.mockRejectedValue(auditError);
+
+		await expect(authService.login(buildDto())).rejects.toThrow(auditError);
+		expect(auditLogRepository.save).toHaveBeenCalledTimes(1);
 	});
 });
 

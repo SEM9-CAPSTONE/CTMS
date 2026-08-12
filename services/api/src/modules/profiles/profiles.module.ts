@@ -3,12 +3,12 @@ import { DataSource } from "typeorm";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { UsersModule } from "../users/users.module";
 import { CamperHealthProfileController } from "./controllers/camper-health-profile.controller";
-import { CamperHealthProfileService } from "./services/camper-health-profile.service";
-import { EmergencyContactsRepository } from "./repositories/emergency-contacts.repository";
+import { ProfilesController } from "./controllers/profiles.controller";
 import { EmergencyContact } from "./entities/emergency-contact.entity";
 import { HealthProfile } from "./entities/health-profile.entity";
+import { EmergencyContactsRepository } from "./repositories/emergency-contacts.repository";
 import { HealthProfileRepository } from "./repositories/health-profile.repository";
-import { ProfilesController } from "./controllers/profiles.controller";
+import { CamperHealthProfileService } from "./services/camper-health-profile.service";
 import { ProfilesService } from "./services/profiles.service";
 
 @Module({

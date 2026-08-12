@@ -3,7 +3,6 @@ import { Test } from "@nestjs/testing";
 import request from "supertest";
 import { DataSource } from "typeorm";
 import { AppModule } from "../src/modules/app.module";
-// biome-ignore lint/style/useImportType: resolved from the DI container at runtime (moduleRef.get), needs design:paramtypes metadata
 import { AuthService } from "../src/modules/auth/auth.service";
 import { validationExceptionFactory } from "../src/shared/pipes/validation-exception-factory";
 
@@ -156,8 +155,8 @@ describe("POST /api/auth/refresh (integration, real Postgres)", () => {
 		const rows = await dataSource.query('SELECT "action" FROM "audit_logs" WHERE "actor_id" = $1', [
 			userId,
 		]);
-		expect(rows).toHaveLength(1);
-		expect(rows[0].action).toBe("auth.token_refreshed");
+		const refreshLogs = rows.filter((r: { action: string }) => r.action === "auth.token_refreshed");
+		expect(refreshLogs).toHaveLength(1);
 	});
 
 	// --- DG-02: rotation + DG-03: reuse of the old (now-invalidated) token ------

@@ -1,12 +1,12 @@
-import { ConflictException, ForbiddenException, NotFoundException } from "@nestjs/common";
+import { ConflictException, ForbiddenException } from "@nestjs/common";
 import type { DataSource, EntityManager } from "typeorm";
 import { UserRole, UserStatus } from "../../users/entities/user.entity";
 import type { User } from "../../users/entities/user.entity";
 import type { UsersRepository } from "../../users/users.repository";
-import { HealthProfile, BloodType, FitnessLevel } from "../entities/health-profile.entity";
+import type { UpdateHealthProfileDto } from "../dto/update-health-profile.dto";
+import { BloodType, FitnessLevel, HealthProfile } from "../entities/health-profile.entity";
 import type { HealthProfileRepository } from "../repositories/health-profile.repository";
 import { CamperHealthProfileService } from "./camper-health-profile.service";
-import type { UpdateHealthProfileDto } from "../dto/update-health-profile.dto";
 
 const CAMPER_ID = "11111111-1111-1111-1111-111111111111";
 const CALLER_ID = "22222222-2222-2222-2222-222222222222";

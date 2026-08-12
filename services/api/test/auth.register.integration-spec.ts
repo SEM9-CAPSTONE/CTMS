@@ -51,10 +51,18 @@ describe("POST /api/auth/register (integration, real Postgres)", () => {
 	});
 
 	afterEach(async () => {
-		if (cleanupEmails.length > 0) {
+		if (cleanupEmails?.length) {
+			await dataSource.query(
+				'DELETE FROM "audit_logs" WHERE "actor_id" IN (SELECT id FROM "users" WHERE "email" = ANY($1))',
+				[cleanupEmails]
+			);
 			await dataSource.query('DELETE FROM "users" WHERE "email" = ANY($1)', [cleanupEmails]);
 		}
-		if (cleanupPhones.length > 0) {
+		if (cleanupPhones?.length) {
+			await dataSource.query(
+				'DELETE FROM "audit_logs" WHERE "actor_id" IN (SELECT id FROM "users" WHERE "phone" = ANY($1))',
+				[cleanupPhones]
+			);
 			await dataSource.query('DELETE FROM "users" WHERE "phone" = ANY($1)', [cleanupPhones]);
 		}
 	});
@@ -94,6 +102,16 @@ describe("POST /api/auth/register (integration, real Postgres)", () => {
 		expect(rows).toHaveLength(1);
 		expect(rows[0].phone).toBe(phone);
 		expect(rows[0].role).toBe("camper");
+
+		const auditRows = await dataSource.query('SELECT * FROM "audit_logs" WHERE "actor_id" = $1', [
+			response.body.id,
+		]);
+		expect(auditRows).toHaveLength(1);
+		expect(auditRows[0].action).toBe("auth.register");
+		expect(auditRows[0].target_type).toBe("user");
+		expect(auditRows[0].target_id).toBe(response.body.id);
+		expect(auditRows[0].before).toBeNull();
+		expect(auditRows[0].after).toEqual({ role: "camper" });
 	});
 
 	// --- Normalization ------------------------------------------------------

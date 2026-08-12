@@ -1,5 +1,4 @@
 import { type INestApplication, ValidationPipe } from "@nestjs/common";
-import { JwtService } from "@nestjs/jwt";
 import { Test } from "@nestjs/testing";
 import request from "supertest";
 import { DataSource } from "typeorm";
@@ -12,7 +11,6 @@ describe("Camper Health Profile (integration, real Postgres)", () => {
 	let app: INestApplication;
 	let dataSource: DataSource;
 	let authService: AuthService;
-	let jwtService: JwtService;
 	let cleanupUserIds: string[];
 	let cleanupEmails: string[];
 	let cleanupPhones: string[];
@@ -43,7 +41,11 @@ describe("Camper Health Profile (integration, real Postgres)", () => {
 		const router = server._events.request._router;
 		if (router) {
 			const routes = router.stack
-				.map((layer: any) => layer.route ? `${Object.keys(layer.route.methods).join(',').toUpperCase()} ${layer.route.path}` : '')
+				.map((layer: { route?: { methods: Record<string, boolean>; path: string } }) =>
+					layer.route
+						? `${Object.keys(layer.route.methods).join(",").toUpperCase()} ${layer.route.path}`
+						: ""
+				)
 				.filter(Boolean);
 			console.log("NEST REGISTERED ROUTES:", routes);
 		}
@@ -53,10 +55,8 @@ describe("Camper Health Profile (integration, real Postgres)", () => {
 			'TRUNCATE TABLE "bookings", "trip_porters", "trips", "audit_logs", "health_profiles", "refresh_tokens", "verification_otps", "users" CASCADE'
 		);
 		authService = moduleRef.get(AuthService);
-		jwtService = moduleRef.get(JwtService);
 		expect(dataSource.isInitialized).toBe(true);
 	});
-
 
 	afterAll(async () => {
 		await app.close();
@@ -73,16 +73,36 @@ describe("Camper Health Profile (integration, real Postgres)", () => {
 		// Clean up junction and mock tables first
 		if (cleanupTripIds.length > 0) {
 			await dataSource.query('DELETE FROM "bookings" WHERE "trip_id" = ANY($1)', [cleanupTripIds]);
-			await dataSource.query('DELETE FROM "trip_porters" WHERE "trip_id" = ANY($1)', [cleanupTripIds]);
+			await dataSource.query('DELETE FROM "trip_porters" WHERE "trip_id" = ANY($1)', [
+				cleanupTripIds,
+			]);
 			await dataSource.query('DELETE FROM "trips" WHERE "id" = ANY($1)', [cleanupTripIds]);
 		}
 		if (cleanupEmails.length > 0) {
-			await dataSource.query('DELETE FROM "bookings" WHERE "user_id" IN (SELECT "id" FROM "users" WHERE "email" = ANY($1))', [cleanupEmails]);
-			await dataSource.query('DELETE FROM "trip_porters" WHERE "porter_id" IN (SELECT "id" FROM "users" WHERE "email" = ANY($1))', [cleanupEmails]);
-			await dataSource.query('DELETE FROM "audit_logs" WHERE "actor_id" IN (SELECT "id" FROM "users" WHERE "email" = ANY($1)) OR "target_id" IN (SELECT "id" FROM "users" WHERE "email" = ANY($1))', [cleanupEmails]);
-			await dataSource.query('DELETE FROM "health_profiles" WHERE "user_id" IN (SELECT "id" FROM "users" WHERE "email" = ANY($1))', [cleanupEmails]);
-			await dataSource.query('DELETE FROM "refresh_tokens" WHERE "user_id" IN (SELECT "id" FROM "users" WHERE "email" = ANY($1))', [cleanupEmails]);
-			await dataSource.query('DELETE FROM "verification_otps" WHERE "user_id" IN (SELECT "id" FROM "users" WHERE "email" = ANY($1))', [cleanupEmails]);
+			await dataSource.query(
+				'DELETE FROM "bookings" WHERE "user_id" IN (SELECT "id" FROM "users" WHERE "email" = ANY($1))',
+				[cleanupEmails]
+			);
+			await dataSource.query(
+				'DELETE FROM "trip_porters" WHERE "porter_id" IN (SELECT "id" FROM "users" WHERE "email" = ANY($1))',
+				[cleanupEmails]
+			);
+			await dataSource.query(
+				'DELETE FROM "audit_logs" WHERE "actor_id" IN (SELECT "id" FROM "users" WHERE "email" = ANY($1)) OR "target_id" IN (SELECT "id" FROM "users" WHERE "email" = ANY($1))',
+				[cleanupEmails]
+			);
+			await dataSource.query(
+				'DELETE FROM "health_profiles" WHERE "user_id" IN (SELECT "id" FROM "users" WHERE "email" = ANY($1))',
+				[cleanupEmails]
+			);
+			await dataSource.query(
+				'DELETE FROM "refresh_tokens" WHERE "user_id" IN (SELECT "id" FROM "users" WHERE "email" = ANY($1))',
+				[cleanupEmails]
+			);
+			await dataSource.query(
+				'DELETE FROM "verification_otps" WHERE "user_id" IN (SELECT "id" FROM "users" WHERE "email" = ANY($1))',
+				[cleanupEmails]
+			);
 			await dataSource.query('DELETE FROM "users" WHERE "email" = ANY($1)', [cleanupEmails]);
 		}
 	});
@@ -98,8 +118,10 @@ describe("Camper Health Profile (integration, real Postgres)", () => {
 		return `09${String(combined).padStart(8, "0")}`;
 	}
 
-
-	async function registerAndActivateUser(tag: string, role: UserRole = UserRole.CAMPER): Promise<{
+	async function registerAndActivateUser(
+		tag: string,
+		role: UserRole = UserRole.CAMPER
+	): Promise<{
 		userId: string;
 		email: string;
 		accessToken: string;
@@ -177,7 +199,9 @@ describe("Camper Health Profile (integration, real Postgres)", () => {
 			dietaryRestrictions: "No seafood",
 			emergencyNotes: "EpiPen required",
 			allergies: [{ id: "alg-1", name: "Peanuts", severity: "HIGH", reaction: "Hives" }],
-			medicalConditions: [{ id: "med-1", name: "Mild Asthma", medication: "Inhaler", notes: "Use during climb" }],
+			medicalConditions: [
+				{ id: "med-1", name: "Mild Asthma", medication: "Inhaler", notes: "Use during climb" },
+			],
 			isConsentGranted: true,
 		};
 
@@ -195,7 +219,9 @@ describe("Camper Health Profile (integration, real Postgres)", () => {
 			dietaryRestrictions: "No seafood",
 			emergencyNotes: "EpiPen required",
 			allergies: [{ id: "alg-1", name: "Peanuts", severity: "HIGH", reaction: "Hives" }],
-			medicalConditions: [{ id: "med-1", name: "Mild Asthma", medication: "Inhaler", notes: "Use during climb" }],
+			medicalConditions: [
+				{ id: "med-1", name: "Mild Asthma", medication: "Inhaler", notes: "Use during climb" },
+			],
 			consent: {
 				isConsentGranted: true,
 			},
@@ -331,7 +357,6 @@ describe("Camper Health Profile (integration, real Postgres)", () => {
 		let hostToken: string;
 		let porterId: string;
 		let porterToken: string;
-		let otherId: string;
 		let otherToken: string;
 		let tripId: string;
 
@@ -349,17 +374,17 @@ describe("Camper Health Profile (integration, real Postgres)", () => {
 			porterToken = porter.accessToken;
 
 			const other = await registerAndActivateUser("other-ac", UserRole.CAMPER);
-			otherId = other.userId;
 			otherToken = other.accessToken;
 
 			// Setup a mock trip owned by the host
 			tripId = "11111111-1111-1111-1111-111111111111";
 			cleanupTripIds.push(tripId);
 
-			await dataSource.query(
-				`INSERT INTO "trips" ("id", "title", "host_id") VALUES ($1, $2, $3)`,
-				[tripId, "Mount Fansipan Expedition", hostId]
-			);
+			await dataSource.query(`INSERT INTO "trips" ("id", "title", "host_id") VALUES ($1, $2, $3)`, [
+				tripId,
+				"Mount Fansipan Expedition",
+				hostId,
+			]);
 
 			// Link porter to trip
 			await dataSource.query(
