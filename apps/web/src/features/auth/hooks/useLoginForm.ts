@@ -3,7 +3,7 @@ import { HttpError } from "../../../core/api";
 import { authService } from "../services/auth.service";
 import type { LoginApiResponse, LoginFormData } from "../types";
 import { formatAuthIdentifier, isValidEmail, isValidPhoneNumber } from "../utils/auth.utils";
-import { setAccessToken, setRefreshToken } from "../utils/tokenStorage";
+import { setAccessToken, setRefreshToken, setStoredAuthUser } from "../utils/tokenStorage";
 
 /** Data prepared from a failed submit, for LoginForm to render. */
 export interface LoginSubmitError {
@@ -86,6 +86,7 @@ export function useLoginForm(onLoginSuccess?: (user: LoginApiResponse["user"]) =
 			const result = await authService.login({ identifier, password: formData.password });
 			setAccessToken(result.accessToken);
 			setRefreshToken(result.refreshToken);
+			setStoredAuthUser(result.user);
 			setLoginResult(result);
 			onLoginSuccess?.(result.user);
 		} catch (error) {

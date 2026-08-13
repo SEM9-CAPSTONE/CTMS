@@ -15,9 +15,15 @@ import { useCamperProfile } from "../hooks/useCamperProfile";
 
 interface CamperProfilePageProps {
 	onBackHome?: () => void;
+	onNavigateDashboard?: () => void;
+	onLogout?: () => void;
 }
 
-export function CamperProfilePage({ onBackHome }: CamperProfilePageProps) {
+export function CamperProfilePage({
+	onBackHome,
+	onNavigateDashboard,
+	onLogout,
+}: CamperProfilePageProps) {
 	const [activeTab, setActiveTab] = useState<SettingsTabEnum>(SettingsTabEnum.PERSONAL_PROFILE);
 	const [activeNav, setActiveNav] = useState<string>("profile");
 
@@ -53,7 +59,14 @@ export function CamperProfilePage({ onBackHome }: CamperProfilePageProps) {
 			<CamperSidebar
 				profile={profile}
 				activeNav={activeNav}
-				onNavigate={(navKey) => setActiveNav(navKey)}
+				onLogout={onLogout}
+				onNavigate={(navKey) => {
+					if (navKey === "overview") {
+						onNavigateDashboard?.();
+						return;
+					}
+					setActiveNav(navKey);
+				}}
 			/>
 
 			{/* Main Content Area */}

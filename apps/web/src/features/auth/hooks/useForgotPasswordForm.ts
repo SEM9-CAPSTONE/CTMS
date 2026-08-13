@@ -158,9 +158,26 @@ export function useForgotPasswordForm(onNavigateToLogin: () => void) {
 		}
 	};
 
-	const requestNewCode = () => {
+	const requestNewCode = async () => {
+		if (isRequesting || !validateIdentifier()) {
+			return;
+		}
+
 		setSubmitError(null);
-		setStep("request");
+		setIsRequesting(true);
+		try {
+			await authService.forgotPassword({
+				identifier: normalizedIdentifier,
+				channel: formData.channel,
+			});
+			setRequestMessage(
+				"Nếu tài khoản đang hoạt động, mã xác minh mới đã được gửi tới kênh bạn chọn."
+			);
+		} catch (error) {
+			setSubmitError(mapRequestError(error));
+		} finally {
+			setIsRequesting(false);
+		}
 	};
 
 	return {

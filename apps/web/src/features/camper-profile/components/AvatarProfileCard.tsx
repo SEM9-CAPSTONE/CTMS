@@ -1,4 +1,4 @@
-import { Calendar, Camera, CheckCircle2, Sparkles } from "lucide-react";
+import { Calendar, Camera, CheckCircle2 } from "lucide-react";
 import type { CamperProfileData } from "../types";
 
 interface AvatarProfileCardProps {
@@ -45,13 +45,6 @@ export function AvatarProfileCard({ profile, onAvatarChange }: AvatarProfileCard
 					<h2 className="text-xl sm:text-2xl font-extrabold text-[#10221b] tracking-tight">
 						{profile.fullName}
 					</h2>
-
-					{profile.isProMember && (
-						<span className="inline-flex items-center gap-1.5 rounded-full bg-[#164027] px-3 py-1 text-xs font-bold text-white shadow-xs">
-							<Sparkles size={13} className="text-emerald-300" />
-							<span>Thành viên Pro</span>
-						</span>
-					)}
 				</div>
 
 				<p className="text-xs font-semibold text-[#5a6e61]">{profile.email}</p>

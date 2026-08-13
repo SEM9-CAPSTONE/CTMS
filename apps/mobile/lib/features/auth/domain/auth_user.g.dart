@@ -12,6 +12,7 @@ _AuthUser _$AuthUserFromJson(Map<String, dynamic> json) => _AuthUser(
   email: json['email'] as String,
   phone: json['phone'] as String?,
   role: const UserRoleConverter().fromJson(json['role'] as String),
+  roles: const UserRolesConverter().fromJson(json['roles'] as List<dynamic>?),
 );
 
 Map<String, dynamic> _$AuthUserToJson(_AuthUser instance) => <String, dynamic>{
@@ -20,4 +21,5 @@ Map<String, dynamic> _$AuthUserToJson(_AuthUser instance) => <String, dynamic>{
   'email': instance.email,
   'phone': instance.phone,
   'role': const UserRoleConverter().toJson(instance.role),
+  'roles': const UserRolesConverter().toJson(instance.roles),
 };

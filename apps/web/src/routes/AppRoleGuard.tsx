@@ -1,29 +1,29 @@
 import { Lock, ShieldAlert } from "lucide-react";
 import type React from "react";
+import { hasAnyRole } from "../features/auth/utils/permissions";
 import { Button } from "../shared/components/Button";
-import type { UserRole } from "../shared/types";
 
 export interface AppRoleGuardProps {
-	/** List of roles authorized to view the protected route */
-	allowedRoles: UserRole[];
-	/** Current active user role */
-	currentRole?: UserRole | null;
-	/** Content to render if authorized */
+	allowedRoles: readonly string[];
+	currentRoles?: readonly string[] | null;
+	currentRole?: string | null;
 	children: React.ReactNode;
-	/** Optional custom fallback component when access is denied */
 	fallback?: React.ReactNode;
-	/** Callback to navigate back to home or login */
 	onNavigateHome?: () => void;
 }
 
 export const AppRoleGuard: React.FC<AppRoleGuardProps> = ({
 	allowedRoles,
+	currentRoles,
 	currentRole,
 	children,
 	fallback,
 	onNavigateHome,
 }) => {
-	if (!currentRole) {
+	const grantedRoles =
+		currentRoles && currentRoles.length > 0 ? currentRoles : currentRole ? [currentRole] : [];
+
+	if (grantedRoles.length === 0) {
 		return (
 			fallback ?? (
 				<div className="flex min-h-[70vh] flex-col items-center justify-center p-6 text-center font-sans">
@@ -44,9 +44,7 @@ export const AppRoleGuard: React.FC<AppRoleGuardProps> = ({
 		);
 	}
 
-	// Normalize role comparison (case-insensitive)
-	const normalizedCurrentRole = currentRole.toLowerCase();
-	const isAuthorized = allowedRoles.some((role) => role.toLowerCase() === normalizedCurrentRole);
+	const isAuthorized = hasAnyRole(grantedRoles, allowedRoles);
 
 	if (!isAuthorized) {
 		return (
@@ -57,11 +55,13 @@ export const AppRoleGuard: React.FC<AppRoleGuardProps> = ({
 					</div>
 					<h2 className="mt-4 text-2xl font-extrabold text-[#10221b]">Truy cập bị từ chối</h2>
 					<p className="mt-2 max-w-md text-sm text-[#54655a]">
-						Vai trò hiện tại của bạn (
-						<span className="font-semibold uppercase text-[#164027]">{currentRole}</span>) không có
-						quyền xem trang này. Khu vực này yêu cầu một trong các vai trò:{" "}
+						Các vai trò hiện tại của bạn (
 						<span className="font-semibold uppercase text-[#164027]">
-							{allowedRoles.map((r) => r.toLowerCase()).join(", ")}
+							{grantedRoles.map((role) => role.toLowerCase()).join(", ")}
+						</span>
+						) không có quyền xem trang này. Khu vực này yêu cầu một trong các vai trò:{" "}
+						<span className="font-semibold uppercase text-[#164027]">
+							{allowedRoles.map((role) => role.toLowerCase()).join(", ")}
 						</span>
 						.
 					</p>

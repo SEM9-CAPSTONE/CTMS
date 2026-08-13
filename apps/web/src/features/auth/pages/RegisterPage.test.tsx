@@ -24,6 +24,7 @@ const SUCCESS_RESPONSE = {
 	email: "camper@example.com",
 	phone: "+84912345678",
 	role: "camper" as const,
+	roles: ["camper" as const],
 	status: "pending_verification" as const,
 	createdAt: new Date().toISOString(),
 };

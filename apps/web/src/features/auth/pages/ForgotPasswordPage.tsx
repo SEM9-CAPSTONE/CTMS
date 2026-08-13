@@ -290,9 +290,10 @@ export const ForgotPasswordPage: React.FC<ForgotPasswordPageProps> = ({
 						<button
 							type="button"
 							onClick={requestNewCode}
+							disabled={isRequesting}
 							className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-[#164027]/20 bg-[#eef7f0] px-7 py-2.5 text-sm font-bold text-[#164027] transition hover:bg-[#e2f0e4]"
 						>
-							Yêu cầu mã mới
+							{isRequesting ? "Đang gửi mã mới..." : "Yêu cầu mã mới"}
 						</button>
 					</form>
 				)}

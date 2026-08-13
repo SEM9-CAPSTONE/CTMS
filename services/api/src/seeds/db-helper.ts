@@ -90,7 +90,7 @@ async function main() {
 				        array_remove(array_agg(ur.role ORDER BY ur.role), NULL) AS roles
 				 FROM "users" u
 				 LEFT JOIN "user_roles" ur ON ur.user_id = u.id
-				 WHERE u.email IN ('admin@ctms.local', 'porter@ctms.local')
+				 WHERE u.email IN ('admin@ctms.local', 'host@ctms.local', 'porter@ctms.local')
 				 GROUP BY u.id
 				 ORDER BY u.email`
 			);

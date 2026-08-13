@@ -33,6 +33,7 @@ export interface LoginApiResponse {
 		email: string | null;
 		phone: string | null;
 		role: UserRole;
+		roles: UserRole[];
 		status: "pending_verification" | "active" | "suspended" | "deleted";
 		createdAt: string;
 	};
@@ -112,6 +113,7 @@ export interface RegisterApiResponse {
 	email: string | null;
 	phone: string | null;
 	role: "camper" | "host" | "porter";
+	roles: Array<"camper" | "host" | "porter">;
 	status: "pending_verification" | "active" | "suspended" | "deleted";
 	createdAt: string;
 }

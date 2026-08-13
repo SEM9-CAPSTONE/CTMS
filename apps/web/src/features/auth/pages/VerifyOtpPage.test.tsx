@@ -32,6 +32,7 @@ const VERIFY_SUCCESS_RESPONSE = {
 	email: CONTEXT.email,
 	phone: CONTEXT.phone,
 	role: "camper" as const,
+	roles: ["camper" as const],
 	status: "active" as const,
 	createdAt: new Date().toISOString(),
 };
