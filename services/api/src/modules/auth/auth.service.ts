@@ -439,7 +439,8 @@ export class AuthService {
 
 		// Signing happens after the transaction commits -- nothing here
 		// touches the database, so there is nothing to roll back.
-		const accessToken = this.jwtService.sign({ sub: user.id, roles: [user.role] });
+		const roles = await this.usersRepository.getGrantedRolesById(user.id);
+		const accessToken = this.jwtService.sign({ sub: user.id, roles });
 
 		this.logger.log(`User logged in: ${user.id}`);
 
@@ -536,7 +537,8 @@ export class AuthService {
 
 		// Signing happens after the transaction commits -- nothing here
 		// touches the database, same reasoning as login().
-		const accessToken = this.jwtService.sign({ sub: user.id, roles: [user.role] });
+		const roles = await this.usersRepository.getGrantedRolesById(user.id);
+		const accessToken = this.jwtService.sign({ sub: user.id, roles });
 
 		this.logger.log(`Refresh token rotated for user: ${user.id}`);
 

@@ -13,8 +13,11 @@ import {
 	UseGuards,
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
+import { Roles } from "../../auth/decorators/roles.decorator";
 import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../../auth/guards/roles.guard";
 import type { AuthenticatedUser } from "../../auth/jwt.strategy";
+import { UserRole } from "../../users/entities/user.entity";
 import {
 	HealthProfileResponseDto,
 	toHealthProfileResponse,
@@ -31,11 +34,12 @@ interface AuthenticatedRequest {
 @ApiTags("health-profile")
 @ApiBearerAuth()
 @Controller("camper/health-profile")
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class CamperHealthProfileController {
 	constructor(private readonly camperHealthProfileService: CamperHealthProfileService) {}
 
 	@Get()
+	@Roles(UserRole.CAMPER)
 	@ApiOperation({ summary: "Get the authenticated camper's health profile" })
 	@ApiResponse({ status: 200, type: HealthProfileResponseDto })
 	@ApiResponse({ status: 401, description: "Authentication required" })
@@ -46,6 +50,7 @@ export class CamperHealthProfileController {
 	}
 
 	@Put()
+	@Roles(UserRole.CAMPER)
 	@HttpCode(HttpStatus.OK)
 	@ApiOperation({ summary: "Update the authenticated camper's health profile" })
 	@ApiResponse({ status: 200, type: HealthProfileResponseDto })
@@ -67,6 +72,7 @@ export class CamperHealthProfileController {
 	}
 
 	@Post("consent/grant")
+	@Roles(UserRole.CAMPER)
 	@HttpCode(HttpStatus.OK)
 	@ApiOperation({ summary: "Grant health profile sharing consent to relevant Hosts and Porters" })
 	@ApiResponse({ status: 200, type: HealthProfileResponseDto })
@@ -78,6 +84,7 @@ export class CamperHealthProfileController {
 	}
 
 	@Post("consent/revoke")
+	@Roles(UserRole.CAMPER)
 	@HttpCode(HttpStatus.OK)
 	@ApiOperation({ summary: "Revoke health profile sharing consent" })
 	@ApiResponse({ status: 200, type: HealthProfileResponseDto })
@@ -89,6 +96,7 @@ export class CamperHealthProfileController {
 	}
 
 	@Get(":userId")
+	@Roles(UserRole.CAMPER, UserRole.HOST, UserRole.PORTER, UserRole.ADMIN)
 	@ApiOperation({ summary: "Retrieve another camper's health profile if authorized and consented" })
 	@ApiResponse({ status: 200, type: HealthProfileResponseDto })
 	@ApiResponse({ status: 401, description: "Authentication required" })

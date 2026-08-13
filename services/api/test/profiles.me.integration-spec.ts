@@ -295,7 +295,7 @@ describe("PATCH /api/profiles/me (integration, real Postgres)", () => {
 		expect(rows[0].password_hash).not.toBe("plaintext");
 	});
 
-	it("rejects a token for a missing user with 404", async () => {
+	it("rejects a token for a missing user with 401", async () => {
 		const accessToken = jwtService.sign({
 			sub: "33333333-3333-3333-3333-333333333333",
 			roles: [UserRole.CAMPER],
@@ -305,6 +305,6 @@ describe("PATCH /api/profiles/me (integration, real Postgres)", () => {
 			.patch("/api/profiles/me")
 			.set("Authorization", `Bearer ${accessToken}`)
 			.send({ fullName: "Nguyen Van B" })
-			.expect(404);
+			.expect(401);
 	});
 });

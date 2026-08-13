@@ -29,13 +29,23 @@ function buildUser(overrides: Partial<User> = {}): User {
 
 function buildUsersRepository(user: User | null): UsersRepository {
 	return {
-		findOneBy: jest.fn().mockResolvedValue(user),
+		findOneWithRolesById: jest.fn().mockResolvedValue(user),
+		getGrantedRoles: jest.fn(
+			(dbUser: User) =>
+				dbUser.roleAssignments?.map((assignment) => assignment.role) ?? [dbUser.role]
+		),
 	} as unknown as UsersRepository;
 }
 
 describe("JwtStrategy.validate", () => {
 	it("loads current role and status from the database instead of trusting JWT claims", async () => {
-		const user = buildUser({ role: UserRole.ADMIN });
+		const user = buildUser({
+			role: UserRole.CAMPER,
+			roleAssignments: [
+				{ userId: "11111111-1111-1111-1111-111111111111", role: UserRole.CAMPER },
+				{ userId: "11111111-1111-1111-1111-111111111111", role: UserRole.HOST },
+			] as never,
+		});
 		const strategy = new JwtStrategy(buildConfigService(), buildUsersRepository(user));
 
 		const result = await strategy.validate({
@@ -45,7 +55,7 @@ describe("JwtStrategy.validate", () => {
 
 		expect(result).toEqual({
 			userId: user.id,
-			roles: [UserRole.ADMIN],
+			roles: [UserRole.CAMPER, UserRole.HOST],
 			status: UserStatus.ACTIVE,
 		});
 	});

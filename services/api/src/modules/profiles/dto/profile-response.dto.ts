@@ -33,6 +33,9 @@ export class ProfileResponseDto {
 	@ApiProperty({ enum: UserRole })
 	role!: UserRole;
 
+	@ApiProperty({ enum: UserRole, isArray: true })
+	roles!: UserRole[];
+
 	@ApiProperty({ enum: UserStatus })
 	status!: UserStatus;
 
@@ -75,11 +78,13 @@ export function toProfileResponse(
 	user: User,
 	emergencyContacts: EmergencyContact[]
 ): ProfileResponseDto {
+	const roles = user.roleAssignments?.map((assignment) => assignment.role) ?? [user.role];
 	return {
 		id: user.id,
 		email: user.email,
 		phone: user.phone,
 		role: user.role,
+		roles,
 		status: user.status,
 		fullName: user.fullName,
 		dateOfBirth: user.dateOfBirth,

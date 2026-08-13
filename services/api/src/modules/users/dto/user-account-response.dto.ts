@@ -18,6 +18,9 @@ export class UserAccountSummaryDto {
 	@ApiProperty({ enum: UserRole })
 	role!: UserRole;
 
+	@ApiProperty({ enum: UserRole, isArray: true })
+	roles!: UserRole[];
+
 	@ApiProperty({ enum: UserStatus })
 	status!: UserStatus;
 
@@ -65,12 +68,14 @@ export class PaginatedUserAccountsResponseDto {
 }
 
 export function toUserAccountSummary(user: User): UserAccountSummaryDto {
+	const roles = user.roleAssignments?.map((assignment) => assignment.role) ?? [user.role];
 	return {
 		id: user.id,
 		email: user.email,
 		phone: user.phone,
 		fullName: user.fullName,
 		role: user.role,
+		roles,
 		status: user.status,
 		createdAt: user.createdAt,
 		updatedAt: user.updatedAt,

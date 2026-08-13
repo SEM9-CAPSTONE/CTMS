@@ -37,6 +37,7 @@ const FIXED_DATE = new Date("2026-08-04T00:00:00.000Z");
 type MockUsersRepository = {
 	findByEmailOrPhone: jest.Mock;
 	createUser: jest.Mock;
+	getGrantedRolesById?: jest.Mock;
 };
 
 type MockOtpRepository = {
@@ -175,6 +176,7 @@ describe("AuthService.register", () => {
 			email: "host@example.com",
 			phone: "+84987654321",
 			role: UserRole.HOST,
+			roles: [UserRole.HOST],
 			status: UserStatus.PENDING_VERIFICATION,
 			createdAt: FIXED_DATE,
 		});
@@ -262,7 +264,7 @@ describe("AuthService.register", () => {
 
 		expect(Object.hasOwn(result, "passwordHash")).toBe(false);
 		expect(Object.keys(result).sort()).toEqual(
-			["createdAt", "email", "id", "phone", "role", "status"].sort()
+			["createdAt", "email", "id", "phone", "role", "roles", "status"].sort()
 		);
 	});
 
@@ -635,6 +637,7 @@ describe("AuthService.verifyOtp", () => {
 			email: activatedUser.email,
 			phone: activatedUser.phone,
 			role: activatedUser.role,
+			roles: [activatedUser.role],
 			status: UserStatus.ACTIVE,
 			createdAt: activatedUser.createdAt,
 		});
@@ -650,7 +653,7 @@ describe("AuthService.verifyOtp", () => {
 
 		expect(Object.hasOwn(result, "passwordHash")).toBe(false);
 		expect(Object.keys(result).sort()).toEqual(
-			["createdAt", "email", "id", "phone", "role", "status"].sort()
+			["createdAt", "email", "id", "phone", "role", "roles", "status"].sort()
 		);
 	});
 
@@ -808,6 +811,7 @@ describe("AuthService.sendOtp", () => {
 			email: user.email,
 			phone: user.phone,
 			role: user.role,
+			roles: [user.role],
 			status: user.status,
 			createdAt: user.createdAt,
 		});
@@ -907,7 +911,7 @@ describe("AuthService.sendOtp", () => {
 
 describe("AuthService.login", () => {
 	let authService: AuthService;
-	let usersRepository: { findByEmailOrPhone: jest.Mock };
+	let usersRepository: { findByEmailOrPhone: jest.Mock; getGrantedRolesById: jest.Mock };
 	let refreshTokenRepository: { save: jest.Mock };
 	let transactionalRefreshTokenRepository: { save: jest.Mock };
 	let auditLogRepository: { save: jest.Mock };
@@ -942,7 +946,10 @@ describe("AuthService.login", () => {
 		loggerLogSpy = jest.spyOn(Logger.prototype, "log").mockImplementation(() => undefined);
 
 		auditLogRepository = { save: jest.fn() };
-		usersRepository = { findByEmailOrPhone: jest.fn() };
+		usersRepository = {
+			findByEmailOrPhone: jest.fn(),
+			getGrantedRolesById: jest.fn().mockResolvedValue([UserRole.CAMPER]),
+		};
 		transactionalRefreshTokenRepository = { save: jest.fn() };
 		refreshTokenRepository = { save: jest.fn() };
 		manager = {
@@ -1002,6 +1009,7 @@ describe("AuthService.login", () => {
 				email: user.email,
 				phone: user.phone,
 				role: user.role,
+				roles: [UserRole.CAMPER],
 				status: user.status,
 				createdAt: user.createdAt,
 			},
@@ -1129,6 +1137,7 @@ describe("AuthService.login", () => {
 	it("signs the access token with sub and roles claims", async () => {
 		const user = buildActiveUser({ role: UserRole.HOST });
 		usersRepository.findByEmailOrPhone.mockResolvedValue(user);
+		usersRepository.getGrantedRolesById.mockResolvedValue([UserRole.HOST]);
 
 		await authService.login(buildDto());
 
@@ -1179,7 +1188,7 @@ describe("AuthService.login", () => {
 
 describe("AuthService.refresh", () => {
 	let authService: AuthService;
-	let usersRepository: { findOneBy: jest.Mock };
+	let usersRepository: { findOneBy: jest.Mock; getGrantedRolesById: jest.Mock };
 	let refreshTokenRepository: { findOneBy: jest.Mock };
 	let transactionalRefreshTokenRepository: { revokeIfActive: jest.Mock; save: jest.Mock };
 	let auditLogRepository: { save: jest.Mock };
@@ -1225,7 +1234,10 @@ describe("AuthService.refresh", () => {
 		jest.clearAllMocks();
 		loggerLogSpy = jest.spyOn(Logger.prototype, "log").mockImplementation(() => undefined);
 
-		usersRepository = { findOneBy: jest.fn() };
+		usersRepository = {
+			findOneBy: jest.fn(),
+			getGrantedRolesById: jest.fn().mockResolvedValue([UserRole.CAMPER]),
+		};
 		refreshTokenRepository = { findOneBy: jest.fn() };
 		transactionalRefreshTokenRepository = {
 			revokeIfActive: jest.fn().mockResolvedValue(1),

@@ -33,7 +33,7 @@ export class CamperHealthProfileService {
 
 	private async verifyUserIsActive(userId: string, manager?: EntityManager): Promise<User> {
 		const repo = manager ? manager.withRepository(this.usersRepository) : this.usersRepository;
-		const user = await repo.findOneBy({ id: userId });
+		const user = await repo.findOneWithRolesById(userId);
 		if (!user) {
 			throw new NotFoundException("User not found");
 		}
@@ -268,7 +268,16 @@ export class CamperHealthProfileService {
 		// Validate caller relationship to Camper via a Trip (BR-025 / BR-204)
 		let booking: Booking | null = null;
 
-		if (caller.role === UserRole.HOST) {
+		const callerRoles = this.usersRepository.getGrantedRoles(caller);
+
+		if (callerRoles.includes(UserRole.ADMIN)) {
+			booking = await this.dataSource
+				.getRepository(Booking)
+				.createQueryBuilder("booking")
+				.innerJoinAndSelect("booking.trip", "trip")
+				.where("booking.userId = :camperId", { camperId })
+				.getOne();
+		} else if (callerRoles.includes(UserRole.HOST)) {
 			// Check if host is associated with a Trip this Camper booked
 			booking = await this.dataSource
 				.getRepository(Booking)
@@ -277,7 +286,7 @@ export class CamperHealthProfileService {
 				.where("booking.userId = :camperId", { camperId })
 				.andWhere("trip.hostId = :callerId", { callerId })
 				.getOne();
-		} else if (caller.role === UserRole.PORTER) {
+		} else if (callerRoles.includes(UserRole.PORTER)) {
 			// Check if porter is assigned to a Trip this Camper booked
 			booking = await this.dataSource
 				.getRepository(Booking)

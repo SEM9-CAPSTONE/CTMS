@@ -70,7 +70,8 @@ describe("Admin user accounts (integration, real Postgres)", () => {
 	async function createAccount(
 		role: "admin" | "camper",
 		status: "active" | "suspended",
-		fullName: string
+		fullName: string,
+		grantedRoles: Array<"admin" | "camper"> = [role]
 	): Promise<TestAccount> {
 		const sequence = `${Date.now()}-${Math.floor(Math.random() * 100000)}`;
 		const email = `e2e-users-${role}-${sequence}@example.com`;
@@ -81,8 +82,15 @@ describe("Admin user accounts (integration, real Postgres)", () => {
 			[email, passwordHash, role, status, fullName]
 		)) as Array<{ id: string }>;
 		const id = rows[0].id;
+		for (const grantedRole of grantedRoles) {
+			await dataSource.query(
+				`INSERT INTO "user_roles" ("user_id", "role") VALUES ($1, $2)
+				 ON CONFLICT ("user_id", "role") DO NOTHING`,
+				[id, grantedRole]
+			);
+		}
 		cleanupUserIds.push(id);
-		return { id, email, accessToken: jwtService.sign({ sub: id, roles: [role] }) };
+		return { id, email, accessToken: jwtService.sign({ sub: id, roles: grantedRoles }) };
 	}
 
 	it("requires authentication and current Admin role", async () => {
@@ -90,6 +98,23 @@ describe("Admin user accounts (integration, real Postgres)", () => {
 		await request(app.getHttpServer())
 			.get("/api/users")
 			.set("Authorization", `Bearer ${camper.accessToken}`)
+			.expect(403);
+	});
+
+	it("allows granted multi-role Admin accounts and rejects manipulated JWT role claims", async () => {
+		const camperAdmin = await createAccount("camper", "active", "Camper Admin", [
+			"camper",
+			"admin",
+		]);
+		await request(app.getHttpServer())
+			.get("/api/users")
+			.set("Authorization", `Bearer ${camperAdmin.accessToken}`)
+			.expect(200);
+
+		const forgedAdminToken = jwtService.sign({ sub: camper.id, roles: ["camper", "admin"] });
+		await request(app.getHttpServer())
+			.get("/api/users")
+			.set("Authorization", `Bearer ${forgedAdminToken}`)
 			.expect(403);
 	});
 

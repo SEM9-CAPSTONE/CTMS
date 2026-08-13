@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { DataSource } from "typeorm";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../auth/guards/roles.guard";
 import { UsersModule } from "../users/users.module";
 import { CamperHealthProfileController } from "./controllers/camper-health-profile.controller";
 import { ProfilesController } from "./controllers/profiles.controller";
@@ -18,6 +19,7 @@ import { ProfilesService } from "./services/profiles.service";
 		ProfilesService,
 		CamperHealthProfileService,
 		JwtAuthGuard,
+		RolesGuard,
 		{
 			provide: EmergencyContactsRepository,
 			useFactory: (dataSource: DataSource) =>
