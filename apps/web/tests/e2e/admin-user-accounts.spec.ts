@@ -6,6 +6,7 @@ const admin = {
 	phone: null,
 	fullName: "CTMS Admin",
 	role: "admin",
+	roles: ["admin"],
 	status: "active",
 	createdAt: "2026-01-01T00:00:00.000Z",
 	updatedAt: "2026-01-01T00:00:00.000Z",
@@ -16,6 +17,7 @@ const camperBase = {
 	phone: "+84912345678",
 	fullName: "Nguyen Camper",
 	role: "camper",
+	roles: ["camper"],
 	createdAt: "2026-01-02T00:00:00.000Z",
 	updatedAt: "2026-01-02T00:00:00.000Z",
 };
@@ -23,7 +25,10 @@ const camperBase = {
 test.describe("Admin user accounts", () => {
 	test("searches, views, locks, and unlocks an account", async ({ page }) => {
 		let status: "active" | "suspended" = "active";
-		await page.addInitScript(() => localStorage.setItem("accessToken", "admin-token"));
+		await page.addInitScript((user) => {
+			localStorage.setItem("accessToken", "admin-token");
+			localStorage.setItem("authUser", JSON.stringify(user));
+		}, admin);
 		await page.route("**/api/profiles/me", (route) =>
 			route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(admin) })
 		);
@@ -81,13 +86,26 @@ test.describe("Admin user accounts", () => {
 		await expect(page.getByText("Đã mở khóa tài khoản thành công.")).toBeVisible();
 	});
 
-	test("shows the authorization error returned for a non-admin", async ({ page }) => {
-		await page.addInitScript(() => localStorage.setItem("accessToken", "camper-token"));
+	test("blocks direct navigation for a non-admin before loading admin data", async ({ page }) => {
+		await page.addInitScript((user) => {
+			localStorage.setItem("accessToken", "camper-token");
+			localStorage.setItem("authUser", JSON.stringify({ ...user, status: "active" }));
+		}, camperBase);
+		await page.goto("/admin/users");
+		await expect(page.getByText("403 - Hạn chế quyền truy cập")).toBeVisible();
+		await expect(page.getByRole("heading", { name: "Không có quyền truy cập" })).toBeVisible();
+	});
+
+	test("shows the authorization error returned by the API", async ({ page }) => {
+		await page.addInitScript((user) => {
+			localStorage.setItem("accessToken", "admin-token");
+			localStorage.setItem("authUser", JSON.stringify(user));
+		}, admin);
 		await page.route("**/api/profiles/me", (route) =>
 			route.fulfill({
 				status: 200,
 				contentType: "application/json",
-				body: JSON.stringify({ ...camperBase, status: "active" }),
+				body: JSON.stringify(admin),
 			})
 		);
 		await page.route("**/api/users**", (route) =>

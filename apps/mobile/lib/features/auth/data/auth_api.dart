@@ -32,6 +32,7 @@ class RegisterResult {
     required this.email,
     required this.phone,
     required this.role,
+    this.roles = const [],
     required this.status,
   });
 
@@ -41,6 +42,7 @@ class RegisterResult {
       email: json['email'] as String?,
       phone: json['phone'] as String?,
       role: UserRole.fromWire(json['role'] as String),
+      roles: const UserRolesConverter().fromJson(json['roles'] as List<dynamic>?),
       status: json['status'] as String,
     );
   }
@@ -49,6 +51,7 @@ class RegisterResult {
   final String? email;
   final String? phone;
   final UserRole role;
+  final List<UserRole> roles;
   final String status;
 }
 
@@ -72,10 +75,11 @@ class AuthApi {
       data: {'identifier': identifier, 'password': password},
     );
     final data = response.data ?? const {};
+    final user = _withRoleFallback(AuthUser.fromJson(data['user'] as Map<String, dynamic>));
     return LoginResult(
       accessToken: data['accessToken'] as String,
       refreshToken: data['refreshToken'] as String?,
-      user: AuthUser.fromJson(data['user'] as Map<String, dynamic>),
+      user: user,
     );
   }
 
@@ -88,7 +92,7 @@ class AuthApi {
     final response = await _client.get<Map<String, dynamic>>(
       ApiEndpoints.auth.me,
     );
-    return AuthUser.fromJson(response.data ?? const {});
+    return _withRoleFallback(AuthUser.fromJson(response.data ?? const {}));
   }
 
   /// Sends exactly the 4 fields `RegisterDto` (CTMS-01-T01, services/api)
@@ -141,3 +145,7 @@ class AuthApi {
 final authApiProvider = Provider<AuthApi>(
   (ref) => AuthApi(ref.watch(apiClientProvider)),
 );
+
+AuthUser _withRoleFallback(AuthUser user) {
+  return user.roles.isEmpty ? user.copyWith(roles: [user.role]) : user;
+}

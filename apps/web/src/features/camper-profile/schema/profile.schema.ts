@@ -19,6 +19,32 @@ export const emergencyContactSchema = z.object({
 		.or(z.literal("")),
 });
 
+function parseProfileDate(value: string): Date | null {
+	const ddmmyyyy = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value);
+	if (ddmmyyyy) {
+		const [, day, month, year] = ddmmyyyy;
+		const parsedDate = new Date(Number(year), Number(month) - 1, Number(day));
+		return parsedDate.getFullYear() === Number(year) &&
+			parsedDate.getMonth() === Number(month) - 1 &&
+			parsedDate.getDate() === Number(day)
+			? parsedDate
+			: null;
+	}
+
+	const yyyymmdd = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+	if (yyyymmdd) {
+		const [, year, month, day] = yyyymmdd;
+		const parsedDate = new Date(Number(year), Number(month) - 1, Number(day));
+		return parsedDate.getFullYear() === Number(year) &&
+			parsedDate.getMonth() === Number(month) - 1 &&
+			parsedDate.getDate() === Number(day)
+			? parsedDate
+			: null;
+	}
+
+	return null;
+}
+
 export const camperProfileSchema = z.object({
 	fullName: z
 		.string()
@@ -26,12 +52,13 @@ export const camperProfileSchema = z.object({
 		.max(50, "Họ và tên không vượt quá 50 ký tự"),
 	dateOfBirth: z
 		.string()
-		.min(1, "Vui lòng chọn ngày sinh")
+		.min(1, "Vui lòng nhập ngày sinh")
+		.regex(/^(\d{2}\/\d{2}\/\d{4}|\d{4}-\d{2}-\d{2})$/, "Ngày sinh phải theo định dạng dd/mm/yyyy")
 		.refine((value) => {
-			const selectedDate = new Date(`${value}T00:00:00`);
+			const selectedDate = parseProfileDate(value);
 			const today = new Date();
 			today.setHours(23, 59, 59, 999);
-			return !Number.isNaN(selectedDate.getTime()) && selectedDate <= today;
+			return selectedDate !== null && selectedDate <= today;
 		}, "Ngày sinh không được ở tương lai"),
 	gender: z.enum(["male", "female", "other"], {
 		invalid_type_error: "Giới tính không hợp lệ",

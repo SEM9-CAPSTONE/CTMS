@@ -1,5 +1,6 @@
 const ACCESS_TOKEN_KEY = "accessToken";
 const REFRESH_TOKEN_KEY = "refreshToken";
+const AUTH_USER_KEY = "authUser";
 /** Plain timestamp value, never a token or anything derived from one
  * (Security Constraint #3) -- its only job is to make the browser fire a
  * `storage` event in the other tabs. */
@@ -31,6 +32,7 @@ function redirectToLogin(): void {
 export function clearAuthSessionAndRedirect(): void {
 	localStorage.removeItem(ACCESS_TOKEN_KEY);
 	localStorage.removeItem(REFRESH_TOKEN_KEY);
+	localStorage.removeItem(AUTH_USER_KEY);
 	localStorage.setItem(SESSION_SIGNAL_KEY, String(Date.now()));
 	redirectToLogin();
 }

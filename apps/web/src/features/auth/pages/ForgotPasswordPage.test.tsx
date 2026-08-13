@@ -101,6 +101,22 @@ describe("ForgotPasswordPage", () => {
 		expect(screen.getByText("Có ít nhất 1 chữ số")).toBeInTheDocument();
 	});
 
+	it("requests a new OTP from the reset step without leaving the password form", async () => {
+		const user = userEvent.setup();
+		await moveToResetStep(user);
+		forgotPasswordMock.mockResolvedValueOnce({ requestAccepted: true });
+
+		await user.click(screen.getByRole("button", { name: /^Yêu cầu mã mới$/i }));
+
+		await waitFor(() => expect(forgotPasswordMock).toHaveBeenCalledTimes(2));
+		expect(forgotPasswordMock).toHaveBeenLastCalledWith({
+			identifier: "camper@ctms.local",
+			channel: "email",
+		});
+		expect(await screen.findByText(/mã xác minh mới đã được gửi/i)).toBeInTheDocument();
+		expect(screen.getByLabelText(/mã xác minh/i)).toBeInTheDocument();
+	});
+
 	it("maps expired or invalid reset codes to a user-facing error", async () => {
 		const user = userEvent.setup();
 		await moveToResetStep(user);

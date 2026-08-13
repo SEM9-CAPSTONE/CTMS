@@ -2,27 +2,6 @@ import { hash } from "bcrypt";
 import { BCRYPT_COST_FACTOR } from "../modules/auth/auth.service";
 import dataSource from "../shared/database/data-source";
 
-/**
- * Creates reusable, dev-only Admin and Porter accounts for manual testing.
- *
- * NOT a migration on purpose: `typeorm.config.ts` sets `migrationsRun: true`,
- * which runs every migration automatically on every app boot in every
- * environment this DataSource config is used for — including a hypothetical
- * production deploy. A seed belongs in data, not schema, and must only run
- * when a developer explicitly invokes it (`pnpm --filter @ctms/api
- * seed:dev-admin`), never automatically.
- *
- * Idempotent: checks for an existing row (by email OR phone) before
- * inserting. If found, creates nothing and updates nothing — just skips.
- * The INSERT also carries `ON CONFLICT (email) DO NOTHING` as a defensive
- * fallback against a rare concurrent double-run, not as the primary
- * idempotency mechanism.
- *
- * Password hashing reuses AuthService's own BCRYPT_COST_FACTOR export — same
- * algorithm, same cost factor as POST /auth/register, never a separate or
- * hardcoded hash.
- */
-
 interface SeedAccount {
 	label: string;
 	email: string;
@@ -78,8 +57,6 @@ async function seedAccount(account: SeedAccount): Promise<void> {
 		return;
 	}
 
-	// Same hashing flow as Register (AuthService.register()): bcrypt at
-	// BCRYPT_COST_FACTOR. Never a plaintext password, never a hardcoded hash.
 	const passwordHash = await hash(account.password, BCRYPT_COST_FACTOR);
 
 	const inserted: Array<{ id: string }> = await dataSource.query(

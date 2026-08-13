@@ -1,45 +1,45 @@
-import {
-	Compass,
-	LayoutDashboard,
-	LogOut,
-	MapPin,
-	Shield,
-	Sparkles,
-	Tent,
-	UserCheck,
-} from "lucide-react";
+import { Compass, LayoutDashboard, LogOut, MapPin, Shield, Tent, UserCheck } from "lucide-react";
 import type { CamperProfileData } from "../types";
 
 interface CamperSidebarProps {
 	profile: CamperProfileData | null;
 	activeNav?: string;
 	onNavigate?: (navKey: string) => void;
+	onLogout?: () => void;
+	className?: string;
 }
 
-export function CamperSidebar({ profile, activeNav = "profile", onNavigate }: CamperSidebarProps) {
-	const navItems = [
-		{ key: "overview", label: "Tổng quan", icon: LayoutDashboard },
-		{ key: "explore", label: "Khám phá địa điểm", icon: MapPin },
-		{ key: "bookings", label: "Đơn đặt chỗ", icon: Tent },
-		{ key: "trips", label: "Chuyến đi của tôi", icon: Compass },
-		{ key: "profile", label: "Hồ sơ & Cài đặt", icon: UserCheck },
-		{ key: "safety", label: "Trung tâm an toàn", icon: Shield },
-	];
+const navItems = [
+	{ key: "overview", label: "Tổng quan", icon: LayoutDashboard },
+	{ key: "explore", label: "Khám phá địa điểm", icon: MapPin },
+	{ key: "bookings", label: "Đơn đặt chỗ", icon: Tent },
+	{ key: "trips", label: "Chuyến đi của tôi", icon: Compass },
+	{ key: "profile", label: "Hồ sơ & Cài đặt", icon: UserCheck },
+	{ key: "safety", label: "Trung tâm an toàn", icon: Shield },
+] as const;
 
+export function CamperSidebar({
+	profile,
+	activeNav = "profile",
+	onNavigate,
+	onLogout,
+	className = "",
+}: CamperSidebarProps) {
 	return (
-		<aside className="sticky top-0 flex h-screen w-64 shrink-0 flex-col justify-between border-r border-[#dfe8df] bg-white p-5 shadow-sm">
+		<aside
+			className={`sticky top-0 flex h-screen w-64 shrink-0 flex-col justify-between border-r border-[#dfe8df] bg-white p-5 shadow-sm ${className}`}
+		>
 			<div className="flex flex-col gap-6">
-				{/* Brand Logo */}
 				<div className="flex items-center gap-3 px-2 pt-1">
 					<img
 						src="/ctms_logo.png"
 						alt="CTMS Logo"
-						className="h-10 w-auto object-contain shrink-0"
+						className="h-10 w-auto shrink-0 object-contain"
 					/>
 					<div>
 						<div className="flex items-center gap-1.5">
-							<span className="font-extrabold text-[#164027] text-lg tracking-tight">CTMS</span>
-							<span className="rounded-md bg-[#eef7f0] px-1.5 py-0.5 font-bold text-[10px] uppercase text-[#164027]">
+							<span className="text-lg font-extrabold tracking-tight text-[#164027]">CTMS</span>
+							<span className="rounded-md bg-[#eef7f0] px-1.5 py-0.5 text-[10px] font-bold uppercase text-[#164027]">
 								Camper
 							</span>
 						</div>
@@ -47,8 +47,7 @@ export function CamperSidebar({ profile, activeNav = "profile", onNavigate }: Ca
 					</div>
 				</div>
 
-				{/* Navigation Menu */}
-				<nav className="flex flex-col gap-1.5 pt-2">
+				<nav className="flex flex-col gap-1.5 pt-2" aria-label="Camper Hub">
 					<p className="px-3 text-[11px] font-extrabold uppercase tracking-wider text-[#88998d]">
 						Camper Hub
 					</p>
@@ -66,7 +65,7 @@ export function CamperSidebar({ profile, activeNav = "profile", onNavigate }: Ca
 										: "text-[#4a5e51] hover:bg-[#f4f7f2] hover:text-[#164027]"
 								}`}
 							>
-								<Icon size={18} className={isActive ? "text-white" : "text-[#667a6d]"} />
+								<Icon className={`size-[18px] ${isActive ? "text-white" : "text-[#667a6d]"}`} />
 								<span>{item.label}</span>
 							</button>
 						);
@@ -74,34 +73,32 @@ export function CamperSidebar({ profile, activeNav = "profile", onNavigate }: Ca
 				</nav>
 			</div>
 
-			{/* User Mini Card at Bottom */}
-			{profile && (
-				<div className="flex flex-col gap-3 rounded-2xl border border-[#e0ebe0] bg-[#f8faf8] p-3.5">
-					<div className="flex items-center gap-3">
-						<img
-							src={profile.avatarUrl}
-							alt={profile.fullName}
-							className="size-10 rounded-full object-cover ring-2 ring-[#164027]/20"
-						/>
-						<div className="min-w-0 flex-1">
-							<div className="flex items-center gap-1">
-								<h4 className="truncate font-bold text-[#10221b] text-sm">{profile.fullName}</h4>
-							</div>
-							<div className="flex items-center gap-1 text-[11px] font-semibold text-[#164027]">
-								<Sparkles size={11} className="fill-[#164027]" />
-								<span>Thành viên Pro</span>
+			<div className="flex flex-col gap-3">
+				{profile && (
+					<div className="flex flex-col gap-3 rounded-2xl border border-[#e0ebe0] bg-[#f8faf8] p-3.5">
+						<div className="flex items-center gap-3">
+							<img
+								src={profile.avatarUrl}
+								alt={profile.fullName}
+								className="size-10 rounded-full object-cover ring-2 ring-[#164027]/20"
+							/>
+							<div className="min-w-0 flex-1">
+								<h4 className="truncate text-sm font-bold text-[#10221b]">{profile.fullName}</h4>
+								<p className="truncate text-[11px] font-semibold text-[#667a6d]">{profile.email}</p>
 							</div>
 						</div>
 					</div>
-					<button
-						type="button"
-						className="flex items-center justify-center gap-2 rounded-xl border border-[#dfe8df] bg-white py-1.5 text-xs font-bold text-[#4a5e51] hover:border-red-200 hover:bg-red-50 hover:text-red-600 transition"
-					>
-						<LogOut size={13} />
-						<span>Đăng xuất</span>
-					</button>
-				</div>
-			)}
+				)}
+				<button
+					type="button"
+					onClick={onLogout}
+					className="flex items-center justify-center gap-2 rounded-xl border border-[#dfe8df] bg-white py-2 text-xs font-bold text-[#4a5e51] transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:cursor-default disabled:opacity-60"
+					disabled={!onLogout}
+				>
+					<LogOut size={14} />
+					<span>Đăng xuất</span>
+				</button>
+			</div>
 		</aside>
 	);
 }

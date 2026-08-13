@@ -7,6 +7,7 @@ export interface UserAccountSummary {
 	phone: string | null;
 	fullName: string | null;
 	role: UserRole;
+	roles?: UserRole[];
 	status: UserStatus;
 	createdAt: string;
 	updatedAt: string;
@@ -48,5 +49,6 @@ export type AccountAction = "lock" | "unlock";
 export interface CurrentUserAccount {
 	id: string;
 	role: UserRole;
+	roles?: UserRole[];
 	status: UserStatus;
 }

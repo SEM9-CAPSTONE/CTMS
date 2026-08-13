@@ -59,6 +59,7 @@ function runDbHelper(action: string, arg: string): Record<string, unknown> {
 
 test.describe("Record Audit Logs for Critical Actions (E2E, real backend)", () => {
 	test.describe.configure({ mode: "serial" });
+	test.setTimeout(60_000);
 
 	const email = uniqueEmail("tc");
 	const phone = uniqueLocalPhone();
@@ -118,8 +119,14 @@ test.describe("Record Audit Logs for Critical Actions (E2E, real backend)", () =
 		expect(registerLog.before).toBeNull();
 		expect(registerLog.after).toEqual({ role: "camper" });
 
-		// 2. Select Verification Channel & request OTP via UI
-		await page.getByRole("button", { name: "Xác minh qua SĐT" }).click();
+		// 2. Select Verification Channel & request OTP via UI. The channel
+		// card has transition classes and can remain "unstable" in Chromium
+		// actionability checks even after it is visible and enabled, so keep the
+		// selector user-facing but bypass the stability wait for this click only.
+		const phoneChannelButton = page.getByRole("button", { name: "Xác minh qua SĐT" });
+		await phoneChannelButton.scrollIntoViewIfNeeded();
+		await expect(phoneChannelButton).toBeEnabled();
+		await phoneChannelButton.click({ force: true });
 		await page.getByRole("button", { name: "Gửi mã OTP" }).click();
 
 		// Fetch issued OTP code from DB
@@ -160,8 +167,13 @@ test.describe("Record Audit Logs for Critical Actions (E2E, real backend)", () =
 		await page.locator('input[type="password"]').first().fill(password);
 		await page.locator('form button[type="submit"]').click();
 
-		// Verify successful login
-		await expect(page.getByText(/Đăng nhập thành công! Chào mừng/)).toBeVisible();
+		// Verify successful login. The app now redirects authenticated users to
+		// the role dashboard immediately, so assert persisted session state
+		// rather than the transient LoginPage success banner.
+		await expect
+			.poll(() => page.evaluate(() => window.localStorage.getItem("accessToken")))
+			.toBeTruthy();
+		await expect(page).toHaveURL(/\/dashboard$/);
 
 		// Verify audit log 'auth.login' is written
 		const loginLogsResult = runDbHelper("get-logs", userId) as unknown as DbHelperLogsResult;

@@ -20,7 +20,24 @@ abstract class AuthUser with _$AuthUser {
     required String email,
     String? phone,
     @UserRoleConverter() required UserRole role,
+    @UserRolesConverter() @Default(<UserRole>[]) List<UserRole> roles,
   }) = _AuthUser;
 
-  factory AuthUser.fromJson(Map<String, dynamic> json) => _$AuthUserFromJson(json);
+  factory AuthUser.fromJson(Map<String, dynamic> json) =>
+      _$AuthUserFromJson(json);
+}
+
+extension AuthUserDisplayName on AuthUser {
+  String get displayName {
+    final name = fullName?.trim();
+    if (name != null && name.isNotEmpty) return name;
+
+    final emailPrefix = email.split('@').first.trim();
+    if (emailPrefix.isNotEmpty) return emailPrefix;
+
+    final phoneValue = phone?.trim();
+    if (phoneValue != null && phoneValue.isNotEmpty) return phoneValue;
+
+    return 'Người dùng';
+  }
 }

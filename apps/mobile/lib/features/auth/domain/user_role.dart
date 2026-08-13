@@ -29,3 +29,16 @@ class UserRoleConverter extends JsonConverter<UserRole, String> {
   @override
   String toJson(UserRole object) => object.name;
 }
+
+class UserRolesConverter extends JsonConverter<List<UserRole>, List<dynamic>?> {
+  const UserRolesConverter();
+
+  @override
+  List<UserRole> fromJson(List<dynamic>? json) {
+    if (json == null) return const [];
+    return json.whereType<String>().map(UserRole.fromWire).toList(growable: false);
+  }
+
+  @override
+  List<String> toJson(List<UserRole> object) => object.map((role) => role.name).toList();
+}

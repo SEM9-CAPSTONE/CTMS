@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/widgets/ctms_error_state.dart';
 import '../../../../core/widgets/ctms_empty_state.dart';
 import '../../../auth/application/auth_controller.dart';
+import '../../../auth/domain/auth_user.dart';
+import '../../profile/application/camper_profile_controller.dart';
 import '../application/camper_overview_controller.dart';
 import 'camper_overview_strings.dart';
 import 'widgets/camper_overview_hero.dart';
@@ -50,17 +51,20 @@ class CamperOverviewScreen extends ConsumerWidget {
   }
 
   void _showComingSoon(BuildContext context) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Tính năng đang được phát triển')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Tính năng đang được phát triển')),
+    );
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final overviewAsync = ref.watch(camperOverviewProvider);
+    final profile = ref.watch(camperProfileControllerProvider).valueOrNull;
     final user = ref.watch(authControllerProvider).valueOrNull;
-    final fullName = (user?.fullName ?? user?.email ?? '').trim();
-    final firstName = fullName.isEmpty ? 'bạn' : fullName.split(' ').last;
+    final profileName = profile?.fullName.trim();
+    final displayName = profileName != null && profileName.isNotEmpty
+        ? profileName
+        : user?.displayName ?? 'bạn';
 
     return Scaffold(
       appBar: AppBar(title: const Text(CamperOverviewStrings.appBarTitle)),
@@ -79,7 +83,7 @@ class CamperOverviewScreen extends ConsumerWidget {
             children: [
               CamperOverviewHero(
                 dateLabel: _dateLabel(DateTime.now()),
-                greeting: _greeting(firstName),
+                greeting: _greeting(displayName),
                 onExplore: () => context.go('/camper/explore'),
                 onViewTrips: () => context.go('/camper/trips'),
               ),
@@ -123,7 +127,9 @@ class CamperOverviewScreen extends ConsumerWidget {
                 onSeeAll: () => _showComingSoon(context),
               ),
               const SizedBox(height: AppSpacing.lg),
-              CamperOverviewSuggestionsSection(suggestions: overview.suggestions),
+              CamperOverviewSuggestionsSection(
+                suggestions: overview.suggestions,
+              ),
             ],
           ),
         ),

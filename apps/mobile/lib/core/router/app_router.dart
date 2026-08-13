@@ -7,6 +7,7 @@ import '../../features/auth/data/auth_api.dart';
 import '../../features/auth/presentation/forgot_password_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/register_screen.dart';
+import '../../features/auth/presentation/unsupported_mobile_role_screen.dart';
 import '../../features/auth/presentation/verify_screen.dart';
 import '../../features/camper/presentation/camper_ai_assistant_screen.dart';
 import '../../features/camper/presentation/camper_explore_screen.dart';
@@ -27,6 +28,7 @@ import '../../features/porter/presentation/porter_team_screen.dart';
 /// belong to this role" prefix check in [redirect] below.
 const _camperHome = '/camper/overview';
 const _porterHome = '/porter/overview';
+const _unsupportedMobileRole = '/unsupported-mobile-role';
 
 /// Role-based redirect — the Flutter equivalent of
 /// apps/web/src/routes/AppRoleGuard.tsx. Rebuilds (and re-evaluates the
@@ -56,13 +58,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         return onAuthScreen ? null : '/login';
       }
 
-      final rolePrefix = switch (user.role) {
-        UserRole.camper => '/camper',
-        UserRole.porter => '/porter',
-        // Host/Admin manage CTMS from the web dashboard, not this app.
-        UserRole.host || UserRole.admin => null,
-      };
-      if (rolePrefix == null) return '/login';
+      final roles = user.roles.isNotEmpty ? user.roles : [user.role];
+      final rolePrefix = roles.contains(UserRole.camper)
+          ? '/camper'
+          : roles.contains(UserRole.porter)
+          ? '/porter'
+          // Host/Admin manage CTMS from the web dashboard, not this app.
+          : null;
+      if (rolePrefix == null) {
+        return state.matchedLocation == _unsupportedMobileRole
+            ? null
+            : _unsupportedMobileRole;
+      }
 
       final home = rolePrefix == '/camper' ? _camperHome : _porterHome;
       if (onAuthScreen) return home;
@@ -70,6 +77,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
+      GoRoute(path: '/', redirect: (context, state) => '/login'),
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
       GoRoute(
         path: '/register',
@@ -83,6 +91,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/verify',
         builder: (context, state) =>
             VerifyScreen(account: state.extra! as RegisterResult),
+      ),
+      GoRoute(
+        path: _unsupportedMobileRole,
+        builder: (context, state) => const UnsupportedMobileRoleScreen(),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) =>
