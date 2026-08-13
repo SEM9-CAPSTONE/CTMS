@@ -84,6 +84,17 @@ async function main() {
 				[arg]
 			);
 			console.log(JSON.stringify({ logs }));
+		} else if (action === "get-seed-accounts") {
+			const rows = await dataSource.query(
+				`SELECT u.email, u.phone, u.status, u.role AS "primaryRole",
+				        array_remove(array_agg(ur.role ORDER BY ur.role), NULL) AS roles
+				 FROM "users" u
+				 LEFT JOIN "user_roles" ur ON ur.user_id = u.id
+				 WHERE u.email IN ('admin@ctms.local', 'porter@ctms.local')
+				 GROUP BY u.id
+				 ORDER BY u.email`
+			);
+			console.log(JSON.stringify({ accounts: rows }));
 		} else if (action === "clean-user") {
 			const rows = await dataSource.query('SELECT "id" FROM "users" WHERE "email" = $1', [arg]);
 			if (rows.length > 0) {

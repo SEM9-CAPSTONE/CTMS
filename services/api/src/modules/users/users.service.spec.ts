@@ -34,6 +34,8 @@ describe("UsersService", () => {
 	const target = buildUser();
 	let usersRepository: {
 		findOneBy: jest.Mock;
+		findOneWithRolesById: jest.Mock;
+		getGrantedRoles: jest.Mock;
 		findAccounts: jest.Mock;
 	};
 	let dataSource: { transaction: jest.Mock };
@@ -41,7 +43,9 @@ describe("UsersService", () => {
 
 	beforeEach(() => {
 		usersRepository = {
-			findOneBy: jest.fn().mockResolvedValue(actor),
+			findOneBy: jest.fn(),
+			findOneWithRolesById: jest.fn().mockResolvedValue(actor),
+			getGrantedRoles: jest.fn((user: User) => [user.role]),
 			findAccounts: jest.fn(),
 		};
 		dataSource = { transaction: jest.fn() };
@@ -61,7 +65,7 @@ describe("UsersService", () => {
 		});
 
 		it("rejects a non-admin before querying accounts", async () => {
-			usersRepository.findOneBy.mockResolvedValue(buildUser({ id: actor.id }));
+			usersRepository.findOneWithRolesById.mockResolvedValue(buildUser({ id: actor.id }));
 
 			await expect(service.listUsers(actor.id, { page: 1, limit: 20 })).rejects.toBeInstanceOf(
 				ForbiddenException
@@ -72,7 +76,7 @@ describe("UsersService", () => {
 
 	describe("getUser", () => {
 		it("throws NotFoundException when the target does not exist", async () => {
-			usersRepository.findOneBy.mockResolvedValueOnce(actor).mockResolvedValueOnce(null);
+			usersRepository.findOneBy.mockResolvedValueOnce(null);
 			await expect(service.getUser(actor.id, target.id)).rejects.toBeInstanceOf(NotFoundException);
 		});
 	});
@@ -144,7 +148,8 @@ describe("UsersService", () => {
 function buildTransaction(actor: User, target: User) {
 	const transactionalSave = jest.fn(async (user: User) => user);
 	const transactionalUsersRepository = {
-		findOneBy: jest.fn().mockResolvedValue(actor),
+		findOneWithRolesById: jest.fn().mockResolvedValue(actor),
+		getGrantedRoles: jest.fn((user: User) => [user.role]),
 		save: transactionalSave,
 	};
 	const targetQuery = {

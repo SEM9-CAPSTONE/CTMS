@@ -314,7 +314,7 @@ describe("Camper Health Profile (integration, real Postgres)", () => {
 		await request(app.getHttpServer())
 			.get("/api/camper/health-profile")
 			.set("Authorization", `Bearer ${accessToken}`)
-			.expect(403);
+			.expect(401);
 	});
 
 	it("toggles sharing consent correctly and logs audit event", async () => {

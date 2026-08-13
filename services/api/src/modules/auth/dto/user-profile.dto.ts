@@ -15,6 +15,9 @@ export class UserProfileDto {
 	@ApiProperty({ enum: UserRole })
 	role!: UserRole;
 
+	@ApiProperty({ enum: UserRole, isArray: true })
+	roles!: UserRole[];
+
 	@ApiProperty({ enum: UserStatus })
 	status!: UserStatus;
 
@@ -27,11 +30,13 @@ export class UserProfileDto {
  * column added to User) can never leak into an API response by default.
  */
 export function toUserProfile(user: User): UserProfileDto {
+	const roles = user.roleAssignments?.map((assignment) => assignment.role) ?? [user.role];
 	return {
 		id: user.id,
 		email: user.email,
 		phone: user.phone,
 		role: user.role,
+		roles,
 		status: user.status,
 		createdAt: user.createdAt,
 	};

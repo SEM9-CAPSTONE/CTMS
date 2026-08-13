@@ -37,10 +37,14 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 	}
 
 	async validate(payload: JwtPayload): Promise<AuthenticatedUser> {
-		const user = await this.usersRepository.findOneBy({ id: payload.sub });
+		const user = await this.usersRepository.findOneWithRolesById(payload.sub);
 		if (!user || user.status !== UserStatus.ACTIVE) {
 			throw new UnauthorizedException(AUTHENTICATION_REQUIRED_MESSAGE);
 		}
-		return { userId: user.id, roles: [user.role], status: user.status };
+		return {
+			userId: user.id,
+			roles: this.usersRepository.getGrantedRoles(user),
+			status: user.status,
+		};
 	}
 }

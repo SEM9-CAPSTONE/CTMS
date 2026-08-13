@@ -154,11 +154,11 @@ export class UsersService {
 		actorId: string,
 		usersRepository: UsersRepository = this.usersRepository
 	): Promise<void> {
-		const actor = await usersRepository.findOneBy({ id: actorId });
+		const actor = await usersRepository.findOneWithRolesById(actorId);
 		if (!actor || actor.status !== UserStatus.ACTIVE) {
 			throw new UnauthorizedException(AUTHENTICATION_REQUIRED_MESSAGE);
 		}
-		if (actor.role !== UserRole.ADMIN) {
+		if (!usersRepository.getGrantedRoles(actor).includes(UserRole.ADMIN)) {
 			throw new ForbiddenException(ADMIN_ACCESS_REQUIRED_MESSAGE);
 		}
 	}

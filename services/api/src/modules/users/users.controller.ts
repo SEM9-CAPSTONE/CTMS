@@ -12,7 +12,9 @@ import {
 	UseGuards,
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
+import { Roles } from "../auth/decorators/roles.decorator";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../auth/guards/roles.guard";
 import type { AuthenticatedUser } from "../auth/jwt.strategy";
 // biome-ignore lint/style/useImportType: used as a @Body() parameter type, needs design:paramtypes metadata for NestJS validation
 import { AccountStatusActionDto } from "./dto/account-status-action.dto";
@@ -22,6 +24,7 @@ import {
 	PaginatedUserAccountsResponseDto,
 	UserAccountDetailDto,
 } from "./dto/user-account-response.dto";
+import { UserRole } from "./entities/user.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { UsersService } from "./users.service";
 
@@ -36,9 +39,8 @@ const USER_ID_PIPE = new ParseUUIDPipe({
 @ApiTags("users")
 @ApiBearerAuth()
 @Controller("users")
-@UseGuards(JwtAuthGuard)
-// TODO(CTMS-06): add the shared Admin role guard/decorator here when CTMS-06 is available.
-// Until then, UsersService revalidates the current actor from the database and enforces UserRole.ADMIN.
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(UserRole.ADMIN)
 export class UsersController {
 	constructor(private readonly usersService: UsersService) {}
 

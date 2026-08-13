@@ -12,6 +12,7 @@ describe("POST /api/auth/register (integration, real Postgres)", () => {
 	let cleanupEmails: string[];
 	let cleanupPhones: string[];
 	let phoneSeq = 0;
+	const suiteEmailPrefix = `e2er${Date.now().toString(36)}${Math.floor(Math.random() * 1000)}`;
 
 	beforeAll(async () => {
 		const moduleRef = await Test.createTestingModule({
@@ -38,7 +39,8 @@ describe("POST /api/auth/register (integration, real Postgres)", () => {
 		// Sanity net: confirm every per-test cleanup actually worked and no
 		// e2e-tagged row was left behind across the whole suite.
 		const leftover = await dataSource.query(
-			"SELECT COUNT(*)::int AS count FROM users WHERE email LIKE 'e2e-%'"
+			"SELECT COUNT(*)::int AS count FROM users WHERE email LIKE $1",
+			[`${suiteEmailPrefix}-%`]
 		);
 		expect(leftover[0].count).toBe(0);
 
@@ -68,12 +70,13 @@ describe("POST /api/auth/register (integration, real Postgres)", () => {
 	});
 
 	function uniqueEmail(tag: string): string {
-		return `e2e-${tag}-${Date.now()}-${Math.floor(Math.random() * 100000)}@example.com`;
+		return `${suiteEmailPrefix}-${tag}-${phoneSeq}@example.com`;
 	}
 
 	function uniqueLocalPhone(): string {
 		phoneSeq += 1;
-		return `09${String(10000000 + phoneSeq).padStart(8, "0")}`;
+		const suffix = (Date.now() + phoneSeq + Math.floor(Math.random() * 10_000_000)) % 100_000_000;
+		return `09${String(suffix).padStart(8, "0")}`;
 	}
 
 	// --- Success path (email and phone are both mandatory now) ---------------
@@ -94,6 +97,7 @@ describe("POST /api/auth/register (integration, real Postgres)", () => {
 			email,
 			phone,
 			role: "camper",
+			roles: ["camper"],
 			status: "pending_verification",
 		});
 		expect(response.body.id).toEqual(expect.any(String));
@@ -102,6 +106,11 @@ describe("POST /api/auth/register (integration, real Postgres)", () => {
 		expect(rows).toHaveLength(1);
 		expect(rows[0].phone).toBe(phone);
 		expect(rows[0].role).toBe("camper");
+		const roleRows = await dataSource.query(
+			'SELECT "role" FROM "user_roles" WHERE "user_id" = $1 ORDER BY "role"',
+			[response.body.id]
+		);
+		expect(roleRows).toEqual([{ role: "camper" }]);
 
 		const auditRows = await dataSource.query('SELECT * FROM "audit_logs" WHERE "actor_id" = $1', [
 			response.body.id,
@@ -289,7 +298,7 @@ describe("POST /api/auth/register (integration, real Postgres)", () => {
 
 		expect(Object.hasOwn(response.body, "passwordHash")).toBe(false);
 		expect(Object.keys(response.body).sort()).toEqual(
-			["createdAt", "email", "id", "phone", "role", "status"].sort()
+			["createdAt", "email", "id", "phone", "role", "roles", "status"].sort()
 		);
 	});
 

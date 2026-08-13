@@ -3,7 +3,7 @@ import { BCRYPT_COST_FACTOR } from "../modules/auth/auth.service";
 import dataSource from "../shared/database/data-source";
 
 /**
- * Creates one reusable, dev-only admin account for manual testing.
+ * Creates reusable, dev-only Admin and Porter accounts for manual testing.
  *
  * NOT a migration on purpose: `typeorm.config.ts` sets `migrationsRun: true`,
  * which runs every migration automatically on every app boot in every
@@ -23,9 +23,30 @@ import dataSource from "../shared/database/data-source";
  * hardcoded hash.
  */
 
-const ADMIN_EMAIL = "admin@ctms.local";
-const ADMIN_PHONE = "0900000000";
-const ADMIN_PASSWORD = "Admin@123";
+interface SeedAccount {
+	label: string;
+	email: string;
+	phone: string;
+	password: string;
+	role: "admin" | "porter";
+}
+
+const SEED_ACCOUNTS: SeedAccount[] = [
+	{
+		label: "admin",
+		email: "admin@ctms.local",
+		phone: "0900000000",
+		password: "Admin@123",
+		role: "admin",
+	},
+	{
+		label: "porter",
+		email: "porter@ctms.local",
+		phone: "0900000001",
+		password: "Porter@123",
+		role: "porter",
+	},
+];
 
 async function seedDevAdmin(): Promise<void> {
 	if (process.env.NODE_ENV === "production") {
@@ -35,43 +56,67 @@ async function seedDevAdmin(): Promise<void> {
 	await dataSource.initialize();
 
 	try {
-		const existing: Array<{ id: string; email: string | null }> = await dataSource.query(
-			'SELECT "id", "email" FROM "users" WHERE "email" = $1 OR "phone" = $2',
-			[ADMIN_EMAIL, ADMIN_PHONE]
-		);
-
-		if (existing.length > 0) {
-			console.log(
-				`[seed:dev-admin] Already exists (id=${existing[0].id}, email=${existing[0].email}) — skipping. Nothing created, nothing updated.`
-			);
-			return;
+		for (const account of SEED_ACCOUNTS) {
+			await seedAccount(account);
 		}
-
-		// Same hashing flow as Register (AuthService.register()): bcrypt at
-		// BCRYPT_COST_FACTOR. Never a plaintext password, never a hardcoded hash.
-		const passwordHash = await hash(ADMIN_PASSWORD, BCRYPT_COST_FACTOR);
-
-		const inserted: Array<{ id: string }> = await dataSource.query(
-			`INSERT INTO "users" (email, phone, password_hash, role, status)
-			 VALUES ($1, $2, $3, 'admin', 'active')
-			 ON CONFLICT (email) DO NOTHING
-			 RETURNING id`,
-			[ADMIN_EMAIL, ADMIN_PHONE, passwordHash]
-		);
-
-		if (inserted.length === 0) {
-			console.log(
-				"[seed:dev-admin] Insert skipped by ON CONFLICT (created by a concurrent run) — nothing created."
-			);
-			return;
-		}
-
-		console.log(
-			`[seed:dev-admin] Created dev admin account (id=${inserted[0].id}, email=${ADMIN_EMAIL}).`
-		);
 	} finally {
 		await dataSource.destroy();
 	}
+}
+
+async function seedAccount(account: SeedAccount): Promise<void> {
+	const existing: Array<{ id: string; email: string | null }> = await dataSource.query(
+		'SELECT "id", "email" FROM "users" WHERE "email" = $1 OR "phone" = $2',
+		[account.email, account.phone]
+	);
+
+	if (existing.length > 0) {
+		await grantRole(existing[0].id, account.role);
+		console.log(
+			`[seed:dev-admin] ${account.label} already exists (id=${existing[0].id}, email=${existing[0].email}) — ensured role=${account.role}.`
+		);
+		return;
+	}
+
+	// Same hashing flow as Register (AuthService.register()): bcrypt at
+	// BCRYPT_COST_FACTOR. Never a plaintext password, never a hardcoded hash.
+	const passwordHash = await hash(account.password, BCRYPT_COST_FACTOR);
+
+	const inserted: Array<{ id: string }> = await dataSource.query(
+		`INSERT INTO "users" (email, phone, password_hash, role, status)
+			 VALUES ($1, $2, $3, $4, 'active')
+			 ON CONFLICT (email) DO NOTHING
+			 RETURNING id`,
+		[account.email, account.phone, passwordHash, account.role]
+	);
+
+	if (inserted.length === 0) {
+		const concurrentExisting: Array<{ id: string; email: string | null }> = await dataSource.query(
+			'SELECT "id", "email" FROM "users" WHERE "email" = $1 OR "phone" = $2',
+			[account.email, account.phone]
+		);
+		if (concurrentExisting.length > 0) {
+			await grantRole(concurrentExisting[0].id, account.role);
+		}
+		console.log(
+			`[seed:dev-admin] ${account.label} insert skipped by ON CONFLICT — ensured role if row now exists.`
+		);
+		return;
+	}
+
+	await grantRole(inserted[0].id, account.role);
+	console.log(
+		`[seed:dev-admin] Created dev ${account.label} account (id=${inserted[0].id}, email=${account.email}).`
+	);
+}
+
+async function grantRole(userId: string, role: SeedAccount["role"]): Promise<void> {
+	await dataSource.query(
+		`INSERT INTO "user_roles" ("user_id", "role")
+		 VALUES ($1, $2)
+		 ON CONFLICT ("user_id", "role") DO NOTHING`,
+		[userId, role]
+	);
 }
 
 seedDevAdmin().catch((error) => {

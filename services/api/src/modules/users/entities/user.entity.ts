@@ -2,9 +2,11 @@ import {
 	Column,
 	CreateDateColumn,
 	Entity,
+	OneToMany,
 	PrimaryGeneratedColumn,
 	UpdateDateColumn,
 } from "typeorm";
+import { UserRoleAssignment } from "./user-role.entity";
 
 export enum UserRole {
 	CAMPER = "camper",
@@ -42,6 +44,12 @@ export class User {
 
 	@Column({ type: "enum", enum: UserRole })
 	role!: UserRole;
+
+	@OneToMany(
+		() => UserRoleAssignment,
+		(roleAssignment) => roleAssignment.user
+	)
+	roleAssignments?: UserRoleAssignment[];
 
 	@Column({
 		type: "enum",
