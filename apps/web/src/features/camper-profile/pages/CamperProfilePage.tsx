@@ -16,7 +16,7 @@ import { useCamperProfile } from "../hooks/useCamperProfile";
 interface CamperProfilePageProps {
 	onBackHome?: () => void;
 	onNavigateDashboard?: () => void;
-	onLogout?: () => void;
+	onLogout?: (allDevices: boolean) => Promise<void>;
 }
 
 export function CamperProfilePage({

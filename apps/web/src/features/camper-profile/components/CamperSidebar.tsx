@@ -1,11 +1,11 @@
-import { Compass, LayoutDashboard, LogOut, MapPin, Shield, Tent, UserCheck } from "lucide-react";
+import { Compass, LayoutDashboard, MapPin, Shield, Tent, UserCheck } from "lucide-react";
+import { LogoutActions } from "../../auth/components/LogoutActions";
 import type { CamperProfileData } from "../types";
-
 interface CamperSidebarProps {
 	profile: CamperProfileData | null;
 	activeNav?: string;
 	onNavigate?: (navKey: string) => void;
-	onLogout?: () => void;
+	onLogout?: (allDevices: boolean) => Promise<void>;
 	className?: string;
 }
 
@@ -89,15 +89,7 @@ export function CamperSidebar({
 						</div>
 					</div>
 				)}
-				<button
-					type="button"
-					onClick={onLogout}
-					className="flex items-center justify-center gap-2 rounded-xl border border-[#dfe8df] bg-white py-2 text-xs font-bold text-[#4a5e51] transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:cursor-default disabled:opacity-60"
-					disabled={!onLogout}
-				>
-					<LogOut size={14} />
-					<span>Đăng xuất</span>
-				</button>
+				{onLogout && <LogoutActions onLogout={onLogout} />}
 			</div>
 		</aside>
 	);

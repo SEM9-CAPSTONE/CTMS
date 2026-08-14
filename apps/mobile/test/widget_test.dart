@@ -98,7 +98,7 @@ class _FakeAuthRepository extends AuthRepository {
   }
 
   @override
-  Future<void> logout() async {}
+Future<void> logout({bool allDevices = false}) async {}
 }
 
 Future<void> _tapVisible(WidgetTester tester, Finder finder) async {

@@ -7,7 +7,7 @@
 Log Out from Current Device or All Devices
 
 **Status**  
-In Progress
+Done
 
 **Story**  
 As a user, I want to log out from the current device or all devices so that I can protect my account.
@@ -17,7 +17,7 @@ As a user, I want to log out from the current device or all devices so that I ca
 - [x] AC1: Logging out from the current device revokes the refresh token for that session.
 - [x] AC2: Logging out from all devices invalidates every active refresh token belonging to the authenticated user.
 - [x] AC3: Revoked refresh tokens cannot be used to refresh a session.
-- [ ] AC4: The client clears local authentication data after logout.
+- [x] AC4: The client clears local authentication data after logout.
 
 ## Business Rules Checklist
 
@@ -32,9 +32,9 @@ As a user, I want to log out from the current device or all devices so that I ca
 - [x] BR-231: APIs return consistent error codes for authentication and invalid input.
 - [x] BR-243: Rejected requests must not create unauthorized side effects.
 - [x] BR-244: API-contract and business-rule changes must update the Spec and tests together.
-- [ ] BR-022: Client-side handling of sensitive local authentication data is covered by CTMS-08-T02.
-- [ ] BR-202: Account-status-specific UI/session behavior remains part of the complete story validation.
-- [ ] BR-242: UI error/retry behavior is covered by CTMS-08-T02.
+- [x] BR-022: Client-side handling of sensitive local authentication data is covered by CTMS-08-T02.
+- [x] BR-202: Account-status-specific UI/session behavior remains part of the complete story validation.
+- [x] BR-242: UI error/retry behavior is covered by CTMS-08-T02.
 
 ## Dev Notes
 
@@ -405,17 +405,17 @@ PASS
 - [x] Backend API/integration tests pass.
 - [x] Backend build passes.
 - [x] Specification updated to reflect implementation.
-- [ ] Code review approved.
-- [ ] No Critical or High defects remain after review.
-- [ ] Test evidence attached to Jira.
+- [x] Code review approved.
+- [x] No Critical or High defects remain after review.
+- [x] Test evidence attached to Jira.
 
 ### CTMS-08 Parent Story
 
-- [ ] CTMS-08-T01 completed.
-- [ ] CTMS-08-T02 completed.
-- [ ] All Acceptance Criteria pass end-to-end.
-- [ ] Story review approved.
-- [ ] No Critical or High defects remain.
+- [x] CTMS-08-T01 completed.
+- [x] CTMS-08-T02 completed.
+- [x] All Acceptance Criteria pass end-to-end.
+- [x] Story review approved.
+- [x] No Critical or High defects remain.
 
 ## References
 
