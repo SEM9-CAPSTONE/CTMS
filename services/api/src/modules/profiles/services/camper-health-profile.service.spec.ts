@@ -13,7 +13,8 @@ const CALLER_ID = "22222222-2222-2222-2222-222222222222";
 const FIXED_DATE = new Date("2026-08-08T00:00:00.000Z");
 
 type MockUsersRepository = {
-	findOneBy: jest.Mock;
+	findOneWithRolesById: jest.Mock;
+	getGrantedRoles: jest.Mock;
 };
 
 type MockHealthProfileRepository = {
@@ -77,10 +78,13 @@ describe("CamperHealthProfileService", () => {
 
 	beforeEach(() => {
 		usersRepository = {
-			findOneBy: jest.fn(),
+			findOneWithRolesById: jest.fn(),
+			getGrantedRoles: jest.fn((user: User) => [user.role]),
 		};
+
 		transactionalUsersRepository = {
-			findOneBy: jest.fn(),
+			findOneWithRolesById: jest.fn(),
+			getGrantedRoles: jest.fn((user: User) => [user.role]),
 		};
 		healthProfileRepository = {
 			findByUserId: jest.fn(),
@@ -136,7 +140,7 @@ describe("CamperHealthProfileService", () => {
 	describe("getOrCreateProfile", () => {
 		it("returns existing profile if found", async () => {
 			const existingProfile = buildHealthProfile();
-			usersRepository.findOneBy.mockResolvedValue(buildUser());
+			usersRepository.findOneWithRolesById.mockResolvedValue(buildUser());
 			healthProfileRepository.findByUserId.mockResolvedValue(existingProfile);
 
 			const result = await service.getOrCreateProfile(CAMPER_ID);
@@ -146,7 +150,7 @@ describe("CamperHealthProfileService", () => {
 		});
 
 		it("creates default profile inside a transaction if not found", async () => {
-			usersRepository.findOneBy.mockResolvedValue(buildUser());
+			usersRepository.findOneWithRolesById.mockResolvedValue(buildUser());
 			healthProfileRepository.findByUserId.mockResolvedValue(null);
 			transactionalHealthProfileRepository.findOne.mockResolvedValue(null);
 
@@ -167,7 +171,7 @@ describe("CamperHealthProfileService", () => {
 		it.each([UserStatus.PENDING_VERIFICATION, UserStatus.SUSPENDED, UserStatus.DELETED])(
 			"throws ForbiddenException when user status is %s",
 			async (status) => {
-				usersRepository.findOneBy.mockResolvedValue(buildUser({ status }));
+				usersRepository.findOneWithRolesById.mockResolvedValue(buildUser({ status }));
 
 				await expect(service.getOrCreateProfile(CAMPER_ID)).rejects.toBeInstanceOf(
 					ForbiddenException
@@ -180,7 +184,7 @@ describe("CamperHealthProfileService", () => {
 		it("updates profile values, increments version and writes audit log in transaction", async () => {
 			const activeUser = buildUser();
 			const existingProfile = buildHealthProfile();
-			transactionalUsersRepository.findOneBy.mockResolvedValue(activeUser);
+			transactionalUsersRepository.findOneWithRolesById.mockResolvedValue(activeUser);
 			transactionalHealthProfileRepository.findOne.mockResolvedValue(existingProfile);
 
 			const dto: UpdateHealthProfileDto = {
@@ -215,7 +219,7 @@ describe("CamperHealthProfileService", () => {
 		it("throws ConflictException on stale client version (optimistic locking)", async () => {
 			const activeUser = buildUser();
 			const existingProfile = buildHealthProfile({ version: 2 });
-			transactionalUsersRepository.findOneBy.mockResolvedValue(activeUser);
+			transactionalUsersRepository.findOneWithRolesById.mockResolvedValue(activeUser);
 			transactionalHealthProfileRepository.findOne.mockResolvedValue(existingProfile);
 
 			const dto: UpdateHealthProfileDto = {
@@ -238,7 +242,7 @@ describe("CamperHealthProfileService", () => {
 		it("grants consent and increments version and logs audit", async () => {
 			const activeUser = buildUser();
 			const existingProfile = buildHealthProfile();
-			transactionalUsersRepository.findOneBy.mockResolvedValue(activeUser);
+			transactionalUsersRepository.findOneWithRolesById.mockResolvedValue(activeUser);
 			transactionalHealthProfileRepository.findOne.mockResolvedValue(existingProfile);
 
 			const result = await service.grantConsent(CAMPER_ID);
@@ -256,7 +260,7 @@ describe("CamperHealthProfileService", () => {
 		it("revokes consent and logs audit", async () => {
 			const activeUser = buildUser();
 			const existingProfile = buildHealthProfile({ isConsentGranted: true });
-			transactionalUsersRepository.findOneBy.mockResolvedValue(activeUser);
+			transactionalUsersRepository.findOneWithRolesById.mockResolvedValue(activeUser);
 			transactionalHealthProfileRepository.findOne.mockResolvedValue(existingProfile);
 
 			const result = await service.revokeConsent(CAMPER_ID);
@@ -275,7 +279,7 @@ describe("CamperHealthProfileService", () => {
 	describe("getCamperProfile", () => {
 		it("allows camper to view own health profile", async () => {
 			const activeUser = buildUser();
-			usersRepository.findOneBy.mockResolvedValue(activeUser);
+			usersRepository.findOneWithRolesById.mockResolvedValue(activeUser);
 			healthProfileRepository.findByUserId.mockResolvedValue(buildHealthProfile());
 
 			// Mock Booking Query Builder return empty
@@ -294,7 +298,7 @@ describe("CamperHealthProfileService", () => {
 		it("allows Host to view camper's profile when booking relationship exists and consent is granted", async () => {
 			const hostUser = buildUser({ id: CALLER_ID, role: UserRole.HOST });
 			const camperProfile = buildHealthProfile({ isConsentGranted: true });
-			usersRepository.findOneBy.mockResolvedValue(hostUser);
+			usersRepository.findOneWithRolesById.mockResolvedValue(hostUser);
 			healthProfileRepository.findByUserId.mockResolvedValue(camperProfile);
 
 			// Mock booking relation matching
@@ -317,7 +321,7 @@ describe("CamperHealthProfileService", () => {
 		it("denies access to Host when consent is revoked (isConsentGranted = false)", async () => {
 			const hostUser = buildUser({ id: CALLER_ID, role: UserRole.HOST });
 			const camperProfile = buildHealthProfile({ isConsentGranted: false });
-			usersRepository.findOneBy.mockResolvedValue(hostUser);
+			usersRepository.findOneWithRolesById.mockResolvedValue(hostUser);
 			healthProfileRepository.findByUserId.mockResolvedValue(camperProfile);
 
 			await expect(service.getCamperProfile(CALLER_ID, CAMPER_ID)).rejects.toBeInstanceOf(
@@ -328,7 +332,7 @@ describe("CamperHealthProfileService", () => {
 		it("denies access to Host when no booking relation exists", async () => {
 			const hostUser = buildUser({ id: CALLER_ID, role: UserRole.HOST });
 			const camperProfile = buildHealthProfile({ isConsentGranted: true });
-			usersRepository.findOneBy.mockResolvedValue(hostUser);
+			usersRepository.findOneWithRolesById.mockResolvedValue(hostUser);
 			healthProfileRepository.findByUserId.mockResolvedValue(camperProfile);
 
 			// Mock booking relation not matching
@@ -348,7 +352,7 @@ describe("CamperHealthProfileService", () => {
 		it("denies access to unrelated camper", async () => {
 			const otherCamper = buildUser({ id: CALLER_ID, role: UserRole.CAMPER });
 			const camperProfile = buildHealthProfile({ isConsentGranted: true });
-			usersRepository.findOneBy.mockResolvedValue(otherCamper);
+			usersRepository.findOneWithRolesById.mockResolvedValue(otherCamper);
 			healthProfileRepository.findByUserId.mockResolvedValue(camperProfile);
 
 			await expect(service.getCamperProfile(CALLER_ID, CAMPER_ID)).rejects.toBeInstanceOf(
