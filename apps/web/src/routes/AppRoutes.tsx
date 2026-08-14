@@ -1,16 +1,14 @@
 import { useEffect, useState } from "react";
+import { HttpError } from "../core/api";
+import { clearAuthSessionAndRedirect } from "../core/api/authSessionSync";
 import { AdminUserAccountsPage } from "../features/admin-user-accounts/pages/AdminUserAccountsPage";
 import { ForgotPasswordPage } from "../features/auth/pages/ForgotPasswordPage";
 import { LoginPage } from "../features/auth/pages/LoginPage";
 import { RegisterPage } from "../features/auth/pages/RegisterPage";
 import { VerifyOtpPage } from "../features/auth/pages/VerifyOtpPage";
+import { authService } from "../features/auth/services/auth.service";
 import { getGrantedRoles, isAdminUser } from "../features/auth/utils/permissions";
-import {
-	getStoredAuthUser,
-	removeAccessToken,
-	removeRefreshToken,
-	removeStoredAuthUser,
-} from "../features/auth/utils/tokenStorage";
+import { getRefreshToken, getStoredAuthUser } from "../features/auth/utils/tokenStorage";
 import { CamperProfilePage } from "../features/camper-profile/pages/CamperProfilePage";
 import { LandingPage } from "../features/landing/pages/LandingPage";
 import { RoleLandingPage } from "../features/role-landing/pages/RoleLandingPage";
@@ -46,11 +44,29 @@ export function AppRoutes() {
 		setCurrentPath(normalizedPath.toLowerCase());
 	};
 
-	const handleLogout = () => {
-		removeAccessToken();
-		removeRefreshToken();
-		removeStoredAuthUser();
-		navigateTo(RoutePath.LOGIN);
+	const handleLogout = async (allDevices = false) => {
+		const refreshToken = getRefreshToken();
+
+		if (!refreshToken) {
+			clearAuthSessionAndRedirect();
+			return;
+		}
+
+		try {
+			await authService.logout({
+				refreshToken,
+				allDevices,
+			});
+
+			clearAuthSessionAndRedirect();
+		} catch (error) {
+			if (error instanceof HttpError && error.status === 401) {
+				clearAuthSessionAndRedirect();
+				return;
+			}
+
+			throw error;
+		}
 	};
 
 	const storedUser = getStoredAuthUser();

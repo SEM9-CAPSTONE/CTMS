@@ -6,15 +6,27 @@ import {
 	NotFoundException,
 	UnauthorizedException,
 } from "@nestjs/common";
-import type { ConfigService } from "@nestjs/config";
-import type { JwtService } from "@nestjs/jwt";
+
+// biome-ignore lint/style/useImportType: constructor-injected by NestJS DI
+import { ConfigService } from "@nestjs/config";
+
+// biome-ignore lint/style/useImportType: constructor-injected by NestJS DI
+import { JwtService } from "@nestjs/jwt";
+
 import * as bcrypt from "bcrypt";
 import ms from "ms";
-import type { DataSource, EntityManager } from "typeorm";
+
+// biome-ignore lint/style/useImportType: DataSource is constructor-injected by NestJS DI
+import { DataSource, type EntityManager } from "typeorm";
+
 import { isUniqueViolation } from "../../shared/database/postgres-error-codes";
 import { normalizeEmail, normalizeVietnamPhone } from "../../shared/utils/normalize.util";
+
 import { type User, UserStatus } from "../users/entities/user.entity";
-import type { UsersRepository } from "../users/users.repository";
+
+// biome-ignore lint/style/useImportType: constructor-injected by NestJS DI
+import { UsersRepository } from "../users/users.repository";
+
 import type { ForgotPasswordResponseDto } from "./dto/forgot-password-response.dto";
 import type { ForgotPasswordDto } from "./dto/forgot-password.dto";
 import type { LoginResponseDto } from "./dto/login-response.dto";
@@ -30,9 +42,15 @@ import type { SendOtpDto } from "./dto/send-otp.dto";
 import { type UserProfileDto, toUserProfile } from "./dto/user-profile.dto";
 import type { VerifyOtpDto } from "./dto/verify-otp.dto";
 import { AuditLog } from "./entities/audit-log.entity";
-import type { OtpDeliveryService } from "./otp-delivery.service";
-import type { RefreshTokenRepository } from "./refresh-token.repository";
-import type { VerificationOtpRepository } from "./verification-otp.repository";
+
+// biome-ignore lint/style/useImportType: constructor-injected by NestJS DI
+import { OtpDeliveryService } from "./otp-delivery.service";
+
+// biome-ignore lint/style/useImportType: constructor-injected by NestJS DI
+import { RefreshTokenRepository } from "./refresh-token.repository";
+
+// biome-ignore lint/style/useImportType: constructor-injected by NestJS DI
+import { VerificationOtpRepository } from "./verification-otp.repository";
 
 export const BCRYPT_COST_FACTOR = 10;
 const DUPLICATE_CONTACT_MESSAGE = "Email or phone already registered";
@@ -187,7 +205,9 @@ export class AuthService {
 	}
 
 	async verifyOtp(dto: VerifyOtpDto): Promise<UserProfileDto> {
-		const otp = await this.verificationOtpRepository.findOneBy({ userId: dto.userId });
+		const otp = await this.verificationOtpRepository.findOneBy({
+			userId: dto.userId,
+		});
 		if (!otp) {
 			throw new NotFoundException(OTP_NOT_FOUND_MESSAGE);
 		}
@@ -206,10 +226,14 @@ export class AuthService {
 			const transactionalOtpRepository = manager.withRepository(this.verificationOtpRepository);
 			const auditLogRepository = manager.getRepository(AuditLog);
 
-			await transactionalUsersRepository.update(dto.userId, { status: UserStatus.ACTIVE });
+			await transactionalUsersRepository.update(dto.userId, {
+				status: UserStatus.ACTIVE,
+			});
 			await transactionalOtpRepository.delete({ userId: dto.userId });
 
-			const updatedUser = await transactionalUsersRepository.findOneByOrFail({ id: dto.userId });
+			const updatedUser = await transactionalUsersRepository.findOneByOrFail({
+				id: dto.userId,
+			});
 
 			await auditLogRepository.save({
 				actorId: dto.userId,
@@ -310,7 +334,11 @@ export class AuthService {
 
 		this.logger.log(`User logged in: ${user.id}`);
 
-		return { accessToken, refreshToken: rawRefreshToken, user: toUserProfile(user) };
+		return {
+			accessToken,
+			refreshToken: rawRefreshToken,
+			user: toUserProfile(user),
+		};
 	}
 
 	async refresh(dto: RefreshTokenDto): Promise<RefreshTokenResponseDto> {
@@ -411,7 +439,9 @@ export class AuthService {
 				targetType: "user",
 				targetId: authenticatedUserId,
 				before: { refreshTokenId: existing.id },
-				after: { refreshTokensRevoked: dto.allDevices === true ? "all_active" : "current" },
+				after: {
+					refreshTokensRevoked: dto.allDevices === true ? "all_active" : "current",
+				},
 				reason: null,
 			});
 		});
@@ -457,7 +487,9 @@ export class AuthService {
 			throw new NotFoundException(RESET_CREDENTIAL_NOT_FOUND_MESSAGE);
 		}
 
-		const otp = await this.verificationOtpRepository.findOneBy({ userId: user.id });
+		const otp = await this.verificationOtpRepository.findOneBy({
+			userId: user.id,
+		});
 		if (!otp) {
 			throw new NotFoundException(RESET_CREDENTIAL_NOT_FOUND_MESSAGE);
 		}

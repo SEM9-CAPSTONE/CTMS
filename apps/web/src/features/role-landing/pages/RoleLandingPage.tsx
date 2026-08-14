@@ -10,7 +10,6 @@ import {
 	Compass,
 	FileClock,
 	LayoutDashboard,
-	LogOut,
 	MapPinned,
 	Menu,
 	MessageSquare,
@@ -26,6 +25,7 @@ import {
 import type React from "react";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "../../../shared/components/Button";
+import { LogoutActions } from "../../auth/components/LogoutActions";
 import { type RoleBearingUser, getGrantedRoles } from "../../auth/utils/permissions";
 import type { StoredAuthUser } from "../../auth/utils/tokenStorage";
 import { CamperSidebar } from "../../camper-profile/components/CamperSidebar";
@@ -40,7 +40,7 @@ export interface RoleLandingPageProps {
 	onBackHome: () => void;
 	onOpenProfile?: () => void;
 	onOpenAdminUsers?: () => void;
-	onLogout?: () => void;
+	onLogout?: (allDevices: boolean) => Promise<void>;
 }
 
 interface SidebarItem {
@@ -569,7 +569,7 @@ function Sidebar({
 	onClose?: () => void;
 	profile: CamperProfileData | null;
 	onOpenProfile?: () => void;
-	onLogout?: () => void;
+	onLogout?: (allDevices: boolean) => Promise<void>;
 }) {
 	return (
 		<aside className="flex h-full w-72 flex-col border-r border-[#dfe8df] bg-white">
@@ -674,15 +674,7 @@ function Sidebar({
 						</div>
 					</div>
 				)}
-				<button
-					type="button"
-					onClick={onLogout}
-					disabled={!onLogout}
-					className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#dfe8df] bg-white py-2 text-xs font-bold text-[#4a5e51] transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:cursor-default disabled:opacity-60"
-				>
-					<LogOut size={14} />
-					<span>Đăng xuất</span>
-				</button>
+				{onLogout && <LogoutActions onLogout={onLogout} />}
 			</div>
 		</aside>
 	);

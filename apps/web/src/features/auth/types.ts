@@ -93,13 +93,6 @@ export interface AdminRegisterFormData extends BaseRegisterFormData {
 	adminSecretKey: string;
 }
 
-/**
- * Request payload accepted by POST /api/auth/register (CTMS-01-T01 API contract).
- * Only these 4 fields — the backend rejects any other property (whitelist +
- * forbidNonWhitelisted), so form-only fields (fullName, bloodType, etc.) must
- * never be included here. Email and phone are both mandatory (business flow
- * update: registration no longer accepts "email or phone", both are required).
- */
 export interface RegisterApiPayload {
 	email: string;
 	phone: string;
@@ -107,7 +100,6 @@ export interface RegisterApiPayload {
 	role: "camper" | "host" | "porter";
 }
 
-/** Response body on 201 (matches services/api's UserProfileDto). */
 export interface RegisterApiResponse {
 	id: string;
 	email: string | null;
@@ -118,69 +110,57 @@ export interface RegisterApiResponse {
 	createdAt: string;
 }
 
-/** Error body on 422 (custom ValidationPipe exceptionFactory, BR-231). */
 export interface RegisterValidationErrorResponse {
 	statusCode: 422;
 	error: string;
 	message: Array<{ field: string; errors: string[] }>;
 }
 
-/** Error body on 409 (duplicate email/phone, BR-231). */
 export interface RegisterConflictErrorResponse {
 	statusCode: 409;
 	message: string;
 	error: string;
 }
 
-/** Request payload accepted by POST /api/auth/verify (CTMS-02 API contract). */
 export interface VerifyOtpApiPayload {
 	userId: string;
 	code: string;
 }
 
-/**
- * Which contact method to deliver the OTP through — chosen by the user on
- * the Verify page, never inferred. Mirrors services/api's OtpChannel enum.
- */
 export type OtpChannel = "phone" | "email";
 
-/**
- * Request payload shared by POST /api/auth/send-otp and POST /api/auth/resend
- * (CTMS-02 real-delivery API contract) — the two routes exist for REST-client
- * clarity (first send vs. resend), but accept the identical body.
- */
 export interface SendOtpApiPayload {
 	userId: string;
 	channel: OtpChannel;
 }
 
-/**
- * Response body for /verify (200), /send-otp (200), and /resend (200) — all
- * three return the same UserProfileDto shape as /register on the backend
- * (services/api).
- */
 export type VerifyOtpApiResponse = RegisterApiResponse;
 export type SendOtpApiResponse = RegisterApiResponse;
 
-/** Request payload accepted by POST /api/auth/forgot-password (CTMS-05-T01). */
 export interface ForgotPasswordApiPayload {
 	identifier: string;
 	channel: OtpChannel;
 }
 
-/** Neutral response body: does not reveal whether the account exists/is active. */
 export interface ForgotPasswordApiResponse {
 	requestAccepted: boolean;
 }
 
-/** Request payload accepted by POST /api/auth/reset-password (CTMS-05-T01). */
 export interface ResetPasswordApiPayload {
 	identifier: string;
 	code: string;
 	newPassword: string;
 }
 
-/** Response body on successful password reset. */
 export interface ResetPasswordApiResponse {
 	passwordReset: boolean;
+}
+
+export interface LogoutApiPayload {
+	refreshToken: string;
+	allDevices?: boolean;
+}
+
+export interface LogoutApiResponse {
+	loggedOut: boolean;
 }
