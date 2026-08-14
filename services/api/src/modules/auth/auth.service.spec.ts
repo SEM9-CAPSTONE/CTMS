@@ -105,7 +105,10 @@ describe("AuthService.register", () => {
 		loggerLogSpy = jest.spyOn(Logger.prototype, "log").mockImplementation(() => undefined);
 
 		auditLogRepository = { save: jest.fn() };
-		transactionalUsersRepository = { findByEmailOrPhone: jest.fn(), createUser: jest.fn() };
+		transactionalUsersRepository = {
+			findByEmailOrPhone: jest.fn(),
+			createUser: jest.fn(),
+		};
 		manager = {
 			withRepository: jest.fn().mockReturnValue(transactionalUsersRepository),
 			getRepository: jest.fn().mockImplementation((entityClass) => {
@@ -145,7 +148,11 @@ describe("AuthService.register", () => {
 	// --- Success path (email and phone are both mandatory) -------------------
 
 	it("registers successfully with email and phone", async () => {
-		const dto = buildDto({ email: "host@example.com", phone: "+84987654321", role: UserRole.HOST });
+		const dto = buildDto({
+			email: "host@example.com",
+			phone: "+84987654321",
+			role: UserRole.HOST,
+		});
 		const createdUser = buildUser({
 			email: "host@example.com",
 			phone: "+84987654321",
@@ -202,7 +209,10 @@ describe("AuthService.register", () => {
 			normalizedPhone
 		);
 		expect(transactionalUsersRepository.createUser).toHaveBeenCalledWith(
-			expect.objectContaining({ email: normalizedEmail, phone: normalizedPhone })
+			expect.objectContaining({
+				email: normalizedEmail,
+				phone: normalizedPhone,
+			})
 		);
 	});
 
@@ -223,7 +233,10 @@ describe("AuthService.register", () => {
 	});
 
 	it("throws ConflictException when both email and phone are provided but only phone is duplicate", async () => {
-		const dto = buildDto({ email: "unique@example.com", phone: "+84900000000" });
+		const dto = buildDto({
+			email: "unique@example.com",
+			phone: "+84900000000",
+		});
 		usersRepository.findByEmailOrPhone.mockResolvedValue(buildUser({ phone: "+84900000000" }));
 
 		await expect(authService.register(dto)).rejects.toBeInstanceOf(ConflictException);
@@ -238,7 +251,11 @@ describe("AuthService.register", () => {
 	// --- Password hashing -------------------------------------------------
 
 	it("hashes the password with bcrypt using cost factor 10 before persisting", async () => {
-		const dto = buildDto({ email: "hash@example.com", phone: "+84911111111", password: "s3cret" });
+		const dto = buildDto({
+			email: "hash@example.com",
+			phone: "+84911111111",
+			password: "s3cret",
+		});
 		usersRepository.findByEmailOrPhone.mockResolvedValue(null);
 		transactionalUsersRepository.createUser.mockResolvedValue(
 			buildUser({ email: "hash@example.com", phone: "+84911111111" })
@@ -257,7 +274,11 @@ describe("AuthService.register", () => {
 		const dto = buildDto({ email: "safe@example.com", phone: "+84922222222" });
 		usersRepository.findByEmailOrPhone.mockResolvedValue(null);
 		transactionalUsersRepository.createUser.mockResolvedValue(
-			buildUser({ email: "safe@example.com", phone: "+84922222222", passwordHash: HASHED_PASSWORD })
+			buildUser({
+				email: "safe@example.com",
+				phone: "+84922222222",
+				passwordHash: HASHED_PASSWORD,
+			})
 		);
 
 		const result = await authService.register(dto);
@@ -289,7 +310,10 @@ describe("AuthService.register", () => {
 	});
 
 	it("propagates a non-unique-violation error from createUser without converting it to ConflictException", async () => {
-		const dto = buildDto({ email: "dberror@example.com", phone: "+84944444444" });
+		const dto = buildDto({
+			email: "dberror@example.com",
+			phone: "+84944444444",
+		});
 		usersRepository.findByEmailOrPhone.mockResolvedValue(null);
 		const connectionError = new Error("connection terminated unexpectedly");
 		transactionalUsersRepository.createUser.mockRejectedValue(connectionError);
@@ -304,7 +328,10 @@ describe("AuthService.register", () => {
 	// --- Transaction rollback contract -------------------------------------
 
 	it("propagates rejection when the transaction callback throws (rollback contract honored)", async () => {
-		const dto = buildDto({ email: "rollback@example.com", phone: "+84955555555" });
+		const dto = buildDto({
+			email: "rollback@example.com",
+			phone: "+84955555555",
+		});
 		usersRepository.findByEmailOrPhone.mockResolvedValue(null);
 		const txError = new Error("simulated transaction failure");
 		transactionalUsersRepository.createUser.mockRejectedValue(txError);
@@ -414,7 +441,9 @@ describe("AuthService.issueOtp", () => {
 		usersRepository = { findByEmailOrPhone: jest.fn(), createUser: jest.fn() };
 		transactionalOtpRepository = { findOneBy: jest.fn(), save: jest.fn() };
 		otpRepository = { findOneBy: jest.fn(), save: jest.fn() };
-		manager = { withRepository: jest.fn().mockReturnValue(transactionalOtpRepository) };
+		manager = {
+			withRepository: jest.fn().mockReturnValue(transactionalOtpRepository),
+		};
 		dataSource = {
 			transaction: jest.fn(async (callback: (manager: EntityManager) => unknown) =>
 				callback(manager as unknown as EntityManager)
@@ -481,7 +510,10 @@ describe("AuthService.issueOtp", () => {
 	// --- Resend within window, under the limit (BR-007, AC2) ----------------
 
 	it("increments sendCount and regenerates the code on resend within the window and under the limit", async () => {
-		const existing = buildOtpRow({ sendCount: 2, windowStartedAt: new Date(Date.now() - 60_000) });
+		const existing = buildOtpRow({
+			sendCount: 2,
+			windowStartedAt: new Date(Date.now() - 60_000),
+		});
 		transactionalOtpRepository.findOneBy.mockResolvedValue(existing);
 
 		const result = await authService.issueOtp(USER_ID);
@@ -517,7 +549,10 @@ describe("AuthService.issueOtp", () => {
 	it("resets sendCount to 1 and restarts the window when the previous window has elapsed", async () => {
 		const windowMinutes = Number(OTP_CONFIG.OTP_RESEND_WINDOW_MINUTES);
 		const elapsedWindowStart = new Date(Date.now() - (windowMinutes * 60_000 + 60_000));
-		const existing = buildOtpRow({ sendCount: 5, windowStartedAt: elapsedWindowStart });
+		const existing = buildOtpRow({
+			sendCount: 5,
+			windowStartedAt: elapsedWindowStart,
+		});
 		transactionalOtpRepository.findOneBy.mockResolvedValue(existing);
 
 		const result = await authService.issueOtp(USER_ID);
@@ -537,7 +572,9 @@ describe("AuthService.issueOtp", () => {
 		await authService.issueOtp(USER_ID);
 
 		expect(dataSource.transaction).toHaveBeenCalledTimes(1);
-		expect(transactionalOtpRepository.findOneBy).toHaveBeenCalledWith({ userId: USER_ID });
+		expect(transactionalOtpRepository.findOneBy).toHaveBeenCalledWith({
+			userId: USER_ID,
+		});
 	});
 });
 
@@ -557,7 +594,11 @@ describe("AuthService.verifyOtp", () => {
 	const SUBMITTED_CODE = "654321";
 
 	function buildDto(overrides: Partial<VerifyOtpDto> = {}): VerifyOtpDto {
-		return { userId: USER_ID, code: SUBMITTED_CODE, ...overrides } as VerifyOtpDto;
+		return {
+			userId: USER_ID,
+			code: SUBMITTED_CODE,
+			...overrides,
+		} as VerifyOtpDto;
 	}
 
 	function buildOtpRow(overrides: Record<string, unknown> = {}) {
@@ -578,7 +619,10 @@ describe("AuthService.verifyOtp", () => {
 		auditLogRepository = { save: jest.fn() };
 		usersRepository = { findByEmailOrPhone: jest.fn(), createUser: jest.fn() };
 		otpRepository = { findOneBy: jest.fn() };
-		transactionalUsersRepository = { update: jest.fn(), findOneByOrFail: jest.fn() };
+		transactionalUsersRepository = {
+			update: jest.fn(),
+			findOneByOrFail: jest.fn(),
+		};
 		transactionalOtpRepository = { findOneBy: jest.fn(), delete: jest.fn() };
 		manager = {
 			withRepository: jest.fn((repo: unknown) =>
@@ -630,8 +674,12 @@ describe("AuthService.verifyOtp", () => {
 		expect(transactionalUsersRepository.update).toHaveBeenCalledWith(USER_ID, {
 			status: UserStatus.ACTIVE,
 		});
-		expect(transactionalOtpRepository.delete).toHaveBeenCalledWith({ userId: USER_ID });
-		expect(transactionalUsersRepository.findOneByOrFail).toHaveBeenCalledWith({ id: USER_ID });
+		expect(transactionalOtpRepository.delete).toHaveBeenCalledWith({
+			userId: USER_ID,
+		});
+		expect(transactionalUsersRepository.findOneByOrFail).toHaveBeenCalledWith({
+			id: USER_ID,
+		});
 		expect(result).toEqual({
 			id: activatedUser.id,
 			email: activatedUser.email,
@@ -749,7 +797,11 @@ describe("AuthService.sendOtp", () => {
 	const RAW_OTP = "654321";
 
 	function buildDto(overrides: Partial<SendOtpDto> = {}): SendOtpDto {
-		return { userId: USER_ID, channel: OtpChannel.PHONE, ...overrides } as SendOtpDto;
+		return {
+			userId: USER_ID,
+			channel: OtpChannel.PHONE,
+			...overrides,
+		} as SendOtpDto;
 	}
 
 	beforeEach(() => {
@@ -759,7 +811,9 @@ describe("AuthService.sendOtp", () => {
 		usersRepository = { findOneByOrFail: jest.fn() };
 		transactionalOtpRepository = { findOneBy: jest.fn(), save: jest.fn() };
 		otpRepository = { findOneBy: jest.fn(), save: jest.fn() };
-		manager = { withRepository: jest.fn().mockReturnValue(transactionalOtpRepository) };
+		manager = {
+			withRepository: jest.fn().mockReturnValue(transactionalOtpRepository),
+		};
 		dataSource = {
 			transaction: jest.fn(async (callback: (manager: EntityManager) => unknown) =>
 				callback(manager as unknown as EntityManager)
@@ -795,7 +849,9 @@ describe("AuthService.sendOtp", () => {
 
 		const result = await authService.sendOtp(buildDto({ channel: OtpChannel.PHONE }));
 
-		expect(usersRepository.findOneByOrFail).toHaveBeenCalledWith({ id: USER_ID });
+		expect(usersRepository.findOneByOrFail).toHaveBeenCalledWith({
+			id: USER_ID,
+		});
 		expect(otpDeliveryService.send).toHaveBeenCalledWith(
 			OtpChannel.PHONE,
 			{ email: user.email, phone: user.phone },
@@ -823,7 +879,10 @@ describe("AuthService.sendOtp", () => {
 	});
 
 	it("delivers via the email channel to the user's email", async () => {
-		const user = buildUser({ email: "camper@example.com", phone: "+84900000001" });
+		const user = buildUser({
+			email: "camper@example.com",
+			phone: "+84900000001",
+		});
 		usersRepository.findOneByOrFail.mockResolvedValue(user);
 
 		await authService.sendOtp(buildDto({ channel: OtpChannel.EMAIL }));
@@ -911,7 +970,10 @@ describe("AuthService.sendOtp", () => {
 
 describe("AuthService.login", () => {
 	let authService: AuthService;
-	let usersRepository: { findByEmailOrPhone: jest.Mock; getGrantedRolesById: jest.Mock };
+	let usersRepository: {
+		findByEmailOrPhone: jest.Mock;
+		getGrantedRolesById: jest.Mock;
+	};
 	let refreshTokenRepository: { save: jest.Mock };
 	let transactionalRefreshTokenRepository: { save: jest.Mock };
 	let auditLogRepository: { save: jest.Mock };
@@ -1141,7 +1203,10 @@ describe("AuthService.login", () => {
 
 		await authService.login(buildDto());
 
-		expect(jwtService.sign).toHaveBeenCalledWith({ sub: user.id, roles: [UserRole.HOST] });
+		expect(jwtService.sign).toHaveBeenCalledWith({
+			sub: user.id,
+			roles: [UserRole.HOST],
+		});
 	});
 
 	// --- No secret exposure in logs -------------------------------------------
@@ -1190,7 +1255,10 @@ describe("AuthService.refresh", () => {
 	let authService: AuthService;
 	let usersRepository: { findOneBy: jest.Mock; getGrantedRolesById: jest.Mock };
 	let refreshTokenRepository: { findOneBy: jest.Mock };
-	let transactionalRefreshTokenRepository: { revokeIfActive: jest.Mock; save: jest.Mock };
+	let transactionalRefreshTokenRepository: {
+		revokeIfActive: jest.Mock;
+		save: jest.Mock;
+	};
 	let auditLogRepository: { save: jest.Mock };
 	let manager: { withRepository: jest.Mock; getRepository: jest.Mock };
 	let dataSource: { transaction: jest.Mock };
@@ -1264,7 +1332,9 @@ describe("AuthService.refresh", () => {
 			digest: jest.fn().mockReturnValue(NEW_TOKEN_HASH),
 		});
 
-		transactionalRefreshTokenRepository.save.mockResolvedValue({ id: NEW_TOKEN_ID });
+		transactionalRefreshTokenRepository.save.mockResolvedValue({
+			id: NEW_TOKEN_ID,
+		});
 
 		authService = new AuthService(
 			usersRepository as unknown as UsersRepository,
@@ -1289,8 +1359,14 @@ describe("AuthService.refresh", () => {
 
 		const result = await authService.refresh(buildDto());
 
-		expect(result).toEqual({ accessToken: ACCESS_TOKEN, refreshToken: RAW_REFRESH_TOKEN });
-		expect(jwtService.sign).toHaveBeenCalledWith({ sub: USER_ID, roles: [UserRole.CAMPER] });
+		expect(result).toEqual({
+			accessToken: ACCESS_TOKEN,
+			refreshToken: RAW_REFRESH_TOKEN,
+		});
+		expect(jwtService.sign).toHaveBeenCalledWith({
+			sub: USER_ID,
+			roles: [UserRole.CAMPER],
+		});
 	});
 
 	it("revokes exactly the presented token and persists a new one with the configured TTL", async () => {
@@ -1508,7 +1584,9 @@ describe("AuthService.forgotPassword", () => {
 		usersRepository = { findByEmailOrPhone: jest.fn() };
 		transactionalOtpRepository = { findOneBy: jest.fn(), save: jest.fn() };
 		otpRepository = { findOneBy: jest.fn(), save: jest.fn() };
-		manager = { withRepository: jest.fn().mockReturnValue(transactionalOtpRepository) };
+		manager = {
+			withRepository: jest.fn().mockReturnValue(transactionalOtpRepository),
+		};
 		dataSource = {
 			transaction: jest.fn(async (callback: (manager: EntityManager) => unknown) =>
 				callback(manager as unknown as EntityManager)
@@ -1583,7 +1661,9 @@ describe("AuthService.resetPassword", () => {
 	let otpRepository: { findOneBy: jest.Mock };
 	let transactionalUsersRepository: { update: jest.Mock };
 	let transactionalOtpRepository: { delete: jest.Mock };
-	let transactionalRefreshTokenRepository: { revokeActiveTokensForUser: jest.Mock };
+	let transactionalRefreshTokenRepository: {
+		revokeActiveTokensForUser: jest.Mock;
+	};
 	let auditLogRepository: { save: jest.Mock };
 	let manager: { withRepository: jest.Mock; getRepository: jest.Mock };
 	let dataSource: { transaction: jest.Mock };
@@ -1622,7 +1702,9 @@ describe("AuthService.resetPassword", () => {
 		otpRepository = { findOneBy: jest.fn() };
 		transactionalUsersRepository = { update: jest.fn() };
 		transactionalOtpRepository = { delete: jest.fn() };
-		transactionalRefreshTokenRepository = { revokeActiveTokensForUser: jest.fn() };
+		transactionalRefreshTokenRepository = {
+			revokeActiveTokensForUser: jest.fn(),
+		};
 		auditLogRepository = { save: jest.fn() };
 		manager = {
 			withRepository: jest.fn((repository) => {
@@ -1668,7 +1750,9 @@ describe("AuthService.resetPassword", () => {
 		expect(transactionalUsersRepository.update).toHaveBeenCalledWith(USER_ID, {
 			passwordHash: HASHED_PASSWORD,
 		});
-		expect(transactionalOtpRepository.delete).toHaveBeenCalledWith({ userId: USER_ID });
+		expect(transactionalOtpRepository.delete).toHaveBeenCalledWith({
+			userId: USER_ID,
+		});
 		expect(transactionalRefreshTokenRepository.revokeActiveTokensForUser).toHaveBeenCalledWith(
 			USER_ID,
 			expect.any(Date)
@@ -1721,5 +1805,287 @@ describe("AuthService.resetPassword", () => {
 		expect(error).toBeInstanceOf(ConflictException);
 		expect(bcryptHash).not.toHaveBeenCalled();
 		expect(dataSource.transaction).not.toHaveBeenCalled();
+	});
+});
+
+describe("AuthService.logout", () => {
+	let authService: AuthService;
+
+	let refreshTokenRepository: {
+		findOneBy: jest.Mock;
+	};
+
+	let transactionalRefreshTokenRepository: {
+		revokeIfActive: jest.Mock;
+		revokeActiveTokensForUser: jest.Mock;
+	};
+
+	let auditLogRepository: {
+		save: jest.Mock;
+	};
+
+	let manager: {
+		withRepository: jest.Mock;
+		getRepository: jest.Mock;
+	};
+
+	let dataSource: {
+		transaction: jest.Mock;
+	};
+
+	let loggerLogSpy: jest.SpyInstance;
+
+	const cryptoCreateHash = createHash as unknown as jest.Mock;
+
+	const USER_ID = "11111111-1111-1111-1111-111111111111";
+	const OTHER_USER_ID = "22222222-2222-2222-2222-222222222222";
+	const TOKEN_ID = "33333333-3333-3333-3333-333333333333";
+
+	const RAW_REFRESH_TOKEN = "logout-raw-refresh-token";
+	const TOKEN_HASH = "logout-sha256-token-hash";
+
+	function buildTokenRow(overrides: Record<string, unknown> = {}) {
+		return {
+			id: TOKEN_ID,
+			userId: USER_ID,
+			tokenHash: TOKEN_HASH,
+			expiresAt: new Date(Date.now() + 60 * 60_000),
+			revokedAt: null,
+			createdAt: FIXED_DATE,
+			...overrides,
+		};
+	}
+
+	beforeEach(() => {
+		jest.clearAllMocks();
+
+		loggerLogSpy = jest.spyOn(Logger.prototype, "log").mockImplementation(() => undefined);
+
+		refreshTokenRepository = {
+			findOneBy: jest.fn(),
+		};
+
+		transactionalRefreshTokenRepository = {
+			revokeIfActive: jest.fn().mockResolvedValue(1),
+			revokeActiveTokensForUser: jest.fn().mockResolvedValue(1),
+		};
+
+		auditLogRepository = {
+			save: jest.fn(),
+		};
+
+		manager = {
+			withRepository: jest.fn().mockReturnValue(transactionalRefreshTokenRepository),
+
+			getRepository: jest.fn().mockImplementation((entityClass) => {
+				if (entityClass === AuditLog) {
+					return auditLogRepository;
+				}
+
+				return null;
+			}),
+		};
+
+		dataSource = {
+			transaction: jest.fn(async (callback: (manager: EntityManager) => unknown) =>
+				callback(manager as unknown as EntityManager)
+			),
+		};
+
+		cryptoCreateHash.mockReturnValue({
+			update: jest.fn().mockReturnThis(),
+			digest: jest.fn().mockReturnValue(TOKEN_HASH),
+		});
+
+		authService = new AuthService(
+			{} as UsersRepository,
+			{} as VerificationOtpRepository,
+			refreshTokenRepository as unknown as RefreshTokenRepository,
+			dataSource as unknown as DataSource,
+			{ get: jest.fn() } as unknown as ConfigService,
+			{} as OtpDeliveryService,
+			{} as JwtService
+		);
+	});
+
+	afterEach(() => {
+		loggerLogSpy.mockRestore();
+	});
+
+	it("revokes only the current refresh token", async () => {
+		refreshTokenRepository.findOneBy.mockResolvedValue(buildTokenRow());
+
+		const result = await authService.logout(USER_ID, {
+			refreshToken: RAW_REFRESH_TOKEN,
+		});
+
+		expect(cryptoCreateHash).toHaveBeenCalledWith("sha256");
+
+		expect(refreshTokenRepository.findOneBy).toHaveBeenCalledWith({
+			tokenHash: TOKEN_HASH,
+		});
+
+		expect(transactionalRefreshTokenRepository.revokeIfActive).toHaveBeenCalledWith(
+			TOKEN_ID,
+			expect.any(Date)
+		);
+
+		expect(transactionalRefreshTokenRepository.revokeActiveTokensForUser).not.toHaveBeenCalled();
+
+		expect(result).toEqual({
+			loggedOut: true,
+		});
+	});
+
+	it("revokes all active refresh tokens when allDevices is true", async () => {
+		refreshTokenRepository.findOneBy.mockResolvedValue(buildTokenRow());
+
+		transactionalRefreshTokenRepository.revokeActiveTokensForUser.mockResolvedValue(2);
+
+		const result = await authService.logout(USER_ID, {
+			refreshToken: RAW_REFRESH_TOKEN,
+			allDevices: true,
+		});
+
+		expect(transactionalRefreshTokenRepository.revokeActiveTokensForUser).toHaveBeenCalledWith(
+			USER_ID,
+			expect.any(Date)
+		);
+
+		expect(transactionalRefreshTokenRepository.revokeIfActive).not.toHaveBeenCalled();
+
+		expect(result).toEqual({
+			loggedOut: true,
+		});
+	});
+
+	it("throws UnauthorizedException when refresh token does not exist", async () => {
+		refreshTokenRepository.findOneBy.mockResolvedValue(null);
+
+		await expect(
+			authService.logout(USER_ID, {
+				refreshToken: RAW_REFRESH_TOKEN,
+			})
+		).rejects.toBeInstanceOf(UnauthorizedException);
+
+		expect(dataSource.transaction).not.toHaveBeenCalled();
+	});
+
+	it("throws UnauthorizedException when refresh token belongs to another user", async () => {
+		refreshTokenRepository.findOneBy.mockResolvedValue(
+			buildTokenRow({
+				userId: OTHER_USER_ID,
+			})
+		);
+
+		await expect(
+			authService.logout(USER_ID, {
+				refreshToken: RAW_REFRESH_TOKEN,
+			})
+		).rejects.toBeInstanceOf(UnauthorizedException);
+
+		expect(dataSource.transaction).not.toHaveBeenCalled();
+	});
+
+	it("writes auth.logout audit log for current-device logout", async () => {
+		refreshTokenRepository.findOneBy.mockResolvedValue(buildTokenRow());
+
+		await authService.logout(USER_ID, {
+			refreshToken: RAW_REFRESH_TOKEN,
+		});
+
+		expect(auditLogRepository.save).toHaveBeenCalledWith({
+			actorId: USER_ID,
+			action: "auth.logout",
+			targetType: "user",
+			targetId: USER_ID,
+			before: {
+				refreshTokenId: TOKEN_ID,
+			},
+			after: {
+				refreshTokensRevoked: "current",
+			},
+			reason: null,
+		});
+	});
+
+	it("writes auth.logout_all_devices audit log for logout all devices", async () => {
+		refreshTokenRepository.findOneBy.mockResolvedValue(buildTokenRow());
+
+		await authService.logout(USER_ID, {
+			refreshToken: RAW_REFRESH_TOKEN,
+			allDevices: true,
+		});
+
+		expect(auditLogRepository.save).toHaveBeenCalledWith({
+			actorId: USER_ID,
+			action: "auth.logout_all_devices",
+			targetType: "user",
+			targetId: USER_ID,
+			before: {
+				refreshTokenId: TOKEN_ID,
+			},
+			after: {
+				refreshTokensRevoked: "all_active",
+			},
+			reason: null,
+		});
+	});
+
+	it("is idempotent when the current token was already revoked", async () => {
+		refreshTokenRepository.findOneBy.mockResolvedValue(
+			buildTokenRow({
+				revokedAt: new Date(),
+			})
+		);
+
+		transactionalRefreshTokenRepository.revokeIfActive.mockResolvedValue(0);
+
+		const result = await authService.logout(USER_ID, {
+			refreshToken: RAW_REFRESH_TOKEN,
+		});
+
+		expect(result).toEqual({
+			loggedOut: true,
+		});
+
+		expect(auditLogRepository.save).not.toHaveBeenCalled();
+	});
+
+	it("does not create duplicate audit log when revoke affects zero rows", async () => {
+		refreshTokenRepository.findOneBy.mockResolvedValue(buildTokenRow());
+
+		transactionalRefreshTokenRepository.revokeIfActive.mockResolvedValue(0);
+
+		await authService.logout(USER_ID, {
+			refreshToken: RAW_REFRESH_TOKEN,
+		});
+
+		expect(auditLogRepository.save).not.toHaveBeenCalled();
+	});
+
+	it("runs revoke and audit inside one transaction", async () => {
+		refreshTokenRepository.findOneBy.mockResolvedValue(buildTokenRow());
+
+		await authService.logout(USER_ID, {
+			refreshToken: RAW_REFRESH_TOKEN,
+		});
+
+		expect(dataSource.transaction).toHaveBeenCalledTimes(1);
+		expect(transactionalRefreshTokenRepository.revokeIfActive).toHaveBeenCalledTimes(1);
+		expect(auditLogRepository.save).toHaveBeenCalledTimes(1);
+	});
+
+	it("propagates audit-log failure so transaction can roll back", async () => {
+		refreshTokenRepository.findOneBy.mockResolvedValue(buildTokenRow());
+
+		const auditError = new Error("audit save error");
+		auditLogRepository.save.mockRejectedValue(auditError);
+
+		await expect(
+			authService.logout(USER_ID, {
+				refreshToken: RAW_REFRESH_TOKEN,
+			})
+		).rejects.toBe(auditError);
 	});
 });
