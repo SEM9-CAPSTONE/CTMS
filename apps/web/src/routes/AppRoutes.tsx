@@ -12,7 +12,6 @@ import { getGrantedRoles, isAdminUser } from "../features/auth/utils/permissions
 import { getRefreshToken, getStoredAuthUser } from "../features/auth/utils/tokenStorage";
 import { CamperProfilePage } from "../features/camper-profile/pages/CamperProfilePage";
 import { LandingPage } from "../features/landing/pages/LandingPage";
-import { RoleLandingPage } from "../features/role-landing/pages/RoleLandingPage";
 import { EdgeCasePage, ErrorPage, NotFoundPage, UnauthorizedPage } from "../shared/pages";
 import { AppRoleGuard } from "./AppRoleGuard";
 import { RoutePath } from "./routes.config";
@@ -81,12 +80,12 @@ export function AppRoutes() {
 	);
 
 	useEffect(() => {
-		const isHomePath = currentPath === RoutePath.HOME || currentPath === "";
-		if (isHomePath && storedUser && currentRoles.length > 0) {
-			window.history.replaceState({}, "", RoutePath.DASHBOARD);
-			setCurrentPath(RoutePath.DASHBOARD);
+		const isDashboardPath = currentPath === RoutePath.DASHBOARD;
+		if (isDashboardPath) {
+			window.history.replaceState({}, "", RoutePath.HOME);
+			setCurrentPath(RoutePath.HOME);
 		}
-	}, [currentPath, currentRoles.length, storedUser]);
+	}, [currentPath]);
 
 	switch (currentPath) {
 		case RoutePath.HOME:
@@ -105,7 +104,7 @@ export function AppRoutes() {
 					onNavigateToRegister={() => navigateTo(RoutePath.REGISTER)}
 					onNavigateToForgotPassword={() => navigateTo(RoutePath.FORGOT_PASSWORD)}
 					onLoginSuccess={(user) => {
-						navigateTo(isAdminUser(user) ? RoutePath.ADMIN_USERS : RoutePath.DASHBOARD);
+						navigateTo(isAdminUser(user) ? RoutePath.ADMIN_USERS : RoutePath.HOME);
 					}}
 				/>
 			);
@@ -141,38 +140,20 @@ export function AppRoutes() {
 			return (
 				<CamperProfilePage
 					onBackHome={() => navigateTo(RoutePath.HOME)}
-					onNavigateDashboard={() => navigateTo(RoutePath.DASHBOARD)}
+					onNavigateDashboard={() => navigateTo(RoutePath.HOME)}
 					onLogout={handleLogout}
 				/>
 			);
 
-		case RoutePath.DASHBOARD:
+		case RoutePath.DASHBOARD: {
+			window.history.replaceState({}, "", RoutePath.HOME);
 			return (
-				<AppRoleGuard
-					allowedRoles={["camper", "host", "porter", "admin"]}
-					currentRoles={currentRoles}
-					fallback={
-						<UnauthorizedPage
-							onBackToHome={() => navigateTo(RoutePath.HOME)}
-							onNavigateToLogin={() => navigateTo(RoutePath.LOGIN)}
-						/>
-					}
-					onNavigateHome={() => navigateTo(RoutePath.HOME)}
-				>
-					{storedUser ? (
-						<RoleLandingPage
-							user={storedUser}
-							roles={currentRoles}
-							onBackHome={() => navigateTo(RoutePath.HOME)}
-							onOpenProfile={() => navigateTo(RoutePath.PROFILE)}
-							onOpenAdminUsers={() => navigateTo(RoutePath.ADMIN_USERS)}
-							onLogout={handleLogout}
-						/>
-					) : (
-						unauthorizedFallback
-					)}
-				</AppRoleGuard>
+				<LandingPage
+					onNavigateToLogin={() => navigateTo(RoutePath.LOGIN)}
+					onNavigateToRegister={() => navigateTo(RoutePath.REGISTER)}
+				/>
 			);
+		}
 
 		case RoutePath.ADMIN_USERS:
 			return (
