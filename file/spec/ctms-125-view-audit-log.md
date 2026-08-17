@@ -1,4 +1,4 @@
-﻿# CTMS-125 - View Audit Log
+# CTMS-125 - View Audit Log
 
 **Spec Reference**  
 /file/spec/ctms-125-view-audit-log.md
@@ -126,3 +126,48 @@ Blocks: None`
 - Spec Reference: `/file/spec/ctms-125-view-audit-log.md`
 - Business Rules workbook: `C:/Users/admin/Downloads/CTMS_Global_Business_Rules_Sprint_1-3.xlsx`
 - Story-level BRs: `BR-202, BR-204, BR-205, BR-230, BR-231, BR-242, BR-243, BR-244, BR-221, BR-222, BR-223, BR-224, BR-232, BR-233, BR-218, BR-219, BR-195, BR-196`
+
+## Backend Preparation Logic and Tests
+
+This section outlines the detailed requirements, actors, flows, and API specifications for viewing audit logs.
+
+### 1. Actors
+- **Admin**: The authorized system user who has permission to view audit logs.
+
+### 2. Preconditions
+- The Admin must be authenticated.
+- The Admin must have the `admin` role and an active account status.
+
+### 3. Core Audit Logs Viewing Flows
+
+#### View Audit Logs (Main Flow)
+1. **Request**: The Admin requests the list of audit logs via `GET /api/audit-logs` with optional query filters (actor, action, target, outcome, time range) and pagination (page, limit).
+2. **Authorization**: The system checks if the user is authenticated and is a current active Admin. If not, it returns `401 Unauthorized` or `403 Forbidden` respectively.
+3. **Validation**: The system validates query inputs. If invalid (e.g. invalid UUID format for IDs, non-integer page/limit, invalid Date format), it returns `422 Unprocessable Entity`.
+4. **Execution**: The service queries the `audit_logs` table matching the criteria, sorting by `created_at DESC, id DESC`.
+5. **Masking**: The system masks any sensitive fields (like password, OTP, tokens) present in the `before` or `after` states with `[MASKED]`.
+6. **Response**: Returns a `200 OK` status with the paginated list of audit logs and pagination metadata.
+
+#### Filter by Outcome (Alternate Flow)
+- If the requested outcome is `failure`, since failed operations do not persist logs, the system returns an empty items array `[]` with correct pagination metrics (total: 0, totalPages: 0, page: 1, limit: limit).
+
+### 4. API Specification
+
+- **Endpoint**: `GET /api/audit-logs`
+- **Headers**: `Authorization: Bearer <token>`
+- **Query Parameters**:
+  - `actorId` / `actor` (UUID, optional): Filter by actor user ID
+  - `action` (string, optional): Filter by action name (e.g., `auth.register`)
+  - `targetId` / `target` (UUID, optional): Filter by target ID
+  - `targetType` (string, optional): Filter by target entity type
+  - `outcome` (string, optional): Filter by outcome (`success` or `failure`)
+  - `startDate` (ISO Date, optional): Start of time range (inclusive)
+  - `endDate` (ISO Date, optional): End of time range (inclusive)
+  - `page` (number, optional, default: 1): Page number
+  - `limit` (number, optional, default: 20): Maximum records per page
+- **Responses**:
+  - `200 OK`: Returns paginated list of logs.
+  - `401 Unauthorized`: Authentication required or invalid token.
+  - `403 Forbidden`: Admin role required.
+  - `422 Unprocessable Entity`: Invalid query parameters.
+
