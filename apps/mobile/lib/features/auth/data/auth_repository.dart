@@ -52,6 +52,15 @@ class AuthRepository {
   await _tokenStorage.clear();
 }
 
+  /// CTMS-04-T03: local-only session clear, deliberately no network call --
+  /// used when the session is already known to be dead server-side (a
+  /// failed token refresh, via `ApiClient`'s `onSessionExpired`), where a
+  /// real `POST /auth/logout` (CTMS-08's [logout] above) would be
+  /// redundant -- the refresh token being cleared is already invalid -- and
+  /// where the caller (an HTTP interceptor's own failure path, see
+  /// `AuthController.clearSession()`) cannot afford this to throw.
+  Future<void> clearLocalSession() => _tokenStorage.clear();
+
   Future<RegisterResult> register(RegisterFormData data) => _api.register(data);
 
   Future<void> forgotPassword({

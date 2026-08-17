@@ -22,14 +22,21 @@ const _user = AuthUser(
 /// with, and either resolves with [_user] or throws [failure]. No network,
 /// same pattern as the register-side recording fakes.
 class _RecordingAuthRepository extends AuthRepository {
-  _RecordingAuthRepository({this.failure})
+  _RecordingAuthRepository({this.failure, this.logoutFailure})
     : super(
         AuthApi(ApiClient(TokenStorage(const FlutterSecureStorage()))),
         TokenStorage(const FlutterSecureStorage()),
       );
 
+  /// login()'s own failure -- kept separate from [logoutFailure] so a test
+  /// can make `logout()` fail without also breaking `loggedInContainer()`'s
+  /// own prerequisite login call.
   final Object? failure;
+  final Object? logoutFailure;
   int loginCallCount = 0;
+  int logoutCallCount = 0;
+  int clearLocalSessionCallCount = 0;
+  bool? lastAllDevices;
   String? lastIdentifier;
 
   @override
@@ -42,6 +49,23 @@ class _RecordingAuthRepository extends AuthRepository {
 
   @override
   Future<AuthUser?> tryRestoreSession() async => null;
+
+  /// CTMS-08: the real, API-backed, user-initiated logout -- can fail.
+  @override
+  Future<void> logout({bool allDevices = false}) async {
+    logoutCallCount++;
+    lastAllDevices = allDevices;
+    if (logoutFailure != null) throw logoutFailure!;
+  }
+
+  /// CTMS-04-T03: the local-only primitive `clearSession()` actually calls
+  /// -- deliberately a DIFFERENT method from [logout] above (see
+  /// AuthController.clearSession's doc comment for why), so it needs its
+  /// own counter, not `logoutCallCount`.
+  @override
+  Future<void> clearLocalSession() async {
+    clearLocalSessionCallCount++;
+  }
 }
 
 void main() {
@@ -107,6 +131,73 @@ void main() {
       final state = container.read(authControllerProvider);
       expect(state.hasError, isTrue);
       expect(state.value, isNull);
+    });
+  });
+
+  group('AuthController.clearSession / logout (CTMS-04-T03, DG-M1)', () {
+    Future<ProviderContainer> loggedInContainer(_RecordingAuthRepository repository) async {
+      final container = ProviderContainer(
+        overrides: [authRepositoryProvider.overrideWithValue(repository)],
+      );
+      addTearDown(container.dispose);
+      await container
+          .read(authControllerProvider.notifier)
+          .login(identifier: 'camper@example.com', password: 's3cretPass');
+      expect(container.read(authControllerProvider).value, _user);
+      return container;
+    }
+
+    test('clearSession() clears LOCAL state only -- never calls the real logout() API', () async {
+      final repository = _RecordingAuthRepository();
+      final container = await loggedInContainer(repository);
+
+      await container.read(authControllerProvider.notifier).clearSession();
+
+      expect(repository.clearLocalSessionCallCount, 1);
+      expect(repository.logoutCallCount, 0); // CTMS-08's API-backed logout is a different path
+      expect(container.read(authControllerProvider).value, isNull);
+    });
+
+    test('is safe to call more than once concurrently -- relevant once multiple failed '
+        'requests independently reach onSessionExpired after one shared failed refresh', () async {
+      final repository = _RecordingAuthRepository();
+      final container = await loggedInContainer(repository);
+      final notifier = container.read(authControllerProvider.notifier);
+
+      await Future.wait([notifier.clearSession(), notifier.clearSession(), notifier.clearSession()]);
+
+      expect(repository.clearLocalSessionCallCount, 3); // each call still reaches the repository...
+      expect(container.read(authControllerProvider).value, isNull); // ...but state ends up consistent either way
+    });
+
+    // CTMS-08: logout() is the real, API-backed, user-initiated action --
+    // a different code path from clearSession() above. Full behavioral
+    // coverage lives in CTMS-08's own auth_repository_logout_test.dart;
+    // these two only confirm AuthController's side of the split.
+    test('logout() calls the real logout() API, not clearLocalSession()', () async {
+      final repository = _RecordingAuthRepository();
+      final container = await loggedInContainer(repository);
+
+      await container.read(authControllerProvider.notifier).logout(allDevices: true);
+
+      expect(repository.logoutCallCount, 1);
+      expect(repository.lastAllDevices, isTrue);
+      expect(repository.clearLocalSessionCallCount, 0);
+      expect(container.read(authControllerProvider).value, isNull);
+    });
+
+    test('logout() failure surfaces as AsyncError and rethrows, session stays as-is', () async {
+      final repository = _RecordingAuthRepository(
+        logoutFailure: ApiException('Network error', kind: ApiExceptionKind.network),
+      );
+      final container = await loggedInContainer(repository);
+
+      await expectLater(
+        container.read(authControllerProvider.notifier).logout(),
+        throwsA(isA<ApiException>()),
+      );
+
+      expect(container.read(authControllerProvider).hasError, isTrue);
     });
   });
 

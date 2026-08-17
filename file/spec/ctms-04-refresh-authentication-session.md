@@ -33,9 +33,9 @@ As a user, I want to refresh Authentication Session so that the CTMS workflow is
 - [x] BR-231: APIs must return consistent error codes: 401 for authentication failure, 403 for insufficient permission, 404 for not found, 409 for business conflict, and 422 for invalid data.
 - [x] BR-236: Users may only add, delete, or reorder media for resources they own or are authorized to manage. (Not applicable to CTMS-04-T01 — no media involved.)
 - [x] BR-237: Background jobs must re-check business conditions at execution time and must not rely only on stale state. (Not applicable to CTMS-04-T01 — refresh is a synchronous request, not a background job.)
-- [x] BR-240: When offline data conflicts with newer data on the server, the server applies the defined conflict rule and does not silently overwrite newer data. (Not applicable to CTMS-04-T02 — refresh-session has no offline-sync/conflicting-write scenario.)
-- [x] BR-241: The UI must prevent duplicate submission while a request is in flight; financial or resource-holding actions only show success after backend confirmation. (CTMS-04-T02: this is exactly what the single-flight refresh coordinator does — concurrent 401s collapse into one in-flight `POST /auth/refresh`, never a duplicate. See DG-03/DG-05 and "Web Integration" below.)
-- [x] BR-242: When the backend rejects a request because data changed concurrently, the UI must preserve entered data, display the reason, and allow reload or retry. (Not applicable to CTMS-04-T02 as written — refresh-session has no concurrent-data-conflict scenario to preserve form data across. The closest related behavior CTMS-04-T02 actually implements is documented under "Web Integration" below: the original request's data is preserved and retried automatically after a token-expiry failure, a different trigger than this BR describes.)
+- [x] BR-240: When offline data conflicts with newer data on the server, the server applies the defined conflict rule and does not silently overwrite newer data. (Not applicable to CTMS-04-T02/T03 — refresh-session has no offline-sync/conflicting-write scenario on either client.)
+- [x] BR-241: The UI must prevent duplicate submission while a request is in flight; financial or resource-holding actions only show success after backend confirmation. (CTMS-04-T02/T03: this is exactly what each client's single-flight refresh coordinator does — concurrent 401s collapse into one in-flight `POST /auth/refresh`, never a duplicate, on Web (`authRefresh.ts`) and Mobile (`AuthRefreshCoordinator`) alike. See DG-03/DG-05 ("Web Integration") and DG-M3 ("Mobile Integration") below.)
+- [x] BR-242: When the backend rejects a request because data changed concurrently, the UI must preserve entered data, display the reason, and allow reload or retry. (Not applicable to CTMS-04-T02/T03 as written — refresh-session has no concurrent-data-conflict scenario to preserve form data across on either client. The closest related behavior each implements is documented under "Web Integration"/"Mobile Integration" below: the original request's data is preserved and retried automatically after a token-expiry failure, a different trigger than this BR describes.)
 - [x] BR-243: Cases with insufficient permission or unmet business conditions must not create any side effect.
 - [x] BR-244: Changes to Business Rules, enums, state transitions, or API contracts must update the Spec, test cases, and data documentation together before Done.
 
@@ -50,7 +50,8 @@ As a user, I want to refresh Authentication Session so that the CTMS workflow is
 - [x] CTMS-04-T01 [BE / Shared Logic] Implement `Refresh Authentication Session` for this task scope and enforce mapped BRs: BR-202, BR-204, BR-205, BR-230, BR-231, BR-242, BR-243, BR-244, BR-200, BR-201, BR-214, BR-215, BR-220, BR-236, BR-237, BR-011, BR-012, BR-206, BR-207. Ref: /file/spec/ctms-04-refresh-authentication-session.md#backend-preparation-logic-and-tests
 - [x] CTMS-04-T02 [UI Web/Mobile/Consumer] Implement `Refresh Authentication Session` for this task scope and enforce mapped BRs: BR-202, BR-204, BR-205, BR-230, BR-231, BR-240, BR-241, BR-242, BR-011, BR-012. Ref: /file/spec/ctms-04-refresh-authentication-session.md#ui-and-tests
 
-  Note: only the Web client (`apps/web`) is implemented under this checkbox. Mobile/Consumer integration is not part of this task's actual delivered scope and remains open.
+  Note: only the Web client (`apps/web`) is implemented under this checkbox. Mobile integration is delivered separately under CTMS-04-T03 below (real Jira key CTMS-216); Consumer (a separate client, not in either Jira card) remains open.
+- [x] CTMS-04-T03 [Mobile] Implement `Refresh Authentication Session` — Mobile Integration (real Jira key `CTMS-216`) for this task scope and enforce mapped BRs: BR-202, BR-204, BR-205, BR-230, BR-231, BR-240, BR-241, BR-242, BR-011, BR-012. Ref: /file/spec/ctms-04-refresh-authentication-session.md#mobile-integration-and-tests
 
 ## API Contract (CTMS-04-T01 — implemented)
 
@@ -189,8 +190,9 @@ construction, not by convention.
 - No `/auth/me` usage (DG-07) — not needed for this flow.
 - No standalone "Refresh Session" screen — this is an integration-only
   task, exactly as scoped in the Jira description.
-- Mobile/Consumer integration is not delivered by this task despite being
-  named in its title — only the Web client (`apps/web`) is implemented.
+- Mobile integration is delivered separately, under CTMS-04-T03 (see
+  "Mobile Integration" below) — this section covers only the Web client
+  (`apps/web`).
 
 ### Security
 No token ever appears in a request URL, a `console.*` call, or the
@@ -208,17 +210,153 @@ tests at all three levels (unit, `httpClient` integration, E2E).
   verify-otp/forgot-password) re-run and still passing, confirming no
   regression to the flows this story did not touch.
 
+## Mobile Integration (CTMS-04-T03 — implemented)
+
+This story shipped with no Mobile Integration design on record. The design
+below was resolved through this task's own Decision Gate (DG-M1 → DG-M8),
+built entirely on top of CTMS-04-T01's API Contract above, and is recorded
+here per BR-244. Flutter/Dart (Riverpod + `dio` + `go_router` +
+`flutter_secure_storage`), a different stack from the Web client above —
+several decisions are deliberately Mobile-specific rather than a port of
+the Web design (see DG-M1/DG-M2 below).
+
+### Files
+- `apps/mobile/lib/core/storage/token_storage.dart` — `saveTokens()`/
+  `readRefreshToken()` added (rotation-only; existing `saveSession()`/
+  `readAccessToken()`/`clear()` untouched).
+- `apps/mobile/lib/core/api/auth_refresh_coordinator.dart` — single-flight
+  refresh coordinator (new).
+- `apps/mobile/lib/core/api/api_client.dart` — 401 detection and
+  refresh-and-retry `onError` interceptor (existing shared `Dio` wrapper,
+  extended in place).
+- `apps/mobile/lib/features/auth/application/auth_controller.dart` —
+  `clearSession()` extracted as the shared primitive; `logout()` delegates
+  to it.
+- `apps/mobile/lib/main.dart` — composition root wiring (`ApiClient` ↔
+  `AuthController`).
+- `apps/mobile/lib/core/lifecycle/app_lifecycle_observer.dart` —
+  foreground/background revalidation (new).
+
+### Interceptor flow (DG-M3/DG-M4)
+`ApiClient`'s existing `onRequest` interceptor already attached the access
+token to every request that has one — DG-M4 kept that exact definition of
+"protected" (no per-endpoint whitelist). On a 401 for such a request, its
+new `onError` interceptor calls the single-flight
+`AuthRefreshCoordinator.refresh()` and retries the original request exactly
+once with the new token (the retried request's `Authorization` header is
+explicitly overwritten before replay — `dio.fetch()` otherwise resends the
+stale one), via an internal-only `extra['isRetryAfterRefresh']` flag (Dio's
+own idiomatic per-request metadata slot) never exposed by any public API. A
+second 401 on the retry falls through unchanged to the normal error path —
+no second refresh, no loop, and NOT treated as a session expiry (only a
+failed *refresh* is). Public/unauthenticated requests are entirely
+unaffected — unchanged behavior, verified by the full pre-existing Mobile
+Vitest/E2E suite still passing unmodified.
+
+### Single-flight (DG-M3)
+`AuthRefreshCoordinator` holds one instance-level `Future<String>?`
+(`_inFlight`). Every concurrent 401 calls the same `refresh()`; the
+check-and-set (`_inFlight ??= ...`) happens in one synchronous expression,
+with no `await` between them — Dart's single-threaded event loop (per
+isolate) guarantees no other caller can interleave and observe a
+half-updated `_inFlight`, the same reasoning `authRefresh.ts` relies on for
+JS. The refresh call itself uses a separate `Dio` instance
+(`refreshDio`) with no interceptors, so it structurally cannot re-enter
+`ApiClient`'s 401-handling. Proven with real concurrent 401s both in a
+Flutter test (`api_client_test.dart`) and against the real backend in a
+real browser (`integration_test/refresh_session_test.dart`) — the E2E
+proof is a black-box one: with single-flight broken, the backend's own
+reuse guard (CTMS-04-T01's row-level conditional `UPDATE`) would fail the
+second of two concurrent refresh attempts outright, so "both concurrent
+requests succeed" is itself sufficient evidence, without needing
+call-count instrumentation against the real backend.
+
+### Session clearing (DG-M1/DG-M2)
+On refresh failure, `ApiClient` calls a plain `Future<void> Function()?
+onSessionExpired` callback — not `AuthController`/`Ref`/`go_router`
+directly. `AuthController.clearSession()` (the same primitive `logout()`
+now delegates to) clears `TokenStorage` and sets
+`state = const AsyncData(null)`; `app_router.dart`'s pre-existing
+`redirect` callback (unchanged by this story) reacts to that state and
+bounces to `/login` on its own. The wiring between the two —
+`apiClientProvider.overrideWith((ref) => ApiClient(..., onSessionExpired:
+() => ref.read(authControllerProvider.notifier).clearSession()))` — lives
+only in `main.dart`, the composition root; `api_client.dart` itself never
+imports `auth_controller.dart` (doing so would cycle back through
+`auth_repository.dart` → `auth_api.dart` → `api_client.dart`).
+
+This is a deliberate reversal of the Web client's DG-02 (no global session
+state): Mobile already has a real `AsyncNotifier`-backed
+`authControllerProvider` and a declarative `go_router` wired to it before
+this story, so routing through that existing state (rather than a Web-style
+hard `window.location.href` reload) is the natural mechanism here — the
+HTTP layer still never touches `BuildContext`/navigation directly.
+
+### Secure token-pair replacement (DG-M5)
+`TokenStorage.saveTokens()` writes `refreshToken` **then** `accessToken` —
+the reverse of `saveSession()`'s login-time order, on purpose (see that
+method's doc comment for the full trace of both write orders). This is
+**best-effort sequential persistence, not a transactional atomicity
+guarantee** — `flutter_secure_storage` offers no cross-key transaction.
+
+### Foreground/background revalidation (DG-M6)
+`AppLifecycleObserver` (a thin `WidgetsBindingObserver`) reacts only to
+`AppLifecycleState.resumed`; if authenticated, it invalidates
+`camperProfileControllerProvider` — the one real protected provider the
+Mobile app has today (`GET /profiles/me`) — so a currently-mounted Profile
+screen refetches and naturally exercises the interceptor above if the
+access token expired while backgrounded. No `/auth/me`, no JWT decoding, no
+timer/polling, no session-check API, and no invalidation of any other
+provider — scope frozen exactly at that one call.
+
+### Cold start (DG-M7)
+Unchanged from CTMS-03-T03: `AuthRepository.tryRestoreSession()` stays
+local-only (a stored token + a decodable cached profile is treated as
+"session restored," no network round-trip). A revoked/expired token is
+only discovered on the first real protected request after restart — the
+same interceptor path as any other 401.
+
+### Out of scope (confirmed by Decision Gate, not gaps)
+- No `/auth/me`, no `/auth/logout` API call (DG-M8) — "logout" is still
+  local-only `TokenStorage.clear()` + state reset.
+- No standalone "Refresh Session" screen — integration-only task, exactly
+  as scoped in the Jira description.
+- No lifecycle logic inside `ApiClient` — foreground/background handling
+  stays entirely in `AppLifecycleObserver`.
+
+### Security
+No token ever appears in a request URL, a secure-storage write outside
+`flutter_secure_storage`, or a `print`/log call — verified by dedicated
+tests (`token_storage_test.dart`'s write-order tests confirm exactly which
+keys are touched; `api_client_test.dart` confirms the shared generic
+session-expired message never carries a backend-specific reason).
+
+### Test evidence
+- Unit: `token_storage_test.dart` (8), `auth_refresh_coordinator_test.dart`
+  (10), `app_lifecycle_observer_test.dart` (7), `auth_controller_test.dart`
+  `clearSession`/`logout` group (+3).
+- Integration (real `AuthRefreshCoordinator`/`AuthController`, only the Dio
+  transport faked): `api_client_test.dart` (7), including a genuine
+  concurrent-401 test using a real `AuthRefreshCoordinator`.
+- E2E (real backend, real Chrome via `flutter drive`):
+  `integration_test/refresh_session_test.dart` (6), covering transparent
+  recovery, concurrent collapse (real backend reuse-guard proof), app
+  background/resume recovery, revoked-refresh-token cleanup + redirect, a
+  simulated restart with a valid session, and a simulated restart with an
+  already-invalid session. Full pre-existing Mobile E2E suite
+  (`integration_test/app_test.dart`, 4 tests) re-run and still passing.
+
 ## Task to Acceptance Criteria Traceability
 | Acceptance criterion / BR | Covered by tasks | Evidence expected |
 | --- | --- | --- |
-| AC1: A valid refresh token creates a new access token | CTMS-04-T01, CTMS-04-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| AC2: expired or revoked tokens must be rejected | CTMS-04-T01, CTMS-04-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-202: Accounts in pending_verification, suspended, or deleted status must not use functions that require an active account, except allowed verification or recovery flows. | CTMS-04-T01, CTMS-04-T02 | Tests and review evidence must prove this exact rule is enforced: Accounts in pending_verification, suspended, or deleted status must not use functions that require an active account, except allowed verification or recovery flows. |
-| BR-204: Users may only view or change data they own unless their role and business relationship allow access to another user's data. | CTMS-04-T01, CTMS-04-T02 | Tests and review evidence must prove this exact rule is enforced: Users may only view or change data they own unless their role and business relationship allow access to another user's data. |
-| BR-205: All input data must be validated for required fields, data type, format, length, enum values, and cross-field relationships before processing. | CTMS-04-T01, CTMS-04-T02 | Tests and review evidence must prove this exact rule is enforced: All input data must be validated for required fields, data type, format, length, enum values, and cross-field relationships before processing. |
-| BR-230: External-service retries must have limits and backoff; retries must not create duplicate records or transactions. | CTMS-04-T01, CTMS-04-T02 | Tests and review evidence must prove this exact rule is enforced: External-service retries must have limits and backoff; retries must not create duplicate records or transactions. |
-| BR-231: APIs must return consistent error codes: 401 for authentication failure, 403 for insufficient permission, 404 for not found, 409 for business conflict, and 422 for invalid data. | CTMS-04-T01, CTMS-04-T02 | Tests and review evidence must prove this exact rule is enforced: APIs must return consistent error codes: 401 for authentication failure, 403 for insufficient permission, 404 for not found, 409 for business conflict, and 422 for invalid data. |
-| BR-242: When the backend rejects a request because data changed concurrently, the UI must preserve entered data, display the reason, and allow reload or retry. | CTMS-04-T01, CTMS-04-T02 | Tests and review evidence must prove this exact rule is enforced: When the backend rejects a request because data changed concurrently, the UI must preserve entered data, display the reason, and allow reload or retry. |
+| AC1: A valid refresh token creates a new access token | CTMS-04-T01, CTMS-04-T02, CTMS-04-T03 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
+| AC2: expired or revoked tokens must be rejected | CTMS-04-T01, CTMS-04-T02, CTMS-04-T03 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
+| BR-202: Accounts in pending_verification, suspended, or deleted status must not use functions that require an active account, except allowed verification or recovery flows. | CTMS-04-T01, CTMS-04-T02, CTMS-04-T03 | Tests and review evidence must prove this exact rule is enforced: Accounts in pending_verification, suspended, or deleted status must not use functions that require an active account, except allowed verification or recovery flows. |
+| BR-204: Users may only view or change data they own unless their role and business relationship allow access to another user's data. | CTMS-04-T01, CTMS-04-T02, CTMS-04-T03 | Tests and review evidence must prove this exact rule is enforced: Users may only view or change data they own unless their role and business relationship allow access to another user's data. |
+| BR-205: All input data must be validated for required fields, data type, format, length, enum values, and cross-field relationships before processing. | CTMS-04-T01, CTMS-04-T02, CTMS-04-T03 | Tests and review evidence must prove this exact rule is enforced: All input data must be validated for required fields, data type, format, length, enum values, and cross-field relationships before processing. |
+| BR-230: External-service retries must have limits and backoff; retries must not create duplicate records or transactions. | CTMS-04-T01, CTMS-04-T02, CTMS-04-T03 | Tests and review evidence must prove this exact rule is enforced: External-service retries must have limits and backoff; retries must not create duplicate records or transactions. |
+| BR-231: APIs must return consistent error codes: 401 for authentication failure, 403 for insufficient permission, 404 for not found, 409 for business conflict, and 422 for invalid data. | CTMS-04-T01, CTMS-04-T02, CTMS-04-T03 | Tests and review evidence must prove this exact rule is enforced: APIs must return consistent error codes: 401 for authentication failure, 403 for insufficient permission, 404 for not found, 409 for business conflict, and 422 for invalid data. |
+| BR-242: When the backend rejects a request because data changed concurrently, the UI must preserve entered data, display the reason, and allow reload or retry. | CTMS-04-T01, CTMS-04-T02, CTMS-04-T03 | Tests and review evidence must prove this exact rule is enforced: When the backend rejects a request because data changed concurrently, the UI must preserve entered data, display the reason, and allow reload or retry. |
 | BR-243: Cases with insufficient permission or unmet business conditions must not create any side effect. | CTMS-04-T01 | Tests and review evidence must prove this exact rule is enforced: Cases with insufficient permission or unmet business conditions must not create any side effect. |
 | BR-244: Changes to Business Rules, enums, state transitions, or API contracts must update the Spec, test cases, and data documentation together before Done. | CTMS-04-T01 | Tests and review evidence must prove this exact rule is enforced: Changes to Business Rules, enums, state transitions, or API contracts must update the Spec, test cases, and data documentation together before Done. |
 | BR-200: Every change must be written to the audit log. | CTMS-04-T01 | Tests and review evidence must prove this exact rule is enforced: Every change must be written to the audit log. |
@@ -228,8 +366,8 @@ tests at all three levels (unit, `httpClient` integration, E2E).
 | BR-220: A valid time range must have a start time earlier than the end time, unless the business rule explicitly allows equality. | CTMS-04-T01 | Tests and review evidence must prove this exact rule is enforced: A valid time range must have a start time earlier than the end time, unless the business rule explicitly allows equality. |
 | BR-236: Users may only add, delete, or reorder media for resources they own or are authorized to manage. | CTMS-04-T01 | Tests and review evidence must prove this exact rule is enforced: Users may only add, delete, or reorder media for resources they own or are authorized to manage. |
 | BR-237: Background jobs must re-check business conditions at execution time and must not rely only on stale state. | CTMS-04-T01 | Tests and review evidence must prove this exact rule is enforced: Background jobs must re-check business conditions at execution time and must not rely only on stale state. |
-| BR-011: Locked accounts must not be allowed to log in. | CTMS-04-T01, CTMS-04-T02 | Tests and review evidence must prove this exact rule is enforced: Locked accounts must not be allowed to log in. |
-| BR-012: A valid refresh token must be able to create a new access token. | CTMS-04-T01, CTMS-04-T02 | Tests and review evidence must prove this exact rule is enforced: A valid refresh token must be able to create a new access token. |
+| BR-011: Locked accounts must not be allowed to log in. | CTMS-04-T01, CTMS-04-T02, CTMS-04-T03 | Tests and review evidence must prove this exact rule is enforced: Locked accounts must not be allowed to log in. |
+| BR-012: A valid refresh token must be able to create a new access token. | CTMS-04-T01, CTMS-04-T02, CTMS-04-T03 | Tests and review evidence must prove this exact rule is enforced: A valid refresh token must be able to create a new access token. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, campsites, or bookings.
