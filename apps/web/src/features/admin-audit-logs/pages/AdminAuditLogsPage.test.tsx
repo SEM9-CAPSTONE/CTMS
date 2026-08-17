@@ -14,6 +14,7 @@ describe("AdminAuditLogsPage", () => {
 		{
 			id: "log-1",
 			actorId: "actor-1",
+			actorName: "Test User",
 			action: "auth.login",
 			targetType: "user",
 			targetId: "target-1",
