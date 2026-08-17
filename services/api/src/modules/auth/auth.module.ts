@@ -7,6 +7,8 @@ import type ms from "ms";
 import { DataSource } from "typeorm";
 import { UsersModule } from "../users/users.module";
 import { AuditLogRepository } from "./audit-log.repository";
+import { AuditLogsController } from "./audit-logs.controller";
+import { AuditLogsService } from "./audit-logs.service";
 import { AuthController } from "./auth.controller";
 import { AuthService } from "./auth.service";
 import { AuditLog } from "./entities/audit-log.entity";
@@ -42,9 +44,10 @@ import { VerificationOtpRepository } from "./verification-otp.repository";
 			}),
 		}),
 	],
-	controllers: [AuthController],
+	controllers: [AuthController, AuditLogsController],
 	providers: [
 		AuthService,
+		AuditLogsService,
 		OtpDeliveryService,
 		{ provide: SMS_OTP_PROVIDER, useClass: SmsOtpProvider },
 		{ provide: EMAIL_OTP_PROVIDER, useClass: EmailOtpProvider },
