@@ -49,11 +49,12 @@ export function PersonalProfileForm({ form, isDisabled = false }: PersonalProfil
 					</label>
 					<input
 						id="dateOfBirth"
-						type="date"
-						max={new Date().toISOString().slice(0, 10)}
+						type="text"
+						inputMode="numeric"
 						disabled={isDisabled}
 						{...register("dateOfBirth")}
 						className="h-10 rounded-xl border border-[#dfe8df] bg-white px-3.5 text-xs text-[#10221b] outline-none transition focus:border-[#164027] focus:ring-2 focus:ring-[#164027]/10 disabled:bg-slate-50 disabled:text-slate-500"
+						placeholder="dd/mm/yyyy"
 					/>
 					{errors.dateOfBirth && (
 						<span className="text-[11px] font-semibold text-red-500">

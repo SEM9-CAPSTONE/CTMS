@@ -24,12 +24,6 @@ class AuthRepository {
     return result.user;
   }
 
-  /// Called once at startup. Local-only by necessity — see TokenStorage's
-  /// class doc for why (no `/auth/me` to validate against yet). "Session
-  /// restored" means both a token AND a decodable cached profile exist;
-  /// either missing/corrupt is treated as "failed session-initialization"
-  /// (CTMS-03-T03's explicit test case) and clears whatever partial state
-  /// is left, the same as an expired/invalid session would.
   Future<AuthUser?> tryRestoreSession() async {
     final token = await _tokenStorage.readAccessToken();
     if (token == null) return null;
@@ -42,13 +36,31 @@ class AuthRepository {
     return cachedUser;
   }
 
-  Future<void> logout() => _tokenStorage.clear();
+  Future<void> logout({bool allDevices = false}) async {
+  final refreshToken = await _tokenStorage.readRefreshToken();
 
-  /// Registration does NOT sign the account in — `POST /auth/register`
-  /// returns no token pair (see [RegisterResult]'s doc comment), and the
-  /// created account starts as `pending_verification`. Nothing is saved to
-  /// [TokenStorage] here; [RegisterController.submit] navigates to
-  /// `/verify` instead of adopting a session.
+  if (refreshToken == null) {
+    await _tokenStorage.clear();
+    return;
+  }
+
+  await _api.logout(
+    refreshToken: refreshToken,
+    allDevices: allDevices,
+  );
+
+  await _tokenStorage.clear();
+}
+
+  /// CTMS-04-T03: local-only session clear, deliberately no network call --
+  /// used when the session is already known to be dead server-side (a
+  /// failed token refresh, via `ApiClient`'s `onSessionExpired`), where a
+  /// real `POST /auth/logout` (CTMS-08's [logout] above) would be
+  /// redundant -- the refresh token being cleared is already invalid -- and
+  /// where the caller (an HTTP interceptor's own failure path, see
+  /// `AuthController.clearSession()`) cannot afford this to throw.
+  Future<void> clearLocalSession() => _tokenStorage.clear();
+
   Future<RegisterResult> register(RegisterFormData data) => _api.register(data);
 
   Future<void> forgotPassword({

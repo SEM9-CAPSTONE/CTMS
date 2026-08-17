@@ -4,6 +4,8 @@ import type {
 	ForgotPasswordApiResponse,
 	LoginApiPayload,
 	LoginApiResponse,
+	LogoutApiPayload,
+	LogoutApiResponse,
 	RegisterApiPayload,
 	RegisterApiResponse,
 	ResetPasswordApiPayload,
@@ -14,11 +16,6 @@ import type {
 	VerifyOtpApiResponse,
 } from "../types";
 
-/**
- * Manual-test-friendly logging (Phase 4, CTMS-02-T02): logs the request and
- * the resulting HTTP status only. Never logs the OTP code itself — `payload`
- * must never be passed through as-is when it may contain `code`.
- */
 function logAuthCall(label: string, meta: Record<string, unknown>) {
 	console.log(`[auth] ${label}`, meta);
 }
@@ -77,7 +74,10 @@ export const authService = {
 	},
 
 	resendOtp: async (payload: SendOtpApiPayload): Promise<SendOtpApiResponse> => {
-		logAuthCall("POST /auth/resend request", { userId: payload.userId, channel: payload.channel });
+		logAuthCall("POST /auth/resend request", {
+			userId: payload.userId,
+			channel: payload.channel,
+		});
 		try {
 			const result = await httpClient.post<SendOtpApiResponse>(API_ENDPOINTS.AUTH.RESEND, payload);
 			logAuthCall("POST /auth/resend response", { status: 200 });
@@ -111,7 +111,9 @@ export const authService = {
 	},
 
 	resetPassword: async (payload: ResetPasswordApiPayload): Promise<ResetPasswordApiResponse> => {
-		logAuthCall("POST /auth/reset-password request", { identifier: payload.identifier });
+		logAuthCall("POST /auth/reset-password request", {
+			identifier: payload.identifier,
+		});
 		try {
 			const result = await httpClient.post<ResetPasswordApiResponse>(
 				API_ENDPOINTS.AUTH.RESET_PASSWORD,
@@ -125,5 +127,9 @@ export const authService = {
 			});
 			throw error;
 		}
+	},
+
+	logout: async (payload: LogoutApiPayload): Promise<LogoutApiResponse> => {
+		return httpClient.post<LogoutApiResponse>(API_ENDPOINTS.AUTH.LOGOUT, payload);
 	},
 };

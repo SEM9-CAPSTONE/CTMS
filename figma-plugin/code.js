@@ -55,11 +55,11 @@ let WEIGHT_STYLE = { 400: "Regular", 500: "Medium", 600: "Semi Bold", 700: "Bold
 /* --- Log: in ra CẢ console lẫn bảng UI của plugin (khỏi cần DevTools) --- */
 const LOG_BUFFER = [];
 function log(msg, level) {
-	console.log("[CTMS] " + msg);
+	console.log(`[CTMS] ${msg}`);
 	LOG_BUFFER.push(msg);
 	try {
 		figma.ui.postMessage({ type: "log", msg, level });
-	} catch (e) {
+	} catch (_e) {
 		/* UI chưa mở */
 	}
 }
@@ -77,9 +77,9 @@ log("code.js đã nạp thành công.");
 function hexToRgb(h) {
 	const s = h.replace("#", "");
 	return {
-		r: parseInt(s.substring(0, 2), 16) / 255,
-		g: parseInt(s.substring(2, 4), 16) / 255,
-		b: parseInt(s.substring(4, 6), 16) / 255,
+		r: Number.parseInt(s.substring(0, 2), 16) / 255,
+		g: Number.parseInt(s.substring(2, 4), 16) / 255,
+		b: Number.parseInt(s.substring(4, 6), 16) / 255,
 	};
 }
 
@@ -166,7 +166,8 @@ const ICONS = {
 	clip: '<path d="M13.234 20.252 21 12.3"/><path d="m16 6-8.414 8.586a2 2 0 0 0 0 2.828 2 2 0 0 0 2.828 0l8.414-8.586a4 4 0 0 0 0-5.656 4 4 0 0 0-5.656 0l-8.415 8.585a6 6 0 1 0 8.486 8.486"/>',
 	camera:
 		'<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3"/>',
-	download: '<path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/>',
+	download:
+		'<path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/>',
 	refresh:
 		'<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
 	lock: '<rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
@@ -180,7 +181,8 @@ const ICONS = {
 	alertCircle:
 		'<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>',
 	battery: '<path d="M22 14v-4"/><rect x="2" y="6" width="16" height="12" rx="2"/>',
-	signal: '<path d="M2 20h.01"/><path d="M7 20v-4"/><path d="M12 20v-8"/><path d="M17 20V8"/><path d="M22 4v16"/>',
+	signal:
+		'<path d="M2 20h.01"/><path d="M7 20v-4"/><path d="M12 20v-8"/><path d="M17 20V8"/><path d="M22 4v16"/>',
 	backpack:
 		'<path d="M4 10a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M8 10h8"/><path d="M8 18v-4a4 4 0 0 1 8 0v4"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/>',
 	tent: '<path d="M3.5 21 14 3"/><path d="M20.5 21 10 3"/><path d="M15.5 21 12 15l-3.5 6"/><path d="M2 21h20"/>',
@@ -197,13 +199,9 @@ const ICONS = {
 
 function makeIcon(name, size, color) {
 	const body = ICONS[name] || ICONS.circle;
-	const svg =
-		'<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" ' +
-		'stroke="#000000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
-		body +
-		"</svg>";
+	const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#000000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
 	const node = figma.createNodeFromSvg(svg);
-	node.name = "icon/" + name;
+	node.name = `icon/${name}`;
 
 	// Frame bọc do createNodeFromSvg tạo ra CÓ SẴN fill — nếu tô màu nó thì
 	// cả ô 24×24 thành hình vuông đặc. Phải xoá fill của frame bọc.
@@ -222,7 +220,7 @@ function makeIcon(name, size, color) {
 			try {
 				n.strokeCap = "ROUND";
 				n.strokeJoin = "ROUND";
-			} catch (e) {
+			} catch (_e) {
 				/* vài loại node không nhận */
 			}
 		} else if (n !== node && "fills" in n) {
@@ -377,7 +375,11 @@ function statusBar() {
 			H({
 				gap: 6,
 				align: "CENTER",
-				children: [IC("signal", 14, T.textPrimary), IC("wifi", 14, T.textPrimary), IC("battery", 16, T.textPrimary)],
+				children: [
+					IC("signal", 14, T.textPrimary),
+					IC("wifi", 14, T.textPrimary),
+					IC("battery", 16, T.textPrimary),
+				],
 			}),
 		],
 	});
@@ -394,7 +396,7 @@ function appBar(o) {
 			justify: "CENTER",
 			align: "CENTER",
 			children: [IC(a.icon, 18, a.color || T.textSecondary)],
-		}),
+		})
 	);
 	return V({
 		name: "AppBar",
@@ -473,12 +475,18 @@ function bottomNav(items, active, accent) {
 								align: "CENTER",
 							}),
 						],
-					}),
+					})
 				),
 			}),
-			BOX({ fw: true, h: 20, fill: T.surface, dir: "v", justify: "CENTER", align: "CENTER", children: [
-				{ t: "r", w: 120, h: 4, radius: R.pill, fill: T.borderStrong },
-			] }),
+			BOX({
+				fw: true,
+				h: 20,
+				fill: T.surface,
+				dir: "v",
+				justify: "CENTER",
+				align: "CENTER",
+				children: [{ t: "r", w: 120, h: 4, radius: R.pill, fill: T.borderStrong }],
+			}),
 		],
 	});
 }
@@ -552,9 +560,10 @@ function card(o) {
 							H({
 								gap: 8,
 								align: "CENTER",
-								children: [o.icon ? IC(o.icon, 16, T.primary) : null, TX(o.title, { size: 15, w: 600 })].filter(
-									Boolean,
-								),
+								children: [
+									o.icon ? IC(o.icon, 16, T.primary) : null,
+									TX(o.title, { size: 15, w: 600 }),
+								].filter(Boolean),
 							}),
 							o.action ? TX(o.action, { size: 12, w: 600, color: T.accent }) : null,
 						].filter(Boolean),
@@ -566,8 +575,7 @@ function card(o) {
 	});
 }
 
-function btn(text, o) {
-	o = o || {};
+function btn(text, o = {}) {
 	const variant = o.variant || "primary";
 	const map = {
 		primary: { bg: T.primary, fg: "#FFFFFF", stroke: null },
@@ -579,7 +587,7 @@ function btn(text, o) {
 	};
 	const s = map[variant];
 	return H({
-		name: "Button/" + variant,
+		name: `Button/${variant}`,
 		fw: o.fw,
 		grow: o.grow,
 		w: o.w,
@@ -643,8 +651,14 @@ function chipRow(items, active, accent) {
 				stroke: i === active ? null : T.border,
 				pad: [7, 12],
 				align: "CENTER",
-				children: [TX(label, { size: 12, w: i === active ? 600 : 400, color: i === active ? "#FFFFFF" : T.textSecondary })],
-			}),
+				children: [
+					TX(label, {
+						size: 12,
+						w: i === active ? 600 : 400,
+						color: i === active ? "#FFFFFF" : T.textSecondary,
+					}),
+				],
+			})
 		),
 	});
 }
@@ -683,10 +697,17 @@ function alertBanner(o) {
 										justify: "SPACE_BETWEEN",
 										children: [
 											TX(o.title, { size: 13, w: 700, color: emergency ? "#FFFFFF" : c, grow: 1 }),
-											o.time ? TX(o.time, { size: 10, color: emergency ? "#FFFFFF" : T.textMuted }) : null,
+											o.time
+												? TX(o.time, { size: 10, color: emergency ? "#FFFFFF" : T.textMuted })
+												: null,
 										].filter(Boolean),
 									}),
-									TX(o.msg, { size: 12, lh: 17, color: emergency ? "#FFFFFF" : T.textSecondary, fw: true }),
+									TX(o.msg, {
+										size: 12,
+										lh: 17,
+										color: emergency ? "#FFFFFF" : T.textSecondary,
+										fw: true,
+									}),
 								],
 							}),
 						],
@@ -696,7 +717,11 @@ function alertBanner(o) {
 								fw: true,
 								gap: 8,
 								children: o.actions.map((a) =>
-									btn(a.text, { variant: a.variant || (emergency ? "light" : "primary"), h: 34, grow: 1 }),
+									btn(a.text, {
+										variant: a.variant || (emergency ? "light" : "primary"),
+										h: 34,
+										grow: 1,
+									})
 								),
 							})
 						: null,
@@ -713,7 +738,15 @@ function progress(pct, color) {
 		radius: R.pill,
 		fill: T.border,
 		dir: "h",
-		children: [{ t: "r", w: Math.max(4, Math.round((SCREEN_W - 60) * pct)), h: 6, radius: R.pill, fill: color || T.primary }],
+		children: [
+			{
+				t: "r",
+				w: Math.max(4, Math.round((SCREEN_W - 60) * pct)),
+				h: 6,
+				radius: R.pill,
+				fill: color || T.primary,
+			},
+		],
 	});
 }
 
@@ -811,7 +844,10 @@ function listRowCard(o) {
 				align: "CENTER",
 				justify: "SPACE_BETWEEN",
 				gap: 8,
-				children: [TX(o.code, { size: 12, w: 700, color: T.primary }), badge(o.status, o.tone, o.solid ? "solid" : null)],
+				children: [
+					TX(o.code, { size: 12, w: 700, color: T.primary }),
+					badge(o.status, o.tone, o.solid ? "solid" : null),
+				],
 			}),
 			TX(o.title, { size: 14.5, w: 600, lh: 20, fw: true }),
 			o.meta ? H({ fw: true, gap: 14, children: o.meta.map((m) => kv(m[0], m[1], m[2])) }) : null,
@@ -820,7 +856,10 @@ function listRowCard(o) {
 						fw: true,
 						gap: 6,
 						align: "CENTER",
-						children: [IC(o.noteIcon || "alertCircle", 13, o.noteColor || T.warning), TX(o.note, { size: 11.5, color: o.noteColor || T.warning, grow: 1 })],
+						children: [
+							IC(o.noteIcon || "alertCircle", 13, o.noteColor || T.warning),
+							TX(o.note, { size: 11.5, color: o.noteColor || T.warning, grow: 1 }),
+						],
 					})
 				: null,
 		].filter(Boolean),
@@ -858,7 +897,7 @@ function screen(name, children, h) {
 /** Text field kiểu M3 outlined: nhãn nằm trên, ô cao 52, không icon trang trí. */
 function authField(o) {
 	return V({
-		name: "Field/" + (o.label || o.placeholder || ""),
+		name: `Field/${o.label || o.placeholder || ""}`,
 		fw: true,
 		gap: 7,
 		children: [
@@ -895,7 +934,9 @@ function authField(o) {
 					o.select ? IC("chevronDown", 18, T.textSecondary) : null,
 				].filter(Boolean),
 			}),
-			o.helper ? TX(o.helper, { size: 11.5, color: o.helperColor || T.textMuted, lh: 16, fw: true }) : null,
+			o.helper
+				? TX(o.helper, { size: 11.5, color: o.helperColor || T.textMuted, lh: 16, fw: true })
+				: null,
 		].filter(Boolean),
 	});
 }
@@ -921,9 +962,16 @@ function stepper(current, total) {
 						? IC("check", 13, T.primary)
 						: TX(String(i), { size: 12, w: 700, color: active ? "#FFFFFF" : T.textMuted }),
 				],
-			}),
+			})
 		);
-		if (i < total) items.push({ t: "r", h: 2, grow: 1, radius: R.pill, fill: i < current ? T.primary : T.border });
+		if (i < total)
+			items.push({
+				t: "r",
+				h: 2,
+				grow: 1,
+				radius: R.pill,
+				fill: i < current ? T.primary : T.border,
+			});
 	}
 	return H({ name: "Stepper", fw: true, gap: 6, align: "CENTER", children: items });
 }
@@ -957,7 +1005,7 @@ function stepScreen(o) {
 								children: [IC("chevronLeft", 18, T.textPrimary)],
 							}),
 							TX("Đăng ký tài khoản", { size: 15, w: 600, grow: 1 }),
-							TX("Bước " + o.step + "/5", { size: 12.5, w: 600, color: T.textMuted }),
+							TX(`Bước ${o.step}/5`, { size: 12.5, w: 600, color: T.textMuted }),
 						],
 					}),
 					stepper(o.step, 5),
@@ -976,7 +1024,9 @@ function stepScreen(o) {
 						gap: 7,
 						children: [
 							TX(o.title, { size: 22, w: 700, lh: 29, fw: true }),
-							o.subtitle ? TX(o.subtitle, { size: 13.5, color: T.textSecondary, lh: 20, fw: true }) : null,
+							o.subtitle
+								? TX(o.subtitle, { size: 13.5, color: T.textSecondary, lh: 20, fw: true })
+								: null,
 						].filter(Boolean),
 					}),
 				].concat(o.children),
@@ -1000,7 +1050,7 @@ function stepScreen(o) {
 				],
 			}),
 		],
-		o.h,
+		o.h
 	);
 }
 
@@ -1026,7 +1076,7 @@ function summaryRow(label, value, verified) {
 
 function summarySection(title, rows) {
 	return V({
-		name: "Summary/" + title,
+		name: `Summary/${title}`,
 		fw: true,
 		fill: T.surface,
 		radius: R.card,
@@ -1060,7 +1110,11 @@ function pickChip(label, selected) {
 		align: "CENTER",
 		children: [
 			selected ? IC("check", 13, T.primary) : null,
-			TX(label, { size: 12.5, w: selected ? 600 : 400, color: selected ? T.primary : T.textSecondary }),
+			TX(label, {
+				size: 12.5,
+				w: selected ? 600 : 400,
+				color: selected ? T.primary : T.textSecondary,
+			}),
 		].filter(Boolean),
 	});
 }
@@ -1143,7 +1197,7 @@ const PORTER_NAV = [
 function scLogin() {
 	const chip = (label) =>
 		H({
-			name: "Chip/" + label,
+			name: `Chip/${label}`,
 			radius: R.pill,
 			fill: "#FFFFFF",
 			op: 0.13,
@@ -1156,7 +1210,7 @@ function scLogin() {
 
 	const socialBtn = (leading, label) =>
 		H({
-			name: "Social/" + label,
+			name: `Social/${label}`,
 			grow: 1,
 			h: 52,
 			radius: 14,
@@ -1198,7 +1252,13 @@ function scLogin() {
 							TX("CTMS", { size: 24, w: 700, color: "#FFFFFF", ls: 4 }),
 						],
 					}),
-					TX("Sẵn sàng cho chuyến đi tiếp theo", { size: 25, w: 700, color: "#FFFFFF", lh: 33, fw: true }),
+					TX("Sẵn sàng cho chuyến đi tiếp theo", {
+						size: 25,
+						w: 700,
+						color: "#FFFFFF",
+						lh: 33,
+						fw: true,
+					}),
 					H({
 						fw: true,
 						gap: 9,
@@ -1242,8 +1302,19 @@ function scLogin() {
 						fw: true,
 						gap: 14,
 						children: [
-							authField({ placeholder: "Email hoặc Số điện thoại", icon: "user", h: 56, radius: 14 }),
-							authField({ placeholder: "Mật khẩu", icon: "lock", trailIcon: "eye", h: 56, radius: 14 }),
+							authField({
+								placeholder: "Email hoặc Số điện thoại",
+								icon: "user",
+								h: 56,
+								radius: 14,
+							}),
+							authField({
+								placeholder: "Mật khẩu",
+								icon: "lock",
+								trailIcon: "eye",
+								h: 56,
+								radius: 14,
+							}),
 						],
 					}),
 					BOX({ fw: true, h: 18 }),
@@ -1272,7 +1343,11 @@ function scLogin() {
 						fw: true,
 						gap: 12,
 						align: "CENTER",
-						children: [LINE(T.border), TX("Hoặc đăng nhập bằng", { size: 12, color: T.textMuted }), LINE(T.border)],
+						children: [
+							LINE(T.border),
+							TX("Hoặc đăng nhập bằng", { size: 12, color: T.textMuted }),
+							LINE(T.border),
+						],
 					}),
 					BOX({ fw: true, h: 18 }),
 					H({
@@ -1297,7 +1372,7 @@ function scLogin() {
 				],
 			}),
 		],
-		900,
+		900
 	);
 }
 
@@ -1305,7 +1380,7 @@ function scLogin() {
 function scRegStep1() {
 	const roleCard = (o) =>
 		V({
-			name: "RoleCard/" + o.name,
+			name: `RoleCard/${o.name}`,
 			fw: true,
 			fill: T.surface,
 			radius: R.card,
@@ -1323,7 +1398,9 @@ function scRegStep1() {
 						V({
 							grow: 1,
 							gap: 3,
-							children: [TX(o.name, { size: 16, w: 700, color: o.selected ? T.primary : T.textPrimary })],
+							children: [
+								TX(o.name, { size: 16, w: 700, color: o.selected ? T.primary : T.textPrimary }),
+							],
 						}),
 						BOX({
 							w: 22,
@@ -1385,12 +1462,15 @@ function scRegStep1() {
 				align: "MIN",
 				children: [
 					IC("alertCircle", 16, T.textSecondary),
-					TX("Bạn muốn trở thành Host? Tài khoản Host được đăng ký và quản lý trên phiên bản web của CTMS.", {
-						size: 12.5,
-						color: T.textSecondary,
-						lh: 18,
-						grow: 1,
-					}),
+					TX(
+						"Bạn muốn trở thành Host? Tài khoản Host được đăng ký và quản lý trên phiên bản web của CTMS.",
+						{
+							size: 12.5,
+							color: T.textSecondary,
+							lh: 18,
+							grow: 1,
+						}
+					),
 				],
 			}),
 		],
@@ -1442,8 +1522,14 @@ function scRegStep3() {
 						fw: true,
 						gap: 12,
 						children: [
-							V({ grow: 1, children: [authField({ label: "Ngày sinh", value: "12/03/1994", select: true })] }),
-							V({ grow: 1, children: [authField({ label: "Giới tính", value: "Nam", select: true })] }),
+							V({
+								grow: 1,
+								children: [authField({ label: "Ngày sinh", value: "12/03/1994", select: true })],
+							}),
+							V({
+								grow: 1,
+								children: [authField({ label: "Giới tính", value: "Nam", select: true })],
+							}),
 						],
 					}),
 					authField({ label: "Số điện thoại", value: "0905 123 456", trail: "Gửi mã OTP" }),
@@ -1481,12 +1567,19 @@ function scRegStep4() {
 				gap: 20,
 				children: [
 					authField({ label: "Số năm kinh nghiệm", value: "4 năm", select: true }),
-					authField({ label: "Quận/Huyện mong muốn công tác", value: "Huyện Hòa Vang, Đà Nẵng", select: true }),
+					authField({
+						label: "Quận/Huyện mong muốn công tác",
+						value: "Huyện Hòa Vang, Đà Nẵng",
+						select: true,
+					}),
 					V({
 						fw: true,
 						gap: 10,
 						children: [
-							fieldLabel("Địa điểm có thể dẫn đoàn", "Chọn một hoặc nhiều địa điểm do Host quản lý trong khu vực."),
+							fieldLabel(
+								"Địa điểm có thể dẫn đoàn",
+								"Chọn một hoặc nhiều địa điểm do Host quản lý trong khu vực."
+							),
 							H({
 								fw: true,
 								gap: 8,
@@ -1529,7 +1622,11 @@ function scRegStep4Empty() {
 				gap: 20,
 				children: [
 					authField({ label: "Số năm kinh nghiệm", value: "4 năm", select: true }),
-					authField({ label: "Quận/Huyện mong muốn công tác", value: "Huyện Nam Trà My, Quảng Nam", select: true }),
+					authField({
+						label: "Quận/Huyện mong muốn công tác",
+						value: "Huyện Nam Trà My, Quảng Nam",
+						select: true,
+					}),
 					V({
 						fw: true,
 						gap: 10,
@@ -1609,7 +1706,7 @@ function scRegSuccess() {
 				BOX({ fw: true, h: 12 }),
 				TX(
 					"Hồ sơ Porter của bạn đã được gửi đến Host để xét duyệt. Bạn sẽ nhận được thông báo sau khi Host xem xét hồ sơ.",
-					{ size: 14, color: T.textSecondary, align: "CENTER", lh: 21, fw: true },
+					{ size: 14, color: T.textSecondary, align: "CENTER", lh: 21, fw: true }
 				),
 				BOX({ fw: true, h: 24 }),
 				H({
@@ -1636,7 +1733,14 @@ function scRegSuccess() {
 			fw: true,
 			fill: T.surface,
 			gap: 0,
-			children: [LINE(T.border), H({ fw: true, pad: [14, 24, 24, 24], children: [btn("Về Trang chủ", { fw: true, h: 52 })] })],
+			children: [
+				LINE(T.border),
+				H({
+					fw: true,
+					pad: [14, 24, 24, 24],
+					children: [btn("Về Trang chủ", { fw: true, h: 52 })],
+				}),
+			],
 		}),
 	]);
 }
@@ -1661,11 +1765,20 @@ function scCamperHome() {
 				pad: 14,
 				gap: 10,
 				children: [
-					TX("Khám phá những cung đường mới cùng CTMS", { size: 16, w: 700, color: "#FFFFFF", lh: 22, fw: true }),
+					TX("Khám phá những cung đường mới cùng CTMS", {
+						size: 16,
+						w: 700,
+						color: "#FFFFFF",
+						lh: 22,
+						fw: true,
+					}),
 					H({
 						fw: true,
 						gap: 8,
-						children: [btn("Khám phá địa điểm", { variant: "light", h: 36, grow: 1 }), btn("Xem chuyến đi", { variant: "secondary", h: 36, grow: 1 })],
+						children: [
+							btn("Khám phá địa điểm", { variant: "light", h: 36, grow: 1 }),
+							btn("Xem chuyến đi", { variant: "secondary", h: 36, grow: 1 }),
+						],
 					}),
 				],
 			}),
@@ -1675,8 +1788,19 @@ function scCamperHome() {
 				children: [
 					TX("Trekking Sơn Trà – Bãi Bắc", { size: 16, w: 700, fw: true }),
 					TX("27/09/2026 · 03 ngày 02 đêm", { size: 12, color: T.textSecondary, fw: true }),
-					H({ fw: true, gap: 10, children: [kv("THÀNH VIÊN", "06 người"), kv("ĐỘ KHÓ", "Trung bình", T.warning)] }),
-					H({ fw: true, gap: 10, children: [kv("PORTER PHỤ TRÁCH", "Hữu Nghĩa"), kv("RỦI RO THỜI TIẾT", "An toàn", T.success)] }),
+					H({
+						fw: true,
+						gap: 10,
+						children: [kv("THÀNH VIÊN", "06 người"), kv("ĐỘ KHÓ", "Trung bình", T.warning)],
+					}),
+					H({
+						fw: true,
+						gap: 10,
+						children: [
+							kv("PORTER PHỤ TRÁCH", "Hữu Nghĩa"),
+							kv("RỦI RO THỜI TIẾT", "An toàn", T.success),
+						],
+					}),
 					btn("Xem chi tiết chuyến đi", { fw: true, h: 40 }),
 				],
 			}),
@@ -1709,8 +1833,11 @@ function scCamperHome() {
 						pad: 10,
 						gap: 7,
 						align: "CENTER",
-						children: [IC(q.icon, 20, T.primary), TX(q.label, { size: 10, w: 500, align: "CENTER", color: T.textSecondary, lh: 14 })],
-					}),
+						children: [
+							IC(q.icon, 20, T.primary),
+							TX(q.label, { size: 10, w: 500, align: "CENTER", color: T.textSecondary, lh: 14 }),
+						],
+					})
 				),
 			}),
 			card({
@@ -1747,8 +1874,24 @@ function scCamperHome() {
 						fw: true,
 						gap: 10,
 						children: [
-							V({ grow: 1, gap: 6, children: [imagePlaceholder(78, "Hồ Hòa Trung"), TX("Hồ Hòa Trung Camp", { size: 12.5, w: 600 }), TX("450.000đ / người", { size: 11, w: 600, color: T.primary })] }),
-							V({ grow: 1, gap: 6, children: [imagePlaceholder(78, "Sơn Trà", "#C4D6C9"), TX("Khu cắm trại Sơn Trà", { size: 12.5, w: 600 }), TX("600.000đ / người", { size: 11, w: 600, color: T.primary })] }),
+							V({
+								grow: 1,
+								gap: 6,
+								children: [
+									imagePlaceholder(78, "Hồ Hòa Trung"),
+									TX("Hồ Hòa Trung Camp", { size: 12.5, w: 600 }),
+									TX("450.000đ / người", { size: 11, w: 600, color: T.primary }),
+								],
+							}),
+							V({
+								grow: 1,
+								gap: 6,
+								children: [
+									imagePlaceholder(78, "Sơn Trà", "#C4D6C9"),
+									TX("Khu cắm trại Sơn Trà", { size: 12.5, w: 600 }),
+									TX("600.000đ / người", { size: 11, w: 600, color: T.primary }),
+								],
+							}),
 						],
 					}),
 				],
@@ -1784,7 +1927,16 @@ function scCamperExplore() {
 							align: "MIN",
 							children: [
 								badge(o.safety, o.safetyTone, "solid"),
-								BOX({ w: 28, h: 28, radius: R.pill, fill: "#FFFFFF", dir: "v", justify: "CENTER", align: "CENTER", children: [IC("heart", 15, T.textSecondary)] }),
+								BOX({
+									w: 28,
+									h: 28,
+									radius: R.pill,
+									fill: "#FFFFFF",
+									dir: "v",
+									justify: "CENTER",
+									align: "CENTER",
+									children: [IC("heart", 15, T.textSecondary)],
+								}),
 							],
 						}),
 					],
@@ -1801,16 +1953,37 @@ function scCamperExplore() {
 							gap: 8,
 							children: [
 								TX(o.name, { size: 14.5, w: 700, grow: 1 }),
-								H({ gap: 4, align: "CENTER", children: [IC("star", 13, T.warning), TX(o.rating, { size: 12, w: 600 })] }),
+								H({
+									gap: 4,
+									align: "CENTER",
+									children: [IC("star", 13, T.warning), TX(o.rating, { size: 12, w: 600 })],
+								}),
 							],
 						}),
-						H({ gap: 5, align: "CENTER", children: [IC("pin", 12, T.textMuted), TX(o.place, { size: 11.5, color: T.textSecondary })] }),
-						H({ gap: 12, align: "CENTER", children: [TX(o.diff, { size: 11, color: T.textMuted }), TX(o.slots, { size: 11, color: T.textMuted })] }),
+						H({
+							gap: 5,
+							align: "CENTER",
+							children: [
+								IC("pin", 12, T.textMuted),
+								TX(o.place, { size: 11.5, color: T.textSecondary }),
+							],
+						}),
+						H({
+							gap: 12,
+							align: "CENTER",
+							children: [
+								TX(o.diff, { size: 11, color: T.textMuted }),
+								TX(o.slots, { size: 11, color: T.textMuted }),
+							],
+						}),
 						H({
 							fw: true,
 							align: "CENTER",
 							justify: "SPACE_BETWEEN",
-							children: [TX(o.price, { size: 13.5, w: 700, color: T.primary }), btn("Xem chi tiết", { variant: "secondary", h: 32 })],
+							children: [
+								TX(o.price, { size: 13.5, w: 700, color: T.primary }),
+								btn("Xem chi tiết", { variant: "secondary", h: 32 }),
+							],
 						}),
 					],
 				}),
@@ -1830,8 +2003,22 @@ function scCamperExplore() {
 				gap: 10,
 				children: [
 					field({ value: "Đà Nẵng, Việt Nam", icon: "pin" }),
-					H({ fw: true, gap: 8, children: [field({ placeholder: "Ngày nhận", icon: "calendar" }), field({ placeholder: "Ngày trả", icon: "calendar" })] }),
-					H({ fw: true, gap: 8, children: [field({ value: "1-2 Người", icon: "users" }), btn("Tìm kiếm", { icon: "search", grow: 1 })] }),
+					H({
+						fw: true,
+						gap: 8,
+						children: [
+							field({ placeholder: "Ngày nhận", icon: "calendar" }),
+							field({ placeholder: "Ngày trả", icon: "calendar" }),
+						],
+					}),
+					H({
+						fw: true,
+						gap: 8,
+						children: [
+							field({ value: "1-2 Người", icon: "users" }),
+							btn("Tìm kiếm", { icon: "search", grow: 1 }),
+						],
+					}),
 				],
 			}),
 			H({
@@ -1840,12 +2027,50 @@ function scCamperExplore() {
 				justify: "SPACE_BETWEEN",
 				children: [
 					TX("124 địa điểm", { size: 15, w: 700 }),
-					H({ gap: 8, align: "CENTER", children: [IC("filter", 15, T.textSecondary), TX("Phổ biến nhất", { size: 12, w: 500, color: T.textSecondary }), IC("chevronDown", 13, T.textSecondary)] }),
+					H({
+						gap: 8,
+						align: "CENTER",
+						children: [
+							IC("filter", 15, T.textSecondary),
+							TX("Phổ biến nhất", { size: 12, w: 500, color: T.textSecondary }),
+							IC("chevronDown", 13, T.textSecondary),
+						],
+					}),
 				],
 			}),
-			spot({ name: "Bán đảo Sơn Trà", place: "Đà Nẵng, Việt Nam", rating: "4.6 (124)", diff: "Dễ", slots: "12 vị trí cắm lều", price: "Từ 350.000đ / đêm", safety: "An toàn", safetyTone: "success", tint: "#C7D8CB" }),
-			spot({ name: "Hồ Hòa Trung", place: "Hòa Vang · Cách trung tâm 25km", rating: "4.5 (88)", diff: "Trung bình", slots: "8 vị trí cắm lều", price: "Từ 200.000đ / đêm", safety: "Cần chú ý", safetyTone: "warning", tint: "#D6D2BE" }),
-			spot({ name: "Bidoup Núi Bà", place: "Lạc Dương · Cách trung tâm 39km", rating: "4.3 (210)", diff: "Khó", slots: "2 vị trí cắm lều", price: "Từ 500.000đ / đêm", safety: "Nguy hiểm", safetyTone: "danger", tint: "#BFCBC2" }),
+			spot({
+				name: "Bán đảo Sơn Trà",
+				place: "Đà Nẵng, Việt Nam",
+				rating: "4.6 (124)",
+				diff: "Dễ",
+				slots: "12 vị trí cắm lều",
+				price: "Từ 350.000đ / đêm",
+				safety: "An toàn",
+				safetyTone: "success",
+				tint: "#C7D8CB",
+			}),
+			spot({
+				name: "Hồ Hòa Trung",
+				place: "Hòa Vang · Cách trung tâm 25km",
+				rating: "4.5 (88)",
+				diff: "Trung bình",
+				slots: "8 vị trí cắm lều",
+				price: "Từ 200.000đ / đêm",
+				safety: "Cần chú ý",
+				safetyTone: "warning",
+				tint: "#D6D2BE",
+			}),
+			spot({
+				name: "Bidoup Núi Bà",
+				place: "Lạc Dương · Cách trung tâm 39km",
+				rating: "4.3 (210)",
+				diff: "Khó",
+				slots: "2 vị trí cắm lều",
+				price: "Từ 500.000đ / đêm",
+				safety: "Nguy hiểm",
+				safetyTone: "danger",
+				tint: "#BFCBC2",
+			}),
 		]),
 		bottomNav(CAMPER_NAV, 1, T.camper),
 	]);
@@ -1867,7 +2092,11 @@ function scCamperTrips() {
 				{ label: "ĐÃ HOÀN THÀNH", value: "14", icon: "checkCircle" },
 				{ label: "TỔNG QUÃNG ĐƯỜNG", value: "248", sub: "km", icon: "route" },
 			]),
-			chipRow(["Tất cả (17)", "Sắp diễn ra (2)", "Đang hoạt động (1)", "Hoàn thành (14)"], 0, T.camper),
+			chipRow(
+				["Tất cả (17)", "Sắp diễn ra (2)", "Đang hoạt động (1)", "Hoàn thành (14)"],
+				0,
+				T.camper
+			),
 			V({
 				fw: true,
 				fill: T.surface,
@@ -1884,8 +2113,32 @@ function scCamperTrips() {
 						justify: "SPACE_BETWEEN",
 						pad: 12,
 						children: [
-							H({ fw: true, justify: "SPACE_BETWEEN", align: "MIN", children: [badge("SẮP DIỄN RA", "brand", "solid"), BOX({ radius: 8, fill: "#FFFFFF", pad: [6, 10], dir: "v", align: "CENTER", children: [TX("03", { size: 16, w: 700, color: T.primary }), TX("Ngày", { size: 9, color: T.textMuted })] })] }),
-							V({ gap: 2, children: [TX("Trekking Bán Đảo Sơn Trà", { size: 17, w: 700, color: "#FFFFFF" }), TX("Đà Nẵng, Việt Nam", { size: 11.5, color: "#FFFFFF" })] }),
+							H({
+								fw: true,
+								justify: "SPACE_BETWEEN",
+								align: "MIN",
+								children: [
+									badge("SẮP DIỄN RA", "brand", "solid"),
+									BOX({
+										radius: 8,
+										fill: "#FFFFFF",
+										pad: [6, 10],
+										dir: "v",
+										align: "CENTER",
+										children: [
+											TX("03", { size: 16, w: 700, color: T.primary }),
+											TX("Ngày", { size: 9, color: T.textMuted }),
+										],
+									}),
+								],
+							}),
+							V({
+								gap: 2,
+								children: [
+									TX("Trekking Bán Đảo Sơn Trà", { size: 17, w: 700, color: "#FFFFFF" }),
+									TX("Đà Nẵng, Việt Nam", { size: 11.5, color: "#FFFFFF" }),
+								],
+							}),
 						],
 					}),
 					V({
@@ -1893,8 +2146,19 @@ function scCamperTrips() {
 						pad: 13,
 						gap: 11,
 						children: [
-							H({ fw: true, gap: 10, children: [kv("THỜI GIAN", "15 – 17 TN09"), kv("THÀNH VIÊN", "04 Người")] }),
-							H({ fw: true, gap: 10, children: [kv("ĐỘ KHÓ", "Trung bình", T.warning), kv("TRẠNG THÁI", "An toàn", T.success)] }),
+							H({
+								fw: true,
+								gap: 10,
+								children: [kv("THỜI GIAN", "15 – 17 TN09"), kv("THÀNH VIÊN", "04 Người")],
+							}),
+							H({
+								fw: true,
+								gap: 10,
+								children: [
+									kv("ĐỘ KHÓ", "Trung bình", T.warning),
+									kv("TRẠNG THÁI", "An toàn", T.success),
+								],
+							}),
 							LINE(T.border),
 							TX("Tiến độ chuẩn bị (75%)", { size: 12, w: 600 }),
 							progress(0.75),
@@ -1902,7 +2166,14 @@ function scCamperTrips() {
 							checkItem("Dụng cụ cá nhân — Xong", true),
 							checkItem("Thiết bị cắm trại — Đang soạn", false),
 							checkItem("Dữ liệu ngoại tuyến — Chưa tải", false),
-							H({ fw: true, gap: 8, children: [btn("Chi tiết tuyến", { variant: "secondary", grow: 1, h: 40 }), btn("Tiếp tục chuẩn bị", { grow: 1, h: 40 })] }),
+							H({
+								fw: true,
+								gap: 8,
+								children: [
+									btn("Chi tiết tuyến", { variant: "secondary", grow: 1, h: 40 }),
+									btn("Tiếp tục chuẩn bị", { grow: 1, h: 40 }),
+								],
+							}),
 						],
 					}),
 				],
@@ -1922,7 +2193,22 @@ function scCamperTrips() {
 				fill: T.danger,
 				stroke: null,
 				children: [
-					V({ fw: true, gap: 6, align: "CENTER", children: [IC("siren", 24, "#FFFFFF"), TX("Hỗ trợ Khẩn cấp", { size: 15, w: 700, color: "#FFFFFF" }), TX("Nhấn giữ để gửi tín hiệu SOS kèm vị trí GPS của bạn.", { size: 11.5, color: "#FFFFFF", align: "CENTER", lh: 16, fw: true })] }),
+					V({
+						fw: true,
+						gap: 6,
+						align: "CENTER",
+						children: [
+							IC("siren", 24, "#FFFFFF"),
+							TX("Hỗ trợ Khẩn cấp", { size: 15, w: 700, color: "#FFFFFF" }),
+							TX("Nhấn giữ để gửi tín hiệu SOS kèm vị trí GPS của bạn.", {
+								size: 11.5,
+								color: "#FFFFFF",
+								align: "CENTER",
+								lh: 16,
+								fw: true,
+							}),
+						],
+					}),
 					btn("NHẤN GIỮ (SOS)", { fw: true, variant: "light" }),
 				],
 			}),
@@ -1959,7 +2245,14 @@ function scCamperAi() {
 							fill: T.primary,
 							pad: 11,
 							dir: "v",
-							children: [TX("Tôi nên làm gì nếu bị lạc và trời sắp tối?", { size: 13, color: "#FFFFFF", lh: 19, fw: true })],
+							children: [
+								TX("Tôi nên làm gì nếu bị lạc và trời sắp tối?", {
+									size: 13,
+									color: "#FFFFFF",
+									lh: 19,
+									fw: true,
+								}),
+							],
 						}),
 					],
 				}),
@@ -1968,7 +2261,16 @@ function scCamperAi() {
 					gap: 8,
 					align: "MIN",
 					children: [
-						BOX({ w: 28, h: 28, radius: R.pill, fill: T.primary, dir: "v", justify: "CENTER", align: "CENTER", children: [IC("sparkles", 15, "#FFFFFF")] }),
+						BOX({
+							w: 28,
+							h: 28,
+							radius: R.pill,
+							fill: T.primary,
+							dir: "v",
+							justify: "CENTER",
+							align: "CENTER",
+							children: [IC("sparkles", 15, "#FFFFFF")],
+						}),
 						V({
 							grow: 1,
 							fill: T.surface,
@@ -1977,24 +2279,62 @@ function scCamperAi() {
 							pad: 12,
 							gap: 9,
 							children: [
-								TX("Chào bạn, việc bị lạc khi trời sắp tối là tình huống nghiêm trọng nhưng có thể kiểm soát được. Hãy tuân thủ các bước sau ngay lập tức:", { size: 12.5, lh: 18, color: T.textSecondary, fw: true }),
+								TX(
+									"Chào bạn, việc bị lạc khi trời sắp tối là tình huống nghiêm trọng nhưng có thể kiểm soát được. Hãy tuân thủ các bước sau ngay lập tức:",
+									{ size: 12.5, lh: 18, color: T.textSecondary, fw: true }
+								),
 								...[
-									["1", "Giữ bình tĩnh (STOP):", "Dừng lại, Suy nghĩ, Quan sát và Lên kế hoạch. Đừng tiếp tục di chuyển vì bóng tối sẽ làm bạn dễ mất phương hướng hơn."],
-									["2", "Tìm nơi trú ẩn:", "Tìm khu vực khô ráo, tránh gió trước khi trời tối hẳn. Sử dụng bạt, lá khô hoặc hốc cây để giữ nhiệt cơ thể."],
-									["3", "Nhóm lửa giữ ấm:", "Lửa không chỉ giữ ấm mà còn là tín hiệu cứu hộ hiệu quả nhất."],
+									[
+										"1",
+										"Giữ bình tĩnh (STOP):",
+										"Dừng lại, Suy nghĩ, Quan sát và Lên kế hoạch. Đừng tiếp tục di chuyển vì bóng tối sẽ làm bạn dễ mất phương hướng hơn.",
+									],
+									[
+										"2",
+										"Tìm nơi trú ẩn:",
+										"Tìm khu vực khô ráo, tránh gió trước khi trời tối hẳn. Sử dụng bạt, lá khô hoặc hốc cây để giữ nhiệt cơ thể.",
+									],
+									[
+										"3",
+										"Nhóm lửa giữ ấm:",
+										"Lửa không chỉ giữ ấm mà còn là tín hiệu cứu hộ hiệu quả nhất.",
+									],
 								].map((r) =>
 									H({
 										fw: true,
 										gap: 8,
 										align: "MIN",
 										children: [
-											BOX({ w: 18, h: 18, radius: R.pill, fill: T.light, dir: "v", justify: "CENTER", align: "CENTER", children: [TX(r[0], { size: 10, w: 700, color: T.primary })] }),
-											V({ grow: 1, gap: 1, children: [TX(r[1], { size: 12.5, w: 700, fw: true }), TX(r[2], { size: 12, color: T.textSecondary, lh: 17, fw: true })] }),
+											BOX({
+												w: 18,
+												h: 18,
+												radius: R.pill,
+												fill: T.light,
+												dir: "v",
+												justify: "CENTER",
+												align: "CENTER",
+												children: [TX(r[0], { size: 10, w: 700, color: T.primary })],
+											}),
+											V({
+												grow: 1,
+												gap: 1,
+												children: [
+													TX(r[1], { size: 12.5, w: 700, fw: true }),
+													TX(r[2], { size: 12, color: T.textSecondary, lh: 17, fw: true }),
+												],
+											}),
 										],
-									}),
+									})
 								),
 								LINE(T.border),
-								H({ fw: true, gap: 7, children: [btn("Mở bản đồ", { variant: "secondary", h: 34, grow: 1 }), btn("Liên hệ", { variant: "secondary", h: 34, grow: 1 })] }),
+								H({
+									fw: true,
+									gap: 7,
+									children: [
+										btn("Mở bản đồ", { variant: "secondary", h: 34, grow: 1 }),
+										btn("Liên hệ", { variant: "secondary", h: 34, grow: 1 }),
+									],
+								}),
 								btn("SOS · Gửi tín hiệu khẩn cấp", { fw: true, variant: "danger", h: 38 }),
 							],
 						}),
@@ -2019,12 +2359,30 @@ function scCamperAi() {
 					align: "CENTER",
 					children: [
 						IC("clip", 17, T.textMuted),
-						TX("Nhập câu hỏi về sinh tồn hoặc sơ cứu...", { size: 12.5, color: T.textMuted, grow: 1 }),
+						TX("Nhập câu hỏi về sinh tồn hoặc sơ cứu...", {
+							size: 12.5,
+							color: T.textMuted,
+							grow: 1,
+						}),
 						IC("mic", 17, T.textMuted),
-						BOX({ w: 32, h: 32, radius: R.pill, fill: T.primary, dir: "v", justify: "CENTER", align: "CENTER", children: [IC("send", 15, "#FFFFFF")] }),
+						BOX({
+							w: 32,
+							h: 32,
+							radius: R.pill,
+							fill: T.primary,
+							dir: "v",
+							justify: "CENTER",
+							align: "CENTER",
+							children: [IC("send", 15, "#FFFFFF")],
+						}),
 					],
 				}),
-				TX("AI có thể mắc sai lầm. Luôn ưu tiên thiết bị cứu hộ chuyên dụng.", { size: 10, color: T.textMuted, align: "CENTER", fw: true }),
+				TX("AI có thể mắc sai lầm. Luôn ưu tiên thiết bị cứu hộ chuyên dụng.", {
+					size: 10,
+					color: T.textMuted,
+					align: "CENTER",
+					fw: true,
+				}),
 			],
 		}),
 		bottomNav(CAMPER_NAV, 3, T.camper),
@@ -2043,14 +2401,23 @@ function scCamperProfile() {
 			align: "CENTER",
 			children: [
 				IC(icon, 16, active ? T.primary : T.textSecondary),
-				TX(label, { size: 12.5, w: active ? 600 : 400, color: active ? T.primary : T.textSecondary, grow: 1 }),
+				TX(label, {
+					size: 12.5,
+					w: active ? 600 : 400,
+					color: active ? T.primary : T.textSecondary,
+					grow: 1,
+				}),
 				IC("chevronRight", 14, T.textMuted),
 			],
 		});
 
 	return screen("07 · Camper · Hồ sơ & Cài đặt", [
 		statusBar(),
-		appBar({ title: "Hồ sơ & Cài đặt", subtitle: "Quản lý thông tin cá nhân, an toàn và tài khoản", actions: [{ icon: "settings" }] }),
+		appBar({
+			title: "Hồ sơ & Cài đặt",
+			subtitle: "Quản lý thông tin cá nhân, an toàn và tài khoản",
+			actions: [{ icon: "settings" }],
+		}),
 		body([
 			card({
 				children: [
@@ -2060,7 +2427,21 @@ function scCamperProfile() {
 						align: "CENTER",
 						children: [
 							avatar(56, T.camper, "MQ"),
-							V({ grow: 1, gap: 5, children: [TX("Minh Quân", { size: 16, w: 700 }), H({ gap: 6, align: "CENTER", children: [badge("Thành viên Pro", "success"), TX("Tham gia từ 2021", { size: 11, color: T.textMuted })] })] }),
+							V({
+								grow: 1,
+								gap: 5,
+								children: [
+									TX("Minh Quân", { size: 16, w: 700 }),
+									H({
+										gap: 6,
+										align: "CENTER",
+										children: [
+											badge("Thành viên Pro", "success"),
+											TX("Tham gia từ 2021", { size: 11, color: T.textMuted }),
+										],
+									}),
+								],
+							}),
 						],
 					}),
 					btn("Thay đổi ảnh", { fw: true, variant: "secondary", h: 38, icon: "camera" }),
@@ -2080,7 +2461,14 @@ function scCamperProfile() {
 						dir: "v",
 						gap: 5,
 						children: [
-							H({ gap: 7, align: "CENTER", children: [IC("warning", 14, T.warning), TX("Cần hành động:", { size: 12, w: 700, color: T.warning })] }),
+							H({
+								gap: 7,
+								align: "CENTER",
+								children: [
+									IC("warning", 14, T.warning),
+									TX("Cần hành động:", { size: 12, w: 700, color: T.warning }),
+								],
+							}),
 							TX("Thêm người liên hệ khẩn cấp", { size: 11.5, color: T.warning, fw: true }),
 							TX("Xác minh số điện thoại", { size: 11.5, color: T.warning, fw: true }),
 						],
@@ -2091,10 +2479,23 @@ function scCamperProfile() {
 				title: "Thông tin cá nhân",
 				action: "Sửa",
 				children: [
-					H({ fw: true, gap: 10, children: [kv("HỌ VÀ TÊN", "Minh Quân"), kv("NGÀY SINH", "15/09/1995")] }),
-					H({ fw: true, gap: 10, children: [kv("GIỚI TÍNH", "Nam"), kv("ĐỊA CHỈ", "123 Lê Lợi, Đà Nẵng")] }),
+					H({
+						fw: true,
+						gap: 10,
+						children: [kv("HỌ VÀ TÊN", "Minh Quân"), kv("NGÀY SINH", "15/09/1995")],
+					}),
+					H({
+						fw: true,
+						gap: 10,
+						children: [kv("GIỚI TÍNH", "Nam"), kv("ĐỊA CHỈ", "123 Lê Lợi, Đà Nẵng")],
+					}),
 					LINE(T.border),
-					TX("Yêu thích trekking và khám phá thiên nhiên.", { size: 12, color: T.textSecondary, lh: 17, fw: true }),
+					TX("Yêu thích trekking và khám phá thiên nhiên.", {
+						size: 12,
+						color: T.textSecondary,
+						lh: 17,
+						fw: true,
+					}),
 				],
 			}),
 			card({
@@ -2102,7 +2503,15 @@ function scCamperProfile() {
 				children: [
 					H({ fw: true, gap: 10, children: [kv("CẮM TRẠI", "5 năm"), kv("TREKKING", "3 năm")] }),
 					TX("NGÔN NGỮ", { size: 10, w: 600, color: T.textMuted, ls: 4 }),
-					H({ fw: true, gap: 7, children: [badge("Tiếng Việt ×", "brand"), badge("Tiếng Anh ×", "brand"), badge("+ Thêm", "neutral")] }),
+					H({
+						fw: true,
+						gap: 7,
+						children: [
+							badge("Tiếng Việt ×", "brand"),
+							badge("Tiếng Anh ×", "brand"),
+							badge("+ Thêm", "neutral"),
+						],
+					}),
 				],
 			}),
 			card({
@@ -2141,7 +2550,10 @@ function scPorterHome() {
 				pad: [7, 12],
 				gap: 7,
 				align: "CENTER",
-				children: [DOT(T.success), TX("Đã kết nối trực tiếp", { size: 11.5, w: 600, color: T.success })],
+				children: [
+					DOT(T.success),
+					TX("Đã kết nối trực tiếp", { size: 11.5, w: 600, color: T.success }),
+				],
 			}),
 			statGrid([
 				{ label: "CHUYẾN HÔM NAY", value: "01", icon: "route" },
@@ -2159,15 +2571,66 @@ function scPorterHome() {
 						gap: 10,
 						align: "CENTER",
 						children: [
-							BOX({ w: 36, h: 36, radius: R.icon, fill: T.primary, dir: "v", justify: "CENTER", align: "CENTER", children: [IC("route", 19, "#FFFFFF")] }),
-							V({ grow: 1, gap: 2, children: [TX("Trekking Sơn Trà – Bãi Bắc", { size: 15.5, w: 700 }), TX("Mã chuyến: TRK-DA-2026-001", { size: 11, color: T.textMuted })] }),
+							BOX({
+								w: 36,
+								h: 36,
+								radius: R.icon,
+								fill: T.primary,
+								dir: "v",
+								justify: "CENTER",
+								align: "CENTER",
+								children: [IC("route", 19, "#FFFFFF")],
+							}),
+							V({
+								grow: 1,
+								gap: 2,
+								children: [
+									TX("Trekking Sơn Trà – Bãi Bắc", { size: 15.5, w: 700 }),
+									TX("Mã chuyến: TRK-DA-2026-001", { size: 11, color: T.textMuted }),
+								],
+							}),
 						],
 					}),
-					H({ fw: true, gap: 8, children: [badge("Weather Risk · An toàn", "success"), badge("Offline · 128MB", "info")] }),
+					H({
+						fw: true,
+						gap: 8,
+						children: [
+							badge("Weather Risk · An toàn", "success"),
+							badge("Offline · 128MB", "info"),
+						],
+					}),
 					LINE(T.border),
-					H({ fw: true, gap: 10, children: [kv("ĐỊA ĐIỂM & TUYẾN", "Campsite Bãi Đá Đen"), kv("VAI TRÒ", "Porter trưởng (Leader)")] }),
-					H({ fw: true, gap: 10, children: [kv("THỜI GIAN DỰ KIẾN", "Tập trung 05:30"), kv("QUY MÔ ĐOÀN", "06 thành viên")] }),
-					V({ fw: true, gap: 6, children: [H({ fw: true, justify: "SPACE_BETWEEN", children: [TX("Tiến độ chuẩn bị", { size: 12, w: 600 }), TX("5/7", { size: 12, w: 600, color: T.primary })] }), progress(5 / 7)] }),
+					H({
+						fw: true,
+						gap: 10,
+						children: [
+							kv("ĐỊA ĐIỂM & TUYẾN", "Campsite Bãi Đá Đen"),
+							kv("VAI TRÒ", "Porter trưởng (Leader)"),
+						],
+					}),
+					H({
+						fw: true,
+						gap: 10,
+						children: [
+							kv("THỜI GIAN DỰ KIẾN", "Tập trung 05:30"),
+							kv("QUY MÔ ĐOÀN", "06 thành viên"),
+						],
+					}),
+					V({
+						fw: true,
+						gap: 6,
+						children: [
+							H({
+								fw: true,
+								justify: "SPACE_BETWEEN",
+								children: [
+									TX("Tiến độ chuẩn bị", { size: 12, w: 600 }),
+									TX("5/7", { size: 12, w: 600, color: T.primary }),
+								],
+							}),
+							progress(5 / 7),
+						],
+					}),
 					BOX({
 						fw: true,
 						radius: 8,
@@ -2186,7 +2649,14 @@ function scPorterHome() {
 						],
 					}),
 					btn("Mở workspace", { fw: true }),
-					H({ fw: true, gap: 8, children: [btn("Xem tuyến", { variant: "secondary", grow: 1, h: 40 }), btn("Xem thành viên", { variant: "secondary", grow: 1, h: 40 })] }),
+					H({
+						fw: true,
+						gap: 8,
+						children: [
+							btn("Xem tuyến", { variant: "secondary", grow: 1, h: 40 }),
+							btn("Xem thành viên", { variant: "secondary", grow: 1, h: 40 }),
+						],
+					}),
 				],
 			}),
 			mapPlaceholder(170, "Toạ độ: 16.1215° N, 108.2882° E"),
@@ -2194,8 +2664,38 @@ function scPorterHome() {
 				title: "Thành viên cần chú ý",
 				action: "Tất cả",
 				children: [
-					H({ fw: true, gap: 10, align: "CENTER", children: [avatar(34, T.warning, "VA"), V({ grow: 1, gap: 2, children: [TX("Nguyễn Văn An", { size: 13, w: 600 }), TX("Chưa xác nhận tham gia", { size: 11, color: T.danger })] })] }),
-					H({ fw: true, gap: 10, align: "CENTER", children: [avatar(34, T.info, "TB"), V({ grow: 1, gap: 2, children: [TX("Lê Thị Bình", { size: 13, w: 600 }), TX("Tiền sử họ cảm — Cần lưu ý", { size: 11, color: T.warning })] })] }),
+					H({
+						fw: true,
+						gap: 10,
+						align: "CENTER",
+						children: [
+							avatar(34, T.warning, "VA"),
+							V({
+								grow: 1,
+								gap: 2,
+								children: [
+									TX("Nguyễn Văn An", { size: 13, w: 600 }),
+									TX("Chưa xác nhận tham gia", { size: 11, color: T.danger }),
+								],
+							}),
+						],
+					}),
+					H({
+						fw: true,
+						gap: 10,
+						align: "CENTER",
+						children: [
+							avatar(34, T.info, "TB"),
+							V({
+								grow: 1,
+								gap: 2,
+								children: [
+									TX("Lê Thị Bình", { size: 13, w: 600 }),
+									TX("Tiền sử họ cảm — Cần lưu ý", { size: 11, color: T.warning }),
+								],
+							}),
+						],
+					}),
 				],
 			}),
 		]),
@@ -2219,7 +2719,12 @@ function scPorterSchedule() {
 					align: "CENTER",
 					children: [
 						TX(d, { size: 10, w: 600, color: today ? T.primary : T.textMuted, align: "CENTER" }),
-						TX(date, { size: 12, w: 700, color: today ? T.primary : T.textPrimary, align: "CENTER" }),
+						TX(date, {
+							size: 12,
+							w: 700,
+							color: today ? T.primary : T.textPrimary,
+							align: "CENTER",
+						}),
 					],
 				}),
 			].concat(events || []),
@@ -2279,10 +2784,29 @@ function scPorterSchedule() {
 				pad: 13,
 				gap: 11,
 				children: [
-					H({ fw: true, justify: "SPACE_BETWEEN", align: "CENTER", children: [badge("ĐANG DIỄN RA", "success", "solid"), TX("#TRK-2024-0517", { size: 11, color: T.textMuted })] }),
+					H({
+						fw: true,
+						justify: "SPACE_BETWEEN",
+						align: "CENTER",
+						children: [
+							badge("ĐANG DIỄN RA", "success", "solid"),
+							TX("#TRK-2024-0517", { size: 11, color: T.textMuted }),
+						],
+					}),
 					TX("Trekking Sơn Trà – Bãi Bắc", { size: 17, w: 700, fw: true }),
-					H({ fw: true, gap: 10, children: [kv("CAMPSITE", "Bãi Đá Đen"), kv("ĐỘ KHÓ", "Trung bình", T.warning)] }),
-					H({ fw: true, gap: 10, children: [kv("TẬP TRUNG", "05:30 tại Basecamp"), kv("PORTER TRƯỞNG", "Trần Hữu Nghĩa")] }),
+					H({
+						fw: true,
+						gap: 10,
+						children: [kv("CAMPSITE", "Bãi Đá Đen"), kv("ĐỘ KHÓ", "Trung bình", T.warning)],
+					}),
+					H({
+						fw: true,
+						gap: 10,
+						children: [
+							kv("TẬP TRUNG", "05:30 tại Basecamp"),
+							kv("PORTER TRƯỞNG", "Trần Hữu Nghĩa"),
+						],
+					}),
 					BOX({
 						fw: true,
 						radius: 8,
@@ -2293,11 +2817,37 @@ function scPorterSchedule() {
 						align: "CENTER",
 						children: [
 							IC("sun", 24, T.warning),
-							V({ grow: 1, gap: 2, children: [TX("An toàn", { size: 13, w: 700, color: T.success }), TX("Xác suất mưa 10% · Gió 12km/h", { size: 11, color: T.textSecondary }), TX('"Thời tiết lý tưởng cho trekking"', { size: 10.5, color: T.textMuted, fw: true })] }),
+							V({
+								grow: 1,
+								gap: 2,
+								children: [
+									TX("An toàn", { size: 13, w: 700, color: T.success }),
+									TX("Xác suất mưa 10% · Gió 12km/h", { size: 11, color: T.textSecondary }),
+									TX('"Thời tiết lý tưởng cho trekking"', {
+										size: 10.5,
+										color: T.textMuted,
+										fw: true,
+									}),
+								],
+							}),
 							TX("28°C", { size: 16, w: 700 }),
 						],
 					}),
-					V({ fw: true, gap: 6, children: [H({ fw: true, justify: "SPACE_BETWEEN", children: [TX("Trạng thái chuẩn bị", { size: 12, w: 600 }), TX("Hoàn thành 6/8", { size: 11.5, color: T.textSecondary })] }), progress(0.75)] }),
+					V({
+						fw: true,
+						gap: 6,
+						children: [
+							H({
+								fw: true,
+								justify: "SPACE_BETWEEN",
+								children: [
+									TX("Trạng thái chuẩn bị", { size: 12, w: 600 }),
+									TX("Hoàn thành 6/8", { size: 11.5, color: T.textSecondary }),
+								],
+							}),
+							progress(0.75),
+						],
+					}),
 					checkItem("Đã xác nhận tham gia", true),
 					checkItem("Đã tải bản đồ offline", true),
 					checkItem("Đã kiểm tra thiết bị liên lạc", true),
@@ -2310,7 +2860,17 @@ function scPorterSchedule() {
 						dir: "h",
 						gap: 9,
 						align: "CENTER",
-						children: [IC("download", 18, T.primary), V({ grow: 1, gap: 1, children: [TX("Gói ngoại tuyến", { size: 12.5, w: 600 }), TX("Sẵn sàng · 128MB", { size: 11, color: T.textSecondary })] })],
+						children: [
+							IC("download", 18, T.primary),
+							V({
+								grow: 1,
+								gap: 1,
+								children: [
+									TX("Gói ngoại tuyến", { size: 12.5, w: 600 }),
+									TX("Sẵn sàng · 128MB", { size: 11, color: T.textSecondary }),
+								],
+							}),
+						],
 					}),
 					btn("Mở Workspace", { fw: true }),
 				],
@@ -2335,8 +2895,31 @@ function scPorterMap() {
 					align: "CENTER",
 					justify: "SPACE_BETWEEN",
 					children: [
-						V({ grow: 1, gap: 2, children: [TX("Bản đồ chuyến đi", { size: 20, w: 700 }), H({ gap: 6, align: "CENTER", children: [DOT(T.success), TX("Trực tuyến · Đồng bộ 2 phút trước", { size: 11, color: T.textSecondary })] })] }),
-						BOX({ w: 34, h: 34, radius: R.pill, fill: T.surfaceMuted, dir: "v", justify: "CENTER", align: "CENTER", children: [IC("layers", 18, T.textSecondary)] }),
+						V({
+							grow: 1,
+							gap: 2,
+							children: [
+								TX("Bản đồ chuyến đi", { size: 20, w: 700 }),
+								H({
+									gap: 6,
+									align: "CENTER",
+									children: [
+										DOT(T.success),
+										TX("Trực tuyến · Đồng bộ 2 phút trước", { size: 11, color: T.textSecondary }),
+									],
+								}),
+							],
+						}),
+						BOX({
+							w: 34,
+							h: 34,
+							radius: R.pill,
+							fill: T.surfaceMuted,
+							dir: "v",
+							justify: "CENTER",
+							align: "CENTER",
+							children: [IC("layers", 18, T.textSecondary)],
+						}),
 					],
 				}),
 				H({
@@ -2347,7 +2930,11 @@ function scPorterMap() {
 					pad: [0, 12],
 					gap: 8,
 					align: "CENTER",
-					children: [IC("route", 16, T.primary), TX("Trekking Sơn Trà – Bãi Bắc", { size: 12.5, w: 600, grow: 1 }), IC("chevronDown", 15, T.textSecondary)],
+					children: [
+						IC("route", 16, T.primary),
+						TX("Trekking Sơn Trà – Bãi Bắc", { size: 12.5, w: 600, grow: 1 }),
+						IC("chevronDown", 15, T.textSecondary),
+					],
 				}),
 			],
 		}),
@@ -2371,16 +2958,75 @@ function scPorterMap() {
 					fw: true,
 					gap: 10,
 					children: [
-						V({ grow: 1, fill: T.surface, radius: R.card, stroke: T.border, pad: 11, gap: 4, children: [H({ gap: 6, align: "CENTER", children: [IC("refresh", 13, T.success), TX("Đồng bộ", { size: 11, w: 600, color: T.success })] }), TX("1 phút trước", { size: 12, w: 600 }), TX("0 GPS logs chờ tải lên", { size: 10, color: T.textMuted })] }),
-						V({ grow: 1, fill: T.surface, radius: R.card, stroke: T.border, pad: 11, gap: 4, children: [H({ gap: 6, align: "CENTER", children: [IC("warning", 13, T.danger), TX("Ngoại tuyến", { size: 11, w: 600, color: T.danger })] }), TX("1 Thành viên", { size: 12, w: 600 }), TX("Mất kết nối > 10p", { size: 10, color: T.textMuted })] }),
+						V({
+							grow: 1,
+							fill: T.surface,
+							radius: R.card,
+							stroke: T.border,
+							pad: 11,
+							gap: 4,
+							children: [
+								H({
+									gap: 6,
+									align: "CENTER",
+									children: [
+										IC("refresh", 13, T.success),
+										TX("Đồng bộ", { size: 11, w: 600, color: T.success }),
+									],
+								}),
+								TX("1 phút trước", { size: 12, w: 600 }),
+								TX("0 GPS logs chờ tải lên", { size: 10, color: T.textMuted }),
+							],
+						}),
+						V({
+							grow: 1,
+							fill: T.surface,
+							radius: R.card,
+							stroke: T.border,
+							pad: 11,
+							gap: 4,
+							children: [
+								H({
+									gap: 6,
+									align: "CENTER",
+									children: [
+										IC("warning", 13, T.danger),
+										TX("Ngoại tuyến", { size: 11, w: 600, color: T.danger }),
+									],
+								}),
+								TX("1 Thành viên", { size: 12, w: 600 }),
+								TX("Mất kết nối > 10p", { size: 10, color: T.textMuted }),
+							],
+						}),
 					],
 				}),
 				card({
 					title: "Checkpoint: Bãi Bắc",
 					icon: "flag",
 					children: [
-						H({ fw: true, gap: 10, children: [kv("DỰ KIẾN TỚI", "10:30 AM"), kv("THỰC TẾ TỚI", "10:15 AM (-15p)", T.success)] }),
-						V({ fw: true, gap: 6, children: [H({ fw: true, justify: "SPACE_BETWEEN", children: [TX("Thành viên tới", { size: 12, w: 600 }), TX("5 / 6 người", { size: 12, w: 600, color: T.primary })] }), progress(5 / 6)] }),
+						H({
+							fw: true,
+							gap: 10,
+							children: [
+								kv("DỰ KIẾN TỚI", "10:30 AM"),
+								kv("THỰC TẾ TỚI", "10:15 AM (-15p)", T.success),
+							],
+						}),
+						V({
+							fw: true,
+							gap: 6,
+							children: [
+								H({
+									fw: true,
+									justify: "SPACE_BETWEEN",
+									children: [
+										TX("Thành viên tới", { size: 12, w: 600 }),
+										TX("5 / 6 người", { size: 12, w: 600, color: T.primary }),
+									],
+								}),
+								progress(5 / 6),
+							],
+						}),
 						btn("Xác nhận Checkpoint", { fw: true }),
 					],
 				}),
@@ -2408,15 +3054,46 @@ function scPorterMembers() {
 					gap: 10,
 					align: "CENTER",
 					children: [
-						BOX({ w: 18, h: 18, radius: 5, fill: o.selected ? T.primary : null, stroke: o.selected ? null : T.borderStrong, dir: "v", justify: "CENTER", align: "CENTER", children: o.selected ? [IC("check", 12, "#FFFFFF")] : [] }),
+						BOX({
+							w: 18,
+							h: 18,
+							radius: 5,
+							fill: o.selected ? T.primary : null,
+							stroke: o.selected ? null : T.borderStrong,
+							dir: "v",
+							justify: "CENTER",
+							align: "CENTER",
+							children: o.selected ? [IC("check", 12, "#FFFFFF")] : [],
+						}),
 						avatar(36, o.color || T.primary, o.initials),
-						V({ grow: 1, gap: 2, children: [TX(o.name, { size: 14, w: 600 }), TX(o.phone, { size: 11, color: T.textMuted })] }),
+						V({
+							grow: 1,
+							gap: 2,
+							children: [
+								TX(o.name, { size: 14, w: 600 }),
+								TX(o.phone, { size: 11, color: T.textMuted }),
+							],
+						}),
 						badge(o.status, o.tone),
 					],
 				}),
 				H({ fw: true, gap: 10, children: [kv("CHECKPOINT CUỐI", o.cp), kv("LAST SEEN", o.seen)] }),
-				H({ fw: true, gap: 10, children: [kv("PIN", o.battery, o.batteryColor), kv("KẾT NỐI", o.conn, o.connColor)] }),
-				o.note ? H({ fw: true, gap: 6, align: "CENTER", children: [IC("alertCircle", 13, o.noteColor), TX(o.note, { size: 11.5, color: o.noteColor, grow: 1 })] }) : null,
+				H({
+					fw: true,
+					gap: 10,
+					children: [kv("PIN", o.battery, o.batteryColor), kv("KẾT NỐI", o.conn, o.connColor)],
+				}),
+				o.note
+					? H({
+							fw: true,
+							gap: 6,
+							align: "CENTER",
+							children: [
+								IC("alertCircle", 13, o.noteColor),
+								TX(o.note, { size: 11.5, color: o.noteColor, grow: 1 }),
+							],
+						})
+					: null,
 			].filter(Boolean),
 		});
 
@@ -2497,9 +3174,19 @@ function scPorterMembers() {
 					fw: true,
 					align: "CENTER",
 					justify: "SPACE_BETWEEN",
-					children: [TX("Đã chọn 2 thành viên", { size: 12.5, w: 600, color: "#FFFFFF" }), IC("x", 16, "#FFFFFF")],
+					children: [
+						TX("Đã chọn 2 thành viên", { size: 12.5, w: 600, color: "#FFFFFF" }),
+						IC("x", 16, "#FFFFFF"),
+					],
 				}),
-				H({ fw: true, gap: 8, children: [btn("Gửi thông báo", { variant: "light", h: 34, grow: 1 }), btn("Xác nhận checkpoint", { variant: "light", h: 34, grow: 1 })] }),
+				H({
+					fw: true,
+					gap: 8,
+					children: [
+						btn("Gửi thông báo", { variant: "light", h: 34, grow: 1 }),
+						btn("Xác nhận checkpoint", { variant: "light", h: 34, grow: 1 }),
+					],
+				}),
 			],
 		}),
 		bottomNav(PORTER_NAV, 4, T.porter),
@@ -2589,7 +3276,11 @@ function scPorterAlerts() {
 				{ label: "C.BÁO THÀNH VIÊN", value: "04", icon: "users" },
 				{ label: "C.BÁO HỆ THỐNG", value: "01", icon: "settings" },
 			]),
-			chipRow(["Tất cả 11", "Chuyến đi 2", "Thời tiết 3", "Thành viên 4", "Khẩn cấp 1"], 0, T.porter),
+			chipRow(
+				["Tất cả 11", "Chuyến đi 2", "Thời tiết 3", "Thành viên 4", "Khẩn cấp 1"],
+				0,
+				T.porter
+			),
 			alertBanner({
 				sev: "info",
 				icon: "rain",
@@ -2635,7 +3326,16 @@ function scPorterAlerts() {
 const GROUPS = [
 	{
 		title: "AUTH  ·  Đăng nhập & Đăng ký Porter (5 bước)",
-		screens: [scLogin, scRegStep1, scRegStep2, scRegStep3, scRegStep4, scRegStep4Empty, scRegStep5, scRegSuccess],
+		screens: [
+			scLogin,
+			scRegStep1,
+			scRegStep2,
+			scRegStep3,
+			scRegStep4,
+			scRegStep4Empty,
+			scRegStep5,
+			scRegSuccess,
+		],
 	},
 	{
 		title: "CAMPER HUB  ·  Flutter mobile",
@@ -2643,14 +3343,23 @@ const GROUPS = [
 	},
 	{
 		title: "PORTER DASHBOARD  ·  Flutter mobile",
-		screens: [scPorterHome, scPorterSchedule, scPorterMap, scPorterMembers, scPorterIncidents, scPorterAlerts],
+		screens: [
+			scPorterHome,
+			scPorterSchedule,
+			scPorterMap,
+			scPorterMembers,
+			scPorterIncidents,
+			scPorterAlerts,
+		],
 	},
 ];
 
 function withTimeout(promise, ms, label) {
 	return Promise.race([
 		promise,
-		new Promise((_, reject) => setTimeout(() => reject(new Error("quá hạn " + ms + "ms: " + label)), ms)),
+		new Promise((_, reject) =>
+			setTimeout(() => reject(new Error(`quá hạn ${ms}ms: ${label}`)), ms)
+		),
 	]);
 }
 
@@ -2668,14 +3377,18 @@ async function loadFonts() {
 			const uniq = [];
 			for (const k in c.styles) if (uniq.indexOf(c.styles[k]) === -1) uniq.push(c.styles[k]);
 			for (const st of uniq) {
-				await withTimeout(figma.loadFontAsync({ family: c.family, style: st }), 8000, c.family + " " + st);
+				await withTimeout(
+					figma.loadFontAsync({ family: c.family, style: st }),
+					8000,
+					`${c.family} ${st}`
+				);
 			}
 			FONT = c.family;
 			WEIGHT_STYLE = c.styles;
-			logOk("✔ Font đang dùng: " + c.family);
+			logOk(`✔ Font đang dùng: ${c.family}`);
 			return;
 		} catch (e) {
-			logWarn("font " + c.family + " không dùng được → " + e.message);
+			logWarn(`font ${c.family} không dùng được → ${e.message}`);
 		}
 	}
 
@@ -2688,9 +3401,9 @@ async function loadFonts() {
 			await withTimeout(figma.loadFontAsync(f.fontName), 8000, f.fontName.family);
 			FONT = f.fontName.family;
 			WEIGHT_STYLE = { 400: "Regular", 500: "Regular", 600: "Regular", 700: "Regular" };
-			logOk("✔ Font dự phòng: " + FONT + " (chỉ có Regular — chữ sẽ không có độ đậm)");
+			logOk(`✔ Font dự phòng: ${FONT} (chỉ có Regular — chữ sẽ không có độ đậm)`);
 			return;
-		} catch (e) {
+		} catch (_e) {
 			/* thử font kế tiếp */
 		}
 	}
@@ -2701,8 +3414,8 @@ function uniquePageName(base) {
 	const existing = figma.root.children.map((p) => p.name);
 	if (existing.indexOf(base) === -1) return base;
 	let i = 2;
-	while (existing.indexOf(base + " v" + i) !== -1) i++;
-	return base + " v" + i;
+	while (existing.indexOf(`${base} v${i}`) !== -1) i++;
+	return `${base} v${i}`;
 }
 
 async function main() {
@@ -2725,17 +3438,26 @@ async function main() {
 	const created = [];
 
 	// tiêu đề tổng
-	const heading = build(TX("CTMS · Mobile App UI (Flutter) — sinh tự động từ design system", { size: 40, w: 700, color: T.primary }));
+	const heading = build(
+		TX("CTMS · Mobile App UI (Flutter) — sinh tự động từ design system", {
+			size: 40,
+			w: 700,
+			color: T.primary,
+		})
+	);
 	page.appendChild(heading);
 	heading.x = 0;
 	heading.y = y;
 	y += 80;
 
 	const sub = build(
-		TX("Nguồn: docs/design/CTMS-DESIGN-SYSTEM.md + FIGMA-SCREEN-INVENTORY.md  ·  Khung 390×844  ·  KHÔNG liên quan tới các frame web", {
-			size: 18,
-			color: T.textSecondary,
-		}),
+		TX(
+			"Nguồn: docs/design/CTMS-DESIGN-SYSTEM.md + FIGMA-SCREEN-INVENTORY.md  ·  Khung 390×844  ·  KHÔNG liên quan tới các frame web",
+			{
+				size: 18,
+				color: T.textSecondary,
+			}
+		)
 	);
 	page.appendChild(sub);
 	sub.x = 0;
@@ -2745,7 +3467,7 @@ async function main() {
 	const failures = [];
 
 	for (const g of GROUPS) {
-		log("── Nhóm: " + g.title);
+		log(`── Nhóm: ${g.title}`);
 		const label = build(TX(g.title, { size: 26, w: 700, color: T.textPrimary }));
 		page.appendChild(label);
 		label.x = 0;
@@ -2757,7 +3479,7 @@ async function main() {
 			const fn = g.screens[i];
 			try {
 				const spec = fn();
-				logDim("   → dựng: " + spec.name);
+				logDim(`   → dựng: ${spec.name}`);
 				const node = build(spec);
 				page.appendChild(node);
 				node.x = i * COL;
@@ -2766,12 +3488,12 @@ async function main() {
 				node.effects = SHADOW_MD;
 				maxH = Math.max(maxH, node.height);
 				created.push(node);
-				logOk("   ✔ xong: " + spec.name + " (" + Math.round(node.width) + "×" + Math.round(node.height) + ")");
+				logOk(`   ✔ xong: ${spec.name} (${Math.round(node.width)}×${Math.round(node.height)})`);
 			} catch (e) {
-				const msg = (fn.name || "screen#" + i) + " → " + (e && e.message ? e.message : String(e));
+				const msg = `${fn.name || `screen#${i}`} → ${e?.message ? e.message : String(e)}`;
 				failures.push(msg);
-				logErr("   ✘ LỖI: " + msg);
-				if (e && e.stack) console.error(e.stack);
+				logErr(`   ✘ LỖI: ${msg}`);
+				if (e?.stack) console.error(e.stack);
 			}
 		}
 		y += maxH + GAP_Y;
@@ -2779,13 +3501,13 @@ async function main() {
 
 	if (created.length) figma.viewport.scrollAndZoomIntoView(created);
 
-	log("===== KẾT THÚC: " + created.length + " frame, " + failures.length + " lỗi =====");
-	if (failures.length) for (const f of failures) logErr("• " + f);
-	else logOk('Page mới: "' + page.name + '". Không có page/frame nào khác bị thay đổi.');
+	log(`===== KẾT THÚC: ${created.length} frame, ${failures.length} lỗi =====`);
+	if (failures.length) for (const f of failures) logErr(`• ${f}`);
+	else logOk(`Page mới: "${page.name}". Không có page/frame nào khác bị thay đổi.`);
 
 	const summary = failures.length
-		? "⚠ Tạo được " + created.length + " frame, " + failures.length + " màn lỗi."
-		: "✅ Đã tạo " + created.length + " frame trên page mới.";
+		? `⚠ Tạo được ${created.length} frame, ${failures.length} màn lỗi.`
+		: `✅ Đã tạo ${created.length} frame trên page mới.`;
 
 	if (HAS_UI) {
 		figma.ui.postMessage({ type: "done", ok: failures.length === 0 });
@@ -2809,19 +3531,19 @@ try {
 		for (const line of LOG_BUFFER) figma.ui.postMessage({ type: "log", msg: line });
 		HAS_UI = true;
 	} else {
-		console.warn("[CTMS] manifest.json chưa có \"ui\": \"ui.html\" — chạy không có bảng log.");
+		console.warn('[CTMS] manifest.json chưa có "ui": "ui.html" — chạy không có bảng log.');
 	}
 } catch (e) {
 	console.warn("[CTMS] Không mở được bảng log →", e.message);
 }
 
 main().catch((err) => {
-	const msg = err && err.message ? err.message : String(err);
-	logErr("LỖI NGHIÊM TRỌNG: " + msg);
-	if (err && err.stack) {
+	const msg = err?.message ? err.message : String(err);
+	logErr(`LỖI NGHIÊM TRỌNG: ${msg}`);
+	if (err?.stack) {
 		console.error(err.stack);
 		logDim(String(err.stack).split("\n").slice(0, 6).join("\n"));
 	}
 	if (HAS_UI) figma.ui.postMessage({ type: "done", ok: false });
-	else figma.closePlugin("❌ Lỗi: " + msg);
+	else figma.closePlugin(`❌ Lỗi: ${msg}`);
 });

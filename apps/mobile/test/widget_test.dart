@@ -19,11 +19,15 @@ import 'package:mobile/features/auth/domain/user_role.dart';
 /// under flutter_test) and the network — [login]/[register] return
 /// [loginResult] directly instead of calling the (stubbed) backend.
 class _FakeAuthRepository extends AuthRepository {
-  _FakeAuthRepository({this.loginResult, this.loginFailure, this.loginGate, this.registerGate})
-    : super(
-        AuthApi(ApiClient(TokenStorage(const FlutterSecureStorage()))),
-        TokenStorage(const FlutterSecureStorage()),
-      );
+  _FakeAuthRepository({
+    this.loginResult,
+    this.loginFailure,
+    this.loginGate,
+    this.registerGate,
+  }) : super(
+         AuthApi(ApiClient(TokenStorage(const FlutterSecureStorage()))),
+         TokenStorage(const FlutterSecureStorage()),
+       );
 
   final AuthUser? loginResult;
 
@@ -50,13 +54,20 @@ class _FakeAuthRepository extends AuthRepository {
   Future<AuthUser?> tryRestoreSession() async => null;
 
   @override
-  Future<AuthUser> login({required String identifier, required String password}) async {
+  Future<AuthUser> login({
+    required String identifier,
+    required String password,
+  }) async {
     loginCallCount++;
     if (loginGate != null) await loginGate!.future;
     final user = loginResult;
     if (user == null) {
       throw loginFailure ??
-          ApiException('Invalid credentials', statusCode: 401, kind: ApiExceptionKind.response);
+          ApiException(
+            'Invalid credentials',
+            statusCode: 401,
+            kind: ApiExceptionKind.response,
+          );
     }
     return user;
   }
@@ -87,7 +98,7 @@ class _FakeAuthRepository extends AuthRepository {
   }
 
   @override
-  Future<void> logout() async {}
+Future<void> logout({bool allDevices = false}) async {}
 }
 
 Future<void> _tapVisible(WidgetTester tester, Finder finder) async {
@@ -101,7 +112,9 @@ Future<void> _login(WidgetTester tester, AuthUser user) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        authRepositoryProvider.overrideWithValue(_FakeAuthRepository(loginResult: user)),
+        authRepositoryProvider.overrideWithValue(
+          _FakeAuthRepository(loginResult: user),
+        ),
       ],
       child: const CtmsApp(),
     ),
@@ -115,10 +128,14 @@ Future<void> _login(WidgetTester tester, AuthUser user) async {
 }
 
 void main() {
-  testWidgets('unauthenticated users land on the login screen', (WidgetTester tester) async {
+  testWidgets('unauthenticated users land on the login screen', (
+    WidgetTester tester,
+  ) async {
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [authRepositoryProvider.overrideWithValue(_FakeAuthRepository())],
+        overrides: [
+          authRepositoryProvider.overrideWithValue(_FakeAuthRepository()),
+        ],
         child: const CtmsApp(),
       ),
     );
@@ -128,33 +145,40 @@ void main() {
     expect(find.widgetWithText(ElevatedButton, 'Đăng nhập →'), findsOneWidget);
   });
 
-  testWidgets('shows a Vietnamese message for invalid credentials, never the raw exception', (
-    WidgetTester tester,
-  ) async {
-    final repository = _FakeAuthRepository();
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [authRepositoryProvider.overrideWithValue(repository)],
-        child: const CtmsApp(),
-      ),
-    );
-    await tester.pumpAndSettle();
+  testWidgets(
+    'shows a Vietnamese message for invalid credentials, never the raw exception',
+    (WidgetTester tester) async {
+      final repository = _FakeAuthRepository();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [authRepositoryProvider.overrideWithValue(repository)],
+          child: const CtmsApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(TextFormField).at(0), 'camper@example.com');
-    await tester.enterText(find.byType(TextFormField).at(1), 'wrong-password');
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Đăng nhập →'));
-    await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byType(TextFormField).at(0),
+        'camper@example.com',
+      );
+      await tester.enterText(
+        find.byType(TextFormField).at(1),
+        'wrong-password',
+      );
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Đăng nhập →'));
+      await tester.pumpAndSettle();
 
-    expect(
-      find.text('Email/số điện thoại hoặc mật khẩu không chính xác.'),
-      findsOneWidget,
-    );
-    // CTMS-03-T03: "API errors do not expose sensitive authentication
-    // details" -- the raw ApiException/statusCode formatting must never
-    // reach the screen.
-    expect(find.textContaining('ApiException'), findsNothing);
-    expect(find.byType(NavigationBar), findsNothing);
-  });
+      expect(
+        find.text('Email/số điện thoại hoặc mật khẩu không chính xác.'),
+        findsOneWidget,
+      );
+      // CTMS-03-T03: "API errors do not expose sensitive authentication
+      // details" -- the raw ApiException/statusCode formatting must never
+      // reach the screen.
+      expect(find.textContaining('ApiException'), findsNothing);
+      expect(find.byType(NavigationBar), findsNothing);
+    },
+  );
 
   testWidgets(
     'shows a Vietnamese message and a verify-account action when the account is not active',
@@ -174,8 +198,14 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.enterText(find.byType(TextFormField).at(0), 'pending@example.com');
-      await tester.enterText(find.byType(TextFormField).at(1), 'correct-password');
+      await tester.enterText(
+        find.byType(TextFormField).at(0),
+        'pending@example.com',
+      );
+      await tester.enterText(
+        find.byType(TextFormField).at(1),
+        'correct-password',
+      );
       await tester.tap(find.widgetWithText(ElevatedButton, 'Đăng nhập →'));
       await tester.pumpAndSettle();
 
@@ -186,7 +216,10 @@ void main() {
 
       // "Navigation to ... Account Verification ... where applicable"
       // (CTMS-03-T03 checklist) -- applicable here means exactly this case.
-      await _tapVisible(tester, find.widgetWithText(ElevatedButton, 'Xác minh tài khoản'));
+      await _tapVisible(
+        tester,
+        find.widgetWithText(ElevatedButton, 'Xác minh tài khoản'),
+      );
       expect(find.text('Xác minh tài khoản của bạn'), findsOneWidget);
     },
   );
@@ -196,7 +229,9 @@ void main() {
   ) async {
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [authRepositoryProvider.overrideWithValue(_FakeAuthRepository())],
+        overrides: [
+          authRepositoryProvider.overrideWithValue(_FakeAuthRepository()),
+        ],
         child: const CtmsApp(),
       ),
     );
@@ -205,8 +240,9 @@ void main() {
     final passwordField = find.byType(TextFormField).at(1);
     await tester.enterText(passwordField, 's3cretPass');
 
-    TextField textFieldOf(Finder formField) =>
-        tester.widget<TextField>(find.descendant(of: formField, matching: find.byType(TextField)));
+    TextField textFieldOf(Finder formField) => tester.widget<TextField>(
+      find.descendant(of: formField, matching: find.byType(TextField)),
+    );
 
     expect(textFieldOf(passwordField).obscureText, isTrue);
 
@@ -216,126 +252,158 @@ void main() {
     expect(textFieldOf(passwordField).obscureText, isFalse);
   });
 
-  testWidgets('repeated taps on the submit button produce only one login request', (
-    WidgetTester tester,
-  ) async {
-    final repository = _FakeAuthRepository(
-      loginResult: const AuthUser(
-        id: '1',
-        fullName: 'Minh Trần',
-        email: 'camper@ctms.dev',
-        role: UserRole.camper,
-      ),
-      // See loginGate's doc comment -- keeps the first call "in flight"
-      // across all 3 taps below, same as a real network round-trip would.
-      // Never completed -- this test only needs the in-flight window, not
-      // the eventual success screen.
-      loginGate: Completer<void>(),
-    );
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [authRepositoryProvider.overrideWithValue(repository)],
-        child: const CtmsApp(),
-      ),
-    );
-    await tester.pumpAndSettle();
+  testWidgets(
+    'repeated taps on the submit button produce only one login request',
+    (WidgetTester tester) async {
+      final repository = _FakeAuthRepository(
+        loginResult: const AuthUser(
+          id: '1',
+          fullName: 'Minh Trần',
+          email: 'camper@ctms.dev',
+          role: UserRole.camper,
+        ),
+        // See loginGate's doc comment -- keeps the first call "in flight"
+        // across all 3 taps below, same as a real network round-trip would.
+        // Never completed -- this test only needs the in-flight window, not
+        // the eventual success screen.
+        loginGate: Completer<void>(),
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [authRepositoryProvider.overrideWithValue(repository)],
+          child: const CtmsApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(TextFormField).at(0), 'camper@ctms.dev');
-    await tester.enterText(find.byType(TextFormField).at(1), 'password123');
+      await tester.enterText(
+        find.byType(TextFormField).at(0),
+        'camper@ctms.dev',
+      );
+      await tester.enterText(find.byType(TextFormField).at(1), 'password123');
 
-    final submitButton = find.widgetWithText(ElevatedButton, 'Đăng nhập →');
-    // Fire 3 taps back-to-back, same as a user double/triple tapping an
-    // unresponsive-feeling button. loginGate is never completed, so the
-    // submit button's spinner animates indefinitely -- pumpAndSettle()
-    // would hang waiting for it to stop; a single pump() is enough to let
-    // the synchronous parts of each tap's handler run.
-    await tester.tap(submitButton);
-    await tester.tap(submitButton);
-    await tester.tap(submitButton);
-    await tester.pump();
+      final submitButton = find.widgetWithText(ElevatedButton, 'Đăng nhập →');
+      // Fire 3 taps back-to-back, same as a user double/triple tapping an
+      // unresponsive-feeling button. loginGate is never completed, so the
+      // submit button's spinner animates indefinitely -- pumpAndSettle()
+      // would hang waiting for it to stop; a single pump() is enough to let
+      // the synchronous parts of each tap's handler run.
+      await tester.tap(submitButton);
+      await tester.tap(submitButton);
+      await tester.tap(submitButton);
+      await tester.pump();
 
-    expect(repository.loginCallCount, 1);
-  });
+      expect(repository.loginCallCount, 1);
+    },
+  );
 
-  testWidgets('shows a Vietnamese message when there is no network connection', (
-    WidgetTester tester,
-  ) async {
-    final repository = _FakeAuthRepository(
-      loginFailure: ApiException(
-        'Không có kết nối mạng. Vui lòng kiểm tra và thử lại.',
-        kind: ApiExceptionKind.network,
-      ),
-    );
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [authRepositoryProvider.overrideWithValue(repository)],
-        child: const CtmsApp(),
-      ),
-    );
-    await tester.pumpAndSettle();
+  testWidgets(
+    'shows a Vietnamese message when there is no network connection',
+    (WidgetTester tester) async {
+      final repository = _FakeAuthRepository(
+        loginFailure: ApiException(
+          'Không có kết nối mạng. Vui lòng kiểm tra và thử lại.',
+          kind: ApiExceptionKind.network,
+        ),
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [authRepositoryProvider.overrideWithValue(repository)],
+          child: const CtmsApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(TextFormField).at(0), 'camper@ctms.dev');
-    await tester.enterText(find.byType(TextFormField).at(1), 'password123');
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Đăng nhập →'));
-    await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byType(TextFormField).at(0),
+        'camper@ctms.dev',
+      );
+      await tester.enterText(find.byType(TextFormField).at(1), 'password123');
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Đăng nhập →'));
+      await tester.pumpAndSettle();
 
-    expect(
-      find.text('Không có kết nối mạng. Vui lòng kiểm tra và thử lại.'),
-      findsOneWidget,
-    );
-  });
+      expect(
+        find.text('Không có kết nối mạng. Vui lòng kiểm tra và thử lại.'),
+        findsOneWidget,
+      );
+    },
+  );
 
-  testWidgets('repeated taps on the register submit button produce only one registration request', (
-    WidgetTester tester,
-  ) async {
-    final repository = _FakeAuthRepository(
-      loginResult: const AuthUser(
-        id: '1',
-        fullName: 'Minh Trần',
-        email: 'camper@ctms.dev',
-        role: UserRole.camper,
-      ),
-      // Never completed -- this test only needs the in-flight window.
-      registerGate: Completer<void>(),
-    );
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [authRepositoryProvider.overrideWithValue(repository)],
-        child: const CtmsApp(),
-      ),
-    );
-    await tester.pumpAndSettle();
+  testWidgets(
+    'repeated taps on the register submit button produce only one registration request',
+    (WidgetTester tester) async {
+      final repository = _FakeAuthRepository(
+        loginResult: const AuthUser(
+          id: '1',
+          fullName: 'Minh Trần',
+          email: 'camper@ctms.dev',
+          role: UserRole.camper,
+        ),
+        // Never completed -- this test only needs the in-flight window.
+        registerGate: Completer<void>(),
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [authRepositoryProvider.overrideWithValue(repository)],
+          child: const CtmsApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
 
-    await _tapVisible(tester, find.widgetWithText(OutlinedButton, 'Đăng ký tài khoản mới'));
-    await _tapVisible(tester, find.text('Camper (Khách cắm trại)'));
-    await _tapVisible(tester, find.widgetWithText(ElevatedButton, 'Tiếp tục'));
+      await _tapVisible(
+        tester,
+        find.widgetWithText(OutlinedButton, 'Đăng ký tài khoản mới'),
+      );
+      await _tapVisible(tester, find.text('Camper (Khách cắm trại)'));
+      await _tapVisible(
+        tester,
+        find.widgetWithText(ElevatedButton, 'Tiếp tục'),
+      );
 
-    await tester.enterText(find.byType(TextFormField).at(0), 'camper@ctms.dev');
-    await tester.enterText(find.byType(TextFormField).at(1), 'password123');
-    await tester.enterText(find.byType(TextFormField).at(2), 'password123');
-    await _tapVisible(tester, find.widgetWithText(ElevatedButton, 'Tiếp tục'));
+      await tester.enterText(
+        find.byType(TextFormField).at(0),
+        'camper@ctms.dev',
+      );
+      await tester.enterText(find.byType(TextFormField).at(1), 'password123');
+      await tester.enterText(find.byType(TextFormField).at(2), 'password123');
+      await _tapVisible(
+        tester,
+        find.widgetWithText(ElevatedButton, 'Tiếp tục'),
+      );
 
-    await tester.enterText(find.byType(TextFormField).at(0), 'Minh Trần');
-    await tester.enterText(find.byType(TextFormField).at(1), '0912345678');
-    await _tapVisible(tester, find.widgetWithText(ElevatedButton, 'Tiếp tục'));
+      await tester.enterText(find.byType(TextFormField).at(0), 'Minh Trần');
+      await tester.enterText(find.byType(TextFormField).at(1), '0912345678');
+      await _tapVisible(
+        tester,
+        find.widgetWithText(ElevatedButton, 'Tiếp tục'),
+      );
 
-    await _tapVisible(tester, find.byType(Checkbox));
+      await _tapVisible(tester, find.byType(Checkbox));
 
-    final submitButton = find.widgetWithText(ElevatedButton, 'Hoàn tất đăng ký');
-    await tester.tap(submitButton);
-    await tester.tap(submitButton);
-    await tester.tap(submitButton);
-    await tester.pump();
+      final submitButton = find.widgetWithText(
+        ElevatedButton,
+        'Hoàn tất đăng ký',
+      );
+      await tester.tap(submitButton);
+      await tester.tap(submitButton);
+      await tester.tap(submitButton);
+      await tester.pump();
 
-    expect(repository.registerCallCount, 1);
-  });
+      expect(repository.registerCallCount, 1);
+    },
+  );
 
   testWidgets('camper lands on the overview tab and can switch tabs', (
     WidgetTester tester,
   ) async {
     await _login(
       tester,
-      const AuthUser(id: '1', fullName: 'Minh Trần', email: 'camper@ctms.dev', role: UserRole.camper),
+      const AuthUser(
+        id: '1',
+        fullName: 'Minh Trần',
+        email: 'camper@ctms.dev',
+        role: UserRole.camper,
+      ),
     );
 
     expect(find.byType(NavigationBar), findsOneWidget);
@@ -352,12 +420,21 @@ void main() {
     await tester.pump();
     expect(find.textContaining('Trần!'), findsOneWidget);
     expect(find.text('Thông báo quan trọng'), findsOneWidget);
-    expect(find.text('Chuyến đi sắp tới'), findsOneWidget);
 
-    // Scroll down to confirm the rest of the screen (weather, transactions,
+    // Scroll down to confirm the rest of the screen (trip, weather, transactions,
     // suggestions) assembles without error too.
     final scrollable = find.byType(Scrollable).first;
-    await tester.scrollUntilVisible(find.text('Giao dịch gần đây'), 300, scrollable: scrollable);
+    await tester.scrollUntilVisible(
+      find.text('Chuyến đi sắp tới'),
+      300,
+      scrollable: scrollable,
+    );
+    expect(find.text('Chuyến đi sắp tới'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Giao dịch gần đây'),
+      300,
+      scrollable: scrollable,
+    );
     expect(find.text('Giao dịch gần đây'), findsOneWidget);
     await tester.scrollUntilVisible(
       find.text('Gợi ý dành cho bạn'),
@@ -372,10 +449,17 @@ void main() {
     expect(find.text('Khám phá khu cắm trại'), findsOneWidget);
   });
 
-  testWidgets('porter "Thêm" sheet opens the folded-in destinations', (WidgetTester tester) async {
+  testWidgets('porter "Thêm" sheet opens the folded-in destinations', (
+    WidgetTester tester,
+  ) async {
     await _login(
       tester,
-      const AuthUser(id: '2', fullName: 'Anh Minh', email: 'porter@ctms.dev', role: UserRole.porter),
+      const AuthUser(
+        id: '2',
+        fullName: 'Anh Minh',
+        email: 'porter@ctms.dev',
+        role: UserRole.porter,
+      ),
     );
 
     expect(find.byType(NavigationBar), findsOneWidget);
@@ -389,60 +473,141 @@ void main() {
     expect(find.text('Hồ sơ & cài đặt'), findsOneWidget);
   });
 
-  testWidgets('porter completes registration and is routed to the verify screen', (
+  testWidgets('porter overview renders dashboard UI and opens schedule', (
     WidgetTester tester,
   ) async {
-    const newUser = AuthUser(
-      id: '3',
-      fullName: 'Tân Porter',
-      email: 'newporter@ctms.dev',
-      role: UserRole.porter,
-    );
-
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          authRepositoryProvider.overrideWithValue(_FakeAuthRepository(loginResult: newUser)),
-        ],
-        child: const CtmsApp(),
+    await _login(
+      tester,
+      const AuthUser(
+        id: 'porter-ui',
+        fullName: 'Anh Minh',
+        email: 'porter@ctms.dev',
+        role: UserRole.porter,
+        roles: [UserRole.porter],
       ),
     );
+
+    expect(find.byType(NavigationBar), findsOneWidget);
+    expect(find.textContaining('Anh Minh'), findsOneWidget);
+    expect(find.text('CA HÔM NAY'), findsOneWidget);
+    expect(find.text('ĐOÀN PHỤ TRÁCH'), findsOneWidget);
+    final scrollable = find.byType(Scrollable).first;
+    await tester.scrollUntilVisible(
+      find.text('Tuyến đang vận hành'),
+      300,
+      scrollable: scrollable,
+    );
+    expect(find.text('Tuyến đang vận hành'), findsOneWidget);
+
+    await tester.scrollUntilVisible(
+      find.text('Lịch vận hành'),
+      300,
+      scrollable: scrollable,
+    );
+    expect(find.text('Lịch vận hành'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Cảnh báo cần xử lý'),
+      300,
+      scrollable: scrollable,
+    );
+    expect(find.text('Cảnh báo cần xử lý'), findsOneWidget);
+
+    await tester.scrollUntilVisible(
+      find.text('Tác vụ nhanh'),
+      300,
+      scrollable: scrollable,
+    );
+    expect(find.text('Tác vụ nhanh'), findsOneWidget);
+
+    await tester.scrollUntilVisible(
+      find.widgetWithText(ElevatedButton, 'Lịch ca'),
+      -300,
+      scrollable: scrollable,
+    );
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Lịch ca'));
     await tester.pumpAndSettle();
 
-    // Login -> Register.
-    await _tapVisible(tester, find.widgetWithText(OutlinedButton, 'Đăng ký tài khoản mới'));
-    expect(find.text('Tham gia CTMS'), findsOneWidget);
-
-    // Step 1 — Vai trò.
-    await _tapVisible(tester, find.text('Porter (Người dẫn đường)'));
-    await _tapVisible(tester, find.widgetWithText(ElevatedButton, 'Tiếp tục'));
-
-    // Step 2 — Tài khoản: Email + Mật khẩu + Xác nhận mật khẩu.
-    expect(find.text('Thông tin tài khoản'), findsOneWidget);
-    await tester.enterText(find.byType(TextFormField).at(0), newUser.email);
-    await tester.enterText(find.byType(TextFormField).at(1), 'password123');
-    await tester.enterText(find.byType(TextFormField).at(2), 'password123');
-    await _tapVisible(tester, find.widgetWithText(ElevatedButton, 'Tiếp tục'));
-
-    // Step 3 — Thông tin cá nhân: Camper và Porter dùng chung bước này giờ
-    // đây (CTMS-01-T03 rút wizard về đúng hợp đồng thật của
-    // POST /auth/register — xem register_models.dart).
-    expect(find.text('Thông tin cá nhân'), findsOneWidget);
-    await tester.enterText(find.byType(TextFormField).at(0), newUser.fullName!);
-    await tester.enterText(find.byType(TextFormField).at(1), '0912345678');
-    await _tapVisible(tester, find.widgetWithText(ElevatedButton, 'Tiếp tục'));
-
-    // Step 4 — Xác nhận đăng ký: accuracy checkbox rồi submit.
-    expect(find.text('Xác nhận đăng ký'), findsOneWidget);
-    await _tapVisible(tester, find.byType(Checkbox));
-    await _tapVisible(tester, find.widgetWithText(ElevatedButton, 'Hoàn tất đăng ký'));
-
-    // Register không tự đăng nhập (không có token trả về) — điều hướng
-    // sang /verify thay vào đó. Xem class doc của RegisterScreen.
-    expect(find.text('Xác minh tài khoản của bạn'), findsOneWidget);
-    expect(find.byType(NavigationBar), findsNothing);
-
-    await _tapVisible(tester, find.widgetWithText(TextButton, 'Quay lại đăng nhập'));
-    expect(find.text('CTMS'), findsOneWidget);
+    expect(find.text('Lịch phân công'), findsOneWidget);
   });
+
+  testWidgets(
+    'porter completes registration and is routed to the verify screen',
+    (WidgetTester tester) async {
+      const newUser = AuthUser(
+        id: '3',
+        fullName: 'Tân Porter',
+        email: 'newporter@ctms.dev',
+        role: UserRole.porter,
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authRepositoryProvider.overrideWithValue(
+              _FakeAuthRepository(loginResult: newUser),
+            ),
+          ],
+          child: const CtmsApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Login -> Register.
+      await _tapVisible(
+        tester,
+        find.widgetWithText(OutlinedButton, 'Đăng ký tài khoản mới'),
+      );
+      expect(find.text('Tham gia CTMS'), findsOneWidget);
+
+      // Step 1 — Vai trò.
+      await _tapVisible(tester, find.text('Porter (Người dẫn đường)'));
+      await _tapVisible(
+        tester,
+        find.widgetWithText(ElevatedButton, 'Tiếp tục'),
+      );
+
+      // Step 2 — Tài khoản: Email + Mật khẩu + Xác nhận mật khẩu.
+      expect(find.text('Thông tin tài khoản'), findsOneWidget);
+      await tester.enterText(find.byType(TextFormField).at(0), newUser.email);
+      await tester.enterText(find.byType(TextFormField).at(1), 'password123');
+      await tester.enterText(find.byType(TextFormField).at(2), 'password123');
+      await _tapVisible(
+        tester,
+        find.widgetWithText(ElevatedButton, 'Tiếp tục'),
+      );
+
+      // Step 3 — Thông tin cá nhân: Camper và Porter dùng chung bước này giờ
+      // đây (CTMS-01-T03 rút wizard về đúng hợp đồng thật của
+      // POST /auth/register — xem register_models.dart).
+      expect(find.text('Thông tin cá nhân'), findsOneWidget);
+      await tester.enterText(
+        find.byType(TextFormField).at(0),
+        newUser.fullName!,
+      );
+      await tester.enterText(find.byType(TextFormField).at(1), '0912345678');
+      await _tapVisible(
+        tester,
+        find.widgetWithText(ElevatedButton, 'Tiếp tục'),
+      );
+
+      // Step 4 — Xác nhận đăng ký: accuracy checkbox rồi submit.
+      expect(find.text('Xác nhận đăng ký'), findsOneWidget);
+      await _tapVisible(tester, find.byType(Checkbox));
+      await _tapVisible(
+        tester,
+        find.widgetWithText(ElevatedButton, 'Hoàn tất đăng ký'),
+      );
+
+      // Register không tự đăng nhập (không có token trả về) — điều hướng
+      // sang /verify thay vào đó. Xem class doc của RegisterScreen.
+      expect(find.text('Xác minh tài khoản của bạn'), findsOneWidget);
+      expect(find.byType(NavigationBar), findsNothing);
+
+      await _tapVisible(
+        tester,
+        find.widgetWithText(TextButton, 'Quay lại đăng nhập'),
+      );
+      expect(find.text('CTMS'), findsOneWidget);
+    },
+  );
 }

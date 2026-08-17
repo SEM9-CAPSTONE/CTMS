@@ -10,6 +10,48 @@ import type {
 const DEFAULT_AVATAR_URL =
 	"https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80";
 
+function toDisplayDate(value: string | null): string {
+	if (!value) {
+		return "";
+	}
+
+	const [datePart] = value.split("T");
+	const [year, month, day] = datePart.split("-");
+	if (!year || !month || !day) {
+		return value;
+	}
+
+	return `${day}/${month}/${year}`;
+}
+
+function toApiDate(value: string): string | undefined {
+	if (!value) {
+		return undefined;
+	}
+
+	const ddmmyyyy = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value);
+	if (ddmmyyyy) {
+		const [, day, month, year] = ddmmyyyy;
+		return `${year}-${month}-${day}`;
+	}
+
+	return value;
+}
+
+function getProfileDisplayName(apiProfile: ProfileApiResponse): string {
+	const fullName = apiProfile.fullName?.trim();
+	if (fullName) {
+		return fullName;
+	}
+
+	const emailPrefix = apiProfile.email?.split("@")[0]?.trim();
+	if (emailPrefix) {
+		return emailPrefix;
+	}
+
+	return apiProfile.phone ?? "Người dùng";
+}
+
 function toCamperProfileData(apiProfile: ProfileApiResponse): CamperProfileData {
 	const joinedYear = new Date(apiProfile.createdAt).getFullYear();
 	const emergencyContactAdded = apiProfile.emergencyContacts.length > 0;
@@ -29,13 +71,13 @@ function toCamperProfileData(apiProfile: ProfileApiResponse): CamperProfileData 
 	return {
 		id: apiProfile.id,
 		accountStatus: apiProfile.status,
-		fullName: apiProfile.fullName ?? "Camper",
+		fullName: getProfileDisplayName(apiProfile),
 		email: apiProfile.email ?? "",
 		phone: apiProfile.phone ?? "",
 		avatarUrl: DEFAULT_AVATAR_URL,
 		isProMember: false,
 		joinedYear: Number.isFinite(joinedYear) ? joinedYear : new Date().getFullYear(),
-		dateOfBirth: apiProfile.dateOfBirth ?? "",
+		dateOfBirth: toDisplayDate(apiProfile.dateOfBirth),
 		gender: apiProfile.gender ?? "male",
 		address: apiProfile.address ?? "",
 		bio: apiProfile.bio ?? "",
@@ -52,7 +94,7 @@ function toCamperProfileData(apiProfile: ProfileApiResponse): CamperProfileData 
 function toUpdateProfilePayload(values: CamperProfileFormValues): UpdateProfilePayload {
 	return {
 		fullName: values.fullName,
-		dateOfBirth: values.dateOfBirth,
+		dateOfBirth: toApiDate(values.dateOfBirth),
 		gender: values.gender,
 		address: values.address,
 		bio: values.bio ?? "",

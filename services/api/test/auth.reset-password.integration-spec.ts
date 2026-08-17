@@ -4,7 +4,6 @@ import * as bcrypt from "bcrypt";
 import request from "supertest";
 import { DataSource } from "typeorm";
 import { AppModule } from "../src/modules/app.module";
-// biome-ignore lint/style/useImportType: resolved from the DI container at runtime (moduleRef.get), needs design:paramtypes metadata
 import { AuthService } from "../src/modules/auth/auth.service";
 import {
 	EMAIL_OTP_PROVIDER,
@@ -94,9 +93,10 @@ describe("POST /api/auth/forgot-password + /reset-password (integration, real Po
 			return;
 		}
 		if (cleanupUserIds.length > 0) {
-			await dataSource.query('DELETE FROM "audit_logs" WHERE "target_id" = ANY($1)', [
-				cleanupUserIds,
-			]);
+			await dataSource.query(
+				'DELETE FROM "audit_logs" WHERE "actor_id" = ANY($1) OR "target_id" = ANY($1)',
+				[cleanupUserIds]
+			);
 			await dataSource.query('DELETE FROM "refresh_tokens" WHERE "user_id" = ANY($1)', [
 				cleanupUserIds,
 			]);
@@ -204,12 +204,16 @@ describe("POST /api/auth/forgot-password + /reset-password (integration, real Po
 			'SELECT "action", "reason" FROM "audit_logs" WHERE "target_id" = $1',
 			[userId]
 		);
-		expect(auditRows).toEqual([
+		const resetLogs = auditRows.filter(
+			(r: { action: string }) => r.action === "auth.password_reset"
+		);
+		expect(resetLogs).toHaveLength(1);
+		expect(resetLogs[0]).toEqual(
 			expect.objectContaining({
 				action: "auth.password_reset",
 				reason: "forgot_password_otp_verified",
-			}),
-		]);
+			})
+		);
 	});
 
 	it("rejects an expired reset OTP and leaves password/session state unchanged", async () => {

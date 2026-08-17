@@ -13,6 +13,7 @@ import { AuditLog } from "./entities/audit-log.entity";
 import { RefreshToken } from "./entities/refresh-token.entity";
 import { VerificationOtp } from "./entities/verification-otp.entity";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
+import { RolesGuard } from "./guards/roles.guard";
 import { JwtStrategy } from "./jwt.strategy";
 import { OtpDeliveryService } from "./otp-delivery.service";
 import { EmailOtpProvider } from "./providers/email-otp.provider";
@@ -49,6 +50,7 @@ import { VerificationOtpRepository } from "./verification-otp.repository";
 		{ provide: EMAIL_OTP_PROVIDER, useClass: EmailOtpProvider },
 		JwtStrategy,
 		JwtAuthGuard,
+		RolesGuard,
 		{
 			provide: VerificationOtpRepository,
 			useFactory: (dataSource: DataSource) =>
@@ -68,6 +70,6 @@ import { VerificationOtpRepository } from "./verification-otp.repository";
 			inject: [DataSource],
 		},
 	],
-	exports: [AuthService, JwtAuthGuard],
+	exports: [AuthService, JwtAuthGuard, RolesGuard],
 })
 export class AuthModule {}

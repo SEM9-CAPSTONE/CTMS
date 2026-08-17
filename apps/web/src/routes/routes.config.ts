@@ -10,6 +10,7 @@ export enum RoutePath {
 	SAFETY = "/safety",
 	CAMPER_PROFILE = "/camper/profile",
 	PROFILE = "/profile",
+	ADMIN_USERS = "/admin/users",
 	UNAUTHORIZED = "/unauthorized",
 	ERROR = "/error",
 	OFFLINE = "/offline",

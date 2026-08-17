@@ -8,6 +8,17 @@
 
 const ACCESS_TOKEN_KEY = "accessToken";
 const REFRESH_TOKEN_KEY = "refreshToken";
+const AUTH_USER_KEY = "authUser";
+
+export interface StoredAuthUser {
+	id: string;
+	email: string | null;
+	phone: string | null;
+	role: string;
+	roles?: string[];
+	status: string;
+	createdAt: string;
+}
 
 export function setAccessToken(token: string): void {
 	localStorage.setItem(ACCESS_TOKEN_KEY, token);
@@ -31,4 +42,26 @@ export function getRefreshToken(): string | null {
 
 export function removeRefreshToken(): void {
 	localStorage.removeItem(REFRESH_TOKEN_KEY);
+}
+
+export function setStoredAuthUser(user: StoredAuthUser): void {
+	localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
+}
+
+export function getStoredAuthUser(): StoredAuthUser | null {
+	const raw = localStorage.getItem(AUTH_USER_KEY);
+	if (!raw) {
+		return null;
+	}
+
+	try {
+		return JSON.parse(raw) as StoredAuthUser;
+	} catch {
+		removeStoredAuthUser();
+		return null;
+	}
+}
+
+export function removeStoredAuthUser(): void {
+	localStorage.removeItem(AUTH_USER_KEY);
 }

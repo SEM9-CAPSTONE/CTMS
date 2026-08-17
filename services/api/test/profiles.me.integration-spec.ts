@@ -60,9 +60,10 @@ describe("PATCH /api/profiles/me (integration, real Postgres)", () => {
 
 	afterEach(async () => {
 		if (cleanupUserIds.length > 0) {
-			await dataSource.query('DELETE FROM "audit_logs" WHERE "target_id" = ANY($1)', [
-				cleanupUserIds,
-			]);
+			await dataSource.query(
+				'DELETE FROM "audit_logs" WHERE "actor_id" = ANY($1) OR "target_id" = ANY($1)',
+				[cleanupUserIds]
+			);
 			await dataSource.query('DELETE FROM "emergency_contacts" WHERE "user_id" = ANY($1)', [
 				cleanupUserIds,
 			]);
@@ -252,7 +253,7 @@ describe("PATCH /api/profiles/me (integration, real Postgres)", () => {
 			.expect(401);
 	});
 
-	it("rejects non-active accounts with 403 and no side effects", async () => {
+	it("rejects non-active authenticated sessions with 401 and no side effects", async () => {
 		const { userId, accessToken } = await registerAndActivateUser("suspended");
 		await dataSource.query('UPDATE "users" SET "status" = $1 WHERE "id" = $2', [
 			"suspended",
@@ -263,7 +264,7 @@ describe("PATCH /api/profiles/me (integration, real Postgres)", () => {
 			.patch("/api/profiles/me")
 			.set("Authorization", `Bearer ${accessToken}`)
 			.send({ fullName: "Should Not Persist" })
-			.expect(403);
+			.expect(401);
 
 		const rows = await dataSource.query('SELECT "full_name" FROM "users" WHERE "id" = $1', [
 			userId,
@@ -294,7 +295,7 @@ describe("PATCH /api/profiles/me (integration, real Postgres)", () => {
 		expect(rows[0].password_hash).not.toBe("plaintext");
 	});
 
-	it("rejects a token for a missing user with 404", async () => {
+	it("rejects a token for a missing user with 401", async () => {
 		const accessToken = jwtService.sign({
 			sub: "33333333-3333-3333-3333-333333333333",
 			roles: [UserRole.CAMPER],
@@ -304,6 +305,6 @@ describe("PATCH /api/profiles/me (integration, real Postgres)", () => {
 			.patch("/api/profiles/me")
 			.set("Authorization", `Bearer ${accessToken}`)
 			.send({ fullName: "Nguyen Van B" })
-			.expect(404);
+			.expect(401);
 	});
 });

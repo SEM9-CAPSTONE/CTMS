@@ -3,7 +3,6 @@ import { Test } from "@nestjs/testing";
 import request from "supertest";
 import { DataSource } from "typeorm";
 import { AppModule } from "../src/modules/app.module";
-// biome-ignore lint/style/useImportType: resolved from the DI container at runtime (moduleRef.get), needs design:paramtypes metadata
 import { AuthService } from "../src/modules/auth/auth.service";
 import { validationExceptionFactory } from "../src/shared/pipes/validation-exception-factory";
 
@@ -55,7 +54,10 @@ describe("POST /api/auth/login (integration, real Postgres)", () => {
 
 	afterEach(async () => {
 		// FK order: refresh_tokens/verification_otps -> users.
-		if (cleanupUserIds.length > 0) {
+		if (cleanupUserIds?.length) {
+			await dataSource.query('DELETE FROM "audit_logs" WHERE "actor_id" = ANY($1)', [
+				cleanupUserIds,
+			]);
 			await dataSource.query('DELETE FROM "refresh_tokens" WHERE "user_id" = ANY($1)', [
 				cleanupUserIds,
 			]);
@@ -63,10 +65,10 @@ describe("POST /api/auth/login (integration, real Postgres)", () => {
 				cleanupUserIds,
 			]);
 		}
-		if (cleanupEmails.length > 0) {
+		if (cleanupEmails?.length) {
 			await dataSource.query('DELETE FROM "users" WHERE "email" = ANY($1)', [cleanupEmails]);
 		}
-		if (cleanupPhones.length > 0) {
+		if (cleanupPhones?.length) {
 			await dataSource.query('DELETE FROM "users" WHERE "phone" = ANY($1)', [cleanupPhones]);
 		}
 	});
@@ -127,6 +129,17 @@ describe("POST /api/auth/login (integration, real Postgres)", () => {
 		);
 		expect(rows).toHaveLength(1);
 		expect(rows[0].token_hash).not.toBe(response.body.refreshToken); // never stored raw
+
+		// Assert on audit logs
+		const auditRows = await dataSource.query(
+			'SELECT * FROM "audit_logs" WHERE "actor_id" = $1 AND "action" = $2',
+			[userId, "auth.login"]
+		);
+		expect(auditRows).toHaveLength(1);
+		expect(auditRows[0].target_type).toBe("user");
+		expect(auditRows[0].target_id).toBe(userId);
+		expect(auditRows[0].before).toBeNull();
+		expect(auditRows[0].after).toBeNull();
 	});
 
 	// --- Success, login by phone (Tech Lead review: prove findByEmailOrPhone reuse) --

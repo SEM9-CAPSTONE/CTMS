@@ -1,11 +1,15 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Patch, Req, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
-import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
-import type { AuthenticatedUser } from "../auth/jwt.strategy";
-import { ProfileResponseDto } from "./dto/profile-response.dto";
+import { Roles } from "../../auth/decorators/roles.decorator";
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../../auth/guards/roles.guard";
+import type { AuthenticatedUser } from "../../auth/jwt.strategy";
+import { UserRole } from "../../users/entities/user.entity";
+import { ProfileResponseDto } from "../dto/profile-response.dto";
 // biome-ignore lint/style/useImportType: used as a @Body() parameter type, needs design:paramtypes metadata for NestJS's validation/transform pipeline
-import { UpdateProfileDto } from "./dto/update-profile.dto";
-import type { ProfilesService } from "./profiles.service";
+import { UpdateProfileDto } from "../dto/update-profile.dto";
+// biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
+import { ProfilesService } from "../services/profiles.service";
 
 interface AuthenticatedRequest {
 	user: AuthenticatedUser;
@@ -14,7 +18,8 @@ interface AuthenticatedRequest {
 @ApiTags("profiles")
 @ApiBearerAuth()
 @Controller("profiles")
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(UserRole.CAMPER, UserRole.HOST, UserRole.PORTER, UserRole.ADMIN)
 export class ProfilesController {
 	constructor(private readonly profilesService: ProfilesService) {}
 

@@ -81,6 +81,10 @@ describe("POST /api/auth/send-otp (integration, real Postgres, fake delivery pro
 
 	afterEach(async () => {
 		if (cleanupUserIds.length > 0) {
+			await dataSource.query(
+				'DELETE FROM "audit_logs" WHERE "actor_id" = ANY($1) OR "target_id" = ANY($1)',
+				[cleanupUserIds]
+			);
 			await dataSource.query('DELETE FROM "verification_otps" WHERE "user_id" = ANY($1)', [
 				cleanupUserIds,
 			]);

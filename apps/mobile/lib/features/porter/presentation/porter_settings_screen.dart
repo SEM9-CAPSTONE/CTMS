@@ -1,16 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-import '../../../core/widgets/ctms_button.dart';
 import '../../../core/widgets/ctms_empty_state.dart';
 import '../../../core/widgets/ctms_scaffold.dart';
 import '../../auth/application/auth_controller.dart';
+import '../../auth/domain/auth_user.dart';
+import '../../auth/presentation/widgets/logout_actions.dart';
 
-/// "Hồ sơ & cài đặt" — listed in the Porter sidebar
-/// (`docs/design/FIGMA-SCREEN-INVENTORY.md` §E) but without a dedicated
-/// Figma frame. Reached from the "Thêm" sheet. Sign-out is real (it only
-/// clears local secure storage — no API call), so the auth loop stays
-/// testable end to end.
 class PorterSettingsScreen extends ConsumerWidget {
   const PorterSettingsScreen({super.key});
 
@@ -20,16 +15,25 @@ class PorterSettingsScreen extends ConsumerWidget {
 
     return CtmsScaffold(
       title: 'Hồ sơ & cài đặt',
-      body: CtmsEmptyState(
-        icon: Icons.person_outline,
-        title: 'Hồ sơ & cài đặt',
-        message: user == null
-            ? 'Đang được xây dựng.'
-            : '${user.fullName ?? user.email} · ${user.email}\nĐang được xây dựng.',
-        action: CtmsButton(
-          label: 'Đăng xuất',
-          variant: CtmsButtonVariant.danger,
-          onPressed: () => ref.read(authControllerProvider.notifier).logout(),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            CtmsEmptyState(
+              icon: Icons.person_outline,
+              title: 'Hồ sơ & cài đặt',
+              message: user == null
+                  ? 'Đang được xây dựng.'
+                  : '${user.displayName} · ${user.email}\nĐang được xây dựng.',
+            ),
+
+            const SizedBox(height: 24),
+
+            const LogoutActions(),
+
+            const SizedBox(height: 32),
+          ],
         ),
       ),
     );

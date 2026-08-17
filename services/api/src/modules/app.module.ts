@@ -5,15 +5,18 @@ import { AuthModule } from "./auth/auth.module";
 import { HealthController } from "./health/health.controller";
 import { ProfilesModule } from "./profiles/profiles.module";
 import { EventsGateway } from "./realtime/events.gateway";
+import { UsersModule } from "./users/users.module";
 
 @Module({
 	imports: [
 		ConfigModule.forRoot({
 			isGlobal: true,
+			envFilePath: ["../../.env", ".env"],
 		}),
 		DatabaseModule,
 		AuthModule,
 		ProfilesModule,
+		UsersModule,
 	],
 	controllers: [HealthController],
 	providers: [EventsGateway],

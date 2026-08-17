@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { HttpError } from "../../../core/api";
 import { authService } from "../services/auth.service";
-import { getAccessToken, getRefreshToken } from "../utils/tokenStorage";
+import { getAccessToken, getRefreshToken, getStoredAuthUser } from "../utils/tokenStorage";
 import { LoginPage } from "./LoginPage";
 
 // Mock at the service boundary (not httpClient/fetch) — this is a Component
@@ -26,6 +26,7 @@ const SUCCESS_RESPONSE = {
 		email: "admin@ctms.local",
 		phone: "0900000000",
 		role: "admin" as const,
+		roles: ["admin" as const],
 		status: "active" as const,
 		createdAt: new Date().toISOString(),
 	},
@@ -79,6 +80,24 @@ describe("LoginPage", () => {
 		expect(await screen.findByText(/đăng nhập thành công/i)).toBeInTheDocument();
 		expect(getAccessToken()).toBe("access-token-value");
 		expect(getRefreshToken()).toBe("refresh-token-value");
+		expect(getStoredAuthUser()?.roles).toEqual(["admin"]);
+	});
+
+	it("reports the authenticated user after a successful login", async () => {
+		const user = userEvent.setup();
+		const onLoginSuccess = vi.fn();
+		loginMock.mockResolvedValueOnce(SUCCESS_RESPONSE);
+
+		render(
+			<LoginPage
+				onBackToHome={vi.fn()}
+				onNavigateToRegister={vi.fn()}
+				onLoginSuccess={onLoginSuccess}
+			/>
+		);
+		await fillAndSubmit(user, "admin@ctms.local", "Admin@123");
+
+		await waitFor(() => expect(onLoginSuccess).toHaveBeenCalledWith(SUCCESS_RESPONSE.user));
 	});
 
 	// TC3 — Login with phone identifier is accepted (backend supports email OR phone)

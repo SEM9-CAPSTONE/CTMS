@@ -7,7 +7,7 @@
 Store Important Health Information
 
 **Status**  
-To Do
+Done
 
 **Story**  
 As a user, I want to store Important Health Information so that the CTMS workflow is completed safely, consistently, and within the correct business scope.
@@ -64,6 +64,109 @@ As a user, I want to store Important Health Information so that the CTMS workflo
 | BR-233: List APIs must support pagination and record limits; filtering and sorting may only use published fields. | CTMS-09-T01 | Tests and review evidence must prove this exact rule is enforced: List APIs must support pagination and record limits; filtering and sorting may only use published fields. |
 | BR-024: Logging out from all devices must revoke all active refresh tokens for the user. | CTMS-09-T01, CTMS-09-T02 | Tests and review evidence must prove this exact rule is enforced: Logging out from all devices must revoke all active refresh tokens for the user. |
 | BR-025: A Camper health profile may only be viewed by a Host or Porter associated with the related Trip when valid consent exists. | CTMS-09-T01, CTMS-09-T02 | Tests and review evidence must prove this exact rule is enforced: A Camper health profile may only be viewed by a Host or Porter associated with the related Trip when valid consent exists. |
+
+## Backend Preparation, Logic, and Tests
+
+### Actors
+
+- Primary actor: authenticated Camper (User) with an active account.
+- Supporting actors: authenticated Host or Porter associated with an active trip the camper is booked on.
+- System actor: CTMS API with JWT authentication, TypeORM transactions, and audit logging.
+
+### Preconditions
+
+- The caller presents a valid Bearer access token issued by CTMS login.
+- The token subject maps to an existing active user.
+- For retrieving another camper's profile, the camper must have granted sharing consent (`isConsentGranted = true`), and the caller must be a Host or Porter associated with a Trip that the camper has booked.
+
+### Main Flow
+
+1. User requests their own health profile via `GET /api/camper/health-profile`.
+2. If the health profile doesn't exist, the system creates a default profile with empty/default fields.
+3. Camper updates their health profile details via `PUT /api/camper/health-profile` specifying the query parameter `version` for optimistic locking.
+4. System validates inputs (blood type, physical fitness level, allergies, medical conditions, etc.).
+5. System persists the updated health profile, increments the version, and writes a health profile update audit log in a transaction.
+
+### Alternate Flows
+
+- Granting consent via `POST /api/camper/health-profile/consent/grant` sets `is_consent_granted` to `true`, updates `consent_granted_at` and version, and writes audit log.
+- Revoking consent via `POST /api/camper/health-profile/consent/revoke` sets `is_consent_granted` to `false`, updates `consent_revoked_at` and version, and writes audit log.
+- Authorized Host or Porter retrieves a camper's profile via `GET /api/camper/health-profile/:userId`.
+
+### Exception Flows
+
+- Unauthenticated requests return HTTP 401.
+- Inactive caller or inactive target camper account returns HTTP 403.
+- Caller has no business relationship (not the owner, and not a Host/Porter of the camper's booked trip) returns HTTP 403.
+- Camper has not granted consent (`isConsentGranted = false`) returns HTTP 403 for other users.
+- Stale version number in `PUT` update request returns HTTP 409.
+- Invalid input format or values returns HTTP 422.
+
+### Business Rules and Validation Rules
+
+- Only authenticated users may access the health profile API.
+- Users may only read or update their own health profile through `/camper/health-profile`.
+- `bloodType`: Enum value (`A+`, `A-`, `B+`, `B-`, `AB+`, `AB-`, `O+`, `O-`, `UNKNOWN`).
+- `physicalFitnessLevel`: Enum value (`BEGINNER`, `INTERMEDIATE`, `ADVANCED`, `EXPERT`).
+- `dietaryRestrictions`: Max 300 characters.
+- `emergencyNotes`: Max 500 characters.
+- `allergies`: Array of items containing `id` (non-empty string), `name` (non-empty string, max 100), `severity` (`LOW`, `MEDIUM`, `HIGH`, `CRITICAL`), and optional `reaction` (max 200).
+- `medicalConditions`: Array of items containing `id` (non-empty string), `name` (non-empty string, max 100), optional `medication` (max 200), and optional `notes` (max 300).
+- `isConsentGranted`: Boolean.
+- Auditing: All updates, consent grants, and consent revocations must write to append-only audit logs.
+
+### API Contract
+
+`GET /api/camper/health-profile`
+
+- Auth: Bearer access token required.
+- Success: HTTP 200 with `HealthProfileResponseDto`.
+- Errors: 401 unauthenticated, 403 inactive account, 404 missing user.
+
+`PUT /api/camper/health-profile?version={version}`
+
+- Auth: Bearer access token required.
+- Query Parameter: `version` (number).
+- Body: `UpdateHealthProfileDto`.
+- Success: HTTP 200 with `HealthProfileResponseDto`.
+- Errors: 401 unauthenticated, 403 inactive account, 404 missing profile, 409 conflict (stale version), 422 invalid input.
+
+`POST /api/camper/health-profile/consent/grant`
+
+- Auth: Bearer access token required.
+- Success: HTTP 200 with `HealthProfileResponseDto` (consent granted).
+- Errors: 401 unauthenticated, 403 inactive account.
+
+`POST /api/camper/health-profile/consent/revoke`
+
+- Auth: Bearer access token required.
+- Success: HTTP 200 with `HealthProfileResponseDto` (consent revoked).
+- Errors: 401 unauthenticated, 403 inactive account.
+
+`GET /api/camper/health-profile/:userId`
+
+- Auth: Bearer access token required.
+- Path Parameter: `userId` (string).
+- Success: HTTP 200 with `HealthProfileResponseDto`.
+- Errors: 401 unauthenticated, 403 access denied (no consent/relationship or inactive account), 404 missing profile.
+
+### Data Mapping
+
+- `bloodType` -> `health_profiles.blood_type`
+- `physicalFitnessLevel` -> `health_profiles.physical_fitness_level`
+- `dietaryRestrictions` -> `health_profiles.dietary_restrictions`
+- `emergencyNotes` -> `health_profiles.emergency_notes`
+- `allergies` -> `health_profiles.allergies`
+- `medicalConditions` -> `health_profiles.medical_conditions`
+- `isConsentGranted` -> `health_profiles.is_consent_granted`
+- `consentGrantedAt` -> `health_profiles.consent_granted_at`
+- `consentRevokedAt` -> `health_profiles.consent_revoked_at`
+- `version` -> `health_profiles.version`
+
+### Test Evidence for CTMS-09-T01
+
+- All backend unit tests: `pnpm --filter @ctms/api test` -> passed.
+- Backend lint: `npx biome check .` -> passed.
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, campsites, or bookings.
