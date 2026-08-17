@@ -37,10 +37,30 @@ class AuthController extends AsyncNotifier<AuthUser?> {
     _isLoggingIn = false;
   }
 
-  Future<void> logout() async {
+  /// CTMS-04-T03, DG-M1: the one shared primitive for "this local session
+  /// is over now" -- clears secure storage and flips auth state to
+  /// unauthenticated. [logout] is the user-initiated call to this; the
+  /// other caller is `ApiClient`'s `onSessionExpired` callback (wired in
+  /// `main.dart`), invoked when the refresh-token interceptor's rotation
+  /// attempt fails, expires, or the token was revoked. Both paths must land
+  /// in the exact same state -- there is deliberately no second way to
+  /// clear a session locally. Safe to call more than once concurrently
+  /// (`TokenStorage.clear()` on already-cleared keys is a no-op, and
+  /// re-setting `AsyncData(null)` when already `AsyncData(null)` is
+  /// harmless) -- relevant once multiple requests can independently land
+  /// here after a shared failed refresh (Step 4).
+  ///
+  /// Deliberately does NOT touch `BuildContext`/navigation -- it only
+  /// changes state. `app_router.dart`'s existing `redirect` callback reacts
+  /// to `authControllerProvider` and bounces to `/login` on its own; the
+  /// HTTP layer (`ApiClient`) never calls `context.go()` or knows the
+  /// router exists.
+  Future<void> clearSession() async {
     await ref.read(authRepositoryProvider).logout();
     state = const AsyncData(null);
   }
+
+  Future<void> logout() => clearSession();
 
   /// Adopts an already-authenticated [user] without hitting the network —
   /// used by [RegisterController.submit] once registration itself has

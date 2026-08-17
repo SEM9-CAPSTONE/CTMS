@@ -30,6 +30,7 @@ class _RecordingAuthRepository extends AuthRepository {
 
   final Object? failure;
   int loginCallCount = 0;
+  int logoutCallCount = 0;
   String? lastIdentifier;
 
   @override
@@ -42,6 +43,11 @@ class _RecordingAuthRepository extends AuthRepository {
 
   @override
   Future<AuthUser?> tryRestoreSession() async => null;
+
+  @override
+  Future<void> logout() async {
+    logoutCallCount++;
+  }
 }
 
 void main() {
@@ -107,6 +113,52 @@ void main() {
       final state = container.read(authControllerProvider);
       expect(state.hasError, isTrue);
       expect(state.value, isNull);
+    });
+  });
+
+  group('AuthController.clearSession / logout (CTMS-04-T03, DG-M1)', () {
+    Future<ProviderContainer> loggedInContainer(_RecordingAuthRepository repository) async {
+      final container = ProviderContainer(
+        overrides: [authRepositoryProvider.overrideWithValue(repository)],
+      );
+      addTearDown(container.dispose);
+      await container
+          .read(authControllerProvider.notifier)
+          .login(identifier: 'camper@example.com', password: 's3cretPass');
+      expect(container.read(authControllerProvider).value, _user);
+      return container;
+    }
+
+    test('clearSession() clears the repository session and sets state to unauthenticated', () async {
+      final repository = _RecordingAuthRepository();
+      final container = await loggedInContainer(repository);
+
+      await container.read(authControllerProvider.notifier).clearSession();
+
+      expect(repository.logoutCallCount, 1);
+      expect(container.read(authControllerProvider).value, isNull);
+    });
+
+    test('logout() delegates to clearSession() -- same effect, one code path', () async {
+      final repository = _RecordingAuthRepository();
+      final container = await loggedInContainer(repository);
+
+      await container.read(authControllerProvider.notifier).logout();
+
+      expect(repository.logoutCallCount, 1);
+      expect(container.read(authControllerProvider).value, isNull);
+    });
+
+    test('is safe to call more than once concurrently -- relevant once multiple failed '
+        'requests independently reach onSessionExpired after one shared failed refresh', () async {
+      final repository = _RecordingAuthRepository();
+      final container = await loggedInContainer(repository);
+      final notifier = container.read(authControllerProvider.notifier);
+
+      await Future.wait([notifier.clearSession(), notifier.clearSession(), notifier.clearSession()]);
+
+      expect(repository.logoutCallCount, 3); // each call still reaches the repository...
+      expect(container.read(authControllerProvider).value, isNull); // ...but state ends up consistent either way
     });
   });
 

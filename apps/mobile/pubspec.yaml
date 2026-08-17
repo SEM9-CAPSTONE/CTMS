@@ -48,6 +48,15 @@ dev_dependencies:
     sdk: flutter
   integration_test:
     sdk: flutter
+  # CTMS-04-T03, Step 7, test-only: already present transitively (pulled in
+  # by flutter_secure_storage itself, which ships an official first-party
+  # test double -- FlutterSecureStorage.setMockInitialValues /
+  # TestFlutterSecureStoragePlatform -- built on this package). Declared
+  # explicitly here only so token_storage_test.dart can import
+  # `FlutterSecureStoragePlatform` directly to record write order, instead
+  # of relying on an undeclared transitive resolution. No new runtime
+  # behavior, no production dependency change.
+  flutter_secure_storage_platform_interface: ^2.0.2
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
