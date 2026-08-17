@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { HttpError } from "../core/api";
 import { clearAuthSessionAndRedirect } from "../core/api/authSessionSync";
+import { AdminAuditLogsPage } from "../features/admin-audit-logs/pages/AdminAuditLogsPage";
 import { AdminUserAccountsPage } from "../features/admin-user-accounts/pages/AdminUserAccountsPage";
 import { ForgotPasswordPage } from "../features/auth/pages/ForgotPasswordPage";
 import { LoginPage } from "../features/auth/pages/LoginPage";
@@ -182,6 +183,18 @@ export function AppRoutes() {
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
 					<AdminUserAccountsPage onBackHome={() => navigateTo(RoutePath.HOME)} />
+				</AppRoleGuard>
+			);
+
+		case RoutePath.ADMIN_AUDIT_LOGS:
+			return (
+				<AppRoleGuard
+					allowedRoles={["admin"]}
+					currentRoles={currentRoles}
+					fallback={unauthorizedFallback}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<AdminAuditLogsPage onBackHome={() => navigateTo(RoutePath.HOME)} />
 				</AppRoleGuard>
 			);
 

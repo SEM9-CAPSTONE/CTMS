@@ -67,4 +67,7 @@ export const API_ENDPOINTS = {
 		LOCK: (userId: string) => `/users/${userId}/lock`,
 		UNLOCK: (userId: string) => `/users/${userId}/unlock`,
 	},
+	AUDIT_LOGS: {
+		LIST: "/audit-logs",
+	},
 } as const;

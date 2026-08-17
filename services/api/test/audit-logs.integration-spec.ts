@@ -41,6 +41,9 @@ describe("Audit logs administration (integration, real Postgres)", () => {
 	});
 
 	afterAll(async () => {
+		if (dataSource?.isInitialized) {
+			await dataSource.destroy();
+		}
 		await app?.close();
 	});
 

@@ -1,7 +1,9 @@
 import { ForbiddenException, Injectable, UnauthorizedException } from "@nestjs/common";
 import { UserRole, UserStatus } from "../users/entities/user.entity";
-import type { UsersRepository } from "../users/users.repository";
-import type { AuditLogRepository } from "./audit-log.repository";
+// biome-ignore lint/style/useImportType: NestJS constructor injection requires value imports
+import { UsersRepository } from "../users/users.repository";
+// biome-ignore lint/style/useImportType: NestJS constructor injection requires value imports
+import { AuditLogRepository } from "./audit-log.repository";
 import { type PaginatedAuditLogsResponseDto, toAuditLogItem } from "./dto/audit-log-response.dto";
 import { AuditLogOutcome, type ListAuditLogsQueryDto } from "./dto/list-audit-logs-query.dto";
 
@@ -26,7 +28,6 @@ export class AuditLogsService {
 			actor: qActorAlias,
 			action,
 			targetId: qTargetId,
-			target: qTargetAlias,
 			targetType,
 			outcome,
 			startDate,
@@ -49,21 +50,64 @@ export class AuditLogsService {
 			};
 		}
 
-		const actorFilter = qActorId || qActorAlias;
-		const targetFilter = qTargetId || qTargetAlias;
+		let actorIdsFilter: string[] | undefined = undefined;
+		if (qActorAlias) {
+			const query = this.usersRepository
+				.createQueryBuilder("user")
+				.select("user.id")
+				.where("user.fullName ILIKE :actor OR user.email ILIKE :actor OR user.phone ILIKE :actor", {
+					actor: `%${qActorAlias}%`,
+				});
+
+			const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+				qActorAlias
+			);
+			if (isUuid) {
+				query.orWhere("user.id = :actorIdRaw", { actorIdRaw: qActorAlias });
+			}
+
+			const matchedUsers = await query.getMany();
+			const matchedIds = matchedUsers.map((u) => u.id);
+
+			if (isUuid && !matchedIds.includes(qActorAlias)) {
+				matchedIds.push(qActorAlias);
+			}
+
+			if (matchedIds.length === 0) {
+				return {
+					items: [],
+					pagination: { page, limit, total: 0, totalPages: 0 },
+				};
+			}
+			actorIdsFilter = matchedIds;
+		}
+
+		if (qActorId) {
+			if (actorIdsFilter) {
+				actorIdsFilter = actorIdsFilter.filter((id) => id === qActorId);
+				if (actorIdsFilter.length === 0) {
+					return {
+						items: [],
+						pagination: { page, limit, total: 0, totalPages: 0 },
+					};
+				}
+			} else {
+				actorIdsFilter = [qActorId];
+			}
+		}
 
 		const queryBuilder = this.auditLogRepository.createQueryBuilder("log");
 
-		if (actorFilter) {
-			queryBuilder.andWhere("log.actorId = :actorId", { actorId: actorFilter });
+		if (actorIdsFilter && actorIdsFilter.length > 0) {
+			queryBuilder.andWhere("log.actorId IN (:...actorIds)", { actorIds: actorIdsFilter });
 		}
 
 		if (action) {
 			queryBuilder.andWhere("log.action = :action", { action });
 		}
 
-		if (targetFilter) {
-			queryBuilder.andWhere("log.targetId = :targetId", { targetId: targetFilter });
+		if (qTargetId) {
+			queryBuilder.andWhere("log.targetId = :targetId", { targetId: qTargetId });
 		}
 
 		if (targetType) {
@@ -89,8 +133,25 @@ export class AuditLogsService {
 
 		const [logs, total] = await queryBuilder.getManyAndCount();
 
+		const uniqueActorIds = [...new Set(logs.map((log) => log.actorId).filter(Boolean))] as string[];
+		const actorNamesMap = new Map<string, string>();
+
+		if (uniqueActorIds.length > 0) {
+			const users = await this.usersRepository
+				.createQueryBuilder("u")
+				.select(["u.id", "u.fullName", "u.email"])
+				.where("u.id IN (:...ids)", { ids: uniqueActorIds })
+				.getMany();
+			for (const u of users) {
+				const displayName = u.fullName ? `${u.fullName} (${u.email})` : (u.email ?? u.id);
+				actorNamesMap.set(u.id, displayName);
+			}
+		}
+
 		return {
-			items: logs.map(toAuditLogItem),
+			items: logs.map((log) =>
+				toAuditLogItem(log, log.actorId ? actorNamesMap.get(log.actorId) || null : null)
+			),
 			pagination: {
 				page,
 				limit,

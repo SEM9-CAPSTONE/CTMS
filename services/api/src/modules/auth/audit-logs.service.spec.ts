@@ -48,6 +48,13 @@ describe("AuditLogsService", () => {
 	let usersRepository: {
 		findOneWithRolesById: jest.Mock;
 		getGrantedRoles: jest.Mock;
+		find: jest.Mock;
+		createQueryBuilder: jest.Mock;
+	};
+	let userQueryBuilder: {
+		select: jest.Mock;
+		where: jest.Mock;
+		getMany: jest.Mock;
 	};
 	let queryBuilder: {
 		andWhere: jest.Mock;
@@ -78,9 +85,17 @@ describe("AuditLogsService", () => {
 			createQueryBuilder: jest.fn().mockReturnValue(queryBuilder),
 		};
 
+		userQueryBuilder = {
+			select: jest.fn().mockReturnThis(),
+			where: jest.fn().mockReturnThis(),
+			getMany: jest.fn().mockResolvedValue([]),
+		};
+
 		usersRepository = {
 			findOneWithRolesById: jest.fn().mockResolvedValue(adminUser),
 			getGrantedRoles: jest.fn((user: User) => [user.role]),
+			find: jest.fn().mockResolvedValue([]),
+			createQueryBuilder: jest.fn().mockReturnValue(userQueryBuilder),
 		};
 
 		service = new AuditLogsService(
@@ -146,6 +161,13 @@ describe("AuditLogsService", () => {
 				after: { codeHash: "otpSecret", tokenHash: "tokenSecret", details: "yes" },
 			});
 			queryBuilder.getManyAndCount.mockResolvedValue([[log], 1]);
+			userQueryBuilder.getMany.mockResolvedValue([
+				{
+					id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+					fullName: "Actor User",
+					email: "actor@example.com",
+				},
+			]);
 
 			const startDate = new Date("2026-01-01T00:00:00.000Z");
 			const endDate = new Date("2026-01-02T00:00:00.000Z");
@@ -162,8 +184,8 @@ describe("AuditLogsService", () => {
 			});
 
 			expect(auditLogRepository.createQueryBuilder).toHaveBeenCalledWith("log");
-			expect(queryBuilder.andWhere).toHaveBeenCalledWith("log.actorId = :actorId", {
-				actorId: "actor-uuid",
+			expect(queryBuilder.andWhere).toHaveBeenCalledWith("log.actorId IN (:...actorIds)", {
+				actorIds: ["actor-uuid"],
 			});
 			expect(queryBuilder.andWhere).toHaveBeenCalledWith("log.action = :action", {
 				action: "auth.login",
@@ -198,16 +220,21 @@ describe("AuditLogsService", () => {
 
 		it("correctly maps actor and target alias parameters", async () => {
 			queryBuilder.getManyAndCount.mockResolvedValue([[], 0]);
+			userQueryBuilder.getMany.mockResolvedValue([{ id: "actor-alias-uuid" }]);
 
 			await service.listAuditLogs("admin-uuid", {
 				actor: "actor-alias-uuid",
-				target: "target-alias-uuid",
+				targetId: "target-alias-uuid",
 				page: 1,
 				limit: 20,
 			});
 
-			expect(queryBuilder.andWhere).toHaveBeenCalledWith("log.actorId = :actorId", {
-				actorId: "actor-alias-uuid",
+			expect(userQueryBuilder.where).toHaveBeenCalledWith(
+				"user.fullName ILIKE :actor OR user.email ILIKE :actor OR user.phone ILIKE :actor",
+				{ actor: "%actor-alias-uuid%" }
+			);
+			expect(queryBuilder.andWhere).toHaveBeenCalledWith("log.actorId IN (:...actorIds)", {
+				actorIds: ["actor-alias-uuid"],
 			});
 			expect(queryBuilder.andWhere).toHaveBeenCalledWith("log.targetId = :targetId", {
 				targetId: "target-alias-uuid",

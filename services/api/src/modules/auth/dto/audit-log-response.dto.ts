@@ -8,6 +8,9 @@ export class AuditLogItemDto {
 	@ApiProperty({ format: "uuid", nullable: true })
 	actorId!: string | null;
 
+	@ApiProperty({ type: String, nullable: true })
+	actorName!: string | null;
+
 	@ApiProperty()
 	action!: string;
 
@@ -17,10 +20,10 @@ export class AuditLogItemDto {
 	@ApiProperty({ format: "uuid" })
 	targetId!: string;
 
-	@ApiProperty({ type: "object", nullable: true })
+	@ApiProperty({ type: "object", additionalProperties: true, nullable: true })
 	before!: Record<string, unknown> | null;
 
-	@ApiProperty({ type: "object", nullable: true })
+	@ApiProperty({ type: "object", additionalProperties: true, nullable: true })
 	after!: Record<string, unknown> | null;
 
 	@ApiProperty({ type: String, nullable: true })
@@ -84,10 +87,11 @@ export function maskSensitiveFields(
 	return sanitized;
 }
 
-export function toAuditLogItem(log: AuditLog): AuditLogItemDto {
+export function toAuditLogItem(log: AuditLog, actorName: string | null = null): AuditLogItemDto {
 	return {
 		id: log.id,
 		actorId: log.actorId,
+		actorName,
 		action: log.action,
 		targetType: log.targetType,
 		targetId: log.targetId,

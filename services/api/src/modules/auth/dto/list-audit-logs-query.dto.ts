@@ -23,9 +23,10 @@ export class ListAuditLogsQueryDto {
 	@IsUUID()
 	actorId?: string;
 
-	@ApiPropertyOptional({ description: "Filter by actor user ID (UUID) - alias for actorId" })
+	@ApiPropertyOptional({ description: "Filter by actor name, email or phone (partial match)" })
 	@IsOptional()
-	@IsUUID()
+	@IsString()
+	@MaxLength(100)
 	actor?: string;
 
 	@ApiPropertyOptional({ description: "Filter by action name", maxLength: 80 })

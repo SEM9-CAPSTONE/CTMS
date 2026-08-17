@@ -35,8 +35,8 @@ export function AccountStatusDialog(props: AccountStatusDialogProps) {
 	);
 
 	return (
-		<dialog
-			open
+		<div
+			aria-modal="true"
 			className="fixed inset-0 z-[60] flex items-center justify-center bg-[#10221b]/50 p-4"
 			aria-labelledby="account-action-title"
 		>
@@ -117,6 +117,6 @@ export function AccountStatusDialog(props: AccountStatusDialogProps) {
 					</div>
 				</form>
 			</div>
-		</dialog>
+		</div>
 	);
 }

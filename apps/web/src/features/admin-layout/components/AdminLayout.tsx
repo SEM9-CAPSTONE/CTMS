@@ -1,4 +1,4 @@
-import { Menu, ShieldCheck } from "lucide-react";
+import { Menu } from "lucide-react";
 import type React from "react";
 import { useState } from "react";
 import { type AdminNavigationItem, AdminSidebar } from "./AdminSidebar";
@@ -48,10 +48,8 @@ export function AdminLayout({ activeItem, children, onBackHome }: AdminLayoutPro
 						<Menu className="size-5" />
 					</button>
 					<div className="flex items-center gap-2.5">
-						<div className="flex size-9 items-center justify-center rounded-lg bg-[#164027] text-white">
-							<ShieldCheck className="size-5" />
-						</div>
-						<p className="font-extrabold">CTMS Administration</p>
+						<img src="/ctms_logo.png" alt="CTMS Logo" className="h-8 w-auto object-contain" />
+						<p className="font-extrabold text-[#10221b]">Quản trị CTMS</p>
 					</div>
 				</header>
 

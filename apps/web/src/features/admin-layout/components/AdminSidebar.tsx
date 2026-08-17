@@ -1,4 +1,4 @@
-import { FileClock, Flag, Home, LayoutDashboard, ShieldCheck, Users, X } from "lucide-react";
+import { FileClock, Flag, Home, LayoutDashboard, Users, X } from "lucide-react";
 
 export type AdminNavigationItem = "dashboard" | "user-accounts" | "audit-logs" | "content-reports";
 
@@ -10,10 +10,10 @@ interface AdminSidebarProps {
 }
 
 const navigationItems = [
-	{ key: "dashboard", label: "Dashboard", icon: LayoutDashboard, available: false },
-	{ key: "user-accounts", label: "User Accounts", icon: Users, available: true },
-	{ key: "audit-logs", label: "Audit Logs", icon: FileClock, available: false },
-	{ key: "content-reports", label: "Content Reports", icon: Flag, available: false },
+	{ key: "dashboard", label: "Bảng điều khiển", icon: LayoutDashboard, available: false },
+	{ key: "user-accounts", label: "Tài khoản người dùng", icon: Users, available: true },
+	{ key: "audit-logs", label: "Nhật ký hệ thống", icon: FileClock, available: true },
+	{ key: "content-reports", label: "Báo cáo nội dung", icon: Flag, available: false },
 ] as const;
 
 export function AdminSidebar({
@@ -25,18 +25,16 @@ export function AdminSidebar({
 	return (
 		<aside className={`flex h-full w-72 flex-col border-r border-[#dfe8df] bg-white ${className}`}>
 			<div className="flex items-center gap-3 border-b border-[#e7eee7] px-5 py-5">
-				<div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-[#164027] text-white shadow-sm">
-					<ShieldCheck className="size-6" />
-				</div>
+				<img src="/ctms_logo.png" alt="CTMS Logo" className="h-10 w-auto object-contain shrink-0" />
 				<div className="min-w-0 flex-1">
-					<p className="truncate text-base font-extrabold text-[#10221b]">CTMS Administration</p>
-					<p className="text-xs font-medium text-[#667a6d]">Administration workspace</p>
+					<p className="truncate text-base font-extrabold text-[#10221b]">Quản trị CTMS</p>
+					<p className="text-xs font-medium text-[#667a6d]">Không gian quản trị</p>
 				</div>
 				{onClose && (
 					<button
 						type="button"
 						onClick={onClose}
-						aria-label="Close administration menu"
+						aria-label="Đóng menu quản trị"
 						className="rounded-lg p-2 text-[#667a6d] transition hover:bg-[#f1f5f0] hover:text-[#164027] lg:hidden"
 					>
 						<X className="size-5" />
@@ -54,6 +52,15 @@ export function AdminSidebar({
 							key={item.key}
 							type="button"
 							disabled={!item.available}
+							onClick={() => {
+								if (item.key === "user-accounts") {
+									window.history.pushState({}, "", "/admin/users");
+									window.dispatchEvent(new PopStateEvent("popstate"));
+								} else if (item.key === "audit-logs") {
+									window.history.pushState({}, "", "/admin/audit-logs");
+									window.dispatchEvent(new PopStateEvent("popstate"));
+								}
+							}}
 							aria-current={isActive ? "page" : undefined}
 							className={`flex w-full items-center gap-3 rounded-xl px-3.5 py-3 text-left text-sm font-bold transition ${
 								isActive
@@ -67,7 +74,7 @@ export function AdminSidebar({
 							<span className="flex-1">{item.label}</span>
 							{!item.available && (
 								<span className="rounded-full bg-[#f1f5f0] px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-[#7d8d83]">
-									Coming soon
+									Sắp ra mắt
 								</span>
 							)}
 						</button>
@@ -83,7 +90,7 @@ export function AdminSidebar({
 					className="flex w-full items-center gap-3 rounded-xl px-3.5 py-3 text-sm font-bold text-[#425048] transition hover:bg-[#f1f5f0] hover:text-[#164027] disabled:cursor-default disabled:opacity-60"
 				>
 					<Home className="size-5" />
-					<span>Back to Home</span>
+					<span>Quay lại trang chủ</span>
 				</button>
 			</div>
 		</aside>
