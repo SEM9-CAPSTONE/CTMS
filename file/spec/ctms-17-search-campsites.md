@@ -10,7 +10,7 @@ Search Campsites
 To Do
 
 **Story**  
-As a Host, I want to search Campsites so that the CTMS workflow is completed safely, consistently, and within the correct business scope.
+As a Camper, I want to search Campsites so that the CTMS workflow is completed safely, consistently, and within the correct business scope.
 
 ## Acceptance Criteria
 - [ ] Filtering supports province/city, amenities, zone base price range, and status.
@@ -114,6 +114,24 @@ As a Host, I want to search Campsites so that the CTMS workflow is completed saf
 - Add UI/component tests for rendering, validation messages, disabled states, loading states, error handling, and successful submission where UI exists.
 - Add E2E coverage for the primary user journey and at least one critical failure path.
 - Every BR listed in the Business Rules Checklist must appear in at least one test or review evidence item.
+
+## Backend Preparation, Logic, and Tests
+**CTMS-17-T01 — Implemented.**
+
+- **Endpoint:** `GET /campsites` -- confirmed as the canonical route against both existing API clients (`apps/web/src/core/api/endpoints.ts`'s `CAMPSITES.GET_ALL` and `apps/mobile/lib/core/api/api_endpoints.dart`'s `CampsiteEndpoints.getAll`, both already `"/campsites"`) rather than assumed.
+- **Auth:** `JwtAuthGuard` + `RolesGuard` + `@Roles(CAMPER)`. BR-202's active-account requirement is enforced by the shared `JwtStrategy` (401 for any non-`active` account status, independent of role), not by CTMS-17-specific logic.
+- **Data model (provisional):** CTMS-50 (Create/Manage Campsite) had not merged when this task started, so a minimal `Campsite`/`Zone`/`CampsiteImage` schema was introduced (migration `1786600000000-CreateCampsitesTables`) carrying only the columns this story's AC/BRs need. This is explicitly provisional and will need reconciling once CTMS-50 lands.
+- **Decisions resolved during implementation review** (not spelled out in the AC/BR wording above, resolved as Decision Gates rather than inferred):
+  - Actor is **Camper**, per the real Jira card (CTMS-77), overriding this document's original "As a Host" wording -- see Story section above.
+  - `status` accepts only `active` or omitted (422 for any other value); the active-only guarantee itself is enforced in the repository query (BR-047/234), not merely by this input restriction.
+  - `amenities` matches if **any** of a campsite's zones has **any** of the requested amenities (Postgres array-overlap), not "all requested amenities on one zone".
+  - Only **active** zones participate in amenities/price matching -- a `closed` zone cannot make its campsite surface in search results.
+  - `activeRoutes` is always `[]` -- Trekking Routes is a separate, unbuilt domain outside `EPIC 2. Campsite`.
+- **Verification evidence:**
+  - Migration applied and rolled back against a real Postgres instance.
+  - Repository behavior (active-only lock, amenities ANY-match, active-zone gate, no-duplicate-campsite via `EXISTS`, price range, cover-image selection) proven against real Postgres with seeded fixtures.
+  - Unit tests: `services/api/src/modules/campsites/services/campsites.service.spec.ts` (9 tests, mocked repository -- service mapping/pagination-math boundary only).
+  - Integration tests: `services/api/test/campsites.search.integration-spec.ts` (15 tests, real Postgres + a fully booted `AppModule` + `supertest`) -- covers security (401/403/401), every frozen invariant above, the full response contract, and campsite-accurate pagination.
 
 ## References
 - Story ID: `CTMS-17`
