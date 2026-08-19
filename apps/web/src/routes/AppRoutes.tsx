@@ -11,6 +11,7 @@ import { authService } from "../features/auth/services/auth.service";
 import { getGrantedRoles, isAdminUser } from "../features/auth/utils/permissions";
 import { getRefreshToken, getStoredAuthUser } from "../features/auth/utils/tokenStorage";
 import { CamperProfilePage } from "../features/camper-profile/pages/CamperProfilePage";
+import { SearchCampsitesPage } from "../features/campsites/pages/SearchCampsitesPage";
 import { LandingPage } from "../features/landing/pages/LandingPage";
 import { EdgeCasePage, ErrorPage, NotFoundPage, UnauthorizedPage } from "../shared/pages";
 import { AppRoleGuard } from "./AppRoleGuard";
@@ -143,6 +144,22 @@ export function AppRoutes() {
 					onNavigateDashboard={() => navigateTo(RoutePath.HOME)}
 					onLogout={handleLogout}
 				/>
+			);
+
+		case RoutePath.CAMPSITES:
+			// CTMS-17-T02 / DG-W1 (frozen): no `fallback` override here, unlike
+			// the ADMIN_* routes below -- AppRoleGuard's own default fallback
+			// already renders the correct role ("camper") dynamically from
+			// `allowedRoles`, whereas `unauthorizedFallback` below is hardcoded
+			// to `requiredRole="admin"` and would show the wrong role name here.
+			return (
+				<AppRoleGuard
+					allowedRoles={["camper"]}
+					currentRoles={currentRoles}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<SearchCampsitesPage onBackHome={() => navigateTo(RoutePath.HOME)} />
+				</AppRoleGuard>
 			);
 
 		case RoutePath.DASHBOARD: {

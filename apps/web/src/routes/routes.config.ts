@@ -24,9 +24,14 @@ export interface RouteItem {
 	isPrivate?: boolean;
 }
 
+/**
+ * CTMS-17-T02 / DG-W1 (frozen): `CAMPSITES` removed. CTMS-77's backend
+ * contract locks `GET /campsites` to an authenticated, active Camper --
+ * this list is no longer accurate for it, and leaving it here would let a
+ * future reader assume `/campsites` needs no auth.
+ */
 export const PUBLIC_ROUTES: RouteItem[] = [
 	{ path: RoutePath.HOME, label: "Home" },
-	{ path: RoutePath.CAMPSITES, label: "Campsites" },
 	{ path: RoutePath.TREKKING, label: "Trekking Routes" },
 	{ path: RoutePath.SAFETY, label: "Safety Center" },
 ];
