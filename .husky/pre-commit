@@ -1,1 +1,5 @@
-pnpm exec lint-staged
+if pnpm --version >/dev/null 2>&1; then
+	pnpm exec lint-staged
+else
+	npm exec -- lint-staged
+fi

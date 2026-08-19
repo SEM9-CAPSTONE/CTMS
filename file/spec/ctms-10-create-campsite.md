@@ -125,6 +125,134 @@ As a Host, I want to create Campsite so that the CTMS workflow is completed safe
 - Add E2E coverage for the primary user journey and at least one critical failure path.
 - Every BR listed in the Business Rules Checklist must appear in at least one test or review evidence item.
 
+## Backend Preparation, Logic, and Tests
+
+### Actors
+- Primary actor: authenticated Host with an active account.
+- Rejected actors: unauthenticated caller, Camper, Porter, Admin, and any Host whose account status is not `active`.
+- Supporting systems: PostgreSQL persistence, TypeORM transaction manager, audit log table.
+
+### Preconditions
+- Caller presents a valid JWT.
+- JWT resolves to an existing active account through `JwtAuthGuard` / `JwtStrategy`.
+- Caller has the `host` role through `RolesGuard`.
+- Request body passes backend DTO validation before any persistence action starts.
+
+### Main Flow
+1. Host sends `POST /api/campsites`.
+2. Backend validates required campsite details: name, description, latitude, longitude, province, city, policies, operating hours, and at least one initial image.
+3. Backend opens a transaction.
+4. Backend creates the campsite with `status = draft` and `host_id = requesting Host`.
+5. Backend creates initial image rows for the campsite, defaulting image `type` to `photo` and omitted `displayOrder` to request order.
+6. Backend writes audit action `campsite.created` in the same transaction.
+7. Backend commits and returns the created campsite and image metadata.
+
+### Alternate Flows
+- Optional image `displayOrder` may be omitted; backend assigns a deterministic order from the request index.
+- Optional image `type` may be omitted; backend stores `photo`.
+- Public search remains unchanged: `GET /api/campsites` is still Camper-only and active-only.
+
+### Exception Flows
+- Missing or invalid JWT returns `401`.
+- Active authenticated non-Host returns `403`.
+- Pending verification or suspended Host returns `401` from JWT validation.
+- Invalid body returns `422` and no campsite, image, or audit row is created.
+- Mid-transaction image or audit failure propagates and the transaction rolls back.
+- Idempotency/retry: no external integration is called in this flow, so retry backoff is not applicable. Duplicate client retries can create separate drafts until a future idempotency-key store is introduced.
+
+### Business Rules and Validation Rules
+- BR-027: request requires name, description, coordinates, province/city, policies, operating hours, and initial images.
+- BR-028 / BR-211: new campsite is always created in `draft`; client cannot submit a status.
+- BR-200: `campsite.created` audit log is written in the transaction.
+- BR-201 / BR-202: JWT strategy only accepts active accounts.
+- BR-204 / BR-243: campsite ownership is set from the authenticated Host id, never from client input; rejected callers create no side effects.
+- BR-205 / BR-231: DTO validation covers required fields, type, length, URL format, coordinate range, image count, duplicate image display order, and `operatingHours` `HH:mm-HH:mm` with start earlier than end; validation errors return `422`.
+- BR-210: campsite, image, and audit writes are wrapped in one transaction.
+- BR-214: child image rows are created only after the parent campsite exists in the same transaction.
+- BR-220: operating hour start time must be earlier than end time.
+- BR-235: image URL and metadata are stored for each initial image; only HTTP/HTTPS URLs are accepted.
+- BR-234: create returns a draft, but public search remains active-only so drafts are not exposed in public campsite lists.
+- BR-026, BR-218, BR-219: not directly applicable to create campsite; no health data or timestamp input is accepted by this API.
+- BR-215: not directly applicable; create campsite accepts no email or phone input.
+- BR-230 / BR-242: no external retry or concurrent resource update is performed by this create flow.
+
+### API Contract
+- Method/path: `POST /api/campsites`
+- Auth: Bearer JWT, role `host`.
+- Success: `201 Created`
+
+Request:
+```json
+{
+  "name": "Da Lat Pine Camp",
+  "description": "A quiet campsite prepared for guided trekking stays.",
+  "latitude": 11.940419,
+  "longitude": 108.458313,
+  "province": "Lam Dong",
+  "city": "Da Lat",
+  "policies": "No campfires after 21:00. Pack out all trash.",
+  "operatingHours": "08:00-18:00",
+  "initialImages": [
+    {
+      "url": "https://example.com/campsites/pine-cover.jpg",
+      "type": "photo",
+      "displayOrder": 1
+    }
+  ]
+}
+```
+
+Response:
+```json
+{
+  "id": "uuid",
+  "hostId": "uuid",
+  "name": "Da Lat Pine Camp",
+  "description": "A quiet campsite prepared for guided trekking stays.",
+  "latitude": 11.940419,
+  "longitude": 108.458313,
+  "province": "Lam Dong",
+  "city": "Da Lat",
+  "policies": "No campfires after 21:00. Pack out all trash.",
+  "operatingHours": "08:00-18:00",
+  "status": "draft",
+  "images": [
+    {
+      "id": "uuid",
+      "url": "https://example.com/campsites/pine-cover.jpg",
+      "type": "photo",
+      "displayOrder": 1
+    }
+  ],
+  "createdAt": "2026-08-19T00:00:00.000Z",
+  "updatedAt": "2026-08-19T00:00:00.000Z"
+}
+```
+
+### Data Mapping
+| Request field | Storage field |
+| --- | --- |
+| Authenticated user id | `campsites.host_id` |
+| `name` | `campsites.name` |
+| `description` | `campsites.description` |
+| `latitude` | `campsites.latitude` as numeric string with 6 decimals |
+| `longitude` | `campsites.longitude` as numeric string with 6 decimals |
+| `province` | `campsites.province` |
+| `city` | `campsites.city` |
+| `policies` | `campsites.policies` |
+| `operatingHours` | `campsites.operating_hours` |
+| Server rule | `campsites.status = draft` |
+| `initialImages[].url` | `campsite_images.url` |
+| `initialImages[].type` | `campsite_images.type` |
+| `initialImages[].displayOrder` | `campsite_images.display_order` |
+
+### Test Evidence
+- Unit: `npm --prefix services/api test -- campsites.service.spec.ts --runInBand` passed on 2026-08-19 with 13 tests, including create happy path, audit, image defaults, create failure rollback, audit failure rollback, and existing search regression coverage.
+- Build: `npm --prefix services/api run build` passed on 2026-08-19.
+- Lint: `npm --prefix services/api run lint` passed on 2026-08-19.
+- API integration test added: `services/api/test/campsites.create.integration-spec.ts` covers happy path persistence/audit, invalid data no side effects, unauthenticated 401, non-Host 403, and inactive Host 401.
+- API integration execution note: local run on 2026-08-19 was blocked by the current Postgres/TypeORM environment (`this.postgres.Pool is not a constructor` during app bootstrap), before API assertions executed.
+
 ## References
 - Story ID: `CTMS-10`
 - Epic: `EPIC 2. Campsite`
