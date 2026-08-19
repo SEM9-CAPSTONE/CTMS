@@ -14,12 +14,6 @@ import type { Campsite } from "../entities/campsite.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { CampsitesRepository } from "../repositories/campsites.repository";
 
-/**
- * CTMS-17-T01 (CTMS-77). Read-only search -- no transaction/rollback/
- * idempotency concerns apply (N/A, not omitted): a search request neither
- * writes data nor has side effects to roll back or de-duplicate (BR-210/230
- * are about concurrent/retried *writes*).
- */
 @Injectable()
 export class CampsitesService {
 	constructor(

@@ -139,38 +139,43 @@ describe("Audit logs administration (integration, real Postgres)", () => {
 	it("filters audit logs by actor, action, target, targetType, outcome, and time range", async () => {
 		const targetUser1 = camper.id;
 		const targetUser2 = admin.id;
+		const uniqueSuffix = `${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+		const registerAction = `e2e.audit.register.${uniqueSuffix}`;
+		const lockAction = `e2e.audit.lock.${uniqueSuffix}`;
+		const loginAction = `e2e.audit.login.${uniqueSuffix}`;
+		const targetType = `e2e_user_${uniqueSuffix}`;
 
 		const log1 = await createAuditLog(
 			admin.id,
-			"auth.register",
-			"user",
+			registerAction,
+			targetType,
 			targetUser1,
 			null,
 			{ role: "camper" },
 			"New user",
-			new Date("2026-08-01T08:00:00Z")
+			new Date("2099-08-01T08:00:00Z")
 		);
 
 		const log2 = await createAuditLog(
 			camper.id,
-			"user.account_locked",
-			"user",
+			lockAction,
+			targetType,
 			targetUser2,
 			{ status: "active" },
 			{ status: "suspended" },
 			"Inappropriate behavior",
-			new Date("2026-08-05T09:00:00Z")
+			new Date("2099-08-05T09:00:00Z")
 		);
 
 		const log3 = await createAuditLog(
 			null,
-			"auth.login",
-			"user",
+			loginAction,
+			targetType,
 			targetUser1,
 			null,
 			null,
 			null,
-			new Date("2026-08-10T10:00:00Z")
+			new Date("2099-08-10T10:00:00Z")
 		);
 
 		// 1. Filter by actorId / actor
@@ -193,7 +198,7 @@ describe("Audit logs administration (integration, real Postgres)", () => {
 		// 2. Filter by action
 		res = await request(app.getHttpServer())
 			.get("/api/audit-logs")
-			.query({ action: "auth.login" })
+			.query({ action: loginAction })
 			.set("Authorization", `Bearer ${admin.accessToken}`)
 			.expect(200);
 		expect(res.body.items).toHaveLength(1);
@@ -218,17 +223,17 @@ describe("Audit logs administration (integration, real Postgres)", () => {
 		// 4. Filter by targetType
 		res = await request(app.getHttpServer())
 			.get("/api/audit-logs")
-			.query({ targetType: "user" })
+			.query({ targetType })
 			.set("Authorization", `Bearer ${admin.accessToken}`)
 			.expect(200);
-		expect(res.body.items.length).toBeGreaterThanOrEqual(3);
+		expect(res.body.items).toHaveLength(3);
 
 		// 5. Filter by time range
 		res = await request(app.getHttpServer())
 			.get("/api/audit-logs")
 			.query({
-				startDate: "2026-08-03T00:00:00Z",
-				endDate: "2026-08-07T00:00:00Z",
+				startDate: "2099-08-03T00:00:00Z",
+				endDate: "2099-08-07T00:00:00Z",
 			})
 			.set("Authorization", `Bearer ${admin.accessToken}`)
 			.expect(200);
@@ -238,10 +243,10 @@ describe("Audit logs administration (integration, real Postgres)", () => {
 		// 6. Filter by outcome
 		res = await request(app.getHttpServer())
 			.get("/api/audit-logs")
-			.query({ outcome: "success" })
+			.query({ outcome: "success", targetType })
 			.set("Authorization", `Bearer ${admin.accessToken}`)
 			.expect(200);
-		expect(res.body.items.length).toBeGreaterThanOrEqual(3);
+		expect(res.body.items).toHaveLength(3);
 
 		res = await request(app.getHttpServer())
 			.get("/api/audit-logs")

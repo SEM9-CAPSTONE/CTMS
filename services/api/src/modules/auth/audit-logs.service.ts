@@ -27,7 +27,8 @@ export class AuditLogsService {
 			actorId: qActorId,
 			actor: qActorAlias,
 			action,
-			targetId: qTargetId,
+			targetId,
+			target,
 			targetType,
 			outcome,
 			startDate,
@@ -96,6 +97,7 @@ export class AuditLogsService {
 			}
 		}
 
+		const qTargetId = targetId ?? target;
 		const queryBuilder = this.auditLogRepository.createQueryBuilder("log");
 
 		if (actorIdsFilter && actorIdsFilter.length > 0) {
