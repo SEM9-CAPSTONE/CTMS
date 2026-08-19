@@ -1,8 +1,10 @@
 import type { SearchCampsitesQueryDto } from "../dto/search-campsites-query.dto";
+import type { CampsiteImage } from "../entities/campsite-image.entity";
 import { type Campsite, CampsiteStatus } from "../entities/campsite.entity";
 import type {
 	CampsiteSearchResult,
 	CampsitesRepository,
+	CreatedDraftCampsite,
 } from "../repositories/campsites.repository";
 import { CampsitesService } from "./campsites.service";
 
@@ -26,6 +28,19 @@ function buildCampsite(overrides: Partial<Campsite> = {}): Campsite {
 	};
 }
 
+function buildImage(overrides: Partial<CampsiteImage> = {}): CampsiteImage {
+	return {
+		id: "33333333-3333-3333-3333-333333333333",
+		campsiteId: "11111111-1111-1111-1111-111111111111",
+		campsite: undefined as unknown as CampsiteImage["campsite"],
+		url: "https://example.com/campsite.jpg",
+		type: "photo",
+		displayOrder: 0,
+		createdAt: new Date("2026-01-01T00:00:00.000Z"),
+		...overrides,
+	};
+}
+
 function buildQuery(overrides: Partial<SearchCampsitesQueryDto> = {}): SearchCampsitesQueryDto {
 	return {
 		page: 1,
@@ -36,15 +51,162 @@ function buildQuery(overrides: Partial<SearchCampsitesQueryDto> = {}): SearchCam
 
 describe("CampsitesService", () => {
 	let service: CampsitesService;
-	let campsitesRepository: { searchActive: jest.Mock };
+	let campsitesRepository: { searchActive: jest.Mock; createDraft: jest.Mock };
+	let transactionalCampsitesRepository: { createDraft: jest.Mock };
+	let auditRepository: { save: jest.Mock };
+	let dataSource: { transaction: jest.Mock };
 
 	beforeEach(() => {
+		transactionalCampsitesRepository = {
+			createDraft: jest.fn(),
+		};
+		auditRepository = {
+			save: jest.fn(),
+		};
 		campsitesRepository = {
 			searchActive: jest
 				.fn()
 				.mockResolvedValue({ items: [], total: 0 } satisfies CampsiteSearchResult),
+			createDraft: jest.fn(),
 		};
-		service = new CampsitesService(campsitesRepository as unknown as CampsitesRepository);
+		dataSource = {
+			transaction: jest.fn(async (callback: (manager: unknown) => unknown) =>
+				callback({
+					withRepository: jest.fn().mockReturnValue(transactionalCampsitesRepository),
+					getRepository: jest.fn().mockReturnValue(auditRepository),
+				})
+			),
+		};
+		service = new CampsitesService(
+			campsitesRepository as unknown as CampsitesRepository,
+			dataSource as never
+		);
+	});
+
+	describe("create", () => {
+		const hostId = "22222222-2222-2222-2222-222222222222";
+		const createDto = {
+			name: "Da Lat Pine Camp",
+			description: "Quiet campsite in the pine forest",
+			latitude: 11.940419,
+			longitude: 108.458313,
+			province: "Lam Dong",
+			city: "Da Lat",
+			policies: "No campfires after 21:00",
+			operatingHours: "08:00-18:00",
+			initialImages: [
+				{ url: "https://example.com/cover.jpg", type: "photo" as const },
+				{ url: "https://example.com/map.jpg", type: "photo" as const, displayOrder: 5 },
+			],
+		};
+
+		it("creates a draft campsite for the requesting Host and writes an audit log in one transaction", async () => {
+			const campsite = buildCampsite({
+				hostId,
+				name: createDto.name,
+				status: CampsiteStatus.DRAFT,
+				latitude: "11.940419",
+				longitude: "108.458313",
+			});
+			const images = [buildImage(), buildImage({ id: "44444444-4444-4444-4444-444444444444" })];
+			transactionalCampsitesRepository.createDraft.mockResolvedValue({
+				campsite,
+				images,
+			} satisfies CreatedDraftCampsite);
+
+			const result = await service.create(hostId, createDto);
+
+			expect(dataSource.transaction).toHaveBeenCalledTimes(1);
+			expect(transactionalCampsitesRepository.createDraft).toHaveBeenCalledWith({
+				hostId,
+				name: "Da Lat Pine Camp",
+				description: "Quiet campsite in the pine forest",
+				latitude: "11.940419",
+				longitude: "108.458313",
+				province: "Lam Dong",
+				city: "Da Lat",
+				policies: "No campfires after 21:00",
+				operatingHours: "08:00-18:00",
+				initialImages: [
+					{ url: "https://example.com/cover.jpg", type: "photo", displayOrder: undefined },
+					{ url: "https://example.com/map.jpg", type: "photo", displayOrder: 5 },
+				],
+			});
+			expect(auditRepository.save).toHaveBeenCalledWith(
+				expect.objectContaining({
+					actorId: hostId,
+					action: "campsite.created",
+					targetType: "campsite",
+					targetId: campsite.id,
+					before: null,
+					after: expect.objectContaining({
+						hostId,
+						status: CampsiteStatus.DRAFT,
+						images: expect.arrayContaining([
+							expect.objectContaining({ url: "https://example.com/campsite.jpg" }),
+						]),
+					}),
+					reason: "host_create_campsite",
+				})
+			);
+			expect(result).toEqual(
+				expect.objectContaining({
+					id: campsite.id,
+					hostId,
+					name: "Da Lat Pine Camp",
+					status: CampsiteStatus.DRAFT,
+					latitude: 11.940419,
+					longitude: 108.458313,
+					images: expect.arrayContaining([
+						expect.objectContaining({ url: "https://example.com/campsite.jpg" }),
+					]),
+				})
+			);
+		});
+
+		it("defaults omitted image type to photo before persistence", async () => {
+			transactionalCampsitesRepository.createDraft.mockResolvedValue({
+				campsite: buildCampsite({ status: CampsiteStatus.DRAFT }),
+				images: [buildImage()],
+			} satisfies CreatedDraftCampsite);
+
+			await service.create(hostId, {
+				...createDto,
+				initialImages: [{ url: "https://example.com/cover.jpg" }],
+			});
+
+			expect(transactionalCampsitesRepository.createDraft).toHaveBeenCalledWith(
+				expect.objectContaining({
+					initialImages: [
+						{ url: "https://example.com/cover.jpg", type: "photo", displayOrder: undefined },
+					],
+				})
+			);
+		});
+
+		it("propagates create failures so the transaction can roll back without an audit log", async () => {
+			const error = new Error("image save failed");
+			transactionalCampsitesRepository.createDraft.mockRejectedValue(error);
+
+			await expect(service.create(hostId, createDto)).rejects.toThrow(error);
+
+			expect(dataSource.transaction).toHaveBeenCalledTimes(1);
+			expect(auditRepository.save).not.toHaveBeenCalled();
+		});
+
+		it("propagates audit-log failures so campsite and images roll back together", async () => {
+			transactionalCampsitesRepository.createDraft.mockResolvedValue({
+				campsite: buildCampsite({ status: CampsiteStatus.DRAFT }),
+				images: [buildImage()],
+			} satisfies CreatedDraftCampsite);
+			const auditError = new Error("audit failed");
+			auditRepository.save.mockRejectedValue(auditError);
+
+			await expect(service.create(hostId, createDto)).rejects.toThrow(auditError);
+
+			expect(transactionalCampsitesRepository.createDraft).toHaveBeenCalledTimes(1);
+			expect(auditRepository.save).toHaveBeenCalledTimes(1);
+		});
 	});
 
 	describe("search", () => {

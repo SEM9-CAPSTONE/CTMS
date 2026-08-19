@@ -4,6 +4,25 @@ import { CampsiteImage } from "../entities/campsite-image.entity";
 import { type Campsite, CampsiteStatus } from "../entities/campsite.entity";
 import { Zone, ZoneStatus } from "../entities/zone.entity";
 
+export interface CreateCampsiteImageInput {
+	url: string;
+	type: string;
+	displayOrder?: number;
+}
+
+export interface CreateDraftCampsiteInput {
+	hostId: string;
+	name: string;
+	description: string;
+	latitude: string;
+	longitude: string;
+	province: string;
+	city: string;
+	policies: string;
+	operatingHours: string;
+	initialImages: CreateCampsiteImageInput[];
+}
+
 export interface CampsiteSearchFilters {
 	province?: string;
 	city?: string;
@@ -22,6 +41,11 @@ export interface CampsiteSearchResult {
 	total: number;
 }
 
+export interface CreatedDraftCampsite {
+	campsite: Campsite;
+	images: CampsiteImage[];
+}
+
 /**
  * CTMS-17-T01 (CTMS-77). Search Campsites' read path. Every query this
  * repository runs is `status = active` by construction -- {@link searchActive}
@@ -30,6 +54,36 @@ export interface CampsiteSearchResult {
  */
 @Injectable()
 export class CampsitesRepository extends Repository<Campsite> {
+	async createDraft(input: CreateDraftCampsiteInput): Promise<CreatedDraftCampsite> {
+		const campsite = this.create({
+			hostId: input.hostId,
+			name: input.name,
+			description: input.description,
+			latitude: input.latitude,
+			longitude: input.longitude,
+			province: input.province,
+			city: input.city,
+			policies: input.policies,
+			operatingHours: input.operatingHours,
+			status: CampsiteStatus.DRAFT,
+		});
+		const savedCampsite = await this.save(campsite);
+
+		const imageRepository = this.manager.getRepository(CampsiteImage);
+		const images = await imageRepository.save(
+			input.initialImages.map((image, index) =>
+				imageRepository.create({
+					campsiteId: savedCampsite.id,
+					url: image.url,
+					type: image.type,
+					displayOrder: image.displayOrder ?? index,
+				})
+			)
+		);
+
+		return { campsite: savedCampsite, images };
+	}
+
 	async searchActive(
 		filters: CampsiteSearchFilters,
 		page: number,

@@ -1,10 +1,12 @@
 import { Controller, Get, Query, Req, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
 import { UserRole } from "../users/entities/user.entity";
-import type { AuditLogsService } from "./audit-logs.service";
+// biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
+import { AuditLogsService } from "./audit-logs.service";
 import { Roles } from "./decorators/roles.decorator";
 import { PaginatedAuditLogsResponseDto } from "./dto/audit-log-response.dto";
-import type { ListAuditLogsQueryDto } from "./dto/list-audit-logs-query.dto";
+// biome-ignore lint/style/useImportType: used as a @Query() parameter type, needs design:paramtypes metadata for NestJS's validation/transform pipeline
+import { ListAuditLogsQueryDto } from "./dto/list-audit-logs-query.dto";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
 import { RolesGuard } from "./guards/roles.guard";
 import type { AuthenticatedUser } from "./jwt.strategy";
