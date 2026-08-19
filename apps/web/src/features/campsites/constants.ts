@@ -1,0 +1,2 @@
+export const DEFAULT_CAMPSITES_PAGE = 1;
+export const DEFAULT_CAMPSITES_LIMIT = 20;
