@@ -48,6 +48,12 @@ dev_dependencies:
     sdk: flutter
   integration_test:
     sdk: flutter
+  # CTMS-17-T02, Step 7: test_driver/integration_test.dart uses the
+  # `_extended` driver (screenshot support) directly, which needs
+  # FlutterDriver.connect() explicitly rather than integration_test_driver's
+  # implicit one.
+  flutter_driver:
+    sdk: flutter
   # CTMS-04-T03, Step 7, test-only: already present transitively (pulled in
   # by flutter_secure_storage itself, which ships an official first-party
   # test double -- FlutterSecureStorage.setMockInitialValues /

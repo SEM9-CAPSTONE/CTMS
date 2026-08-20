@@ -14,6 +14,8 @@ import 'package:mobile/features/auth/data/auth_repository.dart';
 import 'package:mobile/features/auth/domain/auth_user.dart';
 import 'package:mobile/features/auth/domain/register_models.dart';
 import 'package:mobile/features/auth/domain/user_role.dart';
+import 'package:mobile/features/camper/explore/data/campsite_search_repository.dart';
+import 'package:mobile/features/camper/explore/domain/campsite_search_models.dart';
 
 /// Avoids touching the flutter_secure_storage platform channel (unavailable
 /// under flutter_test) and the network — [login]/[register] return
@@ -101,6 +103,26 @@ class _FakeAuthRepository extends AuthRepository {
 Future<void> logout({bool allDevices = false}) async {}
 }
 
+/// Avoids a real, unmocked network call from `CamperExploreScreen` (Explore
+/// tab) — its controller fires a search on first build, and this file's
+/// login flow only ever overrides `authRepositoryProvider`. Always empty:
+/// the tab-switching test just needs the real screen composition to render
+/// without hanging `pumpAndSettle` on a request that never resolves.
+class _FakeCampsiteSearchRepository extends CampsiteSearchRepository {
+  _FakeCampsiteSearchRepository()
+    : super(ApiClient(TokenStorage(const FlutterSecureStorage())));
+
+  @override
+  Future<PaginatedCampsiteSearchResponse> search(
+    CampsiteSearchParams params,
+  ) async {
+    return const PaginatedCampsiteSearchResponse(
+      items: [],
+      pagination: CampsiteSearchPagination(page: 1, limit: 20, total: 0, totalPages: 0),
+    );
+  }
+}
+
 Future<void> _tapVisible(WidgetTester tester, Finder finder) async {
   await tester.ensureVisible(finder);
   await tester.pumpAndSettle();
@@ -114,6 +136,9 @@ Future<void> _login(WidgetTester tester, AuthUser user) async {
       overrides: [
         authRepositoryProvider.overrideWithValue(
           _FakeAuthRepository(loginResult: user),
+        ),
+        campsiteSearchRepositoryProvider.overrideWithValue(
+          _FakeCampsiteSearchRepository(),
         ),
       ],
       child: const CtmsApp(),
@@ -446,7 +471,12 @@ void main() {
     await tester.tap(find.text('Khám phá'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Khám phá khu cắm trại'), findsOneWidget);
+    // CTMS-17-T02: real Explore/search screen now renders here (no longer
+    // the "under construction" placeholder) — the fake, empty-result
+    // campsiteSearchRepositoryProvider override above lets it settle
+    // without a real network call.
+    expect(find.text('Tìm địa điểm cho chuyến đi tiếp theo'), findsOneWidget);
+    expect(find.text('Không tìm thấy campsite phù hợp'), findsOneWidget);
   });
 
   testWidgets('porter "Thêm" sheet opens the folded-in destinations', (
