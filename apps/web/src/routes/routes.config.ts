@@ -6,7 +6,7 @@ export enum RoutePath {
 	FORGOT_PASSWORD = "/forgot-password",
 	DASHBOARD = "/dashboard",
 	CAMPSITES = "/campsites",
-	HOST_CREATE_CAMPSITE = "/host/campsites/new",
+	HOST_CREATE_CAMPSITE = "/host/campsites/create",
 	TREKKING = "/trekking",
 	SAFETY = "/safety",
 	CAMPER_PROFILE = "/camper/profile",

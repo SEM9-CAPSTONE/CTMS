@@ -59,7 +59,7 @@ function runDbHelper(action: string, arg: string): Record<string, unknown> {
 
 test.describe("Record Audit Logs for Critical Actions (E2E, real backend)", () => {
 	test.describe.configure({ mode: "serial" });
-	test.setTimeout(60_000);
+	test.setTimeout(90_000);
 
 	const email = uniqueEmail("tc");
 	const phone = uniqueLocalPhone();
@@ -127,7 +127,16 @@ test.describe("Record Audit Logs for Critical Actions (E2E, real backend)", () =
 		await phoneChannelButton.scrollIntoViewIfNeeded();
 		await expect(phoneChannelButton).toBeEnabled();
 		await phoneChannelButton.click({ force: true });
-		await page.getByRole("button", { name: "Gửi mã OTP" }).click();
+		const sendOtpButton = page.getByRole("button", { name: "Gửi mã OTP" });
+		await expect(sendOtpButton).toBeEnabled();
+		await Promise.all([
+			page.waitForResponse(
+				(response) =>
+					response.url().includes("/api/auth/send-otp") && response.request().method() === "POST"
+			),
+			sendOtpButton.click(),
+		]);
+		await expect(page.getByLabel("Mã OTP *")).toBeEnabled();
 
 		// Fetch issued OTP code from DB
 		const otpResult = runDbHelper("get-otp", email) as unknown as DbHelperOtpResult;

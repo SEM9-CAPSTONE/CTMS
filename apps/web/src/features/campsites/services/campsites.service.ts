@@ -6,6 +6,10 @@ import type {
 	PaginatedCampsiteSearchResponse,
 } from "../types";
 
+interface CampsiteMediaUploadResponse {
+	url: string;
+}
+
 export const campsitesService = {
 	search: async (params: CampsiteSearchParams): Promise<PaginatedCampsiteSearchResponse> => {
 		const cleanParams: Record<string, string | number | boolean | undefined> = {
@@ -26,5 +30,19 @@ export const campsitesService = {
 
 	create: async (input: CreateCampsiteInput): Promise<CreatedCampsite> => {
 		return httpClient.post<CreatedCampsite>(API_ENDPOINTS.CAMPSITES.CREATE, input);
+	},
+
+	getMine: async (): Promise<CreatedCampsite[]> => {
+		return httpClient.get<CreatedCampsite[]>(API_ENDPOINTS.CAMPSITES.MY);
+	},
+
+	uploadMedia: async (file: File): Promise<CampsiteMediaUploadResponse> => {
+		const formData = new FormData();
+		formData.append("file", file);
+
+		return httpClient.post<CampsiteMediaUploadResponse>(
+			API_ENDPOINTS.CAMPSITES.UPLOAD_MEDIA,
+			formData
+		);
 	},
 };

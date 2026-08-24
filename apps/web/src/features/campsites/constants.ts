@@ -1,2 +1,41 @@
 export const DEFAULT_CAMPSITES_PAGE = 1;
 export const DEFAULT_CAMPSITES_LIMIT = 20;
+
+export const VIETNAM_PROVINCES = [
+	"An Giang",
+	"Bắc Ninh",
+	"Cà Mau",
+	"Cao Bằng",
+	"Cần Thơ",
+	"Đà Nẵng",
+	"Đắk Lắk",
+	"Điện Biên",
+	"Đồng Nai",
+	"Đồng Tháp",
+	"Gia Lai",
+	"Hà Nội",
+	"Hà Tĩnh",
+	"Hải Phòng",
+	"Huế",
+	"Hưng Yên",
+	"Khánh Hòa",
+	"Lai Châu",
+	"Lâm Đồng",
+	"Lạng Sơn",
+	"Lào Cai",
+	"Nghệ An",
+	"Ninh Bình",
+	"Phú Thọ",
+	"Quảng Ngãi",
+	"Quảng Ninh",
+	"Quảng Trị",
+	"Sơn La",
+	"Tây Ninh",
+	"Thái Nguyên",
+	"Thanh Hóa",
+	"Thành phố Hồ Chí Minh",
+	"Tuyên Quang",
+	"Vĩnh Long",
+] as const;
+
+export type VietnamProvince = (typeof VIETNAM_PROVINCES)[number];

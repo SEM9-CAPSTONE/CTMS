@@ -105,7 +105,7 @@ export class CreateCampsiteMediaDto {
 	@IsString()
 	@IsNotEmpty()
 	@MaxLength(2000)
-	@IsUrl({ require_protocol: true, protocols: ["http", "https"] })
+	@IsUrl({ require_protocol: true, protocols: ["http", "https"], require_tld: false })
 	url!: string;
 
 	@ApiPropertyOptional({ enum: ["photo"], default: "photo" })

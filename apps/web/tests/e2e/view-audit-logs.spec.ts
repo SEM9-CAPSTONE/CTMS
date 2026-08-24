@@ -97,10 +97,12 @@ test.describe("Admin view audit logs UI", () => {
 			});
 		});
 
-		await page.goto("/admin/users");
+		await page.goto("/admin/audit-logs");
 		await expect(page.getByRole("navigation", { name: "Administration navigation" })).toBeVisible();
-
-		await page.getByRole("button", { name: "Audit Logs" }).click();
+		await expect(page.getByRole("button", { name: "Nhật ký hệ thống" })).toHaveAttribute(
+			"aria-current",
+			"page"
+		);
 		await expect(page).toHaveURL(/\/admin\/audit-logs$/);
 
 		await expect(
@@ -110,10 +112,10 @@ test.describe("Admin view audit logs UI", () => {
 		await expect(page.getByText("auth.login")).toBeVisible();
 
 		const actionInput = page.locator("#filter-action");
-		await actionInput.fill("locked");
+		await actionInput.selectOption("user.account_locked");
 		await page.getByRole("button", { name: "Tìm kiếm" }).click();
 
-		expect(lastParams.action).toBe("locked");
+		expect(lastParams.action).toBe("user.account_locked");
 		await expect(page.getByText("auth.login")).not.toBeVisible();
 		await expect(page.getByText("user.account_locked")).toBeVisible();
 

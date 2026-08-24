@@ -1,3 +1,4 @@
+import { mkdir, rename, unlink } from "node:fs/promises";
 import type { SearchCampsitesQueryDto } from "../dto/search-campsites-query.dto";
 import type { CampsiteMedia } from "../entities/campsite-media.entity";
 import { type Campsite, CampsiteStatus } from "../entities/campsite.entity";
@@ -5,9 +6,19 @@ import { type Zone, ZoneStatus } from "../entities/zone.entity";
 import type {
 	CampsiteSearchResult,
 	CampsitesRepository,
-	CreatedDraftCampsite,
+	CreatedPendingApprovalCampsite,
 } from "../repositories/campsites.repository";
 import { CampsitesService } from "./campsites.service";
+
+jest.mock("node:fs/promises", () => ({
+	mkdir: jest.fn(),
+	rename: jest.fn(),
+	unlink: jest.fn(),
+}));
+
+const mkdirMock = jest.mocked(mkdir);
+const renameMock = jest.mocked(rename);
+const unlinkMock = jest.mocked(unlink);
 
 function buildCampsite(overrides: Partial<Campsite> = {}): Campsite {
 	return {
@@ -73,14 +84,21 @@ function buildQuery(overrides: Partial<SearchCampsitesQueryDto> = {}): SearchCam
 
 describe("CampsitesService", () => {
 	let service: CampsitesService;
-	let campsitesRepository: { searchActive: jest.Mock; createDraft: jest.Mock };
-	let transactionalCampsitesRepository: { createDraft: jest.Mock };
+	let campsitesRepository: {
+		searchActive: jest.Mock;
+		createPendingApproval: jest.Mock;
+		findByHost: jest.Mock;
+	};
+	let transactionalCampsitesRepository: { createPendingApproval: jest.Mock };
 	let auditRepository: { save: jest.Mock };
 	let dataSource: { transaction: jest.Mock };
 
 	beforeEach(() => {
+		mkdirMock.mockResolvedValue(undefined);
+		renameMock.mockResolvedValue(undefined);
+		unlinkMock.mockResolvedValue(undefined);
 		transactionalCampsitesRepository = {
-			createDraft: jest.fn(),
+			createPendingApproval: jest.fn(),
 		};
 		auditRepository = {
 			save: jest.fn(),
@@ -89,7 +107,8 @@ describe("CampsitesService", () => {
 			searchActive: jest
 				.fn()
 				.mockResolvedValue({ items: [], total: 0 } satisfies CampsiteSearchResult),
-			createDraft: jest.fn(),
+			createPendingApproval: jest.fn(),
+			findByHost: jest.fn().mockResolvedValue([]),
 		};
 		dataSource = {
 			transaction: jest.fn(async (callback: (manager: unknown) => unknown) =>
@@ -133,25 +152,25 @@ describe("CampsitesService", () => {
 			],
 		};
 
-		it("creates a draft campsite with media and zones for the requesting Host", async () => {
+		it("creates a pending approval campsite with media and zones for the requesting Host", async () => {
 			const campsite = buildCampsite({
 				hostId,
 				name: createDto.name,
-				status: CampsiteStatus.DRAFT,
+				status: CampsiteStatus.PENDING_APPROVAL,
 			});
 			const media = [buildMedia(), buildMedia({ id: "55555555-5555-5555-5555-555555555555" })];
 			const zones = [buildZone()];
-			transactionalCampsitesRepository.createDraft.mockResolvedValue({
+			transactionalCampsitesRepository.createPendingApproval.mockResolvedValue({
 				campsite,
 				media,
 				zones,
 				latitude: createDto.latitude,
 				longitude: createDto.longitude,
-			} satisfies CreatedDraftCampsite);
+			} satisfies CreatedPendingApprovalCampsite);
 
 			const result = await service.create(hostId, createDto);
 
-			expect(transactionalCampsitesRepository.createDraft).toHaveBeenCalledWith({
+			expect(transactionalCampsitesRepository.createPendingApproval).toHaveBeenCalledWith({
 				hostId,
 				name: "Da Lat Pine Camp",
 				description: "Quiet campsite in the pine forest",
@@ -178,7 +197,7 @@ describe("CampsitesService", () => {
 					targetType: "campsite",
 					targetId: campsite.id,
 					after: expect.objectContaining({
-						status: CampsiteStatus.DRAFT,
+						status: CampsiteStatus.PENDING_APPROVAL,
 						media: expect.arrayContaining([
 							expect.objectContaining({ url: "https://example.com/campsite.jpg" }),
 						]),
@@ -190,7 +209,7 @@ describe("CampsitesService", () => {
 				expect.objectContaining({
 					id: campsite.id,
 					hostId,
-					status: CampsiteStatus.DRAFT,
+					status: CampsiteStatus.PENDING_APPROVAL,
 					latitude: 11.940419,
 					longitude: 108.458313,
 					media: expect.arrayContaining([
@@ -202,33 +221,109 @@ describe("CampsitesService", () => {
 		});
 
 		it("defaults omitted media type to photo before persistence", async () => {
-			transactionalCampsitesRepository.createDraft.mockResolvedValue({
-				campsite: buildCampsite({ status: CampsiteStatus.DRAFT }),
+			transactionalCampsitesRepository.createPendingApproval.mockResolvedValue({
+				campsite: buildCampsite({ status: CampsiteStatus.PENDING_APPROVAL }),
 				media: [buildMedia()],
 				zones: [],
 				latitude: createDto.latitude,
 				longitude: createDto.longitude,
-			} satisfies CreatedDraftCampsite);
+			} satisfies CreatedPendingApprovalCampsite);
 
 			await service.create(hostId, {
 				...createDto,
 				media: [{ url: "https://example.com/cover.jpg" }],
 			});
 
-			expect(transactionalCampsitesRepository.createDraft).toHaveBeenCalledWith(
+			expect(transactionalCampsitesRepository.createPendingApproval).toHaveBeenCalledWith(
 				expect.objectContaining({
 					media: [{ url: "https://example.com/cover.jpg", type: "photo", sortOrder: undefined }],
 				})
 			);
 		});
 
+		it("promotes pending uploaded media before saving the campsite", async () => {
+			transactionalCampsitesRepository.createPendingApproval.mockResolvedValue({
+				campsite: buildCampsite({ status: CampsiteStatus.PENDING_APPROVAL }),
+				media: [
+					buildMedia({
+						url: "http://localhost:3000/uploads/campsites/campsite-temp.jpg",
+					}),
+				],
+				zones: [],
+				latitude: createDto.latitude,
+				longitude: createDto.longitude,
+			} satisfies CreatedPendingApprovalCampsite);
+
+			await service.create(hostId, {
+				...createDto,
+				media: [
+					{
+						url: "http://localhost:3000/uploads/campsites/pending/campsite-temp.jpg",
+						type: "photo",
+						sortOrder: 0,
+					},
+				],
+			});
+
+			expect(renameMock).toHaveBeenCalledWith(
+				expect.stringContaining("uploads\\campsites\\pending\\campsite-temp.jpg"),
+				expect.stringContaining("uploads\\campsites\\campsite-temp.jpg")
+			);
+			expect(transactionalCampsitesRepository.createPendingApproval).toHaveBeenCalledWith(
+				expect.objectContaining({
+					media: [
+						{
+							url: "http://localhost:3000/uploads/campsites/campsite-temp.jpg",
+							type: "photo",
+							sortOrder: 0,
+						},
+					],
+				})
+			);
+		});
+
+		it("returns a validation error when a pending uploaded image no longer exists", async () => {
+			const missingFileError = new Error("missing pending file") as NodeJS.ErrnoException;
+			missingFileError.code = "ENOENT";
+			renameMock.mockRejectedValueOnce(missingFileError);
+
+			await expect(
+				service.create(hostId, {
+					...createDto,
+					media: [
+						{
+							url: "http://localhost:3000/uploads/campsites/pending/missing.jpg",
+							type: "photo",
+						},
+					],
+				})
+			).rejects.toMatchObject({
+				status: 422,
+			});
+
+			expect(transactionalCampsitesRepository.createPendingApproval).not.toHaveBeenCalled();
+		});
+
 		it("propagates create failures so the transaction can roll back without an audit log", async () => {
 			const error = new Error("media save failed");
-			transactionalCampsitesRepository.createDraft.mockRejectedValue(error);
+			transactionalCampsitesRepository.createPendingApproval.mockRejectedValue(error);
 
-			await expect(service.create(hostId, createDto)).rejects.toThrow(error);
+			await expect(
+				service.create(hostId, {
+					...createDto,
+					media: [
+						{
+							url: "http://localhost:3000/uploads/campsites/pending/campsite-temp.jpg",
+							type: "photo",
+						},
+					],
+				})
+			).rejects.toThrow(error);
 
 			expect(auditRepository.save).not.toHaveBeenCalled();
+			expect(unlinkMock).toHaveBeenCalledWith(
+				expect.stringContaining("uploads\\campsites\\campsite-temp.jpg")
+			);
 		});
 	});
 
@@ -299,6 +394,37 @@ describe("CampsitesService", () => {
 			const result = await service.search(buildQuery({ page: 1, limit: 10 }));
 
 			expect(result.pagination).toEqual({ page: 1, limit: 10, total: 25, totalPages: 3 });
+		});
+	});
+
+	describe("listMine", () => {
+		it("returns all campsites owned by the requesting Host", async () => {
+			const campsite = buildCampsite({
+				id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+				status: CampsiteStatus.PENDING_APPROVAL,
+			});
+			campsitesRepository.findByHost.mockResolvedValue([
+				{
+					campsite,
+					media: [buildMedia({ campsiteId: campsite.id })],
+					zones: [],
+					latitude: 16.1348,
+					longitude: 108.114855,
+				},
+			]);
+
+			const result = await service.listMine("host-id");
+
+			expect(campsitesRepository.findByHost).toHaveBeenCalledWith("host-id");
+			expect(result).toEqual([
+				expect.objectContaining({
+					id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+					status: CampsiteStatus.PENDING_APPROVAL,
+					latitude: 16.1348,
+					longitude: 108.114855,
+					media: expect.arrayContaining([expect.objectContaining({ type: "photo" })]),
+				}),
+			]);
 		});
 	});
 });

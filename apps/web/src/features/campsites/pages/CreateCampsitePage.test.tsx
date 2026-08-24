@@ -10,10 +10,12 @@ vi.mock("../services/campsites.service", () => ({
 	campsitesService: {
 		search: vi.fn(),
 		create: vi.fn(),
+		uploadMedia: vi.fn(),
 	},
 }));
 
 const createMock = vi.mocked(campsitesService.create);
+const uploadMediaMock = vi.mocked(campsitesService.uploadMedia);
 
 const createdCampsite: CreatedCampsite = {
 	id: "8cc75ab5-8845-43fc-b847-e17cf91a6daa",
@@ -22,16 +24,16 @@ const createdCampsite: CreatedCampsite = {
 	description: "Quiet trekking campsite",
 	latitude: 11.940419,
 	longitude: 108.458313,
-	province: "Lam Dong",
+	province: "Lâm Đồng",
 	policies: { rules: "No campfires after 21:00" },
 	operatingHours: { opensAt: "08:00", closesAt: "18:00" },
-	status: "draft",
+	status: "pending_approval",
 	media: [
 		{
 			id: "image-id",
 			url: "https://example.com/campsite.jpg",
 			type: "photo",
-			sortOrder: 1,
+			sortOrder: 0,
 		},
 	],
 	createdAt: "2026-08-19T00:00:00.000Z",
@@ -45,10 +47,15 @@ async function fillValidForm() {
 
 	await user.type(screen.getByLabelText("Mô tả *"), "Quiet trekking campsite");
 
-	await user.type(screen.getByLabelText("Tỉnh/Thành phố *"), "Lam Dong");
+	await user.selectOptions(screen.getByLabelText("Tỉnh/Thành phố *"), "Lâm Đồng");
 
-	await user.type(screen.getByLabelText("Vĩ độ *"), "11.940419");
-	await user.type(screen.getByLabelText("Kinh độ *"), "108.458313");
+	await user.type(screen.getByLabelText("Địa điểm campsite *"), "Da Lat Pine Camp");
+
+	fireEvent.keyDown(await screen.findByRole("button", { name: "Bản đồ campsite" }), {
+		key: "Enter",
+	});
+
+	await screen.findByTestId("selected-location");
 
 	await user.type(screen.getByLabelText("Chính sách *"), "No campfires after 21:00");
 
@@ -60,22 +67,23 @@ async function fillValidForm() {
 		target: { value: "18:00" },
 	});
 
-	await user.click(
-		screen.getByRole("button", {
-			name: "Thêm ảnh",
-		})
+	await user.upload(
+		screen.getByLabelText("Chọn ảnh từ thiết bị"),
+		new File(["fake image"], "campsite.jpg", { type: "image/jpeg" })
 	);
 
-	await user.type(screen.getByLabelText("URL ảnh 1 *"), "https://example.com/campsite.jpg");
-
-	await user.type(screen.getByLabelText("Thứ tự ảnh 1"), "1");
+	await screen.findByAltText("Ảnh campsite 1");
 
 	return user;
 }
 
 describe("CreateCampsitePage", () => {
 	beforeEach(() => {
+		localStorage.clear();
 		createMock.mockReset();
+		uploadMediaMock.mockReset();
+		uploadMediaMock.mockResolvedValue({ url: "https://example.com/campsite.jpg" });
+		vi.stubEnv("VITE_MAPTILER_API_KEY", "");
 	});
 
 	it("renders the image empty state", () => {
@@ -102,6 +110,8 @@ describe("CreateCampsitePage", () => {
 		expect(await screen.findByText("Tên campsite là bắt buộc")).toBeInTheDocument();
 
 		expect(screen.getByText("Campsite phải có ít nhất 1 ảnh")).toBeInTheDocument();
+
+		expect(screen.getByText("Địa điểm campsite là bắt buộc")).toBeInTheDocument();
 	});
 
 	it("calls POST create with the exact API contract", async () => {
@@ -124,17 +134,30 @@ describe("CreateCampsitePage", () => {
 			description: "Quiet trekking campsite",
 			latitude: 11.940419,
 			longitude: 108.458313,
-			province: "Lam Dong",
+			province: "Lâm Đồng",
 			policies: { rules: "No campfires after 21:00" },
 			operatingHours: { opensAt: "08:00", closesAt: "18:00" },
 			media: [
 				{
 					url: "https://example.com/campsite.jpg",
 					type: "photo",
-					sortOrder: 1,
+					sortOrder: 0,
 				},
 			],
 		});
+	});
+
+	it("uses the selected location province when a search suggestion is chosen", async () => {
+		render(<CreateCampsitePage />);
+
+		const user = userEvent.setup();
+
+		await user.type(screen.getByLabelText("Địa điểm campsite *"), "Da Lat");
+
+		await user.click(await screen.findByRole("button", { name: "Da Lat Pine Camp, Lâm Đồng" }));
+
+		expect(screen.getByLabelText("Tỉnh/Thành phố *")).toHaveValue("Lâm Đồng");
+		expect(screen.getByTestId("selected-location")).toHaveTextContent("11.940419");
 	});
 
 	it("renders the loading state and prevents duplicate submission", async () => {
@@ -169,7 +192,21 @@ describe("CreateCampsitePage", () => {
 		expect(await screen.findByText("Tạo campsite thành công")).toBeInTheDocument();
 	});
 
-	it("renders the Draft success state", async () => {
+	it("restores the local draft after the form is remounted", async () => {
+		const user = userEvent.setup();
+		const { unmount } = render(<CreateCampsitePage />);
+
+		await user.type(screen.getByLabelText("Tên campsite *"), "Unsaved Pine Camp");
+		await user.selectOptions(screen.getByLabelText("Tỉnh/Thành phố *"), "Đà Nẵng");
+
+		unmount();
+		render(<CreateCampsitePage />);
+
+		expect(screen.getByLabelText("Tên campsite *")).toHaveValue("Unsaved Pine Camp");
+		expect(screen.getByLabelText("Tỉnh/Thành phố *")).toHaveValue("Đà Nẵng");
+	});
+
+	it("renders the pending approval success state", async () => {
 		createMock.mockResolvedValue(createdCampsite);
 
 		render(<CreateCampsitePage />);
@@ -184,7 +221,7 @@ describe("CreateCampsitePage", () => {
 
 		expect(await screen.findByText("Tạo campsite thành công")).toBeInTheDocument();
 
-		expect(screen.getByText("draft")).toBeInTheDocument();
+		expect(screen.getByText("pending")).toBeInTheDocument();
 
 		expect(screen.getByTestId("created-campsite-id")).toHaveTextContent(createdCampsite.id);
 	});

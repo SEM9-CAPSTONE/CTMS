@@ -100,7 +100,7 @@ describe("campsitesService.create", () => {
 						province: "Lam Dong",
 						policies: { rules: "No fire" },
 						operatingHours: { opensAt: "08:00", closesAt: "18:00" },
-						status: "draft",
+						status: "pending_approval",
 						media: [],
 						createdAt: "2026-08-19T00:00:00.000Z",
 						updatedAt: "2026-08-19T00:00:00.000Z",
@@ -146,5 +146,79 @@ describe("campsitesService.create", () => {
 		expect(body.hostId).toBeUndefined();
 
 		expect(body.operatingHours).toEqual({ opensAt: "08:00", closesAt: "18:00" });
+	});
+});
+
+describe("campsitesService.getMine", () => {
+	beforeEach(() => {
+		localStorage.clear();
+		localStorage.setItem("accessToken", "host-access-token");
+	});
+
+	it("loads the authenticated Host campsites with Bearer authentication", async () => {
+		let capturedRequest: RequestInit | undefined;
+		let capturedUrl = "";
+
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+				capturedUrl = input.toString();
+				capturedRequest = init;
+
+				return new Response(JSON.stringify([]), {
+					status: 200,
+					headers: { "Content-Type": "application/json" },
+				});
+			})
+		);
+
+		await campsitesService.getMine();
+
+		expect(capturedUrl.endsWith("/campsites/my")).toBe(true);
+		expect(capturedRequest?.method).toBe("GET");
+		expect((capturedRequest?.headers as Record<string, string>).Authorization).toBe(
+			"Bearer host-access-token"
+		);
+	});
+});
+
+describe("campsitesService.uploadMedia", () => {
+	beforeEach(() => {
+		localStorage.clear();
+		localStorage.setItem("accessToken", "host-access-token");
+	});
+
+	it("uploads a device image as multipart form data with Bearer authentication", async () => {
+		let capturedRequest: RequestInit | undefined;
+		let capturedUrl = "";
+
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+				capturedUrl = input.toString();
+				capturedRequest = init;
+
+				return new Response(
+					JSON.stringify({ url: "http://localhost:3000/uploads/campsites/pending/a.jpg" }),
+					{
+						status: 201,
+						headers: { "Content-Type": "application/json" },
+					}
+				);
+			})
+		);
+
+		const result = await campsitesService.uploadMedia(
+			new File(["fake image"], "campsite.jpg", { type: "image/jpeg" })
+		);
+
+		expect(capturedUrl.endsWith("/campsites/media")).toBe(true);
+		expect(capturedRequest?.method).toBe("POST");
+		expect(capturedRequest?.body).toBeInstanceOf(FormData);
+		expect((capturedRequest?.headers as Record<string, string>).Authorization).toBe(
+			"Bearer host-access-token"
+		);
+		expect((capturedRequest?.headers as Record<string, string>)["Content-Type"]).toBeUndefined();
+		expect(result.url).toBe("http://localhost:3000/uploads/campsites/pending/a.jpg");
 	});
 });

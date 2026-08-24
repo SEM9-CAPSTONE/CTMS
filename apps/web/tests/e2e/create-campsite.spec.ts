@@ -51,15 +51,17 @@ async function login(page: Page, email: string): Promise<void> {
 }
 
 async function fillValidCreateForm(page: Page, province: string) {
-	await page.getByLabel("Tên campsite *").fill(`Pine Camp ${province}`);
+	await page.getByLabel("Tên campsite *").fill(`E2E Pine Camp ${province}`);
 
 	await page.getByLabel("Mô tả *").fill("CTMS-10-T02 E2E campsite");
 
-	await page.getByLabel("Tỉnh/Thành phố *").fill(province);
+	await page.getByLabel("Tỉnh/Thành phố *").selectOption(province);
 
-	await page.getByLabel("Vĩ độ *").fill("11.940419");
+	await page.getByLabel("Địa điểm campsite *").fill(`Pine Camp ${province}`);
 
-	await page.getByLabel("Kinh độ *").fill("108.458313");
+	await page.getByRole("button", { name: "Bản đồ campsite" }).press("Enter");
+
+	await expect(page.getByTestId("selected-location")).toBeVisible();
 
 	await page.getByLabel("Chính sách *").fill("No campfires after 21:00.");
 
@@ -67,15 +69,13 @@ async function fillValidCreateForm(page: Page, province: string) {
 
 	await page.getByLabel("Giờ đóng cửa *").fill("18:00");
 
-	await page
-		.getByRole("button", {
-			name: "Thêm ảnh",
-		})
-		.click();
+	await page.getByLabel("Chọn ảnh từ thiết bị").setInputFiles({
+		name: "e2e-create-campsite.jpg",
+		mimeType: "image/jpeg",
+		buffer: Buffer.from("fake image"),
+	});
 
-	await page.getByLabel("URL ảnh 1 *").fill("https://example.com/e2e-create-campsite.jpg");
-
-	await page.getByLabel("Thứ tự ảnh 1").fill("1");
+	await expect(page.getByAltText("Ảnh campsite 1")).toBeVisible();
 }
 
 test.describe("Create Campsite CTMS-10-T02", () => {
@@ -92,9 +92,9 @@ test.describe("Create Campsite CTMS-10-T02", () => {
 
 	const camperPhone = uniquePhone();
 
-	const validProvince = uniqueTag("CTMS10VALID").toUpperCase();
+	const validProvince = "Lâm Đồng";
 
-	const invalidProvince = uniqueTag("CTMS10INVALID").toUpperCase();
+	const invalidProvince = "Đà Nẵng";
 
 	let createdCampsiteId: string | null = null;
 
@@ -141,16 +141,24 @@ test.describe("Create Campsite CTMS-10-T02", () => {
 		}
 	});
 
-	test("Host creates a valid campsite and Draft is persisted", async ({ page }) => {
+	test("Host creates a valid campsite and pending approval status is persisted", async ({
+		page,
+	}) => {
 		await login(page, hostEmail);
 
-		await page.goto("/host/campsites/new");
+		await page.goto("/host/campsites/create");
 
 		await expect(
 			page.getByRole("heading", {
 				name: "Tạo Campsite",
 			})
 		).toBeVisible();
+
+		const beforeCreate = runDbHelperJson("count-campsites-json", {
+			province: validProvince,
+		}) as {
+			count: number;
+		};
 
 		await fillValidCreateForm(page, validProvince);
 
@@ -162,26 +170,46 @@ test.describe("Create Campsite CTMS-10-T02", () => {
 
 		await expect(page.getByText("Tạo campsite thành công")).toBeVisible();
 
-		await expect(page.getByText("draft", { exact: true })).toBeVisible();
+		await expect(page.getByText("pending", { exact: true })).toBeVisible();
 
 		createdCampsiteId =
 			(await page.getByTestId("created-campsite-id").textContent())?.trim() ?? null;
 
 		expect(createdCampsiteId).toBeTruthy();
 
-		const persisted = runDbHelper("count-campsites", validProvince) as {
+		const persisted = runDbHelperJson("count-campsites-json", {
+			province: validProvince,
+		}) as {
 			count: number;
 		};
 
-		expect(persisted.count).toBe(1);
+		expect(persisted.count).toBe(beforeCreate.count + 1);
+
+		const created = runDbHelperJson("get-campsite", {
+			campsiteId: createdCampsiteId,
+		}) as {
+			campsite: { name: string; province: string; status: string } | null;
+		};
+
+		expect(created.campsite).toMatchObject({
+			name: `E2E Pine Camp ${validProvince}`,
+			province: validProvince,
+			status: "pending_approval",
+		});
 	});
 
 	test("invalid UI data does not create a campsite", async ({ page }) => {
 		await login(page, hostEmail);
 
-		await page.goto("/host/campsites/new");
+		await page.goto("/host/campsites/create");
 
-		await page.getByLabel("Tỉnh/Thành phố *").fill(invalidProvince);
+		const beforeInvalidSubmit = runDbHelperJson("count-campsites-json", {
+			province: invalidProvince,
+		}) as {
+			count: number;
+		};
+
+		await page.getByLabel("Tỉnh/Thành phố *").selectOption(invalidProvince);
 
 		await page
 			.getByRole("button", {
@@ -191,17 +219,19 @@ test.describe("Create Campsite CTMS-10-T02", () => {
 
 		await expect(page.getByText("Tên campsite là bắt buộc")).toBeVisible();
 
-		const persisted = runDbHelper("count-campsites", invalidProvince) as {
+		const persisted = runDbHelperJson("count-campsites-json", {
+			province: invalidProvince,
+		}) as {
 			count: number;
 		};
 
-		expect(persisted.count).toBe(0);
+		expect(persisted.count).toBe(beforeInvalidSubmit.count);
 	});
 
 	test("Camper cannot access Create Campsite", async ({ page }) => {
 		await login(page, camperEmail);
 
-		await page.goto("/host/campsites/new");
+		await page.goto("/host/campsites/create");
 
 		await expect(page.getByText("Truy cập bị từ chối")).toBeVisible();
 

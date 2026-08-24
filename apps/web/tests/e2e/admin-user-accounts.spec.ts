@@ -63,12 +63,12 @@ test.describe("Admin user accounts", () => {
 
 		await page.goto("/admin/users");
 		await expect(page.getByRole("navigation", { name: "Administration navigation" })).toBeVisible();
-		await expect(page.getByRole("button", { name: "User Accounts" })).toHaveAttribute(
+		await expect(page.getByRole("button", { name: "Tài khoản người dùng" })).toHaveAttribute(
 			"aria-current",
 			"page"
 		);
-		await expect(page.getByRole("button", { name: /Audit Logs/ })).toBeDisabled();
-		await expect(page.getByRole("button", { name: /Content Reports/ })).toBeDisabled();
+		await expect(page.getByRole("button", { name: "Nhật ký hệ thống" })).toBeEnabled();
+		await expect(page.getByRole("button", { name: /Báo cáo nội dung/ })).toBeDisabled();
 		await expect(page.getByText("Nguyen Camper")).toBeVisible();
 		await page.getByPlaceholder("Tên, email hoặc số điện thoại").fill("camper@example.com");
 		await page.getByRole("button", { name: "Tìm kiếm" }).click();

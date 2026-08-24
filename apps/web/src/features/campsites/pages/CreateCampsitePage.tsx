@@ -23,7 +23,7 @@ export function CreateCampsitePage({ onBackHome }: CreateCampsitePageProps) {
 						<h1 className="mt-5 text-2xl font-extrabold text-[#10221b]">Tạo campsite thành công</h1>
 
 						<p className="mt-2 text-sm text-[#667a6d]">
-							Campsite đã được lưu và đang ở trạng thái Draft.
+							Campsite đã được gửi và đang chờ Admin duyệt.
 						</p>
 
 						<div className="mt-6 rounded-xl border border-[#e0ebe0] bg-[#f8faf7] p-5 text-left">
@@ -34,7 +34,7 @@ export function CreateCampsitePage({ onBackHome }: CreateCampsitePageProps) {
 								</div>
 
 								<span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-extrabold uppercase text-amber-700">
-									{campsite.status}
+									{campsite.status === "pending_approval" ? "pending" : campsite.status}
 								</span>
 							</div>
 
@@ -95,7 +95,7 @@ export function CreateCampsitePage({ onBackHome }: CreateCampsitePageProps) {
 						<h1 className="text-xl font-extrabold text-[#10221b] sm:text-2xl">Tạo Campsite</h1>
 
 						<p className="mt-0.5 text-sm text-[#667a6d]">
-							Thông tin hợp lệ sẽ được lưu ở trạng thái Draft.
+							Thông tin đang nhập sẽ được tự lưu nháp trên thiết bị này.
 						</p>
 					</div>
 				</div>

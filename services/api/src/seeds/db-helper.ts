@@ -298,6 +298,20 @@ async function main() {
 				[arg]
 			);
 			console.log(JSON.stringify({ count: Number(rows[0].count) }));
+		} else if (action === "count-campsites-json") {
+			const input = parseJsonArg<{ province: string }>(arg);
+			const rows = await dataSource.query(
+				`SELECT count(*) FROM "campsites" WHERE "province" = $1`,
+				[input.province]
+			);
+			console.log(JSON.stringify({ count: Number(rows[0].count) }));
+		} else if (action === "get-campsite") {
+			const input = parseJsonArg<{ campsiteId: string }>(arg);
+			const rows = await dataSource.query(
+				`SELECT "id", "name", "province", "status" FROM "campsites" WHERE "id" = $1`,
+				[input.campsiteId]
+			);
+			console.log(JSON.stringify({ campsite: rows[0] ?? null }));
 		} else if (action === "clean-user") {
 			assertE2EEmail(arg);
 			const rows = await dataSource.query('SELECT "id" FROM "users" WHERE "email" = $1', [arg]);

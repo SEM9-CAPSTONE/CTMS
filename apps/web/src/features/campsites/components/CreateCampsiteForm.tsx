@@ -1,14 +1,21 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertCircle, ImagePlus, Loader2, MapPin, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { AlertCircle, ImagePlus, Loader2, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
+import { VIETNAM_PROVINCES } from "../constants";
 import type { CreateCampsiteError } from "../hooks/useCreateCampsite";
 import {
 	CREATE_CAMPSITE_DEFAULT_VALUES,
 	type CreateCampsiteFormValues,
+	clearCreateCampsiteDraft,
 	createCampsiteFormSchema,
+	loadCreateCampsiteDraft,
+	saveCreateCampsiteDraft,
 	toCreateCampsiteInput,
 } from "../schema/create-campsite.schema";
+import { campsitesService } from "../services/campsites.service";
 import type { CreateCampsiteInput } from "../types";
+import { CampsiteLocationPicker } from "./CampsiteLocationPicker";
 
 interface CreateCampsiteFormProps {
 	isSubmitting: boolean;
@@ -30,20 +37,30 @@ const inputClass =
 
 const labelClass = "text-sm font-bold text-[#34483b]";
 
+function toCoordinateFormValue(value: number | null): string {
+	return value === null ? "" : String(Number(value.toFixed(6)));
+}
+
 export function CreateCampsiteForm({
 	isSubmitting,
 	error,
 	onSubmit,
 	onRetry,
 }: CreateCampsiteFormProps) {
+	const fileInputRef = useRef<HTMLInputElement | null>(null);
+	const [isUploadingImage, setIsUploadingImage] = useState(false);
+	const [uploadError, setUploadError] = useState("");
+	const defaultValues = useMemo(() => loadCreateCampsiteDraft(), []);
 	const {
 		register,
 		control,
 		handleSubmit,
+		setValue,
+		watch,
 		formState: { errors },
 	} = useForm<CreateCampsiteFormValues>({
 		resolver: zodResolver(createCampsiteFormSchema),
-		defaultValues: CREATE_CAMPSITE_DEFAULT_VALUES,
+		defaultValues,
 		mode: "onSubmit",
 	});
 
@@ -51,10 +68,63 @@ export function CreateCampsiteForm({
 		control,
 		name: "initialImages",
 	});
+	const province = watch("province");
+	const placeLabel = watch("placeLabel");
+	const latitude = watch("latitude");
+	const longitude = watch("longitude");
 
 	const submitForm = handleSubmit(async (values) => {
-		await onSubmit(toCreateCampsiteInput(values));
+		const created = await onSubmit(toCreateCampsiteInput(values));
+
+		if (created) {
+			clearCreateCampsiteDraft();
+		}
 	});
+
+	useEffect(() => {
+		const subscription = watch((values) => {
+			saveCreateCampsiteDraft({
+				...CREATE_CAMPSITE_DEFAULT_VALUES,
+				...values,
+				initialImages: values.initialImages ?? [],
+			} as CreateCampsiteFormValues);
+		});
+
+		return () => subscription.unsubscribe();
+	}, [watch]);
+
+	const uploadImages = async (files: FileList | null) => {
+		if (!files || files.length === 0) {
+			return;
+		}
+
+		setUploadError("");
+		setIsUploadingImage(true);
+
+		try {
+			const availableSlots = Math.max(10 - fields.length, 0);
+			const selectedFiles = Array.from(files).slice(0, availableSlots);
+
+			for (const [index, file] of selectedFiles.entries()) {
+				const uploaded = await campsitesService.uploadMedia(file);
+				append({
+					url: uploaded.url,
+					sortOrder: String(fields.length + index),
+				});
+			}
+		} catch (uploadFailure) {
+			setUploadError(
+				uploadFailure instanceof Error
+					? uploadFailure.message
+					: "Không thể tải ảnh lên. Vui lòng thử lại."
+			);
+		} finally {
+			setIsUploadingImage(false);
+			if (fileInputRef.current) {
+				fileInputRef.current.value = "";
+			}
+		}
+	};
 
 	return (
 		<form onSubmit={submitForm} className="space-y-6" noValidate>
@@ -122,63 +192,62 @@ export function CreateCampsiteForm({
 						<label htmlFor="province" className={labelClass}>
 							Tỉnh/Thành phố *
 						</label>
-						<input
+						<select
 							id="province"
-							maxLength={100}
 							disabled={isSubmitting}
-							placeholder="Đà Nẵng"
 							className={inputClass}
 							{...register("province")}
-						/>
+						>
+							<option value="">Chọn tỉnh/thành phố</option>
+							{VIETNAM_PROVINCES.map((option) => (
+								<option key={option} value={option}>
+									{option}
+								</option>
+							))}
+						</select>
 						<ErrorText message={errors.province?.message} />
 					</div>
 				</div>
 			</section>
 
-			<section className="rounded-2xl border border-[#e0ebe0] bg-white p-5 shadow-sm sm:p-6">
-				<div className="flex items-center gap-2">
-					<MapPin className="size-5 text-[#164027]" />
-					<h2 className="text-lg font-extrabold text-[#10221b]">Tọa độ</h2>
-				</div>
+			<input type="hidden" {...register("placeLabel")} />
+			<input type="hidden" {...register("latitude")} />
+			<input type="hidden" {...register("longitude")} />
 
-				<div className="mt-5 grid gap-5 md:grid-cols-2">
-					<div>
-						<label htmlFor="latitude" className={labelClass}>
-							Vĩ độ *
-						</label>
-						<input
-							id="latitude"
-							type="number"
-							step="0.000001"
-							min="-90"
-							max="90"
-							disabled={isSubmitting}
-							placeholder="11.940419"
-							className={inputClass}
-							{...register("latitude")}
-						/>
-						<ErrorText message={errors.latitude?.message} />
-					</div>
-
-					<div>
-						<label htmlFor="longitude" className={labelClass}>
-							Kinh độ *
-						</label>
-						<input
-							id="longitude"
-							type="number"
-							step="0.000001"
-							min="-180"
-							max="180"
-							disabled={isSubmitting}
-							placeholder="108.458313"
-							className={inputClass}
-							{...register("longitude")}
-						/>
-						<ErrorText message={errors.longitude?.message} />
-					</div>
-				</div>
-			</section>
+			<CampsiteLocationPicker
+				province={province}
+				value={{
+					placeLabel,
+					latitude: latitude === "" ? null : Number(latitude),
+					longitude: longitude === "" ? null : Number(longitude),
+				}}
+				disabled={isSubmitting}
+				errors={{
+					placeLabel: errors.placeLabel?.message,
+					latitude: errors.latitude?.message,
+					longitude: errors.longitude?.message,
+				}}
+				onChange={(location) => {
+					setValue("placeLabel", location.placeLabel, {
+						shouldDirty: true,
+						shouldValidate: true,
+					});
+					setValue("latitude", toCoordinateFormValue(location.latitude), {
+						shouldDirty: true,
+						shouldValidate: true,
+					});
+					setValue("longitude", toCoordinateFormValue(location.longitude), {
+						shouldDirty: true,
+						shouldValidate: true,
+					});
+				}}
+				onProvinceChange={(nextProvince) => {
+					setValue("province", nextProvince, {
+						shouldDirty: true,
+						shouldValidate: true,
+					});
+				}}
+			/>
 
 			<section className="rounded-2xl border border-[#e0ebe0] bg-white p-5 shadow-sm sm:p-6">
 				<h2 className="text-lg font-extrabold text-[#10221b]">Chính sách & giờ hoạt động</h2>
@@ -241,19 +310,30 @@ export function CreateCampsiteForm({
 
 					<button
 						type="button"
-						disabled={isSubmitting || fields.length >= 10}
-						onClick={() =>
-							append({
-								url: "",
-								displayOrder: "",
-							})
-						}
+						disabled={isSubmitting || isUploadingImage || fields.length >= 10}
+						onClick={() => fileInputRef.current?.click()}
 						className="inline-flex items-center gap-2 rounded-xl bg-[#eaf4eb] px-4 py-2.5 text-sm font-bold text-[#164027] hover:bg-[#dcebdd] disabled:cursor-not-allowed disabled:opacity-50"
 					>
-						<Plus className="size-4" />
-						Thêm ảnh
+						{isUploadingImage ? (
+							<Loader2 className="size-4 animate-spin" />
+						) : (
+							<Plus className="size-4" />
+						)}
+						{isUploadingImage ? "Đang tải ảnh..." : "Thêm ảnh"}
 					</button>
+					<input
+						ref={fileInputRef}
+						type="file"
+						accept="image/jpeg,image/png,image/webp"
+						multiple
+						aria-label="Chọn ảnh từ thiết bị"
+						className="sr-only"
+						disabled={isSubmitting || isUploadingImage || fields.length >= 10}
+						onChange={(event) => void uploadImages(event.target.files)}
+					/>
 				</div>
+
+				{uploadError && <p className="mt-3 text-sm font-semibold text-red-600">{uploadError}</p>}
 
 				{fields.length === 0 ? (
 					<div
@@ -265,59 +345,35 @@ export function CreateCampsiteForm({
 						<p className="mt-1 text-xs text-[#788b7e]">Nhấn “Thêm ảnh” để bổ sung ảnh campsite.</p>
 					</div>
 				) : (
-					<div className="mt-5 space-y-3">
+					<div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
 						{fields.map((field, index) => (
 							<div
 								key={field.id}
-								className="grid gap-3 rounded-xl border border-[#e0ebe0] bg-[#f9fbf8] p-4 md:grid-cols-[1fr_160px_auto]"
+								className="group relative overflow-hidden rounded-xl border border-[#dfe8df] bg-[#f9fbf8]"
 							>
-								<div>
-									<label htmlFor={`image-${index}-url`} className={labelClass}>
-										URL ảnh {index + 1} *
-									</label>
+								<input type="hidden" {...register(`initialImages.${index}.url`)} />
+								<input type="hidden" {...register(`initialImages.${index}.sortOrder`)} />
 
-									<input
-										id={`image-${index}-url`}
-										type="url"
-										disabled={isSubmitting}
-										placeholder="https://example.com/campsite.jpg"
-										className={inputClass}
-										{...register(`initialImages.${index}.url`)}
-									/>
+								<img
+									src={field.url}
+									alt={`Ảnh campsite ${index + 1}`}
+									className="aspect-[4/3] w-full object-cover"
+								/>
 
-									<ErrorText message={errors.initialImages?.[index]?.url?.message} />
-								</div>
-
-								<div>
-									<label htmlFor={`image-${index}-order`} className={labelClass}>
-										Thứ tự ảnh {index + 1}
-									</label>
-
-									<input
-										id={`image-${index}-order`}
-										type="number"
-										min="0"
-										max="100"
-										disabled={isSubmitting}
-										placeholder={String(index)}
-										className={inputClass}
-										{...register(`initialImages.${index}.displayOrder`)}
-									/>
-
-									<ErrorText message={errors.initialImages?.[index]?.displayOrder?.message} />
-								</div>
-
-								<div className="flex items-end">
+								<div className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-gradient-to-t from-black/70 to-black/0 px-2.5 pt-8 pb-2 text-white">
 									<button
 										type="button"
 										aria-label={`Xóa ảnh ${index + 1}`}
 										disabled={isSubmitting}
 										onClick={() => remove(index)}
-										className="flex size-11 items-center justify-center rounded-xl border border-red-200 bg-white text-red-600 hover:bg-red-50 disabled:opacity-50"
+										className="flex size-8 items-center justify-center rounded-full bg-white text-red-600 shadow-sm hover:bg-red-50 disabled:opacity-50"
 									>
 										<Trash2 className="size-4" />
 									</button>
 								</div>
+
+								<ErrorText message={errors.initialImages?.[index]?.url?.message} />
+								<ErrorText message={errors.initialImages?.[index]?.sortOrder?.message} />
 							</div>
 						))}
 					</div>

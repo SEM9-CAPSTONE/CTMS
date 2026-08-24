@@ -17,6 +17,25 @@ export interface CampsiteLocation {
 	longitude: number;
 }
 
+export interface CampsiteLocationState {
+	placeLabel: string;
+	latitude: number | null;
+	longitude: number | null;
+}
+
+export interface PlaceSuggestion {
+	id: string;
+	label: string;
+	latitude: number;
+	longitude: number;
+	province?: string;
+}
+
+export interface ReverseGeocodeResult {
+	placeLabel: string;
+	province?: string;
+}
+
 /** Matches CampsiteSearchItemDto -- no price field: BR-048/AC3 only require name/location/coverImage/activeRoutes, price is a filter input, not a display field. */
 export interface CampsiteSearchItem {
 	id: string;
@@ -73,7 +92,14 @@ export interface CreatedCampsite {
 	province: string;
 	policies: { rules: string } | null;
 	operatingHours: { opensAt?: string; closesAt?: string } | null;
-	status: "draft";
+	status:
+		| "draft"
+		| "pending_approval"
+		| "active"
+		| "temporarily_closed"
+		| "suspended"
+		| "closed"
+		| "archived";
 	media: CampsiteImageResponse[];
 	createdAt: string;
 	updatedAt: string;

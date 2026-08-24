@@ -1,16 +1,23 @@
 import { UnprocessableEntityException } from "@nestjs/common";
 import type { ValidationError } from "class-validator";
 
-function formatErrors(errors: ValidationError[]): Array<{ field: string; errors: string[] }> {
-	return errors.map((error) => ({
-		field: error.property,
-		errors: Object.values(error.constraints ?? {}),
-	}));
+function formatErrors(
+	errors: ValidationError[],
+	parentPath = ""
+): Array<{ field: string; errors: string[] }> {
+	return errors.flatMap((error) => {
+		const field = parentPath ? `${parentPath}.${error.property}` : error.property;
+		const constraints = Object.values(error.constraints ?? {});
+		const childErrors = formatErrors(error.children ?? [], field);
+
+		if (constraints.length === 0) {
+			return childErrors;
+		}
+
+		return [{ field, errors: constraints }, ...childErrors];
+	});
 }
 
-/**
- * BR-231 requires 422 for invalid input, not Nest's default 400.
- */
 export function validationExceptionFactory(
 	errors: ValidationError[]
 ): UnprocessableEntityException {

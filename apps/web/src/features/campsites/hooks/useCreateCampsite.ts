@@ -25,7 +25,27 @@ function extractBackendMessage(error: HttpError): string | null {
 	}
 
 	if (Array.isArray(message)) {
-		return message.filter((item): item is string => typeof item === "string").join(". ");
+		const messages = message.flatMap((item) => {
+			if (typeof item === "string") {
+				return [item];
+			}
+
+			if (typeof item !== "object" || item === null) {
+				return [];
+			}
+
+			const fieldError = item as { field?: unknown; errors?: unknown };
+			const field = typeof fieldError.field === "string" ? fieldError.field : "payload";
+			const errors = Array.isArray(fieldError.errors)
+				? fieldError.errors.filter(
+						(errorItem): errorItem is string => typeof errorItem === "string"
+					)
+				: [];
+
+			return errors.map((errorItem) => `${field}: ${errorItem}`);
+		});
+
+		return messages.length > 0 ? messages.join(". ") : null;
 	}
 
 	return null;

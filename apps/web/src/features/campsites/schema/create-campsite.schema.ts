@@ -44,7 +44,7 @@ const imageSchema = z.object({
 			}
 		),
 
-	displayOrder: z
+	sortOrder: z
 		.string()
 		.trim()
 		.refine(
@@ -90,6 +90,12 @@ export const createCampsiteFormSchema = z
 			.min(1, "Tỉnh/Thành phố là bắt buộc")
 			.max(100, "Tỉnh/Thành phố không được vượt quá 100 ký tự"),
 
+		placeLabel: z
+			.string()
+			.trim()
+			.min(1, "Địa điểm campsite là bắt buộc")
+			.max(500, "Địa điểm campsite không được vượt quá 500 ký tự"),
+
 		policies: z
 			.string()
 			.trim()
@@ -127,7 +133,7 @@ export const createCampsiteFormSchema = z
 		}
 
 		const displayOrders = data.initialImages
-			.map((image) => image.displayOrder)
+			.map((image) => image.sortOrder)
 			.filter((value) => value !== "");
 
 		const uniqueOrders = new Set(displayOrders);
@@ -149,11 +155,65 @@ export const CREATE_CAMPSITE_DEFAULT_VALUES: CreateCampsiteFormValues = {
 	latitude: "",
 	longitude: "",
 	province: "",
+	placeLabel: "",
 	policies: "",
 	opensAt: "08:00",
 	closesAt: "18:00",
 	initialImages: [],
 };
+
+const CREATE_CAMPSITE_DRAFT_STORAGE_KEY = "ctms.createCampsiteDraft";
+
+function draftString(value: unknown, fallback = ""): string {
+	return typeof value === "string" ? value : fallback;
+}
+
+export function loadCreateCampsiteDraft(): CreateCampsiteFormValues {
+	if (typeof localStorage === "undefined") {
+		return CREATE_CAMPSITE_DEFAULT_VALUES;
+	}
+
+	try {
+		const rawDraft = localStorage.getItem(CREATE_CAMPSITE_DRAFT_STORAGE_KEY);
+		if (!rawDraft) {
+			return CREATE_CAMPSITE_DEFAULT_VALUES;
+		}
+
+		const draft = JSON.parse(rawDraft) as Partial<CreateCampsiteFormValues>;
+
+		return {
+			...CREATE_CAMPSITE_DEFAULT_VALUES,
+			name: draftString(draft.name),
+			description: draftString(draft.description),
+			latitude: draftString(draft.latitude),
+			longitude: draftString(draft.longitude),
+			province: draftString(draft.province),
+			placeLabel: draftString(draft.placeLabel),
+			policies: draftString(draft.policies),
+			opensAt: draftString(draft.opensAt, CREATE_CAMPSITE_DEFAULT_VALUES.opensAt),
+			closesAt: draftString(draft.closesAt, CREATE_CAMPSITE_DEFAULT_VALUES.closesAt),
+			initialImages: Array.isArray(draft.initialImages) ? draft.initialImages : [],
+		};
+	} catch {
+		return CREATE_CAMPSITE_DEFAULT_VALUES;
+	}
+}
+
+export function saveCreateCampsiteDraft(values: CreateCampsiteFormValues): void {
+	if (typeof localStorage === "undefined") {
+		return;
+	}
+
+	localStorage.setItem(CREATE_CAMPSITE_DRAFT_STORAGE_KEY, JSON.stringify(values));
+}
+
+export function clearCreateCampsiteDraft(): void {
+	if (typeof localStorage === "undefined") {
+		return;
+	}
+
+	localStorage.removeItem(CREATE_CAMPSITE_DRAFT_STORAGE_KEY);
+}
 
 export function toCreateCampsiteInput(values: CreateCampsiteFormValues): CreateCampsiteInput {
 	return {
@@ -167,7 +227,7 @@ export function toCreateCampsiteInput(values: CreateCampsiteFormValues): CreateC
 		media: values.initialImages.map((image) => ({
 			url: image.url.trim(),
 			type: "photo",
-			...(image.displayOrder !== "" ? { sortOrder: Number(image.displayOrder) } : {}),
+			...(image.sortOrder !== "" ? { sortOrder: Number(image.sortOrder) } : {}),
 		})),
 	};
 }

@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { Repository } from "typeorm";
+import { In, Repository } from "typeorm";
 import { CampsiteMedia } from "../entities/campsite-media.entity";
 import { type Campsite, CampsiteStatus, type GeoPoint } from "../entities/campsite.entity";
 import { Zone, ZoneStatus } from "../entities/zone.entity";
@@ -21,7 +21,7 @@ export interface CreateCampsiteZoneInput {
 	terrainNote?: string;
 }
 
-export interface CreateDraftCampsiteInput {
+export interface CreatePendingApprovalCampsiteInput {
 	hostId: string;
 	name: string;
 	description?: string;
@@ -58,7 +58,15 @@ export interface CampsiteSearchResult {
 	total: number;
 }
 
-export interface CreatedDraftCampsite {
+export interface HostCampsiteResultRow {
+	campsite: Campsite;
+	media: CampsiteMedia[];
+	zones: Zone[];
+	latitude: number;
+	longitude: number;
+}
+
+export interface CreatedPendingApprovalCampsite {
 	campsite: Campsite;
 	media: CampsiteMedia[];
 	zones: Zone[];
@@ -68,7 +76,9 @@ export interface CreatedDraftCampsite {
 
 @Injectable()
 export class CampsitesRepository extends Repository<Campsite> {
-	async createDraft(input: CreateDraftCampsiteInput): Promise<CreatedDraftCampsite> {
+	async createPendingApproval(
+		input: CreatePendingApprovalCampsiteInput
+	): Promise<CreatedPendingApprovalCampsite> {
 		const campsite = this.create({
 			hostId: input.hostId,
 			name: input.name,
@@ -82,7 +92,7 @@ export class CampsitesRepository extends Repository<Campsite> {
 			maxAdvanceBookingDays: input.maxAdvanceBookingDays ?? null,
 			minNights: input.minNights ?? null,
 			maxNights: input.maxNights ?? null,
-			status: CampsiteStatus.DRAFT,
+			status: CampsiteStatus.PENDING_APPROVAL,
 		});
 		const savedCampsite = await this.save(campsite);
 
@@ -202,6 +212,41 @@ export class CampsitesRepository extends Repository<Campsite> {
 		};
 	}
 
+	async findByHost(hostId: string): Promise<HostCampsiteResultRow[]> {
+		const qb = this.createQueryBuilder("campsite")
+			.addSelect("ST_Y(campsite.location::geometry)", "campsite_latitude")
+			.addSelect("ST_X(campsite.location::geometry)", "campsite_longitude")
+			.where("campsite.hostId = :hostId", { hostId })
+			.orderBy("campsite.createdAt", "DESC")
+			.addOrderBy("campsite.id", "ASC");
+
+		const { entities: campsites, raw } = await qb.getRawAndEntities();
+		const campsiteIds = campsites.map((campsite) => campsite.id);
+		const mediaByCampsiteId = await this.resolveMedia(campsiteIds);
+		const zonesByCampsiteId = await this.resolveZones(campsiteIds);
+		const coordinates = new Map<string, { latitude: number; longitude: number }>();
+
+		for (const row of raw as Array<Record<string, unknown>>) {
+			const id = String(row.campsite_id);
+			coordinates.set(id, {
+				latitude: Number(row.campsite_latitude),
+				longitude: Number(row.campsite_longitude),
+			});
+		}
+
+		return campsites.map((campsite) => {
+			const coordinate = coordinates.get(campsite.id) ?? { latitude: 0, longitude: 0 };
+
+			return {
+				campsite,
+				media: mediaByCampsiteId.get(campsite.id) ?? [],
+				zones: zonesByCampsiteId.get(campsite.id) ?? [],
+				latitude: coordinate.latitude,
+				longitude: coordinate.longitude,
+			};
+		});
+	}
+
 	private async resolveCoverImages(campsiteIds: string[]): Promise<Map<string, string>> {
 		if (campsiteIds.length === 0) {
 			return new Map();
@@ -215,8 +260,49 @@ export class CampsitesRepository extends Repository<Campsite> {
 			.getMany();
 		return new Map(rows.map((row) => [row.campsiteId, row.url]));
 	}
+
+	private async resolveMedia(campsiteIds: string[]): Promise<Map<string, CampsiteMedia[]>> {
+		if (campsiteIds.length === 0) {
+			return new Map();
+		}
+
+		const rows = await this.manager.getRepository(CampsiteMedia).find({
+			where: { campsiteId: In(campsiteIds) },
+			order: { sortOrder: "ASC" },
+		});
+
+		return groupByCampsiteId(rows);
+	}
+
+	private async resolveZones(campsiteIds: string[]): Promise<Map<string, Zone[]>> {
+		if (campsiteIds.length === 0) {
+			return new Map();
+		}
+
+		const rows = await this.manager.getRepository(Zone).find({
+			where: { campsiteId: In(campsiteIds) },
+			order: { createdAt: "ASC" },
+		});
+
+		return groupByCampsiteId(rows);
+	}
 }
 
 function toPoint(latitude: number, longitude: number): GeoPoint {
-	return `SRID=4326;POINT(${longitude} ${latitude})` as unknown as GeoPoint;
+	return {
+		type: "Point",
+		coordinates: [longitude, latitude],
+	};
+}
+
+function groupByCampsiteId<T extends { campsiteId: string }>(rows: T[]): Map<string, T[]> {
+	const groups = new Map<string, T[]>();
+
+	for (const row of rows) {
+		const group = groups.get(row.campsiteId) ?? [];
+		group.push(row);
+		groups.set(row.campsiteId, group);
+	}
+
+	return groups;
 }

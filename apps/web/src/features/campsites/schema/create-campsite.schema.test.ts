@@ -12,13 +12,14 @@ function validForm(): CreateCampsiteFormValues {
 		latitude: "11.940419",
 		longitude: "108.458313",
 		province: "Lam Dong",
+		placeLabel: "Da Lat Pine Camp, Lam Dong",
 		policies: "No campfires after 21:00.",
 		opensAt: "08:00",
 		closesAt: "18:00",
 		initialImages: [
 			{
 				url: "https://example.com/campsite.jpg",
-				displayOrder: "1",
+				sortOrder: "1",
 			},
 		],
 	};
@@ -36,6 +37,7 @@ describe("createCampsiteFormSchema", () => {
 			latitude: "",
 			longitude: "",
 			province: "",
+			placeLabel: "",
 			policies: "",
 			opensAt: "",
 			closesAt: "",
@@ -52,6 +54,7 @@ describe("createCampsiteFormSchema", () => {
 			expect(paths).toContain("latitude");
 			expect(paths).toContain("longitude");
 			expect(paths).toContain("province");
+			expect(paths).toContain("placeLabel");
 			expect(paths).toContain("policies");
 			expect(paths).toContain("opensAt");
 			expect(paths).toContain("closesAt");
@@ -98,11 +101,11 @@ describe("createCampsiteFormSchema", () => {
 		form.initialImages = [
 			{
 				url: "https://example.com/1.jpg",
-				displayOrder: "1",
+				sortOrder: "1",
 			},
 			{
 				url: "https://example.com/2.jpg",
-				displayOrder: "1",
+				sortOrder: "1",
 			},
 		];
 

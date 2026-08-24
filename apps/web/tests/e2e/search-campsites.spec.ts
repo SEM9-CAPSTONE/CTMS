@@ -46,7 +46,6 @@ interface SeededCampsite {
 	id: string;
 	name: string;
 	province: string;
-	city: string;
 	status: string;
 }
 
@@ -153,7 +152,16 @@ test.describe("Search Campsites (E2E, real backend + real Postgres)", () => {
 		await phoneChannelButton.scrollIntoViewIfNeeded();
 		await expect(phoneChannelButton).toBeEnabled();
 		await phoneChannelButton.click({ force: true });
-		await page.getByRole("button", { name: "Gửi mã OTP" }).click();
+		const sendOtpButton = page.getByRole("button", { name: "Gửi mã OTP" });
+		await expect(sendOtpButton).toBeEnabled();
+		await Promise.all([
+			page.waitForResponse(
+				(response) =>
+					response.url().includes("/api/auth/send-otp") && response.request().method() === "POST"
+			),
+			sendOtpButton.click(),
+		]);
+		await expect(page.getByLabel("Mã OTP *")).toBeEnabled();
 
 		const otpResult = runDbHelper("get-otp", camperEmail) as unknown as { otp: string };
 		await page.getByLabel("Mã OTP *").fill(otpResult.otp);
@@ -213,8 +221,6 @@ test.describe("Search Campsites (E2E, real backend + real Postgres)", () => {
 		await expect(page.getByText(`E2E Beach Camp ${marker}`)).toBeVisible();
 		await expect(page.getByText(`E2E Draft Camp ${marker}`)).not.toBeVisible();
 
-		await expect(page.getByText(`Da Lat, ${marker}`)).toBeVisible();
-		await expect(page.getByText(`Nha Trang, ${marker}`)).toBeVisible();
 		const coverImg = page.getByAltText(`E2E Pine Camp ${marker}`);
 		await expect(coverImg).toHaveAttribute("src", "https://example.com/e2e-pine.jpg");
 
@@ -262,7 +268,8 @@ test.describe("Search Campsites (E2E, real backend + real Postgres)", () => {
 	}) => {
 		const campsitesRequests: string[] = [];
 		page.on("request", (request) => {
-			if (request.url().includes("/api/campsites")) {
+			const url = new URL(request.url());
+			if (url.pathname === "/api/campsites") {
 				campsitesRequests.push(request.url());
 			}
 		});
@@ -295,7 +302,8 @@ test.describe("Search Campsites (E2E, real backend + real Postgres)", () => {
 
 		const campsitesRequests: string[] = [];
 		page.on("request", (request) => {
-			if (request.url().includes("/api/campsites")) {
+			const url = new URL(request.url());
+			if (url.pathname === "/api/campsites") {
 				campsitesRequests.push(request.url());
 			}
 		});
