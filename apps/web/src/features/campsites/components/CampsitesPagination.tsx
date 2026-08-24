@@ -16,7 +16,7 @@ export function CampsitesPagination({
 	return (
 		<div className="flex flex-col gap-3 border-t border-[#e0ebe0] bg-white px-4 py-3 text-sm text-[#54655a] sm:flex-row sm:items-center sm:justify-between">
 			<p>
-				Tổng cộng <strong className="text-[#10221b]">{pagination.total}</strong> campsite
+				Tổng cộng <strong className="text-[#10221b]">{pagination.total}</strong> khu cắm trại
 			</p>
 			<div className="flex items-center gap-3">
 				<button

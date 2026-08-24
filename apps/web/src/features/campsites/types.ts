@@ -75,6 +75,11 @@ export interface CreateCampsiteInput {
 	media: CreateCampsiteImageInput[];
 }
 
+export interface UpdateCampsiteInput extends Partial<CreateCampsiteInput> {
+	expectedUpdatedAt?: string;
+	changeReason?: string;
+}
+
 export interface CampsiteImageResponse {
 	id: string;
 	url: string;

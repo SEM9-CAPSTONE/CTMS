@@ -59,18 +59,19 @@ export function SearchCampsitesPage({ onBackHome }: SearchCampsitesPageProps) {
 
 					{searchState.isLoading ? (
 						<div className="flex items-center justify-center gap-3 p-16 text-sm font-bold text-[#54655a]">
-							<Loader2 className="size-5 animate-spin text-[#164027]" /> Đang tìm kiếm campsite...
+							<Loader2 className="size-5 animate-spin text-[#164027]" /> Đang tìm kiếm khu cắm
+							trại...
 						</div>
 					) : searchState.errorMessage ? (
 						<div className="p-16 text-center">
 							<AlertCircle className="mx-auto size-10 text-[#9aaba0]" />
-							<p className="mt-3 font-bold text-[#10221b]">Không thể tải danh sách campsite</p>
+							<p className="mt-3 font-bold text-[#10221b]">Không thể tải danh sách khu cắm trại</p>
 							<p className="mt-1 text-sm text-[#667a6d]">Vui lòng thử lại sau.</p>
 						</div>
 					) : searchState.items.length === 0 ? (
 						<div className="p-16 text-center">
 							<TentTree className="mx-auto size-10 text-[#9aaba0]" />
-							<p className="mt-3 font-bold text-[#10221b]">Không tìm thấy campsite phù hợp</p>
+							<p className="mt-3 font-bold text-[#10221b]">Không tìm thấy khu cắm trại phù hợp</p>
 							<p className="mt-1 text-sm text-[#667a6d]">
 								Hãy thay đổi bộ lọc tìm kiếm và thử lại.
 							</p>

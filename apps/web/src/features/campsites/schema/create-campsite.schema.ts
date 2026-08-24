@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { CreateCampsiteInput } from "../types";
+import type { CreateCampsiteInput, CreatedCampsite, UpdateCampsiteInput } from "../types";
 
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 const COORDINATE_PATTERN = /^-?\d+(?:\.\d{1,6})?$/;
@@ -71,8 +71,8 @@ export const createCampsiteFormSchema = z
 		name: z
 			.string()
 			.trim()
-			.min(1, "Tên campsite là bắt buộc")
-			.max(150, "Tên campsite không được vượt quá 150 ký tự"),
+			.min(1, "Tên khu cắm trại là bắt buộc")
+			.max(150, "Tên khu cắm trại không được vượt quá 150 ký tự"),
 
 		description: z
 			.string()
@@ -93,8 +93,8 @@ export const createCampsiteFormSchema = z
 		placeLabel: z
 			.string()
 			.trim()
-			.min(1, "Địa điểm campsite là bắt buộc")
-			.max(500, "Địa điểm campsite không được vượt quá 500 ký tự"),
+			.min(1, "Địa điểm khu cắm trại là bắt buộc")
+			.max(500, "Địa điểm khu cắm trại không được vượt quá 500 ký tự"),
 
 		policies: z
 			.string()
@@ -116,8 +116,8 @@ export const createCampsiteFormSchema = z
 
 		initialImages: z
 			.array(imageSchema)
-			.min(1, "Campsite phải có ít nhất 1 ảnh")
-			.max(10, "Campsite chỉ được có tối đa 10 ảnh"),
+			.min(1, "Khu cắm trại phải có ít nhất 1 ảnh")
+			.max(10, "Khu cắm trại chỉ được có tối đa 10 ảnh"),
 	})
 	.superRefine((data, context) => {
 		if (
@@ -229,5 +229,34 @@ export function toCreateCampsiteInput(values: CreateCampsiteFormValues): CreateC
 			type: "photo",
 			...(image.sortOrder !== "" ? { sortOrder: Number(image.sortOrder) } : {}),
 		})),
+	};
+}
+
+export function toEditCampsiteFormValues(campsite: CreatedCampsite): CreateCampsiteFormValues {
+	return {
+		name: campsite.name,
+		description: campsite.description,
+		latitude: String(Number(campsite.latitude.toFixed(6))),
+		longitude: String(Number(campsite.longitude.toFixed(6))),
+		province: campsite.province,
+		placeLabel: campsite.province,
+		policies: campsite.policies?.rules ?? "",
+		opensAt: campsite.operatingHours?.opensAt ?? CREATE_CAMPSITE_DEFAULT_VALUES.opensAt,
+		closesAt: campsite.operatingHours?.closesAt ?? CREATE_CAMPSITE_DEFAULT_VALUES.closesAt,
+		initialImages: campsite.media.map((image) => ({
+			url: image.url,
+			sortOrder: String(image.sortOrder),
+		})),
+	};
+}
+
+export function toUpdateCampsiteInput(
+	values: CreateCampsiteFormValues,
+	expectedUpdatedAt: string
+): UpdateCampsiteInput {
+	return {
+		...toCreateCampsiteInput(values),
+		expectedUpdatedAt,
+		changeReason: "host_edit_campsite",
 	};
 }

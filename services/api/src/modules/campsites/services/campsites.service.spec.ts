@@ -90,8 +90,14 @@ describe("CampsitesService", () => {
 		createPendingApproval: jest.Mock;
 		findByHost: jest.Mock;
 		findOne: jest.Mock;
+		findDetailedById: jest.Mock;
+		updateInformation: jest.Mock;
 	};
-	let transactionalCampsitesRepository: { createPendingApproval: jest.Mock };
+	let transactionalCampsitesRepository: {
+		createPendingApproval: jest.Mock;
+		findDetailedById: jest.Mock;
+		updateInformation: jest.Mock;
+	};
 	let auditRepository: { save: jest.Mock };
 	let mediaRepository: {
 		find: jest.Mock;
@@ -102,11 +108,14 @@ describe("CampsitesService", () => {
 	let dataSource: { transaction: jest.Mock };
 
 	beforeEach(() => {
+		jest.clearAllMocks();
 		mkdirMock.mockResolvedValue(undefined);
 		renameMock.mockResolvedValue(undefined);
 		unlinkMock.mockResolvedValue(undefined);
 		transactionalCampsitesRepository = {
 			createPendingApproval: jest.fn(),
+			findDetailedById: jest.fn(),
+			updateInformation: jest.fn(),
 		};
 		auditRepository = {
 			save: jest.fn(),
@@ -124,6 +133,8 @@ describe("CampsitesService", () => {
 			createPendingApproval: jest.fn(),
 			findByHost: jest.fn().mockResolvedValue([]),
 			findOne: jest.fn(),
+			findDetailedById: jest.fn(),
+			updateInformation: jest.fn(),
 		};
 		dataSource = {
 			transaction: jest.fn(async (callback: (manager: unknown) => unknown) =>
@@ -500,6 +511,138 @@ describe("CampsitesService", () => {
 					media: expect.arrayContaining([expect.objectContaining({ type: "photo" })]),
 				}),
 			]);
+		});
+	});
+
+	describe("update", () => {
+		const hostId = "22222222-2222-2222-2222-222222222222";
+		const campsiteId = "11111111-1111-1111-1111-111111111111";
+
+		it("allows only the owning Host to update campsite information and records change history", async () => {
+			const beforeCampsite = buildCampsite({
+				id: campsiteId,
+				hostId,
+				name: "Old Camp",
+				updatedAt: new Date("2026-08-24T09:00:00.000Z"),
+			});
+			const afterCampsite = buildCampsite({
+				id: campsiteId,
+				hostId,
+				name: "Updated Pine Camp",
+				province: "Da Nang",
+				updatedAt: new Date("2026-08-24T09:05:00.000Z"),
+			});
+			transactionalCampsitesRepository.findDetailedById.mockResolvedValue({
+				campsite: beforeCampsite,
+				media: [buildMedia({ campsiteId })],
+				zones: [buildZone({ campsiteId })],
+				latitude: 11.940419,
+				longitude: 108.458313,
+			});
+			transactionalCampsitesRepository.updateInformation.mockResolvedValue({
+				campsite: afterCampsite,
+				media: [buildMedia({ campsiteId, url: "https://example.com/new-cover.jpg" })],
+				zones: [buildZone({ campsiteId })],
+				latitude: 16.1348,
+				longitude: 108.114855,
+			});
+
+			const result = await service.update(hostId, campsiteId, {
+				name: "Updated Pine Camp",
+				latitude: 16.1348,
+				longitude: 108.114855,
+				province: "Da Nang",
+				media: [{ url: "https://example.com/new-cover.jpg", type: "photo", sortOrder: 0 }],
+				expectedUpdatedAt: "2026-08-24T09:00:00.000Z",
+				changeReason: "season refresh",
+			});
+
+			expect(transactionalCampsitesRepository.findDetailedById).toHaveBeenCalledWith(
+				campsiteId,
+				true
+			);
+			expect(transactionalCampsitesRepository.updateInformation).toHaveBeenCalledWith(
+				beforeCampsite,
+				expect.objectContaining({
+					name: "Updated Pine Camp",
+					latitude: 16.1348,
+					longitude: 108.114855,
+					province: "Da Nang",
+					media: [{ url: "https://example.com/new-cover.jpg", type: "photo", sortOrder: 0 }],
+				})
+			);
+			expect(auditRepository.save).toHaveBeenCalledWith(
+				expect.objectContaining({
+					actorId: hostId,
+					action: "campsite.updated",
+					targetType: "campsite",
+					targetId: campsiteId,
+					before: expect.objectContaining({ name: "Old Camp" }),
+					after: expect.objectContaining({ name: "Updated Pine Camp" }),
+					reason: "season refresh",
+				})
+			);
+			expect(result).toEqual(expect.objectContaining({ name: "Updated Pine Camp" }));
+		});
+
+		it("rejects a non-owning Host with no update, audit, or media side effects", async () => {
+			transactionalCampsitesRepository.findDetailedById.mockResolvedValue({
+				campsite: buildCampsite({ id: campsiteId, hostId: "other-host-id" }),
+				media: [],
+				zones: [],
+				latitude: 11.940419,
+				longitude: 108.458313,
+			});
+
+			await expect(
+				service.update(hostId, campsiteId, {
+					name: "Blocked edit",
+					media: [
+						{
+							url: "http://localhost:3000/uploads/campsites/pending/blocked.jpg",
+							type: "photo",
+						},
+					],
+				})
+			).rejects.toMatchObject({ status: 403 });
+
+			expect(transactionalCampsitesRepository.updateInformation).not.toHaveBeenCalled();
+			expect(auditRepository.save).not.toHaveBeenCalled();
+			expect(renameMock).not.toHaveBeenCalled();
+		});
+
+		it("rejects stale updates before persistence", async () => {
+			transactionalCampsitesRepository.findDetailedById.mockResolvedValue({
+				campsite: buildCampsite({
+					id: campsiteId,
+					hostId,
+					updatedAt: new Date("2026-08-24T09:05:00.000Z"),
+				}),
+				media: [],
+				zones: [],
+				latitude: 11.940419,
+				longitude: 108.458313,
+			});
+
+			await expect(
+				service.update(hostId, campsiteId, {
+					name: "Stale edit",
+					expectedUpdatedAt: "2026-08-24T09:00:00.000Z",
+				})
+			).rejects.toMatchObject({ status: 409 });
+
+			expect(transactionalCampsitesRepository.updateInformation).not.toHaveBeenCalled();
+			expect(auditRepository.save).not.toHaveBeenCalled();
+		});
+
+		it("rejects partial coordinate updates before opening a transaction", async () => {
+			await expect(service.update(hostId, campsiteId, { latitude: 16.1348 })).rejects.toMatchObject(
+				{
+					status: 422,
+				}
+			);
+
+			expect(dataSource.transaction).not.toHaveBeenCalled();
 		});
 	});
 });

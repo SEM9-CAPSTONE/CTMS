@@ -1,9 +1,9 @@
 import { useCallback, useRef, useState } from "react";
 import { HttpError } from "../../../core/api";
 import { campsitesService } from "../services/campsites.service";
-import type { CreateCampsiteInput, CreatedCampsite } from "../types";
+import type { CreatedCampsite, UpdateCampsiteInput } from "../types";
 
-export interface CreateCampsiteError {
+export interface UpdateCampsiteError {
 	status?: number;
 	message: string;
 	canRetry: boolean;
@@ -51,10 +51,10 @@ function extractBackendMessage(error: HttpError): string | null {
 	return null;
 }
 
-export function mapCreateCampsiteError(error: unknown): CreateCampsiteError {
+export function mapUpdateCampsiteError(error: unknown): UpdateCampsiteError {
 	if (!(error instanceof HttpError)) {
 		return {
-			message: "Không thể tạo khu cắm trại. Vui lòng kiểm tra kết nối và thử lại.",
+			message: "Không thể cập nhật khu cắm trại. Vui lòng kiểm tra kết nối và thử lại.",
 			canRetry: true,
 		};
 	}
@@ -72,7 +72,14 @@ export function mapCreateCampsiteError(error: unknown): CreateCampsiteError {
 		case 403:
 			return {
 				status: 403,
-				message: "Bạn không có quyền tạo khu cắm trại. Chức năng này chỉ dành cho Host.",
+				message: "Bạn không có quyền cập nhật khu cắm trại này.",
+				canRetry: false,
+			};
+
+		case 404:
+			return {
+				status: 404,
+				message: "Không tìm thấy khu cắm trại cần cập nhật.",
 				canRetry: false,
 			};
 
@@ -81,7 +88,7 @@ export function mapCreateCampsiteError(error: unknown): CreateCampsiteError {
 				status: 409,
 				message:
 					backendMessage ||
-					"Yêu cầu bị xung đột. Dữ liệu bạn đã nhập vẫn được giữ nguyên. Vui lòng thử lại.",
+					"Khu cắm trại đã được thay đổi bởi phiên khác. Dữ liệu bạn nhập vẫn được giữ nguyên. Vui lòng tải lại hoặc thử gửi lại.",
 				canRetry: true,
 			};
 
@@ -96,22 +103,22 @@ export function mapCreateCampsiteError(error: unknown): CreateCampsiteError {
 		default:
 			return {
 				status: error.status,
-				message: backendMessage || "Không thể tạo khu cắm trại. Vui lòng thử lại.",
+				message: backendMessage || "Không thể cập nhật khu cắm trại. Vui lòng thử lại.",
 				canRetry: error.status >= 500,
 			};
 	}
 }
 
-export function useCreateCampsite() {
+export function useUpdateCampsite(campsiteId: string) {
 	const [isSubmitting, setIsSubmitting] = useState(false);
-	const [error, setError] = useState<CreateCampsiteError | null>(null);
-	const [createdCampsite, setCreatedCampsite] = useState<CreatedCampsite | null>(null);
+	const [error, setError] = useState<UpdateCampsiteError | null>(null);
+	const [updatedCampsite, setUpdatedCampsite] = useState<CreatedCampsite | null>(null);
 
 	const submissionInFlightRef = useRef(false);
-	const lastPayloadRef = useRef<CreateCampsiteInput | null>(null);
+	const lastPayloadRef = useRef<UpdateCampsiteInput | null>(null);
 
 	const execute = useCallback(
-		async (payload: CreateCampsiteInput): Promise<CreatedCampsite | null> => {
+		async (payload: UpdateCampsiteInput): Promise<CreatedCampsite | null> => {
 			if (submissionInFlightRef.current) {
 				return null;
 			}
@@ -121,22 +128,22 @@ export function useCreateCampsite() {
 			setError(null);
 
 			try {
-				const created = await campsitesService.create(payload);
-				setCreatedCampsite(created);
-				return created;
+				const updated = await campsitesService.update(campsiteId, payload);
+				setUpdatedCampsite(updated);
+				return updated;
 			} catch (requestError) {
-				setError(mapCreateCampsiteError(requestError));
+				setError(mapUpdateCampsiteError(requestError));
 				return null;
 			} finally {
 				submissionInFlightRef.current = false;
 				setIsSubmitting(false);
 			}
 		},
-		[]
+		[campsiteId]
 	);
 
 	const submit = useCallback(
-		async (payload: CreateCampsiteInput) => {
+		async (payload: UpdateCampsiteInput) => {
 			lastPayloadRef.current = payload;
 			return execute(payload);
 		},
@@ -152,7 +159,7 @@ export function useCreateCampsite() {
 	}, [execute]);
 
 	const reset = useCallback(() => {
-		setCreatedCampsite(null);
+		setUpdatedCampsite(null);
 		setError(null);
 		lastPayloadRef.current = null;
 	}, []);
@@ -160,7 +167,7 @@ export function useCreateCampsite() {
 	return {
 		isSubmitting,
 		error,
-		createdCampsite,
+		updatedCampsite,
 		submit,
 		retry,
 		reset,

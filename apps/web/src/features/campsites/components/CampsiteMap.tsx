@@ -173,7 +173,7 @@ export default function CampsiteMap({ value, disabled = false, onPick }: Campsit
 						<button
 							type="button"
 							disabled={disabled}
-							aria-label="Bản đồ campsite"
+							aria-label="Bản đồ khu cắm trại"
 							onClick={(event) => pickFromPointer(event.clientX, event.clientY)}
 							onKeyDown={(event) => {
 								if (event.key === "Enter" || event.key === " ") {
@@ -199,7 +199,7 @@ export default function CampsiteMap({ value, disabled = false, onPick }: Campsit
 				{shouldUseFallback && (
 					<button
 						type="button"
-						aria-label="Marker vị trí campsite"
+						aria-label="Marker vị trí khu cắm trại"
 						disabled={disabled}
 						onClick={(event) => event.stopPropagation()}
 						onPointerDown={(event) => {

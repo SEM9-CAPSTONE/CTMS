@@ -182,6 +182,69 @@ describe("campsitesService.getMine", () => {
 	});
 });
 
+describe("campsitesService.update", () => {
+	beforeEach(() => {
+		localStorage.clear();
+		localStorage.setItem("accessToken", "host-access-token");
+	});
+
+	it("PATCHes the Edit Campsite contract with concurrency metadata", async () => {
+		let capturedRequest: RequestInit | undefined;
+		let capturedUrl = "";
+
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+				capturedUrl = input.toString();
+				capturedRequest = init;
+
+				return new Response(
+					JSON.stringify({
+						id: "8cc75ab5-8845-43fc-b847-e17cf91a6daa",
+						hostId: "host-id",
+						name: "Updated Camp",
+						description: "Description",
+						latitude: 11.940419,
+						longitude: 108.458313,
+						province: "Lam Dong",
+						policies: { rules: "No fire" },
+						operatingHours: { opensAt: "08:00", closesAt: "18:00" },
+						status: "active",
+						media: [],
+						createdAt: "2026-08-19T00:00:00.000Z",
+						updatedAt: "2026-08-24T00:00:00.000Z",
+					}),
+					{
+						status: 200,
+						headers: { "Content-Type": "application/json" },
+					}
+				);
+			})
+		);
+
+		await campsitesService.update("8cc75ab5-8845-43fc-b847-e17cf91a6daa", {
+			name: "Updated Camp",
+			expectedUpdatedAt: "2026-08-19T00:00:00.000Z",
+			changeReason: "host_edit_campsite",
+		});
+
+		expect(capturedUrl.endsWith("/campsites/8cc75ab5-8845-43fc-b847-e17cf91a6daa")).toBe(true);
+		expect(capturedRequest?.method).toBe("PATCH");
+		expect((capturedRequest?.headers as Record<string, string>).Authorization).toBe(
+			"Bearer host-access-token"
+		);
+
+		const body = JSON.parse(String(capturedRequest?.body)) as Record<string, unknown>;
+		expect(body).toMatchObject({
+			name: "Updated Camp",
+			expectedUpdatedAt: "2026-08-19T00:00:00.000Z",
+			changeReason: "host_edit_campsite",
+		});
+		expect(body.hostId).toBeUndefined();
+		expect(body.status).toBeUndefined();
+	});
+});
+
 describe("campsitesService.uploadMedia", () => {
 	beforeEach(() => {
 		localStorage.clear();

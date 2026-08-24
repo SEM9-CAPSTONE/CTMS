@@ -93,7 +93,7 @@ export function LocationSearch({
 	return (
 		<div>
 			<label htmlFor="placeLabel" className="text-sm font-bold text-[#34483b]">
-				Địa điểm campsite *
+				Địa điểm khu cắm trại *
 			</label>
 
 			<div className="relative mt-1.5">

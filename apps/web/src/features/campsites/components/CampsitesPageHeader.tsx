@@ -16,7 +16,7 @@ export function CampsitesPageHeader({ onBackHome }: CampsitesPageHeaderProps) {
 			<div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
 				<div className="flex items-center gap-2.5">
 					<Tent className="size-6 text-[#164027]" />
-					<h1 className="text-lg font-extrabold text-[#10221b]">Tìm kiếm Campsite</h1>
+					<h1 className="text-lg font-extrabold text-[#10221b]">Tìm kiếm Khu cắm trại</h1>
 				</div>
 				{onBackHome && (
 					<button

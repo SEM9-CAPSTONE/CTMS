@@ -7,6 +7,7 @@ export enum RoutePath {
 	DASHBOARD = "/dashboard",
 	CAMPSITES = "/campsites",
 	HOST_CREATE_CAMPSITE = "/host/campsites/create",
+	HOST_EDIT_CAMPSITE = "/host/campsites/:id/edit",
 	TREKKING = "/trekking",
 	SAFETY = "/safety",
 	CAMPER_PROFILE = "/camper/profile",

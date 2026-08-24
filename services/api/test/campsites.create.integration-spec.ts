@@ -143,7 +143,7 @@ describe("Create Campsite POST /campsites (integration, real Postgres)", () => {
 		return rows[0].count;
 	}
 
-	it("creates a Draft campsite with media and an audit log for an authenticated Host", async () => {
+	it("creates a pending approval campsite with media and an audit log for an authenticated Host", async () => {
 		const host = await createAccount("host", "active");
 		const payload = validPayload();
 

@@ -85,7 +85,7 @@ async function fillAndSubmitLogin(page: Page, identifier: string, password: stri
  * to clear before interacting, exactly as a real user's click would.
  */
 async function waitForSearchIdle(page: Page): Promise<void> {
-	await expect(page.getByText(/đang tìm kiếm campsite/i)).not.toBeVisible();
+	await expect(page.getByText(/đang tìm kiếm khu cắm trại/i)).not.toBeVisible();
 }
 
 test.describe("Search Campsites (E2E, real backend + real Postgres)", () => {
@@ -101,6 +101,16 @@ test.describe("Search Campsites (E2E, real backend + real Postgres)", () => {
 	let capturedSession: CapturedSession | null = null;
 	let seededHostId: string | null = null;
 	let seededCampsiteIds: string[] = [];
+
+	test.beforeAll(() => {
+		runDbHelperJson("create-account", {
+			email: camperEmail,
+			phone: camperPhone,
+			password: PASSWORD,
+			role: "camper",
+			status: "active",
+		});
+	});
 
 	test.afterAll(() => {
 		try {
@@ -125,51 +135,10 @@ test.describe("Search Campsites (E2E, real backend + real Postgres)", () => {
 		}
 	});
 
-	test("happy path: Camper registers, seeded active campsites are found by province and further narrowed by amenities; the draft campsite never appears", async ({
+	test("happy path: Camper logs in, seeded active campsites are found by province and further narrowed by amenities; the draft campsite never appears", async ({
 		page,
 	}) => {
-		// --- 1. Real register -> verify OTP -> login (mirrors audit-logs.spec.ts) ---
-		await page.route("**/api/auth/send-otp", async (route) => {
-			await route.fulfill({
-				status: 200,
-				contentType: "application/json",
-				body: JSON.stringify({ id: "mock-otp-id", status: "pending_verification" }),
-			});
-		});
-
-		await page.goto("/register");
-		await page.getByRole("button", { name: "Tiếp tục nhập thông tin" }).click();
-		await page.getByPlaceholder("Nguyễn Văn A").fill("CTMS78 E2E Camper");
-		const passwordInputs = page.getByPlaceholder("••••••••");
-		await passwordInputs.nth(0).fill(PASSWORD);
-		await passwordInputs.nth(1).fill(PASSWORD);
-		await page.getByPlaceholder("camper@example.com").fill(camperEmail);
-		await page.getByPlaceholder("0912345678").fill(camperPhone);
-		await page.getByRole("button", { name: "Đăng ký ngay" }).click();
-		await expect(page).toHaveURL(/\/verify-otp$/);
-
-		const phoneChannelButton = page.getByRole("button", { name: "Xác minh qua SĐT" });
-		await phoneChannelButton.scrollIntoViewIfNeeded();
-		await expect(phoneChannelButton).toBeEnabled();
-		await phoneChannelButton.click({ force: true });
-		const sendOtpButton = page.getByRole("button", { name: "Gửi mã OTP" });
-		await expect(sendOtpButton).toBeEnabled();
-		await Promise.all([
-			page.waitForResponse(
-				(response) =>
-					response.url().includes("/api/auth/send-otp") && response.request().method() === "POST"
-			),
-			sendOtpButton.click(),
-		]);
-		await expect(page.getByLabel("Mã OTP *")).toBeEnabled();
-
-		const otpResult = runDbHelper("get-otp", camperEmail) as unknown as { otp: string };
-		await page.getByLabel("Mã OTP *").fill(otpResult.otp);
-		await page.getByRole("button", { name: "Xác minh", exact: true }).click();
-		await expect(page.getByText("Xác thực thành công!")).toBeVisible();
-		await page.getByRole("button", { name: "Đến trang đăng nhập ngay" }).click();
-		await expect(page).toHaveURL(/\/login$/);
-
+		// --- 1. Login with a real active Camper account. OTP behavior is covered by verify-otp.spec.ts. ---
 		await fillAndSubmitLogin(page, camperEmail, PASSWORD);
 		await expect
 			.poll(() => page.evaluate(() => window.localStorage.getItem("accessToken")))
@@ -212,7 +181,7 @@ test.describe("Search Campsites (E2E, real backend + real Postgres)", () => {
 
 		// --- 3. Search by province: only the 2 active campsites, never the draft ---
 		await page.goto("/campsites");
-		await expect(page.getByRole("heading", { name: "Tìm kiếm Campsite" })).toBeVisible();
+		await expect(page.getByRole("heading", { name: "Tìm kiếm Khu cắm trại" })).toBeVisible();
 		await waitForSearchIdle(page);
 		await page.getByLabel("Tỉnh/Thành").fill(marker);
 		await page.getByRole("button", { name: "Tìm kiếm" }).click();
@@ -250,7 +219,7 @@ test.describe("Search Campsites (E2E, real backend + real Postgres)", () => {
 		const countBefore = runDbHelper("count-campsites", marker) as unknown as { count: number };
 
 		await page.goto("/campsites");
-		await expect(page.getByRole("heading", { name: "Tìm kiếm Campsite" })).toBeVisible();
+		await expect(page.getByRole("heading", { name: "Tìm kiếm Khu cắm trại" })).toBeVisible();
 		await waitForSearchIdle(page);
 		await page.getByLabel("Tỉnh/Thành").fill("A".repeat(101));
 		await page.getByRole("button", { name: "Tìm kiếm" }).click();

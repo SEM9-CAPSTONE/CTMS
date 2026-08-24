@@ -20,7 +20,9 @@ import { CampsiteLocationPicker } from "./CampsiteLocationPicker";
 interface CreateCampsiteFormProps {
 	isSubmitting: boolean;
 	error: CreateCampsiteError | null;
-	onSubmit: (payload: CreateCampsiteInput) => Promise<unknown>;
+	mode?: "create" | "edit";
+	initialValues?: CreateCampsiteFormValues;
+	onSubmit: (payload: CreateCampsiteInput, values: CreateCampsiteFormValues) => Promise<unknown>;
 	onRetry?: () => Promise<unknown>;
 }
 
@@ -44,13 +46,16 @@ function toCoordinateFormValue(value: number | null): string {
 export function CreateCampsiteForm({
 	isSubmitting,
 	error,
+	mode = "create",
+	initialValues,
 	onSubmit,
 	onRetry,
 }: CreateCampsiteFormProps) {
 	const fileInputRef = useRef<HTMLInputElement | null>(null);
 	const [isUploadingImage, setIsUploadingImage] = useState(false);
 	const [uploadError, setUploadError] = useState("");
-	const defaultValues = useMemo(() => loadCreateCampsiteDraft(), []);
+	const defaultValues = useMemo(() => initialValues ?? loadCreateCampsiteDraft(), [initialValues]);
+	const isEditMode = mode === "edit";
 	const {
 		register,
 		control,
@@ -74,14 +79,18 @@ export function CreateCampsiteForm({
 	const longitude = watch("longitude");
 
 	const submitForm = handleSubmit(async (values) => {
-		const created = await onSubmit(toCreateCampsiteInput(values));
+		const created = await onSubmit(toCreateCampsiteInput(values), values);
 
-		if (created) {
+		if (created && !isEditMode) {
 			clearCreateCampsiteDraft();
 		}
 	});
 
 	useEffect(() => {
+		if (isEditMode) {
+			return undefined;
+		}
+
 		const subscription = watch((values) => {
 			saveCreateCampsiteDraft({
 				...CREATE_CAMPSITE_DEFAULT_VALUES,
@@ -91,7 +100,7 @@ export function CreateCampsiteForm({
 		});
 
 		return () => subscription.unsubscribe();
-	}, [watch]);
+	}, [isEditMode, watch]);
 
 	const uploadImages = async (files: FileList | null) => {
 		if (!files || files.length === 0) {
@@ -134,7 +143,9 @@ export function CreateCampsiteForm({
 						<AlertCircle className="mt-0.5 size-5 shrink-0 text-red-600" />
 
 						<div className="flex-1">
-							<p className="text-sm font-bold text-red-800">Không thể tạo campsite</p>
+							<p className="text-sm font-bold text-red-800">
+								{isEditMode ? "Không thể cập nhật khu cắm trại" : "Không thể tạo khu cắm trại"}
+							</p>
 							<p className="mt-1 text-sm text-red-700">{error.message}</p>
 
 							{error.canRetry && onRetry && (
@@ -154,12 +165,12 @@ export function CreateCampsiteForm({
 			)}
 
 			<section className="rounded-2xl border border-[#e0ebe0] bg-white p-5 shadow-sm sm:p-6">
-				<h2 className="text-lg font-extrabold text-[#10221b]">Thông tin campsite</h2>
+				<h2 className="text-lg font-extrabold text-[#10221b]">Thông tin khu cắm trại</h2>
 
 				<div className="mt-5 grid gap-5 md:grid-cols-2">
 					<div className="md:col-span-2">
 						<label htmlFor="name" className={labelClass}>
-							Tên campsite *
+							Tên khu cắm trại *
 						</label>
 						<input
 							id="name"
@@ -181,7 +192,7 @@ export function CreateCampsiteForm({
 							rows={4}
 							maxLength={2000}
 							disabled={isSubmitting}
-							placeholder="Mô tả địa điểm, trải nghiệm và điều kiện campsite..."
+							placeholder="Mô tả địa điểm, trải nghiệm và điều kiện khu cắm trại..."
 							className={inputClass}
 							{...register("description")}
 						/>
@@ -262,7 +273,7 @@ export function CreateCampsiteForm({
 							rows={4}
 							maxLength={2000}
 							disabled={isSubmitting}
-							placeholder="Không đốt lửa sau 21:00. Thu gom toàn bộ rác trước khi rời campsite."
+							placeholder="Không đốt lửa sau 21:00. Thu gom toàn bộ rác trước khi rời khu cắm trại."
 							className={inputClass}
 							{...register("policies")}
 						/>
@@ -304,7 +315,9 @@ export function CreateCampsiteForm({
 			<section className="rounded-2xl border border-[#e0ebe0] bg-white p-5 shadow-sm sm:p-6">
 				<div className="flex flex-wrap items-center justify-between gap-3">
 					<div>
-						<h2 className="text-lg font-extrabold text-[#10221b]">Ảnh ban đầu</h2>
+						<h2 className="text-lg font-extrabold text-[#10221b]">
+							{isEditMode ? "Ảnh khu cắm trại" : "Ảnh ban đầu"}
+						</h2>
 						<p className="mt-1 text-sm text-[#667a6d]">Tối thiểu 1 ảnh, tối đa 10 ảnh.</p>
 					</div>
 
@@ -342,7 +355,9 @@ export function CreateCampsiteForm({
 					>
 						<ImagePlus className="mx-auto size-9 text-[#8fa096]" />
 						<p className="mt-2 text-sm font-bold text-[#425048]">Chưa có ảnh ban đầu</p>
-						<p className="mt-1 text-xs text-[#788b7e]">Nhấn “Thêm ảnh” để bổ sung ảnh campsite.</p>
+						<p className="mt-1 text-xs text-[#788b7e]">
+							Nhấn “Thêm ảnh” để bổ sung ảnh khu cắm trại.
+						</p>
 					</div>
 				) : (
 					<div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
@@ -356,7 +371,7 @@ export function CreateCampsiteForm({
 
 								<img
 									src={field.url}
-									alt={`Ảnh campsite ${index + 1}`}
+									alt={`Ảnh khu cắm trại ${index + 1}`}
 									className="aspect-[4/3] w-full object-cover"
 								/>
 
@@ -397,10 +412,12 @@ export function CreateCampsiteForm({
 					{isSubmitting ? (
 						<>
 							<Loader2 className="size-4 animate-spin" />
-							Đang tạo campsite...
+							{isEditMode ? "Đang cập nhật khu cắm trại..." : "Đang tạo khu cắm trại..."}
 						</>
+					) : isEditMode ? (
+						"Lưu thay đổi"
 					) : (
-						"Tạo campsite"
+						"Tạo khu cắm trại"
 					)}
 				</button>
 			</div>
