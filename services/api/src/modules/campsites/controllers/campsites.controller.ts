@@ -43,7 +43,8 @@ import { PaginatedCampsiteSearchResponseDto } from "../dto/campsite-search-resul
 import { CreateCampsiteDto } from "../dto/create-campsite.dto";
 // biome-ignore lint/style/useImportType: used as a @Query() parameter type, needs design:paramtypes metadata for NestJS's validation/transform pipeline
 import { SearchCampsitesQueryDto } from "../dto/search-campsites-query.dto";
-import type { UpdateCampsiteMediaDto } from "../dto/update-campsite-media.dto";
+// biome-ignore lint/style/useImportType: used as a @Body() parameter type, needs design:paramtypes metadata for NestJS's validation/transform pipeline
+import { UpdateCampsiteMediaDto } from "../dto/update-campsite-media.dto";
 // biome-ignore lint/style/useImportType: used as a @Body() parameter type, needs design:paramtypes metadata for NestJS's validation/transform pipeline
 import { UpdateCampsiteDto } from "../dto/update-campsite.dto";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
