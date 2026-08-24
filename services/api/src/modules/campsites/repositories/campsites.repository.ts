@@ -74,6 +74,23 @@ export interface CreatedPendingApprovalCampsite {
 	longitude: number;
 }
 
+export interface UpdateCampsiteInformationInput {
+	name?: string;
+	description?: string;
+	latitude?: number;
+	longitude?: number;
+	province?: string;
+	policies?: Record<string, unknown>;
+	operatingHours?: Record<string, unknown>;
+	seasonStartDate?: string;
+	seasonEndDate?: string;
+	maxAdvanceBookingDays?: number;
+	minNights?: number;
+	maxNights?: number;
+	media?: CreateCampsiteMediaInput[];
+	zones?: CreateCampsiteZoneInput[];
+}
+
 @Injectable()
 export class CampsitesRepository extends Repository<Campsite> {
 	async createPendingApproval(
@@ -245,6 +262,118 @@ export class CampsitesRepository extends Repository<Campsite> {
 				longitude: coordinate.longitude,
 			};
 		});
+	}
+
+	async findDetailedById(id: string, lockForUpdate = false): Promise<HostCampsiteResultRow | null> {
+		const qb = this.createQueryBuilder("campsite")
+			.addSelect("ST_Y(campsite.location::geometry)", "campsite_latitude")
+			.addSelect("ST_X(campsite.location::geometry)", "campsite_longitude")
+			.where("campsite.id = :id", { id });
+
+		if (lockForUpdate) {
+			qb.setLock("pessimistic_write");
+		}
+
+		const { entities: campsites, raw } = await qb.getRawAndEntities();
+		const campsite = campsites[0];
+		if (!campsite) {
+			return null;
+		}
+
+		const mediaByCampsiteId = await this.resolveMedia([campsite.id]);
+		const zonesByCampsiteId = await this.resolveZones([campsite.id]);
+		const row = raw[0] as Record<string, unknown> | undefined;
+
+		return {
+			campsite,
+			media: mediaByCampsiteId.get(campsite.id) ?? [],
+			zones: zonesByCampsiteId.get(campsite.id) ?? [],
+			latitude: Number(row?.campsite_latitude ?? 0),
+			longitude: Number(row?.campsite_longitude ?? 0),
+		};
+	}
+
+	async updateInformation(
+		campsite: Campsite,
+		input: UpdateCampsiteInformationInput
+	): Promise<HostCampsiteResultRow> {
+		if (input.name !== undefined) {
+			campsite.name = input.name;
+		}
+		if (input.description !== undefined) {
+			campsite.description = input.description;
+		}
+		if (input.latitude !== undefined && input.longitude !== undefined) {
+			campsite.location = toPoint(input.latitude, input.longitude);
+		}
+		if (input.province !== undefined) {
+			campsite.province = input.province;
+		}
+		if (input.policies !== undefined) {
+			campsite.policies = input.policies;
+		}
+		if (input.operatingHours !== undefined) {
+			campsite.operatingHours = input.operatingHours;
+		}
+		if (input.seasonStartDate !== undefined) {
+			campsite.seasonStartDate = input.seasonStartDate;
+		}
+		if (input.seasonEndDate !== undefined) {
+			campsite.seasonEndDate = input.seasonEndDate;
+		}
+		if (input.maxAdvanceBookingDays !== undefined) {
+			campsite.maxAdvanceBookingDays = input.maxAdvanceBookingDays;
+		}
+		if (input.minNights !== undefined) {
+			campsite.minNights = input.minNights;
+		}
+		if (input.maxNights !== undefined) {
+			campsite.maxNights = input.maxNights;
+		}
+
+		await this.save(campsite);
+
+		if (input.media !== undefined) {
+			const mediaRepository = this.manager.getRepository(CampsiteMedia);
+			await mediaRepository.delete({ campsiteId: campsite.id });
+			await mediaRepository.save(
+				input.media.map((item, index) =>
+					mediaRepository.create({
+						campsiteId: campsite.id,
+						url: item.url,
+						type: item.type,
+						sortOrder: item.sortOrder ?? index,
+					})
+				)
+			);
+		}
+
+		if (input.zones !== undefined) {
+			const zoneRepository = this.manager.getRepository(Zone);
+			await zoneRepository.delete({ campsiteId: campsite.id });
+			await zoneRepository.save(
+				input.zones.map((zone) =>
+					zoneRepository.create({
+						campsiteId: campsite.id,
+						name: zone.name,
+						location: toPoint(zone.latitude, zone.longitude),
+						maxTents: zone.maxTents,
+						maxPeople: zone.maxPeople,
+						basePrice: zone.basePrice.toFixed(2),
+						amenities: zone.amenities ?? null,
+						terrainNote: zone.terrainNote ?? null,
+						status: ZoneStatus.ACTIVE,
+					})
+				)
+			);
+		}
+
+		const updated = await this.findDetailedById(campsite.id);
+		if (!updated) {
+			throw new Error("Updated campsite could not be reloaded");
+		}
+
+		return updated;
 	}
 
 	private async resolveCoverImages(campsiteIds: string[]): Promise<Map<string, string>> {

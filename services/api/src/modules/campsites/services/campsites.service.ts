@@ -1,6 +1,12 @@
 import { mkdir, rename, unlink } from "node:fs/promises";
 import { basename, join } from "node:path";
-import { Injectable, UnprocessableEntityException } from "@nestjs/common";
+import {
+	ConflictException,
+	ForbiddenException,
+	Injectable,
+	NotFoundException,
+	UnprocessableEntityException,
+} from "@nestjs/common";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { DataSource, type EntityManager } from "typeorm";
 import {
@@ -17,6 +23,7 @@ import {
 } from "../dto/campsite-search-result.dto";
 import type { CreateCampsiteDto } from "../dto/create-campsite.dto";
 import type { SearchCampsitesQueryDto } from "../dto/search-campsites-query.dto";
+import type { UpdateCampsiteDto } from "../dto/update-campsite.dto";
 import type { CampsiteMedia } from "../entities/campsite-media.entity";
 import type { Campsite } from "../entities/campsite.entity";
 import type { Zone } from "../entities/zone.entity";
@@ -121,6 +128,99 @@ export class CampsitesService {
 		);
 	}
 
+	async update(
+		hostId: string,
+		campsiteId: string,
+		dto: UpdateCampsiteDto
+	): Promise<CampsiteResponseDto> {
+		this.ensureUpdateHasChanges(dto);
+		let promotedMedia: PromotedCampsiteMedia | undefined;
+
+		try {
+			const { campsite, media, zones, latitude, longitude } = await this.dataSource.transaction(
+				async (manager: EntityManager) => {
+					const transactionalCampsitesRepository = manager.withRepository(this.campsitesRepository);
+					const current = await transactionalCampsitesRepository.findDetailedById(campsiteId, true);
+
+					if (!current) {
+						throw new NotFoundException("Campsite not found");
+					}
+					if (current.campsite.hostId !== hostId) {
+						throw new ForbiddenException("Only the owning Host can edit this campsite");
+					}
+					if (
+						dto.expectedUpdatedAt &&
+						!sameInstant(current.campsite.updatedAt, dto.expectedUpdatedAt)
+					) {
+						throw new ConflictException("Campsite information changed. Reload before retrying.");
+					}
+
+					promotedMedia =
+						dto.media === undefined ? undefined : await this.promotePendingMedia(dto.media);
+
+					const before = this.snapshotCampsite(
+						current.campsite,
+						current.media,
+						current.zones,
+						current.latitude,
+						current.longitude
+					);
+
+					const input = {
+						name: dto.name,
+						description: dto.description,
+						latitude: dto.latitude,
+						longitude: dto.longitude,
+						province: dto.province,
+						policies: dto.policies ? { ...dto.policies } : undefined,
+						operatingHours: dto.operatingHours ? { ...dto.operatingHours } : undefined,
+						seasonStartDate: dto.seasonStartDate,
+						seasonEndDate: dto.seasonEndDate,
+						maxAdvanceBookingDays: dto.maxAdvanceBookingDays,
+						minNights: dto.minNights,
+						maxNights: dto.maxNights,
+						media: promotedMedia?.media.map((item) => ({
+							url: item.url,
+							type: item.type ?? "photo",
+							sortOrder: item.sortOrder,
+						})),
+						zones: dto.zones,
+					};
+					const updated = await transactionalCampsitesRepository.updateInformation(
+						current.campsite,
+						input
+					);
+					const after = this.snapshotCampsite(
+						updated.campsite,
+						updated.media,
+						updated.zones,
+						updated.latitude,
+						updated.longitude
+					);
+
+					if (!deepEqual(before, after)) {
+						await manager.getRepository(AuditLog).save({
+							actorId: hostId,
+							action: "campsite.updated",
+							targetType: "campsite",
+							targetId: updated.campsite.id,
+							before,
+							after,
+							reason: dto.changeReason ?? "host_edit_campsite",
+						});
+					}
+
+					return updated;
+				}
+			);
+
+			return toCampsiteResponse(campsite, media, zones, latitude, longitude);
+		} catch (error) {
+			await this.deletePromotedFiles(promotedMedia?.filePaths ?? []);
+			throw error;
+		}
+	}
+
 	private snapshotCreatedCampsite(
 		campsite: Campsite,
 		media: CampsiteMedia[],
@@ -128,6 +228,16 @@ export class CampsitesService {
 		latitude: number,
 		longitude: number
 	) {
+		return this.snapshotCampsite(campsite, media, zones, latitude, longitude);
+	}
+
+	private snapshotCampsite(
+		campsite: Campsite,
+		media: CampsiteMedia[],
+		zones: Zone[],
+		latitude: number,
+		longitude: number
+	): Record<string, unknown> {
 		return {
 			id: campsite.id,
 			hostId: campsite.hostId,
@@ -161,6 +271,55 @@ export class CampsitesService {
 				status: zone.status,
 			})),
 		};
+	}
+
+	private ensureUpdateHasChanges(dto: UpdateCampsiteDto): void {
+		if (
+			(dto.latitude === undefined && dto.longitude !== undefined) ||
+			(dto.latitude !== undefined && dto.longitude === undefined)
+		) {
+			throw new UnprocessableEntityException({
+				statusCode: 422,
+				error: "Unprocessable Entity",
+				message: [
+					{
+						field: "location",
+						errors: ["latitude and longitude must be updated together"],
+					},
+				],
+			});
+		}
+
+		const editableKeys: Array<keyof UpdateCampsiteDto> = [
+			"name",
+			"description",
+			"latitude",
+			"longitude",
+			"province",
+			"policies",
+			"operatingHours",
+			"seasonStartDate",
+			"seasonEndDate",
+			"maxAdvanceBookingDays",
+			"minNights",
+			"maxNights",
+			"media",
+			"zones",
+		];
+		if (editableKeys.some((key) => dto[key] !== undefined)) {
+			return;
+		}
+
+		throw new UnprocessableEntityException({
+			statusCode: 422,
+			error: "Unprocessable Entity",
+			message: [
+				{
+					field: "body",
+					errors: ["At least one editable campsite field is required"],
+				},
+			],
+		});
 	}
 
 	private async promotePendingMedia(
@@ -252,4 +411,13 @@ function isFileNotFoundError(error: unknown): boolean {
 		"code" in error &&
 		(error as { code?: unknown }).code === "ENOENT"
 	);
+}
+
+function sameInstant(left: Date, right: string): boolean {
+	const rightDate = new Date(right);
+	return Number.isFinite(rightDate.getTime()) && left.getTime() === rightDate.getTime();
+}
+
+function deepEqual(left: Record<string, unknown>, right: Record<string, unknown>): boolean {
+	return JSON.stringify(left) === JSON.stringify(right);
 }
