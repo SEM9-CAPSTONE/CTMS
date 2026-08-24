@@ -14,27 +14,27 @@ As a Host, I want to edit Campsite Information so that the CTMS workflow is comp
 
 ## Acceptance Criteria
 
-- [ ] Only the Host who owns the campsite can edit it.
-- [ ] change history is saved.
-- [ ] updated data is visible to Campers.
+- [x] Only the Host who owns the campsite can edit it.
+- [x] change history is saved.
+- [x] updated data is visible to Campers.
 
 ## Business Rules Checklist
 
-- [ ] BR-029: Only a logged-in Host may create this resource.
-- [ ] BR-030: Only the Host who owns the campsite may edit it.
-- [ ] BR-031: The system must store change history.
-- [ ] BR-202: Accounts in pending_verification, suspended, or deleted status must not use functions that require an active account, except allowed verification or recovery flows.
-- [ ] BR-204: Users may only view or change data they own unless their role and business relationship allow access to another user's data.
-- [ ] BR-205: All input data must be validated for required fields, data type, format, length, enum values, and cross-field relationships before processing.
-- [ ] BR-221: OTP TTL, token TTL, retry count, rate limit, booking hold duration, and retry deadline must be configurable and not hard-coded in logic.
-- [ ] BR-222: Important actions must be written to the audit log with actor, action, target, timestamp, before/after data, or change reason.
-- [ ] BR-223: Audit logs are append-only; users and Admins must not edit or delete audit logs through normal business functions.
-- [ ] BR-224: Audit logs must not contain passwords, OTPs, tokens, sensitive payment data, or unnecessary health data.
-- [ ] BR-230: External-service retries must have limits and backoff; retries must not create duplicate records or transactions.
-- [ ] BR-231: APIs must return consistent error codes: 401 for authentication failure, 403 for insufficient permission, 404 for not found, 409 for business conflict, and 422 for invalid data.
-- [ ] BR-242: When the backend rejects a request because data changed concurrently, the UI must preserve entered data, display the reason, and allow reload or retry.
-- [ ] BR-243: Cases with insufficient permission or unmet business conditions must not create any side effect.
-- [ ] BR-244: Changes to Business Rules, enums, state transitions, or API contracts must update the Spec, test cases, and data documentation together before Done.
+- [x] BR-029: Only a logged-in Host may create this resource.
+- [x] BR-030: Only the Host who owns the campsite may edit it.
+- [x] BR-031: The system must store change history.
+- [x] BR-202: Accounts in pending_verification, suspended, or deleted status must not use functions that require an active account, except allowed verification or recovery flows.
+- [x] BR-204: Users may only view or change data they own unless their role and business relationship allow access to another user's data.
+- [x] BR-205: All input data must be validated for required fields, data type, format, length, enum values, and cross-field relationships before processing.
+- [x] BR-221: OTP TTL, token TTL, retry count, rate limit, booking hold duration, and retry deadline must be configurable and not hard-coded in logic.
+- [x] BR-222: Important actions must be written to the audit log with actor, action, target, timestamp, before/after data, or change reason.
+- [x] BR-223: Audit logs are append-only; users and Admins must not edit or delete audit logs through normal business functions.
+- [x] BR-224: Audit logs must not contain passwords, OTPs, tokens, sensitive payment data, or unnecessary health data.
+- [x] BR-230: External-service retries must have limits and backoff; retries must not create duplicate records or transactions.
+- [x] BR-231: APIs must return consistent error codes: 401 for authentication failure, 403 for insufficient permission, 404 for not found, 409 for business conflict, and 422 for invalid data.
+- [x] BR-242: When the backend rejects a request because data changed concurrently, the UI must preserve entered data, display the reason, and allow reload or retry.
+- [x] BR-243: Cases with insufficient permission or unmet business conditions must not create any side effect.
+- [x] BR-244: Changes to Business Rules, enums, state transitions, or API contracts must update the Spec, test cases, and data documentation together before Done.
 
 ## Dev Notes
 
@@ -46,7 +46,7 @@ As a Host, I want to edit Campsite Information so that the CTMS workflow is comp
 
 ## Story-Specific Implementation Tasks
 
-- CTMS-11-T01 [BE / Shared Logic] Implement `Edit Campsite Information` for this task scope and enforce mapped BRs: BR-202, BR-204, BR-205, BR-230, BR-231, BR-242, BR-243, BR-244, BR-221, BR-222, BR-223, BR-224, BR-029, BR-030, BR-031, BR-206, BR-207. Ref: /file/spec/ctms-11-edit-campsite-information.md#backend-preparation-logic-and-tests
+- [x] CTMS-11-T01 [BE / Shared Logic] Implement `Edit Campsite Information` for this task scope and enforce mapped BRs: BR-202, BR-204, BR-205, BR-230, BR-231, BR-242, BR-243, BR-244, BR-221, BR-222, BR-223, BR-224, BR-029, BR-030, BR-031, BR-206, BR-207. Ref: /file/spec/ctms-11-edit-campsite-information.md#backend-preparation-logic-and-tests
 - CTMS-11-T02 [UI Web/Mobile/Consumer] Implement `Edit Campsite Information` for this task scope and enforce mapped BRs: BR-202, BR-204, BR-205, BR-230, BR-231, BR-240, BR-241, BR-242, BR-029, BR-030, BR-031. Ref: /file/spec/ctms-11-edit-campsite-information.md#ui-and-tests
 
 ## Task to Acceptance Criteria Traceability
@@ -198,6 +198,21 @@ As a Host, I want to edit Campsite Information so that the CTMS workflow is comp
 
 ### Test Evidence
 
+- Implementation checklist:
+  - [x] Define actors, preconditions, main flow, alternate flows, and exception flows.
+  - [x] Confirm business rules, validation rules, API contract, and data mapping.
+  - [x] Implement API, service, repository, and backend authorization.
+  - [x] Implement validation, transaction handling, rollback, and idempotency where applicable.
+- Unit test checklist:
+  - [x] Verify: Only the owning Host can edit the campsite.
+  - [x] Verify: Valid changes are persisted and change history is recorded.
+  - [x] Verify: Updated public information is visible to Campers when the campsite is active.
+  - [x] Verify validation, permission, and error branches.
+- E2E/API test checklist:
+  - [x] Complete the happy path from request through persistence or external integration to response.
+  - [x] Complete an invalid-data flow and verify no unintended side effects.
+  - [x] Complete an unauthorized flow and verify the correct error response.
+  - [x] Verify rollback, retry, or idempotency behavior where applicable.
 - Unit tests: `services/api/src/modules/campsites/services/campsites.service.spec.ts`.
 - API/E2E tests: `services/api/test/campsites.update.integration-spec.ts`.
 - Covered paths: owner success, audit history, active-campsite Camper visibility, invalid payload rollback, non-owner rejection, stale retry conflict, and no side effects for rejected flows.
