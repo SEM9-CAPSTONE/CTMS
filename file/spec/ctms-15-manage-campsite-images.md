@@ -1,4 +1,4 @@
-﻿# CTMS-15 - Manage Campsite Images
+# CTMS-15 - Manage Campsite Images
 
 **Spec Reference**  
 /file/spec/ctms-15-manage-campsite-images.md
@@ -16,6 +16,69 @@ As a Host, I want to manage Campsite Images so that the CTMS workflow is complet
 - [ ] The Host can add, delete, and reorder images.
 - [ ] each image has a URL, type, and order.
 - [ ] only the Host who owns the campsite can update them.
+
+## Domain Analysis & Specification Updates
+
+### Actors & Preconditions
+- **Primary Actor**: Host (an authenticated user with `host` role).
+- **Preconditions**:
+  - The Host must have an `active` account status (BR-202).
+  - The campsite must exist in the system.
+  - The Host must be the owner of the campsite (BR-204).
+
+### API Contract
+- **Endpoint**: `PUT /api/campsites/:id/media`
+- **Headers**: `Authorization: Bearer <JWT_TOKEN>`
+- **Request Body** (JSON):
+  ```json
+  {
+    "media": [
+      { "url": "https://example.com/campsite-1.jpg", "type": "photo", "sortOrder": 1 },
+      { "url": "https://example.com/campsite-2.jpg", "type": "photo", "sortOrder": 2 }
+    ]
+  }
+  ```
+- **Validation Rules**:
+  - The `media` array must contain at least 1 image and at most 10 images (BR-205).
+  - Each item in `media` must have a valid `url` (HTTP/HTTPS URL, max 2000 chars).
+  - `type` must be `"photo"` (or other allowed media types).
+  - `sortOrder` must be an integer between 0 and 100.
+  - `sortOrder` values must be unique within the payload array.
+  - Campsite `:id` in URL parameter must be a valid UUID. If not, returns 422.
+- **Success Response** (200 OK):
+  - Returns the updated list of campsite media items:
+    ```json
+    [
+      { "id": "uuid-1", "url": "https://example.com/campsite-1.jpg", "type": "photo", "sortOrder": 1 },
+      { "id": "uuid-2", "url": "https://example.com/campsite-2.jpg", "type": "photo", "sortOrder": 2 }
+    ]
+    ```
+
+### Flows & Exception Handling
+- **Main Flow (Happy Path)**:
+  1. Host sends `PUT /api/campsites/:id/media` with a list of media.
+  2. Backend validates JWT, role, and active account status (BR-202).
+  3. Backend validates input payload (types, uniqueness of sortOrder, array constraints).
+  4. Backend verifies that the campsite exists (if not, throws 404 Not Found).
+  5. Backend checks that the host owns the campsite (if not, throws 403 Forbidden).
+  6. Backend promotes any new temporary images (`/uploads/campsites/pending/...` -> `/uploads/campsites/...`).
+  7. Backend opens a database transaction:
+     - Deletes removed image records from `campsite_media`.
+     - Inserts/Updates remaining image records.
+     - Logs audit action `campsite.media_updated`.
+     - Triggers mock notification to warn affected trips (BR-039).
+     - Commits the transaction.
+  8. Backend returns 200 OK with the list of campsite media.
+- **Exception Flow 1 (Invalid UUID format)**: Returns 422 Unprocessable Entity (BR-231).
+- **Exception Flow 2 (Validation Failure)**: Returns 422 Unprocessable Entity (BR-231).
+- **Exception Flow 3 (Not Authenticated)**: Returns 401 Unauthorized (BR-231).
+- **Exception Flow 4 (Campsite Not Found)**: Returns 404 Not Found (BR-231).
+- **Exception Flow 5 (Not Campsite Owner)**: Returns 403 Forbidden (BR-231).
+- **Exception Flow 6 (Host is not Active)**: Returns 401 Unauthorized (BR-202).
+- **Exception Flow 7 (Media promotion failure - files deleted concurrently)**: Transaction rolls back, returns 422 (BR-242).
+
+### Data Mapping
+- Input payload array fields map directly to columns in table `campsite_media`.
 
 ## Business Rules Checklist
 - [ ] BR-039: Affected Trips must be warned for follow-up handling.

@@ -4,6 +4,7 @@ import {
 	ConflictException,
 	ForbiddenException,
 	Injectable,
+	Logger,
 	NotFoundException,
 	UnprocessableEntityException,
 } from "@nestjs/common";
@@ -23,8 +24,9 @@ import {
 } from "../dto/campsite-search-result.dto";
 import type { CreateCampsiteDto } from "../dto/create-campsite.dto";
 import type { SearchCampsitesQueryDto } from "../dto/search-campsites-query.dto";
+import type { UpdateCampsiteMediaDto } from "../dto/update-campsite-media.dto";
 import type { UpdateCampsiteDto } from "../dto/update-campsite.dto";
-import type { CampsiteMedia } from "../entities/campsite-media.entity";
+import { CampsiteMedia } from "../entities/campsite-media.entity";
 import type { Campsite } from "../entities/campsite.entity";
 import type { Zone } from "../entities/zone.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
@@ -37,10 +39,94 @@ interface PromotedCampsiteMedia {
 
 @Injectable()
 export class CampsitesService {
+	private readonly logger = new Logger(CampsitesService.name);
+
 	constructor(
 		private readonly campsitesRepository: CampsitesRepository,
 		private readonly dataSource: DataSource
 	) {}
+
+	async updateMedia(
+		hostId: string,
+		campsiteId: string,
+		dto: UpdateCampsiteMediaDto
+	): Promise<CampsiteMedia[]> {
+		const campsite = await this.campsitesRepository.findOne({ where: { id: campsiteId } });
+		if (!campsite) {
+			throw new NotFoundException("Campsite not found");
+		}
+
+		if (campsite.hostId !== hostId) {
+			throw new ForbiddenException("Insufficient permission");
+		}
+
+		const promotedMedia = await this.promotePendingMedia(dto.media);
+
+		try {
+			const updated = await this.dataSource.transaction(async (manager: EntityManager) => {
+				const mediaRepository = manager.getRepository(CampsiteMedia);
+				const existingMedia = await mediaRepository.find({
+					where: { campsiteId },
+				});
+
+				const newUrls = new Set(promotedMedia.media.map((m) => m.url));
+				const toDelete = existingMedia.filter((em) => !newUrls.has(em.url));
+
+				if (toDelete.length > 0) {
+					await mediaRepository.remove(toDelete);
+				}
+
+				const mediaToSave = promotedMedia.media.map((item, index) => {
+					const existing = existingMedia.find((em) => em.url === item.url);
+					return mediaRepository.create({
+						id: existing?.id,
+						campsiteId,
+						url: item.url,
+						type: item.type ?? "photo",
+						sortOrder: item.sortOrder ?? index,
+					});
+				});
+
+				const saved = await mediaRepository.save(mediaToSave);
+				saved.sort((a, b) => a.sortOrder - b.sortOrder);
+
+				await manager.getRepository(AuditLog).save({
+					actorId: hostId,
+					action: "campsite.media_updated",
+					targetType: "campsite",
+					targetId: campsiteId,
+					before: {
+						media: existingMedia.map((em) => ({
+							id: em.id,
+							url: em.url,
+							type: em.type,
+							sortOrder: em.sortOrder,
+						})),
+					},
+					after: {
+						media: saved.map((sm) => ({
+							id: sm.id,
+							url: sm.url,
+							type: sm.type,
+							sortOrder: sm.sortOrder,
+						})),
+					},
+					reason: "host_manage_campsite_images",
+				});
+
+				this.logger.warn(
+					`Trip warning: Campsite ${campsiteId} media updated. Affected trips must be warned.`
+				);
+
+				return saved;
+			});
+
+			return updated;
+		} catch (error) {
+			await this.deletePromotedFiles(promotedMedia.filePaths);
+			throw error;
+		}
+	}
 
 	async create(hostId: string, dto: CreateCampsiteDto): Promise<CampsiteResponseDto> {
 		const promotedMedia = await this.promotePendingMedia(dto.media);

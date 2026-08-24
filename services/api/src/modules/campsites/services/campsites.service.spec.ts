@@ -1,4 +1,5 @@
 import { mkdir, rename, unlink } from "node:fs/promises";
+import { AuditLog } from "../../auth/entities/audit-log.entity";
 import type { SearchCampsitesQueryDto } from "../dto/search-campsites-query.dto";
 import type { CampsiteMedia } from "../entities/campsite-media.entity";
 import { type Campsite, CampsiteStatus } from "../entities/campsite.entity";
@@ -88,6 +89,7 @@ describe("CampsitesService", () => {
 		searchActive: jest.Mock;
 		createPendingApproval: jest.Mock;
 		findByHost: jest.Mock;
+		findOne: jest.Mock;
 		findDetailedById: jest.Mock;
 		updateInformation: jest.Mock;
 	};
@@ -97,6 +99,12 @@ describe("CampsitesService", () => {
 		updateInformation: jest.Mock;
 	};
 	let auditRepository: { save: jest.Mock };
+	let mediaRepository: {
+		find: jest.Mock;
+		remove: jest.Mock;
+		create: jest.Mock;
+		save: jest.Mock;
+	};
 	let dataSource: { transaction: jest.Mock };
 
 	beforeEach(() => {
@@ -112,12 +120,19 @@ describe("CampsitesService", () => {
 		auditRepository = {
 			save: jest.fn(),
 		};
+		mediaRepository = {
+			find: jest.fn().mockResolvedValue([]),
+			remove: jest.fn().mockResolvedValue([]),
+			create: jest.fn((data) => ({ id: "media-uuid", ...data })),
+			save: jest.fn((data) => Promise.resolve(data)),
+		};
 		campsitesRepository = {
 			searchActive: jest
 				.fn()
 				.mockResolvedValue({ items: [], total: 0 } satisfies CampsiteSearchResult),
 			createPendingApproval: jest.fn(),
 			findByHost: jest.fn().mockResolvedValue([]),
+			findOne: jest.fn(),
 			findDetailedById: jest.fn(),
 			updateInformation: jest.fn(),
 		};
@@ -125,7 +140,11 @@ describe("CampsitesService", () => {
 			transaction: jest.fn(async (callback: (manager: unknown) => unknown) =>
 				callback({
 					withRepository: jest.fn().mockReturnValue(transactionalCampsitesRepository),
-					getRepository: jest.fn().mockReturnValue(auditRepository),
+					getRepository: jest.fn().mockImplementation((entity) => {
+						if (entity === AuditLog) return auditRepository;
+						if (entity.name === "CampsiteMedia") return mediaRepository;
+						return {};
+					}),
 				})
 			),
 		};
@@ -334,6 +353,62 @@ describe("CampsitesService", () => {
 			expect(auditRepository.save).not.toHaveBeenCalled();
 			expect(unlinkMock).toHaveBeenCalledWith(
 				expect.stringContaining("uploads\\campsites\\campsite-temp.jpg")
+			);
+		});
+	});
+
+	describe("updateMedia", () => {
+		const hostId = "22222222-2222-2222-2222-222222222222";
+		const campsiteId = "11111111-1111-1111-1111-111111111111";
+		const updateDto = {
+			media: [
+				{ url: "https://example.com/campsite-new.jpg", type: "photo" as const, sortOrder: 0 },
+				{ url: "https://example.com/campsite-keep.jpg", type: "photo" as const, sortOrder: 1 },
+			],
+		};
+
+		it("successfully updates media for an owned campsite", async () => {
+			const campsite = buildCampsite({ hostId });
+			campsitesRepository.findOne.mockResolvedValue(campsite);
+
+			const existingMedia = [
+				buildMedia({ url: "https://example.com/campsite-keep.jpg", sortOrder: 2 }),
+				buildMedia({ url: "https://example.com/campsite-delete.jpg", sortOrder: 0 }),
+			];
+			mediaRepository.find.mockResolvedValue(existingMedia);
+
+			const result = await service.updateMedia(hostId, campsiteId, updateDto);
+
+			expect(campsitesRepository.findOne).toHaveBeenCalledWith({ where: { id: campsiteId } });
+			expect(mediaRepository.remove).toHaveBeenCalledWith([
+				expect.objectContaining({ url: "https://example.com/campsite-delete.jpg" }),
+			]);
+			expect(mediaRepository.save).toHaveBeenCalled();
+			expect(auditRepository.save).toHaveBeenCalledWith(
+				expect.objectContaining({
+					actorId: hostId,
+					action: "campsite.media_updated",
+					targetType: "campsite",
+					targetId: campsiteId,
+				})
+			);
+			expect(result).toHaveLength(2);
+		});
+
+		it("throws NotFoundException if the campsite does not exist", async () => {
+			campsitesRepository.findOne.mockResolvedValue(null);
+
+			await expect(service.updateMedia(hostId, campsiteId, updateDto)).rejects.toThrow(
+				"Campsite not found"
+			);
+		});
+
+		it("throws ForbiddenException if the requesting user does not own the campsite", async () => {
+			const campsite = buildCampsite({ hostId: "some-other-host" });
+			campsitesRepository.findOne.mockResolvedValue(campsite);
+
+			await expect(service.updateMedia(hostId, campsiteId, updateDto)).rejects.toThrow(
+				"Insufficient permission"
 			);
 		});
 	});

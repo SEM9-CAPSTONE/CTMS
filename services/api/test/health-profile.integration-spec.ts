@@ -12,16 +12,16 @@ describe("Camper Health Profile (integration, real Postgres)", () => {
 	let app: INestApplication;
 	let dataSource: DataSource;
 	let authService: AuthService;
-	let cleanupUserIds: string[];
-	let cleanupEmails: string[];
-	let cleanupPhones: string[];
-	let cleanupTripIds: string[];
+	let cleanupUserIds: string[] = [];
+	let cleanupEmails: string[] = [];
+	let cleanupPhones: string[] = [];
+	let cleanupTripIds: string[] = [];
 	let phoneSeq = 0;
 
 	const PASSWORD = "S3curePass!";
 
 	beforeAll(async () => {
-		jest.setTimeout(30000);
+		jest.setTimeout(60000);
 		const moduleRef = await Test.createTestingModule({
 			imports: [AppModule],
 		}).compile();
@@ -58,7 +58,7 @@ describe("Camper Health Profile (integration, real Postgres)", () => {
 		);
 		authService = moduleRef.get(AuthService);
 		expect(dataSource.isInitialized).toBe(true);
-	});
+	}, 60000);
 
 	afterAll(async () => {
 		await app.close();
