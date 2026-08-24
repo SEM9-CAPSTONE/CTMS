@@ -6,15 +6,93 @@
 **Story Title**  
 Create Trekking Route on Map
 
+**Jira Mapping**
+Jira `CTMS-52` implements backlog/spec story `CTMS-19`.
+
 **Status**  
-To Do
+Implemented; validation evidence recorded below.
 
 **Story**  
 As a Host, I want to create Trekking Route on Map so that the CTMS workflow is completed safely, consistently, and within the correct business scope.
 
 ## Acceptance Criteria
-- [ ] The Host can draw a route or import GPX/GeoJSON.
-- [ ] length, difficulty, estimated duration, and status are saved.
+- [x] The Host can draw a route or import GPX/GeoJSON.
+- [x] Route geometry and required route data are validated.
+- [x] Length, difficulty, expected duration, and status are saved.
+
+## Approved CTMS-52 Implementation Contract
+
+### Route domain and ownership
+
+- A Route is reusable geographic and operational data. It is not a Trip and contains no departure, booking, participant, checkpoint, hazard, navigation, capacity, porter, or elevation-profile data.
+- Only an authenticated active `host` may call `POST /api/trekking-routes` or campsite-scoped `GET /api/trekking-routes?campsiteId=<uuid>`.
+- `campsiteId` must identify an existing campsite owned by the authenticated Host. A missing campsite returns `404`; a campsite owned by another Host returns `403`.
+- Campsite status does not affect route creation. Draft, pending, active, or otherwise non-deleted owned campsites are eligible.
+- Ownership is derived through `trekking_routes.campsite_id -> campsites.host_id`; route rows do not duplicate `host_id`.
+
+### Enums and initial state
+
+- Difficulty is exactly `easy | moderate | hard | expert`.
+- Status is exactly `draft | pending_approval | active | closed`.
+- CTMS-19 creation always assigns `draft` on the backend. The request does not accept `status`; lifecycle transitions belong to CTMS-21/CTMS-22.
+
+### Metadata and geometry
+
+- Required request fields: `campsiteId`, trimmed `name` (1-150 characters), `geometry`, `difficulty`, and positive integer `expectedDurationMinutes`.
+- `description` is optional and trimmed when present. Duration is stored as integer minutes.
+- Canonical geometry is GeoJSON `{ "type": "LineString", "coordinates": [[longitude, latitude], ...] }` with at least two positions, finite numbers, longitude `[-180, 180]`, latitude `[-90, 90]`, and preserved vertex order.
+- PostgreSQL stores `route_geom` as `geography(LineString,4326)`. Start/end are derived from the first/last position. No route-points or duplicate start/end columns exist.
+- `length_meters` is `double precision`, must be greater than zero, and is calculated authoritatively by PostgreSQL/PostGIS using `ST_Length(route_geom)`. A Web preview is advisory only.
+- The database has a GiST index on `route_geom`, normal indexes on `campsite_id` and `status`, and a RESTRICT foreign key to `campsites.id`.
+
+### API contract
+
+`POST /api/trekking-routes` uses `JwtAuthGuard`, `RolesGuard`, and `@Roles(UserRole.HOST)`.
+
+Request:
+
+```json
+{
+  "campsiteId": "uuid",
+  "name": "Pine Ridge Traverse",
+  "description": "Optional description",
+  "geometry": {
+    "type": "LineString",
+    "coordinates": [[108.458313, 11.940419], [108.4668, 11.9465]]
+  },
+  "difficulty": "moderate",
+  "expectedDurationMinutes": 120
+}
+```
+
+The response contains `id`, `campsiteId`, `name`, nullable `description`, canonical `geometry`, authoritative `lengthMeters`, `difficulty`, `expectedDurationMinutes`, backend-assigned `status`, `createdAt`, and `updatedAt`. `hostId`, `status`, and `lengthMeters` are forbidden request properties through global whitelist validation.
+
+`GET /api/trekking-routes?campsiteId=<uuid>` uses the same Host guards and returns an array with the canonical route response fields. The backend first verifies that the campsite exists and belongs to the authenticated Host; missing campsites return `404`, non-owned campsites return `403`, and no routes returns an empty array. The operation is read-only and does not create an audit entry.
+
+### Web drawing and import
+
+- Host page: `/host/trekking-routes/create`, linked from the current `RoleLandingPage` Host dashboard and protected by the existing Host UI guard.
+- Host read-back page: `/host/trekking-routes?campsiteId=<uuid>`, linked by `Xem tuyến đường` on each owned Campsite card. The page validates the query value against `GET /api/campsites/my`, lists route metadata, and lets the Host select a route for a read-only MapLibre geometry preview with the existing no-key fallback.
+- Campsites are loaded from existing `GET /api/campsites/my`, with loading, error/retry, empty, and success states.
+- The route-specific MapLibre editor supports click-to-add, rendered line/vertices, draggable vertices, selected-vertex removal, last-vertex removal, clear/redraw, start/end markers, geometry preview, and approximate length. It preserves the current no-MapTiler-key fallback behavior.
+- GeoJSON is parsed in Web and accepts a raw LineString, a Feature containing a LineString, or a FeatureCollection resolving to exactly one LineString. Other/empty/malformed/ambiguous geometry is rejected.
+- GPX is parsed in Web and accepts exactly one track or exactly one route. Multiple or mixed tracks/routes are rejected; elevation is ignored. Import files are limited to 5 MB.
+- The Web sends only the canonical create DTO, prevents duplicate submission, preserves form/geometry after failure, maps `401/403/404/409/422`, and shows server-returned length and status after success.
+
+### Transaction, audit, and exclusions
+
+- Route creation, authoritative PostGIS length calculation, and audit insertion occur in one database transaction. An audit failure rolls the route insert back.
+- Audit values are `action=trekking_route.created`, `target_type=trekking_route`, `reason=host_create_trekking_route`, actor from the authenticated Host, and `before=null`.
+- Audit `after` contains authoritative route metadata and a geometry summary (`type`, vertex count, start, end, length, bounding box), not the complete coordinate array.
+- CTMS-19 creates no notification behavior and makes no Mobile changes. Host route management is Web-only.
+- Excluded: CTMS-20 checkpoints, CTMS-21 close/reopen, CTMS-22 approval, CTMS-23 hazards/shelters, Trips, navigation/offline maps, elevation profiles, capacity, porter requirements, recommendations, and Campsite approval.
+
+## Test Evidence
+
+- Backend unit: DTO validation and forbidden fields; PostGIS repository SQL/zero length and campsite-filtered read serialization; campsite missing/ownership; draft assignment; audit summary; audit rollback propagation.
+- Real PostgreSQL/PostGIS integration: LineString geography, SRID 4326, geometry type, vertex order, start/end, GeoJSON round trip, authoritative length, campsite-filtered read-back and empty list, RESTRICT FK, authentication, Host role, ownership, validation, audit and transaction rollback.
+- Web unit/component: selector states, schema/payload, geometry operations, preview, GeoJSON/GPX inputs and failures, 5 MB limit, duplicate-submit prevention, API error mapping, state preservation, authoritative success display, dashboard read navigation, route-list empty state, metadata selection, and read-only geometry rendering.
+- Playwright acceptance: manual drawing, GeoJSON import, invalid geometry with no side effect, Camper page denial, and non-owning Host API denial with no route/audit side effect.
 
 ## Business Rules Checklist
 - [ ] BR-050: Do not display slots because the system manages campsite capacity by zone.
@@ -33,7 +111,7 @@ As a Host, I want to create Trekking Route on Map so that the CTMS workflow is c
 - [ ] BR-244: Changes to Business Rules, enums, state transitions, or API contracts must update the Spec, test cases, and data documentation together before Done.
 
 ## Dev Notes
-- Jira status on 2026-08-04: `To Do`.
+- Jira key: `CTMS-52`; backlog/spec key: `CTMS-19`.
 - Priority: `Must Have`; Story points: `8`; Commitment: `Committed`.
 - Epic: `EPIC 3. Trekking Route`.
 - Sprint: `Sprint 2`; planned window: `2026-08-09` to `2026-08-22`.

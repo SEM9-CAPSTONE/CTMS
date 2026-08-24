@@ -330,6 +330,45 @@ async function main() {
 				[input.campsiteId]
 			);
 			console.log(JSON.stringify({ campsite: rows[0] ?? null }));
+		} else if (action === "count-trekking-routes") {
+			const input = parseJsonArg<{ campsiteId: string }>(arg);
+			const rows = await dataSource.query(
+				`SELECT
+				 (SELECT COUNT(*)::int FROM "trekking_routes" WHERE "campsite_id" = $1) AS "routes",
+				 (SELECT COUNT(*)::int FROM "audit_logs" WHERE "action" = 'trekking_route.created'
+				    AND "target_id" IN (SELECT "id" FROM "trekking_routes" WHERE "campsite_id" = $1)) AS "audits"`,
+				[input.campsiteId]
+			);
+			console.log(JSON.stringify(rows[0]));
+		} else if (action === "get-trekking-route") {
+			const input = parseJsonArg<{ routeId: string }>(arg);
+			const rows = await dataSource.query(
+				`SELECT "id", "campsite_id" AS "campsiteId", "name", "status", "length_meters" AS "lengthMeters",
+				 ST_AsGeoJSON("route_geom"::geometry)::json AS "geometry"
+				 FROM "trekking_routes" WHERE "id" = $1`,
+				[input.routeId]
+			);
+			console.log(JSON.stringify({ route: rows[0] ?? null }));
+		} else if (action === "clean-trekking-routes") {
+			const input = parseJsonArg<{ routeIds: string[] }>(arg);
+			if (input.routeIds.length > 0) {
+				const rows = (await dataSource.query(
+					`SELECT "id", "name" FROM "trekking_routes" WHERE "id" = ANY($1)`,
+					[input.routeIds]
+				)) as Array<{ id: string; name: string }>;
+				const unsafe = rows.find(
+					(row) => !row.name.startsWith("E2E") && !row.name.startsWith("CTMS")
+				);
+				if (unsafe)
+					throw new Error(`Refusing to delete non-E2E trekking route: ${unsafe.id} ${unsafe.name}`);
+				await dataSource.query('DELETE FROM "audit_logs" WHERE "target_id" = ANY($1)', [
+					input.routeIds,
+				]);
+				await dataSource.query('DELETE FROM "trekking_routes" WHERE "id" = ANY($1)', [
+					input.routeIds,
+				]);
+			}
+			console.log(JSON.stringify({ success: true }));
 		} else if (action === "clean-user") {
 			assertE2EEmail(arg);
 			const rows = await dataSource.query('SELECT "id" FROM "users" WHERE "email" = $1', [arg]);
