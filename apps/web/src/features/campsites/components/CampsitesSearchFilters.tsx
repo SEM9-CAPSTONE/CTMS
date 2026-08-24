@@ -3,14 +3,12 @@ import type { FormEvent } from "react";
 
 export interface CampsitesSearchFiltersProps {
 	province: string;
-	city: string;
 	amenities: string;
 	minPrice: string;
 	maxPrice: string;
 	/** Only Search/Reset are gated by loading -- input fields stay editable so a user can keep typing the next filter while the current search is still in flight (Step 2 review). */
 	isLoading: boolean;
 	onProvinceChange: (value: string) => void;
-	onCityChange: (value: string) => void;
 	onAmenitiesChange: (value: string) => void;
 	onMinPriceChange: (value: string) => void;
 	onMaxPriceChange: (value: string) => void;
@@ -19,8 +17,8 @@ export interface CampsitesSearchFiltersProps {
 }
 
 /**
- * CTMS-17-T02. Exactly the 5 filters CTMS-77 accepts (province, city,
- * amenities, minPrice, maxPrice) -- no status selector, no date/guest-count/
+ * CTMS-17-T02. Exactly the DB-backed filters accepted by the API
+ * (province, amenities, minPrice, maxPrice) -- no status selector, no date/guest-count/
  * type fields (those exist only in the landing page's static, non-functional
  * mockup, not in the backend contract this feature consumes).
  */
@@ -32,7 +30,7 @@ export function CampsitesSearchFilters(props: CampsitesSearchFiltersProps) {
 
 	return (
 		<form onSubmit={handleSubmit} className="border-b border-[#e0ebe0] bg-white p-5">
-			<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+			<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
 				<div className="flex flex-col gap-1.5">
 					<label
 						htmlFor="filter-province"
@@ -45,22 +43,6 @@ export function CampsitesSearchFilters(props: CampsitesSearchFiltersProps) {
 						value={props.province}
 						onChange={(e) => props.onProvinceChange(e.target.value)}
 						placeholder="Ví dụ: Lâm Đồng"
-						className="rounded-xl border border-[#dfe8df] bg-white px-3.5 py-2.5 text-sm outline-none focus:border-[#164027]"
-					/>
-				</div>
-
-				<div className="flex flex-col gap-1.5">
-					<label
-						htmlFor="filter-city"
-						className="text-xs font-bold uppercase tracking-wide text-[#425048]"
-					>
-						Thành phố
-					</label>
-					<input
-						id="filter-city"
-						value={props.city}
-						onChange={(e) => props.onCityChange(e.target.value)}
-						placeholder="Ví dụ: Đà Lạt"
 						className="rounded-xl border border-[#dfe8df] bg-white px-3.5 py-2.5 text-sm outline-none focus:border-[#164027]"
 					/>
 				</div>

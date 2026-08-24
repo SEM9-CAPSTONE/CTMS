@@ -9,23 +9,18 @@ import {
 } from "typeorm";
 import { User } from "../../users/entities/user.entity";
 
-/**
- * CTMS-17-T01 (CTMS-77). Provisional -- CTMS-50 (Create/manage Campsite,
- * owned by another teammate, not yet merged) is the real source of truth
- * for the full Campsite domain; this entity only carries the columns
- * Search Campsites' AC/BRs actually need. See the migration's doc comment
- * for the same note.
- *
- * BR-045: no "rejected" value exists in `status` -- CTMS-16's rejection
- * flow returns a campsite to `draft`, it does not introduce a new state.
- */
 export enum CampsiteStatus {
 	DRAFT = "draft",
 	PENDING_APPROVAL = "pending_approval",
 	ACTIVE = "active",
+	TEMPORARILY_CLOSED = "temporarily_closed",
 	SUSPENDED = "suspended",
-	CLOSED = "closed",
 	ARCHIVED = "archived",
+}
+
+export interface GeoPoint {
+	type: "Point";
+	coordinates: [number, number];
 }
 
 @Entity({ name: "campsites" })
@@ -43,28 +38,42 @@ export class Campsite {
 	@Column({ type: "varchar", length: 150 })
 	name!: string;
 
-	@Column({ type: "varchar", length: 2000 })
-	description!: string;
+	@Column({ type: "text", nullable: true })
+	description!: string | null;
 
-	@Column({ type: "numeric", precision: 9, scale: 6 })
-	latitude!: string;
-
-	@Column({ type: "numeric", precision: 9, scale: 6 })
-	longitude!: string;
+	@Column({ type: "geography", spatialFeatureType: "Point", srid: 4326 })
+	location!: GeoPoint;
 
 	@Column({ type: "varchar", length: 100 })
 	province!: string;
 
-	@Column({ type: "varchar", length: 100 })
-	city!: string;
+	@Column({ type: "jsonb", nullable: true })
+	policies!: Record<string, unknown> | null;
 
-	@Column({ type: "varchar", length: 2000 })
-	policies!: string;
+	@Column({ name: "operating_hours", type: "jsonb", nullable: true })
+	operatingHours!: Record<string, unknown> | null;
 
-	@Column({ name: "operating_hours", type: "varchar", length: 200 })
-	operatingHours!: string;
+	@Column({ name: "season_start_date", type: "date", nullable: true })
+	seasonStartDate!: string | null;
 
-	@Column({ type: "enum", enum: CampsiteStatus, default: CampsiteStatus.DRAFT })
+	@Column({ name: "season_end_date", type: "date", nullable: true })
+	seasonEndDate!: string | null;
+
+	@Column({ name: "max_advance_booking_days", type: "int", nullable: true })
+	maxAdvanceBookingDays!: number | null;
+
+	@Column({ name: "min_nights", type: "int", nullable: true })
+	minNights!: number | null;
+
+	@Column({ name: "max_nights", type: "int", nullable: true })
+	maxNights!: number | null;
+
+	@Column({
+		type: "enum",
+		enum: CampsiteStatus,
+		enumName: "campsite_status",
+		default: CampsiteStatus.DRAFT,
+	})
 	status!: CampsiteStatus;
 
 	@CreateDateColumn({ name: "created_at", type: "timestamptz" })

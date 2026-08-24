@@ -40,6 +40,7 @@ export interface RoleLandingPageProps {
 	onBackHome: () => void;
 	onOpenProfile?: () => void;
 	onOpenAdminUsers?: () => void;
+	onCreateCampsite?: () => void;
 	onLogout?: (allDevices: boolean) => Promise<void>;
 }
 
@@ -706,12 +707,14 @@ function DashboardMain({
 	profile,
 	onOpenProfile,
 	onOpenAdminUsers,
+	onCreateCampsite,
 }: {
 	config: DashboardConfig;
 	user: StoredAuthUser;
 	profile: CamperProfileData | null;
 	onOpenProfile?: () => void;
 	onOpenAdminUsers?: () => void;
+	onCreateCampsite?: () => void;
 }) {
 	const displayName = profile?.fullName || getDisplayName(user);
 	const timeOfDay = getTimeOfDay();
@@ -865,6 +868,12 @@ function DashboardMain({
 									<ArrowRight className="size-4" />
 								</Button>
 							)}
+							{config.role === "host" && onCreateCampsite && (
+								<Button onClick={onCreateCampsite} className="gap-2">
+									<TentTree className="size-4" />
+									<span>Tạo campsite</span>
+								</Button>
+							)}
 						</div>
 						<div className="mt-5 grid gap-3 md:grid-cols-3">
 							{config.tasks.map((task) => {
@@ -898,6 +907,7 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 	roles,
 	onOpenProfile,
 	onOpenAdminUsers,
+	onCreateCampsite,
 	onLogout,
 }) => {
 	const { profile } = useDashboardProfile();
@@ -1011,6 +1021,7 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 					profile={profile}
 					onOpenProfile={onOpenProfile}
 					onOpenAdminUsers={onOpenAdminUsers}
+					onCreateCampsite={onCreateCampsite}
 				/>
 			</div>
 		</div>

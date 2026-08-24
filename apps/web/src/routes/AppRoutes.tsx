@@ -11,15 +11,16 @@ import { authService } from "../features/auth/services/auth.service";
 import { getGrantedRoles, isAdminUser } from "../features/auth/utils/permissions";
 import { getRefreshToken, getStoredAuthUser } from "../features/auth/utils/tokenStorage";
 import { CamperProfilePage } from "../features/camper-profile/pages/CamperProfilePage";
+import { CreateCampsitePage } from "../features/campsites/pages/CreateCampsitePage";
 import { SearchCampsitesPage } from "../features/campsites/pages/SearchCampsitesPage";
 import { LandingPage } from "../features/landing/pages/LandingPage";
+import { RoleLandingPage } from "../features/role-landing/pages/RoleLandingPage";
 import { EdgeCasePage, ErrorPage, NotFoundPage, UnauthorizedPage } from "../shared/pages";
 import { AppRoleGuard } from "./AppRoleGuard";
 import { RoutePath } from "./routes.config";
 
 export function AppRoutes() {
 	const [currentPath, setCurrentPath] = useState<string>(() => {
-		// Also support legacy hash redirect if user enters with #
 		if (window.location.hash) {
 			const hashPath = window.location.hash.replace("#", "/");
 			window.history.replaceState({}, "", hashPath);
@@ -80,14 +81,6 @@ export function AppRoutes() {
 		/>
 	);
 
-	useEffect(() => {
-		const isDashboardPath = currentPath === RoutePath.DASHBOARD;
-		if (isDashboardPath) {
-			window.history.replaceState({}, "", RoutePath.HOME);
-			setCurrentPath(RoutePath.HOME);
-		}
-	}, [currentPath]);
-
 	switch (currentPath) {
 		case RoutePath.HOME:
 		case "":
@@ -105,7 +98,7 @@ export function AppRoutes() {
 					onNavigateToRegister={() => navigateTo(RoutePath.REGISTER)}
 					onNavigateToForgotPassword={() => navigateTo(RoutePath.FORGOT_PASSWORD)}
 					onLoginSuccess={(user) => {
-						navigateTo(isAdminUser(user) ? RoutePath.ADMIN_USERS : RoutePath.HOME);
+						navigateTo(isAdminUser(user) ? RoutePath.ADMIN_USERS : RoutePath.DASHBOARD);
 					}}
 				/>
 			);
@@ -147,11 +140,6 @@ export function AppRoutes() {
 			);
 
 		case RoutePath.CAMPSITES:
-			// CTMS-17-T02 / DG-W1 (frozen): no `fallback` override here, unlike
-			// the ADMIN_* routes below -- AppRoleGuard's own default fallback
-			// already renders the correct role ("camper") dynamically from
-			// `allowedRoles`, whereas `unauthorizedFallback` below is hardcoded
-			// to `requiredRole="admin"` and would show the wrong role name here.
 			return (
 				<AppRoleGuard
 					allowedRoles={["camper"]}
@@ -162,12 +150,36 @@ export function AppRoutes() {
 				</AppRoleGuard>
 			);
 
-		case RoutePath.DASHBOARD: {
-			window.history.replaceState({}, "", RoutePath.HOME);
+		case RoutePath.HOST_CREATE_CAMPSITE:
 			return (
-				<LandingPage
-					onNavigateToLogin={() => navigateTo(RoutePath.LOGIN)}
-					onNavigateToRegister={() => navigateTo(RoutePath.REGISTER)}
+				<AppRoleGuard
+					allowedRoles={["host"]}
+					currentRoles={currentRoles}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<CreateCampsitePage onBackHome={() => navigateTo(RoutePath.DASHBOARD)} />
+				</AppRoleGuard>
+			);
+
+		case RoutePath.DASHBOARD: {
+			if (!storedUser || currentRoles.length === 0) {
+				return (
+					<UnauthorizedPage
+						onBackToHome={() => navigateTo(RoutePath.HOME)}
+						onNavigateToLogin={() => navigateTo(RoutePath.LOGIN)}
+					/>
+				);
+			}
+
+			return (
+				<RoleLandingPage
+					user={storedUser}
+					roles={currentRoles}
+					onBackHome={() => navigateTo(RoutePath.HOME)}
+					onOpenProfile={() => navigateTo(RoutePath.CAMPER_PROFILE)}
+					onOpenAdminUsers={() => navigateTo(RoutePath.ADMIN_USERS)}
+					onCreateCampsite={() => navigateTo(RoutePath.HOST_CREATE_CAMPSITE)}
+					onLogout={handleLogout}
 				/>
 			);
 		}

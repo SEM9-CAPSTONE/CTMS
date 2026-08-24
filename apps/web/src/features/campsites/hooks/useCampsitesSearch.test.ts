@@ -36,7 +36,6 @@ describe("useCampsitesSearch", () => {
 
 		act(() => {
 			result.current.setProvinceInput("  Lam Dong  ");
-			result.current.setCityInput("");
 			result.current.setAmenitiesInput("wifi, bbq ,, ");
 			result.current.setMinPriceInput("100");
 			result.current.setMaxPriceInput("not-a-number");
@@ -49,7 +48,6 @@ describe("useCampsitesSearch", () => {
 		const calledWith = mockedSearch.mock.calls[1][0];
 		expect(calledWith).toEqual({
 			province: "Lam Dong",
-			city: undefined,
 			amenities: ["wifi", "bbq"],
 			minPrice: 100,
 			maxPrice: undefined,

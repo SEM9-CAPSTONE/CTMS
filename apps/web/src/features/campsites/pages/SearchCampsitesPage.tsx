@@ -45,13 +45,11 @@ export function SearchCampsitesPage({ onBackHome }: SearchCampsitesPageProps) {
 				<div className="overflow-hidden rounded-2xl border border-[#e0ebe0] bg-white shadow-sm">
 					<CampsitesSearchFilters
 						province={searchState.provinceInput}
-						city={searchState.cityInput}
 						amenities={searchState.amenitiesInput}
 						minPrice={searchState.minPriceInput}
 						maxPrice={searchState.maxPriceInput}
 						isLoading={searchState.isLoading}
 						onProvinceChange={searchState.setProvinceInput}
-						onCityChange={searchState.setCityInput}
 						onAmenitiesChange={searchState.setAmenitiesInput}
 						onMinPriceChange={searchState.setMinPriceInput}
 						onMaxPriceChange={searchState.setMaxPriceInput}

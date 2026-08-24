@@ -40,7 +40,6 @@ export function useCampsitesSearch() {
 	});
 
 	const [provinceInput, setProvinceInput] = useState("");
-	const [cityInput, setCityInput] = useState("");
 	const [amenitiesInput, setAmenitiesInput] = useState("");
 	const [minPriceInput, setMinPriceInput] = useState("");
 	const [maxPriceInput, setMaxPriceInput] = useState("");
@@ -90,21 +89,19 @@ export function useCampsitesSearch() {
 		}
 		setParams({
 			province: provinceInput.trim() || undefined,
-			city: cityInput.trim() || undefined,
 			amenities: parseAmenities(amenitiesInput),
 			minPrice: parsePrice(minPriceInput),
 			maxPrice: parsePrice(maxPriceInput),
 			page: DEFAULT_CAMPSITES_PAGE,
 			limit: DEFAULT_CAMPSITES_LIMIT,
 		});
-	}, [provinceInput, cityInput, amenitiesInput, minPriceInput, maxPriceInput]);
+	}, [provinceInput, amenitiesInput, minPriceInput, maxPriceInput]);
 
 	const resetFilters = useCallback(() => {
 		if (requestInFlight.current) {
 			return;
 		}
 		setProvinceInput("");
-		setCityInput("");
 		setAmenitiesInput("");
 		setMinPriceInput("");
 		setMaxPriceInput("");
@@ -120,12 +117,10 @@ export function useCampsitesSearch() {
 
 	return {
 		provinceInput,
-		cityInput,
 		amenitiesInput,
 		minPriceInput,
 		maxPriceInput,
 		setProvinceInput,
-		setCityInput,
 		setAmenitiesInput,
 		setMinPriceInput,
 		setMaxPriceInput,

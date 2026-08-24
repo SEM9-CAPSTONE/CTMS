@@ -35,18 +35,11 @@ export class SearchCampsitesQueryDto {
 	@MaxLength(100)
 	province?: string;
 
-	@ApiPropertyOptional({ description: "Filter by city", maxLength: 100 })
-	@IsOptional()
-	@Transform(({ value }) => optionalTrimmedString(value))
-	@IsString()
-	@MaxLength(100)
-	city?: string;
-
 	/**
 	 * DG-4 (frozen): a campsite matches if ANY of its zones has ANY of the
 	 * requested amenities -- not "must have every requested amenity" on a
 	 * single zone. Enforced by the repository's use of Postgres's `&&`
-	 * (array overlap) operator against `zones.amenities`, see Step 3.
+	 * jsonb array membership check against `campsite_zones.amenities`, see Step 3.
 	 */
 	@ApiPropertyOptional({
 		description: "Filter by amenities -- a campsite matches if any zone has any of these",

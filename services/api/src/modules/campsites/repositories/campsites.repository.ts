@@ -1,31 +1,46 @@
 import { Injectable } from "@nestjs/common";
 import { Repository } from "typeorm";
-import { CampsiteImage } from "../entities/campsite-image.entity";
-import { type Campsite, CampsiteStatus } from "../entities/campsite.entity";
+import { CampsiteMedia } from "../entities/campsite-media.entity";
+import { type Campsite, CampsiteStatus, type GeoPoint } from "../entities/campsite.entity";
 import { Zone, ZoneStatus } from "../entities/zone.entity";
 
-export interface CreateCampsiteImageInput {
+export interface CreateCampsiteMediaInput {
 	url: string;
 	type: string;
-	displayOrder?: number;
+	sortOrder?: number;
+}
+
+export interface CreateCampsiteZoneInput {
+	name: string;
+	latitude: number;
+	longitude: number;
+	maxTents: number;
+	maxPeople: number;
+	basePrice: number;
+	amenities?: string[];
+	terrainNote?: string;
 }
 
 export interface CreateDraftCampsiteInput {
 	hostId: string;
 	name: string;
-	description: string;
-	latitude: string;
-	longitude: string;
+	description?: string;
+	latitude: number;
+	longitude: number;
 	province: string;
-	city: string;
-	policies: string;
-	operatingHours: string;
-	initialImages: CreateCampsiteImageInput[];
+	policies: Record<string, unknown>;
+	operatingHours: Record<string, unknown>;
+	seasonStartDate?: string;
+	seasonEndDate?: string;
+	maxAdvanceBookingDays?: number;
+	minNights?: number;
+	maxNights?: number;
+	media: CreateCampsiteMediaInput[];
+	zones?: CreateCampsiteZoneInput[];
 }
 
 export interface CampsiteSearchFilters {
 	province?: string;
-	city?: string;
 	amenities?: string[];
 	minPrice?: number;
 	maxPrice?: number;
@@ -34,6 +49,8 @@ export interface CampsiteSearchFilters {
 export interface CampsiteSearchResultRow {
 	campsite: Campsite;
 	coverImageUrl: string | null;
+	latitude: number;
+	longitude: number;
 }
 
 export interface CampsiteSearchResult {
@@ -43,45 +60,68 @@ export interface CampsiteSearchResult {
 
 export interface CreatedDraftCampsite {
 	campsite: Campsite;
-	images: CampsiteImage[];
+	media: CampsiteMedia[];
+	zones: Zone[];
+	latitude: number;
+	longitude: number;
 }
 
-/**
- * CTMS-17-T01 (CTMS-77). Search Campsites' read path. Every query this
- * repository runs is `status = active` by construction -- {@link searchActive}
- * takes no `status` parameter at all, so there is no code path through which
- * a caller could widen the result set to non-active campsites (BR-047/234).
- */
 @Injectable()
 export class CampsitesRepository extends Repository<Campsite> {
 	async createDraft(input: CreateDraftCampsiteInput): Promise<CreatedDraftCampsite> {
 		const campsite = this.create({
 			hostId: input.hostId,
 			name: input.name,
-			description: input.description,
-			latitude: input.latitude,
-			longitude: input.longitude,
+			description: input.description ?? null,
+			location: toPoint(input.latitude, input.longitude),
 			province: input.province,
-			city: input.city,
 			policies: input.policies,
 			operatingHours: input.operatingHours,
+			seasonStartDate: input.seasonStartDate ?? null,
+			seasonEndDate: input.seasonEndDate ?? null,
+			maxAdvanceBookingDays: input.maxAdvanceBookingDays ?? null,
+			minNights: input.minNights ?? null,
+			maxNights: input.maxNights ?? null,
 			status: CampsiteStatus.DRAFT,
 		});
 		const savedCampsite = await this.save(campsite);
 
-		const imageRepository = this.manager.getRepository(CampsiteImage);
-		const images = await imageRepository.save(
-			input.initialImages.map((image, index) =>
-				imageRepository.create({
+		const mediaRepository = this.manager.getRepository(CampsiteMedia);
+		const media = await mediaRepository.save(
+			input.media.map((item, index) =>
+				mediaRepository.create({
 					campsiteId: savedCampsite.id,
-					url: image.url,
-					type: image.type,
-					displayOrder: image.displayOrder ?? index,
+					url: item.url,
+					type: item.type,
+					sortOrder: item.sortOrder ?? index,
 				})
 			)
 		);
 
-		return { campsite: savedCampsite, images };
+		const zoneRepository = this.manager.getRepository(Zone);
+		const zones = await zoneRepository.save(
+			(input.zones ?? []).map((zone) =>
+				zoneRepository.create({
+					campsiteId: savedCampsite.id,
+					name: zone.name,
+					location: toPoint(zone.latitude, zone.longitude),
+					maxTents: zone.maxTents,
+					maxPeople: zone.maxPeople,
+					basePrice: zone.basePrice.toFixed(2),
+					amenities: zone.amenities ?? null,
+					terrainNote: zone.terrainNote ?? null,
+					status: ZoneStatus.ACTIVE,
+				})
+			)
+		);
+
+		return {
+			campsite: savedCampsite,
+			media,
+			zones,
+			latitude: input.latitude,
+			longitude: input.longitude,
+		};
 	}
 
 	async searchActive(
@@ -89,18 +129,15 @@ export class CampsitesRepository extends Repository<Campsite> {
 		page: number,
 		limit: number
 	): Promise<CampsiteSearchResult> {
-		const qb = this.createQueryBuilder("campsite").where("campsite.status = :activeStatus", {
-			activeStatus: CampsiteStatus.ACTIVE,
-		});
+		const qb = this.createQueryBuilder("campsite")
+			.addSelect("ST_Y(campsite.location::geometry)", "campsite_latitude")
+			.addSelect("ST_X(campsite.location::geometry)", "campsite_longitude")
+			.where("campsite.status = :activeStatus", {
+				activeStatus: CampsiteStatus.ACTIVE,
+			});
 
-		// Case-insensitive exact match -- BR-046 only requires "filtering by
-		// province/city", not free-text/partial search; ILIKE with no
-		// wildcards gives exact match tolerant of input casing.
 		if (filters.province) {
 			qb.andWhere("campsite.province ILIKE :province", { province: filters.province });
-		}
-		if (filters.city) {
-			qb.andWhere("campsite.city ILIKE :city", { city: filters.city });
 		}
 
 		const hasAmenities = Boolean(filters.amenities?.length);
@@ -108,19 +145,6 @@ export class CampsitesRepository extends Repository<Campsite> {
 		const hasMaxPrice = filters.maxPrice !== undefined;
 
 		if (hasAmenities || hasMinPrice || hasMaxPrice) {
-			// EXISTS, not JOIN: a campsite must match through at least one
-			// qualifying zone, but must appear at most once in the result no
-			// matter how many of its zones qualify -- EXISTS can never
-			// multiply outer rows the way a JOIN would, so no DISTINCT/
-			// GROUP BY is needed to keep `total`/pagination campsite-accurate.
-			//
-			// DG-NEW (frozen during Step 3 review): only `active` zones are
-			// considered. Not spelled out by name in BR-046 -- this was raised
-			// as an open Decision Gate (not silently inferred) and explicitly
-			// resolved in favor of Option A: a `closed` zone must not be able
-			// to make an otherwise-unrelated campsite surface in search
-			// results via its amenities/price, matching the same "public
-			// list only reflects bookable state" posture as BR-047/234.
 			const zoneSub = this.manager
 				.createQueryBuilder(Zone, "zone")
 				.select("1")
@@ -128,10 +152,7 @@ export class CampsitesRepository extends Repository<Campsite> {
 				.andWhere("zone.status = :zoneActiveStatus");
 
 			if (hasAmenities) {
-				// `&&` = array overlap: true as soon as ANY element is shared,
-				// which is exactly the frozen "any zone has any of these
-				// amenities" semantics -- not "has all of them".
-				zoneSub.andWhere("zone.amenities && :amenities::text[]");
+				zoneSub.andWhere("zone.amenities ?| ARRAY[:...amenities]");
 			}
 			if (hasMinPrice) {
 				zoneSub.andWhere("zone.basePrice >= :minPrice");
@@ -149,42 +170,53 @@ export class CampsitesRepository extends Repository<Campsite> {
 			});
 		}
 
-		// Deterministic order: createdAt alone can tie (same-millisecond
-		// seed/test inserts), `id` as a tiebreaker keeps pagination stable.
 		qb.orderBy("campsite.createdAt", "DESC")
 			.addOrderBy("campsite.id", "ASC")
 			.skip((page - 1) * limit)
 			.take(limit);
 
-		const [campsites, total] = await qb.getManyAndCount();
+		const { entities: campsites, raw } = await qb.getRawAndEntities();
+		const total = await qb.getCount();
 		const coverImages = await this.resolveCoverImages(campsites.map((campsite) => campsite.id));
+		const coordinates = new Map<string, { latitude: number; longitude: number }>();
+
+		for (const row of raw as Array<Record<string, unknown>>) {
+			const id = String(row.campsite_id);
+			coordinates.set(id, {
+				latitude: Number(row.campsite_latitude),
+				longitude: Number(row.campsite_longitude),
+			});
+		}
 
 		return {
-			items: campsites.map((campsite) => ({
-				campsite,
-				coverImageUrl: coverImages.get(campsite.id) ?? null,
-			})),
+			items: campsites.map((campsite) => {
+				const coordinate = coordinates.get(campsite.id) ?? { latitude: 0, longitude: 0 };
+				return {
+					campsite,
+					coverImageUrl: coverImages.get(campsite.id) ?? null,
+					latitude: coordinate.latitude,
+					longitude: coordinate.longitude,
+				};
+			}),
 			total,
 		};
 	}
 
-	/**
-	 * One row per campsite id: the lowest `displayOrder` image, i.e. the
-	 * "representative image" (BR-048). `DISTINCT ON` is the Postgres-native
-	 * way to pick exactly one row per group without a window-function
-	 * subquery, ordered by the same column used to define "first".
-	 */
 	private async resolveCoverImages(campsiteIds: string[]): Promise<Map<string, string>> {
 		if (campsiteIds.length === 0) {
 			return new Map();
 		}
 		const rows = await this.manager
-			.createQueryBuilder(CampsiteImage, "image")
-			.distinctOn(["image.campsiteId"])
-			.where("image.campsiteId IN (:...campsiteIds)", { campsiteIds })
-			.orderBy("image.campsiteId")
-			.addOrderBy("image.displayOrder", "ASC")
+			.createQueryBuilder(CampsiteMedia, "media")
+			.distinctOn(["media.campsiteId"])
+			.where("media.campsiteId IN (:...campsiteIds)", { campsiteIds })
+			.orderBy("media.campsiteId")
+			.addOrderBy("media.sortOrder", "ASC")
 			.getMany();
 		return new Map(rows.map((row) => [row.campsiteId, row.url]));
 	}
+}
+
+function toPoint(latitude: number, longitude: number): GeoPoint {
+	return `SRID=4326;POINT(${longitude} ${latitude})` as unknown as GeoPoint;
 }

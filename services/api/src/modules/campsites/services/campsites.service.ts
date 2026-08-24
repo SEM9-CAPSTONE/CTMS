@@ -9,8 +9,9 @@ import {
 } from "../dto/campsite-search-result.dto";
 import type { CreateCampsiteDto } from "../dto/create-campsite.dto";
 import type { SearchCampsitesQueryDto } from "../dto/search-campsites-query.dto";
-import type { CampsiteImage } from "../entities/campsite-image.entity";
+import type { CampsiteMedia } from "../entities/campsite-media.entity";
 import type { Campsite } from "../entities/campsite.entity";
+import type { Zone } from "../entities/zone.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { CampsitesRepository } from "../repositories/campsites.repository";
 
@@ -22,24 +23,29 @@ export class CampsitesService {
 	) {}
 
 	async create(hostId: string, dto: CreateCampsiteDto): Promise<CampsiteResponseDto> {
-		const { campsite, images } = await this.dataSource.transaction(
+		const { campsite, media, zones, latitude, longitude } = await this.dataSource.transaction(
 			async (manager: EntityManager) => {
 				const transactionalCampsitesRepository = manager.withRepository(this.campsitesRepository);
 				const created = await transactionalCampsitesRepository.createDraft({
 					hostId,
 					name: dto.name,
 					description: dto.description,
-					latitude: dto.latitude.toFixed(6),
-					longitude: dto.longitude.toFixed(6),
+					latitude: dto.latitude,
+					longitude: dto.longitude,
 					province: dto.province,
-					city: dto.city,
-					policies: dto.policies,
-					operatingHours: dto.operatingHours,
-					initialImages: dto.initialImages.map((image) => ({
-						url: image.url,
-						type: image.type ?? "photo",
-						displayOrder: image.displayOrder,
+					policies: { ...dto.policies },
+					operatingHours: { ...dto.operatingHours },
+					seasonStartDate: dto.seasonStartDate,
+					seasonEndDate: dto.seasonEndDate,
+					maxAdvanceBookingDays: dto.maxAdvanceBookingDays,
+					minNights: dto.minNights,
+					maxNights: dto.maxNights,
+					media: dto.media.map((item) => ({
+						url: item.url,
+						type: item.type ?? "photo",
+						sortOrder: item.sortOrder,
 					})),
+					zones: dto.zones,
 				});
 
 				await manager.getRepository(AuditLog).save({
@@ -48,7 +54,13 @@ export class CampsitesService {
 					targetType: "campsite",
 					targetId: created.campsite.id,
 					before: null,
-					after: this.snapshotCreatedCampsite(created.campsite, created.images),
+					after: this.snapshotCreatedCampsite(
+						created.campsite,
+						created.media,
+						created.zones,
+						created.latitude,
+						created.longitude
+					),
 					reason: "host_create_campsite",
 				});
 
@@ -56,21 +68,21 @@ export class CampsitesService {
 			}
 		);
 
-		return toCampsiteResponse(campsite, images);
+		return toCampsiteResponse(campsite, media, zones, latitude, longitude);
 	}
 
 	async search(query: SearchCampsitesQueryDto): Promise<PaginatedCampsiteSearchResponseDto> {
-		const { page, limit, province, city, amenities, minPrice, maxPrice } = query;
+		const { page, limit, province, amenities, minPrice, maxPrice } = query;
 
 		const { items, total } = await this.campsitesRepository.searchActive(
-			{ province, city, amenities, minPrice, maxPrice },
+			{ province, amenities, minPrice, maxPrice },
 			page,
 			limit
 		);
 
 		return {
-			items: items.map(({ campsite, coverImageUrl }) =>
-				toCampsiteSearchItem(campsite, coverImageUrl)
+			items: items.map(({ campsite, coverImageUrl, latitude, longitude }) =>
+				toCampsiteSearchItem(campsite, coverImageUrl, latitude, longitude)
 			),
 			pagination: {
 				page,
@@ -81,24 +93,44 @@ export class CampsitesService {
 		};
 	}
 
-	private snapshotCreatedCampsite(campsite: Campsite, images: CampsiteImage[]) {
+	private snapshotCreatedCampsite(
+		campsite: Campsite,
+		media: CampsiteMedia[],
+		zones: Zone[],
+		latitude: number,
+		longitude: number
+	) {
 		return {
 			id: campsite.id,
 			hostId: campsite.hostId,
 			name: campsite.name,
 			description: campsite.description,
-			latitude: campsite.latitude,
-			longitude: campsite.longitude,
+			latitude,
+			longitude,
 			province: campsite.province,
-			city: campsite.city,
 			policies: campsite.policies,
 			operatingHours: campsite.operatingHours,
+			seasonStartDate: campsite.seasonStartDate,
+			seasonEndDate: campsite.seasonEndDate,
+			maxAdvanceBookingDays: campsite.maxAdvanceBookingDays,
+			minNights: campsite.minNights,
+			maxNights: campsite.maxNights,
 			status: campsite.status,
-			images: images.map((image) => ({
-				id: image.id,
-				url: image.url,
-				type: image.type,
-				displayOrder: image.displayOrder,
+			media: media.map((item) => ({
+				id: item.id,
+				url: item.url,
+				type: item.type,
+				sortOrder: item.sortOrder,
+			})),
+			zones: zones.map((zone) => ({
+				id: zone.id,
+				name: zone.name,
+				maxTents: zone.maxTents,
+				maxPeople: zone.maxPeople,
+				basePrice: zone.basePrice,
+				amenities: zone.amenities,
+				terrainNote: zone.terrainNote,
+				status: zone.status,
 			})),
 		};
 	}

@@ -22,7 +22,6 @@ export interface CampsiteFixtureInput {
 	hostId: string;
 	name?: string;
 	province?: string;
-	city?: string;
 	status?: CampsiteStatus;
 	latitude?: string;
 	longitude?: string;
@@ -30,17 +29,19 @@ export interface CampsiteFixtureInput {
 
 export interface ZoneFixtureInput {
 	name?: string;
-	capacity?: number;
-	location?: string;
+	maxTents?: number;
+	maxPeople?: number;
+	latitude?: string;
+	longitude?: string;
 	basePrice?: string;
 	amenities?: string[];
 	status?: ZoneStatus;
 }
 
-export interface CampsiteImageFixtureInput {
+export interface CampsiteMediaFixtureInput {
 	url?: string;
 	type?: string;
-	displayOrder?: number;
+	sortOrder?: number;
 }
 
 /**
@@ -76,7 +77,7 @@ export async function createFixtureHost(
 	return id;
 }
 
-/** Defaults to `status: active` -- override per-test for draft/suspended/closed/archived/pending_approval scenarios. */
+/** Defaults to `status: active` -- override per-test for draft/suspended/temporarily_closed/archived/pending_approval scenarios. */
 export async function createFixtureCampsite(
 	dataSource: DataSource,
 	tracker: CampsiteFixtureTracker,
@@ -84,16 +85,24 @@ export async function createFixtureCampsite(
 ): Promise<string> {
 	const rows = (await dataSource.query(
 		`INSERT INTO "campsites"
-		   ("host_id", "name", "description", "latitude", "longitude", "province", "city", "policies", "operating_hours", "status")
-		 VALUES ($1, $2, 'fixture campsite', $3, $4, $5, $6, 'n/a', 'n/a', $7)
+		   ("host_id", "name", "description", "location", "province", "policies", "operating_hours", "status")
+		 VALUES (
+		   $1,
+		   $2,
+		   'fixture campsite',
+		   ST_SetSRID(ST_MakePoint($3::double precision, $4::double precision), 4326)::geography,
+		   $5,
+		   '{"rules":"n/a"}'::jsonb,
+		   '{"opensAt":"08:00","closesAt":"18:00"}'::jsonb,
+		   $6
+		 )
 		 RETURNING "id"`,
 		[
 			input.hostId,
 			input.name ?? `${CAMPSITE_FIXTURE_MARKER} campsite ${uniqueSuffix()}`,
-			input.latitude ?? "10.000000",
 			input.longitude ?? "106.000000",
+			input.latitude ?? "10.000000",
 			input.province ?? CAMPSITE_FIXTURE_MARKER,
-			input.city ?? "FixtureCity",
 			input.status ?? CampsiteStatus.ACTIVE,
 		]
 	)) as Array<{ id: string }>;
@@ -109,16 +118,28 @@ export async function createFixtureZone(
 	input: ZoneFixtureInput = {}
 ): Promise<string> {
 	const rows = (await dataSource.query(
-		`INSERT INTO "zones" ("campsite_id", "name", "capacity", "location", "base_price", "amenities", "status")
-		 VALUES ($1, $2, $3, $4, $5, $6, $7)
+		`INSERT INTO "campsite_zones"
+		   ("campsite_id", "name", "location", "max_tents", "max_people", "base_price", "amenities", "status")
+		 VALUES (
+		   $1,
+		   $2,
+		   ST_SetSRID(ST_MakePoint($3::double precision, $4::double precision), 4326)::geography,
+		   $5,
+		   $6,
+		   $7,
+		   $8::jsonb,
+		   $9
+		 )
 		 RETURNING "id"`,
 		[
 			campsiteId,
 			input.name ?? "Fixture Zone",
-			input.capacity ?? 4,
-			input.location ?? "n/a",
+			input.longitude ?? "106.000000",
+			input.latitude ?? "10.000000",
+			input.maxTents ?? 4,
+			input.maxPeople ?? 12,
 			input.basePrice ?? "100.00",
-			input.amenities ?? [],
+			JSON.stringify(input.amenities ?? []),
 			input.status ?? ZoneStatus.ACTIVE,
 		]
 	)) as Array<{ id: string }>;
@@ -128,17 +149,17 @@ export async function createFixtureZone(
 export async function createFixtureImage(
 	dataSource: DataSource,
 	campsiteId: string,
-	input: CampsiteImageFixtureInput = {}
+	input: CampsiteMediaFixtureInput = {}
 ): Promise<string> {
 	const rows = (await dataSource.query(
-		`INSERT INTO "campsite_images" ("campsite_id", "url", "type", "display_order")
+		`INSERT INTO "campsite_media" ("campsite_id", "url", "type", "sort_order")
 		 VALUES ($1, $2, $3, $4)
 		 RETURNING "id"`,
 		[
 			campsiteId,
 			input.url ?? "https://example.com/fixture.jpg",
 			input.type ?? "photo",
-			input.displayOrder ?? 0,
+			input.sortOrder ?? 0,
 		]
 	)) as Array<{ id: string }>;
 	return rows[0].id;
@@ -146,7 +167,7 @@ export async function createFixtureImage(
 
 /**
  * Deletes every row `tracker` recorded, children-first (FK order):
- * campsite_images/zones -> campsites -> user_roles -> users. `= ANY($1)`
+ * campsite_media/campsite_zones -> campsites -> user_roles -> users. `= ANY($1)`
  * against an empty array matches zero rows rather than erroring, so this is
  * always safe to call even if a test failed before creating anything.
  */
@@ -155,10 +176,10 @@ export async function cleanupCampsiteFixtures(
 	tracker: CampsiteFixtureTracker
 ): Promise<void> {
 	if (tracker.campsiteIds.length > 0) {
-		await dataSource.query(`DELETE FROM "campsite_images" WHERE "campsite_id" = ANY($1)`, [
+		await dataSource.query(`DELETE FROM "campsite_media" WHERE "campsite_id" = ANY($1)`, [
 			tracker.campsiteIds,
 		]);
-		await dataSource.query(`DELETE FROM "zones" WHERE "campsite_id" = ANY($1)`, [
+		await dataSource.query(`DELETE FROM "campsite_zones" WHERE "campsite_id" = ANY($1)`, [
 			tracker.campsiteIds,
 		]);
 		await dataSource.query(`DELETE FROM "campsites" WHERE "id" = ANY($1)`, [tracker.campsiteIds]);

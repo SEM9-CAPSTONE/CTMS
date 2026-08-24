@@ -52,7 +52,7 @@ export class CampsitesController {
 	@Get()
 	@Roles(UserRole.CAMPER)
 	@ApiOperation({
-		summary: "Search active campsites by province/city, amenities, and zone base price range",
+		summary: "Search active campsites by province, amenities, and zone base price range",
 	})
 	@ApiResponse({
 		status: 200,

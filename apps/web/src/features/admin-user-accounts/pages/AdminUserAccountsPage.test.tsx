@@ -62,12 +62,12 @@ describe("AdminUserAccountsPage", () => {
 		render(<AdminUserAccountsPage />);
 
 		expect(await screen.findByText("Nguyen Camper")).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "User Accounts" })).toHaveAttribute(
+		expect(screen.getByRole("button", { name: "Tài khoản người dùng" })).toHaveAttribute(
 			"aria-current",
 			"page"
 		);
-		expect(screen.getByRole("button", { name: /Audit Logs/ })).toBeDisabled();
-		expect(screen.getByRole("button", { name: /Content Reports/ })).toBeDisabled();
+		expect(screen.getByRole("button", { name: "Nhật ký hệ thống" })).toBeEnabled();
+		expect(screen.getByRole("button", { name: /Báo cáo nội dung/ })).toBeDisabled();
 		expect(screen.getByRole("button", { name: "Khóa CTMS Admin" })).toBeDisabled();
 		expect(screen.getByText(/Tổng cộng/)).toHaveTextContent("2");
 	});

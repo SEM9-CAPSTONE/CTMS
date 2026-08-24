@@ -1,8 +1,9 @@
-import { ApiProperty } from "@nestjs/swagger";
-import type { CampsiteImage } from "../entities/campsite-image.entity";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import type { CampsiteMedia } from "../entities/campsite-media.entity";
 import { type Campsite, CampsiteStatus } from "../entities/campsite.entity";
+import type { Zone } from "../entities/zone.entity";
 
-export class CampsiteImageResponseDto {
+export class CampsiteMediaResponseDto {
 	@ApiProperty({ format: "uuid" })
 	id!: string;
 
@@ -13,7 +14,33 @@ export class CampsiteImageResponseDto {
 	type!: string;
 
 	@ApiProperty()
-	displayOrder!: number;
+	sortOrder!: number;
+}
+
+export class CampsiteZoneResponseDto {
+	@ApiProperty({ format: "uuid" })
+	id!: string;
+
+	@ApiProperty()
+	name!: string;
+
+	@ApiProperty()
+	maxTents!: number;
+
+	@ApiProperty()
+	maxPeople!: number;
+
+	@ApiProperty()
+	basePrice!: number;
+
+	@ApiPropertyOptional({ type: [String], nullable: true })
+	amenities!: string[] | null;
+
+	@ApiPropertyOptional({ nullable: true })
+	terrainNote!: string | null;
+
+	@ApiProperty()
+	status!: string;
 }
 
 export class CampsiteResponseDto {
@@ -26,8 +53,8 @@ export class CampsiteResponseDto {
 	@ApiProperty()
 	name!: string;
 
-	@ApiProperty()
-	description!: string;
+	@ApiPropertyOptional({ nullable: true })
+	description!: string | null;
 
 	@ApiProperty()
 	latitude!: number;
@@ -39,19 +66,34 @@ export class CampsiteResponseDto {
 	province!: string;
 
 	@ApiProperty()
-	city!: string;
+	policies!: Record<string, unknown> | null;
 
 	@ApiProperty()
-	policies!: string;
+	operatingHours!: Record<string, unknown> | null;
 
-	@ApiProperty()
-	operatingHours!: string;
+	@ApiPropertyOptional({ nullable: true })
+	seasonStartDate!: string | null;
+
+	@ApiPropertyOptional({ nullable: true })
+	seasonEndDate!: string | null;
+
+	@ApiPropertyOptional({ nullable: true })
+	maxAdvanceBookingDays!: number | null;
+
+	@ApiPropertyOptional({ nullable: true })
+	minNights!: number | null;
+
+	@ApiPropertyOptional({ nullable: true })
+	maxNights!: number | null;
 
 	@ApiProperty({ enum: CampsiteStatus })
 	status!: CampsiteStatus;
 
-	@ApiProperty({ type: [CampsiteImageResponseDto] })
-	images!: CampsiteImageResponseDto[];
+	@ApiProperty({ type: [CampsiteMediaResponseDto] })
+	media!: CampsiteMediaResponseDto[];
+
+	@ApiProperty({ type: [CampsiteZoneResponseDto] })
+	zones!: CampsiteZoneResponseDto[];
 
 	@ApiProperty()
 	createdAt!: Date;
@@ -62,25 +104,42 @@ export class CampsiteResponseDto {
 
 export function toCampsiteResponse(
 	campsite: Campsite,
-	images: CampsiteImage[]
+	media: CampsiteMedia[],
+	zones: Zone[],
+	latitude: number,
+	longitude: number
 ): CampsiteResponseDto {
 	return {
 		id: campsite.id,
 		hostId: campsite.hostId,
 		name: campsite.name,
 		description: campsite.description,
-		latitude: Number(campsite.latitude),
-		longitude: Number(campsite.longitude),
+		latitude,
+		longitude,
 		province: campsite.province,
-		city: campsite.city,
 		policies: campsite.policies,
 		operatingHours: campsite.operatingHours,
+		seasonStartDate: campsite.seasonStartDate,
+		seasonEndDate: campsite.seasonEndDate,
+		maxAdvanceBookingDays: campsite.maxAdvanceBookingDays,
+		minNights: campsite.minNights,
+		maxNights: campsite.maxNights,
 		status: campsite.status,
-		images: images.map((image) => ({
-			id: image.id,
-			url: image.url,
-			type: image.type,
-			displayOrder: image.displayOrder,
+		media: media.map((item) => ({
+			id: item.id,
+			url: item.url,
+			type: item.type,
+			sortOrder: item.sortOrder,
+		})),
+		zones: zones.map((zone) => ({
+			id: zone.id,
+			name: zone.name,
+			maxTents: zone.maxTents,
+			maxPeople: zone.maxPeople,
+			basePrice: Number(zone.basePrice),
+			amenities: zone.amenities,
+			terrainNote: zone.terrainNote,
+			status: zone.status,
 		})),
 		createdAt: campsite.createdAt,
 		updatedAt: campsite.updatedAt,

@@ -5,12 +5,10 @@ import { CampsitesSearchFilters } from "./CampsitesSearchFilters";
 describe("CampsitesSearchFilters", () => {
 	const baseProps = {
 		province: "",
-		city: "",
 		amenities: "",
 		minPrice: "",
 		maxPrice: "",
 		onProvinceChange: vi.fn(),
-		onCityChange: vi.fn(),
 		onAmenitiesChange: vi.fn(),
 		onMinPriceChange: vi.fn(),
 		onMaxPriceChange: vi.fn(),
@@ -18,10 +16,10 @@ describe("CampsitesSearchFilters", () => {
 		onReset: vi.fn(),
 	};
 
-	it("renders exactly the 5 contract filters -- no status/date/guests/type", () => {
+	it("renders exactly the DB-backed contract filters -- no city/status/date/guests/type", () => {
 		render(<CampsitesSearchFilters {...baseProps} isLoading={false} />);
 		expect(screen.getByLabelText("Tỉnh/Thành")).toBeInTheDocument();
-		expect(screen.getByLabelText("Thành phố")).toBeInTheDocument();
+		expect(screen.queryByLabelText("Thành phố")).not.toBeInTheDocument();
 		expect(screen.getByLabelText("Tiện ích")).toBeInTheDocument();
 		expect(screen.getByLabelText("Giá từ")).toBeInTheDocument();
 		expect(screen.getByLabelText("Giá đến")).toBeInTheDocument();
@@ -43,7 +41,6 @@ describe("CampsitesSearchFilters", () => {
 		expect(screen.getByRole("button", { name: /tìm kiếm/i })).toBeDisabled();
 		expect(screen.getByRole("button", { name: /đặt lại/i })).toBeDisabled();
 		expect(screen.getByLabelText("Tỉnh/Thành")).not.toBeDisabled();
-		expect(screen.getByLabelText("Thành phố")).not.toBeDisabled();
 		expect(screen.getByLabelText("Tiện ích")).not.toBeDisabled();
 		expect(screen.getByLabelText("Giá từ")).not.toBeDisabled();
 		expect(screen.getByLabelText("Giá đến")).not.toBeDisabled();
@@ -67,7 +64,6 @@ describe("CampsitesSearchFilters", () => {
 		const props = {
 			...baseProps,
 			onProvinceChange: vi.fn(),
-			onCityChange: vi.fn(),
 			onAmenitiesChange: vi.fn(),
 			onMinPriceChange: vi.fn(),
 			onMaxPriceChange: vi.fn(),
@@ -76,9 +72,6 @@ describe("CampsitesSearchFilters", () => {
 
 		fireEvent.change(screen.getByLabelText("Tỉnh/Thành"), { target: { value: "Lam Dong" } });
 		expect(props.onProvinceChange).toHaveBeenCalledWith("Lam Dong");
-
-		fireEvent.change(screen.getByLabelText("Thành phố"), { target: { value: "Da Lat" } });
-		expect(props.onCityChange).toHaveBeenCalledWith("Da Lat");
 
 		fireEvent.change(screen.getByLabelText("Tiện ích"), { target: { value: "wifi" } });
 		expect(props.onAmenitiesChange).toHaveBeenCalledWith("wifi");

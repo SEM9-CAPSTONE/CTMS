@@ -32,9 +32,7 @@ export function CampsiteResultCard({ campsite }: CampsiteResultCardProps) {
 				<h3 className="truncate text-base font-extrabold text-[#10221b]">{campsite.name}</h3>
 				<p className="mt-1 flex items-center gap-1.5 text-sm text-[#667a6d]">
 					<MapPin className="size-4 shrink-0 text-[#276143]" />
-					<span className="truncate">
-						{campsite.location.city}, {campsite.location.province}
-					</span>
+					<span className="truncate">{campsite.location.province}</span>
 				</p>
 			</div>
 		</div>

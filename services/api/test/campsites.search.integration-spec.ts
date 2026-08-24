@@ -128,7 +128,7 @@ describe("Search Campsites GET /campsites (integration, real Postgres)", () => {
 	});
 
 	describe("status invariant (BR-045/047/234, DTO+repository double lock)", () => {
-		it("returns only active campsites, hiding draft/pending_approval/suspended/closed/archived", async () => {
+		it("returns only active campsites, hiding draft/pending_approval/suspended/temporarily_closed/archived", async () => {
 			const province = uniqueProvince();
 			const active = await createFixtureCampsite(dataSource, tracker, {
 				hostId,
@@ -153,7 +153,7 @@ describe("Search Campsites GET /campsites (integration, real Postgres)", () => {
 			await createFixtureCampsite(dataSource, tracker, {
 				hostId,
 				province,
-				status: CampsiteStatus.CLOSED,
+				status: CampsiteStatus.TEMPORARILY_CLOSED,
 			});
 			await createFixtureCampsite(dataSource, tracker, {
 				hostId,
@@ -259,18 +259,16 @@ describe("Search Campsites GET /campsites (integration, real Postgres)", () => {
 		});
 	});
 
-	describe("province/city filter (case-insensitive exact match)", () => {
+	describe("province filter (case-insensitive exact match)", () => {
 		it("matches regardless of casing but rejects a partial/substring value", async () => {
 			const province = uniqueProvince();
 			const campsite = await createFixtureCampsite(dataSource, tracker, {
 				hostId,
 				province,
-				city: "SpecificCity",
 			});
 
 			const caseInsensitive = await search(camper.accessToken, {
 				province: province.toLowerCase(),
-				city: "SPECIFICCITY",
 			}).expect(200);
 			expect(caseInsensitive.body.items.map((item: { id: string }) => item.id)).toContain(campsite);
 
@@ -287,17 +285,16 @@ describe("Search Campsites GET /campsites (integration, real Postgres)", () => {
 			const campsite = await createFixtureCampsite(dataSource, tracker, {
 				hostId,
 				province,
-				city: "ContractCity",
 				latitude: "12.345678",
 				longitude: "109.876543",
 			});
 			await createFixtureImage(dataSource, campsite, {
 				url: "https://example.com/second.jpg",
-				displayOrder: 2,
+				sortOrder: 2,
 			});
 			await createFixtureImage(dataSource, campsite, {
 				url: "https://example.com/first.jpg",
-				displayOrder: 1,
+				sortOrder: 1,
 			});
 
 			const res = await search(camper.accessToken, { province }).expect(200);
@@ -308,7 +305,6 @@ describe("Search Campsites GET /campsites (integration, real Postgres)", () => {
 					name: expect.any(String),
 					location: {
 						province,
-						city: "ContractCity",
 						latitude: 12.345678,
 						longitude: 109.876543,
 					},
