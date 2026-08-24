@@ -45,6 +45,8 @@ export interface RoleLandingPageProps {
 	onOpenProfile?: () => void;
 	onOpenAdminUsers?: () => void;
 	onCreateCampsite?: () => void;
+	onCreateTrekkingRoute?: (campsiteId?: string) => void;
+	onViewTrekkingRoutes?: (campsiteId: string) => void;
 	onEditCampsite?: (id: string) => void;
 	onLogout?: (allDevices: boolean) => Promise<void>;
 }
@@ -772,12 +774,16 @@ function HostCampsitesPanel({
 	isLoading,
 	error,
 	onCreateCampsite,
+	onCreateTrekkingRoute,
+	onViewTrekkingRoutes,
 	onEditCampsite,
 }: {
 	items: CreatedCampsite[];
 	isLoading: boolean;
 	error: string;
 	onCreateCampsite?: () => void;
+	onCreateTrekkingRoute?: (campsiteId?: string) => void;
+	onViewTrekkingRoutes?: (campsiteId: string) => void;
 	onEditCampsite?: (id: string) => void;
 }) {
 	return (
@@ -863,16 +869,40 @@ function HostCampsitesPanel({
 										</span>
 										<span>{formatCreatedAt(campsite.createdAt)}</span>
 									</div>
-									{onEditCampsite && (
-										<div className="mt-4">
-											<Button
-												type="button"
-												variant="outline"
-												size="sm"
-												onClick={() => onEditCampsite(campsite.id)}
-											>
-												Sửa khu cắm trại
-											</Button>
+									{(onEditCampsite || onCreateTrekkingRoute || onViewTrekkingRoutes) && (
+										<div className="mt-4 flex flex-wrap gap-2">
+											{onEditCampsite && (
+												<Button
+													type="button"
+													variant="outline"
+													size="sm"
+													onClick={() => onEditCampsite(campsite.id)}
+												>
+													Sửa khu cắm trại
+												</Button>
+											)}
+											{onCreateTrekkingRoute && (
+												<Button
+													type="button"
+													variant="outline"
+													size="sm"
+													onClick={() => onCreateTrekkingRoute(campsite.id)}
+												>
+													<Route className="size-4" />
+													Tạo trekking route
+												</Button>
+											)}
+											{onViewTrekkingRoutes && (
+												<Button
+													type="button"
+													variant="outline"
+													size="sm"
+													onClick={() => onViewTrekkingRoutes(campsite.id)}
+												>
+													<MapPinned className="size-4" />
+													Xem tuyến đường
+												</Button>
+											)}
 										</div>
 									)}
 								</div>
@@ -895,6 +925,8 @@ function DashboardMain({
 	onOpenProfile,
 	onOpenAdminUsers,
 	onCreateCampsite,
+	onCreateTrekkingRoute,
+	onViewTrekkingRoutes,
 	onEditCampsite,
 }: {
 	config: DashboardConfig;
@@ -906,6 +938,8 @@ function DashboardMain({
 	onOpenProfile?: () => void;
 	onOpenAdminUsers?: () => void;
 	onCreateCampsite?: () => void;
+	onCreateTrekkingRoute?: (campsiteId?: string) => void;
+	onViewTrekkingRoutes?: (campsiteId: string) => void;
 	onEditCampsite?: (id: string) => void;
 }) {
 	const displayName = profile?.fullName || getDisplayName(user);
@@ -954,6 +988,8 @@ function DashboardMain({
 						isLoading={isLoadingHostCampsites}
 						error={hostCampsitesError}
 						onCreateCampsite={onCreateCampsite}
+						onCreateTrekkingRoute={onCreateTrekkingRoute}
+						onViewTrekkingRoutes={onViewTrekkingRoutes}
 						onEditCampsite={onEditCampsite}
 					/>
 				)}
@@ -1076,6 +1112,12 @@ function DashboardMain({
 									<span>Tạo khu cắm trại</span>
 								</Button>
 							)}
+							{config.role === "host" && onCreateTrekkingRoute && (
+								<Button onClick={() => onCreateTrekkingRoute()} className="gap-2">
+									<Route className="size-4" />
+									<span>Tạo tuyến trekking</span>
+								</Button>
+							)}
 						</div>
 						<div className="mt-5 grid gap-3 md:grid-cols-3">
 							{config.tasks.map((task) => {
@@ -1110,6 +1152,8 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 	onOpenProfile,
 	onOpenAdminUsers,
 	onCreateCampsite,
+	onCreateTrekkingRoute,
+	onViewTrekkingRoutes,
 	onEditCampsite,
 	onLogout,
 }) => {
@@ -1233,6 +1277,8 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 					onOpenProfile={onOpenProfile}
 					onOpenAdminUsers={onOpenAdminUsers}
 					onCreateCampsite={onCreateCampsite}
+					onCreateTrekkingRoute={onCreateTrekkingRoute}
+					onViewTrekkingRoutes={onViewTrekkingRoutes}
 					onEditCampsite={onEditCampsite}
 				/>
 			</div>
