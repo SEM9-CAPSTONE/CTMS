@@ -59,7 +59,7 @@ function IsOperatingHoursOrder(validationOptions?: ValidationOptions) {
 }
 
 @ValidatorConstraint({ name: "mediaSortOrderSequence" })
-class MediaSortOrderSequenceConstraint implements ValidatorConstraintInterface {
+export class MediaSortOrderSequenceConstraint implements ValidatorConstraintInterface {
 	validate(media: CreateCampsiteMediaDto[] | undefined): boolean {
 		if (!Array.isArray(media)) {
 			return false;

@@ -161,7 +161,7 @@ describe("Create Campsite POST /campsites (integration, real Postgres)", () => {
 				province: payload.province,
 				policies: payload.policies,
 				operatingHours: payload.operatingHours,
-				status: CampsiteStatus.DRAFT,
+				status: CampsiteStatus.PENDING_APPROVAL,
 				media: [
 					expect.objectContaining({
 						url: "https://example.com/campsites/pine-cover.jpg",
@@ -197,7 +197,7 @@ describe("Create Campsite POST /campsites (integration, real Postgres)", () => {
 		expect(campsiteRows).toEqual([
 			{
 				host_id: host.id,
-				status: CampsiteStatus.DRAFT,
+				status: CampsiteStatus.PENDING_APPROVAL,
 				operating_hours: { opensAt: "08:00", closesAt: "18:00" },
 				latitude: 11.940419,
 				longitude: 108.458313,
@@ -241,7 +241,7 @@ describe("Create Campsite POST /campsites (integration, real Postgres)", () => {
 				action: "campsite.created",
 				target_type: "campsite",
 				target_id: res.body.id,
-				after: expect.objectContaining({ status: CampsiteStatus.DRAFT }),
+				after: expect.objectContaining({ status: CampsiteStatus.PENDING_APPROVAL }),
 				reason: "host_create_campsite",
 			})
 		);

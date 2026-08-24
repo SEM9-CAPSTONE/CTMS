@@ -5,7 +5,11 @@ import {
 	Body,
 	Controller,
 	Get,
+	HttpStatus,
+	Param,
+	ParseUUIDPipe,
 	Post,
+	Put,
 	Query,
 	Req,
 	UploadedFile,
@@ -32,12 +36,14 @@ import { RolesGuard } from "../../auth/guards/roles.guard";
 import type { AuthenticatedUser } from "../../auth/jwt.strategy";
 import { UserRole } from "../../users/entities/user.entity";
 import { CampsiteMediaUploadResponseDto } from "../dto/campsite-media-upload-response.dto";
-import { CampsiteResponseDto } from "../dto/campsite-response.dto";
+import { CampsiteMediaResponseDto, CampsiteResponseDto } from "../dto/campsite-response.dto";
 import { PaginatedCampsiteSearchResponseDto } from "../dto/campsite-search-result.dto";
 // biome-ignore lint/style/useImportType: used as a @Body() parameter type, needs design:paramtypes metadata for NestJS's validation/transform pipeline
 import { CreateCampsiteDto } from "../dto/create-campsite.dto";
 // biome-ignore lint/style/useImportType: used as a @Query() parameter type, needs design:paramtypes metadata for NestJS's validation/transform pipeline
 import { SearchCampsitesQueryDto } from "../dto/search-campsites-query.dto";
+// biome-ignore lint/style/useImportType: used as a @Body() parameter type, needs design:paramtypes metadata for NestJS's validation/transform pipeline
+import { UpdateCampsiteMediaDto } from "../dto/update-campsite-media.dto";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { CampsitesService } from "../services/campsites.service";
 
@@ -164,5 +170,32 @@ export class CampsitesController {
 	@ApiResponse({ status: 422, description: "Invalid query" })
 	search(@Query() query: SearchCampsitesQueryDto): Promise<PaginatedCampsiteSearchResponseDto> {
 		return this.campsitesService.search(query);
+	}
+
+	@Put(":id/media")
+	@Roles(UserRole.HOST)
+	@ApiOperation({ summary: "Manage campsite images" })
+	@ApiResponse({
+		status: 200,
+		description: "Campsite images successfully updated",
+		type: [CampsiteMediaResponseDto],
+	})
+	@ApiResponse({ status: 401, description: "Authentication required" })
+	@ApiResponse({ status: 403, description: "Host access required / Insufficient permission" })
+	@ApiResponse({ status: 404, description: "Campsite not found" })
+	@ApiResponse({ status: 422, description: "Invalid input" })
+	async updateMedia(
+		@Param("id", new ParseUUIDPipe({ errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY }))
+		id: string,
+		@Req() request: AuthenticatedRequest,
+		@Body() dto: UpdateCampsiteMediaDto
+	): Promise<CampsiteMediaResponseDto[]> {
+		const media = await this.campsitesService.updateMedia(request.user.userId, id, dto);
+		return media.map((item) => ({
+			id: item.id,
+			url: item.url,
+			type: item.type,
+			sortOrder: item.sortOrder,
+		}));
 	}
 }
