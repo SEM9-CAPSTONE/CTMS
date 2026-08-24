@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { adminAuditLogsService } from "../services/admin-audit-logs.service";
 import { AdminAuditLogsPage } from "./AdminAuditLogsPage";
@@ -38,6 +39,7 @@ describe("AdminAuditLogsPage", () => {
 	});
 
 	it("renders table with logs on success", async () => {
+		const user = userEvent.setup();
 		vi.mocked(adminAuditLogsService.getAuditLogs).mockResolvedValue({
 			items: mockLogs,
 			pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
@@ -50,6 +52,10 @@ describe("AdminAuditLogsPage", () => {
 		});
 
 		expect(screen.getByText("actor-1")).toBeInTheDocument();
+		await user.click(screen.getByRole("button", { name: "Xem chi tiết log log-1" }));
+		expect(
+			await screen.findByRole("dialog", { name: /Chi tiết nhật ký hệ thống/ })
+		).toBeInTheDocument();
 		expect(screen.getByText("target-1")).toBeInTheDocument();
 	});
 

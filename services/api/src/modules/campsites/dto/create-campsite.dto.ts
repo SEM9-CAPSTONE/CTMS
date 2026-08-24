@@ -24,7 +24,7 @@ import {
 	registerDecorator,
 } from "class-validator";
 
-const OPERATING_HOURS_PATTERN = /^([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d$/;
+const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 function trimmedString(value: unknown): unknown {
 	if (typeof value !== "string") {
@@ -33,55 +33,79 @@ function trimmedString(value: unknown): unknown {
 	return value.trim();
 }
 
-function IsOperatingHoursRange(validationOptions?: ValidationOptions) {
+function minutesSinceMidnight(value: string): number {
+	const [hours, minutes] = value.split(":").map(Number);
+	return hours * 60 + minutes;
+}
+
+function IsOperatingHoursOrder(validationOptions?: ValidationOptions) {
 	return (object: object, propertyName: string) => {
 		registerDecorator({
-			name: "isOperatingHoursRange",
+			name: "isOperatingHoursOrder",
 			target: object.constructor,
 			propertyName,
 			options: validationOptions,
 			validator: {
-				validate(value: unknown): boolean {
-					if (typeof value !== "string" || !OPERATING_HOURS_PATTERN.test(value)) {
-						return false;
+				validate(_value: unknown, args: ValidationArguments): boolean {
+					const dto = args.object as CreateOperatingHoursDto;
+					if (!TIME_PATTERN.test(dto.opensAt) || !TIME_PATTERN.test(dto.closesAt)) {
+						return true;
 					}
-					const [opensAt, closesAt] = value.split("-");
-					return minutesSinceMidnight(opensAt) < minutesSinceMidnight(closesAt);
+					return minutesSinceMidnight(dto.opensAt) < minutesSinceMidnight(dto.closesAt);
 				},
 			},
 		});
 	};
 }
 
-function minutesSinceMidnight(value: string): number {
-	const [hours, minutes] = value.split(":").map(Number);
-	return hours * 60 + minutes;
-}
-
-@ValidatorConstraint({ name: "imageDisplayOrderSequence" })
-class ImageDisplayOrderSequenceConstraint implements ValidatorConstraintInterface {
-	validate(images: CreateCampsiteImageDto[] | undefined): boolean {
-		if (!Array.isArray(images)) {
+@ValidatorConstraint({ name: "mediaSortOrderSequence" })
+class MediaSortOrderSequenceConstraint implements ValidatorConstraintInterface {
+	validate(media: CreateCampsiteMediaDto[] | undefined): boolean {
+		if (!Array.isArray(media)) {
 			return false;
 		}
-		const explicitOrders = images
-			.map((image) => image.displayOrder)
-			.filter((displayOrder): displayOrder is number => displayOrder !== undefined);
+		const explicitOrders = media
+			.map((item) => item.sortOrder)
+			.filter((sortOrder): sortOrder is number => sortOrder !== undefined);
 		return new Set(explicitOrders).size === explicitOrders.length;
 	}
 
 	defaultMessage(_args: ValidationArguments): string {
-		return "initialImages displayOrder values must be unique when provided";
+		return "media sortOrder values must be unique when provided";
 	}
 }
 
-export class CreateCampsiteImageDto {
+export class CreateOperatingHoursDto {
+	@ApiProperty({ example: "08:00" })
+	@Transform(({ value }) => trimmedString(value))
+	@IsString()
+	@Matches(TIME_PATTERN)
+	opensAt!: string;
+
+	@ApiProperty({ example: "18:00" })
+	@Transform(({ value }) => trimmedString(value))
+	@IsString()
+	@Matches(TIME_PATTERN)
+	@IsOperatingHoursOrder({ message: "operatingHours.closesAt must be after opensAt" })
+	closesAt!: string;
+}
+
+export class CreateCampsitePoliciesDto {
+	@ApiProperty({ maxLength: 2000 })
+	@Transform(({ value }) => trimmedString(value))
+	@IsString()
+	@IsNotEmpty()
+	@MaxLength(2000)
+	rules!: string;
+}
+
+export class CreateCampsiteMediaDto {
 	@ApiProperty({ maxLength: 2000, example: "https://cdn.example.com/campsites/pine-1.jpg" })
 	@Transform(({ value }) => trimmedString(value))
 	@IsString()
 	@IsNotEmpty()
 	@MaxLength(2000)
-	@IsUrl({ require_protocol: true, protocols: ["http", "https"] })
+	@IsUrl({ require_protocol: true, protocols: ["http", "https"], require_tld: false })
 	url!: string;
 
 	@ApiPropertyOptional({ enum: ["photo"], default: "photo" })
@@ -97,7 +121,68 @@ export class CreateCampsiteImageDto {
 	@IsInt()
 	@Min(0)
 	@Max(100)
-	displayOrder?: number;
+	sortOrder?: number;
+}
+
+export class CreateCampsiteZoneDto {
+	@ApiProperty({ maxLength: 150, example: "Bai ven suoi" })
+	@Transform(({ value }) => trimmedString(value))
+	@IsString()
+	@IsNotEmpty()
+	@MaxLength(150)
+	name!: string;
+
+	@ApiProperty({ minimum: -90, maximum: 90 })
+	@Type(() => Number)
+	@IsNumber({ maxDecimalPlaces: 6 })
+	@Min(-90)
+	@Max(90)
+	latitude!: number;
+
+	@ApiProperty({ minimum: -180, maximum: 180 })
+	@Type(() => Number)
+	@IsNumber({ maxDecimalPlaces: 6 })
+	@Min(-180)
+	@Max(180)
+	longitude!: number;
+
+	@ApiProperty({ minimum: 1 })
+	@Type(() => Number)
+	@IsInt()
+	@Min(1)
+	maxTents!: number;
+
+	@ApiProperty({ minimum: 1 })
+	@Type(() => Number)
+	@IsInt()
+	@Min(1)
+	maxPeople!: number;
+
+	@ApiProperty({ minimum: 0 })
+	@Type(() => Number)
+	@IsNumber({ maxDecimalPlaces: 2 })
+	@Min(0)
+	basePrice!: number;
+
+	@ApiPropertyOptional({ type: [String] })
+	@IsOptional()
+	@IsArray()
+	@ArrayMaxSize(30)
+	@Transform(({ value }) =>
+		Array.isArray(value)
+			? value.map((item) => (typeof item === "string" ? item.trim() : item))
+			: value
+	)
+	@IsString({ each: true })
+	@MaxLength(80, { each: true })
+	amenities?: string[];
+
+	@ApiPropertyOptional({ maxLength: 2000 })
+	@IsOptional()
+	@Transform(({ value }) => trimmedString(value))
+	@IsString()
+	@MaxLength(2000)
+	terrainNote?: string;
 }
 
 export class CreateCampsiteDto {
@@ -108,12 +193,12 @@ export class CreateCampsiteDto {
 	@MaxLength(150)
 	name!: string;
 
-	@ApiProperty({ maxLength: 2000 })
+	@ApiPropertyOptional({ maxLength: 2000 })
+	@IsOptional()
 	@Transform(({ value }) => trimmedString(value))
 	@IsString()
-	@IsNotEmpty()
 	@MaxLength(2000)
-	description!: string;
+	description?: string;
 
 	@ApiProperty({ minimum: -90, maximum: 90, example: 11.940419 })
 	@Type(() => Number)
@@ -136,34 +221,65 @@ export class CreateCampsiteDto {
 	@MaxLength(100)
 	province!: string;
 
-	@ApiProperty({ maxLength: 100 })
+	@ApiProperty({ type: CreateCampsitePoliciesDto })
+	@ValidateNested()
+	@Type(() => CreateCampsitePoliciesDto)
+	policies!: CreateCampsitePoliciesDto;
+
+	@ApiProperty({ type: CreateOperatingHoursDto })
+	@ValidateNested()
+	@Type(() => CreateOperatingHoursDto)
+	operatingHours!: CreateOperatingHoursDto;
+
+	@ApiPropertyOptional({ example: "2026-01-01" })
+	@IsOptional()
 	@Transform(({ value }) => trimmedString(value))
 	@IsString()
-	@IsNotEmpty()
-	@MaxLength(100)
-	city!: string;
+	@Matches(/^\d{4}-\d{2}-\d{2}$/)
+	seasonStartDate?: string;
 
-	@ApiProperty({ maxLength: 2000 })
+	@ApiPropertyOptional({ example: "2026-12-31" })
+	@IsOptional()
 	@Transform(({ value }) => trimmedString(value))
 	@IsString()
-	@IsNotEmpty()
-	@MaxLength(2000)
-	policies!: string;
+	@Matches(/^\d{4}-\d{2}-\d{2}$/)
+	seasonEndDate?: string;
 
-	@ApiProperty({ example: "08:00-18:00", description: "Daily operating hours in HH:mm-HH:mm" })
-	@Transform(({ value }) => trimmedString(value))
-	@IsString()
-	@Matches(OPERATING_HOURS_PATTERN)
-	@IsOperatingHoursRange({ message: "operatingHours must have a start time earlier than end time" })
-	@MaxLength(200)
-	operatingHours!: string;
+	@ApiPropertyOptional({ minimum: 1 })
+	@IsOptional()
+	@Type(() => Number)
+	@IsInt()
+	@Min(1)
+	maxAdvanceBookingDays?: number;
 
-	@ApiProperty({ type: [CreateCampsiteImageDto], minItems: 1, maxItems: 10 })
+	@ApiPropertyOptional({ minimum: 1 })
+	@IsOptional()
+	@Type(() => Number)
+	@IsInt()
+	@Min(1)
+	minNights?: number;
+
+	@ApiPropertyOptional({ minimum: 1 })
+	@IsOptional()
+	@Type(() => Number)
+	@IsInt()
+	@Min(1)
+	maxNights?: number;
+
+	@ApiProperty({ type: [CreateCampsiteMediaDto], minItems: 1, maxItems: 10 })
 	@IsArray()
 	@ArrayMinSize(1)
 	@ArrayMaxSize(10)
-	@Validate(ImageDisplayOrderSequenceConstraint)
+	@Validate(MediaSortOrderSequenceConstraint)
 	@ValidateNested({ each: true })
-	@Type(() => CreateCampsiteImageDto)
-	initialImages!: CreateCampsiteImageDto[];
+	@Type(() => CreateCampsiteMediaDto)
+	media!: CreateCampsiteMediaDto[];
+
+	@ApiPropertyOptional({ type: [CreateCampsiteZoneDto], maxItems: 20 })
+	@IsOptional()
+	@IsArray()
+	@ArrayMaxSize(20)
+	@ValidateNested({ each: true })
+	@Type(() => CreateCampsiteZoneDto)
+	zones?: CreateCampsiteZoneDto[];
 }

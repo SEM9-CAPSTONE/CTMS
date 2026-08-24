@@ -38,7 +38,7 @@ test.describe("Logout UI (E2E)", () => {
 
 		await page
 			.getByRole("button", {
-				name: /đăng xuất thiết bị này/i,
+				name: /^đăng xuất$/i,
 			})
 			.click();
 
@@ -52,34 +52,6 @@ test.describe("Logout UI (E2E)", () => {
 
 		await expect.poll(() => page.evaluate(() => localStorage.getItem("refreshToken"))).toBeNull();
 
-		await expect.poll(() => page.evaluate(() => localStorage.getItem("authUser"))).toBeNull();
-	});
-
-	test("requires confirmation before logout from all devices", async ({ page }) => {
-		await loginAsAdmin(page);
-		await page.goto("/dashboard");
-
-		await page.getByRole("button", { name: /đăng xuất tất cả thiết bị/i }).click();
-
-		await expect(page.getByRole("dialog")).toBeVisible();
-		await expect(page.getByText(/bạn sẽ phải đăng nhập lại trên tất cả thiết bị/i)).toBeVisible();
-
-		expect(await page.evaluate(() => localStorage.getItem("refreshToken"))).toBeTruthy();
-
-		await page.getByRole("button", { name: /hủy/i }).click();
-		await expect(page.getByRole("dialog")).not.toBeVisible();
-	});
-
-	test("logs out from all devices after confirmation", async ({ page }) => {
-		await loginAsAdmin(page);
-		await page.goto("/dashboard");
-
-		await page.getByRole("button", { name: /đăng xuất tất cả thiết bị/i }).click();
-		await page.getByRole("button", { name: /xác nhận/i }).click();
-
-		await expect(page).toHaveURL(/\/login$/);
-		await expect.poll(() => page.evaluate(() => localStorage.getItem("accessToken"))).toBeNull();
-		await expect.poll(() => page.evaluate(() => localStorage.getItem("refreshToken"))).toBeNull();
 		await expect.poll(() => page.evaluate(() => localStorage.getItem("authUser"))).toBeNull();
 	});
 
@@ -102,7 +74,7 @@ test.describe("Logout UI (E2E)", () => {
 			});
 		});
 
-		await page.getByRole("button", { name: /đăng xuất thiết bị này/i }).click();
+		await page.getByRole("button", { name: /^đăng xuất$/i }).click();
 
 		await expect(page.getByRole("alert")).toContainText(/không thể đăng xuất/i);
 		await expect(page).toHaveURL(/\/dashboard$/);
@@ -112,17 +84,14 @@ test.describe("Logout UI (E2E)", () => {
 		expect(await page.evaluate(() => localStorage.getItem("authUser"))).toBe(userBefore);
 	});
 
-	test("revoked refresh token cannot refresh after current-device logout", async ({
-		page,
-		request,
-	}) => {
+	test("revoked refresh token cannot refresh after logout", async ({ page, request }) => {
 		await loginAsAdmin(page);
 		await page.goto("/dashboard");
 
 		const oldRefreshToken = await page.evaluate(() => localStorage.getItem("refreshToken"));
 		expect(oldRefreshToken).toBeTruthy();
 
-		await page.getByRole("button", { name: /đăng xuất thiết bị này/i }).click();
+		await page.getByRole("button", { name: /^đăng xuất$/i }).click();
 
 		await expect(page).toHaveURL(/\/login$/);
 

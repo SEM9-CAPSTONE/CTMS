@@ -6,9 +6,6 @@ export class CampsiteLocationDto {
 	province!: string;
 
 	@ApiProperty()
-	city!: string;
-
-	@ApiProperty()
 	latitude!: number;
 
 	@ApiProperty()
@@ -74,27 +71,23 @@ export class PaginatedCampsiteSearchResponseDto {
 }
 
 /**
- * `coverImageUrl` is passed in separately (not read off `campsite`) because
- * it comes from a join against `campsite_images` that the repository (Step
- * 3) resolves -- mirrors how `toAuditLogItem()` takes `actorName` as an
- * extra resolved value rather than expecting it on the `AuditLog` entity.
- *
- * `latitude`/`longitude` are TypeORM `numeric` columns, which come back as
- * `string` on the entity to avoid float-precision loss -- converted to
- * `number` here since the search result's location is display-only.
+ * `coverImageUrl` and coordinates are passed in separately because they
+ * come from `campsite_media` and PostGIS expressions, not simple entity
+ * scalar columns.
  */
 export function toCampsiteSearchItem(
 	campsite: Campsite,
-	coverImageUrl: string | null
+	coverImageUrl: string | null,
+	latitude: number,
+	longitude: number
 ): CampsiteSearchItemDto {
 	return {
 		id: campsite.id,
 		name: campsite.name,
 		location: {
 			province: campsite.province,
-			city: campsite.city,
-			latitude: Number(campsite.latitude),
-			longitude: Number(campsite.longitude),
+			latitude,
+			longitude,
 		},
 		coverImage: coverImageUrl,
 		activeRoutes: [],

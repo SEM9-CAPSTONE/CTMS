@@ -19,13 +19,12 @@ interface CreateCampsitePayload {
 	latitude: number;
 	longitude: number;
 	province: string;
-	city: string;
-	policies: string;
-	operatingHours: string;
-	initialImages: Array<{
+	policies: { rules: string };
+	operatingHours: { opensAt: string; closesAt: string };
+	media: Array<{
 		url: string;
 		type?: "photo";
-		displayOrder?: number;
+		sortOrder?: number;
 	}>;
 }
 
@@ -74,10 +73,10 @@ describe("Create Campsite POST /campsites (integration, real Postgres)", () => {
 				`DELETE FROM "audit_logs" WHERE "target_id" = ANY($1) OR "actor_id" = ANY($2)`,
 				[cleanupCampsiteIds, cleanupUserIds]
 			);
-			await dataSource.query(`DELETE FROM "campsite_images" WHERE "campsite_id" = ANY($1)`, [
+			await dataSource.query(`DELETE FROM "campsite_media" WHERE "campsite_id" = ANY($1)`, [
 				cleanupCampsiteIds,
 			]);
-			await dataSource.query(`DELETE FROM "zones" WHERE "campsite_id" = ANY($1)`, [
+			await dataSource.query(`DELETE FROM "campsite_zones" WHERE "campsite_id" = ANY($1)`, [
 				cleanupCampsiteIds,
 			]);
 			await dataSource.query(`DELETE FROM "campsites" WHERE "id" = ANY($1)`, [cleanupCampsiteIds]);
@@ -121,12 +120,11 @@ describe("Create Campsite POST /campsites (integration, real Postgres)", () => {
 			latitude: 11.940419,
 			longitude: 108.458313,
 			province: "Lam Dong",
-			city: "Da Lat",
-			policies: "No campfires after 21:00. Pack out all trash.",
-			operatingHours: "08:00-18:00",
-			initialImages: [
-				{ url: "https://example.com/campsites/pine-cover.jpg", type: "photo", displayOrder: 1 },
-				{ url: "https://example.com/campsites/pine-map.jpg", type: "photo", displayOrder: 2 },
+			policies: { rules: "No campfires after 21:00. Pack out all trash." },
+			operatingHours: { opensAt: "08:00", closesAt: "18:00" },
+			media: [
+				{ url: "https://example.com/campsites/pine-cover.jpg", type: "photo", sortOrder: 1 },
+				{ url: "https://example.com/campsites/pine-map.jpg", type: "photo", sortOrder: 2 },
 			],
 			...overrides,
 		};
@@ -145,7 +143,7 @@ describe("Create Campsite POST /campsites (integration, real Postgres)", () => {
 		return rows[0].count;
 	}
 
-	it("creates a Draft campsite with initial images and an audit log for an authenticated Host", async () => {
+	it("creates a Draft campsite with media and an audit log for an authenticated Host", async () => {
 		const host = await createAccount("host", "active");
 		const payload = validPayload();
 
@@ -161,51 +159,65 @@ describe("Create Campsite POST /campsites (integration, real Postgres)", () => {
 				latitude: payload.latitude,
 				longitude: payload.longitude,
 				province: payload.province,
-				city: payload.city,
 				policies: payload.policies,
 				operatingHours: payload.operatingHours,
 				status: CampsiteStatus.DRAFT,
-				images: [
+				media: [
 					expect.objectContaining({
 						url: "https://example.com/campsites/pine-cover.jpg",
 						type: "photo",
-						displayOrder: 1,
+						sortOrder: 1,
 					}),
 					expect.objectContaining({
 						url: "https://example.com/campsites/pine-map.jpg",
 						type: "photo",
-						displayOrder: 2,
+						sortOrder: 2,
 					}),
 				],
 			})
 		);
 
 		const campsiteRows = (await dataSource.query(
-			`SELECT "host_id", "status", "operating_hours" FROM "campsites" WHERE "id" = $1`,
+			`SELECT
+			   "host_id",
+			   "status",
+			   "operating_hours",
+			   ST_Y("location"::geometry) AS "latitude",
+			   ST_X("location"::geometry) AS "longitude"
+			 FROM "campsites"
+			 WHERE "id" = $1`,
 			[res.body.id]
-		)) as Array<{ host_id: string; status: CampsiteStatus; operating_hours: string }>;
+		)) as Array<{
+			host_id: string;
+			status: CampsiteStatus;
+			operating_hours: { opensAt: string; closesAt: string };
+			latitude: number;
+			longitude: number;
+		}>;
 		expect(campsiteRows).toEqual([
 			{
 				host_id: host.id,
 				status: CampsiteStatus.DRAFT,
-				operating_hours: "08:00-18:00",
+				operating_hours: { opensAt: "08:00", closesAt: "18:00" },
+				latitude: 11.940419,
+				longitude: 108.458313,
 			},
 		]);
 
-		const imageRows = (await dataSource.query(
-			`SELECT "url", "type", "display_order" FROM "campsite_images" WHERE "campsite_id" = $1 ORDER BY "display_order" ASC`,
+		const mediaRows = (await dataSource.query(
+			`SELECT "url", "type", "sort_order" FROM "campsite_media" WHERE "campsite_id" = $1 ORDER BY "sort_order" ASC`,
 			[res.body.id]
-		)) as Array<{ url: string; type: string; display_order: number }>;
-		expect(imageRows).toEqual([
+		)) as Array<{ url: string; type: string; sort_order: number }>;
+		expect(mediaRows).toEqual([
 			{
 				url: "https://example.com/campsites/pine-cover.jpg",
 				type: "photo",
-				display_order: 1,
+				sort_order: 1,
 			},
 			{
 				url: "https://example.com/campsites/pine-map.jpg",
 				type: "photo",
-				display_order: 2,
+				sort_order: 2,
 			},
 		]);
 
@@ -243,8 +255,8 @@ describe("Create Campsite POST /campsites (integration, real Postgres)", () => {
 			...validPayload(),
 			name: " ",
 			latitude: 95,
-			operatingHours: "18:00-08:00",
-			initialImages: [{ url: "not-a-url" }],
+			operatingHours: { opensAt: "18:00", closesAt: "08:00" },
+			media: [{ url: "not-a-url" }],
 		}).expect(422);
 
 		expect(res.body.statusCode).toBe(422);

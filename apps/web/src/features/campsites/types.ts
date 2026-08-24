@@ -1,12 +1,5 @@
-/**
- * CTMS-17-T02. Mirrors CTMS-17-T01's frozen backend contract exactly
- * (services/api/src/modules/campsites/dto/*.ts) -- no extra fields invented
- * on either side (no `status`, no date/guest-count/type filters from the
- * landing page's static mockup -- those don't exist in the backend).
- */
 export interface CampsiteSearchFilters {
 	province?: string;
-	city?: string;
 	/** Comma-separated or repeated on the wire; kept as string[] in UI state. */
 	amenities?: string[];
 	minPrice?: number;
@@ -20,9 +13,27 @@ export interface CampsiteSearchParams extends CampsiteSearchFilters {
 
 export interface CampsiteLocation {
 	province: string;
-	city: string;
 	latitude: number;
 	longitude: number;
+}
+
+export interface CampsiteLocationState {
+	placeLabel: string;
+	latitude: number | null;
+	longitude: number | null;
+}
+
+export interface PlaceSuggestion {
+	id: string;
+	label: string;
+	latitude: number;
+	longitude: number;
+	province?: string;
+}
+
+export interface ReverseGeocodeResult {
+	placeLabel: string;
+	province?: string;
 }
 
 /** Matches CampsiteSearchItemDto -- no price field: BR-048/AC3 only require name/location/coverImage/activeRoutes, price is a filter input, not a display field. */
@@ -45,4 +56,51 @@ export interface CampsiteSearchPagination {
 export interface PaginatedCampsiteSearchResponse {
 	items: CampsiteSearchItem[];
 	pagination: CampsiteSearchPagination;
+}
+
+export interface CreateCampsiteImageInput {
+	url: string;
+	type?: "photo";
+	sortOrder?: number;
+}
+
+export interface CreateCampsiteInput {
+	name: string;
+	description: string;
+	latitude: number;
+	longitude: number;
+	province: string;
+	policies: { rules: string };
+	operatingHours: { opensAt: string; closesAt: string };
+	media: CreateCampsiteImageInput[];
+}
+
+export interface CampsiteImageResponse {
+	id: string;
+	url: string;
+	type: "photo";
+	sortOrder: number;
+}
+
+export interface CreatedCampsite {
+	id: string;
+	hostId: string;
+	name: string;
+	description: string;
+	latitude: number;
+	longitude: number;
+	province: string;
+	policies: { rules: string } | null;
+	operatingHours: { opensAt?: string; closesAt?: string } | null;
+	status:
+		| "draft"
+		| "pending_approval"
+		| "active"
+		| "temporarily_closed"
+		| "suspended"
+		| "closed"
+		| "archived";
+	media: CampsiteImageResponse[];
+	createdAt: string;
+	updatedAt: string;
 }

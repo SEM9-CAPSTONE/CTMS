@@ -13,8 +13,10 @@ export const API_ENDPOINTS = {
 	},
 	CAMPSITES: {
 		GET_ALL: "/campsites",
+		MY: "/campsites/my",
 		GET_BY_ID: (id: string) => `/campsites/${id}`,
 		CREATE: "/campsites",
+		UPLOAD_MEDIA: "/campsites/media",
 		UPDATE: (id: string) => `/campsites/${id}`,
 		DELETE: (id: string) => `/campsites/${id}`,
 		ZONES: (campsiteId: string) => `/campsites/${campsiteId}/zones`,

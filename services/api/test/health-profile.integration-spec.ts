@@ -6,6 +6,7 @@ import { AppModule } from "../src/modules/app.module";
 import { AuthService } from "../src/modules/auth/auth.service";
 import { UserRole, UserStatus } from "../src/modules/users/entities/user.entity";
 import { validationExceptionFactory } from "../src/shared/pipes/validation-exception-factory";
+import { assertSafeTestDatabase } from "./support/assert-safe-test-database";
 
 describe("Camper Health Profile (integration, real Postgres)", () => {
 	let app: INestApplication;
@@ -51,6 +52,7 @@ describe("Camper Health Profile (integration, real Postgres)", () => {
 		}
 
 		dataSource = moduleRef.get(DataSource);
+		await assertSafeTestDatabase(dataSource);
 		await dataSource.query(
 			'TRUNCATE TABLE "bookings", "trip_porters", "trips", "audit_logs", "health_profiles", "refresh_tokens", "verification_otps", "users" CASCADE'
 		);

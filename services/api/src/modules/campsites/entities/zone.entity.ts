@@ -7,20 +7,15 @@ import {
 	PrimaryGeneratedColumn,
 	UpdateDateColumn,
 } from "typeorm";
-import { Campsite } from "./campsite.entity";
+import { Campsite, type GeoPoint } from "./campsite.entity";
 
-/** CTMS-12/BR-033: a zone's own status, independent of the campsite's. */
 export enum ZoneStatus {
 	ACTIVE = "active",
 	CLOSED = "closed",
+	ARCHIVED = "archived",
 }
 
-/**
- * CTMS-17-T01 (CTMS-77). Provisional, same caveat as {@link Campsite} --
- * only the columns Search Campsites' filters actually read (BR-046:
- * amenities, zone base-price range).
- */
-@Entity({ name: "zones" })
+@Entity({ name: "campsite_zones" })
 export class Zone {
 	@PrimaryGeneratedColumn("uuid")
 	id!: string;
@@ -35,25 +30,25 @@ export class Zone {
 	@Column({ type: "varchar", length: 150 })
 	name!: string;
 
-	@Column({ type: "int" })
-	capacity!: number;
+	@Column({ type: "geography", spatialFeatureType: "Point", srid: 4326 })
+	location!: GeoPoint;
 
-	@Column({ type: "varchar", length: 200 })
-	location!: string;
+	@Column({ name: "max_tents", type: "int" })
+	maxTents!: number;
+
+	@Column({ name: "max_people", type: "int" })
+	maxPeople!: number;
 
 	@Column({ name: "base_price", type: "numeric", precision: 12, scale: 2 })
 	basePrice!: string;
 
-	/**
-	 * Postgres native `text[]`, not jsonb -- lets the search repository use
-	 * the `&&` (overlap) operator directly for the frozen "ANY matching
-	 * zone" amenities semantics (a campsite matches if at least one of its
-	 * zones has at least one of the requested amenities).
-	 */
-	@Column({ type: "text", array: true, default: () => "'{}'" })
-	amenities!: string[];
+	@Column({ type: "jsonb", nullable: true })
+	amenities!: string[] | null;
 
-	@Column({ type: "enum", enum: ZoneStatus, default: ZoneStatus.ACTIVE })
+	@Column({ name: "terrain_note", type: "text", nullable: true })
+	terrainNote!: string | null;
+
+	@Column({ type: "enum", enum: ZoneStatus, enumName: "zone_status", default: ZoneStatus.ACTIVE })
 	status!: ZoneStatus;
 
 	@CreateDateColumn({ name: "created_at", type: "timestamptz" })

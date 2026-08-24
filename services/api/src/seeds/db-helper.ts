@@ -14,6 +14,12 @@ function parseJsonArg<T>(base64Arg: string): T {
 	return JSON.parse(Buffer.from(base64Arg, "base64").toString("utf8")) as T;
 }
 
+function assertE2EEmail(email: string): void {
+	if (!email.startsWith("e2e-")) {
+		throw new Error(`Refusing to delete non-E2E user: ${email}`);
+	}
+}
+
 async function main() {
 	const action = process.argv[2];
 	const arg = process.argv[3];
@@ -177,23 +183,30 @@ async function main() {
 				id: string;
 				name: string;
 				province: string;
-				city: string;
 				status: string;
 			}> = [];
 
 			for (const spec of input.campsites) {
 				const rows = await dataSource.query(
 					`INSERT INTO "campsites"
-					   ("host_id", "name", "description", "latitude", "longitude", "province", "city", "policies", "operating_hours", "status")
-					 VALUES ($1, $2, 'e2e fixture', $3, $4, $5, $6, 'n/a', 'n/a', $7)
-					 RETURNING "id", "name", "province", "city", "status"`,
+					   ("host_id", "name", "description", "location", "province", "policies", "operating_hours", "status")
+					 VALUES (
+					   $1,
+					   $2,
+					   'e2e fixture',
+					   ST_SetSRID(ST_MakePoint($3::double precision, $4::double precision), 4326)::geography,
+					   $5,
+					   '{"rules":"n/a"}'::jsonb,
+					   '{"opensAt":"08:00","closesAt":"18:00"}'::jsonb,
+					   $6
+					 )
+					 RETURNING "id", "name", "province", "status"`,
 					[
 						hostId,
 						spec.name ?? `E2E Campsite ${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`,
-						spec.latitude ?? "10.000000",
 						spec.longitude ?? "106.000000",
+						spec.latitude ?? "10.000000",
 						spec.province ?? "CTMS78E2E",
-						spec.city ?? "FixtureCity",
 						spec.status ?? "active",
 					]
 				);
@@ -202,17 +215,32 @@ async function main() {
 
 				for (const zone of spec.zones ?? []) {
 					await dataSource.query(
-						`INSERT INTO "zones" ("campsite_id", "name", "capacity", "location", "base_price", "amenities", "status")
-						 VALUES ($1, 'E2E Zone', 4, 'n/a', $2, $3, $4)`,
-						[campsite.id, zone.basePrice ?? "100.00", zone.amenities ?? [], zone.status ?? "active"]
+						`INSERT INTO "campsite_zones"
+						   ("campsite_id", "name", "location", "max_tents", "max_people", "base_price", "amenities", "status")
+						 VALUES (
+						   $1,
+						   'E2E Zone',
+						   ST_SetSRID(ST_MakePoint(106::double precision, 10::double precision), 4326)::geography,
+						   4,
+						   12,
+						   $2,
+						   $3::jsonb,
+						   $4
+						 )`,
+						[
+							campsite.id,
+							zone.basePrice ?? "100.00",
+							JSON.stringify(zone.amenities ?? []),
+							zone.status ?? "active",
+						]
 					);
 				}
 
 				for (const image of spec.images ?? []) {
 					await dataSource.query(
-						`INSERT INTO "campsite_images" ("campsite_id", "url", "display_order")
-						 VALUES ($1, $2, $3)`,
-						[campsite.id, image.url, image.displayOrder]
+						`INSERT INTO "campsite_media" ("campsite_id", "url", "type", "sort_order")
+						 VALUES ($1, $2, $3, $4)`,
+						[campsite.id, image.url, "photo", image.displayOrder]
 					);
 				}
 			}
@@ -223,15 +251,39 @@ async function main() {
 			// deletes exactly the ids the spec tracked, never a marker sweep.
 			const input = parseJsonArg<{ hostIds: string[]; campsiteIds: string[] }>(arg);
 			if (input.campsiteIds.length > 0) {
-				await dataSource.query(`DELETE FROM "campsite_images" WHERE "campsite_id" = ANY($1)`, [
+				const campsiteRows = (await dataSource.query(
+					`SELECT "id", "name", "province" FROM "campsites" WHERE "id" = ANY($1)`,
+					[input.campsiteIds]
+				)) as Array<{ id: string; name: string; province: string }>;
+				const unsafeCampsite = campsiteRows.find(
+					(row) =>
+						!row.province.startsWith("CTMS") &&
+						!row.name.startsWith("CTMS") &&
+						!row.name.startsWith("E2E") &&
+						!row.name.startsWith("Pine Camp CTMS")
+				);
+				if (unsafeCampsite) {
+					throw new Error(
+						`Refusing to delete non-E2E campsite: ${unsafeCampsite.id} ${unsafeCampsite.name}`
+					);
+				}
+				await dataSource.query(`DELETE FROM "campsite_media" WHERE "campsite_id" = ANY($1)`, [
 					input.campsiteIds,
 				]);
-				await dataSource.query(`DELETE FROM "zones" WHERE "campsite_id" = ANY($1)`, [
+				await dataSource.query(`DELETE FROM "campsite_zones" WHERE "campsite_id" = ANY($1)`, [
 					input.campsiteIds,
 				]);
 				await dataSource.query(`DELETE FROM "campsites" WHERE "id" = ANY($1)`, [input.campsiteIds]);
 			}
 			if (input.hostIds.length > 0) {
+				const hostRows = (await dataSource.query(
+					`SELECT "id", "email" FROM "users" WHERE "id" = ANY($1)`,
+					[input.hostIds]
+				)) as Array<{ id: string; email: string | null }>;
+				const unsafeHost = hostRows.find((row) => !row.email?.startsWith("e2e-"));
+				if (unsafeHost) {
+					throw new Error(`Refusing to delete non-E2E host: ${unsafeHost.id}`);
+				}
 				await dataSource.query(`DELETE FROM "user_roles" WHERE "user_id" = ANY($1)`, [
 					input.hostIds,
 				]);
@@ -246,7 +298,22 @@ async function main() {
 				[arg]
 			);
 			console.log(JSON.stringify({ count: Number(rows[0].count) }));
+		} else if (action === "count-campsites-json") {
+			const input = parseJsonArg<{ province: string }>(arg);
+			const rows = await dataSource.query(
+				`SELECT count(*) FROM "campsites" WHERE "province" = $1`,
+				[input.province]
+			);
+			console.log(JSON.stringify({ count: Number(rows[0].count) }));
+		} else if (action === "get-campsite") {
+			const input = parseJsonArg<{ campsiteId: string }>(arg);
+			const rows = await dataSource.query(
+				`SELECT "id", "name", "province", "status" FROM "campsites" WHERE "id" = $1`,
+				[input.campsiteId]
+			);
+			console.log(JSON.stringify({ campsite: rows[0] ?? null }));
 		} else if (action === "clean-user") {
+			assertE2EEmail(arg);
 			const rows = await dataSource.query('SELECT "id" FROM "users" WHERE "email" = $1', [arg]);
 			if (rows.length > 0) {
 				const userId = rows[0].id;

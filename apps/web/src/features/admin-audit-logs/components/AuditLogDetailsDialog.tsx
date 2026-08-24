@@ -12,7 +12,8 @@ export function AuditLogDetailsDialog({ open, log, onClose }: AuditLogDetailsDia
 	if (!open || !log) return null;
 
 	return (
-		<div
+		<dialog
+			open
 			aria-modal="true"
 			className="fixed inset-0 z-50 flex items-center justify-center bg-[#10221b]/50 p-4"
 			aria-labelledby="log-detail-title"
@@ -107,7 +108,7 @@ export function AuditLogDetailsDialog({ open, log, onClose }: AuditLogDetailsDia
 					</div>
 				</div>
 			</div>
-		</div>
+		</dialog>
 	);
 }
 

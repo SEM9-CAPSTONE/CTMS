@@ -10,49 +10,21 @@ describe("LogoutActions", () => {
 
 		render(<LogoutActions onLogout={onLogout} />);
 
-		await user.click(screen.getByRole("button", { name: /đăng xuất thiết bị này/i }));
+		await user.click(screen.getByRole("button", { name: /^đăng xuất$/i }));
 
 		await waitFor(() => expect(onLogout).toHaveBeenCalledTimes(1));
 		expect(onLogout).toHaveBeenCalledWith(false);
 	});
 
-	it("opens confirmation before logging out from all devices", async () => {
-		const user = userEvent.setup();
+	it("does not render all-device logout controls", () => {
 		const onLogout = vi.fn().mockResolvedValue(undefined);
 
 		render(<LogoutActions onLogout={onLogout} />);
 
-		await user.click(screen.getByRole("button", { name: /đăng xuất tất cả thiết bị/i }));
-
-		expect(screen.getByRole("dialog")).toBeInTheDocument();
-		expect(screen.getByText(/bạn sẽ phải đăng nhập lại trên tất cả thiết bị/i)).toBeInTheDocument();
-		expect(onLogout).not.toHaveBeenCalled();
-	});
-
-	it("confirms logout from all devices", async () => {
-		const user = userEvent.setup();
-		const onLogout = vi.fn().mockResolvedValue(undefined);
-
-		render(<LogoutActions onLogout={onLogout} />);
-
-		await user.click(screen.getByRole("button", { name: /đăng xuất tất cả thiết bị/i }));
-		await user.click(screen.getByRole("button", { name: /xác nhận/i }));
-
-		await waitFor(() => expect(onLogout).toHaveBeenCalledTimes(1));
-		expect(onLogout).toHaveBeenCalledWith(true);
-	});
-
-	it("does not call logout when all-device confirmation is cancelled", async () => {
-		const user = userEvent.setup();
-		const onLogout = vi.fn().mockResolvedValue(undefined);
-
-		render(<LogoutActions onLogout={onLogout} />);
-
-		await user.click(screen.getByRole("button", { name: /đăng xuất tất cả thiết bị/i }));
-		await user.click(screen.getByRole("button", { name: /hủy/i }));
-
+		expect(
+			screen.queryByRole("button", { name: /đăng xuất tất cả thiết bị/i })
+		).not.toBeInTheDocument();
 		expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-		expect(onLogout).not.toHaveBeenCalled();
 	});
 
 	it("prevents repeated submissions while logout is pending", async () => {
@@ -67,7 +39,7 @@ describe("LogoutActions", () => {
 		render(<LogoutActions onLogout={onLogout} />);
 
 		const button = screen.getByRole("button", {
-			name: /đăng xuất thiết bị này/i,
+			name: /^đăng xuất$/i,
 		});
 
 		await user.click(button);
@@ -88,7 +60,7 @@ describe("LogoutActions", () => {
 
 		render(<LogoutActions onLogout={onLogout} />);
 
-		await user.click(screen.getByRole("button", { name: /đăng xuất thiết bị này/i }));
+		await user.click(screen.getByRole("button", { name: /^đăng xuất$/i }));
 
 		const alert = await screen.findByRole("alert");
 		expect(alert).toHaveTextContent(/không thể đăng xuất/i);
@@ -105,7 +77,7 @@ describe("LogoutActions", () => {
 		render(<LogoutActions onLogout={onLogout} />);
 
 		const button = screen.getByRole("button", {
-			name: /đăng xuất thiết bị này/i,
+			name: /^đăng xuất$/i,
 		});
 
 		await user.click(button);

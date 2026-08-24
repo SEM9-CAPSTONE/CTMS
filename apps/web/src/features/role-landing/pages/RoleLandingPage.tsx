@@ -9,7 +9,9 @@ import {
 	ClipboardList,
 	Compass,
 	FileClock,
+	Image as ImageIcon,
 	LayoutDashboard,
+	Loader2,
 	MapPinned,
 	Menu,
 	MessageSquare,
@@ -31,6 +33,8 @@ import type { StoredAuthUser } from "../../auth/utils/tokenStorage";
 import { CamperSidebar } from "../../camper-profile/components/CamperSidebar";
 import { camperProfileService } from "../../camper-profile/services/camper-profile.service";
 import type { CamperProfileData } from "../../camper-profile/types";
+import { campsitesService } from "../../campsites/services/campsites.service";
+import type { CreatedCampsite } from "../../campsites/types";
 
 type RoleKey = "camper" | "host" | "porter" | "admin";
 
@@ -40,6 +44,7 @@ export interface RoleLandingPageProps {
 	onBackHome: () => void;
 	onOpenProfile?: () => void;
 	onOpenAdminUsers?: () => void;
+	onCreateCampsite?: () => void;
 	onLogout?: (allDevices: boolean) => Promise<void>;
 }
 
@@ -552,6 +557,47 @@ function useDashboardProfile() {
 	return { profile, isLoadingProfile };
 }
 
+function useHostCampsites(isEnabled: boolean) {
+	const [items, setItems] = useState<CreatedCampsite[]>([]);
+	const [isLoading, setIsLoading] = useState(false);
+	const [error, setError] = useState("");
+
+	useEffect(() => {
+		if (!isEnabled) {
+			setItems([]);
+			setError("");
+			setIsLoading(false);
+			return;
+		}
+
+		let isMounted = true;
+		setIsLoading(true);
+		setError("");
+
+		campsitesService
+			.getMine()
+			.then((data) => {
+				if (!isMounted) return;
+				setItems(data);
+			})
+			.catch(() => {
+				if (!isMounted) return;
+				setItems([]);
+				setError("Không thể tải danh sách campsite của Host.");
+			})
+			.finally(() => {
+				if (!isMounted) return;
+				setIsLoading(false);
+			});
+
+		return () => {
+			isMounted = false;
+		};
+	}, [isEnabled]);
+
+	return { items, isLoading, error };
+}
+
 function Sidebar({
 	config,
 	grantedRoles,
@@ -700,18 +746,150 @@ function MetricCard({ metric }: { metric: Metric }) {
 	);
 }
 
+const campsiteStatusLabels: Record<CreatedCampsite["status"], string> = {
+	draft: "Nháp",
+	pending_approval: "Chờ Admin duyệt",
+	active: "Đang hoạt động",
+	temporarily_closed: "Tạm đóng",
+	suspended: "Tạm khóa",
+	closed: "Đã đóng",
+	archived: "Lưu trữ",
+};
+
+function formatCreatedAt(value: string): string {
+	return new Intl.DateTimeFormat("vi-VN", {
+		day: "2-digit",
+		month: "2-digit",
+		year: "numeric",
+		hour: "2-digit",
+		minute: "2-digit",
+	}).format(new Date(value));
+}
+
+function HostCampsitesPanel({
+	items,
+	isLoading,
+	error,
+	onCreateCampsite,
+}: {
+	items: CreatedCampsite[];
+	isLoading: boolean;
+	error: string;
+	onCreateCampsite?: () => void;
+}) {
+	return (
+		<section className="rounded-[28px] border border-[#dfe8df] bg-white p-6 shadow-sm">
+			<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+				<div>
+					<h2 className="text-xl font-extrabold text-[#10221b]">Campsite của tôi</h2>
+				</div>
+				{onCreateCampsite && (
+					<Button onClick={onCreateCampsite} className="gap-2">
+						<TentTree className="size-4" />
+						<span>Tạo bãi cắm</span>
+					</Button>
+				)}
+			</div>
+
+			{isLoading && (
+				<div className="mt-5 flex items-center gap-2 rounded-2xl border border-[#e5eee7] bg-[#fbfdfb] p-4 text-sm font-bold text-[#667a6d]">
+					<Loader2 className="size-4 animate-spin text-[#164027]" />
+					Đang tải dữ liệu...
+				</div>
+			)}
+
+			{error && !isLoading && (
+				<div className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">
+					{error}
+				</div>
+			)}
+
+			{!isLoading && !error && items.length === 0 && (
+				<div className="mt-5 rounded-2xl border border-dashed border-[#cbd9ce] bg-[#fbfdfb] p-6 text-center">
+					<TentTree className="mx-auto size-8 text-[#8fa096]" />
+					<p className="mt-2 text-sm font-extrabold text-[#10221b]">Chưa có bãi cắm nào</p>
+					<p className="mt-1 text-xs font-semibold text-[#788b7e]">
+						Bãi vừa tạo sẽ xuất hiện ở đây với trạng thái chờ duyệt.
+					</p>
+				</div>
+			)}
+
+			{!isLoading && !error && items.length > 0 && (
+				<div className="mt-5 grid gap-4 lg:grid-cols-2">
+					{items.map((campsite) => {
+						const coverImage = campsite.media[0]?.url;
+
+						return (
+							<article
+								key={campsite.id}
+								className="overflow-hidden rounded-2xl border border-[#e5eee7] bg-[#fbfdfb]"
+							>
+								<div className="aspect-[16/9] bg-[#edf4ed]">
+									{coverImage ? (
+										<img
+											src={coverImage}
+											alt={campsite.name}
+											className="h-full w-full object-cover"
+										/>
+									) : (
+										<div className="flex h-full items-center justify-center text-[#8fa096]">
+											<ImageIcon className="size-8" />
+										</div>
+									)}
+								</div>
+								<div className="p-4">
+									<div className="flex items-start justify-between gap-3">
+										<div className="min-w-0">
+											<h3 className="truncate text-base font-extrabold text-[#10221b]">
+												{campsite.name}
+											</h3>
+											<p className="mt-1 text-sm font-semibold text-[#667a6d]">
+												{campsite.province}
+											</p>
+										</div>
+										<span className="shrink-0 rounded-full bg-amber-100 px-3 py-1 text-[11px] font-extrabold text-amber-700">
+											{campsiteStatusLabels[campsite.status]}
+										</span>
+									</div>
+									<p className="mt-3 line-clamp-2 text-sm leading-6 text-[#627769]">
+										{campsite.description}
+									</p>
+									<div className="mt-4 flex flex-wrap items-center gap-3 text-xs font-bold text-[#788b7e]">
+										<span>
+											{campsite.latitude.toFixed(6)}, {campsite.longitude.toFixed(6)}
+										</span>
+										<span>{formatCreatedAt(campsite.createdAt)}</span>
+									</div>
+								</div>
+							</article>
+						);
+					})}
+				</div>
+			)}
+		</section>
+	);
+}
+
 function DashboardMain({
 	config,
 	user,
 	profile,
+	hostCampsites,
+	isLoadingHostCampsites,
+	hostCampsitesError,
 	onOpenProfile,
 	onOpenAdminUsers,
+	onCreateCampsite,
 }: {
 	config: DashboardConfig;
 	user: StoredAuthUser;
 	profile: CamperProfileData | null;
+	hostCampsites: CreatedCampsite[];
+	isLoadingHostCampsites: boolean;
+	hostCampsitesError: string;
 	onOpenProfile?: () => void;
 	onOpenAdminUsers?: () => void;
+	onCreateCampsite?: () => void;
 }) {
 	const displayName = profile?.fullName || getDisplayName(user);
 	const timeOfDay = getTimeOfDay();
@@ -752,6 +930,15 @@ function DashboardMain({
 						);
 					})}
 				</section>
+
+				{config.role === "host" && (
+					<HostCampsitesPanel
+						items={hostCampsites}
+						isLoading={isLoadingHostCampsites}
+						error={hostCampsitesError}
+						onCreateCampsite={onCreateCampsite}
+					/>
+				)}
 
 				<section className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
 					<div className="overflow-hidden rounded-[28px] border border-[#dfe8df] bg-white shadow-sm">
@@ -865,6 +1052,12 @@ function DashboardMain({
 									<ArrowRight className="size-4" />
 								</Button>
 							)}
+							{config.role === "host" && onCreateCampsite && (
+								<Button onClick={onCreateCampsite} className="gap-2">
+									<TentTree className="size-4" />
+									<span>Tạo campsite</span>
+								</Button>
+							)}
 						</div>
 						<div className="mt-5 grid gap-3 md:grid-cols-3">
 							{config.tasks.map((task) => {
@@ -898,6 +1091,7 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 	roles,
 	onOpenProfile,
 	onOpenAdminUsers,
+	onCreateCampsite,
 	onLogout,
 }) => {
 	const { profile } = useDashboardProfile();
@@ -917,6 +1111,11 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 		? selectedRole
 		: (normalizedRoles[0] ?? "camper");
 	const config = dashboards[activeRole];
+	const {
+		items: hostCampsites,
+		isLoading: isLoadingHostCampsites,
+		error: hostCampsitesError,
+	} = useHostCampsites(activeRole === "host");
 	const handleCamperNav = (navKey: string) => {
 		if (navKey === "profile") {
 			onOpenProfile?.();
@@ -1009,8 +1208,12 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 					config={config}
 					user={user}
 					profile={profile}
+					hostCampsites={hostCampsites}
+					isLoadingHostCampsites={isLoadingHostCampsites}
+					hostCampsitesError={hostCampsitesError}
 					onOpenProfile={onOpenProfile}
 					onOpenAdminUsers={onOpenAdminUsers}
+					onCreateCampsite={onCreateCampsite}
 				/>
 			</div>
 		</div>

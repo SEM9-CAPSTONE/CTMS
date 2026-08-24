@@ -17,7 +17,8 @@ export function UserAccountDetailsDialog({
 }: UserAccountDetailsDialogProps) {
 	if (!open) return null;
 	return (
-		<div
+		<dialog
+			open
 			aria-modal="true"
 			className="fixed inset-0 z-50 flex items-center justify-center bg-[#10221b]/50 p-4"
 			aria-labelledby="user-detail-title"
@@ -79,7 +80,7 @@ export function UserAccountDetailsDialog({
 					</div>
 				)}
 			</div>
-		</div>
+		</dialog>
 	);
 }
 

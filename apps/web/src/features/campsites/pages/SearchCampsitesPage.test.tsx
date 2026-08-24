@@ -16,7 +16,7 @@ const oneItemPage: PaginatedCampsiteSearchResponse = {
 		{
 			id: "1",
 			name: "Đà Lạt Pine Camp",
-			location: { province: "Lam Dong", city: "Da Lat", latitude: 11.9, longitude: 108.4 },
+			location: { province: "Lam Dong", latitude: 11.9, longitude: 108.4 },
 			coverImage: null,
 			activeRoutes: [],
 		},
@@ -123,7 +123,7 @@ describe("SearchCampsitesPage", () => {
 		});
 		render(<SearchCampsitesPage />);
 		await waitFor(() => expect(screen.getByText("Đà Lạt Pine Camp")).toBeInTheDocument());
-		expect(screen.getByText("Da Lat, Lam Dong")).toBeInTheDocument();
+		expect(screen.getByText("Lam Dong")).toBeInTheDocument();
 		expect(screen.getByText("37")).toBeInTheDocument();
 		expect(screen.getByText(/trang 1 \/ 2/i)).toBeInTheDocument();
 	});
