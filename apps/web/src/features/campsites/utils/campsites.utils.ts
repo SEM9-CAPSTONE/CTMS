@@ -25,7 +25,7 @@ export function mapCampsitesError(error: unknown): string {
 		return "Phiên đăng nhập đã hết hạn hoặc tài khoản không còn hoạt động. Vui lòng đăng nhập lại.";
 	}
 	if (error.status === 403) {
-		return "Bạn không có quyền tìm kiếm campsite.";
+		return "Bạn không có quyền tìm kiếm khu cắm trại.";
 	}
 	if (error.status === 422) {
 		return "Bộ lọc tìm kiếm không hợp lệ. Vui lòng kiểm tra lại.";

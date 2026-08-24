@@ -312,6 +312,24 @@ async function main() {
 				[input.campsiteId]
 			);
 			console.log(JSON.stringify({ campsite: rows[0] ?? null }));
+		} else if (action === "get-campsite-details") {
+			const input = parseJsonArg<{ campsiteId: string }>(arg);
+			const rows = await dataSource.query(
+				`SELECT
+				    "id",
+				    "host_id" AS "hostId",
+				    "name",
+				    "description",
+				    "province",
+				    "policies",
+				    "operating_hours" AS "operatingHours",
+				    "status",
+				    "updated_at" AS "updatedAt"
+				  FROM "campsites"
+				  WHERE "id" = $1`,
+				[input.campsiteId]
+			);
+			console.log(JSON.stringify({ campsite: rows[0] ?? null }));
 		} else if (action === "clean-user") {
 			assertE2EEmail(arg);
 			const rows = await dataSource.query('SELECT "id" FROM "users" WHERE "email" = $1', [arg]);

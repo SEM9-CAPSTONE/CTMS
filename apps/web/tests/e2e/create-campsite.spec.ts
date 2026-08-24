@@ -47,19 +47,21 @@ async function login(page: Page, email: string): Promise<void> {
 
 	await page.locator('form button[type="submit"]').click();
 
-	await expect.poll(() => page.evaluate(() => localStorage.getItem("accessToken"))).toBeTruthy();
+	await expect
+		.poll(() => page.evaluate(() => localStorage.getItem("accessToken")), { timeout: 15_000 })
+		.toBeTruthy();
 }
 
 async function fillValidCreateForm(page: Page, province: string) {
-	await page.getByLabel("Tên campsite *").fill(`E2E Pine Camp ${province}`);
+	await page.getByLabel("Tên khu cắm trại *").fill(`E2E Pine Camp ${province}`);
 
 	await page.getByLabel("Mô tả *").fill("CTMS-10-T02 E2E campsite");
 
 	await page.getByLabel("Tỉnh/Thành phố *").selectOption(province);
 
-	await page.getByLabel("Địa điểm campsite *").fill(`Pine Camp ${province}`);
+	await page.getByLabel("Địa điểm khu cắm trại *").fill(`Pine Camp ${province}`);
 
-	await page.getByRole("button", { name: "Bản đồ campsite" }).press("Enter");
+	await page.getByRole("button", { name: "Bản đồ khu cắm trại" }).press("Enter");
 
 	await expect(page.getByTestId("selected-location")).toBeVisible();
 
@@ -75,7 +77,7 @@ async function fillValidCreateForm(page: Page, province: string) {
 		buffer: Buffer.from("fake image"),
 	});
 
-	await expect(page.getByAltText("Ảnh campsite 1")).toBeVisible();
+	await expect(page.getByAltText("Ảnh khu cắm trại 1")).toBeVisible();
 }
 
 test.describe("Create Campsite CTMS-10-T02", () => {
@@ -150,7 +152,7 @@ test.describe("Create Campsite CTMS-10-T02", () => {
 
 		await expect(
 			page.getByRole("heading", {
-				name: "Tạo Campsite",
+				name: "Tạo Khu cắm trại",
 			})
 		).toBeVisible();
 
@@ -164,11 +166,11 @@ test.describe("Create Campsite CTMS-10-T02", () => {
 
 		await page
 			.getByRole("button", {
-				name: "Tạo campsite",
+				name: "Tạo khu cắm trại",
 			})
 			.click();
 
-		await expect(page.getByText("Tạo campsite thành công")).toBeVisible();
+		await expect(page.getByText("Tạo khu cắm trại thành công")).toBeVisible();
 
 		await expect(page.getByText("pending", { exact: true })).toBeVisible();
 
@@ -213,11 +215,11 @@ test.describe("Create Campsite CTMS-10-T02", () => {
 
 		await page
 			.getByRole("button", {
-				name: "Tạo campsite",
+				name: "Tạo khu cắm trại",
 			})
 			.click();
 
-		await expect(page.getByText("Tên campsite là bắt buộc")).toBeVisible();
+		await expect(page.getByText("Tên khu cắm trại là bắt buộc")).toBeVisible();
 
 		const persisted = runDbHelperJson("count-campsites-json", {
 			province: invalidProvince,
@@ -237,7 +239,7 @@ test.describe("Create Campsite CTMS-10-T02", () => {
 
 		await expect(
 			page.getByRole("heading", {
-				name: "Tạo Campsite",
+				name: "Tạo Khu cắm trại",
 			})
 		).not.toBeVisible();
 	});

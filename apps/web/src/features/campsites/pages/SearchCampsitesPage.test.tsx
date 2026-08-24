@@ -59,8 +59,8 @@ describe("SearchCampsitesPage", () => {
 				})
 		);
 		render(<SearchCampsitesPage />);
-		expect(screen.getByText(/đang tìm kiếm campsite/i)).toBeInTheDocument();
-		expect(screen.queryByText(/không tìm thấy campsite/i)).not.toBeInTheDocument();
+		expect(screen.getByText(/đang tìm kiếm khu cắm trại/i)).toBeInTheDocument();
+		expect(screen.queryByText(/không tìm thấy khu cắm trại/i)).not.toBeInTheDocument();
 		expect(screen.queryByText("Đà Lạt Pine Camp")).not.toBeInTheDocument();
 
 		resolveFn(oneItemPage);
@@ -83,7 +83,7 @@ describe("SearchCampsitesPage", () => {
 		mockedSearch.mockRejectedValue(new HttpError("Insufficient permission", 403, {}));
 		render(<SearchCampsitesPage />);
 		await waitFor(() =>
-			expect(screen.getByText("Bạn không có quyền tìm kiếm campsite.")).toBeInTheDocument()
+			expect(screen.getByText("Bạn không có quyền tìm kiếm khu cắm trại.")).toBeInTheDocument()
 		);
 	});
 
@@ -105,7 +105,7 @@ describe("SearchCampsitesPage", () => {
 		mockedSearch.mockResolvedValue(emptyPage);
 		const { unmount } = render(<SearchCampsitesPage />);
 		await waitFor(() =>
-			expect(screen.getByText(/không tìm thấy campsite phù hợp/i)).toBeInTheDocument()
+			expect(screen.getByText(/không tìm thấy khu cắm trại phù hợp/i)).toBeInTheDocument()
 		);
 		expect(screen.queryByText(/không thể tải danh sách/i)).not.toBeInTheDocument();
 		unmount();
@@ -113,7 +113,7 @@ describe("SearchCampsitesPage", () => {
 		mockedSearch.mockRejectedValue(new HttpError("boom", 500, {}));
 		render(<SearchCampsitesPage />);
 		await waitFor(() => expect(screen.getByText(/không thể tải danh sách/i)).toBeInTheDocument());
-		expect(screen.queryByText(/không tìm thấy campsite phù hợp/i)).not.toBeInTheDocument();
+		expect(screen.queryByText(/không tìm thấy khu cắm trại phù hợp/i)).not.toBeInTheDocument();
 	});
 
 	it("renders result cards and pagination matching real backend data", async () => {

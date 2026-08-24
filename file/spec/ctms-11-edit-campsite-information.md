@@ -7,7 +7,7 @@
 Edit Campsite Information
 
 **Status**  
-In progress
+Done
 
 **Story**  
 As a Host, I want to edit Campsite Information so that the CTMS workflow is completed safely, consistently, and within the correct business scope.
@@ -47,7 +47,7 @@ As a Host, I want to edit Campsite Information so that the CTMS workflow is comp
 ## Story-Specific Implementation Tasks
 
 - [x] CTMS-11-T01 [BE / Shared Logic] Implement `Edit Campsite Information` for this task scope and enforce mapped BRs: BR-202, BR-204, BR-205, BR-230, BR-231, BR-242, BR-243, BR-244, BR-221, BR-222, BR-223, BR-224, BR-029, BR-030, BR-031, BR-206, BR-207. Ref: /file/spec/ctms-11-edit-campsite-information.md#backend-preparation-logic-and-tests
-- CTMS-11-T02 [UI Web/Mobile/Consumer] Implement `Edit Campsite Information` for this task scope and enforce mapped BRs: BR-202, BR-204, BR-205, BR-230, BR-231, BR-240, BR-241, BR-242, BR-029, BR-030, BR-031. Ref: /file/spec/ctms-11-edit-campsite-information.md#ui-and-tests
+- [x] CTMS-11-T02 [UI Web/Mobile/Consumer] Implement `Edit Campsite Information` for this task scope and enforce mapped BRs: BR-202, BR-204, BR-205, BR-230, BR-231, BR-240, BR-241, BR-242, BR-029, BR-030, BR-031. Ref: /file/spec/ctms-11-edit-campsite-information.md#ui-and-tests
 
 ## Task to Acceptance Criteria Traceability
 
@@ -216,6 +216,30 @@ As a Host, I want to edit Campsite Information so that the CTMS workflow is comp
 - Unit tests: `services/api/src/modules/campsites/services/campsites.service.spec.ts`.
 - API/E2E tests: `services/api/test/campsites.update.integration-spec.ts`.
 - Covered paths: owner success, audit history, active-campsite Camper visibility, invalid payload rollback, non-owner rejection, stale retry conflict, and no side effects for rejected flows.
+
+## UI and Tests
+
+### Test Evidence
+
+- Implementation checklist:
+  - [x] Implemented Host edit route `/host/campsites/{id}/edit` with Host-only route guard.
+  - [x] Implemented loading, load error, empty ownership, edit form, API error, conflict retry, and success states.
+  - [x] Reused campsite client validation and mapped `401`, `403`, `404`, `409`, and `422` API responses to UI messages.
+  - [x] Prevented duplicate edit submissions while a PATCH request is in flight.
+  - [x] Temporarily keeps Camper campsite search visible; Campers remain blocked from Host create/edit routes.
+- Unit/component tests:
+  - [x] `apps/web/src/features/campsites/pages/EditCampsitePage.test.tsx`.
+  - [x] `apps/web/src/features/campsites/services/campsites.service.test.ts`.
+  - [x] `apps/web/src/features/campsites/hooks/useCreateCampsite.test.ts`.
+- E2E tests:
+  - [x] `apps/web/tests/e2e/edit-campsite.spec.ts`.
+  - [x] Happy path verifies Host UI edit, PATCH persistence, and updated active campsite visibility through Camper search.
+  - [x] Invalid-data flow verifies client validation blocks PATCH and database data stays unchanged.
+  - [x] Unauthorized flow verifies Camper cannot reach Host edit and database data stays unchanged.
+- Commands run on 2026-08-24:
+  - [x] `npm run test` from `apps/web`: 24 files passed, 166 tests passed.
+  - [x] `npm run build` from `apps/web`: passed.
+  - [x] `npm run test:e2e -- edit-campsite.spec.ts` from `apps/web`: 3 tests passed.
 
 ## References
 

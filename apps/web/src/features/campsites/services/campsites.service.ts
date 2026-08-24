@@ -4,6 +4,7 @@ import type {
 	CreateCampsiteInput,
 	CreatedCampsite,
 	PaginatedCampsiteSearchResponse,
+	UpdateCampsiteInput,
 } from "../types";
 
 interface CampsiteMediaUploadResponse {
@@ -34,6 +35,21 @@ export const campsitesService = {
 
 	getMine: async (): Promise<CreatedCampsite[]> => {
 		return httpClient.get<CreatedCampsite[]>(API_ENDPOINTS.CAMPSITES.MY);
+	},
+
+	getById: async (id: string): Promise<CreatedCampsite> => {
+		const mine = await campsitesService.getMine();
+		const campsite = mine.find((item) => item.id === id);
+
+		if (!campsite) {
+			throw new Error("Campsite not found in Host ownership list");
+		}
+
+		return campsite;
+	},
+
+	update: async (id: string, input: UpdateCampsiteInput): Promise<CreatedCampsite> => {
+		return httpClient.patch<CreatedCampsite>(API_ENDPOINTS.CAMPSITES.UPDATE(id), input);
 	},
 
 	uploadMedia: async (file: File): Promise<CampsiteMediaUploadResponse> => {
