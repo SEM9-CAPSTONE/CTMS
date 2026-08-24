@@ -11,7 +11,7 @@ import { authService } from "../features/auth/services/auth.service";
 import { getGrantedRoles, isAdminUser } from "../features/auth/utils/permissions";
 import { getRefreshToken, getStoredAuthUser } from "../features/auth/utils/tokenStorage";
 import { CamperProfilePage } from "../features/camper-profile/pages/CamperProfilePage";
-import { CreateCampsitePage } from "../features/campsites/pages/CreateCampsitePage";
+import { CampsiteFormPage } from "../features/campsites/pages/CampsiteFormPage";
 import { SearchCampsitesPage } from "../features/campsites/pages/SearchCampsitesPage";
 import { LandingPage } from "../features/landing/pages/LandingPage";
 import { RoleLandingPage } from "../features/role-landing/pages/RoleLandingPage";
@@ -80,6 +80,25 @@ export function AppRoutes() {
 			onNavigateToLogin={() => navigateTo(RoutePath.LOGIN)}
 		/>
 	);
+	const editCampsiteMatch = currentPath.match(
+		/^\/host\/campsites\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/edit$/i
+	);
+
+	if (editCampsiteMatch) {
+		return (
+			<AppRoleGuard
+				allowedRoles={["host"]}
+				currentRoles={currentRoles}
+				onNavigateHome={() => navigateTo(RoutePath.HOME)}
+			>
+				<CampsiteFormPage
+					mode="edit"
+					campsiteId={editCampsiteMatch[1]}
+					onBackHome={() => navigateTo(RoutePath.DASHBOARD)}
+				/>
+			</AppRoleGuard>
+		);
+	}
 
 	switch (currentPath) {
 		case RoutePath.HOME:
@@ -157,7 +176,7 @@ export function AppRoutes() {
 					currentRoles={currentRoles}
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
-					<CreateCampsitePage onBackHome={() => navigateTo(RoutePath.DASHBOARD)} />
+					<CampsiteFormPage mode="create" onBackHome={() => navigateTo(RoutePath.DASHBOARD)} />
 				</AppRoleGuard>
 			);
 
@@ -179,6 +198,7 @@ export function AppRoutes() {
 					onOpenProfile={() => navigateTo(RoutePath.CAMPER_PROFILE)}
 					onOpenAdminUsers={() => navigateTo(RoutePath.ADMIN_USERS)}
 					onCreateCampsite={() => navigateTo(RoutePath.HOST_CREATE_CAMPSITE)}
+					onEditCampsite={(id) => navigateTo(`/host/campsites/${id}/edit`)}
 					onLogout={handleLogout}
 				/>
 			);

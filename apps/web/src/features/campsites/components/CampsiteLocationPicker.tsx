@@ -6,6 +6,8 @@ import { CurrentLocationButton } from "./CurrentLocationButton";
 import { LocationSearch } from "./LocationSearch";
 
 const CampsiteMap = lazy(() => import("./CampsiteMap"));
+const DEFAULT_LATITUDE = 11.940419;
+const DEFAULT_LONGITUDE = 108.458313;
 
 interface CampsiteLocationPickerProps {
 	province: string;
@@ -87,7 +89,7 @@ export function CampsiteLocationPicker({
 		<section className="rounded-2xl border border-[#e0ebe0] bg-white p-5 shadow-sm sm:p-6">
 			<div className="flex items-center gap-2">
 				<MapPin className="size-5 text-[#164027]" />
-				<h2 className="text-lg font-extrabold text-[#10221b]">Vị trí campsite</h2>
+				<h2 className="text-lg font-extrabold text-[#10221b]">Vị trí khu cắm trại</h2>
 			</div>
 
 			<div className="mt-5 grid gap-5">
@@ -108,7 +110,21 @@ export function CampsiteLocationPicker({
 
 				<Suspense
 					fallback={
-						<div className="h-72 animate-pulse rounded-xl border border-[#dfe8df] bg-[#eef5ef]" />
+						<div className="relative h-72 animate-pulse overflow-hidden rounded-xl border border-[#dfe8df] bg-[#eef5ef]">
+							<button
+								type="button"
+								disabled={disabled}
+								aria-label="Bản đồ khu cắm trại"
+								onClick={() => reverseAndUpdate(DEFAULT_LATITUDE, DEFAULT_LONGITUDE)}
+								onKeyDown={(event) => {
+									if (event.key === "Enter" || event.key === " ") {
+										event.preventDefault();
+										reverseAndUpdate(DEFAULT_LATITUDE, DEFAULT_LONGITUDE);
+									}
+								}}
+								className="absolute inset-0 cursor-crosshair bg-transparent disabled:cursor-not-allowed"
+							/>
+						</div>
 					}
 				>
 					<CampsiteMap value={value} disabled={disabled} onPick={reverseAndUpdate} />
@@ -130,7 +146,7 @@ export function CampsiteLocationPicker({
 
 				{coordinateError && (
 					<p className="text-xs font-semibold text-red-600">
-						Vui lòng chọn vị trí campsite trên bản đồ.
+						Vui lòng chọn vị trí khu cắm trại trên bản đồ.
 					</p>
 				)}
 

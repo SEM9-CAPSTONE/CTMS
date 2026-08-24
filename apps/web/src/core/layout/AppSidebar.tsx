@@ -17,7 +17,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
 
 	const navItems = [
 		{ label: "Dashboard", icon: Home, path: "/dashboard" },
-		{ label: "Campsites", icon: Tent, path: "/campsites" },
+		{ label: "Khu cắm trại", icon: Tent, path: "/campsites" },
 		{ label: "Trekking Routes", icon: MapIcon, path: "/trekking" },
 		{ label: "Safety Center", icon: ShieldAlert, path: "/safety" },
 		{ label: "AI Survival", icon: LifeBuoy, path: "/ai-assistant" },

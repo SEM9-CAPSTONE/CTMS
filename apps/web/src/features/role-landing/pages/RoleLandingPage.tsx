@@ -45,6 +45,7 @@ export interface RoleLandingPageProps {
 	onOpenProfile?: () => void;
 	onOpenAdminUsers?: () => void;
 	onCreateCampsite?: () => void;
+	onEditCampsite?: (id: string) => void;
 	onLogout?: (allDevices: boolean) => Promise<void>;
 }
 
@@ -583,7 +584,7 @@ function useHostCampsites(isEnabled: boolean) {
 			.catch(() => {
 				if (!isMounted) return;
 				setItems([]);
-				setError("Không thể tải danh sách campsite của Host.");
+				setError("Không thể tải danh sách khu cắm trại của Host.");
 			})
 			.finally(() => {
 				if (!isMounted) return;
@@ -771,22 +772,24 @@ function HostCampsitesPanel({
 	isLoading,
 	error,
 	onCreateCampsite,
+	onEditCampsite,
 }: {
 	items: CreatedCampsite[];
 	isLoading: boolean;
 	error: string;
 	onCreateCampsite?: () => void;
+	onEditCampsite?: (id: string) => void;
 }) {
 	return (
 		<section className="rounded-[28px] border border-[#dfe8df] bg-white p-6 shadow-sm">
 			<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 				<div>
-					<h2 className="text-xl font-extrabold text-[#10221b]">Campsite của tôi</h2>
+					<h2 className="text-xl font-extrabold text-[#10221b]">Khu cắm trại của tôi</h2>
 				</div>
 				{onCreateCampsite && (
 					<Button onClick={onCreateCampsite} className="gap-2">
 						<TentTree className="size-4" />
-						<span>Tạo bãi cắm</span>
+						<span>Tạo khu cắm trại</span>
 					</Button>
 				)}
 			</div>
@@ -860,6 +863,18 @@ function HostCampsitesPanel({
 										</span>
 										<span>{formatCreatedAt(campsite.createdAt)}</span>
 									</div>
+									{onEditCampsite && (
+										<div className="mt-4">
+											<Button
+												type="button"
+												variant="outline"
+												size="sm"
+												onClick={() => onEditCampsite(campsite.id)}
+											>
+												Sửa khu cắm trại
+											</Button>
+										</div>
+									)}
 								</div>
 							</article>
 						);
@@ -880,6 +895,7 @@ function DashboardMain({
 	onOpenProfile,
 	onOpenAdminUsers,
 	onCreateCampsite,
+	onEditCampsite,
 }: {
 	config: DashboardConfig;
 	user: StoredAuthUser;
@@ -890,6 +906,7 @@ function DashboardMain({
 	onOpenProfile?: () => void;
 	onOpenAdminUsers?: () => void;
 	onCreateCampsite?: () => void;
+	onEditCampsite?: (id: string) => void;
 }) {
 	const displayName = profile?.fullName || getDisplayName(user);
 	const timeOfDay = getTimeOfDay();
@@ -937,6 +954,7 @@ function DashboardMain({
 						isLoading={isLoadingHostCampsites}
 						error={hostCampsitesError}
 						onCreateCampsite={onCreateCampsite}
+						onEditCampsite={onEditCampsite}
 					/>
 				)}
 
@@ -1055,7 +1073,7 @@ function DashboardMain({
 							{config.role === "host" && onCreateCampsite && (
 								<Button onClick={onCreateCampsite} className="gap-2">
 									<TentTree className="size-4" />
-									<span>Tạo campsite</span>
+									<span>Tạo khu cắm trại</span>
 								</Button>
 							)}
 						</div>
@@ -1092,6 +1110,7 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 	onOpenProfile,
 	onOpenAdminUsers,
 	onCreateCampsite,
+	onEditCampsite,
 	onLogout,
 }) => {
 	const { profile } = useDashboardProfile();
@@ -1214,6 +1233,7 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 					onOpenProfile={onOpenProfile}
 					onOpenAdminUsers={onOpenAdminUsers}
 					onCreateCampsite={onCreateCampsite}
+					onEditCampsite={onEditCampsite}
 				/>
 			</div>
 		</div>
