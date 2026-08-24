@@ -176,6 +176,9 @@ export async function cleanupCampsiteFixtures(
 	tracker: CampsiteFixtureTracker
 ): Promise<void> {
 	if (tracker.campsiteIds.length > 0) {
+		await dataSource.query(`DELETE FROM "audit_logs" WHERE "target_id" = ANY($1)`, [
+			tracker.campsiteIds,
+		]);
 		await dataSource.query(`DELETE FROM "campsite_media" WHERE "campsite_id" = ANY($1)`, [
 			tracker.campsiteIds,
 		]);
@@ -185,6 +188,9 @@ export async function cleanupCampsiteFixtures(
 		await dataSource.query(`DELETE FROM "campsites" WHERE "id" = ANY($1)`, [tracker.campsiteIds]);
 	}
 	if (tracker.hostIds.length > 0) {
+		await dataSource.query(`DELETE FROM "audit_logs" WHERE "actor_id" = ANY($1)`, [
+			tracker.hostIds,
+		]);
 		await dataSource.query(`DELETE FROM "user_roles" WHERE "user_id" = ANY($1)`, [tracker.hostIds]);
 		await dataSource.query(`DELETE FROM "users" WHERE "id" = ANY($1)`, [tracker.hostIds]);
 	}

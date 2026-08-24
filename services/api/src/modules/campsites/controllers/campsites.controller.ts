@@ -5,6 +5,9 @@ import {
 	Body,
 	Controller,
 	Get,
+	Param,
+	ParseUUIDPipe,
+	Patch,
 	Post,
 	Query,
 	Req,
@@ -38,6 +41,8 @@ import { PaginatedCampsiteSearchResponseDto } from "../dto/campsite-search-resul
 import { CreateCampsiteDto } from "../dto/create-campsite.dto";
 // biome-ignore lint/style/useImportType: used as a @Query() parameter type, needs design:paramtypes metadata for NestJS's validation/transform pipeline
 import { SearchCampsitesQueryDto } from "../dto/search-campsites-query.dto";
+// biome-ignore lint/style/useImportType: used as a @Body() parameter type, needs design:paramtypes metadata for NestJS's validation/transform pipeline
+import { UpdateCampsiteDto } from "../dto/update-campsite.dto";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { CampsitesService } from "../services/campsites.service";
 
@@ -147,6 +152,27 @@ export class CampsitesController {
 	@ApiResponse({ status: 403, description: "Host access required" })
 	listMine(@Req() request: AuthenticatedRequest): Promise<CampsiteResponseDto[]> {
 		return this.campsitesService.listMine(request.user.userId);
+	}
+
+	@Patch(":id")
+	@Roles(UserRole.HOST)
+	@ApiOperation({ summary: "Edit a campsite owned by the authenticated Host" })
+	@ApiResponse({
+		status: 200,
+		description: "Updated campsite information",
+		type: CampsiteResponseDto,
+	})
+	@ApiResponse({ status: 401, description: "Authentication required" })
+	@ApiResponse({ status: 403, description: "Host ownership required" })
+	@ApiResponse({ status: 404, description: "Campsite not found" })
+	@ApiResponse({ status: 409, description: "Campsite changed since the supplied version" })
+	@ApiResponse({ status: 422, description: "Invalid campsite payload" })
+	update(
+		@Req() request: AuthenticatedRequest,
+		@Param("id", new ParseUUIDPipe()) id: string,
+		@Body() dto: UpdateCampsiteDto
+	): Promise<CampsiteResponseDto> {
+		return this.campsitesService.update(request.user.userId, id, dto);
 	}
 
 	@Get()
