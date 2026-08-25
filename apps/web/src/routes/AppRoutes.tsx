@@ -222,14 +222,14 @@ export function AppRoutes() {
 					onOpenProfile={() => navigateTo(RoutePath.CAMPER_PROFILE)}
 					onOpenAdminUsers={() => navigateTo(RoutePath.ADMIN_USERS)}
 					onCreateCampsite={() => navigateTo(RoutePath.HOST_CREATE_CAMPSITE)}
-					onCreateTrekkingRoute={(campsiteId) =>
+					onCreateTrekkingRoute={(campsiteId?: string) =>
 						navigateTo(
 							campsiteId
 								? `${RoutePath.HOST_CREATE_TREKKING_ROUTE}?campsiteId=${encodeURIComponent(campsiteId)}`
 								: RoutePath.HOST_CREATE_TREKKING_ROUTE
 						)
 					}
-					onViewTrekkingRoutes={(campsiteId) =>
+					onViewTrekkingRoutes={(campsiteId: string) =>
 						navigateTo(
 							`${RoutePath.HOST_TREKKING_ROUTES}?campsiteId=${encodeURIComponent(campsiteId)}`
 						)

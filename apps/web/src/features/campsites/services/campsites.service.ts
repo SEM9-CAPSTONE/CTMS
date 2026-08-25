@@ -1,5 +1,6 @@
 import { API_ENDPOINTS, httpClient } from "../../../core/api";
 import type {
+	CampsiteImageResponse,
 	CampsiteSearchParams,
 	CreateCampsiteInput,
 	CreatedCampsite,
@@ -50,6 +51,15 @@ export const campsitesService = {
 
 	update: async (id: string, input: UpdateCampsiteInput): Promise<CreatedCampsite> => {
 		return httpClient.patch<CreatedCampsite>(API_ENDPOINTS.CAMPSITES.UPDATE(id), input);
+	},
+
+	updateMedia: async (
+		id: string,
+		media: { url: string; type: string; sortOrder: number }[]
+	): Promise<CampsiteImageResponse[]> => {
+		return httpClient.put<CampsiteImageResponse[]>(API_ENDPOINTS.CAMPSITES.UPDATE_MEDIA(id), {
+			media,
+		});
 	},
 
 	uploadMedia: async (file: File): Promise<CampsiteMediaUploadResponse> => {

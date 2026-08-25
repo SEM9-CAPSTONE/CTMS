@@ -1,0 +1,8 @@
+- [x] Move types to `types.ts`
+- [x] Move constants to `constants.ts`
+- [x] Extract `Sidebar` component
+- [x] Extract `MetricCard` component
+- [x] Extract `QuickTasksPanel` component
+- [x] Extract `HostCampsitesPanel` component
+- [x] Clean up and update `RoleLandingPage.tsx`
+- [x] Verify everything compiles, lints, and E2E tests pass

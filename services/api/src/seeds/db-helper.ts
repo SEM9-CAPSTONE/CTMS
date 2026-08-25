@@ -329,7 +329,15 @@ async function main() {
 				  WHERE "id" = $1`,
 				[input.campsiteId]
 			);
-			console.log(JSON.stringify({ campsite: rows[0] ?? null }));
+			const campsite = rows[0] ?? null;
+			if (campsite) {
+				const mediaRows = await dataSource.query(
+					`SELECT "url", "sort_order" AS "sortOrder" FROM "campsite_media" WHERE "campsite_id" = $1 ORDER BY "sort_order" ASC`,
+					[input.campsiteId]
+				);
+				campsite.media = mediaRows;
+			}
+			console.log(JSON.stringify({ campsite }));
 		} else if (action === "count-trekking-routes") {
 			const input = parseJsonArg<{ campsiteId: string }>(arg);
 			const rows = await dataSource.query(

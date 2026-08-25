@@ -1,5 +1,14 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertCircle, ImagePlus, Loader2, Plus, RefreshCw, Trash2 } from "lucide-react";
+import {
+	AlertCircle,
+	ChevronLeft,
+	ChevronRight,
+	ImagePlus,
+	Loader2,
+	Plus,
+	RefreshCw,
+	Trash2,
+} from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { VIETNAM_PROVINCES } from "../constants";
@@ -69,7 +78,7 @@ export function CreateCampsiteForm({
 		mode: "onSubmit",
 	});
 
-	const { fields, append, remove } = useFieldArray({
+	const { fields, append, remove, move } = useFieldArray({
 		control,
 		name: "initialImages",
 	});
@@ -376,6 +385,35 @@ export function CreateCampsiteForm({
 								/>
 
 								<div className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-gradient-to-t from-black/70 to-black/0 px-2.5 pt-8 pb-2 text-white">
+									<div className="flex gap-1.5">
+										{index > 0 && (
+											<button
+												type="button"
+												aria-label={`Di chuyển ảnh ${index + 1} sang trái`}
+												disabled={isSubmitting}
+												onClick={() => {
+													move(index, index - 1);
+												}}
+												className="flex size-8 items-center justify-center rounded-full bg-white text-[#164027] shadow-sm hover:bg-[#eaf4eb] disabled:opacity-50"
+											>
+												<ChevronLeft className="size-4" />
+											</button>
+										)}
+										{index < fields.length - 1 && (
+											<button
+												type="button"
+												aria-label={`Di chuyển ảnh ${index + 1} sang phải`}
+												disabled={isSubmitting}
+												onClick={() => {
+													move(index, index + 1);
+												}}
+												className="flex size-8 items-center justify-center rounded-full bg-white text-[#164027] shadow-sm hover:bg-[#eaf4eb] disabled:opacity-50"
+											>
+												<ChevronRight className="size-4" />
+											</button>
+										)}
+									</div>
+
 									<button
 										type="button"
 										aria-label={`Xóa ảnh ${index + 1}`}
