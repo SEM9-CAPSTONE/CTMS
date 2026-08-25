@@ -41,6 +41,8 @@ import { CampsiteMediaResponseDto, CampsiteResponseDto } from "../dto/campsite-r
 import { PaginatedCampsiteSearchResponseDto } from "../dto/campsite-search-result.dto";
 // biome-ignore lint/style/useImportType: used as a @Body() parameter type, needs design:paramtypes metadata for NestJS's validation/transform pipeline
 import { CreateCampsiteDto } from "../dto/create-campsite.dto";
+// biome-ignore lint/style/useImportType: used as a @Body() parameter type, needs design:paramtypes metadata for NestJS's validation/transform pipeline
+import { ReviewCampsiteDto } from "../dto/review-campsite.dto";
 // biome-ignore lint/style/useImportType: used as a @Query() parameter type, needs design:paramtypes metadata for NestJS's validation/transform pipeline
 import { SearchCampsitesQueryDto } from "../dto/search-campsites-query.dto";
 // biome-ignore lint/style/useImportType: used as a @Body() parameter type, needs design:paramtypes metadata for NestJS's validation/transform pipeline
@@ -221,5 +223,27 @@ export class CampsitesController {
 			type: item.type,
 			sortOrder: item.sortOrder,
 		}));
+	}
+
+	@Patch(":id/review")
+	@Roles(UserRole.ADMIN)
+	@ApiOperation({ summary: "Review a campsite (approve or decline publication)" })
+	@ApiResponse({
+		status: 200,
+		description: "Campsite reviewed successfully",
+		type: CampsiteResponseDto,
+	})
+	@ApiResponse({ status: 401, description: "Authentication required" })
+	@ApiResponse({ status: 403, description: "Admin access required / Insufficient permission" })
+	@ApiResponse({ status: 404, description: "Campsite not found" })
+	@ApiResponse({ status: 409, description: "Campsite is not in pending_approval status" })
+	@ApiResponse({ status: 422, description: "Invalid input" })
+	review(
+		@Req() request: AuthenticatedRequest,
+		@Param("id", new ParseUUIDPipe({ errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY }))
+		id: string,
+		@Body() dto: ReviewCampsiteDto
+	): Promise<CampsiteResponseDto> {
+		return this.campsitesService.reviewCampsite(request.user.userId, id, dto);
 	}
 }

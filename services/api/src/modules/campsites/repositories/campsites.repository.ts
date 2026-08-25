@@ -376,6 +376,11 @@ export class CampsitesRepository extends Repository<Campsite> {
 		return updated;
 	}
 
+	async updateStatus(campsite: Campsite, status: CampsiteStatus): Promise<Campsite> {
+		campsite.status = status;
+		return this.save(campsite);
+	}
+
 	private async resolveCoverImages(campsiteIds: string[]): Promise<Map<string, string>> {
 		if (campsiteIds.length === 0) {
 			return new Map();
