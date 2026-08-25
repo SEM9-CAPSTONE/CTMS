@@ -10,6 +10,8 @@ export interface RoleLandingPageProps {
 	onOpenProfile?: () => void;
 	onOpenAdminUsers?: () => void;
 	onCreateCampsite?: () => void;
+	onCreateTrekkingRoute?: (campsiteId?: string) => void;
+	onViewTrekkingRoutes?: (campsiteId: string) => void;
 	onEditCampsite?: (id: string) => void;
 	onLogout?: (allDevices: boolean) => Promise<void>;
 }

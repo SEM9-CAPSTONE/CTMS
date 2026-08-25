@@ -1,4 +1,4 @@
-import { Loader2, TentTree } from "lucide-react";
+import { Loader2, MapPinned, Route, TentTree } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button, Pagination } from "../../../shared/components";
 import { CampsiteStatus } from "../types";
@@ -31,6 +31,8 @@ export interface HostCampsitesPanelProps {
 	onCreateCampsite?: () => void;
 	onEditCampsite?: (id: string) => void;
 	onManageImages?: (campsite: CreatedCampsite) => void;
+	onCreateTrekkingRoute?: (campsiteId?: string) => void;
+	onViewTrekkingRoutes?: (campsiteId: string) => void;
 }
 
 export function HostCampsitesPanel({
@@ -40,6 +42,8 @@ export function HostCampsitesPanel({
 	onCreateCampsite,
 	onEditCampsite,
 	onManageImages,
+	onCreateTrekkingRoute,
+	onViewTrekkingRoutes,
 }: HostCampsitesPanelProps) {
 	const [statusFilter, setStatusFilter] = useState<string>("all");
 	const [currentPage, setCurrentPage] = useState<number>(1);
@@ -201,6 +205,30 @@ export function HostCampsitesPanel({
 														className="text-xs"
 													>
 														Quản lý ảnh
+													</Button>
+												)}
+												{onCreateTrekkingRoute && (
+													<Button
+														type="button"
+														variant="outline"
+														size="sm"
+														onClick={() => onCreateTrekkingRoute(campsite.id)}
+														className="text-xs gap-1.5"
+													>
+														<Route className="size-3.5" />
+														<span>Tạo trekking route</span>
+													</Button>
+												)}
+												{onViewTrekkingRoutes && (
+													<Button
+														type="button"
+														variant="outline"
+														size="sm"
+														onClick={() => onViewTrekkingRoutes(campsite.id)}
+														className="text-xs gap-1.5"
+													>
+														<MapPinned className="size-3.5" />
+														<span>Xem tuyến đường</span>
 													</Button>
 												)}
 											</div>

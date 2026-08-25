@@ -126,6 +126,8 @@ function DashboardMain({
 	onOpenProfile,
 	onOpenAdminUsers,
 	onCreateCampsite,
+	onCreateTrekkingRoute,
+	onViewTrekkingRoutes,
 	onEditCampsite,
 	onManageImages,
 }: {
@@ -138,6 +140,8 @@ function DashboardMain({
 	onOpenProfile?: () => void;
 	onOpenAdminUsers?: () => void;
 	onCreateCampsite?: () => void;
+	onCreateTrekkingRoute?: (campsiteId?: string) => void;
+	onViewTrekkingRoutes?: (campsiteId: string) => void;
 	onEditCampsite?: (id: string) => void;
 	onManageImages?: (campsite: CreatedCampsite) => void;
 }) {
@@ -187,6 +191,8 @@ function DashboardMain({
 						isLoading={isLoadingHostCampsites}
 						error={hostCampsitesError}
 						onCreateCampsite={onCreateCampsite}
+						onCreateTrekkingRoute={onCreateTrekkingRoute}
+						onViewTrekkingRoutes={onViewTrekkingRoutes}
 						onEditCampsite={onEditCampsite}
 						onManageImages={onManageImages}
 					/>
@@ -294,6 +300,7 @@ function DashboardMain({
 						config={config}
 						onOpenAdminUsers={onOpenAdminUsers}
 						onCreateCampsite={onCreateCampsite}
+						onCreateTrekkingRoute={onCreateTrekkingRoute}
 					/>
 				</section>
 			</div>
@@ -307,6 +314,8 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 	onOpenProfile,
 	onOpenAdminUsers,
 	onCreateCampsite,
+	onCreateTrekkingRoute,
+	onViewTrekkingRoutes,
 	onEditCampsite,
 	onLogout,
 }) => {
@@ -431,6 +440,8 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 					onOpenProfile={onOpenProfile}
 					onOpenAdminUsers={onOpenAdminUsers}
 					onCreateCampsite={onCreateCampsite}
+					onCreateTrekkingRoute={onCreateTrekkingRoute}
+					onViewTrekkingRoutes={onViewTrekkingRoutes}
 					onEditCampsite={onEditCampsite}
 					onManageImages={setManageImagesCampsite}
 				/>
