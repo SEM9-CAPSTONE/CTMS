@@ -3,7 +3,12 @@ import { httpClient } from "../../../core/api";
 import { trekkingRoutesService } from "./trekking-routes.service";
 
 vi.mock("../../../core/api", () => ({
-	API_ENDPOINTS: { TREKKING: { ROUTES: "/trekking-routes" } },
+	API_ENDPOINTS: {
+		TREKKING: {
+			ROUTES: "/trekking-routes",
+			CHECKPOINTS: (routeId: string) => `/trekking-routes/${routeId}/checkpoints`,
+		},
+	},
 	httpClient: { get: vi.fn(), post: vi.fn() },
 }));
 
@@ -39,5 +44,27 @@ describe("trekkingRoutesService", () => {
 		expect(payload).not.toHaveProperty("status");
 		expect(payload).not.toHaveProperty("lengthMeters");
 		expect(payload).not.toHaveProperty("hostId");
+	});
+
+	it("gets and creates checkpoints through the nested route resource", async () => {
+		const payload = {
+			name: "Ridge rest",
+			location: { type: "Point" as const, coordinates: [108.46, 11.94] as [number, number] },
+			radiusMeters: 30,
+			type: "rest" as const,
+			expectedArrivalOffset: 45,
+			instructions: "Rest here",
+			nearbyWaterOrShelter: true,
+		};
+		vi.mocked(httpClient.get).mockResolvedValue([]);
+		vi.mocked(httpClient.post).mockResolvedValue({ id: "checkpoint-id" });
+
+		await trekkingRoutesService.listCheckpoints("route-id");
+		await trekkingRoutesService.createCheckpoint("route-id", payload);
+
+		expect(httpClient.get).toHaveBeenCalledWith("/trekking-routes/route-id/checkpoints");
+		expect(httpClient.post).toHaveBeenCalledWith("/trekking-routes/route-id/checkpoints", payload);
+		expect(payload).not.toHaveProperty("routeId");
+		expect(payload).not.toHaveProperty("routePosition");
 	});
 });

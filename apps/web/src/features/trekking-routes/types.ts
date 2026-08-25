@@ -4,6 +4,21 @@ export type RouteDifficulty = (typeof ROUTE_DIFFICULTIES)[number];
 export type RouteStatus = "draft" | "pending_approval" | "active" | "closed";
 export type Position = [number, number];
 
+export const CHECKPOINT_TYPES = [
+	"start",
+	"rest",
+	"water",
+	"dangerous",
+	"emergency_shelter",
+	"finish",
+] as const;
+export type CheckpointType = (typeof CHECKPOINT_TYPES)[number];
+
+export interface GeoJsonPoint {
+	type: "Point";
+	coordinates: Position;
+}
+
 export interface GeoJsonLineString {
 	type: "LineString";
 	coordinates: Position[];
@@ -23,6 +38,24 @@ export interface CreatedTrekkingRoute extends Omit<CreateTrekkingRouteInput, "de
 	description: string | null;
 	lengthMeters: number;
 	status: RouteStatus;
+	createdAt: string;
+	updatedAt: string;
+}
+
+export interface CreateCheckpointInput {
+	name: string;
+	location: GeoJsonPoint;
+	radiusMeters: number;
+	type: CheckpointType;
+	expectedArrivalOffset: number;
+	instructions: string;
+	nearbyWaterOrShelter: boolean;
+}
+
+export interface RouteCheckpoint extends CreateCheckpointInput {
+	id: string;
+	routeId: string;
+	routePosition: number;
 	createdAt: string;
 	updatedAt: string;
 }

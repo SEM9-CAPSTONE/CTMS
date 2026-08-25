@@ -12,6 +12,11 @@ vi.mock("../components/RouteGeometryPreview", () => ({
 		<div data-testid="geometry-preview">{JSON.stringify(geometry.coordinates)}</div>
 	),
 }));
+vi.mock("../components/RouteCheckpointsPanel", () => ({
+	RouteCheckpointsPanel: ({ route }: { route: CreatedTrekkingRoute }) => (
+		<div data-testid="checkpoints-panel">{route.id}</div>
+	),
+}));
 
 const campsite = { id: "11111111-1111-4111-8111-111111111111", name: "Da Nang Camp" };
 const routes: CreatedTrekkingRoute[] = [
@@ -78,6 +83,7 @@ describe("TrekkingRoutesPage", () => {
 		expect(screen.getByTestId("geometry-preview")).toHaveTextContent(
 			JSON.stringify(routes[0].geometry.coordinates)
 		);
+		expect(screen.getByTestId("checkpoints-panel")).toHaveTextContent(routes[0].id);
 	});
 
 	it("keeps normal selector behavior for an invalid campsite query", async () => {

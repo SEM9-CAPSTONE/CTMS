@@ -1,5 +1,6 @@
 import { AlertCircle, ArrowLeft, Loader2, Map as MapIcon, RefreshCw, Route } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { RouteCheckpointsPanel } from "../components/RouteCheckpointsPanel";
 import { RouteGeometryPreview } from "../components/RouteGeometryPreview";
 import { TrekkingRouteList } from "../components/TrekkingRouteList";
 import { useOwnedCampsites } from "../hooks/useOwnedCampsites";
@@ -170,14 +171,19 @@ export function TrekkingRoutesPage({ onBackHome }: TrekkingRoutesPageProps) {
 							!routes.isLoading &&
 							!routes.error &&
 							routes.items.length > 0 && (
-								<div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
-									<TrekkingRouteList
-										items={routes.items}
-										selectedRouteId={selectedRouteId}
-										onSelect={(route) => setSelectedRouteId(route.id)}
-									/>
-									{selectedRoute && <RouteGeometryPreview geometry={selectedRoute.geometry} />}
-								</div>
+								<>
+									<div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+										<TrekkingRouteList
+											items={routes.items}
+											selectedRouteId={selectedRouteId}
+											onSelect={(route) => setSelectedRouteId(route.id)}
+										/>
+										{selectedRoute && <RouteGeometryPreview geometry={selectedRoute.geometry} />}
+									</div>
+									{selectedRoute && (
+										<RouteCheckpointsPanel key={selectedRoute.id} route={selectedRoute} />
+									)}
+								</>
 							)}
 					</>
 				)}

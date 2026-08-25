@@ -338,6 +338,52 @@ async function main() {
 				campsite.media = mediaRows;
 			}
 			console.log(JSON.stringify({ campsite }));
+		} else if (action === "seed-trekking-routes") {
+			const input = parseJsonArg<{
+				campsiteId: string;
+				routes: Array<{
+					name: string;
+					status?: "draft" | "pending_approval" | "active" | "closed";
+					coordinates?: Array<[number, number]>;
+				}>;
+			}>(arg);
+			const campsiteRows = (await dataSource.query(
+				'SELECT "name", "province" FROM "campsites" WHERE "id" = $1',
+				[input.campsiteId]
+			)) as Array<{ name: string; province: string }>;
+			const campsite = campsiteRows[0];
+			if (
+				!campsite ||
+				(!campsite.province.startsWith("CTMS") &&
+					!campsite.name.startsWith("CTMS") &&
+					!campsite.name.startsWith("E2E"))
+			) {
+				throw new Error("Refusing to seed trekking routes outside an E2E campsite");
+			}
+			const createdRoutes: Array<{ id: string; name: string; status: string }> = [];
+			for (const spec of input.routes) {
+				if (!spec.name.startsWith("E2E") && !spec.name.startsWith("CTMS")) {
+					throw new Error(`Refusing to seed non-E2E trekking route: ${spec.name}`);
+				}
+				const geometry = {
+					type: "LineString",
+					coordinates: spec.coordinates ?? [
+						[108.45, 11.94],
+						[108.47, 11.94],
+					],
+				};
+				const rows = (await dataSource.query(
+					`INSERT INTO "trekking_routes"
+					 ("campsite_id", "name", "description", "route_geom", "length_meters", "difficulty",
+					  "expected_duration_minutes", "status")
+					 SELECT $1, $2, 'e2e checkpoint route', spatial.line, ST_Length(spatial.line), 'moderate', 120, $4
+					 FROM (SELECT ST_SetSRID(ST_GeomFromGeoJSON($3), 4326)::geography AS line) spatial
+					 RETURNING "id", "name", "status"`,
+					[input.campsiteId, spec.name, JSON.stringify(geometry), spec.status ?? "draft"]
+				)) as Array<{ id: string; name: string; status: string }>;
+				createdRoutes.push(rows[0]);
+			}
+			console.log(JSON.stringify({ routes: createdRoutes }));
 		} else if (action === "count-trekking-routes") {
 			const input = parseJsonArg<{ campsiteId: string }>(arg);
 			const rows = await dataSource.query(
@@ -357,6 +403,18 @@ async function main() {
 				[input.routeId]
 			);
 			console.log(JSON.stringify({ route: rows[0] ?? null }));
+		} else if (action === "get-route-checkpoints") {
+			const input = parseJsonArg<{ routeId: string }>(arg);
+			const rows = await dataSource.query(
+				`SELECT "id", "name", "radius_m" AS "radiusMeters", "type",
+				 "expected_arrival_offset" AS "expectedArrivalOffset", "instructions",
+				 "nearby_water_or_shelter" AS "nearbyWaterOrShelter", "route_position" AS "routePosition",
+				 ST_AsGeoJSON("location"::geometry)::json AS "location"
+				 FROM "checkpoints" WHERE "route_id" = $1
+				 ORDER BY "route_position" ASC, "created_at" ASC, "id" ASC`,
+				[input.routeId]
+			);
+			console.log(JSON.stringify({ checkpoints: rows }));
 		} else if (action === "clean-trekking-routes") {
 			const input = parseJsonArg<{ routeIds: string[] }>(arg);
 			if (input.routeIds.length > 0) {
@@ -369,6 +427,17 @@ async function main() {
 				);
 				if (unsafe)
 					throw new Error(`Refusing to delete non-E2E trekking route: ${unsafe.id} ${unsafe.name}`);
+				const checkpointRows = (await dataSource.query(
+					'SELECT "id" FROM "checkpoints" WHERE "route_id" = ANY($1)',
+					[input.routeIds]
+				)) as Array<{ id: string }>;
+				const checkpointIds = checkpointRows.map((row) => row.id);
+				if (checkpointIds.length > 0) {
+					await dataSource.query('DELETE FROM "audit_logs" WHERE "target_id" = ANY($1)', [
+						checkpointIds,
+					]);
+					await dataSource.query('DELETE FROM "checkpoints" WHERE "id" = ANY($1)', [checkpointIds]);
+				}
 				await dataSource.query('DELETE FROM "audit_logs" WHERE "target_id" = ANY($1)', [
 					input.routeIds,
 				]);
