@@ -30,3 +30,6 @@ __pycache__/
 venv/
 
 docker-compose.override.yml
+
+.gemini/brain
+

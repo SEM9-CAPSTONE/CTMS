@@ -87,6 +87,18 @@ export interface CampsiteImageResponse {
 	sortOrder: number;
 }
 
+export const CampsiteStatus = {
+	DRAFT: "draft",
+	PENDING_APPROVAL: "pending_approval",
+	ACTIVE: "active",
+	TEMPORARILY_CLOSED: "temporarily_closed",
+	SUSPENDED: "suspended",
+	CLOSED: "closed",
+	ARCHIVED: "archived",
+} as const;
+
+export type CampsiteStatusType = (typeof CampsiteStatus)[keyof typeof CampsiteStatus];
+
 export interface CreatedCampsite {
 	id: string;
 	hostId: string;
@@ -97,14 +109,7 @@ export interface CreatedCampsite {
 	province: string;
 	policies: { rules: string } | null;
 	operatingHours: { opensAt?: string; closesAt?: string } | null;
-	status:
-		| "draft"
-		| "pending_approval"
-		| "active"
-		| "temporarily_closed"
-		| "suspended"
-		| "closed"
-		| "archived";
+	status: CampsiteStatusType;
 	media: CampsiteImageResponse[];
 	createdAt: string;
 	updatedAt: string;

@@ -260,3 +260,28 @@ export function toUpdateCampsiteInput(
 		changeReason: "host_edit_campsite",
 	};
 }
+
+export const updateCampsiteMediaSchema = z
+	.object({
+		initialImages: z
+			.array(imageSchema)
+			.min(1, "Khu cắm trại phải có ít nhất 1 ảnh")
+			.max(10, "Khu cắm trại chỉ được có tối đa 10 ảnh"),
+	})
+	.superRefine((data, context) => {
+		const displayOrders = data.initialImages
+			.map((image) => image.sortOrder)
+			.filter((value) => value !== "");
+
+		const uniqueOrders = new Set(displayOrders);
+
+		if (uniqueOrders.size !== displayOrders.length) {
+			context.addIssue({
+				code: z.ZodIssueCode.custom,
+				path: ["initialImages"],
+				message: "Thứ tự hiển thị của các ảnh không được trùng nhau",
+			});
+		}
+	});
+
+export type UpdateCampsiteMediaFormValues = z.infer<typeof updateCampsiteMediaSchema>;

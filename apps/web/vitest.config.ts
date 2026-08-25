@@ -10,5 +10,7 @@ export default defineConfig({
 		// different `test`/`expect` API and must not be picked up by Vitest,
 		// which also matches *.spec.ts by default.
 		exclude: [...configDefaults.exclude, "tests/e2e/**"],
+		maxWorkers: 1,
+		isolate: false,
 	},
 });

@@ -17,6 +17,7 @@ export const API_ENDPOINTS = {
 		GET_BY_ID: (id: string) => `/campsites/${id}`,
 		CREATE: "/campsites",
 		UPLOAD_MEDIA: "/campsites/media",
+		UPDATE_MEDIA: (id: string) => `/campsites/${id}/media`,
 		UPDATE: (id: string) => `/campsites/${id}`,
 		DELETE: (id: string) => `/campsites/${id}`,
 		ZONES: (campsiteId: string) => `/campsites/${campsiteId}/zones`,
