@@ -1,11 +1,13 @@
 import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
-import type { DataSource, EntityManager } from "typeorm";
+// biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
+import { DataSource, type EntityManager } from "typeorm";
 import { AuditLog } from "../../auth/entities/audit-log.entity";
 import { Campsite } from "../../campsites/entities/campsite.entity";
 import type { CreateTrekkingRouteDto } from "../dto/create-trekking-route.dto";
 import type { TrekkingRouteResponseDto } from "../dto/trekking-route-response.dto";
 import type { GeoLineString } from "../entities/trekking-route.entity";
-import type { TrekkingRoutesRepository } from "../repositories/trekking-routes.repository";
+// biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
+import { TrekkingRoutesRepository } from "../repositories/trekking-routes.repository";
 
 @Injectable()
 export class TrekkingRoutesService {

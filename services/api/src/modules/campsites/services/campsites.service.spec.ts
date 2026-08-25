@@ -1,5 +1,6 @@
 import { mkdir, rename, unlink } from "node:fs/promises";
 import { AuditLog } from "../../auth/entities/audit-log.entity";
+import { ReviewCampsiteAction } from "../dto/review-campsite.dto";
 import type { SearchCampsitesQueryDto } from "../dto/search-campsites-query.dto";
 import type { CampsiteMedia } from "../entities/campsite-media.entity";
 import { type Campsite, CampsiteStatus } from "../entities/campsite.entity";
@@ -92,11 +93,13 @@ describe("CampsitesService", () => {
 		findOne: jest.Mock;
 		findDetailedById: jest.Mock;
 		updateInformation: jest.Mock;
+		updateStatus: jest.Mock;
 	};
 	let transactionalCampsitesRepository: {
 		createPendingApproval: jest.Mock;
 		findDetailedById: jest.Mock;
 		updateInformation: jest.Mock;
+		updateStatus: jest.Mock;
 	};
 	let auditRepository: { save: jest.Mock };
 	let mediaRepository: {
@@ -116,6 +119,7 @@ describe("CampsitesService", () => {
 			createPendingApproval: jest.fn(),
 			findDetailedById: jest.fn(),
 			updateInformation: jest.fn(),
+			updateStatus: jest.fn(),
 		};
 		auditRepository = {
 			save: jest.fn(),
@@ -135,6 +139,7 @@ describe("CampsitesService", () => {
 			findOne: jest.fn(),
 			findDetailedById: jest.fn(),
 			updateInformation: jest.fn(),
+			updateStatus: jest.fn(),
 		};
 		dataSource = {
 			transaction: jest.fn(async (callback: (manager: unknown) => unknown) =>
@@ -643,6 +648,125 @@ describe("CampsitesService", () => {
 			);
 
 			expect(dataSource.transaction).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("reviewCampsite", () => {
+		const adminId = "admin-user-id";
+		const campsiteId = "11111111-1111-1111-1111-111111111111";
+
+		it("approves a pending approval campsite, updating status to active and saving audit log", async () => {
+			const campsite = buildCampsite({
+				id: campsiteId,
+				status: CampsiteStatus.PENDING_APPROVAL,
+			});
+
+			transactionalCampsitesRepository.findDetailedById.mockResolvedValue({
+				campsite,
+				media: [],
+				zones: [],
+				latitude: 11.940419,
+				longitude: 108.458313,
+			});
+
+			const result = await service.reviewCampsite(adminId, campsiteId, {
+				action: ReviewCampsiteAction.APPROVE,
+			});
+
+			expect(transactionalCampsitesRepository.findDetailedById).toHaveBeenCalledWith(
+				campsiteId,
+				true
+			);
+			expect(transactionalCampsitesRepository.updateStatus).toHaveBeenCalledWith(
+				campsite,
+				CampsiteStatus.ACTIVE
+			);
+			expect(auditRepository.save).toHaveBeenCalledWith(
+				expect.objectContaining({
+					actorId: adminId,
+					action: "campsite.approved",
+					targetType: "campsite",
+					targetId: campsiteId,
+					before: expect.objectContaining({ status: CampsiteStatus.PENDING_APPROVAL }),
+					after: expect.objectContaining({ status: CampsiteStatus.ACTIVE }),
+					reason: null,
+				})
+			);
+			expect(result.status).toBe(CampsiteStatus.ACTIVE);
+		});
+
+		it("declines a pending approval campsite, updating status to draft and saving audit log with reason", async () => {
+			const campsite = buildCampsite({
+				id: campsiteId,
+				status: CampsiteStatus.PENDING_APPROVAL,
+			});
+
+			transactionalCampsitesRepository.findDetailedById.mockResolvedValue({
+				campsite,
+				media: [],
+				zones: [],
+				latitude: 11.940419,
+				longitude: 108.458313,
+			});
+
+			const result = await service.reviewCampsite(adminId, campsiteId, {
+				action: ReviewCampsiteAction.DECLINE,
+				reason: "Environmental risks identified",
+			});
+
+			expect(transactionalCampsitesRepository.updateStatus).toHaveBeenCalledWith(
+				campsite,
+				CampsiteStatus.DRAFT
+			);
+			expect(auditRepository.save).toHaveBeenCalledWith(
+				expect.objectContaining({
+					actorId: adminId,
+					action: "campsite.declined",
+					targetType: "campsite",
+					targetId: campsiteId,
+					before: expect.objectContaining({ status: CampsiteStatus.PENDING_APPROVAL }),
+					after: expect.objectContaining({ status: CampsiteStatus.DRAFT }),
+					reason: "Environmental risks identified",
+				})
+			);
+			expect(result.status).toBe(CampsiteStatus.DRAFT);
+		});
+
+		it("throws NotFoundException if the campsite does not exist", async () => {
+			transactionalCampsitesRepository.findDetailedById.mockResolvedValue(null);
+
+			await expect(
+				service.reviewCampsite(adminId, campsiteId, {
+					action: ReviewCampsiteAction.APPROVE,
+				})
+			).rejects.toThrow("Campsite not found");
+
+			expect(transactionalCampsitesRepository.updateStatus).not.toHaveBeenCalled();
+			expect(auditRepository.save).not.toHaveBeenCalled();
+		});
+
+		it("throws ConflictException if the campsite status is not pending_approval", async () => {
+			const campsite = buildCampsite({
+				id: campsiteId,
+				status: CampsiteStatus.ACTIVE,
+			});
+
+			transactionalCampsitesRepository.findDetailedById.mockResolvedValue({
+				campsite,
+				media: [],
+				zones: [],
+				latitude: 11.940419,
+				longitude: 108.458313,
+			});
+
+			await expect(
+				service.reviewCampsite(adminId, campsiteId, {
+					action: ReviewCampsiteAction.APPROVE,
+				})
+			).rejects.toThrow("Only campsites in pending_approval status can be reviewed");
+
+			expect(transactionalCampsitesRepository.updateStatus).not.toHaveBeenCalled();
+			expect(auditRepository.save).not.toHaveBeenCalled();
 		});
 	});
 });

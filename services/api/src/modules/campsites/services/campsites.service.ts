@@ -23,10 +23,12 @@ import {
 	toCampsiteSearchItem,
 } from "../dto/campsite-search-result.dto";
 import type { CreateCampsiteDto } from "../dto/create-campsite.dto";
+import { ReviewCampsiteAction, type ReviewCampsiteDto } from "../dto/review-campsite.dto";
 import type { SearchCampsitesQueryDto } from "../dto/search-campsites-query.dto";
 import type { UpdateCampsiteMediaDto } from "../dto/update-campsite-media.dto";
 import type { UpdateCampsiteDto } from "../dto/update-campsite.dto";
 import { CampsiteMedia } from "../entities/campsite-media.entity";
+import { CampsiteStatus } from "../entities/campsite.entity";
 import type { Campsite } from "../entities/campsite.entity";
 import type { Zone } from "../entities/zone.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
@@ -305,6 +307,86 @@ export class CampsitesService {
 			await this.deletePromotedFiles(promotedMedia?.filePaths ?? []);
 			throw error;
 		}
+	}
+
+	async reviewCampsite(
+		adminId: string,
+		campsiteId: string,
+		dto: ReviewCampsiteDto
+	): Promise<CampsiteResponseDto> {
+		const { campsite, media, zones, latitude, longitude } = await this.dataSource.transaction(
+			async (manager: EntityManager) => {
+				const transactionalCampsitesRepository = manager.withRepository(this.campsitesRepository);
+				const current = await transactionalCampsitesRepository.findDetailedById(campsiteId, true);
+
+				if (!current) {
+					throw new NotFoundException("Campsite not found");
+				}
+
+				if (current.campsite.status !== CampsiteStatus.PENDING_APPROVAL) {
+					throw new ConflictException("Only campsites in pending_approval status can be reviewed");
+				}
+
+				const before = this.snapshotCampsite(
+					current.campsite,
+					current.media,
+					current.zones,
+					current.latitude,
+					current.longitude
+				);
+
+				const newStatus =
+					dto.action === ReviewCampsiteAction.APPROVE
+						? CampsiteStatus.ACTIVE
+						: CampsiteStatus.DRAFT;
+
+				current.campsite.status = newStatus;
+				await transactionalCampsitesRepository.updateStatus(current.campsite, newStatus);
+
+				const after = this.snapshotCampsite(
+					current.campsite,
+					current.media,
+					current.zones,
+					current.latitude,
+					current.longitude
+				);
+
+				const action =
+					dto.action === ReviewCampsiteAction.APPROVE ? "campsite.approved" : "campsite.declined";
+
+				await manager.getRepository(AuditLog).save({
+					actorId: adminId,
+					action,
+					targetType: "campsite",
+					targetId: campsiteId,
+					before,
+					after,
+					reason: dto.reason ?? null,
+				});
+
+				return {
+					campsite: current.campsite,
+					media: current.media,
+					zones: current.zones,
+					latitude: current.latitude,
+					longitude: current.longitude,
+				};
+			}
+		);
+
+		try {
+			this.logger.log(
+				`Notification emitted: Campsite ${campsiteId} has been reviewed. Action: ${dto.action}. Reason: ${dto.reason ?? "N/A"}`
+			);
+		} catch (notificationError) {
+			this.logger.error(
+				`Failed to emit notification for campsite review: ${
+					notificationError instanceof Error ? notificationError.message : String(notificationError)
+				}`
+			);
+		}
+
+		return toCampsiteResponse(campsite, media, zones, latitude, longitude);
 	}
 
 	private snapshotCreatedCampsite(

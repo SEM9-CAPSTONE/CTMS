@@ -8,7 +8,8 @@ import { UserRole } from "../../users/entities/user.entity";
 import type { CreateTrekkingRouteDto } from "../dto/create-trekking-route.dto";
 import type { ListTrekkingRoutesQueryDto } from "../dto/list-trekking-routes-query.dto";
 import { TrekkingRouteResponseDto } from "../dto/trekking-route-response.dto";
-import type { TrekkingRoutesService } from "../services/trekking-routes.service";
+// biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
+import { TrekkingRoutesService } from "../services/trekking-routes.service";
 
 interface AuthenticatedRequest {
 	user: AuthenticatedUser;
