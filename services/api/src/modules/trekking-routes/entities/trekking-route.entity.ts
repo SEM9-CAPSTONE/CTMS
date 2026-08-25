@@ -4,10 +4,12 @@ import {
 	Entity,
 	JoinColumn,
 	ManyToOne,
+	OneToMany,
 	PrimaryGeneratedColumn,
 	UpdateDateColumn,
 } from "typeorm";
 import { Campsite } from "../../campsites/entities/campsite.entity";
+import { Checkpoint } from "./checkpoint.entity";
 
 export enum TrekkingRouteDifficulty {
 	EASY = "easy",
@@ -39,6 +41,12 @@ export class TrekkingRoute {
 	@ManyToOne(() => Campsite, { onDelete: "RESTRICT" })
 	@JoinColumn({ name: "campsite_id" })
 	campsite!: Campsite;
+
+	@OneToMany(
+		() => Checkpoint,
+		(checkpoint) => checkpoint.route
+	)
+	checkpoints?: Checkpoint[];
 
 	@Column({ type: "varchar", length: 150 })
 	name!: string;
