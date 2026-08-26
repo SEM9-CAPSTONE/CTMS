@@ -1,4 +1,10 @@
-﻿# CTMS-24 - View Route Information Before Joining
+> Status: REMOVED FROM SCOPE
+>
+> Baseline: v2
+>
+> This logical CTMS ID is intentionally retired and MUST NOT be reused.
+
+# CTMS-24 - View Route Information Before Joining
 
 **Spec Reference**  
 /file/spec/ctms-24-view-route-information-before-joining.md

@@ -1,4 +1,10 @@
-﻿# CTMS-31 - Check Zone Capacity by Date
+> Status: REMOVED FROM SCOPE
+>
+> Baseline: v2
+>
+> This logical CTMS ID is intentionally retired and MUST NOT be reused.
+
+# CTMS-31 - Check Zone Capacity by Date
 
 **Spec Reference**  
 /file/spec/ctms-31-check-zone-capacity-by-date.md

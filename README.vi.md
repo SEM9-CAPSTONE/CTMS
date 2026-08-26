@@ -2,63 +2,89 @@
 
 [English version](README.md)
 
-## Description
+## Mô tả
 
-CTMS (Camping Site and Trekking Management System) là hệ thống quản lý điểm cắm trại và trekking tích hợp Trợ lý Sinh tồn AI. Dự án hướng tới việc xây dựng một hệ sinh thái đồng bộ gồm ứng dụng di động cho camper/porter và web dashboard cho host nhằm hỗ trợ quản lý đặt chỗ, vận hành logistics, theo dõi trekking và điều phối an toàn trong các môi trường ngoài trời có rủi ro cao.
+CTMS (Camping Site and Trekking Management System) là nền tảng vận hành campsite và trekking, gồm ứng dụng mobile cho Camper/Porter, dashboard web cho Host/Admin và AI Survival Assistant phục vụ an toàn ngoài trời.
 
-Hệ thống tập trung vào các bài toán chính như chống overbooking bằng cơ chế khóa slot thời gian thực, quản lý tài nguyên cắm trại, theo dõi GPS khi mất kết nối, cảnh báo lệch tuyến offline, đánh giá rủi ro thời tiết bằng thuật toán rule-based và cung cấp hướng dẫn sinh tồn/first-aid thông qua AI Survival Assistant có khả năng tiền tải dữ liệu để sử dụng ngoại tuyến.
+Baseline v2 tách rõ tài nguyên vận hành nội bộ khỏi luồng đặt chỗ công khai. Camper tìm kiếm và đặt published Trip. Host/Admin quản lý Campsite, Route nội bộ, checkpoint, hazard area, Trip, booking, thiết bị, porter, weather risk, offline safety data và audit trail.
 
-## Purpose
+## Domain Baseline v2
 
-Mục tiêu của dự án là tạo ra một nền tảng phần mềm đa nền tảng giúp campsite host vận hành hiệu quả hơn và giúp trekker/camper an toàn hơn khi tham gia hoạt động ở khu vực hoang dã hoặc nơi kết nối mạng không ổn định.
+```text
+Campsite
+  ↓
+Route
+  ↓
+Trip
+  ↓
+Booking
+```
 
-Cụ thể, CTMS hướng đến:
+Phân quyền nhìn entity:
 
-- Cung cấp quy trình đặt chỗ trực quan, hạn chế xung đột booking và ngăn đặt trùng slot bằng Redis lock và kiểm tra toàn vẹn dữ liệu.
-- Hỗ trợ host quản lý layout khu cắm trại, inventory, trekking checkpoints, porter assignment và trạng thái check-in/check-out.
-- Cung cấp ứng dụng mobile offline-first cho camper/porter với bản đồ tải trước, GPS tracking, cảnh báo lệch tuyến và cơ chế buffer/sync dữ liệu.
-- Xây dựng AI Survival Assistant sử dụng survival knowledge base, RAG/LLM và dữ liệu tiền tải để hỗ trợ tra cứu hướng dẫn sinh tồn khi không có mạng.
-- Đánh giá rủi ro tuyến đường dựa trên các yếu tố thời tiết như mưa, gió, nhiệt độ, tầm nhìn và sinh cảnh báo an toàn dễ hiểu cho người dùng.
-- Đảm bảo cảnh báo khẩn cấp thời gian thực qua WebSocket với độ trễ thấp cho các thiết bị đang kết nối.
+```text
+Host/Admin/System
+   ├── Campsite
+   ├── Route
+   │    ├── Checkpoints
+   │    └── Hazard Areas
+   └── Trip
+         ↓
+      Camper
+         ↓
+      Booking
+```
 
-## Cấu trúc dự án (Project Structure)
+Trekking Route is an internal reusable geospatial and safety resource. Campers do not browse or book Routes directly. Campers discover and book published Trips.
+
+Nguyên tắc active v2:
+
+- Campsite được tạo ở `draft`, Host hoàn thiện thông tin, submit sang `pending_approval`, sau đó Admin duyệt trước khi public.
+- Route là tài nguyên nội bộ cho bản đồ, checkpoint, hazard area, weather risk, offline safety package và validate Trip.
+- Route `closed` là hard constraint: Trip dùng Route đó không được tạo/duyệt/publish/sửa thành trạng thái publishable hoặc nhận booking mới cho tới khi Route hợp lệ lại.
+- Trip bắt đầu ở `draft`, chuyển sang `pending_approval`, và chỉ public sau khi được duyệt.
+- Capacity của Trip chỉ dùng `trips.capacity_min`, `trips.capacity_max`, và `trips.seats_taken`.
+- Booking được tạo cho published Trip, không đặt trực tiếp Campsite hoặc Route.
+
+Các khái niệm lập kế hoạch v1 đã loại bỏ chỉ được giữ trong archived specs. Tài liệu active v2 không mô hình hóa tiểu khu campsite như đơn vị đặt chỗ, sổ capacity ở cấp campsite, đặt chỗ theo layout, dòng lưu trú campsite của Trip, capacity ledger dựa trên cache, hoặc cơ chế chuyển tiếp khẩn cấp ngang hàng.
+
+## Mục tiêu
+
+CTMS giúp đơn vị vận hành outdoor publish các trekking experience an toàn, đồng thời cho Camper một luồng đặt Trip rõ ràng. Hệ thống tập trung vào:
+
+- Quản lý Campsite, Route, Trip, Booking và Porter theo phân quyền.
+- Checkpoint và hazard area của Route dưới dạng dữ liệu vận hành/an toàn có thể tái sử dụng.
+- Lập kế hoạch Trip bằng waypoint, kiểm soát capacity, phê duyệt, public, hủy và revalidate Trip.
+- Booking, payment, refund, check-in thành viên, equipment và logistics.
+- Đánh giá weather risk theo các yếu tố thời tiết và rule cấu hình, không phụ thuộc route type.
+- Offline navigation, route deviation detection, sync batches, SOS/incident handling và AI Survival Assistant.
+
+## Cấu trúc dự án
 
 ```text
 ctms/
 ├── apps/
-│   ├── web/                     # React 18 + Vite + TypeScript Web Dashboard
-│   │   ├── src/
-│   │   │   ├── core/            # Core system (API endpoints, queryKeys, httpClient, AppLayout, Brand logo)
-│   │   │   ├── routes/          # Bộ định tuyến HTML5 Clean URL & AppRoleGuard (camper, host, porter, admin)
-│   │   │   ├── shared/          # Shared components (Button, Card), types & trang dùng chung (NotFound, Unauthorized, Error, EdgeCase)
-│   │   │   ├── features/        # Kiến trúc mô-đun theo tính năng (Feature-based Modular)
-│   │   │   │   ├── auth/        # Đăng nhập Email & Đăng ký 3 bước phân quyền (Camper, Host, Porter)
-│   │   │   │   └── landing/     # Màn hình giới thiệu, Mobile mockup preview & Trợ lý Sinh tồn AI
-│   │   │   └── index.css        # Hệ thống CSS Design Tokens, Typography, Glassmorphic & Custom Scrollbar
-│   ├── mobile/                  # Ứng dụng di động Flutter cho Camper & Porter (Riverpod, go_router)
-│   └── docs/                    # Tài liệu kiến trúc hệ thống & Sơ đồ CSDL
+│   ├── web/                     # Web dashboard React + Vite + TypeScript
+│   └── mobile/                  # Mobile app Flutter cho Camper và Porter
 ├── services/
-│   ├── api/                     # Backend API NestJS + TypeScript
-│   │   ├── src/
-│   │   │   ├── modules/         # Các mô-đun NestJS (Auth, Realtime Gateway, Campsites, Safety)
-│   │   │   └── shared/          # Shared DTOs, guards, decorators & utilities
-│   └── ai/                      # Dịch vụ AI/NLP Python hỗ trợ LLM, RAG & Cẩm nang sinh tồn ngoại tuyến
-├── scripts/                     # Automation scripts (validate-branch-name.js)
-├── .husky/                      # Git hooks (pre-commit: Biome + lint-staged, pre-push: branch validator)
-├── biome.json                   # Biome linter & formatter configuration (tab indent, double quotes)
-├── pnpm-workspace.yaml          # Cấu hình pnpm monorepo workspace
-└── package.json                 # Monorepo root scripts & dependencies
+│   ├── api/                     # Backend API NestJS
+│   └── ai/                      # Dịch vụ AI/NLP Python
+├── docs/                        # Tài liệu architecture, planning, design
+├── file/spec/                   # CTMS story specs đang active
+├── file/spec/archived/          # Specs đã retired, giữ lại để tra lịch sử Git
+├── scripts/                     # Automation scripts
+└── package.json                 # Root scripts và dependencies
 ```
 
-## Proposed Tech Stack
+## Tech Stack
 
-- **Web Frontend**: React 18, Vite, TypeScript, Tailwind CSS v4, Lucide Icons
-- **Mobile**: Flutter, Riverpod, go_router
-- **Backend**: NestJS, TypeScript
-- **Database & Cache**: PostgreSQL, Redis
-- **Code Quality & Git Hooks**: Biome (Linter/Formatter), Husky, Lint-Staged, Branch Name Validator
-- **Real-time Communication**: Socket.io via NestJS WebSocket Gateway
-- **AI/NLP**: Python, FastAPI, LLM, RAG, prompt engineering
-- **Maps**: Leaflet / Mapbox
-- **Deployment**: AWS EC2, Docker, Nginx, GitHub Actions
-- **API documentation/testing**: Swagger/OpenAPI, Postman
+- Web Frontend: React, Vite, TypeScript, Tailwind CSS, Lucide Icons
+- Mobile: Flutter, Riverpod, go_router
+- Backend: NestJS, TypeScript
+- Database: PostgreSQL/PostGIS
+- Cache/session support: Redis khi phù hợp, nhưng không là source of truth cho booking capacity
+- Real-time Communication: Socket.io qua NestJS WebSocket Gateway
+- AI/NLP: Python, FastAPI, LLM, RAG, prompt engineering
+- Maps and Navigation: Leaflet / Mapbox
+- Deployment: AWS EC2, Docker, Nginx, GitHub Actions
+- API Documentation and Testing: Swagger/OpenAPI, Postman

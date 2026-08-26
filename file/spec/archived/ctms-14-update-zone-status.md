@@ -1,4 +1,10 @@
-﻿# CTMS-14 - Update Zone Status
+> Status: REMOVED FROM SCOPE
+>
+> Baseline: v2
+>
+> This logical CTMS ID is intentionally retired and MUST NOT be reused.
+
+# CTMS-14 - Update Zone Status
 
 **Spec Reference**  
 /file/spec/ctms-14-update-zone-status.md

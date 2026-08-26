@@ -4,61 +4,87 @@
 
 ## Description
 
-CTMS (Camping Site and Trekking Management System) is a camping site and trekking management platform integrated with an AI Survival Assistant. The project aims to build a synchronized ecosystem that includes a mobile application for campers and porters, together with a web dashboard for campsite hosts.
+CTMS (Camping Site and Trekking Management System) is a campsite and trekking operations platform with mobile apps for Campers and Porters, a web dashboard for Hosts/Admins, and AI-assisted safety support.
 
-The system supports booking management, campsite logistics, trekking coordination, safety monitoring, offline navigation, weather risk evaluation, and survival guidance for outdoor activities in remote or high-risk environments.
+The v2 baseline separates public booking behavior from internal operational resources. Campers discover and book published Trips. Hosts/Admins manage Campsites, internal Routes, route checkpoints, hazard areas, Trips, bookings, equipment, porters, weather risk, offline safety data, and audit trails.
+
+## Domain Baseline v2
+
+```text
+Campsite
+  ↓
+Route
+  ↓
+Trip
+  ↓
+Booking
+```
+
+Entity visibility:
+
+```text
+Host/Admin/System
+   ├── Campsite
+   ├── Route
+   │    ├── Checkpoints
+   │    └── Hazard Areas
+   └── Trip
+         ↓
+      Camper
+         ↓
+      Booking
+```
+
+Trekking Route is an internal reusable geospatial and safety resource. Campers do not browse or book Routes directly. Campers discover and book published Trips.
+
+Active v2 rules:
+
+- Campsites are created as `draft`, completed by the Host, submitted to `pending_approval`, and approved before becoming public.
+- Routes are internal resources used for geospatial planning, checkpoints, hazard areas, weather risk, offline safety packages, and Trip validation.
+- A `closed` Route is a hard constraint: Trips using it cannot be created, approved, published, edited into a publishable state, or newly booked until the Route is valid again.
+- Trips start as `draft`, move to `pending_approval`, and are published only after approval.
+- Trip capacity is controlled by `trips.capacity_min`, `trips.capacity_max`, and `trips.seats_taken`.
+- Bookings are made against published Trips, not Campsites or Routes.
+
+Removed v1 planning concepts are kept only in archived specs. Active v2 docs must not model campsite sub-areas as booking units, campsite-level capacity ledgers, layout-based reservations, Trip campsite-stay rows, cache-based booking ledgers, or peer-to-peer emergency handoff.
 
 ## Purpose
 
-The purpose of CTMS is to help campsite hosts operate more efficiently while providing campers and trekkers with a safer experience in wilderness areas where network connectivity may be unstable or unavailable.
+CTMS helps outdoor operators publish safe trekking experiences while giving Campers a clear Trip booking flow. The system focuses on:
 
-CTMS focuses on:
-
-- Providing a visual booking workflow that reduces booking conflicts and prevents duplicated slot reservations through Redis-based locking and relational data integrity checks.
-- Helping hosts manage campsite layouts, equipment inventory, trekking checkpoints, porter assignments, and check-in/check-out states.
-- Supporting an offline-first mobile experience with pre-downloaded maps, GPS tracking, route deviation alerts, and buffered data synchronization.
-- Building an AI Survival Assistant powered by survival knowledge bases, RAG/LLM techniques, and pre-cached data for offline lookup.
-- Evaluating route safety based on weather factors such as rain, wind, temperature, and visibility, then generating clear safety advisories for users.
-- Delivering low-latency emergency broadcasts through WebSocket communication for connected devices.
+- Campsite, Route, Trip, Booking, and Porter workflows with role-based access control.
+- Route checkpoints and hazard areas as reusable safety/operations data.
+- Trip planning with waypoints, capacity control, approval, publication, cancellation, and revalidation.
+- Booking, payment, refund, member check-in, equipment, and logistics workflows.
+- Weather risk evaluation based on weather factors and configurable rules that do not depend on route type.
+- Offline navigation, route deviation detection, synchronization batches, SOS/incident handling, and AI Survival Assistant support.
 
 ## Project Structure
 
 ```text
 ctms/
 ├── apps/
-│   ├── web/                     # React 18 + Vite + TypeScript Web App
-│   │   ├── src/
-│   │   │   ├── core/            # Core system abstractions (API endpoints, queryKeys, httpClient, AppLayout, Brand assets)
-│   │   │   ├── routes/          # Clean HTML5 router & AppRoleGuard (camper, host, porter, admin)
-│   │   │   ├── shared/          # Shared components (Button, Card), types & pages (NotFound, Unauthorized, Error, EdgeCase)
-│   │   │   ├── features/        # Feature-based modular architecture
-│   │   │   │   ├── auth/        # Login, 3-step Role-based Registration (Camper, Host, Porter)
-│   │   │   │   └── landing/     # Landing page, Mobile app preview & AI survival assistant
-│   │   │   └── index.css        # Global CSS design tokens, typography, glassmorphism & custom scrollbars
-│   ├── mobile/                  # Flutter mobile app for Camper & Porter (Riverpod, go_router)
-│   └── docs/                    # System architecture & database diagrams
+│   ├── web/                     # React + Vite + TypeScript web dashboard
+│   └── mobile/                  # Flutter mobile app for Camper and Porter
 ├── services/
-│   ├── api/                     # NestJS + TypeScript Backend Service
-│   │   ├── src/
-│   │   │   ├── modules/         # NestJS feature modules (Auth, Realtime Gateway, Campsites, Safety)
-│   │   │   └── shared/          # Shared DTOs, guards, decorators & utilities
-│   └── ai/                      # Python AI/NLP service for LLM, RAG & offline survival advisories
-├── scripts/                     # Monorepo automation scripts (validate-branch-name.js)
-├── .husky/                      # Git hooks (pre-commit: Biome + lint-staged, pre-push: branch validator)
-├── biome.json                   # Biome linter & formatter configuration (tab indent, double quotes)
-├── pnpm-workspace.yaml          # Monorepo workspace configuration
-└── package.json                 # Monorepo root dependencies & scripts
+│   ├── api/                     # NestJS backend API
+│   └── ai/                      # Python AI/NLP service
+├── docs/                        # Architecture, planning, and design docs
+├── file/spec/                   # Active CTMS story specs
+├── file/spec/archived/          # Retired specs kept for Git history only
+├── scripts/                     # Monorepo automation scripts
+└── package.json                 # Monorepo root scripts and dependencies
 ```
 
 ## Tech Stack
 
-- **Web Frontend**: React 18, Vite, TypeScript, Tailwind CSS v4, Lucide Icons
-- **Mobile**: Flutter, Riverpod, go_router
-- **Backend**: NestJS, TypeScript
-- **Database & Cache**: PostgreSQL, Redis
-- **Code Quality & Git Hooks**: Biome (Linter/Formatter), Husky, Lint-Staged, Branch Name Validator
-- **Real-time Communication**: Socket.io via NestJS WebSocket Gateway
-- **AI/NLP**: Python, FastAPI, LLM, RAG, prompt engineering
-- **Maps & Navigation**: Leaflet / Mapbox
-- **Deployment**: AWS EC2, Docker, Nginx, GitHub Actions
-- **API Documentation & Testing**: Swagger/OpenAPI, Postman
+- Web Frontend: React, Vite, TypeScript, Tailwind CSS, Lucide Icons
+- Mobile: Flutter, Riverpod, go_router
+- Backend: NestJS, TypeScript
+- Database: PostgreSQL/PostGIS
+- Cache/session support: Redis where appropriate, but not as the booking capacity source of truth
+- Real-time Communication: Socket.io via NestJS WebSocket Gateway
+- AI/NLP: Python, FastAPI, LLM, RAG, prompt engineering
+- Maps and Navigation: Leaflet / Mapbox
+- Deployment: AWS EC2, Docker, Nginx, GitHub Actions
+- API Documentation and Testing: Swagger/OpenAPI, Postman

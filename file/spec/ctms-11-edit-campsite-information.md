@@ -142,11 +142,11 @@ As a Host, I want to edit Campsite Information so that the CTMS workflow is comp
 ### Main Flow
 
 1. Host sends `PATCH /api/campsites/{id}` with one or more editable campsite fields.
-2. Backend validates scalar fields, nested media, nested zones, URL formats, location bounds, text lengths, operating-hour order, and media sort order.
+2. Backend validates scalar fields, nested media, URL formats, location bounds, text lengths, operating-hour order, and media sort order.
 3. Backend starts a transaction and locks the target campsite row for update.
 4. Backend verifies the campsite exists and is owned by the authenticated Host.
 5. Backend rejects stale edits when `expectedUpdatedAt` does not match the locked row.
-6. Backend persists changed campsite fields; if media or zones are supplied, the supplied list replaces the existing list.
+6. Backend persists changed campsite fields; if media is supplied, the supplied list replaces the existing list.
 7. Backend writes an append-only `campsite.updated` audit log with actor, target, before snapshot, after snapshot, and reason.
 8. Backend returns the updated campsite response.
 9. If the campsite remains `active`, the updated public fields are returned to Campers through campsite search.
@@ -155,7 +155,7 @@ As a Host, I want to edit Campsite Information so that the CTMS workflow is comp
 
 - Host may update a subset of editable fields.
 - `changeReason` is optional; backend defaults it to `host_edit_campsite`.
-- Media and zones are unchanged when their arrays are omitted.
+- Media is unchanged when its array is omitted.
 - If the request is a no-op after normalization, the response is returned without adding a duplicate audit log.
 
 ### Exception Flows
@@ -184,8 +184,8 @@ As a Host, I want to edit Campsite Information so that the CTMS workflow is comp
 - Authorization: Bearer JWT; required role `host`.
 - Path params: `id` as UUID.
 - Request body: partial campsite fields from create campsite plus optional `expectedUpdatedAt` ISO timestamp and optional `changeReason`.
-- Editable fields: `name`, `description`, `latitude`, `longitude`, `province`, `policies`, `operatingHours`, `seasonStartDate`, `seasonEndDate`, `maxAdvanceBookingDays`, `minNights`, `maxNights`, `media`, `zones`.
-- Response `200`: `CampsiteResponseDto` with campsite, coordinates, media, zones, status, timestamps.
+- Editable fields: `name`, `description`, `latitude`, `longitude`, `province`, `policies`, `operatingHours`, `seasonStartDate`, `seasonEndDate`, `maxAdvanceBookingDays`, `minNights`, `maxNights`, `media`.
+- Response `200`: `CampsiteResponseDto` with campsite, coordinates, media, status, timestamps.
 - Error responses: `401`, `403`, `404`, `409`, `422`.
 
 ### Data Mapping
@@ -193,7 +193,6 @@ As a Host, I want to edit Campsite Information so that the CTMS workflow is comp
 - `latitude` and `longitude` map to the PostGIS geography `location` point as `[longitude, latitude]`.
 - `policies` and `operatingHours` map to jsonb columns.
 - `media` maps to `campsite_media`; provided media replaces existing media in the transaction.
-- `zones` maps to `campsite_zones`; provided zones replace existing zones in the transaction and default to active.
 - Audit log uses `action = campsite.updated`, `target_type = campsite`, target id as campsite id, and before/after snapshots of public campsite data only.
 
 ### Test Evidence

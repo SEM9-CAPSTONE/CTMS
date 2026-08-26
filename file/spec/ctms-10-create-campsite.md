@@ -84,18 +84,6 @@ Request:
       "type": "photo",
       "sortOrder": 0
     }
-  ],
-  "zones": [
-    {
-      "name": "Pine Grove Zone",
-      "latitude": 11.940519,
-      "longitude": 108.458513,
-      "maxTents": 8,
-      "maxPeople": 24,
-      "basePrice": 250000,
-      "amenities": ["water", "shade"],
-      "terrainNote": "Flat ground near pine trees"
-    }
   ]
 }
 ```
@@ -132,18 +120,6 @@ Success response `201`:
       "sortOrder": 0
     }
   ],
-  "zones": [
-    {
-      "id": "uuid",
-      "name": "Pine Grove Zone",
-      "maxTents": 8,
-      "maxPeople": 24,
-      "basePrice": 250000,
-      "amenities": ["water", "shade"],
-      "terrainNote": "Flat ground near pine trees",
-      "status": "active"
-    }
-  ],
   "createdAt": "2026-08-19T00:00:00.000Z",
   "updatedAt": "2026-08-19T00:00:00.000Z"
 }
@@ -169,7 +145,6 @@ Errors:
 - `media[].url` must be HTTP/HTTPS and bounded to 2000 characters.
 - `media[].type` is optional and defaults to `photo`; if provided, only `photo` is accepted.
 - `media[].sortOrder` is optional, integer, unique when provided, and bounded to 0-100.
-- `zones` is optional. When provided, each zone validates name, coordinates, capacity, base price, amenities, and terrain note.
 - Web error mapping handles 401, 403, 409, 422, server failures, and network failures without exposing stack traces.
 
 ### Main Flow
@@ -183,7 +158,7 @@ Errors:
 7. Backend promotes pending media URLs into final campsite media paths.
 8. Backend opens a TypeORM transaction.
 9. Backend creates the campsite with `host_id = requesting Host` and `status = pending_approval`.
-10. Backend creates media rows and optional zone rows for the new campsite.
+10. Backend creates media rows for the new campsite.
 11. Backend writes audit action `campsite.created`.
 12. Backend commits and returns the created campsite response.
 
@@ -196,7 +171,7 @@ Errors:
 - Unsupported upload file returns `400`.
 - Omitted media `type` stores `photo`.
 - Omitted media `sortOrder` stores the request index.
-- Persistence or audit failure rolls back campsite, media, and zone database writes.
+- Persistence or audit failure rolls back campsite, media, and audit writes.
 - Promoted media files are cleaned up when persistence fails after promotion.
 - Duplicate UI submit is blocked while a create request is in flight. Duplicate network retries can still create separate `pending_approval` campsites until a future idempotency-key store is introduced.
 - Public search remains active-only; `pending_approval` campsites are not exposed to Campers.
@@ -216,14 +191,6 @@ Errors:
 | `media[].url`                            | `campsite_media.url`                    |
 | `media[].type`                           | `campsite_media.type`                   |
 | `media[].sortOrder`                      | `campsite_media.sort_order`             |
-| `zones[].name`                           | `campsite_zones.name`                   |
-| `zones[].latitude` / `zones[].longitude` | `campsite_zones.location` PostGIS point |
-| `zones[].maxTents`                       | `campsite_zones.max_tents`              |
-| `zones[].maxPeople`                      | `campsite_zones.max_people`             |
-| `zones[].basePrice`                      | `campsite_zones.base_price`             |
-| `zones[].amenities`                      | `campsite_zones.amenities` JSON         |
-| `zones[].terrainNote`                    | `campsite_zones.terrain_note`           |
-| Server rule                              | `campsite_zones.status = active`        |
 
 ### Test Evidence
 
@@ -329,11 +296,11 @@ Errors:
 | BR-244: Changes to Business Rules, enums, state transitions, or API contracts must update the Spec, test cases, and data documentation together before Done.                                            | CTMS-10-T01              | Tests and review evidence must prove this exact rule is enforced: this file, tests, and API contract remain aligned.                                                                                                                   |
 | BR-200: Every change must be written to the audit log.                                                                                                                                                  | CTMS-10-T01              | Tests and review evidence must prove this exact rule is enforced: create writes `campsite.created`.                                                                                                                                    |
 | BR-201: Every function requiring authentication may only be performed when the user has a valid login session and the account is active.                                                                | CTMS-10-T01              | Tests and review evidence must prove this exact rule is enforced through auth guards and active-account JWT validation.                                                                                                                |
-| BR-214: Every data relationship must reference an existing and valid record; child records must not be created for resources outside the correct business scope.                                        | CTMS-10-T01              | Tests and review evidence must prove this exact rule is enforced: media and zone rows are scoped to the created campsite.                                                                                                              |
+| BR-214: Every data relationship must reference an existing and valid record; child records must not be created for resources outside the correct business scope.                                        | CTMS-10-T01              | Tests and review evidence must prove this exact rule is enforced: media rows are scoped to the created campsite.                                                                                                              |
 | BR-215: Emails must be normalized before comparison and storage; phone numbers must be normalized to a consistent format, preferably E.164.                                                             | CTMS-10-T01              | Review evidence must mark this BR not applicable because Create Campsite accepts no email or phone input.                                                                                                                              |
 | BR-220: A valid time range must have a start time earlier than the end time, unless the business rule explicitly allows equality.                                                                       | CTMS-10-T01              | Tests and review evidence must prove this exact rule is enforced for operating hours.                                                                                                                                                  |
 | BR-210: When concurrent requests change the same resource, the system must use transactions, locking, or version control to prevent overwrites and business limit violations.                           | CTMS-10-T01              | Tests and review evidence must prove this exact rule is enforced by the create transaction.                                                                                                                                            |
-| BR-211: Every stateful resource must follow the defined state transitions and must not use values outside the database enum.                                                                            | CTMS-10-T01              | Tests and review evidence must prove this exact rule is enforced: new campsite uses enum `pending_approval`; new zones use enum `active`.                                                                                              |
+| BR-211: Every stateful resource must follow the defined state transitions and must not use values outside the database enum.                                                                            | CTMS-10-T01              | Tests and review evidence must prove this exact rule is enforced: new campsite uses enum `pending_approval`.                                                                                              |
 | BR-234: Public lists may only contain resources in public-allowed states; draft, pending_approval, suspended, closed, or archived resources must not be shown unless another rule explicitly allows it. | CTMS-10-T01              | Tests and review evidence must prove this exact rule is enforced by active-only public search.                                                                                                                                         |
 | BR-235: Media must store URL and required metadata; client-provided URLs are valid only after the upload/verification flow is complete.                                                                 | CTMS-10-T01              | Tests and review evidence must prove this exact rule is enforced by media upload, URL validation, metadata storage, and pending media promotion.                                                                                       |
 | BR-218: Access to health data must be based on consent and the relationship to the Trip; when consent is withdrawn, access must end immediately.                                                        | CTMS-10-T01              | Review evidence must mark this BR not applicable because Create Campsite accepts no health data.                                                                                                                                       |
@@ -362,7 +329,7 @@ Errors:
 ## Data and Persistence Requirements
 
 - Persist only validated data and keep all foreign-key relationships scoped to existing, authorized CTMS records.
-- Use transactions for campsite, media, zone, and audit writes.
+- Use transactions for campsite, media, and audit writes.
 - Store timestamps in a consistent server-side format and preserve source timestamps when client-side events are synchronized later.
 - Promote pending uploaded media into the campsite upload directory before saving final media URLs.
 - Avoid hard deletes unless the related database model and business rule explicitly allow them.

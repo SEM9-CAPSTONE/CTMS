@@ -1,116 +1,72 @@
-﻿# CTMS-23 - Mark Danger Zones and Shelters
+# CTMS-23 - Manage Route Checkpoints and Hazard Operational Data
 
 **Spec Reference**  
 /file/spec/ctms-23-mark-danger-zones-and-shelters.md
 
-**Story Title**  
-Mark Danger Zones and Shelters
-
 **Status**  
 To Do
 
+**Story Title**
+Manage Route Checkpoints and Hazard Operational Data
+
 **Story**  
-As a user, I want to mark Danger Zones and Shelters so that the CTMS workflow is completed safely, consistently, and within the correct business scope.
+As a Host/Admin/System, I want to maintain checkpoint and hazard operational data for internal Route safety so that CTMS follows the v2 domain baseline and avoids retired zone/slot/route-public behavior.
+
+## Baseline v2 Principles
+
+- Campsite -> Route -> Trip -> Booking is the active domain chain.
+- Trekking Route is an internal reusable geospatial and safety resource. Campers do not browse or book Routes directly. Campers discover and book published Trips.
+- Route checkpoints and hazard areas are operational route data for Host/Admin/System workflows and for Trip safety snapshots.
+- Trip capacity is controlled only by `trips.capacity_min`, `trips.capacity_max`, and `trips.seats_taken`.
+- Retired v1 planning concepts must not be reintroduced under this CTMS logical ID.
 
 ## Acceptance Criteria
-- [ ] Points are displayed on the map, included in the offline package, and include safety descriptions.
 
-## Business Rules Checklist
-- [ ] BR-059: Do not use rejected status.
-- [ ] BR-060: The points must be displayed on the map.
-- [ ] BR-061: The data must be included in the offline package.
-- [ ] BR-202: Accounts in pending_verification, suspended, or deleted status must not use functions that require an active account, except allowed verification or recovery flows.
-- [ ] BR-204: Users may only view or change data they own unless their role and business relationship allow access to another user's data.
-- [ ] BR-205: All input data must be validated for required fields, data type, format, length, enum values, and cross-field relationships before processing.
-- [ ] BR-230: External-service retries must have limits and backoff; retries must not create duplicate records or transactions.
-- [ ] BR-231: APIs must return consistent error codes: 401 for authentication failure, 403 for insufficient permission, 404 for not found, 409 for business conflict, and 422 for invalid data.
-- [ ] BR-238: Background jobs must be safe to rerun; the same record must not be expired, cancelled, refunded, or notified multiple times by multiple workers.
-- [ ] BR-239: Offline data must include a request identifier or idempotency_key; resubmitting the same sync batch must not create duplicate data.
-- [ ] BR-242: When the backend rejects a request because data changed concurrently, the UI must preserve entered data, display the reason, and allow reload or retry.
-- [ ] BR-243: Cases with insufficient permission or unmet business conditions must not create any side effect.
-- [ ] BR-244: Changes to Business Rules, enums, state transitions, or API contracts must update the Spec, test cases, and data documentation together before Done.
+- [ ] Authorized actors can create and update Route hazard areas with polygon geometry, description, and severity.
+- [ ] Authorized actors can maintain checkpoints, including type, radius, expected arrival offset, instructions, and nearby water/shelter flag.
+- [ ] Operational data is available to Trip planning, offline safety packages, and internal monitoring.
+- [ ] Camper-facing exposure happens through published Trip safety/itinerary context, not raw Route browsing.
 
-## Dev Notes
-- Jira status on 2026-08-04: `To Do`.
-- Priority: `Should Have`; Story points: `5`; Commitment: `Committed`.
-- Epic: `EPIC 3. Trekking Route`.
-- Sprint: `Sprint 2`; planned window: `2026-08-09` to `2026-08-22`.
-- Keep API, UI, database, tests, and Jira references aligned with the exact Spec Reference path above.
+## Scope
 
-## Story-Specific Implementation Tasks
-- CTMS-23-T01 [BE / Shared Logic] Implement `Mark Danger Zones and Shelters` for this task scope and enforce mapped BRs: BR-202, BR-204, BR-205, BR-230, BR-231, BR-242, BR-243, BR-244, BR-238, BR-239, BR-059, BR-060, BR-061, BR-206, BR-207. Ref: /file/spec/ctms-23-mark-danger-zones-and-shelters.md#backend-preparation-logic-and-tests
-- CTMS-23-T02 [UI Web/Mobile/Consumer] Implement `Mark Danger Zones and Shelters` for this task scope and enforce mapped BRs: BR-202, BR-204, BR-205, BR-230, BR-231, BR-240, BR-241, BR-242, BR-059, BR-060, BR-061. Ref: /file/spec/ctms-23-mark-danger-zones-and-shelters.md#ui-and-tests
+- Route operational safety data.
+- Checkpoint/hazard validation and audit.
+- Internal reuse across many Trips.
 
-## Task to Acceptance Criteria Traceability
-| Acceptance criterion / BR | Covered by tasks | Evidence expected |
-| --- | --- | --- |
-| AC1: Points are displayed on the map, included in the offline package, and include safety descriptions | CTMS-23-T01, CTMS-23-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-202: Accounts in pending_verification, suspended, or deleted status must not use functions that require an active account, except allowed verification or recovery flows. | CTMS-23-T01, CTMS-23-T02 | Tests and review evidence must prove this exact rule is enforced: Accounts in pending_verification, suspended, or deleted status must not use functions that require an active account, except allowed verification or recovery flows. |
-| BR-204: Users may only view or change data they own unless their role and business relationship allow access to another user's data. | CTMS-23-T01, CTMS-23-T02 | Tests and review evidence must prove this exact rule is enforced: Users may only view or change data they own unless their role and business relationship allow access to another user's data. |
-| BR-205: All input data must be validated for required fields, data type, format, length, enum values, and cross-field relationships before processing. | CTMS-23-T01, CTMS-23-T02 | Tests and review evidence must prove this exact rule is enforced: All input data must be validated for required fields, data type, format, length, enum values, and cross-field relationships before processing. |
-| BR-230: External-service retries must have limits and backoff; retries must not create duplicate records or transactions. | CTMS-23-T01, CTMS-23-T02 | Tests and review evidence must prove this exact rule is enforced: External-service retries must have limits and backoff; retries must not create duplicate records or transactions. |
-| BR-231: APIs must return consistent error codes: 401 for authentication failure, 403 for insufficient permission, 404 for not found, 409 for business conflict, and 422 for invalid data. | CTMS-23-T01, CTMS-23-T02 | Tests and review evidence must prove this exact rule is enforced: APIs must return consistent error codes: 401 for authentication failure, 403 for insufficient permission, 404 for not found, 409 for business conflict, and 422 for invalid data. |
-| BR-242: When the backend rejects a request because data changed concurrently, the UI must preserve entered data, display the reason, and allow reload or retry. | CTMS-23-T01, CTMS-23-T02 | Tests and review evidence must prove this exact rule is enforced: When the backend rejects a request because data changed concurrently, the UI must preserve entered data, display the reason, and allow reload or retry. |
-| BR-243: Cases with insufficient permission or unmet business conditions must not create any side effect. | CTMS-23-T01 | Tests and review evidence must prove this exact rule is enforced: Cases with insufficient permission or unmet business conditions must not create any side effect. |
-| BR-244: Changes to Business Rules, enums, state transitions, or API contracts must update the Spec, test cases, and data documentation together before Done. | CTMS-23-T01 | Tests and review evidence must prove this exact rule is enforced: Changes to Business Rules, enums, state transitions, or API contracts must update the Spec, test cases, and data documentation together before Done. |
-| BR-238: Background jobs must be safe to rerun; the same record must not be expired, cancelled, refunded, or notified multiple times by multiple workers. | CTMS-23-T01 | Tests and review evidence must prove this exact rule is enforced: Background jobs must be safe to rerun; the same record must not be expired, cancelled, refunded, or notified multiple times by multiple workers. |
-| BR-239: Offline data must include a request identifier or idempotency_key; resubmitting the same sync batch must not create duplicate data. | CTMS-23-T01 | Tests and review evidence must prove this exact rule is enforced: Offline data must include a request identifier or idempotency_key; resubmitting the same sync batch must not create duplicate data. |
-| BR-059: Do not use rejected status. | CTMS-23-T01, CTMS-23-T02 | Tests and review evidence must prove this exact rule is enforced: Do not use rejected status. |
-| BR-060: The points must be displayed on the map. | CTMS-23-T01, CTMS-23-T02 | Tests and review evidence must prove this exact rule is enforced: The points must be displayed on the map. |
-| BR-061: The data must be included in the offline package. | CTMS-23-T01, CTMS-23-T02 | Tests and review evidence must prove this exact rule is enforced: The data must be included in the offline package. |
+## Out of Scope
 
-## Story-Specific Risks and Edge Cases
-- Missing authorization or ownership checks can expose CTMS data across users, roles, trips, campsites, or bookings.
-- Concurrent requests, duplicate submissions, stale reads, and retry behavior can create inconsistent state if transactions and idempotency are not handled.
-- UI validation must improve the user experience but must never replace backend validation or permission checks.
-- State transitions must reject invalid source states and preserve a clear error response for the user or calling service.
-- Any mapped BR missing from tests creates a release risk and must be resolved before Done.
+- No retired campsite sub-area concept despite old wording around danger areas.
+- No public Route detail page.
+- No free-form unsafe geometry without validation.
 
-## Functional and Domain Requirements
-- Implement the `Mark Danger Zones and Shelters` workflow exactly within `EPIC 3. Trekking Route`.
-- Enforce role-based access before executing any domain action.
-- Validate all required fields, enum values, date ranges, ownership boundaries, and cross-entity references before writing data.
-- Return consistent API errors: 401 for authentication failures, 403 for authorization failures, 404 for missing resources, 409 for business conflicts, and 422 for invalid input.
+## Business Rules Mapping
 
-## Data and Persistence Requirements
-- Persist only validated data and keep all foreign-key relationships scoped to existing, authorized CTMS records.
-- Use transactions for multi-record updates, capacity checks, payments, booking changes, equipment changes, synchronization, or any workflow with side effects.
-- Store timestamps in a consistent server-side format and preserve source timestamps when client-side events are synchronized later.
-- Avoid hard deletes unless the related database model and business rule explicitly allow them.
+- Story-level BRs: `BR-188, BR-190, BR-191, BR-216, BR-217, BR-228, BR-229, BR-230, BR-224, BR-225, BR-052, BR-053, BR-054, BR-232`
+- BR source: `D:/Downloads/CTMS- Business rules.xlsx`, sheet `BR-story mapping`, baseline v2.
+- Removed CTMS IDs 12, 13, 14, 24, and 31 are intentionally absent from active BR mapping.
 
-## State and Audit Requirements
-- Validate the current state before every transition and reject transitions that are not explicitly allowed.
-- Record important create, update, approval, cancellation, payment, synchronization, administrative, and safety-related actions in audit logs.
-- Capture actor, target type, target id, before value, after value, timestamp, and reason whenever those fields apply.
-- Notify affected users when the workflow changes booking, trip, route, campsite, Porter, SOS, emergency, or administrative state.
+## Data Contract
 
-## File Structure Notes
-- Backend: place controllers, DTOs, services, repositories, guards, and tests in the module that owns the domain entity.
-- Frontend: place screens, components, hooks, API clients, schemas, and tests in the feature folder that owns the workflow.
-- Shared constants, enums, query keys, and validation schemas should be centralized only when reused by more than one feature.
-- Keep migration, seed, and fixture changes close to the persistence model they support.
+- `checkpoints` store route_id, name, location, radius_m, type, expected_arrival_offset, instructions, nearby_water_or_shelter.
+- `route_hazard_areas` store route_id, geom polygon, description, severity.
 
-## Implementation Guidance for the Dev Agent
-- Start by reading the existing module patterns before adding new files or abstractions.
-- Keep the implementation narrow to this story and reuse existing CTMS helpers for auth, validation, transactions, i18n, API errors, and tests.
-- Build backend behavior first when the UI depends on an API contract, then wire the frontend to the typed contract.
-- Do not mark the story Done until mapped ACs, business rules, audit behavior, and regression tests are all covered.
+## State and Validation Rules
 
-## Testing Requirements
-- Add unit tests for domain validation, permission checks, state transitions, and mapped business rule violations.
-- Add API or integration tests for success, invalid input, unauthorized access, missing resource, conflict, and rollback cases.
-- Add UI/component tests for rendering, validation messages, disabled states, loading states, error handling, and successful submission where UI exists.
-- Add E2E coverage for the primary user journey and at least one critical failure path.
-- Every BR listed in the Business Rules Checklist must appear in at least one test or review evidence item.
+- Route must exist and be owned/authorized for the actor.
+- Geometry must be valid and within supported coordinate bounds.
+- Changes are audited and can trigger Trip/offline package revalidation where implemented.
+
+## Implementation Notes
+
+- This document is a requirements baseline only; do not infer implementation completion from the spec status.
+- Backend validation and authorization are authoritative; UI validation is only a usability layer.
+- Update tests, API contracts, migrations/entities, and documentation together when implementing this spec.
 
 ## References
-- Story ID: `CTMS-23`
-- Epic: `EPIC 3. Trekking Route`
-- Sprint: `Sprint 2`
-- Dependencies: `CTMS-19`
-- Linked items: `Blocked by: CTMS-19
 
-Blocks: CTMS-24, CTMS-67`
-- Spec Reference: `/file/spec/ctms-23-mark-danger-zones-and-shelters.md`
-- Business Rules workbook: `C:/Users/admin/Downloads/CTMS_Global_Business_Rules_Sprint_1-3.xlsx`
-- Story-level BRs: `BR-202, BR-204, BR-205, BR-230, BR-231, BR-242, BR-243, BR-244, BR-238, BR-239, BR-059, BR-060, BR-061`
+- Story ID: `CTMS-23`
+- Epic: `EPIC 3. Trekking Route and Checkpoint Management`
+- Sprint: `Sprint 2`
+- Commitment: `Committed`
+- Baseline: `v2`
+- Source documents: `D:/Downloads/TÍNH NĂNG HỆ THỐNG CTMS.docx`, `D:/Downloads/CTMS.sql`, `D:/Downloads/CTMS- Business rules.xlsx`
