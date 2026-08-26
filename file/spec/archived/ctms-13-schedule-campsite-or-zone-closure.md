@@ -1,4 +1,10 @@
-﻿# CTMS-13 - Schedule Campsite or Zone Closure
+> Status: REMOVED FROM SCOPE
+>
+> Baseline: v2
+>
+> This logical CTMS ID is intentionally retired and MUST NOT be reused.
+
+# CTMS-13 - Schedule Campsite or Zone Closure
 
 **Spec Reference**  
 /file/spec/ctms-13-schedule-campsite-or-zone-closure.md

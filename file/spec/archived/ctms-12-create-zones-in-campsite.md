@@ -1,4 +1,10 @@
-﻿# CTMS-12 - Create Zones in Campsite
+> Status: REMOVED FROM SCOPE
+>
+> Baseline: v2
+>
+> This logical CTMS ID is intentionally retired and MUST NOT be reused.
+
+# CTMS-12 - Create Zones in Campsite
 
 **Spec Reference**  
 /file/spec/ctms-12-create-zones-in-campsite.md
