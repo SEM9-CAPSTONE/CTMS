@@ -160,6 +160,20 @@ export class CampsitesController {
 		return this.campsitesService.listMine(request.user.userId);
 	}
 
+	@Get("pending-review")
+	@Roles(UserRole.ADMIN)
+	@ApiOperation({ summary: "List campsites pending review (Admin only)" })
+	@ApiResponse({
+		status: 200,
+		description: "Pending review campsites",
+		type: [CampsiteResponseDto],
+	})
+	@ApiResponse({ status: 401, description: "Authentication required" })
+	@ApiResponse({ status: 403, description: "Admin access required" })
+	listPendingReview(): Promise<CampsiteResponseDto[]> {
+		return this.campsitesService.listPendingReview();
+	}
+
 	@Patch(":id")
 	@Roles(UserRole.HOST)
 	@ApiOperation({ summary: "Edit a campsite owned by the authenticated Host" })

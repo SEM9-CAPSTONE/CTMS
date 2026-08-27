@@ -89,6 +89,9 @@ export class CampsiteResponseDto {
 	@ApiProperty({ enum: CampsiteStatus })
 	status!: CampsiteStatus;
 
+	@ApiPropertyOptional({ nullable: true })
+	rejectionReason!: string | null;
+
 	@ApiProperty({ type: [CampsiteMediaResponseDto] })
 	media!: CampsiteMediaResponseDto[];
 
@@ -125,6 +128,7 @@ export function toCampsiteResponse(
 		minNights: campsite.minNights,
 		maxNights: campsite.maxNights,
 		status: campsite.status,
+		rejectionReason: campsite.rejectionReason,
 		media: media.map((item) => ({
 			id: item.id,
 			url: item.url,

@@ -36,7 +36,6 @@ export function UserAccountsTable({
 							<tr key={user.id} className="hover:bg-[#f8faf7]">
 								<td className="px-4 py-4">
 									<p className="font-bold text-[#10221b]">{displayName}</p>
-									<p className="mt-1 text-xs text-[#788c7e]">{user.id}</p>
 								</td>
 								<td className="px-4 py-4 text-[#425048]">
 									<p>{user.email || "—"}</p>

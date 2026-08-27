@@ -49,7 +49,6 @@ export function UserAccountDetailsDialog({
 								<p className="text-2xl font-extrabold text-[#10221b]">
 									{user.fullName || "Chưa cập nhật họ tên"}
 								</p>
-								<p className="mt-1 text-xs text-[#788c7e]">{user.id}</p>
 							</div>
 							<AccountStatusBadge status={user.status} />
 						</div>

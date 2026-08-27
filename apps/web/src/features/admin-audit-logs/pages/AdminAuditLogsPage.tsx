@@ -8,14 +8,14 @@ import { AuditLogsTable } from "../components/AuditLogsTable";
 import { useAdminAuditLogs } from "../hooks/useAdminAuditLogs";
 
 export interface AdminAuditLogsPageProps {
-	onBackHome?: () => void;
+	onLogout?: (allDevices: boolean) => Promise<void>;
 }
 
-export function AdminAuditLogsPage({ onBackHome }: AdminAuditLogsPageProps) {
+export function AdminAuditLogsPage({ onLogout }: AdminAuditLogsPageProps) {
 	const logState = useAdminAuditLogs();
 
 	return (
-		<AdminLayout activeItem="audit-logs" onBackHome={onBackHome}>
+		<AdminLayout activeItem="audit-logs" onLogout={onLogout}>
 			<div className="mx-auto max-w-7xl space-y-5 px-4 py-6 sm:px-6 lg:px-8">
 				<div>
 					<h1 className="flex items-center gap-3 text-2xl font-extrabold">
