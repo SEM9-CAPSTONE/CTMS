@@ -25,6 +25,10 @@ export enum TrekkingRouteStatus {
 	CLOSED = "closed",
 }
 
+export function isRouteEligibleForNewTrip(status: TrekkingRouteStatus): boolean {
+	return status === TrekkingRouteStatus.ACTIVE;
+}
+
 export interface GeoLineString {
 	type: "LineString";
 	coordinates: Array<[number, number]>;

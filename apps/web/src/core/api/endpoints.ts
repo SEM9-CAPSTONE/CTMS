@@ -33,6 +33,8 @@ export const API_ENDPOINTS = {
 	TREKKING: {
 		ROUTES: "/trekking-routes",
 		ROUTE_BY_ID: (id: string) => `/trekking-routes/${id}`,
+		CLOSE_ROUTE: (routeId: string) => `/trekking-routes/${routeId}/close`,
+		REOPEN_ROUTE: (routeId: string) => `/trekking-routes/${routeId}/reopen`,
 		CHECKPOINTS: (routeId: string) => `/trekking-routes/${routeId}/checkpoints`,
 		DANGER_ZONES: (routeId: string) => `/trekking-routes/${routeId}/danger-zones`,
 	},

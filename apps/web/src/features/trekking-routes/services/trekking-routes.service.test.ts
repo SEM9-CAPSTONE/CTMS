@@ -6,10 +6,12 @@ vi.mock("../../../core/api", () => ({
 	API_ENDPOINTS: {
 		TREKKING: {
 			ROUTES: "/trekking-routes",
+			CLOSE_ROUTE: (routeId: string) => `/trekking-routes/${routeId}/close`,
+			REOPEN_ROUTE: (routeId: string) => `/trekking-routes/${routeId}/reopen`,
 			CHECKPOINTS: (routeId: string) => `/trekking-routes/${routeId}/checkpoints`,
 		},
 	},
-	httpClient: { get: vi.fn(), post: vi.fn() },
+	httpClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn() },
 }));
 
 describe("trekkingRoutesService", () => {
@@ -66,5 +68,36 @@ describe("trekkingRoutesService", () => {
 		expect(httpClient.post).toHaveBeenCalledWith("/trekking-routes/route-id/checkpoints", payload);
 		expect(payload).not.toHaveProperty("routeId");
 		expect(payload).not.toHaveProperty("routePosition");
+	});
+
+	it("patches close and reopen using only the reason contract", async () => {
+		vi.resetModules();
+		vi.doUnmock("../../../core/api");
+		const patch = vi.fn().mockResolvedValue({ id: "route-id" });
+		vi.doMock("../../../core/api", () => ({
+			API_ENDPOINTS: {
+				TREKKING: {
+					CLOSE_ROUTE: (routeId: string) => `/trekking-routes/${routeId}/close`,
+					REOPEN_ROUTE: (routeId: string) => `/trekking-routes/${routeId}/reopen`,
+				},
+			},
+			httpClient: { patch },
+		}));
+
+		try {
+			const { trekkingRoutesService: lifecycleService } = await import("./trekking-routes.service");
+			await lifecycleService.close("route-id", { reason: "Unsafe" });
+			await lifecycleService.reopen("route-id", { reason: "Safe again" });
+
+			expect(patch).toHaveBeenNthCalledWith(1, "/trekking-routes/route-id/close", {
+				reason: "Unsafe",
+			});
+			expect(patch).toHaveBeenNthCalledWith(2, "/trekking-routes/route-id/reopen", {
+				reason: "Safe again",
+			});
+		} finally {
+			vi.doUnmock("../../../core/api");
+			vi.resetModules();
+		}
 	});
 });

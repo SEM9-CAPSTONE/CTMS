@@ -4,6 +4,7 @@ import type {
 	CreateTrekkingRouteInput,
 	CreatedTrekkingRoute,
 	RouteCheckpoint,
+	RouteStatusReasonInput,
 } from "../types";
 
 export const trekkingRoutesService = {
@@ -11,6 +12,10 @@ export const trekkingRoutesService = {
 		httpClient.get<CreatedTrekkingRoute[]>(API_ENDPOINTS.TREKKING.ROUTES, { campsiteId }),
 	create: (input: CreateTrekkingRouteInput): Promise<CreatedTrekkingRoute> =>
 		httpClient.post<CreatedTrekkingRoute>(API_ENDPOINTS.TREKKING.ROUTES, input),
+	close: (routeId: string, input: RouteStatusReasonInput): Promise<CreatedTrekkingRoute> =>
+		httpClient.patch<CreatedTrekkingRoute>(API_ENDPOINTS.TREKKING.CLOSE_ROUTE(routeId), input),
+	reopen: (routeId: string, input: RouteStatusReasonInput): Promise<CreatedTrekkingRoute> =>
+		httpClient.patch<CreatedTrekkingRoute>(API_ENDPOINTS.TREKKING.REOPEN_ROUTE(routeId), input),
 	listCheckpoints: (routeId: string): Promise<RouteCheckpoint[]> =>
 		httpClient.get<RouteCheckpoint[]>(API_ENDPOINTS.TREKKING.CHECKPOINTS(routeId)),
 	createCheckpoint: (routeId: string, input: CreateCheckpointInput): Promise<RouteCheckpoint> =>

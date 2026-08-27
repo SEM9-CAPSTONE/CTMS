@@ -2,6 +2,7 @@ export const ROUTE_DIFFICULTIES = ["easy", "moderate", "hard", "expert"] as cons
 export type RouteDifficulty = (typeof ROUTE_DIFFICULTIES)[number];
 
 export type RouteStatus = "draft" | "pending_approval" | "active" | "closed";
+export type RouteLifecycleAction = "close" | "reopen";
 export type Position = [number, number];
 
 export const CHECKPOINT_TYPES = [
@@ -40,6 +41,10 @@ export interface CreatedTrekkingRoute extends Omit<CreateTrekkingRouteInput, "de
 	status: RouteStatus;
 	createdAt: string;
 	updatedAt: string;
+}
+
+export interface RouteStatusReasonInput {
+	reason: string;
 }
 
 export interface CreateCheckpointInput {

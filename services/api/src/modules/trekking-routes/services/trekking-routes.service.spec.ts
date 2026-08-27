@@ -1,4 +1,6 @@
+import type { AuthenticatedUser } from "../../auth/jwt.strategy";
 import type { Campsite } from "../../campsites/entities/campsite.entity";
+import { UserRole, UserStatus } from "../../users/entities/user.entity";
 import { TrekkingRouteDifficulty, TrekkingRouteStatus } from "../entities/trekking-route.entity";
 import type { TrekkingRoutesRepository } from "../repositories/trekking-routes.repository";
 import { TrekkingRoutesService } from "./trekking-routes.service";
@@ -6,6 +8,8 @@ import { TrekkingRoutesService } from "./trekking-routes.service";
 const HOST_ID = "11111111-1111-4111-8111-111111111111";
 const CAMPSITE_ID = "22222222-2222-4222-8222-222222222222";
 const ROUTE_ID = "33333333-3333-4333-8333-333333333333";
+const OTHER_HOST_ID = "44444444-4444-4444-8444-444444444444";
+const ADMIN_ID = "55555555-5555-4555-8555-555555555555";
 
 function createDto() {
 	return {
@@ -21,21 +25,30 @@ function createDto() {
 	};
 }
 
-function createdRoute() {
+function createdRoute(status = TrekkingRouteStatus.DRAFT) {
 	return {
 		id: ROUTE_ID,
 		...createDto(),
 		description: "Ridge route",
 		lengthMeters: 1024.5,
-		status: TrekkingRouteStatus.DRAFT,
+		status,
 		createdAt: new Date("2026-08-24T00:00:00.000Z"),
 		updatedAt: new Date("2026-08-24T00:00:00.000Z"),
 	};
 }
 
+function actor(userId: string, roles: UserRole[]): AuthenticatedUser {
+	return { userId, roles, status: UserStatus.ACTIVE };
+}
+
 describe("TrekkingRoutesService", () => {
 	let campsiteRepository: { findOne: jest.Mock };
-	let routeRepository: { createDraft: jest.Mock; findByCampsite: jest.Mock };
+	let routeRepository: {
+		createDraft: jest.Mock;
+		findByCampsite: jest.Mock;
+		findOneForLifecycleUpdate: jest.Mock;
+		updateStatus: jest.Mock;
+	};
 	let auditRepository: { save: jest.Mock };
 	let dataSource: { getRepository: jest.Mock; transaction: jest.Mock };
 	let service: TrekkingRoutesService;
@@ -45,6 +58,14 @@ describe("TrekkingRoutesService", () => {
 		routeRepository = {
 			createDraft: jest.fn().mockResolvedValue(createdRoute()),
 			findByCampsite: jest.fn().mockResolvedValue([createdRoute()]),
+			findOneForLifecycleUpdate: jest.fn().mockResolvedValue({
+				route: createdRoute(TrekkingRouteStatus.ACTIVE),
+				hostId: HOST_ID,
+				integrityValid: true,
+			}),
+			updateStatus: jest.fn((_routeId: string, status: TrekkingRouteStatus) =>
+				Promise.resolve(createdRoute(status))
+			),
 		};
 		auditRepository = { save: jest.fn().mockResolvedValue({}) };
 		dataSource = {
@@ -161,5 +182,152 @@ describe("TrekkingRoutesService", () => {
 
 		await expect(service.create(HOST_ID, createDto())).rejects.toThrow("audit unavailable");
 		expect(routeRepository.createDraft).toHaveBeenCalledTimes(1);
+	});
+
+	describe("close", () => {
+		it("locks and closes an active owned route with the required audit", async () => {
+			const result = await service.close(actor(HOST_ID, [UserRole.HOST]), ROUTE_ID, {
+				reason: "Unsafe trail conditions",
+			});
+
+			expect(routeRepository.findOneForLifecycleUpdate).toHaveBeenCalledWith(ROUTE_ID);
+			expect(routeRepository.updateStatus).toHaveBeenCalledWith(
+				ROUTE_ID,
+				TrekkingRouteStatus.CLOSED
+			);
+			expect(auditRepository.save).toHaveBeenCalledWith({
+				actorId: HOST_ID,
+				action: "trekking_route.closed",
+				targetType: "trekking_route",
+				targetId: ROUTE_ID,
+				before: { status: TrekkingRouteStatus.ACTIVE },
+				after: { status: TrekkingRouteStatus.CLOSED },
+				reason: "Unsafe trail conditions",
+			});
+			expect(result.status).toBe(TrekkingRouteStatus.CLOSED);
+		});
+
+		it("allows an explicitly authorized Admin to close a foreign route", async () => {
+			const result = await service.close(actor(ADMIN_ID, [UserRole.ADMIN]), ROUTE_ID, {
+				reason: "Administrative safety closure",
+			});
+
+			expect(result.status).toBe(TrekkingRouteStatus.CLOSED);
+			expect(auditRepository.save).toHaveBeenCalledWith(
+				expect.objectContaining({ actorId: ADMIN_ID })
+			);
+		});
+
+		it.each([
+			[TrekkingRouteStatus.DRAFT],
+			[TrekkingRouteStatus.PENDING_APPROVAL],
+			[TrekkingRouteStatus.CLOSED],
+		])("rejects close from %s with no write or audit", async (status) => {
+			routeRepository.findOneForLifecycleUpdate.mockResolvedValue({
+				route: createdRoute(status),
+				hostId: HOST_ID,
+				integrityValid: true,
+			});
+
+			await expect(
+				service.close(actor(HOST_ID, [UserRole.HOST]), ROUTE_ID, { reason: "Reason" })
+			).rejects.toMatchObject({ status: 409 });
+			expect(routeRepository.updateStatus).not.toHaveBeenCalled();
+			expect(auditRepository.save).not.toHaveBeenCalled();
+		});
+
+		it("rejects a foreign Host and other roles with no side effects", async () => {
+			await expect(
+				service.close(actor(OTHER_HOST_ID, [UserRole.HOST]), ROUTE_ID, { reason: "Reason" })
+			).rejects.toMatchObject({ status: 403 });
+			await expect(
+				service.close(actor(OTHER_HOST_ID, [UserRole.CAMPER]), ROUTE_ID, { reason: "Reason" })
+			).rejects.toMatchObject({ status: 403 });
+			expect(routeRepository.updateStatus).not.toHaveBeenCalled();
+			expect(auditRepository.save).not.toHaveBeenCalled();
+		});
+
+		it("returns 404 for a missing route with no side effects", async () => {
+			routeRepository.findOneForLifecycleUpdate.mockResolvedValue(null);
+
+			await expect(
+				service.close(actor(HOST_ID, [UserRole.HOST]), ROUTE_ID, { reason: "Reason" })
+			).rejects.toMatchObject({ status: 404 });
+			expect(routeRepository.updateStatus).not.toHaveBeenCalled();
+			expect(auditRepository.save).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("reopen", () => {
+		beforeEach(() => {
+			routeRepository.findOneForLifecycleUpdate.mockResolvedValue({
+				route: createdRoute(TrekkingRouteStatus.CLOSED),
+				hostId: HOST_ID,
+				integrityValid: true,
+			});
+		});
+
+		it("validates and reopens a closed route into pending approval", async () => {
+			const result = await service.reopen(actor(HOST_ID, [UserRole.HOST]), ROUTE_ID, {
+				reason: "Conditions are safe again",
+			});
+
+			expect(routeRepository.findOneForLifecycleUpdate).toHaveBeenCalledWith(ROUTE_ID);
+			expect(routeRepository.updateStatus).toHaveBeenCalledWith(
+				ROUTE_ID,
+				TrekkingRouteStatus.PENDING_APPROVAL
+			);
+			expect(auditRepository.save).toHaveBeenCalledWith({
+				actorId: HOST_ID,
+				action: "trekking_route.reopened",
+				targetType: "trekking_route",
+				targetId: ROUTE_ID,
+				before: { status: TrekkingRouteStatus.CLOSED },
+				after: { status: TrekkingRouteStatus.PENDING_APPROVAL },
+				reason: "Conditions are safe again",
+			});
+			expect(result.status).toBe(TrekkingRouteStatus.PENDING_APPROVAL);
+		});
+
+		it.each([
+			TrekkingRouteStatus.ACTIVE,
+			TrekkingRouteStatus.DRAFT,
+			TrekkingRouteStatus.PENDING_APPROVAL,
+		])("rejects reopen from %s with no side effects", async (status) => {
+			routeRepository.findOneForLifecycleUpdate.mockResolvedValue({
+				route: createdRoute(status),
+				hostId: HOST_ID,
+				integrityValid: true,
+			});
+
+			await expect(
+				service.reopen(actor(HOST_ID, [UserRole.HOST]), ROUTE_ID, { reason: "Reason" })
+			).rejects.toMatchObject({ status: 409 });
+			expect(routeRepository.updateStatus).not.toHaveBeenCalled();
+			expect(auditRepository.save).not.toHaveBeenCalled();
+		});
+
+		it("rejects a closed route whose canonical data is no longer valid", async () => {
+			routeRepository.findOneForLifecycleUpdate.mockResolvedValue({
+				route: createdRoute(TrekkingRouteStatus.CLOSED),
+				hostId: HOST_ID,
+				integrityValid: false,
+			});
+
+			await expect(
+				service.reopen(actor(HOST_ID, [UserRole.HOST]), ROUTE_ID, { reason: "Reason" })
+			).rejects.toMatchObject({ status: 409 });
+			expect(routeRepository.updateStatus).not.toHaveBeenCalled();
+			expect(auditRepository.save).not.toHaveBeenCalled();
+		});
+	});
+
+	it("propagates lifecycle audit failure so the transaction can roll back the status update", async () => {
+		auditRepository.save.mockRejectedValue(new Error("audit unavailable"));
+
+		await expect(
+			service.close(actor(HOST_ID, [UserRole.HOST]), ROUTE_ID, { reason: "Reason" })
+		).rejects.toThrow("audit unavailable");
+		expect(routeRepository.updateStatus).toHaveBeenCalledTimes(1);
 	});
 });

@@ -26,7 +26,6 @@ export function useTrekkingRoutes(campsiteId?: string) {
 			return;
 		}
 
-		setItems([]);
 		setError("");
 		setIsLoading(true);
 		try {

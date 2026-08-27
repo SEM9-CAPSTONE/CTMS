@@ -2,6 +2,7 @@ import { AlertCircle, ArrowLeft, Loader2, Map as MapIcon, RefreshCw, Route } fro
 import { useEffect, useMemo, useState } from "react";
 import { RouteCheckpointsPanel } from "../components/RouteCheckpointsPanel";
 import { RouteGeometryPreview } from "../components/RouteGeometryPreview";
+import { RouteStatusActionDialog } from "../components/RouteStatusActionDialog";
 import { TrekkingRouteList } from "../components/TrekkingRouteList";
 import { useOwnedCampsites } from "../hooks/useOwnedCampsites";
 import { useTrekkingRoutes } from "../hooks/useTrekkingRoutes";
@@ -180,6 +181,9 @@ export function TrekkingRoutesPage({ onBackHome }: TrekkingRoutesPageProps) {
 										/>
 										{selectedRoute && <RouteGeometryPreview geometry={selectedRoute.geometry} />}
 									</div>
+									{selectedRoute && (
+										<RouteStatusActionDialog route={selectedRoute} onReload={routes.retry} />
+									)}
 									{selectedRoute && (
 										<RouteCheckpointsPanel key={selectedRoute.id} route={selectedRoute} />
 									)}
