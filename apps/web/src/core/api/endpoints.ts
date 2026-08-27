@@ -34,7 +34,9 @@ export const API_ENDPOINTS = {
 	},
 	TREKKING: {
 		ROUTES: "/trekking-routes",
+		PENDING_REVIEW: "/trekking-routes/pending-review",
 		ROUTE_BY_ID: (id: string) => `/trekking-routes/${id}`,
+		REVIEW: (id: string) => `/trekking-routes/${id}/review`,
 		CHECKPOINTS: (routeId: string) => `/trekking-routes/${routeId}/checkpoints`,
 		DANGER_ZONES: (routeId: string) => `/trekking-routes/${routeId}/danger-zones`,
 	},

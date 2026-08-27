@@ -16,6 +16,7 @@ import { CampsiteFormPage } from "../features/campsites/pages/CampsiteFormPage";
 import { SearchCampsitesPage } from "../features/campsites/pages/SearchCampsitesPage";
 import { LandingPage } from "../features/landing/pages/LandingPage";
 import { RoleLandingPage } from "../features/role-landing/pages/RoleLandingPage";
+import { AdminTrekkingRoutesPage } from "../features/trekking-routes/pages/AdminTrekkingRoutesPage";
 import { CreateTrekkingRoutePage } from "../features/trekking-routes/pages/CreateTrekkingRoutePage";
 import { TrekkingRoutesPage } from "../features/trekking-routes/pages/TrekkingRoutesPage";
 import { EdgeCasePage, ErrorPage, NotFoundPage, UnauthorizedPage } from "../shared/pages";
@@ -274,6 +275,18 @@ export function AppRoutes() {
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
 					<AdminCampsitesPage onLogout={handleLogout} />
+				</AppRoleGuard>
+			);
+
+		case RoutePath.ADMIN_TREKKING_ROUTES:
+			return (
+				<AppRoleGuard
+					allowedRoles={["admin"]}
+					currentRoles={currentRoles}
+					fallback={unauthorizedFallback}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<AdminTrekkingRoutesPage onLogout={handleLogout} />
 				</AppRoleGuard>
 			);
 

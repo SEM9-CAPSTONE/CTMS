@@ -1,4 +1,5 @@
 import type { Campsite } from "../../campsites/entities/campsite.entity";
+import { ReviewTrekkingRouteAction } from "../dto/review-trekking-route.dto";
 import { TrekkingRouteDifficulty, TrekkingRouteStatus } from "../entities/trekking-route.entity";
 import type { TrekkingRoutesRepository } from "../repositories/trekking-routes.repository";
 import { TrekkingRoutesService } from "./trekking-routes.service";
@@ -33,9 +34,25 @@ function createdRoute() {
 	};
 }
 
+function reviewRoute(status = TrekkingRouteStatus.PENDING_APPROVAL) {
+	return {
+		...createdRoute(),
+		status,
+		campsiteName: "Pine Camp",
+		checkpoints: [],
+	};
+}
+
 describe("TrekkingRoutesService", () => {
 	let campsiteRepository: { findOne: jest.Mock };
-	let routeRepository: { createDraft: jest.Mock; findByCampsite: jest.Mock };
+	let routeRepository: {
+		createDraft: jest.Mock;
+		findByCampsite: jest.Mock;
+		findPendingReview: jest.Mock;
+		findReviewRouteByIdForUpdate: jest.Mock;
+		validateApprovalIntegrity: jest.Mock;
+		updateStatus: jest.Mock;
+	};
 	let auditRepository: { save: jest.Mock };
 	let dataSource: { getRepository: jest.Mock; transaction: jest.Mock };
 	let service: TrekkingRoutesService;
@@ -45,6 +62,20 @@ describe("TrekkingRoutesService", () => {
 		routeRepository = {
 			createDraft: jest.fn().mockResolvedValue(createdRoute()),
 			findByCampsite: jest.fn().mockResolvedValue([createdRoute()]),
+			findPendingReview: jest.fn().mockResolvedValue([reviewRoute()]),
+			findReviewRouteByIdForUpdate: jest.fn().mockResolvedValue(reviewRoute()),
+			validateApprovalIntegrity: jest.fn().mockResolvedValue({
+				geometryValid: true,
+				difficultyValid: true,
+				checkpointsValid: true,
+				checkpointCount: 0,
+			}),
+			updateStatus: jest.fn().mockImplementation((_id, status) =>
+				Promise.resolve({
+					...createdRoute(),
+					status,
+				})
+			),
 		};
 		auditRepository = { save: jest.fn().mockResolvedValue({}) };
 		dataSource = {
@@ -97,6 +128,115 @@ describe("TrekkingRoutesService", () => {
 				status: 403,
 			});
 			expect(routeRepository.findByCampsite).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("Admin review", () => {
+		it("lists only repository-provided pending review Routes", async () => {
+			await expect(service.listPendingReview()).resolves.toEqual([reviewRoute()]);
+			expect(routeRepository.findPendingReview).toHaveBeenCalledTimes(1);
+		});
+
+		it("approves a valid pending Route and audits the status transition", async () => {
+			const result = await service.review(HOST_ID, ROUTE_ID, {
+				action: ReviewTrekkingRouteAction.APPROVE,
+			});
+
+			expect(routeRepository.findReviewRouteByIdForUpdate).toHaveBeenCalledWith(ROUTE_ID);
+			expect(routeRepository.validateApprovalIntegrity).toHaveBeenCalledWith(ROUTE_ID);
+			expect(routeRepository.updateStatus).toHaveBeenCalledWith(
+				ROUTE_ID,
+				TrekkingRouteStatus.ACTIVE
+			);
+			expect(result.status).toBe(TrekkingRouteStatus.ACTIVE);
+			expect(auditRepository.save).toHaveBeenCalledWith({
+				actorId: HOST_ID,
+				action: "trekking_route.approved",
+				targetType: "trekking_route",
+				targetId: ROUTE_ID,
+				before: { status: TrekkingRouteStatus.PENDING_APPROVAL },
+				after: { status: TrekkingRouteStatus.ACTIVE },
+				reason: null,
+			});
+		});
+
+		it.each([
+			{
+				action: ReviewTrekkingRouteAction.DECLINE,
+				target: TrekkingRouteStatus.DRAFT,
+				auditAction: "trekking_route.declined",
+			},
+			{
+				action: ReviewTrekkingRouteAction.NON_OPERABLE,
+				target: TrekkingRouteStatus.CLOSED,
+				auditAction: "trekking_route.closed",
+			},
+		])(
+			"handles $action without requiring approval integrity",
+			async ({ action, target, auditAction }) => {
+				await service.review(HOST_ID, ROUTE_ID, { action, reason: "Unsafe terrain" });
+
+				expect(routeRepository.validateApprovalIntegrity).not.toHaveBeenCalled();
+				expect(routeRepository.updateStatus).toHaveBeenCalledWith(ROUTE_ID, target);
+				expect(auditRepository.save).toHaveBeenCalledWith(
+					expect.objectContaining({
+						action: auditAction,
+						before: { status: TrekkingRouteStatus.PENDING_APPROVAL },
+						after: { status: target },
+						reason: "Unsafe terrain",
+					})
+				);
+			}
+		);
+
+		it("returns 404 without mutation when the Route is missing", async () => {
+			routeRepository.findReviewRouteByIdForUpdate.mockResolvedValue(null);
+
+			await expect(
+				service.review(HOST_ID, ROUTE_ID, { action: ReviewTrekkingRouteAction.APPROVE })
+			).rejects.toMatchObject({ status: 404 });
+			expect(routeRepository.updateStatus).not.toHaveBeenCalled();
+			expect(auditRepository.save).not.toHaveBeenCalled();
+		});
+
+		it.each([TrekkingRouteStatus.DRAFT, TrekkingRouteStatus.ACTIVE, TrekkingRouteStatus.CLOSED])(
+			"returns 409 for stale source state %s without side effects",
+			async (status) => {
+				routeRepository.findReviewRouteByIdForUpdate.mockResolvedValue(reviewRoute(status));
+				await expect(
+					service.review(HOST_ID, ROUTE_ID, { action: ReviewTrekkingRouteAction.APPROVE })
+				).rejects.toMatchObject({ status: 409 });
+				expect(routeRepository.updateStatus).not.toHaveBeenCalled();
+				expect(auditRepository.save).not.toHaveBeenCalled();
+			}
+		);
+
+		it.each(["geometryValid", "difficultyValid", "checkpointsValid"] as const)(
+			"returns 422 and does not mutate when %s is false",
+			async (invalidField) => {
+				routeRepository.validateApprovalIntegrity.mockResolvedValue({
+					geometryValid: true,
+					difficultyValid: true,
+					checkpointsValid: true,
+					checkpointCount: 1,
+					[invalidField]: false,
+				});
+
+				await expect(
+					service.review(HOST_ID, ROUTE_ID, { action: ReviewTrekkingRouteAction.APPROVE })
+				).rejects.toMatchObject({ status: 422 });
+				expect(routeRepository.updateStatus).not.toHaveBeenCalled();
+				expect(auditRepository.save).not.toHaveBeenCalled();
+			}
+		);
+
+		it("propagates audit failure so the review transaction rolls back", async () => {
+			auditRepository.save.mockRejectedValue(new Error("audit unavailable"));
+
+			await expect(
+				service.review(HOST_ID, ROUTE_ID, { action: ReviewTrekkingRouteAction.APPROVE })
+			).rejects.toThrow("audit unavailable");
+			expect(routeRepository.updateStatus).toHaveBeenCalledTimes(1);
 		});
 	});
 
