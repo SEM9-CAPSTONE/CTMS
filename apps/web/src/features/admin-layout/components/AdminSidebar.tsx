@@ -1,4 +1,4 @@
-import { FileClock, Flag, LayoutDashboard, TentTree, Users, X } from "lucide-react";
+import { FileClock, Flag, LayoutDashboard, Route, TentTree, Users, X } from "lucide-react";
 import { LogoutActions } from "../../auth/components/LogoutActions";
 
 export type AdminNavigationItem =
@@ -6,7 +6,8 @@ export type AdminNavigationItem =
 	| "user-accounts"
 	| "audit-logs"
 	| "content-reports"
-	| "campsite-review";
+	| "campsite-review"
+	| "route-review";
 
 interface AdminSidebarProps {
 	activeItem: AdminNavigationItem;
@@ -19,6 +20,7 @@ const navigationItems = [
 	{ key: "dashboard", label: "Bảng điều khiển", icon: LayoutDashboard, available: false },
 	{ key: "user-accounts", label: "Tài khoản người dùng", icon: Users, available: true },
 	{ key: "campsite-review", label: "Duyệt khu cắm trại", icon: TentTree, available: true },
+	{ key: "route-review", label: "Duyệt tuyến trekking", icon: Route, available: true },
 	{ key: "audit-logs", label: "Nhật ký hệ thống", icon: FileClock, available: true },
 	{ key: "content-reports", label: "Báo cáo nội dung", icon: Flag, available: false },
 ] as const;
@@ -63,6 +65,9 @@ export function AdminSidebar({ activeItem, onLogout, onClose, className = "" }: 
 									window.dispatchEvent(new PopStateEvent("popstate"));
 								} else if (item.key === "campsite-review") {
 									window.history.pushState({}, "", "/admin/campsites");
+									window.dispatchEvent(new PopStateEvent("popstate"));
+								} else if (item.key === "route-review") {
+									window.history.pushState({}, "", "/admin/trekking-routes");
 									window.dispatchEvent(new PopStateEvent("popstate"));
 								}
 							}}

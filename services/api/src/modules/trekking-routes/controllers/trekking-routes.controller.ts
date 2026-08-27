@@ -1,4 +1,16 @@
-import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from "@nestjs/common";
+import {
+	Body,
+	Controller,
+	Get,
+	HttpStatus,
+	Param,
+	ParseUUIDPipe,
+	Patch,
+	Post,
+	Query,
+	Req,
+	UseGuards,
+} from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
 import { Roles } from "../../auth/decorators/roles.decorator";
 import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
@@ -13,8 +25,11 @@ import { CreateTrekkingRouteDto } from "../dto/create-trekking-route.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { ListTrekkingRoutesQueryDto } from "../dto/list-trekking-routes-query.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
+import { ReviewTrekkingRouteDto } from "../dto/review-trekking-route.dto";
+// biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { RouteIdParamDto } from "../dto/route-id-param.dto";
 import { TrekkingRouteResponseDto } from "../dto/trekking-route-response.dto";
+import { TrekkingRouteReviewResponseDto } from "../dto/trekking-route-review-response.dto";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { CheckpointsService } from "../services/checkpoints.service";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
@@ -33,6 +48,34 @@ export class TrekkingRoutesController {
 		private readonly trekkingRoutesService: TrekkingRoutesService,
 		private readonly checkpointsService: CheckpointsService
 	) {}
+
+	@Get("pending-review")
+	@Roles(UserRole.ADMIN)
+	@ApiOperation({ summary: "List pending trekking routes with Admin review details" })
+	@ApiResponse({ status: 200, type: TrekkingRouteReviewResponseDto, isArray: true })
+	@ApiResponse({ status: 401, description: "Authentication required" })
+	@ApiResponse({ status: 403, description: "Admin access required" })
+	listPendingReview(): Promise<TrekkingRouteReviewResponseDto[]> {
+		return this.trekkingRoutesService.listPendingReview();
+	}
+
+	@Patch(":routeId/review")
+	@Roles(UserRole.ADMIN)
+	@ApiOperation({ summary: "Approve, decline, or mark a pending trekking route non-operable" })
+	@ApiResponse({ status: 200, type: TrekkingRouteReviewResponseDto })
+	@ApiResponse({ status: 401, description: "Authentication required" })
+	@ApiResponse({ status: 403, description: "Admin access required" })
+	@ApiResponse({ status: 404, description: "Trekking route not found" })
+	@ApiResponse({ status: 409, description: "Route is not pending approval" })
+	@ApiResponse({ status: 422, description: "Invalid decision or stored Route integrity" })
+	review(
+		@Req() request: AuthenticatedRequest,
+		@Param("routeId", new ParseUUIDPipe({ errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY }))
+		routeId: string,
+		@Body() dto: ReviewTrekkingRouteDto
+	): Promise<TrekkingRouteReviewResponseDto> {
+		return this.trekkingRoutesService.review(request.user.userId, routeId, dto);
+	}
 
 	@Get(":routeId/checkpoints")
 	@Roles(UserRole.HOST)

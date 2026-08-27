@@ -7,6 +7,102 @@ import {
 import { TrekkingRoutesRepository } from "./trekking-routes.repository";
 
 describe("TrekkingRoutesRepository", () => {
+	it("lists only pending review Routes with campsite and ordered checkpoint context", async () => {
+		const repository = new TrekkingRoutesRepository(TrekkingRoute, {} as EntityManager);
+		const query = jest.spyOn(repository, "query").mockResolvedValue([
+			{
+				id: "route-id",
+				campsiteId: "campsite-id",
+				campsiteName: "Pine Camp",
+				name: "Ridge Trail",
+				description: null,
+				geometry: {
+					type: "LineString",
+					coordinates: [
+						[108, 11],
+						[108.1, 11.1],
+					],
+				},
+				lengthMeters: "100",
+				difficulty: TrekkingRouteDifficulty.EASY,
+				expectedDurationMinutes: "60",
+				status: TrekkingRouteStatus.PENDING_APPROVAL,
+				createdAt: new Date(),
+				updatedAt: new Date(),
+				checkpoints: [],
+			},
+		]);
+
+		const routes = await repository.findPendingReview();
+
+		expect(query.mock.calls[0][0]).toContain('route."status" = $1');
+		expect(query.mock.calls[0][0]).toContain('ORDER BY checkpoint."route_position"');
+		expect(query.mock.calls[0][1]).toEqual([TrekkingRouteStatus.PENDING_APPROVAL]);
+		expect(routes[0]).toEqual(
+			expect.objectContaining({ campsiteName: "Pine Camp", checkpoints: [] })
+		);
+	});
+
+	it("locks the selected Route before review", async () => {
+		const repository = new TrekkingRoutesRepository(TrekkingRoute, {} as EntityManager);
+		const query = jest.spyOn(repository, "query").mockResolvedValue([]);
+
+		await expect(repository.findReviewRouteByIdForUpdate("route-id")).resolves.toBeNull();
+		expect(query.mock.calls[0][0]).toContain("FOR UPDATE OF route");
+	});
+
+	it("validates authoritative Route and checkpoint integrity with PostGIS", async () => {
+		const repository = new TrekkingRoutesRepository(TrekkingRoute, {} as EntityManager);
+		const query = jest.spyOn(repository, "query").mockResolvedValue([
+			{
+				geometryValid: true,
+				difficultyValid: true,
+				checkpointsValid: true,
+				checkpointCount: "2",
+			},
+		]);
+
+		await expect(repository.validateApprovalIntegrity("route-id")).resolves.toEqual({
+			geometryValid: true,
+			difficultyValid: true,
+			checkpointsValid: true,
+			checkpointCount: 2,
+		});
+		expect(query.mock.calls[0][0]).toContain("ST_NPoints");
+		expect(query.mock.calls[0][0]).toContain("ST_DWithin");
+		expect(query.mock.calls[0][0]).not.toContain("checkpoint_type = 'start'");
+	});
+
+	it("updates only the server-selected status and returns authoritative geometry", async () => {
+		const repository = new TrekkingRoutesRepository(TrekkingRoute, {} as EntityManager);
+		const query = jest.spyOn(repository, "query").mockResolvedValue([
+			{
+				id: "route-id",
+				campsiteId: "campsite-id",
+				name: "Ridge Trail",
+				description: null,
+				geometry: {
+					type: "LineString",
+					coordinates: [
+						[108, 11],
+						[108.1, 11.1],
+					],
+				},
+				lengthMeters: "100",
+				difficulty: TrekkingRouteDifficulty.EASY,
+				expectedDurationMinutes: "60",
+				status: TrekkingRouteStatus.ACTIVE,
+				createdAt: new Date(),
+				updatedAt: new Date(),
+			},
+		]);
+
+		const route = await repository.updateStatus("route-id", TrekkingRouteStatus.ACTIVE);
+
+		expect(query.mock.calls[0][1]).toEqual(["route-id", TrekkingRouteStatus.ACTIVE]);
+		expect(route.status).toBe(TrekkingRouteStatus.ACTIVE);
+	});
+
 	it("lists campsite routes with GeoJSON geometry and numeric values", async () => {
 		const repository = new TrekkingRoutesRepository(TrekkingRoute, {} as EntityManager);
 		const query = jest.spyOn(repository, "query").mockResolvedValue([
