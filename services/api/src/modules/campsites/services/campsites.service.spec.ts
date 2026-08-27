@@ -93,6 +93,7 @@ describe("CampsitesService", () => {
 		findByHost: jest.Mock;
 		findOne: jest.Mock;
 		findDetailedById: jest.Mock;
+		findActiveById: jest.Mock;
 		updateInformation: jest.Mock;
 		updateStatus: jest.Mock;
 	};
@@ -139,6 +140,7 @@ describe("CampsitesService", () => {
 			findByHost: jest.fn().mockResolvedValue([]),
 			findOne: jest.fn(),
 			findDetailedById: jest.fn(),
+			findActiveById: jest.fn(),
 			updateInformation: jest.fn(),
 			updateStatus: jest.fn(),
 		};
@@ -768,6 +770,103 @@ describe("CampsitesService", () => {
 
 			expect(transactionalCampsitesRepository.updateStatus).not.toHaveBeenCalled();
 			expect(auditRepository.save).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("getPublicDetail", () => {
+		const campsiteId = "11111111-1111-1111-1111-111111111111";
+
+		it("returns campsite detail fields and media for an active campsite", async () => {
+			const campsite = buildCampsite({
+				id: campsiteId,
+				name: "Da Lat Pine Camp",
+				description: "Quiet pine forest",
+				province: "Lam Dong",
+				policies: { rules: "No campfires" },
+				operatingHours: { opensAt: "08:00", closesAt: "18:00" },
+				seasonStartDate: "2026-06-01",
+				seasonEndDate: "2026-09-30",
+				maxAdvanceBookingDays: 30,
+				minNights: 1,
+				maxNights: 7,
+				status: CampsiteStatus.ACTIVE,
+			});
+			const media = [
+				buildMedia({ url: "https://example.com/photo1.jpg", sortOrder: 0 }),
+				buildMedia({
+					id: "55555555-5555-5555-5555-555555555555",
+					url: "https://example.com/photo2.jpg",
+					sortOrder: 1,
+				}),
+			];
+
+			campsitesRepository.findActiveById.mockResolvedValue({
+				campsite,
+				media,
+				latitude: 11.940419,
+				longitude: 108.458313,
+			});
+
+			const result = await service.getPublicDetail(campsiteId);
+
+			expect(campsitesRepository.findActiveById).toHaveBeenCalledWith(campsiteId);
+			expect(result).toEqual({
+				id: campsiteId,
+				name: "Da Lat Pine Camp",
+				description: "Quiet pine forest",
+				latitude: 11.940419,
+				longitude: 108.458313,
+				province: "Lam Dong",
+				policies: { rules: "No campfires" },
+				operatingHours: { opensAt: "08:00", closesAt: "18:00" },
+				seasonStartDate: "2026-06-01",
+				seasonEndDate: "2026-09-30",
+				maxAdvanceBookingDays: 30,
+				minNights: 1,
+				maxNights: 7,
+				status: CampsiteStatus.ACTIVE,
+				media: [
+					expect.objectContaining({ url: "https://example.com/photo1.jpg", sortOrder: 0 }),
+					expect.objectContaining({ url: "https://example.com/photo2.jpg", sortOrder: 1 }),
+				],
+				upcomingTrips: [],
+			});
+		});
+
+		it("throws NotFoundException when the campsite does not exist or is not active", async () => {
+			campsitesRepository.findActiveById.mockResolvedValue(null);
+
+			await expect(service.getPublicDetail(campsiteId)).rejects.toThrow("Campsite not found");
+		});
+
+		it("does not include zones, hostId, or rejectionReason in the response", async () => {
+			const campsite = buildCampsite({ id: campsiteId });
+			campsitesRepository.findActiveById.mockResolvedValue({
+				campsite,
+				media: [buildMedia()],
+				latitude: 11.940419,
+				longitude: 108.458313,
+			});
+
+			const result = await service.getPublicDetail(campsiteId);
+
+			expect(result).not.toHaveProperty("hostId");
+			expect(result).not.toHaveProperty("rejectionReason");
+			expect(result).not.toHaveProperty("zones");
+		});
+
+		it("returns upcomingTrips as an empty array (Trip domain not yet built)", async () => {
+			const campsite = buildCampsite({ id: campsiteId });
+			campsitesRepository.findActiveById.mockResolvedValue({
+				campsite,
+				media: [],
+				latitude: 11.940419,
+				longitude: 108.458313,
+			});
+
+			const result = await service.getPublicDetail(campsiteId);
+
+			expect(result.upcomingTrips).toEqual([]);
 		});
 	});
 });

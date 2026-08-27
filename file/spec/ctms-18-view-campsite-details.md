@@ -4,7 +4,7 @@
 /file/spec/ctms-18-view-campsite-details.md
 
 **Status**  
-To Do
+In Progress
 
 **Story Title**
 View Campsite Details
@@ -60,6 +60,7 @@ As a Camper, I want to view public campsite details without browsing internal Ro
 - This document is a requirements baseline only; do not infer implementation completion from the spec status.
 - Backend validation and authorization are authoritative; UI validation is only a usability layer.
 - Update tests, API contracts, migrations/entities, and documentation together when implementing this spec.
+- **Backend (CTMS-76)**: `GET /api/campsites/:id` — public Camper endpoint returning `CampsiteDetailDto` (campsite profile + media, no zones/hostId/rejectionReason). Active-only filter at DB level. `upcomingTrips: []` frozen until Trip domain is built. Unit tests in `campsites.service.spec.ts`.
 
 ## References
 

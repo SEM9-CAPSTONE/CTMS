@@ -91,6 +91,13 @@ export interface UpdateCampsiteInformationInput {
 	zones?: CreateCampsiteZoneInput[];
 }
 
+export interface CampsitePublicDetailRow {
+	campsite: Campsite;
+	media: CampsiteMedia[];
+	latitude: number;
+	longitude: number;
+}
+
 @Injectable()
 export class CampsitesRepository extends Repository<Campsite> {
 	async createPendingApproval(
@@ -325,6 +332,32 @@ export class CampsitesRepository extends Repository<Campsite> {
 			campsite,
 			media: mediaByCampsiteId.get(campsite.id) ?? [],
 			zones: zonesByCampsiteId.get(campsite.id) ?? [],
+			latitude: Number(row?.campsite_latitude ?? 0),
+			longitude: Number(row?.campsite_longitude ?? 0),
+		};
+	}
+
+	async findActiveById(id: string): Promise<CampsitePublicDetailRow | null> {
+		const qb = this.createQueryBuilder("campsite")
+			.addSelect("ST_Y(campsite.location::geometry)", "campsite_latitude")
+			.addSelect("ST_X(campsite.location::geometry)", "campsite_longitude")
+			.where("campsite.id = :id", { id })
+			.andWhere("campsite.status = :activeStatus", {
+				activeStatus: CampsiteStatus.ACTIVE,
+			});
+
+		const { entities: campsites, raw } = await qb.getRawAndEntities();
+		const campsite = campsites[0];
+		if (!campsite) {
+			return null;
+		}
+
+		const mediaByCampsiteId = await this.resolveMedia([campsite.id]);
+		const row = raw[0] as Record<string, unknown> | undefined;
+
+		return {
+			campsite,
+			media: mediaByCampsiteId.get(campsite.id) ?? [],
 			latitude: Number(row?.campsite_latitude ?? 0),
 			longitude: Number(row?.campsite_longitude ?? 0),
 		};
