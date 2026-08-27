@@ -17,6 +17,7 @@ import {
 	getCampsiteUploadDir,
 } from "../../../shared/uploads/upload-paths";
 import { AuditLog } from "../../auth/entities/audit-log.entity";
+import { type CampsiteDetailDto, toCampsiteDetail } from "../dto/campsite-detail.dto";
 import { type CampsiteResponseDto, toCampsiteResponse } from "../dto/campsite-response.dto";
 import {
 	type PaginatedCampsiteSearchResponseDto,
@@ -206,6 +207,26 @@ export class CampsitesService {
 				totalPages: total === 0 ? 0 : Math.ceil(total / limit),
 			},
 		};
+	}
+
+	async getPublicDetail(campsiteId: string): Promise<CampsiteDetailDto> {
+		const result = await this.campsitesRepository.findActiveById(campsiteId);
+		if (!result) {
+			throw new NotFoundException("Campsite not found");
+		}
+
+		const { campsite, media, latitude, longitude } = result;
+		return toCampsiteDetail(
+			campsite,
+			media.map((m) => ({
+				id: m.id,
+				url: m.url,
+				type: m.type,
+				sortOrder: m.sortOrder,
+			})),
+			latitude,
+			longitude
+		);
 	}
 
 	async listMine(hostId: string): Promise<CampsiteResponseDto[]> {

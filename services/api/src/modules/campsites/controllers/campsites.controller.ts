@@ -36,6 +36,7 @@ import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../../auth/guards/roles.guard";
 import type { AuthenticatedUser } from "../../auth/jwt.strategy";
 import { UserRole } from "../../users/entities/user.entity";
+import { CampsiteDetailDto } from "../dto/campsite-detail.dto";
 import { CampsiteMediaUploadResponseDto } from "../dto/campsite-media-upload-response.dto";
 import { CampsiteMediaResponseDto, CampsiteResponseDto } from "../dto/campsite-response.dto";
 import { PaginatedCampsiteSearchResponseDto } from "../dto/campsite-search-result.dto";
@@ -172,6 +173,21 @@ export class CampsitesController {
 	@ApiResponse({ status: 403, description: "Admin access required" })
 	listPendingReview(): Promise<CampsiteResponseDto[]> {
 		return this.campsitesService.listPendingReview();
+	}
+
+	@Get(":id")
+	@Roles(UserRole.CAMPER)
+	@ApiOperation({ summary: "View details of an active campsite (Camper)" })
+	@ApiResponse({
+		status: 200,
+		description: "Campsite details",
+		type: CampsiteDetailDto,
+	})
+	@ApiResponse({ status: 401, description: "Authentication required" })
+	@ApiResponse({ status: 403, description: "Camper access required" })
+	@ApiResponse({ status: 404, description: "Campsite not found or not active" })
+	getDetail(@Param("id", new ParseUUIDPipe()) id: string): Promise<CampsiteDetailDto> {
+		return this.campsitesService.getPublicDetail(id);
 	}
 
 	@Patch(":id")
