@@ -28,6 +28,8 @@ import { ListTrekkingRoutesQueryDto } from "../dto/list-trekking-routes-query.dt
 import { ReviewTrekkingRouteDto } from "../dto/review-trekking-route.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { RouteIdParamDto } from "../dto/route-id-param.dto";
+// biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
+import { RouteStatusReasonDto } from "../dto/route-status-reason.dto";
 import { TrekkingRouteResponseDto } from "../dto/trekking-route-response.dto";
 import { TrekkingRouteReviewResponseDto } from "../dto/trekking-route-review-response.dto";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
@@ -75,6 +77,40 @@ export class TrekkingRoutesController {
 		@Body() dto: ReviewTrekkingRouteDto
 	): Promise<TrekkingRouteReviewResponseDto> {
 		return this.trekkingRoutesService.review(request.user.userId, routeId, dto);
+	}
+
+	@Patch(":routeId/close")
+	@Roles(UserRole.HOST, UserRole.ADMIN)
+	@ApiOperation({ summary: "Close an active trekking route" })
+	@ApiResponse({ status: 200, type: TrekkingRouteResponseDto })
+	@ApiResponse({ status: 401, description: "Authentication required" })
+	@ApiResponse({ status: 403, description: "Host ownership or Admin role required" })
+	@ApiResponse({ status: 404, description: "Trekking route not found" })
+	@ApiResponse({ status: 409, description: "Invalid route status transition" })
+	@ApiResponse({ status: 422, description: "Invalid reason" })
+	close(
+		@Req() request: AuthenticatedRequest,
+		@Param() params: RouteIdParamDto,
+		@Body() dto: RouteStatusReasonDto
+	): Promise<TrekkingRouteResponseDto> {
+		return this.trekkingRoutesService.close(request.user, params.routeId, dto);
+	}
+
+	@Patch(":routeId/reopen")
+	@Roles(UserRole.HOST, UserRole.ADMIN)
+	@ApiOperation({ summary: "Reopen a closed trekking route for approval" })
+	@ApiResponse({ status: 200, type: TrekkingRouteResponseDto })
+	@ApiResponse({ status: 401, description: "Authentication required" })
+	@ApiResponse({ status: 403, description: "Host ownership or Admin role required" })
+	@ApiResponse({ status: 404, description: "Trekking route not found" })
+	@ApiResponse({ status: 409, description: "Invalid transition or route integrity" })
+	@ApiResponse({ status: 422, description: "Invalid reason" })
+	reopen(
+		@Req() request: AuthenticatedRequest,
+		@Param() params: RouteIdParamDto,
+		@Body() dto: RouteStatusReasonDto
+	): Promise<TrekkingRouteResponseDto> {
+		return this.trekkingRoutesService.reopen(request.user, params.routeId, dto);
 	}
 
 	@Get(":routeId/checkpoints")
