@@ -110,7 +110,15 @@ export interface CreatedCampsite {
 	policies: { rules: string } | null;
 	operatingHours: { opensAt?: string; closesAt?: string } | null;
 	status: CampsiteStatusType;
+	rejectionReason?: string | null;
 	media: CampsiteImageResponse[];
 	createdAt: string;
 	updatedAt: string;
+}
+
+export type ReviewCampsiteActionType = "approve" | "decline";
+
+export interface ReviewCampsiteInput {
+	action: ReviewCampsiteActionType;
+	reason?: string;
 }

@@ -60,11 +60,11 @@ describe("RoleLandingPage Host campsite actions", () => {
 			/>
 		);
 
-		const heading = await screen.findByRole("heading", { name: campsite.name });
-		const card = heading.closest("article");
-		expect(card).not.toBeNull();
-		if (!card) throw new Error("Expected campsite card");
-		const actions = within(card);
+		const nameCell = await screen.findByText(campsite.name);
+		const row = nameCell.closest("tr");
+		expect(row).not.toBeNull();
+		if (!row) throw new Error("Expected campsite row");
+		const actions = within(row);
 
 		await user.click(actions.getByRole("button", { name: "Tạo trekking route" }));
 		expect(onCreateTrekkingRoute).toHaveBeenCalledWith(campsite.id);

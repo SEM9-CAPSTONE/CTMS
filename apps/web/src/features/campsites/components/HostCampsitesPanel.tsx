@@ -167,6 +167,16 @@ export function HostCampsitesPanel({
 												<span className="block text-xs font-semibold text-[#667a6d] mt-0.5">
 													{campsite.province}
 												</span>
+												{campsite.status === "draft" && campsite.rejectionReason && (
+													<div className="mt-2 rounded-xl bg-red-50/60 border border-red-100 p-2.5 text-xs text-red-800 text-left font-normal max-w-md">
+														<span className="font-extrabold block text-red-950 mb-0.5">
+															Lý do từ chối của Admin:
+														</span>
+														<p className="text-red-700 leading-relaxed font-semibold">
+															{campsite.rejectionReason}
+														</p>
+													</div>
+												)}
 											</div>
 										</td>
 										<td className="px-5 py-4 font-mono text-xs text-[#55685a]">

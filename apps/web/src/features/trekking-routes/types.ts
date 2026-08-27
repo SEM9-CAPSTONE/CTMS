@@ -64,3 +64,15 @@ export interface RouteCheckpoint extends CreateCheckpointInput {
 	createdAt: string;
 	updatedAt: string;
 }
+
+export type ReviewTrekkingRouteAction = "approve" | "decline" | "non_operable";
+
+export interface ReviewTrekkingRouteInput {
+	action: ReviewTrekkingRouteAction;
+	reason?: string;
+}
+
+export interface AdminTrekkingRouteReview extends CreatedTrekkingRoute {
+	campsiteName: string;
+	checkpoints: RouteCheckpoint[];
+}

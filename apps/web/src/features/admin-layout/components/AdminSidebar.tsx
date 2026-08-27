@@ -1,10 +1,17 @@
-import { FileClock, Flag, Home, LayoutDashboard, Users, X } from "lucide-react";
+import { FileClock, Flag, LayoutDashboard, Route, TentTree, Users, X } from "lucide-react";
+import { LogoutActions } from "../../auth/components/LogoutActions";
 
-export type AdminNavigationItem = "dashboard" | "user-accounts" | "audit-logs" | "content-reports";
+export type AdminNavigationItem =
+	| "dashboard"
+	| "user-accounts"
+	| "audit-logs"
+	| "content-reports"
+	| "campsite-review"
+	| "route-review";
 
 interface AdminSidebarProps {
 	activeItem: AdminNavigationItem;
-	onBackHome?: () => void;
+	onLogout?: (allDevices: boolean) => Promise<void>;
 	onClose?: () => void;
 	className?: string;
 }
@@ -12,16 +19,13 @@ interface AdminSidebarProps {
 const navigationItems = [
 	{ key: "dashboard", label: "Bảng điều khiển", icon: LayoutDashboard, available: false },
 	{ key: "user-accounts", label: "Tài khoản người dùng", icon: Users, available: true },
+	{ key: "campsite-review", label: "Duyệt khu cắm trại", icon: TentTree, available: true },
+	{ key: "route-review", label: "Duyệt tuyến trekking", icon: Route, available: true },
 	{ key: "audit-logs", label: "Nhật ký hệ thống", icon: FileClock, available: true },
 	{ key: "content-reports", label: "Báo cáo nội dung", icon: Flag, available: false },
 ] as const;
 
-export function AdminSidebar({
-	activeItem,
-	onBackHome,
-	onClose,
-	className = "",
-}: AdminSidebarProps) {
+export function AdminSidebar({ activeItem, onLogout, onClose, className = "" }: AdminSidebarProps) {
 	return (
 		<aside className={`flex h-full w-72 flex-col border-r border-[#dfe8df] bg-white ${className}`}>
 			<div className="flex items-center gap-3 border-b border-[#e7eee7] px-5 py-5">
@@ -59,6 +63,12 @@ export function AdminSidebar({
 								} else if (item.key === "audit-logs") {
 									window.history.pushState({}, "", "/admin/audit-logs");
 									window.dispatchEvent(new PopStateEvent("popstate"));
+								} else if (item.key === "campsite-review") {
+									window.history.pushState({}, "", "/admin/campsites");
+									window.dispatchEvent(new PopStateEvent("popstate"));
+								} else if (item.key === "route-review") {
+									window.history.pushState({}, "", "/admin/trekking-routes");
+									window.dispatchEvent(new PopStateEvent("popstate"));
 								}
 							}}
 							aria-current={isActive ? "page" : undefined}
@@ -83,15 +93,7 @@ export function AdminSidebar({
 			</nav>
 
 			<div className="border-t border-[#e7eee7] p-4">
-				<button
-					type="button"
-					onClick={onBackHome}
-					disabled={!onBackHome}
-					className="flex w-full items-center gap-3 rounded-xl px-3.5 py-3 text-sm font-bold text-[#425048] transition hover:bg-[#f1f5f0] hover:text-[#164027] disabled:cursor-default disabled:opacity-60"
-				>
-					<Home className="size-5" />
-					<span>Quay lại trang chủ</span>
-				</button>
+				{onLogout && <LogoutActions onLogout={onLogout} />}
 			</div>
 		</aside>
 	);

@@ -17,6 +17,7 @@ import {
 	getCampsiteUploadDir,
 } from "../../../shared/uploads/upload-paths";
 import { AuditLog } from "../../auth/entities/audit-log.entity";
+import { type CampsiteDetailDto, toCampsiteDetail } from "../dto/campsite-detail.dto";
 import { type CampsiteResponseDto, toCampsiteResponse } from "../dto/campsite-response.dto";
 import {
 	type PaginatedCampsiteSearchResponseDto,
@@ -208,8 +209,36 @@ export class CampsitesService {
 		};
 	}
 
+	async getPublicDetail(campsiteId: string): Promise<CampsiteDetailDto> {
+		const result = await this.campsitesRepository.findActiveById(campsiteId);
+		if (!result) {
+			throw new NotFoundException("Campsite not found");
+		}
+
+		const { campsite, media, latitude, longitude } = result;
+		return toCampsiteDetail(
+			campsite,
+			media.map((m) => ({
+				id: m.id,
+				url: m.url,
+				type: m.type,
+				sortOrder: m.sortOrder,
+			})),
+			latitude,
+			longitude
+		);
+	}
+
 	async listMine(hostId: string): Promise<CampsiteResponseDto[]> {
 		const rows = await this.campsitesRepository.findByHost(hostId);
+
+		return rows.map(({ campsite, media, zones, latitude, longitude }) =>
+			toCampsiteResponse(campsite, media, zones, latitude, longitude)
+		);
+	}
+
+	async listPendingReview(): Promise<CampsiteResponseDto[]> {
+		const rows = await this.campsitesRepository.findPendingReview();
 
 		return rows.map(({ campsite, media, zones, latitude, longitude }) =>
 			toCampsiteResponse(campsite, media, zones, latitude, longitude)
@@ -341,6 +370,9 @@ export class CampsitesService {
 						: CampsiteStatus.DRAFT;
 
 				current.campsite.status = newStatus;
+				current.campsite.rejectionReason =
+					dto.action === ReviewCampsiteAction.DECLINE ? (dto.reason ?? null) : null;
+
 				await transactionalCampsitesRepository.updateStatus(current.campsite, newStatus);
 
 				const after = this.snapshotCampsite(
