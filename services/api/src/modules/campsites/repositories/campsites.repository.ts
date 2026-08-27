@@ -264,6 +264,43 @@ export class CampsitesRepository extends Repository<Campsite> {
 		});
 	}
 
+	async findPendingReview(): Promise<HostCampsiteResultRow[]> {
+		const qb = this.createQueryBuilder("campsite")
+			.addSelect("ST_Y(campsite.location::geometry)", "campsite_latitude")
+			.addSelect("ST_X(campsite.location::geometry)", "campsite_longitude")
+			.where("campsite.status IN (:...statuses)", {
+				statuses: [CampsiteStatus.PENDING_APPROVAL, CampsiteStatus.ACTIVE, CampsiteStatus.DRAFT],
+			})
+			.orderBy("campsite.createdAt", "DESC")
+			.addOrderBy("campsite.id", "ASC");
+
+		const { entities: campsites, raw } = await qb.getRawAndEntities();
+		const campsiteIds = campsites.map((campsite) => campsite.id);
+		const mediaByCampsiteId = await this.resolveMedia(campsiteIds);
+		const zonesByCampsiteId = await this.resolveZones(campsiteIds);
+		const coordinates = new Map<string, { latitude: number; longitude: number }>();
+
+		for (const row of raw as Array<Record<string, unknown>>) {
+			const id = String(row.campsite_id);
+			coordinates.set(id, {
+				latitude: Number(row.campsite_latitude),
+				longitude: Number(row.campsite_longitude),
+			});
+		}
+
+		return campsites.map((campsite) => {
+			const coordinate = coordinates.get(campsite.id) ?? { latitude: 0, longitude: 0 };
+
+			return {
+				campsite,
+				media: mediaByCampsiteId.get(campsite.id) ?? [],
+				zones: zonesByCampsiteId.get(campsite.id) ?? [],
+				latitude: coordinate.latitude,
+				longitude: coordinate.longitude,
+			};
+		});
+	}
+
 	async findDetailedById(id: string, lockForUpdate = false): Promise<HostCampsiteResultRow | null> {
 		const qb = this.createQueryBuilder("campsite")
 			.addSelect("ST_Y(campsite.location::geometry)", "campsite_latitude")
@@ -330,6 +367,12 @@ export class CampsitesRepository extends Repository<Campsite> {
 		if (input.maxNights !== undefined) {
 			campsite.maxNights = input.maxNights;
 		}
+
+		if (campsite.status === CampsiteStatus.DRAFT) {
+			campsite.status = CampsiteStatus.PENDING_APPROVAL;
+		}
+
+		campsite.rejectionReason = null;
 
 		await this.save(campsite);
 

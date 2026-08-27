@@ -11,6 +11,7 @@ import { authService } from "../features/auth/services/auth.service";
 import { getGrantedRoles, isAdminUser } from "../features/auth/utils/permissions";
 import { getRefreshToken, getStoredAuthUser } from "../features/auth/utils/tokenStorage";
 import { CamperProfilePage } from "../features/camper-profile/pages/CamperProfilePage";
+import { AdminCampsitesPage } from "../features/campsites/pages/AdminCampsitesPage";
 import { CampsiteFormPage } from "../features/campsites/pages/CampsiteFormPage";
 import { SearchCampsitesPage } from "../features/campsites/pages/SearchCampsitesPage";
 import { LandingPage } from "../features/landing/pages/LandingPage";
@@ -248,7 +249,7 @@ export function AppRoutes() {
 					fallback={unauthorizedFallback}
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
-					<AdminUserAccountsPage onBackHome={() => navigateTo(RoutePath.HOME)} />
+					<AdminUserAccountsPage onLogout={handleLogout} />
 				</AppRoleGuard>
 			);
 
@@ -260,7 +261,19 @@ export function AppRoutes() {
 					fallback={unauthorizedFallback}
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
-					<AdminAuditLogsPage onBackHome={() => navigateTo(RoutePath.HOME)} />
+					<AdminAuditLogsPage onLogout={handleLogout} />
+				</AppRoleGuard>
+			);
+
+		case RoutePath.ADMIN_CAMPSITES:
+			return (
+				<AppRoleGuard
+					allowedRoles={["admin"]}
+					currentRoles={currentRoles}
+					fallback={unauthorizedFallback}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<AdminCampsitesPage onLogout={handleLogout} />
 				</AppRoleGuard>
 			);
 

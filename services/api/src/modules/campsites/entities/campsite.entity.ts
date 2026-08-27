@@ -76,6 +76,9 @@ export class Campsite {
 	})
 	status!: CampsiteStatus;
 
+	@Column({ name: "rejection_reason", type: "text", nullable: true })
+	rejectionReason!: string | null;
+
 	@CreateDateColumn({ name: "created_at", type: "timestamptz" })
 	createdAt!: Date;
 

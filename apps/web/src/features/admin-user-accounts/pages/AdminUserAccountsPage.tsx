@@ -9,13 +9,13 @@ import { UserAccountsTable } from "../components/UserAccountsTable";
 import { useAdminUserAccounts } from "../hooks/useAdminUserAccounts";
 
 export interface AdminUserAccountsPageProps {
-	onBackHome?: () => void;
+	onLogout?: (allDevices: boolean) => Promise<void>;
 }
 
-export function AdminUserAccountsPage({ onBackHome }: AdminUserAccountsPageProps) {
+export function AdminUserAccountsPage({ onLogout }: AdminUserAccountsPageProps) {
 	const accounts = useAdminUserAccounts();
 	return (
-		<AdminLayout activeItem="user-accounts" onBackHome={onBackHome}>
+		<AdminLayout activeItem="user-accounts" onLogout={onLogout}>
 			<div className="mx-auto max-w-7xl space-y-5 px-4 py-6 sm:px-6 lg:px-8">
 				<div>
 					<h1 className="flex items-center gap-3 text-2xl font-extrabold">

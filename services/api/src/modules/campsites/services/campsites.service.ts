@@ -216,6 +216,14 @@ export class CampsitesService {
 		);
 	}
 
+	async listPendingReview(): Promise<CampsiteResponseDto[]> {
+		const rows = await this.campsitesRepository.findPendingReview();
+
+		return rows.map(({ campsite, media, zones, latitude, longitude }) =>
+			toCampsiteResponse(campsite, media, zones, latitude, longitude)
+		);
+	}
+
 	async update(
 		hostId: string,
 		campsiteId: string,
@@ -341,6 +349,9 @@ export class CampsitesService {
 						: CampsiteStatus.DRAFT;
 
 				current.campsite.status = newStatus;
+				current.campsite.rejectionReason =
+					dto.action === ReviewCampsiteAction.DECLINE ? (dto.reason ?? null) : null;
+
 				await transactionalCampsitesRepository.updateStatus(current.campsite, newStatus);
 
 				const after = this.snapshotCampsite(

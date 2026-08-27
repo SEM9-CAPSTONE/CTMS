@@ -5,6 +5,7 @@ import type {
 	CreateCampsiteInput,
 	CreatedCampsite,
 	PaginatedCampsiteSearchResponse,
+	ReviewCampsiteInput,
 	UpdateCampsiteInput,
 } from "../types";
 
@@ -13,6 +14,14 @@ interface CampsiteMediaUploadResponse {
 }
 
 export const campsitesService = {
+	getPendingReview: async (): Promise<CreatedCampsite[]> => {
+		return httpClient.get<CreatedCampsite[]>(API_ENDPOINTS.CAMPSITES.PENDING_REVIEW);
+	},
+
+	review: async (id: string, input: ReviewCampsiteInput): Promise<CreatedCampsite> => {
+		return httpClient.patch<CreatedCampsite>(API_ENDPOINTS.CAMPSITES.REVIEW(id), input);
+	},
+
 	search: async (params: CampsiteSearchParams): Promise<PaginatedCampsiteSearchResponse> => {
 		const cleanParams: Record<string, string | number | boolean | undefined> = {
 			province: params.province || undefined,

@@ -6,17 +6,17 @@ import { type AdminNavigationItem, AdminSidebar } from "./AdminSidebar";
 interface AdminLayoutProps {
 	activeItem: AdminNavigationItem;
 	children: React.ReactNode;
-	onBackHome?: () => void;
+	onLogout?: (allDevices: boolean) => Promise<void>;
 }
 
-export function AdminLayout({ activeItem, children, onBackHome }: AdminLayoutProps) {
+export function AdminLayout({ activeItem, children, onLogout }: AdminLayoutProps) {
 	const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
 	return (
 		<div className="min-h-screen bg-[#f4f7f2] font-sans text-[#10221b] antialiased">
 			<AdminSidebar
 				activeItem={activeItem}
-				onBackHome={onBackHome}
+				onLogout={onLogout}
 				className="fixed inset-y-0 left-0 z-30 hidden lg:flex"
 			/>
 
@@ -30,7 +30,7 @@ export function AdminLayout({ activeItem, children, onBackHome }: AdminLayoutPro
 					/>
 					<AdminSidebar
 						activeItem={activeItem}
-						onBackHome={onBackHome}
+						onLogout={onLogout}
 						onClose={() => setMobileMenuOpen(false)}
 						className="relative z-10 shadow-2xl"
 					/>
