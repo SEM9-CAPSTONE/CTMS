@@ -6,7 +6,7 @@ import 'package:mobile/features/camper/explore/presentation/widgets/campsite_res
 const _campsite = CampsiteSearchItem(
   id: '1',
   name: 'Đà Lạt Pine Camp',
-  location: CampsiteLocation(province: 'Lam Dong', city: 'Da Lat', latitude: 11.9, longitude: 108.4),
+  location: CampsiteLocation(province: 'Lam Dong', latitude: 11.9, longitude: 108.4),
   coverImage: 'https://example.com/cover.jpg',
   activeRoutes: [],
 );
@@ -15,13 +15,11 @@ Widget _wrap(Widget child) => MaterialApp(home: Scaffold(body: child));
 
 void main() {
   group('CampsiteResultCard', () {
-    testWidgets('renders name and "city, province" -- no price field anywhere (BR-048/AC3)', (
-      tester,
-    ) async {
+    testWidgets('renders name and province -- no price field anywhere (BR-048/AC3)', (tester) async {
       await tester.pumpWidget(_wrap(const CampsiteResultCard(campsite: _campsite)));
 
       expect(find.text('Đà Lạt Pine Camp'), findsOneWidget);
-      expect(find.text('Da Lat, Lam Dong'), findsOneWidget);
+      expect(find.text('Lam Dong'), findsOneWidget);
       expect(find.textContaining('đ'), findsNothing);
       expect(find.textContaining('VND'), findsNothing);
     });
@@ -39,7 +37,7 @@ void main() {
       const withoutCover = CampsiteSearchItem(
         id: '1',
         name: 'No Cover Camp',
-        location: CampsiteLocation(province: 'A', city: 'B', latitude: 1, longitude: 2),
+        location: CampsiteLocation(province: 'A', latitude: 1, longitude: 2),
         coverImage: null,
         activeRoutes: [],
       );

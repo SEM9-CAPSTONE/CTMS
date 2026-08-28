@@ -6,10 +6,9 @@
 library;
 
 class CampsiteSearchFilters {
-  const CampsiteSearchFilters({this.province, this.city, this.amenities, this.minPrice, this.maxPrice});
+  const CampsiteSearchFilters({this.province, this.amenities, this.minPrice, this.maxPrice});
 
   final String? province;
-  final String? city;
 
   /// Comma-separated or repeated on the wire; kept as a list in app state.
   final List<String>? amenities;
@@ -20,7 +19,6 @@ class CampsiteSearchFilters {
 class CampsiteSearchParams extends CampsiteSearchFilters {
   const CampsiteSearchParams({
     super.province,
-    super.city,
     super.amenities,
     super.minPrice,
     super.maxPrice,
@@ -33,22 +31,15 @@ class CampsiteSearchParams extends CampsiteSearchFilters {
 }
 
 class CampsiteLocation {
-  const CampsiteLocation({
-    required this.province,
-    required this.city,
-    required this.latitude,
-    required this.longitude,
-  });
+  const CampsiteLocation({required this.province, required this.latitude, required this.longitude});
 
   final String province;
-  final String city;
   final double latitude;
   final double longitude;
 
   factory CampsiteLocation.fromJson(Map<String, dynamic> json) {
     return CampsiteLocation(
       province: json['province'] as String? ?? '',
-      city: json['city'] as String? ?? '',
       latitude: (json['latitude'] as num?)?.toDouble() ?? 0,
       longitude: (json['longitude'] as num?)?.toDouble() ?? 0,
     );

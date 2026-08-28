@@ -11,13 +11,11 @@ void main() {
     test('parses a fully-populated payload', () {
       final location = CampsiteLocation.fromJson({
         'province': 'Lam Dong',
-        'city': 'Da Lat',
         'latitude': 11.940419,
         'longitude': 108.458313,
       });
 
       expect(location.province, 'Lam Dong');
-      expect(location.city, 'Da Lat');
       expect(location.latitude, 11.940419);
       expect(location.longitude, 108.458313);
     });
@@ -26,18 +24,12 @@ void main() {
       final location = CampsiteLocation.fromJson(const {});
 
       expect(location.province, '');
-      expect(location.city, '');
       expect(location.latitude, 0);
       expect(location.longitude, 0);
     });
 
     test('accepts an integer latitude/longitude (num, not just double)', () {
-      final location = CampsiteLocation.fromJson({
-        'province': 'A',
-        'city': 'B',
-        'latitude': 12,
-        'longitude': 108,
-      });
+      final location = CampsiteLocation.fromJson({'province': 'A', 'latitude': 12, 'longitude': 108});
 
       expect(location.latitude, 12.0);
       expect(location.longitude, 108.0);
@@ -49,19 +41,14 @@ void main() {
       final item = CampsiteSearchItem.fromJson({
         'id': 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
         'name': 'Đà Lạt Pine Camp',
-        'location': {
-          'province': 'Lam Dong',
-          'city': 'Da Lat',
-          'latitude': 11.9,
-          'longitude': 108.4,
-        },
+        'location': {'province': 'Lam Dong', 'latitude': 11.9, 'longitude': 108.4},
         'coverImage': 'https://example.com/cover.jpg',
         'activeRoutes': ['route-1', 'route-2'],
       });
 
       expect(item.id, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
       expect(item.name, 'Đà Lạt Pine Camp');
-      expect(item.location.city, 'Da Lat');
+      expect(item.location.province, 'Lam Dong');
       expect(item.coverImage, 'https://example.com/cover.jpg');
       expect(item.activeRoutes, ['route-1', 'route-2']);
     });
@@ -109,7 +96,7 @@ void main() {
           {
             'id': '1',
             'name': 'Camp A',
-            'location': {'province': 'A', 'city': 'B', 'latitude': 1, 'longitude': 2},
+            'location': {'province': 'A', 'latitude': 1, 'longitude': 2},
             'coverImage': null,
             'activeRoutes': <String>[],
           },
