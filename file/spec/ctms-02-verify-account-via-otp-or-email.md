@@ -73,6 +73,26 @@ As a user, I want to verify Account via OTP or Email so that the CTMS workflow i
 | BR-006: Account verification OTPs must expire according to system configuration. | CTMS-02-T01, CTMS-02-T02 | Tests and review evidence must prove this exact rule is enforced: Account verification OTPs must expire according to system configuration. |
 | BR-007: OTP resend attempts must be limited according to system configuration. | CTMS-02-T01, CTMS-02-T02 | Tests and review evidence must prove this exact rule is enforced: OTP resend attempts must be limited according to system configuration. |
 
+## UI and Tests
+
+### Mobile UI Implementation
+
+- `/verify` (`VerifyScreen`) is reached only from `RegisterScreen` on a successful `POST /auth/register`, carrying the created account's `RegisterResult` (id/email/phone/role/status) as router `extra` -- never entered directly.
+- No OTP is ever sent automatically on screen entry: the user must pick a channel (Phone or Email) via `_ChannelButton`, then press "Gửi mã OTP" -- same Decision Gate contract as Web's `VerifyOtpPage.tsx`.
+- Both channel buttons stay visible; Phone/SMS is wired end to end in the UI but is not exercised by real E2E evidence below since no SMS provider is configured in this environment -- Email is the channel proven against the real backend.
+- `VerifyOtpController` (`Notifier<VerifyOtpState>`) owns `selectedChannel`, `code`, `isSending`/`isVerifying`, `hasSentCode`, a 60s resend `countdown` (`Timer.periodic`), `errorMessage`, and `verifySuccess`; `sendCode` dispatches `sendOtp` on the first call and `resendOtp` on every call after, both guarded against concurrent/duplicate taps.
+- `verify` requires `hasSentCode` (BR-241-style guard) and calls the real `POST /auth/verify` with the account id and entered code; on success it sets `verifySuccess`, which swaps the screen to `_VerifySuccessView` and auto-redirects to `/login` after 2.5s (manual "Đến trang đăng nhập ngay" is also offered, same UX timing as Web's `useVerifyOtpForm.ts`).
+- All error text shown to the user is relayed verbatim from the backend's own `ApiException` message (BR-242's "preserve entered data, display the reason" convention) -- no invented client-side copy for a real HTTP failure; the entered code is left untouched on a failed verify, only cleared implicitly by navigating away on success.
+
+### CTMS-02-T02 Test Evidence (Mobile)
+
+- Unit/API-client: `apps/mobile/test/features/auth/auth_api_otp_test.dart` -- 5 tests, covering `sendOtp`/`resendOtp` payload shape and `verifyOtp` success plus 404/409 `ApiException` propagation.
+- Controller: `apps/mobile/test/features/auth/verify_otp_controller_test.dart` -- 18 tests, covering channel selection guards, first-send-vs-resend routing, the 60s countdown, BR-241-style in-flight guards, and BR-242 (code preserved, no `verifySuccess`) on a failed verify.
+- Widget: `apps/mobile/test/features/auth/verify_screen_test.dart` -- 8 tests, covering rendering, disabled-state gating, the send/verify happy path, backend error surfacing for both send and verify failures, and both navigation-to-`/login` paths.
+- Combined run: `flutter test test/features/auth/auth_api_otp_test.dart test/features/auth/verify_otp_controller_test.dart test/features/auth/verify_screen_test.dart` -> 31 passed.
+- E2E: `apps/mobile/integration_test/verify_otp_test.dart`, orchestrated by `apps/mobile/scripts/run-verify-otp-e2e.ps1` (real Chrome, real backend, real Postgres, no mocking) -- 3 scenarios: (1) register through the real UI, select Email, and receive a real OTP; (2) a wrong code after a real send is rejected with the real backend's "Incorrect OTP" message and BR-242's code-preserved behavior; (3) a known-correct OTP planted directly in Postgres (via a new `db-helper.ts` `find-users-by-email-prefix`/`get-otp` combination) activates a `pending_verification` account and lands on `/login`.
+- E2E result and a known environment flakiness: scenarios 1-2 passed on every run. Scenario 3 passed in some runs and timed out waiting for the success text in others (observed 4 fails out of 8 local runs). Root-caused by reading the real backend's own log, not by guessing: `flutter drive -d chrome` in debug mode on this local machine occasionally restarts the whole test process mid-run (visible as two real registrations under the same test's account-name prefix per run, in both passing and failing runs alike). Since scenario 3's OTP is single-use and deleted server-side on first successful verify (`auth.service.ts`'s `verifyOtp`), the duplicate in-process run's second identical verify attempt gets a legitimate "OTP not found" -- a race between two copies of the same test, not a defect in the OTP feature. Every run's backend log confirms the real `POST /auth/verify` call did activate the account server-side, including on runs reported as failed. Treated as a known local-tooling flakiness (Chrome/DWDS reconnect under this machine's memory constraints), not a feature defect; not chased further per the user's decision to document and move on.
+
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, campsites, or bookings.
 - Concurrent requests, duplicate submissions, stale reads, and retry behavior can create inconsistent state if transactions and idempotency are not handled.

@@ -63,6 +63,19 @@ class AuthRepository {
 
   Future<RegisterResult> register(RegisterFormData data) => _api.register(data);
 
+  /// CTMS-02 [Mobile]. No session is adopted by any of these three -- the
+  /// account stays `pending_verification` until [verifyOtp] succeeds, and
+  /// even then the caller still has to go through a real [login]
+  /// afterwards (same as [register]).
+  Future<RegisterResult> sendOtp({required String userId, required OtpChannel channel}) =>
+      _api.sendOtp(userId: userId, channel: channel);
+
+  Future<RegisterResult> resendOtp({required String userId, required OtpChannel channel}) =>
+      _api.resendOtp(userId: userId, channel: channel);
+
+  Future<RegisterResult> verifyOtp({required String userId, required String code}) =>
+      _api.verifyOtp(userId: userId, code: code);
+
   Future<void> forgotPassword({
     required String identifier,
     required String channel,
