@@ -8,7 +8,7 @@ Create Trekking Route on Map
 
 **Jira Mapping**
 Jira `CTMS-52` implements backlog/spec story `CTMS-19`. Jira `CTMS-81` is the backend
-preparation/logic subtask; Jira `CTMS-82` owns the later Web submission UI.
+preparation/logic subtask; Jira `CTMS-82` owns the Web submission UI.
 
 **Status**  
 Implemented; validation evidence recorded below.
@@ -93,7 +93,16 @@ The response contains `id`, `campsiteId`, `name`, nullable `description`, canoni
 - GeoJSON is parsed in Web and accepts a raw LineString, a Feature containing a LineString, or a FeatureCollection resolving to exactly one LineString. Other/empty/malformed/ambiguous geometry is rejected.
 - GPX is parsed in Web and accepts exactly one track or exactly one route. Multiple or mixed tracks/routes are rejected; elevation is ignored. Import files are limited to 5 MB.
 - The Web sends only the canonical create DTO, prevents duplicate submission, preserves form/geometry after failure, maps `401/403/404/409/422`, and shows server-returned length and status after success.
-- CTMS-81 adds no production Web submission control. The Host submission button, mutation hook, loading/error behavior, and UI/E2E evidence belong to CTMS-82.
+- CTMS-81 adds no production Web submission control. CTMS-82 implements the Host submission button, mutation hook, loading/error behavior, and UI/E2E evidence described below.
+
+### UI and tests
+
+- The existing Host Route management page at `/host/trekking-routes?campsiteId=<uuid>` owns the submission action; CTMS-82 does not introduce another Route page. The selected draft Route's existing checkpoint panel shows preparation readiness and `Gửi duyệt` alongside the existing checkpoint-management flow.
+- Readiness guidance uses the already loaded authoritative checkpoint response and checks only exactly one `start`, exactly one `finish`, and `start.route_position < finish.route_position`. Missing, duplicate, equal-position, and reversed-position cases disable submission with a specific explanation. `rest`, `water`, `dangerous`, and `emergency_shelter` remain optional. This client calculation is guidance only; the backend repeats all canonical Route/checkpoint validation.
+- The Web calls `PATCH /api/trekking-routes/:routeId/submit-for-approval` without a request body or client-selected status. A pending request disables the action and the hook rejects duplicate clicks. No optimistic status change occurs.
+- Checkpoint-list loading and failure prevent a readiness claim. Submit failures map `401/403/404/409/422`; structured backend `422` details remain visible, and a missing Route triggers a Route-list reload. Existing no-campsite, no-Route, and no-checkpoint states remain unchanged.
+- Success waits for the authoritative submission response and Route-list reload. The selected Route renders `Chờ duyệt`, the submit action disappears, and the existing CTMS-20 draft-only checkpoint form becomes read-only. The Host is not redirected to CTMS-22 Admin review; the existing pending-review query discovers the submitted Route.
+- Focused Vitest evidence covers readiness, optional checkpoint types, submission visibility by lifecycle state, loading/error/success states, duplicate prevention, the no-body service contract, refetch, and `403/409/422` feedback. Playwright extends the CTMS-19 Host journey from UI Route creation through Start/Finish preparation and submission, plus incomplete and unauthorized non-mutating flows.
 
 ### Transaction, audit, and exclusions
 
@@ -111,8 +120,8 @@ The response contains `id`, `campsiteId`, `name`, nullable `description`, canoni
 - Real PostgreSQL/PostGIS integration: LineString geography, SRID 4326, geometry type, vertex order, start/end, GeoJSON round trip, authoritative length, campsite-filtered read-back and empty list, RESTRICT FK, authentication, Host role, ownership, validation, audit and transaction rollback.
 - CTMS-81 backend unit: owning-Host submission, strict draft lifecycle, stored Route/checkpoint validation, exact start/finish counts and order, exact audit, and audit failure propagation.
 - CTMS-81 real PostgreSQL/PostGIS integration: successful persistence and Admin discovery; missing/duplicate start or finish; reversed order; invalid stored Route/checkpoint data; authentication, role, and ownership; stale states; concurrent submission; audit persistence and rollback.
-- Web unit/component: selector states, schema/payload, geometry operations, preview, GeoJSON/GPX inputs and failures, 5 MB limit, duplicate-submit prevention, API error mapping, state preservation, authoritative success display, dashboard read navigation, route-list empty state, metadata selection, and read-only geometry rendering.
-- Playwright acceptance: manual drawing, GeoJSON import, invalid geometry with no side effect, Camper page denial, and non-owning Host API denial with no route/audit side effect.
+- Web unit/component: selector states, schema/payload, geometry operations, preview, GeoJSON/GPX inputs and failures, 5 MB limit, duplicate-submit prevention, API error mapping, state preservation, authoritative success display, dashboard read navigation, route-list empty state, metadata selection, read-only geometry rendering, submission readiness, lifecycle visibility, and authoritative submission reload.
+- Playwright acceptance: manual drawing, GeoJSON import, invalid geometry with no side effect, complete Host preparation and submission, incomplete preparation, Camper page denial, and non-owning Host API denial with unchanged Route data.
 
 ## Business Rules Checklist
 - [ ] BR-050: Do not display slots because the system manages campsite capacity by zone.
@@ -131,7 +140,7 @@ The response contains `id`, `campsiteId`, `name`, nullable `description`, canoni
 - [ ] BR-244: Changes to Business Rules, enums, state transitions, or API contracts must update the Spec, test cases, and data documentation together before Done.
 
 ## Dev Notes
-- Jira parent: `CTMS-52`; backend subtask: `CTMS-81`; next Web subtask: `CTMS-82`; backlog/spec key: `CTMS-19`.
+- Jira parent: `CTMS-52`; backend subtask: `CTMS-81`; Web subtask: `CTMS-82`; backlog/spec key: `CTMS-19`.
 - Priority: `Must Have`; Story points: `8`; Commitment: `Committed`.
 - Epic: `EPIC 3. Trekking Route`.
 - Sprint: `Sprint 2`; planned window: `2026-08-09` to `2026-08-22`.

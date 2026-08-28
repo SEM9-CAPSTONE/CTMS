@@ -36,6 +36,7 @@ export const API_ENDPOINTS = {
 		ROUTES: "/trekking-routes",
 		PENDING_REVIEW: "/trekking-routes/pending-review",
 		ROUTE_BY_ID: (id: string) => `/trekking-routes/${id}`,
+		SUBMIT_FOR_APPROVAL: (routeId: string) => `/trekking-routes/${routeId}/submit-for-approval`,
 		CLOSE_ROUTE: (routeId: string) => `/trekking-routes/${routeId}/close`,
 		REOPEN_ROUTE: (routeId: string) => `/trekking-routes/${routeId}/reopen`,
 		REVIEW: (id: string) => `/trekking-routes/${id}/review`,

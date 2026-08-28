@@ -13,8 +13,20 @@ vi.mock("../components/RouteGeometryPreview", () => ({
 	),
 }));
 vi.mock("../components/RouteCheckpointsPanel", () => ({
-	RouteCheckpointsPanel: ({ route }: { route: CreatedTrekkingRoute }) => (
-		<div data-testid="checkpoints-panel">{route.id}</div>
+	RouteCheckpointsPanel: ({
+		route,
+		onRouteSubmitted,
+	}: {
+		route: CreatedTrekkingRoute;
+		onRouteSubmitted: (route: CreatedTrekkingRoute) => void;
+	}) => (
+		<button
+			type="button"
+			data-testid="checkpoints-panel"
+			onClick={() => onRouteSubmitted({ ...route, status: "pending_approval" })}
+		>
+			{route.id}
+		</button>
 	),
 }));
 
@@ -100,5 +112,21 @@ describe("TrekkingRoutesPage", () => {
 		expect(screen.getByTestId("route-campsite-prompt")).toBeInTheDocument();
 		fireEvent.change(screen.getByLabelText("Khu cắm trại"), { target: { value: campsite.id } });
 		expect(screen.getByLabelText("Khu cắm trại")).toHaveValue(campsite.id);
+	});
+
+	it("keeps submission success feedback mounted across the authoritative reload", async () => {
+		vi.mocked(useTrekkingRoutes).mockReturnValue({
+			items: routes,
+			isLoading: false,
+			error: "",
+			retry: vi.fn(),
+		});
+		render(<TrekkingRoutesPage />);
+
+		await waitFor(() => expect(screen.getByTestId("checkpoints-panel")).toBeInTheDocument());
+		fireEvent.click(screen.getByTestId("checkpoints-panel"));
+
+		expect(screen.getByTestId("route-submission-success")).toHaveTextContent("Chờ duyệt");
+		expect(screen.getByTestId("route-submission-success")).toHaveTextContent("Sơn Trà Ridge");
 	});
 });
