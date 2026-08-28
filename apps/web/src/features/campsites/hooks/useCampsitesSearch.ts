@@ -28,6 +28,13 @@ function parsePrice(rawInput: string): number | undefined {
 }
 
 /**
+ * Explore is scoped to Đà Nẵng only (product decision, not a Figma/backend
+ * field) -- there is no province input anywhere in this feature's UI, this
+ * is the one and only value ever sent as `province`.
+ */
+export const FIXED_EXPLORE_PROVINCE = "Đà Nẵng";
+
+/**
  * CTMS-17-T02. `status` is never part of this hook's state or params --
  * search is always implicitly active-only, per CTMS-77's frozen contract
  * (see campsites.service.ts). There is no UI control for it because there
@@ -35,11 +42,11 @@ function parsePrice(rawInput: string): number | undefined {
  */
 export function useCampsitesSearch() {
 	const [params, setParams] = useState<CampsiteSearchParams>({
+		province: FIXED_EXPLORE_PROVINCE,
 		page: DEFAULT_CAMPSITES_PAGE,
 		limit: DEFAULT_CAMPSITES_LIMIT,
 	});
 
-	const [provinceInput, setProvinceInput] = useState("");
 	const [amenitiesInput, setAmenitiesInput] = useState("");
 	const [minPriceInput, setMinPriceInput] = useState("");
 	const [maxPriceInput, setMaxPriceInput] = useState("");
@@ -88,24 +95,27 @@ export function useCampsitesSearch() {
 			return;
 		}
 		setParams({
-			province: provinceInput.trim() || undefined,
+			province: FIXED_EXPLORE_PROVINCE,
 			amenities: parseAmenities(amenitiesInput),
 			minPrice: parsePrice(minPriceInput),
 			maxPrice: parsePrice(maxPriceInput),
 			page: DEFAULT_CAMPSITES_PAGE,
 			limit: DEFAULT_CAMPSITES_LIMIT,
 		});
-	}, [provinceInput, amenitiesInput, minPriceInput, maxPriceInput]);
+	}, [amenitiesInput, minPriceInput, maxPriceInput]);
 
 	const resetFilters = useCallback(() => {
 		if (requestInFlight.current) {
 			return;
 		}
-		setProvinceInput("");
 		setAmenitiesInput("");
 		setMinPriceInput("");
 		setMaxPriceInput("");
-		setParams({ page: DEFAULT_CAMPSITES_PAGE, limit: DEFAULT_CAMPSITES_LIMIT });
+		setParams({
+			province: FIXED_EXPLORE_PROVINCE,
+			page: DEFAULT_CAMPSITES_PAGE,
+			limit: DEFAULT_CAMPSITES_LIMIT,
+		});
 	}, []);
 
 	const setPage = useCallback((page: number) => {
@@ -116,11 +126,9 @@ export function useCampsitesSearch() {
 	}, []);
 
 	return {
-		provinceInput,
 		amenitiesInput,
 		minPriceInput,
 		maxPriceInput,
-		setProvinceInput,
 		setAmenitiesInput,
 		setMinPriceInput,
 		setMaxPriceInput,

@@ -24,9 +24,6 @@ class CampsiteSearchRepository {
     if (params.province != null && params.province!.isNotEmpty) {
       queryParameters['province'] = params.province;
     }
-    if (params.city != null && params.city!.isNotEmpty) {
-      queryParameters['city'] = params.city;
-    }
     if (params.amenities != null && params.amenities!.isNotEmpty) {
       // Comma-separated is one of the two shapes SearchCampsitesQueryDto
       // accepts on the backend (toStringArray()) -- matches

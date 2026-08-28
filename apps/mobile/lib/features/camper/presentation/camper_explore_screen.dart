@@ -52,14 +52,10 @@ class CamperExploreScreen extends ConsumerWidget {
             ),
             sliver: SliverToBoxAdapter(
               child: CampsiteSearchFilters(
-                province: state.provinceInput,
-                city: state.cityInput,
                 amenities: state.amenitiesInput,
                 minPrice: state.minPriceInput,
                 maxPrice: state.maxPriceInput,
                 isLoading: state.isLoading,
-                onProvinceChanged: controller.setProvinceInput,
-                onCityChanged: controller.setCityInput,
                 onAmenitiesChanged: controller.setAmenitiesInput,
                 onMinPriceChanged: controller.setMinPriceInput,
                 onMaxPriceChanged: controller.setMaxPriceInput,
