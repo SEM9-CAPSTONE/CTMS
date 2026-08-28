@@ -49,6 +49,74 @@ export class TrekkingRoutesService {
 		return this.trekkingRoutesRepository.findPendingReview();
 	}
 
+	async submitForApproval(hostId: string, routeId: string): Promise<TrekkingRouteResponseDto> {
+		return this.dataSource.transaction(async (manager: EntityManager) => {
+			const repository = manager.withRepository(this.trekkingRoutesRepository);
+			const lockedRoute = await repository.findOneForLifecycleUpdate(routeId);
+
+			if (!lockedRoute) {
+				throw new NotFoundException("Trekking route not found");
+			}
+			if (lockedRoute.hostId !== hostId) {
+				throw new ForbiddenException("Only the owning Host can submit this trekking route");
+			}
+			if (lockedRoute.route.status !== TrekkingRouteStatus.DRAFT) {
+				throw new ConflictException("Only draft trekking routes can be submitted for approval");
+			}
+			if (!lockedRoute.integrityValid) {
+				throw this.submissionValidationException([
+					{ field: "route", errors: ["stored route data is invalid"] },
+				]);
+			}
+
+			const checkpointIntegrity = await repository.validateSubmissionCheckpoints(routeId);
+			const errors: Array<{ field: string; errors: string[] }> = [];
+			if (!checkpointIntegrity.checkpointsValid) {
+				errors.push({ field: "checkpoints", errors: ["stored route checkpoints are invalid"] });
+			}
+			if (checkpointIntegrity.startCount !== 1) {
+				errors.push({
+					field: "checkpoints",
+					errors: ["route must have exactly one start checkpoint"],
+				});
+			}
+			if (checkpointIntegrity.finishCount !== 1) {
+				errors.push({
+					field: "checkpoints",
+					errors: ["route must have exactly one finish checkpoint"],
+				});
+			}
+			if (
+				checkpointIntegrity.startCount === 1 &&
+				checkpointIntegrity.finishCount === 1 &&
+				(checkpointIntegrity.startPosition == null ||
+					checkpointIntegrity.finishPosition == null ||
+					checkpointIntegrity.startPosition >= checkpointIntegrity.finishPosition)
+			) {
+				errors.push({
+					field: "checkpoints",
+					errors: ["start checkpoint must occur before finish checkpoint"],
+				});
+			}
+			if (errors.length > 0) {
+				throw this.submissionValidationException(errors);
+			}
+
+			const updated = await repository.updateStatus(routeId, TrekkingRouteStatus.PENDING_APPROVAL);
+			await manager.getRepository(AuditLog).save({
+				actorId: hostId,
+				action: "trekking_route.submitted_for_approval",
+				targetType: "trekking_route",
+				targetId: routeId,
+				before: { status: TrekkingRouteStatus.DRAFT },
+				after: { status: TrekkingRouteStatus.PENDING_APPROVAL },
+				reason: "host_submit_trekking_route_for_approval",
+			});
+
+			return updated;
+		});
+	}
+
 	async review(
 		adminId: string,
 		routeId: string,
@@ -226,6 +294,16 @@ export class TrekkingRoutesService {
 		if (actor.userId !== owningHostId) {
 			throw new ForbiddenException("Only the owning Host can change this trekking route status");
 		}
+	}
+
+	private submissionValidationException(
+		message: Array<{ field: string; errors: string[] }>
+	): UnprocessableEntityException {
+		return new UnprocessableEntityException({
+			statusCode: 422,
+			error: "Unprocessable Entity",
+			message,
+		});
 	}
 
 	private buildAuditSnapshot(route: TrekkingRouteResponseDto): Record<string, unknown> {

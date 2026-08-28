@@ -61,6 +61,22 @@ export class TrekkingRoutesController {
 		return this.trekkingRoutesService.listPendingReview();
 	}
 
+	@Patch(":routeId/submit-for-approval")
+	@Roles(UserRole.HOST)
+	@ApiOperation({ summary: "Submit an owned draft trekking route for Admin approval" })
+	@ApiResponse({ status: 200, type: TrekkingRouteResponseDto })
+	@ApiResponse({ status: 401, description: "Authentication required" })
+	@ApiResponse({ status: 403, description: "Host role and route ownership required" })
+	@ApiResponse({ status: 404, description: "Trekking route not found" })
+	@ApiResponse({ status: 409, description: "Route is not in draft status" })
+	@ApiResponse({ status: 422, description: "Invalid stored Route or checkpoint preparation" })
+	submitForApproval(
+		@Req() request: AuthenticatedRequest,
+		@Param() params: RouteIdParamDto
+	): Promise<TrekkingRouteResponseDto> {
+		return this.trekkingRoutesService.submitForApproval(request.user.userId, params.routeId);
+	}
+
 	@Patch(":routeId/review")
 	@Roles(UserRole.ADMIN)
 	@ApiOperation({ summary: "Approve, decline, or mark a pending trekking route non-operable" })

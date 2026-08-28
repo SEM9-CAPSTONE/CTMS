@@ -52,6 +52,31 @@ export interface ApprovalIntegrityResult {
 	checkpointCount: number;
 }
 
+export interface SubmissionCheckpointIntegrityResult {
+	checkpointsValid: boolean;
+	startCount: number;
+	finishCount: number;
+	startPosition: number | null;
+	finishPosition: number | null;
+}
+
+const CHECKPOINT_INTEGRITY_PREDICATE = `
+	BTRIM(checkpoint."name") <> ''
+	AND NOT ST_IsEmpty(checkpoint."location"::geometry)
+	AND ST_IsValid(checkpoint."location"::geometry)
+	AND GeometryType(checkpoint."location"::geometry) = 'POINT'
+	AND ST_SRID(checkpoint."location"::geometry) = 4326
+	AND checkpoint."radius_m" BETWEEN 10 AND 500
+	AND checkpoint."type"::text IN (
+		'start', 'rest', 'water', 'dangerous', 'emergency_shelter', 'finish'
+	)
+	AND checkpoint."expected_arrival_offset" BETWEEN 0
+		AND route."expected_duration_minutes"
+	AND BTRIM(checkpoint."instructions") <> ''
+	AND checkpoint."route_position" BETWEEN 0 AND 1
+	AND ST_DWithin(route."route_geom", checkpoint."location", 50)
+`;
+
 function toResponse(row: CreatedRouteRow): TrekkingRouteResponseDto {
 	return {
 		...row,
@@ -203,22 +228,7 @@ export class TrekkingRoutesRepository extends Repository<TrekkingRoute> {
 					SELECT 1
 					FROM "checkpoints" checkpoint
 					WHERE checkpoint."route_id" = route."id"
-						AND NOT (
-							BTRIM(checkpoint."name") <> ''
-							AND NOT ST_IsEmpty(checkpoint."location"::geometry)
-							AND ST_IsValid(checkpoint."location"::geometry)
-							AND GeometryType(checkpoint."location"::geometry) = 'POINT'
-							AND ST_SRID(checkpoint."location"::geometry) = 4326
-							AND checkpoint."radius_m" BETWEEN 10 AND 500
-							AND checkpoint."type"::text IN (
-								'start', 'rest', 'water', 'dangerous', 'emergency_shelter', 'finish'
-							)
-							AND checkpoint."expected_arrival_offset" BETWEEN 0
-								AND route."expected_duration_minutes"
-							AND BTRIM(checkpoint."instructions") <> ''
-							AND checkpoint."route_position" BETWEEN 0 AND 1
-							AND ST_DWithin(route."route_geom", checkpoint."location", 50)
-						)
+						AND NOT (${CHECKPOINT_INTEGRITY_PREDICATE})
 				) AS "checkpointsValid",
 				(
 					SELECT COUNT(*)::int FROM "checkpoints" checkpoint
@@ -236,6 +246,54 @@ export class TrekkingRoutesRepository extends Repository<TrekkingRoute> {
 			difficultyValid: Boolean(result?.difficultyValid),
 			checkpointsValid: Boolean(result?.checkpointsValid),
 			checkpointCount: Number(result?.checkpointCount ?? 0),
+		};
+	}
+
+	async validateSubmissionCheckpoints(
+		routeId: string
+	): Promise<SubmissionCheckpointIntegrityResult> {
+		const rows = (await this.query(
+			`
+			SELECT
+				NOT EXISTS (
+					SELECT 1
+					FROM "checkpoints" checkpoint
+					WHERE checkpoint."route_id" = route."id"
+						AND NOT (${CHECKPOINT_INTEGRITY_PREDICATE})
+				) AS "checkpointsValid",
+				COUNT(checkpoint."id") FILTER (
+					WHERE checkpoint."type" = 'start'
+				)::int AS "startCount",
+				COUNT(checkpoint."id") FILTER (
+					WHERE checkpoint."type" = 'finish'
+				)::int AS "finishCount",
+				MIN(checkpoint."route_position") FILTER (
+					WHERE checkpoint."type" = 'start'
+				) AS "startPosition",
+				MIN(checkpoint."route_position") FILTER (
+					WHERE checkpoint."type" = 'finish'
+				) AS "finishPosition"
+			FROM "trekking_routes" route
+			LEFT JOIN "checkpoints" checkpoint ON checkpoint."route_id" = route."id"
+			WHERE route."id" = $1
+			GROUP BY route."id"
+			`,
+			[routeId]
+		)) as Array<{
+			checkpointsValid: boolean;
+			startCount: number | string;
+			finishCount: number | string;
+			startPosition: number | string | null;
+			finishPosition: number | string | null;
+		}>;
+
+		const result = rows[0];
+		return {
+			checkpointsValid: Boolean(result?.checkpointsValid),
+			startCount: Number(result?.startCount ?? 0),
+			finishCount: Number(result?.finishCount ?? 0),
+			startPosition: result?.startPosition == null ? null : Number(result.startPosition),
+			finishPosition: result?.finishPosition == null ? null : Number(result.finishPosition),
 		};
 	}
 

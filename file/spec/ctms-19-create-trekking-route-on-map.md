@@ -7,7 +7,8 @@
 Create Trekking Route on Map
 
 **Jira Mapping**
-Jira `CTMS-52` implements backlog/spec story `CTMS-19`.
+Jira `CTMS-52` implements backlog/spec story `CTMS-19`. Jira `CTMS-81` is the backend
+preparation/logic subtask; Jira `CTMS-82` owns the later Web submission UI.
 
 **Status**  
 Implemented; validation evidence recorded below.
@@ -19,12 +20,13 @@ As a Host, I want to create Trekking Route on Map so that the CTMS workflow is c
 - [x] The Host can draw a route or import GPX/GeoJSON.
 - [x] Route geometry and required route data are validated.
 - [x] Length, difficulty, expected duration, and status are saved.
+- [x] The owning Host can submit a prepared draft Route for Admin review after checkpoint completeness is validated authoritatively.
 
 ## Approved CTMS-52 Implementation Contract
 
 ### Route domain and ownership
 
-- A Route is reusable geographic and operational data. It is not a Trip and contains no departure, booking, participant, checkpoint, hazard, navigation, capacity, porter, or elevation-profile data.
+- A Route is reusable geographic and operational data. It is not a Trip and contains no departure, booking, participant, hazard, navigation, capacity, porter, or elevation-profile data. Checkpoints remain separate CTMS-20 records related through `checkpoints.route_id`.
 - Only an authenticated active `host` may call `POST /api/trekking-routes` or campsite-scoped `GET /api/trekking-routes?campsiteId=<uuid>`.
 - `campsiteId` must identify an existing campsite owned by the authenticated Host. A missing campsite returns `404`; a campsite owned by another Host returns `403`.
 - Campsite status does not affect route creation. Draft, pending, active, or otherwise non-deleted owned campsites are eligible.
@@ -34,7 +36,8 @@ As a Host, I want to create Trekking Route on Map so that the CTMS workflow is c
 
 - Difficulty is exactly `easy | moderate | hard | expert`.
 - Status is exactly `draft | pending_approval | active | closed`.
-- CTMS-19 creation always assigns `draft` on the backend. The request does not accept `status`; lifecycle transitions belong to CTMS-21/CTMS-22.
+- CTMS-19 creation always assigns `draft` on the backend. The create request does not accept `status`.
+- CTMS-81 adds the server-controlled Host preparation transition `draft -> pending_approval`. CTMS-22 remains the only review path from `pending_approval` to `active`, `draft`, or `closed`; CTMS-21 retains `active -> closed -> pending_approval`.
 
 ### Metadata and geometry
 
@@ -69,6 +72,18 @@ The response contains `id`, `campsiteId`, `name`, nullable `description`, canoni
 
 `GET /api/trekking-routes?campsiteId=<uuid>` uses the same Host guards and returns an array with the canonical route response fields. The backend first verifies that the campsite exists and belongs to the authenticated Host; missing campsites return `404`, non-owned campsites return `403`, and no routes returns an empty array. The operation is read-only and does not create an audit entry.
 
+### Host preparation and submission
+
+- A newly created Route remains `draft` while the owning Host adds checkpoints through CTMS-20. Checkpoint creation remains draft-only.
+- `PATCH /api/trekking-routes/:routeId/submit-for-approval` uses `JwtAuthGuard`, `RolesGuard`, and `@Roles(UserRole.HOST)`. It has no request DTO or client-controlled target status.
+- Only the authenticated active owning Host may submit. Admin, Camper, Porter, and foreign Hosts receive `403`; missing/invalid/inactive authentication receives `401`; a missing Route receives `404`.
+- Only `draft -> pending_approval` succeeds. `pending_approval`, `active`, and `closed` source states return `409`; repeated submission is not idempotently successful.
+- The backend locks and reads the stored Route. Canonical Route integrity requires a nonblank name, existing campsite/Host relationship, valid nonempty SRID-4326 LineString with at least two vertices, positive spatial and stored length, positive expected duration, and an allowed difficulty.
+- Every existing checkpoint must pass the CTMS-20 stored integrity contract: nonblank metadata, valid nonempty SRID-4326 Point, radius `10..500`, allowed type, arrival offset within Route duration, route position `[0,1]`, and location within 50 metres of the Route.
+- Submission completeness requires exactly one `start`, exactly one `finish`, and authoritative `start.route_position < finish.route_position`. `rest`, `water`, `dangerous`, and `emergency_shelter` are optional with no minimum count. Client ordering is never trusted; canonical checkpoint ordering remains `route_position`, `created_at`, then `id`, all ascending.
+- Failed stored Route/checkpoint integrity or completeness returns `422` without mutation. The Host does not resend Route or checkpoint data for submission.
+- The response uses the normal authoritative Trekking Route response shape and reports persisted status `pending_approval`. The existing Admin `GET /api/trekking-routes/pending-review` discovers the submitted Route without special-case duplication.
+
 ### Web drawing and import
 
 - Host page: `/host/trekking-routes/create`, linked from the current `RoleLandingPage` Host dashboard and protected by the existing Host UI guard.
@@ -78,19 +93,24 @@ The response contains `id`, `campsiteId`, `name`, nullable `description`, canoni
 - GeoJSON is parsed in Web and accepts a raw LineString, a Feature containing a LineString, or a FeatureCollection resolving to exactly one LineString. Other/empty/malformed/ambiguous geometry is rejected.
 - GPX is parsed in Web and accepts exactly one track or exactly one route. Multiple or mixed tracks/routes are rejected; elevation is ignored. Import files are limited to 5 MB.
 - The Web sends only the canonical create DTO, prevents duplicate submission, preserves form/geometry after failure, maps `401/403/404/409/422`, and shows server-returned length and status after success.
+- CTMS-81 adds no production Web submission control. The Host submission button, mutation hook, loading/error behavior, and UI/E2E evidence belong to CTMS-82.
 
 ### Transaction, audit, and exclusions
 
 - Route creation, authoritative PostGIS length calculation, and audit insertion occur in one database transaction. An audit failure rolls the route insert back.
 - Audit values are `action=trekking_route.created`, `target_type=trekking_route`, `reason=host_create_trekking_route`, actor from the authenticated Host, and `before=null`.
 - Audit `after` contains authoritative route metadata and a geometry summary (`type`, vertex count, start, end, length, bounding box), not the complete coordinate array.
-- CTMS-19 creates no notification behavior and makes no Mobile changes. Host route management is Web-only.
-- Excluded: CTMS-20 checkpoints, CTMS-21 close/reopen, CTMS-22 approval, CTMS-23 hazards/shelters, Trips, navigation/offline maps, elevation profiles, capacity, porter requirements, recommendations, and Campsite approval.
+- Submission executes in one transaction: lock Route `FOR UPDATE`, verify ownership and draft state, validate stored Route/checkpoints and completeness, update to `pending_approval`, and insert the audit. Concurrent submissions serialize; the stale request returns `409`.
+- Submission audit values are `action=trekking_route.submitted_for_approval`, `target_type=trekking_route`, `reason=host_submit_trekking_route_for_approval`, authenticated owning Host actor, and status-only `draft` before / `pending_approval` after snapshots. Audit failure rolls the status update back.
+- No migration is required because `pending_approval` already exists. No Admin notification is emitted: the repository has no canonical operational notification recipient/outbox contract, and OTP or emergency WebSocket delivery must not be reused.
+- CTMS-19/CTMS-81 makes no Mobile changes. Excluded: CTMS-82 production submission UI, checkpoint update/delete, CTMS-21 close/reopen changes, CTMS-22 Admin review changes, CTMS-23 hazards/shelters, Trips, navigation/offline maps, elevation profiles, capacity, porter requirements, recommendations, and Campsite approval.
 
 ## Test Evidence
 
 - Backend unit: DTO validation and forbidden fields; PostGIS repository SQL/zero length and campsite-filtered read serialization; campsite missing/ownership; draft assignment; audit summary; audit rollback propagation.
 - Real PostgreSQL/PostGIS integration: LineString geography, SRID 4326, geometry type, vertex order, start/end, GeoJSON round trip, authoritative length, campsite-filtered read-back and empty list, RESTRICT FK, authentication, Host role, ownership, validation, audit and transaction rollback.
+- CTMS-81 backend unit: owning-Host submission, strict draft lifecycle, stored Route/checkpoint validation, exact start/finish counts and order, exact audit, and audit failure propagation.
+- CTMS-81 real PostgreSQL/PostGIS integration: successful persistence and Admin discovery; missing/duplicate start or finish; reversed order; invalid stored Route/checkpoint data; authentication, role, and ownership; stale states; concurrent submission; audit persistence and rollback.
 - Web unit/component: selector states, schema/payload, geometry operations, preview, GeoJSON/GPX inputs and failures, 5 MB limit, duplicate-submit prevention, API error mapping, state preservation, authoritative success display, dashboard read navigation, route-list empty state, metadata selection, and read-only geometry rendering.
 - Playwright acceptance: manual drawing, GeoJSON import, invalid geometry with no side effect, Camper page denial, and non-owning Host API denial with no route/audit side effect.
 
@@ -111,21 +131,22 @@ The response contains `id`, `campsiteId`, `name`, nullable `description`, canoni
 - [ ] BR-244: Changes to Business Rules, enums, state transitions, or API contracts must update the Spec, test cases, and data documentation together before Done.
 
 ## Dev Notes
-- Jira key: `CTMS-52`; backlog/spec key: `CTMS-19`.
+- Jira parent: `CTMS-52`; backend subtask: `CTMS-81`; next Web subtask: `CTMS-82`; backlog/spec key: `CTMS-19`.
 - Priority: `Must Have`; Story points: `8`; Commitment: `Committed`.
 - Epic: `EPIC 3. Trekking Route`.
 - Sprint: `Sprint 2`; planned window: `2026-08-09` to `2026-08-22`.
 - Keep API, UI, database, tests, and Jira references aligned with the exact Spec Reference path above.
 
 ## Story-Specific Implementation Tasks
-- CTMS-19-T01 [BE / Shared Logic] Implement `Create Trekking Route on Map` for this task scope and enforce mapped BRs: BR-202, BR-204, BR-205, BR-230, BR-231, BR-242, BR-243, BR-244, BR-210, BR-211, BR-218, BR-219, BR-050, BR-051, BR-206, BR-207. Ref: /file/spec/ctms-19-create-trekking-route-on-map.md#backend-preparation-logic-and-tests
-- CTMS-19-T02 [UI Web/Mobile/Consumer] Implement `Create Trekking Route on Map` for this task scope and enforce mapped BRs: BR-202, BR-204, BR-205, BR-230, BR-231, BR-240, BR-241, BR-242, BR-050, BR-051. Ref: /file/spec/ctms-19-create-trekking-route-on-map.md#ui-and-tests
+- CTMS-19-T01 / Jira CTMS-81 [BE / Shared Logic] Implement creation preparation, authoritative validation, and Host submission to Admin review; enforce mapped BRs: BR-202, BR-204, BR-205, BR-230, BR-231, BR-242, BR-243, BR-244, BR-210, BR-211, BR-218, BR-219, BR-050, BR-051, BR-206, BR-207. Ref: /file/spec/ctms-19-create-trekking-route-on-map.md#backend-preparation-logic-and-tests
+- CTMS-19-T02 / Jira CTMS-82 [Web UI] Implement the Host submission UI without changing the server-controlled lifecycle contract. Ref: /file/spec/ctms-19-create-trekking-route-on-map.md#ui-and-tests
 
 ## Task to Acceptance Criteria Traceability
 | Acceptance criterion / BR | Covered by tasks | Evidence expected |
 | --- | --- | --- |
 | AC1: The Host can draw a route or import GPX/GeoJSON | CTMS-19-T01, CTMS-19-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC2: length, difficulty, estimated duration, and status are saved | CTMS-19-T01, CTMS-19-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
+| AC3: The owning Host can submit a valid draft with exactly one ordered start/finish pair for Admin review | CTMS-19-T01 / Jira CTMS-81; Web control deferred to CTMS-19-T02 / Jira CTMS-82 | Backend unit and real PostgreSQL/PostGIS API evidence for lifecycle, authorization, integrity, completeness, concurrency, and audit |
 | BR-202: Accounts in pending_verification, suspended, or deleted status must not use functions that require an active account, except allowed verification or recovery flows. | CTMS-19-T01, CTMS-19-T02 | Tests and review evidence must prove this exact rule is enforced: Accounts in pending_verification, suspended, or deleted status must not use functions that require an active account, except allowed verification or recovery flows. |
 | BR-204: Users may only view or change data they own unless their role and business relationship allow access to another user's data. | CTMS-19-T01, CTMS-19-T02 | Tests and review evidence must prove this exact rule is enforced: Users may only view or change data they own unless their role and business relationship allow access to another user's data. |
 | BR-205: All input data must be validated for required fields, data type, format, length, enum values, and cross-field relationships before processing. | CTMS-19-T01, CTMS-19-T02 | Tests and review evidence must prove this exact rule is enforced: All input data must be validated for required fields, data type, format, length, enum values, and cross-field relationships before processing. |
@@ -189,7 +210,7 @@ The response contains `id`, `campsiteId`, `name`, nullable `description`, canoni
 - Story ID: `CTMS-19`
 - Epic: `EPIC 3. Trekking Route`
 - Sprint: `Sprint 2`
-- Dependencies: `CTMS-10`
+- Dependencies: `CTMS-10, CTMS-20`; Admin review continues in `CTMS-22`.
 - Linked items: `Blocked by: CTMS-10
 
 Blocks: CTMS-20, CTMS-21, CTMS-22, CTMS-23, CTMS-24, CTMS-25, CTMS-32, CTMS-56, CTMS-104`

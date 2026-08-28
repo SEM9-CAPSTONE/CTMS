@@ -123,6 +123,31 @@ describe("TrekkingRoutesRepository", () => {
 		expect(query.mock.calls[0][0]).not.toContain("checkpoint_type = 'start'");
 	});
 
+	it("validates submission checkpoint integrity and maps authoritative completeness data", async () => {
+		const repository = new TrekkingRoutesRepository(TrekkingRoute, {} as EntityManager);
+		const query = jest.spyOn(repository, "query").mockResolvedValue([
+			{
+				checkpointsValid: true,
+				startCount: "1",
+				finishCount: "1",
+				startPosition: "0.1",
+				finishPosition: "0.9",
+			},
+		]);
+
+		await expect(repository.validateSubmissionCheckpoints("route-id")).resolves.toEqual({
+			checkpointsValid: true,
+			startCount: 1,
+			finishCount: 1,
+			startPosition: 0.1,
+			finishPosition: 0.9,
+		});
+		expect(query.mock.calls[0][0]).toContain("ST_DWithin");
+		expect(query.mock.calls[0][0]).toContain("FILTER");
+		expect(query.mock.calls[0][0]).toContain("GROUP BY route");
+		expect(query).toHaveBeenCalledWith(expect.any(String), ["route-id"]);
+	});
+
 	it.each([TrekkingRouteStatus.ACTIVE, TrekkingRouteStatus.CLOSED])(
 		"updates only the server-selected status to %s and returns authoritative geometry",
 		async (status) => {

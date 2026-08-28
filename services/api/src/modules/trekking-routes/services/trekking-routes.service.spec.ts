@@ -60,6 +60,7 @@ describe("TrekkingRoutesService", () => {
 		findPendingReview: jest.Mock;
 		findReviewRouteByIdForUpdate: jest.Mock;
 		validateApprovalIntegrity: jest.Mock;
+		validateSubmissionCheckpoints: jest.Mock;
 		updateStatus: jest.Mock;
 	};
 	let auditRepository: { save: jest.Mock };
@@ -83,6 +84,13 @@ describe("TrekkingRoutesService", () => {
 				difficultyValid: true,
 				checkpointsValid: true,
 				checkpointCount: 0,
+			}),
+			validateSubmissionCheckpoints: jest.fn().mockResolvedValue({
+				checkpointsValid: true,
+				startCount: 1,
+				finishCount: 1,
+				startPosition: 0,
+				finishPosition: 1,
 			}),
 			updateStatus: jest.fn((_routeId: string, status: TrekkingRouteStatus) =>
 				Promise.resolve(createdRoute(status))
@@ -139,6 +147,156 @@ describe("TrekkingRoutesService", () => {
 				status: 403,
 			});
 			expect(routeRepository.findByCampsite).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("Host submission for approval", () => {
+		beforeEach(() => {
+			routeRepository.findOneForLifecycleUpdate.mockResolvedValue({
+				route: createdRoute(TrekkingRouteStatus.DRAFT),
+				hostId: HOST_ID,
+				integrityValid: true,
+			});
+		});
+
+		it("submits a prepared owned draft Route and audits the transition", async () => {
+			const result = await service.submitForApproval(HOST_ID, ROUTE_ID);
+
+			expect(routeRepository.findOneForLifecycleUpdate).toHaveBeenCalledWith(ROUTE_ID);
+			expect(routeRepository.validateSubmissionCheckpoints).toHaveBeenCalledWith(ROUTE_ID);
+			expect(routeRepository.updateStatus).toHaveBeenCalledWith(
+				ROUTE_ID,
+				TrekkingRouteStatus.PENDING_APPROVAL
+			);
+			expect(auditRepository.save).toHaveBeenCalledWith({
+				actorId: HOST_ID,
+				action: "trekking_route.submitted_for_approval",
+				targetType: "trekking_route",
+				targetId: ROUTE_ID,
+				before: { status: TrekkingRouteStatus.DRAFT },
+				after: { status: TrekkingRouteStatus.PENDING_APPROVAL },
+				reason: "host_submit_trekking_route_for_approval",
+			});
+			expect(result.status).toBe(TrekkingRouteStatus.PENDING_APPROVAL);
+		});
+
+		it("returns 404 for a missing Route without side effects", async () => {
+			routeRepository.findOneForLifecycleUpdate.mockResolvedValue(null);
+
+			await expect(service.submitForApproval(HOST_ID, ROUTE_ID)).rejects.toMatchObject({
+				status: 404,
+			});
+			expect(routeRepository.validateSubmissionCheckpoints).not.toHaveBeenCalled();
+			expect(routeRepository.updateStatus).not.toHaveBeenCalled();
+			expect(auditRepository.save).not.toHaveBeenCalled();
+		});
+
+		it("returns 403 for a foreign Host without side effects", async () => {
+			await expect(service.submitForApproval(OTHER_HOST_ID, ROUTE_ID)).rejects.toMatchObject({
+				status: 403,
+			});
+			expect(routeRepository.validateSubmissionCheckpoints).not.toHaveBeenCalled();
+			expect(routeRepository.updateStatus).not.toHaveBeenCalled();
+			expect(auditRepository.save).not.toHaveBeenCalled();
+		});
+
+		it.each([
+			TrekkingRouteStatus.PENDING_APPROVAL,
+			TrekkingRouteStatus.ACTIVE,
+			TrekkingRouteStatus.CLOSED,
+		])("returns 409 for source state %s without side effects", async (status) => {
+			routeRepository.findOneForLifecycleUpdate.mockResolvedValue({
+				route: createdRoute(status),
+				hostId: HOST_ID,
+				integrityValid: true,
+			});
+
+			await expect(service.submitForApproval(HOST_ID, ROUTE_ID)).rejects.toMatchObject({
+				status: 409,
+			});
+			expect(routeRepository.validateSubmissionCheckpoints).not.toHaveBeenCalled();
+			expect(routeRepository.updateStatus).not.toHaveBeenCalled();
+			expect(auditRepository.save).not.toHaveBeenCalled();
+		});
+
+		it("returns 422 when the authoritative stored Route is invalid", async () => {
+			routeRepository.findOneForLifecycleUpdate.mockResolvedValue({
+				route: createdRoute(TrekkingRouteStatus.DRAFT),
+				hostId: HOST_ID,
+				integrityValid: false,
+			});
+
+			await expect(service.submitForApproval(HOST_ID, ROUTE_ID)).rejects.toMatchObject({
+				status: 422,
+			});
+			expect(routeRepository.validateSubmissionCheckpoints).not.toHaveBeenCalled();
+			expect(routeRepository.updateStatus).not.toHaveBeenCalled();
+		});
+
+		it("returns 422 when any authoritative stored checkpoint is invalid", async () => {
+			routeRepository.validateSubmissionCheckpoints.mockResolvedValue({
+				checkpointsValid: false,
+				startCount: 1,
+				finishCount: 1,
+				startPosition: 0,
+				finishPosition: 1,
+			});
+
+			await expect(service.submitForApproval(HOST_ID, ROUTE_ID)).rejects.toMatchObject({
+				status: 422,
+			});
+			expect(routeRepository.updateStatus).not.toHaveBeenCalled();
+			expect(auditRepository.save).not.toHaveBeenCalled();
+		});
+
+		it.each([
+			{ name: "no start", startCount: 0, finishCount: 1 },
+			{ name: "multiple starts", startCount: 2, finishCount: 1 },
+			{ name: "no finish", startCount: 1, finishCount: 0 },
+			{ name: "multiple finishes", startCount: 1, finishCount: 2 },
+		])("returns 422 for $name", async ({ startCount, finishCount }) => {
+			routeRepository.validateSubmissionCheckpoints.mockResolvedValue({
+				checkpointsValid: true,
+				startCount,
+				finishCount,
+				startPosition: startCount > 0 ? 0 : null,
+				finishPosition: finishCount > 0 ? 1 : null,
+			});
+
+			await expect(service.submitForApproval(HOST_ID, ROUTE_ID)).rejects.toMatchObject({
+				status: 422,
+			});
+			expect(routeRepository.updateStatus).not.toHaveBeenCalled();
+		});
+
+		it.each([
+			{ name: "equal positions", startPosition: 0.5, finishPosition: 0.5 },
+			{ name: "start after finish", startPosition: 0.75, finishPosition: 0.25 },
+		])("returns 422 when $name", async ({ startPosition, finishPosition }) => {
+			routeRepository.validateSubmissionCheckpoints.mockResolvedValue({
+				checkpointsValid: true,
+				startCount: 1,
+				finishCount: 1,
+				startPosition,
+				finishPosition,
+			});
+
+			await expect(service.submitForApproval(HOST_ID, ROUTE_ID)).rejects.toMatchObject({
+				status: 422,
+			});
+			expect(routeRepository.updateStatus).not.toHaveBeenCalled();
+		});
+
+		it("propagates audit failure so the transaction can roll back the status", async () => {
+			auditRepository.save.mockRejectedValue(new Error("audit unavailable"));
+
+			await expect(service.submitForApproval(HOST_ID, ROUTE_ID)).rejects.toThrow(
+				"audit unavailable"
+			);
+			expect(routeRepository.updateStatus).toHaveBeenCalledWith(
+				ROUTE_ID,
+				TrekkingRouteStatus.PENDING_APPROVAL
+			);
 		});
 	});
 
