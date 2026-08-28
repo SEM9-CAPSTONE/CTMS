@@ -10,7 +10,7 @@ Approve Route
 Jira `CTMS-55` implements backlog/spec story `CTMS-22`. The separate backlog story also numbered CTMS-55 for equipment handling is unrelated to this Jira task.
 
 **Status**  
-Core Route review API, Admin Web flow, audit, locking, and tests implemented. Host submission and operational notifications remain dependency-blocked as documented below.
+Core Route review API, Admin Web flow, audit, locking, and tests implemented. Host Route submission (`draft -> pending_approval`) is implemented by CTMS-81 / CTMS-19. Operational notifications remain dependency-blocked because no canonical notification infrastructure exists.
 
 **Story**  
 As an Admin, I want to approve Route so that the CTMS workflow is completed safely, consistently, and within the correct business scope.
@@ -21,7 +21,7 @@ As an Admin, I want to approve Route so that the CTMS workflow is completed safe
 - [x] An explicit non-operable decision changes `pending_approval -> closed`.
 - [x] Decline and non-operable reasons are trimmed, required, limited to 255 characters, and stored in `audit_logs`.
 - [x] No `rejected` status or arbitrary client-controlled status is used.
-- [ ] Draft submission validation and `draft -> pending_approval`. **Blocked by the absence of a canonical Host Route submission story/endpoint; CTMS-22 does not invent that flow.**
+- [x] Draft submission validation and `draft -> pending_approval` are provided by CTMS-19 / Jira CTMS-81. CTMS-22 consumes the resulting `pending_approval` Route and does not duplicate the Host action.
 - [ ] Related Camper/Porter and Host operational notifications. **Blocked by the absence of a Route-linked Trip/participant recipient model and operational notification persistence/service.**
 
 ## Approved CTMS-55 Implementation Contract
@@ -60,7 +60,7 @@ pending_approval --non_operable--> closed
 - `reason` is required for `decline` and `non_operable`, trimmed, nonblank, and at most 255 characters. Approval does not require or persist a reason.
 - Clients cannot supply a target status, geometry, difficulty, checkpoints, previous status, or lifecycle timestamp.
 - Every source state other than `pending_approval`, including repeated/concurrent decisions, returns `409` with no side effects.
-- Jira/spec wording that mentions draft-or-pending validation does not authorize direct `draft -> active`. Draft validation belongs to a future canonical Host submission flow. No submission endpoint currently exists, and CTMS-22 does not add one.
+- Jira/spec wording that mentions draft-or-pending validation does not authorize direct `draft -> active`. Draft validation and Host submission belong to CTMS-19 / Jira CTMS-81 through `PATCH /api/trekking-routes/:routeId/submit-for-approval`; CTMS-22 does not duplicate that endpoint.
 - CTMS-21 compatibility is `active -> closed -> pending_approval`; a reopened Route is reviewed through the same pending-only CTMS-22 path.
 
 ### Server-authoritative approval validation
@@ -70,7 +70,7 @@ Approval reads only stored PostgreSQL/PostGIS data after locking the Route row:
 - Geometry must be a non-empty, valid `LineString` with SRID 4326, at least two vertices, positive PostGIS length, and positive stored server-computed length.
 - Difficulty must be one of the existing enum values `easy | moderate | hard | expert`.
 - Every existing checkpoint must satisfy the existing CTMS-20 integrity contract: nonblank metadata, `Point` SRID 4326 geometry, radius `10..500`, an existing checkpoint enum type, arrival offset within Route duration, route position `[0,1]`, and location within 50 metres of the Route.
-- Neither CTMS-20 nor CTMS-22 defines a minimum checkpoint count or requires start/finish completeness. Zero checkpoints therefore pass; CTMS-55 does not invent undocumented completeness rules.
+- CTMS-22 validates every existing checkpoint but does not duplicate submission completeness. CTMS-19 / Jira CTMS-81 requires exactly one `start`, exactly one `finish`, and start-before-finish when a draft Route is submitted. Routes reaching `pending_approval` through another supported lifecycle action remain subject to CTMS-22's existing stored-integrity validation.
 - Failed stored-data validation returns `422`, names the failing integrity area, and does not update status or write an approval audit.
 
 ### Transaction, locking, concurrency, and audit
