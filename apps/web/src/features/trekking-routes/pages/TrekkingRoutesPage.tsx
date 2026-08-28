@@ -1,4 +1,12 @@
-import { AlertCircle, ArrowLeft, Loader2, Map as MapIcon, RefreshCw, Route } from "lucide-react";
+import {
+	AlertCircle,
+	ArrowLeft,
+	CheckCircle2,
+	Loader2,
+	Map as MapIcon,
+	RefreshCw,
+	Route,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { RouteCheckpointsPanel } from "../components/RouteCheckpointsPanel";
 import { RouteGeometryPreview } from "../components/RouteGeometryPreview";
@@ -17,6 +25,7 @@ export function TrekkingRoutesPage({ onBackHome }: TrekkingRoutesPageProps) {
 	const [selectedCampsiteId, setSelectedCampsiteId] = useState("");
 	const routes = useTrekkingRoutes(selectedCampsiteId || undefined);
 	const [selectedRouteId, setSelectedRouteId] = useState<string>();
+	const [submittedRouteName, setSubmittedRouteName] = useState("");
 
 	useEffect(() => {
 		if (campsites.isLoading || campsites.error) return;
@@ -67,6 +76,18 @@ export function TrekkingRoutesPage({ onBackHome }: TrekkingRoutesPageProps) {
 			</header>
 
 			<main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+				{submittedRouteName && (
+					<div
+						data-testid="route-submission-success"
+						className="mb-5 flex gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800"
+					>
+						<CheckCircle2 className="size-5 shrink-0" />
+						<p>
+							Đã gửi tuyến <strong>{submittedRouteName}</strong> để duyệt. Trạng thái chính thức
+							hiện là <strong>Chờ duyệt</strong>.
+						</p>
+					</div>
+				)}
 				{campsites.isLoading && (
 					<div
 						data-testid="campsites-loading"
@@ -112,7 +133,10 @@ export function TrekkingRoutesPage({ onBackHome }: TrekkingRoutesPageProps) {
 						<select
 							id="route-list-campsite"
 							value={selectedCampsiteId}
-							onChange={(event) => setSelectedCampsiteId(event.target.value)}
+							onChange={(event) => {
+								setSelectedCampsiteId(event.target.value);
+								setSubmittedRouteName("");
+							}}
 							className="mt-2 w-full max-w-xl rounded-xl border border-[#cbd9ce] bg-white px-4 py-3 font-semibold"
 						>
 							<option value="">Chọn khu cắm trại</option>
@@ -177,7 +201,10 @@ export function TrekkingRoutesPage({ onBackHome }: TrekkingRoutesPageProps) {
 										<TrekkingRouteList
 											items={routes.items}
 											selectedRouteId={selectedRouteId}
-											onSelect={(route) => setSelectedRouteId(route.id)}
+											onSelect={(route) => {
+												setSelectedRouteId(route.id);
+												setSubmittedRouteName("");
+											}}
 										/>
 										{selectedRoute && <RouteGeometryPreview geometry={selectedRoute.geometry} />}
 									</div>
@@ -185,7 +212,12 @@ export function TrekkingRoutesPage({ onBackHome }: TrekkingRoutesPageProps) {
 										<RouteStatusActionDialog route={selectedRoute} onReload={routes.retry} />
 									)}
 									{selectedRoute && (
-										<RouteCheckpointsPanel key={selectedRoute.id} route={selectedRoute} />
+										<RouteCheckpointsPanel
+											key={selectedRoute.id}
+											route={selectedRoute}
+											onRouteReload={routes.retry}
+											onRouteSubmitted={(route) => setSubmittedRouteName(route.name)}
+										/>
 									)}
 								</>
 							)}

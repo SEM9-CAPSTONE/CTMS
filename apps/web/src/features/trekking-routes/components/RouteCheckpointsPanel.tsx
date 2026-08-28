@@ -1,15 +1,26 @@
 import { Loader2, RefreshCw } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { useCreateRouteCheckpoint } from "../hooks/useCreateRouteCheckpoint";
 import { useRouteCheckpoints } from "../hooks/useRouteCheckpoints";
 import type { CreatedTrekkingRoute, GeoJsonPoint } from "../types";
 import { CheckpointList } from "./CheckpointList";
 import { CreateCheckpointForm } from "./CreateCheckpointForm";
 import { RouteCheckpointMap } from "./RouteCheckpointMap";
+import { RouteSubmissionPanel } from "./RouteSubmissionPanel";
 
-export function RouteCheckpointsPanel({ route }: { route: CreatedTrekkingRoute }) {
+interface RouteCheckpointsPanelProps {
+	route: CreatedTrekkingRoute;
+	onRouteReload: () => Promise<unknown>;
+	onRouteSubmitted: (route: CreatedTrekkingRoute) => void;
+}
+
+export function RouteCheckpointsPanel({
+	route,
+	onRouteReload,
+	onRouteSubmitted,
+}: RouteCheckpointsPanelProps) {
 	const checkpoints = useRouteCheckpoints(route.id);
-	const reload = useCallback(() => checkpoints.reload(), [checkpoints.reload]);
+	const reload = checkpoints.reload;
 	const create = useCreateRouteCheckpoint(route.id, reload);
 	const [selectedLocation, setSelectedLocation] = useState<GeoJsonPoint>();
 	const [radiusMeters, setRadiusMeters] = useState(30);
@@ -33,6 +44,15 @@ export function RouteCheckpointsPanel({ route }: { route: CreatedTrekkingRoute }
 					</span>
 				)}
 			</div>
+
+			<RouteSubmissionPanel
+				route={route}
+				checkpoints={checkpoints.items}
+				isLoadingCheckpoints={checkpoints.isLoading}
+				checkpointError={checkpoints.error}
+				onReload={onRouteReload}
+				onSubmitted={onRouteSubmitted}
+			/>
 
 			<RouteCheckpointMap
 				geometry={route.geometry}
