@@ -464,6 +464,18 @@ async function main() {
 			} else {
 				console.log(JSON.stringify({ success: false, reason: "not_found" }));
 			}
+		} else if (action === "find-users-by-email-prefix") {
+			// Generic E2E cleanup helper: some specs (e.g. Mobile's
+			// verify_otp_test.dart) register accounts through the real UI with a
+			// timestamp an orchestrating script can't know in advance, only a
+			// fixed prefix (still required to start with "e2e-" -- reuses
+			// assertE2EEmail's same safety guard as clean-user, just checked
+			// against the prefix itself rather than a single exact email).
+			assertE2EEmail(arg);
+			const rows = await dataSource.query('SELECT "email" FROM "users" WHERE "email" LIKE $1', [
+				`${arg}%`,
+			]);
+			console.log(JSON.stringify(rows.map((r: { email: string }) => r.email)));
 		} else {
 			throw new Error(`Unknown action: ${action}`);
 		}

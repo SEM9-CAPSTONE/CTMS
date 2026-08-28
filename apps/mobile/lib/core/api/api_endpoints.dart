@@ -18,6 +18,9 @@ class AuthEndpoints {
 
   String get login => '/auth/login';
   String get register => '/auth/register';
+  String get sendOtp => '/auth/send-otp';
+  String get resendOtp => '/auth/resend';
+  String get verifyOtp => '/auth/verify';
   String get forgotPassword => '/auth/forgot-password';
   String get resetPassword => '/auth/reset-password';
   String get refresh => '/auth/refresh';
