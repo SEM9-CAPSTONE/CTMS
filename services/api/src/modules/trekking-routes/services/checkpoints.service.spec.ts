@@ -144,11 +144,36 @@ describe("CheckpointsService", () => {
 		});
 	});
 
-	it("rejects non-draft routes with 409 before checkpoint or audit writes", async () => {
-		routeQuery.getOne.mockResolvedValue(route(HOST_ID, TrekkingRouteStatus.ACTIVE));
+	it("returns 404 for a missing route and 403 for another Host's route before create writes", async () => {
+		routeQuery.getOne.mockResolvedValueOnce(null);
+		await expect(service.create(HOST_ID, ROUTE_ID, dto)).rejects.toMatchObject({ status: 404 });
+
+		routeQuery.getOne.mockResolvedValueOnce(route(OTHER_HOST_ID));
+		await expect(service.create(HOST_ID, ROUTE_ID, dto)).rejects.toMatchObject({ status: 403 });
+		expect(checkpointRepository.createForRoute).not.toHaveBeenCalled();
+		expect(auditRepository.save).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		TrekkingRouteStatus.PENDING_APPROVAL,
+		TrekkingRouteStatus.ACTIVE,
+		TrekkingRouteStatus.CLOSED,
+	])("rejects a %s route with 409 before checkpoint or audit writes", async (status) => {
+		routeQuery.getOne.mockResolvedValue(route(HOST_ID, status));
 		await expect(service.create(HOST_ID, ROUTE_ID, dto)).rejects.toMatchObject({ status: 409 });
 		expect(checkpointRepository.createForRoute).not.toHaveBeenCalled();
 		expect(auditRepository.save).not.toHaveBeenCalled();
+	});
+
+	it("accepts an offset equal to the parent route duration", async () => {
+		await expect(
+			service.create(HOST_ID, ROUTE_ID, { ...dto, expectedArrivalOffset: 120 })
+		).resolves.toEqual(checkpoint);
+		expect(checkpointRepository.createForRoute).toHaveBeenCalledWith({
+			routeId: ROUTE_ID,
+			...dto,
+			expectedArrivalOffset: 120,
+		});
 	});
 
 	it("rejects an offset beyond the parent duration with 422", async () => {

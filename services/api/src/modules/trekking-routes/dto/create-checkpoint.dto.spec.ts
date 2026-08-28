@@ -37,6 +37,28 @@ describe("CreateCheckpointDto", () => {
 	});
 
 	it.each([
+		{
+			name: "minimum spatial and numeric boundaries",
+			payload: {
+				name: "n".repeat(150),
+				location: { type: "Point", coordinates: [-180, -90] },
+				radiusMeters: 10,
+				expectedArrivalOffset: 0,
+				instructions: "i".repeat(1000),
+			},
+		},
+		{
+			name: "maximum spatial and radius boundaries",
+			payload: {
+				location: { type: "Point", coordinates: [180, 90] },
+				radiusMeters: 500,
+			},
+		},
+	])("accepts $name", async ({ payload }) => {
+		expect((await validationErrors(validPayload(payload))).errors).toEqual([]);
+	});
+
+	it.each([
 		["missing", undefined],
 		["blank", "   "],
 		["too long", "n".repeat(151)],
@@ -46,15 +68,31 @@ describe("CreateCheckpointDto", () => {
 		expect(allProperties((await validationErrors(payload)).errors)).toContain("name");
 	});
 
+	it("rejects an explicitly undefined location without omitting the property", async () => {
+		const payload = validPayload({ location: undefined });
+		expect(Object.hasOwn(payload, "location")).toBe(true);
+		expect(allProperties((await validationErrors(payload)).errors)).toContain("location");
+	});
+
 	it.each([
+		undefined,
+		null,
+		{},
 		{ type: "LineString", coordinates: [108.45, 11.94] },
 		{ type: "Point", coordinates: [108.45] },
 		{ type: "Point", coordinates: [108.45, 11.94, 1] },
 		{ type: "Point", coordinates: [181, 11.94] },
 		{ type: "Point", coordinates: [108.45, -91] },
 		{ type: "Point", coordinates: [Number.POSITIVE_INFINITY, 11.94] },
-	])("rejects invalid Point %#", async (location) => {
-		const properties = allProperties((await validationErrors(validPayload({ location }))).errors);
+	])("rejects missing or invalid Point %#", async (location) => {
+		const payload =
+			location === undefined
+				? (() => {
+						const { location: _location, ...withoutLocation } = validPayload();
+						return withoutLocation;
+					})()
+				: validPayload({ location });
+		const properties = allProperties((await validationErrors(payload)).errors);
 		expect(properties).toEqual(expect.arrayContaining(["location"]));
 	});
 
