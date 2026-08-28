@@ -12,6 +12,9 @@ interface TestAccount {
 	accessToken: string;
 }
 
+type TestRole = "admin" | "camper" | "host" | "porter";
+type TestStatus = "active" | "deleted" | "pending_verification" | "suspended";
+
 interface CheckpointPayload {
 	name: string;
 	location: { type: "Point"; coordinates: [number, number] };
@@ -85,12 +88,15 @@ describe("Trekking route checkpoints (integration, real PostGIS)", () => {
 		}
 	});
 
-	async function createAccount(role: "host" | "camper"): Promise<TestAccount> {
+	async function createAccount(
+		role: TestRole,
+		status: TestStatus = "active"
+	): Promise<TestAccount> {
 		const marker = `${Date.now()}-${Math.floor(Math.random() * 100_000)}`;
 		const rows = (await dataSource.query(
 			`INSERT INTO "users" ("email", "password_hash", "role", "status", "full_name")
-			 VALUES ($1, $2, $3, 'active', 'Checkpoint Test User') RETURNING "id"`,
-			[`checkpoint-${role}-${marker}@example.com`, await hash("S3curePass!", 10), role]
+			 VALUES ($1, $2, $3, $4, 'Checkpoint Test User') RETURNING "id"`,
+			[`checkpoint-${role}-${marker}@example.com`, await hash("S3curePass!", 10), role, status]
 		)) as Array<{ id: string }>;
 		const id = rows[0].id;
 		await dataSource.query(
@@ -241,12 +247,16 @@ describe("Trekking route checkpoints (integration, real PostGIS)", () => {
 	it("enforces authentication, Host role, ownership, and missing-route semantics", async () => {
 		const owner = await createAccount("host");
 		const otherHost = await createAccount("host");
+		const admin = await createAccount("admin");
 		const camper = await createAccount("camper");
+		const porter = await createAccount("porter");
 		const routeId = await createRoute(await createCampsite(owner.id));
 		const payload = validPayload();
 
 		await postCheckpoint(undefined, routeId, payload).expect(401);
+		await postCheckpoint(admin.accessToken, routeId, payload).expect(403);
 		await postCheckpoint(camper.accessToken, routeId, payload).expect(403);
+		await postCheckpoint(porter.accessToken, routeId, payload).expect(403);
 		await postCheckpoint(otherHost.accessToken, routeId, payload).expect(403);
 		await getCheckpoints(otherHost.accessToken, routeId).expect(403);
 		await postCheckpoint(owner.accessToken, "00000000-0000-4000-8000-000000000099", payload).expect(
@@ -261,12 +271,33 @@ describe("Trekking route checkpoints (integration, real PostGIS)", () => {
 		expect(rows[0].count).toBe(0);
 	});
 
+	it.each(["pending_verification", "suspended", "deleted"] as const)(
+		"returns 401 for a %s Host account without side effects",
+		async (status) => {
+			const owner = await createAccount("host");
+			const inactiveHost = await createAccount("host", status);
+			const routeId = await createRoute(await createCampsite(owner.id));
+
+			await postCheckpoint(inactiveHost.accessToken, routeId, validPayload()).expect(401);
+			const rows = (await dataSource.query(
+				'SELECT COUNT(*)::int AS count FROM "checkpoints" WHERE "route_id" = $1',
+				[routeId]
+			)) as Array<{ count: number }>;
+			expect(rows[0].count).toBe(0);
+		}
+	);
+
 	it.each(["pending_approval", "active", "closed"] as const)(
 		"returns 409 when creating on a %s route",
 		async (status) => {
 			const host = await createAccount("host");
 			const routeId = await createRoute(await createCampsite(host.id), status);
 			await postCheckpoint(host.accessToken, routeId, validPayload()).expect(409);
+			const rows = (await dataSource.query(
+				'SELECT COUNT(*)::int AS count FROM "checkpoints" WHERE "route_id" = $1',
+				[routeId]
+			)) as Array<{ count: number }>;
+			expect(rows[0].count).toBe(0);
 		}
 	);
 
@@ -274,7 +305,9 @@ describe("Trekking route checkpoints (integration, real PostGIS)", () => {
 		const host = await createAccount("host");
 		const routeId = await createRoute(await createCampsite(host.id));
 		const payload = validPayload();
+		const { location: _location, ...withoutLocation } = payload;
 
+		await postCheckpoint(host.accessToken, routeId, withoutLocation).expect(422);
 		await postCheckpoint(host.accessToken, routeId, { ...payload, radiusMeters: 9 }).expect(422);
 		await postCheckpoint(host.accessToken, routeId, { ...payload, type: "viewpoint" }).expect(422);
 		await postCheckpoint(host.accessToken, routeId, {
@@ -294,6 +327,7 @@ describe("Trekking route checkpoints (integration, real PostGIS)", () => {
 			...payload,
 			location: { ...payload.location, routeId },
 		}).expect(422);
+		await postCheckpoint(host.accessToken, "not-a-uuid", payload).expect(422);
 
 		const rows = (await dataSource.query(
 			'SELECT COUNT(*)::int AS count FROM "checkpoints" WHERE "route_id" = $1',
