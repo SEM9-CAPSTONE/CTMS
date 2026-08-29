@@ -209,6 +209,7 @@ describe("CTMS-54 trekking route lifecycle (integration, real PostgreSQL)", () =
 		const owner = await createAccount("host");
 		const otherHost = await createAccount("host");
 		const camper = await createAccount("camper");
+		const porter = await createAccount("porter");
 		const suspendedHost = await createAccount("host", "suspended");
 		const routeId = await createRoute(await createCampsite(owner.id), "active");
 		const body = { reason: "Safety closure" };
@@ -216,6 +217,7 @@ describe("CTMS-54 trekking route lifecycle (integration, real PostgreSQL)", () =
 		await patchLifecycle(undefined, routeId, "close", body).expect(401);
 		await patchLifecycle(suspendedHost.accessToken, routeId, "close", body).expect(401);
 		await patchLifecycle(camper.accessToken, routeId, "close", body).expect(403);
+		await patchLifecycle(porter.accessToken, routeId, "close", body).expect(403);
 		await patchLifecycle(otherHost.accessToken, routeId, "close", body).expect(403);
 		await patchLifecycle(
 			owner.accessToken,
