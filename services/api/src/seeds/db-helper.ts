@@ -415,6 +415,23 @@ async function main() {
 				[input.routeId]
 			);
 			console.log(JSON.stringify({ checkpoints: rows }));
+		} else if (action === "get-weather-snapshots") {
+			// CTMS-25-T02 E2E. Reads the real weather_snapshots rows for a
+			// route -- proves a UI-triggered refresh persisted real data (or
+			// that a rejected/forbidden attempt persisted none), the same
+			// "verify the real DB row, not just the UI" rigor as
+			// get-route-checkpoints above.
+			const input = parseJsonArg<{ routeId: string }>(arg);
+			const rows = await dataSource.query(
+				`SELECT "id", "status", "observed_at" AS "observedAt", "rainfall_mm" AS "rainfallMm",
+				 "wind_kph" AS "windKph", "temperature_c" AS "temperatureC", "visibility_m" AS "visibilityM",
+				 "thunderstorm", "provider_response" AS "provider_response", "error_message" AS "errorMessage",
+				 "created_at" AS "createdAt"
+				 FROM "weather_snapshots" WHERE "route_id" = $1
+				 ORDER BY "created_at" ASC`,
+				[input.routeId]
+			);
+			console.log(JSON.stringify({ snapshots: rows }));
 		} else if (action === "clean-trekking-routes") {
 			const input = parseJsonArg<{ routeIds: string[] }>(arg);
 			if (input.routeIds.length > 0) {

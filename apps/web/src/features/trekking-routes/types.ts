@@ -76,3 +76,19 @@ export interface AdminTrekkingRouteReview extends CreatedTrekkingRoute {
 	campsiteName: string;
 	checkpoints: RouteCheckpoint[];
 }
+
+export type WeatherSnapshotStatus = "success" | "failed";
+
+export interface WeatherSnapshot {
+	id: string;
+	routeId: string;
+	status: WeatherSnapshotStatus;
+	observedAt: string | null;
+	rainfallMm: number | null;
+	windKph: number | null;
+	temperatureC: number | null;
+	visibilityM: number | null;
+	thunderstorm: boolean | null;
+	errorMessage: string | null;
+	createdAt: string;
+}

@@ -21,6 +21,10 @@ function jsonResponse(status: number, body: unknown): Response {
 	return {
 		ok: status >= 200 && status < 300,
 		status,
+		// A real fetch Response always has `.headers` -- included here so
+		// httpClient's empty-body check (`.headers.get("content-length")`)
+		// doesn't crash against this fixture the way `{}` would.
+		headers: new Headers(),
 		json: () => Promise.resolve(body),
 	} as Response;
 }
@@ -318,5 +322,38 @@ describe("httpClient interceptor (CTMS-04-T02)", () => {
 		expect(signal).not.toBeNull();
 		expect(signal).not.toContain("super-secret-refresh-token");
 		expect(Number.isNaN(Number(signal))).toBe(false);
+	});
+
+	// --- 15. genuinely empty response bodies (CTMS-25-T02) ------------------
+
+	describe("a 2xx response with an empty body (e.g. a controller returning null)", () => {
+		function emptyBodyResponse(status: number): Response {
+			return {
+				ok: status >= 200 && status < 300,
+				status,
+				headers: new Headers({ "content-length": "0" }),
+				json: () => Promise.reject(new SyntaxError("Unexpected end of JSON input")),
+			} as Response;
+		}
+
+		it("resolves to undefined instead of throwing on Content-Length: 0", async () => {
+			fetchMock.mockResolvedValue(emptyBodyResponse(200));
+			await expect(httpClient.get(PROTECTED_ENDPOINT)).resolves.toBeUndefined();
+		});
+
+		it("resolves to undefined on a bare 204 with no Content-Length header at all", async () => {
+			fetchMock.mockResolvedValue({
+				ok: true,
+				status: 204,
+				headers: new Headers(),
+				json: () => Promise.reject(new SyntaxError("Unexpected end of JSON input")),
+			} as Response);
+			await expect(httpClient.get(PROTECTED_ENDPOINT)).resolves.toBeUndefined();
+		});
+
+		it("still parses a real JSON body normally on an ordinary 200", async () => {
+			fetchMock.mockResolvedValue(jsonResponse(200, { data: "secret" }));
+			await expect(httpClient.get(PROTECTED_ENDPOINT)).resolves.toEqual({ data: "secret" });
+		});
 	});
 });
