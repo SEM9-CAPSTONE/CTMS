@@ -103,6 +103,63 @@ As the system, I want to fetch Weather Data for Trekking Area so that the CTMS w
 - Add E2E coverage for the primary user journey and at least one critical failure path.
 - Every BR listed in the Business Rules Checklist must appear in at least one test or review evidence item.
 
+## Backend Preparation Logic and Tests
+
+### Actors
+- **Host**: the owner of the Route's Campsite. Can trigger a refresh and view the latest snapshot only for a Route they own.
+- **Admin**: can trigger a refresh and view the latest snapshot for any Route, bypassing ownership.
+- **System**: no scheduled/cron trigger exists yet in this task's scope -- every fetch is initiated by a Host or Admin action, matching "Implementation Guidance": keep the implementation narrow to this story.
+
+### Preconditions
+- The Route (`CTMS-19`) must already exist and be in `active` status.
+- The actor must hold a valid session and the `host` or `admin` role (`RolesGuard`); a Host must additionally own the Route's Campsite.
+
+### Decision Gates (frozen)
+- **Geographic granularity**: one snapshot per **Route**, not per Checkpoint -- fetched for the centroid of `route_geom` (`ST_Centroid`). CTMS-93's own Unit Test Checklist item ("Provider data is normalized for **the route area**") reads as route-level, not checkpoint-level, and a route can have many checkpoints but only one weather assessment makes sense for "the area."
+- **Provider**: Open-Meteo (`https://api.open-meteo.com`) -- no API key/account required (this codebase has no existing weather-provider secret anywhere in `.env`), free tier with no enforced request quota, and its `current` block carries every BR-065 field (rain, wind, temperature, visibility) plus a WMO weather code standard enough to derive `thunderstorm` from without inventing a threshold (WMO codes 95/96/99 are the standard's own thunderstorm family).
+- **Trigger**: on-demand only, via `POST .../weather/refresh`. No scheduler/cron in this task -- out of scope for "preparation + logic," and nothing in the story or Jira checklist calls for one.
+- **Storage**: append-only. Every fetch attempt (success or failure) inserts a new `weather_snapshots` row; existing rows are never updated, so a later consumer (`CTMS-26`) can look up exactly which snapshot it used (the "reproducible" requirement carried by AC2 of the parent CTMS-26 story).
+- **Retry/backoff (BR-230)**: 3 attempts, in-memory, exponential backoff (500ms / 1000ms / 2000ms). Only the final outcome (one success or one recorded failure) is ever written -- a retry can never itself create a duplicate row.
+- **On total failure (BR-229)**: a `FAILED` snapshot row is inserted recording the error; every weather/provider column stays `NULL` -- no fabricated reading is ever stored. The API responds `503 Service Unavailable`.
+- **BR-228 is not applicable to this task's scope**: this fetch-and-store endpoint sends no notifications of any kind; BR-228 (mandatory safety alerts cannot be disabled) belongs to a later story that actually surfaces/alerts on Weather Risk (`CTMS-27`/`CTMS-29`), not this one.
+
+### Main Flow (Refresh)
+1. Host or Admin calls `POST /trekking-routes/:routeId/weather/refresh`.
+2. The Route is looked up with its Campsite's `host_id` and the centroid of `route_geom`.
+3. Ownership is checked (Admin bypasses; a Host must own the Campsite).
+4. The Route's `status` must be `active`, checked before any provider call or DB write (BR-243).
+5. Open-Meteo is called for the centroid's `[latitude, longitude]`, retried up to 3 times on failure.
+6. A `SUCCESS` snapshot row is inserted and returned (`201`).
+
+### Alternate Flow (Read latest)
+- `GET /trekking-routes/:routeId/weather/latest` returns the most recently stored snapshot for the Route (`200`, empty body if none has ever been recorded), under the same ownership/role checks as refresh, without calling the provider.
+
+### Exception Flows
+- Route not found -> `404`.
+- Not the owning Host and not an Admin -> `403`.
+- Not authenticated -> `401`.
+- Route not `active` -> `409`, no provider call, no DB write.
+- Provider fails after 3 attempts -> a `FAILED` row is persisted, response is `503`.
+
+### API Contract
+| Method | Path | Roles | Success | Errors |
+| --- | --- | --- | --- | --- |
+| `POST` | `/trekking-routes/:routeId/weather/refresh` | Host (owner), Admin | `201 WeatherSnapshotResponseDto` | `401, 403, 404, 409, 503` |
+| `GET` | `/trekking-routes/:routeId/weather/latest` | Host (owner), Admin | `200 WeatherSnapshotResponseDto \| null` | `401, 403, 404` |
+
+`WeatherSnapshotResponseDto`: `id, routeId, status ('success'|'failed'), observedAt, rainfallMm, windKph, temperatureC, visibilityM, thunderstorm, errorMessage, createdAt`. `providerResponse` (raw) and `providerWeatherCode` are stored but intentionally not exposed in the API response -- internal fields kept for audit/debugging and future rule-tuning (`CTMS-26`/`CTMS-30`).
+
+### Data Mapping
+- New table `weather_snapshots`: `route_id` (FK -> `trekking_routes`, `ON DELETE CASCADE`), `status` (`success`/`failed`), `observed_at`, `rainfall_mm`, `wind_kph`, `temperature_c`, `visibility_m`, `thunderstorm`, `provider_weather_code`, `provider_response` (jsonb), `error_message`, `created_at`. A `CHECK` constraint enforces the success/failed shape at the database level (a `failed` row must have `error_message`; a `success` row must have `observed_at` and no `error_message`).
+- Index on `(route_id, created_at)` for "latest snapshot per route" lookups.
+
+### Test Evidence
+- Unit: `pnpm --filter @ctms/api test -- weather` -> 24 passed (`open-meteo-weather.provider.spec.ts`, `weather-snapshots.repository.spec.ts`, `weather.service.spec.ts`), covering provider response parsing (including all 3 WMO thunderstorm codes), provider error/timeout/malformed-response handling, ownership/Admin-bypass, the active-route gate with zero side effects (BR-243), retry-then-succeed, and give-up-after-3-attempts persisting exactly one `FAILED` row (BR-229/BR-230).
+- All backend unit tests: `pnpm --filter @ctms/api test` -> 315 passed.
+- API/E2E (real PostGIS + a **real** call to the live Open-Meteo API, no mocking): `pnpm --filter @ctms/api test:integration -- weather.integration-spec.ts` -> 8 passed -- real happy path (fetch, persist, `getLatest` returns the same row), 404, 403 (non-owning Host), Admin bypass, 409 with zero rows written for a non-active route, 401, 403 for a Camper, and an empty `getLatest` before any snapshot exists.
+- All backend integration tests: `pnpm --filter @ctms/api test:integration` -> 185 passed.
+- Backend lint: `pnpm --filter @ctms/api lint` -> passed. Backend build: `pnpm --filter @ctms/api build` -> passed.
+
 ## References
 - Story ID: `CTMS-25`
 - Epic: `EPIC 4. Weather Risk`
