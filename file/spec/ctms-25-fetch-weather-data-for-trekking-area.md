@@ -160,6 +160,30 @@ As the system, I want to fetch Weather Data for Trekking Area so that the CTMS w
 - All backend integration tests: `pnpm --filter @ctms/api test:integration` -> 185 passed.
 - Backend lint: `pnpm --filter @ctms/api lint` -> passed. Backend build: `pnpm --filter @ctms/api build` -> passed.
 
+## UI and Tests
+
+### Web UI Implementation
+
+- **Web only.** Mobile has no counterpart: this endpoint is Host/Admin-only, and the mobile app's own router carries an explicit comment that Host/Admin manage CTMS from the web dashboard, not the app.
+- Adds a `RouteWeatherPanel` to the existing Host route-management page (`TrekkingRoutesPage.tsx`), alongside the existing `RouteStatusActionDialog`/`RouteCheckpointsPanel` for the currently-selected Route.
+- On mount / Route change, reads `GET .../weather/latest` (no provider call); a dedicated "Làm mới thời tiết" button calls `POST .../weather/refresh`. Never auto-refreshes -- matches this codebase's own Decision Gate that no external call fires without an explicit user action.
+- Renders loading / load-error-with-retry / empty (never fetched) / a distinct "last attempt failed" state (for a `FAILED` snapshot, BR-229) / success (rain, wind, temperature, visibility, thunderstorm, observed-at) states.
+- The refresh button is disabled with an explanatory badge whenever the Route is not `active`, matching the backend's own 409 gate (BR-243) -- the UI never even attempts a call the backend would reject.
+- Refresh errors (401/403/404/409/503) are mapped to distinct Vietnamese messages and shown without clearing an already-displayed snapshot.
+
+### Two real bugs found and fixed while wiring this up (not invented, not hidden)
+
+- **`httpClient.ts` crashed on a genuinely empty response body.** `GET .../weather/latest` with no snapshot yet sends `Content-Length: 0` (a truly empty body), not the JSON string `"{}"` -- confirmed against a real request, not assumed from a testing library's own body-defaulting convenience (which is what the backend's own integration test's `response.body` had been reading). `httpClient`'s success path called `response.json()` unconditionally, throwing `SyntaxError: Unexpected end of JSON input` on that exact byte stream. Fixed by returning `undefined` for a `204` or a `Content-Length: 0` response before ever calling `.json()` -- a real, narrow, pre-existing gap in shared client infra that this story's endpoint was simply the first caller to expose (every other endpoint always returns a real JSON body on success).
+- **A stale sibling panel stayed mounted after switching Routes.** `RouteWeatherPanel` was originally given `key={selectedRoute.id}` to force a reset on Route change, mirroring `RouteCheckpointsPanel`'s own pattern. In the real dev server, switching from one Route to another left the *previous* Route's panel additionally mounted alongside the new one (reproduced live and confirmed via each panel's own `route.id`/`route.status`, not guessed). The `key` was redundant to begin with -- `useRouteWeather(routeId)` already reacts correctly to a `routeId` change through its own internal `useEffect` dependency, so removing the `key` prop is the correct fix, not a workaround: the component no longer needs a forced remount at all.
+
+### CTMS-25-T02 Test Evidence
+
+- Unit/component (Vitest + Testing Library, service layer mocked, real hooks/component code): `useRouteWeather.test.ts` (6), `useRefreshRouteWeather.test.ts` (9), `RouteWeatherPanel.test.tsx` (7) -- 22 new tests covering every load/refresh state, the active-route gate, and BR-241-style duplicate-submission prevention.
+- `httpClient.test.ts` -- 3 new tests added for the empty-body fix above (204, `Content-Length: 0`, and a normal JSON body still parses correctly).
+- Full `trekking-routes` feature + `httpClient` suite run together: `pnpm --filter @ctms/web test -- src/features/trekking-routes src/core/api/httpClient.test.ts` -> 172 passed.
+- E2E (Playwright, real backend/Postgres/Chrome and a **real** call to the live Open-Meteo API, no mocking): `apps/web/tests/e2e/ctms-25-t02-route-weather.spec.ts` -> 3 passed -- real happy path (Host clicks refresh on an active Route, sees real weather rendered, confirmed against the real `weather_snapshots` row via `db-helper.ts`'s new `get-weather-snapshots` action), a draft (non-active) Route's refresh button disabled in the UI with zero snapshot rows created even via a direct forced API call (BR-243), and a Camper's direct API call returning 403 with zero snapshot rows created.
+- `pnpm --filter @ctms/web lint` -> passed (1 pre-existing warning, unrelated). `pnpm --filter @ctms/web build` -> passed.
+
 ## References
 - Story ID: `CTMS-25`
 - Epic: `EPIC 4. Weather Risk`

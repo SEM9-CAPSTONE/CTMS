@@ -7,6 +7,7 @@ import type {
 	ReviewTrekkingRouteInput,
 	RouteCheckpoint,
 	RouteStatusReasonInput,
+	WeatherSnapshot,
 } from "../types";
 
 export const trekkingRoutesService = {
@@ -28,4 +29,16 @@ export const trekkingRoutesService = {
 		httpClient.get<RouteCheckpoint[]>(API_ENDPOINTS.TREKKING.CHECKPOINTS(routeId)),
 	createCheckpoint: (routeId: string, input: CreateCheckpointInput): Promise<RouteCheckpoint> =>
 		httpClient.post<RouteCheckpoint>(API_ENDPOINTS.TREKKING.CHECKPOINTS(routeId), input),
+	// The backend sends a genuinely empty body (Content-Length: 0), not the
+	// JSON string "{}", for a route with no weather history yet --
+	// httpClient maps that to `undefined` (verified against a real response,
+	// not assumed).
+	getLatestWeather: async (routeId: string): Promise<WeatherSnapshot | null> => {
+		const result = await httpClient.get<WeatherSnapshot | undefined>(
+			API_ENDPOINTS.TREKKING.WEATHER_LATEST(routeId)
+		);
+		return result ?? null;
+	},
+	refreshWeather: (routeId: string): Promise<WeatherSnapshot> =>
+		httpClient.post<WeatherSnapshot>(API_ENDPOINTS.TREKKING.WEATHER_REFRESH(routeId)),
 };
