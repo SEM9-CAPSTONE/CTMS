@@ -67,4 +67,15 @@ describe("useCreateRouteCheckpoint", () => {
 	it.each([401, 403, 404, 409, 422])("maps status %s to an actionable message", (status) => {
 		expect(checkpointCreateError(new HttpError("failure", status, {}))).not.toBe("");
 	});
+
+	it("maps a non-draft conflict to the lifecycle-specific message", () => {
+		expect(checkpointCreateError(new HttpError("conflict", 409, {}))).toContain("trạng thái nháp");
+	});
+
+	it("preserves structured backend field validation detail", () => {
+		const error = new HttpError("invalid", 422, {
+			message: [{ field: "location", errors: ["location must be selected"] }],
+		});
+		expect(checkpointCreateError(error)).toBe("location must be selected");
+	});
 });

@@ -74,7 +74,7 @@ async function fillCheckpoint(
 	await page.getByLabel("Hướng dẫn").fill(input.instructions);
 }
 
-test.describe("CTMS-53 Create Checkpoints on Route", () => {
+test.describe("CTMS-84 Create Checkpoints on Route UI", () => {
 	test.describe.configure({ mode: "serial" });
 	test.setTimeout(90_000);
 	const ownerEmail = email("checkpoint-owner");
@@ -207,8 +207,21 @@ test.describe("CTMS-53 Create Checkpoints on Route", () => {
 		await login(page, ownerEmail);
 		await page.goto(`/host/trekking-routes?campsiteId=${campsiteId}`);
 		await page.getByRole("button", { name: new RegExp(draftRouteName) }).click();
+		const countBefore = db<{ checkpoints: unknown[] }>("get-route-checkpoints", {
+			routeId: draftRouteId,
+		}).checkpoints.length;
+		await fillCheckpoint(page, {
+			name: "E2E Missing Location",
+			type: "rest",
+			offset: "20",
+			instructions: "A map point is required",
+		});
 		await page.getByRole("button", { name: "Tạo checkpoint" }).click();
-		await expect(page.getByText("Tên checkpoint là bắt buộc")).toBeVisible();
+		await expect(page.getByText("Vui lòng chọn vị trí trên bản đồ")).toBeVisible();
+		expect(
+			db<{ checkpoints: unknown[] }>("get-route-checkpoints", { routeId: draftRouteId }).checkpoints
+				.length
+		).toBe(countBefore);
 
 		await page.getByRole("button", { name: new RegExp(activeRouteName) }).click();
 		await expect(page.getByText(/Chỉ xem/)).toBeVisible();
@@ -237,6 +250,9 @@ test.describe("CTMS-53 Create Checkpoints on Route", () => {
 	});
 
 	test("foreign Host and non-Host API attempts are forbidden", async ({ page }) => {
+		const namesBefore = db<{ checkpoints: Array<{ name: string }> }>("get-route-checkpoints", {
+			routeId: draftRouteId,
+		}).checkpoints.map((item) => item.name);
 		for (const accountEmail of [otherHostEmail, camperEmail]) {
 			await login(page, accountEmail);
 			const token = await page.evaluate(() => localStorage.getItem("accessToken"));
@@ -257,5 +273,10 @@ test.describe("CTMS-53 Create Checkpoints on Route", () => {
 			);
 			expect(response.status()).toBe(403);
 		}
+		const namesAfter = db<{ checkpoints: Array<{ name: string }> }>("get-route-checkpoints", {
+			routeId: draftRouteId,
+		}).checkpoints.map((item) => item.name);
+		expect(namesAfter).toEqual(namesBefore);
+		expect(namesAfter).not.toContain("E2E Forbidden");
 	});
 });
