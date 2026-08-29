@@ -8,6 +8,7 @@ import { ProfilesModule } from "./profiles/profiles.module";
 import { EventsGateway } from "./realtime/events.gateway";
 import { TrekkingRoutesModule } from "./trekking-routes/trekking-routes.module";
 import { UsersModule } from "./users/users.module";
+import { WeatherModule } from "./weather/weather.module";
 
 @Module({
 	imports: [
@@ -21,6 +22,7 @@ import { UsersModule } from "./users/users.module";
 		UsersModule,
 		CampsitesModule,
 		TrekkingRoutesModule,
+		WeatherModule,
 	],
 	controllers: [HealthController],
 	providers: [EventsGateway],
