@@ -27,6 +27,27 @@ describe("createCheckpointFormSchema", () => {
 		});
 	});
 
+	it.each(["10", "500"])("accepts radius boundary %s", (radiusMeters) => {
+		expect(createCheckpointFormSchema.safeParse({ ...valid, radiusMeters }).success).toBe(true);
+	});
+
+	it("accepts exact text maxima and rejects values above them", () => {
+		expect(
+			createCheckpointFormSchema.safeParse({
+				...valid,
+				name: "n".repeat(150),
+				instructions: "i".repeat(1000),
+			}).success
+		).toBe(true);
+		const tooLongName = createCheckpointFormSchema.safeParse({ ...valid, name: "n".repeat(151) });
+		const tooLongInstructions = createCheckpointFormSchema.safeParse({
+			...valid,
+			instructions: "i".repeat(1001),
+		});
+		expect(tooLongName.success).toBe(false);
+		expect(tooLongInstructions.success).toBe(false);
+	});
+
 	it.each([
 		{ ...valid, name: " " },
 		{ ...valid, radiusMeters: "9" },

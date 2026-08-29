@@ -51,8 +51,22 @@ describe("trekkingRoutesService", () => {
 		await trekkingRoutesService.createCheckpoint("route-id", payload);
 		expect(get).toHaveBeenCalledWith("/trekking-routes/route-id/checkpoints");
 		expect(post).toHaveBeenCalledWith("/trekking-routes/route-id/checkpoints", payload);
-		expect(payload).not.toHaveProperty("routeId");
-		expect(payload).not.toHaveProperty("routePosition");
+		for (const field of [
+			"id",
+			"routeId",
+			"hostId",
+			"campsiteId",
+			"routePosition",
+			"sequence",
+			"order",
+			"index",
+			"createdAt",
+			"updatedAt",
+			"audit",
+			"auditData",
+		]) {
+			expect(payload).not.toHaveProperty(field);
+		}
 	});
 
 	it("patches close and reopen using only the reason contract", async () => {
