@@ -4,7 +4,7 @@
 `/file/spec/ctms-21-close-or-open-route-when-conditions-change.md`
 
 **Jira Mapping**
-Jira `CTMS-54` implements backlog/spec story `CTMS-21`. Backlog `CTMS-54` equipment handover is unrelated and is not part of this implementation.
+Jira parent `CTMS-54` and backend preparation subtask `CTMS-85` implement backlog/spec story `CTMS-21`. Backlog `CTMS-54` equipment handover is unrelated and is not part of this implementation.
 
 **Status**
 Route lifecycle slice implemented. Trip enforcement, affected-Trip handling, and participant notifications remain dependency-blocked as documented below.
@@ -159,6 +159,39 @@ OTP delivery and emergency WebSocket behavior are not substitutes. CTMS-21 there
 - API failures preserve the entered reason and keep the dialog usable while mapping `403/404/409/422` errors.
 - Success does not manually patch local Route status. The page reloads the authoritative campsite Route list and renders the server-returned state (`closed` or `pending_approval`).
 - The current Web has no canonical Admin Route discovery/review entry point. Admin API behavior is implemented and tested; Admin Web integration remains dependent on CTMS-22/Admin Route UI.
+
+## Backend Preparation, Logic, and Tests
+
+CTMS-85 preserves the existing production lifecycle implementation because it already satisfies the currently implementable backend contract:
+
+- owning Host and globally authorized Admin lifecycle access;
+- `active -> closed` and `closed -> pending_approval` transitions;
+- required trimmed non-blank `reason` with a 255-character maximum;
+- authoritative Route lookup, pessimistic row locking, validation under the lock, status update, and audit insertion in one transaction;
+- rollback when required audit persistence fails; and
+- active-only downstream eligibility through `isRouteEligibleForNewTrip`.
+
+Successful duplicate lifecycle mutations are intentionally not idempotent. A repeated close or reopen observes a conflicting source state and returns `409`; database locking ensures only one concurrent request can perform the valid transition. Notification retry semantics are deferred to the future operational notification contract.
+
+Current test evidence is maintained in:
+
+- `src/modules/trekking-routes/dto/route-status-reason.dto.spec.ts` for required, trimmed, non-blank, maximum-length, and server-managed-field validation;
+- `src/modules/trekking-routes/services/trekking-routes.service.spec.ts` for Host/Admin behavior, foreign Host and unsupported-role denial, lifecycle targets, exact audits, integrity rejection, missing Routes, invalid source states, and audit-failure propagation;
+- `src/modules/trekking-routes/repositories/trekking-routes.repository.spec.ts` for the authoritative locked Route query and integrity mapping;
+- `src/modules/trekking-routes/entities/trekking-route.entity.spec.ts` for eligibility of every canonical Route status; and
+- `test/trekking-route-lifecycle.integration-spec.ts` for real PostgreSQL API persistence, authentication, authorization, validation, audit, rollback, and concurrent-transition behavior.
+
+The closed-Route downstream contract is prepared but cannot yet be wired to nonexistent production entry points:
+
+| Future entry point | Required authoritative rule | Current status |
+| --- | --- | --- |
+| Trip association/submission | Route must be `active` | Dependency-blocked by the missing canonical Route-linked Trip workflow |
+| Trip publication | Route must be `active` | Dependency-blocked by the missing Trip publication workflow |
+| Booking/registration creation | The associated Trip's Route must be `active`; no direct Route registration is introduced | Dependency-blocked by the missing operational Trip/Booking workflow |
+| Route close operational handling | Identify only `published` and `ongoing` Trips; do not mutate Trip or participant state | Dependency-blocked by the missing canonical Route-linked Trip lifecycle |
+| Close notifications | Notify relevant Camper bookings and Porter assignments; reopen sends none | Dependency-blocked by missing participant filtering and operational notification infrastructure |
+
+Future notification integration must not infer booking or assignment status filters, deduplication keys, delivery channels, retry policy, or failure semantics. Those details require their downstream canonical contract; CTMS-85 does not fabricate delivery or tests that claim notification success.
 
 ## Acceptance Criteria
 

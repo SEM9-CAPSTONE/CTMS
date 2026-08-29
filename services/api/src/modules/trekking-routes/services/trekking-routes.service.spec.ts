@@ -524,12 +524,15 @@ describe("TrekkingRoutesService", () => {
 			expect(auditRepository.save).not.toHaveBeenCalled();
 		});
 
-		it("rejects a foreign Host and other roles with no side effects", async () => {
+		it("rejects a foreign Host, Camper, and Porter with no side effects", async () => {
 			await expect(
 				service.close(actor(OTHER_HOST_ID, [UserRole.HOST]), ROUTE_ID, { reason: "Reason" })
 			).rejects.toMatchObject({ status: 403 });
 			await expect(
 				service.close(actor(OTHER_HOST_ID, [UserRole.CAMPER]), ROUTE_ID, { reason: "Reason" })
+			).rejects.toMatchObject({ status: 403 });
+			await expect(
+				service.close(actor(OTHER_HOST_ID, [UserRole.PORTER]), ROUTE_ID, { reason: "Reason" })
 			).rejects.toMatchObject({ status: 403 });
 			expect(routeRepository.updateStatus).not.toHaveBeenCalled();
 			expect(auditRepository.save).not.toHaveBeenCalled();
@@ -573,6 +576,27 @@ describe("TrekkingRoutesService", () => {
 				before: { status: TrekkingRouteStatus.CLOSED },
 				after: { status: TrekkingRouteStatus.PENDING_APPROVAL },
 				reason: "Conditions are safe again",
+			});
+			expect(result.status).toBe(TrekkingRouteStatus.PENDING_APPROVAL);
+		});
+
+		it("allows an explicitly authorized Admin to reopen a foreign route", async () => {
+			const result = await service.reopen(actor(ADMIN_ID, [UserRole.ADMIN]), ROUTE_ID, {
+				reason: "Administrative review is required",
+			});
+
+			expect(routeRepository.updateStatus).toHaveBeenCalledWith(
+				ROUTE_ID,
+				TrekkingRouteStatus.PENDING_APPROVAL
+			);
+			expect(auditRepository.save).toHaveBeenCalledWith({
+				actorId: ADMIN_ID,
+				action: "trekking_route.reopened",
+				targetType: "trekking_route",
+				targetId: ROUTE_ID,
+				before: { status: TrekkingRouteStatus.CLOSED },
+				after: { status: TrekkingRouteStatus.PENDING_APPROVAL },
+				reason: "Administrative review is required",
 			});
 			expect(result.status).toBe(TrekkingRouteStatus.PENDING_APPROVAL);
 		});
