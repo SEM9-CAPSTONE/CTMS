@@ -13,6 +13,7 @@ export interface RoleLandingPageProps {
 	onCreateTrekkingRoute?: (campsiteId?: string) => void;
 	onViewTrekkingRoutes?: (campsiteId: string) => void;
 	onEditCampsite?: (id: string) => void;
+	onExplore?: () => void;
 	onLogout?: (allDevices: boolean) => Promise<void>;
 }
 

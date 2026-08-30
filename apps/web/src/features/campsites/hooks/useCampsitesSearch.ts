@@ -11,20 +11,25 @@ const EMPTY_PAGINATION: CampsiteSearchPagination = {
 	totalPages: 0,
 };
 
-function parseAmenities(rawInput: string): string[] | undefined {
-	const amenities = rawInput
-		.split(",")
-		.map((entry) => entry.trim())
-		.filter((entry) => entry !== "");
-	return amenities.length > 0 ? amenities : undefined;
-}
-
 function parsePrice(rawInput: string): number | undefined {
 	if (rawInput.trim() === "") {
 		return undefined;
 	}
 	const parsed = Number(rawInput);
 	return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function getUrlParams(): CampsiteSearchParams {
+	const searchParams = new URLSearchParams(window.location.search);
+	const name = searchParams.get("name") || undefined;
+	const maxPriceStr = searchParams.get("maxPrice");
+	const maxPrice = maxPriceStr ? Number(maxPriceStr) : undefined;
+	const pageStr = searchParams.get("page");
+	const page = pageStr ? Number(pageStr) : DEFAULT_CAMPSITES_PAGE;
+	const limitStr = searchParams.get("limit");
+	const limit = limitStr ? Number(limitStr) : DEFAULT_CAMPSITES_LIMIT;
+
+	return { name, maxPrice, page, limit };
 }
 
 /**
@@ -34,15 +39,14 @@ function parsePrice(rawInput: string): number | undefined {
  * is nothing for it to control.
  */
 export function useCampsitesSearch() {
-	const [params, setParams] = useState<CampsiteSearchParams>({
-		page: DEFAULT_CAMPSITES_PAGE,
-		limit: DEFAULT_CAMPSITES_LIMIT,
-	});
+	const initialParams = getUrlParams();
+	const [params, setParams] = useState<CampsiteSearchParams>(initialParams);
 
-	const [provinceInput, setProvinceInput] = useState("");
-	const [amenitiesInput, setAmenitiesInput] = useState("");
-	const [minPriceInput, setMinPriceInput] = useState("");
-	const [maxPriceInput, setMaxPriceInput] = useState("");
+	const [nameInput, setNameInput] = useState(initialParams.name || "");
+	const [maxPriceInput, setMaxPriceInput] = useState(
+		initialParams.maxPrice !== undefined ? String(initialParams.maxPrice) : ""
+	);
+	const [ratingInput, setRatingInput] = useState("");
 
 	const [items, setItems] = useState<CampsiteSearchItem[]>([]);
 	const [pagination, setPagination] = useState<CampsiteSearchPagination>(EMPTY_PAGINATION);
@@ -75,12 +79,38 @@ export function useCampsitesSearch() {
 		}
 	}, []);
 
+	// Sync URL search parameters on params change
+	useEffect(() => {
+		const searchParams = new URLSearchParams();
+		if (params.name) searchParams.set("name", params.name);
+		if (params.maxPrice !== undefined) searchParams.set("maxPrice", String(params.maxPrice));
+		if (params.page !== DEFAULT_CAMPSITES_PAGE) searchParams.set("page", String(params.page));
+		if (params.limit !== DEFAULT_CAMPSITES_LIMIT) searchParams.set("limit", String(params.limit));
+
+		const newSearch = searchParams.toString();
+		const currentSearch = window.location.search.replace(/^\?/, "");
+		if (newSearch !== currentSearch && window.location.pathname === "/campsites") {
+			window.history.pushState({}, "", `/campsites?${newSearch}`);
+		}
+	}, [params]);
+
+	// Listen to browser history popstate (back/forward actions)
+	useEffect(() => {
+		const handlePopState = () => {
+			const urlParams = getUrlParams();
+			setParams(urlParams);
+			setNameInput(urlParams.name || "");
+			setMaxPriceInput(urlParams.maxPrice !== undefined ? String(urlParams.maxPrice) : "");
+		};
+
+		window.addEventListener("popstate", handlePopState);
+		return () => {
+			window.removeEventListener("popstate", handlePopState);
+		};
+	}, []);
+
 	useEffect(() => {
 		void runSearch(params);
-		// `runSearch` is a useCallback with an empty dep array, so its
-		// reference is stable for the component's lifetime -- including it
-		// here satisfies the linter with zero behavior change (it can never
-		// itself trigger an extra re-run).
 	}, [params, runSearch]);
 
 	const submitFilters = useCallback(() => {
@@ -88,23 +118,20 @@ export function useCampsitesSearch() {
 			return;
 		}
 		setParams({
-			province: provinceInput.trim() || undefined,
-			amenities: parseAmenities(amenitiesInput),
-			minPrice: parsePrice(minPriceInput),
+			name: nameInput.trim() || undefined,
 			maxPrice: parsePrice(maxPriceInput),
 			page: DEFAULT_CAMPSITES_PAGE,
 			limit: DEFAULT_CAMPSITES_LIMIT,
 		});
-	}, [provinceInput, amenitiesInput, minPriceInput, maxPriceInput]);
+	}, [nameInput, maxPriceInput]);
 
 	const resetFilters = useCallback(() => {
 		if (requestInFlight.current) {
 			return;
 		}
-		setProvinceInput("");
-		setAmenitiesInput("");
-		setMinPriceInput("");
+		setNameInput("");
 		setMaxPriceInput("");
+		setRatingInput("");
 		setParams({ page: DEFAULT_CAMPSITES_PAGE, limit: DEFAULT_CAMPSITES_LIMIT });
 	}, []);
 
@@ -116,14 +143,12 @@ export function useCampsitesSearch() {
 	}, []);
 
 	return {
-		provinceInput,
-		amenitiesInput,
-		minPriceInput,
+		nameInput,
 		maxPriceInput,
-		setProvinceInput,
-		setAmenitiesInput,
-		setMinPriceInput,
+		ratingInput,
+		setNameInput,
 		setMaxPriceInput,
+		setRatingInput,
 		items,
 		pagination,
 		isLoading,

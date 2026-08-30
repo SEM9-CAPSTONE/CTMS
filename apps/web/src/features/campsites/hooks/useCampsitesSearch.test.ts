@@ -35,9 +35,7 @@ describe("useCampsitesSearch", () => {
 		await waitFor(() => expect(result.current.isLoading).toBe(false));
 
 		act(() => {
-			result.current.setProvinceInput("  Lam Dong  ");
-			result.current.setAmenitiesInput("wifi, bbq ,, ");
-			result.current.setMinPriceInput("100");
+			result.current.setNameInput("  Son Tra  ");
 			result.current.setMaxPriceInput("not-a-number");
 		});
 		act(() => {
@@ -47,9 +45,7 @@ describe("useCampsitesSearch", () => {
 		await waitFor(() => expect(mockedSearch).toHaveBeenCalledTimes(2));
 		const calledWith = mockedSearch.mock.calls[1][0];
 		expect(calledWith).toEqual({
-			province: "Lam Dong",
-			amenities: ["wifi", "bbq"],
-			minPrice: 100,
+			name: "Son Tra",
 			maxPrice: undefined,
 			page: 1,
 			limit: 20,
@@ -61,7 +57,7 @@ describe("useCampsitesSearch", () => {
 		await waitFor(() => expect(result.current.isLoading).toBe(false));
 
 		act(() => {
-			result.current.setProvinceInput("Lam Dong");
+			result.current.setNameInput("Son Tra");
 		});
 		act(() => {
 			result.current.submitFilters();
@@ -73,7 +69,7 @@ describe("useCampsitesSearch", () => {
 		});
 		await waitFor(() => expect(mockedSearch).toHaveBeenCalledTimes(3));
 
-		expect(result.current.provinceInput).toBe("");
+		expect(result.current.nameInput).toBe("");
 		expect(mockedSearch).toHaveBeenNthCalledWith(3, { page: 1, limit: 20 });
 	});
 
@@ -82,7 +78,7 @@ describe("useCampsitesSearch", () => {
 		await waitFor(() => expect(result.current.isLoading).toBe(false));
 
 		act(() => {
-			result.current.setProvinceInput("Lam Dong");
+			result.current.setNameInput("Son Tra");
 		});
 		act(() => {
 			result.current.submitFilters();
@@ -93,7 +89,7 @@ describe("useCampsitesSearch", () => {
 			result.current.setPage(2);
 		});
 		await waitFor(() => expect(mockedSearch).toHaveBeenCalledTimes(3));
-		expect(mockedSearch).toHaveBeenNthCalledWith(3, { province: "Lam Dong", page: 2, limit: 20 });
+		expect(mockedSearch).toHaveBeenNthCalledWith(3, { name: "Son Tra", page: 2, limit: 20 });
 	});
 
 	it("BR-241: a second submitFilters()/setPage() call while a request is in flight is a no-op", async () => {

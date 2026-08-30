@@ -23,9 +23,7 @@ describe("campsitesService.search", () => {
 
 	it("serializes the full filter set correctly and never sends status", async () => {
 		await campsitesService.search({
-			province: "Lam Dong",
-			amenities: ["wifi", "bbq"],
-			minPrice: 100,
+			name: "Son Tra",
 			maxPrice: 500,
 			page: 2,
 			limit: 10,
@@ -33,10 +31,7 @@ describe("campsitesService.search", () => {
 
 		const url = new URL(capturedUrl);
 		expect(url.pathname.endsWith("/campsites")).toBe(true);
-		expect(url.searchParams.get("province")).toBe("Lam Dong");
-		expect(url.searchParams.get("city")).toBeNull();
-		expect(url.searchParams.get("amenities")).toBe("wifi,bbq");
-		expect(url.searchParams.get("minPrice")).toBe("100");
+		expect(url.searchParams.get("name")).toBe("Son Tra");
 		expect(url.searchParams.get("maxPrice")).toBe("500");
 		expect(url.searchParams.get("page")).toBe("2");
 		expect(url.searchParams.get("limit")).toBe("10");
@@ -47,20 +42,17 @@ describe("campsitesService.search", () => {
 		await campsitesService.search({ page: 1, limit: 20 });
 
 		const url = new URL(capturedUrl);
-		expect(url.searchParams.get("province")).toBeNull();
-		expect(url.searchParams.get("city")).toBeNull();
-		expect(url.searchParams.get("amenities")).toBeNull();
-		expect(url.searchParams.get("minPrice")).toBeNull();
+		expect(url.searchParams.get("name")).toBeNull();
 		expect(url.searchParams.get("maxPrice")).toBeNull();
 		expect(url.searchParams.get("page")).toBe("1");
 		expect(url.searchParams.get("limit")).toBe("20");
 	});
 
-	it("sends a single amenity without a trailing comma", async () => {
-		await campsitesService.search({ amenities: ["wifi"], page: 1, limit: 20 });
+	it("sends name filter when provided", async () => {
+		await campsitesService.search({ name: "Đà Lạt", page: 1, limit: 20 });
 
 		const url = new URL(capturedUrl);
-		expect(url.searchParams.get("amenities")).toBe("wifi");
+		expect(url.searchParams.get("name")).toBe("Đà Lạt");
 	});
 
 	it("passes the response body straight through with no client-side transformation", async () => {

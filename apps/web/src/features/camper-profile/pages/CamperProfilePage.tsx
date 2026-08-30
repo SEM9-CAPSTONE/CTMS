@@ -1,5 +1,6 @@
 import { AlertCircle, CheckCircle2 } from "lucide-react";
 import { useState } from "react";
+import { Collapse } from "../../../shared/components/Collapse";
 import { HealthProfileContainer } from "../../health-profile/routes";
 import { AvatarProfileCard } from "../components/AvatarProfileCard";
 import { CamperHeader } from "../components/CamperHeader";
@@ -26,6 +27,7 @@ export function CamperProfilePage({
 }: CamperProfilePageProps) {
 	const [activeTab, setActiveTab] = useState<SettingsTabEnum>(SettingsTabEnum.PERSONAL_PROFILE);
 	const [activeNav, setActiveNav] = useState<string>("profile");
+	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
 	const {
 		profile,
@@ -56,18 +58,25 @@ export function CamperProfilePage({
 	return (
 		<div className="flex min-h-screen w-full bg-[#f4f7f2] font-sans antialiased text-[#10221b]">
 			{/* Left Navigation Sidebar */}
-			<CamperSidebar
-				profile={profile}
-				activeNav={activeNav}
-				onLogout={onLogout}
-				onNavigate={(navKey) => {
-					if (navKey === "overview") {
-						onNavigateDashboard?.();
-						return;
-					}
-					setActiveNav(navKey);
-				}}
-			/>
+			<Collapse
+				isCollapsed={isSidebarCollapsed}
+				onToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+				widthClass="w-64"
+			>
+				<CamperSidebar
+					profile={profile}
+					activeNav={activeNav}
+					onLogout={onLogout}
+					onNavigate={(navKey) => {
+						if (navKey === "overview") {
+							onNavigateDashboard?.();
+							return;
+						}
+						setActiveNav(navKey);
+					}}
+					className="h-full w-full"
+				/>
+			</Collapse>
 
 			{/* Main Content Area */}
 			<div className="flex flex-1 flex-col min-w-0">

@@ -10,6 +10,7 @@ import { ManageCampsiteImagesDialog } from "../../campsites/components/ManageCam
 import { campsitesService } from "../../campsites/services/campsites.service";
 import type { CreatedCampsite } from "../../campsites/types";
 
+import { Collapse } from "../../../shared/components/Collapse";
 import { CamperSidebar } from "../../camper-profile/components/CamperSidebar";
 import { MetricCard } from "../components/MetricCard";
 import { QuickTasksPanel } from "../components/QuickTasksPanel";
@@ -318,6 +319,7 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 	onViewTrekkingRoutes,
 	onEditCampsite,
 	onLogout,
+	onExplore,
 }) => {
 	const { profile } = useDashboardProfile();
 	const grantedRoles = useMemo(() => {
@@ -332,6 +334,7 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 	const normalizedRoles = Array.from(new Set(grantedRoles));
 	const [selectedRole, setSelectedRole] = useState<RoleKey>(() => normalizedRoles[0] ?? "camper");
 	const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 	const [manageImagesCampsite, setManageImagesCampsite] = useState<CreatedCampsite | null>(null);
 	const activeRole = normalizedRoles.includes(selectedRole)
 		? selectedRole
@@ -345,30 +348,39 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 	const handleCamperNav = (navKey: string) => {
 		if (navKey === "profile") {
 			onOpenProfile?.();
+		} else if (navKey === "explore") {
+			onExplore?.();
 		}
 	};
 
 	return (
 		<div className="min-h-screen bg-[#f4f7f2] font-sans text-[#10221b] antialiased">
 			<div className="fixed inset-y-0 left-0 z-30 hidden lg:flex">
-				{activeRole === "camper" ? (
-					<CamperSidebar
-						profile={profile}
-						activeNav="overview"
-						onNavigate={handleCamperNav}
-						onLogout={onLogout}
-					/>
-				) : (
-					<Sidebar
-						config={config}
-						grantedRoles={normalizedRoles}
-						activeRole={activeRole}
-						onRoleChange={setSelectedRole}
-						profile={profile}
-						onOpenProfile={onOpenProfile}
-						onLogout={onLogout}
-					/>
-				)}
+				<Collapse
+					isCollapsed={isSidebarCollapsed}
+					onToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+					widthClass={activeRole === "camper" ? "w-64" : "w-72"}
+				>
+					{activeRole === "camper" ? (
+						<CamperSidebar
+							profile={profile}
+							activeNav="overview"
+							onNavigate={handleCamperNav}
+							onLogout={onLogout}
+							className="h-full w-full"
+						/>
+					) : (
+						<Sidebar
+							config={config}
+							grantedRoles={normalizedRoles}
+							activeRole={activeRole}
+							onRoleChange={setSelectedRole}
+							profile={profile}
+							onOpenProfile={onOpenProfile}
+							onLogout={onLogout}
+						/>
+					)}
+				</Collapse>
 			</div>
 
 			{mobileMenuOpen && (
@@ -409,7 +421,11 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 				</div>
 			)}
 
-			<div className={`min-h-screen ${activeRole === "camper" ? "lg:pl-64" : "lg:pl-72"}`}>
+			<div
+				className={`min-h-screen transition-all duration-300 ${
+					isSidebarCollapsed ? "lg:pl-0" : activeRole === "camper" ? "lg:pl-64" : "lg:pl-72"
+				}`}
+			>
 				<header className="sticky top-0 z-20 flex items-center gap-3 border-b border-[#dfe8df] bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
 					<button
 						type="button"
