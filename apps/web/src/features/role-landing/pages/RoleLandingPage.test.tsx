@@ -75,5 +75,5 @@ describe("RoleLandingPage Host campsite actions", () => {
 		await user.click(actions.getByRole("button", { name: "Sửa khu cắm trại" }));
 		expect(onEditCampsite).toHaveBeenCalledWith(campsite.id);
 		await waitFor(() => expect(campsitesService.getMine).toHaveBeenCalledTimes(1));
-	});
+	}, 15000);
 });

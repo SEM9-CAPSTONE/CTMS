@@ -122,3 +122,22 @@ export interface ReviewCampsiteInput {
 	action: ReviewCampsiteActionType;
 	reason?: string;
 }
+
+export interface CampsiteDetail {
+	id: string;
+	name: string;
+	description: string | null;
+	latitude: number;
+	longitude: number;
+	province: string;
+	policies: Record<string, unknown> | null;
+	operatingHours: Record<string, unknown> | null;
+	seasonStartDate: string | null;
+	seasonEndDate: string | null;
+	maxAdvanceBookingDays: number | null;
+	minNights: number | null;
+	maxNights: number | null;
+	status: CampsiteStatusType;
+	media: CampsiteImageResponse[];
+	upcomingTrips: unknown[];
+}

@@ -41,6 +41,7 @@ export interface CreatePendingApprovalCampsiteInput {
 
 export interface CampsiteSearchFilters {
 	province?: string;
+	name?: string;
 	amenities?: string[];
 	minPrice?: number;
 	maxPrice?: number;
@@ -172,6 +173,10 @@ export class CampsitesRepository extends Repository<Campsite> {
 
 		if (filters.province) {
 			qb.andWhere("campsite.province ILIKE :province", { province: filters.province });
+		}
+
+		if (filters.name) {
+			qb.andWhere("campsite.name ILIKE :name", { name: `%${filters.name}%` });
 		}
 
 		const hasAmenities = Boolean(filters.amenities?.length);

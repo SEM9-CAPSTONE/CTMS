@@ -28,6 +28,13 @@ function toStringArray(value: unknown): unknown {
 }
 
 export class SearchCampsitesQueryDto {
+	@ApiPropertyOptional({ description: "Filter by name", maxLength: 100 })
+	@IsOptional()
+	@Transform(({ value }) => optionalTrimmedString(value))
+	@IsString()
+	@MaxLength(100)
+	name?: string;
+
 	@ApiPropertyOptional({ description: "Filter by province", maxLength: 100 })
 	@IsOptional()
 	@Transform(({ value }) => optionalTrimmedString(value))

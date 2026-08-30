@@ -10,6 +10,20 @@ vi.mock("../services/campsites.service", () => ({
 	campsitesService: { search: vi.fn() },
 }));
 
+vi.mock("../../camper-profile/services/camper-profile.service", () => ({
+	camperProfileService: {
+		getProfile: vi.fn(() =>
+			Promise.resolve({
+				id: "camper-id",
+				fullName: "Test Camper",
+				avatarUrl: null,
+				email: "camper@test.com",
+				phone: "0123456789",
+			})
+		),
+	},
+}));
+
 const mockedSearch = vi.mocked(campsitesService.search);
 
 const oneItemPage: PaginatedCampsiteSearchResponse = {

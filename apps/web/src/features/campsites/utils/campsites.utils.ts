@@ -32,3 +32,19 @@ export function mapCampsitesError(error: unknown): string {
 	}
 	return error.message || "Không thể xử lý yêu cầu. Vui lòng thử lại.";
 }
+
+export function mapCampsiteDetailError(error: unknown): string {
+	if (!(error instanceof HttpError)) {
+		return "Không thể kết nối đến hệ thống. Vui lòng thử lại.";
+	}
+	if (error.status === 401) {
+		return "Phiên đăng nhập đã hết hạn hoặc tài khoản không còn hoạt động. Vui lòng đăng nhập lại.";
+	}
+	if (error.status === 403) {
+		return "Bạn không có quyền xem chi tiết khu cắm trại.";
+	}
+	if (error.status === 404) {
+		return "Không tìm thấy khu cắm trại hoặc khu cắm trại không hoạt động.";
+	}
+	return error.message || "Không thể tải thông tin chi tiết khu cắm trại. Vui lòng thử lại.";
+}
