@@ -7,6 +7,7 @@ import type {
 	ReviewTrekkingRouteInput,
 	RouteCheckpoint,
 	RouteStatusReasonInput,
+	WeatherRiskAssessment,
 	WeatherSnapshot,
 } from "../types";
 
@@ -41,4 +42,12 @@ export const trekkingRoutesService = {
 	},
 	refreshWeather: (routeId: string): Promise<WeatherSnapshot> =>
 		httpClient.post<WeatherSnapshot>(API_ENDPOINTS.TREKKING.WEATHER_REFRESH(routeId)),
+	getLatestWeatherRisk: async (routeId: string): Promise<WeatherRiskAssessment | null> => {
+		const result = await httpClient.get<WeatherRiskAssessment | undefined>(
+			API_ENDPOINTS.TREKKING.WEATHER_RISK_LATEST(routeId)
+		);
+		return result ?? null;
+	},
+	calculateWeatherRisk: (routeId: string): Promise<WeatherRiskAssessment> =>
+		httpClient.post<WeatherRiskAssessment>(API_ENDPOINTS.TREKKING.WEATHER_RISK_CALCULATE(routeId)),
 };

@@ -12,6 +12,7 @@ import { RouteCheckpointsPanel } from "../components/RouteCheckpointsPanel";
 import { RouteGeometryPreview } from "../components/RouteGeometryPreview";
 import { RouteStatusActionDialog } from "../components/RouteStatusActionDialog";
 import { RouteWeatherPanel } from "../components/RouteWeatherPanel";
+import { RouteWeatherRiskPanel } from "../components/RouteWeatherRiskPanel";
 import { TrekkingRouteList } from "../components/TrekkingRouteList";
 import { useOwnedCampsites } from "../hooks/useOwnedCampsites";
 import { useTrekkingRoutes } from "../hooks/useTrekkingRoutes";
@@ -213,6 +214,7 @@ export function TrekkingRoutesPage({ onBackHome }: TrekkingRoutesPageProps) {
 										<RouteStatusActionDialog route={selectedRoute} onReload={routes.retry} />
 									)}
 									{selectedRoute && <RouteWeatherPanel route={selectedRoute} />}
+									{selectedRoute && <RouteWeatherRiskPanel route={selectedRoute} />}
 									{selectedRoute && (
 										<RouteCheckpointsPanel
 											key={selectedRoute.id}
