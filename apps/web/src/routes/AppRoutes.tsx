@@ -16,6 +16,7 @@ import { CampsiteDetailPage } from "../features/campsites/pages/CampsiteDetailPa
 import { CampsiteFormPage } from "../features/campsites/pages/CampsiteFormPage";
 import { SearchCampsitesPage } from "../features/campsites/pages/SearchCampsitesPage";
 import { LandingPage } from "../features/landing/pages/LandingPage";
+import { HostLayout } from "../features/role-landing/components/HostLayout";
 import { RoleLandingPage } from "../features/role-landing/pages/RoleLandingPage";
 import { AdminTrekkingRoutesPage } from "../features/trekking-routes/pages/AdminTrekkingRoutesPage";
 import { CreateTrekkingRoutePage } from "../features/trekking-routes/pages/CreateTrekkingRoutePage";
@@ -96,11 +97,13 @@ export function AppRoutes() {
 				currentRoles={currentRoles}
 				onNavigateHome={() => navigateTo(RoutePath.HOME)}
 			>
-				<CampsiteFormPage
-					mode="edit"
-					campsiteId={editCampsiteMatch[1]}
-					onBackHome={() => navigateTo(RoutePath.DASHBOARD)}
-				/>
+				<HostLayout onLogout={handleLogout}>
+					<CampsiteFormPage
+						mode="edit"
+						campsiteId={editCampsiteMatch[1]}
+						onBackHome={() => navigateTo(RoutePath.DASHBOARD)}
+					/>
+				</HostLayout>
 			</AppRoleGuard>
 		);
 	}
@@ -207,7 +210,9 @@ export function AppRoutes() {
 					currentRoles={currentRoles}
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
-					<CampsiteFormPage mode="create" onBackHome={() => navigateTo(RoutePath.DASHBOARD)} />
+					<HostLayout onLogout={handleLogout}>
+						<CampsiteFormPage mode="create" onBackHome={() => navigateTo(RoutePath.DASHBOARD)} />
+					</HostLayout>
 				</AppRoleGuard>
 			);
 
@@ -218,7 +223,9 @@ export function AppRoutes() {
 					currentRoles={currentRoles}
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
-					<CreateTrekkingRoutePage onBackHome={() => navigateTo(RoutePath.DASHBOARD)} />
+					<HostLayout onLogout={handleLogout}>
+						<CreateTrekkingRoutePage onBackHome={() => navigateTo(RoutePath.DASHBOARD)} />
+					</HostLayout>
 				</AppRoleGuard>
 			);
 
@@ -229,7 +236,9 @@ export function AppRoutes() {
 					currentRoles={currentRoles}
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
-					<TrekkingRoutesPage onBackHome={() => navigateTo(RoutePath.DASHBOARD)} />
+					<HostLayout onLogout={handleLogout}>
+						<TrekkingRoutesPage onBackHome={() => navigateTo(RoutePath.DASHBOARD)} />
+					</HostLayout>
 				</AppRoleGuard>
 			);
 

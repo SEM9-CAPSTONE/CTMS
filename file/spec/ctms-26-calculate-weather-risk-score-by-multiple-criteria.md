@@ -164,8 +164,30 @@ Blocks: CTMS-27, CTMS-28, CTMS-29, CTMS-37, CTMS-56, CTMS-67, CTMS-108, CTMS-120
 - New table `weather_risk_assessments`: stores immutable calculated assessments, composite scores, and breakdown details.
 
 ### Test Evidence
-- **Unit Tests**: `pnpm --filter @ctms/api test -- weather` -> 44 passed, covering rule scoring calculations, risk level boundaries, input persistence, and idempotency checks.
-- **Integration Tests**: `pnpm --filter @ctms/api test:integration -- weather-risk.integration-spec.ts` -> 9 passed, verifying calculating, caching, and loading flows, Admin bypass, camper blocking, and non-active route side-effect prevention.
+- **Backend Unit Tests**: `pnpm --filter @ctms/api test -- weather` -> 44 passed, covering rule scoring calculations, risk level boundaries, input persistence, and idempotency checks.
+- **Backend Integration Tests**: `pnpm --filter @ctms/api test:integration -- weather-risk.integration-spec.ts` -> 9 passed, verifying calculating, caching, and loading flows, Admin bypass, camper blocking, and non-active route side-effect prevention.
 - All backend unit tests passed: 335 passed.
 - All backend integration tests passed: 194 passed.
+
+## UI and Tests
+
+### Component Layout
+- **RouteWeatherRiskPanel**: Renders a dedicated panel immediately below the `RouteWeatherPanel` on the `TrekkingRoutesPage`.
+- **States Handled**:
+  - **Loading**: Spans a spinner loader `Đang tải đánh giá rủi ro...` during initial fetch.
+  - **Empty**: Renders a friendly prompt `Chưa có đánh giá rủi ro cho tuyến này. Vui lòng tính điểm rủi ro.` if no risk assessment exists yet.
+  - **Success**: Renders a colored alert/badge based on the `riskLevel` (An toàn / Cảnh báo / Nguy hiểm) and the exact `compositeScore`. It also displays a detailed grid of cards showing the name, actual value, individual risk indicator light, and points/weight for each of the 5 criteria.
+  - **Error mapping**: Displays errors when load fails (with a retry button) or when calculation fails (e.g. no successful weather snapshot exists).
+- **calculate Action**: A primary action button `Tính điểm rủi ro` to trigger the service score calculation. It is disabled for non-active routes (shows warning text `Chỉ tính được khi tuyến đang Hoạt động`) and handles dedup via in-flight check.
+
+### Custom Hook
+- **useWeatherRiskScore**: Encapsulates data fetching and mutation trigger. Manages component states (`assessment`, `isLoading`, `error`, `isCalculating`, `calculateError`) and encapsulates request sequence tracking.
+
+### UI Verification Evidence
+- **Unit Tests**:
+  - `pnpm --filter @ctms/web test -- useWeatherRiskScore` -> 11 passed, validating loading, custom error messages mapping (401, 403, 404, 409), calculation response mutation, and call deduping.
+  - `pnpm --filter @ctms/web test -- RouteWeatherRiskPanel` -> 7 passed, validating rendering loading, empty, and success states, handling error banners, and disabling conditions based on route status.
+- **Build Output**: Frontend build compiled successfully (`tsc -b && vite build` exited with code 0).
+- **Linter**: Eslint checks passed without errors.
+
 
