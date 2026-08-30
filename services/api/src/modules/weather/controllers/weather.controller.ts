@@ -7,7 +7,10 @@ import type { AuthenticatedUser } from "../../auth/jwt.strategy";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { RouteIdParamDto } from "../../trekking-routes/dto/route-id-param.dto";
 import { UserRole } from "../../users/entities/user.entity";
+import { WeatherRiskAssessmentResponseDto } from "../dto/weather-risk-assessment-response.dto";
 import { WeatherSnapshotResponseDto } from "../dto/weather-snapshot-response.dto";
+// biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
+import { WeatherRiskService } from "../services/weather-risk.service";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { WeatherService } from "../services/weather.service";
 
@@ -16,10 +19,8 @@ interface AuthenticatedRequest {
 }
 
 /**
- * CTMS-25-T01. `@Roles(HOST, ADMIN)` narrows who can reach this at all
- * (matches TrekkingRoutesController's close/reopen endpoints); actual route
- * *ownership* for a Host still can't be expressed by role alone, so
- * WeatherService checks it against the real row, same split as those.
+ * CTMS-25-T01 & CTMS-26-T01. `@Roles(HOST, ADMIN)` narrows who can reach this at all;
+ * ownership validation is deferred to services.
  */
 @ApiTags("weather")
 @ApiBearerAuth()
@@ -27,7 +28,10 @@ interface AuthenticatedRequest {
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.HOST, UserRole.ADMIN)
 export class WeatherController {
-	constructor(private readonly weatherService: WeatherService) {}
+	constructor(
+		private readonly weatherService: WeatherService,
+		private readonly weatherRiskService: WeatherRiskService
+	) {}
 
 	@Post("refresh")
 	@HttpCode(HttpStatus.CREATED)
@@ -56,5 +60,33 @@ export class WeatherController {
 		@Req() req: AuthenticatedRequest
 	): Promise<WeatherSnapshotResponseDto | null> {
 		return this.weatherService.getLatestForRoute(req.user, params.routeId);
+	}
+
+	@Post("risk-score")
+	@HttpCode(HttpStatus.CREATED)
+	@ApiOperation({ summary: "Calculate weather risk score for a route" })
+	@ApiResponse({ status: 201, type: WeatherRiskAssessmentResponseDto })
+	@ApiResponse({ status: 401, description: "Authentication required" })
+	@ApiResponse({ status: 403, description: "Not the owning Host, and not an Admin" })
+	@ApiResponse({ status: 404, description: "Route not found" })
+	@ApiResponse({ status: 409, description: "Route is not active or missing weather snapshot" })
+	calculateRisk(
+		@Param() params: RouteIdParamDto,
+		@Req() req: AuthenticatedRequest
+	): Promise<WeatherRiskAssessmentResponseDto> {
+		return this.weatherRiskService.calculateForRoute(req.user, params.routeId);
+	}
+
+	@Get("risk-score/latest")
+	@ApiOperation({ summary: "Get the most recently calculated weather risk assessment for a route" })
+	@ApiResponse({ status: 200, type: WeatherRiskAssessmentResponseDto })
+	@ApiResponse({ status: 401, description: "Authentication required" })
+	@ApiResponse({ status: 403, description: "Not the owning Host, and not an Admin" })
+	@ApiResponse({ status: 404, description: "Route not found" })
+	getLatestRisk(
+		@Param() params: RouteIdParamDto,
+		@Req() req: AuthenticatedRequest
+	): Promise<WeatherRiskAssessmentResponseDto | null> {
+		return this.weatherRiskService.getLatestForRoute(req.user, params.routeId);
 	}
 }
