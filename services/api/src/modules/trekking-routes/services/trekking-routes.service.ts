@@ -1,11 +1,25 @@
-import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import {
+	ConflictException,
+	ForbiddenException,
+	Injectable,
+	NotFoundException,
+	UnprocessableEntityException,
+} from "@nestjs/common";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { DataSource, type EntityManager } from "typeorm";
 import { AuditLog } from "../../auth/entities/audit-log.entity";
+import type { AuthenticatedUser } from "../../auth/jwt.strategy";
 import { Campsite } from "../../campsites/entities/campsite.entity";
+import { UserRole } from "../../users/entities/user.entity";
 import type { CreateTrekkingRouteDto } from "../dto/create-trekking-route.dto";
+import {
+	ReviewTrekkingRouteAction,
+	type ReviewTrekkingRouteDto,
+} from "../dto/review-trekking-route.dto";
+import type { RouteStatusReasonDto } from "../dto/route-status-reason.dto";
 import type { TrekkingRouteResponseDto } from "../dto/trekking-route-response.dto";
-import type { GeoLineString } from "../entities/trekking-route.entity";
+import type { TrekkingRouteReviewResponseDto } from "../dto/trekking-route-review-response.dto";
+import { type GeoLineString, TrekkingRouteStatus } from "../entities/trekking-route.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { TrekkingRoutesRepository } from "../repositories/trekking-routes.repository";
 
@@ -29,6 +43,137 @@ export class TrekkingRoutesService {
 		}
 
 		return this.trekkingRoutesRepository.findByCampsite(campsiteId);
+	}
+
+	listPendingReview(): Promise<TrekkingRouteReviewResponseDto[]> {
+		return this.trekkingRoutesRepository.findPendingReview();
+	}
+
+	async submitForApproval(hostId: string, routeId: string): Promise<TrekkingRouteResponseDto> {
+		return this.dataSource.transaction(async (manager: EntityManager) => {
+			const repository = manager.withRepository(this.trekkingRoutesRepository);
+			const lockedRoute = await repository.findOneForLifecycleUpdate(routeId);
+
+			if (!lockedRoute) {
+				throw new NotFoundException("Trekking route not found");
+			}
+			if (lockedRoute.hostId !== hostId) {
+				throw new ForbiddenException("Only the owning Host can submit this trekking route");
+			}
+			if (lockedRoute.route.status !== TrekkingRouteStatus.DRAFT) {
+				throw new ConflictException("Only draft trekking routes can be submitted for approval");
+			}
+			if (!lockedRoute.integrityValid) {
+				throw this.submissionValidationException([
+					{ field: "route", errors: ["stored route data is invalid"] },
+				]);
+			}
+
+			const checkpointIntegrity = await repository.validateSubmissionCheckpoints(routeId);
+			const errors: Array<{ field: string; errors: string[] }> = [];
+			if (!checkpointIntegrity.checkpointsValid) {
+				errors.push({ field: "checkpoints", errors: ["stored route checkpoints are invalid"] });
+			}
+			if (checkpointIntegrity.startCount !== 1) {
+				errors.push({
+					field: "checkpoints",
+					errors: ["route must have exactly one start checkpoint"],
+				});
+			}
+			if (checkpointIntegrity.finishCount !== 1) {
+				errors.push({
+					field: "checkpoints",
+					errors: ["route must have exactly one finish checkpoint"],
+				});
+			}
+			if (
+				checkpointIntegrity.startCount === 1 &&
+				checkpointIntegrity.finishCount === 1 &&
+				(checkpointIntegrity.startPosition == null ||
+					checkpointIntegrity.finishPosition == null ||
+					checkpointIntegrity.startPosition >= checkpointIntegrity.finishPosition)
+			) {
+				errors.push({
+					field: "checkpoints",
+					errors: ["start checkpoint must occur before finish checkpoint"],
+				});
+			}
+			if (errors.length > 0) {
+				throw this.submissionValidationException(errors);
+			}
+
+			const updated = await repository.updateStatus(routeId, TrekkingRouteStatus.PENDING_APPROVAL);
+			await manager.getRepository(AuditLog).save({
+				actorId: hostId,
+				action: "trekking_route.submitted_for_approval",
+				targetType: "trekking_route",
+				targetId: routeId,
+				before: { status: TrekkingRouteStatus.DRAFT },
+				after: { status: TrekkingRouteStatus.PENDING_APPROVAL },
+				reason: "host_submit_trekking_route_for_approval",
+			});
+
+			return updated;
+		});
+	}
+
+	async review(
+		adminId: string,
+		routeId: string,
+		dto: ReviewTrekkingRouteDto
+	): Promise<TrekkingRouteReviewResponseDto> {
+		return this.dataSource.transaction(async (manager: EntityManager) => {
+			const repository = manager.withRepository(this.trekkingRoutesRepository);
+			const current = await repository.findReviewRouteByIdForUpdate(routeId);
+
+			if (!current) {
+				throw new NotFoundException("Trekking route not found");
+			}
+			if (current.status !== TrekkingRouteStatus.PENDING_APPROVAL) {
+				throw new ConflictException(
+					"Only trekking routes in pending_approval status can be reviewed"
+				);
+			}
+
+			if (dto.action === ReviewTrekkingRouteAction.APPROVE) {
+				const integrity = await repository.validateApprovalIntegrity(routeId);
+				const errors: Array<{ field: string; errors: string[] }> = [];
+				if (!integrity.geometryValid) {
+					errors.push({ field: "geometry", errors: ["stored route geometry is invalid"] });
+				}
+				if (!integrity.difficultyValid) {
+					errors.push({ field: "difficulty", errors: ["stored route difficulty is invalid"] });
+				}
+				if (!integrity.checkpointsValid) {
+					errors.push({ field: "checkpoints", errors: ["stored route checkpoints are invalid"] });
+				}
+				if (errors.length > 0) {
+					throw new UnprocessableEntityException({
+						statusCode: 422,
+						error: "Unprocessable Entity",
+						message: errors,
+					});
+				}
+			}
+
+			const targetStatus = this.reviewTargetStatus(dto.action);
+			const updated = await repository.updateStatus(routeId, targetStatus);
+			await manager.getRepository(AuditLog).save({
+				actorId: adminId,
+				action: this.reviewAuditAction(dto.action),
+				targetType: "trekking_route",
+				targetId: routeId,
+				before: { status: current.status },
+				after: { status: targetStatus },
+				reason: dto.action === ReviewTrekkingRouteAction.APPROVE ? null : (dto.reason ?? null),
+			});
+
+			return {
+				...updated,
+				campsiteName: current.campsiteName,
+				checkpoints: current.checkpoints,
+			};
+		});
 	}
 
 	async create(hostId: string, dto: CreateTrekkingRouteDto): Promise<TrekkingRouteResponseDto> {
@@ -69,6 +214,98 @@ export class TrekkingRoutesService {
 		});
 	}
 
+	close(
+		actor: AuthenticatedUser,
+		routeId: string,
+		dto: RouteStatusReasonDto
+	): Promise<TrekkingRouteResponseDto> {
+		return this.changeStatus(
+			actor,
+			routeId,
+			TrekkingRouteStatus.ACTIVE,
+			TrekkingRouteStatus.CLOSED,
+			"trekking_route.closed",
+			dto.reason
+		);
+	}
+
+	reopen(
+		actor: AuthenticatedUser,
+		routeId: string,
+		dto: RouteStatusReasonDto
+	): Promise<TrekkingRouteResponseDto> {
+		return this.changeStatus(
+			actor,
+			routeId,
+			TrekkingRouteStatus.CLOSED,
+			TrekkingRouteStatus.PENDING_APPROVAL,
+			"trekking_route.reopened",
+			dto.reason,
+			true
+		);
+	}
+
+	private async changeStatus(
+		actor: AuthenticatedUser,
+		routeId: string,
+		expectedStatus: TrekkingRouteStatus,
+		nextStatus: TrekkingRouteStatus,
+		action: string,
+		reason: string,
+		validateIntegrity = false
+	): Promise<TrekkingRouteResponseDto> {
+		return this.dataSource.transaction(async (manager: EntityManager) => {
+			const repository = manager.withRepository(this.trekkingRoutesRepository);
+			const lockedRoute = await repository.findOneForLifecycleUpdate(routeId);
+			if (!lockedRoute) {
+				throw new NotFoundException("Trekking route not found");
+			}
+
+			this.assertLifecycleActor(actor, lockedRoute.hostId);
+			if (lockedRoute.route.status !== expectedStatus) {
+				throw new ConflictException("Trekking route status transition is not allowed");
+			}
+			if (validateIntegrity && !lockedRoute.integrityValid) {
+				throw new ConflictException("Trekking route data must be valid before reopening");
+			}
+
+			const before = { status: lockedRoute.route.status };
+			const updatedRoute = await repository.updateStatus(routeId, nextStatus);
+
+			await manager.getRepository(AuditLog).save({
+				actorId: actor.userId,
+				action,
+				targetType: "trekking_route",
+				targetId: routeId,
+				before,
+				after: { status: updatedRoute.status },
+				reason,
+			});
+
+			return updatedRoute;
+		});
+	}
+
+	private assertLifecycleActor(actor: AuthenticatedUser, owningHostId: string): void {
+		if (actor.roles.includes(UserRole.ADMIN)) return;
+		if (!actor.roles.includes(UserRole.HOST)) {
+			throw new ForbiddenException("Only a Host or Admin can change trekking route status");
+		}
+		if (actor.userId !== owningHostId) {
+			throw new ForbiddenException("Only the owning Host can change this trekking route status");
+		}
+	}
+
+	private submissionValidationException(
+		message: Array<{ field: string; errors: string[] }>
+	): UnprocessableEntityException {
+		return new UnprocessableEntityException({
+			statusCode: 422,
+			error: "Unprocessable Entity",
+			message,
+		});
+	}
+
 	private buildAuditSnapshot(route: TrekkingRouteResponseDto): Record<string, unknown> {
 		const coordinates = route.geometry.coordinates;
 		return {
@@ -88,6 +325,28 @@ export class TrekkingRoutesService {
 				boundingBox: boundingBox(route.geometry),
 			},
 		};
+	}
+
+	private reviewTargetStatus(action: ReviewTrekkingRouteAction): TrekkingRouteStatus {
+		switch (action) {
+			case ReviewTrekkingRouteAction.APPROVE:
+				return TrekkingRouteStatus.ACTIVE;
+			case ReviewTrekkingRouteAction.DECLINE:
+				return TrekkingRouteStatus.DRAFT;
+			case ReviewTrekkingRouteAction.NON_OPERABLE:
+				return TrekkingRouteStatus.CLOSED;
+		}
+	}
+
+	private reviewAuditAction(action: ReviewTrekkingRouteAction): string {
+		switch (action) {
+			case ReviewTrekkingRouteAction.APPROVE:
+				return "trekking_route.approved";
+			case ReviewTrekkingRouteAction.DECLINE:
+				return "trekking_route.declined";
+			case ReviewTrekkingRouteAction.NON_OPERABLE:
+				return "trekking_route.closed";
+		}
 	}
 }
 

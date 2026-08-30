@@ -74,7 +74,6 @@ void main() {
     await repository.search(
       const CampsiteSearchParams(
         province: 'Lam Dong',
-        city: 'Da Lat',
         amenities: ['wifi', 'bbq'],
         minPrice: 100,
         maxPrice: 500,
@@ -86,7 +85,6 @@ void main() {
     final request = adapter.lastRequest!;
     expect(request.path, '/campsites');
     expect(request.queryParameters['province'], 'Lam Dong');
-    expect(request.queryParameters['city'], 'Da Lat');
     expect(request.queryParameters['amenities'], 'wifi,bbq');
     expect(request.queryParameters['minPrice'], 100);
     expect(request.queryParameters['maxPrice'], 500);
@@ -102,7 +100,6 @@ void main() {
 
     final request = adapter.lastRequest!;
     expect(request.queryParameters.containsKey('province'), isFalse);
-    expect(request.queryParameters.containsKey('city'), isFalse);
     expect(request.queryParameters.containsKey('amenities'), isFalse);
     expect(request.queryParameters.containsKey('minPrice'), isFalse);
     expect(request.queryParameters.containsKey('maxPrice'), isFalse);
@@ -136,12 +133,7 @@ void main() {
         {
           'id': 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
           'name': 'Đà Lạt Pine Camp',
-          'location': {
-            'province': 'Lam Dong',
-            'city': 'Da Lat',
-            'latitude': 11.940419,
-            'longitude': 108.458313,
-          },
+          'location': {'province': 'Lam Dong', 'latitude': 11.940419, 'longitude': 108.458313},
           'coverImage': null,
           'activeRoutes': <String>[],
         },

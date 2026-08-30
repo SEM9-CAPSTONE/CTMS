@@ -1,5 +1,8 @@
 export interface CampsiteSearchFilters {
-	name?: string;
+	province?: string;
+	/** Comma-separated or repeated on the wire; kept as string[] in UI state. */
+	amenities?: string[];
+	minPrice?: number;
 	maxPrice?: number;
 }
 

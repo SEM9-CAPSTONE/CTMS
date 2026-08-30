@@ -25,7 +25,10 @@ export const campsitesService = {
 
 	search: async (params: CampsiteSearchParams): Promise<PaginatedCampsiteSearchResponse> => {
 		const cleanParams: Record<string, string | number | boolean | undefined> = {
-			name: params.name || undefined,
+			province: params.province || undefined,
+			amenities:
+				params.amenities && params.amenities.length > 0 ? params.amenities.join(",") : undefined,
+			minPrice: params.minPrice,
 			maxPrice: params.maxPrice,
 			page: params.page,
 			limit: params.limit,

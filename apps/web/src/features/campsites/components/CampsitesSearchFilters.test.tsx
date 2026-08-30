@@ -1,43 +1,51 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { FIXED_EXPLORE_PROVINCE } from "../hooks/useCampsitesSearch";
 import { CampsitesSearchFilters } from "./CampsitesSearchFilters";
 
 describe("CampsitesSearchFilters", () => {
 	const baseProps = {
-		name: "",
+		amenities: "",
+		minPrice: "",
 		maxPrice: "",
-		rating: "",
-		onNameChange: vi.fn(),
+		onAmenitiesChange: vi.fn(),
+		onMinPriceChange: vi.fn(),
 		onMaxPriceChange: vi.fn(),
-		onRatingChange: vi.fn(),
 		onSubmit: vi.fn(),
 		onReset: vi.fn(),
 	};
 
-	it("renders name, max price, and rating filters", () => {
+	it("renders the fixed Đà Nẵng scope line and exactly the remaining DB-backed filters -- no city/status/date/guests/type", () => {
 		render(<CampsitesSearchFilters {...baseProps} isLoading={false} />);
-		expect(screen.getByLabelText("Tên khu cắm trại")).toBeInTheDocument();
-		expect(screen.getByLabelText(/khoảng giá tối đa/i)).toBeInTheDocument();
-		expect(screen.getByText("Đánh giá")).toBeInTheDocument();
+		expect(screen.getByText(`Khu vực: ${FIXED_EXPLORE_PROVINCE}`)).toBeInTheDocument();
+		expect(screen.queryByLabelText("Tỉnh/Thành")).not.toBeInTheDocument();
+		expect(screen.queryByLabelText("Thành phố")).not.toBeInTheDocument();
+		expect(screen.getByLabelText("Tiện ích")).toBeInTheDocument();
+		expect(screen.getByLabelText("Giá từ")).toBeInTheDocument();
+		expect(screen.getByLabelText("Giá đến")).toBeInTheDocument();
 		expect(screen.queryByText(/trạng thái/i)).not.toBeInTheDocument();
-		expect(screen.queryByText(/tiện ích/i)).not.toBeInTheDocument();
+		expect(screen.queryByText(/ngày đi/i)).not.toBeInTheDocument();
+		expect(screen.queryByText(/số người/i)).not.toBeInTheDocument();
+		expect(screen.queryByText(/loại hình/i)).not.toBeInTheDocument();
 	});
 
 	it("loading=false: Search/Reset enabled, inputs editable", () => {
 		render(<CampsitesSearchFilters {...baseProps} isLoading={false} />);
 		expect(screen.getByRole("button", { name: /tìm kiếm/i })).not.toBeDisabled();
 		expect(screen.getByRole("button", { name: /đặt lại/i })).not.toBeDisabled();
-		expect(screen.getByLabelText("Tên khu cắm trại")).not.toBeDisabled();
+		expect(screen.getByLabelText("Tiện ích")).not.toBeDisabled();
 	});
 
-	it("loading=true: Search and Reset are disabled, but input fields remain editable", () => {
+	it("loading=true: Search and Reset are disabled, but every input field remains editable", () => {
 		render(<CampsitesSearchFilters {...baseProps} isLoading={true} />);
 		expect(screen.getByRole("button", { name: /tìm kiếm/i })).toBeDisabled();
 		expect(screen.getByRole("button", { name: /đặt lại/i })).toBeDisabled();
-		expect(screen.getByLabelText("Tên khu cắm trại")).not.toBeDisabled();
+		expect(screen.getByLabelText("Tiện ích")).not.toBeDisabled();
+		expect(screen.getByLabelText("Giá từ")).not.toBeDisabled();
+		expect(screen.getByLabelText("Giá đến")).not.toBeDisabled();
 	});
 
-	it("submitting the form calls onSubmit exactly once", () => {
+	it("submitting the form calls onSubmit exactly once, not native navigation", () => {
 		const onSubmit = vi.fn();
 		render(<CampsitesSearchFilters {...baseProps} isLoading={false} onSubmit={onSubmit} />);
 		fireEvent.click(screen.getByRole("button", { name: /tìm kiếm/i }));
@@ -51,19 +59,22 @@ describe("CampsitesSearchFilters", () => {
 		expect(onReset).toHaveBeenCalledTimes(1);
 	});
 
-	it("typing in name input calls onNameChange", () => {
-		const onNameChange = vi.fn();
-		render(<CampsitesSearchFilters {...baseProps} isLoading={false} onNameChange={onNameChange} />);
-		fireEvent.change(screen.getByLabelText("Tên khu cắm trại"), { target: { value: "Đà Lạt" } });
-		expect(onNameChange).toHaveBeenCalledWith("Đà Lạt");
-	});
+	it("typing in each input calls its own onChange with the raw value", () => {
+		const props = {
+			...baseProps,
+			onAmenitiesChange: vi.fn(),
+			onMinPriceChange: vi.fn(),
+			onMaxPriceChange: vi.fn(),
+		};
+		render(<CampsitesSearchFilters {...props} isLoading={false} />);
 
-	it("clicking a rating option calls onRatingChange", () => {
-		const onRatingChange = vi.fn();
-		render(
-			<CampsitesSearchFilters {...baseProps} isLoading={false} onRatingChange={onRatingChange} />
-		);
-		fireEvent.click(screen.getByRole("button", { name: /4\+/i }));
-		expect(onRatingChange).toHaveBeenCalledWith("4");
+		fireEvent.change(screen.getByLabelText("Tiện ích"), { target: { value: "wifi" } });
+		expect(props.onAmenitiesChange).toHaveBeenCalledWith("wifi");
+
+		fireEvent.change(screen.getByLabelText("Giá từ"), { target: { value: "100" } });
+		expect(props.onMinPriceChange).toHaveBeenCalledWith("100");
+
+		fireEvent.change(screen.getByLabelText("Giá đến"), { target: { value: "500" } });
+		expect(props.onMaxPriceChange).toHaveBeenCalledWith("500");
 	});
 });

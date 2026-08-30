@@ -64,6 +64,90 @@ As a Host, I want to create Checkpoint on Route so that the CTMS workflow is com
 
 - No checkpoint update, delete, bulk create, manual reorder, arrival/check-in, visit, QR, GPS, offline, SOS, notification, Trip, route approval, route close/reopen, danger-zone, or separate shelter-management behavior is included.
 
+## Backend Preparation Logic and Tests
+
+### Actor and preconditions
+
+- The actor is an authenticated active user with the `host` role who owns the Route through `checkpoint -> trekking_route -> campsite -> host`. Admin, Camper, Porter, and a foreign Host have no create permission.
+- The `routeId` path parameter identifies an existing owned Route and is a UUID. The Route must remain `draft` when it is locked for creation.
+- The request contains only `name`, `location`, `radiusMeters`, `type`, `expectedArrivalOffset`, `instructions`, and `nearbyWaterOrShelter`. All server-controlled and unknown properties are rejected.
+- Creation completeness is intentionally separate from CTMS-81 submission readiness. A Host may create one Start before a Finish exists; create-checkpoint imposes no total, Start, or Finish count rule.
+
+### Main flow
+
+1. `JwtAuthGuard` authenticates an active account and `RolesGuard` requires `host`.
+2. The global validation pipe validates and transforms the UUID path and request DTO.
+3. The service starts one transaction, locks the Route for update, loads its Campsite, and verifies ownership and `draft` status.
+4. The service verifies that `expectedArrivalOffset` does not exceed the stored Route duration.
+5. PostgreSQL/PostGIS constructs the SRID-4326 Point, verifies it is within 50 metres of the Route, and calculates `route_position` with `ST_LineLocatePoint`.
+6. The repository inserts the checkpoint, and the service inserts its audit record in the same transaction.
+7. The API commits and returns the canonical checkpoint response with HTTP `201`.
+8. `GET /api/trekking-routes/:routeId/checkpoints` reads the owned Route and returns its checkpoints by `route_position`, `created_at`, then `id`, all ascending.
+
+### Alternate and exception flows
+
+- Listing an owned Route with no checkpoints returns `200 []` and performs no write or audit.
+- Missing, invalid, expired, or inactive authentication returns `401`; Admin, Camper, Porter, and foreign Host access returns `403`; neither path writes a checkpoint or audit.
+- A missing Route returns `404`. A non-draft Route (`pending_approval`, `active`, or `closed`) returns `409`. These paths have no side effects.
+- DTO, cross-field, and spatial validation failures return `422` and persist nothing. The selected Point is not snapped or otherwise changed.
+- An insertion or audit failure aborts the transaction. In particular, an audit failure rolls back the checkpoint insertion.
+
+### Business rules, validation, and data mapping
+
+- One row in `checkpoints` belongs to one `trekking_routes.id` through required `route_id ON DELETE RESTRICT`; no Host or Campsite ownership columns are duplicated.
+- `name` maps to `name`; `location` to `geography(Point,4326)`; `radiusMeters` to `radius_m`; `type` to `checkpoint_type`; `expectedArrivalOffset` to `expected_arrival_offset`; `instructions` to `instructions`; `nearbyWaterOrShelter` to `nearby_water_or_shelter`; and the server-derived fraction to `route_position`.
+- `name` is trimmed, required/nonblank, and at most 150 characters. `instructions` is trimmed, required/nonblank, and at most 1000 characters.
+- `location` is required and is exactly GeoJSON Point `{ type: "Point", coordinates: [longitude, latitude] }` with two finite coordinates, longitude `[-180,180]`, and latitude `[-90,90]`.
+- `radiusMeters` is an integer in inclusive range `10..500`; `type` is one of the six approved checkpoint types; `expectedArrivalOffset` is an integer in inclusive range `0..Route.expectedDurationMinutes`; and `nearbyWaterOrShelter` is a boolean.
+- PostgreSQL/PostGIS is authoritative for the inclusive 50-metre Route-proximity rule and Route position. The client cannot provide or override `routePosition`.
+- IDs and `created_at`/`updated_at` timestamps are server/database generated. Timestamps use `timestamptz`.
+
+### API, authorization, transaction, audit, and idempotency
+
+- Contract: `POST /api/trekking-routes/:routeId/checkpoints` with the approved DTO returns `201` plus `CheckpointResponseDto`; errors are `401`, `403`, `404`, `409`, or `422` as described above. The ordered read contract is `GET` on the same path and returns `200 CheckpointResponseDto[]`.
+- Creation and audit are a material two-write operation and therefore execute atomically in one transaction under a pessimistic Route lock. Failed validation/authorization occurs before writes, and database/audit failure rolls all writes back.
+- Audit uses the authenticated Host actor, `action=trekking_route_checkpoint.created`, `target_type=trekking_route_checkpoint`, checkpoint target ID, `before=null`, the canonical checkpoint snapshot in `after`, and `reason=host_create_trekking_route_checkpoint`.
+- Request idempotency is not part of this contract. Each successful POST creates a distinct checkpoint; no idempotency key or retry-deduplication subsystem is defined. This does not weaken rollback or the no-side-effect guarantee for failed requests.
+
+### Test coverage and compatibility evidence
+
+- Unit evidence covers required/trimmed/bounded DTO fields, coordinate and radius boundaries, all six types, forbidden server fields, Route ownership/missing Route, all non-draft states, duration bounds, PostGIS proximity SQL, authoritative Route position, deterministic ordering, exact audit mapping, and audit-failure propagation.
+- Real PostgreSQL/PostGIS API evidence covers the happy path through authentication, ownership, spatial validation, persistence, response, audit, and ordered read-back; malformed/invalid/far-point requests without persistence; all disallowed roles and inactive statuses; foreign ownership; all non-draft states; database constraints; and real transaction rollback on audit failure.
+- CTMS-81 remains the only backend preparation submission path enforcing exactly one Start, exactly one Finish, and Start before Finish before `draft -> pending_approval`. CTMS-82 remains the Web submission UI. CTMS-21 close/reopen and CTMS-22 Admin review contracts are unchanged.
+- The existing checkpoint table, indexes, geography column, constraints, and enum already support this contract; CTMS-83 requires no migration and adds no Web CTMS-84 production behavior.
+
+## UI and Tests
+
+### Page, panel, and map flow
+
+- The Host uses the existing `/host/trekking-routes?campsiteId=<uuid>` management page. The page reuses its campsite selector, Route list, Route geometry preview, lifecycle actions, submission preparation, and one `RouteCheckpointsPanel`; CTMS-84 adds no duplicate checkpoint page.
+- The page is protected by the existing Host-only `AppRoleGuard`. Camper, Porter, and Admin roles do not receive checkpoint creation UI. Backend role and ownership checks remain authoritative for direct or stale requests.
+- Selecting a Route loads its checkpoints through the nested Route API. The panel remains visible for every Route state and shows the existing checkpoint list even when creation is unavailable.
+- The existing MapLibre map and no-key fallback display the stored Route, existing checkpoints numbered in the GET response order, the proposed Point, and a geodesic meter-radius preview. A map click records the unchanged `[longitude, latitude]` Point; Web does not snap the Point, calculate 50-metre eligibility, or derive `routePosition`.
+
+### Form and client validation
+
+- The form contains only `name`, map-selected `location`, `radiusMeters`, `type`, `expectedArrivalOffset`, `instructions`, and `nearbyWaterOrShelter`. It exposes no Host, Campsite, Route order, sequence, timestamp, or audit fields.
+- Web trims and requires name with maximum 150 characters; requires a selected Point; accepts integer radius `10..500`; restricts type to `start | rest | water | dangerous | emergency_shelter | finish`; accepts a nonnegative integer arrival offset not exceeding the selected Route duration; trims and requires instructions with maximum 1000 characters; and sends the boolean nearby-water/shelter flag.
+- Client validation is user guidance only. PostgreSQL/PostGIS remains authoritative for Route proximity and the stored Route position.
+- Start and Finish are ordinary allowed checkpoint types during creation. The Host may create partial preparation, including Start before any Finish exists. CTMS-81/82 alone enforce exactly one ordered Start/Finish pair at Route submission.
+
+### API integration and interaction states
+
+- `GET /api/trekking-routes/:routeId/checkpoints` supplies the canonical ordered collection. Web preserves the returned order for list entries and map numbering and performs no competing sort.
+- `POST /api/trekking-routes/:routeId/checkpoints` sends only client-owned form fields. After success, Web waits for an authoritative GET reload before rendering the new checkpoint; it never inserts an optimistic fake `routePosition`.
+- While POST is pending, all form controls and the `Đang tạo checkpoint...` button are disabled. The create hook also rejects a second in-flight action, preventing double-click duplication.
+- Checkpoint loading shows progress; GET failure shows an actionable message and retry; an empty result shows the no-checkpoint state; and successful creation appears through the reloaded ordered list. Failed creation preserves entered metadata and the selected Point for correction/retry.
+- Errors map existing API semantics: expired authentication `401`, role/ownership `403`, missing Route `404`, non-draft conflict `409`, and DTO/business/spatial `422`. Structured backend validation details are displayed when present, including location errors; raw stack traces are never rendered.
+- Draft Routes allow map selection and creation. `pending_approval`, `active`, and `closed` Routes retain the read-only map/list but disable every creation control. CTMS-21 close/reopen, CTMS-82 submission, and CTMS-22 Admin review behavior are unchanged.
+
+### UI and E2E evidence
+
+- Focused Vitest evidence covers schema boundaries and canonical payload mapping; required map selection; parent-duration validation; failed-form preservation; pending and disabled controls; loading/error/retry/empty/success list states; draft and every non-draft state; server-order preservation; map selection/markers/radius; exact `409` and structured `422` mapping; authoritative reload; and duplicate prevention.
+- Service tests prove the nested GET/POST endpoints and that checkpoint POST bodies omit all server-owned identifiers, order fields, timestamps, and audit data.
+- Real Playwright evidence covers the Host Dashboard-to-Route journey, actual map selection and POST, persisted database/GET/UI consistency, backend-authoritative Route order, client-side missing-location rejection without mutation, PostGIS distance rejection with preserved form data, non-draft read-only behavior, and forbidden foreign-Host/Camper attempts with unchanged checkpoint data.
+- CTMS-84 adds no Mobile implementation, checkpoint edit/delete/reorder/bulk creation, Admin creation, notification, Trip, booking, payment, migration, or backend contract change.
+
 ## Business Rules Checklist
 - [ ] BR-052: The system must store route length, difficulty, estimated duration, and status.
 - [ ] BR-202: Accounts in pending_verification, suspended, or deleted status must not use functions that require an active account, except allowed verification or recovery flows.

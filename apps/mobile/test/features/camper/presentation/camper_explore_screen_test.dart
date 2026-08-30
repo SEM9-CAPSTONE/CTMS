@@ -5,6 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/core/api/api_client.dart';
 import 'package:mobile/core/api/api_exception.dart';
 import 'package:mobile/core/storage/token_storage.dart';
+import 'package:mobile/features/camper/explore/application/campsite_search_controller.dart'
+    show fixedExploreProvince;
 import 'package:mobile/features/camper/explore/data/campsite_search_repository.dart';
 import 'package:mobile/features/camper/explore/domain/campsite_search_models.dart';
 import 'package:mobile/features/camper/presentation/camper_explore_screen.dart';
@@ -17,7 +19,7 @@ const _emptyPage = PaginatedCampsiteSearchResponse(
 CampsiteSearchItem _item(String id, String name) => CampsiteSearchItem(
   id: id,
   name: name,
-  location: const CampsiteLocation(province: 'Lam Dong', city: 'Da Lat', latitude: 11.9, longitude: 108.4),
+  location: const CampsiteLocation(province: 'Lam Dong', latitude: 11.9, longitude: 108.4),
   coverImage: null,
   activeRoutes: const [],
 );
@@ -68,17 +70,19 @@ Widget _app(_RecordingCampsiteSearchRepository repository) {
 
 void main() {
   group('CamperExploreScreen', () {
-    testWidgets('fires the initial search with page=1, limit=20 through the controller', (
-      tester,
-    ) async {
-      final repository = _RecordingCampsiteSearchRepository();
-      await tester.pumpWidget(_app(repository));
-      await _settle(tester);
+    testWidgets(
+      'fires the initial search with page=1, limit=20, province fixed to Đà Nẵng through the controller',
+      (tester) async {
+        final repository = _RecordingCampsiteSearchRepository();
+        await tester.pumpWidget(_app(repository));
+        await _settle(tester);
 
-      expect(repository.calls, hasLength(1));
-      expect(repository.calls.single.page, 1);
-      expect(repository.calls.single.limit, 20);
-    });
+        expect(repository.calls, hasLength(1));
+        expect(repository.calls.single.page, 1);
+        expect(repository.calls.single.limit, 20);
+        expect(repository.calls.single.province, fixedExploreProvince);
+      },
+    );
 
     testWidgets('shows the loading state while pending, not a stale success/empty view', (
       tester,
@@ -127,7 +131,7 @@ void main() {
       await _settle(tester);
 
       expect(find.text('Đà Lạt Pine Camp'), findsOneWidget);
-      expect(find.text('Da Lat, Lam Dong'), findsOneWidget);
+      expect(find.text('Lam Dong'), findsOneWidget);
       // No price UI on the card -- field fidelity itself is
       // CampsiteResultCard's own dedicated widget test's job (Step 4);
       // asserting "no text contains đ" here would be a false positive
@@ -141,12 +145,13 @@ void main() {
       await tester.pumpWidget(_app(repository));
       await _settle(tester);
 
-      await tester.enterText(find.byType(TextField).first, 'Lam Dong');
+      await tester.enterText(find.byType(TextField).first, 'wifi');
       await tester.tap(find.text('Tìm kiếm'));
       await _settle(tester);
 
       expect(repository.calls, hasLength(2));
-      expect(repository.calls.last.province, 'Lam Dong');
+      expect(repository.calls.last.province, fixedExploreProvince);
+      expect(repository.calls.last.amenities, ['wifi']);
     });
 
     testWidgets('paginating preserves the currently-submitted filter', (tester) async {
@@ -158,7 +163,7 @@ void main() {
       await tester.pumpWidget(_app(repository));
       await _settle(tester);
 
-      await tester.enterText(find.byType(TextField).first, 'Lam Dong');
+      await tester.enterText(find.byType(TextField).first, 'wifi');
       await tester.tap(find.text('Tìm kiếm'));
       await _settle(tester);
 
@@ -181,7 +186,8 @@ void main() {
       await _settle(tester);
 
       expect(repository.calls, hasLength(3));
-      expect(repository.calls.last.province, 'Lam Dong');
+      expect(repository.calls.last.province, fixedExploreProvince);
+      expect(repository.calls.last.amenities, ['wifi']);
       expect(repository.calls.last.page, 2);
     });
 

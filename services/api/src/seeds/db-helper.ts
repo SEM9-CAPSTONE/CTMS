@@ -415,6 +415,23 @@ async function main() {
 				[input.routeId]
 			);
 			console.log(JSON.stringify({ checkpoints: rows }));
+		} else if (action === "get-weather-snapshots") {
+			// CTMS-25-T02 E2E. Reads the real weather_snapshots rows for a
+			// route -- proves a UI-triggered refresh persisted real data (or
+			// that a rejected/forbidden attempt persisted none), the same
+			// "verify the real DB row, not just the UI" rigor as
+			// get-route-checkpoints above.
+			const input = parseJsonArg<{ routeId: string }>(arg);
+			const rows = await dataSource.query(
+				`SELECT "id", "status", "observed_at" AS "observedAt", "rainfall_mm" AS "rainfallMm",
+				 "wind_kph" AS "windKph", "temperature_c" AS "temperatureC", "visibility_m" AS "visibilityM",
+				 "thunderstorm", "provider_response" AS "provider_response", "error_message" AS "errorMessage",
+				 "created_at" AS "createdAt"
+				 FROM "weather_snapshots" WHERE "route_id" = $1
+				 ORDER BY "created_at" ASC`,
+				[input.routeId]
+			);
+			console.log(JSON.stringify({ snapshots: rows }));
 		} else if (action === "clean-trekking-routes") {
 			const input = parseJsonArg<{ routeIds: string[] }>(arg);
 			if (input.routeIds.length > 0) {
@@ -464,6 +481,18 @@ async function main() {
 			} else {
 				console.log(JSON.stringify({ success: false, reason: "not_found" }));
 			}
+		} else if (action === "find-users-by-email-prefix") {
+			// Generic E2E cleanup helper: some specs (e.g. Mobile's
+			// verify_otp_test.dart) register accounts through the real UI with a
+			// timestamp an orchestrating script can't know in advance, only a
+			// fixed prefix (still required to start with "e2e-" -- reuses
+			// assertE2EEmail's same safety guard as clean-user, just checked
+			// against the prefix itself rather than a single exact email).
+			assertE2EEmail(arg);
+			const rows = await dataSource.query('SELECT "email" FROM "users" WHERE "email" LIKE $1', [
+				`${arg}%`,
+			]);
+			console.log(JSON.stringify(rows.map((r: { email: string }) => r.email)));
 		} else {
 			throw new Error(`Unknown action: ${action}`);
 		}

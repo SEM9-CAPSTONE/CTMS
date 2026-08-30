@@ -9,6 +9,11 @@ import '../domain/campsite_search_models.dart';
 const _defaultPage = 1;
 const _defaultLimit = 20;
 
+/// Explore is scoped to Đà Nẵng only (product decision, not a Figma/backend
+/// field) -- there is no province input anywhere in this feature's UI, this
+/// is the one and only value ever sent as `province`.
+const fixedExploreProvince = 'Đà Nẵng';
+
 /// CTMS-17-T02 (mobile). `status` is never part of this state or params --
 /// search is always implicitly active-only, per CTMS-77's frozen contract
 /// (see campsite_search_repository.dart). There is no field for it because
@@ -18,8 +23,6 @@ const _defaultLimit = 20;
 /// AppRoleGuard.tsx), before this controller is ever built.
 class CampsiteSearchState {
   const CampsiteSearchState({
-    this.provinceInput = '',
-    this.cityInput = '',
     this.amenitiesInput = '',
     this.minPriceInput = '',
     this.maxPriceInput = '',
@@ -34,8 +37,6 @@ class CampsiteSearchState {
     this.errorMessage,
   });
 
-  final String provinceInput;
-  final String cityInput;
   final String amenitiesInput;
   final String minPriceInput;
   final String maxPriceInput;
@@ -45,8 +46,6 @@ class CampsiteSearchState {
   final String? errorMessage;
 
   CampsiteSearchState copyWith({
-    String? provinceInput,
-    String? cityInput,
     String? amenitiesInput,
     String? minPriceInput,
     String? maxPriceInput,
@@ -57,8 +56,6 @@ class CampsiteSearchState {
     bool clearError = false,
   }) {
     return CampsiteSearchState(
-      provinceInput: provinceInput ?? this.provinceInput,
-      cityInput: cityInput ?? this.cityInput,
       amenitiesInput: amenitiesInput ?? this.amenitiesInput,
       minPriceInput: minPriceInput ?? this.minPriceInput,
       maxPriceInput: maxPriceInput ?? this.maxPriceInput,
@@ -109,7 +106,11 @@ String _mapSearchError(Object error) {
 }
 
 class CampsiteSearchController extends Notifier<CampsiteSearchState> {
-  CampsiteSearchParams _params = const CampsiteSearchParams(page: _defaultPage, limit: _defaultLimit);
+  CampsiteSearchParams _params = const CampsiteSearchParams(
+    province: fixedExploreProvince,
+    page: _defaultPage,
+    limit: _defaultLimit,
+  );
 
   @override
   CampsiteSearchState build() {
@@ -138,8 +139,6 @@ class CampsiteSearchController extends Notifier<CampsiteSearchState> {
     }
   }
 
-  void setProvinceInput(String value) => state = state.copyWith(provinceInput: value);
-  void setCityInput(String value) => state = state.copyWith(cityInput: value);
   void setAmenitiesInput(String value) => state = state.copyWith(amenitiesInput: value);
   void setMinPriceInput(String value) => state = state.copyWith(minPriceInput: value);
   void setMaxPriceInput(String value) => state = state.copyWith(maxPriceInput: value);
@@ -147,8 +146,7 @@ class CampsiteSearchController extends Notifier<CampsiteSearchState> {
   void submitFilters() {
     if (state.isLoading) return;
     _params = CampsiteSearchParams(
-      province: state.provinceInput.trim().isEmpty ? null : state.provinceInput.trim(),
-      city: state.cityInput.trim().isEmpty ? null : state.cityInput.trim(),
+      province: fixedExploreProvince,
       amenities: _parseAmenities(state.amenitiesInput),
       minPrice: _parsePrice(state.minPriceInput),
       maxPrice: _parsePrice(state.maxPriceInput),
@@ -160,14 +158,12 @@ class CampsiteSearchController extends Notifier<CampsiteSearchState> {
 
   void resetFilters() {
     if (state.isLoading) return;
-    _params = const CampsiteSearchParams(page: _defaultPage, limit: _defaultLimit);
-    state = state.copyWith(
-      provinceInput: '',
-      cityInput: '',
-      amenitiesInput: '',
-      minPriceInput: '',
-      maxPriceInput: '',
+    _params = const CampsiteSearchParams(
+      province: fixedExploreProvince,
+      page: _defaultPage,
+      limit: _defaultLimit,
     );
+    state = state.copyWith(amenitiesInput: '', minPriceInput: '', maxPriceInput: '');
     unawaited(_search(_params));
   }
 
@@ -175,7 +171,6 @@ class CampsiteSearchController extends Notifier<CampsiteSearchState> {
     if (state.isLoading) return;
     _params = CampsiteSearchParams(
       province: _params.province,
-      city: _params.city,
       amenities: _params.amenities,
       minPrice: _params.minPrice,
       maxPrice: _params.maxPrice,

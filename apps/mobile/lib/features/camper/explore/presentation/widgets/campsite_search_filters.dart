@@ -2,28 +2,32 @@ import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_spacing.dart';
 import '../../../../../core/widgets/ctms_button.dart';
+import '../../application/campsite_search_controller.dart' show fixedExploreProvince;
 
-/// CTMS-17-T02 (mobile). Exactly the 5 filters CTMS-77 accepts (province,
-/// city, amenities, minPrice, maxPrice) -- no status selector, no
+/// CTMS-17-T02 (mobile). Exactly the filters CTMS-77 accepts (province,
+/// amenities, minPrice, maxPrice) -- no status selector, no
 /// date/guest-count/campsite-type fields (Figma Frame #21 has them, the
 /// real backend contract doesn't -- see the Decision Gate this feature was
 /// built against). Pure presentation: takes current values + callbacks,
 /// no API call, no permission logic, no business filtering of its own.
 ///
-/// Search/Reset are disabled while [isLoading] (BR-241); the 5 fields
+/// `province` is not a user input: Explore is scoped to Đà Nẵng only
+/// (product decision), shown as a static, non-editable line rather than a
+/// field -- there is no backend support for a finer-grained
+/// district/"city" filter (no such column exists on `campsites` at all), so
+/// this deliberately does not offer one instead of shipping a control that
+/// would look like it filters but silently wouldn't.
+///
+/// Search/Reset are disabled while [isLoading] (BR-241); the input fields
 /// themselves are never disabled, so a Camper can keep typing the next
 /// filter while the current search is still in flight.
 class CampsiteSearchFilters extends StatefulWidget {
   const CampsiteSearchFilters({
     super.key,
-    required this.province,
-    required this.city,
     required this.amenities,
     required this.minPrice,
     required this.maxPrice,
     required this.isLoading,
-    required this.onProvinceChanged,
-    required this.onCityChanged,
     required this.onAmenitiesChanged,
     required this.onMinPriceChanged,
     required this.onMaxPriceChanged,
@@ -31,14 +35,10 @@ class CampsiteSearchFilters extends StatefulWidget {
     required this.onReset,
   });
 
-  final String province;
-  final String city;
   final String amenities;
   final String minPrice;
   final String maxPrice;
   final bool isLoading;
-  final ValueChanged<String> onProvinceChanged;
-  final ValueChanged<String> onCityChanged;
   final ValueChanged<String> onAmenitiesChanged;
   final ValueChanged<String> onMinPriceChanged;
   final ValueChanged<String> onMaxPriceChanged;
@@ -50,8 +50,6 @@ class CampsiteSearchFilters extends StatefulWidget {
 }
 
 class _CampsiteSearchFiltersState extends State<CampsiteSearchFilters> {
-  late final _provinceController = TextEditingController(text: widget.province);
-  late final _cityController = TextEditingController(text: widget.city);
   late final _amenitiesController = TextEditingController(text: widget.amenities);
   late final _minPriceController = TextEditingController(text: widget.minPrice);
   late final _maxPriceController = TextEditingController(text: widget.maxPrice);
@@ -64,8 +62,6 @@ class _CampsiteSearchFiltersState extends State<CampsiteSearchFilters> {
     // when the divergence is just this widget's own onChanged round-trip,
     // the two already match here and nothing happens, so the cursor never
     // jumps mid-typing.
-    _syncIfExternal(_provinceController, widget.province);
-    _syncIfExternal(_cityController, widget.city);
     _syncIfExternal(_amenitiesController, widget.amenities);
     _syncIfExternal(_minPriceController, widget.minPrice);
     _syncIfExternal(_maxPriceController, widget.maxPrice);
@@ -77,8 +73,6 @@ class _CampsiteSearchFiltersState extends State<CampsiteSearchFilters> {
 
   @override
   void dispose() {
-    _provinceController.dispose();
-    _cityController.dispose();
     _amenitiesController.dispose();
     _minPriceController.dispose();
     _maxPriceController.dispose();
@@ -90,23 +84,17 @@ class _CampsiteSearchFiltersState extends State<CampsiteSearchFilters> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        TextField(
-          controller: _provinceController,
-          onChanged: widget.onProvinceChanged,
-          decoration: const InputDecoration(
-            labelText: 'Tỉnh/Thành',
-            hintText: 'Ví dụ: Lâm Đồng',
-            prefixIcon: Icon(Icons.location_on_outlined),
-          ),
-        ),
-        const SizedBox(height: AppSpacing.md),
-        TextField(
-          controller: _cityController,
-          onChanged: widget.onCityChanged,
-          decoration: const InputDecoration(
-            labelText: 'Thành phố',
-            hintText: 'Ví dụ: Đà Lạt',
-          ),
+        Row(
+          children: [
+            Icon(Icons.location_on_outlined, color: Theme.of(context).colorScheme.onSurfaceVariant),
+            const SizedBox(width: AppSpacing.xs),
+            Text(
+              'Khu vực: $fixedExploreProvince',
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+            ),
+          ],
         ),
         const SizedBox(height: AppSpacing.md),
         TextField(

@@ -4,6 +4,7 @@ import {
 	Equals,
 	IsArray,
 	IsBoolean,
+	IsDefined,
 	IsEnum,
 	IsInt,
 	IsNotEmpty,
@@ -42,6 +43,7 @@ export class CreateCheckpointDto {
 	name!: string;
 
 	@ApiProperty({ type: GeoJsonPointDto })
+	@IsDefined()
 	@ValidateNested()
 	@Type(() => GeoJsonPointDto)
 	location!: GeoJsonPointDto;

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useCreateRouteCheckpoint } from "../hooks/useCreateRouteCheckpoint";
 import { useRouteCheckpoints } from "../hooks/useRouteCheckpoints";
@@ -19,6 +19,7 @@ vi.mock("./CreateCheckpointForm", () => ({
 		</button>
 	),
 }));
+vi.mock("./RouteSubmissionPanel", () => ({ RouteSubmissionPanel: () => null }));
 
 const checkpoint: RouteCheckpoint = {
 	id: "checkpoint-id",
@@ -74,20 +75,79 @@ describe("RouteCheckpointsPanel", () => {
 	});
 
 	it("loads the selected route, enables draft create, and preserves the server list", () => {
-		render(<RouteCheckpointsPanel route={route("route-one", "draft")} />);
+		render(
+			<RouteCheckpointsPanel
+				route={route("route-one", "draft")}
+				onRouteReload={vi.fn()}
+				onRouteSubmitted={vi.fn()}
+			/>
+		);
 		expect(useRouteCheckpoints).toHaveBeenCalledWith("route-one");
 		expect(screen.getByRole("button", { name: "Tạo checkpoint" })).toBeEnabled();
 		expect(screen.getByText("Rest")).toBeInTheDocument();
 		expect(screen.getByTestId("panel-map")).toHaveAttribute("data-disabled", "false");
 	});
 
-	it("reloads for a switched route and keeps non-draft checkpoints viewable while create is disabled", () => {
-		const { rerender } = render(<RouteCheckpointsPanel route={route("route-one", "draft")} />);
-		rerender(<RouteCheckpointsPanel route={route("route-two", "active")} />);
-		expect(useRouteCheckpoints).toHaveBeenLastCalledWith("route-two");
-		expect(screen.getByText(/Chỉ xem/)).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "Tạo checkpoint" })).toBeDisabled();
-		expect(screen.getByText("Rest")).toBeInTheDocument();
-		expect(screen.getByTestId("panel-map")).toHaveAttribute("data-disabled", "true");
+	it.each(["pending_approval", "active", "closed"] as const)(
+		"reloads for a switched %s route and keeps checkpoints viewable while create is disabled",
+		(status) => {
+			const onRouteReload = vi.fn();
+			const { rerender } = render(
+				<RouteCheckpointsPanel
+					route={route("route-one", "draft")}
+					onRouteReload={onRouteReload}
+					onRouteSubmitted={vi.fn()}
+				/>
+			);
+			rerender(
+				<RouteCheckpointsPanel
+					route={route("route-two", status)}
+					onRouteReload={onRouteReload}
+					onRouteSubmitted={vi.fn()}
+				/>
+			);
+			expect(useRouteCheckpoints).toHaveBeenLastCalledWith("route-two");
+			expect(screen.getByText(/Chỉ xem/)).toBeInTheDocument();
+			expect(screen.getByRole("button", { name: "Tạo checkpoint" })).toBeDisabled();
+			expect(screen.getByText("Rest")).toBeInTheDocument();
+			expect(screen.getByTestId("panel-map")).toHaveAttribute("data-disabled", "true");
+		}
+	);
+
+	it("renders checkpoint loading, error/retry, and empty states", () => {
+		const reload = vi.fn();
+		vi.mocked(useRouteCheckpoints).mockReturnValue({
+			items: [],
+			isLoading: true,
+			error: "",
+			reload,
+		});
+		const props = {
+			route: route("route-one", "draft"),
+			onRouteReload: vi.fn(),
+			onRouteSubmitted: vi.fn(),
+		};
+		const { rerender } = render(<RouteCheckpointsPanel {...props} />);
+		expect(screen.getByText("Đang tải checkpoint...")).toBeInTheDocument();
+
+		vi.mocked(useRouteCheckpoints).mockReturnValue({
+			items: [],
+			isLoading: false,
+			error: "checkpoint load failure",
+			reload,
+		});
+		rerender(<RouteCheckpointsPanel {...props} />);
+		expect(screen.getByRole("alert")).toHaveTextContent("checkpoint load failure");
+		fireEvent.click(screen.getByRole("button", { name: "Tải lại" }));
+		expect(reload).toHaveBeenCalledTimes(1);
+
+		vi.mocked(useRouteCheckpoints).mockReturnValue({
+			items: [],
+			isLoading: false,
+			error: "",
+			reload,
+		});
+		rerender(<RouteCheckpointsPanel {...props} />);
+		expect(screen.getByTestId("checkpoints-empty")).toBeInTheDocument();
 	});
 });

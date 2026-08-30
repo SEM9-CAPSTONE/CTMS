@@ -16,7 +16,7 @@ const _emptyPage = PaginatedCampsiteSearchResponse(
 CampsiteSearchItem _item(String id, String name) => CampsiteSearchItem(
   id: id,
   name: name,
-  location: const CampsiteLocation(province: 'Lam Dong', city: 'Da Lat', latitude: 11.9, longitude: 108.4),
+  location: const CampsiteLocation(province: 'Lam Dong', latitude: 11.9, longitude: 108.4),
   coverImage: null,
   activeRoutes: const [],
 );
@@ -62,24 +62,26 @@ Future<void> _settle(ProviderContainer container) async {
 
 void main() {
   group('CampsiteSearchController', () {
-    test('fires an initial search with page=1, limit=20 and no status field', () async {
-      final repository = _RecordingCampsiteSearchRepository();
-      final container = ProviderContainer(
-        overrides: [campsiteSearchRepositoryProvider.overrideWithValue(repository)],
-      );
-      addTearDown(container.dispose);
+    test(
+      'fires an initial search with page=1, limit=20, province fixed to Đà Nẵng, and no status field',
+      () async {
+        final repository = _RecordingCampsiteSearchRepository();
+        final container = ProviderContainer(
+          overrides: [campsiteSearchRepositoryProvider.overrideWithValue(repository)],
+        );
+        addTearDown(container.dispose);
 
-      expect(container.read(campsiteSearchControllerProvider).isLoading, isTrue);
-      await _settle(container);
+        expect(container.read(campsiteSearchControllerProvider).isLoading, isTrue);
+        await _settle(container);
 
-      expect(repository.calls, hasLength(1));
-      final params = repository.calls.single;
-      expect(params.page, 1);
-      expect(params.limit, 20);
-      expect(params.province, isNull);
-      expect(params.city, isNull);
-      expect(params.amenities, isNull);
-    });
+        expect(repository.calls, hasLength(1));
+        final params = repository.calls.single;
+        expect(params.page, 1);
+        expect(params.limit, 20);
+        expect(params.province, fixedExploreProvince);
+        expect(params.amenities, isNull);
+      },
+    );
 
     test('loading transitions to false once the search resolves', () async {
       final repository = _RecordingCampsiteSearchRepository();
@@ -193,7 +195,7 @@ void main() {
     });
 
     test(
-      'submitFilters trims input, drops empty amenities, parses price, resets to page 1',
+      'submitFilters keeps province fixed to Đà Nẵng, drops empty amenities, parses price, resets to page 1',
       () async {
         final repository = _RecordingCampsiteSearchRepository();
         final container = ProviderContainer(
@@ -203,8 +205,6 @@ void main() {
         await _settle(container);
 
         final controller = container.read(campsiteSearchControllerProvider.notifier);
-        controller.setProvinceInput('  Lam Dong  ');
-        controller.setCityInput('');
         controller.setAmenitiesInput('wifi, bbq ,, ');
         controller.setMinPriceInput('100');
         controller.setMaxPriceInput('not-a-number');
@@ -213,8 +213,7 @@ void main() {
 
         expect(repository.calls, hasLength(2)); // initial + submit
         final params = repository.calls.last;
-        expect(params.province, 'Lam Dong');
-        expect(params.city, isNull);
+        expect(params.province, fixedExploreProvince);
         expect(params.amenities, ['wifi', 'bbq']);
         expect(params.minPrice, 100);
         expect(params.maxPrice, isNull); // invalid input -- omitted, never sent as NaN
@@ -222,7 +221,7 @@ void main() {
       },
     );
 
-    test('resetFilters clears input state and re-searches with no filters', () async {
+    test('resetFilters clears amenities/price input and re-searches, province still fixed', () async {
       final repository = _RecordingCampsiteSearchRepository();
       final container = ProviderContainer(
         overrides: [campsiteSearchRepositoryProvider.overrideWithValue(repository)],
@@ -231,17 +230,18 @@ void main() {
       await _settle(container);
 
       final controller = container.read(campsiteSearchControllerProvider.notifier);
-      controller.setProvinceInput('Lam Dong');
+      controller.setAmenitiesInput('wifi');
       controller.submitFilters();
       await _settle(container);
-      expect(repository.calls.last.province, 'Lam Dong');
+      expect(repository.calls.last.amenities, ['wifi']);
 
       controller.resetFilters();
       await _settle(container);
 
       expect(repository.calls, hasLength(3)); // initial + submit + reset
-      expect(repository.calls.last.province, isNull);
-      expect(container.read(campsiteSearchControllerProvider).provinceInput, '');
+      expect(repository.calls.last.province, fixedExploreProvince);
+      expect(repository.calls.last.amenities, isNull);
+      expect(container.read(campsiteSearchControllerProvider).amenitiesInput, '');
     });
 
     test('setPage changes only the page, preserving the currently-submitted filters', () async {
@@ -253,7 +253,7 @@ void main() {
       await _settle(container);
 
       final controller = container.read(campsiteSearchControllerProvider.notifier);
-      controller.setProvinceInput('Lam Dong');
+      controller.setAmenitiesInput('wifi');
       controller.submitFilters();
       await _settle(container);
 
@@ -261,7 +261,8 @@ void main() {
       await _settle(container);
 
       final params = repository.calls.last;
-      expect(params.province, 'Lam Dong');
+      expect(params.province, fixedExploreProvince);
+      expect(params.amenities, ['wifi']);
       expect(params.page, 2);
     });
 

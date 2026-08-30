@@ -16,6 +16,7 @@ export const queryKeys = {
 	},
 	trekking: {
 		all: ["trekking-routes"] as const,
+		pendingReview: ["trekking-routes", "pending-review"] as const,
 		list: (filters?: Record<string, unknown>) => ["trekking-routes", "list", filters] as const,
 		detail: (id: string) => ["trekking-routes", "detail", id] as const,
 		checkpoints: (routeId: string) => ["trekking-routes", routeId, "checkpoints"] as const,

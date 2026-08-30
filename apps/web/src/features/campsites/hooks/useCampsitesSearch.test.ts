@@ -2,7 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { HttpError } from "../../../core/api";
 import { campsitesService } from "../services/campsites.service";
-import { useCampsitesSearch } from "./useCampsitesSearch";
+import { FIXED_EXPLORE_PROVINCE, useCampsitesSearch } from "./useCampsitesSearch";
 
 vi.mock("../services/campsites.service", () => ({
 	campsitesService: { search: vi.fn() },
@@ -19,23 +19,24 @@ describe("useCampsitesSearch", () => {
 		});
 	});
 
-	it("fires an initial search with page/limit defaults and no status field at all", async () => {
+	it("fires an initial search with page/limit defaults, province fixed to Đà Nẵng, and no status field at all", async () => {
 		const { result } = renderHook(() => useCampsitesSearch());
 
 		await waitFor(() => expect(result.current.isLoading).toBe(false));
 
 		expect(mockedSearch).toHaveBeenCalledTimes(1);
 		const calledWith = mockedSearch.mock.calls[0][0];
-		expect(calledWith).toEqual({ page: 1, limit: 20 });
+		expect(calledWith).toEqual({ province: FIXED_EXPLORE_PROVINCE, page: 1, limit: 20 });
 		expect("status" in calledWith).toBe(false);
 	});
 
-	it("submitFilters builds params from input state, dropping empty/invalid values", async () => {
+	it("submitFilters keeps province fixed to Đà Nẵng and builds the rest from input state, dropping empty/invalid values", async () => {
 		const { result } = renderHook(() => useCampsitesSearch());
 		await waitFor(() => expect(result.current.isLoading).toBe(false));
 
 		act(() => {
-			result.current.setNameInput("  Son Tra  ");
+			result.current.setAmenitiesInput("wifi, bbq ,, ");
+			result.current.setMinPriceInput("100");
 			result.current.setMaxPriceInput("not-a-number");
 		});
 		act(() => {
@@ -45,19 +46,21 @@ describe("useCampsitesSearch", () => {
 		await waitFor(() => expect(mockedSearch).toHaveBeenCalledTimes(2));
 		const calledWith = mockedSearch.mock.calls[1][0];
 		expect(calledWith).toEqual({
-			name: "Son Tra",
+			province: FIXED_EXPLORE_PROVINCE,
+			amenities: ["wifi", "bbq"],
+			minPrice: 100,
 			maxPrice: undefined,
 			page: 1,
 			limit: 20,
 		});
 	});
 
-	it("resetFilters clears input state and re-searches with no filters", async () => {
+	it("resetFilters clears amenities/price input state and re-searches, province still fixed", async () => {
 		const { result } = renderHook(() => useCampsitesSearch());
 		await waitFor(() => expect(result.current.isLoading).toBe(false));
 
 		act(() => {
-			result.current.setNameInput("Son Tra");
+			result.current.setAmenitiesInput("wifi");
 		});
 		act(() => {
 			result.current.submitFilters();
@@ -69,8 +72,12 @@ describe("useCampsitesSearch", () => {
 		});
 		await waitFor(() => expect(mockedSearch).toHaveBeenCalledTimes(3));
 
-		expect(result.current.nameInput).toBe("");
-		expect(mockedSearch).toHaveBeenNthCalledWith(3, { page: 1, limit: 20 });
+		expect(result.current.amenitiesInput).toBe("");
+		expect(mockedSearch).toHaveBeenNthCalledWith(3, {
+			province: FIXED_EXPLORE_PROVINCE,
+			page: 1,
+			limit: 20,
+		});
 	});
 
 	it("setPage keeps page-only changes and does not touch filters", async () => {
@@ -78,7 +85,7 @@ describe("useCampsitesSearch", () => {
 		await waitFor(() => expect(result.current.isLoading).toBe(false));
 
 		act(() => {
-			result.current.setNameInput("Son Tra");
+			result.current.setAmenitiesInput("wifi");
 		});
 		act(() => {
 			result.current.submitFilters();
@@ -89,7 +96,12 @@ describe("useCampsitesSearch", () => {
 			result.current.setPage(2);
 		});
 		await waitFor(() => expect(mockedSearch).toHaveBeenCalledTimes(3));
-		expect(mockedSearch).toHaveBeenNthCalledWith(3, { name: "Son Tra", page: 2, limit: 20 });
+		expect(mockedSearch).toHaveBeenNthCalledWith(3, {
+			province: FIXED_EXPLORE_PROVINCE,
+			amenities: ["wifi"],
+			page: 2,
+			limit: 20,
+		});
 	});
 
 	it("BR-241: a second submitFilters()/setPage() call while a request is in flight is a no-op", async () => {

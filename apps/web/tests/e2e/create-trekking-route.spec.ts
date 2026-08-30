@@ -41,6 +41,48 @@ async function fillMetadata(page: Page, campsiteId: string, name: string) {
 	await page.getByLabel("Thời lượng dự kiến (phút)").fill("120");
 }
 
+async function drawRoute(page: Page): Promise<void> {
+	const wrapper = page.getByTestId("route-map-surface");
+	const fallback = wrapper.getByRole("button", { name: "Bản đồ vẽ tuyến" });
+	const canvas = wrapper.locator("canvas").first();
+	await expect(wrapper).toBeVisible();
+	await expect
+		.poll(async () => (await fallback.isVisible()) || (await canvas.isVisible()))
+		.toBe(true);
+	const surface = (await fallback.isVisible()) ? fallback : canvas;
+	const box = await surface.boundingBox();
+	if (!box) throw new Error("Expected route editor bounds");
+	await surface.click({ position: { x: box.width * 0.4, y: box.height * 0.45 } });
+	await surface.click({ position: { x: box.width * 0.6, y: box.height * 0.55 } });
+}
+
+async function clickCheckpointMap(page: Page, xRatio: number, yRatio: number): Promise<void> {
+	const wrapper = page.getByTestId("checkpoint-map");
+	await expect(wrapper).toBeVisible();
+	await expect(wrapper).toHaveAttribute("data-map-mode", /^(fallback|maplibre)$/);
+	const mode = await wrapper.getAttribute("data-map-mode");
+	const surface =
+		mode === "fallback"
+			? wrapper.getByRole("img", { name: "Bản đồ chọn checkpoint" })
+			: wrapper.locator("canvas").first();
+	const box = await surface.boundingBox();
+	if (!box) throw new Error("Expected checkpoint map bounds");
+	await surface.click({ position: { x: box.width * xRatio, y: box.height * yRatio } });
+}
+
+async function createRequiredCheckpoint(
+	page: Page,
+	input: { name: string; type: "start" | "finish"; offset: string }
+): Promise<void> {
+	await page.getByLabel("Tên checkpoint").fill(input.name);
+	await page.getByLabel("Loại checkpoint").selectOption(input.type);
+	await page.getByLabel("Bán kính (mét)").fill("30");
+	await page.getByLabel("Thời gian đến dự kiến (phút)").fill(input.offset);
+	await page.getByLabel("Hướng dẫn").fill(`E2E ${input.type} instructions`);
+	await page.getByRole("button", { name: "Tạo checkpoint" }).click();
+	await expect(page.getByText(input.name)).toBeVisible();
+}
+
 test.describe("CTMS-52 Create Trekking Route on Map", () => {
 	test.describe.configure({ mode: "serial" });
 	test.setTimeout(75_000);
@@ -49,6 +91,8 @@ test.describe("CTMS-52 Create Trekking Route on Map", () => {
 	const camperEmail = email("route-camper");
 	let ownerId = "";
 	let campsiteId = "";
+	let manualRouteId = "";
+	let journeyRouteId = "";
 	const routeIds: string[] = [];
 
 	test.beforeAll(() => {
@@ -102,11 +146,7 @@ test.describe("CTMS-52 Create Trekking Route on Map", () => {
 		await login(page, ownerEmail);
 		await page.goto("/host/trekking-routes/create");
 		await fillMetadata(page, campsiteId, "E2E Manual Ridge");
-		const map = page.getByRole("button", { name: "Bản đồ vẽ tuyến" });
-		const box = await map.boundingBox();
-		expect(box).toBeTruthy();
-		await map.click({ position: { x: 180, y: 180 } });
-		await map.click({ position: { x: 210, y: 200 } });
+		await drawRoute(page);
 		await page.getByRole("button", { name: "Tạo tuyến đường" }).click();
 		await expect(page.getByText("Tạo tuyến đường thành công")).toBeVisible();
 		expect(await page.getByTestId("server-route-status").textContent()).toBe("draft");
@@ -114,6 +154,7 @@ test.describe("CTMS-52 Create Trekking Route on Map", () => {
 			Number((await page.getByTestId("server-route-length").textContent())?.replace(/[^0-9.]/g, ""))
 		).toBeGreaterThan(0);
 		const routeId = (await page.getByTestId("created-route-id").textContent())?.trim() ?? "";
+		manualRouteId = routeId;
 		routeIds.push(routeId);
 		const stored = db<{
 			route: {
@@ -146,7 +187,56 @@ test.describe("CTMS-52 Create Trekking Route on Map", () => {
 		});
 		await page.getByRole("button", { name: "Tạo tuyến đường" }).click();
 		await expect(page.getByText("Tạo tuyến đường thành công")).toBeVisible();
-		routeIds.push((await page.getByTestId("created-route-id").textContent())?.trim() ?? "");
+		journeyRouteId = (await page.getByTestId("created-route-id").textContent())?.trim() ?? "";
+		routeIds.push(journeyRouteId);
+	});
+
+	test("Host prepares the created draft and submits it for approval through the UI", async ({
+		page,
+	}) => {
+		await page.route("https://api.maptiler.com/**", (route) => route.abort());
+		await login(page, ownerEmail);
+		await page.goto(`/host/trekking-routes?campsiteId=${campsiteId}`);
+		await page.getByRole("button", { name: /E2E Imported Ridge/ }).click();
+
+		await clickCheckpointMap(page, 0.25, 0.75);
+		await createRequiredCheckpoint(page, {
+			name: "E2E Route Start",
+			type: "start",
+			offset: "0",
+		});
+		await clickCheckpointMap(page, 0.75, 0.25);
+		await createRequiredCheckpoint(page, {
+			name: "E2E Route Finish",
+			type: "finish",
+			offset: "120",
+		});
+
+		const submit = page.getByRole("button", { name: "Gửi duyệt" });
+		await expect(submit).toBeEnabled();
+		await submit.click();
+
+		await expect(page.getByTestId("route-submission-success")).toContainText("Chờ duyệt");
+		await expect(page.getByText("Chờ duyệt").first()).toBeVisible();
+		await expect(page.getByRole("button", { name: "Gửi duyệt" })).toHaveCount(0);
+		expect(
+			db<{ route: { status: string } }>("get-trekking-route", { routeId: journeyRouteId }).route
+				.status
+		).toBe("pending_approval");
+	});
+
+	test("incomplete preparation keeps submission disabled and the Route draft", async ({ page }) => {
+		await login(page, ownerEmail);
+		await page.goto(`/host/trekking-routes?campsiteId=${campsiteId}`);
+		await page.getByRole("button", { name: /E2E Manual Ridge/ }).click();
+
+		await expect(page.getByText("Thiếu checkpoint Bắt đầu.")).toBeVisible();
+		await expect(page.getByText("Thiếu checkpoint Kết thúc.")).toBeVisible();
+		await expect(page.getByRole("button", { name: "Gửi duyệt" })).toBeDisabled();
+		expect(
+			db<{ route: { status: string } }>("get-trekking-route", { routeId: manualRouteId }).route
+				.status
+		).toBe("draft");
 	});
 
 	test("invalid geometry creates no route", async ({ page }) => {
@@ -166,9 +256,14 @@ test.describe("CTMS-52 Create Trekking Route on Map", () => {
 		await expect(
 			page.getByRole("heading", { name: "Tạo tuyến trekking trên bản đồ" })
 		).not.toBeVisible();
+		await page.goto(`/host/trekking-routes?campsiteId=${campsiteId}`);
+		await expect(page.getByText("Truy cập bị từ chối")).toBeVisible();
+		await expect(page.getByRole("button", { name: "Gửi duyệt" })).toHaveCount(0);
 	});
 
-	test("non-owning Host API attempt creates no route or audit", async ({ page }) => {
+	test("non-owning Host cannot create or submit and Route data remains unchanged", async ({
+		page,
+	}) => {
 		await login(page, otherHostEmail);
 		const token = await page.evaluate(() => localStorage.getItem("accessToken"));
 		const before = db<{ routes: number; audits: number }>("count-trekking-routes", { campsiteId });
@@ -190,5 +285,15 @@ test.describe("CTMS-52 Create Trekking Route on Map", () => {
 		});
 		expect(response.status()).toBe(403);
 		expect(db("count-trekking-routes", { campsiteId })).toEqual(before);
+
+		const submitResponse = await page.request.patch(
+			`http://localhost:3000/api/trekking-routes/${manualRouteId}/submit-for-approval`,
+			{ headers: { Authorization: `Bearer ${token}` } }
+		);
+		expect(submitResponse.status()).toBe(403);
+		expect(
+			db<{ route: { status: string } }>("get-trekking-route", { routeId: manualRouteId }).route
+				.status
+		).toBe("draft");
 	});
 });

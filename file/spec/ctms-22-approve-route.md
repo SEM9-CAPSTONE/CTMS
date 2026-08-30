@@ -6,17 +6,112 @@
 **Story Title**  
 Approve Route
 
+**Jira Mapping**
+Jira `CTMS-55` implements backlog/spec story `CTMS-22`. The separate backlog story also numbered CTMS-55 for equipment handling is unrelated to this Jira task.
+
 **Status**  
-To Do
+Core Route review API, Admin Web flow, audit, locking, and tests implemented. Host Route submission (`draft -> pending_approval`) is implemented by CTMS-81 / CTMS-19. Operational notifications remain dependency-blocked because no canonical notification infrastructure exists.
 
 **Story**  
 As an Admin, I want to approve Route so that the CTMS workflow is completed safely, consistently, and within the correct business scope.
 
 ## Acceptance Criteria
-- [ ] Routes with status = draft or pending_approval are checked for geometry, difficulty, and checkpoints.
-- [ ] approval changes status to active. If not approved, status returns to draft for Host edits.
-- [ ] if the route cannot operate, status becomes closed. Reasons are saved in audit_logs/notifications.
-- [ ] do not use rejected.
+- [x] Admin review validates authoritative stored geometry, difficulty, and every existing checkpoint for a `pending_approval` Route before approval.
+- [x] Approval changes `pending_approval -> active`; decline changes `pending_approval -> draft` for Host edits.
+- [x] An explicit non-operable decision changes `pending_approval -> closed`.
+- [x] Decline and non-operable reasons are trimmed, required, limited to 255 characters, and stored in `audit_logs`.
+- [x] No `rejected` status or arbitrary client-controlled status is used.
+- [x] Draft submission validation and `draft -> pending_approval` are provided by CTMS-19 / Jira CTMS-81. CTMS-22 consumes the resulting `pending_approval` Route and does not duplicate the Host action.
+- [ ] Related Camper/Porter and Host operational notifications. **Blocked by the absence of a Route-linked Trip/participant recipient model and operational notification persistence/service.**
+
+## Approved CTMS-55 Implementation Contract
+
+### Actors, authorization, and discovery
+
+- Only an authenticated active `admin` may list or review Routes through the CTMS-22 endpoints. Host, Camper, and Porter receive `403`; unauthenticated or inactive accounts receive `401` through the canonical JWT strategy.
+- `GET /api/trekking-routes/pending-review` returns only `pending_approval` Routes and includes Route identity, campsite name, GeoJSON LineString, authoritative length, difficulty, expected duration, status, and ordered checkpoints.
+- The Admin Web entry point is `/admin/trekking-routes`, protected by the existing Admin role guard and linked from the existing Admin sidebar.
+- Existing Host create/list/checkpoint authorization remains unchanged; Admin is not introduced as a global Route ownership bypass.
+
+### Lifecycle and API
+
+The canonical review state machine is:
+
+```text
+pending_approval --approve-------> active
+pending_approval --decline-------> draft
+pending_approval --non_operable--> closed
+```
+
+`PATCH /api/trekking-routes/:routeId/review` accepts only:
+
+```json
+{ "action": "approve" }
+```
+
+```json
+{ "action": "decline", "reason": "Checkpoint instructions need revision." }
+```
+
+```json
+{ "action": "non_operable", "reason": "Operation is prohibited in this protected area." }
+```
+
+- `reason` is required for `decline` and `non_operable`, trimmed, nonblank, and at most 255 characters. Approval does not require or persist a reason.
+- Clients cannot supply a target status, geometry, difficulty, checkpoints, previous status, or lifecycle timestamp.
+- Every source state other than `pending_approval`, including repeated/concurrent decisions, returns `409` with no side effects.
+- Jira/spec wording that mentions draft-or-pending validation does not authorize direct `draft -> active`. Draft validation and Host submission belong to CTMS-19 / Jira CTMS-81 through `PATCH /api/trekking-routes/:routeId/submit-for-approval`; CTMS-22 does not duplicate that endpoint.
+- CTMS-21 compatibility is `active -> closed -> pending_approval`; a reopened Route is reviewed through the same pending-only CTMS-22 path.
+
+### Server-authoritative approval validation
+
+Approval reads only stored PostgreSQL/PostGIS data after locking the Route row:
+
+- Geometry must be a non-empty, valid `LineString` with SRID 4326, at least two vertices, positive PostGIS length, and positive stored server-computed length.
+- Difficulty must be one of the existing enum values `easy | moderate | hard | expert`.
+- Every existing checkpoint must satisfy the existing CTMS-20 integrity contract: nonblank metadata, `Point` SRID 4326 geometry, radius `10..500`, an existing checkpoint enum type, arrival offset within Route duration, route position `[0,1]`, and location within 50 metres of the Route.
+- CTMS-22 validates every existing checkpoint but does not duplicate submission completeness. CTMS-19 / Jira CTMS-81 requires exactly one `start`, exactly one `finish`, and start-before-finish when a draft Route is submitted. Routes reaching `pending_approval` through another supported lifecycle action remain subject to CTMS-22's existing stored-integrity validation.
+- Failed stored-data validation returns `422`, names the failing integrity area, and does not update status or write an approval audit.
+
+### Transaction, locking, concurrency, and audit
+
+Each review executes in one TypeORM/PostgreSQL transaction:
+
+```text
+BEGIN
+-> SELECT Route and campsite context FOR UPDATE
+-> verify existence and pending_approval state after the lock
+-> for approval, validate stored Route/checkpoint integrity with PostGIS
+-> update the server-selected status
+-> insert audit_logs row
+COMMIT
+```
+
+- Concurrent Admin decisions serialize on the Route row. The first valid decision commits; a stale second decision receives `409`.
+- Audit actions are `trekking_route.approved`, `trekking_route.declined`, and `trekking_route.closed`, with `target_type=trekking_route`, authenticated Admin actor, status-only before/after snapshots, and the required reason where applicable.
+- Route update and audit insertion are atomic. Audit failure rolls the status change back.
+- `audit_logs.reason varchar(255)` and the existing Route status/difficulty/checkpoint enums already satisfy persistence requirements. No migration is required.
+
+### Admin Web behavior
+
+- The pending review page provides loading, error/retry, empty, and populated states.
+- Admin can select a Route and inspect campsite context, status, difficulty, length, duration, the reused read-only MapLibre/fallback Route preview, and the reused ordered checkpoint list.
+- The review dialog makes approve, return-to-draft, and non-operable decisions explicit. Admin never types a raw status.
+- Required reason and 255-character validation run in the UI and backend. Failure keeps the dialog open and preserves entered reason; duplicate submission is prevented.
+- Success reloads the authoritative pending list. The client does not patch Route status as a source of truth.
+- Host and other roles are denied by both the Web role guard and backend guards.
+
+### Notification dependency
+
+The repository has OTP delivery and an emergency WebSocket broadcast, but no operational notification table, recipient model, outbox/event contract, or Route-linked canonical Trip participants. Those mechanisms are not reused as fake Route review notifications. CTMS-55 therefore implements the required audit reason but does not claim notification delivery complete. Once the Route-linked Trip/participant and notification contracts exist, notification creation/delivery must occur only after the business change commits and delivery failure must not undo the Route decision, consistent with BR-226.
+
+### Test evidence and scope exclusions
+
+- Backend unit tests cover decision validation, pending-only lifecycle, all three targets, authoritative integrity failures, status-only audits, and audit failure propagation.
+- Real PostgreSQL/PostGIS integration covers Admin discovery, LineString/checkpoint read-back, all transitions, role and active-account authorization, `404/409/422`, forbidden fields, invalid stored checkpoint integrity, concurrent conflicting decisions, audit persistence, and audit rollback.
+- Web tests cover discovery states, geometry/difficulty/status/checkpoint display, approval reload, duplicate prevention, blank/255-character reason rules, failure preservation, and explicit non-operable behavior under the repository's `isolate:false` Vitest configuration.
+- Playwright covers Admin inspection/approval, decline, non-operable, stale/invalid failure behavior, and Host denial.
+- Excluded: CTMS-21 close/reopen endpoints, Route edit/delete, CTMS-23 hazards, weather automation, Trip architecture/publication, booking/payment/refund, Porter assignment, Camper Route booking, Mobile, and notification-platform design.
 
 ## Business Rules Checklist
 - [ ] BR-055: Related Campers and Porters must receive notifications.

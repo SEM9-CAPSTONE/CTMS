@@ -16,12 +16,6 @@ export interface SearchCampsitesPageProps {
 	onLogout?: (allDevices: boolean) => Promise<void>;
 }
 
-/**
- * CTMS-17-T02. Pure composition -- every request (initial load, filter
- * submit/reset, pagination) is driven entirely by useCampsitesSearch
- * (Step 2); this component adds no API calls, no extra state, and no
- * business logic of its own.
- */
 export function SearchCampsitesPage({
 	onNavigateDashboard,
 	onNavigateProfile,
@@ -93,13 +87,13 @@ export function SearchCampsitesPage({
 
 					<div className="overflow-hidden rounded-2xl border border-[#e0ebe0] bg-white shadow-sm">
 						<CampsitesSearchFilters
-							name={searchState.nameInput}
+							amenities={searchState.amenitiesInput}
+							minPrice={searchState.minPriceInput}
 							maxPrice={searchState.maxPriceInput}
-							rating={searchState.ratingInput}
 							isLoading={searchState.isLoading}
-							onNameChange={searchState.setNameInput}
+							onAmenitiesChange={searchState.setAmenitiesInput}
+							onMinPriceChange={searchState.setMinPriceInput}
 							onMaxPriceChange={searchState.setMaxPriceInput}
-							onRatingChange={searchState.setRatingInput}
 							onSubmit={searchState.submitFilters}
 							onReset={searchState.resetFilters}
 						/>

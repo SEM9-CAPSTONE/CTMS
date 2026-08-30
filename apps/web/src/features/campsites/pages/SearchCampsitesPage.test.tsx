@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { HttpError } from "../../../core/api";
-import { camperProfileService } from "../../camper-profile/services/camper-profile.service";
+import { FIXED_EXPLORE_PROVINCE } from "../hooks/useCampsitesSearch";
 import { campsitesService } from "../services/campsites.service";
 import type { PaginatedCampsiteSearchResponse } from "../types";
 import { SearchCampsitesPage } from "./SearchCampsitesPage";
@@ -11,11 +11,20 @@ vi.mock("../services/campsites.service", () => ({
 }));
 
 vi.mock("../../camper-profile/services/camper-profile.service", () => ({
-	camperProfileService: { getProfile: vi.fn() },
+	camperProfileService: {
+		getProfile: vi.fn(() =>
+			Promise.resolve({
+				id: "camper-id",
+				fullName: "Test Camper",
+				avatarUrl: null,
+				email: "camper@test.com",
+				phone: "0123456789",
+			})
+		),
+	},
 }));
 
 const mockedSearch = vi.mocked(campsitesService.search);
-const mockedGetProfile = vi.mocked(camperProfileService.getProfile);
 
 const oneItemPage: PaginatedCampsiteSearchResponse = {
 	items: [
@@ -47,35 +56,17 @@ const emptyPage: PaginatedCampsiteSearchResponse = {
 describe("SearchCampsitesPage", () => {
 	beforeEach(() => {
 		mockedSearch.mockReset();
-		mockedGetProfile.mockReset();
-		mockedGetProfile.mockResolvedValue({
-			id: "camper-1",
-			accountStatus: "active",
-			email: "camper@example.com",
-			fullName: "Nguyen Camper",
-			phone: "",
-			avatarUrl: "https://example.com/avatar.jpg",
-			isProMember: false,
-			joinedYear: 2024,
-			dateOfBirth: "",
-			gender: "other",
-			address: "",
-			bio: "",
-			campingExperienceYears: 0,
-			trekkingExperienceDetails: "",
-			languages: [],
-			emergencyContacts: [],
-			completionPercentage: 0,
-			emergencyContactAdded: false,
-			phoneVerified: false,
-		});
 	});
 
-	it("fires the initial search with page=1, limit=20 and nothing else", async () => {
+	it("fires the initial search with page=1, limit=20, province fixed to Đà Nẵng, and nothing else", async () => {
 		mockedSearch.mockResolvedValue(emptyPage);
 		render(<SearchCampsitesPage />);
 		await waitFor(() => expect(mockedSearch).toHaveBeenCalledTimes(1));
-		expect(mockedSearch).toHaveBeenCalledWith({ page: 1, limit: 20 });
+		expect(mockedSearch).toHaveBeenCalledWith({
+			province: FIXED_EXPLORE_PROVINCE,
+			page: 1,
+			limit: 20,
+		});
 	});
 
 	it("shows the loading state while pending, not a stale success/empty view", async () => {
@@ -161,26 +152,35 @@ describe("SearchCampsitesPage", () => {
 		render(<SearchCampsitesPage />);
 		await waitFor(() => expect(mockedSearch).toHaveBeenCalledTimes(1));
 
-		fireEvent.change(screen.getByLabelText("Tên khu cắm trại"), { target: { value: "Lam Dong" } });
+		fireEvent.change(screen.getByLabelText("Tiện ích"), { target: { value: "wifi" } });
 		fireEvent.click(screen.getByRole("button", { name: /tìm kiếm/i }));
 
 		await waitFor(() => expect(mockedSearch).toHaveBeenCalledTimes(2));
-		expect(mockedSearch).toHaveBeenNthCalledWith(2, { name: "Lam Dong", page: 1, limit: 20 });
+		expect(mockedSearch).toHaveBeenNthCalledWith(2, {
+			province: FIXED_EXPLORE_PROVINCE,
+			amenities: ["wifi"],
+			page: 1,
+			limit: 20,
+		});
 	});
 
-	it("clicking Reset after a filter re-searches with no filters", async () => {
+	it("clicking Reset after a filter re-searches with province still fixed and no other filters", async () => {
 		mockedSearch.mockResolvedValue(emptyPage);
 		render(<SearchCampsitesPage />);
 		await waitFor(() => expect(mockedSearch).toHaveBeenCalledTimes(1));
 
-		fireEvent.change(screen.getByLabelText("Tên khu cắm trại"), { target: { value: "Lam Dong" } });
+		fireEvent.change(screen.getByLabelText("Tiện ích"), { target: { value: "wifi" } });
 		fireEvent.click(screen.getByRole("button", { name: /tìm kiếm/i }));
 		await waitFor(() => expect(mockedSearch).toHaveBeenCalledTimes(2));
 
 		fireEvent.click(screen.getByRole("button", { name: /đặt lại/i }));
 		await waitFor(() => expect(mockedSearch).toHaveBeenCalledTimes(3));
-		expect(mockedSearch).toHaveBeenNthCalledWith(3, { page: 1, limit: 20 });
-		expect((screen.getByLabelText("Tên khu cắm trại") as HTMLInputElement).value).toBe("");
+		expect(mockedSearch).toHaveBeenNthCalledWith(3, {
+			province: FIXED_EXPLORE_PROVINCE,
+			page: 1,
+			limit: 20,
+		});
+		expect((screen.getByLabelText("Tiện ích") as HTMLInputElement).value).toBe("");
 	});
 
 	it("paginating preserves the currently-submitted filters", async () => {
@@ -191,7 +191,7 @@ describe("SearchCampsitesPage", () => {
 		render(<SearchCampsitesPage />);
 		await waitFor(() => expect(mockedSearch).toHaveBeenCalledTimes(1));
 
-		fireEvent.change(screen.getByLabelText("Tên khu cắm trại"), { target: { value: "Lam Dong" } });
+		fireEvent.change(screen.getByLabelText("Tiện ích"), { target: { value: "wifi" } });
 		fireEvent.click(screen.getByRole("button", { name: /tìm kiếm/i }));
 		await waitFor(() => expect(mockedSearch).toHaveBeenCalledTimes(2));
 
@@ -202,7 +202,12 @@ describe("SearchCampsitesPage", () => {
 		fireEvent.click(screen.getByLabelText("Trang sau"));
 
 		await waitFor(() => expect(mockedSearch).toHaveBeenCalledTimes(3));
-		expect(mockedSearch).toHaveBeenNthCalledWith(3, { name: "Lam Dong", page: 2, limit: 20 });
+		expect(mockedSearch).toHaveBeenNthCalledWith(3, {
+			province: FIXED_EXPLORE_PROVINCE,
+			amenities: ["wifi"],
+			page: 2,
+			limit: 20,
+		});
 	});
 
 	it("makes no calls beyond what the hook issues -- exactly 1 call per user action, none on its own", async () => {
@@ -221,6 +226,10 @@ describe("SearchCampsitesPage", () => {
 		mockedSearch.mockResolvedValueOnce(emptyPage);
 		fireEvent.click(screen.getByRole("button", { name: /thử lại/i }));
 		await waitFor(() => expect(mockedSearch).toHaveBeenCalledTimes(2));
-		expect(mockedSearch).toHaveBeenNthCalledWith(2, { page: 1, limit: 20 });
+		expect(mockedSearch).toHaveBeenNthCalledWith(2, {
+			province: FIXED_EXPLORE_PROVINCE,
+			page: 1,
+			limit: 20,
+		});
 	});
 });

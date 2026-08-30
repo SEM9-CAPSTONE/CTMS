@@ -2,6 +2,7 @@ export const ROUTE_DIFFICULTIES = ["easy", "moderate", "hard", "expert"] as cons
 export type RouteDifficulty = (typeof ROUTE_DIFFICULTIES)[number];
 
 export type RouteStatus = "draft" | "pending_approval" | "active" | "closed";
+export type RouteLifecycleAction = "close" | "reopen";
 export type Position = [number, number];
 
 export const CHECKPOINT_TYPES = [
@@ -42,6 +43,10 @@ export interface CreatedTrekkingRoute extends Omit<CreateTrekkingRouteInput, "de
 	updatedAt: string;
 }
 
+export interface RouteStatusReasonInput {
+	reason: string;
+}
+
 export interface CreateCheckpointInput {
 	name: string;
 	location: GeoJsonPoint;
@@ -58,4 +63,32 @@ export interface RouteCheckpoint extends CreateCheckpointInput {
 	routePosition: number;
 	createdAt: string;
 	updatedAt: string;
+}
+
+export type ReviewTrekkingRouteAction = "approve" | "decline" | "non_operable";
+
+export interface ReviewTrekkingRouteInput {
+	action: ReviewTrekkingRouteAction;
+	reason?: string;
+}
+
+export interface AdminTrekkingRouteReview extends CreatedTrekkingRoute {
+	campsiteName: string;
+	checkpoints: RouteCheckpoint[];
+}
+
+export type WeatherSnapshotStatus = "success" | "failed";
+
+export interface WeatherSnapshot {
+	id: string;
+	routeId: string;
+	status: WeatherSnapshotStatus;
+	observedAt: string | null;
+	rainfallMm: number | null;
+	windKph: number | null;
+	temperatureC: number | null;
+	visibilityM: number | null;
+	thunderstorm: boolean | null;
+	errorMessage: string | null;
+	createdAt: string;
 }

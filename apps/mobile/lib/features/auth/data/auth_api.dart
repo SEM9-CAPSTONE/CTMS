@@ -6,6 +6,18 @@ import '../domain/auth_user.dart';
 import '../domain/register_models.dart';
 import '../domain/user_role.dart';
 
+/// CTMS-02 [Mobile]. Mirrors Web's `OtpChannel` (`apps/web/src/features/auth/types.ts`)
+/// and the backend's `SendOtpDto.OtpChannel` enum exactly -- the channel is
+/// always chosen explicitly by the user on the Verify screen, never inferred.
+enum OtpChannel {
+  phone('phone'),
+  email('email');
+
+  const OtpChannel(this.wireValue);
+
+  final String wireValue;
+}
+
 class LoginResult {
   const LoginResult({
     required this.accessToken,
@@ -87,6 +99,51 @@ class AuthApi {
     final response = await _client.post<Map<String, dynamic>>(
       ApiEndpoints.auth.register,
       data: payload,
+    );
+    return RegisterResult.fromJson(response.data ?? const {});
+  }
+
+  /// CTMS-02 [Mobile]. First OTP issuance for a `pending_verification`
+  /// account created by [register] -- identified by [userId] (the `id`
+  /// [RegisterResult] returns), same as Web. Distinct route from
+  /// [resendOtp] for REST clarity; identical body shape and backend method
+  /// (`services/api`'s `SendOtpDto` docstring: the first call for a user
+  /// always succeeds and isn't counted as a resend).
+  Future<RegisterResult> sendOtp({
+    required String userId,
+    required OtpChannel channel,
+  }) async {
+    final response = await _client.post<Map<String, dynamic>>(
+      ApiEndpoints.auth.sendOtp,
+      data: {'userId': userId, 'channel': channel.wireValue},
+    );
+    return RegisterResult.fromJson(response.data ?? const {});
+  }
+
+  /// CTMS-02 [Mobile]. Same payload/response shape as [sendOtp] -- the
+  /// backend's `/auth/resend` route calls the identical service method,
+  /// see [sendOtp]'s docstring.
+  Future<RegisterResult> resendOtp({
+    required String userId,
+    required OtpChannel channel,
+  }) async {
+    final response = await _client.post<Map<String, dynamic>>(
+      ApiEndpoints.auth.resendOtp,
+      data: {'userId': userId, 'channel': channel.wireValue},
+    );
+    return RegisterResult.fromJson(response.data ?? const {});
+  }
+
+  /// CTMS-02 [Mobile]. On success, flips the account from
+  /// `pending_verification` to `active` server-side -- no session is
+  /// adopted here (same as [register]; a real login still follows).
+  Future<RegisterResult> verifyOtp({
+    required String userId,
+    required String code,
+  }) async {
+    final response = await _client.post<Map<String, dynamic>>(
+      ApiEndpoints.auth.verifyOtp,
+      data: {'userId': userId, 'code': code},
     );
     return RegisterResult.fromJson(response.data ?? const {});
   }

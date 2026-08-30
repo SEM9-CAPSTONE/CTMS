@@ -61,7 +61,7 @@ class CampsiteResultCard extends StatelessWidget {
                     const SizedBox(width: 2),
                     Expanded(
                       child: Text(
-                        '${campsite.location.city}, ${campsite.location.province}',
+                        campsite.location.province,
                         style: AppTypography.caption.copyWith(color: scheme.onSurfaceVariant),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,

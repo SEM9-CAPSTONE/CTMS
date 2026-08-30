@@ -85,6 +85,17 @@ class HttpClient {
 			throw new HttpError(message, response.status, errorData);
 		}
 
+		// A 204, or any 2xx sent with no body at all (e.g. a NestJS controller
+		// returning `null`), has nothing for `.json()` to parse -- it throws
+		// "Unexpected end of JSON input" on a genuinely empty string, not a
+		// caught HttpError. Verified against a real endpoint
+		// (GET .../weather/latest with no snapshot yet sends
+		// Content-Length: 0), not assumed from a client-side testing
+		// convenience.
+		if (response.status === 204 || response.headers.get("content-length") === "0") {
+			return undefined as T;
+		}
+
 		return response.json() as Promise<T>;
 	}
 
