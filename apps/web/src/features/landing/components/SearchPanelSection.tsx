@@ -15,9 +15,14 @@ export const SearchPanelSection: React.FC = () => {
 				</div>
 				<a
 					href="/campsites"
+					onClick={(e) => {
+						e.preventDefault();
+						window.history.pushState({}, "", "/campsites");
+						window.dispatchEvent(new PopStateEvent("popstate"));
+					}}
 					className="inline-flex items-center gap-1 text-sm font-bold text-[#276143] hover:underline"
 				>
-					Xem tất cả <ChevronRight size={16} />
+					Xem tất cả <ChevronRight size={16} className="inline ml-1" />
 				</a>
 			</div>
 
@@ -75,6 +80,10 @@ export const SearchPanelSection: React.FC = () => {
 				</div>
 				<button
 					type="button"
+					onClick={() => {
+						window.history.pushState({}, "", "/campsites");
+						window.dispatchEvent(new PopStateEvent("popstate"));
+					}}
 					className="mt-auto inline-flex h-13 min-w-[160px] cursor-pointer items-center justify-center gap-2 rounded-full bg-[#1c442f] px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-[#143323]"
 				>
 					<Search size={18} /> Tìm kiếm

@@ -1,6 +1,7 @@
 import { Menu } from "lucide-react";
 import type React from "react";
 import { useState } from "react";
+import { Collapse } from "../../../shared/components/Collapse";
 import { type AdminNavigationItem, AdminSidebar } from "./AdminSidebar";
 
 interface AdminLayoutProps {
@@ -11,15 +12,22 @@ interface AdminLayoutProps {
 
 export function AdminLayout({ activeItem, children, onLogout }: AdminLayoutProps) {
 	const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
 	return (
 		<div className="min-h-screen bg-[#f4f7f2] font-sans text-[#10221b] antialiased">
-			<AdminSidebar
-				activeItem={activeItem}
-				onLogout={onLogout}
-				className="fixed inset-y-0 left-0 z-30 hidden lg:flex"
-			/>
+			{/* Desktop Sidebar Wrap */}
+			<div className="fixed inset-y-0 left-0 z-30 hidden lg:flex">
+				<Collapse
+					isCollapsed={isSidebarCollapsed}
+					onToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+					widthClass="w-72"
+				>
+					<AdminSidebar activeItem={activeItem} onLogout={onLogout} className="h-full w-full" />
+				</Collapse>
+			</div>
 
+			{/* Mobile Sidebar overlay */}
 			{mobileMenuOpen && (
 				<div className="fixed inset-0 z-50 lg:hidden">
 					<button
@@ -37,7 +45,9 @@ export function AdminLayout({ activeItem, children, onLogout }: AdminLayoutProps
 				</div>
 			)}
 
-			<div className="min-h-screen lg:pl-72">
+			<div
+				className={`min-h-screen transition-all duration-300 ${isSidebarCollapsed ? "lg:pl-0" : "lg:pl-72"}`}
+			>
 				<header className="sticky top-0 z-20 flex items-center gap-3 border-b border-[#dfe8df] bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
 					<button
 						type="button"

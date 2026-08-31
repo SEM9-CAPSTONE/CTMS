@@ -95,6 +95,12 @@ export function Sidebar({
 								key={item.key}
 								type="button"
 								disabled={item.disabled}
+								onClick={() => {
+									if (item.key === "overview") {
+										window.history.pushState({}, "", "/dashboard");
+										window.dispatchEvent(new PopStateEvent("popstate"));
+									}
+								}}
 								className="flex w-full items-center gap-3.5 rounded-xl px-3.5 py-3 text-sm font-bold text-[#55685a] hover:bg-[#f8faf7] hover:text-[#164027] disabled:cursor-not-allowed disabled:opacity-50"
 							>
 								<Icon className="size-5 shrink-0" />

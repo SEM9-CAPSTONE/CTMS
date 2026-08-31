@@ -1,5 +1,6 @@
 import { API_ENDPOINTS, httpClient } from "../../../core/api";
 import type {
+	CampsiteDetail,
 	CampsiteImageResponse,
 	CampsiteSearchParams,
 	CreateCampsiteInput,
@@ -56,6 +57,10 @@ export const campsitesService = {
 		}
 
 		return campsite;
+	},
+
+	getPublicDetail: async (id: string): Promise<CampsiteDetail> => {
+		return httpClient.get<CampsiteDetail>(API_ENDPOINTS.CAMPSITES.GET_BY_ID(id));
 	},
 
 	update: async (id: string, input: UpdateCampsiteInput): Promise<CreatedCampsite> => {

@@ -13,6 +13,7 @@ export interface CampsitesSearchFiltersProps {
 	onMaxPriceChange: (value: string) => void;
 	onSubmit: () => void;
 	onReset: () => void;
+	className?: string;
 }
 
 /**
@@ -35,7 +36,10 @@ export function CampsitesSearchFilters(props: CampsitesSearchFiltersProps) {
 	};
 
 	return (
-		<form onSubmit={handleSubmit} className="border-b border-[#e0ebe0] bg-white p-5">
+		<form
+			onSubmit={handleSubmit}
+			className={props.className ?? "border-b border-[#e0ebe0] bg-white p-5"}
+		>
 			<div className="mb-4 flex items-center gap-2 text-sm font-bold text-[#425048]">
 				<span aria-hidden="true">📍</span>
 				<span>Khu vực: {FIXED_EXPLORE_PROVINCE}</span>

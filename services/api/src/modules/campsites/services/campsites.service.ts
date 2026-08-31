@@ -188,10 +188,10 @@ export class CampsitesService {
 	}
 
 	async search(query: SearchCampsitesQueryDto): Promise<PaginatedCampsiteSearchResponseDto> {
-		const { page, limit, province, amenities, minPrice, maxPrice } = query;
+		const { page, limit, province, name, amenities, minPrice, maxPrice } = query;
 
 		const { items, total } = await this.campsitesRepository.searchActive(
-			{ province, amenities, minPrice, maxPrice },
+			{ province, name, amenities, minPrice, maxPrice },
 			page,
 			limit
 		);

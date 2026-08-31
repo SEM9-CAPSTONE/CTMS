@@ -76,3 +76,46 @@ export interface AdminTrekkingRouteReview extends CreatedTrekkingRoute {
 	campsiteName: string;
 	checkpoints: RouteCheckpoint[];
 }
+
+export type WeatherSnapshotStatus = "success" | "failed";
+
+export interface WeatherSnapshot {
+	id: string;
+	routeId: string;
+	status: WeatherSnapshotStatus;
+	observedAt: string | null;
+	rainfallMm: number | null;
+	windKph: number | null;
+	temperatureC: number | null;
+	visibilityM: number | null;
+	thunderstorm: boolean | null;
+	errorMessage: string | null;
+	createdAt: string;
+}
+
+export type RiskLevel = "green" | "yellow" | "red";
+
+export interface CriterionScoreDetail {
+	value: number | boolean;
+	level: RiskLevel;
+	weight: number;
+	score: number;
+}
+
+export interface WeatherRiskAssessment {
+	id: string;
+	routeId: string;
+	snapshotId: string;
+	ruleVersionId: string;
+	riskLevel: RiskLevel;
+	compositeScore: number;
+	criteriaScores: {
+		rainfall: CriterionScoreDetail;
+		wind: CriterionScoreDetail;
+		temperature: CriterionScoreDetail;
+		visibility: CriterionScoreDetail;
+		thunderstorm: CriterionScoreDetail;
+	};
+	createdBy: string;
+	createdAt: string;
+}

@@ -1,4 +1,4 @@
-﻿# CTMS-26 - Calculate Weather Risk Score by Multiple Criteria
+# CTMS-26 - Calculate Weather Risk Score by Multiple Criteria
 
 **Spec Reference**  
 /file/spec/ctms-26-calculate-weather-risk-score-by-multiple-criteria.md
@@ -112,3 +112,82 @@ Blocks: CTMS-27, CTMS-28, CTMS-29, CTMS-37, CTMS-56, CTMS-67, CTMS-108, CTMS-120
 - Spec Reference: `/file/spec/ctms-26-calculate-weather-risk-score-by-multiple-criteria.md`
 - Business Rules workbook: `C:/Users/admin/Downloads/CTMS_Global_Business_Rules_Sprint_1-3.xlsx`
 - Story-level BRs: `BR-202, BR-204, BR-205, BR-230, BR-231, BR-242, BR-243, BR-244, BR-066, BR-067, BR-068`
+
+## Backend Preparation Logic and Tests
+
+### Actors
+- **Host**: The owner of the Route's Campsite. Can trigger risk calculation and view the latest assessment for their own Route.
+- **Admin**: Can trigger risk calculation and view the latest assessment for any Route, bypassing ownership.
+
+### Preconditions
+- The Trekking Route must exist and be in `active` status.
+- A successful weather snapshot must have been fetched and persisted for the Route (via refresh).
+- An active weather risk rule set must be configured in the database (seeding version 1 default rule).
+- The actor must hold a valid active session with the role of Host or Admin.
+
+### Decision Gates
+- **Scoring Logic**: Risk score is computed using a weighted composite score across five criteria (Rainfall, Wind, Temperature, Visibility, Thunderstorm) using configured rules and weights.
+- **Classification**: Score mapped to Green (`score < 0.5`), Yellow (`0.5 <= score < 1.2`), or Red (`score >= 1.2`).
+- **Reproducibility**: Calculated scores, input snapshot values, and active rule version are stored in the database so the calculation is fully reproducible (BR-069).
+- **Idempotency**: Requests targeting the same snapshot ID and rule version ID return the existing assessment to avoid duplicate writes on retries (BR-230).
+
+### Main Flow (Calculate Risk)
+1. Host or Admin triggers `POST /trekking-routes/:routeId/weather/risk-score`.
+2. Look up the Route, verify status is active, and assert Host ownership/Admin role.
+3. Look up the latest successful weather snapshot for the Route.
+4. Retrieve the active weather risk rule version.
+5. Check if an assessment already exists for this snapshot and rule. If so, return it (`200`/`201` with same ID).
+6. Calculate scores, composite score, and risk level.
+7. Save the assessment with details to the database.
+8. Return the assessment response (`201`).
+
+### Alternate Flow (Read Latest Assessment)
+- `GET /trekking-routes/:routeId/weather/risk-score/latest` returns the latest computed assessment for the Route (`200`, empty body `{}` if none exists).
+
+### Exception Flows
+- Route not found -> `404`.
+- Host does not own Route -> `403`.
+- No successful weather snapshot found -> `409` (Conflict).
+- Route is not active -> `409` (Conflict) with zero side effects.
+- No active weather rule configured -> `409` (Conflict).
+- Unauthorized or session expired -> `401`.
+- Invalid Camper role -> `403`.
+
+### API Contract
+| Method | Path | Roles | Success | Errors |
+| --- | --- | --- | --- | --- |
+| `POST` | `/trekking-routes/:routeId/weather/risk-score` | Host (owner), Admin | `201 WeatherRiskAssessmentResponseDto` | `401, 403, 404, 409` |
+| `GET` | `/trekking-routes/:routeId/weather/risk-score/latest` | Host (owner), Admin | `200 WeatherRiskAssessmentResponseDto \| null` | `401, 403, 404` |
+
+### Data Mapping
+- New table `weather_risk_rules`: stores versioned thresholds, weights, and classification boundaries.
+- New table `weather_risk_assessments`: stores immutable calculated assessments, composite scores, and breakdown details.
+
+### Test Evidence
+- **Backend Unit Tests**: `pnpm --filter @ctms/api test -- weather` -> 44 passed, covering rule scoring calculations, risk level boundaries, input persistence, and idempotency checks.
+- **Backend Integration Tests**: `pnpm --filter @ctms/api test:integration -- weather-risk.integration-spec.ts` -> 9 passed, verifying calculating, caching, and loading flows, Admin bypass, camper blocking, and non-active route side-effect prevention.
+- All backend unit tests passed: 335 passed.
+- All backend integration tests passed: 194 passed.
+
+## UI and Tests
+
+### Component Layout
+- **RouteWeatherRiskPanel**: Renders a dedicated panel immediately below the `RouteWeatherPanel` on the `TrekkingRoutesPage`.
+- **States Handled**:
+  - **Loading**: Spans a spinner loader `Đang tải đánh giá rủi ro...` during initial fetch.
+  - **Empty**: Renders a friendly prompt `Chưa có đánh giá rủi ro cho tuyến này. Vui lòng tính điểm rủi ro.` if no risk assessment exists yet.
+  - **Success**: Renders a colored alert/badge based on the `riskLevel` (An toàn / Cảnh báo / Nguy hiểm) and the exact `compositeScore`. It also displays a detailed grid of cards showing the name, actual value, individual risk indicator light, and points/weight for each of the 5 criteria.
+  - **Error mapping**: Displays errors when load fails (with a retry button) or when calculation fails (e.g. no successful weather snapshot exists).
+- **calculate Action**: A primary action button `Tính điểm rủi ro` to trigger the service score calculation. It is disabled for non-active routes (shows warning text `Chỉ tính được khi tuyến đang Hoạt động`) and handles dedup via in-flight check.
+
+### Custom Hook
+- **useWeatherRiskScore**: Encapsulates data fetching and mutation trigger. Manages component states (`assessment`, `isLoading`, `error`, `isCalculating`, `calculateError`) and encapsulates request sequence tracking.
+
+### UI Verification Evidence
+- **Unit Tests**:
+  - `pnpm --filter @ctms/web test -- useWeatherRiskScore` -> 11 passed, validating loading, custom error messages mapping (401, 403, 404, 409), calculation response mutation, and call deduping.
+  - `pnpm --filter @ctms/web test -- RouteWeatherRiskPanel` -> 7 passed, validating rendering loading, empty, and success states, handling error banners, and disabling conditions based on route status.
+- **Build Output**: Frontend build compiled successfully (`tsc -b && vite build` exited with code 0).
+- **Linter**: Eslint checks passed without errors.
+
+

@@ -42,6 +42,11 @@ export const API_ENDPOINTS = {
 		REVIEW: (id: string) => `/trekking-routes/${id}/review`,
 		CHECKPOINTS: (routeId: string) => `/trekking-routes/${routeId}/checkpoints`,
 		DANGER_ZONES: (routeId: string) => `/trekking-routes/${routeId}/danger-zones`,
+		WEATHER_LATEST: (routeId: string) => `/trekking-routes/${routeId}/weather/latest`,
+		WEATHER_REFRESH: (routeId: string) => `/trekking-routes/${routeId}/weather/refresh`,
+		WEATHER_RISK_LATEST: (routeId: string) =>
+			`/trekking-routes/${routeId}/weather/risk-score/latest`,
+		WEATHER_RISK_CALCULATE: (routeId: string) => `/trekking-routes/${routeId}/weather/risk-score`,
 	},
 	TRIPS: {
 		GET_ALL: "/trips",

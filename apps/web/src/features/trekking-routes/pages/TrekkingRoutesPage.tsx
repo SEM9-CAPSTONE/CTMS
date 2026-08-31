@@ -11,6 +11,8 @@ import { useEffect, useMemo, useState } from "react";
 import { RouteCheckpointsPanel } from "../components/RouteCheckpointsPanel";
 import { RouteGeometryPreview } from "../components/RouteGeometryPreview";
 import { RouteStatusActionDialog } from "../components/RouteStatusActionDialog";
+import { RouteWeatherPanel } from "../components/RouteWeatherPanel";
+import { RouteWeatherRiskPanel } from "../components/RouteWeatherRiskPanel";
 import { TrekkingRouteList } from "../components/TrekkingRouteList";
 import { useOwnedCampsites } from "../hooks/useOwnedCampsites";
 import { useTrekkingRoutes } from "../hooks/useTrekkingRoutes";
@@ -29,8 +31,12 @@ export function TrekkingRoutesPage({ onBackHome }: TrekkingRoutesPageProps) {
 
 	useEffect(() => {
 		if (campsites.isLoading || campsites.error) return;
+
 		setSelectedCampsiteId((current) => {
-			if (current && campsites.items.some((campsite) => campsite.id === current)) return current;
+			if (current && campsites.items.some((campsite) => campsite.id === current)) {
+				return current;
+			}
+
 			return requestedCampsiteId &&
 				campsites.items.some((campsite) => campsite.id === requestedCampsiteId)
 				? requestedCampsiteId
@@ -40,7 +46,9 @@ export function TrekkingRoutesPage({ onBackHome }: TrekkingRoutesPageProps) {
 
 	useEffect(() => {
 		setSelectedRouteId((current) =>
-			current && routes.items.some((route) => route.id === current) ? current : routes.items[0]?.id
+			current && routes.items.some((route) => route.id === current)
+				? current
+				: routes.items[0]?.id
 		);
 	}, [routes.items]);
 
@@ -63,11 +71,15 @@ export function TrekkingRoutesPage({ onBackHome }: TrekkingRoutesPageProps) {
 							<ArrowLeft className="size-5" />
 						</button>
 					)}
+
 					<div className="rounded-xl bg-emerald-50 p-3 text-[#164027]">
 						<Route className="size-6" />
 					</div>
+
 					<div>
-						<h1 className="text-xl font-extrabold sm:text-2xl">Tuyến trekking của khu cắm trại</h1>
+						<h1 className="text-xl font-extrabold sm:text-2xl">
+							Tuyến trekking của khu cắm trại
+						</h1>
 						<p className="text-sm text-[#667a6d]">
 							Xem lại thông tin và hình học tuyến đường đã tạo.
 						</p>
@@ -88,6 +100,7 @@ export function TrekkingRoutesPage({ onBackHome }: TrekkingRoutesPageProps) {
 						</p>
 					</div>
 				)}
+
 				{campsites.isLoading && (
 					<div
 						data-testid="campsites-loading"
@@ -96,12 +109,14 @@ export function TrekkingRoutesPage({ onBackHome }: TrekkingRoutesPageProps) {
 						Đang tải khu cắm trại...
 					</div>
 				)}
+
 				{campsites.error && !campsites.isLoading && (
 					<div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-6">
 						<div className="flex gap-2 text-red-800">
 							<AlertCircle className="size-5" />
 							{campsites.error}
 						</div>
+
 						<button
 							type="button"
 							onClick={() => void campsites.retry()}
@@ -112,6 +127,7 @@ export function TrekkingRoutesPage({ onBackHome }: TrekkingRoutesPageProps) {
 						</button>
 					</div>
 				)}
+
 				{!campsites.isLoading && !campsites.error && campsites.items.length === 0 && (
 					<div
 						data-testid="campsites-empty"
@@ -130,6 +146,7 @@ export function TrekkingRoutesPage({ onBackHome }: TrekkingRoutesPageProps) {
 						>
 							Khu cắm trại
 						</label>
+
 						<select
 							id="route-list-campsite"
 							value={selectedCampsiteId}
@@ -140,6 +157,7 @@ export function TrekkingRoutesPage({ onBackHome }: TrekkingRoutesPageProps) {
 							className="mt-2 w-full max-w-xl rounded-xl border border-[#cbd9ce] bg-white px-4 py-3 font-semibold"
 						>
 							<option value="">Chọn khu cắm trại</option>
+
 							{campsites.items.map((campsite) => (
 								<option key={campsite.id} value={campsite.id}>
 									{campsite.name}
@@ -155,6 +173,7 @@ export function TrekkingRoutesPage({ onBackHome }: TrekkingRoutesPageProps) {
 								Chọn khu cắm trại để xem tuyến đường.
 							</div>
 						)}
+
 						{selectedCampsiteId && routes.isLoading && (
 							<div
 								data-testid="routes-loading"
@@ -164,12 +183,14 @@ export function TrekkingRoutesPage({ onBackHome }: TrekkingRoutesPageProps) {
 								Đang tải tuyến đường...
 							</div>
 						)}
+
 						{selectedCampsiteId && routes.error && !routes.isLoading && (
 							<div
 								role="alert"
 								className="mt-6 rounded-2xl border border-red-200 bg-red-50 p-6 text-red-800"
 							>
 								{routes.error}
+
 								<button
 									type="button"
 									onClick={() => void routes.retry()}
@@ -180,6 +201,7 @@ export function TrekkingRoutesPage({ onBackHome }: TrekkingRoutesPageProps) {
 								</button>
 							</div>
 						)}
+
 						{selectedCampsiteId &&
 							!routes.isLoading &&
 							!routes.error &&
@@ -189,9 +211,12 @@ export function TrekkingRoutesPage({ onBackHome }: TrekkingRoutesPageProps) {
 									className="mt-6 rounded-2xl border border-dashed bg-white p-8 text-center"
 								>
 									<Route className="mx-auto size-10 text-[#8fa096]" />
-									<p className="mt-3 font-extrabold">Khu cắm trại này chưa có tuyến trekking</p>
+									<p className="mt-3 font-extrabold">
+										Khu cắm trại này chưa có tuyến trekking
+									</p>
 								</div>
 							)}
+
 						{selectedCampsiteId &&
 							!routes.isLoading &&
 							!routes.error &&
@@ -205,20 +230,32 @@ export function TrekkingRoutesPage({ onBackHome }: TrekkingRoutesPageProps) {
 											setSubmittedRouteName("");
 										}}
 									/>
-									{selectedRoute && <RouteGeometryPreview geometry={selectedRoute.geometry} />}
+
+									{selectedRoute && (
+										<RouteGeometryPreview geometry={selectedRoute.geometry} />
+									)}
 								</div>
 							)}
+
 						{selectedCampsiteId && selectedRoute && (
 							<RouteStatusActionDialog route={selectedRoute} onReload={routes.retry} />
 						)}
-						{selectedCampsiteId && !routes.isLoading && !routes.error && selectedRoute && (
-							<RouteCheckpointsPanel
-								key={selectedRoute.id}
-								route={selectedRoute}
-								onRouteReload={routes.retry}
-								onRouteSubmitted={(route) => setSubmittedRouteName(route.name)}
-							/>
-						)}
+
+						{selectedRoute && <RouteWeatherPanel route={selectedRoute} />}
+
+						{selectedRoute && <RouteWeatherRiskPanel route={selectedRoute} />}
+
+						{selectedCampsiteId &&
+							!routes.isLoading &&
+							!routes.error &&
+							selectedRoute && (
+								<RouteCheckpointsPanel
+									key={selectedRoute.id}
+									route={selectedRoute}
+									onRouteReload={routes.retry}
+									onRouteSubmitted={(route) => setSubmittedRouteName(route.name)}
+								/>
+							)}
 					</>
 				)}
 			</main>
