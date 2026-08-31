@@ -8,7 +8,7 @@ import {
 	type RouteStatusActionFormValues,
 	routeStatusActionSchema,
 } from "../schema/route-status-action.schema";
-import type { CreatedTrekkingRoute } from "../types";
+import type { CreatedTrekkingRoute, RouteLifecycleAction } from "../types";
 
 interface RouteStatusActionDialogProps {
 	route: CreatedTrekkingRoute;
@@ -16,9 +16,12 @@ interface RouteStatusActionDialogProps {
 }
 
 export function RouteStatusActionDialog({ route, onReload }: RouteStatusActionDialogProps) {
-	const action = lifecycleActionForStatus(route.status);
-	const [open, setOpen] = useState(false);
-	const lifecycle = useRouteStatusAction();
+	const availableAction = lifecycleActionForStatus(route.status);
+	const [dialogRequest, setDialogRequest] = useState<{
+		action: RouteLifecycleAction;
+		routeId: string;
+	} | null>(null);
+	const lifecycle = useRouteStatusAction(onReload);
 	const {
 		register,
 		handleSubmit,
@@ -30,42 +33,51 @@ export function RouteStatusActionDialog({ route, onReload }: RouteStatusActionDi
 		defaultValues: { reason: "" },
 	});
 
-	if (!action) return null;
-	const content = ROUTE_STATUS_ACTION_CONTENT[action];
+	if (!availableAction && !dialogRequest) return null;
+	const availableContent = availableAction ? ROUTE_STATUS_ACTION_CONTENT[availableAction] : null;
+	const dialogContent = dialogRequest ? ROUTE_STATUS_ACTION_CONTENT[dialogRequest.action] : null;
 	const reasonLength = watch("reason").length;
 	const closeDialog = () => {
 		if (lifecycle.isSubmitting) return;
-		setOpen(false);
+		setDialogRequest(null);
 		reset();
 		lifecycle.resetError();
 	};
 	const submit = handleSubmit(async (values) => {
-		const updated = await lifecycle.submit(action, route.id, values);
+		if (!dialogRequest) return;
+		const updated = await lifecycle.submit(dialogRequest.action, dialogRequest.routeId, values);
 		if (!updated) return;
 		await onReload();
-		setOpen(false);
+		setDialogRequest(null);
 		reset();
 	});
 
 	return (
 		<section className="mt-4 flex justify-end" aria-label="Thao tác trạng thái tuyến đường">
-			<button
-				type="button"
-				onClick={() => {
-					lifecycle.resetError();
-					setOpen(true);
-				}}
-				className={`flex items-center gap-2 rounded-xl px-4 py-2.5 font-extrabold ${
-					action === "close"
-						? "bg-red-700 text-white hover:bg-red-800"
-						: "bg-[#164027] text-white hover:bg-[#0f3020]"
-				}`}
-			>
-				{action === "close" ? <ShieldAlert className="size-4" /> : <RotateCcw className="size-4" />}
-				{content.trigger}
-			</button>
+			{availableAction && availableContent && (
+				<button
+					type="button"
+					onClick={() => {
+						reset();
+						lifecycle.resetError();
+						setDialogRequest({ action: availableAction, routeId: route.id });
+					}}
+					className={`flex items-center gap-2 rounded-xl px-4 py-2.5 font-extrabold ${
+						availableAction === "close"
+							? "bg-red-700 text-white hover:bg-red-800"
+							: "bg-[#164027] text-white hover:bg-[#0f3020]"
+					}`}
+				>
+					{availableAction === "close" ? (
+						<ShieldAlert className="size-4" />
+					) : (
+						<RotateCcw className="size-4" />
+					)}
+					{availableContent.trigger}
+				</button>
+			)}
 
-			{open && (
+			{dialogRequest && dialogContent && (
 				<div className="fixed inset-0 z-50 grid place-items-center bg-black/45 p-4">
 					<dialog
 						open
@@ -79,9 +91,9 @@ export function RouteStatusActionDialog({ route, onReload }: RouteStatusActionDi
 									id="route-status-dialog-title"
 									className="text-lg font-extrabold text-[#10221b]"
 								>
-									{content.title}
+									{dialogContent.title}
 								</h2>
-								<p className="mt-2 text-sm text-[#52665b]">{content.description}</p>
+								<p className="mt-2 text-sm text-[#52665b]">{dialogContent.description}</p>
 							</div>
 							<button
 								type="button"
@@ -133,10 +145,10 @@ export function RouteStatusActionDialog({ route, onReload }: RouteStatusActionDi
 								<button
 									type="submit"
 									disabled={lifecycle.isSubmitting}
-									className={`flex items-center gap-2 rounded-xl px-4 py-2.5 font-extrabold text-white disabled:opacity-60 ${action === "close" ? "bg-red-700" : "bg-[#164027]"}`}
+									className={`flex items-center gap-2 rounded-xl px-4 py-2.5 font-extrabold text-white disabled:opacity-60 ${dialogRequest.action === "close" ? "bg-red-700" : "bg-[#164027]"}`}
 								>
 									{lifecycle.isSubmitting && <Loader2 className="size-4 animate-spin" />}
-									{lifecycle.isSubmitting ? content.pending : content.submit}
+									{lifecycle.isSubmitting ? dialogContent.pending : dialogContent.submit}
 								</button>
 							</div>
 						</form>

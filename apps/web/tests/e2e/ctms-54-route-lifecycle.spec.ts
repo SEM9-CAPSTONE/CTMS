@@ -42,10 +42,14 @@ test.describe("CTMS-54 / CTMS-21 Close or Reopen Route", () => {
 	const adminEmail = email("ctms54-admin");
 	const hostRouteName = `E2E CTMS54 Host Route ${Date.now()}`;
 	const adminRouteName = `E2E CTMS54 Admin Route ${Date.now()}`;
+	const invalidReasonRouteName = `E2E CTMS86 Invalid Reason Route ${Date.now()}`;
+	const staleRouteName = `E2E CTMS86 Stale Route ${Date.now()}`;
 	let ownerId = "";
 	let campsiteId = "";
 	let hostRouteId = "";
 	let adminRouteId = "";
+	let invalidReasonRouteId = "";
+	let staleRouteId = "";
 
 	test.beforeAll(() => {
 		ownerId = db<{ id: string }>("create-account", {
@@ -80,15 +84,21 @@ test.describe("CTMS-54 / CTMS-21 Close or Reopen Route", () => {
 			routes: [
 				{ name: hostRouteName, status: "active" },
 				{ name: adminRouteName, status: "active" },
+				{ name: invalidReasonRouteName, status: "active" },
+				{ name: staleRouteName, status: "active" },
 			],
 		}).routes;
 		hostRouteId = routes[0].id;
 		adminRouteId = routes[1].id;
+		invalidReasonRouteId = routes[2].id;
+		staleRouteId = routes[3].id;
 	});
 
 	test.afterAll(() => {
 		try {
-			db("clean-trekking-routes", { routeIds: [hostRouteId, adminRouteId] });
+			db("clean-trekking-routes", {
+				routeIds: [hostRouteId, adminRouteId, invalidReasonRouteId, staleRouteId],
+			});
 		} catch (error) {
 			console.error(error);
 		}
@@ -139,6 +149,76 @@ test.describe("CTMS-54 / CTMS-21 Close or Reopen Route", () => {
 		expect(
 			db<{ route: { status: string } }>("get-trekking-route", { routeId: hostRouteId }).route.status
 		).toBe("pending_approval");
+	});
+
+	test("rejects a whitespace reason client-side without a lifecycle request", async ({ page }) => {
+		await login(page, ownerEmail);
+		await page.goto(`/host/trekking-routes?campsiteId=${campsiteId}`);
+		await page.getByText(invalidReasonRouteName).click();
+		await page.getByRole("button", { name: "Đóng tuyến đường" }).click();
+		const dialog = page.getByRole("dialog");
+		let lifecycleRequestCount = 0;
+		page.on("request", (request) => {
+			if (
+				request.method() === "PATCH" &&
+				request.url().endsWith(`/trekking-routes/${invalidReasonRouteId}/close`)
+			) {
+				lifecycleRequestCount += 1;
+			}
+		});
+
+		await dialog.getByLabel("Lý do").fill("   ");
+		await dialog.getByRole("button", { name: "Đóng tuyến đường" }).click();
+
+		await expect(dialog.getByText(/Vui lòng nhập lý do/)).toBeVisible();
+		expect(lifecycleRequestCount).toBe(0);
+		expect(
+			db<{ route: { status: string } }>("get-trekking-route", {
+				routeId: invalidReasonRouteId,
+			}).route.status
+		).toBe("active");
+	});
+
+	test("reloads authoritative state after a stale close while preserving the Close dialog", async ({
+		page,
+	}) => {
+		await login(page, ownerEmail);
+		await page.goto(`/host/trekking-routes?campsiteId=${campsiteId}`);
+		await page.getByText(staleRouteName).click();
+		await page.getByRole("button", { name: "Đóng tuyến đường" }).click();
+		const dialog = page.getByRole("dialog");
+		const reason = dialog.getByLabel("Lý do");
+		await reason.fill("Preserve this reason after conflict");
+
+		const adminLogin = await page.request.post("http://localhost:3000/api/auth/login", {
+			data: { identifier: adminEmail, password: PASSWORD },
+		});
+		expect(adminLogin.status()).toBe(200);
+		const adminToken = ((await adminLogin.json()) as { accessToken: string }).accessToken;
+		const concurrentClose = await page.request.patch(
+			`http://localhost:3000/api/trekking-routes/${staleRouteId}/close`,
+			{
+				headers: { Authorization: `Bearer ${adminToken}` },
+				data: { reason: "Concurrent Admin safety closure" },
+			}
+		);
+		expect(concurrentClose.status()).toBe(200);
+
+		await dialog.getByRole("button", { name: "Đóng tuyến đường" }).click();
+
+		await expect(dialog.getByRole("alert")).toContainText(
+			"Trekking route status transition is not allowed"
+		);
+		await expect(reason).toHaveValue("Preserve this reason after conflict");
+		await expect(dialog.getByRole("button", { name: "Đóng tuyến đường" })).toBeVisible();
+		await expect(dialog.getByRole("button", { name: "Mở lại tuyến đường" })).toHaveCount(0);
+		await expect(page.getByRole("button", { name: new RegExp(staleRouteName) })).toContainText(
+			"Đã đóng"
+		);
+		expect(
+			db<{ route: { status: string } }>("get-trekking-route", { routeId: staleRouteId }).route
+				.status
+		).toBe("closed");
 	});
 
 	test("foreign Host direct API lifecycle mutation returns 403 with no change", async ({

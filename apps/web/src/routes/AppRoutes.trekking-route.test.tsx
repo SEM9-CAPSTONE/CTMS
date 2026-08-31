@@ -70,4 +70,25 @@ describe("AppRoutes campsite route creation navigation", () => {
 		expect(window.location.search).toBe("?campsiteId=11111111-1111-4111-8111-111111111111");
 		expect(screen.getByText("Trekking Routes Page")).toBeInTheDocument();
 	});
+
+	it.each(["camper", "porter"])("prevents %s from mounting the Host Route page", (role) => {
+		localStorage.setItem(
+			"authUser",
+			JSON.stringify({
+				id: `${role}-id`,
+				email: `${role}@example.com`,
+				phone: null,
+				role,
+				roles: [role],
+				status: "active",
+				createdAt: "2026-08-25T00:00:00.000Z",
+			})
+		);
+		window.history.replaceState({}, "", "/host/trekking-routes");
+
+		render(<AppRoutes />);
+
+		expect(screen.queryByText("Trekking Routes Page")).not.toBeInTheDocument();
+		expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("Truy cập bị từ chối");
+	});
 });
