@@ -9,15 +9,19 @@ export interface RouteStatusActionError {
 }
 
 function backendMessage(error: HttpError): string | null {
-	if (
-		typeof error.errorData !== "object" ||
-		error.errorData === null ||
-		!("message" in error.errorData)
-	) {
-		return null;
-	}
+	if (typeof error.errorData !== "object" || error.errorData === null) return null;
 	const message = (error.errorData as { message?: unknown }).message;
-	return typeof message === "string" ? message : null;
+	if (typeof message === "string") return message;
+	if (!Array.isArray(message)) return null;
+	const details = message.flatMap((item) => {
+		if (typeof item === "string") return [item];
+		if (typeof item !== "object" || item === null) return [];
+		const errors = (item as { errors?: unknown }).errors;
+		return Array.isArray(errors)
+			? errors.filter((value): value is string => typeof value === "string")
+			: [];
+	});
+	return details.length > 0 ? details.join(" ") : null;
 }
 
 export function mapRouteStatusActionError(error: unknown): RouteStatusActionError {
@@ -40,7 +44,7 @@ export function mapRouteStatusActionError(error: unknown): RouteStatusActionErro
 	};
 }
 
-export function useRouteStatusAction() {
+export function useRouteStatusAction(onConflict?: () => Promise<unknown>) {
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [error, setError] = useState<RouteStatusActionError | null>(null);
 	const inFlight = useRef(false);
@@ -60,14 +64,18 @@ export function useRouteStatusAction() {
 					? await trekkingRoutesService.close(routeId, input)
 					: await trekkingRoutesService.reopen(routeId, input);
 			} catch (requestError) {
-				setError(mapRouteStatusActionError(requestError));
+				const mapped = mapRouteStatusActionError(requestError);
+				setError(mapped);
+				if (mapped.status === 409 && onConflict) {
+					await onConflict().catch(() => undefined);
+				}
 				return null;
 			} finally {
 				inFlight.current = false;
 				setIsSubmitting(false);
 			}
 		},
-		[]
+		[onConflict]
 	);
 
 	const resetError = useCallback(() => setError(null), []);

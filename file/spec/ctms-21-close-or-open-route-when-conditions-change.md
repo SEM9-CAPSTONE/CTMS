@@ -158,7 +158,39 @@ OTP delivery and emergency WebSocket behavior are not substitutes. CTMS-21 there
 - Each action opens a confirmation dialog with a required reason textarea, 255-character boundary, Cancel, loading feedback, and duplicate-submit prevention.
 - API failures preserve the entered reason and keep the dialog usable while mapping `403/404/409/422` errors.
 - Success does not manually patch local Route status. The page reloads the authoritative campsite Route list and renders the server-returned state (`closed` or `pending_approval`).
-- The current Web has no canonical Admin Route discovery/review entry point. Admin API behavior is implemented and tested; Admin Web integration remains dependent on CTMS-22/Admin Route UI.
+- The Admin Web has the separate CTMS-22 pending-review screen, but it is not an active/closed Route lifecycle management screen. Admin close/reopen remains API-authorized without inventing new CTMS-21 Admin navigation.
+
+## UI and Tests
+
+The CTMS-21 Host lifecycle UI is implemented at `/host/trekking-routes` using the existing campsite selector, Route list, selected geometry/detail area, and `RouteStatusActionDialog`. The action matrix is authoritative and intentionally narrow:
+
+| Route status | Close | Reopen |
+| --- | --- | --- |
+| `active` | Available | Hidden |
+| `closed` | Hidden | Available |
+| `draft` | Hidden | Hidden |
+| `pending_approval` | Hidden | Hidden |
+
+- Close and reopen open the existing confirmation dialog and submit only `{ reason }` to the dedicated lifecycle endpoint for the captured Route ID.
+- The reason is trimmed, required, non-blank, and limited to 255 characters through React Hook Form and Zod. Client validation is shown before any request.
+- While a mutation is pending, dialog controls are disabled, action-specific loading copy is shown, and an in-flight guard prevents duplicate close/reopen requests.
+- Successful close/reopen does not optimistically rewrite Route status. The page reloads the owned campsite Route list, then closes and resets the dialog. The refreshed state is `closed` after close and `pending_approval` after reopen; CTMS-22 approval remains required before `active`.
+- Lifecycle failures keep the dialog open and preserve the entered reason. `403`, `404`, `409`, and `422` remain distinct; string and structured backend validation details are surfaced when present.
+- A `409` also reloads authoritative Route data. The open dialog retains the originally captured action and Route ID, so a concurrent status change cannot silently convert Close into Reopen, target another selected Route, or imply success.
+- Campsite/Route loading, retryable fetch errors, no-campsite, no-selection, and no-Route states remain owned by the Host Route page. Mutation errors remain inside the lifecycle dialog.
+- `/host/trekking-routes` is protected for the Host role. Camper and Porter cannot mount usable lifecycle controls, while backend authorization remains authoritative for direct or stale requests.
+
+UI evidence is maintained in the existing lifecycle test files:
+
+- `schema/route-status-action.schema.test.ts` covers trimming, blank/whitespace rejection, and the 255-character boundary;
+- `services/trekking-routes.service.test.ts` covers the exact endpoints and reason-only PATCH payload;
+- `hooks/useRouteStatusAction.test.ts` covers endpoint selection, duplicate prevention, status/error mapping, structured `422` detail, and authoritative reload on `409`;
+- `components/RouteStatusActionDialog.test.tsx` covers the status/action matrix, validation, pending controls, success reload, failure preservation, and stable action semantics across a conflict reload;
+- `pages/TrekkingRoutesPage.test.tsx` covers Route loading, error/retry, empty, and rendered Route states;
+- `routes/AppRoutes.trekking-route.test.tsx` covers Host navigation and Camper/Porter denial; and
+- `tests/e2e/ctms-54-route-lifecycle.spec.ts` uses the real API/database path for close, reopen, client-invalid reason, stale `409` refresh, foreign Host denial, invalid lifecycle, and Admin API authorization.
+
+No Trip creation/publication, Booking/registration, affected-Trip dashboard, or participant-notification UI is added. Those downstream interfaces remain dependency-blocked by their production modules and do not alter this lifecycle UI.
 
 ## Backend Preparation, Logic, and Tests
 

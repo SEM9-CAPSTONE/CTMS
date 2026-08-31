@@ -69,6 +69,9 @@ describe("RouteStatusActionDialog", () => {
 		expect(
 			testingLibrary.screen.getByRole("button", { name: "Đóng tuyến đường" })
 		).toBeInTheDocument();
+		expect(
+			testingLibrary.screen.queryByRole("button", { name: "Mở lại tuyến đường" })
+		).not.toBeInTheDocument();
 
 		rerender(<RouteStatusActionDialog route={route("closed")} onReload={vi.fn()} />);
 		expect(
@@ -110,12 +113,17 @@ describe("RouteStatusActionDialog", () => {
 		expect(testingLibrary.screen.queryByRole("dialog")).not.toBeInTheDocument();
 	});
 
-	it("keeps the reason and dialog open for API errors", async () => {
+	it("reloads after a conflict while preserving the original action and reason", async () => {
 		const user = userEvent.setup();
 		closeMock.mockRejectedValue(
 			new HttpError("conflict", 409, { message: "Route changed concurrently" })
 		);
-		testingLibrary.render(<RouteStatusActionDialog route={route("active")} onReload={vi.fn()} />);
+		const onReload = vi.fn().mockImplementation(async () => {
+			rerender(<RouteStatusActionDialog route={route("closed")} onReload={onReload} />);
+		});
+		const { rerender } = testingLibrary.render(
+			<RouteStatusActionDialog route={route("active")} onReload={onReload} />
+		);
 		await user.click(testingLibrary.screen.getByRole("button", { name: "Đóng tuyến đường" }));
 		const dialog = testingLibrary.screen.getByRole("dialog");
 		const reason = testingLibrary.within(dialog).getByLabelText("Lý do");
@@ -129,6 +137,19 @@ describe("RouteStatusActionDialog", () => {
 		);
 		expect(reason).toHaveValue("Heavy rain");
 		expect(testingLibrary.screen.getByRole("dialog")).toBeInTheDocument();
+		expect(onReload).toHaveBeenCalledTimes(1);
+		expect(
+			testingLibrary.within(dialog).getByRole("button", { name: "Đóng tuyến đường" })
+		).toBeInTheDocument();
+		expect(
+			testingLibrary.within(dialog).queryByRole("button", { name: "Mở lại tuyến đường" })
+		).not.toBeInTheDocument();
+
+		await user.click(
+			testingLibrary.within(dialog).getByRole("button", { name: "Đóng tuyến đường" })
+		);
+		expect(closeMock).toHaveBeenLastCalledWith(route("active").id, { reason: "Heavy rain" });
+		expect(reopenMock).not.toHaveBeenCalled();
 	});
 
 	it("accepts 255 reason characters and rejects more than 255", async () => {

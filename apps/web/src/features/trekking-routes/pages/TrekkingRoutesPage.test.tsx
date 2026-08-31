@@ -78,6 +78,61 @@ describe("TrekkingRoutesPage", () => {
 		expect(screen.getByTestId("routes-empty")).toBeInTheDocument();
 	});
 
+	it("shows the Route loading state for the selected campsite", async () => {
+		vi.mocked(useTrekkingRoutes).mockReturnValue({
+			items: [],
+			isLoading: true,
+			error: "",
+			retry: vi.fn(),
+		});
+		render(<TrekkingRoutesPage />);
+
+		await waitFor(() => expect(screen.getByTestId("routes-loading")).toBeInTheDocument());
+	});
+
+	it("shows a Route load error and retries the authoritative request", async () => {
+		const retry = vi.fn().mockResolvedValue(undefined);
+		vi.mocked(useTrekkingRoutes).mockReturnValue({
+			items: [],
+			isLoading: false,
+			error: "Không thể tải danh sách tuyến đường.",
+			retry,
+		});
+		render(<TrekkingRoutesPage />);
+
+		const alert = await screen.findByRole("alert");
+		expect(alert).toHaveTextContent("Không thể tải danh sách tuyến đường.");
+		fireEvent.click(screen.getByRole("button", { name: "Tải lại" }));
+		expect(retry).toHaveBeenCalledTimes(1);
+	});
+
+	it("keeps an open lifecycle dialog mounted during an authoritative reload", async () => {
+		const activeRoute: CreatedTrekkingRoute = { ...routes[0], status: "active" };
+		const retry = vi.fn().mockResolvedValue(undefined);
+		vi.mocked(useTrekkingRoutes).mockReturnValue({
+			items: [activeRoute],
+			isLoading: false,
+			error: "",
+			retry,
+		});
+		const view = render(<TrekkingRoutesPage />);
+
+		await waitFor(() => expect(screen.getByText(activeRoute.name)).toBeInTheDocument());
+		fireEvent.click(screen.getByRole("button", { name: "Đóng tuyến đường" }));
+		fireEvent.change(screen.getByLabelText("Lý do"), { target: { value: "Heavy rain" } });
+
+		vi.mocked(useTrekkingRoutes).mockReturnValue({
+			items: [activeRoute],
+			isLoading: true,
+			error: "",
+			retry,
+		});
+		view.rerender(<TrekkingRoutesPage />);
+
+		expect(screen.getByRole("dialog")).toBeInTheDocument();
+		expect(screen.getByLabelText("Lý do")).toHaveValue("Heavy rain");
+	});
+
 	it("shows route metadata and previews the selected geometry", async () => {
 		vi.mocked(useTrekkingRoutes).mockReturnValue({
 			items: routes,

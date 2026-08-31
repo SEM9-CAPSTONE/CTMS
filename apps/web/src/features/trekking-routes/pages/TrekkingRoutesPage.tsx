@@ -196,31 +196,29 @@ export function TrekkingRoutesPage({ onBackHome }: TrekkingRoutesPageProps) {
 							!routes.isLoading &&
 							!routes.error &&
 							routes.items.length > 0 && (
-								<>
-									<div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
-										<TrekkingRouteList
-											items={routes.items}
-											selectedRouteId={selectedRouteId}
-											onSelect={(route) => {
-												setSelectedRouteId(route.id);
-												setSubmittedRouteName("");
-											}}
-										/>
-										{selectedRoute && <RouteGeometryPreview geometry={selectedRoute.geometry} />}
-									</div>
-									{selectedRoute && (
-										<RouteStatusActionDialog route={selectedRoute} onReload={routes.retry} />
-									)}
-									{selectedRoute && (
-										<RouteCheckpointsPanel
-											key={selectedRoute.id}
-											route={selectedRoute}
-											onRouteReload={routes.retry}
-											onRouteSubmitted={(route) => setSubmittedRouteName(route.name)}
-										/>
-									)}
-								</>
+								<div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+									<TrekkingRouteList
+										items={routes.items}
+										selectedRouteId={selectedRouteId}
+										onSelect={(route) => {
+											setSelectedRouteId(route.id);
+											setSubmittedRouteName("");
+										}}
+									/>
+									{selectedRoute && <RouteGeometryPreview geometry={selectedRoute.geometry} />}
+								</div>
 							)}
+						{selectedCampsiteId && selectedRoute && (
+							<RouteStatusActionDialog route={selectedRoute} onReload={routes.retry} />
+						)}
+						{selectedCampsiteId && !routes.isLoading && !routes.error && selectedRoute && (
+							<RouteCheckpointsPanel
+								key={selectedRoute.id}
+								route={selectedRoute}
+								onRouteReload={routes.retry}
+								onRouteSubmitted={(route) => setSubmittedRouteName(route.name)}
+							/>
+						)}
 					</>
 				)}
 			</main>

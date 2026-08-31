@@ -87,6 +87,34 @@ describe("useRouteStatusAction", () => {
 		).toEqual(expect.objectContaining({ status }));
 	});
 
+	it("reloads authoritative Route data after a lifecycle conflict", async () => {
+		const reload = vi.fn().mockResolvedValue(undefined);
+		closeMock.mockRejectedValue(new HttpError("conflict", 409, {}));
+		const { result } = testingLibrary.renderHook(() =>
+			routeStatusActionModule.useRouteStatusAction(reload)
+		);
+
+		await testingLibrary.act(async () => {
+			await result.current.submit("close", "route-id", { reason: "Heavy rain" });
+		});
+
+		expect(reload).toHaveBeenCalledTimes(1);
+		expect(result.current.error).toEqual(expect.objectContaining({ status: 409 }));
+	});
+
+	it("surfaces structured 422 validation details from the backend", () => {
+		const error = new HttpError("invalid", 422, {
+			message: [
+				{ field: "reason", errors: ["reason must be shorter than or equal to 255 characters"] },
+			],
+		});
+
+		expect(routeStatusActionModule.mapRouteStatusActionError(error)).toEqual({
+			status: 422,
+			message: "reason must be shorter than or equal to 255 characters",
+		});
+	});
+
 	it("prefers a backend conflict reason", () => {
 		expect(
 			routeStatusActionModule.mapRouteStatusActionError(
