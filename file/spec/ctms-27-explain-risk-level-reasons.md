@@ -99,6 +99,43 @@ As a user, I want to explain Risk Level Reasons so that the CTMS workflow is com
 - Add E2E coverage for the primary user journey and at least one critical failure path.
 - Every BR listed in the Business Rules Checklist must appear in at least one test or review evidence item.
 
+## Backend Preparation Logic and Tests
+
+### Actors
+- **Host**: the owner of the Route's Campsite. Can view the latest risk assessment for their own Route.
+- **Admin**: can view the latest risk assessment for any Route, bypassing ownership.
+
+### Preconditions
+- A weather risk assessment must already exist for the Route -- calculated by `CTMS-26-T01`'s `POST /trekking-routes/:routeId/weather/risk-score`.
+- The actor must hold a valid session with the `host` or `admin` role; a Host must additionally own the Route's Campsite.
+
+### Decision Gate: no new backend logic, no new endpoint
+- **This story is already fully implemented by CTMS-26-T01's own API contract and data model.** Verified directly against the real code (not assumed from the Jira description alone) before writing anything: `WeatherRiskAssessment.criteriaScores` stores, for each of the 5 criteria (rainfall, wind, temperature, visibility, thunderstorm), the actual `value`, a per-criterion `level` (`green`/`yellow`/`red` -- literally the result of comparing `value` against that criterion's own Yellow/Red threshold in `weather-risk.service.ts`'s `scoreRainfall`/`scoreWind`/etc.), `weight`, and `score`. `GET /trekking-routes/:routeId/weather/risk-score/latest` (CTMS-26-T01) already returns this full breakdown, not just `riskLevel`/`compositeScore`.
+- AC1 ("Show which criteria exceeded thresholds") and AC2 ("do not show only a color or total score") are satisfied by this existing response shape: a criterion at `yellow`/`red` is, by construction, a criterion that exceeded a configured threshold; `green` is one that didn't.
+- BR-069 (reproducible) and BR-070 (display the criteria that exceeded thresholds) are therefore already covered by CTMS-26-T01's own persistence (`criteriaScores` stored immutably alongside `snapshotId`/`ruleVersionId`) and tests.
+- **No new migration, entity, repository, service, or controller was added for CTMS-27-T01.** Adding a second, parallel endpoint or a duplicate `exceededThreshold` boolean column would only create two sources of truth for the same fact this table already answers.
+
+### A real, pre-existing bug found and fixed while verifying this (not invented, not hidden)
+- The backend could not start at all after CTMS-26 was merged: `weather-risk.service.ts` used `import type` for `WeatherRiskRepository` and `WeatherSnapshotsRepository`, both constructor-injected. TypeScript erases a type-only import before `emitDecoratorMetadata` runs, so NestJS saw `Function` instead of the real class at both parameter positions and threw `Nest can't resolve dependencies of the WeatherRiskService (?, Function)` on every boot. Fixed by making both real imports (matching this same codebase's own established convention elsewhere: `// biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime`). Confirmed by a real `nest start --watch` boot succeeding afterward, and the full existing backend unit (335) and integration (194) suites still passing unchanged.
+
+### Test Evidence
+- No new backend unit/integration tests were added for CTMS-27-T01's own logic, because there is no new logic -- BR-069/BR-070 traceability is carried entirely by CTMS-26-T01's existing `weather-risk.service.spec.ts` (44 passed) and `weather-risk.integration-spec.ts` (part of the 194 passing integration tests), which already assert the exact `criteriaScores` shape and its reproducibility (idempotent return on a repeat call for the same snapshot/rule version).
+- Regression evidence after the DI fix: `pnpm --filter @ctms/api test` -> 335 passed. `pnpm --filter @ctms/api test:integration` -> 194 passed. `pnpm --filter @ctms/api lint` -> passed. `pnpm --filter @ctms/api build` -> passed. A real `nest start --watch` boot was confirmed against real Postgres (previously impossible due to the DI bug above).
+
+## UI and Tests
+
+### Web UI Implementation
+- **Also already implemented, by CTMS-26-T02.** `RouteWeatherRiskPanel.tsx` (on `TrekkingRoutesPage`, below `RouteWeatherPanel`) renders the risk level badge and composite score, **and** a dedicated grid of 5 cards -- one per criterion -- each showing its label, actual value, a colored dot (green/yellow/red, i.e. exceeded-or-not), score, and weight. This already satisfies CTMS-27-T02's own Implementation Checklist (screens/states/error-mapping/permission-gating/dedup) verified directly against the component before writing anything new for this story.
+- Web only, mirroring CTMS-25-T02: Mobile has no counterpart (Host/Admin-only feature; the mobile app manages nothing for Host/Admin, per its own router comment).
+
+### CTMS-27-T02 Test Evidence
+- Unit/component: no new tests added, because the screens/hooks are CTMS-26-T02's own -- `useWeatherRiskScore.test.ts` (11) and `RouteWeatherRiskPanel.test.tsx` (7), 18 passed, re-run and confirmed still passing unchanged.
+- **E2E (the one real gap this story closes)**: `apps/web/tests/e2e/ctms-27-t02-route-weather-risk.spec.ts` -- 3 passed, real backend/Postgres/Chrome and a real call to the live Open-Meteo API, no mocking:
+  - Happy path: refresh weather (real Open-Meteo call), calculate risk, see the level badge, composite score, and all 5 criteria cards rendered; confirmed the real `weather_risk_assessments` row via a new `db-helper.ts` action (`get-weather-risk-assessments`), and that its `criteriaScores` carries all 5 criteria.
+  - Conflict flow: calculating on an active Route with no successful weather snapshot yet shows the mapped 409 message and creates zero assessment rows (BR-243).
+  - Unauthorized flow: a Camper's direct API call returns 403 and creates zero assessment rows; the Host's own row from the happy path is confirmed unchanged.
+- `pnpm --filter @ctms/web lint`/`build` were not re-run in this pass since no `apps/web/src` file changed for this story (only the E2E spec was added); both were already confirmed passing as part of CTMS-26-T02's and CTMS-25-T02's own evidence.
+
 ## References
 - Story ID: `CTMS-27`
 - Epic: `EPIC 4. Weather Risk`

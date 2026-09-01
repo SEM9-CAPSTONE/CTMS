@@ -432,6 +432,22 @@ async function main() {
 				[input.routeId]
 			);
 			console.log(JSON.stringify({ snapshots: rows }));
+		} else if (action === "get-weather-risk-assessments") {
+			// CTMS-27-T02 E2E. Reads the real weather_risk_assessments rows for
+			// a route -- proves a UI-triggered "Tính điểm rủi ro" click
+			// persisted a real, reproducible assessment (or that a
+			// rejected/forbidden attempt persisted none), same "verify the
+			// real DB row, not just the UI" rigor as get-weather-snapshots.
+			const input = parseJsonArg<{ routeId: string }>(arg);
+			const rows = await dataSource.query(
+				`SELECT "id", "risk_level" AS "riskLevel", "composite_score" AS "compositeScore",
+				 "criteria_scores" AS "criteriaScores", "snapshot_id" AS "snapshotId",
+				 "rule_version_id" AS "ruleVersionId", "created_at" AS "createdAt"
+				 FROM "weather_risk_assessments" WHERE "route_id" = $1
+				 ORDER BY "created_at" ASC`,
+				[input.routeId]
+			);
+			console.log(JSON.stringify({ assessments: rows }));
 		} else if (action === "clean-trekking-routes") {
 			const input = parseJsonArg<{ routeIds: string[] }>(arg);
 			if (input.routeIds.length > 0) {

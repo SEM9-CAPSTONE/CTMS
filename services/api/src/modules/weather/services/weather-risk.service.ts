@@ -16,8 +16,10 @@ import {
 } from "../entities/weather-risk-assessment.entity";
 import type { WeatherRiskRule } from "../entities/weather-risk-rule.entity";
 import { WeatherSnapshotStatus } from "../entities/weather-snapshot.entity";
-import type { WeatherRiskRepository } from "../repositories/weather-risk.repository";
-import type { WeatherSnapshotsRepository } from "../repositories/weather-snapshots.repository";
+// biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
+import { WeatherRiskRepository } from "../repositories/weather-risk.repository";
+// biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
+import { WeatherSnapshotsRepository } from "../repositories/weather-snapshots.repository";
 
 function toResponse(assessment: WeatherRiskAssessment): WeatherRiskAssessmentResponseDto {
 	return {
