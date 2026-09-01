@@ -7,7 +7,7 @@
 Approve Route
 
 **Jira Mapping**
-Jira `CTMS-55` implements backlog/spec story `CTMS-22`. The separate backlog story also numbered CTMS-55 for equipment handling is unrelated to this Jira task.
+Jira parent `CTMS-55` implements backlog/spec story `CTMS-22`; Jira `CTMS-87` implements backend subtask `CTMS-22-T01` (preparation, logic, and tests). The separate backlog story also numbered CTMS-55 for equipment handling is unrelated to these Jira tasks.
 
 **Status**  
 Core Route review API, Admin Web flow, audit, locking, and tests implemented. Host Route submission (`draft -> pending_approval`) is implemented by CTMS-81 / CTMS-19. Operational notifications remain dependency-blocked because no canonical notification infrastructure exists.
@@ -24,7 +24,9 @@ As an Admin, I want to approve Route so that the CTMS workflow is completed safe
 - [x] Draft submission validation and `draft -> pending_approval` are provided by CTMS-19 / Jira CTMS-81. CTMS-22 consumes the resulting `pending_approval` Route and does not duplicate the Host action.
 - [ ] Related Camper/Porter and Host operational notifications. **Blocked by the absence of a Route-linked Trip/participant recipient model and operational notification persistence/service.**
 
-## Approved CTMS-55 Implementation Contract
+## Backend Preparation, Logic, and Tests
+
+CTMS-87 / CTMS-22-T01 re-verifies the existing CTMS-55 backend implementation and test evidence against the following approved contract. It does not introduce a second review API or change already-correct production behavior.
 
 ### Actors, authorization, and discovery
 
