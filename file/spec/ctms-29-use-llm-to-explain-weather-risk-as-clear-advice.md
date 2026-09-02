@@ -159,6 +159,23 @@ As a user, I want to use LLM to Explain Weather Risk as Clear Advice so that the
 - **NestJS integration** (`weather-advice.integration-spec.ts`, 12 passed, real Postgres + the real `ai` container, no mocking): 404/403/401 paths; 409 for a non-active Route and for a missing assessment, both with zero `weather_advice` rows written; the honest 503-after-retries outcome against the real, unconfigured `ai` container with zero rows persisted (the deferred case, see above); idempotent return of a directly-seeded existing advice row without any provider call, verified through the real API response and a real `SELECT`; Admin ownership bypass on the read path. `pnpm --filter @ctms/api test:integration` -> 206 passed (was 194).
 - `pnpm --filter @ctms/api build` and `pnpm --filter @ctms/api lint` both pass clean.
 
+## UI and Tests
+
+### Web UI Implementation
+- New hook `apps/web/src/features/trekking-routes/hooks/useWeatherAdvice.ts` and component `RouteWeatherAdvicePanel.tsx`, mirroring CTMS-27/CTMS-26's own `useWeatherRiskScore`/`RouteWeatherRiskPanel` conventions exactly: loads the latest advice on mount, a `generate()` action guarded against duplicate in-flight submissions, and Vietnamese error mapping for 401/403/404/409/**503** (503 -- "Dịch vụ tư vấn thời tiết tạm thời không khả dụng" -- is new relative to the risk-score panel, since this feature calls out to an external LLM provider that can be unavailable).
+- Mounted directly below `RouteWeatherRiskPanel` on `TrekkingRoutesPage.tsx` (Host/Admin-only, matching every other weather panel on this page). Renders the advice text, a checklist of concrete recommended actions, and a "Tạo lời khuyên" button disabled while the Route is not `active` or a request is in flight.
+- Web only, mirroring CTMS-25-T02/CTMS-27-T02: Mobile has no counterpart (Host/Admin-only feature).
+
+### CTMS-29-T02 Test Evidence
+- **Unit/component**: `useWeatherAdvice.test.ts` (9) + `RouteWeatherAdvicePanel.test.tsx` (10) = 19 passed, added to the existing web suite -> `pnpm --filter @ctms/web test` now passes 399 (was 380). Covers loading/error/empty/success rendering, the 401/403/404/409/503 Vietnamese error mapping, duplicate-submission prevention, and the disabled state on a non-active Route.
+- **E2E** (`apps/web/tests/e2e/ctms-29-t02-weather-advice.spec.ts`, 3 passed, real backend/Postgres/Chrome, no mocking):
+  - **Happy path**: refresh weather (real Open-Meteo call) and calculate risk (real calculation) through the UI exactly as CTMS-27-T02 does, then -- because no real `OPENAI_API_KEY` is configured in this environment yet (the same deferred item as the backend spec section and `weather-advice.integration-spec.ts`) -- seed one real `weather_advice` row directly via a new `db-helper.ts` action (`seed-weather-advice`) for the real, just-calculated assessment. Clicking "Tạo lời khuyên" then hits `WeatherAdviceService`'s own real idempotent-return branch (not a UI illusion): the advice text and every recommended action render exactly as seeded, and a new `get-weather-advice` action confirms the real, single persisted row.
+  - **Invalid-data / conflict flow**: clicking "Tạo lời khuyên" on an active Route with no risk assessment yet shows the mapped 409 message and creates zero `weather_advice` rows (BR-243).
+  - **Unauthorized flow**: a Camper's direct API call returns 403 and creates no additional advice; the Host's own seeded row from the happy path is confirmed unchanged.
+  - Once a real `OPENAI_API_KEY` is available, a follow-up test exercising a genuine fresh LLM-generated advice (rather than the seeded idempotent-return path) should be added -- tracked as the same deferred item recorded in the backend section above.
+- `pnpm --filter @ctms/web lint`/`build` both pass clean (one pre-existing, unrelated `react-hooks/exhaustive-deps` warning on `ManageCampsiteImagesDialog.tsx`).
+- **Unrelated, pre-existing E2E flakiness observed (not introduced by this story, not fixed here)**: a full-suite run surfaced 3 failing specs untouched by this change -- `create-trekking-route.spec.ts` ("invalid geometry creates no route"), `edit-campsite.spec.ts` ("happy path"), and `search-campsites.spec.ts` ("happy path"), the latter two timing out on `getByLabel("Tỉnh/Thành")`. Reproduced twice in isolation (not a one-off flake); none of this story's changed files (`types.ts`, `endpoints.ts`, `trekking-routes.service.ts`, the new hook/component, `TrekkingRoutesPage.tsx`) touch campsite search/edit or route geometry validation. Reported here per the project's stop-and-report convention rather than silently patched, since fixing them is outside this story's scope.
+
 ## References
 - Story ID: `CTMS-29`
 - Epic: `EPIC 4. Weather Risk`

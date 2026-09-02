@@ -11,6 +11,7 @@ import { useEffect, useMemo, useState } from "react";
 import { RouteCheckpointsPanel } from "../components/RouteCheckpointsPanel";
 import { RouteGeometryPreview } from "../components/RouteGeometryPreview";
 import { RouteStatusActionDialog } from "../components/RouteStatusActionDialog";
+import { RouteWeatherAdvicePanel } from "../components/RouteWeatherAdvicePanel";
 import { RouteWeatherPanel } from "../components/RouteWeatherPanel";
 import { RouteWeatherRiskPanel } from "../components/RouteWeatherRiskPanel";
 import { TrekkingRouteList } from "../components/TrekkingRouteList";
@@ -46,9 +47,7 @@ export function TrekkingRoutesPage({ onBackHome }: TrekkingRoutesPageProps) {
 
 	useEffect(() => {
 		setSelectedRouteId((current) =>
-			current && routes.items.some((route) => route.id === current)
-				? current
-				: routes.items[0]?.id
+			current && routes.items.some((route) => route.id === current) ? current : routes.items[0]?.id
 		);
 	}, [routes.items]);
 
@@ -77,9 +76,7 @@ export function TrekkingRoutesPage({ onBackHome }: TrekkingRoutesPageProps) {
 					</div>
 
 					<div>
-						<h1 className="text-xl font-extrabold sm:text-2xl">
-							Tuyến trekking của khu cắm trại
-						</h1>
+						<h1 className="text-xl font-extrabold sm:text-2xl">Tuyến trekking của khu cắm trại</h1>
 						<p className="text-sm text-[#667a6d]">
 							Xem lại thông tin và hình học tuyến đường đã tạo.
 						</p>
@@ -211,9 +208,7 @@ export function TrekkingRoutesPage({ onBackHome }: TrekkingRoutesPageProps) {
 									className="mt-6 rounded-2xl border border-dashed bg-white p-8 text-center"
 								>
 									<Route className="mx-auto size-10 text-[#8fa096]" />
-									<p className="mt-3 font-extrabold">
-										Khu cắm trại này chưa có tuyến trekking
-									</p>
+									<p className="mt-3 font-extrabold">Khu cắm trại này chưa có tuyến trekking</p>
 								</div>
 							)}
 
@@ -231,9 +226,7 @@ export function TrekkingRoutesPage({ onBackHome }: TrekkingRoutesPageProps) {
 										}}
 									/>
 
-									{selectedRoute && (
-										<RouteGeometryPreview geometry={selectedRoute.geometry} />
-									)}
+									{selectedRoute && <RouteGeometryPreview geometry={selectedRoute.geometry} />}
 								</div>
 							)}
 
@@ -245,17 +238,16 @@ export function TrekkingRoutesPage({ onBackHome }: TrekkingRoutesPageProps) {
 
 						{selectedRoute && <RouteWeatherRiskPanel route={selectedRoute} />}
 
-						{selectedCampsiteId &&
-							!routes.isLoading &&
-							!routes.error &&
-							selectedRoute && (
-								<RouteCheckpointsPanel
-									key={selectedRoute.id}
-									route={selectedRoute}
-									onRouteReload={routes.retry}
-									onRouteSubmitted={(route) => setSubmittedRouteName(route.name)}
-								/>
-							)}
+						{selectedRoute && <RouteWeatherAdvicePanel route={selectedRoute} />}
+
+						{selectedCampsiteId && !routes.isLoading && !routes.error && selectedRoute && (
+							<RouteCheckpointsPanel
+								key={selectedRoute.id}
+								route={selectedRoute}
+								onRouteReload={routes.retry}
+								onRouteSubmitted={(route) => setSubmittedRouteName(route.name)}
+							/>
+						)}
 					</>
 				)}
 			</main>

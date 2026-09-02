@@ -448,6 +448,46 @@ async function main() {
 				[input.routeId]
 			);
 			console.log(JSON.stringify({ assessments: rows }));
+		} else if (action === "seed-weather-advice") {
+			// CTMS-29-T02 E2E. There is no real OPENAI_API_KEY configured in this
+			// environment yet (same deferred-LLM-call situation documented in the
+			// CTMS-29 spec and services/api's own weather-advice.integration-spec.ts),
+			// so the E2E "happy path" seeds a real advice row directly for a real,
+			// already-calculated assessment -- clicking "Tạo lời khuyên" in the UI
+			// then hits WeatherAdviceService's own idempotent-return branch (a real
+			// code path, not a UI illusion) instead of a fresh, paid LLM call.
+			const input = parseJsonArg<{
+				assessmentId: string;
+				adviceText: string;
+				actions: string[];
+				createdBy: string;
+			}>(arg);
+			const rows = await dataSource.query(
+				`INSERT INTO "weather_advice" ("assessment_id", "advice_text", "actions", "created_by")
+				 VALUES ($1, $2, $3::jsonb, $4)
+				 ON CONFLICT ("assessment_id") DO UPDATE SET "advice_text" = EXCLUDED."advice_text"
+				 RETURNING "id", "assessment_id" AS "assessmentId", "advice_text" AS "adviceText",
+				           "actions", "created_by" AS "createdBy", "created_at" AS "createdAt"`,
+				[input.assessmentId, input.adviceText, JSON.stringify(input.actions), input.createdBy]
+			);
+			console.log(JSON.stringify({ advice: rows[0] }));
+		} else if (action === "get-weather-advice") {
+			// CTMS-29-T02 E2E. Reads the real weather_advice rows for a route --
+			// proves a UI-triggered "Tạo lời khuyên" click persisted/returned a
+			// real row (or that a rejected/forbidden attempt persisted none), same
+			// "verify the real DB row, not just the UI" rigor as
+			// get-weather-risk-assessments.
+			const input = parseJsonArg<{ routeId: string }>(arg);
+			const rows = await dataSource.query(
+				`SELECT wa."id", wa."assessment_id" AS "assessmentId", wa."advice_text" AS "adviceText",
+				        wa."actions", wa."created_by" AS "createdBy", wa."created_at" AS "createdAt"
+				 FROM "weather_advice" wa
+				 JOIN "weather_risk_assessments" a ON a."id" = wa."assessment_id"
+				 WHERE a."route_id" = $1
+				 ORDER BY wa."created_at" ASC`,
+				[input.routeId]
+			);
+			console.log(JSON.stringify({ advices: rows }));
 		} else if (action === "clean-trekking-routes") {
 			const input = parseJsonArg<{ routeIds: string[] }>(arg);
 			if (input.routeIds.length > 0) {
