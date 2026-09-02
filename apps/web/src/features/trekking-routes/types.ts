@@ -119,3 +119,15 @@ export interface WeatherRiskAssessment {
 	createdBy: string;
 	createdAt: string;
 }
+
+/** CTMS-29-T02. LLM-generated advice explaining an existing
+ * WeatherRiskAssessment -- deliberately has no risk-level/score field
+ * (BR-076), matching the backend's own WeatherAdviceResponseDto exactly. */
+export interface WeatherAdvice {
+	id: string;
+	assessmentId: string;
+	adviceText: string;
+	actions: string[];
+	createdBy: string;
+	createdAt: string;
+}
