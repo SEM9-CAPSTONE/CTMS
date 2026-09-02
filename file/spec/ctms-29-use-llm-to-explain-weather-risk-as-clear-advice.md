@@ -107,6 +107,58 @@ As a user, I want to use LLM to Explain Weather Risk as Clear Advice so that the
 - Add E2E coverage for the primary user journey and at least one critical failure path.
 - Every BR listed in the Business Rules Checklist must appear in at least one test or review evidence item.
 
+## Backend Preparation Logic and Tests
+
+### Actors
+- **Host**: the owner of the Route's Campsite. Can generate and read weather advice for their own Route.
+- **Admin**: can generate and read weather advice for any Route, bypassing ownership.
+
+### Preconditions
+- The Route must exist and be `active` (BR-243).
+- A weather risk assessment must already exist for the Route -- calculated by CTMS-26-T01's `POST /trekking-routes/:routeId/weather/risk-score`.
+- The actor must hold a valid session with the `host` or `admin` role; a Host must additionally own the Route's Campsite.
+
+### Architecture Decision (confirmed with the user before implementation)
+- LLM calls are made through the project's own `services/ai` FastAPI microservice (already scaffolded and wired in `docker-compose.yml`/`infra/docker/ai.Dockerfile`, previously non-functional), not directly from `services/api`. `services/api` only ever calls `POST {AI_SERVICE_URL}/weather-advisory` over plain HTTP; the OpenAI API key lives only in the `ai` container's own `OPENAI_API_KEY` environment variable, so `services/api` never sees it -- a clean secret boundary.
+- Provider: **OpenAI** (`gpt-4o-mini`), matching the infrastructure already provisioned for this service.
+- **Deferred**: no real `OPENAI_API_KEY` was available at implementation time. All real code and all real tests below were written and verified against the real `ai` container -- the container boots, validates its own input/output contract, and correctly returns its own `503` when unconfigured. Only the true, money-costing end-to-end call to the real OpenAI API is deferred pending a real key; this is documented honestly rather than mocked away or silently skipped. Once a key is available, the one test currently asserting the honest 503 (`weather-advice.integration-spec.ts`) should be replaced with a real success assertion.
+
+### BR-074 -- Not Applicable
+- BR-074 ("Do not create Trip Member records because the system uses bookings and booking_members") does not apply to this task: the Trip domain does not exist in this codebase (routes/bookings/booking_members only), and weather advice generation creates no Trip-related record of any kind -- only a `weather_advice` row scoped to a `weather_risk_assessments` row.
+
+### BR-076 -- structural enforcement, not just a prompt instruction
+- The Python service's own request/response schemas (`services/ai/app/models.py`) are the actual enforcement mechanism: `WeatherAdvisoryResponse` has only `advice: str` and `actions: list[str]` -- there is no field anywhere in the contract capable of carrying a risk level or score back from the LLM, so even a model that tries to smuggle one into its JSON has it silently dropped by Pydantic. Verified directly with `test_br076_a_smuggled_risk_level_in_the_llm_json_is_silently_dropped` in `services/ai/app/test_weather_advisory_service.py`. `WeatherAdviceService` (NestJS) also never recalculates or overwrites `riskLevel`/`compositeScore` -- it only ever reads the existing assessment and persists `adviceText`/`actions`.
+
+### Main Flow (`POST /trekking-routes/:routeId/weather/advice`)
+1. Look up the Route; 404 if missing.
+2. Ownership check: Host must own the Route's Campsite, or be Admin; else 403.
+3. BR-243: Route must be `active`; else 409, with zero side effects (checked before any assessment lookup or provider call).
+4. Look up the latest weather risk assessment for the Route; 409 if none exists yet ("calculate a risk score first").
+5. Idempotency (BR-230): if a `weather_advice` row already exists for that assessment, return it directly -- the provider is never called again for an already-explained assessment.
+6. Otherwise, call the `ai` service with the assessment's own criteria (never recalculated), with up to 3 attempts and `[500ms, 1000ms, 2000ms]` backoff, entirely in-memory (BR-230) -- persisting happens once, only after a successful call.
+7. On success: persist `adviceText`/`actions` and return the new row (201).
+8. On exhausted retries (BR-229): record the error, persist nothing, return 503 -- never assume success, never create unverifiable data.
+
+### Alternate / Exception Flows
+- `GET /trekking-routes/:routeId/weather/advice/latest`: same route/ownership checks (404/403), then returns the latest advice row for the Route or `null` if none exists yet -- no side effects, no provider call.
+- 401 without a valid session; 403 for a Camper or a non-owning Host.
+
+### API Contract
+| Method & Path | Auth | Success | Errors |
+| --- | --- | --- | --- |
+| `POST /trekking-routes/:routeId/weather/advice` | Host (owner) or Admin | 201 `WeatherAdviceResponseDto` | 401, 403, 404, 409 (not active / no assessment), 503 (provider unavailable after retries) |
+| `GET /trekking-routes/:routeId/weather/advice/latest` | Host (owner) or Admin | 200 `WeatherAdviceResponseDto \| null` | 401, 403, 404 |
+
+### Data Mapping
+- `weather_advice` (new table): `id`, `assessment_id` (FK to `weather_risk_assessments`, `ON DELETE CASCADE`, `UNIQUE` -- one advice per assessment), `advice_text`, `actions` (`jsonb` string array), `created_by` (FK to `users`, `ON DELETE RESTRICT`), `created_at`.
+- No `risk_level`/`compositeScore`/score column exists on this table at all -- the structural half of BR-076 carried through to persistence, not just the Python service's response schema.
+
+### Test Evidence
+- **Python (`services/ai`)**: `test_weather_advisory_service.py` (8) + `test_main.py` (6) = 14 passed, run for real inside the project's own Docker runtime (`docker compose run --rm --no-deps -e OPENAI_API_KEY=<fake> ai python -m pytest app -v`) since no local Python interpreter is available on this machine. Covers the happy path, the BR-076 smuggled-field drop, empty/malformed/network-error responses, missing-key 503, and both FastAPI-level 422s (missing field, invalid enum) with the service never called in either.
+- **NestJS unit**: `weather-advice.repository.spec.ts` (5), `http-weather-advice.provider.spec.ts` (6), `weather-advice.service.spec.ts` (13) = 24 passed, added to the existing suite -> `pnpm --filter @ctms/api test` now passes 359 (was 335).
+- **NestJS integration** (`weather-advice.integration-spec.ts`, 12 passed, real Postgres + the real `ai` container, no mocking): 404/403/401 paths; 409 for a non-active Route and for a missing assessment, both with zero `weather_advice` rows written; the honest 503-after-retries outcome against the real, unconfigured `ai` container with zero rows persisted (the deferred case, see above); idempotent return of a directly-seeded existing advice row without any provider call, verified through the real API response and a real `SELECT`; Admin ownership bypass on the read path. `pnpm --filter @ctms/api test:integration` -> 206 passed (was 194).
+- `pnpm --filter @ctms/api build` and `pnpm --filter @ctms/api lint` both pass clean.
+
 ## References
 - Story ID: `CTMS-29`
 - Epic: `EPIC 4. Weather Risk`
