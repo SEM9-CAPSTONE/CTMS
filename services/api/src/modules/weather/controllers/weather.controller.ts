@@ -7,8 +7,11 @@ import type { AuthenticatedUser } from "../../auth/jwt.strategy";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { RouteIdParamDto } from "../../trekking-routes/dto/route-id-param.dto";
 import { UserRole } from "../../users/entities/user.entity";
+import { WeatherAdviceResponseDto } from "../dto/weather-advice-response.dto";
 import { WeatherRiskAssessmentResponseDto } from "../dto/weather-risk-assessment-response.dto";
 import { WeatherSnapshotResponseDto } from "../dto/weather-snapshot-response.dto";
+// biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
+import { WeatherAdviceService } from "../services/weather-advice.service";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { WeatherRiskService } from "../services/weather-risk.service";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
@@ -30,7 +33,8 @@ interface AuthenticatedRequest {
 export class WeatherController {
 	constructor(
 		private readonly weatherService: WeatherService,
-		private readonly weatherRiskService: WeatherRiskService
+		private readonly weatherRiskService: WeatherRiskService,
+		private readonly weatherAdviceService: WeatherAdviceService
 	) {}
 
 	@Post("refresh")
@@ -88,5 +92,36 @@ export class WeatherController {
 		@Req() req: AuthenticatedRequest
 	): Promise<WeatherRiskAssessmentResponseDto | null> {
 		return this.weatherRiskService.getLatestForRoute(req.user, params.routeId);
+	}
+
+	@Post("advice")
+	@HttpCode(HttpStatus.CREATED)
+	@ApiOperation({
+		summary: "Generate LLM advice explaining a route's latest weather risk assessment",
+	})
+	@ApiResponse({ status: 201, type: WeatherAdviceResponseDto })
+	@ApiResponse({ status: 401, description: "Authentication required" })
+	@ApiResponse({ status: 403, description: "Not the owning Host, and not an Admin" })
+	@ApiResponse({ status: 404, description: "Route not found" })
+	@ApiResponse({ status: 409, description: "Route is not active or missing a risk assessment" })
+	@ApiResponse({ status: 503, description: "Weather advice service unavailable after retries" })
+	generateAdvice(
+		@Param() params: RouteIdParamDto,
+		@Req() req: AuthenticatedRequest
+	): Promise<WeatherAdviceResponseDto> {
+		return this.weatherAdviceService.generateForRoute(req.user, params.routeId);
+	}
+
+	@Get("advice/latest")
+	@ApiOperation({ summary: "Get the most recently generated weather advice for a route" })
+	@ApiResponse({ status: 200, type: WeatherAdviceResponseDto })
+	@ApiResponse({ status: 401, description: "Authentication required" })
+	@ApiResponse({ status: 403, description: "Not the owning Host, and not an Admin" })
+	@ApiResponse({ status: 404, description: "Route not found" })
+	getLatestAdvice(
+		@Param() params: RouteIdParamDto,
+		@Req() req: AuthenticatedRequest
+	): Promise<WeatherAdviceResponseDto | null> {
+		return this.weatherAdviceService.getLatestForRoute(req.user, params.routeId);
 	}
 }
