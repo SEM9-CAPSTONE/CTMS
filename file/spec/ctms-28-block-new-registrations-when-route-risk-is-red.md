@@ -1,10 +1,10 @@
-# CTMS-28 - Block New Registration when Route is Red
+# CTMS-28 - Block New Registrations when Route Risk Is Red
 
 **Spec Reference**  
-/file/spec/ctms-28-block-new-registration-when-route-is-red.md
+/file/spec/ctms-28-block-new-registrations-when-route-risk-is-red.md
 
 **Story Title**  
-Block New Registration when Route is Red
+Block New Registrations when Route Risk Is Red
 
 **Status**  
 In Progress
@@ -125,17 +125,4 @@ As a Host or Camper, I want the system to block New Registrations when Route Ris
 - Jira status: `In Progress`.
 - Priority: `Must Have`; Story points: `3`; Commitment: `Committed`.
 - Epic: `EPIC 4. Weather Risk`.
-- Spec Reference: `/file/spec/ctms-28-block-new-registration-when-route-is-red.md`.
-
-## Task to Acceptance Criteria Traceability
-| Acceptance criterion / BR | Covered by tasks | Evidence expected |
-| --- | --- | --- |
-| AC1: Do not create new bookings for a Trip/route with Red risk | CTMS-28-T01, CTMS-28-T02 | Unit & integration tests in backend |
-| AC2: show the reason and assessment time | CTMS-28-T01, CTMS-28-T02 | Response DTO and unit/E2E assertion |
-| AC3: do not create Trip Member records because the system uses bookings and booking_members | CTMS-28-T01, CTMS-28-T02 | Transaction / zero-side-effect test |
-| BR-071: Detailed breakdown of criteria reasons required | CTMS-28-T01 | Criteria details in error payload |
-| BR-072: Block new registration when Red | CTMS-28-T01 | ConflictException thrown |
-| BR-073: Display assessment time and reason | CTMS-28-T01 | assessmentTime & reasons field in response |
-| BR-200: Audit log recorded | CTMS-28-T01 | Audit log table record |
-| BR-201 / BR-202: Active account check | CTMS-28-T01 | JwtAuthGuard & active status validation |
-| BR-243: Zero side-effect on rejection | CTMS-28-T01 | Database table counts untouched |
+- Spec Reference: `/file/spec/ctms-28-block-new-registrations-when-route-risk-is-red.md`.
