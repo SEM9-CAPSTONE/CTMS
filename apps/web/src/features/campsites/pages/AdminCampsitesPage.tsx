@@ -1,14 +1,7 @@
-import {
-	AlertCircle,
-	CheckCircle2,
-	ChevronLeft,
-	ChevronRight,
-	Loader2,
-	RefreshCw,
-	TentTree,
-} from "lucide-react";
+import { AlertCircle, ChevronLeft, ChevronRight, Loader2, RefreshCw, TentTree } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Card } from "../../../shared/components";
+import { toast } from "../../../shared/components";
 import { AdminLayout } from "../../admin-layout/components/AdminLayout";
 import { AdminCampsitesTable } from "../components/AdminCampsitesTable";
 import { ReviewCampsiteDialog } from "../components/ReviewCampsiteDialog";
@@ -24,7 +17,6 @@ export function AdminCampsitesPage({ onLogout }: AdminCampsitesPageProps) {
 	const { isSubmitting, error: actionError, submit, reset } = useReviewCampsite();
 
 	const [selectedCampsite, setSelectedCampsite] = useState<CreatedCampsite | null>(null);
-	const [successMessage, setSuccessMessage] = useState<string | null>(null);
 	const [statusFilter, setStatusFilter] = useState<string>("all");
 	const [currentPage, setCurrentPage] = useState(1);
 	const ITEMS_PER_PAGE = 10;
@@ -83,10 +75,11 @@ export function AdminCampsitesPage({ onLogout }: AdminCampsitesPageProps) {
 
 		if (result) {
 			// Successful action
-			setSuccessMessage(
+			toast.success(
 				values.action === "approve"
 					? `Đã phê duyệt hoạt động cho khu cắm trại "${selectedCampsite.name}" thành công.`
-					: `Đã từ chối và trả khu cắm trại "${selectedCampsite.name}" về bản nháp.`
+					: `Đã từ chối và trả khu cắm trại "${selectedCampsite.name}" về bản nháp.`,
+				"Phê duyệt hoàn tất"
 			);
 			setSelectedCampsite(null);
 			reset();
@@ -128,13 +121,6 @@ export function AdminCampsitesPage({ onLogout }: AdminCampsitesPageProps) {
 					)}
 				</div>
 
-				{successMessage && (
-					<div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-700">
-						<CheckCircle2 className="size-5 shrink-0" />
-						<span>{successMessage}</span>
-					</div>
-				)}
-
 				{listError && (
 					<div
 						role="alert"
@@ -147,7 +133,6 @@ export function AdminCampsitesPage({ onLogout }: AdminCampsitesPageProps) {
 						<button
 							type="button"
 							onClick={() => {
-								setSuccessMessage(null);
 								void reload();
 							}}
 							className="inline-flex items-center gap-2 rounded-lg bg-red-700 px-3 py-2 text-xs text-white hover:bg-red-800 transition-colors"

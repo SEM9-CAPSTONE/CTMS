@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { toast } from "../../../shared/components";
 import { DEFAULT_USER_ACCOUNTS_LIMIT, DEFAULT_USER_ACCOUNTS_PAGE } from "../constants";
 import { adminUserAccountsService } from "../services/admin-user-accounts.service";
 import type {
@@ -112,11 +113,12 @@ export function useAdminUserAccounts() {
 					: adminUserAccountsService.unlockUser;
 			const updated = await serviceMethod(pendingAction.user.id, { reason });
 			setDetailUser((current) => (current?.id === updated.id ? updated : current));
-			setSuccessMessage(
+			const msg =
 				pendingAction.action === "lock"
 					? "Đã khóa tài khoản thành công."
-					: "Đã mở khóa tài khoản thành công."
-			);
+					: "Đã mở khóa tài khoản thành công.";
+			setSuccessMessage(msg);
+			toast.success(msg, "Thao tác tài khoản");
 			setPendingAction(null);
 			await loadUsers();
 		} catch (error) {

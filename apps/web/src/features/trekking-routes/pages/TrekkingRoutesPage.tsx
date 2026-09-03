@@ -10,6 +10,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { RouteCheckpointsPanel } from "../components/RouteCheckpointsPanel";
 import { RouteGeometryPreview } from "../components/RouteGeometryPreview";
+import { RouteRegistrationBlockPanel } from "../components/RouteRegistrationBlockPanel";
 import { RouteStatusActionDialog } from "../components/RouteStatusActionDialog";
 import { RouteWeatherAdvicePanel } from "../components/RouteWeatherAdvicePanel";
 import { RouteWeatherPanel } from "../components/RouteWeatherPanel";
@@ -88,7 +89,7 @@ export function TrekkingRoutesPage({ onBackHome }: TrekkingRoutesPageProps) {
 				{submittedRouteName && (
 					<div
 						data-testid="route-submission-success"
-						className="mb-5 flex gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800"
+						className="mb-5 flex gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800 font-bold"
 					>
 						<CheckCircle2 className="size-5 shrink-0" />
 						<p>
@@ -239,6 +240,13 @@ export function TrekkingRoutesPage({ onBackHome }: TrekkingRoutesPageProps) {
 						{selectedRoute && <RouteWeatherRiskPanel route={selectedRoute} />}
 
 						{selectedRoute && <RouteWeatherAdvicePanel route={selectedRoute} />}
+
+						{selectedRoute && (
+							<RouteRegistrationBlockPanel
+								routeId={selectedRoute.id}
+								routeName={selectedRoute.name}
+							/>
+						)}
 
 						{selectedCampsiteId && !routes.isLoading && !routes.error && selectedRoute && (
 							<RouteCheckpointsPanel

@@ -1,4 +1,4 @@
-import { AlertCircle, CheckCircle2, Loader2, RefreshCw, Users } from "lucide-react";
+import { AlertCircle, Loader2, RefreshCw, Users } from "lucide-react";
 import { Card } from "../../../shared/components";
 import { AdminLayout } from "../../admin-layout/components/AdminLayout";
 import { AccountStatusDialog } from "../components/AccountStatusDialog";
@@ -25,12 +25,7 @@ export function AdminUserAccountsPage({ onLogout }: AdminUserAccountsPageProps) 
 						Tìm kiếm, xem, khóa và mở khóa tài khoản mà không xóa dữ liệu nghiệp vụ.
 					</p>
 				</div>
-				{accounts.successMessage && (
-					<div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-700">
-						<CheckCircle2 className="size-5" />
-						{accounts.successMessage}
-					</div>
-				)}
+
 				{accounts.errorMessage && (
 					<div
 						role="alert"

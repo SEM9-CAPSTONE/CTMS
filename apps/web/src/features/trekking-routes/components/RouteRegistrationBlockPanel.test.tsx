@@ -56,7 +56,7 @@ describe("RouteRegistrationBlockPanel", () => {
 		).toBeInTheDocument();
 	});
 
-	it("renders allowed state (GREEN / YELLOW) with active action button", async () => {
+	it("renders allowed state (GREEN / YELLOW), opens confirm modal on submit, and transforms UI state upon confirmation", async () => {
 		const onProceed = vi.fn();
 		testingLibrary.render(
 			<RouteRegistrationBlockPanel
@@ -76,8 +76,25 @@ describe("RouteRegistrationBlockPanel", () => {
 		const submitBtn = testingLibrary.screen.getByTestId("btn-submit-booking");
 		expect(submitBtn).not.toBeDisabled();
 
+		// Click button -> Opens Confirmation Modal
 		await userEvent.click(submitBtn);
+
+		expect(testingLibrary.screen.getByTestId("confirm-modal")).toBeInTheDocument();
+		expect(testingLibrary.screen.getByText(/Xác nhận đăng ký chuyến đi/i)).toBeInTheDocument();
+
+		// Click confirm inside modal
+		const modalConfirmBtn = testingLibrary.screen.getByTestId("confirm-modal-submit");
+		await userEvent.click(modalConfirmBtn);
+
 		expect(onProceed).toHaveBeenCalledTimes(1);
+
+		// UI transforms into active success booking card
+		expect(
+			await testingLibrary.screen.findByTestId("registration-success-card")
+		).toBeInTheDocument();
+		expect(
+			testingLibrary.screen.getByText(/ĐÃ KHỞI TẠO ĐĂNG KÝ CHUYẾN ĐI THÀNH CÔNG/i)
+		).toBeInTheDocument();
 	});
 
 	it("renders BLOCKED state (RED risk) with warning banner, assessment time, failing criteria reasons, and disabled action button (BR-071, BR-072, BR-073)", async () => {
@@ -134,10 +151,10 @@ describe("RouteRegistrationBlockPanel", () => {
 		// Reasons breakdown rendered
 		expect(testingLibrary.screen.getByTestId("blocked-reasons-list")).toBeInTheDocument();
 		expect(testingLibrary.screen.getByTestId("reason-item-rainfall")).toHaveTextContent(
-			"Rainfall (80mm) exceeds Red threshold"
+			"Lượng mưa (80mm) vượt quá ngưỡng nguy hiểm Mức Đỏ"
 		);
 		expect(testingLibrary.screen.getByTestId("reason-item-wind")).toHaveTextContent(
-			"Wind speed (85km/h) exceeds Red threshold"
+			"Tốc độ gió (85km/h) vượt quá ngưỡng nguy hiểm Mức Đỏ"
 		);
 
 		// Submit button disabled

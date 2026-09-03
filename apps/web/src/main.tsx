@@ -4,6 +4,8 @@ import { initAuthSessionSync } from "./core/api/authSessionSync";
 import { AppRoutes } from "./routes";
 import "./index.css";
 
+import { ToastProvider } from "./shared/components/Toast";
+
 // CTMS-04-T02, DG-04: register the cross-tab session-sync `storage`
 // listener exactly once, for the lifetime of the page. Plain module-level
 // call, not a React effect -- DG-02 ruled out a Context/state-management
@@ -16,7 +18,9 @@ const rootElement = document.getElementById("root");
 if (rootElement) {
 	ReactDOM.createRoot(rootElement).render(
 		<React.StrictMode>
-			<AppRoutes />
+			<ToastProvider>
+				<AppRoutes />
+			</ToastProvider>
 		</React.StrictMode>
 	);
 }
