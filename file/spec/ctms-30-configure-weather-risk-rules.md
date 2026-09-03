@@ -4,7 +4,7 @@
 /file/spec/ctms-30-configure-weather-risk-rules.md
 
 **Status**  
-To Do
+Completed
 
 **Story Title**
 Configure Weather Risk Rules
@@ -22,10 +22,10 @@ As a Admin/System, I want to configure weather risk rules without depending on r
 
 ## Acceptance Criteria
 
-- [ ] Admin/System can configure thresholds for rainfall, wind, temperature, humidity, visibility, UV, and storm alerts.
-- [ ] Rules do not require or branch on `route_type`.
-- [ ] Risk evaluation can be applied to Trip/Route locations and forecast windows using weather snapshots.
-- [ ] Rule changes are versioned or audited so generated advice can be traced.
+- [x] Admin/System can configure thresholds for rainfall, wind, temperature, humidity, visibility, UV, and storm alerts.
+- [x] Rules do not require or branch on `route_type`.
+- [x] Risk evaluation can be applied to Trip/Route locations and forecast windows using weather snapshots.
+- [x] Rule changes are versioned or audited so generated advice can be traced.
 
 ## Scope
 
