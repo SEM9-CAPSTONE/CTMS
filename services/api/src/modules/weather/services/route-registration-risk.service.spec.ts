@@ -152,13 +152,13 @@ describe("RouteRegistrationRiskService", () => {
 				criterion: "rainfall",
 				level: RiskLevel.RED,
 				value: 65,
-				message: "Rainfall (65mm) exceeds Red threshold",
+				message: "Lượng mưa (65mm) vượt quá ngưỡng nguy hiểm Mức Đỏ",
 			});
 			expect(result.reasons[1]).toEqual({
 				criterion: "wind",
 				level: RiskLevel.RED,
 				value: 75,
-				message: "Wind speed (75km/h) exceeds Red threshold",
+				message: "Tốc độ gió (75km/h) vượt quá ngưỡng nguy hiểm Mức Đỏ",
 			});
 		});
 	});

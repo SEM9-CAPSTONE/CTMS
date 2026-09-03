@@ -3,6 +3,7 @@ import { DataSource } from "typeorm";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { RouteRegistrationRiskController } from "./controllers/route-registration-risk.controller";
+import { WeatherRiskRulesController } from "./controllers/weather-risk-rules.controller";
 import { WeatherController } from "./controllers/weather.controller";
 import { WeatherAdvice } from "./entities/weather-advice.entity";
 import { WeatherRiskAssessment } from "./entities/weather-risk-assessment.entity";
@@ -16,15 +17,17 @@ import { WeatherRiskRepository } from "./repositories/weather-risk.repository";
 import { WeatherSnapshotsRepository } from "./repositories/weather-snapshots.repository";
 import { RouteRegistrationRiskService } from "./services/route-registration-risk.service";
 import { WeatherAdviceService } from "./services/weather-advice.service";
+import { WeatherRiskRulesService } from "./services/weather-risk-rules.service";
 import { WeatherRiskService } from "./services/weather-risk.service";
 import { WeatherService } from "./services/weather.service";
 
 @Module({
-	controllers: [WeatherController, RouteRegistrationRiskController],
+	controllers: [WeatherController, RouteRegistrationRiskController, WeatherRiskRulesController],
 	providers: [
 		WeatherService,
 		WeatherRiskService,
 		WeatherAdviceService,
+		WeatherRiskRulesService,
 		{
 			provide: RouteRegistrationRiskService,
 			useFactory: (
