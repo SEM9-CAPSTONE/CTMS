@@ -7,6 +7,8 @@ import {
 	PrimaryGeneratedColumn,
 } from "typeorm";
 // biome-ignore lint/style/useImportType: constructor-injected or referenced by TypeORM
+import { TrekkingRoute } from "../../trekking-routes/entities/trekking-route.entity";
+// biome-ignore lint/style/useImportType: constructor-injected or referenced by TypeORM
 import { User } from "../../users/entities/user.entity";
 
 @Entity({ name: "trips" })
@@ -23,6 +25,13 @@ export class Trip {
 	@ManyToOne(() => User, { onDelete: "CASCADE" })
 	@JoinColumn({ name: "host_id" })
 	host!: User;
+
+	@Column({ name: "route_id", type: "uuid", nullable: true })
+	routeId?: string | null;
+
+	@ManyToOne(() => TrekkingRoute, { onDelete: "SET NULL", nullable: true })
+	@JoinColumn({ name: "route_id" })
+	route?: TrekkingRoute | null;
 
 	@CreateDateColumn({ name: "created_at", type: "timestamptz" })
 	createdAt!: Date;

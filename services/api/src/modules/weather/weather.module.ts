@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { DataSource } from "typeorm";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
+import { RouteRegistrationRiskController } from "./controllers/route-registration-risk.controller";
 import { WeatherController } from "./controllers/weather.controller";
 import { WeatherAdvice } from "./entities/weather-advice.entity";
 import { WeatherRiskAssessment } from "./entities/weather-risk-assessment.entity";
@@ -13,16 +14,18 @@ import { WEATHER_PROVIDER } from "./providers/weather-provider.interface";
 import { WeatherAdviceRepository } from "./repositories/weather-advice.repository";
 import { WeatherRiskRepository } from "./repositories/weather-risk.repository";
 import { WeatherSnapshotsRepository } from "./repositories/weather-snapshots.repository";
+import { RouteRegistrationRiskService } from "./services/route-registration-risk.service";
 import { WeatherAdviceService } from "./services/weather-advice.service";
 import { WeatherRiskService } from "./services/weather-risk.service";
 import { WeatherService } from "./services/weather.service";
 
 @Module({
-	controllers: [WeatherController],
+	controllers: [WeatherController, RouteRegistrationRiskController],
 	providers: [
 		WeatherService,
 		WeatherRiskService,
 		WeatherAdviceService,
+		RouteRegistrationRiskService,
 		JwtAuthGuard,
 		RolesGuard,
 		{ provide: WEATHER_PROVIDER, useClass: OpenMeteoWeatherProvider },
@@ -46,5 +49,6 @@ import { WeatherService } from "./services/weather.service";
 			inject: [DataSource],
 		},
 	],
+	exports: [RouteRegistrationRiskService],
 })
 export class WeatherModule {}
