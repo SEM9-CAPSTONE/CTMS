@@ -225,12 +225,14 @@ export class RouteRegistrationRiskService {
 				action: "REGISTRATION_BLOCKED_WEATHER_RISK_RED",
 				targetId,
 				targetType,
-				payload: {
+				before: null,
+				after: {
 					riskLevel: eligibility.riskLevel,
 					assessmentTime: eligibility.assessmentTime,
 					compositeScore: eligibility.compositeScore,
-					reasons: eligibility.reasons,
+					reasons: eligibility.reasons as unknown as Record<string, unknown>[],
 				},
+				reason: "Route weather risk level is RED",
 			});
 			await auditRepo.save(log);
 		} catch (error) {
