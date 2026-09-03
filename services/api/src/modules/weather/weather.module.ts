@@ -25,7 +25,20 @@ import { WeatherService } from "./services/weather.service";
 		WeatherService,
 		WeatherRiskService,
 		WeatherAdviceService,
-		RouteRegistrationRiskService,
+		{
+			provide: RouteRegistrationRiskService,
+			useFactory: (
+				weatherRiskRepository: WeatherRiskRepository,
+				weatherSnapshotsRepository: WeatherSnapshotsRepository,
+				dataSource: DataSource
+			) =>
+				new RouteRegistrationRiskService(
+					weatherRiskRepository,
+					weatherSnapshotsRepository,
+					dataSource
+				),
+			inject: [WeatherRiskRepository, WeatherSnapshotsRepository, DataSource],
+		},
 		JwtAuthGuard,
 		RolesGuard,
 		{ provide: WEATHER_PROVIDER, useClass: OpenMeteoWeatherProvider },

@@ -131,3 +131,21 @@ export interface WeatherAdvice {
 	createdBy: string;
 	createdAt: string;
 }
+
+/** CTMS-28-T02. Registration eligibility response indicating whether new bookings/registrations
+ * are allowed for a route based on weather risk (BR-072, BR-071, BR-073). */
+export interface RegistrationBlockedReason {
+	criterion: string;
+	level: RiskLevel;
+	value: number | boolean;
+	message: string;
+}
+
+export interface RegistrationEligibilityResponse {
+	allowed: boolean;
+	routeId: string;
+	riskLevel: RiskLevel;
+	assessmentTime: string;
+	compositeScore: number;
+	reasons: RegistrationBlockedReason[];
+}

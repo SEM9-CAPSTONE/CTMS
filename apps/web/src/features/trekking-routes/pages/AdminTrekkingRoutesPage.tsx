@@ -1,5 +1,6 @@
-import { AlertCircle, CheckCircle2, RefreshCw, Route } from "lucide-react";
+import { AlertCircle, RefreshCw, Route } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "../../../shared/components";
 import { AdminLayout } from "../../admin-layout/components/AdminLayout";
 import { AdminRouteReviewContent } from "../components/AdminRouteReviewContent";
 import { RouteReviewDecisionDialog } from "../components/RouteReviewDecisionDialog";
@@ -15,7 +16,6 @@ export function AdminTrekkingRoutesPage({ onLogout }: AdminTrekkingRoutesPagePro
 	const review = useReviewTrekkingRoute();
 	const [selectedId, setSelectedId] = useState<string>();
 	const [dialogOpen, setDialogOpen] = useState(false);
-	const [success, setSuccess] = useState("");
 
 	useEffect(() => {
 		setSelectedId((current) =>
@@ -40,7 +40,7 @@ export function AdminTrekkingRoutesPage({ onLogout }: AdminTrekkingRoutesPagePro
 			decline: "Đã trả về bản nháp",
 			non_operable: "Đã đóng vì không được vận hành",
 		};
-		setSuccess(`${labels[values.action]} tuyến “${selected.name}”.`);
+		toast.success(`${labels[values.action]} tuyến “${selected.name}”.`, "Xét duyệt hoàn tất");
 		setDialogOpen(false);
 		await list.reload();
 	};
@@ -57,12 +57,7 @@ export function AdminTrekkingRoutesPage({ onLogout }: AdminTrekkingRoutesPagePro
 						Kiểm tra hình học, độ khó và checkpoint trước khi đưa tuyến vào vận hành.
 					</p>
 				</header>
-				{success && (
-					<div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-700">
-						<CheckCircle2 className="size-5" />
-						{success}
-					</div>
-				)}
+
 				{list.error && (
 					<div
 						role="alert"

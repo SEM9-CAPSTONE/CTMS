@@ -6,7 +6,8 @@ import {
 	NotFoundException,
 	UnauthorizedException,
 } from "@nestjs/common";
-import type { DataSource } from "typeorm";
+// biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
+import { DataSource } from "typeorm";
 import { AuditLog } from "../../auth/entities/audit-log.entity";
 import type { AuthenticatedUser } from "../../auth/jwt.strategy";
 import { UserStatus } from "../../users/entities/user.entity";
@@ -173,7 +174,7 @@ export class RouteRegistrationRiskService {
 				criterion: "rainfall",
 				level: RiskLevel.RED,
 				value: criteria.rainfall.value,
-				message: `Rainfall (${criteria.rainfall.value}mm) exceeds Red threshold`,
+				message: `Lượng mưa (${criteria.rainfall.value}mm) vượt quá ngưỡng nguy hiểm Mức Đỏ`,
 			});
 		}
 		if (criteria.wind?.level === RiskLevel.RED) {
@@ -181,7 +182,7 @@ export class RouteRegistrationRiskService {
 				criterion: "wind",
 				level: RiskLevel.RED,
 				value: criteria.wind.value,
-				message: `Wind speed (${criteria.wind.value}km/h) exceeds Red threshold`,
+				message: `Tốc độ gió (${criteria.wind.value}km/h) vượt quá ngưỡng nguy hiểm Mức Đỏ`,
 			});
 		}
 		if (criteria.temperature?.level === RiskLevel.RED) {
@@ -189,7 +190,7 @@ export class RouteRegistrationRiskService {
 				criterion: "temperature",
 				level: RiskLevel.RED,
 				value: criteria.temperature.value,
-				message: `Temperature (${criteria.temperature.value}°C) is in Red danger range`,
+				message: `Nhiệt độ (${criteria.temperature.value}°C) ở ngưỡng nguy hiểm Mức Đỏ`,
 			});
 		}
 		if (criteria.visibility?.level === RiskLevel.RED) {
@@ -197,7 +198,7 @@ export class RouteRegistrationRiskService {
 				criterion: "visibility",
 				level: RiskLevel.RED,
 				value: criteria.visibility.value,
-				message: `Visibility (${criteria.visibility.value}m) is below Red threshold`,
+				message: `Tầm nhìn xa (${criteria.visibility.value}m) thấp hơn ngưỡng an toàn Mức Đỏ`,
 			});
 		}
 		if (criteria.thunderstorm?.level === RiskLevel.RED) {
@@ -205,7 +206,7 @@ export class RouteRegistrationRiskService {
 				criterion: "thunderstorm",
 				level: RiskLevel.RED,
 				value: criteria.thunderstorm.value,
-				message: "Thunderstorm activity detected",
+				message: "Phát hiện hoạt động dông sét nguy hiểm",
 			});
 		}
 	}

@@ -2,6 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertCircle, Loader2, RotateCcw, ShieldAlert, X } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
+import { toast } from "../../../shared/components";
 import { ROUTE_STATUS_ACTION_CONTENT, lifecycleActionForStatus } from "../constants";
 import { useRouteStatusAction } from "../hooks/useRouteStatusAction";
 import {
@@ -47,6 +48,12 @@ export function RouteStatusActionDialog({ route, onReload }: RouteStatusActionDi
 		if (!dialogRequest) return;
 		const updated = await lifecycle.submit(dialogRequest.action, dialogRequest.routeId, values);
 		if (!updated) return;
+		toast.success(
+			dialogRequest.action === "close"
+				? "Đã tạm đóng tuyến đường thành công!"
+				: "Đã mở lại tuyến đường thành công!",
+			"Cập nhật trạng thái"
+		);
 		await onReload();
 		setDialogRequest(null);
 		reset();
