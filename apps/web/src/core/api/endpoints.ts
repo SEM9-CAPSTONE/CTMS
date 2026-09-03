@@ -49,6 +49,8 @@ export const API_ENDPOINTS = {
 		WEATHER_RISK_CALCULATE: (routeId: string) => `/trekking-routes/${routeId}/weather/risk-score`,
 		WEATHER_ADVICE_LATEST: (routeId: string) => `/trekking-routes/${routeId}/weather/advice/latest`,
 		WEATHER_ADVICE_GENERATE: (routeId: string) => `/trekking-routes/${routeId}/weather/advice`,
+		CHECK_REGISTRATION_ELIGIBILITY: (routeId: string) =>
+			`/trekking-routes/${routeId}/check-registration-eligibility`,
 	},
 	TRIPS: {
 		GET_ALL: "/trips",

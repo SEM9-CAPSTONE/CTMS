@@ -4,6 +4,7 @@ import type {
 	CreateCheckpointInput,
 	CreateTrekkingRouteInput,
 	CreatedTrekkingRoute,
+	RegistrationEligibilityResponse,
 	ReviewTrekkingRouteInput,
 	RouteCheckpoint,
 	RouteStatusReasonInput,
@@ -59,4 +60,8 @@ export const trekkingRoutesService = {
 	},
 	generateWeatherAdvice: (routeId: string): Promise<WeatherAdvice> =>
 		httpClient.post<WeatherAdvice>(API_ENDPOINTS.TREKKING.WEATHER_ADVICE_GENERATE(routeId)),
+	checkRegistrationEligibility: (routeId: string): Promise<RegistrationEligibilityResponse> =>
+		httpClient.post<RegistrationEligibilityResponse>(
+			API_ENDPOINTS.TREKKING.CHECK_REGISTRATION_ELIGIBILITY(routeId)
+		),
 };
