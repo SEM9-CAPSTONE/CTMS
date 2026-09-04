@@ -23,9 +23,9 @@ export function UserAccountsTable({
 						<th className="px-4 py-3">Người dùng</th>
 						<th className="px-4 py-3">Liên hệ</th>
 						<th className="px-4 py-3">Vai trò</th>
-						<th className="px-4 py-3">Trạng thái</th>
-						<th className="px-4 py-3">Ngày tạo</th>
-						<th className="px-4 py-3 text-right">Thao tác</th>
+						<th className="px-4 py-3 whitespace-nowrap">Trạng thái</th>
+						<th className="px-4 py-3 whitespace-nowrap">Ngày tạo</th>
+						<th className="px-4 py-3 text-right whitespace-nowrap">Thao tác</th>
 					</tr>
 				</thead>
 				<tbody className="divide-y divide-[#e8efe7]">
@@ -42,7 +42,7 @@ export function UserAccountsTable({
 									<p className="mt-1 text-xs">{user.phone || "—"}</p>
 								</td>
 								<td className="px-4 py-4 font-semibold capitalize text-[#425048]">{user.role}</td>
-								<td className="px-4 py-4">
+								<td className="px-4 py-4 whitespace-nowrap">
 									<AccountStatusBadge status={user.status} />
 								</td>
 								<td className="px-4 py-4 text-[#425048]">
