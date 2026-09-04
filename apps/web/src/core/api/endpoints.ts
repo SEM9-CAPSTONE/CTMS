@@ -61,6 +61,11 @@ export const API_ENDPOINTS = {
 	WEATHER: {
 		RISK_ASSESSMENT: "/weather/risk-assessment",
 		SNAPSHOT: "/weather/snapshots",
+		RULES_LIST: "/weather/rules",
+		RULES_ACTIVE: "/weather/rules/active",
+		RULES_BY_ID: (id: string) => `/weather/rules/${id}`,
+		RULES_CREATE: "/weather/rules",
+		RULES_ACTIVATE: (id: string) => `/weather/rules/${id}/activate`,
 	},
 	AI: {
 		CONVERSATIONS: "/ai/conversations",

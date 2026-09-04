@@ -21,7 +21,7 @@ export interface AccountStatusBadgeProps {
 export function AccountStatusBadge({ status }: AccountStatusBadgeProps) {
 	return (
 		<span
-			className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${STATUS_STYLES[status]}`}
+			className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-bold ${STATUS_STYLES[status]}`}
 		>
 			{STATUS_LABELS[status]}
 		</span>

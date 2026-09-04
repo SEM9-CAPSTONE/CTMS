@@ -29,6 +29,8 @@ export const queryKeys = {
 	weather: {
 		risk: (routeId?: string, campsiteId?: string) =>
 			["weather", "risk", { routeId, campsiteId }] as const,
+		rules: ["weather", "rules"] as const,
+		activeRule: ["weather", "rules", "active"] as const,
 	},
 	ai: {
 		conversations: ["ai", "conversations"] as const,
