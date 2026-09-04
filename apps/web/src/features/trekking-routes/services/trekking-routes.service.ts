@@ -2,11 +2,13 @@ import { API_ENDPOINTS, httpClient } from "../../../core/api";
 import type {
 	AdminTrekkingRouteReview,
 	CreateCheckpointInput,
+	CreateRouteDangerZoneInput,
 	CreateTrekkingRouteInput,
 	CreatedTrekkingRoute,
 	RegistrationEligibilityResponse,
 	ReviewTrekkingRouteInput,
 	RouteCheckpoint,
+	RouteDangerZone,
 	RouteStatusReasonInput,
 	WeatherAdvice,
 	WeatherRiskAssessment,
@@ -32,6 +34,13 @@ export const trekkingRoutesService = {
 		httpClient.get<RouteCheckpoint[]>(API_ENDPOINTS.TREKKING.CHECKPOINTS(routeId)),
 	createCheckpoint: (routeId: string, input: CreateCheckpointInput): Promise<RouteCheckpoint> =>
 		httpClient.post<RouteCheckpoint>(API_ENDPOINTS.TREKKING.CHECKPOINTS(routeId), input),
+	listRouteDangerZones: (routeId: string): Promise<RouteDangerZone[]> =>
+		httpClient.get<RouteDangerZone[]>(API_ENDPOINTS.TREKKING.HAZARD_AREAS(routeId)),
+	createRouteDangerZone: (
+		routeId: string,
+		input: CreateRouteDangerZoneInput
+	): Promise<RouteDangerZone> =>
+		httpClient.post<RouteDangerZone>(API_ENDPOINTS.TREKKING.HAZARD_AREAS(routeId), input),
 	// The backend sends a genuinely empty body (Content-Length: 0), not the
 	// JSON string "{}", for a route with no weather history yet --
 	// httpClient maps that to `undefined` (verified against a real response,
