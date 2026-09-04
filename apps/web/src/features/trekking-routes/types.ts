@@ -25,6 +25,40 @@ export interface GeoJsonLineString {
 	coordinates: Position[];
 }
 
+export interface GeoJsonPolygon {
+	type: "Polygon";
+	coordinates: Position[][];
+}
+
+export const ROUTE_DANGER_ZONE_SEVERITIES = ["low", "medium", "high"] as const;
+export type RouteDangerZoneSeverity = (typeof ROUTE_DANGER_ZONE_SEVERITIES)[number];
+export type RouteDangerZoneGeometry = GeoJsonPoint | GeoJsonPolygon;
+export type RouteMapMode = "checkpoint" | "hazard-point" | "hazard-polygon";
+
+interface CreateRouteDangerZoneBase {
+	description: string;
+	severity: RouteDangerZoneSeverity;
+}
+
+export type CreateRouteDangerZoneInput =
+	| (CreateRouteDangerZoneBase & {
+			geometry: GeoJsonPoint;
+			radiusMeters: number;
+	  })
+	| (CreateRouteDangerZoneBase & {
+			geometry: GeoJsonPolygon;
+			radiusMeters?: never;
+	  });
+
+export interface RouteDangerZone extends CreateRouteDangerZoneBase {
+	id: string;
+	routeId: string;
+	geometry: RouteDangerZoneGeometry;
+	radiusMeters: number | null;
+	createdAt: string;
+	updatedAt: string;
+}
+
 export interface CreateTrekkingRouteInput {
 	campsiteId: string;
 	name: string;

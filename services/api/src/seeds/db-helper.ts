@@ -415,6 +415,17 @@ async function main() {
 				[input.routeId]
 			);
 			console.log(JSON.stringify({ checkpoints: rows }));
+		} else if (action === "get-route-danger-zones") {
+			// CTMS-23-T02 E2E. Reads authoritative PostGIS hazard rows created through the Host UI.
+			const input = parseJsonArg<{ routeId: string }>(arg);
+			const rows = await dataSource.query(
+				`SELECT "id", "route_id" AS "routeId", "radius_m" AS "radiusMeters",
+				 "description", "severity", ST_AsGeoJSON("geom"::geometry)::json AS "geometry"
+				 FROM "route_danger_zones" WHERE "route_id" = $1
+				 ORDER BY "created_at" ASC, "id" ASC`,
+				[input.routeId]
+			);
+			console.log(JSON.stringify({ dangerZones: rows }));
 		} else if (action === "get-weather-snapshots") {
 			// CTMS-25-T02 E2E. Reads the real weather_snapshots rows for a
 			// route -- proves a UI-triggered refresh persisted real data (or
@@ -510,6 +521,19 @@ async function main() {
 						checkpointIds,
 					]);
 					await dataSource.query('DELETE FROM "checkpoints" WHERE "id" = ANY($1)', [checkpointIds]);
+				}
+				const dangerZoneRows = (await dataSource.query(
+					'SELECT "id" FROM "route_danger_zones" WHERE "route_id" = ANY($1)',
+					[input.routeIds]
+				)) as Array<{ id: string }>;
+				const dangerZoneIds = dangerZoneRows.map((row) => row.id);
+				if (dangerZoneIds.length > 0) {
+					await dataSource.query('DELETE FROM "audit_logs" WHERE "target_id" = ANY($1)', [
+						dangerZoneIds,
+					]);
+					await dataSource.query('DELETE FROM "route_danger_zones" WHERE "id" = ANY($1)', [
+						dangerZoneIds,
+					]);
 				}
 				await dataSource.query('DELETE FROM "audit_logs" WHERE "target_id" = ANY($1)', [
 					input.routeIds,

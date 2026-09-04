@@ -135,6 +135,23 @@ As an owning Host, I want to maintain checkpoint and hazard operational data for
   and audit behavior. Real PostgreSQL/PostGIS tests cover the physical schema, SRID and geometry
   round trips, Host authorization, failures without side effects, and audit rollback.
 
+## UI and Tests
+
+Jira `CTMS-90` implements `CTMS-23-T02` by extending the owning-Host Route safety editor without
+creating a separate shelter model. Emergency shelters continue through the checkpoint contract with
+`type=emergency_shelter` and safety `instructions`; the Route map distinguishes their markers.
+
+The same Route map provides explicit checkpoint, Point-hazard, and Polygon-hazard modes. Persisted
+Point radii and Polygon boundaries remain visible in read-only Route states, while only draft Routes
+enable creation. Client validation mirrors the T01 geometry, radius, severity, and description
+contract; backend authorization, ownership, Route state, and PostGIS validation remain authoritative.
+
+Web unit/component evidence covers typed service boundaries, Point/Polygon schemas, stale reads,
+duplicate mutation prevention, structured `401`/`403`/`404`/`409`/`422` handling, draft preservation,
+map interaction and fallback rendering, shelter markers, and loading/error/empty/success states.
+Focused Playwright evidence covers shelter, Point and Polygon persistence, local non-mutation,
+read-only state, unauthorized/non-owner rejection, and structured PostGIS `422` draft preservation.
+
 ## Implementation Notes
 
 - This document is a requirements baseline only; do not infer implementation completion from the spec status.
