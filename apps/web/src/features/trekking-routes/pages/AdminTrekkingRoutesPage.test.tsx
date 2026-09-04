@@ -41,6 +41,8 @@ const route: AdminTrekkingRouteReview = {
 interface SetupOptions {
 	list?: AdminTrekkingRouteReview[];
 	listError?: Error;
+	listErrorOnce?: Error;
+	deferredList?: Promise<AdminTrekkingRouteReview[]>;
 	reviewResult?: AdminTrekkingRouteReview | null;
 	reviewError?: Error;
 	deferredReview?: Promise<AdminTrekkingRouteReview>;
@@ -48,9 +50,18 @@ interface SetupOptions {
 
 async function setup(options: SetupOptions = {}) {
 	vi.resetModules();
-	const listPendingReview = options.listError
-		? vi.fn().mockRejectedValue(options.listError)
-		: vi.fn().mockResolvedValue(options.list ?? [route]);
+	const listPendingReview = vi.fn();
+	if (options.deferredList) {
+		listPendingReview.mockReturnValue(options.deferredList);
+	} else if (options.listErrorOnce) {
+		listPendingReview
+			.mockRejectedValueOnce(options.listErrorOnce)
+			.mockResolvedValue(options.list ?? [route]);
+	} else if (options.listError) {
+		listPendingReview.mockRejectedValue(options.listError);
+	} else {
+		listPendingReview.mockResolvedValue(options.list ?? [route]);
+	}
 	const review = options.deferredReview
 		? vi.fn().mockReturnValue(options.deferredReview)
 		: options.reviewError
@@ -64,19 +75,32 @@ async function setup(options: SetupOptions = {}) {
 			<div data-testid="route-geometry-preview">{geometry.coordinates.length} vertices</div>
 		),
 	}));
-	const { render, screen, waitFor } = await import("@testing-library/react");
+	const { act, render, screen, waitFor, within } = await import("@testing-library/react");
 	const userEvent = (await import("@testing-library/user-event")).default;
 	const { AdminTrekkingRoutesPage } = await import("./AdminTrekkingRoutesPage");
 	render(<AdminTrekkingRoutesPage />);
-	return { screen, waitFor, user: userEvent.setup(), listPendingReview, review };
+	return { act, screen, waitFor, within, user: userEvent.setup(), listPendingReview, review };
 }
 
 afterEach(() => {
 	vi.restoreAllMocks();
-	vi.resetModules();
+	vi.doUnmock("../services/trekking-routes.service");
+	vi.doUnmock("../components/RouteGeometryPreview");
 });
 
 describe("AdminTrekkingRoutesPage", () => {
+	it("renders the pending-review loading state", async () => {
+		let resolveList!: (items: AdminTrekkingRouteReview[]) => void;
+		const deferredList = new Promise<AdminTrekkingRouteReview[]>((resolve) => {
+			resolveList = resolve;
+		});
+		const test = await setup({ deferredList });
+
+		expect(test.screen.getByTestId("route-reviews-loading")).toBeInTheDocument();
+		await test.act(async () => resolveList([route]));
+		expect((await test.screen.findAllByText("Pine Ridge")).length).toBeGreaterThan(0);
+	});
+
 	it("renders pending Route geometry, difficulty, status, and checkpoints", async () => {
 		const { screen } = await setup();
 		expect((await screen.findAllByText("Pine Ridge")).length).toBeGreaterThan(0);
@@ -92,6 +116,16 @@ describe("AdminTrekkingRoutesPage", () => {
 
 		const failed = await setup({ listError: new Error("offline") });
 		expect(await failed.screen.findByRole("alert")).toHaveTextContent("Không thể kết nối");
+	});
+
+	it("retries a list error and recovers authoritative pending data", async () => {
+		const test = await setup({ listErrorOnce: new Error("offline") });
+		const alert = await test.screen.findByRole("alert");
+
+		await test.user.click(test.within(alert).getByRole("button"));
+
+		expect((await test.screen.findAllByText("Pine Ridge")).length).toBeGreaterThan(0);
+		expect(test.listPendingReview).toHaveBeenCalledTimes(2);
 	});
 
 	it("approves once and reloads authoritative pending data", async () => {
