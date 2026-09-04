@@ -7,7 +7,7 @@
 Approve Route
 
 **Jira Mapping**
-Jira parent `CTMS-55` implements backlog/spec story `CTMS-22`; Jira `CTMS-87` implements backend subtask `CTMS-22-T01` (preparation, logic, and tests). The separate backlog story also numbered CTMS-55 for equipment handling is unrelated to these Jira tasks.
+Jira parent `CTMS-55` implements backlog/spec story `CTMS-22`; Jira `CTMS-87` implements backend subtask `CTMS-22-T01` (preparation, logic, and tests), and Jira `CTMS-88` implements UI subtask `CTMS-22-T02` (UI and tests). The separate backlog story also numbered CTMS-55 for equipment handling is unrelated to these Jira tasks.
 
 **Status**  
 Core Route review API, Admin Web flow, audit, locking, and tests implemented. Host Route submission (`draft -> pending_approval`) is implemented by CTMS-81 / CTMS-19. Operational notifications remain dependency-blocked because no canonical notification infrastructure exists.
@@ -94,6 +94,10 @@ COMMIT
 - Route update and audit insertion are atomic. Audit failure rolls the status change back.
 - `audit_logs.reason varchar(255)` and the existing Route status/difficulty/checkpoint enums already satisfy persistence requirements. No migration is required.
 
+## UI and Tests
+
+CTMS-88 / CTMS-22-T02 re-verifies the existing CTMS-55 Admin Web implementation and test evidence against the approved backend contract. It adds no second review flow and does not change already-correct production behavior.
+
 ### Admin Web behavior
 
 - The pending review page provides loading, error/retry, empty, and populated states.
@@ -111,7 +115,7 @@ The repository has OTP delivery and an emergency WebSocket broadcast, but no ope
 
 - Backend unit tests cover decision validation, pending-only lifecycle, all three targets, authoritative integrity failures, status-only audits, and audit failure propagation.
 - Real PostgreSQL/PostGIS integration covers Admin discovery, LineString/checkpoint read-back, all transitions, role and active-account authorization, `404/409/422`, forbidden fields, invalid stored checkpoint integrity, concurrent conflicting decisions, audit persistence, and audit rollback.
-- Web tests cover discovery states, geometry/difficulty/status/checkpoint display, approval reload, duplicate prevention, blank/255-character reason rules, failure preservation, and explicit non-operable behavior under the repository's `isolate:false` Vitest configuration.
+- Web tests cover loading and error/retry recovery, discovery states, `401/403/404/409/422` mapping, structured validation details, geometry/difficulty/status/checkpoint display, approval reload, duplicate prevention, blank/255-character reason rules, failure preservation, and explicit non-operable behavior under the repository's `isolate:false` Vitest configuration.
 - Playwright covers Admin inspection/approval, decline, non-operable, stale/invalid failure behavior, and Host denial.
 - Excluded: CTMS-21 close/reopen endpoints, Route edit/delete, CTMS-23 hazards, weather automation, Trip architecture/publication, booking/payment/refund, Porter assignment, Camper Route booking, Mobile, and notification-platform design.
 
