@@ -5,6 +5,7 @@ import { hash } from "bcrypt";
 import request from "supertest";
 import { DataSource } from "typeorm";
 import { AppModule } from "../src/modules/app.module";
+import { WeatherRiskRulesService } from "../src/modules/weather/services/weather-risk-rules.service";
 import { validationExceptionFactory } from "../src/shared/pipes/validation-exception-factory";
 
 interface TestAccount {
@@ -35,7 +36,10 @@ describe("Trekking route checkpoints (integration, real PostGIS)", () => {
 	let checkpointIds: string[] = [];
 
 	beforeAll(async () => {
-		const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+		const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+			.overrideProvider(WeatherRiskRulesService)
+			.useValue({})
+			.compile();
 		app = moduleRef.createNestApplication();
 		app.setGlobalPrefix("api");
 		app.useGlobalPipes(
@@ -222,6 +226,62 @@ describe("Trekking route checkpoints (integration, real PostGIS)", () => {
 					routeId,
 					location: payload.location,
 				}),
+			}),
+		]);
+	});
+
+	it("persists an emergency shelter Point and safety instructions for authoritative reads", async () => {
+		const host = await createAccount("host");
+		const routeId = await createRoute(await createCampsite(host.id));
+		const payload: CheckpointPayload = {
+			...validPayload(),
+			name: "  Storm shelter  ",
+			type: "emergency_shelter",
+			instructions: "  Enter from the east side and secure the door.  ",
+		};
+
+		const created = await postCheckpoint(host.accessToken, routeId, payload).expect(201);
+		checkpointIds.push(created.body.id);
+
+		expect(created.body).toEqual(
+			expect.objectContaining({
+				routeId,
+				name: "Storm shelter",
+				location: payload.location,
+				type: "emergency_shelter",
+				instructions: "Enter from the east side and secure the door.",
+			})
+		);
+
+		const stored = (await dataSource.query(
+			`SELECT format_type(a.atttypid, a.atttypmod) AS "storageType",
+			 GeometryType(checkpoint."location"::geometry) AS "geometryType",
+			 ST_SRID(checkpoint."location"::geometry) AS srid,
+			 ST_AsGeoJSON(checkpoint."location"::geometry)::json AS location,
+			 checkpoint."type", checkpoint."instructions"
+			 FROM "checkpoints" checkpoint
+			 JOIN pg_attribute a ON a.attrelid = 'checkpoints'::regclass AND a.attname = 'location'
+			 WHERE checkpoint."id" = $1`,
+			[created.body.id]
+		)) as Array<Record<string, unknown>>;
+		expect(stored).toEqual([
+			expect.objectContaining({
+				storageType: "geography(Point,4326)",
+				geometryType: "POINT",
+				srid: 4326,
+				location: payload.location,
+				type: "emergency_shelter",
+				instructions: "Enter from the east side and secure the door.",
+			}),
+		]);
+
+		const listed = await getCheckpoints(host.accessToken, routeId).expect(200);
+		expect(listed.body).toEqual([
+			expect.objectContaining({
+				id: created.body.id,
+				type: "emergency_shelter",
+				location: payload.location,
+				instructions: "Enter from the east side and secure the door.",
 			}),
 		]);
 	});

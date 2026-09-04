@@ -21,11 +21,14 @@ import { CheckpointResponseDto } from "../dto/checkpoint-response.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { CreateCheckpointDto } from "../dto/create-checkpoint.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
+import { CreateRouteDangerZoneDto } from "../dto/create-route-danger-zone.dto";
+// biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { CreateTrekkingRouteDto } from "../dto/create-trekking-route.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { ListTrekkingRoutesQueryDto } from "../dto/list-trekking-routes-query.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { ReviewTrekkingRouteDto } from "../dto/review-trekking-route.dto";
+import { RouteDangerZoneResponseDto } from "../dto/route-danger-zone-response.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { RouteIdParamDto } from "../dto/route-id-param.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
@@ -34,6 +37,8 @@ import { TrekkingRouteResponseDto } from "../dto/trekking-route-response.dto";
 import { TrekkingRouteReviewResponseDto } from "../dto/trekking-route-review-response.dto";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { CheckpointsService } from "../services/checkpoints.service";
+// biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
+import { RouteDangerZonesService } from "../services/route-danger-zones.service";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { TrekkingRoutesService } from "../services/trekking-routes.service";
 
@@ -48,7 +53,8 @@ interface AuthenticatedRequest {
 export class TrekkingRoutesController {
 	constructor(
 		private readonly trekkingRoutesService: TrekkingRoutesService,
-		private readonly checkpointsService: CheckpointsService
+		private readonly checkpointsService: CheckpointsService,
+		private readonly routeDangerZonesService: RouteDangerZonesService
 	) {}
 
 	@Get("pending-review")
@@ -158,6 +164,37 @@ export class TrekkingRoutesController {
 		@Body() dto: CreateCheckpointDto
 	): Promise<CheckpointResponseDto> {
 		return this.checkpointsService.create(request.user.userId, params.routeId, dto);
+	}
+
+	@Get(":routeId/hazard-areas")
+	@Roles(UserRole.HOST)
+	@ApiOperation({ summary: "List hazard areas for an owned trekking route" })
+	@ApiResponse({ status: 200, type: RouteDangerZoneResponseDto, isArray: true })
+	@ApiResponse({ status: 401, description: "Authentication required" })
+	@ApiResponse({ status: 403, description: "Host role and route ownership required" })
+	@ApiResponse({ status: 404, description: "Trekking route not found" })
+	listHazardAreas(
+		@Req() request: AuthenticatedRequest,
+		@Param() params: RouteIdParamDto
+	): Promise<RouteDangerZoneResponseDto[]> {
+		return this.routeDangerZonesService.list(request.user.userId, params.routeId);
+	}
+
+	@Post(":routeId/hazard-areas")
+	@Roles(UserRole.HOST)
+	@ApiOperation({ summary: "Create a hazard area on an owned draft trekking route" })
+	@ApiResponse({ status: 201, type: RouteDangerZoneResponseDto })
+	@ApiResponse({ status: 401, description: "Authentication required" })
+	@ApiResponse({ status: 403, description: "Host role and route ownership required" })
+	@ApiResponse({ status: 404, description: "Trekking route not found" })
+	@ApiResponse({ status: 409, description: "Route is not in draft status" })
+	@ApiResponse({ status: 422, description: "Invalid hazard-area data or geometry" })
+	createHazardArea(
+		@Req() request: AuthenticatedRequest,
+		@Param() params: RouteIdParamDto,
+		@Body() dto: CreateRouteDangerZoneDto
+	): Promise<RouteDangerZoneResponseDto> {
+		return this.routeDangerZonesService.create(request.user.userId, params.routeId, dto);
 	}
 
 	@Get()
