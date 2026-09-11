@@ -6,7 +6,7 @@ const ALLOWED_BRANCH_PATTERNS = [
 	/^hotfix\/[A-Za-z][A-Za-z0-9]+-[0-9]+(-[a-z0-9._-]+)?$/,
 	/^refactor\/[A-Za-z][A-Za-z0-9]+-[0-9]+(-[a-z0-9._-]+)?$/,
 	/^chore\/[A-Za-z][A-Za-z0-9]+-[0-9]+(-[a-z0-9._-]+)?$/,
-	/^docs\/[A-Za-z][A-Za-z0-9]+-[0-9]+(-[a-z0-9._-]+)?$/,
+	/^docs\/(?:[A-Za-z][A-Za-z0-9]+-[0-9]+-)?[a-z0-9]+(?:[._-][a-z0-9]+)*$/,
 	/^test\/[A-Za-z][A-Za-z0-9]+-[0-9]+(-[a-z0-9._-]+)?$/,
 	/^release\/[a-z0-9._-]+$/,
 	/^(main|master|develop|staging)$/,
@@ -31,17 +31,17 @@ function main() {
 		console.error("\nBranch name does not follow the project convention.");
 		console.error(`Current branch: "${branchName}"`);
 		console.error("\nUse this format: <branch-type>/<JIRA-KEY>-<short-kebab-description>");
-		console.error("The Jira key can be CTMS-123 or ctms-123.");
+		console.error("The Jira key can be CTMS-123 or ctms-123. Docs branches may omit the Jira key.");
 		console.error("Allowed branch types:");
 		console.error("- feature/<JIRA-KEY>-<description> or feat/<JIRA-KEY>-<description>");
 		console.error("- fix/<JIRA-KEY>-<description> or bugfix/<JIRA-KEY>-<description>");
 		console.error("- hotfix/<JIRA-KEY>-<description>");
 		console.error("- refactor/<JIRA-KEY>-<description>");
 		console.error("- chore/<JIRA-KEY>-<description>");
-		console.error("- docs/<JIRA-KEY>-<description>");
+		console.error("- docs/<JIRA-KEY>-<description> or docs/<description>");
 		console.error("- test/<JIRA-KEY>-<description>");
 		console.error(
-			"Examples: feat/CTMS-123-auth-login, feat/ctms-9-store-important-health-information-ui\n"
+			"Examples: feat/CTMS-123-auth-login, feat/ctms-9-store-important-health-information-ui, docs/sync-specs-with-backlog-v3\n"
 		);
 		process.exit(1);
 	}
