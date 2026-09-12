@@ -19,11 +19,11 @@ As a Porter, I want to respond to Porter Request so that the CTMS workflow is co
 - [ ] The workflow respects its V3 dependencies: CTMS-45.
 
 ## Business Rules Checklist
-- [ ] BR-149: Porter profile, availability, request, response, qualification, and assignment rules apply.
-- [ ] BR-150: Porter profile, availability, request, response, qualification, and assignment rules apply.
-- [ ] BR-151: Porter profile, availability, request, response, qualification, and assignment rules apply.
-- [ ] BR-152: Porter profile, availability, request, response, qualification, and assignment rules apply.
-- [ ] BR-153: Porter profile, availability, request, response, qualification, and assignment rules apply.
+- [ ] BR-149: Porter may Accept/Decline only a Porter Request whose porter_id is themselves and whose status still allows a response.
+- [ ] BR-150: A valid Accept changes Porter Request PENDING -> ACCEPTED after the backend revalidates availability, qualification, and conflicts; repeated requests must be idempotent. ACCEPTED represents Porter consent only and does not reserve the schedule; only a valid Porter Assignment reserves schedule.
+- [ ] BR-151: A valid Decline changes Porter Request PENDING -> DECLINED; no Porter Assignment is created from a declined request.
+- [ ] BR-152: A PENDING Porter Request must have expires_at from configuration policy and must not exceed the Trip start time; Host may cancel or System may expire by expires_at. ACCEPTED, DECLINED, CANCELLED, and EXPIRED must not silently return to PENDING.
+- [ ] BR-153: Every Porter Request change affecting Host/Porter must emit a notification/event after commit and must not create duplicate notifications for the same event.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -45,11 +45,11 @@ As a Porter, I want to respond to Porter Request so that the CTMS workflow is co
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-46-T01, CTMS-46-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-46-T01, CTMS-46-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-45. | CTMS-46-T01, CTMS-46-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-149: Porter profile, availability, request, response, qualification, and assignment rules apply. | CTMS-46-T01, CTMS-46-T02 | Tests and review evidence must prove this rule is enforced for `Respond to Porter Request`. |
-| BR-150: Porter profile, availability, request, response, qualification, and assignment rules apply. | CTMS-46-T01, CTMS-46-T02 | Tests and review evidence must prove this rule is enforced for `Respond to Porter Request`. |
-| BR-151: Porter profile, availability, request, response, qualification, and assignment rules apply. | CTMS-46-T01, CTMS-46-T02 | Tests and review evidence must prove this rule is enforced for `Respond to Porter Request`. |
-| BR-152: Porter profile, availability, request, response, qualification, and assignment rules apply. | CTMS-46-T01, CTMS-46-T02 | Tests and review evidence must prove this rule is enforced for `Respond to Porter Request`. |
-| BR-153: Porter profile, availability, request, response, qualification, and assignment rules apply. | CTMS-46-T01, CTMS-46-T02 | Tests and review evidence must prove this rule is enforced for `Respond to Porter Request`. |
+| BR-149: Porter may Accept/Decline only a Porter Request whose porter_id is themselves and whose status still allows a response. | CTMS-46-T01, CTMS-46-T02 | Tests and review evidence must prove this rule is enforced for `Respond to Porter Request`. |
+| BR-150: A valid Accept changes Porter Request PENDING -> ACCEPTED after the backend revalidates availability, qualification, and conflicts; repeated requests must be idempotent. ACCEPTED represents Porter consent only and does not reserve the schedule; only a valid Porter Assignment reserves schedule. | CTMS-46-T01, CTMS-46-T02 | Tests and review evidence must prove this rule is enforced for `Respond to Porter Request`. |
+| BR-151: A valid Decline changes Porter Request PENDING -> DECLINED; no Porter Assignment is created from a declined request. | CTMS-46-T01, CTMS-46-T02 | Tests and review evidence must prove this rule is enforced for `Respond to Porter Request`. |
+| BR-152: A PENDING Porter Request must have expires_at from configuration policy and must not exceed the Trip start time; Host may cancel or System may expire by expires_at. ACCEPTED, DECLINED, CANCELLED, and EXPIRED must not silently return to PENDING. | CTMS-46-T01, CTMS-46-T02 | Tests and review evidence must prove this rule is enforced for `Respond to Porter Request`. |
+| BR-153: Every Porter Request change affecting Host/Porter must emit a notification/event after commit and must not create duplicate notifications for the same event. | CTMS-46-T01, CTMS-46-T02 | Tests and review evidence must prove this rule is enforced for `Respond to Porter Request`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

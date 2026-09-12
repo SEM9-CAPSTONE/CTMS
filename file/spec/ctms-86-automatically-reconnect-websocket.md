@@ -19,9 +19,9 @@ As the System, I want to automatically Reconnect WebSocket so that the CTMS work
 - [ ] The workflow respects its V3 dependencies: CTMS-82.
 
 ## Business Rules Checklist
-- [ ] BR-197: Audit, notification, emergency, and user preference rules apply.
-- [ ] BR-201: External service, API error, pagination, media, background job, offline sync, and side-effect rules apply.
-- [ ] BR-228: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply.
+- [ ] BR-197: Notification/event side effects may be enqueued/sent only after the main business transaction commits successfully, preferably through outbox/queue; notification failure must not roll back the committed business result.
+- [ ] BR-201: External service retries must have limits and backoff; retries must not create duplicate records or transactions.
+- [ ] BR-228: Every operational UI action must clearly show success, pending, or failure and must preserve user/local data after recoverable conflict or connectivity failure.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -43,9 +43,9 @@ As the System, I want to automatically Reconnect WebSocket so that the CTMS work
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-86-T01, CTMS-86-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-86-T01, CTMS-86-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-82. | CTMS-86-T01, CTMS-86-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-197: Audit, notification, emergency, and user preference rules apply. | CTMS-86-T01, CTMS-86-T02 | Tests and review evidence must prove this rule is enforced for `Automatically Reconnect WebSocket`. |
-| BR-201: External service, API error, pagination, media, background job, offline sync, and side-effect rules apply. | CTMS-86-T01, CTMS-86-T02 | Tests and review evidence must prove this rule is enforced for `Automatically Reconnect WebSocket`. |
-| BR-228: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply. | CTMS-86-T01, CTMS-86-T02 | Tests and review evidence must prove this rule is enforced for `Automatically Reconnect WebSocket`. |
+| BR-197: Notification/event side effects may be enqueued/sent only after the main business transaction commits successfully, preferably through outbox/queue; notification failure must not roll back the committed business result. | CTMS-86-T01, CTMS-86-T02 | Tests and review evidence must prove this rule is enforced for `Automatically Reconnect WebSocket`. |
+| BR-201: External service retries must have limits and backoff; retries must not create duplicate records or transactions. | CTMS-86-T01, CTMS-86-T02 | Tests and review evidence must prove this rule is enforced for `Automatically Reconnect WebSocket`. |
+| BR-228: Every operational UI action must clearly show success, pending, or failure and must preserve user/local data after recoverable conflict or connectivity failure. | CTMS-86-T01, CTMS-86-T02 | Tests and review evidence must prove this rule is enforced for `Automatically Reconnect WebSocket`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

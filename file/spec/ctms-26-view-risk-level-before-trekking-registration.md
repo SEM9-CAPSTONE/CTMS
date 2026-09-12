@@ -19,9 +19,9 @@ As a Camper, I want to view Risk Level before Trekking Registration so that the 
 - [ ] The workflow respects its V3 dependencies: CTMS-25, CTMS-16.
 
 ## Business Rules Checklist
-- [ ] BR-038: Weather risk, weather data, scoring, advisory, and weather configuration rules apply.
-- [ ] BR-045: Weather risk, weather data, scoring, advisory, and weather configuration rules apply.
-- [ ] BR-219: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply.
+- [ ] BR-038: Before a Camper books, Trip Detail must use the latest still-valid Weather Risk assessment for the Trip's Route version and show level, assessment time, and allowed recommendations/reasons; it must not show only a color and does not need to expose Route Detail or raw Route data.
+- [ ] BR-045: Risk information shown to users must include a level and actionable reason; color must not be the only signal.
+- [ ] BR-219: AI/RAG may provide recommendations/explanations only; it must not override hard rules or authoritative state such as route closed/archived, Trip capacity, payment result, Weather Risk score/level, or access rights.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -43,9 +43,9 @@ As a Camper, I want to view Risk Level before Trekking Registration so that the 
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-26-T01, CTMS-26-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-26-T01, CTMS-26-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-25, CTMS-16. | CTMS-26-T01, CTMS-26-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-038: Weather risk, weather data, scoring, advisory, and weather configuration rules apply. | CTMS-26-T01, CTMS-26-T02 | Tests and review evidence must prove this rule is enforced for `View Risk Level before Trekking Registration`. |
-| BR-045: Weather risk, weather data, scoring, advisory, and weather configuration rules apply. | CTMS-26-T01, CTMS-26-T02 | Tests and review evidence must prove this rule is enforced for `View Risk Level before Trekking Registration`. |
-| BR-219: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply. | CTMS-26-T01, CTMS-26-T02 | Tests and review evidence must prove this rule is enforced for `View Risk Level before Trekking Registration`. |
+| BR-038: Before a Camper books, Trip Detail must use the latest still-valid Weather Risk assessment for the Trip's Route version and show level, assessment time, and allowed recommendations/reasons; it must not show only a color and does not need to expose Route Detail or raw Route data. | CTMS-26-T01, CTMS-26-T02 | Tests and review evidence must prove this rule is enforced for `View Risk Level before Trekking Registration`. |
+| BR-045: Risk information shown to users must include a level and actionable reason; color must not be the only signal. | CTMS-26-T01, CTMS-26-T02 | Tests and review evidence must prove this rule is enforced for `View Risk Level before Trekking Registration`. |
+| BR-219: AI/RAG may provide recommendations/explanations only; it must not override hard rules or authoritative state such as route closed/archived, Trip capacity, payment result, Weather Risk score/level, or access rights. | CTMS-26-T01, CTMS-26-T02 | Tests and review evidence must prove this rule is enforced for `View Risk Level before Trekking Registration`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

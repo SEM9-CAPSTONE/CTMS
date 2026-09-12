@@ -19,7 +19,7 @@ As a Camper, I want to download Offline Package before Departure so that the CTM
 - [ ] The workflow respects its V3 dependencies: CTMS-52.
 
 ## Business Rules Checklist
-- [ ] BR-234: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply.
+- [ ] BR-234: When downloading an offline package, the UI must show size and progress, support resume after interruption, and check enough device storage before completion.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -41,7 +41,7 @@ As a Camper, I want to download Offline Package before Departure so that the CTM
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-53-T01, CTMS-53-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-53-T01, CTMS-53-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-52. | CTMS-53-T01, CTMS-53-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-234: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply. | CTMS-53-T01, CTMS-53-T02 | Tests and review evidence must prove this rule is enforced for `Download Offline Package before Departure`. |
+| BR-234: When downloading an offline package, the UI must show size and progress, support resume after interruption, and check enough device storage before completion. | CTMS-53-T01, CTMS-53-T02 | Tests and review evidence must prove this rule is enforced for `Download Offline Package before Departure`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

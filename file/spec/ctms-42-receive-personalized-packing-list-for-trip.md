@@ -19,9 +19,9 @@ As a Camper, I want to receive Personalized Packing List for Trip so that the CT
 - [ ] The workflow respects its V3 dependencies: CTMS-29, CTMS-10, CTMS-16.
 
 ## Business Rules Checklist
-- [ ] BR-139: Equipment, service, rental, handover, return, and packing list rules apply.
-- [ ] BR-140: Equipment, service, rental, handover, return, and packing list rules apply.
-- [ ] BR-222: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply.
+- [ ] BR-139: A packing list is generated from Trip/Booking context, weather, duration, difficulty, allowed member context, and rented equipment; the generation source must be stored in generated_from for traceability.
+- [ ] BR-140: A packing list must distinguish required and recommended items by defined category/metadata; health data must not be included without consent.
+- [ ] BR-222: Personalized packing lists must be generated from the current Trip, weather data, difficulty, duration, and rented equipment; required and recommended items must be clearly separated, and the list must be regenerated when source input changes materially.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -43,9 +43,9 @@ As a Camper, I want to receive Personalized Packing List for Trip so that the CT
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-42-T01, CTMS-42-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-42-T01, CTMS-42-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-29, CTMS-10, CTMS-16. | CTMS-42-T01, CTMS-42-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-139: Equipment, service, rental, handover, return, and packing list rules apply. | CTMS-42-T01, CTMS-42-T02 | Tests and review evidence must prove this rule is enforced for `Receive Personalized Packing List for Trip`. |
-| BR-140: Equipment, service, rental, handover, return, and packing list rules apply. | CTMS-42-T01, CTMS-42-T02 | Tests and review evidence must prove this rule is enforced for `Receive Personalized Packing List for Trip`. |
-| BR-222: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply. | CTMS-42-T01, CTMS-42-T02 | Tests and review evidence must prove this rule is enforced for `Receive Personalized Packing List for Trip`. |
+| BR-139: A packing list is generated from Trip/Booking context, weather, duration, difficulty, allowed member context, and rented equipment; the generation source must be stored in generated_from for traceability. | CTMS-42-T01, CTMS-42-T02 | Tests and review evidence must prove this rule is enforced for `Receive Personalized Packing List for Trip`. |
+| BR-140: A packing list must distinguish required and recommended items by defined category/metadata; health data must not be included without consent. | CTMS-42-T01, CTMS-42-T02 | Tests and review evidence must prove this rule is enforced for `Receive Personalized Packing List for Trip`. |
+| BR-222: Personalized packing lists must be generated from the current Trip, weather data, difficulty, duration, and rented equipment; required and recommended items must be clearly separated, and the list must be regenerated when source input changes materially. | CTMS-42-T01, CTMS-42-T02 | Tests and review evidence must prove this rule is enforced for `Receive Personalized Packing List for Trip`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

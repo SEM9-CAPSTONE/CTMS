@@ -19,10 +19,10 @@ As a Host, I want to update Member Check-In Status so that the CTMS workflow is 
 - [ ] The workflow respects its V3 dependencies: CTMS-30, CTMS-31.
 
 ## Business Rules Checklist
-- [ ] BR-112: Trip cancellation, check-in, completion, and participant outcome rules apply.
-- [ ] BR-113: Trip cancellation, check-in, completion, and participant outcome rules apply.
-- [ ] BR-114: Trip cancellation, check-in, completion, and participant outcome rules apply.
-- [ ] BR-115: Trip cancellation, check-in, completion, and participant outcome rules apply.
+- [ ] BR-112: Only a confirmed Booking for the correct Trip may be checked in; the Trip must be at a time/state that allows check-in by policy.
+- [ ] BR-113: Checking in an individual updates booking_members.member_status = joined, checked_in_at, and status_updated_by; repeated operations must not create multiple check-ins.
+- [ ] BR-114: Member check-in does not automatically move the Booking to completed; the Booking remains confirmed until the completion flow.
+- [ ] BR-115: Members with status removed, no_show, or left, and Bookings cancelled or expired, must not be checked in; the actor must have Host/Porter permission on the Trip.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -44,10 +44,10 @@ As a Host, I want to update Member Check-In Status so that the CTMS workflow is 
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-37-T01, CTMS-37-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-37-T01, CTMS-37-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-30, CTMS-31. | CTMS-37-T01, CTMS-37-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-112: Trip cancellation, check-in, completion, and participant outcome rules apply. | CTMS-37-T01, CTMS-37-T02 | Tests and review evidence must prove this rule is enforced for `Update Member Check-In Status`. |
-| BR-113: Trip cancellation, check-in, completion, and participant outcome rules apply. | CTMS-37-T01, CTMS-37-T02 | Tests and review evidence must prove this rule is enforced for `Update Member Check-In Status`. |
-| BR-114: Trip cancellation, check-in, completion, and participant outcome rules apply. | CTMS-37-T01, CTMS-37-T02 | Tests and review evidence must prove this rule is enforced for `Update Member Check-In Status`. |
-| BR-115: Trip cancellation, check-in, completion, and participant outcome rules apply. | CTMS-37-T01, CTMS-37-T02 | Tests and review evidence must prove this rule is enforced for `Update Member Check-In Status`. |
+| BR-112: Only a confirmed Booking for the correct Trip may be checked in; the Trip must be at a time/state that allows check-in by policy. | CTMS-37-T01, CTMS-37-T02 | Tests and review evidence must prove this rule is enforced for `Update Member Check-In Status`. |
+| BR-113: Checking in an individual updates booking_members.member_status = joined, checked_in_at, and status_updated_by; repeated operations must not create multiple check-ins. | CTMS-37-T01, CTMS-37-T02 | Tests and review evidence must prove this rule is enforced for `Update Member Check-In Status`. |
+| BR-114: Member check-in does not automatically move the Booking to completed; the Booking remains confirmed until the completion flow. | CTMS-37-T01, CTMS-37-T02 | Tests and review evidence must prove this rule is enforced for `Update Member Check-In Status`. |
+| BR-115: Members with status removed, no_show, or left, and Bookings cancelled or expired, must not be checked in; the actor must have Host/Porter permission on the Trip. | CTMS-37-T01, CTMS-37-T02 | Tests and review evidence must prove this rule is enforced for `Update Member Check-In Status`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

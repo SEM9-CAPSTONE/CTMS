@@ -19,8 +19,8 @@ As a Camper, I want to access Survival Guidance Offline so that the CTMS workflo
 - [ ] The workflow respects its V3 dependencies: CTMS-55, CTMS-51.
 
 ## Business Rules Checklist
-- [ ] BR-230: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply.
-- [ ] BR-236: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply.
+- [ ] BR-230: Survival documents must support upload, classification, review, publication, versioning, and lifecycle status so the knowledge base can identify the authoritative source version.
+- [ ] BR-236: Downloaded route, checkpoints, and survival guidance must work in airplane/offline mode without calling online APIs and must belong to the correct Trip/package version.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -42,8 +42,8 @@ As a Camper, I want to access Survival Guidance Offline so that the CTMS workflo
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-73-T01, CTMS-73-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-73-T01, CTMS-73-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-55, CTMS-51. | CTMS-73-T01, CTMS-73-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-230: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply. | CTMS-73-T01, CTMS-73-T02 | Tests and review evidence must prove this rule is enforced for `Access Survival Guidance Offline`. |
-| BR-236: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply. | CTMS-73-T01, CTMS-73-T02 | Tests and review evidence must prove this rule is enforced for `Access Survival Guidance Offline`. |
+| BR-230: Survival documents must support upload, classification, review, publication, versioning, and lifecycle status so the knowledge base can identify the authoritative source version. | CTMS-73-T01, CTMS-73-T02 | Tests and review evidence must prove this rule is enforced for `Access Survival Guidance Offline`. |
+| BR-236: Downloaded route, checkpoints, and survival guidance must work in airplane/offline mode without calling online APIs and must belong to the correct Trip/package version. | CTMS-73-T01, CTMS-73-T02 | Tests and review evidence must prove this rule is enforced for `Access Survival Guidance Offline`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

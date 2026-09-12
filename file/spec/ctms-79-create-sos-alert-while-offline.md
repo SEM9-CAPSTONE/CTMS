@@ -19,10 +19,10 @@ As a user, I want to create SOS Alert while Offline so that the CTMS workflow is
 - [ ] The workflow respects its V3 dependencies: CTMS-77, CTMS-65.
 
 ## Business Rules Checklist
-- [ ] BR-210: External service, API error, pagination, media, background job, offline sync, and side-effect rules apply.
-- [ ] BR-224: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply.
-- [ ] BR-228: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply.
-- [ ] BR-229: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply.
+- [ ] BR-210: Offline data must have a request identifier or idempotency_key; resending the same sync batch must not create duplicate data.
+- [ ] BR-224: Incident and safety events created offline must preserve event time, location, client-generated identifier, and local sync state; when connectivity is available they must synchronize idempotently.
+- [ ] BR-228: Every operational UI action must clearly show success, pending, or failure and must preserve user/local data after recoverable conflict or connectivity failure.
+- [ ] BR-229: Offline-support features must clearly distinguish local pending data from server-confirmed synchronized data and must not present unsynced data as authoritative server state.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -44,10 +44,10 @@ As a user, I want to create SOS Alert while Offline so that the CTMS workflow is
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-79-T01, CTMS-79-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-79-T01, CTMS-79-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-77, CTMS-65. | CTMS-79-T01, CTMS-79-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-210: External service, API error, pagination, media, background job, offline sync, and side-effect rules apply. | CTMS-79-T01, CTMS-79-T02 | Tests and review evidence must prove this rule is enforced for `Create SOS Alert while Offline`. |
-| BR-224: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply. | CTMS-79-T01, CTMS-79-T02 | Tests and review evidence must prove this rule is enforced for `Create SOS Alert while Offline`. |
-| BR-228: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply. | CTMS-79-T01, CTMS-79-T02 | Tests and review evidence must prove this rule is enforced for `Create SOS Alert while Offline`. |
-| BR-229: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply. | CTMS-79-T01, CTMS-79-T02 | Tests and review evidence must prove this rule is enforced for `Create SOS Alert while Offline`. |
+| BR-210: Offline data must have a request identifier or idempotency_key; resending the same sync batch must not create duplicate data. | CTMS-79-T01, CTMS-79-T02 | Tests and review evidence must prove this rule is enforced for `Create SOS Alert while Offline`. |
+| BR-224: Incident and safety events created offline must preserve event time, location, client-generated identifier, and local sync state; when connectivity is available they must synchronize idempotently. | CTMS-79-T01, CTMS-79-T02 | Tests and review evidence must prove this rule is enforced for `Create SOS Alert while Offline`. |
+| BR-228: Every operational UI action must clearly show success, pending, or failure and must preserve user/local data after recoverable conflict or connectivity failure. | CTMS-79-T01, CTMS-79-T02 | Tests and review evidence must prove this rule is enforced for `Create SOS Alert while Offline`. |
+| BR-229: Offline-support features must clearly distinguish local pending data from server-confirmed synchronized data and must not present unsynced data as authoritative server state. | CTMS-79-T01, CTMS-79-T02 | Tests and review evidence must prove this rule is enforced for `Create SOS Alert while Offline`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

@@ -19,9 +19,9 @@ As a user, I want to settle Trip Revenue and Calculate Platform Fee so that the 
 - [ ] The workflow respects its V3 dependencies: CTMS-118, CTMS-35, CTMS-38, CTMS-56.
 
 ## Business Rules Checklist
-- [ ] BR-108: Payment, refund, settlement, and financial idempotency rules apply.
+- [ ] BR-108: Provider transaction_ref, when available, must be stored uniquely and used for reconciliation/callback; a client response must not be treated as proof of payment.
 - [ ] BR-181: Authentication token, permission, idempotency, and sensitive-data safeguards apply.
-- [ ] BR-194: Audit, notification, emergency, and user preference rules apply.
+- [ ] BR-194: Important actions must be recorded in audit log with actor, action, target, timestamp, before/after data, or reason for change.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -43,9 +43,9 @@ As a user, I want to settle Trip Revenue and Calculate Platform Fee so that the 
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-119-T01, CTMS-119-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-119-T01, CTMS-119-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-118, CTMS-35, CTMS-38, CTMS-56. | CTMS-119-T01, CTMS-119-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-108: Payment, refund, settlement, and financial idempotency rules apply. | CTMS-119-T01, CTMS-119-T02 | Tests and review evidence must prove this rule is enforced for `Settle Trip Revenue and Calculate Platform Fee`. |
+| BR-108: Provider transaction_ref, when available, must be stored uniquely and used for reconciliation/callback; a client response must not be treated as proof of payment. | CTMS-119-T01, CTMS-119-T02 | Tests and review evidence must prove this rule is enforced for `Settle Trip Revenue and Calculate Platform Fee`. |
 | BR-181: Authentication token, permission, idempotency, and sensitive-data safeguards apply. | CTMS-119-T01, CTMS-119-T02 | Tests and review evidence must prove this rule is enforced for `Settle Trip Revenue and Calculate Platform Fee`. |
-| BR-194: Audit, notification, emergency, and user preference rules apply. | CTMS-119-T01, CTMS-119-T02 | Tests and review evidence must prove this rule is enforced for `Settle Trip Revenue and Calculate Platform Fee`. |
+| BR-194: Important actions must be recorded in audit log with actor, action, target, timestamp, before/after data, or reason for change. | CTMS-119-T01, CTMS-119-T02 | Tests and review evidence must prove this rule is enforced for `Settle Trip Revenue and Calculate Platform Fee`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

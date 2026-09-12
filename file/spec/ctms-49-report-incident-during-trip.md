@@ -19,9 +19,9 @@ As a Porter, I want to report Incident during Trip so that the CTMS workflow is 
 - [ ] The workflow respects its V3 dependencies: CTMS-48.
 
 ## Business Rules Checklist
-- [ ] BR-163: Administration, audit, content report, moderation, and user account rules apply.
-- [ ] BR-164: Administration, audit, content report, moderation, and user account rules apply.
-- [ ] BR-224: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply.
+- [ ] BR-163: An Incident report in a Trip must have trip_id, valid reporter, category, description, and location; media is optional and must pass upload verification.
+- [ ] BR-164: When offline, incident/GPS/safety events are stored locally with client-generated id/idempotency metadata and synchronized later through sync_batches; there is no device-to-device relay.
+- [ ] BR-224: Incident and safety events created offline must preserve event time, location, client-generated identifier, and local sync state; when connectivity is available they must synchronize idempotently.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -43,9 +43,9 @@ As a Porter, I want to report Incident during Trip so that the CTMS workflow is 
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-49-T01, CTMS-49-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-49-T01, CTMS-49-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-48. | CTMS-49-T01, CTMS-49-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-163: Administration, audit, content report, moderation, and user account rules apply. | CTMS-49-T01, CTMS-49-T02 | Tests and review evidence must prove this rule is enforced for `Report Incident during Trip`. |
-| BR-164: Administration, audit, content report, moderation, and user account rules apply. | CTMS-49-T01, CTMS-49-T02 | Tests and review evidence must prove this rule is enforced for `Report Incident during Trip`. |
-| BR-224: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply. | CTMS-49-T01, CTMS-49-T02 | Tests and review evidence must prove this rule is enforced for `Report Incident during Trip`. |
+| BR-163: An Incident report in a Trip must have trip_id, valid reporter, category, description, and location; media is optional and must pass upload verification. | CTMS-49-T01, CTMS-49-T02 | Tests and review evidence must prove this rule is enforced for `Report Incident during Trip`. |
+| BR-164: When offline, incident/GPS/safety events are stored locally with client-generated id/idempotency metadata and synchronized later through sync_batches; there is no device-to-device relay. | CTMS-49-T01, CTMS-49-T02 | Tests and review evidence must prove this rule is enforced for `Report Incident during Trip`. |
+| BR-224: Incident and safety events created offline must preserve event time, location, client-generated identifier, and local sync state; when connectivity is available they must synchronize idempotently. | CTMS-49-T01, CTMS-49-T02 | Tests and review evidence must prove this rule is enforced for `Report Incident during Trip`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

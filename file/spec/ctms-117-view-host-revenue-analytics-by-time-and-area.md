@@ -19,7 +19,7 @@ As a Host, I want to view Host Revenue Analytics by Time and Area so that the CT
 - [ ] The workflow respects its V3 dependencies: CTMS-32, CTMS-35, CTMS-119, CTMS-120.
 
 ## Business Rules Checklist
-- [ ] BR-204: External service, API error, pagination, media, background job, offline sync, and side-effect rules apply.
+- [ ] BR-204: List APIs must support pagination and record limits; filtering and sorting are allowed only on published fields.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -41,7 +41,7 @@ As a Host, I want to view Host Revenue Analytics by Time and Area so that the CT
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-117-T01, CTMS-117-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-117-T01, CTMS-117-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-32, CTMS-35, CTMS-119, CTMS-120. | CTMS-117-T01, CTMS-117-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-204: External service, API error, pagination, media, background job, offline sync, and side-effect rules apply. | CTMS-117-T01, CTMS-117-T02 | Tests and review evidence must prove this rule is enforced for `View Host Revenue Analytics by Time and Area`. |
+| BR-204: List APIs must support pagination and record limits; filtering and sorting are allowed only on published fields. | CTMS-117-T01, CTMS-117-T02 | Tests and review evidence must prove this rule is enforced for `View Host Revenue Analytics by Time and Area`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

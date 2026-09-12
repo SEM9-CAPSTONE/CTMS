@@ -19,9 +19,9 @@ As a Host, I want to view Members Who Are Off-Route or Behind Schedule so that t
 - [ ] The workflow respects its V3 dependencies: CTMS-60, CTMS-64, CTMS-89.
 
 ## Business Rules Checklist
-- [ ] BR-220: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply.
-- [ ] BR-226: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply.
-- [ ] BR-228: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply.
+- [ ] BR-220: Off-route detection must be able to run on-device using GPS and downloaded offline route data; loss of Internet must not remove local alerts. Events are stored locally and synchronized idempotently when connectivity returns.
+- [ ] BR-226: Trip progress or checkpoint-arrival updates are operational data and may be written only for Trips with status ongoing by authorized actors; these updates must not modify schedule, Route geometry, capacity, price, or Host-configured waypoint definitions.
+- [ ] BR-228: Every operational UI action must clearly show success, pending, or failure and must preserve user/local data after recoverable conflict or connectivity failure.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -43,9 +43,9 @@ As a Host, I want to view Members Who Are Off-Route or Behind Schedule so that t
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-91-T01, CTMS-91-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-91-T01, CTMS-91-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-60, CTMS-64, CTMS-89. | CTMS-91-T01, CTMS-91-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-220: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply. | CTMS-91-T01, CTMS-91-T02 | Tests and review evidence must prove this rule is enforced for `View Members Who Are Off-Route or Behind Schedule`. |
-| BR-226: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply. | CTMS-91-T01, CTMS-91-T02 | Tests and review evidence must prove this rule is enforced for `View Members Who Are Off-Route or Behind Schedule`. |
-| BR-228: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply. | CTMS-91-T01, CTMS-91-T02 | Tests and review evidence must prove this rule is enforced for `View Members Who Are Off-Route or Behind Schedule`. |
+| BR-220: Off-route detection must be able to run on-device using GPS and downloaded offline route data; loss of Internet must not remove local alerts. Events are stored locally and synchronized idempotently when connectivity returns. | CTMS-91-T01, CTMS-91-T02 | Tests and review evidence must prove this rule is enforced for `View Members Who Are Off-Route or Behind Schedule`. |
+| BR-226: Trip progress or checkpoint-arrival updates are operational data and may be written only for Trips with status ongoing by authorized actors; these updates must not modify schedule, Route geometry, capacity, price, or Host-configured waypoint definitions. | CTMS-91-T01, CTMS-91-T02 | Tests and review evidence must prove this rule is enforced for `View Members Who Are Off-Route or Behind Schedule`. |
+| BR-228: Every operational UI action must clearly show success, pending, or failure and must preserve user/local data after recoverable conflict or connectivity failure. | CTMS-91-T01, CTMS-91-T02 | Tests and review evidence must prove this rule is enforced for `View Members Who Are Off-Route or Behind Schedule`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

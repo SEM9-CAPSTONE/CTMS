@@ -19,7 +19,7 @@ As a user, I want to verify Offline Package Integrity so that the CTMS workflow 
 - [ ] The workflow respects its V3 dependencies: CTMS-53.
 
 ## Business Rules Checklist
-- [ ] BR-235: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply.
+- [ ] BR-235: Client/system must verify checksum before using a package; invalid packages must move to failed and allow redownload; do not invent status corrupted if the enum does not support it.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -41,7 +41,7 @@ As a user, I want to verify Offline Package Integrity so that the CTMS workflow 
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-54-T01, CTMS-54-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-54-T01, CTMS-54-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-53. | CTMS-54-T01, CTMS-54-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-235: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply. | CTMS-54-T01, CTMS-54-T02 | Tests and review evidence must prove this rule is enforced for `Verify Offline Package Integrity`. |
+| BR-235: Client/system must verify checksum before using a package; invalid packages must move to failed and allow redownload; do not invent status corrupted if the enum does not support it. | CTMS-54-T01, CTMS-54-T02 | Tests and review evidence must prove this rule is enforced for `Verify Offline Package Integrity`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

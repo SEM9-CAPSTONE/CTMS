@@ -19,9 +19,9 @@ As a user, I want to update Personal Profile and Emergency Contact so that the C
 - [ ] The workflow respects its V3 dependencies: CTMS-03.
 
 ## Business Rules Checklist
-- [ ] BR-020: Profile, emergency contact, and health data access rules apply.
-- [ ] BR-021: Profile, emergency contact, and health data access rules apply.
-- [ ] BR-022: Profile, emergency contact, and health data access rules apply.
+- [ ] BR-020: Users may update only the allowed profile fields; data must be validated and updated_at must reflect the successful update time.
+- [ ] BR-021: emergency_contacts is an array with at most two entries; each entry must include name, phone, relationship, and is_primary according to schema, and at most one contact may be primary.
+- [ ] BR-022: Sensitive personal data must be returned only on a minimum-necessary basis for the correct actor and business relationship; do not return the full profile when the use case needs only a subset of fields.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -43,9 +43,9 @@ As a user, I want to update Personal Profile and Emergency Contact so that the C
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-07-T01, CTMS-07-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-07-T01, CTMS-07-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-03. | CTMS-07-T01, CTMS-07-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-020: Profile, emergency contact, and health data access rules apply. | CTMS-07-T01, CTMS-07-T02 | Tests and review evidence must prove this rule is enforced for `Update Personal Profile and Emergency Contact`. |
-| BR-021: Profile, emergency contact, and health data access rules apply. | CTMS-07-T01, CTMS-07-T02 | Tests and review evidence must prove this rule is enforced for `Update Personal Profile and Emergency Contact`. |
-| BR-022: Profile, emergency contact, and health data access rules apply. | CTMS-07-T01, CTMS-07-T02 | Tests and review evidence must prove this rule is enforced for `Update Personal Profile and Emergency Contact`. |
+| BR-020: Users may update only the allowed profile fields; data must be validated and updated_at must reflect the successful update time. | CTMS-07-T01, CTMS-07-T02 | Tests and review evidence must prove this rule is enforced for `Update Personal Profile and Emergency Contact`. |
+| BR-021: emergency_contacts is an array with at most two entries; each entry must include name, phone, relationship, and is_primary according to schema, and at most one contact may be primary. | CTMS-07-T01, CTMS-07-T02 | Tests and review evidence must prove this rule is enforced for `Update Personal Profile and Emergency Contact`. |
+| BR-022: Sensitive personal data must be returned only on a minimum-necessary basis for the correct actor and business relationship; do not return the full profile when the use case needs only a subset of fields. | CTMS-07-T01, CTMS-07-T02 | Tests and review evidence must prove this rule is enforced for `Update Personal Profile and Emergency Contact`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

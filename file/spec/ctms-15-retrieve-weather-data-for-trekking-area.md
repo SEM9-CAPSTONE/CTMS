@@ -19,8 +19,8 @@ As the System, I want to retrieve Weather Data for Trekking Area so that the CTM
 - [ ] The workflow respects its V3 dependencies: CTMS-10.
 
 ## Business Rules Checklist
-- [ ] BR-039: Weather risk, weather data, scoring, advisory, and weather configuration rules apply.
-- [ ] BR-040: Weather risk, weather data, scoring, advisory, and weather configuration rules apply.
+- [ ] BR-039: weather_snapshots must store source, location, rainfall, wind_speed, temperature, humidity, visibility, uv_index, storm_alert, fetched_at, and forecast_at exactly as received from the provider; missing values must not be fabricated.
+- [ ] BR-040: When the weather provider times out, errors, or omits a critical field, the system must log the issue and mark the data insufficient or stale according to policy; it must not create an assessment as if the data were complete.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -42,8 +42,8 @@ As the System, I want to retrieve Weather Data for Trekking Area so that the CTM
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-15-T01, CTMS-15-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-15-T01, CTMS-15-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-10. | CTMS-15-T01, CTMS-15-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-039: Weather risk, weather data, scoring, advisory, and weather configuration rules apply. | CTMS-15-T01, CTMS-15-T02 | Tests and review evidence must prove this rule is enforced for `Retrieve Weather Data for Trekking Area`. |
-| BR-040: Weather risk, weather data, scoring, advisory, and weather configuration rules apply. | CTMS-15-T01, CTMS-15-T02 | Tests and review evidence must prove this rule is enforced for `Retrieve Weather Data for Trekking Area`. |
+| BR-039: weather_snapshots must store source, location, rainfall, wind_speed, temperature, humidity, visibility, uv_index, storm_alert, fetched_at, and forecast_at exactly as received from the provider; missing values must not be fabricated. | CTMS-15-T01, CTMS-15-T02 | Tests and review evidence must prove this rule is enforced for `Retrieve Weather Data for Trekking Area`. |
+| BR-040: When the weather provider times out, errors, or omits a critical field, the system must log the issue and mark the data insufficient or stale according to policy; it must not create an assessment as if the data were complete. | CTMS-15-T01, CTMS-15-T02 | Tests and review evidence must prove this rule is enforced for `Retrieve Weather Data for Trekking Area`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

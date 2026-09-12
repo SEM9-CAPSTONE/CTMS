@@ -19,10 +19,10 @@ As a Host, I want to broadcast Emergency Alert to Trip so that the CTMS workflow
 - [ ] The workflow respects its V3 dependencies: CTMS-82.
 
 ## Business Rules Checklist
-- [ ] BR-197: Audit, notification, emergency, and user preference rules apply.
-- [ ] BR-198: Audit, notification, emergency, and user preference rules apply.
-- [ ] BR-199: Audit, notification, emergency, and user preference rules apply.
-- [ ] BR-228: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply.
+- [ ] BR-197: Notification/event side effects may be enqueued/sent only after the main business transaction commits successfully, preferably through outbox/queue; notification failure must not roll back the committed business result.
+- [ ] BR-198: One business event must not create duplicate notifications for the same recipient, object, and event type.
+- [ ] BR-199: Users may disable ordinary notifications, but mandatory safety or emergency alerts must not be disabled while they participate in the related Trip.
+- [ ] BR-228: Every operational UI action must clearly show success, pending, or failure and must preserve user/local data after recoverable conflict or connectivity failure.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -44,10 +44,10 @@ As a Host, I want to broadcast Emergency Alert to Trip so that the CTMS workflow
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-85-T01, CTMS-85-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-85-T01, CTMS-85-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-82. | CTMS-85-T01, CTMS-85-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-197: Audit, notification, emergency, and user preference rules apply. | CTMS-85-T01, CTMS-85-T02 | Tests and review evidence must prove this rule is enforced for `Broadcast Emergency Alert to Trip`. |
-| BR-198: Audit, notification, emergency, and user preference rules apply. | CTMS-85-T01, CTMS-85-T02 | Tests and review evidence must prove this rule is enforced for `Broadcast Emergency Alert to Trip`. |
-| BR-199: Audit, notification, emergency, and user preference rules apply. | CTMS-85-T01, CTMS-85-T02 | Tests and review evidence must prove this rule is enforced for `Broadcast Emergency Alert to Trip`. |
-| BR-228: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply. | CTMS-85-T01, CTMS-85-T02 | Tests and review evidence must prove this rule is enforced for `Broadcast Emergency Alert to Trip`. |
+| BR-197: Notification/event side effects may be enqueued/sent only after the main business transaction commits successfully, preferably through outbox/queue; notification failure must not roll back the committed business result. | CTMS-85-T01, CTMS-85-T02 | Tests and review evidence must prove this rule is enforced for `Broadcast Emergency Alert to Trip`. |
+| BR-198: One business event must not create duplicate notifications for the same recipient, object, and event type. | CTMS-85-T01, CTMS-85-T02 | Tests and review evidence must prove this rule is enforced for `Broadcast Emergency Alert to Trip`. |
+| BR-199: Users may disable ordinary notifications, but mandatory safety or emergency alerts must not be disabled while they participate in the related Trip. | CTMS-85-T01, CTMS-85-T02 | Tests and review evidence must prove this rule is enforced for `Broadcast Emergency Alert to Trip`. |
+| BR-228: Every operational UI action must clearly show success, pending, or failure and must preserve user/local data after recoverable conflict or connectivity failure. | CTMS-85-T01, CTMS-85-T02 | Tests and review evidence must prove this rule is enforced for `Broadcast Emergency Alert to Trip`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

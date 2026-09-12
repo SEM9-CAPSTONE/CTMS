@@ -19,8 +19,8 @@ As an Admin, I want to handle Content Reports so that the CTMS workflow is compl
 - [ ] The workflow respects its V3 dependencies: CTMS-06, CTMS-100.
 
 ## Business Rules Checklist
-- [ ] BR-170: Administration, audit, content report, moderation, and user account rules apply.
-- [ ] BR-171: Administration, audit, content report, moderation, and user account rules apply.
+- [ ] BR-170: Content reports must show reporter, target_type/target_id, reason, status, and time; missing targets or targets not reportable by policy must be rejected.
+- [ ] BR-171: Admin may transition content_report only through the defined state machine (pending -> reviewing/actioned/rejected, plus any other transition allowed by spec); every transition must be audited.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -42,8 +42,8 @@ As an Admin, I want to handle Content Reports so that the CTMS workflow is compl
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-111-T01, CTMS-111-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-111-T01, CTMS-111-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-06, CTMS-100. | CTMS-111-T01, CTMS-111-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-170: Administration, audit, content report, moderation, and user account rules apply. | CTMS-111-T01, CTMS-111-T02 | Tests and review evidence must prove this rule is enforced for `Handle Content Reports`. |
-| BR-171: Administration, audit, content report, moderation, and user account rules apply. | CTMS-111-T01, CTMS-111-T02 | Tests and review evidence must prove this rule is enforced for `Handle Content Reports`. |
+| BR-170: Content reports must show reporter, target_type/target_id, reason, status, and time; missing targets or targets not reportable by policy must be rejected. | CTMS-111-T01, CTMS-111-T02 | Tests and review evidence must prove this rule is enforced for `Handle Content Reports`. |
+| BR-171: Admin may transition content_report only through the defined state machine (pending -> reviewing/actioned/rejected, plus any other transition allowed by spec); every transition must be audited. | CTMS-111-T01, CTMS-111-T02 | Tests and review evidence must prove this rule is enforced for `Handle Content Reports`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

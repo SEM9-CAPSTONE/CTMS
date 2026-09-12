@@ -19,9 +19,9 @@ As the System, I want to calculate Multi-Criteria Weather Risk Score so that the
 - [ ] The workflow respects its V3 dependencies: CTMS-15.
 
 ## Business Rules Checklist
-- [ ] BR-041: Weather risk, weather data, scoring, advisory, and weather configuration rules apply.
-- [ ] BR-042: Weather risk, weather data, scoring, advisory, and weather configuration rules apply.
-- [ ] BR-043: Weather risk, weather data, scoring, advisory, and weather configuration rules apply.
+- [ ] BR-041: Weather Risk score must be calculated deterministically from the weather snapshot and the active weather_rules; the backend is the final source of the result.
+- [ ] BR-042: Weather Risk level may only be Green, Yellow, or Red according to the thresholds of the rule used; boundaries must be clearly defined and testable.
+- [ ] BR-043: Each weather_risk_assessment must store snapshot_id, rule_id, score, level, reasons, and created_at so the same input and rule version can reproduce the result.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -43,9 +43,9 @@ As the System, I want to calculate Multi-Criteria Weather Risk Score so that the
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-16-T01, CTMS-16-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-16-T01, CTMS-16-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-15. | CTMS-16-T01, CTMS-16-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-041: Weather risk, weather data, scoring, advisory, and weather configuration rules apply. | CTMS-16-T01, CTMS-16-T02 | Tests and review evidence must prove this rule is enforced for `Calculate Multi-Criteria Weather Risk Score`. |
-| BR-042: Weather risk, weather data, scoring, advisory, and weather configuration rules apply. | CTMS-16-T01, CTMS-16-T02 | Tests and review evidence must prove this rule is enforced for `Calculate Multi-Criteria Weather Risk Score`. |
-| BR-043: Weather risk, weather data, scoring, advisory, and weather configuration rules apply. | CTMS-16-T01, CTMS-16-T02 | Tests and review evidence must prove this rule is enforced for `Calculate Multi-Criteria Weather Risk Score`. |
+| BR-041: Weather Risk score must be calculated deterministically from the weather snapshot and the active weather_rules; the backend is the final source of the result. | CTMS-16-T01, CTMS-16-T02 | Tests and review evidence must prove this rule is enforced for `Calculate Multi-Criteria Weather Risk Score`. |
+| BR-042: Weather Risk level may only be Green, Yellow, or Red according to the thresholds of the rule used; boundaries must be clearly defined and testable. | CTMS-16-T01, CTMS-16-T02 | Tests and review evidence must prove this rule is enforced for `Calculate Multi-Criteria Weather Risk Score`. |
+| BR-043: Each weather_risk_assessment must store snapshot_id, rule_id, score, level, reasons, and created_at so the same input and rule version can reproduce the result. | CTMS-16-T01, CTMS-16-T02 | Tests and review evidence must prove this rule is enforced for `Calculate Multi-Criteria Weather Risk Score`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

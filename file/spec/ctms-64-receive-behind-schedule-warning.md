@@ -19,7 +19,7 @@ As a Camper, I want to receive Behind-Schedule Warning so that the CTMS workflow
 - [ ] The workflow respects its V3 dependencies: CTMS-61.
 
 ## Business Rules Checklist
-- [ ] BR-226: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply.
+- [ ] BR-226: Trip progress or checkpoint-arrival updates are operational data and may be written only for Trips with status ongoing by authorized actors; these updates must not modify schedule, Route geometry, capacity, price, or Host-configured waypoint definitions.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -41,7 +41,7 @@ As a Camper, I want to receive Behind-Schedule Warning so that the CTMS workflow
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-64-T01, CTMS-64-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-64-T01, CTMS-64-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-61. | CTMS-64-T01, CTMS-64-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-226: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply. | CTMS-64-T01, CTMS-64-T02 | Tests and review evidence must prove this rule is enforced for `Receive Behind-Schedule Warning`. |
+| BR-226: Trip progress or checkpoint-arrival updates are operational data and may be written only for Trips with status ongoing by authorized actors; these updates must not modify schedule, Route geometry, capacity, price, or Host-configured waypoint definitions. | CTMS-64-T01, CTMS-64-T02 | Tests and review evidence must prove this rule is enforced for `Receive Behind-Schedule Warning`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

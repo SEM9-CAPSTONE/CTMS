@@ -19,9 +19,9 @@ As a Host, I want to view Active Trekking Trips on Map so that the CTMS workflow
 - [ ] The workflow respects its V3 dependencies: CTMS-10, CTMS-11, CTMS-69.
 
 ## Business Rules Checklist
-- [ ] BR-204: External service, API error, pagination, media, background job, offline sync, and side-effect rules apply.
-- [ ] BR-224: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply.
-- [ ] BR-228: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply.
+- [ ] BR-204: List APIs must support pagination and record limits; filtering and sorting are allowed only on published fields.
+- [ ] BR-224: Incident and safety events created offline must preserve event time, location, client-generated identifier, and local sync state; when connectivity is available they must synchronize idempotently.
+- [ ] BR-228: Every operational UI action must clearly show success, pending, or failure and must preserve user/local data after recoverable conflict or connectivity failure.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -43,9 +43,9 @@ As a Host, I want to view Active Trekking Trips on Map so that the CTMS workflow
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-89-T01, CTMS-89-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-89-T01, CTMS-89-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-10, CTMS-11, CTMS-69. | CTMS-89-T01, CTMS-89-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-204: External service, API error, pagination, media, background job, offline sync, and side-effect rules apply. | CTMS-89-T01, CTMS-89-T02 | Tests and review evidence must prove this rule is enforced for `View Active Trekking Trips on Map`. |
-| BR-224: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply. | CTMS-89-T01, CTMS-89-T02 | Tests and review evidence must prove this rule is enforced for `View Active Trekking Trips on Map`. |
-| BR-228: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply. | CTMS-89-T01, CTMS-89-T02 | Tests and review evidence must prove this rule is enforced for `View Active Trekking Trips on Map`. |
+| BR-204: List APIs must support pagination and record limits; filtering and sorting are allowed only on published fields. | CTMS-89-T01, CTMS-89-T02 | Tests and review evidence must prove this rule is enforced for `View Active Trekking Trips on Map`. |
+| BR-224: Incident and safety events created offline must preserve event time, location, client-generated identifier, and local sync state; when connectivity is available they must synchronize idempotently. | CTMS-89-T01, CTMS-89-T02 | Tests and review evidence must prove this rule is enforced for `View Active Trekking Trips on Map`. |
+| BR-228: Every operational UI action must clearly show success, pending, or failure and must preserve user/local data after recoverable conflict or connectivity failure. | CTMS-89-T01, CTMS-89-T02 | Tests and review evidence must prove this rule is enforced for `View Active Trekking Trips on Map`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

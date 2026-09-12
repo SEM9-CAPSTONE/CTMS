@@ -19,9 +19,9 @@ As a Host, I want to manage Simple Equipment Catalog so that the CTMS workflow i
 - [ ] The workflow respects its V3 dependencies: CTMS-06.
 
 ## Business Rules Checklist
-- [ ] BR-126: Equipment, service, rental, handover, return, and packing list rules apply.
-- [ ] BR-127: Equipment, service, rental, handover, return, and packing list rules apply.
-- [ ] BR-128: Equipment, service, rental, handover, return, and packing list rules apply.
+- [ ] BR-126: Hosts may create/edit a simple equipment catalog within their own business scope; Admin may intervene only through admin permission. quantity_total, rental_price_per_day, and status must be backend-validated.
+- [ ] BR-127: MVP uses only equipment catalog statuses active/inactive/retired and the necessary reservation/handover/return states; a per-asset physical lifecycle model is not required.
+- [ ] BR-128: MVP equipment catalog must store at minimum valid host_id, name/category, quantity_total >= 0, rental_price_per_day >= 0, and status; maintenance_schedule, repair lifecycle, depreciation, and per-asset maintenance are not required MVP data.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -43,9 +43,9 @@ As a Host, I want to manage Simple Equipment Catalog so that the CTMS workflow i
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-39-T01, CTMS-39-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-39-T01, CTMS-39-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-06. | CTMS-39-T01, CTMS-39-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-126: Equipment, service, rental, handover, return, and packing list rules apply. | CTMS-39-T01, CTMS-39-T02 | Tests and review evidence must prove this rule is enforced for `Manage Simple Equipment Catalog`. |
-| BR-127: Equipment, service, rental, handover, return, and packing list rules apply. | CTMS-39-T01, CTMS-39-T02 | Tests and review evidence must prove this rule is enforced for `Manage Simple Equipment Catalog`. |
-| BR-128: Equipment, service, rental, handover, return, and packing list rules apply. | CTMS-39-T01, CTMS-39-T02 | Tests and review evidence must prove this rule is enforced for `Manage Simple Equipment Catalog`. |
+| BR-126: Hosts may create/edit a simple equipment catalog within their own business scope; Admin may intervene only through admin permission. quantity_total, rental_price_per_day, and status must be backend-validated. | CTMS-39-T01, CTMS-39-T02 | Tests and review evidence must prove this rule is enforced for `Manage Simple Equipment Catalog`. |
+| BR-127: MVP uses only equipment catalog statuses active/inactive/retired and the necessary reservation/handover/return states; a per-asset physical lifecycle model is not required. | CTMS-39-T01, CTMS-39-T02 | Tests and review evidence must prove this rule is enforced for `Manage Simple Equipment Catalog`. |
+| BR-128: MVP equipment catalog must store at minimum valid host_id, name/category, quantity_total >= 0, rental_price_per_day >= 0, and status; maintenance_schedule, repair lifecycle, depreciation, and per-asset maintenance are not required MVP data. | CTMS-39-T01, CTMS-39-T02 | Tests and review evidence must prove this rule is enforced for `Manage Simple Equipment Catalog`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

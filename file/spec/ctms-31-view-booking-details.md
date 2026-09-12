@@ -19,7 +19,7 @@ As a Camper, I want to view Booking Details so that the CTMS workflow is complet
 - [ ] The workflow respects its V3 dependencies: CTMS-29.
 
 ## Business Rules Checklist
-- [ ] BR-091: Payment, refund, settlement, and financial idempotency rules apply.
+- [ ] BR-091: Booking Detail for Camper/Host, according to permission, shows booking code/id, Trip, time, members, amount/surcharge, equipment reservations, payment_status, and booking_status; it does not need to expose the Route entity.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -41,7 +41,7 @@ As a Camper, I want to view Booking Details so that the CTMS workflow is complet
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-31-T01, CTMS-31-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-31-T01, CTMS-31-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-29. | CTMS-31-T01, CTMS-31-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-091: Payment, refund, settlement, and financial idempotency rules apply. | CTMS-31-T01, CTMS-31-T02 | Tests and review evidence must prove this rule is enforced for `View Booking Details`. |
+| BR-091: Booking Detail for Camper/Host, according to permission, shows booking code/id, Trip, time, members, amount/surcharge, equipment reservations, payment_status, and booking_status; it does not need to expose the Route entity. | CTMS-31-T01, CTMS-31-T02 | Tests and review evidence must prove this rule is enforced for `View Booking Details`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

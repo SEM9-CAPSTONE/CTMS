@@ -19,9 +19,9 @@ As a Host, I want to distinguish Real-Time Data from Last-Seen Data so that the 
 - [ ] The workflow respects its V3 dependencies: CTMS-89.
 
 ## Business Rules Checklist
-- [ ] BR-224: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply.
-- [ ] BR-228: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply.
-- [ ] BR-229: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply.
+- [ ] BR-224: Incident and safety events created offline must preserve event time, location, client-generated identifier, and local sync state; when connectivity is available they must synchronize idempotently.
+- [ ] BR-228: Every operational UI action must clearly show success, pending, or failure and must preserve user/local data after recoverable conflict or connectivity failure.
+- [ ] BR-229: Offline-support features must clearly distinguish local pending data from server-confirmed synchronized data and must not present unsynced data as authoritative server state.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -43,9 +43,9 @@ As a Host, I want to distinguish Real-Time Data from Last-Seen Data so that the 
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-90-T01, CTMS-90-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-90-T01, CTMS-90-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-89. | CTMS-90-T01, CTMS-90-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-224: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply. | CTMS-90-T01, CTMS-90-T02 | Tests and review evidence must prove this rule is enforced for `Distinguish Real-Time Data from Last-Seen Data`. |
-| BR-228: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply. | CTMS-90-T01, CTMS-90-T02 | Tests and review evidence must prove this rule is enforced for `Distinguish Real-Time Data from Last-Seen Data`. |
-| BR-229: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply. | CTMS-90-T01, CTMS-90-T02 | Tests and review evidence must prove this rule is enforced for `Distinguish Real-Time Data from Last-Seen Data`. |
+| BR-224: Incident and safety events created offline must preserve event time, location, client-generated identifier, and local sync state; when connectivity is available they must synchronize idempotently. | CTMS-90-T01, CTMS-90-T02 | Tests and review evidence must prove this rule is enforced for `Distinguish Real-Time Data from Last-Seen Data`. |
+| BR-228: Every operational UI action must clearly show success, pending, or failure and must preserve user/local data after recoverable conflict or connectivity failure. | CTMS-90-T01, CTMS-90-T02 | Tests and review evidence must prove this rule is enforced for `Distinguish Real-Time Data from Last-Seen Data`. |
+| BR-229: Offline-support features must clearly distinguish local pending data from server-confirmed synchronized data and must not present unsynced data as authoritative server state. | CTMS-90-T01, CTMS-90-T02 | Tests and review evidence must prove this rule is enforced for `Distinguish Real-Time Data from Last-Seen Data`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

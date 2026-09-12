@@ -19,10 +19,10 @@ As the System, I want to process Refund so that the CTMS workflow is completed s
 - [ ] The workflow respects its V3 dependencies: CTMS-34, CTMS-32.
 
 ## Business Rules Checklist
-- [ ] BR-105: Payment, refund, settlement, and financial idempotency rules apply.
-- [ ] BR-106: Payment, refund, settlement, and financial idempotency rules apply.
-- [ ] BR-107: Payment, refund, settlement, and financial idempotency rules apply.
-- [ ] BR-108: Payment, refund, settlement, and financial idempotency rules apply.
+- [ ] BR-105: A refund must create a payment transaction with type refund, parent_payment_id pointing to the original succeeded charge, and a unique idempotency_key.
+- [ ] BR-106: payment transactions may only use status pending, succeeded, or failed. bookings.payment_status is derived/updated from total succeeded refunds as partially_refunded or refunded; do not use payments.status = refunded.
+- [ ] BR-107: The total amount of succeeded and pending refunds allowed by policy must not exceed the refundable succeeded charge amount; the same cancellation/refund request must not be refunded twice.
+- [ ] BR-108: Provider transaction_ref, when available, must be stored uniquely and used for reconciliation/callback; a client response must not be treated as proof of payment.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -44,10 +44,10 @@ As the System, I want to process Refund so that the CTMS workflow is completed s
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-35-T01, CTMS-35-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-35-T01, CTMS-35-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-34, CTMS-32. | CTMS-35-T01, CTMS-35-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-105: Payment, refund, settlement, and financial idempotency rules apply. | CTMS-35-T01, CTMS-35-T02 | Tests and review evidence must prove this rule is enforced for `Process Refund`. |
-| BR-106: Payment, refund, settlement, and financial idempotency rules apply. | CTMS-35-T01, CTMS-35-T02 | Tests and review evidence must prove this rule is enforced for `Process Refund`. |
-| BR-107: Payment, refund, settlement, and financial idempotency rules apply. | CTMS-35-T01, CTMS-35-T02 | Tests and review evidence must prove this rule is enforced for `Process Refund`. |
-| BR-108: Payment, refund, settlement, and financial idempotency rules apply. | CTMS-35-T01, CTMS-35-T02 | Tests and review evidence must prove this rule is enforced for `Process Refund`. |
+| BR-105: A refund must create a payment transaction with type refund, parent_payment_id pointing to the original succeeded charge, and a unique idempotency_key. | CTMS-35-T01, CTMS-35-T02 | Tests and review evidence must prove this rule is enforced for `Process Refund`. |
+| BR-106: payment transactions may only use status pending, succeeded, or failed. bookings.payment_status is derived/updated from total succeeded refunds as partially_refunded or refunded; do not use payments.status = refunded. | CTMS-35-T01, CTMS-35-T02 | Tests and review evidence must prove this rule is enforced for `Process Refund`. |
+| BR-107: The total amount of succeeded and pending refunds allowed by policy must not exceed the refundable succeeded charge amount; the same cancellation/refund request must not be refunded twice. | CTMS-35-T01, CTMS-35-T02 | Tests and review evidence must prove this rule is enforced for `Process Refund`. |
+| BR-108: Provider transaction_ref, when available, must be stored uniquely and used for reconciliation/callback; a client response must not be treated as proof of payment. | CTMS-35-T01, CTMS-35-T02 | Tests and review evidence must prove this rule is enforced for `Process Refund`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

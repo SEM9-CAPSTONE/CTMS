@@ -19,10 +19,10 @@ As an Admin, I want to reconcile Refund after Settlement or Payout so that the C
 - [ ] The workflow respects its V3 dependencies: CTMS-35, CTMS-119, CTMS-120.
 
 ## Business Rules Checklist
-- [ ] BR-105: Payment, refund, settlement, and financial idempotency rules apply.
-- [ ] BR-106: Payment, refund, settlement, and financial idempotency rules apply.
-- [ ] BR-107: Payment, refund, settlement, and financial idempotency rules apply.
-- [ ] BR-108: Payment, refund, settlement, and financial idempotency rules apply.
+- [ ] BR-105: A refund must create a payment transaction with type refund, parent_payment_id pointing to the original succeeded charge, and a unique idempotency_key.
+- [ ] BR-106: payment transactions may only use status pending, succeeded, or failed. bookings.payment_status is derived/updated from total succeeded refunds as partially_refunded or refunded; do not use payments.status = refunded.
+- [ ] BR-107: The total amount of succeeded and pending refunds allowed by policy must not exceed the refundable succeeded charge amount; the same cancellation/refund request must not be refunded twice.
+- [ ] BR-108: Provider transaction_ref, when available, must be stored uniquely and used for reconciliation/callback; a client response must not be treated as proof of payment.
 - [ ] BR-181: Authentication token, permission, idempotency, and sensitive-data safeguards apply.
 
 ## Dev Notes
@@ -45,10 +45,10 @@ As an Admin, I want to reconcile Refund after Settlement or Payout so that the C
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-121-T01, CTMS-121-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-121-T01, CTMS-121-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-35, CTMS-119, CTMS-120. | CTMS-121-T01, CTMS-121-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-105: Payment, refund, settlement, and financial idempotency rules apply. | CTMS-121-T01, CTMS-121-T02 | Tests and review evidence must prove this rule is enforced for `Reconcile Refund after Settlement or Payout`. |
-| BR-106: Payment, refund, settlement, and financial idempotency rules apply. | CTMS-121-T01, CTMS-121-T02 | Tests and review evidence must prove this rule is enforced for `Reconcile Refund after Settlement or Payout`. |
-| BR-107: Payment, refund, settlement, and financial idempotency rules apply. | CTMS-121-T01, CTMS-121-T02 | Tests and review evidence must prove this rule is enforced for `Reconcile Refund after Settlement or Payout`. |
-| BR-108: Payment, refund, settlement, and financial idempotency rules apply. | CTMS-121-T01, CTMS-121-T02 | Tests and review evidence must prove this rule is enforced for `Reconcile Refund after Settlement or Payout`. |
+| BR-105: A refund must create a payment transaction with type refund, parent_payment_id pointing to the original succeeded charge, and a unique idempotency_key. | CTMS-121-T01, CTMS-121-T02 | Tests and review evidence must prove this rule is enforced for `Reconcile Refund after Settlement or Payout`. |
+| BR-106: payment transactions may only use status pending, succeeded, or failed. bookings.payment_status is derived/updated from total succeeded refunds as partially_refunded or refunded; do not use payments.status = refunded. | CTMS-121-T01, CTMS-121-T02 | Tests and review evidence must prove this rule is enforced for `Reconcile Refund after Settlement or Payout`. |
+| BR-107: The total amount of succeeded and pending refunds allowed by policy must not exceed the refundable succeeded charge amount; the same cancellation/refund request must not be refunded twice. | CTMS-121-T01, CTMS-121-T02 | Tests and review evidence must prove this rule is enforced for `Reconcile Refund after Settlement or Payout`. |
+| BR-108: Provider transaction_ref, when available, must be stored uniquely and used for reconciliation/callback; a client response must not be treated as proof of payment. | CTMS-121-T01, CTMS-121-T02 | Tests and review evidence must prove this rule is enforced for `Reconcile Refund after Settlement or Payout`. |
 | BR-181: Authentication token, permission, idempotency, and sensitive-data safeguards apply. | CTMS-121-T01, CTMS-121-T02 | Tests and review evidence must prove this rule is enforced for `Reconcile Refund after Settlement or Payout`. |
 
 ## Story-Specific Risks and Edge Cases

@@ -19,10 +19,10 @@ As a Host or Lead Porter, I want to update Trip Operational Lifecycle and Progre
 - [ ] The workflow respects its V3 dependencies: CTMS-23, CTMS-11, CTMS-47, CTMS-55.
 
 ## Business Rules Checklist
-- [ ] BR-066: Trip creation, waypoint, approval, editing, and lifecycle rules apply.
-- [ ] BR-067: Trip creation, waypoint, approval, editing, and lifecycle rules apply.
-- [ ] BR-068: Trip creation, waypoint, approval, editing, and lifecycle rules apply.
-- [ ] BR-226: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply.
+- [ ] BR-066: The standard active Trip lifecycle is draft -> pending_approval -> published -> ongoing -> completed. pending_approval may return to draft when Admin requests changes; draft, pending_approval, and published may move to cancelled through allowed flows. completed and cancelled are terminal states in MVP and cannot move back.
+- [ ] BR-067: Start Trip may be performed only for status published by the owning Host or Lead Porter with a valid Porter Assignment. The backend must revalidate actor and Trip state and must not allow Start before trips.starts_at. On successful commit, status becomes ongoing and trips.started_at is set to the current server/database time; repeated requests must be idempotent.
+- [ ] BR-068: Finish Trip may be performed only for status ongoing by the owning Host or Lead Porter with a valid Porter Assignment. On successful commit, status becomes completed and trips.completed_at is set to the current server/database time; clients may not provide completed_at. A completed Trip stops GPS/operational tracking by policy and opens later Booking/settlement completion conditions.
+- [ ] BR-226: Trip progress or checkpoint-arrival updates are operational data and may be written only for Trips with status ongoing by authorized actors; these updates must not modify schedule, Route geometry, capacity, price, or Host-configured waypoint definitions.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -44,10 +44,10 @@ As a Host or Lead Porter, I want to update Trip Operational Lifecycle and Progre
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-56-T01, CTMS-56-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-56-T01, CTMS-56-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-23, CTMS-11, CTMS-47, CTMS-55. | CTMS-56-T01, CTMS-56-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-066: Trip creation, waypoint, approval, editing, and lifecycle rules apply. | CTMS-56-T01, CTMS-56-T02 | Tests and review evidence must prove this rule is enforced for `Update Trip Operational Lifecycle and Progress`. |
-| BR-067: Trip creation, waypoint, approval, editing, and lifecycle rules apply. | CTMS-56-T01, CTMS-56-T02 | Tests and review evidence must prove this rule is enforced for `Update Trip Operational Lifecycle and Progress`. |
-| BR-068: Trip creation, waypoint, approval, editing, and lifecycle rules apply. | CTMS-56-T01, CTMS-56-T02 | Tests and review evidence must prove this rule is enforced for `Update Trip Operational Lifecycle and Progress`. |
-| BR-226: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply. | CTMS-56-T01, CTMS-56-T02 | Tests and review evidence must prove this rule is enforced for `Update Trip Operational Lifecycle and Progress`. |
+| BR-066: The standard active Trip lifecycle is draft -> pending_approval -> published -> ongoing -> completed. pending_approval may return to draft when Admin requests changes; draft, pending_approval, and published may move to cancelled through allowed flows. completed and cancelled are terminal states in MVP and cannot move back. | CTMS-56-T01, CTMS-56-T02 | Tests and review evidence must prove this rule is enforced for `Update Trip Operational Lifecycle and Progress`. |
+| BR-067: Start Trip may be performed only for status published by the owning Host or Lead Porter with a valid Porter Assignment. The backend must revalidate actor and Trip state and must not allow Start before trips.starts_at. On successful commit, status becomes ongoing and trips.started_at is set to the current server/database time; repeated requests must be idempotent. | CTMS-56-T01, CTMS-56-T02 | Tests and review evidence must prove this rule is enforced for `Update Trip Operational Lifecycle and Progress`. |
+| BR-068: Finish Trip may be performed only for status ongoing by the owning Host or Lead Porter with a valid Porter Assignment. On successful commit, status becomes completed and trips.completed_at is set to the current server/database time; clients may not provide completed_at. A completed Trip stops GPS/operational tracking by policy and opens later Booking/settlement completion conditions. | CTMS-56-T01, CTMS-56-T02 | Tests and review evidence must prove this rule is enforced for `Update Trip Operational Lifecycle and Progress`. |
+| BR-226: Trip progress or checkpoint-arrival updates are operational data and may be written only for Trips with status ongoing by authorized actors; these updates must not modify schedule, Route geometry, capacity, price, or Host-configured waypoint definitions. | CTMS-56-T01, CTMS-56-T02 | Tests and review evidence must prove this rule is enforced for `Update Trip Operational Lifecycle and Progress`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

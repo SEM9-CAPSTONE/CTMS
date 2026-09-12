@@ -19,9 +19,9 @@ As a Host, I want to view Available Porters so that the CTMS workflow is complet
 - [ ] The workflow respects its V3 dependencies: CTMS-43.
 
 ## Business Rules Checklist
-- [ ] BR-143: Porter profile, availability, request, response, qualification, and assignment rules apply.
-- [ ] BR-144: Porter profile, availability, request, response, qualification, and assignment rules apply.
-- [ ] BR-223: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply.
+- [ ] BR-143: The available Porter list for a Trip must filter by active account/profile, current availability, route qualification when needed, experience, and assignment conflicts.
+- [ ] BR-144: A Porter with a held/accepted assignment overlapping the work_range must not be considered available for the conflicting Trip; the backend must recheck at request/assignment time.
+- [ ] BR-223: Porter profile/availability screens may expose only fields needed for operations; eligibility must be calculated from profile status, availability, relevant qualification, and assignment conflicts.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -43,9 +43,9 @@ As a Host, I want to view Available Porters so that the CTMS workflow is complet
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-44-T01, CTMS-44-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-44-T01, CTMS-44-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-43. | CTMS-44-T01, CTMS-44-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-143: Porter profile, availability, request, response, qualification, and assignment rules apply. | CTMS-44-T01, CTMS-44-T02 | Tests and review evidence must prove this rule is enforced for `View Available Porters`. |
-| BR-144: Porter profile, availability, request, response, qualification, and assignment rules apply. | CTMS-44-T01, CTMS-44-T02 | Tests and review evidence must prove this rule is enforced for `View Available Porters`. |
-| BR-223: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply. | CTMS-44-T01, CTMS-44-T02 | Tests and review evidence must prove this rule is enforced for `View Available Porters`. |
+| BR-143: The available Porter list for a Trip must filter by active account/profile, current availability, route qualification when needed, experience, and assignment conflicts. | CTMS-44-T01, CTMS-44-T02 | Tests and review evidence must prove this rule is enforced for `View Available Porters`. |
+| BR-144: A Porter with a held/accepted assignment overlapping the work_range must not be considered available for the conflicting Trip; the backend must recheck at request/assignment time. | CTMS-44-T01, CTMS-44-T02 | Tests and review evidence must prove this rule is enforced for `View Available Porters`. |
+| BR-223: Porter profile/availability screens may expose only fields needed for operations; eligibility must be calculated from profile status, availability, relevant qualification, and assignment conflicts. | CTMS-44-T01, CTMS-44-T02 | Tests and review evidence must prove this rule is enforced for `View Available Porters`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

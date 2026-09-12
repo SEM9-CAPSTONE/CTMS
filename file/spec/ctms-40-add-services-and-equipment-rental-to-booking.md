@@ -19,12 +19,12 @@ As a Camper, I want to add Services and Equipment Rental to Booking so that the 
 - [ ] The workflow respects its V3 dependencies: CTMS-29, CTMS-39.
 
 ## Business Rules Checklist
-- [ ] BR-123: Equipment, service, rental, handover, return, and packing list rules apply.
-- [ ] BR-124: Equipment, service, rental, handover, return, and packing list rules apply.
-- [ ] BR-125: Equipment, service, rental, handover, return, and packing list rules apply.
-- [ ] BR-129: Equipment, service, rental, handover, return, and packing list rules apply.
-- [ ] BR-130: Equipment, service, rental, handover, return, and packing list rules apply.
-- [ ] BR-131: Equipment, service, rental, handover, return, and packing list rules apply.
+- [ ] BR-123: booking_items stores only non-equipment add-ons/surcharges; item_type/ref_id must be validated by the backend against a whitelist and quantity must be > 0.
+- [ ] BR-124: Every booking_items change must recalculate surcharge and total_amount from server-side data; the client must not send the final total as a trusted source.
+- [ ] BR-125: Rented equipment must be stored through equipment_reservations; booking_items must not be used to hold equipment inventory.
+- [ ] BR-129: Availability for a rental period equals quantity_total minus total quantity of held/handed-over reservations whose rental_range overlaps; inactive/retired catalog items cannot create new rentals.
+- [ ] BR-130: Rental fees must be calculated server-side from days, quantity, and rental_price_per_day; unit_price and total_price must be snapshotted into the reservation so historical prices do not change with the catalog.
+- [ ] BR-131: Creating/updating equipment reservations must use a transaction/lock or equivalent mechanism so overlapping total quantity does not exceed quantity_total; conflicts must roll back.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -46,12 +46,12 @@ As a Camper, I want to add Services and Equipment Rental to Booking so that the 
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-40-T01, CTMS-40-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-40-T01, CTMS-40-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-29, CTMS-39. | CTMS-40-T01, CTMS-40-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-123: Equipment, service, rental, handover, return, and packing list rules apply. | CTMS-40-T01, CTMS-40-T02 | Tests and review evidence must prove this rule is enforced for `Add Services and Equipment Rental to Booking`. |
-| BR-124: Equipment, service, rental, handover, return, and packing list rules apply. | CTMS-40-T01, CTMS-40-T02 | Tests and review evidence must prove this rule is enforced for `Add Services and Equipment Rental to Booking`. |
-| BR-125: Equipment, service, rental, handover, return, and packing list rules apply. | CTMS-40-T01, CTMS-40-T02 | Tests and review evidence must prove this rule is enforced for `Add Services and Equipment Rental to Booking`. |
-| BR-129: Equipment, service, rental, handover, return, and packing list rules apply. | CTMS-40-T01, CTMS-40-T02 | Tests and review evidence must prove this rule is enforced for `Add Services and Equipment Rental to Booking`. |
-| BR-130: Equipment, service, rental, handover, return, and packing list rules apply. | CTMS-40-T01, CTMS-40-T02 | Tests and review evidence must prove this rule is enforced for `Add Services and Equipment Rental to Booking`. |
-| BR-131: Equipment, service, rental, handover, return, and packing list rules apply. | CTMS-40-T01, CTMS-40-T02 | Tests and review evidence must prove this rule is enforced for `Add Services and Equipment Rental to Booking`. |
+| BR-123: booking_items stores only non-equipment add-ons/surcharges; item_type/ref_id must be validated by the backend against a whitelist and quantity must be > 0. | CTMS-40-T01, CTMS-40-T02 | Tests and review evidence must prove this rule is enforced for `Add Services and Equipment Rental to Booking`. |
+| BR-124: Every booking_items change must recalculate surcharge and total_amount from server-side data; the client must not send the final total as a trusted source. | CTMS-40-T01, CTMS-40-T02 | Tests and review evidence must prove this rule is enforced for `Add Services and Equipment Rental to Booking`. |
+| BR-125: Rented equipment must be stored through equipment_reservations; booking_items must not be used to hold equipment inventory. | CTMS-40-T01, CTMS-40-T02 | Tests and review evidence must prove this rule is enforced for `Add Services and Equipment Rental to Booking`. |
+| BR-129: Availability for a rental period equals quantity_total minus total quantity of held/handed-over reservations whose rental_range overlaps; inactive/retired catalog items cannot create new rentals. | CTMS-40-T01, CTMS-40-T02 | Tests and review evidence must prove this rule is enforced for `Add Services and Equipment Rental to Booking`. |
+| BR-130: Rental fees must be calculated server-side from days, quantity, and rental_price_per_day; unit_price and total_price must be snapshotted into the reservation so historical prices do not change with the catalog. | CTMS-40-T01, CTMS-40-T02 | Tests and review evidence must prove this rule is enforced for `Add Services and Equipment Rental to Booking`. |
+| BR-131: Creating/updating equipment reservations must use a transaction/lock or equivalent mechanism so overlapping total quantity does not exceed quantity_total; conflicts must roll back. | CTMS-40-T01, CTMS-40-T02 | Tests and review evidence must prove this rule is enforced for `Add Services and Equipment Rental to Booking`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

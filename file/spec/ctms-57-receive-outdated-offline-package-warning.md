@@ -19,9 +19,9 @@ As a user, I want to receive Outdated Offline Package Warning so that the CTMS w
 - [ ] The workflow respects its V3 dependencies: CTMS-52, CTMS-09.
 
 ## Business Rules Checklist
-- [ ] BR-229: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply.
-- [ ] BR-234: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply.
-- [ ] BR-235: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply.
+- [ ] BR-229: Offline-support features must clearly distinguish local pending data from server-confirmed synchronized data and must not present unsynced data as authoritative server state.
+- [ ] BR-234: When downloading an offline package, the UI must show size and progress, support resume after interruption, and check enough device storage before completion.
+- [ ] BR-235: Client/system must verify checksum before using a package; invalid packages must move to failed and allow redownload; do not invent status corrupted if the enum does not support it.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -43,9 +43,9 @@ As a user, I want to receive Outdated Offline Package Warning so that the CTMS w
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-57-T01, CTMS-57-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-57-T01, CTMS-57-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-52, CTMS-09. | CTMS-57-T01, CTMS-57-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-229: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply. | CTMS-57-T01, CTMS-57-T02 | Tests and review evidence must prove this rule is enforced for `Receive Outdated Offline Package Warning`. |
-| BR-234: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply. | CTMS-57-T01, CTMS-57-T02 | Tests and review evidence must prove this rule is enforced for `Receive Outdated Offline Package Warning`. |
-| BR-235: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply. | CTMS-57-T01, CTMS-57-T02 | Tests and review evidence must prove this rule is enforced for `Receive Outdated Offline Package Warning`. |
+| BR-229: Offline-support features must clearly distinguish local pending data from server-confirmed synchronized data and must not present unsynced data as authoritative server state. | CTMS-57-T01, CTMS-57-T02 | Tests and review evidence must prove this rule is enforced for `Receive Outdated Offline Package Warning`. |
+| BR-234: When downloading an offline package, the UI must show size and progress, support resume after interruption, and check enough device storage before completion. | CTMS-57-T01, CTMS-57-T02 | Tests and review evidence must prove this rule is enforced for `Receive Outdated Offline Package Warning`. |
+| BR-235: Client/system must verify checksum before using a package; invalid packages must move to failed and allow redownload; do not invent status corrupted if the enum does not support it. | CTMS-57-T01, CTMS-57-T02 | Tests and review evidence must prove this rule is enforced for `Receive Outdated Offline Package Warning`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

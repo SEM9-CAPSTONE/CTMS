@@ -19,7 +19,7 @@ As an Admin, I want to view Booking and Trip Performance Reports so that the CTM
 - [ ] The workflow respects its V3 dependencies: CTMS-29, CTMS-34, CTMS-38.
 
 ## Business Rules Checklist
-- [ ] BR-204: External service, API error, pagination, media, background job, offline sync, and side-effect rules apply.
+- [ ] BR-204: List APIs must support pagination and record limits; filtering and sorting are allowed only on published fields.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -41,7 +41,7 @@ As an Admin, I want to view Booking and Trip Performance Reports so that the CTM
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-107-T01, CTMS-107-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-107-T01, CTMS-107-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-29, CTMS-34, CTMS-38. | CTMS-107-T01, CTMS-107-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-204: External service, API error, pagination, media, background job, offline sync, and side-effect rules apply. | CTMS-107-T01, CTMS-107-T02 | Tests and review evidence must prove this rule is enforced for `View Booking and Trip Performance Reports`. |
+| BR-204: List APIs must support pagination and record limits; filtering and sorting are allowed only on published fields. | CTMS-107-T01, CTMS-107-T02 | Tests and review evidence must prove this rule is enforced for `View Booking and Trip Performance Reports`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

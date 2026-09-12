@@ -19,9 +19,9 @@ As a user, I want to receive In-App Notifications so that the CTMS workflow is c
 - [ ] The workflow respects its V3 dependencies: CTMS-03.
 
 ## Business Rules Checklist
-- [ ] BR-197: Audit, notification, emergency, and user preference rules apply.
-- [ ] BR-198: Audit, notification, emergency, and user preference rules apply.
-- [ ] BR-199: Audit, notification, emergency, and user preference rules apply.
+- [ ] BR-197: Notification/event side effects may be enqueued/sent only after the main business transaction commits successfully, preferably through outbox/queue; notification failure must not roll back the committed business result.
+- [ ] BR-198: One business event must not create duplicate notifications for the same recipient, object, and event type.
+- [ ] BR-199: Users may disable ordinary notifications, but mandatory safety or emergency alerts must not be disabled while they participate in the related Trip.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -43,9 +43,9 @@ As a user, I want to receive In-App Notifications so that the CTMS workflow is c
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-94-T01, CTMS-94-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-94-T01, CTMS-94-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-03. | CTMS-94-T01, CTMS-94-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-197: Audit, notification, emergency, and user preference rules apply. | CTMS-94-T01, CTMS-94-T02 | Tests and review evidence must prove this rule is enforced for `Receive In-App Notifications`. |
-| BR-198: Audit, notification, emergency, and user preference rules apply. | CTMS-94-T01, CTMS-94-T02 | Tests and review evidence must prove this rule is enforced for `Receive In-App Notifications`. |
-| BR-199: Audit, notification, emergency, and user preference rules apply. | CTMS-94-T01, CTMS-94-T02 | Tests and review evidence must prove this rule is enforced for `Receive In-App Notifications`. |
+| BR-197: Notification/event side effects may be enqueued/sent only after the main business transaction commits successfully, preferably through outbox/queue; notification failure must not roll back the committed business result. | CTMS-94-T01, CTMS-94-T02 | Tests and review evidence must prove this rule is enforced for `Receive In-App Notifications`. |
+| BR-198: One business event must not create duplicate notifications for the same recipient, object, and event type. | CTMS-94-T01, CTMS-94-T02 | Tests and review evidence must prove this rule is enforced for `Receive In-App Notifications`. |
+| BR-199: Users may disable ordinary notifications, but mandatory safety or emergency alerts must not be disabled while they participate in the related Trip. | CTMS-94-T01, CTMS-94-T02 | Tests and review evidence must prove this rule is enforced for `Receive In-App Notifications`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

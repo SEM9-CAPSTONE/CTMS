@@ -19,8 +19,8 @@ As a Camper, I want to rate AI Answers so that the CTMS workflow is completed sa
 - [ ] The workflow respects its V3 dependencies: CTMS-72.
 
 ## Business Rules Checklist
-- [ ] BR-119: Review, feedback, and reputation rules apply.
-- [ ] BR-219: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply.
+- [ ] BR-119: Only completed Bookings open review rights; the review target must belong to the real booking experience.
+- [ ] BR-219: AI/RAG may provide recommendations/explanations only; it must not override hard rules or authoritative state such as route closed/archived, Trip capacity, payment result, Weather Risk score/level, or access rights.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -42,8 +42,8 @@ As a Camper, I want to rate AI Answers so that the CTMS workflow is completed sa
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-75-T01, CTMS-75-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-75-T01, CTMS-75-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-72. | CTMS-75-T01, CTMS-75-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-119: Review, feedback, and reputation rules apply. | CTMS-75-T01, CTMS-75-T02 | Tests and review evidence must prove this rule is enforced for `Rate AI Answers`. |
-| BR-219: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply. | CTMS-75-T01, CTMS-75-T02 | Tests and review evidence must prove this rule is enforced for `Rate AI Answers`. |
+| BR-119: Only completed Bookings open review rights; the review target must belong to the real booking experience. | CTMS-75-T01, CTMS-75-T02 | Tests and review evidence must prove this rule is enforced for `Rate AI Answers`. |
+| BR-219: AI/RAG may provide recommendations/explanations only; it must not override hard rules or authoritative state such as route closed/archived, Trip capacity, payment result, Weather Risk score/level, or access rights. | CTMS-75-T01, CTMS-75-T02 | Tests and review evidence must prove this rule is enforced for `Rate AI Answers`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

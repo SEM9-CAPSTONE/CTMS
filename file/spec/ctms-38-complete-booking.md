@@ -19,8 +19,8 @@ As a Host, I want to complete Booking so that the CTMS workflow is completed saf
 - [ ] The workflow respects its V3 dependencies: CTMS-37, CTMS-56.
 
 ## Business Rules Checklist
-- [ ] BR-117: Trip cancellation, check-in, completion, and participant outcome rules apply.
-- [ ] BR-118: Trip cancellation, check-in, completion, and participant outcome rules apply.
+- [ ] BR-117: A Booking may move confirmed -> completed only after the Trip status is completed and all required member/equipment conditions have been handled; in the same transaction the backend must set bookings.completed_at to the current server/database time. The transition must be idempotent and clients may not provide completed_at. This timestamp is the authoritative time for the review window.
+- [ ] BR-118: Before completing a Booking with equipment rental, the system must confirm the reservation is returned or that a not_returned/damage flow has been recorded.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -42,8 +42,8 @@ As a Host, I want to complete Booking so that the CTMS workflow is completed saf
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-38-T01, CTMS-38-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-38-T01, CTMS-38-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-37, CTMS-56. | CTMS-38-T01, CTMS-38-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-117: Trip cancellation, check-in, completion, and participant outcome rules apply. | CTMS-38-T01, CTMS-38-T02 | Tests and review evidence must prove this rule is enforced for `Complete Booking`. |
-| BR-118: Trip cancellation, check-in, completion, and participant outcome rules apply. | CTMS-38-T01, CTMS-38-T02 | Tests and review evidence must prove this rule is enforced for `Complete Booking`. |
+| BR-117: A Booking may move confirmed -> completed only after the Trip status is completed and all required member/equipment conditions have been handled; in the same transaction the backend must set bookings.completed_at to the current server/database time. The transition must be idempotent and clients may not provide completed_at. This timestamp is the authoritative time for the review window. | CTMS-38-T01, CTMS-38-T02 | Tests and review evidence must prove this rule is enforced for `Complete Booking`. |
+| BR-118: Before completing a Booking with equipment rental, the system must confirm the reservation is returned or that a not_returned/damage flow has been recorded. | CTMS-38-T01, CTMS-38-T02 | Tests and review evidence must prove this rule is enforced for `Complete Booking`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

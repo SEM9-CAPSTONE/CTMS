@@ -19,9 +19,9 @@ As an Admin, I want to approve Trekking Route so that the CTMS workflow is compl
 - [ ] The workflow respects its V3 dependencies: CTMS-06, CTMS-10, CTMS-11.
 
 ## Business Rules Checklist
-- [ ] BR-031: Route, checkpoint, hazard, and route versioning rules apply.
-- [ ] BR-033: Route, checkpoint, hazard, and route versioning rules apply.
-- [ ] BR-037: Route, checkpoint, hazard, and route versioning rules apply.
+- [ ] BR-031: Admin may approve a Route only when route.status is pending_approval and geometry, difficulty, checkpoint/hazard requirements, and all required Route data are valid. Approval changes pending_approval to active; requesting changes returns it to draft and must save a reason.
+- [ ] BR-033: Do not use a rejected route status; only transitions supported by the route_status enum are allowed.
+- [ ] BR-037: When a Trip is submitted or published, the system must bind it to the approved Route version used for approval. Later Route changes must create a new version or equivalent immutable snapshot and must not silently change geometry, checkpoints, or hazards for already published Trips; Trips that use a new version must go through material-change/reapproval.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -43,9 +43,9 @@ As an Admin, I want to approve Trekking Route so that the CTMS workflow is compl
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-13-T01, CTMS-13-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-13-T01, CTMS-13-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-06, CTMS-10, CTMS-11. | CTMS-13-T01, CTMS-13-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-031: Route, checkpoint, hazard, and route versioning rules apply. | CTMS-13-T01, CTMS-13-T02 | Tests and review evidence must prove this rule is enforced for `Approve Trekking Route`. |
-| BR-033: Route, checkpoint, hazard, and route versioning rules apply. | CTMS-13-T01, CTMS-13-T02 | Tests and review evidence must prove this rule is enforced for `Approve Trekking Route`. |
-| BR-037: Route, checkpoint, hazard, and route versioning rules apply. | CTMS-13-T01, CTMS-13-T02 | Tests and review evidence must prove this rule is enforced for `Approve Trekking Route`. |
+| BR-031: Admin may approve a Route only when route.status is pending_approval and geometry, difficulty, checkpoint/hazard requirements, and all required Route data are valid. Approval changes pending_approval to active; requesting changes returns it to draft and must save a reason. | CTMS-13-T01, CTMS-13-T02 | Tests and review evidence must prove this rule is enforced for `Approve Trekking Route`. |
+| BR-033: Do not use a rejected route status; only transitions supported by the route_status enum are allowed. | CTMS-13-T01, CTMS-13-T02 | Tests and review evidence must prove this rule is enforced for `Approve Trekking Route`. |
+| BR-037: When a Trip is submitted or published, the system must bind it to the approved Route version used for approval. Later Route changes must create a new version or equivalent immutable snapshot and must not silently change geometry, checkpoints, or hazards for already published Trips; Trips that use a new version must go through material-change/reapproval. | CTMS-13-T01, CTMS-13-T02 | Tests and review evidence must prove this rule is enforced for `Approve Trekking Route`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

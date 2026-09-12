@@ -19,11 +19,11 @@ As a Host, I want to manage Trip Images so that the CTMS workflow is completed s
 - [ ] The workflow respects its V3 dependencies: CTMS-21.
 
 ## Business Rules Checklist
-- [ ] BR-081: Booking capacity, booking member, and seat reservation rules apply.
-- [ ] BR-082: Booking capacity, booking member, and seat reservation rules apply.
-- [ ] BR-083: Booking capacity, booking member, and seat reservation rules apply.
-- [ ] BR-206: External service, API error, pagination, media, background job, offline sync, and side-effect rules apply.
-- [ ] BR-207: External service, API error, pagination, media, background job, offline sync, and side-effect rules apply.
+- [ ] BR-081: The owning Host may add, remove, and sort trip_media while the Trip is not ongoing or completed; sort_order must be defined.
+- [ ] BR-082: Each trip_media record must have a valid trip_id, uploaded/verified URL, valid type, and non-negative sort_order.
+- [ ] BR-083: trip_media must not be updated when Trip status is ongoing, completed, or cancelled unless an admin permission or explicitly defined flow allows it.
+- [ ] BR-206: Media must store URL and required metadata; client-provided URLs are valid only after the upload/verification flow completes.
+- [ ] BR-207: Users may add, remove, or sort media only for resources they own or are authorized to manage.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -45,11 +45,11 @@ As a Host, I want to manage Trip Images so that the CTMS workflow is completed s
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-28-T01, CTMS-28-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-28-T01, CTMS-28-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-21. | CTMS-28-T01, CTMS-28-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-081: Booking capacity, booking member, and seat reservation rules apply. | CTMS-28-T01, CTMS-28-T02 | Tests and review evidence must prove this rule is enforced for `Manage Trip Images`. |
-| BR-082: Booking capacity, booking member, and seat reservation rules apply. | CTMS-28-T01, CTMS-28-T02 | Tests and review evidence must prove this rule is enforced for `Manage Trip Images`. |
-| BR-083: Booking capacity, booking member, and seat reservation rules apply. | CTMS-28-T01, CTMS-28-T02 | Tests and review evidence must prove this rule is enforced for `Manage Trip Images`. |
-| BR-206: External service, API error, pagination, media, background job, offline sync, and side-effect rules apply. | CTMS-28-T01, CTMS-28-T02 | Tests and review evidence must prove this rule is enforced for `Manage Trip Images`. |
-| BR-207: External service, API error, pagination, media, background job, offline sync, and side-effect rules apply. | CTMS-28-T01, CTMS-28-T02 | Tests and review evidence must prove this rule is enforced for `Manage Trip Images`. |
+| BR-081: The owning Host may add, remove, and sort trip_media while the Trip is not ongoing or completed; sort_order must be defined. | CTMS-28-T01, CTMS-28-T02 | Tests and review evidence must prove this rule is enforced for `Manage Trip Images`. |
+| BR-082: Each trip_media record must have a valid trip_id, uploaded/verified URL, valid type, and non-negative sort_order. | CTMS-28-T01, CTMS-28-T02 | Tests and review evidence must prove this rule is enforced for `Manage Trip Images`. |
+| BR-083: trip_media must not be updated when Trip status is ongoing, completed, or cancelled unless an admin permission or explicitly defined flow allows it. | CTMS-28-T01, CTMS-28-T02 | Tests and review evidence must prove this rule is enforced for `Manage Trip Images`. |
+| BR-206: Media must store URL and required metadata; client-provided URLs are valid only after the upload/verification flow completes. | CTMS-28-T01, CTMS-28-T02 | Tests and review evidence must prove this rule is enforced for `Manage Trip Images`. |
+| BR-207: Users may add, remove, or sort media only for resources they own or are authorized to manage. | CTMS-28-T01, CTMS-28-T02 | Tests and review evidence must prove this rule is enforced for `Manage Trip Images`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

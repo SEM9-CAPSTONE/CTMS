@@ -19,11 +19,11 @@ As a Camper, I want to cancel Booking According to Policy so that the CTMS workf
 - [ ] The workflow respects its V3 dependencies: CTMS-29.
 
 ## Business Rules Checklist
-- [ ] BR-100: Payment, refund, settlement, and financial idempotency rules apply.
-- [ ] BR-101: Payment, refund, settlement, and financial idempotency rules apply.
-- [ ] BR-102: Payment, refund, settlement, and financial idempotency rules apply.
-- [ ] BR-103: Payment, refund, settlement, and financial idempotency rules apply.
-- [ ] BR-104: Payment, refund, settlement, and financial idempotency rules apply.
+- [ ] BR-100: Cancellation fee and refund eligibility must be calculated from the booking's cancellation_policy_snapshot and cancellation time; do not read the Trip's current policy to change an old order.
+- [ ] BR-101: A valid booking cancellation must update status = cancelled, cancelled_at, and cancelled_by; repeated requests must be idempotent.
+- [ ] BR-102: If the Booking is counted in seats_taken, cancellation must reduce seats by exactly num_people and exactly once.
+- [ ] BR-103: Reserved equipment_reservations for a cancelled Booking must move to cancelled; already picked_up items must follow a separate return/damage flow.
+- [ ] BR-104: Cancellation must write an audit record with actor, target booking, before/after, and reason; sensitive payment data must not be logged.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -45,11 +45,11 @@ As a Camper, I want to cancel Booking According to Policy so that the CTMS workf
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-34-T01, CTMS-34-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-34-T01, CTMS-34-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-29. | CTMS-34-T01, CTMS-34-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-100: Payment, refund, settlement, and financial idempotency rules apply. | CTMS-34-T01, CTMS-34-T02 | Tests and review evidence must prove this rule is enforced for `Cancel Booking According to Policy`. |
-| BR-101: Payment, refund, settlement, and financial idempotency rules apply. | CTMS-34-T01, CTMS-34-T02 | Tests and review evidence must prove this rule is enforced for `Cancel Booking According to Policy`. |
-| BR-102: Payment, refund, settlement, and financial idempotency rules apply. | CTMS-34-T01, CTMS-34-T02 | Tests and review evidence must prove this rule is enforced for `Cancel Booking According to Policy`. |
-| BR-103: Payment, refund, settlement, and financial idempotency rules apply. | CTMS-34-T01, CTMS-34-T02 | Tests and review evidence must prove this rule is enforced for `Cancel Booking According to Policy`. |
-| BR-104: Payment, refund, settlement, and financial idempotency rules apply. | CTMS-34-T01, CTMS-34-T02 | Tests and review evidence must prove this rule is enforced for `Cancel Booking According to Policy`. |
+| BR-100: Cancellation fee and refund eligibility must be calculated from the booking's cancellation_policy_snapshot and cancellation time; do not read the Trip's current policy to change an old order. | CTMS-34-T01, CTMS-34-T02 | Tests and review evidence must prove this rule is enforced for `Cancel Booking According to Policy`. |
+| BR-101: A valid booking cancellation must update status = cancelled, cancelled_at, and cancelled_by; repeated requests must be idempotent. | CTMS-34-T01, CTMS-34-T02 | Tests and review evidence must prove this rule is enforced for `Cancel Booking According to Policy`. |
+| BR-102: If the Booking is counted in seats_taken, cancellation must reduce seats by exactly num_people and exactly once. | CTMS-34-T01, CTMS-34-T02 | Tests and review evidence must prove this rule is enforced for `Cancel Booking According to Policy`. |
+| BR-103: Reserved equipment_reservations for a cancelled Booking must move to cancelled; already picked_up items must follow a separate return/damage flow. | CTMS-34-T01, CTMS-34-T02 | Tests and review evidence must prove this rule is enforced for `Cancel Booking According to Policy`. |
+| BR-104: Cancellation must write an audit record with actor, target booking, before/after, and reason; sensitive payment data must not be logged. | CTMS-34-T01, CTMS-34-T02 | Tests and review evidence must prove this rule is enforced for `Cancel Booking According to Policy`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

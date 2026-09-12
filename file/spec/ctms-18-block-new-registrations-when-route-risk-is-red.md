@@ -19,8 +19,8 @@ As the System, I want to block New Registrations when Route Risk Is Red so that 
 - [ ] The workflow respects its V3 dependencies: CTMS-16.
 
 ## Business Rules Checklist
-- [ ] BR-046: Weather risk, weather data, scoring, advisory, and weather configuration rules apply.
-- [ ] BR-047: Weather risk, weather data, scoring, advisory, and weather configuration rules apply.
+- [ ] BR-046: Do not create a new booking if the latest valid assessment for the Trip route has level Red under the effective policy; the backend must check this immediately before reserving seats.
+- [ ] BR-047: When booking is blocked by Weather Risk, the response/UI must show the reason and assessment time used for the decision without exposing unnecessary internal data.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -42,8 +42,8 @@ As the System, I want to block New Registrations when Route Risk Is Red so that 
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-18-T01, CTMS-18-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-18-T01, CTMS-18-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-16. | CTMS-18-T01, CTMS-18-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-046: Weather risk, weather data, scoring, advisory, and weather configuration rules apply. | CTMS-18-T01, CTMS-18-T02 | Tests and review evidence must prove this rule is enforced for `Block New Registrations when Route Risk Is Red`. |
-| BR-047: Weather risk, weather data, scoring, advisory, and weather configuration rules apply. | CTMS-18-T01, CTMS-18-T02 | Tests and review evidence must prove this rule is enforced for `Block New Registrations when Route Risk Is Red`. |
+| BR-046: Do not create a new booking if the latest valid assessment for the Trip route has level Red under the effective policy; the backend must check this immediately before reserving seats. | CTMS-18-T01, CTMS-18-T02 | Tests and review evidence must prove this rule is enforced for `Block New Registrations when Route Risk Is Red`. |
+| BR-047: When booking is blocked by Weather Risk, the response/UI must show the reason and assessment time used for the decision without exposing unnecessary internal data. | CTMS-18-T01, CTMS-18-T02 | Tests and review evidence must prove this rule is enforced for `Block New Registrations when Route Risk Is Red`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

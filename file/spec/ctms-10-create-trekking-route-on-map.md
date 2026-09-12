@@ -19,9 +19,9 @@ As a Host, I want to create Trekking Route on Map so that the CTMS workflow is c
 - [ ] The workflow respects its V3 dependencies: CTMS-06.
 
 ## Business Rules Checklist
-- [ ] BR-027: Route, checkpoint, hazard, and route versioning rules apply.
-- [ ] BR-037: Route, checkpoint, hazard, and route versioning rules apply.
-- [ ] BR-217: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply.
+- [ ] BR-027: A Trekking Route belongs to a Host through route.host_id and must store at minimum name, route_geom LineString(4326), start_location, end_location, distance_km > 0, difficulty, estimated_duration > 0, porter_required, version, and status; Route management authorization is based on route.host_id.
+- [ ] BR-037: When a Trip is submitted or published, the system must bind it to the approved Route version used for approval. Later Route changes must create a new version or equivalent immutable snapshot and must not silently change geometry, checkpoints, or hazards for already published Trips; Trips that use a new version must go through material-change/reapproval.
+- [ ] BR-217: Routes, checkpoints, hazard areas, and raw geometry are internal operational data for Host/Admin/System; Camper APIs must not provide Route List/Route Detail or expose raw route_geom/checkpoint/hazard management data.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -43,9 +43,9 @@ As a Host, I want to create Trekking Route on Map so that the CTMS workflow is c
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-10-T01, CTMS-10-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-10-T01, CTMS-10-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-06. | CTMS-10-T01, CTMS-10-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-027: Route, checkpoint, hazard, and route versioning rules apply. | CTMS-10-T01, CTMS-10-T02 | Tests and review evidence must prove this rule is enforced for `Create Trekking Route on Map`. |
-| BR-037: Route, checkpoint, hazard, and route versioning rules apply. | CTMS-10-T01, CTMS-10-T02 | Tests and review evidence must prove this rule is enforced for `Create Trekking Route on Map`. |
-| BR-217: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply. | CTMS-10-T01, CTMS-10-T02 | Tests and review evidence must prove this rule is enforced for `Create Trekking Route on Map`. |
+| BR-027: A Trekking Route belongs to a Host through route.host_id and must store at minimum name, route_geom LineString(4326), start_location, end_location, distance_km > 0, difficulty, estimated_duration > 0, porter_required, version, and status; Route management authorization is based on route.host_id. | CTMS-10-T01, CTMS-10-T02 | Tests and review evidence must prove this rule is enforced for `Create Trekking Route on Map`. |
+| BR-037: When a Trip is submitted or published, the system must bind it to the approved Route version used for approval. Later Route changes must create a new version or equivalent immutable snapshot and must not silently change geometry, checkpoints, or hazards for already published Trips; Trips that use a new version must go through material-change/reapproval. | CTMS-10-T01, CTMS-10-T02 | Tests and review evidence must prove this rule is enforced for `Create Trekking Route on Map`. |
+| BR-217: Routes, checkpoints, hazard areas, and raw geometry are internal operational data for Host/Admin/System; Camper APIs must not provide Route List/Route Detail or expose raw route_geom/checkpoint/hazard management data. | CTMS-10-T01, CTMS-10-T02 | Tests and review evidence must prove this rule is enforced for `Create Trekking Route on Map`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

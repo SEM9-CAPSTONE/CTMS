@@ -21,7 +21,7 @@ As the System, I want to establish Authenticated WebSocket Connection so that th
 ## Business Rules Checklist
 - [ ] BR-173: Authentication token, permission, idempotency, and sensitive-data safeguards apply.
 - [ ] BR-175: Authentication token, permission, idempotency, and sensitive-data safeguards apply.
-- [ ] BR-197: Audit, notification, emergency, and user preference rules apply.
+- [ ] BR-197: Notification/event side effects may be enqueued/sent only after the main business transaction commits successfully, preferably through outbox/queue; notification failure must not roll back the committed business result.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -45,7 +45,7 @@ As the System, I want to establish Authenticated WebSocket Connection so that th
 | AC4: The workflow respects its V3 dependencies: CTMS-03. | CTMS-82-T01, CTMS-82-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | BR-173: Authentication token, permission, idempotency, and sensitive-data safeguards apply. | CTMS-82-T01, CTMS-82-T02 | Tests and review evidence must prove this rule is enforced for `Establish Authenticated WebSocket Connection`. |
 | BR-175: Authentication token, permission, idempotency, and sensitive-data safeguards apply. | CTMS-82-T01, CTMS-82-T02 | Tests and review evidence must prove this rule is enforced for `Establish Authenticated WebSocket Connection`. |
-| BR-197: Audit, notification, emergency, and user preference rules apply. | CTMS-82-T01, CTMS-82-T02 | Tests and review evidence must prove this rule is enforced for `Establish Authenticated WebSocket Connection`. |
+| BR-197: Notification/event side effects may be enqueued/sent only after the main business transaction commits successfully, preferably through outbox/queue; notification failure must not roll back the committed business result. | CTMS-82-T01, CTMS-82-T02 | Tests and review evidence must prove this rule is enforced for `Establish Authenticated WebSocket Connection`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

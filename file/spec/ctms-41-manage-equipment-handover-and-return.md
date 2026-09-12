@@ -19,13 +19,13 @@ As a Host, I want to manage Equipment Handover and Return so that the CTMS workf
 - [ ] The workflow respects its V3 dependencies: CTMS-40, CTMS-37.
 
 ## Business Rules Checklist
-- [ ] BR-132: Equipment, service, rental, handover, return, and packing list rules apply.
-- [ ] BR-133: Equipment, service, rental, handover, return, and packing list rules apply.
-- [ ] BR-134: Equipment, service, rental, handover, return, and packing list rules apply.
-- [ ] BR-135: Equipment, service, rental, handover, return, and packing list rules apply.
-- [ ] BR-136: Equipment, service, rental, handover, return, and packing list rules apply.
-- [ ] BR-137: Equipment, service, rental, handover, return, and packing list rules apply.
-- [ ] BR-138: Equipment, service, rental, handover, return, and packing list rules apply.
+- [ ] BR-132: A valid handover moves the reservation from reserved to picked_up and stores picked_up_at, recipient, and handed_over_by; repeated operations must be idempotent.
+- [ ] BR-133: MVP manages inventory by quantity on catalog/reservation and does not require equipment_items or equipment_reservation_items per asset; any later per-item implementation is a separate extension, not a rental MVP condition.
+- [ ] BR-134: The equipment recipient must belong to the related Booking/Trip when a user account exists; handed_over_by must be a Host/Porter with Trip permission. Handover time comes from the server, not the client.
+- [ ] BR-135: When equipment is returned, the system must record good_returned_quantity, damaged_quantity, lost_quantity, outstanding_quantity, returned_at, and condition summary from actual data. Outcome quantities must be non-negative, non-overlapping, and sum to picked_up_quantity; the reservation moves to returned only when outstanding = 0 and all quantity is validly handled.
+- [ ] BR-136: Damaged equipment in MVP is recorded through damaged_quantity/condition note on the rental and must not automatically return to available quantity until the Host handles an appropriate inventory adjustment; the system does not automatically create repair orders, maintenance workflows, or complex per-asset lifecycle.
+- [ ] BR-137: Lost equipment must be recorded with lost_quantity and must not count back into available quantity. Reducing quantity_total or restoring quantity when equipment is found may only be done by an explicit audited inventory adjustment by an authorized Host/Admin; client input must not silently change inventory.
+- [ ] BR-138: Overdue/unreturned rentals with outstanding_quantity > 0 may move to not_returned through an idempotent job/manual flow; outstanding quantity remains excluded from available quantity until returned or handled by a valid adjustment, and no maintenance/repair lifecycle is automatically created.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -47,13 +47,13 @@ As a Host, I want to manage Equipment Handover and Return so that the CTMS workf
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-41-T01, CTMS-41-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-41-T01, CTMS-41-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-40, CTMS-37. | CTMS-41-T01, CTMS-41-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-132: Equipment, service, rental, handover, return, and packing list rules apply. | CTMS-41-T01, CTMS-41-T02 | Tests and review evidence must prove this rule is enforced for `Manage Equipment Handover and Return`. |
-| BR-133: Equipment, service, rental, handover, return, and packing list rules apply. | CTMS-41-T01, CTMS-41-T02 | Tests and review evidence must prove this rule is enforced for `Manage Equipment Handover and Return`. |
-| BR-134: Equipment, service, rental, handover, return, and packing list rules apply. | CTMS-41-T01, CTMS-41-T02 | Tests and review evidence must prove this rule is enforced for `Manage Equipment Handover and Return`. |
-| BR-135: Equipment, service, rental, handover, return, and packing list rules apply. | CTMS-41-T01, CTMS-41-T02 | Tests and review evidence must prove this rule is enforced for `Manage Equipment Handover and Return`. |
-| BR-136: Equipment, service, rental, handover, return, and packing list rules apply. | CTMS-41-T01, CTMS-41-T02 | Tests and review evidence must prove this rule is enforced for `Manage Equipment Handover and Return`. |
-| BR-137: Equipment, service, rental, handover, return, and packing list rules apply. | CTMS-41-T01, CTMS-41-T02 | Tests and review evidence must prove this rule is enforced for `Manage Equipment Handover and Return`. |
-| BR-138: Equipment, service, rental, handover, return, and packing list rules apply. | CTMS-41-T01, CTMS-41-T02 | Tests and review evidence must prove this rule is enforced for `Manage Equipment Handover and Return`. |
+| BR-132: A valid handover moves the reservation from reserved to picked_up and stores picked_up_at, recipient, and handed_over_by; repeated operations must be idempotent. | CTMS-41-T01, CTMS-41-T02 | Tests and review evidence must prove this rule is enforced for `Manage Equipment Handover and Return`. |
+| BR-133: MVP manages inventory by quantity on catalog/reservation and does not require equipment_items or equipment_reservation_items per asset; any later per-item implementation is a separate extension, not a rental MVP condition. | CTMS-41-T01, CTMS-41-T02 | Tests and review evidence must prove this rule is enforced for `Manage Equipment Handover and Return`. |
+| BR-134: The equipment recipient must belong to the related Booking/Trip when a user account exists; handed_over_by must be a Host/Porter with Trip permission. Handover time comes from the server, not the client. | CTMS-41-T01, CTMS-41-T02 | Tests and review evidence must prove this rule is enforced for `Manage Equipment Handover and Return`. |
+| BR-135: When equipment is returned, the system must record good_returned_quantity, damaged_quantity, lost_quantity, outstanding_quantity, returned_at, and condition summary from actual data. Outcome quantities must be non-negative, non-overlapping, and sum to picked_up_quantity; the reservation moves to returned only when outstanding = 0 and all quantity is validly handled. | CTMS-41-T01, CTMS-41-T02 | Tests and review evidence must prove this rule is enforced for `Manage Equipment Handover and Return`. |
+| BR-136: Damaged equipment in MVP is recorded through damaged_quantity/condition note on the rental and must not automatically return to available quantity until the Host handles an appropriate inventory adjustment; the system does not automatically create repair orders, maintenance workflows, or complex per-asset lifecycle. | CTMS-41-T01, CTMS-41-T02 | Tests and review evidence must prove this rule is enforced for `Manage Equipment Handover and Return`. |
+| BR-137: Lost equipment must be recorded with lost_quantity and must not count back into available quantity. Reducing quantity_total or restoring quantity when equipment is found may only be done by an explicit audited inventory adjustment by an authorized Host/Admin; client input must not silently change inventory. | CTMS-41-T01, CTMS-41-T02 | Tests and review evidence must prove this rule is enforced for `Manage Equipment Handover and Return`. |
+| BR-138: Overdue/unreturned rentals with outstanding_quantity > 0 may move to not_returned through an idempotent job/manual flow; outstanding quantity remains excluded from available quantity until returned or handled by a valid adjustment, and no maintenance/repair lifecycle is automatically created. | CTMS-41-T01, CTMS-41-T02 | Tests and review evidence must prove this rule is enforced for `Manage Equipment Handover and Return`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.
