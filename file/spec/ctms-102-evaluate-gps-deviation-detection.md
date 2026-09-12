@@ -19,7 +19,7 @@ As the System, I want to evaluate GPS Deviation Detection so that the CTMS workf
 - [ ] The workflow respects its V3 dependencies: CTMS-60.
 
 ## Business Rules Checklist
-- [ ] BR-220: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply.
+- [ ] BR-220: Off-route detection must be able to run on-device using GPS and downloaded offline route data; loss of Internet must not remove local alerts. Events are stored locally and synchronized idempotently when connectivity returns.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -41,7 +41,7 @@ As the System, I want to evaluate GPS Deviation Detection so that the CTMS workf
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-102-T01, CTMS-102-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-102-T01, CTMS-102-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-60. | CTMS-102-T01, CTMS-102-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-220: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply. | CTMS-102-T01, CTMS-102-T02 | Tests and review evidence must prove this rule is enforced for `Evaluate GPS Deviation Detection`. |
+| BR-220: Off-route detection must be able to run on-device using GPS and downloaded offline route data; loss of Internet must not remove local alerts. Events are stored locally and synchronized idempotently when connectivity returns. | CTMS-102-T01, CTMS-102-T02 | Tests and review evidence must prove this rule is enforced for `Evaluate GPS Deviation Detection`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

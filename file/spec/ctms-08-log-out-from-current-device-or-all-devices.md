@@ -19,8 +19,8 @@ As a user, I want to log Out from Current Device or All Devices so that the CTMS
 - [ ] The workflow respects its V3 dependencies: CTMS-03.
 
 ## Business Rules Checklist
-- [ ] BR-023: Profile, emergency contact, and health data access rules apply.
-- [ ] BR-024: Profile, emergency contact, and health data access rules apply.
+- [ ] BR-023: Logging out from the current device must revoke the refresh token/session for that exact device; the current access token must not be renewable with a revoked refresh token.
+- [ ] BR-024: Logging out from all devices must revoke every still-valid refresh token for the user; the operation must be idempotent.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -42,8 +42,8 @@ As a user, I want to log Out from Current Device or All Devices so that the CTMS
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-08-T01, CTMS-08-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-08-T01, CTMS-08-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-03. | CTMS-08-T01, CTMS-08-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-023: Profile, emergency contact, and health data access rules apply. | CTMS-08-T01, CTMS-08-T02 | Tests and review evidence must prove this rule is enforced for `Log Out from Current Device or All Devices`. |
-| BR-024: Profile, emergency contact, and health data access rules apply. | CTMS-08-T01, CTMS-08-T02 | Tests and review evidence must prove this rule is enforced for `Log Out from Current Device or All Devices`. |
+| BR-023: Logging out from the current device must revoke the refresh token/session for that exact device; the current access token must not be renewable with a revoked refresh token. | CTMS-08-T01, CTMS-08-T02 | Tests and review evidence must prove this rule is enforced for `Log Out from Current Device or All Devices`. |
+| BR-024: Logging out from all devices must revoke every still-valid refresh token for the user; the operation must be idempotent. | CTMS-08-T01, CTMS-08-T02 | Tests and review evidence must prove this rule is enforced for `Log Out from Current Device or All Devices`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

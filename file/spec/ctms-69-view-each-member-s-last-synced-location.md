@@ -19,8 +19,8 @@ As a Host, I want to view Each Member's Last Synced Location so that the CTMS wo
 - [ ] The workflow respects its V3 dependencies: CTMS-66.
 
 ## Business Rules Checklist
-- [ ] BR-210: External service, API error, pagination, media, background job, offline sync, and side-effect rules apply.
-- [ ] BR-229: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply.
+- [ ] BR-210: Offline data must have a request identifier or idempotency_key; resending the same sync batch must not create duplicate data.
+- [ ] BR-229: Offline-support features must clearly distinguish local pending data from server-confirmed synchronized data and must not present unsynced data as authoritative server state.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -42,8 +42,8 @@ As a Host, I want to view Each Member's Last Synced Location so that the CTMS wo
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-69-T01, CTMS-69-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-69-T01, CTMS-69-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-66. | CTMS-69-T01, CTMS-69-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-210: External service, API error, pagination, media, background job, offline sync, and side-effect rules apply. | CTMS-69-T01, CTMS-69-T02 | Tests and review evidence must prove this rule is enforced for `View Each Member's Last Synced Location`. |
-| BR-229: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply. | CTMS-69-T01, CTMS-69-T02 | Tests and review evidence must prove this rule is enforced for `View Each Member's Last Synced Location`. |
+| BR-210: Offline data must have a request identifier or idempotency_key; resending the same sync batch must not create duplicate data. | CTMS-69-T01, CTMS-69-T02 | Tests and review evidence must prove this rule is enforced for `View Each Member's Last Synced Location`. |
+| BR-229: Offline-support features must clearly distinguish local pending data from server-confirmed synchronized data and must not present unsynced data as authoritative server state. | CTMS-69-T01, CTMS-69-T02 | Tests and review evidence must prove this rule is enforced for `View Each Member's Last Synced Location`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

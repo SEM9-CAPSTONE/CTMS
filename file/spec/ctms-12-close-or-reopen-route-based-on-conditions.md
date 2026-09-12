@@ -19,10 +19,10 @@ As a Host, I want to close or Reopen Route Based on Conditions so that the CTMS 
 - [ ] The workflow respects its V3 dependencies: CTMS-13.
 
 ## Business Rules Checklist
-- [ ] BR-029: Route, checkpoint, hazard, and route versioning rules apply.
-- [ ] BR-030: Route, checkpoint, hazard, and route versioning rules apply.
-- [ ] BR-032: Route, checkpoint, hazard, and route versioning rules apply.
-- [ ] BR-033: Route, checkpoint, hazard, and route versioning rules apply.
+- [ ] BR-029: Routes with status closed or archived must not be used to create, submit, or publish new Trips and must not accept new bookings for Trips that have not departed; the backend must check route status at the business decision time.
+- [ ] BR-030: When a route used by a published or ongoing Trip is closed for safety reasons, the system must audit the change and notify the related Host, Porter, and Camper after the status update succeeds; it must not automatically delete Trips or Bookings.
+- [ ] BR-032: A Route that is no longer allowed for operation may be moved to closed by an authorized actor; the close reason must be audited and affected Trips must be notified.
+- [ ] BR-033: Do not use a rejected route status; only transitions supported by the route_status enum are allowed.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -44,10 +44,10 @@ As a Host, I want to close or Reopen Route Based on Conditions so that the CTMS 
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-12-T01, CTMS-12-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-12-T01, CTMS-12-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-13. | CTMS-12-T01, CTMS-12-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-029: Route, checkpoint, hazard, and route versioning rules apply. | CTMS-12-T01, CTMS-12-T02 | Tests and review evidence must prove this rule is enforced for `Close or Reopen Route Based on Conditions`. |
-| BR-030: Route, checkpoint, hazard, and route versioning rules apply. | CTMS-12-T01, CTMS-12-T02 | Tests and review evidence must prove this rule is enforced for `Close or Reopen Route Based on Conditions`. |
-| BR-032: Route, checkpoint, hazard, and route versioning rules apply. | CTMS-12-T01, CTMS-12-T02 | Tests and review evidence must prove this rule is enforced for `Close or Reopen Route Based on Conditions`. |
-| BR-033: Route, checkpoint, hazard, and route versioning rules apply. | CTMS-12-T01, CTMS-12-T02 | Tests and review evidence must prove this rule is enforced for `Close or Reopen Route Based on Conditions`. |
+| BR-029: Routes with status closed or archived must not be used to create, submit, or publish new Trips and must not accept new bookings for Trips that have not departed; the backend must check route status at the business decision time. | CTMS-12-T01, CTMS-12-T02 | Tests and review evidence must prove this rule is enforced for `Close or Reopen Route Based on Conditions`. |
+| BR-030: When a route used by a published or ongoing Trip is closed for safety reasons, the system must audit the change and notify the related Host, Porter, and Camper after the status update succeeds; it must not automatically delete Trips or Bookings. | CTMS-12-T01, CTMS-12-T02 | Tests and review evidence must prove this rule is enforced for `Close or Reopen Route Based on Conditions`. |
+| BR-032: A Route that is no longer allowed for operation may be moved to closed by an authorized actor; the close reason must be audited and affected Trips must be notified. | CTMS-12-T01, CTMS-12-T02 | Tests and review evidence must prove this rule is enforced for `Close or Reopen Route Based on Conditions`. |
+| BR-033: Do not use a rejected route status; only transitions supported by the route_status enum are allowed. | CTMS-12-T01, CTMS-12-T02 | Tests and review evidence must prove this rule is enforced for `Close or Reopen Route Based on Conditions`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

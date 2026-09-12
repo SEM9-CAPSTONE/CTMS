@@ -19,7 +19,7 @@ As an Admin, I want to manage Survival Documents so that the CTMS workflow is co
 - [ ] The workflow respects its V3 dependencies: CTMS-06.
 
 ## Business Rules Checklist
-- [ ] BR-230: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply.
+- [ ] BR-230: Survival documents must support upload, classification, review, publication, versioning, and lifecycle status so the knowledge base can identify the authoritative source version.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -41,7 +41,7 @@ As an Admin, I want to manage Survival Documents so that the CTMS workflow is co
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-50-T01, CTMS-50-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-50-T01, CTMS-50-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-06. | CTMS-50-T01, CTMS-50-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-230: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply. | CTMS-50-T01, CTMS-50-T02 | Tests and review evidence must prove this rule is enforced for `Manage Survival Documents`. |
+| BR-230: Survival documents must support upload, classification, review, publication, versioning, and lifecycle status so the knowledge base can identify the authoritative source version. | CTMS-50-T01, CTMS-50-T02 | Tests and review evidence must prove this rule is enforced for `Manage Survival Documents`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

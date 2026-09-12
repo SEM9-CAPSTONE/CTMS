@@ -19,8 +19,8 @@ As an Admin, I want to view Audit Logs so that the CTMS workflow is completed sa
 - [ ] The workflow respects its V3 dependencies: CTMS-109.
 
 ## Business Rules Checklist
-- [ ] BR-168: Administration, audit, content report, moderation, and user account rules apply.
-- [ ] BR-169: Administration, audit, content report, moderation, and user account rules apply.
+- [ ] BR-168: The audit log viewer is available only to authorized actors and supports filtering by actor, action, target, and time; results are paginated.
+- [ ] BR-169: audit_logs are append-only; User and Admin must not edit or delete audit records through UI/API/normal business functions.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -42,8 +42,8 @@ As an Admin, I want to view Audit Logs so that the CTMS workflow is completed sa
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-110-T01, CTMS-110-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-110-T01, CTMS-110-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-109. | CTMS-110-T01, CTMS-110-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-168: Administration, audit, content report, moderation, and user account rules apply. | CTMS-110-T01, CTMS-110-T02 | Tests and review evidence must prove this rule is enforced for `View Audit Logs`. |
-| BR-169: Administration, audit, content report, moderation, and user account rules apply. | CTMS-110-T01, CTMS-110-T02 | Tests and review evidence must prove this rule is enforced for `View Audit Logs`. |
+| BR-168: The audit log viewer is available only to authorized actors and supports filtering by actor, action, target, and time; results are paginated. | CTMS-110-T01, CTMS-110-T02 | Tests and review evidence must prove this rule is enforced for `View Audit Logs`. |
+| BR-169: audit_logs are append-only; User and Admin must not edit or delete audit records through UI/API/normal business functions. | CTMS-110-T01, CTMS-110-T02 | Tests and review evidence must prove this rule is enforced for `View Audit Logs`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

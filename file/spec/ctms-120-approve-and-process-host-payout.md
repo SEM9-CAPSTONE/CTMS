@@ -19,10 +19,10 @@ As an Admin, I want to approve and Process Host Payout so that the CTMS workflow
 - [ ] The workflow respects its V3 dependencies: CTMS-119, CTMS-06.
 
 ## Business Rules Checklist
-- [ ] BR-105: Payment, refund, settlement, and financial idempotency rules apply.
-- [ ] BR-108: Payment, refund, settlement, and financial idempotency rules apply.
+- [ ] BR-105: A refund must create a payment transaction with type refund, parent_payment_id pointing to the original succeeded charge, and a unique idempotency_key.
+- [ ] BR-108: Provider transaction_ref, when available, must be stored uniquely and used for reconciliation/callback; a client response must not be treated as proof of payment.
 - [ ] BR-181: Authentication token, permission, idempotency, and sensitive-data safeguards apply.
-- [ ] BR-194: Audit, notification, emergency, and user preference rules apply.
+- [ ] BR-194: Important actions must be recorded in audit log with actor, action, target, timestamp, before/after data, or reason for change.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -44,10 +44,10 @@ As an Admin, I want to approve and Process Host Payout so that the CTMS workflow
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-120-T01, CTMS-120-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-120-T01, CTMS-120-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-119, CTMS-06. | CTMS-120-T01, CTMS-120-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-105: Payment, refund, settlement, and financial idempotency rules apply. | CTMS-120-T01, CTMS-120-T02 | Tests and review evidence must prove this rule is enforced for `Approve and Process Host Payout`. |
-| BR-108: Payment, refund, settlement, and financial idempotency rules apply. | CTMS-120-T01, CTMS-120-T02 | Tests and review evidence must prove this rule is enforced for `Approve and Process Host Payout`. |
+| BR-105: A refund must create a payment transaction with type refund, parent_payment_id pointing to the original succeeded charge, and a unique idempotency_key. | CTMS-120-T01, CTMS-120-T02 | Tests and review evidence must prove this rule is enforced for `Approve and Process Host Payout`. |
+| BR-108: Provider transaction_ref, when available, must be stored uniquely and used for reconciliation/callback; a client response must not be treated as proof of payment. | CTMS-120-T01, CTMS-120-T02 | Tests and review evidence must prove this rule is enforced for `Approve and Process Host Payout`. |
 | BR-181: Authentication token, permission, idempotency, and sensitive-data safeguards apply. | CTMS-120-T01, CTMS-120-T02 | Tests and review evidence must prove this rule is enforced for `Approve and Process Host Payout`. |
-| BR-194: Audit, notification, emergency, and user preference rules apply. | CTMS-120-T01, CTMS-120-T02 | Tests and review evidence must prove this rule is enforced for `Approve and Process Host Payout`. |
+| BR-194: Important actions must be recorded in audit log with actor, action, target, timestamp, before/after data, or reason for change. | CTMS-120-T01, CTMS-120-T02 | Tests and review evidence must prove this rule is enforced for `Approve and Process Host Payout`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

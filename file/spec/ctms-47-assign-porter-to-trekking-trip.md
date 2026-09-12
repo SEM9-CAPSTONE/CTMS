@@ -19,11 +19,11 @@ As a Host, I want to assign Porter to Trekking Trip so that the CTMS workflow is
 - [ ] The workflow respects its V3 dependencies: CTMS-21, CTMS-43, CTMS-46.
 
 ## Business Rules Checklist
-- [ ] BR-158: Porter profile, availability, request, response, qualification, and assignment rules apply.
-- [ ] BR-159: Porter profile, availability, request, response, qualification, and assignment rules apply.
-- [ ] BR-160: Porter profile, availability, request, response, qualification, and assignment rules apply.
-- [ ] BR-161: Porter profile, availability, request, response, qualification, and assignment rules apply.
-- [ ] BR-225: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply.
+- [ ] BR-158: A Porter may be assigned to a Trip only when an ACCEPTED Porter Request exists for the same Trip/Porter, the Porter/qualification remains valid, and there is no schedule conflict at commit time. Porter Assignment is the authoritative source for holding Porter schedule.
+- [ ] BR-159: porter_assignment.is_lead = true is valid only when the Porter has proficiency for the correct route in proficient or expert.
+- [ ] BR-160: A new Porter Assignment work_range must not overlap an existing active/accepted assignment for the same Porter; the concurrency check must be protected by the database/transaction. Multiple ACCEPTED Porter Requests may coexist, but only the first committed non-conflicting Assignment holds the schedule.
+- [ ] BR-161: Porter Accepting a Porter Request is consent for the Host to create an Assignment from the accepted request; a duplicate assignment accept/decline round is not required. If conditions change before Assignment creation, the backend must revalidate and may reject the Assignment without reverting the Request to PENDING.
+- [ ] BR-225: Before committing qualification, Porter Request, or Porter Assignment changes, the backend must recheck current Porter/profile state, route qualification, request/assignment state, and schedule-conflict rules.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -45,11 +45,11 @@ As a Host, I want to assign Porter to Trekking Trip so that the CTMS workflow is
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-47-T01, CTMS-47-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-47-T01, CTMS-47-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-21, CTMS-43, CTMS-46. | CTMS-47-T01, CTMS-47-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-158: Porter profile, availability, request, response, qualification, and assignment rules apply. | CTMS-47-T01, CTMS-47-T02 | Tests and review evidence must prove this rule is enforced for `Assign Porter to Trekking Trip`. |
-| BR-159: Porter profile, availability, request, response, qualification, and assignment rules apply. | CTMS-47-T01, CTMS-47-T02 | Tests and review evidence must prove this rule is enforced for `Assign Porter to Trekking Trip`. |
-| BR-160: Porter profile, availability, request, response, qualification, and assignment rules apply. | CTMS-47-T01, CTMS-47-T02 | Tests and review evidence must prove this rule is enforced for `Assign Porter to Trekking Trip`. |
-| BR-161: Porter profile, availability, request, response, qualification, and assignment rules apply. | CTMS-47-T01, CTMS-47-T02 | Tests and review evidence must prove this rule is enforced for `Assign Porter to Trekking Trip`. |
-| BR-225: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply. | CTMS-47-T01, CTMS-47-T02 | Tests and review evidence must prove this rule is enforced for `Assign Porter to Trekking Trip`. |
+| BR-158: A Porter may be assigned to a Trip only when an ACCEPTED Porter Request exists for the same Trip/Porter, the Porter/qualification remains valid, and there is no schedule conflict at commit time. Porter Assignment is the authoritative source for holding Porter schedule. | CTMS-47-T01, CTMS-47-T02 | Tests and review evidence must prove this rule is enforced for `Assign Porter to Trekking Trip`. |
+| BR-159: porter_assignment.is_lead = true is valid only when the Porter has proficiency for the correct route in proficient or expert. | CTMS-47-T01, CTMS-47-T02 | Tests and review evidence must prove this rule is enforced for `Assign Porter to Trekking Trip`. |
+| BR-160: A new Porter Assignment work_range must not overlap an existing active/accepted assignment for the same Porter; the concurrency check must be protected by the database/transaction. Multiple ACCEPTED Porter Requests may coexist, but only the first committed non-conflicting Assignment holds the schedule. | CTMS-47-T01, CTMS-47-T02 | Tests and review evidence must prove this rule is enforced for `Assign Porter to Trekking Trip`. |
+| BR-161: Porter Accepting a Porter Request is consent for the Host to create an Assignment from the accepted request; a duplicate assignment accept/decline round is not required. If conditions change before Assignment creation, the backend must revalidate and may reject the Assignment without reverting the Request to PENDING. | CTMS-47-T01, CTMS-47-T02 | Tests and review evidence must prove this rule is enforced for `Assign Porter to Trekking Trip`. |
+| BR-225: Before committing qualification, Porter Request, or Porter Assignment changes, the backend must recheck current Porter/profile state, route qualification, request/assignment state, and schedule-conflict rules. | CTMS-47-T01, CTMS-47-T02 | Tests and review evidence must prove this rule is enforced for `Assign Porter to Trekking Trip`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

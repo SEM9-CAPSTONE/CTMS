@@ -19,9 +19,9 @@ As a user, I want to hold Successful Booking Funds so that the CTMS workflow is 
 - [ ] The workflow respects its V3 dependencies: CTMS-32.
 
 ## Business Rules Checklist
-- [ ] BR-092: Payment, refund, settlement, and financial idempotency rules apply.
-- [ ] BR-093: Payment, refund, settlement, and financial idempotency rules apply.
-- [ ] BR-094: Payment, refund, settlement, and financial idempotency rules apply.
+- [ ] BR-092: Each charge must create a payment transaction with type charge, unique idempotency_key, amount >= 0, and parent_payment_id = NULL.
+- [ ] BR-093: When a charge transaction succeeds, booking.payment_status becomes paid and booking.status becomes confirmed only if the Booking is still valid for confirmation. If the Booking has expired/cancelled or is no longer eligible at callback time, the successful payment remains authoritative but must not reactivate/confirm the Booking; the money must enter an idempotent refund/reconciliation flow by policy.
+- [ ] BR-094: Callbacks/retries with the same idempotency or transaction_ref must not create or apply a successful transaction twice.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -43,9 +43,9 @@ As a user, I want to hold Successful Booking Funds so that the CTMS workflow is 
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-118-T01, CTMS-118-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-118-T01, CTMS-118-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-32. | CTMS-118-T01, CTMS-118-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-092: Payment, refund, settlement, and financial idempotency rules apply. | CTMS-118-T01, CTMS-118-T02 | Tests and review evidence must prove this rule is enforced for `Hold Successful Booking Funds`. |
-| BR-093: Payment, refund, settlement, and financial idempotency rules apply. | CTMS-118-T01, CTMS-118-T02 | Tests and review evidence must prove this rule is enforced for `Hold Successful Booking Funds`. |
-| BR-094: Payment, refund, settlement, and financial idempotency rules apply. | CTMS-118-T01, CTMS-118-T02 | Tests and review evidence must prove this rule is enforced for `Hold Successful Booking Funds`. |
+| BR-092: Each charge must create a payment transaction with type charge, unique idempotency_key, amount >= 0, and parent_payment_id = NULL. | CTMS-118-T01, CTMS-118-T02 | Tests and review evidence must prove this rule is enforced for `Hold Successful Booking Funds`. |
+| BR-093: When a charge transaction succeeds, booking.payment_status becomes paid and booking.status becomes confirmed only if the Booking is still valid for confirmation. If the Booking has expired/cancelled or is no longer eligible at callback time, the successful payment remains authoritative but must not reactivate/confirm the Booking; the money must enter an idempotent refund/reconciliation flow by policy. | CTMS-118-T01, CTMS-118-T02 | Tests and review evidence must prove this rule is enforced for `Hold Successful Booking Funds`. |
+| BR-094: Callbacks/retries with the same idempotency or transaction_ref must not create or apply a successful transaction twice. | CTMS-118-T01, CTMS-118-T02 | Tests and review evidence must prove this rule is enforced for `Hold Successful Booking Funds`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

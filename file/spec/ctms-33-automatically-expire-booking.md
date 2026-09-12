@@ -19,13 +19,13 @@ As the System, I want to automatically Expire Booking so that the CTMS workflow 
 - [ ] The workflow respects its V3 dependencies: CTMS-29, CTMS-32.
 
 ## Business Rules Checklist
-- [ ] BR-095: Payment, refund, settlement, and financial idempotency rules apply.
-- [ ] BR-096: Payment, refund, settlement, and financial idempotency rules apply.
-- [ ] BR-097: Payment, refund, settlement, and financial idempotency rules apply.
-- [ ] BR-098: Payment, refund, settlement, and financial idempotency rules apply.
-- [ ] BR-099: Payment, refund, settlement, and financial idempotency rules apply.
-- [ ] BR-208: External service, API error, pagination, media, background job, offline sync, and side-effect rules apply.
-- [ ] BR-209: External service, API error, pagination, media, background job, offline sync, and side-effect rules apply.
+- [ ] BR-095: A pending_payment Booking with hold_expires_at < now and not paid must be moved to expired by an idempotent job; the job must recheck state before updating.
+- [ ] BR-096: When a Booking expires, seats held by that Booking must be released exactly once in the same transaction.
+- [ ] BR-097: Reserved equipment_reservations for an expired Booking must move to cancelled and release inventory; picked_up reservations must not be automatically cancelled by the expiry flow.
+- [ ] BR-098: Booking expiry must be audited with actor_id NULL/system, action booking_expired, target booking, before/after, and reason.
+- [ ] BR-099: Expiry notifications are queued after commit for the booker; notification retry must not rerun the expiry business operation.
+- [ ] BR-208: Background jobs must recheck business conditions at execution time and must not rely entirely on stale state.
+- [ ] BR-209: Background jobs must be safely rerunnable; the same record must not be expired, cancelled, refunded, or notified multiple times by multiple workers.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -47,13 +47,13 @@ As the System, I want to automatically Expire Booking so that the CTMS workflow 
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-33-T01, CTMS-33-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-33-T01, CTMS-33-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-29, CTMS-32. | CTMS-33-T01, CTMS-33-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-095: Payment, refund, settlement, and financial idempotency rules apply. | CTMS-33-T01, CTMS-33-T02 | Tests and review evidence must prove this rule is enforced for `Automatically Expire Booking`. |
-| BR-096: Payment, refund, settlement, and financial idempotency rules apply. | CTMS-33-T01, CTMS-33-T02 | Tests and review evidence must prove this rule is enforced for `Automatically Expire Booking`. |
-| BR-097: Payment, refund, settlement, and financial idempotency rules apply. | CTMS-33-T01, CTMS-33-T02 | Tests and review evidence must prove this rule is enforced for `Automatically Expire Booking`. |
-| BR-098: Payment, refund, settlement, and financial idempotency rules apply. | CTMS-33-T01, CTMS-33-T02 | Tests and review evidence must prove this rule is enforced for `Automatically Expire Booking`. |
-| BR-099: Payment, refund, settlement, and financial idempotency rules apply. | CTMS-33-T01, CTMS-33-T02 | Tests and review evidence must prove this rule is enforced for `Automatically Expire Booking`. |
-| BR-208: External service, API error, pagination, media, background job, offline sync, and side-effect rules apply. | CTMS-33-T01, CTMS-33-T02 | Tests and review evidence must prove this rule is enforced for `Automatically Expire Booking`. |
-| BR-209: External service, API error, pagination, media, background job, offline sync, and side-effect rules apply. | CTMS-33-T01, CTMS-33-T02 | Tests and review evidence must prove this rule is enforced for `Automatically Expire Booking`. |
+| BR-095: A pending_payment Booking with hold_expires_at < now and not paid must be moved to expired by an idempotent job; the job must recheck state before updating. | CTMS-33-T01, CTMS-33-T02 | Tests and review evidence must prove this rule is enforced for `Automatically Expire Booking`. |
+| BR-096: When a Booking expires, seats held by that Booking must be released exactly once in the same transaction. | CTMS-33-T01, CTMS-33-T02 | Tests and review evidence must prove this rule is enforced for `Automatically Expire Booking`. |
+| BR-097: Reserved equipment_reservations for an expired Booking must move to cancelled and release inventory; picked_up reservations must not be automatically cancelled by the expiry flow. | CTMS-33-T01, CTMS-33-T02 | Tests and review evidence must prove this rule is enforced for `Automatically Expire Booking`. |
+| BR-098: Booking expiry must be audited with actor_id NULL/system, action booking_expired, target booking, before/after, and reason. | CTMS-33-T01, CTMS-33-T02 | Tests and review evidence must prove this rule is enforced for `Automatically Expire Booking`. |
+| BR-099: Expiry notifications are queued after commit for the booker; notification retry must not rerun the expiry business operation. | CTMS-33-T01, CTMS-33-T02 | Tests and review evidence must prove this rule is enforced for `Automatically Expire Booking`. |
+| BR-208: Background jobs must recheck business conditions at execution time and must not rely entirely on stale state. | CTMS-33-T01, CTMS-33-T02 | Tests and review evidence must prove this rule is enforced for `Automatically Expire Booking`. |
+| BR-209: Background jobs must be safely rerunnable; the same record must not be expired, cancelled, refunded, or notified multiple times by multiple workers. | CTMS-33-T01, CTMS-33-T02 | Tests and review evidence must prove this rule is enforced for `Automatically Expire Booking`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

@@ -19,8 +19,8 @@ As the System, I want to retry Failed Synchronization so that the CTMS workflow 
 - [ ] The workflow respects its V3 dependencies: CTMS-66.
 
 ## Business Rules Checklist
-- [ ] BR-201: External service, API error, pagination, media, background job, offline sync, and side-effect rules apply.
-- [ ] BR-210: External service, API error, pagination, media, background job, offline sync, and side-effect rules apply.
+- [ ] BR-201: External service retries must have limits and backoff; retries must not create duplicate records or transactions.
+- [ ] BR-210: Offline data must have a request identifier or idempotency_key; resending the same sync batch must not create duplicate data.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -42,8 +42,8 @@ As the System, I want to retry Failed Synchronization so that the CTMS workflow 
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-68-T01, CTMS-68-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-68-T01, CTMS-68-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-66. | CTMS-68-T01, CTMS-68-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-201: External service, API error, pagination, media, background job, offline sync, and side-effect rules apply. | CTMS-68-T01, CTMS-68-T02 | Tests and review evidence must prove this rule is enforced for `Retry Failed Synchronization`. |
-| BR-210: External service, API error, pagination, media, background job, offline sync, and side-effect rules apply. | CTMS-68-T01, CTMS-68-T02 | Tests and review evidence must prove this rule is enforced for `Retry Failed Synchronization`. |
+| BR-201: External service retries must have limits and backoff; retries must not create duplicate records or transactions. | CTMS-68-T01, CTMS-68-T02 | Tests and review evidence must prove this rule is enforced for `Retry Failed Synchronization`. |
+| BR-210: Offline data must have a request identifier or idempotency_key; resending the same sync batch must not create duplicate data. | CTMS-68-T01, CTMS-68-T02 | Tests and review evidence must prove this rule is enforced for `Retry Failed Synchronization`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

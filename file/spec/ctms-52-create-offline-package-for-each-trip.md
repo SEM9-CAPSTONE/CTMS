@@ -19,7 +19,7 @@ As the System, I want to create Offline Package for Each Trip so that the CTMS w
 - [ ] The workflow respects its V3 dependencies: CTMS-11, CTMS-14, CTMS-16, CTMS-23, CTMS-30, CTMS-32, CTMS-42, CTMS-47, CTMS-51.
 
 ## Business Rules Checklist
-- [ ] BR-232: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply.
+- [ ] BR-232: Offline packages may be created only for published Trips and must contain the Route version, checkpoints, trip waypoints, hazard areas, packing list, weather snapshot, and appropriate survival knowledge; roster/medical data may be included only for eligible members and medical profiles with consent. Each source change must create a new version with source snapshot, file URL, checksum, and size.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -41,7 +41,7 @@ As the System, I want to create Offline Package for Each Trip so that the CTMS w
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-52-T01, CTMS-52-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-52-T01, CTMS-52-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-11, CTMS-14, CTMS-16, CTMS-23, CTMS-30, CTMS-32, CTMS-42, CTMS-47, CTMS-51. | CTMS-52-T01, CTMS-52-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-232: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply. | CTMS-52-T01, CTMS-52-T02 | Tests and review evidence must prove this rule is enforced for `Create Offline Package for Each Trip`. |
+| BR-232: Offline packages may be created only for published Trips and must contain the Route version, checkpoints, trip waypoints, hazard areas, packing list, weather snapshot, and appropriate survival knowledge; roster/medical data may be included only for eligible members and medical profiles with consent. Each source change must create a new version with source snapshot, file URL, checksum, and size. | CTMS-52-T01, CTMS-52-T02 | Tests and review evidence must prove this rule is enforced for `Create Offline Package for Each Trip`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

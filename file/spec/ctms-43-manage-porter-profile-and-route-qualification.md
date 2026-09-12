@@ -19,12 +19,12 @@ As a Porter, I want to manage Porter Profile and Route Qualification so that the
 - [ ] The workflow respects its V3 dependencies: CTMS-06, CTMS-13.
 
 ## Business Rules Checklist
-- [ ] BR-141: Porter profile, availability, request, response, qualification, and assignment rules apply.
-- [ ] BR-142: Porter profile, availability, request, response, qualification, and assignment rules apply.
-- [ ] BR-154: Porter profile, availability, request, response, qualification, and assignment rules apply.
-- [ ] BR-155: Porter profile, availability, request, response, qualification, and assignment rules apply.
-- [ ] BR-156: Porter profile, availability, request, response, qualification, and assignment rules apply.
-- [ ] BR-157: Porter profile, availability, request, response, qualification, and assignment rules apply.
+- [ ] BR-141: porter_profiles must store experience_years >= 0, certifications, languages, availability_status, rating_avg, and completed_trips according to schema; Porter Profile is the Porter's independent profile.
+- [ ] BR-142: Porter is an independent actor. Collaboration scope with a Host is defined by Porter Request and Porter Assignment for each Trip; no intermediate location membership resource is maintained.
+- [ ] BR-154: Porter route qualification is managed independently by porter_id + route_id; only an active Porter with a valid profile may have porter_routes created/updated under system verification permissions.
+- [ ] BR-155: porter_routes.proficiency may only be learning, proficient, or expert; learning is not eligible for lead.
+- [ ] BR-156: Proficiency verification must store times_led >= 0, verified_by, and verified_at. verified_by may only be an authenticated Host who owns/manages the corresponding Route or an authorized Admin; a Porter may have only one current qualification record per route.
+- [ ] BR-157: A unique constraint on (porter_id, route_id) must prevent duplicate current proficiency records; history, if needed, must be stored separately.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -46,12 +46,12 @@ As a Porter, I want to manage Porter Profile and Route Qualification so that the
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-43-T01, CTMS-43-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-43-T01, CTMS-43-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-06, CTMS-13. | CTMS-43-T01, CTMS-43-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-141: Porter profile, availability, request, response, qualification, and assignment rules apply. | CTMS-43-T01, CTMS-43-T02 | Tests and review evidence must prove this rule is enforced for `Manage Porter Profile and Route Qualification`. |
-| BR-142: Porter profile, availability, request, response, qualification, and assignment rules apply. | CTMS-43-T01, CTMS-43-T02 | Tests and review evidence must prove this rule is enforced for `Manage Porter Profile and Route Qualification`. |
-| BR-154: Porter profile, availability, request, response, qualification, and assignment rules apply. | CTMS-43-T01, CTMS-43-T02 | Tests and review evidence must prove this rule is enforced for `Manage Porter Profile and Route Qualification`. |
-| BR-155: Porter profile, availability, request, response, qualification, and assignment rules apply. | CTMS-43-T01, CTMS-43-T02 | Tests and review evidence must prove this rule is enforced for `Manage Porter Profile and Route Qualification`. |
-| BR-156: Porter profile, availability, request, response, qualification, and assignment rules apply. | CTMS-43-T01, CTMS-43-T02 | Tests and review evidence must prove this rule is enforced for `Manage Porter Profile and Route Qualification`. |
-| BR-157: Porter profile, availability, request, response, qualification, and assignment rules apply. | CTMS-43-T01, CTMS-43-T02 | Tests and review evidence must prove this rule is enforced for `Manage Porter Profile and Route Qualification`. |
+| BR-141: porter_profiles must store experience_years >= 0, certifications, languages, availability_status, rating_avg, and completed_trips according to schema; Porter Profile is the Porter's independent profile. | CTMS-43-T01, CTMS-43-T02 | Tests and review evidence must prove this rule is enforced for `Manage Porter Profile and Route Qualification`. |
+| BR-142: Porter is an independent actor. Collaboration scope with a Host is defined by Porter Request and Porter Assignment for each Trip; no intermediate location membership resource is maintained. | CTMS-43-T01, CTMS-43-T02 | Tests and review evidence must prove this rule is enforced for `Manage Porter Profile and Route Qualification`. |
+| BR-154: Porter route qualification is managed independently by porter_id + route_id; only an active Porter with a valid profile may have porter_routes created/updated under system verification permissions. | CTMS-43-T01, CTMS-43-T02 | Tests and review evidence must prove this rule is enforced for `Manage Porter Profile and Route Qualification`. |
+| BR-155: porter_routes.proficiency may only be learning, proficient, or expert; learning is not eligible for lead. | CTMS-43-T01, CTMS-43-T02 | Tests and review evidence must prove this rule is enforced for `Manage Porter Profile and Route Qualification`. |
+| BR-156: Proficiency verification must store times_led >= 0, verified_by, and verified_at. verified_by may only be an authenticated Host who owns/manages the corresponding Route or an authorized Admin; a Porter may have only one current qualification record per route. | CTMS-43-T01, CTMS-43-T02 | Tests and review evidence must prove this rule is enforced for `Manage Porter Profile and Route Qualification`. |
+| BR-157: A unique constraint on (porter_id, route_id) must prevent duplicate current proficiency records; history, if needed, must be stored separately. | CTMS-43-T01, CTMS-43-T02 | Tests and review evidence must prove this rule is enforced for `Manage Porter Profile and Route Qualification`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

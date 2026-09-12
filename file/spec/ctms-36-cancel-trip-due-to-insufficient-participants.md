@@ -19,9 +19,9 @@ As the System, I want to cancel Trip Due to Insufficient Participants so that th
 - [ ] The workflow respects its V3 dependencies: CTMS-23, CTMS-32, CTMS-35.
 
 ## Business Rules Checklist
-- [ ] BR-109: Trip cancellation, check-in, completion, and participant outcome rules apply.
-- [ ] BR-110: Trip cancellation, check-in, completion, and participant outcome rules apply.
-- [ ] BR-111: Trip cancellation, check-in, completion, and participant outcome rules apply.
+- [ ] BR-109: After booking_deadline, a background job may auto-cancel only Trips still published when confirmed_participant_count < capacity_min; confirmed_participant_count counts only eligible confirmed Booking participants, not pending_payment seat holds. The job must be idempotent and recheck conditions inside the transaction.
+- [ ] BR-110: When a Trip is auto-cancelled, unused equipment_reservations must be released/cancelled and related porter_assignments must move to the appropriate state for the flow.
+- [ ] BR-111: Bookings for a cancelled Trip must be moved/cancelled by policy, refunds created when needed, and affected users notified after commit; duplicate refunds are not allowed.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -43,9 +43,9 @@ As the System, I want to cancel Trip Due to Insufficient Participants so that th
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-36-T01, CTMS-36-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-36-T01, CTMS-36-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-23, CTMS-32, CTMS-35. | CTMS-36-T01, CTMS-36-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-109: Trip cancellation, check-in, completion, and participant outcome rules apply. | CTMS-36-T01, CTMS-36-T02 | Tests and review evidence must prove this rule is enforced for `Cancel Trip Due to Insufficient Participants`. |
-| BR-110: Trip cancellation, check-in, completion, and participant outcome rules apply. | CTMS-36-T01, CTMS-36-T02 | Tests and review evidence must prove this rule is enforced for `Cancel Trip Due to Insufficient Participants`. |
-| BR-111: Trip cancellation, check-in, completion, and participant outcome rules apply. | CTMS-36-T01, CTMS-36-T02 | Tests and review evidence must prove this rule is enforced for `Cancel Trip Due to Insufficient Participants`. |
+| BR-109: After booking_deadline, a background job may auto-cancel only Trips still published when confirmed_participant_count < capacity_min; confirmed_participant_count counts only eligible confirmed Booking participants, not pending_payment seat holds. The job must be idempotent and recheck conditions inside the transaction. | CTMS-36-T01, CTMS-36-T02 | Tests and review evidence must prove this rule is enforced for `Cancel Trip Due to Insufficient Participants`. |
+| BR-110: When a Trip is auto-cancelled, unused equipment_reservations must be released/cancelled and related porter_assignments must move to the appropriate state for the flow. | CTMS-36-T01, CTMS-36-T02 | Tests and review evidence must prove this rule is enforced for `Cancel Trip Due to Insufficient Participants`. |
+| BR-111: Bookings for a cancelled Trip must be moved/cancelled by policy, refunds created when needed, and affected users notified after commit; duplicate refunds are not allowed. | CTMS-36-T01, CTMS-36-T02 | Tests and review evidence must prove this rule is enforced for `Cancel Trip Due to Insufficient Participants`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

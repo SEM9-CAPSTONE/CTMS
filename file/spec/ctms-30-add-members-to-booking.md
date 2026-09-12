@@ -19,10 +19,10 @@ As a Camper, I want to add Members to Booking so that the CTMS workflow is compl
 - [ ] The workflow respects its V3 dependencies: CTMS-29.
 
 ## Business Rules Checklist
-- [ ] BR-087: Booking capacity, booking member, and seat reservation rules apply.
-- [ ] BR-088: Booking capacity, booking member, and seat reservation rules apply.
-- [ ] BR-089: Booking capacity, booking member, and seat reservation rules apply.
-- [ ] BR-090: Booking capacity, booking member, and seat reservation rules apply.
+- [ ] BR-087: booking_members stores all participants and their historical statuses, including the booker; before Trip start, members with status removed do not count as currently holding/confirmed seats. Each Booking must not have effective participants exceeding num_people.
+- [ ] BR-088: Each Booking must have exactly one booking_member with is_primary = true.
+- [ ] BR-089: Before Trip start, bookings.num_people must equal the count of effective booking_members not in status removed; adding/removing members must update num_people and seat reservation in the same transaction. After Trip start, changing members to joined/no_show/left is operational lifecycle and must not retroactively change the seats used by the historical Booking.
+- [ ] BR-090: A non-null user_id must not appear more than once in the same Booking; adding a member must not make the Booking exceed trips.capacity_max.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -44,10 +44,10 @@ As a Camper, I want to add Members to Booking so that the CTMS workflow is compl
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-30-T01, CTMS-30-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-30-T01, CTMS-30-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-29. | CTMS-30-T01, CTMS-30-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-087: Booking capacity, booking member, and seat reservation rules apply. | CTMS-30-T01, CTMS-30-T02 | Tests and review evidence must prove this rule is enforced for `Add Members to Booking`. |
-| BR-088: Booking capacity, booking member, and seat reservation rules apply. | CTMS-30-T01, CTMS-30-T02 | Tests and review evidence must prove this rule is enforced for `Add Members to Booking`. |
-| BR-089: Booking capacity, booking member, and seat reservation rules apply. | CTMS-30-T01, CTMS-30-T02 | Tests and review evidence must prove this rule is enforced for `Add Members to Booking`. |
-| BR-090: Booking capacity, booking member, and seat reservation rules apply. | CTMS-30-T01, CTMS-30-T02 | Tests and review evidence must prove this rule is enforced for `Add Members to Booking`. |
+| BR-087: booking_members stores all participants and their historical statuses, including the booker; before Trip start, members with status removed do not count as currently holding/confirmed seats. Each Booking must not have effective participants exceeding num_people. | CTMS-30-T01, CTMS-30-T02 | Tests and review evidence must prove this rule is enforced for `Add Members to Booking`. |
+| BR-088: Each Booking must have exactly one booking_member with is_primary = true. | CTMS-30-T01, CTMS-30-T02 | Tests and review evidence must prove this rule is enforced for `Add Members to Booking`. |
+| BR-089: Before Trip start, bookings.num_people must equal the count of effective booking_members not in status removed; adding/removing members must update num_people and seat reservation in the same transaction. After Trip start, changing members to joined/no_show/left is operational lifecycle and must not retroactively change the seats used by the historical Booking. | CTMS-30-T01, CTMS-30-T02 | Tests and review evidence must prove this rule is enforced for `Add Members to Booking`. |
+| BR-090: A non-null user_id must not appear more than once in the same Booking; adding a member must not make the Booking exceed trips.capacity_max. | CTMS-30-T01, CTMS-30-T02 | Tests and review evidence must prove this rule is enforced for `Add Members to Booking`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

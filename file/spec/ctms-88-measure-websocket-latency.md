@@ -19,7 +19,7 @@ As the System, I want to measure WebSocket Latency so that the CTMS workflow is 
 - [ ] The workflow respects its V3 dependencies: CTMS-82.
 
 ## Business Rules Checklist
-- [ ] BR-197: Audit, notification, emergency, and user preference rules apply.
+- [ ] BR-197: Notification/event side effects may be enqueued/sent only after the main business transaction commits successfully, preferably through outbox/queue; notification failure must not roll back the committed business result.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -41,7 +41,7 @@ As the System, I want to measure WebSocket Latency so that the CTMS workflow is 
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-88-T01, CTMS-88-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-88-T01, CTMS-88-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-82. | CTMS-88-T01, CTMS-88-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-197: Audit, notification, emergency, and user preference rules apply. | CTMS-88-T01, CTMS-88-T02 | Tests and review evidence must prove this rule is enforced for `Measure WebSocket Latency`. |
+| BR-197: Notification/event side effects may be enqueued/sent only after the main business transaction commits successfully, preferably through outbox/queue; notification failure must not roll back the committed business result. | CTMS-88-T01, CTMS-88-T02 | Tests and review evidence must prove this rule is enforced for `Measure WebSocket Latency`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

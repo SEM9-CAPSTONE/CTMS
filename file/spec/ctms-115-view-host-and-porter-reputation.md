@@ -19,8 +19,8 @@ As a Host, I want to view Host and Porter Reputation so that the CTMS workflow i
 - [ ] The workflow respects its V3 dependencies: CTMS-98, CTMS-99, CTMS-114.
 
 ## Business Rules Checklist
-- [ ] BR-119: Review, feedback, and reputation rules apply.
-- [ ] BR-204: External service, API error, pagination, media, background job, offline sync, and side-effect rules apply.
+- [ ] BR-119: Only completed Bookings open review rights; the review target must belong to the real booking experience.
+- [ ] BR-204: List APIs must support pagination and record limits; filtering and sorting are allowed only on published fields.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -42,8 +42,8 @@ As a Host, I want to view Host and Porter Reputation so that the CTMS workflow i
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-115-T01, CTMS-115-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-115-T01, CTMS-115-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-98, CTMS-99, CTMS-114. | CTMS-115-T01, CTMS-115-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-119: Review, feedback, and reputation rules apply. | CTMS-115-T01, CTMS-115-T02 | Tests and review evidence must prove this rule is enforced for `View Host and Porter Reputation`. |
-| BR-204: External service, API error, pagination, media, background job, offline sync, and side-effect rules apply. | CTMS-115-T01, CTMS-115-T02 | Tests and review evidence must prove this rule is enforced for `View Host and Porter Reputation`. |
+| BR-119: Only completed Bookings open review rights; the review target must belong to the real booking experience. | CTMS-115-T01, CTMS-115-T02 | Tests and review evidence must prove this rule is enforced for `View Host and Porter Reputation`. |
+| BR-204: List APIs must support pagination and record limits; filtering and sorting are allowed only on published fields. | CTMS-115-T01, CTMS-115-T02 | Tests and review evidence must prove this rule is enforced for `View Host and Porter Reputation`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

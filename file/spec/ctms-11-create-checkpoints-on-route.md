@@ -19,9 +19,9 @@ As a Host, I want to create Checkpoints on Route so that the CTMS workflow is co
 - [ ] The workflow respects its V3 dependencies: CTMS-10.
 
 ## Business Rules Checklist
-- [ ] BR-028: Route, checkpoint, hazard, and route versioning rules apply.
-- [ ] BR-034: Route, checkpoint, hazard, and route versioning rules apply.
-- [ ] BR-035: Route, checkpoint, hazard, and route versioning rules apply.
+- [ ] BR-028: A Checkpoint must belong to an existing route, have location Point(4326), radius_m > 0, type in checkpoint_type, and expected_arrival_offset >= 0; references to another route's checkpoint must be rejected.
+- [ ] BR-034: Checkpoints and hazard areas are shown on Host/Admin operational maps and used by safety/offline features; do not create a public Route browser or Route detail page for Campers.
+- [ ] BR-035: Checkpoint and hazard data needed for a Trip must be included in the offline package for the relevant Route version; an old package must be marked outdated when the source Route changes.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -43,9 +43,9 @@ As a Host, I want to create Checkpoints on Route so that the CTMS workflow is co
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-11-T01, CTMS-11-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-11-T01, CTMS-11-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-10. | CTMS-11-T01, CTMS-11-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-028: Route, checkpoint, hazard, and route versioning rules apply. | CTMS-11-T01, CTMS-11-T02 | Tests and review evidence must prove this rule is enforced for `Create Checkpoints on Route`. |
-| BR-034: Route, checkpoint, hazard, and route versioning rules apply. | CTMS-11-T01, CTMS-11-T02 | Tests and review evidence must prove this rule is enforced for `Create Checkpoints on Route`. |
-| BR-035: Route, checkpoint, hazard, and route versioning rules apply. | CTMS-11-T01, CTMS-11-T02 | Tests and review evidence must prove this rule is enforced for `Create Checkpoints on Route`. |
+| BR-028: A Checkpoint must belong to an existing route, have location Point(4326), radius_m > 0, type in checkpoint_type, and expected_arrival_offset >= 0; references to another route's checkpoint must be rejected. | CTMS-11-T01, CTMS-11-T02 | Tests and review evidence must prove this rule is enforced for `Create Checkpoints on Route`. |
+| BR-034: Checkpoints and hazard areas are shown on Host/Admin operational maps and used by safety/offline features; do not create a public Route browser or Route detail page for Campers. | CTMS-11-T01, CTMS-11-T02 | Tests and review evidence must prove this rule is enforced for `Create Checkpoints on Route`. |
+| BR-035: Checkpoint and hazard data needed for a Trip must be included in the offline package for the relevant Route version; an old package must be marked outdated when the source Route changes. | CTMS-11-T01, CTMS-11-T02 | Tests and review evidence must prove this rule is enforced for `Create Checkpoints on Route`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

@@ -19,10 +19,10 @@ As a Camper, I want to pay for Booking so that the CTMS workflow is completed sa
 - [ ] The workflow respects its V3 dependencies: CTMS-29.
 
 ## Business Rules Checklist
-- [ ] BR-092: Payment, refund, settlement, and financial idempotency rules apply.
-- [ ] BR-093: Payment, refund, settlement, and financial idempotency rules apply.
-- [ ] BR-094: Payment, refund, settlement, and financial idempotency rules apply.
-- [ ] BR-108: Payment, refund, settlement, and financial idempotency rules apply.
+- [ ] BR-092: Each charge must create a payment transaction with type charge, unique idempotency_key, amount >= 0, and parent_payment_id = NULL.
+- [ ] BR-093: When a charge transaction succeeds, booking.payment_status becomes paid and booking.status becomes confirmed only if the Booking is still valid for confirmation. If the Booking has expired/cancelled or is no longer eligible at callback time, the successful payment remains authoritative but must not reactivate/confirm the Booking; the money must enter an idempotent refund/reconciliation flow by policy.
+- [ ] BR-094: Callbacks/retries with the same idempotency or transaction_ref must not create or apply a successful transaction twice.
+- [ ] BR-108: Provider transaction_ref, when available, must be stored uniquely and used for reconciliation/callback; a client response must not be treated as proof of payment.
 - [ ] BR-181: Authentication token, permission, idempotency, and sensitive-data safeguards apply.
 
 ## Dev Notes
@@ -45,10 +45,10 @@ As a Camper, I want to pay for Booking so that the CTMS workflow is completed sa
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-32-T01, CTMS-32-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-32-T01, CTMS-32-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-29. | CTMS-32-T01, CTMS-32-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-092: Payment, refund, settlement, and financial idempotency rules apply. | CTMS-32-T01, CTMS-32-T02 | Tests and review evidence must prove this rule is enforced for `Pay for Booking`. |
-| BR-093: Payment, refund, settlement, and financial idempotency rules apply. | CTMS-32-T01, CTMS-32-T02 | Tests and review evidence must prove this rule is enforced for `Pay for Booking`. |
-| BR-094: Payment, refund, settlement, and financial idempotency rules apply. | CTMS-32-T01, CTMS-32-T02 | Tests and review evidence must prove this rule is enforced for `Pay for Booking`. |
-| BR-108: Payment, refund, settlement, and financial idempotency rules apply. | CTMS-32-T01, CTMS-32-T02 | Tests and review evidence must prove this rule is enforced for `Pay for Booking`. |
+| BR-092: Each charge must create a payment transaction with type charge, unique idempotency_key, amount >= 0, and parent_payment_id = NULL. | CTMS-32-T01, CTMS-32-T02 | Tests and review evidence must prove this rule is enforced for `Pay for Booking`. |
+| BR-093: When a charge transaction succeeds, booking.payment_status becomes paid and booking.status becomes confirmed only if the Booking is still valid for confirmation. If the Booking has expired/cancelled or is no longer eligible at callback time, the successful payment remains authoritative but must not reactivate/confirm the Booking; the money must enter an idempotent refund/reconciliation flow by policy. | CTMS-32-T01, CTMS-32-T02 | Tests and review evidence must prove this rule is enforced for `Pay for Booking`. |
+| BR-094: Callbacks/retries with the same idempotency or transaction_ref must not create or apply a successful transaction twice. | CTMS-32-T01, CTMS-32-T02 | Tests and review evidence must prove this rule is enforced for `Pay for Booking`. |
+| BR-108: Provider transaction_ref, when available, must be stored uniquely and used for reconciliation/callback; a client response must not be treated as proof of payment. | CTMS-32-T01, CTMS-32-T02 | Tests and review evidence must prove this rule is enforced for `Pay for Booking`. |
 | BR-181: Authentication token, permission, idempotency, and sensitive-data safeguards apply. | CTMS-32-T01, CTMS-32-T02 | Tests and review evidence must prove this rule is enforced for `Pay for Booking`. |
 
 ## Story-Specific Risks and Edge Cases

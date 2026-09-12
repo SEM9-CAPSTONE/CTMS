@@ -19,7 +19,7 @@ As a Host, I want to cancel Trip When Weather Risk Remains Red Before Departure 
 - [ ] The workflow respects its V3 dependencies: CTMS-16, CTMS-23, CTMS-32, CTMS-35.
 
 ## Business Rules Checklist
-- [ ] BR-048: Weather risk, weather data, scoring, advisory, and weather configuration rules apply.
+- [ ] BR-048: For Trips with confirmed Bookings, the system must run a safety check 10 hours before trips.starts_at. If the latest still-valid Weather Risk assessment is Red, the Trip must be cancelled by the system safety flow, related Bookings must move to the appropriate cancelled state, affected users must be notified after commit, and paid Bookings must have refund requests created/sent to the payment provider within 24 hours after cancellation. Unpaid Bookings do not generate refunds.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -41,7 +41,7 @@ As a Host, I want to cancel Trip When Weather Risk Remains Red Before Departure 
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-113-T01, CTMS-113-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-113-T01, CTMS-113-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-16, CTMS-23, CTMS-32, CTMS-35. | CTMS-113-T01, CTMS-113-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-048: Weather risk, weather data, scoring, advisory, and weather configuration rules apply. | CTMS-113-T01, CTMS-113-T02 | Tests and review evidence must prove this rule is enforced for `Cancel Trip When Weather Risk Remains Red Before Departure`. |
+| BR-048: For Trips with confirmed Bookings, the system must run a safety check 10 hours before trips.starts_at. If the latest still-valid Weather Risk assessment is Red, the Trip must be cancelled by the system safety flow, related Bookings must move to the appropriate cancelled state, affected users must be notified after commit, and paid Bookings must have refund requests created/sent to the payment provider within 24 hours after cancellation. Unpaid Bookings do not generate refunds. | CTMS-113-T01, CTMS-113-T02 | Tests and review evidence must prove this rule is enforced for `Cancel Trip When Weather Risk Remains Red Before Departure`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

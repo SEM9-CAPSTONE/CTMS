@@ -20,7 +20,7 @@ As the System, I want to prevent Duplicate GPS Log Uploads so that the CTMS work
 
 ## Business Rules Checklist
 - [ ] BR-181: Authentication token, permission, idempotency, and sensitive-data safeguards apply.
-- [ ] BR-210: External service, API error, pagination, media, background job, offline sync, and side-effect rules apply.
+- [ ] BR-210: Offline data must have a request identifier or idempotency_key; resending the same sync batch must not create duplicate data.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -43,7 +43,7 @@ As the System, I want to prevent Duplicate GPS Log Uploads so that the CTMS work
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-67-T01, CTMS-67-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-66. | CTMS-67-T01, CTMS-67-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | BR-181: Authentication token, permission, idempotency, and sensitive-data safeguards apply. | CTMS-67-T01, CTMS-67-T02 | Tests and review evidence must prove this rule is enforced for `Prevent Duplicate GPS Log Uploads`. |
-| BR-210: External service, API error, pagination, media, background job, offline sync, and side-effect rules apply. | CTMS-67-T01, CTMS-67-T02 | Tests and review evidence must prove this rule is enforced for `Prevent Duplicate GPS Log Uploads`. |
+| BR-210: Offline data must have a request identifier or idempotency_key; resending the same sync batch must not create duplicate data. | CTMS-67-T01, CTMS-67-T02 | Tests and review evidence must prove this rule is enforced for `Prevent Duplicate GPS Log Uploads`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

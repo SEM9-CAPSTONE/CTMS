@@ -19,9 +19,9 @@ As a Host, I want to mark Hazard Areas and Shelters so that the CTMS workflow is
 - [ ] The workflow respects its V3 dependencies: CTMS-10.
 
 ## Business Rules Checklist
-- [ ] BR-034: Route, checkpoint, hazard, and route versioning rules apply.
-- [ ] BR-035: Route, checkpoint, hazard, and route versioning rules apply.
-- [ ] BR-036: Route, checkpoint, hazard, and route versioning rules apply.
+- [ ] BR-034: Checkpoints and hazard areas are shown on Host/Admin operational maps and used by safety/offline features; do not create a public Route browser or Route detail page for Campers.
+- [ ] BR-035: Checkpoint and hazard data needed for a Trip must be included in the offline package for the relevant Route version; an old package must be marked outdated when the source Route changes.
+- [ ] BR-036: Each hazard area must belong to the correct route, have Polygon(4326), description, and severity; each shelter, water, or overnight checkpoint must have the correct type and safety instructions when needed.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -43,9 +43,9 @@ As a Host, I want to mark Hazard Areas and Shelters so that the CTMS workflow is
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-14-T01, CTMS-14-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-14-T01, CTMS-14-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-10. | CTMS-14-T01, CTMS-14-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-034: Route, checkpoint, hazard, and route versioning rules apply. | CTMS-14-T01, CTMS-14-T02 | Tests and review evidence must prove this rule is enforced for `Mark Hazard Areas and Shelters`. |
-| BR-035: Route, checkpoint, hazard, and route versioning rules apply. | CTMS-14-T01, CTMS-14-T02 | Tests and review evidence must prove this rule is enforced for `Mark Hazard Areas and Shelters`. |
-| BR-036: Route, checkpoint, hazard, and route versioning rules apply. | CTMS-14-T01, CTMS-14-T02 | Tests and review evidence must prove this rule is enforced for `Mark Hazard Areas and Shelters`. |
+| BR-034: Checkpoints and hazard areas are shown on Host/Admin operational maps and used by safety/offline features; do not create a public Route browser or Route detail page for Campers. | CTMS-14-T01, CTMS-14-T02 | Tests and review evidence must prove this rule is enforced for `Mark Hazard Areas and Shelters`. |
+| BR-035: Checkpoint and hazard data needed for a Trip must be included in the offline package for the relevant Route version; an old package must be marked outdated when the source Route changes. | CTMS-14-T01, CTMS-14-T02 | Tests and review evidence must prove this rule is enforced for `Mark Hazard Areas and Shelters`. |
+| BR-036: Each hazard area must belong to the correct route, have Polygon(4326), description, and severity; each shelter, water, or overnight checkpoint must have the correct type and safety instructions when needed. | CTMS-14-T01, CTMS-14-T02 | Tests and review evidence must prove this rule is enforced for `Mark Hazard Areas and Shelters`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

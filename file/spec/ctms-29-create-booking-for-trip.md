@@ -19,16 +19,16 @@ As a Camper, I want to create Booking for Trip so that the CTMS workflow is comp
 - [ ] The workflow respects its V3 dependencies: CTMS-23, CTMS-24, CTMS-18.
 
 ## Business Rules Checklist
-- [ ] BR-069: Booking capacity, booking member, and seat reservation rules apply.
-- [ ] BR-070: Booking capacity, booking member, and seat reservation rules apply.
-- [ ] BR-071: Booking capacity, booking member, and seat reservation rules apply.
-- [ ] BR-072: Booking capacity, booking member, and seat reservation rules apply.
-- [ ] BR-073: Booking capacity, booking member, and seat reservation rules apply.
-- [ ] BR-074: Booking capacity, booking member, and seat reservation rules apply.
-- [ ] BR-084: Booking capacity, booking member, and seat reservation rules apply.
-- [ ] BR-085: Booking capacity, booking member, and seat reservation rules apply.
-- [ ] BR-086: Booking capacity, booking member, and seat reservation rules apply.
-- [ ] BR-218: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply.
+- [ ] BR-069: Any create, confirm, cancel, or expire booking operation that changes seats_taken must run in a transaction; any error must roll back both booking and seat counters.
+- [ ] BR-070: Before checking or updating seats_taken, the backend must serialize concurrent changes on the same trip_id using a row/advisory lock or equivalent mechanism.
+- [ ] BR-071: seats_taken counts only people in bookings currently holding or confirming seats under the active policy, at minimum pending_payment and confirmed; cancelled, expired, and completed must not increase held seats. seats_taken prevents overbooking and is not the confirmed minimum participant count used for capacity_min decisions.
+- [ ] BR-072: confirmed_participant_count is the sum of num_people for confirmed Bookings still eligible to participate at check time; pending_payment does not count toward capacity_min even though it holds seats in seats_taken.
+- [ ] BR-073: A new Booking is valid only when num_people > 0 and current seats_taken + num_people <= trips.capacity_max; Trip capacity_min/max are the only person-count limits for booking.
+- [ ] BR-074: If a booking transaction hits a conflict, deadlock, or serialization failure, the system must roll back and return/retry according to safe policy; seats_taken must never drift from booking status.
+- [ ] BR-084: A Booking may be created only for a published Trip that is before booking_deadline, not started, on an eligible approved Route version, not Red for Weather Risk, and has enough capacity; the backend must recheck every condition inside the transaction immediately before holding seats.
+- [ ] BR-085: A Booking must snapshot the applicable Trip schedule at creation time (starts_at/ends_at or equivalent snapshot fields), base_price, and cancellation_policy so later configuration changes do not rewrite Booking history. Free Trips create confirmed Bookings with payment_status not_required if seats are held successfully.
+- [ ] BR-086: Paid Trips create Bookings with status pending_payment, payment_status unpaid, and hold_expires_at from configuration; the Booking becomes confirmed only after successful charge.
+- [ ] BR-218: Campers register/buy seats through booking.trip_id; the system must not accept route_id as a booking object or purchasable product.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -50,16 +50,16 @@ As a Camper, I want to create Booking for Trip so that the CTMS workflow is comp
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-29-T01, CTMS-29-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-29-T01, CTMS-29-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-23, CTMS-24, CTMS-18. | CTMS-29-T01, CTMS-29-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-069: Booking capacity, booking member, and seat reservation rules apply. | CTMS-29-T01, CTMS-29-T02 | Tests and review evidence must prove this rule is enforced for `Create Booking for Trip`. |
-| BR-070: Booking capacity, booking member, and seat reservation rules apply. | CTMS-29-T01, CTMS-29-T02 | Tests and review evidence must prove this rule is enforced for `Create Booking for Trip`. |
-| BR-071: Booking capacity, booking member, and seat reservation rules apply. | CTMS-29-T01, CTMS-29-T02 | Tests and review evidence must prove this rule is enforced for `Create Booking for Trip`. |
-| BR-072: Booking capacity, booking member, and seat reservation rules apply. | CTMS-29-T01, CTMS-29-T02 | Tests and review evidence must prove this rule is enforced for `Create Booking for Trip`. |
-| BR-073: Booking capacity, booking member, and seat reservation rules apply. | CTMS-29-T01, CTMS-29-T02 | Tests and review evidence must prove this rule is enforced for `Create Booking for Trip`. |
-| BR-074: Booking capacity, booking member, and seat reservation rules apply. | CTMS-29-T01, CTMS-29-T02 | Tests and review evidence must prove this rule is enforced for `Create Booking for Trip`. |
-| BR-084: Booking capacity, booking member, and seat reservation rules apply. | CTMS-29-T01, CTMS-29-T02 | Tests and review evidence must prove this rule is enforced for `Create Booking for Trip`. |
-| BR-085: Booking capacity, booking member, and seat reservation rules apply. | CTMS-29-T01, CTMS-29-T02 | Tests and review evidence must prove this rule is enforced for `Create Booking for Trip`. |
-| BR-086: Booking capacity, booking member, and seat reservation rules apply. | CTMS-29-T01, CTMS-29-T02 | Tests and review evidence must prove this rule is enforced for `Create Booking for Trip`. |
-| BR-218: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply. | CTMS-29-T01, CTMS-29-T02 | Tests and review evidence must prove this rule is enforced for `Create Booking for Trip`. |
+| BR-069: Any create, confirm, cancel, or expire booking operation that changes seats_taken must run in a transaction; any error must roll back both booking and seat counters. | CTMS-29-T01, CTMS-29-T02 | Tests and review evidence must prove this rule is enforced for `Create Booking for Trip`. |
+| BR-070: Before checking or updating seats_taken, the backend must serialize concurrent changes on the same trip_id using a row/advisory lock or equivalent mechanism. | CTMS-29-T01, CTMS-29-T02 | Tests and review evidence must prove this rule is enforced for `Create Booking for Trip`. |
+| BR-071: seats_taken counts only people in bookings currently holding or confirming seats under the active policy, at minimum pending_payment and confirmed; cancelled, expired, and completed must not increase held seats. seats_taken prevents overbooking and is not the confirmed minimum participant count used for capacity_min decisions. | CTMS-29-T01, CTMS-29-T02 | Tests and review evidence must prove this rule is enforced for `Create Booking for Trip`. |
+| BR-072: confirmed_participant_count is the sum of num_people for confirmed Bookings still eligible to participate at check time; pending_payment does not count toward capacity_min even though it holds seats in seats_taken. | CTMS-29-T01, CTMS-29-T02 | Tests and review evidence must prove this rule is enforced for `Create Booking for Trip`. |
+| BR-073: A new Booking is valid only when num_people > 0 and current seats_taken + num_people <= trips.capacity_max; Trip capacity_min/max are the only person-count limits for booking. | CTMS-29-T01, CTMS-29-T02 | Tests and review evidence must prove this rule is enforced for `Create Booking for Trip`. |
+| BR-074: If a booking transaction hits a conflict, deadlock, or serialization failure, the system must roll back and return/retry according to safe policy; seats_taken must never drift from booking status. | CTMS-29-T01, CTMS-29-T02 | Tests and review evidence must prove this rule is enforced for `Create Booking for Trip`. |
+| BR-084: A Booking may be created only for a published Trip that is before booking_deadline, not started, on an eligible approved Route version, not Red for Weather Risk, and has enough capacity; the backend must recheck every condition inside the transaction immediately before holding seats. | CTMS-29-T01, CTMS-29-T02 | Tests and review evidence must prove this rule is enforced for `Create Booking for Trip`. |
+| BR-085: A Booking must snapshot the applicable Trip schedule at creation time (starts_at/ends_at or equivalent snapshot fields), base_price, and cancellation_policy so later configuration changes do not rewrite Booking history. Free Trips create confirmed Bookings with payment_status not_required if seats are held successfully. | CTMS-29-T01, CTMS-29-T02 | Tests and review evidence must prove this rule is enforced for `Create Booking for Trip`. |
+| BR-086: Paid Trips create Bookings with status pending_payment, payment_status unpaid, and hold_expires_at from configuration; the Booking becomes confirmed only after successful charge. | CTMS-29-T01, CTMS-29-T02 | Tests and review evidence must prove this rule is enforced for `Create Booking for Trip`. |
+| BR-218: Campers register/buy seats through booking.trip_id; the system must not accept route_id as a booking object or purchasable product. | CTMS-29-T01, CTMS-29-T02 | Tests and review evidence must prove this rule is enforced for `Create Booking for Trip`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

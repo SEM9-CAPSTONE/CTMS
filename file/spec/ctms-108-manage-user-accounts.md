@@ -19,8 +19,8 @@ As an Admin, I want to manage User Accounts so that the CTMS workflow is complet
 - [ ] The workflow respects its V3 dependencies: CTMS-06.
 
 ## Business Rules Checklist
-- [ ] BR-165: Administration, audit, content report, moderation, and user account rules apply.
-- [ ] BR-166: Administration, audit, content report, moderation, and user account rules apply.
+- [ ] BR-165: Admin may search/view/suspend/reactivate users only within permission; users with related business data must not be hard-deleted.
+- [ ] BR-166: Users referenced by data must not be hard-deleted; use status/soft delete according to schema and preserve history/audit.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -42,8 +42,8 @@ As an Admin, I want to manage User Accounts so that the CTMS workflow is complet
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-108-T01, CTMS-108-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-108-T01, CTMS-108-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-06. | CTMS-108-T01, CTMS-108-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-165: Administration, audit, content report, moderation, and user account rules apply. | CTMS-108-T01, CTMS-108-T02 | Tests and review evidence must prove this rule is enforced for `Manage User Accounts`. |
-| BR-166: Administration, audit, content report, moderation, and user account rules apply. | CTMS-108-T01, CTMS-108-T02 | Tests and review evidence must prove this rule is enforced for `Manage User Accounts`. |
+| BR-165: Admin may search/view/suspend/reactivate users only within permission; users with related business data must not be hard-deleted. | CTMS-108-T01, CTMS-108-T02 | Tests and review evidence must prove this rule is enforced for `Manage User Accounts`. |
+| BR-166: Users referenced by data must not be hard-deleted; use status/soft delete according to schema and preserve history/audit. | CTMS-108-T01, CTMS-108-T02 | Tests and review evidence must prove this rule is enforced for `Manage User Accounts`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

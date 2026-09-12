@@ -19,10 +19,10 @@ As a Host, I want to request Porter for Trip so that the CTMS workflow is comple
 - [ ] The workflow respects its V3 dependencies: CTMS-21, CTMS-43, CTMS-44.
 
 ## Business Rules Checklist
-- [ ] BR-145: Porter profile, availability, request, response, qualification, and assignment rules apply.
-- [ ] BR-146: Porter profile, availability, request, response, qualification, and assignment rules apply.
-- [ ] BR-147: Porter profile, availability, request, response, qualification, and assignment rules apply.
-- [ ] BR-148: Porter profile, availability, request, response, qualification, and assignment rules apply.
+- [ ] BR-145: Host may send a Porter Request only for a Trip they manage; the request must reference valid trip_id and porter_id.
+- [ ] BR-146: At a given time, there must not be multiple PENDING Porter Requests for the same (trip_id, porter_id); resending must follow request lifecycle/idempotency policy instead of creating duplicate pending requests.
+- [ ] BR-147: Porter Request must store requested_by from the authenticated Host and required business data such as requested_role/note when present; CTMS does not store day_rate or process Porter wages under D02.
+- [ ] BR-148: After the Porter Request transaction commits, the Porter must receive a notification according to preference/policy; notification failure must not roll back the committed request.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -44,10 +44,10 @@ As a Host, I want to request Porter for Trip so that the CTMS workflow is comple
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-45-T01, CTMS-45-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-45-T01, CTMS-45-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-21, CTMS-43, CTMS-44. | CTMS-45-T01, CTMS-45-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-145: Porter profile, availability, request, response, qualification, and assignment rules apply. | CTMS-45-T01, CTMS-45-T02 | Tests and review evidence must prove this rule is enforced for `Request Porter for Trip`. |
-| BR-146: Porter profile, availability, request, response, qualification, and assignment rules apply. | CTMS-45-T01, CTMS-45-T02 | Tests and review evidence must prove this rule is enforced for `Request Porter for Trip`. |
-| BR-147: Porter profile, availability, request, response, qualification, and assignment rules apply. | CTMS-45-T01, CTMS-45-T02 | Tests and review evidence must prove this rule is enforced for `Request Porter for Trip`. |
-| BR-148: Porter profile, availability, request, response, qualification, and assignment rules apply. | CTMS-45-T01, CTMS-45-T02 | Tests and review evidence must prove this rule is enforced for `Request Porter for Trip`. |
+| BR-145: Host may send a Porter Request only for a Trip they manage; the request must reference valid trip_id and porter_id. | CTMS-45-T01, CTMS-45-T02 | Tests and review evidence must prove this rule is enforced for `Request Porter for Trip`. |
+| BR-146: At a given time, there must not be multiple PENDING Porter Requests for the same (trip_id, porter_id); resending must follow request lifecycle/idempotency policy instead of creating duplicate pending requests. | CTMS-45-T01, CTMS-45-T02 | Tests and review evidence must prove this rule is enforced for `Request Porter for Trip`. |
+| BR-147: Porter Request must store requested_by from the authenticated Host and required business data such as requested_role/note when present; CTMS does not store day_rate or process Porter wages under D02. | CTMS-45-T01, CTMS-45-T02 | Tests and review evidence must prove this rule is enforced for `Request Porter for Trip`. |
+| BR-148: After the Porter Request transaction commits, the Porter must receive a notification according to preference/policy; notification failure must not roll back the committed request. | CTMS-45-T01, CTMS-45-T02 | Tests and review evidence must prove this rule is enforced for `Request Porter for Trip`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

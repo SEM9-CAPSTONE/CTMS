@@ -19,9 +19,9 @@ As an Admin, I want to approve and Publish Trip so that the CTMS workflow is com
 - [ ] The workflow respects its V3 dependencies: CTMS-06, CTMS-22.
 
 ## Business Rules Checklist
-- [ ] BR-037: Route, checkpoint, hazard, and route versioning rules apply.
-- [ ] BR-063: Trip creation, waypoint, approval, editing, and lifecycle rules apply.
-- [ ] BR-064: Trip creation, waypoint, approval, editing, and lifecycle rules apply.
+- [ ] BR-037: When a Trip is submitted or published, the system must bind it to the approved Route version used for approval. Later Route changes must create a new version or equivalent immutable snapshot and must not silently change geometry, checkpoints, or hazards for already published Trips; Trips that use a new version must go through material-change/reapproval.
+- [ ] BR-063: Admin may publish a Trip only when status is pending_approval, the approved Route version is still valid, and all cross-table validations for time, capacity, trip_waypoints, and checkpoint-route relations pass. Publishing changes status to published and locks the Route version reference/snapshot approved for that Trip.
+- [ ] BR-064: If a Trip fails approval conditions, Admin returns it to draft and must save a reason; overnight Trips with missing or wrong overnight waypoints must not be published.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -43,9 +43,9 @@ As an Admin, I want to approve and Publish Trip so that the CTMS workflow is com
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-23-T01, CTMS-23-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-23-T01, CTMS-23-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-06, CTMS-22. | CTMS-23-T01, CTMS-23-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-037: Route, checkpoint, hazard, and route versioning rules apply. | CTMS-23-T01, CTMS-23-T02 | Tests and review evidence must prove this rule is enforced for `Approve and Publish Trip`. |
-| BR-063: Trip creation, waypoint, approval, editing, and lifecycle rules apply. | CTMS-23-T01, CTMS-23-T02 | Tests and review evidence must prove this rule is enforced for `Approve and Publish Trip`. |
-| BR-064: Trip creation, waypoint, approval, editing, and lifecycle rules apply. | CTMS-23-T01, CTMS-23-T02 | Tests and review evidence must prove this rule is enforced for `Approve and Publish Trip`. |
+| BR-037: When a Trip is submitted or published, the system must bind it to the approved Route version used for approval. Later Route changes must create a new version or equivalent immutable snapshot and must not silently change geometry, checkpoints, or hazards for already published Trips; Trips that use a new version must go through material-change/reapproval. | CTMS-23-T01, CTMS-23-T02 | Tests and review evidence must prove this rule is enforced for `Approve and Publish Trip`. |
+| BR-063: Admin may publish a Trip only when status is pending_approval, the approved Route version is still valid, and all cross-table validations for time, capacity, trip_waypoints, and checkpoint-route relations pass. Publishing changes status to published and locks the Route version reference/snapshot approved for that Trip. | CTMS-23-T01, CTMS-23-T02 | Tests and review evidence must prove this rule is enforced for `Approve and Publish Trip`. |
+| BR-064: If a Trip fails approval conditions, Admin returns it to draft and must save a reason; overnight Trips with missing or wrong overnight waypoints must not be published. | CTMS-23-T01, CTMS-23-T02 | Tests and review evidence must prove this rule is enforced for `Approve and Publish Trip`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

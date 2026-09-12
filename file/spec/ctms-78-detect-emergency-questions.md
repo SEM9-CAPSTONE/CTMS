@@ -19,7 +19,7 @@ As the System, I want to detect Emergency Questions so that the CTMS workflow is
 - [ ] The workflow respects its V3 dependencies: CTMS-72, CTMS-77.
 
 ## Business Rules Checklist
-- [ ] BR-219: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply.
+- [ ] BR-219: AI/RAG may provide recommendations/explanations only; it must not override hard rules or authoritative state such as route closed/archived, Trip capacity, payment result, Weather Risk score/level, or access rights.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -41,7 +41,7 @@ As the System, I want to detect Emergency Questions so that the CTMS workflow is
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-78-T01, CTMS-78-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-78-T01, CTMS-78-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-72, CTMS-77. | CTMS-78-T01, CTMS-78-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-219: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply. | CTMS-78-T01, CTMS-78-T02 | Tests and review evidence must prove this rule is enforced for `Detect Emergency Questions`. |
+| BR-219: AI/RAG may provide recommendations/explanations only; it must not override hard rules or authoritative state such as route closed/archived, Trip capacity, payment result, Weather Risk score/level, or access rights. | CTMS-78-T01, CTMS-78-T02 | Tests and review evidence must prove this rule is enforced for `Detect Emergency Questions`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

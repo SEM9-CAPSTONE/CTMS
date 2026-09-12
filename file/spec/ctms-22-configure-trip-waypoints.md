@@ -19,12 +19,12 @@ As a Host, I want to configure Trip Waypoints so that the CTMS workflow is compl
 - [ ] The workflow respects its V3 dependencies: CTMS-21.
 
 ## Business Rules Checklist
-- [ ] BR-058: Trip creation, waypoint, approval, editing, and lifecycle rules apply.
-- [ ] BR-059: Trip creation, waypoint, approval, editing, and lifecycle rules apply.
-- [ ] BR-060: Trip creation, waypoint, approval, editing, and lifecycle rules apply.
-- [ ] BR-061: Trip creation, waypoint, approval, editing, and lifecycle rules apply.
-- [ ] BR-062: Trip creation, waypoint, approval, editing, and lifecycle rules apply.
-- [ ] BR-221: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply.
+- [ ] BR-058: trip_waypoints are the structured source for a Trip itinerary; each waypoint must have trip_id, type, location Point(4326), day_number > 0, and sequence_order > 0, with optional checkpoint_id. Custom/overnight waypoints may store name, address, note, and external provider/contact/reference as Trip metadata; location is always required as a snapshot and no shared external-place master is created.
+- [ ] BR-059: Within a Trip, sequence_order must be unique; if planned_at is present it must be within [starts_at, ends_at], and duration_minutes, when present, must be >= 0.
+- [ ] BR-060: When publishing an overnight Trip, the number of waypoints with type overnight must equal duration_nights; overnight waypoint order/day must be reasonable for the Trip duration.
+- [ ] BR-061: A Trip with trip_type day_trip must have duration_nights = 0 and must not have any waypoint with type overnight.
+- [ ] BR-062: If trip_waypoint.checkpoint_id is not null, the checkpoint must belong to trips.route_id; the backend must snapshot checkpoints.location into trip_waypoints.location. If checkpoint_id is null, the Host must provide a valid custom location.
+- [ ] BR-221: trip_waypoints.location is a required snapshot. When a waypoint references a checkpoint, the backend must verify the checkpoint belongs to trips.route_id and copy location; later checkpoint changes must not automatically rewrite saved historical Trip waypoints.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -46,12 +46,12 @@ As a Host, I want to configure Trip Waypoints so that the CTMS workflow is compl
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-22-T01, CTMS-22-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-22-T01, CTMS-22-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-21. | CTMS-22-T01, CTMS-22-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-058: Trip creation, waypoint, approval, editing, and lifecycle rules apply. | CTMS-22-T01, CTMS-22-T02 | Tests and review evidence must prove this rule is enforced for `Configure Trip Waypoints`. |
-| BR-059: Trip creation, waypoint, approval, editing, and lifecycle rules apply. | CTMS-22-T01, CTMS-22-T02 | Tests and review evidence must prove this rule is enforced for `Configure Trip Waypoints`. |
-| BR-060: Trip creation, waypoint, approval, editing, and lifecycle rules apply. | CTMS-22-T01, CTMS-22-T02 | Tests and review evidence must prove this rule is enforced for `Configure Trip Waypoints`. |
-| BR-061: Trip creation, waypoint, approval, editing, and lifecycle rules apply. | CTMS-22-T01, CTMS-22-T02 | Tests and review evidence must prove this rule is enforced for `Configure Trip Waypoints`. |
-| BR-062: Trip creation, waypoint, approval, editing, and lifecycle rules apply. | CTMS-22-T01, CTMS-22-T02 | Tests and review evidence must prove this rule is enforced for `Configure Trip Waypoints`. |
-| BR-221: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply. | CTMS-22-T01, CTMS-22-T02 | Tests and review evidence must prove this rule is enforced for `Configure Trip Waypoints`. |
+| BR-058: trip_waypoints are the structured source for a Trip itinerary; each waypoint must have trip_id, type, location Point(4326), day_number > 0, and sequence_order > 0, with optional checkpoint_id. Custom/overnight waypoints may store name, address, note, and external provider/contact/reference as Trip metadata; location is always required as a snapshot and no shared external-place master is created. | CTMS-22-T01, CTMS-22-T02 | Tests and review evidence must prove this rule is enforced for `Configure Trip Waypoints`. |
+| BR-059: Within a Trip, sequence_order must be unique; if planned_at is present it must be within [starts_at, ends_at], and duration_minutes, when present, must be >= 0. | CTMS-22-T01, CTMS-22-T02 | Tests and review evidence must prove this rule is enforced for `Configure Trip Waypoints`. |
+| BR-060: When publishing an overnight Trip, the number of waypoints with type overnight must equal duration_nights; overnight waypoint order/day must be reasonable for the Trip duration. | CTMS-22-T01, CTMS-22-T02 | Tests and review evidence must prove this rule is enforced for `Configure Trip Waypoints`. |
+| BR-061: A Trip with trip_type day_trip must have duration_nights = 0 and must not have any waypoint with type overnight. | CTMS-22-T01, CTMS-22-T02 | Tests and review evidence must prove this rule is enforced for `Configure Trip Waypoints`. |
+| BR-062: If trip_waypoint.checkpoint_id is not null, the checkpoint must belong to trips.route_id; the backend must snapshot checkpoints.location into trip_waypoints.location. If checkpoint_id is null, the Host must provide a valid custom location. | CTMS-22-T01, CTMS-22-T02 | Tests and review evidence must prove this rule is enforced for `Configure Trip Waypoints`. |
+| BR-221: trip_waypoints.location is a required snapshot. When a waypoint references a checkpoint, the backend must verify the checkpoint belongs to trips.route_id and copy location; later checkpoint changes must not automatically rewrite saved historical Trip waypoints. | CTMS-22-T01, CTMS-22-T02 | Tests and review evidence must prove this rule is enforced for `Configure Trip Waypoints`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

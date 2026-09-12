@@ -19,8 +19,8 @@ As the System, I want to record GPS Breadcrumbs during Trekking so that the CTMS
 - [ ] The workflow respects its V3 dependencies: CTMS-58.
 
 ## Business Rules Checklist
-- [ ] BR-220: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply.
-- [ ] BR-224: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply.
+- [ ] BR-220: Off-route detection must be able to run on-device using GPS and downloaded offline route data; loss of Internet must not remove local alerts. Events are stored locally and synchronized idempotently when connectivity returns.
+- [ ] BR-224: Incident and safety events created offline must preserve event time, location, client-generated identifier, and local sync state; when connectivity is available they must synchronize idempotently.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -42,8 +42,8 @@ As the System, I want to record GPS Breadcrumbs during Trekking so that the CTMS
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-59-T01, CTMS-59-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-59-T01, CTMS-59-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-58. | CTMS-59-T01, CTMS-59-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-220: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply. | CTMS-59-T01, CTMS-59-T02 | Tests and review evidence must prove this rule is enforced for `Record GPS Breadcrumbs during Trekking`. |
-| BR-224: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply. | CTMS-59-T01, CTMS-59-T02 | Tests and review evidence must prove this rule is enforced for `Record GPS Breadcrumbs during Trekking`. |
+| BR-220: Off-route detection must be able to run on-device using GPS and downloaded offline route data; loss of Internet must not remove local alerts. Events are stored locally and synchronized idempotently when connectivity returns. | CTMS-59-T01, CTMS-59-T02 | Tests and review evidence must prove this rule is enforced for `Record GPS Breadcrumbs during Trekking`. |
+| BR-224: Incident and safety events created offline must preserve event time, location, client-generated identifier, and local sync state; when connectivity is available they must synchronize idempotently. | CTMS-59-T01, CTMS-59-T02 | Tests and review evidence must prove this rule is enforced for `Record GPS Breadcrumbs during Trekking`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

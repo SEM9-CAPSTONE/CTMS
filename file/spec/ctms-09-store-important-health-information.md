@@ -19,8 +19,8 @@ As a Camper, I want to store Important Health Information so that the CTMS workf
 - [ ] The workflow respects its V3 dependencies: CTMS-07.
 
 ## Business Rules Checklist
-- [ ] BR-025: Profile, emergency contact, and health data access rules apply.
-- [ ] BR-026: Profile, emergency contact, and health data access rules apply.
+- [ ] BR-025: A Camper's health profile may only be viewed by the Host or Porter assigned to the related Trip when valid sharing consent exists.
+- [ ] BR-026: A Camper may update their health profile or revoke health-data sharing consent at any time.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -42,8 +42,8 @@ As a Camper, I want to store Important Health Information so that the CTMS workf
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-09-T01, CTMS-09-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-09-T01, CTMS-09-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-07. | CTMS-09-T01, CTMS-09-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-025: Profile, emergency contact, and health data access rules apply. | CTMS-09-T01, CTMS-09-T02 | Tests and review evidence must prove this rule is enforced for `Store Important Health Information`. |
-| BR-026: Profile, emergency contact, and health data access rules apply. | CTMS-09-T01, CTMS-09-T02 | Tests and review evidence must prove this rule is enforced for `Store Important Health Information`. |
+| BR-025: A Camper's health profile may only be viewed by the Host or Porter assigned to the related Trip when valid sharing consent exists. | CTMS-09-T01, CTMS-09-T02 | Tests and review evidence must prove this rule is enforced for `Store Important Health Information`. |
+| BR-026: A Camper may update their health profile or revoke health-data sharing consent at any time. | CTMS-09-T01, CTMS-09-T02 | Tests and review evidence must prove this rule is enforced for `Store Important Health Information`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

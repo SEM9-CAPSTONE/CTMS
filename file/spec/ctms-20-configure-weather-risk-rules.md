@@ -19,9 +19,9 @@ As an Admin, I want to configure Weather Risk Rules so that the CTMS workflow is
 - [ ] The workflow respects its V3 dependencies: CTMS-06, CTMS-15.
 
 ## Business Rules Checklist
-- [ ] BR-052: Weather risk, weather data, scoring, advisory, and weather configuration rules apply.
-- [ ] BR-053: Weather risk, weather data, scoring, advisory, and weather configuration rules apply.
-- [ ] BR-054: Weather risk, weather data, scoring, advisory, and weather configuration rules apply.
+- [ ] BR-052: weather_rules must store name, weights, thresholds, version, is_active, and required audit metadata; version must be unique.
+- [ ] BR-053: In MVP, at most one weather_rules record may be active at a time; activating a new rule must deactivate the old one in the same transaction.
+- [ ] BR-054: Creating, editing, or activating a Weather Risk rule must be audited with actor, version, before/after, and reason when applicable.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -43,9 +43,9 @@ As an Admin, I want to configure Weather Risk Rules so that the CTMS workflow is
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-20-T01, CTMS-20-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-20-T01, CTMS-20-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-06, CTMS-15. | CTMS-20-T01, CTMS-20-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-052: Weather risk, weather data, scoring, advisory, and weather configuration rules apply. | CTMS-20-T01, CTMS-20-T02 | Tests and review evidence must prove this rule is enforced for `Configure Weather Risk Rules`. |
-| BR-053: Weather risk, weather data, scoring, advisory, and weather configuration rules apply. | CTMS-20-T01, CTMS-20-T02 | Tests and review evidence must prove this rule is enforced for `Configure Weather Risk Rules`. |
-| BR-054: Weather risk, weather data, scoring, advisory, and weather configuration rules apply. | CTMS-20-T01, CTMS-20-T02 | Tests and review evidence must prove this rule is enforced for `Configure Weather Risk Rules`. |
+| BR-052: weather_rules must store name, weights, thresholds, version, is_active, and required audit metadata; version must be unique. | CTMS-20-T01, CTMS-20-T02 | Tests and review evidence must prove this rule is enforced for `Configure Weather Risk Rules`. |
+| BR-053: In MVP, at most one weather_rules record may be active at a time; activating a new rule must deactivate the old one in the same transaction. | CTMS-20-T01, CTMS-20-T02 | Tests and review evidence must prove this rule is enforced for `Configure Weather Risk Rules`. |
+| BR-054: Creating, editing, or activating a Weather Risk rule must be audited with actor, version, before/after, and reason when applicable. | CTMS-20-T01, CTMS-20-T02 | Tests and review evidence must prove this rule is enforced for `Configure Weather Risk Rules`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

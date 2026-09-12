@@ -19,8 +19,8 @@ As a user, I want to view Weather Risk Factors (Duplicate) so that the CTMS work
 - [ ] The workflow respects its V3 dependencies: CTMS-16.
 
 ## Business Rules Checklist
-- [ ] BR-044: Weather risk, weather data, scoring, advisory, and weather configuration rules apply.
-- [ ] BR-045: Weather risk, weather data, scoring, advisory, and weather configuration rules apply.
+- [ ] BR-044: Risk explanations from the UI/API must identify the main factors/reasons and related values/thresholds when available; do not return only a color or aggregate score.
+- [ ] BR-045: Risk information shown to users must include a level and actionable reason; color must not be the only signal.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -42,8 +42,8 @@ As a user, I want to view Weather Risk Factors (Duplicate) so that the CTMS work
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-17-T01, CTMS-17-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-17-T01, CTMS-17-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-16. | CTMS-17-T01, CTMS-17-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-044: Weather risk, weather data, scoring, advisory, and weather configuration rules apply. | CTMS-17-T01, CTMS-17-T02 | Tests and review evidence must prove this rule is enforced for `View Weather Risk Factors (Duplicate)`. |
-| BR-045: Weather risk, weather data, scoring, advisory, and weather configuration rules apply. | CTMS-17-T01, CTMS-17-T02 | Tests and review evidence must prove this rule is enforced for `View Weather Risk Factors (Duplicate)`. |
+| BR-044: Risk explanations from the UI/API must identify the main factors/reasons and related values/thresholds when available; do not return only a color or aggregate score. | CTMS-17-T01, CTMS-17-T02 | Tests and review evidence must prove this rule is enforced for `View Weather Risk Factors (Duplicate)`. |
+| BR-045: Risk information shown to users must include a level and actionable reason; color must not be the only signal. | CTMS-17-T01, CTMS-17-T02 | Tests and review evidence must prove this rule is enforced for `View Weather Risk Factors (Duplicate)`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

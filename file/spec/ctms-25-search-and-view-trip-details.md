@@ -19,10 +19,10 @@ As a Camper, I want to search and View Trip Details so that the CTMS workflow is
 - [ ] The workflow respects its V3 dependencies: CTMS-23, CTMS-16.
 
 ## Business Rules Checklist
-- [ ] BR-075: Booking capacity, booking member, and seat reservation rules apply.
-- [ ] BR-076: Booking capacity, booking member, and seat reservation rules apply.
-- [ ] BR-077: Booking capacity, booking member, and seat reservation rules apply.
-- [ ] BR-205: External service, API error, pagination, media, background job, offline sync, and side-effect rules apply.
+- [ ] BR-075: Camper discovery is Trip-centered: only Trips with status published and not ended/cancelled may be searched or viewed publicly. If a Trip's Route version is closed or no longer eligible before departure, the Trip may remain readable for related users but must not be presented as bookable and must not accept new Bookings.
+- [ ] BR-076: Trip Search may expose only published filters such as time range, trip_type, difficulty, price, province, and city; area filters use Trip province_code/city_code snapshots and do not provide direct Route browser/filtering for Campers.
+- [ ] BR-077: Camper Trip Detail shows starts_at/ends_at, meeting_point, province/city, price, remaining seats, itinerary/waypoints/overnight location, includes/excludes, media, and Weather Risk; it must not expose route_id, raw route_geom, checkpoint, or hazard admin data.
+- [ ] BR-205: List/public endpoints may return only resources in states allowed for public visibility. Route is an internal operational resource and has no public browse/detail for Campers even when route.status is active.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -44,10 +44,10 @@ As a Camper, I want to search and View Trip Details so that the CTMS workflow is
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-25-T01, CTMS-25-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-25-T01, CTMS-25-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-23, CTMS-16. | CTMS-25-T01, CTMS-25-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-075: Booking capacity, booking member, and seat reservation rules apply. | CTMS-25-T01, CTMS-25-T02 | Tests and review evidence must prove this rule is enforced for `Search and View Trip Details`. |
-| BR-076: Booking capacity, booking member, and seat reservation rules apply. | CTMS-25-T01, CTMS-25-T02 | Tests and review evidence must prove this rule is enforced for `Search and View Trip Details`. |
-| BR-077: Booking capacity, booking member, and seat reservation rules apply. | CTMS-25-T01, CTMS-25-T02 | Tests and review evidence must prove this rule is enforced for `Search and View Trip Details`. |
-| BR-205: External service, API error, pagination, media, background job, offline sync, and side-effect rules apply. | CTMS-25-T01, CTMS-25-T02 | Tests and review evidence must prove this rule is enforced for `Search and View Trip Details`. |
+| BR-075: Camper discovery is Trip-centered: only Trips with status published and not ended/cancelled may be searched or viewed publicly. If a Trip's Route version is closed or no longer eligible before departure, the Trip may remain readable for related users but must not be presented as bookable and must not accept new Bookings. | CTMS-25-T01, CTMS-25-T02 | Tests and review evidence must prove this rule is enforced for `Search and View Trip Details`. |
+| BR-076: Trip Search may expose only published filters such as time range, trip_type, difficulty, price, province, and city; area filters use Trip province_code/city_code snapshots and do not provide direct Route browser/filtering for Campers. | CTMS-25-T01, CTMS-25-T02 | Tests and review evidence must prove this rule is enforced for `Search and View Trip Details`. |
+| BR-077: Camper Trip Detail shows starts_at/ends_at, meeting_point, province/city, price, remaining seats, itinerary/waypoints/overnight location, includes/excludes, media, and Weather Risk; it must not expose route_id, raw route_geom, checkpoint, or hazard admin data. | CTMS-25-T01, CTMS-25-T02 | Tests and review evidence must prove this rule is enforced for `Search and View Trip Details`. |
+| BR-205: List/public endpoints may return only resources in states allowed for public visibility. Route is an internal operational resource and has no public browse/detail for Campers even when route.status is active. | CTMS-25-T01, CTMS-25-T02 | Tests and review evidence must prove this rule is enforced for `Search and View Trip Details`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

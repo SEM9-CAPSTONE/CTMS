@@ -19,9 +19,9 @@ As a Host, I want to create Trip so that the CTMS workflow is completed safely, 
 - [ ] The workflow respects its V3 dependencies: CTMS-10.
 
 ## Business Rules Checklist
-- [ ] BR-055: Trip creation, waypoint, approval, editing, and lifecycle rules apply.
-- [ ] BR-056: Trip creation, waypoint, approval, editing, and lifecycle rules apply.
-- [ ] BR-057: Trip creation, waypoint, approval, editing, and lifecycle rules apply.
+- [ ] BR-055: A Trip must reference a valid approved Route version, and host_id must come from the authenticated Host creating/managing the Trip. A Trip must store at minimum title, trip_type, duration_nights, starts_at, ends_at, meeting_point, meeting_at when applicable, booking_deadline, capacity_min/max, is_free, price_per_person, province_code, city_code, and required trip_waypoints; province/city are Trip geography snapshots for search/reporting and historical consistency.
+- [ ] BR-056: A Trip must satisfy starts_at < ends_at, booking_deadline < starts_at, meeting_at is null or <= starts_at, capacity_min > 0, capacity_min <= capacity_max, and seats_taken within [0, capacity_max]. If is_free is true then price_per_person must be 0; if false then price_per_person must be > 0.
+- [ ] BR-057: A new Trip must be created with status draft; the Host must complete trip_waypoints before submitting draft to pending_approval.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -43,9 +43,9 @@ As a Host, I want to create Trip so that the CTMS workflow is completed safely, 
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-21-T01, CTMS-21-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-21-T01, CTMS-21-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-10. | CTMS-21-T01, CTMS-21-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-055: Trip creation, waypoint, approval, editing, and lifecycle rules apply. | CTMS-21-T01, CTMS-21-T02 | Tests and review evidence must prove this rule is enforced for `Create Trip`. |
-| BR-056: Trip creation, waypoint, approval, editing, and lifecycle rules apply. | CTMS-21-T01, CTMS-21-T02 | Tests and review evidence must prove this rule is enforced for `Create Trip`. |
-| BR-057: Trip creation, waypoint, approval, editing, and lifecycle rules apply. | CTMS-21-T01, CTMS-21-T02 | Tests and review evidence must prove this rule is enforced for `Create Trip`. |
+| BR-055: A Trip must reference a valid approved Route version, and host_id must come from the authenticated Host creating/managing the Trip. A Trip must store at minimum title, trip_type, duration_nights, starts_at, ends_at, meeting_point, meeting_at when applicable, booking_deadline, capacity_min/max, is_free, price_per_person, province_code, city_code, and required trip_waypoints; province/city are Trip geography snapshots for search/reporting and historical consistency. | CTMS-21-T01, CTMS-21-T02 | Tests and review evidence must prove this rule is enforced for `Create Trip`. |
+| BR-056: A Trip must satisfy starts_at < ends_at, booking_deadline < starts_at, meeting_at is null or <= starts_at, capacity_min > 0, capacity_min <= capacity_max, and seats_taken within [0, capacity_max]. If is_free is true then price_per_person must be 0; if false then price_per_person must be > 0. | CTMS-21-T01, CTMS-21-T02 | Tests and review evidence must prove this rule is enforced for `Create Trip`. |
+| BR-057: A new Trip must be created with status draft; the Host must complete trip_waypoints before submitting draft to pending_approval. | CTMS-21-T01, CTMS-21-T02 | Tests and review evidence must prove this rule is enforced for `Create Trip`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

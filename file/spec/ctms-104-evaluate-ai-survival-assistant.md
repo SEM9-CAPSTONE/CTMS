@@ -19,9 +19,9 @@ As the System, I want to evaluate AI Survival Assistant so that the CTMS workflo
 - [ ] The workflow respects its V3 dependencies: CTMS-72, CTMS-71, CTMS-73.
 
 ## Business Rules Checklist
-- [ ] BR-219: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply.
-- [ ] BR-230: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply.
-- [ ] BR-231: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply.
+- [ ] BR-219: AI/RAG may provide recommendations/explanations only; it must not override hard rules or authoritative state such as route closed/archived, Trip capacity, payment result, Weather Risk score/level, or access rights.
+- [ ] BR-230: Survival documents must support upload, classification, review, publication, versioning, and lifecycle status so the knowledge base can identify the authoritative source version.
+- [ ] BR-231: Each knowledge chunk must store content, chunk_index, metadata, source_version, locale, and embedding; source_version must match the document version used to create the chunk, and chunks must be regenerable when the source updates.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -43,9 +43,9 @@ As the System, I want to evaluate AI Survival Assistant so that the CTMS workflo
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-104-T01, CTMS-104-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-104-T01, CTMS-104-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-72, CTMS-71, CTMS-73. | CTMS-104-T01, CTMS-104-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-219: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply. | CTMS-104-T01, CTMS-104-T02 | Tests and review evidence must prove this rule is enforced for `Evaluate AI Survival Assistant`. |
-| BR-230: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply. | CTMS-104-T01, CTMS-104-T02 | Tests and review evidence must prove this rule is enforced for `Evaluate AI Survival Assistant`. |
-| BR-231: Test coverage, route privacy, AI/RAG, GPS, offline package, and operational UI rules apply. | CTMS-104-T01, CTMS-104-T02 | Tests and review evidence must prove this rule is enforced for `Evaluate AI Survival Assistant`. |
+| BR-219: AI/RAG may provide recommendations/explanations only; it must not override hard rules or authoritative state such as route closed/archived, Trip capacity, payment result, Weather Risk score/level, or access rights. | CTMS-104-T01, CTMS-104-T02 | Tests and review evidence must prove this rule is enforced for `Evaluate AI Survival Assistant`. |
+| BR-230: Survival documents must support upload, classification, review, publication, versioning, and lifecycle status so the knowledge base can identify the authoritative source version. | CTMS-104-T01, CTMS-104-T02 | Tests and review evidence must prove this rule is enforced for `Evaluate AI Survival Assistant`. |
+| BR-231: Each knowledge chunk must store content, chunk_index, metadata, source_version, locale, and embedding; source_version must match the document version used to create the chunk, and chunks must be regenerable when the source updates. | CTMS-104-T01, CTMS-104-T02 | Tests and review evidence must prove this rule is enforced for `Evaluate AI Survival Assistant`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

@@ -19,8 +19,8 @@ As a Camper, I want to update Trip Availability in Real Time so that the CTMS wo
 - [ ] The workflow respects its V3 dependencies: CTMS-29, CTMS-24, CTMS-82.
 
 ## Business Rules Checklist
-- [ ] BR-197: Audit, notification, emergency, and user preference rules apply.
-- [ ] BR-198: Audit, notification, emergency, and user preference rules apply.
+- [ ] BR-197: Notification/event side effects may be enqueued/sent only after the main business transaction commits successfully, preferably through outbox/queue; notification failure must not roll back the committed business result.
+- [ ] BR-198: One business event must not create duplicate notifications for the same recipient, object, and event type.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -42,8 +42,8 @@ As a Camper, I want to update Trip Availability in Real Time so that the CTMS wo
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-87-T01, CTMS-87-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-87-T01, CTMS-87-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-29, CTMS-24, CTMS-82. | CTMS-87-T01, CTMS-87-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-197: Audit, notification, emergency, and user preference rules apply. | CTMS-87-T01, CTMS-87-T02 | Tests and review evidence must prove this rule is enforced for `Update Trip Availability in Real Time`. |
-| BR-198: Audit, notification, emergency, and user preference rules apply. | CTMS-87-T01, CTMS-87-T02 | Tests and review evidence must prove this rule is enforced for `Update Trip Availability in Real Time`. |
+| BR-197: Notification/event side effects may be enqueued/sent only after the main business transaction commits successfully, preferably through outbox/queue; notification failure must not roll back the committed business result. | CTMS-87-T01, CTMS-87-T02 | Tests and review evidence must prove this rule is enforced for `Update Trip Availability in Real Time`. |
+| BR-198: One business event must not create duplicate notifications for the same recipient, object, and event type. | CTMS-87-T01, CTMS-87-T02 | Tests and review evidence must prove this rule is enforced for `Update Trip Availability in Real Time`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.

@@ -19,12 +19,12 @@ As the System, I want to record Audit Logs for Critical Actions so that the CTMS
 - [ ] The workflow respects its V3 dependencies: CTMS-06.
 
 ## Business Rules Checklist
-- [ ] BR-167: Administration, audit, content report, moderation, and user account rules apply.
-- [ ] BR-168: Administration, audit, content report, moderation, and user account rules apply.
-- [ ] BR-169: Administration, audit, content report, moderation, and user account rules apply.
-- [ ] BR-172: Administration, audit, content report, moderation, and user account rules apply.
-- [ ] BR-194: Audit, notification, emergency, and user preference rules apply.
-- [ ] BR-195: Audit, notification, emergency, and user preference rules apply.
+- [ ] BR-167: Critical actions must write audit_logs with actor_id or NULL/system, action, target_type/id, created_at, before/after or reason, and request_id; secrets must not be logged.
+- [ ] BR-168: The audit log viewer is available only to authorized actors and supports filtering by actor, action, target, and time; results are paginated.
+- [ ] BR-169: audit_logs are append-only; User and Admin must not edit or delete audit records through UI/API/normal business functions.
+- [ ] BR-172: Only state-changing/critical actions defined by audit policy must be audited; logging every read or technical change without business value is not required.
+- [ ] BR-194: Important actions must be recorded in audit log with actor, action, target, timestamp, before/after data, or reason for change.
+- [ ] BR-195: Audit logs must not contain passwords, OTPs, tokens, sensitive payment data, or unnecessary health data.
 
 ## Dev Notes
 - Jira status on 2026-08-04: `To Do`.
@@ -46,12 +46,12 @@ As the System, I want to record Audit Logs for Critical Actions so that the CTMS
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-109-T01, CTMS-109-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-109-T01, CTMS-109-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC4: The workflow respects its V3 dependencies: CTMS-06. | CTMS-109-T01, CTMS-109-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| BR-167: Administration, audit, content report, moderation, and user account rules apply. | CTMS-109-T01, CTMS-109-T02 | Tests and review evidence must prove this rule is enforced for `Record Audit Logs for Critical Actions`. |
-| BR-168: Administration, audit, content report, moderation, and user account rules apply. | CTMS-109-T01, CTMS-109-T02 | Tests and review evidence must prove this rule is enforced for `Record Audit Logs for Critical Actions`. |
-| BR-169: Administration, audit, content report, moderation, and user account rules apply. | CTMS-109-T01, CTMS-109-T02 | Tests and review evidence must prove this rule is enforced for `Record Audit Logs for Critical Actions`. |
-| BR-172: Administration, audit, content report, moderation, and user account rules apply. | CTMS-109-T01, CTMS-109-T02 | Tests and review evidence must prove this rule is enforced for `Record Audit Logs for Critical Actions`. |
-| BR-194: Audit, notification, emergency, and user preference rules apply. | CTMS-109-T01, CTMS-109-T02 | Tests and review evidence must prove this rule is enforced for `Record Audit Logs for Critical Actions`. |
-| BR-195: Audit, notification, emergency, and user preference rules apply. | CTMS-109-T01, CTMS-109-T02 | Tests and review evidence must prove this rule is enforced for `Record Audit Logs for Critical Actions`. |
+| BR-167: Critical actions must write audit_logs with actor_id or NULL/system, action, target_type/id, created_at, before/after or reason, and request_id; secrets must not be logged. | CTMS-109-T01, CTMS-109-T02 | Tests and review evidence must prove this rule is enforced for `Record Audit Logs for Critical Actions`. |
+| BR-168: The audit log viewer is available only to authorized actors and supports filtering by actor, action, target, and time; results are paginated. | CTMS-109-T01, CTMS-109-T02 | Tests and review evidence must prove this rule is enforced for `Record Audit Logs for Critical Actions`. |
+| BR-169: audit_logs are append-only; User and Admin must not edit or delete audit records through UI/API/normal business functions. | CTMS-109-T01, CTMS-109-T02 | Tests and review evidence must prove this rule is enforced for `Record Audit Logs for Critical Actions`. |
+| BR-172: Only state-changing/critical actions defined by audit policy must be audited; logging every read or technical change without business value is not required. | CTMS-109-T01, CTMS-109-T02 | Tests and review evidence must prove this rule is enforced for `Record Audit Logs for Critical Actions`. |
+| BR-194: Important actions must be recorded in audit log with actor, action, target, timestamp, before/after data, or reason for change. | CTMS-109-T01, CTMS-109-T02 | Tests and review evidence must prove this rule is enforced for `Record Audit Logs for Critical Actions`. |
+| BR-195: Audit logs must not contain passwords, OTPs, tokens, sensitive payment data, or unnecessary health data. | CTMS-109-T01, CTMS-109-T02 | Tests and review evidence must prove this rule is enforced for `Record Audit Logs for Critical Actions`. |
 
 ## Story-Specific Risks and Edge Cases
 - Missing authorization or ownership checks can expose CTMS data across users, roles, trips, routes, bookings, or operational records.
