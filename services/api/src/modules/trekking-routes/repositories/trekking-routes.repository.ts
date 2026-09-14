@@ -7,7 +7,7 @@ import type { GeoLineString, TrekkingRouteDifficulty } from "../entities/trekkin
 import { type TrekkingRoute, TrekkingRouteStatus } from "../entities/trekking-route.entity";
 
 export interface CreateDraftTrekkingRouteInput {
-	campsiteId: string;
+	hostId: string;
 	name: string;
 	description: string | null;
 	geometry: GeoLineString;
@@ -17,7 +17,7 @@ export interface CreateDraftTrekkingRouteInput {
 
 interface CreatedRouteRow {
 	id: string;
-	campsiteId: string;
+	hostId: string;
 	name: string;
 	description: string | null;
 	geometry: GeoLineString;
@@ -30,7 +30,6 @@ interface CreatedRouteRow {
 }
 
 interface LifecycleRouteRow extends CreatedRouteRow {
-	hostId: string;
 	integrityValid: boolean;
 }
 
@@ -41,7 +40,6 @@ export interface LockedTrekkingRoute {
 }
 
 interface ReviewRouteRow extends CreatedRouteRow {
-	campsiteName: string;
 	checkpoints: CheckpointResponseDto[];
 }
 
@@ -88,7 +86,6 @@ function toResponse(row: CreatedRouteRow): TrekkingRouteResponseDto {
 function toReviewResponse(row: ReviewRouteRow): TrekkingRouteReviewResponseDto {
 	return {
 		...toResponse(row),
-		campsiteName: row.campsiteName,
 		checkpoints: row.checkpoints.map((checkpoint) => ({
 			...checkpoint,
 			radiusMeters: Number(checkpoint.radiusMeters),
@@ -101,7 +98,7 @@ function toReviewResponse(row: ReviewRouteRow): TrekkingRouteReviewResponseDto {
 const REVIEW_ROUTE_SELECT = `
 	SELECT
 		route."id",
-		route."campsite_id" AS "campsiteId",
+		route."host_id" AS "hostId",
 		route."name",
 		route."description",
 		ST_AsGeoJSON(route."route_geom"::geometry)::json AS "geometry",
@@ -111,7 +108,6 @@ const REVIEW_ROUTE_SELECT = `
 		route."status",
 		route."created_at" AS "createdAt",
 		route."updated_at" AS "updatedAt",
-		campsite."name" AS "campsiteName",
 		COALESCE((
 			SELECT jsonb_agg(
 				jsonb_build_object(
@@ -134,7 +130,6 @@ const REVIEW_ROUTE_SELECT = `
 			WHERE checkpoint."route_id" = route."id"
 		), '[]'::jsonb) AS "checkpoints"
 	FROM "trekking_routes" route
-	INNER JOIN "campsites" campsite ON campsite."id" = route."campsite_id"
 `;
 
 @Injectable()
@@ -144,8 +139,7 @@ export class TrekkingRoutesRepository extends Repository<TrekkingRoute> {
 			`
 			SELECT
 				route."id",
-				route."campsite_id" AS "campsiteId",
-				campsite."host_id" AS "hostId",
+				route."host_id" AS "hostId",
 				route."name",
 				route."description",
 				ST_AsGeoJSON(route."route_geom"::geometry)::json AS "geometry",
@@ -166,10 +160,9 @@ export class TrekkingRoutesRepository extends Repository<TrekkingRoute> {
 					AND route."length_meters" > 0
 					AND route."expected_duration_minutes" > 0
 					AND route."difficulty"::text IN ('easy', 'moderate', 'hard', 'expert')
-					AND campsite."host_id" IS NOT NULL
+					AND route."host_id" IS NOT NULL
 				) AS "integrityValid"
 			FROM "trekking_routes" route
-			INNER JOIN "campsites" campsite ON campsite."id" = route."campsite_id"
 			WHERE route."id" = $1
 			FOR UPDATE OF route
 			`,
@@ -311,7 +304,7 @@ export class TrekkingRoutesRepository extends Repository<TrekkingRoute> {
 			)
 			SELECT
 				"id",
-				"campsite_id" AS "campsiteId",
+				"host_id" AS "hostId",
 				"name",
 				"description",
 				ST_AsGeoJSON("route_geom"::geometry)::json AS "geometry",
@@ -329,12 +322,12 @@ export class TrekkingRoutesRepository extends Repository<TrekkingRoute> {
 		return toResponse(rows[0]);
 	}
 
-	async findByCampsite(campsiteId: string): Promise<TrekkingRouteResponseDto[]> {
+	async findByHost(hostId: string): Promise<TrekkingRouteResponseDto[]> {
 		const rows = (await this.query(
 			`
 			SELECT
 				"id",
-				"campsite_id" AS "campsiteId",
+				"host_id" AS "hostId",
 				"name",
 				"description",
 				ST_AsGeoJSON("route_geom"::geometry)::json AS "geometry",
@@ -345,10 +338,10 @@ export class TrekkingRoutesRepository extends Repository<TrekkingRoute> {
 				"created_at" AS "createdAt",
 				"updated_at" AS "updatedAt"
 			FROM "trekking_routes"
-			WHERE "campsite_id" = $1
+			WHERE "host_id" = $1
 			ORDER BY "created_at" DESC, "id" ASC
 			`,
-			[campsiteId]
+			[hostId]
 		)) as CreatedRouteRow[];
 
 		return rows.map(toResponse);
@@ -364,7 +357,7 @@ export class TrekkingRoutesRepository extends Repository<TrekkingRoute> {
 				FROM route_input
 			)
 			INSERT INTO "trekking_routes" (
-				"campsite_id",
+				"host_id",
 				"name",
 				"description",
 				"route_geom",
@@ -378,7 +371,7 @@ export class TrekkingRoutesRepository extends Repository<TrekkingRoute> {
 			WHERE length_meters > 0
 			RETURNING
 				"id",
-				"campsite_id" AS "campsiteId",
+				"host_id" AS "hostId",
 				"name",
 				"description",
 				ST_AsGeoJSON("route_geom"::geometry)::json AS "geometry",
@@ -390,7 +383,7 @@ export class TrekkingRoutesRepository extends Repository<TrekkingRoute> {
 				"updated_at" AS "updatedAt"
 			`,
 			[
-				input.campsiteId,
+				input.hostId,
 				input.name,
 				input.description,
 				JSON.stringify(input.geometry),

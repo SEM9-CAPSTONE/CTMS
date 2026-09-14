@@ -1,7 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertCircle, FileUp, Loader2, RefreshCw } from "lucide-react";
 import { Controller, useForm } from "react-hook-form";
-import type { CreatedCampsite } from "../../campsites/types";
 import type { CreateRouteError } from "../hooks/useCreateTrekkingRoute";
 import {
 	CREATE_TREKKING_ROUTE_DEFAULT_VALUES,
@@ -14,8 +13,6 @@ import { parseRouteImportFile } from "../utils/route-import";
 import { RouteGeometryEditor } from "./RouteGeometryEditor";
 
 interface Props {
-	campsites: CreatedCampsite[];
-	initialCampsiteId?: string;
 	isSubmitting: boolean;
 	error: CreateRouteError | null;
 	onSubmit: (payload: CreateTrekkingRouteInput) => Promise<unknown>;
@@ -25,14 +22,7 @@ interface Props {
 const inputClass =
 	"mt-1 w-full rounded-xl border border-[#cbd9ce] bg-white px-3 py-2.5 text-sm outline-none focus:border-[#164027] focus:ring-2 focus:ring-[#164027]/10";
 
-export function CreateTrekkingRouteForm({
-	campsites,
-	initialCampsiteId,
-	isSubmitting,
-	error,
-	onSubmit,
-	onRetry,
-}: Props) {
+export function CreateTrekkingRouteForm({ isSubmitting, error, onSubmit, onRetry }: Props) {
 	const {
 		register,
 		control,
@@ -42,10 +32,7 @@ export function CreateTrekkingRouteForm({
 		formState: { errors },
 	} = useForm<CreateTrekkingRouteFormValues>({
 		resolver: zodResolver(createTrekkingRouteFormSchema),
-		defaultValues: {
-			...CREATE_TREKKING_ROUTE_DEFAULT_VALUES,
-			campsiteId: initialCampsiteId ?? "",
-		},
+		defaultValues: CREATE_TREKKING_ROUTE_DEFAULT_VALUES,
 	});
 
 	const importFile = async (file: File | undefined) => {
@@ -70,25 +57,6 @@ export function CreateTrekkingRouteForm({
 			<section className="rounded-2xl border border-[#e0ebe0] bg-white p-5 shadow-sm">
 				<h2 className="font-extrabold text-[#10221b]">Thông tin tuyến đường</h2>
 				<div className="mt-4 grid gap-4 sm:grid-cols-2">
-					<label className="text-sm font-bold text-[#34483b]">
-						Khu cắm trại
-						<select
-							aria-label="Khu cắm trại"
-							disabled={isSubmitting}
-							className={inputClass}
-							{...register("campsiteId")}
-						>
-							<option value="">Chọn khu cắm trại</option>
-							{campsites.map((item) => (
-								<option key={item.id} value={item.id}>
-									{item.name}
-								</option>
-							))}
-						</select>
-						{errors.campsiteId && (
-							<span className="mt-1 block text-xs text-red-600">{errors.campsiteId.message}</span>
-						)}
-					</label>
 					<label className="text-sm font-bold text-[#34483b]">
 						Tên tuyến
 						<input

@@ -60,7 +60,6 @@ export interface RouteDangerZone extends CreateRouteDangerZoneBase {
 }
 
 export interface CreateTrekkingRouteInput {
-	campsiteId: string;
 	name: string;
 	description?: string;
 	geometry: GeoJsonLineString;
@@ -107,7 +106,6 @@ export interface ReviewTrekkingRouteInput {
 }
 
 export interface AdminTrekkingRouteReview extends CreatedTrekkingRoute {
-	campsiteName: string;
 	checkpoints: RouteCheckpoint[];
 }
 

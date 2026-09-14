@@ -6,7 +6,7 @@ type TrekkingRoutesModule = typeof import("./useTrekkingRoutes");
 
 let testingLibrary: TestingLibrary;
 let trekkingRoutesModule: TrekkingRoutesModule;
-let listByCampsiteMock: ReturnType<typeof vi.fn>;
+let listMineMock: ReturnType<typeof vi.fn>;
 
 const activeRoute = { id: "route-id", status: "active" } as CreatedTrekkingRoute;
 const closedRoute = { id: "route-id", status: "closed" } as CreatedTrekkingRoute;
@@ -15,9 +15,9 @@ describe("useTrekkingRoutes", () => {
 	beforeEach(async () => {
 		vi.resetModules();
 		vi.doUnmock("../../../core/api");
-		listByCampsiteMock = vi.fn();
+		listMineMock = vi.fn();
 		vi.doMock("../services/trekking-routes.service", () => ({
-			trekkingRoutesService: { listByCampsite: listByCampsiteMock },
+			trekkingRoutesService: { listMine: listMineMock },
 		}));
 
 		[testingLibrary, trekkingRoutesModule] = await Promise.all([
@@ -34,15 +34,13 @@ describe("useTrekkingRoutes", () => {
 
 	it("keeps the selected collection stable until an authoritative reload completes", async () => {
 		let resolveReload!: (routes: CreatedTrekkingRoute[]) => void;
-		listByCampsiteMock.mockResolvedValueOnce([activeRoute]).mockImplementationOnce(
+		listMineMock.mockResolvedValueOnce([activeRoute]).mockImplementationOnce(
 			() =>
 				new Promise((resolve) => {
 					resolveReload = resolve;
 				})
 		);
-		const { result } = testingLibrary.renderHook(() =>
-			trekkingRoutesModule.useTrekkingRoutes("campsite-id")
-		);
+		const { result } = testingLibrary.renderHook(() => trekkingRoutesModule.useTrekkingRoutes());
 		await testingLibrary.waitFor(() => expect(result.current.items).toEqual([activeRoute]));
 
 		let reload!: Promise<void>;

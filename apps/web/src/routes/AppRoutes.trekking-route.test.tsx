@@ -8,21 +8,15 @@ vi.mock("../features/role-landing/pages/RoleLandingPage", () => ({
 		onCreateTrekkingRoute,
 		onViewTrekkingRoutes,
 	}: {
-		onCreateTrekkingRoute?: (campsiteId?: string) => void;
-		onViewTrekkingRoutes?: (campsiteId: string) => void;
+		onCreateTrekkingRoute?: () => void;
+		onViewTrekkingRoutes?: () => void;
 	}) => (
 		<>
-			<button
-				type="button"
-				onClick={() => onCreateTrekkingRoute?.("11111111-1111-4111-8111-111111111111")}
-			>
-				Create route for owned campsite
+			<button type="button" onClick={() => onCreateTrekkingRoute?.()}>
+				Create route
 			</button>
-			<button
-				type="button"
-				onClick={() => onViewTrekkingRoutes?.("11111111-1111-4111-8111-111111111111")}
-			>
-				View routes for owned campsite
+			<button type="button" onClick={() => onViewTrekkingRoutes?.()}>
+				View routes
 			</button>
 		</>
 	),
@@ -35,7 +29,7 @@ vi.mock("../features/trekking-routes/pages/TrekkingRoutesPage", () => ({
 	TrekkingRoutesPage: () => <div>Trekking Routes Page</div>,
 }));
 
-describe("AppRoutes campsite route creation navigation", () => {
+describe("AppRoutes trekking route navigation", () => {
 	beforeEach(() => {
 		localStorage.clear();
 		localStorage.setItem(
@@ -53,21 +47,21 @@ describe("AppRoutes campsite route creation navigation", () => {
 		window.history.replaceState({}, "", "/dashboard");
 	});
 
-	it("navigates to create route with the campsiteId query parameter", async () => {
+	it("navigates to create route", async () => {
 		render(<AppRoutes />);
-		await userEvent.click(screen.getByRole("button", { name: "Create route for owned campsite" }));
+		await userEvent.click(screen.getByRole("button", { name: "Create route" }));
 
 		expect(window.location.pathname).toBe("/host/trekking-routes/create");
-		expect(window.location.search).toBe("?campsiteId=11111111-1111-4111-8111-111111111111");
+		expect(window.location.search).toBe("");
 		expect(screen.getByText("Create Trekking Route Page")).toBeInTheDocument();
 	});
 
-	it("navigates to the route list with the campsiteId query parameter", async () => {
+	it("navigates to the route list", async () => {
 		render(<AppRoutes />);
-		await userEvent.click(screen.getByRole("button", { name: "View routes for owned campsite" }));
+		await userEvent.click(screen.getByRole("button", { name: "View routes" }));
 
 		expect(window.location.pathname).toBe("/host/trekking-routes");
-		expect(window.location.search).toBe("?campsiteId=11111111-1111-4111-8111-111111111111");
+		expect(window.location.search).toBe("");
 		expect(screen.getByText("Trekking Routes Page")).toBeInTheDocument();
 	});
 

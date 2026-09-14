@@ -30,7 +30,6 @@ export function AdminRouteReviewList({ items, selectedId, onSelect }: Props) {
 					<div className="flex items-start justify-between gap-3">
 						<div>
 							<h2 className="font-extrabold text-[#10221b]">{route.name}</h2>
-							<p className="mt-1 text-xs font-semibold text-[#667a6d]">{route.campsiteName}</p>
 						</div>
 						<span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-900">
 							Chờ duyệt

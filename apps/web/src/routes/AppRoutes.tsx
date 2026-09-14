@@ -12,10 +12,6 @@ import { authService } from "../features/auth/services/auth.service";
 import { getGrantedRoles, isAdminUser } from "../features/auth/utils/permissions";
 import { getRefreshToken, getStoredAuthUser } from "../features/auth/utils/tokenStorage";
 import { CamperProfilePage } from "../features/camper-profile/pages/CamperProfilePage";
-import { AdminCampsitesPage } from "../features/campsites/pages/AdminCampsitesPage";
-import { CampsiteDetailPage } from "../features/campsites/pages/CampsiteDetailPage";
-import { CampsiteFormPage } from "../features/campsites/pages/CampsiteFormPage";
-import { SearchCampsitesPage } from "../features/campsites/pages/SearchCampsitesPage";
 import { LandingPage } from "../features/landing/pages/LandingPage";
 import { HostLayout } from "../features/role-landing/components/HostLayout";
 import { RoleLandingPage } from "../features/role-landing/pages/RoleLandingPage";
@@ -87,50 +83,6 @@ export function AppRoutes() {
 			onNavigateToLogin={() => navigateTo(RoutePath.LOGIN)}
 		/>
 	);
-	const editCampsiteMatch = currentPath.match(
-		/^\/host\/campsites\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/edit$/i
-	);
-
-	if (editCampsiteMatch) {
-		return (
-			<AppRoleGuard
-				allowedRoles={["host"]}
-				currentRoles={currentRoles}
-				onNavigateHome={() => navigateTo(RoutePath.HOME)}
-			>
-				<HostLayout onLogout={handleLogout}>
-					<CampsiteFormPage
-						mode="edit"
-						campsiteId={editCampsiteMatch[1]}
-						onBackHome={() => navigateTo(RoutePath.DASHBOARD)}
-					/>
-				</HostLayout>
-			</AppRoleGuard>
-		);
-	}
-
-	const campsiteDetailMatch = currentPath.match(
-		/^\/campsites\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i
-	);
-
-	if (campsiteDetailMatch) {
-		return (
-			<AppRoleGuard
-				allowedRoles={["camper"]}
-				currentRoles={currentRoles}
-				onNavigateHome={() => navigateTo(RoutePath.HOME)}
-			>
-				<CampsiteDetailPage
-					campsiteId={campsiteDetailMatch[1]}
-					onBack={() => navigateTo(RoutePath.CAMPSITES)}
-					onNavigateDashboard={() => navigateTo(RoutePath.DASHBOARD)}
-					onNavigateProfile={() => navigateTo(RoutePath.CAMPER_PROFILE)}
-					onLogout={handleLogout}
-				/>
-			</AppRoleGuard>
-		);
-	}
-
 	switch (currentPath) {
 		case RoutePath.HOME:
 		case "":
@@ -189,34 +141,6 @@ export function AppRoutes() {
 				/>
 			);
 
-		case RoutePath.CAMPSITES:
-			return (
-				<AppRoleGuard
-					allowedRoles={["camper"]}
-					currentRoles={currentRoles}
-					onNavigateHome={() => navigateTo(RoutePath.HOME)}
-				>
-					<SearchCampsitesPage
-						onNavigateDashboard={() => navigateTo(RoutePath.DASHBOARD)}
-						onNavigateProfile={() => navigateTo(RoutePath.CAMPER_PROFILE)}
-						onLogout={handleLogout}
-					/>
-				</AppRoleGuard>
-			);
-
-		case RoutePath.HOST_CREATE_CAMPSITE:
-			return (
-				<AppRoleGuard
-					allowedRoles={["host"]}
-					currentRoles={currentRoles}
-					onNavigateHome={() => navigateTo(RoutePath.HOME)}
-				>
-					<HostLayout onLogout={handleLogout}>
-						<CampsiteFormPage mode="create" onBackHome={() => navigateTo(RoutePath.DASHBOARD)} />
-					</HostLayout>
-				</AppRoleGuard>
-			);
-
 		case RoutePath.HOST_CREATE_TREKKING_ROUTE:
 			return (
 				<AppRoleGuard
@@ -260,21 +184,9 @@ export function AppRoutes() {
 					onBackHome={() => navigateTo(RoutePath.HOME)}
 					onOpenProfile={() => navigateTo(RoutePath.CAMPER_PROFILE)}
 					onOpenAdminUsers={() => navigateTo(RoutePath.ADMIN_USERS)}
-					onExplore={() => navigateTo(RoutePath.CAMPSITES)}
-					onCreateCampsite={() => navigateTo(RoutePath.HOST_CREATE_CAMPSITE)}
-					onCreateTrekkingRoute={(campsiteId?: string) =>
-						navigateTo(
-							campsiteId
-								? `${RoutePath.HOST_CREATE_TREKKING_ROUTE}?campsiteId=${encodeURIComponent(campsiteId)}`
-								: RoutePath.HOST_CREATE_TREKKING_ROUTE
-						)
-					}
-					onViewTrekkingRoutes={(campsiteId: string) =>
-						navigateTo(
-							`${RoutePath.HOST_TREKKING_ROUTES}?campsiteId=${encodeURIComponent(campsiteId)}`
-						)
-					}
-					onEditCampsite={(id) => navigateTo(`/host/campsites/${id}/edit`)}
+					onExplore={() => navigateTo(RoutePath.TREKKING)}
+					onCreateTrekkingRoute={() => navigateTo(RoutePath.HOST_CREATE_TREKKING_ROUTE)}
+					onViewTrekkingRoutes={() => navigateTo(RoutePath.HOST_TREKKING_ROUTES)}
 					onLogout={handleLogout}
 				/>
 			);
@@ -301,18 +213,6 @@ export function AppRoutes() {
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
 					<AdminAuditLogsPage onLogout={handleLogout} />
-				</AppRoleGuard>
-			);
-
-		case RoutePath.ADMIN_CAMPSITES:
-			return (
-				<AppRoleGuard
-					allowedRoles={["admin"]}
-					currentRoles={currentRoles}
-					fallback={unauthorizedFallback}
-					onNavigateHome={() => navigateTo(RoutePath.HOME)}
-				>
-					<AdminCampsitesPage onLogout={handleLogout} />
 				</AppRoleGuard>
 			);
 

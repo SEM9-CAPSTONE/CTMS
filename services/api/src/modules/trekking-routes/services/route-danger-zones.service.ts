@@ -76,16 +76,14 @@ export class RouteDangerZonesService {
 		const route = lockForCreate
 			? await repository
 					.createQueryBuilder("route")
-					.innerJoinAndSelect("route.campsite", "campsite")
 					.where("route.id = :routeId", { routeId })
 					.setLock("pessimistic_write")
 					.getOne()
 			: await repository.findOne({
 					where: { id: routeId },
-					relations: { campsite: true },
 				});
 		if (!route) throw new NotFoundException("Trekking route not found");
-		if (route.campsite.hostId !== hostId) {
+		if (route.hostId !== hostId) {
 			throw new ForbiddenException("Only the owning Host can manage hazard areas for this route");
 		}
 		return route;

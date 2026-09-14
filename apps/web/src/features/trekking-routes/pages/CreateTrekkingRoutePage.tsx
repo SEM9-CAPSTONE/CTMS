@@ -1,20 +1,13 @@
-import { AlertCircle, ArrowLeft, CheckCircle2, Map as MapIcon, RefreshCw } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Map as MapIcon } from "lucide-react";
 import { CreateTrekkingRouteForm } from "../components/CreateTrekkingRouteForm";
 import { useCreateTrekkingRoute } from "../hooks/useCreateTrekkingRoute";
-import { useOwnedCampsites } from "../hooks/useOwnedCampsites";
 
 export interface CreateTrekkingRoutePageProps {
 	onBackHome?: () => void;
 }
 
 export function CreateTrekkingRoutePage({ onBackHome }: CreateTrekkingRoutePageProps) {
-	const campsites = useOwnedCampsites();
 	const creation = useCreateTrekkingRoute();
-	const requestedCampsiteId = new URLSearchParams(window.location.search).get("campsiteId");
-	const initialCampsiteId =
-		requestedCampsiteId && campsites.items.some((campsite) => campsite.id === requestedCampsiteId)
-			? requestedCampsiteId
-			: undefined;
 
 	if (creation.createdRoute) {
 		const route = creation.createdRoute;
@@ -90,58 +83,18 @@ export function CreateTrekkingRoutePage({ onBackHome }: CreateTrekkingRoutePageP
 					<div>
 						<h1 className="text-xl font-extrabold sm:text-2xl">Tạo tuyến trekking trên bản đồ</h1>
 						<p className="text-sm text-[#667a6d]">
-							Vẽ hoặc nhập một tuyến có thể tái sử dụng cho khu cắm trại.
+							Vẽ hoặc nhập một tuyến có thể tái sử dụng cho lịch trình trekking.
 						</p>
 					</div>
 				</div>
 			</header>
 			<main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
-				{campsites.isLoading && (
-					<div
-						data-testid="campsites-loading"
-						className="rounded-2xl bg-white p-6 text-sm font-bold"
-					>
-						Đang tải khu cắm trại...
-					</div>
-				)}
-				{campsites.error && !campsites.isLoading && (
-					<div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-6">
-						<div className="flex gap-2 text-red-800">
-							<AlertCircle className="size-5" />
-							{campsites.error}
-						</div>
-						<button
-							type="button"
-							onClick={() => void campsites.retry()}
-							className="mt-4 rounded-lg border px-3 py-2 font-bold"
-						>
-							<RefreshCw className="mr-1 inline size-4" />
-							Tải lại
-						</button>
-					</div>
-				)}
-				{!campsites.isLoading && !campsites.error && campsites.items.length === 0 && (
-					<div
-						data-testid="campsites-empty"
-						className="rounded-2xl border border-dashed bg-white p-8 text-center"
-					>
-						<MapIcon className="mx-auto size-10 text-[#8fa096]" />
-						<p className="mt-3 font-extrabold">Bạn chưa có khu cắm trại</p>
-						<p className="mt-1 text-sm text-[#667a6d]">
-							Hãy tạo khu cắm trại trước khi định nghĩa tuyến trekking.
-						</p>
-					</div>
-				)}
-				{!campsites.isLoading && !campsites.error && campsites.items.length > 0 && (
-					<CreateTrekkingRouteForm
-						campsites={campsites.items}
-						initialCampsiteId={initialCampsiteId}
-						isSubmitting={creation.isSubmitting}
-						error={creation.error}
-						onSubmit={creation.submit}
-						onRetry={creation.retry}
-					/>
-				)}
+				<CreateTrekkingRouteForm
+					isSubmitting={creation.isSubmitting}
+					error={creation.error}
+					onSubmit={creation.submit}
+					onRetry={creation.retry}
+				/>
 			</main>
 		</div>
 	);

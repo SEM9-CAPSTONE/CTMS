@@ -65,10 +65,9 @@ export class WeatherSnapshotsRepository extends Repository<WeatherSnapshot> {
 			SELECT
 				route."id",
 				route."status",
-				campsite."host_id" AS "hostId",
+				route."host_id" AS "hostId",
 				ST_AsGeoJSON(ST_Centroid(route."route_geom"::geometry))::json->'coordinates' AS "centroid"
 			FROM "trekking_routes" route
-			INNER JOIN "campsites" campsite ON campsite."id" = route."campsite_id"
 			WHERE route."id" = $1
 			`,
 			[routeId]

@@ -9,7 +9,6 @@ vi.mock("../services/trekking-routes.service", () => ({
 }));
 
 const payload = {
-	campsiteId: "11111111-1111-4111-8111-111111111111",
 	name: "Ridge",
 	geometry: {
 		type: "LineString" as const,

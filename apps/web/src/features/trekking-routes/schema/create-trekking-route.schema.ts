@@ -12,7 +12,6 @@ export const lineStringSchema = z.object({
 });
 
 export const createTrekkingRouteFormSchema = z.object({
-	campsiteId: z.string().uuid("Vui lòng chọn khu cắm trại"),
 	name: z
 		.string()
 		.trim()
@@ -31,7 +30,6 @@ export const createTrekkingRouteFormSchema = z.object({
 export type CreateTrekkingRouteFormValues = z.infer<typeof createTrekkingRouteFormSchema>;
 
 export const CREATE_TREKKING_ROUTE_DEFAULT_VALUES: CreateTrekkingRouteFormValues = {
-	campsiteId: "",
 	name: "",
 	description: "",
 	difficulty: "moderate",
@@ -44,7 +42,6 @@ export function toCreateTrekkingRouteInput(
 ): CreateTrekkingRouteInput {
 	const description = values.description.trim();
 	return {
-		campsiteId: values.campsiteId,
 		name: values.name.trim(),
 		...(description ? { description } : {}),
 		geometry: values.geometry,

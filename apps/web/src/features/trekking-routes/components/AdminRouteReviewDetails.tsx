@@ -14,7 +14,6 @@ export function AdminRouteReviewDetails({ route, onReview }: Props) {
 				<div className="flex flex-wrap items-start justify-between gap-4">
 					<div>
 						<h2 className="text-xl font-extrabold">{route.name}</h2>
-						<p className="mt-1 text-sm text-[#667a6d]">Khu cắm trại: {route.campsiteName}</p>
 					</div>
 					<button
 						type="button"

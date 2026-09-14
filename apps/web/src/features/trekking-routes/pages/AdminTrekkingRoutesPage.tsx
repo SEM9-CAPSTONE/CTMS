@@ -1,4 +1,4 @@
-import { AlertCircle, RefreshCw, Route } from "lucide-react";
+import { AlertCircle, CheckCircle, RefreshCw, Route } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "../../../shared/components";
 import { AdminLayout } from "../../admin-layout/components/AdminLayout";
@@ -16,6 +16,7 @@ export function AdminTrekkingRoutesPage({ onLogout }: AdminTrekkingRoutesPagePro
 	const review = useReviewTrekkingRoute();
 	const [selectedId, setSelectedId] = useState<string>();
 	const [dialogOpen, setDialogOpen] = useState(false);
+	const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
 	useEffect(() => {
 		setSelectedId((current) =>
@@ -30,6 +31,7 @@ export function AdminTrekkingRoutesPage({ onLogout }: AdminTrekkingRoutesPagePro
 
 	const confirm = async (values: ReviewTrekkingRouteFormValues) => {
 		if (!selected) return;
+		setSuccessMessage(null);
 		const result = await review.submit(selected.id, {
 			action: values.action,
 			reason: values.action === "approve" ? undefined : values.reason,
@@ -40,7 +42,9 @@ export function AdminTrekkingRoutesPage({ onLogout }: AdminTrekkingRoutesPagePro
 			decline: "Đã trả về bản nháp",
 			non_operable: "Đã đóng vì không được vận hành",
 		};
-		toast.success(`${labels[values.action]} tuyến “${selected.name}”.`, "Xét duyệt hoàn tất");
+		const message = `${labels[values.action]} tuyến “${selected.name}”.`;
+		setSuccessMessage(message);
+		toast.success(message, "Xét duyệt hoàn tất");
 		setDialogOpen(false);
 		await list.reload();
 	};
@@ -77,6 +81,12 @@ export function AdminTrekkingRoutesPage({ onLogout }: AdminTrekkingRoutesPagePro
 						</button>
 					</div>
 				)}
+				{successMessage && (
+					<output className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-700">
+						<CheckCircle className="size-5" />
+						{successMessage}
+					</output>
+				)}
 				{!list.error && (
 					<AdminRouteReviewContent
 						isLoading={list.isLoading}
@@ -85,9 +95,11 @@ export function AdminTrekkingRoutesPage({ onLogout }: AdminTrekkingRoutesPagePro
 						onSelect={(route) => {
 							setSelectedId(route.id);
 							review.clearError();
+							setSuccessMessage(null);
 						}}
 						onReview={() => {
 							review.clearError();
+							setSuccessMessage(null);
 							setDialogOpen(true);
 						}}
 					/>

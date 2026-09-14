@@ -8,7 +8,6 @@ import {
 	IsNotEmpty,
 	IsOptional,
 	IsString,
-	IsUUID,
 	MaxLength,
 	Min,
 	Validate,
@@ -47,10 +46,6 @@ export class GeoJsonLineStringDto {
 }
 
 export class CreateTrekkingRouteDto {
-	@ApiProperty({ format: "uuid" })
-	@IsUUID()
-	campsiteId!: string;
-
 	@ApiProperty({ maxLength: 150 })
 	@Transform(({ value }) => trimmedString(value))
 	@IsString()

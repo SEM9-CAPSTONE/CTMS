@@ -1,4 +1,3 @@
-import type { Campsite } from "../../campsites/entities/campsite.entity";
 import type { CreateRouteDangerZoneDto } from "../dto/create-route-danger-zone.dto";
 import { RouteDangerZoneSeverity } from "../entities/route-danger-zone.entity";
 import { TrekkingRouteDifficulty, TrekkingRouteStatus } from "../entities/trekking-route.entity";
@@ -7,7 +6,6 @@ import { RouteDangerZonesService } from "./route-danger-zones.service";
 
 const HOST_ID = "11111111-1111-4111-8111-111111111111";
 const OTHER_HOST_ID = "22222222-2222-4222-8222-222222222222";
-const CAMPSITE_ID = "33333333-3333-4333-8333-333333333333";
 const ROUTE_ID = "44444444-4444-4444-8444-444444444444";
 const DANGER_ZONE_ID = "55555555-5555-4555-8555-555555555555";
 
@@ -30,8 +28,7 @@ const dangerZone = {
 function route(hostId = HOST_ID, status = TrekkingRouteStatus.DRAFT) {
 	return {
 		id: ROUTE_ID,
-		campsiteId: CAMPSITE_ID,
-		campsite: { id: CAMPSITE_ID, hostId } as Campsite,
+		hostId,
 		name: "Pine trail",
 		description: null,
 		routeGeom: {
@@ -105,7 +102,6 @@ describe("RouteDangerZonesService", () => {
 		await expect(service.list(HOST_ID, ROUTE_ID)).resolves.toEqual([dangerZone]);
 		expect(routeRepository.findOne).toHaveBeenCalledWith({
 			where: { id: ROUTE_ID },
-			relations: { campsite: true },
 		});
 		expect(dangerZoneRepository.findByRoute).toHaveBeenCalledWith(ROUTE_ID);
 	});
@@ -121,7 +117,7 @@ describe("RouteDangerZonesService", () => {
 	it("locks a draft Route, persists the danger zone, and audits in one transaction", async () => {
 		await expect(service.create(HOST_ID, ROUTE_ID, dto)).resolves.toEqual(dangerZone);
 		expect(routeRepository.createQueryBuilder).toHaveBeenCalledWith("route");
-		expect(routeQuery.innerJoinAndSelect).toHaveBeenCalledWith("route.campsite", "campsite");
+		expect(routeQuery.where).toHaveBeenCalledWith("route.id = :routeId", { routeId: ROUTE_ID });
 		expect(routeQuery.where).toHaveBeenCalledWith("route.id = :routeId", { routeId: ROUTE_ID });
 		expect(routeQuery.setLock).toHaveBeenCalledWith("pessimistic_write");
 		expect(dangerZoneRepository.createForRoute).toHaveBeenCalledWith({

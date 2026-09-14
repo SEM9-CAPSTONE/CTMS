@@ -5,7 +5,6 @@ import { CreateTrekkingRouteDto } from "./create-trekking-route.dto";
 
 function validPayload(overrides: Record<string, unknown> = {}): Record<string, unknown> {
 	return {
-		campsiteId: "11111111-1111-4111-8111-111111111111",
 		name: "  Pine Ridge Trail  ",
 		description: "  Ridge route  ",
 		geometry: {
@@ -71,7 +70,7 @@ describe("CreateTrekkingRouteDto", () => {
 		);
 	});
 
-	it("rejects authoritative and ownership fields supplied by a client", async () => {
+	it("rejects authoritative fields supplied by a client", async () => {
 		const { errors } = await validationErrors(
 			validPayload({ hostId: "host", status: "active", lengthMeters: 1 })
 		);

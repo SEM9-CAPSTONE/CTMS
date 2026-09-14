@@ -36,27 +36,7 @@ async function seedWeatherRiskScenarios(): Promise<void> {
 			);
 		}
 
-		// 2. Campsite
-		const campsiteName = "Khu cắm trại Ban Mai";
-		const existingCampsite: Array<{ id: string }> = await dataSource.query(
-			'SELECT "id" FROM "campsites" WHERE "host_id" = $1 AND "name" = $2',
-			[hostId, campsiteName]
-		);
-
-		let campsiteId = "";
-		if (existingCampsite.length > 0) {
-			campsiteId = existingCampsite[0].id;
-		} else {
-			const insertedCampsite: Array<{ id: string }> = await dataSource.query(
-				`INSERT INTO "campsites" (host_id, name, description, location, province, policies, operating_hours, status)
-				 VALUES ($1, $2, 'Khu cắm trại sinh thái tuyệt vời gần núi', ST_SetSRID(ST_MakePoint(108.45, 11.94), 4326)::geography, 'Lam Dong', '{}'::jsonb, '{}'::jsonb, 'active')
-				 RETURNING id`,
-				[hostId, campsiteName]
-			);
-			campsiteId = insertedCampsite[0].id;
-		}
-
-		// 2.5 Ensure a weather_risk_rule exists
+		// 2. Ensure a weather_risk_rule exists
 		const existingRules: Array<{ id: string }> = await dataSource.query(
 			'SELECT "id" FROM "weather_risk_rules" ORDER BY "created_at" DESC LIMIT 1'
 		);
@@ -76,8 +56,8 @@ async function seedWeatherRiskScenarios(): Promise<void> {
 		// 3. Scenario 1: GREEN Risk Route (Allowed)
 		const greenRouteName = "Cung Đường An Toàn (Mức Xanh)";
 		const existingGreenRoute: Array<{ id: string }> = await dataSource.query(
-			'SELECT "id" FROM "trekking_routes" WHERE "campsite_id" = $1 AND "name" = $2',
-			[campsiteId, greenRouteName]
+			'SELECT "id" FROM "trekking_routes" WHERE "host_id" = $1 AND "name" = $2',
+			[hostId, greenRouteName]
 		);
 
 		let greenRouteId = "";
@@ -85,10 +65,10 @@ async function seedWeatherRiskScenarios(): Promise<void> {
 			greenRouteId = existingGreenRoute[0].id;
 		} else {
 			const res: Array<{ id: string }> = await dataSource.query(
-				`INSERT INTO "trekking_routes" (campsite_id, name, description, route_geom, length_meters, difficulty, expected_duration_minutes, status)
+				`INSERT INTO "trekking_routes" (host_id, name, description, route_geom, length_meters, difficulty, expected_duration_minutes, status)
 				 VALUES ($1, $2, 'Tuyến trekking thời tiết đẹp, đủ điều kiện an toàn đăng ký', ST_GeogFromText('SRID=4326;LINESTRING(108.45 11.94, 108.47 11.95)'), 2000, 'easy', 120, 'active')
 				 RETURNING id`,
-				[campsiteId, greenRouteName]
+				[hostId, greenRouteName]
 			);
 			greenRouteId = res[0].id;
 		}
@@ -121,8 +101,8 @@ async function seedWeatherRiskScenarios(): Promise<void> {
 		// 4. Scenario 2: RED Risk Route (Blocked)
 		const redRouteName = "Cung Đường Bão Nguy Hiểm (Mức Đỏ)";
 		const existingRedRoute: Array<{ id: string }> = await dataSource.query(
-			'SELECT "id" FROM "trekking_routes" WHERE "campsite_id" = $1 AND "name" = $2',
-			[campsiteId, redRouteName]
+			'SELECT "id" FROM "trekking_routes" WHERE "host_id" = $1 AND "name" = $2',
+			[hostId, redRouteName]
 		);
 
 		let redRouteId = "";
@@ -130,10 +110,10 @@ async function seedWeatherRiskScenarios(): Promise<void> {
 			redRouteId = existingRedRoute[0].id;
 		} else {
 			const res: Array<{ id: string }> = await dataSource.query(
-				`INSERT INTO "trekking_routes" (campsite_id, name, description, route_geom, length_meters, difficulty, expected_duration_minutes, status)
+				`INSERT INTO "trekking_routes" (host_id, name, description, route_geom, length_meters, difficulty, expected_duration_minutes, status)
 				 VALUES ($1, $2, 'Tuyến đường rủi ro thời tiết MỨC ĐỎ - Tạm dừng nhận đăng ký mới', ST_GeogFromText('SRID=4326;LINESTRING(108.45 11.94, 108.48 11.96)'), 3500, 'hard', 240, 'active')
 				 RETURNING id`,
-				[campsiteId, redRouteName]
+				[hostId, redRouteName]
 			);
 			redRouteId = res[0].id;
 		}
