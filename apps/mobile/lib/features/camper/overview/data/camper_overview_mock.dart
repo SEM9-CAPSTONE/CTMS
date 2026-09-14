@@ -95,21 +95,21 @@ final mockCamperOverviewSnapshot = CamperOverviewSnapshot(
     ),
   ],
   suggestions: const [
-    SuggestedCampsite(
+    SuggestedRoute(
       name: 'Bãi Đá Đen Basecamp',
       location: 'Tà Năng, Lâm Đồng',
       pricePerPersonVnd: 350000,
       badgeLabel: 'Còn 4 chỗ',
       badgeSeverity: OverviewSeverity.warning,
     ),
-    SuggestedCampsite(
+    SuggestedRoute(
       name: 'LangBiang Camping',
       location: 'Đà Lạt, Lâm Đồng',
       pricePerPersonVnd: 280000,
       badgeLabel: 'Sắp kín chỗ',
       badgeSeverity: OverviewSeverity.danger,
     ),
-    SuggestedCampsite(
+    SuggestedRoute(
       name: 'Bidoup Núi Bà',
       location: 'Lạc Dương, Lâm Đồng',
       pricePerPersonVnd: 420000,
@@ -118,3 +118,4 @@ final mockCamperOverviewSnapshot = CamperOverviewSnapshot(
     ),
   ],
 );
+

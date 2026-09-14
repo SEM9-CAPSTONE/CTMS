@@ -107,8 +107,8 @@ Map<String, dynamic> _$RecentTransactionToJson(_RecentTransaction instance) =>
       'severity': _$OverviewSeverityEnumMap[instance.severity]!,
     };
 
-_SuggestedCampsite _$SuggestedCampsiteFromJson(Map<String, dynamic> json) =>
-    _SuggestedCampsite(
+_SuggestedRoute _$SuggestedRouteFromJson(Map<String, dynamic> json) =>
+    _SuggestedRoute(
       name: json['name'] as String,
       location: json['location'] as String,
       pricePerPersonVnd: (json['pricePerPersonVnd'] as num).toInt(),
@@ -119,7 +119,7 @@ _SuggestedCampsite _$SuggestedCampsiteFromJson(Map<String, dynamic> json) =>
       ),
     );
 
-Map<String, dynamic> _$SuggestedCampsiteToJson(_SuggestedCampsite instance) =>
+Map<String, dynamic> _$SuggestedRouteToJson(_SuggestedRoute instance) =>
     <String, dynamic>{
       'name': instance.name,
       'location': instance.location,
@@ -148,7 +148,7 @@ _CamperOverviewSnapshot _$CamperOverviewSnapshotFromJson(
       .map((e) => RecentTransaction.fromJson(e as Map<String, dynamic>))
       .toList(),
   suggestions: (json['suggestions'] as List<dynamic>)
-      .map((e) => SuggestedCampsite.fromJson(e as Map<String, dynamic>))
+      .map((e) => SuggestedRoute.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 
@@ -163,3 +163,4 @@ Map<String, dynamic> _$CamperOverviewSnapshotToJson(
   'recentTransactions': instance.recentTransactions,
   'suggestions': instance.suggestions,
 };
+

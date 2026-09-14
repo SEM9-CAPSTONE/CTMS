@@ -11,7 +11,7 @@ import 'package:mobile/features/auth/data/auth_api.dart';
 
 /// CTMS-02 [Mobile]. Real [ApiClient] with only the network boundary faked
 /// (`dio.httpClientAdapter`) -- same "fake the edge, keep the real code
-/// under test" approach as campsite_search_repository_test.dart.
+/// under test" approach as the other API repository tests.
 class _FakeTokenStorage extends TokenStorage {
   _FakeTokenStorage() : super(const FlutterSecureStorage());
 

@@ -16,7 +16,7 @@ As a Porter, I want to view Assigned Trips so that the CTMS workflow is complete
 - [ ] The intended actor can complete the `View Assigned Trips` workflow when all Product Backlog V3 preconditions are satisfied.
 - [ ] The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data.
 - [ ] Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects.
-- [ ] The workflow respects its V3 dependencies: CTMS-47.
+- [ ] The workflow respects its V3 dependencies: CTMS-46.
 
 ## Business Rules Checklist
 - [ ] BR-162: Porter may view only Trips where they have a valid assignment and only the operationally necessary data: schedule, Trip, required route/checkpoints/hazards, joined members by permission, weather, and offline package; assignment does not grant broader admin rights.
@@ -40,7 +40,7 @@ As a Porter, I want to view Assigned Trips so that the CTMS workflow is complete
 | AC1: The intended actor can complete the `View Assigned Trips` workflow when all Product Backlog V3 preconditions are satisfied. | CTMS-48-T01, CTMS-48-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-48-T01, CTMS-48-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-48-T01, CTMS-48-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| AC4: The workflow respects its V3 dependencies: CTMS-47. | CTMS-48-T01, CTMS-48-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
+| AC4: The workflow respects its V3 dependencies: CTMS-46. | CTMS-48-T01, CTMS-48-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | BR-162: Porter may view only Trips where they have a valid assignment and only the operationally necessary data: schedule, Trip, required route/checkpoints/hazards, joined members by permission, weather, and offline package; assignment does not grant broader admin rights. | CTMS-48-T01, CTMS-48-T02 | Tests and review evidence must prove this rule is enforced for `View Assigned Trips`. |
 
 ## Story-Specific Risks and Edge Cases
@@ -91,8 +91,8 @@ As a Porter, I want to view Assigned Trips so that the CTMS workflow is complete
 - Story ID: `CTMS-48`
 - Epic: `EPIC 8. Porter Management`
 - Sprint: `Sprint 3`
-- Dependencies: `CTMS-47`
-- Linked items: `Blocked by: CTMS-47
+- Dependencies: `CTMS-46`
+- Linked items: `Blocked by: CTMS-46
 Blocks: CTMS-49`
 - Spec Reference: `/file/spec/ctms-48-view-assigned-trips.md`
 - Product Backlog source: `PRODUCT BACKLOG.xlsx`, sheet `version 3`

@@ -16,7 +16,7 @@ As a Host or Lead Porter, I want to update Trip Operational Lifecycle and Progre
 - [ ] The intended actor can complete the `Update Trip Operational Lifecycle and Progress` workflow when all Product Backlog V3 preconditions are satisfied.
 - [ ] The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data.
 - [ ] Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects.
-- [ ] The workflow respects its V3 dependencies: CTMS-23, CTMS-11, CTMS-47, CTMS-55.
+- [ ] The workflow respects its V3 dependencies: CTMS-23, CTMS-11, CTMS-46, CTMS-55.
 
 ## Business Rules Checklist
 - [ ] BR-066: The standard active Trip lifecycle is draft -> pending_approval -> published -> ongoing -> completed. pending_approval may return to draft when Admin requests changes; draft, pending_approval, and published may move to cancelled through allowed flows. completed and cancelled are terminal states in MVP and cannot move back.
@@ -43,7 +43,7 @@ As a Host or Lead Porter, I want to update Trip Operational Lifecycle and Progre
 | AC1: The intended actor can complete the `Update Trip Operational Lifecycle and Progress` workflow when all Product Backlog V3 preconditions are satisfied. | CTMS-56-T01, CTMS-56-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-56-T01, CTMS-56-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-56-T01, CTMS-56-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| AC4: The workflow respects its V3 dependencies: CTMS-23, CTMS-11, CTMS-47, CTMS-55. | CTMS-56-T01, CTMS-56-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
+| AC4: The workflow respects its V3 dependencies: CTMS-23, CTMS-11, CTMS-46, CTMS-55. | CTMS-56-T01, CTMS-56-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | BR-066: The standard active Trip lifecycle is draft -> pending_approval -> published -> ongoing -> completed. pending_approval may return to draft when Admin requests changes; draft, pending_approval, and published may move to cancelled through allowed flows. completed and cancelled are terminal states in MVP and cannot move back. | CTMS-56-T01, CTMS-56-T02 | Tests and review evidence must prove this rule is enforced for `Update Trip Operational Lifecycle and Progress`. |
 | BR-067: Start Trip may be performed only for status published by the owning Host or Lead Porter with a valid Porter Assignment. The backend must revalidate actor and Trip state and must not allow Start before trips.starts_at. On successful commit, status becomes ongoing and trips.started_at is set to the current server/database time; repeated requests must be idempotent. | CTMS-56-T01, CTMS-56-T02 | Tests and review evidence must prove this rule is enforced for `Update Trip Operational Lifecycle and Progress`. |
 | BR-068: Finish Trip may be performed only for status ongoing by the owning Host or Lead Porter with a valid Porter Assignment. On successful commit, status becomes completed and trips.completed_at is set to the current server/database time; clients may not provide completed_at. A completed Trip stops GPS/operational tracking by policy and opens later Booking/settlement completion conditions. | CTMS-56-T01, CTMS-56-T02 | Tests and review evidence must prove this rule is enforced for `Update Trip Operational Lifecycle and Progress`. |
@@ -97,8 +97,8 @@ As a Host or Lead Porter, I want to update Trip Operational Lifecycle and Progre
 - Story ID: `CTMS-56`
 - Epic: `EPIC 5. Trip Management`
 - Sprint: `Sprint 3`
-- Dependencies: `CTMS-23`, `CTMS-11`, `CTMS-47`, `CTMS-55`
-- Linked items: `Blocked by: CTMS-23, CTMS-11, CTMS-47, CTMS-55
+- Dependencies: `CTMS-23`, `CTMS-11`, `CTMS-46`, `CTMS-55`
+- Linked items: `Blocked by: CTMS-23, CTMS-11, CTMS-46, CTMS-55
 Blocks: CTMS-38, CTMS-119`
 - Spec Reference: `/file/spec/ctms-56-update-trip-operational-lifecycle-and-progress.md`
 - Product Backlog source: `PRODUCT BACKLOG.xlsx`, sheet `version 3`

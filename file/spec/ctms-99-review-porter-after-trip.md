@@ -16,7 +16,7 @@ As a Camper, I want to review Porter after Trip so that the CTMS workflow is com
 - [ ] The intended actor can complete the `Review Porter after Trip` workflow when all Product Backlog V3 preconditions are satisfied.
 - [ ] The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data.
 - [ ] Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects.
-- [ ] The workflow respects its V3 dependencies: CTMS-47, CTMS-38.
+- [ ] The workflow respects its V3 dependencies: CTMS-46, CTMS-38.
 
 ## Business Rules Checklist
 - [ ] BR-119: Only completed Bookings open review rights; the review target must belong to the real booking experience.
@@ -40,7 +40,7 @@ As a Camper, I want to review Porter after Trip so that the CTMS workflow is com
 | AC1: The intended actor can complete the `Review Porter after Trip` workflow when all Product Backlog V3 preconditions are satisfied. | CTMS-99-T01, CTMS-99-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-99-T01, CTMS-99-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-99-T01, CTMS-99-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| AC4: The workflow respects its V3 dependencies: CTMS-47, CTMS-38. | CTMS-99-T01, CTMS-99-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
+| AC4: The workflow respects its V3 dependencies: CTMS-46, CTMS-38. | CTMS-99-T01, CTMS-99-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | BR-119: Only completed Bookings open review rights; the review target must belong to the real booking experience. | CTMS-99-T01, CTMS-99-T02 | Tests and review evidence must prove this rule is enforced for `Review Porter after Trip`. |
 
 ## Story-Specific Risks and Edge Cases
@@ -91,8 +91,8 @@ As a Camper, I want to review Porter after Trip so that the CTMS workflow is com
 - Story ID: `CTMS-99`
 - Epic: `EPIC 17. Reviews and Feedback`
 - Sprint: `Sprint 5`
-- Dependencies: `CTMS-47`, `CTMS-38`
-- Linked items: `Blocked by: CTMS-47, CTMS-38
+- Dependencies: `CTMS-46`, `CTMS-38`
+- Linked items: `Blocked by: CTMS-46, CTMS-38
 Blocks: CTMS-114, CTMS-115`
 - Spec Reference: `/file/spec/ctms-99-review-porter-after-trip.md`
 - Product Backlog source: `PRODUCT BACKLOG.xlsx`, sheet `version 3`

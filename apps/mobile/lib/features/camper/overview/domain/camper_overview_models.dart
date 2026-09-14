@@ -76,17 +76,17 @@ abstract class RecentTransaction with _$RecentTransaction {
 }
 
 @freezed
-abstract class SuggestedCampsite with _$SuggestedCampsite {
-  const factory SuggestedCampsite({
+abstract class SuggestedRoute with _$SuggestedRoute {
+  const factory SuggestedRoute({
     required String name,
     required String location,
     required int pricePerPersonVnd,
     required String badgeLabel,
     required OverviewSeverity badgeSeverity,
-  }) = _SuggestedCampsite;
+  }) = _SuggestedRoute;
 
-  factory SuggestedCampsite.fromJson(Map<String, dynamic> json) =>
-      _$SuggestedCampsiteFromJson(json);
+  factory SuggestedRoute.fromJson(Map<String, dynamic> json) =>
+      _$SuggestedRouteFromJson(json);
 }
 
 /// The whole "Tổng quan — Camper Hub" payload — one fetch backs every
@@ -100,9 +100,10 @@ abstract class CamperOverviewSnapshot with _$CamperOverviewSnapshot {
     required List<PreparationItem> preparationItems,
     required WeatherRiskSnapshot weatherRisk,
     required List<RecentTransaction> recentTransactions,
-    required List<SuggestedCampsite> suggestions,
+    required List<SuggestedRoute> suggestions,
   }) = _CamperOverviewSnapshot;
 
   factory CamperOverviewSnapshot.fromJson(Map<String, dynamic> json) =>
       _$CamperOverviewSnapshotFromJson(json);
 }
+

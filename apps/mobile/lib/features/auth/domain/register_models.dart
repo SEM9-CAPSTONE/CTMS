@@ -12,7 +12,7 @@ part 'register_models.freezed.dart';
 ///
 /// A previous version of this wizard had a 5th "professional" step
 /// (bloodType/fitnessLevel/emergencyContact for Camper; experienceYears/
-/// operatingDistrict/campsites/certification for Porter) and a Porter-only
+/// operatingDistrict/certification for Porter) and a Porter-only
 /// in-wizard phone-OTP step. Neither maps to any column the real `users`
 /// table has, and the backend's global ValidationPipe
 /// (`forbidNonWhitelisted: true`) rejects the request outright if those

@@ -1391,22 +1391,22 @@ as OverviewSeverity,
 
 
 /// @nodoc
-mixin _$SuggestedCampsite {
+mixin _$SuggestedRoute {
 
  String get name; String get location; int get pricePerPersonVnd; String get badgeLabel; OverviewSeverity get badgeSeverity;
-/// Create a copy of SuggestedCampsite
+/// Create a copy of SuggestedRoute
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
 @pragma('vm:prefer-inline')
-$SuggestedCampsiteCopyWith<SuggestedCampsite> get copyWith => _$SuggestedCampsiteCopyWithImpl<SuggestedCampsite>(this as SuggestedCampsite, _$identity);
+$SuggestedRouteCopyWith<SuggestedRoute> get copyWith => _$SuggestedRouteCopyWithImpl<SuggestedRoute>(this as SuggestedRoute, _$identity);
 
-  /// Serializes this SuggestedCampsite to a JSON map.
+  /// Serializes this SuggestedRoute to a JSON map.
   Map<String, dynamic> toJson();
 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is SuggestedCampsite&&(identical(other.name, name) || other.name == name)&&(identical(other.location, location) || other.location == location)&&(identical(other.pricePerPersonVnd, pricePerPersonVnd) || other.pricePerPersonVnd == pricePerPersonVnd)&&(identical(other.badgeLabel, badgeLabel) || other.badgeLabel == badgeLabel)&&(identical(other.badgeSeverity, badgeSeverity) || other.badgeSeverity == badgeSeverity));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is SuggestedRoute&&(identical(other.name, name) || other.name == name)&&(identical(other.location, location) || other.location == location)&&(identical(other.pricePerPersonVnd, pricePerPersonVnd) || other.pricePerPersonVnd == pricePerPersonVnd)&&(identical(other.badgeLabel, badgeLabel) || other.badgeLabel == badgeLabel)&&(identical(other.badgeSeverity, badgeSeverity) || other.badgeSeverity == badgeSeverity));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -1415,15 +1415,15 @@ int get hashCode => Object.hash(runtimeType,name,location,pricePerPersonVnd,badg
 
 @override
 String toString() {
-  return 'SuggestedCampsite(name: $name, location: $location, pricePerPersonVnd: $pricePerPersonVnd, badgeLabel: $badgeLabel, badgeSeverity: $badgeSeverity)';
+  return 'SuggestedRoute(name: $name, location: $location, pricePerPersonVnd: $pricePerPersonVnd, badgeLabel: $badgeLabel, badgeSeverity: $badgeSeverity)';
 }
 
 
 }
 
 /// @nodoc
-abstract mixin class $SuggestedCampsiteCopyWith<$Res>  {
-  factory $SuggestedCampsiteCopyWith(SuggestedCampsite value, $Res Function(SuggestedCampsite) _then) = _$SuggestedCampsiteCopyWithImpl;
+abstract mixin class $SuggestedRouteCopyWith<$Res>  {
+  factory $SuggestedRouteCopyWith(SuggestedRoute value, $Res Function(SuggestedRoute) _then) = _$SuggestedRouteCopyWithImpl;
 @useResult
 $Res call({
  String name, String location, int pricePerPersonVnd, String badgeLabel, OverviewSeverity badgeSeverity
@@ -1434,14 +1434,14 @@ $Res call({
 
 }
 /// @nodoc
-class _$SuggestedCampsiteCopyWithImpl<$Res>
-    implements $SuggestedCampsiteCopyWith<$Res> {
-  _$SuggestedCampsiteCopyWithImpl(this._self, this._then);
+class _$SuggestedRouteCopyWithImpl<$Res>
+    implements $SuggestedRouteCopyWith<$Res> {
+  _$SuggestedRouteCopyWithImpl(this._self, this._then);
 
-  final SuggestedCampsite _self;
-  final $Res Function(SuggestedCampsite) _then;
+  final SuggestedRoute _self;
+  final $Res Function(SuggestedRoute) _then;
 
-/// Create a copy of SuggestedCampsite
+/// Create a copy of SuggestedRoute
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? name = null,Object? location = null,Object? pricePerPersonVnd = null,Object? badgeLabel = null,Object? badgeSeverity = null,}) {
   return _then(_self.copyWith(
@@ -1457,8 +1457,8 @@ as OverviewSeverity,
 }
 
 
-/// Adds pattern-matching-related methods to [SuggestedCampsite].
-extension SuggestedCampsitePatterns on SuggestedCampsite {
+/// Adds pattern-matching-related methods to [SuggestedRoute].
+extension SuggestedRoutePatterns on SuggestedRoute {
 /// A variant of `map` that fallback to returning `orElse`.
 ///
 /// It is equivalent to doing:
@@ -1471,10 +1471,10 @@ extension SuggestedCampsitePatterns on SuggestedCampsite {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _SuggestedCampsite value)?  $default,{required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _SuggestedRoute value)?  $default,{required TResult orElse(),}){
 final _that = this;
 switch (_that) {
-case _SuggestedCampsite() when $default != null:
+case _SuggestedRoute() when $default != null:
 return $default(_that);case _:
   return orElse();
 
@@ -1493,10 +1493,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _SuggestedCampsite value)  $default,){
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _SuggestedRoute value)  $default,){
 final _that = this;
 switch (_that) {
-case _SuggestedCampsite():
+case _SuggestedRoute():
 return $default(_that);case _:
   throw StateError('Unexpected subclass');
 
@@ -1514,10 +1514,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _SuggestedCampsite value)?  $default,){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _SuggestedRoute value)?  $default,){
 final _that = this;
 switch (_that) {
-case _SuggestedCampsite() when $default != null:
+case _SuggestedRoute() when $default != null:
 return $default(_that);case _:
   return null;
 
@@ -1537,7 +1537,7 @@ return $default(_that);case _:
 
 @optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String name,  String location,  int pricePerPersonVnd,  String badgeLabel,  OverviewSeverity badgeSeverity)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
-case _SuggestedCampsite() when $default != null:
+case _SuggestedRoute() when $default != null:
 return $default(_that.name,_that.location,_that.pricePerPersonVnd,_that.badgeLabel,_that.badgeSeverity);case _:
   return orElse();
 
@@ -1558,7 +1558,7 @@ return $default(_that.name,_that.location,_that.pricePerPersonVnd,_that.badgeLab
 
 @optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String name,  String location,  int pricePerPersonVnd,  String badgeLabel,  OverviewSeverity badgeSeverity)  $default,) {final _that = this;
 switch (_that) {
-case _SuggestedCampsite():
+case _SuggestedRoute():
 return $default(_that.name,_that.location,_that.pricePerPersonVnd,_that.badgeLabel,_that.badgeSeverity);case _:
   throw StateError('Unexpected subclass');
 
@@ -1578,7 +1578,7 @@ return $default(_that.name,_that.location,_that.pricePerPersonVnd,_that.badgeLab
 
 @optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String name,  String location,  int pricePerPersonVnd,  String badgeLabel,  OverviewSeverity badgeSeverity)?  $default,) {final _that = this;
 switch (_that) {
-case _SuggestedCampsite() when $default != null:
+case _SuggestedRoute() when $default != null:
 return $default(_that.name,_that.location,_that.pricePerPersonVnd,_that.badgeLabel,_that.badgeSeverity);case _:
   return null;
 
@@ -1590,9 +1590,9 @@ return $default(_that.name,_that.location,_that.pricePerPersonVnd,_that.badgeLab
 /// @nodoc
 @JsonSerializable()
 
-class _SuggestedCampsite implements SuggestedCampsite {
-  const _SuggestedCampsite({required this.name, required this.location, required this.pricePerPersonVnd, required this.badgeLabel, required this.badgeSeverity});
-  factory _SuggestedCampsite.fromJson(Map<String, dynamic> json) => _$SuggestedCampsiteFromJson(json);
+class _SuggestedRoute implements SuggestedRoute {
+  const _SuggestedRoute({required this.name, required this.location, required this.pricePerPersonVnd, required this.badgeLabel, required this.badgeSeverity});
+  factory _SuggestedRoute.fromJson(Map<String, dynamic> json) => _$SuggestedRouteFromJson(json);
 
 @override final  String name;
 @override final  String location;
@@ -1600,20 +1600,20 @@ class _SuggestedCampsite implements SuggestedCampsite {
 @override final  String badgeLabel;
 @override final  OverviewSeverity badgeSeverity;
 
-/// Create a copy of SuggestedCampsite
+/// Create a copy of SuggestedRoute
 /// with the given fields replaced by the non-null parameter values.
 @override @JsonKey(includeFromJson: false, includeToJson: false)
 @pragma('vm:prefer-inline')
-_$SuggestedCampsiteCopyWith<_SuggestedCampsite> get copyWith => __$SuggestedCampsiteCopyWithImpl<_SuggestedCampsite>(this, _$identity);
+_$SuggestedRouteCopyWith<_SuggestedRoute> get copyWith => __$SuggestedRouteCopyWithImpl<_SuggestedRoute>(this, _$identity);
 
 @override
 Map<String, dynamic> toJson() {
-  return _$SuggestedCampsiteToJson(this, );
+  return _$SuggestedRouteToJson(this, );
 }
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _SuggestedCampsite&&(identical(other.name, name) || other.name == name)&&(identical(other.location, location) || other.location == location)&&(identical(other.pricePerPersonVnd, pricePerPersonVnd) || other.pricePerPersonVnd == pricePerPersonVnd)&&(identical(other.badgeLabel, badgeLabel) || other.badgeLabel == badgeLabel)&&(identical(other.badgeSeverity, badgeSeverity) || other.badgeSeverity == badgeSeverity));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _SuggestedRoute&&(identical(other.name, name) || other.name == name)&&(identical(other.location, location) || other.location == location)&&(identical(other.pricePerPersonVnd, pricePerPersonVnd) || other.pricePerPersonVnd == pricePerPersonVnd)&&(identical(other.badgeLabel, badgeLabel) || other.badgeLabel == badgeLabel)&&(identical(other.badgeSeverity, badgeSeverity) || other.badgeSeverity == badgeSeverity));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -1622,15 +1622,15 @@ int get hashCode => Object.hash(runtimeType,name,location,pricePerPersonVnd,badg
 
 @override
 String toString() {
-  return 'SuggestedCampsite(name: $name, location: $location, pricePerPersonVnd: $pricePerPersonVnd, badgeLabel: $badgeLabel, badgeSeverity: $badgeSeverity)';
+  return 'SuggestedRoute(name: $name, location: $location, pricePerPersonVnd: $pricePerPersonVnd, badgeLabel: $badgeLabel, badgeSeverity: $badgeSeverity)';
 }
 
 
 }
 
 /// @nodoc
-abstract mixin class _$SuggestedCampsiteCopyWith<$Res> implements $SuggestedCampsiteCopyWith<$Res> {
-  factory _$SuggestedCampsiteCopyWith(_SuggestedCampsite value, $Res Function(_SuggestedCampsite) _then) = __$SuggestedCampsiteCopyWithImpl;
+abstract mixin class _$SuggestedRouteCopyWith<$Res> implements $SuggestedRouteCopyWith<$Res> {
+  factory _$SuggestedRouteCopyWith(_SuggestedRoute value, $Res Function(_SuggestedRoute) _then) = __$SuggestedRouteCopyWithImpl;
 @override @useResult
 $Res call({
  String name, String location, int pricePerPersonVnd, String badgeLabel, OverviewSeverity badgeSeverity
@@ -1641,17 +1641,17 @@ $Res call({
 
 }
 /// @nodoc
-class __$SuggestedCampsiteCopyWithImpl<$Res>
-    implements _$SuggestedCampsiteCopyWith<$Res> {
-  __$SuggestedCampsiteCopyWithImpl(this._self, this._then);
+class __$SuggestedRouteCopyWithImpl<$Res>
+    implements _$SuggestedRouteCopyWith<$Res> {
+  __$SuggestedRouteCopyWithImpl(this._self, this._then);
 
-  final _SuggestedCampsite _self;
-  final $Res Function(_SuggestedCampsite) _then;
+  final _SuggestedRoute _self;
+  final $Res Function(_SuggestedRoute) _then;
 
-/// Create a copy of SuggestedCampsite
+/// Create a copy of SuggestedRoute
 /// with the given fields replaced by the non-null parameter values.
 @override @pragma('vm:prefer-inline') $Res call({Object? name = null,Object? location = null,Object? pricePerPersonVnd = null,Object? badgeLabel = null,Object? badgeSeverity = null,}) {
-  return _then(_SuggestedCampsite(
+  return _then(_SuggestedRoute(
 name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,location: null == location ? _self.location : location // ignore: cast_nullable_to_non_nullable
 as String,pricePerPersonVnd: null == pricePerPersonVnd ? _self.pricePerPersonVnd : pricePerPersonVnd // ignore: cast_nullable_to_non_nullable
@@ -1668,7 +1668,7 @@ as OverviewSeverity,
 /// @nodoc
 mixin _$CamperOverviewSnapshot {
 
- List<OverviewNotice> get notices; UpcomingTrip? get upcomingTrip; double get preparationProgress; List<PreparationItem> get preparationItems; WeatherRiskSnapshot get weatherRisk; List<RecentTransaction> get recentTransactions; List<SuggestedCampsite> get suggestions;
+ List<OverviewNotice> get notices; UpcomingTrip? get upcomingTrip; double get preparationProgress; List<PreparationItem> get preparationItems; WeatherRiskSnapshot get weatherRisk; List<RecentTransaction> get recentTransactions; List<SuggestedRoute> get suggestions;
 /// Create a copy of CamperOverviewSnapshot
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -1701,7 +1701,7 @@ abstract mixin class $CamperOverviewSnapshotCopyWith<$Res>  {
   factory $CamperOverviewSnapshotCopyWith(CamperOverviewSnapshot value, $Res Function(CamperOverviewSnapshot) _then) = _$CamperOverviewSnapshotCopyWithImpl;
 @useResult
 $Res call({
- List<OverviewNotice> notices, UpcomingTrip? upcomingTrip, double preparationProgress, List<PreparationItem> preparationItems, WeatherRiskSnapshot weatherRisk, List<RecentTransaction> recentTransactions, List<SuggestedCampsite> suggestions
+ List<OverviewNotice> notices, UpcomingTrip? upcomingTrip, double preparationProgress, List<PreparationItem> preparationItems, WeatherRiskSnapshot weatherRisk, List<RecentTransaction> recentTransactions, List<SuggestedRoute> suggestions
 });
 
 
@@ -1727,7 +1727,7 @@ as double,preparationItems: null == preparationItems ? _self.preparationItems : 
 as List<PreparationItem>,weatherRisk: null == weatherRisk ? _self.weatherRisk : weatherRisk // ignore: cast_nullable_to_non_nullable
 as WeatherRiskSnapshot,recentTransactions: null == recentTransactions ? _self.recentTransactions : recentTransactions // ignore: cast_nullable_to_non_nullable
 as List<RecentTransaction>,suggestions: null == suggestions ? _self.suggestions : suggestions // ignore: cast_nullable_to_non_nullable
-as List<SuggestedCampsite>,
+as List<SuggestedRoute>,
   ));
 }
 /// Create a copy of CamperOverviewSnapshot
@@ -1833,7 +1833,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( List<OverviewNotice> notices,  UpcomingTrip? upcomingTrip,  double preparationProgress,  List<PreparationItem> preparationItems,  WeatherRiskSnapshot weatherRisk,  List<RecentTransaction> recentTransactions,  List<SuggestedCampsite> suggestions)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( List<OverviewNotice> notices,  UpcomingTrip? upcomingTrip,  double preparationProgress,  List<PreparationItem> preparationItems,  WeatherRiskSnapshot weatherRisk,  List<RecentTransaction> recentTransactions,  List<SuggestedRoute> suggestions)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _CamperOverviewSnapshot() when $default != null:
 return $default(_that.notices,_that.upcomingTrip,_that.preparationProgress,_that.preparationItems,_that.weatherRisk,_that.recentTransactions,_that.suggestions);case _:
@@ -1854,7 +1854,7 @@ return $default(_that.notices,_that.upcomingTrip,_that.preparationProgress,_that
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( List<OverviewNotice> notices,  UpcomingTrip? upcomingTrip,  double preparationProgress,  List<PreparationItem> preparationItems,  WeatherRiskSnapshot weatherRisk,  List<RecentTransaction> recentTransactions,  List<SuggestedCampsite> suggestions)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( List<OverviewNotice> notices,  UpcomingTrip? upcomingTrip,  double preparationProgress,  List<PreparationItem> preparationItems,  WeatherRiskSnapshot weatherRisk,  List<RecentTransaction> recentTransactions,  List<SuggestedRoute> suggestions)  $default,) {final _that = this;
 switch (_that) {
 case _CamperOverviewSnapshot():
 return $default(_that.notices,_that.upcomingTrip,_that.preparationProgress,_that.preparationItems,_that.weatherRisk,_that.recentTransactions,_that.suggestions);case _:
@@ -1874,7 +1874,7 @@ return $default(_that.notices,_that.upcomingTrip,_that.preparationProgress,_that
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( List<OverviewNotice> notices,  UpcomingTrip? upcomingTrip,  double preparationProgress,  List<PreparationItem> preparationItems,  WeatherRiskSnapshot weatherRisk,  List<RecentTransaction> recentTransactions,  List<SuggestedCampsite> suggestions)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( List<OverviewNotice> notices,  UpcomingTrip? upcomingTrip,  double preparationProgress,  List<PreparationItem> preparationItems,  WeatherRiskSnapshot weatherRisk,  List<RecentTransaction> recentTransactions,  List<SuggestedRoute> suggestions)?  $default,) {final _that = this;
 switch (_that) {
 case _CamperOverviewSnapshot() when $default != null:
 return $default(_that.notices,_that.upcomingTrip,_that.preparationProgress,_that.preparationItems,_that.weatherRisk,_that.recentTransactions,_that.suggestions);case _:
@@ -1889,7 +1889,7 @@ return $default(_that.notices,_that.upcomingTrip,_that.preparationProgress,_that
 @JsonSerializable()
 
 class _CamperOverviewSnapshot implements CamperOverviewSnapshot {
-  const _CamperOverviewSnapshot({required final  List<OverviewNotice> notices, this.upcomingTrip, required this.preparationProgress, required final  List<PreparationItem> preparationItems, required this.weatherRisk, required final  List<RecentTransaction> recentTransactions, required final  List<SuggestedCampsite> suggestions}): _notices = notices,_preparationItems = preparationItems,_recentTransactions = recentTransactions,_suggestions = suggestions;
+  const _CamperOverviewSnapshot({required final  List<OverviewNotice> notices, this.upcomingTrip, required this.preparationProgress, required final  List<PreparationItem> preparationItems, required this.weatherRisk, required final  List<RecentTransaction> recentTransactions, required final  List<SuggestedRoute> suggestions}): _notices = notices,_preparationItems = preparationItems,_recentTransactions = recentTransactions,_suggestions = suggestions;
   factory _CamperOverviewSnapshot.fromJson(Map<String, dynamic> json) => _$CamperOverviewSnapshotFromJson(json);
 
  final  List<OverviewNotice> _notices;
@@ -1916,8 +1916,8 @@ class _CamperOverviewSnapshot implements CamperOverviewSnapshot {
   return EqualUnmodifiableListView(_recentTransactions);
 }
 
- final  List<SuggestedCampsite> _suggestions;
-@override List<SuggestedCampsite> get suggestions {
+ final  List<SuggestedRoute> _suggestions;
+@override List<SuggestedRoute> get suggestions {
   if (_suggestions is EqualUnmodifiableListView) return _suggestions;
   // ignore: implicit_dynamic_type
   return EqualUnmodifiableListView(_suggestions);
@@ -1957,7 +1957,7 @@ abstract mixin class _$CamperOverviewSnapshotCopyWith<$Res> implements $CamperOv
   factory _$CamperOverviewSnapshotCopyWith(_CamperOverviewSnapshot value, $Res Function(_CamperOverviewSnapshot) _then) = __$CamperOverviewSnapshotCopyWithImpl;
 @override @useResult
 $Res call({
- List<OverviewNotice> notices, UpcomingTrip? upcomingTrip, double preparationProgress, List<PreparationItem> preparationItems, WeatherRiskSnapshot weatherRisk, List<RecentTransaction> recentTransactions, List<SuggestedCampsite> suggestions
+ List<OverviewNotice> notices, UpcomingTrip? upcomingTrip, double preparationProgress, List<PreparationItem> preparationItems, WeatherRiskSnapshot weatherRisk, List<RecentTransaction> recentTransactions, List<SuggestedRoute> suggestions
 });
 
 
@@ -1983,7 +1983,7 @@ as double,preparationItems: null == preparationItems ? _self._preparationItems :
 as List<PreparationItem>,weatherRisk: null == weatherRisk ? _self.weatherRisk : weatherRisk // ignore: cast_nullable_to_non_nullable
 as WeatherRiskSnapshot,recentTransactions: null == recentTransactions ? _self._recentTransactions : recentTransactions // ignore: cast_nullable_to_non_nullable
 as List<RecentTransaction>,suggestions: null == suggestions ? _self._suggestions : suggestions // ignore: cast_nullable_to_non_nullable
-as List<SuggestedCampsite>,
+as List<SuggestedRoute>,
   ));
 }
 
@@ -2012,3 +2012,4 @@ $WeatherRiskSnapshotCopyWith<$Res> get weatherRisk {
 }
 
 // dart format on
+

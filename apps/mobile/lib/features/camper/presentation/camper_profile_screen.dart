@@ -299,7 +299,7 @@
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
-                      value: severity,
+                      initialValue: severity,
                       decoration: const InputDecoration(
                         labelText: 'Mức độ nghiêm trọng',
                       ),
@@ -577,7 +577,7 @@
                       ),
                       const SizedBox(height: 12),
                       DropdownButtonFormField<String>(
-                        value: _gender,
+                        initialValue: _gender,
                         decoration: const InputDecoration(labelText: 'Giới tính'),
                         items: const [
                           DropdownMenuItem(value: 'male', child: Text('Nam')),
@@ -701,7 +701,7 @@
                   child: Column(
                     children: [
                       DropdownButtonFormField<String>(
-                        value: _bloodType,
+                        initialValue: _bloodType,
                         decoration: const InputDecoration(labelText: 'Nhóm máu'),
                         items: const [
                           DropdownMenuItem(value: 'A+', child: Text('A+')),
@@ -724,7 +724,7 @@
                       ),
                       const SizedBox(height: 12),
                       DropdownButtonFormField<String>(
-                        value: _physicalFitnessLevel,
+                        initialValue: _physicalFitnessLevel,
                         decoration: const InputDecoration(labelText: 'Thể lực'),
                         items: const [
                           DropdownMenuItem(
@@ -880,7 +880,7 @@
                           ),
                           Switch(
                             value: _isConsentGranted,
-                            activeColor: const Color(0xFF164027),
+                            activeThumbColor: const Color(0xFF164027),
                             onChanged: _isSavingHealth
                                 ? null
                                 : (val) => _toggleConsent(val),
