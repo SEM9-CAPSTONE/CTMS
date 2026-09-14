@@ -10,14 +10,14 @@ export const SearchPanelSection: React.FC = () => {
 						Điểm đến nổi bật
 					</p>
 					<h2 className="text-2xl font-extrabold tracking-tight text-[#10221b]">
-						Những cung đường và bãi cắm được yêu thích nhất tháng này
+						Những cung đường trekking được yêu thích nhất tháng này
 					</h2>
 				</div>
 				<a
-					href="/campsites"
+					href="/trekking"
 					onClick={(e) => {
 						e.preventDefault();
-						window.history.pushState({}, "", "/campsites");
+						window.history.pushState({}, "", "/trekking");
 						window.dispatchEvent(new PopStateEvent("popstate"));
 					}}
 					className="inline-flex items-center gap-1 text-sm font-bold text-[#276143] hover:underline"
@@ -69,19 +69,18 @@ export const SearchPanelSection: React.FC = () => {
 					<div className="flex h-13 items-center gap-2.5 rounded-2xl border border-[#e0ebe0] bg-[#f7faf6] px-4">
 						<Compass size={18} className="shrink-0 text-[#276143]" />
 						<select
-							defaultValue="cam-trai"
+							defaultValue="trekking"
 							className="w-full bg-transparent text-sm text-[#10221b] outline-none"
 						>
-							<option value="cam-trai">Cắm trại</option>
 							<option value="trekking">Trekking</option>
-							<option value="combo">Combo Lều & Tour</option>
+							<option value="combo">Combo Trekking</option>
 						</select>
 					</div>
 				</div>
 				<button
 					type="button"
 					onClick={() => {
-						window.history.pushState({}, "", "/campsites");
+						window.history.pushState({}, "", "/trekking");
 						window.dispatchEvent(new PopStateEvent("popstate"));
 					}}
 					className="mt-auto inline-flex h-13 min-w-[160px] cursor-pointer items-center justify-center gap-2 rounded-full bg-[#1c442f] px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-[#143323]"

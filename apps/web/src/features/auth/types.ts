@@ -78,7 +78,6 @@ export interface CamperRegisterFormData extends BaseRegisterFormData {
 }
 
 export interface HostRegisterFormData extends BaseRegisterFormData {
-	campsiteName: string;
 	province: string;
 	businessLicense?: string;
 }

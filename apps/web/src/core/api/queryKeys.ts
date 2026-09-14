@@ -2,13 +2,6 @@ export const queryKeys = {
 	auth: {
 		me: ["auth", "me"] as const,
 	},
-	campsites: {
-		all: ["campsites"] as const,
-		list: (filters?: Record<string, unknown>) => ["campsites", "list", filters] as const,
-		detail: (id: string) => ["campsites", "detail", id] as const,
-		zones: (campsiteId: string) => ["campsites", campsiteId, "zones"] as const,
-		slots: (zoneId: string) => ["campsite-zones", zoneId, "slots"] as const,
-	},
 	bookings: {
 		all: ["bookings"] as const,
 		list: (filters?: Record<string, unknown>) => ["bookings", "list", filters] as const,
@@ -27,8 +20,7 @@ export const queryKeys = {
 		detail: (id: string) => ["trips", "detail", id] as const,
 	},
 	weather: {
-		risk: (routeId?: string, campsiteId?: string) =>
-			["weather", "risk", { routeId, campsiteId }] as const,
+		risk: (routeId?: string) => ["weather", "risk", { routeId }] as const,
 		rules: ["weather", "rules"] as const,
 		activeRule: ["weather", "rules", "active"] as const,
 	},
