@@ -103,7 +103,7 @@ As a Porter, I want to manage Porter Profile and Route Qualification so that the
 - Sprint: `Sprint 3`
 - Dependencies: `CTMS-06`, `CTMS-13`
 - Linked items: `Blocked by: CTMS-06, CTMS-13
-Blocks: CTMS-44, CTMS-45, CTMS-47`
+Blocks: CTMS-44, CTMS-45, CTMS-46`
 - Spec Reference: `/file/spec/ctms-43-manage-porter-profile-and-route-qualification.md`
 - Product Backlog source: `PRODUCT BACKLOG.xlsx`, sheet `version 3`
 - Business Rules source: `CTMS- Business rules.xlsx`

@@ -4,11 +4,8 @@ import * as bcrypt from "bcrypt";
 import dataSource from "../shared/database/data-source";
 
 /**
- * The newer JSON-payload actions (create-account/seed-campsites/
- * clean-campsites) take their `arg` base64-encoded -- a raw JSON string on
- * the command line is fragile to shell-quote correctly cross-platform
- * (Windows vs POSIX), especially from execSync. Plain-string actions
- * (email, etc.) are unaffected and keep taking `arg` as-is.
+ * JSON-payload actions take their `arg` base64-encoded -- a raw JSON string
+ * on the command line is fragile to shell-quote correctly cross-platform.
  */
 function parseJsonArg<T>(base64Arg: string): T {
 	return JSON.parse(Buffer.from(base64Arg, "base64").toString("utf8")) as T;
@@ -116,7 +113,7 @@ async function main() {
 			// CTMS-17-T02 (CTMS-78). Generic account fixture, reusable beyond
 			// this story: creates a user with an explicit role/status/password
 			// so an E2E spec can log in as it via the real UI form (e.g. a
-			// non-Camper account to prove Search Campsites' role gate end to
+			// non-Camper account to prove role-gated flows end to
 			// end). Mirrors dev-admin.seed.ts's hashing, not a shortcut.
 			const input = parseJsonArg<{
 				email: string;
@@ -137,228 +134,21 @@ async function main() {
 				[userId, input.role]
 			);
 			console.log(JSON.stringify({ id: userId }));
-		} else if (action === "seed-campsites") {
-			// CTMS-17-T02 (CTMS-78). CTMS-77 has no Create Campsite API, so E2E
-			// fixtures for Search Campsites must be inserted directly -- this
-			// mirrors services/api/test/support/campsite-fixtures.ts's Jest
-			// helper (Step 5 of CTMS-77), reimplemented as a CLI action since
-			// Playwright drives this process via execSync, not a ts-jest import.
-			const input = parseJsonArg<{
-				hostId?: string;
-				campsites: Array<{
-					name?: string;
-					province?: string;
-					city?: string;
-					latitude?: string;
-					longitude?: string;
-					status?: string;
-					zones?: Array<{
-						amenities?: string[];
-						basePrice?: string;
-						status?: string;
-					}>;
-					images?: Array<{ url: string; displayOrder: number }>;
-				}>;
-			}>(arg);
-
-			let hostId = input.hostId;
-			if (!hostId) {
-				const hostPasswordHash = await bcrypt.hash("S3curePass!", 10);
-				const hostRows = await dataSource.query(
-					`INSERT INTO "users" ("email", "password_hash", "role", "status", "full_name")
-					 VALUES ($1, $2, 'host', 'active', 'E2E Fixture Host') RETURNING "id"`,
-					[
-						`e2e-ctms78-host-${Date.now()}-${Math.floor(Math.random() * 1_000_000)}@example.com`,
-						hostPasswordHash,
-					]
-				);
-				hostId = hostRows[0].id;
-				await dataSource.query(
-					`INSERT INTO "user_roles" ("user_id", "role") VALUES ($1, 'host') ON CONFLICT ("user_id", "role") DO NOTHING`,
-					[hostId]
-				);
-			}
-
-			const createdCampsites: Array<{
-				id: string;
-				name: string;
-				province: string;
-				status: string;
-			}> = [];
-
-			for (const spec of input.campsites) {
-				const rows = await dataSource.query(
-					`INSERT INTO "campsites"
-					   ("host_id", "name", "description", "location", "province", "policies", "operating_hours", "status")
-					 VALUES (
-					   $1,
-					   $2,
-					   'e2e fixture',
-					   ST_SetSRID(ST_MakePoint($3::double precision, $4::double precision), 4326)::geography,
-					   $5,
-					   '{"rules":"n/a"}'::jsonb,
-					   '{"opensAt":"08:00","closesAt":"18:00"}'::jsonb,
-					   $6
-					 )
-					 RETURNING "id", "name", "province", "status"`,
-					[
-						hostId,
-						spec.name ?? `E2E Campsite ${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`,
-						spec.longitude ?? "106.000000",
-						spec.latitude ?? "10.000000",
-						spec.province ?? "CTMS78E2E",
-						spec.status ?? "active",
-					]
-				);
-				const campsite = rows[0];
-				createdCampsites.push(campsite);
-
-				for (const zone of spec.zones ?? []) {
-					await dataSource.query(
-						`INSERT INTO "campsite_zones"
-						   ("campsite_id", "name", "location", "max_tents", "max_people", "base_price", "amenities", "status")
-						 VALUES (
-						   $1,
-						   'E2E Zone',
-						   ST_SetSRID(ST_MakePoint(106::double precision, 10::double precision), 4326)::geography,
-						   4,
-						   12,
-						   $2,
-						   $3::jsonb,
-						   $4
-						 )`,
-						[
-							campsite.id,
-							zone.basePrice ?? "100.00",
-							JSON.stringify(zone.amenities ?? []),
-							zone.status ?? "active",
-						]
-					);
-				}
-
-				for (const image of spec.images ?? []) {
-					await dataSource.query(
-						`INSERT INTO "campsite_media" ("campsite_id", "url", "type", "sort_order")
-						 VALUES ($1, $2, $3, $4)`,
-						[campsite.id, image.url, "photo", image.displayOrder]
-					);
-				}
-			}
-
-			console.log(JSON.stringify({ hostId, campsites: createdCampsites }));
-		} else if (action === "clean-campsites") {
-			// Mirrors cleanupCampsiteFixtures() -- children-first FK order,
-			// deletes exactly the ids the spec tracked, never a marker sweep.
-			const input = parseJsonArg<{ hostIds: string[]; campsiteIds: string[] }>(arg);
-			if (input.campsiteIds.length > 0) {
-				const campsiteRows = (await dataSource.query(
-					`SELECT "id", "name", "province" FROM "campsites" WHERE "id" = ANY($1)`,
-					[input.campsiteIds]
-				)) as Array<{ id: string; name: string; province: string }>;
-				const unsafeCampsite = campsiteRows.find(
-					(row) =>
-						!row.province.startsWith("CTMS") &&
-						!row.name.startsWith("CTMS") &&
-						!row.name.startsWith("E2E") &&
-						!row.name.startsWith("Pine Camp CTMS")
-				);
-				if (unsafeCampsite) {
-					throw new Error(
-						`Refusing to delete non-E2E campsite: ${unsafeCampsite.id} ${unsafeCampsite.name}`
-					);
-				}
-				await dataSource.query(`DELETE FROM "campsite_media" WHERE "campsite_id" = ANY($1)`, [
-					input.campsiteIds,
-				]);
-				await dataSource.query(`DELETE FROM "campsite_zones" WHERE "campsite_id" = ANY($1)`, [
-					input.campsiteIds,
-				]);
-				await dataSource.query(`DELETE FROM "campsites" WHERE "id" = ANY($1)`, [input.campsiteIds]);
-			}
-			if (input.hostIds.length > 0) {
-				const hostRows = (await dataSource.query(
-					`SELECT "id", "email" FROM "users" WHERE "id" = ANY($1)`,
-					[input.hostIds]
-				)) as Array<{ id: string; email: string | null }>;
-				const unsafeHost = hostRows.find((row) => !row.email?.startsWith("e2e-"));
-				if (unsafeHost) {
-					throw new Error(`Refusing to delete non-E2E host: ${unsafeHost.id}`);
-				}
-				await dataSource.query(`DELETE FROM "user_roles" WHERE "user_id" = ANY($1)`, [
-					input.hostIds,
-				]);
-				await dataSource.query(`DELETE FROM "users" WHERE "id" = ANY($1)`, [input.hostIds]);
-			}
-			console.log(JSON.stringify({ success: true }));
-		} else if (action === "count-campsites") {
-			// Used by E2E to assert an invalid-filter request created zero
-			// mutation -- a plain count of everything under the fixture marker.
-			const rows = await dataSource.query(
-				`SELECT count(*) FROM "campsites" WHERE "province" = $1`,
-				[arg]
-			);
-			console.log(JSON.stringify({ count: Number(rows[0].count) }));
-		} else if (action === "count-campsites-json") {
-			const input = parseJsonArg<{ province: string }>(arg);
-			const rows = await dataSource.query(
-				`SELECT count(*) FROM "campsites" WHERE "province" = $1`,
-				[input.province]
-			);
-			console.log(JSON.stringify({ count: Number(rows[0].count) }));
-		} else if (action === "get-campsite") {
-			const input = parseJsonArg<{ campsiteId: string }>(arg);
-			const rows = await dataSource.query(
-				`SELECT "id", "name", "province", "status" FROM "campsites" WHERE "id" = $1`,
-				[input.campsiteId]
-			);
-			console.log(JSON.stringify({ campsite: rows[0] ?? null }));
-		} else if (action === "get-campsite-details") {
-			const input = parseJsonArg<{ campsiteId: string }>(arg);
-			const rows = await dataSource.query(
-				`SELECT
-				    "id",
-				    "host_id" AS "hostId",
-				    "name",
-				    "description",
-				    "province",
-				    "policies",
-				    "operating_hours" AS "operatingHours",
-				    "status",
-				    "updated_at" AS "updatedAt"
-				  FROM "campsites"
-				  WHERE "id" = $1`,
-				[input.campsiteId]
-			);
-			const campsite = rows[0] ?? null;
-			if (campsite) {
-				const mediaRows = await dataSource.query(
-					`SELECT "url", "sort_order" AS "sortOrder" FROM "campsite_media" WHERE "campsite_id" = $1 ORDER BY "sort_order" ASC`,
-					[input.campsiteId]
-				);
-				campsite.media = mediaRows;
-			}
-			console.log(JSON.stringify({ campsite }));
 		} else if (action === "seed-trekking-routes") {
 			const input = parseJsonArg<{
-				campsiteId: string;
+				hostId: string;
 				routes: Array<{
 					name: string;
 					status?: "draft" | "pending_approval" | "active" | "closed";
 					coordinates?: Array<[number, number]>;
 				}>;
 			}>(arg);
-			const campsiteRows = (await dataSource.query(
-				'SELECT "name", "province" FROM "campsites" WHERE "id" = $1',
-				[input.campsiteId]
-			)) as Array<{ name: string; province: string }>;
-			const campsite = campsiteRows[0];
-			if (
-				!campsite ||
-				(!campsite.province.startsWith("CTMS") &&
-					!campsite.name.startsWith("CTMS") &&
-					!campsite.name.startsWith("E2E"))
-			) {
-				throw new Error("Refusing to seed trekking routes outside an E2E campsite");
+			const hostRows = (await dataSource.query('SELECT "email" FROM "users" WHERE "id" = $1', [
+				input.hostId,
+			])) as Array<{ email: string | null }>;
+			const host = hostRows[0];
+			if (!host?.email?.startsWith("e2e-") && host?.email !== "host@ctms.local") {
+				throw new Error("Refusing to seed trekking routes outside an E2E host");
 			}
 			const createdRoutes: Array<{ id: string; name: string; status: string }> = [];
 			for (const spec of input.routes) {
@@ -374,30 +164,30 @@ async function main() {
 				};
 				const rows = (await dataSource.query(
 					`INSERT INTO "trekking_routes"
-					 ("campsite_id", "name", "description", "route_geom", "length_meters", "difficulty",
+					 ("host_id", "name", "description", "route_geom", "length_meters", "difficulty",
 					  "expected_duration_minutes", "status")
 					 SELECT $1, $2, 'e2e checkpoint route', spatial.line, ST_Length(spatial.line), 'moderate', 120, $4
 					 FROM (SELECT ST_SetSRID(ST_GeomFromGeoJSON($3), 4326)::geography AS line) spatial
 					 RETURNING "id", "name", "status"`,
-					[input.campsiteId, spec.name, JSON.stringify(geometry), spec.status ?? "draft"]
+					[input.hostId, spec.name, JSON.stringify(geometry), spec.status ?? "draft"]
 				)) as Array<{ id: string; name: string; status: string }>;
 				createdRoutes.push(rows[0]);
 			}
 			console.log(JSON.stringify({ routes: createdRoutes }));
 		} else if (action === "count-trekking-routes") {
-			const input = parseJsonArg<{ campsiteId: string }>(arg);
+			const input = parseJsonArg<{ hostId: string }>(arg);
 			const rows = await dataSource.query(
 				`SELECT
-				 (SELECT COUNT(*)::int FROM "trekking_routes" WHERE "campsite_id" = $1) AS "routes",
+				 (SELECT COUNT(*)::int FROM "trekking_routes" WHERE "host_id" = $1) AS "routes",
 				 (SELECT COUNT(*)::int FROM "audit_logs" WHERE "action" = 'trekking_route.created'
-				    AND "target_id" IN (SELECT "id" FROM "trekking_routes" WHERE "campsite_id" = $1)) AS "audits"`,
-				[input.campsiteId]
+				    AND "target_id" IN (SELECT "id" FROM "trekking_routes" WHERE "host_id" = $1)) AS "audits"`,
+				[input.hostId]
 			);
 			console.log(JSON.stringify(rows[0]));
 		} else if (action === "get-trekking-route") {
 			const input = parseJsonArg<{ routeId: string }>(arg);
 			const rows = await dataSource.query(
-				`SELECT "id", "campsite_id" AS "campsiteId", "name", "status", "length_meters" AS "lengthMeters",
+				`SELECT "id", "host_id" AS "hostId", "name", "status", "length_meters" AS "lengthMeters",
 				 ST_AsGeoJSON("route_geom"::geometry)::json AS "geometry"
 				 FROM "trekking_routes" WHERE "id" = $1`,
 				[input.routeId]

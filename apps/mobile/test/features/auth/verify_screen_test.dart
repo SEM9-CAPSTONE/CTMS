@@ -78,7 +78,7 @@ Future<void> _settle(WidgetTester tester) async {
 
 /// The screen's SingleChildScrollView lays out every child eagerly (unlike
 /// a lazy CustomScrollView/ListView), so nothing here needs the sliver-
-/// scrolling dance Step 5 of Search Campsites needed -- a plain
+/// scrolling dance Step 5 of older role-gated flows needed -- a plain
 /// `ensureVisible` is enough to bring an off-screen-in-the-test-viewport
 /// button into tappable range, same convention as widget_test.dart's
 /// `_tapVisible`.

@@ -16,7 +16,7 @@ As a Host, I want to view Overview of Bookings, Routes, Porters, and Alerts so t
 - [ ] The intended actor can complete the `View Overview of Bookings, Routes, Porters, and Alerts` workflow when all Product Backlog V3 preconditions are satisfied.
 - [ ] The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data.
 - [ ] Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects.
-- [ ] The workflow respects its V3 dependencies: CTMS-31, CTMS-47, CTMS-16, CTMS-77, CTMS-89.
+- [ ] The workflow respects its V3 dependencies: CTMS-31, CTMS-46, CTMS-16, CTMS-77, CTMS-89.
 
 ## Business Rules Checklist
 - [ ] BR-204: List APIs must support pagination and record limits; filtering and sorting are allowed only on published fields.
@@ -41,7 +41,7 @@ As a Host, I want to view Overview of Bookings, Routes, Porters, and Alerts so t
 | AC1: The intended actor can complete the `View Overview of Bookings, Routes, Porters, and Alerts` workflow when all Product Backlog V3 preconditions are satisfied. | CTMS-93-T01, CTMS-93-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-93-T01, CTMS-93-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-93-T01, CTMS-93-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| AC4: The workflow respects its V3 dependencies: CTMS-31, CTMS-47, CTMS-16, CTMS-77, CTMS-89. | CTMS-93-T01, CTMS-93-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
+| AC4: The workflow respects its V3 dependencies: CTMS-31, CTMS-46, CTMS-16, CTMS-77, CTMS-89. | CTMS-93-T01, CTMS-93-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | BR-204: List APIs must support pagination and record limits; filtering and sorting are allowed only on published fields. | CTMS-93-T01, CTMS-93-T02 | Tests and review evidence must prove this rule is enforced for `View Overview of Bookings, Routes, Porters, and Alerts`. |
 | BR-228: Every operational UI action must clearly show success, pending, or failure and must preserve user/local data after recoverable conflict or connectivity failure. | CTMS-93-T01, CTMS-93-T02 | Tests and review evidence must prove this rule is enforced for `View Overview of Bookings, Routes, Porters, and Alerts`. |
 
@@ -93,8 +93,8 @@ As a Host, I want to view Overview of Bookings, Routes, Porters, and Alerts so t
 - Story ID: `CTMS-93`
 - Epic: `EPIC 15. Host Monitoring Dashboard`
 - Sprint: `Sprint 5`
-- Dependencies: `CTMS-31`, `CTMS-47`, `CTMS-16`, `CTMS-77`, `CTMS-89`
-- Linked items: `Blocked by: CTMS-31, CTMS-47, CTMS-16, CTMS-77, CTMS-89
+- Dependencies: `CTMS-31`, `CTMS-46`, `CTMS-16`, `CTMS-77`, `CTMS-89`
+- Linked items: `Blocked by: CTMS-31, CTMS-46, CTMS-16, CTMS-77, CTMS-89
 Blocks: None`
 - Spec Reference: `/file/spec/ctms-93-view-overview-of-bookings-routes-porters-and-alerts.md`
 - Product Backlog source: `PRODUCT BACKLOG.xlsx`, sheet `version 3`

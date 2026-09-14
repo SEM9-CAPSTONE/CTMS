@@ -12,7 +12,6 @@
 // holds (a real send here would invalidate whatever the script planted).
 // Since `integration_test/*.dart` runs inside the compiled app (no
 // `dart:io` to shell out to db-helper.ts mid-test the way Playwright can,
-// see search_campsites_test.dart's doc comment for the same constraint),
 // there is no way to interleave "real send, then plant/read the code"
 // within one running test. Test 3 below resolves this by never sending a
 // real OTP for that account at all: the script creates the account and

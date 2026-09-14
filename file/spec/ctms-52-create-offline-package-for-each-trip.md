@@ -16,7 +16,7 @@ As the System, I want to create Offline Package for Each Trip so that the CTMS w
 - [ ] The intended actor can complete the `Create Offline Package for Each Trip` workflow when all Product Backlog V3 preconditions are satisfied.
 - [ ] The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data.
 - [ ] Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects.
-- [ ] The workflow respects its V3 dependencies: CTMS-11, CTMS-14, CTMS-16, CTMS-23, CTMS-30, CTMS-32, CTMS-42, CTMS-47, CTMS-51.
+- [ ] The workflow respects its V3 dependencies: CTMS-11, CTMS-14, CTMS-16, CTMS-23, CTMS-30, CTMS-32, CTMS-42, CTMS-46, CTMS-51.
 
 ## Business Rules Checklist
 - [ ] BR-232: Offline packages may be created only for published Trips and must contain the Route version, checkpoints, trip waypoints, hazard areas, packing list, weather snapshot, and appropriate survival knowledge; roster/medical data may be included only for eligible members and medical profiles with consent. Each source change must create a new version with source snapshot, file URL, checksum, and size.
@@ -40,7 +40,7 @@ As the System, I want to create Offline Package for Each Trip so that the CTMS w
 | AC1: The intended actor can complete the `Create Offline Package for Each Trip` workflow when all Product Backlog V3 preconditions are satisfied. | CTMS-52-T01, CTMS-52-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC2: The backend enforces the task-specific business rules listed below before creating, updating, returning, or synchronizing data. | CTMS-52-T01, CTMS-52-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | AC3: Invalid input, unauthorized access, invalid dependencies, and invalid state transitions are rejected with clear errors and no unintended side effects. | CTMS-52-T01, CTMS-52-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
-| AC4: The workflow respects its V3 dependencies: CTMS-11, CTMS-14, CTMS-16, CTMS-23, CTMS-30, CTMS-32, CTMS-42, CTMS-47, CTMS-51. | CTMS-52-T01, CTMS-52-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
+| AC4: The workflow respects its V3 dependencies: CTMS-11, CTMS-14, CTMS-16, CTMS-23, CTMS-30, CTMS-32, CTMS-42, CTMS-46, CTMS-51. | CTMS-52-T01, CTMS-52-T02 | Unit, integration, API, UI, or E2E evidence depending on touched layer |
 | BR-232: Offline packages may be created only for published Trips and must contain the Route version, checkpoints, trip waypoints, hazard areas, packing list, weather snapshot, and appropriate survival knowledge; roster/medical data may be included only for eligible members and medical profiles with consent. Each source change must create a new version with source snapshot, file URL, checksum, and size. | CTMS-52-T01, CTMS-52-T02 | Tests and review evidence must prove this rule is enforced for `Create Offline Package for Each Trip`. |
 
 ## Story-Specific Risks and Edge Cases
@@ -91,8 +91,8 @@ As the System, I want to create Offline Package for Each Trip so that the CTMS w
 - Story ID: `CTMS-52`
 - Epic: `EPIC 9. Offline Package`
 - Sprint: `Sprint 4`
-- Dependencies: `CTMS-11`, `CTMS-14`, `CTMS-16`, `CTMS-23`, `CTMS-30`, `CTMS-32`, `CTMS-42`, `CTMS-47`, `CTMS-51`
-- Linked items: `Blocked by: CTMS-11, CTMS-14, CTMS-16, CTMS-23, CTMS-30, CTMS-32, CTMS-42, CTMS-47, CTMS-51
+- Dependencies: `CTMS-11`, `CTMS-14`, `CTMS-16`, `CTMS-23`, `CTMS-30`, `CTMS-32`, `CTMS-42`, `CTMS-46`, `CTMS-51`
+- Linked items: `Blocked by: CTMS-11, CTMS-14, CTMS-16, CTMS-23, CTMS-30, CTMS-32, CTMS-42, CTMS-46, CTMS-51
 Blocks: CTMS-53, CTMS-57`
 - Spec Reference: `/file/spec/ctms-52-create-offline-package-for-each-trip.md`
 - Product Backlog source: `PRODUCT BACKLOG.xlsx`, sheet `version 3`

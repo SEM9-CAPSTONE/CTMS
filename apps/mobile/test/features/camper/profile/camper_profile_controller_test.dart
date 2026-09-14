@@ -28,10 +28,9 @@ const _profile = CamperProfile(
 );
 
 class _RecordingCamperProfileRepository extends CamperProfileRepository {
-  _RecordingCamperProfileRepository({this.failure})
+  _RecordingCamperProfileRepository()
     : super(ApiClient(TokenStorage(const FlutterSecureStorage())));
 
-  final Object? failure;
   int getCallCount = 0;
   int updateCallCount = 0;
   UpdateCamperProfileInput? lastInput;
@@ -39,7 +38,6 @@ class _RecordingCamperProfileRepository extends CamperProfileRepository {
   @override
   Future<CamperProfile> getProfile() async {
     getCallCount++;
-    if (failure != null) throw failure!;
     return _profile;
   }
 
@@ -47,7 +45,6 @@ class _RecordingCamperProfileRepository extends CamperProfileRepository {
   Future<CamperProfile> updateProfile(UpdateCamperProfileInput input) async {
     updateCallCount++;
     lastInput = input;
-    if (failure != null) throw failure!;
     return CamperProfile(
       id: _profile.id,
       email: _profile.email,

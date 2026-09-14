@@ -11,13 +11,13 @@ import '../../domain/camper_overview_models.dart';
 import '../camper_overview_strings.dart';
 import '../overview_severity_x.dart';
 
-/// "Gợi ý dành cho bạn" — a horizontally scrolling row of campsite cards,
+/// "Gợi ý dành cho bạn" — a horizontally scrolling row of route cards,
 /// the natural mobile shape for 3 photo cards that sit side by side on
 /// desktop.
 class CamperOverviewSuggestionsSection extends StatelessWidget {
   const CamperOverviewSuggestionsSection({super.key, required this.suggestions});
 
-  final List<SuggestedCampsite> suggestions;
+  final List<SuggestedRoute> suggestions;
 
   @override
   Widget build(BuildContext context) {
@@ -39,7 +39,7 @@ class CamperOverviewSuggestionsSection extends StatelessWidget {
               itemCount: suggestions.length,
               separatorBuilder: (context, _) => const SizedBox(width: AppSpacing.md),
               itemBuilder: (context, index) =>
-                  SizedBox(width: 220, child: _SuggestionCard(campsite: suggestions[index])),
+                  SizedBox(width: 220, child: _SuggestionCard(route: suggestions[index])),
             ),
           ),
       ],
@@ -48,16 +48,16 @@ class CamperOverviewSuggestionsSection extends StatelessWidget {
 }
 
 class _SuggestionCard extends StatelessWidget {
-  const _SuggestionCard({required this.campsite});
+  const _SuggestionCard({required this.route});
 
-  final SuggestedCampsite campsite;
+  final SuggestedRoute route;
 
   static final _priceFormat = NumberFormat('#,###', 'en_US');
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final price = _priceFormat.format(campsite.pricePerPersonVnd).replaceAll(',', '.');
+    final price = _priceFormat.format(route.pricePerPersonVnd).replaceAll(',', '.');
 
     return Container(
       decoration: BoxDecoration(
@@ -71,7 +71,7 @@ class _SuggestionCard extends StatelessWidget {
         children: [
           Stack(
             children: [
-              // TODO(assets): swap for the real campsite photo.
+              // TODO(assets): swap for the real route photo.
               Container(
                 height: 92,
                 width: double.infinity,
@@ -87,8 +87,8 @@ class _SuggestionCard extends StatelessWidget {
                 top: AppSpacing.sm,
                 right: AppSpacing.sm,
                 child: CtmsStatusBadge(
-                  label: campsite.badgeLabel,
-                  status: campsite.badgeSeverity.ctmsStatus,
+                  label: route.badgeLabel,
+                  status: route.badgeSeverity.ctmsStatus,
                   variant: CtmsBadgeVariant.solid,
                 ),
               ),
@@ -100,7 +100,7 @@ class _SuggestionCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  campsite.name,
+                  route.name,
                   style: AppTypography.bodyStrong.copyWith(color: scheme.onSurface),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -112,7 +112,7 @@ class _SuggestionCard extends StatelessWidget {
                     const SizedBox(width: 2),
                     Expanded(
                       child: Text(
-                        campsite.location,
+                        route.location,
                         style: AppTypography.caption.copyWith(color: scheme.onSurfaceVariant),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -133,3 +133,4 @@ class _SuggestionCard extends StatelessWidget {
     );
   }
 }
+

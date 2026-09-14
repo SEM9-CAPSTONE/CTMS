@@ -97,7 +97,7 @@ As a Host, I want to create Trip so that the CTMS workflow is completed safely, 
 - Sprint: `Sprint 3`
 - Dependencies: `CTMS-10`
 - Linked items: `Blocked by: CTMS-10
-Blocks: CTMS-22, CTMS-24, CTMS-27, CTMS-28, CTMS-45, CTMS-47`
+Blocks: CTMS-22, CTMS-24, CTMS-27, CTMS-28, CTMS-45, CTMS-46`
 - Spec Reference: `/file/spec/ctms-21-create-trip.md`
 - Product Backlog source: `PRODUCT BACKLOG.xlsx`, sheet `version 3`
 - Business Rules source: `CTMS- Business rules.xlsx`

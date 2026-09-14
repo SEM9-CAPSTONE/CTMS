@@ -31,10 +31,9 @@ const _healthProfile = HealthProfile(
 );
 
 class _RecordingCamperHealthProfileRepository extends CamperHealthProfileRepository {
-  _RecordingCamperHealthProfileRepository({this.failure})
+  _RecordingCamperHealthProfileRepository()
       : super(ApiClient(TokenStorage(const FlutterSecureStorage())));
 
-  final Object? failure;
   int getCallCount = 0;
   int updateCallCount = 0;
   int consentCallCount = 0;
@@ -45,7 +44,6 @@ class _RecordingCamperHealthProfileRepository extends CamperHealthProfileReposit
   @override
   Future<HealthProfile> getProfile() async {
     getCallCount++;
-    if (failure != null) throw failure!;
     return _healthProfile;
   }
 
@@ -54,7 +52,6 @@ class _RecordingCamperHealthProfileRepository extends CamperHealthProfileReposit
     updateCallCount++;
     lastInput = input;
     lastVersion = version;
-    if (failure != null) throw failure!;
     return HealthProfile(
       id: _healthProfile.id,
       camperId: _healthProfile.camperId,
@@ -79,7 +76,6 @@ class _RecordingCamperHealthProfileRepository extends CamperHealthProfileReposit
   Future<HealthProfile> grantConsent() async {
     consentCallCount++;
     lastConsentGrant = true;
-    if (failure != null) throw failure!;
     return HealthProfile(
       id: _healthProfile.id,
       camperId: _healthProfile.camperId,
@@ -104,7 +100,6 @@ class _RecordingCamperHealthProfileRepository extends CamperHealthProfileReposit
   Future<HealthProfile> revokeConsent() async {
     consentCallCount++;
     lastConsentGrant = false;
-    if (failure != null) throw failure!;
     return HealthProfile(
       id: _healthProfile.id,
       camperId: _healthProfile.camperId,

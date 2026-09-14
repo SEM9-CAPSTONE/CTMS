@@ -1,4 +1,4 @@
-import { AlertCircle, Loader2, RefreshCw, Users } from "lucide-react";
+import { AlertCircle, CheckCircle, Loader2, RefreshCw, Users } from "lucide-react";
 import { Card } from "../../../shared/components";
 import { AdminLayout } from "../../admin-layout/components/AdminLayout";
 import { AccountStatusDialog } from "../components/AccountStatusDialog";
@@ -43,6 +43,12 @@ export function AdminUserAccountsPage({ onLogout }: AdminUserAccountsPageProps) 
 							<RefreshCw className="size-4" /> Thử lại
 						</button>
 					</div>
+				)}
+				{accounts.successMessage && (
+					<output className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-700">
+						<CheckCircle className="size-5" />
+						{accounts.successMessage}
+					</output>
 				)}
 				<Card className="overflow-hidden p-0">
 					<UserAccountsFilters
