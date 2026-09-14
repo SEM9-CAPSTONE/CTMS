@@ -1,5 +1,5 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from "@nestjs/common";
-import type { DataSource } from "typeorm";
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { DataSource } from "typeorm";
 import type { AuthenticatedUser } from "../../auth/jwt.strategy";
 import type { CreateWeatherRiskRuleDto } from "../dto/create-weather-risk-rule.dto";
 import type { WeatherRiskRuleResponseDto } from "../dto/weather-risk-rule-response.dto";
@@ -38,7 +38,7 @@ function toRuleResponse(rule: WeatherRiskRule): WeatherRiskRuleResponseDto {
 export class WeatherRiskRulesService {
 	private readonly logger = new Logger(WeatherRiskRulesService.name);
 
-	constructor(private readonly dataSource: DataSource) {}
+	constructor(@Inject(DataSource) private readonly dataSource: DataSource) {}
 
 	async findAll(): Promise<WeatherRiskRuleResponseDto[]> {
 		const repository = this.dataSource.getRepository(WeatherRiskRule);
