@@ -1,4 +1,4 @@
-import { Home, LifeBuoy, Map as MapIcon, Settings, ShieldAlert, Tent } from "lucide-react";
+import { Home, LifeBuoy, Map as MapIcon, Settings, ShieldAlert } from "lucide-react";
 import type React from "react";
 
 export interface AppSidebarProps {
@@ -17,7 +17,6 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
 
 	const navItems = [
 		{ label: "Dashboard", icon: Home, path: "/dashboard" },
-		{ label: "Khu cắm trại", icon: Tent, path: "/campsites" },
 		{ label: "Trekking Routes", icon: MapIcon, path: "/trekking" },
 		{ label: "Safety Center", icon: ShieldAlert, path: "/safety" },
 		{ label: "AI Survival", icon: LifeBuoy, path: "/ai-assistant" },

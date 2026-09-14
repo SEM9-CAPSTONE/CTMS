@@ -6,6 +6,7 @@ const ALLOWED_BRANCH_PATTERNS = [
 	/^hotfix\/[A-Za-z][A-Za-z0-9]+-[0-9]+(-[a-z0-9._-]+)?$/,
 	/^refactor\/[A-Za-z][A-Za-z0-9]+-[0-9]+(-[a-z0-9._-]+)?$/,
 	/^chore\/[A-Za-z][A-Za-z0-9]+-[0-9]+(-[a-z0-9._-]+)?$/,
+	/^delete\/[A-Za-z][A-Za-z0-9]+-[0-9]+(-[a-z0-9._-]+)?$/,
 	/^docs\/(?:[A-Za-z][A-Za-z0-9]+-[0-9]+-)?[a-z0-9]+(?:[._-][a-z0-9]+)*$/,
 	/^test\/[A-Za-z][A-Za-z0-9]+-[0-9]+(-[a-z0-9._-]+)?$/,
 	/^release\/[a-z0-9._-]+$/,
@@ -38,6 +39,7 @@ function main() {
 		console.error("- hotfix/<JIRA-KEY>-<description>");
 		console.error("- refactor/<JIRA-KEY>-<description>");
 		console.error("- chore/<JIRA-KEY>-<description>");
+		console.error("- delete/<JIRA-KEY>-<description>");
 		console.error("- docs/<JIRA-KEY>-<description> or docs/<description>");
 		console.error("- test/<JIRA-KEY>-<description>");
 		console.error(

@@ -4,7 +4,6 @@ class ApiEndpoints {
   ApiEndpoints._();
 
   static const auth = AuthEndpoints();
-  static const campsites = CampsiteEndpoints();
   static const bookings = BookingEndpoints();
   static const trekking = TrekkingEndpoints();
   static const trips = TripEndpoints();
@@ -26,18 +25,6 @@ class AuthEndpoints {
   String get refresh => '/auth/refresh';
   String get logout => '/auth/logout';
   String get me => '/auth/me';
-}
-
-class CampsiteEndpoints {
-  const CampsiteEndpoints();
-
-  String get getAll => '/campsites';
-  String getById(String id) => '/campsites/$id';
-  String get create => '/campsites';
-  String update(String id) => '/campsites/$id';
-  String delete(String id) => '/campsites/$id';
-  String zones(String campsiteId) => '/campsites/$campsiteId/zones';
-  String slots(String zoneId) => '/campsite-zones/$zoneId/slots';
 }
 
 class BookingEndpoints {

@@ -66,7 +66,6 @@ export function useRegisterForm(onRegisterSuccess: () => void) {
 		phone: "",
 		password: "",
 		confirmPassword: "",
-		campsiteName: "",
 		province: "",
 		businessLicense: "",
 	});

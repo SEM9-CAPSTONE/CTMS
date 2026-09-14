@@ -1,4 +1,4 @@
-import { Building, Home, Lock, Mail, MapPin, Phone, User } from "lucide-react";
+import { Building, Lock, Mail, MapPin, Phone, User } from "lucide-react";
 import type React from "react";
 import type { HostRegisterFormData } from "../types";
 import { isValidEmail, isValidPhoneNumber } from "../utils/auth.utils";
@@ -44,7 +44,7 @@ export const HostRegisterForm: React.FC<HostRegisterFormProps> = ({ formData, on
 						<input
 							type="email"
 							required
-							placeholder="host@campsite.com"
+							placeholder="host@ctms.local"
 							value={formData.email}
 							onChange={(e) => onChange("email", e.target.value)}
 							className="w-full bg-transparent outline-none text-[#10221b]"
@@ -54,23 +54,7 @@ export const HostRegisterForm: React.FC<HostRegisterFormProps> = ({ formData, on
 				</div>
 			</div>
 
-			{/* Campsite Name & Province */}
 			<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-				<div>
-					<label className="mb-1 block text-xs font-bold text-[#425048]">Tên bãi cắm trại *</label>
-					<div className="flex items-center gap-2.5 rounded-xl border border-[#dfe8df] bg-white px-3.5 py-2.5 text-sm shadow-sm focus-within:border-[#164027]">
-						<Home size={16} className="text-[#0284c7]" />
-						<input
-							type="text"
-							required
-							placeholder="CTMS Eco Camp Đà Lạt"
-							value={formData.campsiteName}
-							onChange={(e) => onChange("campsiteName", e.target.value)}
-							className="w-full bg-transparent outline-none text-[#10221b]"
-						/>
-					</div>
-				</div>
-
 				<div>
 					<label className="mb-1 block text-xs font-bold text-[#425048]">Tỉnh / Thành phố *</label>
 					<div className="flex items-center gap-2.5 rounded-xl border border-[#dfe8df] bg-white px-3.5 py-2.5 text-sm shadow-sm focus-within:border-[#164027]">

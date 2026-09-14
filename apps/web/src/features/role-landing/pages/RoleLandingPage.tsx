@@ -5,10 +5,6 @@ import { type RoleBearingUser, getGrantedRoles } from "../../auth/utils/permissi
 import type { StoredAuthUser } from "../../auth/utils/tokenStorage";
 import { camperProfileService } from "../../camper-profile/services/camper-profile.service";
 import type { CamperProfileData } from "../../camper-profile/types";
-import { HostCampsitesPanel } from "../../campsites/components/HostCampsitesPanel";
-import { ManageCampsiteImagesDialog } from "../../campsites/components/ManageCampsiteImagesDialog";
-import { campsitesService } from "../../campsites/services/campsites.service";
-import type { CreatedCampsite } from "../../campsites/types";
 
 import { Collapse } from "../../../shared/components/Collapse";
 import { CamperSidebar } from "../../camper-profile/components/CamperSidebar";
@@ -76,75 +72,20 @@ function useDashboardProfile() {
 	return { profile, isLoadingProfile };
 }
 
-function useHostCampsites(isEnabled: boolean) {
-	const [items, setItems] = useState<CreatedCampsite[]>([]);
-	const [isLoading, setIsLoading] = useState(false);
-	const [error, setError] = useState("");
-
-	useEffect(() => {
-		if (!isEnabled) {
-			setItems([]);
-			setError("");
-			setIsLoading(false);
-			return;
-		}
-
-		let isMounted = true;
-		setIsLoading(true);
-		setError("");
-
-		campsitesService
-			.getMine()
-			.then((data) => {
-				if (!isMounted) return;
-				setItems(data);
-			})
-			.catch(() => {
-				if (!isMounted) return;
-				setItems([]);
-				setError("Không thể tải danh sách khu cắm trại của Host.");
-			})
-			.finally(() => {
-				if (!isMounted) return;
-				setIsLoading(false);
-			});
-
-		return () => {
-			isMounted = false;
-		};
-	}, [isEnabled]);
-
-	return { items, isLoading, error };
-}
-
 function DashboardMain({
 	config,
 	user,
 	profile,
-	hostCampsites,
-	isLoadingHostCampsites,
-	hostCampsitesError,
 	onOpenProfile,
 	onOpenAdminUsers,
-	onCreateCampsite,
 	onCreateTrekkingRoute,
-	onViewTrekkingRoutes,
-	onEditCampsite,
-	onManageImages,
 }: {
 	config: DashboardConfig;
 	user: StoredAuthUser;
 	profile: CamperProfileData | null;
-	hostCampsites: CreatedCampsite[];
-	isLoadingHostCampsites: boolean;
-	hostCampsitesError: string;
 	onOpenProfile?: () => void;
 	onOpenAdminUsers?: () => void;
-	onCreateCampsite?: () => void;
-	onCreateTrekkingRoute?: (campsiteId?: string) => void;
-	onViewTrekkingRoutes?: (campsiteId: string) => void;
-	onEditCampsite?: (id: string) => void;
-	onManageImages?: (campsite: CreatedCampsite) => void;
+	onCreateTrekkingRoute?: () => void;
 }) {
 	const displayName = profile?.fullName || getDisplayName(user);
 	const timeOfDay = getTimeOfDay();
@@ -185,19 +126,6 @@ function DashboardMain({
 						);
 					})}
 				</section>
-
-				{config.role === "host" && (
-					<HostCampsitesPanel
-						items={hostCampsites}
-						isLoading={isLoadingHostCampsites}
-						error={hostCampsitesError}
-						onCreateCampsite={onCreateCampsite}
-						onCreateTrekkingRoute={onCreateTrekkingRoute}
-						onViewTrekkingRoutes={onViewTrekkingRoutes}
-						onEditCampsite={onEditCampsite}
-						onManageImages={onManageImages}
-					/>
-				)}
 
 				<section className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
 					<div className="overflow-hidden rounded-[28px] border border-[#dfe8df] bg-white shadow-sm">
@@ -300,7 +228,6 @@ function DashboardMain({
 					<QuickTasksPanel
 						config={config}
 						onOpenAdminUsers={onOpenAdminUsers}
-						onCreateCampsite={onCreateCampsite}
 						onCreateTrekkingRoute={onCreateTrekkingRoute}
 					/>
 				</section>
@@ -314,10 +241,7 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 	roles,
 	onOpenProfile,
 	onOpenAdminUsers,
-	onCreateCampsite,
 	onCreateTrekkingRoute,
-	onViewTrekkingRoutes,
-	onEditCampsite,
 	onLogout,
 	onExplore,
 }) => {
@@ -335,16 +259,10 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 	const [selectedRole, setSelectedRole] = useState<RoleKey>(() => normalizedRoles[0] ?? "camper");
 	const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-	const [manageImagesCampsite, setManageImagesCampsite] = useState<CreatedCampsite | null>(null);
 	const activeRole = normalizedRoles.includes(selectedRole)
 		? selectedRole
 		: (normalizedRoles[0] ?? "camper");
 	const config = dashboards[activeRole];
-	const {
-		items: hostCampsites,
-		isLoading: isLoadingHostCampsites,
-		error: hostCampsitesError,
-	} = useHostCampsites(activeRole === "host");
 	const handleCamperNav = (navKey: string) => {
 		if (navKey === "profile") {
 			onOpenProfile?.();
@@ -450,25 +368,9 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 					config={config}
 					user={user}
 					profile={profile}
-					hostCampsites={hostCampsites}
-					isLoadingHostCampsites={isLoadingHostCampsites}
-					hostCampsitesError={hostCampsitesError}
 					onOpenProfile={onOpenProfile}
 					onOpenAdminUsers={onOpenAdminUsers}
-					onCreateCampsite={onCreateCampsite}
 					onCreateTrekkingRoute={onCreateTrekkingRoute}
-					onViewTrekkingRoutes={onViewTrekkingRoutes}
-					onEditCampsite={onEditCampsite}
-					onManageImages={setManageImagesCampsite}
-				/>
-				<ManageCampsiteImagesDialog
-					open={manageImagesCampsite !== null}
-					campsite={manageImagesCampsite}
-					onClose={() => setManageImagesCampsite(null)}
-					onUpdateSuccess={(_updated) => {
-						setManageImagesCampsite(null);
-						window.location.reload();
-					}}
 				/>
 			</div>
 		</div>

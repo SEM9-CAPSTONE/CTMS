@@ -2,7 +2,7 @@ import { Bot, CloudRain, Map as MapIcon, Radio, Search, WifiOff } from "lucide-r
 
 export const NAV_ITEMS = [
 	{ label: "Trang chủ", href: "/" },
-	{ label: "Khám phá", href: "/campsites" },
+	{ label: "Khám phá", href: "/trekking" },
 	{ label: "Trekking", href: "/trekking" },
 	{ label: "An toàn", href: "/safety" },
 	{ label: "Giới thiệu", href: "/about" },
@@ -19,7 +19,7 @@ export const FEATURED_DESTINATIONS = [
 	{
 		title: "Sơn Đào Trà",
 		location: "Sơn Trà, Đà Nẵng",
-		price: "150.000 VNĐ / đêm",
+		price: "150.000 VNĐ",
 		rating: 4.9,
 		weatherBadge: "Thời tiết: Tốt",
 		statusBadge: "Đường mở",
@@ -49,7 +49,7 @@ export const FEATURED_DESTINATIONS = [
 		price: "Miễn phí",
 		rating: 4.6,
 		weatherBadge: "Thời tiết: Mát mẻ",
-		statusBadge: "Bãi cắm mở",
+		statusBadge: "Tuyến mở",
 		image: "/figma_assets/card_4.png",
 	},
 ];
@@ -58,12 +58,12 @@ export const MAIN_FEATURES = [
 	{
 		icon: Search,
 		title: "Tìm kiếm thông minh",
-		description: "Lọc địa điểm theo thời tiết, độ khó, vị trí và các tiện ích thực tế có sẵn.",
+		description: "Lọc tuyến trekking theo thời tiết, độ khó, vị trí và trạng thái vận hành.",
 	},
 	{
 		icon: MapIcon,
-		title: "Sơ đồ lều trực quan",
-		description: "Bản đồ 2D/3D bãi cắm, bố trí vị trí lều và các khu vực dịch vụ dễ dàng.",
+		title: "Bản đồ tuyến trực quan",
+		description: "Theo dõi hình học tuyến, checkpoint và khu vực nguy hiểm trên bản đồ.",
 	},
 	{
 		icon: WifiOff,

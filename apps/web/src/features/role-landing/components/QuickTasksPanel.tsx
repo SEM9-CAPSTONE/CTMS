@@ -1,18 +1,16 @@
-import { ArrowRight, Route, TentTree } from "lucide-react";
+import { ArrowRight, Route } from "lucide-react";
 import { Button } from "../../../shared/components/Button";
 import type { DashboardConfig } from "../types";
 
 export interface QuickTasksPanelProps {
 	config: DashboardConfig;
 	onOpenAdminUsers?: () => void;
-	onCreateCampsite?: () => void;
-	onCreateTrekkingRoute?: (campsiteId?: string) => void;
+	onCreateTrekkingRoute?: () => void;
 }
 
 export function QuickTasksPanel({
 	config,
 	onOpenAdminUsers,
-	onCreateCampsite,
 	onCreateTrekkingRoute,
 }: QuickTasksPanelProps) {
 	return (
@@ -28,12 +26,6 @@ export function QuickTasksPanel({
 					<Button onClick={onOpenAdminUsers} className="gap-2">
 						<span>Quản lý user</span>
 						<ArrowRight className="size-4" />
-					</Button>
-				)}
-				{config.role === "host" && onCreateCampsite && (
-					<Button onClick={onCreateCampsite} className="gap-2">
-						<TentTree className="size-4" />
-						<span>Tạo khu cắm trại</span>
 					</Button>
 				)}
 				{config.role === "host" && onCreateTrekkingRoute && (
