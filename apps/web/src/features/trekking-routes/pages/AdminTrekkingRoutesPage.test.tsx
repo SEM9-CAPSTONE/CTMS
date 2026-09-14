@@ -3,8 +3,6 @@ import type { AdminTrekkingRouteReview } from "../types";
 
 const route: AdminTrekkingRouteReview = {
 	id: "route-1",
-	campsiteId: "campsite-1",
-	campsiteName: "Pine Camp",
 	name: "Pine Ridge",
 	description: "Review route",
 	geometry: {

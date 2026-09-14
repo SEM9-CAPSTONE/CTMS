@@ -1,12 +1,4 @@
-import {
-	AlertCircle,
-	ArrowLeft,
-	CheckCircle2,
-	Loader2,
-	Map as MapIcon,
-	RefreshCw,
-	Route,
-} from "lucide-react";
+import { ArrowLeft, CheckCircle2, Loader2, RefreshCw, Route } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { RouteCheckpointsPanel } from "../components/RouteCheckpointsPanel";
 import { RouteGeometryPreview } from "../components/RouteGeometryPreview";
@@ -16,7 +8,6 @@ import { RouteWeatherAdvicePanel } from "../components/RouteWeatherAdvicePanel";
 import { RouteWeatherPanel } from "../components/RouteWeatherPanel";
 import { RouteWeatherRiskPanel } from "../components/RouteWeatherRiskPanel";
 import { TrekkingRouteList } from "../components/TrekkingRouteList";
-import { useOwnedCampsites } from "../hooks/useOwnedCampsites";
 import { useTrekkingRoutes } from "../hooks/useTrekkingRoutes";
 
 export interface TrekkingRoutesPageProps {
@@ -24,27 +15,9 @@ export interface TrekkingRoutesPageProps {
 }
 
 export function TrekkingRoutesPage({ onBackHome }: TrekkingRoutesPageProps) {
-	const campsites = useOwnedCampsites();
-	const requestedCampsiteId = new URLSearchParams(window.location.search).get("campsiteId");
-	const [selectedCampsiteId, setSelectedCampsiteId] = useState("");
-	const routes = useTrekkingRoutes(selectedCampsiteId || undefined);
+	const routes = useTrekkingRoutes();
 	const [selectedRouteId, setSelectedRouteId] = useState<string>();
 	const [submittedRouteName, setSubmittedRouteName] = useState("");
-
-	useEffect(() => {
-		if (campsites.isLoading || campsites.error) return;
-
-		setSelectedCampsiteId((current) => {
-			if (current && campsites.items.some((campsite) => campsite.id === current)) {
-				return current;
-			}
-
-			return requestedCampsiteId &&
-				campsites.items.some((campsite) => campsite.id === requestedCampsiteId)
-				? requestedCampsiteId
-				: "";
-		});
-	}, [campsites.error, campsites.isLoading, campsites.items, requestedCampsiteId]);
 
 	useEffect(() => {
 		setSelectedRouteId((current) =>
@@ -77,7 +50,7 @@ export function TrekkingRoutesPage({ onBackHome }: TrekkingRoutesPageProps) {
 					</div>
 
 					<div>
-						<h1 className="text-xl font-extrabold sm:text-2xl">Tuyến trekking của khu cắm trại</h1>
+						<h1 className="text-xl font-extrabold sm:text-2xl">Tuyến trekking của Host</h1>
 						<p className="text-sm text-[#667a6d]">
 							Xem lại thông tin và hình học tuyến đường đã tạo.
 						</p>
@@ -99,26 +72,27 @@ export function TrekkingRoutesPage({ onBackHome }: TrekkingRoutesPageProps) {
 					</div>
 				)}
 
-				{campsites.isLoading && (
+				{routes.isLoading && (
 					<div
-						data-testid="campsites-loading"
-						className="rounded-2xl bg-white p-6 text-sm font-bold"
+						data-testid="routes-loading"
+						className="mt-6 flex items-center gap-2 rounded-2xl bg-white p-6 text-sm font-bold"
 					>
-						Đang tải khu cắm trại...
+						<Loader2 className="size-4 animate-spin" />
+						Đang tải tuyến đường...
 					</div>
 				)}
 
-				{campsites.error && !campsites.isLoading && (
-					<div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-6">
-						<div className="flex gap-2 text-red-800">
-							<AlertCircle className="size-5" />
-							{campsites.error}
-						</div>
+				{routes.error && !routes.isLoading && (
+					<div
+						role="alert"
+						className="mt-6 rounded-2xl border border-red-200 bg-red-50 p-6 text-red-800"
+					>
+						{routes.error}
 
 						<button
 							type="button"
-							onClick={() => void campsites.retry()}
-							className="mt-4 rounded-lg border px-3 py-2 font-bold"
+							onClick={() => void routes.retry()}
+							className="mt-4 block rounded-lg border px-3 py-2 font-bold"
 						>
 							<RefreshCw className="mr-1 inline size-4" />
 							Tải lại
@@ -126,137 +100,50 @@ export function TrekkingRoutesPage({ onBackHome }: TrekkingRoutesPageProps) {
 					</div>
 				)}
 
-				{!campsites.isLoading && !campsites.error && campsites.items.length === 0 && (
+				{!routes.isLoading && !routes.error && routes.items.length === 0 && (
 					<div
-						data-testid="campsites-empty"
-						className="rounded-2xl border border-dashed bg-white p-8 text-center"
+						data-testid="routes-empty"
+						className="mt-6 rounded-2xl border border-dashed bg-white p-8 text-center"
 					>
-						<MapIcon className="mx-auto size-10 text-[#8fa096]" />
-						<p className="mt-3 font-extrabold">Bạn chưa có khu cắm trại</p>
+						<Route className="mx-auto size-10 text-[#8fa096]" />
+						<p className="mt-3 font-extrabold">Bạn chưa có tuyến trekking</p>
 					</div>
 				)}
 
-				{!campsites.isLoading && !campsites.error && campsites.items.length > 0 && (
-					<>
-						<label
-							className="block max-w-xl text-sm font-extrabold text-[#34483b]"
-							htmlFor="route-list-campsite"
-						>
-							Khu cắm trại
-						</label>
-
-						<select
-							id="route-list-campsite"
-							value={selectedCampsiteId}
-							onChange={(event) => {
-								setSelectedCampsiteId(event.target.value);
+				{!routes.isLoading && !routes.error && routes.items.length > 0 && (
+					<div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+						<TrekkingRouteList
+							items={routes.items}
+							selectedRouteId={selectedRouteId}
+							onSelect={(route) => {
+								setSelectedRouteId(route.id);
 								setSubmittedRouteName("");
 							}}
-							className="mt-2 w-full max-w-xl rounded-xl border border-[#cbd9ce] bg-white px-4 py-3 font-semibold"
-						>
-							<option value="">Chọn khu cắm trại</option>
+						/>
 
-							{campsites.items.map((campsite) => (
-								<option key={campsite.id} value={campsite.id}>
-									{campsite.name}
-								</option>
-							))}
-						</select>
+						{selectedRoute && <RouteGeometryPreview geometry={selectedRoute.geometry} />}
+					</div>
+				)}
 
-						{!selectedCampsiteId && (
-							<div
-								data-testid="route-campsite-prompt"
-								className="mt-6 rounded-2xl border border-dashed bg-white p-8 text-center text-sm font-bold text-[#667a6d]"
-							>
-								Chọn khu cắm trại để xem tuyến đường.
-							</div>
-						)}
+				{selectedRoute && <RouteStatusActionDialog route={selectedRoute} onReload={routes.retry} />}
 
-						{selectedCampsiteId && routes.isLoading && (
-							<div
-								data-testid="routes-loading"
-								className="mt-6 flex items-center gap-2 rounded-2xl bg-white p-6 text-sm font-bold"
-							>
-								<Loader2 className="size-4 animate-spin" />
-								Đang tải tuyến đường...
-							</div>
-						)}
+				{selectedRoute && <RouteWeatherPanel route={selectedRoute} />}
 
-						{selectedCampsiteId && routes.error && !routes.isLoading && (
-							<div
-								role="alert"
-								className="mt-6 rounded-2xl border border-red-200 bg-red-50 p-6 text-red-800"
-							>
-								{routes.error}
+				{selectedRoute && <RouteWeatherRiskPanel route={selectedRoute} />}
 
-								<button
-									type="button"
-									onClick={() => void routes.retry()}
-									className="mt-4 block rounded-lg border px-3 py-2 font-bold"
-								>
-									<RefreshCw className="mr-1 inline size-4" />
-									Tải lại
-								</button>
-							</div>
-						)}
+				{selectedRoute && <RouteWeatherAdvicePanel route={selectedRoute} />}
 
-						{selectedCampsiteId &&
-							!routes.isLoading &&
-							!routes.error &&
-							routes.items.length === 0 && (
-								<div
-									data-testid="routes-empty"
-									className="mt-6 rounded-2xl border border-dashed bg-white p-8 text-center"
-								>
-									<Route className="mx-auto size-10 text-[#8fa096]" />
-									<p className="mt-3 font-extrabold">Khu cắm trại này chưa có tuyến trekking</p>
-								</div>
-							)}
+				{selectedRoute && (
+					<RouteRegistrationBlockPanel routeId={selectedRoute.id} routeName={selectedRoute.name} />
+				)}
 
-						{selectedCampsiteId &&
-							!routes.isLoading &&
-							!routes.error &&
-							routes.items.length > 0 && (
-								<div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
-									<TrekkingRouteList
-										items={routes.items}
-										selectedRouteId={selectedRouteId}
-										onSelect={(route) => {
-											setSelectedRouteId(route.id);
-											setSubmittedRouteName("");
-										}}
-									/>
-
-									{selectedRoute && <RouteGeometryPreview geometry={selectedRoute.geometry} />}
-								</div>
-							)}
-
-						{selectedCampsiteId && selectedRoute && (
-							<RouteStatusActionDialog route={selectedRoute} onReload={routes.retry} />
-						)}
-
-						{selectedRoute && <RouteWeatherPanel route={selectedRoute} />}
-
-						{selectedRoute && <RouteWeatherRiskPanel route={selectedRoute} />}
-
-						{selectedRoute && <RouteWeatherAdvicePanel route={selectedRoute} />}
-
-						{selectedRoute && (
-							<RouteRegistrationBlockPanel
-								routeId={selectedRoute.id}
-								routeName={selectedRoute.name}
-							/>
-						)}
-
-						{selectedCampsiteId && !routes.isLoading && !routes.error && selectedRoute && (
-							<RouteCheckpointsPanel
-								key={selectedRoute.id}
-								route={selectedRoute}
-								onRouteReload={routes.retry}
-								onRouteSubmitted={(route) => setSubmittedRouteName(route.name)}
-							/>
-						)}
-					</>
+				{!routes.isLoading && !routes.error && selectedRoute && (
+					<RouteCheckpointsPanel
+						key={selectedRoute.id}
+						route={selectedRoute}
+						onRouteReload={routes.retry}
+						onRouteSubmitted={(route) => setSubmittedRouteName(route.name)}
+					/>
 				)}
 			</main>
 		</div>

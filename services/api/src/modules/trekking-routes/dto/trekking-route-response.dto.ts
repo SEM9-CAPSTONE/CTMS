@@ -7,7 +7,7 @@ export class TrekkingRouteResponseDto {
 	id!: string;
 
 	@ApiProperty({ format: "uuid" })
-	campsiteId!: string;
+	hostId!: string;
 
 	@ApiProperty()
 	name!: string;

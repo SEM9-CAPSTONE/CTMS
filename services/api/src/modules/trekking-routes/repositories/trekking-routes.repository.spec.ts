@@ -12,7 +12,6 @@ describe("TrekkingRoutesRepository", () => {
 		const query = jest.spyOn(repository, "query").mockResolvedValue([
 			{
 				id: "route-id",
-				campsiteId: "campsite-id",
 				hostId: "host-id",
 				name: "Ridge Trail",
 				description: null,
@@ -57,13 +56,11 @@ describe("TrekkingRoutesRepository", () => {
 		await expect(repository.findOneForLifecycleUpdate("missing-route")).resolves.toBeNull();
 	});
 
-	it("lists only pending review Routes with campsite and ordered checkpoint context", async () => {
+	it("lists only pending review Routes with ordered checkpoint context", async () => {
 		const repository = new TrekkingRoutesRepository(TrekkingRoute, {} as EntityManager);
 		const query = jest.spyOn(repository, "query").mockResolvedValue([
 			{
 				id: "route-id",
-				campsiteId: "campsite-id",
-				campsiteName: "Pine Camp",
 				name: "Ridge Trail",
 				description: null,
 				geometry: {
@@ -88,9 +85,7 @@ describe("TrekkingRoutesRepository", () => {
 		expect(query.mock.calls[0][0]).toContain('route."status" = $1');
 		expect(query.mock.calls[0][0]).toContain('ORDER BY checkpoint."route_position"');
 		expect(query.mock.calls[0][1]).toEqual([TrekkingRouteStatus.PENDING_APPROVAL]);
-		expect(routes[0]).toEqual(
-			expect.objectContaining({ campsiteName: "Pine Camp", checkpoints: [] })
-		);
+		expect(routes[0]).toEqual(expect.objectContaining({ checkpoints: [] }));
 	});
 
 	it("locks the selected Route before review", async () => {
@@ -155,7 +150,7 @@ describe("TrekkingRoutesRepository", () => {
 			const query = jest.spyOn(repository, "query").mockResolvedValue([
 				{
 					id: "route-id",
-					campsiteId: "campsite-id",
+					hostId: "host-id",
 					name: "Ridge Trail",
 					description: null,
 					geometry: {
@@ -184,12 +179,12 @@ describe("TrekkingRoutesRepository", () => {
 		}
 	);
 
-	it("lists campsite routes with GeoJSON geometry and numeric values", async () => {
+	it("lists Host routes with GeoJSON geometry and numeric values", async () => {
 		const repository = new TrekkingRoutesRepository(TrekkingRoute, {} as EntityManager);
 		const query = jest.spyOn(repository, "query").mockResolvedValue([
 			{
 				id: "route-id",
-				campsiteId: "campsite-id",
+				hostId: "host-id",
 				name: "Ridge Trail",
 				description: null,
 				geometry: {
@@ -208,13 +203,13 @@ describe("TrekkingRoutesRepository", () => {
 			},
 		]);
 
-		const routes = await repository.findByCampsite("campsite-id");
+		const routes = await repository.findByHost("host-id");
 
 		expect(query).toHaveBeenCalledWith(
 			expect.stringContaining('ST_AsGeoJSON("route_geom"::geometry)'),
-			["campsite-id"]
+			["host-id"]
 		);
-		expect(query.mock.calls[0][0]).toContain('WHERE "campsite_id" = $1');
+		expect(query.mock.calls[0][0]).toContain('WHERE "host_id" = $1');
 		expect(routes[0]).toEqual(
 			expect.objectContaining({
 				geometry: {
@@ -235,7 +230,7 @@ describe("TrekkingRoutesRepository", () => {
 		const query = jest.spyOn(repository, "query").mockResolvedValue([
 			{
 				id: "route-id",
-				campsiteId: "campsite-id",
+				hostId: "host-id",
 				name: "Ridge Trail",
 				description: null,
 				geometry: {
@@ -255,7 +250,7 @@ describe("TrekkingRoutesRepository", () => {
 		]);
 
 		const route = await repository.createDraft({
-			campsiteId: "campsite-id",
+			hostId: "host-id",
 			name: "Ridge Trail",
 			description: null,
 			geometry: {
@@ -281,7 +276,7 @@ describe("TrekkingRoutesRepository", () => {
 
 		await expect(
 			repository.createDraft({
-				campsiteId: "campsite-id",
+				hostId: "host-id",
 				name: "Zero route",
 				description: null,
 				geometry: {

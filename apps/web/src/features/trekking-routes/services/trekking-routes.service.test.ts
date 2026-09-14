@@ -5,18 +5,15 @@ import { trekkingRoutesService } from "./trekking-routes.service";
 describe("trekkingRoutesService", () => {
 	afterEach(() => vi.restoreAllMocks());
 
-	it("gets routes using the owned campsite filter", async () => {
+	it("gets routes for the current Host", async () => {
 		const get = vi.spyOn(httpClient, "get").mockResolvedValue([]);
-		await trekkingRoutesService.listByCampsite("11111111-1111-4111-8111-111111111111");
-		expect(get).toHaveBeenCalledWith("/trekking-routes", {
-			campsiteId: "11111111-1111-4111-8111-111111111111",
-		});
+		await trekkingRoutesService.listMine();
+		expect(get).toHaveBeenCalledWith("/trekking-routes");
 	});
 
 	it("posts only the canonical create payload", async () => {
 		const post = vi.spyOn(httpClient, "post").mockResolvedValue({ id: "route-id" });
 		const payload = {
-			campsiteId: "11111111-1111-4111-8111-111111111111",
 			name: "Ridge",
 			geometry: {
 				type: "LineString" as const,
@@ -55,7 +52,6 @@ describe("trekkingRoutesService", () => {
 			"id",
 			"routeId",
 			"hostId",
-			"campsiteId",
 			"routePosition",
 			"sequence",
 			"order",

@@ -7,7 +7,6 @@ import {
 	ParseUUIDPipe,
 	Patch,
 	Post,
-	Query,
 	Req,
 	UseGuards,
 } from "@nestjs/common";
@@ -24,8 +23,6 @@ import { CreateCheckpointDto } from "../dto/create-checkpoint.dto";
 import { CreateRouteDangerZoneDto } from "../dto/create-route-danger-zone.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { CreateTrekkingRouteDto } from "../dto/create-trekking-route.dto";
-// biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
-import { ListTrekkingRoutesQueryDto } from "../dto/list-trekking-routes-query.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { ReviewTrekkingRouteDto } from "../dto/review-trekking-route.dto";
 import { RouteDangerZoneResponseDto } from "../dto/route-danger-zone-response.dto";
@@ -199,25 +196,20 @@ export class TrekkingRoutesController {
 
 	@Get()
 	@Roles(UserRole.HOST)
-	@ApiOperation({ summary: "List trekking routes for an owned campsite" })
+	@ApiOperation({ summary: "List trekking routes owned by the current Host" })
 	@ApiResponse({ status: 200, type: TrekkingRouteResponseDto, isArray: true })
 	@ApiResponse({ status: 401, description: "Authentication required" })
-	@ApiResponse({ status: 403, description: "Host role and campsite ownership required" })
-	@ApiResponse({ status: 404, description: "Campsite not found" })
-	list(
-		@Req() request: AuthenticatedRequest,
-		@Query() query: ListTrekkingRoutesQueryDto
-	): Promise<TrekkingRouteResponseDto[]> {
-		return this.trekkingRoutesService.listByCampsite(request.user.userId, query.campsiteId);
+	@ApiResponse({ status: 403, description: "Host role required" })
+	list(@Req() request: AuthenticatedRequest): Promise<TrekkingRouteResponseDto[]> {
+		return this.trekkingRoutesService.listByHost(request.user.userId);
 	}
 
 	@Post()
 	@Roles(UserRole.HOST)
-	@ApiOperation({ summary: "Create a draft trekking route for an owned campsite" })
+	@ApiOperation({ summary: "Create a draft trekking route for the current Host" })
 	@ApiResponse({ status: 201, type: TrekkingRouteResponseDto })
 	@ApiResponse({ status: 401, description: "Authentication required" })
-	@ApiResponse({ status: 403, description: "Host role and campsite ownership required" })
-	@ApiResponse({ status: 404, description: "Campsite not found" })
+	@ApiResponse({ status: 403, description: "Host role required" })
 	@ApiResponse({ status: 422, description: "Invalid route metadata or geometry" })
 	create(
 		@Req() request: AuthenticatedRequest,

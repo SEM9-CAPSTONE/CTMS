@@ -67,7 +67,6 @@ const checkpoint: RouteCheckpoint = {
 function route(id: string, status: CreatedTrekkingRoute["status"]): CreatedTrekkingRoute {
 	return {
 		id,
-		campsiteId: "campsite-id",
 		name: id,
 		description: null,
 		geometry: {

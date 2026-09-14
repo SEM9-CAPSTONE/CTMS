@@ -28,35 +28,17 @@ vi.mock("./RouteGeometryEditor", () => ({
 	),
 }));
 
-const campsites = [{ id: "11111111-1111-4111-8111-111111111111", name: "Pine Camp" }];
-
 describe("CreateTrekkingRouteForm", () => {
-	it("preselects the owned campsite supplied by the page", () => {
-		render(
-			<CreateTrekkingRouteForm
-				campsites={campsites as never}
-				initialCampsiteId={campsites[0].id}
-				isSubmitting={false}
-				error={null}
-				onSubmit={vi.fn()}
-				onRetry={vi.fn()}
-			/>
-		);
-		expect(screen.getByLabelText("Khu cắm trại")).toHaveValue(campsites[0].id);
-	});
-
 	it("validates metadata and submits the exact payload", async () => {
 		const submit = vi.fn().mockResolvedValue(null);
 		render(
 			<CreateTrekkingRouteForm
-				campsites={campsites as never}
 				isSubmitting={false}
 				error={null}
 				onSubmit={submit}
 				onRetry={vi.fn()}
 			/>
 		);
-		fireEvent.change(screen.getByLabelText("Khu cắm trại"), { target: { value: campsites[0].id } });
 		fireEvent.change(screen.getByLabelText("Tên tuyến"), { target: { value: "  Ridge  " } });
 		fireEvent.change(screen.getByLabelText("Độ khó"), { target: { value: "hard" } });
 		fireEvent.change(screen.getByLabelText("Thời lượng dự kiến (phút)"), {
@@ -66,7 +48,6 @@ describe("CreateTrekkingRouteForm", () => {
 		fireEvent.click(screen.getByRole("button", { name: "Tạo tuyến đường" }));
 		await waitFor(() =>
 			expect(submit).toHaveBeenCalledWith({
-				campsiteId: campsites[0].id,
 				name: "Ridge",
 				geometry: {
 					type: "LineString",
@@ -84,7 +65,6 @@ describe("CreateTrekkingRouteForm", () => {
 	it("preserves values and geometry when an API error is displayed", () => {
 		render(
 			<CreateTrekkingRouteForm
-				campsites={campsites as never}
 				isSubmitting={false}
 				error={{ status: 422, message: "invalid", canRetry: false }}
 				onSubmit={vi.fn()}
@@ -100,13 +80,7 @@ describe("CreateTrekkingRouteForm", () => {
 
 	it("disables submission while a request is in flight", () => {
 		render(
-			<CreateTrekkingRouteForm
-				campsites={campsites as never}
-				isSubmitting
-				error={null}
-				onSubmit={vi.fn()}
-				onRetry={vi.fn()}
-			/>
+			<CreateTrekkingRouteForm isSubmitting error={null} onSubmit={vi.fn()} onRetry={vi.fn()} />
 		);
 		expect(screen.getByRole("button", { name: /Đang tạo tuyến/ })).toBeDisabled();
 	});

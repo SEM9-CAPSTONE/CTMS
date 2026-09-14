@@ -1,5 +1,4 @@
 import type { AuthenticatedUser } from "../../auth/jwt.strategy";
-import type { Campsite } from "../../campsites/entities/campsite.entity";
 import { UserRole, UserStatus } from "../../users/entities/user.entity";
 import { ReviewTrekkingRouteAction } from "../dto/review-trekking-route.dto";
 import { TrekkingRouteDifficulty, TrekkingRouteStatus } from "../entities/trekking-route.entity";
@@ -7,14 +6,12 @@ import type { TrekkingRoutesRepository } from "../repositories/trekking-routes.r
 import { TrekkingRoutesService } from "./trekking-routes.service";
 
 const HOST_ID = "11111111-1111-4111-8111-111111111111";
-const CAMPSITE_ID = "22222222-2222-4222-8222-222222222222";
 const ROUTE_ID = "33333333-3333-4333-8333-333333333333";
 const OTHER_HOST_ID = "44444444-4444-4444-8444-444444444444";
 const ADMIN_ID = "55555555-5555-4555-8555-555555555555";
 
 function createDto() {
 	return {
-		campsiteId: CAMPSITE_ID,
 		name: "Pine Ridge Trail",
 		description: "Ridge route",
 		geometry: {
@@ -30,6 +27,7 @@ function createdRoute(status = TrekkingRouteStatus.DRAFT) {
 	return {
 		id: ROUTE_ID,
 		...createDto(),
+		hostId: HOST_ID,
 		description: "Ridge route",
 		lengthMeters: 1024.5,
 		status,
@@ -46,16 +44,14 @@ function reviewRoute(status = TrekkingRouteStatus.PENDING_APPROVAL) {
 	return {
 		...createdRoute(),
 		status,
-		campsiteName: "Pine Camp",
 		checkpoints: [],
 	};
 }
 
 describe("TrekkingRoutesService", () => {
-	let campsiteRepository: { findOne: jest.Mock };
 	let routeRepository: {
 		createDraft: jest.Mock;
-		findByCampsite: jest.Mock;
+		findByHost: jest.Mock;
 		findOneForLifecycleUpdate: jest.Mock;
 		findPendingReview: jest.Mock;
 		findReviewRouteByIdForUpdate: jest.Mock;
@@ -68,10 +64,9 @@ describe("TrekkingRoutesService", () => {
 	let service: TrekkingRoutesService;
 
 	beforeEach(() => {
-		campsiteRepository = { findOne: jest.fn() };
 		routeRepository = {
 			createDraft: jest.fn().mockResolvedValue(createdRoute()),
-			findByCampsite: jest.fn().mockResolvedValue([createdRoute()]),
+			findByHost: jest.fn().mockResolvedValue([createdRoute()]),
 			findOneForLifecycleUpdate: jest.fn().mockResolvedValue({
 				route: createdRoute(TrekkingRouteStatus.ACTIVE),
 				hostId: HOST_ID,
@@ -98,12 +93,10 @@ describe("TrekkingRoutesService", () => {
 		};
 		auditRepository = { save: jest.fn().mockResolvedValue({}) };
 		dataSource = {
-			getRepository: jest.fn().mockReturnValue(campsiteRepository),
+			getRepository: jest.fn().mockReturnValue(auditRepository),
 			transaction: jest.fn(async (callback: (manager: unknown) => unknown) =>
 				callback({
-					getRepository: jest.fn((entity: { name?: string }) =>
-						entity.name === "Campsite" ? campsiteRepository : auditRepository
-					),
+					getRepository: jest.fn().mockReturnValue(auditRepository),
 					withRepository: jest.fn().mockReturnValue(routeRepository),
 				})
 			),
@@ -114,39 +107,12 @@ describe("TrekkingRoutesService", () => {
 		);
 	});
 
-	describe("listByCampsite", () => {
-		it("returns only routes from the requested owned campsite", async () => {
-			campsiteRepository.findOne.mockResolvedValue({
-				id: CAMPSITE_ID,
-				hostId: HOST_ID,
-			} as Campsite);
+	describe("listByHost", () => {
+		it("returns only routes from the current Host", async () => {
+			const routes = await service.listByHost(HOST_ID);
 
-			const routes = await service.listByCampsite(HOST_ID, CAMPSITE_ID);
-
-			expect(campsiteRepository.findOne).toHaveBeenCalledWith({ where: { id: CAMPSITE_ID } });
-			expect(routeRepository.findByCampsite).toHaveBeenCalledWith(CAMPSITE_ID);
+			expect(routeRepository.findByHost).toHaveBeenCalledWith(HOST_ID);
 			expect(routes).toEqual([createdRoute()]);
-		});
-
-		it("returns 404 for a missing campsite without querying routes", async () => {
-			campsiteRepository.findOne.mockResolvedValue(null);
-
-			await expect(service.listByCampsite(HOST_ID, CAMPSITE_ID)).rejects.toMatchObject({
-				status: 404,
-			});
-			expect(routeRepository.findByCampsite).not.toHaveBeenCalled();
-		});
-
-		it("returns 403 for another Host's campsite without querying routes", async () => {
-			campsiteRepository.findOne.mockResolvedValue({
-				id: CAMPSITE_ID,
-				hostId: "other-host",
-			} as Campsite);
-
-			await expect(service.listByCampsite(HOST_ID, CAMPSITE_ID)).rejects.toMatchObject({
-				status: 403,
-			});
-			expect(routeRepository.findByCampsite).not.toHaveBeenCalled();
 		});
 	});
 
@@ -409,17 +375,11 @@ describe("TrekkingRoutesService", () => {
 		});
 	});
 
-	it("creates a draft route for an owned campsite and writes a summarized audit", async () => {
-		campsiteRepository.findOne.mockResolvedValue({ id: CAMPSITE_ID, hostId: HOST_ID } as Campsite);
-
+	it("creates a draft route for the current Host and writes a summarized audit", async () => {
 		const route = await service.create(HOST_ID, createDto());
 
-		expect(campsiteRepository.findOne).toHaveBeenCalledWith({
-			where: { id: CAMPSITE_ID },
-			lock: { mode: "pessimistic_read" },
-		});
 		expect(routeRepository.createDraft).toHaveBeenCalledWith(
-			expect.objectContaining({ campsiteId: CAMPSITE_ID, name: "Pine Ridge Trail" })
+			expect.objectContaining({ hostId: HOST_ID, name: "Pine Ridge Trail" })
 		);
 		expect(route.status).toBe(TrekkingRouteStatus.DRAFT);
 		expect(auditRepository.save).toHaveBeenCalledWith(
@@ -445,27 +405,7 @@ describe("TrekkingRoutesService", () => {
 		);
 	});
 
-	it("returns 404 for a missing campsite without route or audit side effects", async () => {
-		campsiteRepository.findOne.mockResolvedValue(null);
-
-		await expect(service.create(HOST_ID, createDto())).rejects.toMatchObject({ status: 404 });
-		expect(routeRepository.createDraft).not.toHaveBeenCalled();
-		expect(auditRepository.save).not.toHaveBeenCalled();
-	});
-
-	it("returns 403 for another Host's campsite without route or audit side effects", async () => {
-		campsiteRepository.findOne.mockResolvedValue({
-			id: CAMPSITE_ID,
-			hostId: "other-host",
-		} as Campsite);
-
-		await expect(service.create(HOST_ID, createDto())).rejects.toMatchObject({ status: 403 });
-		expect(routeRepository.createDraft).not.toHaveBeenCalled();
-		expect(auditRepository.save).not.toHaveBeenCalled();
-	});
-
 	it("propagates audit failure so the transaction can roll back route creation", async () => {
-		campsiteRepository.findOne.mockResolvedValue({ id: CAMPSITE_ID, hostId: HOST_ID } as Campsite);
 		auditRepository.save.mockRejectedValue(new Error("audit unavailable"));
 
 		await expect(service.create(HOST_ID, createDto())).rejects.toThrow("audit unavailable");

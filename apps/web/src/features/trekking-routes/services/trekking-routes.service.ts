@@ -20,8 +20,8 @@ export const trekkingRoutesService = {
 		httpClient.get<AdminTrekkingRouteReview[]>(API_ENDPOINTS.TREKKING.PENDING_REVIEW),
 	review: (routeId: string, input: ReviewTrekkingRouteInput): Promise<AdminTrekkingRouteReview> =>
 		httpClient.patch<AdminTrekkingRouteReview>(API_ENDPOINTS.TREKKING.REVIEW(routeId), input),
-	listByCampsite: (campsiteId: string): Promise<CreatedTrekkingRoute[]> =>
-		httpClient.get<CreatedTrekkingRoute[]>(API_ENDPOINTS.TREKKING.ROUTES, { campsiteId }),
+	listMine: (): Promise<CreatedTrekkingRoute[]> =>
+		httpClient.get<CreatedTrekkingRoute[]>(API_ENDPOINTS.TREKKING.ROUTES),
 	create: (input: CreateTrekkingRouteInput): Promise<CreatedTrekkingRoute> =>
 		httpClient.post<CreatedTrekkingRoute>(API_ENDPOINTS.TREKKING.ROUTES, input),
 	submitForApproval: (routeId: string): Promise<CreatedTrekkingRoute> =>

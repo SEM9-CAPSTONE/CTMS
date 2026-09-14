@@ -13,7 +13,6 @@ const clearError = vi.fn();
 function route(status: RouteStatus = "draft"): CreatedTrekkingRoute {
 	return {
 		id: "route-id",
-		campsiteId: "campsite-id",
 		name: "Ridge",
 		description: null,
 		geometry: {

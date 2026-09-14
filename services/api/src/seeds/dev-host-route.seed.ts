@@ -38,43 +38,21 @@ async function seedDevHostAndRoute(): Promise<void> {
 			console.log(`[seed:dev-host] Created Host user with ID: ${hostId}`);
 		}
 
-		// 2. Create Campsite
-		const campsiteName = "Khu cắm trại Ban Mai";
-		const existingCampsite: Array<{ id: string }> = await dataSource.query(
-			'SELECT "id" FROM "campsites" WHERE "host_id" = $1 AND "name" = $2',
-			[hostId, campsiteName]
-		);
-
-		let campsiteId = "";
-		if (existingCampsite.length > 0) {
-			campsiteId = existingCampsite[0].id;
-			console.log(`[seed:dev-host] Campsite already exists with ID: ${campsiteId}`);
-		} else {
-			const insertedCampsite: Array<{ id: string }> = await dataSource.query(
-				`INSERT INTO "campsites" (host_id, name, description, location, province, policies, operating_hours, status)
-				 VALUES ($1, $2, 'Khu cắm trại sinh thái tuyệt vời gần núi', ST_SetSRID(ST_MakePoint(108.45, 11.94), 4326)::geography, 'Lam Dong', '{}'::jsonb, '{}'::jsonb, 'active')
-				 RETURNING id`,
-				[hostId, campsiteName]
-			);
-			campsiteId = insertedCampsite[0].id;
-			console.log(`[seed:dev-host] Created Campsite with ID: ${campsiteId}`);
-		}
-
-		// 3. Create active Trekking Route
+		// 2. Create active Trekking Route
 		const routeName = "Đỉnh Núi Bidoup Trail";
 		const existingRoute: Array<{ id: string }> = await dataSource.query(
-			'SELECT "id" FROM "trekking_routes" WHERE "campsite_id" = $1 AND "name" = $2',
-			[campsiteId, routeName]
+			'SELECT "id" FROM "trekking_routes" WHERE "host_id" = $1 AND "name" = $2',
+			[hostId, routeName]
 		);
 
 		if (existingRoute.length > 0) {
 			console.log(`[seed:dev-host] Route already exists with ID: ${existingRoute[0].id}`);
 		} else {
 			const insertedRoute: Array<{ id: string }> = await dataSource.query(
-				`INSERT INTO "trekking_routes" (campsite_id, name, description, route_geom, length_meters, difficulty, expected_duration_minutes, status)
+				`INSERT INTO "trekking_routes" (host_id, name, description, route_geom, length_meters, difficulty, expected_duration_minutes, status)
 				 VALUES ($1, $2, 'Cung đường trekking chinh phục đỉnh núi Bidoup', ST_GeogFromText('SRID=4326;LINESTRING(108.45 11.94, 108.47 11.95)'), 2500, 'moderate', 180, 'active')
 				 RETURNING id`,
-				[campsiteId, routeName]
+				[hostId, routeName]
 			);
 			console.log(`[seed:dev-host] Created active Trekking Route with ID: ${insertedRoute[0].id}`);
 		}

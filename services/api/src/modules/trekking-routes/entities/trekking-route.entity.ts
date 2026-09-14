@@ -8,7 +8,7 @@ import {
 	PrimaryGeneratedColumn,
 	UpdateDateColumn,
 } from "typeorm";
-import { Campsite } from "../../campsites/entities/campsite.entity";
+import { User } from "../../users/entities/user.entity";
 import { Checkpoint } from "./checkpoint.entity";
 
 export enum TrekkingRouteDifficulty {
@@ -39,12 +39,12 @@ export class TrekkingRoute {
 	@PrimaryGeneratedColumn("uuid")
 	id!: string;
 
-	@Column({ name: "campsite_id", type: "uuid" })
-	campsiteId!: string;
+	@Column({ name: "host_id", type: "uuid" })
+	hostId!: string;
 
-	@ManyToOne(() => Campsite, { onDelete: "RESTRICT" })
-	@JoinColumn({ name: "campsite_id" })
-	campsite!: Campsite;
+	@ManyToOne(() => User, { onDelete: "RESTRICT" })
+	@JoinColumn({ name: "host_id" })
+	host!: User;
 
 	@OneToMany(
 		() => Checkpoint,

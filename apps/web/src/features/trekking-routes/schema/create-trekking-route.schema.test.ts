@@ -5,7 +5,6 @@ import {
 } from "./create-trekking-route.schema";
 
 const values = {
-	campsiteId: "11111111-1111-4111-8111-111111111111",
 	name: "  Ridge route  ",
 	description: "  Scenic  ",
 	difficulty: "hard" as const,
@@ -23,7 +22,6 @@ describe("createTrekkingRouteFormSchema", () => {
 	it("validates metadata and produces the exact API payload", () => {
 		const parsed = createTrekkingRouteFormSchema.parse(values);
 		expect(toCreateTrekkingRouteInput(parsed)).toEqual({
-			campsiteId: values.campsiteId,
 			name: "Ridge route",
 			description: "Scenic",
 			difficulty: "hard",

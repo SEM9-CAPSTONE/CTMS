@@ -9,7 +9,6 @@ import {
 import { DataSource, type EntityManager } from "typeorm";
 import { AuditLog } from "../../auth/entities/audit-log.entity";
 import type { AuthenticatedUser } from "../../auth/jwt.strategy";
-import { Campsite } from "../../campsites/entities/campsite.entity";
 import { UserRole } from "../../users/entities/user.entity";
 import type { CreateTrekkingRouteDto } from "../dto/create-trekking-route.dto";
 import {
@@ -30,19 +29,8 @@ export class TrekkingRoutesService {
 		private readonly dataSource: DataSource
 	) {}
 
-	async listByCampsite(hostId: string, campsiteId: string): Promise<TrekkingRouteResponseDto[]> {
-		const campsite = await this.dataSource.getRepository(Campsite).findOne({
-			where: { id: campsiteId },
-		});
-
-		if (!campsite) {
-			throw new NotFoundException("Campsite not found");
-		}
-		if (campsite.hostId !== hostId) {
-			throw new ForbiddenException("Only the owning Host can view routes for this campsite");
-		}
-
-		return this.trekkingRoutesRepository.findByCampsite(campsiteId);
+	async listByHost(hostId: string): Promise<TrekkingRouteResponseDto[]> {
+		return this.trekkingRoutesRepository.findByHost(hostId);
 	}
 
 	listPendingReview(): Promise<TrekkingRouteReviewResponseDto[]> {
@@ -170,7 +158,6 @@ export class TrekkingRoutesService {
 
 			return {
 				...updated,
-				campsiteName: current.campsiteName,
 				checkpoints: current.checkpoints,
 			};
 		});
@@ -178,21 +165,9 @@ export class TrekkingRoutesService {
 
 	async create(hostId: string, dto: CreateTrekkingRouteDto): Promise<TrekkingRouteResponseDto> {
 		return this.dataSource.transaction(async (manager: EntityManager) => {
-			const campsite = await manager.getRepository(Campsite).findOne({
-				where: { id: dto.campsiteId },
-				lock: { mode: "pessimistic_read" },
-			});
-
-			if (!campsite) {
-				throw new NotFoundException("Campsite not found");
-			}
-			if (campsite.hostId !== hostId) {
-				throw new ForbiddenException("Only the owning Host can create a route for this campsite");
-			}
-
 			const transactionalRepository = manager.withRepository(this.trekkingRoutesRepository);
 			const route = await transactionalRepository.createDraft({
-				campsiteId: dto.campsiteId,
+				hostId,
 				name: dto.name,
 				description: dto.description ?? null,
 				geometry: dto.geometry,
@@ -310,7 +285,7 @@ export class TrekkingRoutesService {
 		const coordinates = route.geometry.coordinates;
 		return {
 			id: route.id,
-			campsiteId: route.campsiteId,
+			hostId: route.hostId,
 			name: route.name,
 			description: route.description,
 			difficulty: route.difficulty,

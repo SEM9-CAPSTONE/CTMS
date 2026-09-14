@@ -14,7 +14,6 @@ let refreshWeatherMock: ReturnType<typeof vi.fn>;
 function route(status: RouteStatus): CreatedTrekkingRoute {
 	return {
 		id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-		campsiteId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
 		name: "Ridge route",
 		description: null,
 		geometry: {

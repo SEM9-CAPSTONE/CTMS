@@ -1,4 +1,3 @@
-import type { Campsite } from "../../campsites/entities/campsite.entity";
 import type { CreateCheckpointDto } from "../dto/create-checkpoint.dto";
 import { CheckpointType } from "../entities/checkpoint.entity";
 import { TrekkingRouteDifficulty, TrekkingRouteStatus } from "../entities/trekking-route.entity";
@@ -7,7 +6,6 @@ import { CheckpointsService } from "./checkpoints.service";
 
 const HOST_ID = "11111111-1111-4111-8111-111111111111";
 const OTHER_HOST_ID = "22222222-2222-4222-8222-222222222222";
-const CAMPSITE_ID = "33333333-3333-4333-8333-333333333333";
 const ROUTE_ID = "44444444-4444-4444-8444-444444444444";
 const CHECKPOINT_ID = "55555555-5555-4555-8555-555555555555";
 
@@ -33,8 +31,7 @@ const checkpoint = {
 function route(hostId = HOST_ID, status = TrekkingRouteStatus.DRAFT) {
 	return {
 		id: ROUTE_ID,
-		campsiteId: CAMPSITE_ID,
-		campsite: { id: CAMPSITE_ID, hostId } as Campsite,
+		hostId,
 		name: "Pine trail",
 		description: null,
 		routeGeom: {
@@ -108,7 +105,6 @@ describe("CheckpointsService", () => {
 		await expect(service.list(HOST_ID, ROUTE_ID)).resolves.toEqual([checkpoint]);
 		expect(routeRepository.findOne).toHaveBeenCalledWith({
 			where: { id: ROUTE_ID },
-			relations: { campsite: true },
 		});
 		expect(checkpointRepository.findByRoute).toHaveBeenCalledWith(ROUTE_ID);
 	});
@@ -124,7 +120,7 @@ describe("CheckpointsService", () => {
 	it("locks the route, creates the checkpoint, and writes the exact audit in one transaction", async () => {
 		await expect(service.create(HOST_ID, ROUTE_ID, dto)).resolves.toEqual(checkpoint);
 		expect(routeRepository.createQueryBuilder).toHaveBeenCalledWith("route");
-		expect(routeQuery.innerJoinAndSelect).toHaveBeenCalledWith("route.campsite", "campsite");
+		expect(routeQuery.where).toHaveBeenCalledWith("route.id = :routeId", { routeId: ROUTE_ID });
 		expect(routeQuery.where).toHaveBeenCalledWith("route.id = :routeId", { routeId: ROUTE_ID });
 		expect(routeQuery.setLock).toHaveBeenCalledWith("pessimistic_write");
 		expect(checkpointRepository.createForRoute).toHaveBeenCalledWith({ routeId: ROUTE_ID, ...dto });
