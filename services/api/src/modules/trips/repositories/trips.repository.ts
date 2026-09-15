@@ -35,10 +35,7 @@ export interface CreateTripInput {
 	bookingDeadline: Date;
 	capacityMin: number;
 	capacityMax: number;
-	isFree: boolean;
 	pricePerPerson: number;
-	provinceCode: string;
-	cityCode: string;
 	cancellationPolicy: Record<string, unknown> | null;
 	waypoints: CreateTripWaypointInput[];
 }
@@ -69,10 +66,7 @@ interface TripRow {
 	capacityMin: number | string;
 	capacityMax: number | string;
 	seatsTaken: number | string;
-	isFree: boolean;
 	pricePerPerson: number | string;
-	provinceCode: string;
-	cityCode: string;
 	cancellationPolicy: Record<string, unknown> | null;
 	status: TripStatus;
 	createdAt: Date;
@@ -136,10 +130,7 @@ const TRIP_SELECT = `
 		trip."capacity_min" AS "capacityMin",
 		trip."capacity_max" AS "capacityMax",
 		trip."seats_taken" AS "seatsTaken",
-		trip."is_free" AS "isFree",
 		trip."price_per_person" AS "pricePerPerson",
-		trip."province_code" AS "provinceCode",
-		trip."city_code" AS "cityCode",
 		trip."cancellation_policy" AS "cancellationPolicy",
 		trip."status",
 		trip."created_at" AS "createdAt",
@@ -226,17 +217,14 @@ export class TripsRepository extends Repository<Trip> {
 				"capacity_min",
 				"capacity_max",
 				"seats_taken",
-				"is_free",
 				"price_per_person",
-				"province_code",
-				"city_code",
 				"cancellation_policy",
 				"status"
 			)
 			VALUES (
 				$1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8::jsonb, $9, $10,
 				$11, $12, ST_SetSRID(ST_GeomFromGeoJSON($13), 4326)::geography, $14,
-				$15, $16, $17, 0, $18, $19, $20, $21, $22::jsonb, $23
+				$15, $16, $17, 0, $18, $19::jsonb, $20
 			)
 			RETURNING "id"
 			`,
@@ -258,10 +246,7 @@ export class TripsRepository extends Repository<Trip> {
 				input.bookingDeadline,
 				input.capacityMin,
 				input.capacityMax,
-				input.isFree,
 				input.pricePerPerson,
-				input.provinceCode,
-				input.cityCode,
 				JSON.stringify(input.cancellationPolicy),
 				TripStatus.DRAFT,
 			]

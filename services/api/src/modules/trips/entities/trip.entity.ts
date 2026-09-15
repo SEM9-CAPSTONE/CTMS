@@ -8,9 +8,7 @@ import {
 	PrimaryGeneratedColumn,
 	UpdateDateColumn,
 } from "typeorm";
-// biome-ignore lint/style/useImportType: constructor-injected or referenced by TypeORM
 import { TrekkingRoute } from "../../trekking-routes/entities/trekking-route.entity";
-// biome-ignore lint/style/useImportType: constructor-injected or referenced by TypeORM
 import { User } from "../../users/entities/user.entity";
 import { TripWaypoint } from "./trip-waypoint.entity";
 
@@ -106,17 +104,8 @@ export class Trip {
 	@Column({ name: "seats_taken", type: "int", default: 0 })
 	seatsTaken!: number;
 
-	@Column({ name: "is_free", type: "boolean", default: false })
-	isFree!: boolean;
-
 	@Column({ name: "price_per_person", type: "numeric", precision: 12, scale: 2 })
 	pricePerPerson!: string;
-
-	@Column({ name: "province_code", type: "varchar", length: 20 })
-	provinceCode!: string;
-
-	@Column({ name: "city_code", type: "varchar", length: 20 })
-	cityCode!: string;
 
 	@Column({ name: "cancellation_policy", type: "jsonb", nullable: true })
 	cancellationPolicy!: Record<string, unknown> | null;

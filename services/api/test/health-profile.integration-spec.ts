@@ -16,6 +16,7 @@ describe("Camper Health Profile (integration, real Postgres)", () => {
 	let cleanupEmails: string[] = [];
 	let cleanupPhones: string[] = [];
 	let cleanupTripIds: string[] = [];
+	let cleanupRouteIds: string[] = [];
 	let phoneSeq = 0;
 
 	const PASSWORD = "S3curePass!";
@@ -69,6 +70,7 @@ describe("Camper Health Profile (integration, real Postgres)", () => {
 		cleanupEmails = [];
 		cleanupPhones = [];
 		cleanupTripIds = [];
+		cleanupRouteIds = [];
 	});
 
 	afterEach(async () => {
@@ -79,6 +81,11 @@ describe("Camper Health Profile (integration, real Postgres)", () => {
 				cleanupTripIds,
 			]);
 			await dataSource.query('DELETE FROM "trips" WHERE "id" = ANY($1)', [cleanupTripIds]);
+		}
+		if (cleanupRouteIds.length > 0) {
+			await dataSource.query('DELETE FROM "trekking_routes" WHERE "id" = ANY($1)', [
+				cleanupRouteIds,
+			]);
 		}
 		if (cleanupEmails.length > 0) {
 			await dataSource.query(
@@ -380,13 +387,81 @@ describe("Camper Health Profile (integration, real Postgres)", () => {
 
 			// Setup a mock trip owned by the host
 			tripId = "11111111-1111-1111-1111-111111111111";
+			const routeId = "22222222-2222-4222-8222-222222222222";
 			cleanupTripIds.push(tripId);
+			cleanupRouteIds.push(routeId);
 
-			await dataSource.query(`INSERT INTO "trips" ("id", "title", "host_id") VALUES ($1, $2, $3)`, [
-				tripId,
-				"Mount Fansipan Expedition",
-				hostId,
-			]);
+			await dataSource.query(
+				`
+				INSERT INTO "trekking_routes" (
+					"id",
+					"host_id",
+					"name",
+					"description",
+					"route_geom",
+					"length_meters",
+					"difficulty",
+					"expected_duration_minutes",
+					"status"
+				)
+				VALUES (
+					$1,
+					$2,
+					$3,
+					$4,
+					ST_SetSRID(ST_MakeLine(
+						ST_MakePoint(108.2208, 16.0471),
+						ST_MakePoint(108.2508, 16.0671)
+					), 4326)::geography,
+					3500,
+					'moderate',
+					240,
+					'active'
+				)
+				ON CONFLICT ("id") DO NOTHING
+				`,
+				[routeId, hostId, "Mock health access route", "Route for health profile access tests"]
+			);
+
+			await dataSource.query(
+				`
+				INSERT INTO "trips" (
+					"id",
+					"title",
+					"host_id",
+					"route_id",
+					"trip_type",
+					"duration_nights",
+					"starts_at",
+					"ends_at",
+					"meeting_point",
+					"booking_deadline",
+					"capacity_min",
+					"capacity_max",
+					"seats_taken",
+					"price_per_person",
+					"status"
+				)
+				VALUES (
+					$1,
+					$2,
+					$3,
+					$4,
+					'day_trip',
+					0,
+					now() + interval '7 days',
+					now() + interval '7 days 6 hours',
+					ST_SetSRID(ST_MakePoint(108.2208, 16.0471), 4326)::geography,
+					now() + interval '6 days',
+					1,
+					12,
+					0,
+					0,
+					'draft'
+				)
+				`,
+				[tripId, "Mount Fansipan Expedition", hostId, routeId]
+			);
 
 			// Link porter to trip
 			await dataSource.query(

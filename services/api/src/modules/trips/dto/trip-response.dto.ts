@@ -96,16 +96,7 @@ export class TripResponseDto {
 	seatsTaken!: number;
 
 	@ApiProperty()
-	isFree!: boolean;
-
-	@ApiProperty()
 	pricePerPerson!: number;
-
-	@ApiProperty()
-	provinceCode!: string;
-
-	@ApiProperty()
-	cityCode!: string;
 
 	@ApiPropertyOptional()
 	cancellationPolicy!: Record<string, unknown> | null;

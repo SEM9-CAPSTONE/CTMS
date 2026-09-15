@@ -4,7 +4,6 @@ import {
 	ArrayMinSize,
 	Equals,
 	IsArray,
-	IsBoolean,
 	IsEnum,
 	IsISO8601,
 	IsInt,
@@ -141,12 +140,6 @@ export class CreateTripDto {
 	@IsEnum(TripType)
 	tripType!: TripType;
 
-	@ApiProperty({ minimum: 0 })
-	@Type(() => Number)
-	@IsInt()
-	@Min(0)
-	durationNights!: number;
-
 	@ApiProperty({ format: "date-time" })
 	@IsISO8601({ strict: true })
 	startsAt!: string;
@@ -181,29 +174,11 @@ export class CreateTripDto {
 	@Min(1)
 	capacityMax!: number;
 
-	@ApiProperty()
-	@IsBoolean()
-	isFree!: boolean;
-
 	@ApiProperty({ minimum: 0 })
 	@Type(() => Number)
 	@IsNumber()
 	@Min(0)
 	pricePerPerson!: number;
-
-	@ApiProperty({ maxLength: 20 })
-	@Transform(({ value }) => trimmedString(value))
-	@IsString()
-	@IsNotEmpty()
-	@MaxLength(20)
-	provinceCode!: string;
-
-	@ApiProperty({ maxLength: 20 })
-	@Transform(({ value }) => trimmedString(value))
-	@IsString()
-	@IsNotEmpty()
-	@MaxLength(20)
-	cityCode!: string;
 
 	@ApiPropertyOptional({ type: "object", additionalProperties: true })
 	@IsOptional()

@@ -21,7 +21,6 @@ function createTripDto() {
 		includes: { meals: true },
 		excludes: { insurance: true },
 		tripType: TripType.DAY_TRIP,
-		durationNights: 0,
 		startsAt: "2026-09-20T01:00:00.000Z",
 		endsAt: "2026-09-20T10:00:00.000Z",
 		meetingPoint: { type: "Point" as const, coordinates: [108.441, 11.941] as [number, number] },
@@ -29,10 +28,7 @@ function createTripDto() {
 		bookingDeadline: "2026-09-19T12:00:00.000Z",
 		capacityMin: 2,
 		capacityMax: 12,
-		isFree: false,
 		pricePerPerson: 100000,
-		provinceCode: "LDG",
-		cityCode: "DALAT",
 		cancellationPolicy: { refundWindowHours: 48 },
 		waypoints: [
 			{
@@ -78,10 +74,7 @@ function createdTrip() {
 		capacityMin: 2,
 		capacityMax: 12,
 		seatsTaken: 0,
-		isFree: false,
 		pricePerPerson: 100000,
-		provinceCode: "LDG",
-		cityCode: "DALAT",
 		cancellationPolicy: { refundWindowHours: 48 },
 		status: TripStatus.DRAFT,
 		createdAt: new Date("2026-09-15T00:00:00.000Z"),
@@ -133,6 +126,7 @@ describe("TripsService", () => {
 			expect.objectContaining({
 				hostId: HOST_ID,
 				routeId: ROUTE_ID,
+				durationNights: 0,
 				waypoints: expect.arrayContaining([
 					expect.objectContaining({ type: WaypointType.START, checkpointId: CHECKPOINT_ID }),
 					expect.objectContaining({ type: WaypointType.FINISH, checkpointId: null }),
@@ -156,6 +150,31 @@ describe("TripsService", () => {
 					waypointCount: 0,
 				}),
 			})
+		);
+	});
+
+	it("derives durationNights for overnight Trips from the schedule", async () => {
+		await service.create(HOST_ID, {
+			...createTripDto(),
+			tripType: TripType.OVERNIGHT,
+			startsAt: "2026-09-20T12:00:00.000Z",
+			endsAt: "2026-09-22T10:00:00.000Z",
+			waypoints: createTripDto().waypoints.map((waypoint) => ({
+				...waypoint,
+				plannedAt: undefined,
+			})),
+		});
+
+		expect(tripsRepository.createDraft).toHaveBeenCalledWith(
+			expect.objectContaining({ durationNights: 2 })
+		);
+	});
+
+	it("allows a free Trip when pricePerPerson is zero", async () => {
+		await service.create(HOST_ID, { ...createTripDto(), pricePerPerson: 0 });
+
+		expect(tripsRepository.createDraft).toHaveBeenCalledWith(
+			expect.objectContaining({ pricePerPerson: 0 })
 		);
 	});
 
@@ -225,22 +244,6 @@ describe("TripsService", () => {
 		{
 			name: "capacityMin is greater than capacityMax",
 			patch: { capacityMin: 13 },
-		},
-		{
-			name: "free Trip has a price",
-			patch: { isFree: true, pricePerPerson: 1 },
-		},
-		{
-			name: "paid Trip has no positive price",
-			patch: { pricePerPerson: 0 },
-		},
-		{
-			name: "day Trip has duration nights",
-			patch: { durationNights: 1 },
-		},
-		{
-			name: "overnight Trip has no duration nights",
-			patch: { tripType: TripType.OVERNIGHT, durationNights: 0 },
 		},
 	])("returns 422 when $name", async ({ patch }) => {
 		await expect(service.create(HOST_ID, { ...createTripDto(), ...patch })).rejects.toMatchObject({

@@ -21,6 +21,8 @@ interface FieldValidationError {
 	errors: string[];
 }
 
+const ONE_DAY_IN_MILLISECONDS = 24 * 60 * 60 * 1000;
+
 @Injectable()
 export class TripsService {
 	constructor(
@@ -29,7 +31,7 @@ export class TripsService {
 	) {}
 
 	async create(hostId: string, dto: CreateTripDto): Promise<TripResponseDto> {
-		this.assertCreateTripPayload(dto);
+		const schedule = this.assertCreateTripPayload(dto);
 
 		return this.dataSource.transaction(async (manager: EntityManager) => {
 			const repository = manager.withRepository(this.tripsRepository);
@@ -72,18 +74,15 @@ export class TripsService {
 				includes: dto.includes ?? null,
 				excludes: dto.excludes ?? null,
 				tripType: dto.tripType,
-				durationNights: dto.durationNights,
-				startsAt: new Date(dto.startsAt),
-				endsAt: new Date(dto.endsAt),
+				durationNights: deriveDurationNights(dto.tripType, schedule.startsAt, schedule.endsAt),
+				startsAt: schedule.startsAt,
+				endsAt: schedule.endsAt,
 				meetingPoint: toGeoPoint(dto.meetingPoint),
-				meetingAt: dto.meetingAt ? new Date(dto.meetingAt) : null,
-				bookingDeadline: new Date(dto.bookingDeadline),
+				meetingAt: schedule.meetingAt,
+				bookingDeadline: schedule.bookingDeadline,
 				capacityMin: dto.capacityMin,
 				capacityMax: dto.capacityMax,
-				isFree: dto.isFree,
 				pricePerPerson: dto.pricePerPerson,
-				provinceCode: dto.provinceCode,
-				cityCode: dto.cityCode,
 				cancellationPolicy: dto.cancellationPolicy ?? null,
 				waypoints: dto.waypoints.map(toWaypointInput),
 			});
@@ -102,7 +101,12 @@ export class TripsService {
 		});
 	}
 
-	private assertCreateTripPayload(dto: CreateTripDto): void {
+	private assertCreateTripPayload(dto: CreateTripDto): {
+		startsAt: Date;
+		endsAt: Date;
+		bookingDeadline: Date;
+		meetingAt: Date | null;
+	} {
 		const errors: FieldValidationError[] = [];
 		const startsAt = new Date(dto.startsAt);
 		const endsAt = new Date(dto.endsAt);
@@ -128,24 +132,6 @@ export class TripsService {
 			errors.push({
 				field: "capacityMin",
 				errors: ["capacityMin must be less than or equal to capacityMax"],
-			});
-		}
-		if (dto.isFree && dto.pricePerPerson !== 0) {
-			errors.push({ field: "pricePerPerson", errors: ["pricePerPerson must be 0 for free Trips"] });
-		}
-		if (!dto.isFree && dto.pricePerPerson <= 0) {
-			errors.push({
-				field: "pricePerPerson",
-				errors: ["pricePerPerson must be greater than 0 for paid Trips"],
-			});
-		}
-		if (dto.tripType === TripType.DAY_TRIP && dto.durationNights !== 0) {
-			errors.push({ field: "durationNights", errors: ["day trips must have 0 durationNights"] });
-		}
-		if (dto.tripType === TripType.OVERNIGHT && dto.durationNights < 1) {
-			errors.push({
-				field: "durationNights",
-				errors: ["overnight trips must have at least 1 durationNight"],
 			});
 		}
 
@@ -180,6 +166,8 @@ export class TripsService {
 		if (errors.length > 0) {
 			throw this.validationException(errors);
 		}
+
+		return { startsAt, endsAt, bookingDeadline, meetingAt };
 	}
 
 	private validationException(message: FieldValidationError[]): UnprocessableEntityException {
@@ -204,10 +192,7 @@ export class TripsService {
 			capacityMin: trip.capacityMin,
 			capacityMax: trip.capacityMax,
 			seatsTaken: trip.seatsTaken,
-			isFree: trip.isFree,
 			pricePerPerson: trip.pricePerPerson,
-			provinceCode: trip.provinceCode,
-			cityCode: trip.cityCode,
 			status: trip.status,
 			waypointCount: trip.waypoints.length,
 		};
@@ -219,6 +204,13 @@ function toGeoPoint(point: GeoJsonPointDto): GeoPoint {
 		type: "Point",
 		coordinates: point.coordinates,
 	};
+}
+
+function deriveDurationNights(tripType: TripType, startsAt: Date, endsAt: Date): number {
+	if (tripType === TripType.DAY_TRIP) return 0;
+
+	const durationMs = endsAt.getTime() - startsAt.getTime();
+	return Math.max(1, Math.ceil(durationMs / ONE_DAY_IN_MILLISECONDS));
 }
 
 function toWaypointInput(waypoint: CreateTripWaypointDto): CreateTripWaypointInput {
