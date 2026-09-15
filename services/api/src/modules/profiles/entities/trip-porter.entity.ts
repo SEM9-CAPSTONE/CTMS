@@ -1,8 +1,8 @@
 import { Entity, JoinColumn, ManyToOne, PrimaryColumn } from "typeorm";
 // biome-ignore lint/style/useImportType: constructor-injected or referenced by TypeORM
-import { User } from "../../users/entities/user.entity";
+import { Trip } from "../../trips/entities/trip.entity";
 // biome-ignore lint/style/useImportType: constructor-injected or referenced by TypeORM
-import { Trip } from "./trip.entity";
+import { User } from "../../users/entities/user.entity";
 
 @Entity({ name: "trip_porters" })
 export class TripPorter {
