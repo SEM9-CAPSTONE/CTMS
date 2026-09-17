@@ -5,6 +5,8 @@ export enum RoutePath {
 	VERIFY_OTP = "/verify-otp",
 	FORGOT_PASSWORD = "/forgot-password",
 	DASHBOARD = "/dashboard",
+	TRIPS = "/trips",
+	HOST_CREATE_TRIP = "/host/trips/create",
 	HOST_TREKKING_ROUTES = "/host/trekking-routes",
 	HOST_CREATE_TREKKING_ROUTE = "/host/trekking-routes/create",
 	TREKKING = "/trekking",

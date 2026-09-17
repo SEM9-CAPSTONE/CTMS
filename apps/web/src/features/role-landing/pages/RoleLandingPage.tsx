@@ -78,6 +78,7 @@ function DashboardMain({
 	profile,
 	onOpenProfile,
 	onOpenAdminUsers,
+	onCreateTrip,
 	onCreateTrekkingRoute,
 }: {
 	config: DashboardConfig;
@@ -85,6 +86,7 @@ function DashboardMain({
 	profile: CamperProfileData | null;
 	onOpenProfile?: () => void;
 	onOpenAdminUsers?: () => void;
+	onCreateTrip?: () => void;
 	onCreateTrekkingRoute?: () => void;
 }) {
 	const displayName = profile?.fullName || getDisplayName(user);
@@ -228,6 +230,7 @@ function DashboardMain({
 					<QuickTasksPanel
 						config={config}
 						onOpenAdminUsers={onOpenAdminUsers}
+						onCreateTrip={onCreateTrip}
 						onCreateTrekkingRoute={onCreateTrekkingRoute}
 					/>
 				</section>
@@ -241,6 +244,7 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 	roles,
 	onOpenProfile,
 	onOpenAdminUsers,
+	onCreateTrip,
 	onCreateTrekkingRoute,
 	onLogout,
 	onExplore,
@@ -370,6 +374,7 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 					profile={profile}
 					onOpenProfile={onOpenProfile}
 					onOpenAdminUsers={onOpenAdminUsers}
+					onCreateTrip={onCreateTrip}
 					onCreateTrekkingRoute={onCreateTrekkingRoute}
 				/>
 			</div>

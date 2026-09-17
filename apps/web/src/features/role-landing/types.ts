@@ -9,6 +9,7 @@ export interface RoleLandingPageProps {
 	onBackHome: () => void;
 	onOpenProfile?: () => void;
 	onOpenAdminUsers?: () => void;
+	onCreateTrip?: () => void;
 	onCreateTrekkingRoute?: () => void;
 	onViewTrekkingRoutes?: () => void;
 	onExplore?: () => void;

@@ -18,6 +18,7 @@ import { RoleLandingPage } from "../features/role-landing/pages/RoleLandingPage"
 import { AdminTrekkingRoutesPage } from "../features/trekking-routes/pages/AdminTrekkingRoutesPage";
 import { CreateTrekkingRoutePage } from "../features/trekking-routes/pages/CreateTrekkingRoutePage";
 import { TrekkingRoutesPage } from "../features/trekking-routes/pages/TrekkingRoutesPage";
+import { CreateTripPage } from "../features/trips/pages/CreateTripPage";
 import { EdgeCasePage, ErrorPage, NotFoundPage, UnauthorizedPage } from "../shared/pages";
 import { AppRoleGuard } from "./AppRoleGuard";
 import { RoutePath } from "./routes.config";
@@ -154,6 +155,23 @@ export function AppRoutes() {
 				</AppRoleGuard>
 			);
 
+		case RoutePath.TRIPS:
+		case RoutePath.HOST_CREATE_TRIP:
+			return (
+				<AppRoleGuard
+					allowedRoles={["host"]}
+					currentRoles={currentRoles}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<HostLayout onLogout={handleLogout}>
+						<CreateTripPage
+							onBackHome={() => navigateTo(RoutePath.DASHBOARD)}
+							onCreateRoute={() => navigateTo(RoutePath.HOST_CREATE_TREKKING_ROUTE)}
+						/>
+					</HostLayout>
+				</AppRoleGuard>
+			);
+
 		case RoutePath.HOST_TREKKING_ROUTES:
 			return (
 				<AppRoleGuard
@@ -185,6 +203,7 @@ export function AppRoutes() {
 					onOpenProfile={() => navigateTo(RoutePath.CAMPER_PROFILE)}
 					onOpenAdminUsers={() => navigateTo(RoutePath.ADMIN_USERS)}
 					onExplore={() => navigateTo(RoutePath.TREKKING)}
+					onCreateTrip={() => navigateTo(RoutePath.HOST_CREATE_TRIP)}
 					onCreateTrekkingRoute={() => navigateTo(RoutePath.HOST_CREATE_TREKKING_ROUTE)}
 					onViewTrekkingRoutes={() => navigateTo(RoutePath.HOST_TREKKING_ROUTES)}
 					onLogout={handleLogout}
