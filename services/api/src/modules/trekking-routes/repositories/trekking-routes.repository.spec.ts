@@ -77,6 +77,7 @@ describe("TrekkingRoutesRepository", () => {
 				createdAt: new Date(),
 				updatedAt: new Date(),
 				checkpoints: [],
+				dangerZones: [],
 			},
 		]);
 
@@ -84,8 +85,9 @@ describe("TrekkingRoutesRepository", () => {
 
 		expect(query.mock.calls[0][0]).toContain('route."status" = $1');
 		expect(query.mock.calls[0][0]).toContain('ORDER BY checkpoint."route_position"');
+		expect(query.mock.calls[0][0]).toContain('FROM "route_danger_zones" danger_zone');
 		expect(query.mock.calls[0][1]).toEqual([TrekkingRouteStatus.PENDING_APPROVAL]);
-		expect(routes[0]).toEqual(expect.objectContaining({ checkpoints: [] }));
+		expect(routes[0]).toEqual(expect.objectContaining({ checkpoints: [], dangerZones: [] }));
 	});
 
 	it("locks the selected Route before review", async () => {

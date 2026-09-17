@@ -45,6 +45,7 @@ function reviewRoute(status = TrekkingRouteStatus.PENDING_APPROVAL) {
 		...createdRoute(),
 		status,
 		checkpoints: [],
+		dangerZones: [],
 	};
 }
 

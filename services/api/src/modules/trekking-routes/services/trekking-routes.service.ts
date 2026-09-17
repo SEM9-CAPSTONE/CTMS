@@ -159,6 +159,7 @@ export class TrekkingRoutesService {
 			return {
 				...updated,
 				checkpoints: current.checkpoints,
+				dangerZones: current.dangerZones,
 			};
 		});
 	}

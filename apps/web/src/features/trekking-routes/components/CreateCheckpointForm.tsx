@@ -1,8 +1,9 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertCircle, Loader2 } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import {
+	CHECKPOINT_DEFAULT_NAMES,
 	type CreateCheckpointFormValues,
 	checkpointDefaultValues,
 	createCheckpointFormSchema,
@@ -11,6 +12,7 @@ import {
 import type { CreateCheckpointInput, GeoJsonPoint, RouteCheckpoint } from "../types";
 
 interface Props {
+	checkpoint?: RouteCheckpoint;
 	location?: GeoJsonPoint;
 	expectedDurationMinutes: number;
 	disabled: boolean;
@@ -19,12 +21,14 @@ interface Props {
 	onRadiusChange: (radius: number) => void;
 	onSubmit: (input: CreateCheckpointInput) => Promise<RouteCheckpoint | null>;
 	onCreated: () => void;
+	onCancel?: () => void;
 }
 
 const inputClass =
 	"mt-1 w-full rounded-xl border border-[#cbd9ce] bg-white px-3 py-2.5 text-sm disabled:bg-slate-100";
 
 export function CreateCheckpointForm({
+	checkpoint,
 	location,
 	expectedDurationMinutes,
 	disabled,
@@ -33,7 +37,9 @@ export function CreateCheckpointForm({
 	onRadiusChange,
 	onSubmit,
 	onCreated,
+	onCancel,
 }: Props) {
+	const nameCustomized = useRef(Boolean(checkpoint));
 	const {
 		register,
 		handleSubmit,
@@ -43,8 +49,19 @@ export function CreateCheckpointForm({
 		formState: { errors },
 	} = useForm<CreateCheckpointFormValues>({
 		resolver: zodResolver(createCheckpointFormSchema),
-		defaultValues: checkpointDefaultValues({ type: "Point", coordinates: [0, 0] }),
+		defaultValues: checkpointDefaultValues({ type: "Point", coordinates: [0, 0] }, checkpoint),
 	});
+
+	useEffect(() => {
+		nameCustomized.current = Boolean(checkpoint);
+		reset(
+			checkpointDefaultValues(
+				checkpoint?.location ?? { type: "Point", coordinates: [0, 0] },
+				checkpoint
+			)
+		);
+		if (checkpoint) onRadiusChange(checkpoint.radiusMeters);
+	}, [checkpoint, onRadiusChange, reset]);
 
 	useEffect(() => {
 		if (location) setValue("location", location, { shouldValidate: true });
@@ -54,6 +71,7 @@ export function CreateCheckpointForm({
 
 	return (
 		<form
+			aria-label={checkpoint ? "Sửa checkpoint" : "Tạo checkpoint"}
 			className="mt-5 grid gap-4 sm:grid-cols-2"
 			onSubmit={handleSubmit(async (values) => {
 				if (!location) {
@@ -66,10 +84,13 @@ export function CreateCheckpointForm({
 					});
 					return;
 				}
-				const created = await onSubmit(toCreateCheckpointInput({ ...values, location }));
-				if (created) {
-					reset(checkpointDefaultValues({ type: "Point", coordinates: [0, 0] }));
-					onRadiusChange(30);
+				const saved = await onSubmit(toCreateCheckpointInput({ ...values, location }));
+				if (saved) {
+					if (!checkpoint) {
+						nameCustomized.current = false;
+						reset(checkpointDefaultValues({ type: "Point", coordinates: [0, 0] }));
+						onRadiusChange(30);
+					}
 					onCreated();
 				}
 			})}
@@ -81,7 +102,11 @@ export function CreateCheckpointForm({
 					maxLength={150}
 					disabled={fieldDisabled}
 					className={inputClass}
-					{...register("name")}
+					{...register("name", {
+						onChange: () => {
+							nameCustomized.current = true;
+						},
+					})}
 				/>
 				{errors.name && (
 					<span className="mt-1 block text-xs text-red-600">{errors.name.message}</span>
@@ -93,7 +118,19 @@ export function CreateCheckpointForm({
 					aria-label="Loại checkpoint"
 					disabled={fieldDisabled}
 					className={inputClass}
-					{...register("type")}
+					{...register("type", {
+						onChange: (event) => {
+							if (!nameCustomized.current) {
+								setValue(
+									"name",
+									CHECKPOINT_DEFAULT_NAMES[
+										event.target.value as keyof typeof CHECKPOINT_DEFAULT_NAMES
+									],
+									{ shouldDirty: true, shouldValidate: true }
+								);
+							}
+						},
+					})}
 				>
 					<option value="start">Bắt đầu</option>
 					<option value="rest">Nghỉ chân</option>
@@ -164,14 +201,32 @@ export function CreateCheckpointForm({
 					<AlertCircle className="size-5 shrink-0" /> {error}
 				</p>
 			)}
-			<button
-				type="submit"
-				disabled={fieldDisabled}
-				className="flex items-center justify-center gap-2 rounded-xl bg-[#164027] px-5 py-3 font-bold text-white disabled:opacity-50 sm:col-span-2"
-			>
-				{isSubmitting && <Loader2 className="size-4 animate-spin" />}
-				{isSubmitting ? "Đang tạo checkpoint..." : "Tạo checkpoint"}
-			</button>
+			<div className="flex flex-wrap gap-2 sm:col-span-2">
+				<button
+					type="submit"
+					disabled={fieldDisabled}
+					className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#164027] px-5 py-3 font-bold text-white disabled:opacity-50"
+				>
+					{isSubmitting && <Loader2 className="size-4 animate-spin" />}
+					{checkpoint
+						? isSubmitting
+							? "Đang lưu thay đổi..."
+							: "Lưu thay đổi"
+						: isSubmitting
+							? "Đang tạo checkpoint..."
+							: "Tạo checkpoint"}
+				</button>
+				{checkpoint && (
+					<button
+						type="button"
+						disabled={fieldDisabled}
+						onClick={onCancel}
+						className="rounded-xl border px-5 py-3 font-bold disabled:opacity-50"
+					>
+						Hủy
+					</button>
+				)}
+			</div>
 		</form>
 	);
 }

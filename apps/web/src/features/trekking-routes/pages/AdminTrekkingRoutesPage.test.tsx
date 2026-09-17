@@ -34,6 +34,7 @@ const route: AdminTrekkingRouteReview = {
 			updatedAt: "2026-08-28T00:00:00.000Z",
 		},
 	],
+	dangerZones: [],
 };
 
 interface SetupOptions {

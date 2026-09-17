@@ -90,6 +90,8 @@ export interface CreateCheckpointInput {
 	nearbyWaterOrShelter: boolean;
 }
 
+export type UpdateCheckpointInput = CreateCheckpointInput;
+
 export interface RouteCheckpoint extends CreateCheckpointInput {
 	id: string;
 	routeId: string;
@@ -107,6 +109,7 @@ export interface ReviewTrekkingRouteInput {
 
 export interface AdminTrekkingRouteReview extends CreatedTrekkingRoute {
 	checkpoints: RouteCheckpoint[];
+	dangerZones: RouteDangerZone[];
 }
 
 export type WeatherSnapshotStatus = "success" | "failed";
