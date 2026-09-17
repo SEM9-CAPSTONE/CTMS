@@ -1,6 +1,7 @@
 import { Injectable, UnprocessableEntityException } from "@nestjs/common";
 import { Repository } from "typeorm";
 import type { CheckpointResponseDto } from "../dto/checkpoint-response.dto";
+import type { RouteDangerZoneResponseDto } from "../dto/route-danger-zone-response.dto";
 import type { TrekkingRouteResponseDto } from "../dto/trekking-route-response.dto";
 import type { TrekkingRouteReviewResponseDto } from "../dto/trekking-route-review-response.dto";
 import type { GeoLineString, TrekkingRouteDifficulty } from "../entities/trekking-route.entity";
@@ -41,6 +42,7 @@ export interface LockedTrekkingRoute {
 
 interface ReviewRouteRow extends CreatedRouteRow {
 	checkpoints: CheckpointResponseDto[];
+	dangerZones: RouteDangerZoneResponseDto[];
 }
 
 export interface ApprovalIntegrityResult {
@@ -92,6 +94,10 @@ function toReviewResponse(row: ReviewRouteRow): TrekkingRouteReviewResponseDto {
 			expectedArrivalOffset: Number(checkpoint.expectedArrivalOffset),
 			routePosition: Number(checkpoint.routePosition),
 		})),
+		dangerZones: row.dangerZones.map((dangerZone) => ({
+			...dangerZone,
+			radiusMeters: dangerZone.radiusMeters == null ? null : Number(dangerZone.radiusMeters),
+		})),
 	};
 }
 
@@ -128,7 +134,24 @@ const REVIEW_ROUTE_SELECT = `
 			)
 			FROM "checkpoints" checkpoint
 			WHERE checkpoint."route_id" = route."id"
-		), '[]'::jsonb) AS "checkpoints"
+		), '[]'::jsonb) AS "checkpoints",
+		COALESCE((
+			SELECT jsonb_agg(
+				jsonb_build_object(
+					'id', danger_zone."id",
+					'routeId', danger_zone."route_id",
+					'geometry', ST_AsGeoJSON(danger_zone."geom"::geometry)::json,
+					'radiusMeters', danger_zone."radius_m",
+					'description', danger_zone."description",
+					'severity', danger_zone."severity",
+					'createdAt', danger_zone."created_at",
+					'updatedAt', danger_zone."updated_at"
+				)
+				ORDER BY danger_zone."created_at", danger_zone."id"
+			)
+			FROM "route_danger_zones" danger_zone
+			WHERE danger_zone."route_id" = route."id"
+		), '[]'::jsonb) AS "dangerZones"
 	FROM "trekking_routes" route
 `;
 

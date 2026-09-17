@@ -27,6 +27,8 @@ export const API_ENDPOINTS = {
 		REOPEN_ROUTE: (routeId: string) => `/trekking-routes/${routeId}/reopen`,
 		REVIEW: (id: string) => `/trekking-routes/${id}/review`,
 		CHECKPOINTS: (routeId: string) => `/trekking-routes/${routeId}/checkpoints`,
+		CHECKPOINT: (routeId: string, checkpointId: string) =>
+			`/trekking-routes/${routeId}/checkpoints/${checkpointId}`,
 		HAZARD_AREAS: (routeId: string) => `/trekking-routes/${routeId}/hazard-areas`,
 		WEATHER_LATEST: (routeId: string) => `/trekking-routes/${routeId}/weather/latest`,
 		WEATHER_REFRESH: (routeId: string) => `/trekking-routes/${routeId}/weather/refresh`,

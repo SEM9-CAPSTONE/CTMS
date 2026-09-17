@@ -1,5 +1,19 @@
 import { z } from "zod";
-import { CHECKPOINT_TYPES, type CreateCheckpointInput } from "../types";
+import {
+	CHECKPOINT_TYPES,
+	type CheckpointType,
+	type CreateCheckpointInput,
+	type RouteCheckpoint,
+} from "../types";
+
+export const CHECKPOINT_DEFAULT_NAMES: Record<CheckpointType, string> = {
+	start: "Điểm bắt đầu",
+	rest: "Điểm nghỉ chân",
+	water: "Điểm cấp nước",
+	dangerous: "Điểm nguy hiểm",
+	emergency_shelter: "Nơi trú ẩn khẩn cấp",
+	finish: "Điểm kết thúc",
+};
 
 const pointSchema = z.object({
 	type: z.literal("Point"),
@@ -40,10 +54,22 @@ export const createCheckpointFormSchema = z.object({
 export type CreateCheckpointFormValues = z.infer<typeof createCheckpointFormSchema>;
 
 export function checkpointDefaultValues(
-	location: CreateCheckpointFormValues["location"]
+	location: CreateCheckpointFormValues["location"],
+	checkpoint?: RouteCheckpoint
 ): CreateCheckpointFormValues {
+	if (checkpoint) {
+		return {
+			name: checkpoint.name,
+			location: checkpoint.location,
+			radiusMeters: String(checkpoint.radiusMeters),
+			type: checkpoint.type,
+			expectedArrivalOffset: String(checkpoint.expectedArrivalOffset),
+			instructions: checkpoint.instructions,
+			nearbyWaterOrShelter: checkpoint.nearbyWaterOrShelter,
+		};
+	}
 	return {
-		name: "",
+		name: CHECKPOINT_DEFAULT_NAMES.rest,
 		location,
 		radiusMeters: "30",
 		type: "rest",

@@ -10,6 +10,7 @@ import type {
 	RouteCheckpoint,
 	RouteDangerZone,
 	RouteStatusReasonInput,
+	UpdateCheckpointInput,
 	WeatherAdvice,
 	WeatherRiskAssessment,
 	WeatherSnapshot,
@@ -34,6 +35,15 @@ export const trekkingRoutesService = {
 		httpClient.get<RouteCheckpoint[]>(API_ENDPOINTS.TREKKING.CHECKPOINTS(routeId)),
 	createCheckpoint: (routeId: string, input: CreateCheckpointInput): Promise<RouteCheckpoint> =>
 		httpClient.post<RouteCheckpoint>(API_ENDPOINTS.TREKKING.CHECKPOINTS(routeId), input),
+	updateCheckpoint: (
+		routeId: string,
+		checkpointId: string,
+		input: UpdateCheckpointInput
+	): Promise<RouteCheckpoint> =>
+		httpClient.patch<RouteCheckpoint>(
+			API_ENDPOINTS.TREKKING.CHECKPOINT(routeId, checkpointId),
+			input
+		),
 	listRouteDangerZones: (routeId: string): Promise<RouteDangerZone[]> =>
 		httpClient.get<RouteDangerZone[]>(API_ENDPOINTS.TREKKING.HAZARD_AREAS(routeId)),
 	createRouteDangerZone: (

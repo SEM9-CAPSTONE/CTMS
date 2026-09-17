@@ -77,4 +77,60 @@ describe("CheckpointsRepository", () => {
 			})
 		).rejects.toMatchObject({ status: 422 });
 	});
+
+	it("locks one checkpoint scoped to its route before update", async () => {
+		const repository = new CheckpointsRepository(Checkpoint, {} as EntityManager);
+		const query = jest.spyOn(repository, "query").mockResolvedValue([row]);
+		await expect(repository.findOneForUpdate("route-id", "checkpoint-id")).resolves.toEqual(
+			expect.objectContaining({ id: "checkpoint-id", radiusMeters: 30 })
+		);
+		expect(query.mock.calls[0][0]).toContain("FOR UPDATE");
+		expect(query.mock.calls[0][1]).toEqual(["route-id", "checkpoint-id"]);
+	});
+
+	it("updates spatial fields, rechecks 50-meter proximity, and recalculates route position", async () => {
+		const repository = new CheckpointsRepository(Checkpoint, {} as EntityManager);
+		const query = jest
+			.spyOn(repository, "query")
+			.mockResolvedValue([{ ...row, name: "Water", type: CheckpointType.WATER }]);
+		const result = await repository.updateForRoute({
+			routeId: "route-id",
+			checkpointId: "checkpoint-id",
+			name: "Water",
+			location: row.location,
+			radiusMeters: 40,
+			type: CheckpointType.WATER,
+			expectedArrivalOffset: 50,
+			instructions: "Refill water.",
+			nearbyWaterOrShelter: true,
+		});
+		const sql = query.mock.calls[0][0];
+		const normalizedSql = sql.replace(/\s+/g, " ");
+		const parameters = query.mock.calls[0][1] as unknown[];
+		expect(normalizedSql).toContain(
+			'ST_DWithin( route."route_geom", checkpoint_input.location, 50 )'
+		);
+		expect(sql).toContain("ST_LineLocatePoint");
+		expect(sql).toContain('checkpoint."route_id" = $1 AND checkpoint."id" = $2');
+		expect(parameters[3]).toBe(JSON.stringify(row.location));
+		expect(result).toEqual(expect.objectContaining({ name: "Water", type: CheckpointType.WATER }));
+	});
+
+	it("returns 422 when an updated Point is farther than 50 meters", async () => {
+		const repository = new CheckpointsRepository(Checkpoint, {} as EntityManager);
+		jest.spyOn(repository, "query").mockResolvedValue([]);
+		await expect(
+			repository.updateForRoute({
+				routeId: "route-id",
+				checkpointId: "checkpoint-id",
+				name: "Far point",
+				location: row.location,
+				radiusMeters: 30,
+				type: CheckpointType.REST,
+				expectedArrivalOffset: 45,
+				instructions: "Too far",
+				nearbyWaterOrShelter: false,
+			})
+		).rejects.toMatchObject({ status: 422 });
+	});
 });

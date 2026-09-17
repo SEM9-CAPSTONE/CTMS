@@ -1,13 +1,16 @@
 import { Loader2, RefreshCw } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useCreateRouteCheckpoint } from "../hooks/useCreateRouteCheckpoint";
 import { useCreateRouteDangerZone } from "../hooks/useCreateRouteDangerZone";
 import { useRouteCheckpoints } from "../hooks/useRouteCheckpoints";
 import { useRouteDangerZones } from "../hooks/useRouteDangerZones";
+import { useUpdateRouteCheckpoint } from "../hooks/useUpdateRouteCheckpoint";
 import type {
 	CreatedTrekkingRoute,
 	GeoJsonPoint,
 	Position,
+	RouteCheckpoint,
+	RouteDangerZone,
 	RouteDangerZoneGeometry,
 	RouteMapMode,
 } from "../types";
@@ -23,16 +26,21 @@ interface RouteCheckpointsPanelProps {
 	route: CreatedTrekkingRoute;
 	onRouteReload: () => Promise<unknown>;
 	onRouteSubmitted: (route: CreatedTrekkingRoute) => void;
+	onCheckpointsChange?: (checkpoints: RouteCheckpoint[]) => void;
+	onDangerZonesChange?: (dangerZones: RouteDangerZone[]) => void;
 }
 
 export function RouteCheckpointsPanel({
 	route,
 	onRouteReload,
 	onRouteSubmitted,
+	onCheckpointsChange,
+	onDangerZonesChange,
 }: RouteCheckpointsPanelProps) {
 	const checkpoints = useRouteCheckpoints(route.id);
 	const reload = checkpoints.reload;
 	const create = useCreateRouteCheckpoint(route.id, reload);
+	const update = useUpdateRouteCheckpoint(route.id, reload);
 	const dangerZones = useRouteDangerZones(route.id);
 	const dangerReload = dangerZones.reload;
 	const createDangerZone = useCreateRouteDangerZone(route.id, dangerReload, onRouteReload);
@@ -43,7 +51,29 @@ export function RouteCheckpointsPanel({
 	const [dangerRadiusMeters, setDangerRadiusMeters] = useState(30);
 	const [polygonVertices, setPolygonVertices] = useState<Position[]>([]);
 	const [polygonError, setPolygonError] = useState("");
+	const [editingCheckpoint, setEditingCheckpoint] = useState<RouteCheckpoint>();
+	const [checkpointNotice, setCheckpointNotice] = useState("");
 	const createDisabled = route.status !== "draft";
+
+	useEffect(() => {
+		onCheckpointsChange?.(
+			checkpoints.items.filter((checkpoint) => checkpoint.routeId === route.id)
+		);
+	}, [checkpoints.items, onCheckpointsChange, route.id]);
+
+	useEffect(() => {
+		onDangerZonesChange?.(
+			dangerZones.items.filter((dangerZone) => dangerZone.routeId === route.id)
+		);
+	}, [dangerZones.items, onDangerZonesChange, route.id]);
+
+	// biome-ignore lint/correctness/useExhaustiveDependencies: route.id intentionally resets local drafts when the selected route changes
+	useEffect(() => {
+		setEditingCheckpoint(undefined);
+		setSelectedLocation(undefined);
+		setRadiusMeters(30);
+		setCheckpointNotice("");
+	}, [route.id]);
 
 	function clearDangerGeometry(): void {
 		setDangerGeometry(undefined);
@@ -87,6 +117,21 @@ export function RouteCheckpointsPanel({
 		setMapMode("checkpoint");
 	}
 
+	function beginCheckpointEdit(checkpoint: RouteCheckpoint): void {
+		setMapMode("checkpoint");
+		clearDangerGeometry();
+		setEditingCheckpoint(checkpoint);
+		setSelectedLocation(checkpoint.location);
+		setRadiusMeters(checkpoint.radiusMeters);
+		setCheckpointNotice("");
+	}
+
+	function cancelCheckpointEdit(): void {
+		setEditingCheckpoint(undefined);
+		setSelectedLocation(undefined);
+		setRadiusMeters(30);
+	}
+
 	return (
 		<section
 			className="mt-6 rounded-2xl border border-[#e0ebe0] bg-white p-5 shadow-sm"
@@ -128,6 +173,11 @@ export function RouteCheckpointsPanel({
 				disabled={createDisabled}
 				onSelectLocation={selectMapLocation}
 			/>
+			{checkpointNotice && (
+				<output className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-bold text-emerald-900">
+					{checkpointNotice}
+				</output>
+			)}
 			{mapMode === "checkpoint" && selectedLocation && (
 				<p className="mt-2 text-xs font-bold text-[#667a6d]">
 					Điểm đã chọn: {selectedLocation.coordinates.map((value) => value.toFixed(6)).join(", ")}
@@ -135,21 +185,30 @@ export function RouteCheckpointsPanel({
 			)}
 
 			<CreateCheckpointForm
+				key={editingCheckpoint?.id ?? route.id}
+				checkpoint={editingCheckpoint}
 				location={selectedLocation}
 				expectedDurationMinutes={route.expectedDurationMinutes}
 				disabled={createDisabled || mapMode !== "checkpoint"}
-				isSubmitting={create.isSubmitting}
-				error={create.error}
+				isSubmitting={editingCheckpoint ? update.isSubmitting : create.isSubmitting}
+				error={editingCheckpoint ? update.error : create.error}
 				onRadiusChange={setRadiusMeters}
-				onSubmit={create.submit}
-				onCreated={() => setSelectedLocation(undefined)}
+				onSubmit={(payload) =>
+					editingCheckpoint ? update.submit(editingCheckpoint.id, payload) : create.submit(payload)
+				}
+				onCreated={() => {
+					setCheckpointNotice(editingCheckpoint ? "Đã cập nhật checkpoint." : "Đã tạo checkpoint.");
+					setEditingCheckpoint(undefined);
+					setSelectedLocation(undefined);
+				}}
+				onCancel={cancelCheckpointEdit}
 			/>
 
 			<CreateRouteDangerZoneForm
 				mode={mapMode}
 				geometry={dangerGeometry}
 				polygonVertexCount={polygonVertices.length}
-				disabled={createDisabled}
+				disabled={createDisabled || Boolean(editingCheckpoint)}
 				isSubmitting={createDangerZone.isSubmitting}
 				error={createDangerZone.error}
 				polygonError={polygonError}
@@ -190,7 +249,11 @@ export function RouteCheckpointsPanel({
 					</div>
 				)}
 				{!checkpoints.isLoading && !checkpoints.error && (
-					<CheckpointList items={checkpoints.items} />
+					<CheckpointList
+						items={checkpoints.items}
+						disabled={createDisabled || update.isSubmitting}
+						onEdit={beginCheckpointEdit}
+					/>
 				)}
 			</div>
 

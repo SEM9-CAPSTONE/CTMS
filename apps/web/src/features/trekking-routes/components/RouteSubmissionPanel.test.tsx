@@ -82,6 +82,29 @@ describe("RouteSubmissionPanel", () => {
 		expect(screen.getByText("Kết thúc: 1/1")).toBeInTheDocument();
 	});
 
+	it("recomputes counters and readiness from a refreshed checkpoint collection", () => {
+		const rest = { ...checkpoint("start", 0.1), type: "rest" as const };
+		const { rerender } = renderPanel({
+			checkpoints: [rest, checkpoint("finish", 0.9)],
+		});
+		expect(screen.getByText("Bắt đầu: 0/1")).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Gửi duyệt" })).toBeDisabled();
+
+		rerender(
+			<RouteSubmissionPanel
+				route={route()}
+				checkpoints={[checkpoint("start", 0.1), checkpoint("finish", 0.9)]}
+				isLoadingCheckpoints={false}
+				checkpointError=""
+				onReload={vi.fn()}
+				onSubmitted={vi.fn()}
+			/>
+		);
+		expect(screen.getByText("Bắt đầu: 1/1")).toBeInTheDocument();
+		expect(screen.getByText("Kết thúc: 1/1")).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Gửi duyệt" })).toBeEnabled();
+	});
+
 	it("disables submission and explains incomplete preparation", () => {
 		renderPanel({ checkpoints: [checkpoint("finish", 0.9)] });
 		expect(screen.getByRole("button", { name: "Gửi duyệt" })).toBeDisabled();

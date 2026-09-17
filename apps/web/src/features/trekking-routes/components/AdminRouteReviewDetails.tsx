@@ -42,7 +42,11 @@ export function AdminRouteReviewDetails({ route, onReview }: Props) {
 					</div>
 				</div>
 			</section>
-			<RouteGeometryPreview geometry={route.geometry} />
+			<RouteGeometryPreview
+				geometry={route.geometry}
+				checkpoints={route.checkpoints}
+				dangerZones={route.dangerZones}
+			/>
 			<section className="rounded-2xl border border-[#e0ebe0] bg-white p-5 shadow-sm">
 				<h2 className="font-extrabold">Checkpoint theo thứ tự tuyến</h2>
 				<CheckpointList items={route.checkpoints} />

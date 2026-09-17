@@ -10,6 +10,7 @@ import { DataSource, type EntityManager, type Repository } from "typeorm";
 import { AuditLog } from "../../auth/entities/audit-log.entity";
 import type { CheckpointResponseDto } from "../dto/checkpoint-response.dto";
 import type { CreateCheckpointDto } from "../dto/create-checkpoint.dto";
+import type { UpdateCheckpointDto } from "../dto/update-checkpoint.dto";
 import { TrekkingRoute, TrekkingRouteStatus } from "../entities/trekking-route.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { CheckpointsRepository } from "../repositories/checkpoints.repository";
@@ -77,6 +78,69 @@ export class CheckpointsService {
 				before: null,
 				after: this.buildAuditSnapshot(checkpoint),
 				reason: "host_create_trekking_route_checkpoint",
+			});
+
+			return checkpoint;
+		});
+	}
+
+	async update(
+		hostId: string,
+		routeId: string,
+		checkpointId: string,
+		dto: UpdateCheckpointDto
+	): Promise<CheckpointResponseDto> {
+		return this.dataSource.transaction(async (manager: EntityManager) => {
+			const route = await this.findOwnedRoute(
+				manager.getRepository(TrekkingRoute),
+				hostId,
+				routeId,
+				true
+			);
+
+			if (route.status !== TrekkingRouteStatus.DRAFT) {
+				throw new ConflictException(
+					"Checkpoints can only be updated while the route is in draft status"
+				);
+			}
+
+			const repository = manager.withRepository(this.checkpointsRepository);
+			const existing = await repository.findOneForUpdate(routeId, checkpointId);
+			if (!existing) throw new NotFoundException("Checkpoint not found");
+
+			if (dto.expectedArrivalOffset > route.expectedDurationMinutes) {
+				throw new UnprocessableEntityException({
+					statusCode: 422,
+					error: "Unprocessable Entity",
+					message: [
+						{
+							field: "expectedArrivalOffset",
+							errors: ["expected arrival offset cannot exceed the route duration"],
+						},
+					],
+				});
+			}
+
+			const checkpoint = await repository.updateForRoute({
+				routeId,
+				checkpointId,
+				name: dto.name,
+				location: dto.location,
+				radiusMeters: dto.radiusMeters,
+				type: dto.type,
+				expectedArrivalOffset: dto.expectedArrivalOffset,
+				instructions: dto.instructions,
+				nearbyWaterOrShelter: dto.nearbyWaterOrShelter,
+			});
+
+			await manager.getRepository(AuditLog).save({
+				actorId: hostId,
+				action: "trekking_route_checkpoint.updated",
+				targetType: "trekking_route_checkpoint",
+				targetId: checkpoint.id,
+				before: this.buildAuditSnapshot(existing),
+				after: this.buildAuditSnapshot(checkpoint),
+				reason: "host_update_trekking_route_checkpoint",
 			});
 
 			return checkpoint;

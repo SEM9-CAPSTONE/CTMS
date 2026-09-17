@@ -79,6 +79,7 @@ function DashboardMain({
 	onOpenProfile,
 	onOpenAdminUsers,
 	onCreateTrekkingRoute,
+	onViewTrekkingRoutes,
 }: {
 	config: DashboardConfig;
 	user: StoredAuthUser;
@@ -86,6 +87,7 @@ function DashboardMain({
 	onOpenProfile?: () => void;
 	onOpenAdminUsers?: () => void;
 	onCreateTrekkingRoute?: () => void;
+	onViewTrekkingRoutes?: () => void;
 }) {
 	const displayName = profile?.fullName || getDisplayName(user);
 	const timeOfDay = getTimeOfDay();
@@ -229,6 +231,7 @@ function DashboardMain({
 						config={config}
 						onOpenAdminUsers={onOpenAdminUsers}
 						onCreateTrekkingRoute={onCreateTrekkingRoute}
+						onViewTrekkingRoutes={onViewTrekkingRoutes}
 					/>
 				</section>
 			</div>
@@ -242,6 +245,7 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 	onOpenProfile,
 	onOpenAdminUsers,
 	onCreateTrekkingRoute,
+	onViewTrekkingRoutes,
 	onLogout,
 	onExplore,
 }) => {
@@ -371,6 +375,7 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 					onOpenProfile={onOpenProfile}
 					onOpenAdminUsers={onOpenAdminUsers}
 					onCreateTrekkingRoute={onCreateTrekkingRoute}
+					onViewTrekkingRoutes={onViewTrekkingRoutes}
 				/>
 			</div>
 		</div>

@@ -4,6 +4,7 @@ import { useCreateRouteCheckpoint } from "../hooks/useCreateRouteCheckpoint";
 import { useCreateRouteDangerZone } from "../hooks/useCreateRouteDangerZone";
 import { useRouteCheckpoints } from "../hooks/useRouteCheckpoints";
 import { useRouteDangerZones } from "../hooks/useRouteDangerZones";
+import { useUpdateRouteCheckpoint } from "../hooks/useUpdateRouteCheckpoint";
 import type { CreatedTrekkingRoute, RouteCheckpoint } from "../types";
 import { RouteCheckpointsPanel } from "./RouteCheckpointsPanel";
 
@@ -11,17 +12,25 @@ vi.mock("../hooks/useRouteCheckpoints", () => ({ useRouteCheckpoints: vi.fn() })
 vi.mock("../hooks/useCreateRouteCheckpoint", () => ({ useCreateRouteCheckpoint: vi.fn() }));
 vi.mock("../hooks/useRouteDangerZones", () => ({ useRouteDangerZones: vi.fn() }));
 vi.mock("../hooks/useCreateRouteDangerZone", () => ({ useCreateRouteDangerZone: vi.fn() }));
+vi.mock("../hooks/useUpdateRouteCheckpoint", () => ({ useUpdateRouteCheckpoint: vi.fn() }));
 vi.mock("./RouteCheckpointMap", () => ({
 	RouteCheckpointMap: ({
 		disabled,
 		mode,
+		selectedLocation,
 		onSelectLocation,
 	}: {
 		disabled?: boolean;
 		mode?: string;
+		selectedLocation?: { type: "Point"; coordinates: [number, number] };
 		onSelectLocation: (location: { type: "Point"; coordinates: [number, number] }) => void;
 	}) => (
-		<div data-testid="panel-map" data-disabled={String(Boolean(disabled))} data-mode={mode}>
+		<div
+			data-testid="panel-map"
+			data-disabled={String(Boolean(disabled))}
+			data-mode={mode}
+			data-selected={selectedLocation?.coordinates.join(",") ?? ""}
+		>
 			{[
 				[108.45, 11.94],
 				[108.46, 11.95],
@@ -41,10 +50,37 @@ vi.mock("./RouteCheckpointMap", () => ({
 	),
 }));
 vi.mock("./CreateCheckpointForm", () => ({
-	CreateCheckpointForm: ({ disabled }: { disabled: boolean }) => (
-		<button type="button" disabled={disabled}>
-			Tạo checkpoint
-		</button>
+	CreateCheckpointForm: ({
+		disabled,
+		checkpoint,
+		onSubmit,
+		onCreated,
+		onCancel,
+	}: {
+		disabled: boolean;
+		checkpoint?: RouteCheckpoint;
+		onSubmit: (payload: RouteCheckpoint) => Promise<RouteCheckpoint | null>;
+		onCreated: () => void;
+		onCancel?: () => void;
+	}) => (
+		<div>
+			<button
+				type="button"
+				disabled={disabled}
+				onClick={async () => {
+					if (!checkpoint) return;
+					const saved = await onSubmit(checkpoint);
+					if (saved) onCreated();
+				}}
+			>
+				{checkpoint ? "Lưu thay đổi" : "Tạo checkpoint"}
+			</button>
+			{checkpoint && (
+				<button type="button" onClick={onCancel}>
+					Hủy chỉnh checkpoint
+				</button>
+			)}
+		</div>
 	),
 }));
 vi.mock("./RouteSubmissionPanel", () => ({ RouteSubmissionPanel: () => null }));
@@ -99,6 +135,11 @@ describe("RouteCheckpointsPanel", () => {
 			isSubmitting: false,
 			error: "",
 		});
+		vi.mocked(useUpdateRouteCheckpoint).mockReturnValue({
+			submit: vi.fn().mockResolvedValue(checkpoint),
+			isSubmitting: false,
+			error: "",
+		});
 		vi.mocked(useRouteDangerZones).mockReturnValue({
 			items: [],
 			isLoading: false,
@@ -126,6 +167,57 @@ describe("RouteCheckpointsPanel", () => {
 		expect(screen.getByTestId("panel-map")).toHaveAttribute("data-disabled", "false");
 		expect(screen.getByTestId("panel-map")).toHaveAttribute("data-mode", "checkpoint");
 		expect(screen.getByTestId("danger-zones-empty")).toBeInTheDocument();
+	});
+
+	it("exposes edit, shows the current map location, and cancel leaves the server item unchanged", () => {
+		const updateSubmit = vi.fn().mockResolvedValue(checkpoint);
+		vi.mocked(useUpdateRouteCheckpoint).mockReturnValue({
+			submit: updateSubmit,
+			isSubmitting: false,
+			error: "",
+		});
+		render(
+			<RouteCheckpointsPanel
+				route={route("route-one", "draft")}
+				onRouteReload={vi.fn()}
+				onRouteSubmitted={vi.fn()}
+			/>
+		);
+		fireEvent.click(screen.getByRole("button", { name: "Sửa" }));
+		expect(screen.getByRole("button", { name: "Lưu thay đổi" })).toBeEnabled();
+		expect(screen.getByTestId("panel-map")).toHaveAttribute("data-selected", "108.46,11.94");
+		fireEvent.click(screen.getByRole("button", { name: "Hủy chỉnh checkpoint" }));
+		expect(screen.getByRole("button", { name: "Tạo checkpoint" })).toBeEnabled();
+		expect(screen.getByText("Rest")).toBeInTheDocument();
+		expect(updateSubmit).not.toHaveBeenCalled();
+	});
+
+	it("saves an edit and exits edit mode only after the update resolves", async () => {
+		let resolve!: (value: RouteCheckpoint) => void;
+		const updateSubmit = vi.fn().mockReturnValue(
+			new Promise<RouteCheckpoint>((done) => {
+				resolve = done;
+			})
+		);
+		vi.mocked(useUpdateRouteCheckpoint).mockReturnValue({
+			submit: updateSubmit,
+			isSubmitting: false,
+			error: "",
+		});
+		render(
+			<RouteCheckpointsPanel
+				route={route("route-one", "draft")}
+				onRouteReload={vi.fn()}
+				onRouteSubmitted={vi.fn()}
+			/>
+		);
+		fireEvent.click(screen.getByRole("button", { name: "Sửa" }));
+		fireEvent.click(screen.getByRole("button", { name: "Lưu thay đổi" }));
+		expect(updateSubmit).toHaveBeenCalledWith("checkpoint-id", checkpoint);
+		expect(screen.getByRole("button", { name: "Lưu thay đổi" })).toBeInTheDocument();
+		resolve(checkpoint);
+		expect(await screen.findByRole("status")).toHaveTextContent("Đã cập nhật checkpoint.");
+		expect(screen.getByRole("button", { name: "Tạo checkpoint" })).toBeInTheDocument();
 	});
 
 	it("switches explicit map modes and renders hazard loading/error/retry/success states", () => {

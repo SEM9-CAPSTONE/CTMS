@@ -17,6 +17,10 @@ export interface CreateCheckpointInput {
 	nearbyWaterOrShelter: boolean;
 }
 
+export interface UpdateCheckpointInput extends CreateCheckpointInput {
+	checkpointId: string;
+}
+
 interface CheckpointRow {
 	id: string;
 	routeId: string;
@@ -115,6 +119,116 @@ export class CheckpointsRepository extends Repository<Checkpoint> {
 			`,
 			[
 				input.routeId,
+				input.name,
+				JSON.stringify(input.location),
+				input.radiusMeters,
+				input.type,
+				input.expectedArrivalOffset,
+				input.instructions,
+				input.nearbyWaterOrShelter,
+			]
+		)) as CheckpointRow[];
+
+		const checkpoint = rows[0];
+		if (!checkpoint) {
+			throw new UnprocessableEntityException({
+				statusCode: 422,
+				error: "Unprocessable Entity",
+				message: [
+					{
+						field: "location",
+						errors: [`checkpoint must be within ${MAX_ROUTE_DISTANCE_METERS} meters of its route`],
+					},
+				],
+			});
+		}
+
+		return toResponse(checkpoint);
+	}
+
+	async findOneForUpdate(
+		routeId: string,
+		checkpointId: string
+	): Promise<CheckpointResponseDto | null> {
+		const rows = (await this.query(
+			`
+			SELECT
+				"id",
+				"route_id" AS "routeId",
+				"name",
+				ST_AsGeoJSON("location"::geometry)::json AS "location",
+				"radius_m" AS "radiusMeters",
+				"type",
+				"expected_arrival_offset" AS "expectedArrivalOffset",
+				"instructions",
+				"nearby_water_or_shelter" AS "nearbyWaterOrShelter",
+				"route_position" AS "routePosition",
+				"created_at" AS "createdAt",
+				"updated_at" AS "updatedAt"
+			FROM "checkpoints"
+			WHERE "route_id" = $1 AND "id" = $2
+			FOR UPDATE
+			`,
+			[routeId, checkpointId]
+		)) as CheckpointRow[];
+
+		return rows[0] ? toResponse(rows[0]) : null;
+	}
+
+	async updateForRoute(input: UpdateCheckpointInput): Promise<CheckpointResponseDto> {
+		const rows = (await this.query(
+			`
+			WITH checkpoint_input AS (
+				SELECT ST_SetSRID(ST_GeomFromGeoJSON($4), 4326)::geography AS location
+			), route_spatial AS (
+				SELECT
+					checkpoint_input.location,
+					ST_LineLocatePoint(
+						route."route_geom"::geometry,
+						checkpoint_input.location::geometry
+					) AS route_position
+				FROM "trekking_routes" route
+				CROSS JOIN checkpoint_input
+				WHERE route."id" = $1
+					AND ST_DWithin(
+						route."route_geom",
+						checkpoint_input.location,
+						${MAX_ROUTE_DISTANCE_METERS}
+					)
+			), updated AS (
+				UPDATE "checkpoints" checkpoint
+				SET
+					"name" = $3,
+					"location" = route_spatial.location,
+					"radius_m" = $5,
+					"type" = $6,
+					"expected_arrival_offset" = $7,
+					"instructions" = $8,
+					"nearby_water_or_shelter" = $9,
+					"route_position" = route_spatial.route_position,
+					"updated_at" = now()
+				FROM route_spatial
+				WHERE checkpoint."route_id" = $1 AND checkpoint."id" = $2
+				RETURNING checkpoint.*
+			)
+			SELECT
+				"id",
+				"route_id" AS "routeId",
+				"name",
+				ST_AsGeoJSON("location"::geometry)::json AS "location",
+				"radius_m" AS "radiusMeters",
+				"type",
+				"expected_arrival_offset" AS "expectedArrivalOffset",
+				"instructions",
+				"nearby_water_or_shelter" AS "nearbyWaterOrShelter",
+				"route_position" AS "routePosition",
+				"created_at" AS "createdAt",
+				"updated_at" AS "updatedAt"
+			FROM updated
+			`,
+			[
+				input.routeId,
+				input.checkpointId,
 				input.name,
 				JSON.stringify(input.location),
 				input.radiusMeters,
