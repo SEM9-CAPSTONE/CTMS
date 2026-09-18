@@ -35,7 +35,9 @@ function main() {
 		console.error("The Jira key can be CTMS-123 or ctms-123. Docs branches may omit the Jira key.");
 		console.error("Allowed branch types:");
 		console.error("- feature/<JIRA-KEY>-<description> or feat/<JIRA-KEY>-<description>");
-		console.error("- fix/<JIRA-KEY>-<description> or bugfix/<JIRA-KEY>-<description>");
+		console.error(
+			"- fix/<JIRA-KEY>-<description> or bugfix/<JIRA-KEY>-<description> or fix/<description>"
+		);
 		console.error("- hotfix/<JIRA-KEY>-<description>");
 		console.error("- refactor/<JIRA-KEY>-<description>");
 		console.error("- chore/<JIRA-KEY>-<description>");
