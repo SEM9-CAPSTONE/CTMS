@@ -34,7 +34,7 @@ export interface CreateTripInput {
 	meetingAt: Date | null;
 	bookingDeadline: Date;
 	capacityMin: number;
-	capacityMax: number;
+	capacityMax: number | null;
 	pricePerPerson: number;
 	cancellationPolicy: Record<string, unknown> | null;
 	waypoints: CreateTripWaypointInput[];
@@ -64,7 +64,7 @@ interface TripRow {
 	meetingAt: Date | null;
 	bookingDeadline: Date;
 	capacityMin: number | string;
-	capacityMax: number | string;
+	capacityMax: number | string | null;
 	seatsTaken: number | string;
 	pricePerPerson: number | string;
 	cancellationPolicy: Record<string, unknown> | null;
@@ -102,7 +102,7 @@ function toTripResponse(row: TripRow): TripResponseDto {
 		...row,
 		durationNights: Number(row.durationNights),
 		capacityMin: Number(row.capacityMin),
-		capacityMax: Number(row.capacityMax),
+		capacityMax: row.capacityMax == null ? null : Number(row.capacityMax),
 		seatsTaken: Number(row.seatsTaken),
 		pricePerPerson: Number(row.pricePerPerson),
 		waypoints: row.waypoints.map(toWaypointResponse),

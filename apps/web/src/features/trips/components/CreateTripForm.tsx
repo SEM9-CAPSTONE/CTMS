@@ -1,8 +1,8 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertCircle, ArrowRight, Loader2, RefreshCw, Route } from "lucide-react";
-import { useEffect } from "react";
-import { useFieldArray, useForm } from "react-hook-form";
-import type { CreatedTrekkingRoute } from "../../trekking-routes/types";
+import { AlertCircle, ArrowRight, ImagePlus, Loader2, RefreshCw, Route, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { useForm } from "react-hook-form";
+import type { CreatedTrekkingRoute, Position } from "../../trekking-routes/types";
 import type { CreateTripError } from "../hooks/useCreateTrip";
 import {
 	CREATE_TRIP_DEFAULT_VALUES,
@@ -11,6 +11,7 @@ import {
 	toCreateTripInput,
 } from "../schema/create-trip.schema";
 import type { CreateTripInput } from "../types";
+import { TripRouteMap } from "./TripRouteMap";
 
 interface Props {
 	activeRoutes: CreatedTrekkingRoute[];
@@ -26,6 +27,8 @@ interface Props {
 
 const inputClass =
 	"mt-1 w-full rounded-xl border border-[#cbd9ce] bg-white px-3 py-2.5 text-sm outline-none focus:border-[#164027] focus:ring-2 focus:ring-[#164027]/10 disabled:bg-[#f4f7f2] disabled:text-[#7b8c82]";
+const MAX_COVER_IMAGE_SIZE = 5 * 1024 * 1024;
+const MAX_REASONABLE_TREKKING_METERS_PER_MINUTE = 100;
 
 const backendFieldMap: Record<string, keyof CreateTripFormValues> = {
 	endsAt: "endsAt",
@@ -34,6 +37,39 @@ const backendFieldMap: Record<string, keyof CreateTripFormValues> = {
 	capacityMin: "capacityMin",
 	waypoints: "waypoints",
 };
+
+function toDateTimeLocalInputValue(date: Date): string {
+	const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+	return localDate.toISOString().slice(0, 16);
+}
+
+function formatDuration(minutes: number): string {
+	if (minutes < 60) return `${minutes} phút`;
+	const hours = Math.floor(minutes / 60);
+	const remainingMinutes = minutes % 60;
+	return remainingMinutes ? `${hours} giờ ${remainingMinutes} phút` : `${hours} giờ`;
+}
+
+function getMinimumTripDurationMinutes(route: CreatedTrekkingRoute): number {
+	if (route.expectedDurationMinutes > 0) return route.expectedDurationMinutes;
+	return Math.ceil(route.lengthMeters / MAX_REASONABLE_TREKKING_METERS_PER_MINUTE);
+}
+
+function getRouteDurationError(
+	startsAt: string,
+	endsAt: string,
+	route: CreatedTrekkingRoute | null
+): string {
+	if (!route || !startsAt || !endsAt) return "";
+	const startTime = new Date(startsAt).getTime();
+	const endTime = new Date(endsAt).getTime();
+	if (!Number.isFinite(startTime) || !Number.isFinite(endTime) || endTime <= startTime) return "";
+	const durationMinutes = Math.round((endTime - startTime) / 60_000);
+	const minimumMinutes = getMinimumTripDurationMinutes(route);
+	if (durationMinutes >= minimumMinutes) return "";
+	const routeKilometers = (route.lengthMeters / 1000).toFixed(1);
+	return `Thời lượng trip quá ngắn cho tuyến ${routeKilometers} km. Cần tối thiểu ${formatDuration(minimumMinutes)}.`;
+}
 
 export function CreateTripForm({
 	activeRoutes,
@@ -48,8 +84,8 @@ export function CreateTripForm({
 }: Props) {
 	const {
 		register,
-		control,
 		handleSubmit,
+		clearErrors,
 		setError,
 		setValue,
 		watch,
@@ -57,10 +93,21 @@ export function CreateTripForm({
 	} = useForm<CreateTripFormValues>({
 		resolver: zodResolver(createTripFormSchema),
 		defaultValues: CREATE_TRIP_DEFAULT_VALUES,
+		mode: "onChange",
 	});
-	const { fields } = useFieldArray({ control, name: "waypoints" });
 	const selectedRouteId = watch("routeId");
+	const startsAt = watch("startsAt");
+	const endsAt = watch("endsAt");
+	const [coverImagePreview, setCoverImagePreview] = useState("");
+	const minDateTime = useMemo(() => toDateTimeLocalInputValue(new Date()), []);
+	const meetingPoint: Position = [
+		Number(watch("meetingLongitude")),
+		Number(watch("meetingLatitude")),
+	];
 	const hasActiveRoutes = activeRoutes.length > 0;
+	const selectedRoute = activeRoutes.find((route) => route.id === selectedRouteId) ?? null;
+	const routeDurationError = getRouteDurationError(startsAt, endsAt, selectedRoute);
+	const endsAtErrorMessage = routeDurationError || errors.endsAt?.message;
 	const routeSelectDisabled = isSubmitting || isRouteLoading || !hasActiveRoutes;
 	const submitDisabled = isSubmitting || !hasActiveRoutes || !selectedRouteId;
 
@@ -70,6 +117,85 @@ export function CreateTripForm({
 	}, [activeRoutes, hasActiveRoutes, selectedRouteId, setValue]);
 
 	useEffect(() => {
+		if (!selectedRoute) return;
+		const start = selectedRoute.geometry.coordinates[0];
+		const finish = selectedRoute.geometry.coordinates.at(-1);
+		if (!start || !finish) return;
+		setValue("meetingLongitude", String(start[0]), { shouldValidate: true });
+		setValue("meetingLatitude", String(start[1]), { shouldValidate: true });
+		setValue("waypoints.0.type", "start");
+		setValue("waypoints.0.name", `${selectedRoute.name} - điểm bắt đầu`, { shouldValidate: true });
+		setValue("waypoints.0.longitude", String(start[0]), { shouldValidate: true });
+		setValue("waypoints.0.latitude", String(start[1]), { shouldValidate: true });
+		setValue("waypoints.0.dayNumber", "1", { shouldValidate: true });
+		setValue("waypoints.0.sequenceOrder", "1", { shouldValidate: true });
+		setValue("waypoints.1.type", "finish");
+		setValue("waypoints.1.name", `${selectedRoute.name} - điểm kết thúc`, { shouldValidate: true });
+		setValue("waypoints.1.longitude", String(finish[0]), { shouldValidate: true });
+		setValue("waypoints.1.latitude", String(finish[1]), { shouldValidate: true });
+		setValue("waypoints.1.dayNumber", "1", { shouldValidate: true });
+		setValue("waypoints.1.sequenceOrder", "2", { shouldValidate: true });
+	}, [selectedRoute, setValue]);
+
+	useEffect(() => {
+		if (startsAt) setValue("waypoints.0.plannedAt", startsAt, { shouldValidate: true });
+	}, [setValue, startsAt]);
+
+	useEffect(() => {
+		if (endsAt) setValue("waypoints.1.plannedAt", endsAt, { shouldValidate: true });
+	}, [endsAt, setValue]);
+
+	useEffect(() => {
+		if (routeDurationError) {
+			setError("endsAt", { type: "routeDuration", message: routeDurationError });
+			return;
+		}
+		if (errors.endsAt?.type === "routeDuration") clearErrors("endsAt");
+	}, [clearErrors, errors.endsAt?.type, routeDurationError, setError]);
+
+	const setMeetingPoint = ([longitude, latitude]: Position) => {
+		setValue("meetingLongitude", String(longitude), { shouldValidate: true });
+		setValue("meetingLatitude", String(latitude), { shouldValidate: true });
+	};
+
+	const handleCoverImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+		const file = event.target.files?.[0];
+		if (!file) return;
+		if (!file.type.startsWith("image/")) {
+			setError("coverImageUrl", { message: "Ảnh bìa phải là file hình ảnh" });
+			event.target.value = "";
+			return;
+		}
+		if (file.size > MAX_COVER_IMAGE_SIZE) {
+			setError("coverImageUrl", { message: "Ảnh bìa không được vượt quá 5 MB" });
+			event.target.value = "";
+			return;
+		}
+		clearErrors("coverImageUrl");
+		setValue("coverImageUrl", "", { shouldValidate: true });
+		setCoverImagePreview((current) => {
+			if (current) URL.revokeObjectURL(current);
+			return URL.createObjectURL(file);
+		});
+	};
+
+	const clearCoverImage = () => {
+		setCoverImagePreview((current) => {
+			if (current) URL.revokeObjectURL(current);
+			return "";
+		});
+		clearErrors("coverImageUrl");
+		setValue("coverImageUrl", "", { shouldValidate: true });
+	};
+
+	useEffect(
+		() => () => {
+			if (coverImagePreview) URL.revokeObjectURL(coverImagePreview);
+		},
+		[coverImagePreview]
+	);
+
+	useEffect(() => {
 		if (!error) return;
 		for (const [field, message] of Object.entries(error.fieldErrors)) {
 			const mapped = backendFieldMap[field];
@@ -77,11 +203,17 @@ export function CreateTripForm({
 		}
 	}, [error, setError]);
 
+	const submitForm = (values: CreateTripFormValues) => {
+		const durationError = getRouteDurationError(values.startsAt, values.endsAt, selectedRoute);
+		if (durationError) {
+			setError("endsAt", { type: "routeDuration", message: durationError });
+			return Promise.resolve();
+		}
+		return onSubmit(toCreateTripInput(values));
+	};
+
 	return (
-		<form
-			className="grid gap-5"
-			onSubmit={handleSubmit((values) => onSubmit(toCreateTripInput(values)))}
-		>
+		<form className="grid gap-5" onSubmit={handleSubmit(submitForm)}>
 			<section className="overflow-hidden rounded-2xl border border-[#dce8dd] bg-white shadow-sm">
 				<div className="grid gap-0 lg:grid-cols-[0.88fr_1.12fr]">
 					<div className="bg-[#f7faf6] p-5">
@@ -91,14 +223,14 @@ export function CreateTripForm({
 							</div>
 							<div>
 								<p className="text-xs font-extrabold uppercase tracking-[0.18em] text-[#728578]">
-									CTMS-10 required
+									Tuyến trekking
 								</p>
 								<h2 className="mt-1 text-lg font-extrabold text-[#10221b]">
-									Chọn tuyến active trước khi submit
+									Chọn tuyến đã duyệt để tạo trip
 								</h2>
 								<p className="mt-2 text-sm leading-6 text-[#667a6d]">
-									Bạn vẫn có thể nhập trước thông tin trip. Backend chỉ nhận tạo draft khi tuyến đã
-									active và thuộc Host hiện tại.
+									Trip dùng tuyến trekking có sẵn. Điểm bắt đầu và kết thúc sẽ tự lấy từ tuyến bạn
+									chọn.
 								</p>
 							</div>
 						</div>
@@ -116,15 +248,15 @@ export function CreateTripForm({
 					<div className="p-5">
 						<div className="flex flex-col gap-3 sm:flex-row sm:items-end">
 							<label className="flex-1 text-sm font-bold text-[#34483b]">
-								Tuyến active
+								Tuyến đã duyệt
 								<select
-									aria-label="Tuyến active"
+									aria-label="Tuyến đã duyệt"
 									disabled={routeSelectDisabled}
 									className={inputClass}
 									{...register("routeId")}
 								>
 									<option value="">
-										{isRouteLoading ? "Đang tải tuyến..." : "Chọn tuyến active"}
+										{isRouteLoading ? "Đang tải tuyến..." : "Chọn tuyến đã duyệt"}
 									</option>
 									{activeRoutes.map((route) => (
 										<option key={route.id} value={route.id}>
@@ -161,11 +293,28 @@ export function CreateTripForm({
 						role="alert"
 						className="mx-5 mb-5 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"
 					>
-						Chưa có tuyến active từ CTMS-10. Form vẫn cho nhập nháp; nút tạo trip sẽ mở sau khi có
-						tuyến active.
+						Chưa có tuyến trekking đã duyệt. Form vẫn cho nhập nháp; nút tạo trip sẽ mở sau khi có
+						tuyến phù hợp.
 					</p>
 				)}
 			</section>
+
+			<input type="hidden" {...register("meetingLongitude")} />
+			<input type="hidden" {...register("meetingLatitude")} />
+			<input type="hidden" {...register("waypoints.0.type")} />
+			<input type="hidden" {...register("waypoints.0.name")} />
+			<input type="hidden" {...register("waypoints.0.longitude")} />
+			<input type="hidden" {...register("waypoints.0.latitude")} />
+			<input type="hidden" {...register("waypoints.0.dayNumber")} />
+			<input type="hidden" {...register("waypoints.0.sequenceOrder")} />
+			<input type="hidden" {...register("waypoints.0.plannedAt")} />
+			<input type="hidden" {...register("waypoints.1.type")} />
+			<input type="hidden" {...register("waypoints.1.name")} />
+			<input type="hidden" {...register("waypoints.1.longitude")} />
+			<input type="hidden" {...register("waypoints.1.latitude")} />
+			<input type="hidden" {...register("waypoints.1.dayNumber")} />
+			<input type="hidden" {...register("waypoints.1.sequenceOrder")} />
+			<input type="hidden" {...register("waypoints.1.plannedAt")} />
 
 			<section className="rounded-2xl border border-[#e0ebe0] bg-white p-5 shadow-sm">
 				<h2 className="font-extrabold text-[#10221b]">Thông tin trip</h2>
@@ -200,6 +349,7 @@ export function CreateTripForm({
 						<input
 							aria-label="Bắt đầu"
 							type="datetime-local"
+							min={minDateTime}
 							disabled={isSubmitting}
 							className={inputClass}
 							{...register("startsAt")}
@@ -213,12 +363,13 @@ export function CreateTripForm({
 						<input
 							aria-label="Kết thúc"
 							type="datetime-local"
+							min={startsAt || minDateTime}
 							disabled={isSubmitting}
 							className={inputClass}
 							{...register("endsAt")}
 						/>
-						{errors.endsAt && (
-							<span className="mt-1 block text-xs text-red-600">{errors.endsAt.message}</span>
+						{endsAtErrorMessage && (
+							<span className="mt-1 block text-xs text-red-600">{endsAtErrorMessage}</span>
 						)}
 					</label>
 					<label className="text-sm font-bold text-[#34483b]">
@@ -226,6 +377,8 @@ export function CreateTripForm({
 						<input
 							aria-label="Thời gian tập trung"
 							type="datetime-local"
+							min={minDateTime}
+							max={startsAt || undefined}
 							disabled={isSubmitting}
 							className={inputClass}
 							{...register("meetingAt")}
@@ -239,6 +392,8 @@ export function CreateTripForm({
 						<input
 							aria-label="Hạn đặt chỗ"
 							type="datetime-local"
+							min={minDateTime}
+							max={startsAt || undefined}
 							disabled={isSubmitting}
 							className={inputClass}
 							{...register("bookingDeadline")}
@@ -267,6 +422,7 @@ export function CreateTripForm({
 						<input
 							aria-label="Số khách tối đa"
 							inputMode="numeric"
+							placeholder="Không giới hạn"
 							disabled={isSubmitting}
 							className={inputClass}
 							{...register("capacityMax")}
@@ -290,48 +446,51 @@ export function CreateTripForm({
 							</span>
 						)}
 					</label>
-					<label className="text-sm font-bold text-[#34483b]">
-						URL ảnh bìa
-						<input
-							aria-label="URL ảnh bìa"
-							disabled={isSubmitting}
-							className={inputClass}
-							{...register("coverImageUrl")}
-						/>
+					<div className="text-sm font-bold text-[#34483b]">
+						<span>Ảnh bìa</span>
+						<input type="hidden" {...register("coverImageUrl")} />
+						<div className="mt-1 rounded-xl border border-dashed border-[#cbd9ce] bg-[#fbfdfb] p-3">
+							{coverImagePreview ? (
+								<div className="relative overflow-hidden rounded-lg">
+									<img
+										src={coverImagePreview}
+										alt="Ảnh bìa đã chọn"
+										className="h-28 w-full object-cover"
+									/>
+									<button
+										type="button"
+										aria-label="Bỏ ảnh bìa"
+										onClick={clearCoverImage}
+										disabled={isSubmitting}
+										className="absolute top-2 right-2 rounded-full bg-white p-1.5 text-[#164027] shadow"
+									>
+										<X className="size-4" />
+									</button>
+								</div>
+							) : (
+								<label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-white px-3 py-5 text-sm font-bold text-[#164027] ring-1 ring-[#dce8dd]">
+									<ImagePlus className="size-4" />
+									Chọn ảnh từ máy
+									<input
+										aria-label="Ảnh bìa"
+										type="file"
+										accept="image/*"
+										disabled={isSubmitting}
+										onChange={handleCoverImageChange}
+										className="sr-only"
+									/>
+								</label>
+							)}
+							<p className="mt-2 text-xs font-medium text-[#667a6d]">
+								Hỗ trợ JPG, PNG hoặc WebP, tối đa 5 MB.
+							</p>
+						</div>
 						{errors.coverImageUrl && (
 							<span className="mt-1 block text-xs text-red-600">
 								{errors.coverImageUrl.message}
 							</span>
 						)}
-					</label>
-					<label className="text-sm font-bold text-[#34483b]">
-						Kinh độ điểm tập trung
-						<input
-							aria-label="Kinh độ điểm tập trung"
-							disabled={isSubmitting}
-							className={inputClass}
-							{...register("meetingLongitude")}
-						/>
-						{errors.meetingLongitude && (
-							<span className="mt-1 block text-xs text-red-600">
-								{errors.meetingLongitude.message}
-							</span>
-						)}
-					</label>
-					<label className="text-sm font-bold text-[#34483b]">
-						Vĩ độ điểm tập trung
-						<input
-							aria-label="Vĩ độ điểm tập trung"
-							disabled={isSubmitting}
-							className={inputClass}
-							{...register("meetingLatitude")}
-						/>
-						{errors.meetingLatitude && (
-							<span className="mt-1 block text-xs text-red-600">
-								{errors.meetingLatitude.message}
-							</span>
-						)}
-					</label>
+					</div>
 					<label className="text-sm font-bold text-[#34483b] sm:col-span-2">
 						Mô tả
 						<textarea
@@ -345,99 +504,21 @@ export function CreateTripForm({
 				</div>
 			</section>
 
-			<section className="rounded-2xl border border-[#e0ebe0] bg-white p-5 shadow-sm">
-				<h2 className="font-extrabold text-[#10221b]">Waypoint bắt buộc</h2>
-				<p className="mt-1 text-sm text-[#667a6d]">
-					Draft trip cần waypoint bắt đầu và kết thúc trước khi qua CTMS-22.
+			<TripRouteMap
+				route={selectedRoute}
+				meetingPoint={meetingPoint}
+				disabled={isSubmitting}
+				onMeetingPointChange={setMeetingPoint}
+			/>
+
+			{(errors.meetingLongitude || errors.meetingLatitude || errors.waypoints?.root) && (
+				<p role="alert" className="text-sm font-bold text-red-600">
+					{errors.meetingLongitude?.message ??
+						errors.meetingLatitude?.message ??
+						errors.waypoints?.root?.message ??
+						"Vui lòng kiểm tra các điểm trên tuyến."}
 				</p>
-				<div className="mt-4 grid gap-4 lg:grid-cols-2">
-					{fields.map((field, index) => (
-						<div key={field.id} className="rounded-2xl border border-[#e5eee7] bg-[#fbfdfb] p-4">
-							<p className="text-sm font-extrabold text-[#10221b]">
-								{index === 0 ? "Điểm bắt đầu" : "Điểm kết thúc"}
-							</p>
-							<input type="hidden" {...register(`waypoints.${index}.type`)} />
-							<div className="mt-3 grid gap-3 sm:grid-cols-2">
-								<label className="text-sm font-bold text-[#34483b] sm:col-span-2">
-									Tên waypoint
-									<input
-										aria-label={`Tên waypoint ${index + 1}`}
-										disabled={isSubmitting}
-										className={inputClass}
-										{...register(`waypoints.${index}.name`)}
-									/>
-									{errors.waypoints?.[index]?.name && (
-										<span className="mt-1 block text-xs text-red-600">
-											{errors.waypoints[index]?.name?.message}
-										</span>
-									)}
-								</label>
-								<label className="text-sm font-bold text-[#34483b]">
-									Kinh độ
-									<input
-										aria-label={`Kinh độ waypoint ${index + 1}`}
-										disabled={isSubmitting}
-										className={inputClass}
-										{...register(`waypoints.${index}.longitude`)}
-									/>
-								</label>
-								<label className="text-sm font-bold text-[#34483b]">
-									Vĩ độ
-									<input
-										aria-label={`Vĩ độ waypoint ${index + 1}`}
-										disabled={isSubmitting}
-										className={inputClass}
-										{...register(`waypoints.${index}.latitude`)}
-									/>
-								</label>
-								<label className="text-sm font-bold text-[#34483b]">
-									Ngày
-									<input
-										aria-label={`Ngày waypoint ${index + 1}`}
-										disabled={isSubmitting}
-										className={inputClass}
-										{...register(`waypoints.${index}.dayNumber`)}
-									/>
-								</label>
-								<label className="text-sm font-bold text-[#34483b]">
-									Thứ tự
-									<input
-										aria-label={`Thứ tự waypoint ${index + 1}`}
-										disabled={isSubmitting}
-										className={inputClass}
-										{...register(`waypoints.${index}.sequenceOrder`)}
-									/>
-									{errors.waypoints?.[index]?.sequenceOrder && (
-										<span className="mt-1 block text-xs text-red-600">
-											{errors.waypoints[index]?.sequenceOrder?.message}
-										</span>
-									)}
-								</label>
-								<label className="text-sm font-bold text-[#34483b] sm:col-span-2">
-									Thời gian dự kiến
-									<input
-										aria-label={`Thời gian waypoint ${index + 1}`}
-										type="datetime-local"
-										disabled={isSubmitting}
-										className={inputClass}
-										{...register(`waypoints.${index}.plannedAt`)}
-									/>
-									{errors.waypoints?.[index]?.plannedAt && (
-										<span className="mt-1 block text-xs text-red-600">
-											{errors.waypoints[index]?.plannedAt?.message}
-										</span>
-									)}
-								</label>
-							</div>
-						</div>
-					))}
-				</div>
-				{errors.waypoints?.root?.message && (
-					<p role="alert" className="mt-3 text-sm font-bold text-red-600">
-						{errors.waypoints.root.message}
-					</p>
-				)}
-			</section>
+			)}
 
 			{error && (
 				<div
@@ -471,7 +552,7 @@ export function CreateTripForm({
 					? "Đang tạo trip..."
 					: hasActiveRoutes
 						? "Tạo trip draft"
-						: "Cần tuyến active để tạo trip"}
+						: "Cần tuyến đã duyệt để tạo trip"}
 			</button>
 		</form>
 	);

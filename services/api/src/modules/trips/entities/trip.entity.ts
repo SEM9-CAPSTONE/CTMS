@@ -98,8 +98,8 @@ export class Trip {
 	@Column({ name: "capacity_min", type: "int" })
 	capacityMin!: number;
 
-	@Column({ name: "capacity_max", type: "int" })
-	capacityMax!: number;
+	@Column({ name: "capacity_max", type: "int", nullable: true })
+	capacityMax!: number | null;
 
 	@Column({ name: "seats_taken", type: "int", default: 0 })
 	seatsTaken!: number;

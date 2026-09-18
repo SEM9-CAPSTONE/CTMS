@@ -16,6 +16,8 @@ import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../../auth/guards/roles.guard";
 import type { AuthenticatedUser } from "../../auth/jwt.strategy";
 import { UserRole } from "../../users/entities/user.entity";
+// biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
+import { CheckpointIdParamDto } from "../dto/checkpoint-id-param.dto";
 import { CheckpointResponseDto } from "../dto/checkpoint-response.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { CreateCheckpointDto } from "../dto/create-checkpoint.dto";
@@ -32,6 +34,8 @@ import { RouteIdParamDto } from "../dto/route-id-param.dto";
 import { RouteStatusReasonDto } from "../dto/route-status-reason.dto";
 import { TrekkingRouteResponseDto } from "../dto/trekking-route-response.dto";
 import { TrekkingRouteReviewResponseDto } from "../dto/trekking-route-review-response.dto";
+// biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
+import { UpdateCheckpointDto } from "../dto/update-checkpoint.dto";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { CheckpointsService } from "../services/checkpoints.service";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
@@ -161,6 +165,28 @@ export class TrekkingRoutesController {
 		@Body() dto: CreateCheckpointDto
 	): Promise<CheckpointResponseDto> {
 		return this.checkpointsService.create(request.user.userId, params.routeId, dto);
+	}
+
+	@Patch(":routeId/checkpoints/:checkpointId")
+	@Roles(UserRole.HOST)
+	@ApiOperation({ summary: "Update a checkpoint on an owned draft trekking route" })
+	@ApiResponse({ status: 200, type: CheckpointResponseDto })
+	@ApiResponse({ status: 401, description: "Authentication required" })
+	@ApiResponse({ status: 403, description: "Host role and route ownership required" })
+	@ApiResponse({ status: 404, description: "Trekking route or checkpoint not found" })
+	@ApiResponse({ status: 409, description: "Route is not in draft status" })
+	@ApiResponse({ status: 422, description: "Invalid checkpoint data or spatial relationship" })
+	updateCheckpoint(
+		@Req() request: AuthenticatedRequest,
+		@Param() params: CheckpointIdParamDto,
+		@Body() dto: UpdateCheckpointDto
+	): Promise<CheckpointResponseDto> {
+		return this.checkpointsService.update(
+			request.user.userId,
+			params.routeId,
+			params.checkpointId,
+			dto
+		);
 	}
 
 	@Get(":routeId/hazard-areas")

@@ -32,9 +32,10 @@ describe("trekkingRoutesService", () => {
 		expect(payload).not.toHaveProperty("hostId");
 	});
 
-	it("gets and creates checkpoints through the nested route resource", async () => {
+	it("gets, creates, and updates checkpoints through the nested route resource", async () => {
 		const get = vi.spyOn(httpClient, "get").mockResolvedValue([]);
 		const post = vi.spyOn(httpClient, "post").mockResolvedValue({ id: "checkpoint-id" });
+		const patch = vi.spyOn(httpClient, "patch").mockResolvedValue({ id: "checkpoint-id" });
 		const payload = {
 			name: "Ridge rest",
 			location: { type: "Point" as const, coordinates: [108.46, 11.94] as [number, number] },
@@ -46,8 +47,13 @@ describe("trekkingRoutesService", () => {
 		};
 		await trekkingRoutesService.listCheckpoints("route-id");
 		await trekkingRoutesService.createCheckpoint("route-id", payload);
+		await trekkingRoutesService.updateCheckpoint("route-id", "checkpoint-id", payload);
 		expect(get).toHaveBeenCalledWith("/trekking-routes/route-id/checkpoints");
 		expect(post).toHaveBeenCalledWith("/trekking-routes/route-id/checkpoints", payload);
+		expect(patch).toHaveBeenCalledWith(
+			"/trekking-routes/route-id/checkpoints/checkpoint-id",
+			payload
+		);
 		for (const field of [
 			"id",
 			"routeId",

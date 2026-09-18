@@ -1,5 +1,5 @@
 import { ArrowLeft, CheckCircle2, Loader2, RefreshCw, Route } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { RouteCheckpointsPanel } from "../components/RouteCheckpointsPanel";
 import { RouteGeometryPreview } from "../components/RouteGeometryPreview";
 import { RouteRegistrationBlockPanel } from "../components/RouteRegistrationBlockPanel";
@@ -9,6 +9,7 @@ import { RouteWeatherPanel } from "../components/RouteWeatherPanel";
 import { RouteWeatherRiskPanel } from "../components/RouteWeatherRiskPanel";
 import { TrekkingRouteList } from "../components/TrekkingRouteList";
 import { useTrekkingRoutes } from "../hooks/useTrekkingRoutes";
+import type { RouteCheckpoint, RouteDangerZone } from "../types";
 
 export interface TrekkingRoutesPageProps {
 	onBackHome?: () => void;
@@ -18,6 +19,14 @@ export function TrekkingRoutesPage({ onBackHome }: TrekkingRoutesPageProps) {
 	const routes = useTrekkingRoutes();
 	const [selectedRouteId, setSelectedRouteId] = useState<string>();
 	const [submittedRouteName, setSubmittedRouteName] = useState("");
+	const [previewCheckpoints, setPreviewCheckpoints] = useState<RouteCheckpoint[]>([]);
+	const [previewDangerZones, setPreviewDangerZones] = useState<RouteDangerZone[]>([]);
+	const updatePreviewCheckpoints = useCallback((checkpoints: RouteCheckpoint[]) => {
+		setPreviewCheckpoints(checkpoints);
+	}, []);
+	const updatePreviewDangerZones = useCallback((dangerZones: RouteDangerZone[]) => {
+		setPreviewDangerZones(dangerZones);
+	}, []);
 
 	useEffect(() => {
 		setSelectedRouteId((current) =>
@@ -28,6 +37,14 @@ export function TrekkingRoutesPage({ onBackHome }: TrekkingRoutesPageProps) {
 	const selectedRoute = useMemo(
 		() => routes.items.find((route) => route.id === selectedRouteId),
 		[routes.items, selectedRouteId]
+	);
+	const selectedPreviewCheckpoints = useMemo(
+		() => previewCheckpoints.filter((checkpoint) => checkpoint.routeId === selectedRoute?.id),
+		[previewCheckpoints, selectedRoute?.id]
+	);
+	const selectedPreviewDangerZones = useMemo(
+		() => previewDangerZones.filter((dangerZone) => dangerZone.routeId === selectedRoute?.id),
+		[previewDangerZones, selectedRoute?.id]
 	);
 
 	return (
@@ -118,10 +135,18 @@ export function TrekkingRoutesPage({ onBackHome }: TrekkingRoutesPageProps) {
 							onSelect={(route) => {
 								setSelectedRouteId(route.id);
 								setSubmittedRouteName("");
+								setPreviewCheckpoints([]);
+								setPreviewDangerZones([]);
 							}}
 						/>
 
-						{selectedRoute && <RouteGeometryPreview geometry={selectedRoute.geometry} />}
+						{selectedRoute && (
+							<RouteGeometryPreview
+								geometry={selectedRoute.geometry}
+								checkpoints={selectedPreviewCheckpoints}
+								dangerZones={selectedPreviewDangerZones}
+							/>
+						)}
 					</div>
 				)}
 
@@ -143,6 +168,8 @@ export function TrekkingRoutesPage({ onBackHome }: TrekkingRoutesPageProps) {
 						route={selectedRoute}
 						onRouteReload={routes.retry}
 						onRouteSubmitted={(route) => setSubmittedRouteName(route.name)}
+						onCheckpointsChange={updatePreviewCheckpoints}
+						onDangerZonesChange={updatePreviewDangerZones}
 					/>
 				)}
 			</main>

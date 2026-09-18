@@ -1,4 +1,4 @@
-import { ArrowRight, CalendarPlus, Route } from "lucide-react";
+import { ArrowRight, CalendarPlus, MapPinned, Route } from "lucide-react";
 import { Button } from "../../../shared/components/Button";
 import type { DashboardConfig } from "../types";
 
@@ -7,6 +7,7 @@ export interface QuickTasksPanelProps {
 	onOpenAdminUsers?: () => void;
 	onCreateTrip?: () => void;
 	onCreateTrekkingRoute?: () => void;
+	onViewTrekkingRoutes?: () => void;
 }
 
 export function QuickTasksPanel({
@@ -14,6 +15,7 @@ export function QuickTasksPanel({
 	onOpenAdminUsers,
 	onCreateTrip,
 	onCreateTrekkingRoute,
+	onViewTrekkingRoutes,
 }: QuickTasksPanelProps) {
 	return (
 		<div className="rounded-[28px] border border-[#dfe8df] bg-white p-6 shadow-sm">
@@ -43,6 +45,12 @@ export function QuickTasksPanel({
 							<span>Tạo tuyến</span>
 						</Button>
 					</div>
+				)}
+				{config.role === "host" && onViewTrekkingRoutes && (
+					<Button onClick={() => onViewTrekkingRoutes()} variant="outline" className="gap-2">
+						<MapPinned className="size-4" />
+						<span>Quản lý tuyến trekking</span>
+					</Button>
 				)}
 			</div>
 			<div className="mt-5 grid gap-3 md:grid-cols-3">

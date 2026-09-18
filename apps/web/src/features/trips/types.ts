@@ -45,7 +45,7 @@ export interface CreateTripInput {
 	meetingAt?: string;
 	bookingDeadline: string;
 	capacityMin: number;
-	capacityMax: number;
+	capacityMax: number | null;
 	pricePerPerson: number;
 	waypoints: CreateTripWaypointInput[];
 }
@@ -82,7 +82,7 @@ export interface Trip {
 	meetingAt: string | null;
 	bookingDeadline: string;
 	capacityMin: number;
-	capacityMax: number;
+	capacityMax: number | null;
 	seatsTaken: number;
 	pricePerPerson: number;
 	cancellationPolicy: Record<string, unknown> | null;

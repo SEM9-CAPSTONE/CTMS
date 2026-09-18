@@ -40,7 +40,7 @@ describe("CreateTripPage", () => {
 		render(<CreateTripPage />);
 	}
 
-	it("renders the create form for the intended Host flow using active CTMS-10 routes only", async () => {
+	it("renders the create form for the intended Host flow using approved routes only", async () => {
 		await renderPage();
 		expect(screen.getByTestId("trip-form")).toHaveTextContent("active");
 		expect(screen.getByTestId("trip-form")).not.toHaveTextContent("draft");

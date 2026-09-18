@@ -90,7 +90,7 @@ export function CreateTripPage({ onBackHome, onCreateRoute }: CreateTripPageProp
 					<div>
 						<h1 className="text-xl font-extrabold sm:text-2xl">Tạo trip cho Host</h1>
 						<p className="text-sm text-[#667a6d]">
-							Tạo draft trip từ tuyến active, giữ đúng BR-055, BR-056 và BR-057.
+							Tạo trip nháp từ tuyến trekking đã duyệt, điểm đầu/cuối được lấy theo tuyến có sẵn.
 						</p>
 					</div>
 				</div>

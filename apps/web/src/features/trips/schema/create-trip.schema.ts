@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { type CreateTripInput, TRIP_TYPES, TRIP_WAYPOINT_TYPES } from "../types";
 
-const uuidMessage = "Vui lòng chọn tuyến đã được duyệt từ CTMS-10";
+const uuidMessage = "Vui lòng chọn tuyến trekking đã duyệt";
 const coordinateMessage = "Tọa độ phải nằm trong phạm vi hợp lệ";
 
 const positiveIntegerString = (message: string) =>
@@ -10,6 +10,13 @@ const positiveIntegerString = (message: string) =>
 		.trim()
 		.regex(/^\d+$/, message)
 		.refine((value) => Number(value) > 0, message);
+
+const optionalPositiveIntegerString = (message: string) =>
+	z
+		.string()
+		.trim()
+		.refine((value) => value === "" || /^\d+$/.test(value), message)
+		.refine((value) => value === "" || Number(value) > 0, message);
 
 const nonNegativeMoneyString = z
 	.string()
@@ -21,6 +28,10 @@ const coordinateString = z
 	.string()
 	.trim()
 	.regex(/^-?\d+(\.\d+)?$/, coordinateMessage);
+
+function isSameLocalDateTimeInputDate(firstDateTime: string, secondDateTime: string): boolean {
+	return firstDateTime.slice(0, 10) === secondDateTime.slice(0, 10);
+}
 
 export const createTripFormSchema = z
 	.object({
@@ -52,7 +63,7 @@ export const createTripFormSchema = z
 		meetingAt: z.string(),
 		bookingDeadline: z.string().min(1, "Hạn đặt chỗ là bắt buộc"),
 		capacityMin: positiveIntegerString("Số khách tối thiểu phải là số nguyên dương"),
-		capacityMax: positiveIntegerString("Số khách tối đa phải là số nguyên dương"),
+		capacityMax: optionalPositiveIntegerString("Số khách tối đa phải là số nguyên dương"),
 		pricePerPerson: nonNegativeMoneyString,
 		waypoints: z
 			.array(
@@ -79,12 +90,54 @@ export const createTripFormSchema = z
 		const endsAt = new Date(values.endsAt);
 		const bookingDeadline = new Date(values.bookingDeadline);
 		const meetingAt = values.meetingAt ? new Date(values.meetingAt) : null;
+		const now = new Date();
+
+		if (values.startsAt && startsAt < now) {
+			context.addIssue({
+				code: z.ZodIssueCode.custom,
+				path: ["startsAt"],
+				message: "Thời gian bắt đầu không được ở quá khứ",
+			});
+		}
+		if (values.endsAt && endsAt < now) {
+			context.addIssue({
+				code: z.ZodIssueCode.custom,
+				path: ["endsAt"],
+				message: "Thời gian kết thúc không được ở quá khứ",
+			});
+		}
+		if (values.bookingDeadline && bookingDeadline < now) {
+			context.addIssue({
+				code: z.ZodIssueCode.custom,
+				path: ["bookingDeadline"],
+				message: "Hạn đặt chỗ không được ở quá khứ",
+			});
+		}
+		if (meetingAt && meetingAt < now) {
+			context.addIssue({
+				code: z.ZodIssueCode.custom,
+				path: ["meetingAt"],
+				message: "Thời gian tập trung không được ở quá khứ",
+			});
+		}
 
 		if (values.startsAt && values.endsAt && startsAt >= endsAt) {
 			context.addIssue({
 				code: z.ZodIssueCode.custom,
 				path: ["endsAt"],
 				message: "Thời gian kết thúc phải sau thời gian bắt đầu",
+			});
+		}
+		if (
+			values.tripType === "day_trip" &&
+			values.startsAt &&
+			values.endsAt &&
+			!isSameLocalDateTimeInputDate(values.startsAt, values.endsAt)
+		) {
+			context.addIssue({
+				code: z.ZodIssueCode.custom,
+				path: ["endsAt"],
+				message: "Trip trong ngày phải bắt đầu và kết thúc trong cùng một ngày",
 			});
 		}
 		if (values.bookingDeadline && values.startsAt && bookingDeadline >= startsAt) {
@@ -101,7 +154,7 @@ export const createTripFormSchema = z
 				message: "Thời gian tập trung phải trước hoặc bằng thời gian bắt đầu",
 			});
 		}
-		if (Number(values.capacityMin) > Number(values.capacityMax)) {
+		if (values.capacityMax && Number(values.capacityMin) > Number(values.capacityMax)) {
 			context.addIssue({
 				code: z.ZodIssueCode.custom,
 				path: ["capacityMin"],
@@ -206,7 +259,7 @@ export function toCreateTripInput(values: CreateTripFormValues): CreateTripInput
 		...(values.meetingAt ? { meetingAt: toIsoString(values.meetingAt) } : {}),
 		bookingDeadline: toIsoString(values.bookingDeadline),
 		capacityMin: Number(values.capacityMin),
-		capacityMax: Number(values.capacityMax),
+		capacityMax: values.capacityMax ? Number(values.capacityMax) : null,
 		pricePerPerson: Number(values.pricePerPerson),
 		waypoints: values.waypoints.map((waypoint) => ({
 			type: waypoint.type,

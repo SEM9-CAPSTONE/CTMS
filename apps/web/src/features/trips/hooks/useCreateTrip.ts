@@ -67,8 +67,8 @@ export function mapCreateTripError(error: unknown): CreateTripError {
 	const byStatus: Record<number, string> = {
 		401: "Phiên đăng nhập không hợp lệ hoặc đã hết hạn.",
 		403: "Bạn không có quyền tạo trip cho tuyến đã chọn.",
-		404: "Không tìm thấy tuyến trekking đã chọn hoặc dependency CTMS-10 không còn khả dụng.",
-		409: "Tuyến chưa ở trạng thái active đã duyệt, nên chưa thể tạo trip.",
+		404: "Không tìm thấy tuyến trekking đã chọn hoặc tuyến không còn khả dụng.",
+		409: "Tuyến chưa ở trạng thái đã duyệt, nên chưa thể tạo trip.",
 		422: "Thông tin trip chưa hợp lệ. Vui lòng kiểm tra các trường được đánh dấu.",
 	};
 

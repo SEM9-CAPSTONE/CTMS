@@ -178,6 +178,14 @@ describe("TripsService", () => {
 		);
 	});
 
+	it("allows capacityMax to be null for an unlimited Trip", async () => {
+		await service.create(HOST_ID, { ...createTripDto(), capacityMax: null });
+
+		expect(tripsRepository.createDraft).toHaveBeenCalledWith(
+			expect.objectContaining({ capacityMax: null })
+		);
+	});
+
 	it("returns 404 when the referenced Route does not exist", async () => {
 		tripsRepository.findRouteDependencyForUpdate.mockResolvedValue(null);
 
@@ -240,6 +248,16 @@ describe("TripsService", () => {
 		{
 			name: "meetingAt is after startsAt",
 			patch: { meetingAt: "2026-09-20T01:01:00.000Z" },
+		},
+		{
+			name: "day_trip spans multiple dates",
+			patch: {
+				endsAt: "2026-09-21T10:00:00.000Z",
+				waypoints: createTripDto().waypoints.map((waypoint) => ({
+					...waypoint,
+					plannedAt: undefined,
+				})),
+			},
 		},
 		{
 			name: "capacityMin is greater than capacityMax",
