@@ -31,7 +31,7 @@ interface CreateTripPayload {
 	meetingAt?: string;
 	bookingDeadline: string;
 	capacityMin: number;
-	capacityMax: number;
+	capacityMax: number | null;
 	pricePerPerson: number;
 	waypoints: Array<{
 		type: string;
@@ -293,6 +293,54 @@ describe("POST /api/trips (integration, real Postgres)", () => {
 			durationNights: 2,
 			pricePerPerson: 0,
 		});
+	});
+
+	it("creates a draft Trip with unlimited maximum capacity", async () => {
+		const host = await createAccount(UserRole.HOST);
+		const routeId = await createRoute(host.id);
+
+		const response = await request(app.getHttpServer())
+			.post("/api/trips")
+			.set("Authorization", `Bearer ${host.accessToken}`)
+			.send({ ...createPayload(routeId), capacityMax: null })
+			.expect(201);
+
+		const tripId: string = response.body.id;
+		cleanupTripIds.push(tripId);
+
+		expect(response.body.capacityMin).toBe(2);
+		expect(response.body.capacityMax).toBeNull();
+
+		const trips = await dataSource.query(
+			'SELECT "capacity_min" AS "capacityMin", "capacity_max" AS "capacityMax" FROM "trips" WHERE "id" = $1',
+			[tripId]
+		);
+		expect(Number(trips[0].capacityMin)).toBe(2);
+		expect(trips[0].capacityMax).toBeNull();
+	});
+
+	it("rejects a day Trip that spans multiple dates", async () => {
+		const host = await createAccount(UserRole.HOST);
+		const routeId = await createRoute(host.id);
+		const beforeRows = await dataSource.query('SELECT COUNT(*)::int AS "count" FROM "trips"');
+
+		await request(app.getHttpServer())
+			.post("/api/trips")
+			.set("Authorization", `Bearer ${host.accessToken}`)
+			.send({
+				...createPayload(routeId),
+				tripType: TripType.DAY_TRIP,
+				startsAt: "2026-10-01T12:00:00.000Z",
+				endsAt: "2026-10-02T10:00:00.000Z",
+				waypoints: createPayload(routeId).waypoints.map((waypoint) => ({
+					...waypoint,
+					plannedAt: undefined,
+				})),
+			})
+			.expect(422);
+
+		const afterRows = await dataSource.query('SELECT COUNT(*)::int AS "count" FROM "trips"');
+		expect(afterRows[0].count).toBe(beforeRows[0].count);
 	});
 
 	it("requires authentication and Host role", async () => {

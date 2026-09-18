@@ -168,11 +168,12 @@ export class CreateTripDto {
 	@Min(1)
 	capacityMin!: number;
 
-	@ApiProperty({ minimum: 1 })
+	@ApiPropertyOptional({ minimum: 1, nullable: true })
+	@IsOptional()
 	@Type(() => Number)
 	@IsInt()
 	@Min(1)
-	capacityMax!: number;
+	capacityMax?: number | null;
 
 	@ApiProperty({ minimum: 0 })
 	@Type(() => Number)

@@ -43,6 +43,7 @@ export const API_ENDPOINTS = {
 	TRIPS: {
 		GET_ALL: "/trips",
 		GET_BY_ID: (id: string) => `/trips/${id}`,
+		CREATE: "/trips",
 		MEMBERS: (tripId: string) => `/trips/${tripId}/members`,
 		GPS_LOGS: (tripId: string) => `/trips/${tripId}/gps-logs`,
 	},

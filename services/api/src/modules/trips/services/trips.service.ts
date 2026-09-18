@@ -22,6 +22,13 @@ interface FieldValidationError {
 }
 
 const ONE_DAY_IN_MILLISECONDS = 24 * 60 * 60 * 1000;
+const TRIP_BUSINESS_TIME_ZONE = "Asia/Ho_Chi_Minh";
+const tripDateFormatter = new Intl.DateTimeFormat("en-CA", {
+	timeZone: TRIP_BUSINESS_TIME_ZONE,
+	year: "numeric",
+	month: "2-digit",
+	day: "2-digit",
+});
 
 @Injectable()
 export class TripsService {
@@ -81,7 +88,7 @@ export class TripsService {
 				meetingAt: schedule.meetingAt,
 				bookingDeadline: schedule.bookingDeadline,
 				capacityMin: dto.capacityMin,
-				capacityMax: dto.capacityMax,
+				capacityMax: dto.capacityMax ?? null,
 				pricePerPerson: dto.pricePerPerson,
 				cancellationPolicy: dto.cancellationPolicy ?? null,
 				waypoints: dto.waypoints.map(toWaypointInput),
@@ -116,6 +123,12 @@ export class TripsService {
 		if (startsAt >= endsAt) {
 			errors.push({ field: "endsAt", errors: ["endsAt must be after startsAt"] });
 		}
+		if (dto.tripType === TripType.DAY_TRIP && !isSameTripBusinessDate(startsAt, endsAt)) {
+			errors.push({
+				field: "endsAt",
+				errors: ["day_trip must start and end on the same date"],
+			});
+		}
 		if (bookingDeadline >= startsAt) {
 			errors.push({
 				field: "bookingDeadline",
@@ -128,7 +141,7 @@ export class TripsService {
 				errors: ["meetingAt must be before or equal to startsAt"],
 			});
 		}
-		if (dto.capacityMin > dto.capacityMax) {
+		if (dto.capacityMax != null && dto.capacityMin > dto.capacityMax) {
 			errors.push({
 				field: "capacityMin",
 				errors: ["capacityMin must be less than or equal to capacityMax"],
@@ -211,6 +224,10 @@ function deriveDurationNights(tripType: TripType, startsAt: Date, endsAt: Date):
 
 	const durationMs = endsAt.getTime() - startsAt.getTime();
 	return Math.max(1, Math.ceil(durationMs / ONE_DAY_IN_MILLISECONDS));
+}
+
+function isSameTripBusinessDate(firstDate: Date, secondDate: Date): boolean {
+	return tripDateFormatter.format(firstDate) === tripDateFormatter.format(secondDate);
 }
 
 function toWaypointInput(waypoint: CreateTripWaypointDto): CreateTripWaypointInput {

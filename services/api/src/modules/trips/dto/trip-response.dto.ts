@@ -89,8 +89,8 @@ export class TripResponseDto {
 	@ApiProperty()
 	capacityMin!: number;
 
-	@ApiProperty()
-	capacityMax!: number;
+	@ApiPropertyOptional({ nullable: true })
+	capacityMax!: number | null;
 
 	@ApiProperty()
 	seatsTaken!: number;
