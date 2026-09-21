@@ -4,60 +4,81 @@
 
 ## Mô tả
 
-CTMS (Camping Site and Trekking Management System) là nền tảng vận hành campsite và trekking, gồm ứng dụng mobile cho Camper/Porter, dashboard web cho Host/Admin và AI Survival Assistant phục vụ an toàn ngoài trời.
+CTMS (Camping Site and Trekking Management System) là nền tảng vận hành campsite và trekking theo hướng safety-first, gồm ứng dụng mobile cho Camper/Porter, dashboard web cho Host/Admin và AI Survival Assistant phục vụ an toàn ngoài trời.
 
-Baseline v2 tách rõ tài nguyên vận hành nội bộ khỏi luồng đặt chỗ công khai. Camper tìm kiếm và đặt published Trip. Host/Admin quản lý Campsite, Route nội bộ, checkpoint, hazard area, Trip, booking, thiết bị, porter, weather risk, offline safety data và audit trail.
+Baseline sản phẩm hiện tại là **Product Backlog v3.1**. Camper tìm kiếm và đặt published Trip. Host/Admin quản lý Campsite, Route nội bộ, checkpoint, hazard area, Trip, booking, equipment, porter, weather risk, offline safety package, realtime safety tracking, financial settlement, audit, report và safety analytics.
 
-## Domain Baseline v2
+## Domain Baseline v3.1
 
-```text
-Campsite
-  ↓
-Route
-  ↓
-Trip
-  ↓
-Booking
-```
-
-Phân quyền nhìn entity:
+Chuỗi vận hành chính:
 
 ```text
-Host/Admin/System
-   ├── Campsite
-   ├── Route
-   │    ├── Checkpoints
-   │    └── Hazard Areas
-   └── Trip
-         ↓
-      Camper
-         ↓
-      Booking
+Campsite / Operating Area
+  -> Route
+  -> Trip
+  -> Booking
+  -> Booking Member
 ```
 
-Trekking Route is an internal reusable geospatial and safety resource. Campers do not browse or book Routes directly. Campers discover and book published Trips.
+Chuỗi safety và offline:
 
-Nguyên tắc active v2:
+```text
+Route + Checkpoints + Hazards + Survival Content
+  -> Offline Safety Package
+  -> Trip Safety Session
+  -> GPS Logs / Safety Events / SOS / Incidents
+  -> Sync + Realtime Monitoring
+  -> Safety Analytics / Hotspot Review / Package Versioning
+```
 
-- Campsite được tạo ở `draft`, Host hoàn thiện thông tin, submit sang `pending_approval`, sau đó Admin duyệt trước khi public.
-- Route là tài nguyên nội bộ cho bản đồ, checkpoint, hazard area, weather risk, offline safety package và validate Trip.
-- Route `closed` là hard constraint: Trip dùng Route đó không được tạo/duyệt/publish/sửa thành trạng thái publishable hoặc nhận booking mới cho tới khi Route hợp lệ lại.
-- Trip bắt đầu ở `draft`, chuyển sang `pending_approval`, và chỉ public sau khi được duyệt.
-- Capacity của Trip chỉ dùng `trips.capacity_min`, `trips.capacity_max`, và `trips.seats_taken`.
-- Booking được tạo cho published Trip, không đặt trực tiếp Campsite hoặc Route.
+Chuỗi tài chính:
 
-Các khái niệm lập kế hoạch v1 đã loại bỏ chỉ được giữ trong archived specs. Tài liệu active v2 không mô hình hóa tiểu khu campsite như đơn vị đặt chỗ, sổ capacity ở cấp campsite, đặt chỗ theo layout, dòng lưu trú campsite của Trip, capacity ledger dựa trên cache, hoặc cơ chế chuyển tiếp khẩn cấp ngang hàng.
+```text
+Booking Payment
+  -> Held Funds
+  -> Refund / Complaint Window
+  -> Settlement
+  -> Platform Fee
+  -> Host Payout
+  -> Reconciliation / Adjustment
+```
+
+Chuỗi AI:
+
+```text
+Curated Survival Documents
+  -> Knowledge Chunks
+  -> RAG Retrieval
+  -> AI Answer / Sources / Feedback / Moderation
+```
+
+Trekking Route là tài nguyên geospatial và safety nội bộ có thể tái sử dụng. Camper không browse hoặc book Route trực tiếp. Camper discover và book published Trip.
+
+## Nguyên tắc active v3.1
+
+- Product Backlog v3.1 là nguồn scope chính cho story; behavior chi tiết nằm trong `file/spec`.
+- Business Rules phải được hiện thực thành validation, authorization, state, transaction, audit, notification và test behavior có thể thực thi.
+- Trip là đơn vị public booking; Route là tài nguyên vận hành nội bộ.
+- Trip capacity được kiểm soát transactionally ở cấp Trip.
+- Porter Assignment là nguồn authoritative cho lịch Porter và phải chống work-range conflict/concurrent commit.
+- Offline Safety Package có version và lưu đủ context để diễn giải GPS/safety history.
+- Ongoing Trip không hot-update active Offline Safety Package trong v3.1.
+- AI/RAG chỉ mang tính advisory và không được override hard rule, authoritative state, payment state, safety state hoặc authorization.
+- Booking payment, refund, held funds, settlement, platform fee, payout và reconciliation phải dựa trên ledger và audit được.
+- Safety analytics có thể đề xuất hotspot, nhưng chỉ hotspot đã review/confirm mới được dùng để thay đổi authoritative safety data.
 
 ## Mục tiêu
 
-CTMS giúp đơn vị vận hành outdoor publish các trekking experience an toàn, đồng thời cho Camper một luồng đặt Trip rõ ràng. Hệ thống tập trung vào:
+CTMS giúp đơn vị vận hành outdoor publish trekking experience an toàn, đồng thời cho Camper một luồng booking và chuẩn bị safety rõ ràng. Hệ thống tập trung vào:
 
-- Quản lý Campsite, Route, Trip, Booking và Porter theo phân quyền.
-- Checkpoint và hazard area của Route dưới dạng dữ liệu vận hành/an toàn có thể tái sử dụng.
-- Lập kế hoạch Trip bằng waypoint, kiểm soát capacity, phê duyệt, public, hủy và revalidate Trip.
-- Booking, payment, refund, check-in thành viên, equipment và logistics.
-- Đánh giá weather risk theo các yếu tố thời tiết và rule cấu hình, không phụ thuộc route type.
-- Offline navigation, route deviation detection, sync batches, SOS/incident handling và AI Survival Assistant.
+- Quản lý Campsite, Route, Trip, Booking, Booking Member và Porter theo phân quyền.
+- Route checkpoint, hazard area và versioned offline safety package.
+- Lập kế hoạch Trip bằng waypoint, kiểm soát capacity, phê duyệt, publish, hủy và revalidate Trip.
+- Booking, payment, refund, settlement, payout, reconciliation, member check-in, equipment và logistics.
+- Weather risk dựa trên weather factors và configurable rules.
+- Offline navigation, GPS tracking, route deviation detection, checkpoint detection, sync batches, SOS/incident handling và realtime monitoring.
+- AI Survival Assistant, RAG source visibility, feedback, unsafe report handling và advisory analytics.
+- Safety evaluation, reporting, route deviation analytics, hotspot review và publishing offline package version mới.
 
 ## Cấu trúc dự án
 
@@ -68,23 +89,29 @@ ctms/
 │   └── mobile/                  # Mobile app Flutter cho Camper và Porter
 ├── services/
 │   ├── api/                     # Backend API NestJS
-│   └── ai/                      # Dịch vụ AI/NLP Python
+│   └── ai/                      # Dịch vụ AI/RAG Python
 ├── docs/                        # Tài liệu architecture, planning, design
-├── file/spec/                   # CTMS story specs đang active
-├── file/spec/archived/          # Specs đã retired, giữ lại để tra lịch sử Git
+├── file/spec/                   # Active CTMS story specs theo PB v3.1
+├── file/spec/archived/          # Specs đã retired, giữ lại để tra lịch sử
 ├── scripts/                     # Automation scripts
 └── package.json                 # Root scripts và dependencies
 ```
 
 ## Tech Stack
 
-- Web Frontend: React, Vite, TypeScript, Tailwind CSS, Lucide Icons
-- Mobile: Flutter, Riverpod, go_router
+- Web Frontend: React, Vite, TypeScript, Tailwind CSS, Lucide Icons, Leaflet, Socket.io client
+- Mobile: Flutter, Riverpod, go_router, Dio, Freezed/json_serializable, flutter_secure_storage, intl
 - Backend: NestJS, TypeScript
 - Database: PostgreSQL/PostGIS
-- Cache/session support: Redis khi phù hợp, nhưng không là source of truth cho booking capacity
+- Cache/session support: Redis khi phù hợp, nhưng không là authoritative ledger cho booking, funds hoặc safety
 - Real-time Communication: Socket.io qua NestJS WebSocket Gateway
-- AI/NLP: Python, FastAPI, LLM, RAG, prompt engineering
-- Maps and Navigation: Leaflet / Mapbox
+- AI/RAG: Python, FastAPI, LLM, retrieval-augmented generation, safety guardrails
+- Maps and Navigation: Leaflet / Mapbox-compatible map stack
 - Deployment: AWS EC2, Docker, Nginx, GitHub Actions
 - API Documentation and Testing: Swagger/OpenAPI, Postman
+
+## Tài liệu
+
+- `docs/ARCHITECTURE.md`: baseline architecture cho PB v3.1.
+- `docs/design/`: design system và Figma inventory.
+- `file/spec/`: active story specs, map theo PB v3.1 và Business Rules đã materialize.
