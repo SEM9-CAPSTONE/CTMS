@@ -62,6 +62,12 @@ export interface LockedTripForWaypointConfiguration {
 	status: TripStatus;
 }
 
+export interface LockedTripForReview {
+	trip: TripResponseDto;
+	routeId: string;
+	status: TripStatus;
+}
+
 export interface SearchPublishedTripsFilter {
 	search?: string;
 	tripType?: TripType;
@@ -519,6 +525,49 @@ export class TripsRepository extends Repository<Trip> {
 
 		if (!rows[0]) return null;
 		return toTripResponse(rows[0]);
+	}
+
+	async findByIdForReview(tripId: string): Promise<LockedTripForReview | null> {
+		const rows = (await this.query(
+			`${TRIP_SELECT}
+			WHERE trip."id" = $1
+			FOR UPDATE OF trip`,
+			[tripId]
+		)) as TripRow[];
+
+		const row = rows[0];
+		if (!row) return null;
+
+		return {
+			trip: toTripResponse(row),
+			routeId: row.routeId,
+			status: row.status,
+		};
+	}
+
+	async findRouteStatus(routeId: string): Promise<string | null> {
+		const rows = (await this.query(`SELECT "status" FROM "trekking_routes" WHERE "id" = $1`, [
+			routeId,
+		])) as Array<{ status: string }>;
+
+		return rows[0]?.status ?? null;
+	}
+
+	async updateStatus(tripId: string, status: TripStatus): Promise<TripResponseDto> {
+		await this.query(
+			`
+			UPDATE "trips"
+			SET "status" = $2, "updated_at" = now()
+			WHERE "id" = $1
+			`,
+			[tripId, status]
+		);
+
+		const updated = await this.findById(tripId);
+		if (!updated) {
+			throw new Error("Failed to load updated Trip");
+		}
+		return updated;
 	}
 
 	async searchPublishedTrips(

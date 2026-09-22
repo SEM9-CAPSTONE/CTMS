@@ -8,6 +8,8 @@ import { UserRole } from "../../users/entities/user.entity";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { ConfigureTripWaypointsDto, CreateTripDto } from "../dto/create-trip.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
+import { ReviewTripDto } from "../dto/review-trip.dto";
+// biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { SearchTripsQueryDto } from "../dto/search-trips-query.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { TripIdParamDto } from "../dto/trip-id-param.dto";
@@ -80,5 +82,22 @@ export class TripsController {
 		@Body() dto: CreateTripDto
 	): Promise<TripResponseDto> {
 		return this.tripsService.create(request.user.userId, dto);
+	}
+
+	@Patch(":tripId/review")
+	@Roles(UserRole.ADMIN)
+	@ApiOperation({ summary: "Approve (publish) or decline a Trip pending approval" })
+	@ApiResponse({ status: 200, type: TripResponseDto })
+	@ApiResponse({ status: 401, description: "Authentication required" })
+	@ApiResponse({ status: 403, description: "Admin role required" })
+	@ApiResponse({ status: 404, description: "Trip not found" })
+	@ApiResponse({ status: 409, description: "Trip is not in pending_approval status" })
+	@ApiResponse({ status: 422, description: "Invalid review decision or Route no longer active" })
+	review(
+		@Req() request: AuthenticatedRequest,
+		@Param() params: TripIdParamDto,
+		@Body() dto: ReviewTripDto
+	): Promise<TripResponseDto> {
+		return this.tripsService.review(request.user.userId, params.tripId, dto);
 	}
 }

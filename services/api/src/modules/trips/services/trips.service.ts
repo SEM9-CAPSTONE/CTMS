@@ -17,6 +17,7 @@ import type {
 	CreateTripWaypointDto,
 	GeoJsonPointDto,
 } from "../dto/create-trip.dto";
+import { ReviewTripAction, type ReviewTripDto } from "../dto/review-trip.dto";
 import type { SearchTripsQueryDto } from "../dto/search-trips-query.dto";
 import type { PaginatedTripsResponseDto, TripResponseDto } from "../dto/trip-response.dto";
 import { WaypointType } from "../entities/trip-waypoint.entity";
@@ -255,6 +256,57 @@ export class TripsService {
 				before: this.buildWaypointAuditSnapshot(lockedTrip.trip),
 				after: this.buildWaypointAuditSnapshot(updated),
 				reason: "host_configure_trip_waypoints",
+			});
+
+			return updated;
+		});
+	}
+
+	/**
+	 * CTMS-023-T01. Mirrors TrekkingRoutesService.review's own action+reason
+	 * flow (the proven Admin-review convention already used for CTMS-13):
+	 * only a Trip in pending_approval may be reviewed; approve requires the
+	 * referenced Route to still be active (BR-037's "bind to an approved
+	 * Route" requirement -- a Route can be closed after a Trip was submitted
+	 * for approval, and that must block publishing), decline always requires
+	 * a reason and returns the Trip to draft for the Host to revise.
+	 */
+	async review(adminId: string, tripId: string, dto: ReviewTripDto): Promise<TripResponseDto> {
+		return this.dataSource.transaction(async (manager: EntityManager) => {
+			const repository = manager.withRepository(this.tripsRepository);
+			const locked = await repository.findByIdForReview(tripId);
+
+			if (!locked) {
+				throw new NotFoundException("Trip not found");
+			}
+			if (locked.status !== TripStatus.PENDING_APPROVAL) {
+				throw new ConflictException("Only Trips in pending_approval status can be reviewed");
+			}
+
+			if (dto.action === ReviewTripAction.APPROVE) {
+				const routeStatus = await repository.findRouteStatus(locked.routeId);
+				if (routeStatus !== TrekkingRouteStatus.ACTIVE) {
+					throw this.validationException([
+						{
+							field: "routeId",
+							errors: ["the Trip's Route is no longer active and cannot be published against"],
+						},
+					]);
+				}
+			}
+
+			const targetStatus =
+				dto.action === ReviewTripAction.APPROVE ? TripStatus.PUBLISHED : TripStatus.DRAFT;
+			const updated = await repository.updateStatus(tripId, targetStatus);
+
+			await manager.getRepository(AuditLog).save({
+				actorId: adminId,
+				action: dto.action === ReviewTripAction.APPROVE ? "trip.approved" : "trip.declined",
+				targetType: "trip",
+				targetId: tripId,
+				before: { status: locked.status },
+				after: { status: targetStatus },
+				reason: dto.action === ReviewTripAction.APPROVE ? null : (dto.reason ?? null),
 			});
 
 			return updated;
