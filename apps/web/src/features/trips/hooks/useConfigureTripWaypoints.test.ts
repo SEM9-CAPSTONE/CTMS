@@ -2,24 +2,18 @@ import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { HttpError } from "../../../core/api";
 import { tripsService } from "../services/trips.service";
-import type { CreateTripInput } from "../types";
-import { mapCreateTripError, useCreateTrip } from "./useCreateTrip";
+import type { ConfigureTripWaypointsInput } from "../types";
+import {
+	mapConfigureTripWaypointsError,
+	useConfigureTripWaypoints,
+} from "./useConfigureTripWaypoints";
 
 vi.mock("../services/trips.service", () => ({
-	tripsService: { create: vi.fn(), configureWaypoints: vi.fn() },
+	tripsService: { configureWaypoints: vi.fn() },
 }));
 
-const payload: CreateTripInput = {
-	routeId: "11111111-1111-4111-8111-111111111111",
-	title: "Bidoup draft",
-	tripType: "day_trip",
-	startsAt: "2026-10-01T02:00:00.000Z",
-	endsAt: "2026-10-01T10:00:00.000Z",
-	meetingPoint: { type: "Point", coordinates: [108.22, 16.04] },
-	bookingDeadline: "2026-09-30T02:00:00.000Z",
-	capacityMin: 2,
-	capacityMax: 12,
-	pricePerPerson: 0,
+const tripId = "33333333-3333-4333-8333-333333333333";
+const payload: ConfigureTripWaypointsInput = {
 	waypoints: [
 		{
 			type: "start",
@@ -38,58 +32,62 @@ const payload: CreateTripInput = {
 	],
 };
 
-describe("useCreateTrip", () => {
+describe("useConfigureTripWaypoints", () => {
 	beforeEach(() => vi.clearAllMocks());
 
-	it("prevents duplicate submissions while a request is running", async () => {
+	it("prevents duplicate submissions while configure request is running", async () => {
 		let resolve!: (value: never) => void;
-		vi.mocked(tripsService.create).mockImplementation(
+		vi.mocked(tripsService.configureWaypoints).mockImplementation(
 			() =>
 				new Promise((done) => {
 					resolve = done;
 				})
 		);
 
-		const { result } = renderHook(() => useCreateTrip());
+		const { result } = renderHook(() => useConfigureTripWaypoints(tripId));
 		let first!: Promise<unknown>;
 
 		await act(async () => {
 			first = result.current.submit(payload);
 			const second = await result.current.submit(payload);
 			expect(second).toBeNull();
-			resolve({ id: "trip" } as never);
+			resolve({ id: tripId, status: "pending_approval" } as never);
 			await first;
 		});
 
-		expect(tripsService.create).toHaveBeenCalledTimes(1);
+		expect(tripsService.configureWaypoints).toHaveBeenCalledTimes(1);
+		expect(tripsService.configureWaypoints).toHaveBeenCalledWith(tripId, payload);
 	});
 
 	it.each([401, 403, 404, 409, 422])("maps API status %s", (status) => {
-		expect(mapCreateTripError(new HttpError("failure", status, {}))).toEqual(
+		expect(mapConfigureTripWaypointsError(new HttpError("failure", status, {}))).toEqual(
 			expect.objectContaining({ status })
 		);
 	});
 
-	it("maps backend 422 field errors for the form", () => {
-		const error = mapCreateTripError(
+	it("maps backend field errors for the waypoint form", () => {
+		const error = mapConfigureTripWaypointsError(
 			new HttpError("invalid", 422, {
 				message: [
-					{ field: "bookingDeadline", errors: ["bookingDeadline must be before startsAt"] },
+					{
+						field: "waypoints.0.sequenceOrder",
+						errors: ["sequenceOrder must be unique within the Trip"],
+					},
 				],
 			})
 		);
 
 		expect(error.fieldErrors).toEqual({
-			bookingDeadline: "bookingDeadline must be before startsAt",
+			"waypoints.0.sequenceOrder": "sequenceOrder must be unique within the Trip",
 		});
 	});
 
 	it("keeps the last payload available for retry after a recoverable failure", async () => {
-		vi.mocked(tripsService.create)
+		vi.mocked(tripsService.configureWaypoints)
 			.mockRejectedValueOnce(new Error("offline"))
-			.mockResolvedValueOnce({ id: "trip" } as never);
+			.mockResolvedValueOnce({ id: tripId, status: "pending_approval" } as never);
 
-		const { result } = renderHook(() => useCreateTrip());
+		const { result } = renderHook(() => useConfigureTripWaypoints(tripId));
 
 		await act(async () => {
 			await result.current.submit(payload);
@@ -100,6 +98,6 @@ describe("useCreateTrip", () => {
 			await result.current.retry();
 		});
 
-		expect(tripsService.create).toHaveBeenNthCalledWith(2, payload);
+		expect(tripsService.configureWaypoints).toHaveBeenNthCalledWith(2, tripId, payload);
 	});
 });

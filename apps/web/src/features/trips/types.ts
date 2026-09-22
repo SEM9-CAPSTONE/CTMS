@@ -33,6 +33,10 @@ export interface CreateTripWaypointInput {
 	durationMinutes?: number;
 }
 
+export interface ConfigureTripWaypointsInput {
+	waypoints: CreateTripWaypointInput[];
+}
+
 export interface CreateTripInput {
 	routeId: string;
 	title: string;

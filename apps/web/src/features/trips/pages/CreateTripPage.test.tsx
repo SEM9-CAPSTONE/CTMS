@@ -36,6 +36,9 @@ describe("CreateTripPage", () => {
 				<div data-testid="trip-form">{activeRoutes.map((route) => route.status).join(",")}</div>
 			),
 		}));
+		vi.doMock("../components/ConfigureTripWaypointsPanel", () => ({
+			ConfigureTripWaypointsPanel: () => <div data-testid="configure-waypoints-panel" />,
+		}));
 		const { CreateTripPage } = await import("./CreateTripPage");
 		render(<CreateTripPage />);
 	}
@@ -63,11 +66,15 @@ describe("CreateTripPage", () => {
 		vi.doMock("../../trekking-routes/hooks/useTrekkingRoutes", () => ({
 			useTrekkingRoutes: () => routes,
 		}));
+		vi.doMock("../components/ConfigureTripWaypointsPanel", () => ({
+			ConfigureTripWaypointsPanel: () => <div data-testid="configure-waypoints-panel" />,
+		}));
 		const { CreateTripPage } = await import("./CreateTripPage");
 
 		render(<CreateTripPage />);
 
 		expect(screen.getByTestId("server-trip-status")).toHaveTextContent("draft");
 		expect(screen.getByTestId("server-seats-taken")).toHaveTextContent("0");
+		expect(screen.getByTestId("configure-waypoints-panel")).toBeVisible();
 	});
 });
