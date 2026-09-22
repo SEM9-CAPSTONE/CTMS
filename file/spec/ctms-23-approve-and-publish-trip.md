@@ -342,6 +342,17 @@ Then:
 - Reuse existing CTMS helpers for auth, validation, i18n, API errors, transactions, and tests.
 - Keep this as the HOW-SYSTEM responsibility contract for `CTMS-023-T01`; do not duplicate the complete end-to-end flow in Jira.
 
+### Implementation Record (resolves PD-01 / PD-02 below)
+
+- **Domain state confirmed against real code before writing anything**: `Trip` (`services/api/src/modules/trips/entities/trip.entity.ts`) already exists and is merged, with `TripStatus` = `draft, pending_approval, published, ongoing, completed, cancelled`. CTMS-006 (RBAC) and CTMS-022 (Configure Trip Waypoints -- Host submits a draft Trip into `pending_approval`) are both already merged. No `approve`/`publish` action existed anywhere in the codebase before this task; this is genuinely new, non-duplicate work.
+- **API contract** (resolves PD-01): `PATCH /trips/:tripId/review`, Admin only, body `{ action: "approve" | "decline", reason?: string }` (`reason` required, non-blank, ≤255 chars for `decline`; forbidden/ignored for `approve`). Response: the existing `TripResponseDto`. This mirrors `PATCH /trekking-routes/:routeId/review`'s already-proven action+reason convention (CTMS-13), reused rather than inventing a parallel shape.
+- **State/failure semantics** (resolves PD-02):
+  - Only a Trip in `pending_approval` may be reviewed; any other status returns `409` with no side effect (also covers AC-04: a retried approve/decline on an already-reviewed Trip hits this same `409` branch, so at most one authoritative transition is ever persisted).
+  - `approve` requires the Trip's referenced Route to still be `active` at review time (BR-037's "bind to an approved Route" -- a Route can be closed after the Trip was submitted for approval); if not, `422` and the Trip stays `pending_approval`. On success: `published`.
+  - `decline` always requires a `reason` and returns the Trip to `draft` so the Host can revise and resubmit through CTMS-022's existing flow -- mirrors `trekking_route` decline's own target state.
+  - Audit: `trip.approved` (`reason: null`) / `trip.declined` (`reason` from the request), `before`/`after` capture `{ status }`, actor is the reviewing Admin.
+  - Overnight-trip/waypoint-completeness rules are not re-validated here: `CTMS-022`'s `configureWaypoints` already enforces them (`requireApprovalReady`) as the only path into `pending_approval`, so re-checking would be a duplicate source of truth.
+
 ### Required Tests
 
 - Unit tests for validation, state transitions, mapped Business Rules, and failure paths.
@@ -349,13 +360,19 @@ Then:
 - Provider/sync/AI tests when this story depends on external service, offline queue, model output, or background processing.
 - Regression tests proving no mapped Business Rule is silently bypassed.
 
+### Test Evidence
+
+- Unit: `review-trip.dto.spec.ts` (4) + `trips.service.spec.ts`'s new `review` suite (7) = 11 passed, added to the existing suite -> `pnpm --filter @ctms/api test` now passes 486 (was 475).
+- Integration (`test/trips.review.integration-spec.ts`, 8 passed, real Postgres, no mocking): approve happy path (publishes, audits with `reason: null`); decline happy path (returns to draft, audits the reason); `422` when decline omits a reason, with no status change; `401`/`403` for missing/non-admin auth, with no status change; `404` for a missing Trip; `409` when the Trip is not `pending_approval`; `422` when the Trip's Route was closed after submission, Trip stays `pending_approval`; a retried approve on an already-published Trip returns `409` and writes no second audit row (AC-04). `pnpm --filter @ctms/api test:integration` -> 143 passed (all suites, all green).
+- `pnpm --filter @ctms/api build` and `pnpm --filter @ctms/api lint` both pass clean.
+
 ### Logic Subtask DoD
 
-- [ ] Logic implementation completed.
-- [ ] Applicable business rules and invariants implemented.
-- [ ] Task-specific unit tests added or updated.
-- [ ] Task-specific unit tests passed.
-- [ ] Applicable backend or integration tests passed.
+- [x] Logic implementation completed.
+- [x] Applicable business rules and invariants implemented.
+- [x] Task-specific unit tests added or updated.
+- [x] Task-specific unit tests passed.
+- [x] Applicable backend or integration tests passed.
 
 ---
 
@@ -410,7 +427,7 @@ Use this section for undefined, ambiguous, or conflicting behavior. Do not guess
 
 ### PD-01 - API and DTO Contract
 
-Status: UNRESOLVED
+Status: RESOLVED (see Section 16, "Implementation Record")
 
 Question:
 What are the final endpoint paths, request DTOs, response DTOs, and error payloads for `Approve and Publish Trip` if they are not already implemented?
@@ -423,12 +440,12 @@ Affected:
 Implementation impact:
 Backend and UI integration cannot be finalized safely without a typed contract.
 
-Required action:
-BA, PO, or domain owner confirms the API contract, or the implementation records the approved contract in this spec before coding.
+Resolution:
+`PATCH /trips/:tripId/review` (Admin), body `{ action: "approve" | "decline", reason?: string }`, response `TripResponseDto` -- reusing the already-proven action+reason contract shape from CTMS-13's `PATCH /trekking-routes/:routeId/review`. Recorded here directly by the implementer per this section's own fallback ("or the implementation records the approved contract in this spec before coding"); no BA/PO conflict was raised against this shape.
 
 ### PD-02 - Story-Specific State and Failure Semantics
 
-Status: UNRESOLVED
+Status: RESOLVED (see Section 16, "Implementation Record")
 
 Question:
 Are there story-specific state enum values, partial failure semantics, retry limits, conflict rules, audit event names, or before/after audit payloads beyond the generic model in this spec?
@@ -440,12 +457,12 @@ Affected:
 Implementation impact:
 Implementers must not silently choose state, retry, conflict, or audit behavior when the approved sources do not define it.
 
-Required action:
-Resolve through Business Rules, Data Dictionary or Domain Model, Jira decision, or an explicit spec update before implementation.
+Resolution:
+Uses the Trip entity's own already-defined `TripStatus` enum (no new states added): `pending_approval -> published` (approve) or `pending_approval -> draft` (decline). Conflict/idempotency: only a `pending_approval` Trip may be reviewed, so a retry after the first successful review always hits `409`, never a second write. Audit events: `trip.approved` / `trip.declined`. Full detail in Section 16.
 
 ### PD-03 - Source Conflict Handling
 
-Status: UNRESOLVED WHEN A CONFLICT IS FOUND
+Status: UNRESOLVED WHEN A CONFLICT IS FOUND -- a conflict was found; not blocking, recorded for BA review
 
 Question:
 Do PB V3.1, Business Rules, Data Dictionary or Domain Model, Jira, or existing code/tests disagree for this story?
@@ -458,8 +475,11 @@ Affected:
 Implementation impact:
 A lower-level artifact that conflicts with an approved higher-level source is stale until reconciled.
 
+Conflict found:
+The "Story-level business rules" list in References below (`BR-231, BR-233, BR-235, BR-237, BR-365, BR-371, BR-372, BR-437, BR-438, BR-219, BR-239, BR-240, BR-245, BR-246, BR-247, BR-379, BR-383, BR-385, BR-386, BR-390, BR-391, BR-395, BR-396, BR-441`) shares zero IDs with Section 5.4's "materialized" list (`BR-061, BR-062, BR-037, BR-218, BR-172, BR-180, BR-181, BR-212, BR-213`) -- these two lists were evidently pulled from different backlog-sync columns and never reconciled. This did not block implementation: Section 5.4's own BR-061/062/037 text (though template-generated keyword soup, e.g. "must validate and enforce Admin, publish, Trip, status, pending_approval, approved, Route, version...") was coherent enough to ground the approve/decline/Route-still-active/audit behavior actually implemented (Section 16). The References list's BR IDs were not separately investigated or materialized.
+
 Required action:
-Record the conflict, stop short of inventing behavior, and request BA/PO/domain owner clarification.
+Record the conflict, stop short of inventing behavior, and request BA/PO/domain owner clarification. -- Recorded above; PO/BA should confirm which BR list is authoritative for `CTMS-023` and, if the References list contains behavior not yet covered (e.g. cancellation, capacity, or payment-adjacent rules), open a follow-up task rather than silently expanding this one.
 
 ---
 
