@@ -337,13 +337,98 @@ Then:
 
 ## 16. Backend Preparation, Logic and Tests
 
+### CTMS-105-T01 — Approved Minimum Implementation Contract
+
+The following records the explicit product/schema decisions approved for T01 in the
+implementation request. It resolves the generic API/state placeholders for this subtask
+only; it does not define the future complete moderation lifecycle or a target taxonomy.
+
+#### Persistence
+
+- New migration: `1787070000000-CreateContentReportsTable.ts`; no previous migration changed.
+- `content_reports`: generated UUID `id` (primary key), required UUID `reporter_id`
+  referencing `users.id`, required `target_type varchar(100)`, required opaque UUID
+  `target_id`, required `reason varchar(1000)`, required status enum defaulting to
+  `pending`, and required `created_at` / `updated_at` timestamptz with `now()` defaults.
+- Status values: `pending`, `reviewing`, `actioned`, `rejected`.
+- ORM writes trim `target_type` and `reason`; database CHECK constraints reject blank
+  values and leading/trailing whitespace. Varchar limits enforce the maximum lengths.
+  Direct SQL producers must provide normalized strings. TypeORM maintains `updated_at`.
+- No closed target-type list was found in the current report specs. `target_type` is
+  deliberately an opaque string owned by the reporting workflow, not a DB enum.
+- No target foreign key or target entity lookup. Target existence/reportability validation
+  belongs to the owning report-creation workflow (CTMS-094), not status handling.
+- The reporter FK has no cascading delete. Only the primary-key index is added: both T01
+  queries address a report by ID. Status/reporter/target indexes await concrete query needs.
+- No version, resolution, notes, soft-delete, target metadata or separate history table.
+
+#### API and authorization
+
+- `GET /api/content-reports/:reportId`: return authoritative report details.
+- `PATCH /api/content-reports/:reportId/status`: transition a report.
+- Both endpoints use existing `JwtAuthGuard`, `RolesGuard`, `@Roles(UserRole.ADMIN)`;
+  service authorization also checks the current active user and granted roles from DB.
+- PATCH body is exactly `{ expectedStatus, status }`, both approved lowercase statuses.
+  The existing global whitelist validation rejects extra fields, including reporter,
+  target, reason, actor or caller-supplied authoritative state. Actor comes from JWT context.
+- Both return the same DTO using existing camelCase API conventions:
+  `{ id, reporter: { id, fullName }, targetType, targetId, reason, status, createdAt, updatedAt }`.
+  `fullName` may be null; only reporter ID and name are selected. No email, phone,
+  password hash or other private profile data is exposed. Dates serialize as ISO strings.
+- Errors: 401 unauthenticated/inactive actor; 403 non-Admin; 404 missing report;
+  409 stale or invalid lifecycle transition; 422 invalid UUID, status or extra request fields.
+- No list/create/delete endpoint or Web/Mobile UI is implemented in T01.
+
+#### State, concurrency and history
+
+- T01 allow-list: `pending -> reviewing`, `pending -> actioned`, `pending -> rejected`.
+  Every other pair, including same-state transitions, returns 409. Future expansion
+  requires a separate approved decision and corresponding tests/spec updates.
+- Within one TypeORM transaction: authorize actor, lock/reload the report with
+  `pessimistic_write`, compare its persisted status to `expectedStatus`, check the
+  allow-list, save the new status and write exactly one shared `AuditLog`.
+- Audit: `action = content_report.status_changed`, `targetType = content_report`,
+  `targetId = report.id`, authenticated actor ID, before/after containing status only,
+  `reason = null`; normal audit persistence supplies the timestamp.
+- Failed/stale/invalid transitions create no successful status-change audit.
+  An audit failure propagates out of the transaction and rolls back the report write.
+- The current state lives in `content_reports`; shared `audit_logs` preserve transition
+  history. No history deletion is exposed. No downstream moderation action is invoked.
+- `actioned` means only that the report reaches that state; it makes no claim that a
+  target has been deleted, hidden, suspended or otherwise changed.
+
+#### Verification evidence
+
+- Focused tests: `src/modules/content-reports/content-reports.service.spec.ts`,
+  `content-reports.repository.spec.ts`, and `dto/transition-content-report.dto.spec.ts`.
+- Real DB suite: `test/content-reports.integration-spec.ts`, using the existing guarded
+  integration setup. Includes real concurrent HTTP transitions and a scoped PostgreSQL
+  trigger rejecting the audit INSERT to verify actual rollback of status/timestamp.
+- Unit tests model the transaction boundary; they are not evidence of PostgreSQL rollback.
+- Latest checks: focused unit 46/46 PASS; TypeScript `--noEmit` PASS.
+- PostgreSQL verification completed on 2026-09-22 using the normal repository configuration.
+  `npm run migration:run` applied the existing pending `AllowNullableTripCapacityMax1787060000000`
+  migration followed by `CreateContentReportsTable1787070000000` on `ctms` successfully.
+  Real columns/defaults, enum values, reporter FK (no cascade), CHECK constraints and PK
+  index match the T01 schema contract. No target FK or additional index was introduced.
+- Focused real PostgreSQL integration: 42/42 PASS. Concurrent Admin decisions yield one
+  success and one 409; forced audit INSERT failure rolls back report status and timestamp.
+  No test trigger/function remains after cleanup. Migration recorded exactly once in both
+  `ctms` and `ctms_test`.
+- Full backend unit regression: 40 suites / 467 tests PASS (`jest --runInBand`).
+- API TypeScript: PASS (`tsc --noEmit -p tsconfig.json`); Nest build: PASS (`npm run build`).
+- Biome on the changed backend files: PASS. Full PostgreSQL integration regression:
+  15 suites / 133 tests PASS (`jest --config ./test/jest-integration.json --runInBand`).
+- No remaining technical blocker was found for the approved minimum contract. Story
+  numbering/traceability requires separate human review; this verification does not resolve it.
+
 ### Responsibilities
 
 - Implement or update the owning module's service, controller, repository, DTO, entity, migration, queue, provider, or sync handler as needed.
 - Enforce PB V3.1 behavior and mapped Business Rules in backend logic.
 - Keep transactions, idempotency, state validation, and audit behavior close to the domain operation.
 - Reuse existing CTMS helpers for auth, validation, i18n, API errors, transactions, and tests.
-- Keep this as the HOW-SYSTEM responsibility contract for `CTMS-111-T01`; do not duplicate the complete end-to-end flow in Jira.
+- Keep this as the HOW-SYSTEM responsibility contract for `CTMS-105-T01`; do not duplicate the complete end-to-end flow in Jira.
 
 ### Required Tests
 
@@ -354,11 +439,11 @@ Then:
 
 ### Logic Subtask DoD
 
-- [ ] Logic implementation completed.
-- [ ] Applicable business rules and invariants implemented.
-- [ ] Task-specific unit tests added or updated.
-- [ ] Task-specific unit tests passed.
-- [ ] Applicable backend or integration tests passed.
+- [x] Logic implementation completed for the approved T01 minimum contract above.
+- [x] Applicable T01 business rules and invariants implemented and verified on real PostgreSQL.
+- [x] Task-specific unit tests added or updated.
+- [x] Task-specific unit tests passed (46/46).
+- [x] Applicable backend or integration tests passed (focused 42/42; regression 133/133).
 
 ---
 
