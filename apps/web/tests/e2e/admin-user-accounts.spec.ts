@@ -106,7 +106,7 @@ test.describe("Admin user accounts", () => {
 			page.getByRole("button", {
 				name: /Báo cáo nội dung/,
 			})
-		).toBeDisabled();
+		).toBeEnabled();
 
 		await expect(page.getByText("Nguyen Camper")).toBeVisible();
 

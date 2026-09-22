@@ -14,15 +14,25 @@ import { UsersRepository } from "../users/users.repository";
 import { ContentReportStatus } from "./content-report-status.enum";
 // biome-ignore lint/style/useImportType: Nest runtime injection metadata
 import { ContentReportsRepository } from "./content-reports.repository";
-import type { ContentReportResponseDto } from "./dto/content-report-response.dto";
+import {
+	type ContentReportQueueResponseDto,
+	type ContentReportResponseDto,
+	toContentReportResponse,
+} from "./dto/content-report-response.dto";
+import type { ListContentReportsQueryDto } from "./dto/list-content-reports-query.dto";
 import type { TransitionContentReportDto } from "./dto/transition-content-report.dto";
 import type { ContentReport } from "./entities/content-report.entity";
 
-const ALLOWED_PENDING_TARGETS: readonly ContentReportStatus[] = [
-	ContentReportStatus.REVIEWING,
-	ContentReportStatus.ACTIONED,
-	ContentReportStatus.REJECTED,
-];
+const ALLOWED_TRANSITIONS: Record<ContentReportStatus, readonly ContentReportStatus[]> = {
+	[ContentReportStatus.PENDING]: [
+		ContentReportStatus.REVIEWING,
+		ContentReportStatus.ACTIONED,
+		ContentReportStatus.REJECTED,
+	],
+	[ContentReportStatus.REVIEWING]: [ContentReportStatus.ACTIONED, ContentReportStatus.REJECTED],
+	[ContentReportStatus.ACTIONED]: [],
+	[ContentReportStatus.REJECTED]: [],
+};
 
 @Injectable()
 export class ContentReportsService {
@@ -39,6 +49,23 @@ export class ContentReportsService {
 		return this.toResponse(report, this.dataSource.manager);
 	}
 
+	async listReports(
+		actorId: string,
+		query: ListContentReportsQueryDto
+	): Promise<ContentReportQueueResponseDto> {
+		await this.assertAdmin(actorId, this.dataSource.manager);
+		const [reports, total] = await this.reports.findQueue(query);
+		return {
+			items: reports.map((report) => toContentReportResponse(report, report.reporter)),
+			pagination: {
+				page: query.page,
+				limit: query.limit,
+				total,
+				totalPages: total === 0 ? 0 : Math.ceil(total / query.limit),
+			},
+		};
+	}
+
 	transition(
 		actorId: string,
 		reportId: string,
@@ -52,10 +79,7 @@ export class ContentReportsService {
 			if (report.status !== dto.expectedStatus) {
 				throw new ConflictException("Content report status has changed; reload before retrying");
 			}
-			if (
-				report.status !== ContentReportStatus.PENDING ||
-				!ALLOWED_PENDING_TARGETS.includes(dto.status)
-			) {
+			if (!ALLOWED_TRANSITIONS[report.status].includes(dto.status)) {
 				throw new ConflictException("Content report status transition is not allowed");
 			}
 			const before = { status: report.status };
@@ -91,15 +115,6 @@ export class ContentReportsService {
 			where: { id: report.reporterId },
 			select: { id: true, fullName: true },
 		});
-		return {
-			id: report.id,
-			reporter: { id: reporter.id, fullName: reporter.fullName },
-			targetType: report.targetType,
-			targetId: report.targetId,
-			reason: report.reason,
-			status: report.status,
-			createdAt: report.createdAt,
-			updatedAt: report.updatedAt,
-		};
+		return toContentReportResponse(report, reporter);
 	}
 }

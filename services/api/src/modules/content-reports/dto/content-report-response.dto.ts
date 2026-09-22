@@ -1,5 +1,6 @@
 import { ApiProperty } from "@nestjs/swagger";
 import { ContentReportStatus } from "../content-report-status.enum";
+import type { ContentReport } from "../entities/content-report.entity";
 
 export class ReportReporterDto {
 	@ApiProperty({ format: "uuid" })
@@ -33,4 +34,34 @@ export class ContentReportResponseDto {
 
 	@ApiProperty({ type: String, format: "date-time" })
 	updatedAt!: Date;
+}
+
+export class ContentReportsPaginationDto {
+	@ApiProperty() page!: number;
+	@ApiProperty() limit!: number;
+	@ApiProperty() total!: number;
+	@ApiProperty() totalPages!: number;
+}
+
+export class ContentReportQueueResponseDto {
+	@ApiProperty({ type: [ContentReportResponseDto] })
+	items!: ContentReportResponseDto[];
+	@ApiProperty({ type: ContentReportsPaginationDto })
+	pagination!: ContentReportsPaginationDto;
+}
+
+export function toContentReportResponse(
+	report: ContentReport,
+	reporter: ReportReporterDto
+): ContentReportResponseDto {
+	return {
+		id: report.id,
+		reporter: { id: reporter.id, fullName: reporter.fullName },
+		targetType: report.targetType,
+		targetId: report.targetId,
+		reason: report.reason,
+		status: report.status,
+		createdAt: report.createdAt,
+		updatedAt: report.updatedAt,
+	};
 }
