@@ -8,14 +8,17 @@ import {
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { DataSource, type EntityManager } from "typeorm";
 import { AuditLog } from "../../auth/entities/audit-log.entity";
+import type { AuthenticatedUser } from "../../auth/jwt.strategy";
 import { TrekkingRouteStatus } from "../../trekking-routes/entities/trekking-route.entity";
+import { UserRole } from "../../users/entities/user.entity";
 import type {
 	ConfigureTripWaypointsDto,
 	CreateTripDto,
 	CreateTripWaypointDto,
 	GeoJsonPointDto,
 } from "../dto/create-trip.dto";
-import type { TripResponseDto } from "../dto/trip-response.dto";
+import type { SearchTripsQueryDto } from "../dto/search-trips-query.dto";
+import type { PaginatedTripsResponseDto, TripResponseDto } from "../dto/trip-response.dto";
 import { WaypointType } from "../entities/trip-waypoint.entity";
 import { type GeoPoint, TripStatus, TripType } from "../entities/trip.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
@@ -41,6 +44,88 @@ export class TripsService {
 		private readonly tripsRepository: TripsRepository,
 		private readonly dataSource: DataSource
 	) {}
+
+	async search(query: SearchTripsQueryDto): Promise<PaginatedTripsResponseDto> {
+		this.assertSearchTripsQuery(query);
+
+		const startDate = query.startDate ? new Date(query.startDate) : undefined;
+		const endDate = query.endDate ? new Date(query.endDate) : undefined;
+
+		const { items, total } = await this.tripsRepository.searchPublishedTrips({
+			search: query.search,
+			tripType: query.tripType,
+			difficulty: query.difficulty,
+			startDate,
+			endDate,
+			minPrice: query.minPrice,
+			maxPrice: query.maxPrice,
+			routeId: query.routeId,
+			province: query.province,
+			city: query.city,
+			page: query.page,
+			limit: query.limit,
+		});
+
+		const totalPages = Math.ceil(total / query.limit);
+
+		return {
+			items,
+			pagination: {
+				page: query.page,
+				limit: query.limit,
+				total,
+				totalPages,
+			},
+		};
+	}
+
+	async getTripDetails(actor: AuthenticatedUser, tripId: string): Promise<TripResponseDto> {
+		const trip = await this.tripsRepository.findById(tripId);
+		if (!trip) {
+			throw new NotFoundException("Trip not found");
+		}
+
+		const isOwningHost = trip.hostId === actor.userId;
+		const isAdmin = actor.roles?.includes(UserRole.ADMIN) ?? false;
+
+		if (trip.status !== TripStatus.PUBLISHED && !isOwningHost && !isAdmin) {
+			throw new NotFoundException("Trip not found");
+		}
+
+		if (!isOwningHost && !isAdmin) {
+			const sanitizedTrip = { ...trip };
+			sanitizedTrip.routeId = undefined;
+			return sanitizedTrip;
+		}
+
+		return trip;
+	}
+
+	private assertSearchTripsQuery(query: SearchTripsQueryDto): void {
+		const errors: FieldValidationError[] = [];
+
+		if (query.startDate && query.endDate) {
+			const start = new Date(query.startDate);
+			const end = new Date(query.endDate);
+			if (start > end) {
+				errors.push({
+					field: "endDate",
+					errors: ["endDate must be after or equal to startDate"],
+				});
+			}
+		}
+
+		if (query.minPrice != null && query.maxPrice != null && query.minPrice > query.maxPrice) {
+			errors.push({
+				field: "minPrice",
+				errors: ["minPrice must be less than or equal to maxPrice"],
+			});
+		}
+
+		if (errors.length > 0) {
+			throw this.validationException(errors);
+		}
+	}
 
 	async create(hostId: string, dto: CreateTripDto): Promise<TripResponseDto> {
 		const schedule = this.assertCreateTripPayload(dto);
