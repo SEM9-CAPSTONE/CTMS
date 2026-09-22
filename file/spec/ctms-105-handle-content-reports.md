@@ -381,9 +381,11 @@ only; it does not define the future complete moderation lifecycle or a target ta
 
 #### State, concurrency and history
 
-- T01 allow-list: `pending -> reviewing`, `pending -> actioned`, `pending -> rejected`.
-  Every other pair, including same-state transitions, returns 409. Future expansion
-  requires a separate approved decision and corresponding tests/spec updates.
+- Original CTMS-38/T01 allow-list: `pending -> reviewing`, `pending -> actioned`,
+  `pending -> rejected`. The approved CTMS-39 workflow follow-up adds
+  `reviewing -> actioned` and `reviewing -> rejected`. Reviewing is intermediate;
+  actioned/rejected are terminal. Every other pair, including same-state transitions,
+  returns 409. No reopening or transition back to pending is allowed.
 - Within one TypeORM transaction: authorize actor, lock/reload the report with
   `pessimistic_write`, compare its persisted status to `expectedStatus`, check the
   allow-list, save the new status and write exactly one shared `AuditLog`.
@@ -449,6 +451,130 @@ only; it does not define the future complete moderation lifecycle or a target ta
 
 ## 17. UI and Tests
 
+### CTMS-39 — Approved UI and minimal queue support
+
+Execution task: CTMS-39. Functional reference remains CTMS-105. This addition
+extends the merged CTMS-38/T01 implementation above. Its schema, request contract,
+locking, audit, rollback, and target-workflow contracts remain unchanged; the
+approved workflow follow-up adds the two reviewing resolution transitions above.
+
+#### Queue contract
+
+- `GET /api/content-reports` uses the existing module, `JwtAuthGuard`, `RolesGuard`,
+  `@Roles(UserRole.ADMIN)`, and current active Admin database check. Unauthenticated
+  requests return 401; authenticated non-Admin requests return 403.
+- Query: `page` (integer, minimum 1, default 1), `limit` (integer, 1–100, default 20).
+  These match Admin Users. No search, filters, or user-selectable sorting is added.
+  Invalid/unsupported query parameters follow the existing 422 validation behavior.
+- Response: `{ items, pagination: { page, limit, total, totalPages } }`.
+  Empty results have `items: []`, `total: 0`, `totalPages: 0`.
+- Items reuse the detail response and shared mapping: `id`,
+  `reporter: { id, fullName }`, `targetType`, `targetId`, `reason`, `status`,
+  `createdAt`, `updatedAt`. Reporter name may be null; dates serialize to ISO strings.
+- Ordering: `createdAt DESC, id DESC`. Reporter ID/name are joined in the list
+  query; no per-item reporter fetch, target lookup, state write, or audit insert.
+- No entity, migration, table, dependency, or PATCH contract change.
+
+#### Client behavior
+
+- `/admin/content-reports` uses the existing Admin layout/role guard. The existing
+  “Báo cáo nội dung” sidebar entry now navigates to the page and is enabled.
+- Typed `httpClient` / `API_ENDPOINTS` services load real queue/detail data.
+  Hooks use the existing React state/effect/ref pattern; no new state library.
+- Queue shows reporter name/ID, target type/ID, reason, status, creation time,
+  backend pagination, loading, empty state, error, and retry.
+- Selecting a row fetches `GET /api/content-reports/:reportId` into a detail panel
+  with all authoritative fields, including updated time. Request sequencing ignores
+  late responses from previously selected reports.
+- Pending reports expose reviewing/actioned/rejected actions; reviewing reports
+  expose only actioned/rejected. Actioned/rejected expose no transition actions. PATCH sends
+  `{ expectedStatus: currentAuthoritativeStatus, status: requestedStatus }`.
+  A synchronous ref lock blocks duplicate submission; relevant controls disable
+  until completion. No optimistic status update is used.
+- Success displays feedback and reloads queue/detail. HTTP 409 displays conflict
+  feedback and reloads both reads, with no automatic PATCH retry.
+- 401 follows shared session refresh/logout behavior; 403/404 remove stale action
+  controls; 422 and generic errors show readable feedback. Failed reads allow retry.
+- Actions update report status only. No content deletion/hiding, user suspension,
+  booking cancellation, or target-domain edit is implemented or implied by Actioned.
+
+#### CTMS-39 verification evidence before workflow follow-up
+
+- Focused backend: 57 unit tests and 48 PostgreSQL integration tests passed.
+- Focused Web: 21 component tests passed, including loading/empty/error/retry,
+  pagination, details, all three transitions, duplicate protection, authoritative
+  refresh, 409, 401/403/404/422/server errors, and late-response protection.
+- Real-backend Playwright: 3 tests passed for Admin navigation/queue/detail/action,
+  a concurrent real PATCH causing 409, and non-Admin UI/API rejection. Test-only
+  fixtures create unique E2E users/reports and clean them up transactionally.
+  No network mocking is used in this suite.
+- Backend regression: 478 unit tests and 139 PostgreSQL integration tests passed.
+- Web feature/routes regression: 35 passed, 2 failed in pre-existing trekking
+  navigation assertions. Full Web run: 420/427 passed; the later required
+  `test:all` run had 425/427 passed (only the two trekking assertions failed).
+- Baseline comparison used an untouched `git archive` of HEAD
+  `d3aa4b80edd7785724b4d6bbf11395563d387bec`, outside the working tree. The same two
+  trekking failures and five RegisterPage failures reproduced when running those
+  suites together on baseline. Baseline full run also exhibited auth mock/order
+  sensitivity (393/406 passed); do not treat the varying auth results as stable PASS.
+- E2E regression: 37 passed, 1 failed, 2 not run. All three CTMS-39 E2Es passed.
+  The failing Create Trip case cannot log in with its existing Host fixture;
+  a read-only database/bcrypt check confirmed the active Host's password does not
+  match that fixture. The serial suite skips its remaining two cases. No Host
+  account, auth code, or Create Trip test was changed to bypass this baseline issue.
+- TypeScript Web/API passed. Web build and root `build:all` (including Nest build)
+  passed; Vite reports the existing large-bundle warning. Root `lint:all` passed
+  without warnings. Biome for intended TypeScript files and `git diff --check` passed.
+- Root `test:all` failed: API 478/478 passed, Web 425/427 passed as above. Regression
+  quality gates remain open; no unrelated auth/trekking fix is included in CTMS-39.
+- Playwright outputs/screenshots/logs were directed to temporary folders. The
+  pre-existing `apps/web/test-results/.last-run.json` was not changed. Generated
+  build-info changes were removed. All implementation files remain unstaged.
+
+#### Approved CTMS-39 workflow follow-up
+
+Manual testing identified that reviewing could not be completed. The approved
+minimal extension permits exactly these transitions:
+
+| Current state | Allowed next states |
+| --- | --- |
+| pending | reviewing, actioned, rejected |
+| reviewing | actioned, rejected |
+| actioned | none |
+| rejected | none |
+
+All other pairs return 409, including same-state requests and reopening. The API
+retains the existing expectedStatus check under pessimistic_write, transaction,
+RBAC, and report-only audit. Each accepted step creates one
+content_report.status_changed event with its actual before/after status. Audit
+failure rolls back both status and updated_at; stale decisions create no event.
+
+The UI uses the same per-state action selection for rendering and submit guards.
+Reviewing offers only Actioned/Rejected; both final states hide every transition
+button. Duplicate protection, backend-authoritative responses, success/409 refetch
+of queue and detail, and no automatic mutation retry apply to both source states.
+Queue/read/DTO contracts, schema, and target isolation are unchanged.
+
+Manual evidence flows: A pending -> reviewing -> actioned; B pending -> reviewing
+-> rejected; C pending -> actioned (or rejected). E2E uses its own four temporary
+reports; it does not transition the user's three manual evidence reports.
+
+Focused follow-up evidence: 61 backend unit tests, 53 real PostgreSQL integration
+tests, 25 Web component tests, and 5 real-backend E2Es passed. Coverage includes
+all 5 allowed pairs, all 11 forbidden pairs, both reviewed resolutions, stale
+reviewing decisions, concurrent decisions from either source state, and real
+audit-failure rollback from pending and reviewing. E2E validates both two-step
+flows and terminal buttons; exact audit content is verified in integration tests.
+
+Final follow-up gates: the router-before-Content-Reports order produced 25/25
+Content Reports tests after the router's two known trekking assertion failures.
+Backend regression remained 482 unit and 144 PostgreSQL integration tests passed.
+Full Web regression was 429/431 in `test:all`, with only the two known trekking
+navigation assertions failing in that run. Full E2E was 39 passed, 1 failed, and
+2 skipped; the only failure was the existing Create Trip Host password/fixture
+mismatch, and its two dependent cases were skipped. TypeScript, Web/Nest builds,
+`lint:all`, `build:all`, and `git diff --check` passed.
+
 ### Responsibilities
 
 - Implement screen/component/client state only when this story has a user-facing workflow.
@@ -466,16 +592,16 @@ only; it does not define the future complete moderation lifecycle or a target ta
 
 ### UI or Final Implementation Subtask DoD
 
-- [ ] UI implementation completed when this story has a client-facing workflow.
-- [ ] Applicable client-side behavior implemented.
-- [ ] Task-specific unit or component tests passed.
-- [ ] Backend integration completed.
-- [ ] Task-specific E2E tests passed when an end-to-end user path exists.
+- [x] UI implementation completed when this story has a client-facing workflow.
+- [x] Applicable client-side behavior implemented.
+- [x] Task-specific unit or component tests passed.
+- [x] Backend integration completed.
+- [x] Task-specific E2E tests passed when an end-to-end user path exists.
 - [ ] All Story Acceptance Criteria verified.
 - [ ] Unit regression tests passed.
 - [ ] E2E regression tests passed.
-- [ ] `lint:all` passed.
-- [ ] `build:all` passed.
+- [x] `lint:all` passed.
+- [x] `build:all` passed.
 - [ ] `test:all` passed.
 - If UI is not the final implementation subtask, move these integrated quality gates to the actual final implementation subtask or an explicit Story-level verification step.
 

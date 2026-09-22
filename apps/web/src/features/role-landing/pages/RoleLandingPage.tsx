@@ -8,6 +8,7 @@ import type { CamperProfileData } from "../../camper-profile/types";
 
 import { Collapse } from "../../../shared/components/Collapse";
 import { CamperSidebar } from "../../camper-profile/components/CamperSidebar";
+import { HostMyTripsPanel } from "../components/HostMyTripsPanel";
 import { MetricCard } from "../components/MetricCard";
 import { QuickTasksPanel } from "../components/QuickTasksPanel";
 import { Sidebar } from "../components/Sidebar";
@@ -81,6 +82,8 @@ function DashboardMain({
 	onCreateTrip,
 	onCreateTrekkingRoute,
 	onViewTrekkingRoutes,
+	onNavigateToTrips,
+	onNavigateToTripDetail,
 }: {
 	config: DashboardConfig;
 	user: StoredAuthUser;
@@ -90,6 +93,8 @@ function DashboardMain({
 	onCreateTrip?: () => void;
 	onCreateTrekkingRoute?: () => void;
 	onViewTrekkingRoutes?: () => void;
+	onNavigateToTrips?: () => void;
+	onNavigateToTripDetail?: (tripId: string) => void;
 }) {
 	const displayName = profile?.fullName || getDisplayName(user);
 	const timeOfDay = getTimeOfDay();
@@ -100,9 +105,11 @@ function DashboardMain({
 				<section className="rounded-[28px] border border-[#dfe8df] bg-white p-6 shadow-sm">
 					<div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
 						<div className="min-w-0">
-							<p className="text-xs font-extrabold uppercase tracking-[0.22em] text-[#7b8c82]">
-								{config.figmaName}
-							</p>
+							{config.figmaName ? (
+								<p className="text-xs font-extrabold uppercase tracking-[0.22em] text-[#7b8c82]">
+									{config.figmaName}
+								</p>
+							) : null}
 							<h1 className="mt-2 text-3xl font-extrabold tracking-tight text-[#10221b] sm:text-4xl">
 								{config.role === "camper" ? `Chào buổi ${timeOfDay}, ${displayName}` : config.title}
 							</h1>
@@ -131,7 +138,7 @@ function DashboardMain({
 					})}
 				</section>
 
-				<section className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
+				<section id="camper-active-trip" className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
 					<div className="overflow-hidden rounded-[28px] border border-[#dfe8df] bg-white shadow-sm">
 						<div className="grid min-h-[380px] gap-0 lg:grid-cols-[0.9fr_1.1fr]">
 							<div className="p-6" style={{ backgroundColor: config.soft }}>
@@ -210,33 +217,54 @@ function DashboardMain({
 					</div>
 				</section>
 
-				<section className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-					<div className="rounded-[28px] border border-[#dfe8df] bg-white p-6 shadow-sm">
-						<div className="flex items-center justify-between">
-							<h2 className="text-xl font-extrabold text-[#10221b]">Cảnh báo</h2>
-							<AlertTriangle className="size-5 text-amber-600" />
-						</div>
-						<div className="mt-5 space-y-3">
-							{config.alerts.map((alert) => (
-								<div
-									key={alert.title}
-									className={`rounded-2xl border p-4 ${alertClasses[alert.tone]}`}
-								>
-									<p className="font-extrabold">{alert.title}</p>
-									<p className="mt-1 text-sm leading-6 opacity-80">{alert.detail}</p>
-								</div>
-							))}
-						</div>
-					</div>
-
-					<QuickTasksPanel
-						config={config}
-						onOpenAdminUsers={onOpenAdminUsers}
+				{config.role === "host" ? (
+					<HostMyTripsPanel
 						onCreateTrip={onCreateTrip}
 						onCreateTrekkingRoute={onCreateTrekkingRoute}
 						onViewTrekkingRoutes={onViewTrekkingRoutes}
+						onNavigateToTripDetail={onNavigateToTripDetail}
 					/>
-				</section>
+				) : config.alerts.length > 0 ? (
+					<section className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+						<div className="rounded-[28px] border border-[#dfe8df] bg-white p-6 shadow-sm">
+							<div className="flex items-center justify-between">
+								<h2 className="text-xl font-extrabold text-[#10221b]">Cảnh báo</h2>
+								<AlertTriangle className="size-5 text-amber-600" />
+							</div>
+							<div className="mt-5 space-y-3">
+								{config.alerts.map((alert) => (
+									<div
+										key={alert.title}
+										className={`rounded-2xl border p-4 ${alertClasses[alert.tone]}`}
+									>
+										<p className="font-extrabold">{alert.title}</p>
+										<p className="mt-1 text-sm leading-6 opacity-80">{alert.detail}</p>
+									</div>
+								))}
+							</div>
+						</div>
+
+						<QuickTasksPanel
+							config={config}
+							onOpenAdminUsers={onOpenAdminUsers}
+							onCreateTrip={onCreateTrip}
+							onCreateTrekkingRoute={onCreateTrekkingRoute}
+							onViewTrekkingRoutes={onViewTrekkingRoutes}
+							onNavigateToTrips={onNavigateToTrips}
+						/>
+					</section>
+				) : (
+					<section>
+						<QuickTasksPanel
+							config={config}
+							onOpenAdminUsers={onOpenAdminUsers}
+							onCreateTrip={onCreateTrip}
+							onCreateTrekkingRoute={onCreateTrekkingRoute}
+							onViewTrekkingRoutes={onViewTrekkingRoutes}
+							onNavigateToTrips={onNavigateToTrips}
+						/>
+					</section>
+				)}
 			</div>
 		</main>
 	);
@@ -250,6 +278,8 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 	onCreateTrip,
 	onCreateTrekkingRoute,
 	onViewTrekkingRoutes,
+	onNavigateToTrips,
+	onNavigateToTripDetail,
 	onLogout,
 	onExplore,
 }) => {
@@ -275,7 +305,20 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 		if (navKey === "profile") {
 			onOpenProfile?.();
 		} else if (navKey === "explore") {
-			onExplore?.();
+			if (onExplore) {
+				onExplore();
+			} else if (onNavigateToTrips) {
+				onNavigateToTrips();
+			} else {
+				window.history.pushState({}, "", "/trips");
+				window.dispatchEvent(new PopStateEvent("popstate"));
+			}
+		} else if (navKey === "trips") {
+			const element =
+				document.getElementById("camper-active-trip") || document.querySelector("main");
+			if (element) {
+				element.scrollIntoView({ behavior: "smooth" });
+			}
 		}
 	};
 
@@ -303,6 +346,7 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 							onRoleChange={setSelectedRole}
 							profile={profile}
 							onOpenProfile={onOpenProfile}
+							onNavigateToTrips={onNavigateToTrips}
 							onLogout={onLogout}
 						/>
 					)}
@@ -340,6 +384,7 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 								onClose={() => setMobileMenuOpen(false)}
 								profile={profile}
 								onOpenProfile={onOpenProfile}
+								onNavigateToTrips={onNavigateToTrips}
 								onLogout={onLogout}
 							/>
 						)}
@@ -381,6 +426,8 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 					onCreateTrip={onCreateTrip}
 					onCreateTrekkingRoute={onCreateTrekkingRoute}
 					onViewTrekkingRoutes={onViewTrekkingRoutes}
+					onNavigateToTrips={onNavigateToTrips}
+					onNavigateToTripDetail={onNavigateToTripDetail}
 				/>
 			</div>
 		</div>

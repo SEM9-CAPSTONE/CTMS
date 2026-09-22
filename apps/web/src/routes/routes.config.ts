@@ -6,6 +6,7 @@ export enum RoutePath {
 	FORGOT_PASSWORD = "/forgot-password",
 	DASHBOARD = "/dashboard",
 	TRIPS = "/trips",
+	TRIP_DETAIL = "/trips/:id",
 	HOST_CREATE_TRIP = "/host/trips/create",
 	HOST_TREKKING_ROUTES = "/host/trekking-routes",
 	HOST_CREATE_TREKKING_ROUTE = "/host/trekking-routes/create",
@@ -14,6 +15,7 @@ export enum RoutePath {
 	CAMPER_PROFILE = "/camper/profile",
 	PROFILE = "/profile",
 	ADMIN_USERS = "/admin/users",
+	ADMIN_CONTENT_REPORTS = "/admin/content-reports",
 	ADMIN_AUDIT_LOGS = "/admin/audit-logs",
 	ADMIN_TREKKING_ROUTES = "/admin/trekking-routes",
 	ADMIN_TRIPS = "/admin/trips",
@@ -32,6 +34,7 @@ export interface RouteItem {
 
 export const PUBLIC_ROUTES: RouteItem[] = [
 	{ path: RoutePath.HOME, label: "Home" },
+	{ path: RoutePath.TRIPS, label: "Chuyến đi" },
 	{ path: RoutePath.TREKKING, label: "Trekking Routes" },
 	{ path: RoutePath.SAFETY, label: "Safety Center" },
 ];

@@ -33,7 +33,7 @@ const navigationItems = [
 	{ key: "trip-review", label: "Duyệt trip", icon: Compass, available: true },
 	{ key: "weather-rules", label: "Cấu hình rủi ro thời tiết", icon: ShieldAlert, available: true },
 	{ key: "audit-logs", label: "Nhật ký hệ thống", icon: FileClock, available: true },
-	{ key: "content-reports", label: "Báo cáo nội dung", icon: Flag, available: false },
+	{ key: "content-reports", label: "Báo cáo nội dung", icon: Flag, available: true },
 ] as const;
 
 export function AdminSidebar({ activeItem, onLogout, onClose, className = "" }: AdminSidebarProps) {
@@ -68,7 +68,10 @@ export function AdminSidebar({ activeItem, onLogout, onClose, className = "" }: 
 							type="button"
 							disabled={!item.available}
 							onClick={() => {
-								if (item.key === "user-accounts") {
+								if (item.key === "content-reports") {
+									window.history.pushState({}, "", "/admin/content-reports");
+									window.dispatchEvent(new PopStateEvent("popstate"));
+								} else if (item.key === "user-accounts") {
 									window.history.pushState({}, "", "/admin/users");
 									window.dispatchEvent(new PopStateEvent("popstate"));
 								} else if (item.key === "audit-logs") {

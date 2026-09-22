@@ -1,4 +1,9 @@
 export const API_ENDPOINTS = {
+	CONTENT_REPORTS: {
+		LIST: "/content-reports",
+		DETAIL: (id: string) => `/content-reports/${id}`,
+		STATUS: (id: string) => `/content-reports/${id}/status`,
+	},
 	AUTH: {
 		LOGIN: "/auth/login",
 		REGISTER: "/auth/register",
@@ -42,6 +47,7 @@ export const API_ENDPOINTS = {
 	},
 	TRIPS: {
 		GET_ALL: "/trips",
+		GET_MINE: "/trips/mine",
 		GET_BY_ID: (id: string) => `/trips/${id}`,
 		CREATE: "/trips",
 		MEMBERS: (tripId: string) => `/trips/${tripId}/members`,
