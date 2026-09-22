@@ -38,6 +38,16 @@ export class TripsController {
 		return this.tripsService.search(query);
 	}
 
+	@Get("mine")
+	@Roles(UserRole.HOST)
+	@ApiOperation({ summary: "List trips owned by the current Host" })
+	@ApiResponse({ status: 200, type: TripResponseDto, isArray: true })
+	@ApiResponse({ status: 401, description: "Authentication required" })
+	@ApiResponse({ status: 403, description: "Host role required" })
+	getMyTrips(@Req() request: AuthenticatedRequest): Promise<TripResponseDto[]> {
+		return this.tripsService.getMyTrips(request.user.userId);
+	}
+
 	@Get(":tripId")
 	@Roles(UserRole.CAMPER, UserRole.HOST, UserRole.ADMIN, UserRole.PORTER)
 	@ApiOperation({ summary: "View trip details" })

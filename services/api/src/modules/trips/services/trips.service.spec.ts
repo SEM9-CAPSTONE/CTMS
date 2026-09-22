@@ -156,6 +156,7 @@ describe("TripsService", () => {
 		findRouteStatus: jest.Mock;
 		updateStatus: jest.Mock;
 		findById: jest.Mock;
+		findTripsByHost: jest.Mock;
 		searchPublishedTrips: jest.Mock;
 	};
 	let auditRepository: { save: jest.Mock };
@@ -190,6 +191,7 @@ describe("TripsService", () => {
 					Promise.resolve({ ...configuredTrip(), status })
 				),
 			findById: jest.fn().mockResolvedValue(createdTrip()),
+			findTripsByHost: jest.fn().mockResolvedValue([]),
 			searchPublishedTrips: jest.fn().mockResolvedValue({ items: [], total: 0 }),
 		};
 		auditRepository = { save: jest.fn().mockResolvedValue({}) };
@@ -834,6 +836,18 @@ describe("TripsService", () => {
 			await expect(service.getTripDetails(CAMPER_ACTOR, TRIP_ID)).rejects.toBeInstanceOf(
 				NotFoundException
 			);
+		});
+	});
+
+	describe("getMyTrips", () => {
+		it("returns list of trips owned by the host from repository", async () => {
+			const myTrips = [createdTrip()];
+			tripsRepository.findTripsByHost.mockResolvedValue(myTrips);
+
+			const result = await service.getMyTrips(HOST_ID);
+
+			expect(tripsRepository.findTripsByHost).toHaveBeenCalledWith(HOST_ID);
+			expect(result).toBe(myTrips);
 		});
 	});
 });

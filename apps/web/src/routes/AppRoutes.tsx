@@ -20,6 +20,8 @@ import { AdminTrekkingRoutesPage } from "../features/trekking-routes/pages/Admin
 import { CreateTrekkingRoutePage } from "../features/trekking-routes/pages/CreateTrekkingRoutePage";
 import { TrekkingRoutesPage } from "../features/trekking-routes/pages/TrekkingRoutesPage";
 import { CreateTripPage } from "../features/trips/pages/CreateTripPage";
+import { SearchTripsPage } from "../features/trips/pages/SearchTripsPage";
+import { TripDetailPage } from "../features/trips/pages/TripDetailPage";
 import { EdgeCasePage, ErrorPage, NotFoundPage, UnauthorizedPage } from "../shared/pages";
 import { AppRoleGuard } from "./AppRoleGuard";
 import { RoutePath } from "./routes.config";
@@ -85,6 +87,28 @@ export function AppRoutes() {
 			onNavigateToLogin={() => navigateTo(RoutePath.LOGIN)}
 		/>
 	);
+
+	if (currentPath.startsWith("/trips/") && currentPath !== RoutePath.TRIPS) {
+		const tripId = currentPath.substring("/trips/".length);
+		const detailView = (
+			<TripDetailPage
+				tripId={tripId}
+				onBackToList={() => navigateTo(RoutePath.TRIPS)}
+				onBackHome={() => navigateTo(storedUser ? RoutePath.DASHBOARD : RoutePath.HOME)}
+			/>
+		);
+
+		if (storedUser) {
+			return (
+				<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
+					{detailView}
+				</HostLayout>
+			);
+		}
+
+		return detailView;
+	}
+
 	switch (currentPath) {
 		case RoutePath.HOME:
 		case "":
@@ -137,8 +161,9 @@ export function AppRoutes() {
 		case RoutePath.PROFILE:
 			return (
 				<CamperProfilePage
-					onBackHome={() => navigateTo(RoutePath.HOME)}
-					onNavigateDashboard={() => navigateTo(RoutePath.HOME)}
+					onBackHome={() => navigateTo(storedUser ? RoutePath.DASHBOARD : RoutePath.HOME)}
+					onNavigateDashboard={() => navigateTo(RoutePath.DASHBOARD)}
+					onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}
 					onLogout={handleLogout}
 				/>
 			);
@@ -150,13 +175,31 @@ export function AppRoutes() {
 					currentRoles={currentRoles}
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
-					<HostLayout onLogout={handleLogout}>
+					<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
 						<CreateTrekkingRoutePage onBackHome={() => navigateTo(RoutePath.DASHBOARD)} />
 					</HostLayout>
 				</AppRoleGuard>
 			);
 
-		case RoutePath.TRIPS:
+		case RoutePath.TRIPS: {
+			const searchView = (
+				<SearchTripsPage
+					onBackHome={() => navigateTo(storedUser ? RoutePath.DASHBOARD : RoutePath.HOME)}
+					onNavigateToTripDetail={(tripId) => navigateTo(`/trips/${tripId}`)}
+				/>
+			);
+
+			if (storedUser) {
+				return (
+					<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
+						{searchView}
+					</HostLayout>
+				);
+			}
+
+			return searchView;
+		}
+
 		case RoutePath.HOST_CREATE_TRIP:
 			return (
 				<AppRoleGuard
@@ -164,7 +207,7 @@ export function AppRoutes() {
 					currentRoles={currentRoles}
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
-					<HostLayout onLogout={handleLogout}>
+					<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
 						<CreateTripPage
 							onBackHome={() => navigateTo(RoutePath.DASHBOARD)}
 							onCreateRoute={() => navigateTo(RoutePath.HOST_CREATE_TREKKING_ROUTE)}
@@ -180,7 +223,7 @@ export function AppRoutes() {
 					currentRoles={currentRoles}
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
-					<HostLayout onLogout={handleLogout}>
+					<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
 						<TrekkingRoutesPage onBackHome={() => navigateTo(RoutePath.DASHBOARD)} />
 					</HostLayout>
 				</AppRoleGuard>
@@ -203,7 +246,9 @@ export function AppRoutes() {
 					onBackHome={() => navigateTo(RoutePath.HOME)}
 					onOpenProfile={() => navigateTo(RoutePath.CAMPER_PROFILE)}
 					onOpenAdminUsers={() => navigateTo(RoutePath.ADMIN_USERS)}
-					onExplore={() => navigateTo(RoutePath.TREKKING)}
+					onExplore={() => navigateTo(RoutePath.TRIPS)}
+					onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}
+					onNavigateToTripDetail={(tripId) => navigateTo(`/trips/${tripId}`)}
 					onCreateTrip={() => navigateTo(RoutePath.HOST_CREATE_TRIP)}
 					onCreateTrekkingRoute={() => navigateTo(RoutePath.HOST_CREATE_TREKKING_ROUTE)}
 					onViewTrekkingRoutes={() => navigateTo(RoutePath.HOST_TREKKING_ROUTES)}

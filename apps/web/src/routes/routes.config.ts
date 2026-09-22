@@ -6,6 +6,7 @@ export enum RoutePath {
 	FORGOT_PASSWORD = "/forgot-password",
 	DASHBOARD = "/dashboard",
 	TRIPS = "/trips",
+	TRIP_DETAIL = "/trips/:id",
 	HOST_CREATE_TRIP = "/host/trips/create",
 	HOST_TREKKING_ROUTES = "/host/trekking-routes",
 	HOST_CREATE_TREKKING_ROUTE = "/host/trekking-routes/create",
@@ -32,6 +33,7 @@ export interface RouteItem {
 
 export const PUBLIC_ROUTES: RouteItem[] = [
 	{ path: RoutePath.HOME, label: "Home" },
+	{ path: RoutePath.TRIPS, label: "Chuyến đi" },
 	{ path: RoutePath.TREKKING, label: "Trekking Routes" },
 	{ path: RoutePath.SAFETY, label: "Safety Center" },
 ];

@@ -8,7 +8,15 @@ export interface QuickTasksPanelProps {
 	onCreateTrip?: () => void;
 	onCreateTrekkingRoute?: () => void;
 	onViewTrekkingRoutes?: () => void;
+	onNavigateToTrips?: () => void;
 }
+
+const roleSubtitles: Record<string, string> = {
+	host: "Các thao tác nhanh hỗ trợ vận hành và quản lý chuyến đi.",
+	camper: "Tiện ích chuẩn bị hành trình và theo dõi chuyến đi.",
+	porter: "Các tác vụ điểm danh và hỗ trợ đoàn trekking.",
+	admin: "Quản lý hệ thống và tài khoản người dùng.",
+};
 
 export function QuickTasksPanel({
 	config,
@@ -16,6 +24,7 @@ export function QuickTasksPanel({
 	onCreateTrip,
 	onCreateTrekkingRoute,
 	onViewTrekkingRoutes,
+	onNavigateToTrips,
 }: QuickTasksPanelProps) {
 	return (
 		<div className="rounded-[28px] border border-[#dfe8df] bg-white p-6 shadow-sm">
@@ -23,7 +32,7 @@ export function QuickTasksPanel({
 				<div>
 					<h2 className="text-xl font-extrabold text-[#10221b]">Tác vụ nhanh</h2>
 					<p className="mt-1 text-sm font-medium text-[#667a6d]">
-						Các thao tác chính được expose theo role hiện tại.
+						{roleSubtitles[config.role] || "Truy cập nhanh các chức năng và tiện ích chính."}
 					</p>
 				</div>
 				{config.role === "admin" && onOpenAdminUsers && (
@@ -32,7 +41,13 @@ export function QuickTasksPanel({
 						<ArrowRight className="size-4" />
 					</Button>
 				)}
-				{config.role === "host" && onCreateTrekkingRoute && (
+				{config.role === "camper" && onNavigateToTrips && (
+					<Button onClick={onNavigateToTrips} className="gap-2">
+						<ArrowRight className="size-4" />
+						<span>Khám phá chuyến đi</span>
+					</Button>
+				)}
+				{config.role === "host" && (
 					<div className="flex flex-col gap-2 sm:flex-row">
 						{onCreateTrip && (
 							<Button onClick={() => onCreateTrip()} className="gap-2">
@@ -40,17 +55,19 @@ export function QuickTasksPanel({
 								<span>Tạo trip</span>
 							</Button>
 						)}
-						<Button onClick={() => onCreateTrekkingRoute()} variant="outline" className="gap-2">
-							<Route className="size-4" />
-							<span>Tạo tuyến</span>
-						</Button>
+						{onCreateTrekkingRoute && (
+							<Button onClick={() => onCreateTrekkingRoute()} variant="outline" className="gap-2">
+								<Route className="size-4" />
+								<span>Tạo tuyến trekking</span>
+							</Button>
+						)}
+						{onViewTrekkingRoutes && (
+							<Button onClick={() => onViewTrekkingRoutes()} variant="outline" className="gap-2">
+								<MapPinned className="size-4" />
+								<span>Quản lý tuyến</span>
+							</Button>
+						)}
 					</div>
-				)}
-				{config.role === "host" && onViewTrekkingRoutes && (
-					<Button onClick={() => onViewTrekkingRoutes()} variant="outline" className="gap-2">
-						<MapPinned className="size-4" />
-						<span>Quản lý tuyến trekking</span>
-					</Button>
 				)}
 			</div>
 			<div className="mt-5 grid gap-3 md:grid-cols-3">
