@@ -1,4 +1,9 @@
 export const API_ENDPOINTS = {
+	CONTENT_REPORTS: {
+		LIST: "/content-reports",
+		DETAIL: (id: string) => `/content-reports/${id}`,
+		STATUS: (id: string) => `/content-reports/${id}/status`,
+	},
 	AUTH: {
 		LOGIN: "/auth/login",
 		REGISTER: "/auth/register",
