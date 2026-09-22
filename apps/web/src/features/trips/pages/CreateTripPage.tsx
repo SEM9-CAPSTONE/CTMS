@@ -1,6 +1,7 @@
 import { ArrowLeft, CalendarPlus, CheckCircle2 } from "lucide-react";
 import { useMemo } from "react";
 import { useTrekkingRoutes } from "../../trekking-routes/hooks/useTrekkingRoutes";
+import { ConfigureTripWaypointsPanel } from "../components/ConfigureTripWaypointsPanel";
 import { CreateTripForm } from "../components/CreateTripForm";
 import { useCreateTrip } from "../hooks/useCreateTrip";
 
@@ -21,11 +22,12 @@ export function CreateTripPage({ onBackHome, onCreateRoute }: CreateTripPageProp
 		const trip = creation.createdTrip;
 		return (
 			<main className="min-h-screen bg-[#f4f7f2] p-5 sm:p-10">
-				<section className="mx-auto max-w-2xl rounded-2xl border border-green-200 bg-white p-8 text-center shadow-sm">
+				<section className="mx-auto max-w-4xl rounded-2xl border border-green-200 bg-white p-8 text-center shadow-sm">
 					<CheckCircle2 className="mx-auto size-14 text-green-600" />
 					<h1 className="mt-4 text-2xl font-extrabold">Tạo trip thành công</h1>
 					<p className="mt-2 text-[#667a6d]">
-						Trip chỉ được đánh dấu thành công sau khi backend xác nhận tạo draft.
+						Trip chỉ được đánh dấu thành công sau khi backend xác nhận tạo draft. Tiếp theo Host cấu
+						hình waypoint cho chính Trip này rồi gửi duyệt.
 					</p>
 					<div className="mt-5 grid gap-3 rounded-xl bg-[#f8faf7] p-5 text-left sm:grid-cols-2">
 						<p>
@@ -66,6 +68,9 @@ export function CreateTripPage({ onBackHome, onCreateRoute }: CreateTripPageProp
 						)}
 					</div>
 				</section>
+				<div className="mx-auto max-w-4xl">
+					<ConfigureTripWaypointsPanel trip={trip} />
+				</div>
 			</main>
 		);
 	}

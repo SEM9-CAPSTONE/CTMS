@@ -52,6 +52,12 @@ test.describe("Create Trip Host UI", () => {
 		await expect(page.getByText("Tạo trip thành công")).toBeVisible();
 		await expect(page.getByTestId("server-trip-status")).toHaveText("draft");
 		await expect(page.getByTestId("server-seats-taken")).toHaveText("0");
+		await expect(page.getByText("Cấu hình waypoint và gửi duyệt")).toBeVisible();
+
+		await page.getByRole("button", { name: "Lưu waypoint và gửi duyệt" }).click();
+
+		await expect(page.getByTestId("configure-trip-status")).toHaveText("pending_approval");
+		await expect(page.getByText(/Waypoint đã được backend xác nhận/)).toBeVisible();
 	});
 
 	test("shows date validation without creating a false-success state", async ({ page }) => {
