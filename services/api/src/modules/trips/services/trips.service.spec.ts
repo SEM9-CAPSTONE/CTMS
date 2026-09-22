@@ -83,11 +83,48 @@ function createdTrip() {
 	};
 }
 
+function configuredTrip() {
+	return {
+		...createdTrip(),
+		status: TripStatus.PENDING_APPROVAL,
+		waypoints: [
+			{
+				id: "66666666-6666-4666-8666-666666666666",
+				tripId: TRIP_ID,
+				checkpointId: CHECKPOINT_ID,
+				type: WaypointType.START,
+				name: "Trailhead",
+				location: { type: "Point" as const, coordinates: [108.441, 11.941] as [number, number] },
+				dayNumber: 1,
+				sequenceOrder: 1,
+				plannedAt: new Date("2026-09-20T01:00:00.000Z"),
+				durationMinutes: 15,
+				metadata: { note: "briefing" },
+			},
+			{
+				id: "77777777-7777-4777-8777-777777777777",
+				tripId: TRIP_ID,
+				checkpointId: null,
+				type: WaypointType.FINISH,
+				name: "Summit exit",
+				location: { type: "Point" as const, coordinates: [108.449, 11.946] as [number, number] },
+				dayNumber: 1,
+				sequenceOrder: 2,
+				plannedAt: null,
+				durationMinutes: null,
+				metadata: null,
+			},
+		],
+	};
+}
+
 describe("TripsService", () => {
 	let tripsRepository: {
 		createDraft: jest.Mock;
+		findByIdForWaypointConfiguration: jest.Mock;
 		findInvalidWaypointCheckpointIds: jest.Mock;
 		findRouteDependencyForUpdate: jest.Mock;
+		replaceWaypointsAndSubmitForApproval: jest.Mock;
 	};
 	let auditRepository: { save: jest.Mock };
 	let dataSource: { transaction: jest.Mock };
@@ -96,12 +133,19 @@ describe("TripsService", () => {
 	beforeEach(() => {
 		tripsRepository = {
 			createDraft: jest.fn().mockResolvedValue(createdTrip()),
+			findByIdForWaypointConfiguration: jest.fn().mockResolvedValue({
+				trip: createdTrip(),
+				hostId: HOST_ID,
+				routeId: ROUTE_ID,
+				status: TripStatus.DRAFT,
+			}),
 			findInvalidWaypointCheckpointIds: jest.fn().mockResolvedValue([]),
 			findRouteDependencyForUpdate: jest.fn().mockResolvedValue({
 				id: ROUTE_ID,
 				hostId: HOST_ID,
 				status: TrekkingRouteStatus.ACTIVE,
 			}),
+			replaceWaypointsAndSubmitForApproval: jest.fn().mockResolvedValue(configuredTrip()),
 		};
 		auditRepository = { save: jest.fn().mockResolvedValue({}) };
 		dataSource = {
@@ -292,5 +336,120 @@ describe("TripsService", () => {
 
 		await expect(service.create(HOST_ID, createTripDto())).rejects.toThrow("audit unavailable");
 		expect(tripsRepository.createDraft).toHaveBeenCalledTimes(1);
+	});
+
+	describe("configureWaypoints", () => {
+		it("replaces draft Trip waypoints, submits the Trip for approval, and audits the change", async () => {
+			const result = await service.configureWaypoints(HOST_ID, TRIP_ID, {
+				waypoints: createTripDto().waypoints,
+			});
+
+			expect(tripsRepository.findByIdForWaypointConfiguration).toHaveBeenCalledWith(TRIP_ID);
+			expect(tripsRepository.findInvalidWaypointCheckpointIds).toHaveBeenCalledWith(ROUTE_ID, [
+				CHECKPOINT_ID,
+			]);
+			expect(tripsRepository.replaceWaypointsAndSubmitForApproval).toHaveBeenCalledWith(
+				TRIP_ID,
+				expect.arrayContaining([
+					expect.objectContaining({ type: WaypointType.START, checkpointId: CHECKPOINT_ID }),
+					expect.objectContaining({ type: WaypointType.FINISH, checkpointId: null }),
+				])
+			);
+			expect(result.status).toBe(TripStatus.PENDING_APPROVAL);
+			expect(auditRepository.save).toHaveBeenCalledWith(
+				expect.objectContaining({
+					actorId: HOST_ID,
+					action: "trip_waypoints.configured",
+					targetType: "trip",
+					targetId: TRIP_ID,
+					reason: "host_configure_trip_waypoints",
+					before: expect.objectContaining({ status: TripStatus.DRAFT }),
+					after: expect.objectContaining({ status: TripStatus.PENDING_APPROVAL }),
+				})
+			);
+		});
+
+		it("returns 404 when the Trip does not exist", async () => {
+			tripsRepository.findByIdForWaypointConfiguration.mockResolvedValue(null);
+
+			await expect(
+				service.configureWaypoints(HOST_ID, TRIP_ID, { waypoints: createTripDto().waypoints })
+			).rejects.toBeInstanceOf(NotFoundException);
+			expect(tripsRepository.replaceWaypointsAndSubmitForApproval).not.toHaveBeenCalled();
+		});
+
+		it("returns 403 when the Trip belongs to another Host", async () => {
+			tripsRepository.findByIdForWaypointConfiguration.mockResolvedValue({
+				trip: createdTrip(),
+				hostId: OTHER_HOST_ID,
+				routeId: ROUTE_ID,
+				status: TripStatus.DRAFT,
+			});
+
+			await expect(
+				service.configureWaypoints(HOST_ID, TRIP_ID, { waypoints: createTripDto().waypoints })
+			).rejects.toBeInstanceOf(ForbiddenException);
+			expect(tripsRepository.replaceWaypointsAndSubmitForApproval).not.toHaveBeenCalled();
+		});
+
+		it("returns the existing pending Trip for an identical retry without writing again", async () => {
+			const pendingTrip = configuredTrip();
+			tripsRepository.findByIdForWaypointConfiguration.mockResolvedValue({
+				trip: pendingTrip,
+				hostId: HOST_ID,
+				routeId: ROUTE_ID,
+				status: TripStatus.PENDING_APPROVAL,
+			});
+
+			const result = await service.configureWaypoints(HOST_ID, TRIP_ID, {
+				waypoints: createTripDto().waypoints,
+			});
+
+			expect(result).toBe(pendingTrip);
+			expect(tripsRepository.replaceWaypointsAndSubmitForApproval).not.toHaveBeenCalled();
+			expect(auditRepository.save).not.toHaveBeenCalled();
+		});
+
+		it("returns 409 when a non-draft Trip is submitted with different waypoints", async () => {
+			tripsRepository.findByIdForWaypointConfiguration.mockResolvedValue({
+				trip: { ...createdTrip(), status: TripStatus.PUBLISHED },
+				hostId: HOST_ID,
+				routeId: ROUTE_ID,
+				status: TripStatus.PUBLISHED,
+			});
+
+			await expect(
+				service.configureWaypoints(HOST_ID, TRIP_ID, { waypoints: createTripDto().waypoints })
+			).rejects.toBeInstanceOf(ConflictException);
+			expect(tripsRepository.replaceWaypointsAndSubmitForApproval).not.toHaveBeenCalled();
+		});
+
+		it("returns 422 when a day Trip includes an overnight waypoint", async () => {
+			const dto = createTripDto();
+			dto.waypoints.splice(1, 0, {
+				type: WaypointType.OVERNIGHT,
+				name: "Camp",
+				location: { type: "Point" as const, coordinates: [108.445, 11.943] as [number, number] },
+				dayNumber: 1,
+				sequenceOrder: 2,
+			});
+			dto.waypoints[2].sequenceOrder = 3;
+
+			await expect(
+				service.configureWaypoints(HOST_ID, TRIP_ID, { waypoints: dto.waypoints })
+			).rejects.toMatchObject({
+				status: 422,
+			});
+			expect(tripsRepository.replaceWaypointsAndSubmitForApproval).not.toHaveBeenCalled();
+		});
+
+		it("returns 422 when a waypoint references a checkpoint outside the Trip route", async () => {
+			tripsRepository.findInvalidWaypointCheckpointIds.mockResolvedValue([CHECKPOINT_ID]);
+
+			await expect(
+				service.configureWaypoints(HOST_ID, TRIP_ID, { waypoints: createTripDto().waypoints })
+			).rejects.toMatchObject({ status: 422 });
+			expect(tripsRepository.replaceWaypointsAndSubmitForApproval).not.toHaveBeenCalled();
+		});
 	});
 });

@@ -193,3 +193,12 @@ export class CreateTripDto {
 	@Type(() => CreateTripWaypointDto)
 	waypoints!: CreateTripWaypointDto[];
 }
+
+export class ConfigureTripWaypointsDto {
+	@ApiProperty({ type: CreateTripWaypointDto, isArray: true, minItems: 1 })
+	@IsArray()
+	@ArrayMinSize(1)
+	@ValidateNested({ each: true })
+	@Type(() => CreateTripWaypointDto)
+	waypoints!: CreateTripWaypointDto[];
+}

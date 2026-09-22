@@ -1,4 +1,4 @@
-import { Body, Controller, Post, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Param, Patch, Post, Req, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
 import { Roles } from "../../auth/decorators/roles.decorator";
 import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
@@ -6,7 +6,9 @@ import { RolesGuard } from "../../auth/guards/roles.guard";
 import type { AuthenticatedUser } from "../../auth/jwt.strategy";
 import { UserRole } from "../../users/entities/user.entity";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
-import { CreateTripDto } from "../dto/create-trip.dto";
+import { ConfigureTripWaypointsDto, CreateTripDto } from "../dto/create-trip.dto";
+// biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
+import { TripIdParamDto } from "../dto/trip-id-param.dto";
 import { TripResponseDto } from "../dto/trip-response.dto";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { TripsService } from "../services/trips.service";
@@ -21,6 +23,23 @@ interface AuthenticatedRequest {
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class TripsController {
 	constructor(private readonly tripsService: TripsService) {}
+
+	@Patch(":tripId/waypoints")
+	@Roles(UserRole.HOST)
+	@ApiOperation({ summary: "Configure waypoints and submit an owned draft Trip for approval" })
+	@ApiResponse({ status: 200, type: TripResponseDto })
+	@ApiResponse({ status: 401, description: "Authentication required" })
+	@ApiResponse({ status: 403, description: "Host role and Trip ownership required" })
+	@ApiResponse({ status: 404, description: "Trip not found" })
+	@ApiResponse({ status: 409, description: "Trip is not in a configurable status" })
+	@ApiResponse({ status: 422, description: "Invalid waypoint data" })
+	configureWaypoints(
+		@Req() request: AuthenticatedRequest,
+		@Param() params: TripIdParamDto,
+		@Body() dto: ConfigureTripWaypointsDto
+	): Promise<TripResponseDto> {
+		return this.tripsService.configureWaypoints(request.user.userId, params.tripId, dto);
+	}
 
 	@Post()
 	@Roles(UserRole.HOST)

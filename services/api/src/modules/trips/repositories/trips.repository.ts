@@ -46,6 +46,13 @@ export interface TripRouteDependency {
 	status: string;
 }
 
+export interface LockedTripForWaypointConfiguration {
+	trip: TripResponseDto;
+	hostId: string;
+	routeId: string;
+	status: TripStatus;
+}
+
 interface TripRow {
 	id: string;
 	hostId: string;
@@ -287,6 +294,80 @@ export class TripsRepository extends Repository<Trip> {
 				]
 			);
 		}
+
+		return this.findById(tripId);
+	}
+
+	async findByIdForWaypointConfiguration(
+		tripId: string
+	): Promise<LockedTripForWaypointConfiguration | null> {
+		const rows = (await this.query(
+			`${TRIP_SELECT}
+			WHERE trip."id" = $1
+			FOR UPDATE OF trip`,
+			[tripId]
+		)) as TripRow[];
+
+		const row = rows[0];
+		if (!row) return null;
+
+		return {
+			trip: toTripResponse(row),
+			hostId: row.hostId,
+			routeId: row.routeId,
+			status: row.status,
+		};
+	}
+
+	async replaceWaypointsAndSubmitForApproval(
+		tripId: string,
+		waypoints: CreateTripWaypointInput[]
+	): Promise<TripResponseDto> {
+		await this.query(`DELETE FROM "trip_waypoints" WHERE "trip_id" = $1`, [tripId]);
+
+		for (const waypoint of waypoints) {
+			await this.query(
+				`
+				INSERT INTO "trip_waypoints" (
+					"trip_id",
+					"checkpoint_id",
+					"type",
+					"name",
+					"location",
+					"day_number",
+					"sequence_order",
+					"planned_at",
+					"duration_minutes",
+					"metadata"
+				)
+				VALUES (
+					$1, $2, $3, $4, ST_SetSRID(ST_GeomFromGeoJSON($5), 4326)::geography,
+					$6, $7, $8, $9, $10::jsonb
+				)
+				`,
+				[
+					tripId,
+					waypoint.checkpointId,
+					waypoint.type,
+					waypoint.name,
+					JSON.stringify(waypoint.location),
+					waypoint.dayNumber,
+					waypoint.sequenceOrder,
+					waypoint.plannedAt,
+					waypoint.durationMinutes,
+					JSON.stringify(waypoint.metadata),
+				]
+			);
+		}
+
+		await this.query(
+			`
+			UPDATE "trips"
+			SET "status" = $2, "updated_at" = now()
+			WHERE "id" = $1
+			`,
+			[tripId, TripStatus.PENDING_APPROVAL]
+		);
 
 		return this.findById(tripId);
 	}

@@ -3,7 +3,8 @@
 **Spec Reference**  
 /file/spec/ctms-22-configure-trip-waypoints.md
 
-**Source Authority**  
+**Source Authority**
+
 - Product Backlog V3.1 is the scope authority for this story.
 - Business Rules are the invariant/policy source. This spec rewrites relevant rules as executable behavior so Dev and QA do not need to infer behavior from rule IDs.
 - Jira is used for execution tracking, status, and task ownership. Jira content must not replace the behavior contract below.
@@ -18,7 +19,7 @@ Implement `Configure Trip Waypoints` so the CTMS workflow is safe, consistent, a
 Business purpose from PB V3.1:
 
 - English use case: `Configure Trip Waypoints`
-- Story: As a System, I want to configure trip waypoints so that CTMS supports the workflow safely and consistently.
+- Story: As a Host, I want to configure trip waypoints so that CTMS supports the workflow safely and consistently.
 
 Implementation details belong in the sections below, not in this purpose summary.
 
@@ -27,12 +28,14 @@ Implementation details belong in the sections below, not in this purpose summary
 ## 2. Scope
 
 ### In Scope
+
 - The behavior needed for `Configure Trip Waypoints` within `EPIC 4. Trip Management`.
 - Backend validation, authorization, persistence, state handling, idempotency, and audit behavior needed for this story.
 - UI/API behavior that makes success, pending, validation failure, authorization failure, conflict, and retry states observable.
 - Tests proving the PB V3.1 acceptance criteria and mapped Business Rules are enforced.
 
 ### Out of Scope
+
 - Behavior owned by dependency stories unless explicitly referenced as a precondition or integration point.
 - Replacing source-of-truth entities owned by another module.
 - Changing unrelated workflow, enum, database, API, or UI contracts outside this story.
@@ -90,20 +93,20 @@ The system implements `Configure Trip Waypoints` exactly within the PB V3.1 scop
 
 The following rules are materialized as behavior for this story:
 
-| ID | Content |
-| --- | --- |
-| `BR-056` | Required behavior for `Configure Trip Waypoints` must validate and enforce Trip, status, draft, Host, trip_waypoints, submit, pending_approval as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths. |
+| ID       | Content                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BR-056` | Required behavior for `Configure Trip Waypoints` must validate and enforce Trip, status, draft, Host, trip_waypoints, submit, pending_approval as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths.                                       |
 | `BR-057` | Required behavior for `Configure Trip Waypoints` must validate and enforce trip_waypoints, Trip, waypoint, trip_id, type, location, Point, day_number, sequence_order, checkpoint_id as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths. |
-| `BR-058` | Required behavior for `Configure Trip Waypoints` must validate and enforce Trip, sequence_order, unique, planned_at, starts_at, ends_at, duration_minutes as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths. |
-| `BR-059` | Required behavior for `Configure Trip Waypoints` must validate and enforce publish, overnight, Trip, waypoint, type, duration_nights, duration as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths. |
-| `BR-060` | Required behavior for `Configure Trip Waypoints` must validate and enforce Trip, trip_type, day_trip, duration_nights, waypoint, type, overnight as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths. |
-| `BR-218` | AI/RAG output is advisory only. It may recommend or explain, but it must not override hard rules or authoritative state such as Route closed/archived, Trip capacity, payment result, Weather Risk score/level, or access rights. |
-| `BR-174` | Inputs must be validated for required fields, formats, identifiers, enum values, and cross-entity references before any write is committed. |
-| `BR-183` | Data relationships must reference existing valid records inside the correct business scope; child records must not be created for unrelated resources. |
-| `BR-188` | Date and time handling must use the authoritative timezone and ordering rules for the business workflow, and invalid or impossible time ranges must be rejected. |
-| `BR-189` | A valid time range must satisfy `start_time < end_time`; `start_time = end_time` is allowed only when a specific business rule explicitly permits it. |
-| `BR-212` | Any Business Rule, enum, state transition, or API contract change must update the spec, tests, and data documentation before the story is Done. |
-| `BR-213` | Every mapped Business Rule must have at least one valid-path test and one violation-path test; concurrency, idempotency, and transaction rules require integration or E2E coverage. |
+| `BR-058` | Required behavior for `Configure Trip Waypoints` must validate and enforce Trip, sequence_order, unique, planned_at, starts_at, ends_at, duration_minutes as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths.                            |
+| `BR-059` | Required behavior for `Configure Trip Waypoints` must validate and enforce publish, overnight, Trip, waypoint, type, duration_nights, duration as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths.                                       |
+| `BR-060` | Required behavior for `Configure Trip Waypoints` must validate and enforce Trip, trip_type, day_trip, duration_nights, waypoint, type, overnight as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths.                                     |
+| `BR-218` | AI/RAG output is advisory only. It may recommend or explain, but it must not override hard rules or authoritative state such as Route closed/archived, Trip capacity, payment result, Weather Risk score/level, or access rights.                                                                                                                                                                                                                          |
+| `BR-174` | Inputs must be validated for required fields, formats, identifiers, enum values, and cross-entity references before any write is committed.                                                                                                                                                                                                                                                                                                                |
+| `BR-183` | Data relationships must reference existing valid records inside the correct business scope; child records must not be created for unrelated resources.                                                                                                                                                                                                                                                                                                     |
+| `BR-188` | Date and time handling must use the authoritative timezone and ordering rules for the business workflow, and invalid or impossible time ranges must be rejected.                                                                                                                                                                                                                                                                                           |
+| `BR-189` | A valid time range must satisfy `start_time < end_time`; `start_time = end_time` is allowed only when a specific business rule explicitly permits it.                                                                                                                                                                                                                                                                                                      |
+| `BR-212` | Any Business Rule, enum, state transition, or API contract change must update the spec, tests, and data documentation before the story is Done.                                                                                                                                                                                                                                                                                                            |
+| `BR-213` | Every mapped Business Rule must have at least one valid-path test and one violation-path test; concurrency, idempotency, and transaction rules require integration or E2E coverage.                                                                                                                                                                                                                                                                        |
 
 ### 5.5 Source Confidence
 
@@ -247,15 +250,15 @@ Pending Decision:
 
 ## 13. Error Handling
 
-| Condition | Observable behavior |
-| --- | --- |
-| Authentication missing/expired | Return `401`; UI prompts sign-in or session refresh. |
-| Actor lacks permission | Return `403`; no side effect. |
-| Referenced record missing | Return `404` when the actor may know it exists; otherwise preserve privacy-safe response. |
-| Invalid input | Return `422` with field-level reason where possible. |
-| Business conflict | Return `409` with recoverable explanation. |
-| External provider or async failure | Keep state pending/failed with retry metadata and no duplicate authoritative result. |
-| Unexpected server error | Roll back partial work and return a generic error without leaking secrets or stack trace. |
+| Condition                          | Observable behavior                                                                       |
+| ---------------------------------- | ----------------------------------------------------------------------------------------- |
+| Authentication missing/expired     | Return `401`; UI prompts sign-in or session refresh.                                      |
+| Actor lacks permission             | Return `403`; no side effect.                                                             |
+| Referenced record missing          | Return `404` when the actor may know it exists; otherwise preserve privacy-safe response. |
+| Invalid input                      | Return `422` with field-level reason where possible.                                      |
+| Business conflict                  | Return `409` with recoverable explanation.                                                |
+| External provider or async failure | Keep state pending/failed with retry metadata and no duplicate authoritative result.      |
+| Unexpected server error            | Roll back partial work and return a generic error without leaking secrets or stack trace. |
 
 ---
 
@@ -286,6 +289,7 @@ Then:
 - The system behavior matches the rule above.
 - Backend validation and UI state are consistent with the observable result.
 - Tests cover the success path and at least one failure or boundary case.
+
 ### AC-02
 
 Given:
@@ -418,6 +422,7 @@ Question:
 What are the final endpoint paths, request DTOs, response DTOs, and error payloads for `Configure Trip Waypoints` if they are not already implemented?
 
 Affected:
+
 - Jira Story: `CTMS-022`
 - Logic Subtask: `CTMS-022-T01`
 - UI Subtask: `CTMS-022-T02`
@@ -436,6 +441,7 @@ Question:
 Are there story-specific state enum values, partial failure semantics, retry limits, conflict rules, audit event names, or before/after audit payloads beyond the generic model in this spec?
 
 Affected:
+
 - Business Rules listed in Section 5.4
 - Related specifications in Section 18
 
@@ -453,6 +459,7 @@ Question:
 Do PB V3.1, Business Rules, Data Dictionary or Domain Model, Jira, or existing code/tests disagree for this story?
 
 Affected:
+
 - PB V3.1 row `CTMS-022`
 - Business Rules listed in Section 5.4
 - Existing implementation and tests if present

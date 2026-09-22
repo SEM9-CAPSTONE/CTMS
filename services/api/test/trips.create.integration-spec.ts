@@ -412,4 +412,123 @@ describe("POST /api/trips (integration, real Postgres)", () => {
 		const afterRows = await dataSource.query('SELECT COUNT(*)::int AS "count" FROM "trips"');
 		expect(afterRows[0].count).toBe(beforeRows[0].count);
 	});
+
+	it("configures waypoints for an owned draft Trip, submits it for approval, and handles identical retries", async () => {
+		const host = await createAccount(UserRole.HOST);
+		const routeId = await createRoute(host.id);
+		const createResponse = await request(app.getHttpServer())
+			.post("/api/trips")
+			.set("Authorization", `Bearer ${host.accessToken}`)
+			.send(createPayload(routeId))
+			.expect(201);
+		const tripId: string = createResponse.body.id;
+		cleanupTripIds.push(tripId);
+
+		const waypoints = [
+			{
+				type: "start",
+				name: "Updated trailhead",
+				location: { type: "Point", coordinates: [108.2208, 16.0471] },
+				dayNumber: 1,
+				sequenceOrder: 1,
+				plannedAt: "2026-10-01T12:00:00.000Z",
+			},
+			{
+				type: "overnight",
+				name: "Night one camp",
+				location: { type: "Point", coordinates: [108.2358, 16.0571] },
+				dayNumber: 1,
+				sequenceOrder: 2,
+				plannedAt: "2026-10-02T00:00:00.000Z",
+			},
+			{
+				type: "overnight",
+				name: "Night two camp",
+				location: { type: "Point", coordinates: [108.2428, 16.0611] },
+				dayNumber: 2,
+				sequenceOrder: 3,
+				plannedAt: "2026-10-03T00:00:00.000Z",
+			},
+			{
+				type: "finish",
+				name: "Updated exit",
+				location: { type: "Point", coordinates: [108.2508, 16.0671] },
+				dayNumber: 3,
+				sequenceOrder: 4,
+				plannedAt: "2026-10-03T10:00:00.000Z",
+			},
+		];
+
+		const response = await request(app.getHttpServer())
+			.patch(`/api/trips/${tripId}/waypoints`)
+			.set("Authorization", `Bearer ${host.accessToken}`)
+			.send({ waypoints })
+			.expect(200);
+
+		expect(response.body).toMatchObject({
+			id: tripId,
+			status: TripStatus.PENDING_APPROVAL,
+		});
+		expect(response.body.waypoints).toHaveLength(4);
+		expect(
+			response.body.waypoints.map((waypoint: { sequenceOrder: number }) => waypoint.sequenceOrder)
+		).toEqual([1, 2, 3, 4]);
+
+		const retryResponse = await request(app.getHttpServer())
+			.patch(`/api/trips/${tripId}/waypoints`)
+			.set("Authorization", `Bearer ${host.accessToken}`)
+			.send({ waypoints })
+			.expect(200);
+
+		expect(retryResponse.body.waypoints).toHaveLength(4);
+
+		const persistedWaypoints = await dataSource.query(
+			'SELECT COUNT(*)::int AS "count" FROM "trip_waypoints" WHERE "trip_id" = $1',
+			[tripId]
+		);
+		expect(persistedWaypoints[0].count).toBe(4);
+
+		const auditRows = await dataSource.query(
+			'SELECT * FROM "audit_logs" WHERE "target_id" = $1 AND "action" = $2',
+			[tripId, "trip_waypoints.configured"]
+		);
+		expect(auditRows).toHaveLength(1);
+	});
+
+	it("rejects configure waypoints for unauthorized users and invalid Trip state without side effects", async () => {
+		const host = await createAccount(UserRole.HOST);
+		const camper = await createAccount(UserRole.CAMPER);
+		const routeId = await createRoute(host.id);
+		const createResponse = await request(app.getHttpServer())
+			.post("/api/trips")
+			.set("Authorization", `Bearer ${host.accessToken}`)
+			.send(createPayload(routeId))
+			.expect(201);
+		const tripId: string = createResponse.body.id;
+		cleanupTripIds.push(tripId);
+
+		await request(app.getHttpServer())
+			.patch(`/api/trips/${tripId}/waypoints`)
+			.set("Authorization", `Bearer ${camper.accessToken}`)
+			.send({ waypoints: createPayload(routeId).waypoints })
+			.expect(403);
+
+		await dataSource.query('UPDATE "trips" SET "status" = $2 WHERE "id" = $1', [
+			tripId,
+			TripStatus.PUBLISHED,
+		]);
+
+		await request(app.getHttpServer())
+			.patch(`/api/trips/${tripId}/waypoints`)
+			.set("Authorization", `Bearer ${host.accessToken}`)
+			.send({ waypoints: createPayload(routeId).waypoints })
+			.expect(409);
+
+		const rows = await dataSource.query(
+			'SELECT "status", COUNT(waypoint."id")::int AS "waypointCount" FROM "trips" trip LEFT JOIN "trip_waypoints" waypoint ON waypoint."trip_id" = trip."id" WHERE trip."id" = $1 GROUP BY trip."status"',
+			[tripId]
+		);
+		expect(rows[0].status).toBe(TripStatus.PUBLISHED);
+		expect(rows[0].waypointCount).toBe(2);
+	});
 });
