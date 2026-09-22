@@ -1,6 +1,15 @@
 import { Injectable } from "@nestjs/common";
 import { Repository } from "typeorm";
-import type { TripResponseDto, TripWaypointResponseDto } from "../dto/trip-response.dto";
+import {
+	type TrekkingRouteDifficulty,
+	TrekkingRouteStatus,
+} from "../../trekking-routes/entities/trekking-route.entity";
+import type { RiskLevel } from "../../weather/entities/weather-risk-assessment.entity";
+import type {
+	TripResponseDto,
+	TripSummaryResponseDto,
+	TripWaypointResponseDto,
+} from "../dto/trip-response.dto";
 import type { WaypointType } from "../entities/trip-waypoint.entity";
 import type { GeoPoint, Trip, TripType } from "../entities/trip.entity";
 import { TripStatus } from "../entities/trip.entity";
@@ -59,16 +68,26 @@ export interface LockedTripForReview {
 	status: TripStatus;
 }
 
-interface TripRow {
+export interface SearchPublishedTripsFilter {
+	search?: string;
+	tripType?: TripType;
+	difficulty?: TrekkingRouteDifficulty;
+	startDate?: Date;
+	endDate?: Date;
+	minPrice?: number;
+	maxPrice?: number;
+	routeId?: string;
+	province?: string;
+	city?: string;
+	page: number;
+	limit: number;
+}
+
+interface TripSummaryRow {
 	id: string;
-	hostId: string;
-	routeId: string;
 	title: string;
 	description: string | null;
 	coverImageUrl: string | null;
-	itinerary: Record<string, unknown> | null;
-	includes: Record<string, unknown> | null;
-	excludes: Record<string, unknown> | null;
 	tripType: TripType;
 	durationNights: number | string;
 	startsAt: Date;
@@ -80,10 +99,21 @@ interface TripRow {
 	capacityMax: number | string | null;
 	seatsTaken: number | string;
 	pricePerPerson: number | string;
-	cancellationPolicy: Record<string, unknown> | null;
 	status: TripStatus;
 	createdAt: Date;
 	updatedAt: Date;
+	difficulty: TrekkingRouteDifficulty | null;
+	routeStatus: TrekkingRouteStatus | null;
+	weatherRiskLevel: RiskLevel | null;
+}
+
+interface TripRow extends TripSummaryRow {
+	hostId: string;
+	routeId: string;
+	itinerary: Record<string, unknown> | null;
+	includes: Record<string, unknown> | null;
+	excludes: Record<string, unknown> | null;
+	cancellationPolicy: Record<string, unknown> | null;
 	waypoints: TripWaypointRow[];
 }
 
@@ -101,6 +131,29 @@ interface TripWaypointRow {
 	metadata: Record<string, unknown> | null;
 }
 
+function computeIsBookable(
+	status: TripStatus,
+	routeStatus: TrekkingRouteStatus | null,
+	endsAt: Date,
+	bookingDeadline: Date,
+	capacityMax: number | null,
+	seatsTaken: number
+): boolean {
+	const now = Date.now();
+	return (
+		status === TripStatus.PUBLISHED &&
+		routeStatus === TrekkingRouteStatus.ACTIVE &&
+		new Date(endsAt).getTime() > now &&
+		new Date(bookingDeadline).getTime() > now &&
+		(capacityMax === null || seatsTaken < capacityMax)
+	);
+}
+
+function computeRemainingSeats(capacityMax: number | null, seatsTaken: number): number | null {
+	if (capacityMax == null) return null;
+	return Math.max(0, capacityMax - seatsTaken);
+}
+
 function toWaypointResponse(row: TripWaypointRow): TripWaypointResponseDto {
 	return {
 		...row,
@@ -110,14 +163,81 @@ function toWaypointResponse(row: TripWaypointRow): TripWaypointResponseDto {
 	};
 }
 
-function toTripResponse(row: TripRow): TripResponseDto {
+function toTripSummaryResponse(row: TripSummaryRow): TripSummaryResponseDto {
+	const capacityMax = row.capacityMax == null ? null : Number(row.capacityMax);
+	const seatsTaken = Number(row.seatsTaken);
 	return {
-		...row,
+		id: row.id,
+		title: row.title,
+		description: row.description,
+		coverImageUrl: row.coverImageUrl,
+		tripType: row.tripType,
 		durationNights: Number(row.durationNights),
+		startsAt: row.startsAt,
+		endsAt: row.endsAt,
+		meetingPoint: row.meetingPoint,
+		meetingAt: row.meetingAt,
+		bookingDeadline: row.bookingDeadline,
 		capacityMin: Number(row.capacityMin),
-		capacityMax: row.capacityMax == null ? null : Number(row.capacityMax),
-		seatsTaken: Number(row.seatsTaken),
+		capacityMax,
+		seatsTaken,
+		remainingSeats: computeRemainingSeats(capacityMax, seatsTaken),
 		pricePerPerson: Number(row.pricePerPerson),
+		status: row.status,
+		difficulty: row.difficulty ?? null,
+		weatherRiskLevel: row.weatherRiskLevel ?? null,
+		isBookable: computeIsBookable(
+			row.status,
+			row.routeStatus,
+			row.endsAt,
+			row.bookingDeadline,
+			capacityMax,
+			seatsTaken
+		),
+		createdAt: row.createdAt,
+		updatedAt: row.updatedAt,
+	};
+}
+
+function toTripResponse(row: TripRow): TripResponseDto {
+	const capacityMax = row.capacityMax == null ? null : Number(row.capacityMax);
+	const seatsTaken = Number(row.seatsTaken);
+	return {
+		id: row.id,
+		hostId: row.hostId,
+		routeId: row.routeId,
+		title: row.title,
+		description: row.description,
+		coverImageUrl: row.coverImageUrl,
+		itinerary: row.itinerary,
+		includes: row.includes,
+		excludes: row.excludes,
+		tripType: row.tripType,
+		durationNights: Number(row.durationNights),
+		startsAt: row.startsAt,
+		endsAt: row.endsAt,
+		meetingPoint: row.meetingPoint,
+		meetingAt: row.meetingAt,
+		bookingDeadline: row.bookingDeadline,
+		capacityMin: Number(row.capacityMin),
+		capacityMax,
+		seatsTaken,
+		remainingSeats: computeRemainingSeats(capacityMax, seatsTaken),
+		pricePerPerson: Number(row.pricePerPerson),
+		cancellationPolicy: row.cancellationPolicy,
+		status: row.status,
+		difficulty: row.difficulty ?? null,
+		weatherRiskLevel: row.weatherRiskLevel ?? null,
+		isBookable: computeIsBookable(
+			row.status,
+			row.routeStatus,
+			row.endsAt,
+			row.bookingDeadline,
+			capacityMax,
+			seatsTaken
+		),
+		createdAt: row.createdAt,
+		updatedAt: row.updatedAt,
 		waypoints: row.waypoints.map(toWaypointResponse),
 	};
 }
@@ -148,6 +268,15 @@ const TRIP_SELECT = `
 		trip."status",
 		trip."created_at" AS "createdAt",
 		trip."updated_at" AS "updatedAt",
+		route."difficulty" AS "difficulty",
+		route."status" AS "routeStatus",
+		(
+			SELECT wra."risk_level"
+			FROM "weather_risk_assessments" wra
+			WHERE wra."route_id" = trip."route_id"
+			ORDER BY wra."created_at" DESC
+			LIMIT 1
+		) AS "weatherRiskLevel",
 		COALESCE((
 			SELECT jsonb_agg(
 				jsonb_build_object(
@@ -169,6 +298,7 @@ const TRIP_SELECT = `
 			WHERE waypoint."trip_id" = trip."id"
 		), '[]'::jsonb) AS "waypoints"
 	FROM "trips" trip
+	LEFT JOIN "trekking_routes" route ON route."id" = trip."route_id"
 `;
 
 @Injectable()
@@ -301,7 +431,11 @@ export class TripsRepository extends Repository<Trip> {
 			);
 		}
 
-		return this.findById(tripId);
+		const created = await this.findById(tripId);
+		if (!created) {
+			throw new Error("Failed to load created Trip");
+		}
+		return created;
 	}
 
 	async findByIdForWaypointConfiguration(
@@ -375,16 +509,21 @@ export class TripsRepository extends Repository<Trip> {
 			[tripId, TripStatus.PENDING_APPROVAL]
 		);
 
-		return this.findById(tripId);
+		const updated = await this.findById(tripId);
+		if (!updated) {
+			throw new Error("Failed to load updated Trip");
+		}
+		return updated;
 	}
 
-	async findById(tripId: string): Promise<TripResponseDto> {
+	async findById(tripId: string): Promise<TripResponseDto | null> {
 		const rows = (await this.query(
 			`${TRIP_SELECT}
 			WHERE trip."id" = $1`,
 			[tripId]
 		)) as TripRow[];
 
+		if (!rows[0]) return null;
 		return toTripResponse(rows[0]);
 	}
 
@@ -424,6 +563,136 @@ export class TripsRepository extends Repository<Trip> {
 			[tripId, status]
 		);
 
-		return this.findById(tripId);
+		const updated = await this.findById(tripId);
+		if (!updated) {
+			throw new Error("Failed to load updated Trip");
+		}
+		return updated;
+	}
+
+	async searchPublishedTrips(
+		filters: SearchPublishedTripsFilter
+	): Promise<{ items: TripSummaryResponseDto[]; total: number }> {
+		const conditions: string[] = [`trip."status" = 'published'`, `trip."ends_at" > now()`];
+		const params: unknown[] = [];
+
+		if (filters.search) {
+			params.push(`%${filters.search}%`);
+			conditions.push(
+				`(trip."title" ILIKE $${params.length} OR trip."description" ILIKE $${params.length})`
+			);
+		}
+
+		if (filters.tripType) {
+			params.push(filters.tripType);
+			conditions.push(`trip."trip_type" = $${params.length}`);
+		}
+
+		if (filters.difficulty) {
+			params.push(filters.difficulty);
+			conditions.push(`route."difficulty" = $${params.length}`);
+		}
+
+		if (filters.startDate) {
+			params.push(filters.startDate);
+			conditions.push(`trip."starts_at" >= $${params.length}`);
+		}
+
+		if (filters.endDate) {
+			params.push(filters.endDate);
+			conditions.push(`trip."starts_at" <= $${params.length}`);
+		}
+
+		if (filters.minPrice != null) {
+			params.push(filters.minPrice);
+			conditions.push(`trip."price_per_person" >= $${params.length}`);
+		}
+
+		if (filters.maxPrice != null) {
+			params.push(filters.maxPrice);
+			conditions.push(`trip."price_per_person" <= $${params.length}`);
+		}
+
+		if (filters.routeId) {
+			params.push(filters.routeId);
+			conditions.push(`trip."route_id" = $${params.length}`);
+		}
+
+		if (filters.province) {
+			params.push(`%${filters.province}%`);
+			conditions.push(
+				`(trip."title" ILIKE $${params.length} OR trip."description" ILIKE $${params.length})`
+			);
+		}
+
+		if (filters.city) {
+			params.push(`%${filters.city}%`);
+			conditions.push(
+				`(trip."title" ILIKE $${params.length} OR trip."description" ILIKE $${params.length})`
+			);
+		}
+
+		const whereClause = `WHERE ${conditions.join(" AND ")}`;
+
+		const countResult = (await this.query(
+			`
+			SELECT COUNT(trip."id")::int AS total
+			FROM "trips" trip
+			LEFT JOIN "trekking_routes" route ON route."id" = trip."route_id"
+			${whereClause}
+			`,
+			params
+		)) as Array<{ total: number | string }>;
+		const total = Number(countResult[0]?.total ?? 0);
+
+		const offset = (filters.page - 1) * filters.limit;
+		params.push(filters.limit);
+		const limitParamIndex = params.length;
+		params.push(offset);
+		const offsetParamIndex = params.length;
+
+		const rows = (await this.query(
+			`
+			SELECT
+				trip."id",
+				trip."title",
+				trip."description",
+				trip."cover_image_url" AS "coverImageUrl",
+				trip."trip_type" AS "tripType",
+				trip."duration_nights" AS "durationNights",
+				trip."starts_at" AS "startsAt",
+				trip."ends_at" AS "endsAt",
+				ST_AsGeoJSON(trip."meeting_point"::geometry)::json AS "meetingPoint",
+				trip."meeting_at" AS "meetingAt",
+				trip."booking_deadline" AS "bookingDeadline",
+				trip."capacity_min" AS "capacityMin",
+				trip."capacity_max" AS "capacityMax",
+				trip."seats_taken" AS "seatsTaken",
+				trip."price_per_person" AS "pricePerPerson",
+				trip."status",
+				trip."created_at" AS "createdAt",
+				trip."updated_at" AS "updatedAt",
+				route."difficulty" AS "difficulty",
+				route."status" AS "routeStatus",
+				(
+					SELECT wra."risk_level"
+					FROM "weather_risk_assessments" wra
+					WHERE wra."route_id" = trip."route_id"
+					ORDER BY wra."created_at" DESC
+					LIMIT 1
+				) AS "weatherRiskLevel"
+			FROM "trips" trip
+			LEFT JOIN "trekking_routes" route ON route."id" = trip."route_id"
+			${whereClause}
+			ORDER BY trip."starts_at" ASC, trip."id" ASC
+			LIMIT $${limitParamIndex} OFFSET $${offsetParamIndex}
+			`,
+			params
+		)) as TripSummaryRow[];
+
+		return {
+			items: rows.map(toTripSummaryResponse),
+			total,
+		};
 	}
 }

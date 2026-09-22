@@ -1,4 +1,4 @@
-import { Body, Controller, Param, Patch, Post, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
 import { Roles } from "../../auth/decorators/roles.decorator";
 import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
@@ -10,8 +10,10 @@ import { ConfigureTripWaypointsDto, CreateTripDto } from "../dto/create-trip.dto
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { ReviewTripDto } from "../dto/review-trip.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
+import { SearchTripsQueryDto } from "../dto/search-trips-query.dto";
+// biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { TripIdParamDto } from "../dto/trip-id-param.dto";
-import { TripResponseDto } from "../dto/trip-response.dto";
+import { PaginatedTripsResponseDto, TripResponseDto } from "../dto/trip-response.dto";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { TripsService } from "../services/trips.service";
 
@@ -25,6 +27,29 @@ interface AuthenticatedRequest {
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class TripsController {
 	constructor(private readonly tripsService: TripsService) {}
+
+	@Get()
+	@Roles(UserRole.CAMPER, UserRole.HOST, UserRole.ADMIN, UserRole.PORTER)
+	@ApiOperation({ summary: "Search and list published trekking trips" })
+	@ApiResponse({ status: 200, type: PaginatedTripsResponseDto })
+	@ApiResponse({ status: 401, description: "Authentication required" })
+	@ApiResponse({ status: 422, description: "Invalid search query parameters" })
+	search(@Query() query: SearchTripsQueryDto): Promise<PaginatedTripsResponseDto> {
+		return this.tripsService.search(query);
+	}
+
+	@Get(":tripId")
+	@Roles(UserRole.CAMPER, UserRole.HOST, UserRole.ADMIN, UserRole.PORTER)
+	@ApiOperation({ summary: "View trip details" })
+	@ApiResponse({ status: 200, type: TripResponseDto })
+	@ApiResponse({ status: 401, description: "Authentication required" })
+	@ApiResponse({ status: 404, description: "Trip not found" })
+	getTripDetails(
+		@Req() request: AuthenticatedRequest,
+		@Param() params: TripIdParamDto
+	): Promise<TripResponseDto> {
+		return this.tripsService.getTripDetails(request.user, params.tripId);
+	}
 
 	@Patch(":tripId/waypoints")
 	@Roles(UserRole.HOST)
