@@ -101,6 +101,10 @@ export class TripsService {
 		return trip;
 	}
 
+	async getMyTrips(hostId: string): Promise<TripResponseDto[]> {
+		return this.tripsRepository.findTripsByHost(hostId);
+	}
+
 	private assertSearchTripsQuery(query: SearchTripsQueryDto): void {
 		const errors: FieldValidationError[] = [];
 

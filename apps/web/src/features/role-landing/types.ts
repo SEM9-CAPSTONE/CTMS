@@ -12,6 +12,8 @@ export interface RoleLandingPageProps {
 	onCreateTrip?: () => void;
 	onCreateTrekkingRoute?: () => void;
 	onViewTrekkingRoutes?: () => void;
+	onNavigateToTrips?: () => void;
+	onNavigateToTripDetail?: (tripId: string) => void;
 	onExplore?: () => void;
 	onLogout?: (allDevices: boolean) => Promise<void>;
 }

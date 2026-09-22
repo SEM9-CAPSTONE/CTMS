@@ -103,6 +103,13 @@ interface TripSummaryRow {
 
 interface TripRow extends TripSummaryRow {
 	hostId: string;
+	host?: {
+		id: string;
+		fullName?: string | null;
+		email?: string | null;
+		phone?: string | null;
+		bio?: string | null;
+	} | null;
 	routeId: string;
 	itinerary: Record<string, unknown> | null;
 	includes: Record<string, unknown> | null;
@@ -199,6 +206,7 @@ function toTripResponse(row: TripRow): TripResponseDto {
 	return {
 		id: row.id,
 		hostId: row.hostId,
+		host: row.host ?? null,
 		routeId: row.routeId,
 		title: row.title,
 		description: row.description,
@@ -240,6 +248,17 @@ const TRIP_SELECT = `
 	SELECT
 		trip."id",
 		trip."host_id" AS "hostId",
+		CASE
+			WHEN u."id" IS NOT NULL THEN
+				jsonb_build_object(
+					'id', u."id",
+					'fullName', u."full_name",
+					'email', u."email",
+					'phone', u."phone",
+					'bio', u."bio"
+				)
+			ELSE NULL
+		END AS "host",
 		trip."route_id" AS "routeId",
 		trip."title",
 		trip."description",
@@ -293,6 +312,7 @@ const TRIP_SELECT = `
 		), '[]'::jsonb) AS "waypoints"
 	FROM "trips" trip
 	LEFT JOIN "trekking_routes" route ON route."id" = trip."route_id"
+	LEFT JOIN "users" u ON u."id" = trip."host_id"
 `;
 
 @Injectable()
@@ -519,6 +539,17 @@ export class TripsRepository extends Repository<Trip> {
 
 		if (!rows[0]) return null;
 		return toTripResponse(rows[0]);
+	}
+
+	async findTripsByHost(hostId: string): Promise<TripResponseDto[]> {
+		const rows = (await this.query(
+			`${TRIP_SELECT}
+			WHERE trip."host_id" = $1
+			ORDER BY trip."created_at" DESC`,
+			[hostId]
+		)) as TripRow[];
+
+		return rows.map(toTripResponse);
 	}
 
 	async searchPublishedTrips(

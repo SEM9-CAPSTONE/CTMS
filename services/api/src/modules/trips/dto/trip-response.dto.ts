@@ -129,12 +129,32 @@ export class PaginatedTripsResponseDto {
 	pagination!: TripsPaginationDto;
 }
 
+export class TripHostDto {
+	@ApiProperty()
+	id!: string;
+
+	@ApiPropertyOptional({ nullable: true })
+	fullName?: string | null;
+
+	@ApiPropertyOptional({ nullable: true })
+	email?: string | null;
+
+	@ApiPropertyOptional({ nullable: true })
+	phone?: string | null;
+
+	@ApiPropertyOptional({ nullable: true })
+	bio?: string | null;
+}
+
 export class TripResponseDto {
 	@ApiProperty()
 	id!: string;
 
 	@ApiProperty()
 	hostId!: string;
+
+	@ApiPropertyOptional({ type: TripHostDto, nullable: true })
+	host?: TripHostDto | null;
 
 	@ApiPropertyOptional({ description: "Route UUID; redacted for Camper callers" })
 	routeId?: string;
