@@ -222,6 +222,45 @@ describe("PATCH /api/trips/:tripId/review (integration, real Postgres)", () => {
 		return token ? req.set("Authorization", `Bearer ${token}`).send(body) : req.send(body);
 	}
 
+	function listPendingReview(token: string | undefined) {
+		const req = request(app.getHttpServer()).get("/api/trips/pending-review");
+		return token ? req.set("Authorization", `Bearer ${token}`) : req;
+	}
+
+	describe("GET /api/trips/pending-review", () => {
+		it("lists only pending Trips for an Admin, oldest first, and excludes non-pending ones", async () => {
+			const admin = await createAccount(UserRole.ADMIN);
+			const host = await createAccount(UserRole.HOST);
+			const routeId = await createRoute(host.id);
+			const firstPendingId = await createPendingTrip(host, routeId);
+			const secondPendingId = await createPendingTrip(host, await createRoute(host.id));
+
+			const draftPayload = createPayload(await createRoute(host.id));
+			const draftResponse = await request(app.getHttpServer())
+				.post("/api/trips")
+				.set("Authorization", `Bearer ${host.accessToken}`)
+				.send(draftPayload)
+				.expect(201);
+			cleanupTripIds.push(draftResponse.body.id);
+
+			const response = await listPendingReview(admin.accessToken).expect(200);
+
+			const ids = response.body.map((trip: { id: string }) => trip.id);
+			expect(ids).toEqual([firstPendingId, secondPendingId]);
+			expect(ids).not.toContain(draftResponse.body.id);
+			for (const trip of response.body) {
+				expect(trip.status).toBe(TripStatus.PENDING_APPROVAL);
+			}
+		});
+
+		it("requires authentication and Admin role", async () => {
+			const host = await createAccount(UserRole.HOST);
+
+			await listPendingReview(undefined).expect(401);
+			await listPendingReview(host.accessToken).expect(403);
+		});
+	});
+
 	it("Admin approves a pending Trip, publishing it and auditing with no reason", async () => {
 		const admin = await createAccount(UserRole.ADMIN);
 		const host = await createAccount(UserRole.HOST);

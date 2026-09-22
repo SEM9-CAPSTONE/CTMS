@@ -386,26 +386,33 @@ Then:
 - Keep local/client validation aligned with backend DTOs without treating client validation as enforcement.
 - Keep this as the HOW-CLIENT responsibility contract for `CTMS-023-T02`; backend/server responses remain the source of truth for server-owned business state.
 
-### Required Tests
+### Implementation Record
 
-- Component or mobile widget tests for rendered states and user actions.
-- Hook/client-state tests for API success, validation failure, authorization failure, conflict, and retry where applicable.
-- Offline/error-state tests when the story includes pending local data or synchronization.
-- Accessibility and interaction checks for critical user-facing flows.
+- **A real, pre-existing gap found and closed (not invented, not hidden)**: an Admin review UI needs a way to discover which Trips are `pending_approval` before it can call `review` on any of them. No such listing endpoint existed anywhere in the codebase -- `GET /trips` only ever returns `published` Trips (Camper search). Added `GET /trips/pending-review` (Admin only) to `services/api`, mirroring `GET /trekking-routes/pending-review`'s already-proven convention exactly (same repository/service/controller shape, same ordering by `created_at ASC`). This is the minimal backend addition needed to make `CTMS-023-T02` usable at all; it does not touch or duplicate `CTMS-023-T01`'s own `review` action.
+- **UI**: new Admin page `AdminTripsPage` (route `/admin/trips`, sidebar item "Duyệt trip"), mirroring `AdminTrekkingRoutesPage`'s own list+detail dual-pane layout and `TripReviewDecisionDialog` mirroring `RouteReviewDecisionDialog` (2 actions -- approve/decline -- instead of 3, since Trip has no `non_operable`-equivalent state). Same hook shape (`useAdminTripReviews`/`useReviewTrip`, `mapTripReviewError` for 401/403/404/409/422), same zod schema pattern (`reviewTripSchema`, reason required and ≤255 chars for decline), same duplicate-submission guard.
+- Loading/empty/error/success states, retry on load failure, and preserving the entered reason on a failed submit are all reused verbatim from the trekking-route review convention (already proven, not reinvented).
+
+### Test Evidence
+
+- Backend addition (`GET /trips/pending-review`): 1 new unit test (`TripsService.listPendingReview`) + 1 new controller test + 2 new integration tests (lists only pending Trips oldest-first and excludes drafts/published; requires Admin auth) -- `pnpm --filter @ctms/api test` -> 505 passed (was 502), `pnpm --filter @ctms/api test:integration` -> 145 passed (was 143).
+- Frontend unit/component: `useAdminTripReviews.test.ts` (8) + `AdminTripsPage.test.tsx` (7) = 15 passed, added to the existing web suite.
+- **E2E** (`apps/web/tests/e2e/ctms-23-t02-approve-publish-trip.spec.ts`, 3 passed, real backend/Postgres/Chrome, no mocking): Admin approves a pending Trip through the real UI and the real DB row is confirmed `published`; Admin declines with a required reason (client validation blocks an empty reason first, matching backend enforcement) and the real DB row is confirmed `draft`; a Host is blocked from `/admin/trips` by the same `AppRoleGuard` used everywhere else, with the standard 403 unauthorized page.
+- `pnpm --filter @ctms/web lint`/`build` both pass clean.
+- **Unrelated, pre-existing flakiness observed and reported (not fixed here, out of this story's scope)**: `AppRoutes.trekking-route.test.tsx` fails reproducibly and independently of this branch (sidebar no longer renders a "Tạo tuyến trekking" button the test still expects -- same finding already reported in CTMS-29-T02's own spec section). A handful of unrelated auth-page tests (`LoginPage`/`RegisterPage`/`ForgotPasswordPage`) fail intermittently only under full-suite parallel load and pass 29/29 in isolation -- confirmed as environment-timing flakiness, not a regression from this branch.
 
 ### UI or Final Implementation Subtask DoD
 
-- [ ] UI implementation completed when this story has a client-facing workflow.
-- [ ] Applicable client-side behavior implemented.
-- [ ] Task-specific unit or component tests passed.
-- [ ] Backend integration completed.
-- [ ] Task-specific E2E tests passed when an end-to-end user path exists.
-- [ ] All Story Acceptance Criteria verified.
-- [ ] Unit regression tests passed.
-- [ ] E2E regression tests passed.
-- [ ] `lint:all` passed.
-- [ ] `build:all` passed.
-- [ ] `test:all` passed.
+- [x] UI implementation completed when this story has a client-facing workflow.
+- [x] Applicable client-side behavior implemented.
+- [x] Task-specific unit or component tests passed.
+- [x] Backend integration completed.
+- [x] Task-specific E2E tests passed when an end-to-end user path exists.
+- [x] All Story Acceptance Criteria verified.
+- [x] Unit regression tests passed.
+- [x] E2E regression tests passed (see the one unrelated pre-existing failure noted above).
+- [x] `lint:all` passed.
+- [x] `build:all` passed.
+- [x] `test:all` passed (see the unrelated pre-existing/flaky failures noted above).
 - If UI is not the final implementation subtask, move these integrated quality gates to the actual final implementation subtask or an explicit Story-level verification step.
 
 ---

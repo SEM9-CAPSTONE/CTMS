@@ -38,6 +38,16 @@ export class TripsController {
 		return this.tripsService.search(query);
 	}
 
+	@Get("pending-review")
+	@Roles(UserRole.ADMIN)
+	@ApiOperation({ summary: "List Trips pending Admin approval" })
+	@ApiResponse({ status: 200, type: TripResponseDto, isArray: true })
+	@ApiResponse({ status: 401, description: "Authentication required" })
+	@ApiResponse({ status: 403, description: "Admin role required" })
+	listPendingReview(): Promise<TripResponseDto[]> {
+		return this.tripsService.listPendingReview();
+	}
+
 	@Get("mine")
 	@Roles(UserRole.HOST)
 	@ApiOperation({ summary: "List trips owned by the current Host" })

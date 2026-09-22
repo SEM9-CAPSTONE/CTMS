@@ -64,6 +64,13 @@ export interface TripWaypoint {
 	metadata: Record<string, unknown> | null;
 }
 
+export type ReviewTripAction = "approve" | "decline";
+
+export interface ReviewTripInput {
+	action: ReviewTripAction;
+	reason?: string;
+}
+
 export interface Trip {
 	id: string;
 	hostId: string;

@@ -158,6 +158,7 @@ describe("TripsService", () => {
 		findById: jest.Mock;
 		findTripsByHost: jest.Mock;
 		searchPublishedTrips: jest.Mock;
+		findPendingReview: jest.Mock;
 	};
 	let auditRepository: { save: jest.Mock };
 	let dataSource: { transaction: jest.Mock };
@@ -193,6 +194,7 @@ describe("TripsService", () => {
 			findById: jest.fn().mockResolvedValue(createdTrip()),
 			findTripsByHost: jest.fn().mockResolvedValue([]),
 			searchPublishedTrips: jest.fn().mockResolvedValue({ items: [], total: 0 }),
+			findPendingReview: jest.fn().mockResolvedValue([configuredTrip()]),
 		};
 		auditRepository = { save: jest.fn().mockResolvedValue({}) };
 		dataSource = {
@@ -497,6 +499,15 @@ describe("TripsService", () => {
 				service.configureWaypoints(HOST_ID, TRIP_ID, { waypoints: createTripDto().waypoints })
 			).rejects.toMatchObject({ status: 422 });
 			expect(tripsRepository.replaceWaypointsAndSubmitForApproval).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("listPendingReview", () => {
+		it("returns Trips pending Admin approval from the repository", async () => {
+			const result = await service.listPendingReview();
+
+			expect(tripsRepository.findPendingReview).toHaveBeenCalledWith();
+			expect(result).toEqual([configuredTrip()]);
 		});
 	});
 

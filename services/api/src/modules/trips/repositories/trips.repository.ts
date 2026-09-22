@@ -547,6 +547,17 @@ export class TripsRepository extends Repository<Trip> {
 		return toTripResponse(rows[0]);
 	}
 
+	async findPendingReview(): Promise<TripResponseDto[]> {
+		const rows = (await this.query(
+			`${TRIP_SELECT}
+			WHERE trip."status" = $1
+			ORDER BY trip."created_at" ASC, trip."id" ASC`,
+			[TripStatus.PENDING_APPROVAL]
+		)) as TripRow[];
+
+		return rows.map(toTripResponse);
+	}
+
 	async findTripsByHost(hostId: string): Promise<TripResponseDto[]> {
 		const rows = (await this.query(
 			`${TRIP_SELECT}
