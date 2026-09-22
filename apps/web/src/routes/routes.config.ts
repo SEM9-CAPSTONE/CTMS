@@ -15,6 +15,7 @@ export enum RoutePath {
 	CAMPER_PROFILE = "/camper/profile",
 	PROFILE = "/profile",
 	ADMIN_USERS = "/admin/users",
+	ADMIN_CONTENT_REPORTS = "/admin/content-reports",
 	ADMIN_AUDIT_LOGS = "/admin/audit-logs",
 	ADMIN_TREKKING_ROUTES = "/admin/trekking-routes",
 	ADMIN_WEATHER_RULES = "/admin/weather-rules",

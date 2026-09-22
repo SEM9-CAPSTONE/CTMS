@@ -94,6 +94,68 @@ describe("Content reports (real PostgreSQL integration)", () => {
 	const audits = () =>
 		db.getRepository(AuditLog).findBy({ targetType: "content_report", targetId: report.id });
 
+	describe("queue", () => {
+		const queue = (query: Record<string, number | string> = {}) =>
+			request(app.getHttpServer())
+				.get("/api/content-reports")
+				.set("Authorization", authorization(admin))
+				.query(query);
+		it("requires authenticated Admin and returns safe authoritative data without writes", async () => {
+			await request(app.getHttpServer()).get("/api/content-reports").expect(401);
+			await request(app.getHttpServer())
+				.get("/api/content-reports")
+				.set("Authorization", authorization(camper))
+				.expect(403);
+			const before = await persisted();
+			const response = await queue().expect(200);
+			const detail = await read().expect(200);
+			expect(response.body.items).toContainEqual(detail.body);
+			expect(response.body.pagination).toMatchObject({ page: 1, limit: 20 });
+			expect(await persisted()).toEqual(before);
+			expect(await audits()).toHaveLength(0);
+		});
+		it("returns an empty queue with zero totalPages", async () => {
+			await db.getRepository(ContentReport).delete(report.id);
+			const response = await queue().expect(200);
+			expect(response.body).toEqual({
+				items: [],
+				pagination: { page: 1, limit: 20, total: 0, totalPages: 0 },
+			});
+		});
+		it("paginates newest first with descending ID to break timestamp ties", async () => {
+			await db
+				.getRepository(ContentReport)
+				.update(report.id, { createdAt: new Date("2099-01-01T00:00:00Z") });
+			const rows = await db.getRepository(ContentReport).save(
+				[0, 1].map(() =>
+					db.getRepository(ContentReport).create({
+						reporterId: camper.id,
+						targetType: "opaque-domain",
+						targetId: randomUUID(),
+						reason: "Queue test",
+						createdAt: new Date("2099-01-02T00:00:00Z"),
+					})
+				)
+			);
+			const expectedIds = rows
+				.map((row) => row.id)
+				.sort()
+				.reverse();
+			const first = await queue({ page: 1, limit: 2 }).expect(200);
+			const second = await queue({ page: 2, limit: 2 }).expect(200);
+			expect(first.body.items.map((item: { id: string }) => item.id)).toEqual(expectedIds);
+			expect(second.body.items[0].id).toBe(report.id);
+			expect(first.body.pagination).toEqual({ page: 1, limit: 2, total: 3, totalPages: 2 });
+			expect(first.body.items[0].reporter).toEqual({ id: camper.id, fullName: camper.fullName });
+		});
+		it.each<Record<string, number | string>>([{ page: 0 }, { limit: 101 }, { status: "pending" }])(
+			"rejects invalid query %p",
+			async (query) => {
+				await queue(query).expect(422);
+			}
+		);
+	});
+
 	it("requires authentication and current Admin role on both endpoints", async () => {
 		await request(app.getHttpServer()).get(`/api/content-reports/${report.id}`).expect(401);
 		await request(app.getHttpServer())
@@ -126,31 +188,35 @@ describe("Content reports (real PostgreSQL integration)", () => {
 			updatedAt: expect.any(String),
 		});
 	});
-	it.each([Status.REVIEWING, Status.ACTIONED, Status.REJECTED])(
-		"persists pending -> %s with exactly one audit and no target lookup",
-		async (status) => {
-			const before = await persisted();
-			const actorBefore = await db.getRepository(User).findOneByOrFail({ id: admin.id });
-			const response = await transition(status).expect(200);
-			expect(response.body.status).toBe(status);
-			const after = await persisted();
-			expect(after).toMatchObject({ ...before, status, updatedAt: expect.any(Date) });
-			expect(after.updatedAt.getTime()).toBeGreaterThanOrEqual(before.updatedAt.getTime());
-			const history = await audits();
-			expect(history).toHaveLength(1);
-			expect(history[0]).toMatchObject({
-				actorId: admin.id,
-				targetType: "content_report",
-				targetId: report.id,
-				action: "content_report.status_changed",
-				before: { status: Status.PENDING },
-				after: { status },
-				reason: null,
-			});
-			expect(await db.getRepository(User).findOneByOrFail({ id: admin.id })).toEqual(actorBefore);
-			// targetId is deliberately nonexistent: handling cannot require target existence.
-		}
-	);
+	it.each([
+		[Status.PENDING, Status.REVIEWING],
+		[Status.PENDING, Status.ACTIONED],
+		[Status.PENDING, Status.REJECTED],
+		[Status.REVIEWING, Status.ACTIONED],
+		[Status.REVIEWING, Status.REJECTED],
+	])("persists %s -> %s with exactly one audit and no target lookup", async (from, status) => {
+		await db.getRepository(ContentReport).update(report.id, { status: from });
+		const before = await persisted();
+		const actorBefore = await db.getRepository(User).findOneByOrFail({ id: admin.id });
+		const response = await transition(status, from).expect(200);
+		expect(response.body.status).toBe(status);
+		const after = await persisted();
+		expect(after).toMatchObject({ ...before, status, updatedAt: expect.any(Date) });
+		expect(after.updatedAt.getTime()).toBeGreaterThanOrEqual(before.updatedAt.getTime());
+		const history = await audits();
+		expect(history).toHaveLength(1);
+		expect(history[0]).toMatchObject({
+			actorId: admin.id,
+			targetType: "content_report",
+			targetId: report.id,
+			action: "content_report.status_changed",
+			before: { status: from },
+			after: { status },
+			reason: null,
+		});
+		expect(await db.getRepository(User).findOneByOrFail({ id: admin.id })).toEqual(actorBefore);
+		// targetId is deliberately nonexistent: handling cannot require target existence.
+	});
 	it("rejects stale requests and preserves successful history", async () => {
 		await transition(Status.REVIEWING).expect(200);
 		const before = await persisted();
@@ -158,9 +224,26 @@ describe("Content reports (real PostgreSQL integration)", () => {
 		expect(await persisted()).toEqual(before);
 		expect(await audits()).toHaveLength(1);
 	});
+	it.each([Status.ACTIONED, Status.REJECTED])(
+		"rejects stale reviewing request after resolution to %s",
+		async (status) => {
+			await transition(Status.REVIEWING).expect(200);
+			await transition(status, Status.REVIEWING).expect(200);
+			const before = await persisted();
+			const history = await audits();
+			await transition(Status.ACTIONED, Status.REVIEWING).expect(409);
+			expect(await persisted()).toEqual(before);
+			expect(await audits()).toEqual(history);
+			expect(history).toHaveLength(2);
+		}
+	);
 	const invalidPairs = Object.values(Status).flatMap((from) =>
 		Object.values(Status)
-			.filter((to) => from !== Status.PENDING || to === Status.PENDING)
+			.filter(
+				(to) =>
+					(from !== Status.PENDING || to === Status.PENDING) &&
+					!(from === Status.REVIEWING && [Status.ACTIONED, Status.REJECTED].includes(to))
+			)
 			.map((to) => [from, to] as const)
 	);
 	it.each(invalidPairs)(
@@ -209,19 +292,28 @@ describe("Content reports (real PostgreSQL integration)", () => {
 			.expect(422);
 		expect((await persisted()).status).toBe(Status.PENDING);
 	});
-	it("serializes concurrent Admin decisions; exactly one succeeds and is audited", async () => {
-		const otherAdmin = await account(UserRole.ADMIN);
-		const results = await Promise.all([
-			transition(Status.REVIEWING),
-			transition(Status.ACTIONED, Status.PENDING, otherAdmin),
-		]);
-		expect(results.map((result) => result.status).sort()).toEqual([200, 409]);
-		const winner = results.find((result) => result.status === 200);
-		expect(winner).toBeDefined();
-		expect((await persisted()).status).toBe(winner?.body.status);
-		expect(await audits()).toHaveLength(1);
-	});
-	it("rolls back report status and timestamp when PostgreSQL rejects the audit insert", async () => {
+	it.each([Status.PENDING, Status.REVIEWING])(
+		"serializes concurrent Admin decisions from %s",
+		async (from) => {
+			await db.getRepository(ContentReport).update(report.id, { status: from });
+			const otherAdmin = await account(UserRole.ADMIN);
+			const results = await Promise.all([
+				transition(Status.REJECTED, from),
+				transition(Status.ACTIONED, from, otherAdmin),
+			]);
+			expect(results.map((result) => result.status).sort()).toEqual([200, 409]);
+			const winner = results.find((result) => result.status === 200);
+			expect(winner).toBeDefined();
+			expect((await persisted()).status).toBe(winner?.body.status);
+			expect(await audits()).toHaveLength(1);
+		}
+	);
+	it.each([
+		[Status.PENDING, Status.ACTIONED],
+		[Status.REVIEWING, Status.ACTIONED],
+		[Status.REVIEWING, Status.REJECTED],
+	])("rolls back %s -> %s when PostgreSQL rejects audit", async (from, status) => {
+		await db.getRepository(ContentReport).update(report.id, { status: from });
 		const before = await persisted();
 		// Real DB failure, scoped to this report; no mock transaction or repository.
 		await db.query(
@@ -231,7 +323,7 @@ describe("Content reports (real PostgreSQL integration)", () => {
 			await db.query(
 				`CREATE TRIGGER ctms105_test_reject_audit BEFORE INSERT ON audit_logs FOR EACH ROW WHEN (NEW.target_id = '${report.id}'::uuid) EXECUTE FUNCTION ctms105_test_reject_audit()`
 			);
-			await transition(Status.ACTIONED).expect(500);
+			await transition(status, from).expect(500);
 			expect(await persisted()).toEqual(before);
 			expect(await audits()).toHaveLength(0);
 		} finally {

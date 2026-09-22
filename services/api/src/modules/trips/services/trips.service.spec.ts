@@ -6,6 +6,7 @@ import {
 } from "../../trekking-routes/entities/trekking-route.entity";
 import { UserRole, UserStatus } from "../../users/entities/user.entity";
 import { RiskLevel } from "../../weather/entities/weather-risk-assessment.entity";
+import { ReviewTripAction } from "../dto/review-trip.dto";
 import type { SearchTripsQueryDto } from "../dto/search-trips-query.dto";
 import { WaypointType } from "../entities/trip-waypoint.entity";
 import { TripStatus, TripType } from "../entities/trip.entity";
@@ -17,6 +18,7 @@ const ROUTE_ID = "22222222-2222-4222-8222-222222222222";
 const TRIP_ID = "33333333-3333-4333-8333-333333333333";
 const CHECKPOINT_ID = "44444444-4444-4444-8444-444444444444";
 const OTHER_HOST_ID = "55555555-5555-4555-8555-555555555555";
+const ADMIN_ID = "88888888-8888-4888-8888-888888888888";
 
 const CAMPER_ACTOR: AuthenticatedUser = {
 	userId: "88888888-8888-4888-8888-888888888888",
@@ -150,6 +152,9 @@ describe("TripsService", () => {
 		findInvalidWaypointCheckpointIds: jest.Mock;
 		findRouteDependencyForUpdate: jest.Mock;
 		replaceWaypointsAndSubmitForApproval: jest.Mock;
+		findByIdForReview: jest.Mock;
+		findRouteStatus: jest.Mock;
+		updateStatus: jest.Mock;
 		findById: jest.Mock;
 		findTripsByHost: jest.Mock;
 		searchPublishedTrips: jest.Mock;
@@ -174,6 +179,17 @@ describe("TripsService", () => {
 				status: TrekkingRouteStatus.ACTIVE,
 			}),
 			replaceWaypointsAndSubmitForApproval: jest.fn().mockResolvedValue(configuredTrip()),
+			findByIdForReview: jest.fn().mockResolvedValue({
+				trip: configuredTrip(),
+				routeId: ROUTE_ID,
+				status: TripStatus.PENDING_APPROVAL,
+			}),
+			findRouteStatus: jest.fn().mockResolvedValue(TrekkingRouteStatus.ACTIVE),
+			updateStatus: jest
+				.fn()
+				.mockImplementation((_tripId: string, status: TripStatus) =>
+					Promise.resolve({ ...configuredTrip(), status })
+				),
 			findById: jest.fn().mockResolvedValue(createdTrip()),
 			findTripsByHost: jest.fn().mockResolvedValue([]),
 			searchPublishedTrips: jest.fn().mockResolvedValue({ items: [], total: 0 }),
@@ -481,6 +497,99 @@ describe("TripsService", () => {
 				service.configureWaypoints(HOST_ID, TRIP_ID, { waypoints: createTripDto().waypoints })
 			).rejects.toMatchObject({ status: 422 });
 			expect(tripsRepository.replaceWaypointsAndSubmitForApproval).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("review", () => {
+		it("approves a pending Trip, publishes it, and audits with no reason", async () => {
+			const result = await service.review(ADMIN_ID, TRIP_ID, { action: ReviewTripAction.APPROVE });
+
+			expect(tripsRepository.findByIdForReview).toHaveBeenCalledWith(TRIP_ID);
+			expect(tripsRepository.findRouteStatus).toHaveBeenCalledWith(ROUTE_ID);
+			expect(tripsRepository.updateStatus).toHaveBeenCalledWith(TRIP_ID, TripStatus.PUBLISHED);
+			expect(result.status).toBe(TripStatus.PUBLISHED);
+			expect(auditRepository.save).toHaveBeenCalledWith(
+				expect.objectContaining({
+					actorId: ADMIN_ID,
+					action: "trip.approved",
+					targetType: "trip",
+					targetId: TRIP_ID,
+					before: { status: TripStatus.PENDING_APPROVAL },
+					after: { status: TripStatus.PUBLISHED },
+					reason: null,
+				})
+			);
+		});
+
+		it("declines a pending Trip back to draft, requiring and recording the reason", async () => {
+			const result = await service.review(ADMIN_ID, TRIP_ID, {
+				action: ReviewTripAction.DECLINE,
+				reason: "Itinerary missing lunch stop",
+			});
+
+			expect(tripsRepository.findRouteStatus).not.toHaveBeenCalled();
+			expect(tripsRepository.updateStatus).toHaveBeenCalledWith(TRIP_ID, TripStatus.DRAFT);
+			expect(result.status).toBe(TripStatus.DRAFT);
+			expect(auditRepository.save).toHaveBeenCalledWith(
+				expect.objectContaining({
+					actorId: ADMIN_ID,
+					action: "trip.declined",
+					targetType: "trip",
+					targetId: TRIP_ID,
+					before: { status: TripStatus.PENDING_APPROVAL },
+					after: { status: TripStatus.DRAFT },
+					reason: "Itinerary missing lunch stop",
+				})
+			);
+		});
+
+		it("returns 404 when the Trip does not exist", async () => {
+			tripsRepository.findByIdForReview.mockResolvedValue(null);
+
+			await expect(
+				service.review(ADMIN_ID, TRIP_ID, { action: ReviewTripAction.APPROVE })
+			).rejects.toBeInstanceOf(NotFoundException);
+			expect(tripsRepository.updateStatus).not.toHaveBeenCalled();
+		});
+
+		it.each([TripStatus.DRAFT, TripStatus.PUBLISHED, TripStatus.CANCELLED])(
+			"returns 409 when the Trip status is %s (not pending_approval)",
+			async (status) => {
+				tripsRepository.findByIdForReview.mockResolvedValue({
+					trip: { ...configuredTrip(), status },
+					routeId: ROUTE_ID,
+					status,
+				});
+
+				await expect(
+					service.review(ADMIN_ID, TRIP_ID, { action: ReviewTripAction.APPROVE })
+				).rejects.toBeInstanceOf(ConflictException);
+				expect(tripsRepository.updateStatus).not.toHaveBeenCalled();
+			}
+		);
+
+		it("returns 422 and does not publish when the Trip's Route is no longer active", async () => {
+			tripsRepository.findRouteStatus.mockResolvedValue(TrekkingRouteStatus.CLOSED);
+
+			await expect(
+				service.review(ADMIN_ID, TRIP_ID, { action: ReviewTripAction.APPROVE })
+			).rejects.toMatchObject({ status: 422 });
+			expect(tripsRepository.updateStatus).not.toHaveBeenCalled();
+			expect(auditRepository.save).not.toHaveBeenCalled();
+		});
+
+		it("retrying an already-reviewed Trip returns 409 instead of double-processing (idempotency)", async () => {
+			tripsRepository.findByIdForReview.mockResolvedValue({
+				trip: { ...configuredTrip(), status: TripStatus.PUBLISHED },
+				routeId: ROUTE_ID,
+				status: TripStatus.PUBLISHED,
+			});
+
+			await expect(
+				service.review(ADMIN_ID, TRIP_ID, { action: ReviewTripAction.APPROVE })
+			).rejects.toBeInstanceOf(ConflictException);
+			expect(tripsRepository.updateStatus).not.toHaveBeenCalled();
+			expect(auditRepository.save).not.toHaveBeenCalled();
 		});
 	});
 

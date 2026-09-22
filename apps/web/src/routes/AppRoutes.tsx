@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { HttpError } from "../core/api";
 import { clearAuthSessionAndRedirect } from "../core/api/authSessionSync";
 import { AdminAuditLogsPage } from "../features/admin-audit-logs/pages/AdminAuditLogsPage";
+import { AdminContentReportsPage } from "../features/admin-content-reports/pages/AdminContentReportsPage";
 import { AdminUserAccountsPage } from "../features/admin-user-accounts/pages/AdminUserAccountsPage";
 import { AdminWeatherRulesPage } from "../features/admin-weather-rules/pages/AdminWeatherRulesPage";
 import { ForgotPasswordPage } from "../features/auth/pages/ForgotPasswordPage";
@@ -257,6 +258,7 @@ export function AppRoutes() {
 		}
 
 		case RoutePath.ADMIN_USERS:
+		case RoutePath.ADMIN_CONTENT_REPORTS:
 			return (
 				<AppRoleGuard
 					allowedRoles={["admin"]}
@@ -264,7 +266,11 @@ export function AppRoutes() {
 					fallback={unauthorizedFallback}
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
-					<AdminUserAccountsPage onLogout={handleLogout} />
+					{currentPath === RoutePath.ADMIN_CONTENT_REPORTS ? (
+						<AdminContentReportsPage onLogout={handleLogout} />
+					) : (
+						<AdminUserAccountsPage onLogout={handleLogout} />
+					)}
 				</AppRoleGuard>
 			);
 

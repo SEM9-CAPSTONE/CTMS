@@ -67,7 +67,7 @@ describe("AdminUserAccountsPage", () => {
 			"page"
 		);
 		expect(screen.getByRole("button", { name: "Nhật ký hệ thống" })).toBeEnabled();
-		expect(screen.getByRole("button", { name: /Báo cáo nội dung/ })).toBeDisabled();
+		expect(screen.getByRole("button", { name: /Báo cáo nội dung/ })).toBeEnabled();
 		expect(screen.getByRole("button", { name: "Khóa CTMS Admin" })).toBeDisabled();
 		expect(screen.getByText(/Tổng cộng/)).toHaveTextContent("2");
 	});
