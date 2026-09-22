@@ -18,6 +18,7 @@ import { RoleLandingPage } from "../features/role-landing/pages/RoleLandingPage"
 import { AdminTrekkingRoutesPage } from "../features/trekking-routes/pages/AdminTrekkingRoutesPage";
 import { CreateTrekkingRoutePage } from "../features/trekking-routes/pages/CreateTrekkingRoutePage";
 import { TrekkingRoutesPage } from "../features/trekking-routes/pages/TrekkingRoutesPage";
+import { AdminTripsPage } from "../features/trips/pages/AdminTripsPage";
 import { CreateTripPage } from "../features/trips/pages/CreateTripPage";
 import { EdgeCasePage, ErrorPage, NotFoundPage, UnauthorizedPage } from "../shared/pages";
 import { AppRoleGuard } from "./AppRoleGuard";
@@ -244,6 +245,18 @@ export function AppRoutes() {
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
 					<AdminTrekkingRoutesPage onLogout={handleLogout} />
+				</AppRoleGuard>
+			);
+
+		case RoutePath.ADMIN_TRIPS:
+			return (
+				<AppRoleGuard
+					allowedRoles={["admin"]}
+					currentRoles={currentRoles}
+					fallback={unauthorizedFallback}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<AdminTripsPage onLogout={handleLogout} />
 				</AppRoleGuard>
 			);
 

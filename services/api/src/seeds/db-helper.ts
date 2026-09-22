@@ -289,6 +289,72 @@ async function main() {
 				[input.routeId]
 			);
 			console.log(JSON.stringify({ advices: rows }));
+		} else if (action === "seed-pending-trip") {
+			// CTMS-23-T02 E2E. Seeds a Trip directly in pending_approval status
+			// (draft -> pending_approval is CTMS-022's own already-tested Host
+			// flow) so the Admin review E2E can start straight from the one
+			// precondition it needs, mirroring seed-trekking-routes' own
+			// E2E-only-safety-checked pattern.
+			const input = parseJsonArg<{ hostId: string; routeId: string; title: string }>(arg);
+			if (!input.title.startsWith("E2E") && !input.title.startsWith("CTMS")) {
+				throw new Error(`Refusing to seed non-E2E trip: ${input.title}`);
+			}
+			const meetingPoint = { type: "Point", coordinates: [108.45, 11.94] };
+			const tripRows = (await dataSource.query(
+				`INSERT INTO "trips" (
+					"host_id", "route_id", "title", "description", "trip_type", "duration_nights",
+					"starts_at", "ends_at", "meeting_point", "booking_deadline",
+					"capacity_min", "capacity_max", "price_per_person", "status"
+				)
+				VALUES (
+					$1, $2, $3, 'e2e pending trip fixture', 'day_trip', 0,
+					now() + interval '5 days', now() + interval '5 days 8 hours',
+					ST_SetSRID(ST_GeomFromGeoJSON($4), 4326)::geography, now() + interval '4 days',
+					2, 10, 0, 'pending_approval'
+				)
+				RETURNING "id"`,
+				[input.hostId, input.routeId, input.title, JSON.stringify(meetingPoint)]
+			)) as Array<{ id: string }>;
+			const tripId = tripRows[0].id;
+			await dataSource.query(
+				`INSERT INTO "trip_waypoints" ("trip_id", "type", "name", "location", "day_number", "sequence_order")
+				 VALUES
+				 ($1, 'start', 'Trailhead', ST_SetSRID(ST_GeomFromGeoJSON($2), 4326)::geography, 1, 1),
+				 ($1, 'finish', 'Exit point', ST_SetSRID(ST_GeomFromGeoJSON($2), 4326)::geography, 1, 2)`,
+				[tripId, JSON.stringify(meetingPoint)]
+			);
+			console.log(JSON.stringify({ id: tripId }));
+		} else if (action === "get-trip") {
+			// CTMS-23-T02 E2E. Reads the real trips row -- proves a UI-triggered
+			// Admin review click persisted the real status transition, same
+			// "verify the real DB row, not just the UI" rigor as
+			// get-weather-risk-assessments.
+			const input = parseJsonArg<{ tripId: string }>(arg);
+			const rows = await dataSource.query('SELECT "id", "status" FROM "trips" WHERE "id" = $1', [
+				input.tripId,
+			]);
+			console.log(JSON.stringify({ trip: rows[0] ?? null }));
+		} else if (action === "clean-trips") {
+			const input = parseJsonArg<{ tripIds: string[] }>(arg);
+			if (input.tripIds.length > 0) {
+				const rows = (await dataSource.query(
+					'SELECT "id", "title" FROM "trips" WHERE "id" = ANY($1)',
+					[input.tripIds]
+				)) as Array<{ id: string; title: string }>;
+				const unsafe = rows.find(
+					(row) => !row.title.startsWith("E2E") && !row.title.startsWith("CTMS")
+				);
+				if (unsafe)
+					throw new Error(`Refusing to delete non-E2E trip: ${unsafe.id} ${unsafe.title}`);
+				await dataSource.query('DELETE FROM "audit_logs" WHERE "target_id" = ANY($1)', [
+					input.tripIds,
+				]);
+				await dataSource.query('DELETE FROM "trip_waypoints" WHERE "trip_id" = ANY($1)', [
+					input.tripIds,
+				]);
+				await dataSource.query('DELETE FROM "trips" WHERE "id" = ANY($1)', [input.tripIds]);
+			}
+			console.log(JSON.stringify({ success: true }));
 		} else if (action === "clean-trekking-routes") {
 			const input = parseJsonArg<{ routeIds: string[] }>(arg);
 			if (input.routeIds.length > 0) {

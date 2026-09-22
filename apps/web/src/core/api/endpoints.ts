@@ -46,6 +46,8 @@ export const API_ENDPOINTS = {
 		CREATE: "/trips",
 		MEMBERS: (tripId: string) => `/trips/${tripId}/members`,
 		GPS_LOGS: (tripId: string) => `/trips/${tripId}/gps-logs`,
+		PENDING_REVIEW: "/trips/pending-review",
+		REVIEW: (id: string) => `/trips/${id}/review`,
 	},
 	WEATHER: {
 		RISK_ASSESSMENT: "/weather/risk-assessment",

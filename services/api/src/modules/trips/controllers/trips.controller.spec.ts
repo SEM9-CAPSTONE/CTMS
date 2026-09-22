@@ -1,6 +1,7 @@
 import type { AuthenticatedUser } from "../../auth/jwt.strategy";
 import { UserRole, UserStatus } from "../../users/entities/user.entity";
 import type { ConfigureTripWaypointsDto, CreateTripDto } from "../dto/create-trip.dto";
+import { ReviewTripAction, type ReviewTripDto } from "../dto/review-trip.dto";
 import type { SearchTripsQueryDto } from "../dto/search-trips-query.dto";
 import type { PaginatedTripsResponseDto, TripResponseDto } from "../dto/trip-response.dto";
 import { TripStatus, TripType } from "../entities/trip.entity";
@@ -22,6 +23,8 @@ describe("TripsController", () => {
 		getTripDetails: jest.Mock;
 		create: jest.Mock;
 		configureWaypoints: jest.Mock;
+		listPendingReview: jest.Mock;
+		review: jest.Mock;
 	};
 	let controller: TripsController;
 
@@ -31,6 +34,8 @@ describe("TripsController", () => {
 			getTripDetails: jest.fn(),
 			create: jest.fn(),
 			configureWaypoints: jest.fn(),
+			listPendingReview: jest.fn(),
+			review: jest.fn(),
 		};
 		controller = new TripsController(tripsService as unknown as TripsService);
 	});
@@ -109,6 +114,33 @@ describe("TripsController", () => {
 
 			expect(tripsService.configureWaypoints).toHaveBeenCalledWith(USER_ID, TRIP_ID, dto);
 			expect(result).toBe(mockConfigured);
+		});
+	});
+
+	describe("listPendingReview", () => {
+		it("delegates to TripsService.listPendingReview with no arguments", async () => {
+			const mockPending: Array<Partial<TripResponseDto>> = [
+				{ id: TRIP_ID, status: TripStatus.PENDING_APPROVAL },
+			];
+			tripsService.listPendingReview.mockResolvedValue(mockPending);
+
+			const result = await controller.listPendingReview();
+
+			expect(tripsService.listPendingReview).toHaveBeenCalledWith();
+			expect(result).toBe(mockPending);
+		});
+	});
+
+	describe("review", () => {
+		it("delegates to TripsService.review with adminId, tripId, and dto", async () => {
+			const dto: ReviewTripDto = { action: ReviewTripAction.APPROVE };
+			const mockReviewed: Partial<TripResponseDto> = { id: TRIP_ID, status: TripStatus.PUBLISHED };
+			tripsService.review.mockResolvedValue(mockReviewed as TripResponseDto);
+
+			const result = await controller.review({ user: MOCK_USER }, { tripId: TRIP_ID }, dto);
+
+			expect(tripsService.review).toHaveBeenCalledWith(USER_ID, TRIP_ID, dto);
+			expect(result).toBe(mockReviewed);
 		});
 	});
 });

@@ -263,6 +263,15 @@ export class TripsService {
 	}
 
 	/**
+	 * CTMS-023-T02. Mirrors TrekkingRoutesService.listPendingReview -- the
+	 * Admin review UI needs a way to discover which Trips are awaiting
+	 * approval before it can call `review` on any of them.
+	 */
+	listPendingReview(): Promise<TripResponseDto[]> {
+		return this.tripsRepository.findPendingReview();
+	}
+
+	/**
 	 * CTMS-023-T01. Mirrors TrekkingRoutesService.review's own action+reason
 	 * flow (the proven Admin-review convention already used for CTMS-13):
 	 * only a Trip in pending_approval may be reviewed; approve requires the
