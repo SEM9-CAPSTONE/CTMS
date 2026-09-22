@@ -9,10 +9,15 @@ import {
 import { DataSource, type EntityManager } from "typeorm";
 import { AuditLog } from "../../auth/entities/audit-log.entity";
 import { TrekkingRouteStatus } from "../../trekking-routes/entities/trekking-route.entity";
-import type { CreateTripDto, CreateTripWaypointDto, GeoJsonPointDto } from "../dto/create-trip.dto";
+import type {
+	ConfigureTripWaypointsDto,
+	CreateTripDto,
+	CreateTripWaypointDto,
+	GeoJsonPointDto,
+} from "../dto/create-trip.dto";
 import type { TripResponseDto } from "../dto/trip-response.dto";
 import { WaypointType } from "../entities/trip-waypoint.entity";
-import { type GeoPoint, TripType } from "../entities/trip.entity";
+import { type GeoPoint, TripStatus, TripType } from "../entities/trip.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { type CreateTripWaypointInput, TripsRepository } from "../repositories/trips.repository";
 
@@ -108,6 +113,69 @@ export class TripsService {
 		});
 	}
 
+	async configureWaypoints(
+		hostId: string,
+		tripId: string,
+		dto: ConfigureTripWaypointsDto
+	): Promise<TripResponseDto> {
+		return this.dataSource.transaction(async (manager: EntityManager) => {
+			const repository = manager.withRepository(this.tripsRepository);
+			const lockedTrip = await repository.findByIdForWaypointConfiguration(tripId);
+
+			if (!lockedTrip) {
+				throw new NotFoundException("Trip not found");
+			}
+			if (lockedTrip.hostId !== hostId) {
+				throw new ForbiddenException("Only the owning Host can configure this Trip");
+			}
+
+			this.assertConfigurableTripStatus(lockedTrip.trip, dto);
+			this.assertWaypointPayload(dto.waypoints, lockedTrip.trip, true);
+
+			const checkpointIds = dto.waypoints
+				.map((waypoint) => waypoint.checkpointId)
+				.filter((checkpointId): checkpointId is string => Boolean(checkpointId));
+			const invalidCheckpointIds = await repository.findInvalidWaypointCheckpointIds(
+				lockedTrip.routeId,
+				[...new Set(checkpointIds)]
+			);
+			if (invalidCheckpointIds.length > 0) {
+				throw this.validationException([
+					{
+						field: "waypoints.checkpointId",
+						errors: [
+							`checkpoint must exist on the selected Route: ${invalidCheckpointIds.join(", ")}`,
+						],
+					},
+				]);
+			}
+
+			if (
+				lockedTrip.status === TripStatus.PENDING_APPROVAL &&
+				waypointsMatchDto(lockedTrip.trip.waypoints, dto.waypoints)
+			) {
+				return lockedTrip.trip;
+			}
+
+			const updated = await repository.replaceWaypointsAndSubmitForApproval(
+				tripId,
+				dto.waypoints.map(toWaypointInput)
+			);
+
+			await manager.getRepository(AuditLog).save({
+				actorId: hostId,
+				action: "trip_waypoints.configured",
+				targetType: "trip",
+				targetId: tripId,
+				before: this.buildWaypointAuditSnapshot(lockedTrip.trip),
+				after: this.buildWaypointAuditSnapshot(updated),
+				reason: "host_configure_trip_waypoints",
+			});
+
+			return updated;
+		});
+	}
+
 	private assertCreateTripPayload(dto: CreateTripDto): {
 		startsAt: Date;
 		endsAt: Date;
@@ -148,8 +216,42 @@ export class TripsService {
 			});
 		}
 
+		this.assertWaypointPayload(
+			dto.waypoints,
+			{
+				startsAt,
+				endsAt,
+				tripType: dto.tripType,
+				durationNights: deriveDurationNights(dto.tripType, startsAt, endsAt),
+				waypoints: [],
+			},
+			false
+		);
+
+		if (errors.length > 0) {
+			throw this.validationException(errors);
+		}
+
+		return { startsAt, endsAt, bookingDeadline, meetingAt };
+	}
+
+	private assertWaypointPayload(
+		waypoints: CreateTripWaypointDto[],
+		trip: Pick<
+			TripResponseDto,
+			"startsAt" | "endsAt" | "tripType" | "durationNights" | "waypoints"
+		>,
+		requireApprovalReady: boolean
+	): void {
+		const errors: FieldValidationError[] = [];
+		const startsAt = new Date(trip.startsAt);
+		const endsAt = new Date(trip.endsAt);
 		const sequenceOrders = new Set<number>();
-		for (const [index, waypoint] of dto.waypoints.entries()) {
+		const maxDayNumber = trip.durationNights + 1;
+		let startSequenceOrder: number | null = null;
+		let finishSequenceOrder: number | null = null;
+
+		for (const [index, waypoint] of waypoints.entries()) {
 			if (sequenceOrders.has(waypoint.sequenceOrder)) {
 				errors.push({
 					field: `waypoints.${index}.sequenceOrder`,
@@ -158,6 +260,12 @@ export class TripsService {
 			}
 			sequenceOrders.add(waypoint.sequenceOrder);
 
+			if (waypoint.dayNumber > maxDayNumber) {
+				errors.push({
+					field: `waypoints.${index}.dayNumber`,
+					errors: ["dayNumber must be within the Trip duration"],
+				});
+			}
 			if (waypoint.plannedAt) {
 				const plannedAt = new Date(waypoint.plannedAt);
 				if (plannedAt < startsAt || plannedAt > endsAt) {
@@ -167,20 +275,71 @@ export class TripsService {
 					});
 				}
 			}
+			if (waypoint.type === WaypointType.START) {
+				startSequenceOrder = waypoint.sequenceOrder;
+			}
+			if (waypoint.type === WaypointType.FINISH) {
+				finishSequenceOrder = waypoint.sequenceOrder;
+			}
 		}
 
-		if (!dto.waypoints.some((waypoint) => waypoint.type === WaypointType.START)) {
+		const startCount = waypoints.filter((waypoint) => waypoint.type === WaypointType.START).length;
+		const finishCount = waypoints.filter(
+			(waypoint) => waypoint.type === WaypointType.FINISH
+		).length;
+		const overnightCount = waypoints.filter(
+			(waypoint) => waypoint.type === WaypointType.OVERNIGHT
+		).length;
+
+		if (startCount !== 1) {
 			errors.push({ field: "waypoints", errors: ["Trip must include a start waypoint"] });
 		}
-		if (!dto.waypoints.some((waypoint) => waypoint.type === WaypointType.FINISH)) {
+		if (finishCount !== 1) {
 			errors.push({ field: "waypoints", errors: ["Trip must include a finish waypoint"] });
 		}
-
+		if (
+			startSequenceOrder != null &&
+			finishSequenceOrder != null &&
+			startSequenceOrder >= finishSequenceOrder
+		) {
+			errors.push({
+				field: "waypoints",
+				errors: ["start waypoint must occur before finish waypoint"],
+			});
+		}
+		if (trip.tripType === TripType.DAY_TRIP && overnightCount > 0) {
+			errors.push({
+				field: "waypoints",
+				errors: ["day_trip cannot include overnight waypoints"],
+			});
+		}
+		if (
+			requireApprovalReady &&
+			trip.tripType === TripType.OVERNIGHT &&
+			overnightCount !== trip.durationNights
+		) {
+			errors.push({
+				field: "waypoints",
+				errors: ["overnight Trips must include one overnight waypoint per duration night"],
+			});
+		}
 		if (errors.length > 0) {
 			throw this.validationException(errors);
 		}
+	}
 
-		return { startsAt, endsAt, bookingDeadline, meetingAt };
+	private assertConfigurableTripStatus(
+		trip: TripResponseDto,
+		dto: ConfigureTripWaypointsDto
+	): void {
+		if (trip.status === TripStatus.DRAFT) return;
+		if (
+			trip.status === TripStatus.PENDING_APPROVAL &&
+			waypointsMatchDto(trip.waypoints, dto.waypoints)
+		) {
+			return;
+		}
+		throw new ConflictException("Only draft Trips can be configured and submitted for approval");
 	}
 
 	private validationException(message: FieldValidationError[]): UnprocessableEntityException {
@@ -208,6 +367,24 @@ export class TripsService {
 			pricePerPerson: trip.pricePerPerson,
 			status: trip.status,
 			waypointCount: trip.waypoints.length,
+		};
+	}
+
+	private buildWaypointAuditSnapshot(trip: TripResponseDto): Record<string, unknown> {
+		return {
+			id: trip.id,
+			hostId: trip.hostId,
+			routeId: trip.routeId,
+			status: trip.status,
+			waypoints: trip.waypoints.map((waypoint) => ({
+				checkpointId: waypoint.checkpointId,
+				type: waypoint.type,
+				name: waypoint.name,
+				dayNumber: waypoint.dayNumber,
+				sequenceOrder: waypoint.sequenceOrder,
+				plannedAt: waypoint.plannedAt,
+				durationMinutes: waypoint.durationMinutes,
+			})),
 		};
 	}
 }
@@ -242,4 +419,42 @@ function toWaypointInput(waypoint: CreateTripWaypointDto): CreateTripWaypointInp
 		durationMinutes: waypoint.durationMinutes ?? null,
 		metadata: waypoint.metadata ?? null,
 	};
+}
+
+function waypointsMatchDto(
+	currentWaypoints: TripResponseDto["waypoints"],
+	incomingWaypoints: CreateTripWaypointDto[]
+): boolean {
+	if (currentWaypoints.length !== incomingWaypoints.length) return false;
+
+	const currentBySequence = [...currentWaypoints].sort(
+		(first, second) => first.sequenceOrder - second.sequenceOrder
+	);
+	const incomingBySequence = [...incomingWaypoints].sort(
+		(first, second) => first.sequenceOrder - second.sequenceOrder
+	);
+
+	return currentBySequence.every((current, index) => {
+		const incoming = incomingBySequence[index];
+		return (
+			current.checkpointId === (incoming.checkpointId ?? null) &&
+			current.type === incoming.type &&
+			current.name === incoming.name &&
+			coordinatesMatch(current.location.coordinates, incoming.location.coordinates) &&
+			current.dayNumber === incoming.dayNumber &&
+			current.sequenceOrder === incoming.sequenceOrder &&
+			normalizeDate(current.plannedAt) === normalizeDate(incoming.plannedAt) &&
+			current.durationMinutes === (incoming.durationMinutes ?? null) &&
+			JSON.stringify(current.metadata ?? null) === JSON.stringify(incoming.metadata ?? null)
+		);
+	});
+}
+
+function coordinatesMatch(first: [number, number], second: [number, number]): boolean {
+	return first[0] === second[0] && first[1] === second[1];
+}
+
+function normalizeDate(value: Date | string | undefined | null): string | null {
+	if (!value) return null;
+	return new Date(value).toISOString();
 }
