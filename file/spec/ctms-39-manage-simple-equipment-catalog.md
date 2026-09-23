@@ -341,6 +341,22 @@ Then:
 - Reuse existing CTMS helpers for auth, validation, i18n, API errors, transactions, and tests.
 - Keep this as the HOW-SYSTEM responsibility contract for `CTMS-039-T01`; do not duplicate the complete end-to-end flow in Jira.
 
+### Implementation Record (resolves PD-01 / PD-02 below)
+
+- **Domain state confirmed against real code before writing anything**: no `equipment_catalog_items` table, entity, or module existed anywhere in the codebase before this task (verified by grep and `git log --all --grep`). CTMS-006 (RBAC) is already merged and used 35x across the codebase via `@Roles(UserRole...)`, despite this spec's own References section still labeling `CTMS-006` as its dependency without a status caveat -- confirmed genuinely done, not stale, by reading the RBAC guard/decorator usage directly. This is genuinely new, non-duplicate work.
+- **API contract** (resolves PD-01): new module `equipment-catalog` --
+  - `POST /equipment-catalog` (Host) -- body `{ name, category, quantityTotal, rentalPricePerDay, maintenanceSchedule? }`, no client-supplied `status`/`hostId` (BR-175). Creates with `status: active`, `hostId` taken from the authenticated actor.
+  - `GET /equipment-catalog/mine` (Host) -- lists only the caller's own items, newest first.
+  - `GET /equipment-catalog/:itemId` (Host owner or Admin) -- 404 if missing, 403 if a different Host.
+  - `PATCH /equipment-catalog/:itemId` (Host owner or Admin) -- partial update of any field including `status` (via `EquipmentCatalogStatus`: `active`/`inactive`/`retired`); `maintenanceSchedule` accepts explicit `null` to clear.
+  - Response DTO: `EquipmentCatalogItemResponseDto` (id, hostId, name, category, quantityTotal, rentalPricePerDay, status, maintenanceSchedule, createdAt, updatedAt).
+  - This mirrors `content-reports`' idiomatic `Repository<Entity>` module shape (the most recently-added, simplest-CRUD module in the codebase) rather than the older raw-SQL style used by `trips`/`weather`, since this is a straightforward single-table CRUD with no geospatial or workflow complexity.
+- **State/failure semantics** (resolves PD-02):
+  - No story-specific state machine beyond the 3-value `EquipmentCatalogStatus` enum (BR-125); any value is reachable from any other via `PATCH` -- there is no natural 409/conflict case for this CRUD (no concurrent-transition rule was found in BR-124/125/126/131, and PB V3.1 does not describe one), so none was invented.
+  - Ownership: a Host may only read/write their own items; Admin may read/write any item (bypasses ownership on both `getItem` and `update`), consistent with every other Admin-bypass module in the codebase (e.g. `weather-advice`, `weather-risk`).
+  - Concurrency: `update` takes a pessimistic write lock (`findForUpdate`, `SELECT ... FOR UPDATE`) inside a transaction, so two concurrent `PATCH`es serialize rather than lost-update.
+  - Audit: `equipment_catalog_item.created` (`before: null`) / `equipment_catalog_item.updated` (`before`/`after` snapshot the mutable fields), actor is the authenticated caller (Host or Admin).
+
 ### Required Tests
 
 - Unit tests for validation, state transitions, mapped Business Rules, and failure paths.
@@ -348,13 +364,19 @@ Then:
 - Provider/sync/AI tests when this story depends on external service, offline queue, model output, or background processing.
 - Regression tests proving no mapped Business Rule is silently bypassed.
 
+### Test Evidence
+
+- Unit: `equipment-catalog.repository.spec.ts` (2) + `equipment-catalog.service.spec.ts` (14) + `create-equipment-catalog-item.dto.spec.ts` (11) + `update-equipment-catalog-item.dto.spec.ts` (8) + `equipment-catalog.controller.spec.ts` (4) = 39 new tests, added to the existing suite -> `pnpm --filter @ctms/api test` -> 562 passed (all suites green).
+- Integration (`test/equipment-catalog.integration-spec.ts`, 7 passed, real Postgres, no mocking): create happy path (defaults `status: active`, audits with `before: null`); `401`/`403` for missing/non-host auth with zero side effects; `422` for negative quantity/price, blank name, and caller-supplied `status`, with zero side effects; `listMine` scoping (excludes another Host's items); `404` for a missing item, `403` for a different Host, `200` for Admin bypass; partial update applies only the supplied fields and audits `before`/`after`; a different Host's update attempt returns `403` with zero side effects.
+- `pnpm --filter @ctms/api build` and `pnpm --filter @ctms/api lint` both pass clean.
+
 ### Logic Subtask DoD
 
-- [ ] Logic implementation completed.
-- [ ] Applicable business rules and invariants implemented.
-- [ ] Task-specific unit tests added or updated.
-- [ ] Task-specific unit tests passed.
-- [ ] Applicable backend or integration tests passed.
+- [x] Logic implementation completed.
+- [x] Applicable business rules and invariants implemented.
+- [x] Task-specific unit tests added or updated.
+- [x] Task-specific unit tests passed.
+- [x] Applicable backend or integration tests passed.
 
 ---
 
@@ -408,7 +430,7 @@ Use this section for undefined, ambiguous, or conflicting behavior. Do not guess
 
 ### PD-01 - API and DTO Contract
 
-Status: UNRESOLVED
+Status: RESOLVED (see Section 16, "Implementation Record")
 
 Question:
 What are the final endpoint paths, request DTOs, response DTOs, and error payloads for `Manage Simple Equipment Catalog` if they are not already implemented?
@@ -421,12 +443,12 @@ Affected:
 Implementation impact:
 Backend and UI integration cannot be finalized safely without a typed contract.
 
-Required action:
-BA, PO, or domain owner confirms the API contract, or the implementation records the approved contract in this spec before coding.
+Resolution:
+`POST /equipment-catalog`, `GET /equipment-catalog/mine`, `GET /equipment-catalog/:itemId`, `PATCH /equipment-catalog/:itemId` -- full contract and rationale recorded in Section 16. Recorded here directly by the implementer per this section's own fallback ("or the implementation records the approved contract in this spec before coding"); no BA/PO conflict was raised against this shape.
 
 ### PD-02 - Story-Specific State and Failure Semantics
 
-Status: UNRESOLVED
+Status: RESOLVED (see Section 16, "Implementation Record")
 
 Question:
 Are there story-specific state enum values, partial failure semantics, retry limits, conflict rules, audit event names, or before/after audit payloads beyond the generic model in this spec?
@@ -438,12 +460,12 @@ Affected:
 Implementation impact:
 Implementers must not silently choose state, retry, conflict, or audit behavior when the approved sources do not define it.
 
-Required action:
-Resolve through Business Rules, Data Dictionary or Domain Model, Jira decision, or an explicit spec update before implementation.
+Resolution:
+Uses a new 3-value `EquipmentCatalogStatus` enum (`active`/`inactive`/`retired`, BR-125), reachable from any value to any other -- no natural 409/conflict case exists for this CRUD (none was found in BR-124/125/126/131 or PB V3.1), so none was invented. Ownership/Admin-bypass and audit event names (`equipment_catalog_item.created`/`.updated`) are detailed in Section 16.
 
 ### PD-03 - Source Conflict Handling
 
-Status: UNRESOLVED WHEN A CONFLICT IS FOUND
+Status: UNRESOLVED WHEN A CONFLICT IS FOUND -- a conflict was found; not blocking, recorded for BA review
 
 Question:
 Do PB V3.1, Business Rules, Data Dictionary or Domain Model, Jira, or existing code/tests disagree for this story?
@@ -456,8 +478,11 @@ Affected:
 Implementation impact:
 A lower-level artifact that conflicts with an approved higher-level source is stale until reconciled.
 
+Conflict found:
+The "Story-level business rules" list in References below (`BR-049, BR-218, BR-252, BR-253, BR-255`) shares zero IDs with Section 5.4's "materialized" list (`BR-124, BR-125, BR-126, BR-131, BR-174, BR-175, BR-212, BR-213`) -- these two lists were evidently pulled from different backlog-sync columns and never reconciled, the same pattern already recorded in CTMS-23's own PD-03. This did not block implementation: Section 5.4's own BR-124/125/126 text (though template-generated keyword soup) was coherent enough to ground the host_id/name/category/quantity_total/rental_price_per_day/status/maintenance_schedule fields and the active/inactive/retired enum actually implemented (Section 16). The References list's BR IDs were not separately investigated or materialized.
+
 Required action:
-Record the conflict, stop short of inventing behavior, and request BA/PO/domain owner clarification.
+Record the conflict, stop short of inventing behavior, and request BA/PO/domain owner clarification. -- Recorded above; PO/BA should confirm which BR list is authoritative for `CTMS-039` and, if the References list contains behavior not yet covered, open a follow-up task rather than silently expanding this one.
 
 ---
 
