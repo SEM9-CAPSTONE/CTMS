@@ -13,6 +13,8 @@ import { authService } from "../features/auth/services/auth.service";
 import { getGrantedRoles, isAdminUser } from "../features/auth/utils/permissions";
 import { getRefreshToken, getStoredAuthUser } from "../features/auth/utils/tokenStorage";
 import { CamperProfilePage } from "../features/camper-profile/pages/CamperProfilePage";
+import { CreateEquipmentCatalogItemPage } from "../features/equipment-catalog/pages/CreateEquipmentCatalogItemPage";
+import { EquipmentCatalogPage } from "../features/equipment-catalog/pages/EquipmentCatalogPage";
 import { LandingPage } from "../features/landing/pages/LandingPage";
 import { HostLayout } from "../features/role-landing/components/HostLayout";
 import { RoleLandingPage } from "../features/role-landing/pages/RoleLandingPage";
@@ -230,6 +232,35 @@ export function AppRoutes() {
 				</AppRoleGuard>
 			);
 
+		case RoutePath.HOST_EQUIPMENT_CATALOG:
+			return (
+				<AppRoleGuard
+					allowedRoles={["host"]}
+					currentRoles={currentRoles}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
+						<EquipmentCatalogPage
+							onBackHome={() => navigateTo(RoutePath.DASHBOARD)}
+							onCreateItem={() => navigateTo(RoutePath.HOST_CREATE_EQUIPMENT_CATALOG_ITEM)}
+						/>
+					</HostLayout>
+				</AppRoleGuard>
+			);
+
+		case RoutePath.HOST_CREATE_EQUIPMENT_CATALOG_ITEM:
+			return (
+				<AppRoleGuard
+					allowedRoles={["host"]}
+					currentRoles={currentRoles}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
+						<CreateEquipmentCatalogItemPage onBackHome={() => navigateTo(RoutePath.DASHBOARD)} />
+					</HostLayout>
+				</AppRoleGuard>
+			);
+
 		case RoutePath.DASHBOARD: {
 			if (!storedUser || currentRoles.length === 0) {
 				return (
@@ -253,6 +284,7 @@ export function AppRoutes() {
 					onCreateTrip={() => navigateTo(RoutePath.HOST_CREATE_TRIP)}
 					onCreateTrekkingRoute={() => navigateTo(RoutePath.HOST_CREATE_TREKKING_ROUTE)}
 					onViewTrekkingRoutes={() => navigateTo(RoutePath.HOST_TREKKING_ROUTES)}
+					onViewEquipmentCatalog={() => navigateTo(RoutePath.HOST_EQUIPMENT_CATALOG)}
 					onLogout={handleLogout}
 				/>
 			);

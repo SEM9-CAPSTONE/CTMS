@@ -82,6 +82,7 @@ function DashboardMain({
 	onCreateTrip,
 	onCreateTrekkingRoute,
 	onViewTrekkingRoutes,
+	onViewEquipmentCatalog,
 	onNavigateToTrips,
 	onNavigateToTripDetail,
 }: {
@@ -93,6 +94,7 @@ function DashboardMain({
 	onCreateTrip?: () => void;
 	onCreateTrekkingRoute?: () => void;
 	onViewTrekkingRoutes?: () => void;
+	onViewEquipmentCatalog?: () => void;
 	onNavigateToTrips?: () => void;
 	onNavigateToTripDetail?: (tripId: string) => void;
 }) {
@@ -222,6 +224,7 @@ function DashboardMain({
 						onCreateTrip={onCreateTrip}
 						onCreateTrekkingRoute={onCreateTrekkingRoute}
 						onViewTrekkingRoutes={onViewTrekkingRoutes}
+						onViewEquipmentCatalog={onViewEquipmentCatalog}
 						onNavigateToTripDetail={onNavigateToTripDetail}
 					/>
 				) : config.alerts.length > 0 ? (
@@ -278,6 +281,7 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 	onCreateTrip,
 	onCreateTrekkingRoute,
 	onViewTrekkingRoutes,
+	onViewEquipmentCatalog,
 	onNavigateToTrips,
 	onNavigateToTripDetail,
 	onLogout,
@@ -426,6 +430,7 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 					onCreateTrip={onCreateTrip}
 					onCreateTrekkingRoute={onCreateTrekkingRoute}
 					onViewTrekkingRoutes={onViewTrekkingRoutes}
+					onViewEquipmentCatalog={onViewEquipmentCatalog}
 					onNavigateToTrips={onNavigateToTrips}
 					onNavigateToTripDetail={onNavigateToTripDetail}
 				/>

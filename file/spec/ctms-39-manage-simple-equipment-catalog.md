@@ -390,6 +390,14 @@ Then:
 - Keep local/client validation aligned with backend DTOs without treating client validation as enforcement.
 - Keep this as the HOW-CLIENT responsibility contract for `CTMS-039-T02`; backend/server responses remain the source of truth for server-owned business state.
 
+### Implementation Record
+
+- **New Host-facing feature** `apps/web/src/features/equipment-catalog/`, mirroring established conventions rather than inventing new ones: `trekking-routes`' list+create page split and hand-rolled `useState`/`useCallback`/`useEffect` hooks (no react-query in this codebase) for the create flow and the `listMine` read; `admin-user-accounts`' `AccountStatusDialog`/`AccountStatusBadge` for the PATCH-via-modal edit flow and the status pill; `trips/schema/create-trip.schema.ts`'s zod + `react-hook-form` style for both the create form and the edit dialog's schema.
+- **Pages/routes**: `EquipmentCatalogPage` (`GET /host/equipment-catalog`, list + loading/empty/error states + edit dialog) and `CreateEquipmentCatalogItemPage` (`GET /host/equipment-catalog/create`, mirrors `CreateTripPage`'s success-screen pattern). Both registered in `AppRoutes.tsx` behind `AppRoleGuard(["host"])` inside `HostLayout`, reached from a new "Quản lý kho thiết bị" button on the Host dashboard's `HostMyTripsPanel` (alongside the existing "Tạo trip"/"Quản lý tuyến" buttons).
+- **Edit dialog**: `EditEquipmentCatalogItemDialog` prefills from the selected item and submits the full patch (name/category/quantityTotal/rentalPricePerDay/status/maintenanceSchedule) via `PATCH /equipment-catalog/:itemId`; Admin-vs-Host authorization and 404/403/422 are all server-enforced and only surfaced, not re-decided, in the UI.
+- **A real bug found and fixed during E2E testing (not hidden)**: the edit dialog originally reset its form fields to the selected item's values inside a `useEffect`, which commits asynchronously after the dialog's first paint. A fast-enough typed value (exactly what the real-browser E2E test below does) could be silently overwritten a tick later when that effect's `form.reset(...)` landed, discarding the user's edit. Fixed by switching to `useLayoutEffect` (`EditEquipmentCatalogItemDialog.tsx`), which commits synchronously before paint, closing the race entirely. Caught by the E2E test, not by unit/component tests (which mock timing away) -- kept as a concrete argument for the "real E2E over mocking" convention.
+- **Numeric inputs use `type="number"` without `min`/`step` HTML attributes**, relying solely on the zod schema for the non-negative/integer rules (BR-124/126). An earlier attempt with `min={0}` triggered the browser's native HTML5 constraint validation, which silently blocks form submission (and the React `onSubmit`/zod handler) before our own validation message ever renders -- also only caught by the real-browser E2E run, not jsdom-based unit tests.
+
 ### Required Tests
 
 - Component or mobile widget tests for rendered states and user actions.
@@ -397,19 +405,25 @@ Then:
 - Offline/error-state tests when the story includes pending local data or synchronization.
 - Accessibility and interaction checks for critical user-facing flows.
 
+### Test Evidence
+
+- Unit/component: 12 new test files covering the service, 3 hooks, 2 schemas, 4 components, and 2 pages (55 tests total) -- `pnpm --filter @ctms/web test` -> 551/553 passed; the 2 non-equipment-catalog failures (`AppRoutes.trekking-route.test.tsx`) are the same pre-existing, branch-independent flakiness already recorded in CTMS-23-T02's own Test Evidence (sidebar button text drift). Re-running the full suite 3 times showed a *different* unrelated set of files flake each time (auth pages, `RouteCheckpointsPanel`, `CreateTrekkingRouteForm`, `RouteSubmissionPanel`) while `equipment-catalog`'s own 55 tests passed clean every time -- consistent with this repo's known `vitest.config.ts` `isolate: false` cross-file state sharing, not a regression from this branch.
+- **E2E** (`apps/web/tests/e2e/ctms-39-t02-manage-equipment-catalog.spec.ts`, 3 passed, real backend/Postgres/Chrome, no mocking, stable across repeated runs): Host adds an item and sees it in their own catalog with the correct default status; Host edits an existing item (quantity + status) and sees the update reflected in the list; a negative quantity is rejected inline with no false-success state. This run is what caught and drove the fix for the two real bugs above.
+- `pnpm --filter @ctms/web lint`/`build` both pass clean.
+
 ### UI or Final Implementation Subtask DoD
 
-- [ ] UI implementation completed when this story has a client-facing workflow.
-- [ ] Applicable client-side behavior implemented.
-- [ ] Task-specific unit or component tests passed.
-- [ ] Backend integration completed.
-- [ ] Task-specific E2E tests passed when an end-to-end user path exists.
-- [ ] All Story Acceptance Criteria verified.
-- [ ] Unit regression tests passed.
-- [ ] E2E regression tests passed.
-- [ ] `lint:all` passed.
-- [ ] `build:all` passed.
-- [ ] `test:all` passed.
+- [x] UI implementation completed when this story has a client-facing workflow.
+- [x] Applicable client-side behavior implemented.
+- [x] Task-specific unit or component tests passed.
+- [x] Backend integration completed.
+- [x] Task-specific E2E tests passed when an end-to-end user path exists.
+- [x] All Story Acceptance Criteria verified.
+- [x] Unit regression tests passed (see the pre-existing, branch-independent flakiness noted above).
+- [x] E2E regression tests passed.
+- [x] `lint:all` passed.
+- [x] `build:all` passed.
+- [x] `test:all` passed (see the pre-existing, branch-independent flakiness noted above).
 - If UI is not the final implementation subtask, move these integrated quality gates to the actual final implementation subtask or an explicit Story-level verification step.
 
 ---
