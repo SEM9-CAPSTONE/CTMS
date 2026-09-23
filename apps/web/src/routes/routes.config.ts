@@ -10,6 +10,8 @@ export enum RoutePath {
 	HOST_CREATE_TRIP = "/host/trips/create",
 	HOST_TREKKING_ROUTES = "/host/trekking-routes",
 	HOST_CREATE_TREKKING_ROUTE = "/host/trekking-routes/create",
+	HOST_EQUIPMENT_CATALOG = "/host/equipment-catalog",
+	HOST_CREATE_EQUIPMENT_CATALOG_ITEM = "/host/equipment-catalog/create",
 	TREKKING = "/trekking",
 	SAFETY = "/safety",
 	CAMPER_PROFILE = "/camper/profile",

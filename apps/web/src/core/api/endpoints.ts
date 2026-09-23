@@ -91,4 +91,9 @@ export const API_ENDPOINTS = {
 	AUDIT_LOGS: {
 		LIST: "/audit-logs",
 	},
+	EQUIPMENT_CATALOG: {
+		CREATE: "/equipment-catalog",
+		MINE: "/equipment-catalog/mine",
+		DETAIL: (id: string) => `/equipment-catalog/${id}`,
+	},
 } as const;
