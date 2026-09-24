@@ -159,6 +159,9 @@ describe("TripsService", () => {
 		findTripsByHost: jest.Mock;
 		searchPublishedTrips: jest.Mock;
 		findPendingReview: jest.Mock;
+		findByIdForBooking: jest.Mock;
+		adjustSeatsTaken: jest.Mock;
+		recomputeSeatsTaken: jest.Mock;
 	};
 	let auditRepository: { save: jest.Mock };
 	let dataSource: { transaction: jest.Mock };
@@ -195,6 +198,9 @@ describe("TripsService", () => {
 			findTripsByHost: jest.fn().mockResolvedValue([]),
 			searchPublishedTrips: jest.fn().mockResolvedValue({ items: [], total: 0 }),
 			findPendingReview: jest.fn().mockResolvedValue([configuredTrip()]),
+			findByIdForBooking: jest.fn().mockResolvedValue(null),
+			adjustSeatsTaken: jest.fn().mockResolvedValue(undefined),
+			recomputeSeatsTaken: jest.fn().mockResolvedValue(undefined),
 		};
 		auditRepository = { save: jest.fn().mockResolvedValue({}) };
 		dataSource = {
@@ -859,6 +865,170 @@ describe("TripsService", () => {
 
 			expect(tripsRepository.findTripsByHost).toHaveBeenCalledWith(HOST_ID);
 			expect(result).toBe(myTrips);
+		});
+	});
+
+	// ─────────────────────────────────────────────────────────────────────────
+	// CTMS-024 – Prevent Trip Overbooking
+	// BR-067, BR-068, BR-069, BR-070, BR-071, BR-072
+	// ─────────────────────────────────────────────────────────────────────────
+
+	describe("reserveSeats", () => {
+		const FUTURE_DEADLINE = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+		function lockedTrip(overrides: Partial<ReturnType<typeof defaultLockedTrip>> = {}) {
+			return defaultLockedTrip(overrides);
+		}
+
+		function defaultLockedTrip(
+			overrides: Partial<{
+				id: string;
+				capacityMin: number;
+				capacityMax: number | null;
+				seatsTaken: number;
+				status: string;
+				bookingDeadline: Date;
+			}> = {}
+		) {
+			return {
+				id: TRIP_ID,
+				capacityMin: 2,
+				capacityMax: 12,
+				seatsTaken: 5,
+				status: "published",
+				bookingDeadline: FUTURE_DEADLINE,
+				...overrides,
+			};
+		}
+
+		beforeEach(() => {
+			tripsRepository.findByIdForBooking.mockResolvedValue(lockedTrip());
+			tripsRepository.adjustSeatsTaken.mockResolvedValue(undefined);
+			tripsRepository.recomputeSeatsTaken.mockResolvedValue(undefined);
+		});
+
+		it("reserves seats for a published trip within capacity and returns the locked snapshot (BR-071, BR-068)", async () => {
+			const snapshot = await service.reserveSeats(TRIP_ID, 3, {
+				withRepository: jest.fn().mockReturnValue(tripsRepository),
+			} as never);
+
+			expect(tripsRepository.findByIdForBooking).toHaveBeenCalledWith(TRIP_ID);
+			expect(tripsRepository.adjustSeatsTaken).toHaveBeenCalledWith(TRIP_ID, 3);
+			expect(snapshot.id).toBe(TRIP_ID);
+			expect(snapshot.seatsTaken).toBe(5); // original snapshot, not updated value
+		});
+
+		it("returns 404 when the trip does not exist (BR-175)", async () => {
+			tripsRepository.findByIdForBooking.mockResolvedValue(null);
+
+			await expect(
+				service.reserveSeats(TRIP_ID, 2, {
+					withRepository: jest.fn().mockReturnValue(tripsRepository),
+				} as never)
+			).rejects.toBeInstanceOf(NotFoundException);
+			expect(tripsRepository.adjustSeatsTaken).not.toHaveBeenCalled();
+		});
+
+		it("returns 409 when the trip is not published (BR-069)", async () => {
+			tripsRepository.findByIdForBooking.mockResolvedValue(lockedTrip({ status: "draft" }));
+
+			await expect(
+				service.reserveSeats(TRIP_ID, 2, {
+					withRepository: jest.fn().mockReturnValue(tripsRepository),
+				} as never)
+			).rejects.toBeInstanceOf(ConflictException);
+			expect(tripsRepository.adjustSeatsTaken).not.toHaveBeenCalled();
+		});
+
+		it.each(["cancelled", "completed", "ongoing", "pending_approval"])(
+			"returns 409 when the trip status is %s (BR-069)",
+			async (status) => {
+				tripsRepository.findByIdForBooking.mockResolvedValue(lockedTrip({ status }));
+
+				await expect(
+					service.reserveSeats(TRIP_ID, 1, {
+						withRepository: jest.fn().mockReturnValue(tripsRepository),
+					} as never)
+				).rejects.toBeInstanceOf(ConflictException);
+				expect(tripsRepository.adjustSeatsTaken).not.toHaveBeenCalled();
+			}
+		);
+
+		it("returns 409 when the booking deadline has passed (BR-069)", async () => {
+			const pastDeadline = new Date(Date.now() - 1000);
+			tripsRepository.findByIdForBooking.mockResolvedValue(
+				lockedTrip({ bookingDeadline: pastDeadline })
+			);
+
+			await expect(
+				service.reserveSeats(TRIP_ID, 2, {
+					withRepository: jest.fn().mockReturnValue(tripsRepository),
+				} as never)
+			).rejects.toBeInstanceOf(ConflictException);
+			expect(tripsRepository.adjustSeatsTaken).not.toHaveBeenCalled();
+		});
+
+		it("returns 409 when requested seats would exceed capacity_max (BR-071)", async () => {
+			// seatsTaken=10, capacityMax=12 → only 2 remaining; requesting 3 overbooks
+			tripsRepository.findByIdForBooking.mockResolvedValue(
+				lockedTrip({ seatsTaken: 10, capacityMax: 12 })
+			);
+
+			await expect(
+				service.reserveSeats(TRIP_ID, 3, {
+					withRepository: jest.fn().mockReturnValue(tripsRepository),
+				} as never)
+			).rejects.toBeInstanceOf(ConflictException);
+			expect(tripsRepository.adjustSeatsTaken).not.toHaveBeenCalled();
+		});
+
+		it("allows booking the exact remaining seats without conflict (BR-071 boundary)", async () => {
+			// seatsTaken=10, capacityMax=12 → requesting exactly 2 is allowed
+			tripsRepository.findByIdForBooking.mockResolvedValue(
+				lockedTrip({ seatsTaken: 10, capacityMax: 12 })
+			);
+
+			await service.reserveSeats(TRIP_ID, 2, {
+				withRepository: jest.fn().mockReturnValue(tripsRepository),
+			} as never);
+
+			expect(tripsRepository.adjustSeatsTaken).toHaveBeenCalledWith(TRIP_ID, 2);
+		});
+
+		it("allows any group size when capacity_max is null (unlimited trip, BR-071)", async () => {
+			tripsRepository.findByIdForBooking.mockResolvedValue(
+				lockedTrip({ capacityMax: null, seatsTaken: 999 })
+			);
+
+			await service.reserveSeats(TRIP_ID, 50, {
+				withRepository: jest.fn().mockReturnValue(tripsRepository),
+			} as never);
+
+			expect(tripsRepository.adjustSeatsTaken).toHaveBeenCalledWith(TRIP_ID, 50);
+		});
+	});
+
+	describe("releaseSeats", () => {
+		beforeEach(() => {
+			tripsRepository.recomputeSeatsTaken.mockResolvedValue(undefined);
+		});
+
+		it("reconciles seats_taken from bookings table on release (BR-067, BR-069, BR-070)", async () => {
+			await service.releaseSeats(TRIP_ID, {
+				withRepository: jest.fn().mockReturnValue(tripsRepository),
+			} as never);
+
+			expect(tripsRepository.recomputeSeatsTaken).toHaveBeenCalledWith(TRIP_ID);
+		});
+
+		it("propagates repository errors so the caller's transaction can roll back (BR-072, BR-177)", async () => {
+			tripsRepository.recomputeSeatsTaken.mockRejectedValue(new Error("db unavailable"));
+
+			await expect(
+				service.releaseSeats(TRIP_ID, {
+					withRepository: jest.fn().mockReturnValue(tripsRepository),
+				} as never)
+			).rejects.toThrow("db unavailable");
 		});
 	});
 });
