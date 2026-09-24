@@ -34,7 +34,12 @@ function reportFixture(): ContentReport {
 describe("ContentReportsService", () => {
 	let service: ContentReportsService;
 	let persisted: ContentReport;
-	const reports = { findOneBy: jest.fn(), findForUpdate: jest.fn(), save: jest.fn() };
+	const reports = {
+		findOneBy: jest.fn(),
+		findForUpdate: jest.fn(),
+		save: jest.fn(),
+		findQueue: jest.fn(),
+	};
 	const users = { findOneWithRolesById: jest.fn(), getGrantedRoles: jest.fn() };
 	const reporterRead = jest.fn();
 	const auditSave = jest.fn();
@@ -81,6 +86,45 @@ describe("ContentReportsService", () => {
 		service = module.get(ContentReportsService);
 	});
 
+	describe("listReports", () => {
+		it("maps safe authoritative queue data without reporter queries, writes or audit", async () => {
+			const row = {
+				...persisted,
+				reporter: Object.assign(new User(), {
+					id: reporterId,
+					fullName: "Reporter",
+					passwordHash: "secret",
+				}),
+			};
+			reports.findQueue.mockResolvedValue([[row], 3]);
+			const result = await service.listReports(actorId, { page: 2, limit: 1 });
+			expect(result.pagination).toEqual({ page: 2, limit: 1, total: 3, totalPages: 3 });
+			expect(result.items[0]).toMatchObject({
+				id: reportId,
+				reporter: { id: reporterId, fullName: "Reporter" },
+				status: Status.PENDING,
+			});
+			expect(Object.keys(result.items[0].reporter)).toEqual(["id", "fullName"]);
+			expect(reporterRead).not.toHaveBeenCalled();
+			expect(reports.save).not.toHaveBeenCalled();
+			expect(auditSave).not.toHaveBeenCalled();
+		});
+		it("returns empty pagination", async () => {
+			reports.findQueue.mockResolvedValue([[], 0]);
+			await expect(service.listReports(actorId, { page: 1, limit: 20 })).resolves.toEqual({
+				items: [],
+				pagination: { page: 1, limit: 20, total: 0, totalPages: 0 },
+			});
+		});
+		it("rejects non-Admin before querying queue", async () => {
+			users.getGrantedRoles.mockReturnValue([UserRole.CAMPER]);
+			await expect(service.listReports(actorId, { page: 1, limit: 20 })).rejects.toBeInstanceOf(
+				ForbiddenException
+			);
+			expect(reports.findQueue).not.toHaveBeenCalled();
+		});
+	});
+
 	describe("getReport", () => {
 		it("returns authoritative fields and minimal reporter identity", async () => {
 			const result = await service.getReport(actorId, reportId);
@@ -111,36 +155,44 @@ describe("ContentReportsService", () => {
 	});
 
 	describe("transition", () => {
-		it.each([Status.REVIEWING, Status.ACTIONED, Status.REJECTED])(
-			"allows pending -> %s and audits exactly once",
-			async (status) => {
-				const before = { ...persisted };
-				const result = await service.transition(actorId, reportId, {
-					expectedStatus: Status.PENDING,
-					status,
-				});
-				expect(result.status).toBe(status);
-				expect(persisted).toEqual({ ...before, status });
-				expect(reports.findForUpdate).toHaveBeenCalledWith(reportId);
-				expect(transaction).toHaveBeenCalledTimes(1);
-				expect(manager.withRepository).toHaveBeenCalledWith(reports);
-				expect(auditSave).toHaveBeenCalledTimes(1);
-				expect(auditSave).toHaveBeenCalledWith({
-					actorId,
-					action: "content_report.status_changed",
-					targetType: "content_report",
-					targetId: reportId,
-					before: { status: Status.PENDING },
-					after: { status },
-					reason: null,
-				});
-				// Only safe reporter read and audit write; no target entity lookup/mutation.
-				expect(getRepository.mock.calls.map(([entity]) => entity)).toEqual([AuditLog, User]);
-			}
-		);
+		it.each([
+			[Status.PENDING, Status.REVIEWING],
+			[Status.PENDING, Status.ACTIONED],
+			[Status.PENDING, Status.REJECTED],
+			[Status.REVIEWING, Status.ACTIONED],
+			[Status.REVIEWING, Status.REJECTED],
+		])("allows %s -> %s and audits exactly once", async (from, status) => {
+			persisted.status = from;
+			const before = { ...persisted };
+			const result = await service.transition(actorId, reportId, {
+				expectedStatus: from,
+				status,
+			});
+			expect(result.status).toBe(status);
+			expect(persisted).toEqual({ ...before, status });
+			expect(reports.findForUpdate).toHaveBeenCalledWith(reportId);
+			expect(transaction).toHaveBeenCalledTimes(1);
+			expect(manager.withRepository).toHaveBeenCalledWith(reports);
+			expect(auditSave).toHaveBeenCalledTimes(1);
+			expect(auditSave).toHaveBeenCalledWith({
+				actorId,
+				action: "content_report.status_changed",
+				targetType: "content_report",
+				targetId: reportId,
+				before: { status: from },
+				after: { status },
+				reason: null,
+			});
+			// Only safe reporter read and audit write; no target entity lookup/mutation.
+			expect(getRepository.mock.calls.map(([entity]) => entity)).toEqual([AuditLog, User]);
+		});
 		const invalidPairs = Object.values(Status).flatMap((from) =>
 			Object.values(Status)
-				.filter((to) => from !== Status.PENDING || to === Status.PENDING)
+				.filter(
+					(to) =>
+						(from !== Status.PENDING || to === Status.PENDING) &&
+						!(from === Status.REVIEWING && [Status.ACTIONED, Status.REJECTED].includes(to))
+				)
 				.map((to) => [from, to] as const)
 		);
 		it.each(invalidPairs)("rejects %s -> %s without writes", async (from, to) => {
@@ -173,16 +225,35 @@ describe("ContentReportsService", () => {
 			).rejects.toBeInstanceOf(NotFoundException);
 			expect(auditSave).not.toHaveBeenCalled();
 		});
-		it("propagates audit failure out of the transaction without committing", async () => {
+		it.each([Status.ACTIONED, Status.REJECTED])(
+			"rejects stale reviewing decision after %s",
+			async (status) => {
+				persisted.status = status;
+				await expect(
+					service.transition(actorId, reportId, {
+						expectedStatus: Status.REVIEWING,
+						status: Status.ACTIONED,
+					})
+				).rejects.toThrow("status has changed");
+				expect(reports.save).not.toHaveBeenCalled();
+				expect(auditSave).not.toHaveBeenCalled();
+			}
+		);
+		it.each([
+			[Status.PENDING, Status.ACTIONED],
+			[Status.REVIEWING, Status.ACTIONED],
+			[Status.REVIEWING, Status.REJECTED],
+		])("rolls back %s -> %s on audit failure", async (from, status) => {
+			persisted.status = from;
 			auditSave.mockRejectedValueOnce(new Error("Audit unavailable"));
 			await expect(
 				service.transition(actorId, reportId, {
-					expectedStatus: Status.PENDING,
-					status: Status.ACTIONED,
+					expectedStatus: from,
+					status,
 				})
 			).rejects.toThrow("Audit unavailable");
 			expect(reports.save).toHaveBeenCalledTimes(1);
-			expect(persisted.status).toBe(Status.PENDING);
+			expect(persisted.status).toBe(from);
 			expect(reporterRead).not.toHaveBeenCalled();
 		});
 		it("rejects a non-admin before locking or writing", async () => {

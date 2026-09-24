@@ -8,14 +8,18 @@ import {
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { DataSource, type EntityManager } from "typeorm";
 import { AuditLog } from "../../auth/entities/audit-log.entity";
+import type { AuthenticatedUser } from "../../auth/jwt.strategy";
 import { TrekkingRouteStatus } from "../../trekking-routes/entities/trekking-route.entity";
+import { UserRole } from "../../users/entities/user.entity";
 import type {
 	ConfigureTripWaypointsDto,
 	CreateTripDto,
 	CreateTripWaypointDto,
 	GeoJsonPointDto,
 } from "../dto/create-trip.dto";
-import type { TripResponseDto } from "../dto/trip-response.dto";
+import { ReviewTripAction, type ReviewTripDto } from "../dto/review-trip.dto";
+import type { SearchTripsQueryDto } from "../dto/search-trips-query.dto";
+import type { PaginatedTripsResponseDto, TripResponseDto } from "../dto/trip-response.dto";
 import { WaypointType } from "../entities/trip-waypoint.entity";
 import { type GeoPoint, TripStatus, TripType } from "../entities/trip.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
@@ -41,6 +45,92 @@ export class TripsService {
 		private readonly tripsRepository: TripsRepository,
 		private readonly dataSource: DataSource
 	) {}
+
+	async search(query: SearchTripsQueryDto): Promise<PaginatedTripsResponseDto> {
+		this.assertSearchTripsQuery(query);
+
+		const startDate = query.startDate ? new Date(query.startDate) : undefined;
+		const endDate = query.endDate ? new Date(query.endDate) : undefined;
+
+		const { items, total } = await this.tripsRepository.searchPublishedTrips({
+			search: query.search,
+			tripType: query.tripType,
+			difficulty: query.difficulty,
+			startDate,
+			endDate,
+			minPrice: query.minPrice,
+			maxPrice: query.maxPrice,
+			routeId: query.routeId,
+			province: query.province,
+			city: query.city,
+			page: query.page,
+			limit: query.limit,
+		});
+
+		const totalPages = Math.ceil(total / query.limit);
+
+		return {
+			items,
+			pagination: {
+				page: query.page,
+				limit: query.limit,
+				total,
+				totalPages,
+			},
+		};
+	}
+
+	async getTripDetails(actor: AuthenticatedUser, tripId: string): Promise<TripResponseDto> {
+		const trip = await this.tripsRepository.findById(tripId);
+		if (!trip) {
+			throw new NotFoundException("Trip not found");
+		}
+
+		const isOwningHost = trip.hostId === actor.userId;
+		const isAdmin = actor.roles?.includes(UserRole.ADMIN) ?? false;
+
+		if (trip.status !== TripStatus.PUBLISHED && !isOwningHost && !isAdmin) {
+			throw new NotFoundException("Trip not found");
+		}
+
+		if (!isOwningHost && !isAdmin) {
+			const sanitizedTrip = { ...trip };
+			sanitizedTrip.routeId = undefined;
+			return sanitizedTrip;
+		}
+
+		return trip;
+	}
+
+	async getMyTrips(hostId: string): Promise<TripResponseDto[]> {
+		return this.tripsRepository.findTripsByHost(hostId);
+	}
+
+	private assertSearchTripsQuery(query: SearchTripsQueryDto): void {
+		const errors: FieldValidationError[] = [];
+
+		if (query.startDate && query.endDate) {
+			const start = new Date(query.startDate);
+			const end = new Date(query.endDate);
+			if (start > end) {
+				errors.push({
+					field: "endDate",
+					errors: ["endDate must be after or equal to startDate"],
+				});
+			}
+		}
+
+		if (query.minPrice != null && query.maxPrice != null && query.minPrice > query.maxPrice) {
+			errors.push({
+				field: "minPrice",
+				errors: ["minPrice must be less than or equal to maxPrice"],
+			});
+		}
+
+		if (errors.length > 0) {
+			throw this.validationException(errors);
+		}
+	}
 
 	async create(hostId: string, dto: CreateTripDto): Promise<TripResponseDto> {
 		const schedule = this.assertCreateTripPayload(dto);
@@ -170,6 +260,66 @@ export class TripsService {
 				before: this.buildWaypointAuditSnapshot(lockedTrip.trip),
 				after: this.buildWaypointAuditSnapshot(updated),
 				reason: "host_configure_trip_waypoints",
+			});
+
+			return updated;
+		});
+	}
+
+	/**
+	 * CTMS-023-T02. Mirrors TrekkingRoutesService.listPendingReview -- the
+	 * Admin review UI needs a way to discover which Trips are awaiting
+	 * approval before it can call `review` on any of them.
+	 */
+	listPendingReview(): Promise<TripResponseDto[]> {
+		return this.tripsRepository.findPendingReview();
+	}
+
+	/**
+	 * CTMS-023-T01. Mirrors TrekkingRoutesService.review's own action+reason
+	 * flow (the proven Admin-review convention already used for CTMS-13):
+	 * only a Trip in pending_approval may be reviewed; approve requires the
+	 * referenced Route to still be active (BR-037's "bind to an approved
+	 * Route" requirement -- a Route can be closed after a Trip was submitted
+	 * for approval, and that must block publishing), decline always requires
+	 * a reason and returns the Trip to draft for the Host to revise.
+	 */
+	async review(adminId: string, tripId: string, dto: ReviewTripDto): Promise<TripResponseDto> {
+		return this.dataSource.transaction(async (manager: EntityManager) => {
+			const repository = manager.withRepository(this.tripsRepository);
+			const locked = await repository.findByIdForReview(tripId);
+
+			if (!locked) {
+				throw new NotFoundException("Trip not found");
+			}
+			if (locked.status !== TripStatus.PENDING_APPROVAL) {
+				throw new ConflictException("Only Trips in pending_approval status can be reviewed");
+			}
+
+			if (dto.action === ReviewTripAction.APPROVE) {
+				const routeStatus = await repository.findRouteStatus(locked.routeId);
+				if (routeStatus !== TrekkingRouteStatus.ACTIVE) {
+					throw this.validationException([
+						{
+							field: "routeId",
+							errors: ["the Trip's Route is no longer active and cannot be published against"],
+						},
+					]);
+				}
+			}
+
+			const targetStatus =
+				dto.action === ReviewTripAction.APPROVE ? TripStatus.PUBLISHED : TripStatus.DRAFT;
+			const updated = await repository.updateStatus(tripId, targetStatus);
+
+			await manager.getRepository(AuditLog).save({
+				actorId: adminId,
+				action: dto.action === ReviewTripAction.APPROVE ? "trip.approved" : "trip.declined",
+				targetType: "trip",
+				targetId: tripId,
+				before: { status: locked.status },
+				after: { status: targetStatus },
+				reason: dto.action === ReviewTripAction.APPROVE ? null : (dto.reason ?? null),
 			});
 
 			return updated;

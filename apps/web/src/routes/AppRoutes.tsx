@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { HttpError } from "../core/api";
 import { clearAuthSessionAndRedirect } from "../core/api/authSessionSync";
 import { AdminAuditLogsPage } from "../features/admin-audit-logs/pages/AdminAuditLogsPage";
+import { AdminContentReportsPage } from "../features/admin-content-reports/pages/AdminContentReportsPage";
 import { AdminUserAccountsPage } from "../features/admin-user-accounts/pages/AdminUserAccountsPage";
 import { AdminWeatherRulesPage } from "../features/admin-weather-rules/pages/AdminWeatherRulesPage";
 import { ForgotPasswordPage } from "../features/auth/pages/ForgotPasswordPage";
@@ -12,13 +13,18 @@ import { authService } from "../features/auth/services/auth.service";
 import { getGrantedRoles, isAdminUser } from "../features/auth/utils/permissions";
 import { getRefreshToken, getStoredAuthUser } from "../features/auth/utils/tokenStorage";
 import { CamperProfilePage } from "../features/camper-profile/pages/CamperProfilePage";
+import { CreateEquipmentCatalogItemPage } from "../features/equipment-catalog/pages/CreateEquipmentCatalogItemPage";
+import { EquipmentCatalogPage } from "../features/equipment-catalog/pages/EquipmentCatalogPage";
 import { LandingPage } from "../features/landing/pages/LandingPage";
 import { HostLayout } from "../features/role-landing/components/HostLayout";
 import { RoleLandingPage } from "../features/role-landing/pages/RoleLandingPage";
 import { AdminTrekkingRoutesPage } from "../features/trekking-routes/pages/AdminTrekkingRoutesPage";
 import { CreateTrekkingRoutePage } from "../features/trekking-routes/pages/CreateTrekkingRoutePage";
 import { TrekkingRoutesPage } from "../features/trekking-routes/pages/TrekkingRoutesPage";
+import { AdminTripsPage } from "../features/trips/pages/AdminTripsPage";
 import { CreateTripPage } from "../features/trips/pages/CreateTripPage";
+import { SearchTripsPage } from "../features/trips/pages/SearchTripsPage";
+import { TripDetailPage } from "../features/trips/pages/TripDetailPage";
 import { EdgeCasePage, ErrorPage, NotFoundPage, UnauthorizedPage } from "../shared/pages";
 import { AppRoleGuard } from "./AppRoleGuard";
 import { RoutePath } from "./routes.config";
@@ -84,6 +90,28 @@ export function AppRoutes() {
 			onNavigateToLogin={() => navigateTo(RoutePath.LOGIN)}
 		/>
 	);
+
+	if (currentPath.startsWith("/trips/") && currentPath !== RoutePath.TRIPS) {
+		const tripId = currentPath.substring("/trips/".length);
+		const detailView = (
+			<TripDetailPage
+				tripId={tripId}
+				onBackToList={() => navigateTo(RoutePath.TRIPS)}
+				onBackHome={() => navigateTo(storedUser ? RoutePath.DASHBOARD : RoutePath.HOME)}
+			/>
+		);
+
+		if (storedUser) {
+			return (
+				<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
+					{detailView}
+				</HostLayout>
+			);
+		}
+
+		return detailView;
+	}
+
 	switch (currentPath) {
 		case RoutePath.HOME:
 		case "":
@@ -136,8 +164,9 @@ export function AppRoutes() {
 		case RoutePath.PROFILE:
 			return (
 				<CamperProfilePage
-					onBackHome={() => navigateTo(RoutePath.HOME)}
-					onNavigateDashboard={() => navigateTo(RoutePath.HOME)}
+					onBackHome={() => navigateTo(storedUser ? RoutePath.DASHBOARD : RoutePath.HOME)}
+					onNavigateDashboard={() => navigateTo(RoutePath.DASHBOARD)}
+					onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}
 					onLogout={handleLogout}
 				/>
 			);
@@ -149,13 +178,31 @@ export function AppRoutes() {
 					currentRoles={currentRoles}
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
-					<HostLayout onLogout={handleLogout}>
+					<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
 						<CreateTrekkingRoutePage onBackHome={() => navigateTo(RoutePath.DASHBOARD)} />
 					</HostLayout>
 				</AppRoleGuard>
 			);
 
-		case RoutePath.TRIPS:
+		case RoutePath.TRIPS: {
+			const searchView = (
+				<SearchTripsPage
+					onBackHome={() => navigateTo(storedUser ? RoutePath.DASHBOARD : RoutePath.HOME)}
+					onNavigateToTripDetail={(tripId) => navigateTo(`/trips/${tripId}`)}
+				/>
+			);
+
+			if (storedUser) {
+				return (
+					<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
+						{searchView}
+					</HostLayout>
+				);
+			}
+
+			return searchView;
+		}
+
 		case RoutePath.HOST_CREATE_TRIP:
 			return (
 				<AppRoleGuard
@@ -163,7 +210,7 @@ export function AppRoutes() {
 					currentRoles={currentRoles}
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
-					<HostLayout onLogout={handleLogout}>
+					<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
 						<CreateTripPage
 							onBackHome={() => navigateTo(RoutePath.DASHBOARD)}
 							onCreateRoute={() => navigateTo(RoutePath.HOST_CREATE_TREKKING_ROUTE)}
@@ -179,8 +226,37 @@ export function AppRoutes() {
 					currentRoles={currentRoles}
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
-					<HostLayout onLogout={handleLogout}>
+					<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
 						<TrekkingRoutesPage onBackHome={() => navigateTo(RoutePath.DASHBOARD)} />
+					</HostLayout>
+				</AppRoleGuard>
+			);
+
+		case RoutePath.HOST_EQUIPMENT_CATALOG:
+			return (
+				<AppRoleGuard
+					allowedRoles={["host"]}
+					currentRoles={currentRoles}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
+						<EquipmentCatalogPage
+							onBackHome={() => navigateTo(RoutePath.DASHBOARD)}
+							onCreateItem={() => navigateTo(RoutePath.HOST_CREATE_EQUIPMENT_CATALOG_ITEM)}
+						/>
+					</HostLayout>
+				</AppRoleGuard>
+			);
+
+		case RoutePath.HOST_CREATE_EQUIPMENT_CATALOG_ITEM:
+			return (
+				<AppRoleGuard
+					allowedRoles={["host"]}
+					currentRoles={currentRoles}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
+						<CreateEquipmentCatalogItemPage onBackHome={() => navigateTo(RoutePath.DASHBOARD)} />
 					</HostLayout>
 				</AppRoleGuard>
 			);
@@ -202,16 +278,20 @@ export function AppRoutes() {
 					onBackHome={() => navigateTo(RoutePath.HOME)}
 					onOpenProfile={() => navigateTo(RoutePath.CAMPER_PROFILE)}
 					onOpenAdminUsers={() => navigateTo(RoutePath.ADMIN_USERS)}
-					onExplore={() => navigateTo(RoutePath.TREKKING)}
+					onExplore={() => navigateTo(RoutePath.TRIPS)}
+					onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}
+					onNavigateToTripDetail={(tripId) => navigateTo(`/trips/${tripId}`)}
 					onCreateTrip={() => navigateTo(RoutePath.HOST_CREATE_TRIP)}
 					onCreateTrekkingRoute={() => navigateTo(RoutePath.HOST_CREATE_TREKKING_ROUTE)}
 					onViewTrekkingRoutes={() => navigateTo(RoutePath.HOST_TREKKING_ROUTES)}
+					onViewEquipmentCatalog={() => navigateTo(RoutePath.HOST_EQUIPMENT_CATALOG)}
 					onLogout={handleLogout}
 				/>
 			);
 		}
 
 		case RoutePath.ADMIN_USERS:
+		case RoutePath.ADMIN_CONTENT_REPORTS:
 			return (
 				<AppRoleGuard
 					allowedRoles={["admin"]}
@@ -219,7 +299,11 @@ export function AppRoutes() {
 					fallback={unauthorizedFallback}
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
-					<AdminUserAccountsPage onLogout={handleLogout} />
+					{currentPath === RoutePath.ADMIN_CONTENT_REPORTS ? (
+						<AdminContentReportsPage onLogout={handleLogout} />
+					) : (
+						<AdminUserAccountsPage onLogout={handleLogout} />
+					)}
 				</AppRoleGuard>
 			);
 
@@ -244,6 +328,18 @@ export function AppRoutes() {
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
 					<AdminTrekkingRoutesPage onLogout={handleLogout} />
+				</AppRoleGuard>
+			);
+
+		case RoutePath.ADMIN_TRIPS:
+			return (
+				<AppRoleGuard
+					allowedRoles={["admin"]}
+					currentRoles={currentRoles}
+					fallback={unauthorizedFallback}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<AdminTripsPage onLogout={handleLogout} />
 				</AppRoleGuard>
 			);
 

@@ -6,6 +6,7 @@ import {
 	Param,
 	ParseUUIDPipe,
 	Patch,
+	Query,
 	Req,
 	UseGuards,
 } from "@nestjs/common";
@@ -17,7 +18,12 @@ import type { AuthenticatedUser } from "../auth/jwt.strategy";
 import { UserRole } from "../users/entities/user.entity";
 // biome-ignore lint/style/useImportType: Nest runtime injection metadata
 import { ContentReportsService } from "./content-reports.service";
-import { ContentReportResponseDto } from "./dto/content-report-response.dto";
+import {
+	ContentReportQueueResponseDto,
+	ContentReportResponseDto,
+} from "./dto/content-report-response.dto";
+// biome-ignore lint/style/useImportType: Query validation needs runtime DTO metadata
+import { ListContentReportsQueryDto } from "./dto/list-content-reports-query.dto";
 // biome-ignore lint/style/useImportType: Body validation needs runtime DTO metadata
 import { TransitionContentReportDto } from "./dto/transition-content-report.dto";
 
@@ -37,6 +43,16 @@ const REPORT_ID_PIPE = new ParseUUIDPipe({ errorHttpStatusCode: HttpStatus.UNPRO
 @ApiResponse({ status: 422, description: "Invalid input" })
 export class ContentReportsController {
 	constructor(private readonly reports: ContentReportsService) {}
+
+	@Get()
+	@ApiOperation({ summary: "List content reports newest first" })
+	@ApiResponse({ status: 200, type: ContentReportQueueResponseDto })
+	listReports(
+		@Req() request: AuthenticatedRequest,
+		@Query() query: ListContentReportsQueryDto
+	): Promise<ContentReportQueueResponseDto> {
+		return this.reports.listReports(request.user.userId, query);
+	}
 
 	@Get(":reportId")
 	@ApiOperation({ summary: "Read authoritative content report details" })

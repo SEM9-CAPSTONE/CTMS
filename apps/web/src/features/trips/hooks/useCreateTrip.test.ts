@@ -6,7 +6,12 @@ import type { CreateTripInput } from "../types";
 import { mapCreateTripError, useCreateTrip } from "./useCreateTrip";
 
 vi.mock("../services/trips.service", () => ({
-	tripsService: { create: vi.fn(), configureWaypoints: vi.fn() },
+	tripsService: {
+		create: vi.fn(),
+		configureWaypoints: vi.fn(),
+		search: vi.fn(),
+		getById: vi.fn(),
+	},
 }));
 
 const payload: CreateTripInput = {

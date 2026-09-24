@@ -1,5 +1,13 @@
 import { ConflictException, ForbiddenException, NotFoundException } from "@nestjs/common";
-import { TrekkingRouteStatus } from "../../trekking-routes/entities/trekking-route.entity";
+import type { AuthenticatedUser } from "../../auth/jwt.strategy";
+import {
+	TrekkingRouteDifficulty,
+	TrekkingRouteStatus,
+} from "../../trekking-routes/entities/trekking-route.entity";
+import { UserRole, UserStatus } from "../../users/entities/user.entity";
+import { RiskLevel } from "../../weather/entities/weather-risk-assessment.entity";
+import { ReviewTripAction } from "../dto/review-trip.dto";
+import type { SearchTripsQueryDto } from "../dto/search-trips-query.dto";
 import { WaypointType } from "../entities/trip-waypoint.entity";
 import { TripStatus, TripType } from "../entities/trip.entity";
 import type { TripsRepository } from "../repositories/trips.repository";
@@ -10,6 +18,25 @@ const ROUTE_ID = "22222222-2222-4222-8222-222222222222";
 const TRIP_ID = "33333333-3333-4333-8333-333333333333";
 const CHECKPOINT_ID = "44444444-4444-4444-8444-444444444444";
 const OTHER_HOST_ID = "55555555-5555-4555-8555-555555555555";
+const ADMIN_ID = "88888888-8888-4888-8888-888888888888";
+
+const CAMPER_ACTOR: AuthenticatedUser = {
+	userId: "88888888-8888-4888-8888-888888888888",
+	roles: [UserRole.CAMPER],
+	status: UserStatus.ACTIVE,
+};
+
+const HOST_ACTOR: AuthenticatedUser = {
+	userId: HOST_ID,
+	roles: [UserRole.HOST],
+	status: UserStatus.ACTIVE,
+};
+
+const ADMIN_ACTOR: AuthenticatedUser = {
+	userId: "99999999-9999-4999-8999-999999999999",
+	roles: [UserRole.ADMIN],
+	status: UserStatus.ACTIVE,
+};
 
 function createTripDto() {
 	return {
@@ -125,6 +152,13 @@ describe("TripsService", () => {
 		findInvalidWaypointCheckpointIds: jest.Mock;
 		findRouteDependencyForUpdate: jest.Mock;
 		replaceWaypointsAndSubmitForApproval: jest.Mock;
+		findByIdForReview: jest.Mock;
+		findRouteStatus: jest.Mock;
+		updateStatus: jest.Mock;
+		findById: jest.Mock;
+		findTripsByHost: jest.Mock;
+		searchPublishedTrips: jest.Mock;
+		findPendingReview: jest.Mock;
 	};
 	let auditRepository: { save: jest.Mock };
 	let dataSource: { transaction: jest.Mock };
@@ -146,6 +180,21 @@ describe("TripsService", () => {
 				status: TrekkingRouteStatus.ACTIVE,
 			}),
 			replaceWaypointsAndSubmitForApproval: jest.fn().mockResolvedValue(configuredTrip()),
+			findByIdForReview: jest.fn().mockResolvedValue({
+				trip: configuredTrip(),
+				routeId: ROUTE_ID,
+				status: TripStatus.PENDING_APPROVAL,
+			}),
+			findRouteStatus: jest.fn().mockResolvedValue(TrekkingRouteStatus.ACTIVE),
+			updateStatus: jest
+				.fn()
+				.mockImplementation((_tripId: string, status: TripStatus) =>
+					Promise.resolve({ ...configuredTrip(), status })
+				),
+			findById: jest.fn().mockResolvedValue(createdTrip()),
+			findTripsByHost: jest.fn().mockResolvedValue([]),
+			searchPublishedTrips: jest.fn().mockResolvedValue({ items: [], total: 0 }),
+			findPendingReview: jest.fn().mockResolvedValue([configuredTrip()]),
 		};
 		auditRepository = { save: jest.fn().mockResolvedValue({}) };
 		dataSource = {
@@ -450,6 +499,366 @@ describe("TripsService", () => {
 				service.configureWaypoints(HOST_ID, TRIP_ID, { waypoints: createTripDto().waypoints })
 			).rejects.toMatchObject({ status: 422 });
 			expect(tripsRepository.replaceWaypointsAndSubmitForApproval).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("listPendingReview", () => {
+		it("returns Trips pending Admin approval from the repository", async () => {
+			const result = await service.listPendingReview();
+
+			expect(tripsRepository.findPendingReview).toHaveBeenCalledWith();
+			expect(result).toEqual([configuredTrip()]);
+		});
+	});
+
+	describe("review", () => {
+		it("approves a pending Trip, publishes it, and audits with no reason", async () => {
+			const result = await service.review(ADMIN_ID, TRIP_ID, { action: ReviewTripAction.APPROVE });
+
+			expect(tripsRepository.findByIdForReview).toHaveBeenCalledWith(TRIP_ID);
+			expect(tripsRepository.findRouteStatus).toHaveBeenCalledWith(ROUTE_ID);
+			expect(tripsRepository.updateStatus).toHaveBeenCalledWith(TRIP_ID, TripStatus.PUBLISHED);
+			expect(result.status).toBe(TripStatus.PUBLISHED);
+			expect(auditRepository.save).toHaveBeenCalledWith(
+				expect.objectContaining({
+					actorId: ADMIN_ID,
+					action: "trip.approved",
+					targetType: "trip",
+					targetId: TRIP_ID,
+					before: { status: TripStatus.PENDING_APPROVAL },
+					after: { status: TripStatus.PUBLISHED },
+					reason: null,
+				})
+			);
+		});
+
+		it("declines a pending Trip back to draft, requiring and recording the reason", async () => {
+			const result = await service.review(ADMIN_ID, TRIP_ID, {
+				action: ReviewTripAction.DECLINE,
+				reason: "Itinerary missing lunch stop",
+			});
+
+			expect(tripsRepository.findRouteStatus).not.toHaveBeenCalled();
+			expect(tripsRepository.updateStatus).toHaveBeenCalledWith(TRIP_ID, TripStatus.DRAFT);
+			expect(result.status).toBe(TripStatus.DRAFT);
+			expect(auditRepository.save).toHaveBeenCalledWith(
+				expect.objectContaining({
+					actorId: ADMIN_ID,
+					action: "trip.declined",
+					targetType: "trip",
+					targetId: TRIP_ID,
+					before: { status: TripStatus.PENDING_APPROVAL },
+					after: { status: TripStatus.DRAFT },
+					reason: "Itinerary missing lunch stop",
+				})
+			);
+		});
+
+		it("returns 404 when the Trip does not exist", async () => {
+			tripsRepository.findByIdForReview.mockResolvedValue(null);
+
+			await expect(
+				service.review(ADMIN_ID, TRIP_ID, { action: ReviewTripAction.APPROVE })
+			).rejects.toBeInstanceOf(NotFoundException);
+			expect(tripsRepository.updateStatus).not.toHaveBeenCalled();
+		});
+
+		it.each([TripStatus.DRAFT, TripStatus.PUBLISHED, TripStatus.CANCELLED])(
+			"returns 409 when the Trip status is %s (not pending_approval)",
+			async (status) => {
+				tripsRepository.findByIdForReview.mockResolvedValue({
+					trip: { ...configuredTrip(), status },
+					routeId: ROUTE_ID,
+					status,
+				});
+
+				await expect(
+					service.review(ADMIN_ID, TRIP_ID, { action: ReviewTripAction.APPROVE })
+				).rejects.toBeInstanceOf(ConflictException);
+				expect(tripsRepository.updateStatus).not.toHaveBeenCalled();
+			}
+		);
+
+		it("returns 422 and does not publish when the Trip's Route is no longer active", async () => {
+			tripsRepository.findRouteStatus.mockResolvedValue(TrekkingRouteStatus.CLOSED);
+
+			await expect(
+				service.review(ADMIN_ID, TRIP_ID, { action: ReviewTripAction.APPROVE })
+			).rejects.toMatchObject({ status: 422 });
+			expect(tripsRepository.updateStatus).not.toHaveBeenCalled();
+			expect(auditRepository.save).not.toHaveBeenCalled();
+		});
+
+		it("retrying an already-reviewed Trip returns 409 instead of double-processing (idempotency)", async () => {
+			tripsRepository.findByIdForReview.mockResolvedValue({
+				trip: { ...configuredTrip(), status: TripStatus.PUBLISHED },
+				routeId: ROUTE_ID,
+				status: TripStatus.PUBLISHED,
+			});
+
+			await expect(
+				service.review(ADMIN_ID, TRIP_ID, { action: ReviewTripAction.APPROVE })
+			).rejects.toBeInstanceOf(ConflictException);
+			expect(tripsRepository.updateStatus).not.toHaveBeenCalled();
+			expect(auditRepository.save).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("search", () => {
+		it("returns paginated search results for published trips", async () => {
+			const mockSummary = {
+				id: TRIP_ID,
+				title: "Langbiang sunrise trek",
+				description: "A guided route",
+				coverImageUrl: "https://example.com/cover.jpg",
+				tripType: TripType.DAY_TRIP,
+				durationNights: 0,
+				startsAt: new Date("2026-09-20T01:00:00.000Z"),
+				endsAt: new Date("2026-09-20T10:00:00.000Z"),
+				meetingPoint: { type: "Point", coordinates: [108.441, 11.941] },
+				meetingAt: new Date("2026-09-20T00:30:00.000Z"),
+				bookingDeadline: new Date("2026-09-19T12:00:00.000Z"),
+				capacityMin: 2,
+				capacityMax: 12,
+				seatsTaken: 2,
+				remainingSeats: 10,
+				pricePerPerson: 100000,
+				status: TripStatus.PUBLISHED,
+				difficulty: TrekkingRouteDifficulty.MODERATE,
+				weatherRiskLevel: RiskLevel.GREEN,
+				isBookable: true,
+				createdAt: new Date("2026-09-15T00:00:00.000Z"),
+				updatedAt: new Date("2026-09-15T00:00:00.000Z"),
+			};
+			tripsRepository.searchPublishedTrips.mockResolvedValue({
+				items: [mockSummary],
+				total: 1,
+			});
+
+			const query: SearchTripsQueryDto = {
+				page: 1,
+				limit: 10,
+			};
+			const result = await service.search(query);
+
+			expect(tripsRepository.searchPublishedTrips).toHaveBeenCalledWith({
+				search: undefined,
+				tripType: undefined,
+				difficulty: undefined,
+				startDate: undefined,
+				endDate: undefined,
+				minPrice: undefined,
+				maxPrice: undefined,
+				routeId: undefined,
+				province: undefined,
+				city: undefined,
+				page: 1,
+				limit: 10,
+			});
+			expect(result.items).toHaveLength(1);
+			expect(result.items[0]).toEqual(mockSummary);
+			expect(result.pagination).toEqual({
+				page: 1,
+				limit: 10,
+				total: 1,
+				totalPages: 1,
+			});
+		});
+
+		it("passes filter parameters to the repository", async () => {
+			tripsRepository.searchPublishedTrips.mockResolvedValue({
+				items: [],
+				total: 0,
+			});
+
+			const query: SearchTripsQueryDto = {
+				search: "sunrise",
+				tripType: TripType.DAY_TRIP,
+				difficulty: TrekkingRouteDifficulty.MODERATE,
+				startDate: "2026-09-20T00:00:00.000Z",
+				endDate: "2026-09-25T00:00:00.000Z",
+				minPrice: 50000,
+				maxPrice: 200000,
+				routeId: ROUTE_ID,
+				province: "Lam Dong",
+				city: "Da Lat",
+				page: 2,
+				limit: 5,
+			};
+
+			const result = await service.search(query);
+
+			expect(tripsRepository.searchPublishedTrips).toHaveBeenCalledWith({
+				search: "sunrise",
+				tripType: TripType.DAY_TRIP,
+				difficulty: TrekkingRouteDifficulty.MODERATE,
+				startDate: new Date("2026-09-20T00:00:00.000Z"),
+				endDate: new Date("2026-09-25T00:00:00.000Z"),
+				minPrice: 50000,
+				maxPrice: 200000,
+				routeId: ROUTE_ID,
+				province: "Lam Dong",
+				city: "Da Lat",
+				page: 2,
+				limit: 5,
+			});
+			expect(result.pagination.totalPages).toBe(0);
+		});
+
+		it("returns 422 when startDate is after endDate", async () => {
+			const query: SearchTripsQueryDto = {
+				startDate: "2026-09-25T00:00:00.000Z",
+				endDate: "2026-09-20T00:00:00.000Z",
+				page: 1,
+				limit: 10,
+			};
+
+			await expect(service.search(query)).rejects.toMatchObject({
+				status: 422,
+			});
+			expect(tripsRepository.searchPublishedTrips).not.toHaveBeenCalled();
+		});
+
+		it("returns 422 when minPrice is greater than maxPrice", async () => {
+			const query: SearchTripsQueryDto = {
+				minPrice: 300000,
+				maxPrice: 100000,
+				page: 1,
+				limit: 10,
+			};
+
+			await expect(service.search(query)).rejects.toMatchObject({
+				status: 422,
+			});
+			expect(tripsRepository.searchPublishedTrips).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("getTripDetails", () => {
+		it("returns published Trip details for a Camper and redacts routeId (BR-077, BR-214)", async () => {
+			const publishedTrip = {
+				...createdTrip(),
+				status: TripStatus.PUBLISHED,
+				difficulty: TrekkingRouteDifficulty.MODERATE,
+				weatherRiskLevel: RiskLevel.GREEN,
+				remainingSeats: 12,
+				isBookable: true,
+			};
+			tripsRepository.findById.mockResolvedValue(publishedTrip);
+
+			const result = await service.getTripDetails(CAMPER_ACTOR, TRIP_ID);
+
+			expect(tripsRepository.findById).toHaveBeenCalledWith(TRIP_ID);
+			expect(result.id).toBe(TRIP_ID);
+			expect(result.status).toBe(TripStatus.PUBLISHED);
+			expect(result.difficulty).toBe(TrekkingRouteDifficulty.MODERATE);
+			expect(result.weatherRiskLevel).toBe(RiskLevel.GREEN);
+			expect(result.isBookable).toBe(true);
+			expect(result.routeId).toBeUndefined();
+		});
+
+		it("returns published Trip details with routeId retained for the owning Host", async () => {
+			const publishedTrip = {
+				...createdTrip(),
+				status: TripStatus.PUBLISHED,
+				difficulty: TrekkingRouteDifficulty.MODERATE,
+				weatherRiskLevel: RiskLevel.GREEN,
+				remainingSeats: 12,
+				isBookable: true,
+			};
+			tripsRepository.findById.mockResolvedValue(publishedTrip);
+
+			const result = await service.getTripDetails(HOST_ACTOR, TRIP_ID);
+
+			expect(result.routeId).toBe(ROUTE_ID);
+		});
+
+		it("returns published Trip details with routeId retained for an Admin", async () => {
+			const publishedTrip = {
+				...createdTrip(),
+				status: TripStatus.PUBLISHED,
+				difficulty: TrekkingRouteDifficulty.MODERATE,
+				weatherRiskLevel: RiskLevel.GREEN,
+				remainingSeats: 12,
+				isBookable: true,
+			};
+			tripsRepository.findById.mockResolvedValue(publishedTrip);
+
+			const result = await service.getTripDetails(ADMIN_ACTOR, TRIP_ID);
+
+			expect(result.routeId).toBe(ROUTE_ID);
+		});
+
+		it("returns 404 when Camper attempts to view a draft Trip (BR-073, BR-075, BR-202)", async () => {
+			const draftTrip = {
+				...createdTrip(),
+				status: TripStatus.DRAFT,
+			};
+			tripsRepository.findById.mockResolvedValue(draftTrip);
+
+			await expect(service.getTripDetails(CAMPER_ACTOR, TRIP_ID)).rejects.toBeInstanceOf(
+				NotFoundException
+			);
+		});
+
+		it("returns 404 when Camper attempts to view a cancelled Trip (BR-073, BR-075)", async () => {
+			const cancelledTrip = {
+				...createdTrip(),
+				status: TripStatus.CANCELLED,
+			};
+			tripsRepository.findById.mockResolvedValue(cancelledTrip);
+
+			await expect(service.getTripDetails(CAMPER_ACTOR, TRIP_ID)).rejects.toBeInstanceOf(
+				NotFoundException
+			);
+		});
+
+		it("allows owning Host to view their own draft Trip", async () => {
+			const draftTrip = {
+				...createdTrip(),
+				status: TripStatus.DRAFT,
+			};
+			tripsRepository.findById.mockResolvedValue(draftTrip);
+
+			const result = await service.getTripDetails(HOST_ACTOR, TRIP_ID);
+
+			expect(result.id).toBe(TRIP_ID);
+			expect(result.status).toBe(TripStatus.DRAFT);
+			expect(result.routeId).toBe(ROUTE_ID);
+		});
+
+		it("allows Admin to view any draft Trip", async () => {
+			const draftTrip = {
+				...createdTrip(),
+				status: TripStatus.DRAFT,
+			};
+			tripsRepository.findById.mockResolvedValue(draftTrip);
+
+			const result = await service.getTripDetails(ADMIN_ACTOR, TRIP_ID);
+
+			expect(result.id).toBe(TRIP_ID);
+			expect(result.status).toBe(TripStatus.DRAFT);
+			expect(result.routeId).toBe(ROUTE_ID);
+		});
+
+		it("returns 404 when Trip does not exist in database", async () => {
+			tripsRepository.findById.mockResolvedValue(null);
+
+			await expect(service.getTripDetails(CAMPER_ACTOR, TRIP_ID)).rejects.toBeInstanceOf(
+				NotFoundException
+			);
+		});
+	});
+
+	describe("getMyTrips", () => {
+		it("returns list of trips owned by the host from repository", async () => {
+			const myTrips = [createdTrip()];
+			tripsRepository.findTripsByHost.mockResolvedValue(myTrips);
+
+			const result = await service.getMyTrips(HOST_ID);
+
+			expect(tripsRepository.findTripsByHost).toHaveBeenCalledWith(HOST_ID);
+			expect(result).toBe(myTrips);
 		});
 	});
 });

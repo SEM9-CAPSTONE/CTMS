@@ -46,7 +46,7 @@ export const roleLabels: Record<RoleKey, string> = {
 export const dashboards: Record<RoleKey, DashboardConfig> = {
 	camper: {
 		role: "camper",
-		figmaName: "Tổng quan - Camper Hub (Đồng bộ Sidebar)",
+		figmaName: "",
 		productLabel: "Camper Hub",
 		title: "Chào buổi sáng, Camper",
 		subtitle: "Theo dõi chuyến đi, sức khỏe, cảnh báo và các tác vụ cá nhân trước khi khởi hành.",
@@ -153,10 +153,9 @@ export const dashboards: Record<RoleKey, DashboardConfig> = {
 		navTitle: "Host Ops",
 		navItems: [
 			{ key: "overview", label: "Tổng quan vận hành", icon: LayoutDashboard },
-			{ key: "trips", label: "Lịch trip", icon: CalendarDays },
+			{ key: "explore", label: "Khám phá chuyến đi", icon: Compass },
 			{ key: "campers", label: "Camper & booking", icon: Users },
 			{ key: "porters", label: "Porter", icon: BriefcaseBusiness },
-			{ key: "alerts", label: "Cảnh báo", icon: ShieldAlert },
 			{ key: "reports", label: "Báo cáo", icon: FileClock },
 		],
 		metrics: [
@@ -221,18 +220,7 @@ export const dashboards: Record<RoleKey, DashboardConfig> = {
 				status: "Urgent",
 			},
 		],
-		alerts: [
-			{
-				title: "Cảnh báo thành viên lệch tuyến",
-				detail: "Nguyễn Văn An lệch tuyến 15m, cần porter kiểm tra.",
-				tone: "red",
-			},
-			{
-				title: "Bản đồ offline đã cũ",
-				detail: "Bidoup cần cập nhật dữ liệu v2.4.1.",
-				tone: "amber",
-			},
-		],
+		alerts: [],
 		tasks: [
 			{ label: "Duyệt booking", value: "12", icon: ClipboardList },
 			{ label: "Gửi broadcast", value: "2 tuyến", icon: Bell },

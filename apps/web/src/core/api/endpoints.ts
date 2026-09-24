@@ -1,4 +1,9 @@
 export const API_ENDPOINTS = {
+	CONTENT_REPORTS: {
+		LIST: "/content-reports",
+		DETAIL: (id: string) => `/content-reports/${id}`,
+		STATUS: (id: string) => `/content-reports/${id}/status`,
+	},
 	AUTH: {
 		LOGIN: "/auth/login",
 		REGISTER: "/auth/register",
@@ -42,11 +47,14 @@ export const API_ENDPOINTS = {
 	},
 	TRIPS: {
 		GET_ALL: "/trips",
+		GET_MINE: "/trips/mine",
 		GET_BY_ID: (id: string) => `/trips/${id}`,
 		CREATE: "/trips",
 		CONFIGURE_WAYPOINTS: (tripId: string) => `/trips/${tripId}/waypoints`,
 		MEMBERS: (tripId: string) => `/trips/${tripId}/members`,
 		GPS_LOGS: (tripId: string) => `/trips/${tripId}/gps-logs`,
+		PENDING_REVIEW: "/trips/pending-review",
+		REVIEW: (id: string) => `/trips/${id}/review`,
 	},
 	WEATHER: {
 		RISK_ASSESSMENT: "/weather/risk-assessment",
@@ -83,5 +91,10 @@ export const API_ENDPOINTS = {
 	},
 	AUDIT_LOGS: {
 		LIST: "/audit-logs",
+	},
+	EQUIPMENT_CATALOG: {
+		CREATE: "/equipment-catalog",
+		MINE: "/equipment-catalog/mine",
+		DETAIL: (id: string) => `/equipment-catalog/${id}`,
 	},
 } as const;

@@ -17,12 +17,14 @@ import { useCamperProfile } from "../hooks/useCamperProfile";
 interface CamperProfilePageProps {
 	onBackHome?: () => void;
 	onNavigateDashboard?: () => void;
+	onNavigateToTrips?: () => void;
 	onLogout?: (allDevices: boolean) => Promise<void>;
 }
 
 export function CamperProfilePage({
 	onBackHome,
 	onNavigateDashboard,
+	onNavigateToTrips,
 	onLogout,
 }: CamperProfilePageProps) {
 	const [activeTab, setActiveTab] = useState<SettingsTabEnum>(SettingsTabEnum.PERSONAL_PROFILE);
@@ -70,6 +72,15 @@ export function CamperProfilePage({
 					onNavigate={(navKey) => {
 						if (navKey === "overview") {
 							onNavigateDashboard?.();
+							return;
+						}
+						if (navKey === "trips" || navKey === "explore") {
+							if (onNavigateToTrips) {
+								onNavigateToTrips();
+							} else {
+								window.history.pushState({}, "", "/trips");
+								window.dispatchEvent(new PopStateEvent("popstate"));
+							}
 							return;
 						}
 						setActiveNav(navKey);

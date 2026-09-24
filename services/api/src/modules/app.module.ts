@@ -3,6 +3,7 @@ import { ConfigModule } from "@nestjs/config";
 import { DatabaseModule } from "../shared/database/database.module";
 import { AuthModule } from "./auth/auth.module";
 import { ContentReportsModule } from "./content-reports/content-reports.module";
+import { EquipmentCatalogModule } from "./equipment-catalog/equipment-catalog.module";
 import { HealthController } from "./health/health.controller";
 import { ProfilesModule } from "./profiles/profiles.module";
 import { EventsGateway } from "./realtime/events.gateway";
@@ -20,6 +21,7 @@ import { WeatherModule } from "./weather/weather.module";
 		DatabaseModule,
 		AuthModule,
 		ContentReportsModule,
+		EquipmentCatalogModule,
 		ProfilesModule,
 		UsersModule,
 		TrekkingRoutesModule,

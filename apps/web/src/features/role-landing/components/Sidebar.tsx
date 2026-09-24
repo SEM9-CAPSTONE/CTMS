@@ -12,6 +12,7 @@ export interface SidebarProps {
 	onClose?: () => void;
 	profile: CamperProfileData | null;
 	onOpenProfile?: () => void;
+	onNavigateToTrips?: () => void;
 	onLogout?: (allDevices: boolean) => Promise<void>;
 }
 
@@ -23,6 +24,7 @@ export function Sidebar({
 	onClose,
 	profile,
 	onOpenProfile,
+	onNavigateToTrips,
 	onLogout,
 }: SidebarProps) {
 	return (
@@ -90,6 +92,15 @@ export function Sidebar({
 					</p>
 					{config.navItems.map((item) => {
 						const Icon = item.icon;
+						const isPathTrips =
+							typeof window !== "undefined" && window.location.pathname.startsWith("/trips");
+						const isPathDashboard =
+							typeof window !== "undefined" &&
+							(window.location.pathname === "/dashboard" || window.location.pathname === "/");
+						const isActive =
+							(item.key === "explore" && isPathTrips) ||
+							(item.key === "overview" && isPathDashboard);
+
 						return (
 							<button
 								key={item.key}
@@ -99,11 +110,32 @@ export function Sidebar({
 									if (item.key === "overview") {
 										window.history.pushState({}, "", "/dashboard");
 										window.dispatchEvent(new PopStateEvent("popstate"));
+									} else if (item.key === "trips") {
+										if (activeRole === "host") {
+											const element = document.getElementById("host-my-trips");
+											if (element) {
+												element.scrollIntoView({ behavior: "smooth" });
+												return;
+											}
+										}
+										window.history.pushState({}, "", "/dashboard");
+										window.dispatchEvent(new PopStateEvent("popstate"));
+									} else if (item.key === "explore") {
+										if (onNavigateToTrips) {
+											onNavigateToTrips();
+										} else {
+											window.history.pushState({}, "", "/trips");
+											window.dispatchEvent(new PopStateEvent("popstate"));
+										}
 									}
 								}}
-								className="flex w-full items-center gap-3.5 rounded-xl px-3.5 py-3 text-sm font-bold text-[#55685a] hover:bg-[#f8faf7] hover:text-[#164027] disabled:cursor-not-allowed disabled:opacity-50"
+								className={`flex w-full items-center gap-3.5 rounded-xl px-3.5 py-3 text-sm font-bold transition-all ${
+									isActive
+										? "bg-[#164027] text-white shadow-sm shadow-[#164027]/20"
+										: "text-[#55685a] hover:bg-[#f8faf7] hover:text-[#164027]"
+								} disabled:cursor-not-allowed disabled:opacity-50`}
 							>
-								<Icon className="size-5 shrink-0" />
+								<Icon className={`size-5 shrink-0 ${isActive ? "text-white" : "text-[#55685a]"}`} />
 								<span>{item.label}</span>
 							</button>
 						);
