@@ -23,7 +23,11 @@ import type { PaginatedTripsResponseDto, TripResponseDto } from "../dto/trip-res
 import { WaypointType } from "../entities/trip-waypoint.entity";
 import { type GeoPoint, TripStatus, TripType } from "../entities/trip.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
-import { type CreateTripWaypointInput, TripsRepository } from "../repositories/trips.repository";
+import {
+	type CreateTripWaypointInput,
+	type LockedTripForBooking,
+	TripsRepository,
+} from "../repositories/trips.repository";
 
 interface FieldValidationError {
 	field: string;
@@ -324,6 +328,77 @@ export class TripsService {
 
 			return updated;
 		});
+	}
+
+	/**
+	 * CTMS-024 – BR-067, BR-068, BR-071, BR-072, BR-175, BR-176, BR-177, BR-179.
+	 *
+	 * Reserves `numPeople` seats on the given trip inside the caller's active
+	 * transaction.  The method:
+	 *   1. Acquires a row-level FOR UPDATE lock on the trip row so that
+	 *      concurrent booking requests for the same trip_id are serialised
+	 *      (BR-068, BR-179).
+	 *   2. Validates that the trip is bookable (published, before booking
+	 *      deadline, seats available) before any write (BR-175, BR-211).
+	 *   3. Increments seats_taken by numPeople inside the same transaction so
+	 *      the DB constraint acts as a final guard (BR-071, BR-177).
+	 *
+	 * Callers (the Booking module) MUST wrap this call in a DataSource
+	 * transaction.  The `manager` parameter is the active EntityManager from
+	 * that transaction.  Any exception rolls back the full transaction
+	 * (BR-072, BR-176).
+	 *
+	 * Returns the locked trip snapshot for downstream use (price, host, etc.).
+	 */
+	async reserveSeats(
+		tripId: string,
+		numPeople: number,
+		manager: EntityManager
+	): Promise<LockedTripForBooking> {
+		const repository = manager.withRepository(this.tripsRepository);
+		const locked = await repository.findByIdForBooking(tripId);
+
+		if (!locked) {
+			throw new NotFoundException("Trip not found");
+		}
+		if (locked.status !== TripStatus.PUBLISHED) {
+			throw new ConflictException("Trip is not available for booking");
+		}
+
+		const now = new Date();
+		if (new Date(locked.bookingDeadline) <= now) {
+			throw new ConflictException("Booking deadline has passed");
+		}
+
+		// Application-layer overbooking guard (BR-071): check remaining seats
+		// before the DB constraint fires so we can return a clear 409 rather
+		// than a raw constraint violation.
+		if (locked.capacityMax !== null && locked.seatsTaken + numPeople > locked.capacityMax) {
+			throw new ConflictException(
+				`Trip is fully booked: only ${locked.capacityMax - locked.seatsTaken} seat(s) remaining`
+			);
+		}
+
+		await repository.adjustSeatsTaken(tripId, numPeople);
+
+		return locked;
+	}
+
+	/**
+	 * CTMS-024 – BR-067, BR-069, BR-070.
+	 *
+	 * Releases previously reserved seats when a booking is cancelled or expires.
+	 * Reconciles seats_taken from the authoritative bookings table instead of
+	 * using a simple decrement to guarantee correctness across retries, partial
+	 * failures, and rollback scenarios (BR-177).
+	 *
+	 * Must be called inside an active TypeORM transaction that already holds the
+	 * row lock on the trip (acquired by the caller before modifying the booking
+	 * status).
+	 */
+	async releaseSeats(tripId: string, manager: EntityManager): Promise<void> {
+		const repository = manager.withRepository(this.tripsRepository);
+		await repository.recomputeSeatsTaken(tripId);
 	}
 
 	private assertCreateTripPayload(dto: CreateTripDto): {

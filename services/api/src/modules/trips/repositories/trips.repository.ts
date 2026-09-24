@@ -68,6 +68,20 @@ export interface LockedTripForReview {
 	status: TripStatus;
 }
 
+/**
+ * CTMS-024 – Prevent Trip Overbooking.
+ * Minimal projection locked FOR UPDATE to validate and increment seats_taken
+ * atomically within a booking transaction (BR-068, BR-071).
+ */
+export interface LockedTripForBooking {
+	id: string;
+	capacityMin: number;
+	capacityMax: number | null;
+	seatsTaken: number;
+	status: TripStatus;
+	bookingDeadline: Date;
+}
+
 export interface SearchPublishedTripsFilter {
 	search?: string;
 	tripType?: TripType;
@@ -736,5 +750,84 @@ export class TripsRepository extends Repository<Trip> {
 			items: rows.map(toTripSummaryResponse),
 			total,
 		};
+	}
+
+	/**
+	 * CTMS-024 – BR-068.
+	 * Acquires a row-level advisory lock on the trips row for the duration of
+	 * the caller's transaction so that concurrent booking writes are serialised
+	 * for the same trip_id.  Must be called inside an active TypeORM transaction
+	 * (manager.withRepository).
+	 */
+	async findByIdForBooking(tripId: string): Promise<LockedTripForBooking | null> {
+		const rows = (await this.query(
+			`
+			SELECT
+				trip."id",
+				trip."capacity_min" AS "capacityMin",
+				trip."capacity_max" AS "capacityMax",
+				trip."seats_taken"  AS "seatsTaken",
+				trip."status",
+				trip."booking_deadline" AS "bookingDeadline"
+			FROM "trips" trip
+			WHERE trip."id" = $1
+			FOR UPDATE
+			`,
+			[tripId]
+		)) as Array<{
+			id: string;
+			capacityMin: number | string;
+			capacityMax: number | string | null;
+			seatsTaken: number | string;
+			status: TripStatus;
+			bookingDeadline: Date;
+		}>;
+
+		const row = rows[0];
+		if (!row) return null;
+
+		return {
+			id: row.id,
+			capacityMin: Number(row.capacityMin),
+			capacityMax: row.capacityMax == null ? null : Number(row.capacityMax),
+			seatsTaken: Number(row.seatsTaken),
+			status: row.status,
+			bookingDeadline: row.bookingDeadline,
+		};
+	}
+
+	/**
+	 * CTMS-024 – BR-067, BR-071, BR-072.
+	 * Atomically adjusts seats_taken by `delta` (+N for reserve, -N for release).
+	 * The DB constraint CHK_trips_seats_taken (seats_taken >= 0 AND seats_taken
+	 * <= capacity_max) acts as the final overbooking guard.  If the constraint
+	 * is violated the UPDATE throws and the caller's transaction is rolled back
+	 * cleanly (BR-177).
+	 *
+	 * Must be called inside an active TypeORM transaction after
+	 * `findByIdForBooking` has acquired the row lock (BR-068).
+	 */
+	async adjustSeatsTaken(tripId: string, delta: number): Promise<void> {
+		await this.query(
+			`
+			UPDATE "trips"
+			SET "seats_taken" = "seats_taken" + $2,
+			    "updated_at"  = now()
+			WHERE "id" = $1
+			`,
+			[tripId, delta]
+		);
+	}
+
+	/**
+	 * CTMS-024 – BR-067, BR-069, BR-070.
+	 * Reconciles seats_taken from the authoritative bookings table by calling
+	 * the `recompute_trip_seats_taken` database function.  Used after a booking
+	 * cancellation, expiry, or any compensating rollback where the delta-based
+	 * counter may be out of sync.  Must be called inside a transaction that
+	 * already holds the row lock on the trip (FOR UPDATE).
+	 */
+	async recomputeSeatsTaken(tripId: string): Promise<void> {
+		await this.query("SELECT recompute_trip_seats_taken($1)", [tripId]);
 	}
 }
