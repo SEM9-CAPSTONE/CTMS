@@ -8,6 +8,7 @@ import {
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { DataSource, type EntityManager, type Repository } from "typeorm";
 import { AuditLog } from "../../auth/entities/audit-log.entity";
+import { CHECKPOINT_RADIUS_METERS } from "../constants";
 import type { CheckpointResponseDto } from "../dto/checkpoint-response.dto";
 import type { CreateCheckpointDto } from "../dto/create-checkpoint.dto";
 import type { UpdateCheckpointDto } from "../dto/update-checkpoint.dto";
@@ -63,7 +64,7 @@ export class CheckpointsService {
 				routeId,
 				name: dto.name,
 				location: dto.location,
-				radiusMeters: dto.radiusMeters,
+				radiusMeters: CHECKPOINT_RADIUS_METERS,
 				type: dto.type,
 				expectedArrivalOffset: dto.expectedArrivalOffset,
 				instructions: dto.instructions,
@@ -126,7 +127,7 @@ export class CheckpointsService {
 				checkpointId,
 				name: dto.name,
 				location: dto.location,
-				radiusMeters: dto.radiusMeters,
+				radiusMeters: CHECKPOINT_RADIUS_METERS,
 				type: dto.type,
 				expectedArrivalOffset: dto.expectedArrivalOffset,
 				instructions: dto.instructions,

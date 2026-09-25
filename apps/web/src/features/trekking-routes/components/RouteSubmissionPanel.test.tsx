@@ -37,7 +37,7 @@ function checkpoint(type: "start" | "finish", routePosition: number): RouteCheck
 		routeId: "route-id",
 		name: type,
 		location: { type: "Point", coordinates: [108.46, 11.94] },
-		radiusMeters: 30,
+		radiusMeters: 20,
 		type,
 		expectedArrivalOffset: 30,
 		instructions: type,
@@ -108,7 +108,7 @@ describe("RouteSubmissionPanel", () => {
 	it("disables submission and explains incomplete preparation", () => {
 		renderPanel({ checkpoints: [checkpoint("finish", 0.9)] });
 		expect(screen.getByRole("button", { name: "Gửi duyệt" })).toBeDisabled();
-		expect(screen.getByText("Thiếu checkpoint Bắt đầu.")).toBeInTheDocument();
+		expect(screen.getByText("Thiếu điểm dừng Bắt đầu.")).toBeInTheDocument();
 	});
 
 	it.each(["pending_approval", "active", "closed"] as RouteStatus[])(

@@ -1,5 +1,6 @@
 import { Loader2, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
+import { CHECKPOINT_RADIUS_METERS } from "../constants";
 import { useCreateRouteCheckpoint } from "../hooks/useCreateRouteCheckpoint";
 import { useCreateRouteDangerZone } from "../hooks/useCreateRouteDangerZone";
 import { useRouteCheckpoints } from "../hooks/useRouteCheckpoints";
@@ -45,7 +46,6 @@ export function RouteCheckpointsPanel({
 	const dangerReload = dangerZones.reload;
 	const createDangerZone = useCreateRouteDangerZone(route.id, dangerReload, onRouteReload);
 	const [selectedLocation, setSelectedLocation] = useState<GeoJsonPoint>();
-	const [radiusMeters, setRadiusMeters] = useState(30);
 	const [mapMode, setMapMode] = useState<RouteMapMode>("checkpoint");
 	const [dangerGeometry, setDangerGeometry] = useState<RouteDangerZoneGeometry>();
 	const [dangerRadiusMeters, setDangerRadiusMeters] = useState(30);
@@ -71,7 +71,6 @@ export function RouteCheckpointsPanel({
 	useEffect(() => {
 		setEditingCheckpoint(undefined);
 		setSelectedLocation(undefined);
-		setRadiusMeters(30);
 		setCheckpointNotice("");
 	}, [route.id]);
 
@@ -122,14 +121,12 @@ export function RouteCheckpointsPanel({
 		clearDangerGeometry();
 		setEditingCheckpoint(checkpoint);
 		setSelectedLocation(checkpoint.location);
-		setRadiusMeters(checkpoint.radiusMeters);
 		setCheckpointNotice("");
 	}
 
 	function cancelCheckpointEdit(): void {
 		setEditingCheckpoint(undefined);
 		setSelectedLocation(undefined);
-		setRadiusMeters(30);
 	}
 
 	return (
@@ -139,7 +136,7 @@ export function RouteCheckpointsPanel({
 		>
 			<div className="flex flex-wrap items-start justify-between gap-3">
 				<div>
-					<h2 className="font-extrabold text-[#10221b]">Checkpoint trên tuyến</h2>
+					<h2 className="font-extrabold text-[#10221b]">Điểm dừng trên tuyến</h2>
 					<p className="mt-1 text-sm text-[#667a6d]">
 						Chọn một điểm trên bản đồ; máy chủ sẽ chấp nhận điểm cách tuyến tối đa 50 mét.
 					</p>
@@ -151,22 +148,13 @@ export function RouteCheckpointsPanel({
 				)}
 			</div>
 
-			<RouteSubmissionPanel
-				route={route}
-				checkpoints={checkpoints.items}
-				isLoadingCheckpoints={checkpoints.isLoading}
-				checkpointError={checkpoints.error}
-				onReload={onRouteReload}
-				onSubmitted={onRouteSubmitted}
-			/>
-
 			<RouteCheckpointMap
 				geometry={route.geometry}
 				checkpoints={checkpoints.items}
 				dangerZones={dangerZones.items}
 				mode={mapMode}
 				selectedLocation={selectedLocation}
-				radiusMeters={radiusMeters}
+				radiusMeters={CHECKPOINT_RADIUS_METERS}
 				proposedHazard={dangerGeometry}
 				proposedHazardRadiusMeters={dangerRadiusMeters}
 				polygonVertices={polygonVertices}
@@ -192,12 +180,11 @@ export function RouteCheckpointsPanel({
 				disabled={createDisabled || mapMode !== "checkpoint"}
 				isSubmitting={editingCheckpoint ? update.isSubmitting : create.isSubmitting}
 				error={editingCheckpoint ? update.error : create.error}
-				onRadiusChange={setRadiusMeters}
 				onSubmit={(payload) =>
 					editingCheckpoint ? update.submit(editingCheckpoint.id, payload) : create.submit(payload)
 				}
 				onCreated={() => {
-					setCheckpointNotice(editingCheckpoint ? "Đã cập nhật checkpoint." : "Đã tạo checkpoint.");
+					setCheckpointNotice(editingCheckpoint ? "Đã cập nhật điểm dừng." : "Đã thêm điểm dừng.");
 					setEditingCheckpoint(undefined);
 					setSelectedLocation(undefined);
 				}}
@@ -227,10 +214,10 @@ export function RouteCheckpointsPanel({
 			/>
 
 			<div className="mt-6 border-t border-[#e0ebe0] pt-5">
-				<h3 className="font-extrabold">Danh sách checkpoint</h3>
+				<h3 className="font-extrabold">Danh sách điểm dừng</h3>
 				{checkpoints.isLoading && (
 					<p className="mt-3 flex items-center gap-2 text-sm">
-						<Loader2 className="size-4 animate-spin" /> Đang tải checkpoint...
+						<Loader2 className="size-4 animate-spin" /> Đang tải điểm dừng...
 					</p>
 				)}
 				{checkpoints.error && !checkpoints.isLoading && (
@@ -283,6 +270,14 @@ export function RouteCheckpointsPanel({
 					<DangerZoneList items={dangerZones.items} />
 				)}
 			</div>
+			<RouteSubmissionPanel
+				route={route}
+				checkpoints={checkpoints.items}
+				isLoadingCheckpoints={checkpoints.isLoading}
+				checkpointError={checkpoints.error}
+				onReload={onRouteReload}
+				onSubmitted={onRouteSubmitted}
+			/>
 		</section>
 	);
 }

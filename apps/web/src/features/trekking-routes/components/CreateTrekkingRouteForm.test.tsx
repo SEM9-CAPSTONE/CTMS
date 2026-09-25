@@ -3,6 +3,9 @@ import { describe, expect, it, vi } from "vitest";
 import type { GeoJsonLineString } from "../types";
 import { CreateTrekkingRouteForm } from "./CreateTrekkingRouteForm";
 
+// Ensure the shared form binds this test's editor mock under isolate:false.
+vi.hoisted(() => vi.resetModules());
+
 vi.mock("./RouteGeometryEditor", () => ({
 	RouteGeometryEditor: ({
 		value,
@@ -45,7 +48,7 @@ describe("CreateTrekkingRouteForm", () => {
 			target: { value: "120" },
 		});
 		fireEvent.click(screen.getByRole("button", { name: "Draw test route" }));
-		fireEvent.click(screen.getByRole("button", { name: "Tạo tuyến đường" }));
+		fireEvent.click(screen.getByRole("button", { name: "Lưu nháp và thêm điểm dừng" }));
 		await waitFor(() =>
 			expect(submit).toHaveBeenCalledWith({
 				name: "Ridge",
@@ -82,6 +85,6 @@ describe("CreateTrekkingRouteForm", () => {
 		render(
 			<CreateTrekkingRouteForm isSubmitting error={null} onSubmit={vi.fn()} onRetry={vi.fn()} />
 		);
-		expect(screen.getByRole("button", { name: /Đang tạo tuyến/ })).toBeDisabled();
+		expect(screen.getByRole("button", { name: /Đang lưu tuyến/ })).toBeDisabled();
 	});
 });

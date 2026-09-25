@@ -329,7 +329,7 @@ export function RouteGeometryPreview({
 
 	return (
 		<section className="rounded-2xl border border-[#e0ebe0] bg-white p-5 shadow-sm">
-			<h2 className="font-extrabold text-[#10221b]">Xem trước hình học tuyến đường</h2>
+			<h2 className="font-extrabold text-[#10221b]">Xem trước đường đi của tuyến</h2>
 			<div
 				ref={containerRef}
 				data-testid="route-geometry-preview"
@@ -337,7 +337,7 @@ export function RouteGeometryPreview({
 			>
 				{useFallback && (
 					<svg
-						aria-label="Hình học tuyến đường"
+						aria-label="Bản đồ tuyến đường"
 						viewBox="0 0 100 100"
 						className="absolute inset-0 h-full w-full"
 						role="img"
@@ -468,7 +468,7 @@ export function RouteGeometryPreview({
 				)}
 				{checkpoints.length > 0 && (
 					<div
-						aria-label="Chú giải checkpoint"
+						aria-label="Chú giải điểm dừng"
 						className="absolute right-3 bottom-3 flex flex-wrap gap-2 rounded-lg bg-white/90 px-3 py-2 text-[11px] font-bold"
 					>
 						{checkpointTypes.has("start") && <span>S: Bắt đầu</span>}
@@ -476,7 +476,7 @@ export function RouteGeometryPreview({
 						{checkpointTypes.has("rest") && <span>Số: Nghỉ chân</span>}
 						{checkpointTypes.has("water") && <span className="text-teal-800">W: Nước</span>}
 						{checkpointTypes.has("dangerous") && (
-							<span className="text-red-700">!: Checkpoint nguy hiểm</span>
+							<span className="text-red-700">!: Điểm nguy hiểm</span>
 						)}
 						{checkpointTypes.has("emergency_shelter") && (
 							<span className="inline-flex items-center gap-1 text-sky-800">

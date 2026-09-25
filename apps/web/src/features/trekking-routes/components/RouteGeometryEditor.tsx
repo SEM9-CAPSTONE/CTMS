@@ -158,7 +158,7 @@ export function RouteGeometryEditor({ value, disabled = false, onChange }: Props
 		<section className="rounded-2xl border border-[#e0ebe0] bg-white p-5 shadow-sm">
 			<div className="flex flex-wrap items-center justify-between gap-3">
 				<div>
-					<h2 className="font-extrabold text-[#10221b]">Hình học tuyến đường</h2>
+					<h2 className="font-extrabold text-[#10221b]">Vẽ tuyến đường</h2>
 					<p className="text-xs text-[#667a6d]">Click để thêm điểm; kéo điểm để điều chỉnh.</p>
 				</div>
 				<p

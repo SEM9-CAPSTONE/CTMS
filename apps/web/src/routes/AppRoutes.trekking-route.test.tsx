@@ -30,22 +30,25 @@ describe("AppRoutes trekking route navigation", () => {
 
 	it("navigates to create route", async () => {
 		render(<AppRoutes />);
-		expect(screen.getByRole("button", { name: "Quản lý tuyến trekking" })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Quản lý tuyến" })).toBeInTheDocument();
 		await userEvent.click(screen.getByRole("button", { name: "Tạo tuyến trekking" }));
 
 		expect(window.location.pathname).toBe("/host/trekking-routes/create");
 		expect(window.location.search).toBe("");
 		expect(screen.getByText("Create Trekking Route Page")).toBeInTheDocument();
+		expect(screen.getAllByRole("complementary")).toHaveLength(1);
+		expect(screen.getAllByRole("navigation", { name: "Dashboard navigation" })).toHaveLength(1);
 	});
 
 	it("navigates to the route list", async () => {
 		render(<AppRoutes />);
 		expect(screen.getByRole("button", { name: "Tạo tuyến trekking" })).toBeInTheDocument();
-		await userEvent.click(screen.getByRole("button", { name: "Quản lý tuyến trekking" }));
+		await userEvent.click(screen.getByRole("button", { name: "Quản lý tuyến" }));
 
 		expect(window.location.pathname).toBe("/host/trekking-routes");
 		expect(window.location.search).toBe("");
 		expect(screen.getByText("Trekking Routes Page")).toBeInTheDocument();
+		expect(screen.getAllByRole("complementary")).toHaveLength(1);
 	});
 
 	it.each(["camper", "porter", "admin"])(

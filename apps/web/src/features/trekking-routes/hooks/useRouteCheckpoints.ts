@@ -8,7 +8,7 @@ function listError(error: unknown): string {
 		if (error.status === 403) return "Bạn không có quyền xem checkpoint của tuyến này.";
 		if (error.status === 404) return "Không tìm thấy tuyến trekking đã chọn.";
 	}
-	return "Không thể tải danh sách checkpoint. Vui lòng thử lại.";
+	return "Không thể tải danh sách điểm dừng. Vui lòng thử lại.";
 }
 
 export function useRouteCheckpoints(routeId?: string) {

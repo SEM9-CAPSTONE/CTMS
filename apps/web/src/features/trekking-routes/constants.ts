@@ -32,3 +32,6 @@ export function lifecycleActionForStatus(status: RouteStatus): RouteLifecycleAct
 	if (status === "closed") return "reopen";
 	return null;
 }
+
+/** BR-441: fixed checkpoint safety radius, independent of hazard areas. */
+export const CHECKPOINT_RADIUS_METERS = 20;

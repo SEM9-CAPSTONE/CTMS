@@ -8,7 +8,7 @@ describe("UpdateCheckpointDto", () => {
 		const dto = plainToInstance(UpdateCheckpointDto, {
 			name: "  Water point  ",
 			location: { type: "Point", coordinates: [108.458313, 11.940419] },
-			radiusMeters: 40,
+			radiusMeters: 20,
 			type: CheckpointType.WATER,
 			expectedArrivalOffset: 50,
 			instructions: "  Refill water.  ",

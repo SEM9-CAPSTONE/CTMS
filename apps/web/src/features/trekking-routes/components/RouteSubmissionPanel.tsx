@@ -17,11 +17,11 @@ interface RouteSubmissionPanelProps {
 }
 
 const issueMessages: Record<RouteSubmissionReadinessIssue, string> = {
-	missing_start: "Thiếu checkpoint Bắt đầu.",
-	missing_finish: "Thiếu checkpoint Kết thúc.",
-	duplicate_start: "Tuyến chỉ được có một checkpoint Bắt đầu.",
-	duplicate_finish: "Tuyến chỉ được có một checkpoint Kết thúc.",
-	invalid_order: "Checkpoint Bắt đầu phải đứng trước checkpoint Kết thúc.",
+	missing_start: "Thiếu điểm dừng Bắt đầu.",
+	missing_finish: "Thiếu điểm dừng Kết thúc.",
+	duplicate_start: "Tuyến chỉ được có một điểm dừng Bắt đầu.",
+	duplicate_finish: "Tuyến chỉ được có một điểm dừng Kết thúc.",
+	invalid_order: "Điểm dừng Bắt đầu phải đứng trước điểm dừng Kết thúc.",
 };
 
 export function RouteSubmissionPanel({
@@ -51,7 +51,7 @@ export function RouteSubmissionPanel({
 				<div>
 					<h3 className="font-extrabold text-[#10221b]">Chuẩn bị gửi duyệt</h3>
 					<p className="mt-1 text-sm text-[#667a6d]">
-						Máy chủ sẽ kiểm tra lại toàn bộ dữ liệu tuyến và checkpoint khi gửi.
+						Máy chủ sẽ kiểm tra lại toàn bộ dữ liệu tuyến và điểm dừng khi gửi.
 					</p>
 				</div>
 				<div className="flex gap-2 text-xs font-bold">
@@ -69,13 +69,13 @@ export function RouteSubmissionPanel({
 					data-testid="submission-readiness-loading"
 					className="mt-4 flex items-center gap-2 text-sm"
 				>
-					<Loader2 className="size-4 animate-spin" /> Đang kiểm tra checkpoint...
+					<Loader2 className="size-4 animate-spin" /> Đang kiểm tra điểm dừng...
 				</p>
 			)}
 			{checkpointError && !isLoadingCheckpoints && (
 				<p className="mt-4 flex gap-2 text-sm font-semibold text-amber-800">
 					<AlertCircle className="size-5 shrink-0" />
-					Không thể xác định mức độ sẵn sàng. Hãy tải lại danh sách checkpoint.
+					Không thể xác định mức độ sẵn sàng. Hãy tải lại danh sách điểm dừng.
 				</p>
 			)}
 			{!readinessUnavailable && !readiness.canSubmit && (
