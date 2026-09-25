@@ -8,11 +8,13 @@ import {
 	createTrekkingRouteFormSchema,
 	toCreateTrekkingRouteInput,
 } from "../schema/create-trekking-route.schema";
-import type { CreateTrekkingRouteInput } from "../types";
+import type { CreateTrekkingRouteInput, CreatedTrekkingRoute } from "../types";
 import { parseRouteImportFile } from "../utils/route-import";
 import { RouteGeometryEditor } from "./RouteGeometryEditor";
 
 interface Props {
+	route?: CreatedTrekkingRoute;
+	onCancel?: () => void;
 	isSubmitting: boolean;
 	error: CreateRouteError | null;
 	onSubmit: (payload: CreateTrekkingRouteInput) => Promise<unknown>;
@@ -22,7 +24,14 @@ interface Props {
 const inputClass =
 	"mt-1 w-full rounded-xl border border-[#cbd9ce] bg-white px-3 py-2.5 text-sm outline-none focus:border-[#164027] focus:ring-2 focus:ring-[#164027]/10";
 
-export function CreateTrekkingRouteForm({ isSubmitting, error, onSubmit, onRetry }: Props) {
+export function CreateTrekkingRouteForm({
+	route,
+	onCancel,
+	isSubmitting,
+	error,
+	onSubmit,
+	onRetry,
+}: Props) {
 	const {
 		register,
 		control,
@@ -32,7 +41,15 @@ export function CreateTrekkingRouteForm({ isSubmitting, error, onSubmit, onRetry
 		formState: { errors },
 	} = useForm<CreateTrekkingRouteFormValues>({
 		resolver: zodResolver(createTrekkingRouteFormSchema),
-		defaultValues: CREATE_TREKKING_ROUTE_DEFAULT_VALUES,
+		defaultValues: route
+			? {
+					name: route.name,
+					description: route.description ?? "",
+					difficulty: route.difficulty,
+					geometry: route.geometry,
+					expectedDurationMinutes: String(route.expectedDurationMinutes),
+				}
+			: CREATE_TREKKING_ROUTE_DEFAULT_VALUES,
 	});
 
 	const importFile = async (file: File | undefined) => {
@@ -98,6 +115,10 @@ export function CreateTrekkingRouteForm({ isSubmitting, error, onSubmit, onRetry
 								{errors.expectedDurationMinutes.message}
 							</span>
 						)}
+						<span className="mt-1 block text-xs font-normal text-[#667a6d]">
+							Host nhập thời lượng dự kiến, gồm thời gian lên dốc và nghỉ chân. Bản đồ hiện chưa
+							cung cấp dữ liệu độ cao để tự tính thời gian.
+						</span>
 					</label>
 					<label className="text-sm font-bold text-[#34483b] sm:col-span-2">
 						Mô tả (không bắt buộc)
@@ -140,7 +161,7 @@ export function CreateTrekkingRouteForm({ isSubmitting, error, onSubmit, onRetry
 								/>
 							</label>
 							<p className="mt-1 text-xs text-[#667a6d]">
-								Hình học nhập thành công sẽ thay thế đường đang vẽ và có thể tiếp tục chỉnh sửa.
+								Đường đi được nhập sẽ thay thế đường đang vẽ và có thể tiếp tục chỉnh sửa.
 							</p>
 						</div>
 					</>
@@ -179,8 +200,18 @@ export function CreateTrekkingRouteForm({ isSubmitting, error, onSubmit, onRetry
 				className="flex items-center justify-center gap-2 rounded-xl bg-[#164027] px-5 py-3 font-bold text-white disabled:opacity-60"
 			>
 				{isSubmitting && <Loader2 className="size-4 animate-spin" />}
-				{isSubmitting ? "Đang tạo tuyến..." : "Tạo tuyến đường"}
+				{isSubmitting ? "Đang lưu tuyến..." : route ? "Lưu thay đổi" : "Lưu nháp và thêm điểm dừng"}
 			</button>
+			{onCancel && (
+				<button
+					type="button"
+					disabled={isSubmitting}
+					onClick={onCancel}
+					className="rounded-xl border px-5 py-3 font-bold"
+				>
+					Hủy chỉnh sửa
+				</button>
+			)}
 		</form>
 	);
 }

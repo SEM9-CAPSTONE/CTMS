@@ -12,7 +12,7 @@ const CHECKPOINT_ID = "55555555-5555-4555-8555-555555555555";
 const dto: CreateCheckpointDto = {
 	name: "Ridge rest",
 	location: { type: "Point", coordinates: [108.46, 11.94] },
-	radiusMeters: 30,
+	radiusMeters: 20,
 	type: CheckpointType.REST,
 	expectedArrivalOffset: 45,
 	instructions: "Rest and check water.",
@@ -126,6 +126,17 @@ describe("CheckpointsService", () => {
 		routeRepository.findOne.mockResolvedValueOnce(route(OTHER_HOST_ID));
 		await expect(service.list(HOST_ID, ROUTE_ID)).rejects.toMatchObject({ status: 403 });
 		expect(checkpointRepository.findByRoute).not.toHaveBeenCalled();
+	});
+
+	it("enforces 20 m even for direct service calls bypassing DTO validation", async () => {
+		await service.create(HOST_ID, ROUTE_ID, { ...dto, radiusMeters: 500 });
+		expect(checkpointRepository.createForRoute).toHaveBeenCalledWith(
+			expect.objectContaining({ radiusMeters: 20 })
+		);
+		await service.update(HOST_ID, ROUTE_ID, CHECKPOINT_ID, { ...dto, radiusMeters: 30 });
+		expect(checkpointRepository.updateForRoute).toHaveBeenCalledWith(
+			expect.objectContaining({ radiusMeters: 20 })
+		);
 	});
 
 	it("locks the route, creates the checkpoint, and writes the exact audit in one transaction", async () => {

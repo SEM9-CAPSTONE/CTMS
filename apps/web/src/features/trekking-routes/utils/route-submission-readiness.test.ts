@@ -7,9 +7,18 @@ const checkpoint = (
 ) => ({
 	type,
 	routePosition,
+	radiusMeters: 20,
 });
 
 describe("getRouteSubmissionReadiness", () => {
+	it("does not block submission for untouched legacy checkpoint radii", () => {
+		expect(
+			getRouteSubmissionReadiness([
+				{ ...checkpoint("start", 0), radiusMeters: 30 },
+				checkpoint("finish", 1),
+			])
+		).toEqual({ canSubmit: true, issues: [] });
+	});
 	it("accepts exactly one ordered start and finish while keeping other types optional", () => {
 		expect(
 			getRouteSubmissionReadiness([checkpoint("start", 0.1), checkpoint("finish", 0.9)])

@@ -25,6 +25,8 @@ export const trekkingRoutesService = {
 		httpClient.get<CreatedTrekkingRoute[]>(API_ENDPOINTS.TREKKING.ROUTES),
 	create: (input: CreateTrekkingRouteInput): Promise<CreatedTrekkingRoute> =>
 		httpClient.post<CreatedTrekkingRoute>(API_ENDPOINTS.TREKKING.ROUTES, input),
+	updateDraft: (routeId: string, input: CreateTrekkingRouteInput): Promise<CreatedTrekkingRoute> =>
+		httpClient.patch<CreatedTrekkingRoute>(API_ENDPOINTS.TREKKING.ROUTE_BY_ID(routeId), input),
 	submitForApproval: (routeId: string): Promise<CreatedTrekkingRoute> =>
 		httpClient.patch<CreatedTrekkingRoute>(API_ENDPOINTS.TREKKING.SUBMIT_FOR_APPROVAL(routeId)),
 	close: (routeId: string, input: RouteStatusReasonInput): Promise<CreatedTrekkingRoute> =>

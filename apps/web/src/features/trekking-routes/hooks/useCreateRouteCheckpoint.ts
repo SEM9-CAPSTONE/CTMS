@@ -25,17 +25,17 @@ function backendDetail(error: HttpError): string | null {
 
 export function checkpointCreateError(error: unknown): string {
 	if (!(error instanceof HttpError))
-		return "Không thể tạo checkpoint. Vui lòng kiểm tra kết nối và thử lại.";
+		return "Không thể thêm điểm dừng. Vui lòng kiểm tra kết nối và thử lại.";
 	const detail = backendDetail(error);
 	if (detail) return detail;
 	const messages: Record<number, string> = {
 		401: "Phiên đăng nhập đã hết hạn.",
-		403: "Bạn không có quyền tạo checkpoint cho tuyến này.",
+		403: "Bạn không có quyền thêm điểm dừng cho tuyến này.",
 		404: "Không tìm thấy tuyến trekking đã chọn.",
-		409: "Chỉ có thể tạo checkpoint khi tuyến đang ở trạng thái nháp.",
-		422: "Dữ liệu checkpoint chưa hợp lệ hoặc vị trí cách tuyến quá 50 mét.",
+		409: "Chỉ có thể thêm điểm dừng khi tuyến đang ở trạng thái nháp.",
+		422: "Dữ liệu điểm dừng chưa hợp lệ hoặc vị trí cách tuyến quá 50 mét.",
 	};
-	return messages[error.status] ?? "Không thể tạo checkpoint. Vui lòng thử lại.";
+	return messages[error.status] ?? "Không thể thêm điểm dừng. Vui lòng thử lại.";
 }
 
 export function useCreateRouteCheckpoint(routeId: string, onCreated: () => Promise<unknown>) {

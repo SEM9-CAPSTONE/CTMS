@@ -102,7 +102,7 @@ describe("TrekkingRoutesPage", () => {
 		});
 		render(<TrekkingRoutesPage />);
 
-		await waitFor(() => expect(screen.getByText("Son Tra Ridge")).toBeInTheDocument());
+		await waitFor(() => expect(screen.getAllByText("Son Tra Ridge")[0]).toBeInTheDocument());
 		expect(screen.getByText("Khó")).toBeInTheDocument();
 		expect(screen.getByText("150 phút")).toBeInTheDocument();
 		expect(screen.getByText("3.25 km")).toBeInTheDocument();

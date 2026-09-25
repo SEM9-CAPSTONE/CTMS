@@ -27,7 +27,7 @@ describe("RouteCheckpointMap fallback", () => {
 				onSelectLocation={onSelect}
 			/>
 		);
-		const map = screen.getByLabelText("Bản đồ chọn checkpoint");
+		const map = screen.getByLabelText("Bản đồ chọn điểm dừng");
 		vi.spyOn(map, "getBoundingClientRect").mockReturnValue({
 			left: 0,
 			top: 0,
@@ -91,7 +91,7 @@ describe("RouteCheckpointMap fallback", () => {
 		);
 		expect(screen.getByTestId("checkpoint-marker-1")).toHaveTextContent("1");
 		expect(screen.getByTestId("checkpoint-marker-2")).toHaveTextContent("2");
-		fireEvent.click(screen.getByLabelText("Bản đồ chọn checkpoint"));
+		fireEvent.click(screen.getByLabelText("Bản đồ chọn điểm dừng"));
 		expect(onSelect).not.toHaveBeenCalled();
 	});
 

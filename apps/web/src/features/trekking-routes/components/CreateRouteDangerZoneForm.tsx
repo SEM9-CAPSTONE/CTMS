@@ -93,7 +93,7 @@ export function CreateRouteDangerZoneForm({
 					onClick={() => onModeChange("checkpoint")}
 					className="rounded-lg border px-3 py-2 text-sm font-bold disabled:opacity-50"
 				>
-					Checkpoint / nơi trú ẩn
+					Điểm dừng / nơi trú ẩn
 				</button>
 				<button
 					type="button"
