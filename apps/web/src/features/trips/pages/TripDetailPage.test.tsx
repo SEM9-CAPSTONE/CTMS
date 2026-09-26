@@ -1,11 +1,16 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useBookTrip } from "../hooks/useBookTrip";
 import { useTripDetail } from "../hooks/useTripDetail";
 import type { TripDetails } from "../types";
 import { TripDetailPage } from "./TripDetailPage";
 
 vi.mock("../hooks/useTripDetail", () => ({
 	useTripDetail: vi.fn(),
+}));
+
+vi.mock("../hooks/useBookTrip", () => ({
+	useBookTrip: vi.fn(),
 }));
 
 const mockTrip: TripDetails = {
@@ -39,9 +44,24 @@ const mockTrip: TripDetails = {
 	waypoints: [],
 };
 
+const defaultBookTripState = {
+	book: vi.fn(),
+	retry: vi.fn(),
+	clearConflict: vi.fn(),
+	reset: vi.fn(),
+	isBooking: false,
+	isSuccess: false,
+	booking: null,
+	error: null,
+	fieldErrors: {},
+	isConflict: false,
+	lastInput: null,
+};
+
 describe("TripDetailPage", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		vi.mocked(useBookTrip).mockReturnValue({ ...defaultBookTripState });
 	});
 
 	it("renders loading state", () => {
@@ -119,5 +139,80 @@ describe("TripDetailPage", () => {
 
 		fireEvent.click(screen.getByRole("button", { name: "Trang chủ" }));
 		expect(onBackHome).toHaveBeenCalled();
+	});
+
+	it("delegates to onBook prop when provided", async () => {
+		vi.mocked(useTripDetail).mockReturnValue({
+			trip: mockTrip,
+			isLoading: false,
+			error: null,
+			isNotFound: false,
+			retry: vi.fn(),
+		});
+
+		const onBook = vi.fn();
+		render(<TripDetailPage tripId="trip-abc" onBackToList={vi.fn()} onBook={onBook} />);
+
+		fireEvent.click(screen.getByRole("button", { name: /đặt chỗ ngay/i }));
+		expect(onBook).toHaveBeenCalledWith("trip-abc", 1);
+	});
+
+	it("uses useBookTrip and re-fetches trip on booking success", async () => {
+		const retryTripDetail = vi.fn();
+		const bookMock = vi.fn().mockResolvedValueOnce({
+			id: "booking-1",
+			tripId: "trip-abc",
+			numPeople: 1,
+			status: "confirmed",
+		});
+
+		vi.mocked(useTripDetail).mockReturnValue({
+			trip: mockTrip,
+			isLoading: false,
+			error: null,
+			isNotFound: false,
+			retry: retryTripDetail,
+		});
+
+		vi.mocked(useBookTrip).mockReturnValue({
+			...defaultBookTripState,
+			book: bookMock,
+		});
+
+		render(<TripDetailPage tripId="trip-abc" onBackToList={vi.fn()} />);
+
+		fireEvent.click(screen.getByRole("button", { name: /đặt chỗ ngay/i }));
+		expect(bookMock).toHaveBeenCalledWith({ tripId: "trip-abc", numPeople: 1 });
+		await vi.waitFor(() => {
+			expect(retryTripDetail).toHaveBeenCalled();
+		});
+	});
+
+	it("displays conflict dialog and reloads authoritative state on conflict reload (BR-210)", () => {
+		const retryTripDetail = vi.fn();
+		const clearConflict = vi.fn();
+
+		vi.mocked(useTripDetail).mockReturnValue({
+			trip: mockTrip,
+			isLoading: false,
+			error: null,
+			isNotFound: false,
+			retry: retryTripDetail,
+		});
+
+		vi.mocked(useBookTrip).mockReturnValue({
+			...defaultBookTripState,
+			isConflict: true,
+			error: "Chuyến đi không còn đủ chỗ trống do vừa có người đặt trước.",
+			clearConflict,
+		});
+
+		render(<TripDetailPage tripId="trip-abc" onBackToList={vi.fn()} />);
+
+		expect(screen.getByTestId("booking-conflict-dialog")).toBeInTheDocument();
+
+		fireEvent.click(screen.getByRole("button", { name: /tải lại dữ liệu/i }));
+		expect(clearConflict).toHaveBeenCalled();
+		expect(retryTripDetail).toHaveBeenCalled();
 	});
 });

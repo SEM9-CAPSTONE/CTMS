@@ -1,5 +1,7 @@
 import { API_ENDPOINTS, httpClient } from "../../../core/api";
 import type {
+	BookTripInput,
+	BookTripResponse,
 	CreateTripInput,
 	PaginatedTrips,
 	ReviewTripInput,
@@ -29,4 +31,7 @@ export const tripsService = {
 
 	getMyTrips: (): Promise<TripDetails[]> =>
 		httpClient.get<TripDetails[]>(API_ENDPOINTS.TRIPS.GET_MINE),
+
+	book: (input: BookTripInput): Promise<BookTripResponse> =>
+		httpClient.post<BookTripResponse>(API_ENDPOINTS.BOOKINGS.CREATE, input),
 };

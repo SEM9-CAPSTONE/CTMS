@@ -51,7 +51,7 @@ html {
 
 body {
 	min-height: 100vh;
-	overflow-x: hidden;
+	overflow-x: clip;
 	-webkit-font-smoothing: antialiased;
 	-moz-osx-font-smoothing: grayscale;
 }

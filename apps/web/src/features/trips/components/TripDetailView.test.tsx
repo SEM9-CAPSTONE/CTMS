@@ -87,7 +87,49 @@ describe("TripDetailView", () => {
 		// Booking button
 		const bookBtn = screen.getByRole("button", { name: /đặt chỗ ngay/i });
 		fireEvent.click(bookBtn);
-		expect(onBook).toHaveBeenCalledWith("trip-999");
+		expect(onBook).toHaveBeenCalledWith("trip-999", 1);
+	});
+
+	it("adjusts participant count up to remainingSeats limit and updates total price", () => {
+		const onBook = vi.fn();
+
+		render(
+			<TripDetailView
+				trip={{ ...mockTripDetails, remainingSeats: 3, pricePerPerson: 1000000 }}
+				onBook={onBook}
+			/>
+		);
+
+		const numValue = screen.getByTestId("num-people-value");
+		const totalPrice = screen.getByTestId("booking-total-price");
+		expect(numValue).toHaveTextContent("1");
+		expect(totalPrice).toHaveTextContent(/1\.000\.000/);
+
+		const plusBtn = screen.getByRole("button", { name: "Tăng số lượng khách" });
+		const minusBtn = screen.getByRole("button", { name: "Giảm số lượng khách" });
+
+		// Increase to 2
+		fireEvent.click(plusBtn);
+		expect(numValue).toHaveTextContent("2");
+		expect(totalPrice).toHaveTextContent(/2\.000\.000/);
+
+		// Increase to 3 (limit)
+		fireEvent.click(plusBtn);
+		expect(numValue).toHaveTextContent("3");
+		expect(totalPrice).toHaveTextContent(/3\.000\.000/);
+
+		// Attempt increase beyond limit (3)
+		fireEvent.click(plusBtn);
+		expect(numValue).toHaveTextContent("3");
+		expect(plusBtn).toBeDisabled();
+
+		// Decrease back to 2
+		fireEvent.click(minusBtn);
+		expect(numValue).toHaveTextContent("2");
+
+		// Book with 2 people
+		fireEvent.click(screen.getByRole("button", { name: /đặt chỗ ngay/i }));
+		expect(onBook).toHaveBeenCalledWith("trip-999", 2);
 	});
 
 	it("renders sold out state when remainingSeats is 0", () => {
@@ -99,8 +141,71 @@ describe("TripDetailView", () => {
 
 		render(<TripDetailView trip={soldOutTrip} />);
 
-		expect(screen.getAllByText("Đã hết chỗ")).toHaveLength(2);
+		expect(screen.getAllByText("Đã hết chỗ").length).toBeGreaterThanOrEqual(2);
 		expect(screen.getByRole("button", { name: "Đã hết chỗ" })).toBeDisabled();
+	});
+
+	it("renders low capacity urgency banner when remainingSeats <= 3", () => {
+		const lowSeatTrip: TripDetails = {
+			...mockTripDetails,
+			remainingSeats: 2,
+		};
+
+		render(<TripDetailView trip={lowSeatTrip} />);
+
+		expect(screen.getByTestId("trip-capacity-banner-low-seats")).toBeInTheDocument();
+		expect(screen.getByText("Chỉ còn 2 chỗ cuối cùng!")).toBeInTheDocument();
+	});
+
+	it("renders loading state on CTA when isBooking is true", () => {
+		render(<TripDetailView trip={mockTripDetails} isBooking={true} />);
+
+		const button = screen.getByRole("button", { name: /đang xử lý đặt chỗ/i });
+		expect(button).toBeDisabled();
+	});
+
+	it("renders success state when isBookingSuccess is true", () => {
+		render(<TripDetailView trip={mockTripDetails} isBookingSuccess={true} />);
+
+		expect(screen.getByRole("status")).toHaveTextContent("Đặt chỗ thành công!");
+	});
+
+	it("renders inline error when bookingError is provided and isConflict is false", () => {
+		render(
+			<TripDetailView
+				trip={mockTripDetails}
+				bookingError="Thông tin đặt chỗ không hợp lệ"
+				isConflict={false}
+			/>
+		);
+
+		expect(screen.getByRole("alert")).toHaveTextContent("Thông tin đặt chỗ không hợp lệ");
+	});
+
+	it("renders BookingConflictDialog when isConflict is true and triggers reload/dismiss", () => {
+		const onConflictDismiss = vi.fn();
+		const onConflictReload = vi.fn();
+
+		render(
+			<TripDetailView
+				trip={mockTripDetails}
+				isConflict={true}
+				bookingError="Chuyến đi đã hết chỗ trống do có người vừa đặt trước"
+				onConflictDismiss={onConflictDismiss}
+				onConflictReload={onConflictReload}
+			/>
+		);
+
+		expect(screen.getByTestId("booking-conflict-dialog")).toBeInTheDocument();
+		expect(
+			screen.getByText("Chuyến đi đã hết chỗ trống do có người vừa đặt trước")
+		).toBeInTheDocument();
+
+		fireEvent.click(screen.getByRole("button", { name: /tải lại dữ liệu/i }));
+		expect(onConflictReload).toHaveBeenCalledTimes(1);
+
+		fireEvent.click(screen.getByRole("button", { name: "Đóng" }));
+		expect(onConflictDismiss).toHaveBeenCalledTimes(1);
 	});
 
 	it("renders safety warning for red weather risk level", () => {

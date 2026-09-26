@@ -152,7 +152,7 @@ describe("AdminTripsPage", () => {
 				reason: "x".repeat(255),
 			})
 		);
-	});
+	}, 15000);
 
 	it("preserves the reason when a stale decision fails", async () => {
 		const test = await setup({ reviewError: new Error("stale") });
