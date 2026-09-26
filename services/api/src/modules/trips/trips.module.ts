@@ -20,5 +20,6 @@ import { TripsService } from "./services/trips.service";
 			inject: [DataSource],
 		},
 	],
+	exports: [TripsRepository],
 })
 export class TripsModule {}

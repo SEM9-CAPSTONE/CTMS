@@ -205,15 +205,19 @@ export type BookingBlockedReason =
 export interface BookTripInput {
 	tripId: string;
 	numPeople: number;
-	note?: string;
 }
 
 export interface BookTripResponse {
 	id: string;
 	tripId: string;
-	userId?: string;
+	userId: string;
 	numPeople: number;
-	status: string;
-	createdAt?: string;
-	updatedAt?: string;
+	status: "pending_payment" | "confirmed" | "cancelled" | "expired" | "completed";
+	paymentStatus: "not_required" | "unpaid" | "paid";
+	holdExpiresAt: string | null;
+	tripStartsAtSnapshot: string;
+	tripEndsAtSnapshot: string;
+	basePrice: string;
+	cancellationPolicySnapshot: Record<string, unknown> | null;
+	createdAt: string;
 }

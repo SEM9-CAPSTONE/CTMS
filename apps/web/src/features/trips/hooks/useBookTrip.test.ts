@@ -20,8 +20,13 @@ const mockBookingResponse: BookTripResponse = {
 	userId: "user-1",
 	numPeople: 2,
 	status: "pending_payment",
+	paymentStatus: "unpaid",
+	holdExpiresAt: "2026-09-26T12:15:00.000Z",
+	tripStartsAtSnapshot: "2026-10-01T01:00:00.000Z",
+	tripEndsAtSnapshot: "2026-10-01T10:00:00.000Z",
+	basePrice: "1000000.00",
+	cancellationPolicySnapshot: null,
 	createdAt: "2026-09-26T12:00:00.000Z",
-	updatedAt: "2026-09-26T12:00:00.000Z",
 };
 
 describe("useBookTrip", () => {
@@ -47,7 +52,10 @@ describe("useBookTrip", () => {
 		expect(result.current.booking).toEqual(mockBookingResponse);
 		expect(result.current.error).toBeNull();
 		expect(result.current.isConflict).toBe(false);
-		expect(tripsService.book).toHaveBeenCalledWith({ tripId: "trip-999", numPeople: 2 });
+		expect(tripsService.book).toHaveBeenCalledWith(
+			{ tripId: "trip-999", numPeople: 2 },
+			expect.any(String)
+		);
 	});
 
 	it("handles 409 conflict and marks isConflict as true (BR-210)", async () => {
@@ -148,6 +156,14 @@ describe("useBookTrip", () => {
 		expect(result.current.isSuccess).toBe(true);
 		expect(result.current.error).toBeNull();
 		expect(result.current.booking).toEqual(mockBookingResponse);
+		expect(vi.mocked(tripsService.book).mock.calls[1][1]).toBe(
+			vi.mocked(tripsService.book).mock.calls[0][1]
+		);
+
+		await act(async () => {
+			await result.current.retry();
+		});
+		expect(tripsService.book).toHaveBeenCalledTimes(2);
 	});
 
 	it("resets state and clears conflict error", async () => {
@@ -203,6 +219,7 @@ describe("useBookTrip", () => {
 
 		expect(call2Result).toBeNull();
 		expect(tripsService.book).toHaveBeenCalledTimes(1);
+		const firstAttemptKey = vi.mocked(tripsService.book).mock.calls[0][1];
 
 		// Resolve first call
 		await act(async () => {
@@ -212,5 +229,6 @@ describe("useBookTrip", () => {
 
 		expect(result.current.isBooking).toBe(false);
 		expect(result.current.isSuccess).toBe(true);
+		expect(vi.mocked(tripsService.book).mock.calls[0][1]).toBe(firstAttemptKey);
 	});
 });

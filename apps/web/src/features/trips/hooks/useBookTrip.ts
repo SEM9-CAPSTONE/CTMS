@@ -94,16 +94,19 @@ export function useBookTrip() {
 	const [lastInput, setLastInput] = useState<BookTripInput | null>(null);
 	const inFlight = useRef<boolean>(false);
 	const lastInputRef = useRef<BookTripInput | null>(null);
+	const idempotencyKeyRef = useRef<string | null>(null);
 
 	const execute = useCallback(async (input: BookTripInput): Promise<BookTripResponse | null> => {
-		if (inFlight.current) return null;
+		const idempotencyKey = idempotencyKeyRef.current;
+		if (inFlight.current || !idempotencyKey) return null;
 		inFlight.current = true;
 		setIsBooking(true);
 		setError(null);
 		setIsSuccess(false);
 
 		try {
-			const result = await tripsService.book(input);
+			const result = await tripsService.book(input, idempotencyKey);
+			idempotencyKeyRef.current = null;
 			setBooking(result);
 			setIsSuccess(true);
 			return result;
@@ -119,7 +122,10 @@ export function useBookTrip() {
 
 	const book = useCallback(
 		(input: BookTripInput): Promise<BookTripResponse | null> => {
+			if (inFlight.current) return Promise.resolve(null);
+			const idempotencyKey = crypto.randomUUID();
 			lastInputRef.current = input;
+			idempotencyKeyRef.current = idempotencyKey;
 			setLastInput(input);
 			return execute(input);
 		},
@@ -127,7 +133,7 @@ export function useBookTrip() {
 	);
 
 	const retry = useCallback((): Promise<BookTripResponse | null> => {
-		if (lastInputRef.current) {
+		if (lastInputRef.current && idempotencyKeyRef.current) {
 			return execute(lastInputRef.current);
 		}
 		return Promise.resolve(null);
@@ -139,6 +145,7 @@ export function useBookTrip() {
 		setBooking(null);
 		setError(null);
 		lastInputRef.current = null;
+		idempotencyKeyRef.current = null;
 		setLastInput(null);
 	}, []);
 

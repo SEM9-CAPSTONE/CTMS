@@ -75,11 +75,17 @@ export interface LockedTripForReview {
  */
 export interface LockedTripForBooking {
 	id: string;
+	routeId: string;
+	routeStatus: TrekkingRouteStatus;
 	capacityMin: number;
 	capacityMax: number | null;
 	seatsTaken: number;
 	status: TripStatus;
 	bookingDeadline: Date;
+	startsAt: Date;
+	endsAt: Date;
+	pricePerPerson: string;
+	cancellationPolicy: Record<string, unknown> | null;
 }
 
 export interface SearchPublishedTripsFilter {
@@ -764,23 +770,36 @@ export class TripsRepository extends Repository<Trip> {
 			`
 			SELECT
 				trip."id",
+				trip."route_id" AS "routeId",
+				route."status" AS "routeStatus",
 				trip."capacity_min" AS "capacityMin",
 				trip."capacity_max" AS "capacityMax",
 				trip."seats_taken"  AS "seatsTaken",
 				trip."status",
-				trip."booking_deadline" AS "bookingDeadline"
+				trip."booking_deadline" AS "bookingDeadline",
+				trip."starts_at" AS "startsAt",
+				trip."ends_at" AS "endsAt",
+				trip."price_per_person" AS "pricePerPerson",
+				trip."cancellation_policy" AS "cancellationPolicy"
 			FROM "trips" trip
+			INNER JOIN "trekking_routes" route ON route."id" = trip."route_id"
 			WHERE trip."id" = $1
-			FOR UPDATE
+			FOR UPDATE OF trip, route
 			`,
 			[tripId]
 		)) as Array<{
 			id: string;
+			routeId: string;
+			routeStatus: TrekkingRouteStatus;
 			capacityMin: number | string;
 			capacityMax: number | string | null;
 			seatsTaken: number | string;
 			status: TripStatus;
 			bookingDeadline: Date;
+			startsAt: Date;
+			endsAt: Date;
+			pricePerPerson: string;
+			cancellationPolicy: Record<string, unknown> | null;
 		}>;
 
 		const row = rows[0];
@@ -788,11 +807,17 @@ export class TripsRepository extends Repository<Trip> {
 
 		return {
 			id: row.id,
+			routeId: row.routeId,
+			routeStatus: row.routeStatus,
 			capacityMin: Number(row.capacityMin),
 			capacityMax: row.capacityMax == null ? null : Number(row.capacityMax),
 			seatsTaken: Number(row.seatsTaken),
 			status: row.status,
 			bookingDeadline: row.bookingDeadline,
+			startsAt: row.startsAt,
+			endsAt: row.endsAt,
+			pricePerPerson: row.pricePerPerson,
+			cancellationPolicy: row.cancellationPolicy,
 		};
 	}
 

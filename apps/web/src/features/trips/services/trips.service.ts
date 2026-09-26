@@ -32,6 +32,8 @@ export const tripsService = {
 	getMyTrips: (): Promise<TripDetails[]> =>
 		httpClient.get<TripDetails[]>(API_ENDPOINTS.TRIPS.GET_MINE),
 
-	book: (input: BookTripInput): Promise<BookTripResponse> =>
-		httpClient.post<BookTripResponse>(API_ENDPOINTS.BOOKINGS.CREATE, input),
+	book: (input: BookTripInput, idempotencyKey: string): Promise<BookTripResponse> =>
+		httpClient.post<BookTripResponse>(API_ENDPOINTS.BOOKINGS.CREATE, input, {
+			headers: { "Idempotency-Key": idempotencyKey },
+		}),
 };
