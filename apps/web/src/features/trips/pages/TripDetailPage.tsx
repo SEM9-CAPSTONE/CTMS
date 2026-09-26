@@ -1,16 +1,46 @@
 import { ArrowLeft, Compass, Loader2, RefreshCw } from "lucide-react";
+import { useCallback } from "react";
 import { TripDetailView } from "../components/TripDetailView";
+import { useBookTrip } from "../hooks/useBookTrip";
 import { useTripDetail } from "../hooks/useTripDetail";
 
 export interface TripDetailPageProps {
 	tripId: string;
 	onBackToList: () => void;
 	onBackHome?: () => void;
-	onBook?: (tripId: string) => void;
+	onBook?: (tripId: string, numPeople: number) => void | Promise<void>;
 }
 
 export function TripDetailPage({ tripId, onBackToList, onBackHome, onBook }: TripDetailPageProps) {
 	const { trip, isLoading, error, isNotFound, retry } = useTripDetail(tripId);
+	const {
+		book,
+		retry: retryBooking,
+		clearConflict,
+		isBooking,
+		isSuccess: isBookingSuccess,
+		error: bookingError,
+		isConflict,
+	} = useBookTrip();
+
+	const handleBook = useCallback(
+		async (targetTripId: string, numPeople: number) => {
+			if (onBook) {
+				await onBook(targetTripId, numPeople);
+				return;
+			}
+			const result = await book({ tripId: targetTripId, numPeople });
+			if (result) {
+				await retry();
+			}
+		},
+		[book, onBook, retry]
+	);
+
+	const handleConflictReload = useCallback(async () => {
+		clearConflict();
+		await retry();
+	}, [clearConflict, retry]);
 
 	return (
 		<div className="min-h-screen bg-[#f4f7f2] font-sans text-[#10221b] antialiased">
@@ -116,7 +146,18 @@ export function TripDetailPage({ tripId, onBackToList, onBackHome, onBook }: Tri
 				)}
 
 				{!isLoading && !error && trip && (
-					<TripDetailView trip={trip} onBack={onBackToList} onBook={onBook} />
+					<TripDetailView
+						trip={trip}
+						onBack={onBackToList}
+						onBook={handleBook}
+						isBooking={isBooking}
+						bookingError={bookingError}
+						isConflict={isConflict}
+						isBookingSuccess={isBookingSuccess}
+						onConflictDismiss={clearConflict}
+						onConflictReload={handleConflictReload}
+						onConflictRetry={retryBooking}
+					/>
 				)}
 			</main>
 		</div>

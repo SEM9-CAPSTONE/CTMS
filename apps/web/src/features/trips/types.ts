@@ -195,3 +195,25 @@ export interface TripDetails {
 	updatedAt: string;
 	waypoints: TripWaypoint[];
 }
+
+export type BookingBlockedReason =
+	| "SOLD_OUT"
+	| "DEADLINE_PASSED"
+	| "TRIP_NOT_PUBLISHED"
+	| "CONFLICT";
+
+export interface BookTripInput {
+	tripId: string;
+	numPeople: number;
+	note?: string;
+}
+
+export interface BookTripResponse {
+	id: string;
+	tripId: string;
+	userId?: string;
+	numPeople: number;
+	status: string;
+	createdAt?: string;
+	updatedAt?: string;
+}
