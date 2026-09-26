@@ -124,6 +124,19 @@ The following rules are materialized as behavior for this story:
 - This file may elaborate approved behavior into execution flow, but it must not invent, change, or override business behavior.
 - Undefined, ambiguous, or conflicting behavior must be captured in Section 19 as a Pending Decision.
 
+### 5.6 Approved CTMS-164 Implementation Decisions
+
+- `POST /api/bookings` accepts only `tripId` and `numPeople` in the request body. The authenticated Camper is the Booking owner.
+- Every create request requires an `Idempotency-Key` header. Its scope is authenticated `user_id` plus key.
+- A retry with the same key and normalized `{ tripId, numPeople }` payload returns the original Booking without reserving seats or writing the creation audit again.
+- Reusing the same key with a different normalized payload returns `409 Conflict` without mutation.
+- The database enforces idempotency with a partial unique index on `(user_id, idempotency_key)`. There is intentionally no `(user_id, trip_id)` uniqueness rule.
+- `base_price` is the server-calculated Booking subtotal snapshot: persisted Trip `price_per_person` multiplied by validated `num_people` using decimal-safe arithmetic.
+- A paid Booking uses the configuration value `BOOKING_HOLD_TTL_MINUTES`, approved as 15 minutes, to calculate `hold_expires_at`.
+- Creation locks the Trip and linked Route, validates capacity and the latest persisted Weather Risk, and snapshots the Trip schedule and cancellation policy in the same transaction.
+- CTMS-030 owns `booking_members`; CTMS-029 stores `num_people` and does not create participant rows.
+- Until Route-version architecture exists, Booking creation enforces that the Trip's linked Route currently exists and has `active` status. Explicit approved Route-version validation remains dependency-blocked.
+
 ---
 
 ## 6. State Model
@@ -425,7 +438,7 @@ Use this section for undefined, ambiguous, or conflicting behavior. Do not guess
 
 ### PD-01 - API and DTO Contract
 
-Status: UNRESOLVED
+Status: RESOLVED FOR CTMS-164
 
 Question:
 What are the final endpoint paths, request DTOs, response DTOs, and error payloads for `Create Booking for Trip` if they are not already implemented?
@@ -438,12 +451,12 @@ Affected:
 Implementation impact:
 Backend and UI integration cannot be finalized safely without a typed contract.
 
-Required action:
-BA, PO, or domain owner confirms the API contract, or the implementation records the approved contract in this spec before coding.
+Resolution:
+Use the request and idempotency contract recorded in Section 5.6. The response returns the authoritative Booking creation fields and snapshots.
 
 ### PD-02 - Story-Specific State and Failure Semantics
 
-Status: UNRESOLVED
+Status: RESOLVED FOR BOOKING CREATION
 
 Question:
 Are there story-specific state enum values, partial failure semantics, retry limits, conflict rules, audit event names, or before/after audit payloads beyond the generic model in this spec?
@@ -455,8 +468,8 @@ Affected:
 Implementation impact:
 Implementers must not silently choose state, retry, conflict, or audit behavior when the approved sources do not define it.
 
-Required action:
-Resolve through Business Rules, Data Dictionary or Domain Model, Jira decision, or an explicit spec update before implementation.
+Resolution:
+Free Trips create `confirmed` / `not_required` Bookings. Paid Trips create `pending_payment` / `unpaid` Bookings with a configured 15-minute hold. Successful creation writes `booking.created` atomically. Later lifecycle stories retain ownership of payment, expiry, cancellation, and member management.
 
 ### PD-03 - Source Conflict Handling
 
