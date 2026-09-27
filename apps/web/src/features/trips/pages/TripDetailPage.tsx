@@ -19,6 +19,7 @@ export function TripDetailPage({ tripId, onBackToList, onBackHome, onBook }: Tri
 		clearConflict,
 		isBooking,
 		isSuccess: isBookingSuccess,
+		booking,
 		error: bookingError,
 		isConflict,
 	} = useBookTrip();
@@ -154,6 +155,7 @@ export function TripDetailPage({ tripId, onBackToList, onBackHome, onBook }: Tri
 						bookingError={bookingError}
 						isConflict={isConflict}
 						isBookingSuccess={isBookingSuccess}
+						booking={booking}
 						onConflictDismiss={clearConflict}
 						onConflictReload={handleConflictReload}
 						onConflictRetry={retryBooking}

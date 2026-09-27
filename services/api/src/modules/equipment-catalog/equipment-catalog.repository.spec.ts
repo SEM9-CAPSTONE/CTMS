@@ -1,5 +1,6 @@
 import type { EntityManager, SelectQueryBuilder } from "typeorm";
 import { EquipmentCatalogItem } from "./entities/equipment-catalog-item.entity";
+import { EquipmentCatalogStatus } from "./equipment-catalog-status.enum";
 import { EquipmentCatalogRepository } from "./equipment-catalog.repository";
 
 describe("EquipmentCatalogRepository", () => {
@@ -20,6 +21,28 @@ describe("EquipmentCatalogRepository", () => {
 			expect(query.where).toHaveBeenCalledWith("item.hostId = :hostId", { hostId: "host-1" });
 			expect(query.orderBy).toHaveBeenCalledWith("item.createdAt", "DESC");
 			expect(query.addOrderBy).toHaveBeenCalledWith("item.id", "DESC");
+		});
+	});
+
+	describe("findActiveByHost", () => {
+		it("filters by hostId and active status, ordered by name", async () => {
+			const query = {
+				where: jest.fn().mockReturnThis(),
+				andWhere: jest.fn().mockReturnThis(),
+				orderBy: jest.fn().mockReturnThis(),
+				getMany: jest.fn().mockResolvedValue([]),
+			};
+			const repository = new EquipmentCatalogRepository(EquipmentCatalogItem, {} as EntityManager);
+			jest
+				.spyOn(repository, "createQueryBuilder")
+				.mockReturnValue(query as unknown as SelectQueryBuilder<EquipmentCatalogItem>);
+
+			await expect(repository.findActiveByHost("host-1")).resolves.toEqual([]);
+			expect(query.where).toHaveBeenCalledWith("item.hostId = :hostId", { hostId: "host-1" });
+			expect(query.andWhere).toHaveBeenCalledWith("item.status = :status", {
+				status: EquipmentCatalogStatus.ACTIVE,
+			});
+			expect(query.orderBy).toHaveBeenCalledWith("item.name", "ASC");
 		});
 	});
 

@@ -36,23 +36,27 @@ describe("EquipmentCatalogService", () => {
 		findMineByHost: jest.Mock;
 		findOneBy: jest.Mock;
 		findForUpdate: jest.Mock;
+		findActiveByHost: jest.Mock;
 		create: jest.Mock;
 		save: jest.Mock;
 	};
 	let auditRepository: { save: jest.Mock };
-	let dataSource: { transaction: jest.Mock };
+	let tripRepository: { findOne: jest.Mock };
+	let dataSource: { transaction: jest.Mock; getRepository: jest.Mock };
 
 	beforeEach(() => {
 		items = {
 			findMineByHost: jest.fn(),
 			findOneBy: jest.fn(),
 			findForUpdate: jest.fn(),
+			findActiveByHost: jest.fn(),
 			create: jest.fn().mockImplementation((input) => ({ ...input })),
 			save: jest
 				.fn()
 				.mockImplementation((entity) => Promise.resolve({ ...itemFixture(), ...entity })),
 		};
 		auditRepository = { save: jest.fn().mockResolvedValue({}) };
+		tripRepository = { findOne: jest.fn() };
 		dataSource = {
 			transaction: jest.fn(async (callback: (manager: unknown) => unknown) =>
 				callback({
@@ -60,6 +64,7 @@ describe("EquipmentCatalogService", () => {
 					getRepository: jest.fn().mockReturnValue(auditRepository),
 				})
 			),
+			getRepository: jest.fn().mockReturnValue(tripRepository),
 		};
 		service = new EquipmentCatalogService(
 			items as unknown as EquipmentCatalogRepository,
@@ -224,6 +229,32 @@ describe("EquipmentCatalogService", () => {
 			});
 
 			expect(result.maintenanceSchedule).toBeNull();
+		});
+	});
+
+	describe("listForTrip", () => {
+		const TRIP_ID = "55555555-5555-4555-8555-555555555555";
+
+		it("lists the active equipment belonging to the Trip's Host", async () => {
+			tripRepository.findOne.mockResolvedValue({ id: TRIP_ID, hostId: HOST_ID });
+			items.findActiveByHost.mockResolvedValue([itemFixture()]);
+
+			const result = await service.listForTrip(TRIP_ID);
+
+			expect(tripRepository.findOne).toHaveBeenCalledWith({
+				where: { id: TRIP_ID },
+				select: { id: true, hostId: true },
+			});
+			expect(items.findActiveByHost).toHaveBeenCalledWith(HOST_ID);
+			expect(result).toHaveLength(1);
+			expect(result[0].hostId).toBe(HOST_ID);
+		});
+
+		it("returns 404 when the Trip does not exist", async () => {
+			tripRepository.findOne.mockResolvedValue(null);
+
+			await expect(service.listForTrip(TRIP_ID)).rejects.toBeInstanceOf(NotFoundException);
+			expect(items.findActiveByHost).not.toHaveBeenCalled();
 		});
 	});
 });

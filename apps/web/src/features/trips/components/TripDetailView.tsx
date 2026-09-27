@@ -17,7 +17,8 @@ import {
 	X,
 } from "lucide-react";
 import { useMemo, useState } from "react";
-import type { TripDetails } from "../types";
+import { BookingEquipmentPicker } from "../../booking-equipment/components/BookingEquipmentPicker";
+import type { BookTripResponse, TripDetails } from "../types";
 import { BookingConflictDialog } from "./BookingConflictDialog";
 import { TripCapacityBanner } from "./TripCapacityBanner";
 import { formatDateRange, formatVND, getDifficultyBadge, getWeatherRiskBadge } from "./TripCard";
@@ -30,6 +31,7 @@ export interface TripDetailViewProps {
 	bookingError?: string | null;
 	isConflict?: boolean;
 	isBookingSuccess?: boolean;
+	booking?: BookTripResponse | null;
 	onConflictDismiss?: () => void;
 	onConflictReload?: () => void;
 	onConflictRetry?: () => void;
@@ -76,6 +78,7 @@ export function TripDetailView({
 	bookingError = null,
 	isConflict = false,
 	isBookingSuccess = false,
+	booking = null,
 	onConflictDismiss,
 	onConflictReload,
 	onConflictRetry,
@@ -512,13 +515,22 @@ export function TripDetailView({
 							{/* Booking CTA Button */}
 							<div className="mt-6">
 								{isBookingSuccess ? (
-									<output
-										aria-live="polite"
-										className="flex items-center justify-center gap-2 rounded-2xl bg-emerald-50 py-3.5 text-xs font-bold text-emerald-800 border border-emerald-200"
-									>
-										<Check className="size-4 text-emerald-600" />
-										<span>Đặt chỗ thành công!</span>
-									</output>
+									<>
+										<output
+											aria-live="polite"
+											className="flex items-center justify-center gap-2 rounded-2xl bg-emerald-50 py-3.5 text-xs font-bold text-emerald-800 border border-emerald-200"
+										>
+											<Check className="size-4 text-emerald-600" />
+											<span>Đặt chỗ thành công!</span>
+										</output>
+										{booking && (
+											<BookingEquipmentPicker
+												tripId={trip.id}
+												bookingId={booking.id}
+												initialTotalAmount={booking.totalAmount}
+											/>
+										)}
+									</>
 								) : isSoldOut ? (
 									<button
 										type="button"

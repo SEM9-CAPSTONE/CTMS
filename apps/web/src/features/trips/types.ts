@@ -218,6 +218,7 @@ export interface BookTripResponse {
 	tripStartsAtSnapshot: string;
 	tripEndsAtSnapshot: string;
 	basePrice: string;
+	totalAmount: string;
 	cancellationPolicySnapshot: Record<string, unknown> | null;
 	createdAt: string;
 }
