@@ -9,7 +9,7 @@ import {
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { ConfigService } from "@nestjs/config";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
-import { DataSource, type EntityManager } from "typeorm";
+import { DataSource, type EntityManager, In } from "typeorm";
 import { AuditLog } from "../auth/entities/audit-log.entity";
 import { EquipmentCatalogStatus } from "../equipment-catalog/equipment-catalog-status.enum";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
@@ -23,11 +23,15 @@ import { TrekkingRouteStatus } from "../trekking-routes/entities/trekking-route.
 import { Trip, TripStatus } from "../trips/entities/trip.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { type LockedTripForBooking, TripsRepository } from "../trips/repositories/trips.repository";
+import { User } from "../users/entities/user.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { RouteRegistrationRiskService } from "../weather/services/route-registration-risk.service";
 import { BookingItemType } from "./booking-item-type.enum";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { BookingItemsRepository } from "./booking-items.repository";
+import { BookingMemberStatus } from "./booking-member-status.enum";
+// biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
+import { BookingMembersRepository } from "./booking-members.repository";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { BookingsRepository } from "./bookings.repository";
 import type { AddBookingItemResponseDto } from "./dto/add-booking-item-response.dto";
@@ -35,7 +39,10 @@ import type { AddBookingItemDto } from "./dto/add-booking-item.dto";
 import type { BookingItemResponseDto } from "./dto/booking-item-response.dto";
 import type { BookingResponseDto } from "./dto/booking-response.dto";
 import type { CreateBookingDto } from "./dto/create-booking.dto";
+import type { InitializeBookingMembersResponseDto } from "./dto/initialize-booking-members-response.dto";
+import type { InitializeBookingMembersDto } from "./dto/initialize-booking-members.dto";
 import type { BookingItem } from "./entities/booking-item.entity";
+import type { BookingMember } from "./entities/booking-member.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { EquipmentReservationsRepository } from "./equipment-reservations.repository";
 
@@ -60,9 +67,126 @@ export class BookingsService {
 		private readonly dataSource: DataSource,
 		private readonly configService: ConfigService,
 		private readonly bookingItemsRepository: BookingItemsRepository,
+		private readonly bookingMembersRepository: BookingMembersRepository,
 		private readonly equipmentCatalogRepository: EquipmentCatalogRepository,
 		private readonly equipmentReservationsRepository: EquipmentReservationsRepository
 	) {}
+
+	async initializeMembers(
+		actorId: string,
+		bookingId: string,
+		idempotencyKey: string | undefined,
+		dto: InitializeBookingMembersDto
+	): Promise<InitializeBookingMembersResponseDto> {
+		const normalizedKey = this.validateIdempotencyKey(idempotencyKey);
+		const requestFingerprint = this.fingerprintMembers(bookingId, dto);
+
+		return this.dataSource.transaction(async (manager: EntityManager) => {
+			const membersRepository = manager.withRepository(this.bookingMembersRepository);
+			await membersRepository.lockIdempotencyKey(bookingId, actorId, normalizedKey);
+
+			const replay = await membersRepository.findInitializationByKey(
+				bookingId,
+				actorId,
+				normalizedKey
+			);
+			if (replay) {
+				if (replay.requestFingerprint !== requestFingerprint) {
+					throw new ConflictException("Idempotency-Key was already used with a different payload");
+				}
+				return this.toMembersResponse(bookingId, await membersRepository.findByBooking(bookingId));
+			}
+
+			const bookingRepository = manager.withRepository(this.bookingsRepository);
+			const booking = await bookingRepository.findForUpdate(bookingId);
+			if (!booking) throw new NotFoundException("Booking not found");
+			if (booking.userId !== actorId) {
+				throw new ForbiddenException("Only the Booking owner can initialize members");
+			}
+			this.assertBookingEligibleForRoster(booking);
+
+			if (await membersRepository.hasInitialization(bookingId)) {
+				throw new ConflictException("Booking member roster is already initialized");
+			}
+			if ((await membersRepository.findByBooking(bookingId)).length > 0) {
+				throw new ConflictException("Booking already has member rows");
+			}
+
+			const trip = await manager.getRepository(Trip).findOne({
+				where: { id: booking.tripId },
+				select: { id: true, startsAt: true, capacityMax: true, seatsTaken: true },
+			});
+			if (!trip) throw new NotFoundException("Trip not found");
+			if (trip.startsAt <= new Date()) throw new ConflictException("Trip has already started");
+			this.assertBookingCapacityConsistent(booking.numPeople, trip.capacityMax, trip.seatsTaken);
+
+			const requestedUserIds = dto.members.map((member) => member.userId);
+			const uniqueRequestedUserIds = new Set(requestedUserIds);
+			if (uniqueRequestedUserIds.size !== requestedUserIds.length) {
+				throw new ConflictException("A participant cannot appear more than once in a Booking");
+			}
+			if (uniqueRequestedUserIds.has(booking.userId)) {
+				throw new ConflictException(
+					"The Booking owner is added automatically and cannot be repeated"
+				);
+			}
+			if (requestedUserIds.length !== booking.numPeople - 1) {
+				throw new ConflictException(
+					`Roster must contain exactly ${booking.numPeople - 1} additional participant(s)`
+				);
+			}
+
+			const users = await manager.getRepository(User).find({
+				where: { id: In(requestedUserIds) },
+				select: { id: true },
+			});
+			if (users.length !== requestedUserIds.length) {
+				throw new NotFoundException("One or more participant users were not found");
+			}
+
+			const memberEntities = [
+				membersRepository.create({
+					bookingId,
+					userId: booking.userId,
+					isPrimary: true,
+					memberStatus: BookingMemberStatus.REGISTERED,
+				}),
+				...requestedUserIds.map((userId) =>
+					membersRepository.create({
+						bookingId,
+						userId,
+						isPrimary: false,
+						memberStatus: BookingMemberStatus.REGISTERED,
+					})
+				),
+			];
+			const savedMembers = await membersRepository.save(memberEntities);
+
+			await manager.getRepository(AuditLog).save({
+				actorId,
+				action: "booking.members_initialized",
+				targetType: "booking",
+				targetId: bookingId,
+				before: null,
+				after: {
+					bookingId,
+					memberIds: savedMembers.map((member) => member.id),
+					primaryMemberId: savedMembers[0].id,
+					effectiveMemberCount: savedMembers.length,
+					memberStatus: BookingMemberStatus.REGISTERED,
+				},
+				reason: "camper_initialize_booking_members",
+			});
+			await membersRepository.saveInitialization({
+				bookingId,
+				actorId,
+				idempotencyKey: normalizedKey,
+				requestFingerprint,
+			});
+
+			return this.toMembersResponse(bookingId, savedMembers);
+		});
+	}
 
 	async create(
 		userId: string,
@@ -303,6 +427,61 @@ export class BookingsService {
 				})
 			)
 			.digest("hex");
+	}
+
+	private fingerprintMembers(bookingId: string, dto: InitializeBookingMembersDto): string {
+		return createHash("sha256")
+			.update(
+				JSON.stringify({
+					bookingId,
+					memberUserIds: dto.members.map((member) => member.userId).sort(),
+				})
+			)
+			.digest("hex");
+	}
+
+	private assertBookingEligibleForRoster(booking: Booking): asserts booking is Booking & {
+		numPeople: number;
+		status: BookingStatus.PENDING_PAYMENT | BookingStatus.CONFIRMED;
+	} {
+		if (
+			booking.numPeople === null ||
+			booking.numPeople < 1 ||
+			(booking.status !== BookingStatus.PENDING_PAYMENT &&
+				booking.status !== BookingStatus.CONFIRMED)
+		) {
+			throw new ConflictException("Booking is not eligible for member initialization");
+		}
+	}
+
+	private assertBookingCapacityConsistent(
+		numPeople: number,
+		capacityMax: number | null,
+		seatsTaken: number
+	): void {
+		if (
+			seatsTaken < numPeople ||
+			(capacityMax !== null && (numPeople > capacityMax || seatsTaken > capacityMax))
+		) {
+			throw new ConflictException("Booking seat reservation is inconsistent with Trip capacity");
+		}
+	}
+
+	private toMembersResponse(
+		bookingId: string,
+		members: BookingMember[]
+	): InitializeBookingMembersResponseDto {
+		return {
+			bookingId,
+			members: members.map((member) => ({
+				id: member.id,
+				userId: member.userId,
+				isPrimary: member.isPrimary,
+				memberStatus: member.memberStatus,
+				createdAt: member.createdAt,
+				updatedAt: member.updatedAt,
+			})),
+		};
 	}
 
 	private toItemResponse(item: BookingItem): BookingItemResponseDto {

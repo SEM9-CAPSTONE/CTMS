@@ -7,10 +7,12 @@ import { Booking } from "../profiles/entities/booking.entity";
 import { TripsModule } from "../trips/trips.module";
 import { WeatherModule } from "../weather/weather.module";
 import { BookingItemsRepository } from "./booking-items.repository";
+import { BookingMembersRepository } from "./booking-members.repository";
 import { BookingsController } from "./bookings.controller";
 import { BookingsRepository } from "./bookings.repository";
 import { BookingsService } from "./bookings.service";
 import { BookingItem } from "./entities/booking-item.entity";
+import { BookingMember } from "./entities/booking-member.entity";
 import { EquipmentReservation } from "./entities/equipment-reservation.entity";
 import { EquipmentReservationsRepository } from "./equipment-reservations.repository";
 
@@ -31,6 +33,12 @@ import { EquipmentReservationsRepository } from "./equipment-reservations.reposi
 			provide: BookingItemsRepository,
 			useFactory: (dataSource: DataSource) =>
 				new BookingItemsRepository(BookingItem, dataSource.createEntityManager()),
+			inject: [DataSource],
+		},
+		{
+			provide: BookingMembersRepository,
+			useFactory: (dataSource: DataSource) =>
+				new BookingMembersRepository(BookingMember, dataSource.createEntityManager()),
 			inject: [DataSource],
 		},
 		{

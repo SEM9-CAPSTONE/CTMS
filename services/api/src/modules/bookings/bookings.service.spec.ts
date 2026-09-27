@@ -14,6 +14,7 @@ import { Trip, TripStatus } from "../trips/entities/trip.entity";
 import type { TripsRepository } from "../trips/repositories/trips.repository";
 import type { RouteRegistrationRiskService } from "../weather/services/route-registration-risk.service";
 import type { BookingItemsRepository } from "./booking-items.repository";
+import type { BookingMembersRepository } from "./booking-members.repository";
 import type { BookingsRepository } from "./bookings.repository";
 import { BookingsService } from "./bookings.service";
 import { BookingItem } from "./entities/booking-item.entity";
@@ -97,6 +98,7 @@ describe("BookingsService", () => {
 		create: jest.Mock;
 		save: jest.Mock;
 	};
+	let bookingMembersRepository: Record<string, never>;
 	let equipmentCatalogRepository: { findForUpdate: jest.Mock };
 	let equipmentReservationsRepository: {
 		sumOverlappingQuantity: jest.Mock;
@@ -130,6 +132,7 @@ describe("BookingsService", () => {
 			create: jest.fn((value) => Object.assign(new BookingItem(), value)),
 			save: jest.fn(async (value: BookingItem) => Object.assign(value, { id: "item-1" })),
 		};
+		bookingMembersRepository = {};
 		equipmentCatalogRepository = {
 			findForUpdate: jest.fn().mockResolvedValue(activeEquipment()),
 		};
@@ -149,6 +152,7 @@ describe("BookingsService", () => {
 			[bookingRepository as object, bookingRepository],
 			[tripRepository as object, tripRepository],
 			[bookingItemsRepository as object, bookingItemsRepository],
+			[bookingMembersRepository as object, bookingMembersRepository],
 			[equipmentCatalogRepository as object, equipmentCatalogRepository],
 			[equipmentReservationsRepository as object, equipmentReservationsRepository],
 		]);
@@ -173,6 +177,7 @@ describe("BookingsService", () => {
 			dataSource,
 			configService,
 			bookingItemsRepository as unknown as BookingItemsRepository,
+			bookingMembersRepository as unknown as BookingMembersRepository,
 			equipmentCatalogRepository as unknown as EquipmentCatalogRepository,
 			equipmentReservationsRepository as unknown as EquipmentReservationsRepository
 		);
@@ -346,6 +351,7 @@ describe("BookingsService", () => {
 				(service as unknown as { dataSource: DataSource }).dataSource,
 				invalidConfig,
 				{} as unknown as BookingItemsRepository,
+				{} as unknown as BookingMembersRepository,
 				{} as unknown as EquipmentCatalogRepository,
 				{} as unknown as EquipmentReservationsRepository
 			);
