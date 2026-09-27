@@ -1,3 +1,4 @@
+import { ROLES_KEY } from "../auth/decorators/roles.decorator";
 import type { AuthenticatedUser } from "../auth/jwt.strategy";
 import { UserRole, UserStatus } from "../users/entities/user.entity";
 import { BookingsController } from "./bookings.controller";
@@ -33,6 +34,24 @@ describe("BookingsController", () => {
 			response
 		);
 		expect(service.addItem).toHaveBeenCalledWith(USER_ID, BOOKING_ID, "add-1", dto);
+	});
+
+	it("initializeMembers forwards the authenticated Camper, Booking, key, and roster", async () => {
+		const response = { bookingId: BOOKING_ID, members: [] };
+		const service = { initializeMembers: jest.fn().mockResolvedValue(response) };
+		const controller = new BookingsController(service as unknown as BookingsService);
+		const dto = { members: [{ userId: "22222222-2222-4222-8222-222222222222" }] };
+
+		await expect(
+			controller.initializeMembers({ user: ACTOR }, BOOKING_ID, "members-1", dto)
+		).resolves.toBe(response);
+		expect(service.initializeMembers).toHaveBeenCalledWith(USER_ID, BOOKING_ID, "members-1", dto);
+	});
+
+	it("restricts roster initialization to Campers", () => {
+		expect(Reflect.getMetadata(ROLES_KEY, BookingsController.prototype.initializeMembers)).toEqual([
+			UserRole.CAMPER,
+		]);
 	});
 
 	it("listItems forwards the authenticated Camper and bookingId", async () => {

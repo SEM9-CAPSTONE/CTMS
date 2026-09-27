@@ -25,6 +25,9 @@ import { BookingItemResponseDto } from "./dto/booking-item-response.dto";
 import { BookingResponseDto } from "./dto/booking-response.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { CreateBookingDto } from "./dto/create-booking.dto";
+import { InitializeBookingMembersResponseDto } from "./dto/initialize-booking-members-response.dto";
+// biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
+import { InitializeBookingMembersDto } from "./dto/initialize-booking-members.dto";
 
 interface AuthenticatedRequest {
 	user: AuthenticatedUser;
@@ -59,6 +62,36 @@ export class BookingsController {
 		@Body() dto: CreateBookingDto
 	): Promise<BookingResponseDto> {
 		return this.bookingsService.create(request.user.userId, idempotencyKey, dto);
+	}
+
+	@Post(":bookingId/members")
+	@Roles(UserRole.CAMPER)
+	@ApiOperation({ summary: "Initialize the complete participant roster for a Booking" })
+	@ApiHeader({
+		name: "Idempotency-Key",
+		required: true,
+		description: "Stable key for one roster-initialization attempt",
+	})
+	@ApiResponse({ status: 201, type: InitializeBookingMembersResponseDto })
+	@ApiResponse({ status: 403, description: "Camper role or Booking ownership required" })
+	@ApiResponse({ status: 404, description: "Booking, Trip, or participant user not found" })
+	@ApiResponse({
+		status: 409,
+		description: "Roster already initialized, invalid Booking state, or roster conflict",
+	})
+	@ApiResponse({ status: 422, description: "Invalid payload, Booking id, or Idempotency-Key" })
+	initializeMembers(
+		@Req() request: AuthenticatedRequest,
+		@Param("bookingId", BOOKING_ID_PIPE) bookingId: string,
+		@Headers("idempotency-key") idempotencyKey: string | undefined,
+		@Body() dto: InitializeBookingMembersDto
+	): Promise<InitializeBookingMembersResponseDto> {
+		return this.bookingsService.initializeMembers(
+			request.user.userId,
+			bookingId,
+			idempotencyKey,
+			dto
+		);
 	}
 
 	@Post(":bookingId/items")
