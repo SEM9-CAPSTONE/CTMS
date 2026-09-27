@@ -69,6 +69,9 @@ export class Booking {
 	@Column({ name: "base_price", type: "numeric", precision: 12, scale: 2, nullable: true })
 	basePrice!: string | null;
 
+	@Column({ name: "total_amount", type: "numeric", precision: 12, scale: 2, nullable: true })
+	totalAmount!: string | null;
+
 	@Column({ name: "cancellation_policy_snapshot", type: "jsonb", nullable: true })
 	cancellationPolicySnapshot!: Record<string, unknown> | null;
 
