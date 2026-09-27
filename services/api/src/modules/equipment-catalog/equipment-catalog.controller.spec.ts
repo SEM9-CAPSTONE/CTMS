@@ -33,6 +33,7 @@ describe("EquipmentCatalogController", () => {
 	let catalog: {
 		create: jest.Mock;
 		listMine: jest.Mock;
+		listForTrip: jest.Mock;
 		getItem: jest.Mock;
 		update: jest.Mock;
 	};
@@ -42,6 +43,7 @@ describe("EquipmentCatalogController", () => {
 		catalog = {
 			create: jest.fn(),
 			listMine: jest.fn(),
+			listForTrip: jest.fn(),
 			getItem: jest.fn(),
 			update: jest.fn(),
 		};
@@ -69,6 +71,16 @@ describe("EquipmentCatalogController", () => {
 		const result = await controller.listMine({ user: HOST_ACTOR });
 
 		expect(catalog.listMine).toHaveBeenCalledWith(HOST_ID);
+		expect(result).toEqual([itemResponse()]);
+	});
+
+	it("listForTrip delegates to EquipmentCatalogService.listForTrip with the tripId", async () => {
+		const TRIP_ID = "55555555-5555-4555-8555-555555555555";
+		catalog.listForTrip.mockResolvedValue([itemResponse()]);
+
+		const result = await controller.listForTrip(TRIP_ID);
+
+		expect(catalog.listForTrip).toHaveBeenCalledWith(TRIP_ID);
 		expect(result).toEqual([itemResponse()]);
 	});
 

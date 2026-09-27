@@ -3,6 +3,12 @@ import { describe, expect, it, vi } from "vitest";
 import type { TripDetails } from "../types";
 import { TripDetailView } from "./TripDetailView";
 
+vi.mock("../../booking-equipment/components/BookingEquipmentPicker", () => ({
+	BookingEquipmentPicker: ({ bookingId }: { bookingId: string }) => (
+		<div data-testid="booking-equipment-picker">{bookingId}</div>
+	),
+}));
+
 const mockTripDetails: TripDetails = {
 	id: "trip-999",
 	hostId: "host-1",
@@ -15,11 +21,11 @@ const mockTripDetails: TripDetails = {
 	excludes: { items: ["Balo cá nhân"] },
 	tripType: "overnight",
 	durationNights: 1,
-	startsAt: "2026-09-28T06:00:00.000Z",
-	endsAt: "2026-09-29T17:00:00.000Z",
+	startsAt: "2099-09-28T06:00:00.000Z",
+	endsAt: "2099-09-29T17:00:00.000Z",
 	meetingPoint: { type: "Point", coordinates: [108.45, 11.94] },
-	meetingAt: "2026-09-28T05:30:00.000Z",
-	bookingDeadline: "2026-09-27T18:00:00.000Z",
+	meetingAt: "2099-09-28T05:30:00.000Z",
+	bookingDeadline: "2099-09-27T18:00:00.000Z",
 	capacityMin: 8,
 	capacityMax: 16,
 	seatsTaken: 12,
@@ -42,7 +48,7 @@ const mockTripDetails: TripDetails = {
 			location: { type: "Point", coordinates: [108.47, 11.96] },
 			dayNumber: 1,
 			sequenceOrder: 2,
-			plannedAt: "2026-09-28T12:00:00.000Z",
+			plannedAt: "2099-09-28T12:00:00.000Z",
 			durationMinutes: 60,
 			metadata: null,
 		},
@@ -55,7 +61,7 @@ const mockTripDetails: TripDetails = {
 			location: { type: "Point", coordinates: [108.45, 11.94] },
 			dayNumber: 1,
 			sequenceOrder: 1,
-			plannedAt: "2026-09-28T06:00:00.000Z",
+			plannedAt: "2099-09-28T06:00:00.000Z",
 			durationMinutes: 30,
 			metadata: null,
 		},
@@ -179,6 +185,7 @@ describe("TripDetailView", () => {
 					tripStartsAtSnapshot: mockTripDetails.startsAt,
 					tripEndsAtSnapshot: mockTripDetails.endsAt,
 					basePrice: "1000000.00",
+					totalAmount: "1000000.00",
 					cancellationPolicySnapshot: null,
 					createdAt: "2026-09-20T12:00:00.000Z",
 				}}
@@ -186,6 +193,37 @@ describe("TripDetailView", () => {
 		);
 
 		expect(screen.getByRole("status")).toHaveTextContent("Đặt chỗ đã được xác nhận");
+	});
+
+	it("does not render the equipment picker before a Booking exists", () => {
+		render(<TripDetailView trip={mockTripDetails} />);
+
+		expect(screen.queryByTestId("booking-equipment-picker")).not.toBeInTheDocument();
+	});
+
+	it("renders the equipment picker for the created Booking after success", () => {
+		render(
+			<TripDetailView
+				trip={mockTripDetails}
+				booking={{
+					id: "booking-1",
+					tripId: "trip-999",
+					userId: "user-1",
+					numPeople: 2,
+					status: "confirmed",
+					paymentStatus: "not_required",
+					holdExpiresAt: null,
+					tripStartsAtSnapshot: "2026-09-28T06:00:00.000Z",
+					tripEndsAtSnapshot: "2026-09-29T17:00:00.000Z",
+					basePrice: "3700000.00",
+					totalAmount: "3700000.00",
+					cancellationPolicySnapshot: null,
+					createdAt: "2026-09-27T00:00:00.000Z",
+				}}
+			/>
+		);
+
+		expect(screen.getByTestId("booking-equipment-picker")).toHaveTextContent("booking-1");
 	});
 
 	it("renders inline error when bookingError is provided and isConflict is false", () => {

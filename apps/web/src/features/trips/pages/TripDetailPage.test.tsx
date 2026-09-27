@@ -244,6 +244,7 @@ describe("TripDetailPage", () => {
 				tripStartsAtSnapshot: mockTrip.startsAt,
 				tripEndsAtSnapshot: mockTrip.endsAt,
 				basePrice: "765432.00",
+				totalAmount: "765432.00",
 				cancellationPolicySnapshot: null,
 				createdAt: "2026-09-26T12:00:00.000Z",
 			},

@@ -25,6 +25,7 @@ const booking: BookTripResponse = {
 	tripStartsAtSnapshot: "2099-01-05T01:00:00.000Z",
 	tripEndsAtSnapshot: "2099-01-05T10:00:00.000Z",
 	basePrice: "1234567.00",
+	totalAmount: "1234567.00",
 	cancellationPolicySnapshot: null,
 	createdAt: "2099-01-01T01:00:00.000Z",
 };

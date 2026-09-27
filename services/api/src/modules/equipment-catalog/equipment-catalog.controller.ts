@@ -29,6 +29,7 @@ interface AuthenticatedRequest {
 }
 
 const ITEM_ID_PIPE = new ParseUUIDPipe({ errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY });
+const TRIP_ID_PIPE = new ParseUUIDPipe({ errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY });
 
 @ApiTags("equipment-catalog")
 @ApiBearerAuth()
@@ -58,6 +59,18 @@ export class EquipmentCatalogController {
 	@ApiResponse({ status: 403, description: "Host role required" })
 	listMine(@Req() request: AuthenticatedRequest): Promise<EquipmentCatalogItemResponseDto[]> {
 		return this.catalog.listMine(request.user.userId);
+	}
+
+	@Get("for-trip/:tripId")
+	@Roles(UserRole.CAMPER)
+	@ApiOperation({ summary: "List the active equipment rentable for one Trip's Host" })
+	@ApiResponse({ status: 200, type: EquipmentCatalogItemResponseDto, isArray: true })
+	@ApiResponse({ status: 403, description: "Camper role required" })
+	@ApiResponse({ status: 404, description: "Trip not found" })
+	listForTrip(
+		@Param("tripId", TRIP_ID_PIPE) tripId: string
+	): Promise<EquipmentCatalogItemResponseDto[]> {
+		return this.catalog.listForTrip(tripId);
 	}
 
 	@Get(":itemId")
