@@ -13,4 +13,11 @@ export class BookingsRepository extends Repository<Booking> {
 	findByIdempotencyKey(userId: string, idempotencyKey: string): Promise<Booking | null> {
 		return this.findOne({ where: { userId, idempotencyKey } });
 	}
+
+	findForUpdate(id: string): Promise<Booking | null> {
+		return this.createQueryBuilder("booking")
+			.setLock("pessimistic_write")
+			.where("booking.id = :id", { id })
+			.getOne();
+	}
 }

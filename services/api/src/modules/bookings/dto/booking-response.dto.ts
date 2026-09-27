@@ -32,6 +32,13 @@ export class BookingResponseDto {
 	@ApiProperty({ type: String, example: "1500000.00" })
 	basePrice!: string;
 
+	@ApiProperty({
+		type: String,
+		example: "1650000.00",
+		description: "basePrice plus all booking items",
+	})
+	totalAmount!: string;
+
 	@ApiPropertyOptional({ type: Object, nullable: true })
 	cancellationPolicySnapshot!: Record<string, unknown> | null;
 
