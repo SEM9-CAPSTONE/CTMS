@@ -102,7 +102,7 @@ describe("TripDetailView", () => {
 
 		const numValue = screen.getByTestId("num-people-value");
 		const totalPrice = screen.getByTestId("booking-total-price");
-		expect(numValue).toHaveTextContent("1");
+		expect(numValue).toHaveValue(1);
 		expect(totalPrice).toHaveTextContent(/1\.000\.000/);
 
 		const plusBtn = screen.getByRole("button", { name: "Tăng số lượng khách" });
@@ -110,22 +110,22 @@ describe("TripDetailView", () => {
 
 		// Increase to 2
 		fireEvent.click(plusBtn);
-		expect(numValue).toHaveTextContent("2");
+		expect(numValue).toHaveValue(2);
 		expect(totalPrice).toHaveTextContent(/2\.000\.000/);
 
 		// Increase to 3 (limit)
 		fireEvent.click(plusBtn);
-		expect(numValue).toHaveTextContent("3");
+		expect(numValue).toHaveValue(3);
 		expect(totalPrice).toHaveTextContent(/3\.000\.000/);
 
 		// Attempt increase beyond limit (3)
 		fireEvent.click(plusBtn);
-		expect(numValue).toHaveTextContent("3");
+		expect(numValue).toHaveValue(3);
 		expect(plusBtn).toBeDisabled();
 
 		// Decrease back to 2
 		fireEvent.click(minusBtn);
-		expect(numValue).toHaveTextContent("2");
+		expect(numValue).toHaveValue(2);
 
 		// Book with 2 people
 		fireEvent.click(screen.getByRole("button", { name: /đặt chỗ ngay/i }));
@@ -164,10 +164,28 @@ describe("TripDetailView", () => {
 		expect(button).toBeDisabled();
 	});
 
-	it("renders success state when isBookingSuccess is true", () => {
-		render(<TripDetailView trip={mockTripDetails} isBookingSuccess={true} />);
+	it("renders the authoritative booking success state", () => {
+		render(
+			<TripDetailView
+				trip={mockTripDetails}
+				booking={{
+					id: "booking-1",
+					tripId: mockTripDetails.id,
+					userId: "user-1",
+					numPeople: 1,
+					status: "confirmed",
+					paymentStatus: "not_required",
+					holdExpiresAt: null,
+					tripStartsAtSnapshot: mockTripDetails.startsAt,
+					tripEndsAtSnapshot: mockTripDetails.endsAt,
+					basePrice: "1000000.00",
+					cancellationPolicySnapshot: null,
+					createdAt: "2026-09-20T12:00:00.000Z",
+				}}
+			/>
+		);
 
-		expect(screen.getByRole("status")).toHaveTextContent("Đặt chỗ thành công!");
+		expect(screen.getByRole("status")).toHaveTextContent("Đặt chỗ đã được xác nhận");
 	});
 
 	it("renders inline error when bookingError is provided and isConflict is false", () => {

@@ -1,5 +1,6 @@
 import { ArrowLeft, Compass, Loader2, RefreshCw } from "lucide-react";
 import { useCallback } from "react";
+import type { BookingAccess } from "../components/BookingPanel";
 import { TripDetailView } from "../components/TripDetailView";
 import { useBookTrip } from "../hooks/useBookTrip";
 import { useTripDetail } from "../hooks/useTripDetail";
@@ -9,18 +10,30 @@ export interface TripDetailPageProps {
 	onBackToList: () => void;
 	onBackHome?: () => void;
 	onBook?: (tripId: string, numPeople: number) => void | Promise<void>;
+	bookingAccess?: BookingAccess;
+	onSignIn?: () => void;
 }
 
-export function TripDetailPage({ tripId, onBackToList, onBackHome, onBook }: TripDetailPageProps) {
+export function TripDetailPage({
+	tripId,
+	onBackToList,
+	onBackHome,
+	onBook,
+	bookingAccess = "camper",
+	onSignIn,
+}: TripDetailPageProps) {
 	const { trip, isLoading, error, isNotFound, retry } = useTripDetail(tripId);
 	const {
 		book,
 		retry: retryBooking,
 		clearConflict,
 		isBooking,
-		isSuccess: isBookingSuccess,
+		booking,
 		error: bookingError,
+		fieldErrors,
 		isConflict,
+		canRetry,
+		reset: resetBooking,
 	} = useBookTrip();
 
 	const handleBook = useCallback(
@@ -152,8 +165,14 @@ export function TripDetailPage({ tripId, onBackToList, onBackHome, onBook }: Tri
 						onBook={handleBook}
 						isBooking={isBooking}
 						bookingError={bookingError}
+						booking={booking}
+						bookingAccess={bookingAccess}
+						fieldErrors={fieldErrors}
+						canRetry={canRetry}
 						isConflict={isConflict}
-						isBookingSuccess={isBookingSuccess}
+						onBookingRetry={retryBooking}
+						onBookingReset={resetBooking}
+						onSignIn={onSignIn}
 						onConflictDismiss={clearConflict}
 						onConflictReload={handleConflictReload}
 						onConflictRetry={retryBooking}

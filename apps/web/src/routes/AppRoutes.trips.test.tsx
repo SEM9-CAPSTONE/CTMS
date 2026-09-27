@@ -30,14 +30,17 @@ vi.mock("../features/trips/pages/TripDetailPage", () => ({
 		tripId,
 		onBackToList,
 		onBackHome,
+		bookingAccess,
 	}: {
 		tripId: string;
 		onBackToList: () => void;
 		onBackHome?: () => void;
+		bookingAccess?: string;
 	}) => (
 		<div>
 			<h1>Chi tiết chuyến đi</h1>
 			<p>Mã chuyến: {tripId}</p>
+			<p>Quyền đặt chỗ: {bookingAccess}</p>
 			<button type="button" onClick={onBackToList}>
 				Quay lại danh sách chuyến đi
 			</button>
@@ -89,5 +92,25 @@ describe("AppRoutes trip discovery and detail routing", () => {
 
 		expect(screen.getByText("Chi tiết chuyến đi")).toBeInTheDocument();
 		expect(screen.getByText("Mã chuyến: trip-123")).toBeInTheDocument();
+		expect(screen.getByText("Quyền đặt chỗ: anonymous")).toBeInTheDocument();
+	});
+
+	it("passes Camper booking access for a signed-in Camper", () => {
+		localStorage.setItem(
+			"authUser",
+			JSON.stringify({
+				id: "camper-1",
+				email: "camper@example.com",
+				phone: null,
+				role: "camper",
+				roles: ["camper"],
+				status: "active",
+				createdAt: "2026-01-01T00:00:00.000Z",
+			})
+		);
+		window.history.replaceState({}, "", "/trips/trip-123");
+		render(<AppRoutes />);
+
+		expect(screen.getByText("Quyền đặt chỗ: camper")).toBeInTheDocument();
 	});
 });
