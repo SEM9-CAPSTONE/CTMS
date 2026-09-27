@@ -22,6 +22,7 @@ export const API_ENDPOINTS = {
 		CREATE: "/bookings",
 		CANCEL: (id: string) => `/bookings/${id}/cancel`,
 		PAYMENTS: (id: string) => `/bookings/${id}/payments`,
+		ITEMS: (bookingId: string) => `/bookings/${bookingId}/items`,
 	},
 	TREKKING: {
 		ROUTES: "/trekking-routes",
@@ -95,5 +96,6 @@ export const API_ENDPOINTS = {
 		CREATE: "/equipment-catalog",
 		MINE: "/equipment-catalog/mine",
 		DETAIL: (id: string) => `/equipment-catalog/${id}`,
+		FOR_TRIP: (tripId: string) => `/equipment-catalog/for-trip/${tripId}`,
 	},
 } as const;

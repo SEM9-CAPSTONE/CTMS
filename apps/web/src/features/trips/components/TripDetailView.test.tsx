@@ -3,6 +3,12 @@ import { describe, expect, it, vi } from "vitest";
 import type { TripDetails } from "../types";
 import { TripDetailView } from "./TripDetailView";
 
+vi.mock("../../booking-equipment/components/BookingEquipmentPicker", () => ({
+	BookingEquipmentPicker: ({ bookingId }: { bookingId: string }) => (
+		<div data-testid="booking-equipment-picker">{bookingId}</div>
+	),
+}));
+
 const mockTripDetails: TripDetails = {
 	id: "trip-999",
 	hostId: "host-1",
@@ -168,6 +174,33 @@ describe("TripDetailView", () => {
 		render(<TripDetailView trip={mockTripDetails} isBookingSuccess={true} />);
 
 		expect(screen.getByRole("status")).toHaveTextContent("Đặt chỗ thành công!");
+		expect(screen.queryByTestId("booking-equipment-picker")).not.toBeInTheDocument();
+	});
+
+	it("renders the equipment picker for the created Booking after success", () => {
+		render(
+			<TripDetailView
+				trip={mockTripDetails}
+				isBookingSuccess={true}
+				booking={{
+					id: "booking-1",
+					tripId: "trip-999",
+					userId: "user-1",
+					numPeople: 2,
+					status: "confirmed",
+					paymentStatus: "not_required",
+					holdExpiresAt: null,
+					tripStartsAtSnapshot: "2026-09-28T06:00:00.000Z",
+					tripEndsAtSnapshot: "2026-09-29T17:00:00.000Z",
+					basePrice: "3700000.00",
+					totalAmount: "3700000.00",
+					cancellationPolicySnapshot: null,
+					createdAt: "2026-09-27T00:00:00.000Z",
+				}}
+			/>
+		);
+
+		expect(screen.getByTestId("booking-equipment-picker")).toHaveTextContent("booking-1");
 	});
 
 	it("renders inline error when bookingError is provided and isConflict is false", () => {

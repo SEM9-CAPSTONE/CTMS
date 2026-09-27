@@ -25,6 +25,7 @@ const mockBookingResponse: BookTripResponse = {
 	tripStartsAtSnapshot: "2026-10-01T01:00:00.000Z",
 	tripEndsAtSnapshot: "2026-10-01T10:00:00.000Z",
 	basePrice: "1000000.00",
+	totalAmount: "1000000.00",
 	cancellationPolicySnapshot: null,
 	createdAt: "2026-09-26T12:00:00.000Z",
 };
