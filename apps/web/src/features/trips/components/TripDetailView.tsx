@@ -6,20 +6,17 @@ import {
 	Clock,
 	FileText,
 	Info,
-	Loader2,
 	MapPin,
-	Minus,
 	Navigation,
-	Plus,
 	ShieldAlert,
 	ShieldCheck,
 	Users,
 	X,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { BookingEquipmentPicker } from "../../booking-equipment/components/BookingEquipmentPicker";
 import type { BookTripResponse, TripDetails } from "../types";
-import { BookingConflictDialog } from "./BookingConflictDialog";
+import { type BookingAccess, BookingPanel } from "./BookingPanel";
 import { TripCapacityBanner } from "./TripCapacityBanner";
 import { formatDateRange, formatVND, getDifficultyBadge, getWeatherRiskBadge } from "./TripCard";
 
@@ -29,9 +26,14 @@ export interface TripDetailViewProps {
 	onBook?: (tripId: string, numPeople: number) => void | Promise<void>;
 	isBooking?: boolean;
 	bookingError?: string | null;
-	isConflict?: boolean;
-	isBookingSuccess?: boolean;
 	booking?: BookTripResponse | null;
+	bookingAccess?: BookingAccess;
+	fieldErrors?: Record<string, string>;
+	canRetry?: boolean;
+	isConflict?: boolean;
+	onBookingRetry?: () => unknown;
+	onBookingReset?: () => void;
+	onSignIn?: () => void;
 	onConflictDismiss?: () => void;
 	onConflictReload?: () => void;
 	onConflictRetry?: () => void;
@@ -76,17 +78,22 @@ export function TripDetailView({
 	onBook,
 	isBooking = false,
 	bookingError = null,
-	isConflict = false,
-	isBookingSuccess = false,
 	booking = null,
+	bookingAccess = "camper",
+	fieldErrors = {},
+	canRetry = false,
+	isConflict = false,
+	onBookingRetry,
+	onBookingReset,
+	onSignIn,
 	onConflictDismiss,
 	onConflictReload,
 	onConflictRetry,
 }: TripDetailViewProps) {
-	const [numPeople, setNumPeople] = useState<number>(1);
 	const difficulty = getDifficultyBadge(trip.difficulty ?? null);
 	const weather = getWeatherRiskBadge(trip.weatherRiskLevel ?? null);
 	const WeatherIcon = weather.icon;
+	const isBookingClosed = new Date(trip.bookingDeadline) <= new Date();
 
 	const sortedWaypoints = useMemo(() => {
 		if (!trip.waypoints || !Array.isArray(trip.waypoints)) return [];
@@ -117,9 +124,6 @@ export function TripDetailView({
 		}
 		return [];
 	}, [trip.excludes]);
-
-	const isBookingClosed = new Date(trip.bookingDeadline) <= new Date();
-	const isSoldOut = trip.remainingSeats === 0 || !trip.isBookable;
 
 	return (
 		<div className="space-y-8">
@@ -424,7 +428,7 @@ export function TripDetailView({
 
 								<div className="flex justify-between">
 									<span className="text-[#667a6d]">Chỗ còn trống:</span>
-									<span className="font-bold">
+									<span data-testid="trip-remaining-seats" className="font-bold">
 										{trip.remainingSeats !== null
 											? trip.remainingSeats > 0
 												? `${trip.remainingSeats} chỗ`
@@ -441,155 +445,32 @@ export function TripDetailView({
 								</div>
 							</div>
 
-							{/* Number of participants selector */}
-							{!isSoldOut && !isBookingClosed && (
-								<div className="mt-5 border-t border-[#edf3ed] pt-4">
-									<div className="flex items-center justify-between">
-										<div>
-											<label
-												htmlFor="num-people-selector"
-												className="text-xs font-bold text-[#10221b]"
-											>
-												Số lượng khách
-											</label>
-											<p className="text-[11px] text-[#667a6d]">
-												{trip.remainingSeats !== null
-													? `Tối đa ${trip.remainingSeats} chỗ`
-													: "Theo sức chứa"}
-											</p>
-										</div>
-
-										<div id="num-people-selector" className="flex items-center gap-2">
-											<button
-												type="button"
-												aria-label="Giảm số lượng khách"
-												onClick={() => setNumPeople((prev) => Math.max(1, prev - 1))}
-												disabled={numPeople <= 1 || isBooking}
-												className="flex size-8 items-center justify-center rounded-xl border border-[#dfe8df] text-[#164027] transition hover:bg-[#edf3ed] disabled:cursor-not-allowed disabled:opacity-40"
-											>
-												<Minus className="size-3.5" />
-											</button>
-
-											<span
-												data-testid="num-people-value"
-												className="w-8 text-center text-sm font-extrabold text-[#10221b]"
-											>
-												{numPeople}
-											</span>
-
-											<button
-												type="button"
-												aria-label="Tăng số lượng khách"
-												onClick={() =>
-													setNumPeople((prev) => {
-														if (trip.remainingSeats !== null && prev >= trip.remainingSeats) {
-															return prev;
-														}
-														return prev + 1;
-													})
-												}
-												disabled={
-													isBooking ||
-													(trip.remainingSeats !== null && numPeople >= trip.remainingSeats)
-												}
-												className="flex size-8 items-center justify-center rounded-xl border border-[#dfe8df] text-[#164027] transition hover:bg-[#edf3ed] disabled:cursor-not-allowed disabled:opacity-40"
-											>
-												<Plus className="size-3.5" />
-											</button>
-										</div>
-									</div>
-
-									{/* Total price estimation */}
-									<div className="mt-3 flex items-baseline justify-between rounded-xl bg-[#f4f7f2] p-2.5 text-xs">
-										<span className="font-semibold text-[#667a6d]">Tạm tính:</span>
-										<span
-											data-testid="booking-total-price"
-											className="font-extrabold text-[#164027]"
-										>
-											{formatVND(trip.pricePerPerson * numPeople)}
-										</span>
-									</div>
-								</div>
-							)}
-
-							{/* Booking CTA Button */}
-							<div className="mt-6">
-								{isBookingSuccess ? (
-									<>
-										<output
-											aria-live="polite"
-											className="flex items-center justify-center gap-2 rounded-2xl bg-emerald-50 py-3.5 text-xs font-bold text-emerald-800 border border-emerald-200"
-										>
-											<Check className="size-4 text-emerald-600" />
-											<span>Đặt chỗ thành công!</span>
-										</output>
-										{booking && (
-											<BookingEquipmentPicker
-												tripId={trip.id}
-												bookingId={booking.id}
-												initialTotalAmount={booking.totalAmount}
-											/>
-										)}
-									</>
-								) : isSoldOut ? (
-									<button
-										type="button"
-										disabled
-										className="w-full rounded-2xl bg-gray-200 py-3.5 text-sm font-bold text-gray-500 cursor-not-allowed"
-									>
-										Đã hết chỗ
-									</button>
-								) : isBookingClosed ? (
-									<button
-										type="button"
-										disabled
-										className="w-full rounded-2xl bg-gray-200 py-3.5 text-sm font-bold text-gray-500 cursor-not-allowed"
-									>
-										Đã hết hạn đặt vé
-									</button>
-								) : (
-									<button
-										type="button"
-										disabled={isBooking}
-										onClick={() => onBook?.(trip.id, numPeople)}
-										className="w-full cursor-pointer rounded-2xl bg-[#164027] py-3.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#0f2e1c] hover:shadow-md disabled:cursor-wait disabled:opacity-75 flex items-center justify-center gap-2"
-									>
-										{isBooking ? (
-											<>
-												<Loader2 className="size-4 animate-spin" />
-												<span>Đang xử lý đặt chỗ...</span>
-											</>
-										) : (
-											<span>Đặt chỗ ngay</span>
-										)}
-									</button>
+							<div className="mt-5">
+								<BookingPanel
+									trip={trip}
+									bookingAccess={bookingAccess}
+									booking={booking}
+									isBooking={isBooking}
+									bookingError={bookingError}
+									fieldErrors={fieldErrors}
+									isConflict={isConflict}
+									canRetry={canRetry}
+									onBook={onBook}
+									onRetry={onBookingRetry ?? onConflictRetry}
+									onReset={onBookingReset}
+									onSignIn={onSignIn}
+									onConflictDismiss={onConflictDismiss}
+									onConflictReload={onConflictReload}
+								/>
+								{booking && (
+									<BookingEquipmentPicker
+										tripId={trip.id}
+										bookingId={booking.id}
+										initialTotalAmount={booking.totalAmount}
+									/>
 								)}
-
-								{/* Inline non-conflict error message */}
-								{bookingError && !isConflict && (
-									<div
-										role="alert"
-										className="mt-3 rounded-xl border border-rose-200 bg-rose-50 p-2.5 text-center text-xs font-semibold text-rose-700"
-									>
-										{bookingError}
-									</div>
-								)}
-
-								<p className="mt-3 text-center text-[11px] text-[#8fa096]">
-									Xác nhận tức thì • Hỗ trợ 24/7
-								</p>
 							</div>
 						</div>
-
-						{/* Conflict Dialog */}
-						<BookingConflictDialog
-							open={Boolean(isConflict)}
-							message={bookingError}
-							requestedSeats={numPeople}
-							onClose={onConflictDismiss ?? (() => {})}
-							onReload={onConflictReload ?? (() => {})}
-							onRetry={onConflictRetry}
-						/>
 
 						{/* Host Profile Card */}
 						<div className="rounded-3xl border border-[#dfe8df] bg-white p-6 shadow-sm">

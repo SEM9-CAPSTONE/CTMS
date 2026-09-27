@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useBookTrip } from "../hooks/useBookTrip";
 import { useTripDetail } from "../hooks/useTripDetail";
@@ -24,11 +25,11 @@ const mockTrip: TripDetails = {
 	excludes: null,
 	tripType: "overnight",
 	durationNights: 1,
-	startsAt: "2026-09-28T06:00:00.000Z",
-	endsAt: "2026-09-29T17:00:00.000Z",
+	startsAt: "2099-09-28T06:00:00.000Z",
+	endsAt: "2099-09-29T17:00:00.000Z",
 	meetingPoint: { type: "Point", coordinates: [108.45, 11.94] },
 	meetingAt: null,
-	bookingDeadline: "2026-09-26T23:00:00.000Z",
+	bookingDeadline: "2099-09-26T23:00:00.000Z",
 	capacityMin: 8,
 	capacityMax: 16,
 	seatsTaken: 10,
@@ -55,6 +56,7 @@ const defaultBookTripState = {
 	error: null,
 	fieldErrors: {},
 	isConflict: false,
+	canRetry: false,
 	lastInput: null,
 };
 
@@ -186,6 +188,72 @@ describe("TripDetailPage", () => {
 		await vi.waitFor(() => {
 			expect(retryTripDetail).toHaveBeenCalled();
 		});
+	});
+
+	it("renders capacity from the authoritative Trip refresh after Booking success (BR-264)", async () => {
+		const refreshedTrip = {
+			...mockTrip,
+			seatsTaken: 11,
+			remainingSeats: 5,
+			updatedAt: "2026-09-27T01:00:00.000Z",
+		};
+		vi.mocked(useTripDetail).mockImplementation(function useAuthoritativeTripDetail() {
+			const [trip, setTrip] = useState(mockTrip);
+			return {
+				trip,
+				isLoading: false,
+				error: null,
+				isNotFound: false,
+				retry: async () => setTrip(refreshedTrip),
+			};
+		});
+		vi.mocked(useBookTrip).mockReturnValue({
+			...defaultBookTripState,
+			book: vi.fn().mockResolvedValueOnce({ id: "booking-1" }),
+		});
+
+		render(<TripDetailPage tripId="trip-abc" onBackToList={vi.fn()} />);
+		expect(screen.getByTestId("trip-remaining-seats")).toHaveTextContent("6 chỗ");
+
+		fireEvent.click(screen.getByRole("button", { name: /đặt chỗ ngay/i }));
+
+		await vi.waitFor(() => {
+			expect(screen.getByTestId("trip-remaining-seats")).toHaveTextContent("5 chỗ");
+		});
+	});
+
+	it("passes the authoritative Booking response through to the result UI", () => {
+		vi.mocked(useTripDetail).mockReturnValue({
+			trip: mockTrip,
+			isLoading: false,
+			error: null,
+			isNotFound: false,
+			retry: vi.fn(),
+		});
+		vi.mocked(useBookTrip).mockReturnValue({
+			...defaultBookTripState,
+			isSuccess: true,
+			booking: {
+				id: "booking-page-1",
+				tripId: mockTrip.id,
+				userId: "camper-1",
+				numPeople: 2,
+				status: "pending_payment",
+				paymentStatus: "unpaid",
+				holdExpiresAt: "2026-09-26T12:15:00.000Z",
+				tripStartsAtSnapshot: mockTrip.startsAt,
+				tripEndsAtSnapshot: mockTrip.endsAt,
+				basePrice: "765432.00",
+				totalAmount: "765432.00",
+				cancellationPolicySnapshot: null,
+				createdAt: "2026-09-26T12:00:00.000Z",
+			},
+		});
+
+		render(<TripDetailPage tripId="trip-abc" onBackToList={vi.fn()} />);
+
+		expect(screen.getByRole("status")).toHaveTextContent("pending_payment");
+		expect(screen.getByTestId("authoritative-booking-price")).toHaveTextContent(/765\.432/);
 	});
 
 	it("displays conflict dialog and reloads authoritative state on conflict reload (BR-210)", () => {

@@ -98,6 +98,10 @@ export function AppRoutes() {
 				tripId={tripId}
 				onBackToList={() => navigateTo(RoutePath.TRIPS)}
 				onBackHome={() => navigateTo(storedUser ? RoutePath.DASHBOARD : RoutePath.HOME)}
+				bookingAccess={
+					!storedUser ? "anonymous" : currentRoles.includes("camper") ? "camper" : "non-camper"
+				}
+				onSignIn={() => navigateTo(RoutePath.LOGIN)}
 			/>
 		);
 

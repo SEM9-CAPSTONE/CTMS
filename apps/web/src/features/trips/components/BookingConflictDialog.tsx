@@ -90,9 +90,10 @@ export function BookingConflictDialog({
 						<button
 							type="button"
 							onClick={onRetry}
+							disabled={isReloading}
 							className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-xs font-bold text-amber-900 transition hover:bg-amber-100"
 						>
-							Thử lại
+							{isReloading ? "Đang thử lại..." : "Thử lại"}
 						</button>
 					)}
 

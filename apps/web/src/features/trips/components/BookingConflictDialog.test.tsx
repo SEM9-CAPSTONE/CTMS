@@ -52,10 +52,17 @@ describe("BookingConflictDialog", () => {
 
 	it("renders loading state when isReloading is true", () => {
 		render(
-			<BookingConflictDialog open={true} isReloading={true} onClose={vi.fn()} onReload={vi.fn()} />
+			<BookingConflictDialog
+				open={true}
+				isReloading={true}
+				onClose={vi.fn()}
+				onReload={vi.fn()}
+				onRetry={vi.fn()}
+			/>
 		);
 
 		const reloadBtn = screen.getByRole("button", { name: /đang tải lại/i });
 		expect(reloadBtn).toBeDisabled();
+		expect(screen.getByRole("button", { name: /đang thử lại/i })).toBeDisabled();
 	});
 });

@@ -135,6 +135,18 @@ describe("useBookTrip", () => {
 		expect(result.current.error).toContain("Bạn không có quyền");
 	});
 
+	it("shows a safe unavailable message for a missing Trip", async () => {
+		vi.mocked(tripsService.book).mockRejectedValueOnce(new HttpError("Not found", 404, {}));
+		const { result } = renderHook(() => useBookTrip());
+
+		await act(async () => {
+			await result.current.book({ tripId: "trip-missing", numPeople: 1 });
+		});
+
+		expect(result.current.error).toContain("Chuyến đi không tồn tại");
+		expect(result.current.canRetry).toBe(false);
+	});
+
 	it("handles network error and allows retry", async () => {
 		vi.mocked(tripsService.book).mockRejectedValueOnce(new Error("Network connection lost"));
 
@@ -146,6 +158,7 @@ describe("useBookTrip", () => {
 
 		expect(result.current.error).toContain("Lỗi kết nối mạng");
 		expect(result.current.isConflict).toBe(false);
+		expect(result.current.canRetry).toBe(true);
 
 		// Now succeed on retry
 		vi.mocked(tripsService.book).mockResolvedValueOnce(mockBookingResponse);
@@ -165,6 +178,37 @@ describe("useBookTrip", () => {
 			await result.current.retry();
 		});
 		expect(tripsService.book).toHaveBeenCalledTimes(2);
+	});
+
+	it("marks server failures as retryable", async () => {
+		vi.mocked(tripsService.book).mockRejectedValueOnce(new HttpError("Unavailable", 503, {}));
+		const { result } = renderHook(() => useBookTrip());
+
+		await act(async () => {
+			await result.current.book({ tripId: "trip-999", numPeople: 1 });
+		});
+
+		expect(result.current.canRetry).toBe(true);
+	});
+
+	it("uses a new key when a changed payload starts a new logical attempt", async () => {
+		vi.mocked(tripsService.book)
+			.mockRejectedValueOnce(new Error("Network connection lost"))
+			.mockResolvedValueOnce(mockBookingResponse);
+		const { result } = renderHook(() => useBookTrip());
+
+		await act(async () => {
+			await result.current.book({ tripId: "trip-999", numPeople: 1 });
+			await result.current.book({ tripId: "trip-999", numPeople: 2 });
+		});
+
+		expect(vi.mocked(tripsService.book).mock.calls[0][1]).not.toBe(
+			vi.mocked(tripsService.book).mock.calls[1][1]
+		);
+		expect(vi.mocked(tripsService.book).mock.calls[1][0]).toEqual({
+			tripId: "trip-999",
+			numPeople: 2,
+		});
 	});
 
 	it("resets state and clears conflict error", async () => {

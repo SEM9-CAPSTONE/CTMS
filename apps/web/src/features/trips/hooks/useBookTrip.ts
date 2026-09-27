@@ -164,6 +164,7 @@ export function useBookTrip() {
 		error: error?.message ?? null,
 		fieldErrors: error?.fieldErrors ?? {},
 		isConflict: error?.isConflict ?? false,
+		canRetry: error?.canRetry ?? false,
 		lastInput,
 	};
 }
