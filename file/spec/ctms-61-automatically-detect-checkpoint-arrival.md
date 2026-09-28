@@ -189,6 +189,8 @@ The implementation must persist or return only data required for `Automatically 
 - status/state fields needed to distinguish pending, succeeded, failed, rejected, stale, or synced data;
 - audit fields for actor, action, target, before/after values, timestamp, and reason when applicable;
 - idempotency keys, provider references, sync metadata, model/config/rule version, or package/version context when the behavior depends on them.
+- Arrival detection must distinguish route `checkpoints` from Trip `trip_waypoints`. The monitored operational itinerary is the Trip waypoint set from CTMS-022; a waypoint may reference a route checkpoint or may be a custom `rest`, `meal`, `activity`, `overnight`, `start`, or `finish` location.
+- Arrival/visit events should reference the Trip waypoint identifier when the detected target is part of the configured Trip itinerary. The waypoint's `planned_at` provides schedule context; GPS event time remains the actual arrival evidence.
 
 Do not duplicate an entire data dictionary in this spec. Reference existing entities and add only story-specific requirements.
 

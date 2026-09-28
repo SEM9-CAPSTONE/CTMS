@@ -7,7 +7,7 @@ import {
 	UnauthorizedException,
 } from "@nestjs/common";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
-import { DataSource } from "typeorm";
+import { DataSource, type EntityManager } from "typeorm";
 import { AuditLog } from "../../auth/entities/audit-log.entity";
 import type { AuthenticatedUser } from "../../auth/jwt.strategy";
 import { UserStatus } from "../../users/entities/user.entity";
@@ -18,6 +18,7 @@ import type {
 import {
 	RiskLevel,
 	type WeatherCriteriaScoresDetail,
+	WeatherRiskAssessment,
 } from "../entities/weather-risk-assessment.entity";
 // biome-ignore lint/style/useImportType: NestJS constructor injection requires value imports
 import { WeatherRiskRepository } from "../repositories/weather-risk.repository";
@@ -146,6 +147,36 @@ export class RouteRegistrationRiskService {
 
 		if (!eligibility.allowed) {
 			await this.recordAuditLog(actor, tripId, "TRIP", eligibility);
+		}
+
+		return eligibility;
+	}
+
+	async assertBookingWeatherAllowed(
+		routeId: string,
+		manager: EntityManager
+	): Promise<RegistrationEligibilityResponseDto> {
+		const latestAssessment = await manager.getRepository(WeatherRiskAssessment).findOne({
+			where: { routeId },
+			order: { createdAt: "DESC" },
+		});
+		if (!latestAssessment) {
+			throw new ConflictException(
+				"No weather risk assessment found for this route. Risk level must be calculated before booking."
+			);
+		}
+
+		const eligibility: RegistrationEligibilityResponseDto = {
+			allowed: latestAssessment.riskLevel !== RiskLevel.RED,
+			routeId,
+			riskLevel: latestAssessment.riskLevel,
+			assessmentTime: latestAssessment.createdAt,
+			compositeScore: latestAssessment.compositeScore,
+			reasons: [],
+		};
+		if (!eligibility.allowed) {
+			this.extractFailingCriteriaReasons(latestAssessment.criteriaScores, eligibility.reasons);
+			throw new ConflictException("New bookings are blocked because route weather risk is RED");
 		}
 
 		return eligibility;

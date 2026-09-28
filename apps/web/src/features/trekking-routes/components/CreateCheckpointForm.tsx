@@ -18,7 +18,6 @@ interface Props {
 	disabled: boolean;
 	isSubmitting: boolean;
 	error: string;
-	onRadiusChange: (radius: number) => void;
 	onSubmit: (input: CreateCheckpointInput) => Promise<RouteCheckpoint | null>;
 	onCreated: () => void;
 	onCancel?: () => void;
@@ -34,7 +33,6 @@ export function CreateCheckpointForm({
 	disabled,
 	isSubmitting,
 	error,
-	onRadiusChange,
 	onSubmit,
 	onCreated,
 	onCancel,
@@ -60,8 +58,7 @@ export function CreateCheckpointForm({
 				checkpoint
 			)
 		);
-		if (checkpoint) onRadiusChange(checkpoint.radiusMeters);
-	}, [checkpoint, onRadiusChange, reset]);
+	}, [checkpoint, reset]);
 
 	useEffect(() => {
 		if (location) setValue("location", location, { shouldValidate: true });
@@ -71,7 +68,7 @@ export function CreateCheckpointForm({
 
 	return (
 		<form
-			aria-label={checkpoint ? "Sửa checkpoint" : "Tạo checkpoint"}
+			aria-label={checkpoint ? "Sửa điểm dừng" : "Thêm điểm dừng"}
 			className="mt-5 grid gap-4 sm:grid-cols-2"
 			onSubmit={handleSubmit(async (values) => {
 				if (!location) {
@@ -89,16 +86,15 @@ export function CreateCheckpointForm({
 					if (!checkpoint) {
 						nameCustomized.current = false;
 						reset(checkpointDefaultValues({ type: "Point", coordinates: [0, 0] }));
-						onRadiusChange(30);
 					}
 					onCreated();
 				}
 			})}
 		>
 			<label className="text-sm font-bold">
-				Tên checkpoint
+				Tên điểm dừng
 				<input
-					aria-label="Tên checkpoint"
+					aria-label="Tên điểm dừng"
 					maxLength={150}
 					disabled={fieldDisabled}
 					className={inputClass}
@@ -113,9 +109,9 @@ export function CreateCheckpointForm({
 				)}
 			</label>
 			<label className="text-sm font-bold">
-				Loại checkpoint
+				Loại điểm dừng
 				<select
-					aria-label="Loại checkpoint"
+					aria-label="Loại điểm dừng"
 					disabled={fieldDisabled}
 					className={inputClass}
 					{...register("type", {
@@ -140,21 +136,7 @@ export function CreateCheckpointForm({
 					<option value="finish">Kết thúc</option>
 				</select>
 			</label>
-			<label className="text-sm font-bold">
-				Bán kính (mét)
-				<input
-					aria-label="Bán kính (mét)"
-					inputMode="numeric"
-					disabled={fieldDisabled}
-					className={inputClass}
-					{...register("radiusMeters", {
-						onChange: (event) => onRadiusChange(Number(event.target.value) || 0),
-					})}
-				/>
-				{errors.radiusMeters && (
-					<span className="mt-1 block text-xs text-red-600">{errors.radiusMeters.message}</span>
-				)}
-			</label>
+			<p className="text-sm text-[#667a6d]">Bán kính an toàn của điểm dừng cố định: 20 mét.</p>
 			<label className="text-sm font-bold">
 				Thời gian đến dự kiến (phút)
 				<input
@@ -213,8 +195,8 @@ export function CreateCheckpointForm({
 							? "Đang lưu thay đổi..."
 							: "Lưu thay đổi"
 						: isSubmitting
-							? "Đang tạo checkpoint..."
-							: "Tạo checkpoint"}
+							? "Đang thêm điểm dừng..."
+							: "Thêm điểm dừng"}
 				</button>
 				{checkpoint && (
 					<button

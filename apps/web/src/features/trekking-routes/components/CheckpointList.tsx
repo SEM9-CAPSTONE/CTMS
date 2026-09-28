@@ -23,12 +23,12 @@ export function CheckpointList({ items, disabled, onEdit }: CheckpointListProps)
 				data-testid="checkpoints-empty"
 				className="mt-4 rounded-xl border border-dashed p-4 text-sm text-[#667a6d]"
 			>
-				Tuyến này chưa có checkpoint.
+				Tuyến này chưa có điểm dừng.
 			</p>
 		);
 	}
 	return (
-		<ol className="mt-4 grid gap-3" aria-label="Danh sách checkpoint">
+		<ol className="mt-4 grid gap-3" aria-label="Danh sách điểm dừng">
 			{items.map((item) => (
 				<li key={item.id} className="rounded-xl border border-[#e0ebe0] bg-[#f8fbf7] p-4">
 					<div className="flex flex-wrap items-center justify-between gap-2">

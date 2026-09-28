@@ -181,6 +181,8 @@ The implementation must persist or return only data required for `Search and Vie
 - status/state fields needed to distinguish pending, succeeded, failed, rejected, stale, or synced data;
 - audit fields for actor, action, target, before/after values, timestamp, and reason when applicable;
 - idempotency keys, provider references, sync metadata, model/config/rule version, or package/version context when the behavior depends on them.
+- Trip detail responses that expose waypoints must use CTMS-022's planned-at-based contract: include `planned_at`, order waypoints by `planned_at ASC`, and derive day grouping from `planned_at` relative to `Trip.starts_at`.
+- Public/detail APIs must not require `day_number`, `sequence_order`, or `duration_minutes` for waypoint rendering. If those legacy fields still exist during migration, they are non-authoritative.
 
 Do not duplicate an entire data dictionary in this spec. Reference existing entities and add only story-specific requirements.
 

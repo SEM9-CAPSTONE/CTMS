@@ -149,7 +149,7 @@ export function RouteCheckpointMap({
 	);
 	const mapLabel =
 		mode === "checkpoint"
-			? "Bản đồ chọn checkpoint"
+			? "Bản đồ chọn điểm dừng"
 			: mode === "hazard-point"
 				? "Bản đồ chọn điểm nguy hiểm"
 				: "Bản đồ vẽ đa giác nguy hiểm";
@@ -583,7 +583,7 @@ export function RouteCheckpointMap({
 			{!styleUrl && (
 				<span className="absolute top-3 left-3 rounded-lg bg-white/90 px-3 py-2 text-xs font-bold">
 					{mode === "checkpoint"
-						? "Nhấp trên bản đồ để chọn vị trí checkpoint."
+						? "Nhấp trên bản đồ để chọn vị trí điểm dừng."
 						: mode === "hazard-point"
 							? "Nhấp trên bản đồ để chọn tâm vùng nguy hiểm."
 							: "Nhấp liên tiếp để thêm các đỉnh đa giác."}

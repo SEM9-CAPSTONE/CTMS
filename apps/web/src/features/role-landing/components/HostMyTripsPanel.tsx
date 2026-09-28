@@ -11,6 +11,7 @@ import {
 	Loader2,
 	MapPinned,
 	Mountain,
+	Pencil,
 	RefreshCw,
 	Route,
 	Users,
@@ -27,6 +28,7 @@ export interface HostMyTripsPanelProps {
 	onViewTrekkingRoutes?: () => void;
 	onViewEquipmentCatalog?: () => void;
 	onNavigateToTripDetail?: (tripId: string) => void;
+	onEditTripDraft?: (tripId: string) => void;
 }
 
 const statusLabels: Record<TripStatus, { label: string; className: string }> = {
@@ -74,8 +76,10 @@ export function HostMyTripsPanel({
 	onViewTrekkingRoutes,
 	onViewEquipmentCatalog,
 	onNavigateToTripDetail,
+	onEditTripDraft,
 }: HostMyTripsPanelProps) {
-	const { trips, isLoading, error, refetch } = useMyTrips();
+	const { trips: fetchedTrips = [], isLoading, error, refetch } = useMyTrips();
+	const trips = Array.isArray(fetchedTrips) ? fetchedTrips : [];
 	const [selectedStatus, setSelectedStatus] = useState<"all" | TripStatus>("all");
 	const [currentPage, setCurrentPage] = useState(1);
 	const [pageSize, setPageSize] = useState(4);
@@ -356,16 +360,28 @@ export function HostMyTripsPanel({
 													</p>
 												</div>
 
-												{onNavigateToTripDetail && (
-													<button
-														type="button"
-														onClick={() => onNavigateToTripDetail(trip.id)}
-														className="inline-flex items-center gap-1 rounded-xl bg-white px-3 py-1.5 text-xs font-bold text-[#164027] ring-1 ring-[#cbd9ce] hover:bg-[#164027] hover:text-white transition-colors"
-													>
-														<Eye className="size-3.5" />
-														<span>Chi tiết</span>
-													</button>
-												)}
+												<div className="flex items-center gap-2">
+													{trip.status === "draft" && onEditTripDraft && (
+														<button
+															type="button"
+															onClick={() => onEditTripDraft(trip.id)}
+															className="inline-flex items-center gap-1 rounded-xl bg-white px-3 py-1.5 text-xs font-bold text-[#164027] ring-1 ring-[#cbd9ce] transition-colors hover:bg-[#f4f7f2]"
+														>
+															<Pencil className="size-3.5" />
+															<span>Sửa</span>
+														</button>
+													)}
+													{onNavigateToTripDetail && (
+														<button
+															type="button"
+															onClick={() => onNavigateToTripDetail(trip.id)}
+															className="inline-flex items-center gap-1 rounded-xl bg-white px-3 py-1.5 text-xs font-bold text-[#164027] ring-1 ring-[#cbd9ce] hover:bg-[#164027] hover:text-white transition-colors"
+														>
+															<Eye className="size-3.5" />
+															<span>Chi tiết</span>
+														</button>
+													)}
+												</div>
 											</div>
 										</div>
 									</article>

@@ -92,17 +92,32 @@ The following rules are materialized as behavior for this story:
 
 | ID | Content |
 | --- | --- |
-| `BR-085` | Required behavior for `Add Members to Booking` must validate and enforce booking_members, booking, Trip, member, status, removed, num_people as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths. |
-| `BR-086` | Required behavior for `Add Members to Booking` must validate and enforce booking_member.is_primary, booking, booking_member, is_primary, true as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths. |
-| `BR-087` | Required behavior for `Add Members to Booking` must validate and enforce bookings.num_people, Trip, bookings, num_people, booking_members, status, removed, member, seat, reservation as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths. |
-| `BR-088` | Required behavior for `Add Members to Booking` must validate and enforce NULL, trips.capacity_max, user_id, booking, member, trips, capacity_max as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths. |
-| `BR-048` | Required behavior for `Add Members to Booking` must validate and enforce Trip, bookings, booking_members, entity, Member as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths. |
+| `BR-085` | `booking_members` stores all participants, including the Booking owner. Before Trip start, `removed` members do not count as effective participants and the effective count must not exceed `num_people`. |
+| `BR-086` | Every initialized Booking roster has exactly one `booking_member.is_primary = true`. |
+| `BR-087` | Before Trip start, `bookings.num_people` equals the effective member count. Later count-changing add/remove operations must update `num_people` and the seat reservation atomically. Post-start `joined`, `no_show`, and `left` states do not change historical seat usage. |
+| `BR-088` | A non-null `user_id` cannot appear more than once within a Booking. Member changes must never exceed `trips.capacity_max`. |
+| `BR-048` | Trip participants are represented by `bookings` plus `booking_members`; no separate authoritative Trip Member entity is introduced. |
 | `BR-174` | Inputs must be validated for required fields, formats, identifiers, enum values, and cross-entity references before any write is committed. |
 | `BR-183` | Data relationships must reference existing valid records inside the correct business scope; child records must not be created for unrelated resources. |
 | `BR-212` | Any Business Rule, enum, state transition, or API contract change must update the spec, tests, and data documentation before the story is Done. |
 | `BR-213` | Every mapped Business Rule must have at least one valid-path test and one violation-path test; concurrency, idempotency, and transaction rules require integration or E2E coverage. |
 
-### 5.5 Source Confidence
+### 5.5 Approved CTMS-168 Project/MVP Implementation Decisions
+
+The following decisions apply the source-derived rules above to CTMS-168. They are project/MVP implementation decisions, not original Business Rule text.
+
+- The first member write is a bulk initialization operation for the complete effective roster.
+- `POST /bookings/:bookingId/members` accepts `{ members: [{ userId }] }`, where `members` contains only additional participants. The authenticated Booking owner is inserted automatically as the sole primary member.
+- `Idempotency-Key` is required and scoped by Booking, authenticated actor, and key. Equal normalized payloads replay the authoritative roster; a different payload returns `409`.
+- Initial roster size must equal the existing `booking.num_people`. Initial roster creation does not change `num_people` or `trips.seats_taken`.
+- Only the owning Camper may initialize a `pending_payment` or `confirmed` Booking before Trip start.
+- CTMS-168 supports existing CTMS users only. Guest, anonymous, and placeholder identities are deferred.
+- Member lifecycle values are `registered`, `removed`, `joined`, `no_show`, and `left`.
+- Existing Bookings remain valid with zero member rows until explicitly initialized; no synthetic backfill is allowed.
+- The transaction writes `booking.members_initialized` audit data without health or other sensitive profile fields.
+- CTMS-168 does not implement guest/external identities, later count-changing add/remove operations, Web or Mobile UI, payment behavior, or CTMS-029 Booking creation.
+
+### 5.6 Source Confidence
 
 - PB V3.1 row `CTMS-030` is the direct scope and acceptance source.
 - Rule IDs above come from the `Primary BR IDs` column in PB V3.1 and are materialized here as implementation behavior.
@@ -409,10 +424,10 @@ Use this section for undefined, ambiguous, or conflicting behavior. Do not guess
 
 ### PD-01 - API and DTO Contract
 
-Status: UNRESOLVED
+Status: RESOLVED FOR CTMS-168
 
 Question:
-What are the final endpoint paths, request DTOs, response DTOs, and error payloads for `Add Members to Booking` if they are not already implemented?
+The backend uses `POST /bookings/:bookingId/members`, a required `Idempotency-Key`, and a bulk `{ members: [{ userId }] }` request. The response returns the Booking id and authoritative member roster. Standard CTMS `401`, `403`, `404`, `409`, and `422` categories apply.
 
 Affected:
 - Jira Story: `CTMS-030`
@@ -420,27 +435,27 @@ Affected:
 - UI Subtask: `CTMS-030-T02`
 
 Implementation impact:
-Backend and UI integration cannot be finalized safely without a typed contract.
+The typed backend contract is defined by the CTMS-168 DTOs and documented above.
 
 Required action:
-BA, PO, or domain owner confirms the API contract, or the implementation records the approved contract in this spec before coding.
+Keep the UI subtask aligned with the typed backend response.
 
 ### PD-02 - Story-Specific State and Failure Semantics
 
-Status: UNRESOLVED
+Status: RESOLVED FOR CTMS-168
 
 Question:
-Are there story-specific state enum values, partial failure semantics, retry limits, conflict rules, audit event names, or before/after audit payloads beyond the generic model in this spec?
+Initial roster members use `registered`; later lifecycle-compatible values are `removed`, `joined`, `no_show`, and `left`. Initialization is atomic, conflicts return `409`, and audit action `booking.members_initialized` is written in the same transaction.
 
 Affected:
 - Business Rules listed in Section 5.4
 - Related specifications in Section 18
 
 Implementation impact:
-Implementers must not silently choose state, retry, conflict, or audit behavior when the approved sources do not define it.
+CTMS-168 implements bulk initialization only. Later add/remove behavior remains owned by later scope.
 
 Required action:
-Resolve through Business Rules, Data Dictionary or Domain Model, Jira decision, or an explicit spec update before implementation.
+Update this specification and tests together if later stories extend member lifecycle behavior.
 
 ### PD-03 - Source Conflict Handling
 
@@ -480,7 +495,7 @@ Record the conflict, stop short of inventing behavior, and request BA/PO/domain 
 - Planned window: `2026-08-23` to `2026-09-05`
 - Product Backlog source: `PRODUCT BACKLOG.xlsx`, sheet `v3.1`
 - Business Rules source: `CTMS- Business rules.xlsx`, sheet `Business Rules`
-- Story-level business rules: BR-083, BR-105, BR-106, BR-107, BR-108, BR-194
+- Story-level business rules: BR-085, BR-086, BR-087, BR-088, BR-048, BR-174, BR-183, BR-212, BR-213
 - Jira execution tasks should reference:
   - `/file/spec/ctms-30-add-members-to-booking.md#backend-preparation-logic-and-tests`
   - `/file/spec/ctms-30-add-members-to-booking.md#ui-and-tests`

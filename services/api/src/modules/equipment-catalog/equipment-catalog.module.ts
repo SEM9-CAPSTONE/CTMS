@@ -20,5 +20,6 @@ import { EquipmentCatalogService } from "./equipment-catalog.service";
 			inject: [DataSource],
 		},
 	],
+	exports: [EquipmentCatalogRepository],
 })
 export class EquipmentCatalogModule {}

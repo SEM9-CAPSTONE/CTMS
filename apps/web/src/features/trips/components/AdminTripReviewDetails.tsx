@@ -88,24 +88,28 @@ export function AdminTripReviewDetails({ trip, onReview }: Props) {
 				</div>
 			</section>
 			<section className="rounded-2xl border border-[#e0ebe0] bg-white p-5 shadow-sm">
-				<h2 className="font-extrabold">Waypoint theo thứ tự trip</h2>
+				<h2 className="font-extrabold">Timeline waypoint</h2>
 				{trip.waypoints.length === 0 ? (
 					<p className="mt-2 text-sm text-[#667a6d]">Chưa có waypoint nào.</p>
 				) : (
 					<ol className="mt-3 space-y-2">
 						{[...trip.waypoints]
-							.sort((first, second) => first.sequenceOrder - second.sequenceOrder)
-							.map((waypoint) => (
+							.sort(
+								(first, second) =>
+									new Date(first.plannedAt ?? 0).getTime() -
+									new Date(second.plannedAt ?? 0).getTime()
+							)
+							.map((waypoint, index) => (
 								<li
 									key={waypoint.id}
 									className="flex items-center justify-between rounded-xl border border-[#e0ebe0] p-3 text-sm"
 								>
 									<span className="font-bold text-[#10221b]">
-										{waypoint.sequenceOrder}. {waypoint.name}
+										{index + 1}. {waypoint.name}
 									</span>
 									<span className="text-xs font-bold text-[#667a6d]">
-										{WAYPOINT_TYPE_LABELS[waypoint.type] ?? waypoint.type} · Ngày{" "}
-										{waypoint.dayNumber}
+										{WAYPOINT_TYPE_LABELS[waypoint.type] ?? waypoint.type}
+										{waypoint.plannedAt ? ` · ${formatDateTime(waypoint.plannedAt)}` : ""}
 									</span>
 								</li>
 							))}

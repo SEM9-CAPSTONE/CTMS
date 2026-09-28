@@ -181,6 +181,8 @@ The implementation must persist or return only data required for `Download Offli
 - status/state fields needed to distinguish pending, succeeded, failed, rejected, stale, or synced data;
 - audit fields for actor, action, target, before/after values, timestamp, and reason when applicable;
 - idempotency keys, provider references, sync metadata, model/config/rule version, or package/version context when the behavior depends on them.
+- Offline packages that include required Trip waypoints must include each waypoint's `planned_at`, `type`, `location`, optional `checkpoint_id`, and stable waypoint identifier. Client ordering and day grouping must be derived from `planned_at` as defined by CTMS-022.
+- Offline package generation must not depend on `day_number`, `sequence_order`, or `duration_minutes` as authoritative waypoint fields.
 
 Do not duplicate an entire data dictionary in this spec. Reference existing entities and add only story-specific requirements.
 

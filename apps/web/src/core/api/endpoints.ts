@@ -22,6 +22,7 @@ export const API_ENDPOINTS = {
 		CREATE: "/bookings",
 		CANCEL: (id: string) => `/bookings/${id}/cancel`,
 		PAYMENTS: (id: string) => `/bookings/${id}/payments`,
+		ITEMS: (bookingId: string) => `/bookings/${bookingId}/items`,
 	},
 	TREKKING: {
 		ROUTES: "/trekking-routes",
@@ -50,6 +51,7 @@ export const API_ENDPOINTS = {
 		GET_MINE: "/trips/mine",
 		GET_BY_ID: (id: string) => `/trips/${id}`,
 		CREATE: "/trips",
+		UPDATE: (id: string) => `/trips/${id}`,
 		CONFIGURE_WAYPOINTS: (tripId: string) => `/trips/${tripId}/waypoints`,
 		MEMBERS: (tripId: string) => `/trips/${tripId}/members`,
 		GPS_LOGS: (tripId: string) => `/trips/${tripId}/gps-logs`,
@@ -96,5 +98,6 @@ export const API_ENDPOINTS = {
 		CREATE: "/equipment-catalog",
 		MINE: "/equipment-catalog/mine",
 		DETAIL: (id: string) => `/equipment-catalog/${id}`,
+		FOR_TRIP: (tripId: string) => `/equipment-catalog/for-trip/${tripId}`,
 	},
 } as const;

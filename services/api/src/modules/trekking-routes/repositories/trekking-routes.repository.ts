@@ -66,7 +66,6 @@ const CHECKPOINT_INTEGRITY_PREDICATE = `
 	AND ST_IsValid(checkpoint."location"::geometry)
 	AND GeometryType(checkpoint."location"::geometry) = 'POINT'
 	AND ST_SRID(checkpoint."location"::geometry) = 4326
-	AND checkpoint."radius_m" BETWEEN 10 AND 500
 	AND checkpoint."type"::text IN (
 		'start', 'rest', 'water', 'dangerous', 'emergency_shelter', 'finish'
 	)
@@ -368,6 +367,81 @@ export class TrekkingRoutesRepository extends Repository<TrekkingRoute> {
 		)) as CreatedRouteRow[];
 
 		return rows.map(toResponse);
+	}
+
+	async hasTripReferences(routeId: string): Promise<boolean> {
+		const rows = (await this.query(
+			'SELECT EXISTS (SELECT 1 FROM "trips" WHERE "route_id" = $1) AS "used"',
+			[routeId]
+		)) as Array<{ used: boolean }>;
+		return rows[0]?.used === true;
+	}
+
+	/** Caller holds the route lock; checkpoint writes acquire the same lock. */
+	async updateDraft(
+		routeId: string,
+		input: CreateDraftTrekkingRouteInput
+	): Promise<TrekkingRouteResponseDto> {
+		const rows = (await this.query(
+			`
+			WITH proposed AS (
+				SELECT ST_SetSRID(ST_GeomFromGeoJSON($4), 4326)::geography AS geom
+			), updated AS (
+				UPDATE "trekking_routes" route
+				SET "name" = $2, "description" = $3, "route_geom" = proposed.geom,
+					"length_meters" = ST_Length(proposed.geom), "difficulty" = $5,
+					"expected_duration_minutes" = $6, "updated_at" = now()
+				FROM proposed
+				WHERE route."id" = $1 AND route."host_id" = $7 AND route."status" = 'draft'
+					AND ST_Length(proposed.geom) > 0 AND $6 > 0
+					AND NOT EXISTS (
+						SELECT 1 FROM "checkpoints" checkpoint
+						WHERE checkpoint."route_id" = route."id"
+							AND (NOT ST_DWithin(proposed.geom, checkpoint."location", 50)
+								OR checkpoint."expected_arrival_offset" > $6)
+					)
+				RETURNING route.*
+			)
+			SELECT "id", "host_id" AS "hostId", "name", "description",
+				ST_AsGeoJSON("route_geom"::geometry)::json AS "geometry",
+				"length_meters" AS "lengthMeters", "difficulty",
+				"expected_duration_minutes" AS "expectedDurationMinutes",
+				"status", "created_at" AS "createdAt", "updated_at" AS "updatedAt"
+			FROM updated
+			`,
+			[
+				routeId,
+				input.name,
+				input.description,
+				JSON.stringify(input.geometry),
+				input.difficulty,
+				input.expectedDurationMinutes,
+				input.hostId,
+			]
+		)) as CreatedRouteRow[];
+		if (!rows[0]) {
+			throw new UnprocessableEntityException({
+				statusCode: 422,
+				error: "Unprocessable Entity",
+				message: [
+					{
+						field: "geometry",
+						errors: [
+							"Route must have positive length and duration; existing checkpoints must remain within 50 meters and within the route duration",
+						],
+					},
+				],
+			});
+		}
+		await this.query(
+			`UPDATE "checkpoints" checkpoint
+			 SET "route_position" = ST_LineLocatePoint(route."route_geom"::geometry, checkpoint."location"::geometry),
+				 "updated_at" = now()
+			 FROM "trekking_routes" route
+			 WHERE route."id" = $1 AND checkpoint."route_id" = route."id"`,
+			[routeId]
+		);
+		return toResponse(rows[0]);
 	}
 
 	async createDraft(input: CreateDraftTrekkingRouteInput): Promise<TrekkingRouteResponseDto> {

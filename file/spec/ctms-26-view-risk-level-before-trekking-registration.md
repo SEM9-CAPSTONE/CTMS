@@ -3,7 +3,8 @@
 **Spec Reference**  
 /file/spec/ctms-26-view-risk-level-before-trekking-registration.md
 
-**Source Authority**  
+**Source Authority**
+
 - Product Backlog V3.1 is the scope authority for this story.
 - Business Rules are the invariant/policy source. This spec rewrites relevant rules as executable behavior so Dev and QA do not need to infer behavior from rule IDs.
 - Jira is used for execution tracking, status, and task ownership. Jira content must not replace the behavior contract below.
@@ -27,12 +28,14 @@ Implementation details belong in the sections below, not in this purpose summary
 ## 2. Scope
 
 ### In Scope
+
 - The behavior needed for `View Risk Level before Trekking Registration` within `EPIC 3. Weather Risk Assessment`.
 - Backend validation, authorization, persistence, state handling, idempotency, and audit behavior needed for this story.
 - UI/API behavior that makes success, pending, validation failure, authorization failure, conflict, and retry states observable.
 - Tests proving the PB V3.1 acceptance criteria and mapped Business Rules are enforced.
 
 ### Out of Scope
+
 - Behavior owned by dependency stories unless explicitly referenced as a precondition or integration point.
 - Replacing source-of-truth entities owned by another module.
 - Changing unrelated workflow, enum, database, API, or UI contracts outside this story.
@@ -90,13 +93,13 @@ The system implements `View Risk Level before Trekking Registration` exactly wit
 
 The following rules are materialized as behavior for this story:
 
-| ID | Content |
-| --- | --- |
+| ID       | Content                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `BR-038` | Required behavior for `View Risk Level before Trekking Registration` must validate and enforce Camper, Trip, Detail, Weather, Risk, assessment, Route, version, level, recommendation as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths. |
-| `BR-044` | Required behavior for `View Risk Level before Trekking Registration` must validate and enforce API, risk, factor, reason, threshold, score as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths. |
-| `BR-045` | Required behavior for `View Risk Level before Trekking Registration` must validate and enforce Risk, level, reason as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths. |
-| `BR-212` | Any Business Rule, enum, state transition, or API contract change must update the spec, tests, and data documentation before the story is Done. |
-| `BR-213` | Every mapped Business Rule must have at least one valid-path test and one violation-path test; concurrency, idempotency, and transaction rules require integration or E2E coverage. |
+| `BR-044` | Required behavior for `View Risk Level before Trekking Registration` must validate and enforce API, risk, factor, reason, threshold, score as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths.                                            |
+| `BR-045` | Required behavior for `View Risk Level before Trekking Registration` must validate and enforce Risk, level, reason as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths.                                                                    |
+| `BR-212` | Any Business Rule, enum, state transition, or API contract change must update the spec, tests, and data documentation before the story is Done.                                                                                                                                                                                                                                                                                                             |
+| `BR-213` | Every mapped Business Rule must have at least one valid-path test and one violation-path test; concurrency, idempotency, and transaction rules require integration or E2E coverage.                                                                                                                                                                                                                                                                         |
 
 ### 5.5 Source Confidence
 
@@ -240,15 +243,15 @@ Pending Decision:
 
 ## 13. Error Handling
 
-| Condition | Observable behavior |
-| --- | --- |
-| Authentication missing/expired | Return `401`; UI prompts sign-in or session refresh. |
-| Actor lacks permission | Return `403`; no side effect. |
-| Referenced record missing | Return `404` when the actor may know it exists; otherwise preserve privacy-safe response. |
-| Invalid input | Return `422` with field-level reason where possible. |
-| Business conflict | Return `409` with recoverable explanation. |
-| External provider or async failure | Keep state pending/failed with retry metadata and no duplicate authoritative result. |
-| Unexpected server error | Roll back partial work and return a generic error without leaking secrets or stack trace. |
+| Condition                          | Observable behavior                                                                       |
+| ---------------------------------- | ----------------------------------------------------------------------------------------- |
+| Authentication missing/expired     | Return `401`; UI prompts sign-in or session refresh.                                      |
+| Actor lacks permission             | Return `403`; no side effect.                                                             |
+| Referenced record missing          | Return `404` when the actor may know it exists; otherwise preserve privacy-safe response. |
+| Invalid input                      | Return `422` with field-level reason where possible.                                      |
+| Business conflict                  | Return `409` with recoverable explanation.                                                |
+| External provider or async failure | Keep state pending/failed with retry metadata and no duplicate authoritative result.      |
+| Unexpected server error            | Roll back partial work and return a generic error without leaking secrets or stack trace. |
 
 ---
 
@@ -279,6 +282,7 @@ Then:
 - The system behavior matches the rule above.
 - Backend validation and UI state are consistent with the observable result.
 - Tests cover the success path and at least one failure or boundary case.
+
 ### AC-02
 
 Given:
@@ -412,6 +416,7 @@ Question:
 What are the final endpoint paths, request DTOs, response DTOs, and error payloads for `View Risk Level before Trekking Registration` if they are not already implemented?
 
 Affected:
+
 - Jira Story: `CTMS-026`
 - Logic Subtask: `CTMS-026-T01`
 - UI Subtask: `CTMS-026-T02`
@@ -430,6 +435,7 @@ Question:
 Are there story-specific state enum values, partial failure semantics, retry limits, conflict rules, audit event names, or before/after audit payloads beyond the generic model in this spec?
 
 Affected:
+
 - Business Rules listed in Section 5.4
 - Related specifications in Section 18
 
@@ -447,6 +453,7 @@ Question:
 Do PB V3.1, Business Rules, Data Dictionary or Domain Model, Jira, or existing code/tests disagree for this story?
 
 Affected:
+
 - PB V3.1 row `CTMS-026`
 - Business Rules listed in Section 5.4
 - Existing implementation and tests if present
@@ -477,7 +484,4 @@ Record the conflict, stop short of inventing behavior, and request BA/PO/domain 
 - Planned window: `2026-08-23` to `2026-09-05`
 - Product Backlog source: `PRODUCT BACKLOG.xlsx`, sheet `v3.1`
 - Business Rules source: `CTMS- Business rules.xlsx`, sheet `Business Rules`
-- Story-level business rules: BR-083, BR-105, BR-106, BR-107, BR-108, BR-194, BR-049, BR-218, BR-252, BR-253, BR-255
-- Jira execution tasks should reference:
-  - `/file/spec/ctms-26-view-risk-level-before-trekking-registration.md#backend-preparation-logic-and-tests`
-  - `/file/spec/ctms-26-view-risk-level-before-trekking-registration.md#ui-and-tests`
+- Story-level business rules: BR-083, BR-105, BR-106, BR-107, BR-108, BR-194, BR-049, BR-218, BR-252, BR-253, BR-2

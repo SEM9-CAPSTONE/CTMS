@@ -36,6 +36,8 @@ import { TrekkingRouteResponseDto } from "../dto/trekking-route-response.dto";
 import { TrekkingRouteReviewResponseDto } from "../dto/trekking-route-review-response.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { UpdateCheckpointDto } from "../dto/update-checkpoint.dto";
+// biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
+import { UpdateTrekkingRouteDto } from "../dto/update-trekking-route.dto";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { CheckpointsService } from "../services/checkpoints.service";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
@@ -218,6 +220,22 @@ export class TrekkingRoutesController {
 		@Body() dto: CreateRouteDangerZoneDto
 	): Promise<RouteDangerZoneResponseDto> {
 		return this.routeDangerZonesService.create(request.user.userId, params.routeId, dto);
+	}
+
+	@Patch(":routeId")
+	@Roles(UserRole.HOST)
+	@ApiOperation({ summary: "Update an owned draft trekking route" })
+	@ApiResponse({ status: 200, type: TrekkingRouteResponseDto })
+	@ApiResponse({ status: 403, description: "Host ownership required" })
+	@ApiResponse({ status: 404, description: "Route not found" })
+	@ApiResponse({ status: 409, description: "Only drafts can be edited" })
+	@ApiResponse({ status: 422, description: "Invalid route or incompatible checkpoints" })
+	updateDraft(
+		@Req() request: AuthenticatedRequest,
+		@Param() params: RouteIdParamDto,
+		@Body() dto: UpdateTrekkingRouteDto
+	): Promise<TrekkingRouteResponseDto> {
+		return this.trekkingRoutesService.updateDraft(request.user.userId, params.routeId, dto);
 	}
 
 	@Get()

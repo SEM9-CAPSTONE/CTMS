@@ -3,6 +3,7 @@ import { Transform, Type } from "class-transformer";
 import {
 	Equals,
 	IsArray,
+	IsDefined,
 	IsEnum,
 	IsInt,
 	IsNotEmpty,
@@ -60,6 +61,7 @@ export class CreateTrekkingRouteDto {
 	description?: string;
 
 	@ApiProperty({ type: GeoJsonLineStringDto })
+	@IsDefined()
 	@ValidateNested()
 	@Type(() => GeoJsonLineStringDto)
 	geometry!: GeoJsonLineStringDto;

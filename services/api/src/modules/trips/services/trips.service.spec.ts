@@ -63,18 +63,14 @@ function createTripDto() {
 				type: WaypointType.START,
 				name: "Trailhead",
 				location: { type: "Point" as const, coordinates: [108.441, 11.941] as [number, number] },
-				dayNumber: 1,
-				sequenceOrder: 1,
 				plannedAt: "2026-09-20T01:00:00.000Z",
-				durationMinutes: 15,
 				metadata: { note: "briefing" },
 			},
 			{
 				type: WaypointType.FINISH,
 				name: "Summit exit",
 				location: { type: "Point" as const, coordinates: [108.449, 11.946] as [number, number] },
-				dayNumber: 1,
-				sequenceOrder: 2,
+				plannedAt: "2026-09-20T10:00:00.000Z",
 			},
 		],
 	};
@@ -125,7 +121,7 @@ function configuredTrip() {
 				dayNumber: 1,
 				sequenceOrder: 1,
 				plannedAt: new Date("2026-09-20T01:00:00.000Z"),
-				durationMinutes: 15,
+				durationMinutes: null,
 				metadata: { note: "briefing" },
 			},
 			{
@@ -137,7 +133,7 @@ function configuredTrip() {
 				location: { type: "Point" as const, coordinates: [108.449, 11.946] as [number, number] },
 				dayNumber: 1,
 				sequenceOrder: 2,
-				plannedAt: null,
+				plannedAt: new Date("2026-09-20T10:00:00.000Z"),
 				durationMinutes: null,
 				metadata: null,
 			},
@@ -148,6 +144,7 @@ function configuredTrip() {
 describe("TripsService", () => {
 	let tripsRepository: {
 		createDraft: jest.Mock;
+		updateDraft: jest.Mock;
 		findByIdForWaypointConfiguration: jest.Mock;
 		findInvalidWaypointCheckpointIds: jest.Mock;
 		findRouteDependencyForUpdate: jest.Mock;
@@ -159,6 +156,9 @@ describe("TripsService", () => {
 		findTripsByHost: jest.Mock;
 		searchPublishedTrips: jest.Mock;
 		findPendingReview: jest.Mock;
+		findByIdForBooking: jest.Mock;
+		adjustSeatsTaken: jest.Mock;
+		recomputeSeatsTaken: jest.Mock;
 	};
 	let auditRepository: { save: jest.Mock };
 	let dataSource: { transaction: jest.Mock };
@@ -167,6 +167,7 @@ describe("TripsService", () => {
 	beforeEach(() => {
 		tripsRepository = {
 			createDraft: jest.fn().mockResolvedValue(createdTrip()),
+			updateDraft: jest.fn().mockResolvedValue(createdTrip()),
 			findByIdForWaypointConfiguration: jest.fn().mockResolvedValue({
 				trip: createdTrip(),
 				hostId: HOST_ID,
@@ -195,6 +196,9 @@ describe("TripsService", () => {
 			findTripsByHost: jest.fn().mockResolvedValue([]),
 			searchPublishedTrips: jest.fn().mockResolvedValue({ items: [], total: 0 }),
 			findPendingReview: jest.fn().mockResolvedValue([configuredTrip()]),
+			findByIdForBooking: jest.fn().mockResolvedValue(null),
+			adjustSeatsTaken: jest.fn().mockResolvedValue(undefined),
+			recomputeSeatsTaken: jest.fn().mockResolvedValue(undefined),
 		};
 		auditRepository = { save: jest.fn().mockResolvedValue({}) };
 		dataSource = {
@@ -252,10 +256,10 @@ describe("TripsService", () => {
 			tripType: TripType.OVERNIGHT,
 			startsAt: "2026-09-20T12:00:00.000Z",
 			endsAt: "2026-09-22T10:00:00.000Z",
-			waypoints: createTripDto().waypoints.map((waypoint) => ({
-				...waypoint,
-				plannedAt: undefined,
-			})),
+			waypoints: [
+				{ ...createTripDto().waypoints[0], plannedAt: "2026-09-20T12:00:00.000Z" },
+				{ ...createTripDto().waypoints[1], plannedAt: "2026-09-22T10:00:00.000Z" },
+			],
 		});
 
 		expect(tripsRepository.createDraft).toHaveBeenCalledWith(
@@ -346,10 +350,6 @@ describe("TripsService", () => {
 			name: "day_trip spans multiple dates",
 			patch: {
 				endsAt: "2026-09-21T10:00:00.000Z",
-				waypoints: createTripDto().waypoints.map((waypoint) => ({
-					...waypoint,
-					plannedAt: undefined,
-				})),
 			},
 		},
 		{
@@ -364,9 +364,9 @@ describe("TripsService", () => {
 		expect(tripsRepository.createDraft).not.toHaveBeenCalled();
 	});
 
-	it("returns 422 when waypoint sequence order is duplicated", async () => {
+	it("returns 422 when waypoint plannedAt is duplicated", async () => {
 		const dto = createTripDto();
-		dto.waypoints[1].sequenceOrder = 1;
+		dto.waypoints[1].plannedAt = dto.waypoints[0].plannedAt;
 
 		await expect(service.create(HOST_ID, dto)).rejects.toMatchObject({ status: 422 });
 		expect(tripsRepository.createDraft).not.toHaveBeenCalled();
@@ -479,10 +479,8 @@ describe("TripsService", () => {
 				type: WaypointType.OVERNIGHT,
 				name: "Camp",
 				location: { type: "Point" as const, coordinates: [108.445, 11.943] as [number, number] },
-				dayNumber: 1,
-				sequenceOrder: 2,
+				plannedAt: "2026-09-20T05:00:00.000Z",
 			});
-			dto.waypoints[2].sequenceOrder = 3;
 
 			await expect(
 				service.configureWaypoints(HOST_ID, TRIP_ID, { waypoints: dto.waypoints })
@@ -859,6 +857,170 @@ describe("TripsService", () => {
 
 			expect(tripsRepository.findTripsByHost).toHaveBeenCalledWith(HOST_ID);
 			expect(result).toBe(myTrips);
+		});
+	});
+
+	// ─────────────────────────────────────────────────────────────────────────
+	// CTMS-024 – Prevent Trip Overbooking
+	// BR-067, BR-068, BR-069, BR-070, BR-071, BR-072
+	// ─────────────────────────────────────────────────────────────────────────
+
+	describe("reserveSeats", () => {
+		const FUTURE_DEADLINE = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+		function lockedTrip(overrides: Partial<ReturnType<typeof defaultLockedTrip>> = {}) {
+			return defaultLockedTrip(overrides);
+		}
+
+		function defaultLockedTrip(
+			overrides: Partial<{
+				id: string;
+				capacityMin: number;
+				capacityMax: number | null;
+				seatsTaken: number;
+				status: string;
+				bookingDeadline: Date;
+			}> = {}
+		) {
+			return {
+				id: TRIP_ID,
+				capacityMin: 2,
+				capacityMax: 12,
+				seatsTaken: 5,
+				status: "published",
+				bookingDeadline: FUTURE_DEADLINE,
+				...overrides,
+			};
+		}
+
+		beforeEach(() => {
+			tripsRepository.findByIdForBooking.mockResolvedValue(lockedTrip());
+			tripsRepository.adjustSeatsTaken.mockResolvedValue(undefined);
+			tripsRepository.recomputeSeatsTaken.mockResolvedValue(undefined);
+		});
+
+		it("reserves seats for a published trip within capacity and returns the locked snapshot (BR-071, BR-068)", async () => {
+			const snapshot = await service.reserveSeats(TRIP_ID, 3, {
+				withRepository: jest.fn().mockReturnValue(tripsRepository),
+			} as never);
+
+			expect(tripsRepository.findByIdForBooking).toHaveBeenCalledWith(TRIP_ID);
+			expect(tripsRepository.adjustSeatsTaken).toHaveBeenCalledWith(TRIP_ID, 3);
+			expect(snapshot.id).toBe(TRIP_ID);
+			expect(snapshot.seatsTaken).toBe(5); // original snapshot, not updated value
+		});
+
+		it("returns 404 when the trip does not exist (BR-175)", async () => {
+			tripsRepository.findByIdForBooking.mockResolvedValue(null);
+
+			await expect(
+				service.reserveSeats(TRIP_ID, 2, {
+					withRepository: jest.fn().mockReturnValue(tripsRepository),
+				} as never)
+			).rejects.toBeInstanceOf(NotFoundException);
+			expect(tripsRepository.adjustSeatsTaken).not.toHaveBeenCalled();
+		});
+
+		it("returns 409 when the trip is not published (BR-069)", async () => {
+			tripsRepository.findByIdForBooking.mockResolvedValue(lockedTrip({ status: "draft" }));
+
+			await expect(
+				service.reserveSeats(TRIP_ID, 2, {
+					withRepository: jest.fn().mockReturnValue(tripsRepository),
+				} as never)
+			).rejects.toBeInstanceOf(ConflictException);
+			expect(tripsRepository.adjustSeatsTaken).not.toHaveBeenCalled();
+		});
+
+		it.each(["cancelled", "completed", "ongoing", "pending_approval"])(
+			"returns 409 when the trip status is %s (BR-069)",
+			async (status) => {
+				tripsRepository.findByIdForBooking.mockResolvedValue(lockedTrip({ status }));
+
+				await expect(
+					service.reserveSeats(TRIP_ID, 1, {
+						withRepository: jest.fn().mockReturnValue(tripsRepository),
+					} as never)
+				).rejects.toBeInstanceOf(ConflictException);
+				expect(tripsRepository.adjustSeatsTaken).not.toHaveBeenCalled();
+			}
+		);
+
+		it("returns 409 when the booking deadline has passed (BR-069)", async () => {
+			const pastDeadline = new Date(Date.now() - 1000);
+			tripsRepository.findByIdForBooking.mockResolvedValue(
+				lockedTrip({ bookingDeadline: pastDeadline })
+			);
+
+			await expect(
+				service.reserveSeats(TRIP_ID, 2, {
+					withRepository: jest.fn().mockReturnValue(tripsRepository),
+				} as never)
+			).rejects.toBeInstanceOf(ConflictException);
+			expect(tripsRepository.adjustSeatsTaken).not.toHaveBeenCalled();
+		});
+
+		it("returns 409 when requested seats would exceed capacity_max (BR-071)", async () => {
+			// seatsTaken=10, capacityMax=12 → only 2 remaining; requesting 3 overbooks
+			tripsRepository.findByIdForBooking.mockResolvedValue(
+				lockedTrip({ seatsTaken: 10, capacityMax: 12 })
+			);
+
+			await expect(
+				service.reserveSeats(TRIP_ID, 3, {
+					withRepository: jest.fn().mockReturnValue(tripsRepository),
+				} as never)
+			).rejects.toBeInstanceOf(ConflictException);
+			expect(tripsRepository.adjustSeatsTaken).not.toHaveBeenCalled();
+		});
+
+		it("allows booking the exact remaining seats without conflict (BR-071 boundary)", async () => {
+			// seatsTaken=10, capacityMax=12 → requesting exactly 2 is allowed
+			tripsRepository.findByIdForBooking.mockResolvedValue(
+				lockedTrip({ seatsTaken: 10, capacityMax: 12 })
+			);
+
+			await service.reserveSeats(TRIP_ID, 2, {
+				withRepository: jest.fn().mockReturnValue(tripsRepository),
+			} as never);
+
+			expect(tripsRepository.adjustSeatsTaken).toHaveBeenCalledWith(TRIP_ID, 2);
+		});
+
+		it("allows any group size when capacity_max is null (unlimited trip, BR-071)", async () => {
+			tripsRepository.findByIdForBooking.mockResolvedValue(
+				lockedTrip({ capacityMax: null, seatsTaken: 999 })
+			);
+
+			await service.reserveSeats(TRIP_ID, 50, {
+				withRepository: jest.fn().mockReturnValue(tripsRepository),
+			} as never);
+
+			expect(tripsRepository.adjustSeatsTaken).toHaveBeenCalledWith(TRIP_ID, 50);
+		});
+	});
+
+	describe("releaseSeats", () => {
+		beforeEach(() => {
+			tripsRepository.recomputeSeatsTaken.mockResolvedValue(undefined);
+		});
+
+		it("reconciles seats_taken from bookings table on release (BR-067, BR-069, BR-070)", async () => {
+			await service.releaseSeats(TRIP_ID, {
+				withRepository: jest.fn().mockReturnValue(tripsRepository),
+			} as never);
+
+			expect(tripsRepository.recomputeSeatsTaken).toHaveBeenCalledWith(TRIP_ID);
+		});
+
+		it("propagates repository errors so the caller's transaction can roll back (BR-072, BR-177)", async () => {
+			tripsRepository.recomputeSeatsTaken.mockRejectedValue(new Error("db unavailable"));
+
+			await expect(
+				service.releaseSeats(TRIP_ID, {
+					withRepository: jest.fn().mockReturnValue(tripsRepository),
+				} as never)
+			).rejects.toThrow("db unavailable");
 		});
 	});
 });

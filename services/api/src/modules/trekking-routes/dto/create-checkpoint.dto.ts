@@ -9,12 +9,12 @@ import {
 	IsInt,
 	IsNotEmpty,
 	IsString,
-	Max,
 	MaxLength,
 	Min,
 	Validate,
 	ValidateNested,
 } from "class-validator";
+import { CHECKPOINT_RADIUS_METERS } from "../constants";
 import { CheckpointType } from "../entities/checkpoint.entity";
 import { CanonicalPointCoordinatesConstraint } from "../validators/point.validator";
 
@@ -48,12 +48,11 @@ export class CreateCheckpointDto {
 	@Type(() => GeoJsonPointDto)
 	location!: GeoJsonPointDto;
 
-	@ApiProperty({ minimum: 10, maximum: 500, example: 30 })
+	@ApiProperty({ enum: [CHECKPOINT_RADIUS_METERS], default: CHECKPOINT_RADIUS_METERS })
 	@Type(() => Number)
 	@IsInt()
-	@Min(10)
-	@Max(500)
-	radiusMeters!: number;
+	@Equals(CHECKPOINT_RADIUS_METERS)
+	radiusMeters: number = CHECKPOINT_RADIUS_METERS;
 
 	@ApiProperty({ enum: CheckpointType })
 	@IsEnum(CheckpointType)

@@ -27,10 +27,7 @@ export interface CreateTripWaypointInput {
 	type: TripWaypointType;
 	name: string;
 	location: GeoJsonPoint;
-	dayNumber: number;
-	sequenceOrder: number;
-	plannedAt?: string;
-	durationMinutes?: number;
+	plannedAt: string;
 }
 
 export interface ConfigureTripWaypointsInput {
@@ -198,4 +195,31 @@ export interface TripDetails {
 	createdAt: string;
 	updatedAt: string;
 	waypoints: TripWaypoint[];
+}
+
+export type BookingBlockedReason =
+	| "SOLD_OUT"
+	| "DEADLINE_PASSED"
+	| "TRIP_NOT_PUBLISHED"
+	| "CONFLICT";
+
+export interface BookTripInput {
+	tripId: string;
+	numPeople: number;
+}
+
+export interface BookTripResponse {
+	id: string;
+	tripId: string;
+	userId: string;
+	numPeople: number;
+	status: "pending_payment" | "confirmed" | "cancelled" | "expired" | "completed";
+	paymentStatus: "not_required" | "unpaid" | "paid";
+	holdExpiresAt: string | null;
+	tripStartsAtSnapshot: string;
+	tripEndsAtSnapshot: string;
+	basePrice: string;
+	totalAmount: string;
+	cancellationPolicySnapshot: Record<string, unknown> | null;
+	createdAt: string;
 }

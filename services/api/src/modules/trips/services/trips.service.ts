@@ -23,7 +23,11 @@ import type { PaginatedTripsResponseDto, TripResponseDto } from "../dto/trip-res
 import { WaypointType } from "../entities/trip-waypoint.entity";
 import { type GeoPoint, TripStatus, TripType } from "../entities/trip.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
-import { type CreateTripWaypointInput, TripsRepository } from "../repositories/trips.repository";
+import {
+	type CreateTripWaypointInput,
+	type LockedTripForBooking,
+	TripsRepository,
+} from "../repositories/trips.repository";
 
 interface FieldValidationError {
 	field: string;
@@ -186,7 +190,9 @@ export class TripsService {
 				capacityMax: dto.capacityMax ?? null,
 				pricePerPerson: dto.pricePerPerson,
 				cancellationPolicy: dto.cancellationPolicy ?? null,
-				waypoints: dto.waypoints.map(toWaypointInput),
+				waypoints: sortWaypointsByPlannedAt(dto.waypoints).map((waypoint, index) =>
+					toWaypointInput(waypoint, index, schedule.startsAt)
+				),
 			});
 
 			await manager.getRepository(AuditLog).save({
@@ -200,6 +206,90 @@ export class TripsService {
 			});
 
 			return trip;
+		});
+	}
+
+	async updateDraft(hostId: string, tripId: string, dto: CreateTripDto): Promise<TripResponseDto> {
+		const schedule = this.assertCreateTripPayload(dto);
+
+		return this.dataSource.transaction(async (manager: EntityManager) => {
+			const repository = manager.withRepository(this.tripsRepository);
+			const lockedTrip = await repository.findByIdForWaypointConfiguration(tripId);
+
+			if (!lockedTrip) {
+				throw new NotFoundException("Trip not found");
+			}
+			if (lockedTrip.hostId !== hostId) {
+				throw new ForbiddenException("Only the owning Host can update this Trip");
+			}
+			if (lockedTrip.status !== TripStatus.DRAFT) {
+				throw new ConflictException("Only draft Trips can be updated");
+			}
+
+			const route = await repository.findRouteDependencyForUpdate(dto.routeId);
+			if (!route) {
+				throw new NotFoundException("Trekking route not found");
+			}
+			if (route.hostId !== hostId) {
+				throw new ForbiddenException("Only the owning Host can use this Route");
+			}
+			if (route.status !== TrekkingRouteStatus.ACTIVE) {
+				throw new ConflictException("Trip can be updated only against an approved active Route");
+			}
+
+			const checkpointIds = dto.waypoints
+				.map((waypoint) => waypoint.checkpointId)
+				.filter((checkpointId): checkpointId is string => Boolean(checkpointId));
+			const invalidCheckpointIds = await repository.findInvalidWaypointCheckpointIds(dto.routeId, [
+				...new Set(checkpointIds),
+			]);
+			if (invalidCheckpointIds.length > 0) {
+				throw this.validationException([
+					{
+						field: "waypoints.checkpointId",
+						errors: [
+							`checkpoint must exist on the selected Route: ${invalidCheckpointIds.join(", ")}`,
+						],
+					},
+				]);
+			}
+
+			const updated = await repository.updateDraft(tripId, {
+				hostId,
+				routeId: dto.routeId,
+				title: dto.title,
+				description: dto.description ?? null,
+				coverImageUrl: dto.coverImageUrl ?? null,
+				itinerary: dto.itinerary ?? null,
+				includes: dto.includes ?? null,
+				excludes: dto.excludes ?? null,
+				tripType: dto.tripType,
+				durationNights: deriveDurationNights(dto.tripType, schedule.startsAt, schedule.endsAt),
+				startsAt: schedule.startsAt,
+				endsAt: schedule.endsAt,
+				meetingPoint: toGeoPoint(dto.meetingPoint),
+				meetingAt: schedule.meetingAt,
+				bookingDeadline: schedule.bookingDeadline,
+				capacityMin: dto.capacityMin,
+				capacityMax: dto.capacityMax ?? null,
+				pricePerPerson: dto.pricePerPerson,
+				cancellationPolicy: dto.cancellationPolicy ?? null,
+				waypoints: sortWaypointsByPlannedAt(dto.waypoints).map((waypoint, index) =>
+					toWaypointInput(waypoint, index, schedule.startsAt)
+				),
+			});
+
+			await manager.getRepository(AuditLog).save({
+				actorId: hostId,
+				action: "trip.updated",
+				targetType: "trip",
+				targetId: tripId,
+				before: this.buildAuditSnapshot(lockedTrip.trip),
+				after: this.buildAuditSnapshot(updated),
+				reason: "host_update_trip_draft",
+			});
+
+			return updated;
 		});
 	}
 
@@ -249,7 +339,9 @@ export class TripsService {
 
 			const updated = await repository.replaceWaypointsAndSubmitForApproval(
 				tripId,
-				dto.waypoints.map(toWaypointInput)
+				sortWaypointsByPlannedAt(dto.waypoints).map((waypoint, index) =>
+					toWaypointInput(waypoint, index, new Date(lockedTrip.trip.startsAt))
+				)
 			);
 
 			await manager.getRepository(AuditLog).save({
@@ -326,6 +418,77 @@ export class TripsService {
 		});
 	}
 
+	/**
+	 * CTMS-024 – BR-067, BR-068, BR-071, BR-072, BR-175, BR-176, BR-177, BR-179.
+	 *
+	 * Reserves `numPeople` seats on the given trip inside the caller's active
+	 * transaction.  The method:
+	 *   1. Acquires a row-level FOR UPDATE lock on the trip row so that
+	 *      concurrent booking requests for the same trip_id are serialised
+	 *      (BR-068, BR-179).
+	 *   2. Validates that the trip is bookable (published, before booking
+	 *      deadline, seats available) before any write (BR-175, BR-211).
+	 *   3. Increments seats_taken by numPeople inside the same transaction so
+	 *      the DB constraint acts as a final guard (BR-071, BR-177).
+	 *
+	 * Callers (the Booking module) MUST wrap this call in a DataSource
+	 * transaction.  The `manager` parameter is the active EntityManager from
+	 * that transaction.  Any exception rolls back the full transaction
+	 * (BR-072, BR-176).
+	 *
+	 * Returns the locked trip snapshot for downstream use (price, host, etc.).
+	 */
+	async reserveSeats(
+		tripId: string,
+		numPeople: number,
+		manager: EntityManager
+	): Promise<LockedTripForBooking> {
+		const repository = manager.withRepository(this.tripsRepository);
+		const locked = await repository.findByIdForBooking(tripId);
+
+		if (!locked) {
+			throw new NotFoundException("Trip not found");
+		}
+		if (locked.status !== TripStatus.PUBLISHED) {
+			throw new ConflictException("Trip is not available for booking");
+		}
+
+		const now = new Date();
+		if (new Date(locked.bookingDeadline) <= now) {
+			throw new ConflictException("Booking deadline has passed");
+		}
+
+		// Application-layer overbooking guard (BR-071): check remaining seats
+		// before the DB constraint fires so we can return a clear 409 rather
+		// than a raw constraint violation.
+		if (locked.capacityMax !== null && locked.seatsTaken + numPeople > locked.capacityMax) {
+			throw new ConflictException(
+				`Trip is fully booked: only ${locked.capacityMax - locked.seatsTaken} seat(s) remaining`
+			);
+		}
+
+		await repository.adjustSeatsTaken(tripId, numPeople);
+
+		return locked;
+	}
+
+	/**
+	 * CTMS-024 – BR-067, BR-069, BR-070.
+	 *
+	 * Releases previously reserved seats when a booking is cancelled or expires.
+	 * Reconciles seats_taken from the authoritative bookings table instead of
+	 * using a simple decrement to guarantee correctness across retries, partial
+	 * failures, and rollback scenarios (BR-177).
+	 *
+	 * Must be called inside an active TypeORM transaction that already holds the
+	 * row lock on the trip (acquired by the caller before modifying the booking
+	 * status).
+	 */
+	async releaseSeats(tripId: string, manager: EntityManager): Promise<void> {
+		const repository = manager.withRepository(this.tripsRepository);
+		await repository.recomputeSeatsTaken(tripId);
+	}
+
 	private assertCreateTripPayload(dto: CreateTripDto): {
 		startsAt: Date;
 		endsAt: Date;
@@ -396,43 +559,28 @@ export class TripsService {
 		const errors: FieldValidationError[] = [];
 		const startsAt = new Date(trip.startsAt);
 		const endsAt = new Date(trip.endsAt);
-		const sequenceOrders = new Set<number>();
-		const maxDayNumber = trip.durationNights + 1;
-		let startSequenceOrder: number | null = null;
-		let finishSequenceOrder: number | null = null;
+		const plannedTimes = new Set<string>();
 
 		for (const [index, waypoint] of waypoints.entries()) {
-			if (sequenceOrders.has(waypoint.sequenceOrder)) {
+			const plannedAt = new Date(waypoint.plannedAt);
+			const normalizedPlannedAt = plannedAt.toISOString();
+			if (plannedTimes.has(normalizedPlannedAt)) {
 				errors.push({
-					field: `waypoints.${index}.sequenceOrder`,
-					errors: ["sequenceOrder must be unique within the Trip"],
+					field: `waypoints.${index}.plannedAt`,
+					errors: ["plannedAt must be unique within the Trip"],
 				});
 			}
-			sequenceOrders.add(waypoint.sequenceOrder);
+			plannedTimes.add(normalizedPlannedAt);
 
-			if (waypoint.dayNumber > maxDayNumber) {
+			if (plannedAt < startsAt || plannedAt > endsAt) {
 				errors.push({
-					field: `waypoints.${index}.dayNumber`,
-					errors: ["dayNumber must be within the Trip duration"],
+					field: `waypoints.${index}.plannedAt`,
+					errors: ["plannedAt must be within the Trip schedule"],
 				});
-			}
-			if (waypoint.plannedAt) {
-				const plannedAt = new Date(waypoint.plannedAt);
-				if (plannedAt < startsAt || plannedAt > endsAt) {
-					errors.push({
-						field: `waypoints.${index}.plannedAt`,
-						errors: ["plannedAt must be within the Trip schedule"],
-					});
-				}
-			}
-			if (waypoint.type === WaypointType.START) {
-				startSequenceOrder = waypoint.sequenceOrder;
-			}
-			if (waypoint.type === WaypointType.FINISH) {
-				finishSequenceOrder = waypoint.sequenceOrder;
 			}
 		}
 
+		const sortedWaypoints = sortWaypointsByPlannedAt(waypoints);
 		const startCount = waypoints.filter((waypoint) => waypoint.type === WaypointType.START).length;
 		const finishCount = waypoints.filter(
 			(waypoint) => waypoint.type === WaypointType.FINISH
@@ -447,14 +595,16 @@ export class TripsService {
 		if (finishCount !== 1) {
 			errors.push({ field: "waypoints", errors: ["Trip must include a finish waypoint"] });
 		}
-		if (
-			startSequenceOrder != null &&
-			finishSequenceOrder != null &&
-			startSequenceOrder >= finishSequenceOrder
-		) {
+		if (sortedWaypoints[0]?.type !== WaypointType.START) {
 			errors.push({
 				field: "waypoints",
-				errors: ["start waypoint must occur before finish waypoint"],
+				errors: ["start waypoint must be the earliest planned waypoint"],
+			});
+		}
+		if (sortedWaypoints.at(-1)?.type !== WaypointType.FINISH) {
+			errors.push({
+				field: "waypoints",
+				errors: ["finish waypoint must be the latest planned waypoint"],
 			});
 		}
 		if (trip.tripType === TripType.DAY_TRIP && overnightCount > 0) {
@@ -530,10 +680,7 @@ export class TripsService {
 				checkpointId: waypoint.checkpointId,
 				type: waypoint.type,
 				name: waypoint.name,
-				dayNumber: waypoint.dayNumber,
-				sequenceOrder: waypoint.sequenceOrder,
 				plannedAt: waypoint.plannedAt,
-				durationMinutes: waypoint.durationMinutes,
 			})),
 		};
 	}
@@ -557,16 +704,21 @@ function isSameTripBusinessDate(firstDate: Date, secondDate: Date): boolean {
 	return tripDateFormatter.format(firstDate) === tripDateFormatter.format(secondDate);
 }
 
-function toWaypointInput(waypoint: CreateTripWaypointDto): CreateTripWaypointInput {
+function toWaypointInput(
+	waypoint: CreateTripWaypointDto,
+	index: number,
+	tripStartsAt: Date
+): CreateTripWaypointInput {
+	const plannedAt = new Date(waypoint.plannedAt);
 	return {
 		checkpointId: waypoint.checkpointId ?? null,
 		type: waypoint.type,
 		name: waypoint.name,
 		location: toGeoPoint(waypoint.location),
-		dayNumber: waypoint.dayNumber,
-		sequenceOrder: waypoint.sequenceOrder,
-		plannedAt: waypoint.plannedAt ? new Date(waypoint.plannedAt) : null,
-		durationMinutes: waypoint.durationMinutes ?? null,
+		dayNumber: deriveWaypointDayNumber(tripStartsAt, plannedAt),
+		sequenceOrder: index + 1,
+		plannedAt,
+		durationMinutes: null,
 		metadata: waypoint.metadata ?? null,
 	};
 }
@@ -577,27 +729,38 @@ function waypointsMatchDto(
 ): boolean {
 	if (currentWaypoints.length !== incomingWaypoints.length) return false;
 
-	const currentBySequence = [...currentWaypoints].sort(
-		(first, second) => first.sequenceOrder - second.sequenceOrder
+	const currentBySchedule = [...currentWaypoints].sort(
+		(first, second) =>
+			new Date(first.plannedAt ?? 0).getTime() - new Date(second.plannedAt ?? 0).getTime()
 	);
-	const incomingBySequence = [...incomingWaypoints].sort(
-		(first, second) => first.sequenceOrder - second.sequenceOrder
+	const incomingBySchedule = [...incomingWaypoints].sort(
+		(first, second) => new Date(first.plannedAt).getTime() - new Date(second.plannedAt).getTime()
 	);
 
-	return currentBySequence.every((current, index) => {
-		const incoming = incomingBySequence[index];
+	return currentBySchedule.every((current, index) => {
+		const incoming = incomingBySchedule[index];
 		return (
 			current.checkpointId === (incoming.checkpointId ?? null) &&
 			current.type === incoming.type &&
 			current.name === incoming.name &&
 			coordinatesMatch(current.location.coordinates, incoming.location.coordinates) &&
-			current.dayNumber === incoming.dayNumber &&
-			current.sequenceOrder === incoming.sequenceOrder &&
 			normalizeDate(current.plannedAt) === normalizeDate(incoming.plannedAt) &&
-			current.durationMinutes === (incoming.durationMinutes ?? null) &&
 			JSON.stringify(current.metadata ?? null) === JSON.stringify(incoming.metadata ?? null)
 		);
 	});
+}
+
+function deriveWaypointDayNumber(tripStartsAt: Date, plannedAt: Date): number {
+	const startDate = new Date(
+		tripStartsAt.getFullYear(),
+		tripStartsAt.getMonth(),
+		tripStartsAt.getDate()
+	);
+	const plannedDate = new Date(plannedAt.getFullYear(), plannedAt.getMonth(), plannedAt.getDate());
+	return Math.max(
+		1,
+		Math.floor((plannedDate.getTime() - startDate.getTime()) / ONE_DAY_IN_MILLISECONDS) + 1
+	);
 }
 
 function coordinatesMatch(first: [number, number], second: [number, number]): boolean {
@@ -607,4 +770,10 @@ function coordinatesMatch(first: [number, number], second: [number, number]): bo
 function normalizeDate(value: Date | string | undefined | null): string | null {
 	if (!value) return null;
 	return new Date(value).toISOString();
+}
+
+function sortWaypointsByPlannedAt<T extends { plannedAt: string }>(waypoints: T[]): T[] {
+	return [...waypoints].sort(
+		(first, second) => new Date(first.plannedAt).getTime() - new Date(second.plannedAt).getTime()
+	);
 }

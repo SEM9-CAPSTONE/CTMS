@@ -3,6 +3,7 @@ import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/commo
 import { DataSource, type EntityManager } from "typeorm";
 import { AuditLog } from "../auth/entities/audit-log.entity";
 import type { AuthenticatedUser } from "../auth/jwt.strategy";
+import { Trip } from "../trips/entities/trip.entity";
 import { UserRole } from "../users/entities/user.entity";
 import type { CreateEquipmentCatalogItemDto } from "./dto/create-equipment-catalog-item.dto";
 import {
@@ -70,6 +71,23 @@ export class EquipmentCatalogService {
 
 	async listMine(hostId: string): Promise<EquipmentCatalogItemResponseDto[]> {
 		const items = await this.items.findMineByHost(hostId);
+		return items.map(toEquipmentCatalogItemResponse);
+	}
+
+	/**
+	 * CTMS-040-T02. The Camper-facing equivalent of `listMine`: no Camper
+	 * endpoint into this catalog existed before this story, so the UI had no
+	 * data source to build an equipment-rental picker from. Scoped to the
+	 * Trip's own Host and `active` items only.
+	 */
+	async listForTrip(tripId: string): Promise<EquipmentCatalogItemResponseDto[]> {
+		const trip = await this.dataSource
+			.getRepository(Trip)
+			.findOne({ where: { id: tripId }, select: { id: true, hostId: true } });
+		if (!trip) {
+			throw new NotFoundException("Trip not found");
+		}
+		const items = await this.items.findActiveByHost(trip.hostId);
 		return items.map(toEquipmentCatalogItemResponse);
 	}
 

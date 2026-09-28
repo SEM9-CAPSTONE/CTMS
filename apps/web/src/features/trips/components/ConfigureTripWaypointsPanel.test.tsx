@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { RouteCheckpoint } from "../../trekking-routes/types";
+import type { CreatedTrekkingRoute, RouteCheckpoint } from "../../trekking-routes/types";
 import { tripsService } from "../services/trips.service";
 import type { Trip } from "../types";
 import { ConfigureTripWaypointsPanel } from "./ConfigureTripWaypointsPanel";
@@ -20,6 +20,26 @@ const checkpoint: RouteCheckpoint = {
 	instructions: "Rest here",
 	nearbyWaterOrShelter: true,
 	routePosition: 0.5,
+	createdAt: "2026-09-01T00:00:00.000Z",
+	updatedAt: "2026-09-01T00:00:00.000Z",
+};
+
+const route: CreatedTrekkingRoute = {
+	id: "22222222-2222-4222-8222-222222222222",
+	name: "Bidoup route",
+	description: null,
+	geometry: {
+		type: "LineString",
+		coordinates: [
+			[108.22, 16.04],
+			[108.24, 16.05],
+			[108.25, 16.06],
+		],
+	},
+	difficulty: "moderate",
+	expectedDurationMinutes: 480,
+	lengthMeters: 5000,
+	status: "active",
 	createdAt: "2026-09-01T00:00:00.000Z",
 	updatedAt: "2026-09-01T00:00:00.000Z",
 };
@@ -106,68 +126,88 @@ describe("ConfigureTripWaypointsPanel", () => {
 			...draftTrip,
 			status: "pending_approval",
 		});
-		render(<ConfigureTripWaypointsPanel trip={draftTrip} />);
+		render(<ConfigureTripWaypointsPanel trip={draftTrip} route={route} />);
 
-		fireEvent.click(screen.getByRole("button", { name: "Thêm waypoint" }));
-		fireEvent.change(screen.getByLabelText("Checkpoint waypoint 3"), {
-			target: { value: checkpoint.id },
+		fireEvent.click(screen.getByRole("button", { name: "Chọn vị trí tuyến 2" }));
+		fireEvent.change(screen.getByLabelText("Thời gian điểm dừng 2"), {
+			target: { value: "2026-10-01T12:00" },
 		});
-		fireEvent.change(screen.getByLabelText("Loại waypoint 3"), { target: { value: "rest" } });
-		fireEvent.change(screen.getByLabelText("Thứ tự waypoint 2"), { target: { value: "3" } });
-		fireEvent.change(screen.getByLabelText("Thứ tự waypoint 3"), { target: { value: "2" } });
 
-		fireEvent.click(screen.getByRole("button", { name: "Lưu waypoint và gửi duyệt" }));
+		fireEvent.click(screen.getByRole("button", { name: "Gửi duyệt" }));
 
 		await waitFor(() =>
 			expect(tripsService.configureWaypoints).toHaveBeenCalledWith(
 				draftTrip.id,
 				expect.objectContaining({
 					waypoints: expect.arrayContaining([
-						expect.objectContaining({ type: "start", sequenceOrder: 1 }),
-						expect.objectContaining({ type: "finish", sequenceOrder: 3 }),
 						expect.objectContaining({
-							checkpointId: checkpoint.id,
+							type: "start",
+							plannedAt: expect.any(String),
+						}),
+						expect.objectContaining({
+							type: "finish",
+							plannedAt: expect.any(String),
+						}),
+						expect.objectContaining({
 							type: "rest",
-							name: checkpoint.name,
-							location: expect.objectContaining({ coordinates: [108.24, 16.05] }),
-							sequenceOrder: 2,
+							name: "Nghỉ chân",
+							location: expect.objectContaining({
+								coordinates: [108.24, 16.05],
+							}),
+							plannedAt: expect.any(String),
 						}),
 					]),
 				})
 			)
 		);
-		expect(await screen.findByTestId("configure-trip-status")).toHaveTextContent(
-			"pending_approval"
-		);
-		expect(screen.getByText(/Waypoint đã được backend xác nhận/)).toBeVisible();
+		expect(await screen.findByTestId("configure-trip-status")).toHaveTextContent("Chờ duyệt");
+		expect(screen.getByText(/Lịch trình đã được lưu/)).toBeVisible();
 	});
 
 	it("blocks day-trip overnight waypoint before calling the backend", async () => {
-		render(<ConfigureTripWaypointsPanel trip={draftTrip} />);
+		render(<ConfigureTripWaypointsPanel trip={draftTrip} route={route} />);
 
-		fireEvent.click(screen.getByRole("button", { name: "Thêm waypoint" }));
-		fireEvent.change(screen.getByLabelText("Loại waypoint 3"), { target: { value: "overnight" } });
+		fireEvent.click(screen.getByRole("button", { name: "Chọn vị trí tuyến 2" }));
+		fireEvent.change(screen.getByLabelText("Điểm dừng 2"), {
+			target: { value: "overnight" },
+		});
+		fireEvent.change(screen.getByLabelText("Thời gian điểm dừng 2"), {
+			target: { value: "2026-10-01T12:00" },
+		});
 
-		fireEvent.click(screen.getByRole("button", { name: "Lưu waypoint và gửi duyệt" }));
+		fireEvent.click(screen.getByRole("button", { name: "Gửi duyệt" }));
 
 		expect(await screen.findByText("Trip trong ngày không được có waypoint qua đêm")).toBeVisible();
 		expect(tripsService.configureWaypoints).not.toHaveBeenCalled();
 	});
 
+	it("keeps selected day-trip route points on day one before arrival time is chosen", () => {
+		render(<ConfigureTripWaypointsPanel trip={draftTrip} route={route} />);
+
+		fireEvent.click(screen.getByRole("button", { name: "Chọn vị trí tuyến 2" }));
+
+		expect(screen.getAllByText("Ngày 1").length).toBeGreaterThanOrEqual(3);
+	});
+
 	it("shows empty checkpoint state while preserving custom location editing", () => {
-		checkpointState = { items: [], isLoading: false, error: "", reload: vi.fn() };
+		checkpointState = {
+			items: [],
+			isLoading: false,
+			error: "",
+			reload: vi.fn(),
+		};
 
 		render(<ConfigureTripWaypointsPanel trip={draftTrip} />);
 
-		expect(screen.getByText(/Chưa có checkpoint từ tuyến/)).toBeVisible();
-		expect(screen.getByLabelText("Kinh độ waypoint 1")).not.toBeDisabled();
+		expect(screen.getByTestId("trip-waypoint-location-map")).toBeVisible();
+		expect(screen.getByRole("button", { name: "Chọn điểm dừng trên bản đồ" })).toBeVisible();
 	});
 
 	it("shows blocked state and disables submit when Trip is already published", () => {
 		render(<ConfigureTripWaypointsPanel trip={{ ...draftTrip, status: "published" }} />);
 
 		expect(screen.getByText(/không thể cấu hình waypoint/)).toBeVisible();
-		expect(screen.getByRole("button", { name: "Lưu waypoint và gửi duyệt" })).toBeDisabled();
+		expect(screen.getByRole("button", { name: "Gửi duyệt" })).toBeDisabled();
 	});
 
 	it("shows retry for a backend conflict without clearing form values", async () => {
@@ -176,11 +216,14 @@ describe("ConfigureTripWaypointsPanel", () => {
 		);
 		render(<ConfigureTripWaypointsPanel trip={draftTrip} />);
 
-		fireEvent.change(screen.getByLabelText("Tên waypoint 1"), { target: { value: "Keep me" } });
-		fireEvent.click(screen.getByRole("button", { name: "Lưu waypoint và gửi duyệt" }));
+		fireEvent.click(screen.getByRole("button", { name: "Mở chỉnh sửa điểm dừng 1" }));
+		fireEvent.change(screen.getByLabelText("Mô tả điểm dừng 1"), {
+			target: { value: "Keep me" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "Gửi duyệt" }));
 
 		expect(await screen.findByRole("alert")).toHaveTextContent("Không thể cấu hình waypoint");
-		expect(screen.getByLabelText("Tên waypoint 1")).toHaveValue("Keep me");
+		expect(screen.getByLabelText("Mô tả điểm dừng 1")).toHaveValue("Keep me");
 		expect(screen.getByRole("button", { name: "Thử lại" })).toBeVisible();
 	});
 });

@@ -14,13 +14,29 @@ import {
 	X,
 } from "lucide-react";
 import { useMemo } from "react";
-import type { TripDetails } from "../types";
+import { BookingEquipmentPicker } from "../../booking-equipment/components/BookingEquipmentPicker";
+import type { BookTripResponse, TripDetails } from "../types";
+import { type BookingAccess, BookingPanel } from "./BookingPanel";
+import { TripCapacityBanner } from "./TripCapacityBanner";
 import { formatDateRange, formatVND, getDifficultyBadge, getWeatherRiskBadge } from "./TripCard";
 
 export interface TripDetailViewProps {
 	trip: TripDetails;
 	onBack?: () => void;
-	onBook?: (tripId: string) => void;
+	onBook?: (tripId: string, numPeople: number) => void | Promise<void>;
+	isBooking?: boolean;
+	bookingError?: string | null;
+	booking?: BookTripResponse | null;
+	bookingAccess?: BookingAccess;
+	fieldErrors?: Record<string, string>;
+	canRetry?: boolean;
+	isConflict?: boolean;
+	onBookingRetry?: () => unknown;
+	onBookingReset?: () => void;
+	onSignIn?: () => void;
+	onConflictDismiss?: () => void;
+	onConflictReload?: () => void;
+	onConflictRetry?: () => void;
 }
 
 export function formatDateTime(isoString: string | null | undefined): string {
@@ -56,19 +72,34 @@ export function formatWaypointType(type: string): string {
 	}
 }
 
-export function TripDetailView({ trip, onBack, onBook }: TripDetailViewProps) {
+export function TripDetailView({
+	trip,
+	onBack,
+	onBook,
+	isBooking = false,
+	bookingError = null,
+	booking = null,
+	bookingAccess = "camper",
+	fieldErrors = {},
+	canRetry = false,
+	isConflict = false,
+	onBookingRetry,
+	onBookingReset,
+	onSignIn,
+	onConflictDismiss,
+	onConflictReload,
+	onConflictRetry,
+}: TripDetailViewProps) {
 	const difficulty = getDifficultyBadge(trip.difficulty ?? null);
 	const weather = getWeatherRiskBadge(trip.weatherRiskLevel ?? null);
 	const WeatherIcon = weather.icon;
+	const isBookingClosed = new Date(trip.bookingDeadline) <= new Date();
 
 	const sortedWaypoints = useMemo(() => {
 		if (!trip.waypoints || !Array.isArray(trip.waypoints)) return [];
-		return [...trip.waypoints].sort((a, b) => {
-			if (a.dayNumber !== b.dayNumber) {
-				return a.dayNumber - b.dayNumber;
-			}
-			return a.sequenceOrder - b.sequenceOrder;
-		});
+		return [...trip.waypoints].sort(
+			(a, b) => new Date(a.plannedAt ?? 0).getTime() - new Date(b.plannedAt ?? 0).getTime()
+		);
 	}, [trip.waypoints]);
 
 	const includesList = useMemo<string[]>(() => {
@@ -90,9 +121,6 @@ export function TripDetailView({ trip, onBack, onBook }: TripDetailViewProps) {
 		}
 		return [];
 	}, [trip.excludes]);
-
-	const isBookingClosed = new Date(trip.bookingDeadline) <= new Date();
-	const isSoldOut = trip.remainingSeats === 0 || !trip.isBookable;
 
 	return (
 		<div className="space-y-8">
@@ -276,7 +304,7 @@ export function TripDetailView({ trip, onBack, onBook }: TripDetailViewProps) {
 
 										{/* Milestone Badge */}
 										<div className="flex size-8 shrink-0 items-center justify-center rounded-full border-2 border-[#164027] bg-white text-xs font-extrabold text-[#164027] shadow-xs">
-											{wp.sequenceOrder}
+											{index + 1}
 										</div>
 
 										{/* Milestone Details */}
@@ -286,19 +314,35 @@ export function TripDetailView({ trip, onBack, onBook }: TripDetailViewProps) {
 												<span className="rounded-md bg-[#edf3ed] px-2 py-0.5 text-[11px] font-bold text-[#55685a]">
 													{formatWaypointType(wp.type)}
 												</span>
-												<span className="text-[11px] font-semibold text-[#8fa096]">
-													Ngày {wp.dayNumber}
-												</span>
+												{wp.plannedAt && (
+													<span className="text-[11px] font-semibold text-[#8fa096]">
+														{formatDateTime(wp.plannedAt)}
+													</span>
+												)}
 											</div>
 
 											<div className="mt-1.5 flex flex-wrap gap-4 text-xs text-[#667a6d]">
-												{wp.plannedAt && (
-													<span className="flex items-center gap-1">
-														<Clock className="size-3.5" />
-														<span>{formatDateTime(wp.plannedAt)}</span>
-													</span>
-												)}
-												{wp.durationMinutes && <span>Thời lượng: {wp.durationMinutes} phút</span>}
+												{index < sortedWaypoints.length - 1 &&
+													wp.plannedAt &&
+													sortedWaypoints[index + 1]?.plannedAt && (
+														<span className="flex items-center gap-1">
+															<Clock className="size-3.5" />
+															<span>
+																Đến điểm tiếp theo sau{" "}
+																{Math.max(
+																	0,
+																	Math.round(
+																		(new Date(
+																			sortedWaypoints[index + 1].plannedAt ?? ""
+																		).getTime() -
+																			new Date(wp.plannedAt).getTime()) /
+																			60_000
+																	)
+																)}{" "}
+																phút
+															</span>
+														</span>
+													)}
 												<span>
 													Tọa độ: [{wp.location.coordinates[0].toFixed(3)},{" "}
 													{wp.location.coordinates[1].toFixed(3)}]
@@ -370,116 +414,119 @@ export function TripDetailView({ trip, onBack, onBook }: TripDetailViewProps) {
 					)}
 				</div>
 
-				{/* Right Column: Sticky Booking Action Card */}
-				<div>
-					<div className="sticky top-6 rounded-3xl border border-[#dfe8df] bg-white p-6 shadow-sm">
-						<p className="text-xs font-semibold text-[#8fa096]">Giá trọn gói mỗi khách</p>
-						<p className="mt-1 text-3xl font-extrabold text-[#164027]">
-							{formatVND(trip.pricePerPerson)}
-						</p>
+				{/* Right Column: Sticky Booking Action Card & Sidebar */}
+				<div className="relative">
+					<div className="lg:sticky lg:top-24 space-y-4">
+						{/* Overbooking and capacity urgency banner */}
+						<TripCapacityBanner
+							remainingSeats={trip.remainingSeats}
+							bookingDeadline={trip.bookingDeadline}
+							isBookable={trip.isBookable}
+							status={trip.status}
+						/>
 
-						<div className="mt-5 space-y-3 border-t border-[#edf3ed] pt-4 text-xs">
-							<div className="flex justify-between">
-								<span className="text-[#667a6d]">Trạng thái:</span>
-								<span className="font-bold text-[#164027]">
-									{trip.status === "published" ? "Đang mở đăng ký" : trip.status}
-								</span>
-							</div>
-
-							<div className="flex justify-between">
-								<span className="text-[#667a6d]">Chỗ còn trống:</span>
-								<span className="font-bold">
-									{trip.remainingSeats !== null
-										? trip.remainingSeats > 0
-											? `${trip.remainingSeats} chỗ`
-											: "Hết chỗ"
-										: "Liên hệ"}
-								</span>
-							</div>
-
-							<div className="flex justify-between">
-								<span className="text-[#667a6d]">Hạn đặt chỗ:</span>
-								<span className="font-bold text-[#10221b]">
-									{new Date(trip.bookingDeadline).toLocaleDateString("vi-VN")}
-								</span>
-							</div>
-						</div>
-
-						{/* Booking CTA Button */}
-						<div className="mt-6">
-							{isSoldOut ? (
-								<button
-									type="button"
-									disabled
-									className="w-full rounded-2xl bg-gray-200 py-3.5 text-sm font-bold text-gray-500 cursor-not-allowed"
-								>
-									Đã hết chỗ
-								</button>
-							) : isBookingClosed ? (
-								<button
-									type="button"
-									disabled
-									className="w-full rounded-2xl bg-gray-200 py-3.5 text-sm font-bold text-gray-500 cursor-not-allowed"
-								>
-									Đã hết hạn đặt vé
-								</button>
-							) : (
-								<button
-									type="button"
-									onClick={() => onBook?.(trip.id)}
-									className="w-full cursor-pointer rounded-2xl bg-[#164027] py-3.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#0f2e1c] hover:shadow-md"
-								>
-									Đặt chỗ ngay
-								</button>
-							)}
-
-							<p className="mt-3 text-center text-[11px] text-[#8fa096]">
-								Xác nhận tức thì • Hỗ trợ 24/7
+						<div className="rounded-3xl border border-[#dfe8df] bg-white p-6 shadow-sm">
+							<p className="text-xs font-semibold text-[#8fa096]">Giá trọn gói mỗi khách</p>
+							<p className="mt-1 text-3xl font-extrabold text-[#164027]">
+								{formatVND(trip.pricePerPerson)}
 							</p>
-						</div>
-					</div>
 
-					{/* Host Profile Card */}
-					<div className="mt-6 rounded-3xl border border-[#dfe8df] bg-white p-6 shadow-sm">
-						<div className="flex items-center gap-2">
-							<Users className="size-5 text-[#164027]" />
-							<h3 className="text-base font-extrabold text-[#10221b]">Đơn vị tổ chức</h3>
-						</div>
-						<div className="mt-4 flex items-center gap-3.5">
-							<div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-[#eef7f0] font-extrabold text-[#164027] ring-2 ring-[#164027]/20 text-base">
-								{trip.host?.fullName ? trip.host.fullName.charAt(0).toUpperCase() : "H"}
-							</div>
-							<div className="min-w-0 flex-1">
-								<h4 className="truncate text-sm font-extrabold text-[#10221b]">
-									{trip.host?.fullName || "Host uy tín CTMS"}
-								</h4>
-								<div className="mt-0.5 flex items-center gap-1.5">
-									<span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200">
-										Host đã xác thực
+							<div className="mt-5 space-y-3 border-t border-[#edf3ed] pt-4 text-xs">
+								<div className="flex justify-between">
+									<span className="text-[#667a6d]">Trạng thái:</span>
+									<span className="font-bold text-[#164027]">
+										{trip.status === "published" ? "Đang mở đăng ký" : trip.status}
+									</span>
+								</div>
+
+								<div className="flex justify-between">
+									<span className="text-[#667a6d]">Chỗ còn trống:</span>
+									<span data-testid="trip-remaining-seats" className="font-bold">
+										{trip.remainingSeats !== null
+											? trip.remainingSeats > 0
+												? `${trip.remainingSeats} chỗ`
+												: "Hết chỗ"
+											: "Liên hệ"}
+									</span>
+								</div>
+
+								<div className="flex justify-between">
+									<span className="text-[#667a6d]">Hạn đặt chỗ:</span>
+									<span className="font-bold text-[#10221b]">
+										{new Date(trip.bookingDeadline).toLocaleDateString("vi-VN")}
 									</span>
 								</div>
 							</div>
+
+							<div className="mt-5">
+								<BookingPanel
+									trip={trip}
+									bookingAccess={bookingAccess}
+									booking={booking}
+									isBooking={isBooking}
+									bookingError={bookingError}
+									fieldErrors={fieldErrors}
+									isConflict={isConflict}
+									canRetry={canRetry}
+									onBook={onBook}
+									onRetry={onBookingRetry ?? onConflictRetry}
+									onReset={onBookingReset}
+									onSignIn={onSignIn}
+									onConflictDismiss={onConflictDismiss}
+									onConflictReload={onConflictReload}
+								/>
+								{booking && (
+									<BookingEquipmentPicker
+										tripId={trip.id}
+										bookingId={booking.id}
+										initialTotalAmount={booking.totalAmount}
+									/>
+								)}
+							</div>
 						</div>
 
-						{trip.host?.bio && (
-							<p className="mt-3.5 text-xs text-[#52665b] leading-relaxed italic border-t border-[#edf3ed] pt-3">
-								"{trip.host.bio}"
-							</p>
-						)}
+						{/* Host Profile Card */}
+						<div className="rounded-3xl border border-[#dfe8df] bg-white p-6 shadow-sm">
+							<div className="flex items-center gap-2">
+								<Users className="size-5 text-[#164027]" />
+								<h3 className="text-base font-extrabold text-[#10221b]">Đơn vị tổ chức</h3>
+							</div>
+							<div className="mt-4 flex items-center gap-3.5">
+								<div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-[#eef7f0] font-extrabold text-[#164027] ring-2 ring-[#164027]/20 text-base">
+									{trip.host?.fullName ? trip.host.fullName.charAt(0).toUpperCase() : "H"}
+								</div>
+								<div className="min-w-0 flex-1">
+									<h4 className="truncate text-sm font-extrabold text-[#10221b]">
+										{trip.host?.fullName || "Host uy tín CTMS"}
+									</h4>
+									<div className="mt-0.5 flex items-center gap-1.5">
+										<span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200">
+											Host đã xác thực
+										</span>
+									</div>
+								</div>
+							</div>
 
-						<div className="mt-3.5 space-y-1.5 border-t border-[#edf3ed] pt-3 text-xs text-[#667a6d]">
-							{trip.host?.email && (
-								<div className="flex items-center gap-2">
-									<span className="font-semibold text-[#8fa096]">Email:</span>
-									<span className="truncate font-medium text-[#10221b]">{trip.host.email}</span>
-								</div>
+							{trip.host?.bio && (
+								<p className="mt-3.5 text-xs text-[#52665b] leading-relaxed italic border-t border-[#edf3ed] pt-3">
+									"{trip.host.bio}"
+								</p>
 							)}
-							{trip.host?.phone && (
-								<div className="flex items-center gap-2">
-									<span className="font-semibold text-[#8fa096]">Hotline:</span>
-									<span className="font-medium text-[#10221b]">{trip.host.phone}</span>
-								</div>
-							)}
+
+							<div className="mt-3.5 space-y-1.5 border-t border-[#edf3ed] pt-3 text-xs text-[#667a6d]">
+								{trip.host?.email && (
+									<div className="flex items-center gap-2">
+										<span className="font-semibold text-[#8fa096]">Email:</span>
+										<span className="truncate font-medium text-[#10221b]">{trip.host.email}</span>
+									</div>
+								)}
+								{trip.host?.phone && (
+									<div className="flex items-center gap-2">
+										<span className="font-semibold text-[#8fa096]">Hotline:</span>
+										<span className="font-medium text-[#10221b]">{trip.host.phone}</span>
+									</div>
+								)}
+							</div>
 						</div>
 					</div>
 				</div>

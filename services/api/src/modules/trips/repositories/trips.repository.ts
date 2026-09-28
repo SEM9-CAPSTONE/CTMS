@@ -68,6 +68,26 @@ export interface LockedTripForReview {
 	status: TripStatus;
 }
 
+/**
+ * CTMS-024 – Prevent Trip Overbooking.
+ * Minimal projection locked FOR UPDATE to validate and increment seats_taken
+ * atomically within a booking transaction (BR-068, BR-071).
+ */
+export interface LockedTripForBooking {
+	id: string;
+	routeId: string;
+	routeStatus: TrekkingRouteStatus;
+	capacityMin: number;
+	capacityMax: number | null;
+	seatsTaken: number;
+	status: TripStatus;
+	bookingDeadline: Date;
+	startsAt: Date;
+	endsAt: Date;
+	pricePerPerson: string;
+	cancellationPolicy: Record<string, unknown> | null;
+}
+
 export interface SearchPublishedTripsFilter {
 	search?: string;
 	tripType?: TripType;
@@ -311,7 +331,7 @@ const TRIP_SELECT = `
 					'durationMinutes', waypoint."duration_minutes",
 					'metadata', waypoint."metadata"
 				)
-				ORDER BY waypoint."sequence_order", waypoint."id"
+				ORDER BY waypoint."planned_at", waypoint."id"
 			)
 			FROM "trip_waypoints" waypoint
 			WHERE waypoint."trip_id" = trip."id"
@@ -456,6 +476,98 @@ export class TripsRepository extends Repository<Trip> {
 			throw new Error("Failed to load created Trip");
 		}
 		return created;
+	}
+
+	async updateDraft(tripId: string, input: CreateTripInput): Promise<TripResponseDto> {
+		await this.query(
+			`
+			UPDATE "trips"
+			SET
+				"route_id" = $2,
+				"title" = $3,
+				"description" = $4,
+				"cover_image_url" = $5,
+				"itinerary" = $6::jsonb,
+				"includes" = $7::jsonb,
+				"excludes" = $8::jsonb,
+				"trip_type" = $9,
+				"duration_nights" = $10,
+				"starts_at" = $11,
+				"ends_at" = $12,
+				"meeting_point" = ST_SetSRID(ST_GeomFromGeoJSON($13), 4326)::geography,
+				"meeting_at" = $14,
+				"booking_deadline" = $15,
+				"capacity_min" = $16,
+				"capacity_max" = $17,
+				"price_per_person" = $18,
+				"cancellation_policy" = $19::jsonb,
+				"updated_at" = now()
+			WHERE "id" = $1
+			`,
+			[
+				tripId,
+				input.routeId,
+				input.title,
+				input.description,
+				input.coverImageUrl,
+				JSON.stringify(input.itinerary),
+				JSON.stringify(input.includes),
+				JSON.stringify(input.excludes),
+				input.tripType,
+				input.durationNights,
+				input.startsAt,
+				input.endsAt,
+				JSON.stringify(input.meetingPoint),
+				input.meetingAt,
+				input.bookingDeadline,
+				input.capacityMin,
+				input.capacityMax,
+				input.pricePerPerson,
+				JSON.stringify(input.cancellationPolicy),
+			]
+		);
+
+		await this.query(`DELETE FROM "trip_waypoints" WHERE "trip_id" = $1`, [tripId]);
+		for (const waypoint of input.waypoints) {
+			await this.query(
+				`
+				INSERT INTO "trip_waypoints" (
+					"trip_id",
+					"checkpoint_id",
+					"type",
+					"name",
+					"location",
+					"day_number",
+					"sequence_order",
+					"planned_at",
+					"duration_minutes",
+					"metadata"
+				)
+				VALUES (
+					$1, $2, $3, $4, ST_SetSRID(ST_GeomFromGeoJSON($5), 4326)::geography,
+					$6, $7, $8, $9, $10::jsonb
+				)
+				`,
+				[
+					tripId,
+					waypoint.checkpointId,
+					waypoint.type,
+					waypoint.name,
+					JSON.stringify(waypoint.location),
+					waypoint.dayNumber,
+					waypoint.sequenceOrder,
+					waypoint.plannedAt,
+					waypoint.durationMinutes,
+					JSON.stringify(waypoint.metadata),
+				]
+			);
+		}
+
+		const updated = await this.findById(tripId);
+		if (!updated) {
+			throw new Error("Failed to load updated Trip");
+		}
+		return updated;
 	}
 
 	async findByIdForWaypointConfiguration(
@@ -736,5 +848,103 @@ export class TripsRepository extends Repository<Trip> {
 			items: rows.map(toTripSummaryResponse),
 			total,
 		};
+	}
+
+	/**
+	 * CTMS-024 – BR-068.
+	 * Acquires a row-level advisory lock on the trips row for the duration of
+	 * the caller's transaction so that concurrent booking writes are serialised
+	 * for the same trip_id.  Must be called inside an active TypeORM transaction
+	 * (manager.withRepository).
+	 */
+	async findByIdForBooking(tripId: string): Promise<LockedTripForBooking | null> {
+		const rows = (await this.query(
+			`
+			SELECT
+				trip."id",
+				trip."route_id" AS "routeId",
+				route."status" AS "routeStatus",
+				trip."capacity_min" AS "capacityMin",
+				trip."capacity_max" AS "capacityMax",
+				trip."seats_taken"  AS "seatsTaken",
+				trip."status",
+				trip."booking_deadline" AS "bookingDeadline",
+				trip."starts_at" AS "startsAt",
+				trip."ends_at" AS "endsAt",
+				trip."price_per_person" AS "pricePerPerson",
+				trip."cancellation_policy" AS "cancellationPolicy"
+			FROM "trips" trip
+			INNER JOIN "trekking_routes" route ON route."id" = trip."route_id"
+			WHERE trip."id" = $1
+			FOR UPDATE OF trip, route
+			`,
+			[tripId]
+		)) as Array<{
+			id: string;
+			routeId: string;
+			routeStatus: TrekkingRouteStatus;
+			capacityMin: number | string;
+			capacityMax: number | string | null;
+			seatsTaken: number | string;
+			status: TripStatus;
+			bookingDeadline: Date;
+			startsAt: Date;
+			endsAt: Date;
+			pricePerPerson: string;
+			cancellationPolicy: Record<string, unknown> | null;
+		}>;
+
+		const row = rows[0];
+		if (!row) return null;
+
+		return {
+			id: row.id,
+			routeId: row.routeId,
+			routeStatus: row.routeStatus,
+			capacityMin: Number(row.capacityMin),
+			capacityMax: row.capacityMax == null ? null : Number(row.capacityMax),
+			seatsTaken: Number(row.seatsTaken),
+			status: row.status,
+			bookingDeadline: row.bookingDeadline,
+			startsAt: row.startsAt,
+			endsAt: row.endsAt,
+			pricePerPerson: row.pricePerPerson,
+			cancellationPolicy: row.cancellationPolicy,
+		};
+	}
+
+	/**
+	 * CTMS-024 – BR-067, BR-071, BR-072.
+	 * Atomically adjusts seats_taken by `delta` (+N for reserve, -N for release).
+	 * The DB constraint CHK_trips_seats_taken (seats_taken >= 0 AND seats_taken
+	 * <= capacity_max) acts as the final overbooking guard.  If the constraint
+	 * is violated the UPDATE throws and the caller's transaction is rolled back
+	 * cleanly (BR-177).
+	 *
+	 * Must be called inside an active TypeORM transaction after
+	 * `findByIdForBooking` has acquired the row lock (BR-068).
+	 */
+	async adjustSeatsTaken(tripId: string, delta: number): Promise<void> {
+		await this.query(
+			`
+			UPDATE "trips"
+			SET "seats_taken" = "seats_taken" + $2,
+			    "updated_at"  = now()
+			WHERE "id" = $1
+			`,
+			[tripId, delta]
+		);
+	}
+
+	/**
+	 * CTMS-024 – BR-067, BR-069, BR-070.
+	 * Reconciles seats_taken from the authoritative bookings table by calling
+	 * the `recompute_trip_seats_taken` database function.  Used after a booking
+	 * cancellation, expiry, or any compensating rollback where the delta-based
+	 * counter may be out of sync.  Must be called inside a transaction that
+	 * already holds the row lock on the trip (FOR UPDATE).
+	 */
+	async recomputeSeatsTaken(tripId: string): Promise<void> {
+		await this.query("SELECT recompute_trip_seats_taken($1)", [tripId]);
 	}
 }

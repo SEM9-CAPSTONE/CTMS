@@ -324,6 +324,169 @@ async function main() {
 				[tripId, JSON.stringify(meetingPoint)]
 			);
 			console.log(JSON.stringify({ id: tripId }));
+		} else if (action === "seed-published-trip") {
+			// CTMS-40-T02 E2E. Seeds a Trip already `published` with a real
+			// green Weather Risk assessment for its Route -- both are
+			// preconditions `POST /bookings` enforces (BookingsService's
+			// `assertTripEligible`/`assertBookingWeatherAllowed`) that this
+			// story's own E2E does not own re-testing; mirrors
+			// `bookings.create.integration-spec.ts`'s own fixture SQL exactly.
+			const input = parseJsonArg<{
+				hostId: string;
+				routeId: string;
+				title: string;
+				pricePerPerson?: string;
+				createdBy: string;
+			}>(arg);
+			if (!input.title.startsWith("E2E") && !input.title.startsWith("CTMS")) {
+				throw new Error(`Refusing to seed non-E2E trip: ${input.title}`);
+			}
+			const meetingPoint = { type: "Point", coordinates: [108.45, 11.94] };
+			const tripId = await dataSource.transaction(async (manager) => {
+				const tripRows = (await manager.query(
+					`INSERT INTO "trips" (
+						"host_id", "route_id", "title", "description", "trip_type", "duration_nights",
+						"starts_at", "ends_at", "meeting_point", "booking_deadline",
+						"capacity_min", "capacity_max", "price_per_person", "status"
+					)
+					VALUES (
+						$1, $2, $3, 'e2e published trip fixture', 'day_trip', 0,
+						now() + interval '5 days', now() + interval '5 days 8 hours',
+						ST_SetSRID(ST_GeomFromGeoJSON($4), 4326)::geography, now() + interval '4 days',
+						1, 10, $5, 'published'
+					)
+					RETURNING "id"`,
+					[
+						input.hostId,
+						input.routeId,
+						input.title,
+						JSON.stringify(meetingPoint),
+						input.pricePerPerson ?? "0.00",
+					]
+				)) as Array<{ id: string }>;
+				const insertedTripId = tripRows[0].id;
+				await manager.query(
+					`INSERT INTO "trip_waypoints" ("trip_id", "type", "name", "location", "day_number", "sequence_order")
+					 VALUES
+					 ($1, 'start', 'Trailhead', ST_SetSRID(ST_GeomFromGeoJSON($2), 4326)::geography, 1, 1),
+					 ($1, 'finish', 'Exit point', ST_SetSRID(ST_GeomFromGeoJSON($2), 4326)::geography, 1, 2)`,
+					[insertedTripId, JSON.stringify(meetingPoint)]
+				);
+				const snapshotRows = (await manager.query(
+					`INSERT INTO "weather_snapshots" ("route_id", "status", "observed_at")
+					 VALUES ($1, 'success', now()) RETURNING "id"`,
+					[input.routeId]
+				)) as Array<{ id: string }>;
+				const ruleRows = (await manager.query(
+					`INSERT INTO "weather_risk_rules" (
+						"rainfall_yellow_threshold", "rainfall_red_threshold",
+						"wind_yellow_threshold", "wind_red_threshold", "temp_low_yellow", "temp_low_red",
+						"temp_high_yellow", "temp_high_red", "visibility_yellow_threshold",
+						"visibility_red_threshold", "thunderstorm_yellow", "thunderstorm_red",
+						"rainfall_weight", "wind_weight", "temperature_weight", "visibility_weight",
+						"thunderstorm_weight", "green_max_score", "yellow_max_score", "is_active"
+					) VALUES (
+						10, 50, 40, 70, 5, 0, 38, 42, 5000, 1000, true, true,
+						0.30, 0.25, 0.15, 0.15, 0.15, 0.5, 1.2, true
+					) RETURNING "id"`
+				)) as Array<{ id: string }>;
+				await manager.query(
+					`INSERT INTO "weather_risk_assessments" (
+						"route_id", "snapshot_id", "rule_version_id", "risk_level",
+						"composite_score", "criteria_scores", "created_by"
+					) VALUES ($1, $2, $3, 'green', 0, $4::jsonb, $5)`,
+					[
+						input.routeId,
+						snapshotRows[0].id,
+						ruleRows[0].id,
+						JSON.stringify({
+							rainfall: { value: 0, level: "green", weight: 0.3, score: 0 },
+							wind: { value: 0, level: "green", weight: 0.2, score: 0 },
+							temperature: { value: 20, level: "green", weight: 0.2, score: 0 },
+							visibility: { value: 10000, level: "green", weight: 0.15, score: 0 },
+							thunderstorm: { value: false, level: "green", weight: 0.15, score: 0 },
+						}),
+						input.createdBy,
+					]
+				);
+				return insertedTripId;
+			});
+			console.log(JSON.stringify({ id: tripId }));
+		} else if (action === "seed-equipment") {
+			// CTMS-40-T02 E2E. Seeds an active equipment_catalog_items row for a
+			// Host so the Camper-facing picker has real data to render, mirrors
+			// equipment-catalog.for-trip.integration-spec.ts's own fixture SQL.
+			const input = parseJsonArg<{ hostId: string; name: string; rentalPricePerDay?: string }>(arg);
+			if (!input.name.startsWith("E2E") && !input.name.startsWith("CTMS")) {
+				throw new Error(`Refusing to seed non-E2E equipment: ${input.name}`);
+			}
+			const rows = (await dataSource.query(
+				`INSERT INTO "equipment_catalog_items"
+					("host_id", "name", "category", "quantity_total", "rental_price_per_day", "status")
+				 VALUES ($1, $2, 'shelter', 5, $3, 'active')
+				 RETURNING "id"`,
+				[input.hostId, input.name, input.rentalPricePerDay ?? "50000.00"]
+			)) as Array<{ id: string }>;
+			console.log(JSON.stringify({ id: rows[0].id }));
+		} else if (action === "get-booking") {
+			// CTMS-40-T02 E2E. Reads the real bookings + booking_items rows for
+			// a (tripId, userId) pair -- proves a UI-triggered "Đặt chỗ" and
+			// "Thêm thiết bị" click persisted the real authoritative state, same
+			// "verify the real DB row, not just the UI" rigor as get-trip.
+			const input = parseJsonArg<{ tripId: string; userId: string }>(arg);
+			const bookingRows = await dataSource.query(
+				`SELECT "id", "status", "payment_status" AS "paymentStatus", "base_price" AS "basePrice",
+				        "total_amount" AS "totalAmount"
+				 FROM "bookings" WHERE "trip_id" = $1 AND "user_id" = $2
+				 ORDER BY "created_at" DESC LIMIT 1`,
+				[input.tripId, input.userId]
+			);
+			const booking = bookingRows[0] ?? null;
+			const items = booking
+				? await dataSource.query(
+						`SELECT "id", "equipment_catalog_item_id" AS "equipmentCatalogItemId", "quantity",
+						        "unit_price" AS "unitPrice", "rental_days" AS "rentalDays",
+						        "total_price" AS "totalPrice"
+						 FROM "booking_items" WHERE "booking_id" = $1 ORDER BY "created_at" ASC`,
+						[booking.id]
+					)
+				: [];
+			console.log(JSON.stringify({ booking, items }));
+		} else if (action === "clean-bookings") {
+			const input = parseJsonArg<{ tripIds: string[] }>(arg);
+			if (input.tripIds.length > 0) {
+				await dataSource.query(
+					`DELETE FROM "audit_logs" WHERE "target_id" IN (
+						SELECT "id" FROM "booking_items" WHERE "booking_id" IN (
+							SELECT "id" FROM "bookings" WHERE "trip_id" = ANY($1)
+						)
+					)`,
+					[input.tripIds]
+				);
+				await dataSource.query(
+					'DELETE FROM "audit_logs" WHERE "target_id" IN (SELECT "id" FROM "bookings" WHERE "trip_id" = ANY($1))',
+					[input.tripIds]
+				);
+				await dataSource.query('DELETE FROM "bookings" WHERE "trip_id" = ANY($1)', [input.tripIds]);
+			}
+			console.log(JSON.stringify({ success: true }));
+		} else if (action === "clean-equipment") {
+			const input = parseJsonArg<{ equipmentIds: string[] }>(arg);
+			if (input.equipmentIds.length > 0) {
+				const rows = (await dataSource.query(
+					'SELECT "id", "name" FROM "equipment_catalog_items" WHERE "id" = ANY($1)',
+					[input.equipmentIds]
+				)) as Array<{ id: string; name: string }>;
+				const unsafe = rows.find(
+					(row) => !row.name.startsWith("E2E") && !row.name.startsWith("CTMS")
+				);
+				if (unsafe)
+					throw new Error(`Refusing to delete non-E2E equipment: ${unsafe.id} ${unsafe.name}`);
+				await dataSource.query('DELETE FROM "equipment_catalog_items" WHERE "id" = ANY($1)', [
+					input.equipmentIds,
+				]);
+			}
+			console.log(JSON.stringify({ success: true }));
 		} else if (action === "get-trip") {
 			// CTMS-23-T02 E2E. Reads the real trips row -- proves a UI-triggered
 			// Admin review click persisted the real status transition, same

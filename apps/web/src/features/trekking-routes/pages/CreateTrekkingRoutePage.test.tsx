@@ -4,6 +4,11 @@ import { useCreateTrekkingRoute } from "../hooks/useCreateTrekkingRoute";
 import { CreateTrekkingRoutePage } from "./CreateTrekkingRoutePage";
 
 vi.mock("../hooks/useCreateTrekkingRoute", () => ({ useCreateTrekkingRoute: vi.fn() }));
+vi.mock("../components/RouteCheckpointsPanel", () => ({
+	RouteCheckpointsPanel: ({ route }: { route: { id: string } }) => (
+		<div data-testid="inline-checkpoints">{route.id}</div>
+	),
+}));
 vi.mock("../components/CreateTrekkingRouteForm", () => ({
 	CreateTrekkingRouteForm: () => <div data-testid="route-form" />,
 }));
@@ -31,9 +36,16 @@ describe("CreateTrekkingRoutePage", () => {
 	it("renders authoritative server length and status after success", () => {
 		vi.mocked(useCreateTrekkingRoute).mockReturnValue({
 			...creation,
-			createdRoute: { name: "Ridge", status: "draft", lengthMeters: 1234.56, difficulty: "hard" },
+			createdRoute: {
+				id: "saved-route",
+				name: "Ridge",
+				status: "draft",
+				lengthMeters: 1234.56,
+				difficulty: "hard",
+			},
 		} as never);
 		render(<CreateTrekkingRoutePage />);
+		expect(screen.getByTestId("inline-checkpoints")).toHaveTextContent("saved-route");
 		expect(screen.getByTestId("server-route-status")).toHaveTextContent("draft");
 		expect(screen.getByTestId("server-route-length")).toHaveTextContent("1234.6 m");
 	});

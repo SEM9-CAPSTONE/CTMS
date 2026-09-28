@@ -1,5 +1,6 @@
-import { ArrowLeft, CheckCircle2, Map as MapIcon } from "lucide-react";
+import { ArrowLeft, Map as MapIcon } from "lucide-react";
 import { CreateTrekkingRouteForm } from "../components/CreateTrekkingRouteForm";
+import { RouteDraftWorkspace } from "../components/RouteDraftWorkspace";
 import { useCreateTrekkingRoute } from "../hooks/useCreateTrekkingRoute";
 
 export interface CreateTrekkingRoutePageProps {
@@ -10,55 +11,32 @@ export function CreateTrekkingRoutePage({ onBackHome }: CreateTrekkingRoutePageP
 	const creation = useCreateTrekkingRoute();
 
 	if (creation.createdRoute) {
-		const route = creation.createdRoute;
 		return (
-			<main className="min-h-screen bg-[#f4f7f2] p-5 sm:p-10">
-				<section className="mx-auto max-w-2xl rounded-2xl border border-green-200 bg-white p-8 text-center shadow-sm">
-					<CheckCircle2 className="mx-auto size-14 text-green-600" />
-					<h1 className="mt-4 text-2xl font-extrabold">Tạo tuyến đường thành công</h1>
-					<p className="mt-2 text-[#667a6d]">
-						Thông tin dưới đây là kết quả chính thức do máy chủ trả về.
-					</p>
-					<div className="mt-5 grid gap-3 rounded-xl bg-[#f8faf7] p-5 text-left sm:grid-cols-2">
-						<p>
-							<b>Tuyến:</b> {route.name}
-						</p>
-						<p>
-							<b>Trạng thái:</b> <span data-testid="server-route-status">{route.status}</span>
-						</p>
-						<p>
-							<b>Chiều dài:</b>{" "}
-							<span data-testid="server-route-length">{route.lengthMeters.toFixed(1)} m</span>
-						</p>
-						<p>
-							<b>Độ khó:</b> {route.difficulty}
-						</p>
-						<p className="sm:col-span-2">
-							<b>ID:</b>{" "}
-							<span data-testid="created-route-id" className="font-mono">
-								{route.id}
-							</span>
-						</p>
-					</div>
-					<div className="mt-6 flex justify-center gap-3">
+			<main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+				<h1 className="text-2xl font-extrabold">Hoàn thiện tuyến đường</h1>
+				<p className="mt-2 text-sm text-[#667a6d]">
+					Đã lưu tuyến nháp. Thêm điểm dừng và khu vực nguy hiểm bên dưới, rồi gửi duyệt khi đã sẵn
+					sàng.
+				</p>
+				<RouteDraftWorkspace key={creation.createdRoute.id} route={creation.createdRoute} />
+				<div className="mt-6 flex gap-3">
+					<button
+						type="button"
+						onClick={creation.reset}
+						className="rounded-xl border px-4 py-3 font-bold"
+					>
+						Tạo tuyến khác
+					</button>
+					{onBackHome && (
 						<button
 							type="button"
-							onClick={creation.reset}
-							className="rounded-xl bg-[#164027] px-4 py-3 font-bold text-white"
+							onClick={onBackHome}
+							className="rounded-xl border px-4 py-3 font-bold"
 						>
-							Tạo tuyến khác
+							Về Host Dashboard
 						</button>
-						{onBackHome && (
-							<button
-								type="button"
-								onClick={onBackHome}
-								className="rounded-xl border px-4 py-3 font-bold"
-							>
-								Về Host Dashboard
-							</button>
-						)}
-					</div>
-				</section>
+					)}
+				</div>
 			</main>
 		);
 	}

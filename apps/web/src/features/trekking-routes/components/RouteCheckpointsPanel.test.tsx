@@ -73,11 +73,11 @@ vi.mock("./CreateCheckpointForm", () => ({
 					if (saved) onCreated();
 				}}
 			>
-				{checkpoint ? "Lưu thay đổi" : "Tạo checkpoint"}
+				{checkpoint ? "Lưu thay đổi" : "Thêm điểm dừng"}
 			</button>
 			{checkpoint && (
 				<button type="button" onClick={onCancel}>
-					Hủy chỉnh checkpoint
+					Hủy chỉnh điểm dừng
 				</button>
 			)}
 		</div>
@@ -162,7 +162,7 @@ describe("RouteCheckpointsPanel", () => {
 			/>
 		);
 		expect(useRouteCheckpoints).toHaveBeenCalledWith("route-one");
-		expect(screen.getByRole("button", { name: "Tạo checkpoint" })).toBeEnabled();
+		expect(screen.getByRole("button", { name: "Thêm điểm dừng" })).toBeEnabled();
 		expect(screen.getByText("Rest")).toBeInTheDocument();
 		expect(screen.getByTestId("panel-map")).toHaveAttribute("data-disabled", "false");
 		expect(screen.getByTestId("panel-map")).toHaveAttribute("data-mode", "checkpoint");
@@ -186,8 +186,8 @@ describe("RouteCheckpointsPanel", () => {
 		fireEvent.click(screen.getByRole("button", { name: "Sửa" }));
 		expect(screen.getByRole("button", { name: "Lưu thay đổi" })).toBeEnabled();
 		expect(screen.getByTestId("panel-map")).toHaveAttribute("data-selected", "108.46,11.94");
-		fireEvent.click(screen.getByRole("button", { name: "Hủy chỉnh checkpoint" }));
-		expect(screen.getByRole("button", { name: "Tạo checkpoint" })).toBeEnabled();
+		fireEvent.click(screen.getByRole("button", { name: "Hủy chỉnh điểm dừng" }));
+		expect(screen.getByRole("button", { name: "Thêm điểm dừng" })).toBeEnabled();
 		expect(screen.getByText("Rest")).toBeInTheDocument();
 		expect(updateSubmit).not.toHaveBeenCalled();
 	});
@@ -216,8 +216,8 @@ describe("RouteCheckpointsPanel", () => {
 		expect(updateSubmit).toHaveBeenCalledWith("checkpoint-id", checkpoint);
 		expect(screen.getByRole("button", { name: "Lưu thay đổi" })).toBeInTheDocument();
 		resolve(checkpoint);
-		expect(await screen.findByRole("status")).toHaveTextContent("Đã cập nhật checkpoint.");
-		expect(screen.getByRole("button", { name: "Tạo checkpoint" })).toBeInTheDocument();
+		expect(await screen.findByRole("status")).toHaveTextContent("Đã cập nhật điểm dừng.");
+		expect(screen.getByRole("button", { name: "Thêm điểm dừng" })).toBeInTheDocument();
 	});
 
 	it("switches explicit map modes and renders hazard loading/error/retry/success states", () => {
@@ -316,7 +316,7 @@ describe("RouteCheckpointsPanel", () => {
 			);
 			expect(useRouteCheckpoints).toHaveBeenLastCalledWith("route-two");
 			expect(screen.getByText(/Chỉ xem/)).toBeInTheDocument();
-			expect(screen.getByRole("button", { name: "Tạo checkpoint" })).toBeDisabled();
+			expect(screen.getByRole("button", { name: "Thêm điểm dừng" })).toBeDisabled();
 			expect(screen.getByText("Rest")).toBeInTheDocument();
 			expect(screen.getByTestId("panel-map")).toHaveAttribute("data-disabled", "true");
 		}
@@ -336,7 +336,7 @@ describe("RouteCheckpointsPanel", () => {
 			onRouteSubmitted: vi.fn(),
 		};
 		const { rerender } = render(<RouteCheckpointsPanel {...props} />);
-		expect(screen.getByText("Đang tải checkpoint...")).toBeInTheDocument();
+		expect(screen.getByText("Đang tải điểm dừng...")).toBeInTheDocument();
 
 		vi.mocked(useRouteCheckpoints).mockReturnValue({
 			items: [],

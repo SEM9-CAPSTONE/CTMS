@@ -183,6 +183,8 @@ The implementation must persist or return only data required for `Edit, Reschedu
 - status/state fields needed to distinguish pending, succeeded, failed, rejected, stale, or synced data;
 - audit fields for actor, action, target, before/after values, timestamp, and reason when applicable;
 - idempotency keys, provider references, sync metadata, model/config/rule version, or package/version context when the behavior depends on them.
+- Material edits that change `starts_at`, `ends_at`, route/version, or `trip_waypoints` must revalidate CTMS-022's planned-at-based waypoint rules. Every waypoint `planned_at` must remain within the updated Trip time range, unique within the Trip, and ordered as the authoritative itinerary.
+- Rescheduling must not silently leave waypoint `planned_at` values outside the new Trip window. The edit flow must either require updated waypoint times or reject the reschedule with a clear validation error.
 
 Do not duplicate an entire data dictionary in this spec. Reference existing entities and add only story-specific requirements.
 

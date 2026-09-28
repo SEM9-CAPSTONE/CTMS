@@ -1,6 +1,6 @@
 import { ArrowLeft, CheckCircle2, Loader2, RefreshCw, Route } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { RouteCheckpointsPanel } from "../components/RouteCheckpointsPanel";
+import { RouteDraftWorkspace } from "../components/RouteDraftWorkspace";
 import { RouteGeometryPreview } from "../components/RouteGeometryPreview";
 import { RouteRegistrationBlockPanel } from "../components/RouteRegistrationBlockPanel";
 import { RouteStatusActionDialog } from "../components/RouteStatusActionDialog";
@@ -69,7 +69,7 @@ export function TrekkingRoutesPage({ onBackHome }: TrekkingRoutesPageProps) {
 					<div>
 						<h1 className="text-xl font-extrabold sm:text-2xl">Tuyến trekking của Host</h1>
 						<p className="text-sm text-[#667a6d]">
-							Xem lại thông tin và hình học tuyến đường đã tạo.
+							Xem lại thông tin và đường đi của tuyến đã tạo.
 						</p>
 					</div>
 				</div>
@@ -163,11 +163,13 @@ export function TrekkingRoutesPage({ onBackHome }: TrekkingRoutesPageProps) {
 				)}
 
 				{!routes.isLoading && !routes.error && selectedRoute && (
-					<RouteCheckpointsPanel
-						key={selectedRoute.id}
+					<RouteDraftWorkspace
+						key={`${selectedRoute.id}:${selectedRoute.updatedAt}`}
 						route={selectedRoute}
-						onRouteReload={routes.retry}
-						onRouteSubmitted={(route) => setSubmittedRouteName(route.name)}
+						onRouteChanged={(route) => {
+							if (route.status === "pending_approval") setSubmittedRouteName(route.name);
+							void routes.retry();
+						}}
 						onCheckpointsChange={updatePreviewCheckpoints}
 						onDangerZonesChange={updatePreviewDangerZones}
 					/>

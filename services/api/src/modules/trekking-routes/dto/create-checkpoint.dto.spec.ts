@@ -7,7 +7,7 @@ function validPayload(overrides: Record<string, unknown> = {}): Record<string, u
 	return {
 		name: "  Ridge rest  ",
 		location: { type: "Point", coordinates: [108.458313, 11.940419] },
-		radiusMeters: 30,
+		radiusMeters: 20,
 		type: CheckpointType.REST,
 		expectedArrivalOffset: 45,
 		instructions: "  Rest and check water.  ",
@@ -42,7 +42,7 @@ describe("CreateCheckpointDto", () => {
 			payload: {
 				name: "n".repeat(150),
 				location: { type: "Point", coordinates: [-180, -90] },
-				radiusMeters: 10,
+				radiusMeters: 20,
 				expectedArrivalOffset: 0,
 				instructions: "i".repeat(1000),
 			},
@@ -51,7 +51,7 @@ describe("CreateCheckpointDto", () => {
 			name: "maximum spatial and radius boundaries",
 			payload: {
 				location: { type: "Point", coordinates: [180, 90] },
-				radiusMeters: 500,
+				radiusMeters: 20,
 			},
 		},
 	])("accepts $name", async ({ payload }) => {
@@ -96,7 +96,7 @@ describe("CreateCheckpointDto", () => {
 		expect(properties).toEqual(expect.arrayContaining(["location"]));
 	});
 
-	it.each([9, 501, 10.5])("rejects invalid radius %s", async (radiusMeters) => {
+	it.each([9, 10, 30, 500, 501, 10.5])("rejects invalid radius %s", async (radiusMeters) => {
 		expect(
 			allProperties((await validationErrors(validPayload({ radiusMeters }))).errors)
 		).toContain("radiusMeters");

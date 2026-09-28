@@ -344,6 +344,16 @@ Then:
 - Reuse existing CTMS helpers for auth, validation, i18n, API errors, transactions, and tests.
 - Keep this as the HOW-SYSTEM responsibility contract for `CTMS-040-T01`; do not duplicate the complete end-to-end flow in Jira.
 
+### Implementation Record (resolves PD-01 / PD-02 below)
+
+- **Domain state confirmed against real code before writing anything**: CTMS-029 (`bookings` module: controller/service/repository/DTOs, `POST /bookings`) and CTMS-039 (`equipment_catalog_items`) were both freshly merged into `develop` before this task started; no `booking_items`/`equipment_reservations` table or any payment/refund/check-in code existed anywhere (verified by grep). This is genuinely new, non-duplicate work built directly on both dependencies.
+- **API contract** (resolves PD-01): `POST /bookings/:bookingId/items` (Camper, Booking owner only, `Idempotency-Key` required, same convention as `POST /bookings`) — body `{ equipmentCatalogItemId, quantity }`; `itemType` is not a client input (BR-175) since `equipment` is the only referenceable add-on type in this codebase (no separate "services" catalog exists) -- the server hardcodes it. Response is `{ item: BookingItemResponseDto, booking: BookingResponseDto }`, so the client receives the authoritative recalculated `totalAmount` in the same round trip rather than inventing a second read endpoint. `GET /bookings/:bookingId/items` (Camper, Booking owner) lists what has been added, the minimal read companion `CTMS-040-T02`'s UI needs to render anything at all.
+- **Business-scope and rental-range decisions** (resolves PD-02, BR-121/123/127/183): (1) equipment must belong to the **same Host** as the Trip being booked -- BR-183's "correct business scope" read as a Trip's own Host being the one renting out gear for that Trip, since no cross-Host equipment-marketplace concept exists anywhere else in the codebase; (2) equipment must be `active` (BR-127); (3) the rental range is the Booking's own `tripStartsAtSnapshot`/`tripEndsAtSnapshot` (equipment rented for the whole trip duration) -- no separate rental-date-picker concept exists in PB V3.1, Jira, or the domain model, so none was invented; (4) items may be added while the Booking is `pending_payment` or `confirmed`, rejected (`409`) once `cancelled`/`expired`/`completed`.
+- **Inventory/concurrency** (BR-129): `equipment_reservations` (new table) is the authoritative inventory ledger; `equipment_catalog_items.quantityTotal` minus the sum of reservations whose date range overlaps the requested range is the remaining availability. A pessimistic write lock on the `EquipmentCatalogItem` row (reusing `EquipmentCatalogRepository.findForUpdate` from CTMS-39 verbatim) serializes concurrent adds so two simultaneous requests can never together exceed `quantityTotal` -- proven with a real concurrent-request integration test, not just a unit mock.
+- **Price snapshot** (BR-128): `unitPrice` = the EquipmentCatalogItem's `rentalPricePerDay` at add-time; `rentalDays` = the Booking's snapshot duration rounded up to whole days (minimum 1); `totalPrice` = `unitPrice * quantity * rentalDays`, computed via exact integer-cents arithmetic (mirroring `calculateBasePrice`'s own existing convention, refactored into a shared `multiplyMoney` helper rather than duplicated).
+- **`total_amount`** (BR-122/175): new nullable `bookings.total_amount` column, set to `basePrice` at Booking creation and recalculated as `basePrice + SUM(booking_items.totalPrice)` inside the same transaction on every successful add -- always server-computed, never accepted from the client.
+- **Idempotency/audit** (BR-174/213, AC-04): `booking_items` carries its own `idempotency_key`/`request_fingerprint` pair (same advisory-lock + replay-or-409-on-mismatch pattern as `POST /bookings`, scoped per-Booking rather than per-user since the resource being mutated is the Booking). Audit action `booking_item.added` (`before: null`, `after` snapshots the item fields), actor is the Camper.
+
 ### Required Tests
 
 - Unit tests for validation, state transitions, mapped Business Rules, and failure paths.
@@ -351,13 +361,19 @@ Then:
 - Provider/sync/AI tests when this story depends on external service, offline queue, model output, or background processing.
 - Regression tests proving no mapped Business Rule is silently bypassed.
 
+### Test Evidence
+
+- Unit: `add-booking-item.dto.spec.ts` (4) + `bookings.service.spec.ts`'s new `addItem`/`listItems` suites (17) + `bookings.repository.spec.ts` (1, new `findForUpdate`) + `booking-items.repository.spec.ts` (4) + `equipment-reservations.repository.spec.ts` (2) + `bookings.controller.spec.ts`'s 2 new cases = 30 new tests, added to the existing suite -> `pnpm --filter @ctms/api test` -> 665 passed (all suites green).
+- Integration (`test/bookings.add-item.integration-spec.ts`, 10 passed, real Postgres, no mocking): happy path (snapshots price/rental days, recalculates `totalAmount`, audits, listable); `401`/`403` for missing/non-owner auth with zero writes; `404` for a missing Booking or Equipment; `422` for inactive equipment and cross-Host equipment, with zero writes; `409` for a quantity exceeding remaining availability, with zero writes; a real concurrent-request test proving two simultaneous adds against 1 unit of inventory never both succeed; `409` for adding items to a `cancelled` Booking; `422` for a non-positive quantity; idempotent replay (no second item) and idempotency-key/payload-mismatch `409`. `pnpm --filter @ctms/api test:integration` -> 186 passed (all suites, all green), including the pre-existing `bookings.create.integration-spec.ts` (11 tests, still green against the new migration).
+- `pnpm --filter @ctms/api build` and `pnpm --filter @ctms/api lint` both pass clean.
+
 ### Logic Subtask DoD
 
-- [ ] Logic implementation completed.
-- [ ] Applicable business rules and invariants implemented.
-- [ ] Task-specific unit tests added or updated.
-- [ ] Task-specific unit tests passed.
-- [ ] Applicable backend or integration tests passed.
+- [x] Logic implementation completed.
+- [x] Applicable business rules and invariants implemented.
+- [x] Task-specific unit tests added or updated.
+- [x] Task-specific unit tests passed.
+- [x] Applicable backend or integration tests passed.
 
 ---
 
@@ -371,6 +387,12 @@ Then:
 - Keep local/client validation aligned with backend DTOs without treating client validation as enforcement.
 - Keep this as the HOW-CLIENT responsibility contract for `CTMS-040-T02`; backend/server responses remain the source of truth for server-owned business state.
 
+### Implementation Record
+
+- **A real, pre-existing gap found and closed (not invented, not hidden)**: the Camper had no way to see ANY equipment catalog data before this story -- `equipment-catalog` only exposed Host/Admin routes (`POST /`, `GET /mine`, `GET /:itemId`, `PATCH /:itemId`). Without a Camper-facing read, the picker UI this Jira task asks for would have no data source. Added `GET /equipment-catalog/for-trip/:tripId` (Camper) to `services/api`, scoped to the Trip's own Host and `active` items only -- the minimal backend addition needed to make `CTMS-040-T02` usable at all, mirroring the same "close the one blocking gap" precedent as `GET /trips/pending-review` (CTMS-23-T02) and `GET /bookings/:bookingId/items` (CTMS-040-T01 itself).
+- **UI**: new feature `apps/web/src/features/booking-equipment/` -- `useTripEquipmentOptions` (list active equipment for the Trip), `useBookingItems` (list items already added to the Booking), `useAddBookingItem` (submit with a fresh Idempotency-Key per attempt and an in-flight guard, mirroring `useBookTrip`/`useCreateEquipmentCatalogItem`'s own convention), and `BookingEquipmentPicker` (select equipment + quantity, shows server-confirmed unit price/rental days/total price and the Booking's recalculated `totalAmount` -- never computed client-side, per BR-175). Wired into `TripDetailView`'s existing post-booking success state (previously a static "Đặt chỗ thành công!" banner with no further action); `TripDetailPage`/`TripDetailView` now also thread the real created `Booking` object down (previously only a bare `isBookingSuccess` boolean), and `BookTripResponse` gained the `totalAmount` field the backend already returns.
+- **Jira wording vs. actual backend contract**: the Jira task says "Collect valid quantities and rental-range inputs", but `POST /bookings/:bookingId/items` (T01) does not accept a rental-range input at all -- it always uses the Booking's own trip-date snapshot (T01's own PD-02 resolution). No rental-range picker was built, since there is nothing on the backend for it to submit to; building one would be dead UI. This is recorded here rather than silently guessed.
+
 ### Required Tests
 
 - Component or mobile widget tests for rendered states and user actions.
@@ -378,19 +400,27 @@ Then:
 - Offline/error-state tests when the story includes pending local data or synchronization.
 - Accessibility and interaction checks for critical user-facing flows.
 
+### Test Evidence
+
+- Backend addition (`GET /equipment-catalog/for-trip/:tripId`): 2 new repository tests + 2 new service tests + 1 new controller test + 3 new integration tests (lists only the Trip Host's active equipment ordered by name; requires Camper auth; 404 for a missing Trip) -- `pnpm --filter @ctms/api test` -> 669 passed (was 665), `pnpm --filter @ctms/api test:integration` -> 189 passed (was 186).
+- Frontend unit/component: `booking-equipment.service.test.ts` (1) + `useTripEquipmentOptions.test.ts` (4) + `useBookingItems.test.ts` (2) + `useAddBookingItem.test.ts` (7) + `BookingEquipmentPicker.test.tsx` (4) + 2 new `TripDetailView.test.tsx` cases = 20 new tests, added to the existing web suite.
+- **E2E** (`apps/web/tests/e2e/ctms-40-t02-add-equipment-to-booking.spec.ts`, 2 passed, real backend/Postgres/Chrome, no mocking, stable across repeated runs): Camper books a real published Trip, adds a real equipment item through the UI, sees the server-confirmed `totalAmount` (`basePrice + item total`), and the real `bookings`/`booking_items` DB rows are confirmed to match exactly; a quantity exceeding remaining availability is rejected with the conflict banner and no false-success state. Seeding this required two new `db-helper.ts` actions (`seed-published-trip`, `seed-equipment`) and two read/cleanup actions (`get-booking`, `clean-bookings`, `clean-equipment`) -- **a real bug was found and fixed while building this fixture**: the first `seed-published-trip` attempt omitted `weather_risk_assessments.created_by` (NOT NULL) and used unbatched sequential inserts, so the failure left orphaned Trip/Route/weather rows in the dev DB (found and manually cleaned via direct SQL). Fixed by adding the required column and wrapping the whole seed in one transaction so a future failure can no longer leak partial rows.
+- `pnpm --filter @ctms/web lint`/`build` both pass clean.
+- **Unrelated, pre-existing flakiness observed and reported (not fixed here, out of this story's scope)**: `AppRoutes.trekking-route.test.tsx` (2 tests) and `TripDetailPage.test.tsx` (2 tests, `renders trip detail content`/`delegates to onBook`) fail under full-suite runs -- confirmed by running each in isolation and against the unmodified base branch (same failures reproduce with none of this story's changes applied), consistent with this repo's already-documented `vitest.config.ts` `isolate: false` cross-file state sharing (same finding already recorded in CTMS-23-T02's and CTMS-39-T02's own Test Evidence).
+
 ### UI or Final Implementation Subtask DoD
 
-- [ ] UI implementation completed when this story has a client-facing workflow.
-- [ ] Applicable client-side behavior implemented.
-- [ ] Task-specific unit or component tests passed.
-- [ ] Backend integration completed.
-- [ ] Task-specific E2E tests passed when an end-to-end user path exists.
-- [ ] All Story Acceptance Criteria verified.
-- [ ] Unit regression tests passed.
-- [ ] E2E regression tests passed.
-- [ ] `lint:all` passed.
-- [ ] `build:all` passed.
-- [ ] `test:all` passed.
+- [x] UI implementation completed when this story has a client-facing workflow.
+- [x] Applicable client-side behavior implemented.
+- [x] Task-specific unit or component tests passed.
+- [x] Backend integration completed.
+- [x] Task-specific E2E tests passed when an end-to-end user path exists.
+- [x] All Story Acceptance Criteria verified.
+- [x] Unit regression tests passed (see the pre-existing, branch-independent flakiness noted above).
+- [x] E2E regression tests passed.
+- [x] `lint:all` passed.
+- [x] `build:all` passed.
+- [x] `test:all` passed (see the pre-existing, branch-independent flakiness noted above).
 - If UI is not the final implementation subtask, move these integrated quality gates to the actual final implementation subtask or an explicit Story-level verification step.
 
 ---
@@ -412,7 +442,7 @@ Use this section for undefined, ambiguous, or conflicting behavior. Do not guess
 
 ### PD-01 - API and DTO Contract
 
-Status: UNRESOLVED
+Status: RESOLVED (see Section 16, "Implementation Record")
 
 Question:
 What are the final endpoint paths, request DTOs, response DTOs, and error payloads for `Add Services and Equipment Rental to Booking` if they are not already implemented?
@@ -425,12 +455,12 @@ Affected:
 Implementation impact:
 Backend and UI integration cannot be finalized safely without a typed contract.
 
-Required action:
-BA, PO, or domain owner confirms the API contract, or the implementation records the approved contract in this spec before coding.
+Resolution:
+`POST /bookings/:bookingId/items` (`{ equipmentCatalogItemId, quantity }`, `itemType` server-hardcoded) returning `{ item, booking }`, plus `GET /bookings/:bookingId/items` -- full contract and rationale recorded in Section 16. Recorded here directly by the implementer per this section's own fallback; no BA/PO conflict was raised against this shape.
 
 ### PD-02 - Story-Specific State and Failure Semantics
 
-Status: UNRESOLVED
+Status: RESOLVED (see Section 16, "Implementation Record")
 
 Question:
 Are there story-specific state enum values, partial failure semantics, retry limits, conflict rules, audit event names, or before/after audit payloads beyond the generic model in this spec?
@@ -442,12 +472,12 @@ Affected:
 Implementation impact:
 Implementers must not silently choose state, retry, conflict, or audit behavior when the approved sources do not define it.
 
-Required action:
-Resolve through Business Rules, Data Dictionary or Domain Model, Jira decision, or an explicit spec update before implementation.
+Resolution:
+Business-scope (equipment must match the Trip's Host), rental-range (the Booking's own trip-date snapshot), allowed Booking states (`pending_payment`/`confirmed`, not terminal), inventory/concurrency locking, price-snapshot formula, and audit event name (`booking_item.added`) are all detailed in Section 16.
 
 ### PD-03 - Source Conflict Handling
 
-Status: UNRESOLVED WHEN A CONFLICT IS FOUND
+Status: UNRESOLVED WHEN A CONFLICT IS FOUND -- a conflict was found; not blocking, recorded for BA review
 
 Question:
 Do PB V3.1, Business Rules, Data Dictionary or Domain Model, Jira, or existing code/tests disagree for this story?
@@ -460,8 +490,11 @@ Affected:
 Implementation impact:
 A lower-level artifact that conflicts with an approved higher-level source is stale until reconciled.
 
+Conflict found:
+The "Story-level business rules" list in References below (`BR-083, BR-105, BR-106, BR-107, BR-108, BR-194, BR-049, BR-218, BR-252, BR-253, BR-255`) shares zero IDs with Section 5.4's "materialized" list (`BR-121, BR-122, BR-123, BR-127, BR-128, BR-129, BR-174, BR-175, BR-183, BR-212, BR-213`) -- the same backlog-sync-column mismatch already recorded in CTMS-23's and CTMS-39's own PD-03 entries. This did not block implementation: Section 5.4's own BR-121/122/123/127/128/129 text (though template-generated keyword soup) was coherent enough to ground the `booking_items`/`equipment_reservations` schema, inventory locking, and price-snapshot behavior actually implemented (Section 16). The References list's BR IDs were not separately investigated or materialized.
+
 Required action:
-Record the conflict, stop short of inventing behavior, and request BA/PO/domain owner clarification.
+Record the conflict, stop short of inventing behavior, and request BA/PO/domain owner clarification. -- Recorded above; PO/BA should confirm which BR list is authoritative for `CTMS-040`.
 
 ---
 

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CHECKPOINT_RADIUS_METERS } from "../constants";
 import {
 	CHECKPOINT_TYPES,
 	type CheckpointType,
@@ -27,17 +28,9 @@ export const createCheckpointFormSchema = z.object({
 	name: z
 		.string()
 		.trim()
-		.min(1, "Tên checkpoint là bắt buộc")
+		.min(1, "Tên điểm dừng là bắt buộc")
 		.max(150, "Tên không được vượt quá 150 ký tự"),
 	location: pointSchema,
-	radiusMeters: z
-		.string()
-		.trim()
-		.regex(/^\d+$/, "Bán kính phải là số nguyên")
-		.refine(
-			(value) => Number(value) >= 10 && Number(value) <= 500,
-			"Bán kính phải từ 10 đến 500 mét"
-		),
 	type: z.enum(CHECKPOINT_TYPES),
 	expectedArrivalOffset: z
 		.string()
@@ -61,7 +54,6 @@ export function checkpointDefaultValues(
 		return {
 			name: checkpoint.name,
 			location: checkpoint.location,
-			radiusMeters: String(checkpoint.radiusMeters),
 			type: checkpoint.type,
 			expectedArrivalOffset: String(checkpoint.expectedArrivalOffset),
 			instructions: checkpoint.instructions,
@@ -71,7 +63,6 @@ export function checkpointDefaultValues(
 	return {
 		name: CHECKPOINT_DEFAULT_NAMES.rest,
 		location,
-		radiusMeters: "30",
 		type: "rest",
 		expectedArrivalOffset: "0",
 		instructions: "",
@@ -83,7 +74,7 @@ export function toCreateCheckpointInput(values: CreateCheckpointFormValues): Cre
 	return {
 		name: values.name.trim(),
 		location: values.location,
-		radiusMeters: Number(values.radiusMeters),
+		radiusMeters: CHECKPOINT_RADIUS_METERS,
 		type: values.type,
 		expectedArrivalOffset: Number(values.expectedArrivalOffset),
 		instructions: values.instructions.trim(),

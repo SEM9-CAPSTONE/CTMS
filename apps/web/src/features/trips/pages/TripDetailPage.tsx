@@ -1,16 +1,59 @@
 import { ArrowLeft, Compass, Loader2, RefreshCw } from "lucide-react";
+import { useCallback } from "react";
+import type { BookingAccess } from "../components/BookingPanel";
 import { TripDetailView } from "../components/TripDetailView";
+import { useBookTrip } from "../hooks/useBookTrip";
 import { useTripDetail } from "../hooks/useTripDetail";
 
 export interface TripDetailPageProps {
 	tripId: string;
 	onBackToList: () => void;
 	onBackHome?: () => void;
-	onBook?: (tripId: string) => void;
+	onBook?: (tripId: string, numPeople: number) => void | Promise<void>;
+	bookingAccess?: BookingAccess;
+	onSignIn?: () => void;
 }
 
-export function TripDetailPage({ tripId, onBackToList, onBackHome, onBook }: TripDetailPageProps) {
+export function TripDetailPage({
+	tripId,
+	onBackToList,
+	onBackHome,
+	onBook,
+	bookingAccess = "camper",
+	onSignIn,
+}: TripDetailPageProps) {
 	const { trip, isLoading, error, isNotFound, retry } = useTripDetail(tripId);
+	const {
+		book,
+		retry: retryBooking,
+		clearConflict,
+		isBooking,
+		booking,
+		error: bookingError,
+		fieldErrors,
+		isConflict,
+		canRetry,
+		reset: resetBooking,
+	} = useBookTrip();
+
+	const handleBook = useCallback(
+		async (targetTripId: string, numPeople: number) => {
+			if (onBook) {
+				await onBook(targetTripId, numPeople);
+				return;
+			}
+			const result = await book({ tripId: targetTripId, numPeople });
+			if (result) {
+				await retry();
+			}
+		},
+		[book, onBook, retry]
+	);
+
+	const handleConflictReload = useCallback(async () => {
+		clearConflict();
+		await retry();
+	}, [clearConflict, retry]);
 
 	return (
 		<div className="min-h-screen bg-[#f4f7f2] font-sans text-[#10221b] antialiased">
@@ -116,7 +159,24 @@ export function TripDetailPage({ tripId, onBackToList, onBackHome, onBook }: Tri
 				)}
 
 				{!isLoading && !error && trip && (
-					<TripDetailView trip={trip} onBack={onBackToList} onBook={onBook} />
+					<TripDetailView
+						trip={trip}
+						onBack={onBackToList}
+						onBook={handleBook}
+						isBooking={isBooking}
+						bookingError={bookingError}
+						booking={booking}
+						bookingAccess={bookingAccess}
+						fieldErrors={fieldErrors}
+						canRetry={canRetry}
+						isConflict={isConflict}
+						onBookingRetry={retryBooking}
+						onBookingReset={resetBooking}
+						onSignIn={onSignIn}
+						onConflictDismiss={clearConflict}
+						onConflictReload={handleConflictReload}
+						onConflictRetry={retryBooking}
+					/>
 				)}
 			</main>
 		</div>

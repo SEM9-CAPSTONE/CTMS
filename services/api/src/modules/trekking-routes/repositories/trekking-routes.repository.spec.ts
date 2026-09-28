@@ -7,6 +7,31 @@ import {
 import { TrekkingRoutesRepository } from "./trekking-routes.repository";
 
 describe("TrekkingRoutesRepository", () => {
+	it("rejects an incompatible draft update before recalculating checkpoints", async () => {
+		const repository = new TrekkingRoutesRepository(TrekkingRoute, {} as EntityManager);
+		const query = jest.spyOn(repository, "query").mockResolvedValue([]);
+		await expect(
+			repository.updateDraft("route-id", {
+				hostId: "host-id",
+				name: "Ridge",
+				description: null,
+				difficulty: TrekkingRouteDifficulty.EASY,
+				geometry: {
+					type: "LineString",
+					coordinates: [
+						[108, 16],
+						[108.1, 16.1],
+					],
+				},
+				expectedDurationMinutes: 30,
+			})
+		).rejects.toMatchObject({ status: 422 });
+		expect(query).toHaveBeenCalledTimes(1);
+		expect(query.mock.calls[0][0]).toContain('checkpoint."expected_arrival_offset" > $6');
+		expect(query.mock.calls[0][0]).toContain(
+			'ST_DWithin(proposed.geom, checkpoint."location", 50)'
+		);
+	});
 	it("locks and maps the authoritative route for a lifecycle transition", async () => {
 		const repository = new TrekkingRoutesRepository(TrekkingRoute, {} as EntityManager);
 		const query = jest.spyOn(repository, "query").mockResolvedValue([
@@ -117,6 +142,7 @@ describe("TrekkingRoutesRepository", () => {
 		});
 		expect(query.mock.calls[0][0]).toContain("ST_NPoints");
 		expect(query.mock.calls[0][0]).toContain("ST_DWithin");
+		expect(query.mock.calls[0][0]).not.toContain('checkpoint."radius_m"');
 		expect(query.mock.calls[0][0]).not.toContain("checkpoint_type = 'start'");
 	});
 

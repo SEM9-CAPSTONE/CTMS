@@ -190,6 +190,44 @@ export class TrekkingRoutesService {
 		});
 	}
 
+	async updateDraft(
+		hostId: string,
+		routeId: string,
+		dto: CreateTrekkingRouteDto
+	): Promise<TrekkingRouteResponseDto> {
+		return this.dataSource.transaction(async (manager: EntityManager) => {
+			const repository = manager.withRepository(this.trekkingRoutesRepository);
+			const locked = await repository.findOneForLifecycleUpdate(routeId);
+			if (!locked) throw new NotFoundException("Trekking route not found");
+			if (locked.hostId !== hostId) {
+				throw new ForbiddenException("Only the owning Host can edit this trekking route");
+			}
+			if (locked.route.status !== TrekkingRouteStatus.DRAFT) {
+				throw new ConflictException("Only draft trekking routes can be edited");
+			}
+			// A previously published route can return to draft after reopening/review.
+			// Without route version snapshots, editing it would also alter linked Trips.
+			if (await repository.hasTripReferences(routeId)) {
+				throw new ConflictException("Routes already referenced by Trips cannot be edited in place");
+			}
+			const updated = await repository.updateDraft(routeId, {
+				...dto,
+				hostId,
+				description: dto.description ?? null,
+			});
+			await manager.getRepository(AuditLog).save({
+				actorId: hostId,
+				action: "trekking_route.updated",
+				targetType: "trekking_route",
+				targetId: routeId,
+				before: this.buildAuditSnapshot(locked.route),
+				after: this.buildAuditSnapshot(updated),
+				reason: "host_update_draft_trekking_route",
+			});
+			return updated;
+		});
+	}
+
 	close(
 		actor: AuthenticatedUser,
 		routeId: string,

@@ -128,13 +128,119 @@ describe("trekking route checkpoint update (integration, real Postgres)", () => 
 		return {
 			name: "Ridge rest",
 			location: { type: "Point", coordinates: [108.2208, 16.0471] },
-			radiusMeters: 30,
+			radiusMeters: 20,
 			type: CheckpointType.REST,
 			expectedArrivalOffset: 45,
 			instructions: "Rest here.",
 			nearbyWaterOrShelter: false,
 		};
 	}
+
+	function routePayload() {
+		return {
+			name: "Updated ridge",
+			description: "Updated draft",
+			difficulty: "hard",
+			geometry: {
+				type: "LineString",
+				coordinates: [
+					[108.2208, 16.0471],
+					[108.2508, 16.0671],
+				],
+			},
+			expectedDurationMinutes: 180,
+		};
+	}
+
+	it("updates an owned draft, recomputes length/positions, and protects ownership and status", async () => {
+		const host = await createHost();
+		const other = await createHost();
+		const routeId = await createDraftRoute(host.id);
+		await request(app.getHttpServer())
+			.patch(`/api/trekking-routes/${routeId}`)
+			.set("Authorization", `Bearer ${other.token}`)
+			.send(routePayload())
+			.expect(403);
+		await request(app.getHttpServer())
+			.post(`/api/trekking-routes/${routeId}/checkpoints`)
+			.set("Authorization", `Bearer ${host.token}`)
+			.send(checkpointPayload())
+			.expect(201);
+		const updated = await request(app.getHttpServer())
+			.patch(`/api/trekking-routes/${routeId}`)
+			.set("Authorization", `Bearer ${host.token}`)
+			.send(routePayload())
+			.expect(200);
+		expect(updated.body).toMatchObject({
+			name: "Updated ridge",
+			status: "draft",
+			hostId: host.id,
+			expectedDurationMinutes: 180,
+		});
+		expect(updated.body.lengthMeters).toBeGreaterThan(0);
+		for (const status of ["pending_approval", "active", "closed"]) {
+			await dataSource.query('UPDATE "trekking_routes" SET "status" = $2 WHERE "id" = $1', [
+				routeId,
+				status,
+			]);
+			await request(app.getHttpServer())
+				.patch(`/api/trekking-routes/${routeId}`)
+				.set("Authorization", `Bearer ${host.token}`)
+				.send(routePayload())
+				.expect(409);
+		}
+		await dataSource.query('UPDATE "trekking_routes" SET "status" = $2 WHERE "id" = $1', [
+			routeId,
+			"draft",
+		]);
+		await request(app.getHttpServer())
+			.patch(`/api/trekking-routes/${routeId}`)
+			.set("Authorization", `Bearer ${host.token}`)
+			.send({ ...routePayload(), name: "Revised draft" })
+			.expect(200);
+	});
+
+	it("rejects radius overrides and incompatible geometry/duration without changing the draft", async () => {
+		const host = await createHost();
+		const routeId = await createDraftRoute(host.id);
+		await request(app.getHttpServer())
+			.post(`/api/trekking-routes/${routeId}/checkpoints`)
+			.set("Authorization", `Bearer ${host.token}`)
+			.send({ ...checkpointPayload(), radiusMeters: 30 })
+			.expect(422);
+		await request(app.getHttpServer())
+			.post(`/api/trekking-routes/${routeId}/checkpoints`)
+			.set("Authorization", `Bearer ${host.token}`)
+			.send(checkpointPayload())
+			.expect(201);
+		for (const payload of [
+			{ ...routePayload(), expectedDurationMinutes: 1 },
+			{
+				...routePayload(),
+				geometry: {
+					type: "LineString",
+					coordinates: [
+						[0, 0],
+						[0.1, 0.1],
+					],
+				},
+			},
+		]) {
+			await request(app.getHttpServer())
+				.patch(`/api/trekking-routes/${routeId}`)
+				.set("Authorization", `Bearer ${host.token}`)
+				.send(payload)
+				.expect(422);
+		}
+		const rows = await dataSource.query(
+			'SELECT "name", "expected_duration_minutes" FROM "trekking_routes" WHERE "id" = $1',
+			[routeId]
+		);
+		expect(rows[0]).toMatchObject({
+			name: `Checkpoint route ${routeId}`,
+			expected_duration_minutes: 240,
+		});
+	});
 
 	it("keeps POST working and PATCHes every editable field with derived route position and audit", async () => {
 		const host = await createHost();
@@ -148,7 +254,7 @@ describe("trekking route checkpoint update (integration, real Postgres)", () => 
 		const updatePayload = {
 			name: "Điểm cấp nước",
 			location: { type: "Point", coordinates: [108.2308, 16.0537667] },
-			radiusMeters: 45,
+			radiusMeters: 20,
 			type: CheckpointType.WATER,
 			expectedArrivalOffset: 80,
 			instructions: "Bổ sung nước tại đây.",

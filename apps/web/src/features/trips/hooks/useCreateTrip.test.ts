@@ -30,15 +30,13 @@ const payload: CreateTripInput = {
 			type: "start",
 			name: "Trailhead",
 			location: { type: "Point", coordinates: [108.22, 16.04] },
-			dayNumber: 1,
-			sequenceOrder: 1,
+			plannedAt: "2026-10-01T02:00:00.000Z",
 		},
 		{
 			type: "finish",
 			name: "Exit",
 			location: { type: "Point", coordinates: [108.25, 16.06] },
-			dayNumber: 1,
-			sequenceOrder: 2,
+			plannedAt: "2026-10-01T10:00:00.000Z",
 		},
 	],
 };

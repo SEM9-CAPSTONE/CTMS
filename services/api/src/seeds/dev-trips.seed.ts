@@ -180,22 +180,27 @@ export async function seedDevTrips(): Promise<void> {
 			date.setHours(hours, 0, 0, 0);
 			return date.toISOString();
 		};
+		const inHours = (h: number) => {
+			const date = new Date(now.getTime() + h * 3600000);
+			return date.toISOString();
+		};
 
 		const sampleTrips = [
+			// Scenario 1: Normal capacity (12 seats remaining)
 			{
-				title: "Khám Phá Sơn Trà Xanh Trong Ngày",
+				title: "[CTMS-024] Khám Phá Sơn Trà (Bình thường - Còn 12 chỗ)",
 				routeName: "Bán Đảo Sơn Trà Discovery",
 				description:
-					"Chuyến đi bộ dã ngoại trong ngày ngắm voọc chà vá chân nâu và rừng nguyên sinh Sơn Trà tuyệt đẹp.",
+					"Chuyến đi bộ dã ngoại trong ngày ngắm voọc chà vá chân nâu. Trạng thái bình thường, còn nhiều chỗ trống.",
 				coverImageUrl:
 					"https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80",
 				tripType: "day_trip",
 				durationNights: 0,
-				startsAt: inDays(3, 7),
-				endsAt: inDays(3, 16),
+				startsAt: inDays(4, 7),
+				endsAt: inDays(4, 16),
 				meetingPointGeom: "SRID=4326;POINT(108.26 16.11)",
-				meetingAt: inDays(3, 6),
-				bookingDeadline: inDays(2, 18),
+				meetingAt: inDays(4, 6),
+				bookingDeadline: inDays(3, 18),
 				capacityMin: 5,
 				capacityMax: 20,
 				seatsTaken: 8,
@@ -243,11 +248,12 @@ export async function seedDevTrips(): Promise<void> {
 					},
 				],
 			},
+			// Scenario 2: Low capacity urgency (<= 3 seats remaining -> exactly 2 remaining)
 			{
-				title: "Chinh Phục Đỉnh Núi Bidoup - 2 Ngày 1 Đêm",
+				title: "[CTMS-024] Đỉnh Núi Bidoup Trail (Khẩn cấp: Chỉ còn 2 chỗ)",
 				routeName: "Đỉnh Núi Bidoup Trail",
 				description:
-					"Hành trình trekking 2N1Đ vượt thảm rêu cổ thụ và rừng thông ngút ngàn, cắm trại đêm giữa đại ngàn Lâm Đồng.",
+					"Hành trình trekking 2N1Đ vượt thảm rêu cổ thụ. Số lượng chỗ sắp hết, chỉ còn 2 vé cuối cùng!",
 				coverImageUrl:
 					"https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1200&q=80",
 				tripType: "overnight",
@@ -257,9 +263,9 @@ export async function seedDevTrips(): Promise<void> {
 				meetingPointGeom: "SRID=4326;POINT(108.45 11.94)",
 				meetingAt: inDays(7, 5),
 				bookingDeadline: inDays(5, 23),
-				capacityMin: 8,
-				capacityMax: 16,
-				seatsTaken: 12,
+				capacityMin: 5,
+				capacityMax: 10,
+				seatsTaken: 8,
 				pricePerPerson: "1850000",
 				itinerary: {
 					summary:
@@ -318,11 +324,12 @@ export async function seedDevTrips(): Promise<void> {
 					},
 				],
 			},
+			// Scenario 3: Completely Sold Out (seatsTaken == capacityMax -> 0 seats)
 			{
-				title: "Bạch Mộc Lương Tử - Săn Mây Đại Ngàn (Đã Hết Chỗ)",
+				title: "[CTMS-024] Bạch Mộc Lương Tử Expedition (Đã Hết Chỗ - 0 chỗ)",
 				routeName: "Bạch Mộc Lương Tử Expedition",
 				description:
-					"Cung trekking săn mây kinh điển miền Bắc vượt qua đồi trọc, rừng trúc và sống lưng khủng long ngoạn mục.",
+					"Cung trekking săn mây kinh điển miền Bắc. Đã đủ 10/10 khách tham gia, toàn bộ chỗ đã được đặt kín.",
 				coverImageUrl:
 					"https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=1200&q=80",
 				tripType: "overnight",
@@ -385,23 +392,24 @@ export async function seedDevTrips(): Promise<void> {
 					},
 				],
 			},
+			// Scenario 4: Deadline approaching soon (< 24 hours -> 8 hours left)
 			{
-				title: "Tà Năng - Phan Dũng: Thử Thách Băng Rừng Đồi Cỏ",
+				title: "[CTMS-024] Tà Năng - Phan Dũng (Sắp hết hạn đặt chỗ - Còn 8h)",
 				routeName: "Tà Năng - Phan Dũng Cung Đường Huyền Thoại",
 				description:
-					"Cung trekking cấp độ Chuyên Gia băng qua những triền cỏ cháy và dốc đứng, thử thách ý chí của những đôi chân bền bỉ.",
+					"Cung trekking băng rừng đồi cỏ. Hạn chốt danh sách người tham gia sẽ đóng trong 8 giờ tới.",
 				coverImageUrl:
 					"https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1200&q=80",
 				tripType: "overnight",
 				durationNights: 2,
-				startsAt: inDays(15, 6),
-				endsAt: inDays(17, 16),
+				startsAt: inDays(3, 6),
+				endsAt: inDays(5, 16),
 				meetingPointGeom: "SRID=4326;POINT(108.38 11.58)",
-				meetingAt: inDays(15, 5),
-				bookingDeadline: inDays(12, 12),
-				capacityMin: 8,
+				meetingAt: inDays(3, 5),
+				bookingDeadline: inHours(8),
+				capacityMin: 6,
 				capacityMax: 15,
-				seatsTaken: 3,
+				seatsTaken: 5,
 				pricePerPerson: "2650000",
 				itinerary: {
 					summary:
@@ -452,6 +460,60 @@ export async function seedDevTrips(): Promise<void> {
 					},
 				],
 			},
+			// Scenario 5: Past booking deadline (Deadline was 2 hours ago -> booking closed)
+			{
+				title: "[CTMS-024] Sơn Trà Sunset Trek (Đã Hết Hạn Đặt Vé)",
+				routeName: "Bán Đảo Sơn Trà Discovery",
+				description:
+					"Chuyến đi đã qua hạn chốt danh sách người tham gia (đóng từ 2 giờ trước). Không thể đăng ký thêm.",
+				coverImageUrl:
+					"https://images.unsplash.com/photo-1510312305653-8ed496efae75?auto=format&fit=crop&w=1200&q=80",
+				tripType: "day_trip",
+				durationNights: 0,
+				startsAt: inDays(2, 14),
+				endsAt: inDays(2, 18),
+				meetingPointGeom: "SRID=4326;POINT(108.26 16.11)",
+				meetingAt: inDays(2, 13),
+				bookingDeadline: inHours(-2),
+				capacityMin: 4,
+				capacityMax: 12,
+				seatsTaken: 4,
+				pricePerPerson: "350000",
+				itinerary: {
+					summary: "14:00 tập kết, 15:00 trekking ngắm hoàng hôn, 18:00 kết thúc.",
+				},
+				includes: {
+					items: ["Hướng dẫn viên", "Nước khoáng"],
+				},
+				excludes: { items: ["Chi phí cá nhân"] },
+				cancellationPolicy: { policy: "Không hoàn phí khi đã hết hạn đặt vé." },
+				waypoints: [
+					{
+						name: "Điểm tập kết Cây Đa Ngàn Năm",
+						type: "start",
+						day: 1,
+						seq: 1,
+						duration: 30,
+						geom: "SRID=4326;POINT(108.26 16.11)",
+					},
+					{
+						name: "Mũi Nghê ngắm hoàng hôn",
+						type: "activity",
+						day: 1,
+						seq: 2,
+						duration: 90,
+						geom: "SRID=4326;POINT(108.28 16.12)",
+					},
+					{
+						name: "Kết thúc hành trình",
+						type: "finish",
+						day: 1,
+						seq: 3,
+						duration: 30,
+						geom: "SRID=4326;POINT(108.26 16.11)",
+					},
+				],
+			},
 		];
 
 		for (const st of sampleTrips) {
@@ -466,7 +528,30 @@ export async function seedDevTrips(): Promise<void> {
 			let tripId = "";
 			if (existingTrip.length > 0) {
 				tripId = existingTrip[0].id;
-				console.log(`[seed:dev-trips] Trip already exists: ${st.title} (${tripId})`);
+				await dataSource.query(
+					`UPDATE "trips" SET
+						capacity_min = $2,
+						capacity_max = $3,
+						seats_taken = $4,
+						booking_deadline = $5,
+						starts_at = $6,
+						ends_at = $7,
+						status = 'published',
+						price_per_person = $8,
+						updated_at = NOW()
+					WHERE id = $1`,
+					[
+						tripId,
+						st.capacityMin,
+						st.capacityMax,
+						st.seatsTaken,
+						st.bookingDeadline,
+						st.startsAt,
+						st.endsAt,
+						st.pricePerPerson,
+					]
+				);
+				console.log(`[seed:dev-trips] Updated trip for scenario: ${st.title} (${tripId})`);
 			} else {
 				const insertedTrip: Array<{ id: string }> = await dataSource.query(
 					`INSERT INTO "trips" (

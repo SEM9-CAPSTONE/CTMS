@@ -175,6 +175,8 @@ The implementation must persist or return only data required for `Receive Behind
 - status/state fields needed to distinguish pending, succeeded, failed, rejected, stale, or synced data;
 - audit fields for actor, action, target, before/after values, timestamp, and reason when applicable;
 - idempotency keys, provider references, sync metadata, model/config/rule version, or package/version context when the behavior depends on them.
+- Behind-schedule evaluation must compare current GPS/safety progress against CTMS-022 Trip waypoints ordered by `planned_at`. The schedule baseline is each waypoint's `planned_at`; actual progress evidence comes from GPS samples and waypoint arrival/visit events.
+- The behind-schedule policy must not rely on `day_number`, `sequence_order`, or `duration_minutes` as authoritative fields. If interval duration is needed, derive it from adjacent waypoint `planned_at` values.
 
 Do not duplicate an entire data dictionary in this spec. Reference existing entities and add only story-specific requirements.
 

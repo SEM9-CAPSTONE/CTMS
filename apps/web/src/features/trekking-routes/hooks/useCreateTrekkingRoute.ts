@@ -33,23 +33,24 @@ function backendMessage(error: HttpError): string | null {
 	return values.length ? values.join(". ") : null;
 }
 
-export function mapCreateRouteError(error: unknown): CreateRouteError {
+export function mapCreateRouteError(error: unknown, action = "tạo"): CreateRouteError {
 	if (!(error instanceof HttpError))
 		return {
-			message: "Không thể tạo tuyến đường. Vui lòng kiểm tra kết nối và thử lại.",
+			message: `Không thể ${action} tuyến đường. Vui lòng kiểm tra kết nối và thử lại.`,
 			canRetry: true,
 		};
 	const detail = backendMessage(error);
 	const byStatus: Record<number, string> = {
 		401: "Phiên đăng nhập không hợp lệ hoặc đã hết hạn.",
-		403: "Bạn không có quyền tạo tuyến cho khu cắm trại này.",
-		404: "Không tìm thấy khu cắm trại đã chọn.",
+		403: "Bạn không có quyền thao tác với tuyến đường này.",
+		404: "Không tìm thấy tuyến đường đã chọn.",
 		409: "Yêu cầu bị xung đột. Dữ liệu đã nhập vẫn được giữ nguyên.",
-		422: "Thông tin hoặc hình học tuyến đường chưa hợp lệ.",
+		422: "Thông tin hoặc đường đi của tuyến chưa hợp lệ.",
 	};
 	return {
 		status: error.status,
-		message: detail || byStatus[error.status] || "Không thể tạo tuyến đường. Vui lòng thử lại.",
+		message:
+			detail || byStatus[error.status] || `Không thể ${action} tuyến đường. Vui lòng thử lại.`,
 		canRetry: error.status === 409 || error.status >= 500,
 	};
 }

@@ -6,7 +6,7 @@ import {
 } from "@nestjs/common";
 import type { AuthenticatedUser } from "../../auth/jwt.strategy";
 import { UserRole, UserStatus } from "../../users/entities/user.entity";
-import { RiskLevel } from "../entities/weather-risk-assessment.entity";
+import { RiskLevel, WeatherRiskAssessment } from "../entities/weather-risk-assessment.entity";
 import { RouteRegistrationRiskService } from "./route-registration-risk.service";
 
 function createActor(overrides: Partial<AuthenticatedUser> = {}): AuthenticatedUser {
@@ -301,6 +301,54 @@ describe("RouteRegistrationRiskService", () => {
 			await expect(service.assertRegistrationAllowedForTrip(actor, "trip-1")).rejects.toThrow(
 				ConflictException
 			);
+		});
+	});
+
+	describe("assertBookingWeatherAllowed", () => {
+		it("uses the transaction-bound repository and accepts the latest Green assessment", async () => {
+			const findOne = jest.fn().mockResolvedValue({
+				routeId: "route-1",
+				riskLevel: RiskLevel.GREEN,
+				compositeScore: 0.1,
+				createdAt: new Date("2026-09-03T10:00:00.000Z"),
+				criteriaScores: {},
+			});
+			const manager = { getRepository: jest.fn().mockReturnValue({ findOne }) };
+
+			const result = await service.assertBookingWeatherAllowed("route-1", manager as never);
+
+			expect(manager.getRepository).toHaveBeenCalledWith(WeatherRiskAssessment);
+			expect(findOne).toHaveBeenCalledWith({
+				where: { routeId: "route-1" },
+				order: { createdAt: "DESC" },
+			});
+			expect(result.allowed).toBe(true);
+			expect(mockDataSource.getRepository).not.toHaveBeenCalled();
+		});
+
+		it.each([
+			["missing", null],
+			[
+				"Red",
+				{
+					routeId: "route-1",
+					riskLevel: RiskLevel.RED,
+					compositeScore: 1.5,
+					createdAt: new Date(),
+					criteriaScores: {},
+				},
+			],
+		])("rejects a %s assessment without writing a weather audit", async (_name, assessment) => {
+			const manager = {
+				getRepository: jest.fn().mockReturnValue({
+					findOne: jest.fn().mockResolvedValue(assessment),
+				}),
+			};
+
+			await expect(
+				service.assertBookingWeatherAllowed("route-1", manager as never)
+			).rejects.toBeInstanceOf(ConflictException);
+			expect(mockDataSource.getRepository).not.toHaveBeenCalled();
 		});
 	});
 });

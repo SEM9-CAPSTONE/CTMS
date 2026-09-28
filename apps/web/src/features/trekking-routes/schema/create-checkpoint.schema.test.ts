@@ -8,7 +8,6 @@ import {
 const valid = {
 	name: "  Ridge rest  ",
 	location: { type: "Point" as const, coordinates: [108.46, 11.94] as [number, number] },
-	radiusMeters: "30",
 	type: "rest" as const,
 	expectedArrivalOffset: "45",
 	instructions: "  Rest here  ",
@@ -21,14 +20,16 @@ describe("createCheckpointFormSchema", () => {
 		expect(toCreateCheckpointInput(parsed)).toEqual({
 			...valid,
 			name: "Ridge rest",
-			radiusMeters: 30,
+			radiusMeters: 20,
 			expectedArrivalOffset: 45,
 			instructions: "Rest here",
 		});
 	});
 
-	it.each(["10", "500"])("accepts radius boundary %s", (radiusMeters) => {
-		expect(createCheckpointFormSchema.safeParse({ ...valid, radiusMeters }).success).toBe(true);
+	it.each([10, 30, 500])("cannot override the fixed radius with %s", (radiusMeters) => {
+		const parsed = createCheckpointFormSchema.parse({ ...valid, radiusMeters });
+		expect(parsed).not.toHaveProperty("radiusMeters");
+		expect(toCreateCheckpointInput(parsed).radiusMeters).toBe(20);
 	});
 
 	it("accepts exact text maxima and rejects values above them", () => {
@@ -50,9 +51,6 @@ describe("createCheckpointFormSchema", () => {
 
 	it.each([
 		{ ...valid, name: " " },
-		{ ...valid, radiusMeters: "9" },
-		{ ...valid, radiusMeters: "501" },
-		{ ...valid, radiusMeters: "10.5" },
 		{ ...valid, expectedArrivalOffset: "-1" },
 		{ ...valid, type: "viewpoint" },
 		{ ...valid, instructions: " " },
@@ -63,7 +61,7 @@ describe("createCheckpointFormSchema", () => {
 
 	it("uses safe initial values without preselecting a real route location", () => {
 		expect(checkpointDefaultValues({ type: "Point", coordinates: [0, 0] })).toEqual(
-			expect.objectContaining({ radiusMeters: "30", type: "rest", nearbyWaterOrShelter: false })
+			expect.objectContaining({ type: "rest", nearbyWaterOrShelter: false })
 		);
 	});
 });

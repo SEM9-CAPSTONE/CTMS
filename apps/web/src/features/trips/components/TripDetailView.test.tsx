@@ -3,6 +3,12 @@ import { describe, expect, it, vi } from "vitest";
 import type { TripDetails } from "../types";
 import { TripDetailView } from "./TripDetailView";
 
+vi.mock("../../booking-equipment/components/BookingEquipmentPicker", () => ({
+	BookingEquipmentPicker: ({ bookingId }: { bookingId: string }) => (
+		<div data-testid="booking-equipment-picker">{bookingId}</div>
+	),
+}));
+
 const mockTripDetails: TripDetails = {
 	id: "trip-999",
 	hostId: "host-1",
@@ -15,11 +21,11 @@ const mockTripDetails: TripDetails = {
 	excludes: { items: ["Balo cá nhân"] },
 	tripType: "overnight",
 	durationNights: 1,
-	startsAt: "2026-09-28T06:00:00.000Z",
-	endsAt: "2026-09-29T17:00:00.000Z",
+	startsAt: "2099-09-28T06:00:00.000Z",
+	endsAt: "2099-09-29T17:00:00.000Z",
 	meetingPoint: { type: "Point", coordinates: [108.45, 11.94] },
-	meetingAt: "2026-09-28T05:30:00.000Z",
-	bookingDeadline: "2026-09-27T18:00:00.000Z",
+	meetingAt: "2099-09-28T05:30:00.000Z",
+	bookingDeadline: "2099-09-27T18:00:00.000Z",
 	capacityMin: 8,
 	capacityMax: 16,
 	seatsTaken: 12,
@@ -42,7 +48,7 @@ const mockTripDetails: TripDetails = {
 			location: { type: "Point", coordinates: [108.47, 11.96] },
 			dayNumber: 1,
 			sequenceOrder: 2,
-			plannedAt: "2026-09-28T12:00:00.000Z",
+			plannedAt: "2099-09-28T12:00:00.000Z",
 			durationMinutes: 60,
 			metadata: null,
 		},
@@ -55,7 +61,7 @@ const mockTripDetails: TripDetails = {
 			location: { type: "Point", coordinates: [108.45, 11.94] },
 			dayNumber: 1,
 			sequenceOrder: 1,
-			plannedAt: "2026-09-28T06:00:00.000Z",
+			plannedAt: "2099-09-28T06:00:00.000Z",
 			durationMinutes: 30,
 			metadata: null,
 		},
@@ -87,7 +93,49 @@ describe("TripDetailView", () => {
 		// Booking button
 		const bookBtn = screen.getByRole("button", { name: /đặt chỗ ngay/i });
 		fireEvent.click(bookBtn);
-		expect(onBook).toHaveBeenCalledWith("trip-999");
+		expect(onBook).toHaveBeenCalledWith("trip-999", 1);
+	});
+
+	it("adjusts participant count up to remainingSeats limit and updates total price", () => {
+		const onBook = vi.fn();
+
+		render(
+			<TripDetailView
+				trip={{ ...mockTripDetails, remainingSeats: 3, pricePerPerson: 1000000 }}
+				onBook={onBook}
+			/>
+		);
+
+		const numValue = screen.getByTestId("num-people-value");
+		const totalPrice = screen.getByTestId("booking-total-price");
+		expect(numValue).toHaveValue(1);
+		expect(totalPrice).toHaveTextContent(/1\.000\.000/);
+
+		const plusBtn = screen.getByRole("button", { name: "Tăng số lượng khách" });
+		const minusBtn = screen.getByRole("button", { name: "Giảm số lượng khách" });
+
+		// Increase to 2
+		fireEvent.click(plusBtn);
+		expect(numValue).toHaveValue(2);
+		expect(totalPrice).toHaveTextContent(/2\.000\.000/);
+
+		// Increase to 3 (limit)
+		fireEvent.click(plusBtn);
+		expect(numValue).toHaveValue(3);
+		expect(totalPrice).toHaveTextContent(/3\.000\.000/);
+
+		// Attempt increase beyond limit (3)
+		fireEvent.click(plusBtn);
+		expect(numValue).toHaveValue(3);
+		expect(plusBtn).toBeDisabled();
+
+		// Decrease back to 2
+		fireEvent.click(minusBtn);
+		expect(numValue).toHaveValue(2);
+
+		// Book with 2 people
+		fireEvent.click(screen.getByRole("button", { name: /đặt chỗ ngay/i }));
+		expect(onBook).toHaveBeenCalledWith("trip-999", 2);
 	});
 
 	it("renders sold out state when remainingSeats is 0", () => {
@@ -99,8 +147,121 @@ describe("TripDetailView", () => {
 
 		render(<TripDetailView trip={soldOutTrip} />);
 
-		expect(screen.getAllByText("Đã hết chỗ")).toHaveLength(2);
+		expect(screen.getAllByText("Đã hết chỗ").length).toBeGreaterThanOrEqual(2);
 		expect(screen.getByRole("button", { name: "Đã hết chỗ" })).toBeDisabled();
+	});
+
+	it("renders low capacity urgency banner when remainingSeats <= 3", () => {
+		const lowSeatTrip: TripDetails = {
+			...mockTripDetails,
+			remainingSeats: 2,
+		};
+
+		render(<TripDetailView trip={lowSeatTrip} />);
+
+		expect(screen.getByTestId("trip-capacity-banner-low-seats")).toBeInTheDocument();
+		expect(screen.getByText("Chỉ còn 2 chỗ cuối cùng!")).toBeInTheDocument();
+	});
+
+	it("renders loading state on CTA when isBooking is true", () => {
+		render(<TripDetailView trip={mockTripDetails} isBooking={true} />);
+
+		const button = screen.getByRole("button", { name: /đang xử lý đặt chỗ/i });
+		expect(button).toBeDisabled();
+	});
+
+	it("renders the authoritative booking success state", () => {
+		render(
+			<TripDetailView
+				trip={mockTripDetails}
+				booking={{
+					id: "booking-1",
+					tripId: mockTripDetails.id,
+					userId: "user-1",
+					numPeople: 1,
+					status: "confirmed",
+					paymentStatus: "not_required",
+					holdExpiresAt: null,
+					tripStartsAtSnapshot: mockTripDetails.startsAt,
+					tripEndsAtSnapshot: mockTripDetails.endsAt,
+					basePrice: "1000000.00",
+					totalAmount: "1000000.00",
+					cancellationPolicySnapshot: null,
+					createdAt: "2026-09-20T12:00:00.000Z",
+				}}
+			/>
+		);
+
+		expect(screen.getByRole("status")).toHaveTextContent("Đặt chỗ đã được xác nhận");
+	});
+
+	it("does not render the equipment picker before a Booking exists", () => {
+		render(<TripDetailView trip={mockTripDetails} />);
+
+		expect(screen.queryByTestId("booking-equipment-picker")).not.toBeInTheDocument();
+	});
+
+	it("renders the equipment picker for the created Booking after success", () => {
+		render(
+			<TripDetailView
+				trip={mockTripDetails}
+				booking={{
+					id: "booking-1",
+					tripId: "trip-999",
+					userId: "user-1",
+					numPeople: 2,
+					status: "confirmed",
+					paymentStatus: "not_required",
+					holdExpiresAt: null,
+					tripStartsAtSnapshot: "2026-09-28T06:00:00.000Z",
+					tripEndsAtSnapshot: "2026-09-29T17:00:00.000Z",
+					basePrice: "3700000.00",
+					totalAmount: "3700000.00",
+					cancellationPolicySnapshot: null,
+					createdAt: "2026-09-27T00:00:00.000Z",
+				}}
+			/>
+		);
+
+		expect(screen.getByTestId("booking-equipment-picker")).toHaveTextContent("booking-1");
+	});
+
+	it("renders inline error when bookingError is provided and isConflict is false", () => {
+		render(
+			<TripDetailView
+				trip={mockTripDetails}
+				bookingError="Thông tin đặt chỗ không hợp lệ"
+				isConflict={false}
+			/>
+		);
+
+		expect(screen.getByRole("alert")).toHaveTextContent("Thông tin đặt chỗ không hợp lệ");
+	});
+
+	it("renders BookingConflictDialog when isConflict is true and triggers reload/dismiss", () => {
+		const onConflictDismiss = vi.fn();
+		const onConflictReload = vi.fn();
+
+		render(
+			<TripDetailView
+				trip={mockTripDetails}
+				isConflict={true}
+				bookingError="Chuyến đi đã hết chỗ trống do có người vừa đặt trước"
+				onConflictDismiss={onConflictDismiss}
+				onConflictReload={onConflictReload}
+			/>
+		);
+
+		expect(screen.getByTestId("booking-conflict-dialog")).toBeInTheDocument();
+		expect(
+			screen.getByText("Chuyến đi đã hết chỗ trống do có người vừa đặt trước")
+		).toBeInTheDocument();
+
+		fireEvent.click(screen.getByRole("button", { name: /tải lại dữ liệu/i }));
+		expect(onConflictReload).toHaveBeenCalledTimes(1);
+
+		fireEvent.click(screen.getByRole("button", { name: "Đóng" }));
+		expect(onConflictDismiss).toHaveBeenCalledTimes(1);
 	});
 
 	it("renders safety warning for red weather risk level", () => {

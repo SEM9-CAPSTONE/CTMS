@@ -1,5 +1,7 @@
 import { API_ENDPOINTS, httpClient } from "../../../core/api";
 import type {
+	BookTripInput,
+	BookTripResponse,
 	ConfigureTripWaypointsInput,
 	CreateTripInput,
 	PaginatedTrips,
@@ -12,6 +14,8 @@ import type {
 export const tripsService = {
 	create: (input: CreateTripInput): Promise<Trip> =>
 		httpClient.post<Trip>(API_ENDPOINTS.TRIPS.CREATE, input),
+	updateDraft: (tripId: string, input: CreateTripInput): Promise<Trip> =>
+		httpClient.patch<Trip>(API_ENDPOINTS.TRIPS.UPDATE(tripId), input),
 	configureWaypoints: (tripId: string, input: ConfigureTripWaypointsInput): Promise<Trip> =>
 		httpClient.patch<Trip>(API_ENDPOINTS.TRIPS.CONFIGURE_WAYPOINTS(tripId), input),
 
@@ -32,4 +36,9 @@ export const tripsService = {
 
 	getMyTrips: (): Promise<TripDetails[]> =>
 		httpClient.get<TripDetails[]>(API_ENDPOINTS.TRIPS.GET_MINE),
+
+	book: (input: BookTripInput, idempotencyKey: string): Promise<BookTripResponse> =>
+		httpClient.post<BookTripResponse>(API_ENDPOINTS.BOOKINGS.CREATE, input, {
+			headers: { "Idempotency-Key": idempotencyKey },
+		}),
 };

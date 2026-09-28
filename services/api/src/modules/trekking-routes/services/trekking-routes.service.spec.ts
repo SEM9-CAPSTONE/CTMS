@@ -52,6 +52,8 @@ function reviewRoute(status = TrekkingRouteStatus.PENDING_APPROVAL) {
 describe("TrekkingRoutesService", () => {
 	let routeRepository: {
 		createDraft: jest.Mock;
+		updateDraft: jest.Mock;
+		hasTripReferences: jest.Mock;
 		findByHost: jest.Mock;
 		findOneForLifecycleUpdate: jest.Mock;
 		findPendingReview: jest.Mock;
@@ -67,6 +69,8 @@ describe("TrekkingRoutesService", () => {
 	beforeEach(() => {
 		routeRepository = {
 			createDraft: jest.fn().mockResolvedValue(createdRoute()),
+			updateDraft: jest.fn().mockResolvedValue(createdRoute()),
+			hasTripReferences: jest.fn().mockResolvedValue(false),
 			findByHost: jest.fn().mockResolvedValue([createdRoute()]),
 			findOneForLifecycleUpdate: jest.fn().mockResolvedValue({
 				route: createdRoute(TrekkingRouteStatus.ACTIVE),
@@ -106,6 +110,77 @@ describe("TrekkingRoutesService", () => {
 			routeRepository as unknown as TrekkingRoutesRepository,
 			dataSource as never
 		);
+	});
+
+	describe("updateDraft", () => {
+		beforeEach(() => {
+			routeRepository.findOneForLifecycleUpdate.mockResolvedValue({
+				route: createdRoute(),
+				hostId: HOST_ID,
+				integrityValid: true,
+			});
+		});
+		it("updates an owned draft without changing its lifecycle and audits the result", async () => {
+			await expect(service.updateDraft(HOST_ID, ROUTE_ID, createDto())).resolves.toEqual(
+				createdRoute()
+			);
+			expect(routeRepository.updateDraft).toHaveBeenCalledWith(ROUTE_ID, {
+				...createDto(),
+				hostId: HOST_ID,
+			});
+			expect(routeRepository.updateStatus).not.toHaveBeenCalled();
+			expect(auditRepository.save).toHaveBeenCalledWith(
+				expect.objectContaining({
+					action: "trekking_route.updated",
+					before: expect.objectContaining({ status: "draft" }),
+					after: expect.objectContaining({ status: "draft" }),
+				})
+			);
+		});
+		it("rejects a different Host before writing", async () => {
+			await expect(service.updateDraft(OTHER_HOST_ID, ROUTE_ID, createDto())).rejects.toMatchObject(
+				{ status: 403 }
+			);
+			expect(routeRepository.updateDraft).not.toHaveBeenCalled();
+		});
+		it.each([
+			TrekkingRouteStatus.PENDING_APPROVAL,
+			TrekkingRouteStatus.ACTIVE,
+			TrekkingRouteStatus.CLOSED,
+		])("rejects %s", async (status) => {
+			routeRepository.findOneForLifecycleUpdate.mockResolvedValue({
+				route: createdRoute(status),
+				hostId: HOST_ID,
+			});
+			await expect(service.updateDraft(HOST_ID, ROUTE_ID, createDto())).rejects.toMatchObject({
+				status: 409,
+			});
+			expect(routeRepository.updateDraft).not.toHaveBeenCalled();
+		});
+		it("protects a previously published draft referenced by a Trip", async () => {
+			routeRepository.hasTripReferences.mockResolvedValue(true);
+			await expect(service.updateDraft(HOST_ID, ROUTE_ID, createDto())).rejects.toMatchObject({
+				status: 409,
+			});
+			expect(routeRepository.updateDraft).not.toHaveBeenCalled();
+		});
+		it("returns 404 for a missing route", async () => {
+			routeRepository.findOneForLifecycleUpdate.mockResolvedValue(null);
+			await expect(service.updateDraft(HOST_ID, ROUTE_ID, createDto())).rejects.toMatchObject({
+				status: 404,
+			});
+		});
+		it("propagates validation and audit failures through the transaction", async () => {
+			routeRepository.updateDraft.mockRejectedValueOnce(new Error("checkpoint outside route"));
+			await expect(service.updateDraft(HOST_ID, ROUTE_ID, createDto())).rejects.toThrow(
+				"checkpoint outside route"
+			);
+			expect(auditRepository.save).not.toHaveBeenCalled();
+			auditRepository.save.mockRejectedValueOnce(new Error("audit unavailable"));
+			await expect(service.updateDraft(HOST_ID, ROUTE_ID, createDto())).rejects.toThrow(
+				"audit unavailable"
+			);
+		});
 	});
 
 	describe("listByHost", () => {

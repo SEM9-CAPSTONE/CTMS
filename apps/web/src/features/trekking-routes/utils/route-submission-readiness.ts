@@ -20,7 +20,6 @@ export function getRouteSubmissionReadiness(
 	const starts = checkpoints.filter((checkpoint) => checkpoint.type === "start");
 	const finishes = checkpoints.filter((checkpoint) => checkpoint.type === "finish");
 	const issues: RouteSubmissionReadinessIssue[] = [];
-
 	if (starts.length === 0) issues.push("missing_start");
 	if (starts.length > 1) issues.push("duplicate_start");
 	if (finishes.length === 0) issues.push("missing_finish");

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { type CreateTripInput, TRIP_TYPES, TRIP_WAYPOINT_TYPES } from "../types";
+import { type CreateTripInput, TRIP_TYPES, TRIP_WAYPOINT_TYPES, type Trip } from "../types";
 
 const uuidMessage = "Vui lòng chọn tuyến trekking đã duyệt";
 const coordinateMessage = "Tọa độ phải nằm trong phạm vi hợp lệ";
@@ -31,6 +31,14 @@ const coordinateString = z
 
 function isSameLocalDateTimeInputDate(firstDateTime: string, secondDateTime: string): boolean {
 	return firstDateTime.slice(0, 10) === secondDateTime.slice(0, 10);
+}
+
+export function inferTripTypeFromSchedule(
+	startsAt: string,
+	endsAt: string
+): CreateTripInput["tripType"] {
+	if (!startsAt || !endsAt) return "day_trip";
+	return isSameLocalDateTimeInputDate(startsAt, endsAt) ? "day_trip" : "overnight";
 }
 
 export const createTripFormSchema = z
@@ -69,7 +77,7 @@ export const createTripFormSchema = z
 			.array(
 				z.object({
 					type: z.enum(TRIP_WAYPOINT_TYPES),
-					name: z.string().trim().min(1, "Tên waypoint là bắt buộc").max(150),
+					name: z.string().trim().min(1, "Tên điểm dừng là bắt buộc").max(150),
 					longitude: coordinateString.refine(
 						(value) => Math.abs(Number(value)) <= 180,
 						"Kinh độ phải từ -180 đến 180"
@@ -78,9 +86,7 @@ export const createTripFormSchema = z
 						(value) => Math.abs(Number(value)) <= 90,
 						"Vĩ độ phải từ -90 đến 90"
 					),
-					dayNumber: positiveIntegerString("Ngày phải là số nguyên dương"),
-					sequenceOrder: positiveIntegerString("Thứ tự phải là số nguyên dương"),
-					plannedAt: z.string(),
+					plannedAt: z.string().min(1, "Thời gian điểm dừng là bắt buộc"),
 				})
 			)
 			.min(2, "Trip cần ít nhất điểm bắt đầu và điểm kết thúc"),
@@ -128,18 +134,6 @@ export const createTripFormSchema = z
 				message: "Thời gian kết thúc phải sau thời gian bắt đầu",
 			});
 		}
-		if (
-			values.tripType === "day_trip" &&
-			values.startsAt &&
-			values.endsAt &&
-			!isSameLocalDateTimeInputDate(values.startsAt, values.endsAt)
-		) {
-			context.addIssue({
-				code: z.ZodIssueCode.custom,
-				path: ["endsAt"],
-				message: "Trip trong ngày phải bắt đầu và kết thúc trong cùng một ngày",
-			});
-		}
 		if (values.bookingDeadline && values.startsAt && bookingDeadline >= startsAt) {
 			context.addIssue({
 				code: z.ZodIssueCode.custom,
@@ -176,26 +170,43 @@ export const createTripFormSchema = z
 			});
 		}
 
-		const sequenceOrders = new Set<string>();
+		const plannedTimes = new Set<string>();
 		values.waypoints.forEach((waypoint, index) => {
-			if (sequenceOrders.has(waypoint.sequenceOrder)) {
+			if (plannedTimes.has(waypoint.plannedAt)) {
 				context.addIssue({
 					code: z.ZodIssueCode.custom,
-					path: ["waypoints", index, "sequenceOrder"],
-					message: "Thứ tự waypoint không được trùng",
+					path: ["waypoints", index, "plannedAt"],
+					message: "Thời gian điểm dừng không được trùng trong cùng trip",
 				});
 			}
-			sequenceOrders.add(waypoint.sequenceOrder);
-			if (!waypoint.plannedAt) return;
+			plannedTimes.add(waypoint.plannedAt);
 			const plannedAt = new Date(waypoint.plannedAt);
 			if (values.startsAt && values.endsAt && (plannedAt < startsAt || plannedAt > endsAt)) {
 				context.addIssue({
 					code: z.ZodIssueCode.custom,
 					path: ["waypoints", index, "plannedAt"],
-					message: "Thời gian waypoint phải nằm trong lịch trình trip",
+					message: "Thời gian điểm dừng phải nằm trong lịch trình trip",
 				});
 			}
 		});
+
+		const sortedWaypoints = [...values.waypoints].sort(
+			(first, second) => new Date(first.plannedAt).getTime() - new Date(second.plannedAt).getTime()
+		);
+		if (sortedWaypoints[0]?.type !== "start") {
+			context.addIssue({
+				code: z.ZodIssueCode.custom,
+				path: ["waypoints"],
+				message: "Điểm đầu tiên phải là điểm bắt đầu",
+			});
+		}
+		if (sortedWaypoints.at(-1)?.type !== "finish") {
+			context.addIssue({
+				code: z.ZodIssueCode.custom,
+				path: ["waypoints"],
+				message: "Điểm cuối cùng phải là điểm kết thúc",
+			});
+		}
 	});
 
 export type CreateTripFormValues = z.infer<typeof createTripFormSchema>;
@@ -221,8 +232,6 @@ export const CREATE_TRIP_DEFAULT_VALUES: CreateTripFormValues = {
 			name: "",
 			longitude: "108.2208",
 			latitude: "16.0471",
-			dayNumber: "1",
-			sequenceOrder: "1",
 			plannedAt: "",
 		},
 		{
@@ -230,8 +239,6 @@ export const CREATE_TRIP_DEFAULT_VALUES: CreateTripFormValues = {
 			name: "",
 			longitude: "108.2508",
 			latitude: "16.0671",
-			dayNumber: "1",
-			sequenceOrder: "2",
 			plannedAt: "",
 		},
 	],
@@ -239,6 +246,39 @@ export const CREATE_TRIP_DEFAULT_VALUES: CreateTripFormValues = {
 
 function toIsoString(localDateTime: string): string {
 	return new Date(localDateTime).toISOString();
+}
+
+function toDateTimeLocalValue(value: string | null): string {
+	if (!value) return "";
+	const date = new Date(value);
+	const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+	return localDate.toISOString().slice(0, 16);
+}
+
+export function toCreateTripFormValues(trip: Trip): CreateTripFormValues {
+	return {
+		routeId: trip.routeId,
+		title: trip.title,
+		description: trip.description ?? "",
+		coverImageUrl: trip.coverImageUrl ?? "",
+		tripType: trip.tripType,
+		startsAt: toDateTimeLocalValue(trip.startsAt),
+		endsAt: toDateTimeLocalValue(trip.endsAt),
+		meetingLongitude: String(trip.meetingPoint.coordinates[0]),
+		meetingLatitude: String(trip.meetingPoint.coordinates[1]),
+		meetingAt: toDateTimeLocalValue(trip.meetingAt),
+		bookingDeadline: toDateTimeLocalValue(trip.bookingDeadline),
+		capacityMin: String(trip.capacityMin),
+		capacityMax: trip.capacityMax == null ? "" : String(trip.capacityMax),
+		pricePerPerson: String(trip.pricePerPerson),
+		waypoints: trip.waypoints.map((waypoint) => ({
+			type: waypoint.type,
+			name: waypoint.name,
+			longitude: String(waypoint.location.coordinates[0]),
+			latitude: String(waypoint.location.coordinates[1]),
+			plannedAt: toDateTimeLocalValue(waypoint.plannedAt),
+		})),
+	};
 }
 
 export function toCreateTripInput(values: CreateTripFormValues): CreateTripInput {
@@ -249,7 +289,7 @@ export function toCreateTripInput(values: CreateTripFormValues): CreateTripInput
 		title: values.title.trim(),
 		...(description ? { description } : {}),
 		...(coverImageUrl ? { coverImageUrl } : {}),
-		tripType: values.tripType,
+		tripType: inferTripTypeFromSchedule(values.startsAt, values.endsAt),
 		startsAt: toIsoString(values.startsAt),
 		endsAt: toIsoString(values.endsAt),
 		meetingPoint: {
@@ -268,9 +308,7 @@ export function toCreateTripInput(values: CreateTripFormValues): CreateTripInput
 				type: "Point",
 				coordinates: [Number(waypoint.longitude), Number(waypoint.latitude)],
 			},
-			dayNumber: Number(waypoint.dayNumber),
-			sequenceOrder: Number(waypoint.sequenceOrder),
-			...(waypoint.plannedAt ? { plannedAt: toIsoString(waypoint.plannedAt) } : {}),
+			plannedAt: toIsoString(waypoint.plannedAt),
 		})),
 	};
 }

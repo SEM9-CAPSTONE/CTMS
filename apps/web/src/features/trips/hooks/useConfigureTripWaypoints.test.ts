@@ -19,15 +19,13 @@ const payload: ConfigureTripWaypointsInput = {
 			type: "start",
 			name: "Trailhead",
 			location: { type: "Point", coordinates: [108.22, 16.04] },
-			dayNumber: 1,
-			sequenceOrder: 1,
+			plannedAt: "2026-10-01T02:00:00.000Z",
 		},
 		{
 			type: "finish",
 			name: "Exit",
 			location: { type: "Point", coordinates: [108.25, 16.06] },
-			dayNumber: 1,
-			sequenceOrder: 2,
+			plannedAt: "2026-10-01T10:00:00.000Z",
 		},
 	],
 };
@@ -70,15 +68,15 @@ describe("useConfigureTripWaypoints", () => {
 			new HttpError("invalid", 422, {
 				message: [
 					{
-						field: "waypoints.0.sequenceOrder",
-						errors: ["sequenceOrder must be unique within the Trip"],
+						field: "waypoints.0.plannedAt",
+						errors: ["plannedAt must be unique within the Trip"],
 					},
 				],
 			})
 		);
 
 		expect(error.fieldErrors).toEqual({
-			"waypoints.0.sequenceOrder": "sequenceOrder must be unique within the Trip",
+			"waypoints.0.plannedAt": "plannedAt must be unique within the Trip",
 		});
 	});
 
