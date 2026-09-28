@@ -23,6 +23,9 @@ export const API_ENDPOINTS = {
 		CANCEL: (id: string) => `/bookings/${id}/cancel`,
 		PAYMENTS: (id: string) => `/bookings/${id}/payments`,
 		ITEMS: (bookingId: string) => `/bookings/${bookingId}/items`,
+		MEMBERS: (bookingId: string) => `/bookings/${bookingId}/members`,
+		MEMBER_CANDIDATE_RESOLVE: (bookingId: string) =>
+			`/bookings/${bookingId}/member-candidates/resolve`,
 	},
 	TREKKING: {
 		ROUTES: "/trekking-routes",

@@ -86,7 +86,7 @@ The system implements `Add Members to Booking` exactly within the PB V3.1 scope:
 - Concurrent requests, duplicate submissions, stale reads, and provider retries must not create duplicate records or inconsistent state.
 - If the operation cannot complete safely, the system preserves the previous authoritative state and returns an actionable failure.
 
-### 5.4 Business Rules Materialized
+### 5.4 Source-Derived Business Rules Materialized
 
 The following rules are materialized as behavior for this story:
 
@@ -102,9 +102,9 @@ The following rules are materialized as behavior for this story:
 | `BR-212` | Any Business Rule, enum, state transition, or API contract change must update the spec, tests, and data documentation before the story is Done. |
 | `BR-213` | Every mapped Business Rule must have at least one valid-path test and one violation-path test; concurrency, idempotency, and transaction rules require integration or E2E coverage. |
 
-### 5.5 Approved CTMS-168 Project/MVP Implementation Decisions
+### 5.5 Approved CTMS-168 and CTMS-166 Project/MVP Implementation Decisions
 
-The following decisions apply the source-derived rules above to CTMS-168. They are project/MVP implementation decisions, not original Business Rule text.
+The following decisions apply the source-derived rules above to CTMS-168 and CTMS-166. They are project/MVP implementation decisions, not original Business Rule text.
 
 - The first member write is a bulk initialization operation for the complete effective roster.
 - `POST /bookings/:bookingId/members` accepts `{ members: [{ userId }] }`, where `members` contains only additional participants. The authenticated Booking owner is inserted automatically as the sole primary member.
@@ -112,6 +112,8 @@ The following decisions apply the source-derived rules above to CTMS-168. They a
 - Initial roster size must equal the existing `booking.num_people`. Initial roster creation does not change `num_people` or `trips.seats_taken`.
 - Only the owning Camper may initialize a `pending_payment` or `confirmed` Booking before Trip start.
 - CTMS-168 supports existing CTMS users only. Guest, anonymous, and placeholder identities are deferred.
+- CTMS-166 resolves an additional participant through the Booking-scoped `POST /bookings/:bookingId/member-candidates/resolve` endpoint using exact normalized email only. The resolver returns only the active user's `userId` and normalized email; it is not a general user directory and does not support fuzzy, prefix, substring, paginated, or browse-all search.
+- CTMS-166 supports member initialization only immediately after Create Booking in the current browser session. Return-later and reload support belongs to CTMS-031 View Booking Details; CTMS-166 does not create a Booking Details route or read API.
 - Member lifecycle values are `registered`, `removed`, `joined`, `no_show`, and `left`.
 - Existing Bookings remain valid with zero member rows until explicitly initialized; no synthetic backfill is allowed.
 - The transaction writes `booking.members_initialized` audit data without health or other sensitive profile fields.
