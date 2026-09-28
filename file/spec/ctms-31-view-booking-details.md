@@ -349,13 +349,136 @@ Then:
 - Provider/sync/AI tests when this story depends on external service, offline queue, model output, or background processing.
 - Regression tests proving no mapped Business Rule is silently bypassed.
 
+### CTMS-031-T01 Approved Read Contract
+
+| Concern | Decision | Source category | Rationale / evidence |
+| --- | --- | --- | --- |
+| Access | `GET /api/bookings/:bookingId` is limited to the authenticated Camper who owns the Booking. Host, Admin, Porter, System-as-HTTP-actor, another Camper, and a non-owner member are outside the MVP. | CTMS Project/MVP Decision | Keeps participant identity within the owner workflow. This is not a permanent platform-wide authorization rule. |
+| Authorization order | Authenticate, authorize the Camper role, validate UUID, load only Booking ownership, return `404` if missing or `403` for an existing foreign Booking, then load nested details. | CTMS Project/MVP Decision | Participant email is not loaded before ownership succeeds. The `403`/`404` distinction accepts UUID existence disclosure and matches the current Booking-area convention. |
+| UUID validation | Malformed `bookingId` returns `422` through `BOOKING_ID_PIPE`, a `ParseUUIDPipe` configured with `HttpStatus.UNPROCESSABLE_ENTITY`. | Repository audit finding | Existing Booking controller convention and runtime behavior. |
+| Readable states | Owners may read `pending_payment`, `confirmed`, `cancelled`, `expired`, and `completed` Bookings. | CTMS Project/MVP Decision | Booking Details is a historical read and does not reuse mutation-state guards. |
+| Lazy expiry | A GET returns persisted status, payment status, hold expiry, capacity, and related rows exactly as stored. It never performs expiry or another mutation. | CTMS Project/MVP Decision | Read repeatability and historical fidelity. |
+| Money wire format | Booking and item `numeric(12,2)` values are JSON strings, or `null` only where the legacy Booking column is nullable. | Repository audit finding | Existing HTTP responses serialize values such as `"1500000.00"` and `"200000.00"`; JSON aggregation casts item numeric columns to text. |
+| Historical data | `tripStartsAtSnapshot`, `tripEndsAtSnapshot`, and `cancellationPolicySnapshot` remain authoritative and are never replaced by live Trip values. | PB / canonical source-derived | Booking creation already persists these snapshots. |
+| Current presentation | `tripPresentation` contains current Trip/Route labels. Each equipment item has a nested nullable `presentation.currentName`. Missing presentation metadata does not make the Booking unreadable. | CTMS Project/MVP Decision | The `current` naming distinguishes presentation metadata from historical snapshots. |
+| Participant identity | After owner authorization, each member may include nullable `email`; no other profile, health, emergency, or updater data is returned. | CTMS Project/MVP Decision | The owner supplied/resolved the email during Add Members. There is no PB approval for general participant PII exposure; any future non-owner access requires a new privacy review. |
+| Cancellation | Return `cancellationPolicySnapshot`; do not add `cancelledAt`. | Repository audit finding | The Booking schema has no canonical cancellation timestamp. A cancellation timestamp is outside CTMS-031 and requires a separate domain/schema decision. |
+| GET retry behavior | No request body or `Idempotency-Key`; repeated reads have no Booking, member, item, capacity, payment, or audit side effects. | CTMS Project/MVP Decision | GET is intrinsically safe and read-only. |
+| Audit | Ordinary Booking Details GET creates no domain mutation audit event. | CTMS Project/MVP Decision | No business mutation occurs. |
+| Schema/dependencies | The minimal contract requires no migration, package, environment, queue, provider, or background job change. Booking UUID is the MVP reference. | CTMS Project/MVP Decision | All authoritative fields already exist. |
+| BR provenance | Section 5.4 and the References section contain conflicting BR lists. | unresolved source provenance conflict | The implementation records the conflict and does not relabel the approved MVP decisions above as Business Rules. |
+
+The implemented response fields are the persisted Booking fields `id`, `tripId`, `userId`,
+`numPeople`, `status`, `paymentStatus`, `holdExpiresAt`, `tripStartsAtSnapshot`,
+`tripEndsAtSnapshot`, `basePrice`, `totalAmount`, `cancellationPolicySnapshot`, and
+`createdAt`, plus the read-only `tripPresentation`, `members`, and `equipmentItems`
+aggregates. Internal idempotency keys and request fingerprints are never returned.
+
+### Response Examples
+
+Populated `pending_payment` Booking:
+
+```json
+{
+  "id": "77777777-7777-4777-8777-777777777777",
+  "tripId": "33333333-3333-4333-8333-333333333333",
+  "userId": "11111111-1111-4111-8111-111111111111",
+  "numPeople": 2,
+  "status": "pending_payment",
+  "paymentStatus": "unpaid",
+  "holdExpiresAt": "2030-01-01T00:15:00.000Z",
+  "tripStartsAtSnapshot": "2030-02-01T01:00:00.000Z",
+  "tripEndsAtSnapshot": "2030-02-02T10:00:00.000Z",
+  "basePrice": "1500000.00",
+  "totalAmount": "1700000.00",
+  "cancellationPolicySnapshot": { "refundHours": 48 },
+  "createdAt": "2029-12-01T00:00:00.000Z",
+  "tripPresentation": {
+    "id": "33333333-3333-4333-8333-333333333333",
+    "currentTitle": "Summit Trip",
+    "routeId": "44444444-4444-4444-8444-444444444444",
+    "currentRouteName": "Ridge Route"
+  },
+  "members": [
+    {
+      "id": "55555555-5555-4555-8555-555555555555",
+      "userId": "11111111-1111-4111-8111-111111111111",
+      "email": "camper@example.com",
+      "isPrimary": true,
+      "memberStatus": "registered",
+      "createdAt": "2029-12-01T00:01:00.000Z",
+      "updatedAt": "2029-12-01T00:01:00.000Z"
+    }
+  ],
+  "equipmentItems": [
+    {
+      "id": "66666666-6666-4666-8666-666666666666",
+      "itemType": "equipment",
+      "equipmentCatalogItemId": "88888888-8888-4888-8888-888888888888",
+      "quantity": 2,
+      "unitPrice": "50000.00",
+      "rentalDays": 2,
+      "totalPrice": "200000.00",
+      "createdAt": "2029-12-01T00:02:00.000Z",
+      "presentation": { "currentName": "Trekking Tent" }
+    }
+  ]
+}
+```
+
+Cancelled Booking remains readable and retains its cancellation-policy snapshot:
+
+```json
+{
+  "id": "77777777-7777-4777-8777-777777777777",
+  "tripId": "33333333-3333-4333-8333-333333333333",
+  "userId": "11111111-1111-4111-8111-111111111111",
+  "numPeople": 2,
+  "status": "cancelled",
+  "paymentStatus": "paid",
+  "holdExpiresAt": null,
+  "tripStartsAtSnapshot": "2030-02-01T01:00:00.000Z",
+  "tripEndsAtSnapshot": "2030-02-02T10:00:00.000Z",
+  "basePrice": "1500000.00",
+  "totalAmount": "1500000.00",
+  "cancellationPolicySnapshot": { "refundHours": 48 },
+  "createdAt": "2029-12-01T00:00:00.000Z",
+  "tripPresentation": null,
+  "members": [],
+  "equipmentItems": []
+}
+```
+
+Legacy/empty related-data response:
+
+```json
+{
+  "id": "77777777-7777-4777-8777-777777777777",
+  "tripId": "33333333-3333-4333-8333-333333333333",
+  "userId": "11111111-1111-4111-8111-111111111111",
+  "numPeople": 1,
+  "status": "confirmed",
+  "paymentStatus": "not_required",
+  "holdExpiresAt": null,
+  "tripStartsAtSnapshot": "2030-02-01T01:00:00.000Z",
+  "tripEndsAtSnapshot": "2030-02-02T10:00:00.000Z",
+  "basePrice": "0.00",
+  "totalAmount": "0.00",
+  "cancellationPolicySnapshot": null,
+  "createdAt": "2029-12-01T00:00:00.000Z",
+  "tripPresentation": null,
+  "members": [],
+  "equipmentItems": []
+}
+```
+
 ### Logic Subtask DoD
 
-- [ ] Logic implementation completed.
-- [ ] Applicable business rules and invariants implemented.
-- [ ] Task-specific unit tests added or updated.
-- [ ] Task-specific unit tests passed.
-- [ ] Applicable backend or integration tests passed.
+- [x] Logic implementation completed.
+- [x] Applicable business rules and invariants implemented.
+- [x] Task-specific unit tests added or updated.
+- [x] Task-specific unit tests passed.
+- [x] Applicable backend or integration tests passed.
 
 ---
 

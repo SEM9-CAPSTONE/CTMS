@@ -22,6 +22,7 @@ import { BookingsService } from "./bookings.service";
 import { AddBookingItemResponseDto } from "./dto/add-booking-item-response.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { AddBookingItemDto } from "./dto/add-booking-item.dto";
+import { BookingDetailsResponseDto } from "./dto/booking-details-response.dto";
 import { BookingItemResponseDto } from "./dto/booking-item-response.dto";
 import { BookingResponseDto } from "./dto/booking-response.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
@@ -155,5 +156,19 @@ export class BookingsController {
 		@Param("bookingId", BOOKING_ID_PIPE) bookingId: string
 	): Promise<BookingItemResponseDto[]> {
 		return this.bookingsService.listItems(request.user.userId, bookingId);
+	}
+
+	@Get(":bookingId")
+	@Roles(UserRole.CAMPER)
+	@ApiOperation({ summary: "View the authenticated Camper's Booking details" })
+	@ApiResponse({ status: 200, type: BookingDetailsResponseDto })
+	@ApiResponse({ status: 403, description: "Existing Booking is owned by another Camper" })
+	@ApiResponse({ status: 404, description: "Booking not found" })
+	@ApiResponse({ status: 422, description: "Malformed Booking id" })
+	getBookingDetails(
+		@Req() request: AuthenticatedRequest,
+		@Param("bookingId", BOOKING_ID_PIPE) bookingId: string
+	): Promise<BookingDetailsResponseDto> {
+		return this.bookingsService.getBookingDetails(request.user.userId, bookingId);
 	}
 }
