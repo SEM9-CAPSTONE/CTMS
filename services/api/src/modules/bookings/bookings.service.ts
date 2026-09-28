@@ -36,6 +36,7 @@ import { BookingMembersRepository } from "./booking-members.repository";
 import { BookingsRepository } from "./bookings.repository";
 import type { AddBookingItemResponseDto } from "./dto/add-booking-item-response.dto";
 import type { AddBookingItemDto } from "./dto/add-booking-item.dto";
+import type { BookingDetailsResponseDto } from "./dto/booking-details-response.dto";
 import type { BookingItemResponseDto } from "./dto/booking-item-response.dto";
 import type { BookingResponseDto } from "./dto/booking-response.dto";
 import type { CreateBookingDto } from "./dto/create-booking.dto";
@@ -75,6 +76,18 @@ export class BookingsService {
 		private readonly equipmentCatalogRepository: EquipmentCatalogRepository,
 		private readonly equipmentReservationsRepository: EquipmentReservationsRepository
 	) {}
+
+	async getBookingDetails(actorId: string, bookingId: string): Promise<BookingDetailsResponseDto> {
+		const ownership = await this.bookingsRepository.findOwnershipById(bookingId);
+		if (!ownership) throw new NotFoundException("Booking not found");
+		if (ownership.userId !== actorId) {
+			throw new ForbiddenException("Only the Booking owner can view Booking details");
+		}
+
+		const details = await this.bookingsRepository.findDetailsByIdForOwner(bookingId, actorId);
+		if (!details) throw new NotFoundException("Booking not found");
+		return details;
+	}
 
 	async resolveMemberCandidate(
 		actorId: string,
