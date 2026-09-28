@@ -49,7 +49,6 @@ function renderForm(overrides: Partial<React.ComponentProps<typeof CreateTripFor
 function fillValidForm() {
 	fireEvent.change(screen.getByLabelText("Tuyến đã duyệt"), { target: { value: activeRoute.id } });
 	fireEvent.change(screen.getByLabelText("Tên trip"), { target: { value: "  Bidoup morning  " } });
-	fireEvent.change(screen.getByLabelText("Loại trip"), { target: { value: "day_trip" } });
 	fireEvent.change(screen.getByLabelText("Bắt đầu"), { target: { value: "2026-10-01T09:00" } });
 	fireEvent.change(screen.getByLabelText("Kết thúc"), { target: { value: "2026-10-01T17:00" } });
 	fireEvent.change(screen.getByLabelText("Thời gian tập trung"), {
@@ -62,7 +61,9 @@ function fillValidForm() {
 }
 
 function submitFormDirectly() {
-	const form = screen.getByRole("button", { name: "Tạo trip draft" }).closest("form");
+	const form = screen
+		.getByRole("button", { name: "Tạo draft và cấu hình waypoint" })
+		.closest("form");
 	if (!form) throw new Error("Create trip form not found");
 	fireEvent.submit(form);
 }
@@ -72,7 +73,7 @@ describe("CreateTripForm", () => {
 		const props = renderForm();
 		fillValidForm();
 
-		fireEvent.click(screen.getByRole("button", { name: "Tạo trip draft" }));
+		fireEvent.click(screen.getByRole("button", { name: "Tạo draft và cấu hình waypoint" }));
 
 		await waitFor(() =>
 			expect(props.onSubmit).toHaveBeenCalledWith(
@@ -144,17 +145,18 @@ describe("CreateTripForm", () => {
 		expect(screen.queryByLabelText("Tên waypoint 1")).not.toBeInTheDocument();
 	});
 
-	it("rejects a day trip that ends on another date", async () => {
+	it("derives overnight trip type when the schedule spans another date", async () => {
 		const props = renderForm();
 		fillValidForm();
 		fireEvent.change(screen.getByLabelText("Kết thúc"), { target: { value: "2026-10-02T17:00" } });
 
 		submitFormDirectly();
 
-		expect(
-			await screen.findByText("Trip trong ngày phải bắt đầu và kết thúc trong cùng một ngày")
-		).toBeVisible();
-		expect(props.onSubmit).not.toHaveBeenCalled();
+		await waitFor(() =>
+			expect(props.onSubmit).toHaveBeenCalledWith(
+				expect.objectContaining({ tripType: "overnight" })
+			)
+		);
 	});
 
 	it("limits date pickers to valid future ranges as soon as dates are selected", () => {
@@ -257,7 +259,7 @@ describe("CreateTripForm", () => {
 
 		expect(screen.getByTestId("trip-route-map")).toBeVisible();
 		expect(screen.getByText("Tuyến và điểm tập trung")).toBeVisible();
-		expect(screen.getByText(/click trên bản đồ để đặt điểm tập trung/)).toBeVisible();
+		expect(screen.getByText(/bấm trên bản đồ để đặt điểm tập trung/)).toBeVisible();
 	});
 
 	it("keeps draft inputs editable while there is no approved route", () => {

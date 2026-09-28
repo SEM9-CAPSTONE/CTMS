@@ -160,6 +160,23 @@ describe("HostMyTripsPanel", () => {
 		expect(onNavigateToTripDetail).toHaveBeenCalledWith("trip-1");
 	});
 
+	it("shows edit action only for draft trips", () => {
+		const onEditTripDraft = vi.fn();
+		mockUseMyTrips.mockReturnValue({
+			trips: [sampleTrip1, sampleTrip2],
+			isLoading: false,
+			error: "",
+			refetch: vi.fn(),
+		});
+
+		render(<HostMyTripsPanel onEditTripDraft={onEditTripDraft} />);
+
+		const editBtn = screen.getByRole("button", { name: /sửa/i });
+		fireEvent.click(editBtn);
+
+		expect(onEditTripDraft).toHaveBeenCalledWith("trip-2");
+	});
+
 	it("filters trips by status and updates pagination", () => {
 		mockUseMyTrips.mockReturnValue({
 			trips: [sampleTrip1, sampleTrip2],

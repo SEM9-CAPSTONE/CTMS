@@ -66,24 +66,25 @@ export class CreateTripWaypointDto {
 	@Type(() => GeoJsonPointDto)
 	location!: GeoJsonPointDto;
 
-	@ApiProperty({ minimum: 1 })
-	@Type(() => Number)
-	@IsInt()
-	@Min(1)
-	dayNumber!: number;
-
-	@ApiProperty({ minimum: 1 })
-	@Type(() => Number)
-	@IsInt()
-	@Min(1)
-	sequenceOrder!: number;
-
-	@ApiPropertyOptional({ format: "date-time" })
+	@ApiPropertyOptional({ minimum: 1, deprecated: true })
 	@IsOptional()
-	@IsISO8601({ strict: true })
-	plannedAt?: string;
+	@Type(() => Number)
+	@IsInt()
+	@Min(1)
+	dayNumber?: number;
 
-	@ApiPropertyOptional({ minimum: 1 })
+	@ApiPropertyOptional({ minimum: 1, deprecated: true })
+	@IsOptional()
+	@Type(() => Number)
+	@IsInt()
+	@Min(1)
+	sequenceOrder?: number;
+
+	@ApiProperty({ format: "date-time" })
+	@IsISO8601({ strict: true })
+	plannedAt!: string;
+
+	@ApiPropertyOptional({ minimum: 1, deprecated: true })
 	@IsOptional()
 	@Type(() => Number)
 	@IsInt()

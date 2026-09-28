@@ -104,6 +104,23 @@ export class TripsController {
 		return this.tripsService.create(request.user.userId, dto);
 	}
 
+	@Patch(":tripId")
+	@Roles(UserRole.HOST)
+	@ApiOperation({ summary: "Update an owned draft Trip without changing its identity" })
+	@ApiResponse({ status: 200, type: TripResponseDto })
+	@ApiResponse({ status: 401, description: "Authentication required" })
+	@ApiResponse({ status: 403, description: "Host role and Trip ownership required" })
+	@ApiResponse({ status: 404, description: "Trip or referenced Route not found" })
+	@ApiResponse({ status: 409, description: "Trip is not draft or Route is not active" })
+	@ApiResponse({ status: 422, description: "Invalid Trip data" })
+	updateDraft(
+		@Req() request: AuthenticatedRequest,
+		@Param() params: TripIdParamDto,
+		@Body() dto: CreateTripDto
+	): Promise<TripResponseDto> {
+		return this.tripsService.updateDraft(request.user.userId, params.tripId, dto);
+	}
+
 	@Patch(":tripId/review")
 	@Roles(UserRole.ADMIN)
 	@ApiOperation({ summary: "Approve (publish) or decline a Trip pending approval" })

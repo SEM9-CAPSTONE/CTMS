@@ -3,6 +3,7 @@ import path from "node:path";
 import { expect, test } from "@playwright/test";
 
 const WORKSPACE_ROOT = path.resolve(process.cwd(), "../..");
+const SEEDED_ROUTE_NAME = "Đỉnh Núi Bidoup Trail";
 
 async function loginHost(page: import("@playwright/test").Page): Promise<void> {
 	await page.goto("/login");
@@ -35,9 +36,8 @@ test.describe("Create Trip Host UI", () => {
 		await expect(page.getByLabel("Ảnh bìa")).toHaveAttribute("type", "file");
 		await expect(page.getByLabel("Bắt đầu")).toHaveAttribute("min", /.+/);
 
-		await page.getByLabel("Tuyến đã duyệt").selectOption({ index: 1 });
+		await page.getByLabel("Tuyến đã duyệt").selectOption({ label: SEEDED_ROUTE_NAME });
 		await page.getByLabel("Tên trip").fill(`E2E Bidoup ${Date.now()}`);
-		await page.getByLabel("Loại trip").selectOption("day_trip");
 		await page.getByLabel("Bắt đầu").fill("2026-10-01T09:00");
 		await expect(page.getByLabel("Kết thúc")).toHaveAttribute("min", "2026-10-01T09:00");
 		await page.getByLabel("Kết thúc").fill("2026-10-01T17:00");
@@ -47,34 +47,35 @@ test.describe("Create Trip Host UI", () => {
 		await page.getByLabel("Số khách tối đa").fill("12");
 		await page.getByLabel("Giá mỗi người").fill("0");
 
-		await page.getByRole("button", { name: "Tạo trip draft" }).click();
-		await expect(page.getByRole("button", { name: /Đang tạo trip/ })).toBeDisabled();
-		await expect(page.getByText("Tạo trip thành công")).toBeVisible();
-		await expect(page.getByTestId("server-trip-status")).toHaveText("draft");
-		await expect(page.getByTestId("server-seats-taken")).toHaveText("0");
+		await page.getByRole("button", { name: "Tạo draft và cấu hình waypoint" }).click();
+		await expect(page.getByRole("heading", { name: "Lịch trình chuyến đi" })).toBeVisible();
+
+		await page.getByRole("button", { name: "Gửi duyệt" }).click();
+
+		await expect(page.getByTestId("configure-trip-status")).toHaveText("Chờ duyệt");
+		await expect(page.getByText(/Lịch trình đã được lưu/)).toBeVisible();
 	});
 
 	test("shows date validation without creating a false-success state", async ({ page }) => {
 		await loginHost(page);
 		await page.getByRole("button", { name: /Tạo trip/ }).click();
-		await page.getByLabel("Tuyến đã duyệt").selectOption({ index: 1 });
+		await page.getByLabel("Tuyến đã duyệt").selectOption({ label: SEEDED_ROUTE_NAME });
 		await page.getByLabel("Tên trip").fill("Invalid schedule");
 		await page.getByLabel("Bắt đầu").fill("2026-10-01T09:00");
 		await page.getByLabel("Kết thúc").fill("2026-10-01T08:00");
 		await page.getByLabel("Hạn đặt chỗ").fill("2026-10-01T10:00");
 
-		await page.getByRole("button", { name: "Tạo trip draft" }).click();
+		await page.getByRole("button", { name: "Tạo draft và cấu hình waypoint" }).click();
 
 		await expect(page.getByText("Thời gian kết thúc phải sau thời gian bắt đầu")).toBeVisible();
-		await expect(page.getByText("Tạo trip thành công")).toHaveCount(0);
+		await expect(page.getByRole("heading", { name: "Lịch trình chuyến đi" })).toHaveCount(0);
 	});
 
-	test("blocks a day trip that ends on another date", async ({ page }) => {
+	test("derives an overnight Trip when the schedule spans another date", async ({ page }) => {
 		await loginHost(page);
 		await page.getByRole("button", { name: /Tạo trip/ }).click();
-		await page.getByLabel("Tuyến đã duyệt").selectOption({ index: 1 });
-		await page.getByLabel("Tên trip").fill("Invalid day trip");
-		await page.getByLabel("Loại trip").selectOption("day_trip");
+		await page.getByLabel("Tuyến đã duyệt").selectOption({ label: SEEDED_ROUTE_NAME });
+		await page.getByLabel("Tên trip").fill(`E2E Overnight ${Date.now()}`);
 		await page.getByLabel("Bắt đầu").fill("2026-10-01T09:00");
 		await page.getByLabel("Kết thúc").fill("2026-10-02T17:00");
 		await page.getByLabel("Thời gian tập trung").fill("2026-10-01T08:30");
@@ -83,11 +84,9 @@ test.describe("Create Trip Host UI", () => {
 		await page.getByLabel("Số khách tối đa").fill("");
 		await page.getByLabel("Giá mỗi người").fill("0");
 
-		await page.getByRole("button", { name: "Tạo trip draft" }).click();
+		await expect(page.getByText("Qua đêm")).toBeVisible();
+		await page.getByRole("button", { name: "Tạo draft và cấu hình waypoint" }).click();
 
-		await expect(
-			page.getByText("Trip trong ngày phải bắt đầu và kết thúc trong cùng một ngày")
-		).toBeVisible();
-		await expect(page.getByText("Tạo trip thành công")).toHaveCount(0);
+		await expect(page.getByRole("heading", { name: "Lịch trình chuyến đi" })).toBeVisible();
 	});
 });

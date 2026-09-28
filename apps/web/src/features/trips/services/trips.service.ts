@@ -2,6 +2,7 @@ import { API_ENDPOINTS, httpClient } from "../../../core/api";
 import type {
 	BookTripInput,
 	BookTripResponse,
+	ConfigureTripWaypointsInput,
 	CreateTripInput,
 	PaginatedTrips,
 	ReviewTripInput,
@@ -13,6 +14,10 @@ import type {
 export const tripsService = {
 	create: (input: CreateTripInput): Promise<Trip> =>
 		httpClient.post<Trip>(API_ENDPOINTS.TRIPS.CREATE, input),
+	updateDraft: (tripId: string, input: CreateTripInput): Promise<Trip> =>
+		httpClient.patch<Trip>(API_ENDPOINTS.TRIPS.UPDATE(tripId), input),
+	configureWaypoints: (tripId: string, input: ConfigureTripWaypointsInput): Promise<Trip> =>
+		httpClient.patch<Trip>(API_ENDPOINTS.TRIPS.CONFIGURE_WAYPOINTS(tripId), input),
 
 	listPendingReview: (): Promise<Trip[]> =>
 		httpClient.get<Trip[]>(API_ENDPOINTS.TRIPS.PENDING_REVIEW),

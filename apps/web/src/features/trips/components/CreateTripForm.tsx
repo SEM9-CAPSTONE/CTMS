@@ -1,6 +1,15 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertCircle, ArrowRight, ImagePlus, Loader2, RefreshCw, Route, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import {
+	AlertCircle,
+	ArrowRight,
+	CalendarDays,
+	ImagePlus,
+	Loader2,
+	RefreshCw,
+	Route,
+	X,
+} from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import type { CreatedTrekkingRoute, Position } from "../../trekking-routes/types";
 import type { CreateTripError } from "../hooks/useCreateTrip";
@@ -8,6 +17,7 @@ import {
 	CREATE_TRIP_DEFAULT_VALUES,
 	type CreateTripFormValues,
 	createTripFormSchema,
+	inferTripTypeFromSchedule,
 	toCreateTripInput,
 } from "../schema/create-trip.schema";
 import type { CreateTripInput } from "../types";
@@ -23,6 +33,11 @@ interface Props {
 	onRetry: () => Promise<unknown>;
 	onRetryRoutes: () => void;
 	onCreateRoute?: () => void;
+	defaultValues?: CreateTripFormValues;
+	submitLabel?: string;
+	submittingLabel?: string;
+	title?: string;
+	description?: string;
 }
 
 const inputClass =
@@ -71,6 +86,11 @@ function getRouteDurationError(
 	return `Thời lượng trip quá ngắn cho tuyến ${routeKilometers} km. Cần tối thiểu ${formatDuration(minimumMinutes)}.`;
 }
 
+function tripTypeLabel(startsAt: string, endsAt: string): string {
+	if (!startsAt || !endsAt) return "Sẽ tự xác định sau khi chọn lịch";
+	return inferTripTypeFromSchedule(startsAt, endsAt) === "overnight" ? "Qua đêm" : "Trong ngày";
+}
+
 export function CreateTripForm({
 	activeRoutes,
 	isRouteLoading,
@@ -81,6 +101,11 @@ export function CreateTripForm({
 	onRetry,
 	onRetryRoutes,
 	onCreateRoute,
+	defaultValues = CREATE_TRIP_DEFAULT_VALUES,
+	submitLabel = "Tạo draft và cấu hình waypoint",
+	submittingLabel = "Đang tạo trip...",
+	title = "Thông tin chuyến đi",
+	description = "Loại trip được tự xác định từ ngày bắt đầu và kết thúc.",
 }: Props) {
 	const {
 		register,
@@ -89,10 +114,11 @@ export function CreateTripForm({
 		setError,
 		setValue,
 		watch,
+		reset,
 		formState: { errors },
 	} = useForm<CreateTripFormValues>({
 		resolver: zodResolver(createTripFormSchema),
-		defaultValues: CREATE_TRIP_DEFAULT_VALUES,
+		defaultValues,
 		mode: "onChange",
 	});
 	const selectedRouteId = watch("routeId");
@@ -112,6 +138,10 @@ export function CreateTripForm({
 	const submitDisabled = isSubmitting || !hasActiveRoutes || !selectedRouteId;
 
 	useEffect(() => {
+		reset(defaultValues);
+	}, [defaultValues, reset]);
+
+	useEffect(() => {
 		if (!hasActiveRoutes || selectedRouteId) return;
 		setValue("routeId", activeRoutes[0].id, { shouldValidate: true });
 	}, [activeRoutes, hasActiveRoutes, selectedRouteId, setValue]);
@@ -127,14 +157,10 @@ export function CreateTripForm({
 		setValue("waypoints.0.name", `${selectedRoute.name} - điểm bắt đầu`, { shouldValidate: true });
 		setValue("waypoints.0.longitude", String(start[0]), { shouldValidate: true });
 		setValue("waypoints.0.latitude", String(start[1]), { shouldValidate: true });
-		setValue("waypoints.0.dayNumber", "1", { shouldValidate: true });
-		setValue("waypoints.0.sequenceOrder", "1", { shouldValidate: true });
 		setValue("waypoints.1.type", "finish");
 		setValue("waypoints.1.name", `${selectedRoute.name} - điểm kết thúc`, { shouldValidate: true });
 		setValue("waypoints.1.longitude", String(finish[0]), { shouldValidate: true });
 		setValue("waypoints.1.latitude", String(finish[1]), { shouldValidate: true });
-		setValue("waypoints.1.dayNumber", "1", { shouldValidate: true });
-		setValue("waypoints.1.sequenceOrder", "2", { shouldValidate: true });
 	}, [selectedRoute, setValue]);
 
 	useEffect(() => {
@@ -146,6 +172,10 @@ export function CreateTripForm({
 	}, [endsAt, setValue]);
 
 	useEffect(() => {
+		setValue("tripType", inferTripTypeFromSchedule(startsAt, endsAt), { shouldValidate: true });
+	}, [endsAt, setValue, startsAt]);
+
+	useEffect(() => {
 		if (routeDurationError) {
 			setError("endsAt", { type: "routeDuration", message: routeDurationError });
 			return;
@@ -153,10 +183,13 @@ export function CreateTripForm({
 		if (errors.endsAt?.type === "routeDuration") clearErrors("endsAt");
 	}, [clearErrors, errors.endsAt?.type, routeDurationError, setError]);
 
-	const setMeetingPoint = ([longitude, latitude]: Position) => {
-		setValue("meetingLongitude", String(longitude), { shouldValidate: true });
-		setValue("meetingLatitude", String(latitude), { shouldValidate: true });
-	};
+	const setMeetingPoint = useCallback(
+		([longitude, latitude]: Position) => {
+			setValue("meetingLongitude", String(longitude), { shouldValidate: false });
+			setValue("meetingLatitude", String(latitude), { shouldValidate: false });
+		},
+		[setValue]
+	);
 
 	const handleCoverImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
 		const file = event.target.files?.[0];
@@ -301,25 +334,31 @@ export function CreateTripForm({
 
 			<input type="hidden" {...register("meetingLongitude")} />
 			<input type="hidden" {...register("meetingLatitude")} />
+			<input type="hidden" {...register("tripType")} />
 			<input type="hidden" {...register("waypoints.0.type")} />
 			<input type="hidden" {...register("waypoints.0.name")} />
 			<input type="hidden" {...register("waypoints.0.longitude")} />
 			<input type="hidden" {...register("waypoints.0.latitude")} />
-			<input type="hidden" {...register("waypoints.0.dayNumber")} />
-			<input type="hidden" {...register("waypoints.0.sequenceOrder")} />
 			<input type="hidden" {...register("waypoints.0.plannedAt")} />
 			<input type="hidden" {...register("waypoints.1.type")} />
 			<input type="hidden" {...register("waypoints.1.name")} />
 			<input type="hidden" {...register("waypoints.1.longitude")} />
 			<input type="hidden" {...register("waypoints.1.latitude")} />
-			<input type="hidden" {...register("waypoints.1.dayNumber")} />
-			<input type="hidden" {...register("waypoints.1.sequenceOrder")} />
 			<input type="hidden" {...register("waypoints.1.plannedAt")} />
 
 			<section className="rounded-2xl border border-[#e0ebe0] bg-white p-5 shadow-sm">
-				<h2 className="font-extrabold text-[#10221b]">Thông tin trip</h2>
+				<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+					<div>
+						<h2 className="font-extrabold text-[#10221b]">{title}</h2>
+						<p className="mt-1 text-sm text-[#667a6d]">{description}</p>
+					</div>
+					<div className="inline-flex items-center gap-2 self-start rounded-full bg-[#f0f6ef] px-4 py-2 text-sm font-extrabold text-[#164027]">
+						<CalendarDays className="size-4" />
+						{tripTypeLabel(startsAt, endsAt)}
+					</div>
+				</div>
 				<div className="mt-4 grid gap-4 sm:grid-cols-2">
-					<label className="text-sm font-bold text-[#34483b]">
+					<label className="text-sm font-bold text-[#34483b] sm:col-span-2">
 						Tên trip
 						<input
 							aria-label="Tên trip"
@@ -331,18 +370,6 @@ export function CreateTripForm({
 						{errors.title && (
 							<span className="mt-1 block text-xs text-red-600">{errors.title.message}</span>
 						)}
-					</label>
-					<label className="text-sm font-bold text-[#34483b]">
-						Loại trip
-						<select
-							aria-label="Loại trip"
-							disabled={isSubmitting}
-							className={inputClass}
-							{...register("tripType")}
-						>
-							<option value="day_trip">Trong ngày</option>
-							<option value="overnight">Qua đêm</option>
-						</select>
 					</label>
 					<label className="text-sm font-bold text-[#34483b]">
 						Bắt đầu
@@ -549,9 +576,9 @@ export function CreateTripForm({
 			>
 				{isSubmitting && <Loader2 className="size-4 animate-spin" />}
 				{isSubmitting
-					? "Đang tạo trip..."
+					? submittingLabel
 					: hasActiveRoutes
-						? "Tạo trip draft"
+						? submitLabel
 						: "Cần tuyến đã duyệt để tạo trip"}
 			</button>
 		</form>

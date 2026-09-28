@@ -54,6 +54,8 @@ export const API_ENDPOINTS = {
 		GET_MINE: "/trips/mine",
 		GET_BY_ID: (id: string) => `/trips/${id}`,
 		CREATE: "/trips",
+		UPDATE: (id: string) => `/trips/${id}`,
+		CONFIGURE_WAYPOINTS: (tripId: string) => `/trips/${tripId}/waypoints`,
 		MEMBERS: (tripId: string) => `/trips/${tripId}/members`,
 		GPS_LOGS: (tripId: string) => `/trips/${tripId}/gps-logs`,
 		PENDING_REVIEW: "/trips/pending-review",

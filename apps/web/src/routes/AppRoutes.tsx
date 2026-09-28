@@ -91,6 +91,25 @@ export function AppRoutes() {
 		/>
 	);
 
+	if (currentPath.startsWith("/host/trips/") && currentPath.endsWith("/edit")) {
+		const tripId = currentPath.slice("/host/trips/".length, -"/edit".length);
+		return (
+			<AppRoleGuard
+				allowedRoles={["host"]}
+				currentRoles={currentRoles}
+				onNavigateHome={() => navigateTo(RoutePath.HOME)}
+			>
+				<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
+					<CreateTripPage
+						editTripId={tripId}
+						onBackHome={() => navigateTo(RoutePath.DASHBOARD)}
+						onCreateRoute={() => navigateTo(RoutePath.HOST_CREATE_TREKKING_ROUTE)}
+					/>
+				</HostLayout>
+			</AppRoleGuard>
+		);
+	}
+
 	if (currentPath.startsWith("/trips/") && currentPath !== RoutePath.TRIPS) {
 		const tripId = currentPath.substring("/trips/".length);
 		const detailView = (
@@ -286,6 +305,7 @@ export function AppRoutes() {
 					onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}
 					onNavigateToTripDetail={(tripId) => navigateTo(`/trips/${tripId}`)}
 					onCreateTrip={() => navigateTo(RoutePath.HOST_CREATE_TRIP)}
+					onEditTripDraft={(tripId) => navigateTo(`/host/trips/${tripId}/edit`)}
 					onCreateTrekkingRoute={() => navigateTo(RoutePath.HOST_CREATE_TREKKING_ROUTE)}
 					onViewTrekkingRoutes={() => navigateTo(RoutePath.HOST_TREKKING_ROUTES)}
 					onViewEquipmentCatalog={() => navigateTo(RoutePath.HOST_EQUIPMENT_CATALOG)}

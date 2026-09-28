@@ -54,6 +54,22 @@ body {
 	overflow-x: clip;
 	-webkit-font-smoothing: antialiased;
 	-moz-osx-font-smoothing: grayscale;
+	caret-color: transparent;
+}
+
+input,
+textarea,
+select,
+[contenteditable="true"] {
+	caret-color: auto;
+}
+
+input[type="date"],
+input[type="datetime-local"],
+input[type="month"],
+input[type="time"] {
+	caret-color: transparent;
+	color-scheme: light;
 }
 
 /* Card Hover Lift Effect */

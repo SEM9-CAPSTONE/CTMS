@@ -352,6 +352,7 @@ Then:
   - `decline` always requires a `reason` and returns the Trip to `draft` so the Host can revise and resubmit through CTMS-022's existing flow -- mirrors `trekking_route` decline's own target state.
   - Audit: `trip.approved` (`reason: null`) / `trip.declined` (`reason` from the request), `before`/`after` capture `{ status }`, actor is the reviewing Admin.
   - Overnight-trip/waypoint-completeness rules are not re-validated here: `CTMS-022`'s `configureWaypoints` already enforces them (`requireApprovalReady`) as the only path into `pending_approval`, so re-checking would be a duplicate source of truth.
+  - CTMS-022 defines Trip waypoint scheduling as planned-at based. Approval must treat `trip_waypoints.planned_at` as the authoritative itinerary field and must not require `day_number`, `sequence_order`, or `duration_minutes`.
 
 ### Required Tests
 

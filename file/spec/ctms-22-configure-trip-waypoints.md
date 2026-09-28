@@ -81,6 +81,10 @@ The system implements `Configure Trip Waypoints` exactly within the PB V3.1 scop
 - Backend is authoritative for permission, state, price, capacity, inventory, safety, payment, and operational outcomes.
 - UI validation may improve the experience, but backend validation is mandatory and final.
 - Invalid input returns a clear error and does not partially create, update, or synchronize records.
+- Trip waypoint scheduling is time-based. Each waypoint must include `planned_at`; waypoint ordering, day grouping, and interval duration are derived from `planned_at`.
+- `planned_at` must be unique within a Trip and must fall within the Trip's `[starts_at, ends_at]` range.
+- The earliest waypoint by `planned_at` must be `type = start`; the latest waypoint by `planned_at` must be `type = finish`.
+- `day_number`, `sequence_order`, and `duration_minutes` are not authoritative fields for CTMS-022. Do not require them in the API contract or persistence model for this story.
 
 ### 5.3 State and Transaction Rules
 
@@ -96,9 +100,9 @@ The following rules are materialized as behavior for this story:
 | ID       | Content                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `BR-056` | Required behavior for `Configure Trip Waypoints` must validate and enforce Trip, status, draft, Host, trip_waypoints, submit, pending_approval as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths.                                       |
-| `BR-057` | Required behavior for `Configure Trip Waypoints` must validate and enforce trip_waypoints, Trip, waypoint, trip_id, type, location, Point, day_number, sequence_order, checkpoint_id as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths. |
-| `BR-058` | Required behavior for `Configure Trip Waypoints` must validate and enforce Trip, sequence_order, unique, planned_at, starts_at, ends_at, duration_minutes as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths.                            |
-| `BR-059` | Required behavior for `Configure Trip Waypoints` must validate and enforce publish, overnight, Trip, waypoint, type, duration_nights, duration as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths.                                       |
+| `BR-057` | Required behavior for `Configure Trip Waypoints` must validate and enforce trip_waypoints, Trip, waypoint, trip_id, type, location, Point, planned_at, checkpoint_id as part of the story-specific business contract. `checkpoint_id` is optional; when present, it must reference a checkpoint belonging to the Trip's selected Route. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths. |
+| `BR-058` | Required behavior for `Configure Trip Waypoints` must validate and enforce Trip, planned_at, unique, starts_at, ends_at as part of the story-specific business contract. `planned_at` is required and unique per Trip; waypoint order, itinerary day grouping, and interval duration are derived from `planned_at`, not persisted as separate authoritative fields. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths. |
+| `BR-059` | Required behavior for `Configure Trip Waypoints` must validate and enforce publish, overnight, Trip, waypoint, type, duration_nights, and planned_at timing as part of the story-specific business contract. Overnight waypoint count must match `duration_nights`, and overnight waypoint `planned_at` values must fit the Trip's `starts_at`/`ends_at` schedule. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths. |
 | `BR-060` | Required behavior for `Configure Trip Waypoints` must validate and enforce Trip, trip_type, day_trip, duration_nights, waypoint, type, overnight as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths.                                     |
 | `BR-218` | AI/RAG output is advisory only. It may recommend or explain, but it must not override hard rules or authoritative state such as Route closed/archived, Trip capacity, payment result, Weather Risk score/level, or access rights.                                                                                                                                                                                                                          |
 | `BR-174` | Inputs must be validated for required fields, formats, identifiers, enum values, and cross-entity references before any write is committed.                                                                                                                                                                                                                                                                                                                |
@@ -112,6 +116,7 @@ The following rules are materialized as behavior for this story:
 
 - PB V3.1 row `CTMS-022` is the direct scope and acceptance source.
 - Rule IDs above come from the `Primary BR IDs` column in PB V3.1 and are materialized here as implementation behavior.
+- Product decision: CTMS-022 uses `planned_at` as the authoritative itinerary field. The source workbook rows for CTMS-022 and BR-057/BR-058 must be aligned to this planned-at-based contract before the story is considered Done.
 - If a rule ID conflicts with PB V3.1 behavior, do not silently choose one. Record a Pending Decision and update PB/rules/spec together.
 - This file may elaborate approved behavior into execution flow, but it must not invent, change, or override business behavior.
 - Undefined, ambiguous, or conflicting behavior must be captured in Section 19 as a Pending Decision.
@@ -163,6 +168,8 @@ If dependency data from `CTMS-021` is missing or not in an allowed state, block 
 
 Reject invalid fields, invalid enum values, missing required references, out-of-range dates, invalid coordinates, invalid amounts, or stale IDs before writing data.
 
+For waypoints, reject missing `planned_at`, duplicate `planned_at` within the same Trip, `planned_at` outside `[Trip.starts_at, Trip.ends_at]`, missing/invalid location, invalid waypoint type, a checkpoint reference outside the Trip's Route, missing `start`/`finish`, more than one `start` or `finish`, or an ordering where the earliest waypoint is not `start` or the latest waypoint is not `finish`.
+
 ### Duplicate Submission or Retry
 
 Use idempotency keys, stable client identifiers, provider references, or transaction constraints so retries do not create duplicate authoritative records.
@@ -189,6 +196,20 @@ The implementation must persist or return only data required for `Configure Trip
 - idempotency keys, provider references, sync metadata, model/config/rule version, or package/version context when the behavior depends on them.
 
 Do not duplicate an entire data dictionary in this spec. Reference existing entities and add only story-specific requirements.
+
+For CTMS-022, `trip_waypoints` must persist the following authoritative fields:
+
+- `id`;
+- `trip_id`;
+- `checkpoint_id` nullable;
+- `type` with values `start`, `checkpoint`, `rest`, `meal`, `activity`, `overnight`, `finish`;
+- `name` nullable;
+- `location` as `geography(Point,4326)`;
+- `planned_at` as a required timestamp;
+- `created_at`;
+- `updated_at`.
+
+`day_number`, `sequence_order`, and `duration_minutes` must not be treated as required persisted fields for this story. Day grouping is derived from `planned_at` relative to `Trip.starts_at`. Waypoint order is `planned_at ASC`. The planned interval for a waypoint is derived from the next waypoint's `planned_at` minus the current waypoint's `planned_at`.
 
 ---
 
@@ -355,6 +376,8 @@ Then:
 - Integration/API tests for success, invalid input, unauthorized access, missing resource, conflict, idempotency, and rollback.
 - Provider/sync/AI tests when this story depends on external service, offline queue, model output, or background processing.
 - Regression tests proving no mapped Business Rule is silently bypassed.
+- CTMS-022 tests must cover successful waypoint configuration with `planned_at` values that submit the existing draft Trip to `pending_approval` without creating a new Trip id.
+- CTMS-022 tests must cover missing `planned_at`, duplicate `planned_at`, `planned_at` outside `[starts_at, ends_at]`, invalid checkpoint scope, day-trip overnight rejection, overnight count mismatch, invalid `start`/`finish`, unauthorized access, invalid Trip state, and duplicate/retry safety.
 
 ### Logic Subtask DoD
 

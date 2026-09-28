@@ -63,18 +63,14 @@ function createTripDto() {
 				type: WaypointType.START,
 				name: "Trailhead",
 				location: { type: "Point" as const, coordinates: [108.441, 11.941] as [number, number] },
-				dayNumber: 1,
-				sequenceOrder: 1,
 				plannedAt: "2026-09-20T01:00:00.000Z",
-				durationMinutes: 15,
 				metadata: { note: "briefing" },
 			},
 			{
 				type: WaypointType.FINISH,
 				name: "Summit exit",
 				location: { type: "Point" as const, coordinates: [108.449, 11.946] as [number, number] },
-				dayNumber: 1,
-				sequenceOrder: 2,
+				plannedAt: "2026-09-20T10:00:00.000Z",
 			},
 		],
 	};
@@ -125,7 +121,7 @@ function configuredTrip() {
 				dayNumber: 1,
 				sequenceOrder: 1,
 				plannedAt: new Date("2026-09-20T01:00:00.000Z"),
-				durationMinutes: 15,
+				durationMinutes: null,
 				metadata: { note: "briefing" },
 			},
 			{
@@ -137,7 +133,7 @@ function configuredTrip() {
 				location: { type: "Point" as const, coordinates: [108.449, 11.946] as [number, number] },
 				dayNumber: 1,
 				sequenceOrder: 2,
-				plannedAt: null,
+				plannedAt: new Date("2026-09-20T10:00:00.000Z"),
 				durationMinutes: null,
 				metadata: null,
 			},
@@ -148,6 +144,7 @@ function configuredTrip() {
 describe("TripsService", () => {
 	let tripsRepository: {
 		createDraft: jest.Mock;
+		updateDraft: jest.Mock;
 		findByIdForWaypointConfiguration: jest.Mock;
 		findInvalidWaypointCheckpointIds: jest.Mock;
 		findRouteDependencyForUpdate: jest.Mock;
@@ -170,6 +167,7 @@ describe("TripsService", () => {
 	beforeEach(() => {
 		tripsRepository = {
 			createDraft: jest.fn().mockResolvedValue(createdTrip()),
+			updateDraft: jest.fn().mockResolvedValue(createdTrip()),
 			findByIdForWaypointConfiguration: jest.fn().mockResolvedValue({
 				trip: createdTrip(),
 				hostId: HOST_ID,
@@ -258,10 +256,10 @@ describe("TripsService", () => {
 			tripType: TripType.OVERNIGHT,
 			startsAt: "2026-09-20T12:00:00.000Z",
 			endsAt: "2026-09-22T10:00:00.000Z",
-			waypoints: createTripDto().waypoints.map((waypoint) => ({
-				...waypoint,
-				plannedAt: undefined,
-			})),
+			waypoints: [
+				{ ...createTripDto().waypoints[0], plannedAt: "2026-09-20T12:00:00.000Z" },
+				{ ...createTripDto().waypoints[1], plannedAt: "2026-09-22T10:00:00.000Z" },
+			],
 		});
 
 		expect(tripsRepository.createDraft).toHaveBeenCalledWith(
@@ -352,10 +350,6 @@ describe("TripsService", () => {
 			name: "day_trip spans multiple dates",
 			patch: {
 				endsAt: "2026-09-21T10:00:00.000Z",
-				waypoints: createTripDto().waypoints.map((waypoint) => ({
-					...waypoint,
-					plannedAt: undefined,
-				})),
 			},
 		},
 		{
@@ -370,9 +364,9 @@ describe("TripsService", () => {
 		expect(tripsRepository.createDraft).not.toHaveBeenCalled();
 	});
 
-	it("returns 422 when waypoint sequence order is duplicated", async () => {
+	it("returns 422 when waypoint plannedAt is duplicated", async () => {
 		const dto = createTripDto();
-		dto.waypoints[1].sequenceOrder = 1;
+		dto.waypoints[1].plannedAt = dto.waypoints[0].plannedAt;
 
 		await expect(service.create(HOST_ID, dto)).rejects.toMatchObject({ status: 422 });
 		expect(tripsRepository.createDraft).not.toHaveBeenCalled();
@@ -485,10 +479,8 @@ describe("TripsService", () => {
 				type: WaypointType.OVERNIGHT,
 				name: "Camp",
 				location: { type: "Point" as const, coordinates: [108.445, 11.943] as [number, number] },
-				dayNumber: 1,
-				sequenceOrder: 2,
+				plannedAt: "2026-09-20T05:00:00.000Z",
 			});
-			dto.waypoints[2].sequenceOrder = 3;
 
 			await expect(
 				service.configureWaypoints(HOST_ID, TRIP_ID, { waypoints: dto.waypoints })

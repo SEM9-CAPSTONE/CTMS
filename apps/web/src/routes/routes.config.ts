@@ -8,6 +8,7 @@ export enum RoutePath {
 	TRIPS = "/trips",
 	TRIP_DETAIL = "/trips/:id",
 	HOST_CREATE_TRIP = "/host/trips/create",
+	HOST_EDIT_TRIP = "/host/trips/:id/edit",
 	HOST_TREKKING_ROUTES = "/host/trekking-routes",
 	HOST_CREATE_TREKKING_ROUTE = "/host/trekking-routes/create",
 	HOST_EQUIPMENT_CATALOG = "/host/equipment-catalog",
