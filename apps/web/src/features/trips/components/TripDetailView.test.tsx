@@ -9,6 +9,12 @@ vi.mock("../../booking-equipment/components/BookingEquipmentPicker", () => ({
 	),
 }));
 
+vi.mock("../../booking-members/components/InitializeBookingMembersPanel", () => ({
+	InitializeBookingMembersPanel: ({ booking }: { booking: { id: string } }) => (
+		<div data-testid="booking-members-panel">{booking.id}</div>
+	),
+}));
+
 const mockTripDetails: TripDetails = {
 	id: "trip-999",
 	hostId: "host-1",
@@ -224,6 +230,7 @@ describe("TripDetailView", () => {
 		);
 
 		expect(screen.getByTestId("booking-equipment-picker")).toHaveTextContent("booking-1");
+		expect(screen.getByTestId("booking-members-panel")).toHaveTextContent("booking-1");
 	});
 
 	it("renders inline error when bookingError is provided and isConflict is false", () => {

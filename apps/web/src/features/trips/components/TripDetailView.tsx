@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useMemo } from "react";
 import { BookingEquipmentPicker } from "../../booking-equipment/components/BookingEquipmentPicker";
+import { InitializeBookingMembersPanel } from "../../booking-members/components/InitializeBookingMembersPanel";
 import type { BookTripResponse, TripDetails } from "../types";
 import { type BookingAccess, BookingPanel } from "./BookingPanel";
 import { TripCapacityBanner } from "./TripCapacityBanner";
@@ -463,11 +464,14 @@ export function TripDetailView({
 									onConflictReload={onConflictReload}
 								/>
 								{booking && (
-									<BookingEquipmentPicker
-										tripId={trip.id}
-										bookingId={booking.id}
-										initialTotalAmount={booking.totalAmount}
-									/>
+									<>
+										<InitializeBookingMembersPanel booking={booking} />
+										<BookingEquipmentPicker
+											tripId={trip.id}
+											bookingId={booking.id}
+											initialTotalAmount={booking.totalAmount}
+										/>
+									</>
 								)}
 							</div>
 						</div>

@@ -15,12 +15,14 @@ import { assertSafeTestDatabase } from "./support/assert-safe-test-database";
 
 interface Account {
 	id: string;
+	email: string;
 	accessToken: string;
 }
 
 interface RosterFixture {
 	bookingId: string;
 	tripId: string;
+	host: Account;
 	owner: Account;
 	participant: Account;
 }
@@ -73,20 +75,24 @@ describe("POST /api/bookings/:bookingId/members (integration, real Postgres)", (
 		await app?.close();
 	});
 
-	async function createAccount(role: UserRole = UserRole.CAMPER): Promise<Account> {
+	async function createAccount(
+		role: UserRole = UserRole.CAMPER,
+		status: UserStatus = UserStatus.ACTIVE
+	): Promise<Account> {
 		const id = randomUUID();
+		const email = `member-${id}@example.com`;
 		const passwordHash = await hash("S3curePass!", 10);
 		await dataSource.query(
 			`INSERT INTO "users" ("id", "email", "password_hash", "role", "status", "full_name")
 			 VALUES ($1, $2, $3, $4, $5, $6)`,
-			[id, `member-${id}@example.com`, passwordHash, role, UserStatus.ACTIVE, `Member ${id}`]
+			[id, email, passwordHash, role, status, `Member ${id}`]
 		);
 		await dataSource.query('INSERT INTO "user_roles" ("user_id", "role") VALUES ($1, $2)', [
 			id,
 			role,
 		]);
 		userIds.push(id);
-		return { id, accessToken: jwtService.sign({ sub: id, roles: [role] }) };
+		return { id, email, accessToken: jwtService.sign({ sub: id, roles: [role] }) };
 	}
 
 	async function createFixture(
@@ -149,7 +155,18 @@ describe("POST /api/bookings/:bookingId/members (integration, real Postgres)", (
 			]
 		);
 
-		return { bookingId, tripId, owner, participant };
+		return { bookingId, tripId, host, owner, participant };
+	}
+
+	function resolveCandidateRequest(
+		fixture: RosterFixture,
+		email: string,
+		accessToken = fixture.owner.accessToken
+	) {
+		return request(app.getHttpServer())
+			.post(`/api/bookings/${fixture.bookingId}/member-candidates/resolve`)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.send({ email });
 	}
 
 	function initializeRequest(fixture: RosterFixture, key: string) {
@@ -296,5 +313,88 @@ describe("POST /api/bookings/:bookingId/members (integration, real Postgres)", (
 			[fixture.bookingId]
 		);
 		expect(rows).toEqual([{ id: fixture.bookingId, memberCount: 0 }]);
+	});
+
+	it("resolves an active participant by normalized exact email with a minimal response", async () => {
+		const fixture = await createFixture();
+		const response = await resolveCandidateRequest(
+			fixture,
+			`  ${fixture.participant.email.toUpperCase()}  `
+		).expect(200);
+
+		expect(response.body).toEqual({
+			userId: fixture.participant.id,
+			email: fixture.participant.email,
+		});
+		expect(Object.keys(response.body).sort()).toEqual(["email", "userId"]);
+	});
+
+	it("uses the same privacy-safe 404 for missing and every inactive participant status", async () => {
+		const fixture = await createFixture();
+		const missing = await resolveCandidateRequest(fixture, "missing@example.com").expect(404);
+		expect(missing.body.message).toBe("Eligible participant not found");
+		for (const status of [
+			UserStatus.PENDING_VERIFICATION,
+			UserStatus.SUSPENDED,
+			UserStatus.DELETED,
+		]) {
+			const inactive = await createAccount(UserRole.CAMPER, status);
+			const response = await resolveCandidateRequest(fixture, inactive.email).expect(404);
+			expect(response.body).toEqual(missing.body);
+		}
+	});
+
+	it("rejects an inactive authenticated caller", async () => {
+		const fixture = await createFixture();
+		await dataSource.query('UPDATE "users" SET "status" = $1 WHERE "id" = $2', [
+			UserStatus.SUSPENDED,
+			fixture.owner.id,
+		]);
+		await resolveCandidateRequest(
+			fixture,
+			fixture.participant.email,
+			fixture.owner.accessToken
+		).expect(401);
+	});
+
+	it("rejects non-owners, non-Campers, and unauthenticated callers", async () => {
+		const fixture = await createFixture();
+		await resolveCandidateRequest(
+			fixture,
+			fixture.participant.email,
+			fixture.participant.accessToken
+		).expect(403);
+		await resolveCandidateRequest(
+			fixture,
+			fixture.participant.email,
+			fixture.host.accessToken
+		).expect(403);
+		await request(app.getHttpServer())
+			.post(`/api/bookings/${fixture.bookingId}/member-candidates/resolve`)
+			.send({ email: fixture.participant.email })
+			.expect(401);
+	});
+
+	it("validates both the Booking id and email payload", async () => {
+		const fixture = await createFixture();
+		await resolveCandidateRequest(fixture, "not-an-email").expect(422);
+		await request(app.getHttpServer())
+			.post("/api/bookings/not-a-uuid/member-candidates/resolve")
+			.set("Authorization", `Bearer ${fixture.owner.accessToken}`)
+			.send({ email: fixture.participant.email })
+			.expect(422);
+	});
+
+	it("preserves the existing Admin-only users directory behavior", async () => {
+		const fixture = await createFixture();
+		const admin = await createAccount(UserRole.ADMIN);
+		await request(app.getHttpServer())
+			.get("/api/users")
+			.set("Authorization", `Bearer ${admin.accessToken}`)
+			.expect(200);
+		await request(app.getHttpServer())
+			.get("/api/users")
+			.set("Authorization", `Bearer ${fixture.owner.accessToken}`)
+			.expect(403);
 	});
 });

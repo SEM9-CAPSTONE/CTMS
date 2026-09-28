@@ -23,7 +23,7 @@ import { TrekkingRouteStatus } from "../trekking-routes/entities/trekking-route.
 import { Trip, TripStatus } from "../trips/entities/trip.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { type LockedTripForBooking, TripsRepository } from "../trips/repositories/trips.repository";
-import { User } from "../users/entities/user.entity";
+import { User, UserStatus } from "../users/entities/user.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { RouteRegistrationRiskService } from "../weather/services/route-registration-risk.service";
 import { BookingItemType } from "./booking-item-type.enum";
@@ -41,6 +41,10 @@ import type { BookingResponseDto } from "./dto/booking-response.dto";
 import type { CreateBookingDto } from "./dto/create-booking.dto";
 import type { InitializeBookingMembersResponseDto } from "./dto/initialize-booking-members-response.dto";
 import type { InitializeBookingMembersDto } from "./dto/initialize-booking-members.dto";
+import type {
+	ResolveBookingMemberCandidateDto,
+	ResolveBookingMemberCandidateResponseDto,
+} from "./dto/resolve-booking-member-candidate.dto";
 import type { BookingItem } from "./entities/booking-item.entity";
 import type { BookingMember } from "./entities/booking-member.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
@@ -71,6 +75,46 @@ export class BookingsService {
 		private readonly equipmentCatalogRepository: EquipmentCatalogRepository,
 		private readonly equipmentReservationsRepository: EquipmentReservationsRepository
 	) {}
+
+	async resolveMemberCandidate(
+		actorId: string,
+		bookingId: string,
+		dto: ResolveBookingMemberCandidateDto
+	): Promise<ResolveBookingMemberCandidateResponseDto> {
+		const booking = await this.bookingsRepository.findOne({ where: { id: bookingId } });
+		if (!booking) throw new NotFoundException("Booking not found");
+		if (booking.userId !== actorId) {
+			throw new ForbiddenException("Only the Booking owner can resolve participants");
+		}
+		this.assertBookingEligibleForRoster(booking);
+		if (booking.numPeople === 1) {
+			throw new ConflictException("Booking does not require additional participants");
+		}
+		if (await this.bookingMembersRepository.hasInitialization(bookingId)) {
+			throw new ConflictException("Booking member roster is already initialized");
+		}
+		if ((await this.bookingMembersRepository.findByBooking(bookingId)).length > 0) {
+			throw new ConflictException("Booking already has member rows");
+		}
+
+		const trip = await this.dataSource.getRepository(Trip).findOne({
+			where: { id: booking.tripId },
+			select: { id: true, startsAt: true },
+		});
+		if (!trip) throw new NotFoundException("Trip not found");
+		if (trip.startsAt <= new Date()) throw new ConflictException("Trip has already started");
+
+		const candidate = await this.dataSource.getRepository(User).findOne({
+			where: { email: dto.email, status: UserStatus.ACTIVE },
+			select: { id: true, email: true },
+		});
+		if (!candidate?.email) throw new NotFoundException("Eligible participant not found");
+		if (candidate.id === booking.userId) {
+			throw new ConflictException("The Booking owner is added automatically");
+		}
+
+		return { userId: candidate.id, email: candidate.email };
+	}
 
 	async initializeMembers(
 		actorId: string,

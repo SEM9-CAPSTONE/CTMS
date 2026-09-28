@@ -1,3 +1,4 @@
+import { HTTP_CODE_METADATA } from "@nestjs/common/constants";
 import { ROLES_KEY } from "../auth/decorators/roles.decorator";
 import type { AuthenticatedUser } from "../auth/jwt.strategy";
 import { UserRole, UserStatus } from "../users/entities/user.entity";
@@ -52,6 +53,24 @@ describe("BookingsController", () => {
 		expect(Reflect.getMetadata(ROLES_KEY, BookingsController.prototype.initializeMembers)).toEqual([
 			UserRole.CAMPER,
 		]);
+	});
+
+	it("resolves a member candidate for the authenticated Booking owner", async () => {
+		const response = { userId: USER_ID, email: "participant@example.com" };
+		const service = { resolveMemberCandidate: jest.fn().mockResolvedValue(response) };
+		const controller = new BookingsController(service as unknown as BookingsService);
+		const dto = { email: "participant@example.com" };
+
+		await expect(controller.resolveMemberCandidate({ user: ACTOR }, BOOKING_ID, dto)).resolves.toBe(
+			response
+		);
+		expect(service.resolveMemberCandidate).toHaveBeenCalledWith(USER_ID, BOOKING_ID, dto);
+		expect(
+			Reflect.getMetadata(ROLES_KEY, BookingsController.prototype.resolveMemberCandidate)
+		).toEqual([UserRole.CAMPER]);
+		expect(
+			Reflect.getMetadata(HTTP_CODE_METADATA, BookingsController.prototype.resolveMemberCandidate)
+		).toBe(200);
 	});
 
 	it("listItems forwards the authenticated Camper and bookingId", async () => {

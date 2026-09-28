@@ -451,7 +451,15 @@ async function main() {
 						[booking.id]
 					)
 				: [];
-			console.log(JSON.stringify({ booking, items }));
+			const members = booking
+				? await dataSource.query(
+						`SELECT "user_id" AS "userId", "is_primary" AS "isPrimary",
+						        "member_status" AS "memberStatus"
+						 FROM "booking_members" WHERE "booking_id" = $1 ORDER BY "is_primary" DESC, "created_at" ASC`,
+						[booking.id]
+					)
+				: [];
+			console.log(JSON.stringify({ booking, items, members }));
 		} else if (action === "clean-bookings") {
 			const input = parseJsonArg<{ tripIds: string[] }>(arg);
 			if (input.tripIds.length > 0) {

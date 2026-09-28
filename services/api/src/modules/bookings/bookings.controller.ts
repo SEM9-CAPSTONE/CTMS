@@ -3,6 +3,7 @@ import {
 	Controller,
 	Get,
 	Headers,
+	HttpCode,
 	HttpStatus,
 	Param,
 	ParseUUIDPipe,
@@ -28,6 +29,10 @@ import { CreateBookingDto } from "./dto/create-booking.dto";
 import { InitializeBookingMembersResponseDto } from "./dto/initialize-booking-members-response.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { InitializeBookingMembersDto } from "./dto/initialize-booking-members.dto";
+import {
+	type ResolveBookingMemberCandidateDto,
+	ResolveBookingMemberCandidateResponseDto,
+} from "./dto/resolve-booking-member-candidate.dto";
 
 interface AuthenticatedRequest {
 	user: AuthenticatedUser;
@@ -62,6 +67,23 @@ export class BookingsController {
 		@Body() dto: CreateBookingDto
 	): Promise<BookingResponseDto> {
 		return this.bookingsService.create(request.user.userId, idempotencyKey, dto);
+	}
+
+	@Post(":bookingId/member-candidates/resolve")
+	@HttpCode(HttpStatus.OK)
+	@Roles(UserRole.CAMPER)
+	@ApiOperation({ summary: "Resolve one eligible Booking participant by exact email" })
+	@ApiResponse({ status: 200, type: ResolveBookingMemberCandidateResponseDto })
+	@ApiResponse({ status: 403, description: "Camper role or Booking ownership required" })
+	@ApiResponse({ status: 404, description: "Booking or eligible participant not found" })
+	@ApiResponse({ status: 409, description: "Booking is not open for participant resolution" })
+	@ApiResponse({ status: 422, description: "Invalid Booking id or email payload" })
+	resolveMemberCandidate(
+		@Req() request: AuthenticatedRequest,
+		@Param("bookingId", BOOKING_ID_PIPE) bookingId: string,
+		@Body() dto: ResolveBookingMemberCandidateDto
+	): Promise<ResolveBookingMemberCandidateResponseDto> {
+		return this.bookingsService.resolveMemberCandidate(request.user.userId, bookingId, dto);
 	}
 
 	@Post(":bookingId/members")
