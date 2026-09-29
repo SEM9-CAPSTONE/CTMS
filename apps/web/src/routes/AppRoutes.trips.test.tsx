@@ -3,6 +3,12 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AppRoutes } from "./AppRoutes";
 
+vi.mock("../features/trekking-routes/pages/CreateTrekkingRoutePage", () => ({
+	CreateTrekkingRoutePage: () => <div>Create Trekking Route Page</div>,
+}));
+vi.mock("../features/trekking-routes/pages/TrekkingRoutesPage", () => ({
+	TrekkingRoutesPage: () => <div>Trekking Routes Page</div>,
+}));
 vi.mock("../features/trips/pages/SearchTripsPage", () => ({
 	SearchTripsPage: ({
 		onBackHome,

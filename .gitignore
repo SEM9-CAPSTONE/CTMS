@@ -6,6 +6,8 @@ build/
 .expo/
 web-build/
 coverage/
+test-results/
+playwright-report/
 *.tsbuildinfo
 .env
 .env.*

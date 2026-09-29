@@ -12,6 +12,8 @@
 			"**/node_modules/**",
 			"**/build/**",
 			"**/coverage/**",
+			"**/test-results/**",
+			"**/playwright-report/**",
 			"**/.next/**",
 			"**/pnpm-lock.yaml"
 		]

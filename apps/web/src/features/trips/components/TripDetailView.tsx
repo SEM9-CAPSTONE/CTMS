@@ -13,9 +13,10 @@ import {
 	Users,
 	X,
 } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { BookingEquipmentPicker } from "../../booking-equipment/components/BookingEquipmentPicker";
 import { InitializeBookingMembersPanel } from "../../booking-members/components/InitializeBookingMembersPanel";
+import { BookingPaymentPanel } from "../../booking-payment/components/BookingPaymentPanel";
 import type { BookTripResponse, TripDetails } from "../types";
 import { type BookingAccess, BookingPanel } from "./BookingPanel";
 import { TripCapacityBanner } from "./TripCapacityBanner";
@@ -91,6 +92,7 @@ export function TripDetailView({
 	onConflictReload,
 	onConflictRetry,
 }: TripDetailViewProps) {
+	const [equipmentTotalAmount, setEquipmentTotalAmount] = useState<string | null>(null);
 	const difficulty = getDifficultyBadge(trip.difficulty ?? null);
 	const weather = getWeatherRiskBadge(trip.weatherRiskLevel ?? null);
 	const WeatherIcon = weather.icon;
@@ -470,6 +472,12 @@ export function TripDetailView({
 											tripId={trip.id}
 											bookingId={booking.id}
 											initialTotalAmount={booking.totalAmount}
+											onTotalAmountChange={setEquipmentTotalAmount}
+										/>
+										<BookingPaymentPanel
+											booking={booking}
+											bookingAccess={bookingAccess}
+											totalAmount={equipmentTotalAmount ?? booking.totalAmount}
 										/>
 									</>
 								)}

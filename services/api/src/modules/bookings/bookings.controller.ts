@@ -29,10 +29,16 @@ import { CreateBookingDto } from "./dto/create-booking.dto";
 import { InitializeBookingMembersResponseDto } from "./dto/initialize-booking-members-response.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { InitializeBookingMembersDto } from "./dto/initialize-booking-members.dto";
+import { PayBookingResponseDto } from "./dto/pay-booking-response.dto";
+// biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
+import { PayBookingDto } from "./dto/pay-booking.dto";
+// biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import {
-	type ResolveBookingMemberCandidateDto,
+	ResolveBookingMemberCandidateDto,
 	ResolveBookingMemberCandidateResponseDto,
 } from "./dto/resolve-booking-member-candidate.dto";
+// biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
+import { PaymentsService } from "./payments.service";
 
 interface AuthenticatedRequest {
 	user: AuthenticatedUser;
@@ -46,7 +52,10 @@ const BOOKING_ID_PIPE = new ParseUUIDPipe({ errorHttpStatusCode: HttpStatus.UNPR
 @UseGuards(JwtAuthGuard, RolesGuard)
 @ApiResponse({ status: 401, description: "Authentication required" })
 export class BookingsController {
-	constructor(private readonly bookingsService: BookingsService) {}
+	constructor(
+		private readonly bookingsService: BookingsService,
+		private readonly paymentsService: PaymentsService
+	) {}
 
 	@Post()
 	@Roles(UserRole.CAMPER)
@@ -155,5 +164,36 @@ export class BookingsController {
 		@Param("bookingId", BOOKING_ID_PIPE) bookingId: string
 	): Promise<BookingItemResponseDto[]> {
 		return this.bookingsService.listItems(request.user.userId, bookingId);
+	}
+
+	@Post(":bookingId/pay")
+	@Roles(UserRole.CAMPER)
+	@ApiOperation({ summary: "Pay for a Booking" })
+	@ApiHeader({
+		name: "Idempotency-Key",
+		required: true,
+		description: "Stable key for one pay attempt",
+	})
+	@ApiResponse({ status: 201, type: PayBookingResponseDto })
+	@ApiResponse({ status: 403, description: "Camper role or Booking ownership required" })
+	@ApiResponse({ status: 404, description: "Booking not found" })
+	@ApiResponse({
+		status: 409,
+		description: "Booking is not in a payable state, or idempotency conflict",
+	})
+	@ApiResponse({ status: 422, description: "Invalid payload, bookingId, or Idempotency-Key" })
+	pay(
+		@Req() request: AuthenticatedRequest,
+		@Param("bookingId", BOOKING_ID_PIPE) bookingId: string,
+		@Headers("idempotency-key") idempotencyKey: string | undefined,
+		@Body() dto: PayBookingDto,
+		@Headers("x-mock-payment") mockPaymentHeader?: string
+	): Promise<PayBookingResponseDto> {
+		if (mockPaymentHeader) {
+			return this.paymentsService.pay(request.user.userId, bookingId, idempotencyKey, dto, {
+				mockProvider: mockPaymentHeader === "true",
+			});
+		}
+		return this.paymentsService.pay(request.user.userId, bookingId, idempotencyKey, dto);
 	}
 }

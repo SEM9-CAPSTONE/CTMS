@@ -125,7 +125,7 @@ test.describe("CTMS-40-T02 Add Services and Equipment Rental to Booking (UI)", (
 
 		await expect(page.getByText(tripTitle)).toBeVisible();
 		await page.getByRole("button", { name: /đặt chỗ ngay/i }).click();
-		await expect(page.getByText("Đặt chỗ thành công!")).toBeVisible();
+		await expect(page.getByText(/đặt chỗ thành công/i)).toBeVisible();
 
 		await expect(page.getByLabel("Thiết bị", { exact: true })).toBeVisible();
 		await page.getByLabel("Thiết bị", { exact: true }).selectOption(equipmentId);
@@ -152,7 +152,7 @@ test.describe("CTMS-40-T02 Add Services and Equipment Rental to Booking (UI)", (
 		await page.goto(`/trips/${tripId}`);
 
 		await page.getByRole("button", { name: /đặt chỗ ngay/i }).click();
-		await expect(page.getByText("Đặt chỗ thành công!")).toBeVisible();
+		await expect(page.getByText(/đặt chỗ thành công/i)).toBeVisible();
 
 		await page.getByLabel("Thiết bị", { exact: true }).selectOption(equipmentId);
 		await page.getByLabel("Số lượng thiết bị").fill("999");

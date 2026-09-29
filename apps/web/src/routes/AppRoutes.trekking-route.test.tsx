@@ -9,6 +9,54 @@ vi.mock("../features/trekking-routes/pages/CreateTrekkingRoutePage", () => ({
 vi.mock("../features/trekking-routes/pages/TrekkingRoutesPage", () => ({
 	TrekkingRoutesPage: () => <div>Trekking Routes Page</div>,
 }));
+vi.mock("../features/trips/pages/SearchTripsPage", () => ({
+	SearchTripsPage: ({
+		onBackHome,
+		onNavigateToTripDetail,
+	}: {
+		onBackHome?: () => void;
+		onNavigateToTripDetail: (tripId: string) => void;
+	}) => (
+		<div>
+			<h1>Khám phá chuyến đi</h1>
+			<button type="button" onClick={() => onNavigateToTripDetail("trip-123")}>
+				Chi tiết
+			</button>
+			{onBackHome && (
+				<button type="button" onClick={onBackHome}>
+					Trang chủ
+				</button>
+			)}
+		</div>
+	),
+}));
+vi.mock("../features/trips/pages/TripDetailPage", () => ({
+	TripDetailPage: ({
+		tripId,
+		onBackToList,
+		onBackHome,
+		bookingAccess,
+	}: {
+		tripId: string;
+		onBackToList: () => void;
+		onBackHome?: () => void;
+		bookingAccess?: string;
+	}) => (
+		<div>
+			<h1>Chi tiết chuyến đi</h1>
+			<p>Mã chuyến: {tripId}</p>
+			<p>Quyền đặt chỗ: {bookingAccess}</p>
+			<button type="button" onClick={onBackToList}>
+				Quay lại danh sách chuyến đi
+			</button>
+			{onBackHome && (
+				<button type="button" onClick={onBackHome}>
+					Trang chủ
+				</button>
+			)}
+		</div>
+	),
+}));
 
 describe("AppRoutes trekking route navigation", () => {
 	beforeEach(() => {

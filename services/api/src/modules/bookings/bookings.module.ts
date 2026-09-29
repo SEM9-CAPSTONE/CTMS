@@ -14,13 +14,20 @@ import { BookingsService } from "./bookings.service";
 import { BookingItem } from "./entities/booking-item.entity";
 import { BookingMember } from "./entities/booking-member.entity";
 import { EquipmentReservation } from "./entities/equipment-reservation.entity";
+import { Payment } from "./entities/payment.entity";
 import { EquipmentReservationsRepository } from "./equipment-reservations.repository";
+import { PaymentWebhookController } from "./payment-webhook.controller";
+import { PaymentsRepository } from "./payments.repository";
+import { PaymentsService } from "./payments.service";
+import { PayOSService } from "./payos.service";
 
 @Module({
 	imports: [TripsModule, WeatherModule, EquipmentCatalogModule],
-	controllers: [BookingsController],
+	controllers: [BookingsController, PaymentWebhookController],
 	providers: [
 		BookingsService,
+		PaymentsService,
+		PayOSService,
 		JwtAuthGuard,
 		RolesGuard,
 		{
@@ -47,6 +54,13 @@ import { EquipmentReservationsRepository } from "./equipment-reservations.reposi
 				new EquipmentReservationsRepository(EquipmentReservation, dataSource.createEntityManager()),
 			inject: [DataSource],
 		},
+		{
+			provide: PaymentsRepository,
+			useFactory: (dataSource: DataSource) =>
+				new PaymentsRepository(Payment, dataSource.createEntityManager()),
+			inject: [DataSource],
+		},
 	],
+	exports: [BookingsService, PaymentsService, PayOSService],
 })
 export class BookingsModule {}
