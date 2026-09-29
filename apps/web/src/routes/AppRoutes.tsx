@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { HttpError } from "../core/api";
 import { clearAuthSessionAndRedirect } from "../core/api/authSessionSync";
 import { AdminAuditLogsPage } from "../features/admin-audit-logs/pages/AdminAuditLogsPage";
@@ -12,6 +12,9 @@ import { VerifyOtpPage } from "../features/auth/pages/VerifyOtpPage";
 import { authService } from "../features/auth/services/auth.service";
 import { getGrantedRoles, isAdminUser } from "../features/auth/utils/permissions";
 import { getRefreshToken, getStoredAuthUser } from "../features/auth/utils/tokenStorage";
+import { BookingDetailsPage } from "../features/booking-details/pages/BookingDetailsPage";
+import type { BookingDetails } from "../features/booking-details/types";
+import { BookingListPage } from "../features/booking-list/pages/BookingListPage";
 import { CamperProfilePage } from "../features/camper-profile/pages/CamperProfilePage";
 import { CreateEquipmentCatalogItemPage } from "../features/equipment-catalog/pages/CreateEquipmentCatalogItemPage";
 import { EquipmentCatalogPage } from "../features/equipment-catalog/pages/EquipmentCatalogPage";
@@ -30,6 +33,8 @@ import { EdgeCasePage, ErrorPage, NotFoundPage, UnauthorizedPage } from "../shar
 import { AppRoleGuard } from "./AppRoleGuard";
 import { RoutePath } from "./routes.config";
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 export function AppRoutes() {
 	const [currentPath, setCurrentPath] = useState<string>(() => {
 		if (window.location.hash) {
@@ -39,10 +44,13 @@ export function AppRoutes() {
 		}
 		return window.location.pathname.toLowerCase();
 	});
+	const [currentSearch, setCurrentSearch] = useState(() => window.location.search);
+	const [restoredTripBooking, setRestoredTripBooking] = useState<BookingDetails | null>(null);
 
 	useEffect(() => {
 		const handleLocationChange = () => {
 			setCurrentPath(window.location.pathname.toLowerCase());
+			setCurrentSearch(window.location.search);
 		};
 
 		window.addEventListener("popstate", handleLocationChange);
@@ -53,9 +61,14 @@ export function AppRoutes() {
 
 	const navigateTo = (path: string) => {
 		const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+		const nextLocation = new URL(normalizedPath, window.location.origin);
 		window.history.pushState({}, "", normalizedPath);
-		setCurrentPath(new URL(normalizedPath, window.location.origin).pathname.toLowerCase());
+		setCurrentPath(nextLocation.pathname.toLowerCase());
+		setCurrentSearch(nextLocation.search);
 	};
+	const handleBookingLoaded = useCallback((booking: BookingDetails) => {
+		setRestoredTripBooking(booking);
+	}, []);
 
 	const handleLogout = async (allDevices = false) => {
 		const refreshToken = getRefreshToken();
@@ -91,6 +104,29 @@ export function AppRoutes() {
 			onNavigateToLogin={() => navigateTo(RoutePath.LOGIN)}
 		/>
 	);
+	const camperUnauthorizedFallback = (
+		<UnauthorizedPage
+			requiredRole="camper"
+			onBackToHome={() => navigateTo(RoutePath.HOME)}
+			onNavigateToLogin={() => navigateTo(RoutePath.LOGIN)}
+		/>
+	);
+	if (currentPath === RoutePath.BOOKINGS) {
+		return (
+			<AppRoleGuard
+				allowedRoles={["camper"]}
+				currentRoles={currentRoles}
+				fallback={camperUnauthorizedFallback}
+				onNavigateHome={() => navigateTo(RoutePath.HOME)}
+			>
+				<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
+					<BookingListPage
+						onViewDetails={(bookingId) => navigateTo(`/bookings/${bookingId}?from=bookings`)}
+					/>
+				</HostLayout>
+			</AppRoleGuard>
+		);
+	}
 
 	if (currentPath.startsWith("/host/trips/") && currentPath.endsWith("/edit")) {
 		const tripId = currentPath.slice("/host/trips/".length, -"/edit".length);
@@ -126,11 +162,26 @@ export function AppRoutes() {
 		);
 	}
 
-	if (currentPath.startsWith("/trips/") && currentPath !== RoutePath.TRIPS) {
-		const tripId = currentPath.substring("/trips/".length);
+	const isBookingDetailRoute = currentPath.startsWith("/bookings/") && currentPath !== "/bookings/";
+	const bookingId = isBookingDetailRoute ? currentPath.substring("/bookings/".length) : null;
+	const isTripDetailRoute = currentPath.startsWith("/trips/") && currentPath !== RoutePath.TRIPS;
+	const routeTripId = isTripDetailRoute ? currentPath.substring("/trips/".length) : null;
+	const navigationContext = new URLSearchParams(currentSearch);
+	const contextTripId = navigationContext.get("tripId");
+	const tripReturnId =
+		isBookingDetailRoute &&
+		navigationContext.get("from") === "trip" &&
+		contextTripId &&
+		UUID_PATTERN.test(contextTripId)
+			? contextTripId
+			: null;
+	const activeTripId = routeTripId ?? tripReturnId;
+	const isBookingFromTrip = Boolean(bookingId && tripReturnId);
+
+	if (activeTripId) {
 		const detailView = (
 			<TripDetailPage
-				tripId={tripId}
+				tripId={activeTripId}
 				onBackToList={() => navigateTo(RoutePath.TRIPS)}
 				onBackHome={() => navigateTo(storedUser ? RoutePath.DASHBOARD : RoutePath.HOME)}
 				bookingAccess={
@@ -138,18 +189,78 @@ export function AppRoutes() {
 				}
 				onSignIn={() => navigateTo(RoutePath.LOGIN)}
 				onViewPackingList={(bookingId) => navigateTo(`/bookings/${bookingId}/packing-list`)}
+				onViewBookingDetails={(selectedBookingId) =>
+					navigateTo(
+						`/bookings/${selectedBookingId}?from=trip&tripId=${encodeURIComponent(activeTripId)}`
+					)
+				}
+				restoredBookingDetails={restoredTripBooking}
+				onClearRestoredBooking={() => setRestoredTripBooking(null)}
 			/>
+		);
+		const tripFlow = (
+			<>
+				<div hidden={isBookingFromTrip} aria-hidden={isBookingFromTrip || undefined}>
+					{detailView}
+				</div>
+				{isBookingFromTrip && bookingId && (
+					<BookingDetailsPage
+						bookingId={bookingId}
+						onBack={() => navigateTo(`/trips/${activeTripId}`)}
+						backLabel="Quay lại chi tiết chuyến đi"
+						onBookingLoaded={handleBookingLoaded}
+					/>
+				)}
+			</>
 		);
 
 		if (storedUser) {
 			return (
-				<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
-					{detailView}
-				</HostLayout>
+				<AppRoleGuard
+					allowedRoles={isBookingFromTrip ? ["camper"] : ["camper", "host", "porter", "admin"]}
+					currentRoles={currentRoles}
+					fallback={camperUnauthorizedFallback}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
+						{tripFlow}
+					</HostLayout>
+				</AppRoleGuard>
+			);
+		}
+		if (isBookingFromTrip) {
+			return (
+				<AppRoleGuard
+					allowedRoles={["camper"]}
+					currentRoles={currentRoles}
+					fallback={camperUnauthorizedFallback}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					{tripFlow}
+				</AppRoleGuard>
 			);
 		}
 
-		return detailView;
+		return tripFlow;
+	}
+
+	if (isBookingDetailRoute && bookingId) {
+		return (
+			<AppRoleGuard
+				allowedRoles={["camper"]}
+				currentRoles={currentRoles}
+				fallback={camperUnauthorizedFallback}
+				onNavigateHome={() => navigateTo(RoutePath.HOME)}
+			>
+				<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
+					<BookingDetailsPage
+						bookingId={bookingId}
+						onBack={() => navigateTo(RoutePath.BOOKINGS)}
+						backLabel="Quay lại đơn đặt chỗ"
+					/>
+				</HostLayout>
+			</AppRoleGuard>
+		);
 	}
 
 	switch (currentPath) {
@@ -320,6 +431,7 @@ export function AppRoutes() {
 					onOpenAdminUsers={() => navigateTo(RoutePath.ADMIN_USERS)}
 					onExplore={() => navigateTo(RoutePath.TRIPS)}
 					onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}
+					onNavigateToBookings={() => navigateTo(RoutePath.BOOKINGS)}
 					onNavigateToTripDetail={(tripId) => navigateTo(`/trips/${tripId}`)}
 					onCreateTrip={() => navigateTo(RoutePath.HOST_CREATE_TRIP)}
 					onEditTripDraft={(tripId) => navigateTo(`/host/trips/${tripId}/edit`)}

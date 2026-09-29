@@ -14,6 +14,26 @@ vi.mock("../hooks/useBookTrip", () => ({
 	useBookTrip: vi.fn(),
 }));
 
+vi.mock("../../booking-equipment/components/BookingEquipmentPicker", () => ({
+	BookingEquipmentPicker: ({ bookingId }: { bookingId: string }) => (
+		<div data-testid="booking-equipment-picker">{bookingId}</div>
+	),
+}));
+
+vi.mock("../../booking-members/components/InitializeBookingMembersPanel", () => ({
+	InitializeBookingMembersPanel: ({
+		booking,
+		confirmedRoster,
+	}: {
+		booking: { id: string };
+		confirmedRoster?: { members: unknown[] } | null;
+	}) => (
+		<div data-testid="booking-members-panel">
+			{booking.id}:{confirmedRoster ? `confirmed-${confirmedRoster.members.length}` : "editable"}
+		</div>
+	),
+}));
+
 const mockTrip: TripDetails = {
 	id: "trip-abc",
 	hostId: "host-1",
@@ -254,6 +274,85 @@ describe("TripDetailPage", () => {
 
 		expect(screen.getByRole("status")).toHaveTextContent("pending_payment");
 		expect(screen.getByTestId("authoritative-booking-price")).toHaveTextContent(/765\.432/);
+	});
+
+	it("passes Booking detail navigation through the page", () => {
+		vi.mocked(useTripDetail).mockReturnValue({
+			trip: mockTrip,
+			isLoading: false,
+			error: null,
+			isNotFound: false,
+			retry: vi.fn(),
+		});
+		vi.mocked(useBookTrip).mockReturnValue({
+			...defaultBookTripState,
+			booking: {
+				id: "booking-page-1",
+				tripId: mockTrip.id,
+				userId: "camper-1",
+				numPeople: 1,
+				status: "confirmed",
+				paymentStatus: "not_required",
+				holdExpiresAt: null,
+				tripStartsAtSnapshot: mockTrip.startsAt,
+				tripEndsAtSnapshot: mockTrip.endsAt,
+				basePrice: "100000.00",
+				totalAmount: "100000.00",
+				cancellationPolicySnapshot: null,
+				createdAt: "2026-09-26T12:00:00.000Z",
+			},
+		});
+		const onViewBookingDetails = vi.fn();
+		render(
+			<TripDetailPage
+				tripId="trip-abc"
+				onBackToList={vi.fn()}
+				onViewBookingDetails={onViewBookingDetails}
+			/>
+		);
+		fireEvent.click(screen.getByRole("button", { name: "Xem chi tiết đặt chỗ" }));
+		expect(onViewBookingDetails).toHaveBeenCalledWith("booking-page-1");
+	});
+
+	it("restores an authoritative Booking after returning from a refreshed detail route", () => {
+		const book = vi.fn();
+		vi.mocked(useTripDetail).mockReturnValue({
+			trip: mockTrip,
+			isLoading: false,
+			error: null,
+			isNotFound: false,
+			retry: vi.fn(),
+		});
+		vi.mocked(useBookTrip).mockReturnValue({ ...defaultBookTripState, book });
+
+		render(
+			<TripDetailPage
+				tripId={mockTrip.id}
+				onBackToList={vi.fn()}
+				restoredBookingDetails={{
+					id: "booking-restored",
+					tripId: mockTrip.id,
+					userId: "camper-1",
+					numPeople: 2,
+					status: "confirmed",
+					paymentStatus: "not_required",
+					holdExpiresAt: null,
+					tripStartsAtSnapshot: mockTrip.startsAt,
+					tripEndsAtSnapshot: mockTrip.endsAt,
+					basePrice: "3700000.00",
+					totalAmount: "3700000.00",
+					cancellationPolicySnapshot: null,
+					createdAt: "2026-09-27T00:00:00.000Z",
+					tripPresentation: null,
+					members: [],
+					equipmentItems: [],
+				}}
+			/>
+		);
+
+		expect(screen.getByRole("status")).toHaveTextContent("booking-restored");
+		expect(screen.queryByRole("button", { name: /đặt chỗ ngay/i })).not.toBeInTheDocument();
+		expect(book).not.toHaveBeenCalled();
 	});
 
 	it("displays conflict dialog and reloads authoritative state on conflict reload (BR-210)", () => {

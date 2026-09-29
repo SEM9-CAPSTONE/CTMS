@@ -4,6 +4,7 @@ import type { AuthenticatedUser } from "../auth/jwt.strategy";
 import { UserRole, UserStatus } from "../users/entities/user.entity";
 import { BookingsController } from "./bookings.controller";
 import type { BookingsService } from "./bookings.service";
+import { ResolveBookingMemberCandidateDto } from "./dto/resolve-booking-member-candidate.dto";
 import type { PaymentsService } from "./payments.service";
 
 const USER_ID = "11111111-1111-4111-8111-111111111111";
@@ -17,6 +18,21 @@ const ACTOR: AuthenticatedUser = {
 
 describe("BookingsController", () => {
 	const defaultPaymentsService = {} as unknown as PaymentsService;
+
+	it("lists only the authenticated Camper's Bookings", async () => {
+		const response = [{ id: BOOKING_ID }];
+		const service = { listForOwner: jest.fn().mockResolvedValue(response) };
+		const controller = new BookingsController(
+			service as unknown as BookingsService,
+			defaultPaymentsService
+		);
+
+		await expect(controller.listForOwner({ user: ACTOR })).resolves.toBe(response);
+		expect(service.listForOwner).toHaveBeenCalledWith(USER_ID);
+		expect(Reflect.getMetadata(ROLES_KEY, BookingsController.prototype.listForOwner)).toEqual([
+			UserRole.CAMPER,
+		]);
+	});
 
 	it("forwards the authenticated Camper, idempotency key, and DTO", async () => {
 		const response = { id: "booking-id" };
@@ -86,6 +102,13 @@ describe("BookingsController", () => {
 		expect(
 			Reflect.getMetadata(HTTP_CODE_METADATA, BookingsController.prototype.resolveMemberCandidate)
 		).toBe(200);
+		expect(
+			Reflect.getMetadata(
+				"design:paramtypes",
+				BookingsController.prototype,
+				"resolveMemberCandidate"
+			)
+		).toEqual([Object, String, ResolveBookingMemberCandidateDto]);
 	});
 
 	it("listItems forwards the authenticated Camper and bookingId", async () => {

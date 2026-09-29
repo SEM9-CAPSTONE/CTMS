@@ -20,6 +20,20 @@ describe("ResolveBookingMemberCandidateDto", () => {
 	});
 
 	it.each([
+		["camper2@ctms.local", "camper2@ctms.local"],
+		["host@ctms.local", "host@ctms.local"],
+		["demo.camper@ctms.local", "demo.camper@ctms.local"],
+		["user@example.com", "user@example.com"],
+	])("accepts the project email contract for %s", async (email, expected) => {
+		await expect(
+			pipe.transform(
+				{ email: `  ${email.toUpperCase()}  ` },
+				{ type: "body", metatype: ResolveBookingMemberCandidateDto }
+			)
+		).resolves.toEqual({ email: expected });
+	});
+
+	it.each([
 		{},
 		{ email: "not-an-email" },
 		{ email: `${"a".repeat(245)}@example.com` },

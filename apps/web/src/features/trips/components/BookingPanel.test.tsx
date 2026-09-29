@@ -121,6 +121,15 @@ describe("BookingPanel", () => {
 		expect(screen.queryByRole("button", { name: /thanh toán/i })).not.toBeInTheDocument();
 	});
 
+	it("opens Booking details through the callback from the successful result", () => {
+		const onViewBookingDetails = vi.fn();
+		render(
+			<BookingPanel trip={trip} booking={booking} onViewBookingDetails={onViewBookingDetails} />
+		);
+		fireEvent.click(screen.getByRole("button", { name: "Xem chi tiết đặt chỗ" }));
+		expect(onViewBookingDetails).toHaveBeenCalledWith(booking.id);
+	});
+
 	it("shows authoritative pending-payment state and hold expiry", () => {
 		render(
 			<BookingPanel

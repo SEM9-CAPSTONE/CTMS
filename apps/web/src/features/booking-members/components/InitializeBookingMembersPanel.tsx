@@ -7,11 +7,24 @@ import {
 	participantEmailSchema,
 	validateResolvedParticipants,
 } from "../schema/initialize-booking-members.schema";
-import type { ResolveBookingMemberCandidateResponse } from "../types";
+import type {
+	InitializeBookingMembersResponse,
+	ResolveBookingMemberCandidateResponse,
+} from "../types";
 import { BookingMemberRosterResult } from "./BookingMemberRosterResult";
 import { ParticipantEmailRow } from "./ParticipantEmailRow";
 
-export function InitializeBookingMembersPanel({ booking }: { booking: BookTripResponse }) {
+export interface InitializeBookingMembersPanelProps {
+	booking: BookTripResponse;
+	confirmedRoster?: InitializeBookingMembersResponse | null;
+	confirmedLabelsByUserId?: ReadonlyMap<string, string>;
+}
+
+export function InitializeBookingMembersPanel({
+	booking,
+	confirmedRoster = null,
+	confirmedLabelsByUserId = new Map(),
+}: InitializeBookingMembersPanelProps) {
 	const requiredCount = Math.max(0, booking.numPeople - 1);
 	const [rowIds] = useState(() => Array.from({ length: requiredCount }, () => crypto.randomUUID()));
 	const [emails, setEmails] = useState(() => Array.from({ length: requiredCount }, () => ""));
@@ -32,12 +45,13 @@ export function InitializeBookingMembersPanel({ booking }: { booking: BookTripRe
 	const isEligibleStatus = booking.status === "pending_payment" || booking.status === "confirmed";
 	const hasStarted = new Date(booking.tripStartsAtSnapshot) <= new Date();
 
-	if (initializer.result) {
+	const displayedRoster = initializer.result ?? confirmedRoster;
+	if (displayedRoster) {
 		return (
 			<BookingMemberRosterResult
-				result={initializer.result}
+				result={displayedRoster}
 				ownerId={booking.userId}
-				labelsByUserId={labelsByUserId}
+				labelsByUserId={initializer.result ? labelsByUserId : confirmedLabelsByUserId}
 			/>
 		);
 	}

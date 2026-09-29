@@ -24,6 +24,7 @@ import { AddBookingItemResponseDto } from "./dto/add-booking-item-response.dto";
 import { AddBookingItemDto } from "./dto/add-booking-item.dto";
 import { BookingDetailsResponseDto } from "./dto/booking-details-response.dto";
 import { BookingItemResponseDto } from "./dto/booking-item-response.dto";
+import { BookingListItemResponseDto } from "./dto/booking-list-item-response.dto";
 import { BookingResponseDto } from "./dto/booking-response.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { CreateBookingDto } from "./dto/create-booking.dto";
@@ -34,8 +35,9 @@ import { PackingListResponseDto } from "./dto/packing-list-response.dto";
 import { PayBookingResponseDto } from "./dto/pay-booking-response.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { PayBookingDto } from "./dto/pay-booking.dto";
+// biome-ignore lint/style/useImportType: decorated NestJS parameter and Swagger response need runtime metadata
 import {
-	type ResolveBookingMemberCandidateDto,
+	ResolveBookingMemberCandidateDto,
 	ResolveBookingMemberCandidateResponseDto,
 } from "./dto/resolve-booking-member-candidate.dto";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
@@ -57,6 +59,15 @@ export class BookingsController {
 		private readonly bookingsService: BookingsService,
 		private readonly paymentsService: PaymentsService
 	) {}
+
+	@Get()
+	@Roles(UserRole.CAMPER)
+	@ApiOperation({ summary: "List the authenticated Camper's own Bookings" })
+	@ApiResponse({ status: 200, type: BookingListItemResponseDto, isArray: true })
+	@ApiResponse({ status: 403, description: "Camper role required" })
+	listForOwner(@Req() request: AuthenticatedRequest): Promise<BookingListItemResponseDto[]> {
+		return this.bookingsService.listForOwner(request.user.userId);
+	}
 
 	@Post()
 	@Roles(UserRole.CAMPER)

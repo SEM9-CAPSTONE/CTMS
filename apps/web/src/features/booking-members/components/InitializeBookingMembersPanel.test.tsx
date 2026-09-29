@@ -76,13 +76,14 @@ describe("InitializeBookingMembersPanel", () => {
 	});
 
 	it("resolves a participant and submits the authoritative user id", async () => {
-		resolveCandidate.mockResolvedValue({ userId: MEMBER, email: "person@example.com" });
+		resolveCandidate.mockResolvedValue({ userId: MEMBER, email: "camper2@ctms.local" });
 		render(<InitializeBookingMembersPanel booking={booking} />);
 		fireEvent.change(screen.getByLabelText("Email người tham gia 1"), {
-			target: { value: "Person@Example.com" },
+			target: { value: "  CAMPER2@CTMS.LOCAL  " },
 		});
 		fireEvent.click(screen.getByRole("button", { name: "Xác nhận email" }));
-		await screen.findByText("Đã xác nhận: person@example.com");
+		await screen.findByText("Đã xác nhận: camper2@ctms.local");
+		expect(resolveCandidate).toHaveBeenCalledWith(booking.id, "camper2@ctms.local");
 		fireEvent.click(screen.getByRole("button", { name: "Xác nhận danh sách" }));
 		await waitFor(() =>
 			expect(submit).toHaveBeenCalledWith(booking.id, { members: [{ userId: MEMBER }] })
@@ -216,7 +217,45 @@ describe("InitializeBookingMembersPanel", () => {
 		expect(screen.getByRole("status")).toHaveTextContent(
 			"Danh sách người tham gia đã được xác nhận"
 		);
+		expect(screen.getByRole("status")).toHaveClass("block");
 		expect(screen.getByRole("status")).toHaveTextContent("Bạn");
 		expect(screen.getByRole("status")).toHaveTextContent("Người đặt chỗ chính");
+	});
+
+	it("renders an authoritative confirmed roster restored from Booking Details", () => {
+		render(
+			<InitializeBookingMembersPanel
+				booking={booking}
+				confirmedRoster={{
+					bookingId: booking.id,
+					members: [
+						{
+							id: "m-owner",
+							userId: OWNER,
+							isPrimary: true,
+							memberStatus: "registered",
+							createdAt: "x",
+							updatedAt: "x",
+						},
+						{
+							id: "m-member",
+							userId: MEMBER,
+							isPrimary: false,
+							memberStatus: "registered",
+							createdAt: "x",
+							updatedAt: "x",
+						},
+					],
+				}}
+				confirmedLabelsByUserId={new Map([[MEMBER, "person@example.com"]])}
+			/>
+		);
+
+		expect(screen.getByRole("status")).toHaveTextContent(
+			"Danh sách người tham gia đã được xác nhận"
+		);
+		expect(screen.getByRole("status")).toHaveTextContent("person@example.com");
+		expect(screen.queryByLabelText("Email người tham gia 1")).not.toBeInTheDocument();
+		expect(submit).not.toHaveBeenCalled();
 	});
 });

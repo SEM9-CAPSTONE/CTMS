@@ -84,9 +84,19 @@ export function HostLayout({ children, activeRole, onNavigateToTrips, onLogout }
 				return;
 			}
 			window.history.pushState({}, "", "/trips");
+		} else if (key === "bookings") {
+			window.history.pushState({}, "", "/bookings");
 		}
 		window.dispatchEvent(new PopStateEvent("popstate"));
 	};
+	const currentPath = window.location.pathname.toLowerCase();
+	const activeCamperNav = currentPath.startsWith("/bookings")
+		? "bookings"
+		: currentPath.startsWith("/profile") || currentPath.startsWith("/camper/profile")
+			? "profile"
+			: currentPath.startsWith("/trips")
+				? "explore"
+				: "overview";
 
 	const sidebarWidthClass = currentRole === "camper" ? "w-64" : "w-72";
 	const contentPaddingClass =
@@ -110,7 +120,7 @@ export function HostLayout({ children, activeRole, onNavigateToTrips, onLogout }
 					{currentRole === "camper" ? (
 						<CamperSidebar
 							profile={profile}
-							activeNav="explore"
+							activeNav={activeCamperNav}
 							onNavigate={handleCamperNav}
 							onLogout={onLogout}
 							className="h-full w-full"
@@ -142,7 +152,7 @@ export function HostLayout({ children, activeRole, onNavigateToTrips, onLogout }
 						{currentRole === "camper" ? (
 							<CamperSidebar
 								profile={profile}
-								activeNav="explore"
+								activeNav={activeCamperNav}
 								onLogout={onLogout}
 								onNavigate={(navKey) => {
 									handleCamperNav(navKey);

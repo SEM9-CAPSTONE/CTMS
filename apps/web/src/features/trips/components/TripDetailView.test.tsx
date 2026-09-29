@@ -21,8 +21,16 @@ vi.mock("../../booking-equipment/components/BookingEquipmentPicker", () => ({
 }));
 
 vi.mock("../../booking-members/components/InitializeBookingMembersPanel", () => ({
-	InitializeBookingMembersPanel: ({ booking }: { booking: { id: string } }) => (
-		<div data-testid="booking-members-panel">{booking.id}</div>
+	InitializeBookingMembersPanel: ({
+		booking,
+		confirmedRoster,
+	}: {
+		booking: { id: string };
+		confirmedRoster?: { members: unknown[] } | null;
+	}) => (
+		<div data-testid="booking-members-panel">
+			{booking.id}:{confirmedRoster ? `confirmed-${confirmedRoster.members.length}` : "editable"}
+		</div>
 	),
 }));
 
@@ -317,6 +325,84 @@ describe("TripDetailView", () => {
 		fireEvent.click(screen.getByRole("button", { name: "Xem packing list ở trang riêng" }));
 
 		expect(onViewPackingList).toHaveBeenCalledWith("booking-1");
+	});
+
+	it("uses the authoritative confirmed roster restored from Booking Details", () => {
+		const booking = {
+			id: "booking-1",
+			tripId: "trip-999",
+			userId: "user-1",
+			numPeople: 2,
+			status: "confirmed" as const,
+			paymentStatus: "not_required" as const,
+			holdExpiresAt: null,
+			tripStartsAtSnapshot: "2026-09-28T06:00:00.000Z",
+			tripEndsAtSnapshot: "2026-09-29T17:00:00.000Z",
+			basePrice: "3700000.00",
+			totalAmount: "3700000.00",
+			cancellationPolicySnapshot: null,
+			createdAt: "2026-09-27T00:00:00.000Z",
+		};
+		render(
+			<TripDetailView
+				trip={mockTripDetails}
+				booking={booking}
+				restoredBookingDetails={{
+					...booking,
+					tripPresentation: null,
+					members: [
+						{
+							id: "member-1",
+							userId: "user-1",
+							email: "owner@example.com",
+							isPrimary: true,
+							memberStatus: "registered",
+							createdAt: "x",
+							updatedAt: "x",
+						},
+						{
+							id: "member-2",
+							userId: "user-2",
+							email: "member@example.com",
+							isPrimary: false,
+							memberStatus: "registered",
+							createdAt: "x",
+							updatedAt: "x",
+						},
+					],
+					equipmentItems: [],
+				}}
+			/>
+		);
+
+		expect(screen.getByTestId("booking-members-panel")).toHaveTextContent("confirmed-2");
+	});
+
+	it("forwards the Booking details callback from the success UI", () => {
+		const onViewBookingDetails = vi.fn();
+		render(
+			<TripDetailView
+				trip={mockTripDetails}
+				booking={{
+					id: "booking-1",
+					tripId: "trip-999",
+					userId: "user-1",
+					numPeople: 1,
+					status: "confirmed",
+					paymentStatus: "not_required",
+					holdExpiresAt: null,
+					tripStartsAtSnapshot: mockTripDetails.startsAt,
+					tripEndsAtSnapshot: mockTripDetails.endsAt,
+					basePrice: "1000000.00",
+					totalAmount: "1000000.00",
+					cancellationPolicySnapshot: null,
+					createdAt: "2026-09-27T00:00:00.000Z",
+				}}
+				onViewBookingDetails={onViewBookingDetails}
+			/>
+		);
+		fireEvent.click(screen.getByRole("button", { name: "Xem chi tiết đặt chỗ" }));
+		expect(onViewBookingDetails).toHaveBeenCalledWith("booking-1");
 	});
 
 	it("renders inline error when bookingError is provided and isConflict is false", () => {

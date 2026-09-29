@@ -45,6 +45,7 @@ import type { AddBookingItemResponseDto } from "./dto/add-booking-item-response.
 import type { AddBookingItemDto } from "./dto/add-booking-item.dto";
 import type { BookingDetailsResponseDto } from "./dto/booking-details-response.dto";
 import type { BookingItemResponseDto } from "./dto/booking-item-response.dto";
+import type { BookingListItemResponseDto } from "./dto/booking-list-item-response.dto";
 import type { BookingResponseDto } from "./dto/booking-response.dto";
 import type { CreateBookingDto } from "./dto/create-booking.dto";
 import type { InitializeBookingMembersResponseDto } from "./dto/initialize-booking-members-response.dto";
@@ -92,6 +93,10 @@ export class BookingsService {
 		private readonly weatherRiskRepository: WeatherRiskRepository,
 		private readonly healthProfileRepository: HealthProfileRepository
 	) {}
+
+	listForOwner(actorId: string): Promise<BookingListItemResponseDto[]> {
+		return this.bookingsRepository.findListByOwner(actorId);
+	}
 
 	async getBookingDetails(actorId: string, bookingId: string): Promise<BookingDetailsResponseDto> {
 		const ownership = await this.bookingsRepository.findOwnershipById(bookingId);

@@ -35,9 +35,18 @@ export interface BookingPanelProps {
 	onSignIn?: () => void;
 	onConflictDismiss?: () => void;
 	onConflictReload?: () => void;
+	onViewBookingDetails?: (bookingId: string) => void;
 }
 
-function BookingResult({ booking, onReset }: { booking: BookTripResponse; onReset?: () => void }) {
+function BookingResult({
+	booking,
+	onReset,
+	onViewBookingDetails,
+}: {
+	booking: BookTripResponse;
+	onReset?: () => void;
+	onViewBookingDetails?: (bookingId: string) => void;
+}) {
 	const isFreeConfirmed =
 		booking.status === "confirmed" && booking.paymentStatus === "not_required";
 	const isPendingPayment =
@@ -104,6 +113,16 @@ function BookingResult({ booking, onReset }: { booking: BookTripResponse; onRese
 				)}
 			</dl>
 
+			{onViewBookingDetails && (
+				<button
+					type="button"
+					onClick={() => onViewBookingDetails(booking.id)}
+					className="mt-4 w-full rounded-xl bg-[#164027] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#0f2e1c]"
+				>
+					Xem chi tiết đặt chỗ
+				</button>
+			)}
+
 			{onReset && (
 				<button
 					type="button"
@@ -132,6 +151,7 @@ export function BookingPanel({
 	onSignIn,
 	onConflictDismiss,
 	onConflictReload,
+	onViewBookingDetails,
 }: BookingPanelProps) {
 	const inputId = useId();
 	const errorId = `${inputId}-error`;
@@ -170,7 +190,15 @@ export function BookingPanel({
 		if (value !== null) void onBook?.(trip.id, value);
 	};
 
-	if (booking) return <BookingResult booking={booking} onReset={onReset} />;
+	if (booking) {
+		return (
+			<BookingResult
+				booking={booking}
+				onReset={onReset}
+				onViewBookingDetails={onViewBookingDetails}
+			/>
+		);
+	}
 
 	if (bookingAccess === "anonymous") {
 		return (
