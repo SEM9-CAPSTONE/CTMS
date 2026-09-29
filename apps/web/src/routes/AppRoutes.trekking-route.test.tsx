@@ -36,18 +36,24 @@ vi.mock("../features/trips/pages/TripDetailPage", () => ({
 		onBackToList,
 		onBackHome,
 		bookingAccess,
+		onViewBookingDetails,
 	}: {
 		tripId: string;
 		onBackToList: () => void;
 		onBackHome?: () => void;
 		bookingAccess?: string;
+		onViewBookingDetails: (bookingId: string) => void;
 	}) => (
 		<div>
 			<h1>Chi tiết chuyến đi</h1>
 			<p>Mã chuyến: {tripId}</p>
 			<p>Quyền đặt chỗ: {bookingAccess}</p>
+			<p>Existing booking flow</p>
 			<button type="button" onClick={onBackToList}>
 				Quay lại danh sách chuyến đi
+			</button>
+			<button type="button" onClick={() => onViewBookingDetails("booking-from-trip")}>
+				Open booking from trip
 			</button>
 			{onBackHome && (
 				<button type="button" onClick={onBackHome}>
@@ -55,6 +61,34 @@ vi.mock("../features/trips/pages/TripDetailPage", () => ({
 				</button>
 			)}
 		</div>
+	),
+}));
+vi.mock("../features/booking-details/pages/BookingDetailsPage", () => ({
+	BookingDetailsPage: ({
+		bookingId,
+		onBack,
+		backLabel,
+	}: {
+		bookingId: string;
+		onBack: () => void;
+		backLabel?: string;
+	}) => (
+		<>
+			<h1>Booking detail {bookingId}</h1>
+			<button type="button" onClick={onBack}>
+				{backLabel}
+			</button>
+		</>
+	),
+}));
+vi.mock("../features/booking-list/pages/BookingListPage", () => ({
+	BookingListPage: ({ onViewDetails }: { onViewDetails: (bookingId: string) => void }) => (
+		<>
+			<h1>Booking list</h1>
+			<button type="button" onClick={() => onViewDetails("booking-456")}>
+				Open booking
+			</button>
+		</>
 	),
 }));
 

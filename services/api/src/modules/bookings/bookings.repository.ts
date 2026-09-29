@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { Repository } from "typeorm";
 import type { Booking } from "../profiles/entities/booking.entity";
 import type { BookingDetailsResponseDto } from "./dto/booking-details-response.dto";
+import type { BookingListItemResponseDto } from "./dto/booking-list-item-response.dto";
 
 export interface BookingOwnership {
 	id: string;
@@ -24,6 +25,38 @@ interface RawBookingDetails
 
 @Injectable()
 export class BookingsRepository extends Repository<Booking> {
+	findListByOwner(ownerId: string): Promise<BookingListItemResponseDto[]> {
+		return this.query(
+			`SELECT
+				b."id",
+				b."trip_id" AS "tripId",
+				b."num_people" AS "numPeople",
+				b."status",
+				b."payment_status" AS "paymentStatus",
+				b."hold_expires_at" AS "holdExpiresAt",
+				b."trip_starts_at_snapshot" AS "tripStartsAtSnapshot",
+				b."trip_ends_at_snapshot" AS "tripEndsAtSnapshot",
+				b."total_amount"::text AS "totalAmount",
+				b."created_at" AS "createdAt",
+				CASE
+					WHEN t."id" IS NULL OR r."id" IS NULL
+						OR btrim(t."title") = '' OR btrim(r."name") = '' THEN NULL
+					ELSE jsonb_build_object(
+						'id', t."id",
+						'currentTitle', t."title",
+						'routeId', r."id",
+						'currentRouteName', r."name"
+					)
+				END AS "tripPresentation"
+			FROM "bookings" b
+			LEFT JOIN "trips" t ON t."id" = b."trip_id"
+			LEFT JOIN "trekking_routes" r ON r."id" = t."route_id"
+			WHERE b."user_id" = $1
+			ORDER BY b."created_at" DESC, b."id" DESC`,
+			[ownerId]
+		);
+	}
+
 	findOwnershipById(id: string): Promise<BookingOwnership | null> {
 		return this.findOne({
 			select: { id: true, userId: true },

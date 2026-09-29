@@ -3,6 +3,35 @@ import { Booking } from "../profiles/entities/booking.entity";
 import { BookingsRepository } from "./bookings.repository";
 
 describe("BookingsRepository", () => {
+	it("lists one owner's minimal Booking projections in deterministic newest-first order", async () => {
+		const repository = new BookingsRepository(Booking, {} as EntityManager);
+		const rows = [
+			{
+				id: "booking-2",
+				tripId: "trip-1",
+				numPeople: null,
+				status: "completed",
+				paymentStatus: null,
+				holdExpiresAt: null,
+				tripStartsAtSnapshot: null,
+				tripEndsAtSnapshot: null,
+				totalAmount: "120.00",
+				createdAt: new Date("2030-01-02T00:00:00.000Z"),
+				tripPresentation: null,
+			},
+		];
+		const query = jest.spyOn(repository, "query").mockResolvedValue(rows);
+
+		await expect(repository.findListByOwner("owner-1")).resolves.toBe(rows);
+		const [sql, parameters] = query.mock.calls[0];
+		expect(sql).toContain('WHERE b."user_id" = $1');
+		expect(sql).toContain('b."total_amount"::text AS "totalAmount"');
+		expect(sql).toContain('ORDER BY b."created_at" DESC, b."id" DESC');
+		expect(sql).not.toContain("booking_members");
+		expect(sql).not.toContain("booking_items");
+		expect(parameters).toEqual(["owner-1"]);
+	});
+
 	it("loads only ownership fields before the aggregate read", async () => {
 		const repository = new BookingsRepository(Booking, {} as EntityManager);
 		const findOne = jest.spyOn(repository, "findOne").mockResolvedValue(null);

@@ -317,6 +317,11 @@ describe("POST /api/bookings/:bookingId/members (integration, real Postgres)", (
 
 	it("resolves an active participant by normalized exact email with a minimal response", async () => {
 		const fixture = await createFixture();
+		fixture.participant.email = "camper2@ctms.local";
+		await dataSource.query('UPDATE "users" SET "email" = $1 WHERE "id" = $2', [
+			fixture.participant.email,
+			fixture.participant.id,
+		]);
 		const response = await resolveCandidateRequest(
 			fixture,
 			`  ${fixture.participant.email.toUpperCase()}  `
@@ -327,6 +332,27 @@ describe("POST /api/bookings/:bookingId/members (integration, real Postgres)", (
 			email: fixture.participant.email,
 		});
 		expect(Object.keys(response.body).sort()).toEqual(["email", "userId"]);
+	});
+
+	it("allows an active existing Host account as a participant candidate", async () => {
+		const fixture = await createFixture();
+		fixture.host.email = "host@ctms.local";
+		await dataSource.query('UPDATE "users" SET "email" = $1 WHERE "id" = $2', [
+			fixture.host.email,
+			fixture.host.id,
+		]);
+
+		await expect(resolveCandidateRequest(fixture, fixture.host.email)).resolves.toMatchObject({
+			status: 200,
+			body: { userId: fixture.host.id, email: fixture.host.email },
+		});
+	});
+
+	it("rejects the Booking owner because the owner is added automatically", async () => {
+		const fixture = await createFixture();
+		const response = await resolveCandidateRequest(fixture, fixture.owner.email).expect(409);
+
+		expect(response.body.message).toBe("The Booking owner is added automatically");
 	});
 
 	it("uses the same privacy-safe 404 for missing and every inactive participant status", async () => {

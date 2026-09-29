@@ -13,8 +13,11 @@ export function TripCapacityBanner({
 	bookingDeadline,
 	isBookable,
 }: TripCapacityBannerProps) {
-	// Condition 1: Sold out or non-bookable
-	if (!isBookable || remainingSeats === 0) {
+	const deadlineTime = new Date(bookingDeadline).getTime();
+	const now = Date.now();
+
+	// Condition 1: Sold out
+	if (remainingSeats === 0) {
 		return (
 			<div
 				data-testid="trip-capacity-banner-sold-out"
@@ -23,16 +26,45 @@ export function TripCapacityBanner({
 				<AlertCircle className="size-5 shrink-0 text-rose-600" />
 				<div>
 					<p className="font-extrabold text-rose-900">Đã hết chỗ</p>
-					<p className="mt-0.5 text-rose-700">
-						Chuyến đi đã đạt đủ số lượng người tham gia hoặc đã tạm dừng nhận đăng ký mới để đảm bảo
-						an toàn.
-					</p>
+					<p className="mt-0.5 text-rose-700">Chuyến đi đã đạt đủ số lượng người tham gia.</p>
 				</div>
 			</div>
 		);
 	}
 
-	// Condition 2: Low remaining seats (<= 3)
+	// Condition 2: Booking deadline has passed
+	if (deadlineTime <= now) {
+		return (
+			<div
+				data-testid="trip-capacity-banner-deadline-expired"
+				className="flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-xs text-rose-900 shadow-xs"
+			>
+				<Clock className="size-5 shrink-0 text-rose-600" />
+				<div>
+					<p className="font-extrabold text-rose-900">Đã hết hạn đặt chỗ</p>
+					<p className="mt-0.5 text-rose-700">Thời hạn đăng ký cho chuyến đi này đã kết thúc.</p>
+				</div>
+			</div>
+		);
+	}
+
+	// Condition 3: Unavailable for another reason
+	if (!isBookable) {
+		return (
+			<div
+				data-testid="trip-capacity-banner-unavailable"
+				className="flex items-start gap-3 rounded-2xl border border-gray-200 bg-gray-50 p-4 text-xs text-gray-900 shadow-xs"
+			>
+				<AlertCircle className="size-5 shrink-0 text-gray-600" />
+				<div>
+					<p className="font-extrabold text-gray-900">Hiện không thể đặt chỗ cho chuyến đi này</p>
+					<p className="mt-0.5 text-gray-700">Vui lòng kiểm tra lại thông tin chuyến đi sau.</p>
+				</div>
+			</div>
+		);
+	}
+
+	// Condition 4: Low remaining seats (<= 3)
 	if (remainingSeats !== null && remainingSeats > 0 && remainingSeats <= 3) {
 		return (
 			<div
@@ -51,9 +83,7 @@ export function TripCapacityBanner({
 		);
 	}
 
-	// Condition 3: Deadline approaching within 24 hours
-	const deadlineTime = new Date(bookingDeadline).getTime();
-	const now = Date.now();
+	// Condition 5: Deadline approaching within 24 hours
 	const hoursLeft = (deadlineTime - now) / (1000 * 60 * 60);
 
 	if (hoursLeft > 0 && hoursLeft <= 24) {

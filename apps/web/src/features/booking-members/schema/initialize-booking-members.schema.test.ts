@@ -10,6 +10,7 @@ const MEMBER = "22222222-2222-4222-8222-222222222222";
 describe("booking member validation", () => {
 	it("validates and trims participant email", () => {
 		expect(participantEmailSchema.parse(" person@example.com ")).toBe("person@example.com");
+		expect(participantEmailSchema.parse(" camper2@ctms.local ")).toBe("camper2@ctms.local");
 		expect(participantEmailSchema.safeParse("bad-email").success).toBe(false);
 	});
 

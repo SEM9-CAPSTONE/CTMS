@@ -5,8 +5,9 @@ import { TripCapacityBanner } from "./TripCapacityBanner";
 describe("TripCapacityBanner", () => {
 	const futureDeadlineFar = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
 	const futureDeadlineSoon = new Date(Date.now() + 5 * 60 * 60 * 1000).toISOString();
+	const pastDeadline = new Date(Date.now() - 60 * 60 * 1000).toISOString();
 
-	it("renders sold out banner when isBookable is false", () => {
+	it("renders a neutral unavailable banner when the trip is not bookable for another reason", () => {
 		render(
 			<TripCapacityBanner
 				remainingSeats={5}
@@ -15,8 +16,9 @@ describe("TripCapacityBanner", () => {
 			/>
 		);
 
-		expect(screen.getByTestId("trip-capacity-banner-sold-out")).toBeInTheDocument();
-		expect(screen.getByText("Đã hết chỗ")).toBeInTheDocument();
+		expect(screen.getByTestId("trip-capacity-banner-unavailable")).toBeInTheDocument();
+		expect(screen.getByText("Hiện không thể đặt chỗ cho chuyến đi này")).toBeInTheDocument();
+		expect(screen.queryByText("Đã hết chỗ")).not.toBeInTheDocument();
 	});
 
 	it("renders sold out banner when remainingSeats is 0", () => {
@@ -29,6 +31,17 @@ describe("TripCapacityBanner", () => {
 		);
 
 		expect(screen.getByTestId("trip-capacity-banner-sold-out")).toBeInTheDocument();
+		expect(screen.getByText("Đã hết chỗ")).toBeInTheDocument();
+	});
+
+	it("renders deadline-specific copy when seats remain but the booking deadline has passed", () => {
+		render(
+			<TripCapacityBanner remainingSeats={10} bookingDeadline={pastDeadline} isBookable={false} />
+		);
+
+		expect(screen.getByTestId("trip-capacity-banner-deadline-expired")).toBeInTheDocument();
+		expect(screen.getByText("Đã hết hạn đặt chỗ")).toBeInTheDocument();
+		expect(screen.queryByText("Đã hết chỗ")).not.toBeInTheDocument();
 	});
 
 	it("renders low seats urgency banner when remainingSeats <= 3", () => {

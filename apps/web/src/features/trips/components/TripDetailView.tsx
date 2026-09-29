@@ -14,8 +14,10 @@ import {
 	X,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import type { BookingDetails } from "../../booking-details/types";
 import { BookingEquipmentPicker } from "../../booking-equipment/components/BookingEquipmentPicker";
 import { InitializeBookingMembersPanel } from "../../booking-members/components/InitializeBookingMembersPanel";
+import type { InitializeBookingMembersResponse } from "../../booking-members/types";
 import { BookingPaymentPanel } from "../../booking-payment/components/BookingPaymentPanel";
 import { PackingListPanel } from "../../packing-list/components/PackingListPanel";
 import type { BookTripResponse, TripDetails } from "../types";
@@ -30,6 +32,7 @@ export interface TripDetailViewProps {
 	isBooking?: boolean;
 	bookingError?: string | null;
 	booking?: BookTripResponse | null;
+	restoredBookingDetails?: BookingDetails | null;
 	bookingAccess?: BookingAccess;
 	fieldErrors?: Record<string, string>;
 	canRetry?: boolean;
@@ -41,6 +44,7 @@ export interface TripDetailViewProps {
 	onConflictReload?: () => void;
 	onConflictRetry?: () => void;
 	onViewPackingList?: (bookingId: string) => void;
+	onViewBookingDetails?: (bookingId: string) => void;
 }
 
 export function formatDateTime(isoString: string | null | undefined): string {
@@ -83,6 +87,7 @@ export function TripDetailView({
 	isBooking = false,
 	bookingError = null,
 	booking = null,
+	restoredBookingDetails = null,
 	bookingAccess = "camper",
 	fieldErrors = {},
 	canRetry = false,
@@ -94,6 +99,7 @@ export function TripDetailView({
 	onConflictReload,
 	onConflictRetry,
 	onViewPackingList,
+	onViewBookingDetails,
 }: TripDetailViewProps) {
 	const [equipmentTotalAmount, setEquipmentTotalAmount] = useState<string | null>(null);
 	const [packingListRefreshKey, setPackingListRefreshKey] = useState(0);
@@ -101,6 +107,29 @@ export function TripDetailView({
 	const weather = getWeatherRiskBadge(trip.weatherRiskLevel ?? null);
 	const WeatherIcon = weather.icon;
 	const isBookingClosed = new Date(trip.bookingDeadline) <= new Date();
+	const confirmedRoster = useMemo<InitializeBookingMembersResponse | null>(() => {
+		if (
+			!booking ||
+			!restoredBookingDetails ||
+			restoredBookingDetails.id !== booking.id ||
+			restoredBookingDetails.members.length !== booking.numPeople
+		) {
+			return null;
+		}
+		return {
+			bookingId: booking.id,
+			members: restoredBookingDetails.members.map(({ email: _email, ...member }) => member),
+		};
+	}, [booking, restoredBookingDetails]);
+	const confirmedLabelsByUserId = useMemo(
+		() =>
+			new Map(
+				(restoredBookingDetails?.members ?? []).flatMap((member) =>
+					member.userId && member.email ? [[member.userId, member.email] as const] : []
+				)
+			),
+		[restoredBookingDetails]
+	);
 
 	const sortedWaypoints = useMemo(() => {
 		if (!trip.waypoints || !Array.isArray(trip.waypoints)) return [];
@@ -481,10 +510,15 @@ export function TripDetailView({
 									onSignIn={onSignIn}
 									onConflictDismiss={onConflictDismiss}
 									onConflictReload={onConflictReload}
+									onViewBookingDetails={onViewBookingDetails}
 								/>
 								{booking && (
 									<>
-										<InitializeBookingMembersPanel booking={booking} />
+										<InitializeBookingMembersPanel
+											booking={booking}
+											confirmedRoster={confirmedRoster}
+											confirmedLabelsByUserId={confirmedLabelsByUserId}
+										/>
 										<BookingEquipmentPicker
 											tripId={trip.id}
 											bookingId={booking.id}

@@ -1,9 +1,11 @@
 import { ArrowLeft, Compass, Loader2, RefreshCw } from "lucide-react";
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
+import type { BookingDetails } from "../../booking-details/types";
 import type { BookingAccess } from "../components/BookingPanel";
 import { TripDetailView } from "../components/TripDetailView";
 import { useBookTrip } from "../hooks/useBookTrip";
 import { useTripDetail } from "../hooks/useTripDetail";
+import type { BookTripResponse } from "../types";
 
 export interface TripDetailPageProps {
 	tripId: string;
@@ -13,6 +15,39 @@ export interface TripDetailPageProps {
 	bookingAccess?: BookingAccess;
 	onSignIn?: () => void;
 	onViewPackingList?: (bookingId: string) => void;
+	onViewBookingDetails?: (bookingId: string) => void;
+	restoredBookingDetails?: BookingDetails | null;
+	onClearRestoredBooking?: () => void;
+}
+
+function toBookTripResponse(booking: BookingDetails | null | undefined): BookTripResponse | null {
+	if (
+		!booking ||
+		booking.numPeople === null ||
+		booking.status === null ||
+		booking.paymentStatus === null ||
+		booking.tripStartsAtSnapshot === null ||
+		booking.tripEndsAtSnapshot === null ||
+		booking.basePrice === null ||
+		booking.totalAmount === null
+	) {
+		return null;
+	}
+	return {
+		id: booking.id,
+		tripId: booking.tripId,
+		userId: booking.userId,
+		numPeople: booking.numPeople,
+		status: booking.status,
+		paymentStatus: booking.paymentStatus,
+		holdExpiresAt: booking.holdExpiresAt,
+		tripStartsAtSnapshot: booking.tripStartsAtSnapshot,
+		tripEndsAtSnapshot: booking.tripEndsAtSnapshot,
+		basePrice: booking.basePrice,
+		totalAmount: booking.totalAmount,
+		cancellationPolicySnapshot: booking.cancellationPolicySnapshot,
+		createdAt: booking.createdAt,
+	};
 }
 
 export function TripDetailPage({
@@ -23,6 +58,9 @@ export function TripDetailPage({
 	bookingAccess = "camper",
 	onSignIn,
 	onViewPackingList,
+	onViewBookingDetails,
+	restoredBookingDetails = null,
+	onClearRestoredBooking,
 }: TripDetailPageProps) {
 	const { trip, isLoading, error, isNotFound, retry } = useTripDetail(tripId);
 	const {
@@ -37,6 +75,12 @@ export function TripDetailPage({
 		canRetry,
 		reset: resetBooking,
 	} = useBookTrip();
+	const restoredBooking = useMemo(
+		() =>
+			restoredBookingDetails?.tripId === tripId ? toBookTripResponse(restoredBookingDetails) : null,
+		[restoredBookingDetails, tripId]
+	);
+	const displayedBooking = booking ?? restoredBooking;
 
 	const handleBook = useCallback(
 		async (targetTripId: string, numPeople: number) => {
@@ -56,6 +100,10 @@ export function TripDetailPage({
 		clearConflict();
 		await retry();
 	}, [clearConflict, retry]);
+	const handleBookingReset = useCallback(() => {
+		resetBooking();
+		onClearRestoredBooking?.();
+	}, [onClearRestoredBooking, resetBooking]);
 
 	return (
 		<div className="min-h-screen bg-[#f4f7f2] font-sans text-[#10221b] antialiased">
@@ -167,18 +215,20 @@ export function TripDetailPage({
 						onBook={handleBook}
 						isBooking={isBooking}
 						bookingError={bookingError}
-						booking={booking}
+						booking={displayedBooking}
+						restoredBookingDetails={restoredBookingDetails}
 						bookingAccess={bookingAccess}
 						fieldErrors={fieldErrors}
 						canRetry={canRetry}
 						isConflict={isConflict}
 						onBookingRetry={retryBooking}
-						onBookingReset={resetBooking}
+						onBookingReset={handleBookingReset}
 						onSignIn={onSignIn}
 						onConflictDismiss={clearConflict}
 						onConflictReload={handleConflictReload}
 						onConflictRetry={retryBooking}
 						onViewPackingList={onViewPackingList}
+						onViewBookingDetails={onViewBookingDetails}
 					/>
 				)}
 			</main>

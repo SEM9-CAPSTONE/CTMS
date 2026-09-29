@@ -286,6 +286,7 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 	onViewTrekkingRoutes,
 	onViewEquipmentCatalog,
 	onNavigateToTrips,
+	onNavigateToBookings,
 	onNavigateToTripDetail,
 	onEditTripDraft,
 	onLogout,
@@ -321,6 +322,8 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 				window.history.pushState({}, "", "/trips");
 				window.dispatchEvent(new PopStateEvent("popstate"));
 			}
+		} else if (navKey === "bookings") {
+			onNavigateToBookings?.();
 		} else if (navKey === "trips") {
 			const element =
 				document.getElementById("camper-active-trip") || document.querySelector("main");

@@ -15,7 +15,7 @@ export function BookingMemberRosterResult({
 	return (
 		<output
 			aria-live="polite"
-			className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950"
+			className="mt-4 block rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950"
 		>
 			<div className="flex items-center gap-2 font-extrabold">
 				<CheckCircle2 className="size-5" />
