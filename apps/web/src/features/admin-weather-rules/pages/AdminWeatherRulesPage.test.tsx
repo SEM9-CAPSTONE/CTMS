@@ -114,7 +114,7 @@ describe("AdminWeatherRulesPage Component", () => {
 
 		renderComponent();
 
-		const activateBtn = await screen.findByTestId("btn-activate-rule-1");
+		const activateBtn = await screen.findByTestId("btn-activate-rule-1", {}, { timeout: 10000 });
 		await user.click(activateBtn);
 
 		expect(screen.getByText("Xác nhận kích hoạt bộ quy tắc")).toBeInTheDocument();

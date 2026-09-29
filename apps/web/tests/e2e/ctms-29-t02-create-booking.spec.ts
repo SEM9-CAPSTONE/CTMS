@@ -85,7 +85,7 @@ test.describe("CTMS-29-T02 Create Booking for Trip", () => {
 		await expect(result).toContainText("Giữ chỗ đến");
 		await expect(page.getByTestId("authoritative-booking-price")).toContainText("900.000");
 		await expect(page.getByTestId("trip-remaining-seats")).toHaveText("10 chỗ");
-		await expect(page.getByRole("button", { name: /thanh toán/i })).toHaveCount(0);
+		await expect(result.getByRole("button", { name: /thanh toán/i })).toHaveCount(0);
 	});
 
 	test("shows the authoritative 409 reason when stale capacity is consumed", async ({

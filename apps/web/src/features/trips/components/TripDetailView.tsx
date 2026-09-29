@@ -16,6 +16,7 @@ import {
 import { useMemo, useState } from "react";
 import { BookingEquipmentPicker } from "../../booking-equipment/components/BookingEquipmentPicker";
 import { InitializeBookingMembersPanel } from "../../booking-members/components/InitializeBookingMembersPanel";
+import { BookingPaymentPanel } from "../../booking-payment/components/BookingPaymentPanel";
 import { PackingListPanel } from "../../packing-list/components/PackingListPanel";
 import type { BookTripResponse, TripDetails } from "../types";
 import { type BookingAccess, BookingPanel } from "./BookingPanel";
@@ -94,6 +95,7 @@ export function TripDetailView({
 	onConflictRetry,
 	onViewPackingList,
 }: TripDetailViewProps) {
+	const [equipmentTotalAmount, setEquipmentTotalAmount] = useState<string | null>(null);
 	const [packingListRefreshKey, setPackingListRefreshKey] = useState(0);
 	const difficulty = getDifficultyBadge(trip.difficulty ?? null);
 	const weather = getWeatherRiskBadge(trip.weatherRiskLevel ?? null);
@@ -487,7 +489,13 @@ export function TripDetailView({
 											tripId={trip.id}
 											bookingId={booking.id}
 											initialTotalAmount={booking.totalAmount}
+											onTotalAmountChange={setEquipmentTotalAmount}
 											onEquipmentChanged={() => setPackingListRefreshKey((current) => current + 1)}
+										/>
+										<BookingPaymentPanel
+											booking={booking}
+											bookingAccess={bookingAccess}
+											totalAmount={equipmentTotalAmount ?? booking.totalAmount}
 										/>
 										<PackingListPanel bookingId={booking.id} refreshKey={packingListRefreshKey} />
 										{onViewPackingList && (

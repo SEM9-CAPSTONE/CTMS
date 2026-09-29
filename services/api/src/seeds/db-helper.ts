@@ -459,10 +459,25 @@ async function main() {
 						[booking.id]
 					)
 				: [];
-			console.log(JSON.stringify({ booking, items, members }));
+			const payments = booking
+				? await dataSource.query(
+						`SELECT "id", "amount", "status", "type", "idempotency_key" AS "idempotencyKey"
+						 FROM "payments" WHERE "booking_id" = $1 ORDER BY "created_at" ASC`,
+						[booking.id]
+					)
+				: [];
+			console.log(JSON.stringify({ booking, items, members, payments }));
 		} else if (action === "clean-bookings") {
 			const input = parseJsonArg<{ tripIds: string[] }>(arg);
 			if (input.tripIds.length > 0) {
+				await dataSource.query(
+					`DELETE FROM "audit_logs" WHERE "target_id" IN (
+						SELECT "id" FROM "payments" WHERE "booking_id" IN (
+							SELECT "id" FROM "bookings" WHERE "trip_id" = ANY($1)
+						)
+					)`,
+					[input.tripIds]
+				);
 				await dataSource.query(
 					`DELETE FROM "audit_logs" WHERE "target_id" IN (
 						SELECT "id" FROM "booking_items" WHERE "booking_id" IN (

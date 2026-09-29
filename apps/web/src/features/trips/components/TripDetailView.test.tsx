@@ -26,6 +26,12 @@ vi.mock("../../booking-members/components/InitializeBookingMembersPanel", () => 
 	),
 }));
 
+vi.mock("../../booking-payment/components/BookingPaymentPanel", () => ({
+	BookingPaymentPanel: ({ booking }: { booking: { id: string } }) => (
+		<div data-testid="booking-payment-panel">{booking.id}</div>
+	),
+}));
+
 vi.mock("../../packing-list/components/PackingListPanel", () => ({
 	PackingListPanel: ({ bookingId, refreshKey }: { bookingId: string; refreshKey?: unknown }) => (
 		<div data-testid="packing-list-panel" data-refresh-key={String(refreshKey)}>
@@ -224,6 +230,7 @@ describe("TripDetailView", () => {
 		render(<TripDetailView trip={mockTripDetails} />);
 
 		expect(screen.queryByTestId("booking-equipment-picker")).not.toBeInTheDocument();
+		expect(screen.queryByTestId("booking-payment-panel")).not.toBeInTheDocument();
 	});
 
 	it("renders the equipment picker for the created Booking after success", () => {
@@ -250,6 +257,7 @@ describe("TripDetailView", () => {
 
 		expect(screen.getByTestId("booking-equipment-picker")).toHaveTextContent("booking-1");
 		expect(screen.getByTestId("booking-members-panel")).toHaveTextContent("booking-1");
+		expect(screen.getByTestId("booking-payment-panel")).toHaveTextContent("booking-1");
 		expect(screen.getByTestId("packing-list-panel")).toHaveTextContent("booking-1");
 	});
 

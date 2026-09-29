@@ -8,6 +8,7 @@ export interface BookingEquipmentPickerProps {
 	tripId: string;
 	bookingId: string;
 	initialTotalAmount: string;
+	onTotalAmountChange?: (newTotal: string) => void;
 	onEquipmentChanged?: () => void;
 }
 
@@ -21,6 +22,7 @@ export function BookingEquipmentPicker({
 	tripId,
 	bookingId,
 	initialTotalAmount,
+	onTotalAmountChange,
 	onEquipmentChanged,
 }: BookingEquipmentPickerProps) {
 	const options = useTripEquipmentOptions(tripId);
@@ -44,6 +46,7 @@ export function BookingEquipmentPicker({
 		});
 		if (result) {
 			setTotalAmount(result.booking.totalAmount);
+			onTotalAmountChange?.(result.booking.totalAmount);
 			setQuantity(1);
 			await addedItems.retry();
 			onEquipmentChanged?.();

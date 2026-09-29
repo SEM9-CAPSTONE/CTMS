@@ -74,11 +74,22 @@ async function setup(options: SetupOptions = {}) {
 			<div data-testid="route-geometry-preview">{geometry.coordinates.length} vertices</div>
 		),
 	}));
-	const { act, render, screen, waitFor, within } = await import("@testing-library/react");
+	const { act, fireEvent, render, screen, waitFor, within } = await import(
+		"@testing-library/react"
+	);
 	const userEvent = (await import("@testing-library/user-event")).default;
 	const { AdminTrekkingRoutesPage } = await import("./AdminTrekkingRoutesPage");
 	render(<AdminTrekkingRoutesPage />);
-	return { act, screen, waitFor, within, user: userEvent.setup(), listPendingReview, review };
+	return {
+		act,
+		fireEvent,
+		screen,
+		waitFor,
+		within,
+		user: userEvent.setup(),
+		listPendingReview,
+		review,
+	};
 }
 
 afterEach(() => {
@@ -149,7 +160,9 @@ describe("AdminTrekkingRoutesPage", () => {
 		).toBeInTheDocument();
 		expect(test.review).not.toHaveBeenCalled();
 
-		await test.user.type(test.screen.getByLabelText("Lý do *"), "x".repeat(255));
+		test.fireEvent.change(test.screen.getByLabelText("Lý do *"), {
+			target: { value: "x".repeat(255) },
+		});
 		await test.user.click(test.screen.getByRole("button", { name: "Xác nhận quyết định" }));
 		await test.waitFor(() =>
 			expect(test.review).toHaveBeenCalledWith("route-1", {

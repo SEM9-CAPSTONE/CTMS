@@ -136,12 +136,10 @@ export class BookingsService {
 		);
 		const tripType: "day_trip" | "overnight" = durationNights > 0 ? "overnight" : "day_trip";
 
-		const route = await this.dataSource
-			.getRepository(TrekkingRoute)
-			.findOne({
-				where: { id: details.tripPresentation.routeId },
-				select: { id: true, difficulty: true },
-			});
+		const route = await this.dataSource.getRepository(TrekkingRoute).findOne({
+			where: { id: details.tripPresentation.routeId },
+			select: { id: true, difficulty: true },
+		});
 
 		const assessment = await this.weatherRiskRepository.findLatestAssessmentForRoute(
 			details.tripPresentation.routeId

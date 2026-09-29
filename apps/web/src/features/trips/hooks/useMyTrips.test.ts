@@ -7,11 +7,12 @@ import { useMyTrips } from "./useMyTrips";
 
 vi.mock("../services/trips.service", () => ({
 	tripsService: {
+		create: vi.fn(),
+		search: vi.fn(),
+		getById: vi.fn(),
 		getMyTrips: vi.fn(),
 	},
 }));
-
-const mockTripsService = vi.mocked(tripsService);
 
 const sampleTrip: TripDetails = {
 	id: "trip-1",
@@ -47,10 +48,11 @@ const sampleTrip: TripDetails = {
 describe("useMyTrips", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		tripsService.getMyTrips = vi.fn();
 	});
 
 	it("fetches host trips successfully on mount", async () => {
-		mockTripsService.getMyTrips.mockResolvedValueOnce([sampleTrip]);
+		vi.mocked(tripsService.getMyTrips).mockResolvedValue([sampleTrip]);
 
 		const { result } = renderHook(() => useMyTrips());
 
@@ -65,7 +67,7 @@ describe("useMyTrips", () => {
 	});
 
 	it("handles 403 Forbidden error with appropriate message", async () => {
-		mockTripsService.getMyTrips.mockRejectedValueOnce(
+		vi.mocked(tripsService.getMyTrips).mockRejectedValue(
 			new HttpError("Forbidden", 403, { message: "Forbidden" })
 		);
 
@@ -80,9 +82,9 @@ describe("useMyTrips", () => {
 	});
 
 	it("allows refetching trips via refetch()", async () => {
-		mockTripsService.getMyTrips
+		vi.mocked(tripsService.getMyTrips)
 			.mockRejectedValueOnce(new Error("Network error"))
-			.mockResolvedValueOnce([sampleTrip]);
+			.mockResolvedValue([sampleTrip]);
 
 		const { result } = renderHook(() => useMyTrips());
 
