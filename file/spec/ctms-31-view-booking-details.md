@@ -1,609 +1,138 @@
-# CTMS-031 - View Booking Details
+# CTMS-031 — View Booking Details
 
-**Spec Reference**  
-/file/spec/ctms-31-view-booking-details.md
+## 1. Overview
 
-**Source Authority**  
-- Product Backlog V3.1 is the scope authority for this story.
-- Business Rules are the invariant/policy source. This spec rewrites relevant rules as executable behavior so Dev and QA do not need to infer behavior from rule IDs.
-- Jira is used for execution tracking, status, and task ownership. Jira content must not replace the behavior contract below.
-- Authority order for conflicts: Business Rules V3, Data Dictionary or Domain Model V3, approved Jira requirement or decision, this file/spec, code, then tests.
+Story: CTMS-031
 
----
+Epic: EPIC 5. Booking and Payment
 
-## 1. Purpose
+Use Case: View Booking Details
 
-Implement `View Booking Details` so the CTMS workflow is safe, consistent, auditable, and aligned with PB V3.1.
+Priority: Must Have
 
-Business purpose from PB V3.1:
+Goal: Allow an authorized Camper or Host to view the Booking information required for the Booking workflow without exposing unrelated personal, medical, payment, or internal data.
 
-- English use case: `View Booking Details`
-- Story: As a System, I want to view booking details so that CTMS supports the workflow safely and consistently.
+Backlog story: As an authorized user, I want to view Booking details so I can understand the Booking, Trip, participant, payment, and applicable service information.
 
-Implementation details belong in the sections below, not in this purpose summary.
+Acceptance Criteria:
 
----
+| Source  | Criterion                                                                                                       |
+| ------- | --------------------------------------------------------------------------------------------------------------- |
+| PB AC-1 | An authorized Camper can view the details of their Booking.                                                     |
+| PB AC-2 | An authorized Host can view Booking information required to operate their Trip.                                 |
+| PB AC-3 | Booking Detail reflects authoritative Booking, Trip, member, payment and applicable add-on/equipment state.     |
+| PB AC-4 | Sensitive or unrelated data must not be exposed beyond the actor's permitted scope.                             |
+| PB AC-5 | Route/geometry or operational data referenced by the Booking is exposed only according to its visibility rules. |
 
 ## 2. Scope
 
 ### In Scope
-- The behavior needed for `View Booking Details` within `EPIC 5. Booking and Payment`.
-- Backend validation, authorization, persistence, state handling, idempotency, and audit behavior needed for this story.
-- UI/API behavior that makes success, pending, validation failure, authorization failure, conflict, and retry states observable.
-- Tests proving the PB V3.1 acceptance criteria and mapped Business Rules are enforced.
+
+- View Booking identity/code.
+- View related Trip information.
+- View Booking status.
+- View payment status.
+- View participant/member information permitted to the actor.
+- View applicable add-ons/equipment.
+- Apply actor-specific projection and data minimization.
 
 ### Out of Scope
-- Behavior owned by dependency stories unless explicitly referenced as a precondition or integration point.
-- Replacing source-of-truth entities owned by another module.
-- Changing unrelated workflow, enum, database, API, or UI contracts outside this story.
-- Treating Jira task wording as a substitute for this implementation contract.
-- Inventing behavior that is not approved in PB V3.1, Business Rules, domain model, Jira, or a recorded product decision.
 
----
+- Editing Booking.
+- Payment execution.
+- Cancellation/refund.
+- Member check-in.
+- Direct access to unrelated Route/private data.
 
-## 3. Actors
+## 3. Actors & Authorization
 
-- Camper: primary actor for this workflow.
-- Backend API: validates authorization, state, input, persistence, idempotency, and audit requirements.
-- UI Client: presents allowed actions, validates obvious input, shows loading/success/error states, and never replaces backend enforcement.
-- Related CTMS modules: provide referenced Trip, Route, Booking, Payment, Offline Package, AI, Notification, or Administration data when this story depends on them.
+- Camper: may view their own Booking.
+- Host: may view Booking data required for a Trip they are authorized to operate.
+- System: authoritative authorization and projection.
 
----
+Backend must evaluate role, ownership and Trip/Booking business relationship.
 
-## 4. Preconditions
+## 4. Preconditions & Dependencies
 
-- Actor is authenticated when the workflow requires identity.
-- Actor has the role, ownership, consent, assignment, or operational relationship required by the story.
-- Referenced records exist and are in states that allow this workflow.
-- Dependencies are satisfied: CTMS-029.
-- PB V3.1 acceptance criteria and the Business Rules listed in this spec are available to implementation and QA.
+Dependency:
 
-If a precondition is not satisfied, the system must reject the action or show a blocked/degraded state without unintended side effects.
+- CTMS-029.
 
----
+Preconditions:
 
-## 5. Business Behavior
+- Booking exists.
+- Actor is authenticated where required.
+- Actor has ownership or an approved business relationship to the Booking/Trip.
 
-### 5.1 Primary Behavior
+## 5. Business Rules
 
-The system implements `View Booking Details` exactly within the PB V3.1 scope:
+| BR     | Rule                                                                                                                                                                                                                                               |
+| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| BR-089 | Booking Detail, when accessed by an authorized Camper or Host, must show the Booking code/id, Trip, schedule, members, amount/surcharges, equipment reservations, payment_status, and booking_status. It does not need to expose the Route entity. |
+| BR-214 | Routes, checkpoints, hazard areas, and raw geometry are internal operational data for Host/Admin/System use. Camper APIs must not provide Route List/Route Detail or expose raw route_geom, checkpoint, or hazard-management data.                 |
+| BR-048 | Trip membership is represented by bookings + booking_members. The system must not introduce a separate Trip Member entity as a second source of truth.                                                                                             |
+| BR-172 | Access control must be enforced by the backend using role, ownership, and business scope. Hiding or disabling functionality in the UI is not a substitute for backend authorization.                                                               |
+| BR-173 | A user may view or modify only data they own unless the user's role and business relationship explicitly authorize access to another user's data.                                                                                                  |
+| BR-186 | Personal and health data must be returned only as the minimum fields necessary for the business purpose and only to authorized actors.                                                                                                             |
+| BR-201 | List-returning APIs must support pagination and enforce a maximum page size. Filtering and sorting are allowed only on documented fields.                                                                                                          |
+| BR-212 | Any change to a Business Rule, enum, state transition, or API contract must be reflected in the specification, test cases, and data documentation before the work is considered Done.                                                              |
+| BR-213 | Every Business Rule must have at least one valid-path test and one violation-path test. Concurrency, idempotency, and transaction rules require integration or E2E coverage.                                                                       |
 
-- Implement the PB V3.1 acceptance behavior for `View Booking Details` exactly as approved in the source backlog.
-- Convert each source acceptance condition into explicit validation, state, persistence, UI, and test behavior during implementation.
-- Do not copy non-English backlog text into this English spec; keep the workbook as the source citation.
+## 6. State & Lifecycle
 
-### 5.2 Validation Rules
+Read-only story.
 
-- Required fields, enum values, date/time ranges, identifiers, ownership boundaries, and cross-entity references are validated before persistence.
-- Backend is authoritative for permission, state, price, capacity, inventory, safety, payment, and operational outcomes.
-- UI validation may improve the experience, but backend validation is mandatory and final.
-- Invalid input returns a clear error and does not partially create, update, or synchronize records.
+Booking lifecycle is not mutated by viewing details.
 
-### 5.3 State and Transaction Rules
+Any state displayed must come from current authoritative Booking/payment/member state.
 
-- State transitions must start from an allowed source state and end in an allowed target state.
-- Multi-record side effects must run in a transaction or equivalent atomic unit.
-- Concurrent requests, duplicate submissions, stale reads, and provider retries must not create duplicate records or inconsistent state.
-- If the operation cannot complete safely, the system preserves the previous authoritative state and returns an actionable failure.
+## 7. Business Flow
 
-### 5.4 Business Rules Materialized
+1. Actor requests Booking Detail.
+2. Backend authenticates actor where required.
+3. Backend loads Booking.
+4. Backend evaluates ownership/Trip relationship.
+5. Backend determines actor-specific projection.
+6. Backend loads permitted related Trip/member/payment/add-on/equipment data.
+7. Sensitive/unrelated fields are removed.
+8. Booking Detail is returned.
 
-The following rules are materialized as behavior for this story:
+## 8. Data & Invariants
 
-| ID | Content |
-| --- | --- |
-| `BR-089` | Required behavior for `View Booking Details` must validate and enforce Booking, detail, Camper, Host, booking, code, Trip, members, amount as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths. |
-| `BR-214` | Required behavior for `View Booking Details` must validate and enforce API, Route, checkpoint, hazard, area, geometry, Host, Admin, System, Camper as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths. |
-| `BR-048` | Required behavior for `View Booking Details` must validate and enforce Trip, bookings, booking_members, entity, Member as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths. |
-| `BR-172` | Backend access control must be checked from role, ownership, and business scope before the workflow proceeds; UI visibility is not a substitute for backend authorization. |
-| `BR-173` | Personally identifiable, health, payment, location, and safety data must be minimized and returned only to actors with a valid business need. |
-| `BR-186` | Personal data and health data may return only the fields required for the business purpose and only to an authorized actor. |
-| `BR-201` | UI behavior must reflect backend state accurately and must show clear loading, success, empty, validation, permission, conflict, and retry states where applicable. |
-| `BR-212` | Any Business Rule, enum, state transition, or API contract change must update the spec, tests, and data documentation before the story is Done. |
-| `BR-213` | Every mapped Business Rule must have at least one valid-path test and one violation-path test; concurrency, idempotency, and transaction rules require integration or E2E coverage. |
+- Booking status comes from authoritative Booking.
+- Payment status is not inferred from client state.
+- Camper cannot view another Camper's Booking without an approved relationship.
+- Host receives only data required to operate the Trip.
+- Raw payment credentials/provider secrets are never returned.
+- Health information follows separate medical-consent authorization.
+- Internal Route geometry is not automatically exposed.
 
-### 5.5 Source Confidence
+## 9. API / Integration Contract
 
-- PB V3.1 row `CTMS-031` is the direct scope and acceptance source.
-- Rule IDs above come from the `Primary BR IDs` column in PB V3.1 and are materialized here as implementation behavior.
-- If a rule ID conflicts with PB V3.1 behavior, do not silently choose one. Record a Pending Decision and update PB/rules/spec together.
-- This file may elaborate approved behavior into execution flow, but it must not invent, change, or override business behavior.
-- Undefined, ambiguous, or conflicting behavior must be captured in Section 19 as a Pending Decision.
+TBD — Technical Design.
 
----
+## 10. Error & Edge Cases
 
-## 6. State Model
+| Case                                     | Expected Behavior                      |
+| ---------------------------------------- | -------------------------------------- |
+| Booking missing                          | 404/not-found semantics.               |
+| Unrelated Camper                         | Do not expose Booking.                 |
+| Unrelated Host                           | Do not expose Booking.                 |
+| Booking changed since client loaded page | Return current authoritative state.    |
+| Sensitive field not required by actor    | Omit it.                               |
+| Related Route data is internal           | Do not expose internal representation. |
 
-The story state model is:
+## 11. Acceptance & Test Matrix
 
-- `NOT_STARTED`: actor has not initiated the workflow.
-- `IN_PROGRESS`: request, calculation, sync, AI operation, or review is being processed.
-- `SUCCEEDED`: authoritative result is persisted or returned.
-- `FAILED_VALIDATION`: input or referenced data is invalid.
-- `FAILED_AUTHORIZATION`: actor lacks required permission or relationship.
-- `CONFLICT`: current server state no longer allows the requested action.
-- `PENDING_RETRY` or `SYNC_PENDING`: used only when the story includes offline, external provider, async, or retry behavior.
+| Source          | Scenario                               | Expected Result                       | Test Type     |
+| --------------- | -------------------------------------- | ------------------------------------- | ------------- |
+| PB AC-1, BR-089 | Camper opens own Booking               | Permitted detail returned             | E2E           |
+| PB AC-2, BR-089 | Host opens Booking for own Trip        | Operational detail returned           | Authorization |
+| PB AC-3         | Booking/payment state changes          | Current authoritative state displayed | Integration   |
+| PB AC-4, BR-173 | Sensitive unrelated data exists        | Data omitted                          | Security      |
+| PB AC-4, BR-186 | Medical data not authorized            | Not exposed                           | Security      |
+| PB AC-5, BR-214 | Booking references internal Route data | Visibility policy applied             | Security      |
 
-Every implementation must replace these generic labels with existing enum values when the owning module already defines a state machine.
+## 12. Open Decisions
 
----
-
-## 7. Main Flow
-
-### Scenario: View Booking Details
-
-1. Actor opens or triggers the `View Booking Details` workflow.
-2. UI loads the minimum data needed for the workflow and shows unavailable states when dependencies are missing.
-3. Actor submits the action or the system starts the scheduled/automatic processing.
-4. Backend authenticates the caller or system job.
-5. Backend validates authorization, ownership/business relationship, input shape, referenced records, and current state.
-6. Backend applies the PB V3.1 behavior and mapped Business Rules in one safe transaction or equivalent atomic unit.
-7. Backend persists the authoritative result, audit data, and integration/sync metadata where required.
-8. UI/API returns the observable outcome: success, pending, blocked, conflict, retryable failure, or validation failure.
-
----
-
-## 8. Edge Cases
-
-### Missing or Unauthorized Actor
-
-Reject with authentication or authorization error. No business side effect is allowed.
-
-### Missing Dependency
-
-If dependency data from `CTMS-029` is missing or not in an allowed state, block the workflow with a clear reason.
-
-### Invalid Input or Reference
-
-Reject invalid fields, invalid enum values, missing required references, out-of-range dates, invalid coordinates, invalid amounts, or stale IDs before writing data.
-
-### Duplicate Submission or Retry
-
-Use idempotency keys, stable client identifiers, provider references, or transaction constraints so retries do not create duplicate authoritative records.
-
-### Concurrent Update
-
-Detect stale state with locking, version checks, unique constraints, or conflict validation. Return a conflict result and preserve the user's recoverable input where a UI exists.
-
-### External Provider, AI, Offline, or Sync Failure
-
-If this story calls an external provider, AI service, offline queue, or sync process, the system must expose pending/failed/retry states and must not present unconfirmed output as authoritative.
-
----
-
-## 9. Data Requirements
-
-The implementation must persist or return only data required for `View Booking Details`:
-
-- actor/user context and role/relationship used for authorization;
-- referenced domain identifiers such as Trip, Route, Booking, Payment, Member, Package, Review, Alert, or Report ids when applicable;
-- source timestamps and server timestamps as separate values when client/offline/provider events are involved;
-- status/state fields needed to distinguish pending, succeeded, failed, rejected, stale, or synced data;
-- audit fields for actor, action, target, before/after values, timestamp, and reason when applicable;
-- idempotency keys, provider references, sync metadata, model/config/rule version, or package/version context when the behavior depends on them.
-
-Do not duplicate an entire data dictionary in this spec. Reference existing entities and add only story-specific requirements.
-
----
-
-## 10. Backend / API Responsibilities
-
-Backend is responsible for:
-
-- authentication and authorization;
-- input DTO validation;
-- ownership and business relationship checks;
-- state transition validation;
-- transaction boundaries and rollback;
-- idempotency and duplicate prevention;
-- persistence of authoritative state;
-- audit logging when the action is operational, financial, safety-related, administrative, or security-sensitive;
-- returning consistent error semantics: `401`, `403`, `404`, `409`, and `422` where applicable.
-
-If endpoint paths or DTOs are not finalized, implementation must define a typed contract before UI integration and record unresolved endpoint details as Pending Decisions.
-
----
-
-## 11. Mobile / UI Responsibilities
-
-UI is responsible for:
-
-- displaying only actions allowed by known role/state while treating backend as final authority;
-- collecting required inputs with clear validation messages;
-- showing loading, success, pending, failed, retry, conflict, and permission-denied states;
-- preserving user-entered data after recoverable failure or conflict where practical;
-- distinguishing local/pending/offline/AI-suggested data from server-confirmed authoritative state;
-- using existing CTMS design, i18n, accessibility, and state-management patterns.
-
-If this story has no user-facing UI, UI responsibilities are limited to any admin, monitoring, notification, or client state needed to observe the backend result.
-
----
-
-## 12. Offline & Sync Behavior
-
-Online:
-
-- Execute against backend-authoritative validation and persistence.
-
-Offline:
-
-- If this story is not offline-capable, block the write action and show the unavailable state.
-- If this story is offline-capable, persist a local pending record with stable identifiers and enough context to sync later.
-
-Reconnect:
-
-- Sync pending records idempotently.
-- Preserve original client event time separately from server received time.
-- Do not present unsynced data as authoritative server state.
-
-Pending Decision:
-
-- If this story requires offline or sync semantics beyond the owning sync specification, record the unresolved behavior in Section 19 before implementation.
-
----
-
-## 13. Error Handling
-
-| Condition | Observable behavior |
-| --- | --- |
-| Authentication missing/expired | Return `401`; UI prompts sign-in or session refresh. |
-| Actor lacks permission | Return `403`; no side effect. |
-| Referenced record missing | Return `404` when the actor may know it exists; otherwise preserve privacy-safe response. |
-| Invalid input | Return `422` with field-level reason where possible. |
-| Business conflict | Return `409` with recoverable explanation. |
-| External provider or async failure | Keep state pending/failed with retry metadata and no duplicate authoritative result. |
-| Unexpected server error | Roll back partial work and return a generic error without leaking secrets or stack trace. |
-
----
-
-## 14. Security & Authorization
-
-- Authorization must check role, ownership, consent, assignment, Trip/Route/Booking relationship, or administrative scope as applicable.
-- Sensitive data must not be exposed beyond the actor's business need.
-- Payment credentials, tokens, OTPs, secrets, health data, exact location, and AI/private prompt data must not appear in logs or audit records unless explicitly required and approved.
-- Backend remains the source of truth for permission and state even when UI hides unavailable actions.
-- Audit is required for important operational, safety, financial, administrative, and security-sensitive changes.
-
----
-
-## 15. Acceptance Criteria
-
-### AC-01
-
-Given:
-
-- The preconditions in this spec are satisfied.
-
-When:
-
-- The approved PB V3.1 acceptance behavior for `View Booking Details` is implemented as explicit system behavior..
-
-Then:
-
-- The system behavior matches the rule above.
-- Backend validation and UI state are consistent with the observable result.
-- Tests cover the success path and at least one failure or boundary case.
-### AC-02
-
-Given:
-
-- The preconditions in this spec are satisfied.
-
-When:
-
-- The source acceptance conditions are covered by backend or client tests without copying non-English backlog text into the spec..
-
-Then:
-
-- The system behavior matches the rule above.
-- Backend validation and UI state are consistent with the observable result.
-- Tests cover the success path and at least one failure or boundary case.
-
-### AC-03 - Authorization and Invalid State Protection
-
-Given:
-
-- The actor is missing permission, the target record is missing, or the current state does not allow the workflow.
-
-When:
-
-- The actor or system attempts `View Booking Details`.
-
-Then:
-
-- The backend rejects the action with the correct error category.
-- No unintended side effect is persisted.
-- UI/API exposes the failure clearly.
-
-### AC-04 - Duplicate and Retry Safety
-
-Given:
-
-- The same request, sync item, provider callback, or user action is submitted more than once.
-
-When:
-
-- The backend processes the duplicate.
-
-Then:
-
-- At most one authoritative result is created.
-- Duplicate handling returns a compatible success, already-processed, or conflict response.
-
----
-
-## 16. Backend Preparation, Logic and Tests
-
-### Responsibilities
-
-- Implement or update the owning module's service, controller, repository, DTO, entity, migration, queue, provider, or sync handler as needed.
-- Enforce PB V3.1 behavior and mapped Business Rules in backend logic.
-- Keep transactions, idempotency, state validation, and audit behavior close to the domain operation.
-- Reuse existing CTMS helpers for auth, validation, i18n, API errors, transactions, and tests.
-- Keep this as the HOW-SYSTEM responsibility contract for `CTMS-031-T01`; do not duplicate the complete end-to-end flow in Jira.
-
-### Required Tests
-
-- Unit tests for validation, state transitions, mapped Business Rules, and failure paths.
-- Integration/API tests for success, invalid input, unauthorized access, missing resource, conflict, idempotency, and rollback.
-- Provider/sync/AI tests when this story depends on external service, offline queue, model output, or background processing.
-- Regression tests proving no mapped Business Rule is silently bypassed.
-
-### CTMS-031-T01 Approved Read Contract
-
-| Concern | Decision | Source category | Rationale / evidence |
-| --- | --- | --- | --- |
-| Access | `GET /api/bookings/:bookingId` is limited to the authenticated Camper who owns the Booking. Host, Admin, Porter, System-as-HTTP-actor, another Camper, and a non-owner member are outside the MVP. | CTMS Project/MVP Decision | Keeps participant identity within the owner workflow. This is not a permanent platform-wide authorization rule. |
-| Authorization order | Authenticate, authorize the Camper role, validate UUID, load only Booking ownership, return `404` if missing or `403` for an existing foreign Booking, then load nested details. | CTMS Project/MVP Decision | Participant email is not loaded before ownership succeeds. The `403`/`404` distinction accepts UUID existence disclosure and matches the current Booking-area convention. |
-| UUID validation | Malformed `bookingId` returns `422` through `BOOKING_ID_PIPE`, a `ParseUUIDPipe` configured with `HttpStatus.UNPROCESSABLE_ENTITY`. | Repository audit finding | Existing Booking controller convention and runtime behavior. |
-| Readable states | Owners may read `pending_payment`, `confirmed`, `cancelled`, `expired`, and `completed` Bookings. | CTMS Project/MVP Decision | Booking Details is a historical read and does not reuse mutation-state guards. |
-| Lazy expiry | A GET returns persisted status, payment status, hold expiry, capacity, and related rows exactly as stored. It never performs expiry or another mutation. | CTMS Project/MVP Decision | Read repeatability and historical fidelity. |
-| Money wire format | Booking and item `numeric(12,2)` values are JSON strings, or `null` only where the legacy Booking column is nullable. | Repository audit finding | Existing HTTP responses serialize values such as `"1500000.00"` and `"200000.00"`; JSON aggregation casts item numeric columns to text. |
-| Historical data | `tripStartsAtSnapshot`, `tripEndsAtSnapshot`, and `cancellationPolicySnapshot` remain authoritative and are never replaced by live Trip values. | PB / canonical source-derived | Booking creation already persists these snapshots. |
-| Current presentation | `tripPresentation` contains current Trip/Route labels. Each equipment item has a nested nullable `presentation.currentName`. Missing presentation metadata does not make the Booking unreadable. | CTMS Project/MVP Decision | The `current` naming distinguishes presentation metadata from historical snapshots. |
-| Participant identity | After owner authorization, each member may include nullable `email`; no other profile, health, emergency, or updater data is returned. | CTMS Project/MVP Decision | The owner supplied/resolved the email during Add Members. There is no PB approval for general participant PII exposure; any future non-owner access requires a new privacy review. |
-| Cancellation | Return `cancellationPolicySnapshot`; do not add `cancelledAt`. | Repository audit finding | The Booking schema has no canonical cancellation timestamp. A cancellation timestamp is outside CTMS-031 and requires a separate domain/schema decision. |
-| GET retry behavior | No request body or `Idempotency-Key`; repeated reads have no Booking, member, item, capacity, payment, or audit side effects. | CTMS Project/MVP Decision | GET is intrinsically safe and read-only. |
-| Audit | Ordinary Booking Details GET creates no domain mutation audit event. | CTMS Project/MVP Decision | No business mutation occurs. |
-| Schema/dependencies | The minimal contract requires no migration, package, environment, queue, provider, or background job change. Booking UUID is the MVP reference. | CTMS Project/MVP Decision | All authoritative fields already exist. |
-| BR provenance | Section 5.4 and the References section contain conflicting BR lists. | unresolved source provenance conflict | The implementation records the conflict and does not relabel the approved MVP decisions above as Business Rules. |
-
-The implemented response fields are the persisted Booking fields `id`, `tripId`, `userId`,
-`numPeople`, `status`, `paymentStatus`, `holdExpiresAt`, `tripStartsAtSnapshot`,
-`tripEndsAtSnapshot`, `basePrice`, `totalAmount`, `cancellationPolicySnapshot`, and
-`createdAt`, plus the read-only `tripPresentation`, `members`, and `equipmentItems`
-aggregates. Internal idempotency keys and request fingerprints are never returned.
-
-### Response Examples
-
-Populated `pending_payment` Booking:
-
-```json
-{
-  "id": "77777777-7777-4777-8777-777777777777",
-  "tripId": "33333333-3333-4333-8333-333333333333",
-  "userId": "11111111-1111-4111-8111-111111111111",
-  "numPeople": 2,
-  "status": "pending_payment",
-  "paymentStatus": "unpaid",
-  "holdExpiresAt": "2030-01-01T00:15:00.000Z",
-  "tripStartsAtSnapshot": "2030-02-01T01:00:00.000Z",
-  "tripEndsAtSnapshot": "2030-02-02T10:00:00.000Z",
-  "basePrice": "1500000.00",
-  "totalAmount": "1700000.00",
-  "cancellationPolicySnapshot": { "refundHours": 48 },
-  "createdAt": "2029-12-01T00:00:00.000Z",
-  "tripPresentation": {
-    "id": "33333333-3333-4333-8333-333333333333",
-    "currentTitle": "Summit Trip",
-    "routeId": "44444444-4444-4444-8444-444444444444",
-    "currentRouteName": "Ridge Route"
-  },
-  "members": [
-    {
-      "id": "55555555-5555-4555-8555-555555555555",
-      "userId": "11111111-1111-4111-8111-111111111111",
-      "email": "camper@example.com",
-      "isPrimary": true,
-      "memberStatus": "registered",
-      "createdAt": "2029-12-01T00:01:00.000Z",
-      "updatedAt": "2029-12-01T00:01:00.000Z"
-    }
-  ],
-  "equipmentItems": [
-    {
-      "id": "66666666-6666-4666-8666-666666666666",
-      "itemType": "equipment",
-      "equipmentCatalogItemId": "88888888-8888-4888-8888-888888888888",
-      "quantity": 2,
-      "unitPrice": "50000.00",
-      "rentalDays": 2,
-      "totalPrice": "200000.00",
-      "createdAt": "2029-12-01T00:02:00.000Z",
-      "presentation": { "currentName": "Trekking Tent" }
-    }
-  ]
-}
-```
-
-Cancelled Booking remains readable and retains its cancellation-policy snapshot:
-
-```json
-{
-  "id": "77777777-7777-4777-8777-777777777777",
-  "tripId": "33333333-3333-4333-8333-333333333333",
-  "userId": "11111111-1111-4111-8111-111111111111",
-  "numPeople": 2,
-  "status": "cancelled",
-  "paymentStatus": "paid",
-  "holdExpiresAt": null,
-  "tripStartsAtSnapshot": "2030-02-01T01:00:00.000Z",
-  "tripEndsAtSnapshot": "2030-02-02T10:00:00.000Z",
-  "basePrice": "1500000.00",
-  "totalAmount": "1500000.00",
-  "cancellationPolicySnapshot": { "refundHours": 48 },
-  "createdAt": "2029-12-01T00:00:00.000Z",
-  "tripPresentation": null,
-  "members": [],
-  "equipmentItems": []
-}
-```
-
-Legacy/empty related-data response:
-
-```json
-{
-  "id": "77777777-7777-4777-8777-777777777777",
-  "tripId": "33333333-3333-4333-8333-333333333333",
-  "userId": "11111111-1111-4111-8111-111111111111",
-  "numPeople": 1,
-  "status": "confirmed",
-  "paymentStatus": "not_required",
-  "holdExpiresAt": null,
-  "tripStartsAtSnapshot": "2030-02-01T01:00:00.000Z",
-  "tripEndsAtSnapshot": "2030-02-02T10:00:00.000Z",
-  "basePrice": "0.00",
-  "totalAmount": "0.00",
-  "cancellationPolicySnapshot": null,
-  "createdAt": "2029-12-01T00:00:00.000Z",
-  "tripPresentation": null,
-  "members": [],
-  "equipmentItems": []
-}
-```
-
-### Logic Subtask DoD
-
-- [x] Logic implementation completed.
-- [x] Applicable business rules and invariants implemented.
-- [x] Task-specific unit tests added or updated.
-- [x] Task-specific unit tests passed.
-- [x] Applicable backend or integration tests passed.
-
----
-
-## 17. UI and Tests
-
-### Responsibilities
-
-- Implement screen/component/client state only when this story has a user-facing workflow.
-- Wire UI to typed API contracts.
-- Show loading, empty, blocked, validation, conflict, retry, and success states.
-- Keep local/client validation aligned with backend DTOs without treating client validation as enforcement.
-- Keep this as the HOW-CLIENT responsibility contract for `CTMS-031-T02`; backend/server responses remain the source of truth for server-owned business state.
-
-### Required Tests
-
-- Component or mobile widget tests for rendered states and user actions.
-- Hook/client-state tests for API success, validation failure, authorization failure, conflict, and retry where applicable.
-- Offline/error-state tests when the story includes pending local data or synchronization.
-- Accessibility and interaction checks for critical user-facing flows.
-
-### UI or Final Implementation Subtask DoD
-
-- [ ] UI implementation completed when this story has a client-facing workflow.
-- [ ] Applicable client-side behavior implemented.
-- [ ] Task-specific unit or component tests passed.
-- [ ] Backend integration completed.
-- [ ] Task-specific E2E tests passed when an end-to-end user path exists.
-- [ ] All Story Acceptance Criteria verified.
-- [ ] Unit regression tests passed.
-- [ ] E2E regression tests passed.
-- [ ] `lint:all` passed.
-- [ ] `build:all` passed.
-- [ ] `test:all` passed.
-- If UI is not the final implementation subtask, move these integrated quality gates to the actual final implementation subtask or an explicit Story-level verification step.
-
----
-
-## 18. Related Specifications
-
-Dependencies:
-
-- CTMS-029
-
-Potentially related specs must be referenced for context only. Do not duplicate their owned logic in this spec.
-
----
-
-## 19. Pending Decisions
-
-Use this section for undefined, ambiguous, or conflicting behavior. Do not guess business behavior during implementation.
-
-### PD-01 - API and DTO Contract
-
-Status: UNRESOLVED
-
-Question:
-What are the final endpoint paths, request DTOs, response DTOs, and error payloads for `View Booking Details` if they are not already implemented?
-
-Affected:
-- Jira Story: `CTMS-031`
-- Logic Subtask: `CTMS-031-T01`
-- UI Subtask: `CTMS-031-T02`
-
-Implementation impact:
-Backend and UI integration cannot be finalized safely without a typed contract.
-
-Required action:
-BA, PO, or domain owner confirms the API contract, or the implementation records the approved contract in this spec before coding.
-
-### PD-02 - Story-Specific State and Failure Semantics
-
-Status: UNRESOLVED
-
-Question:
-Are there story-specific state enum values, partial failure semantics, retry limits, conflict rules, audit event names, or before/after audit payloads beyond the generic model in this spec?
-
-Affected:
-- Business Rules listed in Section 5.4
-- Related specifications in Section 18
-
-Implementation impact:
-Implementers must not silently choose state, retry, conflict, or audit behavior when the approved sources do not define it.
-
-Required action:
-Resolve through Business Rules, Data Dictionary or Domain Model, Jira decision, or an explicit spec update before implementation.
-
-### PD-03 - Source Conflict Handling
-
-Status: UNRESOLVED WHEN A CONFLICT IS FOUND
-
-Question:
-Do PB V3.1, Business Rules, Data Dictionary or Domain Model, Jira, or existing code/tests disagree for this story?
-
-Affected:
-- PB V3.1 row `CTMS-031`
-- Business Rules listed in Section 5.4
-- Existing implementation and tests if present
-
-Implementation impact:
-A lower-level artifact that conflicts with an approved higher-level source is stale until reconciled.
-
-Required action:
-Record the conflict, stop short of inventing behavior, and request BA/PO/domain owner clarification.
-
----
-
-## References
-
-- Story ID: `CTMS-031`
-- Epic: `EPIC 5. Booking and Payment`
-- Jira Story owns WHAT and WHY for this capability.
-- Jira Logic Subtask `CTMS-031-T01` owns HOW-SYSTEM responsibilities.
-- Jira UI Subtask `CTMS-031-T02` owns HOW-CLIENT responsibilities when a client workflow exists.
-- This file/spec owns the detailed execution flow, edge cases, contracts, invariants, and technical processing.
-- Product Backlog V3.1 use case: `View Booking Details`
-- Priority: `Must Have`
-- Story points: `3.0`
-- Dependencies: `CTMS-029`
-- Status: `To Do`
-- Sprint: `Sprint 3`
-- Commitment: `Committed`
-- Planned window: `2026-08-23` to `2026-09-05`
-- Product Backlog source: `PRODUCT BACKLOG.xlsx`, sheet `v3.1`
-- Business Rules source: `CTMS- Business rules.xlsx`, sheet `Business Rules`
-- Story-level business rules: BR-083, BR-105, BR-106, BR-107, BR-108, BR-194, BR-049, BR-218, BR-252, BR-253, BR-255
-- Jira execution tasks should reference:
-  - `/file/spec/ctms-31-view-booking-details.md#backend-preparation-logic-and-tests`
-  - `/file/spec/ctms-31-view-booking-details.md#ui-and-tests`
+Exact actor-specific Booking Detail DTO belongs to Technical Design/Data Dictionary.
