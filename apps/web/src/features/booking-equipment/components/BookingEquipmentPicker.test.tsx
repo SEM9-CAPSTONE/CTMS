@@ -111,6 +111,40 @@ describe("BookingEquipmentPicker", () => {
 		expect(screen.getByTestId("booking-total-amount")).toHaveTextContent("150.000");
 	});
 
+	it("notifies onEquipmentChanged after a successful add", async () => {
+		const submit = vi.fn().mockResolvedValue({
+			item: { id: "item-1" },
+			booking: { id: "booking-1", totalAmount: "150000.00" },
+		});
+		const onEquipmentChanged = vi.fn();
+		vi.mocked(useTripEquipmentOptions).mockReturnValue({
+			items: [option],
+			isLoading: false,
+			error: "",
+			retry: vi.fn(),
+		});
+		vi.mocked(useAddBookingItem).mockReturnValue({
+			isSubmitting: false,
+			error: null,
+			submit,
+			reset: vi.fn(),
+		});
+
+		render(
+			<BookingEquipmentPicker
+				tripId="trip-1"
+				bookingId="booking-1"
+				initialTotalAmount="0.00"
+				onEquipmentChanged={onEquipmentChanged}
+			/>
+		);
+
+		fireEvent.change(screen.getByLabelText("Thiết bị"), { target: { value: "item-1" } });
+		fireEvent.click(screen.getByRole("button", { name: "Thêm thiết bị" }));
+
+		await waitFor(() => expect(onEquipmentChanged).toHaveBeenCalled());
+	});
+
 	it("shows the already-added items and the API error banner", () => {
 		const addedItem: BookingItem = {
 			id: "booking-item-1",

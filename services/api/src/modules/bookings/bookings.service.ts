@@ -19,11 +19,18 @@ import {
 	BookingPaymentStatus,
 	BookingStatus,
 } from "../profiles/entities/booking.entity";
-import { TrekkingRouteStatus } from "../trekking-routes/entities/trekking-route.entity";
+// biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
+import { HealthProfileRepository } from "../profiles/repositories/health-profile.repository";
+import {
+	TrekkingRoute,
+	TrekkingRouteStatus,
+} from "../trekking-routes/entities/trekking-route.entity";
 import { Trip, TripStatus } from "../trips/entities/trip.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { type LockedTripForBooking, TripsRepository } from "../trips/repositories/trips.repository";
 import { User, UserStatus } from "../users/entities/user.entity";
+// biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
+import { WeatherRiskRepository } from "../weather/repositories/weather-risk.repository";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { RouteRegistrationRiskService } from "../weather/services/route-registration-risk.service";
 import { BookingItemType } from "./booking-item-type.enum";
@@ -42,6 +49,7 @@ import type { BookingResponseDto } from "./dto/booking-response.dto";
 import type { CreateBookingDto } from "./dto/create-booking.dto";
 import type { InitializeBookingMembersResponseDto } from "./dto/initialize-booking-members-response.dto";
 import type { InitializeBookingMembersDto } from "./dto/initialize-booking-members.dto";
+import type { PackingListResponseDto } from "./dto/packing-list-response.dto";
 import type {
 	ResolveBookingMemberCandidateDto,
 	ResolveBookingMemberCandidateResponseDto,
@@ -50,6 +58,12 @@ import type { BookingItem } from "./entities/booking-item.entity";
 import type { BookingMember } from "./entities/booking-member.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { EquipmentReservationsRepository } from "./equipment-reservations.repository";
+import {
+	type HealthProfileInput,
+	type PackingListContext,
+	type RentedEquipmentInput,
+	buildPackingListItems,
+} from "./packing-list-builder";
 
 const IDEMPOTENCY_KEY_MAX_LENGTH = 128;
 const IDEMPOTENCY_KEY_PATTERN = /^[A-Za-z0-9._:-]+$/;
@@ -74,7 +88,9 @@ export class BookingsService {
 		private readonly bookingItemsRepository: BookingItemsRepository,
 		private readonly bookingMembersRepository: BookingMembersRepository,
 		private readonly equipmentCatalogRepository: EquipmentCatalogRepository,
-		private readonly equipmentReservationsRepository: EquipmentReservationsRepository
+		private readonly equipmentReservationsRepository: EquipmentReservationsRepository,
+		private readonly weatherRiskRepository: WeatherRiskRepository,
+		private readonly healthProfileRepository: HealthProfileRepository
 	) {}
 
 	async getBookingDetails(actorId: string, bookingId: string): Promise<BookingDetailsResponseDto> {
@@ -87,6 +103,95 @@ export class BookingsService {
 		const details = await this.bookingsRepository.findDetailsByIdForOwner(bookingId, actorId);
 		if (!details) throw new NotFoundException("Booking not found");
 		return details;
+	}
+
+	/**
+	 * CTMS-042-T01. Computed on demand, never persisted -- the spec asks for
+	 * "a stable, explainable result for the same authoritative inputs", not
+	 * a stored/editable record, so there is no state to transition or audit.
+	 * Reuses `findDetailsByIdForOwner` (CTMS-030) verbatim for ownership,
+	 * members, and rented equipment instead of re-querying them.
+	 */
+	async getPackingList(actorId: string, bookingId: string): Promise<PackingListResponseDto> {
+		const ownership = await this.bookingsRepository.findOwnershipById(bookingId);
+		if (!ownership) throw new NotFoundException("Booking not found");
+		if (ownership.userId !== actorId) {
+			throw new ForbiddenException("Only the Booking owner can view the packing list");
+		}
+
+		const details = await this.bookingsRepository.findDetailsByIdForOwner(bookingId, actorId);
+		if (!details) throw new NotFoundException("Booking not found");
+		if (!details.tripPresentation || !details.tripStartsAtSnapshot || !details.tripEndsAtSnapshot) {
+			throw new ConflictException(
+				"Trip context is no longer available for a packing list on this Booking"
+			);
+		}
+
+		const durationNights = Math.max(
+			Math.round(
+				(details.tripEndsAtSnapshot.getTime() - details.tripStartsAtSnapshot.getTime()) /
+					MILLISECONDS_PER_DAY
+			),
+			0
+		);
+		const tripType: "day_trip" | "overnight" = durationNights > 0 ? "overnight" : "day_trip";
+
+		const route = await this.dataSource
+			.getRepository(TrekkingRoute)
+			.findOne({
+				where: { id: details.tripPresentation.routeId },
+				select: { id: true, difficulty: true },
+			});
+
+		const assessment = await this.weatherRiskRepository.findLatestAssessmentForRoute(
+			details.tripPresentation.routeId
+		);
+
+		const rentedEquipmentIds = [
+			...new Set(
+				details.equipmentItems.map((equipmentItem) => equipmentItem.equipmentCatalogItemId)
+			),
+		];
+		const rentedCatalogItems =
+			rentedEquipmentIds.length > 0
+				? await this.equipmentCatalogRepository.find({ where: { id: In(rentedEquipmentIds) } })
+				: [];
+		const rentedEquipment: RentedEquipmentInput[] = details.equipmentItems.map((equipmentItem) => {
+			const catalogItem = rentedCatalogItems.find(
+				(candidate) => candidate.id === equipmentItem.equipmentCatalogItemId
+			);
+			return {
+				name: catalogItem?.name ?? equipmentItem.presentation?.currentName ?? "Thiết bị đã thuê",
+				category: catalogItem?.category ?? "",
+				quantity: equipmentItem.quantity,
+			};
+		});
+
+		const healthProfile = await this.healthProfileRepository.findByUserId(actorId);
+		const health: HealthProfileInput | null = healthProfile
+			? {
+					isConsentGranted: healthProfile.isConsentGranted,
+					allergies: healthProfile.allergies,
+					medicalConditions: healthProfile.medicalConditions,
+					dietaryRestrictions: healthProfile.dietaryRestrictions,
+				}
+			: null;
+
+		const context: PackingListContext = {
+			durationNights,
+			tripType,
+			difficulty: route?.difficulty ?? null,
+			memberCount: Math.max(details.members.length, 1),
+			weatherRiskLevel: assessment?.riskLevel ?? null,
+			weatherCriteria: assessment?.criteriaScores ?? null,
+		};
+
+		return {
+			bookingId: details.id,
+			tripId: details.tripId,
+			context,
+			items: buildPackingListItems(context, rentedEquipment, health),
+		};
 	}
 
 	async resolveMemberCandidate(

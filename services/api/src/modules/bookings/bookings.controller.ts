@@ -30,6 +30,7 @@ import { CreateBookingDto } from "./dto/create-booking.dto";
 import { InitializeBookingMembersResponseDto } from "./dto/initialize-booking-members-response.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { InitializeBookingMembersDto } from "./dto/initialize-booking-members.dto";
+import { PackingListResponseDto } from "./dto/packing-list-response.dto";
 import {
 	type ResolveBookingMemberCandidateDto,
 	ResolveBookingMemberCandidateResponseDto,
@@ -156,6 +157,20 @@ export class BookingsController {
 		@Param("bookingId", BOOKING_ID_PIPE) bookingId: string
 	): Promise<BookingItemResponseDto[]> {
 		return this.bookingsService.listItems(request.user.userId, bookingId);
+	}
+
+	@Get(":bookingId/packing-list")
+	@Roles(UserRole.CAMPER)
+	@ApiOperation({ summary: "Compute a personalized packing list for the caller's own Booking" })
+	@ApiResponse({ status: 200, type: PackingListResponseDto })
+	@ApiResponse({ status: 403, description: "Not the Booking owner" })
+	@ApiResponse({ status: 404, description: "Booking not found" })
+	@ApiResponse({ status: 409, description: "Trip context is no longer available" })
+	getPackingList(
+		@Req() request: AuthenticatedRequest,
+		@Param("bookingId", BOOKING_ID_PIPE) bookingId: string
+	): Promise<PackingListResponseDto> {
+		return this.bookingsService.getPackingList(request.user.userId, bookingId);
 	}
 
 	@Get(":bookingId")
