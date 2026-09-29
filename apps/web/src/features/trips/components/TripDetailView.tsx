@@ -13,9 +13,10 @@ import {
 	Users,
 	X,
 } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { BookingEquipmentPicker } from "../../booking-equipment/components/BookingEquipmentPicker";
 import { InitializeBookingMembersPanel } from "../../booking-members/components/InitializeBookingMembersPanel";
+import { PackingListPanel } from "../../packing-list/components/PackingListPanel";
 import type { BookTripResponse, TripDetails } from "../types";
 import { type BookingAccess, BookingPanel } from "./BookingPanel";
 import { TripCapacityBanner } from "./TripCapacityBanner";
@@ -38,6 +39,7 @@ export interface TripDetailViewProps {
 	onConflictDismiss?: () => void;
 	onConflictReload?: () => void;
 	onConflictRetry?: () => void;
+	onViewPackingList?: (bookingId: string) => void;
 }
 
 export function formatDateTime(isoString: string | null | undefined): string {
@@ -90,7 +92,9 @@ export function TripDetailView({
 	onConflictDismiss,
 	onConflictReload,
 	onConflictRetry,
+	onViewPackingList,
 }: TripDetailViewProps) {
+	const [packingListRefreshKey, setPackingListRefreshKey] = useState(0);
 	const difficulty = getDifficultyBadge(trip.difficulty ?? null);
 	const weather = getWeatherRiskBadge(trip.weatherRiskLevel ?? null);
 	const WeatherIcon = weather.icon;
@@ -483,7 +487,18 @@ export function TripDetailView({
 											tripId={trip.id}
 											bookingId={booking.id}
 											initialTotalAmount={booking.totalAmount}
+											onEquipmentChanged={() => setPackingListRefreshKey((current) => current + 1)}
 										/>
+										<PackingListPanel bookingId={booking.id} refreshKey={packingListRefreshKey} />
+										{onViewPackingList && (
+											<button
+												type="button"
+												onClick={() => onViewPackingList(booking.id)}
+												className="mt-3 w-full rounded-xl border border-[#164027]/20 px-4 py-2 text-xs font-bold text-[#164027] transition hover:bg-[#164027]/5"
+											>
+												Xem packing list ở trang riêng
+											</button>
+										)}
 									</>
 								)}
 							</div>

@@ -23,6 +23,7 @@ export const API_ENDPOINTS = {
 		CANCEL: (id: string) => `/bookings/${id}/cancel`,
 		PAYMENTS: (id: string) => `/bookings/${id}/payments`,
 		ITEMS: (bookingId: string) => `/bookings/${bookingId}/items`,
+		PACKING_LIST: (bookingId: string) => `/bookings/${bookingId}/packing-list`,
 		MEMBERS: (bookingId: string) => `/bookings/${bookingId}/members`,
 		MEMBER_CANDIDATE_RESOLVE: (bookingId: string) =>
 			`/bookings/${bookingId}/member-candidates/resolve`,
