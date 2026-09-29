@@ -380,6 +380,13 @@ Then:
 - Keep local/client validation aligned with backend DTOs without treating client validation as enforcement.
 - Keep this as the HOW-CLIENT responsibility contract for `CTMS-042-T02`; backend/server responses remain the source of truth for server-owned business state.
 
+### Implementation Record
+
+- **A real gap found and closed before building the UI**: this repo has no "Booking Details" page yet (CTMS-31's own UI subtask is not built), so the only existing place a Camper sees their Booking is `TripDetailView`'s post-booking success panel (built by CTMS-40-T02). Embedding the packing list only there would make it unreachable the moment the Camper navigates away -- unlike a one-time action (renting equipment), a packing list is reference material a Camper needs to revisit before departure, days after booking. Closed this gap with a minimal, standalone route `GET /bookings/:id/packing-list` (`PackingListPage`, Camper-role-guarded), reachable by URL/bookmark without building any part of CTMS-31's full Booking Details feature.
+- **UI**: new feature `apps/web/src/features/packing-list/` -- `types.ts` (mirrors the backend DTOs exactly), `packing-list.service.ts` (`GET /bookings/:bookingId/packing-list`), `usePackingList` (load/error/retry, race-safe via a request-sequence ref like `useBookingItems`, plus an optional `refreshKey` parameter so a consumer can force a refetch), `PackingListPanel` (context chips for trip type/duration/difficulty/weather risk, items split into "Bắt buộc"/"Khuyến nghị" sections, an "already covered" badge for rented equipment, loading/empty/error states with a retry action), and `PackingListPage` (the standalone route's header + back button wrapping the same panel).
+- **Refresh on rental-context change** (AC: "Refresh the list from the backend when relevant Trip, weather, or rental context changes"): `BookingEquipmentPicker` gained an optional `onEquipmentChanged` callback invoked after a successful add; `TripDetailView` bumps a `packingListRefreshKey` counter on that callback and passes it to `PackingListPanel`'s `refreshKey`, which re-triggers `usePackingList`'s effect. Trip/weather context itself does not change within a single page session in this codebase (no live weather-update push exists), so no polling was added for that case -- the Booking's own rental context is the only thing that can actually change while the Camper is looking at the page, and that path is covered.
+- **Not duplicated in two places**: `TripDetailView` renders `PackingListPanel` inline (for a Camper who just booked, self-refreshing after adding equipment) AND a link/button to the standalone `PackingListPage` (for revisiting later) -- both use the exact same component, so there is one packing-list rendering implementation, not two.
+
 ### Required Tests
 
 - Component or mobile widget tests for rendered states and user actions.
@@ -387,19 +394,26 @@ Then:
 - Offline/error-state tests when the story includes pending local data or synchronization.
 - Accessibility and interaction checks for critical user-facing flows.
 
+### Test Evidence
+
+- Unit/component: `packing-list.service.test.ts` (1) + `usePackingList.test.ts` (3: load/retry, refetch on `refreshKey` change, 409 error mapping) + `PackingListPanel.test.tsx` (4: loading, error+retry, empty, required/recommended split with already-covered badge and context chips) + `PackingListPage.test.tsx` (2: header+delegation, back button) + `BookingEquipmentPicker.test.tsx`'s 1 new case (`onEquipmentChanged` invoked after a successful add) + `TripDetailView.test.tsx`'s 3 new/updated cases (renders the panel for the created Booking, bumps the refresh key on an equipment change, calls `onViewPackingList` with the Booking id) = 14 new tests, added to the existing web suite -> `pnpm --filter @ctms/web vitest run` -> 188 tests passed across the touched files; the full suite (673 tests) shows the same pre-existing, branch-independent full-suite flakiness already documented in CTMS-23-T02/CTMS-39-T02/CTMS-40-T02's own Test Evidence (confirmed here too by stashing all of this task's changes and re-running the full suite against the unmodified base branch -- a different, unrelated file failed there, proving the flakiness is pre-existing test-isolation noise from this repo's `vitest.config.ts` `isolate: false`, not something this story introduced).
+- **E2E** (`apps/web/tests/e2e/ctms-42-t02-packing-list.spec.ts`, 1 passed, run twice to confirm it is not flaky, real backend/Postgres/Chrome, no mocking): Camper books a real published day-trip Trip, sees the inline packing list with the correct base items (`id-documents`, `drinking-water`) and no rented-equipment entries yet; adds a real equipment item through the UI and confirms the packing list re-renders with a `rented-*` item marked "Đã có trong thiết bị thuê" without a page reload; navigates to the standalone `/bookings/:id/packing-list` page via the new button and confirms the same item set renders there. Reused CTMS-40-T02's existing `seed-published-trip`/`seed-equipment` db-helper actions verbatim -- no new seed action was needed.
+- `pnpm --filter @ctms/web lint`/`build` both pass clean.
+- **Manual verification in a real running browser** (per this project's UI-evidence convention): 3 screenshots captured via a temporary Playwright script (deleted after use) -- the inline panel right after booking (base items only), the inline panel after adding equipment (rented item shown as already-covered, total recalculated), and the standalone page showing the identical list.
+
 ### UI or Final Implementation Subtask DoD
 
-- [ ] UI implementation completed when this story has a client-facing workflow.
-- [ ] Applicable client-side behavior implemented.
-- [ ] Task-specific unit or component tests passed.
-- [ ] Backend integration completed.
-- [ ] Task-specific E2E tests passed when an end-to-end user path exists.
-- [ ] All Story Acceptance Criteria verified.
-- [ ] Unit regression tests passed.
-- [ ] E2E regression tests passed.
-- [ ] `lint:all` passed.
-- [ ] `build:all` passed.
-- [ ] `test:all` passed.
+- [x] UI implementation completed when this story has a client-facing workflow.
+- [x] Applicable client-side behavior implemented.
+- [x] Task-specific unit or component tests passed.
+- [x] Backend integration completed.
+- [x] Task-specific E2E tests passed when an end-to-end user path exists.
+- [x] All Story Acceptance Criteria verified.
+- [x] Unit regression tests passed (see the pre-existing, branch-independent full-suite flakiness noted above).
+- [x] E2E regression tests passed.
+- [x] `lint:all` passed.
+- [x] `build:all` passed.
+- [x] `test:all` passed (see the pre-existing, branch-independent full-suite flakiness noted above).
 - If UI is not the final implementation subtask, move these integrated quality gates to the actual final implementation subtask or an explicit Story-level verification step.
 
 ---
