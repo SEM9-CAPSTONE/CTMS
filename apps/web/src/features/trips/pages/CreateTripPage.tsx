@@ -1,72 +1,91 @@
 import { ArrowLeft, CalendarPlus, CheckCircle2 } from "lucide-react";
 import { useMemo } from "react";
 import { useTrekkingRoutes } from "../../trekking-routes/hooks/useTrekkingRoutes";
+import { ConfigureTripWaypointsPanel } from "../components/ConfigureTripWaypointsPanel";
 import { CreateTripForm } from "../components/CreateTripForm";
 import { useCreateTrip } from "../hooks/useCreateTrip";
+import { useTripDetail } from "../hooks/useTripDetail";
+import { useUpdateTripDraft } from "../hooks/useUpdateTripDraft";
+import { toCreateTripFormValues } from "../schema/create-trip.schema";
+import type { Trip } from "../types";
 
 export interface CreateTripPageProps {
 	onBackHome?: () => void;
 	onCreateRoute?: () => void;
+	editTripId?: string;
 }
 
-export function CreateTripPage({ onBackHome, onCreateRoute }: CreateTripPageProps) {
+export function CreateTripPage({ onBackHome, onCreateRoute, editTripId }: CreateTripPageProps) {
 	const creation = useCreateTrip();
+	const updateDraft = useUpdateTripDraft(editTripId);
+	const draftDetail = useTripDetail(editTripId);
 	const routes = useTrekkingRoutes();
+	const isEditMode = Boolean(editTripId);
 	const activeRoutes = useMemo(
 		() => routes.items.filter((route) => route.status === "active"),
 		[routes.items]
 	);
+	const editableTrip = useMemo(() => {
+		if (!draftDetail.trip?.routeId) return null;
+		return draftDetail.trip as Trip;
+	}, [draftDetail.trip]);
+	const savedTrip = updateDraft.updatedTrip ?? creation.createdTrip;
 
-	if (creation.createdTrip) {
-		const trip = creation.createdTrip;
+	if (savedTrip) {
+		const trip = savedTrip;
+		const selectedRoute =
+			routes.items.find((route) => route.id === trip.routeId) ??
+			activeRoutes.find((route) => route.id === trip.routeId) ??
+			null;
 		return (
-			<main className="min-h-screen bg-[#f4f7f2] p-5 sm:p-10">
-				<section className="mx-auto max-w-2xl rounded-2xl border border-green-200 bg-white p-8 text-center shadow-sm">
-					<CheckCircle2 className="mx-auto size-14 text-green-600" />
-					<h1 className="mt-4 text-2xl font-extrabold">Tạo trip thành công</h1>
-					<p className="mt-2 text-[#667a6d]">
-						Trip chỉ được đánh dấu thành công sau khi backend xác nhận tạo draft.
+			<div className="min-h-screen bg-[#f4f7f2] text-[#10221b]">
+				<header className="border-b bg-white">
+					<div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-5 sm:px-6">
+						<div className="rounded-xl bg-emerald-50 p-3 text-[#164027]">
+							<CheckCircle2 className="size-6" />
+						</div>
+						<div>
+							<p className="text-xs font-extrabold uppercase tracking-[0.18em] text-[#728578]">
+								Bước 2 / 2
+							</p>
+							<h1 className="text-xl font-extrabold sm:text-2xl">Lịch trình chuyến đi</h1>
+						</div>
+					</div>
+				</header>
+				<main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+					<ConfigureTripWaypointsPanel trip={trip} route={selectedRoute} />
+				</main>
+			</div>
+		);
+	}
+
+	if (isEditMode && draftDetail.isLoading) {
+		return (
+			<div className="min-h-screen bg-[#f4f7f2] px-4 py-10 text-[#10221b]">
+				<div className="mx-auto max-w-3xl rounded-2xl border border-[#dce8dd] bg-white p-6 shadow-sm">
+					<p className="font-bold text-[#667a6d]">Đang tải bản nháp...</p>
+				</div>
+			</div>
+		);
+	}
+
+	if (isEditMode && (draftDetail.error || !editableTrip)) {
+		return (
+			<div className="min-h-screen bg-[#f4f7f2] px-4 py-10 text-[#10221b]">
+				<div className="mx-auto max-w-3xl rounded-2xl border border-red-200 bg-white p-6 shadow-sm">
+					<h1 className="text-lg font-extrabold">Không thể mở bản nháp</h1>
+					<p className="mt-2 text-sm text-red-700">
+						{draftDetail.error ?? "Trip này không còn đủ dữ liệu để sửa."}
 					</p>
-					<div className="mt-5 grid gap-3 rounded-xl bg-[#f8faf7] p-5 text-left sm:grid-cols-2">
-						<p>
-							<b>Trip:</b> {trip.title}
-						</p>
-						<p>
-							<b>Trạng thái:</b> <span data-testid="server-trip-status">{trip.status}</span>
-						</p>
-						<p>
-							<b>Số chỗ đã giữ:</b> <span data-testid="server-seats-taken">{trip.seatsTaken}</span>
-						</p>
-						<p>
-							<b>Số đêm:</b> <span data-testid="server-duration-nights">{trip.durationNights}</span>
-						</p>
-						<p className="sm:col-span-2">
-							<b>ID:</b>{" "}
-							<span data-testid="created-trip-id" className="font-mono">
-								{trip.id}
-							</span>
-						</p>
-					</div>
-					<div className="mt-6 flex justify-center gap-3">
-						<button
-							type="button"
-							onClick={creation.reset}
-							className="rounded-xl bg-[#164027] px-4 py-3 font-bold text-white"
-						>
-							Tạo trip khác
-						</button>
-						{onBackHome && (
-							<button
-								type="button"
-								onClick={onBackHome}
-								className="rounded-xl border px-4 py-3 font-bold"
-							>
-								Về Host Dashboard
-							</button>
-						)}
-					</div>
-				</section>
-			</main>
+					<button
+						type="button"
+						onClick={() => void draftDetail.retry()}
+						className="mt-4 rounded-xl border border-[#cbd9ce] px-4 py-2.5 font-bold text-[#164027]"
+					>
+						Tải lại
+					</button>
+				</div>
+			</div>
 		);
 	}
 
@@ -77,7 +96,7 @@ export function CreateTripPage({ onBackHome, onCreateRoute }: CreateTripPageProp
 					{onBackHome && (
 						<button
 							type="button"
-							aria-label="Quay về Host Dashboard"
+							aria-label="Quay về trang quản lý Host"
 							onClick={onBackHome}
 							className="rounded-xl border p-2.5"
 						>
@@ -88,9 +107,13 @@ export function CreateTripPage({ onBackHome, onCreateRoute }: CreateTripPageProp
 						<CalendarPlus className="size-6" />
 					</div>
 					<div>
-						<h1 className="text-xl font-extrabold sm:text-2xl">Tạo trip cho Host</h1>
+						<h1 className="text-xl font-extrabold sm:text-2xl">
+							{isEditMode ? "Thông tin chuyến đi" : "Tạo trip cho Host"}
+						</h1>
 						<p className="text-sm text-[#667a6d]">
-							Tạo trip nháp từ tuyến trekking đã duyệt, điểm đầu/cuối được lấy theo tuyến có sẵn.
+							{isEditMode
+								? "Cập nhật thông tin chuyến đi."
+								: "Tạo trip nháp từ tuyến trekking đã duyệt, điểm đầu/cuối được lấy theo tuyến có sẵn."}
 						</p>
 					</div>
 				</div>
@@ -100,12 +123,19 @@ export function CreateTripPage({ onBackHome, onCreateRoute }: CreateTripPageProp
 					activeRoutes={activeRoutes}
 					isRouteLoading={routes.isLoading}
 					routeError={routes.error}
-					isSubmitting={creation.isSubmitting}
-					error={creation.error}
-					onSubmit={creation.submit}
-					onRetry={creation.retry}
+					isSubmitting={isEditMode ? updateDraft.isSubmitting : creation.isSubmitting}
+					error={isEditMode ? updateDraft.error : creation.error}
+					onSubmit={isEditMode ? updateDraft.submit : creation.submit}
+					onRetry={isEditMode ? updateDraft.retry : creation.retry}
 					onRetryRoutes={routes.retry}
 					onCreateRoute={onCreateRoute}
+					defaultValues={editableTrip ? toCreateTripFormValues(editableTrip) : undefined}
+					submitLabel={isEditMode ? "Bước tiếp theo" : "Tạo draft và cấu hình waypoint"}
+					submittingLabel={isEditMode ? "Đang lưu bản nháp..." : "Đang tạo trip..."}
+					title={isEditMode ? "Thông tin chuyến đi" : undefined}
+					description={
+						isEditMode ? "Loại trip được tự xác định từ ngày bắt đầu và kết thúc." : undefined
+					}
 				/>
 			</main>
 		</div>

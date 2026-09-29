@@ -22,6 +22,7 @@ describe("TripsController", () => {
 		search: jest.Mock;
 		getTripDetails: jest.Mock;
 		create: jest.Mock;
+		updateDraft: jest.Mock;
 		configureWaypoints: jest.Mock;
 		listPendingReview: jest.Mock;
 		review: jest.Mock;
@@ -33,6 +34,7 @@ describe("TripsController", () => {
 			search: jest.fn(),
 			getTripDetails: jest.fn(),
 			create: jest.fn(),
+			updateDraft: jest.fn(),
 			configureWaypoints: jest.fn(),
 			listPendingReview: jest.fn(),
 			review: jest.fn(),
@@ -114,6 +116,30 @@ describe("TripsController", () => {
 
 			expect(tripsService.configureWaypoints).toHaveBeenCalledWith(USER_ID, TRIP_ID, dto);
 			expect(result).toBe(mockConfigured);
+		});
+	});
+
+	describe("updateDraft", () => {
+		it("delegates to TripsService.updateDraft with hostId, tripId, and dto", async () => {
+			const dto: CreateTripDto = {
+				routeId: "22222222-2222-4222-8222-222222222222",
+				title: "Updated Trip",
+				tripType: TripType.DAY_TRIP,
+				startsAt: "2026-09-20T01:00:00.000Z",
+				endsAt: "2026-09-20T10:00:00.000Z",
+				meetingPoint: { type: "Point", coordinates: [108.44, 11.94] },
+				bookingDeadline: "2026-09-19T12:00:00.000Z",
+				capacityMin: 2,
+				pricePerPerson: 100000,
+				waypoints: [],
+			};
+			const mockUpdated: Partial<TripResponseDto> = { id: TRIP_ID, title: "Updated Trip" };
+			tripsService.updateDraft.mockResolvedValue(mockUpdated as TripResponseDto);
+
+			const result = await controller.updateDraft({ user: MOCK_USER }, { tripId: TRIP_ID }, dto);
+
+			expect(tripsService.updateDraft).toHaveBeenCalledWith(USER_ID, TRIP_ID, dto);
+			expect(result).toBe(mockUpdated);
 		});
 	});
 

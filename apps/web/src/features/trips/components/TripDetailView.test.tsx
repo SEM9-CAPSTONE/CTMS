@@ -4,8 +4,19 @@ import type { TripDetails } from "../types";
 import { TripDetailView } from "./TripDetailView";
 
 vi.mock("../../booking-equipment/components/BookingEquipmentPicker", () => ({
-	BookingEquipmentPicker: ({ bookingId }: { bookingId: string }) => (
-		<div data-testid="booking-equipment-picker">{bookingId}</div>
+	BookingEquipmentPicker: ({
+		bookingId,
+		onEquipmentChanged,
+	}: {
+		bookingId: string;
+		onEquipmentChanged?: () => void;
+	}) => (
+		<div data-testid="booking-equipment-picker">
+			{bookingId}
+			<button type="button" onClick={onEquipmentChanged}>
+				simulate-equipment-change
+			</button>
+		</div>
 	),
 }));
 
@@ -18,6 +29,14 @@ vi.mock("../../booking-members/components/InitializeBookingMembersPanel", () => 
 vi.mock("../../booking-payment/components/BookingPaymentPanel", () => ({
 	BookingPaymentPanel: ({ booking }: { booking: { id: string } }) => (
 		<div data-testid="booking-payment-panel">{booking.id}</div>
+	),
+}));
+
+vi.mock("../../packing-list/components/PackingListPanel", () => ({
+	PackingListPanel: ({ bookingId, refreshKey }: { bookingId: string; refreshKey?: unknown }) => (
+		<div data-testid="packing-list-panel" data-refresh-key={String(refreshKey)}>
+			{bookingId}
+		</div>
 	),
 }));
 
@@ -239,6 +258,65 @@ describe("TripDetailView", () => {
 		expect(screen.getByTestId("booking-equipment-picker")).toHaveTextContent("booking-1");
 		expect(screen.getByTestId("booking-members-panel")).toHaveTextContent("booking-1");
 		expect(screen.getByTestId("booking-payment-panel")).toHaveTextContent("booking-1");
+		expect(screen.getByTestId("packing-list-panel")).toHaveTextContent("booking-1");
+	});
+
+	it("bumps the packing list refresh key when the equipment picker reports a change", () => {
+		render(
+			<TripDetailView
+				trip={mockTripDetails}
+				booking={{
+					id: "booking-1",
+					tripId: "trip-999",
+					userId: "user-1",
+					numPeople: 2,
+					status: "confirmed",
+					paymentStatus: "not_required",
+					holdExpiresAt: null,
+					tripStartsAtSnapshot: "2026-09-28T06:00:00.000Z",
+					tripEndsAtSnapshot: "2026-09-29T17:00:00.000Z",
+					basePrice: "3700000.00",
+					totalAmount: "3700000.00",
+					cancellationPolicySnapshot: null,
+					createdAt: "2026-09-27T00:00:00.000Z",
+				}}
+			/>
+		);
+
+		const before = screen.getByTestId("packing-list-panel").getAttribute("data-refresh-key");
+		fireEvent.click(screen.getByRole("button", { name: "simulate-equipment-change" }));
+		const after = screen.getByTestId("packing-list-panel").getAttribute("data-refresh-key");
+
+		expect(after).not.toBe(before);
+	});
+
+	it("calls onViewPackingList with the Booking id when the standalone-page button is clicked", () => {
+		const onViewPackingList = vi.fn();
+		render(
+			<TripDetailView
+				trip={mockTripDetails}
+				booking={{
+					id: "booking-1",
+					tripId: "trip-999",
+					userId: "user-1",
+					numPeople: 2,
+					status: "confirmed",
+					paymentStatus: "not_required",
+					holdExpiresAt: null,
+					tripStartsAtSnapshot: "2026-09-28T06:00:00.000Z",
+					tripEndsAtSnapshot: "2026-09-29T17:00:00.000Z",
+					basePrice: "3700000.00",
+					totalAmount: "3700000.00",
+					cancellationPolicySnapshot: null,
+					createdAt: "2026-09-27T00:00:00.000Z",
+				}}
+				onViewPackingList={onViewPackingList}
+			/>
+		);
+
+		fireEvent.click(screen.getByRole("button", { name: "Xem packing list ở trang riêng" }));
+
+		expect(onViewPackingList).toHaveBeenCalledWith("booking-1");
 	});
 
 	it("renders inline error when bookingError is provided and isConflict is false", () => {

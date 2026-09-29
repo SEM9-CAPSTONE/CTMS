@@ -173,7 +173,7 @@ export function TripRouteMap({
 				<div>
 					<h2 className="font-extrabold text-[#10221b]">Tuyến và điểm tập trung</h2>
 					<p className="text-sm text-[#667a6d]">
-						Chọn tuyến có sẵn, sau đó click trên bản đồ để đặt điểm tập trung.
+						Chọn tuyến có sẵn, sau đó bấm trên bản đồ để đặt điểm tập trung.
 					</p>
 				</div>
 				{route && (

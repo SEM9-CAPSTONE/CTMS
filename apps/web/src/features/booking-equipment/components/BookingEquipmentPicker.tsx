@@ -9,6 +9,7 @@ export interface BookingEquipmentPickerProps {
 	bookingId: string;
 	initialTotalAmount: string;
 	onTotalAmountChange?: (newTotal: string) => void;
+	onEquipmentChanged?: () => void;
 }
 
 function formatCurrency(value: string): string {
@@ -22,6 +23,7 @@ export function BookingEquipmentPicker({
 	bookingId,
 	initialTotalAmount,
 	onTotalAmountChange,
+	onEquipmentChanged,
 }: BookingEquipmentPickerProps) {
 	const options = useTripEquipmentOptions(tripId);
 	const addedItems = useBookingItems(bookingId);
@@ -47,6 +49,7 @@ export function BookingEquipmentPicker({
 			onTotalAmountChange?.(result.booking.totalAmount);
 			setQuantity(1);
 			await addedItems.retry();
+			onEquipmentChanged?.();
 		}
 	}
 

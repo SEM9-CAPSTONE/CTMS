@@ -16,6 +16,7 @@ import { CamperProfilePage } from "../features/camper-profile/pages/CamperProfil
 import { CreateEquipmentCatalogItemPage } from "../features/equipment-catalog/pages/CreateEquipmentCatalogItemPage";
 import { EquipmentCatalogPage } from "../features/equipment-catalog/pages/EquipmentCatalogPage";
 import { LandingPage } from "../features/landing/pages/LandingPage";
+import { PackingListPage } from "../features/packing-list/pages/PackingListPage";
 import { HostLayout } from "../features/role-landing/components/HostLayout";
 import { RoleLandingPage } from "../features/role-landing/pages/RoleLandingPage";
 import { AdminTrekkingRoutesPage } from "../features/trekking-routes/pages/AdminTrekkingRoutesPage";
@@ -91,6 +92,40 @@ export function AppRoutes() {
 		/>
 	);
 
+	if (currentPath.startsWith("/host/trips/") && currentPath.endsWith("/edit")) {
+		const tripId = currentPath.slice("/host/trips/".length, -"/edit".length);
+		return (
+			<AppRoleGuard
+				allowedRoles={["host"]}
+				currentRoles={currentRoles}
+				onNavigateHome={() => navigateTo(RoutePath.HOME)}
+			>
+				<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
+					<CreateTripPage
+						editTripId={tripId}
+						onBackHome={() => navigateTo(RoutePath.DASHBOARD)}
+						onCreateRoute={() => navigateTo(RoutePath.HOST_CREATE_TREKKING_ROUTE)}
+					/>
+				</HostLayout>
+			</AppRoleGuard>
+		);
+	}
+
+	if (currentPath.startsWith("/bookings/") && currentPath.endsWith("/packing-list")) {
+		const bookingId = currentPath.slice("/bookings/".length, -"/packing-list".length);
+		return (
+			<AppRoleGuard
+				allowedRoles={["camper"]}
+				currentRoles={currentRoles}
+				onNavigateHome={() => navigateTo(RoutePath.HOME)}
+			>
+				<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
+					<PackingListPage bookingId={bookingId} onBack={() => window.history.back()} />
+				</HostLayout>
+			</AppRoleGuard>
+		);
+	}
+
 	if (currentPath.startsWith("/trips/") && currentPath !== RoutePath.TRIPS) {
 		const tripId = currentPath.substring("/trips/".length);
 		const detailView = (
@@ -102,6 +137,7 @@ export function AppRoutes() {
 					!storedUser ? "anonymous" : currentRoles.includes("camper") ? "camper" : "non-camper"
 				}
 				onSignIn={() => navigateTo(RoutePath.LOGIN)}
+				onViewPackingList={(bookingId) => navigateTo(`/bookings/${bookingId}/packing-list`)}
 			/>
 		);
 
@@ -286,6 +322,7 @@ export function AppRoutes() {
 					onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}
 					onNavigateToTripDetail={(tripId) => navigateTo(`/trips/${tripId}`)}
 					onCreateTrip={() => navigateTo(RoutePath.HOST_CREATE_TRIP)}
+					onEditTripDraft={(tripId) => navigateTo(`/host/trips/${tripId}/edit`)}
 					onCreateTrekkingRoute={() => navigateTo(RoutePath.HOST_CREATE_TREKKING_ROUTE)}
 					onViewTrekkingRoutes={() => navigateTo(RoutePath.HOST_TREKKING_ROUTES)}
 					onViewEquipmentCatalog={() => navigateTo(RoutePath.HOST_EQUIPMENT_CATALOG)}

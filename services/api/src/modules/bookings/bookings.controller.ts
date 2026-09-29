@@ -22,6 +22,7 @@ import { BookingsService } from "./bookings.service";
 import { AddBookingItemResponseDto } from "./dto/add-booking-item-response.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { AddBookingItemDto } from "./dto/add-booking-item.dto";
+import { BookingDetailsResponseDto } from "./dto/booking-details-response.dto";
 import { BookingItemResponseDto } from "./dto/booking-item-response.dto";
 import { BookingResponseDto } from "./dto/booking-response.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
@@ -29,12 +30,12 @@ import { CreateBookingDto } from "./dto/create-booking.dto";
 import { InitializeBookingMembersResponseDto } from "./dto/initialize-booking-members-response.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { InitializeBookingMembersDto } from "./dto/initialize-booking-members.dto";
+import { PackingListResponseDto } from "./dto/packing-list-response.dto";
 import { PayBookingResponseDto } from "./dto/pay-booking-response.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { PayBookingDto } from "./dto/pay-booking.dto";
-// biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import {
-	ResolveBookingMemberCandidateDto,
+	type ResolveBookingMemberCandidateDto,
 	ResolveBookingMemberCandidateResponseDto,
 } from "./dto/resolve-booking-member-candidate.dto";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
@@ -195,5 +196,33 @@ export class BookingsController {
 			});
 		}
 		return this.paymentsService.pay(request.user.userId, bookingId, idempotencyKey, dto);
+	}
+
+	@Get(":bookingId/packing-list")
+	@Roles(UserRole.CAMPER)
+	@ApiOperation({ summary: "Compute a personalized packing list for the caller's own Booking" })
+	@ApiResponse({ status: 200, type: PackingListResponseDto })
+	@ApiResponse({ status: 403, description: "Not the Booking owner" })
+	@ApiResponse({ status: 404, description: "Booking not found" })
+	@ApiResponse({ status: 409, description: "Trip context is no longer available" })
+	getPackingList(
+		@Req() request: AuthenticatedRequest,
+		@Param("bookingId", BOOKING_ID_PIPE) bookingId: string
+	): Promise<PackingListResponseDto> {
+		return this.bookingsService.getPackingList(request.user.userId, bookingId);
+	}
+
+	@Get(":bookingId")
+	@Roles(UserRole.CAMPER)
+	@ApiOperation({ summary: "View the authenticated Camper's Booking details" })
+	@ApiResponse({ status: 200, type: BookingDetailsResponseDto })
+	@ApiResponse({ status: 403, description: "Existing Booking is owned by another Camper" })
+	@ApiResponse({ status: 404, description: "Booking not found" })
+	@ApiResponse({ status: 422, description: "Malformed Booking id" })
+	getBookingDetails(
+		@Req() request: AuthenticatedRequest,
+		@Param("bookingId", BOOKING_ID_PIPE) bookingId: string
+	): Promise<BookingDetailsResponseDto> {
+		return this.bookingsService.getBookingDetails(request.user.userId, bookingId);
 	}
 }

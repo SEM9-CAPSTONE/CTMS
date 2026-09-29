@@ -331,7 +331,7 @@ const TRIP_SELECT = `
 					'durationMinutes', waypoint."duration_minutes",
 					'metadata', waypoint."metadata"
 				)
-				ORDER BY waypoint."sequence_order", waypoint."id"
+				ORDER BY waypoint."planned_at", waypoint."id"
 			)
 			FROM "trip_waypoints" waypoint
 			WHERE waypoint."trip_id" = trip."id"
@@ -476,6 +476,98 @@ export class TripsRepository extends Repository<Trip> {
 			throw new Error("Failed to load created Trip");
 		}
 		return created;
+	}
+
+	async updateDraft(tripId: string, input: CreateTripInput): Promise<TripResponseDto> {
+		await this.query(
+			`
+			UPDATE "trips"
+			SET
+				"route_id" = $2,
+				"title" = $3,
+				"description" = $4,
+				"cover_image_url" = $5,
+				"itinerary" = $6::jsonb,
+				"includes" = $7::jsonb,
+				"excludes" = $8::jsonb,
+				"trip_type" = $9,
+				"duration_nights" = $10,
+				"starts_at" = $11,
+				"ends_at" = $12,
+				"meeting_point" = ST_SetSRID(ST_GeomFromGeoJSON($13), 4326)::geography,
+				"meeting_at" = $14,
+				"booking_deadline" = $15,
+				"capacity_min" = $16,
+				"capacity_max" = $17,
+				"price_per_person" = $18,
+				"cancellation_policy" = $19::jsonb,
+				"updated_at" = now()
+			WHERE "id" = $1
+			`,
+			[
+				tripId,
+				input.routeId,
+				input.title,
+				input.description,
+				input.coverImageUrl,
+				JSON.stringify(input.itinerary),
+				JSON.stringify(input.includes),
+				JSON.stringify(input.excludes),
+				input.tripType,
+				input.durationNights,
+				input.startsAt,
+				input.endsAt,
+				JSON.stringify(input.meetingPoint),
+				input.meetingAt,
+				input.bookingDeadline,
+				input.capacityMin,
+				input.capacityMax,
+				input.pricePerPerson,
+				JSON.stringify(input.cancellationPolicy),
+			]
+		);
+
+		await this.query(`DELETE FROM "trip_waypoints" WHERE "trip_id" = $1`, [tripId]);
+		for (const waypoint of input.waypoints) {
+			await this.query(
+				`
+				INSERT INTO "trip_waypoints" (
+					"trip_id",
+					"checkpoint_id",
+					"type",
+					"name",
+					"location",
+					"day_number",
+					"sequence_order",
+					"planned_at",
+					"duration_minutes",
+					"metadata"
+				)
+				VALUES (
+					$1, $2, $3, $4, ST_SetSRID(ST_GeomFromGeoJSON($5), 4326)::geography,
+					$6, $7, $8, $9, $10::jsonb
+				)
+				`,
+				[
+					tripId,
+					waypoint.checkpointId,
+					waypoint.type,
+					waypoint.name,
+					JSON.stringify(waypoint.location),
+					waypoint.dayNumber,
+					waypoint.sequenceOrder,
+					waypoint.plannedAt,
+					waypoint.durationMinutes,
+					JSON.stringify(waypoint.metadata),
+				]
+			);
+		}
+
+		const updated = await this.findById(tripId);
+		if (!updated) {
+			throw new Error("Failed to load updated Trip");
+		}
+		return updated;
 	}
 
 	async findByIdForWaypointConfiguration(

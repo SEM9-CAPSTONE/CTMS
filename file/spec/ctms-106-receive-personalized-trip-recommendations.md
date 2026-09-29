@@ -1,490 +1,127 @@
-# CTMS-106 - Receive Personalized Trip Recommendations
+# CTMS-106 — Receive Personalized Trip Recommendations
 
-**Spec Reference**  
-/file/spec/ctms-106-receive-personalized-trip-recommendations.md
+## 1. Overview
 
-**Source Authority**  
-- Product Backlog V3.1 is the scope authority for this story.
-- Business Rules are the invariant/policy source. This spec rewrites relevant rules as executable behavior so Dev and QA do not need to infer behavior from rule IDs.
-- Jira is used for execution tracking, status, and task ownership. Jira content must not replace the behavior contract below.
-- Authority order for conflicts: Business Rules V3, Data Dictionary or Domain Model V3, approved Jira requirement or decision, this file/spec, code, then tests.
+Story: CTMS-106
 
----
+Epic: EPIC 4. Trip Management
 
-## 1. Purpose
+Use Case: Receive Personalized Trip Recommendations
 
-Implement `Receive Personalized Trip Recommendations` so the CTMS workflow is safe, consistent, auditable, and aligned with PB V3.1.
+Priority: Should Have
 
-Business purpose from PB V3.1:
+Goal: Recommend eligible Trips using permitted preference/behavior signals while keeping authoritative Trip eligibility rules ahead of AI ranking.
 
-- English use case: `Receive Personalized Trip Recommendations`
-- Story: As a System, I want to receive personalized trip recommendations so that CTMS supports the workflow safely and consistently.
+Backlog story: As a Camper, I want personalized Trip recommendations so I can discover eligible Trips relevant to my preferences.
 
-Implementation details belong in the sections below, not in this purpose summary.
+Acceptance Criteria:
 
----
+| Source  | Criterion                                                                                                                                        |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| PB AC-1 | Candidate Trips must be published, before booking deadline, not started/completed, have capacity, valid Route, and pass Weather Risk hard rules. |
+| PB AC-2 | Hard business-rule filtering occurs before AI ranking.                                                                                           |
+| PB AC-3 | Only permitted preference/product behavior signals are used.                                                                                     |
+| PB AC-4 | Sensitive prohibited data is not used for ranking.                                                                                               |
+| PB AC-5 | Cold start uses explicit/non-sensitive signals rather than invented preferences.                                                                 |
+| PB AC-6 | Recommendation is advisory and cannot reserve, book, change price, or change Trip state.                                                         |
+| PB AC-7 | Booking a recommended Trip revalidates authoritative rules.                                                                                      |
+| PB AC-8 | Model/ranking version and generation metadata are retained.                                                                                      |
+| PB AC-9 | Recommendations are distinguishable from normal search results.                                                                                  |
 
 ## 2. Scope
 
 ### In Scope
-- The behavior needed for `Receive Personalized Trip Recommendations` within `EPIC 4. Trip Management`.
-- Backend validation, authorization, persistence, state handling, idempotency, and audit behavior needed for this story.
-- UI/API behavior that makes success, pending, validation failure, authorization failure, conflict, and retry states observable.
-- Tests proving the PB V3.1 acceptance criteria and mapped Business Rules are enforced.
+
+- Eligible candidate filtering.
+- Ranking.
+- Cold start.
+- Recommendation metadata.
+- Optional non-sensitive explanation.
 
 ### Out of Scope
-- Behavior owned by dependency stories unless explicitly referenced as a precondition or integration point.
-- Replacing source-of-truth entities owned by another module.
-- Changing unrelated workflow, enum, database, API, or UI contracts outside this story.
-- Treating Jira task wording as a substitute for this implementation contract.
-- Inventing behavior that is not approved in PB V3.1, Business Rules, domain model, Jira, or a recorded product decision.
 
----
+- Auto-booking.
+- Auto-reserving capacity.
+- Price/state modification.
 
-## 3. Actors
+## 3. Actors & Authorization
 
-- Camper: primary actor for this workflow.
-- Backend API: validates authorization, state, input, persistence, idempotency, and audit requirements.
-- UI Client: presents allowed actions, validates obvious input, shows loading/success/error states, and never replaces backend enforcement.
-- Related CTMS modules: provide referenced Trip, Route, Booking, Payment, Offline Package, AI, Notification, or Administration data when this story depends on them.
+Primary actor:
 
----
+- Camper.
 
-## 4. Preconditions
+## 4. Preconditions & Dependencies
 
-- Actor is authenticated when the workflow requires identity.
-- Actor has the role, ownership, consent, assignment, or operational relationship required by the story.
-- Referenced records exist and are in states that allow this workflow.
-- Dependencies are satisfied: CTMS-025, CTMS-018, CTMS-024.
-- PB V3.1 acceptance criteria and the Business Rules listed in this spec are available to implementation and QA.
+Eligible published Trip data exists.
 
-If a precondition is not satisfied, the system must reject the action or show a blocked/degraded state without unintended side effects.
+## 5. Business Rules
 
----
+| BR     | Rule                                                                                                                                                                                                                                                        |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| BR-288 | The candidate set for Personalized Trip Recommendation may include only Trips that are published, before their booking deadline, not yet started or ended, have remaining capacity, use an eligible Route, and are not blocked by a Weather Risk hard rule. |
+| BR-289 | Hard business-rule filtering must run before AI ranking. AI must not add an ineligible Trip to the candidate set or override publish, deadline, capacity, weather, or access-control state.                                                                 |
+| BR-290 | Recommendations may use only explicit preferences and permitted product behavior such as search/view/Booking history, trip type, difficulty, and location/price preferences. Only data necessary for the recommendation purpose may be processed.           |
+| BR-291 | Recommendations must not use medical profiles, SOS/emergency history, raw exact GPS trails, authentication secrets, or payment credentials as ranking signals.                                                                                              |
+| BR-292 | When behavior history is insufficient, the system must use a cold-start strategy based on explicit preferences and appropriate non-sensitive/aggregate signals rather than fabricating a preference profile.                                                |
+| BR-293 | Recommendation output is advisory ranking only. It must not reserve a seat, create a Booking, change price, or change Trip state automatically.                                                                                                             |
+| BR-294 | When a Camper opens or books a recommended Trip, the backend must still revalidate all authoritative Business Rules at the time of the operation. A prior recommendation does not guarantee current availability.                                           |
+| BR-295 | The system must store the model/ranking version, generated_at, and sufficient metadata to evaluate/debug recommendations without retaining unnecessary sensitive prompts or data.                                                                           |
+| BR-296 | Camper-facing recommendations must be distinguishable from ordinary search results. The system may provide an explanation for the recommendation only when doing so does not expose sensitive data.                                                         |
 
-## 5. Business Behavior
+## 6. State & Lifecycle
 
-### 5.1 Primary Behavior
+Eligible candidate set
+→ ranking
+→ recommendation generated
+→ Camper views
+→ optional Trip open/Booking
+→ authoritative revalidation.
 
-The system implements `Receive Personalized Trip Recommendations` exactly within the PB V3.1 scope:
+## 7. Business Flow
 
-- Implement the PB V3.1 acceptance behavior for `Receive Personalized Trip Recommendations` exactly as approved in the source backlog.
-- Convert each source acceptance condition into explicit validation, state, persistence, UI, and test behavior during implementation.
-- Do not copy non-English backlog text into this English spec; keep the workbook as the source citation.
+1. Build eligible Trip candidate set.
+2. Remove Trips failing hard rules.
+3. Gather permitted signals.
+4. Apply cold-start strategy if needed.
+5. Rank candidates.
+6. Store model/version/generated metadata.
+7. Display as recommendations.
+8. On Trip open/Booking, revalidate authoritative state.
 
-### 5.2 Validation Rules
+## 8. Data & Invariants
 
-- Required fields, enum values, date/time ranges, identifiers, ownership boundaries, and cross-entity references are validated before persistence.
-- Backend is authoritative for permission, state, price, capacity, inventory, safety, payment, and operational outcomes.
-- UI validation may improve the experience, but backend validation is mandatory and final.
-- Invalid input returns a clear error and does not partially create, update, or synchronize records.
+AI cannot restore a Trip removed by hard-rule filtering.
 
-### 5.3 State and Transaction Rules
+Recommendation does not guarantee future availability.
 
-- State transitions must start from an allowed source state and end in an allowed target state.
-- Multi-record side effects must run in a transaction or equivalent atomic unit.
-- Concurrent requests, duplicate submissions, stale reads, and provider retries must not create duplicate records or inconsistent state.
-- If the operation cannot complete safely, the system preserves the previous authoritative state and returns an actionable failure.
+Sensitive prohibited signals must not enter ranking.
 
-### 5.4 Business Rules Materialized
+## 9. API / Integration Contract
 
-The following rules are materialized as behavior for this story:
+TBD — Technical Design.
 
-| ID | Content |
-| --- | --- |
-| `BR-288` | Required behavior for `Receive Personalized Trip Recommendations` must validate and enforce Candidate, Personalized, Trip, Recommendation, published, booking, deadline, capacity, route, Weather as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths. |
-| `BR-289` | Required behavior for `Receive Personalized Trip Recommendations` must validate and enforce Hard, business, rule, filtering, ranking, Trip, candidate, override, publish, deadline as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths. |
-| `BR-290` | Required behavior for `Receive Personalized Trip Recommendations` must validate and enforce Recommendation, explicit, preferences, search, view, booking, history, trip, type, difficulty as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths. |
-| `BR-291` | Required behavior for `Receive Personalized Trip Recommendations` must validate and enforce SOS, GPS, Recommendation, medical, profile, emergency, history, exact, trail, authentication as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths. |
-| `BR-292` | Required behavior for `Receive Personalized Trip Recommendations` must validate and enforce behavior, history, cold, start, strategy, explicit, preference, aggregate as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths. |
-| `BR-293` | Required behavior for `Receive Personalized Trip Recommendations` must validate and enforce recommendation, advisory, ranking, reserve, seat, Booking, Trip as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths. |
-| `BR-294` | Required behavior for `Receive Personalized Trip Recommendations` must validate and enforce Camper, booking, Trip, recommend, backend, revalidate, authoritative, recommendation, availability as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths. |
-| `BR-295` | Required behavior for `Receive Personalized Trip Recommendations` must validate and enforce model, ranking, version, generated_at, metadata, debug, recommendation, sensitive, prompt, data as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths. |
-| `BR-296` | Required behavior for `Receive Personalized Trip Recommendations` must validate and enforce Camper, facing, recommendation, search, result as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths. |
-| `BR-212` | Any Business Rule, enum, state transition, or API contract change must update the spec, tests, and data documentation before the story is Done. |
-| `BR-213` | Every mapped Business Rule must have at least one valid-path test and one violation-path test; concurrency, idempotency, and transaction rules require integration or E2E coverage. |
+## 10. Error & Edge Cases
 
-### 5.5 Source Confidence
+| Case                         | Expected Behavior         |
+| ---------------------------- | ------------------------- |
+| Trip full                    | Excluded                  |
+| Weather hard-block           | Excluded                  |
+| No history                   | Cold-start strategy       |
+| Medical profile exists       | Not used                  |
+| Recommendation becomes stale | Revalidate before Booking |
+| AI ranks ineligible Trip     | Must not enter result     |
 
-- PB V3.1 row `CTMS-106` is the direct scope and acceptance source.
-- Rule IDs above come from the `Primary BR IDs` column in PB V3.1 and are materialized here as implementation behavior.
-- If a rule ID conflicts with PB V3.1 behavior, do not silently choose one. Record a Pending Decision and update PB/rules/spec together.
-- This file may elaborate approved behavior into execution flow, but it must not invent, change, or override business behavior.
-- Undefined, ambiguous, or conflicting behavior must be captured in Section 19 as a Pending Decision.
+## 11. Acceptance & Test Matrix
 
----
+| Source     | Scenario                      | Expected Result           | Test Type  |
+| ---------- | ----------------------------- | ------------------------- | ---------- |
+| BR-288/289 | Ineligible Trip               | Excluded before ranking   | Safety     |
+| BR-291     | Sensitive signal              | Not used                  | Privacy    |
+| BR-292     | New Camper                    | Cold-start works          | Functional |
+| BR-293     | Recommendation generated      | No Booking/state mutation | Integrity  |
+| BR-294     | Recommended Trip booked later | Revalidated               | E2E        |
+| BR-295     | Result generated              | Version metadata retained | Audit      |
 
-## 6. State Model
+## 12. Open Decisions
 
-The story state model is:
-
-- `NOT_STARTED`: actor has not initiated the workflow.
-- `IN_PROGRESS`: request, calculation, sync, AI operation, or review is being processed.
-- `SUCCEEDED`: authoritative result is persisted or returned.
-- `FAILED_VALIDATION`: input or referenced data is invalid.
-- `FAILED_AUTHORIZATION`: actor lacks required permission or relationship.
-- `CONFLICT`: current server state no longer allows the requested action.
-- `PENDING_RETRY` or `SYNC_PENDING`: used only when the story includes offline, external provider, async, or retry behavior.
-
-Every implementation must replace these generic labels with existing enum values when the owning module already defines a state machine.
-
----
-
-## 7. Main Flow
-
-### Scenario: Receive Personalized Trip Recommendations
-
-1. Actor opens or triggers the `Receive Personalized Trip Recommendations` workflow.
-2. UI loads the minimum data needed for the workflow and shows unavailable states when dependencies are missing.
-3. Actor submits the action or the system starts the scheduled/automatic processing.
-4. Backend authenticates the caller or system job.
-5. Backend validates authorization, ownership/business relationship, input shape, referenced records, and current state.
-6. Backend applies the PB V3.1 behavior and mapped Business Rules in one safe transaction or equivalent atomic unit.
-7. Backend persists the authoritative result, audit data, and integration/sync metadata where required.
-8. UI/API returns the observable outcome: success, pending, blocked, conflict, retryable failure, or validation failure.
-
----
-
-## 8. Edge Cases
-
-### Missing or Unauthorized Actor
-
-Reject with authentication or authorization error. No business side effect is allowed.
-
-### Missing Dependency
-
-If dependency data from `CTMS-025, CTMS-018, CTMS-024` is missing or not in an allowed state, block the workflow with a clear reason.
-
-### Invalid Input or Reference
-
-Reject invalid fields, invalid enum values, missing required references, out-of-range dates, invalid coordinates, invalid amounts, or stale IDs before writing data.
-
-### Duplicate Submission or Retry
-
-Use idempotency keys, stable client identifiers, provider references, or transaction constraints so retries do not create duplicate authoritative records.
-
-### Concurrent Update
-
-Detect stale state with locking, version checks, unique constraints, or conflict validation. Return a conflict result and preserve the user's recoverable input where a UI exists.
-
-### External Provider, AI, Offline, or Sync Failure
-
-If this story calls an external provider, AI service, offline queue, or sync process, the system must expose pending/failed/retry states and must not present unconfirmed output as authoritative.
-
----
-
-## 9. Data Requirements
-
-The implementation must persist or return only data required for `Receive Personalized Trip Recommendations`:
-
-- actor/user context and role/relationship used for authorization;
-- referenced domain identifiers such as Trip, Route, Booking, Payment, Member, Package, Review, Alert, or Report ids when applicable;
-- source timestamps and server timestamps as separate values when client/offline/provider events are involved;
-- status/state fields needed to distinguish pending, succeeded, failed, rejected, stale, or synced data;
-- audit fields for actor, action, target, before/after values, timestamp, and reason when applicable;
-- idempotency keys, provider references, sync metadata, model/config/rule version, or package/version context when the behavior depends on them.
-
-Do not duplicate an entire data dictionary in this spec. Reference existing entities and add only story-specific requirements.
-
----
-
-## 10. Backend / API Responsibilities
-
-Backend is responsible for:
-
-- authentication and authorization;
-- input DTO validation;
-- ownership and business relationship checks;
-- state transition validation;
-- transaction boundaries and rollback;
-- idempotency and duplicate prevention;
-- persistence of authoritative state;
-- audit logging when the action is operational, financial, safety-related, administrative, or security-sensitive;
-- returning consistent error semantics: `401`, `403`, `404`, `409`, and `422` where applicable.
-
-If endpoint paths or DTOs are not finalized, implementation must define a typed contract before UI integration and record unresolved endpoint details as Pending Decisions.
-
----
-
-## 11. Mobile / UI Responsibilities
-
-UI is responsible for:
-
-- displaying only actions allowed by known role/state while treating backend as final authority;
-- collecting required inputs with clear validation messages;
-- showing loading, success, pending, failed, retry, conflict, and permission-denied states;
-- preserving user-entered data after recoverable failure or conflict where practical;
-- distinguishing local/pending/offline/AI-suggested data from server-confirmed authoritative state;
-- using existing CTMS design, i18n, accessibility, and state-management patterns.
-
-If this story has no user-facing UI, UI responsibilities are limited to any admin, monitoring, notification, or client state needed to observe the backend result.
-
----
-
-## 12. Offline & Sync Behavior
-
-Online:
-
-- Execute against backend-authoritative validation and persistence.
-
-Offline:
-
-- If this story is not offline-capable, block the write action and show the unavailable state.
-- If this story is offline-capable, persist a local pending record with stable identifiers and enough context to sync later.
-
-Reconnect:
-
-- Sync pending records idempotently.
-- Preserve original client event time separately from server received time.
-- Do not present unsynced data as authoritative server state.
-
-Pending Decision:
-
-- If this story requires offline or sync semantics beyond the owning sync specification, record the unresolved behavior in Section 19 before implementation.
-
----
-
-## 13. Error Handling
-
-| Condition | Observable behavior |
-| --- | --- |
-| Authentication missing/expired | Return `401`; UI prompts sign-in or session refresh. |
-| Actor lacks permission | Return `403`; no side effect. |
-| Referenced record missing | Return `404` when the actor may know it exists; otherwise preserve privacy-safe response. |
-| Invalid input | Return `422` with field-level reason where possible. |
-| Business conflict | Return `409` with recoverable explanation. |
-| External provider or async failure | Keep state pending/failed with retry metadata and no duplicate authoritative result. |
-| Unexpected server error | Roll back partial work and return a generic error without leaking secrets or stack trace. |
-
----
-
-## 14. Security & Authorization
-
-- Authorization must check role, ownership, consent, assignment, Trip/Route/Booking relationship, or administrative scope as applicable.
-- Sensitive data must not be exposed beyond the actor's business need.
-- Payment credentials, tokens, OTPs, secrets, health data, exact location, and AI/private prompt data must not appear in logs or audit records unless explicitly required and approved.
-- Backend remains the source of truth for permission and state even when UI hides unavailable actions.
-- Audit is required for important operational, safety, financial, administrative, and security-sensitive changes.
-
----
-
-## 15. Acceptance Criteria
-
-### AC-01
-
-Given:
-
-- The preconditions in this spec are satisfied.
-
-When:
-
-- The approved PB V3.1 acceptance behavior for `Receive Personalized Trip Recommendations` is implemented as explicit system behavior..
-
-Then:
-
-- The system behavior matches the rule above.
-- Backend validation and UI state are consistent with the observable result.
-- Tests cover the success path and at least one failure or boundary case.
-### AC-02
-
-Given:
-
-- The preconditions in this spec are satisfied.
-
-When:
-
-- The source acceptance conditions are covered by backend or client tests without copying non-English backlog text into the spec..
-
-Then:
-
-- The system behavior matches the rule above.
-- Backend validation and UI state are consistent with the observable result.
-- Tests cover the success path and at least one failure or boundary case.
-
-### AC-03 - Authorization and Invalid State Protection
-
-Given:
-
-- The actor is missing permission, the target record is missing, or the current state does not allow the workflow.
-
-When:
-
-- The actor or system attempts `Receive Personalized Trip Recommendations`.
-
-Then:
-
-- The backend rejects the action with the correct error category.
-- No unintended side effect is persisted.
-- UI/API exposes the failure clearly.
-
-### AC-04 - Duplicate and Retry Safety
-
-Given:
-
-- The same request, sync item, provider callback, or user action is submitted more than once.
-
-When:
-
-- The backend processes the duplicate.
-
-Then:
-
-- At most one authoritative result is created.
-- Duplicate handling returns a compatible success, already-processed, or conflict response.
-
----
-
-## 16. Backend Preparation, Logic and Tests
-
-### Responsibilities
-
-- Implement or update the owning module's service, controller, repository, DTO, entity, migration, queue, provider, or sync handler as needed.
-- Enforce PB V3.1 behavior and mapped Business Rules in backend logic.
-- Keep transactions, idempotency, state validation, and audit behavior close to the domain operation.
-- Reuse existing CTMS helpers for auth, validation, i18n, API errors, transactions, and tests.
-- Keep this as the HOW-SYSTEM responsibility contract for `CTMS-112-T01`; do not duplicate the complete end-to-end flow in Jira.
-
-### Required Tests
-
-- Unit tests for validation, state transitions, mapped Business Rules, and failure paths.
-- Integration/API tests for success, invalid input, unauthorized access, missing resource, conflict, idempotency, and rollback.
-- Provider/sync/AI tests when this story depends on external service, offline queue, model output, or background processing.
-- Regression tests proving no mapped Business Rule is silently bypassed.
-
-### Logic Subtask DoD
-
-- [ ] Logic implementation completed.
-- [ ] Applicable business rules and invariants implemented.
-- [ ] Task-specific unit tests added or updated.
-- [ ] Task-specific unit tests passed.
-- [ ] Applicable backend or integration tests passed.
-
----
-
-## 17. UI and Tests
-
-### Responsibilities
-
-- Implement screen/component/client state only when this story has a user-facing workflow.
-- Wire UI to typed API contracts.
-- Show loading, empty, blocked, validation, conflict, retry, and success states.
-- Keep local/client validation aligned with backend DTOs without treating client validation as enforcement.
-- Keep this as the HOW-CLIENT responsibility contract for `CTMS-112-T02`; backend/server responses remain the source of truth for server-owned business state.
-
-### Required Tests
-
-- Component or mobile widget tests for rendered states and user actions.
-- Hook/client-state tests for API success, validation failure, authorization failure, conflict, and retry where applicable.
-- Offline/error-state tests when the story includes pending local data or synchronization.
-- Accessibility and interaction checks for critical user-facing flows.
-
-### UI or Final Implementation Subtask DoD
-
-- [ ] UI implementation completed when this story has a client-facing workflow.
-- [ ] Applicable client-side behavior implemented.
-- [ ] Task-specific unit or component tests passed.
-- [ ] Backend integration completed.
-- [ ] Task-specific E2E tests passed when an end-to-end user path exists.
-- [ ] All Story Acceptance Criteria verified.
-- [ ] Unit regression tests passed.
-- [ ] E2E regression tests passed.
-- [ ] `lint:all` passed.
-- [ ] `build:all` passed.
-- [ ] `test:all` passed.
-- If UI is not the final implementation subtask, move these integrated quality gates to the actual final implementation subtask or an explicit Story-level verification step.
-
----
-
-## 18. Related Specifications
-
-Dependencies:
-
-- CTMS-025
-- CTMS-018
-- CTMS-024
-
-Potentially related specs must be referenced for context only. Do not duplicate their owned logic in this spec.
-
----
-
-## 19. Pending Decisions
-
-Use this section for undefined, ambiguous, or conflicting behavior. Do not guess business behavior during implementation.
-
-### PD-01 - API and DTO Contract
-
-Status: UNRESOLVED
-
-Question:
-What are the final endpoint paths, request DTOs, response DTOs, and error payloads for `Receive Personalized Trip Recommendations` if they are not already implemented?
-
-Affected:
-- Jira Story: `CTMS-106`
-- Logic Subtask: `CTMS-106-T01`
-- UI Subtask: `CTMS-106-T02`
-
-Implementation impact:
-Backend and UI integration cannot be finalized safely without a typed contract.
-
-Required action:
-BA, PO, or domain owner confirms the API contract, or the implementation records the approved contract in this spec before coding.
-
-### PD-02 - Story-Specific State and Failure Semantics
-
-Status: UNRESOLVED
-
-Question:
-Are there story-specific state enum values, partial failure semantics, retry limits, conflict rules, audit event names, or before/after audit payloads beyond the generic model in this spec?
-
-Affected:
-- Business Rules listed in Section 5.4
-- Related specifications in Section 18
-
-Implementation impact:
-Implementers must not silently choose state, retry, conflict, or audit behavior when the approved sources do not define it.
-
-Required action:
-Resolve through Business Rules, Data Dictionary or Domain Model, Jira decision, or an explicit spec update before implementation.
-
-### PD-03 - Source Conflict Handling
-
-Status: UNRESOLVED WHEN A CONFLICT IS FOUND
-
-Question:
-Do PB V3.1, Business Rules, Data Dictionary or Domain Model, Jira, or existing code/tests disagree for this story?
-
-Affected:
-- PB V3.1 row `CTMS-112`
-- Business Rules listed in Section 5.4
-- Existing implementation and tests if present
-
-Implementation impact:
-A lower-level artifact that conflicts with an approved higher-level source is stale until reconciled.
-
-Required action:
-Record the conflict, stop short of inventing behavior, and request BA/PO/domain owner clarification.
-
----
-
-## References
-
-- Story ID: `CTMS-106`
-- Epic: `EPIC 4. Trip Management`
-- Jira Story owns WHAT and WHY for this capability.
-- Jira Logic Subtask `CTMS-112-T01` owns HOW-SYSTEM responsibilities.
-- Jira UI Subtask `CTMS-112-T02` owns HOW-CLIENT responsibilities when a client workflow exists.
-- This file/spec owns the detailed execution flow, edge cases, contracts, invariants, and technical processing.
-- Product Backlog V3.1 use case: `Receive Personalized Trip Recommendations`
-- Priority: `Should Have`
-- Story points: `13.0`
-- Dependencies: `CTMS-025, CTMS-018, CTMS-024`
-- Status: `To Do`
-- Sprint: `Sprint 5`
-- Commitment: `Stretch`
-- Planned window: `2026-09-20` to `2026-10-03`
-- Product Backlog source: `PRODUCT BACKLOG.xlsx`, sheet `v3.1`
-- Business Rules source: `CTMS- Business rules.xlsx`, sheet `Business Rules`
-- Story-level business rules: BR-231, BR-233, BR-235, BR-237, BR-365, BR-371, BR-372, BR-437, BR-438, BR-219, BR-239, BR-240, BR-245, BR-246, BR-247, BR-379, BR-383, BR-385, BR-386, BR-390, BR-391, BR-395, BR-396, BR-441
-- Jira execution tasks should reference:
-  - `/file/spec/ctms-112-receive-personalized-trip-recommendations.md#backend-preparation-logic-and-tests`
-  - `/file/spec/ctms-112-receive-personalized-trip-recommendations.md#ui-and-tests`
+Ranking algorithm/model is Technical Design; no specific algorithm is mandated here.

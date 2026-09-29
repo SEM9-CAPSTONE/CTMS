@@ -27,10 +27,11 @@ export interface CreateTripWaypointInput {
 	type: TripWaypointType;
 	name: string;
 	location: GeoJsonPoint;
-	dayNumber: number;
-	sequenceOrder: number;
-	plannedAt?: string;
-	durationMinutes?: number;
+	plannedAt: string;
+}
+
+export interface ConfigureTripWaypointsInput {
+	waypoints: CreateTripWaypointInput[];
 }
 
 export interface CreateTripInput {

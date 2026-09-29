@@ -85,6 +85,7 @@ function DashboardMain({
 	onViewEquipmentCatalog,
 	onNavigateToTrips,
 	onNavigateToTripDetail,
+	onEditTripDraft,
 }: {
 	config: DashboardConfig;
 	user: StoredAuthUser;
@@ -97,6 +98,7 @@ function DashboardMain({
 	onViewEquipmentCatalog?: () => void;
 	onNavigateToTrips?: () => void;
 	onNavigateToTripDetail?: (tripId: string) => void;
+	onEditTripDraft?: (tripId: string) => void;
 }) {
 	const displayName = profile?.fullName || getDisplayName(user);
 	const timeOfDay = getTimeOfDay();
@@ -226,6 +228,7 @@ function DashboardMain({
 						onViewTrekkingRoutes={onViewTrekkingRoutes}
 						onViewEquipmentCatalog={onViewEquipmentCatalog}
 						onNavigateToTripDetail={onNavigateToTripDetail}
+						onEditTripDraft={onEditTripDraft}
 					/>
 				) : config.alerts.length > 0 ? (
 					<section className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
@@ -284,6 +287,7 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 	onViewEquipmentCatalog,
 	onNavigateToTrips,
 	onNavigateToTripDetail,
+	onEditTripDraft,
 	onLogout,
 	onExplore,
 }) => {
@@ -433,6 +437,7 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 					onViewEquipmentCatalog={onViewEquipmentCatalog}
 					onNavigateToTrips={onNavigateToTrips}
 					onNavigateToTripDetail={onNavigateToTripDetail}
+					onEditTripDraft={onEditTripDraft}
 				/>
 			</div>
 		</div>

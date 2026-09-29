@@ -12,6 +12,7 @@ export interface TripDetailPageProps {
 	onBook?: (tripId: string, numPeople: number) => void | Promise<void>;
 	bookingAccess?: BookingAccess;
 	onSignIn?: () => void;
+	onViewPackingList?: (bookingId: string) => void;
 }
 
 export function TripDetailPage({
@@ -21,6 +22,7 @@ export function TripDetailPage({
 	onBook,
 	bookingAccess = "camper",
 	onSignIn,
+	onViewPackingList,
 }: TripDetailPageProps) {
 	const { trip, isLoading, error, isNotFound, retry } = useTripDetail(tripId);
 	const {
@@ -176,6 +178,7 @@ export function TripDetailPage({
 						onConflictDismiss={clearConflict}
 						onConflictReload={handleConflictReload}
 						onConflictRetry={retryBooking}
+						onViewPackingList={onViewPackingList}
 					/>
 				)}
 			</main>

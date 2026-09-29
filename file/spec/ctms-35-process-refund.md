@@ -1,502 +1,178 @@
-# CTMS-035 - Process Refund
+# CTMS-035 — Process Refund
 
-**Spec Reference**  
-/file/spec/ctms-35-process-refund.md
+## 1. Overview
 
-**Source Authority**  
-- Product Backlog V3.1 is the scope authority for this story.
-- Business Rules are the invariant/policy source. This spec rewrites relevant rules as executable behavior so Dev and QA do not need to infer behavior from rule IDs.
-- Jira is used for execution tracking, status, and task ownership. Jira content must not replace the behavior contract below.
-- Authority order for conflicts: Business Rules V3, Data Dictionary or Domain Model V3, approved Jira requirement or decision, this file/spec, code, then tests.
+Story: CTMS-035
 
----
+Epic: EPIC 5. Booking and Payment
 
-## 1. Purpose
+Use Case: Process Refund
 
-Implement `Process Refund` so the CTMS workflow is safe, consistent, auditable, and aligned with PB V3.1.
+Priority: Must Have
 
-Business purpose from PB V3.1:
+Goal: Process an approved Booking refund exactly once while keeping charge, refund, Booking payment status, Held Funds and settlement accounting consistent.
 
-- English use case: `Process Refund`
-- Story: As a System, I want to process refund so that CTMS supports the workflow safely and consistently.
+Backlog story: As the System, I want to process eligible refunds so money is returned according to policy without duplicate or over-refund.
 
-Implementation details belong in the sections below, not in this purpose summary.
+Acceptance Criteria:
 
----
+| Source  | Criterion                                                                                     |
+| ------- | --------------------------------------------------------------------------------------------- |
+| PB AC-1 | Refund is created only from an eligible succeeded charge and approved refund obligation.      |
+| PB AC-2 | Refund uses a `refund` payment transaction linked to its parent charge.                       |
+| PB AC-3 | Refund transaction uses only the authoritative payment transaction statuses.                  |
+| PB AC-4 | Cumulative succeeded/pending policy-approved refund must not exceed refundable charge amount. |
+| PB AC-5 | Refund execution is idempotent and provider-reconcilable.                                     |
+| PB AC-6 | Successful pre-settlement refund adjusts Held Funds/settlement base consistently.             |
+| PB AC-7 | Pending/failed refund is not treated as succeeded.                                            |
 
 ## 2. Scope
 
 ### In Scope
-- The behavior needed for `Process Refund` within `EPIC 5. Booking and Payment`.
-- Backend validation, authorization, persistence, state handling, idempotency, and audit behavior needed for this story.
-- UI/API behavior that makes success, pending, validation failure, authorization failure, conflict, and retry states observable.
-- Tests proving the PB V3.1 acceptance criteria and mapped Business Rules are enforced.
+
+- Create refund transaction.
+- Parent charge relationship.
+- Refund amount validation.
+- Provider refund.
+- Idempotency.
+- Reconciliation.
+- Booking payment-state derivation.
+- Held Funds/settlement interaction.
 
 ### Out of Scope
-- Behavior owned by dependency stories unless explicitly referenced as a precondition or integration point.
-- Replacing source-of-truth entities owned by another module.
-- Changing unrelated workflow, enum, database, API, or UI contracts outside this story.
-- Treating Jira task wording as a substitute for this implementation contract.
-- Inventing behavior that is not approved in PB V3.1, Business Rules, domain model, Jira, or a recorded product decision.
 
----
+- Deciding cancellation eligibility; CTMS-034.
+- Creating original charge; CTMS-032.
+- Payout execution except accounting interaction required by refund rules.
 
-## 3. Actors
+## 3. Actors & Authorization
 
-- System: primary actor for this workflow.
-- Backend API: validates authorization, state, input, persistence, idempotency, and audit requirements.
-- UI Client: presents allowed actions, validates obvious input, shows loading/success/error states, and never replaces backend enforcement.
-- Related CTMS modules: provide referenced Trip, Route, Booking, Payment, Offline Package, AI, Notification, or Administration data when this story depends on them.
+- System.
+- Payment provider.
+- Authorized administrative/recovery actor where explicitly permitted.
 
----
+No client may directly mark a refund succeeded.
 
-## 4. Preconditions
-
-- Actor is authenticated when the workflow requires identity.
-- Actor has the role, ownership, consent, assignment, or operational relationship required by the story.
-- Referenced records exist and are in states that allow this workflow.
-- Dependencies are satisfied: CTMS-032, CTMS-034, CTMS-038.
-- PB V3.1 acceptance criteria and the Business Rules listed in this spec are available to implementation and QA.
-
-If a precondition is not satisfied, the system must reject the action or show a blocked/degraded state without unintended side effects.
-
----
-
-## 5. Business Behavior
-
-### 5.1 Primary Behavior
-
-The system implements `Process Refund` exactly within the PB V3.1 scope:
-
-- Implement the PB V3.1 acceptance behavior for `Process Refund` exactly as approved in the source backlog.
-- Convert each source acceptance condition into explicit validation, state, persistence, UI, and test behavior during implementation.
-- Do not copy non-English backlog text into this English spec; keep the workbook as the source citation.
-
-### 5.2 Validation Rules
-
-- Required fields, enum values, date/time ranges, identifiers, ownership boundaries, and cross-entity references are validated before persistence.
-- Backend is authoritative for permission, state, price, capacity, inventory, safety, payment, and operational outcomes.
-- UI validation may improve the experience, but backend validation is mandatory and final.
-- Invalid input returns a clear error and does not partially create, update, or synchronize records.
-
-### 5.3 State and Transaction Rules
-
-- State transitions must start from an allowed source state and end in an allowed target state.
-- Multi-record side effects must run in a transaction or equivalent atomic unit.
-- Concurrent requests, duplicate submissions, stale reads, and provider retries must not create duplicate records or inconsistent state.
-- If the operation cannot complete safely, the system preserves the previous authoritative state and returns an actionable failure.
-
-### 5.4 Business Rules Materialized
-
-The following rules are materialized as behavior for this story:
-
-| ID | Content |
-| --- | --- |
-| `BR-103` | Required behavior for `Process Refund` must validate and enforce trips.starts_at, trips.completed_at, Camper, initiated, refund, request, Booking, cancelled, trips, starts_at as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths. |
-| `BR-104` | Required behavior for `Process Refund` must validate and enforce Camper, refund, request, Trip, start, submit, provider, transaction, refund_requested_at, Provider as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths. |
-| `BR-105` | Payment transactions may use only `pending`, `succeeded`, or `failed`. `bookings.payment_status` is derived from total succeeded refunds as `partially_refunded` or `refunded`; do not use `payments.status = refunded`. |
-| `BR-106` | The total amount of succeeded and pending refunds allowed by policy must not exceed the refundable succeeded charge amount. The same cancellation or refund request must not be refunded twice. |
-| `BR-336` | Every succeeded refund before settlement must reduce Held Funds and settlement base. Approved refunds pending provider result must continue blocking settlement; pending or failed refunds must not be treated as succeeded. |
-| `BR-343` | Ordinary Camper refunds must be processed before settlement within the defined request windows; succeeded refunds reduce Held Funds and settlement base and must not be paid out. |
-| `BR-174` | Inputs must be validated for required fields, formats, identifiers, enum values, and cross-entity references before any write is committed. |
-| `BR-175` | Backend decisions are authoritative for permission, state, price, capacity, inventory, risk, and transaction outcomes; clients may not self-assert these values. |
-| `BR-176` | Multi-record or multi-table business changes must execute in one transaction; any failed step must roll back the whole operation. |
-| `BR-177` | Failed operations must not leave data, state, reservation counts, money, inventory, or safety records partially updated. |
-| `BR-178` | Duplicate submissions, retries, and provider callbacks must be idempotent and must not create duplicate authoritative records. |
-| `BR-179` | Concurrent writes to the same business resource must use transaction, locking, version control, or database constraints to prevent overwrites and limit violations. |
-| `BR-180` | Stateful resources must follow defined state transitions and must not use enum values outside the database/API contract. |
-| `BR-181` | Before updating state, the backend must verify the current persisted state; stale requests must fail with a business conflict. |
-| `BR-188` | Date and time handling must use the authoritative timezone and ordering rules for the business workflow, and invalid or impossible time ranges must be rejected. |
-| `BR-191` | Critical actions must write an audit record containing actor, action, target, timestamp, before/after values or reason, and affected business identifiers. |
-| `BR-192` | Audit logs must not contain passwords, OTPs, tokens, sensitive payment data, unnecessary health data, or private payloads beyond the audit need. |
-| `BR-194` | Notifications or event side effects may be emitted only after the main business transaction commits successfully, preferably through an outbox or queue. |
-| `BR-209` | The UI must prevent duplicate submission while a request is processing. Financial or resource-holding actions may show success only after backend confirmation. |
-| `BR-210` | When backend rejects a stale or concurrent request, the UI must preserve entered data, show the reason, and allow reload or retry. |
-| `BR-211` | Authorization or business-precondition failures must stop before any state-changing commit or side effect such as data update, hold, charge, refund, notification, or false business audit. |
-| `BR-212` | Any Business Rule, enum, state transition, or API contract change must update the spec, tests, and data documentation before the story is Done. |
-| `BR-213` | Every mapped Business Rule must have at least one valid-path test and one violation-path test; concurrency, idempotency, and transaction rules require integration or E2E coverage. |
-| `BR-225` | Every operational action must resolve to success, pending, or failure. On conflict or connectivity failure, user-entered or local data must remain recoverable. |
-
-### 5.5 Source Confidence
-
-- PB V3.1 row `CTMS-035` is the direct scope and acceptance source.
-- Rule IDs above come from the `Primary BR IDs` column in PB V3.1 and are materialized here as implementation behavior.
-- If a rule ID conflicts with PB V3.1 behavior, do not silently choose one. Record a Pending Decision and update PB/rules/spec together.
-- This file may elaborate approved behavior into execution flow, but it must not invent, change, or override business behavior.
-- Undefined, ambiguous, or conflicting behavior must be captured in Section 19 as a Pending Decision.
-
----
-
-## 6. State Model
-
-The story state model is:
-
-- `NOT_STARTED`: actor has not initiated the workflow.
-- `IN_PROGRESS`: request, calculation, sync, AI operation, or review is being processed.
-- `SUCCEEDED`: authoritative result is persisted or returned.
-- `FAILED_VALIDATION`: input or referenced data is invalid.
-- `FAILED_AUTHORIZATION`: actor lacks required permission or relationship.
-- `CONFLICT`: current server state no longer allows the requested action.
-- `PENDING_RETRY` or `SYNC_PENDING`: used only when the story includes offline, external provider, async, or retry behavior.
-
-Every implementation must replace these generic labels with existing enum values when the owning module already defines a state machine.
-
----
-
-## 7. Main Flow
-
-### Scenario: Process Refund
-
-1. Actor opens or triggers the `Process Refund` workflow.
-2. UI loads the minimum data needed for the workflow and shows unavailable states when dependencies are missing.
-3. Actor submits the action or the system starts the scheduled/automatic processing.
-4. Backend authenticates the caller or system job.
-5. Backend validates authorization, ownership/business relationship, input shape, referenced records, and current state.
-6. Backend applies the PB V3.1 behavior and mapped Business Rules in one safe transaction or equivalent atomic unit.
-7. Backend persists the authoritative result, audit data, and integration/sync metadata where required.
-8. UI/API returns the observable outcome: success, pending, blocked, conflict, retryable failure, or validation failure.
-
----
-
-## 8. Edge Cases
-
-### Missing or Unauthorized Actor
-
-Reject with authentication or authorization error. No business side effect is allowed.
-
-### Missing Dependency
-
-If dependency data from `CTMS-034, CTMS-032` is missing or not in an allowed state, block the workflow with a clear reason.
-
-### Invalid Input or Reference
-
-Reject invalid fields, invalid enum values, missing required references, out-of-range dates, invalid coordinates, invalid amounts, or stale IDs before writing data.
-
-### Duplicate Submission or Retry
-
-Use idempotency keys, stable client identifiers, provider references, or transaction constraints so retries do not create duplicate authoritative records.
-
-### Concurrent Update
-
-Detect stale state with locking, version checks, unique constraints, or conflict validation. Return a conflict result and preserve the user's recoverable input where a UI exists.
-
-### External Provider, AI, Offline, or Sync Failure
-
-If this story calls an external provider, AI service, offline queue, or sync process, the system must expose pending/failed/retry states and must not present unconfirmed output as authoritative.
-
----
-
-## 9. Data Requirements
-
-The implementation must persist or return only data required for `Process Refund`:
-
-- actor/user context and role/relationship used for authorization;
-- referenced domain identifiers such as Trip, Route, Booking, Payment, Member, Package, Review, Alert, or Report ids when applicable;
-- source timestamps and server timestamps as separate values when client/offline/provider events are involved;
-- status/state fields needed to distinguish pending, succeeded, failed, rejected, stale, or synced data;
-- audit fields for actor, action, target, before/after values, timestamp, and reason when applicable;
-- idempotency keys, provider references, sync metadata, model/config/rule version, or package/version context when the behavior depends on them.
-
-Do not duplicate an entire data dictionary in this spec. Reference existing entities and add only story-specific requirements.
-
----
-
-## 10. Backend / API Responsibilities
-
-Backend is responsible for:
-
-- authentication and authorization;
-- input DTO validation;
-- ownership and business relationship checks;
-- state transition validation;
-- transaction boundaries and rollback;
-- idempotency and duplicate prevention;
-- persistence of authoritative state;
-- audit logging when the action is operational, financial, safety-related, administrative, or security-sensitive;
-- returning consistent error semantics: `401`, `403`, `404`, `409`, and `422` where applicable.
-
-If endpoint paths or DTOs are not finalized, implementation must define a typed contract before UI integration and record unresolved endpoint details as Pending Decisions.
-
----
-
-## 11. Mobile / UI Responsibilities
-
-UI is responsible for:
-
-- displaying only actions allowed by known role/state while treating backend as final authority;
-- collecting required inputs with clear validation messages;
-- showing loading, success, pending, failed, retry, conflict, and permission-denied states;
-- preserving user-entered data after recoverable failure or conflict where practical;
-- distinguishing local/pending/offline/AI-suggested data from server-confirmed authoritative state;
-- using existing CTMS design, i18n, accessibility, and state-management patterns.
-
-If this story has no user-facing UI, UI responsibilities are limited to any admin, monitoring, notification, or client state needed to observe the backend result.
-
----
-
-## 12. Offline & Sync Behavior
-
-Online:
-
-- Execute against backend-authoritative validation and persistence.
-
-Offline:
-
-- If this story is not offline-capable, block the write action and show the unavailable state.
-- If this story is offline-capable, persist a local pending record with stable identifiers and enough context to sync later.
-
-Reconnect:
-
-- Sync pending records idempotently.
-- Preserve original client event time separately from server received time.
-- Do not present unsynced data as authoritative server state.
-
-Pending Decision:
-
-- If this story requires offline or sync semantics beyond the owning sync specification, record the unresolved behavior in Section 19 before implementation.
-
----
-
-## 13. Error Handling
-
-| Condition | Observable behavior |
-| --- | --- |
-| Authentication missing/expired | Return `401`; UI prompts sign-in or session refresh. |
-| Actor lacks permission | Return `403`; no side effect. |
-| Referenced record missing | Return `404` when the actor may know it exists; otherwise preserve privacy-safe response. |
-| Invalid input | Return `422` with field-level reason where possible. |
-| Business conflict | Return `409` with recoverable explanation. |
-| External provider or async failure | Keep state pending/failed with retry metadata and no duplicate authoritative result. |
-| Unexpected server error | Roll back partial work and return a generic error without leaking secrets or stack trace. |
-
----
-
-## 14. Security & Authorization
-
-- Authorization must check role, ownership, consent, assignment, Trip/Route/Booking relationship, or administrative scope as applicable.
-- Sensitive data must not be exposed beyond the actor's business need.
-- Payment credentials, tokens, OTPs, secrets, health data, exact location, and AI/private prompt data must not appear in logs or audit records unless explicitly required and approved.
-- Backend remains the source of truth for permission and state even when UI hides unavailable actions.
-- Audit is required for important operational, safety, financial, administrative, and security-sensitive changes.
-
----
-
-## 15. Acceptance Criteria
-
-### AC-01
-
-Given:
-
-- The preconditions in this spec are satisfied.
-
-When:
-
-- The approved PB V3.1 acceptance behavior for `Process Refund` is implemented as explicit system behavior..
-
-Then:
-
-- The system behavior matches the rule above.
-- Backend validation and UI state are consistent with the observable result.
-- Tests cover the success path and at least one failure or boundary case.
-### AC-02
-
-Given:
-
-- The preconditions in this spec are satisfied.
-
-When:
-
-- The source acceptance conditions are covered by backend or client tests without copying non-English backlog text into the spec..
-
-Then:
-
-- The system behavior matches the rule above.
-- Backend validation and UI state are consistent with the observable result.
-- Tests cover the success path and at least one failure or boundary case.
-
-### AC-03 - Authorization and Invalid State Protection
-
-Given:
-
-- The actor is missing permission, the target record is missing, or the current state does not allow the workflow.
-
-When:
-
-- The actor or system attempts `Process Refund`.
-
-Then:
-
-- The backend rejects the action with the correct error category.
-- No unintended side effect is persisted.
-- UI/API exposes the failure clearly.
-
-### AC-04 - Duplicate and Retry Safety
-
-Given:
-
-- The same request, sync item, provider callback, or user action is submitted more than once.
-
-When:
-
-- The backend processes the duplicate.
-
-Then:
-
-- At most one authoritative result is created.
-- Duplicate handling returns a compatible success, already-processed, or conflict response.
-
----
-
-## 16. Backend Preparation, Logic and Tests
-
-### Responsibilities
-
-- Implement or update the owning module's service, controller, repository, DTO, entity, migration, queue, provider, or sync handler as needed.
-- Enforce PB V3.1 behavior and mapped Business Rules in backend logic.
-- Keep transactions, idempotency, state validation, and audit behavior close to the domain operation.
-- Reuse existing CTMS helpers for auth, validation, i18n, API errors, transactions, and tests.
-- Keep this as the HOW-SYSTEM responsibility contract for `CTMS-035-T01`; do not duplicate the complete end-to-end flow in Jira.
-
-### Required Tests
-
-- Unit tests for validation, state transitions, mapped Business Rules, and failure paths.
-- Integration/API tests for success, invalid input, unauthorized access, missing resource, conflict, idempotency, and rollback.
-- Provider/sync/AI tests when this story depends on external service, offline queue, model output, or background processing.
-- Regression tests proving no mapped Business Rule is silently bypassed.
-
-### Logic Subtask DoD
-
-- [ ] Logic implementation completed.
-- [ ] Applicable business rules and invariants implemented.
-- [ ] Task-specific unit tests added or updated.
-- [ ] Task-specific unit tests passed.
-- [ ] Applicable backend or integration tests passed.
-
----
-
-## 17. UI and Tests
-
-### Responsibilities
-
-- Implement screen/component/client state only when this story has a user-facing workflow.
-- Wire UI to typed API contracts.
-- Show loading, empty, blocked, validation, conflict, retry, and success states.
-- Keep local/client validation aligned with backend DTOs without treating client validation as enforcement.
-- Keep this as the HOW-CLIENT responsibility contract for `CTMS-035-T02`; backend/server responses remain the source of truth for server-owned business state.
-
-### Required Tests
-
-- Component or mobile widget tests for rendered states and user actions.
-- Hook/client-state tests for API success, validation failure, authorization failure, conflict, and retry where applicable.
-- Offline/error-state tests when the story includes pending local data or synchronization.
-- Accessibility and interaction checks for critical user-facing flows.
-
-### UI or Final Implementation Subtask DoD
-
-- [ ] UI implementation completed when this story has a client-facing workflow.
-- [ ] Applicable client-side behavior implemented.
-- [ ] Task-specific unit or component tests passed.
-- [ ] Backend integration completed.
-- [ ] Task-specific E2E tests passed when an end-to-end user path exists.
-- [ ] All Story Acceptance Criteria verified.
-- [ ] Unit regression tests passed.
-- [ ] E2E regression tests passed.
-- [ ] `lint:all` passed.
-- [ ] `build:all` passed.
-- [ ] `test:all` passed.
-- If UI is not the final implementation subtask, move these integrated quality gates to the actual final implementation subtask or an explicit Story-level verification step.
-
----
-
-## 18. Related Specifications
+## 4. Preconditions & Dependencies
 
 Dependencies:
 
-- CTMS-034
-- CTMS-032
+- CTMS-032.
+- CTMS-034.
+- CTMS-038.
 
-Potentially related specs must be referenced for context only. Do not duplicate their owned logic in this spec.
+Required:
 
----
+- Eligible parent charge exists.
+- Refund amount is approved by policy.
+- Refund has not already been fully applied.
 
-## 19. Pending Decisions
+## 5. Business Rules
 
-Use this section for undefined, ambiguous, or conflicting behavior. Do not guess business behavior during implementation.
+| BR         | Rule                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| BR-103     | A Camper-initiated refund request may be created only when either (a) the Booking was cancelled before trips.starts_at, or (b) a complaint/refund request for completed participation is submitted no later than 24 hours after trips.completed_at. Requests outside these two windows must be rejected. Refund obligations caused by Host/System Trip cancellation are not limited by the Camper request window. |
+| BR-104     | For a Camper refund request made before Trip start, the system must complete request processing and, if approved, create/submit the provider refund transaction within 24 hours of refund_requested_at. External provider settlement time must be tracked through transaction status and must never restore Trip participation rights.                                                                            |
+| BR-105     | A refund must create a payment transaction with type = refund, parent_payment_id referencing the original successful charge, a unique idempotency_key, and status = pending/succeeded/failed. The combined amount of pending + succeeded refunds for the same obligation must not exceed the eligible paid amount. provider transaction_ref, when available, must be stored for callback reconciliation.          |
+| BR-106     | A complaint/refund request created within 24 hours after trips.completed_at must be treated as a blocking financial claim until resolved. States pending, reviewing, and approved-refund-pending must block settlement and payout. Settlement may resume only after the request is resolved and all succeeded refunds are reflected in the financial ledger.                                                      |
+| BR-336     | Every succeeded refund before settlement must reduce Held Funds and the settlement base accordingly. An approved refund that is still awaiting provider completion must continue to block settlement. Pending or failed refunds must not be treated as succeeded.                                                                                                                                                 |
+| BR-343     | Ordinary Camper refunds must be handled before settlement within the defined request windows. A succeeded refund reduces Held Funds/the settlement base, and no payout may be created for the refunded amount.                                                                                                                                                                                                    |
+| BR-174     | All input must be validated for required fields, data type, format, length, enum membership, and cross-field relationships before processing.                                                                                                                                                                                                                                                                     |
+| BR-175     | The backend is the authoritative source for authorization, state, pricing, capacity, inventory, risk level, and transaction outcome. The client must not establish these values authoritatively.                                                                                                                                                                                                                  |
+| BR-176     | Any business operation that changes multiple tables or records must execute within a transaction. If any step fails, the entire operation must roll back.                                                                                                                                                                                                                                                         |
+| BR-177     | A failed operation must not leave data, state, reserved capacity, money, or inventory in a partially processed condition.                                                                                                                                                                                                                                                                                         |
+| BR-178     | Operations that may be retried, including payments, refunds, callbacks, and synchronization, must support idempotency so the same request cannot be successfully applied more than once.                                                                                                                                                                                                                          |
+| BR-179     | When concurrent requests modify the same resource, the system must use transactions, locking, optimistic/version control, or an equivalent mechanism to prevent lost updates and violations of business limits.                                                                                                                                                                                                   |
+| BR-180     | Every stateful resource must follow its defined state transitions and must not use values outside the database enum.                                                                                                                                                                                                                                                                                              |
+| BR-181     | Before changing state, the system must validate the current state. A request based on stale state must be rejected with a business-conflict error.                                                                                                                                                                                                                                                                |
+| BR-188     | Absolute timestamps must be stored as timestamptz. Pure calendar dates use date, and time-of-day values use time where defined by schema. APIs must transmit timezone/offset explicitly, and the UI must display values using the configured timezone.                                                                                                                                                            |
+| BR-191     | Critical actions must be recorded in the audit log with actor, action, target, timestamp, and either before/after data or the reason for the change.                                                                                                                                                                                                                                                              |
+| BR-192     | Audit logs must not contain passwords, OTPs, tokens, sensitive payment data, or unnecessary health data.                                                                                                                                                                                                                                                                                                          |
+| BR-194     | Notification/event side effects may be queued or emitted only after the primary business transaction commits successfully, preferably through an outbox/queue. Notification failure must not roll back the already-committed business result.                                                                                                                                                                     |
+| BR-209     | The UI must prevent duplicate submission while a request is in progress. Financial or resource-reservation actions may be presented as successful only after backend confirmation.                                                                                                                                                                                                                                |
+| BR-210     | When the backend rejects a request because of a concurrent data change, the UI must preserve the user's entered data, explain the conflict, and allow the user to reload or retry.                                                                                                                                                                                                                                |
+| BR-211     | Any request rejected for authorization failure or an unmet business precondition must terminate before any state-changing commit and must not create side effects such as data updates, capacity holds, charges/refunds, notifications, or false business audit records.                                                                                                                                          |
+| BR-225     | Every operational action must result in a success, pending, or failure state. When a conflict or connectivity failure occurs, the system must preserve user/local data in a recoverable state.                                                                                                                                                                                                                    |
 
-### PD-01 - API and DTO Contract
+## 6. State & Lifecycle
 
-Status: UNRESOLVED
+Refund transaction:
 
-Question:
-What are the final endpoint paths, request DTOs, response DTOs, and error payloads for `Process Refund` if they are not already implemented?
+No refund
+→ `pending`
+→ `succeeded`
 
-Affected:
-- Jira Story: `CTMS-035`
-- Logic Subtask: `CTMS-035-T01`
-- UI Subtask: `CTMS-035-T02`
+or:
 
-Implementation impact:
-Backend and UI integration cannot be finalized safely without a typed contract.
+`pending`
+→ `failed`
 
-Required action:
-BA, PO, or domain owner confirms the API contract, or the implementation records the approved contract in this spec before coding.
+There is no `payment.status = refunded`.
 
-### PD-02 - Story-Specific State and Failure Semantics
+Booking payment status is derived from charge/refund results according to the authoritative financial model.
 
-Status: UNRESOLVED
+## 7. Business Flow
 
-Question:
-Are there story-specific state enum values, partial failure semantics, retry limits, conflict rules, audit event names, or before/after audit payloads beyond the generic model in this spec?
+1. Receive approved refund obligation.
+2. Load Booking and parent succeeded charge.
+3. Calculate remaining refundable amount.
+4. Validate requested refund.
+5. Create/reuse idempotent refund transaction.
+6. Submit provider refund.
+7. Verify provider response/callback.
+8. On success:
+   - set refund transaction succeeded;
+   - update derived Booking financial state;
+   - reduce applicable Held Funds/settlement base.
+9. On pending:
+   - preserve pending state;
+   - block incompatible settlement where required.
+10. On failure:
 
-Affected:
-- Business Rules listed in Section 5.4
-- Related specifications in Section 18
+- record failed;
+- do not treat money as returned.
 
-Implementation impact:
-Implementers must not silently choose state, retry, conflict, or audit behavior when the approved sources do not define it.
+11. Reconcile retries/provider callbacks idempotently.
 
-Required action:
-Resolve through Business Rules, Data Dictionary or Domain Model, Jira decision, or an explicit spec update before implementation.
+## 8. Data & Invariants
 
-### PD-03 - Source Conflict Handling
+- Refund links to parent charge.
+- Refund transaction status ∈ `{pending, succeeded, failed}`.
+- No `refunded` transaction status.
+- Sum of applicable refunds ≤ refundable succeeded charge.
+- Same refund cannot be applied twice.
+- Pending refund is not succeeded refund.
+- Failed refund is not succeeded refund.
+- Refunded amount cannot remain in ordinary settlement base.
 
-Status: UNRESOLVED WHEN A CONFLICT IS FOUND
+## 9. API / Integration Contract
 
-Question:
-Do PB V3.1, Business Rules, Data Dictionary or Domain Model, Jira, or existing code/tests disagree for this story?
+TBD — Technical Design.
 
-Affected:
-- PB V3.1 row `CTMS-035`
-- Business Rules listed in Section 5.4
-- Existing implementation and tests if present
+## 10. Error & Edge Cases
 
-Implementation impact:
-A lower-level artifact that conflicts with an approved higher-level source is stale until reconciled.
+| Case                                           | Expected Behavior                               |
+| ---------------------------------------------- | ----------------------------------------------- |
+| Parent charge not succeeded                    | Reject refund.                                  |
+| Requested refund exceeds remainder             | Reject.                                         |
+| Duplicate callback                             | Apply once.                                     |
+| Provider timeout                               | Keep/reconcile pending state; no false success. |
+| Provider fails refund                          | Mark failed according to provider result.       |
+| Settlement tries while blocking refund pending | Enforce settlement rule.                        |
+| Concurrent refund requests exceed charge       | Concurrency protection prevents over-refund.    |
 
-Required action:
-Record the conflict, stop short of inventing behavior, and request BA/PO/domain owner clarification.
+## 11. Acceptance & Test Matrix
 
----
+| Source              | Scenario                          | Expected Result                   | Test Type             |
+| ------------------- | --------------------------------- | --------------------------------- | --------------------- |
+| PB AC-1             | Valid refund obligation           | Refund processing allowed         | Integration           |
+| PB AC-2, BR-103     | Refund created                    | Linked refund transaction         | Integration           |
+| PB AC-3, BR-104     | Refund lifecycle                  | Only allowed transaction statuses | State                 |
+| PB AC-4, BR-105/106 | Over-refund attempted             | Rejected                          | Boundary              |
+| PB AC-5             | Callback retried                  | No duplicate refund               | Idempotency           |
+| PB AC-6, BR-336     | Refund succeeds before settlement | Held Funds adjusted               | Financial Integration |
+| PB AC-7, BR-343     | Refund pending                    | Not treated as settled/succeeded  | Financial Integration |
 
-## References
+## 12. Open Decisions
 
-- Story ID: `CTMS-035`
-- Epic: `EPIC 5. Booking and Payment`
-- Jira Story owns WHAT and WHY for this capability.
-- Jira Logic Subtask `CTMS-035-T01` owns HOW-SYSTEM responsibilities.
-- Jira UI Subtask `CTMS-035-T02` owns HOW-CLIENT responsibilities when a client workflow exists.
-- This file/spec owns the detailed execution flow, edge cases, contracts, invariants, and technical processing.
-- Product Backlog V3.1 use case: `Process Refund`
-- Priority: `Must Have`
-- Story points: `13.0`
-- Dependencies: `CTMS-032, CTMS-034, CTMS-038`
-- Status: `To Do`
-- Sprint: `Sprint 3`
-- Commitment: `Stretch`
-- Planned window: `2026-08-23` to `2026-09-05`
-- Product Backlog source: `PRODUCT BACKLOG.xlsx`, sheet `v3.1`
-- Business Rules source: `CTMS- Business rules.xlsx`, sheet `Business Rules`
-- Story-level business rules: BR-083, BR-105, BR-106, BR-107, BR-108, BR-194, BR-049, BR-218, BR-252, BR-253, BR-255
-- Jira execution tasks should reference:
-  - `/file/spec/ctms-35-process-refund.md#backend-preparation-logic-and-tests`
-  - `/file/spec/ctms-35-process-refund.md#ui-and-tests`
+Recovery for a refund requested after ordinary Host payout has already completed requires an explicit post-payout recovery mechanism if that scenario is supported. It must not be invented here.

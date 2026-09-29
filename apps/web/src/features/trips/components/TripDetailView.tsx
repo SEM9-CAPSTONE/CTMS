@@ -17,6 +17,7 @@ import { useMemo, useState } from "react";
 import { BookingEquipmentPicker } from "../../booking-equipment/components/BookingEquipmentPicker";
 import { InitializeBookingMembersPanel } from "../../booking-members/components/InitializeBookingMembersPanel";
 import { BookingPaymentPanel } from "../../booking-payment/components/BookingPaymentPanel";
+import { PackingListPanel } from "../../packing-list/components/PackingListPanel";
 import type { BookTripResponse, TripDetails } from "../types";
 import { type BookingAccess, BookingPanel } from "./BookingPanel";
 import { TripCapacityBanner } from "./TripCapacityBanner";
@@ -39,6 +40,7 @@ export interface TripDetailViewProps {
 	onConflictDismiss?: () => void;
 	onConflictReload?: () => void;
 	onConflictRetry?: () => void;
+	onViewPackingList?: (bookingId: string) => void;
 }
 
 export function formatDateTime(isoString: string | null | undefined): string {
@@ -91,8 +93,10 @@ export function TripDetailView({
 	onConflictDismiss,
 	onConflictReload,
 	onConflictRetry,
+	onViewPackingList,
 }: TripDetailViewProps) {
 	const [equipmentTotalAmount, setEquipmentTotalAmount] = useState<string | null>(null);
+	const [packingListRefreshKey, setPackingListRefreshKey] = useState(0);
 	const difficulty = getDifficultyBadge(trip.difficulty ?? null);
 	const weather = getWeatherRiskBadge(trip.weatherRiskLevel ?? null);
 	const WeatherIcon = weather.icon;
@@ -100,12 +104,9 @@ export function TripDetailView({
 
 	const sortedWaypoints = useMemo(() => {
 		if (!trip.waypoints || !Array.isArray(trip.waypoints)) return [];
-		return [...trip.waypoints].sort((a, b) => {
-			if (a.dayNumber !== b.dayNumber) {
-				return a.dayNumber - b.dayNumber;
-			}
-			return a.sequenceOrder - b.sequenceOrder;
-		});
+		return [...trip.waypoints].sort(
+			(a, b) => new Date(a.plannedAt ?? 0).getTime() - new Date(b.plannedAt ?? 0).getTime()
+		);
 	}, [trip.waypoints]);
 
 	const includesList = useMemo<string[]>(() => {
@@ -310,7 +311,7 @@ export function TripDetailView({
 
 										{/* Milestone Badge */}
 										<div className="flex size-8 shrink-0 items-center justify-center rounded-full border-2 border-[#164027] bg-white text-xs font-extrabold text-[#164027] shadow-xs">
-											{wp.sequenceOrder}
+											{index + 1}
 										</div>
 
 										{/* Milestone Details */}
@@ -320,19 +321,35 @@ export function TripDetailView({
 												<span className="rounded-md bg-[#edf3ed] px-2 py-0.5 text-[11px] font-bold text-[#55685a]">
 													{formatWaypointType(wp.type)}
 												</span>
-												<span className="text-[11px] font-semibold text-[#8fa096]">
-													Ngày {wp.dayNumber}
-												</span>
+												{wp.plannedAt && (
+													<span className="text-[11px] font-semibold text-[#8fa096]">
+														{formatDateTime(wp.plannedAt)}
+													</span>
+												)}
 											</div>
 
 											<div className="mt-1.5 flex flex-wrap gap-4 text-xs text-[#667a6d]">
-												{wp.plannedAt && (
-													<span className="flex items-center gap-1">
-														<Clock className="size-3.5" />
-														<span>{formatDateTime(wp.plannedAt)}</span>
-													</span>
-												)}
-												{wp.durationMinutes && <span>Thời lượng: {wp.durationMinutes} phút</span>}
+												{index < sortedWaypoints.length - 1 &&
+													wp.plannedAt &&
+													sortedWaypoints[index + 1]?.plannedAt && (
+														<span className="flex items-center gap-1">
+															<Clock className="size-3.5" />
+															<span>
+																Đến điểm tiếp theo sau{" "}
+																{Math.max(
+																	0,
+																	Math.round(
+																		(new Date(
+																			sortedWaypoints[index + 1].plannedAt ?? ""
+																		).getTime() -
+																			new Date(wp.plannedAt).getTime()) /
+																			60_000
+																	)
+																)}{" "}
+																phút
+															</span>
+														</span>
+													)}
 												<span>
 													Tọa độ: [{wp.location.coordinates[0].toFixed(3)},{" "}
 													{wp.location.coordinates[1].toFixed(3)}]
@@ -473,12 +490,23 @@ export function TripDetailView({
 											bookingId={booking.id}
 											initialTotalAmount={booking.totalAmount}
 											onTotalAmountChange={setEquipmentTotalAmount}
+											onEquipmentChanged={() => setPackingListRefreshKey((current) => current + 1)}
 										/>
 										<BookingPaymentPanel
 											booking={booking}
 											bookingAccess={bookingAccess}
 											totalAmount={equipmentTotalAmount ?? booking.totalAmount}
 										/>
+										<PackingListPanel bookingId={booking.id} refreshKey={packingListRefreshKey} />
+										{onViewPackingList && (
+											<button
+												type="button"
+												onClick={() => onViewPackingList(booking.id)}
+												className="mt-3 w-full rounded-xl border border-[#164027]/20 px-4 py-2 text-xs font-bold text-[#164027] transition hover:bg-[#164027]/5"
+											>
+												Xem packing list ở trang riêng
+											</button>
+										)}
 									</>
 								)}
 							</div>
