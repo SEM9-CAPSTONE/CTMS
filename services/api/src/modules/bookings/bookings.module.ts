@@ -4,6 +4,7 @@ import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { EquipmentCatalogModule } from "../equipment-catalog/equipment-catalog.module";
 import { Booking } from "../profiles/entities/booking.entity";
+import { ProfilesModule } from "../profiles/profiles.module";
 import { TripsModule } from "../trips/trips.module";
 import { WeatherModule } from "../weather/weather.module";
 import { BookingItemsRepository } from "./booking-items.repository";
@@ -17,7 +18,7 @@ import { EquipmentReservation } from "./entities/equipment-reservation.entity";
 import { EquipmentReservationsRepository } from "./equipment-reservations.repository";
 
 @Module({
-	imports: [TripsModule, WeatherModule, EquipmentCatalogModule],
+	imports: [TripsModule, WeatherModule, EquipmentCatalogModule, ProfilesModule],
 	controllers: [BookingsController],
 	providers: [
 		BookingsService,

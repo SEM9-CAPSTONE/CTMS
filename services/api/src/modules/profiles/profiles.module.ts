@@ -33,5 +33,6 @@ import { ProfilesService } from "./services/profiles.service";
 			inject: [DataSource],
 		},
 	],
+	exports: [HealthProfileRepository],
 })
 export class ProfilesModule {}

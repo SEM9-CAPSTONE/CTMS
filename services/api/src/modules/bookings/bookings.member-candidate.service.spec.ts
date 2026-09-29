@@ -3,9 +3,11 @@ import type { ConfigService } from "@nestjs/config";
 import type { DataSource } from "typeorm";
 import type { EquipmentCatalogRepository } from "../equipment-catalog/equipment-catalog.repository";
 import { Booking, BookingPaymentStatus, BookingStatus } from "../profiles/entities/booking.entity";
+import type { HealthProfileRepository } from "../profiles/repositories/health-profile.repository";
 import { Trip } from "../trips/entities/trip.entity";
 import type { TripsRepository } from "../trips/repositories/trips.repository";
 import { User, UserRole, UserStatus } from "../users/entities/user.entity";
+import type { WeatherRiskRepository } from "../weather/repositories/weather-risk.repository";
 import type { RouteRegistrationRiskService } from "../weather/services/route-registration-risk.service";
 import type { BookingItemsRepository } from "./booking-items.repository";
 import type { BookingMembersRepository } from "./booking-members.repository";
@@ -75,7 +77,9 @@ describe("BookingsService.resolveMemberCandidate", () => {
 			{} as BookingItemsRepository,
 			membersRepository as unknown as BookingMembersRepository,
 			{} as EquipmentCatalogRepository,
-			{} as EquipmentReservationsRepository
+			{} as EquipmentReservationsRepository,
+			{} as WeatherRiskRepository,
+			{} as HealthProfileRepository
 		);
 	});
 
