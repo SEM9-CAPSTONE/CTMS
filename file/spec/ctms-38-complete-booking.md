@@ -3,80 +3,100 @@
 ## 1. Overview
 
 Story: CTMS-038
+
 Epic: EPIC 5. Booking and Payment
+
 Use Case: Complete Booking
+
 Priority: Should Have
 
-Goal:
-Allow Camper to complete `Complete Booking` within the approved CTMS v3.1 scope.
+Goal: Transition an eligible confirmed Booking to completed after Trip participation and required operational obligations have been resolved.
 
-Acceptance summary:
-The Complete Booking workflow must satisfy the approved PB v3.1 acceptance criteria for this story. Do not copy the Vietnamese backlog text into this spec; implementers must preserve the approved source meaning when refining detailed tests.
+Backlog story: As the System/authorized operator, I want an eligible Booking to be completed so its experience can enter post-Trip workflows such as review.
+
+Acceptance Criteria:
+
+| Source  | Criterion                                                                                          |
+| ------- | -------------------------------------------------------------------------------------------------- |
+| PB AC-1 | Only an eligible Booking associated with the completed Trip lifecycle may transition to completed. |
+| PB AC-2 | Completion records authoritative `completed_at` and is idempotent.                                 |
+| PB AC-3 | Equipment-rental obligations must be resolved before completion according to equipment policy.     |
+| PB AC-4 | Only completed Booking enables review eligibility for the actual related experience.               |
 
 ## 2. Scope
 
 ### In Scope
 
-- Story-owned behavior for `Complete Booking`.
-- Validation, authorization, state handling, persistence, audit, and observable errors required by the mapped Business Rules.
-- Story-specific acceptance tests that prove both allowed and rejected paths.
+- Validate Booking completion eligibility.
+- Transition Booking to completed.
+- Record authoritative completion time.
+- Check equipment obligations.
+- Enable downstream review eligibility.
 
 ### Out of Scope
 
-- Behavior owned by dependency stories unless a mapped BR explicitly makes it part of this story.
-- Implementation of dependency stories: CTMS-037, CTMS-056.
+- Completing Trip itself; CTMS-056.
+- Equipment return processing; CTMS-041.
+- Creating review.
 
 ## 3. Actors & Authorization
 
-- Camper: primary business actor for this story.
-- Backend API: authoritative enforcement point for permissions, state, and business rules.
-- UI or client application: may guide the user, but must not replace backend enforcement.
+- System or authorized operator according to approved completion workflow.
 
-Authorization must be concrete: the caller must have the role, ownership, assignment, or operational relationship required by the mapped BRs before any protected data is returned or any state-changing action is committed.
+Client cannot directly supply authoritative `completed_at`.
 
 ## 4. Preconditions & Dependencies
 
-- Product Backlog v3.1 row `CTMS-038` is the story scope source.
-- The mapped Primary BR IDs below exist in the latest Business Rules workbook.
-- Required domain records already exist and are in states allowed by the mapped BRs.
-- Dependencies:
-- CTMS-037
-- CTMS-056
+Dependencies:
+
+- CTMS-037.
+- CTMS-056.
+
+Trip lifecycle and Booking state must permit completion.
 
 ## 5. Business Rules
 
-| BR | Rule |
-|---|---|
-| BR-115 | This BR is the authoritative story rule for `Complete Booking`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-116 | This BR is the authoritative story rule for `Complete Booking`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-117 | This BR is the authoritative story rule for `Complete Booking`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-048 | Trip participants are represented by `bookings` plus `booking_members`; no separate authoritative Trip Member entity is introduced. |
-| BR-180 | Stateful resources must follow defined state transitions and must not use enum values outside the database or API contract. |
-| BR-181 | Before updating state, the backend must verify the current persisted state; stale requests must fail with a business conflict. |
-| BR-212 | Any Business Rule, enum, state transition, or API contract change must update the spec, tests, and data documentation before the story is Done. |
-| BR-213 | Every mapped Business Rule must have at least one valid-path test and one violation-path test; concurrency, idempotency, and transaction rules require integration or E2E coverage. |
+| BR         | Rule                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| BR-115     | A Booking may transition from confirmed → completed only after the Trip itself has status = completed and all required member/equipment conditions have been handled. Within the same transaction, the backend must set bookings.completed_at to the current server/database time. The transition must be idempotent, and the client must not supply completed_at. This timestamp is the authoritative start point for the review window. |
+| BR-116     | Before completing a Booking that includes equipment rental, the system must confirm that each reservation has either been returned or has a recorded not_returned/damage outcome.                                                                                                                                                                                                                                                         |
+| BR-117     | Only a completed Booking grants review eligibility, and the review target must be part of the actual experience associated with that Booking.                                                                                                                                                                                                                                                                                             |
+| BR-048     | Trip membership is represented by bookings + booking_members. The system must not introduce a separate Trip Member entity as a second source of truth.                                                                                                                                                                                                                                                                                    |
+| BR-180     | Every stateful resource must follow its defined state transitions and must not use values outside the database enum.                                                                                                                                                                                                                                                                                                                      |
+| BR-181     | Before changing state, the system must validate the current state. A request based on stale state must be rejected with a business-conflict error.                                                                                                                                                                                                                                                                                        |
+| BR-212     | Any change to a Business Rule, enum, state transition, or API contract must be reflected in the specification, test cases, and data documentation before the work is considered Done.                                                                                                                                                                                                                                                     |
+| BR-213     | Every Business Rule must have at least one valid-path test and one violation-path test. Concurrency, idempotency, and transaction rules require integration or E2E coverage.                                                                                                                                                                                                                                                              |
 
 ## 6. State & Lifecycle
 
-Relevant states from the approved rules: `fail`.
+Eligible confirmed Booking
+→ completion conditions satisfied
+→ `completed`
 
-Do not introduce placeholder workflow states unless an owning domain contract explicitly defines them.
+Completion is terminal for this workflow unless another approved rule explicitly defines a later state.
 
 ## 7. Business Flow
 
-1. Camper initiates `Complete Booking` through the approved UI, API, scheduled job, or integration point.
-2. The backend loads the required source records and verifies authorization, ownership or assignment, current state, and all mapped BR prerequisites.
-3. The backend applies the story-owned decision logic from Section 5.
-4. If any mapped rule is violated, the backend rejects the operation with no partial side effects and returns an actionable error.
-5. If the action changes authoritative data, the change commits atomically with required audit and post-commit notifications.
-6. The client presents the committed result or the rejection reason without exposing protected data.
+1. Trip reaches completion-eligible lifecycle.
+2. System/operator loads Booking.
+3. Validate current Booking state.
+4. Validate Trip relationship/state.
+5. Check member/participation conditions required by policy.
+6. If equipment rental exists, verify return or recorded exception workflow.
+7. Recheck Booking state.
+8. Set Booking completed.
+9. Set server `completed_at`.
+10. Commit.
+11. Enable downstream review eligibility.
 
 ## 8. Data & Invariants
 
-- Persist or return only fields required for `Complete Booking` and the mapped BRs.
-- Preserve authoritative identifiers, ownership links, timestamps, snapshots, status values, and audit references when they affect the business outcome.
-- Derived counters, scores, release-gate metrics, and ledger amounts must be traceable to their source records and rule version.
-- Do not invent tables, enum values, state machines, or audit stores solely for this story.
+- Client does not set `completed_at`.
+- Completion is idempotent.
+- Booking cannot complete before lifecycle conditions.
+- Unresolved equipment cannot silently disappear.
+- Review eligibility derives from completed Booking.
+- Review target must correspond to actual Booking experience.
 
 ## 9. API / Integration Contract
 
@@ -84,44 +104,27 @@ TBD — Technical Design.
 
 ## 10. Error & Edge Cases
 
-| Case | Expected Behavior |
-|---|---|
-| Caller lacks the required role, ownership, assignment, or relationship | Reject with no side effects. |
-| Required source record is missing | Return not found or blocked state without fabricating data. |
-| Current state violates a mapped BR | Return business conflict and preserve the current authoritative state. |
-| Input violates a mapped BR | Return validation error before persistence. |
-| Duplicate or retried request affects authoritative data | Enforce idempotency or reject safely so duplicate records, refunds, notifications, or ledger entries are not created. |
+| Case                         | Expected Behavior                     |
+| ---------------------------- | ------------------------------------- |
+| Trip not completion-eligible | Reject.                               |
+| Booking cancelled/expired    | Reject.                               |
+| Equipment still unresolved   | Block completion according to BR-116. |
+| Booking already completed    | Idempotent/no duplicate side effects. |
+| Client sends completed_at    | Ignore/reject as authoritative input. |
+| Stale completion request     | Conflict/no invalid overwrite.        |
 
 ## 11. Acceptance & Test Matrix
 
-| BR / AC | Scenario | Expected Result | Test Type |
-|---|---|---|---|
-| PB AC | Approved backlog acceptance path for `Complete Booking` | Meets the acceptance summary above | E2E |
-| BR-115 | Approved rule is satisfied for `Complete Booking` | Accepted and persisted or returned as applicable | Integration |
-| BR-115 | Approved rule is violated for `Complete Booking` | Rejected with no partial side effects | Boundary / Integration |
-| BR-116 | Approved rule is satisfied for `Complete Booking` | Accepted and persisted or returned as applicable | Integration |
-| BR-116 | Approved rule is violated for `Complete Booking` | Rejected with no partial side effects | Boundary / Integration |
-| BR-117 | Approved rule is satisfied for `Complete Booking` | Accepted and persisted or returned as applicable | Integration |
-| BR-117 | Approved rule is violated for `Complete Booking` | Rejected with no partial side effects | Boundary / Integration |
-| BR-048 | Approved rule is satisfied for `Complete Booking` | Accepted and persisted or returned as applicable | Integration |
-| BR-048 | Approved rule is violated for `Complete Booking` | Rejected with no partial side effects | Boundary / Integration |
-| BR-180 | Approved rule is satisfied for `Complete Booking` | Accepted and persisted or returned as applicable | Integration |
-| BR-180 | Approved rule is violated for `Complete Booking` | Rejected with no partial side effects | Boundary / Integration |
-| BR-181 | Approved rule is satisfied for `Complete Booking` | Accepted and persisted or returned as applicable | Integration |
-| BR-181 | Approved rule is violated for `Complete Booking` | Rejected with no partial side effects | Boundary / Integration |
-| BR-212 | Approved rule is satisfied for `Complete Booking` | Accepted and persisted or returned as applicable | Integration |
-| BR-212 | Approved rule is violated for `Complete Booking` | Rejected with no partial side effects | Boundary / Integration |
-| BR-213 | Approved rule is satisfied for `Complete Booking` | Accepted and persisted or returned as applicable | Integration |
-| BR-213 | Approved rule is violated for `Complete Booking` | Rejected with no partial side effects | Boundary / Integration |
+| Source          | Scenario                           | Expected Result            | Test Type           |
+| --------------- | ---------------------------------- | -------------------------- | ------------------- |
+| PB AC-1         | Eligible Booking + completed Trip  | Completion allowed         | E2E                 |
+| PB AC-2, BR-115 | Completion succeeds                | Server completed_at stored | Integration         |
+| PB AC-2         | Completion repeated                | No duplicate transition    | Idempotency         |
+| PB AC-3, BR-116 | Rental unresolved                  | Completion blocked         | Integration         |
+| PB AC-3         | Rental returned/exception recorded | Completion may proceed     | Integration         |
+| PB AC-4, BR-117 | Booking completed                  | Review eligibility opens   | E2E                 |
+| PB AC-4         | Booking not completed              | Review not eligible        | Authorization/State |
 
-## 12. Open Decisions & References
+## 12. Open Decisions
 
-### 12.1 Open Decisions
-
-None.
-
-### 12.2 References
-
-- Product Backlog v3.1.
-- CTMS Business Rules workbook.
-- CTMS Architecture Overview.
+None beyond the authoritative equipment and Trip-lifecycle rules.

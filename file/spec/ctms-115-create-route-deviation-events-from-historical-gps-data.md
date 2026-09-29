@@ -3,103 +3,107 @@
 ## 1. Overview
 
 Story: CTMS-115
+
 Epic: EPIC 9. GPS Navigation and Route Deviation
+
 Use Case: Create Route Deviation Events from Historical GPS Data
-Priority: Should Have
 
-Goal:
-Allow Host to complete `Create Route Deviation Events from Historical GPS Data` within the approved CTMS v3.1 scope.
+Priority: Must Have
 
-Acceptance summary:
-The Create Route Deviation Events from Historical GPS Data workflow must satisfy the approved PB v3.1 acceptance criteria for this story. Do not copy the Vietnamese backlog text into this spec; implementers must preserve the approved source meaning when refining detailed tests.
+Goal: Convert eligible historical GPS/deviation evidence into traceable Route Deviation Event episodes for later safety analysis.
+
+Backlog story: As the System, I want to create Route Deviation Events from historical GPS data so repeated deviation patterns can be analyzed.
+
+Acceptance Criteria:
+
+| Source  | Criterion                                                                                   |
+| ------- | ------------------------------------------------------------------------------------------- |
+| PB AC-1 | Historical analysis uses eligible Trip safety/GPS evidence.                                 |
+| PB AC-2 | Related deviation samples/logs are grouped into auditable Route Deviation Event episodes.   |
+| PB AC-3 | Episode stores start/end time and Route/Trip/member context.                                |
+| PB AC-4 | Episode stores related sample/log count and distance summary/evidence.                      |
+| PB AC-5 | Package/config/version context is retained so historical safety state can be reconstructed. |
+| PB AC-6 | Multiple Route Deviation Events may later be aggregated for safety-pattern analysis.        |
 
 ## 2. Scope
 
 ### In Scope
 
-- Story-owned behavior for `Create Route Deviation Events from Historical GPS Data`.
-- Validation, authorization, state handling, persistence, audit, and observable errors required by the mapped Business Rules.
-- Story-specific acceptance tests that prove both allowed and rejected paths.
+- Historical GPS analysis.
+- RouteDeviationEvent.
+- Episode grouping.
+- Evidence/version context.
 
 ### Out of Scope
 
-- Behavior owned by dependency stories unless a mapped BR explicitly makes it part of this story.
-- Implementation of dependency stories: CTMS-056, CTMS-059, CTMS-060, CTMS-065.
+- Automatically declaring a safety hotspot authoritative.
+- Modifying Route geometry.
 
 ## 3. Actors & Authorization
 
-- Host: primary business actor for this story.
-- Backend API: authoritative enforcement point for permissions, state, and business rules.
-- UI or client application: may guide the user, but must not replace backend enforcement.
+Primary actor:
 
-Authorization must be concrete: the caller must have the role, ownership, assignment, or operational relationship required by the mapped BRs before any protected data is returned or any state-changing action is committed.
+- System safety-analysis process.
+
+Authorized safety/audit users may access evidence only within permitted scope.
 
 ## 4. Preconditions & Dependencies
 
-- Product Backlog v3.1 row `CTMS-115` is the story scope source.
-- The mapped Primary BR IDs below exist in the latest Business Rules workbook.
-- Required domain records already exist and are in states allowed by the mapped BRs.
-- Dependencies:
-- CTMS-056
-- CTMS-059
-- CTMS-060
-- CTMS-065
+Dependencies:
+
+- CTMS-059.
+- CTMS-060.
+- CTMS-065.
+
+Historical eligible GPS/safety evidence exists.
 
 ## 5. Business Rules
 
-| BR | Rule |
-|---|---|
-| BR-352 | This BR is the authoritative story rule for `Create Route Deviation Events from Historical GPS Data`. Preserve and enforce these source thresholds, states, identifiers, and comparison operators exactly: GPS. |
-| BR-353 | This BR is the authoritative story rule for `Create Route Deviation Events from Historical GPS Data`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-354 | This BR is the authoritative story rule for `Create Route Deviation Events from Historical GPS Data`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-368 | During an ongoing Trip, the V3 GPS sampling interval is fixed at 10 seconds per sample; Admin or client cannot change it. |
-| BR-372 | An Offline Safety Package for safety must include all data needed for enabled local detection, at minimum matching Route geometry, checkpoints to monitor, required hazard/safety metadata, and package metadata/version. The client must not depend on the server to read this data while offline. |
-| BR-375 | The V3 OFF_ROUTE distance threshold is fixed at 50 meters from GPS location to the nearest segment of the active Route/package version geometry. |
-| BR-377 | OFF_ROUTE is confirmed only after three consecutive VALID GPS samples satisfy the OFF_ROUTE threshold. A VALID sample that does not satisfy the threshold before the third sample resets the OFF_ROUTE counter to zero. |
-| BR-378 | INVALID or low-confidence samples always reset consecutive OFF_ROUTE, ON_ROUTE, and checkpoint counters to zero in V3; counters must not pause. |
-| BR-382 | OFF_ROUTE recovery uses a fixed ON_ROUTE threshold below 20 meters. The 20m-50m range is a buffer zone to avoid state oscillation around the OFF_ROUTE threshold. |
-| BR-383 | The fixed V3 OFF_ROUTE distance threshold is `50m` from the GPS location to the nearest segment of the Route geometry in the active package/version. |
-| BR-396 | When tracking is `GPS_DEGRADED` and a VALID runtime GPS sample returns with horizontal accuracy `<= 20m`, tracking moves to `NORMAL`. Consecutive counters from before the degraded period must not be restored. |
-| BR-411 | This BR is the authoritative story rule for `Create Route Deviation Events from Historical GPS Data`. Preserve and enforce these source thresholds, states, identifiers, and comparison operators exactly: GPS. |
-| BR-412 | This BR is the authoritative story rule for `Create Route Deviation Events from Historical GPS Data`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-413 | This BR is the authoritative story rule for `Create Route Deviation Events from Historical GPS Data`. Preserve and enforce these source thresholds, states, identifiers, and comparison operators exactly: GPS. |
-| BR-414 | This BR is the authoritative story rule for `Create Route Deviation Events from Historical GPS Data`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-415 | This BR is the authoritative story rule for `Create Route Deviation Events from Historical GPS Data`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-183 | The system must distinguish source event time, client time, provider time, and server/database commit time when the workflow depends on timing. |
-| BR-188 | Date and time handling must use the authoritative timezone and ordering rules for the business workflow, and invalid or impossible time ranges must be rejected. |
-| BR-212 | Any Business Rule, enum, state transition, or API contract change must update the spec, tests, and data documentation before the story is Done. |
-| BR-213 | Every mapped Business Rule must have at least one valid-path test and one violation-path test; concurrency, idempotency, and transaction rules require integration or E2E coverage. |
-| BR-350 | A GPS sample may participate in safety detection only when it belongs to an active Trip safety session and references the correct member/device/session context. |
-| BR-360 | Trip/client must be able to identify the package version used when GPS or safety data was recorded. GPS logs, safety events, and sync payloads must carry enough reference/version context for historical safety analysis. |
-| BR-362 | Safety tracking may activate only for a Trip state allowed by the V3 state machine. GPS outside the Trip window must not become operational Trip safety evidence without an explicit recovery/admin policy. |
-| BR-363 | Each device safety-tracking session must bind at minimum to `trip_id`, member or participant identity, device/session context, and active `offline_package_id/version`; missing required context prevents authoritative Trip safety events. |
-| BR-373 | `distance_to_route` must be calculated against the nearest segment of the active Route/package version geometry, not merely the nearest waypoint or checkpoint. |
-| BR-374 | The internal standard unit for `distance_to_route` is meters. API and storage must publish or normalize units so client and server interpret distance consistently. |
-| BR-390 | Recovery from OFF_ROUTE uses the fixed ON_ROUTE threshold `< 20m`. The `20m-50m` range is a buffer zone to prevent state oscillation near the OFF_ROUTE threshold. |
-| BR-431 | The client must store the configuration version used by the safety session. Historical events must store config/rule version so events created under different thresholds remain distinguishable. |
-| BR-432 | Safety configuration changes must not retroactively change how existing events are interpreted; any re-analysis must create a new result/version instead of rewriting old evidence. |
+| BR                          | Rule                                                                                                                                                                                                                                                                                                     |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| BR-352                      | Historical GPS analysis may run only on Trips eligible for analysis, preferably completed Trips, and must preserve the Route/package version context from when the Trip occurred. Historical data must not be compared against current geometry while ignoring version differences.                      |
+| BR-353                      | RouteDeviationEvent is derived data representing a deviation episode, not a copy of each gps_log. An episode must include started_at/ended_at, Route/Trip/member context, the count of related samples/logs, maximum/summary distance, and sufficient evidence for audit.                                |
+| BR-354                      | Historical safety analysis may aggregate multiple RouteDeviationEvents to identify patterns such as multiple people deviating at the same location, repeated deviations on the same Route segment, or a high proportion of Trips experiencing deviation in the same area.                                |
+| BR-360                      | The Trip/client must be able to identify the package version used when GPS or safety data is recorded. GPS logs, safety events, and sync payloads must carry enough reference/version context for historical analysis to reconstruct the safety data that was in effect at event time.                   |
+| BR-362                      | Safety tracking may be active only for Trips in operational states permitted by the V3 state machine. GPS collected outside the Trip's operational window must not be treated as Trip operational safety evidence unless an explicit recovery/admin policy allows it.                                    |
+| BR-363                      | Each on-device safety-tracking session must be associated, at minimum, with trip_id, a valid member_id or participant identity, device/session context, and the active offline_package_id/version. If required context is missing, the event must not be recorded as an authoritative Trip safety event. |
+| BR-368                      | During an ongoing Trip, the GPS sampling interval is fixed at one sample every 10 seconds in V3. Admins and clients must not be able to change this interval.                                                                                                                                            |
 
 ## 6. State & Lifecycle
 
-Relevant states from the approved rules: `active`, `ongoing`, `confirmed`.
-
-Do not introduce placeholder workflow states unless an owning domain contract explicitly defines them.
+Historical GPS/safety records
+→ eligible evidence selection
+→ deviation samples grouped
+→ RouteDeviationEvent created
+→ available for historical safety analysis.
 
 ## 7. Business Flow
 
-1. Host initiates `Create Route Deviation Events from Historical GPS Data` through the approved UI, API, scheduled job, or integration point.
-2. The backend loads the required source records and verifies authorization, ownership or assignment, current state, and all mapped BR prerequisites.
-3. The backend applies the story-owned decision logic from Section 5.
-4. If any mapped rule is violated, the backend rejects the operation with no partial side effects and returns an actionable error.
-5. If the action changes authoritative data, the change commits atomically with required audit and post-commit notifications.
-6. The client presents the committed result or the rejection reason without exposing protected data.
+1. Load eligible historical GPS/safety records.
+2. Verify Trip operational context.
+3. Verify participant/session/package context.
+4. Identify related deviation evidence.
+5. Group evidence into deviation episode.
+6. Determine started_at/ended_at.
+7. Calculate required distance/evidence summary.
+8. Persist RouteDeviationEvent.
+9. Retain source/version traceability.
 
 ## 8. Data & Invariants
 
-- Persist or return only fields required for `Create Route Deviation Events from Historical GPS Data` and the mapped BRs.
-- Preserve authoritative identifiers, ownership links, timestamps, snapshots, status values, and audit references when they affect the business outcome.
-- Derived counters, scores, release-gate metrics, and ledger amounts must be traceable to their source records and rule version.
-- Do not invent tables, enum values, state machines, or audit stores solely for this story.
+RouteDeviationEvent includes applicable:
+
+- started_at;
+- ended_at;
+- Route;
+- Trip;
+- participant/member;
+- sample/log count;
+- distance summary/max distance;
+- source evidence;
+- package/config/version context.
+
+Historical analysis must not reinterpret data using an unrelated package version.
 
 ## 9. API / Integration Contract
 
@@ -107,45 +111,24 @@ TBD — Technical Design.
 
 ## 10. Error & Edge Cases
 
-| Case | Expected Behavior |
-|---|---|
-| Caller lacks the required role, ownership, assignment, or relationship | Reject with no side effects. |
-| Required source record is missing | Return not found or blocked state without fabricating data. |
-| Current state violates a mapped BR | Return business conflict and preserve the current authoritative state. |
-| Input violates a mapped BR | Return validation error before persistence. |
-| Duplicate or retried request affects authoritative data | Enforce idempotency or reject safely so duplicate records, refunds, notifications, or ledger entries are not created. |
+| Case                                     | Expected Behavior                        |
+| ---------------------------------------- | ---------------------------------------- |
+| Valid historical episode                 | Event created                            |
+| GPS outside valid Trip context           | Not automatically authoritative          |
+| Missing required package/session context | Do not treat as authoritative event      |
+| Multiple samples in same episode         | Group according to approved episode rule |
+| Historical package differs from current  | Preserve historical version              |
 
 ## 11. Acceptance & Test Matrix
 
-| BR / AC | Scenario | Expected Result | Test Type |
-|---|---|---|---|
-| PB AC | Approved backlog acceptance path for `Create Route Deviation Events from Historical GPS Data` | Meets the acceptance summary above | E2E |
-| BR-352 | Approved rule is satisfied for `Create Route Deviation Events from Historical GPS Data` | Accepted and persisted or returned as applicable | Integration |
-| BR-352 | Approved rule is violated for `Create Route Deviation Events from Historical GPS Data` | Rejected with no partial side effects | Boundary / Integration |
-| BR-353 | Approved rule is satisfied for `Create Route Deviation Events from Historical GPS Data` | Accepted and persisted or returned as applicable | Integration |
-| BR-353 | Approved rule is violated for `Create Route Deviation Events from Historical GPS Data` | Rejected with no partial side effects | Boundary / Integration |
-| BR-354 | Approved rule is satisfied for `Create Route Deviation Events from Historical GPS Data` | Accepted and persisted or returned as applicable | Integration |
-| BR-354 | Approved rule is violated for `Create Route Deviation Events from Historical GPS Data` | Rejected with no partial side effects | Boundary / Integration |
-| BR-368 | Approved rule is satisfied for `Create Route Deviation Events from Historical GPS Data` | Accepted and persisted or returned as applicable | Integration |
-| BR-368 | Approved rule is violated for `Create Route Deviation Events from Historical GPS Data` | Rejected with no partial side effects | Boundary / Integration |
-| BR-372 | Approved rule is satisfied for `Create Route Deviation Events from Historical GPS Data` | Accepted and persisted or returned as applicable | Integration |
-| BR-372 | Approved rule is violated for `Create Route Deviation Events from Historical GPS Data` | Rejected with no partial side effects | Boundary / Integration |
-| BR-375 | Approved rule is satisfied for `Create Route Deviation Events from Historical GPS Data` | Accepted and persisted or returned as applicable | Integration |
-| BR-375 | Approved rule is violated for `Create Route Deviation Events from Historical GPS Data` | Rejected with no partial side effects | Boundary / Integration |
-| BR-377 | Approved rule is satisfied for `Create Route Deviation Events from Historical GPS Data` | Accepted and persisted or returned as applicable | Integration |
-| BR-377 | Approved rule is violated for `Create Route Deviation Events from Historical GPS Data` | Rejected with no partial side effects | Boundary / Integration |
-| BR-378 | Approved rule is satisfied for `Create Route Deviation Events from Historical GPS Data` | Accepted and persisted or returned as applicable | Integration |
-| BR-378 | Approved rule is violated for `Create Route Deviation Events from Historical GPS Data` | Rejected with no partial side effects | Boundary / Integration |
-| Remaining mapped BRs | Each mapped BR has valid and violation coverage in the owning test suite | Coverage proves the rule is enforced | Unit / Integration / E2E |
+| Source     | Scenario                 | Expected Result                      | Test Type    |
+| ---------- | ------------------------ | ------------------------------------ | ------------ |
+| BR-352/353 | Valid deviation episode  | Event created                        | Data         |
+| BR-360     | Historical event         | Package context retained             | Traceability |
+| BR-362     | GPS outside Trip window  | Not automatically accepted           | Safety       |
+| BR-363     | Missing required context | Rejected from authoritative evidence | Integrity    |
+| BR-354     | Multiple events          | Available for aggregate analysis     | Integration  |
 
-## 12. Open Decisions & References
+## 12. Open Decisions
 
-### 12.1 Open Decisions
-
-None.
-
-### 12.2 References
-
-- Product Backlog v3.1.
-- CTMS Business Rules workbook.
-- CTMS Architecture Overview.
+Exact episode grouping algorithm must follow the mapped historical-analysis rules/configuration; no new numeric grouping threshold is introduced here.

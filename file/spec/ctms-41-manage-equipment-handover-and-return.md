@@ -3,82 +3,137 @@
 ## 1. Overview
 
 Story: CTMS-041
+
 Epic: EPIC 6. Equipment and Logistics
+
 Use Case: Manage Equipment Handover and Return
+
 Priority: Should Have
 
-Goal:
-Allow Host to complete `Manage Equipment Handover and Return` within the approved CTMS v3.1 scope.
+Goal: Track equipment handover, return, damage, loss and outstanding quantities without incorrectly restoring unavailable inventory.
 
-Acceptance summary:
-The Manage Equipment Handover and Return workflow must satisfy the approved PB v3.1 acceptance criteria for this story. Do not copy the Vietnamese backlog text into this spec; implementers must preserve the approved source meaning when refining detailed tests.
+Acceptance Criteria:
+
+| Source  | Criterion                                                                                                    |
+| ------- | ------------------------------------------------------------------------------------------------------------ |
+| PB AC-1 | Valid handover transitions an eligible reservation from reserved to picked_up and records handover metadata. |
+| PB AC-2 | Handover actor and receiver must belong to the applicable Trip/Booking scope.                                |
+| PB AC-3 | Return records good, damaged, lost and outstanding quantities whose total equals picked-up quantity.         |
+| PB AC-4 | Reservation becomes returned only when outstanding quantity is zero and all picked-up quantity is resolved.  |
+| PB AC-5 | Damaged/lost/outstanding quantity is not automatically returned to available inventory.                      |
+| PB AC-6 | Overdue unresolved reservation may become not_returned through an idempotent flow.                           |
 
 ## 2. Scope
 
 ### In Scope
 
-- Story-owned behavior for `Manage Equipment Handover and Return`.
-- Validation, authorization, state handling, persistence, audit, and observable errors required by the mapped Business Rules.
-- Story-specific acceptance tests that prove both allowed and rejected paths.
+- Equipment handover.
+- Equipment return.
+- Picked-up quantity.
+- Good returned quantity.
+- Damaged quantity.
+- Lost quantity.
+- Outstanding quantity.
+- Condition summary.
+- Overdue/not-returned handling.
 
 ### Out of Scope
 
-- Behavior owned by dependency stories unless a mapped BR explicitly makes it part of this story.
-- Implementation of dependency stories: CTMS-040, CTMS-037.
+- Per-asset maintenance/repair lifecycle.
+- Equipment catalog creation.
+- Rental reservation creation.
+- Automatic inventory adjustment for damaged/lost equipment.
 
 ## 3. Actors & Authorization
 
-- Host: primary business actor for this story.
-- Backend API: authoritative enforcement point for permissions, state, and business rules.
-- UI or client application: may guide the user, but must not replace backend enforcement.
+- Host/authorized Porter: handover actor where permitted.
+- Booking participant/authorized receiver.
+- System: overdue processing.
 
-Authorization must be concrete: the caller must have the role, ownership, assignment, or operational relationship required by the mapped BRs before any protected data is returned or any state-changing action is committed.
+Backend validates Trip/Booking relationship and actor permission.
 
 ## 4. Preconditions & Dependencies
 
-- Product Backlog v3.1 row `CTMS-041` is the story scope source.
-- The mapped Primary BR IDs below exist in the latest Business Rules workbook.
-- Required domain records already exist and are in states allowed by the mapped BRs.
-- Dependencies:
-- CTMS-040
-- CTMS-037
+Dependencies:
+
+- CTMS-040.
+- CTMS-037.
+
+Equipment reservation exists and is in an eligible state.
 
 ## 5. Business Rules
 
-| BR | Rule |
-|---|---|
-| BR-130 | This BR is the authoritative story rule for `Manage Equipment Handover and Return`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-132 | This BR is the authoritative story rule for `Manage Equipment Handover and Return`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-133 | This BR is the authoritative story rule for `Manage Equipment Handover and Return`. Preserve and enforce these source thresholds, states, identifiers, and comparison operators exactly: = 0. |
-| BR-134 | This BR is the authoritative story rule for `Manage Equipment Handover and Return`. Preserve and enforce these source thresholds, states, identifiers, and comparison operators exactly: MVP. |
-| BR-135 | This BR is the authoritative story rule for `Manage Equipment Handover and Return`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-136 | This BR is the authoritative story rule for `Manage Equipment Handover and Return`. Preserve and enforce these source thresholds, states, identifiers, and comparison operators exactly: >. |
-| BR-176 | State-changing operations must persist the authoritative result before dependent side effects are emitted. |
-| BR-177 | Duplicate submissions and retries must not create duplicate authoritative records. |
-| BR-212 | Any Business Rule, enum, state transition, or API contract change must update the spec, tests, and data documentation before the story is Done. |
-| BR-213 | Every mapped Business Rule must have at least one valid-path test and one violation-path test; concurrency, idempotency, and transaction rules require integration or E2E coverage. |
+| BR         | Rule                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| BR-130     | A valid handover transitions a reservation from reserved to picked_up and stores picked_up_at, the recipient, and handed_over_by. Repeated handover requests must be idempotent.                                                                                                                                                                                                                                                                         |
+| BR-132     | When the recipient has a user account, that recipient must belong to the related Booking/Trip. handed_over_by must be an authorized Host or Porter on the Trip. The handover timestamp must be server-generated and must not trust the client.                                                                                                                                                                                                           |
+| BR-133     | When equipment is returned, the system must record good_returned_quantity, damaged_quantity, lost_quantity, outstanding_quantity, returned_at, and a condition summary based on the actual outcome. All outcome quantities must be non-negative, mutually non-overlapping, and must sum exactly to picked_up_quantity. The reservation may transition to returned only when outstanding_quantity = 0 and all quantities have been validly accounted for. |
+| BR-134     | In the MVP, damaged equipment is represented by damaged_quantity and a condition note on the rental. Damaged quantity must not automatically return to available inventory until an authorized Host performs an appropriate inventory adjustment. The system must not automatically create repair orders, maintenance workflows, or complex per-asset lifecycle records.                                                                                 |
+| BR-135     | Lost equipment must be recorded in lost_quantity and must not return to available inventory. Any reduction to quantity_total, or restoration when lost equipment is recovered, must occur through an explicit authorized Host/Admin inventory adjustment and must be audited. Inventory must not be silently changed from client input.                                                                                                                  |
+| BR-136     | An overdue or unreturned rental with outstanding_quantity > 0 may transition to not_returned through an idempotent scheduled or manual flow. Outstanding quantity must remain excluded from availability until returned or handled by a valid adjustment. The system must not automatically create maintenance or repair lifecycle records.                                                                                                              |
+| BR-176     | Any business operation that changes multiple tables or records must execute within a transaction. If any step fails, the entire operation must roll back.                                                                                                                                                                                                                                                                                                |
+| BR-177     | A failed operation must not leave data, state, reserved capacity, money, or inventory in a partially processed condition.                                                                                                                                                                                                                                                                                                                                |
+| BR-212     | Any change to a Business Rule, enum, state transition, or API contract must be reflected in the specification, test cases, and data documentation before the work is considered Done.                                                                                                                                                                                                                                                                    |
+| BR-213     | Every Business Rule must have at least one valid-path test and one violation-path test. Concurrency, idempotency, and transaction rules require integration or E2E coverage.                                                                                                                                                                                                                                                                             |
 
 ## 6. State & Lifecycle
 
-No new lifecycle is defined by this story. Existing entity states from the owning domain remain authoritative.
+`reserved`
+→ handover
+→ `picked_up`
 
-Do not introduce placeholder workflow states unless an owning domain contract explicitly defines them.
+Then:
+
+`picked_up`
+→ all quantity resolved + outstanding = 0
+→ `returned`
+
+or:
+
+`picked_up`
+→ overdue + outstanding > 0
+→ `not_returned`
+
+Exact later recovery from `not_returned` follows authoritative equipment policy.
 
 ## 7. Business Flow
 
-1. Host initiates `Manage Equipment Handover and Return` through the approved UI, API, scheduled job, or integration point.
-2. The backend loads the required source records and verifies authorization, ownership or assignment, current state, and all mapped BR prerequisites.
-3. The backend applies the story-owned decision logic from Section 5.
-4. If any mapped rule is violated, the backend rejects the operation with no partial side effects and returns an actionable error.
-5. If the action changes authoritative data, the change commits atomically with required audit and post-commit notifications.
-6. The client presents the committed result or the rejection reason without exposing protected data.
+1. Authorized actor opens reservation.
+2. Backend validates Trip/Booking scope.
+3. Validate reservation state.
+4. For handover:
+   - record picked-up quantity;
+   - receiver;
+   - `handed_over_by`;
+   - server pickup time;
+   - transition to picked_up.
+5. For return:
+   - record good returned;
+   - damaged;
+   - lost;
+   - outstanding;
+   - condition summary.
+6. Validate outcome quantities sum to picked-up quantity.
+7. Restore only quantity eligible to become available.
+8. Keep damaged/lost/outstanding excluded.
+9. Transition to returned only when all quantity resolved.
+10. Commit atomically.
+11. Overdue unresolved reservation may later enter not_returned.
 
 ## 8. Data & Invariants
 
-- Persist or return only fields required for `Manage Equipment Handover and Return` and the mapped BRs.
-- Preserve authoritative identifiers, ownership links, timestamps, snapshots, status values, and audit references when they affect the business outcome.
-- Derived counters, scores, release-gate metrics, and ledger amounts must be traceable to their source records and rule version.
-- Do not invent tables, enum values, state machines, or audit stores solely for this story.
+`good_returned + damaged + lost + outstanding = picked_up_quantity`
+
+All outcome quantities >= 0.
+
+Additional invariants:
+
+- Client does not set authoritative timestamps.
+- Damaged quantity is not automatically available.
+- Lost quantity is not automatically available.
+- Outstanding quantity remains unavailable.
+- Return cannot silently alter `quantity_total`.
+- Inventory adjustment requires explicit authorized operation.
 
 ## 9. API / Integration Contract
 
@@ -86,45 +141,29 @@ TBD — Technical Design.
 
 ## 10. Error & Edge Cases
 
-| Case | Expected Behavior |
-|---|---|
-| Caller lacks the required role, ownership, assignment, or relationship | Reject with no side effects. |
-| Required source record is missing | Return not found or blocked state without fabricating data. |
-| Current state violates a mapped BR | Return business conflict and preserve the current authoritative state. |
-| Input violates a mapped BR | Return validation error before persistence. |
-| Duplicate or retried request affects authoritative data | Enforce idempotency or reject safely so duplicate records, refunds, notifications, or ledger entries are not created. |
+| Case                                   | Expected Behavior                            |
+| -------------------------------------- | -------------------------------------------- |
+| Unauthorized handover actor            | Reject.                                      |
+| Reservation not reserved               | Reject/no-op according to idempotency state. |
+| Handover repeated                      | No duplicate pickup.                         |
+| Return quantities negative             | Reject.                                      |
+| Return quantities do not sum correctly | Reject.                                      |
+| Outstanding > 0                        | Do not mark returned.                        |
+| Damaged/lost equipment                 | Do not restore automatically.                |
+| Overdue job repeated                   | No duplicate not_returned transition.        |
 
 ## 11. Acceptance & Test Matrix
 
-| BR / AC | Scenario | Expected Result | Test Type |
-|---|---|---|---|
-| PB AC | Approved backlog acceptance path for `Manage Equipment Handover and Return` | Meets the acceptance summary above | E2E |
-| BR-130 | Approved rule is satisfied for `Manage Equipment Handover and Return` | Accepted and persisted or returned as applicable | Integration |
-| BR-130 | Approved rule is violated for `Manage Equipment Handover and Return` | Rejected with no partial side effects | Boundary / Integration |
-| BR-132 | Approved rule is satisfied for `Manage Equipment Handover and Return` | Accepted and persisted or returned as applicable | Integration |
-| BR-132 | Approved rule is violated for `Manage Equipment Handover and Return` | Rejected with no partial side effects | Boundary / Integration |
-| BR-133 | Approved rule is satisfied for `Manage Equipment Handover and Return` | Accepted and persisted or returned as applicable | Integration |
-| BR-133 | Approved rule is violated for `Manage Equipment Handover and Return` | Rejected with no partial side effects | Boundary / Integration |
-| BR-134 | Approved rule is satisfied for `Manage Equipment Handover and Return` | Accepted and persisted or returned as applicable | Integration |
-| BR-134 | Approved rule is violated for `Manage Equipment Handover and Return` | Rejected with no partial side effects | Boundary / Integration |
-| BR-135 | Approved rule is satisfied for `Manage Equipment Handover and Return` | Accepted and persisted or returned as applicable | Integration |
-| BR-135 | Approved rule is violated for `Manage Equipment Handover and Return` | Rejected with no partial side effects | Boundary / Integration |
-| BR-136 | Approved rule is satisfied for `Manage Equipment Handover and Return` | Accepted and persisted or returned as applicable | Integration |
-| BR-136 | Approved rule is violated for `Manage Equipment Handover and Return` | Rejected with no partial side effects | Boundary / Integration |
-| BR-176 | Approved rule is satisfied for `Manage Equipment Handover and Return` | Accepted and persisted or returned as applicable | Integration |
-| BR-176 | Approved rule is violated for `Manage Equipment Handover and Return` | Rejected with no partial side effects | Boundary / Integration |
-| BR-177 | Approved rule is satisfied for `Manage Equipment Handover and Return` | Accepted and persisted or returned as applicable | Integration |
-| BR-177 | Approved rule is violated for `Manage Equipment Handover and Return` | Rejected with no partial side effects | Boundary / Integration |
-| Remaining mapped BRs | Each mapped BR has valid and violation coverage in the owning test suite | Coverage proves the rule is enforced | Unit / Integration / E2E |
+| Source              | Scenario                   | Expected Result            | Test Type   |
+| ------------------- | -------------------------- | -------------------------- | ----------- |
+| PB AC-1, BR-130     | Valid handover             | picked_up recorded         | E2E         |
+| PB AC-2, BR-132     | Unauthorized actor         | Rejected                   | Security    |
+| PB AC-3, BR-133     | Valid return quantities    | Accepted                   | Integration |
+| PB AC-3             | Quantity sum mismatch      | Rejected                   | Boundary    |
+| PB AC-4             | Outstanding = 0            | May become returned        | State       |
+| PB AC-5, BR-134/135 | Damaged/lost equipment     | Not restored automatically | Inventory   |
+| PB AC-6, BR-136     | Overdue outstanding rental | not_returned allowed       | Worker      |
 
-## 12. Open Decisions & References
+## 12. Open Decisions
 
-### 12.1 Open Decisions
-
-None.
-
-### 12.2 References
-
-- Product Backlog v3.1.
-- CTMS Business Rules workbook.
-- CTMS Architecture Overview.
+Exact inventory-adjustment workflow is outside this story and must follow the approved catalog/inventory contract.

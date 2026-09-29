@@ -3,117 +3,119 @@
 ## 1. Overview
 
 Story: CTMS-019
+
 Epic: EPIC 3. Weather Risk Assessment
+
 Use Case: Generate Clear Weather Risk Advice Using LLM
-Priority: Must Have
 
-Goal:
-Allow System to complete `Generate Clear Weather Risk Advice Using LLM` within the approved CTMS v3.1 scope.
+Priority: Should Have
 
-Acceptance summary:
-The Generate Clear Weather Risk Advice Using LLM workflow must satisfy the approved PB v3.1 acceptance criteria for this story. Do not copy the Vietnamese backlog text into this spec; implementers must preserve the approved source meaning when refining detailed tests.
+Goal: Convert authoritative Weather Risk factors into clear advisory text without allowing the LLM to change safety decisions.
+
+Backlog story:
+As a User, I want clear Weather Risk advice so I can understand the assessment and recommended precautions.
+
+Acceptance Criteria:
+
+| Source | Criterion |
+| --- | --- |
+| PB AC-1 | LLM can generate understandable advice from provided Weather Risk inputs. |
+| PB AC-2 | Advice remains grounded in supplied factors/reasons. |
+| PB AC-3 | LLM cannot change authoritative risk score or level. |
+| PB AC-4 | LLM cannot override Route/Trip hard state or hard business rules. |
 
 ## 2. Scope
 
 ### In Scope
 
-- Story-owned behavior for `Generate Clear Weather Risk Advice Using LLM`.
-- Validation, authorization, state handling, persistence, audit, and observable errors required by the mapped Business Rules.
-- Story-specific acceptance tests that prove both allowed and rejected paths.
+- Supply authoritative weather/risk factors to LLM.
+- Generate advisory explanation.
+- Present advice as interpretive text.
+- Protect deterministic safety/business state from LLM output.
 
 ### Out of Scope
 
-- Behavior owned by dependency stories unless a mapped BR explicitly makes it part of this story.
-- Implementation of dependency stories: CTMS-016.
+- Calculating Weather Risk.
+- Changing risk level.
+- Closing/reopening Route.
+- Blocking/unblocking booking.
+- Modifying hard safety rules.
 
 ## 3. Actors & Authorization
 
-- System: primary business actor for this story.
-- Backend API: authoritative enforcement point for permissions, state, and business rules.
-- UI or client application: may guide the user, but must not replace backend enforcement.
+Primary actor: System.
 
-Authorization must be concrete: the caller must have the role, ownership, assignment, or operational relationship required by the mapped BRs before any protected data is returned or any state-changing action is committed.
+User consumes generated advice.
+
+LLM is an advisory component, not an authoritative business actor.
 
 ## 4. Preconditions & Dependencies
 
-- Product Backlog v3.1 row `CTMS-019` is the story scope source.
-- The mapped Primary BR IDs below exist in the latest Business Rules workbook.
-- Required domain records already exist and are in states allowed by the mapped BRs.
-- Dependencies:
-- CTMS-016
+Dependency: CTMS-016.
+
+Authoritative Weather Risk input must already exist.
 
 ## 5. Business Rules
 
-| BR | Rule |
-|---|---|
-| BR-049 | The LLM may only interpret provided weather, risk, or safety inputs and generate advisory text. It must not change Weather Risk score or level, Route or Trip hard state, or override any hard business rule. |
-| BR-050 | This BR is the authoritative story rule for `Generate Clear Weather Risk Advice Using LLM`. Preserve and enforce these source thresholds, states, identifiers, and comparison operators exactly: LLM. |
-| BR-212 | Any Business Rule, enum, state transition, or API contract change must update the spec, tests, and data documentation before the story is Done. |
-| BR-213 | Every mapped Business Rule must have at least one valid-path test and one violation-path test; concurrency, idempotency, and transaction rules require integration or E2E coverage. |
+| BR     | Rule                                                                                                                                                                                                               |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| BR-049 | The LLM may only interpret the supplied weather, risk, and safety inputs and produce advisory text. It must not change the Weather Risk score/level, Route or Trip hard state, or override any hard business rule. |
+| BR-050 | LLM guidance must recommend concrete actions, remain grounded in the supplied factors/reasons, and must not assert facts that are absent from the source inputs.                                                   |
+| BR-212 | Any change to a Business Rule, enum, state transition, or API contract must be reflected in the specification, test cases, and data documentation before the work is considered Done.                              |
+| BR-213 | Every Business Rule must have at least one valid-path test and one violation-path test. Concurrency, idempotency, and transaction rules require integration or E2E coverage.                                       |
 
 ## 6. State & Lifecycle
 
-No new lifecycle is defined by this story. Existing entity states from the owning domain remain authoritative.
+Authoritative assessment
+→ LLM receives permitted inputs
+→ advisory text generated.
 
-Do not introduce placeholder workflow states unless an owning domain contract explicitly defines them.
+Authoritative assessment remains unchanged.
 
 ## 7. Business Flow
 
-1. System initiates `Generate Clear Weather Risk Advice Using LLM` through the approved UI, API, scheduled job, or integration point.
-2. The backend loads the required source records and verifies authorization, ownership or assignment, current state, and all mapped BR prerequisites.
-3. The backend applies the story-owned decision logic from Section 5.
-4. If any mapped rule is violated, the backend rejects the operation with no partial side effects and returns an actionable error.
-5. If the action changes authoritative data, the change commits atomically with required audit and post-commit notifications.
-6. The client presents the committed result or the rejection reason without exposing protected data.
+1. System loads authoritative Weather Risk assessment.
+2. System selects permitted factors/reasons.
+3. Inputs are sent to LLM.
+4. LLM generates explanatory/advisory text.
+5. System returns advice separately from authoritative score/level.
+6. No LLM response is allowed to mutate Route/Trip/risk hard state.
 
 ## 8. Data & Invariants
 
-- Persist or return only fields required for `Generate Clear Weather Risk Advice Using LLM` and the mapped BRs.
-- Preserve authoritative identifiers, ownership links, timestamps, snapshots, status values, and audit references when they affect the business outcome.
-- Derived counters, scores, release-gate metrics, and ledger amounts must be traceable to their source records and rule version.
-- Do not invent tables, enum values, state machines, or audit stores solely for this story.
+- Risk score remains deterministic and authoritative.
+- Risk level remains deterministic and authoritative.
+- LLM output is advisory.
+- LLM cannot override Red booking block or other hard policy.
+- Advice must be traceable to supplied factors/reasons.
 
 ## 9. API / Integration Contract
 
-Confirmed current API surface:
+TBD — Technical Design.
 
-- `POST /weather/advice`
-- `GET /weather/advice/latest`
-
-Request and response DTO details remain owned by the implementation files and must stay aligned with this story's BRs.
+Model/provider/prompt are technical choices unless separately governed.
 
 ## 10. Error & Edge Cases
 
 | Case | Expected Behavior |
-|---|---|
-| Caller lacks the required role, ownership, assignment, or relationship | Reject with no side effects. |
-| Required source record is missing | Return not found or blocked state without fabricating data. |
-| Current state violates a mapped BR | Return business conflict and preserve the current authoritative state. |
-| Input violates a mapped BR | Return validation error before persistence. |
-| Duplicate or retried request affects authoritative data | Enforce idempotency or reject safely so duplicate records, refunds, notifications, or ledger entries are not created. |
+| --- | --- |
+| LLM unavailable | Authoritative risk remains available; advice may be unavailable. |
+| LLM says risk is safe while authoritative level is Red | Ignore LLM safety override; Red remains authoritative. |
+| LLM suggests reopening closed Route | Advice cannot change Route state. |
+| Missing factors | Do not fabricate authoritative factors. |
+| LLM output conflicts with hard BR | Hard BR wins. |
 
 ## 11. Acceptance & Test Matrix
 
-| BR / AC | Scenario | Expected Result | Test Type |
-|---|---|---|---|
-| PB AC | Approved backlog acceptance path for `Generate Clear Weather Risk Advice Using LLM` | Meets the acceptance summary above | E2E |
-| BR-049 | Approved rule is satisfied for `Generate Clear Weather Risk Advice Using LLM` | Accepted and persisted or returned as applicable | Integration |
-| BR-049 | Approved rule is violated for `Generate Clear Weather Risk Advice Using LLM` | Rejected with no partial side effects | Boundary / Integration |
-| BR-050 | Approved rule is satisfied for `Generate Clear Weather Risk Advice Using LLM` | Accepted and persisted or returned as applicable | Integration |
-| BR-050 | Approved rule is violated for `Generate Clear Weather Risk Advice Using LLM` | Rejected with no partial side effects | Boundary / Integration |
-| BR-212 | Approved rule is satisfied for `Generate Clear Weather Risk Advice Using LLM` | Accepted and persisted or returned as applicable | Integration |
-| BR-212 | Approved rule is violated for `Generate Clear Weather Risk Advice Using LLM` | Rejected with no partial side effects | Boundary / Integration |
-| BR-213 | Approved rule is satisfied for `Generate Clear Weather Risk Advice Using LLM` | Accepted and persisted or returned as applicable | Integration |
-| BR-213 | Approved rule is violated for `Generate Clear Weather Risk Advice Using LLM` | Rejected with no partial side effects | Boundary / Integration |
+| Source | Scenario | Expected Result | Test Type |
+| --- | --- | --- | --- |
+| BR-049 | Generate advice from valid assessment | Advisory text returned. | Integration |
+| BR-049 | LLM contradicts risk level | Authoritative level unchanged. | Safety |
+| BR-049 | LLM attempts state-changing instruction | No business state mutation. | Security |
+| BR-050 | Advice generation | Uses supplied factors/reasons. | Integration |
 
-## 12. Open Decisions & References
+## 12. Open Decisions
 
-### 12.1 Open Decisions
+Exact LLM provider/model, prompt template and output format are Technical Design decisions.
 
-None.
-
-### 12.2 References
-
-- Product Backlog v3.1.
-- CTMS Business Rules workbook.
-- CTMS Architecture Overview.
+They must not alter the authority boundary defined by BR-049.

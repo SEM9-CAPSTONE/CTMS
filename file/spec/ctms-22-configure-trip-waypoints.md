@@ -3,133 +3,239 @@
 ## 1. Overview
 
 Story: CTMS-022
+
 Epic: EPIC 4. Trip Management
+
 Use Case: Configure Trip Waypoints
+
 Priority: Must Have
 
-Goal:
-Allow Host to complete `Configure Trip Waypoints` within the approved CTMS v3.1 scope.
+Goal: Allow the owning Host to configure the operational waypoints and overnight stops of a draft Trip while keeping waypoint timing, Route references, Trip duration, and Trip lifecycle consistent.
 
-Acceptance summary:
-The Configure Trip Waypoints workflow must satisfy the approved PB v3.1 acceptance criteria for this story. Do not copy the Vietnamese backlog text into this spec; implementers must preserve the approved source meaning when refining detailed tests.
+Backlog story: As a Host, I want to configure Trip waypoints and overnight stops so the Trip has a complete, time-ordered itinerary before it is submitted for approval.
+
+Acceptance Criteria:
+
+| Source | Criterion |
+| --- | --- |
+| PB AC-1 | The owning Host can configure waypoints for a Trip while the Trip is in a state that permits itinerary configuration. |
+| PB AC-2 | Each Trip waypoint contains the required waypoint type, location, and `planned_at` information according to the authoritative data contract. |
+| PB AC-3 | A waypoint may reference a Route Checkpoint only when that Checkpoint belongs to the Route/version used by the Trip. |
+| PB AC-4 | Waypoints are ordered chronologically by `planned_at`; `planned_at` must be valid within the Trip schedule. |
+| PB AC-5 | The first and last waypoint must satisfy the authoritative start/finish rules. |
+| PB AC-6 | Overnight waypoint configuration must be consistent with `duration_nights` and Trip type. |
+| PB AC-7 | Invalid waypoint configuration must not partially update the Trip itinerary. |
+| PB AC-8 | AI/recommendation output, if used, cannot override the deterministic waypoint and Trip rules. |
 
 ## 2. Scope
 
 ### In Scope
 
-- Story-owned behavior for `Configure Trip Waypoints`.
-- Validation, authorization, state handling, persistence, audit, and observable errors required by the mapped Business Rules.
-- Story-specific acceptance tests that prove both allowed and rejected paths.
+- Add Trip waypoints.
+- Edit Trip waypoints.
+- Remove Trip waypoints while the Trip is editable.
+- Configure waypoint type.
+- Configure waypoint location.
+- Configure `planned_at`.
+- Optionally associate a Trip waypoint with a Route Checkpoint.
+- Chronologically order waypoints.
+- Validate start and finish waypoints.
+- Validate overnight stops against `duration_nights`.
+- Validate Trip-type compatibility.
+- Persist the waypoint set atomically where the operation changes multiple waypoint records.
 
 ### Out of Scope
 
-- Behavior owned by dependency stories unless a mapped BR explicitly makes it part of this story.
-- Implementation of dependency stories: CTMS-021.
+- Creating Route Checkpoints; CTMS-011.
+- Creating the Trip; CTMS-021.
+- Approving/publishing the Trip; CTMS-023.
+- Detecting physical arrival at a Checkpoint; CTMS-061.
+- GPS breadcrumb recording; CTMS-059.
+- Allowing AI to define authoritative itinerary rules.
 
 ## 3. Actors & Authorization
 
-- Host: primary business actor for this story.
-- Backend API: authoritative enforcement point for permissions, state, and business rules.
-- UI or client application: may guide the user, but must not replace backend enforcement.
+- Host.
+- System, for backend validation and persistence.
+- AI/recommendation component, only if invoked as an advisory component.
 
-Authorization must be concrete: the caller must have the role, ownership, assignment, or operational relationship required by the mapped BRs before any protected data is returned or any state-changing action is committed.
+Authorization:
+
+- Only the Host authorized to manage the Trip may configure its waypoints.
+- Backend must validate Trip ownership/business scope.
+- Trip state must permit waypoint modification.
+- Client-side visibility of the edit action is not sufficient authorization.
+- AI output is not an authorization or validation source.
 
 ## 4. Preconditions & Dependencies
 
-- Product Backlog v3.1 row `CTMS-022` is the story scope source.
-- The mapped Primary BR IDs below exist in the latest Business Rules workbook.
-- Required domain records already exist and are in states allowed by the mapped BRs.
-- Dependencies:
-- CTMS-021
+Dependency:
+
+- CTMS-021.
+
+Preconditions:
+
+- Trip exists.
+- Acting Host is authorized for the Trip.
+- Trip is in `draft` or another explicitly approved state that permits itinerary configuration.
+- Trip has valid `starts_at` and `ends_at`.
+- Trip is bound to a valid Route/version.
+- Any referenced Route Checkpoint exists and belongs to that Route/version.
 
 ## 5. Business Rules
 
-| BR | Rule |
-|---|---|
-| BR-056 | This BR is the authoritative story rule for `Create Trip`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-057 | This BR is the authoritative story rule for `Configure Trip Waypoints`. Preserve and enforce these source thresholds, states, identifiers, and comparison operators exactly: >. |
-| BR-058 | This BR is the authoritative story rule for `Configure Trip Waypoints`. Preserve and enforce these source thresholds, states, identifiers, and comparison operators exactly: >=. |
-| BR-059 | This BR is the authoritative story rule for `Configure Trip Waypoints`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-060 | This BR is the authoritative story rule for `Configure Trip Waypoints`. Preserve and enforce these source thresholds, states, identifiers, and comparison operators exactly: = 0. |
-| BR-218 | AI/RAG output is advisory only. It may recommend or explain, but it must not override hard rules or authoritative state such as Route closed/archived, Trip capacity, payment result, Weather Risk score/level, or access rights. |
-| BR-174 | Inputs must be validated for required fields, formats, identifiers, enum values, and cross-entity references before any write is committed. |
-| BR-183 | The system must distinguish source event time, client time, provider time, and server/database commit time when the workflow depends on timing. |
-| BR-188 | Date and time handling must use the authoritative timezone and ordering rules for the business workflow, and invalid or impossible time ranges must be rejected. |
-| BR-189 | A valid time range must satisfy `start_time < end_time`; `start_time = end_time` is allowed only when a specific business rule explicitly permits it. |
-| BR-212 | Any Business Rule, enum, state transition, or API contract change must update the spec, tests, and data documentation before the story is Done. |
-| BR-213 | Every mapped Business Rule must have at least one valid-path test and one violation-path test; concurrency, idempotency, and transaction rules require integration or E2E coverage. |
+| BR     | Rule                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| BR-056 | A newly created Trip must start in draft status. The Host must complete trip_waypoints before submitting the Trip from draft to pending_approval.                                                                                                                                                                                                                                                                                            |
+| BR-057 | trip_waypoints are the structured source of the Trip itinerary. Each waypoint must include trip_id, type, location as Point(4326), day_number > 0, and sequence_order > 0; checkpoint_id is optional. Custom and overnight waypoints may store name, address, note, and external provider/contact/reference information as Trip metadata. location is always a required snapshot, and no shared external-place master entity may be created. |
+| BR-058 | Within a Trip, sequence_order must be unique. If planned_at is provided, it must fall within [starts_at, ends_at]. duration_minutes, when provided, must be >= 0.                                                                                                                                                                                                                                                                            |
+| BR-059 | Before publishing an overnight Trip, the number of waypoints with type = overnight must exactly match duration_nights, and their day/order placement must be consistent with the Trip duration.                                                                                                                                                                                                                                              |
+| BR-060 | A Trip with trip_type = day_trip must have duration_nights = 0 and must not contain any waypoint with type = overnight.                                                                                                                                                                                                                                                                                                                      |
+| BR-218 | When trip_waypoint.checkpoint_id is not NULL, the backend must verify that the Checkpoint belongs to trips.route_id and must snapshot checkpoints.location into trip_waypoints.location. Later Checkpoint changes must not automatically alter the Trip's snapshotted location. When checkpoint_id = NULL, the Host must provide a valid custom location.                                                                                    |
+| BR-174 | All input must be validated for required fields, data type, format, length, enum membership, and cross-field relationships before processing.                                                                                                                                                                                                                                                                                                |
+| BR-183 | Every data relationship must reference an existing, valid record. Child records must not be created for a resource outside the correct business scope.                                                                                                                                                                                                                                                                                       |
+| BR-188 | Absolute timestamps must be stored as timestamptz. Pure calendar dates use date, and time-of-day values use time where defined by schema. APIs must transmit timezone/offset explicitly, and the UI must display values using the configured timezone.                                                                                                                                                                                       |
+| BR-189 | A valid time interval requires start_time < end_time. start_time = end_time is allowed only for a business case with an explicit rule permitting it.                                                                                                                                                                                                                                                                                         |
+| BR-212 | Any change to a Business Rule, enum, state transition, or API contract must be reflected in the specification, test cases, and data documentation before the work is considered Done.                                                                                                                                                                                                                                                        |
+| BR-213 | Every Business Rule must have at least one valid-path test and one violation-path test. Concurrency, idempotency, and transaction rules require integration or E2E coverage.                                                                                                                                                                                                                                                                 |
 
 ## 6. State & Lifecycle
 
-Relevant states from the approved rules: `closed`.
+### Trip
 
-Do not introduce placeholder workflow states unless an owning domain contract explicitly defines them.
+`draft`
+→ waypoint configuration
+→ remains `draft`
+
+A successful waypoint edit does not itself publish or approve the Trip.
+
+When all submission requirements are satisfied:
+
+`draft`
+→ submit through the approved Trip submission flow
+→ `pending_approval`
+
+### Trip Waypoint
+
+No waypoint
+→ create
+→ active waypoint belonging to Trip.
+
+Existing waypoint
+→ edit
+→ updated waypoint.
+
+Existing waypoint
+→ remove while editable
+→ no longer part of Trip itinerary.
+
+Exact persistence deletion semantics are defined by Technical Design/Data Dictionary.
 
 ## 7. Business Flow
 
-1. Host initiates `Configure Trip Waypoints` through the approved UI, API, scheduled job, or integration point.
-2. The backend loads the required source records and verifies authorization, ownership or assignment, current state, and all mapped BR prerequisites.
-3. The backend applies the story-owned decision logic from Section 5.
-4. If any mapped rule is violated, the backend rejects the operation with no partial side effects and returns an actionable error.
-5. If the action changes authoritative data, the change commits atomically with required audit and post-commit notifications.
-6. The client presents the committed result or the rejection reason without exposing protected data.
+1. Host opens a draft Trip.
+
+2. System verifies Host authorization and current Trip state.
+
+3. System loads:
+   - Trip schedule;
+   - Trip type;
+   - `duration_nights`;
+   - Route/version;
+   - existing Trip waypoints.
+
+4. Host creates, edits or removes waypoint data.
+
+5. For each waypoint, backend validates:
+   - waypoint belongs to target Trip;
+   - required type is valid;
+   - location is valid;
+   - `planned_at` is valid;
+   - `planned_at` lies within Trip schedule.
+
+6. If `checkpoint_id` is provided, backend verifies that the Checkpoint belongs to the Trip's Route/version.
+
+7. System orders itinerary chronologically using `planned_at`.
+
+8. System validates first/last waypoint semantics according to the authoritative waypoint rules.
+
+9. System validates overnight waypoint count against `duration_nights`.
+
+10. System validates Trip-type compatibility.
+
+11. Any AI recommendation is treated only as proposed input and passes through the same deterministic validations.
+
+12. If the complete change set is valid, backend persists it atomically.
+
+13. Trip remains in its permitted configuration state.
+
+14. Host may later submit the Trip for approval.
 
 ## 8. Data & Invariants
 
-- Persist or return only fields required for `Configure Trip Waypoints` and the mapped BRs.
-- Preserve authoritative identifiers, ownership links, timestamps, snapshots, status values, and audit references when they affect the business outcome.
-- Derived counters, scores, release-gate metrics, and ledger amounts must be traceable to their source records and rule version.
-- Do not invent tables, enum values, state machines, or audit stores solely for this story.
+- Every Trip waypoint belongs to exactly the intended Trip.
+- A referenced Route Checkpoint belongs to the Route/version used by the Trip.
+- `planned_at` is the authoritative waypoint ordering field.
+- `planned_at` lies inside the Trip's permitted time range.
+- Waypoint ordering is chronological.
+- First waypoint satisfies the authoritative `start` requirement.
+- Last waypoint satisfies the authoritative `finish` requirement.
+- Overnight configuration agrees with `duration_nights`.
+- Trip type and overnight configuration cannot contradict each other.
+- `day_number`, `sequence_order`, and `duration_minutes` must not become alternative authoritative scheduling fields if they are merely derived values.
+- AI output cannot bypass deterministic validation.
+- Invalid batch changes leave the previous authoritative itinerary intact.
 
 ## 9. API / Integration Contract
 
-Confirmed current API surface:
+TBD — Technical Design.
 
-- `PATCH /trips/:tripId/waypoints`
-
-Request and response DTO details remain owned by the implementation files and must stay aligned with this story's BRs.
+The exact endpoint, DTO, Point representation, waypoint-type enum, Checkpoint reference representation, and persistence strategy must follow the approved Technical Design/Data Dictionary.
 
 ## 10. Error & Edge Cases
 
 | Case | Expected Behavior |
-|---|---|
-| Caller lacks the required role, ownership, assignment, or relationship | Reject with no side effects. |
-| Required source record is missing | Return not found or blocked state without fabricating data. |
-| Current state violates a mapped BR | Return business conflict and preserve the current authoritative state. |
-| Input violates a mapped BR | Return validation error before persistence. |
-| Duplicate or retried request affects authoritative data | Enforce idempotency or reject safely so duplicate records, refunds, notifications, or ledger entries are not created. |
+| --- | --- |
+| Unauthorized Host | Reject; itinerary unchanged. |
+| Trip not editable | Conflict; itinerary unchanged. |
+| Invalid waypoint type | Reject. |
+| Invalid location | Reject. |
+| `planned_at` before Trip start | Reject. |
+| `planned_at` after Trip end | Reject. |
+| Duplicate `planned_at` where uniqueness is required | Reject. |
+| Referenced Checkpoint belongs to another Route | Reject. |
+| First waypoint violates start rule | Reject complete invalid configuration. |
+| Last waypoint violates finish rule | Reject complete invalid configuration. |
+| Overnight count conflicts with `duration_nights` | Reject. |
+| Day-trip type contains prohibited overnight stop | Reject. |
+| AI proposes invalid waypoint | Reject proposal as authoritative configuration. |
+| One record in multi-waypoint update fails | Roll back the authoritative change set. |
 
 ## 11. Acceptance & Test Matrix
 
-| BR / AC | Scenario | Expected Result | Test Type |
-|---|---|---|---|
-| PB AC | Approved backlog acceptance path for `Configure Trip Waypoints` | Meets the acceptance summary above | E2E |
-| BR-056 | Approved rule is satisfied for `Configure Trip Waypoints` | Accepted and persisted or returned as applicable | Integration |
-| BR-056 | Approved rule is violated for `Configure Trip Waypoints` | Rejected with no partial side effects | Boundary / Integration |
-| BR-057 | Approved rule is satisfied for `Configure Trip Waypoints` | Accepted and persisted or returned as applicable | Integration |
-| BR-057 | Approved rule is violated for `Configure Trip Waypoints` | Rejected with no partial side effects | Boundary / Integration |
-| BR-058 | Approved rule is satisfied for `Configure Trip Waypoints` | Accepted and persisted or returned as applicable | Integration |
-| BR-058 | Approved rule is violated for `Configure Trip Waypoints` | Rejected with no partial side effects | Boundary / Integration |
-| BR-059 | Approved rule is satisfied for `Configure Trip Waypoints` | Accepted and persisted or returned as applicable | Integration |
-| BR-059 | Approved rule is violated for `Configure Trip Waypoints` | Rejected with no partial side effects | Boundary / Integration |
-| BR-060 | Approved rule is satisfied for `Configure Trip Waypoints` | Accepted and persisted or returned as applicable | Integration |
-| BR-060 | Approved rule is violated for `Configure Trip Waypoints` | Rejected with no partial side effects | Boundary / Integration |
-| BR-218 | Approved rule is satisfied for `Configure Trip Waypoints` | Accepted and persisted or returned as applicable | Integration |
-| BR-218 | Approved rule is violated for `Configure Trip Waypoints` | Rejected with no partial side effects | Boundary / Integration |
-| BR-174 | Approved rule is satisfied for `Configure Trip Waypoints` | Accepted and persisted or returned as applicable | Integration |
-| BR-174 | Approved rule is violated for `Configure Trip Waypoints` | Rejected with no partial side effects | Boundary / Integration |
-| BR-183 | Approved rule is satisfied for `Configure Trip Waypoints` | Accepted and persisted or returned as applicable | Integration |
-| BR-183 | Approved rule is violated for `Configure Trip Waypoints` | Rejected with no partial side effects | Boundary / Integration |
-| Remaining mapped BRs | Each mapped BR has valid and violation coverage in the owning test suite | Coverage proves the rule is enforced | Unit / Integration / E2E |
+| Source | Scenario | Expected Result | Test Type |
+| --- | --- | --- | --- |
+| PB AC-1, BR-056 | Owning Host edits draft Trip | Configuration allowed | Authorization / Integration |
+| PB AC-1 | Unrelated Host edits Trip | Rejected | Security |
+| PB AC-2, BR-057 | Valid waypoint submitted | Waypoint persisted | Integration |
+| PB AC-3, BR-057, BR-183 | Checkpoint belongs to Trip Route | Reference accepted | Integration |
+| PB AC-3, BR-183 | Checkpoint belongs to another Route | Rejected | Boundary |
+| PB AC-4, BR-058 | Multiple waypoints supplied | Ordered by `planned_at` | Integration |
+| PB AC-4, BR-188 | Waypoint outside Trip schedule | Rejected | Boundary |
+| PB AC-5, BR-058 | Valid start/finish ordering | Accepted | Integration |
+| PB AC-6, BR-059 | Overnight count matches duration | Accepted | Integration |
+| PB AC-6, BR-059 | Overnight count conflicts with duration | Rejected | Boundary |
+| PB AC-6, BR-060 | Trip type conflicts with overnight data | Rejected | Boundary |
+| PB AC-7 | One item in atomic update invalid | No partial itinerary update | Transaction |
+| PB AC-8, BR-218 | AI suggests rule-breaking waypoint | Deterministic rule wins | AI Safety / Integration |
+| BR-212, BR-213 | Contract changes | Spec/tests/data docs updated | Process |
 
-## 12. Open Decisions & References
+## 12. Open Decisions
 
-### 12.1 Open Decisions
+The authoritative sources must define, rather than this spec invent:
 
-None.
-
-### 12.2 References
-
-- Product Backlog v3.1.
-- CTMS Business Rules workbook.
-- CTMS Architecture Overview.
+- exact waypoint-type enum;
+- exact Point/coordinate representation;
+- whether two waypoints may ever share identical `planned_at`;
+- exact persistence behavior for deleted waypoints;
+- exact allowed Trip states for waypoint editing beyond `draft`, if any.

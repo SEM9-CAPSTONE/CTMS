@@ -3,78 +3,105 @@
 ## 1. Overview
 
 Story: CTMS-094
+
 Epic: EPIC 16. Reviews and Feedback
+
 Use Case: Report Inaccurate Information or Dangerous Content
+
 Priority: Should Have
 
-Goal:
-Allow Authenticated user to complete `Report Inaccurate Information or Dangerous Content` within the approved CTMS v3.1 scope.
+Goal: Allow a user to report supported inaccurate or dangerous content and provide authorized Admin with a trackable moderation case.
 
-Acceptance summary:
-The Report Inaccurate Information or Dangerous Content workflow must satisfy the approved PB v3.1 acceptance criteria for this story. Do not copy the Vietnamese backlog text into this spec; implementers must preserve the approved source meaning when refining detailed tests.
+Backlog story: As a user, I want to report inaccurate information or dangerous content so it can be reviewed by the system's moderation process.
+
+Acceptance Criteria:
+
+| Source  | Criterion                                          |
+| ------- | -------------------------------------------------- |
+| PB AC-1 | User selects a supported report type.              |
+| PB AC-2 | Report references a supported target.              |
+| PB AC-3 | User provides a description.                       |
+| PB AC-4 | Report has a trackable status.                     |
+| PB AC-5 | Authorized Admin can review report status/context. |
+| PB AC-6 | Moderation must not expose unrelated data.         |
 
 ## 2. Scope
 
 ### In Scope
 
-- Story-owned behavior for `Report Inaccurate Information or Dangerous Content`.
-- Validation, authorization, state handling, persistence, audit, and observable errors required by the mapped Business Rules.
-- Story-specific acceptance tests that prove both allowed and rejected paths.
+- Supported report type.
+- Supported report target.
+- Description.
+- Trackable report status.
+- Admin moderation visibility.
 
 ### Out of Scope
 
-- Behavior owned by dependency stories unless a mapped BR explicitly makes it part of this story.
-- Implementation of dependency stories: CTMS-003.
+- Automatic deletion of reported content.
+- Automatic determination that reported content is actually dangerous.
+- AI unsafe-answer feedback workflow when handled specifically by CTMS-072/073.
 
 ## 3. Actors & Authorization
 
-- Authenticated user: primary business actor for this story.
-- Backend API: authoritative enforcement point for permissions, state, and business rules.
-- UI or client application: may guide the user, but must not replace backend enforcement.
+Actors:
 
-Authorization must be concrete: the caller must have the role, ownership, assignment, or operational relationship required by the mapped BRs before any protected data is returned or any state-changing action is committed.
+- User — creates report.
+- Authorized Admin — reviews/moderates report.
+
+Admin access must be limited to applicable moderation data.
 
 ## 4. Preconditions & Dependencies
 
-- Product Backlog v3.1 row `CTMS-094` is the story scope source.
-- The mapped Primary BR IDs below exist in the latest Business Rules workbook.
-- Required domain records already exist and are in states allowed by the mapped BRs.
-- Dependencies:
-- CTMS-003
+Dependency:
+
+- CTMS-003.
+
+Target must be a supported reportable object/content type.
 
 ## 5. Business Rules
 
-| BR | Rule |
-|---|---|
-| BR-275 | This BR is the authoritative story rule for `Report Inaccurate Information or Dangerous Content`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-287 | Admin moderation must show reporter, target type/ID, reason, and status. Only valid Pending/Reviewing/Actioned/Rejected transitions are allowed, and every moderation decision must be audited. |
-| BR-174 | Inputs must be validated for required fields, formats, identifiers, enum values, and cross-entity references before any write is committed. |
-| BR-188 | Date and time handling must use the authoritative timezone and ordering rules for the business workflow, and invalid or impossible time ranges must be rejected. |
-| BR-212 | Any Business Rule, enum, state transition, or API contract change must update the spec, tests, and data documentation before the story is Done. |
-| BR-213 | Every mapped Business Rule must have at least one valid-path test and one violation-path test; concurrency, idempotency, and transaction rules require integration or E2E coverage. |
-| BR-306 | Reported reviews must follow the moderation policy, and processing reported content must not hard-delete history or audit evidence. |
+| BR         | Rule                                                                                                                                                                                                                                                   |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| BR-275     | A report must use a supported report type/target and include a description, maintain a trackable status, and allow authorized Admin moderation without exposing unrelated data.                                                                        |
+| BR-287     | Admin moderation must display reporter, target type/ID, reason, and status; only valid Pending/Reviewing/Actioned/Rejected transitions are allowed, and every moderation decision must be audited.                                                     |
+| BR-174     | All input must be validated for required fields, data type, format, length, enum membership, and cross-field relationships before processing.                                                                                                          |
+| BR-188     | Absolute timestamps must be stored as timestamptz. Pure calendar dates use date, and time-of-day values use time where defined by schema. APIs must transmit timezone/offset explicitly, and the UI must display values using the configured timezone. |
+| BR-212     | Any change to a Business Rule, enum, state transition, or API contract must be reflected in the specification, test cases, and data documentation before the work is considered Done.                                                                  |
+| BR-213     | Every Business Rule must have at least one valid-path test and one violation-path test. Concurrency, idempotency, and transaction rules require integration or E2E coverage.                                                                           |
+| BR-306     | A reported review must be handled through the moderation policy. Review history and audit records must not be hard-deleted during content handling.                                                                                                    |
 
 ## 6. State & Lifecycle
 
-No new lifecycle is defined by this story. Existing entity states from the owning domain remain authoritative.
+Report created
+→ trackable moderation state.
 
-Do not introduce placeholder workflow states unless an owning domain contract explicitly defines them.
+Applicable moderation lifecycle follows the authoritative moderation states defined by BR-287.
 
 ## 7. Business Flow
 
-1. Authenticated user initiates `Report Inaccurate Information or Dangerous Content` through the approved UI, API, scheduled job, or integration point.
-2. The backend loads the required source records and verifies authorization, ownership or assignment, current state, and all mapped BR prerequisites.
-3. The backend applies the story-owned decision logic from Section 5.
-4. If any mapped rule is violated, the backend rejects the operation with no partial side effects and returns an actionable error.
-5. If the action changes authoritative data, the change commits atomically with required audit and post-commit notifications.
-6. The client presents the committed result or the rejection reason without exposing protected data.
+1. User opens report action.
+2. Select supported report type.
+3. Identify supported target.
+4. Enter description.
+5. Backend validates input and target.
+6. Persist report.
+7. Initialize trackable moderation status.
+8. Authorized Admin reviews report.
+9. Admin performs valid moderation transition.
+10. Audit moderation decision.
 
 ## 8. Data & Invariants
 
-- Persist or return only fields required for `Report Inaccurate Information or Dangerous Content` and the mapped BRs.
-- Preserve authoritative identifiers, ownership links, timestamps, snapshots, status values, and audit references when they affect the business outcome.
-- Derived counters, scores, release-gate metrics, and ledger amounts must be traceable to their source records and rule version.
-- Do not invent tables, enum values, state machines, or audit stores solely for this story.
+Report contains applicable:
+
+- reporter;
+- report type;
+- target type/ID;
+- description/reason;
+- status;
+- timestamps.
+
+Report must not grant Admin or reporter access to unrelated protected data.
 
 ## 9. API / Integration Contract
 
@@ -82,42 +109,27 @@ TBD — Technical Design.
 
 ## 10. Error & Edge Cases
 
-| Case | Expected Behavior |
-|---|---|
-| Caller lacks the required role, ownership, assignment, or relationship | Reject with no side effects. |
-| Required source record is missing | Return not found or blocked state without fabricating data. |
-| Current state violates a mapped BR | Return business conflict and preserve the current authoritative state. |
-| Input violates a mapped BR | Return validation error before persistence. |
-| Duplicate or retried request affects authoritative data | Enforce idempotency or reject safely so duplicate records, refunds, notifications, or ledger entries are not created. |
+| Case                          | Expected Behavior                        |
+| ----------------------------- | ---------------------------------------- |
+| Supported target/type         | Report accepted                          |
+| Unsupported type              | Reject                                   |
+| Unsupported target            | Reject                                   |
+| Missing description           | Reject                                   |
+| Unauthorized moderation       | Reject                                   |
+| Invalid moderation transition | Reject                                   |
+| Admin reviews report          | Only relevant moderation context exposed |
 
 ## 11. Acceptance & Test Matrix
 
-| BR / AC | Scenario | Expected Result | Test Type |
-|---|---|---|---|
-| PB AC | Approved backlog acceptance path for `Report Inaccurate Information or Dangerous Content` | Meets the acceptance summary above | E2E |
-| BR-275 | Approved rule is satisfied for `Report Inaccurate Information or Dangerous Content` | Accepted and persisted or returned as applicable | Integration |
-| BR-275 | Approved rule is violated for `Report Inaccurate Information or Dangerous Content` | Rejected with no partial side effects | Boundary / Integration |
-| BR-287 | Approved rule is satisfied for `Report Inaccurate Information or Dangerous Content` | Accepted and persisted or returned as applicable | Integration |
-| BR-287 | Approved rule is violated for `Report Inaccurate Information or Dangerous Content` | Rejected with no partial side effects | Boundary / Integration |
-| BR-174 | Approved rule is satisfied for `Report Inaccurate Information or Dangerous Content` | Accepted and persisted or returned as applicable | Integration |
-| BR-174 | Approved rule is violated for `Report Inaccurate Information or Dangerous Content` | Rejected with no partial side effects | Boundary / Integration |
-| BR-188 | Approved rule is satisfied for `Report Inaccurate Information or Dangerous Content` | Accepted and persisted or returned as applicable | Integration |
-| BR-188 | Approved rule is violated for `Report Inaccurate Information or Dangerous Content` | Rejected with no partial side effects | Boundary / Integration |
-| BR-212 | Approved rule is satisfied for `Report Inaccurate Information or Dangerous Content` | Accepted and persisted or returned as applicable | Integration |
-| BR-212 | Approved rule is violated for `Report Inaccurate Information or Dangerous Content` | Rejected with no partial side effects | Boundary / Integration |
-| BR-213 | Approved rule is satisfied for `Report Inaccurate Information or Dangerous Content` | Accepted and persisted or returned as applicable | Integration |
-| BR-213 | Approved rule is violated for `Report Inaccurate Information or Dangerous Content` | Rejected with no partial side effects | Boundary / Integration |
-| BR-306 | Approved rule is satisfied for `Report Inaccurate Information or Dangerous Content` | Accepted and persisted or returned as applicable | Integration |
-| BR-306 | Approved rule is violated for `Report Inaccurate Information or Dangerous Content` | Rejected with no partial side effects | Boundary / Integration |
+| Source | Scenario                 | Expected Result | Test Type     |
+| ------ | ------------------------ | --------------- | ------------- |
+| BR-275 | Valid report             | Created         | E2E           |
+| BR-275 | Missing description      | Rejected        | Validation    |
+| BR-275 | Unsupported target       | Rejected        | Negative      |
+| BR-287 | Authorized Admin         | Can review      | Authorization |
+| BR-287 | Invalid state transition | Rejected        | State         |
+| BR-287 | Moderation decision      | Audited         | Audit         |
 
-## 12. Open Decisions & References
+## 12. Open Decisions
 
-### 12.1 Open Decisions
-
-None.
-
-### 12.2 References
-
-- Product Backlog v3.1.
-- CTMS Business Rules workbook.
-- CTMS Architecture Overview.
+Exact supported report-type and target-type catalogs must follow authoritative configuration/domain definitions.

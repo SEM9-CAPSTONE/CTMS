@@ -1,79 +1,99 @@
-# CTMS-069 — 
+# CTMS-069 — Ask AI About First Aid and Survival
 
 ## 1. Overview
 
 Story: CTMS-069
+
 Epic: EPIC 11. AI Survival Assistant and RAG
-Use Case: 
+
+Use Case: Ask AI About First Aid and Survival
+
 Priority: Must Have
 
-Goal:
-Allow Authenticated user to complete `` within the approved CTMS v3.1 scope.
+Goal: Provide first-aid and survival guidance grounded in the configured CTMS knowledge base while preventing AI output from overriding authoritative safety/business rules.
 
-Acceptance summary:
-The  workflow must satisfy the approved PB v3.1 acceptance criteria for this story. Do not copy the Vietnamese backlog text into this spec; implementers must preserve the approved source meaning when refining detailed tests.
+Backlog story: As a Camper, I want to ask the AI assistant about first aid and survival so I can receive useful guidance during trekking.
+
+Acceptance Criteria:
+
+| Source  | Criterion                                                                     |
+| ------- | ----------------------------------------------------------------------------- |
+| PB AC-1 | AI answers first-aid/survival questions using configured CTMS knowledge base. |
+| PB AC-2 | Applicable RAG context is used for grounded online answers.                   |
+| PB AC-3 | Answer follows applicable safety constraints.                                 |
+| PB AC-4 | AI does not override authoritative state or hard Business Rules.              |
+| PB AC-5 | Response targets the configured operational latency requirement.              |
+| PB AC-6 | Source provenance used by the answer remains available for CTMS-071.          |
 
 ## 2. Scope
 
 ### In Scope
 
-- Story-owned behavior for ``.
-- Validation, authorization, state handling, persistence, audit, and observable errors required by the mapped Business Rules.
-- Story-specific acceptance tests that prove both allowed and rejected paths.
+- First-aid questions.
+- Survival questions.
+- RAG-grounded AI response.
+- Safety constraints.
+- Source provenance.
+- Operational latency target.
 
 ### Out of Scope
 
-- Behavior owned by dependency stories unless a mapped BR explicitly makes it part of this story.
-- Implementation of dependency stories: CTMS-068.
+- Emergency/SOS activation — CTMS-074/075.
+- Offline non-LLM search — CTMS-070.
+- Changing Weather Risk, Route or Trip state.
 
 ## 3. Actors & Authorization
 
-- Authenticated user: primary business actor for this story.
-- Backend API: authoritative enforcement point for permissions, state, and business rules.
-- UI or client application: may guide the user, but must not replace backend enforcement.
-
-Authorization must be concrete: the caller must have the role, ownership, assignment, or operational relationship required by the mapped BRs before any protected data is returned or any state-changing action is committed.
+- Camper.
+- AI assistant.
+- RAG subsystem.
 
 ## 4. Preconditions & Dependencies
 
-- Product Backlog v3.1 row `CTMS-069` is the story scope source.
-- The mapped Primary BR IDs below exist in the latest Business Rules workbook.
-- Required domain records already exist and are in states allowed by the mapped BRs.
-- Dependencies:
-- CTMS-068
+Dependency:
+
+- CTMS-068.
+
+Configured knowledge base/RAG is available for online AI operation.
 
 ## 5. Business Rules
 
-| BR | Rule |
-|---|---|
-| BR-249 | This BR is the authoritative story rule for ``. Preserve and enforce these source thresholds, states, identifiers, and comparison operators exactly: AI, CTMS. |
-| BR-216 | This BR is the authoritative story rule for ``. Preserve and enforce these source thresholds, states, identifiers, and comparison operators exactly: AI, RAG. |
-| BR-197 | When an external service times out or returns incomplete data, the system must record the failure, must not assume success, and must not create unverifiable data. |
-| BR-198 | External-service retries must have limits and backoff, and retry execution must not create duplicate records or duplicate transactions. |
-| BR-212 | Any Business Rule, enum, state transition, or API contract change must update the spec, tests, and data documentation before the story is Done. |
-| BR-213 | Every mapped Business Rule must have at least one valid-path test and one violation-path test; concurrency, idempotency, and transaction rules require integration or E2E coverage. |
+| BR     | Rule                                                                                                                                                                                                                           |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| BR-249 | The AI assistant must answer first-aid and survival questions using the configured CTMS knowledge base within the operational latency target and must comply with applicable safety constraints.                               |
+| BR-216 | AI/RAG may provide recommendations and explanations only. It must not override hard rules or authoritative state such as a closed/archived Route, Trip capacity, payment outcome, Weather Risk score/level, or access control. |
+| BR-248 | RAG may retrieve only relevant knowledge chunks within the configured context limit, must preserve source references, and must not send unrelated knowledge to the language model.                                             |
 
 ## 6. State & Lifecycle
 
-Relevant states from the approved rules: `fail`.
+Question
+→ RAG retrieval
+→ AI generation
+→ safety-constrained answer
+→ display answer/source context.
 
-Do not introduce placeholder workflow states unless an owning domain contract explicitly defines them.
+No authoritative business-state transition occurs.
 
 ## 7. Business Flow
 
-1. Authenticated user initiates `` through the approved UI, API, scheduled job, or integration point.
-2. The backend loads the required source records and verifies authorization, ownership or assignment, current state, and all mapped BR prerequisites.
-3. The backend applies the story-owned decision logic from Section 5.
-4. If any mapped rule is violated, the backend rejects the operation with no partial side effects and returns an actionable error.
-5. If the action changes authoritative data, the change commits atomically with required audit and post-commit notifications.
-6. The client presents the committed result or the rejection reason without exposing protected data.
+1. Camper asks question.
+2. Determine applicable AI/safety handling.
+3. Retrieve relevant CTMS knowledge.
+4. Construct bounded context.
+5. Generate response.
+6. Apply safety constraints.
+7. Preserve actual source references.
+8. Return answer.
+9. Make source metadata available for source display/feedback.
 
 ## 8. Data & Invariants
 
-- Persist or return only fields required for `` and the mapped BRs.
-- Preserve authoritative identifiers, ownership links, timestamps, snapshots, status values, and audit references when they affect the business outcome.
-- Derived counters, scores, release-gate metrics, and ledger amounts must be traceable to their source records and rule version.
-- Do not invent tables, enum values, state machines, or audit stores solely for this story.
+- AI answer is advisory.
+- AI cannot reopen Route.
+- AI cannot change risk score/level.
+- AI cannot change capacity/payment/access rights.
+- Sources must come from actual retrieval.
+- Lack of grounding must not be hidden with fabricated source.
 
 ## 9. API / Integration Contract
 
@@ -81,40 +101,24 @@ TBD — Technical Design.
 
 ## 10. Error & Edge Cases
 
-| Case | Expected Behavior |
-|---|---|
-| Caller lacks the required role, ownership, assignment, or relationship | Reject with no side effects. |
-| Required source record is missing | Return not found or blocked state without fabricating data. |
-| Current state violates a mapped BR | Return business conflict and preserve the current authoritative state. |
-| Input violates a mapped BR | Return validation error before persistence. |
-| Duplicate or retried request affects authoritative data | Enforce idempotency or reject safely so duplicate records, refunds, notifications, or ledger entries are not created. |
+| Case                        | Expected Behavior                                     |
+| --------------------------- | ----------------------------------------------------- |
+| No relevant knowledge       | Do not fabricate grounded source                      |
+| AI conflicts with hard rule | Hard rule wins                                        |
+| AI service unavailable      | Return safe failure/fallback                          |
+| Emergency-like question     | CTMS-075 detection may trigger emergency handling     |
+| Model invents source        | Must not expose invented source as retrieval evidence |
 
 ## 11. Acceptance & Test Matrix
 
-| BR / AC | Scenario | Expected Result | Test Type |
-|---|---|---|---|
-| PB AC | Approved backlog acceptance path for `` | Meets the acceptance summary above | E2E |
-| BR-249 | Approved rule is satisfied for `` | Accepted and persisted or returned as applicable | Integration |
-| BR-249 | Approved rule is violated for `` | Rejected with no partial side effects | Boundary / Integration |
-| BR-216 | Approved rule is satisfied for `` | Accepted and persisted or returned as applicable | Integration |
-| BR-216 | Approved rule is violated for `` | Rejected with no partial side effects | Boundary / Integration |
-| BR-197 | Approved rule is satisfied for `` | Accepted and persisted or returned as applicable | Integration |
-| BR-197 | Approved rule is violated for `` | Rejected with no partial side effects | Boundary / Integration |
-| BR-198 | Approved rule is satisfied for `` | Accepted and persisted or returned as applicable | Integration |
-| BR-198 | Approved rule is violated for `` | Rejected with no partial side effects | Boundary / Integration |
-| BR-212 | Approved rule is satisfied for `` | Accepted and persisted or returned as applicable | Integration |
-| BR-212 | Approved rule is violated for `` | Rejected with no partial side effects | Boundary / Integration |
-| BR-213 | Approved rule is satisfied for `` | Accepted and persisted or returned as applicable | Integration |
-| BR-213 | Approved rule is violated for `` | Rejected with no partial side effects | Boundary / Integration |
+| Source  | Scenario                                | Expected Result                  | Test Type    |
+| ------- | --------------------------------------- | -------------------------------- | ------------ |
+| BR-249  | Survival question                       | Grounded answer                  | AI E2E       |
+| BR-249  | First-aid question                      | Safety constraints applied       | AI Safety    |
+| BR-216  | Prompt asks AI to override closed Route | No override                      | Safety       |
+| BR-248  | Answer uses chunks                      | Provenance preserved             | Traceability |
+| PB AC-5 | Normal request                          | Evaluated against latency target | Performance  |
 
-## 12. Open Decisions & References
+## 12. Open Decisions
 
-### 12.1 Open Decisions
-
-None.
-
-### 12.2 References
-
-- Product Backlog v3.1.
-- CTMS Business Rules workbook.
-- CTMS Architecture Overview.
+Exact model/provider, operational latency threshold and fallback response contract must come from Technical Design/evaluation criteria if not fixed elsewhere.

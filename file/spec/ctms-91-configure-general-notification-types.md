@@ -3,77 +3,104 @@
 ## 1. Overview
 
 Story: CTMS-091
+
 Epic: EPIC 15. Notifications
+
 Use Case: Configure General Notification Types
+
 Priority: Could Have
 
-Goal:
-Allow Authenticated user to complete `Configure General Notification Types` within the approved CTMS v3.1 scope.
+Goal: Allow users to configure supported noncritical notification types without allowing mandatory emergency or safety alerts for an active Trip to be disabled.
 
-Acceptance summary:
-The Configure General Notification Types workflow must satisfy the approved PB v3.1 acceptance criteria for this story. Do not copy the Vietnamese backlog text into this spec; implementers must preserve the approved source meaning when refining detailed tests.
+Backlog story: As a user, I want to configure general notification types so I can control which noncritical notifications I receive.
+
+Acceptance Criteria:
+
+| Source  | Criterion                                                                                   |
+| ------- | ------------------------------------------------------------------------------------------- |
+| PB AC-1 | User may enable or disable each supported noncritical notification type.                    |
+| PB AC-2 | Mandatory emergency/safety alerts for an active Trip cannot be disabled.                    |
+| PB AC-3 | Saved notification preferences apply only to notification categories that are configurable. |
+| PB AC-4 | Preference changes must not suppress mandatory active-Trip safety alerts.                   |
 
 ## 2. Scope
 
 ### In Scope
 
-- Story-owned behavior for `Configure General Notification Types`.
-- Validation, authorization, state handling, persistence, audit, and observable errors required by the mapped Business Rules.
-- Story-specific acceptance tests that prove both allowed and rejected paths.
+- Supported noncritical notification preferences.
+- Enable/disable configuration.
+- Mandatory emergency/safety protection.
 
 ### Out of Scope
 
-- Behavior owned by dependency stories unless a mapped BR explicitly makes it part of this story.
-- Implementation of dependency stories: CTMS-088.
+- In-app notification creation — CTMS-088.
+- Missed-alert recovery — CTMS-089.
+- Background push delivery — CTMS-090.
+- Disabling mandatory active-Trip emergency/safety alerts.
 
 ## 3. Actors & Authorization
 
-- Authenticated user: primary business actor for this story.
-- Backend API: authoritative enforcement point for permissions, state, and business rules.
-- UI or client application: may guide the user, but must not replace backend enforcement.
+Primary actor:
 
-Authorization must be concrete: the caller must have the role, ownership, assignment, or operational relationship required by the mapped BRs before any protected data is returned or any state-changing action is committed.
+- Authenticated User.
+
+A user may configure only their own notification preferences unless another administrative capability explicitly permits otherwise.
 
 ## 4. Preconditions & Dependencies
 
-- Product Backlog v3.1 row `CTMS-091` is the story scope source.
-- The mapped Primary BR IDs below exist in the latest Business Rules workbook.
-- Required domain records already exist and are in states allowed by the mapped BRs.
-- Dependencies:
-- CTMS-088
+Dependency:
+
+- CTMS-088.
+
+Supported notification types are configured by the system.
 
 ## 5. Business Rules
 
-| BR | Rule |
-|---|---|
-| BR-274 | In-app notifications must be persisted with read/unread state and a valid link or reference to the related CTMS object or action when applicable. |
-| BR-194 | Notifications or event side effects may be emitted only after the main business transaction commits successfully, preferably through an outbox or queue. |
-| BR-195 | A single business event must not create duplicate notifications for the same recipient, target, and event type. |
-| BR-196 | Users may disable ordinary notifications, but mandatory safety or emergency alerts must not be disabled while the user participates in the related Trip. |
-| BR-212 | Any Business Rule, enum, state transition, or API contract change must update the spec, tests, and data documentation before the story is Done. |
-| BR-213 | Every mapped Business Rule must have at least one valid-path test and one violation-path test; concurrency, idempotency, and transaction rules require integration or E2E coverage. |
+| BR     | Rule                                                                                                                                                                                                                                          |
+| ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| BR-274 | Users may enable or disable supported noncritical notification types, but mandatory emergency/safety alerts for an active Trip must remain enabled.                                                                                           |
+| BR-194 | Notification/event side effects may be queued or emitted only after the primary business transaction commits successfully, preferably through an outbox/queue. Notification failure must not roll back the already-committed business result. |
+| BR-195 | A single business event must not create duplicate notifications for the same recipient, target object, and event type.                                                                                                                        |
+| BR-196 | Users may disable ordinary notifications, but mandatory safety or emergency alerts for an active related Trip must not be suppressible.                                                                                                       |
+| BR-212 | Any change to a Business Rule, enum, state transition, or API contract must be reflected in the specification, test cases, and data documentation before the work is considered Done.                                                         |
+| BR-213 | Every Business Rule must have at least one valid-path test and one violation-path test. Concurrency, idempotency, and transaction rules require integration or E2E coverage.                                                                  |
 
 ## 6. State & Lifecycle
 
-No new lifecycle is defined by this story. Existing entity states from the owning domain remain authoritative.
+For configurable notification types:
 
-Do not introduce placeholder workflow states unless an owning domain contract explicitly defines them.
+`enabled ↔ disabled`
+
+For mandatory active-Trip emergency/safety notifications:
+
+`enabled`
+
+User preference cannot transition these mandatory alerts to disabled while the mandatory condition applies.
 
 ## 7. Business Flow
 
-1. Authenticated user initiates `Configure General Notification Types` through the approved UI, API, scheduled job, or integration point.
-2. The backend loads the required source records and verifies authorization, ownership or assignment, current state, and all mapped BR prerequisites.
-3. The backend applies the story-owned decision logic from Section 5.
-4. If any mapped rule is violated, the backend rejects the operation with no partial side effects and returns an actionable error.
-5. If the action changes authoritative data, the change commits atomically with required audit and post-commit notifications.
-6. The client presents the committed result or the rejection reason without exposing protected data.
+1. User opens notification settings.
+2. System loads supported notification types.
+3. Identify configurable and mandatory types.
+4. User changes one or more noncritical preferences.
+5. Backend validates ownership and configurability.
+6. Reject attempts to disable mandatory active-Trip emergency/safety alerts.
+7. Persist valid preferences.
+8. Apply preferences to future eligible notification delivery.
 
 ## 8. Data & Invariants
 
-- Persist or return only fields required for `Configure General Notification Types` and the mapped BRs.
-- Preserve authoritative identifiers, ownership links, timestamps, snapshots, status values, and audit references when they affect the business outcome.
-- Derived counters, scores, release-gate metrics, and ledger amounts must be traceable to their source records and rule version.
-- Do not invent tables, enum values, state machines, or audit stores solely for this story.
+Preference data includes applicable:
+
+- user;
+- notification type;
+- enabled/disabled state.
+
+Invariant:
+
+`mandatory active-Trip emergency/safety alert = enabled`
+
+A general preference must not override a stronger safety rule.
 
 ## 9. API / Integration Contract
 
@@ -81,40 +108,25 @@ TBD — Technical Design.
 
 ## 10. Error & Edge Cases
 
-| Case | Expected Behavior |
-|---|---|
-| Caller lacks the required role, ownership, assignment, or relationship | Reject with no side effects. |
-| Required source record is missing | Return not found or blocked state without fabricating data. |
-| Current state violates a mapped BR | Return business conflict and preserve the current authoritative state. |
-| Input violates a mapped BR | Return validation error before persistence. |
-| Duplicate or retried request affects authoritative data | Enforce idempotency or reject safely so duplicate records, refunds, notifications, or ledger entries are not created. |
+| Case                                                              | Expected Behavior                          |
+| ----------------------------------------------------------------- | ------------------------------------------ |
+| Disable supported noncritical type                                | Allowed                                    |
+| Re-enable supported type                                          | Allowed                                    |
+| Disable mandatory active-Trip safety alert                        | Reject                                     |
+| Modify another user's preference                                  | Reject                                     |
+| Unsupported notification type                                     | Reject                                     |
+| Existing disabled preference becomes mandatory due to active Trip | Mandatory safety behavior takes precedence |
 
 ## 11. Acceptance & Test Matrix
 
-| BR / AC | Scenario | Expected Result | Test Type |
-|---|---|---|---|
-| PB AC | Approved backlog acceptance path for `Configure General Notification Types` | Meets the acceptance summary above | E2E |
-| BR-274 | Approved rule is satisfied for `Configure General Notification Types` | Accepted and persisted or returned as applicable | Integration |
-| BR-274 | Approved rule is violated for `Configure General Notification Types` | Rejected with no partial side effects | Boundary / Integration |
-| BR-194 | Approved rule is satisfied for `Configure General Notification Types` | Accepted and persisted or returned as applicable | Integration |
-| BR-194 | Approved rule is violated for `Configure General Notification Types` | Rejected with no partial side effects | Boundary / Integration |
-| BR-195 | Approved rule is satisfied for `Configure General Notification Types` | Accepted and persisted or returned as applicable | Integration |
-| BR-195 | Approved rule is violated for `Configure General Notification Types` | Rejected with no partial side effects | Boundary / Integration |
-| BR-196 | Approved rule is satisfied for `Configure General Notification Types` | Accepted and persisted or returned as applicable | Integration |
-| BR-196 | Approved rule is violated for `Configure General Notification Types` | Rejected with no partial side effects | Boundary / Integration |
-| BR-212 | Approved rule is satisfied for `Configure General Notification Types` | Accepted and persisted or returned as applicable | Integration |
-| BR-212 | Approved rule is violated for `Configure General Notification Types` | Rejected with no partial side effects | Boundary / Integration |
-| BR-213 | Approved rule is satisfied for `Configure General Notification Types` | Accepted and persisted or returned as applicable | Integration |
-| BR-213 | Approved rule is violated for `Configure General Notification Types` | Rejected with no partial side effects | Boundary / Integration |
+| Source | Scenario                       | Expected Result                 | Test Type  |
+| ------ | ------------------------------ | ------------------------------- | ---------- |
+| BR-274 | Disable noncritical type       | Preference saved                | Functional |
+| BR-274 | Re-enable type                 | Preference saved                | Functional |
+| BR-274 | Disable mandatory safety alert | Rejected                        | Safety     |
+| BR-274 | Active Trip exists             | Mandatory alerts remain enabled | E2E        |
+| BR-213 | Invalid notification type      | Rejected                        | Negative   |
 
-## 12. Open Decisions & References
+## 12. Open Decisions
 
-### 12.1 Open Decisions
-
-None.
-
-### 12.2 References
-
-- Product Backlog v3.1.
-- CTMS Business Rules workbook.
-- CTMS Architecture Overview.
+Exact list of configurable noncritical notification types belongs to authoritative notification configuration.

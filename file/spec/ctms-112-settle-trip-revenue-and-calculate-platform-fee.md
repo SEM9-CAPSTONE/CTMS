@@ -3,101 +3,110 @@
 ## 1. Overview
 
 Story: CTMS-112
+
 Epic: EPIC 5. Booking and Payment
+
 Use Case: Settle Trip Revenue and Calculate Platform Fee
+
 Priority: Must Have
 
-Goal:
-Allow System to complete `Settle Trip Revenue and Calculate Platform Fee` within the approved CTMS v3.1 scope.
+Goal: Settle eligible Trip revenue only after the approved hold/complaint conditions are satisfied and snapshot the applicable Platform Fee rule.
 
-Acceptance summary:
-The Settle Trip Revenue and Calculate Platform Fee workflow must satisfy the approved PB v3.1 acceptance criteria for this story. Do not copy the Vietnamese backlog text into this spec; implementers must preserve the approved source meaning when refining detailed tests.
+Backlog story: As the System, I want to settle completed Trip revenue and calculate Platform Fee so Host entitlement is finalized consistently.
+
+Acceptance Criteria:
+
+| Source  | Criterion                                                                                |
+| ------- | ---------------------------------------------------------------------------------------- |
+| PB AC-1 | Settlement requires Trip `completed`.                                                    |
+| PB AC-2 | Settlement requires `now ≥ trips.completed_at + 72h`.                                    |
+| PB AC-3 | Camper 24-hour complaint window must have ended.                                         |
+| PB AC-4 | No blocking complaint/refund claim may remain pending/reviewing/approved-refund-pending. |
+| PB AC-5 | If a blocking claim remains after 72h, settlement stays held until resolved.             |
+| PB AC-6 | Commission rate comes from configuration, not hard-coded logic.                          |
+| PB AC-7 | Settlement snapshots the applicable commission rate/rule.                                |
+| PB AC-8 | Retry cannot create duplicate settlement.                                                |
 
 ## 2. Scope
 
 ### In Scope
 
-- Story-owned behavior for `Settle Trip Revenue and Calculate Platform Fee`.
-- Validation, authorization, state handling, persistence, audit, and observable errors required by the mapped Business Rules.
-- Story-specific acceptance tests that prove both allowed and rejected paths.
+- Settlement eligibility.
+- 72-hour hold.
+- Complaint/refund blocking.
+- Platform Fee calculation.
+- Commission snapshot.
+- Net entitlement.
 
 ### Out of Scope
 
-- Behavior owned by dependency stories unless a mapped BR explicitly makes it part of this story.
-- Implementation of dependency stories: CTMS-035, CTMS-056, CTMS-111.
+- Cash payout — CTMS-113.
+- Post-payout reconciliation — CTMS-114.
 
 ## 3. Actors & Authorization
 
-- System: primary business actor for this story.
-- Backend API: authoritative enforcement point for permissions, state, and business rules.
-- UI or client application: may guide the user, but must not replace backend enforcement.
+Primary actor:
 
-Authorization must be concrete: the caller must have the role, ownership, assignment, or operational relationship required by the mapped BRs before any protected data is returned or any state-changing action is committed.
+- System/authorized financial process.
 
 ## 4. Preconditions & Dependencies
 
-- Product Backlog v3.1 row `CTMS-112` is the story scope source.
-- The mapped Primary BR IDs below exist in the latest Business Rules workbook.
-- Required domain records already exist and are in states allowed by the mapped BRs.
-- Dependencies:
-- CTMS-035
-- CTMS-056
-- CTMS-111
+Dependencies:
+
+- CTMS-111.
+
+Trip is completed and Held Funds exist.
 
 ## 5. Business Rules
 
-| BR | Rule |
-|---|---|
-| BR-333 | This BR is the authoritative story rule for `Settle Trip Revenue and Calculate Platform Fee`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-334 | This BR is the authoritative story rule for `Settle Trip Revenue and Calculate Platform Fee`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-335 | Settlement may be created only when Trip status is `completed`, the current time is at least 72 hours after `trips.completed_at`, the 24-hour Camper complaint window has ended, and no blocking complaint or refund claim remains pending, reviewing, or approved-refund-pending. Backend must revalidate all conditions in a transaction. |
-| BR-336 | Every succeeded refund before settlement must reduce Held Funds and settlement base. Approved refunds pending provider result must continue blocking settlement; pending or failed refunds must not be treated as succeeded. |
-| BR-337 | This BR is the authoritative story rule for `Settle Trip Revenue and Calculate Platform Fee`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-338 | This BR is the authoritative story rule for `Settle Trip Revenue and Calculate Platform Fee`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-339 | This BR is the authoritative story rule for `Settle Trip Revenue and Calculate Platform Fee`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-344 | This BR is the authoritative story rule for `Settle Trip Revenue and Calculate Platform Fee`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-172 | Sensitive personal, health, payment, and location data may be accessed only by an authorized actor with a valid business relationship. |
-| BR-175 | Clients must not self-assert server-owned state, ownership, pricing, capacity, ledger, audit, or safety outcomes. |
-| BR-176 | State-changing operations must persist the authoritative result before dependent side effects are emitted. |
-| BR-177 | Duplicate submissions and retries must not create duplicate authoritative records. |
-| BR-178 | Provider, sync, queue, and notification retries must be idempotent. |
-| BR-179 | Multi-record operations that define one business outcome must use a transaction or equivalent atomic boundary. |
-| BR-180 | Stateful resources must follow defined state transitions and must not use enum values outside the database or API contract. |
-| BR-181 | Before updating state, the backend must verify the current persisted state; stale requests must fail with a business conflict. |
-| BR-183 | The system must distinguish source event time, client time, provider time, and server/database commit time when the workflow depends on timing. |
-| BR-188 | Date and time handling must use the authoritative timezone and ordering rules for the business workflow, and invalid or impossible time ranges must be rejected. |
-| BR-191 | Critical actions must write an audit record containing actor, action, target, timestamp, before/after values or reason, and affected business identifiers. |
-| BR-192 | Audit logs must not contain passwords, OTPs, tokens, sensitive payment data, unnecessary health data, or private payloads beyond the audit need. |
-| BR-193 | Automated actions must record `actor_id = NULL` or a system actor and must store a clear execution reason. |
-| BR-194 | Notifications or event side effects may be emitted only after the main business transaction commits successfully, preferably through an outbox or queue. |
-| BR-205 | Background jobs must re-check business conditions at execution time and must not rely solely on stale state captured when the job was scheduled. |
-| BR-206 | Background jobs must be safely rerunnable; multiple workers must not expire, cancel, refund, or notify the same record more than once. |
-| BR-209 | The UI must prevent duplicate submission while a request is processing. Financial or resource-holding actions may show success only after backend confirmation. |
-| BR-211 | Operational, financial, safety, authorization, and administrative decisions must be traceable to the actor, source record, rule, and timestamp that produced them. |
-| BR-212 | Any Business Rule, enum, state transition, or API contract change must update the spec, tests, and data documentation before the story is Done. |
-| BR-213 | Every mapped Business Rule must have at least one valid-path test and one violation-path test; concurrency, idempotency, and transaction rules require integration or E2E coverage. |
+| BR                 | Rule                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| BR-333             | The commission/platform-fee rate must come from system configuration. Business logic must not hard-code a fixed rate.                                                                                                                                                                                                                                                                                                                                        |
+| BR-334             | When a settlement is created, the system must snapshot the applicable commission rate/rule so later configuration changes cannot alter financial history.                                                                                                                                                                                                                                                                                                    |
+| BR-335             | A settlement may be created only when Trip status = completed, now >= trips.completed_at + 72 hours, the 24-hour Camper complaint window has ended, and no blocking complaint/refund claim remains in pending, reviewing, or approved-refund-pending state. If a blocking claim still exists at the 72-hour point, settlement must remain on hold until the claim is resolved. The backend must revalidate all conditions within the settlement transaction. |
+| BR-332             | Callbacks or retries for charge, refund, settlement, payout, or adjustment must be idempotent. The same business/provider reference must not cause a double charge, refund, settlement, payout, or adjustment.                                                                                                                                                                                                                                               |
+| BR-336             | Every succeeded refund before settlement must reduce Held Funds and the settlement base accordingly. An approved refund that is still awaiting provider completion must continue to block settlement. Pending or failed refunds must not be treated as succeeded.                                                                                                                                                                                            |
+| BR-337             | Platform Fee must be calculated server-side from the settlement base using the snapshotted fee rule and the currency's rounding rule.                                                                                                                                                                                                                                                                                                                        |
+| BR-338             | Host net settlement = settlement base - platform fee ± approved financial adjustments. Each component must be stored separately for audit and reconciliation.                                                                                                                                                                                                                                                                                                |
+| BR-339             | The same financial scope/version must not be successfully settled more than once. A retry must detect a completed settlement and return an idempotent result.                                                                                                                                                                                                                                                                                                |
+| BR-344             | Settlement must not commit if a blocking complaint/refund claim is created or remains unresolved while the settlement transaction is running. If a race or concurrent update is detected, the settlement transaction must abort or retry rather than finalize payable balance from stale financial state.                                                                                                                                                    |
 
 ## 6. State & Lifecycle
 
-Relevant states from the approved rules: `completed`, `pass`, `fail`.
+Held
+→ settlement eligibility check
+→ blocked while claim exists
 
-Do not introduce placeholder workflow states unless an owning domain contract explicitly defines them.
+or
+
+Held
+→ Settled/Payable.
 
 ## 7. Business Flow
 
-1. System initiates `Settle Trip Revenue and Calculate Platform Fee` through the approved UI, API, scheduled job, or integration point.
-2. The backend loads the required source records and verifies authorization, ownership or assignment, current state, and all mapped BR prerequisites.
-3. The backend applies the story-owned decision logic from Section 5.
-4. If any mapped rule is violated, the backend rejects the operation with no partial side effects and returns an actionable error.
-5. If the action changes authoritative data, the change commits atomically with required audit and post-commit notifications.
-6. The client presents the committed result or the rejection reason without exposing protected data.
+1. Trip completes.
+2. Held Funds remain held.
+3. Wait until at least completed_at +72h.
+4. Verify complaint window ended.
+5. Check blocking claims.
+6. If blocking claim exists, remain held.
+7. Resolve eligible settlement base.
+8. Load configured commission rule.
+9. Snapshot rule/rate.
+10. Calculate Platform Fee and Host entitlement.
+11. Persist settlement atomically/idempotently.
 
 ## 8. Data & Invariants
 
-- Persist or return only fields required for `Settle Trip Revenue and Calculate Platform Fee` and the mapped BRs.
-- Preserve authoritative identifiers, ownership links, timestamps, snapshots, status values, and audit references when they affect the business outcome.
-- Derived counters, scores, release-gate metrics, and ledger amounts must be traceable to their source records and rule version.
-- Do not invent tables, enum values, state machines, or audit stores solely for this story.
+Settlement must preserve:
+
+- settlement base;
+- applied commission rule/rate snapshot;
+- Platform Fee;
+- Host entitlement;
+- source financial references.
+
+Changing current commission configuration must not rewrite historical settlement.
 
 ## 9. API / Integration Contract
 
@@ -105,45 +114,26 @@ TBD — Technical Design.
 
 ## 10. Error & Edge Cases
 
-| Case | Expected Behavior |
-|---|---|
-| Caller lacks the required role, ownership, assignment, or relationship | Reject with no side effects. |
-| Required source record is missing | Return not found or blocked state without fabricating data. |
-| Current state violates a mapped BR | Return business conflict and preserve the current authoritative state. |
-| Input violates a mapped BR | Return validation error before persistence. |
-| Duplicate or retried request affects authoritative data | Enforce idempotency or reject safely so duplicate records, refunds, notifications, or ledger entries are not created. |
+| Case                               | Expected Behavior               |
+| ---------------------------------- | ------------------------------- |
+| Trip not completed                 | No settlement                   |
+| completed +71h59m                  | No settlement                   |
+| completed +72h with blocking claim | Remain held                     |
+| Claim resolved after 72h           | Re-evaluate                     |
+| Commission config changes later    | Historical settlement unchanged |
+| Duplicate settlement job           | No duplicate settlement         |
 
 ## 11. Acceptance & Test Matrix
 
-| BR / AC | Scenario | Expected Result | Test Type |
-|---|---|---|---|
-| PB AC | Approved backlog acceptance path for `Settle Trip Revenue and Calculate Platform Fee` | Meets the acceptance summary above | E2E |
-| BR-333 | Approved rule is satisfied for `Settle Trip Revenue and Calculate Platform Fee` | Accepted and persisted or returned as applicable | Integration |
-| BR-333 | Approved rule is violated for `Settle Trip Revenue and Calculate Platform Fee` | Rejected with no partial side effects | Boundary / Integration |
-| BR-334 | Approved rule is satisfied for `Settle Trip Revenue and Calculate Platform Fee` | Accepted and persisted or returned as applicable | Integration |
-| BR-334 | Approved rule is violated for `Settle Trip Revenue and Calculate Platform Fee` | Rejected with no partial side effects | Boundary / Integration |
-| BR-335 | Approved rule is satisfied for `Settle Trip Revenue and Calculate Platform Fee` | Accepted and persisted or returned as applicable | Integration |
-| BR-335 | Approved rule is violated for `Settle Trip Revenue and Calculate Platform Fee` | Rejected with no partial side effects | Boundary / Integration |
-| BR-336 | Approved rule is satisfied for `Settle Trip Revenue and Calculate Platform Fee` | Accepted and persisted or returned as applicable | Integration |
-| BR-336 | Approved rule is violated for `Settle Trip Revenue and Calculate Platform Fee` | Rejected with no partial side effects | Boundary / Integration |
-| BR-337 | Approved rule is satisfied for `Settle Trip Revenue and Calculate Platform Fee` | Accepted and persisted or returned as applicable | Integration |
-| BR-337 | Approved rule is violated for `Settle Trip Revenue and Calculate Platform Fee` | Rejected with no partial side effects | Boundary / Integration |
-| BR-338 | Approved rule is satisfied for `Settle Trip Revenue and Calculate Platform Fee` | Accepted and persisted or returned as applicable | Integration |
-| BR-338 | Approved rule is violated for `Settle Trip Revenue and Calculate Platform Fee` | Rejected with no partial side effects | Boundary / Integration |
-| BR-339 | Approved rule is satisfied for `Settle Trip Revenue and Calculate Platform Fee` | Accepted and persisted or returned as applicable | Integration |
-| BR-339 | Approved rule is violated for `Settle Trip Revenue and Calculate Platform Fee` | Rejected with no partial side effects | Boundary / Integration |
-| BR-344 | Approved rule is satisfied for `Settle Trip Revenue and Calculate Platform Fee` | Accepted and persisted or returned as applicable | Integration |
-| BR-344 | Approved rule is violated for `Settle Trip Revenue and Calculate Platform Fee` | Rejected with no partial side effects | Boundary / Integration |
-| Remaining mapped BRs | Each mapped BR has valid and violation coverage in the owning test suite | Coverage proves the rule is enforced | Unit / Integration / E2E |
+| Source | Scenario                | Expected Result      | Test Type   |
+| ------ | ----------------------- | -------------------- | ----------- |
+| BR-335 | Before 72h              | Held                 | Boundary    |
+| BR-335 | 72h + no blocking claim | Eligible             | Financial   |
+| BR-335 | Blocking claim          | Held                 | Financial   |
+| BR-333 | Fee calculated          | Config rate used     | Unit        |
+| BR-334 | Config later changes    | Snapshot preserved   | Integrity   |
+| BR-332 | Retry                   | No double settlement | Idempotency |
 
-## 12. Open Decisions & References
+## 12. Open Decisions
 
-### 12.1 Open Decisions
-
-None.
-
-### 12.2 References
-
-- Product Backlog v3.1.
-- CTMS Business Rules workbook.
-- CTMS Architecture Overview.
+None for the 72-hour settlement and 24-hour complaint timing.

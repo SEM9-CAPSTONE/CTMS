@@ -3,136 +3,139 @@
 ## 1. Overview
 
 Story: CTMS-013
+
 Epic: EPIC 2. Trekking Route and Checkpoint Management
+
 Use Case: Approve Trekking Route
+
 Priority: Must Have
 
-Goal:
-Allow Admin to complete `Approve Trekking Route` within the approved CTMS v3.1 scope.
+Goal: Allow Admin to review a submitted Trekking Route and produce an authoritative approval or rejection outcome.
 
-Acceptance summary:
-The Approve Trekking Route workflow must satisfy the approved PB v3.1 acceptance criteria for this story. Do not copy the Vietnamese backlog text into this spec; implementers must preserve the approved source meaning when refining detailed tests.
+Backlog story:
+As an Admin, I want to approve trekking routes so only reviewed routes can support downstream Trip publication.
+
+Acceptance Criteria:
+
+| Source  | Criterion                                                                                          |
+| ------- | -------------------------------------------------------------------------------------------------- |
+| PB AC-1 | Admin can review a Route in the applicable approval state.                                         |
+| PB AC-2 | Approval validates required Route information including geometry and safety-related configuration. |
+| PB AC-3 | Route may be approved or rejected only through valid state transitions.                            |
+| PB AC-4 | Approval/rejection is audited and downstream Trip binding uses approved Route data.                |
 
 ## 2. Scope
 
 ### In Scope
 
-- Story-owned behavior for `Approve Trekking Route`.
-- Validation, authorization, state handling, persistence, audit, and observable errors required by the mapped Business Rules.
-- Story-specific acceptance tests that prove both allowed and rejected paths.
+- Admin Route review.
+- Validate Route approval state.
+- Validate Route geometry/checkpoint/hazard information required by source.
+- Approve Route.
+- Reject Route.
+- Audit decision.
 
 ### Out of Scope
 
-- Behavior owned by dependency stories unless a mapped BR explicitly makes it part of this story.
-- Implementation of dependency stories: CTMS-006, CTMS-010, CTMS-011.
+- Route creation.
+- Checkpoint creation.
+- Hazard editing.
+- Trip publication itself.
 
 ## 3. Actors & Authorization
 
-- Admin: primary business actor for this story.
-- Backend API: authoritative enforcement point for permissions, state, and business rules.
-- UI or client application: may guide the user, but must not replace backend enforcement.
+Primary actor: Admin.
 
-Authorization must be concrete: the caller must have the role, ownership, assignment, or operational relationship required by the mapped BRs before any protected data is returned or any state-changing action is committed.
+Only an authorized Admin may perform Route approval/rejection.
 
 ## 4. Preconditions & Dependencies
 
-- Product Backlog v3.1 row `CTMS-013` is the story scope source.
-- The mapped Primary BR IDs below exist in the latest Business Rules workbook.
-- Required domain records already exist and are in states allowed by the mapped BRs.
-- Dependencies:
+Dependencies:
+
 - CTMS-006
 - CTMS-010
 - CTMS-011
 
+Route must exist and be in an approval-eligible state.
+
 ## 5. Business Rules
 
-| BR | Rule |
-|---|---|
-| BR-031 | This BR is the authoritative story rule for `Approve Trekking Route`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-032 | This BR is the authoritative story rule for `Close or Reopen Route Based on Conditions`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-033 | This BR is the authoritative story rule for `Approve Trekking Route`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-037 | This BR is the authoritative story rule for `Approve Trekking Route`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-172 | Sensitive personal, health, payment, and location data may be accessed only by an authorized actor with a valid business relationship. |
-| BR-180 | Stateful resources must follow defined state transitions and must not use enum values outside the database or API contract. |
-| BR-181 | Before updating state, the backend must verify the current persisted state; stale requests must fail with a business conflict. |
-| BR-191 | Critical actions must write an audit record containing actor, action, target, timestamp, before/after values or reason, and affected business identifiers. |
-| BR-192 | Audit logs must not contain passwords, OTPs, tokens, sensitive payment data, unnecessary health data, or private payloads beyond the audit need. |
-| BR-194 | Notifications or event side effects may be emitted only after the main business transaction commits successfully, preferably through an outbox or queue. |
-| BR-212 | Any Business Rule, enum, state transition, or API contract change must update the spec, tests, and data documentation before the story is Done. |
-| BR-213 | Every mapped Business Rule must have at least one valid-path test and one violation-path test; concurrency, idempotency, and transaction rules require integration or E2E coverage. |
+| BR     | Rule                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| BR-031 | An Admin may approve a Route only when route.status = pending_approval and the Route geometry, difficulty, required checkpoints/hazards, and all other mandatory Route data are valid. Approval transitions pending_approval → active. A request for changes transitions pending_approval → draft and must include a reason.                                                           |
+| BR-032 | A Route that is no longer permitted for operation may be moved to status = closed only by an authorized actor. Closing the Route must record the reason in the audit log and notify affected Trips.                                                                                                                                                                                    |
+| BR-033 | The rejected Route status must not be used. Only state transitions defined by the route_status enum are permitted.                                                                                                                                                                                                                                                                     |
+| BR-037 | When a Trip is submitted or published, it must be bound to the exact approved Route version used for approval. Later Route changes must create a new version or equivalent immutable snapshot and must not silently alter the geometry, checkpoints, or hazards of an already-published Trip. A Trip that needs the new Route version must follow the material-change/reapproval flow. |
+| BR-172 | Access control must be enforced by the backend using role, ownership, and business scope. Hiding or disabling functionality in the UI is not a substitute for backend authorization.                                                                                                                                                                                                   |
+| BR-180 | Every stateful resource must follow its defined state transitions and must not use values outside the database enum.                                                                                                                                                                                                                                                                   |
+| BR-181 | Before changing state, the system must validate the current state. A request based on stale state must be rejected with a business-conflict error.                                                                                                                                                                                                                                     |
+| BR-191 | Critical actions must be recorded in the audit log with actor, action, target, timestamp, and either before/after data or the reason for the change.                                                                                                                                                                                                                                   |
+| BR-192 | Audit logs must not contain passwords, OTPs, tokens, sensitive payment data, or unnecessary health data.                                                                                                                                                                                                                                                                               |
+| BR-194 | Notification/event side effects may be queued or emitted only after the primary business transaction commits successfully, preferably through an outbox/queue. Notification failure must not roll back the already-committed business result.                                                                                                                                          |
+| BR-212 | Any change to a Business Rule, enum, state transition, or API contract must be reflected in the specification, test cases, and data documentation before the work is considered Done.                                                                                                                                                                                                  |
+| BR-213 | Every Business Rule must have at least one valid-path test and one violation-path test. Concurrency, idempotency, and transaction rules require integration or E2E coverage.                                                                                                                                                                                                           |
 
 ## 6. State & Lifecycle
 
-Relevant states from the approved rules: `pass`, `fail`.
+Conceptual lifecycle supported by source:
 
-Do not introduce placeholder workflow states unless an owning domain contract explicitly defines them.
+Route submitted / `pending_approval`
+→ Admin review
+→ approved
+
+or
+
+Route submitted / `pending_approval`
+→ Admin review
+→ rejected
+
+Exact enum values follow authoritative `route_status`.
 
 ## 7. Business Flow
 
-1. Admin initiates `Approve Trekking Route` through the approved UI, API, scheduled job, or integration point.
-2. The backend loads the required source records and verifies authorization, ownership or assignment, current state, and all mapped BR prerequisites.
-3. The backend applies the story-owned decision logic from Section 5.
-4. If any mapped rule is violated, the backend rejects the operation with no partial side effects and returns an actionable error.
-5. If the action changes authoritative data, the change commits atomically with required audit and post-commit notifications.
-6. The client presents the committed result or the rejection reason without exposing protected data.
+1. Admin opens pending Route.
+2. Backend verifies Admin authorization.
+3. Backend loads current Route version/state.
+4. Required geometry/checkpoint/hazard/difficulty information is validated.
+5. Admin approves or rejects.
+6. Backend validates current persisted state.
+7. State transition commits atomically.
+8. Audit record captures decision.
+9. Post-commit event may notify relevant actor.
 
 ## 8. Data & Invariants
 
-- Persist or return only fields required for `Approve Trekking Route` and the mapped BRs.
-- Preserve authoritative identifiers, ownership links, timestamps, snapshots, status values, and audit references when they affect the business outcome.
-- Derived counters, scores, release-gate metrics, and ledger amounts must be traceable to their source records and rule version.
-- Do not invent tables, enum values, state machines, or audit stores solely for this story.
+- Only approval-eligible Route can be reviewed.
+- Stale Admin decision cannot overwrite newer Route state.
+- Approved status must correspond to the reviewed Route version.
+- Downstream Trip cannot treat an unapproved Route as approved.
 
 ## 9. API / Integration Contract
 
-Confirmed current API surface:
-
-- `GET /trekking-routes/pending-review`
-- `PATCH /trekking-routes/:routeId/review`
-
-Request and response DTO details remain owned by the implementation files and must stay aligned with this story's BRs.
+TBD — Technical Design.
 
 ## 10. Error & Edge Cases
 
-| Case | Expected Behavior |
-|---|---|
-| Caller lacks the required role, ownership, assignment, or relationship | Reject with no side effects. |
-| Required source record is missing | Return not found or blocked state without fabricating data. |
-| Current state violates a mapped BR | Return business conflict and preserve the current authoritative state. |
-| Input violates a mapped BR | Return validation error before persistence. |
-| Duplicate or retried request affects authoritative data | Enforce idempotency or reject safely so duplicate records, refunds, notifications, or ledger entries are not created. |
+| Case                                             | Expected Behavior                                                |
+| ------------------------------------------------ | ---------------------------------------------------------------- |
+| Non-Admin approval                               | Reject.                                                          |
+| Route not pending approval                       | Conflict/reject.                                                 |
+| Required Route safety/configuration data missing | Approval blocked.                                                |
+| Two Admins decide concurrently                   | First authoritative transition wins; stale transition conflicts. |
+| Route changed during review                      | Stale approval must not silently approve unreviewed version.     |
 
 ## 11. Acceptance & Test Matrix
 
-| BR / AC | Scenario | Expected Result | Test Type |
-|---|---|---|---|
-| PB AC | Approved backlog acceptance path for `Approve Trekking Route` | Meets the acceptance summary above | E2E |
-| BR-031 | Approved rule is satisfied for `Approve Trekking Route` | Accepted and persisted or returned as applicable | Integration |
-| BR-031 | Approved rule is violated for `Approve Trekking Route` | Rejected with no partial side effects | Boundary / Integration |
-| BR-032 | Approved rule is satisfied for `Approve Trekking Route` | Accepted and persisted or returned as applicable | Integration |
-| BR-032 | Approved rule is violated for `Approve Trekking Route` | Rejected with no partial side effects | Boundary / Integration |
-| BR-033 | Approved rule is satisfied for `Approve Trekking Route` | Accepted and persisted or returned as applicable | Integration |
-| BR-033 | Approved rule is violated for `Approve Trekking Route` | Rejected with no partial side effects | Boundary / Integration |
-| BR-037 | Approved rule is satisfied for `Approve Trekking Route` | Accepted and persisted or returned as applicable | Integration |
-| BR-037 | Approved rule is violated for `Approve Trekking Route` | Rejected with no partial side effects | Boundary / Integration |
-| BR-172 | Approved rule is satisfied for `Approve Trekking Route` | Accepted and persisted or returned as applicable | Integration |
-| BR-172 | Approved rule is violated for `Approve Trekking Route` | Rejected with no partial side effects | Boundary / Integration |
-| BR-180 | Approved rule is satisfied for `Approve Trekking Route` | Accepted and persisted or returned as applicable | Integration |
-| BR-180 | Approved rule is violated for `Approve Trekking Route` | Rejected with no partial side effects | Boundary / Integration |
-| BR-181 | Approved rule is satisfied for `Approve Trekking Route` | Accepted and persisted or returned as applicable | Integration |
-| BR-181 | Approved rule is violated for `Approve Trekking Route` | Rejected with no partial side effects | Boundary / Integration |
-| BR-191 | Approved rule is satisfied for `Approve Trekking Route` | Accepted and persisted or returned as applicable | Integration |
-| BR-191 | Approved rule is violated for `Approve Trekking Route` | Rejected with no partial side effects | Boundary / Integration |
-| Remaining mapped BRs | Each mapped BR has valid and violation coverage in the owning test suite | Coverage proves the rule is enforced | Unit / Integration / E2E |
+| Source | Scenario                                 | Expected Result           | Test Type   |
+| ------ | ---------------------------------------- | ------------------------- | ----------- |
+| BR-031 | Complete pending Route approved by Admin | Approved.                 | E2E         |
+| BR-033 | Reject eligible Route                    | Valid rejected state.     | E2E         |
+| BR-172 | Host attempts approval                   | Rejected.                 | Security    |
+| BR-181 | Concurrent Admin decisions               | Stale decision conflicts. | Concurrency |
+| BR-191 | Approval/rejection                       | Audit record exists.      | Integration |
 
-## 12. Open Decisions & References
+## 12. Open Decisions
 
-### 12.1 Open Decisions
+BR-031/032/033/037 currently contain generated wording.
 
-None.
-
-### 12.2 References
-
-- Product Backlog v3.1.
-- CTMS Business Rules workbook.
-- CTMS Architecture Overview.
+Exact mandatory approval checklist and exact `route_status` values must come from the authoritative data/rule source.

@@ -3,97 +3,147 @@
 ## 1. Overview
 
 Story: CTMS-035
+
 Epic: EPIC 5. Booking and Payment
+
 Use Case: Process Refund
+
 Priority: Must Have
 
-Goal:
-Allow Authenticated user to complete `Process Refund` within the approved CTMS v3.1 scope.
+Goal: Process an approved Booking refund exactly once while keeping charge, refund, Booking payment status, Held Funds and settlement accounting consistent.
 
-Acceptance summary:
-The Process Refund workflow must satisfy the approved PB v3.1 acceptance criteria for this story. Do not copy the Vietnamese backlog text into this spec; implementers must preserve the approved source meaning when refining detailed tests.
+Backlog story: As the System, I want to process eligible refunds so money is returned according to policy without duplicate or over-refund.
+
+Acceptance Criteria:
+
+| Source  | Criterion                                                                                     |
+| ------- | --------------------------------------------------------------------------------------------- |
+| PB AC-1 | Refund is created only from an eligible succeeded charge and approved refund obligation.      |
+| PB AC-2 | Refund uses a `refund` payment transaction linked to its parent charge.                       |
+| PB AC-3 | Refund transaction uses only the authoritative payment transaction statuses.                  |
+| PB AC-4 | Cumulative succeeded/pending policy-approved refund must not exceed refundable charge amount. |
+| PB AC-5 | Refund execution is idempotent and provider-reconcilable.                                     |
+| PB AC-6 | Successful pre-settlement refund adjusts Held Funds/settlement base consistently.             |
+| PB AC-7 | Pending/failed refund is not treated as succeeded.                                            |
 
 ## 2. Scope
 
 ### In Scope
 
-- Story-owned behavior for `Process Refund`.
-- Validation, authorization, state handling, persistence, audit, and observable errors required by the mapped Business Rules.
-- Story-specific acceptance tests that prove both allowed and rejected paths.
+- Create refund transaction.
+- Parent charge relationship.
+- Refund amount validation.
+- Provider refund.
+- Idempotency.
+- Reconciliation.
+- Booking payment-state derivation.
+- Held Funds/settlement interaction.
 
 ### Out of Scope
 
-- Behavior owned by dependency stories unless a mapped BR explicitly makes it part of this story.
-- Implementation of dependency stories: CTMS-032, CTMS-034, CTMS-038.
+- Deciding cancellation eligibility; CTMS-034.
+- Creating original charge; CTMS-032.
+- Payout execution except accounting interaction required by refund rules.
 
 ## 3. Actors & Authorization
 
-- Authenticated user: primary business actor for this story.
-- Backend API: authoritative enforcement point for permissions, state, and business rules.
-- UI or client application: may guide the user, but must not replace backend enforcement.
+- System.
+- Payment provider.
+- Authorized administrative/recovery actor where explicitly permitted.
 
-Authorization must be concrete: the caller must have the role, ownership, assignment, or operational relationship required by the mapped BRs before any protected data is returned or any state-changing action is committed.
+No client may directly mark a refund succeeded.
 
 ## 4. Preconditions & Dependencies
 
-- Product Backlog v3.1 row `CTMS-035` is the story scope source.
-- The mapped Primary BR IDs below exist in the latest Business Rules workbook.
-- Required domain records already exist and are in states allowed by the mapped BRs.
-- Dependencies:
-- CTMS-032
-- CTMS-034
-- CTMS-038
+Dependencies:
+
+- CTMS-032.
+- CTMS-034.
+- CTMS-038.
+
+Required:
+
+- Eligible parent charge exists.
+- Refund amount is approved by policy.
+- Refund has not already been fully applied.
 
 ## 5. Business Rules
 
-| BR | Rule |
-|---|---|
-| BR-103 | This BR is the authoritative story rule for `Process Refund`. Preserve and enforce these source thresholds, states, identifiers, and comparison operators exactly: 24 hours. |
-| BR-104 | This BR is the authoritative story rule for `Process Refund`. Preserve and enforce these source thresholds, states, identifiers, and comparison operators exactly: 24 hours. |
-| BR-105 | Payment transactions may use only `pending`, `succeeded`, or `failed`. `bookings.payment_status` is derived from total succeeded refunds as `partially_refunded` or `refunded`; do not use `payments.status = refunded`. |
-| BR-106 | The total amount of succeeded and pending refunds allowed by policy must not exceed the refundable succeeded charge amount. The same cancellation or refund request must not be refunded twice. |
-| BR-336 | Every succeeded refund before settlement must reduce Held Funds and settlement base. Approved refunds pending provider result must continue blocking settlement; pending or failed refunds must not be treated as succeeded. |
-| BR-343 | Ordinary Camper refunds must be processed before settlement within the defined request windows; succeeded refunds reduce Held Funds and settlement base and must not be paid out. |
-| BR-174 | Inputs must be validated for required fields, formats, identifiers, enum values, and cross-entity references before any write is committed. |
-| BR-175 | Clients must not self-assert server-owned state, ownership, pricing, capacity, ledger, audit, or safety outcomes. |
-| BR-176 | State-changing operations must persist the authoritative result before dependent side effects are emitted. |
-| BR-177 | Duplicate submissions and retries must not create duplicate authoritative records. |
-| BR-178 | Provider, sync, queue, and notification retries must be idempotent. |
-| BR-179 | Multi-record operations that define one business outcome must use a transaction or equivalent atomic boundary. |
-| BR-180 | Stateful resources must follow defined state transitions and must not use enum values outside the database or API contract. |
-| BR-181 | Before updating state, the backend must verify the current persisted state; stale requests must fail with a business conflict. |
-| BR-188 | Date and time handling must use the authoritative timezone and ordering rules for the business workflow, and invalid or impossible time ranges must be rejected. |
-| BR-191 | Critical actions must write an audit record containing actor, action, target, timestamp, before/after values or reason, and affected business identifiers. |
-| BR-192 | Audit logs must not contain passwords, OTPs, tokens, sensitive payment data, unnecessary health data, or private payloads beyond the audit need. |
-| BR-194 | Notifications or event side effects may be emitted only after the main business transaction commits successfully, preferably through an outbox or queue. |
-| BR-209 | The UI must prevent duplicate submission while a request is processing. Financial or resource-holding actions may show success only after backend confirmation. |
-| BR-210 | When backend rejects a stale or concurrent request, the UI must preserve entered data, show the reason, and allow reload or retry. |
-| BR-211 | Operational, financial, safety, authorization, and administrative decisions must be traceable to the actor, source record, rule, and timestamp that produced them. |
-| BR-212 | Any Business Rule, enum, state transition, or API contract change must update the spec, tests, and data documentation before the story is Done. |
-| BR-213 | Every mapped Business Rule must have at least one valid-path test and one violation-path test; concurrency, idempotency, and transaction rules require integration or E2E coverage. |
-| BR-225 | Every operational action must resolve to success, pending, or failure. On conflict or connectivity failure, user-entered or local data must remain recoverable. |
+| BR         | Rule                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| BR-103     | A Camper-initiated refund request may be created only when either (a) the Booking was cancelled before trips.starts_at, or (b) a complaint/refund request for completed participation is submitted no later than 24 hours after trips.completed_at. Requests outside these two windows must be rejected. Refund obligations caused by Host/System Trip cancellation are not limited by the Camper request window. |
+| BR-104     | For a Camper refund request made before Trip start, the system must complete request processing and, if approved, create/submit the provider refund transaction within 24 hours of refund_requested_at. External provider settlement time must be tracked through transaction status and must never restore Trip participation rights.                                                                            |
+| BR-105     | A refund must create a payment transaction with type = refund, parent_payment_id referencing the original successful charge, a unique idempotency_key, and status = pending/succeeded/failed. The combined amount of pending + succeeded refunds for the same obligation must not exceed the eligible paid amount. provider transaction_ref, when available, must be stored for callback reconciliation.          |
+| BR-106     | A complaint/refund request created within 24 hours after trips.completed_at must be treated as a blocking financial claim until resolved. States pending, reviewing, and approved-refund-pending must block settlement and payout. Settlement may resume only after the request is resolved and all succeeded refunds are reflected in the financial ledger.                                                      |
+| BR-336     | Every succeeded refund before settlement must reduce Held Funds and the settlement base accordingly. An approved refund that is still awaiting provider completion must continue to block settlement. Pending or failed refunds must not be treated as succeeded.                                                                                                                                                 |
+| BR-343     | Ordinary Camper refunds must be handled before settlement within the defined request windows. A succeeded refund reduces Held Funds/the settlement base, and no payout may be created for the refunded amount.                                                                                                                                                                                                    |
+| BR-174     | All input must be validated for required fields, data type, format, length, enum membership, and cross-field relationships before processing.                                                                                                                                                                                                                                                                     |
+| BR-175     | The backend is the authoritative source for authorization, state, pricing, capacity, inventory, risk level, and transaction outcome. The client must not establish these values authoritatively.                                                                                                                                                                                                                  |
+| BR-176     | Any business operation that changes multiple tables or records must execute within a transaction. If any step fails, the entire operation must roll back.                                                                                                                                                                                                                                                         |
+| BR-177     | A failed operation must not leave data, state, reserved capacity, money, or inventory in a partially processed condition.                                                                                                                                                                                                                                                                                         |
+| BR-178     | Operations that may be retried, including payments, refunds, callbacks, and synchronization, must support idempotency so the same request cannot be successfully applied more than once.                                                                                                                                                                                                                          |
+| BR-179     | When concurrent requests modify the same resource, the system must use transactions, locking, optimistic/version control, or an equivalent mechanism to prevent lost updates and violations of business limits.                                                                                                                                                                                                   |
+| BR-180     | Every stateful resource must follow its defined state transitions and must not use values outside the database enum.                                                                                                                                                                                                                                                                                              |
+| BR-181     | Before changing state, the system must validate the current state. A request based on stale state must be rejected with a business-conflict error.                                                                                                                                                                                                                                                                |
+| BR-188     | Absolute timestamps must be stored as timestamptz. Pure calendar dates use date, and time-of-day values use time where defined by schema. APIs must transmit timezone/offset explicitly, and the UI must display values using the configured timezone.                                                                                                                                                            |
+| BR-191     | Critical actions must be recorded in the audit log with actor, action, target, timestamp, and either before/after data or the reason for the change.                                                                                                                                                                                                                                                              |
+| BR-192     | Audit logs must not contain passwords, OTPs, tokens, sensitive payment data, or unnecessary health data.                                                                                                                                                                                                                                                                                                          |
+| BR-194     | Notification/event side effects may be queued or emitted only after the primary business transaction commits successfully, preferably through an outbox/queue. Notification failure must not roll back the already-committed business result.                                                                                                                                                                     |
+| BR-209     | The UI must prevent duplicate submission while a request is in progress. Financial or resource-reservation actions may be presented as successful only after backend confirmation.                                                                                                                                                                                                                                |
+| BR-210     | When the backend rejects a request because of a concurrent data change, the UI must preserve the user's entered data, explain the conflict, and allow the user to reload or retry.                                                                                                                                                                                                                                |
+| BR-211     | Any request rejected for authorization failure or an unmet business precondition must terminate before any state-changing commit and must not create side effects such as data updates, capacity holds, charges/refunds, notifications, or false business audit records.                                                                                                                                          |
+| BR-225     | Every operational action must result in a success, pending, or failure state. When a conflict or connectivity failure occurs, the system must preserve user/local data in a recoverable state.                                                                                                                                                                                                                    |
 
 ## 6. State & Lifecycle
 
-Relevant states from the approved rules: `pass`, `fail`.
+Refund transaction:
 
-Do not introduce placeholder workflow states unless an owning domain contract explicitly defines them.
+No refund
+→ `pending`
+→ `succeeded`
+
+or:
+
+`pending`
+→ `failed`
+
+There is no `payment.status = refunded`.
+
+Booking payment status is derived from charge/refund results according to the authoritative financial model.
 
 ## 7. Business Flow
 
-1. Authenticated user initiates `Process Refund` through the approved UI, API, scheduled job, or integration point.
-2. The backend loads the required source records and verifies authorization, ownership or assignment, current state, and all mapped BR prerequisites.
-3. The backend applies the story-owned decision logic from Section 5.
-4. If any mapped rule is violated, the backend rejects the operation with no partial side effects and returns an actionable error.
-5. If the action changes authoritative data, the change commits atomically with required audit and post-commit notifications.
-6. The client presents the committed result or the rejection reason without exposing protected data.
+1. Receive approved refund obligation.
+2. Load Booking and parent succeeded charge.
+3. Calculate remaining refundable amount.
+4. Validate requested refund.
+5. Create/reuse idempotent refund transaction.
+6. Submit provider refund.
+7. Verify provider response/callback.
+8. On success:
+   - set refund transaction succeeded;
+   - update derived Booking financial state;
+   - reduce applicable Held Funds/settlement base.
+9. On pending:
+   - preserve pending state;
+   - block incompatible settlement where required.
+10. On failure:
+
+- record failed;
+- do not treat money as returned.
+
+11. Reconcile retries/provider callbacks idempotently.
 
 ## 8. Data & Invariants
 
-- Persist or return only fields required for `Process Refund` and the mapped BRs.
-- Preserve authoritative identifiers, ownership links, timestamps, snapshots, status values, and audit references when they affect the business outcome.
-- Derived counters, scores, release-gate metrics, and ledger amounts must be traceable to their source records and rule version.
-- Do not invent tables, enum values, state machines, or audit stores solely for this story.
+- Refund links to parent charge.
+- Refund transaction status ∈ `{pending, succeeded, failed}`.
+- No `refunded` transaction status.
+- Sum of applicable refunds ≤ refundable succeeded charge.
+- Same refund cannot be applied twice.
+- Pending refund is not succeeded refund.
+- Failed refund is not succeeded refund.
+- Refunded amount cannot remain in ordinary settlement base.
 
 ## 9. API / Integration Contract
 
@@ -101,45 +151,28 @@ TBD — Technical Design.
 
 ## 10. Error & Edge Cases
 
-| Case | Expected Behavior |
-|---|---|
-| Caller lacks the required role, ownership, assignment, or relationship | Reject with no side effects. |
-| Required source record is missing | Return not found or blocked state without fabricating data. |
-| Current state violates a mapped BR | Return business conflict and preserve the current authoritative state. |
-| Input violates a mapped BR | Return validation error before persistence. |
-| Duplicate or retried request affects authoritative data | Enforce idempotency or reject safely so duplicate records, refunds, notifications, or ledger entries are not created. |
+| Case                                           | Expected Behavior                               |
+| ---------------------------------------------- | ----------------------------------------------- |
+| Parent charge not succeeded                    | Reject refund.                                  |
+| Requested refund exceeds remainder             | Reject.                                         |
+| Duplicate callback                             | Apply once.                                     |
+| Provider timeout                               | Keep/reconcile pending state; no false success. |
+| Provider fails refund                          | Mark failed according to provider result.       |
+| Settlement tries while blocking refund pending | Enforce settlement rule.                        |
+| Concurrent refund requests exceed charge       | Concurrency protection prevents over-refund.    |
 
 ## 11. Acceptance & Test Matrix
 
-| BR / AC | Scenario | Expected Result | Test Type |
-|---|---|---|---|
-| PB AC | Approved backlog acceptance path for `Process Refund` | Meets the acceptance summary above | E2E |
-| BR-103 | Approved rule is satisfied for `Process Refund` | Accepted and persisted or returned as applicable | Integration |
-| BR-103 | Approved rule is violated for `Process Refund` | Rejected with no partial side effects | Boundary / Integration |
-| BR-104 | Approved rule is satisfied for `Process Refund` | Accepted and persisted or returned as applicable | Integration |
-| BR-104 | Approved rule is violated for `Process Refund` | Rejected with no partial side effects | Boundary / Integration |
-| BR-105 | Approved rule is satisfied for `Process Refund` | Accepted and persisted or returned as applicable | Integration |
-| BR-105 | Approved rule is violated for `Process Refund` | Rejected with no partial side effects | Boundary / Integration |
-| BR-106 | Approved rule is satisfied for `Process Refund` | Accepted and persisted or returned as applicable | Integration |
-| BR-106 | Approved rule is violated for `Process Refund` | Rejected with no partial side effects | Boundary / Integration |
-| BR-336 | Approved rule is satisfied for `Process Refund` | Accepted and persisted or returned as applicable | Integration |
-| BR-336 | Approved rule is violated for `Process Refund` | Rejected with no partial side effects | Boundary / Integration |
-| BR-343 | Approved rule is satisfied for `Process Refund` | Accepted and persisted or returned as applicable | Integration |
-| BR-343 | Approved rule is violated for `Process Refund` | Rejected with no partial side effects | Boundary / Integration |
-| BR-174 | Approved rule is satisfied for `Process Refund` | Accepted and persisted or returned as applicable | Integration |
-| BR-174 | Approved rule is violated for `Process Refund` | Rejected with no partial side effects | Boundary / Integration |
-| BR-175 | Approved rule is satisfied for `Process Refund` | Accepted and persisted or returned as applicable | Integration |
-| BR-175 | Approved rule is violated for `Process Refund` | Rejected with no partial side effects | Boundary / Integration |
-| Remaining mapped BRs | Each mapped BR has valid and violation coverage in the owning test suite | Coverage proves the rule is enforced | Unit / Integration / E2E |
+| Source              | Scenario                          | Expected Result                   | Test Type             |
+| ------------------- | --------------------------------- | --------------------------------- | --------------------- |
+| PB AC-1             | Valid refund obligation           | Refund processing allowed         | Integration           |
+| PB AC-2, BR-103     | Refund created                    | Linked refund transaction         | Integration           |
+| PB AC-3, BR-104     | Refund lifecycle                  | Only allowed transaction statuses | State                 |
+| PB AC-4, BR-105/106 | Over-refund attempted             | Rejected                          | Boundary              |
+| PB AC-5             | Callback retried                  | No duplicate refund               | Idempotency           |
+| PB AC-6, BR-336     | Refund succeeds before settlement | Held Funds adjusted               | Financial Integration |
+| PB AC-7, BR-343     | Refund pending                    | Not treated as settled/succeeded  | Financial Integration |
 
-## 12. Open Decisions & References
+## 12. Open Decisions
 
-### 12.1 Open Decisions
-
-None.
-
-### 12.2 References
-
-- Product Backlog v3.1.
-- CTMS Business Rules workbook.
-- CTMS Architecture Overview.
+Recovery for a refund requested after ordinary Host payout has already completed requires an explicit post-payout recovery mechanism if that scenario is supported. It must not be invented here.

@@ -3,126 +3,136 @@
 ## 1. Overview
 
 Story: CTMS-005
+
 Epic: EPIC 1. Authentication
+
 Use Case: Reset Forgotten Password
+
 Priority: Must Have
 
-Goal:
-Allow Authenticated user to complete `Reset Forgotten Password` within the approved CTMS v3.1 scope.
+Goal: Allow an account owner who proves ownership to establish a new password and invalidate existing refresh sessions.
 
-Acceptance summary:
-Password reset must use an OTP or reset link, enforce the password policy, and revoke old sessions.
+Backlog story:
+As a User, I want to reset my forgotten password so I can regain access to my account.
+
+Acceptance Criteria:
+
+| Source  | Criterion                                                                                         |
+| ------- | ------------------------------------------------------------------------------------------------- |
+| PB AC-1 | User can reset a forgotten password after satisfying the applicable ownership-verification rules. |
+| PB AC-2 | Invalid recovery attempts do not change the password.                                             |
+| PB AC-3 | New password satisfies the active password policy.                                                |
+| PB AC-4 | Successful reset revokes active refresh sessions.                                                 |
 
 ## 2. Scope
 
 ### In Scope
 
-- Story-owned behavior for `Reset Forgotten Password`.
-- Validation, authorization, state handling, persistence, audit, and observable errors required by the mapped Business Rules.
-- Story-specific acceptance tests that prove both allowed and rejected paths.
+- Verify recovery ownership.
+- Validate recovery credential.
+- Validate new password.
+- Hash new password.
+- Persist password reset.
+- Revoke active refresh tokens.
 
 ### Out of Scope
 
-- Behavior owned by dependency stories unless a mapped BR explicitly makes it part of this story.
-- Implementation of dependency stories: CTMS-001.
+- Initial account verification.
+- Login.
+- Provider-specific recovery delivery infrastructure.
 
 ## 3. Actors & Authorization
 
-- Authenticated user: primary business actor for this story.
-- Backend API: authoritative enforcement point for permissions, state, and business rules.
-- UI or client application: may guide the user, but must not replace backend enforcement.
+Primary actor: User recovering their own account.
 
-Authorization must be concrete: the caller must have the role, ownership, assignment, or operational relationship required by the mapped BRs before any protected data is returned or any state-changing action is committed.
+Recovery authorization is established through the approved ownership-verification credential.
 
 ## 4. Preconditions & Dependencies
 
-- Product Backlog v3.1 row `CTMS-005` is the story scope source.
-- The mapped Primary BR IDs below exist in the latest Business Rules workbook.
-- Required domain records already exist and are in states allowed by the mapped BRs.
-- Dependencies:
-- CTMS-001
+Dependencies: CTMS-001.
+
+Before password reset:
+
+- Account ownership must be proven.
+- Recovery credential must be valid.
+- Recovery credential must have correct purpose.
+- Credential must be unused.
 
 ## 5. Business Rules
 
-| BR | Rule |
-|---|---|
-| BR-014 | Password reset is allowed only after ownership is verified with a valid, correct-purpose, unused OTP or reset token/link. |
-| BR-015 | The new password must satisfy the active password policy and must never be stored or logged in plaintext. |
-| BR-016 | After a successful password reset, all active refresh tokens for the user must be revoked in the same business operation or immediately after commit through a consistent mechanism. |
-| BR-171 | Client-visible actions must not replace backend permission, account-status, and state validation. |
-| BR-185 | Passwords, OTPs, access tokens, and refresh tokens must not be stored as plaintext, and logs or API responses must not expose these values. |
-| BR-212 | Any Business Rule, enum, state transition, or API contract change must update the spec, tests, and data documentation before the story is Done. |
-| BR-213 | Every mapped Business Rule must have at least one valid-path test and one violation-path test; concurrency, idempotency, and transaction rules require integration or E2E coverage. |
+| BR     | Rule                                                                                                                                                                                                                                                                                                    |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| BR-014 | A password-reset request may proceed only after ownership has been verified using a still-valid, unused OTP or reset token/link issued for the correct purpose.                                                                                                                                         |
+| BR-015 | A new password must comply with the current password policy and must never be stored or logged in plaintext.                                                                                                                                                                                            |
+| BR-016 | After a password reset succeeds, all still-valid refresh tokens for that user must be revoked either within the same business operation or immediately after commit through a consistent mechanism.                                                                                                     |
+| BR-171 | Any function requiring an active account must re-check account status on the backend at request time. pending_verification, suspended, or deleted accounts must be denied even when the client still holds an older access token/session, except for explicitly allowed verification or recovery flows. |
+| BR-185 | Passwords, OTPs, access tokens, and refresh tokens must not be stored as plaintext, and logs/API responses must not expose them.                                                                                                                                                                        |
+| BR-212 | Any change to a Business Rule, enum, state transition, or API contract must be reflected in the specification, test cases, and data documentation before the work is considered Done.                                                                                                                   |
+| BR-213 | Every Business Rule must have at least one valid-path test and one violation-path test. Concurrency, idempotency, and transaction rules require integration or E2E coverage.                                                                                                                            |
 
 ## 6. State & Lifecycle
 
-Relevant states from the approved rules: `active`, `pass`.
+Recovery pending
+→ valid ownership proof
+→ valid new password
+→ password reset
 
-Do not introduce placeholder workflow states unless an owning domain contract explicitly defines them.
+After successful reset:
+
+Active refresh sessions
+→ revoked
+
+Invalid recovery:
+→ password unchanged.
 
 ## 7. Business Flow
 
-1. Authenticated user initiates `Reset Forgotten Password` through the approved UI, API, scheduled job, or integration point.
-2. The backend loads the required source records and verifies authorization, ownership or assignment, current state, and all mapped BR prerequisites.
-3. The backend applies the story-owned decision logic from Section 5.
-4. If any mapped rule is violated, the backend rejects the operation with no partial side effects and returns an actionable error.
-5. If the action changes authoritative data, the change commits atomically with required audit and post-commit notifications.
-6. The client presents the committed result or the rejection reason without exposing protected data.
+1. User initiates recovery.
+2. System verifies recovery credential and purpose.
+3. User submits new password.
+4. System validates active password policy.
+5. System hashes the password.
+6. System persists the new password.
+7. System revokes all active refresh tokens.
+8. Old refresh credentials can no longer refresh sessions.
 
 ## 8. Data & Invariants
 
-- Persist or return only fields required for `Reset Forgotten Password` and the mapped BRs.
-- Preserve authoritative identifiers, ownership links, timestamps, snapshots, status values, and audit references when they affect the business outcome.
-- Derived counters, scores, release-gate metrics, and ledger amounts must be traceable to their source records and rule version.
-- Do not invent tables, enum values, state machines, or audit stores solely for this story.
+- Password changes only after valid ownership proof.
+- Raw new password is never persisted.
+- Invalid recovery leaves existing password unchanged.
+- Successful reset invalidates existing refresh sessions.
+- Reset and session revocation must not leave an unsafe partially authoritative state.
 
 ## 9. API / Integration Contract
 
-Confirmed current API surface:
-
-- `POST /auth/forgot-password`
-- `POST /auth/reset-password`
-
-Request and response DTO details remain owned by the implementation files and must stay aligned with this story's BRs.
+TBD — Technical Design.
 
 ## 10. Error & Edge Cases
 
-| Case | Expected Behavior |
-|---|---|
-| Caller lacks the required role, ownership, assignment, or relationship | Reject with no side effects. |
-| Required source record is missing | Return not found or blocked state without fabricating data. |
-| Current state violates a mapped BR | Return business conflict and preserve the current authoritative state. |
-| Input violates a mapped BR | Return validation error before persistence. |
-| Duplicate or retried request affects authoritative data | Enforce idempotency or reject safely so duplicate records, refunds, notifications, or ledger entries are not created. |
+| Case                                          | Expected Behavior                                                    |
+| --------------------------------------------- | -------------------------------------------------------------------- |
+| Invalid recovery credential                   | Reject.                                                              |
+| Expired credential                            | Reject.                                                              |
+| Consumed credential                           | Reject.                                                              |
+| Wrong-purpose credential                      | Reject.                                                              |
+| New password violates policy                  | Reject; existing password remains.                                   |
+| Old refresh token after successful reset      | Reject.                                                              |
+| Password update succeeds but revocation fails | Must not leave an unsafe partially successful authoritative outcome. |
 
 ## 11. Acceptance & Test Matrix
 
-| BR / AC | Scenario | Expected Result | Test Type |
-|---|---|---|---|
-| PB AC | Approved backlog acceptance path for `Reset Forgotten Password` | Meets the acceptance summary above | E2E |
-| BR-014 | Approved rule is satisfied for `Reset Forgotten Password` | Accepted and persisted or returned as applicable | Integration |
-| BR-014 | Approved rule is violated for `Reset Forgotten Password` | Rejected with no partial side effects | Boundary / Integration |
-| BR-015 | Approved rule is satisfied for `Reset Forgotten Password` | Accepted and persisted or returned as applicable | Integration |
-| BR-015 | Approved rule is violated for `Reset Forgotten Password` | Rejected with no partial side effects | Boundary / Integration |
-| BR-016 | Approved rule is satisfied for `Reset Forgotten Password` | Accepted and persisted or returned as applicable | Integration |
-| BR-016 | Approved rule is violated for `Reset Forgotten Password` | Rejected with no partial side effects | Boundary / Integration |
-| BR-171 | Approved rule is satisfied for `Reset Forgotten Password` | Accepted and persisted or returned as applicable | Integration |
-| BR-171 | Approved rule is violated for `Reset Forgotten Password` | Rejected with no partial side effects | Boundary / Integration |
-| BR-185 | Approved rule is satisfied for `Reset Forgotten Password` | Accepted and persisted or returned as applicable | Integration |
-| BR-185 | Approved rule is violated for `Reset Forgotten Password` | Rejected with no partial side effects | Boundary / Integration |
-| BR-212 | Approved rule is satisfied for `Reset Forgotten Password` | Accepted and persisted or returned as applicable | Integration |
-| BR-212 | Approved rule is violated for `Reset Forgotten Password` | Rejected with no partial side effects | Boundary / Integration |
-| BR-213 | Approved rule is satisfied for `Reset Forgotten Password` | Accepted and persisted or returned as applicable | Integration |
-| BR-213 | Approved rule is violated for `Reset Forgotten Password` | Rejected with no partial side effects | Boundary / Integration |
+| Source           | Scenario                  | Expected Result                    | Test Type   |
+| ---------------- | ------------------------- | ---------------------------------- | ----------- |
+| PB AC-1 / BR-014 | Valid recovery proof      | Reset may proceed.                 | Integration |
+| BR-014           | Wrong-purpose token       | Rejected.                          | Security    |
+| PB AC-3 / BR-015 | Weak/invalid new password | Rejected.                          | Boundary    |
+| BR-015           | Persisted password        | Stored as hash, not plaintext.     | Security    |
+| PB AC-4 / BR-016 | Successful reset          | All active refresh tokens revoked. | E2E         |
+| BR-016           | Old token after reset     | Refresh rejected.                  | E2E         |
 
-## 12. Open Decisions & References
+## 12. Open Decisions
 
-### 12.1 Open Decisions
+The mapped rules permit OTP or reset token/link but do not define the provider-specific reset-token format.
 
-None.
-
-### 12.2 References
-
-- Product Backlog v3.1.
-- CTMS Business Rules workbook.
-- CTMS Architecture Overview.
+That contract remains TBD — Technical Design.

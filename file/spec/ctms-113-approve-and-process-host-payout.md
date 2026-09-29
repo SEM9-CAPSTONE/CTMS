@@ -3,99 +3,103 @@
 ## 1. Overview
 
 Story: CTMS-113
+
 Epic: EPIC 5. Booking and Payment
+
 Use Case: Approve and Process Host Payout
+
 Priority: Must Have
 
-Goal:
-Allow Admin to complete `Approve and Process Host Payout` within the approved CTMS v3.1 scope.
+Goal: Transfer only eligible settled/payable Host funds through an authorized, traceable, and idempotent payout process.
 
-Acceptance summary:
-The Approve and Process Host Payout workflow must satisfy the approved PB v3.1 acceptance criteria for this story. Do not copy the Vietnamese backlog text into this spec; implementers must preserve the approved source meaning when refining detailed tests.
+Backlog story: As an authorized financial operator/system, I want to approve and process Host payout so settled Host entitlement can be transferred safely.
+
+Acceptance Criteria:
+
+| Source  | Criterion                                                         |
+| ------- | ----------------------------------------------------------------- |
+| PB AC-1 | Payout uses eligible settled/payable funds, not Held Funds.       |
+| PB AC-2 | Payout requires applicable authorization/approval.                |
+| PB AC-3 | Payout amount is traceable to settlement/Host/source obligations. |
+| PB AC-4 | Successful payout records authoritative success evidence/time.    |
+| PB AC-5 | Failed/pending payout is not treated as paid.                     |
+| PB AC-6 | Retry/callback is idempotent and cannot double-pay Host.          |
+| PB AC-7 | Payout is distinct from Net Revenue.                              |
 
 ## 2. Scope
 
 ### In Scope
 
-- Story-owned behavior for `Approve and Process Host Payout`.
-- Validation, authorization, state handling, persistence, audit, and observable errors required by the mapped Business Rules.
-- Story-specific acceptance tests that prove both allowed and rejected paths.
+- Payout eligibility.
+- Approval.
+- Transfer processing.
+- Status.
+- Financial traceability.
+- Idempotency.
 
 ### Out of Scope
 
-- Behavior owned by dependency stories unless a mapped BR explicitly makes it part of this story.
-- Implementation of dependency stories: CTMS-006, CTMS-112.
+- Settlement calculation — CTMS-112.
+- Post-payout financial exception reconciliation — CTMS-114.
 
 ## 3. Actors & Authorization
 
-- Admin: primary business actor for this story.
-- Backend API: authoritative enforcement point for permissions, state, and business rules.
-- UI or client application: may guide the user, but must not replace backend enforcement.
-
-Authorization must be concrete: the caller must have the role, ownership, assignment, or operational relationship required by the mapped BRs before any protected data is returned or any state-changing action is committed.
+- Authorized financial/Admin actor where approval is required.
+- System/payment provider.
 
 ## 4. Preconditions & Dependencies
 
-- Product Backlog v3.1 row `CTMS-113` is the story scope source.
-- The mapped Primary BR IDs below exist in the latest Business Rules workbook.
-- Required domain records already exist and are in states allowed by the mapped BRs.
-- Dependencies:
-- CTMS-006
-- CTMS-112
+Dependency:
+
+- CTMS-112.
+
+Eligible settled/payable Host entitlement exists.
 
 ## 5. Business Rules
 
-| BR | Rule |
-|---|---|
-| BR-340 | This BR is the authoritative story rule for `Approve and Process Host Payout`. Preserve and enforce these source thresholds, states, identifiers, and comparison operators exactly: >. |
-| BR-341 | This BR is the authoritative story rule for `Approve and Process Host Payout`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-342 | This BR is the authoritative story rule for `Approve and Process Host Payout`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-346 | This BR is the authoritative story rule for `Approve and Process Host Payout`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-347 | Every settlement, fee, adjustment, payout, and manual reconciliation must trace to the corresponding host, trip, booking, or original payment and must be audited as a critical action. |
-| BR-348 | This BR is the authoritative story rule for `Approve and Process Host Payout`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-349 | Admin and Host UI must clearly distinguish Held, Settled/Payable, Payout Processing, Payout Succeeded/Failed, and Refund/Adjustment states. |
-| BR-172 | Sensitive personal, health, payment, and location data may be accessed only by an authorized actor with a valid business relationship. |
-| BR-175 | Clients must not self-assert server-owned state, ownership, pricing, capacity, ledger, audit, or safety outcomes. |
-| BR-176 | State-changing operations must persist the authoritative result before dependent side effects are emitted. |
-| BR-177 | Duplicate submissions and retries must not create duplicate authoritative records. |
-| BR-178 | Provider, sync, queue, and notification retries must be idempotent. |
-| BR-179 | Multi-record operations that define one business outcome must use a transaction or equivalent atomic boundary. |
-| BR-180 | Stateful resources must follow defined state transitions and must not use enum values outside the database or API contract. |
-| BR-181 | Before updating state, the backend must verify the current persisted state; stale requests must fail with a business conflict. |
-| BR-183 | The system must distinguish source event time, client time, provider time, and server/database commit time when the workflow depends on timing. |
-| BR-188 | Date and time handling must use the authoritative timezone and ordering rules for the business workflow, and invalid or impossible time ranges must be rejected. |
-| BR-191 | Critical actions must write an audit record containing actor, action, target, timestamp, before/after values or reason, and affected business identifiers. |
-| BR-192 | Audit logs must not contain passwords, OTPs, tokens, sensitive payment data, unnecessary health data, or private payloads beyond the audit need. |
-| BR-193 | Automated actions must record `actor_id = NULL` or a system actor and must store a clear execution reason. |
-| BR-194 | Notifications or event side effects may be emitted only after the main business transaction commits successfully, preferably through an outbox or queue. |
-| BR-205 | Background jobs must re-check business conditions at execution time and must not rely solely on stale state captured when the job was scheduled. |
-| BR-206 | Background jobs must be safely rerunnable; multiple workers must not expire, cancel, refund, or notify the same record more than once. |
-| BR-209 | The UI must prevent duplicate submission while a request is processing. Financial or resource-holding actions may show success only after backend confirmation. |
-| BR-211 | Operational, financial, safety, authorization, and administrative decisions must be traceable to the actor, source record, rule, and timestamp that produced them. |
-| BR-212 | Any Business Rule, enum, state transition, or API contract change must update the spec, tests, and data documentation before the story is Done. |
-| BR-213 | Every mapped Business Rule must have at least one valid-path test and one violation-path test; concurrency, idempotency, and transaction rules require integration or E2E coverage. |
+| BR                 | Rule                                                                                                                                                                                                                                                                                                                               |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| BR-340             | A Payout may be created only from a settled/payable balance > 0 for the correct Host, after a valid settlement, and only when no blocking financial exception remains. An authorized Admin must approve the payout before execution. The Host/client must not specify an arbitrary payout amount greater than the payable balance. |
+| BR-341             | Payout approval and payout execution must use clearly separated states. A Payout may move to processing only after valid Admin approval. The execution lifecycle must distinguish at least pending, processing, succeeded, and failed. Retrying a failed Payout must be idempotent and must not create a duplicate transfer.       |
+| BR-342             | A succeeded Payout must store appropriate provider/reference evidence. Any manual reconciliation or override must be limited to authorized Admins and must be audited.                                                                                                                                                             |
+| BR-332             | Callbacks or retries for charge, refund, settlement, payout, or adjustment must be idempotent. The same business/provider reference must not cause a double charge, refund, settlement, payout, or adjustment.                                                                                                                     |
+| BR-346             | A cancelled Trip/Booking that has received a full refund under policy must not generate a payout for the refunded amount. Any pending settlement/payout must revalidate the current financial state before commit.                                                                                                                 |
+| BR-347             | Every settlement, fee, adjustment, payout, and manual reconciliation must be traceable to the corresponding Host, Trip, Booking/original payment and must be audited under the critical-action policy.                                                                                                                             |
+| BR-348             | Notifications about payout or financial status may be emitted only after the authoritative financial transaction/state commits. Delivery failure must not roll back the committed settlement or payout.                                                                                                                            |
+| BR-349             | Admin and Host UIs must clearly distinguish Held, Settled/Payable, Payout Processing, Payout Succeeded/Failed, and Refund/Adjustment states so users do not misinterpret the state of funds.                                                                                                                                       |
+| BR-324             | Payout amount and Net Revenue are different KPIs. Net Revenue represents the Host's entitlement after settlement/adjustments, while Payout is the actual cash transfer to the Host.                                                                                                                                                |
 
 ## 6. State & Lifecycle
 
-Relevant states from the approved rules: `pass`, `fail`.
+Settled/Payable
+→ payout approval
+→ payout processing
+→ succeeded
 
-Do not introduce placeholder workflow states unless an owning domain contract explicitly defines them.
+or
+
+→ pending/failed according to authoritative payout lifecycle.
+
+Only succeeded payout counts as paid out.
 
 ## 7. Business Flow
 
-1. Admin initiates `Approve and Process Host Payout` through the approved UI, API, scheduled job, or integration point.
-2. The backend loads the required source records and verifies authorization, ownership or assignment, current state, and all mapped BR prerequisites.
-3. The backend applies the story-owned decision logic from Section 5.
-4. If any mapped rule is violated, the backend rejects the operation with no partial side effects and returns an actionable error.
-5. If the action changes authoritative data, the change commits atomically with required audit and post-commit notifications.
-6. The client presents the committed result or the rejection reason without exposing protected data.
+1. Identify eligible payable settlement.
+2. Verify authorization.
+3. Determine payout amount.
+4. Link payout to Host/settlement/source.
+5. Submit transfer.
+6. Process provider result idempotently.
+7. On success, record succeeded state/time.
+8. On pending/failure, retain corresponding state.
+9. Audit critical financial action.
 
 ## 8. Data & Invariants
 
-- Persist or return only fields required for `Approve and Process Host Payout` and the mapped BRs.
-- Preserve authoritative identifiers, ownership links, timestamps, snapshots, status values, and audit references when they affect the business outcome.
-- Derived counters, scores, release-gate metrics, and ledger amounts must be traceable to their source records and rule version.
-- Do not invent tables, enum values, state machines, or audit stores solely for this story.
+- Held Funds cannot be paid directly before settlement eligibility.
+- Same payout obligation must not be transferred twice.
+- Pending/failed ≠ succeeded.
+- Payout amount ≠ Net Revenue KPI by definition.
 
 ## 9. API / Integration Contract
 
@@ -103,45 +107,24 @@ TBD — Technical Design.
 
 ## 10. Error & Edge Cases
 
-| Case | Expected Behavior |
-|---|---|
-| Caller lacks the required role, ownership, assignment, or relationship | Reject with no side effects. |
-| Required source record is missing | Return not found or blocked state without fabricating data. |
-| Current state violates a mapped BR | Return business conflict and preserve the current authoritative state. |
-| Input violates a mapped BR | Return validation error before persistence. |
-| Duplicate or retried request affects authoritative data | Enforce idempotency or reject safely so duplicate records, refunds, notifications, or ledger entries are not created. |
+| Case                        | Expected Behavior       |
+| --------------------------- | ----------------------- |
+| Funds still Held            | Reject payout           |
+| Eligible payable amount     | Process                 |
+| Duplicate provider callback | No duplicate payout     |
+| Provider failure            | Not marked paid         |
+| Unauthorized approval       | Reject                  |
+| Successful payout           | Record success evidence |
 
 ## 11. Acceptance & Test Matrix
 
-| BR / AC | Scenario | Expected Result | Test Type |
-|---|---|---|---|
-| PB AC | Approved backlog acceptance path for `Approve and Process Host Payout` | Meets the acceptance summary above | E2E |
-| BR-340 | Approved rule is satisfied for `Approve and Process Host Payout` | Accepted and persisted or returned as applicable | Integration |
-| BR-340 | Approved rule is violated for `Approve and Process Host Payout` | Rejected with no partial side effects | Boundary / Integration |
-| BR-341 | Approved rule is satisfied for `Approve and Process Host Payout` | Accepted and persisted or returned as applicable | Integration |
-| BR-341 | Approved rule is violated for `Approve and Process Host Payout` | Rejected with no partial side effects | Boundary / Integration |
-| BR-342 | Approved rule is satisfied for `Approve and Process Host Payout` | Accepted and persisted or returned as applicable | Integration |
-| BR-342 | Approved rule is violated for `Approve and Process Host Payout` | Rejected with no partial side effects | Boundary / Integration |
-| BR-346 | Approved rule is satisfied for `Approve and Process Host Payout` | Accepted and persisted or returned as applicable | Integration |
-| BR-346 | Approved rule is violated for `Approve and Process Host Payout` | Rejected with no partial side effects | Boundary / Integration |
-| BR-347 | Approved rule is satisfied for `Approve and Process Host Payout` | Accepted and persisted or returned as applicable | Integration |
-| BR-347 | Approved rule is violated for `Approve and Process Host Payout` | Rejected with no partial side effects | Boundary / Integration |
-| BR-348 | Approved rule is satisfied for `Approve and Process Host Payout` | Accepted and persisted or returned as applicable | Integration |
-| BR-348 | Approved rule is violated for `Approve and Process Host Payout` | Rejected with no partial side effects | Boundary / Integration |
-| BR-349 | Approved rule is satisfied for `Approve and Process Host Payout` | Accepted and persisted or returned as applicable | Integration |
-| BR-349 | Approved rule is violated for `Approve and Process Host Payout` | Rejected with no partial side effects | Boundary / Integration |
-| BR-172 | Approved rule is satisfied for `Approve and Process Host Payout` | Accepted and persisted or returned as applicable | Integration |
-| BR-172 | Approved rule is violated for `Approve and Process Host Payout` | Rejected with no partial side effects | Boundary / Integration |
-| Remaining mapped BRs | Each mapped BR has valid and violation coverage in the owning test suite | Coverage proves the rule is enforced | Unit / Integration / E2E |
+| Source     | Scenario               | Expected Result                  | Test Type   |
+| ---------- | ---------------------- | -------------------------------- | ----------- |
+| Payout BRs | Settled payable amount | Eligible                         | Financial   |
+| BR-332     | Duplicate callback     | No double payout                 | Idempotency |
+| Payout BRs | Provider failure       | Not paid                         | Integration |
+| BR-324     | Analytics              | Payout distinct from Net Revenue | Data        |
 
-## 12. Open Decisions & References
+## 12. Open Decisions
 
-### 12.1 Open Decisions
-
-None.
-
-### 12.2 References
-
-- Product Backlog v3.1.
-- CTMS Business Rules workbook.
-- CTMS Architecture Overview.
+Provider-specific payout API belongs to Technical Design.

@@ -3,94 +3,93 @@
 ## 1. Overview
 
 Story: CTMS-114
+
 Epic: EPIC 5. Booking and Payment
+
 Use Case: Reconcile Financial Exceptions after Settlement or Payout
+
 Priority: Must Have
 
-Goal:
-Allow System to complete `Reconcile Financial Exceptions after Settlement or Payout` within the approved CTMS v3.1 scope.
+Goal: Correct financial obligations arising after settlement or payout without rewriting historical financial records or creating duplicate refunds/adjustments.
 
-Acceptance summary:
-The Reconcile Financial Exceptions after Settlement or Payout workflow must satisfy the approved PB v3.1 acceptance criteria for this story. Do not copy the Vietnamese backlog text into this spec; implementers must preserve the approved source meaning when refining detailed tests.
+Backlog story: As an authorized financial operator/system, I want to reconcile financial exceptions after settlement or payout so later refunds and adjustments remain financially traceable.
+
+Acceptance Criteria:
+
+| Source  | Criterion                                                                                          |
+| ------- | -------------------------------------------------------------------------------------------------- |
+| PB AC-1 | Post-settlement/payout exception does not rewrite historical settlement/payout records.            |
+| PB AC-2 | Required correction is represented through authoritative refund/adjustment/reconciliation records. |
+| PB AC-3 | Adjustment is traceable to original Booking/Trip/settlement/payout obligation.                     |
+| PB AC-4 | Retry is idempotent.                                                                               |
+| PB AC-5 | Same obligation must not create duplicate refund/adjustment.                                       |
+| PB AC-6 | Reconciliation actions are auditable.                                                              |
 
 ## 2. Scope
 
 ### In Scope
 
-- Story-owned behavior for `Reconcile Financial Exceptions after Settlement or Payout`.
-- Validation, authorization, state handling, persistence, audit, and observable errors required by the mapped Business Rules.
-- Story-specific acceptance tests that prove both allowed and rejected paths.
+- Post-settlement refund exception.
+- Post-payout exception.
+- Financial adjustment.
+- Reconciliation.
+- Traceability.
 
 ### Out of Scope
 
-- Behavior owned by dependency stories unless a mapped BR explicitly makes it part of this story.
-- Implementation of dependency stories: CTMS-006, CTMS-112, CTMS-113.
+- Rewriting completed settlement history.
+- Rewriting succeeded payout history.
 
 ## 3. Actors & Authorization
 
-- System: primary business actor for this story.
-- Backend API: authoritative enforcement point for permissions, state, and business rules.
-- UI or client application: may guide the user, but must not replace backend enforcement.
-
-Authorization must be concrete: the caller must have the role, ownership, assignment, or operational relationship required by the mapped BRs before any protected data is returned or any state-changing action is committed.
+- Authorized financial/Admin actor.
+- System reconciliation process.
 
 ## 4. Preconditions & Dependencies
 
-- Product Backlog v3.1 row `CTMS-114` is the story scope source.
-- The mapped Primary BR IDs below exist in the latest Business Rules workbook.
-- Required domain records already exist and are in states allowed by the mapped BRs.
-- Dependencies:
-- CTMS-006
-- CTMS-112
-- CTMS-113
+Dependencies:
+
+- CTMS-112 and/or CTMS-113.
+- A later financial obligation/exception exists.
 
 ## 5. Business Rules
 
-| BR | Rule |
-|---|---|
-| BR-345 | This BR is the authoritative story rule for `Reconcile Financial Exceptions after Settlement or Payout`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-347 | Every settlement, fee, adjustment, payout, and manual reconciliation must trace to the corresponding host, trip, booking, or original payment and must be audited as a critical action. |
-| BR-349 | Admin and Host UI must clearly distinguish Held, Settled/Payable, Payout Processing, Payout Succeeded/Failed, and Refund/Adjustment states. |
-| BR-172 | Sensitive personal, health, payment, and location data may be accessed only by an authorized actor with a valid business relationship. |
-| BR-175 | Clients must not self-assert server-owned state, ownership, pricing, capacity, ledger, audit, or safety outcomes. |
-| BR-176 | State-changing operations must persist the authoritative result before dependent side effects are emitted. |
-| BR-177 | Duplicate submissions and retries must not create duplicate authoritative records. |
-| BR-178 | Provider, sync, queue, and notification retries must be idempotent. |
-| BR-179 | Multi-record operations that define one business outcome must use a transaction or equivalent atomic boundary. |
-| BR-180 | Stateful resources must follow defined state transitions and must not use enum values outside the database or API contract. |
-| BR-181 | Before updating state, the backend must verify the current persisted state; stale requests must fail with a business conflict. |
-| BR-183 | The system must distinguish source event time, client time, provider time, and server/database commit time when the workflow depends on timing. |
-| BR-188 | Date and time handling must use the authoritative timezone and ordering rules for the business workflow, and invalid or impossible time ranges must be rejected. |
-| BR-191 | Critical actions must write an audit record containing actor, action, target, timestamp, before/after values or reason, and affected business identifiers. |
-| BR-192 | Audit logs must not contain passwords, OTPs, tokens, sensitive payment data, unnecessary health data, or private payloads beyond the audit need. |
-| BR-193 | Automated actions must record `actor_id = NULL` or a system actor and must store a clear execution reason. |
-| BR-194 | Notifications or event side effects may be emitted only after the main business transaction commits successfully, preferably through an outbox or queue. |
-| BR-209 | The UI must prevent duplicate submission while a request is processing. Financial or resource-holding actions may show success only after backend confirmation. |
-| BR-211 | Operational, financial, safety, authorization, and administrative decisions must be traceable to the actor, source record, rule, and timestamp that produced them. |
-| BR-212 | Any Business Rule, enum, state transition, or API contract change must update the spec, tests, and data documentation before the story is Done. |
-| BR-213 | Every mapped Business Rule must have at least one valid-path test and one violation-path test; concurrency, idempotency, and transaction rules require integration or E2E coverage. |
+| BR                               | Rule                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| BR-332                           | Callbacks or retries for charge, refund, settlement, payout, or adjustment must be idempotent. The same business/provider reference must not cause a double charge, refund, settlement, payout, or adjustment.                                                                                                                                                                                                                                                                                                         |
+| BR-345                           | After successful settlement/payout, the system must not accept ordinary Camper refunds outside the defined request windows. Provider chargebacks/reversals, Admin financial corrections, or equivalent exceptions must create new financial adjustment/reconciliation records and must not modify or delete successful settlement/payout history. V3 does not automatically create negative balances, offset future payouts, or directly debit the Host; recovery is handled manually by an Admin and must be audited. |
+| BR-350                           | A GPS sample may participate in safety detection only when it belongs to the active Trip safety session and references the correct member, device, and session context.                                                                                                                                                                                                                                                                                                                                                |
+| BR-351                           | Once OFF_ROUTE confirmation criteria are met, the client must warn the user immediately on-device and create a local safety event even with no network connectivity. At minimum, the event must include Trip/member context, event_time, location, distance_to_route, GPS accuracy, severity/status, and package/version context.                                                                                                                                                                                      |
+| BR-191                           | Critical actions must be recorded in the audit log with actor, action, target, timestamp, and either before/after data or the reason for the change.                                                                                                                                                                                                                                                                                                                                                                   |
+| BR-192                           | Audit logs must not contain passwords, OTPs, tokens, sensitive payment data, or unnecessary health data.                                                                                                                                                                                                                                                                                                                                                                                                               |
 
 ## 6. State & Lifecycle
 
-Relevant states from the approved rules: `pass`, `fail`.
+Historical settlement/payout remains immutable.
 
-Do not introduce placeholder workflow states unless an owning domain contract explicitly defines them.
+Later exception
+→ reconciliation assessment
+→ refund/adjustment/recovery record
+→ resolved financial position.
 
 ## 7. Business Flow
 
-1. System initiates `Reconcile Financial Exceptions after Settlement or Payout` through the approved UI, API, scheduled job, or integration point.
-2. The backend loads the required source records and verifies authorization, ownership or assignment, current state, and all mapped BR prerequisites.
-3. The backend applies the story-owned decision logic from Section 5.
-4. If any mapped rule is violated, the backend rejects the operation with no partial side effects and returns an actionable error.
-5. If the action changes authoritative data, the change commits atomically with required audit and post-commit notifications.
-6. The client presents the committed result or the rejection reason without exposing protected data.
+1. Detect approved later refund/financial exception.
+2. Resolve original Booking/Trip/financial chain.
+3. Determine whether settlement/payout already occurred.
+4. Calculate required correction under authoritative policy.
+5. Create idempotent refund/adjustment/reconciliation entry.
+6. Preserve original historical records.
+7. Update current financial position.
+8. Audit action.
 
 ## 8. Data & Invariants
 
-- Persist or return only fields required for `Reconcile Financial Exceptions after Settlement or Payout` and the mapped BRs.
-- Preserve authoritative identifiers, ownership links, timestamps, snapshots, status values, and audit references when they affect the business outcome.
-- Derived counters, scores, release-gate metrics, and ledger amounts must be traceable to their source records and rule version.
-- Do not invent tables, enum values, state machines, or audit stores solely for this story.
+Financial chain must remain traceable.
+
+Historical settled/payout values are evidence of what actually occurred at that time.
+
+Corrections are new ledger events, not destructive edits.
 
 ## 9. API / Integration Contract
 
@@ -98,45 +97,25 @@ TBD — Technical Design.
 
 ## 10. Error & Edge Cases
 
-| Case | Expected Behavior |
-|---|---|
-| Caller lacks the required role, ownership, assignment, or relationship | Reject with no side effects. |
-| Required source record is missing | Return not found or blocked state without fabricating data. |
-| Current state violates a mapped BR | Return business conflict and preserve the current authoritative state. |
-| Input violates a mapped BR | Return validation error before persistence. |
-| Duplicate or retried request affects authoritative data | Enforce idempotency or reject safely so duplicate records, refunds, notifications, or ledger entries are not created. |
+| Case                     | Expected Behavior                     |
+| ------------------------ | ------------------------------------- |
+| Refund before settlement | Normal refund flow                    |
+| Refund after settlement  | Reconciliation required               |
+| Refund after payout      | Reconciliation/recovery required      |
+| Duplicate callback       | No duplicate adjustment               |
+| Original record missing  | Do not fabricate reconciliation chain |
+| Historical settlement    | Preserve                              |
 
 ## 11. Acceptance & Test Matrix
 
-| BR / AC | Scenario | Expected Result | Test Type |
-|---|---|---|---|
-| PB AC | Approved backlog acceptance path for `Reconcile Financial Exceptions after Settlement or Payout` | Meets the acceptance summary above | E2E |
-| BR-345 | Approved rule is satisfied for `Reconcile Financial Exceptions after Settlement or Payout` | Accepted and persisted or returned as applicable | Integration |
-| BR-345 | Approved rule is violated for `Reconcile Financial Exceptions after Settlement or Payout` | Rejected with no partial side effects | Boundary / Integration |
-| BR-347 | Approved rule is satisfied for `Reconcile Financial Exceptions after Settlement or Payout` | Accepted and persisted or returned as applicable | Integration |
-| BR-347 | Approved rule is violated for `Reconcile Financial Exceptions after Settlement or Payout` | Rejected with no partial side effects | Boundary / Integration |
-| BR-349 | Approved rule is satisfied for `Reconcile Financial Exceptions after Settlement or Payout` | Accepted and persisted or returned as applicable | Integration |
-| BR-349 | Approved rule is violated for `Reconcile Financial Exceptions after Settlement or Payout` | Rejected with no partial side effects | Boundary / Integration |
-| BR-172 | Approved rule is satisfied for `Reconcile Financial Exceptions after Settlement or Payout` | Accepted and persisted or returned as applicable | Integration |
-| BR-172 | Approved rule is violated for `Reconcile Financial Exceptions after Settlement or Payout` | Rejected with no partial side effects | Boundary / Integration |
-| BR-175 | Approved rule is satisfied for `Reconcile Financial Exceptions after Settlement or Payout` | Accepted and persisted or returned as applicable | Integration |
-| BR-175 | Approved rule is violated for `Reconcile Financial Exceptions after Settlement or Payout` | Rejected with no partial side effects | Boundary / Integration |
-| BR-176 | Approved rule is satisfied for `Reconcile Financial Exceptions after Settlement or Payout` | Accepted and persisted or returned as applicable | Integration |
-| BR-176 | Approved rule is violated for `Reconcile Financial Exceptions after Settlement or Payout` | Rejected with no partial side effects | Boundary / Integration |
-| BR-177 | Approved rule is satisfied for `Reconcile Financial Exceptions after Settlement or Payout` | Accepted and persisted or returned as applicable | Integration |
-| BR-177 | Approved rule is violated for `Reconcile Financial Exceptions after Settlement or Payout` | Rejected with no partial side effects | Boundary / Integration |
-| BR-178 | Approved rule is satisfied for `Reconcile Financial Exceptions after Settlement or Payout` | Accepted and persisted or returned as applicable | Integration |
-| BR-178 | Approved rule is violated for `Reconcile Financial Exceptions after Settlement or Payout` | Rejected with no partial side effects | Boundary / Integration |
-| Remaining mapped BRs | Each mapped BR has valid and violation coverage in the owning test suite | Coverage proves the rule is enforced | Unit / Integration / E2E |
+| Source                       | Scenario               | Expected Result                   | Test Type   |
+| ---------------------------- | ---------------------- | --------------------------------- | ----------- |
+| Financial reconciliation BRs | Post-settlement refund | Adjustment/reconciliation created | Financial   |
+| Financial reconciliation BRs | Post-payout refund     | Recovery path recorded            | Financial   |
+| BR-332                       | Retry                  | No duplicate                      | Idempotency |
+| BR-191                       | Reconciliation         | Audited                           | Audit       |
+| Ledger rules                 | Historical record      | Unchanged                         | Integrity   |
 
-## 12. Open Decisions & References
+## 12. Open Decisions
 
-### 12.1 Open Decisions
-
-None.
-
-### 12.2 References
-
-- Product Backlog v3.1.
-- CTMS Business Rules workbook.
-- CTMS Architecture Overview.
+Exact recovery mechanism when Host has already received payout must follow the approved financial recovery policy; this spec does not invent automatic bank clawback behavior.

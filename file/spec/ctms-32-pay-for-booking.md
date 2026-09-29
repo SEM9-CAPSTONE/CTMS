@@ -3,136 +3,175 @@
 ## 1. Overview
 
 Story: CTMS-032
+
 Epic: EPIC 5. Booking and Payment
+
 Use Case: Pay for Booking
+
 Priority: Must Have
 
-Goal:
-Allow Camper to complete `Pay for Booking` within the approved CTMS v3.1 scope.
+Goal: Process Booking payment exactly once using authoritative Booking amount and provider-confirmed payment state.
 
-Acceptance summary:
-The Pay for Booking workflow must satisfy the approved PB v3.1 acceptance criteria for this story. Do not copy the Vietnamese backlog text into this spec; implementers must preserve the approved source meaning when refining detailed tests.
+Backlog story: As a Camper, I want to pay for my Booking so my eligible paid Booking can become confirmed after successful payment.
+
+Acceptance Criteria:
+
+| Source  | Criterion                                                                  |
+| ------- | -------------------------------------------------------------------------- |
+| PB AC-1 | Payment may be initiated only for an eligible Booking.                     |
+| PB AC-2 | Charge amount is calculated from authoritative Booking data.               |
+| PB AC-3 | Every charge uses a unique idempotency mechanism.                          |
+| PB AC-4 | Booking becomes paid/confirmed only after authoritative successful charge. |
+| PB AC-5 | Duplicate callback/retry cannot apply the same payment twice.              |
+| PB AC-6 | Failed or pending payment must not falsely confirm the Booking.            |
+| PB AC-7 | Payment and Booking state remain transactionally consistent.               |
 
 ## 2. Scope
 
 ### In Scope
 
-- Story-owned behavior for `Pay for Booking`.
-- Validation, authorization, state handling, persistence, audit, and observable errors required by the mapped Business Rules.
-- Story-specific acceptance tests that prove both allowed and rejected paths.
+- Create charge transaction.
+- Authoritative payment amount.
+- Payment provider integration.
+- Idempotency.
+- Provider callback/reconciliation.
+- Booking payment-state update.
+- Booking confirmation after successful payment.
 
 ### Out of Scope
 
-- Behavior owned by dependency stories unless a mapped BR explicitly makes it part of this story.
-- Implementation of dependency stories: CTMS-029.
+- Refund; CTMS-035.
+- Booking cancellation.
+- Provider-specific UI details.
+- Settlement/payout except where a mapped financial rule requires accounting consistency.
 
 ## 3. Actors & Authorization
 
-- Camper: primary business actor for this story.
-- Backend API: authoritative enforcement point for permissions, state, and business rules.
-- UI or client application: may guide the user, but must not replace backend enforcement.
+- Camper.
+- Payment provider.
+- System/backend.
 
-Authorization must be concrete: the caller must have the role, ownership, assignment, or operational relationship required by the mapped BRs before any protected data is returned or any state-changing action is committed.
+Camper must be authorized for the Booking.
+
+Provider callback must be authenticated/verified according to Technical Design.
 
 ## 4. Preconditions & Dependencies
 
-- Product Backlog v3.1 row `CTMS-032` is the story scope source.
-- The mapped Primary BR IDs below exist in the latest Business Rules workbook.
-- Required domain records already exist and are in states allowed by the mapped BRs.
-- Dependencies:
-- CTMS-029
+Dependency:
+
+- CTMS-029.
+
+Required:
+
+- Booking exists.
+- Booking is eligible for payment.
+- Authoritative amount is available.
+- Payment has not already been successfully applied.
 
 ## 5. Business Rules
 
-| BR | Rule |
-|---|---|
-| BR-090 | This BR is the authoritative story rule for `Pay for Booking`. Preserve and enforce these source thresholds, states, identifiers, and comparison operators exactly: >=, NULL. |
-| BR-091 | This BR is the authoritative story rule for `Pay for Booking`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-092 | This BR is the authoritative story rule for `Pay for Booking`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-106 | The total amount of succeeded and pending refunds allowed by policy must not exceed the refundable succeeded charge amount. The same cancellation or refund request must not be refunded twice. |
-| BR-174 | Inputs must be validated for required fields, formats, identifiers, enum values, and cross-entity references before any write is committed. |
-| BR-175 | Clients must not self-assert server-owned state, ownership, pricing, capacity, ledger, audit, or safety outcomes. |
-| BR-176 | State-changing operations must persist the authoritative result before dependent side effects are emitted. |
-| BR-177 | Duplicate submissions and retries must not create duplicate authoritative records. |
-| BR-178 | Provider, sync, queue, and notification retries must be idempotent. |
-| BR-179 | Multi-record operations that define one business outcome must use a transaction or equivalent atomic boundary. |
-| BR-197 | When an external service times out or returns incomplete data, the system must record the failure, must not assume success, and must not create unverifiable data. |
-| BR-198 | External-service retries must have limits and backoff, and retry execution must not create duplicate records or duplicate transactions. |
-| BR-199 | APIs must return consistent error codes: 401 for authentication failure, 403 for missing permission, 404 for not found, 409 for business conflict, and 422 for invalid data. |
-| BR-200 | Error messages must explain the problem and the user action needed, while never exposing stack traces, secrets, or resources the user is not allowed to view. |
-| BR-209 | The UI must prevent duplicate submission while a request is processing. Financial or resource-holding actions may show success only after backend confirmation. |
-| BR-211 | Operational, financial, safety, authorization, and administrative decisions must be traceable to the actor, source record, rule, and timestamp that produced them. |
-| BR-212 | Any Business Rule, enum, state transition, or API contract change must update the spec, tests, and data documentation before the story is Done. |
-| BR-213 | Every mapped Business Rule must have at least one valid-path test and one violation-path test; concurrency, idempotency, and transaction rules require integration or E2E coverage. |
-| BR-225 | Every operational action must resolve to success, pending, or failure. On conflict or connectivity failure, user-entered or local data must remain recoverable. |
+| BR     | Rule                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| BR-090 | Each charge must create a payment transaction with type = charge, a unique idempotency_key, amount >= 0, and parent_payment_id = NULL.                                                                                                                                                                                                                                                                                                                                                                     |
+| BR-091 | When a charge transaction succeeds, booking.payment_status may transition to paid and booking.status to confirmed only if the Booking is still eligible for confirmation. If the Booking has already expired, been cancelled, or is otherwise no longer eligible when the callback arrives, the successful payment must still be recorded authoritatively, but the Booking must not be reactivated or confirmed. The funds must instead enter the policy-defined idempotent refund or reconciliation flow. |
+| BR-092 | A callback or retry with the same idempotency key or transaction_ref must not create or apply the same successful transaction more than once.                                                                                                                                                                                                                                                                                                                                                              |
+| BR-106 | A complaint/refund request created within 24 hours after trips.completed_at must be treated as a blocking financial claim until resolved. States pending, reviewing, and approved-refund-pending must block settlement and payout. Settlement may resume only after the request is resolved and all succeeded refunds are reflected in the financial ledger.                                                                                                                                               |
+| BR-174 | All input must be validated for required fields, data type, format, length, enum membership, and cross-field relationships before processing.                                                                                                                                                                                                                                                                                                                                                              |
+| BR-175 | The backend is the authoritative source for authorization, state, pricing, capacity, inventory, risk level, and transaction outcome. The client must not establish these values authoritatively.                                                                                                                                                                                                                                                                                                           |
+| BR-176 | Any business operation that changes multiple tables or records must execute within a transaction. If any step fails, the entire operation must roll back.                                                                                                                                                                                                                                                                                                                                                  |
+| BR-177 | A failed operation must not leave data, state, reserved capacity, money, or inventory in a partially processed condition.                                                                                                                                                                                                                                                                                                                                                                                  |
+| BR-178 | Operations that may be retried, including payments, refunds, callbacks, and synchronization, must support idempotency so the same request cannot be successfully applied more than once.                                                                                                                                                                                                                                                                                                                   |
+| BR-179 | When concurrent requests modify the same resource, the system must use transactions, locking, optimistic/version control, or an equivalent mechanism to prevent lost updates and violations of business limits.                                                                                                                                                                                                                                                                                            |
+| BR-197 | When an external service times out or returns incomplete data, the system must record the failure, must not assume success, and must not fabricate unverifiable data.                                                                                                                                                                                                                                                                                                                                      |
+| BR-198 | Retries to external services must be bounded and use backoff. Retrying must not create duplicate records or transactions.                                                                                                                                                                                                                                                                                                                                                                                  |
+| BR-199 | APIs must use consistent error semantics: 401 for authentication failures, 403 for insufficient authorization, 404 for not found, 409 for business conflicts, and 422 for invalid input.                                                                                                                                                                                                                                                                                                                   |
+| BR-200 | Error messages must clearly describe the problem and the user action required, while never exposing stack traces, secrets, or resources the user is not authorized to see.                                                                                                                                                                                                                                                                                                                                 |
+| BR-209 | The UI must prevent duplicate submission while a request is in progress. Financial or resource-reservation actions may be presented as successful only after backend confirmation.                                                                                                                                                                                                                                                                                                                         |
+| BR-211 | Any request rejected for authorization failure or an unmet business precondition must terminate before any state-changing commit and must not create side effects such as data updates, capacity holds, charges/refunds, notifications, or false business audit records.                                                                                                                                                                                                                                   |
+| BR-212 | Any change to a Business Rule, enum, state transition, or API contract must be reflected in the specification, test cases, and data documentation before the work is considered Done.                                                                                                                                                                                                                                                                                                                      |
+| BR-213 | Every Business Rule must have at least one valid-path test and one violation-path test. Concurrency, idempotency, and transaction rules require integration or E2E coverage.                                                                                                                                                                                                                                                                                                                               |
+| BR-225 | Every operational action must result in a success, pending, or failure state. When a conflict or connectivity failure occurs, the system must preserve user/local data in a recoverable state.                                                                                                                                                                                                                                                                                                             |
 
 ## 6. State & Lifecycle
 
-Relevant states from the approved rules: `fail`.
+Payment transaction:
 
-Do not introduce placeholder workflow states unless an owning domain contract explicitly defines them.
+`pending`
+→ `succeeded`
+
+or:
+
+`pending`
+→ `failed`
+
+Booking:
+
+eligible pre-payment state
+→ successful authoritative charge
+→ `payment_status = paid`
+→ confirmed state according to Booking lifecycle.
+
+A client redirect/success screen alone does not cause this transition.
 
 ## 7. Business Flow
 
-1. Camper initiates `Pay for Booking` through the approved UI, API, scheduled job, or integration point.
-2. The backend loads the required source records and verifies authorization, ownership or assignment, current state, and all mapped BR prerequisites.
-3. The backend applies the story-owned decision logic from Section 5.
-4. If any mapped rule is violated, the backend rejects the operation with no partial side effects and returns an actionable error.
-5. If the action changes authoritative data, the change commits atomically with required audit and post-commit notifications.
-6. The client presents the committed result or the rejection reason without exposing protected data.
+1. Camper requests payment.
+2. Backend authorizes Booking.
+3. Reload current Booking.
+4. Validate payment eligibility.
+5. Calculate authoritative amount.
+6. Create/reuse idempotent charge transaction.
+7. Initiate provider payment.
+8. Provider returns/callbacks.
+9. Backend verifies provider result.
+10. If succeeded, update payment transaction and Booking atomically.
+11. If failed, record failure without confirming Booking.
+12. Duplicate callbacks become no-op/reconciliation behavior.
+13. Return authoritative payment/Booking state.
 
 ## 8. Data & Invariants
 
-- Persist or return only fields required for `Pay for Booking` and the mapped BRs.
-- Preserve authoritative identifiers, ownership links, timestamps, snapshots, status values, and audit references when they affect the business outcome.
-- Derived counters, scores, release-gate metrics, and ledger amounts must be traceable to their source records and rule version.
-- Do not invent tables, enum values, state machines, or audit stores solely for this story.
+- One provider charge cannot be applied twice.
+- Client amount is not authoritative.
+- Successful client redirect is not payment proof.
+- Booking cannot be confirmed by failed/pending payment.
+- Payment status uses approved payment transaction enum.
+- Provider transaction reference is unique where required.
+- Financial arithmetic uses approved currency precision.
+- Payment and Booking state cannot knowingly diverge.
 
 ## 9. API / Integration Contract
 
 TBD — Technical Design.
 
+Provider-specific signature verification, endpoint and callback payload belong to Technical Design.
+
 ## 10. Error & Edge Cases
 
-| Case | Expected Behavior |
-|---|---|
-| Caller lacks the required role, ownership, assignment, or relationship | Reject with no side effects. |
-| Required source record is missing | Return not found or blocked state without fabricating data. |
-| Current state violates a mapped BR | Return business conflict and preserve the current authoritative state. |
-| Input violates a mapped BR | Return validation error before persistence. |
-| Duplicate or retried request affects authoritative data | Enforce idempotency or reject safely so duplicate records, refunds, notifications, or ledger entries are not created. |
+| Case                         | Expected Behavior                                     |
+| ---------------------------- | ----------------------------------------------------- |
+| Booking already paid         | Do not charge again.                                  |
+| Amount manipulated by client | Use server amount.                                    |
+| Provider callback duplicated | No duplicate application.                             |
+| Provider callback invalid    | Reject/no financial mutation.                         |
+| Payment failed               | Booking not confirmed.                                |
+| Payment pending              | Booking not falsely confirmed.                        |
+| Concurrent payment attempts  | Idempotency/concurrency controls apply.               |
+| DB commit fails              | Do not report authoritative success until reconciled. |
 
 ## 11. Acceptance & Test Matrix
 
-| BR / AC | Scenario | Expected Result | Test Type |
-|---|---|---|---|
-| PB AC | Approved backlog acceptance path for `Pay for Booking` | Meets the acceptance summary above | E2E |
-| BR-090 | Approved rule is satisfied for `Pay for Booking` | Accepted and persisted or returned as applicable | Integration |
-| BR-090 | Approved rule is violated for `Pay for Booking` | Rejected with no partial side effects | Boundary / Integration |
-| BR-091 | Approved rule is satisfied for `Pay for Booking` | Accepted and persisted or returned as applicable | Integration |
-| BR-091 | Approved rule is violated for `Pay for Booking` | Rejected with no partial side effects | Boundary / Integration |
-| BR-092 | Approved rule is satisfied for `Pay for Booking` | Accepted and persisted or returned as applicable | Integration |
-| BR-092 | Approved rule is violated for `Pay for Booking` | Rejected with no partial side effects | Boundary / Integration |
-| BR-106 | Approved rule is satisfied for `Pay for Booking` | Accepted and persisted or returned as applicable | Integration |
-| BR-106 | Approved rule is violated for `Pay for Booking` | Rejected with no partial side effects | Boundary / Integration |
-| BR-174 | Approved rule is satisfied for `Pay for Booking` | Accepted and persisted or returned as applicable | Integration |
-| BR-174 | Approved rule is violated for `Pay for Booking` | Rejected with no partial side effects | Boundary / Integration |
-| BR-175 | Approved rule is satisfied for `Pay for Booking` | Accepted and persisted or returned as applicable | Integration |
-| BR-175 | Approved rule is violated for `Pay for Booking` | Rejected with no partial side effects | Boundary / Integration |
-| BR-176 | Approved rule is satisfied for `Pay for Booking` | Accepted and persisted or returned as applicable | Integration |
-| BR-176 | Approved rule is violated for `Pay for Booking` | Rejected with no partial side effects | Boundary / Integration |
-| BR-177 | Approved rule is satisfied for `Pay for Booking` | Accepted and persisted or returned as applicable | Integration |
-| BR-177 | Approved rule is violated for `Pay for Booking` | Rejected with no partial side effects | Boundary / Integration |
-| Remaining mapped BRs | Each mapped BR has valid and violation coverage in the owning test suite | Coverage proves the rule is enforced | Unit / Integration / E2E |
+| Source              | Scenario                  | Expected Result                    | Test Type   |
+| ------------------- | ------------------------- | ---------------------------------- | ----------- |
+| PB AC-1             | Ineligible Booking pays   | Rejected                           | State       |
+| PB AC-2, BR-175     | Client changes amount     | Server amount used                 | Security    |
+| PB AC-3, BR-090     | Charge created            | Unique idempotency identity        | Integration |
+| PB AC-4, BR-091     | Provider confirms success | Booking paid/confirmed             | E2E         |
+| PB AC-5, BR-092     | Callback repeated         | Applied once                       | Idempotency |
+| PB AC-6             | Provider fails            | Booking not confirmed              | Integration |
+| PB AC-7, BR-176/177 | Commit failure            | No inconsistent partial transition | Transaction |
+| BR-179              | Concurrent attempts       | No double financial outcome        | Concurrency |
 
-## 12. Open Decisions & References
+## 12. Open Decisions
 
-### 12.1 Open Decisions
-
-None.
-
-### 12.2 References
-
-- Product Backlog v3.1.
-- CTMS Business Rules workbook.
-- CTMS Architecture Overview.
+Provider-specific contract and payment timeout are Technical Design concerns unless separately fixed by BR.

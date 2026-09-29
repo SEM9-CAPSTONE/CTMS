@@ -3,84 +3,97 @@
 ## 1. Overview
 
 Story: CTMS-109
+
 Epic: EPIC 17. Reports and Evaluation Metrics
+
 Use Case: View AI Demand Insight and Trip Suggestions
+
 Priority: Should Have
 
-Goal:
-Allow Admin to complete `View AI Demand Insight and Trip Suggestions` within the approved CTMS v3.1 scope.
+Goal: Provide Host with privacy-preserving aggregate demand insights and advisory Trip suggestions without exposing Camper-level behavior or automatically changing Trip inventory.
 
-Acceptance summary:
-The View AI Demand Insight and Trip Suggestions workflow must satisfy the approved PB v3.1 acceptance criteria for this story. Do not copy the Vietnamese backlog text into this spec; implementers must preserve the approved source meaning when refining detailed tests.
+Backlog story: As a Host, I want to view AI demand insights and Trip suggestions so I can understand aggregate market demand.
+
+Acceptance Criteria:
+
+| Source   | Criterion                                                                                                      |
+| -------- | -------------------------------------------------------------------------------------------------------------- |
+| PB AC-1  | Insights use aggregate/anonymized data.                                                                        |
+| PB AC-2  | Permitted aggregate demand signals may be used.                                                                |
+| PB AC-3  | Sensitive prohibited signals are not used/exposed.                                                             |
+| PB AC-4  | Minimum configured cohort threshold is enforced.                                                               |
+| PB AC-5  | Insufficient data returns `insufficient_data` instead of individual inference.                                 |
+| PB AC-6  | Host receives only appropriate aggregate market insight.                                                       |
+| PB AC-7  | Suggestion identifies supported area/category/Trip type, demand indication, reason/data period when supported. |
+| PB AC-8  | Suggestion cannot auto-create/publish/change Trip price.                                                       |
+| PB AC-9  | Trip created from suggestion still follows normal Trip rules.                                                  |
+| PB AC-10 | Insight stores data window/version/generated time and stale state is identifiable.                             |
 
 ## 2. Scope
 
 ### In Scope
 
-- Story-owned behavior for `View AI Demand Insight and Trip Suggestions`.
-- Validation, authorization, state handling, persistence, audit, and observable errors required by the mapped Business Rules.
-- Story-specific acceptance tests that prove both allowed and rejected paths.
+- Aggregate demand.
+- Privacy threshold.
+- AI Trip suggestion.
+- Freshness/version context.
 
 ### Out of Scope
 
-- Behavior owned by dependency stories unless a mapped BR explicitly makes it part of this story.
-- Implementation of dependency stories: CTMS-092, CTMS-093, CTMS-108.
+- Camper-level profiling for Host.
+- Automatic Trip creation/publishing/pricing.
 
 ## 3. Actors & Authorization
 
-- Admin: primary business actor for this story.
-- Backend API: authoritative enforcement point for permissions, state, and business rules.
-- UI or client application: may guide the user, but must not replace backend enforcement.
+Primary actor:
 
-Authorization must be concrete: the caller must have the role, ownership, assignment, or operational relationship required by the mapped BRs before any protected data is returned or any state-changing action is committed.
+- Host.
 
 ## 4. Preconditions & Dependencies
 
-- Product Backlog v3.1 row `CTMS-109` is the story scope source.
-- The mapped Primary BR IDs below exist in the latest Business Rules workbook.
-- Required domain records already exist and are in states allowed by the mapped BRs.
-- Dependencies:
-- CTMS-092
-- CTMS-093
-- CTMS-108
+Sufficient permitted aggregate demand data exists.
 
 ## 5. Business Rules
 
-| BR | Rule |
-|---|---|
-| BR-309 | This BR is the authoritative story rule for `View AI Demand Insight and Trip Suggestions`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-310 | This BR is the authoritative story rule for `View AI Demand Insight and Trip Suggestions`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-311 | This BR is the authoritative story rule for `View AI Demand Insight and Trip Suggestions`. Preserve and enforce these source thresholds, states, identifiers, and comparison operators exactly: SOS, GPS, AI. |
-| BR-312 | This BR is the authoritative story rule for `View AI Demand Insight and Trip Suggestions`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-313 | This BR is the authoritative story rule for `View AI Demand Insight and Trip Suggestions`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-314 | This BR is the authoritative story rule for `View AI Demand Insight and Trip Suggestions`. Preserve and enforce these source thresholds, states, identifiers, and comparison operators exactly: AI. |
-| BR-315 | This BR is the authoritative story rule for `View AI Demand Insight and Trip Suggestions`. Preserve and enforce these source thresholds, states, identifiers, and comparison operators exactly: AI. |
-| BR-316 | This BR is the authoritative story rule for `View AI Demand Insight and Trip Suggestions`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-317 | This BR is the authoritative story rule for `View AI Demand Insight and Trip Suggestions`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-212 | Any Business Rule, enum, state transition, or API contract change must update the spec, tests, and data documentation before the story is Done. |
-| BR-213 | Every mapped Business Rule must have at least one valid-path test and one violation-path test; concurrency, idempotency, and transaction rules require integration or E2E coverage. |
+| BR     | Rule                                                                                                                                                                                                       |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| BR-309 | Host Demand Insight may be generated only from aggregate/anonymized data. A Host must not gain access to row-level Camper profiles or behavior through insight features.                                   |
+| BR-310 | Permitted signals include legitimately collected aggregate search/view/Booking demand, destination or area interest, trip type, difficulty, price band, and season/time.                                   |
+| BR-311 | Demand Insight must not use or expose medical information, SOS/emergency history, raw exact GPS history, private AI-survival questions, or payment credentials.                                            |
+| BR-312 | The system must apply a configured minimum cohort/aggregation threshold before displaying an insight. If the dataset is too small, it must return insufficient_data rather than infer individual behavior. |
+| BR-313 | A Host may receive only appropriate market-level or aggregate demand insight. Private commercial metrics of another specific Host must not be exposed without authorization.                               |
+| BR-314 | An AI suggestion for a Host must include, at minimum, the suggested area/category/trip type, an indication of demand, and the supporting reason/data period when the data supports those fields.           |
+| BR-315 | AI Demand Insight is advisory only. It must not automatically create or publish a Trip or change Trip pricing.                                                                                             |
+| BR-316 | A Trip created by a Host from a demand suggestion must still pass the normal Create Trip validation, approval, capacity, Route, and Weather Risk rules.                                                    |
+| BR-317 | Insight generation must record the data window/version and generated time so the Host can understand data freshness. Stale insights must be identifiable.                                                  |
 
 ## 6. State & Lifecycle
 
-Not applicable. This is a read or presentation story and does not define a new domain lifecycle.
-
-Do not introduce placeholder workflow states unless an owning domain contract explicitly defines them.
+Aggregate data
+→ privacy/cohort gate
+→ insight generation
+→ suggestion
+→ Host view
+→ optional normal Create Trip flow.
 
 ## 7. Business Flow
 
-1. Admin initiates `View AI Demand Insight and Trip Suggestions` through the approved UI, API, scheduled job, or integration point.
-2. The backend loads the required source records and verifies authorization, ownership or assignment, current state, and all mapped BR prerequisites.
-3. The backend applies the story-owned decision logic from Section 5.
-4. If any mapped rule is violated, the backend rejects the operation with no partial side effects and returns an actionable error.
-5. If the action changes authoritative data, the change commits atomically with required audit and post-commit notifications.
-6. The client presents the committed result or the rejection reason without exposing protected data.
+1. Aggregate permitted demand signals.
+2. Apply anonymization/cohort threshold.
+3. If insufficient, return `insufficient_data`.
+4. Generate demand insight.
+5. Generate advisory suggestion where supported.
+6. Store data window/version/generated time.
+7. Display freshness.
+8. If Host acts, enter normal Trip creation flow.
 
 ## 8. Data & Invariants
 
-- Persist or return only fields required for `View AI Demand Insight and Trip Suggestions` and the mapped BRs.
-- Preserve authoritative identifiers, ownership links, timestamps, snapshots, status values, and audit references when they affect the business outcome.
-- Derived counters, scores, release-gate metrics, and ledger amounts must be traceable to their source records and rule version.
-- Do not invent tables, enum values, state machines, or audit stores solely for this story.
+No row-level Camper profile is exposed.
+
+AI suggestion is advisory only.
+
+Stale insight must be identifiable.
 
 ## 9. API / Integration Contract
 
@@ -88,45 +101,24 @@ TBD — Technical Design.
 
 ## 10. Error & Edge Cases
 
-| Case | Expected Behavior |
-|---|---|
-| Caller lacks the required role, ownership, assignment, or relationship | Reject with no side effects. |
-| Required source record is missing | Return not found or blocked state without fabricating data. |
-| Current state violates a mapped BR | Return business conflict and preserve the current authoritative state. |
-| Input violates a mapped BR | Return validation error before persistence. |
-| Duplicate or retried request affects authoritative data | Enforce idempotency or reject safely so duplicate records, refunds, notifications, or ledger entries are not created. |
+| Case                     | Expected Behavior   |
+| ------------------------ | ------------------- |
+| Cohort too small         | `insufficient_data` |
+| Medical/SOS signal       | Excluded            |
+| Stale insight            | Mark stale          |
+| Host accepts suggestion  | Normal Trip flow    |
+| AI attempts auto-publish | Prohibited          |
 
 ## 11. Acceptance & Test Matrix
 
-| BR / AC | Scenario | Expected Result | Test Type |
-|---|---|---|---|
-| PB AC | Approved backlog acceptance path for `View AI Demand Insight and Trip Suggestions` | Meets the acceptance summary above | E2E |
-| BR-309 | Approved rule is satisfied for `View AI Demand Insight and Trip Suggestions` | Accepted and persisted or returned as applicable | Integration |
-| BR-309 | Approved rule is violated for `View AI Demand Insight and Trip Suggestions` | Rejected with no partial side effects | Boundary / Integration |
-| BR-310 | Approved rule is satisfied for `View AI Demand Insight and Trip Suggestions` | Accepted and persisted or returned as applicable | Integration |
-| BR-310 | Approved rule is violated for `View AI Demand Insight and Trip Suggestions` | Rejected with no partial side effects | Boundary / Integration |
-| BR-311 | Approved rule is satisfied for `View AI Demand Insight and Trip Suggestions` | Accepted and persisted or returned as applicable | Integration |
-| BR-311 | Approved rule is violated for `View AI Demand Insight and Trip Suggestions` | Rejected with no partial side effects | Boundary / Integration |
-| BR-312 | Approved rule is satisfied for `View AI Demand Insight and Trip Suggestions` | Accepted and persisted or returned as applicable | Integration |
-| BR-312 | Approved rule is violated for `View AI Demand Insight and Trip Suggestions` | Rejected with no partial side effects | Boundary / Integration |
-| BR-313 | Approved rule is satisfied for `View AI Demand Insight and Trip Suggestions` | Accepted and persisted or returned as applicable | Integration |
-| BR-313 | Approved rule is violated for `View AI Demand Insight and Trip Suggestions` | Rejected with no partial side effects | Boundary / Integration |
-| BR-314 | Approved rule is satisfied for `View AI Demand Insight and Trip Suggestions` | Accepted and persisted or returned as applicable | Integration |
-| BR-314 | Approved rule is violated for `View AI Demand Insight and Trip Suggestions` | Rejected with no partial side effects | Boundary / Integration |
-| BR-315 | Approved rule is satisfied for `View AI Demand Insight and Trip Suggestions` | Accepted and persisted or returned as applicable | Integration |
-| BR-315 | Approved rule is violated for `View AI Demand Insight and Trip Suggestions` | Rejected with no partial side effects | Boundary / Integration |
-| BR-316 | Approved rule is satisfied for `View AI Demand Insight and Trip Suggestions` | Accepted and persisted or returned as applicable | Integration |
-| BR-316 | Approved rule is violated for `View AI Demand Insight and Trip Suggestions` | Rejected with no partial side effects | Boundary / Integration |
-| Remaining mapped BRs | Each mapped BR has valid and violation coverage in the owning test suite | Coverage proves the rule is enforced | Unit / Integration / E2E |
+| Source | Scenario             | Expected Result       | Test Type |
+| ------ | -------------------- | --------------------- | --------- |
+| BR-309 | Insight              | Aggregate only        | Privacy   |
+| BR-312 | Small cohort         | insufficient_data     | Privacy   |
+| BR-311 | Sensitive signal     | Excluded              | Security  |
+| BR-315 | Suggestion generated | No automatic mutation | Integrity |
+| BR-317 | Old insight          | Stale identifiable    | UI        |
 
-## 12. Open Decisions & References
+## 12. Open Decisions
 
-### 12.1 Open Decisions
-
-- Minimum cohort size N required before aggregated AI demand insights may be exposed.
-
-### 12.2 References
-
-- Product Backlog v3.1.
-- CTMS Business Rules workbook.
-- CTMS Architecture Overview.
+Minimum cohort value is configuration-driven; this spec does not invent a numeric threshold.

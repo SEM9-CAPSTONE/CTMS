@@ -3,89 +3,118 @@
 ## 1. Overview
 
 Story: CTMS-043
+
 Epic: EPIC 7. Porter Management
+
 Use Case: Manage Porter Profile and Route Qualification
+
 Priority: Should Have
 
-Goal:
-Allow Host to complete `Manage Porter Profile and Route Qualification` within the approved CTMS v3.1 scope.
+Goal: Maintain Porter professional profile and verified Route-specific qualification independently from Host membership or Porter compensation.
 
-Acceptance summary:
-The Manage Porter Profile and Route Qualification workflow must satisfy the approved PB v3.1 acceptance criteria for this story. Do not copy the Vietnamese backlog text into this spec; implementers must preserve the approved source meaning when refining detailed tests.
+Acceptance Criteria:
+
+| Source | Criterion |
+| --- | --- |
+| PB AC-1 | Porter manages profile including experience, certifications, languages and availability. |
+| PB AC-2 | Porter is an independent actor rather than a Host/location membership record. |
+| PB AC-3 | Route qualification is stored per Porter and Route. |
+| PB AC-4 | Proficiency uses the approved values learning/proficient/expert. |
+| PB AC-5 | `learning` does not qualify Porter as lead. |
+| PB AC-6 | Qualification verification is performed only by authorized Route Host/Admin. |
+| PB AC-7 | One current qualification record exists per Porter/Route. |
+| PB AC-8 | CTMS does not store Porter day-rate/compensation under this story. |
 
 ## 2. Scope
 
 ### In Scope
 
-- Story-owned behavior for `Manage Porter Profile and Route Qualification`.
-- Validation, authorization, state handling, persistence, audit, and observable errors required by the mapped Business Rules.
-- Story-specific acceptance tests that prove both allowed and rejected paths.
+- Porter profile.
+- Experience.
+- Certifications.
+- Languages.
+- Availability.
+- Route qualification.
+- Proficiency.
+- `times_led`.
+- Qualification verification.
 
 ### Out of Scope
 
-- Behavior owned by dependency stories unless a mapped BR explicitly makes it part of this story.
-- Implementation of dependency stories: CTMS-006, CTMS-013.
+- Porter wages/day rate.
+- Host membership.
+- Porter Request.
+- Porter Assignment.
 
 ## 3. Actors & Authorization
 
-- Host: primary business actor for this story.
-- Backend API: authoritative enforcement point for permissions, state, and business rules.
-- UI or client application: may guide the user, but must not replace backend enforcement.
-
-Authorization must be concrete: the caller must have the role, ownership, assignment, or operational relationship required by the mapped BRs before any protected data is returned or any state-changing action is committed.
+- Porter: manages own profile.
+- Host managing relevant Route: verifies qualification where permitted.
+- Admin: verifies according to administrative permission.
 
 ## 4. Preconditions & Dependencies
 
-- Product Backlog v3.1 row `CTMS-043` is the story scope source.
-- The mapped Primary BR IDs below exist in the latest Business Rules workbook.
-- Required domain records already exist and are in states allowed by the mapped BRs.
-- Dependencies:
-- CTMS-006
-- CTMS-013
+Dependencies:
+
+- CTMS-006.
+- CTMS-013.
+
+Route must exist for Route qualification.
 
 ## 5. Business Rules
 
-| BR | Rule |
-|---|---|
-| BR-139 | This BR is the authoritative story rule for `Manage Porter Profile and Route Qualification`. Preserve and enforce these source thresholds, states, identifiers, and comparison operators exactly: >=. |
-| BR-140 | This BR is the authoritative story rule for `Manage Porter Profile and Route Qualification`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-152 | This BR is the authoritative story rule for `Manage Porter Profile and Route Qualification`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-153 | This BR is the authoritative story rule for `Manage Porter Profile and Route Qualification`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-154 | This BR is the authoritative story rule for `Manage Porter Profile and Route Qualification`. Preserve and enforce these source thresholds, states, identifiers, and comparison operators exactly: >=. |
-| BR-155 | This BR is the authoritative story rule for `Manage Porter Profile and Route Qualification`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-172 | Sensitive personal, health, payment, and location data may be accessed only by an authorized actor with a valid business relationship. |
-| BR-173 | A user must not read or modify another user's protected data unless a specific role or workflow authorizes it. |
-| BR-174 | Inputs must be validated for required fields, formats, identifiers, enum values, and cross-entity references before any write is committed. |
-| BR-175 | Clients must not self-assert server-owned state, ownership, pricing, capacity, ledger, audit, or safety outcomes. |
-| BR-183 | The system must distinguish source event time, client time, provider time, and server/database commit time when the workflow depends on timing. |
-| BR-186 | Sensitive payloads must be minimized in responses, logs, audit records, analytics, and notifications. |
-| BR-189 | A valid time range must satisfy `start_time < end_time`; `start_time = end_time` is allowed only when a specific business rule explicitly permits it. |
-| BR-199 | APIs must return consistent error codes: 401 for authentication failure, 403 for missing permission, 404 for not found, 409 for business conflict, and 422 for invalid data. |
-| BR-200 | Error messages must explain the problem and the user action needed, while never exposing stack traces, secrets, or resources the user is not allowed to view. |
-| BR-212 | Any Business Rule, enum, state transition, or API contract change must update the spec, tests, and data documentation before the story is Done. |
-| BR-213 | Every mapped Business Rule must have at least one valid-path test and one violation-path test; concurrency, idempotency, and transaction rules require integration or E2E coverage. |
+| BR     | Rule                                                                                                                                                                                                                                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| BR-139 | porter_profiles must store experience_years >= 0, certifications, languages, availability_status, rating_avg, and completed_trips according to schema. Porter Profile is an independent profile belonging to the Porter.                                               |
+| BR-140 | A Porter is an independent actor. Collaboration scope with a Host is determined per Trip through Porter Requests and Porter Assignments; no intermediate location-membership resource is maintained.                                                                   |
+| BR-152 | Porter Route qualification is managed independently by porter_id + route_id. Only an active Porter with a valid profile may have porter_routes created or updated, subject to the system's verification permissions.                                                   |
+| BR-153 | porter_routes.proficiency may be only learning, proficient, or expert. A Porter with learning proficiency is not eligible to act as lead.                                                                                                                              |
+| BR-154 | Proficiency verification must store times_led >= 0, verified_by, and verified_at. verified_by must be either an authenticated Host who owns/manages the corresponding Route or an authorized Admin. A Porter may have only one current qualification record per Route. |
+| BR-155 | A unique constraint on (porter_id, route_id) must prevent duplicate current proficiency records. Qualification history, if required, must be stored separately.                                                                                                        |
+| BR-172 | Access control must be enforced by the backend using role, ownership, and business scope. Hiding or disabling functionality in the UI is not a substitute for backend authorization.                                                                                   |
+| BR-173 | A user may view or modify only data they own unless the user's role and business relationship explicitly authorize access to another user's data.                                                                                                                      |
+| BR-174 | All input must be validated for required fields, data type, format, length, enum membership, and cross-field relationships before processing.                                                                                                                          |
+| BR-175 | The backend is the authoritative source for authorization, state, pricing, capacity, inventory, risk level, and transaction outcome. The client must not establish these values authoritatively.                                                                       |
+| BR-183 | Every data relationship must reference an existing, valid record. Child records must not be created for a resource outside the correct business scope.                                                                                                                 |
+| BR-186 | Personal and health data must be returned only as the minimum fields necessary for the business purpose and only to authorized actors.                                                                                                                                 |
+| BR-189 | A valid time interval requires start_time < end_time. start_time = end_time is allowed only for a business case with an explicit rule permitting it.                                                                                                                   |
+| BR-199 | APIs must use consistent error semantics: 401 for authentication failures, 403 for insufficient authorization, 404 for not found, 409 for business conflicts, and 422 for invalid input.                                                                               |
+| BR-200 | Error messages must clearly describe the problem and the user action required, while never exposing stack traces, secrets, or resources the user is not authorized to see.                                                                                             |
+| BR-212 | Any change to a Business Rule, enum, state transition, or API contract must be reflected in the specification, test cases, and data documentation before the work is considered Done.                                                                                  |
+| BR-213 | Every Business Rule must have at least one valid-path test and one violation-path test. Concurrency, idempotency, and transaction rules require integration or E2E coverage.                                                                                           |
 
 ## 6. State & Lifecycle
 
-Relevant states from the approved rules: `fail`.
+Profile:
+created → updated → current profile.
 
-Do not introduce placeholder workflow states unless an owning domain contract explicitly defines them.
+Qualification:
+none → qualification created → verified/current qualification.
+
+Exact archival/history model is Technical Design.
 
 ## 7. Business Flow
 
-1. Host initiates `Manage Porter Profile and Route Qualification` through the approved UI, API, scheduled job, or integration point.
-2. The backend loads the required source records and verifies authorization, ownership or assignment, current state, and all mapped BR prerequisites.
-3. The backend applies the story-owned decision logic from Section 5.
-4. If any mapped rule is violated, the backend rejects the operation with no partial side effects and returns an actionable error.
-5. If the action changes authoritative data, the change commits atomically with required audit and post-commit notifications.
-6. The client presents the committed result or the rejection reason without exposing protected data.
+1. Porter manages own profile.
+2. Backend validates identity.
+3. Validate experience/languages/certifications/availability.
+4. Persist profile.
+5. For Route qualification, load Route.
+6. Validate `(porter, route)`.
+7. Validate proficiency and `times_led`.
+8. Verify verifier authority.
+9. Store/update current qualification.
+10. Record verifier/time.
 
 ## 8. Data & Invariants
 
-- Persist or return only fields required for `Manage Porter Profile and Route Qualification` and the mapped BRs.
-- Preserve authoritative identifiers, ownership links, timestamps, snapshots, status values, and audit references when they affect the business outcome.
-- Derived counters, scores, release-gate metrics, and ledger amounts must be traceable to their source records and rule version.
-- Do not invent tables, enum values, state machines, or audit stores solely for this story.
+- `experience_years >= 0`.
+- `times_led >= 0`.
+- proficiency ∈ approved enum.
+- learning is not lead-qualified.
+- one current qualification per Porter/Route.
+- Porter compensation/day-rate is not stored.
+- Porter is not modeled as Host membership.
 
 ## 9. API / Integration Contract
 
@@ -94,44 +123,27 @@ TBD — Technical Design.
 ## 10. Error & Edge Cases
 
 | Case | Expected Behavior |
-|---|---|
-| Caller lacks the required role, ownership, assignment, or relationship | Reject with no side effects. |
-| Required source record is missing | Return not found or blocked state without fabricating data. |
-| Current state violates a mapped BR | Return business conflict and preserve the current authoritative state. |
-| Input violates a mapped BR | Return validation error before persistence. |
-| Duplicate or retried request affects authoritative data | Enforce idempotency or reject safely so duplicate records, refunds, notifications, or ledger entries are not created. |
+| --- | --- |
+| Porter edits another profile | Reject. |
+| Negative experience | Reject. |
+| Invalid proficiency | Reject. |
+| learning selected as lead qualification | Not eligible as lead. |
+| Unauthorized Host verifies | Reject. |
+| Duplicate current qualification | Prevent/update according to authoritative model. |
+| day_rate supplied | Not part of CTMS contract. |
 
 ## 11. Acceptance & Test Matrix
 
-| BR / AC | Scenario | Expected Result | Test Type |
-|---|---|---|---|
-| PB AC | Approved backlog acceptance path for `Manage Porter Profile and Route Qualification` | Meets the acceptance summary above | E2E |
-| BR-139 | Approved rule is satisfied for `Manage Porter Profile and Route Qualification` | Accepted and persisted or returned as applicable | Integration |
-| BR-139 | Approved rule is violated for `Manage Porter Profile and Route Qualification` | Rejected with no partial side effects | Boundary / Integration |
-| BR-140 | Approved rule is satisfied for `Manage Porter Profile and Route Qualification` | Accepted and persisted or returned as applicable | Integration |
-| BR-140 | Approved rule is violated for `Manage Porter Profile and Route Qualification` | Rejected with no partial side effects | Boundary / Integration |
-| BR-152 | Approved rule is satisfied for `Manage Porter Profile and Route Qualification` | Accepted and persisted or returned as applicable | Integration |
-| BR-152 | Approved rule is violated for `Manage Porter Profile and Route Qualification` | Rejected with no partial side effects | Boundary / Integration |
-| BR-153 | Approved rule is satisfied for `Manage Porter Profile and Route Qualification` | Accepted and persisted or returned as applicable | Integration |
-| BR-153 | Approved rule is violated for `Manage Porter Profile and Route Qualification` | Rejected with no partial side effects | Boundary / Integration |
-| BR-154 | Approved rule is satisfied for `Manage Porter Profile and Route Qualification` | Accepted and persisted or returned as applicable | Integration |
-| BR-154 | Approved rule is violated for `Manage Porter Profile and Route Qualification` | Rejected with no partial side effects | Boundary / Integration |
-| BR-155 | Approved rule is satisfied for `Manage Porter Profile and Route Qualification` | Accepted and persisted or returned as applicable | Integration |
-| BR-155 | Approved rule is violated for `Manage Porter Profile and Route Qualification` | Rejected with no partial side effects | Boundary / Integration |
-| BR-172 | Approved rule is satisfied for `Manage Porter Profile and Route Qualification` | Accepted and persisted or returned as applicable | Integration |
-| BR-172 | Approved rule is violated for `Manage Porter Profile and Route Qualification` | Rejected with no partial side effects | Boundary / Integration |
-| BR-173 | Approved rule is satisfied for `Manage Porter Profile and Route Qualification` | Accepted and persisted or returned as applicable | Integration |
-| BR-173 | Approved rule is violated for `Manage Porter Profile and Route Qualification` | Rejected with no partial side effects | Boundary / Integration |
-| Remaining mapped BRs | Each mapped BR has valid and violation coverage in the owning test suite | Coverage proves the rule is enforced | Unit / Integration / E2E |
+| Source | Scenario | Expected Result | Test Type |
+| --- | --- | --- | --- |
+| BR-139 | Valid profile | Persisted | E2E |
+| BR-140 | Porter collaboration | No membership dependency | Architecture |
+| BR-152 | Route qualification | Correct Porter/Route record | Integration |
+| BR-153 | learning Porter | Not lead-qualified | Boundary |
+| BR-154 | Authorized Route Host verifies | Accepted | Authorization |
+| BR-154 | Unrelated Host verifies | Rejected | Security |
+| BR-155 | Duplicate current record | Prevented | Constraint |
 
-## 12. Open Decisions & References
+## 12. Open Decisions
 
-### 12.1 Open Decisions
-
-None.
-
-### 12.2 References
-
-- Product Backlog v3.1.
-- CTMS Business Rules workbook.
-- CTMS Architecture Overview.
+Exact certification verification model is not defined by this story unless separately specified.

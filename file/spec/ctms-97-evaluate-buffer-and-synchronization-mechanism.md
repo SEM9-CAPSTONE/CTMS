@@ -3,81 +3,105 @@
 ## 1. Overview
 
 Story: CTMS-097
+
 Epic: EPIC 17. Reports and Evaluation Metrics
+
 Use Case: Evaluate Buffer and Synchronization Mechanism
+
 Priority: Must Have
 
-Goal:
-Allow Admin to evaluate whether offline buffer and synchronization behavior is release-ready under the approved V3 sync gates.
+Goal: Verify that offline buffering and reconnection synchronization preserve valid data and safety events without authoritative duplicates under partial failure and retry.
 
-Acceptance summary:
-Evaluation must test network loss, app restart, retry, duplicate batch, out-of-order records, and partial failure. PASS requires valid-record acceptance = 100%, lost confirmed safety events = 0, and authoritative duplicate records = 0. Delay, retry, and error metrics are reported as observations.
+Backlog story: As the System, I want to evaluate buffering and synchronization so offline operational data can be proven reliable after reconnection.
+
+Acceptance Criteria:
+
+| Source  | Criterion                                                                |
+| ------- | ------------------------------------------------------------------------ |
+| PB AC-1 | Evaluation applies approved offline-buffer and synchronization rules.    |
+| PB AC-2 | Partial-failure batches are evaluated using V3 partial-acceptance rules. |
+| PB AC-3 | 100% of valid records in a partial-failure batch must be accepted.       |
+| PB AC-4 | Zero confirmed safety events may be lost.                                |
+| PB AC-5 | Zero authoritative duplicate records may exist after retry/resend.       |
+| PB AC-6 | Delay, retry, and error metrics are reported.                            |
+| PB AC-7 | Evaluation evidence stores version/threshold/result context.             |
 
 ## 2. Scope
 
 ### In Scope
 
-- Evaluation of offline buffer and synchronization release gates.
-- Partial-acceptance behavior for batches containing both valid and invalid records.
-- Per-record acknowledgement, retry, duplicate, and failed-record behavior.
+- Offline buffered records.
+- Partial-failure batches.
+- Valid-record acceptance.
+- Safety-event preservation.
+- Retry/resend idempotency.
+- Delay/retry/error metrics.
 
 ### Out of Scope
 
-- Implementing runtime offline sync storage or transport.
-- Changing the safety event domain rules evaluated by sync.
+- Runtime buffering implementation — CTMS-064.
+- Runtime reliable sync implementation — CTMS-065.
 
 ## 3. Actors & Authorization
 
-- Admin: reviews sync evaluation results.
-- System: runs sync evaluation scenarios and records the report.
+Actor:
 
-Only Admin or an authorized evaluation job may run or view release-gate reports.
+- System/evaluation process.
 
 ## 4. Preconditions & Dependencies
 
-- Versioned sync evaluation dataset exists.
-- Dataset includes valid records, invalid records, retries, duplicate identifiers, out-of-order records, app restart, and network-loss scenarios.
-- Expected per-record outcomes are defined before the run.
+Dependencies:
+
+- CTMS-064.
+- CTMS-065.
+
+Evaluation includes offline, reconnect, partial-failure, retry and resend scenarios.
 
 ## 5. Business Rules
 
-| BR | Rule |
-|---|---|
-| BR-278 | Buffer/synchronization evaluation must apply BR-436 and V3 partial-acceptance rules BR-441 through BR-443. PASS requires 100% valid records in partial-failure batches accepted, 0 confirmed safety events lost, and 0 authoritative duplicate records after retry/resend. Delay, retry, and error metrics must still be reported. |
-| BR-282 | Evaluation reports must store dataset/version, metric value, threshold, rule/model/config version, and pass/fail conclusion. Observational metrics are reported but do not independently fail release. |
-| BR-436 | Offline sync evaluation must test network loss, app restart, retry, duplicate batch, out-of-order records, and partial failure. PASS requires 100% valid records accepted even when the same batch contains invalid records, 0 confirmed safety events lost, and 0 authoritative duplicates. Server must return per-record acknowledgement and client retries only failed retryable records. |
-| BR-441 | Sync batch V3 uses partial acceptance. Server validates each record independently; valid records commit even when another record in the same batch is invalid. Invalid records must not roll back accepted valid records. |
-| BR-442 | Server returns per-record acknowledgement with stable record identifier, result = accepted/duplicate/failed, and failure_reason when failed. Duplicate is terminal success when the same stable identifier was already accepted. |
-| BR-443 | Client marks synced only for accepted or duplicate acknowledgements. Client retries only failed retryable records. Failed non-retryable records keep failed state and failure_reason. Retry with the same record or idempotency key must not create an authoritative duplicate. |
-| BR-467 | Buffer & Sync PASS requires valid-record acceptance = 100%, lost confirmed events = 0, and authoritative duplicate records = 0. All release-gate metrics must pass. |
-| BR-188 | Sync event ordering and evaluation timestamps must use authoritative time rules. |
+| BR     | Rule                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| BR-278 | Buffer/synchronization evaluation must apply BR-436 and the V3 partial-acceptance rules BR-441 through BR-443. Release gates are: 100% of valid records in a partial-failure batch are accepted, zero confirmed safety events are lost, and zero authoritative duplicate records are created after retry/resend. Delay, retry, and error metrics must still be reported.                                                                                   |
+| BR-436 | Offline-sync evaluation must test connectivity loss, app restart, retry, duplicate batches, out-of-order records, and partial failure. Release gates are: 100% of valid records are accepted even when the same batch contains invalid records, zero confirmed safety events are lost, and zero authoritative duplicates are created. The server must return per-record acknowledgements, and the client may retry only failed records that are retryable. |
+| BR-441 | V3 sync batches must use partial acceptance. The server must validate each record independently; valid records must commit even when other records in the same batch are invalid. Invalid records must not roll back valid records that were already accepted.                                                                                                                                                                                             |
+| BR-442 | The server must return a per-record acknowledgement for every record in a sync batch, including at minimum a stable record identifier, result = accepted/duplicate/failed, and failure_reason when failed. duplicate must be treated as terminal success when the same stable identifier was accepted previously.                                                                                                                                          |
+| BR-443 | The client may mark a record as synced only when its acknowledgement result is accepted or duplicate. The client may retry only failed records whose errors are retryable. Non-retryable failures must remain in failed state with failure_reason available for display/audit. Retrying the same record or idempotency_key must not create a duplicate authoritative record.                                                                               |
+| BR-282 | The V3 release gates defined in BR-276 through BR-281 and BR-434 through BR-438 are approved acceptance thresholds. Each evaluation report must store the dataset/version, metric value, threshold, rule/model/config version, and pass/fail conclusion. Metrics explicitly designated as observational are reported only and must not independently fail the release.                                                                                     |
 
 ## 6. State & Lifecycle
 
-```text
-Sync record acknowledgement
-    ├── accepted -> client may mark synced
-    ├── duplicate -> terminal success, client may mark synced
-    └── failed -> retry only when failure is retryable; otherwise remain failed with reason
-```
+Evaluation batch
+→ offline buffer
+→ reconnect/sync
+→ partial acceptance/failure
+→ retry/resend
+→ authoritative-state verification
+→ Pass/Fail.
 
 ## 7. Business Flow
 
-1. Admin or authorized job selects the versioned sync dataset.
-2. System runs network loss, app restart, retry, duplicate batch, out-of-order, and partial-failure scenarios.
-3. Server validates each record independently and returns per-record acknowledgements.
-4. Evaluation verifies valid records commit even when invalid records appear in the same batch.
-5. Evaluation verifies duplicate retry/resend does not create a second authoritative record.
-6. Evaluation calculates valid-record acceptance, lost confirmed safety events, and authoritative duplicates.
-7. PASS is recorded only when all three gate metrics pass.
+1. Create versioned evaluation dataset.
+2. Buffer records offline.
+3. Include valid and invalid/failed records according to test scenario.
+4. Restore connection.
+5. Synchronize batch.
+6. Record partial acceptance results.
+7. Retry/resend applicable records.
+8. Verify valid-record acceptance.
+9. Verify confirmed safety-event preservation.
+10. Verify authoritative duplicate count.
+11. Report delay/retry/error metrics.
+12. Determine Pass/Fail.
 
 ## 8. Data & Invariants
 
-- A stable record identifier is required to classify accepted, duplicate, and failed outcomes.
-- Accepted valid records must not be rolled back because another record in the batch is invalid.
-- Duplicate acknowledgement is terminal success, not a retryable failure.
-- A failed non-retryable record must retain `failure_reason` for display or audit.
-- Retrying the same record or idempotency key must not create an authoritative duplicate.
+Release gates:
+
+- valid records accepted = 100%;
+- confirmed safety events lost = 0;
+- authoritative duplicate records after retry/resend = 0.
+
+Delay/retry/error metrics remain reportable observations unless another approved threshold exists.
 
 ## 9. API / Integration Contract
 
@@ -85,33 +109,26 @@ TBD — Technical Design.
 
 ## 10. Error & Edge Cases
 
-| Case | Expected Behavior |
-|---|---|
-| Batch contains valid and invalid records | Valid records are accepted; invalid records fail independently. |
-| Client retries an already accepted stable identifier | Server returns duplicate or equivalent terminal success and creates no duplicate authoritative record. |
-| Confirmed safety event disappears after reconnect | Evaluation FAILS. |
-| Valid-record acceptance is 99.9% | Evaluation FAILS because threshold is exactly 100%. |
-| Per-record acknowledgement omits failure reason for failed record | Report is incomplete and cannot be accepted as release evidence. |
+| Case                                               | Expected Behavior                              |
+| -------------------------------------------------- | ---------------------------------------------- |
+| One valid record rejected in partial batch         | Fail                                           |
+| One confirmed safety event lost                    | Fail                                           |
+| Duplicate authoritative record after resend        | Fail                                           |
+| Invalid record rejected but valid records accepted | Evaluate according to partial-acceptance rules |
+| Retry count high                                   | Report                                         |
+| Sync delay high                                    | Report without inventing release threshold     |
 
 ## 11. Acceptance & Test Matrix
 
-| BR / AC | Scenario | Expected Result | Test Type |
-|---|---|---|---|
-| BR-436, BR-441, BR-467 | Batch contains 9 valid records and 1 invalid record | 9 valid records are accepted, invalid record fails, and valid-record acceptance for valid records is 100% | Integration |
-| BR-442 | Server processes a sync batch | Each record receives acknowledgement with stable identifier, result, and failure_reason when failed | Contract |
-| BR-443 | Client retries an accepted record with the same stable identifier | Server does not create a duplicate; client treats duplicate as terminal success | Idempotency |
-| BR-467 | One confirmed safety event is lost after reconnect | Evaluation result is FAIL | Release Gate |
-| BR-467 | One authoritative duplicate exists after retry/resend | Evaluation result is FAIL | Release Gate |
-| BR-282 | Evaluation report is stored | Report includes dataset/version, thresholds, metric values, rule/config version, and pass/fail conclusion | Report Validation |
+| Source     | Scenario               | Expected Result                         | Test Type    |
+| ---------- | ---------------------- | --------------------------------------- | ------------ |
+| BR-278     | 100% valid accepted    | Pass gate                               | Evaluation   |
+| BR-278     | Valid record lost      | Fail                                    | Evaluation   |
+| BR-278     | Safety event lost      | Fail                                    | Safety       |
+| BR-278     | Duplicate after resend | Fail                                    | Idempotency  |
+| BR-441→443 | Partial failure        | Valid records retained                  | Integration  |
+| BR-282     | Report                 | Version/metrics/threshold/result stored | Traceability |
 
-## 12. Open Decisions & References
+## 12. Open Decisions
 
-### 12.1 Open Decisions
-
-None.
-
-### 12.2 References
-
-- Product Backlog v3.1.
-- CTMS Business Rules workbook.
-- CTMS Architecture Overview.
+No additional numeric delay/retry/error thresholds are introduced in V3 unless separately approved.

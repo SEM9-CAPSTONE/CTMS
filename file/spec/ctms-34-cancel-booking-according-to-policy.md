@@ -3,93 +3,126 @@
 ## 1. Overview
 
 Story: CTMS-034
+
 Epic: EPIC 5. Booking and Payment
+
 Use Case: Cancel Booking According to Policy
+
 Priority: Should Have
 
-Goal:
-Allow Camper to complete `Cancel Booking According to Policy` within the approved CTMS v3.1 scope.
+Goal: Allow the Booking owner to cancel an eligible Booking according to its authoritative cancellation-policy snapshot while releasing commitments and determining refund entitlement consistently.
 
-Acceptance summary:
-The Cancel Booking According to Policy workflow must satisfy the approved PB v3.1 acceptance criteria for this story. Do not copy the Vietnamese backlog text into this spec; implementers must preserve the approved source meaning when refining detailed tests.
+Backlog story: As a Camper, I want to cancel my Booking according to policy so my Trip slot and related reservations are handled correctly.
+
+Acceptance Criteria:
+
+| Source  | Criterion                                                                                              |
+| ------- | ------------------------------------------------------------------------------------------------------ |
+| PB AC-1 | Only an authorized Booking owner may request Camper cancellation.                                      |
+| PB AC-2 | Cancellation eligibility/fee/refund is calculated from the authoritative cancellation-policy snapshot. |
+| PB AC-3 | Valid cancellation transitions Booking to cancelled and records cancellation metadata.                 |
+| PB AC-4 | Capacity consumed by the Booking is released exactly once.                                             |
+| PB AC-5 | Reserved equipment is released according to equipment policy.                                          |
+| PB AC-6 | Eligible refund is handed to the refund workflow rather than fabricated by the client.                 |
+| PB AC-7 | Cancellation is audited and side effects occur only after authoritative validation.                    |
 
 ## 2. Scope
 
 ### In Scope
 
-- Story-owned behavior for `Cancel Booking According to Policy`.
-- Validation, authorization, state handling, persistence, audit, and observable errors required by the mapped Business Rules.
-- Story-specific acceptance tests that prove both allowed and rejected paths.
+- Camper cancellation request.
+- Cancellation policy evaluation.
+- Cancellation metadata.
+- Seat release.
+- Equipment reservation release.
+- Refund entitlement calculation/creation.
+- Audit.
 
 ### Out of Scope
 
-- Behavior owned by dependency stories unless a mapped BR explicitly makes it part of this story.
-- Implementation of dependency stories: CTMS-029.
+- Trip cancellation.
+- Refund provider execution; CTMS-035.
+- Booking expiry.
 
 ## 3. Actors & Authorization
 
-- Camper: primary business actor for this story.
-- Backend API: authoritative enforcement point for permissions, state, and business rules.
-- UI or client application: may guide the user, but must not replace backend enforcement.
+- Camper / Booking owner.
+- System.
 
-Authorization must be concrete: the caller must have the role, ownership, assignment, or operational relationship required by the mapped BRs before any protected data is returned or any state-changing action is committed.
+Backend ownership check is authoritative.
 
 ## 4. Preconditions & Dependencies
 
-- Product Backlog v3.1 row `CTMS-034` is the story scope source.
-- The mapped Primary BR IDs below exist in the latest Business Rules workbook.
-- Required domain records already exist and are in states allowed by the mapped BRs.
-- Dependencies:
-- CTMS-029
+Dependency:
+
+- CTMS-029.
+
+Booking exists and is in a state from which cancellation is allowed.
 
 ## 5. Business Rules
 
-| BR | Rule |
-|---|---|
-| BR-098 | This BR is the authoritative story rule for `Cancel Booking According to Policy`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-099 | This BR is the authoritative story rule for `Cancel Booking According to Policy`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-100 | This BR is the authoritative story rule for `Cancel Booking According to Policy`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-101 | This BR is the authoritative story rule for `Cancel Booking According to Policy`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-102 | This BR is the authoritative story rule for `Cancel Booking According to Policy`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-174 | Inputs must be validated for required fields, formats, identifiers, enum values, and cross-entity references before any write is committed. |
-| BR-175 | Clients must not self-assert server-owned state, ownership, pricing, capacity, ledger, audit, or safety outcomes. |
-| BR-176 | State-changing operations must persist the authoritative result before dependent side effects are emitted. |
-| BR-177 | Duplicate submissions and retries must not create duplicate authoritative records. |
-| BR-178 | Provider, sync, queue, and notification retries must be idempotent. |
-| BR-179 | Multi-record operations that define one business outcome must use a transaction or equivalent atomic boundary. |
-| BR-180 | Stateful resources must follow defined state transitions and must not use enum values outside the database or API contract. |
-| BR-181 | Before updating state, the backend must verify the current persisted state; stale requests must fail with a business conflict. |
-| BR-188 | Date and time handling must use the authoritative timezone and ordering rules for the business workflow, and invalid or impossible time ranges must be rejected. |
-| BR-191 | Critical actions must write an audit record containing actor, action, target, timestamp, before/after values or reason, and affected business identifiers. |
-| BR-192 | Audit logs must not contain passwords, OTPs, tokens, sensitive payment data, unnecessary health data, or private payloads beyond the audit need. |
-| BR-194 | Notifications or event side effects may be emitted only after the main business transaction commits successfully, preferably through an outbox or queue. |
-| BR-209 | The UI must prevent duplicate submission while a request is processing. Financial or resource-holding actions may show success only after backend confirmation. |
-| BR-210 | When backend rejects a stale or concurrent request, the UI must preserve entered data, show the reason, and allow reload or retry. |
-| BR-211 | Operational, financial, safety, authorization, and administrative decisions must be traceable to the actor, source record, rule, and timestamp that produced them. |
-| BR-212 | Any Business Rule, enum, state transition, or API contract change must update the spec, tests, and data documentation before the story is Done. |
-| BR-213 | Every mapped Business Rule must have at least one valid-path test and one violation-path test; concurrency, idempotency, and transaction rules require integration or E2E coverage. |
+| BR         | Rule                                                                                                                                                                                                                                                                                                                                                                         |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| BR-098     | Eligibility for a Camper-initiated cancellation/refund before Trip start must be calculated from the Booking's cancellation_policy_snapshot and the request time. Later changes to the Trip's current cancellation policy must not alter an existing Booking. Refunds resulting from Host or System cancellation follow the cancellation/refund policy of the relevant flow. |
+| BR-099     | When a Camper cancellation before Trip start is accepted, the Booking/participation must transition to cancelled within the same transaction, and repeated requests must be idempotent. A Camper on a cancelled Booking is no longer eligible to check in or join the Trip. A pending or failed refund must not restore participation or capacity automatically.             |
+| BR-100     | If a cancelled Booking is currently included in seats_taken, the system must reduce seats_taken by exactly num_people, exactly once, within the same transaction so the released capacity becomes immediately available to other Bookings.                                                                                                                                   |
+| BR-101     | Any equipment_reservations still in reserved status for a cancelled Booking must transition to cancelled and release inventory. Equipment already picked_up must follow the separate return/damage flow.                                                                                                                                                                     |
+| BR-102     | A cancellation/refund request must be audited with the actor, Booking, relevant timestamps, before/after state, reason, and the required refund-request context. Sensitive payment data must not be logged.                                                                                                                                                                  |
+| BR-174     | All input must be validated for required fields, data type, format, length, enum membership, and cross-field relationships before processing.                                                                                                                                                                                                                                |
+| BR-175     | The backend is the authoritative source for authorization, state, pricing, capacity, inventory, risk level, and transaction outcome. The client must not establish these values authoritatively.                                                                                                                                                                             |
+| BR-176     | Any business operation that changes multiple tables or records must execute within a transaction. If any step fails, the entire operation must roll back.                                                                                                                                                                                                                    |
+| BR-177     | A failed operation must not leave data, state, reserved capacity, money, or inventory in a partially processed condition.                                                                                                                                                                                                                                                    |
+| BR-178     | Operations that may be retried, including payments, refunds, callbacks, and synchronization, must support idempotency so the same request cannot be successfully applied more than once.                                                                                                                                                                                     |
+| BR-179     | When concurrent requests modify the same resource, the system must use transactions, locking, optimistic/version control, or an equivalent mechanism to prevent lost updates and violations of business limits.                                                                                                                                                              |
+| BR-180     | Every stateful resource must follow its defined state transitions and must not use values outside the database enum.                                                                                                                                                                                                                                                         |
+| BR-181     | Before changing state, the system must validate the current state. A request based on stale state must be rejected with a business-conflict error.                                                                                                                                                                                                                           |
+| BR-188     | Absolute timestamps must be stored as timestamptz. Pure calendar dates use date, and time-of-day values use time where defined by schema. APIs must transmit timezone/offset explicitly, and the UI must display values using the configured timezone.                                                                                                                       |
+| BR-191     | Critical actions must be recorded in the audit log with actor, action, target, timestamp, and either before/after data or the reason for the change.                                                                                                                                                                                                                         |
+| BR-192     | Audit logs must not contain passwords, OTPs, tokens, sensitive payment data, or unnecessary health data.                                                                                                                                                                                                                                                                     |
+| BR-209     | The UI must prevent duplicate submission while a request is in progress. Financial or resource-reservation actions may be presented as successful only after backend confirmation.                                                                                                                                                                                           |
+| BR-210     | When the backend rejects a request because of a concurrent data change, the UI must preserve the user's entered data, explain the conflict, and allow the user to reload or retry.                                                                                                                                                                                           |
+| BR-211     | Any request rejected for authorization failure or an unmet business precondition must terminate before any state-changing commit and must not create side effects such as data updates, capacity holds, charges/refunds, notifications, or false business audit records.                                                                                                     |
+| BR-212     | Any change to a Business Rule, enum, state transition, or API contract must be reflected in the specification, test cases, and data documentation before the work is considered Done.                                                                                                                                                                                        |
+| BR-213     | Every Business Rule must have at least one valid-path test and one violation-path test. Concurrency, idempotency, and transaction rules require integration or E2E coverage.                                                                                                                                                                                                 |
 
 ## 6. State & Lifecycle
 
-Relevant states from the approved rules: `pass`, `fail`.
+Eligible Booking
+→ cancel request
+→ policy validation
+→ `cancelled`
 
-Do not introduce placeholder workflow states unless an owning domain contract explicitly defines them.
+If refundable:
+→ CTMS-035 refund lifecycle.
+
+Cancelled Booking does not continue granting Trip participation.
 
 ## 7. Business Flow
 
-1. Camper initiates `Cancel Booking According to Policy` through the approved UI, API, scheduled job, or integration point.
-2. The backend loads the required source records and verifies authorization, ownership or assignment, current state, and all mapped BR prerequisites.
-3. The backend applies the story-owned decision logic from Section 5.
-4. If any mapped rule is violated, the backend rejects the operation with no partial side effects and returns an actionable error.
-5. If the action changes authoritative data, the change commits atomically with required audit and post-commit notifications.
-6. The client presents the committed result or the rejection reason without exposing protected data.
+1. Camper requests cancellation.
+2. Backend verifies ownership.
+3. Reload Booking and policy snapshot.
+4. Validate Booking state and time.
+5. Calculate cancellation fee/refund eligibility.
+6. Begin transaction.
+7. Recheck state.
+8. Set Booking cancelled + metadata.
+9. Release applicable seats.
+10. Release applicable equipment.
+11. Create applicable refund obligation/request.
+12. Audit.
+13. Commit.
+14. Notify/continue refund after commit.
 
 ## 8. Data & Invariants
 
-- Persist or return only fields required for `Cancel Booking According to Policy` and the mapped BRs.
-- Preserve authoritative identifiers, ownership links, timestamps, snapshots, status values, and audit references when they affect the business outcome.
-- Derived counters, scores, release-gate metrics, and ledger amounts must be traceable to their source records and rule version.
-- Do not invent tables, enum values, state machines, or audit stores solely for this story.
+- Cancellation uses policy snapshot associated with Booking.
+- Client cannot choose refund amount.
+- Cancelled Booking does not retain its participation slot.
+- Seats released at most once.
+- Reserved equipment released at most once.
+- Refund cannot exceed authoritative refundable amount.
+- Cancellation cannot silently produce duplicate refund.
 
 ## 9. API / Integration Contract
 
@@ -97,45 +130,29 @@ TBD — Technical Design.
 
 ## 10. Error & Edge Cases
 
-| Case | Expected Behavior |
-|---|---|
-| Caller lacks the required role, ownership, assignment, or relationship | Reject with no side effects. |
-| Required source record is missing | Return not found or blocked state without fabricating data. |
-| Current state violates a mapped BR | Return business conflict and preserve the current authoritative state. |
-| Input violates a mapped BR | Return validation error before persistence. |
-| Duplicate or retried request affects authoritative data | Enforce idempotency or reject safely so duplicate records, refunds, notifications, or ledger entries are not created. |
+| Case                                | Expected Behavior                                    |
+| ----------------------------------- | ---------------------------------------------------- |
+| Another Camper cancels Booking      | Reject.                                              |
+| Booking already cancelled           | Idempotent/no duplicate side effects.                |
+| Booking state no longer cancellable | Reject.                                              |
+| Policy says no refund               | Cancel according to policy without inventing refund. |
+| Capacity release fails              | Roll back applicable transaction.                    |
+| Concurrent cancellation             | One authoritative outcome.                           |
+| Client supplies refund amount       | Ignore/reject; backend calculates.                   |
 
 ## 11. Acceptance & Test Matrix
 
-| BR / AC | Scenario | Expected Result | Test Type |
-|---|---|---|---|
-| PB AC | Approved backlog acceptance path for `Cancel Booking According to Policy` | Meets the acceptance summary above | E2E |
-| BR-098 | Approved rule is satisfied for `Cancel Booking According to Policy` | Accepted and persisted or returned as applicable | Integration |
-| BR-098 | Approved rule is violated for `Cancel Booking According to Policy` | Rejected with no partial side effects | Boundary / Integration |
-| BR-099 | Approved rule is satisfied for `Cancel Booking According to Policy` | Accepted and persisted or returned as applicable | Integration |
-| BR-099 | Approved rule is violated for `Cancel Booking According to Policy` | Rejected with no partial side effects | Boundary / Integration |
-| BR-100 | Approved rule is satisfied for `Cancel Booking According to Policy` | Accepted and persisted or returned as applicable | Integration |
-| BR-100 | Approved rule is violated for `Cancel Booking According to Policy` | Rejected with no partial side effects | Boundary / Integration |
-| BR-101 | Approved rule is satisfied for `Cancel Booking According to Policy` | Accepted and persisted or returned as applicable | Integration |
-| BR-101 | Approved rule is violated for `Cancel Booking According to Policy` | Rejected with no partial side effects | Boundary / Integration |
-| BR-102 | Approved rule is satisfied for `Cancel Booking According to Policy` | Accepted and persisted or returned as applicable | Integration |
-| BR-102 | Approved rule is violated for `Cancel Booking According to Policy` | Rejected with no partial side effects | Boundary / Integration |
-| BR-174 | Approved rule is satisfied for `Cancel Booking According to Policy` | Accepted and persisted or returned as applicable | Integration |
-| BR-174 | Approved rule is violated for `Cancel Booking According to Policy` | Rejected with no partial side effects | Boundary / Integration |
-| BR-175 | Approved rule is satisfied for `Cancel Booking According to Policy` | Accepted and persisted or returned as applicable | Integration |
-| BR-175 | Approved rule is violated for `Cancel Booking According to Policy` | Rejected with no partial side effects | Boundary / Integration |
-| BR-176 | Approved rule is satisfied for `Cancel Booking According to Policy` | Accepted and persisted or returned as applicable | Integration |
-| BR-176 | Approved rule is violated for `Cancel Booking According to Policy` | Rejected with no partial side effects | Boundary / Integration |
-| Remaining mapped BRs | Each mapped BR has valid and violation coverage in the owning test suite | Coverage proves the rule is enforced | Unit / Integration / E2E |
+| Source          | Scenario                             | Expected Result                             | Test Type   |
+| --------------- | ------------------------------------ | ------------------------------------------- | ----------- |
+| PB AC-1         | Owner cancels                        | Authorization passes                        | E2E         |
+| PB AC-1         | Non-owner cancels                    | Rejected                                    | Security    |
+| PB AC-2, BR-098 | Policy snapshot applies              | Correct policy used                         | Integration |
+| PB AC-3, BR-099 | Valid cancellation                   | Booking cancelled with metadata             | Integration |
+| PB AC-4, BR-100 | Capacity-consuming Booking cancelled | Seats released once                         | Transaction |
+| PB AC-5, BR-101 | Reserved equipment exists            | Released appropriately                      | Integration |
+| PB AC-6, BR-102 | Refund eligible                      | Refund workflow created according to policy | Integration |
+| PB AC-7         | Cancellation succeeds                | Audit present                               | Audit       |
 
-## 12. Open Decisions & References
+## 12. Open Decisions
 
-### 12.1 Open Decisions
-
-None.
-
-### 12.2 References
-
-- Product Backlog v3.1.
-- CTMS Business Rules workbook.
-- CTMS Architecture Overview.
+Exact cancellation percentages/windows are defined by the authoritative cancellation policy and are not hard-coded by this spec.

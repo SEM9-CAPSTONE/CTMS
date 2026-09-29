@@ -3,139 +3,150 @@
 ## 1. Overview
 
 Story: CTMS-033
+
 Epic: EPIC 5. Booking and Payment
+
 Use Case: Automatically Expire Booking
+
 Priority: Must Have
 
-Goal:
-Allow System to complete `Automatically Expire Booking` within the approved CTMS v3.1 scope.
+Goal: Automatically expire an unpaid Booking after its authoritative hold deadline and release reserved resources exactly once.
 
-Acceptance summary:
-The Automatically Expire Booking workflow must satisfy the approved PB v3.1 acceptance criteria for this story. Do not copy the Vietnamese backlog text into this spec; implementers must preserve the approved source meaning when refining detailed tests.
+Backlog story: As the System, I want unpaid Bookings to expire automatically so seats and equipment are not held indefinitely.
+
+Acceptance Criteria:
+
+| Source  | Criterion                                                               |
+| ------- | ----------------------------------------------------------------------- |
+| PB AC-1 | Eligible `pending_payment` Booking expires after `hold_expires_at`.     |
+| PB AC-2 | A paid Booking must not be expired.                                     |
+| PB AC-3 | Expiry releases seats held by the Booking.                              |
+| PB AC-4 | Reserved equipment is released/cancelled according to equipment policy. |
+| PB AC-5 | Expiry is idempotent and concurrency-safe.                              |
+| PB AC-6 | Expiry is audited and notification occurs only after commit.            |
 
 ## 2. Scope
 
 ### In Scope
 
-- Story-owned behavior for `Automatically Expire Booking`.
-- Validation, authorization, state handling, persistence, audit, and observable errors required by the mapped Business Rules.
-- Story-specific acceptance tests that prove both allowed and rejected paths.
+- Background expiry job.
+- Deadline evaluation.
+- Booking expiry transition.
+- Seat release.
+- Equipment reservation release.
+- Audit.
+- Post-commit notification.
+- Retry/idempotency.
 
 ### Out of Scope
 
-- Behavior owned by dependency stories unless a mapped BR explicitly makes it part of this story.
-- Implementation of dependency stories: CTMS-029, CTMS-032.
+- User cancellation.
+- Refund.
+- Payment initiation.
 
 ## 3. Actors & Authorization
 
-- System: primary business actor for this story.
-- Backend API: authoritative enforcement point for permissions, state, and business rules.
-- UI or client application: may guide the user, but must not replace backend enforcement.
+- System/background worker.
 
-Authorization must be concrete: the caller must have the role, ownership, assignment, or operational relationship required by the mapped BRs before any protected data is returned or any state-changing action is committed.
+No client may directly impersonate the authoritative expiry worker.
 
 ## 4. Preconditions & Dependencies
 
-- Product Backlog v3.1 row `CTMS-033` is the story scope source.
-- The mapped Primary BR IDs below exist in the latest Business Rules workbook.
-- Required domain records already exist and are in states allowed by the mapped BRs.
-- Dependencies:
-- CTMS-029
-- CTMS-032
+Dependencies:
+
+- CTMS-029.
+- CTMS-032.
+
+Booking must be eligible for automated expiry.
 
 ## 5. Business Rules
 
-| BR | Rule |
-|---|---|
-| BR-093 | This BR is the authoritative story rule for `Automatically Expire Booking`. Preserve and enforce these source thresholds, states, identifiers, and comparison operators exactly: <. |
-| BR-094 | This BR is the authoritative story rule for `Automatically Expire Booking`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-095 | This BR is the authoritative story rule for `Automatically Expire Booking`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-096 | This BR is the authoritative story rule for `Automatically Expire Booking`. Preserve and enforce these source thresholds, states, identifiers, and comparison operators exactly: NULL. |
-| BR-097 | This BR is the authoritative story rule for `Automatically Expire Booking`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-176 | State-changing operations must persist the authoritative result before dependent side effects are emitted. |
-| BR-177 | Duplicate submissions and retries must not create duplicate authoritative records. |
-| BR-178 | Provider, sync, queue, and notification retries must be idempotent. |
-| BR-180 | Stateful resources must follow defined state transitions and must not use enum values outside the database or API contract. |
-| BR-181 | Before updating state, the backend must verify the current persisted state; stale requests must fail with a business conflict. |
-| BR-188 | Date and time handling must use the authoritative timezone and ordering rules for the business workflow, and invalid or impossible time ranges must be rejected. |
-| BR-190 | Expired, consumed, revoked, superseded, or stale credentials, tokens, OTPs, packages, snapshots, or assignments must not be accepted. |
-| BR-191 | Critical actions must write an audit record containing actor, action, target, timestamp, before/after values or reason, and affected business identifiers. |
-| BR-192 | Audit logs must not contain passwords, OTPs, tokens, sensitive payment data, unnecessary health data, or private payloads beyond the audit need. |
-| BR-193 | Automated actions must record `actor_id = NULL` or a system actor and must store a clear execution reason. |
-| BR-194 | Notifications or event side effects may be emitted only after the main business transaction commits successfully, preferably through an outbox or queue. |
-| BR-195 | A single business event must not create duplicate notifications for the same recipient, target, and event type. |
-| BR-205 | Background jobs must re-check business conditions at execution time and must not rely solely on stale state captured when the job was scheduled. |
-| BR-206 | Background jobs must be safely rerunnable; multiple workers must not expire, cancel, refund, or notify the same record more than once. |
-| BR-212 | Any Business Rule, enum, state transition, or API contract change must update the spec, tests, and data documentation before the story is Done. |
-| BR-213 | Every mapped Business Rule must have at least one valid-path test and one violation-path test; concurrency, idempotency, and transaction rules require integration or E2E coverage. |
+| BR             | Rule                                                                                                                                                                                                                                                   |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| BR-093         | A pending_payment Booking with hold_expires_at < now and no successful payment must be moved to expired by an idempotent job. The job must re-check the current state before updating.                                                                 |
+| BR-094         | When a Booking expires, the capacity it held must be released exactly once within the same transaction.                                                                                                                                                |
+| BR-095         | Any equipment_reservations still in reserved status for an expired Booking must move to cancelled and release inventory. Reservations already picked_up must not be automatically cancelled by the expiry flow.                                        |
+| BR-096         | Booking expiry must be audited with actor_id = NULL/system, action = booking_expired, the Booking target, before/after state, and a reason.                                                                                                            |
+| BR-097         | Expiry notifications must be queued after commit for the person who made the Booking. Retrying notification delivery must not rerun the Booking-expiry business operation.                                                                             |
+| BR-176         | Any business operation that changes multiple tables or records must execute within a transaction. If any step fails, the entire operation must roll back.                                                                                              |
+| BR-177         | A failed operation must not leave data, state, reserved capacity, money, or inventory in a partially processed condition.                                                                                                                              |
+| BR-178         | Operations that may be retried, including payments, refunds, callbacks, and synchronization, must support idempotency so the same request cannot be successfully applied more than once.                                                               |
+| BR-180         | Every stateful resource must follow its defined state transitions and must not use values outside the database enum.                                                                                                                                   |
+| BR-181         | Before changing state, the system must validate the current state. A request based on stale state must be rejected with a business-conflict error.                                                                                                     |
+| BR-188         | Absolute timestamps must be stored as timestamptz. Pure calendar dates use date, and time-of-day values use time where defined by schema. APIs must transmit timezone/offset explicitly, and the UI must display values using the configured timezone. |
+| BR-190         | OTP TTL, token TTL, attempt limits, rate limits, Booking hold duration, and retry deadlines must come from configuration and must not be hard-coded in business logic.                                                                                 |
+| BR-191         | Critical actions must be recorded in the audit log with actor, action, target, timestamp, and either before/after data or the reason for the change.                                                                                                   |
+| BR-192         | Audit logs must not contain passwords, OTPs, tokens, sensitive payment data, or unnecessary health data.                                                                                                                                               |
+| BR-193         | Automated actions must record actor_id = NULL or a system actor and must include a clear reason for execution.                                                                                                                                         |
+| BR-194         | Notification/event side effects may be queued or emitted only after the primary business transaction commits successfully, preferably through an outbox/queue. Notification failure must not roll back the already-committed business result.          |
+| BR-195         | A single business event must not create duplicate notifications for the same recipient, target object, and event type.                                                                                                                                 |
+| BR-205         | A background job must re-evaluate business preconditions at execution time and must not rely solely on previously observed state.                                                                                                                      |
+| BR-206         | Background jobs must be safely retryable. Multiple workers must not expire, cancel, refund, or notify the same record more than once.                                                                                                                  |
+| BR-212         | Any change to a Business Rule, enum, state transition, or API contract must be reflected in the specification, test cases, and data documentation before the work is considered Done.                                                                  |
+| BR-213         | Every Business Rule must have at least one valid-path test and one violation-path test. Concurrency, idempotency, and transaction rules require integration or E2E coverage.                                                                           |
 
 ## 6. State & Lifecycle
 
-Relevant states from the approved rules: `expired`, `pass`, `fail`.
+`pending_payment`
+→ deadline passes and still unpaid
+→ `expired`
 
-Do not introduce placeholder workflow states unless an owning domain contract explicitly defines them.
+Paid/confirmed Booking:
+→ never transitions to expired through this flow.
 
 ## 7. Business Flow
 
-1. System initiates `Automatically Expire Booking` through the approved UI, API, scheduled job, or integration point.
-2. The backend loads the required source records and verifies authorization, ownership or assignment, current state, and all mapped BR prerequisites.
-3. The backend applies the story-owned decision logic from Section 5.
-4. If any mapped rule is violated, the backend rejects the operation with no partial side effects and returns an actionable error.
-5. If the action changes authoritative data, the change commits atomically with required audit and post-commit notifications.
-6. The client presents the committed result or the rejection reason without exposing protected data.
+1. Worker selects expiry candidates.
+2. For each candidate, begin protected transaction.
+3. Reload Booking.
+4. Recheck status/payment/deadline.
+5. If no longer eligible, no-op.
+6. Transition Booking to expired.
+7. Release applicable seats.
+8. Release/cancel applicable equipment reservations.
+9. Write audit.
+10. Commit.
+11. Queue notification after commit.
+12. Retry notification independently if needed.
 
 ## 8. Data & Invariants
 
-- Persist or return only fields required for `Automatically Expire Booking` and the mapped BRs.
-- Preserve authoritative identifiers, ownership links, timestamps, snapshots, status values, and audit references when they affect the business outcome.
-- Derived counters, scores, release-gate metrics, and ledger amounts must be traceable to their source records and rule version.
-- Do not invent tables, enum values, state machines, or audit stores solely for this story.
+- Paid Booking never expires through unpaid-expiry job.
+- Capacity is released at most once.
+- Equipment reservation is released at most once.
+- Job retry is safe.
+- Notification failure does not roll back already committed expiry.
+- Notification must not be sent before successful commit.
 
 ## 9. API / Integration Contract
 
 TBD — Technical Design.
 
+This is primarily a worker/scheduler contract rather than a client API.
+
 ## 10. Error & Edge Cases
 
-| Case | Expected Behavior |
-|---|---|
-| Caller lacks the required role, ownership, assignment, or relationship | Reject with no side effects. |
-| Required source record is missing | Return not found or blocked state without fabricating data. |
-| Current state violates a mapped BR | Return business conflict and preserve the current authoritative state. |
-| Input violates a mapped BR | Return validation error before persistence. |
-| Duplicate or retried request affects authoritative data | Enforce idempotency or reject safely so duplicate records, refunds, notifications, or ledger entries are not created. |
+| Case                                 | Expected Behavior                                   |
+| ------------------------------------ | --------------------------------------------------- |
+| Booking paid just before worker lock | Recheck → do not expire.                            |
+| Booking already expired              | No-op.                                              |
+| Two workers process same Booking     | One authoritative transition; no duplicate release. |
+| Seat release fails                   | Roll back expiry transaction.                       |
+| Notification fails                   | Keep expiry committed; retry notification.          |
+| Worker retries                       | No duplicate side effects.                          |
 
 ## 11. Acceptance & Test Matrix
 
-| BR / AC | Scenario | Expected Result | Test Type |
-|---|---|---|---|
-| PB AC | Approved backlog acceptance path for `Automatically Expire Booking` | Meets the acceptance summary above | E2E |
-| BR-093 | Approved rule is satisfied for `Automatically Expire Booking` | Accepted and persisted or returned as applicable | Integration |
-| BR-093 | Approved rule is violated for `Automatically Expire Booking` | Rejected with no partial side effects | Boundary / Integration |
-| BR-094 | Approved rule is satisfied for `Automatically Expire Booking` | Accepted and persisted or returned as applicable | Integration |
-| BR-094 | Approved rule is violated for `Automatically Expire Booking` | Rejected with no partial side effects | Boundary / Integration |
-| BR-095 | Approved rule is satisfied for `Automatically Expire Booking` | Accepted and persisted or returned as applicable | Integration |
-| BR-095 | Approved rule is violated for `Automatically Expire Booking` | Rejected with no partial side effects | Boundary / Integration |
-| BR-096 | Approved rule is satisfied for `Automatically Expire Booking` | Accepted and persisted or returned as applicable | Integration |
-| BR-096 | Approved rule is violated for `Automatically Expire Booking` | Rejected with no partial side effects | Boundary / Integration |
-| BR-097 | Approved rule is satisfied for `Automatically Expire Booking` | Accepted and persisted or returned as applicable | Integration |
-| BR-097 | Approved rule is violated for `Automatically Expire Booking` | Rejected with no partial side effects | Boundary / Integration |
-| BR-176 | Approved rule is satisfied for `Automatically Expire Booking` | Accepted and persisted or returned as applicable | Integration |
-| BR-176 | Approved rule is violated for `Automatically Expire Booking` | Rejected with no partial side effects | Boundary / Integration |
-| BR-177 | Approved rule is satisfied for `Automatically Expire Booking` | Accepted and persisted or returned as applicable | Integration |
-| BR-177 | Approved rule is violated for `Automatically Expire Booking` | Rejected with no partial side effects | Boundary / Integration |
-| BR-178 | Approved rule is satisfied for `Automatically Expire Booking` | Accepted and persisted or returned as applicable | Integration |
-| BR-178 | Approved rule is violated for `Automatically Expire Booking` | Rejected with no partial side effects | Boundary / Integration |
-| Remaining mapped BRs | Each mapped BR has valid and violation coverage in the owning test suite | Coverage proves the rule is enforced | Unit / Integration / E2E |
+| Source          | Scenario                        | Expected Result                             | Test Type   |
+| --------------- | ------------------------------- | ------------------------------------------- | ----------- |
+| PB AC-1, BR-093 | Deadline passed, unpaid         | Expired                                     | Worker E2E  |
+| PB AC-2, BR-181 | Payment succeeded before expiry | No expiry                                   | Concurrency |
+| PB AC-3, BR-094 | Booking expires                 | Seats released once                         | Transaction |
+| PB AC-4, BR-095 | Reserved equipment exists       | Reservation released appropriately          | Integration |
+| PB AC-5, BR-178 | Worker runs twice               | Same final state, no duplicate side effects | Idempotency |
+| PB AC-6, BR-097 | Expiry commits                  | Audit recorded                              | Audit       |
+| PB AC-6         | Notification processing fails   | Expiry remains committed                    | Integration |
 
-## 12. Open Decisions & References
+## 12. Open Decisions
 
-### 12.1 Open Decisions
-
-None.
-
-### 12.2 References
-
-- Product Backlog v3.1.
-- CTMS Business Rules workbook.
-- CTMS Architecture Overview.
+Exact scheduler frequency and retry/backoff configuration belong to Technical Design/configuration.

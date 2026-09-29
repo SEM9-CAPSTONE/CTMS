@@ -3,76 +3,93 @@
 ## 1. Overview
 
 Story: CTMS-078
+
 Epic: EPIC 13. Real-Time Communication
+
 Use Case: Establish Authenticated WebSocket Connection
+
 Priority: Must Have
 
-Goal:
-Allow Authenticated user to complete `Establish Authenticated WebSocket Connection` within the approved CTMS v3.1 scope.
+Goal: Establish a real-time connection only for authenticated users and restrict subscriptions/rooms to resources the user is authorized to receive.
 
-Acceptance summary:
-The Establish Authenticated WebSocket Connection workflow must satisfy the approved PB v3.1 acceptance criteria for this story. Do not copy the Vietnamese backlog text into this spec; implementers must preserve the approved source meaning when refining detailed tests.
+Backlog story: As an authenticated user, I want a secure real-time connection so I receive only events I am authorized to see.
+
+Acceptance Criteria:
+
+| Source  | Criterion                                                      |
+| ------- | -------------------------------------------------------------- |
+| PB AC-1 | WebSocket connection validates JWT.                            |
+| PB AC-2 | Invalid token is rejected.                                     |
+| PB AC-3 | Expired token is rejected.                                     |
+| PB AC-4 | User joins only rooms the user is authorized to receive.       |
+| PB AC-5 | Authentication alone does not grant arbitrary Trip/role rooms. |
 
 ## 2. Scope
 
 ### In Scope
 
-- Story-owned behavior for `Establish Authenticated WebSocket Connection`.
-- Validation, authorization, state handling, persistence, audit, and observable errors required by the mapped Business Rules.
-- Story-specific acceptance tests that prove both allowed and rejected paths.
+- WebSocket authentication.
+- JWT validation.
+- Invalid/expired rejection.
+- Authorized room membership.
 
 ### Out of Scope
 
-- Behavior owned by dependency stories unless a mapped BR explicitly makes it part of this story.
-- Implementation of dependency stories: CTMS-003.
+- SOS creation.
+- SOS business lifecycle.
+- Automatic reconnection — CTMS-082.
+- Notification preferences.
 
 ## 3. Actors & Authorization
 
-- Authenticated user: primary business actor for this story.
-- Backend API: authoritative enforcement point for permissions, state, and business rules.
-- UI or client application: may guide the user, but must not replace backend enforcement.
+- Authenticated User.
+- WebSocket gateway/server.
 
-Authorization must be concrete: the caller must have the role, ownership, assignment, or operational relationship required by the mapped BRs before any protected data is returned or any state-changing action is committed.
+Authorization is evaluated for each applicable room/resource.
 
 ## 4. Preconditions & Dependencies
 
-- Product Backlog v3.1 row `CTMS-078` is the story scope source.
-- The mapped Primary BR IDs below exist in the latest Business Rules workbook.
-- Required domain records already exist and are in states allowed by the mapped BRs.
-- Dependencies:
-- CTMS-003
+User has authentication credential/token.
 
 ## 5. Business Rules
 
-| BR | Rule |
-|---|---|
-| BR-259 | This BR is the authoritative story rule for `Establish Authenticated WebSocket Connection`. Preserve and enforce these source thresholds, states, identifiers, and comparison operators exactly: JWT. |
-| BR-188 | Date and time handling must use the authoritative timezone and ordering rules for the business workflow, and invalid or impossible time ranges must be rejected. |
-| BR-212 | Any Business Rule, enum, state transition, or API contract change must update the spec, tests, and data documentation before the story is Done. |
-| BR-213 | Every mapped Business Rule must have at least one valid-path test and one violation-path test; concurrency, idempotency, and transaction rules require integration or E2E coverage. |
-| BR-265 | WebSocket latency measurement must store `sent_at`, `received_at`, `acknowledged_at`, `latency_ms`, and `event_type`, and support average/P95/P99 aggregation without storing sensitive payloads solely for measurement. |
+| BR         | Rule                                                                                                                                                                                                                                                                                                    |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| BR-259     | A WebSocket connection must validate the JWT, reject invalid or expired tokens, and join the user only to rooms they are authorized to receive.                                                                                                                                                         |
+| BR-170     | Any function requiring authentication may execute only when the user has a valid authenticated session and the account is in active status.                                                                                                                                                             |
+| BR-171     | Any function requiring an active account must re-check account status on the backend at request time. pending_verification, suspended, or deleted accounts must be denied even when the client still holds an older access token/session, except for explicitly allowed verification or recovery flows. |
+| BR-172     | Access control must be enforced by the backend using role, ownership, and business scope. Hiding or disabling functionality in the UI is not a substitute for backend authorization.                                                                                                                    |
 
 ## 6. State & Lifecycle
 
-No new lifecycle is defined by this story. Existing entity states from the owning domain remain authoritative.
+Disconnected
+→ connection request
+→ token validation.
 
-Do not introduce placeholder workflow states unless an owning domain contract explicitly defines them.
+Valid + authorized:
+→ connected
+→ authorized rooms joined.
+
+Invalid/expired:
+→ rejected/disconnected.
 
 ## 7. Business Flow
 
-1. Authenticated user initiates `Establish Authenticated WebSocket Connection` through the approved UI, API, scheduled job, or integration point.
-2. The backend loads the required source records and verifies authorization, ownership or assignment, current state, and all mapped BR prerequisites.
-3. The backend applies the story-owned decision logic from Section 5.
-4. If any mapped rule is violated, the backend rejects the operation with no partial side effects and returns an actionable error.
-5. If the action changes authoritative data, the change commits atomically with required audit and post-commit notifications.
-6. The client presents the committed result or the rejection reason without exposing protected data.
+1. Client requests WebSocket connection.
+2. Present authentication credential.
+3. Validate JWT.
+4. Reject invalid/expired token.
+5. Resolve user identity/roles/relationships.
+6. Determine authorized rooms.
+7. Join only authorized rooms.
+8. Maintain connection until disconnect/invalid lifecycle event.
 
 ## 8. Data & Invariants
 
-- Persist or return only fields required for `Establish Authenticated WebSocket Connection` and the mapped BRs.
-- Preserve authoritative identifiers, ownership links, timestamps, snapshots, status values, and audit references when they affect the business outcome.
-- Derived counters, scores, release-gate metrics, and ledger amounts must be traceable to their source records and rule version.
-- Do not invent tables, enum values, state machines, or audit stores solely for this story.
+- Connected identity comes from validated authentication.
+- Room membership requires authorization.
+- Valid token does not imply access to every Trip/room.
+- Invalid/expired token cannot receive protected events.
 
 ## 9. API / Integration Contract
 
@@ -80,38 +97,25 @@ TBD — Technical Design.
 
 ## 10. Error & Edge Cases
 
-| Case | Expected Behavior |
-|---|---|
-| Caller lacks the required role, ownership, assignment, or relationship | Reject with no side effects. |
-| Required source record is missing | Return not found or blocked state without fabricating data. |
-| Current state violates a mapped BR | Return business conflict and preserve the current authoritative state. |
-| Input violates a mapped BR | Return validation error before persistence. |
-| Duplicate or retried request affects authoritative data | Enforce idempotency or reject safely so duplicate records, refunds, notifications, or ledger entries are not created. |
+| Case                            | Expected Behavior          |
+| ------------------------------- | -------------------------- |
+| Valid JWT                       | Authentication may proceed |
+| Invalid JWT                     | Reject                     |
+| Expired JWT                     | Reject                     |
+| Valid JWT, unauthorized Trip    | Do not join Trip room      |
+| Host authorized for Trip A only | No Trip B room             |
+| Connection drops                | CTMS-082 handles reconnect |
 
 ## 11. Acceptance & Test Matrix
 
-| BR / AC | Scenario | Expected Result | Test Type |
-|---|---|---|---|
-| PB AC | Approved backlog acceptance path for `Establish Authenticated WebSocket Connection` | Meets the acceptance summary above | E2E |
-| BR-259 | Approved rule is satisfied for `Establish Authenticated WebSocket Connection` | Accepted and persisted or returned as applicable | Integration |
-| BR-259 | Approved rule is violated for `Establish Authenticated WebSocket Connection` | Rejected with no partial side effects | Boundary / Integration |
-| BR-188 | Approved rule is satisfied for `Establish Authenticated WebSocket Connection` | Accepted and persisted or returned as applicable | Integration |
-| BR-188 | Approved rule is violated for `Establish Authenticated WebSocket Connection` | Rejected with no partial side effects | Boundary / Integration |
-| BR-212 | Approved rule is satisfied for `Establish Authenticated WebSocket Connection` | Accepted and persisted or returned as applicable | Integration |
-| BR-212 | Approved rule is violated for `Establish Authenticated WebSocket Connection` | Rejected with no partial side effects | Boundary / Integration |
-| BR-213 | Approved rule is satisfied for `Establish Authenticated WebSocket Connection` | Accepted and persisted or returned as applicable | Integration |
-| BR-213 | Approved rule is violated for `Establish Authenticated WebSocket Connection` | Rejected with no partial side effects | Boundary / Integration |
-| BR-265 | Approved rule is satisfied for `Establish Authenticated WebSocket Connection` | Accepted and persisted or returned as applicable | Integration |
-| BR-265 | Approved rule is violated for `Establish Authenticated WebSocket Connection` | Rejected with no partial side effects | Boundary / Integration |
+| Source | Scenario          | Expected Result          | Test Type     |
+| ------ | ----------------- | ------------------------ | ------------- |
+| BR-259 | Valid JWT         | Connection authenticated | Security      |
+| BR-259 | Invalid JWT       | Rejected                 | Security      |
+| BR-259 | Expired JWT       | Rejected                 | Security      |
+| BR-259 | Authorized room   | Joined                   | Authorization |
+| BR-259 | Unauthorized room | Not joined               | Authorization |
 
-## 12. Open Decisions & References
+## 12. Open Decisions
 
-### 12.1 Open Decisions
-
-None.
-
-### 12.2 References
-
-- Product Backlog v3.1.
-- CTMS Business Rules workbook.
-- CTMS Architecture Overview.
+WebSocket technology/provider and token-refresh handshake belong to Technical Design.

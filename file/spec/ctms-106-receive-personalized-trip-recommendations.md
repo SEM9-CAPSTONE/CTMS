@@ -3,84 +3,98 @@
 ## 1. Overview
 
 Story: CTMS-106
+
 Epic: EPIC 4. Trip Management
+
 Use Case: Receive Personalized Trip Recommendations
+
 Priority: Should Have
 
-Goal:
-Allow Camper to complete `Receive Personalized Trip Recommendations` within the approved CTMS v3.1 scope.
+Goal: Recommend eligible Trips using permitted preference/behavior signals while keeping authoritative Trip eligibility rules ahead of AI ranking.
 
-Acceptance summary:
-The Receive Personalized Trip Recommendations workflow must satisfy the approved PB v3.1 acceptance criteria for this story. Do not copy the Vietnamese backlog text into this spec; implementers must preserve the approved source meaning when refining detailed tests.
+Backlog story: As a Camper, I want personalized Trip recommendations so I can discover eligible Trips relevant to my preferences.
+
+Acceptance Criteria:
+
+| Source  | Criterion                                                                                                                                        |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| PB AC-1 | Candidate Trips must be published, before booking deadline, not started/completed, have capacity, valid Route, and pass Weather Risk hard rules. |
+| PB AC-2 | Hard business-rule filtering occurs before AI ranking.                                                                                           |
+| PB AC-3 | Only permitted preference/product behavior signals are used.                                                                                     |
+| PB AC-4 | Sensitive prohibited data is not used for ranking.                                                                                               |
+| PB AC-5 | Cold start uses explicit/non-sensitive signals rather than invented preferences.                                                                 |
+| PB AC-6 | Recommendation is advisory and cannot reserve, book, change price, or change Trip state.                                                         |
+| PB AC-7 | Booking a recommended Trip revalidates authoritative rules.                                                                                      |
+| PB AC-8 | Model/ranking version and generation metadata are retained.                                                                                      |
+| PB AC-9 | Recommendations are distinguishable from normal search results.                                                                                  |
 
 ## 2. Scope
 
 ### In Scope
 
-- Story-owned behavior for `Receive Personalized Trip Recommendations`.
-- Validation, authorization, state handling, persistence, audit, and observable errors required by the mapped Business Rules.
-- Story-specific acceptance tests that prove both allowed and rejected paths.
+- Eligible candidate filtering.
+- Ranking.
+- Cold start.
+- Recommendation metadata.
+- Optional non-sensitive explanation.
 
 ### Out of Scope
 
-- Behavior owned by dependency stories unless a mapped BR explicitly makes it part of this story.
-- Implementation of dependency stories: CTMS-025, CTMS-018, CTMS-024.
+- Auto-booking.
+- Auto-reserving capacity.
+- Price/state modification.
 
 ## 3. Actors & Authorization
 
-- Camper: primary business actor for this story.
-- Backend API: authoritative enforcement point for permissions, state, and business rules.
-- UI or client application: may guide the user, but must not replace backend enforcement.
+Primary actor:
 
-Authorization must be concrete: the caller must have the role, ownership, assignment, or operational relationship required by the mapped BRs before any protected data is returned or any state-changing action is committed.
+- Camper.
 
 ## 4. Preconditions & Dependencies
 
-- Product Backlog v3.1 row `CTMS-106` is the story scope source.
-- The mapped Primary BR IDs below exist in the latest Business Rules workbook.
-- Required domain records already exist and are in states allowed by the mapped BRs.
-- Dependencies:
-- CTMS-025
-- CTMS-018
-- CTMS-024
+Eligible published Trip data exists.
 
 ## 5. Business Rules
 
-| BR | Rule |
-|---|---|
-| BR-288 | This BR is the authoritative story rule for `Receive Personalized Trip Recommendations`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-289 | This BR is the authoritative story rule for `Receive Personalized Trip Recommendations`. Preserve and enforce these source thresholds, states, identifiers, and comparison operators exactly: AI. |
-| BR-290 | This BR is the authoritative story rule for `Receive Personalized Trip Recommendations`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-291 | This BR is the authoritative story rule for `Receive Personalized Trip Recommendations`. Preserve and enforce these source thresholds, states, identifiers, and comparison operators exactly: SOS, GPS. |
-| BR-292 | This BR is the authoritative story rule for `Receive Personalized Trip Recommendations`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-293 | This BR is the authoritative story rule for `Receive Personalized Trip Recommendations`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-294 | This BR is the authoritative story rule for `Receive Personalized Trip Recommendations`. Preserve and enforce these source thresholds, states, identifiers, and comparison operators exactly: BR. |
-| BR-295 | This BR is the authoritative story rule for `Receive Personalized Trip Recommendations`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-296 | This BR is the authoritative story rule for `Receive Personalized Trip Recommendations`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-212 | Any Business Rule, enum, state transition, or API contract change must update the spec, tests, and data documentation before the story is Done. |
-| BR-213 | Every mapped Business Rule must have at least one valid-path test and one violation-path test; concurrency, idempotency, and transaction rules require integration or E2E coverage. |
+| BR     | Rule                                                                                                                                                                                                                                                        |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| BR-288 | The candidate set for Personalized Trip Recommendation may include only Trips that are published, before their booking deadline, not yet started or ended, have remaining capacity, use an eligible Route, and are not blocked by a Weather Risk hard rule. |
+| BR-289 | Hard business-rule filtering must run before AI ranking. AI must not add an ineligible Trip to the candidate set or override publish, deadline, capacity, weather, or access-control state.                                                                 |
+| BR-290 | Recommendations may use only explicit preferences and permitted product behavior such as search/view/Booking history, trip type, difficulty, and location/price preferences. Only data necessary for the recommendation purpose may be processed.           |
+| BR-291 | Recommendations must not use medical profiles, SOS/emergency history, raw exact GPS trails, authentication secrets, or payment credentials as ranking signals.                                                                                              |
+| BR-292 | When behavior history is insufficient, the system must use a cold-start strategy based on explicit preferences and appropriate non-sensitive/aggregate signals rather than fabricating a preference profile.                                                |
+| BR-293 | Recommendation output is advisory ranking only. It must not reserve a seat, create a Booking, change price, or change Trip state automatically.                                                                                                             |
+| BR-294 | When a Camper opens or books a recommended Trip, the backend must still revalidate all authoritative Business Rules at the time of the operation. A prior recommendation does not guarantee current availability.                                           |
+| BR-295 | The system must store the model/ranking version, generated_at, and sufficient metadata to evaluate/debug recommendations without retaining unnecessary sensitive prompts or data.                                                                           |
+| BR-296 | Camper-facing recommendations must be distinguishable from ordinary search results. The system may provide an explanation for the recommendation only when doing so does not expose sensitive data.                                                         |
 
 ## 6. State & Lifecycle
 
-Not applicable. This is a read or presentation story and does not define a new domain lifecycle.
-
-Do not introduce placeholder workflow states unless an owning domain contract explicitly defines them.
+Eligible candidate set
+→ ranking
+→ recommendation generated
+→ Camper views
+→ optional Trip open/Booking
+→ authoritative revalidation.
 
 ## 7. Business Flow
 
-1. Camper initiates `Receive Personalized Trip Recommendations` through the approved UI, API, scheduled job, or integration point.
-2. The backend loads the required source records and verifies authorization, ownership or assignment, current state, and all mapped BR prerequisites.
-3. The backend applies the story-owned decision logic from Section 5.
-4. If any mapped rule is violated, the backend rejects the operation with no partial side effects and returns an actionable error.
-5. If the action changes authoritative data, the change commits atomically with required audit and post-commit notifications.
-6. The client presents the committed result or the rejection reason without exposing protected data.
+1. Build eligible Trip candidate set.
+2. Remove Trips failing hard rules.
+3. Gather permitted signals.
+4. Apply cold-start strategy if needed.
+5. Rank candidates.
+6. Store model/version/generated metadata.
+7. Display as recommendations.
+8. On Trip open/Booking, revalidate authoritative state.
 
 ## 8. Data & Invariants
 
-- Persist or return only fields required for `Receive Personalized Trip Recommendations` and the mapped BRs.
-- Preserve authoritative identifiers, ownership links, timestamps, snapshots, status values, and audit references when they affect the business outcome.
-- Derived counters, scores, release-gate metrics, and ledger amounts must be traceable to their source records and rule version.
-- Do not invent tables, enum values, state machines, or audit stores solely for this story.
+AI cannot restore a Trip removed by hard-rule filtering.
+
+Recommendation does not guarantee future availability.
+
+Sensitive prohibited signals must not enter ranking.
 
 ## 9. API / Integration Contract
 
@@ -88,45 +102,26 @@ TBD — Technical Design.
 
 ## 10. Error & Edge Cases
 
-| Case | Expected Behavior |
-|---|---|
-| Caller lacks the required role, ownership, assignment, or relationship | Reject with no side effects. |
-| Required source record is missing | Return not found or blocked state without fabricating data. |
-| Current state violates a mapped BR | Return business conflict and preserve the current authoritative state. |
-| Input violates a mapped BR | Return validation error before persistence. |
-| Duplicate or retried request affects authoritative data | Enforce idempotency or reject safely so duplicate records, refunds, notifications, or ledger entries are not created. |
+| Case                         | Expected Behavior         |
+| ---------------------------- | ------------------------- |
+| Trip full                    | Excluded                  |
+| Weather hard-block           | Excluded                  |
+| No history                   | Cold-start strategy       |
+| Medical profile exists       | Not used                  |
+| Recommendation becomes stale | Revalidate before Booking |
+| AI ranks ineligible Trip     | Must not enter result     |
 
 ## 11. Acceptance & Test Matrix
 
-| BR / AC | Scenario | Expected Result | Test Type |
-|---|---|---|---|
-| PB AC | Approved backlog acceptance path for `Receive Personalized Trip Recommendations` | Meets the acceptance summary above | E2E |
-| BR-288 | Approved rule is satisfied for `Receive Personalized Trip Recommendations` | Accepted and persisted or returned as applicable | Integration |
-| BR-288 | Approved rule is violated for `Receive Personalized Trip Recommendations` | Rejected with no partial side effects | Boundary / Integration |
-| BR-289 | Approved rule is satisfied for `Receive Personalized Trip Recommendations` | Accepted and persisted or returned as applicable | Integration |
-| BR-289 | Approved rule is violated for `Receive Personalized Trip Recommendations` | Rejected with no partial side effects | Boundary / Integration |
-| BR-290 | Approved rule is satisfied for `Receive Personalized Trip Recommendations` | Accepted and persisted or returned as applicable | Integration |
-| BR-290 | Approved rule is violated for `Receive Personalized Trip Recommendations` | Rejected with no partial side effects | Boundary / Integration |
-| BR-291 | Approved rule is satisfied for `Receive Personalized Trip Recommendations` | Accepted and persisted or returned as applicable | Integration |
-| BR-291 | Approved rule is violated for `Receive Personalized Trip Recommendations` | Rejected with no partial side effects | Boundary / Integration |
-| BR-292 | Approved rule is satisfied for `Receive Personalized Trip Recommendations` | Accepted and persisted or returned as applicable | Integration |
-| BR-292 | Approved rule is violated for `Receive Personalized Trip Recommendations` | Rejected with no partial side effects | Boundary / Integration |
-| BR-293 | Approved rule is satisfied for `Receive Personalized Trip Recommendations` | Accepted and persisted or returned as applicable | Integration |
-| BR-293 | Approved rule is violated for `Receive Personalized Trip Recommendations` | Rejected with no partial side effects | Boundary / Integration |
-| BR-294 | Approved rule is satisfied for `Receive Personalized Trip Recommendations` | Accepted and persisted or returned as applicable | Integration |
-| BR-294 | Approved rule is violated for `Receive Personalized Trip Recommendations` | Rejected with no partial side effects | Boundary / Integration |
-| BR-295 | Approved rule is satisfied for `Receive Personalized Trip Recommendations` | Accepted and persisted or returned as applicable | Integration |
-| BR-295 | Approved rule is violated for `Receive Personalized Trip Recommendations` | Rejected with no partial side effects | Boundary / Integration |
-| Remaining mapped BRs | Each mapped BR has valid and violation coverage in the owning test suite | Coverage proves the rule is enforced | Unit / Integration / E2E |
+| Source     | Scenario                      | Expected Result           | Test Type  |
+| ---------- | ----------------------------- | ------------------------- | ---------- |
+| BR-288/289 | Ineligible Trip               | Excluded before ranking   | Safety     |
+| BR-291     | Sensitive signal              | Not used                  | Privacy    |
+| BR-292     | New Camper                    | Cold-start works          | Functional |
+| BR-293     | Recommendation generated      | No Booking/state mutation | Integrity  |
+| BR-294     | Recommended Trip booked later | Revalidated               | E2E        |
+| BR-295     | Result generated              | Version metadata retained | Audit      |
 
-## 12. Open Decisions & References
+## 12. Open Decisions
 
-### 12.1 Open Decisions
-
-None.
-
-### 12.2 References
-
-- Product Backlog v3.1.
-- CTMS Business Rules workbook.
-- CTMS Architecture Overview.
+Ranking algorithm/model is Technical Design; no specific algorithm is mandated here.

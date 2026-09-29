@@ -3,132 +3,172 @@
 ## 1. Overview
 
 Story: CTMS-023
+
 Epic: EPIC 4. Trip Management
+
 Use Case: Approve and Publish Trip
+
 Priority: Must Have
 
-Goal:
-Allow Admin to complete `Approve and Publish Trip` within the approved CTMS v3.1 scope.
+Goal: Allow an authorized Admin to review a submitted Trip and publish it only when its Trip configuration and referenced Route/version satisfy the approved requirements.
 
-Acceptance summary:
-The Approve and Publish Trip workflow must satisfy the approved PB v3.1 acceptance criteria for this story. Do not copy the Vietnamese backlog text into this spec; implementers must preserve the approved source meaning when refining detailed tests.
+Backlog story: As an Admin, I want to review and approve a submitted Trip so only valid Trips become publicly available.
+
+Acceptance Criteria:
+
+| Source  | Criterion                                                                                  |
+| ------- | ------------------------------------------------------------------------------------------ |
+| PB AC-1 | Only an authorized Admin may make the Trip approval decision.                              |
+| PB AC-2 | Only a Trip in the applicable approval state may be approved or rejected.                  |
+| PB AC-3 | Approval validates the Trip's approved Route/version and required itinerary configuration. |
+| PB AC-4 | A valid approved Trip becomes available through the published Trip lifecycle.              |
+| PB AC-5 | An invalid Trip may be rejected according to the authoritative Trip lifecycle.             |
+| PB AC-6 | AI-generated information cannot replace the deterministic approval rules.                  |
+| PB AC-7 | Concurrent or stale approval requests must not produce contradictory Trip state.           |
 
 ## 2. Scope
 
 ### In Scope
 
-- Story-owned behavior for `Approve and Publish Trip`.
-- Validation, authorization, state handling, persistence, audit, and observable errors required by the mapped Business Rules.
-- Story-specific acceptance tests that prove both allowed and rejected paths.
+- Admin review of submitted Trip.
+- Verify Trip state.
+- Verify approved Route/version.
+- Verify required Trip/waypoint configuration.
+- Approve eligible Trip.
+- Reject ineligible Trip.
+- Persist authoritative Trip state.
+- Prevent stale/concurrent contradictory approval.
+- Make successfully published Trip eligible for downstream public discovery.
 
 ### Out of Scope
 
-- Behavior owned by dependency stories unless a mapped BR explicitly makes it part of this story.
-- Implementation of dependency stories: CTMS-006, CTMS-022.
+- Creating Trip.
+- Editing Trip waypoints.
+- Editing/rescheduling published Trip.
+- Booking.
+- AI deciding whether a Trip is approved.
 
 ## 3. Actors & Authorization
 
-- Admin: primary business actor for this story.
-- Backend API: authoritative enforcement point for permissions, state, and business rules.
-- UI or client application: may guide the user, but must not replace backend enforcement.
+- Admin: approval actor.
+- Host: owner of submitted Trip; not the approval authority.
+- System: validates and persists decision.
 
-Authorization must be concrete: the caller must have the role, ownership, assignment, or operational relationship required by the mapped BRs before any protected data is returned or any state-changing action is committed.
+Only authorized Admin may approve/reject the Trip.
+
+The current generated source has previously shown an actor mismatch in which Camper was labelled as primary actor. That label must not override BR-061/BR-062 and the approved Admin approval workflow.
 
 ## 4. Preconditions & Dependencies
 
-- Product Backlog v3.1 row `CTMS-023` is the story scope source.
-- The mapped Primary BR IDs below exist in the latest Business Rules workbook.
-- Required domain records already exist and are in states allowed by the mapped BRs.
-- Dependencies:
-- CTMS-006
-- CTMS-022
+Dependencies:
+
+- CTMS-006.
+- CTMS-022.
+
+Preconditions:
+
+- Admin authenticated and authorized.
+- Trip exists.
+- Trip has been submitted into the authoritative approval state.
+- Required Trip configuration exists.
+- Referenced Route/version remains eligible.
 
 ## 5. Business Rules
 
-| BR | Rule |
-|---|---|
-| BR-061 | This BR is the authoritative story rule for `Approve and Publish Trip`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-062 | This BR is the authoritative story rule for `Approve and Publish Trip`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-037 | This BR is the authoritative story rule for `Approve Trekking Route`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-218 | AI/RAG output is advisory only. It may recommend or explain, but it must not override hard rules or authoritative state such as Route closed/archived, Trip capacity, payment result, Weather Risk score/level, or access rights. |
-| BR-172 | Sensitive personal, health, payment, and location data may be accessed only by an authorized actor with a valid business relationship. |
-| BR-180 | Stateful resources must follow defined state transitions and must not use enum values outside the database or API contract. |
-| BR-181 | Before updating state, the backend must verify the current persisted state; stale requests must fail with a business conflict. |
-| BR-212 | Any Business Rule, enum, state transition, or API contract change must update the spec, tests, and data documentation before the story is Done. |
-| BR-213 | Every mapped Business Rule must have at least one valid-path test and one violation-path test; concurrency, idempotency, and transaction rules require integration or E2E coverage. |
+| BR     | Rule                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| BR-061 | An Admin may publish a Trip only when status = pending_approval, the approved Route version remains valid, and all cross-table validation for time, capacity, trip_waypoints, and checkpoint-to-Route relationships succeeds. Publishing sets status → published and locks the reference/snapshot to the approved Route version used by that Trip.                                     |
+| BR-062 | If a Trip fails approval criteria, the Admin must return it to draft and provide a reason. An overnight Trip with missing or incorrect overnight waypoints must not be published.                                                                                                                                                                                                      |
+| BR-037 | When a Trip is submitted or published, it must be bound to the exact approved Route version used for approval. Later Route changes must create a new version or equivalent immutable snapshot and must not silently alter the geometry, checkpoints, or hazards of an already-published Trip. A Trip that needs the new Route version must follow the material-change/reapproval flow. |
+| BR-218 | When trip_waypoint.checkpoint_id is not NULL, the backend must verify that the Checkpoint belongs to trips.route_id and must snapshot checkpoints.location into trip_waypoints.location. Later Checkpoint changes must not automatically alter the Trip's snapshotted location. When checkpoint_id = NULL, the Host must provide a valid custom location.                              |
+| BR-172 | Access control must be enforced by the backend using role, ownership, and business scope. Hiding or disabling functionality in the UI is not a substitute for backend authorization.                                                                                                                                                                                                   |
+| BR-180 | Every stateful resource must follow its defined state transitions and must not use values outside the database enum.                                                                                                                                                                                                                                                                   |
+| BR-181 | Before changing state, the system must validate the current state. A request based on stale state must be rejected with a business-conflict error.                                                                                                                                                                                                                                     |
+| BR-212 | Any change to a Business Rule, enum, state transition, or API contract must be reflected in the specification, test cases, and data documentation before the work is considered Done.                                                                                                                                                                                                  |
+| BR-213 | Every Business Rule must have at least one valid-path test and one violation-path test. Concurrency, idempotency, and transaction rules require integration or E2E coverage.                                                                                                                                                                                                           |
 
 ## 6. State & Lifecycle
 
-Relevant states from the approved rules: `closed`, `fail`.
+Conceptually:
 
-Do not introduce placeholder workflow states unless an owning domain contract explicitly defines them.
+`draft`
+→ submission
+→ `pending_approval`
+
+Then:
+
+`pending_approval`
+→ Admin approves
+→ published/approved state defined by authoritative Trip enum
+
+or:
+
+`pending_approval`
+→ Admin rejects
+→ authoritative rejection outcome.
+
+The spec must not invent a `rejected` Trip enum if the authoritative enum does not contain it. The exact rejection representation must follow the Data Dictionary/Domain Model.
 
 ## 7. Business Flow
 
-1. Admin initiates `Approve and Publish Trip` through the approved UI, API, scheduled job, or integration point.
-2. The backend loads the required source records and verifies authorization, ownership or assignment, current state, and all mapped BR prerequisites.
-3. The backend applies the story-owned decision logic from Section 5.
-4. If any mapped rule is violated, the backend rejects the operation with no partial side effects and returns an actionable error.
-5. If the action changes authoritative data, the change commits atomically with required audit and post-commit notifications.
-6. The client presents the committed result or the rejection reason without exposing protected data.
+1. Admin opens submitted Trip.
+2. Backend verifies Admin authorization.
+3. Backend loads authoritative current Trip.
+4. Verify Trip is in approval-eligible state.
+5. Verify approved Route/version.
+6. Verify required Trip configuration.
+7. Verify waypoint/overnight rules.
+8. Admin chooses approve or reject.
+9. Backend revalidates persisted state immediately before mutation.
+10. Valid approval commits authoritative publish/approval state.
+11. Valid rejection commits the approved rejection outcome.
+12. Any downstream event occurs only from committed authoritative state.
 
 ## 8. Data & Invariants
 
-- Persist or return only fields required for `Approve and Publish Trip` and the mapped BRs.
-- Preserve authoritative identifiers, ownership links, timestamps, snapshots, status values, and audit references when they affect the business outcome.
-- Derived counters, scores, release-gate metrics, and ledger amounts must be traceable to their source records and rule version.
-- Do not invent tables, enum values, state machines, or audit stores solely for this story.
+- Only Admin makes approval decision.
+- Approval uses current authoritative Trip state.
+- Trip cannot be published from an ineligible state.
+- Published Trip references the approved Route/version reviewed for that Trip.
+- AI cannot substitute approval logic.
+- Stale Admin request cannot overwrite newer state.
+- One Trip cannot simultaneously commit contradictory approval outcomes.
 
 ## 9. API / Integration Contract
 
-Confirmed current API surface:
-
-- `GET /trips/pending-review`
-- `PATCH /trips/:tripId/review`
-
-Request and response DTO details remain owned by the implementation files and must stay aligned with this story's BRs.
+TBD — Technical Design.
 
 ## 10. Error & Edge Cases
 
-| Case | Expected Behavior |
-|---|---|
-| Caller lacks the required role, ownership, assignment, or relationship | Reject with no side effects. |
-| Required source record is missing | Return not found or blocked state without fabricating data. |
-| Current state violates a mapped BR | Return business conflict and preserve the current authoritative state. |
-| Input violates a mapped BR | Return validation error before persistence. |
-| Duplicate or retried request affects authoritative data | Enforce idempotency or reject safely so duplicate records, refunds, notifications, or ledger entries are not created. |
+| Case                                        | Expected Behavior                                          |
+| ------------------------------------------- | ---------------------------------------------------------- |
+| Non-Admin attempts approval                 | Reject.                                                    |
+| Trip missing                                | Not found.                                                 |
+| Trip not in approval state                  | Conflict.                                                  |
+| Route/version no longer eligible            | Block approval.                                            |
+| Required itinerary invalid                  | Block approval.                                            |
+| AI recommends approval despite invalid rule | Block approval.                                            |
+| Two Admins act concurrently                 | Only transition from authoritative current state succeeds. |
+| Stale approval request                      | Conflict.                                                  |
+| Transaction fails                           | Previous Trip state remains authoritative.                 |
 
 ## 11. Acceptance & Test Matrix
 
-| BR / AC | Scenario | Expected Result | Test Type |
-|---|---|---|---|
-| PB AC | Approved backlog acceptance path for `Approve and Publish Trip` | Meets the acceptance summary above | E2E |
-| BR-061 | Approved rule is satisfied for `Approve and Publish Trip` | Accepted and persisted or returned as applicable | Integration |
-| BR-061 | Approved rule is violated for `Approve and Publish Trip` | Rejected with no partial side effects | Boundary / Integration |
-| BR-062 | Approved rule is satisfied for `Approve and Publish Trip` | Accepted and persisted or returned as applicable | Integration |
-| BR-062 | Approved rule is violated for `Approve and Publish Trip` | Rejected with no partial side effects | Boundary / Integration |
-| BR-037 | Approved rule is satisfied for `Approve and Publish Trip` | Accepted and persisted or returned as applicable | Integration |
-| BR-037 | Approved rule is violated for `Approve and Publish Trip` | Rejected with no partial side effects | Boundary / Integration |
-| BR-218 | Approved rule is satisfied for `Approve and Publish Trip` | Accepted and persisted or returned as applicable | Integration |
-| BR-218 | Approved rule is violated for `Approve and Publish Trip` | Rejected with no partial side effects | Boundary / Integration |
-| BR-172 | Approved rule is satisfied for `Approve and Publish Trip` | Accepted and persisted or returned as applicable | Integration |
-| BR-172 | Approved rule is violated for `Approve and Publish Trip` | Rejected with no partial side effects | Boundary / Integration |
-| BR-180 | Approved rule is satisfied for `Approve and Publish Trip` | Accepted and persisted or returned as applicable | Integration |
-| BR-180 | Approved rule is violated for `Approve and Publish Trip` | Rejected with no partial side effects | Boundary / Integration |
-| BR-181 | Approved rule is satisfied for `Approve and Publish Trip` | Accepted and persisted or returned as applicable | Integration |
-| BR-181 | Approved rule is violated for `Approve and Publish Trip` | Rejected with no partial side effects | Boundary / Integration |
-| BR-212 | Approved rule is satisfied for `Approve and Publish Trip` | Accepted and persisted or returned as applicable | Integration |
-| BR-212 | Approved rule is violated for `Approve and Publish Trip` | Rejected with no partial side effects | Boundary / Integration |
-| Remaining mapped BRs | Each mapped BR has valid and violation coverage in the owning test suite | Coverage proves the rule is enforced | Unit / Integration / E2E |
+| Source          | Scenario                          | Expected Result                       | Test Type     |
+| --------------- | --------------------------------- | ------------------------------------- | ------------- |
+| PB AC-1, BR-172 | Admin reviews Trip                | Allowed                               | Authorization |
+| PB AC-1         | Non-Admin approves                | Rejected                              | Security      |
+| PB AC-2, BR-180 | Eligible approval state           | Decision may proceed                  | State         |
+| PB AC-2, BR-181 | Stale state                       | Conflict                              | Concurrency   |
+| PB AC-3, BR-037 | Valid approved Route/version      | Validation passes                     | Integration   |
+| PB AC-3         | Invalid itinerary                 | Approval blocked                      | Integration   |
+| PB AC-4, BR-061 | Valid Trip approved               | Authoritative publish state committed | E2E           |
+| PB AC-5, BR-062 | Invalid submitted Trip rejected   | Approved rejection outcome persisted  | E2E           |
+| PB AC-6, BR-218 | AI contradicts deterministic rule | Hard rule wins                        | AI Safety     |
+| PB AC-7, BR-181 | Concurrent decisions              | No contradictory final state          | Concurrency   |
 
-## 12. Open Decisions & References
+## 12. Open Decisions
 
-### 12.1 Open Decisions
-
-None.
-
-### 12.2 References
-
-- Product Backlog v3.1.
-- CTMS Business Rules workbook.
-- CTMS Architecture Overview.
+- Exact Trip enum/state representing successful publication.
+- Exact representation of Admin rejection if `rejected` is not a valid Trip status.
+- Whether rejection returns Trip to `draft` or uses another approved review record/state must follow the authoritative domain model.

@@ -3,132 +3,130 @@
 ## 1. Overview
 
 Story: CTMS-025
+
 Epic: EPIC 4. Trip Management
+
 Use Case: Search and View Trip Details
+
 Priority: Must Have
 
-Goal:
-Allow Host to complete `Search and View Trip Details` within the approved CTMS v3.1 scope.
+Goal: Allow Camper to search publicly eligible Trips and view the information needed to evaluate a Trip without exposing internal Route or unrelated private data.
 
-Acceptance summary:
-The Search and View Trip Details workflow must satisfy the approved PB v3.1 acceptance criteria for this story. Do not copy the Vietnamese backlog text into this spec; implementers must preserve the approved source meaning when refining detailed tests.
+Backlog story: As a Camper, I want to search and view Trip details so I can find a suitable trekking Trip.
+
+Acceptance Criteria:
+
+| Source  | Criterion                                                                             |
+| ------- | ------------------------------------------------------------------------------------- |
+| PB AC-1 | Camper can search Trips that are eligible for public discovery.                       |
+| PB AC-2 | Search supports the approved Trip filters.                                            |
+| PB AC-3 | Trip Detail exposes the approved public Trip information and itinerary.               |
+| PB AC-4 | Trip waypoints are displayed using the authoritative chronological itinerary.         |
+| PB AC-5 | Internal/non-public Route, Checkpoint, hazard, or unrelated user data is not exposed. |
 
 ## 2. Scope
 
 ### In Scope
 
-- Story-owned behavior for `Search and View Trip Details`.
-- Validation, authorization, state handling, persistence, audit, and observable errors required by the mapped Business Rules.
-- Story-specific acceptance tests that prove both allowed and rejected paths.
+- Public Trip search.
+- Approved search filters.
+- Trip Detail.
+- Public itinerary.
+- Public location/schedule/capacity/price information as approved.
+- Public-safe projection of Route-related information.
 
 ### Out of Scope
 
-- Behavior owned by dependency stories unless a mapped BR explicitly makes it part of this story.
-- Implementation of dependency stories: CTMS-023, CTMS-016.
+- Direct public Route browsing.
+- Booking creation.
+- Risk calculation.
+- Internal/admin Route data.
 
 ## 3. Actors & Authorization
 
-- Host: primary business actor for this story.
-- Backend API: authoritative enforcement point for permissions, state, and business rules.
-- UI or client application: may guide the user, but must not replace backend enforcement.
+- Camper.
+- Public/authorized viewer where the product permits.
+- System.
 
-Authorization must be concrete: the caller must have the role, ownership, assignment, or operational relationship required by the mapped BRs before any protected data is returned or any state-changing action is committed.
+Public visibility is determined by backend Trip state and visibility policy.
 
 ## 4. Preconditions & Dependencies
 
-- Product Backlog v3.1 row `CTMS-025` is the story scope source.
-- The mapped Primary BR IDs below exist in the latest Business Rules workbook.
-- Required domain records already exist and are in states allowed by the mapped BRs.
-- Dependencies:
-- CTMS-023
-- CTMS-016
+Dependencies:
+
+- CTMS-023.
+- CTMS-016.
+
+Trip must be eligible for public discovery/detail according to authoritative state.
 
 ## 5. Business Rules
 
-| BR | Rule |
-|---|---|
-| BR-073 | This BR is the authoritative story rule for `Search and View Trip Details`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-074 | This BR is the authoritative story rule for `Search and View Trip Details`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-075 | This BR is the authoritative story rule for `Search and View Trip Details`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-214 | This BR is the authoritative story rule for `Search and View Trip Details`. Preserve and enforce these source thresholds, states, identifiers, and comparison operators exactly: API. |
-| BR-201 | UI behavior must reflect backend state accurately and must show clear loading, success, empty, validation, permission, conflict, and retry states where applicable. |
-| BR-202 | List and public endpoints may return only resources in states allowed for public exposure. Route is an internal operational resource and must not expose Camper public browse/detail even when `route.status = active`. |
-| BR-212 | Any Business Rule, enum, state transition, or API contract change must update the spec, tests, and data documentation before the story is Done. |
-| BR-213 | Every mapped Business Rule must have at least one valid-path test and one violation-path test; concurrency, idempotency, and transaction rules require integration or E2E coverage. |
-| BR-215 | This BR is the authoritative story rule for `Search and View Trip Details`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
+| BR     | Rule                                                                                                                                                                                                                                                                                                                                                                                  |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| BR-073 | Camper discovery is Trip-centered. Only Trips with status = published that are not completed or cancelled may be searched or viewed as public Trips. If the Trip's Route version is closed or otherwise becomes ineligible before departure, the Trip may remain readable for already-related users, but it must no longer be presented as bookable and must not accept new Bookings. |
+| BR-074 | Trip search may expose only approved filters such as time range, trip_type, difficulty, price, province, and city. Area filtering must use the Trip's province_code/city_code snapshot. The Camper experience must not expose direct Route browsing or Route-level filters.                                                                                                           |
+| BR-075 | Camper-facing Trip Detail must show starts_at/ends_at, meeting_point, province/city, price, remaining capacity, itinerary/waypoints/overnight locations, inclusions/exclusions, media, and Weather Risk. It must not expose route_id, raw route_geom, or checkpoint/hazard administration data.                                                                                       |
+| BR-214 | Routes, checkpoints, hazard areas, and raw geometry are internal operational data for Host/Admin/System use. Camper APIs must not provide Route List/Route Detail or expose raw route_geom, checkpoint, or hazard-management data.                                                                                                                                                    |
 
 ## 6. State & Lifecycle
 
-Relevant states from the approved rules: `active`.
+Read-only workflow.
 
-Do not introduce placeholder workflow states unless an owning domain contract explicitly defines them.
+Eligible published Trip
+→ searchable
+→ detail viewable.
+
+Trip leaves public-eligible state
+→ no longer returned as publicly available according to visibility policy.
 
 ## 7. Business Flow
 
-1. Host initiates `Search and View Trip Details` through the approved UI, API, scheduled job, or integration point.
-2. The backend loads the required source records and verifies authorization, ownership or assignment, current state, and all mapped BR prerequisites.
-3. The backend applies the story-owned decision logic from Section 5.
-4. If any mapped rule is violated, the backend rejects the operation with no partial side effects and returns an actionable error.
-5. If the action changes authoritative data, the change commits atomically with required audit and post-commit notifications.
-6. The client presents the committed result or the rejection reason without exposing protected data.
+1. Camper opens Trip discovery.
+2. Camper supplies optional approved filters.
+3. Backend validates filters.
+4. Backend searches only public-eligible Trips.
+5. Results are returned.
+6. Camper selects a Trip.
+7. Backend reloads authoritative Trip.
+8. Backend verifies public visibility.
+9. Backend returns approved Trip projection and itinerary.
+10. Internal Route/safety/private information is excluded.
 
 ## 8. Data & Invariants
 
-- Persist or return only fields required for `Search and View Trip Details` and the mapped BRs.
-- Preserve authoritative identifiers, ownership links, timestamps, snapshots, status values, and audit references when they affect the business outcome.
-- Derived counters, scores, release-gate metrics, and ledger amounts must be traceable to their source records and rule version.
-- Do not invent tables, enum values, state machines, or audit stores solely for this story.
+- Search never turns an unpublished Trip into a public resource.
+- Search/detail uses authoritative Trip state.
+- Province/city filtering uses the approved Trip geographic snapshot where defined.
+- Waypoints are ordered by authoritative `planned_at`.
+- Internal Route geometry is not automatically public.
+- Private Booking/member information is not included in public Trip Detail.
 
 ## 9. API / Integration Contract
 
-Confirmed current API surface:
-
-- `GET /trips`
-- `GET /trips/:tripId`
-
-Request and response DTO details remain owned by the implementation files and must stay aligned with this story's BRs.
+TBD — Technical Design.
 
 ## 10. Error & Edge Cases
 
-| Case | Expected Behavior |
-|---|---|
-| Caller lacks the required role, ownership, assignment, or relationship | Reject with no side effects. |
-| Required source record is missing | Return not found or blocked state without fabricating data. |
-| Current state violates a mapped BR | Return business conflict and preserve the current authoritative state. |
-| Input violates a mapped BR | Return validation error before persistence. |
-| Duplicate or retried request affects authoritative data | Enforce idempotency or reject safely so duplicate records, refunds, notifications, or ledger entries are not created. |
+| Case                                      | Expected Behavior                                |
+| ----------------------------------------- | ------------------------------------------------ |
+| No Trips match                            | Return valid empty result.                       |
+| Invalid filter                            | Validation error.                                |
+| Trip not public                           | Do not expose as public Trip.                    |
+| Trip cancelled after search result loaded | Detail reload reflects authoritative state.      |
+| Request attempts internal Route data      | Apply actor visibility; do not leak.             |
+| Legacy waypoint ordering differs          | `planned_at`-based authoritative itinerary wins. |
 
 ## 11. Acceptance & Test Matrix
 
-| BR / AC | Scenario | Expected Result | Test Type |
-|---|---|---|---|
-| PB AC | Approved backlog acceptance path for `Search and View Trip Details` | Meets the acceptance summary above | E2E |
-| BR-073 | Approved rule is satisfied for `Search and View Trip Details` | Accepted and persisted or returned as applicable | Integration |
-| BR-073 | Approved rule is violated for `Search and View Trip Details` | Rejected with no partial side effects | Boundary / Integration |
-| BR-074 | Approved rule is satisfied for `Search and View Trip Details` | Accepted and persisted or returned as applicable | Integration |
-| BR-074 | Approved rule is violated for `Search and View Trip Details` | Rejected with no partial side effects | Boundary / Integration |
-| BR-075 | Approved rule is satisfied for `Search and View Trip Details` | Accepted and persisted or returned as applicable | Integration |
-| BR-075 | Approved rule is violated for `Search and View Trip Details` | Rejected with no partial side effects | Boundary / Integration |
-| BR-214 | Approved rule is satisfied for `Search and View Trip Details` | Accepted and persisted or returned as applicable | Integration |
-| BR-214 | Approved rule is violated for `Search and View Trip Details` | Rejected with no partial side effects | Boundary / Integration |
-| BR-201 | Approved rule is satisfied for `Search and View Trip Details` | Accepted and persisted or returned as applicable | Integration |
-| BR-201 | Approved rule is violated for `Search and View Trip Details` | Rejected with no partial side effects | Boundary / Integration |
-| BR-202 | Approved rule is satisfied for `Search and View Trip Details` | Accepted and persisted or returned as applicable | Integration |
-| BR-202 | Approved rule is violated for `Search and View Trip Details` | Rejected with no partial side effects | Boundary / Integration |
-| BR-212 | Approved rule is satisfied for `Search and View Trip Details` | Accepted and persisted or returned as applicable | Integration |
-| BR-212 | Approved rule is violated for `Search and View Trip Details` | Rejected with no partial side effects | Boundary / Integration |
-| BR-213 | Approved rule is satisfied for `Search and View Trip Details` | Accepted and persisted or returned as applicable | Integration |
-| BR-213 | Approved rule is violated for `Search and View Trip Details` | Rejected with no partial side effects | Boundary / Integration |
-| Remaining mapped BRs | Each mapped BR has valid and violation coverage in the owning test suite | Coverage proves the rule is enforced | Unit / Integration / E2E |
+| Source          | Scenario                               | Expected Result                       | Test Type            |
+| --------------- | -------------------------------------- | ------------------------------------- | -------------------- |
+| PB AC-1, BR-073 | Search public Trips                    | Only eligible Trips returned          | Integration          |
+| PB AC-2, BR-074 | Apply supported filters                | Matching Trips returned               | Search / Integration |
+| PB AC-3, BR-075 | Open eligible Trip                     | Approved detail returned              | E2E                  |
+| PB AC-4, BR-075 | View itinerary                         | Waypoints chronologically represented | Integration          |
+| PB AC-5, BR-214 | Public user requests internal geometry | Unauthorized data omitted/rejected    | Security             |
+| BR-073          | Cancelled/unpublished Trip             | Not presented as public eligible Trip | State                |
 
-## 12. Open Decisions & References
+## 12. Open Decisions
 
-### 12.1 Open Decisions
-
-None.
-
-### 12.2 References
-
-- Product Backlog v3.1.
-- CTMS Business Rules workbook.
-- CTMS Architecture Overview.
+Exact pagination/sorting defaults and the complete public Trip DTO belong to Technical Design unless explicitly defined in PB/Data Dictionary.

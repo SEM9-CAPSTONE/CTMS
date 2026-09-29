@@ -3,76 +3,94 @@
 ## 1. Overview
 
 Story: CTMS-050
+
 Epic: EPIC 11. AI Survival Assistant and RAG
+
 Use Case: Manage Survival Documents
+
 Priority: Must Have
 
-Goal:
-Allow Authenticated user to complete `Manage Survival Documents` within the approved CTMS v3.1 scope.
+Goal: Maintain authoritative, versioned survival-knowledge source documents that can safely feed knowledge chunking, offline guidance and RAG.
 
-Acceptance summary:
-The Manage Survival Documents workflow must satisfy the approved PB v3.1 acceptance criteria for this story. Do not copy the Vietnamese backlog text into this spec; implementers must preserve the approved source meaning when refining detailed tests.
+Acceptance Criteria:
+
+| Source  | Criterion                                                                                                                         |
+| ------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| PB AC-1 | Authorized actor can create/update supported survival knowledge sources.                                                          |
+| PB AC-2 | Source document has traceable identity/version/locale/status metadata.                                                            |
+| PB AC-3 | Updating source creates or advances authoritative source version rather than silently changing the provenance of existing chunks. |
+| PB AC-4 | Downstream chunks/packages can identify which source version they were generated from.                                            |
+| PB AC-5 | Unsupported/unapproved content is not silently treated as authoritative survival knowledge.                                       |
 
 ## 2. Scope
 
 ### In Scope
 
-- Story-owned behavior for `Manage Survival Documents`.
-- Validation, authorization, state handling, persistence, audit, and observable errors required by the mapped Business Rules.
-- Story-specific acceptance tests that prove both allowed and rejected paths.
+- Survival source document.
+- Source metadata.
+- Version.
+- Locale.
+- Status.
+- Update/version traceability.
+- Downstream regeneration trigger/context.
 
 ### Out of Scope
 
-- Behavior owned by dependency stories unless a mapped BR explicitly makes it part of this story.
-- Implementation of dependency stories: CTMS-006.
+- Chunk generation; CTMS-051.
+- RAG retrieval; CTMS-068.
+- AI answering; CTMS-069.
+- Offline package generation; CTMS-052.
 
 ## 3. Actors & Authorization
 
-- Authenticated user: primary business actor for this story.
-- Backend API: authoritative enforcement point for permissions, state, and business rules.
-- UI or client application: may guide the user, but must not replace backend enforcement.
-
-Authorization must be concrete: the caller must have the role, ownership, assignment, or operational relationship required by the mapped BRs before any protected data is returned or any state-changing action is committed.
+- Authorized Admin/content-management actor according to the approved administration model.
+- System.
 
 ## 4. Preconditions & Dependencies
 
-- Product Backlog v3.1 row `CTMS-050` is the story scope source.
-- The mapped Primary BR IDs below exist in the latest Business Rules workbook.
-- Required domain records already exist and are in states allowed by the mapped BRs.
-- Dependencies:
-- CTMS-006
+Actor must have permission to manage authoritative survival knowledge.
 
 ## 5. Business Rules
 
-| BR | Rule |
-|---|---|
-| BR-227 | This BR is the authoritative story rule for `Manage Survival Documents`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-174 | Inputs must be validated for required fields, formats, identifiers, enum values, and cross-entity references before any write is committed. |
-| BR-182 | Server-generated identifiers, timestamps, prices, counters, status values, and ledger amounts are authoritative. |
-| BR-212 | Any Business Rule, enum, state transition, or API contract change must update the spec, tests, and data documentation before the story is Done. |
-| BR-213 | Every mapped Business Rule must have at least one valid-path test and one violation-path test; concurrency, idempotency, and transaction rules require integration or E2E coverage. |
+| BR     | Rule                                                                                                                                                                                                                                                                      |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| BR-227 | A Survival Document must support upload, classification, review, publication, versioning, and lifecycle status so the knowledge base can identify the authoritative source version.                                                                                       |
+| BR-212 | Any change to a Business Rule, enum, state transition, or API contract must be reflected in the specification, test cases, and data documentation before the work is considered Done.                                                                                     |
+| BR-213 | Every Business Rule must have at least one valid-path test and one violation-path test. Concurrency, idempotency, and transaction rules require integration or E2E coverage.                                                                                              |
 
 ## 6. State & Lifecycle
 
-No new lifecycle is defined by this story. Existing entity states from the owning domain remain authoritative.
+Conceptually:
 
-Do not introduce placeholder workflow states unless an owning domain contract explicitly defines them.
+source absent
+→ create source/version
+→ active/available source according to approved status.
+
+Source update
+→ new/updated authoritative source version
+→ downstream knowledge artifacts may require regeneration.
+
+Exact status enum follows Data Dictionary.
 
 ## 7. Business Flow
 
-1. Authenticated user initiates `Manage Survival Documents` through the approved UI, API, scheduled job, or integration point.
-2. The backend loads the required source records and verifies authorization, ownership or assignment, current state, and all mapped BR prerequisites.
-3. The backend applies the story-owned decision logic from Section 5.
-4. If any mapped rule is violated, the backend rejects the operation with no partial side effects and returns an actionable error.
-5. If the action changes authoritative data, the change commits atomically with required audit and post-commit notifications.
-6. The client presents the committed result or the rejection reason without exposing protected data.
+1. Authorized actor creates/updates survival source.
+2. Backend validates permission.
+3. Validate content/metadata.
+4. Determine source identity/version.
+5. Persist source version.
+6. Preserve provenance of prior versions.
+7. Mark/trigger downstream chunk regeneration as defined by Technical Design.
+8. Return authoritative source state.
 
 ## 8. Data & Invariants
 
-- Persist or return only fields required for `Manage Survival Documents` and the mapped BRs.
-- Preserve authoritative identifiers, ownership links, timestamps, snapshots, status values, and audit references when they affect the business outcome.
-- Derived counters, scores, release-gate metrics, and ledger amounts must be traceable to their source records and rule version.
-- Do not invent tables, enum values, state machines, or audit stores solely for this story.
+- Source has stable identity.
+- Source version is traceable.
+- Locale is preserved where applicable.
+- Existing chunk provenance cannot silently change.
+- Unsupported content is not automatically trusted merely because uploaded.
+- Downstream artifacts can identify source version.
 
 ## 9. API / Integration Contract
 
@@ -80,38 +98,24 @@ TBD — Technical Design.
 
 ## 10. Error & Edge Cases
 
-| Case | Expected Behavior |
-|---|---|
-| Caller lacks the required role, ownership, assignment, or relationship | Reject with no side effects. |
-| Required source record is missing | Return not found or blocked state without fabricating data. |
-| Current state violates a mapped BR | Return business conflict and preserve the current authoritative state. |
-| Input violates a mapped BR | Return validation error before persistence. |
-| Duplicate or retried request affects authoritative data | Enforce idempotency or reject safely so duplicate records, refunds, notifications, or ledger entries are not created. |
+| Case                                | Expected Behavior                                           |
+| ----------------------------------- | ----------------------------------------------------------- |
+| Unauthorized actor                  | Reject.                                                     |
+| Invalid source metadata             | Reject.                                                     |
+| Source updated                      | Preserve version provenance.                                |
+| Chunk still points to older version | Remains identifiable as older; regeneration policy applies. |
+| Processing fails                    | Do not falsely advertise new downstream knowledge as ready. |
 
 ## 11. Acceptance & Test Matrix
 
-| BR / AC | Scenario | Expected Result | Test Type |
-|---|---|---|---|
-| PB AC | Approved backlog acceptance path for `Manage Survival Documents` | Meets the acceptance summary above | E2E |
-| BR-227 | Approved rule is satisfied for `Manage Survival Documents` | Accepted and persisted or returned as applicable | Integration |
-| BR-227 | Approved rule is violated for `Manage Survival Documents` | Rejected with no partial side effects | Boundary / Integration |
-| BR-174 | Approved rule is satisfied for `Manage Survival Documents` | Accepted and persisted or returned as applicable | Integration |
-| BR-174 | Approved rule is violated for `Manage Survival Documents` | Rejected with no partial side effects | Boundary / Integration |
-| BR-182 | Approved rule is satisfied for `Manage Survival Documents` | Accepted and persisted or returned as applicable | Integration |
-| BR-182 | Approved rule is violated for `Manage Survival Documents` | Rejected with no partial side effects | Boundary / Integration |
-| BR-212 | Approved rule is satisfied for `Manage Survival Documents` | Accepted and persisted or returned as applicable | Integration |
-| BR-212 | Approved rule is violated for `Manage Survival Documents` | Rejected with no partial side effects | Boundary / Integration |
-| BR-213 | Approved rule is satisfied for `Manage Survival Documents` | Accepted and persisted or returned as applicable | Integration |
-| BR-213 | Approved rule is violated for `Manage Survival Documents` | Rejected with no partial side effects | Boundary / Integration |
+| Source | Scenario                       | Expected Result             | Test Type    |
+| ------ | ------------------------------ | --------------------------- | ------------ |
+| BR-227 | Authorized valid source create | Source stored               | E2E          |
+| BR-227 | Source updated                 | Version/provenance retained | Integration  |
+| BR-227 | Downstream chunk inspected     | Source version identifiable | Traceability |
+| BR-212 | Schema/version rule changes    | Documentation updated       | Process      |
+| BR-213 | Invalid source operation       | Covered by violation test   | Test         |
 
-## 12. Open Decisions & References
+## 12. Open Decisions
 
-### 12.1 Open Decisions
-
-None.
-
-### 12.2 References
-
-- Product Backlog v3.1.
-- CTMS Business Rules workbook.
-- CTMS Architecture Overview.
+Exact supported document formats, moderation/approval status enum and ingestion size limits are not defined by BR-227 and must not be invented here.

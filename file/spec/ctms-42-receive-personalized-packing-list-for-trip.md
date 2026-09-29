@@ -3,78 +3,103 @@
 ## 1. Overview
 
 Story: CTMS-042
+
 Epic: EPIC 6. Equipment and Logistics
+
 Use Case: Receive Personalized Packing List for Trip
+
 Priority: Should Have
 
-Goal:
-Allow Camper to complete `Receive Personalized Packing List for Trip` within the approved CTMS v3.1 scope.
+Goal: Generate a traceable packing list from authoritative Trip, weather, difficulty, duration, permitted member context and already-rented equipment.
 
-Acceptance summary:
-The Receive Personalized Packing List for Trip workflow must satisfy the approved PB v3.1 acceptance criteria for this story. Do not copy the Vietnamese backlog text into this spec; implementers must preserve the approved source meaning when refining detailed tests.
+Acceptance Criteria:
+
+| Source  | Criterion                                                                 |
+| ------- | ------------------------------------------------------------------------- |
+| PB AC-1 | Packing list uses Trip/Booking context, weather, duration and difficulty. |
+| PB AC-2 | Equipment already rented is considered.                                   |
+| PB AC-3 | Items distinguish mandatory and recommended categories.                   |
+| PB AC-4 | Medical/personal information is used only when authorized by consent.     |
+| PB AC-5 | Generation sources are traceable.                                         |
+| PB AC-6 | AI-generated recommendations cannot override deterministic safety rules.  |
 
 ## 2. Scope
 
 ### In Scope
 
-- Story-owned behavior for `Receive Personalized Packing List for Trip`.
-- Validation, authorization, state handling, persistence, audit, and observable errors required by the mapped Business Rules.
-- Story-specific acceptance tests that prove both allowed and rejected paths.
+- Generate packing list.
+- Weather context.
+- Trip duration.
+- Difficulty.
+- Rented equipment.
+- Permitted participant context.
+- Mandatory/recommended classification.
+- Generation traceability.
 
 ### Out of Scope
 
-- Behavior owned by dependency stories unless a mapped BR explicitly makes it part of this story.
-- Implementation of dependency stories: CTMS-029, CTMS-010, CTMS-016.
+- Equipment reservation.
+- Weather Risk calculation.
+- Medical profile management.
+- AI as authoritative safety-policy engine.
 
 ## 3. Actors & Authorization
 
-- Camper: primary business actor for this story.
-- Backend API: authoritative enforcement point for permissions, state, and business rules.
-- UI or client application: may guide the user, but must not replace backend enforcement.
+- Camper.
+- System.
+- Recommendation/AI component where used.
 
-Authorization must be concrete: the caller must have the role, ownership, assignment, or operational relationship required by the mapped BRs before any protected data is returned or any state-changing action is committed.
+Medical/member context requires applicable authorization/consent.
 
 ## 4. Preconditions & Dependencies
 
-- Product Backlog v3.1 row `CTMS-042` is the story scope source.
-- The mapped Primary BR IDs below exist in the latest Business Rules workbook.
-- Required domain records already exist and are in states allowed by the mapped BRs.
-- Dependencies:
-- CTMS-029
-- CTMS-010
-- CTMS-016
+Dependencies:
+
+- CTMS-029.
+- CTMS-010.
+- CTMS-016.
+
+Booking and Trip context must exist.
 
 ## 5. Business Rules
 
-| BR | Rule |
-|---|---|
-| BR-137 | This BR is the authoritative story rule for `Receive Personalized Packing List for Trip`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-138 | This BR is the authoritative story rule for `Receive Personalized Packing List for Trip`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-219 | Off-route detection must run on-device using GPS and Route data from the Offline Safety Package without depending on server connectivity. Mobile samples GPS every 10 seconds by default during an ongoing Trip, and configurable cadence must not reduce approved safety alert capability. |
-| BR-212 | Any Business Rule, enum, state transition, or API contract change must update the spec, tests, and data documentation before the story is Done. |
-| BR-213 | Every mapped Business Rule must have at least one valid-path test and one violation-path test; concurrency, idempotency, and transaction rules require integration or E2E coverage. |
+| BR         | Rule                                                                                                                                                                                                                                                          |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| BR-137     | A packing list must be generated from Trip/Booking context, weather, duration, difficulty, permitted member context, and rented equipment. The source context used for generation must be stored in generated_from for traceability.                          |
+| BR-138     | A packing list must distinguish required from recommended items using the defined category/metadata. Medical data must not be included unless consent is present.                                                                                             |
+| BR-219     | A personalized packing list must be generated from the current Trip, weather data, difficulty, duration, and rented equipment. Required and recommended items must be clearly separated, and the list must be regenerated when material source inputs change. |
+| BR-212     | Any change to a Business Rule, enum, state transition, or API contract must be reflected in the specification, test cases, and data documentation before the work is considered Done.                                                                         |
+| BR-213     | Every Business Rule must have at least one valid-path test and one violation-path test. Concurrency, idempotency, and transaction rules require integration or E2E coverage.                                                                                  |
 
 ## 6. State & Lifecycle
 
-Relevant states from the approved rules: `ongoing`.
+Trip/Booking context
+→ packing-list generation
+→ generated packing list.
 
-Do not introduce placeholder workflow states unless an owning domain contract explicitly defines them.
+Regeneration may produce a new list when authoritative inputs change.
 
 ## 7. Business Flow
 
-1. Camper initiates `Receive Personalized Packing List for Trip` through the approved UI, API, scheduled job, or integration point.
-2. The backend loads the required source records and verifies authorization, ownership or assignment, current state, and all mapped BR prerequisites.
-3. The backend applies the story-owned decision logic from Section 5.
-4. If any mapped rule is violated, the backend rejects the operation with no partial side effects and returns an actionable error.
-5. If the action changes authoritative data, the change commits atomically with required audit and post-commit notifications.
-6. The client presents the committed result or the rejection reason without exposing protected data.
+1. Camper requests packing list.
+2. Backend loads Trip/Booking.
+3. Load duration/difficulty.
+4. Load applicable weather/risk context.
+5. Load rented equipment.
+6. Load only permitted member context.
+7. Generate candidate items.
+8. Classify mandatory/recommended.
+9. Apply deterministic safety constraints.
+10. Store generation-source metadata.
+11. Return packing list.
 
 ## 8. Data & Invariants
 
-- Persist or return only fields required for `Receive Personalized Packing List for Trip` and the mapped BRs.
-- Preserve authoritative identifiers, ownership links, timestamps, snapshots, status values, and audit references when they affect the business outcome.
-- Derived counters, scores, release-gate metrics, and ledger amounts must be traceable to their source records and rule version.
-- Do not invent tables, enum values, state machines, or audit stores solely for this story.
+- Generated list is traceable to inputs.
+- Medical data requires consent.
+- Already-rented equipment is considered.
+- Mandatory/recommended are distinguishable.
+- AI cannot downgrade deterministic mandatory safety requirement.
 
 ## 9. API / Integration Contract
 
@@ -82,38 +107,25 @@ TBD — Technical Design.
 
 ## 10. Error & Edge Cases
 
-| Case | Expected Behavior |
-|---|---|
-| Caller lacks the required role, ownership, assignment, or relationship | Reject with no side effects. |
-| Required source record is missing | Return not found or blocked state without fabricating data. |
-| Current state violates a mapped BR | Return business conflict and preserve the current authoritative state. |
-| Input violates a mapped BR | Return validation error before persistence. |
-| Duplicate or retried request affects authoritative data | Enforce idempotency or reject safely so duplicate records, refunds, notifications, or ledger entries are not created. |
+| Case                        | Expected Behavior                                        |
+| --------------------------- | -------------------------------------------------------- |
+| Weather unavailable         | Represent unavailable context; do not fabricate weather. |
+| No rented equipment         | Generate using remaining valid inputs.                   |
+| Medical consent absent      | Exclude medical information.                             |
+| AI suggests unsafe omission | Deterministic rule wins.                                 |
+| Inputs change               | Regeneration may produce new traceable version.          |
 
 ## 11. Acceptance & Test Matrix
 
-| BR / AC | Scenario | Expected Result | Test Type |
-|---|---|---|---|
-| PB AC | Approved backlog acceptance path for `Receive Personalized Packing List for Trip` | Meets the acceptance summary above | E2E |
-| BR-137 | Approved rule is satisfied for `Receive Personalized Packing List for Trip` | Accepted and persisted or returned as applicable | Integration |
-| BR-137 | Approved rule is violated for `Receive Personalized Packing List for Trip` | Rejected with no partial side effects | Boundary / Integration |
-| BR-138 | Approved rule is satisfied for `Receive Personalized Packing List for Trip` | Accepted and persisted or returned as applicable | Integration |
-| BR-138 | Approved rule is violated for `Receive Personalized Packing List for Trip` | Rejected with no partial side effects | Boundary / Integration |
-| BR-219 | Approved rule is satisfied for `Receive Personalized Packing List for Trip` | Accepted and persisted or returned as applicable | Integration |
-| BR-219 | Approved rule is violated for `Receive Personalized Packing List for Trip` | Rejected with no partial side effects | Boundary / Integration |
-| BR-212 | Approved rule is satisfied for `Receive Personalized Packing List for Trip` | Accepted and persisted or returned as applicable | Integration |
-| BR-212 | Approved rule is violated for `Receive Personalized Packing List for Trip` | Rejected with no partial side effects | Boundary / Integration |
-| BR-213 | Approved rule is satisfied for `Receive Personalized Packing List for Trip` | Accepted and persisted or returned as applicable | Integration |
-| BR-213 | Approved rule is violated for `Receive Personalized Packing List for Trip` | Rejected with no partial side effects | Boundary / Integration |
+| Source  | Scenario                      | Expected Result                       | Test Type   |
+| ------- | ----------------------------- | ------------------------------------- | ----------- |
+| BR-137  | Valid Trip context            | Packing list generated                | Integration |
+| BR-137  | Rented equipment exists       | Considered in list                    | Integration |
+| BR-138  | Generated items               | Mandatory/recommended distinguishable | UI          |
+| BR-138  | No medical consent            | Medical context excluded              | Security    |
+| BR-219  | AI conflicts with safety rule | Safety rule wins                      | AI Safety   |
+| PB AC-5 | Inspect generated list        | Source traceable                      | Audit       |
 
-## 12. Open Decisions & References
+## 12. Open Decisions
 
-### 12.1 Open Decisions
-
-None.
-
-### 12.2 References
-
-- Product Backlog v3.1.
-- CTMS Business Rules workbook.
-- CTMS Architecture Overview.
+Exact packing-list taxonomy/content library belongs to the approved packing/survival knowledge contract.

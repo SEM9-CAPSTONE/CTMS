@@ -3,129 +3,149 @@
 ## 1. Overview
 
 Story: CTMS-020
+
 Epic: EPIC 3. Weather Risk Assessment
+
 Use Case: Configure Weather Risk Rules
-Priority: Should Have
 
-Goal:
-Allow Authenticated user to complete `Configure Weather Risk Rules` within the approved CTMS v3.1 scope.
+Priority: Must Have
 
-Acceptance summary:
-The Configure Weather Risk Rules workflow must satisfy the approved PB v3.1 acceptance criteria for this story. Do not copy the Vietnamese backlog text into this spec; implementers must preserve the approved source meaning when refining detailed tests.
+Goal: Allow Admin to manage versioned Weather Risk rules while ensuring one authoritative active configuration is used for future assessments.
+
+Backlog story:
+As an Admin, I want to configure Weather Risk rules so risk assessment criteria can be maintained without changing application business code.
+
+Acceptance Criteria:
+
+| Source  | Criterion                                                                                    |
+| ------- | -------------------------------------------------------------------------------------------- |
+| PB AC-1 | Authorized Admin can create/configure Weather Risk rule data.                                |
+| PB AC-2 | Rule configuration includes versioned criteria such as weights and thresholds.               |
+| PB AC-3 | Activation produces an authoritative active rule without inconsistent multiple-active state. |
+| PB AC-4 | Rule activation/change is audited.                                                           |
 
 ## 2. Scope
 
 ### In Scope
 
-- Story-owned behavior for `Configure Weather Risk Rules`.
-- Validation, authorization, state handling, persistence, audit, and observable errors required by the mapped Business Rules.
-- Story-specific acceptance tests that prove both allowed and rejected paths.
+- Configure `weather_rules`.
+- Store rule name.
+- Store weights.
+- Store thresholds.
+- Version rule.
+- Activate rule.
+- Maintain active-rule consistency.
+- Audit activation/change.
 
 ### Out of Scope
 
-- Behavior owned by dependency stories unless a mapped BR explicitly makes it part of this story.
-- Implementation of dependency stories: CTMS-006, CTMS-015.
+- Retrieving weather.
+- Calculating risk manually.
+- Editing historical assessments.
+- LLM advice.
 
 ## 3. Actors & Authorization
 
-- Authenticated user: primary business actor for this story.
-- Backend API: authoritative enforcement point for permissions, state, and business rules.
-- UI or client application: may guide the user, but must not replace backend enforcement.
+Primary actor: Admin.
 
-Authorization must be concrete: the caller must have the role, ownership, assignment, or operational relationship required by the mapped BRs before any protected data is returned or any state-changing action is committed.
+Only authorized Admin may configure/activate Weather Risk rules.
+
+Backend is authoritative for rule activation.
 
 ## 4. Preconditions & Dependencies
 
-- Product Backlog v3.1 row `CTMS-020` is the story scope source.
-- The mapped Primary BR IDs below exist in the latest Business Rules workbook.
-- Required domain records already exist and are in states allowed by the mapped BRs.
-- Dependencies:
+Dependencies:
+
 - CTMS-006
 - CTMS-015
 
+Admin must be authenticated and authorized.
+
 ## 5. Business Rules
 
-| BR | Rule |
-|---|---|
-| BR-051 | This BR is the authoritative story rule for `Configure Weather Risk Rules`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-052 | This BR is the authoritative story rule for `Configure Weather Risk Rules`. Preserve and enforce these source thresholds, states, identifiers, and comparison operators exactly: MVP. |
-| BR-053 | This BR is the authoritative story rule for `Configure Weather Risk Rules`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-174 | Inputs must be validated for required fields, formats, identifiers, enum values, and cross-entity references before any write is committed. |
-| BR-175 | Clients must not self-assert server-owned state, ownership, pricing, capacity, ledger, audit, or safety outcomes. |
-| BR-212 | Any Business Rule, enum, state transition, or API contract change must update the spec, tests, and data documentation before the story is Done. |
-| BR-213 | Every mapped Business Rule must have at least one valid-path test and one violation-path test; concurrency, idempotency, and transaction rules require integration or E2E coverage. |
+| BR     | Rule                                                                                                                                                                                             |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| BR-051 | weather_rules must store name, weights, thresholds, version, is_active, and the audit metadata required by the system. Each version must be unique.                                              |
+| BR-052 | The MVP may have at most one active weather_rules record at any time. Activating a new rule must deactivate the previously active rule within the same transaction.                              |
+| BR-053 | Creating, editing, or activating a Weather Risk rule must be audited with the actor, rule version, before/after values, and a reason where applicable.                                           |
+| BR-174 | All input must be validated for required fields, data type, format, length, enum membership, and cross-field relationships before processing.                                                    |
+| BR-175 | The backend is the authoritative source for authorization, state, pricing, capacity, inventory, risk level, and transaction outcome. The client must not establish these values authoritatively. |
+| BR-212 | Any change to a Business Rule, enum, state transition, or API contract must be reflected in the specification, test cases, and data documentation before the work is considered Done.            |
+| BR-213 | Every Business Rule must have at least one valid-path test and one violation-path test. Concurrency, idempotency, and transaction rules require integration or E2E coverage.                     |
 
 ## 6. State & Lifecycle
 
-No new lifecycle is defined by this story. Existing entity states from the owning domain remain authoritative.
+Rule version created
+→ inactive/configured
 
-Do not introduce placeholder workflow states unless an owning domain contract explicitly defines them.
+Inactive rule
+→ Admin activation
+→ active rule.
+
+Previous active rule
+→ replaced/deactivated according to authoritative activation transaction.
+
+Historical assessments retain their original rule reference/version.
 
 ## 7. Business Flow
 
-1. Authenticated user initiates `Configure Weather Risk Rules` through the approved UI, API, scheduled job, or integration point.
-2. The backend loads the required source records and verifies authorization, ownership or assignment, current state, and all mapped BR prerequisites.
-3. The backend applies the story-owned decision logic from Section 5.
-4. If any mapped rule is violated, the backend rejects the operation with no partial side effects and returns an actionable error.
-5. If the action changes authoritative data, the change commits atomically with required audit and post-commit notifications.
-6. The client presents the committed result or the rejection reason without exposing protected data.
+1. Admin creates or edits Weather Risk rule configuration.
+2. Backend authorizes Admin.
+3. Backend validates weights/thresholds/version metadata.
+4. Rule version is persisted.
+5. Admin activates selected rule.
+6. Backend transaction establishes authoritative active rule state.
+7. Activation is audited.
+8. Future CTMS-016 assessments use the active rule.
+9. Historical assessments remain bound to their original `rule_id`/version.
 
 ## 8. Data & Invariants
 
-- Persist or return only fields required for `Configure Weather Risk Rules` and the mapped BRs.
-- Preserve authoritative identifiers, ownership links, timestamps, snapshots, status values, and audit references when they affect the business outcome.
-- Derived counters, scores, release-gate metrics, and ledger amounts must be traceable to their source records and rule version.
-- Do not invent tables, enum values, state machines, or audit stores solely for this story.
+Source-supported concepts:
+
+- `name`
+- `weights`
+- `thresholds`
+- `version`
+- `is_active`
+- metadata
+- audit context
+
+Invariants:
+
+- Invalid configuration cannot become active.
+- Active-rule selection is server-authoritative.
+- Activation cannot leave inconsistent multiple-active state where uniqueness requires one active rule.
+- Historical assessment must not silently change when a new rule activates.
 
 ## 9. API / Integration Contract
 
-Confirmed current API surface:
-
-- `GET /weather-risk-rules`
-- `GET /weather-risk-rules/active`
-- `POST /weather-risk-rules`
-- `PATCH /weather-risk-rules/:id/activate`
-
-Request and response DTO details remain owned by the implementation files and must stay aligned with this story's BRs.
+TBD — Technical Design.
 
 ## 10. Error & Edge Cases
 
-| Case | Expected Behavior |
-|---|---|
-| Caller lacks the required role, ownership, assignment, or relationship | Reject with no side effects. |
-| Required source record is missing | Return not found or blocked state without fabricating data. |
-| Current state violates a mapped BR | Return business conflict and preserve the current authoritative state. |
-| Input violates a mapped BR | Return validation error before persistence. |
-| Duplicate or retried request affects authoritative data | Enforce idempotency or reject safely so duplicate records, refunds, notifications, or ledger entries are not created. |
+| Case                                             | Expected Behavior                                                |
+| ------------------------------------------------ | ---------------------------------------------------------------- |
+| Non-Admin configures rule                        | Reject.                                                          |
+| Invalid weights/thresholds                       | Reject.                                                          |
+| Duplicate/conflicting version                    | Reject according to uniqueness contract.                         |
+| Two Admins activate different rules concurrently | Transaction/constraint preserves one authoritative active state. |
+| New rule activated                               | Existing historical assessments retain original rule reference.  |
+| Activation transaction fails                     | Previous authoritative active state remains consistent.          |
 
 ## 11. Acceptance & Test Matrix
 
-| BR / AC | Scenario | Expected Result | Test Type |
-|---|---|---|---|
-| PB AC | Approved backlog acceptance path for `Configure Weather Risk Rules` | Meets the acceptance summary above | E2E |
-| BR-051 | Approved rule is satisfied for `Configure Weather Risk Rules` | Accepted and persisted or returned as applicable | Integration |
-| BR-051 | Approved rule is violated for `Configure Weather Risk Rules` | Rejected with no partial side effects | Boundary / Integration |
-| BR-052 | Approved rule is satisfied for `Configure Weather Risk Rules` | Accepted and persisted or returned as applicable | Integration |
-| BR-052 | Approved rule is violated for `Configure Weather Risk Rules` | Rejected with no partial side effects | Boundary / Integration |
-| BR-053 | Approved rule is satisfied for `Configure Weather Risk Rules` | Accepted and persisted or returned as applicable | Integration |
-| BR-053 | Approved rule is violated for `Configure Weather Risk Rules` | Rejected with no partial side effects | Boundary / Integration |
-| BR-174 | Approved rule is satisfied for `Configure Weather Risk Rules` | Accepted and persisted or returned as applicable | Integration |
-| BR-174 | Approved rule is violated for `Configure Weather Risk Rules` | Rejected with no partial side effects | Boundary / Integration |
-| BR-175 | Approved rule is satisfied for `Configure Weather Risk Rules` | Accepted and persisted or returned as applicable | Integration |
-| BR-175 | Approved rule is violated for `Configure Weather Risk Rules` | Rejected with no partial side effects | Boundary / Integration |
-| BR-212 | Approved rule is satisfied for `Configure Weather Risk Rules` | Accepted and persisted or returned as applicable | Integration |
-| BR-212 | Approved rule is violated for `Configure Weather Risk Rules` | Rejected with no partial side effects | Boundary / Integration |
-| BR-213 | Approved rule is satisfied for `Configure Weather Risk Rules` | Accepted and persisted or returned as applicable | Integration |
-| BR-213 | Approved rule is violated for `Configure Weather Risk Rules` | Rejected with no partial side effects | Boundary / Integration |
+| Source | Scenario                                   | Expected Result                              | Test Type   |
+| ------ | ------------------------------------------ | -------------------------------------------- | ----------- |
+| BR-051 | Valid new rule version                     | Persisted.                                   | Integration |
+| BR-051 | Invalid/duplicate version                  | Rejected.                                    | Boundary    |
+| BR-052 | Activate rule                              | Active state changed transactionally.        | E2E         |
+| BR-052 | Concurrent activations                     | No inconsistent active-rule state.           | Concurrency |
+| BR-053 | Activation                                 | Audit contains actor/version/change context. | Integration |
+| BR-175 | Client attempts to self-assert active rule | Backend state wins.                          | Security    |
 
-## 12. Open Decisions & References
+## 12. Open Decisions
 
-### 12.1 Open Decisions
+BR-051–053 currently contain partially generated wording.
 
-None.
-
-### 12.2 References
-
-- Product Backlog v3.1.
-- CTMS Business Rules workbook.
-- CTMS Architecture Overview.
+The precise validation formula for weights, numeric threshold boundaries, version format and whether exactly one global rule or one rule per scope may be active must come from the approved Business Rules/Data Dictionary rather than being inferred.

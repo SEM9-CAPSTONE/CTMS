@@ -3,85 +3,109 @@
 ## 1. Overview
 
 Story: CTMS-024
+
 Epic: EPIC 4. Trip Management
+
 Use Case: Prevent Trip Overbooking
+
 Priority: Must Have
 
-Goal:
-Allow Camper to complete `Prevent Trip Overbooking` within the approved CTMS v3.1 scope.
+Goal: Ensure concurrent Booking operations can never commit participant occupancy above the Trip's authoritative maximum capacity.
 
-Acceptance summary:
-The Prevent Trip Overbooking workflow must satisfy the approved PB v3.1 acceptance criteria for this story. Do not copy the Vietnamese backlog text into this spec; implementers must preserve the approved source meaning when refining detailed tests.
+Backlog story: As the System, I want to prevent Trip overbooking so confirmed/reserved participation never exceeds Trip capacity.
+
+Acceptance Criteria:
+
+| Source  | Criterion                                                                                          |
+| ------- | -------------------------------------------------------------------------------------------------- |
+| PB AC-1 | Backend calculates authoritative occupied/reserved capacity.                                       |
+| PB AC-2 | A Booking that would exceed `capacity_max` must not commit.                                        |
+| PB AC-3 | Concurrent requests for remaining capacity must be serialized/protected.                           |
+| PB AC-4 | Booking cancellation/expiry releases capacity according to the authoritative Booking-state policy. |
+| PB AC-5 | Client-provided seat counters are not authoritative.                                               |
+| PB AC-6 | Transaction failure or concurrency conflict cannot leave Booking and Trip capacity inconsistent.   |
 
 ## 2. Scope
 
 ### In Scope
 
-- Story-owned behavior for `Prevent Trip Overbooking`.
-- Validation, authorization, state handling, persistence, audit, and observable errors required by the mapped Business Rules.
-- Story-specific acceptance tests that prove both allowed and rejected paths.
+- Authoritative Trip occupancy.
+- Booking seat reservation.
+- Capacity release.
+- Concurrency protection.
+- Transactional capacity mutation.
+- Booking-state eligibility for capacity consumption.
 
 ### Out of Scope
 
-- Behavior owned by dependency stories unless a mapped BR explicitly makes it part of this story.
-- Implementation of dependency stories: CTMS-021.
+- Trip capacity configuration.
+- Payment implementation.
+- Booking cancellation policy itself.
+- Participant check-in.
 
 ## 3. Actors & Authorization
 
-- Camper: primary business actor for this story.
-- Backend API: authoritative enforcement point for permissions, state, and business rules.
-- UI or client application: may guide the user, but must not replace backend enforcement.
+- System: authoritative capacity enforcement.
+- Camper: indirectly triggers capacity changes through Booking workflows.
 
-Authorization must be concrete: the caller must have the role, ownership, assignment, or operational relationship required by the mapped BRs before any protected data is returned or any state-changing action is committed.
+No client is allowed to directly set authoritative Trip occupancy.
 
 ## 4. Preconditions & Dependencies
 
-- Product Backlog v3.1 row `CTMS-024` is the story scope source.
-- The mapped Primary BR IDs below exist in the latest Business Rules workbook.
-- Required domain records already exist and are in states allowed by the mapped BRs.
-- Dependencies:
-- CTMS-021
+- Trip exists.
+- `capacity_max` is valid.
+- Booking workflow requests a capacity change.
+- Current Trip/Booking states are loaded authoritatively.
 
 ## 5. Business Rules
 
-| BR | Rule |
-|---|---|
-| BR-067 | This BR is the authoritative story rule for `Prevent Trip Overbooking`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-068 | This BR is the authoritative story rule for `Prevent Trip Overbooking`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-069 | This BR is the authoritative story rule for `Prevent Trip Overbooking`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-070 | This BR is the authoritative story rule for `Prevent Trip Overbooking`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-071 | This BR is the authoritative story rule for `Prevent Trip Overbooking`. Preserve and enforce these source thresholds, states, identifiers, and comparison operators exactly: >, <=. |
-| BR-072 | This BR is the authoritative story rule for `Prevent Trip Overbooking`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-175 | Clients must not self-assert server-owned state, ownership, pricing, capacity, ledger, audit, or safety outcomes. |
-| BR-176 | State-changing operations must persist the authoritative result before dependent side effects are emitted. |
-| BR-177 | Duplicate submissions and retries must not create duplicate authoritative records. |
-| BR-179 | Multi-record operations that define one business outcome must use a transaction or equivalent atomic boundary. |
-| BR-210 | When backend rejects a stale or concurrent request, the UI must preserve entered data, show the reason, and allow reload or retry. |
-| BR-211 | Operational, financial, safety, authorization, and administrative decisions must be traceable to the actor, source record, rule, and timestamp that produced them. |
-| BR-212 | Any Business Rule, enum, state transition, or API contract change must update the spec, tests, and data documentation before the story is Done. |
-| BR-213 | Every mapped Business Rule must have at least one valid-path test and one violation-path test; concurrency, idempotency, and transaction rules require integration or E2E coverage. |
+| BR     | Rule                                                                                                                                                                                                                                                                                                                                                           |
+| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| BR-067 | Any Booking operation that creates, confirms, cancels, or expires a Booking and changes seats_taken must run inside a transaction. Any failure must roll back both the Booking change and the seat counters.                                                                                                                                                   |
+| BR-068 | Before checking or updating seats_taken, the backend must serialize concurrent changes for the same trip_id using a row lock, advisory lock, or equivalent concurrency-control mechanism.                                                                                                                                                                      |
+| BR-069 | seats_taken counts only participants in Booking states that currently hold or commit capacity under policy, including at least pending_payment and confirmed. cancelled, expired, and completed Bookings must not increase held capacity. seats_taken is used to prevent overbooking; it is not the confirmed participant count used to evaluate capacity_min. |
+| BR-070 | confirmed_participant_count is the sum of num_people for Bookings with status = confirmed that remain eligible to participate at the time of evaluation. pending_payment must not count toward capacity_min even though it still counts toward seats_taken while holding capacity.                                                                             |
+| BR-071 | A new Booking is valid only when num_people > 0 and current seats_taken + num_people <= trips.capacity_max. Trip capacity_min and capacity_max are the sole participant-count limits for Booking capacity.                                                                                                                                                     |
+| BR-072 | If a Booking transaction encounters a conflict, deadlock, or serialization failure, the system must roll back and return or retry according to a safe retry policy. seats_taken must never diverge from Booking state.                                                                                                                                         |
 
 ## 6. State & Lifecycle
 
-No new lifecycle is defined by this story. Existing entity states from the owning domain remain authoritative.
+Capacity is not an independent client-managed lifecycle.
 
-Do not introduce placeholder workflow states unless an owning domain contract explicitly defines them.
+Booking transition
+→ determines whether Booking consumes capacity
+→ authoritative occupancy changes atomically.
+
+Booking cancellation/expiry
+→ release applicable reserved capacity.
 
 ## 7. Business Flow
 
-1. Camper initiates `Prevent Trip Overbooking` through the approved UI, API, scheduled job, or integration point.
-2. The backend loads the required source records and verifies authorization, ownership or assignment, current state, and all mapped BR prerequisites.
-3. The backend applies the story-owned decision logic from Section 5.
-4. If any mapped rule is violated, the backend rejects the operation with no partial side effects and returns an actionable error.
-5. If the action changes authoritative data, the change commits atomically with required audit and post-commit notifications.
-6. The client presents the committed result or the rejection reason without exposing protected data.
+1. Booking operation requests N places.
+2. Backend loads/protects authoritative Trip capacity.
+3. Backend calculates current capacity consumption.
+4. Backend evaluates Booking state and requested participant count.
+5. If resulting occupancy exceeds `capacity_max`, reject.
+6. Otherwise mutate Booking and capacity in one transaction.
+7. Commit.
+8. Release lock/concurrency guard.
+9. Return authoritative remaining/occupied capacity as permitted.
 
 ## 8. Data & Invariants
 
-- Persist or return only fields required for `Prevent Trip Overbooking` and the mapped BRs.
-- Preserve authoritative identifiers, ownership links, timestamps, snapshots, status values, and audit references when they affect the business outcome.
-- Derived counters, scores, release-gate metrics, and ledger amounts must be traceable to their source records and rule version.
-- Do not invent tables, enum values, state machines, or audit stores solely for this story.
+Critical invariant:
+
+`authoritative occupied seats <= capacity_max`
+
+at every committed state.
+
+Additional invariants:
+
+- Client does not own `seats_taken`.
+- Booking and capacity state cannot diverge.
+- Released capacity cannot be released twice.
+- One participant/seat reservation cannot be counted twice through retry.
+- Occupancy derives only from eligible Booking/member states.
 
 ## 9. API / Integration Contract
 
@@ -89,45 +113,29 @@ TBD — Technical Design.
 
 ## 10. Error & Edge Cases
 
-| Case | Expected Behavior |
-|---|---|
-| Caller lacks the required role, ownership, assignment, or relationship | Reject with no side effects. |
-| Required source record is missing | Return not found or blocked state without fabricating data. |
-| Current state violates a mapped BR | Return business conflict and preserve the current authoritative state. |
-| Input violates a mapped BR | Return validation error before persistence. |
-| Duplicate or retried request affects authoritative data | Enforce idempotency or reject safely so duplicate records, refunds, notifications, or ledger entries are not created. |
+| Case                               | Expected Behavior                           |
+| ---------------------------------- | ------------------------------------------- |
+| Capacity available                 | Commit Booking/capacity atomically.         |
+| Capacity insufficient              | Reject without partial Booking.             |
+| Two requests compete for last seat | Only valid capacity can commit.             |
+| Booking expires                    | Release capacity once.                      |
+| Booking cancelled                  | Release capacity once according to policy.  |
+| Client sends fake `seats_taken`    | Ignore/reject as authoritative input.       |
+| Deadlock/serialization conflict    | Roll back; controlled retry where designed. |
+| Retry repeats successful operation | Do not consume capacity twice.              |
 
 ## 11. Acceptance & Test Matrix
 
-| BR / AC | Scenario | Expected Result | Test Type |
-|---|---|---|---|
-| PB AC | Approved backlog acceptance path for `Prevent Trip Overbooking` | Meets the acceptance summary above | E2E |
-| BR-067 | Approved rule is satisfied for `Prevent Trip Overbooking` | Accepted and persisted or returned as applicable | Integration |
-| BR-067 | Approved rule is violated for `Prevent Trip Overbooking` | Rejected with no partial side effects | Boundary / Integration |
-| BR-068 | Approved rule is satisfied for `Prevent Trip Overbooking` | Accepted and persisted or returned as applicable | Integration |
-| BR-068 | Approved rule is violated for `Prevent Trip Overbooking` | Rejected with no partial side effects | Boundary / Integration |
-| BR-069 | Approved rule is satisfied for `Prevent Trip Overbooking` | Accepted and persisted or returned as applicable | Integration |
-| BR-069 | Approved rule is violated for `Prevent Trip Overbooking` | Rejected with no partial side effects | Boundary / Integration |
-| BR-070 | Approved rule is satisfied for `Prevent Trip Overbooking` | Accepted and persisted or returned as applicable | Integration |
-| BR-070 | Approved rule is violated for `Prevent Trip Overbooking` | Rejected with no partial side effects | Boundary / Integration |
-| BR-071 | Approved rule is satisfied for `Prevent Trip Overbooking` | Accepted and persisted or returned as applicable | Integration |
-| BR-071 | Approved rule is violated for `Prevent Trip Overbooking` | Rejected with no partial side effects | Boundary / Integration |
-| BR-072 | Approved rule is satisfied for `Prevent Trip Overbooking` | Accepted and persisted or returned as applicable | Integration |
-| BR-072 | Approved rule is violated for `Prevent Trip Overbooking` | Rejected with no partial side effects | Boundary / Integration |
-| BR-175 | Approved rule is satisfied for `Prevent Trip Overbooking` | Accepted and persisted or returned as applicable | Integration |
-| BR-175 | Approved rule is violated for `Prevent Trip Overbooking` | Rejected with no partial side effects | Boundary / Integration |
-| BR-176 | Approved rule is satisfied for `Prevent Trip Overbooking` | Accepted and persisted or returned as applicable | Integration |
-| BR-176 | Approved rule is violated for `Prevent Trip Overbooking` | Rejected with no partial side effects | Boundary / Integration |
-| Remaining mapped BRs | Each mapped BR has valid and violation coverage in the owning test suite | Coverage proves the rule is enforced | Unit / Integration / E2E |
+| Source          | Scenario                        | Expected Result                     | Test Type   |
+| --------------- | ------------------------------- | ----------------------------------- | ----------- |
+| PB AC-1, BR-070 | Occupancy requested             | Derived from authoritative records  | Integration |
+| PB AC-2, BR-071 | Request exceeds maximum         | Rejected                            | Boundary    |
+| PB AC-3, BR-068 | Concurrent last-seat requests   | Capacity never exceeded             | Concurrency |
+| PB AC-4, BR-067 | Booking cancelled               | Applicable capacity released once   | Integration |
+| PB AC-4, BR-069 | Booking changes state           | Capacity consumption follows policy | State       |
+| PB AC-5, BR-070 | Client manipulates seat counter | No authoritative effect             | Security    |
+| PB AC-6, BR-072 | Transaction/concurrency failure | Rollback leaves consistent state    | Transaction |
 
-## 12. Open Decisions & References
+## 12. Open Decisions
 
-### 12.1 Open Decisions
-
-None.
-
-### 12.2 References
-
-- Product Backlog v3.1.
-- CTMS Business Rules workbook.
-- CTMS Architecture Overview.
+The exact set of Booking states that consume capacity must come from the authoritative Booking lifecycle and must not be inferred here.

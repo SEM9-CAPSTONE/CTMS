@@ -3,81 +3,82 @@
 ## 1. Overview
 
 Story: CTMS-057
+
 Epic: EPIC 8. Offline Package
+
 Use Case: Receive Outdated Offline Package Warning
-Priority: Should Have
 
-Goal:
-Allow Authenticated user to complete `Receive Outdated Offline Package Warning` within the approved CTMS v3.1 scope.
+Priority: Must Have
 
-Acceptance summary:
-The Receive Outdated Offline Package Warning workflow must satisfy the approved PB v3.1 acceptance criteria for this story. Do not copy the Vietnamese backlog text into this spec; implementers must preserve the approved source meaning when refining detailed tests.
+Goal: Clearly warn users when their downloaded safety package no longer matches the required authoritative source versions.
 
 ## 2. Scope
 
 ### In Scope
 
-- Story-owned behavior for `Receive Outdated Offline Package Warning`.
-- Validation, authorization, state handling, persistence, audit, and observable errors required by the mapped Business Rules.
-- Story-specific acceptance tests that prove both allowed and rejected paths.
+- Display package version.
+- Display update time.
+- Detect outdated package.
+- Route version changes.
+- Weather source changes.
+- Survival-knowledge changes.
+- Medical-consent invalidation.
+- Pre-start package update policy.
 
 ### Out of Scope
 
-- Behavior owned by dependency stories unless a mapped BR explicitly makes it part of this story.
-- Implementation of dependency stories: CTMS-052, CTMS-053.
+- Package generation.
+- Package download implementation.
+- Hot-updating an ongoing Trip.
 
 ## 3. Actors & Authorization
 
-- Authenticated user: primary business actor for this story.
-- Backend API: authoritative enforcement point for permissions, state, and business rules.
-- UI or client application: may guide the user, but must not replace backend enforcement.
-
-Authorization must be concrete: the caller must have the role, ownership, assignment, or operational relationship required by the mapped BRs before any protected data is returned or any state-changing action is committed.
+- Camper.
+- Porter.
+- System.
 
 ## 4. Preconditions & Dependencies
 
-- Product Backlog v3.1 row `CTMS-057` is the story scope source.
-- The mapped Primary BR IDs below exist in the latest Business Rules workbook.
-- Required domain records already exist and are in states allowed by the mapped BRs.
-- Dependencies:
-- CTMS-052
-- CTMS-053
+A downloaded package exists.
 
 ## 5. Business Rules
 
-| BR | Rule |
-|---|---|
-| BR-235 | Downloaded Route, checkpoint, and survival guidance data must work in airplane/offline mode without online API calls and must belong to the correct Trip/package version. |
-| BR-359 | When authoritative Route geometry, Route Checkpoint, route hazard areas, or safety instruction changes in a way that affects the Offline Safety Package, the system must create a new package version. Published packages must not be edited in place. |
-| BR-366 | This BR is the authoritative story rule for `Receive Outdated Offline Package Warning`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-427 | When a new Offline Safety Package version is published, Trips not yet started must download, validate, and activate the new version before deleting the old package. Ongoing Trips continue using the active package fixed at Trip start and must not hot-update in V3. |
-| BR-430 | This BR is the authoritative story rule for `Publish New Offline Safety Package Version after Safety Update`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-212 | Any Business Rule, enum, state transition, or API contract change must update the spec, tests, and data documentation before the story is Done. |
-| BR-213 | Every mapped Business Rule must have at least one valid-path test and one violation-path test; concurrency, idempotency, and transaction rules require integration or E2E coverage. |
-| BR-230 | When `sharing_consent` is revoked, server access to medical data must end immediately. Downloaded offline packages containing medical data must mark the sensitive portion invalid/outdated, and the client must purge or lock it at the next sync/connection. |
-| BR-364 | Before Trip start, the client must verify the required Offline Safety Package is downloaded, readable, and passes integrity/version validation. If missing or corrupted, UI must warn about degraded safety capability and apply the configured allow/block policy. |
+| BR     | Rule                                                                                                                                                                                                                                                                                                                                                                                |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| BR-235 | The system must display the current package version and last update time and must warn when changes to Route, weather, or survival-knowledge source versions make the downloaded package outdated.                                                                                                                                                                                  |
+| BR-230 | When sharing_consent is withdrawn, the server must immediately terminate access to medical data. Any downloaded Offline Safety Package containing medical data must be marked invalid/outdated for the sensitive portion; at the next sync/connectivity opportunity, the client must purge or lock that medical data and must no longer treat the local copy as authorized for use. |
 
 ## 6. State & Lifecycle
 
-Relevant states from the approved rules: `active`, `published`, `ongoing`, `pass`.
+Downloaded/current
+→ authoritative source version changes
+→ outdated.
 
-Do not introduce placeholder workflow states unless an owning domain contract explicitly defines them.
+V3 package policy:
+
+- Trip not started: required new package must be downloaded, validated and activated before Start Trip where applicable.
+- Trip already started: continue using package version activated at Start Trip; no safety-package hot update during ongoing Trip.
 
 ## 7. Business Flow
 
-1. Authenticated user initiates `Receive Outdated Offline Package Warning` through the approved UI, API, scheduled job, or integration point.
-2. The backend loads the required source records and verifies authorization, ownership or assignment, current state, and all mapped BR prerequisites.
-3. The backend applies the story-owned decision logic from Section 5.
-4. If any mapped rule is violated, the backend rejects the operation with no partial side effects and returns an actionable error.
-5. If the action changes authoritative data, the change commits atomically with required audit and post-commit notifications.
-6. The client presents the committed result or the rejection reason without exposing protected data.
+1. Client knows downloaded package version.
+2. Obtain current required package/source version when connected.
+3. Compare package context.
+4. If unchanged, remain current.
+5. If relevant source/version changed, mark/warn outdated.
+6. Display package version and update time.
+7. For not-started Trip, direct user through required update flow.
+8. For ongoing Trip, preserve active package version.
+9. If consent revoked, purge/lock sensitive medical section.
 
 ## 8. Data & Invariants
 
-- Persist or return only fields required for `Receive Outdated Offline Package Warning` and the mapped BRs.
-- Preserve authoritative identifiers, ownership links, timestamps, snapshots, status values, and audit references when they affect the business outcome.
-- Derived counters, scores, release-gate metrics, and ledger amounts must be traceable to their source records and rule version.
-- Do not invent tables, enum values, state machines, or audit stores solely for this story.
+- Package version visible.
+- Package update time visible.
+- Outdated state not hidden.
+- Ongoing Trip retains activated version.
+- Not-started Trip cannot silently start with disallowed outdated version.
+- Consent revocation overrides cached sensitive-data permission.
 
 ## 9. API / Integration Contract
 
@@ -85,45 +86,25 @@ TBD — Technical Design.
 
 ## 10. Error & Edge Cases
 
-| Case | Expected Behavior |
-|---|---|
-| Caller lacks the required role, ownership, assignment, or relationship | Reject with no side effects. |
-| Required source record is missing | Return not found or blocked state without fabricating data. |
-| Current state violates a mapped BR | Return business conflict and preserve the current authoritative state. |
-| Input violates a mapped BR | Return validation error before persistence. |
-| Duplicate or retried request affects authoritative data | Enforce idempotency or reject safely so duplicate records, refunds, notifications, or ledger entries are not created. |
+| Case                                  | Expected                                                        |
+| ------------------------------------- | --------------------------------------------------------------- |
+| Route version changes before Trip     | Outdated warning/update required                                |
+| Knowledge source changes              | Outdated according to package policy                            |
+| Ongoing Trip gets new package release | Continue active package                                         |
+| Consent revoked                       | Sensitive section invalid/purged/locked                         |
+| Cannot check server while offline     | Show known local version; do not claim current without evidence |
 
 ## 11. Acceptance & Test Matrix
 
-| BR / AC | Scenario | Expected Result | Test Type |
-|---|---|---|---|
-| PB AC | Approved backlog acceptance path for `Receive Outdated Offline Package Warning` | Meets the acceptance summary above | E2E |
-| BR-235 | Approved rule is satisfied for `Receive Outdated Offline Package Warning` | Accepted and persisted or returned as applicable | Integration |
-| BR-235 | Approved rule is violated for `Receive Outdated Offline Package Warning` | Rejected with no partial side effects | Boundary / Integration |
-| BR-359 | Approved rule is satisfied for `Receive Outdated Offline Package Warning` | Accepted and persisted or returned as applicable | Integration |
-| BR-359 | Approved rule is violated for `Receive Outdated Offline Package Warning` | Rejected with no partial side effects | Boundary / Integration |
-| BR-366 | Approved rule is satisfied for `Receive Outdated Offline Package Warning` | Accepted and persisted or returned as applicable | Integration |
-| BR-366 | Approved rule is violated for `Receive Outdated Offline Package Warning` | Rejected with no partial side effects | Boundary / Integration |
-| BR-427 | Approved rule is satisfied for `Receive Outdated Offline Package Warning` | Accepted and persisted or returned as applicable | Integration |
-| BR-427 | Approved rule is violated for `Receive Outdated Offline Package Warning` | Rejected with no partial side effects | Boundary / Integration |
-| BR-430 | Approved rule is satisfied for `Receive Outdated Offline Package Warning` | Accepted and persisted or returned as applicable | Integration |
-| BR-430 | Approved rule is violated for `Receive Outdated Offline Package Warning` | Rejected with no partial side effects | Boundary / Integration |
-| BR-212 | Approved rule is satisfied for `Receive Outdated Offline Package Warning` | Accepted and persisted or returned as applicable | Integration |
-| BR-212 | Approved rule is violated for `Receive Outdated Offline Package Warning` | Rejected with no partial side effects | Boundary / Integration |
-| BR-213 | Approved rule is satisfied for `Receive Outdated Offline Package Warning` | Accepted and persisted or returned as applicable | Integration |
-| BR-213 | Approved rule is violated for `Receive Outdated Offline Package Warning` | Rejected with no partial side effects | Boundary / Integration |
-| BR-230 | Approved rule is satisfied for `Receive Outdated Offline Package Warning` | Accepted and persisted or returned as applicable | Integration |
-| BR-230 | Approved rule is violated for `Receive Outdated Offline Package Warning` | Rejected with no partial side effects | Boundary / Integration |
-| Remaining mapped BRs | Each mapped BR has valid and violation coverage in the owning test suite | Coverage proves the rule is enforced | Unit / Integration / E2E |
+| Scenario             | Expected                       |
+| -------------------- | ------------------------------ |
+| Current package      | Current state                  |
+| Source changes       | Outdated warning               |
+| Version displayed    | Correct local version          |
+| Trip already started | No hot update                  |
+| Trip not started     | Required update policy applied |
+| Consent revoked      | Sensitive content unavailable  |
 
-## 12. Open Decisions & References
+## 12. Open Decisions
 
-### 12.1 Open Decisions
-
-None.
-
-### 12.2 References
-
-- Product Backlog v3.1.
-- CTMS Business Rules workbook.
-- CTMS Architecture Overview.
+No additional hot-update mechanism should be introduced in V3 unless PB/BR is explicitly changed.

@@ -3,78 +3,131 @@
 ## 1. Overview
 
 Story: CTMS-092
+
 Epic: EPIC 16. Reviews and Feedback
+
 Use Case: Review Trip and Host after Trip
+
 Priority: Should Have
 
-Goal:
-Allow Admin to complete `Review Trip and Host after Trip` within the approved CTMS v3.1 scope.
+Goal: Allow a Camper who actually completed a Trip to review that Trip and its actual Host within the approved review window.
 
-Acceptance summary:
-The Review Trip and Host after Trip workflow must satisfy the approved PB v3.1 acceptance criteria for this story. Do not copy the Vietnamese backlog text into this spec; implementers must preserve the approved source meaning when refining detailed tests.
+Backlog story: As a Camper, I want to review the Trip and actual Host after completing the Trip so I can share my experience.
+
+Acceptance Criteria:
+
+| Source  | Criterion                                                                                                               |
+| ------- | ----------------------------------------------------------------------------------------------------------------------- |
+| PB AC-1 | Only a Camper with an actually completed Booking/participation may create the review.                                   |
+| PB AC-2 | Review may be created only within 24 hours after `booking.completed_at`.                                                |
+| PB AC-3 | Review is associated with `trip_id`.                                                                                    |
+| PB AC-4 | Backend derives `host_id` from the Trip; client cannot select an unrelated Host.                                        |
+| PB AC-5 | One reviewer may create at most one review for the same target within the same participation.                           |
+| PB AC-6 | Rating must be an integer from 1 to 5.                                                                                  |
+| PB AC-7 | Rating/comment must pass validation.                                                                                    |
+| PB AC-8 | Camper may edit their own review within the same 24-hour window.                                                        |
+| PB AC-9 | After the 24-hour window, Camper cannot edit the review; moderation may still change content state according to policy. |
 
 ## 2. Scope
 
 ### In Scope
 
-- Story-owned behavior for `Review Trip and Host after Trip`.
-- Validation, authorization, state handling, persistence, audit, and observable errors required by the mapped Business Rules.
-- Story-specific acceptance tests that prove both allowed and rejected paths.
+- Completed-participation eligibility.
+- Trip review.
+- Actual Host relationship.
+- 24-hour review window.
+- Rating 1–5.
+- Comment validation.
+- Duplicate prevention.
+- Owner edit within review window.
 
 ### Out of Scope
 
-- Behavior owned by dependency stories unless a mapped BR explicitly makes it part of this story.
-- Implementation of dependency stories: CTMS-038.
+- Porter review — CTMS-093.
+- Moderation handling — CTMS-105.
+- AI review analysis — CTMS-107.
+- Host selection by client.
 
 ## 3. Actors & Authorization
 
-- Admin: primary business actor for this story.
-- Backend API: authoritative enforcement point for permissions, state, and business rules.
-- UI or client application: may guide the user, but must not replace backend enforcement.
+Primary actor:
 
-Authorization must be concrete: the caller must have the role, ownership, assignment, or operational relationship required by the mapped BRs before any protected data is returned or any state-changing action is committed.
+- Camper.
+
+Camper must have completed Booking/participation for the Trip.
+
+Backend verifies reviewer identity and participation.
 
 ## 4. Preconditions & Dependencies
 
-- Product Backlog v3.1 row `CTMS-092` is the story scope source.
-- The mapped Primary BR IDs below exist in the latest Business Rules workbook.
-- Required domain records already exist and are in states allowed by the mapped BRs.
-- Dependencies:
-- CTMS-038
+Dependency:
+
+- CTMS-038.
+
+Booking/participation is completed.
+
+Current time must be within:
+
+`booking.completed_at + 24 hours`
+
+for Camper create/edit operations.
 
 ## 5. Business Rules
 
-| BR | Rule |
-|---|---|
-| BR-297 | This BR is the authoritative story rule for `Review Trip and Host after Trip`. Preserve and enforce these source thresholds, states, identifiers, and comparison operators exactly: 24 hours. |
-| BR-298 | This BR is the authoritative story rule for `Review Trip and Host after Trip`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-300 | This BR is the authoritative story rule for `Review Trip and Host after Trip`. Preserve and enforce these source thresholds, states, identifiers, and comparison operators exactly: 24 hours. |
-| BR-301 | This BR is the authoritative story rule for `Review Trip and Host after Trip`. Enforce it before persistence, reject violations without partial side effects, and keep the outcome auditable and testable. |
-| BR-188 | Date and time handling must use the authoritative timezone and ordering rules for the business workflow, and invalid or impossible time ranges must be rejected. |
-| BR-212 | Any Business Rule, enum, state transition, or API contract change must update the spec, tests, and data documentation before the story is Done. |
-| BR-213 | Every mapped Business Rule must have at least one valid-path test and one violation-path test; concurrency, idempotency, and transaction rules require integration or E2E coverage. |
+| BR         | Rule                                                                                                                                                                                                                                                                                                                                                                                |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| BR-297     | A Trip review may be created only by a Camper with an actual completed Booking/participation and only within 24 hours after booking.completed_at. The review must reference trip_id and a reviewer identity verified by the backend.                                                                                                                                                |
+| BR-298     | A Host may be reviewed only through a Trip the Host actually organized. The backend must derive host_id from trip_id and must not allow the client to select an unrelated Host.                                                                                                                                                                                                     |
+| BR-300     | A reviewer may create at most one review for the same target within the same Trip participation. Duplicate submissions must be rejected or handled idempotently. A Camper may edit their own review within the same 24-hour window after booking.completed_at; after that window, the Camper may no longer edit it, although moderation may still be performed according to policy. |
+| BR-301     | rating must be an integer from 1 to 5. Both rating and comment must pass validation, and the original user review must be preserved unchanged as the authoritative input.                                                                                                                                                                                                           |
+| BR-188     | Absolute timestamps must be stored as timestamptz. Pure calendar dates use date, and time-of-day values use time where defined by schema. APIs must transmit timezone/offset explicitly, and the UI must display values using the configured timezone.                                                                                                                              |
+| BR-212     | Any change to a Business Rule, enum, state transition, or API contract must be reflected in the specification, test cases, and data documentation before the work is considered Done.                                                                                                                                                                                               |
+| BR-213     | Every Business Rule must have at least one valid-path test and one violation-path test. Concurrency, idempotency, and transaction rules require integration or E2E coverage.                                                                                                                                                                                                        |
 
 ## 6. State & Lifecycle
 
-Not applicable. This is a read or presentation story and does not define a new domain lifecycle.
+Completed participation
+→ review window opens
+→ review created
+→ optionally edited by Camper
+→ 24-hour window expires
+→ Camper editing closed.
 
-Do not introduce placeholder workflow states unless an owning domain contract explicitly defines them.
+Review may later enter moderation flow according to applicable policy.
 
 ## 7. Business Flow
 
-1. Admin initiates `Review Trip and Host after Trip` through the approved UI, API, scheduled job, or integration point.
-2. The backend loads the required source records and verifies authorization, ownership or assignment, current state, and all mapped BR prerequisites.
-3. The backend applies the story-owned decision logic from Section 5.
-4. If any mapped rule is violated, the backend rejects the operation with no partial side effects and returns an actionable error.
-5. If the action changes authoritative data, the change commits atomically with required audit and post-commit notifications.
-6. The client presents the committed result or the rejection reason without exposing protected data.
+1. Camper opens completed Booking/Trip.
+2. Backend verifies completed participation.
+3. Verify current time is within 24 hours of `booking.completed_at`.
+4. Resolve Trip.
+5. Backend resolves actual Host from Trip.
+6. Check duplicate review.
+7. Camper enters integer rating 1–5 and optional/required comment according to validation.
+8. Validate input.
+9. Create review.
+10. Camper may edit own review while review window remains open.
+11. After window expiry, reject Camper edit.
 
 ## 8. Data & Invariants
 
-- Persist or return only fields required for `Review Trip and Host after Trip` and the mapped BRs.
-- Preserve authoritative identifiers, ownership links, timestamps, snapshots, status values, and audit references when they affect the business outcome.
-- Derived counters, scores, release-gate metrics, and ledger amounts must be traceable to their source records and rule version.
-- Do not invent tables, enum values, state machines, or audit stores solely for this story.
+Review preserves:
+
+- reviewer identity;
+- participation/Booking context;
+- trip_id;
+- backend-derived host_id;
+- rating;
+- original/raw comment;
+- creation/update time.
+
+Invariants:
+
+- `1 ≤ rating ≤ 5`;
+- rating is integer;
+- Host must derive from Trip;
+- maximum one review per reviewer/target/participation;
+- Camper create/edit window = 24 hours after `booking.completed_at`.
 
 ## 9. API / Integration Contract
 
@@ -82,42 +135,31 @@ TBD — Technical Design.
 
 ## 10. Error & Edge Cases
 
-| Case | Expected Behavior |
-|---|---|
-| Caller lacks the required role, ownership, assignment, or relationship | Reject with no side effects. |
-| Required source record is missing | Return not found or blocked state without fabricating data. |
-| Current state violates a mapped BR | Return business conflict and preserve the current authoritative state. |
-| Input violates a mapped BR | Return validation error before persistence. |
-| Duplicate or retried request affects authoritative data | Enforce idempotency or reject safely so duplicate records, refunds, notifications, or ledger entries are not created. |
+| Case                           | Expected Behavior                   |
+| ------------------------------ | ----------------------------------- |
+| Booking not completed          | Reject                              |
+| Completed but >24h             | Reject create                       |
+| Client supplies unrelated Host | Ignore/reject; backend derives Host |
+| Rating 0 or 6                  | Reject                              |
+| Non-integer rating             | Reject                              |
+| Duplicate submit               | No duplicate review                 |
+| Edit own review within 24h     | Allowed                             |
+| Edit after 24h                 | Reject                              |
+| Edit another Camper's review   | Reject                              |
 
 ## 11. Acceptance & Test Matrix
 
-| BR / AC | Scenario | Expected Result | Test Type |
-|---|---|---|---|
-| PB AC | Approved backlog acceptance path for `Review Trip and Host after Trip` | Meets the acceptance summary above | E2E |
-| BR-297 | Approved rule is satisfied for `Review Trip and Host after Trip` | Accepted and persisted or returned as applicable | Integration |
-| BR-297 | Approved rule is violated for `Review Trip and Host after Trip` | Rejected with no partial side effects | Boundary / Integration |
-| BR-298 | Approved rule is satisfied for `Review Trip and Host after Trip` | Accepted and persisted or returned as applicable | Integration |
-| BR-298 | Approved rule is violated for `Review Trip and Host after Trip` | Rejected with no partial side effects | Boundary / Integration |
-| BR-300 | Approved rule is satisfied for `Review Trip and Host after Trip` | Accepted and persisted or returned as applicable | Integration |
-| BR-300 | Approved rule is violated for `Review Trip and Host after Trip` | Rejected with no partial side effects | Boundary / Integration |
-| BR-301 | Approved rule is satisfied for `Review Trip and Host after Trip` | Accepted and persisted or returned as applicable | Integration |
-| BR-301 | Approved rule is violated for `Review Trip and Host after Trip` | Rejected with no partial side effects | Boundary / Integration |
-| BR-188 | Approved rule is satisfied for `Review Trip and Host after Trip` | Accepted and persisted or returned as applicable | Integration |
-| BR-188 | Approved rule is violated for `Review Trip and Host after Trip` | Rejected with no partial side effects | Boundary / Integration |
-| BR-212 | Approved rule is satisfied for `Review Trip and Host after Trip` | Accepted and persisted or returned as applicable | Integration |
-| BR-212 | Approved rule is violated for `Review Trip and Host after Trip` | Rejected with no partial side effects | Boundary / Integration |
-| BR-213 | Approved rule is satisfied for `Review Trip and Host after Trip` | Accepted and persisted or returned as applicable | Integration |
-| BR-213 | Approved rule is violated for `Review Trip and Host after Trip` | Rejected with no partial side effects | Boundary / Integration |
+| Source | Scenario                           | Expected Result    | Test Type   |
+| ------ | ---------------------------------- | ------------------ | ----------- |
+| BR-297 | Completed participation within 24h | Review allowed     | E2E         |
+| BR-297 | >24h                               | Rejected           | Boundary    |
+| BR-298 | Client chooses unrelated Host      | Not accepted       | Security    |
+| BR-300 | Duplicate submit                   | One review maximum | Idempotency |
+| BR-301 | Rating 1–5 integer                 | Accepted           | Validation  |
+| BR-301 | Rating outside range               | Rejected           | Negative    |
+| BR-300 | Edit within window                 | Allowed            | Functional  |
+| BR-300 | Edit after window                  | Rejected           | Boundary    |
 
-## 12. Open Decisions & References
+## 12. Open Decisions
 
-### 12.1 Open Decisions
-
-None.
-
-### 12.2 References
-
-- Product Backlog v3.1.
-- CTMS Business Rules workbook.
-- CTMS Architecture Overview.
+Comment length/content validation must follow the authoritative validation definition; no new numeric limit is introduced here.

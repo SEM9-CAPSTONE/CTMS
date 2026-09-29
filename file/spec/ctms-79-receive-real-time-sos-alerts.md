@@ -3,122 +3,129 @@
 ## 1. Overview
 
 Story: CTMS-079
-Epic: EPIC 12. SOS and Emergency Management
+
+Epic: EPIC 13. Real-Time Communication
+
 Use Case: Receive Real-Time SOS Alerts
+
 Priority: Must Have
 
-Goal:
-Allow Camper to complete `Receive Real-Time SOS Alerts` within the approved CTMS v3.1 scope.
+Goal: Deliver newly persisted SOS alerts to an authorized Host through an established WebSocket connection within the defined real-time latency requirement.
 
-Acceptance summary:
-The Receive Real-Time SOS Alerts workflow must satisfy the approved PB v3.1 acceptance criteria for this story. Do not copy the Vietnamese backlog text into this spec; implementers must preserve the approved source meaning when refining detailed tests.
+Backlog story: As a Host, I want to receive SOS alerts in real time so I can react quickly to emergencies on Trips I manage.
+
+Acceptance Criteria:
+
+| Source  | Criterion                                                                                        |
+| ------- | ------------------------------------------------------------------------------------------------ |
+| PB AC-1 | Authorized Host receives new SOS through WebSocket when connection is stable.                    |
+| PB AC-2 | Delivery latency is <5 seconds from server acceptance/persistence of SOS to Host client receipt. |
+| PB AC-3 | Unauthorized Host must not receive the SOS.                                                      |
+| PB AC-4 | UI provides an attention signal.                                                                 |
+| PB AC-5 | UI provides a way to acknowledge the SOS.                                                        |
 
 ## 2. Scope
 
 ### In Scope
 
-- Story-owned behavior for `Receive Real-Time SOS Alerts`.
-- Validation, authorization, state handling, persistence, audit, and observable errors required by the mapped Business Rules.
-- Story-specific acceptance tests that prove both allowed and rejected paths.
+- SOS WebSocket event.
+- Authorized Host.
+- <5-second delivery target.
+- Attention signal.
+- Acknowledge entry point.
 
 ### Out of Scope
 
-- Behavior owned by dependency stories unless a mapped BR explicitly makes it part of this story.
-- Implementation of dependency stories: CTMS-074, CTMS-078.
+- SOS creation.
+- Acknowledge state mutation — CTMS-080.
+- Push notification while app backgrounded — CTMS-090.
 
 ## 3. Actors & Authorization
 
-- Camper: primary business actor for this story.
-- Backend API: authoritative enforcement point for permissions, state, and business rules.
-- UI or client application: may guide the user, but must not replace backend enforcement.
+- Authorized Host.
+- WebSocket server.
+- Host client.
 
-Authorization must be concrete: the caller must have the role, ownership, assignment, or operational relationship required by the mapped BRs before any protected data is returned or any state-changing action is committed.
+Host must be authorized for the Trip associated with SOS.
 
 ## 4. Preconditions & Dependencies
 
-- Product Backlog v3.1 row `CTMS-079` is the story scope source.
-- The mapped Primary BR IDs below exist in the latest Business Rules workbook.
-- Required domain records already exist and are in states allowed by the mapped BRs.
-- Dependencies:
-- CTMS-074
-- CTMS-078
+Dependencies:
+
+- CTMS-074/076.
+- CTMS-078.
+
+SOS has been accepted/persisted by server.
+
+WebSocket connection is stable.
 
 ## 5. Business Rules
 
-| BR | Rule |
-|---|---|
-| BR-260 | This BR is the authoritative story rule for `Receive Real-Time SOS Alerts`. Preserve and enforce these source thresholds, states, identifiers, and comparison operators exactly: SOS, <, UI. |
-| BR-188 | Date and time handling must use the authoritative timezone and ordering rules for the business workflow, and invalid or impossible time ranges must be rejected. |
-| BR-194 | Notifications or event side effects may be emitted only after the main business transaction commits successfully, preferably through an outbox or queue. |
-| BR-195 | A single business event must not create duplicate notifications for the same recipient, target, and event type. |
-| BR-196 | Users may disable ordinary notifications, but mandatory safety or emergency alerts must not be disabled while the user participates in the related Trip. |
-| BR-212 | Any Business Rule, enum, state transition, or API contract change must update the spec, tests, and data documentation before the story is Done. |
-| BR-213 | Every mapped Business Rule must have at least one valid-path test and one violation-path test; concurrency, idempotency, and transaction rules require integration or E2E coverage. |
+| BR     | Rule                                                                                                                                                                                                                                                                    |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| BR-260 | Under stable connectivity, an authorized Host must receive a newly accepted/persisted SOS over WebSocket in under 5 seconds, measured from server acceptance/persistence to client receipt. The UI must provide a clear attention signal and an acknowledgement action. |
+| BR-259 | A WebSocket connection must validate the JWT, reject invalid or expired tokens, and join the user only to rooms they are authorized to receive.                                                                                                                         |
 
 ## 6. State & Lifecycle
 
-Not applicable. This is a read or presentation story and does not define a new domain lifecycle.
+SOS persisted
+→ WebSocket event emitted
+→ authorized Host client receives event
+→ attention signal shown
+→ Host may acknowledge through CTMS-080.
 
-Do not introduce placeholder workflow states unless an owning domain contract explicitly defines them.
+The WebSocket delivery itself does not mark SOS acknowledged.
 
 ## 7. Business Flow
 
-1. Camper initiates `Receive Real-Time SOS Alerts` through the approved UI, API, scheduled job, or integration point.
-2. The backend loads the required source records and verifies authorization, ownership or assignment, current state, and all mapped BR prerequisites.
-3. The backend applies the story-owned decision logic from Section 5.
-4. If any mapped rule is violated, the backend rejects the operation with no partial side effects and returns an actionable error.
-5. If the action changes authoritative data, the change commits atomically with required audit and post-commit notifications.
-6. The client presents the committed result or the rejection reason without exposing protected data.
+1. Server accepts/persists SOS.
+2. Resolve applicable authorized Trip room/Host recipients.
+3. Emit SOS event.
+4. Authorized connected Host receives event.
+5. Measure delivery time.
+6. Client displays prominent attention signal.
+7. Client exposes acknowledge action.
+8. Host acknowledgement invokes CTMS-080.
 
 ## 8. Data & Invariants
 
-- Persist or return only fields required for `Receive Real-Time SOS Alerts` and the mapped BRs.
-- Preserve authoritative identifiers, ownership links, timestamps, snapshots, status values, and audit references when they affect the business outcome.
-- Derived counters, scores, release-gate metrics, and ledger amounts must be traceable to their source records and rule version.
-- Do not invent tables, enum values, state machines, or audit stores solely for this story.
+Latency metric:
+
+`Host client received_at - SOS server accepted/persisted_at < 5 seconds`
+
+under stable-connection test conditions.
+
+Invariants:
+
+- Receipt ≠ acknowledgement.
+- Unauthorized Hosts receive nothing.
+- SOS must be persisted/accepted before the latency measurement origin described by BR-260.
 
 ## 9. API / Integration Contract
 
-TBD — Technical Design.
+WebSocket event schema: TBD — Technical Design.
 
 ## 10. Error & Edge Cases
 
-| Case | Expected Behavior |
-|---|---|
-| Caller lacks the required role, ownership, assignment, or relationship | Reject with no side effects. |
-| Required source record is missing | Return not found or blocked state without fabricating data. |
-| Current state violates a mapped BR | Return business conflict and preserve the current authoritative state. |
-| Input violates a mapped BR | Return validation error before persistence. |
-| Duplicate or retried request affects authoritative data | Enforce idempotency or reject safely so duplicate records, refunds, notifications, or ledger entries are not created. |
+| Case                                    | Expected Behavior                                    |
+| --------------------------------------- | ---------------------------------------------------- |
+| Stable connection                       | Event delivered                                      |
+| Unauthorized Host                       | No event                                             |
+| Host disconnected                       | Real-time WebSocket guarantee does not falsely apply |
+| Event displayed                         | Attention signal shown                               |
+| Event received                          | SOS remains unacknowledged until explicit action     |
+| Delivery >=5s under defined stable test | Performance AC fails                                 |
 
 ## 11. Acceptance & Test Matrix
 
-| BR / AC | Scenario | Expected Result | Test Type |
-|---|---|---|---|
-| PB AC | Approved backlog acceptance path for `Receive Real-Time SOS Alerts` | Meets the acceptance summary above | E2E |
-| BR-260 | Approved rule is satisfied for `Receive Real-Time SOS Alerts` | Accepted and persisted or returned as applicable | Integration |
-| BR-260 | Approved rule is violated for `Receive Real-Time SOS Alerts` | Rejected with no partial side effects | Boundary / Integration |
-| BR-188 | Approved rule is satisfied for `Receive Real-Time SOS Alerts` | Accepted and persisted or returned as applicable | Integration |
-| BR-188 | Approved rule is violated for `Receive Real-Time SOS Alerts` | Rejected with no partial side effects | Boundary / Integration |
-| BR-194 | Approved rule is satisfied for `Receive Real-Time SOS Alerts` | Accepted and persisted or returned as applicable | Integration |
-| BR-194 | Approved rule is violated for `Receive Real-Time SOS Alerts` | Rejected with no partial side effects | Boundary / Integration |
-| BR-195 | Approved rule is satisfied for `Receive Real-Time SOS Alerts` | Accepted and persisted or returned as applicable | Integration |
-| BR-195 | Approved rule is violated for `Receive Real-Time SOS Alerts` | Rejected with no partial side effects | Boundary / Integration |
-| BR-196 | Approved rule is satisfied for `Receive Real-Time SOS Alerts` | Accepted and persisted or returned as applicable | Integration |
-| BR-196 | Approved rule is violated for `Receive Real-Time SOS Alerts` | Rejected with no partial side effects | Boundary / Integration |
-| BR-212 | Approved rule is satisfied for `Receive Real-Time SOS Alerts` | Accepted and persisted or returned as applicable | Integration |
-| BR-212 | Approved rule is violated for `Receive Real-Time SOS Alerts` | Rejected with no partial side effects | Boundary / Integration |
-| BR-213 | Approved rule is satisfied for `Receive Real-Time SOS Alerts` | Accepted and persisted or returned as applicable | Integration |
-| BR-213 | Approved rule is violated for `Receive Real-Time SOS Alerts` | Rejected with no partial side effects | Boundary / Integration |
+| Source | Scenario              | Expected Result              | Test Type   |
+| ------ | --------------------- | ---------------------------- | ----------- |
+| BR-260 | Stable WebSocket      | SOS received                 | E2E         |
+| BR-260 | Measure server→client | <5 seconds                   | Performance |
+| BR-259 | Unauthorized Host     | No event                     | Security    |
+| BR-260 | SOS received          | Attention signal             | UI          |
+| BR-260 | SOS received          | Acknowledge action available | UI          |
 
-## 12. Open Decisions & References
+## 12. Open Decisions
 
-### 12.1 Open Decisions
-
-None.
-
-### 12.2 References
-
-- Product Backlog v3.1.
-- CTMS Business Rules workbook.
-- CTMS Architecture Overview.
+Performance test environment must define what qualifies as a stable connection, while retaining the <5-second metric defined by BR-260.
