@@ -4,9 +4,11 @@ import type { DataSource, EntityManager } from "typeorm";
 import { AuditLog } from "../auth/entities/audit-log.entity";
 import type { EquipmentCatalogRepository } from "../equipment-catalog/equipment-catalog.repository";
 import { Booking, BookingPaymentStatus, BookingStatus } from "../profiles/entities/booking.entity";
+import type { HealthProfileRepository } from "../profiles/repositories/health-profile.repository";
 import { Trip } from "../trips/entities/trip.entity";
 import type { TripsRepository } from "../trips/repositories/trips.repository";
 import { User } from "../users/entities/user.entity";
+import type { WeatherRiskRepository } from "../weather/repositories/weather-risk.repository";
 import type { RouteRegistrationRiskService } from "../weather/services/route-registration-risk.service";
 import type { BookingItemsRepository } from "./booking-items.repository";
 import { BookingMemberStatus } from "./booking-member-status.enum";
@@ -118,7 +120,9 @@ describe("BookingsService.initializeMembers", () => {
 			{} as unknown as BookingItemsRepository,
 			membersRepository as unknown as BookingMembersRepository,
 			{} as unknown as EquipmentCatalogRepository,
-			{} as unknown as EquipmentReservationsRepository
+			{} as unknown as EquipmentReservationsRepository,
+			{} as unknown as WeatherRiskRepository,
+			{} as unknown as HealthProfileRepository
 		);
 	});
 

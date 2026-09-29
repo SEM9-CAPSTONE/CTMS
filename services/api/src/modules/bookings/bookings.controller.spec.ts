@@ -93,4 +93,16 @@ describe("BookingsController", () => {
 			UserRole.CAMPER,
 		]);
 	});
+
+	it("getPackingList delegates the authenticated Camper and uses Camper role metadata", async () => {
+		const response = { bookingId: BOOKING_ID, tripId: TRIP_ID, context: {}, items: [] };
+		const service = { getPackingList: jest.fn().mockResolvedValue(response) };
+		const controller = new BookingsController(service as unknown as BookingsService);
+
+		await expect(controller.getPackingList({ user: ACTOR }, BOOKING_ID)).resolves.toBe(response);
+		expect(service.getPackingList).toHaveBeenCalledWith(USER_ID, BOOKING_ID);
+		expect(Reflect.getMetadata(ROLES_KEY, BookingsController.prototype.getPackingList)).toEqual([
+			UserRole.CAMPER,
+		]);
+	});
 });

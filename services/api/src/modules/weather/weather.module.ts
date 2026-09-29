@@ -65,6 +65,6 @@ import { WeatherService } from "./services/weather.service";
 			inject: [DataSource],
 		},
 	],
-	exports: [RouteRegistrationRiskService],
+	exports: [RouteRegistrationRiskService, WeatherRiskRepository],
 })
 export class WeatherModule {}

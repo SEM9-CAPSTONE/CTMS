@@ -9,9 +9,11 @@ import type { DataSource, EntityManager } from "typeorm";
 import { EquipmentCatalogStatus } from "../equipment-catalog/equipment-catalog-status.enum";
 import type { EquipmentCatalogRepository } from "../equipment-catalog/equipment-catalog.repository";
 import { Booking, BookingPaymentStatus, BookingStatus } from "../profiles/entities/booking.entity";
+import type { HealthProfileRepository } from "../profiles/repositories/health-profile.repository";
 import { TrekkingRouteStatus } from "../trekking-routes/entities/trekking-route.entity";
 import { Trip, TripStatus } from "../trips/entities/trip.entity";
 import type { TripsRepository } from "../trips/repositories/trips.repository";
+import type { WeatherRiskRepository } from "../weather/repositories/weather-risk.repository";
 import type { RouteRegistrationRiskService } from "../weather/services/route-registration-risk.service";
 import type { BookingItemsRepository } from "./booking-items.repository";
 import type { BookingMembersRepository } from "./booking-members.repository";
@@ -179,7 +181,9 @@ describe("BookingsService", () => {
 			bookingItemsRepository as unknown as BookingItemsRepository,
 			bookingMembersRepository as unknown as BookingMembersRepository,
 			equipmentCatalogRepository as unknown as EquipmentCatalogRepository,
-			equipmentReservationsRepository as unknown as EquipmentReservationsRepository
+			equipmentReservationsRepository as unknown as EquipmentReservationsRepository,
+			{} as unknown as WeatherRiskRepository,
+			{} as unknown as HealthProfileRepository
 		);
 	});
 
@@ -353,7 +357,9 @@ describe("BookingsService", () => {
 				{} as unknown as BookingItemsRepository,
 				{} as unknown as BookingMembersRepository,
 				{} as unknown as EquipmentCatalogRepository,
-				{} as unknown as EquipmentReservationsRepository
+				{} as unknown as EquipmentReservationsRepository,
+				{} as unknown as WeatherRiskRepository,
+				{} as unknown as HealthProfileRepository
 			);
 			await expect(
 				invalidService.create(USER_ID, "attempt-config", { tripId: TRIP_ID, numPeople: 1 })

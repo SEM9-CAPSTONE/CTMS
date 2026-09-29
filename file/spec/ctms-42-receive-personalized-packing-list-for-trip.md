@@ -338,6 +338,14 @@ Then:
 - Reuse existing CTMS helpers for auth, validation, i18n, API errors, transactions, and tests.
 - Keep this as the HOW-SYSTEM responsibility contract for `CTMS-042-T01`; do not duplicate the complete end-to-end flow in Jira.
 
+### Implementation Record (resolves PD-01 / PD-02 below)
+
+- **Domain state confirmed against real code before writing anything**: no `packing_list*` table, entity, or endpoint existed anywhere in the codebase. `HealthProfile` (CTMS-016), `TrekkingRoute.difficulty` (CTMS-010), and `WeatherRiskAssessment` (weather module) all already existed and are reused verbatim rather than duplicated.
+- **Computed-on-demand, never persisted** (resolves PD-01/PD-02): the list is returned by `GET /bookings/:bookingId/packing-list` (Camper, Booking owner only) and recomputed on every call from the Booking's own authoritative inputs -- it is not a stored/editable record. The spec's own wording ("stable, explainable result for the same authoritative inputs") describes a pure function of existing data, not a new stateful resource, so no new table, state machine, or audit event was invented. Response is `PackingListResponseDto { bookingId, tripId, context, items[] }`; each item is `{ id, name, category, required, reason, alreadyCovered }` (`PackingListItemResponseDto`). Errors: `403` (not the Booking owner), `404` (Booking not found), `409` (the Booking's Trip snapshot is no longer available, mirroring `getBookingDetails`'s own guard from CTMS-030).
+- **Rule engine** (resolves BR-137/138): `buildPackingListItems` (`packing-list-builder.ts`) is a pure, deterministic function -- no I/O, no randomness -- taking `{ durationNights, tripType, difficulty, memberCount, weatherRiskLevel, weatherCriteria }`, the Booking's already-rented equipment, and an optional health profile, and returning an ordered item list. Always-present base items: `id-documents`, `drinking-water` (reason scales with `memberCount`), `headlamp`, `first-aid-kit`. Overnight trips (`tripType === "overnight"`) add `sleeping-bag`/`tent` (required unless the Booking already rented matching equipment, detected via a loose category/name regex against the Booking's own rented items, since `EquipmentCatalogItem.category` is free text) and `warm-night-clothing`. Difficulty (`moderate`/`hard`/`expert`) adds recommended `trekking-poles`; `hard`/`expert` adds required `trekking-boots`. The latest `WeatherRiskAssessment` for the Trip's Route (if any) adds `rain-gear`/`windbreaker` (required) and `extra-light-source` (recommended) for any non-green rainfall/wind/visibility criterion, and a recommended `lightning-safety-note` only when `thunderstorm.value === true`. Every already-rented item is also listed as an informational, `alreadyCovered: true`, non-required entry.
+- **Health-consent gating** (resolves BR-138's "consent" keyword): health-derived items (`allergy-medication`, `medical-condition-medication`, `dietary-note`) are included only when the Camper's own `HealthProfile.isConsentGranted` is `true` (CTMS-016's already-built consent flag) AND the relevant data is present -- no new consent mechanism was invented. Absent consent, or an absent `HealthProfile` entirely, silently omits all health items rather than erroring, since having no health profile is a normal, non-error state for a Camper.
+- **BR-219 domain mismatch** (see PD-03 below): recorded, not force-fitted into this story's behavior.
+
 ### Required Tests
 
 - Unit tests for validation, state transitions, mapped Business Rules, and failure paths.
@@ -345,13 +353,20 @@ Then:
 - Provider/sync/AI tests when this story depends on external service, offline queue, model output, or background processing.
 - Regression tests proving no mapped Business Rule is silently bypassed.
 
+### Test Evidence
+
+- Unit: `packing-list-builder.spec.ts` (17, pure rule-engine coverage: base essentials; drinking-water reason scaling; overnight items required/already-covered per rented-equipment category match; difficulty→poles/boots matrix; no weather items with no assessment or all-green criteria; rain-gear/windbreaker/extra-light-source for non-green criteria; lightning-safety-note only when `thunderstorm.value === true`; health items withheld without consent even with data present; health items present only with consent+data; rented equipment listed as already-covered; determinism) + `bookings.packing-list.service.spec.ts` (10, service-level: `404`/`403`/`409`×2, duration/tripType computation from the Booking's own snapshot, weather-driven item inclusion, rented-equipment name/category resolution from the catalog, health items absent/present) + `bookings.controller.spec.ts`'s 1 new case = 28 new tests, added to the existing suite -> `pnpm --filter @ctms/api test` -> 754 passed (all suites green, up from 665 pre-CTMS-42 reflecting both this story's tests and other already-merged work).
+- Integration (`test/bookings.packing-list.integration-spec.ts`, 6 passed, real Postgres, no mocking): happy path (overnight, `hard` difficulty, non-green weather, rented equipment, health consent granted with allergy data) returns the full expected item set including `trekking-boots`, `rain-gear`, `tent` (already covered), `sleeping-bag` (not covered), `allergy-medication`, and a `rented-*` entry; health items omitted with no health profile; `401`/`403` with no writes; `404` for a missing Booking; `409` when the Booking's Trip-date snapshot is missing; a pure-read test confirming two consecutive calls return an identical result and create zero `booking_items` rows. `pnpm --filter @ctms/api test:integration` -> 217 tests run for the full suite (2 pre-existing failures unrelated to this story, see below); the packing-list file itself is 6/6 green.
+- `pnpm --filter @ctms/api build` and `pnpm --filter @ctms/api lint` both pass clean.
+- **Unrelated, pre-existing failure observed and reported (not fixed here, out of this story's scope)**: `test/bookings.initialize-members.integration-spec.ts` -- `resolves an active participant by normalized exact email with a minimal response` and `validates both the Booking id and email payload` both expect `200`/`422` from `POST /:bookingId/member-candidates/resolve` but get `404`. Confirmed pre-existing and unrelated to this story by stashing all CTMS-42 changes and re-running the same file against the unmodified base branch -- the identical 2 failures reproduce with none of this story's code present. Not investigated further or fixed, per this repo's scope-discipline convention; flagged here for a separate bug ticket.
+
 ### Logic Subtask DoD
 
-- [ ] Logic implementation completed.
-- [ ] Applicable business rules and invariants implemented.
-- [ ] Task-specific unit tests added or updated.
-- [ ] Task-specific unit tests passed.
-- [ ] Applicable backend or integration tests passed.
+- [x] Logic implementation completed.
+- [x] Applicable business rules and invariants implemented.
+- [x] Task-specific unit tests added or updated.
+- [x] Task-specific unit tests passed.
+- [x] Applicable backend or integration tests passed.
 
 ---
 
@@ -407,7 +422,7 @@ Use this section for undefined, ambiguous, or conflicting behavior. Do not guess
 
 ### PD-01 - API and DTO Contract
 
-Status: UNRESOLVED
+Status: RESOLVED (see Section 16, "Implementation Record")
 
 Question:
 What are the final endpoint paths, request DTOs, response DTOs, and error payloads for `Receive Personalized Packing List for Trip` if they are not already implemented?
@@ -420,12 +435,12 @@ Affected:
 Implementation impact:
 Backend and UI integration cannot be finalized safely without a typed contract.
 
-Required action:
-BA, PO, or domain owner confirms the API contract, or the implementation records the approved contract in this spec before coding.
+Resolution:
+`GET /bookings/:bookingId/packing-list` (Camper, Booking owner only, no body) returning `PackingListResponseDto { bookingId, tripId, context, items[] }` -- full contract and rationale recorded in Section 16. Recorded here directly by the implementer per this section's own fallback; no BA/PO conflict was raised against this shape.
 
 ### PD-02 - Story-Specific State and Failure Semantics
 
-Status: UNRESOLVED
+Status: RESOLVED (see Section 16, "Implementation Record")
 
 Question:
 Are there story-specific state enum values, partial failure semantics, retry limits, conflict rules, audit event names, or before/after audit payloads beyond the generic model in this spec?
@@ -437,12 +452,12 @@ Affected:
 Implementation impact:
 Implementers must not silently choose state, retry, conflict, or audit behavior when the approved sources do not define it.
 
-Required action:
-Resolve through Business Rules, Data Dictionary or Domain Model, Jira decision, or an explicit spec update before implementation.
+Resolution:
+This is a pure, computed-on-demand read with no persisted state, no retry/idempotency concept, and no audit event -- there is nothing to transition or record beyond the generic `403`/`404`/`409` error model already used by `getBookingDetails` (CTMS-030). Health-derived items are gated by the Camper's existing `HealthProfile.isConsentGranted` flag rather than a new consent concept. Full rationale in Section 16.
 
 ### PD-03 - Source Conflict Handling
 
-Status: UNRESOLVED WHEN A CONFLICT IS FOUND
+Status: RESOLVED
 
 Question:
 Do PB V3.1, Business Rules, Data Dictionary or Domain Model, Jira, or existing code/tests disagree for this story?
@@ -455,8 +470,8 @@ Affected:
 Implementation impact:
 A lower-level artifact that conflicts with an approved higher-level source is stale until reconciled.
 
-Required action:
-Record the conflict, stop short of inventing behavior, and request BA/PO/domain owner clarification.
+Resolution:
+`BR-219` (materialized in Section 5.4) is about on-device GPS off-route detection for the Offline Safety Package during an ongoing Trip -- it shares no subject matter with a personalized packing list and reads as a copy-paste/backlog-sync artifact from an unrelated safety-package story, the same class of mismatch already recorded in CTMS-23/39/40's own PD-03 entries. It was not materialized into any packing-list behavior; no offline/GPS/off-route logic was invented for this story. Flagged here for BA review of the source spreadsheet's row mapping, not blocking implementation, since `BR-137`/`BR-138` (also in Section 5.4) were coherent enough on their own to ground the rule engine actually built (Section 16).
 
 ---
 
