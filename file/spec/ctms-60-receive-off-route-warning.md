@@ -1,537 +1,149 @@
-# CTMS-060 - Receive Off-Route Warning
+# CTMS-060 — Receive Off-Route Warning
 
-**Spec Reference**  
-/file/spec/ctms-60-receive-off-route-warning.md
+## 1. Overview
 
-**Source Authority**  
-- Product Backlog V3.1 is the scope authority for this story.
-- Business Rules are the invariant/policy source. This spec rewrites relevant rules as executable behavior so Dev and QA do not need to infer behavior from rule IDs.
-- Jira is used for execution tracking, status, and task ownership. Jira content must not replace the behavior contract below.
-- Authority order for conflicts: Business Rules V3, Data Dictionary or Domain Model V3, approved Jira requirement or decision, this file/spec, code, then tests.
+Story: CTMS-060
+Epic: EPIC 9. GPS Navigation and Route Deviation
+Use Case: Receive Off-Route Warning
+Priority: Must Have
 
----
+Goal:
+Allow Host to complete `Receive Off-Route Warning` within the approved CTMS v3.1 scope.
 
-## 1. Purpose
-
-Implement `Receive Off-Route Warning` so the CTMS workflow is safe, consistent, auditable, and aligned with PB V3.1.
-
-Business purpose from PB V3.1:
-
-- English use case: `Receive Off-Route Warning`
-- Story: As a System, I want to receive off-route warning so that CTMS supports the workflow safely and consistently.
-
-Implementation details belong in the sections below, not in this purpose summary.
-
----
+Acceptance summary:
+The Receive Off-Route Warning workflow must satisfy the approved PB v3.1 acceptance criteria for this story. Do not copy the Vietnamese backlog text into this spec; implementers must preserve the approved source meaning when refining detailed tests.
 
 ## 2. Scope
 
 ### In Scope
-- The behavior needed for `Receive Off-Route Warning` within `EPIC 9. GPS Navigation and Route Deviation`.
-- Backend validation, authorization, persistence, state handling, idempotency, and audit behavior needed for this story.
-- UI/API behavior that makes success, pending, validation failure, authorization failure, conflict, and retry states observable.
-- Tests proving the PB V3.1 acceptance criteria and mapped Business Rules are enforced.
+
+- Story-owned behavior for `Receive Off-Route Warning`.
+- Validation, authorization, state handling, persistence, audit, and observable errors required by the mapped Business Rules.
+- Story-specific acceptance tests that prove both allowed and rejected paths.
 
 ### Out of Scope
-- Behavior owned by dependency stories unless explicitly referenced as a precondition or integration point.
-- Replacing source-of-truth entities owned by another module.
-- Changing unrelated workflow, enum, database, API, or UI contracts outside this story.
-- Treating Jira task wording as a substitute for this implementation contract.
-- Inventing behavior that is not approved in PB V3.1, Business Rules, domain model, Jira, or a recorded product decision.
 
----
+- Behavior owned by dependency stories unless a mapped BR explicitly makes it part of this story.
+- Implementation of dependency stories: CTMS-052, CTMS-058, CTMS-059.
 
-## 3. Actors
+## 3. Actors & Authorization
 
-- Camper: primary actor for this workflow.
-- Backend API: validates authorization, state, input, persistence, idempotency, and audit requirements.
-- UI Client: presents allowed actions, validates obvious input, shows loading/success/error states, and never replaces backend enforcement.
-- Related CTMS modules: provide referenced Trip, Route, Booking, Payment, Offline Package, AI, Notification, or Administration data when this story depends on them.
+- Host: primary business actor for this story.
+- Backend API: authoritative enforcement point for permissions, state, and business rules.
+- UI or client application: may guide the user, but must not replace backend enforcement.
 
----
+Authorization must be concrete: the caller must have the role, ownership, assignment, or operational relationship required by the mapped BRs before any protected data is returned or any state-changing action is committed.
 
-## 4. Preconditions
+## 4. Preconditions & Dependencies
 
-- Actor is authenticated when the workflow requires identity.
-- Actor has the role, ownership, consent, assignment, or operational relationship required by the story.
-- Referenced records exist and are in states that allow this workflow.
-- Dependencies are satisfied: CTMS-052, CTMS-058, CTMS-059.
-- PB V3.1 acceptance criteria and the Business Rules listed in this spec are available to implementation and QA.
-
-If a precondition is not satisfied, the system must reject the action or show a blocked/degraded state without unintended side effects.
-
----
-
-## 5. Business Behavior
-
-### 5.1 Primary Behavior
-
-The system implements `Receive Off-Route Warning` exactly within the PB V3.1 scope:
-
-- Calculate `distance_to_route` on the device using the Route in the Offline Safety Package.
-- Treat one threshold breach as suspected off-route only.
-- Confirm `OFF_ROUTE` only after the default rule of 3 consecutive valid samples over the threshold.
-- When confirmed, trigger local vibration, sound, or visual warning and store a safety event even without network connectivity.
-
-### 5.2 Validation Rules
-
-- Required fields, enum values, date/time ranges, identifiers, ownership boundaries, and cross-entity references are validated before persistence.
-- Backend is authoritative for permission, state, price, capacity, inventory, safety, payment, and operational outcomes.
-- UI validation may improve the experience, but backend validation is mandatory and final.
-- Invalid input returns a clear error and does not partially create, update, or synchronize records.
-
-### 5.3 State and Transaction Rules
-
-- State transitions must start from an allowed source state and end in an allowed target state.
-- Multi-record side effects must run in a transaction or equivalent atomic unit.
-- Concurrent requests, duplicate submissions, stale reads, and provider retries must not create duplicate records or inconsistent state.
-- If the operation cannot complete safely, the system preserves the previous authoritative state and returns an actionable failure.
-
-### 5.4 Business Rules Materialized
-
-The following rules are materialized as behavior for this story:
-
-| ID | Content |
-| --- | --- |
-| `BR-217` | Required behavior for `Receive Off-Route Warning` must validate and enforce GPS, Trip, ongoing, Route, data, active, Offline, Safety, Package, server as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths. |
-| `BR-238` | Required behavior for `Receive Off-Route Warning` must validate and enforce GPS, VALID, Trip, ongoing, client, distance_to_route, sample, Route, geometry, active as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths. |
-| `BR-351` | Required behavior for `Receive Off-Route Warning` must validate and enforce OFF_ROUTE, GPS, client, safety, event, local, trip, member, event_time as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths. |
-| `BR-375` | The V3 OFF_ROUTE distance threshold is fixed at 50 meters from GPS location to the nearest segment of the active Route/package version geometry. |
-| `BR-376` | Required behavior for `Receive Off-Route Warning` must validate and enforce OFF_ROUTE, sample, suspected_off_route, distance_to_route, route, threshold, confirmed as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths. |
-| `BR-377` | OFF_ROUTE is confirmed only after three consecutive VALID GPS samples satisfy the OFF_ROUTE threshold. A VALID sample that does not satisfy the threshold before the third sample resets the OFF_ROUTE counter to zero. |
-| `BR-378` | INVALID or low-confidence samples always reset consecutive OFF_ROUTE, ON_ROUTE, and checkpoint counters to zero in V3; counters must not pause. |
-| `BR-379` | A runtime GPS sample is accurate enough for safety detection when horizontal accuracy is `<= 20m`. Accuracy above `20m` is low-confidence/INVALID and must reset consecutive counters. |
-| `BR-380` | Required behavior for `Receive Off-Route Warning` must validate and enforce OFF_ROUTE, active, member, Trip, episode, safety, session, sample, evidence as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths. |
-| `BR-381` | Required behavior for `Receive Off-Route Warning` must validate and enforce OFF_ROUTE, episode, current, distance, maximum, observed, duration, last, qualified, sample as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths. |
-| `BR-382` | OFF_ROUTE recovery uses a fixed ON_ROUTE threshold below 20 meters. The 20m-50m range is a buffer zone to avoid state oscillation around the OFF_ROUTE threshold. |
-| `BR-383` | The fixed V3 OFF_ROUTE distance threshold is `50m` from the GPS location to the nearest segment of the Route geometry in the active package/version. |
-| `BR-384` | Required behavior for `Receive Off-Route Warning` must validate and enforce OFF_ROUTE, local, warning, network, Warning, safety, instruction as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths. |
-| `BR-385` | `OFF_ROUTE` is confirmed after 3 consecutive VALID GPS samples with `distance_to_route > 50m`. An INVALID sample or a VALID sample with `distance_to_route <= 50m` before the third qualifying sample resets the OFF_ROUTE counter to `0`. |
-| `BR-386` | In V3, INVALID or low-confidence samples always reset consecutive OFF_ROUTE, ON_ROUTE, and checkpoint counters to `0`; counters are not paused. |
-| `BR-387` | Required behavior for `Receive Off-Route Warning` must validate and enforce GPS, VALID, GPS_DEGRADED, OFF_ROUTE, sample, Trip, ongoing, Mobile, Safety, Engine as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths. |
-| `BR-388` | Required behavior for `Receive Off-Route Warning` must validate and enforce GPS_DEGRADED, GPS, VALID, NORMAL, tracking, state, sample, consecutive, counter, giai as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths. |
-| `BR-212` | Any Business Rule, enum, state transition, or API contract change must update the spec, tests, and data documentation before the story is Done. |
-| `BR-213` | Every mapped Business Rule must have at least one valid-path test and one violation-path test; concurrency, idempotency, and transaction rules require integration or E2E coverage. |
-| `BR-350` | A GPS sample may participate in safety detection only when it belongs to an active Trip safety session and references the correct member/device/session context. |
-| `BR-360` | Trip/client must be able to identify the package version used when GPS or safety data was recorded. GPS logs, safety events, and sync payloads must carry enough reference/version context for historical safety analysis. |
-| `BR-362` | Safety tracking may activate only for a Trip state allowed by the V3 state machine. GPS outside the Trip window must not become operational Trip safety evidence without an explicit recovery/admin policy. |
-| `BR-363` | Each device safety-tracking session must bind at minimum to `trip_id`, member or participant identity, device/session context, and active `offline_package_id/version`; missing required context prevents authoritative Trip safety events. |
-| `BR-373` | `distance_to_route` must be calculated against the nearest segment of the active Route/package version geometry, not merely the nearest waypoint or checkpoint. |
-| `BR-374` | The internal standard unit for `distance_to_route` is meters. API and storage must publish or normalize units so client and server interpret distance consistently. |
-| `BR-389` | If the app restarts during a Trip, the client must restore the active safety session, package context, and any valid unsynced safety events or GPS logs from local storage before continuing tracking. |
-| `BR-398` | `gps_logs` are historical telemetry and are not the sole source of realtime safety state. OFF_ROUTE and checkpoint events must be persisted independently from the 30-second `gps_log` boundary when the event sample does not align with that boundary. |
-| `BR-431` | The client must store the configuration version used by the safety session. Historical events must store config/rule version so events created under different thresholds remain distinguishable. |
-
-### 5.5 Source Confidence
-
-- PB V3.1 row `CTMS-060` is the direct scope and acceptance source.
-- Rule IDs above come from the `Primary BR IDs` column in PB V3.1 and are materialized here as implementation behavior.
-- If a rule ID conflicts with PB V3.1 behavior, do not silently choose one. Record a Pending Decision and update PB/rules/spec together.
-- This file may elaborate approved behavior into execution flow, but it must not invent, change, or override business behavior.
-- Undefined, ambiguous, or conflicting behavior must be captured in Section 19 as a Pending Decision.
-
----
-
-## 6. State Model
-
-The story state model is:
-
-- `NOT_STARTED`: actor has not initiated the workflow.
-- `IN_PROGRESS`: request, calculation, sync, AI operation, or review is being processed.
-- `SUCCEEDED`: authoritative result is persisted or returned.
-- `FAILED_VALIDATION`: input or referenced data is invalid.
-- `FAILED_AUTHORIZATION`: actor lacks required permission or relationship.
-- `CONFLICT`: current server state no longer allows the requested action.
-- `PENDING_RETRY` or `SYNC_PENDING`: used only when the story includes offline, external provider, async, or retry behavior.
-
-Every implementation must replace these generic labels with existing enum values when the owning module already defines a state machine.
-
----
-
-## 7. Main Flow
-
-### Scenario: Receive Off-Route Warning
-
-1. Actor opens or triggers the `Receive Off-Route Warning` workflow.
-2. UI loads the minimum data needed for the workflow and shows unavailable states when dependencies are missing.
-3. Actor submits the action or the system starts the scheduled/automatic processing.
-4. Backend authenticates the caller or system job.
-5. Backend validates authorization, ownership/business relationship, input shape, referenced records, and current state.
-6. Backend applies the PB V3.1 behavior and mapped Business Rules in one safe transaction or equivalent atomic unit.
-7. Backend persists the authoritative result, audit data, and integration/sync metadata where required.
-8. UI/API returns the observable outcome: success, pending, blocked, conflict, retryable failure, or validation failure.
-
----
-
-## 8. Edge Cases
-
-### Missing or Unauthorized Actor
-
-Reject with authentication or authorization error. No business side effect is allowed.
-
-### Missing Dependency
-
-If dependency data from `CTMS-058, CTMS-059` is missing or not in an allowed state, block the workflow with a clear reason.
-
-### Invalid Input or Reference
-
-Reject invalid fields, invalid enum values, missing required references, out-of-range dates, invalid coordinates, invalid amounts, or stale IDs before writing data.
-
-### Duplicate Submission or Retry
-
-Use idempotency keys, stable client identifiers, provider references, or transaction constraints so retries do not create duplicate authoritative records.
-
-### Concurrent Update
-
-Detect stale state with locking, version checks, unique constraints, or conflict validation. Return a conflict result and preserve the user's recoverable input where a UI exists.
-
-### External Provider, AI, Offline, or Sync Failure
-
-If this story calls an external provider, AI service, offline queue, or sync process, the system must expose pending/failed/retry states and must not present unconfirmed output as authoritative.
-
----
-
-## 9. Data Requirements
-
-The implementation must persist or return only data required for `Receive Off-Route Warning`:
-
-- actor/user context and role/relationship used for authorization;
-- referenced domain identifiers such as Trip, Route, Booking, Payment, Member, Package, Review, Alert, or Report ids when applicable;
-- source timestamps and server timestamps as separate values when client/offline/provider events are involved;
-- status/state fields needed to distinguish pending, succeeded, failed, rejected, stale, or synced data;
-- audit fields for actor, action, target, before/after values, timestamp, and reason when applicable;
-- idempotency keys, provider references, sync metadata, model/config/rule version, or package/version context when the behavior depends on them.
-
-Do not duplicate an entire data dictionary in this spec. Reference existing entities and add only story-specific requirements.
-
----
-
-## 10. Backend / API Responsibilities
-
-Backend is responsible for:
-
-- authentication and authorization;
-- input DTO validation;
-- ownership and business relationship checks;
-- state transition validation;
-- transaction boundaries and rollback;
-- idempotency and duplicate prevention;
-- persistence of authoritative state;
-- audit logging when the action is operational, financial, safety-related, administrative, or security-sensitive;
-- returning consistent error semantics: `401`, `403`, `404`, `409`, and `422` where applicable.
-
-If endpoint paths or DTOs are not finalized, implementation must define a typed contract before UI integration and record unresolved endpoint details as Pending Decisions.
-
----
-
-## 11. Mobile / UI Responsibilities
-
-UI is responsible for:
-
-- displaying only actions allowed by known role/state while treating backend as final authority;
-- collecting required inputs with clear validation messages;
-- showing loading, success, pending, failed, retry, conflict, and permission-denied states;
-- preserving user-entered data after recoverable failure or conflict where practical;
-- distinguishing local/pending/offline/AI-suggested data from server-confirmed authoritative state;
-- using existing CTMS design, i18n, accessibility, and state-management patterns.
-
-If this story has no user-facing UI, UI responsibilities are limited to any admin, monitoring, notification, or client state needed to observe the backend result.
-
----
-
-## 12. Offline & Sync Behavior
-
-Online:
-
-- Execute against backend-authoritative validation and persistence.
-
-Offline:
-
-- If this story is not offline-capable, block the write action and show the unavailable state.
-- If this story is offline-capable, persist a local pending record with stable identifiers and enough context to sync later.
-
-Reconnect:
-
-- Sync pending records idempotently.
-- Preserve original client event time separately from server received time.
-- Do not present unsynced data as authoritative server state.
-
-Pending Decision:
-
-- If this story requires offline or sync semantics beyond the owning sync specification, record the unresolved behavior in Section 19 before implementation.
-
----
-
-## 13. Error Handling
-
-| Condition | Observable behavior |
-| --- | --- |
-| Authentication missing/expired | Return `401`; UI prompts sign-in or session refresh. |
-| Actor lacks permission | Return `403`; no side effect. |
-| Referenced record missing | Return `404` when the actor may know it exists; otherwise preserve privacy-safe response. |
-| Invalid input | Return `422` with field-level reason where possible. |
-| Business conflict | Return `409` with recoverable explanation. |
-| External provider or async failure | Keep state pending/failed with retry metadata and no duplicate authoritative result. |
-| Unexpected server error | Roll back partial work and return a generic error without leaking secrets or stack trace. |
-
----
-
-## 14. Security & Authorization
-
-- Authorization must check role, ownership, consent, assignment, Trip/Route/Booking relationship, or administrative scope as applicable.
-- Sensitive data must not be exposed beyond the actor's business need.
-- Payment credentials, tokens, OTPs, secrets, health data, exact location, and AI/private prompt data must not appear in logs or audit records unless explicitly required and approved.
-- Backend remains the source of truth for permission and state even when UI hides unavailable actions.
-- Audit is required for important operational, safety, financial, administrative, and security-sensitive changes.
-
----
-
-## 15. Acceptance Criteria
-
-### AC-01
-
-Given:
-
-- The preconditions in this spec are satisfied.
-
-When:
-
-- The device calculates `distance_to_route` from the active Offline Safety Package Route..
-
-Then:
-
-- The system behavior matches the rule above.
-- Backend validation and UI state are consistent with the observable result.
-- Tests cover the success path and at least one failure or boundary case.
-### AC-02
-
-Given:
-
-- The preconditions in this spec are satisfied.
-
-When:
-
-- One valid sample beyond the off-route threshold remains suspected only and does not confirm `OFF_ROUTE`..
-
-Then:
-
-- The system behavior matches the rule above.
-- Backend validation and UI state are consistent with the observable result.
-- Tests cover the success path and at least one failure or boundary case.
-### AC-03
-
-Given:
-
-- The preconditions in this spec are satisfied.
-
-When:
-
-- Three consecutive valid samples beyond the threshold confirm `OFF_ROUTE` and trigger a local warning..
-
-Then:
-
-- The system behavior matches the rule above.
-- Backend validation and UI state are consistent with the observable result.
-- Tests cover the success path and at least one failure or boundary case.
-### AC-04
-
-Given:
-
-- The preconditions in this spec are satisfied.
-
-When:
-
-- A confirmed safety event is stored locally and remains available for later sync when the device is offline..
-
-Then:
-
-- The system behavior matches the rule above.
-- Backend validation and UI state are consistent with the observable result.
-- Tests cover the success path and at least one failure or boundary case.
-
-### AC-05 - Authorization and Invalid State Protection
-
-Given:
-
-- The actor is missing permission, the target record is missing, or the current state does not allow the workflow.
-
-When:
-
-- The actor or system attempts `Receive Off-Route Warning`.
-
-Then:
-
-- The backend rejects the action with the correct error category.
-- No unintended side effect is persisted.
-- UI/API exposes the failure clearly.
-
-### AC-06 - Duplicate and Retry Safety
-
-Given:
-
-- The same request, sync item, provider callback, or user action is submitted more than once.
-
-When:
-
-- The backend processes the duplicate.
-
-Then:
-
-- At most one authoritative result is created.
-- Duplicate handling returns a compatible success, already-processed, or conflict response.
-
----
-
-## 16. Backend Preparation, Logic and Tests
-
-### Responsibilities
-
-- Implement or update the owning module's service, controller, repository, DTO, entity, migration, queue, provider, or sync handler as needed.
-- Enforce PB V3.1 behavior and mapped Business Rules in backend logic.
-- Keep transactions, idempotency, state validation, and audit behavior close to the domain operation.
-- Reuse existing CTMS helpers for auth, validation, i18n, API errors, transactions, and tests.
-- Keep this as the HOW-SYSTEM responsibility contract for `CTMS-060-T01`; do not duplicate the complete end-to-end flow in Jira.
-
-### Required Tests
-
-- Unit tests for validation, state transitions, mapped Business Rules, and failure paths.
-- Integration/API tests for success, invalid input, unauthorized access, missing resource, conflict, idempotency, and rollback.
-- Provider/sync/AI tests when this story depends on external service, offline queue, model output, or background processing.
-- Regression tests proving no mapped Business Rule is silently bypassed.
-
-### Logic Subtask DoD
-
-- [ ] Logic implementation completed.
-- [ ] Applicable business rules and invariants implemented.
-- [ ] Task-specific unit tests added or updated.
-- [ ] Task-specific unit tests passed.
-- [ ] Applicable backend or integration tests passed.
-
----
-
-## 17. UI and Tests
-
-### Responsibilities
-
-- Implement screen/component/client state only when this story has a user-facing workflow.
-- Wire UI to typed API contracts.
-- Show loading, empty, blocked, validation, conflict, retry, and success states.
-- Keep local/client validation aligned with backend DTOs without treating client validation as enforcement.
-- Keep this as the HOW-CLIENT responsibility contract for `CTMS-060-T02`; backend/server responses remain the source of truth for server-owned business state.
-
-### Required Tests
-
-- Component or mobile widget tests for rendered states and user actions.
-- Hook/client-state tests for API success, validation failure, authorization failure, conflict, and retry where applicable.
-- Offline/error-state tests when the story includes pending local data or synchronization.
-- Accessibility and interaction checks for critical user-facing flows.
-
-### UI or Final Implementation Subtask DoD
-
-- [ ] UI implementation completed when this story has a client-facing workflow.
-- [ ] Applicable client-side behavior implemented.
-- [ ] Task-specific unit or component tests passed.
-- [ ] Backend integration completed.
-- [ ] Task-specific E2E tests passed when an end-to-end user path exists.
-- [ ] All Story Acceptance Criteria verified.
-- [ ] Unit regression tests passed.
-- [ ] E2E regression tests passed.
-- [ ] `lint:all` passed.
-- [ ] `build:all` passed.
-- [ ] `test:all` passed.
-- If UI is not the final implementation subtask, move these integrated quality gates to the actual final implementation subtask or an explicit Story-level verification step.
-
----
-
-## 18. Related Specifications
-
-Dependencies:
-
+- Product Backlog v3.1 row `CTMS-060` is the story scope source.
+- The mapped Primary BR IDs below exist in the latest Business Rules workbook.
+- Required domain records already exist and are in states allowed by the mapped BRs.
+- Dependencies:
+- CTMS-052
 - CTMS-058
 - CTMS-059
 
-Potentially related specs must be referenced for context only. Do not duplicate their owned logic in this spec.
+## 5. Business Rules
 
----
+| BR | Rule |
+|---|---|
+| BR-217 | This BR is the authoritative story rule for `Receive Off-Route Warning`. Preserve and enforce these source thresholds, states, identifiers, and comparison operators exactly: GPS. |
+| BR-238 | This BR is the authoritative story rule for `Receive Off-Route Warning`. Preserve and enforce these source thresholds, states, identifiers, and comparison operators exactly: GPS, VALID. |
+| BR-351 | This BR is the authoritative story rule for `Receive Off-Route Warning`. Preserve and enforce these source thresholds, states, identifiers, and comparison operators exactly: OFF_ROUTE, GPS. |
+| BR-375 | The V3 OFF_ROUTE distance threshold is fixed at 50 meters from GPS location to the nearest segment of the active Route/package version geometry. |
+| BR-376 | This BR is the authoritative story rule for `Receive Off-Route Warning`. Preserve and enforce these source thresholds, states, identifiers, and comparison operators exactly: OFF_ROUTE. |
+| BR-377 | OFF_ROUTE is confirmed only after three consecutive VALID GPS samples satisfy the OFF_ROUTE threshold. A VALID sample that does not satisfy the threshold before the third sample resets the OFF_ROUTE counter to zero. |
+| BR-378 | INVALID or low-confidence samples always reset consecutive OFF_ROUTE, ON_ROUTE, and checkpoint counters to zero in V3; counters must not pause. |
+| BR-379 | A runtime GPS sample is accurate enough for safety detection when horizontal accuracy is `<= 20m`. Accuracy above `20m` is low-confidence/INVALID and must reset consecutive counters. |
+| BR-380 | This BR is the authoritative story rule for `Receive Off-Route Warning`. Preserve and enforce these source thresholds, states, identifiers, and comparison operators exactly: OFF_ROUTE. |
+| BR-381 | This BR is the authoritative story rule for `Receive Off-Route Warning`. Preserve and enforce these source thresholds, states, identifiers, and comparison operators exactly: OFF_ROUTE. |
+| BR-382 | OFF_ROUTE recovery uses a fixed ON_ROUTE threshold below 20 meters. The 20m-50m range is a buffer zone to avoid state oscillation around the OFF_ROUTE threshold. |
+| BR-383 | The fixed V3 OFF_ROUTE distance threshold is `50m` from the GPS location to the nearest segment of the Route geometry in the active package/version. |
+| BR-384 | This BR is the authoritative story rule for `Receive Off-Route Warning`. Preserve and enforce these source thresholds, states, identifiers, and comparison operators exactly: OFF_ROUTE, UX. |
+| BR-385 | `OFF_ROUTE` is confirmed after 3 consecutive VALID GPS samples with `distance_to_route > 50m`. An INVALID sample or a VALID sample with `distance_to_route <= 50m` before the third qualifying sample resets the OFF_ROUTE counter to `0`. |
+| BR-386 | In V3, INVALID or low-confidence samples always reset consecutive OFF_ROUTE, ON_ROUTE, and checkpoint counters to `0`; counters are not paused. |
+| BR-387 | This BR is the authoritative story rule for `Receive Off-Route Warning`. Preserve and enforce these source thresholds, states, identifiers, and comparison operators exactly: GPS, VALID, 2 minutes, GPS_DEGRADED, OFF_ROUTE. |
+| BR-388 | This BR is the authoritative story rule for `Receive Off-Route Warning`. Preserve and enforce these source thresholds, states, identifiers, and comparison operators exactly: GPS_DEGRADED, GPS, VALID, NORMAL. |
+| BR-212 | Any Business Rule, enum, state transition, or API contract change must update the spec, tests, and data documentation before the story is Done. |
+| BR-213 | Every mapped Business Rule must have at least one valid-path test and one violation-path test; concurrency, idempotency, and transaction rules require integration or E2E coverage. |
+| BR-350 | A GPS sample may participate in safety detection only when it belongs to an active Trip safety session and references the correct member/device/session context. |
+| BR-360 | Trip/client must be able to identify the package version used when GPS or safety data was recorded. GPS logs, safety events, and sync payloads must carry enough reference/version context for historical safety analysis. |
+| BR-362 | Safety tracking may activate only for a Trip state allowed by the V3 state machine. GPS outside the Trip window must not become operational Trip safety evidence without an explicit recovery/admin policy. |
+| BR-363 | Each device safety-tracking session must bind at minimum to `trip_id`, member or participant identity, device/session context, and active `offline_package_id/version`; missing required context prevents authoritative Trip safety events. |
+| BR-373 | `distance_to_route` must be calculated against the nearest segment of the active Route/package version geometry, not merely the nearest waypoint or checkpoint. |
+| BR-374 | The internal standard unit for `distance_to_route` is meters. API and storage must publish or normalize units so client and server interpret distance consistently. |
+| BR-389 | If the app restarts during a Trip, the client must restore the active safety session, package context, and any valid unsynced safety events or GPS logs from local storage before continuing tracking. |
+| BR-398 | `gps_logs` are historical telemetry and are not the sole source of realtime safety state. OFF_ROUTE and checkpoint events must be persisted independently from the 30-second `gps_log` boundary when the event sample does not align with that boundary. |
+| BR-431 | The client must store the configuration version used by the safety session. Historical events must store config/rule version so events created under different thresholds remain distinguishable. |
 
-## 19. Pending Decisions
+## 6. State & Lifecycle
 
-Use this section for undefined, ambiguous, or conflicting behavior. Do not guess business behavior during implementation.
+Relevant states from the approved rules: `active`, `confirmed`.
 
-### PD-01 - API and DTO Contract
+Do not introduce placeholder workflow states unless an owning domain contract explicitly defines them.
 
-Status: UNRESOLVED
+## 7. Business Flow
 
-Question:
-What are the final endpoint paths, request DTOs, response DTOs, and error payloads for `Receive Off-Route Warning` if they are not already implemented?
+1. Host initiates `Receive Off-Route Warning` through the approved UI, API, scheduled job, or integration point.
+2. The backend loads the required source records and verifies authorization, ownership or assignment, current state, and all mapped BR prerequisites.
+3. The backend applies the story-owned decision logic from Section 5.
+4. If any mapped rule is violated, the backend rejects the operation with no partial side effects and returns an actionable error.
+5. If the action changes authoritative data, the change commits atomically with required audit and post-commit notifications.
+6. The client presents the committed result or the rejection reason without exposing protected data.
 
-Affected:
-- Jira Story: `CTMS-060`
-- Logic Subtask: `CTMS-060-T01`
-- UI Subtask: `CTMS-060-T02`
+## 8. Data & Invariants
 
-Implementation impact:
-Backend and UI integration cannot be finalized safely without a typed contract.
+- Persist or return only fields required for `Receive Off-Route Warning` and the mapped BRs.
+- Preserve authoritative identifiers, ownership links, timestamps, snapshots, status values, and audit references when they affect the business outcome.
+- Derived counters, scores, release-gate metrics, and ledger amounts must be traceable to their source records and rule version.
+- Do not invent tables, enum values, state machines, or audit stores solely for this story.
 
-Required action:
-BA, PO, or domain owner confirms the API contract, or the implementation records the approved contract in this spec before coding.
+## 9. API / Integration Contract
 
-### PD-02 - Story-Specific State and Failure Semantics
+TBD — Technical Design.
 
-Status: UNRESOLVED
+## 10. Error & Edge Cases
 
-Question:
-Are there story-specific state enum values, partial failure semantics, retry limits, conflict rules, audit event names, or before/after audit payloads beyond the generic model in this spec?
+| Case | Expected Behavior |
+|---|---|
+| Caller lacks the required role, ownership, assignment, or relationship | Reject with no side effects. |
+| Required source record is missing | Return not found or blocked state without fabricating data. |
+| Current state violates a mapped BR | Return business conflict and preserve the current authoritative state. |
+| Input violates a mapped BR | Return validation error before persistence. |
+| Duplicate or retried request affects authoritative data | Enforce idempotency or reject safely so duplicate records, refunds, notifications, or ledger entries are not created. |
 
-Affected:
-- Business Rules listed in Section 5.4
-- Related specifications in Section 18
+## 11. Acceptance & Test Matrix
 
-Implementation impact:
-Implementers must not silently choose state, retry, conflict, or audit behavior when the approved sources do not define it.
+| BR / AC | Scenario | Expected Result | Test Type |
+|---|---|---|---|
+| PB AC | Approved backlog acceptance path for `Receive Off-Route Warning` | Meets the acceptance summary above | E2E |
+| BR-217 | Approved rule is satisfied for `Receive Off-Route Warning` | Accepted and persisted or returned as applicable | Integration |
+| BR-217 | Approved rule is violated for `Receive Off-Route Warning` | Rejected with no partial side effects | Boundary / Integration |
+| BR-238 | Approved rule is satisfied for `Receive Off-Route Warning` | Accepted and persisted or returned as applicable | Integration |
+| BR-238 | Approved rule is violated for `Receive Off-Route Warning` | Rejected with no partial side effects | Boundary / Integration |
+| BR-351 | Approved rule is satisfied for `Receive Off-Route Warning` | Accepted and persisted or returned as applicable | Integration |
+| BR-351 | Approved rule is violated for `Receive Off-Route Warning` | Rejected with no partial side effects | Boundary / Integration |
+| BR-375 | Approved rule is satisfied for `Receive Off-Route Warning` | Accepted and persisted or returned as applicable | Integration |
+| BR-375 | Approved rule is violated for `Receive Off-Route Warning` | Rejected with no partial side effects | Boundary / Integration |
+| BR-376 | Approved rule is satisfied for `Receive Off-Route Warning` | Accepted and persisted or returned as applicable | Integration |
+| BR-376 | Approved rule is violated for `Receive Off-Route Warning` | Rejected with no partial side effects | Boundary / Integration |
+| BR-377 | Approved rule is satisfied for `Receive Off-Route Warning` | Accepted and persisted or returned as applicable | Integration |
+| BR-377 | Approved rule is violated for `Receive Off-Route Warning` | Rejected with no partial side effects | Boundary / Integration |
+| BR-378 | Approved rule is satisfied for `Receive Off-Route Warning` | Accepted and persisted or returned as applicable | Integration |
+| BR-378 | Approved rule is violated for `Receive Off-Route Warning` | Rejected with no partial side effects | Boundary / Integration |
+| BR-379 | Approved rule is satisfied for `Receive Off-Route Warning` | Accepted and persisted or returned as applicable | Integration |
+| BR-379 | Approved rule is violated for `Receive Off-Route Warning` | Rejected with no partial side effects | Boundary / Integration |
+| Remaining mapped BRs | Each mapped BR has valid and violation coverage in the owning test suite | Coverage proves the rule is enforced | Unit / Integration / E2E |
 
-Required action:
-Resolve through Business Rules, Data Dictionary or Domain Model, Jira decision, or an explicit spec update before implementation.
+## 12. Open Decisions & References
 
-### PD-03 - Source Conflict Handling
+### 12.1 Open Decisions
 
-Status: UNRESOLVED WHEN A CONFLICT IS FOUND
+None.
 
-Question:
-Do PB V3.1, Business Rules, Data Dictionary or Domain Model, Jira, or existing code/tests disagree for this story?
+### 12.2 References
 
-Affected:
-- PB V3.1 row `CTMS-060`
-- Business Rules listed in Section 5.4
-- Existing implementation and tests if present
-
-Implementation impact:
-A lower-level artifact that conflicts with an approved higher-level source is stale until reconciled.
-
-Required action:
-Record the conflict, stop short of inventing behavior, and request BA/PO/domain owner clarification.
-
----
-
-## References
-
-- Story ID: `CTMS-060`
-- Epic: `EPIC 9. GPS Navigation and Route Deviation`
-- Jira Story owns WHAT and WHY for this capability.
-- Jira Logic Subtask `CTMS-060-T01` owns HOW-SYSTEM responsibilities.
-- Jira UI Subtask `CTMS-060-T02` owns HOW-CLIENT responsibilities when a client workflow exists.
-- This file/spec owns the detailed execution flow, edge cases, contracts, invariants, and technical processing.
-- Product Backlog V3.1 use case: `Receive Off-Route Warning`
-- Priority: `Must Have`
-- Story points: `13.0`
-- Dependencies: `CTMS-052, CTMS-058, CTMS-059`
-- Status: `To Do`
-- Sprint: `Sprint 4`
-- Commitment: `Committed`
-- Planned window: `2026-09-06` to `2026-09-19`
-- Product Backlog source: `PRODUCT BACKLOG.xlsx`, sheet `v3.1`
-- Business Rules source: `CTMS- Business rules.xlsx`, sheet `Business Rules`
-- Story-level business rules: BR-231, BR-233, BR-235, BR-237, BR-365, BR-371, BR-372, BR-437, BR-438, BR-219, BR-239, BR-240, BR-245, BR-246, BR-247, BR-379, BR-383, BR-385, BR-386, BR-390, BR-391, BR-395, BR-396, BR-441
-- Jira execution tasks should reference:
-  - `/file/spec/ctms-60-receive-off-route-warning.md#backend-preparation-logic-and-tests`
-  - `/file/spec/ctms-60-receive-off-route-warning.md#ui-and-tests`
+- Product Backlog v3.1.
+- CTMS Business Rules workbook.
+- CTMS Architecture Overview.

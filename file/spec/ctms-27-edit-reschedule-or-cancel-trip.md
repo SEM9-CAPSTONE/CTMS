@@ -1,491 +1,259 @@
-# CTMS-027 - Edit, Reschedule, or Cancel Trip
+# CTMS-027 — Edit, Reschedule, or Cancel Trip
 
-**Spec Reference**  
-/file/spec/ctms-27-edit-reschedule-or-cancel-trip.md
+## 1. Overview
 
-**Source Authority**  
-- Product Backlog V3.1 is the scope authority for this story.
-- Business Rules are the invariant/policy source. This spec rewrites relevant rules as executable behavior so Dev and QA do not need to infer behavior from rule IDs.
-- Jira is used for execution tracking, status, and task ownership. Jira content must not replace the behavior contract below.
-- Authority order for conflicts: Business Rules V3, Data Dictionary or Domain Model V3, approved Jira requirement or decision, this file/spec, code, then tests.
+Story: CTMS-027
+Epic: EPIC 4. Trip Management
+Use Case: Edit, Reschedule, or Cancel Trip
+Priority: Must Have
 
----
+Goal:
+Allow the owning Host to edit, reschedule, or cancel a Trip they organize without breaking existing Camper, Porter, Equipment, refund, audit, or notification commitments.
 
-## 1. Purpose
-
-Implement `Edit, Reschedule, or Cancel Trip` so the CTMS workflow is safe, consistent, auditable, and aligned with PB V3.1.
-
-Business purpose from PB V3.1:
-
-- English use case: `Edit, Reschedule, or Cancel Trip`
-- Story: As a System, I want to edit, reschedule, or cancel trip so that CTMS supports the workflow safely and consistently.
-
-Implementation details belong in the sections below, not in this purpose summary.
-
----
+Acceptance summary:
+Only the owning Host may edit, reschedule, or cancel the Trip. Reschedule may change only `starts_at` and/or `ends_at`, and only when `new_starts_at > rescheduled_at + 24h`. A successful reschedule moves active Camper Bookings and Porter Assignments to Pending Reconfirmation with a T-24h response deadline. Camper acceptance preserves Booking, slot, and paid/snapshot price. Camper decline or timeout cancels the Booking, releases the slot, and creates a Full Refund. Porter acceptance preserves assignment. Porter decline or timeout unassigns the Porter and opens replacement. Required Porter coverage must be complete by T-12h or the Trip is cancelled and active Campers receive Full Refunds. Active Equipment Reservations must be revalidated against the new schedule. Available Equipment Reservations move to the new schedule with quantity and paid/snapshot amount preserved. Unavailable optional Equipment cancels only the Equipment Reservation, preserves the Trip Booking, and creates a Full Refund for the Equipment portion. Refunds must be idempotent. Reschedule and commitment changes must be audited, and notifications may be emitted only after the relevant change commits.
 
 ## 2. Scope
 
 ### In Scope
-- The behavior needed for `Edit, Reschedule, or Cancel Trip` within `EPIC 4. Trip Management`.
-- Backend validation, authorization, persistence, state handling, idempotency, and audit behavior needed for this story.
-- UI/API behavior that makes success, pending, validation failure, authorization failure, conflict, and retry states observable.
-- Tests proving the PB V3.1 acceptance criteria and mapped Business Rules are enforced.
+
+- Owning-Host edit, reschedule, and cancellation rules for an existing Trip.
+- Reschedule constraints for `starts_at` and `ends_at`.
+- Commitment handling for active Camper Bookings, Porter Assignments, and active Equipment Reservations affected by reschedule.
+- Reconfirmation deadlines, timeout behavior, refunds, audit records, and post-commit notifications required by the approved rules.
 
 ### Out of Scope
-- Behavior owned by dependency stories unless explicitly referenced as a precondition or integration point.
-- Replacing source-of-truth entities owned by another module.
-- Changing unrelated workflow, enum, database, API, or UI contracts outside this story.
-- Treating Jira task wording as a substitute for this implementation contract.
-- Inventing behavior that is not approved in PB V3.1, Business Rules, domain model, Jira, or a recorded product decision.
 
----
-
-## 3. Actors
-
-- Host: primary actor for this workflow.
-- Backend API: validates authorization, state, input, persistence, idempotency, and audit requirements.
-- UI Client: presents allowed actions, validates obvious input, shows loading/success/error states, and never replaces backend enforcement.
-- Related CTMS modules: provide referenced Trip, Route, Booking, Payment, Offline Package, AI, Notification, or Administration data when this story depends on them.
-
----
-
-## 4. Preconditions
-
-- Actor is authenticated when the workflow requires identity.
-- Actor has the role, ownership, consent, assignment, or operational relationship required by the story.
-- Referenced records exist and are in states that allow this workflow.
-- Dependencies are satisfied: CTMS-021, CTMS-022.
-- PB V3.1 acceptance criteria and the Business Rules listed in this spec are available to implementation and QA.
-
-If a precondition is not satisfied, the system must reject the action or show a blocked/degraded state without unintended side effects.
-
----
-
-## 5. Business Behavior
-
-### 5.1 Primary Behavior
-
-The system implements `Edit, Reschedule, or Cancel Trip` exactly within the PB V3.1 scope:
-
-- Implement the PB V3.1 acceptance behavior for `Edit, Reschedule, or Cancel Trip` exactly as approved in the source backlog.
-- Convert each source acceptance condition into explicit validation, state, persistence, UI, and test behavior during implementation.
-- Do not copy non-English backlog text into this English spec; keep the workbook as the source citation.
-
-### 5.2 Validation Rules
-
-- Required fields, enum values, date/time ranges, identifiers, ownership boundaries, and cross-entity references are validated before persistence.
-- Backend is authoritative for permission, state, price, capacity, inventory, safety, payment, and operational outcomes.
-- UI validation may improve the experience, but backend validation is mandatory and final.
-- Invalid input returns a clear error and does not partially create, update, or synchronize records.
-
-### 5.3 State and Transaction Rules
-
-- State transitions must start from an allowed source state and end in an allowed target state.
-- Multi-record side effects must run in a transaction or equivalent atomic unit.
-- Concurrent requests, duplicate submissions, stale reads, and provider retries must not create duplicate records or inconsistent state.
-- If the operation cannot complete safely, the system preserves the previous authoritative state and returns an actionable failure.
-
-### 5.4 Business Rules Materialized
-
-The following rules are materialized as behavior for this story:
-
-| ID | Content |
-| --- | --- |
-| `BR-063` | Required behavior for `Edit, Reschedule, or Cancel Trip` must validate and enforce Trip, cancelled, lifecycle, Host, cancel, completed, published, Booking, Porter as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths. |
-| `BR-076` | Required behavior for `Edit, Reschedule, or Cancel Trip` must validate and enforce Host, Trip, ongoing, completed, cancelled, field, flow, spec as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths. |
-| `BR-077` | Required behavior for `Edit, Reschedule, or Cancel Trip` must validate and enforce Trip, published, material, route, version, starts_at, ends_at, meeting_point, meeting_at as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths. |
-| `BR-078` | Required behavior for `Edit, Reschedule, or Cancel Trip` must validate and enforce Edit, Reschedule, Cancel, Trip, commitment, audit, notification, Camper, Porter, Host as part of the story-specific business contract. Backend checks must run before persistence, violations must be rejected without partial side effects, UI must show blocked or conflict states where relevant, and tests must cover both allowed and violation paths. |
-| `BR-174` | Inputs must be validated for required fields, formats, identifiers, enum values, and cross-entity references before any write is committed. |
-| `BR-180` | Stateful resources must follow defined state transitions and must not use enum values outside the database/API contract. |
-| `BR-181` | Before updating state, the backend must verify the current persisted state; stale requests must fail with a business conflict. |
-| `BR-191` | Critical actions must write an audit record containing actor, action, target, timestamp, before/after values or reason, and affected business identifiers. |
-| `BR-192` | Audit logs must not contain passwords, OTPs, tokens, sensitive payment data, unnecessary health data, or private payloads beyond the audit need. |
-| `BR-212` | Any Business Rule, enum, state transition, or API contract change must update the spec, tests, and data documentation before the story is Done. |
-| `BR-213` | Every mapped Business Rule must have at least one valid-path test and one violation-path test; concurrency, idempotency, and transaction rules require integration or E2E coverage. |
-
-### 5.5 Source Confidence
-
-- PB V3.1 row `CTMS-027` is the direct scope and acceptance source.
-- Rule IDs above come from the `Primary BR IDs` column in PB V3.1 and are materialized here as implementation behavior.
-- If a rule ID conflicts with PB V3.1 behavior, do not silently choose one. Record a Pending Decision and update PB/rules/spec together.
-- This file may elaborate approved behavior into execution flow, but it must not invent, change, or override business behavior.
-- Undefined, ambiguous, or conflicting behavior must be captured in Section 19 as a Pending Decision.
-
----
-
-## 6. State Model
-
-The story state model is:
-
-- `NOT_STARTED`: actor has not initiated the workflow.
-- `IN_PROGRESS`: request, calculation, sync, AI operation, or review is being processed.
-- `SUCCEEDED`: authoritative result is persisted or returned.
-- `FAILED_VALIDATION`: input or referenced data is invalid.
-- `FAILED_AUTHORIZATION`: actor lacks required permission or relationship.
-- `CONFLICT`: current server state no longer allows the requested action.
-- `PENDING_RETRY` or `SYNC_PENDING`: used only when the story includes offline, external provider, async, or retry behavior.
-
-Every implementation must replace these generic labels with existing enum values when the owning module already defines a state machine.
-
----
-
-## 7. Main Flow
-
-### Scenario: Edit, Reschedule, or Cancel Trip
-
-1. Actor opens or triggers the `Edit, Reschedule, or Cancel Trip` workflow.
-2. UI loads the minimum data needed for the workflow and shows unavailable states when dependencies are missing.
-3. Actor submits the action or the system starts the scheduled/automatic processing.
-4. Backend authenticates the caller or system job.
-5. Backend validates authorization, ownership/business relationship, input shape, referenced records, and current state.
-6. Backend applies the PB V3.1 behavior and mapped Business Rules in one safe transaction or equivalent atomic unit.
-7. Backend persists the authoritative result, audit data, and integration/sync metadata where required.
-8. UI/API returns the observable outcome: success, pending, blocked, conflict, retryable failure, or validation failure.
-
----
-
-## 8. Edge Cases
-
-### Missing or Unauthorized Actor
-
-Reject with authentication or authorization error. No business side effect is allowed.
-
-### Missing Dependency
-
-If dependency data from `CTMS-021, CTMS-022` is missing or not in an allowed state, block the workflow with a clear reason.
-
-### Invalid Input or Reference
-
-Reject invalid fields, invalid enum values, missing required references, out-of-range dates, invalid coordinates, invalid amounts, or stale IDs before writing data.
-
-### Duplicate Submission or Retry
-
-Use idempotency keys, stable client identifiers, provider references, or transaction constraints so retries do not create duplicate authoritative records.
-
-### Concurrent Update
-
-Detect stale state with locking, version checks, unique constraints, or conflict validation. Return a conflict result and preserve the user's recoverable input where a UI exists.
-
-### External Provider, AI, Offline, or Sync Failure
-
-If this story calls an external provider, AI service, offline queue, or sync process, the system must expose pending/failed/retry states and must not present unconfirmed output as authoritative.
-
----
-
-## 9. Data Requirements
-
-The implementation must persist or return only data required for `Edit, Reschedule, or Cancel Trip`:
-
-- actor/user context and role/relationship used for authorization;
-- referenced domain identifiers such as Trip, Route, Booking, Payment, Member, Package, Review, Alert, or Report ids when applicable;
-- source timestamps and server timestamps as separate values when client/offline/provider events are involved;
-- status/state fields needed to distinguish pending, succeeded, failed, rejected, stale, or synced data;
-- audit fields for actor, action, target, before/after values, timestamp, and reason when applicable;
-- idempotency keys, provider references, sync metadata, model/config/rule version, or package/version context when the behavior depends on them.
-- Material edits that change `starts_at`, `ends_at`, route/version, or `trip_waypoints` must revalidate CTMS-022's planned-at-based waypoint rules. Every waypoint `planned_at` must remain within the updated Trip time range, unique within the Trip, and ordered as the authoritative itinerary.
-- Rescheduling must not silently leave waypoint `planned_at` values outside the new Trip window. The edit flow must either require updated waypoint times or reject the reschedule with a clear validation error.
-
-Do not duplicate an entire data dictionary in this spec. Reference existing entities and add only story-specific requirements.
-
----
-
-## 10. Backend / API Responsibilities
-
-Backend is responsible for:
-
-- authentication and authorization;
-- input DTO validation;
-- ownership and business relationship checks;
-- state transition validation;
-- transaction boundaries and rollback;
-- idempotency and duplicate prevention;
-- persistence of authoritative state;
-- audit logging when the action is operational, financial, safety-related, administrative, or security-sensitive;
-- returning consistent error semantics: `401`, `403`, `404`, `409`, and `422` where applicable.
-
-If endpoint paths or DTOs are not finalized, implementation must define a typed contract before UI integration and record unresolved endpoint details as Pending Decisions.
-
----
-
-## 11. Mobile / UI Responsibilities
-
-UI is responsible for:
-
-- displaying only actions allowed by known role/state while treating backend as final authority;
-- collecting required inputs with clear validation messages;
-- showing loading, success, pending, failed, retry, conflict, and permission-denied states;
-- preserving user-entered data after recoverable failure or conflict where practical;
-- distinguishing local/pending/offline/AI-suggested data from server-confirmed authoritative state;
-- using existing CTMS design, i18n, accessibility, and state-management patterns.
-
-If this story has no user-facing UI, UI responsibilities are limited to any admin, monitoring, notification, or client state needed to observe the backend result.
-
----
-
-## 12. Offline & Sync Behavior
-
-Online:
-
-- Execute against backend-authoritative validation and persistence.
-
-Offline:
-
-- If this story is not offline-capable, block the write action and show the unavailable state.
-- If this story is offline-capable, persist a local pending record with stable identifiers and enough context to sync later.
-
-Reconnect:
-
-- Sync pending records idempotently.
-- Preserve original client event time separately from server received time.
-- Do not present unsynced data as authoritative server state.
-
-Pending Decision:
-
-- If this story requires offline or sync semantics beyond the owning sync specification, record the unresolved behavior in Section 19 before implementation.
-
----
-
-## 13. Error Handling
-
-| Condition | Observable behavior |
-| --- | --- |
-| Authentication missing/expired | Return `401`; UI prompts sign-in or session refresh. |
-| Actor lacks permission | Return `403`; no side effect. |
-| Referenced record missing | Return `404` when the actor may know it exists; otherwise preserve privacy-safe response. |
-| Invalid input | Return `422` with field-level reason where possible. |
-| Business conflict | Return `409` with recoverable explanation. |
-| External provider or async failure | Keep state pending/failed with retry metadata and no duplicate authoritative result. |
-| Unexpected server error | Roll back partial work and return a generic error without leaking secrets or stack trace. |
-
----
-
-## 14. Security & Authorization
-
-- Authorization must check role, ownership, consent, assignment, Trip/Route/Booking relationship, or administrative scope as applicable.
-- Sensitive data must not be exposed beyond the actor's business need.
-- Payment credentials, tokens, OTPs, secrets, health data, exact location, and AI/private prompt data must not appear in logs or audit records unless explicitly required and approved.
-- Backend remains the source of truth for permission and state even when UI hides unavailable actions.
-- Audit is required for important operational, safety, financial, administrative, and security-sensitive changes.
-
----
-
-## 15. Acceptance Criteria
-
-### AC-01
-
-Given:
-
-- The preconditions in this spec are satisfied.
-
-When:
-
-- The approved PB V3.1 acceptance behavior for `Edit, Reschedule, or Cancel Trip` is implemented as explicit system behavior..
-
-Then:
-
-- The system behavior matches the rule above.
-- Backend validation and UI state are consistent with the observable result.
-- Tests cover the success path and at least one failure or boundary case.
-### AC-02
-
-Given:
-
-- The preconditions in this spec are satisfied.
-
-When:
-
-- The source acceptance conditions are covered by backend or client tests without copying non-English backlog text into the spec..
-
-Then:
-
-- The system behavior matches the rule above.
-- Backend validation and UI state are consistent with the observable result.
-- Tests cover the success path and at least one failure or boundary case.
-
-### AC-03 - Authorization and Invalid State Protection
-
-Given:
-
-- The actor is missing permission, the target record is missing, or the current state does not allow the workflow.
-
-When:
-
-- The actor or system attempts `Edit, Reschedule, or Cancel Trip`.
-
-Then:
-
-- The backend rejects the action with the correct error category.
-- No unintended side effect is persisted.
-- UI/API exposes the failure clearly.
-
-### AC-04 - Duplicate and Retry Safety
-
-Given:
-
-- The same request, sync item, provider callback, or user action is submitted more than once.
-
-When:
-
-- The backend processes the duplicate.
-
-Then:
-
-- At most one authoritative result is created.
-- Duplicate handling returns a compatible success, already-processed, or conflict response.
-
----
-
-## 16. Backend Preparation, Logic and Tests
-
-### Responsibilities
-
-- Implement or update the owning module's service, controller, repository, DTO, entity, migration, queue, provider, or sync handler as needed.
-- Enforce PB V3.1 behavior and mapped Business Rules in backend logic.
-- Keep transactions, idempotency, state validation, and audit behavior close to the domain operation.
-- Reuse existing CTMS helpers for auth, validation, i18n, API errors, transactions, and tests.
-- Keep this as the HOW-SYSTEM responsibility contract for `CTMS-027-T01`; do not duplicate the complete end-to-end flow in Jira.
-
-### Required Tests
-
-- Unit tests for validation, state transitions, mapped Business Rules, and failure paths.
-- Integration/API tests for success, invalid input, unauthorized access, missing resource, conflict, idempotency, and rollback.
-- Provider/sync/AI tests when this story depends on external service, offline queue, model output, or background processing.
-- Regression tests proving no mapped Business Rule is silently bypassed.
-
-### Logic Subtask DoD
-
-- [ ] Logic implementation completed.
-- [ ] Applicable business rules and invariants implemented.
-- [ ] Task-specific unit tests added or updated.
-- [ ] Task-specific unit tests passed.
-- [ ] Applicable backend or integration tests passed.
-
----
-
-## 17. UI and Tests
-
-### Responsibilities
-
-- Implement screen/component/client state only when this story has a user-facing workflow.
-- Wire UI to typed API contracts.
-- Show loading, empty, blocked, validation, conflict, retry, and success states.
-- Keep local/client validation aligned with backend DTOs without treating client validation as enforcement.
-- Keep this as the HOW-CLIENT responsibility contract for `CTMS-027-T02`; backend/server responses remain the source of truth for server-owned business state.
-
-### Required Tests
-
-- Component or mobile widget tests for rendered states and user actions.
-- Hook/client-state tests for API success, validation failure, authorization failure, conflict, and retry where applicable.
-- Offline/error-state tests when the story includes pending local data or synchronization.
-- Accessibility and interaction checks for critical user-facing flows.
-
-### UI or Final Implementation Subtask DoD
-
-- [ ] UI implementation completed when this story has a client-facing workflow.
-- [ ] Applicable client-side behavior implemented.
-- [ ] Task-specific unit or component tests passed.
-- [ ] Backend integration completed.
-- [ ] Task-specific E2E tests passed when an end-to-end user path exists.
-- [ ] All Story Acceptance Criteria verified.
-- [ ] Unit regression tests passed.
-- [ ] E2E regression tests passed.
-- [ ] `lint:all` passed.
-- [ ] `build:all` passed.
-- [ ] `test:all` passed.
-- If UI is not the final implementation subtask, move these integrated quality gates to the actual final implementation subtask or an explicit Story-level verification step.
-
----
-
-## 18. Related Specifications
-
-Dependencies:
-
-- CTMS-021
-- CTMS-022
-
-Potentially related specs must be referenced for context only. Do not duplicate their owned logic in this spec.
-
----
-
-## 19. Pending Decisions
-
-Use this section for undefined, ambiguous, or conflicting behavior. Do not guess business behavior during implementation.
-
-### PD-01 - API and DTO Contract
-
-Status: UNRESOLVED
-
-Question:
-What are the final endpoint paths, request DTOs, response DTOs, and error payloads for `Edit, Reschedule, or Cancel Trip` if they are not already implemented?
-
-Affected:
-- Jira Story: `CTMS-027`
-- Logic Subtask: `CTMS-027-T01`
-- UI Subtask: `CTMS-027-T02`
-
-Implementation impact:
-Backend and UI integration cannot be finalized safely without a typed contract.
-
-Required action:
-BA, PO, or domain owner confirms the API contract, or the implementation records the approved contract in this spec before coding.
-
-### PD-02 - Story-Specific State and Failure Semantics
-
-Status: UNRESOLVED
-
-Question:
-Are there story-specific state enum values, partial failure semantics, retry limits, conflict rules, audit event names, or before/after audit payloads beyond the generic model in this spec?
-
-Affected:
-- Business Rules listed in Section 5.4
-- Related specifications in Section 18
-
-Implementation impact:
-Implementers must not silently choose state, retry, conflict, or audit behavior when the approved sources do not define it.
-
-Required action:
-Resolve through Business Rules, Data Dictionary or Domain Model, Jira decision, or an explicit spec update before implementation.
-
-### PD-03 - Source Conflict Handling
-
-Status: UNRESOLVED WHEN A CONFLICT IS FOUND
-
-Question:
-Do PB V3.1, Business Rules, Data Dictionary or Domain Model, Jira, or existing code/tests disagree for this story?
-
-Affected:
-- PB V3.1 row `CTMS-027`
-- Business Rules listed in Section 5.4
-- Existing implementation and tests if present
-
-Implementation impact:
-A lower-level artifact that conflicts with an approved higher-level source is stale until reconciled.
-
-Required action:
-Record the conflict, stop short of inventing behavior, and request BA/PO/domain owner clarification.
-
----
-
-## References
-
-- Story ID: `CTMS-027`
-- Epic: `EPIC 4. Trip Management`
-- Jira Story owns WHAT and WHY for this capability.
-- Jira Logic Subtask `CTMS-027-T01` owns HOW-SYSTEM responsibilities.
-- Jira UI Subtask `CTMS-027-T02` owns HOW-CLIENT responsibilities when a client workflow exists.
-- This file/spec owns the detailed execution flow, edge cases, contracts, invariants, and technical processing.
-- Product Backlog V3.1 use case: `Edit, Reschedule, or Cancel Trip`
-- Priority: `Must Have`
-- Story points: `13.0`
-- Dependencies: `CTMS-021, CTMS-022`
-- Status: `To Do`
-- Sprint: `Sprint 3`
-- Commitment: `Stretch`
-- Planned window: `2026-08-23` to `2026-09-05`
-- Product Backlog source: `PRODUCT BACKLOG.xlsx`, sheet `v3.1`
-- Business Rules source: `CTMS- Business rules.xlsx`, sheet `Business Rules`
-- Story-level business rules: BR-231, BR-233, BR-235, BR-237, BR-365, BR-371, BR-372, BR-437, BR-438, BR-083, BR-105, BR-106, BR-107, BR-108, BR-194, BR-049, BR-218, BR-252, BR-253, BR-255, BR-270, BR-271, BR-273, BR-274
-- Jira execution tasks should reference:
-  - `/file/spec/ctms-27-edit-reschedule-or-cancel-trip.md#backend-preparation-logic-and-tests`
-  - `/file/spec/ctms-27-edit-reschedule-or-cancel-trip.md#ui-and-tests`
+- Creating a Trip. CTMS-021 owns Trip creation.
+- Configuring Trip waypoints. CTMS-022 owns waypoint creation and ordering.
+- Admin approval and publication. CTMS-023 owns approval and publish behavior.
+- Ordinary refund workflow details outside the refund events explicitly triggered by cancellation or reschedule behavior here.
+- Material Trip changes that are not reschedule, such as route/version, meeting point, province/city snapshot, capacity, price, or Trip waypoints. Those changes must use the edit/reapproval flow, not the reschedule path.
+
+## 3. Actors & Authorization
+
+- Host: may edit, reschedule, or cancel only Trips they own.
+- Backend API: enforces ownership, current Trip state, allowed field changes, commitment handling, audit, refund idempotency, and post-commit notification behavior.
+- Camper: responds to a rescheduled Trip through Accept, Decline, or timeout behavior.
+- Porter: responds to a rescheduled Trip through Accept, Decline, or timeout behavior.
+- System: processes reconfirmation timeouts, Porter staffing deadline checks, refund idempotency, audit persistence, and notification enqueueing.
+
+Only the Host who owns the Trip may start the edit, reschedule, or cancel action. A non-owning Host, Camper, Porter, or unauthenticated caller must be rejected before any Trip or commitment state changes.
+
+## 4. Preconditions & Dependencies
+
+- Trip exists.
+- The caller is authenticated as the owning Host for the Trip.
+- The Trip is in a state that allows the requested edit, reschedule, or cancellation.
+- Reschedule applies only to an approved Trip that has not started.
+- Reschedule input changes only `starts_at` and/or `ends_at`.
+- CTMS-021 Trip creation and CTMS-022 Trip waypoint data already exist where relevant.
+
+## 5. Business Rules
+
+| BR | Rule |
+|---|---|
+| BR-063 | A Trip may move to `cancelled` only from a Trip lifecycle state that allows cancellation. The owning Host may cancel before the Trip is `completed`. If a published Trip has Booking, Porter, or Equipment commitments, cancellation must revalidate current state, cancel or release commitments according to policy, create refunds when cancellation/refund policy requires them, record reason and audit data, and notify only after commit. A `completed` Trip must not move back to `cancelled`; `rejected` is not a valid Trip status. |
+| BR-076 | Only the Host who owns the Trip may edit it. Trips in `ongoing`, `completed`, or `cancelled` must not have planned fields edited except through a specialized flow explicitly allowed by the specification. |
+| BR-077 | After a Trip is published or approved, changing `starts_at` and/or `ends_at` must use the Reschedule flow and obey BR-444 through BR-464. Material changes such as route/version, meeting point, province/city snapshot, capacity, price, or Trip waypoints are not Reschedule and must use the corresponding edit/reapproval flow. |
+| BR-078 | Any Edit, Reschedule, or Cancel action that affects commitments must be audited. Notifications to affected Campers, Porters, or Hosts may be enqueued or sent only after the transaction that updates the Trip and related states commits successfully. |
+| BR-174 | Inputs must be validated for required fields, formats, identifiers, enum values, and cross-entity references before any write is committed. |
+| BR-180 | Stateful resources must follow defined state transitions and must not use enum values outside the database or API contract. |
+| BR-181 | Before updating state, the backend must verify the current persisted state; stale requests must fail with a business conflict. |
+| BR-191 | Critical actions must write an audit record containing actor, action, target, timestamp, before/after values or reason, and affected business identifiers. |
+| BR-192 | Audit logs must not contain passwords, OTPs, tokens, sensitive payment data, unnecessary health data, or private payloads beyond the audit need. |
+| BR-212 | Any Business Rule, enum, state transition, or API contract change must update the spec, tests, and data documentation before the story is Done. |
+| BR-213 | Every mapped Business Rule must have at least one valid-path test and one violation-path test; concurrency, idempotency, and transaction rules require integration or E2E coverage. |
+| BR-444 | The Host may reschedule only a Trip they manage, and only when the Trip is approved and has not started. Reschedule may change only `starts_at` and/or `ends_at`. |
+| BR-445 | Reschedule must not change other approved Trip information, including Trip price, route, capacity, or Trip policies. Those changes must use their matching flow instead of Reschedule. |
+| BR-446 | The Host may reschedule only when the new start time is more than 24 hours after the reschedule action time: `new_starts_at > rescheduled_at + 24h`. |
+| BR-447 | `new_ends_at` must be after `new_starts_at`, and the new schedule must satisfy current Trip time constraints. If validation fails, the new schedule must not be applied. |
+| BR-448 | After successful reschedule, all Campers with active Bookings and all assigned Porters must move to Pending Reconfirmation for the new schedule. |
+| BR-449 | Campers and Porters must Accept or Decline the new schedule no later than 24 hours before `new_starts_at`. |
+| BR-450 | If a Camper or Porter has not accepted before the reconfirmation deadline, `new_starts_at - 24h`, the system must process the missing response as Decline. |
+| BR-451 | If a Camper accepts the new schedule, the Camper's Booking and slot are preserved, and the paid or snapshotted Trip price must not change because of the reschedule. |
+| BR-452 | If a Camper declines or times out, the Booking must be cancelled, the slot must be released, and the Camper must receive a Full Refund for the Booking amount affected by the reschedule. |
+| BR-453 | If a Porter accepts the new schedule, the current Porter Assignment remains valid for the new schedule. |
+| BR-454 | If a Porter declines or times out, the Porter must be unassigned from the Trip and the corresponding Porter position must reopen for replacement. |
+| BR-455 | The system may find and assign a replacement Porter from the reconfirmation deadline until 12 hours before `new_starts_at`. |
+| BR-456 | All required Porter positions must be assigned and fully confirmed no later than 12 hours before `new_starts_at`. |
+| BR-457 | If the Trip still lacks required Porter staffing at `new_starts_at - 12h`, the Trip must be cancelled and all Campers with remaining active Bookings must receive Full Refunds. |
+| BR-458 | After successful reschedule, every active Equipment Reservation affected by the Trip schedule must be revalidated for availability under the new schedule. |
+| BR-459 | If Equipment remains available for the new schedule, the Equipment Reservation must move to the new schedule and preserve quantity and the paid or snapshotted amount. |
+| BR-460 | If optional Equipment is no longer available for the new schedule, the affected Equipment Reservation must be cancelled. Cancelling optional Equipment must not automatically cancel the Camper's Trip Booking. |
+| BR-461 | If paid Equipment is cancelled because it is unavailable after reschedule, the system must create or record a Full Refund for the cancelled Equipment portion under the current refund process. |
+| BR-462 | Equipment refunds must use the amount the Camper actually paid or the amount snapshotted at Booking time. The current Equipment price must not be used for the refund amount. |
+| BR-463 | Refund processing must be idempotent. A Trip or Equipment amount that has already been refunded must not be refunded a second time if the Booking or Trip is later cancelled again. |
+| BR-464 | Reschedule and resulting commitment changes must be audited with at least old schedule, new schedule, acting Host, reschedule time, and reconfirmation or revalidation outcomes. Notifications may be sent only after the corresponding change commits successfully. |
+
+## 6. State & Lifecycle
+
+Trip:
+
+```text
+approved/published
+    ├── Reschedule before start -> schedule updated, commitments enter reconfirmation
+    ├── Cancel before completed -> cancelled
+    └── Start/complete handled outside this story
+
+completed and cancelled are terminal for this story.
+```
+
+Camper Booking after successful reschedule:
+
+```text
+Active Booking
+    -> Pending Reconfirmation
+        ├── Accept before T-24h -> Active Booking preserved
+        └── Decline or timeout at T-24h -> Booking cancelled, slot released, Full Refund created
+```
+
+Porter Assignment after successful reschedule:
+
+```text
+Assigned Porter
+    -> Pending Reconfirmation
+        ├── Accept before T-24h -> Assignment preserved
+        └── Decline or timeout at T-24h -> Porter unassigned, position reopened
+
+Required Porter positions must be confirmed by T-12h or the Trip is cancelled.
+```
+
+Equipment Reservation after successful reschedule:
+
+```text
+Active Equipment Reservation
+    ├── Available under new schedule -> move reservation, preserve quantity and paid/snapshot amount
+    └── Optional Equipment unavailable -> cancel Equipment Reservation only and refund Equipment portion
+```
+
+## 7. Business Flow
+
+### 7.1 Edit Non-Schedule Trip Details
+
+1. Owning Host submits an edit request for a Trip.
+2. Backend verifies the Host owns the Trip and the current Trip state allows the requested edit.
+3. Backend rejects edits to `ongoing`, `completed`, or `cancelled` Trips unless a specialized approved flow allows the change.
+4. If the requested change is a material non-reschedule change, such as route/version, meeting point, province/city snapshot, capacity, price, or waypoints, backend routes it to the matching edit/reapproval flow instead of treating it as Reschedule.
+5. If the edit affects commitments, backend audits the change and sends notifications only after the state transaction commits.
+
+### 7.2 Reschedule Trip
+
+1. Owning Host submits new `starts_at` and/or `ends_at`.
+2. Backend confirms the Trip is approved, has not started, and the payload changes no other approved Trip data.
+3. Backend verifies `new_starts_at > rescheduled_at + 24h`, `new_ends_at > new_starts_at`, and all Trip time constraints.
+4. Backend commits the new schedule and moves active Camper Bookings and assigned Porters to Pending Reconfirmation.
+5. Backend revalidates active Equipment Reservations against the new schedule.
+6. Available Equipment Reservations move to the new schedule with quantity and paid/snapshot amount preserved.
+7. Unavailable optional Equipment Reservations are cancelled without cancelling the Camper Trip Booking, and paid Equipment portions receive Full Refunds.
+8. Backend writes audit records for the schedule and commitment changes.
+9. Notifications are enqueued only after the corresponding committed changes exist.
+
+### 7.3 Reconfirmation and Staffing Deadlines
+
+1. Camper Accept before T-24h preserves Booking, slot, and paid/snapshot Trip price.
+2. Camper Decline or no acceptance by T-24h cancels the Booking, releases the slot, and creates a Full Refund.
+3. Porter Accept before T-24h preserves the current assignment.
+4. Porter Decline or no acceptance by T-24h unassigns the Porter and opens the position for replacement.
+5. Replacement Porter assignment may occur after the reconfirmation deadline and before T-12h.
+6. If all required Porter positions are not assigned and confirmed by T-12h, backend cancels the Trip and creates Full Refunds for active Campers.
+
+### 7.4 Cancel Trip
+
+1. Owning Host submits cancellation with a reason.
+2. Backend verifies the Trip is in a cancellable lifecycle state and is not `completed`.
+3. Backend revalidates active Booking, Porter, and Equipment commitments.
+4. Backend cancels or releases affected commitments according to policy and creates required refunds idempotently.
+5. Backend commits Trip cancellation, audit, and commitment outcomes before notifications are emitted.
+
+## 8. Data & Invariants
+
+- Trip ownership controls who may edit, reschedule, or cancel.
+- Reschedule may mutate only `starts_at` and/or `ends_at`.
+- `rescheduled_at` is the authoritative server/database time used for the `new_starts_at > rescheduled_at + 24h` check.
+- Existing Trip price, route, capacity, policies, and material approved fields must not change through Reschedule.
+- An active Camper Booking in Pending Reconfirmation continues to reserve its slot until Accept, Decline, or timeout behavior resolves it.
+- Camper Accept preserves Booking ID, slot, and paid/snapshot Trip price.
+- Camper Decline or timeout releases the slot and creates a Full Refund for the affected Booking amount.
+- Porter Accept preserves the assignment.
+- Porter Decline or timeout removes the Porter from the assignment and reopens the required position.
+- Required Porter staffing is evaluated at `new_starts_at - 12h`.
+- Equipment Reservation movement preserves quantity and paid/snapshot amount when Equipment remains available.
+- Optional Equipment unavailability cancels only the Equipment Reservation, not the Trip Booking.
+- Refund records must be idempotent by refunded Trip or Equipment amount so later cancellation cannot refund the same amount twice.
+- Audit records must capture old schedule, new schedule, acting Host, reschedule time, and reconfirmation or revalidation outcomes without storing unnecessary sensitive data.
+
+## 9. API / Integration Contract
+
+TBD — Technical Design.
+
+No current controller contract for edit, reschedule, or cancel Trip was confirmed in the implementation. Do not treat endpoint or DTO names as product Open Decisions.
+
+## 10. Error & Edge Cases
+
+| Case | Expected Behavior |
+|---|---|
+| Caller is not authenticated | Reject before reading protected Trip details. |
+| Caller is not the owning Host | Reject with no Trip, Booking, Porter, Equipment, refund, audit, or notification side effects. |
+| Trip is `completed` | Reject cancellation or edit; do not move the Trip back to `cancelled`. |
+| Trip is `ongoing`, `completed`, or `cancelled` and Host edits planned fields | Reject unless a specialized approved flow explicitly allows that change. |
+| Reschedule request changes price, route, capacity, policy, meeting point, province/city snapshot, or waypoints | Reject as Reschedule; require the matching edit/reapproval flow. |
+| `new_starts_at = rescheduled_at + 24h` | Reject because the rule requires strictly greater than 24 hours. |
+| `new_starts_at < rescheduled_at + 24h` | Reject and keep the existing schedule unchanged. |
+| `new_ends_at <= new_starts_at` | Reject and keep the existing schedule unchanged. |
+| Camper does not respond by T-24h | Treat as Decline, cancel Booking, release slot, and create Full Refund. |
+| Porter does not respond by T-24h | Treat as Decline, unassign Porter, and reopen the position. |
+| Required Porter positions remain unconfirmed at T-12h | Cancel Trip and create Full Refunds for active Camper Bookings. |
+| Optional Equipment unavailable under new schedule | Cancel only the Equipment Reservation, preserve the Trip Booking, and refund the paid Equipment portion. |
+| Refund already exists for the same Trip or Equipment amount | Do not create a second refund. |
+| Audit write fails for a commitment-changing action | Do not report successful edit, reschedule, or cancel completion. |
+| Notification enqueue fails before transaction commit | Do not emit pre-commit notifications; retry or surface failure according to the post-commit notification mechanism. |
+
+## 11. Acceptance & Test Matrix
+
+| BR / AC | Scenario | Expected Result | Test Type |
+|---|---|---|---|
+| PB AC, BR-076 | Non-owning Host attempts to edit, reschedule, or cancel another Host's Trip | Request is rejected and no Trip or commitment state changes | Authorization |
+| PB AC, BR-076 | Owning Host edits a planned field on an `ongoing`, `completed`, or `cancelled` Trip | Edit is rejected unless an approved specialized flow allows it | State / Integration |
+| BR-063 | Owning Host cancels a cancellable published Trip with active commitments | Trip moves to `cancelled`, affected commitments are released or cancelled by policy, required refunds are created, reason/audit are recorded, and notifications occur only after commit | Integration |
+| BR-063 | Owning Host attempts to cancel a `completed` Trip | Cancellation is rejected and Trip remains `completed` | Boundary |
+| BR-077, BR-445 | Host includes price, route, capacity, policy, meeting point, province/city snapshot, or waypoint changes in a Reschedule request | Reschedule is rejected or routed to the correct edit/reapproval flow; approved Trip data is not silently changed | Integration |
+| BR-444 | Owning Host reschedules an approved Trip that has not started and changes only `starts_at` and/or `ends_at` | Schedule change proceeds to validation and reconfirmation handling | Integration |
+| BR-444 | Host tries to reschedule a Trip that has already started | Reschedule is rejected and existing schedule remains unchanged | Boundary |
+| BR-446 | Host sets `new_starts_at` more than 24 hours after `rescheduled_at` | Reschedule timing rule passes | Boundary |
+| BR-446 | Host sets `new_starts_at` exactly 24 hours after `rescheduled_at` | Reschedule is rejected and existing schedule remains unchanged | Boundary |
+| BR-446 | Host sets `new_starts_at` less than 24 hours after `rescheduled_at` | Reschedule is rejected and existing schedule remains unchanged | Boundary |
+| BR-447 | Host sets `new_ends_at` after `new_starts_at` and current Trip time constraints are satisfied | Schedule validation passes | Boundary |
+| BR-447 | Host sets `new_ends_at` equal to or before `new_starts_at` | Reschedule is rejected and existing schedule remains unchanged | Boundary |
+| BR-448 | Reschedule commits for a Trip with active Camper Bookings and assigned Porters | Those Bookings and Assignments move to Pending Reconfirmation for the new schedule | Integration |
+| BR-449, BR-451 | Camper accepts the new schedule before T-24h | Booking, slot, and paid/snapshot Trip price are preserved | Integration |
+| BR-450, BR-452 | Camper does not accept by T-24h | Camper is treated as Decline; Booking is cancelled, slot is released, and Full Refund is created | Scheduled job / Boundary |
+| BR-452 | Camper explicitly declines before T-24h | Booking is cancelled, slot is released, and Full Refund is created | Integration |
+| BR-449, BR-453 | Porter accepts the new schedule before T-24h | Existing Porter Assignment remains valid for the new schedule | Integration |
+| BR-450, BR-454 | Porter does not accept by T-24h | Porter is treated as Decline, unassigned from the Trip, and the position is reopened | Scheduled job / Boundary |
+| BR-454 | Porter explicitly declines before T-24h | Porter is unassigned and the position is reopened | Integration |
+| BR-455 | Replacement Porter is assigned after T-24h and before T-12h | Replacement assignment is allowed if qualification and conflict checks pass | Integration |
+| BR-456 | All required Porter positions are assigned and confirmed before T-12h | Trip remains active for the rescheduled departure | Scheduled job / Integration |
+| BR-457 | Required Porter coverage is still insufficient at T-12h | Trip is cancelled and remaining active Campers receive Full Refunds | Scheduled job / Integration |
+| BR-458, BR-459 | Active Equipment Reservation is available under the new schedule | Reservation moves to the new schedule and preserves quantity and paid/snapshot amount | Integration |
+| BR-458, BR-460, BR-461 | Optional Equipment is unavailable under the new schedule and has been paid | Equipment Reservation is cancelled, Trip Booking remains active, and Full Refund is created for the Equipment portion only | Integration |
+| BR-462 | Equipment refund is calculated after Equipment price changed since Booking | Refund uses paid/snapshot amount from Booking, not current Equipment price | Boundary |
+| BR-463 | Trip or Equipment amount was already refunded, then a later cancellation path is triggered | No duplicate refund is created for the already refunded amount | Idempotency |
+| BR-078, BR-191, BR-464 | Reschedule changes schedule and commitment states | Audit captures old schedule, new schedule, acting Host, reschedule time, and reconfirmation or revalidation outcomes | Integration |
+| BR-078, BR-464 | Notification worker observes changes before the transaction commits | No Camper, Porter, or Host notification is emitted before the corresponding state change commits | Transaction / Integration |
+| BR-174 | Reschedule request references malformed identifiers or invalid date values | Request is rejected before any write | Validation |
+| BR-180, BR-181 | Two clients submit conflicting changes based on stale Trip state | Stale request fails with business conflict and authoritative state remains consistent | Concurrency |
+| BR-192 | Audit is written for cancellation, reschedule, refund, or commitment changes | Audit includes required business identifiers and excludes secrets, payment secrets, unnecessary health data, and private payloads beyond audit need | Security |
+| BR-212, BR-213 | A rule, enum, state transition, or API contract changes for this story | Spec, tests, and data documentation are updated, and valid/violation coverage exists for affected BRs before Done | Process |
+
+## 12. Open Decisions & References
+
+### 12.1 Open Decisions
+
+None.
+
+### 12.2 References
+
+- Product Backlog v3.1.
+- CTMS Business Rules workbook.
+- CTMS Architecture Overview.
