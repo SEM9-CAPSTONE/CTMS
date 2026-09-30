@@ -12,7 +12,6 @@ export interface RoleLandingPageProps {
 	onCreateTrip?: () => void;
 	onCreateTrekkingRoute?: () => void;
 	onViewTrekkingRoutes?: () => void;
-	onViewEquipmentCatalog?: () => void;
 	onNavigateToTrips?: () => void;
 	onNavigateToBookings?: () => void;
 	onNavigateToTripDetail?: (tripId: string) => void;

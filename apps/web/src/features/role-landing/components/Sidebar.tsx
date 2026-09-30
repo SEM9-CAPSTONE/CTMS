@@ -97,9 +97,13 @@ export function Sidebar({
 						const isPathDashboard =
 							typeof window !== "undefined" &&
 							(window.location.pathname === "/dashboard" || window.location.pathname === "/");
+						const isPathEquipment =
+							typeof window !== "undefined" &&
+							window.location.pathname.startsWith("/host/equipment-catalog");
 						const isActive =
 							(item.key === "explore" && isPathTrips) ||
-							(item.key === "overview" && isPathDashboard);
+							(item.key === "overview" && isPathDashboard) ||
+							(item.key === "equipment" && isPathEquipment);
 
 						return (
 							<button
@@ -127,6 +131,9 @@ export function Sidebar({
 											window.history.pushState({}, "", "/trips");
 											window.dispatchEvent(new PopStateEvent("popstate"));
 										}
+									} else if (item.key === "equipment") {
+										window.history.pushState({}, "", "/host/equipment-catalog");
+										window.dispatchEvent(new PopStateEvent("popstate"));
 									}
 								}}
 								className={`flex w-full items-center gap-3.5 rounded-xl px-3.5 py-3 text-sm font-bold transition-all ${

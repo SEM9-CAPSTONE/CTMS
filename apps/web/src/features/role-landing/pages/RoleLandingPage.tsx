@@ -82,7 +82,6 @@ function DashboardMain({
 	onCreateTrip,
 	onCreateTrekkingRoute,
 	onViewTrekkingRoutes,
-	onViewEquipmentCatalog,
 	onNavigateToTrips,
 	onNavigateToTripDetail,
 	onEditTripDraft,
@@ -95,7 +94,6 @@ function DashboardMain({
 	onCreateTrip?: () => void;
 	onCreateTrekkingRoute?: () => void;
 	onViewTrekkingRoutes?: () => void;
-	onViewEquipmentCatalog?: () => void;
 	onNavigateToTrips?: () => void;
 	onNavigateToTripDetail?: (tripId: string) => void;
 	onEditTripDraft?: (tripId: string) => void;
@@ -226,7 +224,6 @@ function DashboardMain({
 						onCreateTrip={onCreateTrip}
 						onCreateTrekkingRoute={onCreateTrekkingRoute}
 						onViewTrekkingRoutes={onViewTrekkingRoutes}
-						onViewEquipmentCatalog={onViewEquipmentCatalog}
 						onNavigateToTripDetail={onNavigateToTripDetail}
 						onEditTripDraft={onEditTripDraft}
 					/>
@@ -284,7 +281,6 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 	onCreateTrip,
 	onCreateTrekkingRoute,
 	onViewTrekkingRoutes,
-	onViewEquipmentCatalog,
 	onNavigateToTrips,
 	onNavigateToBookings,
 	onNavigateToTripDetail,
@@ -437,7 +433,6 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 					onCreateTrip={onCreateTrip}
 					onCreateTrekkingRoute={onCreateTrekkingRoute}
 					onViewTrekkingRoutes={onViewTrekkingRoutes}
-					onViewEquipmentCatalog={onViewEquipmentCatalog}
 					onNavigateToTrips={onNavigateToTrips}
 					onNavigateToTripDetail={onNavigateToTripDetail}
 					onEditTripDraft={onEditTripDraft}

@@ -17,6 +17,7 @@ import {
 	ShieldCheck,
 	TentTree,
 	Users,
+	Warehouse,
 	Wifi,
 } from "lucide-react";
 import type { DashboardConfig, Metric, RoleKey } from "./types";
@@ -156,6 +157,7 @@ export const dashboards: Record<RoleKey, DashboardConfig> = {
 			{ key: "explore", label: "Khám phá chuyến đi", icon: Compass },
 			{ key: "campers", label: "Camper & booking", icon: Users },
 			{ key: "porters", label: "Porter", icon: BriefcaseBusiness },
+			{ key: "equipment", label: "Quản lý kho thiết bị", icon: Warehouse },
 			{ key: "reports", label: "Báo cáo", icon: FileClock },
 		],
 		metrics: [

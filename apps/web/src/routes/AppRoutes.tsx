@@ -437,7 +437,6 @@ export function AppRoutes() {
 					onEditTripDraft={(tripId) => navigateTo(`/host/trips/${tripId}/edit`)}
 					onCreateTrekkingRoute={() => navigateTo(RoutePath.HOST_CREATE_TREKKING_ROUTE)}
 					onViewTrekkingRoutes={() => navigateTo(RoutePath.HOST_TREKKING_ROUTES)}
-					onViewEquipmentCatalog={() => navigateTo(RoutePath.HOST_EQUIPMENT_CATALOG)}
 					onLogout={handleLogout}
 				/>
 			);

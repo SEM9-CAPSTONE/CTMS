@@ -105,7 +105,6 @@ describe("HostMyTripsPanel", () => {
 		const onCreateTrip = vi.fn();
 		const onCreateTrekkingRoute = vi.fn();
 		const onViewTrekkingRoutes = vi.fn();
-		const onViewEquipmentCatalog = vi.fn();
 
 		mockUseMyTrips.mockReturnValue({
 			trips: [sampleTrip1],
@@ -119,7 +118,6 @@ describe("HostMyTripsPanel", () => {
 				onCreateTrip={onCreateTrip}
 				onCreateTrekkingRoute={onCreateTrekkingRoute}
 				onViewTrekkingRoutes={onViewTrekkingRoutes}
-				onViewEquipmentCatalog={onViewEquipmentCatalog}
 			/>
 		);
 
@@ -135,9 +133,7 @@ describe("HostMyTripsPanel", () => {
 		fireEvent.click(viewRoutesBtn);
 		expect(onViewTrekkingRoutes).toHaveBeenCalled();
 
-		const viewCatalogBtn = screen.getByRole("button", { name: /quản lý kho thiết bị/i });
-		fireEvent.click(viewCatalogBtn);
-		expect(onViewEquipmentCatalog).toHaveBeenCalled();
+		expect(screen.queryByRole("button", { name: /quản lý kho thiết bị/i })).not.toBeInTheDocument();
 	});
 
 	it("renders list of host trips and handles navigation to trip detail", () => {
