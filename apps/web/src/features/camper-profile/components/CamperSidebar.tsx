@@ -1,4 +1,5 @@
 import { Compass, LayoutDashboard, MapPin, Shield, Tent, UserCheck } from "lucide-react";
+import { HomeLink } from "../../../shared/components/HomeLink";
 import { LogoutActions } from "../../auth/components/LogoutActions";
 import type { CamperProfileData } from "../types";
 interface CamperSidebarProps {
@@ -30,7 +31,7 @@ export function CamperSidebar({
 			className={`sticky top-0 flex h-screen w-64 shrink-0 flex-col justify-between border-r border-[#dfe8df] bg-white p-5 shadow-sm ${className}`}
 		>
 			<div className="flex flex-col gap-6">
-				<div className="flex items-center gap-3 px-2 pt-1">
+				<HomeLink className="flex items-center gap-3 px-2 pt-1">
 					<img
 						src="/ctms_logo.png"
 						alt="CTMS Logo"
@@ -45,7 +46,7 @@ export function CamperSidebar({
 						</div>
 						<p className="text-[11px] font-semibold text-[#667a6d]">Hệ thống thám hiểm</p>
 					</div>
-				</div>
+				</HomeLink>
 
 				<nav className="flex flex-col gap-1.5 pt-2" aria-label="Camper Hub">
 					<p className="px-3 text-[11px] font-extrabold uppercase tracking-wider text-[#88998d]">

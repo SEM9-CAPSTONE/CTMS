@@ -2,6 +2,7 @@ import { Menu } from "lucide-react";
 import type React from "react";
 import { useState } from "react";
 import { Collapse } from "../../../shared/components/Collapse";
+import { HomeLink } from "../../../shared/components/HomeLink";
 import { type AdminNavigationItem, AdminSidebar } from "./AdminSidebar";
 
 interface AdminLayoutProps {
@@ -57,10 +58,10 @@ export function AdminLayout({ activeItem, children, onLogout }: AdminLayoutProps
 					>
 						<Menu className="size-5" />
 					</button>
-					<div className="flex items-center gap-2.5">
+					<HomeLink className="flex items-center gap-2.5">
 						<img src="/ctms_logo.png" alt="CTMS Logo" className="h-8 w-auto object-contain" />
 						<p className="font-extrabold text-[#10221b]">Quản trị CTMS</p>
-					</div>
+					</HomeLink>
 				</header>
 
 				<main>{children}</main>

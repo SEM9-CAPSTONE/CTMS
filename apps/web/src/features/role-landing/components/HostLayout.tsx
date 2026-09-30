@@ -2,6 +2,7 @@ import { Menu } from "lucide-react";
 import type React from "react";
 import { useEffect, useMemo, useState } from "react";
 import { Collapse } from "../../../shared/components/Collapse";
+import { HomeLink } from "../../../shared/components/HomeLink";
 import { getGrantedRoles } from "../../auth/utils/permissions";
 import { getStoredAuthUser } from "../../auth/utils/tokenStorage";
 import { CamperSidebar } from "../../camper-profile/components/CamperSidebar";
@@ -189,10 +190,10 @@ export function HostLayout({ children, activeRole, onNavigateToTrips, onLogout }
 					>
 						<Menu className="size-5" />
 					</button>
-					<div className="flex items-center gap-2.5">
+					<HomeLink className="flex items-center gap-2.5">
 						<img src="/ctms_logo.png" alt="CTMS Logo" className="h-8 w-auto object-contain" />
 						<p className="font-extrabold text-[#10221b]">{config.productLabel}</p>
-					</div>
+					</HomeLink>
 				</header>
 
 				<main>{children}</main>
