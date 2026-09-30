@@ -531,9 +531,10 @@ export class BookingsService {
 				})
 			);
 
-			const itemsTotal = await bookingItemsRepository.sumTotalPriceForBooking(booking.id);
 			if (booking.basePrice === null) throw new Error("Booking is missing its base price");
-			booking.totalAmount = this.addMoney(booking.basePrice, itemsTotal);
+			// Equipment rental fee is not added to the trip booking totalAmount
+			// It is recorded for host inventory and user reference only.
+			booking.totalAmount = booking.basePrice;
 			const savedBooking = await bookingRepository.save(booking);
 
 			await manager.getRepository(AuditLog).save({

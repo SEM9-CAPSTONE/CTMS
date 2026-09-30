@@ -159,10 +159,11 @@ export class PaymentsService {
 			this.assertBookingPayable(booking);
 
 			// 6. Server-authoritative amount snapshot (BR-175).
-			if (booking.totalAmount === null) {
+			// Charges the trip booking amount (basePrice), excluding separate equipment rental fees.
+			const amount = booking.basePrice ?? booking.totalAmount;
+			if (amount === null) {
 				throw new Error("Booking is missing its total amount");
 			}
-			const amount = booking.totalAmount;
 
 			// 7. Persist the Payment in `pending` state before the provider call
 			//    so a provider crash leaves an auditable record (BR-197).

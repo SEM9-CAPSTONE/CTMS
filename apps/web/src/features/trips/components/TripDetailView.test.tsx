@@ -48,6 +48,12 @@ vi.mock("../../packing-list/components/PackingListPanel", () => ({
 	),
 }));
 
+vi.mock("./TripRentableEquipment", () => ({
+	TripRentableEquipment: ({ tripId }: { tripId: string }) => (
+		<div data-testid="trip-rentable-equipment">{tripId}</div>
+	),
+}));
+
 const mockTripDetails: TripDetails = {
 	id: "trip-999",
 	hostId: "host-1",

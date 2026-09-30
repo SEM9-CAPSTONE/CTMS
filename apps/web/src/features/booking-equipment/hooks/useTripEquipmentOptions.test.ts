@@ -49,6 +49,11 @@ describe("useTripEquipmentOptions", () => {
 		expect(listForTripMock).not.toHaveBeenCalled();
 	});
 
+	it("does not fetch when enabled is false", () => {
+		testingLibrary.renderHook(() => hookModule.useTripEquipmentOptions("trip-1", false));
+		expect(listForTripMock).not.toHaveBeenCalled();
+	});
+
 	it("maps a 404 into a not-found message", async () => {
 		listForTripMock.mockRejectedValueOnce(new HttpError("Not Found", 404, null));
 

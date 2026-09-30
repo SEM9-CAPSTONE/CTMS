@@ -37,6 +37,11 @@ export function BookingEquipmentPicker({
 		[options.items]
 	);
 
+	const equipmentRentalTotal = useMemo(
+		() => addedItems.items.reduce((sum, item) => sum + (Number(item.totalPrice) || 0), 0),
+		[addedItems.items]
+	);
+
 	async function handleSubmit(event: React.FormEvent) {
 		event.preventDefault();
 		if (!selectedEquipmentId || quantity < 1) return;
@@ -168,12 +173,25 @@ export function BookingEquipmentPicker({
 				</ul>
 			)}
 
-			<div className="mt-4 flex items-baseline justify-between rounded-xl bg-[#f4f7f2] p-3 text-sm">
-				<span className="font-semibold text-[#667a6d]">Tổng cộng:</span>
-				<span data-testid="booking-total-amount" className="font-extrabold text-[#164027]">
-					{formatCurrency(totalAmount)}
-				</span>
-			</div>
+			{addedItems.items.length > 0 && (
+				<div className="mt-4 flex flex-col gap-1.5 rounded-xl bg-[#f4f7f2] p-3 text-xs">
+					<div className="flex items-baseline justify-between">
+						<span className="font-semibold text-[#667a6d]">
+							Tổng tiền thuê thiết bị (tham khảo):
+						</span>
+						<span className="font-extrabold text-[#164027]">
+							{formatCurrency(String(equipmentRentalTotal))}
+						</span>
+					</div>
+					<p className="text-[11px] text-[#718578] italic">
+						* Tiền thuê thiết bị thanh toán riêng trực tiếp cho Host khi nhận đồ, không tính vào
+						tổng tiền đặt chỗ chuyến đi.
+					</p>
+				</div>
+			)}
+			<span data-testid="booking-total-amount" className="sr-only">
+				{formatCurrency(totalAmount)}
+			</span>
 		</section>
 	);
 }

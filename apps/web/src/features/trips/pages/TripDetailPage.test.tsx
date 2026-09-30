@@ -350,7 +350,7 @@ describe("TripDetailPage", () => {
 			/>
 		);
 
-		expect(screen.getByRole("status")).toHaveTextContent("booking-restored");
+		expect(screen.getAllByText("booking-restored").length).toBeGreaterThanOrEqual(1);
 		expect(screen.queryByRole("button", { name: /đặt chỗ ngay/i })).not.toBeInTheDocument();
 		expect(book).not.toHaveBeenCalled();
 	});

@@ -39,40 +39,158 @@ export async function seedDevTrips(): Promise<void> {
 			console.log(`[seed:dev-trips] Created Host user: ${hostId}`);
 		}
 
-		// 2. Ensure active Trekking Routes
+		// 2. Ensure Equipment Catalog Items for Host
+		const equipmentData = [
+			{
+				name: "Lều cắm trại 2 người Naturehike chống nước",
+				category: "shelter",
+				quantityTotal: 15,
+				rentalPricePerDay: 80000,
+				maintenanceSchedule: "Kiểm tra khung nhôm và vải lều sau mỗi chuyến đi",
+			},
+			{
+				name: "Lều cắm trại 4 người Coleman cao cấp",
+				category: "shelter",
+				quantityTotal: 10,
+				rentalPricePerDay: 140000,
+				maintenanceSchedule: "Vệ sinh, phơi khô và kiểm tra cọc ghim định kỳ",
+			},
+			{
+				name: "Túi ngủ dã ngoại du lịch (10°C - 15°C)",
+				category: "sleeping",
+				quantityTotal: 25,
+				rentalPricePerDay: 40000,
+				maintenanceSchedule: "Giặt sấy tiệt trùng sau mỗi lần sử dụng",
+			},
+			{
+				name: "Đệm hơi cách nhiệt dã ngoại xếp gọn",
+				category: "sleeping",
+				quantityTotal: 20,
+				rentalPricePerDay: 35000,
+				maintenanceSchedule: "Kiểm tra van khí và áp lực giữ hơi",
+			},
+			{
+				name: "Balo trekking trợ lực 50L Deuter",
+				category: "backpack",
+				quantityTotal: 12,
+				rentalPricePerDay: 70000,
+				maintenanceSchedule: "Kiểm tra hệ thống đai hông, khóa cài và khóa kéo",
+			},
+			{
+				name: "Gậy leo núi Carbon siêu nhẹ (Cặp)",
+				category: "gear",
+				quantityTotal: 30,
+				rentalPricePerDay: 30000,
+				maintenanceSchedule: "Kiểm tra khớp vặn khóa và đầu bọc cao su",
+			},
+			{
+				name: "Đèn pin đội đầu chống nước IPX8 Black Diamond",
+				category: "lighting",
+				quantityTotal: 25,
+				rentalPricePerDay: 35000,
+				maintenanceSchedule: "Sạc đầy pin lithium và kiểm tra roong chống nước",
+			},
+			{
+				name: "Bếp ga dã ngoại mini và bộ nồi nhôm xếp gọn",
+				category: "cooking",
+				quantityTotal: 10,
+				rentalPricePerDay: 65000,
+				maintenanceSchedule: "Kiểm tra van ngắt an toàn và vệ sinh đầu đốt",
+			},
+			{
+				name: "Bộ sơ cứu y tế sinh tồn Trekking",
+				category: "safety",
+				quantityTotal: 20,
+				rentalPricePerDay: 25000,
+				maintenanceSchedule: "Bổ sung gạc y tế và kiểm tra hạn thuốc sát khuẩn",
+			},
+		];
+
+		for (const eq of equipmentData) {
+			const existingEq: Array<{ id: string }> = await dataSource.query(
+				'SELECT "id" FROM "equipment_catalog_items" WHERE "host_id" = $1 AND "name" = $2',
+				[hostId, eq.name]
+			);
+			if (existingEq.length > 0) {
+				await dataSource.query(
+					`UPDATE "equipment_catalog_items" SET
+						category = $2,
+						quantity_total = $3,
+						rental_price_per_day = $4,
+						status = 'active',
+						maintenance_schedule = $5,
+						updated_at = NOW()
+					WHERE id = $1`,
+					[
+						existingEq[0].id,
+						eq.category,
+						eq.quantityTotal,
+						eq.rentalPricePerDay,
+						eq.maintenanceSchedule,
+					]
+				);
+			} else {
+				await dataSource.query(
+					`INSERT INTO "equipment_catalog_items" (
+						host_id, name, category, quantity_total, rental_price_per_day, status, maintenance_schedule
+					) VALUES ($1, $2, $3, $4, $5, 'active', $6)`,
+					[
+						hostId,
+						eq.name,
+						eq.category,
+						eq.quantityTotal,
+						eq.rentalPricePerDay,
+						eq.maintenanceSchedule,
+					]
+				);
+				console.log(`[seed:dev-trips] Created equipment item: ${eq.name}`);
+			}
+		}
+
+		// 3. Ensure active Trekking Routes around Da Nang
 		const routesData = [
 			{
 				name: "Bán Đảo Sơn Trà Discovery",
+				legacyNames: ["Bán Đảo Sơn Trà Discovery"],
 				description:
-					"Cung đường ven biển và rừng nguyên sinh Sơn Trà, thích hợp cho người mới bắt đầu.",
+					"Cung đường ven biển và rừng nguyên sinh Sơn Trà, khám phá Đỉnh Bàn Cờ và Mũi Nghê, thích hợp cho người mới bắt đầu.",
 				lengthMeters: 5200,
 				difficulty: "easy",
 				durationMinutes: 240,
-				geom: "SRID=4326;LINESTRING(108.26 16.11, 108.28 16.12, 108.30 16.11)",
+				geom: "SRID=4326;LINESTRING(108.260 16.110, 108.280 16.120, 108.300 16.110)",
 			},
 			{
-				name: "Đỉnh Núi Bidoup Trail",
-				description: "Chinh phục nóc nhà tỉnh Lâm Đồng xuyên qua rừng thông và thảm rêu cổ thụ.",
-				lengthMeters: 14500,
+				name: "Hải Vân Pass - Nam Hải Vân Trail",
+				legacyNames: ["Đỉnh Núi Bidoup Trail", "Hải Vân Pass - Nam Hải Vân Trail"],
+				description:
+					"Tuyến trekking dọc sườn núi Hải Vân hùng vĩ, ngắm trọn vịnh Làng Vân hoang sơ và biển Đà Nẵng từ trên cao.",
+				lengthMeters: 9500,
 				difficulty: "moderate",
-				durationMinutes: 480,
-				geom: "SRID=4326;LINESTRING(108.45 11.94, 108.47 11.96, 108.49 11.97)",
+				durationMinutes: 360,
+				geom: "SRID=4326;LINESTRING(108.130 16.185, 108.138 16.195, 108.145 16.205, 108.150 16.210)",
 			},
 			{
-				name: "Bạch Mộc Lương Tử Expedition",
-				description: "Hành trình săn mây kỳ vĩ qua sống lưng khủng long và rừng trúc bạt ngàn.",
-				lengthMeters: 28000,
+				name: "Rừng Nguyên Sinh Bà Nà - Núi Chúa",
+				legacyNames: ["Bạch Mộc Lương Tử Expedition", "Rừng Nguyên Sinh Bà Nà - Núi Chúa"],
+				description:
+					"Hành trình thám hiểm lõi rừng nguyên sinh Bà Nà - Núi Chúa, chinh phục các dốc đá và hệ sinh thái nhiệt đới đặc sắc.",
+				lengthMeters: 16000,
 				difficulty: "hard",
-				durationMinutes: 1200,
-				geom: "SRID=4326;LINESTRING(103.62 22.51, 103.65 22.53, 103.68 22.55)",
+				durationMinutes: 720,
+				geom: "SRID=4326;LINESTRING(108.010 15.990, 108.018 16.002, 108.025 16.015, 108.030 16.025)",
 			},
 			{
-				name: "Tà Năng - Phan Dũng Cung Đường Huyền Thoại",
-				description: "Tuyến trekking chuyển giao giữa cao nguyên Lâm Đồng và đồi cỏ Bình Thuận.",
-				lengthMeters: 35000,
+				name: "Khe Ram - Suối Mơ - Rừng Hòa Bắc",
+				legacyNames: [
+					"Tà Năng - Phan Dũng Cung Đường Huyền Thoại",
+					"Khe Ram - Suối Mơ - Rừng Hòa Bắc",
+				],
+				description:
+					"Cung đường trekking lội suối, vượt ghềnh đá Khe Ram, xuyên rừng đại ngàn thung lũng sông Cu Đê xã Hòa Bắc.",
+				lengthMeters: 22000,
 				difficulty: "expert",
-				durationMinutes: 1800,
-				geom: "SRID=4326;LINESTRING(108.38 11.58, 108.42 11.52, 108.48 11.45)",
+				durationMinutes: 1080,
+				geom: "SRID=4326;LINESTRING(108.020 16.090, 108.035 16.105, 108.050 16.120, 108.065 16.135)",
 			},
 		];
 
@@ -80,11 +198,34 @@ export async function seedDevTrips(): Promise<void> {
 
 		for (const r of routesData) {
 			const existing: Array<{ id: string }> = await dataSource.query(
-				'SELECT "id" FROM "trekking_routes" WHERE "name" = $1',
-				[r.name]
+				'SELECT "id" FROM "trekking_routes" WHERE "name" = ANY($1)',
+				[r.legacyNames]
 			);
 			if (existing.length > 0) {
-				routeIds[r.name] = existing[0].id;
+				const existingId = existing[0].id;
+				await dataSource.query(
+					`UPDATE "trekking_routes" SET
+						name = $2,
+						description = $3,
+						route_geom = ST_GeogFromText($4),
+						length_meters = $5,
+						difficulty = $6,
+						expected_duration_minutes = $7,
+						status = 'active',
+						updated_at = NOW()
+					WHERE id = $1`,
+					[
+						existingId,
+						r.name,
+						r.description,
+						r.geom,
+						r.lengthMeters,
+						r.difficulty,
+						r.durationMinutes,
+					]
+				);
+				routeIds[r.name] = existingId;
+				console.log(`[seed:dev-trips] Updated route: ${r.name} (${existingId})`);
 			} else {
 				const inserted: Array<{ id: string }> = await dataSource.query(
 					`INSERT INTO "trekking_routes" (host_id, name, description, route_geom, length_meters, difficulty, expected_duration_minutes, status)
@@ -97,7 +238,7 @@ export async function seedDevTrips(): Promise<void> {
 			}
 		}
 
-		// 3. Ensure weather risk assessments
+		// 4. Ensure weather risk assessments for all Da Nang routes
 		const existingRules: Array<{ id: string }> = await dataSource.query(
 			'SELECT "id" FROM "weather_risk_rules" ORDER BY "created_at" DESC LIMIT 1'
 		);
@@ -116,9 +257,9 @@ export async function seedDevTrips(): Promise<void> {
 
 		const weatherRisks = [
 			{ routeName: "Bán Đảo Sơn Trà Discovery", riskLevel: "green", score: 0.15 },
-			{ routeName: "Đỉnh Núi Bidoup Trail", riskLevel: "yellow", score: 0.45 },
-			{ routeName: "Bạch Mộc Lương Tử Expedition", riskLevel: "green", score: 0.2 },
-			{ routeName: "Tà Năng - Phan Dũng Cung Đường Huyền Thoại", riskLevel: "red", score: 0.78 },
+			{ routeName: "Hải Vân Pass - Nam Hải Vân Trail", riskLevel: "yellow", score: 0.45 },
+			{ routeName: "Rừng Nguyên Sinh Bà Nà - Núi Chúa", riskLevel: "green", score: 0.2 },
+			{ routeName: "Khe Ram - Suối Mơ - Rừng Hòa Bắc", riskLevel: "red", score: 0.78 },
 		];
 
 		for (const wr of weatherRisks) {
@@ -173,7 +314,19 @@ export async function seedDevTrips(): Promise<void> {
 			}
 		}
 
-		// 4. Seed published Trips
+		// 5. Clean up obsolete legacy trips
+		await dataSource.query(
+			`UPDATE "trips"
+			 SET "status" = 'cancelled'
+			 WHERE "title" IN (
+				'Khám Phá Sơn Trà Xanh Trong Ngày',
+				'Chinh Phục Đỉnh Núi Bidoup - 2 Ngày 1 Đêm',
+				'Tà Năng - Phan Dũng: Thử Thách Băng Rừng Đồi Cỏ',
+				'Bạch Mộc Lương Tử - Săn Mây Đại Ngàn (Đã Hết Chỗ)'
+			 )`
+		);
+
+		// 6. Seed published Trips with fresh dates calculated from NOW (Da Nang locations only)
 		const now = new Date();
 		const inDays = (d: number, hours = 7) => {
 			const date = new Date(now.getTime() + d * 86400000);
@@ -188,17 +341,21 @@ export async function seedDevTrips(): Promise<void> {
 		const sampleTrips = [
 			// Scenario 1: Normal capacity (12 seats remaining)
 			{
-				title: "[CTMS-024] Khám Phá Sơn Trà (Bình thường - Còn 12 chỗ)",
+				title: "[CTMS-024] Khám Phá Bán Đảo Sơn Trà (Bình thường - Còn 12 chỗ)",
+				legacyTitles: [
+					"[CTMS-024] Khám Phá Sơn Trà (Bình thường - Còn 12 chỗ)",
+					"[CTMS-024] Khám Phá Bán Đảo Sơn Trà (Bình thường - Còn 12 chỗ)",
+				],
 				routeName: "Bán Đảo Sơn Trà Discovery",
 				description:
-					"Chuyến đi bộ dã ngoại trong ngày ngắm voọc chà vá chân nâu. Trạng thái bình thường, còn nhiều chỗ trống.",
+					"Chuyến đi bộ dã ngoại trong ngày ngắm voọc chà vá chân nâu và Đỉnh Bàn Cờ tại bán đảo Sơn Trà, Đà Nẵng. Trạng thái bình thường, còn nhiều chỗ trống.",
 				coverImageUrl:
 					"https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80",
 				tripType: "day_trip",
 				durationNights: 0,
 				startsAt: inDays(4, 7),
 				endsAt: inDays(4, 16),
-				meetingPointGeom: "SRID=4326;POINT(108.26 16.11)",
+				meetingPointGeom: "SRID=4326;POINT(108.260 16.110)",
 				meetingAt: inDays(4, 6),
 				bookingDeadline: inDays(3, 18),
 				capacityMin: 5,
@@ -206,7 +363,8 @@ export async function seedDevTrips(): Promise<void> {
 				seatsTaken: 8,
 				pricePerPerson: "450000",
 				itinerary: {
-					summary: "06:30 tập trung, 07:00 bắt đầu trekking, 11:30 picnic trưa, 16:00 kết thúc.",
+					summary:
+						"06:30 tập trung Chùa Linh Ứng, 07:00 bắt đầu trekking, 11:30 picnic trưa Bãi Rạng, 16:00 kết thúc.",
 				},
 				includes: {
 					items: ["Hướng dẫn viên", "Nước uống 2L/người", "Bữa trưa dã ngoại", "Bảo hiểm du lịch"],
@@ -215,12 +373,12 @@ export async function seedDevTrips(): Promise<void> {
 				cancellationPolicy: { policy: "Hủy trước 48h hoàn tiền 100%, sau 48h không hoàn phí." },
 				waypoints: [
 					{
-						name: "Điểm tập kết Cây Đa Ngàn Năm",
+						name: "Điểm tập kết Chùa Linh Ứng - Sơn Trà",
 						type: "start",
 						day: 1,
 						seq: 1,
 						duration: 30,
-						geom: "SRID=4326;POINT(108.26 16.11)",
+						geom: "SRID=4326;POINT(108.260 16.110)",
 					},
 					{
 						name: "Trạm quan sát Đỉnh Bàn Cờ",
@@ -228,251 +386,283 @@ export async function seedDevTrips(): Promise<void> {
 						day: 1,
 						seq: 2,
 						duration: 60,
-						geom: "SRID=4326;POINT(108.28 16.12)",
+						geom: "SRID=4326;POINT(108.280 16.120)",
 					},
 					{
-						name: "Bãi đá Obama - Ăn trưa",
+						name: "Bãi Rạng - Nghỉ chân & Ăn trưa",
 						type: "meal",
 						day: 1,
 						seq: 3,
 						duration: 90,
-						geom: "SRID=4326;POINT(108.29 16.115)",
+						geom: "SRID=4326;POINT(108.290 16.115)",
 					},
 					{
-						name: "Về điểm xuất phát",
+						name: "Về lại chân núi Sơn Trà",
 						type: "finish",
 						day: 1,
 						seq: 4,
 						duration: 30,
-						geom: "SRID=4326;POINT(108.30 16.11)",
+						geom: "SRID=4326;POINT(108.260 16.110)",
 					},
 				],
 			},
 			// Scenario 2: Low capacity urgency (<= 3 seats remaining -> exactly 2 remaining)
 			{
-				title: "[CTMS-024] Đỉnh Núi Bidoup Trail (Khẩn cấp: Chỉ còn 2 chỗ)",
-				routeName: "Đỉnh Núi Bidoup Trail",
+				title: "[CTMS-024] Hải Vân Quan - Vịnh Làng Vân (Khẩn cấp: Chỉ còn 2 chỗ)",
+				legacyTitles: [
+					"[CTMS-024] Đỉnh Núi Bidoup Trail (Khẩn cấp: Chỉ còn 2 chỗ)",
+					"[CTMS-024] Hải Vân Quan - Vịnh Làng Vân (Khẩn cấp: Chỉ còn 2 chỗ)",
+				],
+				routeName: "Hải Vân Pass - Nam Hải Vân Trail",
 				description:
-					"Hành trình trekking 2N1Đ vượt thảm rêu cổ thụ. Số lượng chỗ sắp hết, chỉ còn 2 vé cuối cùng!",
+					"Hành trình trekking 2N1Đ vượt sườn đèo Hải Vân và cắm trại vịnh biển Làng Vân hoang sơ dưới chân đèo. Số lượng chỗ sắp hết, chỉ còn 2 vé cuối cùng!",
 				coverImageUrl:
 					"https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1200&q=80",
 				tripType: "overnight",
 				durationNights: 1,
-				startsAt: inDays(7, 6),
-				endsAt: inDays(8, 17),
-				meetingPointGeom: "SRID=4326;POINT(108.45 11.94)",
-				meetingAt: inDays(7, 5),
-				bookingDeadline: inDays(5, 23),
+				startsAt: inDays(6, 6),
+				endsAt: inDays(7, 16),
+				meetingPointGeom: "SRID=4326;POINT(108.130 16.185)",
+				meetingAt: inDays(6, 5),
+				bookingDeadline: inDays(4, 23),
 				capacityMin: 5,
 				capacityMax: 10,
 				seatsTaken: 8,
-				pricePerPerson: "1850000",
+				pricePerPerson: "1650000",
 				itinerary: {
 					summary:
-						"Ngày 1: VQG Bidoup - Bãi cắm trại Klong Klanh (10km). Ngày 2: Chinh phục đỉnh 2.287m - Trở về.",
+						"Ngày 1: Chân đèo Hải Vân - Cửa Rừng Nam Hải Vân - Hạ trại Bãi Biển Làng Vân. Ngày 2: Đón bình minh biển - Lên đồn Nhất Hải Vân Quan - Kết thúc.",
 				},
 				includes: {
 					items: [
-						"Lều trại & túi ngủ",
-						"Mọi bữa ăn trong tour (4 bữa)",
-						"HDV & Porter hỗ trợ",
-						"Bảo hiểm 50 triệu",
+						"Lều trại & túi ngủ dã ngoại",
+						"Bữa tối BBQ bên bãi biển Làng Vân",
+						"HDV dẫn đường & đồ cứu hộ",
+						"Bảo hiểm du lịch",
 					],
 				},
-				excludes: { items: ["Balo cá nhân", "Vé máy bay đến Đà Lạt"] },
+				excludes: { items: ["Balo cá nhân", "Chi phí nước ngọt tại làng"] },
 				cancellationPolicy: { policy: "Hủy trước 5 ngày hoàn 80%, sau 5 ngày hoàn 50%." },
 				waypoints: [
 					{
-						name: "Trụ sở VQG Bidoup",
+						name: "Điểm tập kết Chân đèo Hải Vân - Hòa Hiệp Bắc",
 						type: "start",
 						day: 1,
 						seq: 1,
 						duration: 45,
-						geom: "SRID=4326;POINT(108.45 11.94)",
+						geom: "SRID=4326;POINT(108.130 16.185)",
 					},
 					{
-						name: "Đồi thông ngút ngàn",
+						name: "Rừng dẻ Nam Hải Vân",
 						type: "rest",
 						day: 1,
 						seq: 2,
 						duration: 30,
-						geom: "SRID=4326;POINT(108.46 11.95)",
+						geom: "SRID=4326;POINT(108.138 16.195)",
 					},
 					{
-						name: "Bãi cắm trại Klong Klanh",
+						name: "Bãi biển Làng Vân - Cắm trại đêm",
 						type: "overnight",
 						day: 1,
 						seq: 3,
 						duration: 600,
-						geom: "SRID=4326;POINT(108.47 11.96)",
+						geom: "SRID=4326;POINT(108.145 16.205)",
 					},
 					{
-						name: "Bình minh Đỉnh Bidoup 2.287m",
+						name: "Đỉnh Hải Vân Quan lịch sử",
 						type: "activity",
 						day: 2,
 						seq: 4,
 						duration: 90,
-						geom: "SRID=4326;POINT(108.49 11.97)",
+						geom: "SRID=4326;POINT(108.132 16.198)",
 					},
 					{
-						name: "Xuống núi - Kết thúc",
+						name: "Xuống chân đèo - Kết thúc hành trình",
 						type: "finish",
 						day: 2,
 						seq: 5,
 						duration: 60,
-						geom: "SRID=4326;POINT(108.45 11.94)",
+						geom: "SRID=4326;POINT(108.130 16.185)",
 					},
 				],
 			},
 			// Scenario 3: Completely Sold Out (seatsTaken == capacityMax -> 0 seats)
 			{
-				title: "[CTMS-024] Bạch Mộc Lương Tử Expedition (Đã Hết Chỗ - 0 chỗ)",
-				routeName: "Bạch Mộc Lương Tử Expedition",
+				title: "[CTMS-024] Thám Hiểm Rừng Bà Nà - Núi Chúa (Đã Hết Chỗ - 0 chỗ)",
+				legacyTitles: [
+					"[CTMS-024] Bạch Mộc Lương Tử Expedition (Đã Hết Chỗ - 0 chỗ)",
+					"[CTMS-024] Thám Hiểm Rừng Bà Nà - Núi Chúa (Đã Hết Chỗ - 0 chỗ)",
+				],
+				routeName: "Rừng Nguyên Sinh Bà Nà - Núi Chúa",
 				description:
-					"Cung trekking săn mây kinh điển miền Bắc. Đã đủ 10/10 khách tham gia, toàn bộ chỗ đã được đặt kín.",
+					"Cung trekking thám hiểm lõi rừng nguyên sinh Bà Nà - Núi Chúa tại huyện Hòa Vang, Đà Nẵng. Đã đủ 10/10 khách tham gia, toàn bộ chỗ đã được đặt kín.",
 				coverImageUrl:
 					"https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=1200&q=80",
 				tripType: "overnight",
-				durationNights: 2,
-				startsAt: inDays(12, 5),
-				endsAt: inDays(14, 18),
-				meetingPointGeom: "SRID=4326;POINT(103.62 22.51)",
-				meetingAt: inDays(12, 4),
-				bookingDeadline: inDays(10, 12),
+				durationNights: 1,
+				startsAt: inDays(8, 6),
+				endsAt: inDays(9, 17),
+				meetingPointGeom: "SRID=4326;POINT(108.010 15.990)",
+				meetingAt: inDays(8, 5),
+				bookingDeadline: inDays(6, 18),
 				capacityMin: 6,
 				capacityMax: 10,
 				seatsTaken: 10,
-				pricePerPerson: "3200000",
+				pricePerPerson: "2200000",
 				itinerary: {
 					summary:
-						"Ngày 1: Sàng Ma Sáo - Lán nghỉ 2.100m. Ngày 2: Chinh phục đỉnh Muối 3.046m. Ngày 3: Xuống núi.",
+						"Ngày 1: Trạm Kiểm lâm Hòa Ninh - Lán Thác Tóc Tiên - Cắm trại đêm. Ngày 2: Chinh phục đỉnh Núi Chúa 1.487m - Xuống núi.",
 				},
 				includes: {
 					items: [
-						"Xe giường nằm khứ hồi Hà Nội - Sapa",
-						"Lán nghỉ & chăn ấm",
-						"Đồ ăn ấm nóng",
-						"Porter chuyên nghiệp",
+						"Xe đưa đón từ trung tâm Đà Nẵng",
+						"Lều trại & túi ấm dã ngoại",
+						"Suất ăn ấm nóng tại lán",
+						"Người dẫn đường kiểm lâm bản địa",
 					],
 				},
 				excludes: { items: ["Đồ uống có cồn", "Tiền tip porter"] },
 				cancellationPolicy: { policy: "Hủy trước 7 ngày hoàn 90%." },
 				waypoints: [
 					{
-						name: "Bản Ki Quan San",
+						name: "Trạm Kiểm lâm Hòa Ninh - Hòa Vang",
 						type: "start",
 						day: 1,
 						seq: 1,
 						duration: 30,
-						geom: "SRID=4326;POINT(103.62 22.51)",
+						geom: "SRID=4326;POINT(108.010 15.990)",
 					},
 					{
-						name: "Lán nghỉ 2.100m",
-						type: "overnight",
+						name: "Thung lũng Rừng Mơ",
+						type: "checkpoint",
 						day: 1,
 						seq: 2,
-						duration: 600,
-						geom: "SRID=4326;POINT(103.65 22.53)",
+						duration: 45,
+						geom: "SRID=4326;POINT(108.018 16.002)",
 					},
 					{
-						name: "Đỉnh Muối 3.046m Săn Mây",
+						name: "Lán cắm trại Thác Tóc Tiên",
+						type: "overnight",
+						day: 1,
+						seq: 3,
+						duration: 600,
+						geom: "SRID=4326;POINT(108.025 16.015)",
+					},
+					{
+						name: "Đỉnh Núi Chúa 1.487m",
 						type: "activity",
 						day: 2,
-						seq: 3,
+						seq: 4,
 						duration: 120,
-						geom: "SRID=4326;POINT(103.68 22.55)",
+						geom: "SRID=4326;POINT(108.030 16.025)",
 					},
 					{
-						name: "Hạ trại về lại bản",
+						name: "Về lại Trạm Kiểm lâm",
 						type: "finish",
-						day: 3,
-						seq: 4,
+						day: 2,
+						seq: 5,
 						duration: 60,
-						geom: "SRID=4326;POINT(103.62 22.51)",
+						geom: "SRID=4326;POINT(108.010 15.990)",
 					},
 				],
 			},
 			// Scenario 4: Deadline approaching soon (< 24 hours -> 8 hours left)
 			{
-				title: "[CTMS-024] Tà Năng - Phan Dũng (Sắp hết hạn đặt chỗ - Còn 8h)",
-				routeName: "Tà Năng - Phan Dũng Cung Đường Huyền Thoại",
+				title: "[CTMS-024] Trekking Khe Ram - Rừng Hòa Bắc (Sắp hết hạn - Còn 8h)",
+				legacyTitles: [
+					"[CTMS-024] Tà Năng - Phan Dũng (Sắp hết hạn đặt chỗ - Còn 8h)",
+					"[CTMS-024] Trekking Khe Ram - Rừng Hòa Bắc (Sắp hết hạn - Còn 8h)",
+				],
+				routeName: "Khe Ram - Suối Mơ - Rừng Hòa Bắc",
 				description:
-					"Cung trekking băng rừng đồi cỏ. Hạn chốt danh sách người tham gia sẽ đóng trong 8 giờ tới.",
+					"Cung trekking băng rừng thung lũng sông Cu Đê, vượt suối ghềnh đá Khe Ram tại Hòa Bắc, Đà Nẵng. Hạn chốt danh sách người tham gia sẽ đóng trong 8 giờ tới.",
 				coverImageUrl:
 					"https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1200&q=80",
 				tripType: "overnight",
-				durationNights: 2,
-				startsAt: inDays(3, 6),
-				endsAt: inDays(5, 16),
-				meetingPointGeom: "SRID=4326;POINT(108.38 11.58)",
-				meetingAt: inDays(3, 5),
+				durationNights: 1,
+				startsAt: inDays(2, 6),
+				endsAt: inDays(3, 17),
+				meetingPointGeom: "SRID=4326;POINT(108.020 16.090)",
+				meetingAt: inDays(2, 5),
 				bookingDeadline: inHours(8),
 				capacityMin: 6,
 				capacityMax: 15,
 				seatsTaken: 5,
-				pricePerPerson: "2650000",
+				pricePerPerson: "1850000",
 				itinerary: {
 					summary:
-						"Ngày 1: Tà Năng - Cắm trại đồi lính. Ngày 2: Đồi lính - Thác Yavly. Ngày 3: Ra bìa rừng Phan Dũng.",
+						"Ngày 1: Thôn Tà Lang - Lội suối Khe Ram - Cắm trại bãi cỏ Thác Mơ. Ngày 2: Khám phá Vách Đá Trắng - Trở về trạm sinh thái Hòa Bắc.",
 				},
 				includes: {
 					items: [
-						"Trang bị an toàn SOS",
-						"Xe ôm trung chuyển cuối chặng",
-						"Đội ngũ dẫn đường bản địa",
+						"Trang bị an toàn áo phao & SOS",
+						"Lều trại & bữa ăn dã ngoại",
+						"Đội ngũ dẫn đường người Cơ Tu bản địa",
 						"Bảo hiểm du lịch",
 					],
 				},
 				excludes: { items: ["Chi phí cá nhân"] },
-				cancellationPolicy: { policy: "Hủy trước 7 ngày hoàn 80%." },
+				cancellationPolicy: { policy: "Hủy trước 48h hoàn 80%." },
 				waypoints: [
 					{
-						name: "Nhà đồng bào Tà Năng",
+						name: "Nhà Gươl Thôn Tà Lang - Hòa Bắc",
 						type: "start",
 						day: 1,
 						seq: 1,
 						duration: 40,
-						geom: "SRID=4326;POINT(108.38 11.58)",
+						geom: "SRID=4326;POINT(108.020 16.090)",
 					},
 					{
-						name: "Đồi Lính - Cắm trại hoàng hôn",
-						type: "overnight",
+						name: "Ghềnh đá Khe Ram",
+						type: "checkpoint",
 						day: 1,
 						seq: 2,
-						duration: 600,
-						geom: "SRID=4326;POINT(108.42 11.52)",
+						duration: 60,
+						geom: "SRID=4326;POINT(108.035 16.105)",
 					},
 					{
-						name: "Thác Yavly",
+						name: "Bãi cỏ Thác Mơ - Cắm trại đêm",
+						type: "overnight",
+						day: 1,
+						seq: 3,
+						duration: 600,
+						geom: "SRID=4326;POINT(108.050 16.120)",
+					},
+					{
+						name: "Vách Đá Trắng Hoang Sơ",
 						type: "activity",
 						day: 2,
-						seq: 3,
-						duration: 180,
-						geom: "SRID=4326;POINT(108.45 11.48)",
+						seq: 4,
+						duration: 90,
+						geom: "SRID=4326;POINT(108.065 16.135)",
 					},
 					{
-						name: "Bìa rừng Phan Dũng",
+						name: "Trạm Sinh Thái Hòa Bắc - Kết thúc",
 						type: "finish",
-						day: 3,
-						seq: 4,
+						day: 2,
+						seq: 5,
 						duration: 45,
-						geom: "SRID=4326;POINT(108.48 11.45)",
+						geom: "SRID=4326;POINT(108.020 16.090)",
 					},
 				],
 			},
 			// Scenario 5: Past booking deadline (Deadline was 2 hours ago -> booking closed)
 			{
-				title: "[CTMS-024] Sơn Trà Sunset Trek (Đã Hết Hạn Đặt Vé)",
+				title: "[CTMS-024] Sơn Trà Sunset Trekking Mũi Nghê (Đã Hết Hạn Đặt Vé)",
+				legacyTitles: [
+					"[CTMS-024] Sơn Trà Sunset Trek (Đã Hết Hạn Đặt Vé)",
+					"[CTMS-024] Sơn Trà Sunset Trekking Mũi Nghê (Đã Hết Hạn Đặt Vé)",
+				],
 				routeName: "Bán Đảo Sơn Trà Discovery",
 				description:
-					"Chuyến đi đã qua hạn chốt danh sách người tham gia (đóng từ 2 giờ trước). Không thể đăng ký thêm.",
+					"Chuyến đi bộ ngắm hoàng hôn rực rỡ tại Mũi Nghê Sơn Trà đã qua hạn chốt danh sách người tham gia (đóng từ 2 giờ trước). Không thể đăng ký thêm.",
 				coverImageUrl:
 					"https://images.unsplash.com/photo-1510312305653-8ed496efae75?auto=format&fit=crop&w=1200&q=80",
 				tripType: "day_trip",
 				durationNights: 0,
 				startsAt: inDays(2, 14),
 				endsAt: inDays(2, 18),
-				meetingPointGeom: "SRID=4326;POINT(108.26 16.11)",
+				meetingPointGeom: "SRID=4326;POINT(108.260 16.110)",
 				meetingAt: inDays(2, 13),
 				bookingDeadline: inHours(-2),
 				capacityMin: 4,
@@ -480,37 +670,38 @@ export async function seedDevTrips(): Promise<void> {
 				seatsTaken: 4,
 				pricePerPerson: "350000",
 				itinerary: {
-					summary: "14:00 tập kết, 15:00 trekking ngắm hoàng hôn, 18:00 kết thúc.",
+					summary:
+						"14:00 tập kết Bãi Trẹm, 15:00 trekking ngắm hoàng hôn Mũi Nghê, 18:00 kết thúc.",
 				},
 				includes: {
-					items: ["Hướng dẫn viên", "Nước khoáng"],
+					items: ["Hướng dẫn viên chuyên nghiệp", "Nước khoáng & trái cây nhẹ"],
 				},
-				excludes: { items: ["Chi phí cá nhân"] },
+				excludes: { items: ["Chi phí di chuyển cá nhân"] },
 				cancellationPolicy: { policy: "Không hoàn phí khi đã hết hạn đặt vé." },
 				waypoints: [
 					{
-						name: "Điểm tập kết Cây Đa Ngàn Năm",
+						name: "Điểm tập kết Bãi Trẹm - Sơn Trà",
 						type: "start",
 						day: 1,
 						seq: 1,
 						duration: 30,
-						geom: "SRID=4326;POINT(108.26 16.11)",
+						geom: "SRID=4326;POINT(108.260 16.110)",
 					},
 					{
-						name: "Mũi Nghê ngắm hoàng hôn",
+						name: "Mũi Nghê ngắm hoàng hôn vịnh biển",
 						type: "activity",
 						day: 1,
 						seq: 2,
 						duration: 90,
-						geom: "SRID=4326;POINT(108.28 16.12)",
+						geom: "SRID=4326;POINT(108.280 16.120)",
 					},
 					{
-						name: "Kết thúc hành trình",
+						name: "Kết thúc hành trình tại Bãi Trẹm",
 						type: "finish",
 						day: 1,
 						seq: 3,
 						duration: 30,
-						geom: "SRID=4326;POINT(108.26 16.11)",
+						geom: "SRID=4326;POINT(108.260 16.110)",
 					},
 				],
 			},
@@ -518,11 +709,14 @@ export async function seedDevTrips(): Promise<void> {
 
 		for (const st of sampleTrips) {
 			const routeId = routeIds[st.routeName];
-			if (!routeId) continue;
+			if (!routeId) {
+				console.warn(`[seed:dev-trips] Route not found for ${st.routeName}`);
+				continue;
+			}
 
 			const existingTrip: Array<{ id: string }> = await dataSource.query(
-				'SELECT "id" FROM "trips" WHERE "title" = $1',
-				[st.title]
+				'SELECT "id" FROM "trips" WHERE "title" = ANY($1)',
+				[st.legacyTitles]
 			);
 
 			let tripId = "";
@@ -530,25 +724,49 @@ export async function seedDevTrips(): Promise<void> {
 				tripId = existingTrip[0].id;
 				await dataSource.query(
 					`UPDATE "trips" SET
-						capacity_min = $2,
-						capacity_max = $3,
-						seats_taken = $4,
-						booking_deadline = $5,
-						starts_at = $6,
-						ends_at = $7,
+						route_id = $2,
+						title = $3,
+						description = $4,
+						cover_image_url = $5,
+						trip_type = $6,
+						duration_nights = $7,
+						starts_at = $8,
+						ends_at = $9,
+						meeting_point = ST_GeogFromText($10),
+						meeting_at = $11,
+						booking_deadline = $12,
+						capacity_min = $13,
+						capacity_max = $14,
+						seats_taken = $15,
+						price_per_person = $16,
+						itinerary = $17::jsonb,
+						includes = $18::jsonb,
+						excludes = $19::jsonb,
+						cancellation_policy = $20::jsonb,
 						status = 'published',
-						price_per_person = $8,
 						updated_at = NOW()
 					WHERE id = $1`,
 					[
 						tripId,
+						routeId,
+						st.title,
+						st.description,
+						st.coverImageUrl,
+						st.tripType,
+						st.durationNights,
+						st.startsAt,
+						st.endsAt,
+						st.meetingPointGeom,
+						st.meetingAt,
+						st.bookingDeadline,
 						st.capacityMin,
 						st.capacityMax,
 						st.seatsTaken,
-						st.bookingDeadline,
-						st.startsAt,
-						st.endsAt,
 						st.pricePerPerson,
+						JSON.stringify(st.itinerary),
+						JSON.stringify(st.includes),
+						JSON.stringify(st.excludes),
+						JSON.stringify(st.cancellationPolicy),
 					]
 				);
 				console.log(`[seed:dev-trips] Updated trip for scenario: ${st.title} (${tripId})`);
@@ -594,22 +812,17 @@ export async function seedDevTrips(): Promise<void> {
 				console.log(`[seed:dev-trips] Created published trip: ${st.title} (${tripId})`);
 			}
 
-			// Add waypoints
+			// Refresh waypoints for the trip
+			await dataSource.query('DELETE FROM "trip_waypoints" WHERE "trip_id" = $1', [tripId]);
 			for (const wp of st.waypoints) {
-				const existingWp: Array<{ id: string }> = await dataSource.query(
-					'SELECT "id" FROM "trip_waypoints" WHERE "trip_id" = $1 AND "sequence_order" = $2',
-					[tripId, wp.seq]
+				await dataSource.query(
+					`INSERT INTO "trip_waypoints" (
+						trip_id, type, name, location, day_number, sequence_order, duration_minutes
+					) VALUES (
+						$1, $2, $3, ST_GeogFromText($4), $5, $6, $7
+					)`,
+					[tripId, wp.type, wp.name, wp.geom, wp.day, wp.seq, wp.duration]
 				);
-				if (existingWp.length === 0) {
-					await dataSource.query(
-						`INSERT INTO "trip_waypoints" (
-							trip_id, type, name, location, day_number, sequence_order, duration_minutes
-						) VALUES (
-							$1, $2, $3, ST_GeogFromText($4), $5, $6, $7
-						)`,
-						[tripId, wp.type, wp.name, wp.geom, wp.day, wp.seq, wp.duration]
-					);
-				}
 			}
 		}
 
