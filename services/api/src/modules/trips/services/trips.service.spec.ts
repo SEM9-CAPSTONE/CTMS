@@ -159,6 +159,9 @@ describe("TripsService", () => {
 		findByIdForBooking: jest.Mock;
 		adjustSeatsTaken: jest.Mock;
 		recomputeSeatsTaken: jest.Mock;
+		findByIdForScheduleChange: jest.Mock;
+		reschedulePublishedTrip: jest.Mock;
+		cancelTripWithCommitments: jest.Mock;
 	};
 	let auditRepository: { save: jest.Mock };
 	let dataSource: { transaction: jest.Mock };
@@ -199,6 +202,30 @@ describe("TripsService", () => {
 			findByIdForBooking: jest.fn().mockResolvedValue(null),
 			adjustSeatsTaken: jest.fn().mockResolvedValue(undefined),
 			recomputeSeatsTaken: jest.fn().mockResolvedValue(undefined),
+			findByIdForScheduleChange: jest.fn().mockResolvedValue({
+				trip: { ...createdTrip(), status: TripStatus.PUBLISHED },
+				hostId: HOST_ID,
+				routeId: ROUTE_ID,
+				status: TripStatus.PUBLISHED,
+				startsAt: new Date("2026-09-20T01:00:00.000Z"),
+				endsAt: new Date("2026-09-20T10:00:00.000Z"),
+				meetingAt: new Date("2026-09-20T00:30:00.000Z"),
+				tripType: TripType.DAY_TRIP,
+				durationNights: 0,
+			}),
+			reschedulePublishedTrip: jest.fn().mockResolvedValue({
+				bookingsPendingReconfirmation: 2,
+				portersPendingReconfirmation: 1,
+				equipmentReservationsMoved: 1,
+				equipmentReservationsCancelled: 0,
+				equipmentRefundsCreated: 0,
+			}),
+			cancelTripWithCommitments: jest.fn().mockResolvedValue({
+				bookingsCancelled: 2,
+				portersUnassigned: 1,
+				equipmentReservationsCancelled: 1,
+				bookingRefundsCreated: 1,
+			}),
 		};
 		auditRepository = { save: jest.fn().mockResolvedValue({}) };
 		dataSource = {
@@ -729,6 +756,172 @@ describe("TripsService", () => {
 				status: 422,
 			});
 			expect(tripsRepository.searchPublishedTrips).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("reschedule", () => {
+		const RESCHEDULED_AT = new Date("2026-09-18T00:00:00.000Z");
+
+		beforeEach(() => {
+			tripsRepository.findById.mockResolvedValue({
+				...createdTrip(),
+				status: TripStatus.PUBLISHED,
+				startsAt: new Date("2026-09-20T02:00:00.000Z"),
+				endsAt: new Date("2026-09-20T11:00:00.000Z"),
+			});
+		});
+
+		it("reschedules only the schedule fields, moves commitments to reconfirmation, and audits the outcome", async () => {
+			const result = await service.reschedule(
+				HOST_ID,
+				TRIP_ID,
+				{
+					startsAt: "2026-09-20T02:00:00.000Z",
+					endsAt: "2026-09-20T11:00:00.000Z",
+				},
+				RESCHEDULED_AT
+			);
+
+			expect(tripsRepository.findByIdForScheduleChange).toHaveBeenCalledWith(TRIP_ID);
+			expect(tripsRepository.reschedulePublishedTrip).toHaveBeenCalledWith(
+				TRIP_ID,
+				new Date("2026-09-20T02:00:00.000Z"),
+				new Date("2026-09-20T11:00:00.000Z"),
+				RESCHEDULED_AT,
+				new Date("2026-09-19T02:00:00.000Z")
+			);
+			expect(result.status).toBe(TripStatus.PUBLISHED);
+			expect(auditRepository.save).toHaveBeenCalledWith(
+				expect.objectContaining({
+					actorId: HOST_ID,
+					action: "trip.rescheduled",
+					targetType: "trip",
+					targetId: TRIP_ID,
+					reason: "host_reschedule_trip",
+					after: expect.objectContaining({
+						rescheduledAt: RESCHEDULED_AT,
+						reconfirmationDeadline: new Date("2026-09-19T02:00:00.000Z"),
+						commitmentSummary: expect.objectContaining({
+							bookingsPendingReconfirmation: 2,
+							portersPendingReconfirmation: 1,
+						}),
+					}),
+				})
+			);
+		});
+
+		it("rejects non-owning Hosts before mutating commitments", async () => {
+			tripsRepository.findByIdForScheduleChange.mockResolvedValue({
+				trip: { ...createdTrip(), status: TripStatus.PUBLISHED },
+				hostId: OTHER_HOST_ID,
+				routeId: ROUTE_ID,
+				status: TripStatus.PUBLISHED,
+				startsAt: new Date("2026-09-20T01:00:00.000Z"),
+				endsAt: new Date("2026-09-20T10:00:00.000Z"),
+				meetingAt: null,
+				tripType: TripType.DAY_TRIP,
+				durationNights: 0,
+			});
+
+			await expect(
+				service.reschedule(
+					HOST_ID,
+					TRIP_ID,
+					{ startsAt: "2026-09-20T02:00:00.000Z" },
+					RESCHEDULED_AT
+				)
+			).rejects.toBeInstanceOf(ForbiddenException);
+			expect(tripsRepository.reschedulePublishedTrip).not.toHaveBeenCalled();
+		});
+
+		it("rejects the exact 24-hour boundary", async () => {
+			await expect(
+				service.reschedule(
+					HOST_ID,
+					TRIP_ID,
+					{ startsAt: "2026-09-19T00:00:00.000Z" },
+					RESCHEDULED_AT
+				)
+			).rejects.toMatchObject({ status: 422 });
+			expect(tripsRepository.reschedulePublishedTrip).not.toHaveBeenCalled();
+		});
+
+		it("rejects non-published Trips", async () => {
+			tripsRepository.findByIdForScheduleChange.mockResolvedValue({
+				trip: createdTrip(),
+				hostId: HOST_ID,
+				routeId: ROUTE_ID,
+				status: TripStatus.DRAFT,
+				startsAt: new Date("2026-09-20T01:00:00.000Z"),
+				endsAt: new Date("2026-09-20T10:00:00.000Z"),
+				meetingAt: null,
+				tripType: TripType.DAY_TRIP,
+				durationNights: 0,
+			});
+
+			await expect(
+				service.reschedule(
+					HOST_ID,
+					TRIP_ID,
+					{ startsAt: "2026-09-20T02:00:00.000Z" },
+					RESCHEDULED_AT
+				)
+			).rejects.toBeInstanceOf(ConflictException);
+			expect(tripsRepository.reschedulePublishedTrip).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("cancel", () => {
+		beforeEach(() => {
+			tripsRepository.findById.mockResolvedValue({
+				...createdTrip(),
+				status: TripStatus.CANCELLED,
+			});
+		});
+
+		it("cancels an owned not-completed Trip, releases commitments, and audits the reason", async () => {
+			const result = await service.cancel(HOST_ID, TRIP_ID, { reason: "Storm warning" });
+
+			expect(tripsRepository.cancelTripWithCommitments).toHaveBeenCalledWith(
+				TRIP_ID,
+				expect.any(Date),
+				"Storm warning"
+			);
+			expect(result.status).toBe(TripStatus.CANCELLED);
+			expect(auditRepository.save).toHaveBeenCalledWith(
+				expect.objectContaining({
+					actorId: HOST_ID,
+					action: "trip.cancelled",
+					targetType: "trip",
+					targetId: TRIP_ID,
+					reason: "Storm warning",
+					after: expect.objectContaining({
+						commitmentSummary: expect.objectContaining({
+							bookingsCancelled: 2,
+							bookingRefundsCreated: 1,
+						}),
+					}),
+				})
+			);
+		});
+
+		it("rejects completed Trips", async () => {
+			tripsRepository.findByIdForScheduleChange.mockResolvedValue({
+				trip: { ...createdTrip(), status: TripStatus.COMPLETED },
+				hostId: HOST_ID,
+				routeId: ROUTE_ID,
+				status: TripStatus.COMPLETED,
+				startsAt: new Date("2026-09-20T01:00:00.000Z"),
+				endsAt: new Date("2026-09-20T10:00:00.000Z"),
+				meetingAt: null,
+				tripType: TripType.DAY_TRIP,
+				durationNights: 0,
+			});
+
+			await expect(service.cancel(HOST_ID, TRIP_ID, { reason: "Too late" })).rejects.toBeInstanceOf(
+				ConflictException
+			);
+			expect(tripsRepository.cancelTripWithCommitments).not.toHaveBeenCalled();
 		});
 	});
 

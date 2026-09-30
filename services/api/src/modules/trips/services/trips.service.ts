@@ -17,6 +17,7 @@ import type {
 	CreateTripWaypointDto,
 	GeoJsonPointDto,
 } from "../dto/create-trip.dto";
+import type { CancelTripDto, RescheduleTripDto } from "../dto/reschedule-trip.dto";
 import { ReviewTripAction, type ReviewTripDto } from "../dto/review-trip.dto";
 import type { SearchTripsQueryDto } from "../dto/search-trips-query.dto";
 import type { PaginatedTripsResponseDto, TripResponseDto } from "../dto/trip-response.dto";
@@ -35,6 +36,7 @@ interface FieldValidationError {
 }
 
 const ONE_DAY_IN_MILLISECONDS = 24 * 60 * 60 * 1000;
+const TWENTY_FOUR_HOURS_IN_MILLISECONDS = 24 * 60 * 60 * 1000;
 const TRIP_BUSINESS_TIME_ZONE = "Asia/Ho_Chi_Minh";
 const tripDateFormatter = new Intl.DateTimeFormat("en-CA", {
 	timeZone: TRIP_BUSINESS_TIME_ZONE,
@@ -418,6 +420,109 @@ export class TripsService {
 		});
 	}
 
+	async reschedule(
+		hostId: string,
+		tripId: string,
+		dto: RescheduleTripDto,
+		rescheduledAt = new Date()
+	): Promise<TripResponseDto> {
+		return this.dataSource.transaction(async (manager: EntityManager) => {
+			const repository = manager.withRepository(this.tripsRepository);
+			const locked = await repository.findByIdForScheduleChange(tripId);
+
+			if (!locked) {
+				throw new NotFoundException("Trip not found");
+			}
+			if (locked.hostId !== hostId) {
+				throw new ForbiddenException("Only the owning Host can reschedule this Trip");
+			}
+			if (locked.status !== TripStatus.PUBLISHED) {
+				throw new ConflictException("Only published Trips can be rescheduled");
+			}
+			if (locked.startsAt <= rescheduledAt) {
+				throw new ConflictException("Trip has already started");
+			}
+
+			const { startsAt, endsAt } = this.assertReschedulePayload(dto, locked, rescheduledAt);
+			const reconfirmationDeadline = new Date(
+				startsAt.getTime() - TWENTY_FOUR_HOURS_IN_MILLISECONDS
+			);
+			const before = this.buildScheduleAuditSnapshot(locked.trip);
+			const commitmentSummary = await repository.reschedulePublishedTrip(
+				tripId,
+				startsAt,
+				endsAt,
+				rescheduledAt,
+				reconfirmationDeadline
+			);
+			const updated = await repository.findById(tripId);
+			if (!updated) throw new Error("Failed to load rescheduled Trip");
+
+			await manager.getRepository(AuditLog).save({
+				actorId: hostId,
+				action: "trip.rescheduled",
+				targetType: "trip",
+				targetId: tripId,
+				before,
+				after: {
+					...this.buildScheduleAuditSnapshot(updated),
+					rescheduledAt,
+					reconfirmationDeadline,
+					commitmentSummary,
+				},
+				reason: "host_reschedule_trip",
+			});
+
+			return updated;
+		});
+	}
+
+	async cancel(hostId: string, tripId: string, dto: CancelTripDto): Promise<TripResponseDto> {
+		const cancelledAt = new Date();
+		return this.dataSource.transaction(async (manager: EntityManager) => {
+			const repository = manager.withRepository(this.tripsRepository);
+			const locked = await repository.findByIdForScheduleChange(tripId);
+
+			if (!locked) {
+				throw new NotFoundException("Trip not found");
+			}
+			if (locked.hostId !== hostId) {
+				throw new ForbiddenException("Only the owning Host can cancel this Trip");
+			}
+			if (locked.status === TripStatus.COMPLETED) {
+				throw new ConflictException("Completed Trips cannot be cancelled");
+			}
+			if (locked.status === TripStatus.CANCELLED) {
+				throw new ConflictException("Trip is already cancelled");
+			}
+
+			const before = this.buildAuditSnapshot(locked.trip);
+			const commitmentSummary = await repository.cancelTripWithCommitments(
+				tripId,
+				cancelledAt,
+				dto.reason
+			);
+			const updated = await repository.findById(tripId);
+			if (!updated) throw new Error("Failed to load cancelled Trip");
+
+			await manager.getRepository(AuditLog).save({
+				actorId: hostId,
+				action: "trip.cancelled",
+				targetType: "trip",
+				targetId: tripId,
+				before,
+				after: {
+					...this.buildAuditSnapshot(updated),
+					cancelledAt,
+					commitmentSummary,
+				},
+				reason: dto.reason,
+			});
+
+			return updated;
+		});
+	}
+
 	/**
 	 * CTMS-024 – BR-067, BR-068, BR-071, BR-072, BR-175, BR-176, BR-177, BR-179.
 	 *
@@ -650,6 +755,63 @@ export class TripsService {
 		});
 	}
 
+	private assertReschedulePayload(
+		dto: RescheduleTripDto,
+		trip: {
+			startsAt: Date;
+			endsAt: Date;
+			meetingAt: Date | null;
+			tripType: TripType;
+		},
+		rescheduledAt: Date
+	): { startsAt: Date; endsAt: Date } {
+		const errors: FieldValidationError[] = [];
+		if (!dto.startsAt && !dto.endsAt) {
+			errors.push({
+				field: "startsAt",
+				errors: ["startsAt or endsAt is required"],
+			});
+		}
+
+		const startsAt = dto.startsAt ? new Date(dto.startsAt) : new Date(trip.startsAt);
+		const endsAt = dto.endsAt ? new Date(dto.endsAt) : new Date(trip.endsAt);
+		if (
+			startsAt.getTime() === trip.startsAt.getTime() &&
+			endsAt.getTime() === trip.endsAt.getTime()
+		) {
+			errors.push({
+				field: "startsAt",
+				errors: ["new schedule must change startsAt or endsAt"],
+			});
+		}
+		if (startsAt <= new Date(rescheduledAt.getTime() + TWENTY_FOUR_HOURS_IN_MILLISECONDS)) {
+			errors.push({
+				field: "startsAt",
+				errors: ["startsAt must be more than 24 hours after the reschedule time"],
+			});
+		}
+		if (startsAt >= endsAt) {
+			errors.push({ field: "endsAt", errors: ["endsAt must be after startsAt"] });
+		}
+		if (trip.tripType === TripType.DAY_TRIP && !isSameTripBusinessDate(startsAt, endsAt)) {
+			errors.push({
+				field: "endsAt",
+				errors: ["day_trip must start and end on the same date"],
+			});
+		}
+		if (trip.meetingAt && trip.meetingAt > startsAt) {
+			errors.push({
+				field: "startsAt",
+				errors: ["startsAt must be after or equal to the current meetingAt"],
+			});
+		}
+
+		if (errors.length > 0) {
+			throw this.validationException(errors);
+		}
+		return { startsAt, endsAt };
+	}
+
 	private buildAuditSnapshot(trip: TripResponseDto): Record<string, unknown> {
 		return {
 			id: trip.id,
@@ -682,6 +844,16 @@ export class TripsService {
 				name: waypoint.name,
 				plannedAt: waypoint.plannedAt,
 			})),
+		};
+	}
+
+	private buildScheduleAuditSnapshot(trip: TripResponseDto): Record<string, unknown> {
+		return {
+			id: trip.id,
+			hostId: trip.hostId,
+			status: trip.status,
+			startsAt: trip.startsAt,
+			endsAt: trip.endsAt,
 		};
 	}
 }

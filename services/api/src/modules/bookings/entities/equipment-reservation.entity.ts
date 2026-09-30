@@ -10,6 +10,11 @@ import {
 import { EquipmentCatalogItem } from "../../equipment-catalog/entities/equipment-catalog-item.entity";
 import { BookingItem } from "./booking-item.entity";
 
+export enum EquipmentReservationStatus {
+	ACTIVE = "active",
+	CANCELLED = "cancelled",
+}
+
 /**
  * CTMS-040-T01. The authoritative inventory-holding record for one
  * equipment rental (BR-123/127/129): overlap/availability checks sum
@@ -53,6 +58,20 @@ export class EquipmentReservation {
 
 	@Column({ name: "rental_end_date", type: "date" })
 	rentalEndDate!: string;
+
+	@Column({
+		type: "enum",
+		enum: EquipmentReservationStatus,
+		enumName: "equipment_reservation_status",
+		default: EquipmentReservationStatus.ACTIVE,
+	})
+	status!: EquipmentReservationStatus;
+
+	@Column({ name: "cancelled_at", type: "timestamptz", nullable: true })
+	cancelledAt!: Date | null;
+
+	@Column({ name: "cancellation_reason", type: "varchar", length: 500, nullable: true })
+	cancellationReason!: string | null;
 
 	@CreateDateColumn({ name: "created_at", type: "timestamptz" })
 	createdAt!: Date;

@@ -113,6 +113,15 @@ export class Trip {
 	@Column({ type: "enum", enum: TripStatus, enumName: "trip_status", default: TripStatus.DRAFT })
 	status!: TripStatus;
 
+	@Column({ name: "rescheduled_at", type: "timestamptz", nullable: true })
+	rescheduledAt!: Date | null;
+
+	@Column({ name: "cancelled_at", type: "timestamptz", nullable: true })
+	cancelledAt!: Date | null;
+
+	@Column({ name: "cancellation_reason", type: "varchar", length: 500, nullable: true })
+	cancellationReason!: string | null;
+
 	@CreateDateColumn({ name: "created_at", type: "timestamptz" })
 	createdAt!: Date;
 
