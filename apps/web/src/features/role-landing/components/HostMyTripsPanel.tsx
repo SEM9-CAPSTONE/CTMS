@@ -15,7 +15,6 @@ import {
 	RefreshCw,
 	Route,
 	Users,
-	Warehouse,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button } from "../../../shared/components/Button";
@@ -26,7 +25,6 @@ export interface HostMyTripsPanelProps {
 	onCreateTrip?: () => void;
 	onCreateTrekkingRoute?: () => void;
 	onViewTrekkingRoutes?: () => void;
-	onViewEquipmentCatalog?: () => void;
 	onNavigateToTripDetail?: (tripId: string) => void;
 	onEditTripDraft?: (tripId: string) => void;
 }
@@ -74,7 +72,6 @@ export function HostMyTripsPanel({
 	onCreateTrip,
 	onCreateTrekkingRoute,
 	onViewTrekkingRoutes,
-	onViewEquipmentCatalog,
 	onNavigateToTripDetail,
 	onEditTripDraft,
 }: HostMyTripsPanelProps) {
@@ -175,17 +172,6 @@ export function HostMyTripsPanel({
 						>
 							<MapPinned className="size-4" />
 							<span>Quản lý tuyến</span>
-						</Button>
-					)}
-					{onViewEquipmentCatalog && (
-						<Button
-							type="button"
-							variant="outline"
-							onClick={onViewEquipmentCatalog}
-							className="gap-2 text-xs font-bold"
-						>
-							<Warehouse className="size-4" />
-							<span>Quản lý kho thiết bị</span>
 						</Button>
 					)}
 				</div>

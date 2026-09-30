@@ -25,7 +25,9 @@ describe("EquipmentCatalogList", () => {
 		expect(screen.getByText("4-person tent")).toBeInTheDocument();
 		expect(screen.getByText("shelter")).toBeInTheDocument();
 		expect(screen.getByText("Đang hoạt động")).toBeInTheDocument();
-		expect(screen.getByText("Số lượng: 10")).toBeInTheDocument();
+		const row = screen.getByTestId("equipment-catalog-item-item-1");
+		expect(row).toHaveTextContent("10");
+		expect(row).toHaveTextContent(/50\.000\s*₫/);
 		expect(screen.getByText("Check zippers monthly", { exact: false })).toBeInTheDocument();
 	});
 

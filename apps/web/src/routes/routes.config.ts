@@ -32,6 +32,14 @@ export enum RoutePath {
 	NOT_FOUND = "*",
 }
 
+// Pages only meaningful before sign-in; an authenticated user is sent to their home instead.
+export const GUEST_ONLY_PATHS: ReadonlySet<string> = new Set<string>([
+	RoutePath.LOGIN,
+	RoutePath.REGISTER,
+	RoutePath.VERIFY_OTP,
+	RoutePath.FORGOT_PASSWORD,
+]);
+
 export interface RouteItem {
 	path: RoutePath;
 	label: string;

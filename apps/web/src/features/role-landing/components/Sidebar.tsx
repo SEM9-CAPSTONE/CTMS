@@ -1,4 +1,5 @@
 import { X } from "lucide-react";
+import { HomeLink } from "../../../shared/components/HomeLink";
 import { LogoutActions } from "../../auth/components/LogoutActions";
 import type { CamperProfileData } from "../../camper-profile/types";
 import { roleLabels } from "../constants";
@@ -30,22 +31,28 @@ export function Sidebar({
 	return (
 		<aside className="flex h-full w-72 flex-col border-r border-[#dfe8df] bg-white">
 			<div className="flex items-center gap-3 border-b border-[#e7eee7] px-5 py-5">
-				<img src="/ctms_logo.png" alt="CTMS Logo" className="h-10 w-auto shrink-0 object-contain" />
-				<div className="min-w-0 flex-1">
-					<div className="flex items-center gap-1.5">
-						<span className="text-base font-extrabold tracking-tight text-[#164027]">CTMS</span>
-						<span
-							className="rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase"
-							style={{
-								backgroundColor: `${config.accent}15`,
-								color: config.accent,
-							}}
-						>
-							{roleLabels[activeRole]}
-						</span>
+				<HomeLink className="flex min-w-0 flex-1 items-center gap-3">
+					<img
+						src="/ctms_logo.png"
+						alt="CTMS Logo"
+						className="h-10 w-auto shrink-0 object-contain"
+					/>
+					<div className="min-w-0 flex-1">
+						<div className="flex items-center gap-1.5">
+							<span className="text-base font-extrabold tracking-tight text-[#164027]">CTMS</span>
+							<span
+								className="rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase"
+								style={{
+									backgroundColor: `${config.accent}15`,
+									color: config.accent,
+								}}
+							>
+								{roleLabels[activeRole]}
+							</span>
+						</div>
+						<p className="text-xs font-semibold text-[#667a6d]">{config.navTitle}</p>
 					</div>
-					<p className="text-xs font-semibold text-[#667a6d]">{config.navTitle}</p>
-				</div>
+				</HomeLink>
 				{onClose && (
 					<button
 						type="button"
@@ -97,9 +104,13 @@ export function Sidebar({
 						const isPathDashboard =
 							typeof window !== "undefined" &&
 							(window.location.pathname === "/dashboard" || window.location.pathname === "/");
+						const isPathEquipment =
+							typeof window !== "undefined" &&
+							window.location.pathname.startsWith("/host/equipment-catalog");
 						const isActive =
 							(item.key === "explore" && isPathTrips) ||
-							(item.key === "overview" && isPathDashboard);
+							(item.key === "overview" && isPathDashboard) ||
+							(item.key === "equipment" && isPathEquipment);
 
 						return (
 							<button
@@ -127,6 +138,9 @@ export function Sidebar({
 											window.history.pushState({}, "", "/trips");
 											window.dispatchEvent(new PopStateEvent("popstate"));
 										}
+									} else if (item.key === "equipment") {
+										window.history.pushState({}, "", "/host/equipment-catalog");
+										window.dispatchEvent(new PopStateEvent("popstate"));
 									}
 								}}
 								className={`flex w-full items-center gap-3.5 rounded-xl px-3.5 py-3 text-sm font-bold transition-all ${

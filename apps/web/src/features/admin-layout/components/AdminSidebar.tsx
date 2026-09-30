@@ -8,6 +8,7 @@ import {
 	Users,
 	X,
 } from "lucide-react";
+import { HomeLink } from "../../../shared/components/HomeLink";
 import { LogoutActions } from "../../auth/components/LogoutActions";
 
 export type AdminNavigationItem =
@@ -40,11 +41,17 @@ export function AdminSidebar({ activeItem, onLogout, onClose, className = "" }: 
 	return (
 		<aside className={`flex h-full w-72 flex-col border-r border-[#dfe8df] bg-white ${className}`}>
 			<div className="flex items-center gap-3 border-b border-[#e7eee7] px-5 py-5">
-				<img src="/ctms_logo.png" alt="CTMS Logo" className="h-10 w-auto object-contain shrink-0" />
-				<div className="min-w-0 flex-1">
-					<p className="truncate text-base font-extrabold text-[#10221b]">Quản trị CTMS</p>
-					<p className="text-xs font-medium text-[#667a6d]">Không gian quản trị</p>
-				</div>
+				<HomeLink className="flex min-w-0 flex-1 items-center gap-3">
+					<img
+						src="/ctms_logo.png"
+						alt="CTMS Logo"
+						className="h-10 w-auto object-contain shrink-0"
+					/>
+					<div className="min-w-0 flex-1">
+						<p className="truncate text-base font-extrabold text-[#10221b]">Quản trị CTMS</p>
+						<p className="text-xs font-medium text-[#667a6d]">Không gian quản trị</p>
+					</div>
+				</HomeLink>
 				{onClose && (
 					<button
 						type="button"

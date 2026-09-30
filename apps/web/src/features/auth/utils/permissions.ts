@@ -1,5 +1,3 @@
-import type { LoginApiResponse } from "../types";
-
 type RoleValue = string;
 
 export interface RoleBearingUser {
@@ -37,6 +35,6 @@ export function hasAnyRole(
 	return normalizedAllowedRoles.some((role) => normalizedGrantedRoles.includes(role));
 }
 
-export function isAdminUser(user?: LoginApiResponse["user"] | null): boolean {
+export function isAdminUser(user?: RoleBearingUser | null): boolean {
 	return hasAnyRole(user, ["admin"]);
 }
