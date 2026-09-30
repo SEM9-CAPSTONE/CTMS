@@ -10,7 +10,7 @@ import { LoginPage } from "../features/auth/pages/LoginPage";
 import { RegisterPage } from "../features/auth/pages/RegisterPage";
 import { VerifyOtpPage } from "../features/auth/pages/VerifyOtpPage";
 import { authService } from "../features/auth/services/auth.service";
-import { getGrantedRoles, isAdminUser } from "../features/auth/utils/permissions";
+import { getGrantedRoles } from "../features/auth/utils/permissions";
 import { getRefreshToken, getStoredAuthUser } from "../features/auth/utils/tokenStorage";
 import { BookingDetailsPage } from "../features/booking-details/pages/BookingDetailsPage";
 import type { BookingDetails } from "../features/booking-details/types";
@@ -31,6 +31,7 @@ import { SearchTripsPage } from "../features/trips/pages/SearchTripsPage";
 import { TripDetailPage } from "../features/trips/pages/TripDetailPage";
 import { EdgeCasePage, ErrorPage, NotFoundPage, UnauthorizedPage } from "../shared/pages";
 import { AppRoleGuard } from "./AppRoleGuard";
+import { getAuthenticatedHomePath, getGuestOnlyRedirectPath } from "./authRedirect";
 import { RoutePath } from "./routes.config";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -97,6 +98,19 @@ export function AppRoutes() {
 
 	const storedUser = getStoredAuthUser();
 	const currentRoles = getGrantedRoles(storedUser);
+	const authenticatedHomePath = getAuthenticatedHomePath(storedUser);
+	const guestOnlyRedirectPath = getGuestOnlyRedirectPath(currentPath, storedUser);
+
+	useEffect(() => {
+		if (!guestOnlyRedirectPath) {
+			return;
+		}
+		// replaceState (not pushState) so Back does not bounce the user onto the guest page again.
+		window.history.replaceState({}, "", guestOnlyRedirectPath);
+		setCurrentPath(guestOnlyRedirectPath);
+		setCurrentSearch("");
+	}, [guestOnlyRedirectPath]);
+
 	const unauthorizedFallback = (
 		<UnauthorizedPage
 			requiredRole="admin"
@@ -111,6 +125,9 @@ export function AppRoutes() {
 			onNavigateToLogin={() => navigateTo(RoutePath.LOGIN)}
 		/>
 	);
+	if (guestOnlyRedirectPath) {
+		return null;
+	}
 	if (currentPath === RoutePath.BOOKINGS) {
 		return (
 			<AppRoleGuard
@@ -270,6 +287,7 @@ export function AppRoutes() {
 				<LandingPage
 					onNavigateToLogin={() => navigateTo(RoutePath.LOGIN)}
 					onNavigateToRegister={() => navigateTo(RoutePath.REGISTER)}
+					onNavigateToDashboard={storedUser ? () => navigateTo(authenticatedHomePath) : undefined}
 				/>
 			);
 
@@ -280,7 +298,7 @@ export function AppRoutes() {
 					onNavigateToRegister={() => navigateTo(RoutePath.REGISTER)}
 					onNavigateToForgotPassword={() => navigateTo(RoutePath.FORGOT_PASSWORD)}
 					onLoginSuccess={(user) => {
-						navigateTo(isAdminUser(user) ? RoutePath.ADMIN_USERS : RoutePath.DASHBOARD);
+						navigateTo(getAuthenticatedHomePath(user));
 					}}
 				/>
 			);

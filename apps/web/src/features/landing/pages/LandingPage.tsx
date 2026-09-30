@@ -13,6 +13,7 @@ import type { LandingPageProps } from "../types";
 export const LandingPage: React.FC<LandingPageProps> = ({
 	onNavigateToLogin,
 	onNavigateToRegister,
+	onNavigateToDashboard,
 }) => {
 	return (
 		<div className="min-h-screen bg-[#f4f7f2] px-5 py-6 font-sans text-[#10221b] antialiased">
@@ -20,6 +21,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 				<HeaderNav
 					onNavigateToLogin={onNavigateToLogin}
 					onNavigateToRegister={onNavigateToRegister}
+					onNavigateToDashboard={onNavigateToDashboard}
 				/>
 				<HeroSection />
 				<SearchPanelSection />

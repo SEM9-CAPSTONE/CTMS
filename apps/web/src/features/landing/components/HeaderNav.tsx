@@ -1,14 +1,17 @@
+import { ArrowRight, LayoutDashboard } from "lucide-react";
 import type React from "react";
 import { NAV_ITEMS } from "../constants";
 
 interface HeaderNavProps {
 	onNavigateToLogin: () => void;
 	onNavigateToRegister: () => void;
+	onNavigateToDashboard?: () => void;
 }
 
 export const HeaderNav: React.FC<HeaderNavProps> = ({
 	onNavigateToLogin,
 	onNavigateToRegister,
+	onNavigateToDashboard,
 }) => {
 	return (
 		<header className="mb-10 flex flex-wrap items-center justify-between gap-5">
@@ -30,22 +33,34 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
 				</nav>
 			</div>
 
-			<div className="flex items-center gap-3">
+			{onNavigateToDashboard ? (
 				<button
 					type="button"
-					onClick={onNavigateToLogin}
-					className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full border border-[#1c442f]/20 bg-transparent px-6 py-3 text-sm font-semibold text-[#1c442f] transition hover:-translate-y-0.5 hover:bg-[#1c442f]/5"
-				>
-					Đăng nhập
-				</button>
-				<button
-					type="button"
-					onClick={onNavigateToRegister}
+					onClick={onNavigateToDashboard}
 					className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full bg-[#1c442f] px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#143323] hover:shadow-md"
 				>
-					Đăng ký
+					<LayoutDashboard className="size-4" />
+					<span>Vào Dashboard</span>
+					<ArrowRight className="size-4" />
 				</button>
-			</div>
+			) : (
+				<div className="flex items-center gap-3">
+					<button
+						type="button"
+						onClick={onNavigateToLogin}
+						className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full border border-[#1c442f]/20 bg-transparent px-6 py-3 text-sm font-semibold text-[#1c442f] transition hover:-translate-y-0.5 hover:bg-[#1c442f]/5"
+					>
+						Đăng nhập
+					</button>
+					<button
+						type="button"
+						onClick={onNavigateToRegister}
+						className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full bg-[#1c442f] px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#143323] hover:shadow-md"
+					>
+						Đăng ký
+					</button>
+				</div>
+			)}
 		</header>
 	);
 };
