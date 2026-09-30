@@ -159,7 +159,10 @@ describe("TripsController", () => {
 
 	describe("review", () => {
 		it("delegates to TripsService.review with adminId, tripId, and dto", async () => {
-			const dto: ReviewTripDto = { action: ReviewTripAction.APPROVE };
+			const dto: ReviewTripDto = {
+				action: ReviewTripAction.APPROVE,
+				reviewedUpdatedAt: "2026-09-15T00:00:00.000Z",
+			};
 			const mockReviewed: Partial<TripResponseDto> = { id: TRIP_ID, status: TripStatus.PUBLISHED };
 			tripsService.review.mockResolvedValue(mockReviewed as TripResponseDto);
 

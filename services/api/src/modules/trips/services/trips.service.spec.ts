@@ -19,6 +19,7 @@ const TRIP_ID = "33333333-3333-4333-8333-333333333333";
 const CHECKPOINT_ID = "44444444-4444-4444-8444-444444444444";
 const OTHER_HOST_ID = "55555555-5555-4555-8555-555555555555";
 const ADMIN_ID = "88888888-8888-4888-8888-888888888888";
+const REVIEWED_UPDATED_AT = "2026-09-15T00:00:00.000Z";
 
 const CAMPER_ACTOR: AuthenticatedUser = {
 	userId: "88888888-8888-4888-8888-888888888888",
@@ -414,6 +415,83 @@ describe("TripsService", () => {
 		expect(tripsRepository.createDraft).toHaveBeenCalledTimes(1);
 	});
 
+	describe("updateDraft", () => {
+		it("edits an owned draft Trip and keeps it in draft", async () => {
+			const result = await service.updateDraft(HOST_ID, TRIP_ID, createTripDto());
+
+			expect(tripsRepository.findByIdForWaypointConfiguration).toHaveBeenCalledWith(TRIP_ID);
+			expect(tripsRepository.updateDraft).toHaveBeenCalledWith(
+				TRIP_ID,
+				expect.objectContaining({
+					hostId: HOST_ID,
+					routeId: ROUTE_ID,
+					startsAt: new Date("2026-09-20T01:00:00.000Z"),
+					endsAt: new Date("2026-09-20T10:00:00.000Z"),
+				})
+			);
+			expect(result.status).toBe(TripStatus.DRAFT);
+			expect(auditRepository.save).toHaveBeenCalledWith(
+				expect.objectContaining({
+					actorId: HOST_ID,
+					action: "trip.updated",
+					targetType: "trip",
+					targetId: TRIP_ID,
+					reason: "host_update_trip_draft",
+				})
+			);
+		});
+
+		it("edits an owned pending_approval Trip, keeps it pending, and makes Admin review the updated version", async () => {
+			const pendingTrip = configuredTrip();
+			tripsRepository.findByIdForWaypointConfiguration.mockResolvedValue({
+				trip: pendingTrip,
+				hostId: HOST_ID,
+				routeId: ROUTE_ID,
+				status: TripStatus.PENDING_APPROVAL,
+			});
+			tripsRepository.updateDraft.mockResolvedValue({
+				...pendingTrip,
+				updatedAt: new Date("2026-09-15T01:00:00.000Z"),
+			});
+
+			const result = await service.updateDraft(HOST_ID, TRIP_ID, {
+				...createTripDto(),
+				title: "Updated pending review trip",
+			});
+
+			expect(tripsRepository.updateDraft).toHaveBeenCalledWith(
+				TRIP_ID,
+				expect.objectContaining({ title: "Updated pending review trip" })
+			);
+			expect(result.status).toBe(TripStatus.PENDING_APPROVAL);
+			expect(auditRepository.save).toHaveBeenCalledWith(
+				expect.objectContaining({
+					reason: "host_update_trip_pending_approval",
+					before: expect.objectContaining({ status: TripStatus.PENDING_APPROVAL }),
+					after: expect.objectContaining({
+						status: TripStatus.PENDING_APPROVAL,
+						updatedAt: new Date("2026-09-15T01:00:00.000Z"),
+					}),
+				})
+			);
+		});
+
+		it("rejects published Trip editing so schedule changes must use reschedule", async () => {
+			tripsRepository.findByIdForWaypointConfiguration.mockResolvedValue({
+				trip: { ...createdTrip(), status: TripStatus.PUBLISHED },
+				hostId: HOST_ID,
+				routeId: ROUTE_ID,
+				status: TripStatus.PUBLISHED,
+			});
+
+			await expect(service.updateDraft(HOST_ID, TRIP_ID, createTripDto())).rejects.toBeInstanceOf(
+				ConflictException
+			);
+			expect(tripsRepository.updateDraft).not.toHaveBeenCalled();
+			expect(auditRepository.save).not.toHaveBeenCalled();
+		});
+	});
+
 	describe("configureWaypoints", () => {
 		it("replaces draft Trip waypoints, submits the Trip for approval, and audits the change", async () => {
 			const result = await service.configureWaypoints(HOST_ID, TRIP_ID, {
@@ -538,7 +616,10 @@ describe("TripsService", () => {
 
 	describe("review", () => {
 		it("approves a pending Trip, publishes it, and audits with no reason", async () => {
-			const result = await service.review(ADMIN_ID, TRIP_ID, { action: ReviewTripAction.APPROVE });
+			const result = await service.review(ADMIN_ID, TRIP_ID, {
+				action: ReviewTripAction.APPROVE,
+				reviewedUpdatedAt: REVIEWED_UPDATED_AT,
+			});
 
 			expect(tripsRepository.findByIdForReview).toHaveBeenCalledWith(TRIP_ID);
 			expect(tripsRepository.findRouteStatus).toHaveBeenCalledWith(ROUTE_ID);
@@ -560,6 +641,7 @@ describe("TripsService", () => {
 		it("declines a pending Trip back to draft, requiring and recording the reason", async () => {
 			const result = await service.review(ADMIN_ID, TRIP_ID, {
 				action: ReviewTripAction.DECLINE,
+				reviewedUpdatedAt: REVIEWED_UPDATED_AT,
 				reason: "Itinerary missing lunch stop",
 			});
 
@@ -583,9 +665,32 @@ describe("TripsService", () => {
 			tripsRepository.findByIdForReview.mockResolvedValue(null);
 
 			await expect(
-				service.review(ADMIN_ID, TRIP_ID, { action: ReviewTripAction.APPROVE })
+				service.review(ADMIN_ID, TRIP_ID, {
+					action: ReviewTripAction.APPROVE,
+					reviewedUpdatedAt: REVIEWED_UPDATED_AT,
+				})
 			).rejects.toBeInstanceOf(NotFoundException);
 			expect(tripsRepository.updateStatus).not.toHaveBeenCalled();
+		});
+
+		it("returns 409 when Admin submits a decision for a stale pending Trip version", async () => {
+			tripsRepository.findByIdForReview.mockResolvedValue({
+				trip: {
+					...configuredTrip(),
+					updatedAt: new Date("2026-09-15T01:00:00.000Z"),
+				},
+				routeId: ROUTE_ID,
+				status: TripStatus.PENDING_APPROVAL,
+			});
+
+			await expect(
+				service.review(ADMIN_ID, TRIP_ID, {
+					action: ReviewTripAction.APPROVE,
+					reviewedUpdatedAt: REVIEWED_UPDATED_AT,
+				})
+			).rejects.toBeInstanceOf(ConflictException);
+			expect(tripsRepository.updateStatus).not.toHaveBeenCalled();
+			expect(auditRepository.save).not.toHaveBeenCalled();
 		});
 
 		it.each([TripStatus.DRAFT, TripStatus.PUBLISHED, TripStatus.CANCELLED])(
@@ -598,7 +703,10 @@ describe("TripsService", () => {
 				});
 
 				await expect(
-					service.review(ADMIN_ID, TRIP_ID, { action: ReviewTripAction.APPROVE })
+					service.review(ADMIN_ID, TRIP_ID, {
+						action: ReviewTripAction.APPROVE,
+						reviewedUpdatedAt: REVIEWED_UPDATED_AT,
+					})
 				).rejects.toBeInstanceOf(ConflictException);
 				expect(tripsRepository.updateStatus).not.toHaveBeenCalled();
 			}
@@ -608,7 +716,10 @@ describe("TripsService", () => {
 			tripsRepository.findRouteStatus.mockResolvedValue(TrekkingRouteStatus.CLOSED);
 
 			await expect(
-				service.review(ADMIN_ID, TRIP_ID, { action: ReviewTripAction.APPROVE })
+				service.review(ADMIN_ID, TRIP_ID, {
+					action: ReviewTripAction.APPROVE,
+					reviewedUpdatedAt: REVIEWED_UPDATED_AT,
+				})
 			).rejects.toMatchObject({ status: 422 });
 			expect(tripsRepository.updateStatus).not.toHaveBeenCalled();
 			expect(auditRepository.save).not.toHaveBeenCalled();
@@ -622,7 +733,10 @@ describe("TripsService", () => {
 			});
 
 			await expect(
-				service.review(ADMIN_ID, TRIP_ID, { action: ReviewTripAction.APPROVE })
+				service.review(ADMIN_ID, TRIP_ID, {
+					action: ReviewTripAction.APPROVE,
+					reviewedUpdatedAt: REVIEWED_UPDATED_AT,
+				})
 			).rejects.toBeInstanceOf(ConflictException);
 			expect(tripsRepository.updateStatus).not.toHaveBeenCalled();
 			expect(auditRepository.save).not.toHaveBeenCalled();

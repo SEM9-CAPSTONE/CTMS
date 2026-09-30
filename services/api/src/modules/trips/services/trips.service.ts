@@ -224,8 +224,11 @@ export class TripsService {
 			if (lockedTrip.hostId !== hostId) {
 				throw new ForbiddenException("Only the owning Host can update this Trip");
 			}
-			if (lockedTrip.status !== TripStatus.DRAFT) {
-				throw new ConflictException("Only draft Trips can be updated");
+			if (
+				lockedTrip.status !== TripStatus.DRAFT &&
+				lockedTrip.status !== TripStatus.PENDING_APPROVAL
+			) {
+				throw new ConflictException("Only draft or pending_approval Trips can be edited");
 			}
 
 			const route = await repository.findRouteDependencyForUpdate(dto.routeId);
@@ -288,7 +291,10 @@ export class TripsService {
 				targetId: tripId,
 				before: this.buildAuditSnapshot(lockedTrip.trip),
 				after: this.buildAuditSnapshot(updated),
-				reason: "host_update_trip_draft",
+				reason:
+					lockedTrip.status === TripStatus.PENDING_APPROVAL
+						? "host_update_trip_pending_approval"
+						: "host_update_trip_draft",
 			});
 
 			return updated;
@@ -388,6 +394,11 @@ export class TripsService {
 			}
 			if (locked.status !== TripStatus.PENDING_APPROVAL) {
 				throw new ConflictException("Only Trips in pending_approval status can be reviewed");
+			}
+			if (normalizeDate(locked.trip.updatedAt) !== normalizeDate(dto.reviewedUpdatedAt)) {
+				throw new ConflictException(
+					"Trip has changed since this review copy was loaded. Please reload and review the latest version."
+				);
 			}
 
 			if (dto.action === ReviewTripAction.APPROVE) {
@@ -829,6 +840,7 @@ export class TripsService {
 			pricePerPerson: trip.pricePerPerson,
 			status: trip.status,
 			waypointCount: trip.waypoints.length,
+			updatedAt: trip.updatedAt,
 		};
 	}
 

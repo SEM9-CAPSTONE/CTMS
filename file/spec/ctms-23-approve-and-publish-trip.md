@@ -72,6 +72,7 @@ Preconditions:
 - Trip has been submitted into the authoritative approval state.
 - Required Trip configuration exists.
 - Referenced Route/version remains eligible.
+- Admin review request includes the Trip `updated_at` value that the Admin reviewed.
 
 ## 5. Business Rules
 
@@ -84,6 +85,7 @@ Preconditions:
 | BR-172 | Access control must be enforced by the backend using role, ownership, and business scope. Hiding or disabling functionality in the UI is not a substitute for backend authorization.                                                                                                                                                                                                   |
 | BR-180 | Every stateful resource must follow its defined state transitions and must not use values outside the database enum.                                                                                                                                                                                                                                                                   |
 | BR-181 | Before changing state, the system must validate the current state. A request based on stale state must be rejected with a business-conflict error.                                                                                                                                                                                                                                     |
+| BR-219 | Admin review must target the latest pending Trip version. The review request must include the reviewed Trip `updated_at` value, and the backend must reject the decision if the Trip was edited after the Admin loaded that version.                                                                                                                                                    |
 | BR-212 | Any change to a Business Rule, enum, state transition, or API contract must be reflected in the specification, test cases, and data documentation before the work is considered Done.                                                                                                                                                                                                  |
 | BR-213 | Every Business Rule must have at least one valid-path test and one violation-path test. Concurrency, idempotency, and transaction rules require integration or E2E coverage.                                                                                                                                                                                                           |
 
@@ -115,19 +117,21 @@ The spec must not invent a `rejected` Trip enum if the authoritative enum does n
 2. Backend verifies Admin authorization.
 3. Backend loads authoritative current Trip.
 4. Verify Trip is in approval-eligible state.
-5. Verify approved Route/version.
-6. Verify required Trip configuration.
-7. Verify waypoint/overnight rules.
-8. Admin chooses approve or reject.
-9. Backend revalidates persisted state immediately before mutation.
-10. Valid approval commits authoritative publish/approval state.
-11. Valid rejection commits the approved rejection outcome.
-12. Any downstream event occurs only from committed authoritative state.
+5. Verify the submitted `reviewedUpdatedAt` matches current Trip `updated_at`.
+6. Verify approved Route/version.
+7. Verify required Trip configuration.
+8. Verify waypoint/overnight rules.
+9. Admin chooses approve or reject.
+10. Backend revalidates persisted state immediately before mutation.
+11. Valid approval commits authoritative publish/approval state.
+12. Valid rejection commits the approved rejection outcome.
+13. Any downstream event occurs only from committed authoritative state.
 
 ## 8. Data & Invariants
 
 - Only Admin makes approval decision.
 - Approval uses current authoritative Trip state.
+- Approval or rejection must include the `updated_at` value that was reviewed.
 - Trip cannot be published from an ineligible state.
 - Published Trip references the approved Route/version reviewed for that Trip.
 - AI cannot substitute approval logic.
@@ -136,7 +140,28 @@ The spec must not invent a `rejected` Trip enum if the authoritative enum does n
 
 ## 9. API / Integration Contract
 
-TBD — Technical Design.
+`PATCH /trips/:tripId/review`
+
+Approve payload:
+
+```json
+{
+  "action": "approve",
+  "reviewedUpdatedAt": "2026-09-15T00:00:00.000Z"
+}
+```
+
+Decline payload:
+
+```json
+{
+  "action": "decline",
+  "reviewedUpdatedAt": "2026-09-15T00:00:00.000Z",
+  "reason": "Itinerary missing lunch stop"
+}
+```
+
+The backend compares `reviewedUpdatedAt` to the locked Trip row's current `updated_at`. A mismatch is a business conflict and the Admin must reload the latest pending Trip before deciding.
 
 ## 10. Error & Edge Cases
 
@@ -147,6 +172,7 @@ TBD — Technical Design.
 | Trip not in approval state                  | Conflict.                                                  |
 | Route/version no longer eligible            | Block approval.                                            |
 | Required itinerary invalid                  | Block approval.                                            |
+| Host edits Trip while Admin review is open  | Review request using old `updated_at` is rejected.         |
 | AI recommends approval despite invalid rule | Block approval.                                            |
 | Two Admins act concurrently                 | Only transition from authoritative current state succeeds. |
 | Stale approval request                      | Conflict.                                                  |
@@ -160,6 +186,7 @@ TBD — Technical Design.
 | PB AC-1         | Non-Admin approves                | Rejected                              | Security      |
 | PB AC-2, BR-180 | Eligible approval state           | Decision may proceed                  | State         |
 | PB AC-2, BR-181 | Stale state                       | Conflict                              | Concurrency   |
+| PB AC-2, BR-219 | Stale reviewedUpdatedAt           | Conflict                              | Unit/E2E      |
 | PB AC-3, BR-037 | Valid approved Route/version      | Validation passes                     | Integration   |
 | PB AC-3         | Invalid itinerary                 | Approval blocked                      | Integration   |
 | PB AC-4, BR-061 | Valid Trip approved               | Authoritative publish state committed | E2E           |
@@ -169,6 +196,4 @@ TBD — Technical Design.
 
 ## 12. Open Decisions
 
-- Exact Trip enum/state representing successful publication.
-- Exact representation of Admin rejection if `rejected` is not a valid Trip status.
-- Whether rejection returns Trip to `draft` or uses another approved review record/state must follow the authoritative domain model.
+None.

@@ -108,12 +108,19 @@ export class TripsController {
 
 	@Patch(":tripId")
 	@Roles(UserRole.HOST)
-	@ApiOperation({ summary: "Update an owned draft Trip without changing its identity" })
+	@ApiOperation({
+		summary: "Edit an owned pre-published Trip without changing its identity",
+		description:
+			"Allowed while the Trip is draft or pending_approval. A pending_approval edit remains pending_approval and updates updated_at so Admin review must use the latest version.",
+	})
 	@ApiResponse({ status: 200, type: TripResponseDto })
 	@ApiResponse({ status: 401, description: "Authentication required" })
 	@ApiResponse({ status: 403, description: "Host role and Trip ownership required" })
 	@ApiResponse({ status: 404, description: "Trip or referenced Route not found" })
-	@ApiResponse({ status: 409, description: "Trip is not draft or Route is not active" })
+	@ApiResponse({
+		status: 409,
+		description: "Trip is not draft/pending_approval or Route is not active",
+	})
 	@ApiResponse({ status: 422, description: "Invalid Trip data" })
 	updateDraft(
 		@Req() request: AuthenticatedRequest,
