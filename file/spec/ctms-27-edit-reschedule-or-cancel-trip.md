@@ -19,7 +19,7 @@ Acceptance Criteria:
 | Source   | Criterion                                                                                                                                                |
 | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | PB AC-1  | Only the Host who owns the Trip may edit, reschedule, or cancel it.                                                                                      |
-| PB AC-2  | Reschedule may change only `starts_at` and/or `ends_at`, and only when `new_starts_at > rescheduled_at + 24h`.                                           |
+| PB AC-2  | Host changes before publication are Edit operations. Reschedule exists only after `published`, may change only `starts_at` and/or `ends_at`, and only when `new_starts_at > rescheduled_at + 24h`. |
 | PB AC-3  | After reschedule, active Camper Bookings and assigned Porter Assignments move to Pending Reconfirmation for the new schedule and must respond by T-24h.  |
 | PB AC-4  | Missing Camper or Porter response by T-24h is treated as Decline.                                                                                        |
 | PB AC-5  | Camper Accept preserves the Booking, Trip slot, and paid or snapshotted Trip price.                                                                      |
@@ -39,9 +39,9 @@ Acceptance Criteria:
 
 ### In Scope
 
-- Host edit of allowed Trip planning fields before the Trip reaches states that block edits.
+- Host edit of allowed Trip planning fields while the Trip is `draft` or `pending_approval`.
 - Host cancellation of an owned Trip when the Trip lifecycle allows cancellation.
-- Host reschedule of an approved, not-started Trip where only `starts_at` and/or `ends_at` change.
+- Host reschedule of a `published`, not-started Trip where only `starts_at` and/or `ends_at` change.
 - Reconfirmation handling for active Camper Bookings and assigned Porter Assignments after reschedule.
 - Porter replacement handling after reconfirmation and before the T-12h staffing deadline.
 - Equipment Reservation revalidation, movement, cancellation, and Equipment-portion refund after reschedule.
@@ -86,8 +86,9 @@ A non-owning Host, Camper, Porter, or unauthenticated caller must be rejected be
 | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | BR-063 | A Trip may move to cancelled only from lifecycle states that permit cancellation. The owning Host may cancel a Trip before it is completed. If the Trip is already published and has Booking, Porter, or Equipment commitments, cancellation must revalidate current state, cancel or release affected commitments according to policy, create refunds when required, record the reason and audit trail, and send notifications only after commit. A completed Trip must never transition back to cancelled, and the rejected status must not be used. |
 | BR-076 | Only the owning Host may edit a Trip. Planning fields of a Trip in ongoing, completed, or cancelled status must not be edited unless an explicitly specified specialized flow allows it.                                                                                                                                                                                                                                                                                                                                                               |
-| BR-077 | After a Trip has been published/approved, any change to starts_at and/or ends_at must use the Reschedule flow and comply with BR-444 through BR-464. Other material changes, including Route/version, meeting point, province/city snapshot, capacity, price, or trip_waypoints, are not Reschedule operations and must follow the applicable Edit/reapproval flow.                                                                                                                                                                                    |
+| BR-077 | Before a Trip is published, changes to planning fields are Edit operations. `draft` edits keep the Trip in `draft`; `pending_approval` edits keep the Trip in `pending_approval`, update `updated_at`, and require Admin review of the latest version. After a Trip is `published`, any change to `starts_at` and/or `ends_at` must use the Reschedule flow and comply with BR-444 through BR-464. Other material changes, including Route/version, meeting point, province/city snapshot, capacity, price, or trip_waypoints, are not Reschedule operations and must follow the applicable Edit/reapproval flow. |
 | BR-078 | Any Edit, Reschedule, or Cancel operation that affects commitments must be audited. Notifications to affected Campers, Porters, or Hosts may be queued or sent only after the transaction updating the Trip and all related states has committed successfully.                                                                                                                                                                                                                                                                                         |
+| BR-079 | Admin review of a `pending_approval` Trip must target the latest Trip version. The review request must include the `updated_at` value that the Admin reviewed, and the backend must reject the decision with a business conflict if the Trip was edited after that version was loaded. |
 | BR-174 | All input must be validated for required fields, data type, format, length, enum membership, and cross-field relationships before processing.                                                                                                                                                                                                                                                                                                                                                                                                          |
 | BR-180 | Every stateful resource must follow its defined state transitions and must not use values outside the database enum.                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | BR-181 | Before changing state, the system must validate the current state. A request based on stale state must be rejected with a business-conflict error.                                                                                                                                                                                                                                                                                                                                                                                                     |
@@ -95,7 +96,7 @@ A non-owning Host, Camper, Porter, or unauthenticated caller must be rejected be
 | BR-192 | Audit logs must not contain passwords, OTPs, tokens, sensitive payment data, or unnecessary health data.                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | BR-212 | Any change to a Business Rule, enum, state transition, or API contract must be reflected in the specification, test cases, and data documentation before the work is considered Done.                                                                                                                                                                                                                                                                                                                                                                  |
 | BR-213 | Every Business Rule must have at least one valid-path test and one violation-path test. Concurrency, idempotency, and transaction rules require integration or E2E coverage.                                                                                                                                                                                                                                                                                                                                                                           |
-| BR-444 | A Host may reschedule only a Trip they manage, and only when the Trip is Approved and has not started. Reschedule may change only starts_at and/or ends_at.                                                                                                                                                                                                                                                                                                                                                                                            |
+| BR-444 | A Host may reschedule only a Trip they manage, and only when the Trip is `published` and has not started. Reschedule may change only starts_at and/or ends_at.                                                                                                                                                                                                                                                                                                                                                                                            |
 | BR-445 | Reschedule must not change any other approved Trip information, including price, Route, capacity, or Trip policies. Those changes must use their respective business flows instead of Reschedule.                                                                                                                                                                                                                                                                                                                                                      |
 | BR-446 | A Host may reschedule only when new_starts_at is more than 24 hours after the reschedule action time: new_starts_at > rescheduled_at + 24h.                                                                                                                                                                                                                                                                                                                                                                                                            |
 | BR-447 | new_ends_at must be later than new_starts_at, and the new schedule must satisfy all current Trip time constraints. If validation fails, the new schedule must not be applied.                                                                                                                                                                                                                                                                                                                                                                          |
@@ -121,7 +122,17 @@ A non-owning Host, Camper, Porter, or unauthenticated caller must be rejected be
 
 ### Trip
 
+Pre-publication edit lifecycle:
+
+`draft → Edit → draft`
+
+`pending_approval → Edit → pending_approval`
+
+For `pending_approval`, the edit updates `updated_at`. Admin review must be based on that latest value.
+
 For a valid reschedule, the Trip remains the same business Trip while its approved schedule is replaced by the new valid schedule.
+
+`published → Reschedule → published`
 
 If required Porter staffing is insufficient at T-12h:
 
@@ -183,27 +194,30 @@ If the cancelled Equipment was paid, the Equipment portion enters the applicable
 
 1. Host requests edit, reschedule, or cancellation for a Trip they own.
 2. Backend verifies authentication, ownership, Trip lifecycle, and operation eligibility.
-3. For reschedule, backend verifies that only `starts_at` and/or `ends_at` change.
-4. Backend validates `new_starts_at > rescheduled_at + 24h`.
-5. Backend loads affected active Camper Bookings, Porter Assignments, and Equipment Reservations.
-6. The new Trip schedule is committed.
-7. Active Camper Bookings move to Pending Reconfirmation.
-8. Assigned Porter Assignments move to Pending Reconfirmation.
-9. Active Equipment Reservations are revalidated against the new schedule.
-10. Available Equipment Reservations move to the new schedule while preserving quantity and paid/snapshotted amount.
-11. Optional unavailable Equipment Reservations are cancelled without cancelling the Trip Booking.
-12. Paid cancelled Equipment creates an idempotent Full Refund for the Equipment portion.
-13. Campers and Porters must respond by T-24h.
-14. Missing responses at T-24h are processed as Decline.
-15. Camper Accept preserves Booking, slot, and paid/snapshotted Trip price.
-16. Camper Decline/timeout cancels the Booking, releases the slot, and creates an idempotent Full Refund.
-17. Porter Accept preserves the Assignment.
-18. Porter Decline/timeout unassigns the Porter and opens the required position for replacement.
-19. Replacement Porter may be assigned during the approved replacement window before T-12h.
-20. At T-12h, the system checks required Porter staffing.
-21. If staffing is insufficient, the Trip is cancelled and all remaining active Camper Bookings receive idempotent Full Refunds.
-22. Audit records are persisted for the reschedule and resulting commitment outcomes.
-23. Notifications are emitted only after the corresponding authoritative changes commit successfully.
+3. If the Trip is `draft`, Edit may change planning fields and the Trip remains `draft`.
+4. If the Trip is `pending_approval`, Edit may change planning fields, the Trip remains `pending_approval`, `updated_at` changes, and Admin review must use the latest version.
+5. Admin review includes the reviewed `updated_at`; stale review decisions are rejected with a business conflict.
+6. If the Trip is `published`, schedule change must use Reschedule and backend verifies that only `starts_at` and/or `ends_at` change.
+7. Backend validates `new_starts_at > rescheduled_at + 24h`.
+8. Backend loads affected active Camper Bookings, Porter Assignments, and Equipment Reservations.
+9. The new Trip schedule is committed.
+10. Active Camper Bookings move to Pending Reconfirmation.
+11. Assigned Porter Assignments move to Pending Reconfirmation.
+12. Active Equipment Reservations are revalidated against the new schedule.
+13. Available Equipment Reservations move to the new schedule while preserving quantity and paid/snapshotted amount.
+14. Optional unavailable Equipment Reservations are cancelled without cancelling the Trip Booking.
+15. Paid cancelled Equipment creates an idempotent Full Refund for the Equipment portion.
+16. Campers and Porters must respond by T-24h.
+17. Missing responses at T-24h are processed as Decline.
+18. Camper Accept preserves Booking, slot, and paid/snapshotted Trip price.
+19. Camper Decline/timeout cancels the Booking, releases the slot, and creates an idempotent Full Refund.
+20. Porter Accept preserves the Assignment.
+21. Porter Decline/timeout unassigns the Porter and opens the required position for replacement.
+22. Replacement Porter may be assigned during the approved replacement window before T-12h.
+23. At T-12h, the system checks required Porter staffing.
+24. If staffing is insufficient, the Trip is cancelled and all remaining active Camper Bookings receive idempotent Full Refunds.
+25. Audit records are persisted for the edit, reschedule, cancellation, and resulting commitment outcomes.
+26. Notifications are emitted only after the corresponding authoritative changes commit successfully.
 
 ## 8. Data & Invariants
 
@@ -264,13 +278,87 @@ Notification is post-commit only.
 
 ## 9. API / Integration Contract
 
-TBD — Technical Design.
+### Host Edit Before Publication
+
+`PATCH /trips/:tripId`
+
+Allowed statuses:
+
+- `draft`
+- `pending_approval`
+
+Payload: existing Trip edit payload from CTMS-021/CTMS-022 planning fields.
+
+Behavior:
+
+- owning Host only;
+- `draft` remains `draft`;
+- `pending_approval` remains `pending_approval`;
+- `updated_at` changes after a successful edit;
+- no Camper, Porter, or Equipment reconfirmation is created because the Trip is not published yet.
+
+### Host Reschedule After Publication
+
+`PATCH /trips/:tripId/reschedule`
+
+Allowed status:
+
+- `published`
+
+Payload:
+
+```json
+{
+  "startsAt": "2026-10-30T07:00:00.000Z",
+  "endsAt": "2026-10-30T16:00:00.000Z"
+}
+```
+
+Behavior:
+
+- owning Host only;
+- may change only `starts_at` and/or `ends_at`;
+- rejects when `new_starts_at <= rescheduled_at + 24h`;
+- creates the reconfirmation, Equipment revalidation, refund, and audit side effects in the Reschedule flow.
+
+### Admin Review Latest Version
+
+`PATCH /trips/:tripId/review`
+
+Payload:
+
+```json
+{
+  "action": "approve",
+  "reviewedUpdatedAt": "2026-09-15T00:00:00.000Z"
+}
+```
+
+For request changes:
+
+```json
+{
+  "action": "decline",
+  "reviewedUpdatedAt": "2026-09-15T00:00:00.000Z",
+  "reason": "Itinerary missing lunch stop"
+}
+```
+
+Behavior:
+
+- Admin only;
+- only `pending_approval`;
+- rejects with business conflict when `reviewedUpdatedAt` does not match current Trip `updated_at`.
 
 ## 10. Error & Edge Cases
 
 | Case                                                           | Expected Behavior                                                                                            |
 | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | Non-owning Host attempts edit/reschedule/cancel                | Reject without changing Trip or commitments.                                                                 |
+| Host edits `draft` Trip planning fields                        | Accept edit and keep Trip in `draft`.                                                                        |
+| Host edits `pending_approval` Trip planning fields             | Accept edit, keep Trip in `pending_approval`, update `updated_at`, require Admin to review latest version.   |
+| Admin approves using stale `reviewedUpdatedAt`                  | Reject with business conflict; Trip remains `pending_approval`.                                              |
+| Host changes published schedule through Edit endpoint           | Reject; schedule change must use Reschedule.                                                                 |
 | Reschedule changes a field other than `starts_at` or `ends_at` | Reject the reschedule path; use the applicable edit/reapproval flow instead.                                 |
 | `new_starts_at <= rescheduled_at + 24h`                        | Reject reschedule.                                                                                           |
 | Camper accepts by T-24h                                        | Preserve Booking, slot, and paid/snapshotted Trip price.                                                     |
@@ -292,6 +380,10 @@ TBD — Technical Design.
 | Source           | Scenario                                 | Expected Result                                         | Test Type                 |
 | ---------------- | ---------------------------------------- | ------------------------------------------------------- | ------------------------- |
 | PB AC-1, BR-063  | Non-owner attempts Trip mutation         | Rejected                                                | Authorization / E2E       |
+| PB AC-2, BR-077  | Draft Trip edit                          | Edited and remains draft                                | Unit / Integration        |
+| PB AC-2, BR-077  | Pending approval Trip edit               | Edited and remains pending_approval                     | Unit / Integration        |
+| BR-079           | Admin reviews stale pending Trip version | Rejected with conflict                                  | Unit / Integration        |
+| PB AC-2, BR-077  | Published Trip schedule change via edit  | Rejected; Reschedule required                           | Validation                |
 | PB AC-2, BR-077  | Reschedule changes only schedule fields  | Accepted when other conditions pass                     | Validation                |
 | PB AC-2, BR-078  | `new_starts_at > rescheduled_at + 24h`   | Accepted                                                | Boundary                  |
 | BR-078           | `new_starts_at = rescheduled_at + 24h`   | Rejected                                                | Boundary                  |
