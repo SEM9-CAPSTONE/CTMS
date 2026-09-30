@@ -68,6 +68,33 @@ export interface LockedTripForReview {
 	status: TripStatus;
 }
 
+export interface LockedTripForScheduleChange {
+	trip: TripResponseDto;
+	hostId: string;
+	routeId: string;
+	status: TripStatus;
+	startsAt: Date;
+	endsAt: Date;
+	meetingAt: Date | null;
+	tripType: TripType;
+	durationNights: number;
+}
+
+export interface TripRescheduleCommitmentSummary {
+	bookingsPendingReconfirmation: number;
+	portersPendingReconfirmation: number;
+	equipmentReservationsMoved: number;
+	equipmentReservationsCancelled: number;
+	equipmentRefundsCreated: number;
+}
+
+export interface TripCancellationCommitmentSummary {
+	bookingsCancelled: number;
+	portersUnassigned: number;
+	equipmentReservationsCancelled: number;
+	bookingRefundsCreated: number;
+}
+
 /**
  * CTMS-024 – Prevent Trip Overbooking.
  * Minimal projection locked FOR UPDATE to validate and increment seats_taken
@@ -699,6 +726,307 @@ export class TripsRepository extends Repository<Trip> {
 		};
 	}
 
+	async findByIdForScheduleChange(tripId: string): Promise<LockedTripForScheduleChange | null> {
+		const rows = (await this.query(
+			`${TRIP_SELECT}
+			WHERE trip."id" = $1
+			FOR UPDATE OF trip`,
+			[tripId]
+		)) as TripRow[];
+
+		const row = rows[0];
+		if (!row) return null;
+
+		return {
+			trip: toTripResponse(row),
+			hostId: row.hostId,
+			routeId: row.routeId,
+			status: row.status,
+			startsAt: row.startsAt,
+			endsAt: row.endsAt,
+			meetingAt: row.meetingAt,
+			tripType: row.tripType,
+			durationNights: Number(row.durationNights),
+		};
+	}
+
+	async reschedulePublishedTrip(
+		tripId: string,
+		newStartsAt: Date,
+		newEndsAt: Date,
+		rescheduledAt: Date,
+		reconfirmationDeadline: Date
+	): Promise<TripRescheduleCommitmentSummary> {
+		await this.query(
+			`
+			UPDATE "trips"
+			SET
+				"starts_at" = $2,
+				"ends_at" = $3,
+				"rescheduled_at" = $4,
+				"updated_at" = now()
+			WHERE "id" = $1
+			`,
+			[tripId, newStartsAt, newEndsAt, rescheduledAt]
+		);
+
+		const bookingRows = (await this.query(
+			`
+			UPDATE "bookings"
+			SET
+				"status" = 'pending_reconfirmation',
+				"trip_starts_at_snapshot" = $2,
+				"trip_ends_at_snapshot" = $3,
+				"reconfirmation_deadline" = $4,
+				"reconfirmed_at" = NULL,
+				"declined_at" = NULL
+			WHERE "trip_id" = $1
+				AND "status" IN ('confirmed', 'pending_payment')
+			RETURNING "id"
+			`,
+			[tripId, newStartsAt, newEndsAt, reconfirmationDeadline]
+		)) as Array<{ id: string }>;
+
+		const porterRows = (await this.query(
+			`
+			UPDATE "trip_porters"
+			SET
+				"status" = 'pending_reconfirmation',
+				"reconfirmation_deadline" = $2,
+				"reconfirmed_at" = NULL,
+				"declined_at" = NULL
+			WHERE "trip_id" = $1
+				AND "status" = 'assigned'
+			RETURNING "porter_id" AS "porterId"
+			`,
+			[tripId, reconfirmationDeadline]
+		)) as Array<{ porterId: string }>;
+
+		const rentalStartDate = toDateOnly(newStartsAt);
+		const rentalEndDate = toDateOnly(newEndsAt);
+		const reservationRows = (await this.query(
+			`
+			SELECT
+				er."id",
+				er."booking_item_id" AS "bookingItemId",
+				er."equipment_catalog_item_id" AS "equipmentCatalogItemId",
+				er."quantity",
+				bi."booking_id" AS "bookingId",
+				bi."total_price"::text AS "totalPrice",
+				eci."quantity_total" AS "quantityTotal",
+				COALESCE(overlap."reservedQuantity", 0)::int AS "reservedQuantity"
+			FROM "equipment_reservations" er
+			INNER JOIN "booking_items" bi ON bi."id" = er."booking_item_id"
+			INNER JOIN "bookings" b ON b."id" = bi."booking_id"
+			INNER JOIN "equipment_catalog_items" eci ON eci."id" = er."equipment_catalog_item_id"
+			LEFT JOIN LATERAL (
+				SELECT COALESCE(SUM(other_er."quantity"), 0) AS "reservedQuantity"
+				FROM "equipment_reservations" other_er
+				WHERE other_er."equipment_catalog_item_id" = er."equipment_catalog_item_id"
+					AND other_er."status" = 'active'
+					AND other_er."id" <> er."id"
+					AND other_er."rental_start_date" <= $3::date
+					AND other_er."rental_end_date" >= $2::date
+			) overlap ON TRUE
+			WHERE b."trip_id" = $1
+				AND er."status" = 'active'
+			FOR UPDATE OF er, eci
+			`,
+			[tripId, rentalStartDate, rentalEndDate]
+		)) as Array<{
+			id: string;
+			bookingItemId: string;
+			equipmentCatalogItemId: string;
+			quantity: number | string;
+			bookingId: string;
+			totalPrice: string;
+			quantityTotal: number | string;
+			reservedQuantity: number | string;
+		}>;
+
+		let equipmentReservationsMoved = 0;
+		let equipmentReservationsCancelled = 0;
+		let equipmentRefundsCreated = 0;
+
+		for (const reservation of reservationRows) {
+			const available = Number(reservation.quantityTotal) - Number(reservation.reservedQuantity);
+			if (Number(reservation.quantity) <= available) {
+				await this.query(
+					`
+					UPDATE "equipment_reservations"
+					SET "rental_start_date" = $2::date, "rental_end_date" = $3::date
+					WHERE "id" = $1
+					`,
+					[reservation.id, rentalStartDate, rentalEndDate]
+				);
+				equipmentReservationsMoved += 1;
+				continue;
+			}
+
+			await this.query(
+				`
+				UPDATE "equipment_reservations"
+				SET
+					"status" = 'cancelled',
+					"cancelled_at" = $2,
+					"cancellation_reason" = 'reschedule_equipment_unavailable'
+				WHERE "id" = $1
+				`,
+				[reservation.id, rescheduledAt]
+			);
+			equipmentReservationsCancelled += 1;
+			equipmentRefundsCreated += await this.createIdempotentRefund(
+				reservation.bookingId,
+				reservation.totalPrice,
+				`ctms-027:reschedule:${tripId}:equipment:${reservation.bookingItemId}`,
+				"reschedule_equipment_unavailable"
+			);
+		}
+
+		return {
+			bookingsPendingReconfirmation: bookingRows.length,
+			portersPendingReconfirmation: porterRows.length,
+			equipmentReservationsMoved,
+			equipmentReservationsCancelled,
+			equipmentRefundsCreated,
+		};
+	}
+
+	async cancelTripWithCommitments(
+		tripId: string,
+		cancelledAt: Date,
+		reason: string
+	): Promise<TripCancellationCommitmentSummary> {
+		await this.query(
+			`
+			UPDATE "trips"
+			SET
+				"status" = $2,
+				"cancelled_at" = $3,
+				"cancellation_reason" = $4,
+				"updated_at" = now()
+			WHERE "id" = $1
+			`,
+			[tripId, TripStatus.CANCELLED, cancelledAt, reason]
+		);
+
+		const bookingRows = (await this.query(
+			`
+			UPDATE "bookings"
+			SET
+				"status" = 'cancelled',
+				"declined_at" = $2
+			WHERE "trip_id" = $1
+				AND "status" IN ('confirmed', 'pending_payment', 'pending_reconfirmation')
+			RETURNING "id", "total_amount"::text AS "totalAmount"
+			`,
+			[tripId, cancelledAt]
+		)) as Array<{ id: string; totalAmount: string | null }>;
+
+		const porterRows = (await this.query(
+			`
+			UPDATE "trip_porters"
+			SET
+				"status" = 'unassigned',
+				"declined_at" = $2
+			WHERE "trip_id" = $1
+				AND "status" IN ('assigned', 'pending_reconfirmation')
+			RETURNING "porter_id" AS "porterId"
+			`,
+			[tripId, cancelledAt]
+		)) as Array<{ porterId: string }>;
+
+		const equipmentRows = (await this.query(
+			`
+			UPDATE "equipment_reservations" er
+			SET
+				"status" = 'cancelled',
+				"cancelled_at" = $2,
+				"cancellation_reason" = 'trip_cancelled'
+			FROM "booking_items" bi
+			INNER JOIN "bookings" b ON b."id" = bi."booking_id"
+			WHERE er."booking_item_id" = bi."id"
+				AND b."trip_id" = $1
+				AND er."status" = 'active'
+			RETURNING er."id"
+			`,
+			[tripId, cancelledAt]
+		)) as Array<{ id: string }>;
+
+		let bookingRefundsCreated = 0;
+		for (const booking of bookingRows) {
+			if (booking.totalAmount) {
+				bookingRefundsCreated += await this.createIdempotentRefund(
+					booking.id,
+					booking.totalAmount,
+					`ctms-027:trip-cancel:${tripId}:booking:${booking.id}`,
+					"trip_cancelled_by_host"
+				);
+			}
+		}
+
+		await this.recomputeSeatsTaken(tripId);
+
+		return {
+			bookingsCancelled: bookingRows.length,
+			portersUnassigned: porterRows.length,
+			equipmentReservationsCancelled: equipmentRows.length,
+			bookingRefundsCreated,
+		};
+	}
+
+	private async createIdempotentRefund(
+		bookingId: string,
+		amount: string,
+		idempotencyKey: string,
+		reason: string
+	): Promise<number> {
+		const rows = (await this.query(
+			`
+			WITH parent_charge AS (
+				SELECT "id"
+				FROM "payments"
+				WHERE "booking_id" = $1
+					AND "type" = 'charge'
+					AND "status" = 'succeeded'
+				ORDER BY "created_at" DESC
+				LIMIT 1
+			),
+			inserted AS (
+				INSERT INTO "payments" (
+					"booking_id",
+					"amount",
+					"type",
+					"status",
+					"idempotency_key",
+					"request_fingerprint",
+					"parent_payment_id",
+					"provider_reference"
+				)
+				SELECT
+					$1,
+					$2::numeric,
+					'refund',
+					'pending',
+					$3,
+					substr(md5($3 || ':' || $2) || md5($2 || ':' || $3), 1, 64),
+					parent_charge."id",
+					$4
+				FROM parent_charge
+				WHERE $2::numeric > 0
+				ON CONFLICT ("booking_id", "idempotency_key")
+					WHERE "idempotency_key" IS NOT NULL
+				DO NOTHING
+				RETURNING "id"
+			)
+			SELECT COUNT(*)::int AS "createdCount" FROM inserted
+			`,
+			[bookingId, amount, idempotencyKey, reason]
+		)) as Array<{ createdCount: number | string }>;
+
+		return Number(rows[0]?.createdCount ?? 0);
+	}
+
 	async findRouteStatus(routeId: string): Promise<string | null> {
 		const rows = (await this.query(`SELECT "status" FROM "trekking_routes" WHERE "id" = $1`, [
 			routeId,
@@ -947,4 +1275,8 @@ export class TripsRepository extends Repository<Trip> {
 	async recomputeSeatsTaken(tripId: string): Promise<void> {
 		await this.query("SELECT recompute_trip_seats_taken($1)", [tripId]);
 	}
+}
+
+function toDateOnly(value: Date): string {
+	return value.toISOString().slice(0, 10);
 }

@@ -8,6 +8,8 @@ import { UserRole } from "../../users/entities/user.entity";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { ConfigureTripWaypointsDto, CreateTripDto } from "../dto/create-trip.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
+import { CancelTripDto, RescheduleTripDto } from "../dto/reschedule-trip.dto";
+// biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { ReviewTripDto } from "../dto/review-trip.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { SearchTripsQueryDto } from "../dto/search-trips-query.dto";
@@ -119,6 +121,40 @@ export class TripsController {
 		@Body() dto: CreateTripDto
 	): Promise<TripResponseDto> {
 		return this.tripsService.updateDraft(request.user.userId, params.tripId, dto);
+	}
+
+	@Patch(":tripId/reschedule")
+	@Roles(UserRole.HOST)
+	@ApiOperation({ summary: "Reschedule an owned published Trip" })
+	@ApiResponse({ status: 200, type: TripResponseDto })
+	@ApiResponse({ status: 401, description: "Authentication required" })
+	@ApiResponse({ status: 403, description: "Host role and Trip ownership required" })
+	@ApiResponse({ status: 404, description: "Trip not found" })
+	@ApiResponse({ status: 409, description: "Trip state does not allow reschedule" })
+	@ApiResponse({ status: 422, description: "Invalid reschedule payload" })
+	reschedule(
+		@Req() request: AuthenticatedRequest,
+		@Param() params: TripIdParamDto,
+		@Body() dto: RescheduleTripDto
+	): Promise<TripResponseDto> {
+		return this.tripsService.reschedule(request.user.userId, params.tripId, dto);
+	}
+
+	@Patch(":tripId/cancel")
+	@Roles(UserRole.HOST)
+	@ApiOperation({ summary: "Cancel an owned Trip before completion" })
+	@ApiResponse({ status: 200, type: TripResponseDto })
+	@ApiResponse({ status: 401, description: "Authentication required" })
+	@ApiResponse({ status: 403, description: "Host role and Trip ownership required" })
+	@ApiResponse({ status: 404, description: "Trip not found" })
+	@ApiResponse({ status: 409, description: "Trip state does not allow cancellation" })
+	@ApiResponse({ status: 422, description: "Invalid cancellation payload" })
+	cancel(
+		@Req() request: AuthenticatedRequest,
+		@Param() params: TripIdParamDto,
+		@Body() dto: CancelTripDto
+	): Promise<TripResponseDto> {
+		return this.tripsService.cancel(request.user.userId, params.tripId, dto);
 	}
 
 	@Patch(":tripId/review")

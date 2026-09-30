@@ -20,6 +20,7 @@ export class EquipmentReservationsRepository extends Repository<EquipmentReserva
 			})
 			.andWhere("reservation.rentalStartDate <= :rentalEndDate", { rentalEndDate })
 			.andWhere("reservation.rentalEndDate >= :rentalStartDate", { rentalStartDate })
+			.andWhere("reservation.status = 'active'")
 			.getRawOne<{ sum: string }>()
 			.then((row) => Number(row?.sum ?? 0));
 	}

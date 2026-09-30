@@ -12,6 +12,7 @@ import { User } from "../../users/entities/user.entity";
 export enum BookingStatus {
 	PENDING_PAYMENT = "pending_payment",
 	CONFIRMED = "confirmed",
+	PENDING_RECONFIRMATION = "pending_reconfirmation",
 	CANCELLED = "cancelled",
 	EXPIRED = "expired",
 	COMPLETED = "completed",
@@ -65,6 +66,15 @@ export class Booking {
 
 	@Column({ name: "trip_ends_at_snapshot", type: "timestamptz", nullable: true })
 	tripEndsAtSnapshot!: Date | null;
+
+	@Column({ name: "reconfirmation_deadline", type: "timestamptz", nullable: true })
+	reconfirmationDeadline!: Date | null;
+
+	@Column({ name: "reconfirmed_at", type: "timestamptz", nullable: true })
+	reconfirmedAt!: Date | null;
+
+	@Column({ name: "declined_at", type: "timestamptz", nullable: true })
+	declinedAt!: Date | null;
 
 	@Column({ name: "base_price", type: "numeric", precision: 12, scale: 2, nullable: true })
 	basePrice!: string | null;
