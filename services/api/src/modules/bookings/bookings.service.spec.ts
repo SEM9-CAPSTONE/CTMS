@@ -384,7 +384,7 @@ describe("BookingsService", () => {
 	describe("addItem", () => {
 		const addItemDto = { equipmentCatalogItemId: EQUIPMENT_ID, quantity: 2 };
 
-		it("adds an item, snapshots price/rental days, and recalculates the Booking total", async () => {
+		it("adds an item, snapshots price/rental days, and preserves the Booking base total", async () => {
 			const result = await service.addItem(USER_ID, BOOKING_ID, "add-1", addItemDto);
 
 			expect(result.item).toMatchObject({
@@ -396,7 +396,7 @@ describe("BookingsService", () => {
 				rentalDays: 1,
 				totalPrice: "100000.00",
 			});
-			expect(result.booking.totalAmount).toBe("150000.00");
+			expect(result.booking.totalAmount).toBe("0.00");
 			expect(equipmentCatalogRepository.findForUpdate).toHaveBeenCalledWith(EQUIPMENT_ID);
 			expect(equipmentReservationsRepository.save).toHaveBeenCalledWith(
 				expect.objectContaining({

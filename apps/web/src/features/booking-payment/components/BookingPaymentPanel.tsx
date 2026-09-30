@@ -30,7 +30,7 @@ export function BookingPaymentPanel({
 	const [validationError, setValidationError] = useState<string | null>(null);
 	const { submit, retry, isSubmitting, result, error } = usePayBooking();
 
-	const effectiveAmount = totalAmount ?? booking.totalAmount;
+	const effectiveAmount = totalAmount ?? booking.basePrice ?? booking.totalAmount;
 	const isPayableStatus =
 		booking.status === "pending_payment" && booking.paymentStatus === "unpaid";
 

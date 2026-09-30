@@ -11,14 +11,14 @@ function listErrorMessage(error: unknown): string {
 	return "Không thể tải danh sách thiết bị. Vui lòng thử lại.";
 }
 
-export function useTripEquipmentOptions(tripId: string | undefined) {
+export function useTripEquipmentOptions(tripId: string | undefined, enabled = true) {
 	const [items, setItems] = useState<TripEquipmentOption[]>([]);
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState("");
 	const requestSequence = useRef(0);
 
 	const load = useCallback(async () => {
-		if (!tripId) return;
+		if (!tripId || !enabled) return;
 		const sequence = ++requestSequence.current;
 
 		setError("");
@@ -31,14 +31,20 @@ export function useTripEquipmentOptions(tripId: string | undefined) {
 		} finally {
 			if (sequence === requestSequence.current) setIsLoading(false);
 		}
-	}, [tripId]);
+	}, [tripId, enabled]);
 
 	useEffect(() => {
+		if (!enabled) {
+			setItems([]);
+			setIsLoading(false);
+			setError("");
+			return;
+		}
 		void load();
 		return () => {
 			requestSequence.current += 1;
 		};
-	}, [load]);
+	}, [load, enabled]);
 
 	return { items, isLoading, error, retry: load };
 }

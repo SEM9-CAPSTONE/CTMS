@@ -1,5 +1,9 @@
-import { Check, Loader2, Minus, Plus, RefreshCw, ShieldAlert } from "lucide-react";
+import { Check, Copy, Loader2, Minus, Plus, RefreshCw, ShieldAlert } from "lucide-react";
 import { useEffect, useId, useState } from "react";
+import {
+	formatBookingStatus,
+	formatPaymentStatus,
+} from "../../booking-details/utils/booking-details-formatters";
 import { bookTripSchema } from "../schema/book-trip.schema";
 import type { BookTripResponse, TripDetails } from "../types";
 import { BookingConflictDialog } from "./BookingConflictDialog";
@@ -38,6 +42,35 @@ export interface BookingPanelProps {
 	onViewBookingDetails?: (bookingId: string) => void;
 }
 
+function getBookingStatusBadge(status: string): string {
+	switch (status) {
+		case "confirmed":
+			return "bg-emerald-100 text-emerald-800 border-emerald-300";
+		case "pending_payment":
+			return "bg-amber-100 text-amber-900 border-amber-300";
+		case "cancelled":
+		case "expired":
+			return "bg-rose-100 text-rose-800 border-rose-300";
+		case "completed":
+			return "bg-blue-100 text-blue-800 border-blue-300";
+		default:
+			return "bg-slate-100 text-slate-800 border-slate-300";
+	}
+}
+
+function getPaymentStatusBadge(status: string): string {
+	switch (status) {
+		case "paid":
+			return "bg-emerald-100 text-emerald-800 border-emerald-300";
+		case "unpaid":
+			return "bg-amber-100 text-amber-900 border-amber-300";
+		case "not_required":
+			return "bg-sky-100 text-sky-800 border-sky-300";
+		default:
+			return "bg-slate-100 text-slate-800 border-slate-300";
+	}
+}
+
 function BookingResult({
 	booking,
 	onReset,
@@ -51,6 +84,17 @@ function BookingResult({
 		booking.status === "confirmed" && booking.paymentStatus === "not_required";
 	const isPendingPayment =
 		booking.status === "pending_payment" && booking.paymentStatus === "unpaid";
+	const [copied, setCopied] = useState(false);
+
+	const handleCopyId = async () => {
+		try {
+			await navigator.clipboard.writeText(booking.id);
+			setCopied(true);
+			setTimeout(() => setCopied(false), 2000);
+		} catch {
+			// ignore clipboard write failure in test/unsupported environments
+		}
+	};
 
 	return (
 		// biome-ignore lint/a11y/useSemanticElements: The live status contains structured Booking details that are not valid phrasing content inside output.
@@ -73,38 +117,74 @@ function BookingResult({
 				</div>
 			</div>
 
-			<dl className="mt-4 grid gap-2 border-t border-emerald-200 pt-3 text-xs">
-				<div className="flex justify-between gap-3">
-					<dt>Mã đặt chỗ</dt>
-					<dd className="break-all text-right font-bold">{booking.id}</dd>
+			<dl className="mt-4 grid gap-2.5 border-t border-emerald-200 pt-3 text-xs">
+				<div className="flex items-center justify-between gap-3">
+					<dt className="text-emerald-900">Mã đặt chỗ</dt>
+					<dd className="flex items-center gap-1.5 font-bold">
+						<span
+							data-testid="booking-code-badge"
+							title={`Mã đặt chỗ đầy đủ: ${booking.id}`}
+							className="rounded-md border border-emerald-200 bg-white px-2 py-0.5 font-mono text-xs font-extrabold text-[#164027] shadow-2xs"
+						>
+							#{booking.id.slice(0, 8).toUpperCase()}
+						</span>
+						<span className="sr-only">{booking.id}</span>
+						<button
+							type="button"
+							onClick={handleCopyId}
+							title={copied ? "Đã sao chép mã đầy đủ" : "Sao chép mã UUID"}
+							aria-label="Sao chép mã đặt chỗ"
+							className="rounded p-1 text-emerald-800 transition hover:bg-emerald-100 hover:text-emerald-950"
+						>
+							{copied ? (
+								<Check className="size-3.5 text-emerald-700" />
+							) : (
+								<Copy className="size-3.5" />
+							)}
+						</button>
+					</dd>
 				</div>
-				<div className="flex justify-between gap-3">
-					<dt>Số lượng khách</dt>
+				<div className="flex items-center justify-between gap-3">
+					<dt className="text-emerald-900">Số lượng khách</dt>
 					<dd className="font-bold">{booking.numPeople}</dd>
 				</div>
-				<div className="flex justify-between gap-3">
-					<dt>Tổng giá đã xác nhận</dt>
-					<dd data-testid="authoritative-booking-price" className="font-extrabold">
+				<div className="flex items-center justify-between gap-3">
+					<dt className="text-emerald-900">Tổng giá đã xác nhận</dt>
+					<dd data-testid="authoritative-booking-price" className="font-extrabold text-[#164027]">
 						{formatVND(Number(booking.basePrice))}
 					</dd>
 				</div>
-				<div className="flex justify-between gap-3">
-					<dt>Trạng thái đặt chỗ</dt>
-					<dd className="font-bold">{booking.status}</dd>
+				<div className="flex items-center justify-between gap-3">
+					<dt className="text-emerald-900">Trạng thái đặt chỗ</dt>
+					<dd className="font-bold">
+						<span
+							className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-extrabold ${getBookingStatusBadge(booking.status)}`}
+						>
+							{formatBookingStatus(booking.status)}
+						</span>
+						<span className="sr-only"> {booking.status}</span>
+					</dd>
+				</div>
+				<div className="flex items-center justify-between gap-3">
+					<dt className="text-emerald-900">Trạng thái thanh toán</dt>
+					<dd className="font-bold">
+						<span
+							className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-extrabold ${getPaymentStatusBadge(booking.paymentStatus)}`}
+						>
+							{formatPaymentStatus(booking.paymentStatus)}
+						</span>
+						<span className="sr-only"> {booking.paymentStatus}</span>
+					</dd>
 				</div>
 				<div className="flex justify-between gap-3">
-					<dt>Trạng thái thanh toán</dt>
-					<dd className="font-bold">{booking.paymentStatus}</dd>
-				</div>
-				<div className="flex justify-between gap-3">
-					<dt>Lịch trình</dt>
+					<dt className="text-emerald-900">Lịch trình</dt>
 					<dd className="text-right font-bold">
 						{formatBookingDateTime(booking.tripStartsAtSnapshot)} –{" "}
 						{formatBookingDateTime(booking.tripEndsAtSnapshot)}
 					</dd>
 				</div>
 				{isPendingPayment && booking.holdExpiresAt && (
-					<div className="flex justify-between gap-3 text-amber-900">
+					<div className="flex items-center justify-between gap-3 text-amber-900">
 						<dt>Giữ chỗ đến</dt>
 						<dd className="text-right font-extrabold">
 							{formatBookingDateTime(booking.holdExpiresAt)}

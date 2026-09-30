@@ -24,6 +24,7 @@ import type { BookTripResponse, TripDetails } from "../types";
 import { type BookingAccess, BookingPanel } from "./BookingPanel";
 import { TripCapacityBanner } from "./TripCapacityBanner";
 import { formatDateRange, formatVND, getDifficultyBadge, getWeatherRiskBadge } from "./TripCard";
+import { TripRentableEquipment } from "./TripRentableEquipment";
 
 export interface TripDetailViewProps {
 	trip: TripDetails;
@@ -101,7 +102,6 @@ export function TripDetailView({
 	onViewPackingList,
 	onViewBookingDetails,
 }: TripDetailViewProps) {
-	const [equipmentTotalAmount, setEquipmentTotalAmount] = useState<string | null>(null);
 	const [packingListRefreshKey, setPackingListRefreshKey] = useState(0);
 	const difficulty = getDifficultyBadge(trip.difficulty ?? null);
 	const weather = getWeatherRiskBadge(trip.weatherRiskLevel ?? null);
@@ -434,6 +434,13 @@ export function TripDetailView({
 						</div>
 					</section>
 
+					{/* Rentable Equipment Preview */}
+					<TripRentableEquipment
+						tripId={trip.id}
+						bookingAccess={bookingAccess}
+						onSignIn={onSignIn}
+					/>
+
 					{/* Cancellation Policy */}
 					{trip.cancellationPolicy && (
 						<section className="rounded-3xl border border-[#dfe8df] bg-white p-6 shadow-sm">
@@ -522,14 +529,13 @@ export function TripDetailView({
 										<BookingEquipmentPicker
 											tripId={trip.id}
 											bookingId={booking.id}
-											initialTotalAmount={booking.totalAmount}
-											onTotalAmountChange={setEquipmentTotalAmount}
+											initialTotalAmount={booking.basePrice ?? booking.totalAmount}
 											onEquipmentChanged={() => setPackingListRefreshKey((current) => current + 1)}
 										/>
 										<BookingPaymentPanel
 											booking={booking}
 											bookingAccess={bookingAccess}
-											totalAmount={equipmentTotalAmount ?? booking.totalAmount}
+											totalAmount={booking.basePrice ?? booking.totalAmount}
 										/>
 										<PackingListPanel bookingId={booking.id} refreshKey={packingListRefreshKey} />
 										{onViewPackingList && (
