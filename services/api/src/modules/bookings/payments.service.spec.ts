@@ -4,6 +4,7 @@ import {
 	NotFoundException,
 	UnprocessableEntityException,
 } from "@nestjs/common";
+import type { WebhookData } from "@payos/node";
 import type { DataSource, EntityManager } from "typeorm";
 import { AuditLog } from "../auth/entities/audit-log.entity";
 import { Booking, BookingPaymentStatus, BookingStatus } from "../profiles/entities/booking.entity";
@@ -48,6 +49,7 @@ describe("PaymentsService", () => {
 		create: jest.Mock;
 		save: jest.Mock;
 		findForUpdate: jest.Mock;
+		findOne: jest.Mock;
 	};
 	let bookingsRepository: {
 		findForUpdate: jest.Mock;
@@ -72,6 +74,7 @@ describe("PaymentsService", () => {
 				})
 			),
 			findForUpdate: jest.fn().mockResolvedValue(null),
+			findOne: jest.fn().mockResolvedValue(null),
 		};
 
 		bookingsRepository = {
@@ -95,6 +98,7 @@ describe("PaymentsService", () => {
 		const manager = {
 			withRepository: jest.fn((repository: object) => repositoryByInstance.get(repository)),
 			getRepository: jest.fn((entityClass: unknown) => {
+				if (entityClass === Payment) return paymentsRepository;
 				if (entityClass === PaymentTransaction) return transactionRepository;
 				if (entityClass === AuditLog) return auditRepository;
 				throw new Error(`Unexpected entity repository request: ${String(entityClass)}`);
@@ -116,6 +120,120 @@ describe("PaymentsService", () => {
 
 	afterEach(() => {
 		jest.useRealTimers();
+	});
+
+	describe("handlePayOSWebhook", () => {
+		const webhook: WebhookData = {
+			orderCode: 999888,
+			amount: 1000000,
+			description: "CTMS Booking",
+			accountNumber: "9704",
+			reference: "FT12345",
+			transactionDateTime: "2029-09-01T00:00:00Z",
+			currency: "VND",
+			paymentLinkId: "link-test",
+			code: "00",
+			desc: "success",
+		};
+		let payment: Payment;
+		let booking: Booking;
+
+		beforeEach(() => {
+			payment = Object.assign(new Payment(), {
+				id: "payment-1",
+				bookingId: BOOKING_ID,
+				status: PaymentStatus.PENDING,
+				amount: "1000000.00",
+			});
+			booking = payableBooking();
+			paymentsRepository.findOne.mockResolvedValue(payment);
+			paymentsRepository.findForUpdate.mockResolvedValue(payment);
+			bookingsRepository.findForUpdate.mockResolvedValue(booking);
+		});
+
+		it("records a successful callback and confirms an eligible Booking", async () => {
+			await service.handlePayOSWebhook(webhook);
+
+			expect(payment.status).toBe(PaymentStatus.SUCCEEDED);
+			expect(booking.status).toBe(BookingStatus.CONFIRMED);
+			expect(booking.paymentStatus).toBe(BookingPaymentStatus.PAID);
+			expect(bookingsRepository.save).toHaveBeenCalledTimes(1);
+			expect(transactionRepository.save).toHaveBeenCalledWith(
+				expect.objectContaining({
+					paymentId: payment.id,
+					status: PaymentTransactionStatus.SUCCEEDED,
+				})
+			);
+			expect(auditRepository.save).toHaveBeenCalledTimes(1);
+		});
+
+		it("records a late successful charge without reactivating a cancelled Booking", async () => {
+			booking.status = BookingStatus.CANCELLED;
+			await service.handlePayOSWebhook(webhook);
+
+			expect(paymentsRepository.save).toHaveBeenCalledWith(
+				expect.objectContaining({ status: PaymentStatus.SUCCEEDED })
+			);
+			expect(transactionRepository.save).toHaveBeenCalledWith(
+				expect.objectContaining({ status: PaymentTransactionStatus.SUCCEEDED })
+			);
+			expect(booking.status).toBe(BookingStatus.CANCELLED);
+			expect(booking.paymentStatus).toBe(BookingPaymentStatus.PAID);
+			expect(auditRepository.save).toHaveBeenCalledWith(
+				expect.objectContaining({
+					before: {
+						paymentStatus: PaymentStatus.PENDING,
+						bookingStatus: BookingStatus.CANCELLED,
+						bookingPaymentStatus: BookingPaymentStatus.UNPAID,
+					},
+					after: expect.objectContaining({ bookingStatus: BookingStatus.CANCELLED }),
+				})
+			);
+			expect(paymentsRepository.create).not.toHaveBeenCalled();
+		});
+
+		it.each([BookingStatus.PENDING_PAYMENT, BookingStatus.CANCELLED])(
+			"replays a successful callback without duplicate effects for %s",
+			async (status) => {
+				booking.status = status;
+				await service.handlePayOSWebhook(webhook);
+				await service.handlePayOSWebhook(webhook);
+
+				expect(paymentsRepository.save).toHaveBeenCalledTimes(1);
+				expect(bookingsRepository.save).toHaveBeenCalledTimes(1);
+				expect(transactionRepository.save).toHaveBeenCalledTimes(1);
+				expect(auditRepository.save).toHaveBeenCalledTimes(1);
+			}
+		);
+
+		it("rechecks payment success after locking instead of trusting the initial lookup", async () => {
+			paymentsRepository.findForUpdate.mockResolvedValue(
+				Object.assign(new Payment(), payment, { status: PaymentStatus.SUCCEEDED })
+			);
+			await service.handlePayOSWebhook(webhook);
+
+			expect(paymentsRepository.save).not.toHaveBeenCalled();
+			expect(bookingsRepository.save).not.toHaveBeenCalled();
+			expect(transactionRepository.save).not.toHaveBeenCalled();
+			expect(auditRepository.save).not.toHaveBeenCalled();
+		});
+
+		it.each([BookingStatus.PENDING_PAYMENT, BookingStatus.CANCELLED])(
+			"keeps unsuccessful callback behavior unchanged for %s",
+			async (status) => {
+				booking.status = status;
+				await service.handlePayOSWebhook({ ...webhook, code: "01", desc: "cancelled" });
+
+				expect(payment.status).toBe(PaymentStatus.FAILED);
+				expect(transactionRepository.save).toHaveBeenCalledWith(
+					expect.objectContaining({ status: PaymentTransactionStatus.FAILED })
+				);
+				expect(booking.status).toBe(status);
+				expect(booking.paymentStatus).toBe(BookingPaymentStatus.UNPAID);
+				expect(bookingsRepository.save).not.toHaveBeenCalled();
+				expect(auditRepository.save).not.toHaveBeenCalled();
+			}
+		);
 	});
 
 	it("successfully charges a pending payable booking, confirms booking, and audits outcome", async () => {

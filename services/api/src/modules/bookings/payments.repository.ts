@@ -11,6 +11,14 @@ import type { Payment } from "./entities/payment.entity";
  */
 @Injectable()
 export class PaymentsRepository extends Repository<Payment> {
+	findByBookingForUpdate(bookingId: string): Promise<Payment[]> {
+		return this.createQueryBuilder("payment")
+			.where("payment.bookingId = :bookingId", { bookingId })
+			.orderBy("payment.id", "ASC")
+			.setLock("pessimistic_write")
+			.getMany();
+	}
+
 	/**
 	 * Acquires a transaction-scoped advisory lock so that concurrent pay
 	 * requests carrying the same (bookingId, idempotencyKey) are serialised

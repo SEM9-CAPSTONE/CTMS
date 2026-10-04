@@ -76,6 +76,12 @@ export class Booking {
 	@Column({ name: "declined_at", type: "timestamptz", nullable: true })
 	declinedAt!: Date | null;
 
+	@Column({ name: "cancelled_at", type: "timestamptz", nullable: true })
+	cancelledAt!: Date | null;
+
+	@Column({ name: "cancellation_reason", type: "varchar", length: 255, nullable: true })
+	cancellationReason!: string | null;
+
 	@Column({ name: "base_price", type: "numeric", precision: 12, scale: 2, nullable: true })
 	basePrice!: string | null;
 
