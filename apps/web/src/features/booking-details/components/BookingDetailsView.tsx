@@ -4,6 +4,7 @@ import {
 	formatBookingDateTime,
 	formatBookingMoney,
 	formatBookingStatus,
+	formatCancellationPolicyRules,
 	formatPaymentStatus,
 } from "../utils/booking-details-formatters";
 import { BookingEquipmentSection } from "./BookingEquipmentSection";
@@ -18,22 +19,18 @@ function SummaryRow({ label, value }: { label: string; value: React.ReactNode })
 	);
 }
 
-function cancellationPolicyText(snapshot: Record<string, unknown>): string | null {
-	return typeof snapshot.policy === "string" ? snapshot.policy : null;
-}
-
 export function BookingDetailsView({
 	booking,
 	onBack,
 	backLabel = "Quay lại đơn đặt chỗ",
+	cancellationPanel,
 }: {
 	booking: BookingDetails;
 	onBack: () => void;
 	backLabel?: string;
+	cancellationPanel?: React.ReactNode;
 }) {
-	const policyText = booking.cancellationPolicySnapshot
-		? cancellationPolicyText(booking.cancellationPolicySnapshot)
-		: null;
+	const policyRules = formatCancellationPolicyRules(booking.cancellationPolicySnapshot);
 
 	return (
 		<main className="min-h-screen bg-[#f4f7f2] px-4 py-8 text-[#10221b] sm:px-6">
@@ -154,22 +151,31 @@ export function BookingDetailsView({
 						>
 							<FileText className="size-5 text-[#164027]" /> Chính sách hủy
 						</h2>
-						{booking.cancellationPolicySnapshot ? (
-							policyText ? (
-								<p className="mt-4 text-sm text-[#52665b]">{policyText}</p>
-							) : (
-								<pre className="mt-4 overflow-auto whitespace-pre-wrap rounded-2xl bg-[#f4f7f2] p-4 text-xs text-[#52665b]">
-									{JSON.stringify(booking.cancellationPolicySnapshot, null, 2)}
-								</pre>
-							)
+						{policyRules ? (
+							<ul className="mt-4 space-y-2 text-sm text-[#52665b]">
+								{policyRules.map((rule) => (
+									<li key={rule} className="rounded-xl bg-[#f4f7f2] px-4 py-3">
+										{rule}
+									</li>
+								))}
+							</ul>
 						) : (
 							<p className="mt-4 text-sm text-[#667a6d]">
-								Không có chính sách hủy được lưu cho đơn này.
+								Chính sách hủy sẽ được hệ thống kiểm tra khi bạn gửi yêu cầu.
+							</p>
+						)}
+						<p className="mt-3 text-xs text-[#667a6d]">
+							Quyền hủy và số tiền hoàn thực tế được máy chủ xác định tại thời điểm gửi yêu cầu.
+						</p>
+						{booking.paymentStatus === "not_required" && (
+							<p className="mt-3 rounded-xl bg-sky-50 px-4 py-3 text-sm text-sky-900">
+								Đơn đặt chỗ này không yêu cầu thanh toán nên không phát sinh khoản hoàn tiền.
 							</p>
 						)}
 					</section>
 				</div>
 
+				{cancellationPanel}
 				<section
 					aria-labelledby="booking-schedule-note-heading"
 					className="mt-6 rounded-3xl border border-emerald-200 bg-emerald-50 p-5"

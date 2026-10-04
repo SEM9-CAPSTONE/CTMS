@@ -213,7 +213,13 @@ export interface BookTripResponse {
 	tripId: string;
 	userId: string;
 	numPeople: number;
-	status: "pending_payment" | "confirmed" | "cancelled" | "expired" | "completed";
+	status:
+		| "pending_payment"
+		| "pending_reconfirmation"
+		| "confirmed"
+		| "cancelled"
+		| "expired"
+		| "completed";
 	paymentStatus: "not_required" | "unpaid" | "paid";
 	holdExpiresAt: string | null;
 	tripStartsAtSnapshot: string;

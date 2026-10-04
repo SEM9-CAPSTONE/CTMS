@@ -337,6 +337,7 @@ async function main() {
 				title: string;
 				pricePerPerson?: string;
 				createdBy: string;
+				cancellationPolicy?: Record<string, unknown>;
 			}>(arg);
 			if (!input.title.startsWith("E2E") && !input.title.startsWith("CTMS")) {
 				throw new Error(`Refusing to seed non-E2E trip: ${input.title}`);
@@ -347,13 +348,13 @@ async function main() {
 					`INSERT INTO "trips" (
 						"host_id", "route_id", "title", "description", "trip_type", "duration_nights",
 						"starts_at", "ends_at", "meeting_point", "booking_deadline",
-						"capacity_min", "capacity_max", "price_per_person", "status"
+						"capacity_min", "capacity_max", "price_per_person", "status", "cancellation_policy"
 					)
 					VALUES (
 						$1, $2, $3, 'e2e published trip fixture', 'day_trip', 0,
 						now() + interval '5 days', now() + interval '5 days 8 hours',
 						ST_SetSRID(ST_GeomFromGeoJSON($4), 4326)::geography, now() + interval '4 days',
-						1, 10, $5, 'published'
+						1, 10, $5, 'published', $6::jsonb
 					)
 					RETURNING "id"`,
 					[
@@ -362,6 +363,7 @@ async function main() {
 						input.title,
 						JSON.stringify(meetingPoint),
 						input.pricePerPerson ?? "0.00",
+						input.cancellationPolicy ? JSON.stringify(input.cancellationPolicy) : null,
 					]
 				)) as Array<{ id: string }>;
 				const insertedTripId = tripRows[0].id;

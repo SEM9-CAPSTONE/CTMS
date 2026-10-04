@@ -1,4 +1,10 @@
-export type BookingStatus = "pending_payment" | "confirmed" | "cancelled" | "expired" | "completed";
+export type BookingStatus =
+	| "pending_payment"
+	| "pending_reconfirmation"
+	| "confirmed"
+	| "cancelled"
+	| "expired"
+	| "completed";
 
 export type BookingPaymentStatus = "not_required" | "unpaid" | "paid";
 

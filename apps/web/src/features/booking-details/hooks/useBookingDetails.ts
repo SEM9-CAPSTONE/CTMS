@@ -57,25 +57,38 @@ export function useBookingDetails(bookingId: string) {
 	const [booking, setBooking] = useState<BookingDetails | null>(null);
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState<BookingDetailsError | null>(null);
+	const [isRefreshing, setIsRefreshing] = useState(false);
+	const [refreshError, setRefreshError] = useState<BookingDetailsError | null>(null);
 	const requestSequence = useRef(0);
 
-	const load = useCallback(async () => {
-		const sequence = ++requestSequence.current;
-		setBooking(null);
-		setError(null);
-		setIsLoading(true);
-
-		try {
-			const result = await bookingDetailsService.getBookingDetails(bookingId);
-			if (sequence === requestSequence.current) setBooking(result);
-		} catch (requestError) {
-			if (sequence === requestSequence.current) {
-				setError(mapBookingDetailsError(requestError));
+	const load = useCallback(
+		async (keepBooking = false) => {
+			const sequence = ++requestSequence.current;
+			setRefreshError(null);
+			if (keepBooking) setIsRefreshing(true);
+			else {
+				setBooking(null);
+				setError(null);
+				setIsLoading(true);
 			}
-		} finally {
-			if (sequence === requestSequence.current) setIsLoading(false);
-		}
-	}, [bookingId]);
+
+			try {
+				const result = await bookingDetailsService.getBookingDetails(bookingId);
+				if (sequence === requestSequence.current) setBooking(result);
+			} catch (requestError) {
+				if (sequence === requestSequence.current) {
+					if (keepBooking) setRefreshError(mapBookingDetailsError(requestError));
+					else setError(mapBookingDetailsError(requestError));
+				}
+			} finally {
+				if (sequence === requestSequence.current) {
+					setIsLoading(false);
+					setIsRefreshing(false);
+				}
+			}
+		},
+		[bookingId]
+	);
 
 	useEffect(() => {
 		void load();
@@ -84,5 +97,6 @@ export function useBookingDetails(bookingId: string) {
 		};
 	}, [load]);
 
-	return { booking, isLoading, error, retry: load };
+	const reload = useCallback(() => load(true), [load]);
+	return { booking, isLoading, error, retry: load, reload, isRefreshing, refreshError };
 }
