@@ -28,6 +28,7 @@ export function formatBookingDateTime(value: string | null): string {
 
 const bookingStatusLabels: Record<BookingStatus, string> = {
 	pending_payment: "Chờ thanh toán",
+	pending_reconfirmation: "Chờ xác nhận lại",
 	confirmed: "Đã xác nhận",
 	cancelled: "Đã hủy",
 	expired: "Đã hết hạn",
@@ -58,4 +59,40 @@ export function formatPaymentStatus(value: BookingPaymentStatus | null): string 
 
 export function formatMemberStatus(value: BookingMemberStatus): string {
 	return memberStatusLabels[value];
+}
+
+interface CancellationPolicyRuleV1 {
+	minHoursBeforeTrip: number;
+	refundPercent: number;
+}
+
+function isCancellationPolicyRuleV1(value: unknown): value is CancellationPolicyRuleV1 {
+	if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+	const rule = value as Record<string, unknown>;
+	return (
+		typeof rule.minHoursBeforeTrip === "number" &&
+		Number.isFinite(rule.minHoursBeforeTrip) &&
+		rule.minHoursBeforeTrip >= 0 &&
+		typeof rule.refundPercent === "number" &&
+		Number.isFinite(rule.refundPercent) &&
+		rule.refundPercent >= 0 &&
+		rule.refundPercent <= 100
+	);
+}
+
+/** Formats persisted V1 policy data for display only; it does not evaluate cancellation eligibility. */
+export function formatCancellationPolicyRules(snapshot: unknown): string[] | null {
+	if (typeof snapshot !== "object" || snapshot === null || Array.isArray(snapshot)) return null;
+	const policy = snapshot as Record<string, unknown>;
+	if (policy.version !== 1 || !Array.isArray(policy.rules) || policy.rules.length === 0)
+		return null;
+	if (!policy.rules.every(isCancellationPolicyRuleV1)) return null;
+
+	return policy.rules.map((rule) => {
+		const timing =
+			rule.minHoursBeforeTrip === 0
+				? "Hủy trước giờ khởi hành"
+				: `Hủy trước ít nhất ${rule.minHoursBeforeTrip.toLocaleString("vi-VN")} giờ`;
+		return `${timing}: hoàn ${rule.refundPercent.toLocaleString("vi-VN")}% phần tiền đủ điều kiện.`;
+	});
 }

@@ -1,9 +1,10 @@
 import { ArrowLeft, Compass, Loader2, RefreshCw } from "lucide-react";
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import type { BookingDetails } from "../../booking-details/types";
 import type { BookingAccess } from "../components/BookingPanel";
 import { TripDetailView } from "../components/TripDetailView";
 import { useBookTrip } from "../hooks/useBookTrip";
+import { useTripBooking } from "../hooks/useTripBooking";
 import { useTripDetail } from "../hooks/useTripDetail";
 import type { BookTripResponse } from "../types";
 
@@ -64,6 +65,12 @@ export function TripDetailPage({
 }: TripDetailPageProps) {
 	const { trip, isLoading, error, isNotFound, retry } = useTripDetail(tripId);
 	const {
+		booking: serverBookingDetails,
+		isLoading: isRestoringBooking,
+		error: bookingRestoreError,
+		retry: retryBookingRestore,
+	} = useTripBooking(tripId, bookingAccess === "camper");
+	const {
 		book,
 		retry: retryBooking,
 		clearConflict,
@@ -80,7 +87,34 @@ export function TripDetailPage({
 			restoredBookingDetails?.tripId === tripId ? toBookTripResponse(restoredBookingDetails) : null,
 		[restoredBookingDetails, tripId]
 	);
-	const displayedBooking = booking ?? restoredBooking;
+	const serverBooking = useMemo(
+		() => toBookTripResponse(serverBookingDetails),
+		[serverBookingDetails]
+	);
+	const temporaryBooking = restoredBooking ?? booking;
+	const serverNeedsCancellationRefresh = Boolean(
+		restoredBooking?.status === "cancelled" &&
+			serverBooking?.id === restoredBooking.id &&
+			serverBooking.status !== "cancelled"
+	);
+	// Navigation state is temporary while loading. A completed server read is authoritative.
+	const displayedBooking =
+		isRestoringBooking || serverNeedsCancellationRefresh
+			? temporaryBooking
+			: (serverBooking ?? booking);
+	const displayedBookingDetails =
+		displayedBooking &&
+		serverBooking &&
+		displayedBooking.id === serverBooking.id &&
+		displayedBooking.status === serverBooking.status
+			? serverBookingDetails
+			: restoredBookingDetails;
+	const cancelledBookingId = restoredBooking?.status === "cancelled" ? restoredBooking.id : null;
+	useEffect(() => {
+		if (!cancelledBookingId) return;
+		void retry();
+		if (restoredBooking?.id === cancelledBookingId) void retryBookingRestore();
+	}, [cancelledBookingId, restoredBooking?.id, retry, retryBookingRestore]);
 
 	const handleBook = useCallback(
 		async (targetTripId: string, numPeople: number) => {
@@ -98,8 +132,8 @@ export function TripDetailPage({
 
 	const handleConflictReload = useCallback(async () => {
 		clearConflict();
-		await retry();
-	}, [clearConflict, retry]);
+		await Promise.all([retry(), retryBookingRestore()]);
+	}, [clearConflict, retry, retryBookingRestore]);
 	const handleBookingReset = useCallback(() => {
 		resetBooking();
 		onClearRestoredBooking?.();
@@ -144,7 +178,7 @@ export function TripDetailPage({
 
 			{/* Main Content */}
 			<main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-				{isLoading && (
+				{(isLoading || (bookingAccess === "camper" && isRestoringBooking && !temporaryBooking)) && (
 					<div
 						data-testid="trip-detail-loading"
 						className="flex flex-col items-center justify-center gap-3 rounded-3xl bg-white p-16 text-sm font-bold text-[#164027] shadow-sm"
@@ -208,29 +242,52 @@ export function TripDetailPage({
 					</div>
 				)}
 
-				{!isLoading && !error && trip && (
-					<TripDetailView
-						trip={trip}
-						onBack={onBackToList}
-						onBook={handleBook}
-						isBooking={isBooking}
-						bookingError={bookingError}
-						booking={displayedBooking}
-						restoredBookingDetails={restoredBookingDetails}
-						bookingAccess={bookingAccess}
-						fieldErrors={fieldErrors}
-						canRetry={canRetry}
-						isConflict={isConflict}
-						onBookingRetry={retryBooking}
-						onBookingReset={handleBookingReset}
-						onSignIn={onSignIn}
-						onConflictDismiss={clearConflict}
-						onConflictReload={handleConflictReload}
-						onConflictRetry={retryBooking}
-						onViewPackingList={onViewPackingList}
-						onViewBookingDetails={onViewBookingDetails}
-					/>
+				{!isLoading && !error && trip && bookingRestoreError && (
+					<div
+						role="alert"
+						className="rounded-3xl border border-amber-200 bg-amber-50 p-8 text-center text-amber-950 shadow-sm"
+					>
+						<p className="font-extrabold">Không thể xác minh đơn đặt chỗ của bạn.</p>
+						<p className="mt-1 text-xs text-amber-800">{bookingRestoreError.message}</p>
+						{bookingRestoreError.canRetry && (
+							<button
+								type="button"
+								onClick={() => void retryBookingRestore()}
+								className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-amber-800 px-5 py-2.5 text-xs font-bold text-white hover:bg-amber-900"
+							>
+								<RefreshCw className="size-4" /> Thử lại
+							</button>
+						)}
+					</div>
 				)}
+
+				{!isLoading &&
+					!error &&
+					trip &&
+					!bookingRestoreError &&
+					(!isRestoringBooking || temporaryBooking) && (
+						<TripDetailView
+							trip={trip}
+							onBack={onBackToList}
+							onBook={handleBook}
+							isBooking={isBooking}
+							bookingError={bookingError}
+							booking={displayedBooking}
+							restoredBookingDetails={displayedBookingDetails}
+							bookingAccess={bookingAccess}
+							fieldErrors={fieldErrors}
+							canRetry={canRetry}
+							isConflict={isConflict}
+							onBookingRetry={retryBooking}
+							onBookingReset={serverBooking || isRestoringBooking ? undefined : handleBookingReset}
+							onSignIn={onSignIn}
+							onConflictDismiss={clearConflict}
+							onConflictReload={handleConflictReload}
+							onConflictRetry={retryBooking}
+							onViewPackingList={onViewPackingList}
+							onViewBookingDetails={onViewBookingDetails}
+						/>
+					)}
 			</main>
 		</div>
 	);

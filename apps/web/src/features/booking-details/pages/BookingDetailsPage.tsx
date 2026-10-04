@@ -1,5 +1,8 @@
 import { AlertTriangle, Loader2, Lock, RefreshCw, SearchX } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
+import { BookingCancellationPanel } from "../../booking-cancellation/components/BookingCancellationPanel";
+import { useCancelBooking } from "../../booking-cancellation/hooks/useCancelBooking";
+import type { CancelBookingRequest } from "../../booking-cancellation/types";
 import { BookingDetailsView } from "../components/BookingDetailsView";
 import { useBookingDetails } from "../hooks/useBookingDetails";
 import type { BookingDetails } from "../types";
@@ -11,17 +14,39 @@ export interface BookingDetailsPageProps {
 	onBookingLoaded?: (booking: BookingDetails) => void;
 }
 
-export function BookingDetailsPage({
+export function BookingDetailsPage(props: BookingDetailsPageProps) {
+	return <BookingDetailsContent key={props.bookingId} {...props} />;
+}
+
+function BookingDetailsContent({
 	bookingId,
 	onBack,
 	backLabel = "Quay lại đơn đặt chỗ",
 	onBookingLoaded,
 }: BookingDetailsPageProps) {
-	const { booking, isLoading, error, retry } = useBookingDetails(bookingId);
+	const { booking, isLoading, error, retry, reload, isRefreshing, refreshError } =
+		useBookingDetails(bookingId);
+	const cancellation = useCancelBooking(bookingId);
+	// A confirmed PATCH result remains authoritative even if the following GET fails.
+	const displayedBooking = useMemo(
+		() =>
+			booking && cancellation.result
+				? {
+						...booking,
+						status: cancellation.result.status,
+						paymentStatus: cancellation.result.paymentStatus,
+					}
+				: booking,
+		[booking, cancellation.result]
+	);
+	async function handleCancel(input: CancelBookingRequest) {
+		const response = await cancellation.submit(input);
+		if (response) await reload();
+	}
 
 	useEffect(() => {
-		if (booking) onBookingLoaded?.(booking);
-	}, [booking, onBookingLoaded]);
+		if (displayedBooking) onBookingLoaded?.(displayedBooking);
+	}, [displayedBooking, onBookingLoaded]);
 
 	if (isLoading) {
 		return (
@@ -82,7 +107,51 @@ export function BookingDetailsPage({
 		);
 	}
 
-	return booking ? (
-		<BookingDetailsView booking={booking} onBack={onBack} backLabel={backLabel} />
+	return displayedBooking ? (
+		<BookingDetailsView
+			booking={displayedBooking}
+			onBack={onBack}
+			backLabel={backLabel}
+			cancellationPanel={
+				<div className="mt-6 space-y-3">
+					<BookingCancellationPanel
+						booking={displayedBooking}
+						result={cancellation.result}
+						error={cancellation.error}
+						isSubmitting={cancellation.isSubmitting}
+						isRefreshing={isRefreshing}
+						onSubmit={handleCancel}
+						onReload={() => void reload()}
+						onBack={onBack}
+					/>
+					{isRefreshing && (
+						<output className="block text-sm" aria-live="polite">
+							Đang tải lại chi tiết đơn...
+						</output>
+					)}
+					{refreshError && (
+						<div
+							role="alert"
+							className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm"
+						>
+							<p>
+								Chưa tải lại được chi tiết đơn.{" "}
+								{cancellation.result
+									? "Kết quả hủy đã xác nhận ở trên vẫn được giữ nguyên."
+									: refreshError.message}
+							</p>
+							<button
+								type="button"
+								onClick={() => void reload()}
+								disabled={isRefreshing}
+								className="mt-2 rounded-lg border px-3 py-2"
+							>
+								Tải lại chi tiết
+							</button>
+						</div>
+					)}
+				</div>
+			}
+		/>
 	) : null;
 }

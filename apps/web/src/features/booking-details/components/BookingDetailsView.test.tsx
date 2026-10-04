@@ -15,7 +15,10 @@ const booking: BookingDetails = {
 	tripEndsAtSnapshot: "2030-02-02T10:00:00.000Z",
 	basePrice: "1500000.00",
 	totalAmount: "1700000.00",
-	cancellationPolicySnapshot: { policy: "Hoàn tiền khi hủy trước 48 giờ" },
+	cancellationPolicySnapshot: {
+		version: 1,
+		rules: [{ minHoursBeforeTrip: 48, refundPercent: 100 }],
+	},
 	createdAt: "2029-12-01T00:00:00.000Z",
 	tripPresentation: {
 		id: "33333333-3333-4333-8333-333333333333",
@@ -73,7 +76,14 @@ describe("BookingDetailsView", () => {
 		expect(screen.getByText("Người đặt chỗ chính")).toBeVisible();
 		expect(screen.getByText("Trekking Tent")).toBeVisible();
 		expect(screen.getByTestId("authoritative-total-amount")).toHaveTextContent(/1\.700\.000/);
-		expect(screen.getByText("Hoàn tiền khi hủy trước 48 giờ")).toBeVisible();
+		expect(
+			screen.getByText("Hủy trước ít nhất 48 giờ: hoàn 100% phần tiền đủ điều kiện.")
+		).toBeVisible();
+		expect(
+			screen.getByText(
+				"Quyền hủy và số tiền hoàn thực tế được máy chủ xác định tại thời điểm gửi yêu cầu."
+			)
+		).toBeVisible();
 	});
 
 	it.each([
@@ -117,7 +127,9 @@ describe("BookingDetailsView", () => {
 		expect(screen.getByText("Không còn thông tin tên chuyến đi hiện tại.")).toBeVisible();
 		expect(screen.getByText("Chưa có thông tin người tham gia.")).toBeVisible();
 		expect(screen.getByText("Đơn đặt chỗ không có thiết bị thuê.")).toBeVisible();
-		expect(screen.getByText("Không có chính sách hủy được lưu cho đơn này.")).toBeVisible();
+		expect(
+			screen.getByText("Chính sách hủy sẽ được hệ thống kiểm tra khi bạn gửi yêu cầu.")
+		).toBeVisible();
 		expect(screen.getByText("Bắt đầu theo lịch đã đặt")).toBeVisible();
 	});
 
@@ -137,6 +149,45 @@ describe("BookingDetailsView", () => {
 		expect(screen.getByText("Không có email hiển thị")).toBeVisible();
 		expect(screen.getByText("Thiết bị không còn thông tin hiển thị")).toBeVisible();
 		expect(screen.getByTestId("authoritative-total-amount")).toHaveTextContent(/123\.456/);
-		expect(screen.getByText(/"refundHours": 48/)).toBeVisible();
+		expect(
+			screen.getByText("Chính sách hủy sẽ được hệ thống kiểm tra khi bạn gửi yêu cầu.")
+		).toBeVisible();
+		expect(screen.queryByText(/refundHours/)).not.toBeInTheDocument();
+		expect(screen.queryByText(/\{\s*"/)).not.toBeInTheDocument();
+	});
+
+	it("shows the no-refund-payment note for a free Booking without creating refund data", () => {
+		render(
+			<BookingDetailsView
+				booking={{ ...booking, status: "confirmed", paymentStatus: "not_required" }}
+				onBack={() => {}}
+			/>
+		);
+		expect(
+			screen.getByText(
+				"Đơn đặt chỗ này không yêu cầu thanh toán nên không phát sinh khoản hoàn tiền."
+			)
+		).toBeVisible();
+		expect(screen.queryByTestId("cancellation-refund-amount")).not.toBeInTheDocument();
+	});
+
+	it.each([
+		{ policy: "legacy prose" },
+		{ version: 2, rules: [{ minHoursBeforeTrip: 48, refundPercent: 100 }] },
+		{ version: 1, rules: [{ refundPercent: 100 }] },
+	])("never renders raw JSON for unsupported policy %#", (snapshot) => {
+		render(
+			<BookingDetailsView
+				booking={{ ...booking, cancellationPolicySnapshot: snapshot }}
+				onBack={() => {}}
+			/>
+		);
+		expect(
+			screen.getByText("Chính sách hủy sẽ được hệ thống kiểm tra khi bạn gửi yêu cầu.")
+		).toBeVisible();
+		expect(screen.queryByText(JSON.stringify(snapshot))).not.toBeInTheDocument();
+		expect(
+			screen.queryByText(/legacy prose|refundPercent|minHoursBeforeTrip/)
+		).not.toBeInTheDocument();
 	});
 });

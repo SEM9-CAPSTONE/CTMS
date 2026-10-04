@@ -1,7 +1,9 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { BookingDetails } from "../../booking-details/types";
 import { useBookTrip } from "../hooks/useBookTrip";
+import { useTripBooking } from "../hooks/useTripBooking";
 import { useTripDetail } from "../hooks/useTripDetail";
 import type { TripDetails } from "../types";
 import { TripDetailPage } from "./TripDetailPage";
@@ -12,6 +14,10 @@ vi.mock("../hooks/useTripDetail", () => ({
 
 vi.mock("../hooks/useBookTrip", () => ({
 	useBookTrip: vi.fn(),
+}));
+
+vi.mock("../hooks/useTripBooking", () => ({
+	useTripBooking: vi.fn(),
 }));
 
 vi.mock("../../booking-equipment/components/BookingEquipmentPicker", () => ({
@@ -80,10 +86,178 @@ const defaultBookTripState = {
 	lastInput: null,
 };
 
+const cancelledBookingDetails: BookingDetails = {
+	id: "booking-cancelled",
+	tripId: mockTrip.id,
+	userId: "camper-1",
+	numPeople: 1,
+	status: "cancelled",
+	paymentStatus: "not_required",
+	holdExpiresAt: null,
+	tripStartsAtSnapshot: mockTrip.startsAt,
+	tripEndsAtSnapshot: mockTrip.endsAt,
+	basePrice: "0.00",
+	totalAmount: "0.00",
+	cancellationPolicySnapshot: null,
+	createdAt: "2026-09-01T00:00:00Z",
+	tripPresentation: null,
+	members: [],
+	equipmentItems: [],
+};
+
+const defaultTripBookingState = {
+	booking: null,
+	isLoading: false,
+	error: null,
+	retry: vi.fn(),
+};
+
 describe("TripDetailPage", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		vi.mocked(useBookTrip).mockReturnValue({ ...defaultBookTripState });
+		vi.mocked(useTripBooking).mockReturnValue({ ...defaultTripBookingState });
+	});
+
+	it("uses cancelled detail state over the same Booking's stale creation result and refreshes capacity", () => {
+		const retry = vi.fn();
+		const retryBookingRestore = vi.fn();
+		vi.mocked(useTripDetail).mockReturnValue({
+			trip: mockTrip,
+			isLoading: false,
+			error: null,
+			isNotFound: false,
+			retry,
+		});
+		const created = {
+			id: "booking-cancelled",
+			tripId: mockTrip.id,
+			userId: "camper-1",
+			numPeople: 1,
+			status: "confirmed" as const,
+			paymentStatus: "not_required" as const,
+			holdExpiresAt: null,
+			tripStartsAtSnapshot: mockTrip.startsAt,
+			tripEndsAtSnapshot: mockTrip.endsAt,
+			basePrice: "0.00",
+			totalAmount: "0.00",
+			cancellationPolicySnapshot: null,
+			createdAt: "2026-09-01T00:00:00Z",
+		};
+		vi.mocked(useBookTrip).mockReturnValue({ ...defaultBookTripState, booking: created });
+		vi.mocked(useTripBooking).mockReturnValue({
+			booking: { ...cancelledBookingDetails, status: "confirmed" },
+			isLoading: false,
+			error: null,
+			retry: retryBookingRestore,
+		});
+		const view = render(
+			<TripDetailPage
+				tripId={mockTrip.id}
+				onBackToList={vi.fn()}
+				restoredBookingDetails={cancelledBookingDetails}
+			/>
+		);
+		expect(screen.getByRole("status")).toHaveTextContent("cancelled");
+		expect(retry).toHaveBeenCalledTimes(1);
+		expect(retryBookingRestore).toHaveBeenCalledTimes(1);
+		vi.mocked(useTripBooking).mockReturnValue({
+			booking: cancelledBookingDetails,
+			isLoading: false,
+			error: null,
+			retry: retryBookingRestore,
+		});
+		view.rerender(
+			<TripDetailPage
+				tripId={mockTrip.id}
+				onBackToList={vi.fn()}
+				restoredBookingDetails={{ ...cancelledBookingDetails }}
+			/>
+		);
+		expect(retry).toHaveBeenCalledTimes(1);
+		expect(retryBookingRestore).toHaveBeenCalledTimes(1);
+	});
+
+	it("lets fresh server data override stale navigation state", () => {
+		vi.mocked(useTripDetail).mockReturnValue({
+			trip: mockTrip,
+			isLoading: false,
+			error: null,
+			isNotFound: false,
+			retry: vi.fn(),
+		});
+		vi.mocked(useTripBooking).mockReturnValue({
+			...defaultTripBookingState,
+			booking: cancelledBookingDetails,
+		});
+
+		render(
+			<TripDetailPage
+				tripId={mockTrip.id}
+				onBackToList={vi.fn()}
+				restoredBookingDetails={{ ...cancelledBookingDetails, status: "confirmed" }}
+			/>
+		);
+
+		expect(screen.getByRole("status")).toHaveTextContent("cancelled");
+	});
+
+	it("restores a cancelled Booking on a full load without navigation state", () => {
+		const book = vi.fn();
+		const storageSet = vi.spyOn(Storage.prototype, "setItem");
+		vi.mocked(useTripDetail).mockReturnValue({
+			trip: { ...mockTrip, seatsTaken: 9, remainingSeats: 7 },
+			isLoading: false,
+			error: null,
+			isNotFound: false,
+			retry: vi.fn(),
+		});
+		vi.mocked(useBookTrip).mockReturnValue({ ...defaultBookTripState, book });
+		vi.mocked(useTripBooking).mockReturnValue({
+			...defaultTripBookingState,
+			booking: cancelledBookingDetails,
+		});
+
+		render(<TripDetailPage tripId={mockTrip.id} onBackToList={vi.fn()} />);
+
+		expect(screen.getByRole("status")).toHaveTextContent("cancelled");
+		expect(screen.getByTestId("trip-remaining-seats")).toHaveTextContent("7 chỗ");
+		expect(screen.queryByRole("button", { name: /đặt chỗ ngay/i })).not.toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: /tạo đặt chỗ khác/i })).not.toBeInTheDocument();
+		expect(book).not.toHaveBeenCalled();
+		expect(storageSet).not.toHaveBeenCalled();
+		storageSet.mockRestore();
+	});
+
+	it("blocks creation and shows a truthful error when Booking restoration fails", () => {
+		const book = vi.fn();
+		const retryBookingRestore = vi.fn();
+		vi.mocked(useTripDetail).mockReturnValue({
+			trip: mockTrip,
+			isLoading: false,
+			error: null,
+			isNotFound: false,
+			retry: vi.fn(),
+		});
+		vi.mocked(useBookTrip).mockReturnValue({ ...defaultBookTripState, book });
+		vi.mocked(useTripBooking).mockReturnValue({
+			booking: null,
+			isLoading: false,
+			error: {
+				kind: "retryable",
+				message: "Không thể tải danh sách đơn đặt chỗ. Vui lòng thử lại.",
+				canRetry: true,
+			},
+			retry: retryBookingRestore,
+		});
+
+		render(<TripDetailPage tripId={mockTrip.id} onBackToList={vi.fn()} />);
+
+		expect(screen.getByRole("alert")).toHaveTextContent("Không thể xác minh đơn đặt chỗ");
+		expect(screen.queryByRole("button", { name: /đặt chỗ ngay/i })).not.toBeInTheDocument();
+		fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
+		expect(retryBookingRestore).toHaveBeenCalledTimes(1);
+		expect(book).not.toHaveBeenCalled();
 	});
 
 	it("renders loading state", () => {
@@ -324,6 +498,10 @@ describe("TripDetailPage", () => {
 			retry: vi.fn(),
 		});
 		vi.mocked(useBookTrip).mockReturnValue({ ...defaultBookTripState, book });
+		vi.mocked(useTripBooking).mockReturnValue({
+			...defaultTripBookingState,
+			isLoading: true,
+		});
 
 		render(
 			<TripDetailPage
