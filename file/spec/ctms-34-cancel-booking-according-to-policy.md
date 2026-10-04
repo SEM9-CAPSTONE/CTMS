@@ -126,7 +126,22 @@ Cancelled Booking does not continue granting Trip participation.
 
 ## 9. API / Integration Contract
 
-TBD — Technical Design.
+CTMS-174 MVP: `PATCH /api/bookings/:bookingId/cancel`.
+
+Active authenticated Camper / Booking owner only. Body: `{ reason?: string }`;
+reason is trimmed and limited to 255 characters. Other body fields are rejected.
+No `Idempotency-Key` is required: cancellation is naturally idempotent per Booking.
+
+Response: `{ bookingId, status, cancelledAt, paymentStatus, refund }`, where refund
+is null or `{ obligationId, amount, status }`. Amount is a decimal string. Legacy
+cancelled Bookings may return `cancelledAt: null`; no timestamp is fabricated.
+Refund status is current persisted Payment state. Member PII is not included.
+
+Errors: 401 authentication/inactive account, 403 role/ownership, 404 missing Booking,
+422 malformed UUID/body, 409 policy/state/equipment/financial/capacity conflict.
+Unexpected persistence errors roll back the transaction.
+
+See [CTMS-174 implementation and data contract](../../docs/ctms-174-booking-cancellation.md).
 
 ## 10. Error & Edge Cases
 
@@ -156,3 +171,38 @@ TBD — Technical Design.
 ## 12. Open Decisions
 
 Exact cancellation percentages/windows are defined by the authoritative cancellation policy and are not hard-coded by this spec.
+
+## 13. Approved CTMS-174 Project/MVP Decisions
+
+These implementation decisions supplement the reviewed PB/BR; they are not new
+Business Rules or replacements for the rules above.
+
+- Only `confirmed/paid` and `confirmed/not_required` may newly cancel. Already
+  cancelled is an owner-authorized replay. Other combinations are rejected,
+  including overdue pending-payment and pending-reconfirmation Bookings.
+- Use one captured request timestamp and `booking.tripStartsAtSnapshot`.
+  Cancellation requires request time strictly before that snapshot.
+- Supported policy: `{ version: 1, rules: [{ minHoursBeforeTrip, refundPercent }] }`.
+  Thresholds are finite and nonnegative; percentages are finite in 0..100.
+  Select the greatest matching threshold (`hoursBeforeTrip >= minHoursBeforeTrip`).
+  No match, null, unsupported, or invalid policy causes conflict without mutation.
+  Prose and legacy keys are never interpreted; there are no production defaults.
+- Refund calculation uses succeeded charge evidence, exact minor-unit arithmetic,
+  and approved ROUND HALF UP at the final minor-unit boundary. Existing applicable
+  pending/succeeded refund obligations reduce remaining entitlement; never exceed
+  the eligible charge. Preserve percentage and evaluation evidence in audit.
+- The existing Payment ledger represents the durable refund obligation (`refund`,
+  `pending`, parent succeeded charge). CTMS-035 owns provider execution. Cancellation
+  never invokes a payment/refund provider.
+- Preserve member history. Booking status controls participation; no member
+  `cancelled` enum is introduced. Preserve the late-payment callback safeguard.
+- Current equipment `active` state cannot distinguish reserved from picked up.
+  Any such reservation causes an atomic conflict. Already-cancelled reservations
+  remain unchanged; no equipment handover redesign is part of this task.
+- Use one transaction, Trip then Booking locks, deterministic Payment/reservation
+  locks, and an exact seat decrement. Preserve seats held by other Bookings,
+  including pending reconfirmation; do not call global capacity recomputation.
+- Persist nullable Booking cancellation timestamp/reason and one success audit.
+  A replay performs no policy recalculation, release, refund creation, or new audit.
+- Automatic expiry, reschedule decline, notification/UI work, and provider refund
+  execution remain outside CTMS-174.

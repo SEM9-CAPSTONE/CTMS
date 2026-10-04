@@ -261,26 +261,38 @@ export class PaymentsService {
 
 	/**
 	 * Handles a verified PayOS webhook callback to mark a Payment as succeeded
-	 * and update the associated Booking to CONFIRMED / PAID.
+	 * and record the associated Booking as paid without restoring cancelled participation.
 	 */
 	async handlePayOSWebhook(data: WebhookData): Promise<void> {
 		const orderCodeStr = String(data.orderCode);
 		await this.dataSource.transaction(async (manager: EntityManager) => {
-			const payment = await manager.getRepository(Payment).findOne({
+			const paymentLookup = await manager.getRepository(Payment).findOne({
 				where: { providerReference: orderCodeStr },
 			});
-			if (!payment) {
+			if (!paymentLookup) {
 				this.logger.warn(`No payment found for PayOS orderCode ${orderCodeStr}`);
 				return;
 			}
+			// Match Booking mutations' lock order, then reload the Payment under lock
+			// so concurrent callbacks cannot both apply the same successful charge.
+			const bookingRepository = manager.withRepository(this.bookingsRepository);
+			const booking = await bookingRepository.findForUpdate(paymentLookup.bookingId);
+			const paymentsRepository = manager.withRepository(this.paymentsRepository);
+			const payment = await paymentsRepository.findForUpdate(paymentLookup.id);
+			if (!payment) return;
 			if (payment.status === PaymentStatus.SUCCEEDED) {
 				this.logger.log(`Payment ${payment.id} already marked SUCCEEDED.`);
 				return;
 			}
 
+			const before = {
+				paymentStatus: payment.status,
+				bookingStatus: booking?.status ?? null,
+				bookingPaymentStatus: booking?.paymentStatus ?? null,
+			};
 			const isSuccess = data.code === "00";
 			payment.status = isSuccess ? PaymentStatus.SUCCEEDED : PaymentStatus.FAILED;
-			await manager.getRepository(Payment).save(payment);
+			await paymentsRepository.save(payment);
 
 			await manager.getRepository(PaymentTransaction).save(
 				manager.getRepository(PaymentTransaction).create({
@@ -291,10 +303,10 @@ export class PaymentsService {
 				})
 			);
 
-			const bookingRepository = manager.withRepository(this.bookingsRepository);
-			const booking = await bookingRepository.findForUpdate(payment.bookingId);
 			if (booking && isSuccess) {
-				booking.status = BookingStatus.CONFIRMED;
+				if (booking.status !== BookingStatus.CANCELLED) {
+					booking.status = BookingStatus.CONFIRMED;
+				}
 				booking.paymentStatus = BookingPaymentStatus.PAID;
 				await bookingRepository.save(booking);
 
@@ -303,11 +315,7 @@ export class PaymentsService {
 					action: "booking.payment_received",
 					targetType: "payment",
 					targetId: payment.id,
-					before: {
-						paymentStatus: PaymentStatus.PENDING,
-						bookingStatus: BookingStatus.PENDING_PAYMENT,
-						bookingPaymentStatus: BookingPaymentStatus.UNPAID,
-					},
+					before,
 					after: {
 						paymentId: payment.id,
 						paymentStatus: payment.status,
@@ -319,7 +327,9 @@ export class PaymentsService {
 					},
 					reason: "payos_webhook_confirmed",
 				});
-				this.logger.log(`Booking ${booking.id} confirmed and paid via PayOS webhook.`);
+				this.logger.log(
+					`Payment received for Booking ${booking.id}; status remains ${booking.status}.`
+				);
 			}
 		});
 	}

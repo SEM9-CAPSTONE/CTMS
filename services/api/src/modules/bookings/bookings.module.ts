@@ -7,6 +7,8 @@ import { Booking } from "../profiles/entities/booking.entity";
 import { ProfilesModule } from "../profiles/profiles.module";
 import { TripsModule } from "../trips/trips.module";
 import { WeatherModule } from "../weather/weather.module";
+import { BookingCancellationController } from "./booking-cancellation.controller";
+import { BookingCancellationService } from "./booking-cancellation.service";
 import { BookingItemsRepository } from "./booking-items.repository";
 import { BookingMembersRepository } from "./booking-members.repository";
 import { BookingsController } from "./bookings.controller";
@@ -24,9 +26,10 @@ import { PayOSService } from "./payos.service";
 
 @Module({
 	imports: [TripsModule, WeatherModule, EquipmentCatalogModule, ProfilesModule],
-	controllers: [BookingsController, PaymentWebhookController],
+	controllers: [BookingsController, PaymentWebhookController, BookingCancellationController],
 	providers: [
 		BookingsService,
+		BookingCancellationService,
 		PaymentsService,
 		PayOSService,
 		JwtAuthGuard,
