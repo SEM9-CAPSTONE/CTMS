@@ -40,6 +40,12 @@ vi.mock("../../booking-members/components/InitializeBookingMembersPanel", () => 
 	),
 }));
 
+vi.mock("../../booking-members/components/TripMemberRoster", () => ({
+	TripMemberRoster: ({ tripId }: { tripId: string }) => (
+		<div data-testid="operational-trip-roster">{tripId}</div>
+	),
+}));
+
 const mockTrip: TripDetails = {
 	id: "trip-abc",
 	hostId: "host-1",
@@ -592,5 +598,21 @@ describe("TripDetailPage", () => {
 		fireEvent.click(screen.getByRole("button", { name: /tải lại dữ liệu/i }));
 		expect(clearConflict).toHaveBeenCalled();
 		expect(retryTripDetail).toHaveBeenCalled();
+	});
+
+	it("mounts the operational roster only when the authorized role context requests it", () => {
+		vi.mocked(useTripDetail).mockReturnValue({
+			trip: mockTrip,
+			isLoading: false,
+			error: null,
+			isNotFound: false,
+			retry: vi.fn(),
+		});
+		const { rerender } = render(<TripDetailPage tripId="trip-abc" onBackToList={vi.fn()} />);
+		expect(screen.queryByTestId("operational-trip-roster")).not.toBeInTheDocument();
+		rerender(
+			<TripDetailPage tripId="trip-abc" onBackToList={vi.fn()} showOperationalRoster={true} />
+		);
+		expect(screen.getByTestId("operational-trip-roster")).toHaveTextContent("trip-abc");
 	});
 });

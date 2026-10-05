@@ -17,6 +17,7 @@ import type {
 	CreateTripWaypointDto,
 	GeoJsonPointDto,
 } from "../dto/create-trip.dto";
+import type { PorterAssignedTripResponseDto } from "../dto/porter-assigned-trip-response.dto";
 import type { CancelTripDto, RescheduleTripDto } from "../dto/reschedule-trip.dto";
 import { ReviewTripAction, type ReviewTripDto } from "../dto/review-trip.dto";
 import type { SearchTripsQueryDto } from "../dto/search-trips-query.dto";
@@ -110,6 +111,10 @@ export class TripsService {
 
 	async getMyTrips(hostId: string): Promise<TripResponseDto[]> {
 		return this.tripsRepository.findTripsByHost(hostId);
+	}
+
+	async getAssignedTrips(porterId: string): Promise<PorterAssignedTripResponseDto[]> {
+		return this.tripsRepository.findAssignedTripsByPorter(porterId);
 	}
 
 	private assertSearchTripsQuery(query: SearchTripsQueryDto): void {
