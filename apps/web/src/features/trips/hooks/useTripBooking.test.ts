@@ -47,6 +47,18 @@ describe("useTripBooking", () => {
 		expect(bookingDetailsService.getBookingDetails).toHaveBeenCalledWith("booking-newest");
 	});
 
+	it("restores an expired Booking exactly as returned by the server", async () => {
+		const expired = { ...details, status: "expired", paymentStatus: "paid" } as BookingDetails;
+		vi.mocked(bookingListService.getMyBookings).mockResolvedValue([newest]);
+		vi.mocked(bookingDetailsService.getBookingDetails).mockResolvedValue(expired);
+
+		const { result } = renderHook(() => useTripBooking("trip-1", true));
+		await waitFor(() => expect(result.current.booking).toBe(expired));
+
+		expect(result.current.booking?.status).toBe("expired");
+		expect(result.current.booking?.paymentStatus).toBe("paid");
+	});
+
 	it("reports a successful authoritative absence without loading details", async () => {
 		vi.mocked(bookingListService.getMyBookings).mockResolvedValue([
 			{ ...newest, tripId: "another-trip" },

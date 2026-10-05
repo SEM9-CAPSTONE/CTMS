@@ -56,4 +56,24 @@ describe("BookingListView", () => {
 		expect(screen.getByText("Bạn chưa có đơn đặt chỗ nào.")).toBeVisible();
 		expect(screen.queryByRole("list")).not.toBeInTheDocument();
 	});
+
+	it("uses non-success styling for expired while confirmed remains successful", () => {
+		render(
+			<BookingListView
+				bookings={[
+					{ ...booking, id: "expired-booking", status: "expired" },
+					{ ...booking, id: "confirmed-booking", status: "confirmed" },
+				]}
+				onViewDetails={() => {}}
+			/>
+		);
+
+		const expired = screen.getByTestId("booking-status-expired-booking");
+		const confirmed = screen.getByTestId("booking-status-confirmed-booking");
+		expect(expired).toHaveTextContent("Đã hết hạn");
+		expect(expired).toHaveClass("bg-rose-100", "text-rose-800");
+		expect(expired).not.toHaveClass("bg-emerald-100");
+		expect(confirmed).toHaveTextContent("Đã xác nhận");
+		expect(confirmed).toHaveClass("bg-emerald-100", "text-emerald-900");
+	});
 });

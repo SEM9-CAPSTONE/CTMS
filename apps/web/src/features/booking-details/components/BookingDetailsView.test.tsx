@@ -104,6 +104,26 @@ describe("BookingDetailsView", () => {
 		expect(screen.queryByText("Đã hết hạn", { exact: false })).not.toBeInTheDocument();
 	});
 
+	it.each([
+		["unpaid", "Chưa thanh toán"],
+		["paid", "Đã thanh toán"],
+	] as const)(
+		"renders expired/%s status and payment independently",
+		(paymentStatus, paymentLabel) => {
+			render(
+				<BookingDetailsView
+					booking={{ ...booking, status: "expired", paymentStatus }}
+					onBack={() => {}}
+				/>
+			);
+
+			expect(screen.getByText("Trạng thái: Đã hết hạn")).toBeVisible();
+			expect(screen.getAllByText(paymentLabel, { exact: false }).length).toBeGreaterThan(0);
+			expect(screen.getByText("Giữ chỗ đến")).toBeVisible();
+			expect(screen.queryByText("Đã xác nhận", { exact: false })).not.toBeInTheDocument();
+		}
+	);
+
 	it("renders independent legacy and empty states without hiding snapshots", () => {
 		render(
 			<BookingDetailsView

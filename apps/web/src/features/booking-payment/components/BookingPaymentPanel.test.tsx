@@ -134,7 +134,7 @@ describe("BookingPaymentPanel", () => {
 		expect(screen.queryByRole("button", { name: "Thanh toán ngay" })).not.toBeInTheDocument();
 	});
 
-	it("shows blocked alert when booking is cancelled or expired", () => {
+	it("shows blocked alert when booking is cancelled", () => {
 		const cancelledBooking: BookTripResponse = {
 			...mockPendingBooking,
 			status: "cancelled",
@@ -146,6 +146,26 @@ describe("BookingPaymentPanel", () => {
 		);
 		expect(screen.queryByRole("button", { name: "Thanh toán ngay" })).not.toBeInTheDocument();
 	});
+
+	it.each([
+		["unpaid", "Chưa thanh toán"],
+		["paid", "Đã thanh toán"],
+	] as const)(
+		"shows authoritative expired/%s state without a payment action",
+		(paymentStatus, label) => {
+			render(
+				<BookingPaymentPanel
+					booking={{ ...mockPendingBooking, status: "expired", paymentStatus }}
+				/>
+			);
+
+			const status = screen.getByRole("status");
+			expect(status).toHaveTextContent("Đơn đặt chỗ đã hết hạn");
+			expect(status).toHaveTextContent(`Trạng thái thanh toán: ${label}`);
+			expect(status).not.toHaveTextContent("xác nhận thành công");
+			expect(screen.queryByRole("button", { name: "Thanh toán ngay" })).not.toBeInTheDocument();
+		}
+	);
 
 	it("shows blocked alert for non-camper actor", () => {
 		render(<BookingPaymentPanel booking={mockPendingBooking} bookingAccess="non-camper" />);

@@ -72,16 +72,18 @@ it.each([
 	}
 );
 it.each([
-	"pending_payment",
-	"pending_reconfirmation",
-	"expired",
-	"completed",
-	"cancelled",
-	null,
-] as const)("does not offer new cancellation for %s", async (status) => {
+	["pending_payment", "unpaid"],
+	["pending_reconfirmation", "unpaid"],
+	["expired", "unpaid"],
+	["expired", "paid"],
+	["completed", "paid"],
+	["cancelled", "paid"],
+	[null, "unpaid"],
+] as const)("does not offer new cancellation for %s/%s", async (status, paymentStatus) => {
 	vi.mocked(bookingDetailsService.getBookingDetails).mockResolvedValue({
 		...bookingFixture,
 		status,
+		paymentStatus,
 	});
 	render(<BookingDetailsPage bookingId={bookingFixture.id} onBack={vi.fn()} />);
 	await screen.findByRole("heading", { name: "Chi tiết đơn đặt chỗ" });

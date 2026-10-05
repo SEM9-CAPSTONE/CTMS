@@ -1,6 +1,15 @@
 import "dotenv/config";
 import { randomInt } from "node:crypto";
 import * as bcrypt from "bcrypt";
+import { BookingExpiryService } from "../modules/bookings/booking-expiry.service";
+import { BookingsRepository } from "../modules/bookings/bookings.repository";
+import { EquipmentReservation } from "../modules/bookings/entities/equipment-reservation.entity";
+import { Payment } from "../modules/bookings/entities/payment.entity";
+import { EquipmentReservationsRepository } from "../modules/bookings/equipment-reservations.repository";
+import { PaymentsRepository } from "../modules/bookings/payments.repository";
+import { Booking } from "../modules/profiles/entities/booking.entity";
+import { Trip } from "../modules/trips/entities/trip.entity";
+import { TripsRepository } from "../modules/trips/repositories/trips.repository";
 import dataSource from "../shared/database/data-source";
 
 /**
@@ -469,9 +478,65 @@ async function main() {
 					)
 				: [];
 			console.log(JSON.stringify({ booking, items, members, payments }));
+		} else if (action === "set-booking-hold-overdue") {
+			// CTMS-33-T02 E2E only: make an existing E2E Booking eligible for the real
+			// CTMS-172 worker. This helper does not change lifecycle status or release seats.
+			const input = parseJsonArg<{ bookingId: string }>(arg);
+			const rows = (await dataSource.query(
+				`SELECT b."id", b."status", b."payment_status" AS "paymentStatus", t."title"
+				 FROM "bookings" b
+				 JOIN "trips" t ON t."id" = b."trip_id"
+				 WHERE b."id" = $1`,
+				[input.bookingId]
+			)) as Array<{ id: string; status: string; paymentStatus: string; title: string }>;
+			const booking = rows[0];
+			if (!booking) throw new Error(`Booking not found: ${input.bookingId}`);
+			if (!booking.title.startsWith("E2E") && !booking.title.startsWith("CTMS")) {
+				throw new Error(`Refusing to modify non-E2E Booking: ${booking.id}`);
+			}
+			if (booking.status !== "pending_payment" || booking.paymentStatus !== "unpaid") {
+				throw new Error(`Booking is not an expiry candidate: ${booking.id}`);
+			}
+			await dataSource.query(
+				`UPDATE "bookings" SET "hold_expires_at" = now() - interval '5 seconds' WHERE "id" = $1`,
+				[input.bookingId]
+			);
+			console.log(JSON.stringify({ id: booking.id, holdExpiresAt: "overdue" }));
+		} else if (action === "expire-booking-through-service") {
+			// CTMS-33-T02 E2E only: invoke the merged CTMS-172 service for one fixture.
+			// Targeting one Booking avoids unrelated overdue rows in a shared dev database.
+			const input = parseJsonArg<{ bookingId: string }>(arg);
+			const rows = (await dataSource.query(
+				`SELECT b."id", t."title"
+				 FROM "bookings" b
+				 JOIN "trips" t ON t."id" = b."trip_id"
+				 WHERE b."id" = $1`,
+				[input.bookingId]
+			)) as Array<{ id: string; title: string }>;
+			const booking = rows[0];
+			if (!booking) throw new Error(`Booking not found: ${input.bookingId}`);
+			if (!booking.title.startsWith("E2E") && !booking.title.startsWith("CTMS")) {
+				throw new Error(`Refusing to expire non-E2E Booking: ${booking.id}`);
+			}
+			const manager = dataSource.createEntityManager();
+			const expiryService = new BookingExpiryService(
+				dataSource,
+				new BookingsRepository(Booking, manager),
+				new TripsRepository(Trip, manager),
+				new PaymentsRepository(Payment, manager),
+				new EquipmentReservationsRepository(EquipmentReservation, manager)
+			);
+			const result = await expiryService.expireBooking(input.bookingId);
+			console.log(JSON.stringify({ id: booking.id, result }));
 		} else if (action === "clean-bookings") {
 			const input = parseJsonArg<{ tripIds: string[] }>(arg);
 			if (input.tripIds.length > 0) {
+				await dataSource.query(
+					`DELETE FROM "booking_expiry_outbox_events" WHERE "booking_id" IN (
+						SELECT "id" FROM "bookings" WHERE "trip_id" = ANY($1)
+					)`,
+					[input.tripIds]
+				);
 				await dataSource.query(
 					`DELETE FROM "audit_logs" WHERE "target_id" IN (
 						SELECT "id" FROM "payments" WHERE "booking_id" IN (

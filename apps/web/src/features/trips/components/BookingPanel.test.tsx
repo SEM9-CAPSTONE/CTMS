@@ -151,4 +151,31 @@ describe("BookingPanel", () => {
 		expect(screen.getByTestId("authoritative-booking-price")).toHaveTextContent(/900\.000/);
 		expect(screen.queryByText(/thanh toán thành công/i)).not.toBeInTheDocument();
 	});
+
+	it.each(["unpaid", "paid"] as const)(
+		"renders an authoritative expired/%s Booking without success or active-hold presentation",
+		(paymentStatus) => {
+			render(
+				<BookingPanel
+					trip={trip}
+					booking={{
+						...booking,
+						status: "expired",
+						paymentStatus,
+						holdExpiresAt: "2020-01-01T01:15:00.000Z",
+					}}
+				/>
+			);
+
+			const result = screen.getByRole("status");
+			expect(result).toHaveAttribute("data-booking-state", "expired");
+			expect(result).toHaveClass("border-rose-200", "bg-rose-50");
+			expect(result).not.toHaveClass("border-emerald-200", "bg-emerald-50");
+			expect(result).toHaveTextContent("Đơn đặt chỗ đã hết hạn");
+			expect(result).toHaveTextContent(paymentStatus);
+			expect(result).not.toHaveTextContent("Đã tạo đặt chỗ thành công");
+			expect(result).not.toHaveTextContent("Đặt chỗ đã được xác nhận");
+			expect(screen.queryByText(/giữ chỗ đến/i)).not.toBeInTheDocument();
+		}
+	);
 });

@@ -7,6 +7,14 @@ import {
 } from "../../booking-details/utils/booking-details-formatters";
 import type { BookingListItem } from "../types";
 
+function getBookingStatusBadge(status: BookingListItem["status"]): string {
+	if (status === "cancelled" || status === "expired") {
+		return "bg-rose-100 text-rose-800";
+	}
+
+	return "bg-emerald-100 text-emerald-900";
+}
+
 export function BookingListView({
 	bookings,
 	onViewDetails,
@@ -43,7 +51,10 @@ export function BookingListView({
 											<p className="mt-1 break-all text-xs text-[#667a6d]">Mã: {booking.id}</p>
 										</div>
 										<div className="flex flex-wrap gap-2 text-xs font-bold">
-											<span className="rounded-full bg-emerald-100 px-3 py-1 text-emerald-900">
+											<span
+												data-testid={`booking-status-${booking.id}`}
+												className={`rounded-full px-3 py-1 ${getBookingStatusBadge(booking.status)}`}
+											>
 												{formatBookingStatus(booking.status)}
 											</span>
 											<span className="rounded-full bg-slate-100 px-3 py-1 text-slate-700">

@@ -533,6 +533,39 @@ describe("TripDetailPage", () => {
 		expect(book).not.toHaveBeenCalled();
 	});
 
+	it("renders the server-restored expired Booking with server capacity and no active actions", () => {
+		const expiredBooking: BookingDetails = {
+			...cancelledBookingDetails,
+			id: "booking-expired",
+			status: "expired",
+			paymentStatus: "paid",
+			holdExpiresAt: "2020-01-01T00:00:00.000Z",
+		};
+		vi.mocked(useTripDetail).mockReturnValue({
+			trip: mockTrip,
+			isLoading: false,
+			error: null,
+			isNotFound: false,
+			retry: vi.fn(),
+		});
+		vi.mocked(useBookTrip).mockReturnValue({ ...defaultBookTripState, book: vi.fn() });
+		vi.mocked(useTripBooking).mockReturnValue({
+			...defaultTripBookingState,
+			booking: expiredBooking,
+		});
+
+		render(<TripDetailPage tripId={mockTrip.id} onBackToList={vi.fn()} />);
+
+		const expiredPanel = screen.getByText("Đơn đặt chỗ đã hết hạn").closest("section");
+		expect(expiredPanel).toHaveAttribute("data-booking-state", "expired");
+		expect(expiredPanel).toHaveClass("border-rose-200", "bg-rose-50");
+		expect(expiredPanel).not.toHaveTextContent("Đã tạo đặt chỗ thành công");
+		expect(screen.getByTestId("trip-remaining-seats")).toHaveTextContent("6 chỗ");
+		expect(screen.queryByRole("button", { name: /đặt chỗ ngay/i })).not.toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "Thanh toán ngay" })).not.toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "Yêu cầu hủy đơn" })).not.toBeInTheDocument();
+	});
+
 	it("displays conflict dialog and reloads authoritative state on conflict reload (BR-210)", () => {
 		const retryTripDetail = vi.fn();
 		const clearConflict = vi.fn();
