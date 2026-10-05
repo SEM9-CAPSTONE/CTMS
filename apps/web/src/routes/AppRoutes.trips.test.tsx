@@ -38,12 +38,14 @@ vi.mock("../features/trips/pages/TripDetailPage", () => ({
 		onBackToList,
 		onBackHome,
 		bookingAccess,
+		showOperationalRoster,
 		onViewBookingDetails,
 	}: {
 		tripId: string;
 		onBackToList: () => void;
 		onBackHome?: () => void;
 		bookingAccess?: string;
+		showOperationalRoster?: boolean;
 		onViewBookingDetails: (bookingId: string) => void;
 	}) => {
 		const [flowIsActive] = useState(true);
@@ -52,6 +54,10 @@ vi.mock("../features/trips/pages/TripDetailPage", () => ({
 				<h1>Chi tiết chuyến đi</h1>
 				<p>Mã chuyến: {tripId}</p>
 				<p>Quyền đặt chỗ: {bookingAccess}</p>
+				<p data-testid="operational-roster-context">
+					{showOperationalRoster ? "operational" : "public"}
+				</p>
+				{showOperationalRoster && <section aria-label="Danh sách thành viên chuyến đi" />}
 				{flowIsActive && <p>Existing booking flow</p>}
 				<button type="button" onClick={onBackToList}>
 					Quay lại danh sách chuyến đi
@@ -67,6 +73,18 @@ vi.mock("../features/trips/pages/TripDetailPage", () => ({
 			</div>
 		);
 	},
+}));
+
+vi.mock("../features/booking-members/pages/TripRosterPage", () => ({
+	TripRosterPage: ({ tripId, onBack }: { tripId: string; onBack: () => void }) => (
+		<div>
+			<h1>Điểm danh chuyến đi</h1>
+			<p>{tripId}</p>
+			<button type="button" onClick={onBack}>
+				Back to dashboard
+			</button>
+		</div>
+	),
 }));
 
 vi.mock("../features/booking-details/pages/BookingDetailsPage", () => ({
@@ -158,5 +176,52 @@ describe("AppRoutes trip discovery and detail routing", () => {
 		render(<AppRoutes />);
 
 		expect(screen.getByText("Quyền đặt chỗ: camper")).toBeInTheDocument();
+	});
+});
+
+describe("AppRoutes operational roster routing", () => {
+	beforeEach(() => {
+		localStorage.clear();
+		vi.clearAllMocks();
+	});
+
+	it("shows the roster section in an owning Host Trip context", () => {
+		localStorage.setItem(
+			"authUser",
+			JSON.stringify({
+				id: "host-1",
+				email: "host@example.com",
+				phone: null,
+				role: "host",
+				roles: ["host"],
+				status: "active",
+				createdAt: "2026-01-01T00:00:00.000Z",
+			})
+		);
+		window.history.replaceState({}, "", "/trips/trip-123");
+		render(<AppRoutes />);
+
+		expect(
+			screen.getByRole("region", { name: "Danh sách thành viên chuyến đi" })
+		).toBeInTheDocument();
+	});
+
+	it("renders the dedicated operational roster route for a Porter", () => {
+		localStorage.setItem(
+			"authUser",
+			JSON.stringify({
+				id: "porter-1",
+				email: "porter@example.com",
+				phone: null,
+				role: "porter",
+				roles: ["porter"],
+				status: "active",
+				createdAt: "2026-01-01T00:00:00.000Z",
+			})
+		);
+		window.history.replaceState({}, "", "/trips/trip-123?view=roster");
+		render(<AppRoutes />);
+
+		expect(screen.getByRole("heading", { name: "Điểm danh chuyến đi" })).toBeInTheDocument();
 	});
 });

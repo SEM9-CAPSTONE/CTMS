@@ -4,9 +4,26 @@ import type {
 	InitializeBookingMembersResponse,
 	ResolveBookingMemberCandidateRequest,
 	ResolveBookingMemberCandidateResponse,
+	TripMemberRosterResponse,
+	UpdateBookingMemberStatusRequest,
+	UpdateBookingMemberStatusResponse,
 } from "../types";
 
 export const bookingMembersService = {
+	getTripRoster: (tripId: string): Promise<TripMemberRosterResponse> =>
+		httpClient.get<TripMemberRosterResponse>(API_ENDPOINTS.TRIPS.MEMBERS(tripId)),
+
+	updateStatus: (
+		tripId: string,
+		bookingId: string,
+		memberId: string,
+		input: UpdateBookingMemberStatusRequest
+	): Promise<UpdateBookingMemberStatusResponse> =>
+		httpClient.patch<UpdateBookingMemberStatusResponse>(
+			API_ENDPOINTS.TRIPS.MEMBER_STATUS(tripId, bookingId, memberId),
+			input
+		),
+
 	resolveCandidate: (
 		bookingId: string,
 		input: ResolveBookingMemberCandidateRequest

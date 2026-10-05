@@ -197,6 +197,14 @@ export interface TripDetails {
 	waypoints: TripWaypoint[];
 }
 
+export interface PorterAssignedTrip {
+	tripId: string;
+	title: string;
+	status: TripStatus;
+	startsAt: string;
+	endsAt: string;
+}
+
 export type BookingBlockedReason =
 	| "SOLD_OUT"
 	| "DEADLINE_PASSED"

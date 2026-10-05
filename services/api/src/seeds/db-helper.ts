@@ -478,6 +478,88 @@ async function main() {
 					)
 				: [];
 			console.log(JSON.stringify({ booking, items, members, payments }));
+		} else if (action === "seed-member-status-fixture") {
+			const input = parseJsonArg<{
+				tripId: string;
+				ownerId: string;
+				timing: "pre_start" | "post_start";
+				bookingStatus: "confirmed" | "cancelled" | "expired";
+				porterId?: string;
+			}>(arg);
+			const result = await dataSource.transaction(async (manager) => {
+				const tripRows = (await manager.query(
+					`SELECT "id", "title" FROM "trips" WHERE "id" = $1 FOR UPDATE`,
+					[input.tripId]
+				)) as Array<{ id: string; title: string }>;
+				const trip = tripRows[0];
+				if (!trip) throw new Error(`Trip not found: ${input.tripId}`);
+				if (!trip.title.startsWith("E2E") && !trip.title.startsWith("CTMS")) {
+					throw new Error(`Refusing to modify non-E2E Trip: ${trip.id}`);
+				}
+				const postStart = input.timing === "post_start";
+				await manager.query(
+					`UPDATE "trips"
+					 SET "status" = $2,
+					     "starts_at" = CASE WHEN $3 THEN now() - interval '2 hours' ELSE now() + interval '2 days' END,
+					     "ends_at" = CASE WHEN $3 THEN now() + interval '6 hours' ELSE now() + interval '2 days 8 hours' END,
+					     "booking_deadline" = CASE WHEN $3 THEN now() - interval '1 day' ELSE now() + interval '1 day' END
+					 WHERE "id" = $1`,
+					[input.tripId, postStart ? "ongoing" : "published", postStart]
+				);
+				const bookingRows = (await manager.query(
+					`INSERT INTO "bookings" (
+						"trip_id", "user_id", "num_people", "status", "payment_status",
+						"trip_starts_at_snapshot", "trip_ends_at_snapshot", "base_price", "total_amount"
+					 )
+					 SELECT "id", $2, 1, $3, 'not_required', "starts_at", "ends_at", 0, 0
+					 FROM "trips" WHERE "id" = $1
+					 RETURNING "id"`,
+					[input.tripId, input.ownerId, input.bookingStatus]
+				)) as Array<{ id: string }>;
+				const bookingId = bookingRows[0].id;
+				const memberRows = (await manager.query(
+					`INSERT INTO "booking_members" ("booking_id", "user_id", "is_primary", "member_status")
+					 VALUES ($1, $2, true, 'registered') RETURNING "id"`,
+					[bookingId, input.ownerId]
+				)) as Array<{ id: string }>;
+				if (input.porterId) {
+					await manager.query(
+						`INSERT INTO "trip_porters" ("trip_id", "porter_id", "status")
+						 VALUES ($1, $2, 'assigned')
+						 ON CONFLICT ("trip_id", "porter_id") DO UPDATE SET "status" = 'assigned'`,
+						[input.tripId, input.porterId]
+					);
+				}
+				return { bookingId, memberId: memberRows[0].id };
+			});
+			console.log(JSON.stringify(result));
+		} else if (action === "set-e2e-booking-member-status") {
+			const input = parseJsonArg<{
+				memberId: string;
+				status: "joined" | "no_show";
+			}>(arg);
+			const rows = (await dataSource.query(
+				`SELECT bm."id", t."title"
+				 FROM "booking_members" bm
+				 JOIN "bookings" b ON b."id" = bm."booking_id"
+				 JOIN "trips" t ON t."id" = b."trip_id"
+				 WHERE bm."id" = $1`,
+				[input.memberId]
+			)) as Array<{ id: string; title: string }>;
+			const member = rows[0];
+			if (!member) throw new Error(`Booking member not found: ${input.memberId}`);
+			if (!member.title.startsWith("E2E") && !member.title.startsWith("CTMS")) {
+				throw new Error(`Refusing to modify non-E2E member: ${member.id}`);
+			}
+			await dataSource.query(
+				`UPDATE "booking_members"
+				 SET "member_status" = $2::booking_member_status,
+				     "checked_in_at" = CASE WHEN $2::text = 'joined' THEN now() ELSE NULL END,
+				     "no_show_at" = CASE WHEN $2::text = 'no_show' THEN now() ELSE NULL END
+				 WHERE "id" = $1`,
+				[input.memberId, input.status]
+			);
+			console.log(JSON.stringify({ id: member.id, status: input.status }));
 		} else if (action === "set-booking-hold-overdue") {
 			// CTMS-33-T02 E2E only: make an existing E2E Booking eligible for the real
 			// CTMS-172 worker. This helper does not change lifecycle status or release seats.
