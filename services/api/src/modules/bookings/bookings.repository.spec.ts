@@ -132,4 +132,25 @@ describe("BookingsRepository", () => {
 			expect(query.where).toHaveBeenCalledWith("booking.id = :id", { id: "booking-1" });
 		});
 	});
+
+	describe("findForUpdateInTrip", () => {
+		it("locks a Booking only inside the requested Trip", async () => {
+			const query = {
+				setLock: jest.fn().mockReturnThis(),
+				where: jest.fn().mockReturnThis(),
+				andWhere: jest.fn().mockReturnThis(),
+				getOne: jest.fn().mockResolvedValue(null),
+			};
+			const repository = new BookingsRepository(Booking, {} as EntityManager);
+			jest
+				.spyOn(repository, "createQueryBuilder")
+				.mockReturnValue(query as unknown as SelectQueryBuilder<Booking>);
+
+			await expect(repository.findForUpdateInTrip("booking-1", "trip-1")).resolves.toBeNull();
+			expect(query.setLock).toHaveBeenCalledWith("pessimistic_write");
+			expect(query.andWhere).toHaveBeenCalledWith("booking.tripId = :tripId", {
+				tripId: "trip-1",
+			});
+		});
+	});
 });

@@ -12,6 +12,8 @@ import { BookingCancellationService } from "./booking-cancellation.service";
 import { BookingExpiryService } from "./booking-expiry.service";
 import { BookingExpiryWorker } from "./booking-expiry.worker";
 import { BookingItemsRepository } from "./booking-items.repository";
+import { BookingMemberStatusController } from "./booking-member-status.controller";
+import { BookingMemberStatusService } from "./booking-member-status.service";
 import { BookingMembersRepository } from "./booking-members.repository";
 import { BookingsController } from "./bookings.controller";
 import { BookingsRepository } from "./bookings.repository";
@@ -28,10 +30,16 @@ import { PayOSService } from "./payos.service";
 
 @Module({
 	imports: [TripsModule, WeatherModule, EquipmentCatalogModule, ProfilesModule],
-	controllers: [BookingsController, PaymentWebhookController, BookingCancellationController],
+	controllers: [
+		BookingsController,
+		PaymentWebhookController,
+		BookingCancellationController,
+		BookingMemberStatusController,
+	],
 	providers: [
 		BookingsService,
 		BookingCancellationService,
+		BookingMemberStatusService,
 		BookingExpiryService,
 		BookingExpiryWorker,
 		PaymentsService,
