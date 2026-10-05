@@ -3,6 +3,20 @@ import { Booking } from "../profiles/entities/booking.entity";
 import { BookingsRepository } from "./bookings.repository";
 
 describe("BookingsRepository", () => {
+	it("finds bounded expiry candidate IDs in deterministic deadline order", async () => {
+		const repository = new BookingsRepository(Booking, {} as EntityManager);
+		const query = jest.spyOn(repository, "query").mockResolvedValue([{ id: "booking-1" }]);
+
+		await expect(repository.findExpiryCandidateIds(25)).resolves.toEqual(["booking-1"]);
+		const [sql, parameters] = query.mock.calls[0];
+		expect(sql).toContain("\"status\" = 'pending_payment'");
+		expect(sql).toContain("\"payment_status\" = 'unpaid'");
+		expect(sql).toContain('"hold_expires_at" < CURRENT_TIMESTAMP');
+		expect(sql).toContain('ORDER BY "hold_expires_at" ASC, "id" ASC');
+		expect(sql).toContain("LIMIT $1");
+		expect(parameters).toEqual([25]);
+	});
+
 	it("lists one owner's minimal Booking projections in deterministic newest-first order", async () => {
 		const repository = new BookingsRepository(Booking, {} as EntityManager);
 		const rows = [

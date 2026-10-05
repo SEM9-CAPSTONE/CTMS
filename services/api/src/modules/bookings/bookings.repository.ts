@@ -9,6 +9,10 @@ export interface BookingOwnership {
 	userId: string;
 }
 
+export interface BookingExpiryCandidate {
+	id: string;
+}
+
 interface RawBookingDetails
 	extends Omit<BookingDetailsResponseDto, "createdAt" | "members" | "equipmentItems"> {
 	createdAt: Date;
@@ -25,6 +29,20 @@ interface RawBookingDetails
 
 @Injectable()
 export class BookingsRepository extends Repository<Booking> {
+	async findExpiryCandidateIds(limit: number): Promise<string[]> {
+		const rows = (await this.query(
+			`SELECT "id"
+			 FROM "bookings"
+			 WHERE "status" = 'pending_payment'
+			   AND "payment_status" = 'unpaid'
+			   AND "hold_expires_at" < CURRENT_TIMESTAMP
+			 ORDER BY "hold_expires_at" ASC, "id" ASC
+			 LIMIT $1`,
+			[limit]
+		)) as BookingExpiryCandidate[];
+		return rows.map((row) => row.id);
+	}
+
 	findListByOwner(ownerId: string): Promise<BookingListItemResponseDto[]> {
 		return this.query(
 			`SELECT
