@@ -18,6 +18,7 @@ import {
 	BookingPaymentStatus,
 	BookingStatus,
 } from "../profiles/entities/booking.entity";
+import { Trip } from "../trips/entities/trip.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { BookingsRepository } from "./bookings.repository";
 import type { PayBookingResponseDto } from "./dto/pay-booking-response.dto";
@@ -35,6 +36,8 @@ import { PayOSService } from "./payos.service";
 
 const IDEMPOTENCY_KEY_MAX_LENGTH = 128;
 const IDEMPOTENCY_KEY_PATTERN = /^[A-Za-z0-9._:-]+$/;
+const lateExpiryRefundKey = (paymentId: string): string =>
+	`ctms-172:late-expiry-refund:${paymentId}`;
 
 /**
  * Describes the result contract returned by the internal provider port stub.
@@ -261,7 +264,7 @@ export class PaymentsService {
 
 	/**
 	 * Handles a verified PayOS webhook callback to mark a Payment as succeeded
-	 * and record the associated Booking as paid without restoring cancelled participation.
+	 * and record the associated Booking as paid without restoring terminal participation.
 	 */
 	async handlePayOSWebhook(data: WebhookData): Promise<void> {
 		const orderCodeStr = String(data.orderCode);
@@ -273,10 +276,27 @@ export class PaymentsService {
 				this.logger.warn(`No payment found for PayOS orderCode ${orderCodeStr}`);
 				return;
 			}
-			// Match Booking mutations' lock order, then reload the Payment under lock
-			// so concurrent callbacks cannot both apply the same successful charge.
 			const bookingRepository = manager.withRepository(this.bookingsRepository);
+			const bookingIdentity = await bookingRepository.findOne({
+				select: { id: true, tripId: true },
+				where: { id: paymentLookup.bookingId },
+			});
+			if (!bookingIdentity) {
+				this.logger.warn(`Booking ${paymentLookup.bookingId} was not found for Payment callback`);
+				return;
+			}
+			// Global order shared with expiry: Trip -> Booking -> Payment.
+			const trip = await manager.getRepository(Trip).findOne({
+				where: { id: bookingIdentity.tripId },
+				lock: { mode: "pessimistic_write" },
+			});
+			if (!trip)
+				throw new Error(`Trip ${bookingIdentity.tripId} was not found for Payment callback`);
 			const booking = await bookingRepository.findForUpdate(paymentLookup.bookingId);
+			if (!booking) return;
+			if (booking.tripId !== trip.id) {
+				throw new Error(`Booking ${booking.id} Trip identity changed during Payment callback`);
+			}
 			const paymentsRepository = manager.withRepository(this.paymentsRepository);
 			const payment = await paymentsRepository.findForUpdate(paymentLookup.id);
 			if (!payment) return;
@@ -287,8 +307,8 @@ export class PaymentsService {
 
 			const before = {
 				paymentStatus: payment.status,
-				bookingStatus: booking?.status ?? null,
-				bookingPaymentStatus: booking?.paymentStatus ?? null,
+				bookingStatus: booking.status,
+				bookingPaymentStatus: booking.paymentStatus,
 			};
 			const isSuccess = data.code === "00";
 			payment.status = isSuccess ? PaymentStatus.SUCCEEDED : PaymentStatus.FAILED;
@@ -303,16 +323,57 @@ export class PaymentsService {
 				})
 			);
 
-			if (booking && isSuccess) {
-				if (booking.status !== BookingStatus.CANCELLED) {
+			if (isSuccess) {
+				const receivedAfterExpiry = booking.status === BookingStatus.EXPIRED;
+				if (
+					booking.status !== BookingStatus.CANCELLED &&
+					booking.status !== BookingStatus.EXPIRED
+				) {
 					booking.status = BookingStatus.CONFIRMED;
 				}
 				booking.paymentStatus = BookingPaymentStatus.PAID;
 				await bookingRepository.save(booking);
 
+				let refundObligation: Payment | null = null;
+				if (receivedAfterExpiry) {
+					if (payment.type !== PaymentType.CHARGE) {
+						throw new Error(`Late expiry callback Payment ${payment.id} is not a charge`);
+					}
+					const idempotencyKey = lateExpiryRefundKey(payment.id);
+					refundObligation = await paymentsRepository.findByIdempotencyKey(
+						booking.id,
+						idempotencyKey
+					);
+					if (!refundObligation) {
+						const requestFingerprint = createHash("sha256")
+							.update(
+								JSON.stringify({
+									operation: "late_expiry_refund",
+									chargeId: payment.id,
+									amount: payment.amount,
+								})
+							)
+							.digest("hex");
+						refundObligation = await paymentsRepository.save(
+							paymentsRepository.create({
+								bookingId: booking.id,
+								amount: payment.amount,
+								type: PaymentType.REFUND,
+								status: PaymentStatus.PENDING,
+								idempotencyKey,
+								requestFingerprint,
+								providerReference: null,
+								parentPaymentId: payment.id,
+							})
+						);
+					}
+				}
+
 				await manager.getRepository(AuditLog).save({
 					actorId: booking.userId,
-					action: "booking.payment_received",
+					action: receivedAfterExpiry
+						? "booking.payment_received_after_expiry"
+						: "booking.payment_received",
 					targetType: "payment",
 					targetId: payment.id,
 					before,
@@ -324,8 +385,11 @@ export class PaymentsService {
 						amount: data.amount,
 						orderCode: data.orderCode,
 						reference: data.reference,
+						refundObligationId: refundObligation?.id ?? null,
 					},
-					reason: "payos_webhook_confirmed",
+					reason: receivedAfterExpiry
+						? "late_payment_after_booking_expiry"
+						: "payos_webhook_confirmed",
 				});
 				this.logger.log(
 					`Payment received for Booking ${booking.id}; status remains ${booking.status}.`

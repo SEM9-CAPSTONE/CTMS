@@ -8,12 +8,14 @@ import type { WebhookData } from "@payos/node";
 import type { DataSource, EntityManager } from "typeorm";
 import { AuditLog } from "../auth/entities/audit-log.entity";
 import { Booking, BookingPaymentStatus, BookingStatus } from "../profiles/entities/booking.entity";
+import { Trip } from "../trips/entities/trip.entity";
 import type { BookingsRepository } from "./bookings.repository";
 import {
 	Payment,
 	PaymentStatus,
 	PaymentTransaction,
 	PaymentTransactionStatus,
+	PaymentType,
 } from "./entities/payment.entity";
 import type { PaymentsRepository } from "./payments.repository";
 import { PaymentsService } from "./payments.service";
@@ -53,11 +55,13 @@ describe("PaymentsService", () => {
 	};
 	let bookingsRepository: {
 		findForUpdate: jest.Mock;
+		findOne: jest.Mock;
 		findOneBy: jest.Mock;
 		save: jest.Mock;
 	};
 	let auditRepository: { save: jest.Mock };
 	let transactionRepository: { create: jest.Mock; save: jest.Mock; findOne: jest.Mock };
+	let tripRepository: { findOne: jest.Mock };
 	let service: PaymentsService;
 
 	beforeEach(() => {
@@ -69,7 +73,7 @@ describe("PaymentsService", () => {
 			create: jest.fn((value) => Object.assign(new Payment(), value)),
 			save: jest.fn(async (value: Payment) =>
 				Object.assign(value, {
-					id: value.id ?? "payment-1",
+					id: value.id ?? (value.type === PaymentType.REFUND ? "refund-1" : "payment-1"),
 					createdAt: value.createdAt ?? new Date("2029-09-01T00:00:00.000Z"),
 				})
 			),
@@ -79,6 +83,7 @@ describe("PaymentsService", () => {
 
 		bookingsRepository = {
 			findForUpdate: jest.fn().mockResolvedValue(payableBooking()),
+			findOne: jest.fn().mockResolvedValue({ id: BOOKING_ID, tripId: TRIP_ID }),
 			findOneBy: jest.fn().mockResolvedValue(payableBooking()),
 			save: jest.fn(async (value: Booking) => value),
 		};
@@ -89,6 +94,7 @@ describe("PaymentsService", () => {
 			save: jest.fn(async (value) => value),
 			findOne: jest.fn().mockResolvedValue(null),
 		};
+		tripRepository = { findOne: jest.fn().mockResolvedValue({ id: TRIP_ID }) };
 
 		const repositoryByInstance = new Map<object, object>([
 			[paymentsRepository as object, paymentsRepository],
@@ -101,6 +107,7 @@ describe("PaymentsService", () => {
 				if (entityClass === Payment) return paymentsRepository;
 				if (entityClass === PaymentTransaction) return transactionRepository;
 				if (entityClass === AuditLog) return auditRepository;
+				if (entityClass === Trip) return tripRepository;
 				throw new Error(`Unexpected entity repository request: ${String(entityClass)}`);
 			}),
 		} as unknown as EntityManager;
@@ -144,6 +151,7 @@ describe("PaymentsService", () => {
 				bookingId: BOOKING_ID,
 				status: PaymentStatus.PENDING,
 				amount: "1000000.00",
+				type: PaymentType.CHARGE,
 			});
 			booking = payableBooking();
 			paymentsRepository.findOne.mockResolvedValue(payment);
@@ -192,17 +200,48 @@ describe("PaymentsService", () => {
 			expect(paymentsRepository.create).not.toHaveBeenCalled();
 		});
 
-		it.each([BookingStatus.PENDING_PAYMENT, BookingStatus.CANCELLED])(
+		it("records a late successful charge for an expired Booking and creates one refund obligation", async () => {
+			booking.status = BookingStatus.EXPIRED;
+			await service.handlePayOSWebhook(webhook);
+
+			expect(payment.status).toBe(PaymentStatus.SUCCEEDED);
+			expect(booking.status).toBe(BookingStatus.EXPIRED);
+			expect(booking.paymentStatus).toBe(BookingPaymentStatus.PAID);
+			expect(paymentsRepository.create).toHaveBeenCalledWith(
+				expect.objectContaining({
+					bookingId: BOOKING_ID,
+					amount: "1000000.00",
+					type: PaymentType.REFUND,
+					status: PaymentStatus.PENDING,
+					parentPaymentId: payment.id,
+					idempotencyKey: `ctms-172:late-expiry-refund:${payment.id}`,
+				})
+			);
+			expect(auditRepository.save).toHaveBeenCalledWith(
+				expect.objectContaining({
+					action: "booking.payment_received_after_expiry",
+					reason: "late_payment_after_booking_expiry",
+					after: expect.objectContaining({ refundObligationId: "refund-1" }),
+				})
+			);
+		});
+
+		it.each([BookingStatus.PENDING_PAYMENT, BookingStatus.CANCELLED, BookingStatus.EXPIRED])(
 			"replays a successful callback without duplicate effects for %s",
 			async (status) => {
 				booking.status = status;
 				await service.handlePayOSWebhook(webhook);
 				await service.handlePayOSWebhook(webhook);
 
-				expect(paymentsRepository.save).toHaveBeenCalledTimes(1);
+				expect(paymentsRepository.save).toHaveBeenCalledTimes(
+					status === BookingStatus.EXPIRED ? 2 : 1
+				);
 				expect(bookingsRepository.save).toHaveBeenCalledTimes(1);
 				expect(transactionRepository.save).toHaveBeenCalledTimes(1);
 				expect(auditRepository.save).toHaveBeenCalledTimes(1);
+				expect(paymentsRepository.create).toHaveBeenCalledTimes(
+					status === BookingStatus.EXPIRED ? 1 : 0
+				);
 			}
 		);
 
