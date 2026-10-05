@@ -192,4 +192,12 @@ export class BookingsRepository extends Repository<Booking> {
 			.where("booking.id = :id", { id })
 			.getOne();
 	}
+
+	findForUpdateInTrip(id: string, tripId: string): Promise<Booking | null> {
+		return this.createQueryBuilder("booking")
+			.setLock("pessimistic_write")
+			.where("booking.id = :id", { id })
+			.andWhere("booking.tripId = :tripId", { tripId })
+			.getOne();
+	}
 }
