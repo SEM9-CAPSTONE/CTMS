@@ -2,6 +2,7 @@ export type PaymentStatus = "pending" | "succeeded" | "failed";
 
 export type BookingWorkflowStatus =
 	| "pending_payment"
+	| "pending_reconfirmation"
 	| "confirmed"
 	| "cancelled"
 	| "expired"

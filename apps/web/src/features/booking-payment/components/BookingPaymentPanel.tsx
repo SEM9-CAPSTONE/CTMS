@@ -1,5 +1,6 @@
 import { AlertCircle, CreditCard, Loader2, RefreshCw } from "lucide-react";
 import { useState } from "react";
+import { formatPaymentStatus } from "../../booking-details/utils/booking-details-formatters";
 import type { BookingAccess } from "../../trips/components/BookingPanel";
 import { formatVND } from "../../trips/components/TripCard";
 import type { BookTripResponse } from "../../trips/types";
@@ -91,6 +92,21 @@ export function BookingPaymentPanel({
 				className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-xs font-semibold text-sky-900"
 			>
 				Đặt chỗ miễn phí, không yêu cầu thanh toán bổ sung.
+			</div>
+		);
+	}
+
+	if (booking.status === "expired") {
+		return (
+			// biome-ignore lint/a11y/useSemanticElements: Status block containing authoritative Booking state
+			<div
+				role="status"
+				className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-xs font-semibold text-rose-900"
+			>
+				<p>
+					Đơn đặt chỗ đã hết hạn nên không còn thể thanh toán qua quy trình thanh toán thông thường.
+				</p>
+				<p className="mt-1">Trạng thái thanh toán: {formatPaymentStatus(booking.paymentStatus)}.</p>
 			</div>
 		);
 	}
