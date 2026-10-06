@@ -15,11 +15,11 @@ import { getRefreshToken, getStoredAuthUser } from "../features/auth/utils/token
 import { BookingDetailsPage } from "../features/booking-details/pages/BookingDetailsPage";
 import type { BookingDetails } from "../features/booking-details/types";
 import { BookingListPage } from "../features/booking-list/pages/BookingListPage";
+import { TripRosterPage } from "../features/booking-members/pages/TripRosterPage";
 import { CamperProfilePage } from "../features/camper-profile/pages/CamperProfilePage";
 import { CreateEquipmentCatalogItemPage } from "../features/equipment-catalog/pages/CreateEquipmentCatalogItemPage";
 import { EquipmentCatalogPage } from "../features/equipment-catalog/pages/EquipmentCatalogPage";
 import { LandingPage } from "../features/landing/pages/LandingPage";
-import { PackingListPage } from "../features/packing-list/pages/PackingListPage";
 import { PorterProfilePage } from "../features/porter-profile/pages/PorterProfilePage";
 import { HostLayout } from "../features/role-landing/components/HostLayout";
 import { RoleLandingPage } from "../features/role-landing/pages/RoleLandingPage";
@@ -165,21 +165,6 @@ export function AppRoutes() {
 		);
 	}
 
-	if (currentPath.startsWith("/bookings/") && currentPath.endsWith("/packing-list")) {
-		const bookingId = currentPath.slice("/bookings/".length, -"/packing-list".length);
-		return (
-			<AppRoleGuard
-				allowedRoles={["camper"]}
-				currentRoles={currentRoles}
-				onNavigateHome={() => navigateTo(RoutePath.HOME)}
-			>
-				<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
-					<PackingListPage bookingId={bookingId} onBack={() => window.history.back()} />
-				</HostLayout>
-			</AppRoleGuard>
-		);
-	}
-
 	const isBookingDetailRoute = currentPath.startsWith("/bookings/") && currentPath !== "/bookings/";
 	const bookingId = isBookingDetailRoute ? currentPath.substring("/bookings/".length) : null;
 	const isTripDetailRoute = currentPath.startsWith("/trips/") && currentPath !== RoutePath.TRIPS;
@@ -195,8 +180,24 @@ export function AppRoutes() {
 			: null;
 	const activeTripId = routeTripId ?? tripReturnId;
 	const isBookingFromTrip = Boolean(bookingId && tripReturnId);
+	const isOperationalRosterRoute =
+		Boolean(routeTripId) && navigationContext.get("view") === "roster";
 
 	if (activeTripId) {
+		if (isOperationalRosterRoute) {
+			return (
+				<AppRoleGuard
+					allowedRoles={["host", "porter"]}
+					currentRoles={currentRoles}
+					fallback={unauthorizedFallback}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
+						<TripRosterPage tripId={activeTripId} onBack={() => navigateTo(RoutePath.DASHBOARD)} />
+					</HostLayout>
+				</AppRoleGuard>
+			);
+		}
 		const detailView = (
 			<TripDetailPage
 				tripId={activeTripId}
@@ -206,7 +207,6 @@ export function AppRoutes() {
 					!storedUser ? "anonymous" : currentRoles.includes("camper") ? "camper" : "non-camper"
 				}
 				onSignIn={() => navigateTo(RoutePath.LOGIN)}
-				onViewPackingList={(bookingId) => navigateTo(`/bookings/${bookingId}/packing-list`)}
 				onViewBookingDetails={(selectedBookingId) =>
 					navigateTo(
 						`/bookings/${selectedBookingId}?from=trip&tripId=${encodeURIComponent(activeTripId)}`
@@ -214,6 +214,7 @@ export function AppRoutes() {
 				}
 				restoredBookingDetails={restoredTripBooking}
 				onClearRestoredBooking={() => setRestoredTripBooking(null)}
+				showOperationalRoster={currentRoles.includes("host") || currentRoles.includes("porter")}
 			/>
 		);
 		const tripFlow = (
@@ -483,6 +484,7 @@ export function AppRoutes() {
 					onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}
 					onNavigateToBookings={() => navigateTo(RoutePath.BOOKINGS)}
 					onNavigateToTripDetail={(tripId) => navigateTo(`/trips/${tripId}`)}
+					onNavigateToTripRoster={(tripId) => navigateTo(`/trips/${tripId}?view=roster`)}
 					onCreateTrip={() => navigateTo(RoutePath.HOST_CREATE_TRIP)}
 					onEditTripDraft={(tripId) => navigateTo(`/host/trips/${tripId}/edit`)}
 					onCreateTrekkingRoute={() => navigateTo(RoutePath.HOST_CREATE_TREKKING_ROUTE)}

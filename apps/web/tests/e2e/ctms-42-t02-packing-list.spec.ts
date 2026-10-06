@@ -142,11 +142,7 @@ test.describe("CTMS-42-T02 Receive Personalized Packing List for Trip (UI)", () 
 		await expect(rentedItem).toBeVisible();
 		await expect(rentedItem).toContainText("Đã có trong thiết bị thuê");
 
-		await page.getByRole("button", { name: "Xem packing list ở trang riêng" }).click();
-		await expect(page).toHaveURL(/\/bookings\/.+\/packing-list/);
-		await expect(page.getByText("Packing list cho chuyến đi")).toBeVisible();
-		await expect(page.getByTestId("packing-list-item-id-documents")).toBeVisible();
-		const rentedItemOnStandalonePage = page.locator('[data-testid^="packing-list-item-rented-"]');
-		await expect(rentedItemOnStandalonePage).toBeVisible();
+		await page.getByRole("button", { name: "Đóng", exact: true }).click();
+		await expect(page.getByRole("dialog")).toBeHidden();
 	});
 });

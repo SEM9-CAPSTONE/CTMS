@@ -42,4 +42,22 @@ export class PaymentsRepository extends Repository<Payment> {
 			.where("payment.id = :id", { id })
 			.getOne();
 	}
+
+	/** Returns all Payments associated with any Booking belonging to a Trip. */
+	findPaymentsByTripId(tripId: string): Promise<Payment[]> {
+		return this.createQueryBuilder("payment")
+			.innerJoin("payment.booking", "booking")
+			.where("booking.tripId = :tripId", { tripId })
+			.orderBy("payment.id", "ASC")
+			.getMany();
+	}
+
+	/** Pessimistic write lock on all refund Payments referencing a specific parent charge. */
+	findRefundsForChargeForUpdate(parentPaymentId: string): Promise<Payment[]> {
+		return this.createQueryBuilder("payment")
+			.where("payment.parentPaymentId = :parentPaymentId", { parentPaymentId })
+			.orderBy("payment.id", "ASC")
+			.setLock("pessimistic_write")
+			.getMany();
+	}
 }

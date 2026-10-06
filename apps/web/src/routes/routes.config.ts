@@ -7,7 +7,6 @@ export enum RoutePath {
 	DASHBOARD = "/dashboard",
 	TRIPS = "/trips",
 	TRIP_DETAIL = "/trips/:id",
-	BOOKING_PACKING_LIST = "/bookings/:id/packing-list",
 	BOOKINGS = "/bookings",
 	BOOKING_DETAIL = "/bookings/:bookingId",
 	HOST_CREATE_TRIP = "/host/trips/create",

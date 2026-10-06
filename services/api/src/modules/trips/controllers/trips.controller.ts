@@ -7,6 +7,7 @@ import type { AuthenticatedUser } from "../../auth/jwt.strategy";
 import { UserRole } from "../../users/entities/user.entity";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { ConfigureTripWaypointsDto, CreateTripDto } from "../dto/create-trip.dto";
+import { PorterAssignedTripResponseDto } from "../dto/porter-assigned-trip-response.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { CancelTripDto, RescheduleTripDto } from "../dto/reschedule-trip.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
@@ -58,6 +59,16 @@ export class TripsController {
 	@ApiResponse({ status: 403, description: "Host role required" })
 	getMyTrips(@Req() request: AuthenticatedRequest): Promise<TripResponseDto[]> {
 		return this.tripsService.getMyTrips(request.user.userId);
+	}
+
+	@Get("assigned")
+	@Roles(UserRole.PORTER)
+	@ApiOperation({ summary: "List Trips currently assigned to the authenticated Porter" })
+	@ApiResponse({ status: 200, type: PorterAssignedTripResponseDto, isArray: true })
+	@ApiResponse({ status: 401, description: "Authentication required" })
+	@ApiResponse({ status: 403, description: "Porter role required" })
+	getAssignedTrips(@Req() request: AuthenticatedRequest): Promise<PorterAssignedTripResponseDto[]> {
+		return this.tripsService.getAssignedTrips(request.user.userId);
 	}
 
 	@Get(":tripId")

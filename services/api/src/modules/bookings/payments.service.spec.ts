@@ -316,6 +316,26 @@ describe("PaymentsService", () => {
 		);
 	});
 
+	it("charges totalAmount including equipment rental fees", async () => {
+		const bookingWithEquipment = payableBooking({
+			basePrice: "1000000.00",
+			totalAmount: "1250000.00",
+		});
+		bookingsRepository.findForUpdate.mockResolvedValue(bookingWithEquipment);
+
+		const result = await service.pay(USER_ID, BOOKING_ID, "pay-attempt-equipment", {
+			method: "CARD",
+		});
+
+		expect(result.amount).toBe("1250000.00");
+		expect(paymentsRepository.create).toHaveBeenCalledWith(
+			expect.objectContaining({
+				bookingId: BOOKING_ID,
+				amount: "1250000.00",
+			})
+		);
+	});
+
 	it("replays existing payment when same idempotency key and matching fingerprint are sent", async () => {
 		const dto = { method: "CARD" };
 		// First call saves payment

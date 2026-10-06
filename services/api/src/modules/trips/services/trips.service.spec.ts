@@ -18,6 +18,7 @@ const ROUTE_ID = "22222222-2222-4222-8222-222222222222";
 const TRIP_ID = "33333333-3333-4333-8333-333333333333";
 const CHECKPOINT_ID = "44444444-4444-4444-8444-444444444444";
 const OTHER_HOST_ID = "55555555-5555-4555-8555-555555555555";
+const PORTER_ID = "66666666-6666-4666-8666-666666666666";
 const ADMIN_ID = "88888888-8888-4888-8888-888888888888";
 const REVIEWED_UPDATED_AT = "2026-09-15T00:00:00.000Z";
 
@@ -155,6 +156,7 @@ describe("TripsService", () => {
 		updateStatus: jest.Mock;
 		findById: jest.Mock;
 		findTripsByHost: jest.Mock;
+		findAssignedTripsByPorter: jest.Mock;
 		searchPublishedTrips: jest.Mock;
 		findPendingReview: jest.Mock;
 		findByIdForBooking: jest.Mock;
@@ -198,6 +200,7 @@ describe("TripsService", () => {
 				),
 			findById: jest.fn().mockResolvedValue(createdTrip()),
 			findTripsByHost: jest.fn().mockResolvedValue([]),
+			findAssignedTripsByPorter: jest.fn().mockResolvedValue([]),
 			searchPublishedTrips: jest.fn().mockResolvedValue({ items: [], total: 0 }),
 			findPendingReview: jest.fn().mockResolvedValue([configuredTrip()]),
 			findByIdForBooking: jest.fn().mockResolvedValue(null),
@@ -1164,6 +1167,24 @@ describe("TripsService", () => {
 
 			expect(tripsRepository.findTripsByHost).toHaveBeenCalledWith(HOST_ID);
 			expect(result).toBe(myTrips);
+		});
+	});
+
+	describe("getAssignedTrips", () => {
+		it("returns only the repository projection for the authenticated Porter", async () => {
+			const assignedTrips = [
+				{
+					tripId: TRIP_ID,
+					title: "Assigned Trip",
+					status: TripStatus.PUBLISHED,
+					startsAt: new Date("2035-01-10T08:00:00.000Z"),
+					endsAt: new Date("2035-01-10T16:00:00.000Z"),
+				},
+			];
+			tripsRepository.findAssignedTripsByPorter.mockResolvedValue(assignedTrips);
+
+			await expect(service.getAssignedTrips(PORTER_ID)).resolves.toBe(assignedTrips);
+			expect(tripsRepository.findAssignedTripsByPorter).toHaveBeenCalledWith(PORTER_ID);
 		});
 	});
 

@@ -28,7 +28,9 @@ describe("useResolveBookingMemberCandidate", () => {
 		);
 		const { result } = renderHook(() => useResolveBookingMemberCandidate());
 		await act(async () => void (await result.current.resolve("booking-1", "missing@example.com")));
-		expect(result.current.error?.message).toBe("Eligible participant not found");
+		expect(result.current.error?.message).toBe(
+			"Không tìm thấy người tham gia phù hợp với email này (người dùng phải có tài khoản và đang hoạt động)."
+		);
 	});
 
 	it("ignores a stale response after reset", async () => {

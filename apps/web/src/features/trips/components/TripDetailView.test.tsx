@@ -48,9 +48,54 @@ vi.mock("../../packing-list/components/PackingListPanel", () => ({
 	),
 }));
 
+vi.mock("../../packing-list/components/PackingListModal", () => ({
+	PackingListModal: ({
+		isOpen,
+		bookingId,
+		refreshKey,
+	}: {
+		isOpen: boolean;
+		onClose: () => void;
+		bookingId: string;
+		refreshKey?: unknown;
+	}) => (
+		<div data-testid="packing-list-modal" data-is-open={String(isOpen)}>
+			<div data-testid="packing-list-panel" data-refresh-key={String(refreshKey)}>
+				{bookingId}
+			</div>
+		</div>
+	),
+}));
+
 vi.mock("./TripRentableEquipment", () => ({
-	TripRentableEquipment: ({ tripId }: { tripId: string }) => (
-		<div data-testid="trip-rentable-equipment">{tripId}</div>
+	TripRentableEquipment: ({
+		tripId,
+		onConfirmSelection,
+	}: {
+		tripId: string;
+		onConfirmSelection?: (selected: unknown[]) => void;
+	}) => (
+		<div data-testid="trip-rentable-equipment">
+			{tripId}
+			<button
+				type="button"
+				onClick={() =>
+					onConfirmSelection?.([
+						{
+							item: {
+								id: "eq-1",
+								name: "Lều",
+								rentalPricePerDay: 50000,
+								quantityTotal: 5,
+							},
+							quantity: 2,
+						},
+					])
+				}
+			>
+				select-mock-equipment
+			</button>
+		</div>
 	),
 }));
 
@@ -240,14 +285,13 @@ describe("TripDetailView", () => {
 		expect(screen.getByRole("status")).toHaveTextContent("Đặt chỗ đã được xác nhận");
 	});
 
-	it("does not render the equipment picker before a Booking exists", () => {
+	it("does not render post-booking panels before a Booking exists", () => {
 		render(<TripDetailView trip={mockTripDetails} />);
 
-		expect(screen.queryByTestId("booking-equipment-picker")).not.toBeInTheDocument();
 		expect(screen.queryByTestId("booking-payment-panel")).not.toBeInTheDocument();
 	});
 
-	it("renders the equipment picker for the created Booking after success", () => {
+	it("renders post-booking panels for the created Booking after success without sidebar equipment picker", () => {
 		render(
 			<TripDetailView
 				trip={mockTripDetails}
@@ -269,13 +313,12 @@ describe("TripDetailView", () => {
 			/>
 		);
 
-		expect(screen.getByTestId("booking-equipment-picker")).toHaveTextContent("booking-1");
+		expect(screen.queryByTestId("booking-equipment-picker")).not.toBeInTheDocument();
 		expect(screen.getByTestId("booking-members-panel")).toHaveTextContent("booking-1");
 		expect(screen.getByTestId("booking-payment-panel")).toHaveTextContent("booking-1");
-		expect(screen.getByTestId("packing-list-panel")).toHaveTextContent("booking-1");
 	});
 
-	it("bumps the packing list refresh key when the equipment picker reports a change", () => {
+	it("bumps the packing list refresh key when equipment is confirmed", () => {
 		render(
 			<TripDetailView
 				trip={mockTripDetails}
@@ -298,39 +341,10 @@ describe("TripDetailView", () => {
 		);
 
 		const before = screen.getByTestId("packing-list-panel").getAttribute("data-refresh-key");
-		fireEvent.click(screen.getByRole("button", { name: "simulate-equipment-change" }));
+		fireEvent.click(screen.getByRole("button", { name: "select-mock-equipment" }));
 		const after = screen.getByTestId("packing-list-panel").getAttribute("data-refresh-key");
 
 		expect(after).not.toBe(before);
-	});
-
-	it("calls onViewPackingList with the Booking id when the standalone-page button is clicked", () => {
-		const onViewPackingList = vi.fn();
-		render(
-			<TripDetailView
-				trip={mockTripDetails}
-				booking={{
-					id: "booking-1",
-					tripId: "trip-999",
-					userId: "user-1",
-					numPeople: 2,
-					status: "confirmed",
-					paymentStatus: "not_required",
-					holdExpiresAt: null,
-					tripStartsAtSnapshot: "2026-09-28T06:00:00.000Z",
-					tripEndsAtSnapshot: "2026-09-29T17:00:00.000Z",
-					basePrice: "3700000.00",
-					totalAmount: "3700000.00",
-					cancellationPolicySnapshot: null,
-					createdAt: "2026-09-27T00:00:00.000Z",
-				}}
-				onViewPackingList={onViewPackingList}
-			/>
-		);
-
-		fireEvent.click(screen.getByRole("button", { name: "Xem packing list ở trang riêng" }));
-
-		expect(onViewPackingList).toHaveBeenCalledWith("booking-1");
 	});
 
 	it("uses the authoritative confirmed roster restored from Booking Details", () => {
@@ -459,5 +473,66 @@ describe("TripDetailView", () => {
 
 		expect(screen.getByText("Lưu ý an toàn thời tiết:")).toBeInTheDocument();
 		expect(screen.getAllByText("Cảnh báo rủi ro cao")[0]).toBeInTheDocument();
+	});
+
+	it("renders gallery controls and switches images when multiple images exist", () => {
+		const tripWithGallery: TripDetails = {
+			...mockTripDetails,
+			coverImageUrl: "https://example.com/cover1.jpg",
+			itinerary: {
+				summary: "2 ngày 1 đêm",
+				images: ["https://example.com/gallery1.jpg", "https://example.com/gallery2.jpg"],
+			},
+		};
+
+		render(<TripDetailView trip={tripWithGallery} />);
+
+		// Counter shows 1 / 3
+		expect(screen.getByText("1 / 3")).toBeInTheDocument();
+
+		// Click Next button
+		const nextBtn = screen.getByRole("button", { name: "Hình kế tiếp" });
+		fireEvent.click(nextBtn);
+		expect(screen.getByText("2 / 3")).toBeInTheDocument();
+
+		// Click Prev button
+		const prevBtn = screen.getByRole("button", { name: "Hình trước" });
+		fireEvent.click(prevBtn);
+		expect(screen.getByText("1 / 3")).toBeInTheDocument();
+
+		// Click to open lightbox
+		const openLightboxBtn = screen.getByRole("button", { name: "Xem ảnh phóng to" });
+		fireEvent.click(openLightboxBtn);
+
+		const lightbox = screen.getByTestId("trip-image-lightbox");
+		expect(lightbox).toBeInTheDocument();
+
+		// Close lightbox via close button
+		const closeBtn = screen.getByRole("button", { name: "Đóng thư viện hình ảnh" });
+		fireEvent.click(closeBtn);
+		expect(screen.queryByTestId("trip-image-lightbox")).not.toBeInTheDocument();
+	});
+
+	it("forwards pre-selected equipment items when booking is submitted", () => {
+		const onBook = vi.fn();
+		render(<TripDetailView trip={mockTripDetails} onBook={onBook} />);
+
+		// Simulate selecting equipment
+		fireEvent.click(screen.getByRole("button", { name: "select-mock-equipment" }));
+
+		// Total price updates: base (1,850,000) + equipment (50,000 * 2 = 100,000) = 1,950,000
+		expect(screen.getByTestId("booking-total-price")).toHaveTextContent("1.950.000");
+
+		// Submit booking
+		fireEvent.click(screen.getByRole("button", { name: /đặt chỗ ngay/i }));
+		expect(onBook).toHaveBeenCalledWith(
+			"trip-999",
+			1,
+			expect.arrayContaining([
+				expect.objectContaining({
+					quantity: 2,
+				}),
+			])
+		);
 	});
 });

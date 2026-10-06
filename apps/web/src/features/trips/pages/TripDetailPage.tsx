@@ -1,7 +1,10 @@
 import { ArrowLeft, Compass, Loader2, RefreshCw } from "lucide-react";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { BookingDetails } from "../../booking-details/types";
+import { bookingEquipmentService } from "../../booking-equipment/services/booking-equipment.service";
+import { TripMemberRoster } from "../../booking-members/components/TripMemberRoster";
 import type { BookingAccess } from "../components/BookingPanel";
+import type { SelectedEquipmentItem } from "../components/RentableEquipmentModal";
 import { TripDetailView } from "../components/TripDetailView";
 import { useBookTrip } from "../hooks/useBookTrip";
 import { useTripBooking } from "../hooks/useTripBooking";
@@ -12,13 +15,17 @@ export interface TripDetailPageProps {
 	tripId: string;
 	onBackToList: () => void;
 	onBackHome?: () => void;
-	onBook?: (tripId: string, numPeople: number) => void | Promise<void>;
+	onBook?: (
+		tripId: string,
+		numPeople: number,
+		equipment?: SelectedEquipmentItem[]
+	) => void | Promise<void>;
 	bookingAccess?: BookingAccess;
 	onSignIn?: () => void;
-	onViewPackingList?: (bookingId: string) => void;
 	onViewBookingDetails?: (bookingId: string) => void;
 	restoredBookingDetails?: BookingDetails | null;
 	onClearRestoredBooking?: () => void;
+	showOperationalRoster?: boolean;
 }
 
 function toBookTripResponse(booking: BookingDetails | null | undefined): BookTripResponse | null {
@@ -58,11 +65,12 @@ export function TripDetailPage({
 	onBook,
 	bookingAccess = "camper",
 	onSignIn,
-	onViewPackingList,
 	onViewBookingDetails,
 	restoredBookingDetails = null,
 	onClearRestoredBooking,
+	showOperationalRoster = false,
 }: TripDetailPageProps) {
+	const [isAddingEquipment, setIsAddingEquipment] = useState(false);
 	const { trip, isLoading, error, isNotFound, retry } = useTripDetail(tripId);
 	const {
 		booking: serverBookingDetails,
@@ -74,6 +82,7 @@ export function TripDetailPage({
 		book,
 		retry: retryBooking,
 		clearConflict,
+		updateBookingTotal,
 		isBooking,
 		booking,
 		error: bookingError,
@@ -91,17 +100,21 @@ export function TripDetailPage({
 		() => toBookTripResponse(serverBookingDetails),
 		[serverBookingDetails]
 	);
+	const [dismissedBookingId, setDismissedBookingId] = useState<string | null>(null);
 	const temporaryBooking = restoredBooking ?? booking;
 	const serverNeedsCancellationRefresh = Boolean(
 		restoredBooking?.status === "cancelled" &&
 			serverBooking?.id === restoredBooking.id &&
 			serverBooking.status !== "cancelled"
 	);
+	const effectiveServerBooking = serverBooking?.id === dismissedBookingId ? null : serverBooking;
+	const effectiveTemporaryBooking =
+		temporaryBooking?.id === dismissedBookingId ? null : temporaryBooking;
 	// Navigation state is temporary while loading. A completed server read is authoritative.
 	const displayedBooking =
 		isRestoringBooking || serverNeedsCancellationRefresh
-			? temporaryBooking
-			: (serverBooking ?? booking);
+			? effectiveTemporaryBooking
+			: (effectiveServerBooking ?? effectiveTemporaryBooking);
 	const displayedBookingDetails =
 		displayedBooking &&
 		serverBooking &&
@@ -117,17 +130,40 @@ export function TripDetailPage({
 	}, [cancelledBookingId, restoredBooking?.id, retry, retryBookingRestore]);
 
 	const handleBook = useCallback(
-		async (targetTripId: string, numPeople: number) => {
+		async (targetTripId: string, numPeople: number, equipmentItems?: SelectedEquipmentItem[]) => {
 			if (onBook) {
-				await onBook(targetTripId, numPeople);
+				if (equipmentItems && equipmentItems.length > 0) {
+					await onBook(targetTripId, numPeople, equipmentItems);
+				} else {
+					await onBook(targetTripId, numPeople);
+				}
 				return;
 			}
 			const result = await book({ tripId: targetTripId, numPeople });
 			if (result) {
-				await retry();
+				if (equipmentItems && equipmentItems.length > 0) {
+					setIsAddingEquipment(true);
+					try {
+						for (const sel of equipmentItems) {
+							const res = await bookingEquipmentService.addBookingItem(result.id, {
+								equipmentCatalogItemId: sel.item.id,
+								quantity: sel.quantity,
+							});
+							if (res?.booking?.totalAmount) {
+								updateBookingTotal(res.booking.totalAmount);
+							}
+						}
+					} catch (err) {
+						console.error("Lỗi khi thêm thiết bị đã chọn:", err);
+					} finally {
+						setIsAddingEquipment(false);
+					}
+				}
+				await retry(true);
+				await retryBookingRestore(true);
 			}
 		},
-		[book, onBook, retry]
+		[book, onBook, retry, retryBookingRestore, updateBookingTotal]
 	);
 
 	const handleConflictReload = useCallback(async () => {
@@ -135,9 +171,12 @@ export function TripDetailPage({
 		await Promise.all([retry(), retryBookingRestore()]);
 	}, [clearConflict, retry, retryBookingRestore]);
 	const handleBookingReset = useCallback(() => {
+		if (displayedBooking) {
+			setDismissedBookingId(displayedBooking.id);
+		}
 		resetBooking();
 		onClearRestoredBooking?.();
-	}, [onClearRestoredBooking, resetBooking]);
+	}, [displayedBooking, onClearRestoredBooking, resetBooking]);
 
 	return (
 		<div className="min-h-screen bg-[#f4f7f2] font-sans text-[#10221b] antialiased">
@@ -232,7 +271,7 @@ export function TripDetailPage({
 							</button>
 							<button
 								type="button"
-								onClick={retry}
+								onClick={() => retry()}
 								className="inline-flex cursor-pointer items-center gap-2 rounded-2xl bg-rose-700 px-5 py-2.5 text-xs font-bold text-white transition hover:bg-rose-800"
 							>
 								<RefreshCw className="size-4" />
@@ -266,27 +305,41 @@ export function TripDetailPage({
 					trip &&
 					!bookingRestoreError &&
 					(!isRestoringBooking || temporaryBooking) && (
-						<TripDetailView
-							trip={trip}
-							onBack={onBackToList}
-							onBook={handleBook}
-							isBooking={isBooking}
-							bookingError={bookingError}
-							booking={displayedBooking}
-							restoredBookingDetails={displayedBookingDetails}
-							bookingAccess={bookingAccess}
-							fieldErrors={fieldErrors}
-							canRetry={canRetry}
-							isConflict={isConflict}
-							onBookingRetry={retryBooking}
-							onBookingReset={serverBooking || isRestoringBooking ? undefined : handleBookingReset}
-							onSignIn={onSignIn}
-							onConflictDismiss={clearConflict}
-							onConflictReload={handleConflictReload}
-							onConflictRetry={retryBooking}
-							onViewPackingList={onViewPackingList}
-							onViewBookingDetails={onViewBookingDetails}
-						/>
+						<>
+							<TripDetailView
+								trip={trip}
+								onBack={onBackToList}
+								onBook={handleBook}
+								isBooking={isBooking || isAddingEquipment}
+								bookingError={bookingError}
+								booking={displayedBooking}
+								restoredBookingDetails={displayedBookingDetails}
+								bookingAccess={bookingAccess}
+								fieldErrors={fieldErrors}
+								canRetry={canRetry}
+								isConflict={isConflict}
+								onBookingRetry={retryBooking}
+								onBookingReset={
+									(!serverBooking && !isRestoringBooking) ||
+									serverBooking?.status === "expired" ||
+									serverBooking?.status === "cancelled" ||
+									displayedBooking?.status === "expired" ||
+									displayedBooking?.status === "cancelled" ||
+									Boolean(
+										displayedBooking?.holdExpiresAt &&
+											new Date(displayedBooking.holdExpiresAt).getTime() < Date.now()
+									)
+										? handleBookingReset
+										: undefined
+								}
+								onSignIn={onSignIn}
+								onConflictDismiss={clearConflict}
+								onConflictReload={handleConflictReload}
+								onConflictRetry={retryBooking}
+								onViewBookingDetails={onViewBookingDetails}
+							/>
+							{showOperationalRoster && <TripMemberRoster tripId={trip.id} />}
+						</>
 					)}
 			</main>
 		</div>

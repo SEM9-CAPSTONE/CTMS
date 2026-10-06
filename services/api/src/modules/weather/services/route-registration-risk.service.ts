@@ -162,7 +162,7 @@ export class RouteRegistrationRiskService {
 		});
 		if (!latestAssessment) {
 			throw new ConflictException(
-				"No weather risk assessment found for this route. Risk level must be calculated before booking."
+				"Chưa có đánh giá rủi ro thời tiết cho tuyến này. Mức rủi ro cần được tính toán trước khi đặt chỗ."
 			);
 		}
 
@@ -176,7 +176,9 @@ export class RouteRegistrationRiskService {
 		};
 		if (!eligibility.allowed) {
 			this.extractFailingCriteriaReasons(latestAssessment.criteriaScores, eligibility.reasons);
-			throw new ConflictException("New bookings are blocked because route weather risk is RED");
+			throw new ConflictException(
+				"Không thể đặt chỗ mới do rủi ro thời tiết của tuyến đang ở mức BÁO ĐỘNG ĐỎ (RED)"
+			);
 		}
 
 		return eligibility;

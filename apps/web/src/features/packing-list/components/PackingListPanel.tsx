@@ -1,18 +1,11 @@
-import {
-	AlertCircle,
-	CheckCircle2,
-	CloudRain,
-	Loader2,
-	Package,
-	RefreshCw,
-	ShieldCheck,
-} from "lucide-react";
+import { AlertCircle, CheckCircle2, Loader2, Package, RefreshCw, ShieldCheck } from "lucide-react";
 import { usePackingList } from "../hooks/usePackingList";
 import type { PackingListDifficulty, PackingListItem, PackingListWeatherRiskLevel } from "../types";
 
 export interface PackingListPanelProps {
 	bookingId: string;
 	refreshKey?: number | string;
+	hideCardStyles?: boolean;
 }
 
 const DIFFICULTY_LABEL: Record<PackingListDifficulty, string> = {
@@ -65,21 +58,26 @@ function ItemRow({ item }: { item: PackingListItem }) {
 	);
 }
 
-export function PackingListPanel({ bookingId, refreshKey = 0 }: PackingListPanelProps) {
+export function PackingListPanel({
+	bookingId,
+	refreshKey = 0,
+	hideCardStyles = false,
+}: PackingListPanelProps) {
 	const { packingList, isLoading, error, retry } = usePackingList(bookingId, refreshKey);
 
 	const requiredItems = packingList?.items.filter((item) => item.required) ?? [];
-	const recommendedItems = packingList?.items.filter((item) => !item.required) ?? [];
 
 	return (
 		<section
 			aria-label="Packing list cho chuyến đi"
-			className="mt-4 rounded-2xl border border-[#dfe8df] bg-white p-4"
+			className={hideCardStyles ? "" : "mt-4 rounded-2xl border border-[#dfe8df] bg-white p-4"}
 		>
-			<h3 className="flex items-center gap-2 text-sm font-extrabold text-[#10221b]">
-				<ShieldCheck className="size-4 text-[#164027]" />
-				Danh sách đồ cần chuẩn bị
-			</h3>
+			{!hideCardStyles && (
+				<h3 className="flex items-center gap-2 text-sm font-extrabold text-[#10221b]">
+					<ShieldCheck className="size-4 text-[#164027]" />
+					Danh sách đồ cần chuẩn bị
+				</h3>
+			)}
 
 			{isLoading && (
 				<div
@@ -140,20 +138,6 @@ export function PackingListPanel({ bookingId, refreshKey = 0 }: PackingListPanel
 							</h4>
 							<ul className="mt-2 space-y-2">
 								{requiredItems.map((item) => (
-									<ItemRow key={item.id} item={item} />
-								))}
-							</ul>
-						</div>
-					)}
-
-					{recommendedItems.length > 0 && (
-						<div className="mt-4">
-							<h4 className="flex items-center gap-1.5 text-xs font-extrabold text-[#10221b]">
-								<CloudRain className="size-3.5 text-[#667a6d]" />
-								Khuyến nghị
-							</h4>
-							<ul className="mt-2 space-y-2">
-								{recommendedItems.map((item) => (
 									<ItemRow key={item.id} item={item} />
 								))}
 							</ul>

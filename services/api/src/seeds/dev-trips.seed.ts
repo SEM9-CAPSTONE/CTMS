@@ -705,6 +705,179 @@ export async function seedDevTrips(): Promise<void> {
 					},
 				],
 			},
+			// Scenario 6: December 2026 Trekking & Equipment Rental Test (Overnight 2D1N)
+			{
+				title: "[Tháng 12] Cắm Trại Đêm Vịnh Làng Vân & Trekking Đèo Hải Vân",
+				legacyTitles: ["[Tháng 12] Cắm Trại Đêm Vịnh Làng Vân & Trekking Đèo Hải Vân"],
+				routeName: "Hải Vân Pass - Nam Hải Vân Trail",
+				description:
+					"Chuyến đi trekking khám phá đèo Hải Vân và cắm trại đêm tại bãi biển hoang sơ Vịnh Làng Vân vào tháng 12/2026. Thích hợp thuê lều, túi ngủ, đèn pin dã ngoại và test thanh toán trực tuyến.",
+				coverImageUrl:
+					"https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1200&q=80",
+				tripType: "overnight",
+				durationNights: 1,
+				startsAt: "2026-12-19T06:00:00.000Z",
+				endsAt: "2026-12-20T17:00:00.000Z",
+				meetingPointGeom: "SRID=4326;POINT(108.130 16.185)",
+				meetingAt: "2026-12-19T05:30:00.000Z",
+				bookingDeadline: "2026-12-18T18:00:00.000Z",
+				capacityMin: 4,
+				capacityMax: 20,
+				seatsTaken: 2,
+				pricePerPerson: "1200000",
+				itinerary: {
+					summary:
+						"Ngày 1: Tập kết chân đèo Hải Vân, trekking xuyên rừng dẻ xuống Vịnh Làng Vân, dựng trại và tiệc BBQ bãi biển. Ngày 2: Đón bình minh, khám phá Hải Vân Quan, kết thúc hành trình.",
+					images: [
+						"https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1600&q=80",
+						"https://images.unsplash.com/photo-1510312305653-8ed496efae75?auto=format&fit=crop&w=1600&q=80",
+						"https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1600&q=80",
+						"https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1600&q=80",
+					],
+				},
+				includes: {
+					items: [
+						"Hướng dẫn viên chuyên nghiệp & người hỗ trợ",
+						"Bữa tối BBQ hải sản và bữa sáng dã ngoại",
+						"Bảo hiểm du lịch",
+					],
+				},
+				excludes: {
+					items: [
+						"Thiết bị cá nhân (có thể thuê thêm lều, túi ngủ, balo ở mục bên dưới)",
+						"Chi phí phát sinh ngoài chương trình",
+					],
+				},
+				cancellationPolicy: {
+					version: 1,
+					rules: [
+						{ minHoursBeforeTrip: 72, refundPercent: 100 },
+						{ minHoursBeforeTrip: 24, refundPercent: 50 },
+						{ minHoursBeforeTrip: 0, refundPercent: 0 },
+					],
+					policy: "Hủy trước 3 ngày hoàn 100%, trước 24h hoàn 50%, sau 24h không hoàn tiền.",
+				},
+				waypoints: [
+					{
+						name: "Điểm tập kết Chân đèo Hải Vân",
+						type: "start",
+						day: 1,
+						seq: 1,
+						duration: 30,
+						geom: "SRID=4326;POINT(108.130 16.185)",
+					},
+					{
+						name: "Bãi biển Làng Vân - Hạ trại & BBQ",
+						type: "overnight",
+						day: 1,
+						seq: 2,
+						duration: 600,
+						geom: "SRID=4326;POINT(108.145 16.205)",
+					},
+					{
+						name: "Di tích Hải Vân Quan",
+						type: "activity",
+						day: 2,
+						seq: 3,
+						duration: 90,
+						geom: "SRID=4326;POINT(108.132 16.198)",
+					},
+					{
+						name: "Về lại chân đèo Hải Vân",
+						type: "finish",
+						day: 2,
+						seq: 4,
+						duration: 45,
+						geom: "SRID=4326;POINT(108.130 16.185)",
+					},
+				],
+			},
+			// Scenario 7: December 2026 Day Trip Test
+			{
+				title: "[Tháng 12] Khám Phá Rừng Nguyên Sinh Sơn Trà - Đỉnh Bàn Cờ",
+				legacyTitles: ["[Tháng 12] Khám Phá Rừng Nguyên Sinh Sơn Trà - Đỉnh Bàn Cờ"],
+				routeName: "Bán Đảo Sơn Trà Discovery",
+				description:
+					"Trekking khám phá thảm thực vật bán đảo Sơn Trà trong tiết trời dịu mát của tháng 12/2026. Lộ trình nhẹ nhàng, dễ đi, có sẵn nhiều thiết bị hỗ trợ trợ lực gậy trekking, balo cho thuê.",
+				coverImageUrl:
+					"https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80",
+				tripType: "day_trip",
+				durationNights: 0,
+				startsAt: "2026-12-12T07:00:00.000Z",
+				endsAt: "2026-12-12T16:00:00.000Z",
+				meetingPointGeom: "SRID=4326;POINT(108.260 16.110)",
+				meetingAt: "2026-12-12T06:30:00.000Z",
+				bookingDeadline: "2026-12-11T18:00:00.000Z",
+				capacityMin: 2,
+				capacityMax: 25,
+				seatsTaken: 5,
+				pricePerPerson: "450000",
+				itinerary: {
+					summary:
+						"06:30 tập trung Chùa Linh Ứng, 07:00 trekking đường mòn râm mát, 11:30 ngắm vịnh Đà Nẵng tại Đỉnh Bàn Cờ và ăn trưa picnic, 16:00 kết thúc.",
+					images: [
+						"https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1600&q=80",
+						"https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=1600&q=80",
+						"https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=1600&q=80",
+					],
+				},
+				includes: {
+					items: [
+						"Hướng dẫn viên chuyên tuyến Sơn Trà",
+						"Nước uống & Bữa trưa picnic dinh dưỡng",
+						"Bảo hiểm du lịch",
+					],
+				},
+				excludes: {
+					items: [
+						"Gậy leo núi & Balo trợ lực (có thể chọn thuê ngay khi đặt tour)",
+						"Chi phí cá nhân",
+					],
+				},
+				cancellationPolicy: {
+					version: 1,
+					rules: [
+						{ minHoursBeforeTrip: 48, refundPercent: 100 },
+						{ minHoursBeforeTrip: 24, refundPercent: 50 },
+						{ minHoursBeforeTrip: 0, refundPercent: 0 },
+					],
+					policy: "Hủy trước 48h hoàn 100%, trước 24h hoàn 50%, sau 24h không hoàn tiền.",
+				},
+				waypoints: [
+					{
+						name: "Điểm tập kết Chùa Linh Ứng",
+						type: "start",
+						day: 1,
+						seq: 1,
+						duration: 30,
+						geom: "SRID=4326;POINT(108.260 16.110)",
+					},
+					{
+						name: "Đỉnh Bàn Cờ - Ngắm toàn cảnh",
+						type: "checkpoint",
+						day: 1,
+						seq: 2,
+						duration: 60,
+						geom: "SRID=4326;POINT(108.280 16.120)",
+					},
+					{
+						name: "Khu vực Bãi Rạng - Nghỉ trưa",
+						type: "meal",
+						day: 1,
+						seq: 3,
+						duration: 90,
+						geom: "SRID=4326;POINT(108.290 16.115)",
+					},
+					{
+						name: "Về lại điểm xuất phát",
+						type: "finish",
+						day: 1,
+						seq: 4,
+						duration: 30,
+						geom: "SRID=4326;POINT(108.260 16.110)",
+					},
+				],
+			},
 		];
 
 		for (const st of sampleTrips) {
@@ -737,7 +910,11 @@ export async function seedDevTrips(): Promise<void> {
 						booking_deadline = $12,
 						capacity_min = $13,
 						capacity_max = $14,
-						seats_taken = $15,
+						seats_taken = GREATEST($15, (
+							SELECT COALESCE(SUM(b.num_people), 0)
+							FROM bookings b
+							WHERE b.trip_id = $1 AND b.status IN ('confirmed', 'pending_payment')
+						)),
 						price_per_person = $16,
 						itinerary = $17::jsonb,
 						includes = $18::jsonb,

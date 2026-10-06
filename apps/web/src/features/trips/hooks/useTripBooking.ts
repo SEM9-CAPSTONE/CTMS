@@ -11,43 +11,48 @@ export function useTripBooking(tripId: string, enabled: boolean) {
 	const [error, setError] = useState<BookingDetailsError | null>(null);
 	const requestSequence = useRef(0);
 
-	const load = useCallback(async () => {
-		const sequence = ++requestSequence.current;
-		if (!enabled) {
-			setBooking(null);
-			setError(null);
-			setIsLoading(false);
-			return;
-		}
+	const load = useCallback(
+		async (isSilent = false) => {
+			const sequence = ++requestSequence.current;
+			if (!enabled) {
+				setBooking(null);
+				setError(null);
+				setIsLoading(false);
+				return;
+			}
 
-		setBooking(null);
-		setError(null);
-		setIsLoading(true);
-		try {
-			// GET /bookings is owner-scoped and ordered newest first by the API.
-			const bookings = await bookingListService.getMyBookings();
-			const match = bookings.find((candidate) => candidate.tripId === tripId);
-			if (!match) return;
-
+			if (!isSilent) {
+				setBooking(null);
+				setError(null);
+				setIsLoading(true);
+			}
 			try {
-				const details = await bookingDetailsService.getBookingDetails(match.id);
-				if (sequence === requestSequence.current) setBooking(details);
+				// GET /bookings is owner-scoped and ordered newest first by the API.
+				const bookings = await bookingListService.getMyBookings();
+				const match = bookings.find((candidate) => candidate.tripId === tripId);
+				if (!match) return;
+
+				try {
+					const details = await bookingDetailsService.getBookingDetails(match.id);
+					if (sequence === requestSequence.current) setBooking(details);
+				} catch (requestError) {
+					if (sequence === requestSequence.current) setError(mapBookingDetailsError(requestError));
+				}
 			} catch (requestError) {
-				if (sequence === requestSequence.current) setError(mapBookingDetailsError(requestError));
+				if (sequence === requestSequence.current) {
+					const listError = mapBookingListError(requestError);
+					setError({
+						kind: listError.kind === "unexpected" ? "unexpected" : listError.kind,
+						message: listError.message,
+						canRetry: listError.canRetry,
+					});
+				}
+			} finally {
+				if (sequence === requestSequence.current && !isSilent) setIsLoading(false);
 			}
-		} catch (requestError) {
-			if (sequence === requestSequence.current) {
-				const listError = mapBookingListError(requestError);
-				setError({
-					kind: listError.kind === "unexpected" ? "unexpected" : listError.kind,
-					message: listError.message,
-					canRetry: listError.canRetry,
-				});
-			}
-		} finally {
-			if (sequence === requestSequence.current) setIsLoading(false);
-		}
-	}, [enabled, tripId]);
+		},
+		[enabled, tripId]
+	);
 
 	useEffect(() => {
 		void load();

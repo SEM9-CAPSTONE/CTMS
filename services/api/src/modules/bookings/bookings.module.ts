@@ -27,6 +27,10 @@ import { PaymentWebhookController } from "./payment-webhook.controller";
 import { PaymentsRepository } from "./payments.repository";
 import { PaymentsService } from "./payments.service";
 import { PayOSService } from "./payos.service";
+import { RefundsController } from "./refunds.controller";
+import { RefundsService } from "./refunds.service";
+import { TripRosterController } from "./trip-roster.controller";
+import { TripRosterService } from "./trip-roster.service";
 
 @Module({
 	imports: [TripsModule, WeatherModule, EquipmentCatalogModule, ProfilesModule],
@@ -34,16 +38,20 @@ import { PayOSService } from "./payos.service";
 		BookingsController,
 		PaymentWebhookController,
 		BookingCancellationController,
+		RefundsController,
 		BookingMemberStatusController,
+		TripRosterController,
 	],
 	providers: [
 		BookingsService,
 		BookingCancellationService,
 		BookingMemberStatusService,
+		TripRosterService,
 		BookingExpiryService,
 		BookingExpiryWorker,
 		PaymentsService,
 		PayOSService,
+		RefundsService,
 		JwtAuthGuard,
 		RolesGuard,
 		{
@@ -77,6 +85,6 @@ import { PayOSService } from "./payos.service";
 			inject: [DataSource],
 		},
 	],
-	exports: [BookingsService, PaymentsService, PayOSService],
+	exports: [BookingsService, PaymentsService, PayOSService, RefundsService],
 })
 export class BookingsModule {}

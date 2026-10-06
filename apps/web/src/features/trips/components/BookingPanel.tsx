@@ -33,6 +33,8 @@ export interface BookingPanelProps {
 	fieldErrors?: Record<string, string>;
 	isConflict?: boolean;
 	canRetry?: boolean;
+	equipmentRentalTotal?: number;
+	equipmentRentalCount?: number;
 	onBook?: (tripId: string, numPeople: number) => void | Promise<void>;
 	onRetry?: () => unknown;
 	onReset?: () => void;
@@ -82,9 +84,13 @@ function BookingResult({
 }) {
 	const isFreeConfirmed =
 		booking.status === "confirmed" && booking.paymentStatus === "not_required";
+	const isHoldOverdue = Boolean(
+		booking.holdExpiresAt && new Date(booking.holdExpiresAt).getTime() < Date.now()
+	);
+	const isExpired =
+		booking.status === "expired" || (booking.status === "pending_payment" && isHoldOverdue);
 	const isPendingPayment =
-		booking.status === "pending_payment" && booking.paymentStatus === "unpaid";
-	const isExpired = booking.status === "expired";
+		booking.status === "pending_payment" && booking.paymentStatus === "unpaid" && !isExpired;
 	const [copied, setCopied] = useState(false);
 
 	const handleCopyId = async () => {
@@ -103,80 +109,70 @@ function BookingResult({
 			role="status"
 			aria-live="polite"
 			data-booking-state={booking.status}
-			className={`rounded-2xl border p-4 text-sm ${
+			className={`rounded-2xl border p-3.5 text-xs ${
 				isExpired
 					? "border-rose-200 bg-rose-50 text-rose-950"
 					: "border-emerald-200 bg-emerald-50 text-emerald-950"
 			}`}
 		>
-			<div className="flex items-start gap-3">
-				{isExpired ? (
-					<Clock3 className="mt-0.5 size-5 shrink-0 text-rose-700" />
-				) : (
-					<Check className="mt-0.5 size-5 shrink-0 text-emerald-700" />
-				)}
-				<div>
-					<h3 className="font-extrabold">
+			<div className="flex items-center justify-between gap-2">
+				<div className="flex items-center gap-2">
+					{isExpired ? (
+						<Clock3 className="size-4 shrink-0 text-rose-700" />
+					) : (
+						<Check className="size-4 shrink-0 text-emerald-700" />
+					)}
+					<h3 className="text-xs font-extrabold">
 						{isExpired
 							? "Đơn đặt chỗ đã hết hạn"
 							: isFreeConfirmed
 								? "Đặt chỗ đã được xác nhận"
 								: "Đã tạo đặt chỗ thành công"}
 					</h3>
-					<p className={`mt-1 text-xs ${isExpired ? "text-rose-800" : "text-emerald-800"}`}>
-						{isExpired
-							? "Trạng thái hết hạn được cập nhật từ máy chủ. Đặt chỗ này không còn hoạt động."
-							: isPendingPayment
-								? "Đặt chỗ đang chờ thanh toán. Hệ thống chưa ghi nhận thanh toán hoàn tất."
-								: "Thông tin dưới đây đã được hệ thống xác nhận."}
-					</p>
+				</div>
+				<div className="flex items-center gap-1 font-bold">
+					<span
+						data-testid="booking-code-badge"
+						title={`Mã đặt chỗ đầy đủ: ${booking.id}`}
+						className={`rounded-md border bg-white px-1.5 py-0.5 font-mono text-[11px] font-extrabold shadow-2xs ${
+							isExpired ? "border-rose-200 text-rose-900" : "border-emerald-200 text-[#164027]"
+						}`}
+					>
+						#{booking.id.slice(0, 8).toUpperCase()}
+					</span>
+					<span className="sr-only">{booking.id}</span>
+					<button
+						type="button"
+						onClick={handleCopyId}
+						title={copied ? "Đã sao chép mã đầy đủ" : "Sao chép mã UUID"}
+						aria-label="Sao chép mã đặt chỗ"
+						className={`rounded p-0.5 transition ${
+							isExpired
+								? "text-rose-800 hover:bg-rose-100 hover:text-rose-950"
+								: "text-emerald-800 hover:bg-emerald-100 hover:text-emerald-950"
+						}`}
+					>
+						{copied ? (
+							<Check className={`size-3 ${isExpired ? "text-rose-700" : "text-emerald-700"}`} />
+						) : (
+							<Copy className="size-3" />
+						)}
+					</button>
 				</div>
 			</div>
 
 			<dl
-				className={`mt-4 grid gap-2.5 border-t pt-3 text-xs ${
+				className={`mt-2.5 grid grid-cols-2 gap-2 border-t pt-2 text-[11px] ${
 					isExpired ? "border-rose-200" : "border-emerald-200"
 				}`}
 			>
-				<div className="flex items-center justify-between gap-3">
-					<dt className={isExpired ? "text-rose-900" : "text-emerald-900"}>Mã đặt chỗ</dt>
-					<dd className="flex items-center gap-1.5 font-bold">
-						<span
-							data-testid="booking-code-badge"
-							title={`Mã đặt chỗ đầy đủ: ${booking.id}`}
-							className={`rounded-md border bg-white px-2 py-0.5 font-mono text-xs font-extrabold shadow-2xs ${
-								isExpired ? "border-rose-200 text-rose-900" : "border-emerald-200 text-[#164027]"
-							}`}
-						>
-							#{booking.id.slice(0, 8).toUpperCase()}
-						</span>
-						<span className="sr-only">{booking.id}</span>
-						<button
-							type="button"
-							onClick={handleCopyId}
-							title={copied ? "Đã sao chép mã đầy đủ" : "Sao chép mã UUID"}
-							aria-label="Sao chép mã đặt chỗ"
-							className={`rounded p-1 transition ${
-								isExpired
-									? "text-rose-800 hover:bg-rose-100 hover:text-rose-950"
-									: "text-emerald-800 hover:bg-emerald-100 hover:text-emerald-950"
-							}`}
-						>
-							{copied ? (
-								<Check className={`size-3.5 ${isExpired ? "text-rose-700" : "text-emerald-700"}`} />
-							) : (
-								<Copy className="size-3.5" />
-							)}
-						</button>
-					</dd>
-				</div>
-				<div className="flex items-center justify-between gap-3">
+				<div>
 					<dt className={isExpired ? "text-rose-900" : "text-emerald-900"}>Số lượng khách</dt>
-					<dd className="font-bold">{booking.numPeople}</dd>
+					<dd className="font-bold">{booking.numPeople} người</dd>
 				</div>
-				<div className="flex items-center justify-between gap-3">
+				<div className="text-right">
 					<dt className={isExpired ? "text-rose-900" : "text-emerald-900"}>
-						{isExpired ? "Tổng tiền đặt chỗ" : "Tổng giá đã xác nhận"}
+						{isExpired ? "Tổng tiền đặt chỗ" : "Tổng giá gốc"}
 					</dt>
 					<dd
 						data-testid="authoritative-booking-price"
@@ -185,70 +181,86 @@ function BookingResult({
 						{formatVND(Number(booking.basePrice))}
 					</dd>
 				</div>
-				<div className="flex items-center justify-between gap-3">
-					<dt className={isExpired ? "text-rose-900" : "text-emerald-900"}>Trạng thái đặt chỗ</dt>
+				{booking.totalAmount && Number(booking.totalAmount) !== Number(booking.basePrice) && (
+					<>
+						<div>
+							<dt className="text-emerald-900">Thiết bị thuê kèm</dt>
+							<dd className="font-bold text-[#164027]">
+								+{formatVND(Number(booking.totalAmount) - Number(booking.basePrice))}
+							</dd>
+						</div>
+						<div className="text-right">
+							<dt className="text-emerald-900">Tổng thanh toán</dt>
+							<dd
+								data-testid="authoritative-total-amount"
+								className="font-extrabold text-[#164027]"
+							>
+								{formatVND(Number(booking.totalAmount))}
+							</dd>
+						</div>
+					</>
+				)}
+				<div>
+					<dt className={isExpired ? "text-rose-900" : "text-emerald-900"}>Trạng thái</dt>
 					<dd className="font-bold">
 						<span
-							className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-extrabold ${getBookingStatusBadge(booking.status)}`}
+							className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-extrabold ${getBookingStatusBadge(isExpired ? "expired" : booking.status)}`}
 						>
-							{formatBookingStatus(booking.status)}
+							{formatBookingStatus(isExpired ? "expired" : booking.status)}
 						</span>
-						<span className="sr-only"> {booking.status}</span>
+						<span className="sr-only"> ({booking.status})</span>
 					</dd>
 				</div>
-				<div className="flex items-center justify-between gap-3">
-					<dt className={isExpired ? "text-rose-900" : "text-emerald-900"}>
-						Trạng thái thanh toán
-					</dt>
+				<div className="text-right">
+					<dt className={isExpired ? "text-rose-900" : "text-emerald-900"}>Thanh toán</dt>
 					<dd className="font-bold">
 						<span
-							className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-extrabold ${getPaymentStatusBadge(booking.paymentStatus)}`}
+							className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-extrabold ${getPaymentStatusBadge(booking.paymentStatus)}`}
 						>
 							{formatPaymentStatus(booking.paymentStatus)}
 						</span>
-						<span className="sr-only"> {booking.paymentStatus}</span>
-					</dd>
-				</div>
-				<div className="flex justify-between gap-3">
-					<dt className={isExpired ? "text-rose-900" : "text-emerald-900"}>Lịch trình</dt>
-					<dd className="text-right font-bold">
-						{formatBookingDateTime(booking.tripStartsAtSnapshot)} –{" "}
-						{formatBookingDateTime(booking.tripEndsAtSnapshot)}
+						<span className="sr-only"> ({booking.paymentStatus})</span>
 					</dd>
 				</div>
 				{isPendingPayment && booking.holdExpiresAt && (
-					<div className="flex items-center justify-between gap-3 text-amber-900">
+					<div className="col-span-2 flex items-center justify-between text-amber-900">
 						<dt>Giữ chỗ đến</dt>
-						<dd className="text-right font-extrabold">
-							{formatBookingDateTime(booking.holdExpiresAt)}
-						</dd>
+						<dd className="font-extrabold">{formatBookingDateTime(booking.holdExpiresAt)}</dd>
+					</div>
+				)}
+				{isHoldOverdue && booking.holdExpiresAt && (
+					<div className="col-span-2 flex items-center justify-between text-rose-800">
+						<dt>Hết hạn lúc</dt>
+						<dd className="font-extrabold">{formatBookingDateTime(booking.holdExpiresAt)}</dd>
 					</div>
 				)}
 			</dl>
 
-			{onViewBookingDetails && (
-				<button
-					type="button"
-					onClick={() => onViewBookingDetails(booking.id)}
-					className="mt-4 w-full rounded-xl bg-[#164027] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#0f2e1c]"
-				>
-					Xem chi tiết đặt chỗ
-				</button>
-			)}
+			<div className="mt-3 flex gap-2">
+				{onViewBookingDetails && (
+					<button
+						type="button"
+						onClick={() => onViewBookingDetails(booking.id)}
+						className="flex-1 rounded-xl bg-[#164027] px-3 py-2 text-xs font-bold text-white transition hover:bg-[#0f2e1c]"
+					>
+						Xem chi tiết đặt chỗ
+					</button>
+				)}
 
-			{onReset && (
-				<button
-					type="button"
-					onClick={onReset}
-					className={`mt-4 w-full rounded-xl border bg-white px-4 py-2.5 text-xs font-bold ${
-						isExpired
-							? "border-rose-300 text-rose-900 hover:bg-rose-100"
-							: "border-emerald-300 text-emerald-900 hover:bg-emerald-100"
-					}`}
-				>
-					Tạo đặt chỗ khác
-				</button>
-			)}
+				{onReset && (
+					<button
+						type="button"
+						onClick={onReset}
+						className={`rounded-xl border bg-white px-3 py-2 text-xs font-bold transition ${
+							isExpired
+								? "border-rose-300 text-rose-900 hover:bg-rose-100"
+								: "border-emerald-300 text-emerald-900 hover:bg-emerald-100"
+						}`}
+					>
+						{isExpired ? "Đặt chỗ lại" : "Đặt lại"}
+					</button>
+				)}
+			</div>
 		</section>
 	);
 }
@@ -262,6 +274,8 @@ export function BookingPanel({
 	fieldErrors = {},
 	isConflict = false,
 	canRetry = false,
+	equipmentRentalTotal = 0,
+	equipmentRentalCount = 0,
 	onBook,
 	onRetry,
 	onReset,
@@ -425,12 +439,35 @@ export function BookingPanel({
 						{fieldError}
 					</p>
 				)}
-				<div className="mt-3 flex items-baseline justify-between rounded-xl bg-[#f4f7f2] p-2.5 text-xs">
-					<span className="font-semibold text-[#667a6d]">Tạm tính:</span>
-					<span data-testid="booking-total-price" className="font-extrabold text-[#164027]">
-						{formatVND(trip.pricePerPerson * Math.max(0, displayedValue))}
-					</span>
-				</div>
+				{equipmentRentalTotal > 0 ? (
+					<div className="mt-3 space-y-1.5 rounded-xl bg-[#f4f7f2] p-2.5 text-xs">
+						<div className="flex items-baseline justify-between text-[#667a6d]">
+							<span>Vé chuyến đi ({displayedValue} khách):</span>
+							<span>{formatVND(trip.pricePerPerson * Math.max(0, displayedValue))}</span>
+						</div>
+						<div className="flex items-baseline justify-between text-[#667a6d]">
+							<span>Thiết bị thuê kèm ({equipmentRentalCount} món):</span>
+							<span className="font-semibold text-[#164027]">
+								+{formatVND(equipmentRentalTotal)}
+							</span>
+						</div>
+						<div className="flex items-baseline justify-between border-t border-[#dfe8df] pt-1.5 font-bold">
+							<span className="text-[#10221b]">Tạm tính:</span>
+							<span data-testid="booking-total-price" className="font-extrabold text-[#164027]">
+								{formatVND(
+									trip.pricePerPerson * Math.max(0, displayedValue) + equipmentRentalTotal
+								)}
+							</span>
+						</div>
+					</div>
+				) : (
+					<div className="mt-3 flex items-baseline justify-between rounded-xl bg-[#f4f7f2] p-2.5 text-xs">
+						<span className="font-semibold text-[#667a6d]">Tạm tính:</span>
+						<span data-testid="booking-total-price" className="font-extrabold text-[#164027]">
+							{formatVND(trip.pricePerPerson * Math.max(0, displayedValue))}
+						</span>
+					</div>
+				)}
 			</div>
 
 			<button
