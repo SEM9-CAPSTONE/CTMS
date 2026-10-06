@@ -168,6 +168,8 @@ const { t } = useTranslation("featureName");
 - Use `size-4`, `size-5` instead of `w-4 h-4` when equal.
 - No `<style>` tags in components. Shared CSS goes in `globals.css`.
 - No inline styles except truly dynamic values.
+- **Minimalist Headers**: Hạn chế lạm dụng icon ở tiêu đề chính / tiêu đề modal; KHÔNG thêm các dòng mô tả hiển nhiên dưới các mục lớn để tối ưu không gian và giữ UI gãy gọn.
+- **No Redundant UI & Single Total Display**: Trong cùng 1 modal/panel, CHỈ hiển thị thông tin tổng tiền / số lượng ở 1 vị trí duy nhất (ưu tiên tại footer action bar). TUYỆT ĐỐI KHÔNG render lặp lại 2 hộp tổng tiền trong cùng UI; KHÔNG thêm các câu miêu tả giải thích hiển nhiên làm loãng giao diện.
 
 ### 3.8 Form Handling
 

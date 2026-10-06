@@ -146,3 +146,30 @@ Quy chuẩn thẻ Tag phân loại (lấy từ `HostMyTripsPanel` trên `/dashbo
 3. **Khối 3: Danh Sách Chuyến Đi Panel**:
    - Panel chứa lưới 4 cột thẻ chuyến đi và thanh phân trang.
    - Khi đang tải (skeleton) hoặc khi rỗng (empty state) đều nằm gọn gàng bên trong khối panel.
+
+---
+
+## 7. Nguyên Tắc Tối Giản Tiêu Đề & Tiêu Ngữ (Minimalist Header Rules)
+
+- **Hạn chế lạm dụng Icon ở tiêu đề khối / tiêu đề Dialog / Modal**:
+  - Không chèn thêm các hộp icon (icon box) bên cạnh tiêu đề chính nếu tiêu đề đã đủ rõ ràng ngữ cảnh.
+  - Tránh gây phân tâm thị giác và không làm dày header không cần thiết.
+- **Bỏ các dòng mô tả hiển nhiên dưới các mục lớn (No redundant subtitles)**:
+  - Các mục lớn, tiêu đề panel hoặc tiêu đề modal chỉ cần tên mục ngắn gọn, dứt khoát (ví dụ: `Danh mục thiết bị cho thuê từ Host`, `Xác nhận danh sách thiết bị thuê kèm`).
+  - **TUYỆT ĐỐI KHÔNG** thêm các câu miêu tả thừa thãi mang tính giải thích hiển nhiên dưới tiêu đề (chẳng hạn: *"Chọn nhiều thiết bị và điều chỉnh số lượng phù hợp cho chuyến đi"*, *"Kiểm tra lại danh sách trước khi xác nhận"*).
+  - Tối ưu không gian chiều dọc (vertical real estate), giữ giao diện tinh gọn, hiện đại và tập trung trực tiếp vào tác vụ của người dùng.
+
+---
+
+## 8. Nguyên Tắc Tránh Lặp Lại Thông Tin & Mô Tả Thừa Thãi (No Redundant UI & Duplicate Data Rule)
+
+- **Single Source of Truth cho Giá trị Tổng (Single Total Display)**:
+  - Trong cùng một modal, dialog, popup hoặc form xác nhận: CHỈ hiển thị thông tin tổng tiền / tổng số lượng ở **MỘT vị trí duy nhất** (ưu tiên thanh footer tóm tắt hoặc summary bar ở cuối modal).
+  - **TUYỆT ĐỐI KHÔNG** lặp lại thông tin tổng tiền 2 lần (ví dụ: vừa có 1 box "Tổng tiền thuê thiết bị: 270.000 đ" trong body, vừa có "Tổng tiền thuê: 270.000 đ" ở footer ngay bên dưới).
+- **Loại bỏ các đoạn mô tả hiển nhiên (Eliminate Obvious Sub-descriptions)**:
+  - Không viết các đoạn giải thích hiển nhiên làm loãng giao diện (ví dụ: *"Danh sách 2 loại thiết bị (3 món) đã chọn thuê:"*, *"Khoản tiền thuê này sẽ được tính vào tổng thanh toán tạm tính và tự động thêm vào đơn khi bạn đặt chỗ"*).
+  - Không lặp lại danh sách số lượng ở nhiều dòng trong cùng một màn hình xác nhận.
+- **Tập trung vào dữ liệu và hành động (Data & Action-oriented UI)**:
+  - Bảng/danh sách xác nhận chỉ cần hiển thị trực quan các mục đã chọn, số lượng, thành tiền từng món và nút xoá/sửa.
+  - Toàn bộ tổng hợp cuối cùng nằm ở footer cùng với các nút hành động chính (`Quay lại`, `Xác nhận & Áp dụng`).
+

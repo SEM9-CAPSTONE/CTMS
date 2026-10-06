@@ -1,12 +1,20 @@
-import { Loader2, Package, RefreshCw, ShieldAlert, Sparkles } from "lucide-react";
+import { Loader2, Package, RefreshCw, ShieldAlert } from "lucide-react";
+import { useMemo, useState } from "react";
 import { useTripEquipmentOptions } from "../../booking-equipment/hooks/useTripEquipmentOptions";
+import { bookingEquipmentService } from "../../booking-equipment/services/booking-equipment.service";
 import type { BookingAccess } from "./BookingPanel";
+import { RentableEquipmentModal, type SelectedEquipmentItem } from "./RentableEquipmentModal";
 import { formatVND } from "./TripCard";
 
 export interface TripRentableEquipmentProps {
 	tripId: string;
 	bookingAccess?: BookingAccess;
 	onSignIn?: () => void;
+	bookingId?: string | null;
+	selectedEquipment?: SelectedEquipmentItem[];
+	onConfirmSelection?: (selected: SelectedEquipmentItem[]) => Promise<void> | void;
+	onTotalAmountChange?: (newTotal: string) => void;
+	defaultOpen?: boolean;
 }
 
 export function formatEquipmentCategory(category: string): string {
@@ -34,6 +42,11 @@ export function TripRentableEquipment({
 	tripId,
 	bookingAccess = "camper",
 	onSignIn,
+	bookingId = null,
+	selectedEquipment = [],
+	onConfirmSelection,
+	onTotalAmountChange,
+	defaultOpen = false,
 }: TripRentableEquipmentProps) {
 	const isCamper = bookingAccess === "camper";
 	const result = useTripEquipmentOptions(tripId, isCamper);
@@ -42,30 +55,85 @@ export function TripRentableEquipment({
 	const error = result?.error ?? "";
 	const retry = result?.retry ?? (() => {});
 
+	const [isModalOpen, setIsModalOpen] = useState(defaultOpen);
+	const [internalSelected, setInternalSelected] =
+		useState<SelectedEquipmentItem[]>(selectedEquipment);
+	const [isSubmitting, setIsSubmitting] = useState(false);
+
+	const effectiveSelected = selectedEquipment.length > 0 ? selectedEquipment : internalSelected;
+
+	const totalSelectedPrice = useMemo(() => {
+		return effectiveSelected.reduce(
+			(sum, item) => sum + item.item.rentalPricePerDay * item.quantity,
+			0
+		);
+	}, [effectiveSelected]);
+
+	const totalSelectedUnits = useMemo(() => {
+		return effectiveSelected.reduce((sum, item) => sum + item.quantity, 0);
+	}, [effectiveSelected]);
+
+	const handleConfirm = async (selected: SelectedEquipmentItem[]) => {
+		setInternalSelected(selected);
+		if (bookingId && selected.length > 0) {
+			setIsSubmitting(true);
+			try {
+				let latestTotal: string | undefined;
+				for (const sel of selected) {
+					const res = await bookingEquipmentService.addBookingItem(bookingId, {
+						equipmentCatalogItemId: sel.item.id,
+						quantity: sel.quantity,
+					});
+					if (res?.booking?.totalAmount) {
+						latestTotal = res.booking.totalAmount;
+					}
+				}
+				if (latestTotal) {
+					onTotalAmountChange?.(latestTotal);
+				}
+			} finally {
+				setIsSubmitting(false);
+			}
+		}
+		await onConfirmSelection?.(selected);
+	};
+
 	return (
 		<section
 			aria-label="Thiết bị có thể thuê kèm của Host"
 			className="rounded-3xl border border-[#dfe8df] bg-white p-6 shadow-sm"
 		>
-			<div className="flex flex-wrap items-center justify-between gap-2">
-				<h2 className="flex items-center gap-2 text-lg font-extrabold text-[#10221b]">
+			<div className="flex flex-wrap items-center justify-between gap-3">
+				<div className="flex items-center gap-2">
 					<Package className="size-5 text-[#164027]" />
-					<span>Thiết bị có thể thuê kèm từ Host</span>
-				</h2>
-				{safeItems.length > 0 && isCamper && (
-					<span
-						data-testid="equipment-count-badge"
-						className="rounded-full bg-[#164027]/10 px-2.5 py-0.5 text-xs font-bold text-[#164027]"
+					<h2 className="text-lg font-extrabold text-[#10221b]">
+						Thiết bị có thể thuê kèm từ Host
+					</h2>
+					{safeItems.length > 0 && isCamper && (
+						<span
+							data-testid="equipment-count-badge"
+							className="rounded-full bg-[#164027]/10 px-2.5 py-0.5 text-xs font-bold text-[#164027]"
+						>
+							{safeItems.length} thiết bị có sẵn
+						</span>
+					)}
+				</div>
+
+				{isCamper && !isLoading && !error && safeItems.length > 0 && (
+					<button
+						type="button"
+						onClick={() => setIsModalOpen(true)}
+						className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#164027] px-4 py-2 text-xs font-bold text-white transition hover:bg-[#0f2e1c]"
 					>
-						{safeItems.length} thiết bị có sẵn
-					</span>
+						<Package className="size-4" />
+						<span>
+							{effectiveSelected.length > 0
+								? "Chỉnh sửa thiết bị đã chọn"
+								: "Xem tất cả thiết bị cho thuê"}
+						</span>
+					</button>
 				)}
 			</div>
-
-			<p className="mt-1 text-xs text-[#667a6d]">
-				Host cung cấp các trang thiết bị dã ngoại đạt chuẩn an toàn, bạn có thể đăng ký thuê trực
-				tiếp khi đặt chỗ.
-			</p>
 
 			{bookingAccess === "anonymous" && (
 				<div
@@ -134,52 +202,32 @@ export function TripRentableEquipment({
 				</p>
 			)}
 
-			{isCamper && !isLoading && !error && safeItems.length > 0 && (
-				<div className="mt-4 grid gap-3 sm:grid-cols-2">
-					{safeItems.map((item) => (
-						<div
-							key={item.id}
-							data-testid={`equipment-item-${item.id}`}
-							className="flex flex-col justify-between rounded-2xl border border-[#dfe8df] bg-[#fcfdfc] p-3.5 transition hover:border-[#b4d0bc] hover:bg-[#f6faf7]"
-						>
-							<div>
-								<div className="flex items-start justify-between gap-2">
-									<h4 className="text-xs font-extrabold text-[#10221b] leading-snug">
-										{item.name}
-									</h4>
-									<span className="shrink-0 rounded-md bg-[#edf3ed] px-2 py-0.5 text-[10px] font-bold text-[#445b4c]">
-										{formatEquipmentCategory(item.category)}
-									</span>
-								</div>
-								{item.maintenanceSchedule && (
-									<p className="mt-1 line-clamp-1 text-[11px] text-[#718578] italic">
-										{item.maintenanceSchedule}
-									</p>
-								)}
-							</div>
-							<div className="mt-2.5 flex items-baseline justify-between border-t border-[#edf3ed] pt-2 text-xs">
-								<span className="text-[11px] text-[#667a6d]">
-									Có sẵn: <strong className="text-[#10221b]">{item.quantityTotal}</strong>
-								</span>
-								<span className="font-extrabold text-[#164027]">
-									{formatVND(item.rentalPricePerDay)}
-									<span className="text-[10px] font-normal text-[#667a6d]"> / ngày</span>
-								</span>
-							</div>
-						</div>
-					))}
-				</div>
-			)}
-
-			{isCamper && !isLoading && !error && safeItems.length > 0 && (
-				<div className="mt-4 flex items-center gap-1.5 text-[11px] font-medium text-[#4f6356]">
-					<Sparkles className="size-3.5 text-[#164027]" />
-					<span>
-						Bạn có thể chọn số lượng và thêm thiết bị vào đơn đặt ở khung bên phải sau khi bấm{" "}
-						<strong>Đặt chỗ ngay</strong>.
+			{isCamper && !isLoading && !error && effectiveSelected.length > 0 && (
+				<div className="mt-3 flex items-baseline justify-between border-t border-[#edf3ed] pt-2.5 text-xs">
+					<span className="text-[#667a6d]">
+						Đã chọn thuê:{" "}
+						<strong className="text-[#10221b]">
+							{effectiveSelected.length} loại ({totalSelectedUnits} món)
+						</strong>
+					</span>
+					<span className="text-[#667a6d]">
+						Tổng tiền thuê:{" "}
+						<strong className="text-sm font-extrabold text-[#164027]">
+							{formatVND(totalSelectedPrice)}
+						</strong>
 					</span>
 				</div>
 			)}
+
+			<RentableEquipmentModal
+				isOpen={isModalOpen}
+				onClose={() => setIsModalOpen(false)}
+				items={safeItems}
+				initialSelected={effectiveSelected}
+				onConfirm={handleConfirm}
+				isSubmitting={isSubmitting}
+				bookingId={bookingId}
+			/>
 		</section>
 	);
 }

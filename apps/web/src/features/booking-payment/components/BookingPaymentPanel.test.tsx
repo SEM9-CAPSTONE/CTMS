@@ -39,6 +39,20 @@ describe("BookingPaymentPanel", () => {
 		expect(screen.getByTestId("payment-amount-display")).toHaveTextContent("1.500.000");
 	});
 
+	it("uses booking.totalAmount when totalAmount prop is omitted", () => {
+		render(
+			<BookingPaymentPanel
+				booking={{
+					...mockPendingBooking,
+					basePrice: "1000000.00",
+					totalAmount: "1350000.00",
+				}}
+			/>
+		);
+
+		expect(screen.getByTestId("payment-amount-display")).toHaveTextContent("1.350.000");
+	});
+
 	it("submits payment and renders authoritative result on success", async () => {
 		const successResult = {
 			paymentId: "pay-12345",

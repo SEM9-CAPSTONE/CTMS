@@ -40,12 +40,25 @@ vi.mock("../../booking-members/components/InitializeBookingMembersPanel", () => 
 	),
 }));
 
+vi.mock("../../booking-payment/components/BookingPaymentPanel", () => ({
+	BookingPaymentPanel: ({ booking }: { booking: { id: string } }) => (
+		<div data-testid="booking-payment-panel">{booking.id}</div>
+	),
+}));
+
+vi.mock("../../booking-equipment/services/booking-equipment.service", () => ({
+	bookingEquipmentService: {
+		listForTrip: vi.fn(),
+		addBookingItem: vi.fn(),
+		removeBookingItem: vi.fn(),
+	},
+}));
+
 vi.mock("../../booking-members/components/TripMemberRoster", () => ({
 	TripMemberRoster: ({ tripId }: { tripId: string }) => (
 		<div data-testid="operational-trip-roster">{tripId}</div>
 	),
 }));
-
 const mockTrip: TripDetails = {
 	id: "trip-abc",
 	hostId: "host-1",
@@ -82,6 +95,7 @@ const defaultBookTripState = {
 	retry: vi.fn(),
 	clearConflict: vi.fn(),
 	reset: vi.fn(),
+	updateBookingTotal: vi.fn(),
 	isBooking: false,
 	isSuccess: false,
 	booking: null,

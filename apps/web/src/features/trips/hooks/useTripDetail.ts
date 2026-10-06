@@ -12,7 +12,7 @@ export function useTripDetail(tripId: string | undefined) {
 	const tripIdRef = useRef(tripId);
 	tripIdRef.current = tripId;
 
-	const fetchTrip = useCallback(async (id: string | undefined) => {
+	const fetchTrip = useCallback(async (id: string | undefined, isSilent = false) => {
 		if (!id) {
 			setTrip(null);
 			setIsLoading(false);
@@ -21,7 +21,9 @@ export function useTripDetail(tripId: string | undefined) {
 			return;
 		}
 
-		setIsLoading(true);
+		if (!isSilent) {
+			setIsLoading(true);
+		}
 		setError(null);
 		setIsNotFound(false);
 
@@ -46,7 +48,7 @@ export function useTripDetail(tripId: string | undefined) {
 				}
 			}
 		} finally {
-			if (tripIdRef.current === id) {
+			if (tripIdRef.current === id && !isSilent) {
 				setIsLoading(false);
 			}
 		}
@@ -56,9 +58,12 @@ export function useTripDetail(tripId: string | undefined) {
 		void fetchTrip(tripId);
 	}, [tripId, fetchTrip]);
 
-	const retry = useCallback(() => {
-		return fetchTrip(tripIdRef.current);
-	}, [fetchTrip]);
+	const retry = useCallback(
+		(isSilent = false) => {
+			return fetchTrip(tripIdRef.current, isSilent);
+		},
+		[fetchTrip]
+	);
 
 	return {
 		trip,

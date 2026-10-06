@@ -162,8 +162,8 @@ export class PaymentsService {
 			this.assertBookingPayable(booking);
 
 			// 6. Server-authoritative amount snapshot (BR-175).
-			// Charges the trip booking amount (basePrice), excluding separate equipment rental fees.
-			const amount = booking.basePrice ?? booking.totalAmount;
+			// Charges the authoritative total amount (including trip base price and equipment rental fees).
+			const amount = booking.totalAmount ?? booking.basePrice;
 			if (amount === null) {
 				throw new Error("Booking is missing its total amount");
 			}

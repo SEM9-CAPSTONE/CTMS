@@ -75,7 +75,9 @@ describe("useBookTrip", () => {
 		expect(result.current.isBooking).toBe(false);
 		expect(result.current.isSuccess).toBe(false);
 		expect(result.current.isConflict).toBe(true);
-		expect(result.current.error).toContain("Trip has only 1 seat remaining");
+		expect(result.current.error).toContain(
+			"Chuyến đi không còn đủ chỗ trống do vừa có người đặt trước (chỉ còn 1 chỗ trống)"
+		);
 		expect(result.current.lastInput).toEqual({ tripId: "trip-999", numPeople: 2 });
 	});
 
@@ -90,6 +92,42 @@ describe("useBookTrip", () => {
 
 		expect(result.current.isConflict).toBe(true);
 		expect(result.current.error).toContain("Chuyến đi không còn đủ chỗ trống");
+	});
+
+	it("handles weather risk RED error gracefully without triggering overbooking conflict", async () => {
+		vi.mocked(tripsService.book).mockRejectedValueOnce(
+			new HttpError("Conflict", 409, {
+				message: "New bookings are blocked because route weather risk is RED",
+			})
+		);
+
+		const { result } = renderHook(() => useBookTrip());
+
+		await act(async () => {
+			await result.current.book({ tripId: "trip-999", numPeople: 1 });
+		});
+
+		expect(result.current.isConflict).toBe(false);
+		expect(result.current.error).toBe(
+			"Không thể đặt chỗ mới do điều kiện thời tiết trên tuyến trekking đang ở mức cảnh báo Báo động Đỏ (nguy hiểm)."
+		);
+	});
+
+	it("handles booking deadline passed without triggering overbooking conflict", async () => {
+		vi.mocked(tripsService.book).mockRejectedValueOnce(
+			new HttpError("Conflict", 409, {
+				message: "Booking deadline has passed",
+			})
+		);
+
+		const { result } = renderHook(() => useBookTrip());
+
+		await act(async () => {
+			await result.current.book({ tripId: "trip-999", numPeople: 1 });
+		});
+
+		expect(result.current.isConflict).toBe(false);
+		expect(result.current.error).toBe("Đã hết thời hạn đặt chỗ cho chuyến đi này.");
 	});
 
 	it("handles 422 validation error and extracts field errors", async () => {
