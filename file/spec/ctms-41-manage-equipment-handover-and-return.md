@@ -1,5 +1,17 @@
 # CTMS-041 — Manage Equipment Handover and Return
 
+## 0. Scope Decision (2026-10-06)
+
+**Status: CUT / OUT OF SCOPE for this release.**
+
+Confirmed by the team lead: the actual product flow does not need in-app equipment handover/return tracking. The web only shows the equipment catalog and lets the Camper select and rent equipment at booking time (already implemented in CTMS-040). Once a Booking exists, the Host sees what the Camper rented and coordinates physical handover and return with the Camper directly, outside the application. The system does not need to track `picked_up`/`returned`/`not_returned` state, handover actor/receiver, or good/damaged/lost/outstanding quantities.
+
+Rationale for raising this instead of silently building to the spec below: by the time this was raised, zero code, migration, or scaffolding existed for this story despite Sprint 3 committing to it and every sibling story in the same sprint (CTMS-23, CTMS-39, CTMS-40, CTMS-42) already being Done — a strong signal the spec had drifted from the real intended flow rather than the story being merely unstarted. Raised with the lead before guessing; confirmed cut.
+
+Everything below this section is the ORIGINAL spec as approved before this decision. It is kept for historical reference only and must not be implemented. If a future release genuinely needs in-app handover/return tracking, this spec should be revisited and re-approved rather than resumed as-is, since the rest of the system (the Booking/equipment-rental model in particular) may have moved on by then.
+
+---
+
 ## 1. Overview
 
 Story: CTMS-041
@@ -167,3 +179,5 @@ TBD — Technical Design.
 ## 12. Open Decisions
 
 Exact inventory-adjustment workflow is outside this story and must follow the approved catalog/inventory contract.
+
+**Resolved 2026-10-06**: the story itself is cut — see Section 0. Superseded by the product decision that Host/Camper handle handover and return outside the app.
