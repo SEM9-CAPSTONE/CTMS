@@ -1,12 +1,4 @@
-import {
-	AlertCircle,
-	CheckCircle2,
-	CloudRain,
-	Loader2,
-	Package,
-	RefreshCw,
-	ShieldCheck,
-} from "lucide-react";
+import { AlertCircle, CheckCircle2, Loader2, Package, RefreshCw, ShieldCheck } from "lucide-react";
 import { usePackingList } from "../hooks/usePackingList";
 import type { PackingListDifficulty, PackingListItem, PackingListWeatherRiskLevel } from "../types";
 
@@ -74,7 +66,6 @@ export function PackingListPanel({
 	const { packingList, isLoading, error, retry } = usePackingList(bookingId, refreshKey);
 
 	const requiredItems = packingList?.items.filter((item) => item.required) ?? [];
-	const recommendedItems = packingList?.items.filter((item) => !item.required) ?? [];
 
 	return (
 		<section
@@ -147,20 +138,6 @@ export function PackingListPanel({
 							</h4>
 							<ul className="mt-2 space-y-2">
 								{requiredItems.map((item) => (
-									<ItemRow key={item.id} item={item} />
-								))}
-							</ul>
-						</div>
-					)}
-
-					{recommendedItems.length > 0 && (
-						<div className="mt-4">
-							<h4 className="flex items-center gap-1.5 text-xs font-extrabold text-[#10221b]">
-								<CloudRain className="size-3.5 text-[#667a6d]" />
-								Khuyến nghị
-							</h4>
-							<ul className="mt-2 space-y-2">
-								{recommendedItems.map((item) => (
 									<ItemRow key={item.id} item={item} />
 								))}
 							</ul>

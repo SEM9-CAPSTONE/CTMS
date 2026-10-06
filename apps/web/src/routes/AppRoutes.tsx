@@ -20,7 +20,6 @@ import { CamperProfilePage } from "../features/camper-profile/pages/CamperProfil
 import { CreateEquipmentCatalogItemPage } from "../features/equipment-catalog/pages/CreateEquipmentCatalogItemPage";
 import { EquipmentCatalogPage } from "../features/equipment-catalog/pages/EquipmentCatalogPage";
 import { LandingPage } from "../features/landing/pages/LandingPage";
-import { PackingListPage } from "../features/packing-list/pages/PackingListPage";
 import { HostLayout } from "../features/role-landing/components/HostLayout";
 import { RoleLandingPage } from "../features/role-landing/pages/RoleLandingPage";
 import { AdminTrekkingRoutesPage } from "../features/trekking-routes/pages/AdminTrekkingRoutesPage";
@@ -165,21 +164,6 @@ export function AppRoutes() {
 		);
 	}
 
-	if (currentPath.startsWith("/bookings/") && currentPath.endsWith("/packing-list")) {
-		const bookingId = currentPath.slice("/bookings/".length, -"/packing-list".length);
-		return (
-			<AppRoleGuard
-				allowedRoles={["camper"]}
-				currentRoles={currentRoles}
-				onNavigateHome={() => navigateTo(RoutePath.HOME)}
-			>
-				<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
-					<PackingListPage bookingId={bookingId} onBack={() => window.history.back()} />
-				</HostLayout>
-			</AppRoleGuard>
-		);
-	}
-
 	const isBookingDetailRoute = currentPath.startsWith("/bookings/") && currentPath !== "/bookings/";
 	const bookingId = isBookingDetailRoute ? currentPath.substring("/bookings/".length) : null;
 	const isTripDetailRoute = currentPath.startsWith("/trips/") && currentPath !== RoutePath.TRIPS;
@@ -222,7 +206,6 @@ export function AppRoutes() {
 					!storedUser ? "anonymous" : currentRoles.includes("camper") ? "camper" : "non-camper"
 				}
 				onSignIn={() => navigateTo(RoutePath.LOGIN)}
-				onViewPackingList={(bookingId) => navigateTo(`/bookings/${bookingId}/packing-list`)}
 				onViewBookingDetails={(selectedBookingId) =>
 					navigateTo(
 						`/bookings/${selectedBookingId}?from=trip&tripId=${encodeURIComponent(activeTripId)}`

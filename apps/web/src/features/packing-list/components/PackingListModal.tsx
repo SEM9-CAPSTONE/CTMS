@@ -7,7 +7,6 @@ export interface PackingListModalProps {
 	onClose: () => void;
 	bookingId: string;
 	refreshKey?: number | string;
-	onViewPackingList?: (bookingId: string) => void;
 }
 
 export function PackingListModal({
@@ -15,7 +14,6 @@ export function PackingListModal({
 	onClose,
 	bookingId,
 	refreshKey = 0,
-	onViewPackingList,
 }: PackingListModalProps) {
 	const titleId = useId();
 
@@ -74,21 +72,7 @@ export function PackingListModal({
 				</div>
 
 				{/* Modal Footer */}
-				<div className="flex items-center justify-between gap-3 border-t border-[#edf3ed] bg-[#f8faf8] px-5 py-3.5">
-					{onViewPackingList ? (
-						<button
-							type="button"
-							onClick={() => {
-								onClose();
-								onViewPackingList(bookingId);
-							}}
-							className="text-xs font-bold text-[#164027] hover:underline"
-						>
-							Xem packing list ở trang riêng
-						</button>
-					) : (
-						<div />
-					)}
+				<div className="flex items-center justify-end border-t border-[#edf3ed] bg-[#f8faf8] px-5 py-3.5">
 					<button
 						type="button"
 						onClick={onClose}
