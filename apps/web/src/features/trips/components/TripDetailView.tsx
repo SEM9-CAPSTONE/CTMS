@@ -52,7 +52,6 @@ export interface TripDetailViewProps {
 	onConflictDismiss?: () => void;
 	onConflictReload?: () => void;
 	onConflictRetry?: () => void;
-	onViewPackingList?: (bookingId: string) => void;
 	onViewBookingDetails?: (bookingId: string) => void;
 }
 
@@ -107,7 +106,6 @@ export function TripDetailView({
 	onConflictDismiss,
 	onConflictReload,
 	onConflictRetry,
-	onViewPackingList,
 	onViewBookingDetails,
 }: TripDetailViewProps) {
 	const [packingListRefreshKey, setPackingListRefreshKey] = useState(0);
@@ -750,7 +748,6 @@ export function TripDetailView({
 											onClose={() => setIsPackingListModalOpen(false)}
 											bookingId={booking.id}
 											refreshKey={packingListRefreshKey}
-											onViewPackingList={onViewPackingList}
 										/>
 									</>
 								)}

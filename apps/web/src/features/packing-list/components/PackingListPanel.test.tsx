@@ -98,7 +98,7 @@ describe("PackingListPanel", () => {
 						id: "tent",
 						name: "Lều cắm trại",
 						category: "gear",
-						required: false,
+						required: true,
 						reason: "Đã có trong thiết bị thuê",
 						alreadyCovered: true,
 					},
@@ -119,11 +119,12 @@ describe("PackingListPanel", () => {
 		render(<componentModule.PackingListPanel bookingId="booking-1" />);
 
 		expect(screen.getByText("Bắt buộc")).toBeInTheDocument();
-		expect(screen.getByText("Khuyến nghị")).toBeInTheDocument();
+		expect(screen.queryByText("Khuyến nghị")).not.toBeInTheDocument();
 		expect(screen.getByTestId("packing-list-item-id-documents")).toBeInTheDocument();
 		expect(screen.getByTestId("packing-list-item-tent")).toHaveTextContent(
 			"Đã có trong thiết bị thuê"
 		);
+		expect(screen.queryByTestId("packing-list-item-trekking-poles")).not.toBeInTheDocument();
 		expect(screen.getByText("Qua đêm (2 đêm)")).toBeInTheDocument();
 		expect(screen.getByText("Độ khó: Khó")).toBeInTheDocument();
 		expect(screen.getByText("Thời tiết: Cần lưu ý")).toBeInTheDocument();

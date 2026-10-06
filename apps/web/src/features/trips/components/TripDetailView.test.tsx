@@ -53,23 +53,16 @@ vi.mock("../../packing-list/components/PackingListModal", () => ({
 		isOpen,
 		bookingId,
 		refreshKey,
-		onViewPackingList,
 	}: {
 		isOpen: boolean;
 		onClose: () => void;
 		bookingId: string;
 		refreshKey?: unknown;
-		onViewPackingList?: (bookingId: string) => void;
 	}) => (
 		<div data-testid="packing-list-modal" data-is-open={String(isOpen)}>
 			<div data-testid="packing-list-panel" data-refresh-key={String(refreshKey)}>
 				{bookingId}
 			</div>
-			{onViewPackingList && (
-				<button type="button" onClick={() => onViewPackingList(bookingId)}>
-					Xem packing list ở trang riêng
-				</button>
-			)}
 		</div>
 	),
 }));
@@ -352,35 +345,6 @@ describe("TripDetailView", () => {
 		const after = screen.getByTestId("packing-list-panel").getAttribute("data-refresh-key");
 
 		expect(after).not.toBe(before);
-	});
-
-	it("calls onViewPackingList with the Booking id when the standalone-page button is clicked", () => {
-		const onViewPackingList = vi.fn();
-		render(
-			<TripDetailView
-				trip={mockTripDetails}
-				booking={{
-					id: "booking-1",
-					tripId: "trip-999",
-					userId: "user-1",
-					numPeople: 2,
-					status: "confirmed",
-					paymentStatus: "not_required",
-					holdExpiresAt: null,
-					tripStartsAtSnapshot: "2026-09-28T06:00:00.000Z",
-					tripEndsAtSnapshot: "2026-09-29T17:00:00.000Z",
-					basePrice: "3700000.00",
-					totalAmount: "3700000.00",
-					cancellationPolicySnapshot: null,
-					createdAt: "2026-09-27T00:00:00.000Z",
-				}}
-				onViewPackingList={onViewPackingList}
-			/>
-		);
-
-		fireEvent.click(screen.getByRole("button", { name: "Xem packing list ở trang riêng" }));
-
-		expect(onViewPackingList).toHaveBeenCalledWith("booking-1");
 	});
 
 	it("uses the authoritative confirmed roster restored from Booking Details", () => {

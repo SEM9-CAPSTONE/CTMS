@@ -34,21 +34,12 @@ describe("PackingListModal", () => {
 		expect(onClose).toHaveBeenCalledTimes(1);
 	});
 
-	it("calls onViewPackingList when standalone link is clicked", () => {
-		const onViewPackingList = vi.fn();
+	it("calls onClose when footer close button is clicked", () => {
 		const onClose = vi.fn();
-		render(
-			<PackingListModal
-				isOpen={true}
-				onClose={onClose}
-				bookingId="booking-123"
-				onViewPackingList={onViewPackingList}
-			/>
-		);
+		render(<PackingListModal isOpen={true} onClose={onClose} bookingId="booking-123" />);
 
-		fireEvent.click(screen.getByRole("button", { name: "Xem packing list ở trang riêng" }));
+		fireEvent.click(screen.getByRole("button", { name: "Đóng" }));
 		expect(onClose).toHaveBeenCalledTimes(1);
-		expect(onViewPackingList).toHaveBeenCalledWith("booking-123");
 	});
 
 	it("closes on Escape key press", () => {

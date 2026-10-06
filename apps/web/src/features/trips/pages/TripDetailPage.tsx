@@ -22,7 +22,6 @@ export interface TripDetailPageProps {
 	) => void | Promise<void>;
 	bookingAccess?: BookingAccess;
 	onSignIn?: () => void;
-	onViewPackingList?: (bookingId: string) => void;
 	onViewBookingDetails?: (bookingId: string) => void;
 	restoredBookingDetails?: BookingDetails | null;
 	onClearRestoredBooking?: () => void;
@@ -66,7 +65,6 @@ export function TripDetailPage({
 	onBook,
 	bookingAccess = "camper",
 	onSignIn,
-	onViewPackingList,
 	onViewBookingDetails,
 	restoredBookingDetails = null,
 	onClearRestoredBooking,
@@ -338,7 +336,6 @@ export function TripDetailPage({
 								onConflictDismiss={clearConflict}
 								onConflictReload={handleConflictReload}
 								onConflictRetry={retryBooking}
-								onViewPackingList={onViewPackingList}
 								onViewBookingDetails={onViewBookingDetails}
 							/>
 							{showOperationalRoster && <TripMemberRoster tripId={trip.id} />}

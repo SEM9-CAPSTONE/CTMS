@@ -910,7 +910,11 @@ export async function seedDevTrips(): Promise<void> {
 						booking_deadline = $12,
 						capacity_min = $13,
 						capacity_max = $14,
-						seats_taken = $15,
+						seats_taken = GREATEST($15, (
+							SELECT COALESCE(SUM(b.num_people), 0)
+							FROM bookings b
+							WHERE b.trip_id = $1 AND b.status IN ('confirmed', 'pending_payment')
+						)),
 						price_per_person = $16,
 						itinerary = $17::jsonb,
 						includes = $18::jsonb,
