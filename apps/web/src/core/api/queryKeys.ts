@@ -35,4 +35,10 @@ export const queryKeys = {
 	profile: {
 		me: ["profile", "me"] as const,
 	},
+	porter: {
+		profile: ["porter", "profile"] as const,
+		routeQualifications: ["porter", "route-qualifications"] as const,
+		routePorterQualifications: (routeId: string) =>
+			["trekking-routes", routeId, "porter-qualifications"] as const,
+	},
 };

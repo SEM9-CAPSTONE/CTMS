@@ -20,6 +20,7 @@ import { CamperProfilePage } from "../features/camper-profile/pages/CamperProfil
 import { CreateEquipmentCatalogItemPage } from "../features/equipment-catalog/pages/CreateEquipmentCatalogItemPage";
 import { EquipmentCatalogPage } from "../features/equipment-catalog/pages/EquipmentCatalogPage";
 import { LandingPage } from "../features/landing/pages/LandingPage";
+import { PorterProfilePage } from "../features/porter-profile/pages/PorterProfilePage";
 import { HostLayout } from "../features/role-landing/components/HostLayout";
 import { RoleLandingPage } from "../features/role-landing/pages/RoleLandingPage";
 import { AdminTrekkingRoutesPage } from "../features/trekking-routes/pages/AdminTrekkingRoutesPage";
@@ -330,8 +331,39 @@ export function AppRoutes() {
 				/>
 			);
 
+		case RoutePath.PORTER_PROFILE:
+			return (
+				<AppRoleGuard
+					allowedRoles={["porter"]}
+					currentRoles={currentRoles}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<PorterProfilePage
+						onBackHome={() => navigateTo(storedUser ? RoutePath.DASHBOARD : RoutePath.HOME)}
+						onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}
+						onLogout={handleLogout}
+					/>
+				</AppRoleGuard>
+			);
+
 		case RoutePath.CAMPER_PROFILE:
 		case RoutePath.PROFILE:
+			if (currentRoles.includes("porter") && !currentRoles.includes("camper")) {
+				return (
+					<AppRoleGuard
+						allowedRoles={["porter"]}
+						currentRoles={currentRoles}
+						onNavigateHome={() => navigateTo(RoutePath.HOME)}
+					>
+						<PorterProfilePage
+							onBackHome={() => navigateTo(storedUser ? RoutePath.DASHBOARD : RoutePath.HOME)}
+							onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}
+							onLogout={handleLogout}
+						/>
+					</AppRoleGuard>
+				);
+			}
+
 			return (
 				<CamperProfilePage
 					onBackHome={() => navigateTo(storedUser ? RoutePath.DASHBOARD : RoutePath.HOME)}

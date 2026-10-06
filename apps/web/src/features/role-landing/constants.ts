@@ -16,6 +16,7 @@ import {
 	ShieldAlert,
 	ShieldCheck,
 	TentTree,
+	User,
 	Users,
 	Warehouse,
 	Wifi,
@@ -240,6 +241,7 @@ export const dashboards: Record<RoleKey, DashboardConfig> = {
 		navTitle: "Porter Ops",
 		navItems: [
 			{ key: "overview", label: "Tổng quan", icon: LayoutDashboard },
+			{ key: "profile", label: "Hồ sơ & Năng lực", icon: User },
 			{ key: "assignments", label: "Phân công", icon: ClipboardList },
 			{ key: "routes", label: "Bản đồ tuyến", icon: MapPinned },
 			{ key: "checkins", label: "Check-in", icon: BadgeCheck },
