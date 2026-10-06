@@ -80,6 +80,16 @@ export class UsersRepository extends Repository<User> {
 		});
 	}
 
+	async findOneWithRolesByIdForUpdate(userId: string): Promise<User | null> {
+		const user = await this.findOne({
+			where: { id: userId },
+			lock: { mode: "pessimistic_write" },
+		});
+		if (!user) return null;
+		user.roleAssignments = await this.manager.getRepository(UserRoleAssignment).findBy({ userId });
+		return user;
+	}
+
 	async getGrantedRolesById(userId: string): Promise<UserRole[]> {
 		const user = await this.findOneWithRolesById(userId);
 		return user ? this.getGrantedRoles(user) : [];
