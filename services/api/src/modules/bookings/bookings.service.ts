@@ -532,9 +532,23 @@ export class BookingsService {
 			);
 
 			if (booking.basePrice === null) throw new Error("Booking is missing its base price");
-			// Equipment rental fee is not added to the trip booking totalAmount
-			// It is recorded for host inventory and user reference only.
-			booking.totalAmount = booking.basePrice;
+			const equipmentTotal = await bookingItemsRepository.sumTotalPriceForBooking(booking.id);
+			const formattedEquipmentTotal = Number(equipmentTotal).toFixed(2);
+			booking.totalAmount = this.addMoney(booking.basePrice, formattedEquipmentTotal);
+
+			if (
+				booking.paymentStatus === BookingPaymentStatus.NOT_REQUIRED &&
+				booking.totalAmount !== "0.00"
+			) {
+				booking.status = BookingStatus.PENDING_PAYMENT;
+				booking.paymentStatus = BookingPaymentStatus.UNPAID;
+				if (!booking.holdExpiresAt) {
+					booking.holdExpiresAt = new Date(
+						Date.now() + this.getHoldTtlMinutes() * MILLISECONDS_PER_MINUTE
+					);
+				}
+			}
+
 			const savedBooking = await bookingRepository.save(booking);
 
 			await manager.getRepository(AuditLog).save({

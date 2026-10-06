@@ -94,7 +94,12 @@ describe("BookingEquipmentPicker", () => {
 		});
 
 		render(
-			<BookingEquipmentPicker tripId="trip-1" bookingId="booking-1" initialTotalAmount="0.00" />
+			<BookingEquipmentPicker
+				tripId="trip-1"
+				bookingId="booking-1"
+				initialTotalAmount="0.00"
+				defaultOpen={true}
+			/>
 		);
 
 		fireEvent.change(screen.getByLabelText("Thiết bị"), { target: { value: "item-1" } });
@@ -136,6 +141,7 @@ describe("BookingEquipmentPicker", () => {
 				bookingId="booking-1"
 				initialTotalAmount="0.00"
 				onEquipmentChanged={onEquipmentChanged}
+				defaultOpen={true}
 			/>
 		);
 
@@ -181,10 +187,33 @@ describe("BookingEquipmentPicker", () => {
 		});
 
 		render(
-			<BookingEquipmentPicker tripId="trip-1" bookingId="booking-1" initialTotalAmount="0.00" />
+			<BookingEquipmentPicker
+				tripId="trip-1"
+				bookingId="booking-1"
+				initialTotalAmount="0.00"
+				defaultOpen={true}
+			/>
 		);
 
 		expect(screen.getByTestId("booking-item-booking-item-1")).toHaveTextContent("4-person tent x2");
 		expect(screen.getByRole("alert")).toHaveTextContent("Thiết bị không còn đủ số lượng.");
+	});
+
+	it("opens and closes the equipment picker modal dialog", () => {
+		vi.mocked(useTripEquipmentOptions).mockReturnValue({
+			items: [option],
+			isLoading: false,
+			error: "",
+			retry: vi.fn(),
+		});
+		render(
+			<BookingEquipmentPicker tripId="trip-1" bookingId="booking-1" initialTotalAmount="0.00" />
+		);
+
+		expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+		fireEvent.click(screen.getByRole("button", { name: /thuê thiết bị/i }));
+		expect(screen.getByRole("dialog")).toBeInTheDocument();
+		fireEvent.click(screen.getByRole("button", { name: "Đóng bảng chọn thiết bị" }));
+		expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 	});
 });

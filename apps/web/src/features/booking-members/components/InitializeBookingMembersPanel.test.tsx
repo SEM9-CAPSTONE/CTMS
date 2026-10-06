@@ -51,22 +51,34 @@ describe("InitializeBookingMembersPanel", () => {
 		});
 	});
 
-	it("shows the owner as primary and the required additional count", () => {
+	it("renders a compact trigger button on sidebar and opens modal popup when clicked", () => {
 		render(<InitializeBookingMembersPanel booking={booking} />);
+		expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "Xác nhận danh sách người tham gia" })
+		).toBeInTheDocument();
+
+		fireEvent.click(screen.getByRole("button", { name: "Xác nhận danh sách người tham gia" }));
+		expect(screen.getByRole("dialog")).toBeInTheDocument();
+		expect(screen.getByText("Bạn — Người đặt chỗ chính")).toBeInTheDocument();
+	});
+
+	it("shows the owner as primary and the required additional count", () => {
+		render(<InitializeBookingMembersPanel booking={booking} defaultOpen />);
 		expect(screen.getByText("Bạn — Người đặt chỗ chính")).toBeInTheDocument();
 		expect(screen.getByText(/Tổng: 2.*Còn lại: 1/)).toBeInTheDocument();
 		expect(screen.getByLabelText("Email người tham gia 1")).toBeInTheDocument();
 	});
 
 	it("initializes an owner-only Booking with an empty member list", async () => {
-		render(<InitializeBookingMembersPanel booking={{ ...booking, numPeople: 1 }} />);
+		render(<InitializeBookingMembersPanel booking={{ ...booking, numPeople: 1 }} defaultOpen />);
 		expect(screen.getByText("Đặt chỗ này không cần thêm người tham gia.")).toBeInTheDocument();
 		fireEvent.click(screen.getByRole("button", { name: "Xác nhận người tham gia" }));
 		await waitFor(() => expect(submit).toHaveBeenCalledWith(booking.id, { members: [] }));
 	});
 
 	it("validates email accessibly before resolving", () => {
-		render(<InitializeBookingMembersPanel booking={booking} />);
+		render(<InitializeBookingMembersPanel booking={booking} defaultOpen />);
 		const input = screen.getByLabelText("Email người tham gia 1");
 		fireEvent.change(input, { target: { value: "invalid" } });
 		fireEvent.click(screen.getByRole("button", { name: "Xác nhận email" }));
@@ -77,7 +89,7 @@ describe("InitializeBookingMembersPanel", () => {
 
 	it("resolves a participant and submits the authoritative user id", async () => {
 		resolveCandidate.mockResolvedValue({ userId: MEMBER, email: "camper2@ctms.local" });
-		render(<InitializeBookingMembersPanel booking={booking} />);
+		render(<InitializeBookingMembersPanel booking={booking} defaultOpen />);
 		fireEvent.change(screen.getByLabelText("Email người tham gia 1"), {
 			target: { value: "  CAMPER2@CTMS.LOCAL  " },
 		});
@@ -96,7 +108,7 @@ describe("InitializeBookingMembersPanel", () => {
 			.mockResolvedValueOnce({ userId: MEMBER, email: "first@example.com" })
 			.mockResolvedValueOnce({ userId: MEMBER, email: "second@example.com" });
 		const threePersonBooking = { ...booking, numPeople: 3 };
-		render(<InitializeBookingMembersPanel booking={threePersonBooking} />);
+		render(<InitializeBookingMembersPanel booking={threePersonBooking} defaultOpen />);
 
 		const inputs = screen.getAllByRole("textbox");
 		fireEvent.change(inputs[0], { target: { value: "owner@example.com" } });
@@ -126,9 +138,11 @@ describe("InitializeBookingMembersPanel", () => {
 	});
 
 	it("allows both pending-payment and confirmed Bookings", () => {
-		const { rerender } = render(<InitializeBookingMembersPanel booking={booking} />);
+		const { rerender } = render(<InitializeBookingMembersPanel booking={booking} defaultOpen />);
 		expect(screen.getByRole("heading", { name: "Xác nhận người tham gia" })).toBeInTheDocument();
-		rerender(<InitializeBookingMembersPanel booking={{ ...booking, status: "confirmed" }} />);
+		rerender(
+			<InitializeBookingMembersPanel booking={{ ...booking, status: "confirmed" }} defaultOpen />
+		);
 		expect(screen.getByRole("heading", { name: "Xác nhận người tham gia" })).toBeInTheDocument();
 	});
 
@@ -139,7 +153,7 @@ describe("InitializeBookingMembersPanel", () => {
 			isResolving: true,
 			error: null,
 		});
-		const { rerender } = render(<InitializeBookingMembersPanel booking={booking} />);
+		const { rerender } = render(<InitializeBookingMembersPanel booking={booking} defaultOpen />);
 		expect(screen.getByRole("status")).toHaveTextContent("Đang xử lý danh sách người tham gia");
 
 		vi.mocked(useResolveBookingMemberCandidate).mockReturnValue({
@@ -156,7 +170,7 @@ describe("InitializeBookingMembersPanel", () => {
 			result: null,
 			error: null,
 		});
-		rerender(<InitializeBookingMembersPanel booking={booking} />);
+		rerender(<InitializeBookingMembersPanel booking={booking} defaultOpen />);
 		expect(screen.getByRole("status")).toHaveTextContent("Đang xử lý danh sách người tham gia");
 		expect(screen.getByRole("button", { name: "Đang xác nhận..." })).toBeDisabled();
 	});
@@ -176,8 +190,8 @@ describe("InitializeBookingMembersPanel", () => {
 				fieldErrors: {},
 			},
 		});
-		const { rerender } = render(<InitializeBookingMembersPanel booking={booking} />);
-		expect(screen.getByRole("alert")).toHaveTextContent("already initialized");
+		const { rerender } = render(<InitializeBookingMembersPanel booking={booking} defaultOpen />);
+		expect(screen.getByRole("alert")).toHaveTextContent("được xác nhận trước đó");
 
 		vi.mocked(useInitializeBookingMembers).mockReturnValue({
 			submit,
@@ -187,7 +201,7 @@ describe("InitializeBookingMembersPanel", () => {
 			result: null,
 			error: { message: "Mất kết nối", isConflict: false, canRetry: true, fieldErrors: {} },
 		});
-		rerender(<InitializeBookingMembersPanel booking={booking} />);
+		rerender(<InitializeBookingMembersPanel booking={booking} defaultOpen />);
 		fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
 		expect(retry).toHaveBeenCalled();
 	});
@@ -213,7 +227,7 @@ describe("InitializeBookingMembersPanel", () => {
 			},
 			error: null,
 		});
-		render(<InitializeBookingMembersPanel booking={booking} />);
+		render(<InitializeBookingMembersPanel booking={booking} defaultOpen />);
 		expect(screen.getByRole("status")).toHaveTextContent(
 			"Danh sách người tham gia đã được xác nhận"
 		);
@@ -226,6 +240,7 @@ describe("InitializeBookingMembersPanel", () => {
 		render(
 			<InitializeBookingMembersPanel
 				booking={booking}
+				defaultOpen
 				confirmedRoster={{
 					bookingId: booking.id,
 					members: [

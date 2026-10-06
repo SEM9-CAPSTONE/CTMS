@@ -11,7 +11,6 @@ export default defineConfig({
 		// which also matches *.spec.ts by default.
 		exclude: [...configDefaults.exclude, "tests/e2e/**"],
 		maxWorkers: 1,
-		isolate: false,
 		testTimeout: 15_000,
 	},
 });

@@ -49,12 +49,12 @@ function renderForm(overrides: Partial<React.ComponentProps<typeof CreateTripFor
 function fillValidForm() {
 	fireEvent.change(screen.getByLabelText("Tuyến đã duyệt"), { target: { value: activeRoute.id } });
 	fireEvent.change(screen.getByLabelText("Tên trip"), { target: { value: "  Bidoup morning  " } });
-	fireEvent.change(screen.getByLabelText("Bắt đầu"), { target: { value: "2026-10-01T09:00" } });
-	fireEvent.change(screen.getByLabelText("Kết thúc"), { target: { value: "2026-10-01T17:00" } });
+	fireEvent.change(screen.getByLabelText("Bắt đầu"), { target: { value: "2099-10-01T09:00" } });
+	fireEvent.change(screen.getByLabelText("Kết thúc"), { target: { value: "2099-10-01T17:00" } });
 	fireEvent.change(screen.getByLabelText("Thời gian tập trung"), {
-		target: { value: "2026-10-01T08:30" },
+		target: { value: "2099-10-01T08:30" },
 	});
-	fireEvent.change(screen.getByLabelText("Hạn đặt chỗ"), { target: { value: "2026-09-30T09:00" } });
+	fireEvent.change(screen.getByLabelText("Hạn đặt chỗ"), { target: { value: "2099-09-30T09:00" } });
 	fireEvent.change(screen.getByLabelText("Số khách tối thiểu"), { target: { value: "2" } });
 	fireEvent.change(screen.getByLabelText("Số khách tối đa"), { target: { value: "12" } });
 	fireEvent.change(screen.getByLabelText("Giá mỗi người"), { target: { value: "0" } });
@@ -130,9 +130,9 @@ describe("CreateTripForm", () => {
 	it("validates date ranges and capacity without manual waypoint inputs", async () => {
 		renderForm();
 		fillValidForm();
-		fireEvent.change(screen.getByLabelText("Kết thúc"), { target: { value: "2026-10-01T08:00" } });
+		fireEvent.change(screen.getByLabelText("Kết thúc"), { target: { value: "2099-10-01T08:00" } });
 		fireEvent.change(screen.getByLabelText("Hạn đặt chỗ"), {
-			target: { value: "2026-10-01T10:00" },
+			target: { value: "2099-10-01T10:00" },
 		});
 		fireEvent.change(screen.getByLabelText("Số khách tối thiểu"), { target: { value: "20" } });
 
@@ -148,7 +148,7 @@ describe("CreateTripForm", () => {
 	it("derives overnight trip type when the schedule spans another date", async () => {
 		const props = renderForm();
 		fillValidForm();
-		fireEvent.change(screen.getByLabelText("Kết thúc"), { target: { value: "2026-10-02T17:00" } });
+		fireEvent.change(screen.getByLabelText("Kết thúc"), { target: { value: "2099-10-02T17:00" } });
 
 		submitFormDirectly();
 
@@ -172,11 +172,11 @@ describe("CreateTripForm", () => {
 		expect(meetingAtInput).toHaveAttribute("min");
 		expect(bookingDeadlineInput).toHaveAttribute("min");
 
-		fireEvent.change(startsAtInput, { target: { value: "2026-10-01T09:00" } });
+		fireEvent.change(startsAtInput, { target: { value: "2099-10-01T09:00" } });
 
-		expect(endsAtInput).toHaveAttribute("min", "2026-10-01T09:00");
-		expect(meetingAtInput).toHaveAttribute("max", "2026-10-01T09:00");
-		expect(bookingDeadlineInput).toHaveAttribute("max", "2026-10-01T09:00");
+		expect(endsAtInput).toHaveAttribute("min", "2099-10-01T09:00");
+		expect(meetingAtInput).toHaveAttribute("max", "2099-10-01T09:00");
+		expect(bookingDeadlineInput).toHaveAttribute("max", "2099-10-01T09:00");
 	});
 
 	it("rejects past dates even when values are typed manually", async () => {
@@ -197,13 +197,13 @@ describe("CreateTripForm", () => {
 			target: { value: fiveKilometerRoute.id },
 		});
 		fireEvent.change(screen.getByLabelText("Tên trip"), { target: { value: "Too fast" } });
-		fireEvent.change(screen.getByLabelText("Bắt đầu"), { target: { value: "2026-10-01T09:00" } });
-		fireEvent.change(screen.getByLabelText("Kết thúc"), { target: { value: "2026-10-01T09:12" } });
+		fireEvent.change(screen.getByLabelText("Bắt đầu"), { target: { value: "2099-10-01T09:00" } });
+		fireEvent.change(screen.getByLabelText("Kết thúc"), { target: { value: "2099-10-01T09:12" } });
 		fireEvent.change(screen.getByLabelText("Thời gian tập trung"), {
-			target: { value: "2026-10-01T08:30" },
+			target: { value: "2099-10-01T08:30" },
 		});
 		fireEvent.change(screen.getByLabelText("Hạn đặt chỗ"), {
-			target: { value: "2026-09-30T09:00" },
+			target: { value: "2099-09-30T09:00" },
 		});
 		fireEvent.change(screen.getByLabelText("Số khách tối thiểu"), { target: { value: "2" } });
 		fireEvent.change(screen.getByLabelText("Số khách tối đa"), { target: { value: "12" } });
@@ -223,8 +223,8 @@ describe("CreateTripForm", () => {
 		fireEvent.change(screen.getByLabelText("Tuyến đã duyệt"), {
 			target: { value: fiveKilometerRoute.id },
 		});
-		fireEvent.change(screen.getByLabelText("Bắt đầu"), { target: { value: "2026-10-01T09:00" } });
-		fireEvent.change(screen.getByLabelText("Kết thúc"), { target: { value: "2026-10-01T09:01" } });
+		fireEvent.change(screen.getByLabelText("Bắt đầu"), { target: { value: "2099-10-01T09:00" } });
+		fireEvent.change(screen.getByLabelText("Kết thúc"), { target: { value: "2099-10-01T09:01" } });
 		fireEvent.change(screen.getByLabelText("Số khách tối thiểu"), { target: { value: "12" } });
 		fireEvent.change(screen.getByLabelText("Số khách tối đa"), { target: { value: "" } });
 

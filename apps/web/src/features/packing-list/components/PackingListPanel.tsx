@@ -13,6 +13,7 @@ import type { PackingListDifficulty, PackingListItem, PackingListWeatherRiskLeve
 export interface PackingListPanelProps {
 	bookingId: string;
 	refreshKey?: number | string;
+	hideCardStyles?: boolean;
 }
 
 const DIFFICULTY_LABEL: Record<PackingListDifficulty, string> = {
@@ -65,7 +66,11 @@ function ItemRow({ item }: { item: PackingListItem }) {
 	);
 }
 
-export function PackingListPanel({ bookingId, refreshKey = 0 }: PackingListPanelProps) {
+export function PackingListPanel({
+	bookingId,
+	refreshKey = 0,
+	hideCardStyles = false,
+}: PackingListPanelProps) {
 	const { packingList, isLoading, error, retry } = usePackingList(bookingId, refreshKey);
 
 	const requiredItems = packingList?.items.filter((item) => item.required) ?? [];
@@ -74,12 +79,14 @@ export function PackingListPanel({ bookingId, refreshKey = 0 }: PackingListPanel
 	return (
 		<section
 			aria-label="Packing list cho chuyến đi"
-			className="mt-4 rounded-2xl border border-[#dfe8df] bg-white p-4"
+			className={hideCardStyles ? "" : "mt-4 rounded-2xl border border-[#dfe8df] bg-white p-4"}
 		>
-			<h3 className="flex items-center gap-2 text-sm font-extrabold text-[#10221b]">
-				<ShieldCheck className="size-4 text-[#164027]" />
-				Danh sách đồ cần chuẩn bị
-			</h3>
+			{!hideCardStyles && (
+				<h3 className="flex items-center gap-2 text-sm font-extrabold text-[#10221b]">
+					<ShieldCheck className="size-4 text-[#164027]" />
+					Danh sách đồ cần chuẩn bị
+				</h3>
+			)}
 
 			{isLoading && (
 				<div
