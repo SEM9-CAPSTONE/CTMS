@@ -105,4 +105,13 @@ export const API_ENDPOINTS = {
 		DETAIL: (id: string) => `/equipment-catalog/${id}`,
 		FOR_TRIP: (tripId: string) => `/equipment-catalog/for-trip/${tripId}`,
 	},
+	PORTER: {
+		PROFILE: "/porter/profile",
+		ROUTE_QUALIFICATIONS: "/porter/route-qualifications",
+		ROUTE_QUALIFICATION_BY_ROUTE: (routeId: string) => `/porter/route-qualifications/${routeId}`,
+		VERIFY_QUALIFICATION: (qualificationId: string) =>
+			`/porter/route-qualifications/${qualificationId}/verify`,
+		ROUTE_PORTER_QUALIFICATIONS: (routeId: string) =>
+			`/trekking-routes/${routeId}/porter-qualifications`,
+	},
 } as const;

@@ -1,5 +1,6 @@
 import { ArrowLeft, CheckCircle2, Loader2, RefreshCw, Route } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { RoutePorterQualificationsPanel } from "../../porter-profile/components/RoutePorterQualificationsPanel";
 import { RouteDraftWorkspace } from "../components/RouteDraftWorkspace";
 import { RouteGeometryPreview } from "../components/RouteGeometryPreview";
 import { RouteRegistrationBlockPanel } from "../components/RouteRegistrationBlockPanel";
@@ -160,6 +161,13 @@ export function TrekkingRoutesPage({ onBackHome }: TrekkingRoutesPageProps) {
 
 				{selectedRoute && (
 					<RouteRegistrationBlockPanel routeId={selectedRoute.id} routeName={selectedRoute.name} />
+				)}
+
+				{selectedRoute && (
+					<RoutePorterQualificationsPanel
+						routeId={selectedRoute.id}
+						routeName={selectedRoute.name}
+					/>
 				)}
 
 				{!routes.isLoading && !routes.error && selectedRoute && (

@@ -21,6 +21,11 @@ async function seedDevHostAndRoute(): Promise<void> {
 		let hostId = "";
 		if (existingUser.length > 0) {
 			hostId = existingUser[0].id;
+			const passwordHash = await hash(hostPassword, BCRYPT_COST_FACTOR);
+			await dataSource.query('UPDATE "users" SET password_hash = $1 WHERE id = $2', [
+				passwordHash,
+				hostId,
+			]);
 			console.log(`[seed:dev-host] Host already exists with ID: ${hostId}`);
 		} else {
 			const passwordHash = await hash(hostPassword, BCRYPT_COST_FACTOR);

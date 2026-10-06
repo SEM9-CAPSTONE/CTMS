@@ -682,6 +682,39 @@ async function main() {
 				`${arg}%`,
 			]);
 			console.log(JSON.stringify(rows.map((r: { email: string }) => r.email)));
+		} else if (action === "clean-porter-data") {
+			const input = parseJsonArg<{ porterEmail: string }>(arg);
+			const rows = await dataSource.query('SELECT "id" FROM "users" WHERE "email" = $1', [
+				input.porterEmail,
+			]);
+			if (rows.length > 0) {
+				const porterId = rows[0].id;
+				await dataSource.query('DELETE FROM "porter_route_qualifications" WHERE "porter_id" = $1', [
+					porterId,
+				]);
+				await dataSource.query('DELETE FROM "porter_profiles" WHERE "porter_id" = $1', [porterId]);
+			}
+			console.log(JSON.stringify({ success: true }));
+		} else if (action === "bump-qualification-version") {
+			const input = parseJsonArg<{ qualificationId: string }>(arg);
+			await dataSource.query(
+				'UPDATE "porter_route_qualifications" SET "version" = "version" + 1 WHERE "id" = $1',
+				[input.qualificationId]
+			);
+			console.log(JSON.stringify({ success: true }));
+		} else if (action === "bump-porter-profile-version") {
+			const input = parseJsonArg<{ porterEmail: string }>(arg);
+			const rows = await dataSource.query('SELECT "id" FROM "users" WHERE "email" = $1', [
+				input.porterEmail,
+			]);
+			if (rows.length > 0) {
+				const porterId = rows[0].id;
+				await dataSource.query(
+					'UPDATE "porter_profiles" SET "version" = "version" + 1 WHERE "porter_id" = $1',
+					[porterId]
+				);
+			}
+			console.log(JSON.stringify({ success: true }));
 		} else {
 			throw new Error(`Unknown action: ${action}`);
 		}

@@ -141,6 +141,13 @@ export function Sidebar({
 									} else if (item.key === "equipment") {
 										window.history.pushState({}, "", "/host/equipment-catalog");
 										window.dispatchEvent(new PopStateEvent("popstate"));
+									} else if (item.key === "profile") {
+										if (activeRole === "porter") {
+											window.history.pushState({}, "", "/porter/profile");
+											window.dispatchEvent(new PopStateEvent("popstate"));
+										} else if (onOpenProfile) {
+											onOpenProfile();
+										}
 									}
 								}}
 								className={`flex w-full items-center gap-3.5 rounded-xl px-3.5 py-3 text-sm font-bold transition-all ${
