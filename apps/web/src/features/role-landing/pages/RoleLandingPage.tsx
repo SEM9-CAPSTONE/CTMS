@@ -10,6 +10,7 @@ import { Collapse } from "../../../shared/components/Collapse";
 import { CamperSidebar } from "../../camper-profile/components/CamperSidebar";
 import { HostMyTripsPanel } from "../components/HostMyTripsPanel";
 import { MetricCard } from "../components/MetricCard";
+import { PorterAssignedTripsPanel } from "../components/PorterAssignedTripsPanel";
 import { QuickTasksPanel } from "../components/QuickTasksPanel";
 import { Sidebar } from "../components/Sidebar";
 import { alertClasses, dashboards } from "../constants";
@@ -84,6 +85,7 @@ function DashboardMain({
 	onViewTrekkingRoutes,
 	onNavigateToTrips,
 	onNavigateToTripDetail,
+	onNavigateToTripRoster,
 	onEditTripDraft,
 }: {
 	config: DashboardConfig;
@@ -96,6 +98,7 @@ function DashboardMain({
 	onViewTrekkingRoutes?: () => void;
 	onNavigateToTrips?: () => void;
 	onNavigateToTripDetail?: (tripId: string) => void;
+	onNavigateToTripRoster?: (tripId: string) => void;
 	onEditTripDraft?: (tripId: string) => void;
 }) {
 	const displayName = profile?.fullName || getDisplayName(user);
@@ -227,6 +230,8 @@ function DashboardMain({
 						onNavigateToTripDetail={onNavigateToTripDetail}
 						onEditTripDraft={onEditTripDraft}
 					/>
+				) : config.role === "porter" ? (
+					<PorterAssignedTripsPanel onNavigateToTripRoster={onNavigateToTripRoster} />
 				) : config.alerts.length > 0 ? (
 					<section className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
 						<div className="rounded-[28px] border border-[#dfe8df] bg-white p-6 shadow-sm">
@@ -284,6 +289,7 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 	onNavigateToTrips,
 	onNavigateToBookings,
 	onNavigateToTripDetail,
+	onNavigateToTripRoster,
 	onEditTripDraft,
 	onLogout,
 	onExplore,
@@ -435,6 +441,7 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 					onViewTrekkingRoutes={onViewTrekkingRoutes}
 					onNavigateToTrips={onNavigateToTrips}
 					onNavigateToTripDetail={onNavigateToTripDetail}
+					onNavigateToTripRoster={onNavigateToTripRoster}
 					onEditTripDraft={onEditTripDraft}
 				/>
 			</div>

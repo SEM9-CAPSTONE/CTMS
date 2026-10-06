@@ -77,4 +77,12 @@ export class BookingMembersRepository extends Repository<BookingMember> {
 			.addOrderBy("member.id", "ASC")
 			.getMany();
 	}
+
+	findForUpdateInBooking(id: string, bookingId: string): Promise<BookingMember | null> {
+		return this.createQueryBuilder("member")
+			.setLock("pessimistic_write")
+			.where("member.id = :id", { id })
+			.andWhere("member.bookingId = :bookingId", { bookingId })
+			.getOne();
+	}
 }

@@ -2,6 +2,7 @@ import { ArrowLeft, Compass, Loader2, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { BookingDetails } from "../../booking-details/types";
 import { bookingEquipmentService } from "../../booking-equipment/services/booking-equipment.service";
+import { TripMemberRoster } from "../../booking-members/components/TripMemberRoster";
 import type { BookingAccess } from "../components/BookingPanel";
 import type { SelectedEquipmentItem } from "../components/RentableEquipmentModal";
 import { TripDetailView } from "../components/TripDetailView";
@@ -25,6 +26,7 @@ export interface TripDetailPageProps {
 	onViewBookingDetails?: (bookingId: string) => void;
 	restoredBookingDetails?: BookingDetails | null;
 	onClearRestoredBooking?: () => void;
+	showOperationalRoster?: boolean;
 }
 
 function toBookTripResponse(booking: BookingDetails | null | undefined): BookTripResponse | null {
@@ -68,6 +70,7 @@ export function TripDetailPage({
 	onViewBookingDetails,
 	restoredBookingDetails = null,
 	onClearRestoredBooking,
+	showOperationalRoster = false,
 }: TripDetailPageProps) {
 	const [isAddingEquipment, setIsAddingEquipment] = useState(false);
 	const { trip, isLoading, error, isNotFound, retry } = useTripDetail(tripId);
@@ -304,39 +307,42 @@ export function TripDetailPage({
 					trip &&
 					!bookingRestoreError &&
 					(!isRestoringBooking || temporaryBooking) && (
-						<TripDetailView
-							trip={trip}
-							onBack={onBackToList}
-							onBook={handleBook}
-							isBooking={isBooking || isAddingEquipment}
-							bookingError={bookingError}
-							booking={displayedBooking}
-							restoredBookingDetails={displayedBookingDetails}
-							bookingAccess={bookingAccess}
-							fieldErrors={fieldErrors}
-							canRetry={canRetry}
-							isConflict={isConflict}
-							onBookingRetry={retryBooking}
-							onBookingReset={
-								(!serverBooking && !isRestoringBooking) ||
-								serverBooking?.status === "expired" ||
-								serverBooking?.status === "cancelled" ||
-								displayedBooking?.status === "expired" ||
-								displayedBooking?.status === "cancelled" ||
-								Boolean(
-									displayedBooking?.holdExpiresAt &&
-										new Date(displayedBooking.holdExpiresAt).getTime() < Date.now()
-								)
-									? handleBookingReset
-									: undefined
-							}
-							onSignIn={onSignIn}
-							onConflictDismiss={clearConflict}
-							onConflictReload={handleConflictReload}
-							onConflictRetry={retryBooking}
-							onViewPackingList={onViewPackingList}
-							onViewBookingDetails={onViewBookingDetails}
-						/>
+						<>
+							<TripDetailView
+								trip={trip}
+								onBack={onBackToList}
+								onBook={handleBook}
+								isBooking={isBooking || isAddingEquipment}
+								bookingError={bookingError}
+								booking={displayedBooking}
+								restoredBookingDetails={displayedBookingDetails}
+								bookingAccess={bookingAccess}
+								fieldErrors={fieldErrors}
+								canRetry={canRetry}
+								isConflict={isConflict}
+								onBookingRetry={retryBooking}
+								onBookingReset={
+									(!serverBooking && !isRestoringBooking) ||
+									serverBooking?.status === "expired" ||
+									serverBooking?.status === "cancelled" ||
+									displayedBooking?.status === "expired" ||
+									displayedBooking?.status === "cancelled" ||
+									Boolean(
+										displayedBooking?.holdExpiresAt &&
+											new Date(displayedBooking.holdExpiresAt).getTime() < Date.now()
+									)
+										? handleBookingReset
+										: undefined
+								}
+								onSignIn={onSignIn}
+								onConflictDismiss={clearConflict}
+								onConflictReload={handleConflictReload}
+								onConflictRetry={retryBooking}
+								onViewPackingList={onViewPackingList}
+								onViewBookingDetails={onViewBookingDetails}
+							/>
+							{showOperationalRoster && <TripMemberRoster tripId={trip.id} />}
+						</>
 					)}
 			</main>
 		</div>

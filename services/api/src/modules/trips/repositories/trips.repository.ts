@@ -5,6 +5,7 @@ import {
 	TrekkingRouteStatus,
 } from "../../trekking-routes/entities/trekking-route.entity";
 import type { RiskLevel } from "../../weather/entities/weather-risk-assessment.entity";
+import type { PorterAssignedTripResponseDto } from "../dto/porter-assigned-trip-response.dto";
 import type {
 	TripResponseDto,
 	TripSummaryResponseDto,
@@ -706,6 +707,23 @@ export class TripsRepository extends Repository<Trip> {
 		)) as TripRow[];
 
 		return rows.map(toTripResponse);
+	}
+
+	findAssignedTripsByPorter(porterId: string): Promise<PorterAssignedTripResponseDto[]> {
+		return this.query(
+			`SELECT
+				trip."id" AS "tripId",
+				trip."title",
+				trip."status",
+				trip."starts_at" AS "startsAt",
+				trip."ends_at" AS "endsAt"
+			 FROM "trip_porters" assignment
+			 INNER JOIN "trips" trip ON trip."id" = assignment."trip_id"
+			 WHERE assignment."porter_id" = $1
+			   AND assignment."status" = 'assigned'
+			 ORDER BY trip."starts_at" ASC, trip."id" ASC`,
+			[porterId]
+		);
 	}
 
 	async findByIdForReview(tripId: string): Promise<LockedTripForReview | null> {

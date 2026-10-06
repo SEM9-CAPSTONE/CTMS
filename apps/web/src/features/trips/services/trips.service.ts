@@ -5,6 +5,7 @@ import type {
 	ConfigureTripWaypointsInput,
 	CreateTripInput,
 	PaginatedTrips,
+	PorterAssignedTrip,
 	ReviewTripInput,
 	SearchTripsQuery,
 	Trip,
@@ -36,6 +37,9 @@ export const tripsService = {
 
 	getMyTrips: (): Promise<TripDetails[]> =>
 		httpClient.get<TripDetails[]>(API_ENDPOINTS.TRIPS.GET_MINE),
+
+	getAssignedTrips: (): Promise<PorterAssignedTrip[]> =>
+		httpClient.get<PorterAssignedTrip[]>(API_ENDPOINTS.TRIPS.GET_ASSIGNED),
 
 	book: (input: BookTripInput, idempotencyKey: string): Promise<BookTripResponse> =>
 		httpClient.post<BookTripResponse>(API_ENDPOINTS.BOOKINGS.CREATE, input, {
