@@ -147,7 +147,6 @@ export function CreateTripPage({ onBackHome, onCreateRoute, editTripId }: Create
 					submitLabel={isEditMode ? "Bước tiếp theo" : "Tạo bản nháp và cấu hình điểm dừng"}
 					submittingLabel={isEditMode ? "Đang lưu chỉnh sửa..." : "Đang tạo trip..."}
 					title={isEditMode ? "Thông tin chuyến đi" : undefined}
-					description={isEditMode ? "Loại trip cập nhật theo ngày bắt đầu và kết thúc." : undefined}
 				/>
 			</main>
 		</div>
