@@ -34,6 +34,7 @@ export function AdminTripsPage({ onLogout }: AdminTripsPageProps) {
 		setSuccessMessage(null);
 		const result = await review.submit(selected.id, {
 			action: values.action,
+			reviewedUpdatedAt: selected.updatedAt,
 			reason: values.action === "approve" ? undefined : values.reason,
 		});
 		if (!result) return;
@@ -57,7 +58,7 @@ export function AdminTripsPage({ onLogout }: AdminTripsPageProps) {
 						Phê duyệt trip
 					</h1>
 					<p className="mt-1 text-sm text-[#667a6d]">
-						Kiểm tra lịch trình, sức chứa và waypoint trước khi xuất bản trip cho Camper.
+						Kiểm tra lịch trình, sức chứa và điểm dừng trước khi công bố chuyến đi cho Camper.
 					</p>
 				</header>
 

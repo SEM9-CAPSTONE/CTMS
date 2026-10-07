@@ -203,10 +203,13 @@ export function AppRoutes() {
 				tripId={activeTripId}
 				onBackToList={() => navigateTo(RoutePath.TRIPS)}
 				onBackHome={() => navigateTo(storedUser ? RoutePath.DASHBOARD : RoutePath.HOME)}
+				canManageTrips={currentRoles.includes("host")}
+				currentUserId={storedUser?.id ?? null}
 				bookingAccess={
 					!storedUser ? "anonymous" : currentRoles.includes("camper") ? "camper" : "non-camper"
 				}
 				onSignIn={() => navigateTo(RoutePath.LOGIN)}
+				onEditTrip={(tripId) => navigateTo(`/host/trips/${tripId}/edit`)}
 				onViewBookingDetails={(selectedBookingId) =>
 					navigateTo(
 						`/bookings/${selectedBookingId}?from=trip&tripId=${encodeURIComponent(activeTripId)}`

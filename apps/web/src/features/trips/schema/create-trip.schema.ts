@@ -96,6 +96,7 @@ export const createTripFormSchema = z
 		const endsAt = new Date(values.endsAt);
 		const bookingDeadline = new Date(values.bookingDeadline);
 		const meetingAt = values.meetingAt ? new Date(values.meetingAt) : null;
+		const hasValidScheduleOrder = !values.startsAt || !values.endsAt || startsAt < endsAt;
 		const now = new Date();
 
 		if (values.startsAt && startsAt < now) {
@@ -131,7 +132,7 @@ export const createTripFormSchema = z
 			context.addIssue({
 				code: z.ZodIssueCode.custom,
 				path: ["endsAt"],
-				message: "Thời gian kết thúc phải sau thời gian bắt đầu",
+				message: "Thời gian bắt đầu không được sau thời gian kết thúc",
 			});
 		}
 		if (values.bookingDeadline && values.startsAt && bookingDeadline >= startsAt) {
@@ -159,14 +160,14 @@ export const createTripFormSchema = z
 			context.addIssue({
 				code: z.ZodIssueCode.custom,
 				path: ["waypoints"],
-				message: "Trip phải có waypoint bắt đầu",
+				message: "Chuyến đi phải có điểm bắt đầu",
 			});
 		}
 		if (!values.waypoints.some((waypoint) => waypoint.type === "finish")) {
 			context.addIssue({
 				code: z.ZodIssueCode.custom,
 				path: ["waypoints"],
-				message: "Trip phải có waypoint kết thúc",
+				message: "Chuyến đi phải có điểm kết thúc",
 			});
 		}
 
@@ -181,7 +182,12 @@ export const createTripFormSchema = z
 			}
 			plannedTimes.add(waypoint.plannedAt);
 			const plannedAt = new Date(waypoint.plannedAt);
-			if (values.startsAt && values.endsAt && (plannedAt < startsAt || plannedAt > endsAt)) {
+			if (
+				hasValidScheduleOrder &&
+				values.startsAt &&
+				values.endsAt &&
+				(plannedAt < startsAt || plannedAt > endsAt)
+			) {
 				context.addIssue({
 					code: z.ZodIssueCode.custom,
 					path: ["waypoints", index, "plannedAt"],
@@ -189,24 +195,6 @@ export const createTripFormSchema = z
 				});
 			}
 		});
-
-		const sortedWaypoints = [...values.waypoints].sort(
-			(first, second) => new Date(first.plannedAt).getTime() - new Date(second.plannedAt).getTime()
-		);
-		if (sortedWaypoints[0]?.type !== "start") {
-			context.addIssue({
-				code: z.ZodIssueCode.custom,
-				path: ["waypoints"],
-				message: "Điểm đầu tiên phải là điểm bắt đầu",
-			});
-		}
-		if (sortedWaypoints.at(-1)?.type !== "finish") {
-			context.addIssue({
-				code: z.ZodIssueCode.custom,
-				path: ["waypoints"],
-				message: "Điểm cuối cùng phải là điểm kết thúc",
-			});
-		}
 	});
 
 export type CreateTripFormValues = z.infer<typeof createTripFormSchema>;

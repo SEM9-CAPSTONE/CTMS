@@ -9,6 +9,7 @@ import { TripDetailView } from "../components/TripDetailView";
 import { useBookTrip } from "../hooks/useBookTrip";
 import { useTripBooking } from "../hooks/useTripBooking";
 import { useTripDetail } from "../hooks/useTripDetail";
+import { useTripOperations } from "../hooks/useTripOperations";
 import type { BookTripResponse } from "../types";
 
 export interface TripDetailPageProps {
@@ -26,6 +27,9 @@ export interface TripDetailPageProps {
 	restoredBookingDetails?: BookingDetails | null;
 	onClearRestoredBooking?: () => void;
 	showOperationalRoster?: boolean;
+	canManageTrips?: boolean;
+	currentUserId?: string | null;
+	onEditTrip?: (tripId: string) => void;
 }
 
 function toBookTripResponse(booking: BookingDetails | null | undefined): BookTripResponse | null {
@@ -69,6 +73,9 @@ export function TripDetailPage({
 	restoredBookingDetails = null,
 	onClearRestoredBooking,
 	showOperationalRoster = false,
+	canManageTrips = false,
+	currentUserId = null,
+	onEditTrip,
 }: TripDetailPageProps) {
 	const [isAddingEquipment, setIsAddingEquipment] = useState(false);
 	const { trip, isLoading, error, isNotFound, retry } = useTripDetail(tripId);
@@ -91,6 +98,7 @@ export function TripDetailPage({
 		canRetry,
 		reset: resetBooking,
 	} = useBookTrip();
+	const tripOperations = useTripOperations();
 	const restoredBooking = useMemo(
 		() =>
 			restoredBookingDetails?.tripId === tripId ? toBookTripResponse(restoredBookingDetails) : null,
@@ -128,6 +136,9 @@ export function TripDetailPage({
 		void retry();
 		if (restoredBooking?.id === cancelledBookingId) void retryBookingRestore();
 	}, [cancelledBookingId, restoredBooking?.id, retry, retryBookingRestore]);
+	const canManageThisTrip = Boolean(
+		canManageTrips && currentUserId && trip?.hostId === currentUserId
+	);
 
 	const handleBook = useCallback(
 		async (targetTripId: string, numPeople: number, equipmentItems?: SelectedEquipmentItem[]) => {
@@ -337,6 +348,19 @@ export function TripDetailPage({
 								onConflictReload={handleConflictReload}
 								onConflictRetry={retryBooking}
 								onViewBookingDetails={onViewBookingDetails}
+								canManageTrip={canManageThisTrip}
+								hostOperations={{
+									trip,
+									isSubmitting: tripOperations.isSubmitting,
+									error: tripOperations.error,
+									successMessage: tripOperations.successMessage,
+									onReschedule: (input) => tripOperations.reschedule(trip.id, input),
+									onCancel: (input) => tripOperations.cancel(trip.id, input),
+									onRetry: tripOperations.retry,
+									onReset: tripOperations.reset,
+									onRefreshTrip: retry,
+									onEditTrip: onEditTrip ? () => onEditTrip(trip.id) : undefined,
+								}}
 							/>
 							{showOperationalRoster && <TripMemberRoster tripId={trip.id} />}
 						</>

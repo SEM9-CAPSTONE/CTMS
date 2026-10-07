@@ -113,8 +113,8 @@ describe("BookingPanel", () => {
 		render(<BookingPanel trip={trip} booking={booking} />);
 		const result = screen.getByRole("status");
 		expect(result).toHaveTextContent("Đặt chỗ đã được xác nhận");
-		expect(result).toHaveTextContent("confirmed");
-		expect(result).toHaveTextContent("not_required");
+		expect(result).toHaveTextContent("Đã xác nhận");
+		expect(result).toHaveTextContent("Không yêu cầu thanh toán");
 		expect(result).toHaveTextContent("2");
 		expect(screen.getByTestId("authoritative-booking-price")).toHaveTextContent(/1\.234\.567/);
 		expect(screen.queryByText(/giữ chỗ đến/i)).not.toBeInTheDocument();
@@ -145,8 +145,8 @@ describe("BookingPanel", () => {
 		);
 		const result = screen.getByRole("status");
 		expect(result).toHaveTextContent("Đã tạo đặt chỗ thành công");
-		expect(result).toHaveTextContent("pending_payment");
-		expect(result).toHaveTextContent("unpaid");
+		expect(result).toHaveTextContent("Chờ thanh toán");
+		expect(result).toHaveTextContent("Chưa thanh toán");
 		expect(result).toHaveTextContent("Giữ chỗ đến");
 		expect(screen.getByTestId("authoritative-booking-price")).toHaveTextContent(/900\.000/);
 		expect(screen.queryByText(/thanh toán thành công/i)).not.toBeInTheDocument();

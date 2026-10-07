@@ -2,10 +2,12 @@ import { API_ENDPOINTS, httpClient } from "../../../core/api";
 import type {
 	BookTripInput,
 	BookTripResponse,
+	CancelTripInput,
 	ConfigureTripWaypointsInput,
 	CreateTripInput,
 	PaginatedTrips,
 	PorterAssignedTrip,
+	RescheduleTripInput,
 	ReviewTripInput,
 	SearchTripsQuery,
 	Trip,
@@ -25,6 +27,12 @@ export const tripsService = {
 
 	review: (tripId: string, input: ReviewTripInput): Promise<Trip> =>
 		httpClient.patch<Trip>(API_ENDPOINTS.TRIPS.REVIEW(tripId), input),
+
+	reschedule: (tripId: string, input: RescheduleTripInput): Promise<TripDetails> =>
+		httpClient.patch<TripDetails>(API_ENDPOINTS.TRIPS.RESCHEDULE(tripId), input),
+
+	cancel: (tripId: string, input: CancelTripInput): Promise<TripDetails> =>
+		httpClient.patch<TripDetails>(API_ENDPOINTS.TRIPS.CANCEL(tripId), input),
 
 	search: (query?: SearchTripsQuery): Promise<PaginatedTrips> =>
 		httpClient.get<PaginatedTrips>(

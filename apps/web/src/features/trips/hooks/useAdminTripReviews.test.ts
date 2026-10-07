@@ -80,12 +80,19 @@ describe("useAdminTripReviews", () => {
 		let firstRequest!: Promise<unknown>;
 
 		testingLibrary.act(() => {
-			firstRequest = result.current.submit("trip-1", { action: "approve" });
+			firstRequest = result.current.submit("trip-1", {
+				action: "approve",
+				reviewedUpdatedAt: "2026-09-15T00:00:00.000Z",
+			});
 		});
 
 		expect(result.current.isSubmitting).toBe(true);
 		expect(
-			await result.current.submit("trip-1", { action: "decline", reason: "Duplicate request" })
+			await result.current.submit("trip-1", {
+				action: "decline",
+				reviewedUpdatedAt: "2026-09-15T00:00:00.000Z",
+				reason: "Duplicate request",
+			})
 		).toBeNull();
 		resolveReview({ status: "published" });
 		await testingLibrary.act(async () => firstRequest);

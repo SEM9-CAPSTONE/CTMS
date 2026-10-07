@@ -76,7 +76,7 @@ export function HostMyTripsPanel({
 	onEditTripDraft,
 }: HostMyTripsPanelProps) {
 	const { trips: fetchedTrips = [], isLoading, error, refetch } = useMyTrips();
-	const trips = Array.isArray(fetchedTrips) ? fetchedTrips : [];
+	const trips = useMemo(() => (Array.isArray(fetchedTrips) ? fetchedTrips : []), [fetchedTrips]);
 	const [selectedStatus, setSelectedStatus] = useState<"all" | TripStatus>("all");
 	const [currentPage, setCurrentPage] = useState(1);
 	const [pageSize, setPageSize] = useState(4);
@@ -149,7 +149,7 @@ export function HostMyTripsPanel({
 							className="gap-2 bg-[#164027] text-xs font-bold text-white hover:bg-[#123520]"
 						>
 							<CalendarPlus className="size-4" />
-							<span>Tạo trip</span>
+							<span>Tạo chuyến đi</span>
 						</Button>
 					)}
 					{onCreateTrekkingRoute && (
@@ -259,7 +259,7 @@ export function HostMyTripsPanel({
 								className="mt-4 gap-2 bg-[#164027] text-xs font-bold text-white"
 							>
 								<CalendarPlus className="size-4" />
-								<span>Tạo trip ngay</span>
+								<span>Tạo chuyến đi ngay</span>
 							</Button>
 						)}
 					</div>
@@ -347,16 +347,17 @@ export function HostMyTripsPanel({
 												</div>
 
 												<div className="flex items-center gap-2">
-													{trip.status === "draft" && onEditTripDraft && (
-														<button
-															type="button"
-															onClick={() => onEditTripDraft(trip.id)}
-															className="inline-flex items-center gap-1 rounded-xl bg-white px-3 py-1.5 text-xs font-bold text-[#164027] ring-1 ring-[#cbd9ce] transition-colors hover:bg-[#f4f7f2]"
-														>
-															<Pencil className="size-3.5" />
-															<span>Sửa</span>
-														</button>
-													)}
+													{(trip.status === "draft" || trip.status === "pending_approval") &&
+														onEditTripDraft && (
+															<button
+																type="button"
+																onClick={() => onEditTripDraft(trip.id)}
+																className="inline-flex items-center gap-1 rounded-xl bg-white px-3 py-1.5 text-xs font-bold text-[#164027] ring-1 ring-[#cbd9ce] transition-colors hover:bg-[#f4f7f2]"
+															>
+																<Pencil className="size-3.5" />
+																<span>Sửa</span>
+															</button>
+														)}
 													{onNavigateToTripDetail && (
 														<button
 															type="button"

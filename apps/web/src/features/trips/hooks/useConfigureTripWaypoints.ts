@@ -57,7 +57,7 @@ function backendMessage(error: HttpError): string | null {
 export function mapConfigureTripWaypointsError(error: unknown): ConfigureTripWaypointsError {
 	if (!(error instanceof HttpError)) {
 		return {
-			message: "Không thể cấu hình waypoint. Vui lòng kiểm tra kết nối và thử lại.",
+			message: "Không thể cấu hình điểm dừng. Vui lòng kiểm tra kết nối và thử lại.",
 			canRetry: true,
 			fieldErrors: {},
 		};
@@ -66,15 +66,15 @@ export function mapConfigureTripWaypointsError(error: unknown): ConfigureTripWay
 	const detail = backendMessage(error);
 	const byStatus: Record<number, string> = {
 		401: "Phiên đăng nhập không hợp lệ hoặc đã hết hạn.",
-		403: "Bạn không có quyền cấu hình waypoint cho trip này.",
+		403: "Bạn không có quyền cấu hình điểm dừng cho chuyến đi này.",
 		404: "Không tìm thấy trip cần cấu hình.",
-		409: "Trip không còn ở trạng thái cho phép cấu hình waypoint.",
-		422: "Danh sách waypoint chưa hợp lệ. Vui lòng kiểm tra các trường được đánh dấu.",
+		409: "Chuyến đi không còn ở trạng thái cho phép cấu hình điểm dừng.",
+		422: "Danh sách điểm dừng chưa hợp lệ. Vui lòng kiểm tra các trường được đánh dấu.",
 	};
 
 	return {
 		status: error.status,
-		message: detail || byStatus[error.status] || "Không thể cấu hình waypoint. Vui lòng thử lại.",
+		message: detail || byStatus[error.status] || "Không thể cấu hình điểm dừng. Vui lòng thử lại.",
 		canRetry: error.status === 409 || error.status >= 500,
 		fieldErrors: extractFieldErrors(error.errorData),
 	};
