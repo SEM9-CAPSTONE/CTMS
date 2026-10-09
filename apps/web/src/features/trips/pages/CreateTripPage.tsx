@@ -144,9 +144,10 @@ export function CreateTripPage({ onBackHome, onCreateRoute, editTripId }: Create
 					draftStorageKey={
 						isEditMode ? `ctms:trip-form-draft:${editTripId}` : "ctms:trip-form-draft:create"
 					}
-					submitLabel={isEditMode ? "Bước tiếp theo" : "Tạo bản nháp và cấu hình điểm dừng"}
+					submitLabel="Bước tiếp theo"
 					submittingLabel={isEditMode ? "Đang lưu chỉnh sửa..." : "Đang tạo trip..."}
 					title={isEditMode ? "Thông tin chuyến đi" : undefined}
+					allowPastScheduleValues={isEditMode}
 				/>
 			</main>
 		</div>

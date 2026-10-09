@@ -5,6 +5,7 @@ import { AdminLayout } from "../../admin-layout/components/AdminLayout";
 import { AdminTripReviewContent } from "../components/AdminTripReviewContent";
 import { TripReviewDecisionDialog } from "../components/TripReviewDecisionDialog";
 import { useAdminTripReviews, useReviewTrip } from "../hooks/useAdminTripReviews";
+import { useAdminTripReviewNotifications } from "../hooks/useTripReviewNotifications";
 import type { ReviewTripFormValues } from "../schema/review-trip.schema";
 
 export interface AdminTripsPageProps {
@@ -17,6 +18,8 @@ export function AdminTripsPage({ onLogout }: AdminTripsPageProps) {
 	const [selectedId, setSelectedId] = useState<string>();
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+	useAdminTripReviewNotifications({ onChanged: list.reload });
 
 	useEffect(() => {
 		setSelectedId((current) =>

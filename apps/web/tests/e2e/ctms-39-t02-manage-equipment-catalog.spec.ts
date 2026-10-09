@@ -80,7 +80,7 @@ test.describe("Manage Equipment Catalog Host UI", () => {
 
 		await expect(page.getByRole("heading", { name: "Sửa thiết bị" })).toHaveCount(0);
 		const updatedCard = page.getByTestId(/equipment-catalog-item-/).filter({ hasText: itemName });
-		await expect(updatedCard.getByText("Số lượng: 3")).toBeVisible();
+		await expect(updatedCard.getByText(/3\s+50\.000\s+₫/)).toBeVisible();
 		await expect(updatedCard.getByText("Ngừng hoạt động")).toBeVisible();
 	});
 

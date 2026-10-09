@@ -9,7 +9,8 @@ export type TripStatus =
 	| "published"
 	| "ongoing"
 	| "completed"
-	| "cancelled";
+	| "cancelled"
+	| "rejected";
 
 export const TRIP_STATUS_LABELS: Record<TripStatus, string> = {
 	draft: "Bản nháp",
@@ -18,6 +19,7 @@ export const TRIP_STATUS_LABELS: Record<TripStatus, string> = {
 	ongoing: "Đang diễn ra",
 	completed: "Đã hoàn thành",
 	cancelled: "Đã huỷ",
+	rejected: "Bị từ chối",
 };
 
 export function formatTripStatus(status: TripStatus): string {

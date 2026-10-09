@@ -113,7 +113,7 @@ test.describe("CTMS-30-T02 Add Members to Booking (UI)", () => {
 		await page.getByTestId("num-people-value").fill("2");
 		await page.getByRole("button", { name: "Đặt chỗ ngay" }).click();
 		await expect(page.getByText("Đã tạo đặt chỗ thành công")).toBeVisible();
-		await expect(page.getByRole("heading", { name: "Xác nhận người tham gia" })).toBeVisible();
+		await expect(page.getByRole("heading", { name: "Danh sách người tham gia" })).toBeVisible();
 	}
 
 	async function resolveParticipant(page: Page) {
@@ -129,7 +129,7 @@ test.describe("CTMS-30-T02 Add Members to Booking (UI)", () => {
 
 		const roster = page
 			.getByRole("status")
-			.filter({ hasText: "Danh sách người tham gia đã được xác nhận" });
+			.filter({ hasText: "Danh sách thành viên chuyến đi đã được lưu đầy đủ" });
 		await expect(roster).toBeVisible();
 		await expect(roster).toContainText("Bạn");
 		await expect(roster).toContainText(participantEmail);

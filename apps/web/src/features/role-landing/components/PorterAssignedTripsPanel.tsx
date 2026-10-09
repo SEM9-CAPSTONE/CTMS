@@ -10,6 +10,7 @@ const statusLabels: Record<TripStatus, string> = {
 	ongoing: "Đang diễn ra",
 	completed: "Đã hoàn thành",
 	cancelled: "Đã hủy",
+	rejected: "Bị từ chối",
 };
 
 function formatRange(startsAt: string, endsAt: string) {

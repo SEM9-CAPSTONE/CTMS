@@ -19,6 +19,17 @@ function runDbHelper(action: string, argPayload: unknown): void {
 	});
 }
 
+function readDbHelper<T>(action: string, argPayload: unknown): T {
+	const base64 = Buffer.from(JSON.stringify(argPayload)).toString("base64");
+	const stdout = execSync(
+		`node node_modules/ts-node/dist/bin.js src/seeds/db-helper.ts ${action} ${base64}`,
+		{
+			cwd: path.join(WORKSPACE_ROOT, "services/api"),
+		}
+	).toString();
+	return JSON.parse(stdout) as T;
+}
+
 async function loginAs(
 	page: import("@playwright/test").Page,
 	email: string,
@@ -38,12 +49,21 @@ async function loginAs(
 
 test.describe("CTMS-43-T02 Manage Porter Profile & Route Qualifications", () => {
 	test.describe.configure({ mode: "serial" });
+	let seededRouteId = "";
 
 	test.beforeAll(() => {
 		// Ensure dev accounts & host route exist
 		runSeed("src/seeds/dev-admin.seed.ts");
 		runSeed("src/seeds/dev-host-route.seed.ts");
 		runDbHelper("clean-porter-data", { porterEmail: "porter@ctms.local" });
+		const routeLookup = readDbHelper<{ route: { id: string } | null }>(
+			"get-trekking-route-by-name",
+			{ name: "Đỉnh Núi Bidoup Trail" }
+		);
+		if (!routeLookup.route) {
+			throw new Error("Expected seeded trekking route 'Đỉnh Núi Bidoup Trail' to exist");
+		}
+		seededRouteId = routeLookup.route.id;
 	});
 
 	test("Scenario 1 — Porter profile create/edit and reload persistence", async ({ page }) => {
@@ -96,7 +116,7 @@ test.describe("CTMS-43-T02 Manage Porter Profile & Route Qualifications", () => 
 		await expect(page.getByTestId("qualification-dialog")).toBeVisible();
 
 		// Input route UUID for active test route
-		await page.locator("#routeId").fill("400dc5c4-8e81-497f-92a0-6fe3249ef922");
+		await page.locator("#routeId").fill(seededRouteId);
 
 		// Select proficiency "proficient"
 		await page.getByRole("button", { name: /Thành thạo \(Proficient\)/i }).click();
@@ -141,11 +161,12 @@ test.describe("CTMS-43-T02 Manage Porter Profile & Route Qualifications", () => 
 		await expect(page.getByRole("heading", { name: "Tuyến trekking của Host" })).toBeVisible();
 
 		// Scroll to Porter review section
-		await expect(page.getByTestId("route-porter-qualifications-panel")).toBeVisible();
-		await expect(page.getByText("Porter #b6201c42")).toBeVisible();
+		const reviewPanel = page.getByTestId("route-porter-qualifications-panel");
+		await expect(reviewPanel).toBeVisible();
+		await expect(reviewPanel.getByText("7 lần")).toBeVisible();
 
 		// Verify button should be visible
-		const verifyBtn = page.getByRole("button", { name: "Xác minh" }).first();
+		const verifyBtn = reviewPanel.getByRole("button", { name: "Xác minh" }).first();
 		await expect(verifyBtn).toBeVisible();
 		await verifyBtn.click();
 

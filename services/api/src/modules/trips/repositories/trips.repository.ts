@@ -96,6 +96,13 @@ export interface TripCancellationCommitmentSummary {
 	bookingRefundsCreated: number;
 }
 
+export interface PendingReviewDeadlineCandidate {
+	id: string;
+	hostId: string;
+	title: string;
+	updatedAt: Date;
+}
+
 /**
  * CTMS-024 – Prevent Trip Overbooking.
  * Minimal projection locked FOR UPDATE to validate and increment seats_taken
@@ -696,6 +703,53 @@ export class TripsRepository extends Repository<Trip> {
 		)) as TripRow[];
 
 		return rows.map(toTripResponse);
+	}
+
+	async findPendingReviewReminderCandidates(
+		reminderStartsBefore: Date,
+		expiresBefore: Date
+	): Promise<PendingReviewDeadlineCandidate[]> {
+		return this.query(
+			`
+			SELECT
+				trip."id",
+				trip."host_id" AS "hostId",
+				trip."title",
+				trip."updated_at" AS "updatedAt"
+			FROM "trips" trip
+			WHERE trip."status" = $1
+				AND trip."updated_at" <= $2
+				AND trip."updated_at" > $3
+				AND NOT EXISTS (
+					SELECT 1
+					FROM "audit_logs" audit
+					WHERE audit."target_type" = 'trip'
+						AND audit."target_id" = trip."id"
+						AND audit."action" = 'trip.review.reminder_sent'
+				)
+			ORDER BY trip."updated_at" ASC, trip."id" ASC
+			`,
+			[TripStatus.PENDING_APPROVAL, reminderStartsBefore, expiresBefore]
+		);
+	}
+
+	async findExpiredPendingReviewCandidates(
+		expiresBefore: Date
+	): Promise<PendingReviewDeadlineCandidate[]> {
+		return this.query(
+			`
+			SELECT
+				trip."id",
+				trip."host_id" AS "hostId",
+				trip."title",
+				trip."updated_at" AS "updatedAt"
+			FROM "trips" trip
+			WHERE trip."status" = $1
+				AND trip."updated_at" <= $2
+			ORDER BY trip."updated_at" ASC, trip."id" ASC
+			`,
+			[TripStatus.PENDING_APPROVAL, expiresBefore]
+		);
 	}
 
 	async findTripsByHost(hostId: string): Promise<TripResponseDto[]> {

@@ -3,12 +3,14 @@ import {
 	ForbiddenException,
 	Injectable,
 	NotFoundException,
+	Optional,
 	UnprocessableEntityException,
 } from "@nestjs/common";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { DataSource, type EntityManager } from "typeorm";
 import { AuditLog } from "../../auth/entities/audit-log.entity";
 import type { AuthenticatedUser } from "../../auth/jwt.strategy";
+import type { EventsGateway } from "../../realtime/events.gateway";
 import { TrekkingRouteStatus } from "../../trekking-routes/entities/trekking-route.entity";
 import { UserRole } from "../../users/entities/user.entity";
 import type {
@@ -38,6 +40,9 @@ interface FieldValidationError {
 
 const ONE_DAY_IN_MILLISECONDS = 24 * 60 * 60 * 1000;
 const TWENTY_FOUR_HOURS_IN_MILLISECONDS = 24 * 60 * 60 * 1000;
+const TRIP_REVIEW_REMINDER_BEFORE_DEADLINE_MS = 60 * 60 * 1000;
+const TRIP_REVIEW_AUTO_REJECT_REASON =
+	"Trip was automatically rejected because it was not approved within 24 hours.";
 const TRIP_BUSINESS_TIME_ZONE = "Asia/Ho_Chi_Minh";
 const tripDateFormatter = new Intl.DateTimeFormat("en-CA", {
 	timeZone: TRIP_BUSINESS_TIME_ZONE,
@@ -50,7 +55,8 @@ const tripDateFormatter = new Intl.DateTimeFormat("en-CA", {
 export class TripsService {
 	constructor(
 		private readonly tripsRepository: TripsRepository,
-		private readonly dataSource: DataSource
+		private readonly dataSource: DataSource,
+		@Optional() private readonly eventsGateway?: EventsGateway
 	) {}
 
 	async search(query: SearchTripsQueryDto): Promise<PaginatedTripsResponseDto> {
@@ -311,64 +317,73 @@ export class TripsService {
 		tripId: string,
 		dto: ConfigureTripWaypointsDto
 	): Promise<TripResponseDto> {
-		return this.dataSource.transaction(async (manager: EntityManager) => {
-			const repository = manager.withRepository(this.tripsRepository);
-			const lockedTrip = await repository.findByIdForWaypointConfiguration(tripId);
+		const result = await this.dataSource.transaction(
+			async (
+				manager: EntityManager
+			): Promise<{ trip: TripResponseDto; submittedForReview: boolean }> => {
+				const repository = manager.withRepository(this.tripsRepository);
+				const lockedTrip = await repository.findByIdForWaypointConfiguration(tripId);
 
-			if (!lockedTrip) {
-				throw new NotFoundException("Trip not found");
+				if (!lockedTrip) {
+					throw new NotFoundException("Trip not found");
+				}
+				if (lockedTrip.hostId !== hostId) {
+					throw new ForbiddenException("Only the owning Host can configure this Trip");
+				}
+
+				this.assertConfigurableTripStatus(lockedTrip.trip, dto);
+				this.assertWaypointPayload(dto.waypoints, lockedTrip.trip, true);
+
+				const checkpointIds = dto.waypoints
+					.map((waypoint) => waypoint.checkpointId)
+					.filter((checkpointId): checkpointId is string => Boolean(checkpointId));
+				const invalidCheckpointIds = await repository.findInvalidWaypointCheckpointIds(
+					lockedTrip.routeId,
+					[...new Set(checkpointIds)]
+				);
+				if (invalidCheckpointIds.length > 0) {
+					throw this.validationException([
+						{
+							field: "waypoints.checkpointId",
+							errors: [
+								`checkpoint must exist on the selected Route: ${invalidCheckpointIds.join(", ")}`,
+							],
+						},
+					]);
+				}
+
+				if (
+					lockedTrip.status === TripStatus.PENDING_APPROVAL &&
+					waypointsMatchDto(lockedTrip.trip.waypoints, dto.waypoints)
+				) {
+					return { trip: lockedTrip.trip, submittedForReview: false };
+				}
+
+				const updated = await repository.replaceWaypointsAndSubmitForApproval(
+					tripId,
+					sortWaypointsByPlannedAt(dto.waypoints).map((waypoint, index) =>
+						toWaypointInput(waypoint, index, new Date(lockedTrip.trip.startsAt))
+					)
+				);
+
+				await manager.getRepository(AuditLog).save({
+					actorId: hostId,
+					action: "trip_waypoints.configured",
+					targetType: "trip",
+					targetId: tripId,
+					before: this.buildWaypointAuditSnapshot(lockedTrip.trip),
+					after: this.buildWaypointAuditSnapshot(updated),
+					reason: "host_configure_trip_waypoints",
+				});
+
+				return {
+					trip: updated,
+					submittedForReview: lockedTrip.status !== TripStatus.PENDING_APPROVAL,
+				};
 			}
-			if (lockedTrip.hostId !== hostId) {
-				throw new ForbiddenException("Only the owning Host can configure this Trip");
-			}
-
-			this.assertConfigurableTripStatus(lockedTrip.trip, dto);
-			this.assertWaypointPayload(dto.waypoints, lockedTrip.trip, true);
-
-			const checkpointIds = dto.waypoints
-				.map((waypoint) => waypoint.checkpointId)
-				.filter((checkpointId): checkpointId is string => Boolean(checkpointId));
-			const invalidCheckpointIds = await repository.findInvalidWaypointCheckpointIds(
-				lockedTrip.routeId,
-				[...new Set(checkpointIds)]
-			);
-			if (invalidCheckpointIds.length > 0) {
-				throw this.validationException([
-					{
-						field: "waypoints.checkpointId",
-						errors: [
-							`checkpoint must exist on the selected Route: ${invalidCheckpointIds.join(", ")}`,
-						],
-					},
-				]);
-			}
-
-			if (
-				lockedTrip.status === TripStatus.PENDING_APPROVAL &&
-				waypointsMatchDto(lockedTrip.trip.waypoints, dto.waypoints)
-			) {
-				return lockedTrip.trip;
-			}
-
-			const updated = await repository.replaceWaypointsAndSubmitForApproval(
-				tripId,
-				sortWaypointsByPlannedAt(dto.waypoints).map((waypoint, index) =>
-					toWaypointInput(waypoint, index, new Date(lockedTrip.trip.startsAt))
-				)
-			);
-
-			await manager.getRepository(AuditLog).save({
-				actorId: hostId,
-				action: "trip_waypoints.configured",
-				targetType: "trip",
-				targetId: tripId,
-				before: this.buildWaypointAuditSnapshot(lockedTrip.trip),
-				after: this.buildWaypointAuditSnapshot(updated),
-				reason: "host_configure_trip_waypoints",
-			});
-
-			return updated;
-		});
+		);
+		if (result.submittedForReview) this.emitTripReviewRequested(result.trip);
+		return result.trip;
 	}
 
 	/**
@@ -378,6 +393,52 @@ export class TripsService {
 	 */
 	listPendingReview(): Promise<TripResponseDto[]> {
 		return this.tripsRepository.findPendingReview();
+	}
+
+	async processPendingReviewDeadlines(now = new Date()): Promise<{
+		reminded: number;
+		rejected: number;
+	}> {
+		const expiresBefore = new Date(now.getTime() - TWENTY_FOUR_HOURS_IN_MILLISECONDS);
+		const reminderStartsBefore = new Date(
+			now.getTime() - (TWENTY_FOUR_HOURS_IN_MILLISECONDS - TRIP_REVIEW_REMINDER_BEFORE_DEADLINE_MS)
+		);
+		const reminders = await this.tripsRepository.findPendingReviewReminderCandidates(
+			reminderStartsBefore,
+			expiresBefore
+		);
+		let reminded = 0;
+		for (const trip of reminders) {
+			await this.dataSource.transaction(async (manager: EntityManager) => {
+				await manager.getRepository(AuditLog).save({
+					actorId: null,
+					action: "trip.review.reminder_sent",
+					targetType: "trip",
+					targetId: trip.id,
+					before: { status: TripStatus.PENDING_APPROVAL },
+					after: {
+						status: TripStatus.PENDING_APPROVAL,
+						reviewedUpdatedAt: trip.updatedAt,
+						deadlineAt: this.reviewDeadlineAt(trip.updatedAt),
+					},
+					reason: "admin_review_deadline_reminder",
+				});
+			});
+			reminded += 1;
+			this.emitTripReviewReminder(trip);
+		}
+
+		const expired = await this.tripsRepository.findExpiredPendingReviewCandidates(expiresBefore);
+		let rejected = 0;
+		for (const trip of expired) {
+			const updated = await this.autoRejectPendingReviewTrip(trip.id, now);
+			if (updated) {
+				rejected += 1;
+				this.emitTripReviewAutoRejected(updated, now);
+			}
+		}
+
+		return { reminded, rejected };
 	}
 
 	/**
@@ -432,6 +493,38 @@ export class TripsService {
 				reason: dto.action === ReviewTripAction.APPROVE ? null : (dto.reason ?? null),
 			});
 
+			return updated;
+		});
+	}
+
+	private async autoRejectPendingReviewTrip(
+		tripId: string,
+		rejectedAt: Date
+	): Promise<TripResponseDto | null> {
+		return this.dataSource.transaction(async (manager: EntityManager) => {
+			const repository = manager.withRepository(this.tripsRepository);
+			const locked = await repository.findByIdForReview(tripId);
+			if (!locked || locked.status !== TripStatus.PENDING_APPROVAL) return null;
+
+			const deadlineAt = new Date(
+				new Date(locked.trip.updatedAt).getTime() + TWENTY_FOUR_HOURS_IN_MILLISECONDS
+			);
+			if (deadlineAt > rejectedAt) return null;
+
+			const updated = await repository.updateStatus(tripId, TripStatus.REJECTED);
+			await manager.getRepository(AuditLog).save({
+				actorId: null,
+				action: "trip.auto_rejected",
+				targetType: "trip",
+				targetId: tripId,
+				before: { status: TripStatus.PENDING_APPROVAL },
+				after: {
+					status: TripStatus.REJECTED,
+					rejectedAt,
+					deadlineAt,
+				},
+				reason: TRIP_REVIEW_AUTO_REJECT_REASON,
+			});
 			return updated;
 		});
 	}
@@ -872,6 +965,47 @@ export class TripsService {
 			startsAt: trip.startsAt,
 			endsAt: trip.endsAt,
 		};
+	}
+
+	private reviewDeadlineAt(reviewedUpdatedAt: Date | string): string {
+		return new Date(
+			new Date(reviewedUpdatedAt).getTime() + TWENTY_FOUR_HOURS_IN_MILLISECONDS
+		).toISOString();
+	}
+
+	private emitTripReviewRequested(trip: TripResponseDto): void {
+		this.eventsGateway?.emitTripReviewRequested({
+			tripId: trip.id,
+			title: trip.title,
+			hostId: trip.hostId,
+			submittedAt: new Date(trip.updatedAt).toISOString(),
+			deadlineAt: this.reviewDeadlineAt(trip.updatedAt),
+		});
+	}
+
+	private emitTripReviewReminder(trip: {
+		id: string;
+		title: string;
+		hostId: string;
+		updatedAt: Date;
+	}): void {
+		this.eventsGateway?.emitTripReviewReminder({
+			tripId: trip.id,
+			title: trip.title,
+			hostId: trip.hostId,
+			submittedAt: trip.updatedAt.toISOString(),
+			deadlineAt: this.reviewDeadlineAt(trip.updatedAt),
+		});
+	}
+
+	private emitTripReviewAutoRejected(trip: TripResponseDto, rejectedAt: Date): void {
+		this.eventsGateway?.emitTripReviewAutoRejected({
+			tripId: trip.id,
+			title: trip.title,
+			hostId: trip.hostId,
+			rejectedAt: rejectedAt.toISOString(),
+			reason: TRIP_REVIEW_AUTO_REJECT_REASON,
+		});
 	}
 }
 

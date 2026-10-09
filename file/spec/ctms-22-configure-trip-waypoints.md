@@ -26,6 +26,7 @@ Acceptance Criteria:
 | PB AC-6 | Overnight waypoint configuration must be consistent with `duration_nights` and Trip type. |
 | PB AC-7 | Invalid waypoint configuration must not partially update the Trip itinerary. |
 | PB AC-8 | AI/recommendation output, if used, cannot override the deterministic waypoint and Trip rules. |
+| PB AC-9 | When the Trip is submitted for approval, eligible Admin users are notified that a new Trip requires review. |
 
 ## 2. Scope
 
@@ -40,8 +41,11 @@ Acceptance Criteria:
 - Optionally associate a Trip waypoint with a Route Checkpoint.
 - Chronologically order waypoints.
 - Validate start and finish waypoints.
+- Initialize Start and Finish waypoints from the approved Trekking Route when the Host reaches itinerary configuration.
 - Validate overnight stops against `duration_nights`.
 - Validate Trip-type compatibility.
+- Submit a complete draft Trip to `pending_approval` after waypoint validation succeeds.
+- Notify Admin users when a Trip enters `pending_approval`.
 - Persist the waypoint set atomically where the operation changes multiple waypoint records.
 
 ### Out of Scope
@@ -92,6 +96,8 @@ Preconditions:
 | BR-059 | Before publishing an overnight Trip, the number of waypoints with type = overnight must exactly match duration_nights, and their day/order placement must be consistent with the Trip duration.                                                                                                                                                                                                                                              |
 | BR-060 | A Trip with trip_type = day_trip must have duration_nights = 0 and must not contain any waypoint with type = overnight.                                                                                                                                                                                                                                                                                                                      |
 | BR-218 | When trip_waypoint.checkpoint_id is not NULL, the backend must verify that the Checkpoint belongs to trips.route_id and must snapshot checkpoints.location into trip_waypoints.location. Later Checkpoint changes must not automatically alter the Trip's snapshotted location. When checkpoint_id = NULL, the Host must provide a valid custom location.                                                                                    |
+| BR-220 | The Start and Finish Trip waypoints must be initialized from the approved Trekking Route's authoritative start and finish locations. Meeting Point is independent Trip data and must not be used to overwrite the Start Waypoint.                                                                                                                                                                                                            |
+| BR-221 | Submitting a draft Trip for review changes status to pending_approval only after the complete waypoint set passes validation. The system must notify eligible Admin users that a new Trip is waiting for review.                                                                                                                                                                                                                            |
 | BR-174 | All input must be validated for required fields, data type, format, length, enum membership, and cross-field relationships before processing.                                                                                                                                                                                                                                                                                                |
 | BR-183 | Every data relationship must reference an existing, valid record. Child records must not be created for a resource outside the correct business scope.                                                                                                                                                                                                                                                                                       |
 | BR-188 | Absolute timestamps must be stored as timestamptz. Pure calendar dates use date, and time-of-day values use time where defined by schema. APIs must transmit timezone/offset explicitly, and the UI must display values using the configured timezone.                                                                                                                                                                                       |
@@ -144,32 +150,40 @@ Exact persistence deletion semantics are defined by Technical Design/Data Dictio
    - Route/version;
    - existing Trip waypoints.
 
-4. Host creates, edits or removes waypoint data.
+4. System initializes or displays Start and Finish waypoints from the approved Route's authoritative start and finish locations.
 
-5. For each waypoint, backend validates:
+5. Host creates, edits or removes configurable waypoint data.
+
+6. Meeting Point remains independent Trip data and is not overwritten by Start Waypoint initialization.
+
+7. For each waypoint, backend validates:
    - waypoint belongs to target Trip;
    - required type is valid;
    - location is valid;
    - `planned_at` is valid;
    - `planned_at` lies within Trip schedule.
 
-6. If `checkpoint_id` is provided, backend verifies that the Checkpoint belongs to the Trip's Route/version.
+8. If `checkpoint_id` is provided, backend verifies that the Checkpoint belongs to the Trip's Route/version.
 
-7. System orders itinerary chronologically using `planned_at`.
+9. System orders itinerary chronologically using `planned_at`.
 
-8. System validates first/last waypoint semantics according to the authoritative waypoint rules.
+10. System validates first/last waypoint semantics according to the authoritative waypoint rules.
 
-9. System validates overnight waypoint count against `duration_nights`.
+11. System validates overnight waypoint count against `duration_nights`.
 
-10. System validates Trip-type compatibility.
+12. System validates Trip-type compatibility.
 
-11. Any AI recommendation is treated only as proposed input and passes through the same deterministic validations.
+13. Any AI recommendation is treated only as proposed input and passes through the same deterministic validations.
 
-12. If the complete change set is valid, backend persists it atomically.
+14. If the complete change set is valid, backend persists it atomically.
 
-13. Trip remains in its permitted configuration state.
+15. Trip remains in its permitted configuration state while the Host continues editing.
 
-14. Host may later submit the Trip for approval.
+16. When the Host submits for review, backend revalidates the complete waypoint set.
+
+17. If validation passes, Trip status changes from `draft` to `pending_approval`.
+
+18. System notifies eligible Admin users that a new Trip requires review.
 
 ## 8. Data & Invariants
 
@@ -180,6 +194,8 @@ Exact persistence deletion semantics are defined by Technical Design/Data Dictio
 - Waypoint ordering is chronological.
 - First waypoint satisfies the authoritative `start` requirement.
 - Last waypoint satisfies the authoritative `finish` requirement.
+- Start and Finish Waypoints are based on the approved Route, not on Meeting Point.
+- Meeting Point remains independent from Trip waypoints.
 - Overnight configuration agrees with `duration_nights`.
 - Trip type and overnight configuration cannot contradict each other.
 - `day_number`, `sequence_order`, and `duration_minutes` must not become alternative authoritative scheduling fields if they are merely derived values.
@@ -206,10 +222,14 @@ The exact endpoint, DTO, Point representation, waypoint-type enum, Checkpoint re
 | Referenced Checkpoint belongs to another Route | Reject. |
 | First waypoint violates start rule | Reject complete invalid configuration. |
 | Last waypoint violates finish rule | Reject complete invalid configuration. |
+| Meeting Point differs from Start Waypoint | Keep both values; do not overwrite Meeting Point or Start Waypoint. |
+| Route changes before waypoint submission | Reinitialize Start/Finish from the selected approved Route; do not overwrite Meeting Point. |
 | Overnight count conflicts with `duration_nights` | Reject. |
 | Day-trip type contains prohibited overnight stop | Reject. |
 | AI proposes invalid waypoint | Reject proposal as authoritative configuration. |
 | One record in multi-waypoint update fails | Roll back the authoritative change set. |
+| Complete waypoint set submitted for review | Persist valid waypoints and change Trip to `pending_approval`. |
+| Trip submitted for review | Notify eligible Admin users. |
 
 ## 11. Acceptance & Test Matrix
 
@@ -223,11 +243,14 @@ The exact endpoint, DTO, Point representation, waypoint-type enum, Checkpoint re
 | PB AC-4, BR-058 | Multiple waypoints supplied | Ordered by `planned_at` | Integration |
 | PB AC-4, BR-188 | Waypoint outside Trip schedule | Rejected | Boundary |
 | PB AC-5, BR-058 | Valid start/finish ordering | Accepted | Integration |
+| PB AC-5, BR-220 | Start/Finish initialized from approved Route | Start and Finish waypoints use Route locations | Unit / E2E |
+| PB AC-5, BR-220 | Meeting Point differs from Start Waypoint | Values remain independent | Unit |
 | PB AC-6, BR-059 | Overnight count matches duration | Accepted | Integration |
 | PB AC-6, BR-059 | Overnight count conflicts with duration | Rejected | Boundary |
 | PB AC-6, BR-060 | Trip type conflicts with overnight data | Rejected | Boundary |
 | PB AC-7 | One item in atomic update invalid | No partial itinerary update | Transaction |
 | PB AC-8, BR-218 | AI suggests rule-breaking waypoint | Deterministic rule wins | AI Safety / Integration |
+| PB AC-9, BR-221 | Valid Trip submitted for approval | Trip enters `pending_approval` and Admin notification is emitted | Integration / E2E |
 | BR-212, BR-213 | Contract changes | Spec/tests/data docs updated | Process |
 
 ## 12. Open Decisions

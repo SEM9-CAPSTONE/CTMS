@@ -191,6 +191,32 @@ describe("ConfigureTripWaypointsPanel", () => {
 		expect(screen.getAllByText("Ngày 1").length).toBeGreaterThanOrEqual(3);
 	});
 
+	it("deduplicates duplicated finish waypoints from existing draft data", () => {
+		const finishWaypoint = draftTrip.waypoints[1];
+
+		if (!finishWaypoint) {
+			throw new Error("Expected finish waypoint to exist");
+		}
+
+		render(
+			<ConfigureTripWaypointsPanel
+				trip={{
+					...draftTrip,
+					waypoints: [
+						...draftTrip.waypoints,
+						{
+							...finishWaypoint,
+							id: "88888888-8888-4888-8888-888888888888",
+						},
+					],
+				}}
+				route={route}
+			/>
+		);
+
+		expect(screen.getAllByText(/Kết thúc/)).toHaveLength(1);
+	});
+
 	it("shows empty checkpoint state while preserving custom location editing", () => {
 		checkpointState = {
 			items: [],

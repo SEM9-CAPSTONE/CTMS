@@ -1,8 +1,11 @@
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { expect, test } from "@playwright/test";
 
 const WORKSPACE_ROOT = path.resolve(process.cwd(), "../..");
+const API_ROOT = path.join(WORKSPACE_ROOT, "services", "api");
+const TS_NODE_BIN = path.join(API_ROOT, "node_modules", "ts-node", "dist", "bin.js");
+const DB_HELPER = path.join(API_ROOT, "src", "seeds", "db-helper.ts");
 
 function uniqueEmail(tag: string): string {
 	const randomPart = Math.floor(Math.random() * 100000)
@@ -52,8 +55,9 @@ interface DbHelperLogsResult {
 }
 
 function runDbHelper(action: string, arg: string): Record<string, unknown> {
-	const cmd = `pnpm --filter @ctms/api exec ts-node src/seeds/db-helper.ts ${action} ${arg}`;
-	const stdout = execSync(cmd, { cwd: WORKSPACE_ROOT }).toString();
+	const stdout = execFileSync(process.execPath, [TS_NODE_BIN, DB_HELPER, action, arg], {
+		cwd: API_ROOT,
+	}).toString();
 	return JSON.parse(stdout) as Record<string, unknown>;
 }
 

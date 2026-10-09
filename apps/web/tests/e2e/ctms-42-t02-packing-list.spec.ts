@@ -30,14 +30,26 @@ async function login(page: Page, userEmail: string) {
 	await expect.poll(() => page.evaluate(() => localStorage.getItem("accessToken"))).toBeTruthy();
 }
 
+async function selectEquipmentBeforeBooking(page: Page, name: string, quantity: number) {
+	await page.getByRole("button", { name: "Xem tất cả thiết bị cho thuê" }).click();
+	const item = page.locator('[data-testid^="equipment-item-"]').filter({ hasText: name });
+	await item.getByLabel(`Chọn thuê ${name}`).check();
+	for (let current = 1; current < quantity; current += 1) {
+		await item.getByRole("button", { name: `Tăng số lượng ${name}` }).click();
+	}
+	await page.getByRole("button", { name: /Xác nhận thuê/ }).click();
+	await expect(page.getByTestId("equipment-confirm-modal-step")).toBeVisible();
+	await page.getByRole("button", { name: "Xác nhận & Áp dụng" }).click();
+	await expect(page.getByTestId("rentable-equipment-modal-backdrop")).toHaveCount(0);
+}
+
 /**
  * CTMS-42-T02. Real backend/Postgres/Chrome, no mocking (mirrors
  * ctms-40-t02-add-equipment-to-booking.spec.ts's own db-helper convention).
  * Seeds a published day-trip Trip with a green Weather Risk assessment and
  * an active equipment_catalog_item (both already-tested preconditions of
  * CTMS-024/CTMS-029/CTMS-039, not this story's concern), then drives the
- * real "Đặt chỗ" -> packing list -> "Thêm thiết bị" -> packing list refresh
- * -> standalone page flow through the UI.
+ * real pre-booking equipment selection -> booking -> packing list flow.
  */
 test.describe("CTMS-42-T02 Receive Personalized Packing List for Trip (UI)", () => {
 	test.describe.configure({ mode: "serial" });
@@ -125,18 +137,16 @@ test.describe("CTMS-42-T02 Receive Personalized Packing List for Trip (UI)", () 
 		await page.goto(`/trips/${tripId}`);
 
 		await expect(page.getByText(tripTitle)).toBeVisible();
+		await selectEquipmentBeforeBooking(page, equipmentName, 1);
 		await page.getByRole("button", { name: /đặt chỗ ngay/i }).click();
 		await expect(page.getByRole("heading", { name: "Đã tạo đặt chỗ thành công" })).toBeVisible();
 
-		await expect(page.getByText("Danh sách đồ cần chuẩn bị")).toBeVisible();
+		await expect(page.getByText("Thiết bị thuê kèm (1 món):")).toBeVisible();
+		await page.getByRole("button", { name: /Xem danh sách đồ cần chuẩn bị/ }).click();
+		const dialog = page.getByRole("dialog");
+		await expect(dialog.getByRole("heading", { name: "Danh sách đồ cần chuẩn bị" })).toBeVisible();
 		await expect(page.getByTestId("packing-list-item-id-documents")).toBeVisible();
 		await expect(page.getByTestId("packing-list-item-drinking-water")).toBeVisible();
-		await expect(page.locator('[data-testid^="packing-list-item-rented-"]')).toHaveCount(0);
-
-		await page.getByLabel("Thiết bị", { exact: true }).selectOption(equipmentId);
-		await page.getByLabel("Số lượng thiết bị").fill("1");
-		await page.getByRole("button", { name: "Thêm thiết bị" }).click();
-		await expect(page.getByText(new RegExp(`${equipmentName} x1`))).toBeVisible();
 
 		const rentedItem = page.locator('[data-testid^="packing-list-item-rented-"]');
 		await expect(rentedItem).toBeVisible();
