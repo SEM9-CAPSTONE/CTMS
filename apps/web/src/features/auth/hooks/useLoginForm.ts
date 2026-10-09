@@ -3,6 +3,7 @@ import { HttpError } from "../../../core/api";
 import { authService } from "../services/auth.service";
 import type { LoginApiResponse, LoginFormData } from "../types";
 import { formatAuthIdentifier, isValidEmail, isValidPhoneNumber } from "../utils/auth.utils";
+import { markUserActivity } from "../utils/idleActivity";
 import { setAccessToken, setRefreshToken, setStoredAuthUser } from "../utils/tokenStorage";
 
 /** Data prepared from a failed submit, for LoginForm to render. */
@@ -87,6 +88,7 @@ export function useLoginForm(onLoginSuccess?: (user: LoginApiResponse["user"]) =
 			setAccessToken(result.accessToken);
 			setRefreshToken(result.refreshToken);
 			setStoredAuthUser(result.user);
+			markUserActivity();
 			setLoginResult(result);
 			onLoginSuccess?.(result.user);
 		} catch (error) {
