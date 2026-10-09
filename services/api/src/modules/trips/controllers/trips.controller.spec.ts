@@ -1,10 +1,15 @@
 import type { AuthenticatedUser } from "../../auth/jwt.strategy";
 import { UserRole, UserStatus } from "../../users/entities/user.entity";
+import {
+	type AvailablePortersQueryDto,
+	IntendedPorterRole,
+} from "../dto/available-porters-query.dto";
 import type { ConfigureTripWaypointsDto, CreateTripDto } from "../dto/create-trip.dto";
 import { ReviewTripAction, type ReviewTripDto } from "../dto/review-trip.dto";
 import type { SearchTripsQueryDto } from "../dto/search-trips-query.dto";
 import type { PaginatedTripsResponseDto, TripResponseDto } from "../dto/trip-response.dto";
 import { TripStatus, TripType } from "../entities/trip.entity";
+import type { AvailablePortersService } from "../services/available-porters.service";
 import type { TripsService } from "../services/trips.service";
 import { TripsController } from "./trips.controller";
 
@@ -27,6 +32,7 @@ describe("TripsController", () => {
 		listPendingReview: jest.Mock;
 		review: jest.Mock;
 	};
+	let availablePortersService: { search: jest.Mock };
 	let controller: TripsController;
 
 	beforeEach(() => {
@@ -39,7 +45,11 @@ describe("TripsController", () => {
 			listPendingReview: jest.fn(),
 			review: jest.fn(),
 		};
-		controller = new TripsController(tripsService as unknown as TripsService);
+		availablePortersService = { search: jest.fn() };
+		controller = new TripsController(
+			tripsService as unknown as TripsService,
+			availablePortersService as unknown as AvailablePortersService
+		);
 	});
 
 	describe("search", () => {
@@ -55,6 +65,30 @@ describe("TripsController", () => {
 
 			expect(tripsService.search).toHaveBeenCalledWith(query);
 			expect(result).toBe(mockResult);
+		});
+	});
+
+	describe("getAvailablePorters", () => {
+		it("delegates the owning Host, Trip, and filters to AvailablePortersService", async () => {
+			const query: AvailablePortersQueryDto = {
+				role: IntendedPorterRole.SUPPORT,
+				page: 1,
+				limit: 20,
+			};
+			const response = {
+				items: [],
+				pagination: { page: 1, limit: 20, total: 0, totalPages: 0 },
+			};
+			availablePortersService.search.mockResolvedValue(response);
+
+			const result = await controller.getAvailablePorters(
+				{ user: MOCK_USER },
+				{ tripId: TRIP_ID },
+				query
+			);
+
+			expect(availablePortersService.search).toHaveBeenCalledWith(USER_ID, TRIP_ID, query);
+			expect(result).toBe(response);
 		});
 	});
 
