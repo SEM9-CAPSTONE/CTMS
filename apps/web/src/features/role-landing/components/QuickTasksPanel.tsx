@@ -52,7 +52,7 @@ export function QuickTasksPanel({
 						{onCreateTrip && (
 							<Button onClick={() => onCreateTrip()} className="gap-2">
 								<CalendarPlus className="size-4" />
-								<span>Tạo trip</span>
+								<span>Tạo chuyến đi</span>
 							</Button>
 						)}
 						{onCreateTrekkingRoute && (

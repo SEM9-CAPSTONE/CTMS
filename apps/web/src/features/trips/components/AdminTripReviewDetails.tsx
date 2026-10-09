@@ -20,7 +20,7 @@ const TRIP_TYPE_LABELS: Record<Trip["tripType"], string> = {
 
 const WAYPOINT_TYPE_LABELS: Record<string, string> = {
 	start: "Điểm bắt đầu",
-	checkpoint: "Checkpoint",
+	checkpoint: "Điểm kiểm tra",
 	rest: "Điểm nghỉ",
 	meal: "Bữa ăn",
 	activity: "Hoạt động",
@@ -88,9 +88,9 @@ export function AdminTripReviewDetails({ trip, onReview }: Props) {
 				</div>
 			</section>
 			<section className="rounded-2xl border border-[#e0ebe0] bg-white p-5 shadow-sm">
-				<h2 className="font-extrabold">Timeline waypoint</h2>
+				<h2 className="font-extrabold">Lịch trình điểm dừng</h2>
 				{trip.waypoints.length === 0 ? (
-					<p className="mt-2 text-sm text-[#667a6d]">Chưa có waypoint nào.</p>
+					<p className="mt-2 text-sm text-[#667a6d]">Chưa có điểm dừng nào.</p>
 				) : (
 					<ol className="mt-3 space-y-2">
 						{[...trip.waypoints]

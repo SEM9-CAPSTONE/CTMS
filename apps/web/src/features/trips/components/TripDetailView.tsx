@@ -16,15 +16,16 @@ import {
 	Users,
 	X,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { type ComponentProps, useEffect, useMemo, useState } from "react";
 import type { BookingDetails } from "../../booking-details/types";
 import { bookingEquipmentService } from "../../booking-equipment/services/booking-equipment.service";
 import { InitializeBookingMembersPanel } from "../../booking-members/components/InitializeBookingMembersPanel";
 import type { InitializeBookingMembersResponse } from "../../booking-members/types";
 import { BookingPaymentPanel } from "../../booking-payment/components/BookingPaymentPanel";
 import { PackingListModal } from "../../packing-list/components/PackingListModal";
-import type { BookTripResponse, TripDetails } from "../types";
+import { type BookTripResponse, type TripDetails, formatTripStatus } from "../types";
 import { type BookingAccess, BookingPanel } from "./BookingPanel";
+import { HostTripOperationsPanel } from "./HostTripOperationsPanel";
 import type { SelectedEquipmentItem } from "./RentableEquipmentModal";
 import { TripCapacityBanner } from "./TripCapacityBanner";
 import { formatDateRange, formatVND, getDifficultyBadge, getWeatherRiskBadge } from "./TripCard";
@@ -53,6 +54,8 @@ export interface TripDetailViewProps {
 	onConflictReload?: () => void;
 	onConflictRetry?: () => void;
 	onViewBookingDetails?: (bookingId: string) => void;
+	canManageTrip?: boolean;
+	hostOperations?: ComponentProps<typeof HostTripOperationsPanel>;
 }
 
 export function formatDateTime(isoString: string | null | undefined): string {
@@ -107,6 +110,8 @@ export function TripDetailView({
 	onConflictReload,
 	onConflictRetry,
 	onViewBookingDetails,
+	canManageTrip = false,
+	hostOperations,
 }: TripDetailViewProps) {
 	const [packingListRefreshKey, setPackingListRefreshKey] = useState(0);
 	const [isPackingListModalOpen, setIsPackingListModalOpen] = useState(false);
@@ -639,6 +644,8 @@ export function TripDetailView({
 				{/* Right Column: Sticky Booking Action Card & Sidebar */}
 				<div className="relative">
 					<div className="lg:sticky lg:top-24 space-y-4">
+						{canManageTrip && hostOperations && <HostTripOperationsPanel {...hostOperations} />}
+
 						{/* Overbooking and capacity urgency banner */}
 						<TripCapacityBanner
 							remainingSeats={trip.remainingSeats}
@@ -659,7 +666,9 @@ export function TripDetailView({
 								<div className="rounded-xl bg-[#f8faf8] p-2">
 									<span className="block text-[11px] text-[#667a6d]">Trạng thái</span>
 									<span className="text-xs font-bold text-[#164027]">
-										{trip.status === "published" ? "Đang mở" : trip.status}
+										{trip.status === "published"
+											? "Đang mở đăng ký"
+											: formatTripStatus(trip.status)}
 									</span>
 								</div>
 

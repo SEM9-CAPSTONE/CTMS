@@ -21,7 +21,7 @@ import {
 	toConfigureTripWaypointsDefaultValues,
 	toConfigureTripWaypointsInput,
 } from "../schema/configure-trip-waypoints.schema";
-import type { Trip, TripWaypointType } from "../types";
+import { type Trip, type TripWaypointType, formatTripStatus } from "../types";
 import { TripWaypointLocationMap } from "./TripWaypointLocationMap";
 
 interface Props {
@@ -34,7 +34,7 @@ const inputClass =
 
 const waypointTypeLabels: Record<TripWaypointType, string> = {
 	start: "Bắt đầu",
-	checkpoint: "Checkpoint có sẵn",
+	checkpoint: "Điểm kiểm tra có sẵn",
 	rest: "Nghỉ chân",
 	meal: "Ăn uống",
 	activity: "Hoạt động",
@@ -65,24 +65,12 @@ function toNewWaypoint(
 
 function waypointListError(values: ConfigureTripWaypointsFormValues): string {
 	if (!values.waypoints.some((waypoint) => waypoint.type === "start")) {
-		return "Trip phải có waypoint bắt đầu.";
+		return "Chuyến đi phải có điểm bắt đầu.";
 	}
 	if (!values.waypoints.some((waypoint) => waypoint.type === "finish")) {
-		return "Trip phải có waypoint kết thúc.";
+		return "Chuyến đi phải có điểm kết thúc.";
 	}
 	return "";
-}
-
-function statusLabel(status: Trip["status"]): string {
-	const labels: Record<Trip["status"], string> = {
-		draft: "Bản nháp",
-		pending_approval: "Chờ duyệt",
-		published: "Đã publish",
-		ongoing: "Đang diễn ra",
-		completed: "Hoàn tất",
-		cancelled: "Đã hủy",
-	};
-	return labels[status];
 }
 
 function canConfigure(status: Trip["status"]): boolean {
@@ -461,7 +449,7 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 				<div className="rounded-xl bg-[#f8faf7] px-4 py-3 text-sm text-[#34483b]">
 					<p>
 						<b>Trạng thái:</b>{" "}
-						<span data-testid="configure-trip-status">{statusLabel(serverTrip.status)}</span>
+						<span data-testid="configure-trip-status">{formatTripStatus(serverTrip.status)}</span>
 					</p>
 				</div>
 			</div>
@@ -471,7 +459,8 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 					role="alert"
 					className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"
 				>
-					Trip đang ở trạng thái {statusLabel(serverTrip.status)}, nên không thể cấu hình waypoint.
+					Chuyến đi đang ở trạng thái {formatTripStatus(serverTrip.status)}, nên không thể cấu hình
+					điểm dừng.
 				</p>
 			)}
 
@@ -485,7 +474,7 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 			{checkpoints.isLoading && (
 				<p className="mt-4 flex items-center gap-2 rounded-xl border border-[#dce8dd] bg-[#f8faf7] p-3 text-sm text-[#34483b]">
 					<Loader2 className="size-4 animate-spin" />
-					Đang tải checkpoint của tuyến...
+					Đang tải điểm kiểm tra của tuyến...
 				</p>
 			)}
 			{checkpoints.error && (
@@ -500,7 +489,7 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 						className="mt-2 inline-flex items-center gap-2 rounded-lg border border-red-300 px-3 py-2 font-bold"
 					>
 						<RefreshCw className="size-4" />
-						Tải lại checkpoint
+						Tải lại điểm kiểm tra
 					</button>
 				</div>
 			)}

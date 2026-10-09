@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { CreatedTrekkingRoute } from "../../trekking-routes/types";
+import { type CreateTripFormValues, createTripFormSchema } from "../schema/create-trip.schema";
 import { CreateTripForm } from "./CreateTripForm";
 
 const activeRoute: CreatedTrekkingRoute = {
@@ -42,8 +43,8 @@ function renderForm(overrides: Partial<React.ComponentProps<typeof CreateTripFor
 		onRetryRoutes: vi.fn(),
 		...overrides,
 	};
-	render(<CreateTripForm {...props} />);
-	return props;
+	const view = render(<CreateTripForm {...props} />);
+	return { ...props, ...view };
 }
 
 function fillValidForm() {
@@ -62,18 +63,83 @@ function fillValidForm() {
 
 function submitFormDirectly() {
 	const form = screen
-		.getByRole("button", { name: "Tạo draft và cấu hình waypoint" })
+		.getByRole("button", { name: "Tạo bản nháp và cấu hình điểm dừng" })
 		.closest("form");
 	if (!form) throw new Error("Create trip form not found");
 	fireEvent.submit(form);
 }
 
+const rangePickerDefaults: CreateTripFormValues = {
+	routeId: activeRoute.id,
+	title: "Bidoup morning",
+	description: "",
+	coverImageUrl: "",
+	tripType: "day_trip",
+	startsAt: "2099-10-09T14:43",
+	endsAt: "2099-10-10T13:28",
+	meetingLongitude: "108.2208",
+	meetingLatitude: "16.0471",
+	meetingAt: "2099-10-09T14:00",
+	bookingDeadline: "2099-10-08T14:00",
+	capacityMin: "2",
+	capacityMax: "12",
+	pricePerPerson: "0",
+	waypoints: [
+		{
+			type: "start",
+			name: "Bidoup Trail - điểm bắt đầu",
+			longitude: "108.22",
+			latitude: "16.04",
+			plannedAt: "2099-10-09T14:43",
+		},
+		{
+			type: "finish",
+			name: "Bidoup Trail - điểm kết thúc",
+			longitude: "108.25",
+			latitude: "16.06",
+			plannedAt: "2099-10-10T13:28",
+		},
+	],
+};
+
 describe("CreateTripForm", () => {
+	it("shows a concrete trip type label instead of the pending auto-detect text", () => {
+		renderForm();
+
+		expect(screen.getByText("Trong ngày")).toBeVisible();
+		expect(screen.queryByText(/Sẽ tự xác định/)).not.toBeInTheDocument();
+
+		fireEvent.change(screen.getByLabelText("Bắt đầu"), { target: { value: "2099-10-01T09:00" } });
+		fireEvent.change(screen.getByLabelText("Kết thúc"), { target: { value: "2099-10-02T17:00" } });
+
+		expect(screen.getByText("Qua đêm")).toBeVisible();
+		expect(screen.queryByText(/Sẽ tự xác định/)).not.toBeInTheDocument();
+	});
+
+	it("restores unsaved draft values after the form is mounted again", () => {
+		const draftStorageKey = "ctms:test:create-trip-form:draft";
+		window.localStorage.removeItem(draftStorageKey);
+		const { unmount } = renderForm({ draftStorageKey });
+
+		fireEvent.change(screen.getByLabelText("Tên trip"), { target: { value: "Nháp không mất" } });
+		fireEvent.change(screen.getByLabelText("Bắt đầu"), { target: { value: "2099-10-01T09:00" } });
+		fireEvent.change(screen.getByLabelText("Kết thúc"), { target: { value: "2099-10-01T17:00" } });
+
+		unmount();
+		renderForm({ draftStorageKey });
+
+		expect(screen.getByLabelText("Tên trip")).toHaveValue("Nháp không mất");
+		expect(screen.getByLabelText("Bắt đầu")).toHaveValue("2099-10-01T09:00");
+		expect(screen.getByLabelText("Kết thúc")).toHaveValue("2099-10-01T17:00");
+
+		window.localStorage.removeItem(draftStorageKey);
+	});
+
 	it("renders the Host create trip workflow and submits the backend payload", async () => {
 		const props = renderForm();
 		fillValidForm();
 
-		fireEvent.click(screen.getByRole("button", { name: "Tạo draft và cấu hình waypoint" }));
+		fireEvent.click(screen.getByRole("button", { name: "Tạo bản nháp và cấu hình điểm dừng" }));
 
 		await waitFor(() =>
 			expect(props.onSubmit).toHaveBeenCalledWith(
@@ -127,7 +193,7 @@ describe("CreateTripForm", () => {
 		expect(screen.getByLabelText("Tuyến đã duyệt")).toHaveValue(activeRoute.id);
 	});
 
-	it("validates date ranges and capacity without manual waypoint inputs", async () => {
+	it("validates date ranges and capacity without manual stop inputs", async () => {
 		renderForm();
 		fillValidForm();
 		fireEvent.change(screen.getByLabelText("Kết thúc"), { target: { value: "2099-10-01T08:00" } });
@@ -138,11 +204,14 @@ describe("CreateTripForm", () => {
 
 		submitFormDirectly();
 
-		expect(await screen.findByText("Thời gian kết thúc phải sau thời gian bắt đầu")).toBeVisible();
+		expect(
+			await screen.findByText("Thời gian bắt đầu không được sau thời gian kết thúc")
+		).toBeVisible();
 		expect(screen.getByText("Hạn đặt chỗ phải trước thời gian bắt đầu")).toBeVisible();
 		expect(screen.getByText("Số khách tối thiểu không được lớn hơn số khách tối đa")).toBeVisible();
+		expect(screen.queryByText("Điểm đầu tiên phải là điểm bắt đầu")).not.toBeInTheDocument();
 		expect(screen.queryByLabelText("Kinh độ điểm tập trung")).not.toBeInTheDocument();
-		expect(screen.queryByLabelText("Tên waypoint 1")).not.toBeInTheDocument();
+		expect(screen.queryByLabelText("Tên điểm dừng 1")).not.toBeInTheDocument();
 	});
 
 	it("derives overnight trip type when the schedule spans another date", async () => {
@@ -177,6 +246,70 @@ describe("CreateTripForm", () => {
 		expect(endsAtInput).toHaveAttribute("min", "2099-10-01T09:00");
 		expect(meetingAtInput).toHaveAttribute("max", "2099-10-01T09:00");
 		expect(bookingDeadlineInput).toHaveAttribute("max", "2099-10-01T09:00");
+	});
+
+	it("keeps the selected invalid range and shows an inline error", async () => {
+		renderForm({ defaultValues: rangePickerDefaults });
+
+		fireEvent.click(screen.getByRole("button", { name: "Mở thời gian" }));
+		fireEvent.click(screen.getByText("Kết thúc"));
+		fireEvent.click(screen.getByRole("button", { name: "9" }));
+
+		await waitFor(() => expect(screen.getByLabelText("Kết thúc")).toHaveValue("2099-10-09T13:28"));
+		expect(
+			await screen.findByText("Thời gian bắt đầu không được sau thời gian kết thúc")
+		).toBeVisible();
+	});
+
+	it("keeps a start date after the end date and shows an inline error", async () => {
+		renderForm({ defaultValues: rangePickerDefaults });
+
+		fireEvent.click(screen.getByRole("button", { name: "Mở thời gian" }));
+		fireEvent.click(screen.getByRole("button", { name: "17" }));
+
+		await waitFor(() => expect(screen.getByLabelText("Bắt đầu")).toHaveValue("2099-10-17T14:43"));
+		await waitFor(() =>
+			expect(screen.getByTestId("date-time-card-start")).toHaveTextContent(
+				"Thời gian bắt đầu không được sau thời gian kết thúc"
+			)
+		);
+		expect(screen.getByTestId("date-time-card-end")).not.toHaveTextContent(
+			"Thời gian bắt đầu không được sau thời gian kết thúc"
+		);
+	});
+
+	it("does not block the trip info step with waypoint ordering errors", () => {
+		const result = createTripFormSchema.safeParse({
+			...rangePickerDefaults,
+			startsAt: "2099-10-09T08:00",
+			endsAt: "2099-10-17T18:00",
+			meetingAt: "2099-10-09T07:00",
+			waypoints: [
+				{
+					type: "start",
+					name: "Bidoup Trail - điểm bắt đầu",
+					longitude: "108.22",
+					latitude: "16.04",
+					plannedAt: "2099-10-09T08:00",
+				},
+				{
+					type: "finish",
+					name: "Bidoup Trail - điểm kết thúc",
+					longitude: "108.25",
+					latitude: "16.06",
+					plannedAt: "2099-10-17T18:00",
+				},
+				{
+					type: "checkpoint",
+					name: "Điểm đã cấu hình trước đó",
+					longitude: "108.24",
+					latitude: "16.05",
+					plannedAt: "2099-10-10T08:00",
+				},
+			],
+		});
+
+		expect(result.success).toBe(true);
 	});
 
 	it("rejects past dates even when values are typed manually", async () => {

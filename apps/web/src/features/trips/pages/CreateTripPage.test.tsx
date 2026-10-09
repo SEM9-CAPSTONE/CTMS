@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const creation = {
@@ -145,5 +145,54 @@ describe("CreateTripPage", () => {
 
 		expect(screen.getByText("Thông tin chuyến đi")).toBeVisible();
 		expect(screen.getByTestId("trip-form")).toHaveTextContent("Bước tiếp theo");
+	});
+
+	it("moves an edited draft to waypoint setup after clicking next", async () => {
+		const savedDraft = {
+			id: "trip-1",
+			routeId: "active",
+			title: "Draft trip",
+			status: "draft",
+		};
+		updateDraft.submit.mockResolvedValueOnce(savedDraft);
+		vi.resetModules();
+		vi.doMock("../hooks/useCreateTrip", () => ({ useCreateTrip: () => creation }));
+		vi.doMock("../hooks/useUpdateTripDraft", () => ({
+			useUpdateTripDraft: () => updateDraft,
+		}));
+		vi.doMock("../hooks/useTripDetail", () => ({
+			useTripDetail: () => ({
+				...tripDetail,
+				trip: savedDraft,
+			}),
+		}));
+		vi.doMock("../schema/create-trip.schema", () => ({
+			toCreateTripFormValues: vi.fn(() => ({ title: "Draft trip" })),
+		}));
+		vi.doMock("../../trekking-routes/hooks/useTrekkingRoutes", () => ({
+			useTrekkingRoutes: () => routes,
+		}));
+		vi.doMock("../components/CreateTripForm", () => ({
+			CreateTripForm: ({
+				onSubmit,
+				submitLabel,
+			}: {
+				onSubmit: (payload: never) => Promise<unknown>;
+				submitLabel: string;
+			}) => (
+				<button type="button" data-testid="trip-form" onClick={() => void onSubmit({} as never)}>
+					{submitLabel}
+				</button>
+			),
+		}));
+		vi.doMock("../components/ConfigureTripWaypointsPanel", () => ({
+			ConfigureTripWaypointsPanel: () => <div data-testid="configure-waypoints-panel" />,
+		}));
+		const { CreateTripPage } = await import("./CreateTripPage");
+
+		render(<CreateTripPage editTripId="trip-1" />);
+		fireEvent.click(screen.getByTestId("trip-form"));
+
+		expect(await screen.findByTestId("configure-waypoints-panel")).toBeVisible();
 	});
 });

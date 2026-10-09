@@ -11,7 +11,7 @@ const coordinateString = z
 
 const waypointTypeFallbackNames: Record<TripWaypointType, string> = {
 	start: "Bắt đầu",
-	checkpoint: "Checkpoint",
+	checkpoint: "Điểm kiểm tra",
 	rest: "Nghỉ chân",
 	meal: "Ăn uống",
 	activity: "Hoạt động",
@@ -71,28 +71,28 @@ export function createConfigureTripWaypointsSchema(trip: Trip) {
 				context.addIssue({
 					code: z.ZodIssueCode.custom,
 					path: ["waypoints"],
-					message: "Trip phải có đúng một waypoint bắt đầu",
+					message: "Chuyến đi phải có đúng một điểm bắt đầu",
 				});
 			}
 			if (finishWaypoints.length !== 1) {
 				context.addIssue({
 					code: z.ZodIssueCode.custom,
 					path: ["waypoints"],
-					message: "Trip phải có đúng một waypoint kết thúc",
+					message: "Chuyến đi phải có đúng một điểm kết thúc",
 				});
 			}
 			if (trip.tripType === "day_trip" && overnightWaypoints.length > 0) {
 				context.addIssue({
 					code: z.ZodIssueCode.custom,
 					path: ["waypoints"],
-					message: "Trip trong ngày không được có waypoint qua đêm",
+					message: "Chuyến đi trong ngày không được có điểm dừng qua đêm",
 				});
 			}
 			if (trip.tripType === "overnight" && overnightWaypoints.length !== trip.durationNights) {
 				context.addIssue({
 					code: z.ZodIssueCode.custom,
 					path: ["waypoints"],
-					message: `Trip qua đêm cần đúng ${trip.durationNights} waypoint qua đêm`,
+					message: `Chuyến đi qua đêm cần đúng ${trip.durationNights} điểm ngủ qua đêm`,
 				});
 			}
 

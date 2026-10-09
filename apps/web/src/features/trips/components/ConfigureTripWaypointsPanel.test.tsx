@@ -177,7 +177,9 @@ describe("ConfigureTripWaypointsPanel", () => {
 
 		fireEvent.click(screen.getByRole("button", { name: "Gửi duyệt" }));
 
-		expect(await screen.findByText("Trip trong ngày không được có waypoint qua đêm")).toBeVisible();
+		expect(
+			await screen.findByText("Chuyến đi trong ngày không được có điểm dừng qua đêm")
+		).toBeVisible();
 		expect(tripsService.configureWaypoints).not.toHaveBeenCalled();
 	});
 
@@ -206,7 +208,7 @@ describe("ConfigureTripWaypointsPanel", () => {
 	it("shows blocked state and disables submit when Trip is already published", () => {
 		render(<ConfigureTripWaypointsPanel trip={{ ...draftTrip, status: "published" }} />);
 
-		expect(screen.getByText(/không thể cấu hình waypoint/)).toBeVisible();
+		expect(screen.getByText(/không thể cấu hình điểm dừng/)).toBeVisible();
 		expect(screen.getByRole("button", { name: "Gửi duyệt" })).toBeDisabled();
 	});
 
@@ -222,7 +224,7 @@ describe("ConfigureTripWaypointsPanel", () => {
 		});
 		fireEvent.click(screen.getByRole("button", { name: "Gửi duyệt" }));
 
-		expect(await screen.findByRole("alert")).toHaveTextContent("Không thể cấu hình waypoint");
+		expect(await screen.findByRole("alert")).toHaveTextContent("Không thể cấu hình điểm dừng");
 		expect(screen.getByLabelText("Mô tả điểm dừng 1")).toHaveValue("Keep me");
 		expect(screen.getByRole("button", { name: "Thử lại" })).toBeVisible();
 	});

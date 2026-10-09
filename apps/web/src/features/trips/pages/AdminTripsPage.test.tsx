@@ -129,7 +129,11 @@ describe("AdminTripsPage", () => {
 		const confirm = test.screen.getByRole("button", { name: "Xác nhận quyết định" });
 		await test.user.dblClick(confirm);
 		await test.waitFor(() => expect(test.review).toHaveBeenCalledTimes(1));
-		expect(test.review).toHaveBeenCalledWith("trip-1", { action: "approve", reason: undefined });
+		expect(test.review).toHaveBeenCalledWith("trip-1", {
+			action: "approve",
+			reviewedUpdatedAt: trip.updatedAt,
+			reason: undefined,
+		});
 		expect(await test.screen.findByText(/Đã phê duyệt và xuất bản/)).toBeInTheDocument();
 		expect(test.listPendingReview).toHaveBeenCalledTimes(2);
 	});
@@ -149,6 +153,7 @@ describe("AdminTripsPage", () => {
 		await test.waitFor(() =>
 			expect(test.review).toHaveBeenCalledWith("trip-1", {
 				action: "decline",
+				reviewedUpdatedAt: trip.updatedAt,
 				reason: "x".repeat(255),
 			})
 		);

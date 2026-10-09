@@ -601,7 +601,7 @@ export function TripWaypointLocationMap({
 									isActive ? "bg-[#164027] text-white" : "bg-white text-[#164027]"
 								}`}
 								style={fallbackPosition(position, bounds)}
-								aria-label={`Chọn waypoint ${index + 1}`}
+								aria-label={`Chọn điểm dừng ${index + 1}`}
 							>
 								{isFixedEndpoint(waypoint) ? <Lock className="size-4" /> : sortedIndex + 1}
 							</button>
