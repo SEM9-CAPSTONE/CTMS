@@ -65,6 +65,8 @@ export const API_ENDPOINTS = {
 		GPS_LOGS: (tripId: string) => `/trips/${tripId}/gps-logs`,
 		PENDING_REVIEW: "/trips/pending-review",
 		REVIEW: (id: string) => `/trips/${id}/review`,
+		RESCHEDULE: (id: string) => `/trips/${id}/reschedule`,
+		CANCEL: (id: string) => `/trips/${id}/cancel`,
 	},
 	WEATHER: {
 		RISK_ASSESSMENT: "/weather/risk-assessment",

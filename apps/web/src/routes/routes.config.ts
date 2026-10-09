@@ -32,8 +32,10 @@ export enum RoutePath {
 	NOT_FOUND = "*",
 }
 
-// Pages only meaningful before sign-in; an authenticated user is sent to their home instead.
+// Pages only shown before sign-in (public landing + auth forms); a signed-in user with a
+// valid session is sent straight to their role home instead.
 export const GUEST_ONLY_PATHS: ReadonlySet<string> = new Set<string>([
+	RoutePath.HOME,
 	RoutePath.LOGIN,
 	RoutePath.REGISTER,
 	RoutePath.VERIFY_OTP,

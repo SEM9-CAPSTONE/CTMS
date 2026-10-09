@@ -19,6 +19,7 @@ import {
 import { useMemo, useState } from "react";
 import { Button } from "../../../shared/components/Button";
 import { useMyTrips } from "../../trips/hooks/useMyTrips";
+import { useHostTripReviewNotifications } from "../../trips/hooks/useTripReviewNotifications";
 import type { TripStatus } from "../../trips/types";
 
 export interface HostMyTripsPanelProps {
@@ -39,6 +40,7 @@ const statusLabels: Record<TripStatus, { label: string; className: string }> = {
 	ongoing: { label: "Đang diễn ra", className: "bg-sky-50 text-sky-700 ring-sky-200" },
 	completed: { label: "Đã hoàn thành", className: "bg-purple-50 text-purple-700 ring-purple-200" },
 	cancelled: { label: "Đã huỷ", className: "bg-red-50 text-red-700 ring-red-200" },
+	rejected: { label: "Bị từ chối", className: "bg-rose-50 text-rose-700 ring-rose-200" },
 };
 
 const filterTabs: Array<{ key: "all" | TripStatus; label: string }> = [
@@ -49,6 +51,7 @@ const filterTabs: Array<{ key: "all" | TripStatus; label: string }> = [
 	{ key: "ongoing", label: "Đang diễn ra" },
 	{ key: "completed", label: "Đã hoàn thành" },
 	{ key: "cancelled", label: "Đã huỷ" },
+	{ key: "rejected", label: "Bị từ chối" },
 ];
 
 function formatDateRange(startsAt: string, endsAt: string): string {
@@ -76,7 +79,8 @@ export function HostMyTripsPanel({
 	onEditTripDraft,
 }: HostMyTripsPanelProps) {
 	const { trips: fetchedTrips = [], isLoading, error, refetch } = useMyTrips();
-	const trips = Array.isArray(fetchedTrips) ? fetchedTrips : [];
+	useHostTripReviewNotifications({ onChanged: refetch });
+	const trips = useMemo(() => (Array.isArray(fetchedTrips) ? fetchedTrips : []), [fetchedTrips]);
 	const [selectedStatus, setSelectedStatus] = useState<"all" | TripStatus>("all");
 	const [currentPage, setCurrentPage] = useState(1);
 	const [pageSize, setPageSize] = useState(4);
@@ -149,7 +153,7 @@ export function HostMyTripsPanel({
 							className="gap-2 bg-[#164027] text-xs font-bold text-white hover:bg-[#123520]"
 						>
 							<CalendarPlus className="size-4" />
-							<span>Tạo trip</span>
+							<span>Tạo chuyến đi</span>
 						</Button>
 					)}
 					{onCreateTrekkingRoute && (
@@ -259,7 +263,7 @@ export function HostMyTripsPanel({
 								className="mt-4 gap-2 bg-[#164027] text-xs font-bold text-white"
 							>
 								<CalendarPlus className="size-4" />
-								<span>Tạo trip ngay</span>
+								<span>Tạo chuyến đi ngay</span>
 							</Button>
 						)}
 					</div>
@@ -347,16 +351,17 @@ export function HostMyTripsPanel({
 												</div>
 
 												<div className="flex items-center gap-2">
-													{trip.status === "draft" && onEditTripDraft && (
-														<button
-															type="button"
-															onClick={() => onEditTripDraft(trip.id)}
-															className="inline-flex items-center gap-1 rounded-xl bg-white px-3 py-1.5 text-xs font-bold text-[#164027] ring-1 ring-[#cbd9ce] transition-colors hover:bg-[#f4f7f2]"
-														>
-															<Pencil className="size-3.5" />
-															<span>Sửa</span>
-														</button>
-													)}
+													{(trip.status === "draft" || trip.status === "pending_approval") &&
+														onEditTripDraft && (
+															<button
+																type="button"
+																onClick={() => onEditTripDraft(trip.id)}
+																className="inline-flex items-center gap-1 rounded-xl bg-white px-3 py-1.5 text-xs font-bold text-[#164027] ring-1 ring-[#cbd9ce] transition-colors hover:bg-[#f4f7f2]"
+															>
+																<Pencil className="size-3.5" />
+																<span>Sửa</span>
+															</button>
+														)}
 													{onNavigateToTripDetail && (
 														<button
 															type="button"

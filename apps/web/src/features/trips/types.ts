@@ -9,7 +9,22 @@ export type TripStatus =
 	| "published"
 	| "ongoing"
 	| "completed"
-	| "cancelled";
+	| "cancelled"
+	| "rejected";
+
+export const TRIP_STATUS_LABELS: Record<TripStatus, string> = {
+	draft: "Bản nháp",
+	pending_approval: "Chờ duyệt",
+	published: "Đã công bố",
+	ongoing: "Đang diễn ra",
+	completed: "Đã hoàn thành",
+	cancelled: "Đã huỷ",
+	rejected: "Bị từ chối",
+};
+
+export function formatTripStatus(status: TripStatus): string {
+	return TRIP_STATUS_LABELS[status] ?? status;
+}
 
 export const TRIP_WAYPOINT_TYPES = [
 	"start",
@@ -69,7 +84,17 @@ export type ReviewTripAction = "approve" | "decline";
 
 export interface ReviewTripInput {
 	action: ReviewTripAction;
+	reviewedUpdatedAt: string;
 	reason?: string;
+}
+
+export interface RescheduleTripInput {
+	startsAt?: string;
+	endsAt?: string;
+}
+
+export interface CancelTripInput {
+	reason: string;
 }
 
 export interface Trip {

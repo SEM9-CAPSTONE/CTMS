@@ -6,6 +6,8 @@ const AUTH_USER_KEY = "authUser";
  * `storage` event in the other tabs. */
 const SESSION_SIGNAL_KEY = "authSessionSignal";
 const LOGIN_PATH = "/login";
+/** Last user-activity timestamp shared by all tabs for the idle timeout (not a secret). */
+export const LAST_ACTIVITY_KEY = "lastActivityAt";
 
 /**
  * CTMS-04-T02, DG-01. `window.location.href` full reload -- the app has no
@@ -33,6 +35,7 @@ export function clearAuthSessionAndRedirect(): void {
 	localStorage.removeItem(ACCESS_TOKEN_KEY);
 	localStorage.removeItem(REFRESH_TOKEN_KEY);
 	localStorage.removeItem(AUTH_USER_KEY);
+	localStorage.removeItem(LAST_ACTIVITY_KEY);
 	localStorage.setItem(SESSION_SIGNAL_KEY, String(Date.now()));
 	redirectToLogin();
 }

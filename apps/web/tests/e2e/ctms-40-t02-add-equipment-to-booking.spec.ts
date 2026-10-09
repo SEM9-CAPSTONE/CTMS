@@ -30,13 +30,26 @@ async function login(page: Page, userEmail: string) {
 	await expect.poll(() => page.evaluate(() => localStorage.getItem("accessToken"))).toBeTruthy();
 }
 
+async function selectEquipmentBeforeBooking(page: Page, name: string, quantity: number) {
+	await page.getByRole("button", { name: "Xem tất cả thiết bị cho thuê" }).click();
+	const item = page.locator('[data-testid^="equipment-item-"]').filter({ hasText: name });
+	await item.getByLabel(`Chọn thuê ${name}`).check();
+	for (let current = 1; current < quantity; current += 1) {
+		await item.getByRole("button", { name: `Tăng số lượng ${name}` }).click();
+	}
+	await page.getByRole("button", { name: /Xác nhận thuê/ }).click();
+	await expect(page.getByTestId("equipment-confirm-modal-step")).toBeVisible();
+	await page.getByRole("button", { name: "Xác nhận & Áp dụng" }).click();
+	await expect(page.getByTestId("rentable-equipment-modal-backdrop")).toHaveCount(0);
+}
+
 /**
  * CTMS-40-T02. Real backend/Postgres/Chrome, no mocking (mirrors
  * ctms-23-t02-approve-publish-trip.spec.ts's own db-helper convention).
  * Seeds a published Trip with a real green Weather Risk assessment and an
  * active equipment_catalog_item directly (both are CTMS-024/CTMS-029/
  * CTMS-039's own already-tested preconditions, not this story's concern),
- * then drives the real "Đặt chỗ" -> "Thêm thiết bị" flow through the UI.
+ * then drives the real pre-booking equipment selection -> booking flow.
  */
 test.describe("CTMS-40-T02 Add Services and Equipment Rental to Booking (UI)", () => {
 	test.describe.configure({ mode: "serial" });
@@ -124,17 +137,12 @@ test.describe("CTMS-40-T02 Add Services and Equipment Rental to Booking (UI)", (
 		await page.goto(`/trips/${tripId}`);
 
 		await expect(page.getByText(tripTitle)).toBeVisible();
+		await selectEquipmentBeforeBooking(page, equipmentName, 2);
 		await page.getByRole("button", { name: /đặt chỗ ngay/i }).click();
 		await expect(page.getByRole("heading", { name: "Đã tạo đặt chỗ thành công" })).toBeVisible();
 
-		await expect(page.getByLabel("Thiết bị", { exact: true })).toBeVisible();
-		await page.getByLabel("Thiết bị", { exact: true }).selectOption(equipmentId);
-		await page.getByLabel("Số lượng thiết bị").fill("2");
-		await page.getByRole("button", { name: "Thêm thiết bị" }).click();
-
-		await expect(page.getByText(new RegExp(`${equipmentName} x2`))).toBeVisible();
-		const totalAmount = page.getByTestId("booking-total-amount");
-		await expect(totalAmount).toHaveText(/600\.000/);
+		await expect(page.getByText("Thiết bị thuê kèm (2 món):")).toBeVisible();
+		await expect(page.getByTestId("authoritative-booking-price")).toContainText("600.000");
 
 		const { booking, items } = db<{
 			booking: { totalAmount: string; basePrice: string } | null;
@@ -151,13 +159,15 @@ test.describe("CTMS-40-T02 Add Services and Equipment Rental to Booking (UI)", (
 		await login(page, camperEmail);
 		await page.goto(`/trips/${tripId}`);
 
-		await page.getByRole("button", { name: /đặt chỗ ngay/i }).click();
-		await expect(page.getByRole("heading", { name: "Đã tạo đặt chỗ thành công" })).toBeVisible();
-
-		await page.getByLabel("Thiết bị", { exact: true }).selectOption(equipmentId);
-		await page.getByLabel("Số lượng thiết bị").fill("999");
-		await page.getByRole("button", { name: "Thêm thiết bị" }).click();
-
-		await expect(page.getByRole("alert")).toBeVisible();
+		await page.getByRole("button", { name: "Xem tất cả thiết bị cho thuê" }).click();
+		const item = page
+			.locator('[data-testid^="equipment-item-"]')
+			.filter({ hasText: equipmentName });
+		await item.getByLabel(`Chọn thuê ${equipmentName}`).check();
+		const increaseButton = item.getByRole("button", { name: `Tăng số lượng ${equipmentName}` });
+		for (let current = 1; current < 5; current += 1) {
+			await increaseButton.click();
+		}
+		await expect(increaseButton).toBeDisabled();
 	});
 });

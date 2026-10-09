@@ -5,6 +5,7 @@ import { AdminLayout } from "../../admin-layout/components/AdminLayout";
 import { AdminTripReviewContent } from "../components/AdminTripReviewContent";
 import { TripReviewDecisionDialog } from "../components/TripReviewDecisionDialog";
 import { useAdminTripReviews, useReviewTrip } from "../hooks/useAdminTripReviews";
+import { useAdminTripReviewNotifications } from "../hooks/useTripReviewNotifications";
 import type { ReviewTripFormValues } from "../schema/review-trip.schema";
 
 export interface AdminTripsPageProps {
@@ -17,6 +18,8 @@ export function AdminTripsPage({ onLogout }: AdminTripsPageProps) {
 	const [selectedId, setSelectedId] = useState<string>();
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+	useAdminTripReviewNotifications({ onChanged: list.reload });
 
 	useEffect(() => {
 		setSelectedId((current) =>
@@ -34,6 +37,7 @@ export function AdminTripsPage({ onLogout }: AdminTripsPageProps) {
 		setSuccessMessage(null);
 		const result = await review.submit(selected.id, {
 			action: values.action,
+			reviewedUpdatedAt: selected.updatedAt,
 			reason: values.action === "approve" ? undefined : values.reason,
 		});
 		if (!result) return;
@@ -57,7 +61,7 @@ export function AdminTripsPage({ onLogout }: AdminTripsPageProps) {
 						Phê duyệt trip
 					</h1>
 					<p className="mt-1 text-sm text-[#667a6d]">
-						Kiểm tra lịch trình, sức chứa và waypoint trước khi xuất bản trip cho Camper.
+						Kiểm tra lịch trình, sức chứa và điểm dừng trước khi công bố chuyến đi cho Camper.
 					</p>
 				</header>
 

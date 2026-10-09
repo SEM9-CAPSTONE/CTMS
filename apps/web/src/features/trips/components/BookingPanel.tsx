@@ -19,6 +19,21 @@ function formatBookingDateTime(isoString: string): string {
 	});
 }
 
+// const bookingStatusLabels: Record<BookTripResponse["status"], string> = {
+//   pending_payment: "Chờ thanh toán",
+//   pending_reconfirmation: "Chờ xác nhận lại",
+//   confirmed: "Đã xác nhận",
+//   cancelled: "Đã huỷ",
+//   expired: "Đã hết hạn",
+//   completed: "Đã hoàn thành",
+// };
+
+// const paymentStatusLabels: Record<BookTripResponse["paymentStatus"], string> = {
+//   not_required: "Không cần thanh toán",
+//   unpaid: "Chưa thanh toán",
+//   paid: "Đã thanh toán",
+// };
+
 export type BookingAccess = "anonymous" | "camper" | "non-camper";
 
 export interface BookingPanelProps {

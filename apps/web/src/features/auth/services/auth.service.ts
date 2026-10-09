@@ -129,6 +129,14 @@ export const authService = {
 		}
 	},
 
+	/**
+	 * Confirms the stored session is still usable. httpClient refreshes an expired
+	 * access token on 401 and clears the session itself when the refresh fails.
+	 */
+	validateSession: async (): Promise<void> => {
+		await httpClient.get<unknown>(API_ENDPOINTS.PROFILE.ME);
+	},
+
 	logout: async (payload: LogoutApiPayload): Promise<LogoutApiResponse> => {
 		return httpClient.post<LogoutApiResponse>(API_ENDPOINTS.AUTH.LOGOUT, payload);
 	},

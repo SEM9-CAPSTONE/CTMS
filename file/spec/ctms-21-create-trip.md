@@ -20,7 +20,7 @@ Acceptance Criteria:
 | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | PB AC-1 | Only an authorized Host may create a Trip.                                                                                                                                                                                 |
 | PB AC-2 | A Trip must reference an existing approved Trekking Route and the Route version used by the Trip.                                                                                                                          |
-| PB AC-3 | Trip creation captures the required Trip information including Host, title, Trip type, duration, schedule, booking deadline, meeting time, capacity, and free/paid indicator according to the authoritative data contract. |
+| PB AC-3 | Trip creation captures the required Trip information including Host, title, Trip type, duration, schedule, booking deadline, meeting point, meeting time, capacity, and free/paid indicator according to the authoritative data contract. |
 | PB AC-4 | Trip time and capacity values must be valid before the Trip is created.                                                                                                                                                    |
 | PB AC-5 | A newly created Trip starts in `draft`.                                                                                                                                                                                    |
 | PB AC-6 | Creating a Trip does not publish it; waypoint configuration and submission for approval are handled by the following Trip workflows.                                                                                       |
@@ -35,6 +35,7 @@ Acceptance Criteria:
 - Capturing the Trip fields required by BR-054 and BR-055.
 - Validation of Host authorization and Route relationship.
 - Validation of Trip schedule and time ordering.
+- Validation that the Host explicitly selects a Meeting Point for the Trip.
 - Validation of Trip capacity values.
 - Creation of the Trip in `draft`.
 - Backend-authoritative validation before persistence.
@@ -78,7 +79,7 @@ Authorization:
 | BR     | Rule                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | BR-054 | A Trip must reference a valid approved Route version, and host_id must be derived from the authenticated Host creating or managing the Trip. At minimum, the Trip must store title, trip_type, duration_nights, starts_at, ends_at, meeting_point, meeting_at when applicable, booking_deadline, capacity_min, capacity_max, is_free, price_per_person, province_code, city_code, and the required trip_waypoints. province_code and city_code are geographic snapshots used for search/reporting and must remain historically stable. |
-| BR-055 | A Trip must satisfy starts_at < ends_at, booking_deadline < starts_at, meeting_at IS NULL or meeting_at <= starts_at, capacity_min > 0, capacity_min <= capacity_max, and seats_taken within [0, capacity_max]. If is_free = true, price_per_person must equal 0; if is_free = false, price_per_person must be greater than 0.                                                                                                                                                                                                         |
+| BR-055 | A Trip must satisfy starts_at < ends_at, booking_deadline < starts_at, meeting_at IS NULL or meeting_at <= starts_at, capacity_min > 0, capacity_min <= capacity_max, and seats_taken within [0, capacity_max]. Meeting Point must be explicitly selected by the Host and must be a valid geographic Point, but it is not required to equal the Start Waypoint. If is_free = true, price_per_person must equal 0; if is_free = false, price_per_person must be greater than 0.                                                                                         |
 | BR-056 | A newly created Trip must start in draft status. The Host must complete trip_waypoints before submitting the Trip from draft to pending_approval.                                                                                                                                                                                                                                                                                                                                                                                      |
 | BR-172 | Access control must be enforced by the backend using role, ownership, and business scope. Hiding or disabling functionality in the UI is not a substitute for backend authorization.                                                                                                                                                                                                                                                                                                                                                   |
 | BR-174 | All input must be validated for required fields, data type, format, length, enum membership, and cross-field relationships before processing.                                                                                                                                                                                                                                                                                                                                                                                          |
@@ -153,26 +154,29 @@ unless a separate approved lifecycle rule explicitly introduces such behavior.
    - start time;
    - end time;
    - booking deadline;
+   - meeting point selected on the map;
    - meeting time;
    - minimum capacity;
    - maximum capacity;
    - free/paid indicator.
 
-6. System validates required fields, enums, identifiers, relationships, schedule, and capacity.
+6. System validates required fields, enums, identifiers, relationships, schedule, Meeting Point, and capacity.
 
 7. System validates `starts_at < ends_at`.
 
-8. System rejects any client attempt to establish unauthorized authoritative occupancy or another server-derived value.
+8. System validates `meeting_at <= starts_at` when `meeting_at` is present.
 
-9. If all validation passes, the system creates the Trip atomically.
+9. System rejects any client attempt to establish unauthorized authoritative occupancy or another server-derived value.
 
-10. The new Trip is persisted in `draft`.
+10. If all validation passes, the system creates the Trip atomically.
 
-11. System returns the created Trip.
+11. The new Trip is persisted in `draft`.
 
-12. Host may proceed to CTMS-022 to configure Trip waypoints.
+12. System returns the created Trip.
 
-13. No approval or publication occurs as a side effect of Create Trip.
+13. Host may proceed to CTMS-022 to configure Trip waypoints.
+
+14. No approval or publication occurs as a side effect of Create Trip.
 
 ## 8. Data & Invariants
 
@@ -181,6 +185,10 @@ unless a separate approved lifecycle rule explicitly introduces such behavior.
 - The applicable Route/version relationship is preserved according to the authoritative domain model.
 - `starts_at < ends_at`.
 - Required datetime fields must satisfy the authoritative Trip time constraints.
+- Meeting Point is explicitly chosen by the Host and is not silently defaulted from the Start Waypoint.
+- Meeting Point may differ from the Start Waypoint.
+- Changing the selected Trekking Route must not overwrite an already chosen Meeting Point.
+- `meeting_at <= starts_at` when `meeting_at` exists.
 - `capacity_min` and `capacity_max` must satisfy the authoritative capacity constraints.
 - `capacity_min` must not exceed `capacity_max`.
 - `seats_taken` must not be established from untrusted client input.
@@ -210,6 +218,10 @@ The API contract must not contradict the business invariants defined in this spe
 | Referenced Route is not `approved`                                            | Reject; no Trip is created.                                                                               |
 | Referenced Route version is invalid or stale                                  | Reject with the applicable validation/business conflict; no Trip is created.                              |
 | Required Trip field is missing                                                | Reject before persistence.                                                                                |
+| Meeting Point is missing                                                      | Reject with an actionable field-level error; do not silently block progress.                              |
+| Meeting Point differs from Start Waypoint                                     | Allow when all other Trip validation passes.                                                              |
+| Host changes Trekking Route after selecting Meeting Point                     | Preserve the selected Meeting Point unless the Host explicitly changes it.                                |
+| `meeting_at > starts_at`                                                      | Reject.                                                                                                   |
 | `starts_at == ends_at`                                                        | Reject.                                                                                                   |
 | `starts_at > ends_at`                                                         | Reject.                                                                                                   |
 | `capacity_min > capacity_max`                                                 | Reject.                                                                                                   |
@@ -231,7 +243,13 @@ The API contract must not contradict the business invariants defined in this spe
 | PB AC-2, BR-183         | Host references an unrelated Route                                                | Request is rejected and no Trip is created                             | Authorization / Integration |
 | PB AC-3, BR-054         | Required identity and Trip fields are valid                                       | Trip data passes validation                                            | Validation / Integration    |
 | PB AC-3, BR-055         | Valid schedule, capacity, deadline, meeting time, and free/paid data are supplied | Trip data passes validation                                            | Validation                  |
+| PB AC-3, BR-055         | Host selects Meeting Point on the map                                             | Meeting Point passes validation and is persisted                        | Unit / E2E                  |
+| PB AC-3, BR-055         | Host has not selected Meeting Point                                               | Field-level error is displayed and Trip is not submitted                | Unit / E2E                  |
+| PB AC-3, BR-055         | Meeting Point differs from Start Waypoint                                         | Trip remains valid                                                      | Unit / Integration          |
+| PB AC-3, BR-055         | Host changes Route after selecting Meeting Point                                  | Meeting Point is preserved                                               | Unit / E2E                  |
 | PB AC-4, BR-188, BR-189 | `starts_at < ends_at`                                                             | Time-range validation passes                                           | Boundary                    |
+| PB AC-4, BR-055         | `meeting_at <= starts_at`                                                         | Time relationship validation passes                                    | Boundary                    |
+| PB AC-4, BR-055         | `meeting_at > starts_at`                                                          | Request is rejected                                                    | Boundary                    |
 | PB AC-4, BR-189         | `starts_at == ends_at`                                                            | Request is rejected                                                    | Boundary                    |
 | PB AC-4, BR-189         | `starts_at > ends_at`                                                             | Request is rejected                                                    | Boundary                    |
 | PB AC-4, BR-055         | `capacity_min > capacity_max`                                                     | Request is rejected                                                    | Boundary                    |

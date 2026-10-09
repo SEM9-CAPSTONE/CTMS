@@ -8,7 +8,7 @@ import { DEFAULT_ROUTE_CENTER, getRouteMapStyleUrl } from "../../trekking-routes
 
 interface TripRouteMapProps {
 	route: CreatedTrekkingRoute | null;
-	meetingPoint: Position;
+	meetingPoint: Position | null;
 	disabled?: boolean;
 	onMeetingPointChange: (position: Position) => void;
 }
@@ -58,7 +58,7 @@ export function TripRouteMap({
 	const mapRef = useRef<MapLibreMap | null>(null);
 	const markerRef = useRef<Marker | null>(null);
 	const routeRef = useRef(route);
-	const meetingPointRef = useRef(meetingPoint);
+	const meetingPointRef = useRef<Position | null>(meetingPoint);
 	const disabledRef = useRef(disabled);
 	const onMeetingPointChangeRef = useRef(onMeetingPointChange);
 	const [mapReady, setMapReady] = useState(false);
@@ -87,7 +87,10 @@ export function TripRouteMap({
 		void import("maplibre-gl")
 			.then((maplibre) => {
 				if (disposed || !containerRef.current) return;
-				const center = routeRef.current?.geometry.coordinates[0] ?? meetingPointRef.current;
+				const center =
+					routeRef.current?.geometry.coordinates[0] ??
+					meetingPointRef.current ??
+					DEFAULT_ROUTE_CENTER;
 				const map = new maplibre.Map({
 					container: containerRef.current,
 					style: styleUrl,
@@ -147,6 +150,12 @@ export function TripRouteMap({
 		});
 		void import("maplibre-gl").then((maplibre) => {
 			if (mapRef.current !== map) return;
+			if (!meetingPoint) {
+				markerRef.current?.remove();
+				markerRef.current = null;
+				if (route?.geometry.coordinates[0]) map.setCenter(route.geometry.coordinates[0]);
+				return;
+			}
 			if (!markerRef.current) {
 				const element = document.createElement("div");
 				element.className = "size-6 rounded-full border-4 border-white bg-[#164027] shadow-lg";
@@ -229,7 +238,7 @@ export function TripRouteMap({
 						E
 					</span>
 				)}
-				{fallback && route && (
+				{fallback && route && meetingPoint && (
 					<span
 						className="-translate-x-1/2 -translate-y-1/2 absolute z-20 flex size-9 items-center justify-center rounded-full border-4 border-white bg-sky-700 text-white shadow-lg"
 						style={fallbackPosition(meetingPoint)}
@@ -258,7 +267,7 @@ export function TripRouteMap({
 			<div className="mt-3 grid gap-2 text-xs font-bold text-[#667a6d] sm:grid-cols-3">
 				<p>Điểm bắt đầu: {start ? start.join(", ") : "Chưa có tuyến"}</p>
 				<p>Điểm kết thúc: {finish ? finish.join(", ") : "Chưa có tuyến"}</p>
-				<p>Điểm tập trung: {route ? meetingPoint.join(", ") : "Chưa chọn"}</p>
+				<p>Điểm tập trung: {route && meetingPoint ? meetingPoint.join(", ") : "Chưa chọn"}</p>
 			</div>
 		</section>
 	);

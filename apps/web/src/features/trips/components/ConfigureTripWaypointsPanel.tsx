@@ -21,7 +21,8 @@ import {
 	toConfigureTripWaypointsDefaultValues,
 	toConfigureTripWaypointsInput,
 } from "../schema/configure-trip-waypoints.schema";
-import type { Trip, TripWaypointType } from "../types";
+import { type Trip, type TripWaypointType, formatTripStatus } from "../types";
+import { SoftSingleDateTimePicker } from "./TripDateTimePicker";
 import { TripWaypointLocationMap } from "./TripWaypointLocationMap";
 
 interface Props {
@@ -34,7 +35,7 @@ const inputClass =
 
 const waypointTypeLabels: Record<TripWaypointType, string> = {
 	start: "Bắt đầu",
-	checkpoint: "Checkpoint có sẵn",
+	checkpoint: "Điểm kiểm tra có sẵn",
 	rest: "Nghỉ chân",
 	meal: "Ăn uống",
 	activity: "Hoạt động",
@@ -65,24 +66,12 @@ function toNewWaypoint(
 
 function waypointListError(values: ConfigureTripWaypointsFormValues): string {
 	if (!values.waypoints.some((waypoint) => waypoint.type === "start")) {
-		return "Trip phải có waypoint bắt đầu.";
+		return "Chuyến đi phải có điểm bắt đầu.";
 	}
 	if (!values.waypoints.some((waypoint) => waypoint.type === "finish")) {
-		return "Trip phải có waypoint kết thúc.";
+		return "Chuyến đi phải có điểm kết thúc.";
 	}
 	return "";
-}
-
-function statusLabel(status: Trip["status"]): string {
-	const labels: Record<Trip["status"], string> = {
-		draft: "Bản nháp",
-		pending_approval: "Chờ duyệt",
-		published: "Đã publish",
-		ongoing: "Đang diễn ra",
-		completed: "Hoàn tất",
-		cancelled: "Đã hủy",
-	};
-	return labels[status];
 }
 
 function canConfigure(status: Trip["status"]): boolean {
@@ -388,26 +377,32 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 							</span>
 						)}
 					</label>
-					<label className="text-xs font-bold text-[#34483b]">
-						Thời gian dự kiến
+					<div>
+						<SoftSingleDateTimePicker
+							modal
+							title="Thời gian dự kiến"
+							value={activeEditorWaypoint.plannedAt}
+							minValue={toDateTimeLocalValue(serverTrip.startsAt)}
+							maxValue={toDateTimeLocalValue(serverTrip.endsAt)}
+							disabled={configuration.isSubmitting}
+							error={errors.waypoints?.[waypointFormIndex]?.plannedAt?.message}
+							onChange={(value) => {
+								setValue(`waypoints.${waypointFormIndex}.plannedAt`, value, {
+									shouldDirty: true,
+									shouldValidate: true,
+								});
+							}}
+						/>
 						<input
 							aria-label={`Thời gian điểm dừng ${waypointFormIndex + 1}`}
 							type="datetime-local"
 							min={toDateTimeLocalValue(serverTrip.startsAt)}
 							max={toDateTimeLocalValue(serverTrip.endsAt)}
 							disabled={configuration.isSubmitting}
-							className={inputClass}
+							className="sr-only"
 							{...register(`waypoints.${waypointFormIndex}.plannedAt`)}
 						/>
-						<span className="mt-1 block text-[11px] font-semibold text-[#667a6d]">
-							{getDayLabel(serverTrip, activeEditorWaypoint)}
-						</span>
-						{errors.waypoints?.[waypointFormIndex]?.plannedAt && (
-							<span className="mt-1 block text-xs text-red-600">
-								{errors.waypoints[waypointFormIndex]?.plannedAt?.message}
-							</span>
-						)}
-					</label>
+					</div>
 				</div>
 				<div className="mt-3 flex justify-between gap-2">
 					<button
@@ -461,7 +456,7 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 				<div className="rounded-xl bg-[#f8faf7] px-4 py-3 text-sm text-[#34483b]">
 					<p>
 						<b>Trạng thái:</b>{" "}
-						<span data-testid="configure-trip-status">{statusLabel(serverTrip.status)}</span>
+						<span data-testid="configure-trip-status">{formatTripStatus(serverTrip.status)}</span>
 					</p>
 				</div>
 			</div>
@@ -471,7 +466,8 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 					role="alert"
 					className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"
 				>
-					Trip đang ở trạng thái {statusLabel(serverTrip.status)}, nên không thể cấu hình waypoint.
+					Chuyến đi đang ở trạng thái {formatTripStatus(serverTrip.status)}, nên không thể cấu hình
+					điểm dừng.
 				</p>
 			)}
 
@@ -485,7 +481,7 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 			{checkpoints.isLoading && (
 				<p className="mt-4 flex items-center gap-2 rounded-xl border border-[#dce8dd] bg-[#f8faf7] p-3 text-sm text-[#34483b]">
 					<Loader2 className="size-4 animate-spin" />
-					Đang tải checkpoint của tuyến...
+					Đang tải điểm kiểm tra của tuyến...
 				</p>
 			)}
 			{checkpoints.error && (
@@ -500,11 +496,11 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 						className="mt-2 inline-flex items-center gap-2 rounded-lg border border-red-300 px-3 py-2 font-bold"
 					>
 						<RefreshCw className="size-4" />
-						Tải lại checkpoint
+						Tải lại điểm kiểm tra
 					</button>
 				</div>
 			)}
-			<form className="mt-5 grid gap-5" onSubmit={handleSubmit(submitForm)}>
+			<form className="mt-5 grid gap-5" noValidate onSubmit={handleSubmit(submitForm)}>
 				<div className="rounded-2xl border border-[#dce8dd] bg-[#f8faf7] p-4">
 					<h3 className="font-extrabold text-[#10221b]">Lịch trình dự kiến</h3>
 					<div className="mt-3 grid gap-2">

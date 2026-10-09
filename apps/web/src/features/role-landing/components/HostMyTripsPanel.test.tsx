@@ -48,6 +48,13 @@ const sampleTrip2: TripDetails = {
 	status: "draft",
 };
 
+const sampleTrip3: TripDetails = {
+	...sampleTrip1,
+	id: "trip-3",
+	title: "Langbiang chờ duyệt",
+	status: "pending_approval",
+};
+
 describe("HostMyTripsPanel", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
@@ -95,7 +102,7 @@ describe("HostMyTripsPanel", () => {
 		render(<HostMyTripsPanel onCreateTrip={onCreateTrip} />);
 
 		expect(screen.getByText("Chưa có chuyến đi nào được tạo")).toBeInTheDocument();
-		const createBtns = screen.getAllByRole("button", { name: /tạo trip/i });
+		const createBtns = screen.getAllByRole("button", { name: /tạo chuyến đi/i });
 		expect(createBtns.length).toBeGreaterThanOrEqual(1);
 		fireEvent.click(createBtns[0]);
 		expect(onCreateTrip).toHaveBeenCalled();
@@ -121,7 +128,7 @@ describe("HostMyTripsPanel", () => {
 			/>
 		);
 
-		const createTripBtn = screen.getByRole("button", { name: /^tạo trip$/i });
+		const createTripBtn = screen.getByRole("button", { name: /^tạo chuyến đi$/i });
 		fireEvent.click(createTripBtn);
 		expect(onCreateTrip).toHaveBeenCalled();
 
@@ -156,10 +163,10 @@ describe("HostMyTripsPanel", () => {
 		expect(onNavigateToTripDetail).toHaveBeenCalledWith("trip-1");
 	});
 
-	it("shows edit action only for draft trips", () => {
+	it("shows edit action for pre-publication trips only", () => {
 		const onEditTripDraft = vi.fn();
 		mockUseMyTrips.mockReturnValue({
-			trips: [sampleTrip1, sampleTrip2],
+			trips: [sampleTrip1, sampleTrip2, sampleTrip3],
 			isLoading: false,
 			error: "",
 			refetch: vi.fn(),
@@ -167,10 +174,13 @@ describe("HostMyTripsPanel", () => {
 
 		render(<HostMyTripsPanel onEditTripDraft={onEditTripDraft} />);
 
-		const editBtn = screen.getByRole("button", { name: /sửa/i });
-		fireEvent.click(editBtn);
+		const editButtons = screen.getAllByRole("button", { name: /sửa/i });
+		expect(editButtons).toHaveLength(2);
 
+		fireEvent.click(editButtons[0]);
 		expect(onEditTripDraft).toHaveBeenCalledWith("trip-2");
+		fireEvent.click(editButtons[1]);
+		expect(onEditTripDraft).toHaveBeenCalledWith("trip-3");
 	});
 
 	it("filters trips by status and updates pagination", () => {

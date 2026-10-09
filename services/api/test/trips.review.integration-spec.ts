@@ -217,6 +217,13 @@ describe("PATCH /api/trips/:tripId/review (integration, real Postgres)", () => {
 		return tripId;
 	}
 
+	async function reviewedUpdatedAtFor(tripId: string): Promise<string> {
+		const rows = await dataSource.query('SELECT "updated_at" FROM "trips" WHERE "id" = $1', [
+			tripId,
+		]);
+		return new Date(rows[0].updated_at).toISOString();
+	}
+
 	function review(token: string | undefined, tripId: string, body: object) {
 		const req = request(app.getHttpServer()).patch(`/api/trips/${tripId}/review`);
 		return token ? req.set("Authorization", `Bearer ${token}`).send(body) : req.send(body);
@@ -266,8 +273,12 @@ describe("PATCH /api/trips/:tripId/review (integration, real Postgres)", () => {
 		const host = await createAccount(UserRole.HOST);
 		const routeId = await createRoute(host.id);
 		const tripId = await createPendingTrip(host, routeId);
+		const reviewedUpdatedAt = await reviewedUpdatedAtFor(tripId);
 
-		const response = await review(admin.accessToken, tripId, { action: "approve" }).expect(200);
+		const response = await review(admin.accessToken, tripId, {
+			action: "approve",
+			reviewedUpdatedAt,
+		}).expect(200);
 
 		expect(response.body).toMatchObject({ id: tripId, status: TripStatus.PUBLISHED });
 
@@ -288,9 +299,11 @@ describe("PATCH /api/trips/:tripId/review (integration, real Postgres)", () => {
 		const host = await createAccount(UserRole.HOST);
 		const routeId = await createRoute(host.id);
 		const tripId = await createPendingTrip(host, routeId);
+		const reviewedUpdatedAt = await reviewedUpdatedAtFor(tripId);
 
 		const response = await review(admin.accessToken, tripId, {
 			action: "decline",
+			reviewedUpdatedAt,
 			reason: "Missing an overnight waypoint description",
 		}).expect(200);
 
@@ -309,8 +322,9 @@ describe("PATCH /api/trips/:tripId/review (integration, real Postgres)", () => {
 		const host = await createAccount(UserRole.HOST);
 		const routeId = await createRoute(host.id);
 		const tripId = await createPendingTrip(host, routeId);
+		const reviewedUpdatedAt = await reviewedUpdatedAtFor(tripId);
 
-		await review(admin.accessToken, tripId, { action: "decline" }).expect(422);
+		await review(admin.accessToken, tripId, { action: "decline", reviewedUpdatedAt }).expect(422);
 
 		const trips = await dataSource.query('SELECT "status" FROM "trips" WHERE "id" = $1', [tripId]);
 		expect(trips[0].status).toBe(TripStatus.PENDING_APPROVAL);
@@ -321,9 +335,10 @@ describe("PATCH /api/trips/:tripId/review (integration, real Postgres)", () => {
 		const host = await createAccount(UserRole.HOST);
 		const routeId = await createRoute(host.id);
 		const tripId = await createPendingTrip(host, routeId);
+		const reviewedUpdatedAt = await reviewedUpdatedAtFor(tripId);
 
-		await review(undefined, tripId, { action: "approve" }).expect(401);
-		await review(host.accessToken, tripId, { action: "approve" }).expect(403);
+		await review(undefined, tripId, { action: "approve", reviewedUpdatedAt }).expect(401);
+		await review(host.accessToken, tripId, { action: "approve", reviewedUpdatedAt }).expect(403);
 
 		const trips = await dataSource.query('SELECT "status" FROM "trips" WHERE "id" = $1', [tripId]);
 		expect(trips[0].status).toBe(TripStatus.PENDING_APPROVAL);
@@ -333,7 +348,10 @@ describe("PATCH /api/trips/:tripId/review (integration, real Postgres)", () => {
 	it("returns 404 for a Trip that does not exist", async () => {
 		const admin = await createAccount(UserRole.ADMIN);
 
-		await review(admin.accessToken, randomUUID(), { action: "approve" }).expect(404);
+		await review(admin.accessToken, randomUUID(), {
+			action: "approve",
+			reviewedUpdatedAt: new Date().toISOString(),
+		}).expect(404);
 	});
 
 	it("returns 409 when the Trip is not in pending_approval status, with no side effect", async () => {
@@ -348,8 +366,12 @@ describe("PATCH /api/trips/:tripId/review (integration, real Postgres)", () => {
 			.expect(201);
 		const draftTripId: string = createResponse.body.id;
 		cleanupTripIds.push(draftTripId);
+		const reviewedUpdatedAt = await reviewedUpdatedAtFor(draftTripId);
 
-		await review(admin.accessToken, draftTripId, { action: "approve" }).expect(409);
+		await review(admin.accessToken, draftTripId, {
+			action: "approve",
+			reviewedUpdatedAt,
+		}).expect(409);
 
 		const trips = await dataSource.query('SELECT "status" FROM "trips" WHERE "id" = $1', [
 			draftTripId,
@@ -362,13 +384,14 @@ describe("PATCH /api/trips/:tripId/review (integration, real Postgres)", () => {
 		const host = await createAccount(UserRole.HOST);
 		const routeId = await createRoute(host.id);
 		const tripId = await createPendingTrip(host, routeId);
+		const reviewedUpdatedAt = await reviewedUpdatedAtFor(tripId);
 
 		await dataSource.query('UPDATE "trekking_routes" SET "status" = $2 WHERE "id" = $1', [
 			routeId,
 			TrekkingRouteStatus.CLOSED,
 		]);
 
-		await review(admin.accessToken, tripId, { action: "approve" }).expect(422);
+		await review(admin.accessToken, tripId, { action: "approve", reviewedUpdatedAt }).expect(422);
 
 		const trips = await dataSource.query('SELECT "status" FROM "trips" WHERE "id" = $1', [tripId]);
 		expect(trips[0].status).toBe(TripStatus.PENDING_APPROVAL);
@@ -384,9 +407,10 @@ describe("PATCH /api/trips/:tripId/review (integration, real Postgres)", () => {
 		const host = await createAccount(UserRole.HOST);
 		const routeId = await createRoute(host.id);
 		const tripId = await createPendingTrip(host, routeId);
+		const reviewedUpdatedAt = await reviewedUpdatedAtFor(tripId);
 
-		await review(admin.accessToken, tripId, { action: "approve" }).expect(200);
-		await review(admin.accessToken, tripId, { action: "approve" }).expect(409);
+		await review(admin.accessToken, tripId, { action: "approve", reviewedUpdatedAt }).expect(200);
+		await review(admin.accessToken, tripId, { action: "approve", reviewedUpdatedAt }).expect(409);
 
 		const auditRows = await dataSource.query(
 			'SELECT * FROM "audit_logs" WHERE "target_id" = $1 AND "action" = $2',

@@ -2,7 +2,7 @@ import { z } from "zod";
 import { type CreateTripInput, TRIP_TYPES, TRIP_WAYPOINT_TYPES, type Trip } from "../types";
 
 const uuidMessage = "Vui lòng chọn tuyến trekking đã duyệt";
-const coordinateMessage = "Tọa độ phải nằm trong phạm vi hợp lệ";
+const meetingPointMessage = "Vui lòng chọn điểm tập trung trên bản đồ";
 
 const positiveIntegerString = (message: string) =>
 	z
@@ -24,10 +24,11 @@ const nonNegativeMoneyString = z
 	.regex(/^\d+(\.\d{1,2})?$/, "Giá phải là số không âm, tối đa 2 chữ số thập phân")
 	.refine((value) => Number(value) >= 0, "Giá phải lớn hơn hoặc bằng 0");
 
-const coordinateString = z
+const meetingCoordinateString = z
 	.string()
 	.trim()
-	.regex(/^-?\d+(\.\d+)?$/, coordinateMessage);
+	.min(1, meetingPointMessage)
+	.regex(/^-?\d+(\.\d+)?$/, meetingPointMessage);
 
 function isSameLocalDateTimeInputDate(firstDateTime: string, secondDateTime: string): boolean {
 	return firstDateTime.slice(0, 10) === secondDateTime.slice(0, 10);
@@ -41,173 +42,110 @@ export function inferTripTypeFromSchedule(
 	return isSameLocalDateTimeInputDate(startsAt, endsAt) ? "day_trip" : "overnight";
 }
 
-export const createTripFormSchema = z
-	.object({
-		routeId: z.string().uuid(uuidMessage),
-		title: z
-			.string()
-			.trim()
-			.min(1, "Tên trip là bắt buộc")
-			.max(150, "Tên trip không được vượt quá 150 ký tự"),
-		description: z.string().trim(),
-		coverImageUrl: z
-			.string()
-			.trim()
-			.refine(
-				(value) => value === "" || /^https?:\/\/\S+$/i.test(value),
-				"URL ảnh bìa chưa hợp lệ"
+export const createCreateTripFormSchema = () =>
+	z
+		.object({
+			routeId: z.string().uuid(uuidMessage),
+			title: z
+				.string()
+				.trim()
+				.min(1, "Tên trip là bắt buộc")
+				.max(150, "Tên trip không được vượt quá 150 ký tự"),
+			description: z.string().trim(),
+			coverImageUrl: z
+				.string()
+				.trim()
+				.refine(
+					(value) => value === "" || /^https?:\/\/\S+$/i.test(value),
+					"URL ảnh bìa chưa hợp lệ"
+				),
+			tripType: z.enum(TRIP_TYPES, {
+				invalid_type_error: "Loại trip chưa hợp lệ",
+			}),
+			startsAt: z.string().min(1, "Thời gian bắt đầu là bắt buộc"),
+			endsAt: z.string().min(1, "Thời gian kết thúc là bắt buộc"),
+			meetingLongitude: meetingCoordinateString.refine(
+				(value) => Math.abs(Number(value)) <= 180,
+				"Kinh độ phải từ -180 đến 180"
 			),
-		tripType: z.enum(TRIP_TYPES, { invalid_type_error: "Loại trip chưa hợp lệ" }),
-		startsAt: z.string().min(1, "Thời gian bắt đầu là bắt buộc"),
-		endsAt: z.string().min(1, "Thời gian kết thúc là bắt buộc"),
-		meetingLongitude: coordinateString.refine(
-			(value) => Math.abs(Number(value)) <= 180,
-			"Kinh độ phải từ -180 đến 180"
-		),
-		meetingLatitude: coordinateString.refine(
-			(value) => Math.abs(Number(value)) <= 90,
-			"Vĩ độ phải từ -90 đến 90"
-		),
-		meetingAt: z.string(),
-		bookingDeadline: z.string().min(1, "Hạn đặt chỗ là bắt buộc"),
-		capacityMin: positiveIntegerString("Số khách tối thiểu phải là số nguyên dương"),
-		capacityMax: optionalPositiveIntegerString("Số khách tối đa phải là số nguyên dương"),
-		pricePerPerson: nonNegativeMoneyString,
-		waypoints: z
-			.array(
+			meetingLatitude: meetingCoordinateString.refine(
+				(value) => Math.abs(Number(value)) <= 90,
+				"Vĩ độ phải từ -90 đến 90"
+			),
+			meetingAt: z.string().min(1, "Thời gian tập trung là bắt buộc"),
+			bookingDeadline: z.string().min(1, "Hạn đặt chỗ là bắt buộc"),
+			capacityMin: positiveIntegerString("Số khách tối thiểu phải là số nguyên dương"),
+			capacityMax: optionalPositiveIntegerString("Số khách tối đa phải là số nguyên dương"),
+			pricePerPerson: nonNegativeMoneyString,
+			waypoints: z.array(
 				z.object({
-					type: z.enum(TRIP_WAYPOINT_TYPES),
-					name: z.string().trim().min(1, "Tên điểm dừng là bắt buộc").max(150),
-					longitude: coordinateString.refine(
-						(value) => Math.abs(Number(value)) <= 180,
-						"Kinh độ phải từ -180 đến 180"
-					),
-					latitude: coordinateString.refine(
-						(value) => Math.abs(Number(value)) <= 90,
-						"Vĩ độ phải từ -90 đến 90"
-					),
-					plannedAt: z.string().min(1, "Thời gian điểm dừng là bắt buộc"),
+					type: z.enum(TRIP_WAYPOINT_TYPES).catch("checkpoint"),
+					name: z.string().trim().catch(""),
+					longitude: z.string().trim().catch(""),
+					latitude: z.string().trim().catch(""),
+					plannedAt: z.string().catch(""),
 				})
-			)
-			.min(2, "Trip cần ít nhất điểm bắt đầu và điểm kết thúc"),
-	})
-	.superRefine((values, context) => {
-		const startsAt = new Date(values.startsAt);
-		const endsAt = new Date(values.endsAt);
-		const bookingDeadline = new Date(values.bookingDeadline);
-		const meetingAt = values.meetingAt ? new Date(values.meetingAt) : null;
-		const now = new Date();
+			),
+		})
+		.superRefine((values, context) => {
+			const now = new Date();
 
-		if (values.startsAt && startsAt < now) {
-			context.addIssue({
-				code: z.ZodIssueCode.custom,
-				path: ["startsAt"],
-				message: "Thời gian bắt đầu không được ở quá khứ",
-			});
-		}
-		if (values.endsAt && endsAt < now) {
-			context.addIssue({
-				code: z.ZodIssueCode.custom,
-				path: ["endsAt"],
-				message: "Thời gian kết thúc không được ở quá khứ",
-			});
-		}
-		if (values.bookingDeadline && bookingDeadline < now) {
-			context.addIssue({
-				code: z.ZodIssueCode.custom,
-				path: ["bookingDeadline"],
-				message: "Hạn đặt chỗ không được ở quá khứ",
-			});
-		}
-		if (meetingAt && meetingAt < now) {
-			context.addIssue({
-				code: z.ZodIssueCode.custom,
-				path: ["meetingAt"],
-				message: "Thời gian tập trung không được ở quá khứ",
-			});
-		}
+			const parseDate = (value: string): Date | null => {
+				if (!value) return null;
 
-		if (values.startsAt && values.endsAt && startsAt >= endsAt) {
-			context.addIssue({
-				code: z.ZodIssueCode.custom,
-				path: ["endsAt"],
-				message: "Thời gian kết thúc phải sau thời gian bắt đầu",
-			});
-		}
-		if (values.bookingDeadline && values.startsAt && bookingDeadline >= startsAt) {
-			context.addIssue({
-				code: z.ZodIssueCode.custom,
-				path: ["bookingDeadline"],
-				message: "Hạn đặt chỗ phải trước thời gian bắt đầu",
-			});
-		}
-		if (meetingAt && values.startsAt && meetingAt > startsAt) {
-			context.addIssue({
-				code: z.ZodIssueCode.custom,
-				path: ["meetingAt"],
-				message: "Thời gian tập trung phải trước hoặc bằng thời gian bắt đầu",
-			});
-		}
-		if (values.capacityMax && Number(values.capacityMin) > Number(values.capacityMax)) {
-			context.addIssue({
-				code: z.ZodIssueCode.custom,
-				path: ["capacityMin"],
-				message: "Số khách tối thiểu không được lớn hơn số khách tối đa",
-			});
-		}
-		if (!values.waypoints.some((waypoint) => waypoint.type === "start")) {
-			context.addIssue({
-				code: z.ZodIssueCode.custom,
-				path: ["waypoints"],
-				message: "Trip phải có waypoint bắt đầu",
-			});
-		}
-		if (!values.waypoints.some((waypoint) => waypoint.type === "finish")) {
-			context.addIssue({
-				code: z.ZodIssueCode.custom,
-				path: ["waypoints"],
-				message: "Trip phải có waypoint kết thúc",
-			});
-		}
+				const date = new Date(value);
+				return Number.isNaN(date.getTime()) ? null : date;
+			};
 
-		const plannedTimes = new Set<string>();
-		values.waypoints.forEach((waypoint, index) => {
-			if (plannedTimes.has(waypoint.plannedAt)) {
+			const startsAt = parseDate(values.startsAt);
+			const endsAt = parseDate(values.endsAt);
+			const meetingAt = parseDate(values.meetingAt);
+			const bookingDeadline = parseDate(values.bookingDeadline);
+
+			const addTimeError = (
+				field: "startsAt" | "endsAt" | "meetingAt" | "bookingDeadline",
+				message: string
+			) => {
 				context.addIssue({
 					code: z.ZodIssueCode.custom,
-					path: ["waypoints", index, "plannedAt"],
-					message: "Thời gian điểm dừng không được trùng trong cùng trip",
+					path: [field],
+					message,
 				});
+			};
+
+			const timelineFields = [
+				["startsAt", startsAt, values.startsAt],
+				["endsAt", endsAt, values.endsAt],
+				["meetingAt", meetingAt, values.meetingAt],
+				["bookingDeadline", bookingDeadline, values.bookingDeadline],
+			] as const;
+
+			for (const [field, date, rawValue] of timelineFields) {
+				if (rawValue && !date) {
+					addTimeError(field, "Thời gian không hợp lệ");
+				} else if (date && date <= now) {
+					addTimeError(field, "Thời gian phải sau thời điểm hiện tại");
+				}
 			}
-			plannedTimes.add(waypoint.plannedAt);
-			const plannedAt = new Date(waypoint.plannedAt);
-			if (values.startsAt && values.endsAt && (plannedAt < startsAt || plannedAt > endsAt)) {
-				context.addIssue({
-					code: z.ZodIssueCode.custom,
-					path: ["waypoints", index, "plannedAt"],
-					message: "Thời gian điểm dừng phải nằm trong lịch trình trip",
-				});
+
+			if (startsAt && endsAt && endsAt <= startsAt) {
+				addTimeError("endsAt", "Thời gian kết thúc phải sau thời gian bắt đầu");
+			}
+
+			if (bookingDeadline && meetingAt && bookingDeadline >= meetingAt) {
+				addTimeError("meetingAt", "Thời gian tập trung phải sau hạn đặt chỗ");
+			}
+
+			if (meetingAt && startsAt && meetingAt >= startsAt) {
+				addTimeError("meetingAt", "Thời gian tập trung phải trước thời gian bắt đầu");
+			}
+
+			if (bookingDeadline && startsAt && bookingDeadline >= startsAt) {
+				addTimeError("bookingDeadline", "Hạn đặt chỗ phải trước thời gian bắt đầu");
 			}
 		});
 
-		const sortedWaypoints = [...values.waypoints].sort(
-			(first, second) => new Date(first.plannedAt).getTime() - new Date(second.plannedAt).getTime()
-		);
-		if (sortedWaypoints[0]?.type !== "start") {
-			context.addIssue({
-				code: z.ZodIssueCode.custom,
-				path: ["waypoints"],
-				message: "Điểm đầu tiên phải là điểm bắt đầu",
-			});
-		}
-		if (sortedWaypoints.at(-1)?.type !== "finish") {
-			context.addIssue({
-				code: z.ZodIssueCode.custom,
-				path: ["waypoints"],
-				message: "Điểm cuối cùng phải là điểm kết thúc",
-			});
-		}
-	});
+export const createTripFormSchema = createCreateTripFormSchema();
 
 export type CreateTripFormValues = z.infer<typeof createTripFormSchema>;
 
@@ -219,8 +157,8 @@ export const CREATE_TRIP_DEFAULT_VALUES: CreateTripFormValues = {
 	tripType: "day_trip",
 	startsAt: "",
 	endsAt: "",
-	meetingLongitude: "108.2208",
-	meetingLatitude: "16.0471",
+	meetingLongitude: "",
+	meetingLatitude: "",
 	meetingAt: "",
 	bookingDeadline: "",
 	capacityMin: "",

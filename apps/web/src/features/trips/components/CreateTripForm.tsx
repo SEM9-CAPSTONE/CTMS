@@ -16,11 +16,18 @@ import type { CreateTripError } from "../hooks/useCreateTrip";
 import {
 	CREATE_TRIP_DEFAULT_VALUES,
 	type CreateTripFormValues,
-	createTripFormSchema,
+	createCreateTripFormSchema,
 	inferTripTypeFromSchedule,
 	toCreateTripInput,
 } from "../schema/create-trip.schema";
 import type { CreateTripInput } from "../types";
+import {
+	SoftDateTimeRangePicker,
+	SoftSingleDateTimePicker,
+	getPastDateTimeMessage,
+	maxDateTimeLocalValue,
+	toDateTimeLocalInputValue,
+} from "./TripDateTimePicker";
 import { TripRouteMap } from "./TripRouteMap";
 
 interface Props {
@@ -34,10 +41,10 @@ interface Props {
 	onRetryRoutes: () => void;
 	onCreateRoute?: () => void;
 	defaultValues?: CreateTripFormValues;
+	draftStorageKey?: string;
 	submitLabel?: string;
 	submittingLabel?: string;
 	title?: string;
-	description?: string;
 }
 
 const inputClass =
@@ -52,11 +59,6 @@ const backendFieldMap: Record<string, keyof CreateTripFormValues> = {
 	capacityMin: "capacityMin",
 	waypoints: "waypoints",
 };
-
-function toDateTimeLocalInputValue(date: Date): string {
-	const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
-	return localDate.toISOString().slice(0, 16);
-}
 
 function formatDuration(minutes: number): string {
 	if (minutes < 60) return `${minutes} phút`;
@@ -87,8 +89,113 @@ function getRouteDurationError(
 }
 
 function tripTypeLabel(startsAt: string, endsAt: string): string {
-	if (!startsAt || !endsAt) return "Sẽ tự xác định sau khi chọn lịch";
 	return inferTripTypeFromSchedule(startsAt, endsAt) === "overnight" ? "Qua đêm" : "Trong ngày";
+}
+
+function isCreateTripFormValues(value: unknown): value is CreateTripFormValues {
+	if (typeof value !== "object" || value === null) return false;
+	const candidate = value as Partial<CreateTripFormValues>;
+	return (
+		typeof candidate.routeId === "string" &&
+		typeof candidate.title === "string" &&
+		typeof candidate.description === "string" &&
+		typeof candidate.coverImageUrl === "string" &&
+		typeof candidate.tripType === "string" &&
+		typeof candidate.startsAt === "string" &&
+		typeof candidate.endsAt === "string" &&
+		typeof candidate.meetingLongitude === "string" &&
+		typeof candidate.meetingLatitude === "string" &&
+		typeof candidate.meetingAt === "string" &&
+		typeof candidate.bookingDeadline === "string" &&
+		typeof candidate.capacityMin === "string" &&
+		typeof candidate.capacityMax === "string" &&
+		typeof candidate.pricePerPerson === "string" &&
+		Array.isArray(candidate.waypoints)
+	);
+}
+
+function readPersistedDraft(storageKey: string | undefined): CreateTripFormValues | null {
+	if (!storageKey || typeof window === "undefined") return null;
+	try {
+		const rawDraft = window.localStorage.getItem(storageKey);
+		if (!rawDraft) return null;
+		const parsed = JSON.parse(rawDraft) as unknown;
+		return isCreateTripFormValues(parsed) ? parsed : null;
+	} catch {
+		return null;
+	}
+}
+
+function persistDraft(storageKey: string | undefined, values: CreateTripFormValues): void {
+	if (!storageKey || typeof window === "undefined") return;
+	try {
+		window.localStorage.setItem(storageKey, JSON.stringify(values));
+	} catch {
+		// Draft persistence is best-effort; form submission remains authoritative.
+	}
+}
+
+function clearPersistedDraft(storageKey: string | undefined): void {
+	if (!storageKey || typeof window === "undefined") return;
+	try {
+		window.localStorage.removeItem(storageKey);
+	} catch {
+		// Ignore storage cleanup failures.
+	}
+}
+
+function isBlankOrDefault(value: string | undefined, defaultValue: string): boolean {
+	return !value || value === defaultValue;
+}
+
+function useCurrentDateTimeLocalValue(): string {
+	const [value, setValue] = useState(() => toDateTimeLocalInputValue(new Date()));
+
+	useEffect(() => {
+		const update = () => setValue(toDateTimeLocalInputValue(new Date()));
+		const intervalId = window.setInterval(update, 15_000);
+		document.addEventListener("visibilitychange", update);
+		window.addEventListener("focus", update);
+		return () => {
+			window.clearInterval(intervalId);
+			document.removeEventListener("visibilitychange", update);
+			window.removeEventListener("focus", update);
+		};
+	}, []);
+
+	return value;
+}
+
+function withRouteEndpointWaypoints(
+	values: CreateTripFormValues,
+	route: CreatedTrekkingRoute | null
+): CreateTripFormValues {
+	const start = route?.geometry.coordinates[0];
+	const finish = route?.geometry.coordinates.at(-1);
+	if (!route || !start || !finish) return values;
+	const startWaypoint =
+		values.waypoints.find((waypoint) => waypoint.type === "start") ?? values.waypoints[0];
+	const finishWaypoint =
+		values.waypoints.find((waypoint) => waypoint.type === "finish") ?? values.waypoints[1];
+	return {
+		...values,
+		waypoints: [
+			{
+				type: "start",
+				name: startWaypoint?.name || `${route.name} - điểm bắt đầu`,
+				longitude: String(start[0]),
+				latitude: String(start[1]),
+				plannedAt: values.startsAt,
+			},
+			{
+				type: "finish",
+				name: finishWaypoint?.name || `${route.name} - điểm kết thúc`,
+				longitude: String(finish[0]),
+				latitude: String(finish[1]),
+				plannedAt: values.endsAt,
+			},
+		],
+	};
 }
 
 export function CreateTripForm({
@@ -102,44 +209,86 @@ export function CreateTripForm({
 	onRetryRoutes,
 	onCreateRoute,
 	defaultValues = CREATE_TRIP_DEFAULT_VALUES,
-	submitLabel = "Tạo draft và cấu hình waypoint",
+	draftStorageKey,
+	submitLabel = "Bước tiếp theo",
 	submittingLabel = "Đang tạo trip...",
 	title = "Thông tin chuyến đi",
-	description = "Loại trip được tự xác định từ ngày bắt đầu và kết thúc.",
 }: Props) {
+	const formSchema = useMemo(() => createCreateTripFormSchema(), []);
 	const {
 		register,
 		handleSubmit,
 		clearErrors,
+		getValues,
 		setError,
 		setValue,
+		trigger,
 		watch,
 		reset,
 		formState: { errors },
 	} = useForm<CreateTripFormValues>({
-		resolver: zodResolver(createTripFormSchema),
+		resolver: zodResolver(formSchema),
 		defaultValues,
 		mode: "onChange",
 	});
 	const selectedRouteId = watch("routeId");
 	const startsAt = watch("startsAt");
 	const endsAt = watch("endsAt");
+	const bookingDeadline = watch("bookingDeadline");
+	const meetingAt = watch("meetingAt");
 	const [coverImagePreview, setCoverImagePreview] = useState("");
-	const minDateTime = useMemo(() => toDateTimeLocalInputValue(new Date()), []);
-	const meetingPoint: Position = [
-		Number(watch("meetingLongitude")),
-		Number(watch("meetingLatitude")),
-	];
+	const minDateTime = useCurrentDateTimeLocalValue();
+	const meetingAtMinDateTime = maxDateTimeLocalValue(bookingDeadline, minDateTime);
+	const meetingLongitude = watch("meetingLongitude");
+	const meetingLatitude = watch("meetingLatitude");
+	const meetingPoint: Position | null =
+		meetingLongitude && meetingLatitude
+			? [Number(meetingLongitude), Number(meetingLatitude)]
+			: null;
 	const hasActiveRoutes = activeRoutes.length > 0;
 	const selectedRoute = activeRoutes.find((route) => route.id === selectedRouteId) ?? null;
 	const routeDurationError = getRouteDurationError(startsAt, endsAt, selectedRoute);
-	const endsAtErrorMessage = routeDurationError || errors.endsAt?.message;
+	const startsAtPastError = getPastDateTimeMessage(
+		startsAt,
+		minDateTime,
+		"Thời gian bắt đầu phải sau thời điểm hiện tại"
+	);
+
+	const endsAtPastError = getPastDateTimeMessage(
+		endsAt,
+		minDateTime,
+		"Thời gian kết thúc phải sau thời điểm hiện tại"
+	);
+
+	const bookingDeadlinePastError = getPastDateTimeMessage(
+		bookingDeadline,
+		minDateTime,
+		"Hạn đặt chỗ phải sau thời điểm hiện tại"
+	);
+
+	const meetingAtPastError = getPastDateTimeMessage(
+		meetingAt,
+		minDateTime,
+		"Thời gian tập trung phải sau thời điểm hiện tại"
+	);
+	const startsAtErrorMessage = errors.startsAt?.message || startsAtPastError;
+	const endsAtErrorMessage = routeDurationError || errors.endsAt?.message || endsAtPastError;
+	const bookingDeadlineErrorMessage = errors.bookingDeadline?.message || bookingDeadlinePastError;
+	const meetingAtErrorMessage = errors.meetingAt?.message || meetingAtPastError;
 	const routeSelectDisabled = isSubmitting || isRouteLoading || !hasActiveRoutes;
 	const submitDisabled = isSubmitting || !hasActiveRoutes || !selectedRouteId;
 
 	useEffect(() => {
-		reset(defaultValues);
-	}, [defaultValues, reset]);
+		reset(readPersistedDraft(draftStorageKey) ?? defaultValues);
+	}, [defaultValues, draftStorageKey, reset]);
+
+	useEffect(() => {
+		if (!draftStorageKey) return;
+		const subscription = watch((values) => {
+			if (isCreateTripFormValues(values)) persistDraft(draftStorageKey, values);
+		});
+		return () => subscription.unsubscribe();
+	}, [draftStorageKey, watch]);
 
 	useEffect(() => {
 		if (!hasActiveRoutes || selectedRouteId) return;
@@ -148,20 +297,57 @@ export function CreateTripForm({
 
 	useEffect(() => {
 		if (!selectedRoute) return;
+		const currentValues = getValues();
 		const start = selectedRoute.geometry.coordinates[0];
 		const finish = selectedRoute.geometry.coordinates.at(-1);
 		if (!start || !finish) return;
-		setValue("meetingLongitude", String(start[0]), { shouldValidate: true });
-		setValue("meetingLatitude", String(start[1]), { shouldValidate: true });
 		setValue("waypoints.0.type", "start");
-		setValue("waypoints.0.name", `${selectedRoute.name} - điểm bắt đầu`, { shouldValidate: true });
-		setValue("waypoints.0.longitude", String(start[0]), { shouldValidate: true });
-		setValue("waypoints.0.latitude", String(start[1]), { shouldValidate: true });
+		if (!currentValues.waypoints[0]?.name) {
+			setValue("waypoints.0.name", `${selectedRoute.name} - điểm bắt đầu`, {
+				shouldValidate: true,
+			});
+		}
+		if (
+			isBlankOrDefault(
+				currentValues.waypoints[0]?.longitude,
+				CREATE_TRIP_DEFAULT_VALUES.waypoints[0].longitude
+			) ||
+			isBlankOrDefault(
+				currentValues.waypoints[0]?.latitude,
+				CREATE_TRIP_DEFAULT_VALUES.waypoints[0].latitude
+			)
+		) {
+			setValue("waypoints.0.longitude", String(start[0]), {
+				shouldValidate: true,
+			});
+			setValue("waypoints.0.latitude", String(start[1]), {
+				shouldValidate: true,
+			});
+		}
 		setValue("waypoints.1.type", "finish");
-		setValue("waypoints.1.name", `${selectedRoute.name} - điểm kết thúc`, { shouldValidate: true });
-		setValue("waypoints.1.longitude", String(finish[0]), { shouldValidate: true });
-		setValue("waypoints.1.latitude", String(finish[1]), { shouldValidate: true });
-	}, [selectedRoute, setValue]);
+		if (!currentValues.waypoints[1]?.name) {
+			setValue("waypoints.1.name", `${selectedRoute.name} - điểm kết thúc`, {
+				shouldValidate: true,
+			});
+		}
+		if (
+			isBlankOrDefault(
+				currentValues.waypoints[1]?.longitude,
+				CREATE_TRIP_DEFAULT_VALUES.waypoints[1].longitude
+			) ||
+			isBlankOrDefault(
+				currentValues.waypoints[1]?.latitude,
+				CREATE_TRIP_DEFAULT_VALUES.waypoints[1].latitude
+			)
+		) {
+			setValue("waypoints.1.longitude", String(finish[0]), {
+				shouldValidate: true,
+			});
+			setValue("waypoints.1.latitude", String(finish[1]), {
+				shouldValidate: true,
+			});
+		}
+	}, [getValues, selectedRoute, setValue]);
 
 	useEffect(() => {
 		if (startsAt) setValue("waypoints.0.plannedAt", startsAt, { shouldValidate: true });
@@ -172,12 +358,17 @@ export function CreateTripForm({
 	}, [endsAt, setValue]);
 
 	useEffect(() => {
-		setValue("tripType", inferTripTypeFromSchedule(startsAt, endsAt), { shouldValidate: true });
+		setValue("tripType", inferTripTypeFromSchedule(startsAt, endsAt), {
+			shouldValidate: true,
+		});
 	}, [endsAt, setValue, startsAt]);
 
 	useEffect(() => {
 		if (routeDurationError) {
-			setError("endsAt", { type: "routeDuration", message: routeDurationError });
+			setError("endsAt", {
+				type: "routeDuration",
+				message: routeDurationError,
+			});
 			return;
 		}
 		if (errors.endsAt?.type === "routeDuration") clearErrors("endsAt");
@@ -185,8 +376,14 @@ export function CreateTripForm({
 
 	const setMeetingPoint = useCallback(
 		([longitude, latitude]: Position) => {
-			setValue("meetingLongitude", String(longitude), { shouldValidate: false });
-			setValue("meetingLatitude", String(latitude), { shouldValidate: false });
+			setValue("meetingLongitude", String(longitude), {
+				shouldValidate: true,
+				shouldDirty: true,
+			});
+			setValue("meetingLatitude", String(latitude), {
+				shouldValidate: true,
+				shouldDirty: true,
+			});
 		},
 		[setValue]
 	);
@@ -200,7 +397,9 @@ export function CreateTripForm({
 			return;
 		}
 		if (file.size > MAX_COVER_IMAGE_SIZE) {
-			setError("coverImageUrl", { message: "Ảnh bìa không được vượt quá 5 MB" });
+			setError("coverImageUrl", {
+				message: "Ảnh bìa không được vượt quá 5 MB",
+			});
 			event.target.value = "";
 			return;
 		}
@@ -233,6 +432,7 @@ export function CreateTripForm({
 		for (const [field, message] of Object.entries(error.fieldErrors)) {
 			const mapped = backendFieldMap[field];
 			if (mapped) setError(mapped, { message });
+			if (field.startsWith("waypoints.")) setError("waypoints", { message });
 		}
 	}, [error, setError]);
 
@@ -242,11 +442,16 @@ export function CreateTripForm({
 			setError("endsAt", { type: "routeDuration", message: durationError });
 			return Promise.resolve();
 		}
-		return onSubmit(toCreateTripInput(values));
+		return onSubmit(toCreateTripInput(withRouteEndpointWaypoints(values, selectedRoute))).then(
+			(result) => {
+				if (result) clearPersistedDraft(draftStorageKey);
+				return result;
+			}
+		);
 	};
 
 	return (
-		<form className="grid gap-5" onSubmit={handleSubmit(submitForm)}>
+		<form className="grid gap-5" noValidate onSubmit={handleSubmit(submitForm)}>
 			<section className="overflow-hidden rounded-2xl border border-[#dce8dd] bg-white shadow-sm">
 				<div className="grid gap-0 lg:grid-cols-[0.88fr_1.12fr]">
 					<div className="bg-[#f7faf6] p-5">
@@ -262,8 +467,8 @@ export function CreateTripForm({
 									Chọn tuyến đã duyệt để tạo trip
 								</h2>
 								<p className="mt-2 text-sm leading-6 text-[#667a6d]">
-									Trip dùng tuyến trekking có sẵn. Điểm bắt đầu và kết thúc sẽ tự lấy từ tuyến bạn
-									chọn.
+									Chuyến đi dùng tuyến trekking có sẵn. Điểm bắt đầu và kết thúc sẽ tự lấy từ tuyến
+									bạn chọn.
 								</p>
 							</div>
 						</div>
@@ -326,8 +531,8 @@ export function CreateTripForm({
 						role="alert"
 						className="mx-5 mb-5 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"
 					>
-						Chưa có tuyến trekking đã duyệt. Form vẫn cho nhập nháp; nút tạo trip sẽ mở sau khi có
-						tuyến phù hợp.
+						Chưa có tuyến trekking đã duyệt. Form vẫn cho nhập nháp; nút tạo chuyến đi sẽ mở sau khi
+						có tuyến phù hợp.
 					</p>
 				)}
 			</section>
@@ -350,7 +555,6 @@ export function CreateTripForm({
 				<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
 					<div>
 						<h2 className="font-extrabold text-[#10221b]">{title}</h2>
-						<p className="mt-1 text-sm text-[#667a6d]">{description}</p>
 					</div>
 					<div className="inline-flex items-center gap-2 self-start rounded-full bg-[#f0f6ef] px-4 py-2 text-sm font-extrabold text-[#164027]">
 						<CalendarDays className="size-4" />
@@ -371,66 +575,119 @@ export function CreateTripForm({
 							<span className="mt-1 block text-xs text-red-600">{errors.title.message}</span>
 						)}
 					</label>
-					<label className="text-sm font-bold text-[#34483b]">
-						Bắt đầu
+					<div>
+						<SoftDateTimeRangePicker
+							title="Thời gian"
+							startsAt={startsAt}
+							endsAt={endsAt}
+							minValue={minDateTime}
+							disabled={isSubmitting}
+							startError={startsAtErrorMessage}
+							endError={endsAtErrorMessage}
+							onStartChange={(value) => {
+								setValue("startsAt", value, {
+									shouldValidate: true,
+									shouldDirty: true,
+								});
+								void trigger(["startsAt", "endsAt", "meetingAt", "bookingDeadline"]);
+							}}
+							onEndChange={(value) => {
+								setValue("endsAt", value, {
+									shouldValidate: true,
+									shouldDirty: true,
+								});
+								void trigger(["startsAt", "endsAt"]);
+							}}
+						/>
 						<input
 							aria-label="Bắt đầu"
 							type="datetime-local"
 							min={minDateTime}
 							disabled={isSubmitting}
-							className={inputClass}
+							className="sr-only"
 							{...register("startsAt")}
 						/>
-						{errors.startsAt && (
-							<span className="mt-1 block text-xs text-red-600">{errors.startsAt.message}</span>
-						)}
-					</label>
-					<label className="text-sm font-bold text-[#34483b]">
-						Kết thúc
 						<input
 							aria-label="Kết thúc"
 							type="datetime-local"
 							min={startsAt || minDateTime}
 							disabled={isSubmitting}
-							className={inputClass}
+							className="sr-only"
 							{...register("endsAt")}
 						/>
-						{endsAtErrorMessage && (
-							<span className="mt-1 block text-xs text-red-600">{endsAtErrorMessage}</span>
-						)}
-					</label>
+					</div>
 					<label className="text-sm font-bold text-[#34483b]">
-						Thời gian tập trung
+						Giá mỗi người
 						<input
-							aria-label="Thời gian tập trung"
-							type="datetime-local"
-							min={minDateTime}
-							max={startsAt || undefined}
+							aria-label="Giá mỗi người"
+							inputMode="decimal"
 							disabled={isSubmitting}
 							className={inputClass}
-							{...register("meetingAt")}
+							{...register("pricePerPerson")}
 						/>
-						{errors.meetingAt && (
-							<span className="mt-1 block text-xs text-red-600">{errors.meetingAt.message}</span>
-						)}
-					</label>
-					<label className="text-sm font-bold text-[#34483b]">
-						Hạn đặt chỗ
-						<input
-							aria-label="Hạn đặt chỗ"
-							type="datetime-local"
-							min={minDateTime}
-							max={startsAt || undefined}
-							disabled={isSubmitting}
-							className={inputClass}
-							{...register("bookingDeadline")}
-						/>
-						{errors.bookingDeadline && (
+						{errors.pricePerPerson && (
 							<span className="mt-1 block text-xs text-red-600">
-								{errors.bookingDeadline.message}
+								{errors.pricePerPerson.message}
 							</span>
 						)}
 					</label>
+					<div className="sm:col-span-2 grid gap-4 xl:grid-cols-2">
+						<div>
+							<SoftSingleDateTimePicker
+								title="Thời gian tập trung"
+								value={meetingAt}
+								disabled={isSubmitting}
+								error={meetingAtErrorMessage}
+								defaultTime="07:30"
+								minValue={meetingAtMinDateTime}
+								maxValue={startsAt}
+								onChange={(value) => {
+									setValue("meetingAt", value, {
+										shouldValidate: true,
+										shouldDirty: true,
+									});
+
+									void trigger(["meetingAt", "bookingDeadline", "startsAt"]);
+								}}
+							/>
+							<input
+								aria-label="Thời gian tập trung"
+								type="datetime-local"
+								min={meetingAtMinDateTime}
+								max={startsAt || undefined}
+								disabled={isSubmitting}
+								className="sr-only"
+								{...register("meetingAt")}
+							/>
+						</div>
+						<div>
+							<SoftSingleDateTimePicker
+								title="Hạn đặt chỗ"
+								value={bookingDeadline}
+								disabled={isSubmitting}
+								error={bookingDeadlineErrorMessage}
+								defaultTime="18:00"
+								minValue={minDateTime}
+								maxValue={startsAt}
+								onChange={(value) => {
+									setValue("bookingDeadline", value, {
+										shouldValidate: true,
+										shouldDirty: true,
+									});
+									void trigger(["bookingDeadline", "meetingAt"]);
+								}}
+							/>
+							<input
+								aria-label="Hạn đặt chỗ"
+								type="datetime-local"
+								min={minDateTime}
+								max={startsAt || undefined}
+								disabled={isSubmitting}
+								className="sr-only"
+								{...register("bookingDeadline")}
+							/>
+						</div>
+					</div>
 					<label className="text-sm font-bold text-[#34483b]">
 						Số khách tối thiểu
 						<input
@@ -459,30 +716,25 @@ export function CreateTripForm({
 						)}
 					</label>
 					<label className="text-sm font-bold text-[#34483b]">
-						Giá mỗi người
-						<input
-							aria-label="Giá mỗi người"
-							inputMode="decimal"
+						Mô tả
+						<textarea
+							aria-label="Mô tả"
 							disabled={isSubmitting}
+							rows={5}
 							className={inputClass}
-							{...register("pricePerPerson")}
+							{...register("description")}
 						/>
-						{errors.pricePerPerson && (
-							<span className="mt-1 block text-xs text-red-600">
-								{errors.pricePerPerson.message}
-							</span>
-						)}
 					</label>
 					<div className="text-sm font-bold text-[#34483b]">
 						<span>Ảnh bìa</span>
 						<input type="hidden" {...register("coverImageUrl")} />
-						<div className="mt-1 rounded-xl border border-dashed border-[#cbd9ce] bg-[#fbfdfb] p-3">
+						<div className="mt-1 rounded-xl border border-dashed border-[#16a34a]/35 bg-[#fbfdfb] p-3">
 							{coverImagePreview ? (
 								<div className="relative overflow-hidden rounded-lg">
 									<img
 										src={coverImagePreview}
 										alt="Ảnh bìa đã chọn"
-										className="h-28 w-full object-cover"
+										className="h-36 w-full object-cover"
 									/>
 									<button
 										type="button"
@@ -495,7 +747,7 @@ export function CreateTripForm({
 									</button>
 								</div>
 							) : (
-								<label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-white px-3 py-5 text-sm font-bold text-[#164027] ring-1 ring-[#dce8dd]">
+								<label className="flex min-h-36 cursor-pointer items-center justify-center gap-2 rounded-lg bg-white px-3 py-5 text-sm font-bold text-[#164027] ring-1 ring-[#16a34a]/25">
 									<ImagePlus className="size-4" />
 									Chọn ảnh từ máy
 									<input
@@ -518,16 +770,6 @@ export function CreateTripForm({
 							</span>
 						)}
 					</div>
-					<label className="text-sm font-bold text-[#34483b] sm:col-span-2">
-						Mô tả
-						<textarea
-							aria-label="Mô tả"
-							disabled={isSubmitting}
-							rows={3}
-							className={inputClass}
-							{...register("description")}
-						/>
-					</label>
 				</div>
 			</section>
 
@@ -538,10 +780,14 @@ export function CreateTripForm({
 				onMeetingPointChange={setMeetingPoint}
 			/>
 
-			{(errors.meetingLongitude || errors.meetingLatitude || errors.waypoints?.root) && (
+			{(errors.meetingLongitude ||
+				errors.meetingLatitude ||
+				errors.waypoints?.message ||
+				errors.waypoints?.root) && (
 				<p role="alert" className="text-sm font-bold text-red-600">
 					{errors.meetingLongitude?.message ??
 						errors.meetingLatitude?.message ??
+						errors.waypoints?.message ??
 						errors.waypoints?.root?.message ??
 						"Vui lòng kiểm tra các điểm trên tuyến."}
 				</p>
