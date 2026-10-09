@@ -34,6 +34,7 @@ Acceptance Criteria:
 - Validate rotation state.
 - Issue new access token.
 - Apply configured refresh-token rotation.
+- End an idle web session after the configured inactivity timeout (BR-465).
 
 ### Out of Scope
 
@@ -71,6 +72,7 @@ Refresh credential must:
 | BR-190 | OTP TTL, token TTL, attempt limits, rate limits, Booking hold duration, and retry deadlines must come from configuration and must not be hard-coded in business logic.                                                                                 |
 | BR-212 | Any change to a Business Rule, enum, state transition, or API contract must be reflected in the specification, test cases, and data documentation before the work is considered Done.                                                                  |
 | BR-213 | Every Business Rule must have at least one valid-path test and one violation-path test. Concurrency, idempotency, and transaction rules require integration or E2E coverage.                                                                           |
+| BR-465 | The web client must end an authenticated session after the configured idle timeout (default 30 minutes) with no user interaction in any open CTMS tab: revoke the refresh token through logout, clear stored session data, and redirect to login. Any interaction resets the countdown; interaction after the deadline has passed must not revive the session. |
 
 ## 6. State & Lifecycle
 
@@ -86,6 +88,11 @@ Invalid refresh credential
 Rotation-replaced token
 → invalid for future refresh.
 
+Active web session
+→ no user interaction for the idle timeout
+→ logout (refresh token revoked) and local session cleared
+→ login required.
+
 ## 7. Business Flow
 
 1. Client submits refresh credential.
@@ -98,6 +105,14 @@ Rotation-replaced token
 8. System rotates refresh token when configured.
 9. Replaced token is no longer eligible.
 
+### Idle Timeout (Web Client)
+
+1. Client records the time of the last user interaction (pointer, keyboard, wheel, scroll, touch), shared by all open CTMS tabs.
+2. Any interaction restarts the idle countdown.
+3. When the countdown reaches the idle timeout, client calls logout to revoke the refresh token.
+4. Client clears stored tokens and user data and redirects to login, even if the logout request fails.
+5. On page load, and when a tab becomes visible again, client re-checks the deadline; a session already past it is ended immediately.
+
 ## 8. Data & Invariants
 
 - Invalid refresh token cannot create an access token.
@@ -105,6 +120,9 @@ Rotation-replaced token
 - Replaced token cannot be reused.
 - Token TTL is configuration-driven.
 - Token secrets must not be exposed.
+- Idle timeout is configuration-driven (BR-190); default 30 minutes.
+- The last-interaction timestamp is not a secret and contains no token data.
+- An idle-expired session cannot be revived by later interaction; the user must log in again.
 
 ## 9. API / Integration Contract
 
@@ -119,6 +137,10 @@ TBD — Technical Design.
 | Wrong user/device binding               | Reject.                                                  |
 | Rotation-replaced token                 | Reject.                                                  |
 | Concurrent reuse of replaced credential | Must not create multiple authoritative refresh outcomes. |
+| User active in another tab              | Session stays active in every tab.                       |
+| Device sleeps past the idle timeout     | Session ended on wake or next interaction.               |
+| Tab reopened after the idle timeout     | Session ended immediately; redirect to login.            |
+| Logout request fails on idle timeout    | Local session still cleared; redirect to login.          |
 
 ## 11. Acceptance & Test Matrix
 
@@ -130,7 +152,11 @@ TBD — Technical Design.
 | BR-013           | Revoked token         | Rejected.                       | Integration               |
 | BR-013           | Replaced token reused | Rejected.                       | Concurrency / Integration |
 | BR-190           | Change configured TTL | Behavior follows configuration. | Configuration             |
+| BR-465           | No interaction for the idle timeout | Logged out, refresh token revoked, redirected to login. | Unit / E2E |
+| BR-465           | Interaction before the idle timeout | Countdown resets; session stays active. | Unit |
+| BR-465           | Interaction after the deadline (device slept) | Session not revived; logged out. | Unit |
+| BR-465           | Activity in another tab | Session stays active in all tabs. | Unit / E2E |
 
 ## 12. Open Decisions
 
-None.
+- Whether "Ghi nhớ" (remember me) on login should exempt a session from the idle timeout. Current behavior: it does not.
