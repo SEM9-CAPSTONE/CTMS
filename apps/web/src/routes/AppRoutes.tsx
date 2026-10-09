@@ -5,6 +5,7 @@ import { AdminAuditLogsPage } from "../features/admin-audit-logs/pages/AdminAudi
 import { AdminContentReportsPage } from "../features/admin-content-reports/pages/AdminContentReportsPage";
 import { AdminUserAccountsPage } from "../features/admin-user-accounts/pages/AdminUserAccountsPage";
 import { AdminWeatherRulesPage } from "../features/admin-weather-rules/pages/AdminWeatherRulesPage";
+import { useIdleLogout } from "../features/auth/hooks/useIdleLogout";
 import { ForgotPasswordPage } from "../features/auth/pages/ForgotPasswordPage";
 import { LoginPage } from "../features/auth/pages/LoginPage";
 import { RegisterPage } from "../features/auth/pages/RegisterPage";
@@ -99,6 +100,10 @@ export function AppRoutes() {
 
 	const storedUser = getStoredAuthUser();
 	const currentRoles = getGrantedRoles(storedUser);
+	useIdleLogout(storedUser !== null, () => {
+		// Always end the session, even if the logout request itself fails.
+		handleLogout(false).catch(() => clearAuthSessionAndRedirect());
+	});
 	const authenticatedHomePath = getAuthenticatedHomePath(storedUser);
 	const guestOnlyRedirectPath = getGuestOnlyRedirectPath(currentPath, storedUser);
 

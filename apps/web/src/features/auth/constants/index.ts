@@ -64,3 +64,16 @@ export const ROLE_OPTIONS: RoleOption[] = [
 		features: ["Nhận dẫn đoàn & hỗ trợ vận chuyển", "Cập nhật chứng chỉ hành nghề trekking"],
 	},
 ];
+
+/** Signed-in users are logged out after this long without interacting with the web app. */
+export const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
+/** Activity is persisted at most this often, so mousemove does not hammer localStorage. */
+export const ACTIVITY_WRITE_THROTTLE_MS = 5_000;
+export const USER_ACTIVITY_EVENTS = [
+	"mousemove",
+	"mousedown",
+	"keydown",
+	"wheel",
+	"scroll",
+	"touchstart",
+] as const;
