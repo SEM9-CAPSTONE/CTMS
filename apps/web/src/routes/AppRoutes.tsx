@@ -5,7 +5,9 @@ import { AdminAuditLogsPage } from "../features/admin-audit-logs/pages/AdminAudi
 import { AdminContentReportsPage } from "../features/admin-content-reports/pages/AdminContentReportsPage";
 import { AdminUserAccountsPage } from "../features/admin-user-accounts/pages/AdminUserAccountsPage";
 import { AdminWeatherRulesPage } from "../features/admin-weather-rules/pages/AdminWeatherRulesPage";
+import { SessionCheckScreen } from "../features/auth/components/SessionCheckScreen";
 import { useIdleLogout } from "../features/auth/hooks/useIdleLogout";
+import { useSessionCheck } from "../features/auth/hooks/useSessionCheck";
 import { ForgotPasswordPage } from "../features/auth/pages/ForgotPasswordPage";
 import { LoginPage } from "../features/auth/pages/LoginPage";
 import { RegisterPage } from "../features/auth/pages/RegisterPage";
@@ -34,7 +36,7 @@ import { TripDetailPage } from "../features/trips/pages/TripDetailPage";
 import { EdgeCasePage, ErrorPage, NotFoundPage, UnauthorizedPage } from "../shared/pages";
 import { AppRoleGuard } from "./AppRoleGuard";
 import { getAuthenticatedHomePath, getGuestOnlyRedirectPath } from "./authRedirect";
-import { RoutePath } from "./routes.config";
+import { GUEST_ONLY_PATHS, RoutePath } from "./routes.config";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -104,8 +106,10 @@ export function AppRoutes() {
 		// Always end the session, even if the logout request itself fails.
 		handleLogout(false).catch(() => clearAuthSessionAndRedirect());
 	});
-	const authenticatedHomePath = getAuthenticatedHomePath(storedUser);
-	const guestOnlyRedirectPath = getGuestOnlyRedirectPath(currentPath, storedUser);
+	const isCheckingSession = useSessionCheck(storedUser !== null);
+	const guestOnlyRedirectPath = isCheckingSession
+		? null
+		: getGuestOnlyRedirectPath(currentPath, storedUser);
 
 	useEffect(() => {
 		if (!guestOnlyRedirectPath) {
@@ -131,6 +135,11 @@ export function AppRoutes() {
 			onNavigateToLogin={() => navigateTo(RoutePath.LOGIN)}
 		/>
 	);
+	// Only guest-only pages wait for the check (they must decide where to send the user);
+	// in-app pages render immediately while the session is validated in the background.
+	if (isCheckingSession && GUEST_ONLY_PATHS.has(currentPath)) {
+		return <SessionCheckScreen />;
+	}
 	if (guestOnlyRedirectPath) {
 		return null;
 	}
@@ -297,7 +306,6 @@ export function AppRoutes() {
 				<LandingPage
 					onNavigateToLogin={() => navigateTo(RoutePath.LOGIN)}
 					onNavigateToRegister={() => navigateTo(RoutePath.REGISTER)}
-					onNavigateToDashboard={storedUser ? () => navigateTo(authenticatedHomePath) : undefined}
 				/>
 			);
 
