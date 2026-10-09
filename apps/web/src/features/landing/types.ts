@@ -28,6 +28,4 @@ export interface ChatMessage {
 export interface LandingPageProps {
 	onNavigateToLogin: () => void;
 	onNavigateToRegister: () => void;
-	/** Provided only when the visitor is signed in; swaps the auth buttons for a dashboard link. */
-	onNavigateToDashboard?: () => void;
 }
