@@ -147,7 +147,6 @@ export function CreateTripPage({ onBackHome, onCreateRoute, editTripId }: Create
 					submitLabel="Bước tiếp theo"
 					submittingLabel={isEditMode ? "Đang lưu chỉnh sửa..." : "Đang tạo trip..."}
 					title={isEditMode ? "Thông tin chuyến đi" : undefined}
-					allowPastScheduleValues={isEditMode}
 				/>
 			</main>
 		</div>

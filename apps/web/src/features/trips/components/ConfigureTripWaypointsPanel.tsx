@@ -1,11 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
 	AlertCircle,
-	CalendarDays,
 	CheckCircle2,
-	ChevronLeft,
-	ChevronRight,
-	Clock3,
 	Loader2,
 	MapPin,
 	RefreshCw,
@@ -13,7 +9,7 @@ import {
 	Trash2,
 	X,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { useRouteCheckpoints } from "../../trekking-routes/hooks/useRouteCheckpoints";
 import type { CreatedTrekkingRoute, Position } from "../../trekking-routes/types";
@@ -26,6 +22,7 @@ import {
 	toConfigureTripWaypointsInput,
 } from "../schema/configure-trip-waypoints.schema";
 import { type Trip, type TripWaypointType, formatTripStatus } from "../types";
+import { SoftSingleDateTimePicker } from "./TripDateTimePicker";
 import { TripWaypointLocationMap } from "./TripWaypointLocationMap";
 
 interface Props {
@@ -135,268 +132,6 @@ function toDateTimeLocalValue(value: string): string {
 	if (Number.isNaN(date.getTime())) return "";
 	const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
 	return localDate.toISOString().slice(0, 16);
-}
-
-function getDateTimeDate(value: string): Date | null {
-	if (!value) return null;
-	const date = new Date(value);
-	return Number.isNaN(date.getTime()) ? null : date;
-}
-
-function getDatePart(value: string): string {
-	return value.slice(0, 10);
-}
-
-function getTimePart(value: string, fallback = "08:00"): string {
-	const time = value.slice(11, 16);
-	return time || fallback;
-}
-
-function getHourPart(value: string, fallback = "08:00"): string {
-	return getTimePart(value, fallback).slice(0, 2);
-}
-
-function getMinutePart(value: string, fallback = "08:00"): string {
-	return getTimePart(value, fallback).slice(3, 5);
-}
-
-function composeDateTime(dateKey: string, time: string): string {
-	return `${dateKey}T${time || "08:00"}`;
-}
-
-function toLocalDateKey(date: Date): string {
-	const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
-	return localDate.toISOString().slice(0, 10);
-}
-
-function formatCalendarMonth(date: Date): string {
-	return `${date.getMonth() + 1}/${date.getFullYear()}`;
-}
-
-function getCalendarCells(monthDate: Date): Date[] {
-	const firstDay = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
-	const start = new Date(firstDay);
-	start.setDate(firstDay.getDate() - firstDay.getDay());
-	return Array.from({ length: 42 }, (_, index) => {
-		const day = new Date(start);
-		day.setDate(start.getDate() + index);
-		return day;
-	});
-}
-
-function makeInitialMonth(...values: string[]): Date {
-	const firstDate = values.map(getDateTimeDate).find((date): date is Date => Boolean(date));
-	return firstDate ?? new Date();
-}
-
-function isDateBeforeDay(date: Date, minimum: string): boolean {
-	const minimumDate = getDateTimeDate(minimum);
-	if (!minimumDate) return false;
-	const dateDay = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
-	const minimumDay = new Date(
-		minimumDate.getFullYear(),
-		minimumDate.getMonth(),
-		minimumDate.getDate()
-	).getTime();
-	return dateDay < minimumDay;
-}
-
-function isDateAfterDay(date: Date, maximum: string): boolean {
-	const maximumDate = getDateTimeDate(maximum);
-	if (!maximumDate) return false;
-	const dateDay = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
-	const maximumDay = new Date(
-		maximumDate.getFullYear(),
-		maximumDate.getMonth(),
-		maximumDate.getDate()
-	).getTime();
-	return dateDay > maximumDay;
-}
-
-interface WaypointDateTimePickerProps {
-	title: string;
-	value: string;
-	minValue: string;
-	maxValue: string;
-	disabled?: boolean;
-	error?: string;
-	helperText?: string;
-	onChange: (value: string) => void;
-}
-
-function WaypointDateTimePicker({
-	title,
-	value,
-	minValue,
-	maxValue,
-	disabled = false,
-	error,
-	helperText,
-	onChange,
-}: WaypointDateTimePickerProps) {
-	const [isOpen, setIsOpen] = useState(false);
-	const [monthDate, setMonthDate] = useState(() => makeInitialMonth(value, minValue));
-	const popoverRef = useRef<HTMLDivElement | null>(null);
-
-	useEffect(() => {
-		if (!isOpen) return;
-		const handlePointerDown = (event: PointerEvent) => {
-			if (!popoverRef.current?.contains(event.target as Node)) {
-				setIsOpen(false);
-			}
-		};
-		document.addEventListener("pointerdown", handlePointerDown);
-		return () => document.removeEventListener("pointerdown", handlePointerDown);
-	}, [isOpen]);
-
-	const updateMonth = (direction: number) => {
-		setMonthDate((current) => new Date(current.getFullYear(), current.getMonth() + direction, 1));
-	};
-
-	const handleSelectDate = (dateKey: string) => {
-		onChange(composeDateTime(dateKey, getTimePart(value)));
-	};
-
-	const handleTimeChange = (time: string) => {
-		onChange(composeDateTime(getDatePart(value) || toLocalDateKey(monthDate), time));
-	};
-
-	const handleHourChange = (hour: string) => {
-		const normalizedHour = hour.replace(/\D/g, "").slice(0, 2);
-		const parsedHour = Math.min(Number(normalizedHour || 0), 23)
-			.toString()
-			.padStart(2, "0");
-		handleTimeChange(`${parsedHour}:${getMinutePart(value)}`);
-	};
-
-	const handleMinuteChange = (minute: string) => {
-		const normalizedMinute = minute.replace(/\D/g, "").slice(0, 2);
-		const parsedMinute = Math.min(Number(normalizedMinute || 0), 59)
-			.toString()
-			.padStart(2, "0");
-		handleTimeChange(`${getHourPart(value)}:${parsedMinute}`);
-	};
-
-	return (
-		<div ref={popoverRef} className="relative">
-			<div className="block text-xs font-bold text-[#34483b]">
-				<span>{title}</span>
-				<button
-					type="button"
-					disabled={disabled}
-					aria-expanded={isOpen}
-					aria-label={`Mở ${title.toLowerCase()}`}
-					onClick={() => setIsOpen((current) => !current)}
-					className="mt-1 flex min-h-10 w-full items-center justify-between gap-3 rounded-xl border border-[#cbd9ce] bg-white px-3 py-2.5 text-left text-sm font-semibold text-[#10221b] outline-none transition hover:border-[#9db6a3] focus:border-[#164027] focus:ring-2 focus:ring-[#164027]/10 disabled:bg-[#f4f7f2] disabled:text-[#7b8c82]"
-				>
-					<span className={value ? "" : "text-[#7b8c82]"}>{formatWaypointDateTime(value)}</span>
-					<CalendarDays className="size-4 shrink-0 text-[#607368]" />
-				</button>
-			</div>
-			{helperText && (
-				<span className="mt-1 block text-[11px] font-semibold text-[#667a6d]">{helperText}</span>
-			)}
-			{error && !isOpen && <span className="mt-1 block text-xs text-red-600">{error}</span>}
-			{isOpen && (
-				<div className="fixed top-1/2 left-1/2 z-[9999] max-h-[calc(100vh-2rem)] w-[min(360px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-[#dce8dd] bg-[#f8fbf7] p-3 shadow-2xl">
-					<div className="rounded-2xl bg-[#fbfdfb] p-3">
-						<div className="flex items-center justify-between gap-2">
-							<button
-								type="button"
-								aria-label="Tháng trước"
-								disabled={disabled}
-								onClick={() => updateMonth(-1)}
-								className="flex size-8 items-center justify-center rounded-xl bg-white text-[#607368] shadow-sm ring-1 ring-[#e4eee5] transition hover:text-[#164027] disabled:opacity-50"
-							>
-								<ChevronLeft className="size-4" />
-							</button>
-							<p className="text-xs font-extrabold text-[#10221b]">
-								{formatCalendarMonth(monthDate)}
-							</p>
-							<button
-								type="button"
-								aria-label="Tháng sau"
-								disabled={disabled}
-								onClick={() => updateMonth(1)}
-								className="flex size-8 items-center justify-center rounded-xl bg-white text-[#607368] shadow-sm ring-1 ring-[#e4eee5] transition hover:text-[#164027] disabled:opacity-50"
-							>
-								<ChevronRight className="size-4" />
-							</button>
-						</div>
-						<div className="mt-3 grid grid-cols-7 text-center text-[10px] font-bold uppercase text-[#a0ada5]">
-							{["CN", "T2", "T3", "T4", "T5", "T6", "T7"].map((day) => (
-								<span key={day}>{day}</span>
-							))}
-						</div>
-						<div className="mt-2 grid grid-cols-7 gap-0.5">
-							{getCalendarCells(monthDate).map((date) => {
-								const key = toLocalDateKey(date);
-								const isCurrentMonth = date.getMonth() === monthDate.getMonth();
-								const isSelected = key === getDatePart(value);
-								const isOutOfRange =
-									isDateBeforeDay(date, minValue) || isDateAfterDay(date, maxValue);
-
-								return (
-									<button
-										key={key}
-										type="button"
-										disabled={disabled}
-										onClick={() => handleSelectDate(key)}
-										className={`flex aspect-square items-center justify-center rounded-lg text-[11px] font-bold transition disabled:cursor-not-allowed disabled:opacity-35 ${
-											isSelected
-												? "bg-[#2563eb] text-white shadow-sm shadow-[#2563eb]/20"
-												: isCurrentMonth
-													? isOutOfRange
-														? "text-rose-700 hover:bg-rose-50"
-														: "text-[#46584d] hover:bg-white hover:text-[#164027] hover:shadow-sm"
-													: "text-[#c2ccc5] hover:bg-white/70"
-										}`}
-									>
-										{date.getDate()}
-									</button>
-								);
-							})}
-						</div>
-					</div>
-					<div className="mt-3 rounded-2xl border border-[#dce8dd] bg-white p-3 shadow-sm">
-						<div className="flex items-center gap-2 rounded-xl border border-[#dce8dd] bg-[#fbfdfb] px-3 py-2 text-sm font-semibold text-[#34483b] focus-within:border-[#16a34a] focus-within:ring-2 focus-within:ring-[#16a34a]/10">
-							<Clock3 className="size-4 shrink-0 text-[#7a8b81]" />
-							<span className="shrink-0 text-xs font-bold text-[#7a8b81]">Giờ</span>
-							<input
-								type="text"
-								inputMode="numeric"
-								aria-label={`${title} - giờ`}
-								disabled={disabled}
-								value={getHourPart(value)}
-								onChange={(event) => handleHourChange(event.target.value)}
-								className="h-8 w-11 rounded-lg border border-[#dce8dd] bg-white text-center font-mono text-sm font-bold outline-none focus:border-[#16a34a]"
-							/>
-							<span className="font-mono text-[#7a8b81]">:</span>
-							<input
-								type="text"
-								inputMode="numeric"
-								aria-label={`${title} - phút`}
-								disabled={disabled}
-								value={getMinutePart(value)}
-								onChange={(event) => handleMinuteChange(event.target.value)}
-								className="h-8 w-11 rounded-lg border border-[#dce8dd] bg-white text-center font-mono text-sm font-bold outline-none focus:border-[#16a34a]"
-							/>
-						</div>
-						{error && <p className="mt-2 text-xs font-semibold text-red-600">{error}</p>}
-					</div>
-					<div className="mt-3 flex justify-end">
-						<button
-							type="button"
-							onClick={() => setIsOpen(false)}
-							className="rounded-xl bg-[#164027] px-4 py-2 text-xs font-bold text-white transition hover:bg-[#0f2e1c]"
-						>
-							Hoàn tất
-						</button>
-					</div>
-				</div>
-			)}
-		</div>
-	);
 }
 
 export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
@@ -643,20 +378,20 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 						)}
 					</label>
 					<div>
-						<WaypointDateTimePicker
+						<SoftSingleDateTimePicker
+							modal
 							title="Thời gian dự kiến"
 							value={activeEditorWaypoint.plannedAt}
 							minValue={toDateTimeLocalValue(serverTrip.startsAt)}
 							maxValue={toDateTimeLocalValue(serverTrip.endsAt)}
 							disabled={configuration.isSubmitting}
-							helperText={getDayLabel(serverTrip, activeEditorWaypoint)}
 							error={errors.waypoints?.[waypointFormIndex]?.plannedAt?.message}
-							onChange={(value) =>
+							onChange={(value) => {
 								setValue(`waypoints.${waypointFormIndex}.plannedAt`, value, {
 									shouldDirty: true,
 									shouldValidate: true,
-								})
-							}
+								});
+							}}
 						/>
 						<input
 							aria-label={`Thời gian điểm dừng ${waypointFormIndex + 1}`}
