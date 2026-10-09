@@ -5,6 +5,9 @@ import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../../auth/guards/roles.guard";
 import type { AuthenticatedUser } from "../../auth/jwt.strategy";
 import { UserRole } from "../../users/entities/user.entity";
+import { PaginatedAvailablePortersResponseDto } from "../dto/available-porter-response.dto";
+// biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
+import { AvailablePortersQueryDto } from "../dto/available-porters-query.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { ConfigureTripWaypointsDto, CreateTripDto } from "../dto/create-trip.dto";
 import { PorterAssignedTripResponseDto } from "../dto/porter-assigned-trip-response.dto";
@@ -18,6 +21,8 @@ import { SearchTripsQueryDto } from "../dto/search-trips-query.dto";
 import { TripIdParamDto } from "../dto/trip-id-param.dto";
 import { PaginatedTripsResponseDto, TripResponseDto } from "../dto/trip-response.dto";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
+import { AvailablePortersService } from "../services/available-porters.service";
+// biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { TripsService } from "../services/trips.service";
 
 interface AuthenticatedRequest {
@@ -29,7 +34,10 @@ interface AuthenticatedRequest {
 @Controller("trips")
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class TripsController {
-	constructor(private readonly tripsService: TripsService) {}
+	constructor(
+		private readonly tripsService: TripsService,
+		private readonly availablePortersService: AvailablePortersService
+	) {}
 
 	@Get()
 	@Roles(UserRole.CAMPER, UserRole.HOST, UserRole.ADMIN, UserRole.PORTER)
@@ -69,6 +77,22 @@ export class TripsController {
 	@ApiResponse({ status: 403, description: "Porter role required" })
 	getAssignedTrips(@Req() request: AuthenticatedRequest): Promise<PorterAssignedTripResponseDto[]> {
 		return this.tripsService.getAssignedTrips(request.user.userId);
+	}
+
+	@Get(":tripId/available-porters")
+	@Roles(UserRole.HOST)
+	@ApiOperation({ summary: "List eligible, currently available Porters for an owned Trip" })
+	@ApiResponse({ status: 200, type: PaginatedAvailablePortersResponseDto })
+	@ApiResponse({ status: 401, description: "Authentication required" })
+	@ApiResponse({ status: 403, description: "Host role and Trip ownership required" })
+	@ApiResponse({ status: 404, description: "Trip not found" })
+	@ApiResponse({ status: 422, description: "Invalid search query parameters" })
+	getAvailablePorters(
+		@Req() request: AuthenticatedRequest,
+		@Param() params: TripIdParamDto,
+		@Query() query: AvailablePortersQueryDto
+	): Promise<PaginatedAvailablePortersResponseDto> {
+		return this.availablePortersService.search(request.user.userId, params.tripId, query);
 	}
 
 	@Get(":tripId")

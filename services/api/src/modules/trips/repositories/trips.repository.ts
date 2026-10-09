@@ -81,6 +81,14 @@ export interface LockedTripForScheduleChange {
 	durationNights: number;
 }
 
+export interface PorterAvailabilityTripContext {
+	id: string;
+	hostId: string;
+	routeId: string | null;
+	startsAt: Date | null;
+	endsAt: Date | null;
+}
+
 export interface TripRescheduleCommitmentSummary {
 	bookingsPendingReconfirmation: number;
 	portersPendingReconfirmation: number;
@@ -685,6 +693,24 @@ export class TripsRepository extends Repository<Trip> {
 
 		if (!rows[0]) return null;
 		return toTripResponse(rows[0]);
+	}
+
+	async findPorterAvailabilityContext(
+		tripId: string
+	): Promise<PorterAvailabilityTripContext | null> {
+		const rows = (await this.query(
+			`SELECT
+				"id",
+				"host_id" AS "hostId",
+				"route_id" AS "routeId",
+				"starts_at" AS "startsAt",
+				"ends_at" AS "endsAt"
+			 FROM "trips"
+			 WHERE "id" = $1`,
+			[tripId]
+		)) as PorterAvailabilityTripContext[];
+
+		return rows[0] ?? null;
 	}
 
 	async findPendingReview(): Promise<TripResponseDto[]> {
