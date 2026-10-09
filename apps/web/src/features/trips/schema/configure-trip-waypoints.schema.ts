@@ -33,6 +33,21 @@ export interface ConfigureTripWaypointsFormValues {
 	waypoints: ConfigureTripWaypointFormItem[];
 }
 
+export function normalizeEndpointWaypoints(
+	waypoints: ConfigureTripWaypointFormItem[]
+): ConfigureTripWaypointFormItem[] {
+	const startWaypoints = waypoints.filter((waypoint) => waypoint.type === "start");
+	const finishWaypoints = waypoints.filter((waypoint) => waypoint.type === "finish");
+	const firstStart = startWaypoints[0];
+	const lastFinish = finishWaypoints.at(-1);
+	const middleWaypoints = waypoints.filter(
+		(waypoint) => waypoint.type !== "start" && waypoint.type !== "finish"
+	);
+	return [firstStart, ...middleWaypoints, lastFinish].filter(
+		(waypoint): waypoint is ConfigureTripWaypointFormItem => Boolean(waypoint)
+	);
+}
+
 export function createConfigureTripWaypointsSchema(trip: Trip) {
 	return z
 		.object({
@@ -164,15 +179,17 @@ export function toConfigureTripWaypointsDefaultValues(
 	trip: Trip
 ): ConfigureTripWaypointsFormValues {
 	return {
-		waypoints: trip.waypoints.map((waypoint) => ({
-			checkpointId: waypoint.checkpointId ?? "",
-			type: waypoint.type,
-			name: waypoint.name,
-			longitude: String(waypoint.location.coordinates[0]),
-			latitude: String(waypoint.location.coordinates[1]),
-			routeOrder: String(Math.max(0, waypoint.sequenceOrder - 1)),
-			plannedAt: toDateTimeLocalValue(waypoint.plannedAt),
-		})),
+		waypoints: normalizeEndpointWaypoints(
+			trip.waypoints.map((waypoint) => ({
+				checkpointId: waypoint.checkpointId ?? "",
+				type: waypoint.type,
+				name: waypoint.name,
+				longitude: String(waypoint.location.coordinates[0]),
+				latitude: String(waypoint.location.coordinates[1]),
+				routeOrder: String(Math.max(0, waypoint.sequenceOrder - 1)),
+				plannedAt: toDateTimeLocalValue(waypoint.plannedAt),
+			}))
+		),
 	};
 }
 
@@ -184,7 +201,7 @@ export function toConfigureTripWaypointsInput(
 	values: ConfigureTripWaypointsFormValues
 ): ConfigureTripWaypointsInput {
 	return {
-		waypoints: values.waypoints.map((waypoint) => ({
+		waypoints: normalizeEndpointWaypoints(values.waypoints).map((waypoint) => ({
 			...(waypoint.checkpointId ? { checkpointId: waypoint.checkpointId } : {}),
 			type: waypoint.type,
 			name: waypoint.name.trim() || waypointTypeFallbackNames[waypoint.type],

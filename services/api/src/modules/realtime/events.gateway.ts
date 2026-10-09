@@ -30,4 +30,34 @@ export class EventsGateway implements OnGatewayConnection {
 			delivered: true,
 		};
 	}
+
+	emitTripReviewRequested(payload: {
+		tripId: string;
+		title: string;
+		hostId: string;
+		submittedAt: string;
+		deadlineAt: string;
+	}) {
+		this.server?.emit("trip.review.requested", payload);
+	}
+
+	emitTripReviewReminder(payload: {
+		tripId: string;
+		title: string;
+		hostId: string;
+		submittedAt: string;
+		deadlineAt: string;
+	}) {
+		this.server?.emit("trip.review.reminder", payload);
+	}
+
+	emitTripReviewAutoRejected(payload: {
+		tripId: string;
+		title: string;
+		hostId: string;
+		rejectedAt: string;
+		reason: string;
+	}) {
+		this.server?.emit("trip.review.auto_rejected", payload);
+	}
 }

@@ -102,7 +102,7 @@ describe("HostMyTripsPanel", () => {
 		render(<HostMyTripsPanel onCreateTrip={onCreateTrip} />);
 
 		expect(screen.getByText("Chưa có chuyến đi nào được tạo")).toBeInTheDocument();
-		const createBtns = screen.getAllByRole("button", { name: /tạo trip/i });
+		const createBtns = screen.getAllByRole("button", { name: /tạo chuyến đi/i });
 		expect(createBtns.length).toBeGreaterThanOrEqual(1);
 		fireEvent.click(createBtns[0]);
 		expect(onCreateTrip).toHaveBeenCalled();
@@ -128,7 +128,7 @@ describe("HostMyTripsPanel", () => {
 			/>
 		);
 
-		const createTripBtn = screen.getByRole("button", { name: /^tạo trip$/i });
+		const createTripBtn = screen.getByRole("button", { name: /^tạo chuyến đi$/i });
 		fireEvent.click(createTripBtn);
 		expect(onCreateTrip).toHaveBeenCalled();
 

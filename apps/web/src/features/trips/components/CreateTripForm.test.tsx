@@ -49,6 +49,7 @@ function renderForm(overrides: Partial<React.ComponentProps<typeof CreateTripFor
 
 function fillValidForm() {
 	fireEvent.change(screen.getByLabelText("Tuyến đã duyệt"), { target: { value: activeRoute.id } });
+	fireEvent.click(screen.getByLabelText("Chọn điểm tập trung trên bản đồ"));
 	fireEvent.change(screen.getByLabelText("Tên trip"), { target: { value: "  Bidoup morning  " } });
 	fireEvent.change(screen.getByLabelText("Bắt đầu"), { target: { value: "2099-10-01T09:00" } });
 	fireEvent.change(screen.getByLabelText("Kết thúc"), { target: { value: "2099-10-01T17:00" } });
@@ -62,9 +63,7 @@ function fillValidForm() {
 }
 
 function submitFormDirectly() {
-	const form = screen
-		.getByRole("button", { name: "Tạo bản nháp và cấu hình điểm dừng" })
-		.closest("form");
+	const form = screen.getByRole("button", { name: "Bước tiếp theo" }).closest("form");
 	if (!form) throw new Error("Create trip form not found");
 	fireEvent.submit(form);
 }
@@ -139,7 +138,7 @@ describe("CreateTripForm", () => {
 		const props = renderForm();
 		fillValidForm();
 
-		fireEvent.click(screen.getByRole("button", { name: "Tạo bản nháp và cấu hình điểm dừng" }));
+		fireEvent.click(screen.getByRole("button", { name: "Bước tiếp theo" }));
 
 		await waitFor(() =>
 			expect(props.onSubmit).toHaveBeenCalledWith(
@@ -190,7 +189,32 @@ describe("CreateTripForm", () => {
 
 		expect(await screen.findByText("Tên trip là bắt buộc")).toBeVisible();
 		expect(screen.getByText("Thời gian bắt đầu là bắt buộc")).toBeVisible();
+		expect(screen.getByText("Vui lòng chọn điểm tập trung trên bản đồ")).toBeVisible();
 		expect(screen.getByLabelText("Tuyến đã duyệt")).toHaveValue(activeRoute.id);
+	});
+
+	it("requires the Host to choose a meeting point on the map before submitting", async () => {
+		const props = renderForm();
+		fireEvent.change(screen.getByLabelText("Tuyến đã duyệt"), {
+			target: { value: activeRoute.id },
+		});
+		fireEvent.change(screen.getByLabelText("Tên trip"), { target: { value: "Bidoup morning" } });
+		fireEvent.change(screen.getByLabelText("Bắt đầu"), { target: { value: "2099-10-01T09:00" } });
+		fireEvent.change(screen.getByLabelText("Kết thúc"), { target: { value: "2099-10-01T17:00" } });
+		fireEvent.change(screen.getByLabelText("Thời gian tập trung"), {
+			target: { value: "2099-10-01T08:30" },
+		});
+		fireEvent.change(screen.getByLabelText("Hạn đặt chỗ"), {
+			target: { value: "2099-09-30T09:00" },
+		});
+		fireEvent.change(screen.getByLabelText("Số khách tối thiểu"), { target: { value: "2" } });
+		fireEvent.change(screen.getByLabelText("Số khách tối đa"), { target: { value: "12" } });
+		fireEvent.change(screen.getByLabelText("Giá mỗi người"), { target: { value: "0" } });
+
+		submitFormDirectly();
+
+		expect(await screen.findByText("Vui lòng chọn điểm tập trung trên bản đồ")).toBeVisible();
+		expect(props.onSubmit).not.toHaveBeenCalled();
 	});
 
 	it("validates date ranges and capacity without manual stop inputs", async () => {
@@ -242,10 +266,24 @@ describe("CreateTripForm", () => {
 		expect(bookingDeadlineInput).toHaveAttribute("min");
 
 		fireEvent.change(startsAtInput, { target: { value: "2099-10-01T09:00" } });
+		fireEvent.change(bookingDeadlineInput, { target: { value: "2099-09-30T09:00" } });
 
 		expect(endsAtInput).toHaveAttribute("min", "2099-10-01T09:00");
+		expect(meetingAtInput).toHaveAttribute("min", "2099-09-30T09:00");
 		expect(meetingAtInput).toHaveAttribute("max", "2099-10-01T09:00");
 		expect(bookingDeadlineInput).toHaveAttribute("max", "2099-10-01T09:00");
+	});
+
+	it("requires meeting time to be after the booking deadline", async () => {
+		renderForm();
+		fillValidForm();
+		fireEvent.change(screen.getByLabelText("Hạn đặt chỗ"), {
+			target: { value: "2099-10-01T08:45" },
+		});
+
+		submitFormDirectly();
+
+		expect(await screen.findByText("Thời gian tập trung phải sau hạn đặt chỗ")).toBeVisible();
 	});
 
 	it("keeps the selected invalid range and shows an inline error", async () => {
@@ -393,6 +431,19 @@ describe("CreateTripForm", () => {
 		expect(screen.getByTestId("trip-route-map")).toBeVisible();
 		expect(screen.getByText("Tuyến và điểm tập trung")).toBeVisible();
 		expect(screen.getByText(/bấm trên bản đồ để đặt điểm tập trung/)).toBeVisible();
+	});
+
+	it("does not overwrite a selected meeting point when the route changes", () => {
+		renderForm({ activeRoutes: [activeRoute, fiveKilometerRoute] });
+
+		fireEvent.click(screen.getByLabelText("Chọn điểm tập trung trên bản đồ"));
+		expect(screen.getByText("Điểm tập trung: 108.2022, 16.0544")).toBeVisible();
+
+		fireEvent.change(screen.getByLabelText("Tuyến đã duyệt"), {
+			target: { value: fiveKilometerRoute.id },
+		});
+
+		expect(screen.getByText("Điểm tập trung: 108.2022, 16.0544")).toBeVisible();
 	});
 
 	it("keeps draft inputs editable while there is no approved route", () => {

@@ -25,6 +25,8 @@ Acceptance Criteria:
 | PB AC-5 | An invalid Trip may be rejected according to the authoritative Trip lifecycle.             |
 | PB AC-6 | AI-generated information cannot replace the deterministic approval rules.                  |
 | PB AC-7 | Concurrent or stale approval requests must not produce contradictory Trip state.           |
+| PB AC-8 | If a pending Trip is not approved within 24 hours after submission, the system automatically rejects it and notifies the Host. |
+| PB AC-9 | Before the 24-hour approval deadline, the system reminds Admin users that the Trip is still pending review. |
 
 ## 2. Scope
 
@@ -36,6 +38,9 @@ Acceptance Criteria:
 - Verify required Trip/waypoint configuration.
 - Approve eligible Trip.
 - Reject ineligible Trip.
+- Automatically reject pending Trips that exceed the 24-hour approval SLA.
+- Notify Host when a Trip is automatically rejected.
+- Remind Admin users before the 24-hour approval deadline.
 - Persist authoritative Trip state.
 - Prevent stale/concurrent contradictory approval.
 - Make successfully published Trip eligible for downstream public discovery.
@@ -52,7 +57,7 @@ Acceptance Criteria:
 
 - Admin: approval actor.
 - Host: owner of submitted Trip; not the approval authority.
-- System: validates and persists decision.
+- System: validates, persists decision, monitors approval deadline, sends review reminders, and performs automatic rejection after timeout.
 
 Only authorized Admin may approve/reject the Trip.
 
@@ -79,7 +84,9 @@ Preconditions:
 | BR     | Rule                                                                                                                                                                                                                                                                                                                                                                                   |
 | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | BR-061 | An Admin may publish a Trip only when status = pending_approval, the approved Route version remains valid, and all cross-table validation for time, capacity, trip_waypoints, and checkpoint-to-Route relationships succeeds. Publishing sets status → published and locks the reference/snapshot to the approved Route version used by that Trip.                                     |
-| BR-062 | If a Trip fails approval criteria, the Admin must return it to draft and provide a reason. An overnight Trip with missing or incorrect overnight waypoints must not be published.                                                                                                                                                                                                      |
+| BR-062 | If a Trip fails approval criteria, the Admin must return it to draft and provide a reason so the Host can revise and resubmit. An overnight Trip with missing or incorrect overnight waypoints must not be published.                                                                                                                                                                |
+| BR-222 | A Trip in `pending_approval` must be reviewed within 24 hours after submission. If it remains unapproved when the 24-hour deadline passes, the system must change the Trip status to `rejected`, record an audit entry with the automatic rejection reason, and notify the Host.                                                                                                          |
+| BR-223 | The system must notify eligible Admin users when a Trip enters `pending_approval` and must remind them before the 24-hour approval deadline if the Trip is still pending. Reminder delivery must be idempotent per Trip/deadline window.                                                                                                                                                 |
 | BR-037 | When a Trip is submitted or published, it must be bound to the exact approved Route version used for approval. Later Route changes must create a new version or equivalent immutable snapshot and must not silently alter the geometry, checkpoints, or hazards of an already-published Trip. A Trip that needs the new Route version must follow the material-change/reapproval flow. |
 | BR-218 | When trip_waypoint.checkpoint_id is not NULL, the backend must verify that the Checkpoint belongs to trips.route_id and must snapshot checkpoints.location into trip_waypoints.location. Later Checkpoint changes must not automatically alter the Trip's snapshotted location. When checkpoint_id = NULL, the Host must provide a valid custom location.                              |
 | BR-172 | Access control must be enforced by the backend using role, ownership, and business scope. Hiding or disabling functionality in the UI is not a substitute for backend authorization.                                                                                                                                                                                                   |
@@ -107,9 +114,16 @@ or:
 
 `pending_approval`
 → Admin rejects
-→ authoritative rejection outcome.
+→ `draft`
 
-The spec must not invent a `rejected` Trip enum if the authoritative enum does not contain it. The exact rejection representation must follow the Data Dictionary/Domain Model.
+or:
+
+`pending_approval`
+→ 24-hour approval deadline expires without approval
+→ System automatically rejects
+→ `rejected`
+
+Rejected Trips are not public and are not eligible for booking unless a separate approved edit/resubmission workflow returns them to an editable state.
 
 ## 7. Business Flow
 
@@ -124,8 +138,20 @@ The spec must not invent a `rejected` Trip enum if the authoritative enum does n
 9. Admin chooses approve or reject.
 10. Backend revalidates persisted state immediately before mutation.
 11. Valid approval commits authoritative publish/approval state.
-12. Valid rejection commits the approved rejection outcome.
+12. Valid Admin rejection returns the Trip to `draft` with the Admin reason.
 13. Any downstream event occurs only from committed authoritative state.
+
+### Pending Approval SLA
+
+1. Trip enters `pending_approval` after CTMS-022 validates and submits the complete Trip configuration.
+2. System emits an Admin notification that a new Trip requires review.
+3. System calculates the approval deadline as 24 hours after the Trip entered `pending_approval`.
+4. Before the deadline, system emits an Admin reminder when the Trip is still pending.
+5. If an Admin approves before the deadline, the Trip follows the normal approval path and no automatic rejection occurs.
+6. If an Admin rejects before the deadline, the Trip returns to `draft` with the Admin reason and no automatic rejection occurs.
+7. If the Trip remains `pending_approval` at or after the deadline, system rechecks the current Trip state under authoritative locking.
+8. If it is still pending, system changes status to `rejected`, records the automatic rejection reason, and notifies the Host.
+9. If the Trip changed state before the timeout job commits, the timeout job must not overwrite the newer state.
 
 ## 8. Data & Invariants
 
@@ -133,6 +159,10 @@ The spec must not invent a `rejected` Trip enum if the authoritative enum does n
 - Approval uses current authoritative Trip state.
 - Approval or rejection must include the `updated_at` value that was reviewed.
 - Trip cannot be published from an ineligible state.
+- A Trip cannot remain indefinitely in `pending_approval`; unresolved pending review expires after 24 hours.
+- Automatic rejection only applies while the Trip is still in `pending_approval`.
+- Automatic rejection creates an auditable system decision and Host notification.
+- Admin reminder for a pending Trip is idempotent for the same review window.
 - Published Trip references the approved Route/version reviewed for that Trip.
 - AI cannot substitute approval logic.
 - Stale Admin request cannot overwrite newer state.
@@ -176,6 +206,11 @@ The backend compares `reviewedUpdatedAt` to the locked Trip row's current `updat
 | AI recommends approval despite invalid rule | Block approval.                                            |
 | Two Admins act concurrently                 | Only transition from authoritative current state succeeds. |
 | Stale approval request                      | Conflict.                                                  |
+| Pending Trip reaches reminder window        | Notify Admin once for that pending review window.          |
+| Pending Trip exceeds 24-hour deadline       | System changes status to `rejected` and notifies Host.     |
+| Admin approves before 24-hour deadline      | Publish/approval state wins; auto reject must not run.     |
+| Admin rejects before 24-hour deadline       | Admin rejection wins; auto reject must not overwrite it.   |
+| Timeout job races with Admin decision       | Only transition from authoritative current state succeeds. |
 | Transaction fails                           | Previous Trip state remains authoritative.                 |
 
 ## 11. Acceptance & Test Matrix
@@ -190,9 +225,13 @@ The backend compares `reviewedUpdatedAt` to the locked Trip row's current `updat
 | PB AC-3, BR-037 | Valid approved Route/version      | Validation passes                     | Integration   |
 | PB AC-3         | Invalid itinerary                 | Approval blocked                      | Integration   |
 | PB AC-4, BR-061 | Valid Trip approved               | Authoritative publish state committed | E2E           |
-| PB AC-5, BR-062 | Invalid submitted Trip rejected   | Approved rejection outcome persisted  | E2E           |
+| PB AC-5, BR-062 | Invalid submitted Trip declined by Admin | Trip returns to `draft` with reason | E2E           |
 | PB AC-6, BR-218 | AI contradicts deterministic rule | Hard rule wins                        | AI Safety     |
 | PB AC-7, BR-181 | Concurrent decisions              | No contradictory final state          | Concurrency   |
+| PB AC-8, BR-222 | Pending Trip remains unapproved past 24 hours | Trip becomes `rejected`, audit entry is recorded, Host is notified | Unit / Integration / E2E |
+| PB AC-8, BR-222 | Pending Trip is approved before 24 hours | Trip is not automatically rejected | Regression / E2E |
+| PB AC-9, BR-223 | Pending Trip enters reminder window | Admin reminder notification is emitted once | Unit / Integration |
+| PB AC-9, BR-223 | Trip enters `pending_approval` | Admin new-Trip notification is emitted | Integration / E2E |
 
 ## 12. Open Decisions
 

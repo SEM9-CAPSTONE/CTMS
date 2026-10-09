@@ -19,7 +19,7 @@ import type { CreateTripError } from "../hooks/useCreateTrip";
 import {
 	CREATE_TRIP_DEFAULT_VALUES,
 	type CreateTripFormValues,
-	createTripFormSchema,
+	createCreateTripFormSchema,
 	inferTripTypeFromSchedule,
 	toCreateTripInput,
 } from "../schema/create-trip.schema";
@@ -41,6 +41,7 @@ interface Props {
 	submitLabel?: string;
 	submittingLabel?: string;
 	title?: string;
+	allowPastScheduleValues?: boolean;
 }
 
 const inputClass =
@@ -85,6 +86,32 @@ function getTimePart(value: string, fallback = DEFAULT_DATE_TIME): string {
 
 function composeDateTime(dateKey: string, time: string): string {
 	return `${dateKey}T${time || DEFAULT_DATE_TIME}`;
+}
+
+function compareDateTimeLocalValues(first: string, second: string): number {
+	const firstTime = getDateTimeDate(first)?.getTime();
+	const secondTime = getDateTimeDate(second)?.getTime();
+	if (!Number.isFinite(firstTime) || !Number.isFinite(secondTime)) return 0;
+	return (firstTime ?? 0) - (secondTime ?? 0);
+}
+
+function maxDateTimeLocalValue(...values: string[]): string {
+	return values
+		.filter(Boolean)
+		.reduce(
+			(maximum, value) =>
+				!maximum || compareDateTimeLocalValues(value, maximum) > 0 ? value : maximum,
+			""
+		);
+}
+
+function getPastDateTimeMessage(
+	value: string,
+	minimum: string,
+	message: string
+): string | undefined {
+	if (!value || !minimum) return undefined;
+	return compareDateTimeLocalValues(value, minimum) < 0 ? message : undefined;
 }
 
 function formatCalendarMonth(date: Date): string {
@@ -140,6 +167,30 @@ function getCalendarCells(monthDate: Date): Date[] {
 function makeInitialMonth(...values: string[]): Date {
 	const firstDate = values.map(getDateTimeDate).find((date): date is Date => Boolean(date));
 	return firstDate ?? new Date();
+}
+
+function isDateBeforeDay(date: Date, minimum: string): boolean {
+	const minimumDate = getDateTimeDate(minimum);
+	if (!minimumDate) return false;
+	const dateDay = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+	const minimumDay = new Date(
+		minimumDate.getFullYear(),
+		minimumDate.getMonth(),
+		minimumDate.getDate()
+	).getTime();
+	return dateDay < minimumDay;
+}
+
+function isDateAfterDay(date: Date, maximum: string): boolean {
+	const maximumDate = getDateTimeDate(maximum);
+	if (!maximumDate) return false;
+	const dateDay = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+	const maximumDay = new Date(
+		maximumDate.getFullYear(),
+		maximumDate.getMonth(),
+		maximumDate.getDate()
+	).getTime();
+	return dateDay > maximumDay;
 }
 
 interface DateTimeSummaryCardProps {
@@ -240,6 +291,8 @@ interface SoftCalendarProps {
 	monthDate: Date;
 	selectedStart?: string;
 	selectedEnd?: string;
+	minValue?: string;
+	maxValue?: string;
 	compact?: boolean;
 	disabled?: boolean;
 	onPreviousMonth: () => void;
@@ -251,6 +304,8 @@ function SoftCalendar({
 	monthDate,
 	selectedStart = "",
 	selectedEnd = "",
+	minValue = "",
+	maxValue = "",
 	compact = false,
 	disabled = false,
 	onPreviousMonth,
@@ -311,6 +366,7 @@ function SoftCalendar({
 						endDate &&
 						date > new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate()) &&
 						date < new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
+					const isOutOfRange = isDateBeforeDay(date, minValue) || isDateAfterDay(date, maxValue);
 
 					return (
 						<button
@@ -318,16 +374,18 @@ function SoftCalendar({
 							type="button"
 							disabled={disabled}
 							onClick={() => onSelectDate(key)}
-							className={`flex aspect-square items-center justify-center font-bold transition ${
+							className={`flex aspect-square items-center justify-center font-bold transition disabled:cursor-not-allowed disabled:opacity-35 ${
 								compact ? "rounded-lg text-xs" : "rounded-xl text-sm"
 							} ${
 								isSelected
 									? "bg-[#2563eb] text-white shadow-sm shadow-[#2563eb]/20"
 									: isInRange
 										? "bg-[#eaf1ff] text-[#1d4ed8]"
-										: isCurrentMonth
-											? "text-[#46584d] hover:bg-white hover:text-[#164027] hover:shadow-sm"
-											: "text-[#c2ccc5] hover:bg-white/70"
+										: isOutOfRange
+											? "text-rose-700 hover:bg-rose-50"
+											: isCurrentMonth
+												? "text-[#46584d] hover:bg-white hover:text-[#164027] hover:shadow-sm"
+												: "text-[#c2ccc5] hover:bg-white/70"
 							}`}
 						>
 							{date.getDate()}
@@ -343,6 +401,7 @@ interface SoftDateTimeRangePickerProps {
 	title: string;
 	startsAt: string;
 	endsAt: string;
+	minValue?: string;
 	disabled?: boolean;
 	startError?: string;
 	endError?: string;
@@ -354,6 +413,7 @@ function SoftDateTimeRangePicker({
 	title,
 	startsAt,
 	endsAt,
+	minValue = "",
 	disabled = false,
 	startError,
 	endError,
@@ -423,6 +483,7 @@ function SoftDateTimeRangePicker({
 							monthDate={monthDate}
 							selectedStart={startsAt}
 							selectedEnd={endsAt}
+							minValue={minValue}
 							compact
 							disabled={disabled}
 							onPreviousMonth={() => updateMonth(-1)}
@@ -482,6 +543,8 @@ interface SoftSingleDateTimePickerProps {
 	disabled?: boolean;
 	error?: string;
 	defaultTime?: string;
+	minValue?: string;
+	maxValue?: string;
 	optional?: boolean;
 	onChange: (value: string) => void;
 }
@@ -492,6 +555,8 @@ function SoftSingleDateTimePicker({
 	disabled = false,
 	error,
 	defaultTime = DEFAULT_DATE_TIME,
+	minValue = "",
+	maxValue = "",
 	optional = false,
 	onChange,
 }: SoftSingleDateTimePickerProps) {
@@ -542,6 +607,8 @@ function SoftSingleDateTimePicker({
 						<SoftCalendar
 							monthDate={monthDate}
 							selectedStart={value}
+							minValue={minValue}
+							maxValue={maxValue}
 							disabled={disabled}
 							onPreviousMonth={() => updateMonth(-1)}
 							onNextMonth={() => updateMonth(1)}
@@ -664,6 +731,56 @@ function isBlankOrDefault(value: string | undefined, defaultValue: string): bool
 	return !value || value === defaultValue;
 }
 
+function useCurrentDateTimeLocalValue(): string {
+	const [value, setValue] = useState(() => toDateTimeLocalInputValue(new Date()));
+
+	useEffect(() => {
+		const update = () => setValue(toDateTimeLocalInputValue(new Date()));
+		const intervalId = window.setInterval(update, 15_000);
+		document.addEventListener("visibilitychange", update);
+		window.addEventListener("focus", update);
+		return () => {
+			window.clearInterval(intervalId);
+			document.removeEventListener("visibilitychange", update);
+			window.removeEventListener("focus", update);
+		};
+	}, []);
+
+	return value;
+}
+
+function withRouteEndpointWaypoints(
+	values: CreateTripFormValues,
+	route: CreatedTrekkingRoute | null
+): CreateTripFormValues {
+	const start = route?.geometry.coordinates[0];
+	const finish = route?.geometry.coordinates.at(-1);
+	if (!route || !start || !finish) return values;
+	const startWaypoint =
+		values.waypoints.find((waypoint) => waypoint.type === "start") ?? values.waypoints[0];
+	const finishWaypoint =
+		values.waypoints.find((waypoint) => waypoint.type === "finish") ?? values.waypoints[1];
+	return {
+		...values,
+		waypoints: [
+			{
+				type: "start",
+				name: startWaypoint?.name || `${route.name} - điểm bắt đầu`,
+				longitude: String(start[0]),
+				latitude: String(start[1]),
+				plannedAt: values.startsAt,
+			},
+			{
+				type: "finish",
+				name: finishWaypoint?.name || `${route.name} - điểm kết thúc`,
+				longitude: String(finish[0]),
+				latitude: String(finish[1]),
+				plannedAt: values.endsAt,
+			},
+		],
+	};
+}
+
 export function CreateTripForm({
 	activeRoutes,
 	isRouteLoading,
@@ -676,10 +793,15 @@ export function CreateTripForm({
 	onCreateRoute,
 	defaultValues = CREATE_TRIP_DEFAULT_VALUES,
 	draftStorageKey,
-	submitLabel = "Tạo bản nháp và cấu hình điểm dừng",
+	submitLabel = "Bước tiếp theo",
 	submittingLabel = "Đang tạo trip...",
 	title = "Thông tin chuyến đi",
+	allowPastScheduleValues = false,
 }: Props) {
+	const formSchema = useMemo(
+		() => createCreateTripFormSchema({ allowPastScheduleValues }),
+		[allowPastScheduleValues]
+	);
 	const {
 		register,
 		handleSubmit,
@@ -692,23 +814,43 @@ export function CreateTripForm({
 		reset,
 		formState: { errors },
 	} = useForm<CreateTripFormValues>({
-		resolver: zodResolver(createTripFormSchema),
+		resolver: zodResolver(formSchema),
 		defaultValues,
 		mode: "onChange",
 	});
 	const selectedRouteId = watch("routeId");
 	const startsAt = watch("startsAt");
 	const endsAt = watch("endsAt");
+	const bookingDeadline = watch("bookingDeadline");
+	const meetingAt = watch("meetingAt");
 	const [coverImagePreview, setCoverImagePreview] = useState("");
-	const minDateTime = useMemo(() => toDateTimeLocalInputValue(new Date()), []);
-	const meetingPoint: Position = [
-		Number(watch("meetingLongitude")),
-		Number(watch("meetingLatitude")),
-	];
+	const minDateTime = useCurrentDateTimeLocalValue();
+	const meetingAtMinDateTime = maxDateTimeLocalValue(bookingDeadline, minDateTime);
+	const meetingLongitude = watch("meetingLongitude");
+	const meetingLatitude = watch("meetingLatitude");
+	const meetingPoint: Position | null =
+		meetingLongitude && meetingLatitude
+			? [Number(meetingLongitude), Number(meetingLatitude)]
+			: null;
 	const hasActiveRoutes = activeRoutes.length > 0;
 	const selectedRoute = activeRoutes.find((route) => route.id === selectedRouteId) ?? null;
 	const routeDurationError = getRouteDurationError(startsAt, endsAt, selectedRoute);
-	const endsAtErrorMessage = routeDurationError || errors.endsAt?.message;
+	const startsAtPastError = allowPastScheduleValues
+		? undefined
+		: getPastDateTimeMessage(startsAt, minDateTime, "Thời gian bắt đầu không được ở quá khứ");
+	const endsAtPastError = allowPastScheduleValues
+		? undefined
+		: getPastDateTimeMessage(endsAt, minDateTime, "Thời gian kết thúc không được ở quá khứ");
+	const bookingDeadlinePastError = allowPastScheduleValues
+		? undefined
+		: getPastDateTimeMessage(bookingDeadline, minDateTime, "Hạn đặt chỗ không được ở quá khứ");
+	const meetingAtPastError = allowPastScheduleValues
+		? undefined
+		: getPastDateTimeMessage(meetingAt, minDateTime, "Thời gian tập trung không được ở quá khứ");
+	const startsAtErrorMessage = errors.startsAt?.message || startsAtPastError;
+	const endsAtErrorMessage = routeDurationError || errors.endsAt?.message || endsAtPastError;
+	const bookingDeadlineErrorMessage = errors.bookingDeadline?.message || bookingDeadlinePastError;
+	const meetingAtErrorMessage = errors.meetingAt?.message || meetingAtPastError;
 	const routeSelectDisabled = isSubmitting || isRouteLoading || !hasActiveRoutes;
 	const submitDisabled = isSubmitting || !hasActiveRoutes || !selectedRouteId;
 
@@ -735,16 +877,6 @@ export function CreateTripForm({
 		const start = selectedRoute.geometry.coordinates[0];
 		const finish = selectedRoute.geometry.coordinates.at(-1);
 		if (!start || !finish) return;
-		if (
-			isBlankOrDefault(
-				currentValues.meetingLongitude,
-				CREATE_TRIP_DEFAULT_VALUES.meetingLongitude
-			) ||
-			isBlankOrDefault(currentValues.meetingLatitude, CREATE_TRIP_DEFAULT_VALUES.meetingLatitude)
-		) {
-			setValue("meetingLongitude", String(start[0]), { shouldValidate: true });
-			setValue("meetingLatitude", String(start[1]), { shouldValidate: true });
-		}
 		setValue("waypoints.0.type", "start");
 		if (!currentValues.waypoints[0]?.name) {
 			setValue("waypoints.0.name", `${selectedRoute.name} - điểm bắt đầu`, {
@@ -821,9 +953,13 @@ export function CreateTripForm({
 	const setMeetingPoint = useCallback(
 		([longitude, latitude]: Position) => {
 			setValue("meetingLongitude", String(longitude), {
-				shouldValidate: false,
+				shouldValidate: true,
+				shouldDirty: true,
 			});
-			setValue("meetingLatitude", String(latitude), { shouldValidate: false });
+			setValue("meetingLatitude", String(latitude), {
+				shouldValidate: true,
+				shouldDirty: true,
+			});
 		},
 		[setValue]
 	);
@@ -872,6 +1008,7 @@ export function CreateTripForm({
 		for (const [field, message] of Object.entries(error.fieldErrors)) {
 			const mapped = backendFieldMap[field];
 			if (mapped) setError(mapped, { message });
+			if (field.startsWith("waypoints.")) setError("waypoints", { message });
 		}
 	}, [error, setError]);
 
@@ -881,14 +1018,16 @@ export function CreateTripForm({
 			setError("endsAt", { type: "routeDuration", message: durationError });
 			return Promise.resolve();
 		}
-		return onSubmit(toCreateTripInput(values)).then((result) => {
-			if (result) clearPersistedDraft(draftStorageKey);
-			return result;
-		});
+		return onSubmit(toCreateTripInput(withRouteEndpointWaypoints(values, selectedRoute))).then(
+			(result) => {
+				if (result) clearPersistedDraft(draftStorageKey);
+				return result;
+			}
+		);
 	};
 
 	return (
-		<form className="grid gap-5" onSubmit={handleSubmit(submitForm)}>
+		<form className="grid gap-5" noValidate onSubmit={handleSubmit(submitForm)}>
 			<section className="overflow-hidden rounded-2xl border border-[#dce8dd] bg-white shadow-sm">
 				<div className="grid gap-0 lg:grid-cols-[0.88fr_1.12fr]">
 					<div className="bg-[#f7faf6] p-5">
@@ -1017,15 +1156,16 @@ export function CreateTripForm({
 							title="Thời gian"
 							startsAt={startsAt}
 							endsAt={endsAt}
+							minValue={minDateTime}
 							disabled={isSubmitting}
-							startError={errors.startsAt?.message}
+							startError={startsAtErrorMessage}
 							endError={endsAtErrorMessage}
 							onStartChange={(value) => {
 								setValue("startsAt", value, {
 									shouldValidate: true,
 									shouldDirty: true,
 								});
-								void trigger(["startsAt", "endsAt"]);
+								void trigger(["startsAt", "endsAt", "meetingAt", "bookingDeadline"]);
 							}}
 							onEndChange={(value) => {
 								setValue("endsAt", value, {
@@ -1071,10 +1211,12 @@ export function CreateTripForm({
 						<div>
 							<SoftSingleDateTimePicker
 								title="Thời gian tập trung"
-								value={watch("meetingAt")}
+								value={meetingAt}
 								disabled={isSubmitting}
-								error={errors.meetingAt?.message}
+								error={meetingAtErrorMessage}
 								defaultTime="07:30"
+								minValue={meetingAtMinDateTime}
+								maxValue={startsAt}
 								optional
 								onChange={(value) =>
 									setValue("meetingAt", value, {
@@ -1086,7 +1228,7 @@ export function CreateTripForm({
 							<input
 								aria-label="Thời gian tập trung"
 								type="datetime-local"
-								min={minDateTime}
+								min={meetingAtMinDateTime}
 								max={startsAt || undefined}
 								disabled={isSubmitting}
 								className="sr-only"
@@ -1096,16 +1238,19 @@ export function CreateTripForm({
 						<div>
 							<SoftSingleDateTimePicker
 								title="Hạn đặt chỗ"
-								value={watch("bookingDeadline")}
+								value={bookingDeadline}
 								disabled={isSubmitting}
-								error={errors.bookingDeadline?.message}
+								error={bookingDeadlineErrorMessage}
 								defaultTime="18:00"
-								onChange={(value) =>
+								minValue={minDateTime}
+								maxValue={startsAt}
+								onChange={(value) => {
 									setValue("bookingDeadline", value, {
 										shouldValidate: true,
 										shouldDirty: true,
-									})
-								}
+									});
+									void trigger(["bookingDeadline", "meetingAt"]);
+								}}
 							/>
 							<input
 								aria-label="Hạn đặt chỗ"
@@ -1210,10 +1355,14 @@ export function CreateTripForm({
 				onMeetingPointChange={setMeetingPoint}
 			/>
 
-			{(errors.meetingLongitude || errors.meetingLatitude || errors.waypoints?.root) && (
+			{(errors.meetingLongitude ||
+				errors.meetingLatitude ||
+				errors.waypoints?.message ||
+				errors.waypoints?.root) && (
 				<p role="alert" className="text-sm font-bold text-red-600">
 					{errors.meetingLongitude?.message ??
 						errors.meetingLatitude?.message ??
+						errors.waypoints?.message ??
 						errors.waypoints?.root?.message ??
 						"Vui lòng kiểm tra các điểm trên tuyến."}
 				</p>

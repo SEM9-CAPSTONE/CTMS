@@ -19,6 +19,7 @@ export enum TripStatus {
 	ONGOING = "ongoing",
 	COMPLETED = "completed",
 	CANCELLED = "cancelled",
+	REJECTED = "rejected",
 }
 
 export enum TripType {

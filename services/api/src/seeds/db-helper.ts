@@ -202,6 +202,17 @@ async function main() {
 				[input.routeId]
 			);
 			console.log(JSON.stringify({ route: rows[0] ?? null }));
+		} else if (action === "get-trekking-route-by-name") {
+			const input = parseJsonArg<{ name: string }>(arg);
+			const rows = await dataSource.query(
+				`SELECT "id", "host_id" AS "hostId", "name", "status", "length_meters" AS "lengthMeters",
+				 ST_AsGeoJSON("route_geom"::geometry)::json AS "geometry"
+				 FROM "trekking_routes" WHERE "name" = $1
+				 ORDER BY "updated_at" DESC, "created_at" DESC
+				 LIMIT 1`,
+				[input.name]
+			);
+			console.log(JSON.stringify({ route: rows[0] ?? null }));
 		} else if (action === "get-route-checkpoints") {
 			const input = parseJsonArg<{ routeId: string }>(arg);
 			const rows = await dataSource.query(

@@ -165,6 +165,8 @@ describe("TripsService", () => {
 		findByIdForScheduleChange: jest.Mock;
 		reschedulePublishedTrip: jest.Mock;
 		cancelTripWithCommitments: jest.Mock;
+		findPendingReviewReminderCandidates: jest.Mock;
+		findExpiredPendingReviewCandidates: jest.Mock;
 	};
 	let auditRepository: { save: jest.Mock };
 	let dataSource: { transaction: jest.Mock };
@@ -230,6 +232,8 @@ describe("TripsService", () => {
 				equipmentReservationsCancelled: 1,
 				bookingRefundsCreated: 1,
 			}),
+			findPendingReviewReminderCandidates: jest.fn().mockResolvedValue([]),
+			findExpiredPendingReviewCandidates: jest.fn().mockResolvedValue([]),
 		};
 		auditRepository = { save: jest.fn().mockResolvedValue({}) };
 		dataSource = {
@@ -743,6 +747,77 @@ describe("TripsService", () => {
 			).rejects.toBeInstanceOf(ConflictException);
 			expect(tripsRepository.updateStatus).not.toHaveBeenCalled();
 			expect(auditRepository.save).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("processPendingReviewDeadlines", () => {
+		it("sends one reminder for Trips close to the 24-hour review deadline", async () => {
+			const submittedAt = new Date("2026-09-15T00:00:00.000Z");
+			tripsRepository.findPendingReviewReminderCandidates.mockResolvedValue([
+				{
+					id: TRIP_ID,
+					hostId: HOST_ID,
+					title: "Langbiang sunrise trek",
+					updatedAt: submittedAt,
+				},
+			]);
+
+			const result = await service.processPendingReviewDeadlines(
+				new Date("2026-09-15T23:05:00.000Z")
+			);
+
+			expect(result).toEqual({ reminded: 1, rejected: 0 });
+			expect(tripsRepository.findPendingReviewReminderCandidates).toHaveBeenCalledWith(
+				new Date("2026-09-15T00:05:00.000Z"),
+				new Date("2026-09-14T23:05:00.000Z")
+			);
+			expect(auditRepository.save).toHaveBeenCalledWith(
+				expect.objectContaining({
+					actorId: null,
+					action: "trip.review.reminder_sent",
+					targetType: "trip",
+					targetId: TRIP_ID,
+					reason: "admin_review_deadline_reminder",
+					after: expect.objectContaining({
+						status: TripStatus.PENDING_APPROVAL,
+						deadlineAt: "2026-09-16T00:00:00.000Z",
+					}),
+				})
+			);
+		});
+
+		it("automatically rejects pending Trips after 24 hours without approval", async () => {
+			tripsRepository.findExpiredPendingReviewCandidates.mockResolvedValue([
+				{
+					id: TRIP_ID,
+					hostId: HOST_ID,
+					title: "Langbiang sunrise trek",
+					updatedAt: new Date("2026-09-15T00:00:00.000Z"),
+				},
+			]);
+			tripsRepository.updateStatus.mockResolvedValue({
+				...configuredTrip(),
+				status: TripStatus.REJECTED,
+			});
+
+			const result = await service.processPendingReviewDeadlines(
+				new Date("2026-09-16T00:01:00.000Z")
+			);
+
+			expect(result).toEqual({ reminded: 0, rejected: 1 });
+			expect(tripsRepository.findByIdForReview).toHaveBeenCalledWith(TRIP_ID);
+			expect(tripsRepository.updateStatus).toHaveBeenCalledWith(TRIP_ID, TripStatus.REJECTED);
+			expect(auditRepository.save).toHaveBeenCalledWith(
+				expect.objectContaining({
+					actorId: null,
+					action: "trip.auto_rejected",
+					targetType: "trip",
+					targetId: TRIP_ID,
+					before: { status: TripStatus.PENDING_APPROVAL },
+					after: expect.objectContaining({ status: TripStatus.REJECTED }),
+					reason: "Trip was automatically rejected because it was not approved within 24 hours.",
+				})
+			);
 		});
 	});
 

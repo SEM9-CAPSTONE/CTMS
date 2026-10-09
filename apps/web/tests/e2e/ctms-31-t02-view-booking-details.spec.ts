@@ -170,8 +170,8 @@ test.describe("CTMS-31-T02 View Booking Details", () => {
 		await expect(page.getByRole("heading", { name: "Chi tiết đơn đặt chỗ" })).toBeVisible();
 		await page.getByRole("button", { name: "Quay lại chi tiết chuyến đi" }).click();
 		await expect(page).toHaveURL(new RegExp(`/trips/${tripId}$`));
-		await expect(page.getByText("Danh sách người tham gia đã được xác nhận")).toBeVisible();
-		await expect(page.getByText(participantEmail)).toBeVisible();
+		await expect(page.getByRole("heading", { name: "Danh sách người tham gia" })).toBeVisible();
+		await expect(page.getByText("Danh sách thành viên chuyến đi đã được lưu đầy đủ")).toBeVisible();
 		expect(createRequestCount).toBe(1);
 
 		const itemResponse = await page.request.post(`${API_BASE_URL}/bookings/${bookingId}/items`, {

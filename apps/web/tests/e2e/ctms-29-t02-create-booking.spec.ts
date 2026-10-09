@@ -8,8 +8,8 @@ const TS_NODE_BIN = path.join(API_ROOT, "node_modules", "ts-node", "dist", "bin.
 const DB_HELPER = path.join(API_ROOT, "src", "seeds", "db-helper.ts");
 const DEV_TRIPS_SEED = path.join(API_ROOT, "src", "seeds", "dev-trips.seed.ts");
 const PASSWORD = "S3curePass!";
-const TRIP_TITLE = "[CTMS-024] Khám Phá Sơn Trà (Bình thường - Còn 12 chỗ)";
-const LOW_CAPACITY_TRIP_TITLE = "[CTMS-024] Đỉnh Núi Bidoup Trail (Khẩn cấp: Chỉ còn 2 chỗ)";
+const TRIP_TITLE = "[CTMS-024] Khám Phá Bán Đảo Sơn Trà (Bình thường - Còn 12 chỗ)";
+const LOW_CAPACITY_TRIP_TITLE = "[CTMS-024] Hải Vân Quan - Vịnh Làng Vân (Khẩn cấp: Chỉ còn 2 chỗ)";
 const camperEmail = `e2e-ctms29t02-${Date.now()}@example.com`;
 
 function db<T>(action: string, payload: unknown): T {
@@ -67,7 +67,7 @@ test.describe("CTMS-29-T02 Create Booking for Trip", () => {
 		await loginAsCamper(page);
 		await page.goto("/trips");
 
-		await page.getByLabel("Tìm kiếm chuyến đi").fill("Khám Phá Sơn Trà");
+		await page.getByLabel("Tìm kiếm chuyến đi").fill("Khám Phá Bán Đảo Sơn Trà");
 		await page.getByRole("button", { name: "Tìm kiếm" }).click();
 		await expect(page.getByText(TRIP_TITLE)).toBeVisible();
 		await page.getByText(TRIP_TITLE).click();
@@ -94,7 +94,7 @@ test.describe("CTMS-29-T02 Create Booking for Trip", () => {
 	}) => {
 		await loginAsCamper(page);
 		await page.goto("/trips");
-		await page.getByLabel("Tìm kiếm chuyến đi").fill("Đỉnh Núi Bidoup Trail");
+		await page.getByLabel("Tìm kiếm chuyến đi").fill("Hải Vân Quan");
 		await page.getByRole("button", { name: "Tìm kiếm" }).click();
 		await expect(page.getByText(LOW_CAPACITY_TRIP_TITLE)).toBeVisible();
 		await page.getByText(LOW_CAPACITY_TRIP_TITLE).click();
