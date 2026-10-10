@@ -15,6 +15,13 @@ export const queryKeys = {
 		checkpoints: (routeId: string) => ["trekking-routes", routeId, "checkpoints"] as const,
 	},
 	trips: {
+		availablePorters: (
+			tripId: string,
+			role: "lead" | "support" | null,
+			minExperienceYears: number | undefined,
+			page: number,
+			limit: number
+		) => ["trips", tripId, "available-porters", { role, minExperienceYears, page, limit }] as const,
 		all: ["trips"] as const,
 		list: (filters?: Record<string, unknown>) => ["trips", "list", filters] as const,
 		detail: (id: string) => ["trips", "detail", id] as const,

@@ -1,5 +1,7 @@
 import { API_ENDPOINTS, httpClient } from "../../../core/api";
 import type {
+	AvailablePortersQuery,
+	AvailablePortersResponse,
 	BookTripInput,
 	BookTripResponse,
 	CancelTripInput,
@@ -42,6 +44,17 @@ export const tripsService = {
 
 	getById: (tripId: string): Promise<TripDetails> =>
 		httpClient.get<TripDetails>(API_ENDPOINTS.TRIPS.GET_BY_ID(tripId)),
+
+	getAvailablePorters: (
+		tripId: string,
+		query: AvailablePortersQuery
+	): Promise<AvailablePortersResponse> =>
+		httpClient.get<AvailablePortersResponse>(API_ENDPOINTS.TRIPS.AVAILABLE_PORTERS(tripId), {
+			role: query.role,
+			minExperienceYears: query.minExperienceYears,
+			page: query.page,
+			limit: query.limit,
+		}),
 
 	getMyTrips: (): Promise<TripDetails[]> =>
 		httpClient.get<TripDetails[]>(API_ENDPOINTS.TRIPS.GET_MINE),

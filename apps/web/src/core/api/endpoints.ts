@@ -56,6 +56,7 @@ export const API_ENDPOINTS = {
 		GET_MINE: "/trips/mine",
 		GET_ASSIGNED: "/trips/assigned",
 		GET_BY_ID: (id: string) => `/trips/${id}`,
+		AVAILABLE_PORTERS: (tripId: string) => `/trips/${tripId}/available-porters`,
 		CREATE: "/trips",
 		UPDATE: (id: string) => `/trips/${id}`,
 		CONFIGURE_WAYPOINTS: (tripId: string) => `/trips/${tripId}/waypoints`,

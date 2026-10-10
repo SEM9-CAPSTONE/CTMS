@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { BookingDetails } from "../../booking-details/types";
 import { bookingEquipmentService } from "../../booking-equipment/services/booking-equipment.service";
 import { TripMemberRoster } from "../../booking-members/components/TripMemberRoster";
+import { AvailablePortersPanel } from "../components/AvailablePortersPanel";
 import type { BookingAccess } from "../components/BookingPanel";
 import type { SelectedEquipmentItem } from "../components/RentableEquipmentModal";
 import { TripDetailView } from "../components/TripDetailView";
@@ -349,6 +350,7 @@ export function TripDetailPage({
 								onConflictRetry={retryBooking}
 								onViewBookingDetails={onViewBookingDetails}
 								canManageTrip={canManageThisTrip}
+								hostAvailablePorters={<AvailablePortersPanel tripId={trip.id} />}
 								hostOperations={{
 									trip,
 									isSubmitting: tripOperations.isSubmitting,
