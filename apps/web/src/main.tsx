@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { initAuthSessionSync } from "./core/api/authSessionSync";
@@ -14,13 +15,22 @@ import { ToastProvider } from "./shared/components/Toast";
 initAuthSessionSync();
 
 const rootElement = document.getElementById("root");
+const queryClient = new QueryClient({
+	defaultOptions: {
+		queries: {
+			refetchOnWindowFocus: false,
+		},
+	},
+});
 
 if (rootElement) {
 	ReactDOM.createRoot(rootElement).render(
 		<React.StrictMode>
-			<ToastProvider>
-				<AppRoutes />
-			</ToastProvider>
+			<QueryClientProvider client={queryClient}>
+				<ToastProvider>
+					<AppRoutes />
+				</ToastProvider>
+			</QueryClientProvider>
 		</React.StrictMode>
 	);
 }

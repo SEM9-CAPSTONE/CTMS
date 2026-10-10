@@ -181,6 +181,32 @@ export interface PaginatedTrips {
 	pagination: TripsPagination;
 }
 
+export type IntendedPorterRole = "lead" | "support";
+export type PorterAvailabilityStatus = "available" | "unavailable";
+export type PorterRouteProficiency = "learning" | "proficient" | "expert";
+
+export interface AvailablePorter {
+	porterId: string;
+	displayName: string | null;
+	experienceYears: number;
+	availabilityStatus: PorterAvailabilityStatus;
+	ratingAvg: number;
+	completedTrips: number;
+	proficiency?: PorterRouteProficiency;
+}
+
+export interface AvailablePortersQuery {
+	role: IntendedPorterRole;
+	minExperienceYears?: number;
+	page: number;
+	limit: number;
+}
+
+export interface AvailablePortersResponse {
+	items: AvailablePorter[];
+	pagination: TripsPagination;
+}
+
 export interface TripHost {
 	id: string;
 	fullName?: string | null;

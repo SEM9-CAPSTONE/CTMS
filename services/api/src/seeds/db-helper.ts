@@ -788,6 +788,44 @@ async function main() {
 				await dataSource.query('DELETE FROM "porter_profiles" WHERE "porter_id" = $1', [porterId]);
 			}
 			console.log(JSON.stringify({ success: true }));
+		} else if (action === "seed-available-porter") {
+			const input = parseJsonArg<{
+				porterEmail: string;
+				displayName: string;
+				experienceYears: number;
+				routeId?: string;
+				proficiency?: "learning" | "proficient" | "expert";
+				verifiedBy?: string;
+			}>(arg);
+			assertE2EEmail(input.porterEmail);
+			if (!Number.isInteger(input.experienceYears) || input.experienceYears < 0) {
+				throw new Error("Porter experience must be a non-negative integer");
+			}
+			await dataSource.query('UPDATE "users" SET "full_name" = $2 WHERE "email" = $1', [
+				input.porterEmail,
+				input.displayName,
+			]);
+			const rows = (await dataSource.query('SELECT "id" FROM "users" WHERE "email" = $1', [
+				input.porterEmail,
+			])) as Array<{ id: string }>;
+			if (!rows[0]) throw new Error(`Porter not found: ${input.porterEmail}`);
+			const porterId = rows[0].id;
+			await dataSource.query(
+				`INSERT INTO "porter_profiles" ("porter_id", "experience_years", "availability_status")
+				 VALUES ($1, $2, 'available')
+				 ON CONFLICT ("porter_id") DO UPDATE
+				 SET "experience_years" = EXCLUDED."experience_years", "availability_status" = 'available'`,
+				[porterId, input.experienceYears]
+			);
+			if (input.routeId && input.proficiency && input.verifiedBy) {
+				await dataSource.query(
+					`INSERT INTO "porter_route_qualifications"
+					 ("porter_id", "route_id", "proficiency", "times_led", "verified_by", "verified_at")
+					 VALUES ($1, $2, $3, 1, $4, now())`,
+					[porterId, input.routeId, input.proficiency, input.verifiedBy]
+				);
+			}
+			console.log(JSON.stringify({ id: porterId }));
 		} else if (action === "bump-qualification-version") {
 			const input = parseJsonArg<{ qualificationId: string }>(arg);
 			await dataSource.query(

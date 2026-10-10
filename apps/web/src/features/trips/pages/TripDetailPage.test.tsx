@@ -25,6 +25,10 @@ vi.mock("../hooks/useTripOperations", () => ({
 	useTripOperations: vi.fn(),
 }));
 
+vi.mock("../components/AvailablePortersPanel", () => ({
+	AvailablePortersPanel: () => null,
+}));
+
 vi.mock("../../booking-equipment/components/BookingEquipmentPicker", () => ({
 	BookingEquipmentPicker: ({ bookingId }: { bookingId: string }) => (
 		<div data-testid="booking-equipment-picker">{bookingId}</div>

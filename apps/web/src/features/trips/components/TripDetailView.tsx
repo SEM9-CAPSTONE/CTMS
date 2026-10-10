@@ -16,7 +16,7 @@ import {
 	Users,
 	X,
 } from "lucide-react";
-import { type ComponentProps, useEffect, useMemo, useState } from "react";
+import { type ComponentProps, type ReactNode, useEffect, useMemo, useState } from "react";
 import type { BookingDetails } from "../../booking-details/types";
 import { bookingEquipmentService } from "../../booking-equipment/services/booking-equipment.service";
 import { InitializeBookingMembersPanel } from "../../booking-members/components/InitializeBookingMembersPanel";
@@ -56,6 +56,7 @@ export interface TripDetailViewProps {
 	onViewBookingDetails?: (bookingId: string) => void;
 	canManageTrip?: boolean;
 	hostOperations?: ComponentProps<typeof HostTripOperationsPanel>;
+	hostAvailablePorters?: ReactNode;
 }
 
 export function formatDateTime(isoString: string | null | undefined): string {
@@ -112,6 +113,7 @@ export function TripDetailView({
 	onViewBookingDetails,
 	canManageTrip = false,
 	hostOperations,
+	hostAvailablePorters,
 }: TripDetailViewProps) {
 	const [packingListRefreshKey, setPackingListRefreshKey] = useState(0);
 	const [isPackingListModalOpen, setIsPackingListModalOpen] = useState(false);
@@ -645,6 +647,7 @@ export function TripDetailView({
 				<div className="relative">
 					<div className="lg:sticky lg:top-24 space-y-4">
 						{canManageTrip && hostOperations && <HostTripOperationsPanel {...hostOperations} />}
+						{canManageTrip && hostAvailablePorters}
 
 						{/* Overbooking and capacity urgency banner */}
 						<TripCapacityBanner
