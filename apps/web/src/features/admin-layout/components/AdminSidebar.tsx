@@ -3,6 +3,7 @@ import {
 	FileClock,
 	Flag,
 	LayoutDashboard,
+	ReceiptText,
 	Route,
 	ShieldAlert,
 	Users,
@@ -18,7 +19,8 @@ export type AdminNavigationItem =
 	| "content-reports"
 	| "route-review"
 	| "trip-review"
-	| "weather-rules";
+	| "weather-rules"
+	| "refunds";
 
 interface AdminSidebarProps {
 	activeItem: AdminNavigationItem;
@@ -30,6 +32,7 @@ interface AdminSidebarProps {
 const navigationItems = [
 	{ key: "dashboard", label: "Bảng điều khiển", icon: LayoutDashboard, available: false },
 	{ key: "user-accounts", label: "Tài khoản người dùng", icon: Users, available: true },
+	{ key: "refunds", label: "Quản lý hoàn tiền", icon: ReceiptText, available: true },
 	{ key: "route-review", label: "Duyệt tuyến trekking", icon: Route, available: true },
 	{ key: "trip-review", label: "Duyệt trip", icon: Compass, available: true },
 	{ key: "weather-rules", label: "Cấu hình rủi ro thời tiết", icon: ShieldAlert, available: true },
@@ -92,6 +95,9 @@ export function AdminSidebar({ activeItem, onLogout, onClose, className = "" }: 
 									window.dispatchEvent(new PopStateEvent("popstate"));
 								} else if (item.key === "weather-rules") {
 									window.history.pushState({}, "", "/admin/weather-rules");
+									window.dispatchEvent(new PopStateEvent("popstate"));
+								} else if (item.key === "refunds") {
+									window.history.pushState({}, "", "/admin/refunds");
 									window.dispatchEvent(new PopStateEvent("popstate"));
 								}
 							}}

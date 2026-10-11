@@ -19,6 +19,7 @@ describe("RefundsService (CTMS-035)", () => {
 	let service: RefundsService;
 	let dataSource: DataSource;
 	let paymentsRepo: {
+		find: jest.Mock;
 		findByBookingForUpdate: jest.Mock;
 		findByIdempotencyKey: jest.Mock;
 		findForUpdate: jest.Mock;
@@ -81,6 +82,7 @@ describe("RefundsService (CTMS-035)", () => {
 		});
 
 		paymentsRepo = {
+			find: jest.fn().mockResolvedValue([charge]),
 			findByBookingForUpdate: jest.fn().mockResolvedValue([charge]),
 			findByIdempotencyKey: jest.fn().mockResolvedValue(null),
 			findOne: jest.fn().mockResolvedValue(null),
@@ -493,6 +495,108 @@ describe("RefundsService (CTMS-035)", () => {
 			await expect(service.assertSettlementNotBlocked("trip-uuid-1")).resolves.toEqual(
 				expect.objectContaining({ isBlocked: false, heldFunds: "70.00" })
 			);
+		});
+	});
+
+	describe("getBookingRefundInfo (CTMS-035)", () => {
+		it("returns refund eligibility and history for booking owner", async () => {
+			bookingsRepo.findOne.mockResolvedValue(booking);
+			tripsRepo.findOne.mockResolvedValue(trip);
+			paymentsRepo.find.mockResolvedValue([charge]);
+			paymentsRepo.findPaymentsByTripId.mockResolvedValue([charge]);
+
+			const info = await service.getBookingRefundInfo(
+				"camper-uuid-1",
+				["camper"],
+				"booking-uuid-1"
+			);
+			expect(info.bookingId).toBe("booking-uuid-1");
+			expect(info.isEligible).toBe(true);
+			expect(info.remainingRefundableAmount).toBe("100.00");
+			expect(info.totalRefundedAmount).toBe("0.00");
+			expect(info.chargeAmount).toBe("100.00");
+			expect(info.settlementBlocked).toBe(false);
+		});
+
+		it("throws ForbiddenException when non-admin is not the booking owner", async () => {
+			bookingsRepo.findOne.mockResolvedValue(booking);
+
+			await expect(
+				service.getBookingRefundInfo("other-user", ["camper"], "booking-uuid-1")
+			).rejects.toThrow("Only the booking owner or an admin can view refund details");
+		});
+
+		it("allows admin to view refund info regardless of owner", async () => {
+			bookingsRepo.findOne.mockResolvedValue(booking);
+			tripsRepo.findOne.mockResolvedValue(trip);
+			paymentsRepo.find.mockResolvedValue([charge]);
+			paymentsRepo.findPaymentsByTripId.mockResolvedValue([charge]);
+
+			const info = await service.getBookingRefundInfo("admin-user", ["admin"], "booking-uuid-1");
+			expect(info.bookingId).toBe("booking-uuid-1");
+		});
+	});
+
+	describe("confirmManualRefund & rejectRefund (CTMS-035)", () => {
+		it("confirms manual refund and transitions to SUCCEEDED", async () => {
+			const pendingRefund = Object.assign(new Payment(), {
+				id: "refund-ob-1",
+				bookingId: "booking-uuid-1",
+				type: PaymentType.REFUND,
+				status: PaymentStatus.PENDING,
+				amount: "50.00",
+				parentPaymentId: "charge-uuid-1",
+				createdAt: fixedNow,
+			});
+			paymentsRepo.findForUpdate.mockResolvedValue(pendingRefund);
+
+			const res = await service.confirmManualRefund("admin-1", "refund-ob-1", {
+				transactionRef: "VCB-REF-100",
+				note: "Transfer confirmed",
+			});
+
+			expect(res.status).toBe(PaymentStatus.SUCCEEDED);
+			expect(res.transactionStatus).toBe(PaymentTransactionStatus.SUCCEEDED);
+			expect(res.providerReference).toBe("VCB-REF-100");
+			expect(pendingRefund.status).toBe(PaymentStatus.SUCCEEDED);
+			expect(auditRepo.save).toHaveBeenCalled();
+		});
+
+		it("rejects refund and transitions to FAILED", async () => {
+			const pendingRefund = Object.assign(new Payment(), {
+				id: "refund-ob-2",
+				bookingId: "booking-uuid-1",
+				type: PaymentType.REFUND,
+				status: PaymentStatus.PENDING,
+				amount: "50.00",
+				parentPaymentId: "charge-uuid-1",
+				createdAt: fixedNow,
+			});
+			paymentsRepo.findForUpdate.mockResolvedValue(pendingRefund);
+
+			const res = await service.rejectRefund("admin-1", "refund-ob-2", {
+				rejectionReason: "Ineligible for refund",
+			});
+
+			expect(res.status).toBe(PaymentStatus.FAILED);
+			expect(res.transactionStatus).toBe(PaymentTransactionStatus.FAILED);
+			expect(pendingRefund.status).toBe(PaymentStatus.FAILED);
+			expect(auditRepo.save).toHaveBeenCalled();
+		});
+
+		it("rejects confirming already succeeded refund", async () => {
+			const succeededRefund = Object.assign(new Payment(), {
+				id: "refund-ob-3",
+				type: PaymentType.REFUND,
+				status: PaymentStatus.SUCCEEDED,
+			});
+			paymentsRepo.findForUpdate.mockResolvedValue(succeededRefund);
+
+			await expect(
+				service.confirmManualRefund("admin-1", "refund-ob-3", {
+					transactionRef: "VCB-123",
+				})
+			).rejects.toThrow("Refund has already been confirmed");
 		});
 	});
 });

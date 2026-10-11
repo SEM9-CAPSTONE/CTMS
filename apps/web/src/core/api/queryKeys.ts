@@ -6,6 +6,7 @@ export const queryKeys = {
 		all: ["bookings"] as const,
 		list: (filters?: Record<string, unknown>) => ["bookings", "list", filters] as const,
 		detail: (id: string) => ["bookings", "detail", id] as const,
+		refunds: (bookingId: string) => ["bookings", "refunds", bookingId] as const,
 	},
 	trekking: {
 		all: ["trekking-routes"] as const,
@@ -47,5 +48,9 @@ export const queryKeys = {
 		routeQualifications: ["porter", "route-qualifications"] as const,
 		routePorterQualifications: (routeId: string) =>
 			["trekking-routes", routeId, "porter-qualifications"] as const,
+	},
+	adminRefunds: {
+		all: ["admin-refunds"] as const,
+		list: (filters?: Record<string, unknown>) => ["admin-refunds", "list", filters] as const,
 	},
 };

@@ -621,6 +621,89 @@ async function main() {
 			);
 			const result = await expiryService.expireBooking(input.bookingId);
 			console.log(JSON.stringify({ id: booking.id, result }));
+		} else if (action === "seed-refund-fixture") {
+			const input = parseJsonArg<{
+				tripId: string;
+				camperId: string;
+				scenario: "completed_trip" | "cancelled_booking";
+				chargeAmount?: string;
+			}>(arg);
+			const amount = input.chargeAmount ?? "500000.00";
+			const result = await dataSource.transaction(async (manager) => {
+				const tripRows = (await manager.query(
+					`SELECT "id", "title" FROM "trips" WHERE "id" = $1 FOR UPDATE`,
+					[input.tripId]
+				)) as Array<{ id: string; title: string }>;
+				const trip = tripRows[0];
+				if (!trip) throw new Error(`Trip not found: ${input.tripId}`);
+				if (!trip.title.startsWith("E2E") && !trip.title.startsWith("CTMS")) {
+					throw new Error(`Refusing to modify non-E2E Trip: ${trip.id}`);
+				}
+
+				if (input.scenario === "completed_trip") {
+					await manager.query(
+						`UPDATE "trips"
+						 SET "status" = 'completed',
+						     "starts_at" = now() - interval '2 days',
+						     "ends_at" = now() - interval '2 hours',
+						     "booking_deadline" = now() - interval '3 days'
+						 WHERE "id" = $1`,
+						[input.tripId]
+					);
+				} else {
+					await manager.query(
+						`UPDATE "trips"
+						 SET "status" = 'published',
+						     "starts_at" = now() + interval '5 days',
+						     "ends_at" = now() + interval '5 days 8 hours',
+						     "booking_deadline" = now() + interval '4 days'
+						 WHERE "id" = $1`,
+						[input.tripId]
+					);
+				}
+
+				const isCompleted = input.scenario === "completed_trip";
+				const bookingRows = (await manager.query(
+					`INSERT INTO "bookings" (
+						"trip_id", "user_id", "num_people", "status", "payment_status",
+						"trip_starts_at_snapshot", "trip_ends_at_snapshot", "base_price", "total_amount",
+						"cancelled_at", "cancellation_reason"
+					 )
+					 SELECT "id", $2, 1, $3::booking_status, 'paid', "starts_at", "ends_at", $4, $4,
+					        CASE WHEN $3::text = 'cancelled' THEN now() - interval '1 hour' ELSE NULL END,
+					        CASE WHEN $3::text = 'cancelled' THEN 'E2E pre-trip cancellation' ELSE NULL END
+					 FROM "trips" WHERE "id" = $1
+					 RETURNING "id"`,
+					[input.tripId, input.camperId, isCompleted ? "completed" : "cancelled", amount]
+				)) as Array<{ id: string }>;
+				const bookingId = bookingRows[0].id;
+
+				await manager.query(
+					`INSERT INTO "booking_members" ("booking_id", "user_id", "is_primary", "member_status")
+					 VALUES ($1, $2, true, $3::booking_member_status)`,
+					[bookingId, input.camperId, isCompleted ? "joined" : "registered"]
+				);
+
+				const paymentRows = (await manager.query(
+					`INSERT INTO "payments" (
+						"booking_id", "type", "status", "amount", "idempotency_key", "request_fingerprint",
+						"provider_reference"
+					 )
+					 VALUES ($1, 'charge', 'succeeded', $2, $3, 'e2e-fingerprint', 'PAYOS-E2E-REF')
+					 RETURNING "id"`,
+					[bookingId, amount, `e2e-charge-${bookingId}`]
+				)) as Array<{ id: string }>;
+				const chargeId = paymentRows[0].id;
+
+				await manager.query(
+					`INSERT INTO "payment_transactions" ("payment_id", "status")
+					 VALUES ($1, 'succeeded')`,
+					[chargeId]
+				);
+
+				return { bookingId, chargeId, tripId: input.tripId };
+			});
+			console.log(JSON.stringify(result));
 		} else if (action === "clean-bookings") {
 			const input = parseJsonArg<{ tripIds: string[] }>(arg);
 			if (input.tripIds.length > 0) {
@@ -631,10 +714,30 @@ async function main() {
 					[input.tripIds]
 				);
 				await dataSource.query(
+					`DELETE FROM "payment_transactions" WHERE "payment_id" IN (
+						SELECT "id" FROM "payments" WHERE "booking_id" IN (
+							SELECT "id" FROM "bookings" WHERE "trip_id" = ANY($1)
+						)
+					)`,
+					[input.tripIds]
+				);
+				await dataSource.query(
 					`DELETE FROM "audit_logs" WHERE "target_id" IN (
 						SELECT "id" FROM "payments" WHERE "booking_id" IN (
 							SELECT "id" FROM "bookings" WHERE "trip_id" = ANY($1)
 						)
+					)`,
+					[input.tripIds]
+				);
+				await dataSource.query(
+					`DELETE FROM "payments" WHERE "parent_payment_id" IS NOT NULL AND "booking_id" IN (
+						SELECT "id" FROM "bookings" WHERE "trip_id" = ANY($1)
+					)`,
+					[input.tripIds]
+				);
+				await dataSource.query(
+					`DELETE FROM "payments" WHERE "booking_id" IN (
+						SELECT "id" FROM "bookings" WHERE "trip_id" = ANY($1)
 					)`,
 					[input.tripIds]
 				);
