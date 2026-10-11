@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import {
 	ConflictException,
+	ForbiddenException,
 	Inject,
 	Injectable,
 	Logger,
@@ -13,11 +14,25 @@ import { DataSource, type EntityManager } from "typeorm";
 import { AuditLog } from "../auth/entities/audit-log.entity";
 import { BookingStatus } from "../profiles/entities/booking.entity";
 import { Trip, TripStatus } from "../trips/entities/trip.entity";
+import { UserRole } from "../users/entities/user.entity";
 // biome-ignore lint/style/useImportType: NestJS constructor injection requires runtime metadata
 import { BookingsRepository } from "./bookings.repository";
+import { minorToMoney } from "./cancellation-policy";
+import type {
+	AdminRefundItemResponseDto,
+	AdminRefundListResponseDto,
+} from "./dto/admin-refund-item-response.dto";
+import type { AdminRefundListQueryDto } from "./dto/admin-refund-list-query.dto";
+import type {
+	BookingRefundApplicableWindowDto,
+	BookingRefundInfoResponseDto,
+	BookingRefundItemDto,
+} from "./dto/booking-refund-info-response.dto";
+import type { ConfirmManualRefundDto } from "./dto/confirm-manual-refund.dto";
 import type { ProcessRefundResponseDto } from "./dto/process-refund-response.dto";
 import type { ProcessRefundDto } from "./dto/process-refund.dto";
 import type { RefundCallbackDto } from "./dto/refund-callback.dto";
+import type { RejectRefundDto } from "./dto/reject-refund.dto";
 import type { SettlementStatusResponseDto } from "./dto/settlement-status-response.dto";
 import {
 	Payment,
@@ -78,7 +93,7 @@ export class RefundsService {
 		bookingId: string,
 		idempotencyKey: string | undefined,
 		dto: ProcessRefundDto,
-		options?: { mockProvider?: boolean; processingTime?: Date }
+		options?: { mockProvider?: boolean; processingTime?: Date; userRoles?: string[] }
 	): Promise<ProcessRefundResponseDto> {
 		const effectiveKey =
 			idempotencyKey?.trim() ||
@@ -138,6 +153,17 @@ export class RefundsService {
 				throw new ConflictException("Booking Trip identity is inconsistent");
 			}
 
+			// Check ownership if caller is not an admin
+			if (
+				options?.userRoles &&
+				!options.userRoles.includes(UserRole.ADMIN) &&
+				booking.userId !== actorId
+			) {
+				throw new ForbiddenException(
+					"Only the booking owner or an admin can request or process a refund"
+				);
+			}
+
 			// 4. Load all payments for this booking under lock.
 			const paymentRows = await paymentsRepo.findByBookingForUpdate(bookingId);
 
@@ -195,10 +221,22 @@ export class RefundsService {
 				}
 			} else {
 				if (!origin) {
-					origin = RefundOrigin.CAMPER_CANCELLATION;
+					if (booking.status === BookingStatus.COMPLETED) {
+						origin = RefundOrigin.CAMPER_COMPLAINT;
+					} else {
+						origin = RefundOrigin.CAMPER_CANCELLATION;
+					}
 				}
 				if (!refundAmount) {
-					throw new ConflictException("Refund amount is required for new refund requests");
+					const existingRefunds = paymentRows.filter((p) => p.type === PaymentType.REFUND);
+					const { remainingAmount } = calculateRemainingRefundableAmount(
+						parentCharge.amount,
+						existingRefunds
+					);
+					refundAmount = remainingAmount;
+				}
+				if (!refundAmount || refundAmount === "0.00") {
+					throw new ConflictException("Refund amount must be greater than zero");
 				}
 			}
 
@@ -255,20 +293,42 @@ export class RefundsService {
 				}
 			}
 
-			// 11. Submit refund to provider (PB AC-5).
-			const providerResult = await this.submitProviderRefund(
-				parentCharge,
-				refundPayment.amount,
-				dto.reason ?? eligibility.reason,
-				options?.mockProvider
-			);
+			// 11. Determine execution mode (Manual Bank Transfer vs Auto Provider)
+			const isCamperRequest =
+				Boolean(options?.userRoles && !options.userRoles.includes(UserRole.ADMIN)) ||
+				Boolean(dto.bankName || dto.accountNumber);
 
-			// 12. Create PaymentTransaction row (PB AC-2, PB AC-3).
-			const txnStatus = providerResult.succeeded
-				? PaymentTransactionStatus.SUCCEEDED
-				: providerResult.isPending
-					? PaymentTransactionStatus.PENDING
-					: PaymentTransactionStatus.FAILED;
+			let providerResult: ProviderRefundResult;
+			let txnStatus: PaymentTransactionStatus;
+
+			if (isCamperRequest) {
+				providerResult = {
+					succeeded: false,
+					isPending: true,
+					transactionRef: null,
+					rawPayload: {
+						bankName: dto.bankName ?? null,
+						accountNumber: dto.accountNumber ?? null,
+						accountHolderName: dto.accountHolderName ?? null,
+						reason: dto.reason ?? eligibility.reason,
+						origin,
+						manualTransfer: true,
+					},
+				};
+				txnStatus = PaymentTransactionStatus.PENDING;
+			} else {
+				providerResult = await this.submitProviderRefund(
+					parentCharge,
+					refundPayment.amount,
+					dto.reason ?? eligibility.reason,
+					options?.mockProvider
+				);
+				txnStatus = providerResult.succeeded
+					? PaymentTransactionStatus.SUCCEEDED
+					: providerResult.isPending
+						? PaymentTransactionStatus.PENDING
+						: PaymentTransactionStatus.FAILED;
+			}
 
 			const savedTxn = await manager.getRepository(PaymentTransaction).save(
 				manager.getRepository(PaymentTransaction).create({
@@ -512,5 +572,348 @@ export class RefundsService {
 			policySource,
 			createdAt: payment.createdAt,
 		};
+	}
+
+	async getBookingRefundInfo(
+		actorId: string,
+		actorRoles: string[],
+		bookingId: string
+	): Promise<BookingRefundInfoResponseDto> {
+		const booking = await this.bookingsRepository.findOne({
+			where: { id: bookingId },
+		});
+		if (!booking) {
+			throw new NotFoundException("Booking not found");
+		}
+
+		if (!actorRoles.includes(UserRole.ADMIN) && booking.userId !== actorId) {
+			throw new ForbiddenException("Only the booking owner or an admin can view refund details");
+		}
+
+		const trip = await this.dataSource.getRepository(Trip).findOne({
+			where: { id: booking.tripId },
+		});
+		if (!trip) {
+			throw new NotFoundException("Trip not found");
+		}
+
+		const payments = await this.paymentsRepository.find({
+			where: { bookingId },
+			order: { createdAt: "DESC" },
+		});
+
+		const charges = payments.filter(
+			(p) => p.type === PaymentType.CHARGE && p.status === PaymentStatus.SUCCEEDED
+		);
+		const parentCharge = charges[0] ?? null;
+
+		const refundPayments = payments.filter((p) => p.type === PaymentType.REFUND);
+
+		const { committedMinor, remainingAmount } = parentCharge
+			? calculateRemainingRefundableAmount(parentCharge.amount, refundPayments)
+			: { committedMinor: 0n, remainingAmount: "0.00" };
+		const totalRefundedAmount = minorToMoney(committedMinor);
+
+		let determinedOrigin: RefundOrigin | undefined;
+		if (booking.status === BookingStatus.COMPLETED) {
+			determinedOrigin = RefundOrigin.CAMPER_COMPLAINT;
+		} else if (booking.status === BookingStatus.CANCELLED) {
+			determinedOrigin = RefundOrigin.CAMPER_CANCELLATION;
+		}
+
+		const now = new Date();
+		let isEligible = false;
+		let ineligibleReason: string | undefined;
+		let policySource: string | undefined;
+
+		if (determinedOrigin && parentCharge) {
+			try {
+				const eligibility = validateRefundEligibility({
+					booking,
+					trip,
+					origin: determinedOrigin,
+					requestTime: now,
+				});
+				isEligible = eligibility.eligible;
+				policySource = eligibility.policySource;
+			} catch (err) {
+				isEligible = false;
+				ineligibleReason = err instanceof Error ? err.message : "Not eligible for refund";
+			}
+		} else if (!parentCharge) {
+			ineligibleReason = "No succeeded charge found to refund";
+		} else {
+			ineligibleReason = "Booking state is not eligible for refund request";
+		}
+
+		let applicableWindow: BookingRefundApplicableWindowDto | undefined;
+		if (determinedOrigin === RefundOrigin.CAMPER_COMPLAINT) {
+			const completedAt =
+				(trip as unknown as { completedAt?: Date }).completedAt ??
+				trip.endsAt ??
+				booking.tripEndsAtSnapshot;
+			const deadline = completedAt
+				? new Date(completedAt.getTime() + 24 * 60 * 60 * 1000)
+				: undefined;
+			applicableWindow = {
+				startsAt: completedAt ?? undefined,
+				endsAt: deadline,
+				deadline,
+				isExpired: deadline ? now.getTime() > deadline.getTime() : false,
+				description: "Trong vòng 24 giờ kể từ khi hoàn thành chuyến đi",
+			};
+		} else if (determinedOrigin === RefundOrigin.CAMPER_CANCELLATION) {
+			const tripStartsAt = booking.tripStartsAtSnapshot ?? trip.startsAt;
+			applicableWindow = {
+				startsAt: booking.createdAt,
+				endsAt: tripStartsAt ?? undefined,
+				deadline: tripStartsAt ?? undefined,
+				isExpired: tripStartsAt ? now.getTime() >= tripStartsAt.getTime() : false,
+				description: "Trước thời điểm bắt đầu chuyến đi",
+			};
+		}
+
+		const hasPendingRefund = refundPayments.some((r) => r.status === PaymentStatus.PENDING);
+		const settlementStatus = await this.getSettlementStatus(trip.id);
+
+		const refundTxns =
+			refundPayments.length > 0
+				? await this.dataSource.getRepository(PaymentTransaction).find({
+						where: refundPayments.map((r) => ({ paymentId: r.id })),
+						order: { createdAt: "DESC" },
+					})
+				: [];
+
+		const refundItems: BookingRefundItemDto[] = refundPayments.map((r) => {
+			const txns = refundTxns.filter((t) => t.paymentId === r.id);
+			const firstTxn = txns[txns.length - 1];
+			const latestTxn = txns[0];
+			const firstPayload = (firstTxn?.rawPayload || {}) as Record<string, unknown>;
+			const latestPayload = (latestTxn?.rawPayload || {}) as Record<string, unknown>;
+
+			return {
+				id: r.id,
+				amount: r.amount,
+				status: r.status,
+				providerReference: r.providerReference ?? null,
+				failureReason:
+					r.status === PaymentStatus.FAILED
+						? (latestPayload.rejectionReason as string) || "Yêu cầu bị từ chối"
+						: null,
+				bankName: (firstPayload.bankName as string) ?? null,
+				accountNumber: (firstPayload.accountNumber as string) ?? null,
+				accountHolderName: (firstPayload.accountHolderName as string) ?? null,
+				reason: (firstPayload.reason as string) ?? null,
+				note: (latestPayload.note as string) ?? null,
+				createdAt: r.createdAt,
+			};
+		});
+
+		return {
+			bookingId: booking.id,
+			isEligible,
+			ineligibleReason,
+			origin: determinedOrigin,
+			policySource,
+			applicableWindow,
+			chargeAmount: parentCharge?.amount,
+			totalRefundedAmount,
+			remainingRefundableAmount: remainingAmount,
+			refunds: refundItems,
+			settlementBlocked: settlementStatus.isBlocked || hasPendingRefund,
+			awaitingResolution: hasPendingRefund,
+		};
+	}
+
+	/**
+	 * Lists all refund obligations for Admin management (CTMS-035).
+	 */
+	async listAdminRefunds(query: AdminRefundListQueryDto): Promise<AdminRefundListResponseDto> {
+		const page = query.page ?? 1;
+		const limit = query.limit ?? 20;
+		const skip = (page - 1) * limit;
+
+		const qb = this.paymentsRepository
+			.createQueryBuilder("payment")
+			.innerJoinAndSelect("payment.booking", "booking")
+			.leftJoinAndSelect("booking.user", "user")
+			.leftJoinAndSelect("booking.trip", "trip")
+			.leftJoinAndSelect("payment.transactions", "transaction")
+			.where("payment.type = :type", { type: PaymentType.REFUND })
+			.orderBy("payment.createdAt", "DESC")
+			.addOrderBy("transaction.createdAt", "DESC");
+
+		if (query.status) {
+			qb.andWhere("payment.status = :status", { status: query.status });
+		}
+
+		if (query.search?.trim()) {
+			const term = `%${query.search.trim().toLowerCase()}%`;
+			qb.andWhere(
+				"(LOWER(user.full_name) LIKE :term OR LOWER(user.email) LIKE :term OR CAST(payment.bookingId AS text) LIKE :term OR LOWER(payment.providerReference) LIKE :term)",
+				{ term }
+			);
+		}
+
+		const [payments, total] = await qb.skip(skip).take(limit).getManyAndCount();
+
+		const items: AdminRefundItemResponseDto[] = payments.map((p) => {
+			const txns = p.transactions || [];
+			const origTxn = txns[txns.length - 1];
+			const latestTxn = txns[0];
+			const origPayload = (origTxn?.rawPayload || {}) as Record<string, unknown>;
+			const latestPayload = (latestTxn?.rawPayload || {}) as Record<string, unknown>;
+
+			return {
+				id: p.id,
+				bookingId: p.bookingId,
+				tripTitle: p.booking?.trip?.title,
+				camper: {
+					id: p.booking?.user?.id ?? "",
+					fullName: p.booking?.user?.fullName ?? "Camper",
+					email: p.booking?.user?.email ?? null,
+					phone: p.booking?.user?.phone ?? null,
+				},
+				amount: p.amount,
+				status: p.status,
+				transactionStatus: latestTxn?.status,
+				providerReference: p.providerReference,
+				reason: (origPayload.reason as string) ?? null,
+				rejectionReason: (latestPayload.rejectionReason as string) ?? null,
+				note: (latestPayload.note as string) ?? null,
+				beneficiary: {
+					bankName: (origPayload.bankName as string) ?? null,
+					accountNumber: (origPayload.accountNumber as string) ?? null,
+					accountHolderName: (origPayload.accountHolderName as string) ?? null,
+				},
+				createdAt: p.createdAt,
+				updatedAt: p.updatedAt,
+			};
+		});
+
+		return {
+			items,
+			total,
+			page,
+			limit,
+			totalPages: Math.ceil(total / limit) || 1,
+		};
+	}
+
+	/**
+	 * Admin confirms manual bank transfer for a refund obligation (CTMS-035).
+	 */
+	async confirmManualRefund(
+		actorId: string,
+		obligationId: string,
+		dto: ConfirmManualRefundDto
+	): Promise<ProcessRefundResponseDto> {
+		return this.dataSource.transaction(async (manager: EntityManager) => {
+			const paymentsRepo = manager.withRepository(this.paymentsRepository);
+			const refund = await paymentsRepo.findForUpdate(obligationId);
+			if (!refund) {
+				throw new NotFoundException("Refund payment obligation not found");
+			}
+			if (refund.type !== PaymentType.REFUND) {
+				throw new ConflictException("Payment is not a refund obligation");
+			}
+			if (refund.status === PaymentStatus.SUCCEEDED) {
+				throw new ConflictException("Refund has already been confirmed");
+			}
+			if (refund.status === PaymentStatus.FAILED) {
+				throw new ConflictException("Refund has already failed or been rejected");
+			}
+
+			const beforeStatus = refund.status;
+			refund.status = PaymentStatus.SUCCEEDED;
+			refund.providerReference = dto.transactionRef;
+			await paymentsRepo.save(refund);
+
+			const txn = await manager.getRepository(PaymentTransaction).save(
+				manager.getRepository(PaymentTransaction).create({
+					paymentId: refund.id,
+					transactionRef: dto.transactionRef,
+					status: PaymentTransactionStatus.SUCCEEDED,
+					rawPayload: {
+						adminConfirmedBy: actorId,
+						note: dto.note ?? null,
+						confirmedAt: new Date().toISOString(),
+					},
+				})
+			);
+
+			await manager.getRepository(AuditLog).save({
+				actorId: actorId || null,
+				action: "booking.refund_confirmed",
+				targetType: "payment",
+				targetId: refund.id,
+				before: { status: beforeStatus },
+				after: {
+					status: PaymentStatus.SUCCEEDED,
+					transactionRef: dto.transactionRef,
+					note: dto.note,
+				},
+				reason: dto.note ?? "Admin manual bank transfer confirmation",
+			});
+
+			return this.toResponse(refund, txn.status, "admin_manual_transfer");
+		});
+	}
+
+	/**
+	 * Admin rejects a refund request (CTMS-035).
+	 */
+	async rejectRefund(
+		actorId: string,
+		obligationId: string,
+		dto: RejectRefundDto
+	): Promise<ProcessRefundResponseDto> {
+		return this.dataSource.transaction(async (manager: EntityManager) => {
+			const paymentsRepo = manager.withRepository(this.paymentsRepository);
+			const refund = await paymentsRepo.findForUpdate(obligationId);
+			if (!refund) {
+				throw new NotFoundException("Refund payment obligation not found");
+			}
+			if (refund.type !== PaymentType.REFUND) {
+				throw new ConflictException("Payment is not a refund obligation");
+			}
+			if (refund.status === PaymentStatus.SUCCEEDED) {
+				throw new ConflictException("Cannot reject an already succeeded refund");
+			}
+			if (refund.status === PaymentStatus.FAILED) {
+				throw new ConflictException("Refund has already been rejected or failed");
+			}
+
+			const beforeStatus = refund.status;
+			refund.status = PaymentStatus.FAILED;
+			await paymentsRepo.save(refund);
+
+			const txn = await manager.getRepository(PaymentTransaction).save(
+				manager.getRepository(PaymentTransaction).create({
+					paymentId: refund.id,
+					status: PaymentTransactionStatus.FAILED,
+					rawPayload: {
+						adminRejectedBy: actorId,
+						rejectionReason: dto.rejectionReason,
+						rejectedAt: new Date().toISOString(),
+					},
+				})
+			);
+
+			await manager.getRepository(AuditLog).save({
+				actorId: actorId || null,
+				action: "booking.refund_rejected",
+				targetType: "payment",
+				targetId: refund.id,
+				before: { status: beforeStatus },
+				after: {
+					status: PaymentStatus.FAILED,
+					rejectionReason: dto.rejectionReason,
+				},
+				reason: dto.rejectionReason,
+			});
+
+			return this.toResponse(refund, txn.status, "admin_rejection");
+		});
 	}
 }

@@ -32,4 +32,22 @@ export class ProcessRefundDto {
 	@IsString()
 	@MaxLength(255)
 	reason?: string;
+
+	@ApiPropertyOptional({ description: "Beneficiary bank name", maxLength: 100 })
+	@IsOptional()
+	@IsString()
+	@MaxLength(100)
+	bankName?: string;
+
+	@ApiPropertyOptional({ description: "Beneficiary account number", maxLength: 50 })
+	@IsOptional()
+	@IsString()
+	@MaxLength(50)
+	accountNumber?: string;
+
+	@ApiPropertyOptional({ description: "Beneficiary account holder name", maxLength: 100 })
+	@IsOptional()
+	@IsString()
+	@MaxLength(100)
+	accountHolderName?: string;
 }

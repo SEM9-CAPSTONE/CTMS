@@ -5,6 +5,7 @@ import { HttpError } from "../../../core/api";
 import { BookingDetailsPage } from "../../booking-details/pages/BookingDetailsPage";
 import { bookingDetailsService } from "../../booking-details/services/booking-details.service";
 import type { BookingDetails } from "../../booking-details/types";
+import { bookingRefundService } from "../../booking-refund/services/booking-refund.service";
 import { bookingCancellationService } from "../services/booking-cancellation.service";
 import { bookingFixture, cancellationFixture } from "../test-fixtures";
 import type { CancelBookingResponse } from "../types";
@@ -44,6 +45,15 @@ beforeEach(() => {
 	});
 	vi.spyOn(bookingDetailsService, "getBookingDetails").mockResolvedValue(bookingFixture);
 	vi.spyOn(bookingCancellationService, "cancel").mockResolvedValue(cancellationFixture);
+	vi.spyOn(bookingRefundService, "getRefundInfo").mockResolvedValue({
+		bookingId: bookingFixture.id,
+		isEligible: false,
+		totalRefundedAmount: "0.00",
+		remainingRefundableAmount: "0.00",
+		refunds: [],
+		settlementBlocked: false,
+		awaitingResolution: false,
+	});
 });
 afterEach(() => vi.restoreAllMocks());
 

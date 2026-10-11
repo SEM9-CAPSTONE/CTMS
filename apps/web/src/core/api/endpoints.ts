@@ -28,6 +28,9 @@ export const API_ENDPOINTS = {
 		MEMBER_CANDIDATE_RESOLVE: (bookingId: string) =>
 			`/bookings/${bookingId}/member-candidates/resolve`,
 		PAY: (bookingId: string) => `/bookings/${bookingId}/pay`,
+		REFUNDS: (bookingId: string) => `/bookings/${bookingId}/refunds`,
+		PROCESS_REFUND_OBLIGATION: (bookingId: string, obligationId: string) =>
+			`/bookings/${bookingId}/refunds/${obligationId}/process`,
 	},
 	TREKKING: {
 		ROUTES: "/trekking-routes",
@@ -119,5 +122,10 @@ export const API_ENDPOINTS = {
 			`/porter/route-qualifications/${qualificationId}/verify`,
 		ROUTE_PORTER_QUALIFICATIONS: (routeId: string) =>
 			`/trekking-routes/${routeId}/porter-qualifications`,
+	},
+	ADMIN_REFUNDS: {
+		LIST: "/admin/refunds",
+		CONFIRM: (obligationId: string) => `/admin/refunds/${obligationId}/confirm`,
+		REJECT: (obligationId: string) => `/admin/refunds/${obligationId}/reject`,
 	},
 } as const;
