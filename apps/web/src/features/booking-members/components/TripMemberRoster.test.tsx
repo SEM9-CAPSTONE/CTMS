@@ -15,15 +15,13 @@ const updateStatus = vi.fn().mockResolvedValue({ response: null, error: null });
 const completeBooking = vi
 	.fn()
 	.mockResolvedValue({ id: "booking-1", status: "completed", completedAt: "2035-01-01" });
-const completeTripBookings = vi
-	.fn()
-	.mockResolvedValue({
-		tripId: "trip-1",
-		totalBookings: 1,
-		completedCount: 1,
-		skippedCount: 0,
-		completedBookingIds: ["booking-1"],
-	});
+const completeTripBookings = vi.fn().mockResolvedValue({
+	tripId: "trip-1",
+	totalBookings: 1,
+	completedCount: 1,
+	skippedCount: 0,
+	completedBookingIds: ["booking-1"],
+});
 const retry = vi.fn();
 let rosterHookResult: ReturnType<typeof useTripMemberRoster>;
 let mutationHookResult: ReturnType<typeof useUpdateBookingMemberStatus>;
@@ -180,8 +178,8 @@ describe("TripMemberRoster", () => {
 		});
 		setHooks(data, { pending: ["member-1"] });
 		render(<TestTripMemberRoster />);
-		const first = screen.getByText("Nguyễn An").closest("li");
-		const second = screen.getByText("Trần Bình").closest("li");
+		const first = screen.getByText("Nguyễn An").closest("tr, li");
+		const second = screen.getByText("Trần Bình").closest("tr, li");
 		expect(first).not.toBeNull();
 		expect(second).not.toBeNull();
 		expect(
