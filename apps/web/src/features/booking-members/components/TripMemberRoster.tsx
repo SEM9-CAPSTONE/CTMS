@@ -276,74 +276,76 @@ export function TripMemberRoster({
 											)}
 										</div>
 
-										<div className="flex min-w-44 flex-col items-start gap-1 lg:items-end">
-											<span
-												className={`rounded-full px-3 py-1 text-xs font-bold ring-1 ${presentation.className}`}
-											>
-												{presentation.label}
-											</span>
-											{statusTime && (
-												<span className="text-[11px] text-[#7b8c82]">{statusTime}</span>
-											)}
-										</div>
-
-										{actionable && (
-											<div className="flex flex-wrap gap-2 lg:justify-end">
-												<Button
-													size="sm"
-													disabled={pending}
-													onClick={() => void submit(member, "joined")}
-													aria-label={`Đánh dấu ${memberIdentity(member)} đã tham gia`}
-													className="gap-1.5"
+										<div className="flex flex-wrap items-center gap-3 lg:justify-end shrink-0">
+											<div className="flex items-center gap-2">
+												<span
+													className={`rounded-full px-3 py-1 text-xs font-bold ring-1 ${presentation.className}`}
 												>
-													{pending ? (
-														<Loader2 className="size-3.5 animate-spin" />
-													) : (
-														<Check className="size-3.5" />
-													)}
-													Đã tham gia
-												</Button>
-												<button
-													type="button"
-													disabled={pending}
-													onClick={() => setNoShowTarget(member)}
-													aria-label={`Đánh dấu ${memberIdentity(member)} không tham gia`}
-													className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300 px-3 py-1.5 text-xs font-bold text-amber-900 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
-												>
-													<X className="size-3.5" /> Không tham gia
-												</button>
+													{presentation.label}
+												</span>
+												{statusTime && (
+													<span className="text-xs font-medium text-[#7b8c82] tabular-nums whitespace-nowrap">
+														{statusTime}
+													</span>
+												)}
 											</div>
-										)}
 
-										{data.status === "completed" &&
-											member.bookingStatus === "confirmed" &&
-											member.isPrimary && (
-												<div className="flex flex-wrap gap-2 lg:justify-end">
+											{actionable && (
+												<div className="flex flex-wrap gap-2">
 													<Button
 														size="sm"
-														variant="outline"
-														disabled={completingBookingId === member.bookingId}
-														onClick={() => void handleCompleteSingleBooking(member.bookingId)}
-														aria-label={`Hoàn tất đơn đặt chỗ ${member.bookingId}`}
-														className="gap-1.5 border-emerald-300 text-emerald-800 hover:bg-emerald-50"
+														disabled={pending}
+														onClick={() => void submit(member, "joined")}
+														aria-label={`Đánh dấu ${memberIdentity(member)} đã tham gia`}
+														className="gap-1.5"
 													>
-														{completingBookingId === member.bookingId ? (
+														{pending ? (
 															<Loader2 className="size-3.5 animate-spin" />
 														) : (
-															<CheckCircle2 className="size-3.5" />
+															<Check className="size-3.5" />
 														)}
-														Hoàn tất đơn
+														Đã tham gia
 													</Button>
+													<button
+														type="button"
+														disabled={pending}
+														onClick={() => setNoShowTarget(member)}
+														aria-label={`Đánh dấu ${memberIdentity(member)} không tham gia`}
+														className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300 px-3 py-1.5 text-xs font-bold text-amber-900 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
+													>
+														<X className="size-3.5" /> Không tham gia
+													</button>
 												</div>
 											)}
 
-										{member.bookingStatus === "completed" && member.isPrimary && (
-											<div className="flex flex-wrap gap-2 lg:justify-end">
-												<span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-800 ring-1 ring-emerald-200">
+											{data.status === "completed" &&
+												member.bookingStatus === "confirmed" &&
+												member.isPrimary && (
+													<div className="flex flex-wrap gap-2">
+														<Button
+															size="sm"
+															variant="outline"
+															disabled={completingBookingId === member.bookingId}
+															onClick={() => void handleCompleteSingleBooking(member.bookingId)}
+															aria-label={`Hoàn tất đơn đặt chỗ ${member.bookingId}`}
+															className="gap-1.5 border-emerald-300 text-emerald-800 hover:bg-emerald-50"
+														>
+															{completingBookingId === member.bookingId ? (
+																<Loader2 className="size-3.5 animate-spin" />
+															) : (
+																<CheckCircle2 className="size-3.5" />
+															)}
+															Hoàn tất đơn
+														</Button>
+													</div>
+												)}
+
+											{member.bookingStatus === "completed" && member.isPrimary && (
+												<span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-800 ring-1 ring-emerald-200 whitespace-nowrap">
 													Đơn đã hoàn thành
 												</span>
-											</div>
-										)}
+											)}
+										</div>
 									</div>
 
 									{pending && (
