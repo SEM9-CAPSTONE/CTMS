@@ -1013,9 +1013,179 @@ export async function seedDevTrips(): Promise<void> {
 			)
 		`);
 
+		// Seed extra members for check-in testing (present/absent)
+		await seedDemoBookingMembers();
+
 		console.log("[seed:dev-trips] Seeding completed successfully!");
 	} catch (error) {
 		console.error("[seed:dev-trips] Error seeding trips:", error);
+	}
+}
+
+async function seedDemoBookingMembers(): Promise<void> {
+	const demoCampers = [
+		{
+			email: "camper.lan@ctms.local",
+			phone: "0900000011",
+			name: "Trần Thị Lan",
+		},
+		{
+			email: "camper.nam@ctms.local",
+			phone: "0900000012",
+			name: "Lê Hoàng Nam",
+		},
+		{
+			email: "camper.tuan@ctms.local",
+			phone: "0900000013",
+			name: "Phạm Minh Tuấn",
+		},
+		{
+			email: "camper.nhu@ctms.local",
+			phone: "0900000014",
+			name: "Võ Quỳnh Như",
+		},
+	];
+
+	const passwordHash = await hash("Camper@123", BCRYPT_COST_FACTOR);
+	const userMap = new Map<string, string>();
+
+	for (const c of demoCampers) {
+		const existing: Array<{ id: string }> = await dataSource.query(
+			'SELECT "id" FROM "users" WHERE "email" = $1 OR "phone" = $2',
+			[c.email, c.phone]
+		);
+		let userId = "";
+		if (existing.length > 0) {
+			userId = existing[0].id;
+			await dataSource.query(
+				'UPDATE "users" SET "full_name" = $2, "role" = \'camper\', "status" = \'active\' WHERE "id" = $1',
+				[userId, c.name]
+			);
+		} else {
+			const inserted: Array<{ id: string }> = await dataSource.query(
+				`INSERT INTO "users" (email, phone, password_hash, role, status, full_name)
+				 VALUES ($1, $2, $3, 'camper', 'active', $4) RETURNING id`,
+				[c.email, c.phone, passwordHash, c.name]
+			);
+			userId = inserted[0].id;
+		}
+		await dataSource.query(
+			`INSERT INTO "user_roles" (user_id, role) VALUES ($1, 'camper') ON CONFLICT DO NOTHING`,
+			[userId]
+		);
+		userMap.set(c.email, userId);
+	}
+
+	// Target trip: [CTMS-024] Hải Vân Quan - Vịnh Làng Vân (Khẩn cấp: Chỉ còn 2 chỗ)
+	const tripRows: Array<{
+		id: string;
+		starts_at: Date;
+		ends_at: Date;
+		price_per_person: string | number;
+	}> = await dataSource.query(
+		'SELECT "id", "starts_at", "ends_at", "price_per_person" FROM "trips" WHERE "id" = $1 OR "title" ILIKE \'%Chỉ còn 2 chỗ%\' LIMIT 1',
+		["467797d6-3ae5-43aa-9849-c65701680b32"]
+	);
+	if (tripRows.length === 0) return;
+	const trip = tripRows[0];
+	const tripId = trip.id;
+
+	// Booking 1: Lan (Single member)
+	const lanId = userMap.get("camper.lan@ctms.local");
+	if (lanId) {
+		await ensureBookingWithMembers(tripId, lanId, trip, [{ userId: lanId, isPrimary: true }]);
+	}
+
+	// Booking 2: Nam (Single member)
+	const namId = userMap.get("camper.nam@ctms.local");
+	if (namId) {
+		await ensureBookingWithMembers(tripId, namId, trip, [{ userId: namId, isPrimary: true }]);
+	}
+
+	// Booking 3: Tuấn + Như (Group 2 members)
+	const tuanId = userMap.get("camper.tuan@ctms.local");
+	const nhuId = userMap.get("camper.nhu@ctms.local");
+	if (tuanId && nhuId) {
+		await ensureBookingWithMembers(tripId, tuanId, trip, [
+			{ userId: tuanId, isPrimary: true },
+			{ userId: nhuId, isPrimary: false },
+		]);
+	}
+
+	// Reset all members of this trip back to 'registered' so test is fresh
+	await dataSource.query(
+		`UPDATE "booking_members"
+		 SET "member_status" = 'registered', "checked_in_at" = NULL, "no_show_at" = NULL, "left_at" = NULL
+		 WHERE "booking_id" IN (SELECT "id" FROM "bookings" WHERE "trip_id" = $1)`,
+		[tripId]
+	);
+
+	await dataSource.query(
+		`UPDATE "bookings"
+		 SET "status" = 'confirmed'
+		 WHERE "trip_id" = $1 AND "status" != 'cancelled'`,
+		[tripId]
+	);
+
+	console.log(`[seed:dev-trips] Seeded demo check-in roster members for trip: ${tripId}`);
+}
+
+async function ensureBookingWithMembers(
+	tripId: string,
+	ownerId: string,
+	trip: { starts_at: Date; ends_at: Date; price_per_person: string | number },
+	members: Array<{ userId: string; isPrimary: boolean }>
+): Promise<void> {
+	const existingBooking: Array<{ id: string }> = await dataSource.query(
+		'SELECT "id" FROM "bookings" WHERE "trip_id" = $1 AND "user_id" = $2',
+		[tripId, ownerId]
+	);
+
+	let bookingId = "";
+	if (existingBooking.length > 0) {
+		bookingId = existingBooking[0].id;
+		await dataSource.query(
+			`UPDATE "bookings"
+			 SET "status" = 'confirmed', "payment_status" = 'paid', "num_people" = $2
+			 WHERE "id" = $1`,
+			[bookingId, members.length]
+		);
+	} else {
+		const price = Number(trip.price_per_person) || 1650000;
+		const total = price * members.length;
+		const inserted: Array<{ id: string }> = await dataSource.query(
+			`INSERT INTO "bookings" (
+				trip_id, user_id, num_people, status, payment_status,
+				trip_starts_at_snapshot, trip_ends_at_snapshot, base_price, total_amount
+			) VALUES (
+				$1, $2, $3, 'confirmed', 'paid',
+				$4, $5, $6, $7
+			) RETURNING id`,
+			[tripId, ownerId, members.length, trip.starts_at, trip.ends_at, price, total]
+		);
+		bookingId = inserted[0].id;
+	}
+
+	for (const m of members) {
+		const existingMember: Array<{ id: string }> = await dataSource.query(
+			'SELECT "id" FROM "booking_members" WHERE "booking_id" = $1 AND "user_id" = $2',
+			[bookingId, m.userId]
+		);
+		if (existingMember.length > 0) {
+			await dataSource.query(
+				`UPDATE "booking_members"
+				 SET "member_status" = 'registered', "is_primary" = $2, "checked_in_at" = NULL, "no_show_at" = NULL, "left_at" = NULL
+				 WHERE "id" = $1`,
+				[existingMember[0].id, m.isPrimary]
+			);
+		} else {
+			await dataSource.query(
+				`INSERT INTO "booking_members" (
+					booking_id, user_id, is_primary, member_status
+				) VALUES ($1, $2, $3, 'registered')`,
+				[bookingId, m.userId, m.isPrimary]
+			);
+		}
 	}
 }
 
