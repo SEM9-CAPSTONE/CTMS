@@ -3,6 +3,7 @@ import { useEffect, useMemo } from "react";
 import { BookingCancellationPanel } from "../../booking-cancellation/components/BookingCancellationPanel";
 import { useCancelBooking } from "../../booking-cancellation/hooks/useCancelBooking";
 import type { CancelBookingRequest } from "../../booking-cancellation/types";
+import { BookingRefundPanel } from "../../booking-refund/components/BookingRefundPanel";
 import { BookingDetailsView } from "../components/BookingDetailsView";
 import { useBookingDetails } from "../hooks/useBookingDetails";
 import type { BookingDetails } from "../types";
@@ -124,6 +125,7 @@ function BookingDetailsContent({
 						onReload={() => void reload()}
 						onBack={onBack}
 					/>
+					<BookingRefundPanel booking={displayedBooking} onReload={() => void reload()} />
 					{isRefreshing && (
 						<output className="block text-sm" aria-live="polite">
 							Đang tải lại chi tiết đơn...

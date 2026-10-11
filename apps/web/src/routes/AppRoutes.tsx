@@ -3,6 +3,7 @@ import { HttpError } from "../core/api";
 import { clearAuthSessionAndRedirect } from "../core/api/authSessionSync";
 import { AdminAuditLogsPage } from "../features/admin-audit-logs/pages/AdminAuditLogsPage";
 import { AdminContentReportsPage } from "../features/admin-content-reports/pages/AdminContentReportsPage";
+import { AdminRefundsPage } from "../features/admin-refunds/pages/AdminRefundsPage";
 import { AdminUserAccountsPage } from "../features/admin-user-accounts/pages/AdminUserAccountsPage";
 import { AdminWeatherRulesPage } from "../features/admin-weather-rules/pages/AdminWeatherRulesPage";
 import { SessionCheckScreen } from "../features/auth/components/SessionCheckScreen";
@@ -572,6 +573,18 @@ export function AppRoutes() {
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
 					<AdminWeatherRulesPage onLogout={handleLogout} />
+				</AppRoleGuard>
+			);
+
+		case RoutePath.ADMIN_REFUNDS:
+			return (
+				<AppRoleGuard
+					allowedRoles={["admin"]}
+					currentRoles={currentRoles}
+					fallback={unauthorizedFallback}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<AdminRefundsPage onLogout={handleLogout} />
 				</AppRoleGuard>
 			);
 

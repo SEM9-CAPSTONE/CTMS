@@ -113,31 +113,35 @@ Booking payment status is derived from charge/refund results according to the au
 
 ## 7. Business Flow
 
-1. Receive approved refund obligation.
+1. Camper initiates refund request (or approved obligation is created):
+   - Camper inputs receiving bank details: bank name, account number, and account holder name.
 2. Load Booking and parent succeeded charge.
-3. Calculate remaining refundable amount.
-4. Validate requested refund.
-5. Create/reuse idempotent refund transaction.
-6. Submit provider refund.
-7. Verify provider response/callback.
-8. On success:
-   - set refund transaction succeeded;
+3. Calculate remaining refundable amount against policy limits.
+4. Validate requested refund and create/reuse idempotent refund transaction with status = `pending`.
+5. Store beneficiary bank account details in refund payment record metadata.
+6. Admin reviews refund requests via Admin Management (`/admin/refunds`):
+   - **Manual Transfer Confirmation**: Admin performs manual bank transfer to Camper's bank account, then confirms transfer on Admin portal with reference transaction code/bill and optional note.
+   - **Rejection**: If refund claim is invalid, Admin rejects with clear reason.
+7. On Admin Confirmation (`confirm`):
+   - set refund transaction to `succeeded`;
+   - record provider/transfer transaction reference;
    - update derived Booking financial state;
-   - reduce applicable Held Funds/settlement base.
-9. On pending:
-   - preserve pending state;
+   - reduce applicable Held Funds/settlement base;
+   - record audit log entry.
+8. While in `pending`:
+   - preserve pending state ("Awaiting Admin Reconciliation & Bank Transfer");
    - block incompatible settlement where required.
-10. On failure:
-
-- record failed;
-- do not treat money as returned.
-
-11. Reconcile retries/provider callbacks idempotently.
+9. On Rejection / Failure (`reject`):
+   - record failed status with rejection reason;
+   - do not treat money as returned;
+   - release settlement block if no other pending claims exist.
+10. Reconcile retries/idempotency keys safely.
 
 ## 8. Data & Invariants
 
 - Refund links to parent charge.
 - Refund transaction status ∈ `{pending, succeeded, failed}`.
+- Beneficiary bank details (bank name, account number, account holder name) stored in payment metadata.
 - No `refunded` transaction status.
 - Sum of applicable refunds ≤ refundable succeeded charge.
 - Same refund cannot be applied twice.
@@ -147,7 +151,12 @@ Booking payment status is derived from charge/refund results according to the au
 
 ## 9. API / Integration Contract
 
-TBD — Technical Design.
+- `GET /bookings/:bookingId/refunds`: Get refund eligibility, policy windows, and refund history for a booking (Admin/Camper).
+- `POST /bookings/:bookingId/refunds`: Submit refund request with optional bank details (`bankName`, `accountNumber`, `accountHolderName`, `reason`, `amount`).
+- `GET /admin/refunds`: Retrieve all refund requests with pagination and status filters (Admin only).
+- `POST /admin/refunds/:obligationId/confirm`: Confirm manual transfer completed with `transactionRef` and optional `note` (Admin only).
+- `POST /admin/refunds/:obligationId/reject`: Reject refund request with `rejectionReason` (Admin only).
+- `GET /trips/:tripId/settlement-status`: Get settlement blocking status and Held Funds accounting for a Trip.
 
 ## 10. Error & Edge Cases
 

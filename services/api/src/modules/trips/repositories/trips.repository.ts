@@ -81,6 +81,15 @@ export interface LockedTripForScheduleChange {
 	durationNights: number;
 }
 
+/** CTMS-036. Minimal locked projection used by the auto-cancel evaluation transaction. */
+export interface LockedTripForAutoCancelEvaluation {
+	id: string;
+	status: TripStatus;
+	bookingDeadline: Date;
+	capacityMin: number;
+	participationEvaluatedAt: Date | null;
+}
+
 export interface PorterAvailabilityTripContext {
 	id: string;
 	hostId: string;
@@ -97,11 +106,27 @@ export interface TripRescheduleCommitmentSummary {
 	equipmentRefundsCreated: number;
 }
 
+export interface CancelledBookingCommitment {
+	id: string;
+	userId: string;
+	totalAmount: string | null;
+}
+
 export interface TripCancellationCommitmentSummary {
 	bookingsCancelled: number;
 	portersUnassigned: number;
 	equipmentReservationsCancelled: number;
 	bookingRefundsCreated: number;
+	cancelledBookings: CancelledBookingCommitment[];
+}
+
+export interface CancelTripWithCommitmentsOptions {
+	/** Prefix for the per-Booking refund idempotency key; keeps CTMS-036's auto-cancel
+	 *  refund obligations distinguishable from CTMS-027's host-cancel ones. */
+	refundIdempotencyPrefix?: string;
+	/** Stored as the refund payment's `provider_reference`, mirroring the existing
+	 *  host-cancel call's own "trip_cancelled_by_host" value. */
+	refundReason?: string;
 }
 
 export interface PendingReviewDeadlineCandidate {
@@ -993,8 +1018,11 @@ export class TripsRepository extends Repository<Trip> {
 	async cancelTripWithCommitments(
 		tripId: string,
 		cancelledAt: Date,
-		reason: string
+		reason: string,
+		options?: CancelTripWithCommitmentsOptions
 	): Promise<TripCancellationCommitmentSummary> {
+		const refundIdempotencyPrefix = options?.refundIdempotencyPrefix ?? "ctms-027";
+		const refundReason = options?.refundReason ?? "trip_cancelled_by_host";
 		await this.query(
 			`
 			UPDATE "trips"
@@ -1008,7 +1036,12 @@ export class TripsRepository extends Repository<Trip> {
 			[tripId, TripStatus.CANCELLED, cancelledAt, reason]
 		);
 
-		const bookingRows = (await this.query(
+		// NOTE: TypeORM's PostgresQueryRunner returns `[rows, affectedRowCount]` for
+		// UPDATE/DELETE (not just `rows`, unlike SELECT/INSERT) -- destructure the
+		// first element for every UPDATE...RETURNING below, or `.length` silently
+		// counts one bogus extra "row" (the affected-row-count number) and any
+		// property access on it is `undefined`.
+		const [bookingRows] = (await this.query(
 			`
 			UPDATE "bookings"
 			SET
@@ -1016,12 +1049,12 @@ export class TripsRepository extends Repository<Trip> {
 				"declined_at" = $2
 			WHERE "trip_id" = $1
 				AND "status" IN ('confirmed', 'pending_payment', 'pending_reconfirmation')
-			RETURNING "id", "total_amount"::text AS "totalAmount"
+			RETURNING "id", "user_id" AS "userId", "total_amount"::text AS "totalAmount"
 			`,
 			[tripId, cancelledAt]
-		)) as Array<{ id: string; totalAmount: string | null }>;
+		)) as [CancelledBookingCommitment[], number];
 
-		const porterRows = (await this.query(
+		const [porterRows] = (await this.query(
 			`
 			UPDATE "trip_porters"
 			SET
@@ -1032,9 +1065,9 @@ export class TripsRepository extends Repository<Trip> {
 			RETURNING "porter_id" AS "porterId"
 			`,
 			[tripId, cancelledAt]
-		)) as Array<{ porterId: string }>;
+		)) as [Array<{ porterId: string }>, number];
 
-		const equipmentRows = (await this.query(
+		const [equipmentRows] = (await this.query(
 			`
 			UPDATE "equipment_reservations" er
 			SET
@@ -1049,7 +1082,7 @@ export class TripsRepository extends Repository<Trip> {
 			RETURNING er."id"
 			`,
 			[tripId, cancelledAt]
-		)) as Array<{ id: string }>;
+		)) as [Array<{ id: string }>, number];
 
 		let bookingRefundsCreated = 0;
 		for (const booking of bookingRows) {
@@ -1057,8 +1090,8 @@ export class TripsRepository extends Repository<Trip> {
 				bookingRefundsCreated += await this.createIdempotentRefund(
 					booking.id,
 					booking.totalAmount,
-					`ctms-027:trip-cancel:${tripId}:booking:${booking.id}`,
-					"trip_cancelled_by_host"
+					`${refundIdempotencyPrefix}:trip-cancel:${tripId}:booking:${booking.id}`,
+					refundReason
 				);
 			}
 		}
@@ -1070,7 +1103,78 @@ export class TripsRepository extends Repository<Trip> {
 			portersUnassigned: porterRows.length,
 			equipmentReservationsCancelled: equipmentRows.length,
 			bookingRefundsCreated,
+			cancelledBookings: bookingRows,
 		};
+	}
+
+	/**
+	 * CTMS-036. Batch candidate query for the auto-cancel worker: published
+	 * Trips past their booking deadline that this flow has not yet evaluated.
+	 * `participation_evaluated_at IS NULL` keeps a Trip that already turned
+	 * out to have enough participants from being re-fetched on every future
+	 * tick forever (nothing else moves a sufficiently-funded Trip out of
+	 * `published`, since `TripStatus.ONGOING` is not wired to any transition
+	 * yet elsewhere in this codebase).
+	 */
+	async findAutoCancelCandidateIds(limit: number): Promise<string[]> {
+		const rows = (await this.query(
+			`SELECT "id"
+			 FROM "trips"
+			 WHERE "status" = $1
+			   AND "booking_deadline" < CURRENT_TIMESTAMP
+			   AND "participation_evaluated_at" IS NULL
+			 ORDER BY "booking_deadline" ASC, "id" ASC
+			 LIMIT $2`,
+			[TripStatus.PUBLISHED, limit]
+		)) as Array<{ id: string }>;
+		return rows.map((row) => row.id);
+	}
+
+	/** CTMS-036. Minimal FOR UPDATE projection for the per-Trip auto-cancel transaction. */
+	async findForAutoCancelEvaluation(
+		tripId: string
+	): Promise<LockedTripForAutoCancelEvaluation | null> {
+		const rows = (await this.query(
+			`SELECT
+				"id",
+				"status",
+				"booking_deadline" AS "bookingDeadline",
+				"capacity_min" AS "capacityMin",
+				"participation_evaluated_at" AS "participationEvaluatedAt"
+			 FROM "trips"
+			 WHERE "id" = $1
+			 FOR UPDATE`,
+			[tripId]
+		)) as Array<{
+			id: string;
+			status: TripStatus;
+			bookingDeadline: Date;
+			capacityMin: number;
+			participationEvaluatedAt: Date | null;
+		}>;
+		return rows[0] ?? null;
+	}
+
+	/** CTMS-036. Confirmed participation excludes `pending_payment` (a mere seat hold, BR-107)
+	 *  and `pending_reconfirmation` (not yet reconfirmed after a Host reschedule, CTMS-160) --
+	 *  neither represents authoritative confirmed participation. */
+	async countConfirmedParticipants(tripId: string): Promise<number> {
+		const rows = (await this.query(
+			`SELECT COALESCE(SUM("num_people"), 0)::int AS "count"
+			 FROM "bookings"
+			 WHERE "trip_id" = $1 AND "status" = 'confirmed'`,
+			[tripId]
+		)) as Array<{ count: number }>;
+		return rows[0]?.count ?? 0;
+	}
+
+	/** CTMS-036. Marks a Trip as evaluated (sufficient participants, no cancellation needed)
+	 *  so the auto-cancel worker's candidate query excludes it from now on. */
+	async markParticipationEvaluated(tripId: string, evaluatedAt: Date): Promise<void> {
+		await this.query(
+			`UPDATE "trips" SET "participation_evaluated_at" = $2, "updated_at" = now() WHERE "id" = $1`,
+			[tripId, evaluatedAt]
+		);
 	}
 
 	private async createIdempotentRefund(
@@ -1106,8 +1210,8 @@ export class TripsRepository extends Repository<Trip> {
 					$2::numeric,
 					'refund',
 					'pending',
-					$3,
-					substr(md5($3 || ':' || $2) || md5($2 || ':' || $3), 1, 64),
+					$3::text,
+					substr(md5($3::text || ':' || $2::text) || md5($2::text || ':' || $3::text), 1, 64),
 					parent_charge."id",
 					$4
 				FROM parent_charge

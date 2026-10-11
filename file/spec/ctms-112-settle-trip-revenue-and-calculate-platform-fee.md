@@ -23,8 +23,8 @@ Acceptance Criteria:
 | PB AC-3 | Camper 24-hour complaint window must have ended.                                         |
 | PB AC-4 | No blocking complaint/refund claim may remain pending/reviewing/approved-refund-pending. |
 | PB AC-5 | If a blocking claim remains after 72h, settlement stays held until resolved.             |
-| PB AC-6 | Commission rate comes from configuration, not hard-coded logic.                          |
-| PB AC-7 | Settlement snapshots the applicable commission rate/rule.                                |
+| PB AC-6 | Commission rate is 5% of base Trip revenue, credited to Host Wallet.                     |
+| PB AC-7 | Settlement snapshots the 5% commission rate and calculates Host Wallet credit.           |
 | PB AC-8 | Retry cannot create duplicate settlement.                                                |
 
 ## 2. Scope
@@ -34,13 +34,14 @@ Acceptance Criteria:
 - Settlement eligibility.
 - 72-hour hold.
 - Complaint/refund blocking.
-- Platform Fee calculation.
+- Platform Fee calculation (5% of base Trip revenue).
+- Host Wallet balance credit (Net 95%).
 - Commission snapshot.
-- Net entitlement.
+- Net entitlement ledger.
 
 ### Out of Scope
 
-- Cash payout — CTMS-113.
+- Cash payout / manual withdrawal — CTMS-113.
 - Post-payout reconciliation — CTMS-114.
 
 ## 3. Actors & Authorization
@@ -61,13 +62,13 @@ Trip is completed and Held Funds exist.
 
 | BR                 | Rule                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| BR-333             | The commission/platform-fee rate must come from system configuration. Business logic must not hard-code a fixed rate.                                                                                                                                                                                                                                                                                                                                        |
-| BR-334             | When a settlement is created, the system must snapshot the applicable commission rate/rule so later configuration changes cannot alter financial history.                                                                                                                                                                                                                                                                                                    |
+| BR-333             | The platform fee/commission rate is set to 5% of the base Trip revenue. When Camper payment completes and the trip settles, the 5% platform commission is retained by the platform, and the remaining 95% is credited to the Host's Wallet.                                                                                                                                                                                                              |
+| BR-334             | When a settlement is created, the system must snapshot the 5% commission rate/rule and store both base amount, fee amount, and net credited amount in Host Wallet transactions.                                                                                                                                                                                                                                                                            |
 | BR-335             | A settlement may be created only when Trip status = completed, now >= trips.completed_at + 72 hours, the 24-hour Camper complaint window has ended, and no blocking complaint/refund claim remains in pending, reviewing, or approved-refund-pending state. If a blocking claim still exists at the 72-hour point, settlement must remain on hold until the claim is resolved. The backend must revalidate all conditions within the settlement transaction. |
 | BR-332             | Callbacks or retries for charge, refund, settlement, payout, or adjustment must be idempotent. The same business/provider reference must not cause a double charge, refund, settlement, payout, or adjustment.                                                                                                                                                                                                                                               |
 | BR-336             | Every succeeded refund before settlement must reduce Held Funds and the settlement base accordingly. An approved refund that is still awaiting provider completion must continue to block settlement. Pending or failed refunds must not be treated as succeeded.                                                                                                                                                                                            |
-| BR-337             | Platform Fee must be calculated server-side from the settlement base using the snapshotted fee rule and the currency's rounding rule.                                                                                                                                                                                                                                                                                                                        |
-| BR-338             | Host net settlement = settlement base - platform fee ± approved financial adjustments. Each component must be stored separately for audit and reconciliation.                                                                                                                                                                                                                                                                                                |
+| BR-337             | Platform Fee must be calculated server-side from the settlement base: `Platform Fee = Base Trip Revenue * 5%`.                                                                                                                                                                                                                                                                                                                                              |
+| BR-338             | Host net settlement = settlement base - platform fee (5%) ± approved financial adjustments. The net amount is credited to the Host's Wallet balance.                                                                                                                                                                                                                                                                                                          |
 | BR-339             | The same financial scope/version must not be successfully settled more than once. A retry must detect a completed settlement and return an idempotent result.                                                                                                                                                                                                                                                                                                |
 | BR-344             | Settlement must not commit if a blocking complaint/refund claim is created or remains unresolved while the settlement transaction is running. If a race or concurrent update is detected, the settlement transaction must abort or retry rather than finalize payable balance from stale financial state.                                                                                                                                                    |
 

@@ -123,6 +123,15 @@ export class Trip {
 	@Column({ name: "cancellation_reason", type: "varchar", length: 500, nullable: true })
 	cancellationReason!: string | null;
 
+	/**
+	 * CTMS-036. Set once the auto-cancel worker evaluates this Trip past its
+	 * booking deadline and finds enough confirmed participants -- excludes it
+	 * from that worker's candidate query on future ticks, since nothing else
+	 * moves a sufficiently-funded Trip out of `published`.
+	 */
+	@Column({ name: "participation_evaluated_at", type: "timestamptz", nullable: true })
+	participationEvaluatedAt!: Date | null;
+
 	@CreateDateColumn({ name: "created_at", type: "timestamptz" })
 	createdAt!: Date;
 
