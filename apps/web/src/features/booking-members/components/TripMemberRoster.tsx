@@ -3,6 +3,8 @@ import {
 	Check,
 	CheckCheck,
 	CheckCircle2,
+	ChevronDown,
+	ChevronsUpDown,
 	Loader2,
 	RefreshCw,
 	Users,
@@ -107,6 +109,70 @@ export function TripMemberRoster({
 
 	const members = useMemo(() => data?.members ?? [], [data?.members]);
 
+	const [collapsedBookingIds, setCollapsedBookingIds] = useState<Set<string>>(new Set());
+
+	interface BookingGroup {
+		bookingId: string;
+		primaryMember: TripRosterMember;
+		bookingStatus: RosterBookingStatus | null;
+		members: TripRosterMember[];
+		stats: {
+			total: number;
+			joined: number;
+			noShow: number;
+			registered: number;
+			isAllMarked: boolean;
+		};
+	}
+
+	const bookingGroups = useMemo<BookingGroup[]>(() => {
+		const map = new Map<string, TripRosterMember[]>();
+		for (const m of members) {
+			const list = map.get(m.bookingId) ?? [];
+			list.push(m);
+			map.set(m.bookingId, list);
+		}
+		const groups: BookingGroup[] = [];
+		for (const [bookingId, groupMembers] of map.entries()) {
+			const primary = groupMembers.find((m) => m.isPrimary) ?? groupMembers[0];
+			const joined = groupMembers.filter((m) => m.memberStatus === "joined").length;
+			const noShow = groupMembers.filter((m) => m.memberStatus === "no_show").length;
+			const registered = groupMembers.filter((m) => m.memberStatus === "registered").length;
+			groups.push({
+				bookingId,
+				primaryMember: primary,
+				bookingStatus: primary.bookingStatus,
+				members: groupMembers,
+				stats: {
+					total: groupMembers.length,
+					joined,
+					noShow,
+					registered,
+					isAllMarked: registered === 0,
+				},
+			});
+		}
+		return groups;
+	}, [members]);
+
+	const toggleCollapse = (bookingId: string) => {
+		setCollapsedBookingIds((prev) => {
+			const next = new Set(prev);
+			if (next.has(bookingId)) {
+				next.delete(bookingId);
+			} else {
+				next.add(bookingId);
+			}
+			return next;
+		});
+	};
+
+	const allCollapsed =
+		bookingGroups.length > 0 && collapsedBookingIds.size === bookingGroups.length;
+
+	const expandAll = () => setCollapsedBookingIds(new Set());
+	const collapseAll = () => setCollapsedBookingIds(new Set(bookingGroups.map((g) => g.bookingId)));
+
 	const submit = async (
 		member: TripRosterMember,
 		status: UpdateBookingMemberStatusRequest["status"]
@@ -190,11 +256,22 @@ export function TripMemberRoster({
 					<div>
 						<h2 className="text-lg font-extrabold text-[#10221b]">Danh sách điểm danh</h2>
 						<p className="text-xs text-[#667a6d]">
-							Trạng thái từ máy chủ · {members.length} thành viên
+							{bookingGroups.length} đoàn đặt chỗ · {members.length} thành viên
 						</p>
 					</div>
 				</div>
 				<div className="flex flex-wrap items-center gap-2">
+					{bookingGroups.length > 1 && (
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={allCollapsed ? expandAll : collapseAll}
+							className="gap-1.5"
+						>
+							<ChevronsUpDown className="size-4" />
+							{allCollapsed ? "Mở rộng tất cả" : "Thu gọn tất cả"}
+						</Button>
+					)}
 					{data.status === "completed" && (
 						<Button
 							size="sm"
@@ -236,145 +313,219 @@ export function TripMemberRoster({
 					Chuyến đi chưa có thành viên trong danh sách.
 				</div>
 			) : (
-				<div className="mt-6 overflow-hidden rounded-2xl border border-[#e5eee7]">
-					<ul className="divide-y divide-[#e5eee7]">
-						{members.map((member) => {
-							const presentation = statusPresentation[member.memberStatus];
-							const pending = mutation.pendingMemberIds.has(member.memberId);
-							const memberError = mutation.errors[member.memberId];
-							const reason = blockedReason(member.bookingStatus, data.status);
-							const actionable =
-								member.memberStatus === "registered" && !reason && !mutation.accessRevoked;
-							const statusTime =
-								member.memberStatus === "joined"
-									? formatMemberTime(member.checkedInAt)
-									: member.memberStatus === "no_show"
-										? formatMemberTime(member.noShowAt)
-										: member.memberStatus === "left"
-											? formatMemberTime(member.leftAt)
-											: null;
+				<div className="mt-6 flex flex-col gap-4">
+					{bookingGroups.map((group, groupIdx) => {
+						const isCollapsed = collapsedBookingIds.has(group.bookingId);
+						const primaryName = memberIdentity(group.primaryMember);
+						const isMultiMember = group.members.length > 1;
 
-							return (
-								<li key={member.memberId} data-member-id={member.memberId} className="p-4 sm:p-5">
-									<div className="flex flex-col gap-4 lg:flex-row lg:items-center">
-										<div className="min-w-0 flex-1">
-											<div className="flex flex-wrap items-center gap-2">
-												<p className="truncate font-extrabold text-[#10221b]">
-													{memberIdentity(member)}
-												</p>
-												{member.isPrimary && (
-													<span className="rounded-full bg-[#164027]/10 px-2 py-0.5 text-[10px] font-bold text-[#164027]">
-														Người đặt chính
-													</span>
-												)}
-											</div>
-											{member.displayName && member.email && (
-												<p className="mt-1 truncate text-xs text-[#667a6d]">{member.email}</p>
-											)}
-											{reason && member.memberStatus === "registered" && (
-												<p className="mt-2 text-xs font-medium text-amber-800">{reason}</p>
-											)}
+						return (
+							<div
+								key={group.bookingId}
+								className="overflow-hidden rounded-2xl border border-[#e5eee7] bg-white shadow-xs transition-colors hover:border-[#cfdece]"
+							>
+								{/* Accordion / Collapsible Header */}
+								<div className="flex flex-col gap-3 bg-[#f8faf8] p-4 transition-colors sm:flex-row sm:items-center sm:justify-between">
+									{/* Left side: Group Title & Toggle Button */}
+									<button
+										type="button"
+										onClick={() => toggleCollapse(group.bookingId)}
+										aria-expanded={!isCollapsed}
+										className="flex flex-1 items-center gap-3 min-w-0 text-left transition-opacity hover:opacity-80 focus:outline-none"
+									>
+										<div
+											className={`flex size-8 shrink-0 items-center justify-center rounded-xl bg-white border border-[#d2ded3] text-[#164027] transition-transform duration-200 ${
+												isCollapsed ? "" : "rotate-180"
+											}`}
+											aria-hidden="true"
+										>
+											<ChevronDown className="size-4" />
 										</div>
-
-										<div className="flex flex-col items-start gap-1 lg:items-end shrink-0">
+										<div className="min-w-0">
 											<div className="flex flex-wrap items-center gap-2">
-												<span
-													className={`rounded-full px-3 py-1 text-xs font-bold ring-1 ${presentation.className}`}
-												>
-													{presentation.label}
+												<span className="text-sm font-extrabold text-[#10221b] truncate">
+													Đoàn {groupIdx + 1}: {primaryName}
 												</span>
-
-												{member.bookingStatus === "completed" && member.isPrimary && (
-													<span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-800 ring-1 ring-emerald-200 whitespace-nowrap">
+												<span className="rounded-full bg-[#164027]/10 px-2 py-0.5 text-[11px] font-bold text-[#164027] whitespace-nowrap">
+													{isMultiMember ? `Nhóm ${group.members.length} người` : "1 người"}
+												</span>
+												{group.bookingStatus === "completed" && (
+													<span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-bold text-emerald-800 ring-1 ring-emerald-200 whitespace-nowrap">
 														Đơn đã hoàn thành
 													</span>
 												)}
+											</div>
+											{group.primaryMember.email && (
+												<p className="text-xs text-[#667a6d] truncate mt-0.5">
+													Liên hệ: {group.primaryMember.email}
+												</p>
+											)}
+										</div>
+									</button>
 
-												{actionable && (
-													<div className="flex flex-wrap gap-2">
-														<Button
-															size="sm"
-															disabled={pending}
-															onClick={() => void submit(member, "joined")}
-															aria-label={`Đánh dấu ${memberIdentity(member)} đã tham gia`}
-															className="gap-1.5"
-														>
-															{pending ? (
-																<Loader2 className="size-3.5 animate-spin" />
-															) : (
-																<Check className="size-3.5" />
-															)}
-															Đã tham gia
-														</Button>
-														<button
-															type="button"
-															disabled={pending}
-															onClick={() => setNoShowTarget(member)}
-															aria-label={`Đánh dấu ${memberIdentity(member)} không tham gia`}
-															className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300 px-3 py-1.5 text-xs font-bold text-amber-900 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
-														>
-															<X className="size-3.5" /> Không tham gia
-														</button>
-													</div>
+									{/* Right side: Attendance Status & Single Complete Button */}
+									<div
+										className="flex flex-wrap items-center gap-2 sm:justify-end shrink-0"
+										onClick={(e) => e.stopPropagation()}
+									>
+										<span
+											className={`rounded-full px-2.5 py-1 text-xs font-bold ring-1 ${
+												group.stats.isAllMarked
+													? "bg-emerald-50 text-emerald-800 ring-emerald-200"
+													: "bg-sky-50 text-sky-800 ring-sky-200"
+											}`}
+										>
+											{group.stats.isAllMarked
+												? `Đã điểm danh đủ ${group.stats.total}/${group.stats.total}`
+												: `Đã điểm danh: ${group.stats.joined + group.stats.noShow}/${group.stats.total}`}
+										</span>
+
+										{data.status === "completed" && group.bookingStatus === "confirmed" && (
+											<Button
+												size="sm"
+												variant="outline"
+												disabled={completingBookingId === group.bookingId}
+												onClick={() => void handleCompleteSingleBooking(group.bookingId)}
+												aria-label={`Hoàn tất đơn đặt chỗ ${group.bookingId}`}
+												className="gap-1.5 border-emerald-300 text-emerald-800 hover:bg-emerald-50"
+											>
+												{completingBookingId === group.bookingId ? (
+													<Loader2 className="size-3.5 animate-spin" />
+												) : (
+													<CheckCircle2 className="size-3.5" />
 												)}
+												Hoàn tất đơn
+											</Button>
+										)}
+									</div>
+								</div>
 
-												{data.status === "completed" &&
-													member.bookingStatus === "confirmed" &&
-													member.isPrimary && (
-														<div className="flex flex-wrap gap-2">
-															<Button
-																size="sm"
-																variant="outline"
-																disabled={completingBookingId === member.bookingId}
-																onClick={() => void handleCompleteSingleBooking(member.bookingId)}
-																aria-label={`Hoàn tất đơn đặt chỗ ${member.bookingId}`}
-																className="gap-1.5 border-emerald-300 text-emerald-800 hover:bg-emerald-50"
-															>
-																{completingBookingId === member.bookingId ? (
-																	<Loader2 className="size-3.5 animate-spin" />
+								{/* Collapsible Content: Members list */}
+								{!isCollapsed && (
+									<ul className="divide-y divide-[#e5eee7] border-t border-[#e5eee7]">
+										{group.members.map((member) => {
+											const presentation = statusPresentation[member.memberStatus];
+											const pending = mutation.pendingMemberIds.has(member.memberId);
+											const memberError = mutation.errors[member.memberId];
+											const reason = blockedReason(member.bookingStatus, data.status);
+											const actionable =
+												member.memberStatus === "registered" && !reason && !mutation.accessRevoked;
+											const statusTime =
+												member.memberStatus === "joined"
+													? formatMemberTime(member.checkedInAt)
+													: member.memberStatus === "no_show"
+														? formatMemberTime(member.noShowAt)
+														: member.memberStatus === "left"
+															? formatMemberTime(member.leftAt)
+															: null;
+
+											return (
+												<li
+													key={member.memberId}
+													data-member-id={member.memberId}
+													className="p-4 sm:p-5 transition-colors hover:bg-[#fafcfa]"
+												>
+													<div className="flex flex-col gap-4 lg:flex-row lg:items-center">
+														<div className="min-w-0 flex-1">
+															<div className="flex flex-wrap items-center gap-2">
+																<p className="truncate font-extrabold text-[#10221b]">
+																	{memberIdentity(member)}
+																</p>
+																{member.isPrimary ? (
+																	<span className="rounded-full bg-[#164027]/10 px-2 py-0.5 text-[10px] font-bold text-[#164027]">
+																		Người đặt chính
+																	</span>
 																) : (
-																	<CheckCircle2 className="size-3.5" />
+																	<span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+																		Thành viên đi cùng
+																	</span>
 																)}
-																Hoàn tất đơn
-															</Button>
+															</div>
+															{member.displayName && member.email && (
+																<p className="mt-1 truncate text-xs text-[#667a6d]">
+																	{member.email}
+																</p>
+															)}
+															{reason && member.memberStatus === "registered" && (
+																<p className="mt-2 text-xs font-medium text-amber-800">{reason}</p>
+															)}
+														</div>
+
+														<div className="flex flex-col items-start gap-1 lg:items-end shrink-0">
+															<div className="flex flex-wrap items-center gap-2">
+																<span
+																	className={`rounded-full px-3 py-1 text-xs font-bold ring-1 ${presentation.className}`}
+																>
+																	{presentation.label}
+																</span>
+
+																{actionable && (
+																	<div className="flex flex-wrap gap-2">
+																		<Button
+																			size="sm"
+																			disabled={pending}
+																			onClick={() => void submit(member, "joined")}
+																			aria-label={`Đánh dấu ${memberIdentity(member)} đã tham gia`}
+																			className="gap-1.5"
+																		>
+																			{pending ? (
+																				<Loader2 className="size-3.5 animate-spin" />
+																			) : (
+																				<Check className="size-3.5" />
+																			)}
+																			Đã tham gia
+																		</Button>
+																		<button
+																			type="button"
+																			disabled={pending}
+																			onClick={() => setNoShowTarget(member)}
+																			aria-label={`Đánh dấu ${memberIdentity(member)} không tham gia`}
+																			className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300 px-3 py-1.5 text-xs font-bold text-amber-900 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
+																		>
+																			<X className="size-3.5" /> Không tham gia
+																		</button>
+																	</div>
+																)}
+															</div>
+
+															{statusTime && (
+																<span className="text-[11px] font-medium text-[#7b8c82] tabular-nums whitespace-nowrap">
+																	{statusTime}
+																</span>
+															)}
+														</div>
+													</div>
+
+													{pending && (
+														<output className="mt-3 block text-xs font-semibold text-[#164027]">
+															Đang cập nhật trạng thái...
+														</output>
+													)}
+													{memberError && (
+														<div
+															role="alert"
+															className="mt-3 flex flex-col gap-2 rounded-xl bg-rose-50 p-3 text-xs font-semibold text-rose-900 sm:flex-row sm:items-center"
+														>
+															<span className="flex-1">{memberError.message}</span>
+															{memberError.canRetry && (
+																<Button
+																	variant="outline"
+																	size="sm"
+																	onClick={() => void mutation.retry(member.memberId)}
+																>
+																	Thử lại
+																</Button>
+															)}
 														</div>
 													)}
-											</div>
-
-											{statusTime && (
-												<span className="text-[11px] font-medium text-[#7b8c82] tabular-nums whitespace-nowrap">
-													{statusTime}
-												</span>
-											)}
-										</div>
-									</div>
-
-									{pending && (
-										<output className="mt-3 block text-xs font-semibold text-[#164027]">
-											Đang cập nhật trạng thái...
-										</output>
-									)}
-									{memberError && (
-										<div
-											role="alert"
-											className="mt-3 flex flex-col gap-2 rounded-xl bg-rose-50 p-3 text-xs font-semibold text-rose-900 sm:flex-row sm:items-center"
-										>
-											<span className="flex-1">{memberError.message}</span>
-											{memberError.canRetry && (
-												<Button
-													variant="outline"
-													size="sm"
-													onClick={() => void mutation.retry(member.memberId)}
-												>
-													Thử lại
-												</Button>
-											)}
-										</div>
-									)}
-								</li>
-							);
-						})}
-					</ul>
+												</li>
+											);
+										})}
+									</ul>
+								)}
+							</div>
+						);
+					})}
 				</div>
 			)}
 
