@@ -33,7 +33,24 @@ export function mapMemberStatusError(error: unknown): MemberStatusError {
 					"Thành viên hoặc đơn đặt chỗ không còn khả dụng. Danh sách mới nhất đã được tải lại.",
 				canRetry: false,
 			};
-		case 409:
+		case 409: {
+			if (error.message.includes("no-show threshold")) {
+				return {
+					kind: "conflict",
+					status: 409,
+					message:
+						"Chưa qua thời điểm khởi hành của chuyến đi, chưa thể ghi nhận không tham gia (vắng mặt).",
+					canRetry: false,
+				};
+			}
+			if (error.message.includes("check-in window has closed")) {
+				return {
+					kind: "conflict",
+					status: 409,
+					message: "Thời gian điểm danh đã kết thúc do chuyến đi đã qua thời điểm khởi hành.",
+					canRetry: false,
+				};
+			}
 			return {
 				kind: "conflict",
 				status: 409,
@@ -41,6 +58,7 @@ export function mapMemberStatusError(error: unknown): MemberStatusError {
 					"Danh sách đã thay đổi hoặc thao tác không còn khả dụng. Dữ liệu mới nhất đã được tải lại.",
 				canRetry: false,
 			};
+		}
 		case 422:
 			return {
 				kind: "validation",

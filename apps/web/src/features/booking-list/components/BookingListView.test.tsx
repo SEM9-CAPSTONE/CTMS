@@ -76,4 +76,16 @@ describe("BookingListView", () => {
 		expect(confirmed).toHaveTextContent("Đã xác nhận");
 		expect(confirmed).toHaveClass("bg-emerald-100", "text-emerald-900");
 	});
+
+	it("renders completed badge styling for completed bookings", () => {
+		render(
+			<BookingListView
+				bookings={[{ ...booking, id: "completed-booking", status: "completed" }]}
+				onViewDetails={() => {}}
+			/>
+		);
+		const completed = screen.getByTestId("booking-status-completed-booking");
+		expect(completed).toHaveTextContent("Đã hoàn thành");
+		expect(completed).toHaveClass("bg-sky-100", "text-sky-800");
+	});
 });

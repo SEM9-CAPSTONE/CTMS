@@ -28,7 +28,7 @@ export function TripList({
 					<Loader2 className="size-5 animate-spin" />
 					<span>Đang tải danh sách chuyến đi...</span>
 				</div>
-				<div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+				<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
 					{[1, 2, 3, 4].map((i) => (
 						<div
 							key={i}
@@ -92,7 +92,7 @@ export function TripList({
 	return (
 		<div className="space-y-8">
 			{/* Trip Grid */}
-			<div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+			<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
 				{items.map((trip) => (
 					<TripCard key={trip.id} trip={trip} onSelect={onSelectTrip} />
 				))}

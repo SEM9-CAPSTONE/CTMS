@@ -11,6 +11,9 @@ function getBookingStatusBadge(status: BookingListItem["status"]): string {
 	if (status === "cancelled" || status === "expired") {
 		return "bg-rose-100 text-rose-800";
 	}
+	if (status === "completed") {
+		return "bg-sky-100 text-sky-800";
+	}
 
 	return "bg-emerald-100 text-emerald-900";
 }

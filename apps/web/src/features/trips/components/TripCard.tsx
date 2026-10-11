@@ -205,15 +205,14 @@ export function TripCard({ trip, onSelect }: TripCardProps) {
 				</div>
 
 				{/* Card Footer: Price & Clean CTA */}
-				<div className="mt-4 flex items-end justify-between border-t border-[#edf3ed] pt-3">
-					<div>
-						<p className="text-[10px] font-bold uppercase tracking-wider text-[#8fa096]">Giá vé</p>
-						<div className="flex items-baseline gap-1">
-							<span className="text-base font-extrabold text-[#164027]">
-								{formatVND(trip.pricePerPerson)}
-							</span>
-							<span className="text-[11px] text-[#8fa096] font-medium">/ khách</span>
-						</div>
+				<div className="mt-4 flex items-end justify-between gap-3 border-t border-[#edf3ed] pt-3">
+					<div className="min-w-0">
+						<p className="text-[10px] font-bold uppercase tracking-wider text-[#8fa096]">
+							Giá vé / khách
+						</p>
+						<p className="text-sm font-extrabold text-[#164027] sm:text-base whitespace-nowrap">
+							{formatVND(trip.pricePerPerson)}
+						</p>
 					</div>
 
 					<button
@@ -222,7 +221,7 @@ export function TripCard({ trip, onSelect }: TripCardProps) {
 							e.stopPropagation();
 							onSelect(trip.id);
 						}}
-						className="inline-flex cursor-pointer items-center justify-center rounded-xl bg-[#164027] px-3.5 py-1.5 text-xs font-bold text-white shadow-xs transition-colors hover:bg-[#0f2e1c]"
+						className="inline-flex shrink-0 cursor-pointer items-center justify-center whitespace-nowrap rounded-xl bg-[#164027] px-3.5 py-1.5 text-xs font-bold text-white shadow-xs transition-colors hover:bg-[#0f2e1c]"
 					>
 						<span>Chi tiết</span>
 					</button>

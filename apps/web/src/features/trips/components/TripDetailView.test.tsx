@@ -161,9 +161,8 @@ const mockTripDetails: TripDetails = {
 describe("TripDetailView", () => {
 	it("renders comprehensive trip information, highlights, and waypoints", () => {
 		const onBook = vi.fn();
-		const onBack = vi.fn();
 
-		render(<TripDetailView trip={mockTripDetails} onBook={onBook} onBack={onBack} />);
+		render(<TripDetailView trip={mockTripDetails} onBook={onBook} />);
 
 		expect(screen.getByText("Chinh Phục Đỉnh Núi Bidoup Trail")).toBeInTheDocument();
 		expect(screen.getByText("Mô tả chi tiết chuyến đi Bidoup")).toBeInTheDocument();

@@ -114,6 +114,9 @@ export class BookingDetailsResponseDto {
 	@ApiProperty({ type: String, format: "date-time" })
 	createdAt!: Date;
 
+	@ApiPropertyOptional({ type: String, format: "date-time", nullable: true })
+	completedAt!: Date | null;
+
 	@ApiPropertyOptional({ type: BookingTripPresentationDto, nullable: true })
 	tripPresentation!: BookingTripPresentationDto | null;
 

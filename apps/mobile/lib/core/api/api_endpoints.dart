@@ -35,6 +35,9 @@ class BookingEndpoints {
   String get create => '/bookings';
   String cancel(String id) => '/bookings/$id/cancel';
   String payments(String id) => '/bookings/$id/payments';
+  String complete(String id) => '/bookings/$id/complete';
+  String completeTripBookings(String tripId) =>
+      '/bookings/trip/$tripId/complete-all';
 }
 
 class TrekkingEndpoints {

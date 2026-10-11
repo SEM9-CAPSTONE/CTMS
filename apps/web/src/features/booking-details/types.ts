@@ -53,6 +53,7 @@ export interface BookingDetails {
 	totalAmount: string | null;
 	cancellationPolicySnapshot: Record<string, unknown> | null;
 	createdAt: string;
+	completedAt?: string | null;
 	tripPresentation: BookingTripPresentation | null;
 	members: BookingDetailsMember[];
 	equipmentItems: BookingEquipmentItemDetails[];

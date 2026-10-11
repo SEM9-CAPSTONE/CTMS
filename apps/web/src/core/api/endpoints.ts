@@ -28,6 +28,8 @@ export const API_ENDPOINTS = {
 		MEMBER_CANDIDATE_RESOLVE: (bookingId: string) =>
 			`/bookings/${bookingId}/member-candidates/resolve`,
 		PAY: (bookingId: string) => `/bookings/${bookingId}/pay`,
+		COMPLETE: (bookingId: string) => `/bookings/${bookingId}/complete`,
+		COMPLETE_TRIP_BOOKINGS: (tripId: string) => `/bookings/trip/${tripId}/complete-all`,
 		REFUNDS: (bookingId: string) => `/bookings/${bookingId}/refunds`,
 		PROCESS_REFUND_OBLIGATION: (bookingId: string, obligationId: string) =>
 			`/bookings/${bookingId}/refunds/${obligationId}/process`,

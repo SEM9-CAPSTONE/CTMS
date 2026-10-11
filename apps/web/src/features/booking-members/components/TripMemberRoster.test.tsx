@@ -1,4 +1,4 @@
-﻿import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { useTripMemberRoster } from "../hooks/useTripMemberRoster";
 import type { useUpdateBookingMemberStatus } from "../hooks/useUpdateBookingMemberStatus";
@@ -12,6 +12,16 @@ import { TripMemberRoster } from "./TripMemberRoster";
 
 const refetch = vi.fn().mockResolvedValue(undefined);
 const updateStatus = vi.fn().mockResolvedValue({ response: null, error: null });
+const completeBooking = vi
+	.fn()
+	.mockResolvedValue({ id: "booking-1", status: "completed", completedAt: "2035-01-01" });
+const completeTripBookings = vi.fn().mockResolvedValue({
+	tripId: "trip-1",
+	totalBookings: 1,
+	completedCount: 1,
+	skippedCount: 0,
+	completedBookingIds: ["booking-1"],
+});
 const retry = vi.fn();
 let rosterHookResult: ReturnType<typeof useTripMemberRoster>;
 let mutationHookResult: ReturnType<typeof useUpdateBookingMemberStatus>;
@@ -22,6 +32,20 @@ function TestTripMemberRoster() {
 			tripId="trip-1"
 			useRoster={() => rosterHookResult}
 			useStatusMutation={() => mutationHookResult}
+			useCompleteBookingMutation={() => ({
+				completeBooking,
+				isSubmitting: false,
+				result: null,
+				error: null,
+				reset: vi.fn(),
+			})}
+			useCompleteTripBookingsMutation={() => ({
+				completeTripBookings,
+				isSubmitting: false,
+				result: null,
+				error: null,
+				reset: vi.fn(),
+			})}
 		/>
 	);
 }
@@ -154,8 +178,8 @@ describe("TripMemberRoster", () => {
 		});
 		setHooks(data, { pending: ["member-1"] });
 		render(<TestTripMemberRoster />);
-		const first = screen.getByText("Nguyễn An").closest("li");
-		const second = screen.getByText("Trần Bình").closest("li");
+		const first = screen.getByText("Nguyễn An").closest("tr, li");
+		const second = screen.getByText("Trần Bình").closest("tr, li");
 		expect(first).not.toBeNull();
 		expect(second).not.toBeNull();
 		expect(
@@ -178,5 +202,33 @@ describe("TripMemberRoster", () => {
 		expect(screen.getByRole("heading", { name: "Xác nhận không tham gia" })).toBeInTheDocument();
 		fireEvent.click(screen.getByTestId("confirm-modal-submit"));
 		expect(updateStatus).toHaveBeenCalledWith("trip-1", "booking-1", "member-1", "no_show");
+	});
+
+	it("renders batch complete button on completed trip and triggers batch completion modal", async () => {
+		setHooks(roster("joined", "confirmed", "completed"));
+		render(<TestTripMemberRoster />);
+		const batchButton = screen.getByRole("button", { name: "Hoàn tất tất cả đơn" });
+		expect(batchButton).toBeInTheDocument();
+		fireEvent.click(batchButton);
+		expect(
+			screen.getByRole("heading", { name: "Hoàn tất tất cả đơn đặt chỗ" })
+		).toBeInTheDocument();
+		fireEvent.click(screen.getByTestId("confirm-modal-submit"));
+		expect(completeTripBookings).toHaveBeenCalledWith("trip-1");
+	});
+
+	it("renders single complete button for primary member on completed trip and triggers completion", async () => {
+		setHooks(roster("joined", "confirmed", "completed"));
+		render(<TestTripMemberRoster />);
+		const singleButton = screen.getByRole("button", { name: "Hoàn tất đơn đặt chỗ booking-1" });
+		expect(singleButton).toBeInTheDocument();
+		fireEvent.click(singleButton);
+		expect(completeBooking).toHaveBeenCalledWith("booking-1");
+	});
+
+	it("renders Đơn đã hoàn thành badge when member bookingStatus is completed", () => {
+		setHooks(roster("joined", "completed", "completed"));
+		render(<TestTripMemberRoster />);
+		expect(screen.getByText("Đơn đã hoàn thành")).toBeInTheDocument();
 	});
 });

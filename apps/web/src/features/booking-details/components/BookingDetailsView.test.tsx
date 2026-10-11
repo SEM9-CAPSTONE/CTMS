@@ -210,4 +210,19 @@ describe("BookingDetailsView", () => {
 			screen.queryByText(/legacy prose|refundPercent|minHoursBeforeTrip/)
 		).not.toBeInTheDocument();
 	});
+
+	it("renders completedAt and completed status badge when booking is completed", () => {
+		render(
+			<BookingDetailsView
+				booking={{
+					...booking,
+					status: "completed",
+					completedAt: "2030-02-03T10:00:00.000Z",
+				}}
+				onBack={() => {}}
+			/>
+		);
+		expect(screen.getByText("Trạng thái: Đã hoàn thành")).toBeInTheDocument();
+		expect(screen.getByTestId("booking-completed-at")).toBeInTheDocument();
+	});
 });
