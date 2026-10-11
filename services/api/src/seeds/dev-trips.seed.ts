@@ -1128,6 +1128,62 @@ async function seedDemoBookingMembers(): Promise<void> {
 	);
 
 	console.log(`[seed:dev-trips] Seeded demo check-in roster members for trip: ${tripId}`);
+
+	// Also seed for ongoing trip 58085b57-cda3-4cf7-a350-341095b6367b (Sơn Trà Sunset)
+	// Sets starts_at = NOW() - interval '2 hours' so [Không tham gia] (no_show) can be tested directly
+	await dataSource.query(`
+		UPDATE "trips"
+		SET "status" = 'ongoing',
+		    "booking_deadline" = NOW() - interval '1 day',
+		    "meeting_at" = NOW() - interval '3 hours',
+		    "starts_at" = NOW() - interval '2 hours',
+		    "ends_at" = NOW() + interval '4 hours'
+		WHERE "id" = '58085b57-cda3-4cf7-a350-341095b6367b'
+	`);
+
+	const ongoingTripRows: Array<{
+		id: string;
+		starts_at: Date;
+		ends_at: Date;
+		price_per_person: string | number;
+	}> = await dataSource.query(`
+		SELECT "id", "starts_at", "ends_at", "price_per_person"
+		FROM "trips"
+		WHERE "id" = '58085b57-cda3-4cf7-a350-341095b6367b'
+	`);
+
+	if (ongoingTripRows.length > 0) {
+		const ongoingTrip = ongoingTripRows[0];
+		if (lanId) {
+			await ensureBookingWithMembers(ongoingTrip.id, lanId, ongoingTrip, [
+				{ userId: lanId, isPrimary: true },
+			]);
+		}
+		if (namId) {
+			await ensureBookingWithMembers(ongoingTrip.id, namId, ongoingTrip, [
+				{ userId: namId, isPrimary: true },
+			]);
+		}
+		if (tuanId && nhuId) {
+			await ensureBookingWithMembers(ongoingTrip.id, tuanId, ongoingTrip, [
+				{ userId: tuanId, isPrimary: true },
+				{ userId: nhuId, isPrimary: false },
+			]);
+		}
+		await dataSource.query(
+			`UPDATE "booking_members"
+			 SET "member_status" = 'registered', "checked_in_at" = NULL, "no_show_at" = NULL, "left_at" = NULL
+			 WHERE "booking_id" IN (SELECT "id" FROM "bookings" WHERE "trip_id" = $1)`,
+			[ongoingTrip.id]
+		);
+		await dataSource.query(
+			`UPDATE "bookings"
+			 SET "status" = 'confirmed'
+			 WHERE "trip_id" = $1 AND "status" != 'cancelled'`,
+			[ongoingTrip.id]
+		);
+		console.log(`[seed:dev-trips] Seeded ongoing demo trip for no-show testing: ${ongoingTrip.id}`);
+	}
 }
 
 async function ensureBookingWithMembers(
