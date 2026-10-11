@@ -1,4 +1,4 @@
-import { ArrowLeft, Compass, Loader2, RefreshCw } from "lucide-react";
+import { ArrowLeft, Compass, Loader2, RefreshCw, Users } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { BookingDetails } from "../../booking-details/types";
 import { bookingEquipmentService } from "../../booking-equipment/services/booking-equipment.service";
@@ -31,6 +31,7 @@ export interface TripDetailPageProps {
 	canManageTrips?: boolean;
 	currentUserId?: string | null;
 	onEditTrip?: (tripId: string) => void;
+	initialTab?: "overview" | "roster";
 }
 
 function toBookTripResponse(booking: BookingDetails | null | undefined): BookTripResponse | null {
@@ -77,7 +78,9 @@ export function TripDetailPage({
 	canManageTrips = false,
 	currentUserId = null,
 	onEditTrip,
+	initialTab,
 }: TripDetailPageProps) {
+	const [activeTab, setActiveTab] = useState<"overview" | "roster">(initialTab ?? "overview");
 	const [isAddingEquipment, setIsAddingEquipment] = useState(false);
 	const { trip, isLoading, error, isNotFound, retry } = useTripDetail(tripId);
 	const {
@@ -318,53 +321,88 @@ export function TripDetailPage({
 					!bookingRestoreError &&
 					(!isRestoringBooking || temporaryBooking) && (
 						<>
-							<TripDetailView
-								trip={trip}
-								onBack={onBackToList}
-								onBook={handleBook}
-								isBooking={isBooking || isAddingEquipment}
-								bookingError={bookingError}
-								booking={displayedBooking}
-								restoredBookingDetails={displayedBookingDetails}
-								bookingAccess={bookingAccess}
-								fieldErrors={fieldErrors}
-								canRetry={canRetry}
-								isConflict={isConflict}
-								onBookingRetry={retryBooking}
-								onBookingReset={
-									(!serverBooking && !isRestoringBooking) ||
-									serverBooking?.status === "expired" ||
-									serverBooking?.status === "cancelled" ||
-									displayedBooking?.status === "expired" ||
-									displayedBooking?.status === "cancelled" ||
-									Boolean(
-										displayedBooking?.holdExpiresAt &&
-											new Date(displayedBooking.holdExpiresAt).getTime() < Date.now()
-									)
-										? handleBookingReset
-										: undefined
-								}
-								onSignIn={onSignIn}
-								onConflictDismiss={clearConflict}
-								onConflictReload={handleConflictReload}
-								onConflictRetry={retryBooking}
-								onViewBookingDetails={onViewBookingDetails}
-								canManageTrip={canManageThisTrip}
-								hostAvailablePorters={<AvailablePortersPanel tripId={trip.id} />}
-								hostOperations={{
-									trip,
-									isSubmitting: tripOperations.isSubmitting,
-									error: tripOperations.error,
-									successMessage: tripOperations.successMessage,
-									onReschedule: (input) => tripOperations.reschedule(trip.id, input),
-									onCancel: (input) => tripOperations.cancel(trip.id, input),
-									onRetry: tripOperations.retry,
-									onReset: tripOperations.reset,
-									onRefreshTrip: retry,
-									onEditTrip: onEditTrip ? () => onEditTrip(trip.id) : undefined,
-								}}
-							/>
-							{showOperationalRoster && <TripMemberRoster tripId={trip.id} />}
+							{showOperationalRoster && (
+								<div className="mb-6 flex gap-2 border-b border-[#dfe8df]">
+									<button
+										type="button"
+										onClick={() => setActiveTab("overview")}
+										className={`inline-flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-extrabold transition ${
+											activeTab === "overview"
+												? "border-[#164027] text-[#164027]"
+												: "border-transparent text-[#667a6d] hover:border-slate-300 hover:text-[#10221b]"
+										}`}
+									>
+										<Compass className="size-4" />
+										<span>Thông tin chuyến đi</span>
+									</button>
+									<button
+										type="button"
+										onClick={() => setActiveTab("roster")}
+										className={`inline-flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-extrabold transition ${
+											activeTab === "roster"
+												? "border-[#164027] text-[#164027]"
+												: "border-transparent text-[#667a6d] hover:border-slate-300 hover:text-[#10221b]"
+										}`}
+									>
+										<Users className="size-4" />
+										<span>Điểm danh & Hoàn tất</span>
+									</button>
+								</div>
+							)}
+
+							<div hidden={showOperationalRoster && activeTab !== "overview"}>
+								<TripDetailView
+									trip={trip}
+									onBook={handleBook}
+									isBooking={isBooking || isAddingEquipment}
+									bookingError={bookingError}
+									booking={displayedBooking}
+									restoredBookingDetails={displayedBookingDetails}
+									bookingAccess={bookingAccess}
+									fieldErrors={fieldErrors}
+									canRetry={canRetry}
+									isConflict={isConflict}
+									onBookingRetry={retryBooking}
+									onBookingReset={
+										(!serverBooking && !isRestoringBooking) ||
+										serverBooking?.status === "expired" ||
+										serverBooking?.status === "cancelled" ||
+										displayedBooking?.status === "expired" ||
+										displayedBooking?.status === "cancelled" ||
+										Boolean(
+											displayedBooking?.holdExpiresAt &&
+												new Date(displayedBooking.holdExpiresAt).getTime() < Date.now()
+										)
+											? handleBookingReset
+											: undefined
+									}
+									onSignIn={onSignIn}
+									onConflictDismiss={clearConflict}
+									onConflictReload={handleConflictReload}
+									onConflictRetry={retryBooking}
+									onViewBookingDetails={onViewBookingDetails}
+									canManageTrip={canManageThisTrip}
+									hostAvailablePorters={<AvailablePortersPanel tripId={trip.id} />}
+									hostOperations={{
+										trip,
+										isSubmitting: tripOperations.isSubmitting,
+										error: tripOperations.error,
+										successMessage: tripOperations.successMessage,
+										onReschedule: (input) => tripOperations.reschedule(trip.id, input),
+										onCancel: (input) => tripOperations.cancel(trip.id, input),
+										onRetry: tripOperations.retry,
+										onReset: tripOperations.reset,
+										onRefreshTrip: retry,
+										onEditTrip: onEditTrip ? () => onEditTrip(trip.id) : undefined,
+									}}
+								/>
+							</div>
+
+							{showOperationalRoster && (
+								<div hidden={activeTab !== "roster"}>
+									<TripMemberRoster tripId={trip.id} />
+								</div>
+							)}
 						</>
 					)}
 			</main>

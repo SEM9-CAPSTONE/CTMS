@@ -1,6 +1,5 @@
 import {
 	AlertCircle,
-	ArrowLeft,
 	Calendar,
 	Camera,
 	Check,
@@ -33,7 +32,6 @@ import { TripRentableEquipment } from "./TripRentableEquipment";
 
 export interface TripDetailViewProps {
 	trip: TripDetails;
-	onBack?: () => void;
 	onBook?: (
 		tripId: string,
 		numPeople: number,
@@ -94,7 +92,6 @@ export function formatWaypointType(type: string): string {
 
 export function TripDetailView({
 	trip,
-	onBack,
 	onBook,
 	isBooking = false,
 	bookingError = null,
@@ -285,18 +282,6 @@ export function TripDetailView({
 
 	return (
 		<div className="space-y-8">
-			{/* Top Navigation Bar */}
-			{onBack && (
-				<button
-					type="button"
-					onClick={onBack}
-					className="inline-flex cursor-pointer items-center gap-2 text-sm font-bold text-[#55685a] transition hover:text-[#164027]"
-				>
-					<ArrowLeft className="size-4" />
-					<span>Quay lại danh sách chuyến đi</span>
-				</button>
-			)}
-
 			{/* Hero Section */}
 			<div className="overflow-hidden rounded-3xl border border-[#dfe8df] bg-white shadow-sm">
 				<div className="group relative aspect-[21/9] w-full min-h-[260px] bg-slate-900 overflow-hidden">

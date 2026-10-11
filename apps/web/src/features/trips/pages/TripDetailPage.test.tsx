@@ -682,4 +682,25 @@ describe("TripDetailPage", () => {
 		);
 		expect(screen.getByTestId("operational-trip-roster")).toHaveTextContent("trip-abc");
 	});
+
+	it("switches between overview and roster tabs when operational roster is enabled", () => {
+		vi.mocked(useTripDetail).mockReturnValue({
+			trip: mockTrip,
+			isLoading: false,
+			error: null,
+			isNotFound: false,
+			retry: vi.fn(),
+		});
+		render(
+			<TripDetailPage tripId="trip-abc" onBackToList={vi.fn()} showOperationalRoster={true} />
+		);
+		expect(screen.getByRole("button", { name: /Thông tin chuyến đi/ })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: /Điểm danh & Hoàn tất/ })).toBeInTheDocument();
+
+		fireEvent.click(screen.getByRole("button", { name: /Điểm danh & Hoàn tất/ }));
+		expect(screen.getByTestId("operational-trip-roster")).toBeInTheDocument();
+
+		fireEvent.click(screen.getByRole("button", { name: /Thông tin chuyến đi/ }));
+		expect(screen.getByText("Chinh Phục Đỉnh Núi Bidoup")).toBeInTheDocument();
+	});
 });
