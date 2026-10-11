@@ -703,4 +703,45 @@ describe("TripDetailPage", () => {
 		fireEvent.click(screen.getByRole("button", { name: /Thông tin chuyến đi/ }));
 		expect(screen.getByText("Chinh Phục Đỉnh Núi Bidoup")).toBeInTheDocument();
 	});
+
+	it("hides roster tab if logged-in Host is not the owning Host of this trip", () => {
+		vi.mocked(useTripDetail).mockReturnValue({
+			trip: { ...mockTrip, hostId: "host-1" },
+			isLoading: false,
+			error: null,
+			isNotFound: false,
+			retry: vi.fn(),
+		});
+		render(
+			<TripDetailPage
+				tripId="trip-abc"
+				onBackToList={vi.fn()}
+				showOperationalRoster={true}
+				canManageTrips={true}
+				currentUserId="other-host"
+			/>
+		);
+		expect(screen.queryByRole("button", { name: /Điểm danh & Hoàn tất/ })).not.toBeInTheDocument();
+		expect(screen.queryByTestId("operational-trip-roster")).not.toBeInTheDocument();
+	});
+
+	it("shows roster tab if logged-in Host is the owning Host of this trip", () => {
+		vi.mocked(useTripDetail).mockReturnValue({
+			trip: { ...mockTrip, hostId: "host-1" },
+			isLoading: false,
+			error: null,
+			isNotFound: false,
+			retry: vi.fn(),
+		});
+		render(
+			<TripDetailPage
+				tripId="trip-abc"
+				onBackToList={vi.fn()}
+				showOperationalRoster={true}
+				canManageTrips={true}
+				currentUserId="host-1"
+			/>
+		);
+		expect(screen.getByRole("button", { name: /Điểm danh & Hoàn tất/ })).toBeInTheDocument();
+	});
 });

@@ -143,6 +143,13 @@ export function TripDetailPage({
 	const canManageThisTrip = Boolean(
 		canManageTrips && currentUserId && trip?.hostId === currentUserId
 	);
+	const isRosterVisible = useMemo(() => {
+		if (!showOperationalRoster) return false;
+		if (currentUserId && trip?.hostId) {
+			return canManageThisTrip;
+		}
+		return true;
+	}, [showOperationalRoster, currentUserId, trip?.hostId, canManageThisTrip]);
 
 	const handleBook = useCallback(
 		async (targetTripId: string, numPeople: number, equipmentItems?: SelectedEquipmentItem[]) => {
@@ -321,7 +328,7 @@ export function TripDetailPage({
 					!bookingRestoreError &&
 					(!isRestoringBooking || temporaryBooking) && (
 						<>
-							{showOperationalRoster && (
+							{isRosterVisible && (
 								<div className="mb-6 flex gap-2 border-b border-[#dfe8df]">
 									<button
 										type="button"
@@ -350,7 +357,7 @@ export function TripDetailPage({
 								</div>
 							)}
 
-							<div hidden={showOperationalRoster && activeTab !== "overview"}>
+							<div hidden={isRosterVisible && activeTab !== "overview"}>
 								<TripDetailView
 									trip={trip}
 									onBook={handleBook}
@@ -398,7 +405,7 @@ export function TripDetailPage({
 								/>
 							</div>
 
-							{showOperationalRoster && (
+							{isRosterVisible && (
 								<div hidden={activeTab !== "roster"}>
 									<TripMemberRoster tripId={trip.id} />
 								</div>
