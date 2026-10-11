@@ -2,6 +2,7 @@ import { HTTP_CODE_METADATA } from "@nestjs/common/constants";
 import { ROLES_KEY } from "../auth/decorators/roles.decorator";
 import type { AuthenticatedUser } from "../auth/jwt.strategy";
 import { UserRole, UserStatus } from "../users/entities/user.entity";
+import type { BookingCompletionService } from "./booking-completion.service";
 import { BookingsController } from "./bookings.controller";
 import type { BookingsService } from "./bookings.service";
 import { ResolveBookingMemberCandidateDto } from "./dto/resolve-booking-member-candidate.dto";
@@ -18,6 +19,7 @@ const ACTOR: AuthenticatedUser = {
 
 describe("BookingsController", () => {
 	const defaultPaymentsService = {} as unknown as PaymentsService;
+	const defaultBookingCompletionService = {} as unknown as BookingCompletionService;
 
 	it("lists only the authenticated Camper's Bookings", async () => {
 		const response = [{ id: BOOKING_ID }];
@@ -169,7 +171,8 @@ describe("BookingsController", () => {
 		const service = { getPackingList: jest.fn().mockResolvedValue(response) };
 		const controller = new BookingsController(
 			service as unknown as BookingsService,
-			defaultPaymentsService
+			defaultPaymentsService,
+			defaultBookingCompletionService
 		);
 
 		await expect(controller.getPackingList({ user: ACTOR }, BOOKING_ID)).resolves.toBe(response);
@@ -177,5 +180,43 @@ describe("BookingsController", () => {
 		expect(Reflect.getMetadata(ROLES_KEY, BookingsController.prototype.getPackingList)).toEqual([
 			UserRole.CAMPER,
 		]);
+	});
+
+	it("completeBooking delegates to BookingCompletionService with Host and Admin roles", async () => {
+		const response = { id: BOOKING_ID, status: "completed", completedAt: "2026-10-11T12:00:00Z" };
+		const completionService = { completeBooking: jest.fn().mockResolvedValue(response) };
+		const controller = new BookingsController(
+			{} as unknown as BookingsService,
+			defaultPaymentsService,
+			completionService as unknown as BookingCompletionService
+		);
+
+		await expect(controller.completeBooking({ user: ACTOR }, BOOKING_ID)).resolves.toBe(response);
+		expect(completionService.completeBooking).toHaveBeenCalledWith(ACTOR, BOOKING_ID);
+		expect(Reflect.getMetadata(ROLES_KEY, BookingsController.prototype.completeBooking)).toEqual([
+			UserRole.HOST,
+			UserRole.ADMIN,
+		]);
+	});
+
+	it("completeTripBookings delegates to BookingCompletionService with Host and Admin roles", async () => {
+		const response = {
+			tripId: TRIP_ID,
+			completedCount: 2,
+			completedBookingIds: ["b1", "b2"],
+			skippedCount: 0,
+		};
+		const completionService = { completeTripBookings: jest.fn().mockResolvedValue(response) };
+		const controller = new BookingsController(
+			{} as unknown as BookingsService,
+			defaultPaymentsService,
+			completionService as unknown as BookingCompletionService
+		);
+
+		await expect(controller.completeTripBookings({ user: ACTOR }, TRIP_ID)).resolves.toBe(response);
+		expect(completionService.completeTripBookings).toHaveBeenCalledWith(ACTOR, TRIP_ID);
+		expect(
+			Reflect.getMetadata(ROLES_KEY, BookingsController.prototype.completeTripBookings)
+		).toEqual([UserRole.HOST, UserRole.ADMIN]);
 	});
 });

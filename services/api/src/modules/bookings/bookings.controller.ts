@@ -18,14 +18,18 @@ import { RolesGuard } from "../auth/guards/roles.guard";
 import type { AuthenticatedUser } from "../auth/jwt.strategy";
 import { UserRole } from "../users/entities/user.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
+import { BookingCompletionService } from "./booking-completion.service";
+// biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { BookingsService } from "./bookings.service";
 import { AddBookingItemResponseDto } from "./dto/add-booking-item-response.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { AddBookingItemDto } from "./dto/add-booking-item.dto";
+import { BatchCompleteBookingsResponseDto } from "./dto/batch-complete-bookings-response.dto";
 import { BookingDetailsResponseDto } from "./dto/booking-details-response.dto";
 import { BookingItemResponseDto } from "./dto/booking-item-response.dto";
 import { BookingListItemResponseDto } from "./dto/booking-list-item-response.dto";
 import { BookingResponseDto } from "./dto/booking-response.dto";
+import { CompleteBookingResponseDto } from "./dto/complete-booking-response.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { CreateBookingDto } from "./dto/create-booking.dto";
 import { InitializeBookingMembersResponseDto } from "./dto/initialize-booking-members-response.dto";
@@ -57,7 +61,8 @@ const BOOKING_ID_PIPE = new ParseUUIDPipe({ errorHttpStatusCode: HttpStatus.UNPR
 export class BookingsController {
 	constructor(
 		private readonly bookingsService: BookingsService,
-		private readonly paymentsService: PaymentsService
+		private readonly paymentsService: PaymentsService,
+		private readonly bookingCompletionService: BookingCompletionService
 	) {}
 
 	@Get()
@@ -235,5 +240,38 @@ export class BookingsController {
 		@Param("bookingId", BOOKING_ID_PIPE) bookingId: string
 	): Promise<BookingDetailsResponseDto> {
 		return this.bookingsService.getBookingDetails(request.user.userId, bookingId);
+	}
+
+	@Post(":bookingId/complete")
+	@Roles(UserRole.HOST, UserRole.ADMIN)
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({ summary: "Transition an eligible confirmed Booking to completed" })
+	@ApiResponse({ status: 200, type: CompleteBookingResponseDto })
+	@ApiResponse({ status: 403, description: "Not the owning Host or Admin" })
+	@ApiResponse({ status: 404, description: "Booking or Trip not found" })
+	@ApiResponse({
+		status: 409,
+		description: "Trip not completed or member/payment conditions not met",
+	})
+	completeBooking(
+		@Req() request: AuthenticatedRequest,
+		@Param("bookingId", BOOKING_ID_PIPE) bookingId: string
+	): Promise<CompleteBookingResponseDto> {
+		return this.bookingCompletionService.completeBooking(request.user, bookingId);
+	}
+
+	@Post("trip/:tripId/complete-all")
+	@Roles(UserRole.HOST, UserRole.ADMIN)
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({ summary: "Batch complete all eligible confirmed Bookings for a completed Trip" })
+	@ApiResponse({ status: 200, type: BatchCompleteBookingsResponseDto })
+	@ApiResponse({ status: 403, description: "Not the owning Host or Admin" })
+	@ApiResponse({ status: 404, description: "Trip not found" })
+	@ApiResponse({ status: 409, description: "Trip not completed" })
+	completeTripBookings(
+		@Req() request: AuthenticatedRequest,
+		@Param("tripId", BOOKING_ID_PIPE) tripId: string
+	): Promise<BatchCompleteBookingsResponseDto> {
+		return this.bookingCompletionService.completeTripBookings(request.user, tripId);
 	}
 }

@@ -15,6 +15,7 @@ export interface BookingListItem {
 	tripEndsAtSnapshot: string | null;
 	totalAmount: string | null;
 	createdAt: string;
+	completedAt?: string | null;
 	tripPresentation: BookingTripPresentation | null;
 }
 

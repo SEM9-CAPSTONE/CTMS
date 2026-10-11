@@ -1,8 +1,19 @@
-import { AlertCircle, Check, Loader2, RefreshCw, Users, X } from "lucide-react";
+import {
+	AlertCircle,
+	Check,
+	CheckCheck,
+	CheckCircle2,
+	Loader2,
+	RefreshCw,
+	Users,
+	X,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button } from "../../../shared/components/Button";
 import { ConfirmModal } from "../../../shared/components/ConfirmModal";
 import { useToast } from "../../../shared/components/Toast";
+import { useCompleteBooking } from "../../booking-completion/hooks/useCompleteBooking";
+import { useCompleteTripBookings } from "../../booking-completion/hooks/useCompleteTripBookings";
 import { useTripMemberRoster } from "../hooks/useTripMemberRoster";
 import { useUpdateBookingMemberStatus } from "../hooks/useUpdateBookingMemberStatus";
 import type {
@@ -67,17 +78,33 @@ export interface TripMemberRosterProps {
 	tripId: string;
 	useRoster?: typeof useTripMemberRoster;
 	useStatusMutation?: typeof useUpdateBookingMemberStatus;
+	useCompleteBookingMutation?: typeof useCompleteBooking;
+	useCompleteTripBookingsMutation?: typeof useCompleteTripBookings;
 }
 
 export function TripMemberRoster({
 	tripId,
 	useRoster = useTripMemberRoster,
 	useStatusMutation = useUpdateBookingMemberStatus,
+	useCompleteBookingMutation = useCompleteBooking,
+	useCompleteTripBookingsMutation = useCompleteTripBookings,
 }: TripMemberRosterProps) {
 	const { data, isLoading, error, refetch } = useRoster(tripId);
 	const mutation = useStatusMutation(refetch);
 	const toast = useToast();
 	const [noShowTarget, setNoShowTarget] = useState<TripRosterMember | null>(null);
+	const [isBatchCompleteOpen, setIsBatchCompleteOpen] = useState(false);
+	const [completingBookingId, setCompletingBookingId] = useState<string | null>(null);
+
+	const completeBookingMutation = useCompleteBookingMutation(async () => {
+		await refetch();
+	});
+
+	const completeTripMutation = useCompleteTripBookingsMutation(async (res) => {
+		toast.success(`Đã hoàn tất ${res.completedCount}/${res.totalBookings} đơn đặt chỗ.`);
+		await refetch();
+	});
+
 	const members = useMemo(() => data?.members ?? [], [data?.members]);
 
 	const submit = async (
@@ -94,6 +121,25 @@ export function TripMemberRoster({
 		} else if (result.error) {
 			const notify = result.error.kind === "conflict" ? toast.warning : toast.error;
 			notify(result.error.message);
+		}
+	};
+
+	const handleCompleteSingleBooking = async (bookingId: string) => {
+		setCompletingBookingId(bookingId);
+		const result = await completeBookingMutation.completeBooking(bookingId);
+		setCompletingBookingId(null);
+		if (result) {
+			toast.success("Đã hoàn tất đơn đặt chỗ.");
+		} else if (completeBookingMutation.error) {
+			toast.error(completeBookingMutation.error.message);
+		}
+	};
+
+	const handleBatchComplete = async () => {
+		setIsBatchCompleteOpen(false);
+		const result = await completeTripMutation.completeTripBookings(tripId);
+		if (!result && completeTripMutation.error) {
+			toast.error(completeTripMutation.error.message);
 		}
 	};
 
@@ -148,15 +194,32 @@ export function TripMemberRoster({
 						</p>
 					</div>
 				</div>
-				<Button
-					variant="outline"
-					size="sm"
-					onClick={() => void refetch()}
-					disabled={isLoading}
-					className="gap-2"
-				>
-					<RefreshCw className={`size-4 ${isLoading ? "animate-spin" : ""}`} /> Tải lại
-				</Button>
+				<div className="flex flex-wrap items-center gap-2">
+					{data.status === "completed" && (
+						<Button
+							size="sm"
+							onClick={() => setIsBatchCompleteOpen(true)}
+							disabled={completeTripMutation.isSubmitting || isLoading}
+							className="gap-1.5 bg-[#164027] text-white hover:bg-[#0f2e1c]"
+						>
+							{completeTripMutation.isSubmitting ? (
+								<Loader2 className="size-4 animate-spin" />
+							) : (
+								<CheckCheck className="size-4" />
+							)}
+							Hoàn tất tất cả đơn
+						</Button>
+					)}
+					<Button
+						variant="outline"
+						size="sm"
+						onClick={() => void refetch()}
+						disabled={isLoading}
+						className="gap-2"
+					>
+						<RefreshCw className={`size-4 ${isLoading ? "animate-spin" : ""}`} /> Tải lại
+					</Button>
+				</div>
 			</div>
 
 			{mutation.accessRevoked && (
@@ -251,6 +314,36 @@ export function TripMemberRoster({
 												</button>
 											</div>
 										)}
+
+										{data.status === "completed" &&
+											member.bookingStatus === "confirmed" &&
+											member.isPrimary && (
+												<div className="flex flex-wrap gap-2 lg:justify-end">
+													<Button
+														size="sm"
+														variant="outline"
+														disabled={completingBookingId === member.bookingId}
+														onClick={() => void handleCompleteSingleBooking(member.bookingId)}
+														aria-label={`Hoàn tất đơn đặt chỗ ${member.bookingId}`}
+														className="gap-1.5 border-emerald-300 text-emerald-800 hover:bg-emerald-50"
+													>
+														{completingBookingId === member.bookingId ? (
+															<Loader2 className="size-3.5 animate-spin" />
+														) : (
+															<CheckCircle2 className="size-3.5" />
+														)}
+														Hoàn tất đơn
+													</Button>
+												</div>
+											)}
+
+										{member.bookingStatus === "completed" && member.isPrimary && (
+											<div className="flex flex-wrap gap-2 lg:justify-end">
+												<span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-800 ring-1 ring-emerald-200">
+													Đơn đã hoàn thành
+												</span>
+											</div>
+										)}
 									</div>
 
 									{pending && (
@@ -302,6 +395,22 @@ export function TripMemberRoster({
 				cancelText="Quay lại"
 				variant="warning"
 				isLoading={Boolean(noShowTarget && mutation.pendingMemberIds.has(noShowTarget.memberId))}
+			/>
+
+			<ConfirmModal
+				isOpen={isBatchCompleteOpen}
+				onClose={() => setIsBatchCompleteOpen(false)}
+				onConfirm={handleBatchComplete}
+				title="Hoàn tất tất cả đơn đặt chỗ"
+				description={
+					<span>
+						Hệ thống sẽ kiểm tra và hoàn tất tất cả các đơn đặt chỗ hợp lệ thuộc chuyến đi này.
+					</span>
+				}
+				confirmText="Xác nhận hoàn tất"
+				cancelText="Quay lại"
+				variant="success"
+				isLoading={completeTripMutation.isSubmitting}
 			/>
 		</section>
 	);

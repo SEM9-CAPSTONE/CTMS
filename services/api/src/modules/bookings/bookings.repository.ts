@@ -56,6 +56,7 @@ export class BookingsRepository extends Repository<Booking> {
 				b."trip_ends_at_snapshot" AS "tripEndsAtSnapshot",
 				b."total_amount"::text AS "totalAmount",
 				b."created_at" AS "createdAt",
+				b."completed_at" AS "completedAt",
 				CASE
 					WHEN t."id" IS NULL OR r."id" IS NULL
 						OR btrim(t."title") = '' OR btrim(r."name") = '' THEN NULL
@@ -101,6 +102,7 @@ export class BookingsRepository extends Repository<Booking> {
 				b."total_amount" AS "totalAmount",
 				b."cancellation_policy_snapshot" AS "cancellationPolicySnapshot",
 				b."created_at" AS "createdAt",
+				b."completed_at" AS "completedAt",
 				CASE
 					WHEN t."id" IS NULL OR r."id" IS NULL
 						OR btrim(t."title") = '' OR btrim(r."name") = '' THEN NULL

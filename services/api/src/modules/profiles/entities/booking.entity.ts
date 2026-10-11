@@ -97,6 +97,9 @@ export class Booking {
 	@Column({ name: "request_fingerprint", type: "varchar", length: 64, nullable: true })
 	requestFingerprint!: string | null;
 
+	@Column({ name: "completed_at", type: "timestamptz", nullable: true })
+	completedAt!: Date | null;
+
 	@CreateDateColumn({ name: "created_at", type: "timestamptz" })
 	createdAt!: Date;
 }

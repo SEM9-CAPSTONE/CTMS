@@ -105,6 +105,16 @@ export function BookingDetailsView({
 						<dl className="mt-3">
 							<SummaryRow label="Số người" value={booking.numPeople ?? "Chưa cập nhật"} />
 							<SummaryRow label="Ngày tạo" value={formatBookingDateTime(booking.createdAt)} />
+							{booking.completedAt && (
+								<SummaryRow
+									label="Ngày hoàn thành"
+									value={
+										<span data-testid="booking-completed-at">
+											{formatBookingDateTime(booking.completedAt)}
+										</span>
+									}
+								/>
+							)}
 							<SummaryRow label="Giá cơ bản" value={formatBookingMoney(booking.basePrice)} />
 							<SummaryRow
 								label="Tổng tiền"

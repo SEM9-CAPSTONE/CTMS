@@ -9,6 +9,7 @@ import { TripsModule } from "../trips/trips.module";
 import { WeatherModule } from "../weather/weather.module";
 import { BookingCancellationController } from "./booking-cancellation.controller";
 import { BookingCancellationService } from "./booking-cancellation.service";
+import { BookingCompletionService } from "./booking-completion.service";
 import { BookingExpiryService } from "./booking-expiry.service";
 import { BookingExpiryWorker } from "./booking-expiry.worker";
 import { BookingItemsRepository } from "./booking-items.repository";
@@ -45,6 +46,7 @@ import { TripRosterService } from "./trip-roster.service";
 	providers: [
 		BookingsService,
 		BookingCancellationService,
+		BookingCompletionService,
 		BookingMemberStatusService,
 		TripRosterService,
 		BookingExpiryService,
@@ -85,6 +87,12 @@ import { TripRosterService } from "./trip-roster.service";
 			inject: [DataSource],
 		},
 	],
-	exports: [BookingsService, PaymentsService, PayOSService, RefundsService],
+	exports: [
+		BookingsService,
+		BookingCompletionService,
+		PaymentsService,
+		PayOSService,
+		RefundsService,
+	],
 })
 export class BookingsModule {}
