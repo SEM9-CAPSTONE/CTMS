@@ -205,15 +205,14 @@ export function TripCard({ trip, onSelect }: TripCardProps) {
 				</div>
 
 				{/* Card Footer: Price & Clean CTA */}
-				<div className="mt-4 flex items-end justify-between gap-2 border-t border-[#edf3ed] pt-3">
+				<div className="mt-4 flex items-end justify-between gap-3 border-t border-[#edf3ed] pt-3">
 					<div className="min-w-0">
-						<p className="text-[10px] font-bold uppercase tracking-wider text-[#8fa096]">Giá vé</p>
-						<div className="flex items-baseline gap-1 whitespace-nowrap">
-							<span className="text-sm font-extrabold text-[#164027] sm:text-base">
-								{formatVND(trip.pricePerPerson)}
-							</span>
-							<span className="text-[11px] font-medium text-[#8fa096]">/ khách</span>
-						</div>
+						<p className="text-[10px] font-bold uppercase tracking-wider text-[#8fa096]">
+							Giá vé / khách
+						</p>
+						<p className="text-sm font-extrabold text-[#164027] sm:text-base whitespace-nowrap">
+							{formatVND(trip.pricePerPerson)}
+						</p>
 					</div>
 
 					<button
