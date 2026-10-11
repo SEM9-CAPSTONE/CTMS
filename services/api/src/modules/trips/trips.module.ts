@@ -10,6 +10,8 @@ import { AvailablePortersRepository } from "./repositories/available-porters.rep
 import { PorterScheduleConflictSource } from "./repositories/porter-schedule-conflict-source";
 import { TripsRepository } from "./repositories/trips.repository";
 import { AvailablePortersService } from "./services/available-porters.service";
+import { TripAutoCancelService } from "./services/trip-auto-cancel.service";
+import { TripAutoCancelWorker } from "./services/trip-auto-cancel.worker";
 import { TripReviewDeadlineService } from "./services/trip-review-deadline.service";
 import { TripsService } from "./services/trips.service";
 
@@ -20,6 +22,8 @@ import { TripsService } from "./services/trips.service";
 		TripsService,
 		AvailablePortersService,
 		PorterScheduleConflictSource,
+		TripAutoCancelService,
+		TripAutoCancelWorker,
 		{
 			provide: TripReviewDeadlineService,
 			useFactory: (tripsService: TripsService) => new TripReviewDeadlineService(tripsService),
