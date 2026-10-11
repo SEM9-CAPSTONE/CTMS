@@ -240,6 +240,8 @@ export interface TripDetails {
 	pricePerPerson: number;
 	cancellationPolicy: Record<string, unknown> | null;
 	status: TripStatus;
+	cancellationReason: string | null;
+	cancelledAt: string | null;
 	difficulty?: TrekkingRouteDifficulty | null;
 	weatherRiskLevel?: RiskLevel | null;
 	isBookable: boolean;

@@ -655,6 +655,7 @@ export function TripDetailView({
 							bookingDeadline={trip.bookingDeadline}
 							isBookable={trip.isBookable}
 							status={trip.status}
+							cancellationReason={trip.cancellationReason}
 						/>
 
 						<div className="rounded-3xl border border-[#dfe8df] bg-white p-5 shadow-sm">

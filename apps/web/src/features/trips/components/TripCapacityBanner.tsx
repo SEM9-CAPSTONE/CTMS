@@ -1,4 +1,4 @@
-import { AlertCircle, AlertTriangle, Clock } from "lucide-react";
+import { AlertCircle, AlertTriangle, Clock, XCircle } from "lucide-react";
 import type { TripStatus } from "../types";
 
 export interface TripCapacityBannerProps {
@@ -6,15 +6,47 @@ export interface TripCapacityBannerProps {
 	bookingDeadline: string;
 	isBookable: boolean;
 	status?: TripStatus;
+	cancellationReason?: string | null;
 }
+
+/** CTMS-036/179. Known machine reason codes mapped to Camper-facing Vietnamese text.
+ *  Anything else (e.g. a Host's own free-text reason from CTMS-027) falls back to a
+ *  generic cancelled message instead of leaking an internal code or unreviewed text. */
+const KNOWN_CANCELLATION_REASON_LABELS: Record<string, string> = {
+	insufficient_participants_after_deadline:
+		"Chuyến đi không đạt đủ số lượng người tham gia tối thiểu trước hạn chót đặt chỗ.",
+};
 
 export function TripCapacityBanner({
 	remainingSeats,
 	bookingDeadline,
 	isBookable,
+	status,
+	cancellationReason,
 }: TripCapacityBannerProps) {
 	const deadlineTime = new Date(bookingDeadline).getTime();
 	const now = Date.now();
+
+	// Condition 0: Trip cancelled -- must be checked before the generic
+	// not-bookable/sold-out fallbacks below, which would otherwise show a
+	// misleading "check back later" message for a permanently cancelled Trip.
+	if (status === "cancelled") {
+		return (
+			<div
+				data-testid="trip-capacity-banner-cancelled"
+				className="flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-xs text-rose-900 shadow-xs"
+			>
+				<XCircle className="size-5 shrink-0 text-rose-600" />
+				<div>
+					<p className="font-extrabold text-rose-900">Chuyến đi đã bị hủy</p>
+					<p className="mt-0.5 text-rose-700">
+						{(cancellationReason && KNOWN_CANCELLATION_REASON_LABELS[cancellationReason]) ||
+							"Chuyến đi này đã bị hủy và không còn nhận đặt chỗ."}
+					</p>
+				</div>
+			</div>
+		);
+	}
 
 	// Condition 1: Sold out
 	if (remainingSeats === 0) {

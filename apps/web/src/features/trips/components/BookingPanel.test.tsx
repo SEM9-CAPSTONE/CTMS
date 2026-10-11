@@ -5,13 +5,14 @@ import { BookingPanel } from "./BookingPanel";
 
 const trip: Pick<
 	TripDetails,
-	"id" | "remainingSeats" | "isBookable" | "bookingDeadline" | "pricePerPerson"
+	"id" | "remainingSeats" | "isBookable" | "bookingDeadline" | "pricePerPerson" | "status"
 > = {
 	id: "trip-1",
 	remainingSeats: 4,
 	isBookable: true,
 	bookingDeadline: "2099-01-01T00:00:00.000Z",
 	pricePerPerson: 450000,
+	status: "published",
 };
 
 const booking: BookTripResponse = {
@@ -87,6 +88,14 @@ describe("BookingPanel", () => {
 			screen.getByRole("button", { name: "Hiện không thể đặt chỗ cho chuyến đi này" })
 		).toBeDisabled();
 		expect(screen.queryByRole("button", { name: "Đã hết chỗ" })).not.toBeInTheDocument();
+	});
+
+	it("shows a cancelled-specific message instead of the generic unavailable one (CTMS-179)", () => {
+		render(<BookingPanel trip={{ ...trip, isBookable: false, status: "cancelled" }} />);
+		expect(screen.getByRole("button", { name: "Chuyến đi đã bị hủy" })).toBeDisabled();
+		expect(
+			screen.queryByRole("button", { name: "Hiện không thể đặt chỗ cho chuyến đi này" })
+		).not.toBeInTheDocument();
 	});
 
 	it("renders safe retry and disables it while retrying", () => {

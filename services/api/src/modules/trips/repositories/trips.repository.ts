@@ -209,6 +209,8 @@ interface TripRow extends TripSummaryRow {
 	includes: Record<string, unknown> | null;
 	excludes: Record<string, unknown> | null;
 	cancellationPolicy: Record<string, unknown> | null;
+	cancellationReason: string | null;
+	cancelledAt: Date | null;
 	waypoints: TripWaypointRow[];
 }
 
@@ -322,6 +324,8 @@ function toTripResponse(row: TripRow): TripResponseDto {
 		pricePerPerson: Number(row.pricePerPerson),
 		cancellationPolicy: row.cancellationPolicy,
 		status: row.status,
+		cancellationReason: row.cancellationReason,
+		cancelledAt: row.cancelledAt,
 		difficulty: row.difficulty ?? null,
 		weatherRiskLevel: row.weatherRiskLevel ?? null,
 		isBookable: computeIsBookable(
@@ -373,6 +377,8 @@ const TRIP_SELECT = `
 		trip."price_per_person" AS "pricePerPerson",
 		trip."cancellation_policy" AS "cancellationPolicy",
 		trip."status",
+		trip."cancellation_reason" AS "cancellationReason",
+		trip."cancelled_at" AS "cancelledAt",
 		trip."created_at" AS "createdAt",
 		trip."updated_at" AS "updatedAt",
 		route."difficulty" AS "difficulty",

@@ -100,8 +100,14 @@ it.each([
 	expect(screen.queryByRole("button", { name: "Yêu cầu hủy đơn" })).not.toBeInTheDocument();
 	if (status === "pending_reconfirmation")
 		expect(screen.getByText("Trạng thái: Chờ xác nhận lại")).toBeVisible();
-	if (status === "cancelled")
-		expect(screen.getByText(/Thông tin hoàn tiền không có/)).toBeVisible();
+	if (status === "cancelled") {
+		expect(
+			screen.getByText("Đơn đặt chỗ đã hủy và không còn quyền tham gia chuyến đi.")
+		).toBeVisible();
+		// CTMS-179: refund state must come only from BookingRefundPanel's real data,
+		// never from a stale fallback claiming no refund info exists here.
+		expect(screen.queryByText(/Thông tin hoàn tiền không có/)).not.toBeInTheDocument();
+	}
 	expect(bookingCancellationService.cancel).not.toHaveBeenCalled();
 });
 it("opens, focuses, closes and preserves reason when reconsidering", async () => {

@@ -219,6 +219,12 @@ export class TripResponseDto {
 	@ApiProperty()
 	status!: TripStatus;
 
+	@ApiPropertyOptional({ nullable: true, description: "Set only when status is 'cancelled'" })
+	cancellationReason!: string | null;
+
+	@ApiPropertyOptional({ nullable: true, description: "Set only when status is 'cancelled'" })
+	cancelledAt!: Date | null;
+
 	@ApiPropertyOptional({ enum: TrekkingRouteDifficulty, nullable: true })
 	difficulty?: TrekkingRouteDifficulty | null;
 

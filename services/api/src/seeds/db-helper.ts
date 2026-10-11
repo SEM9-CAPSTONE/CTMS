@@ -10,6 +10,7 @@ import { PaymentsRepository } from "../modules/bookings/payments.repository";
 import { Booking } from "../modules/profiles/entities/booking.entity";
 import { Trip } from "../modules/trips/entities/trip.entity";
 import { TripsRepository } from "../modules/trips/repositories/trips.repository";
+import { TripAutoCancelService } from "../modules/trips/services/trip-auto-cancel.service";
 import dataSource from "../shared/database/data-source";
 
 /**
@@ -358,6 +359,9 @@ async function main() {
 				pricePerPerson?: string;
 				createdBy: string;
 				cancellationPolicy?: Record<string, unknown>;
+				/** CTMS-179 E2E. Defaults preserve the original always-future deadline. */
+				capacityMin?: number;
+				bookingDeadlineOffsetHours?: number;
 			}>(arg);
 			if (!input.title.startsWith("E2E") && !input.title.startsWith("CTMS")) {
 				throw new Error(`Refusing to seed non-E2E trip: ${input.title}`);
@@ -373,8 +377,9 @@ async function main() {
 					VALUES (
 						$1, $2, $3, 'e2e published trip fixture', 'day_trip', 0,
 						now() + interval '5 days', now() + interval '5 days 8 hours',
-						ST_SetSRID(ST_GeomFromGeoJSON($4), 4326)::geography, now() + interval '4 days',
-						1, 10, $5, 'published', $6::jsonb
+						ST_SetSRID(ST_GeomFromGeoJSON($4), 4326)::geography,
+						now() + ($7 || ' hours')::interval,
+						$8, 10, $5, 'published', $6::jsonb
 					)
 					RETURNING "id"`,
 					[
@@ -384,6 +389,8 @@ async function main() {
 						JSON.stringify(meetingPoint),
 						input.pricePerPerson ?? "0.00",
 						input.cancellationPolicy ? JSON.stringify(input.cancellationPolicy) : null,
+						String(input.bookingDeadlineOffsetHours ?? 96),
+						input.capacityMin ?? 1,
 					]
 				)) as Array<{ id: string }>;
 				const insertedTripId = tripRows[0].id;
@@ -704,6 +711,82 @@ async function main() {
 				return { bookingId, chargeId, tripId: input.tripId };
 			});
 			console.log(JSON.stringify(result));
+		} else if (action === "seed-confirmed-booking-with-charge") {
+			// CTMS-179 E2E only. Seeds a `confirmed`/`paid` Booking (with a real
+			// succeeded charge, so the auto-cancel worker's own refund-obligation
+			// creation has something to attach to) directly, instead of driving
+			// the real POST /bookings + PayOS webhook flow -- that round trip is
+			// already covered end-to-end by CTMS-029/032's own E2E suites.
+			const input = parseJsonArg<{ tripId: string; camperId: string; amount?: string }>(arg);
+			const amount = input.amount ?? "500000.00";
+			const result = await dataSource.transaction(async (manager) => {
+				const tripRows = (await manager.query(
+					`SELECT "id", "title", "starts_at" AS "startsAt", "ends_at" AS "endsAt"
+					 FROM "trips" WHERE "id" = $1 FOR UPDATE`,
+					[input.tripId]
+				)) as Array<{ id: string; title: string; startsAt: Date; endsAt: Date }>;
+				const trip = tripRows[0];
+				if (!trip) throw new Error(`Trip not found: ${input.tripId}`);
+				if (!trip.title.startsWith("E2E") && !trip.title.startsWith("CTMS")) {
+					throw new Error(`Refusing to seed a Booking for non-E2E Trip: ${trip.id}`);
+				}
+
+				const bookingRows = (await manager.query(
+					`INSERT INTO "bookings" (
+						"trip_id", "user_id", "num_people", "status", "payment_status",
+						"trip_starts_at_snapshot", "trip_ends_at_snapshot", "base_price", "total_amount"
+					 )
+					 VALUES ($1, $2, 1, 'confirmed', 'paid', $3, $4, $5, $5)
+					 RETURNING "id"`,
+					[input.tripId, input.camperId, trip.startsAt, trip.endsAt, amount]
+				)) as Array<{ id: string }>;
+				const bookingId = bookingRows[0].id;
+
+				await manager.query(
+					`INSERT INTO "booking_members" ("booking_id", "user_id", "is_primary", "member_status")
+					 VALUES ($1, $2, true, 'registered')`,
+					[bookingId, input.camperId]
+				);
+				await manager.query(
+					`UPDATE "trips" SET "seats_taken" = "seats_taken" + 1 WHERE "id" = $1`,
+					[input.tripId]
+				);
+
+				const paymentRows = (await manager.query(
+					`INSERT INTO "payments" (
+						"booking_id", "type", "status", "amount", "idempotency_key", "request_fingerprint",
+						"provider_reference"
+					 )
+					 VALUES ($1, 'charge', 'succeeded', $2, $3, 'e2e-fingerprint', 'PAYOS-E2E-REF')
+					 RETURNING "id"`,
+					[bookingId, amount, `e2e-charge-${bookingId}`]
+				)) as Array<{ id: string }>;
+				await manager.query(
+					`INSERT INTO "payment_transactions" ("payment_id", "status") VALUES ($1, 'succeeded')`,
+					[paymentRows[0].id]
+				);
+
+				return { bookingId, chargeId: paymentRows[0].id };
+			});
+			console.log(JSON.stringify(result));
+		} else if (action === "auto-cancel-trip-through-service") {
+			// CTMS-179 E2E only: invoke the real merged CTMS-178 worker logic for one
+			// fixture Trip, mirroring expire-booking-through-service's own convention.
+			const input = parseJsonArg<{ tripId: string }>(arg);
+			const rows = (await dataSource.query(`SELECT "id", "title" FROM "trips" WHERE "id" = $1`, [
+				input.tripId,
+			])) as Array<{ id: string; title: string }>;
+			const trip = rows[0];
+			if (!trip) throw new Error(`Trip not found: ${input.tripId}`);
+			if (!trip.title.startsWith("E2E") && !trip.title.startsWith("CTMS")) {
+				throw new Error(`Refusing to auto-cancel non-E2E Trip: ${trip.id}`);
+			}
+			const autoCancelService = new TripAutoCancelService(
+				dataSource,
+				new TripsRepository(Trip, dataSource.createEntityManager())
+			);
+			const result = await autoCancelService.evaluateTrip(input.tripId);
+			console.log(JSON.stringify({ id: trip.id, result }));
 		} else if (action === "clean-bookings") {
 			const input = parseJsonArg<{ tripIds: string[] }>(arg);
 			if (input.tripIds.length > 0) {
