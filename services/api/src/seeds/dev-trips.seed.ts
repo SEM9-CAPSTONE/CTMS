@@ -1003,6 +1003,16 @@ export async function seedDevTrips(): Promise<void> {
 			}
 		}
 
+		// Ensure completed demo trips (e.g. Trekking Sơn Trà Hoàn Thành - Demo Khiếu Nại) have cover images
+		await dataSource.query(`
+			UPDATE "trips"
+			SET "cover_image_url" = COALESCE("cover_image_url", 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80')
+			WHERE "title" ILIKE '%Khiếu Nại%' OR "id" IN (
+				'01e326fb-b463-4e36-88aa-265320888f4e',
+				'476e6c30-2e43-4db4-863f-e593be61939b'
+			)
+		`);
+
 		console.log("[seed:dev-trips] Seeding completed successfully!");
 	} catch (error) {
 		console.error("[seed:dev-trips] Error seeding trips:", error);
