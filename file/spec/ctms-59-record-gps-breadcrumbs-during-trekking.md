@@ -119,7 +119,10 @@ No fabricated fresh coordinate from stale sample.
 
 Local persistence first.
 
-Server synchronization belongs to CTMS-064/065.
+Device-side buffering and retry belong to CTMS-064/065. The server-side acceptance endpoint was delivered under CTMS-059-T01 (see Section 13):
+
+- `GET /api/trips/:tripId/gps-tracking/context` (Camper/Porter): whether the caller may record breadcrumbs now (BR-237), with the fixed sampling/logging intervals (BR-368/396) and the tracking config version.
+- `POST /api/trips/:tripId/gps-logs` (Camper/Porter): synchronizes up to 100 captured logs; each log gets its own `accepted` / `duplicate` / `rejected` outcome (BR-244).
 
 ## 10. Error & Edge Cases
 
@@ -148,3 +151,42 @@ Server synchronization belongs to CTMS-064/065.
 ## 12. Open Decisions
 
 Background-location OS permissions and power-management implementation belong to Technical Design.
+
+Pending Decisions (raised during CTMS-059-T01, not resolved by any PB/BR value):
+
+- **Server-side retention period for `gps_logs`.** The Jira task asks to "enforce approved retention", but no retention period has been approved. Rows are kept indefinitely and are append-only (no update/delete path) until a period is decided.
+- **Trip `ongoing` transition.** `TripStatus.ONGOING` exists but no flow moves a Trip into it yet, so live tracking eligibility (BR-237) cannot become true outside seeded data until the Trip start transition is implemented.
+- **Authoritative Porter Assignment.** CTMS-047 `porter_assignments` does not exist yet; Porter eligibility reads the legacy `trip_porters.status = assigned` behind a replaceable source.
+
+## 13. Implementation Record
+
+CTMS-059-T01 (Jira CTMS-309) — system-side Preparation + Logic.
+
+- **New `gps-tracking` API module** with migration `1787200000000-CreateGpsLogsTable` creating `gps_logs`: client UUID as primary key, `trip_id`, `user_id`, `participant_role`, `event_time` (timestamptz, BR-188), PostGIS `location`, `accuracy_meters`, optional `altitude_meters` / `battery_level`, optional `package_version`, required `config_version`, and server `received_at`. Ownership is user + Trip; no device column (BR-237, Section 8). Check constraints guard accuracy ≥ 0 and battery 0–100.
+- **Fixed V3 intervals are code constants, not configuration** (BR-368/396 say they must not be changeable): sampling 10 s, logging 30 s, config version `v3`, exposed through the tracking-context endpoint.
+- **Scope pulled forward from CTMS-065 (approved by the user before implementation):** the Jira task requires the system to "accept synchronized breadcrumb records with stable identity … without creating duplicates", which this spec's Section 2 had placed in CTMS-065. The idempotent acceptance endpoint is implemented here; client buffering/retry remains in CTMS-064/065.
+- **Idempotency (BR-244):** one `INSERT … ON CONFLICT (id) DO NOTHING RETURNING id` per batch, so retried and concurrent uploads of the same UUID never create a second row. A UUID already stored for the same user + Trip is reported `duplicate`; a UUID owned by another user/Trip is `rejected` with `ID_CONFLICT` and the original row is never overwritten.
+- **No fabricated coordinates (BR-396, Section 8):** the server stores exactly the submitted sample; latitude/longitude/accuracy are required and range-checked, and `event_time` is the device capture time (never the upload or boundary time), so a stale sample cannot be represented as fresh.
+- **Synced vs local data (BR-226):** `received_at` records server acceptance; per-log outcomes let the client mark each item synced or rejected.
+
+Judgment calls (spec silent; chosen by the user/agent and recorded here):
+
+- **Live eligibility vs late synchronization.** The context endpoint applies BR-237 literally (Trip `ongoing` + Camper `joined` or Porter `assigned`). Synchronization must also accept logs captured offline and uploaded after the Trip ended, so a log is accepted when the Trip is `ongoing` or `completed` and its `event_time` falls inside the caller's participation window: scheduled `starts_at`–`ends_at`, narrowed for a Camper to after `checked_in_at` and, if they `left`, before `left_at`. Camper statuses `registered`, `no_show`, `removed` and unassigned Porters are rejected (`PARTICIPATION_NOT_ELIGIBLE`).
+- **Participation source.** A Camper counts only through a Booking in `confirmed` or `completed` status. A user who is not a Camper member or Porter of the Trip at all gets `403`; an unknown Trip `404`. A user linked both ways is treated in whichever capacity currently allows tracking.
+- **Batch handling.** Malformed payloads (missing/out-of-range coordinates, timestamp without offset, non-UUID id, more than 100 logs) are rejected as a whole with `422`; business rejections are per log so one bad log never blocks the rest of a client buffer.
+
+## 14. Test Evidence
+
+- Unit: `gps-tracking.service.spec.ts` (23) + `dto/create-gps-logs.dto.spec.ts` (11) = 34 new tests covering valid and violation paths of BR-237, BR-244, BR-368/396 and BR-188 — `pnpm --filter @ctms/api test` -> 1136/1136 passed (97/97 suites).
+- Integration (`test/gps-tracking.integration-spec.ts`, real Postgres, no mocking), 23 passed: tracking context for joined/registered Camper, assigned/unassigned Porter, non-ongoing Trips, outsider (403), Host role (403), unknown Trip (404); persistence of exact time/coordinates/context; retry duplicate; **5 concurrent uploads of one UUID store exactly one row**; foreign UUID reuse rejected without overwrite; late sync for a completed Trip; rejections for never-started Trip, non-joined Camper, unassigned Porter, out-of-window sample; per-log outcomes in a mixed batch; 422 with nothing stored for a missing coordinate or offset-less timestamp.
+- Full integration suite re-run with the new table and endpoints: `pnpm --filter @ctms/api test:integration` -> 327/327 passed (35/35 suites), no regression in other modules.
+- `pnpm --filter @ctms/api build` and `pnpm --filter @ctms/api lint` both pass clean.
+- Backend-only task: no UI, so no screenshots.
+
+### Logic Subtask DoD
+
+- [x] Logic implementation completed.
+- [x] Applicable business rules and invariants implemented.
+- [x] Task-specific unit tests added or updated.
+- [x] Task-specific unit tests passed.
+- [x] Applicable backend or integration tests passed.
