@@ -124,9 +124,6 @@ export interface CancelTripWithCommitmentsOptions {
 	/** Prefix for the per-Booking refund idempotency key; keeps CTMS-036's auto-cancel
 	 *  refund obligations distinguishable from CTMS-027's host-cancel ones. */
 	refundIdempotencyPrefix?: string;
-	/** Stored as the refund payment's `provider_reference`, mirroring the existing
-	 *  host-cancel call's own "trip_cancelled_by_host" value. */
-	refundReason?: string;
 }
 
 export interface PendingReviewDeadlineCandidate {
@@ -1007,8 +1004,7 @@ export class TripsRepository extends Repository<Trip> {
 			equipmentRefundsCreated += await this.createIdempotentRefund(
 				reservation.bookingId,
 				reservation.totalPrice,
-				`ctms-027:reschedule:${tripId}:equipment:${reservation.bookingItemId}`,
-				"reschedule_equipment_unavailable"
+				`ctms-027:reschedule:${tripId}:equipment:${reservation.bookingItemId}`
 			);
 		}
 
@@ -1028,7 +1024,6 @@ export class TripsRepository extends Repository<Trip> {
 		options?: CancelTripWithCommitmentsOptions
 	): Promise<TripCancellationCommitmentSummary> {
 		const refundIdempotencyPrefix = options?.refundIdempotencyPrefix ?? "ctms-027";
-		const refundReason = options?.refundReason ?? "trip_cancelled_by_host";
 		await this.query(
 			`
 			UPDATE "trips"
@@ -1096,8 +1091,7 @@ export class TripsRepository extends Repository<Trip> {
 				bookingRefundsCreated += await this.createIdempotentRefund(
 					booking.id,
 					booking.totalAmount,
-					`${refundIdempotencyPrefix}:trip-cancel:${tripId}:booking:${booking.id}`,
-					refundReason
+					`${refundIdempotencyPrefix}:trip-cancel:${tripId}:booking:${booking.id}`
 				);
 			}
 		}
@@ -1186,9 +1180,17 @@ export class TripsRepository extends Repository<Trip> {
 	private async createIdempotentRefund(
 		bookingId: string,
 		amount: string,
-		idempotencyKey: string,
-		reason: string
+		idempotencyKey: string
 	): Promise<number> {
+		// `provider_reference` holds a REAL payment-provider transaction reference
+		// (e.g. the bank transfer code an Admin enters when confirming a manual
+		// refund, see RefundsService.confirmManualTransfer) -- it must stay NULL
+		// here since creating this `pending` obligation does not itself involve
+		// any provider transaction yet. Pre-existing bug fixed while on CTMS-179:
+		// this previously stored the cancellation reason string in this column
+		// (confirmed via `git log -S` to predate this story, introduced by
+		// CTMS-027's 22c2d06), which rendered as a fake "Mã giao dịch đối soát"
+		// in the Camper-facing refund history UI.
 		const rows = (await this.query(
 			`
 			WITH parent_charge AS (
@@ -1208,8 +1210,7 @@ export class TripsRepository extends Repository<Trip> {
 					"status",
 					"idempotency_key",
 					"request_fingerprint",
-					"parent_payment_id",
-					"provider_reference"
+					"parent_payment_id"
 				)
 				SELECT
 					$1,
@@ -1218,8 +1219,7 @@ export class TripsRepository extends Repository<Trip> {
 					'pending',
 					$3::text,
 					substr(md5($3::text || ':' || $2::text) || md5($2::text || ':' || $3::text), 1, 64),
-					parent_charge."id",
-					$4
+					parent_charge."id"
 				FROM parent_charge
 				WHERE $2::numeric > 0
 				ON CONFLICT ("booking_id", "idempotency_key")
@@ -1229,7 +1229,7 @@ export class TripsRepository extends Repository<Trip> {
 			)
 			SELECT COUNT(*)::int AS "createdCount" FROM inserted
 			`,
-			[bookingId, amount, idempotencyKey, reason]
+			[bookingId, amount, idempotencyKey]
 		)) as Array<{ createdCount: number | string }>;
 
 		return Number(rows[0]?.createdCount ?? 0);

@@ -84,7 +84,7 @@ export class TripAutoCancelService {
 				tripId,
 				evaluatedAt,
 				AUTO_CANCEL_REASON,
-				{ refundIdempotencyPrefix: REFUND_IDEMPOTENCY_PREFIX, refundReason: AUTO_CANCEL_REASON }
+				{ refundIdempotencyPrefix: REFUND_IDEMPOTENCY_PREFIX }
 			);
 
 			await manager.getRepository(AuditLog).save({
