@@ -90,6 +90,26 @@ export function formatWaypointType(type: string): string {
 	}
 }
 
+function formatRiskFactorLabel(key: string, label: string): string {
+	const labels: Record<string, string> = {
+		rainfall: "Lượng mưa",
+		wind: "Gió",
+		temperature: "Nhiệt độ",
+		visibility: "Tầm nhìn",
+		thunderstorm: "Dông sét",
+	};
+	return labels[key] ?? label;
+}
+
+function formatRiskFactorValue(key: string, value: number | boolean): string {
+	if (typeof value === "boolean") return value ? "Có" : "Không";
+	if (key === "temperature") return `${value}°C`;
+	if (key === "wind") return `${value} km/h`;
+	if (key === "visibility") return `${value} m`;
+	if (key === "rainfall") return `${value} mm`;
+	return String(value);
+}
+
 export function TripDetailView({
 	trip,
 	onBook,
@@ -225,8 +245,18 @@ export function TripDetailView({
 
 	const currentTotalAmount =
 		bookingTotalAmount ?? booking?.totalAmount ?? booking?.basePrice ?? "0.00";
+	const registrationRisk = trip.registrationRisk ?? {
+		status: "unavailable" as const,
+		assessmentId: null,
+		level: null,
+		assessedAt: null,
+		ruleVersionId: null,
+		factors: [],
+		advice: null,
+		recommendations: [],
+	};
 	const difficulty = getDifficultyBadge(trip.difficulty ?? null);
-	const weather = getWeatherRiskBadge(trip.weatherRiskLevel ?? null);
+	const weather = getWeatherRiskBadge(registrationRisk.level ?? trip.weatherRiskLevel ?? null);
 	const WeatherIcon = weather.icon;
 	const isBookingClosed = new Date(trip.bookingDeadline) <= new Date();
 	const confirmedRoster = useMemo<InitializeBookingMembersResponse | null>(() => {
@@ -259,6 +289,11 @@ export function TripDetailView({
 			(a, b) => new Date(a.plannedAt ?? 0).getTime() - new Date(b.plannedAt ?? 0).getTime()
 		);
 	}, [trip.waypoints]);
+
+	const visibleRiskFactors = useMemo(() => {
+		const elevated = registrationRisk.factors.filter((factor) => factor.level !== "green");
+		return (elevated.length > 0 ? elevated : registrationRisk.factors).slice(0, 3);
+	}, [registrationRisk.factors]);
 
 	const includesList = useMemo<string[]>(() => {
 		if (!trip.includes) return [];
@@ -467,24 +502,79 @@ export function TripDetailView({
 					)}
 
 					{/* Weather Risk Notice */}
-					{trip.weatherRiskLevel && trip.weatherRiskLevel !== "green" && (
+					{registrationRisk.status === "unavailable" ? (
 						<div
-							className={`flex items-start gap-3 rounded-2xl border p-4 text-xs font-medium ${
-								trip.weatherRiskLevel === "red"
-									? "border-rose-200 bg-rose-50 text-rose-800"
-									: "border-amber-200 bg-amber-50 text-amber-800"
-							}`}
+							data-testid="registration-risk-unavailable"
+							className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs font-medium text-slate-700"
 						>
 							<ShieldAlert className="size-5 shrink-0" />
 							<div>
-								<p className="font-extrabold">Lưu ý an toàn thời tiết:</p>
+								<p className="font-extrabold">Chưa có đánh giá rủi ro thời tiết</p>
 								<p className="mt-0.5">
-									Khu vực tuyến đường này hiện có mức độ rủi ro thời tiết{" "}
-									<strong>{weather.label}</strong>. Hãy trang bị đầy đủ áo mưa, đồ ấm và tuân thủ
-									tuyệt đối chỉ dẫn của Hướng dẫn viên trong suốt chuyến đi.
+									Hệ thống chưa ghi nhận đánh giá có thẩm quyền cho tuyến đường của chuyến đi này.
+									Thông tin này không được xem là mức an toàn mặc định.
 								</p>
 							</div>
 						</div>
+					) : (
+						<section
+							data-testid="registration-risk-panel"
+							className={`rounded-2xl border p-4 text-xs ${
+								registrationRisk.level === "red"
+									? "border-rose-200 bg-rose-50 text-rose-900"
+									: registrationRisk.level === "yellow"
+										? "border-amber-200 bg-amber-50 text-amber-900"
+										: "border-emerald-200 bg-emerald-50 text-emerald-900"
+							}`}
+						>
+							<div className="flex items-start gap-3">
+								<ShieldAlert className="size-5 shrink-0" />
+								<div className="min-w-0 flex-1">
+									<div className="flex flex-wrap items-center gap-2">
+										<span
+											className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-bold ${weather.className}`}
+										>
+											<WeatherIcon className="size-3" />
+											{weather.label}
+										</span>
+									</div>
+									<p className="mt-1 leading-relaxed">
+										Đánh giá lúc {formatDateTime(registrationRisk.assessedAt)}{" "}
+									</p>
+									{registrationRisk.advice && (
+										<p className="mt-2 leading-relaxed">{registrationRisk.advice}</p>
+									)}
+								</div>
+							</div>
+
+							{visibleRiskFactors.length > 0 && (
+								<div className="mt-3 grid gap-2 sm:grid-cols-3">
+									{visibleRiskFactors.map((factor) => (
+										<div
+											key={factor.key}
+											className="rounded-xl border border-white/70 bg-white/65 p-2"
+										>
+											<p className="font-bold">{formatRiskFactorLabel(factor.key, factor.label)}</p>
+											<p className="mt-0.5 text-[11px] opacity-80">
+												{formatRiskFactorValue(factor.key, factor.value)} · điểm {factor.score} · hệ
+												số {factor.weight.toFixed(2)}
+											</p>
+										</div>
+									))}
+								</div>
+							)}
+
+							{registrationRisk.recommendations.length > 0 && (
+								<ul className="mt-3 space-y-1">
+									{registrationRisk.recommendations.slice(0, 3).map((item) => (
+										<li key={item} className="flex items-start gap-2">
+											<Check className="mt-0.5 size-3.5 shrink-0" />
+											<span>{item}</span>
+										</li>
+									))}
+								</ul>
+							)}
+						</section>
 					)}
 
 					{/* Waypoints / Itinerary Timeline */}

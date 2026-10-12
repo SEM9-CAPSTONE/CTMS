@@ -129,6 +129,26 @@ export type TrekkingRouteDifficulty = "easy" | "moderate" | "hard" | "expert";
 
 export type RiskLevel = "green" | "yellow" | "red";
 
+export interface TripRegistrationRiskFactor {
+	key: string;
+	label: string;
+	value: number | boolean;
+	level: RiskLevel;
+	weight: number;
+	score: number;
+}
+
+export interface TripRegistrationRisk {
+	status: "available" | "unavailable";
+	assessmentId: string | null;
+	level: RiskLevel | null;
+	assessedAt: string | null;
+	ruleVersionId: string | null;
+	factors: TripRegistrationRiskFactor[];
+	advice: string | null;
+	recommendations: string[];
+}
+
 export interface SearchTripsQuery {
 	search?: string;
 	tripType?: TripType;
@@ -242,6 +262,7 @@ export interface TripDetails {
 	status: TripStatus;
 	difficulty?: TrekkingRouteDifficulty | null;
 	weatherRiskLevel?: RiskLevel | null;
+	registrationRisk?: TripRegistrationRisk;
 	isBookable: boolean;
 	createdAt: string;
 	updatedAt: string;

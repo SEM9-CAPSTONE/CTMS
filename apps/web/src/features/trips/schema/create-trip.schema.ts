@@ -143,6 +143,21 @@ export const createCreateTripFormSchema = () =>
 			if (bookingDeadline && startsAt && bookingDeadline >= startsAt) {
 				addTimeError("bookingDeadline", "Hạn đặt chỗ phải trước thời gian bắt đầu");
 			}
+
+			const capacityMin = Number(values.capacityMin);
+			const capacityMax = values.capacityMax ? Number(values.capacityMax) : null;
+			if (
+				Number.isFinite(capacityMin) &&
+				capacityMax !== null &&
+				Number.isFinite(capacityMax) &&
+				capacityMin > capacityMax
+			) {
+				context.addIssue({
+					code: z.ZodIssueCode.custom,
+					path: ["capacityMin"],
+					message: "Số khách tối thiểu không được lớn hơn số khách tối đa",
+				});
+			}
 		});
 
 export const createTripFormSchema = createCreateTripFormSchema();

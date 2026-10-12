@@ -401,7 +401,7 @@ export function SoftDateTimeRangePicker({
 					<CalendarDays className="size-4 shrink-0 text-[#607368]" />
 				</button>
 			</div>
-			{(startError || endError) && (
+			{!isOpen && (startError || endError) && (
 				<div className="mt-1 space-y-0.5 text-xs font-semibold text-red-600">
 					{startError && <p>{startError}</p>}
 					{endError && <p>{endError}</p>}
@@ -496,7 +496,7 @@ export function SoftSingleDateTimePicker({
 	const popoverRef = useRef<HTMLDivElement | null>(null);
 	const dialogRef = useRef<HTMLDivElement | null>(null);
 	const rangeError = getDateTimeRangeError(value, minValue, maxValue);
-	const displayedError = rangeError || error;
+	const displayedError = error || rangeError;
 	useEffect(() => {
 		if (!isOpen) return;
 		const handlePointerDown = (event: PointerEvent) => {
