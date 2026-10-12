@@ -102,6 +102,16 @@ function createdTrip() {
 		pricePerPerson: 100000,
 		cancellationPolicy: { refundWindowHours: 48 },
 		status: TripStatus.DRAFT,
+		registrationRisk: {
+			status: "unavailable" as const,
+			assessmentId: null,
+			level: null,
+			assessedAt: null,
+			ruleVersionId: null,
+			factors: [],
+			advice: null,
+			recommendations: [],
+		},
 		createdAt: new Date("2026-09-15T00:00:00.000Z"),
 		updatedAt: new Date("2026-09-15T00:00:00.000Z"),
 		waypoints: [],
@@ -1124,6 +1134,25 @@ describe("TripsService", () => {
 				status: TripStatus.PUBLISHED,
 				difficulty: TrekkingRouteDifficulty.MODERATE,
 				weatherRiskLevel: RiskLevel.GREEN,
+				registrationRisk: {
+					status: "available" as const,
+					assessmentId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+					level: RiskLevel.GREEN,
+					assessedAt: new Date("2026-09-15T03:00:00.000Z"),
+					ruleVersionId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+					factors: [
+						{
+							key: "rainfall",
+							label: "Rainfall",
+							value: 4,
+							level: RiskLevel.GREEN,
+							weight: 0.3,
+							score: 0,
+						},
+					],
+					advice: "Conditions are suitable for registration.",
+					recommendations: ["Carry rain gear"],
+				},
 				remainingSeats: 12,
 				isBookable: true,
 			};
@@ -1136,7 +1165,39 @@ describe("TripsService", () => {
 			expect(result.status).toBe(TripStatus.PUBLISHED);
 			expect(result.difficulty).toBe(TrekkingRouteDifficulty.MODERATE);
 			expect(result.weatherRiskLevel).toBe(RiskLevel.GREEN);
+			expect(result.registrationRisk).toMatchObject({
+				status: "available",
+				level: RiskLevel.GREEN,
+				assessmentId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+			});
+			expect(result.registrationRisk.factors).toHaveLength(1);
 			expect(result.isBookable).toBe(true);
+			expect(result.routeId).toBeUndefined();
+		});
+
+		it("returns an explicit unavailable risk state instead of fabricating a safe level", async () => {
+			const publishedTrip = {
+				...createdTrip(),
+				status: TripStatus.PUBLISHED,
+				weatherRiskLevel: null,
+				remainingSeats: 12,
+				isBookable: true,
+			};
+			tripsRepository.findById.mockResolvedValue(publishedTrip);
+
+			const result = await service.getTripDetails(CAMPER_ACTOR, TRIP_ID);
+
+			expect(result.weatherRiskLevel).toBeNull();
+			expect(result.registrationRisk).toEqual({
+				status: "unavailable",
+				assessmentId: null,
+				level: null,
+				assessedAt: null,
+				ruleVersionId: null,
+				factors: [],
+				advice: null,
+				recommendations: [],
+			});
 			expect(result.routeId).toBeUndefined();
 		});
 

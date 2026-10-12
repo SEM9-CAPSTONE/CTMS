@@ -7,6 +7,7 @@ import {
 import type { RiskLevel } from "../../weather/entities/weather-risk-assessment.entity";
 import type { PorterAssignedTripResponseDto } from "../dto/porter-assigned-trip-response.dto";
 import type {
+	TripRegistrationRiskResponseDto,
 	TripResponseDto,
 	TripSummaryResponseDto,
 	TripWaypointResponseDto,
@@ -193,6 +194,7 @@ interface TripSummaryRow {
 	difficulty: TrekkingRouteDifficulty | null;
 	routeStatus: TrekkingRouteStatus | null;
 	weatherRiskLevel: RiskLevel | null;
+	registrationRisk?: TripRegistrationRiskResponseDto | null;
 }
 
 interface TripRow extends TripSummaryRow {
@@ -297,6 +299,16 @@ function toTripSummaryResponse(row: TripSummaryRow): TripSummaryResponseDto {
 function toTripResponse(row: TripRow): TripResponseDto {
 	const capacityMax = row.capacityMax == null ? null : Number(row.capacityMax);
 	const seatsTaken = Number(row.seatsTaken);
+	const registrationRisk = row.registrationRisk ?? {
+		status: "unavailable" as const,
+		assessmentId: null,
+		level: null,
+		assessedAt: null,
+		ruleVersionId: null,
+		factors: [],
+		advice: null,
+		recommendations: [],
+	};
 	return {
 		id: row.id,
 		hostId: row.hostId,
@@ -324,6 +336,7 @@ function toTripResponse(row: TripRow): TripResponseDto {
 		status: row.status,
 		difficulty: row.difficulty ?? null,
 		weatherRiskLevel: row.weatherRiskLevel ?? null,
+		registrationRisk,
 		isBookable: computeIsBookable(
 			row.status,
 			row.routeStatus,
@@ -377,13 +390,29 @@ const TRIP_SELECT = `
 		trip."updated_at" AS "updatedAt",
 		route."difficulty" AS "difficulty",
 		route."status" AS "routeStatus",
-		(
-			SELECT wra."risk_level"
-			FROM "weather_risk_assessments" wra
-			WHERE wra."route_id" = trip."route_id"
-			ORDER BY wra."created_at" DESC
-			LIMIT 1
-		) AS "weatherRiskLevel",
+		risk."riskLevel" AS "weatherRiskLevel",
+		CASE
+			WHEN risk."assessmentId" IS NULL THEN jsonb_build_object(
+				'status', 'unavailable',
+				'assessmentId', NULL,
+				'level', NULL,
+				'assessedAt', NULL,
+				'ruleVersionId', NULL,
+				'factors', '[]'::jsonb,
+				'advice', NULL,
+				'recommendations', '[]'::jsonb
+			)
+			ELSE jsonb_build_object(
+				'status', 'available',
+				'assessmentId', risk."assessmentId",
+				'level', risk."riskLevel",
+				'assessedAt', risk."assessedAt",
+				'ruleVersionId', risk."ruleVersionId",
+				'factors', risk."factors",
+				'advice', advice."adviceText",
+				'recommendations', COALESCE(advice."actions", '[]'::jsonb)
+			)
+		END AS "registrationRisk",
 		COALESCE((
 			SELECT jsonb_agg(
 				jsonb_build_object(
@@ -407,6 +436,66 @@ const TRIP_SELECT = `
 	FROM "trips" trip
 	LEFT JOIN "trekking_routes" route ON route."id" = trip."route_id"
 	LEFT JOIN "users" u ON u."id" = trip."host_id"
+	LEFT JOIN LATERAL (
+		SELECT
+			wra."id" AS "assessmentId",
+			wra."risk_level" AS "riskLevel",
+			wra."created_at" AS "assessedAt",
+			wra."rule_version_id" AS "ruleVersionId",
+			jsonb_build_array(
+				jsonb_build_object(
+					'key', 'rainfall',
+					'label', 'Rainfall',
+					'value', wra."criteria_scores"->'rainfall'->'value',
+					'level', wra."criteria_scores"->'rainfall'->'level',
+					'weight', wra."criteria_scores"->'rainfall'->'weight',
+					'score', wra."criteria_scores"->'rainfall'->'score'
+				),
+				jsonb_build_object(
+					'key', 'wind',
+					'label', 'Wind',
+					'value', wra."criteria_scores"->'wind'->'value',
+					'level', wra."criteria_scores"->'wind'->'level',
+					'weight', wra."criteria_scores"->'wind'->'weight',
+					'score', wra."criteria_scores"->'wind'->'score'
+				),
+				jsonb_build_object(
+					'key', 'temperature',
+					'label', 'Temperature',
+					'value', wra."criteria_scores"->'temperature'->'value',
+					'level', wra."criteria_scores"->'temperature'->'level',
+					'weight', wra."criteria_scores"->'temperature'->'weight',
+					'score', wra."criteria_scores"->'temperature'->'score'
+				),
+				jsonb_build_object(
+					'key', 'visibility',
+					'label', 'Visibility',
+					'value', wra."criteria_scores"->'visibility'->'value',
+					'level', wra."criteria_scores"->'visibility'->'level',
+					'weight', wra."criteria_scores"->'visibility'->'weight',
+					'score', wra."criteria_scores"->'visibility'->'score'
+				),
+				jsonb_build_object(
+					'key', 'thunderstorm',
+					'label', 'Thunderstorm',
+					'value', wra."criteria_scores"->'thunderstorm'->'value',
+					'level', wra."criteria_scores"->'thunderstorm'->'level',
+					'weight', wra."criteria_scores"->'thunderstorm'->'weight',
+					'score', wra."criteria_scores"->'thunderstorm'->'score'
+				)
+			) AS "factors"
+		FROM "weather_risk_assessments" wra
+		WHERE wra."route_id" = trip."route_id"
+		ORDER BY wra."created_at" DESC, wra."id" DESC
+		LIMIT 1
+	) risk ON TRUE
+	LEFT JOIN LATERAL (
+		SELECT wa."advice_text" AS "adviceText", wa."actions"
+		FROM "weather_advice" wa
+		WHERE wa."assessment_id" = risk."assessmentId"
+		ORDER BY wa."created_at" DESC
+		LIMIT 1
+	) advice ON TRUE
 `;
 
 @Injectable()
