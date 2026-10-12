@@ -91,6 +91,8 @@ const mockTrip: TripDetails = {
 	pricePerPerson: 1850000,
 	cancellationPolicy: null,
 	status: "published",
+	cancellationReason: null,
+	cancelledAt: null,
 	difficulty: "moderate",
 	weatherRiskLevel: "green",
 	registrationRisk: {

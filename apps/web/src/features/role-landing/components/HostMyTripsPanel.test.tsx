@@ -33,6 +33,8 @@ const sampleTrip1: TripDetails = {
 	pricePerPerson: 550000,
 	cancellationPolicy: null,
 	status: "published",
+	cancellationReason: null,
+	cancelledAt: null,
 	difficulty: "moderate",
 	weatherRiskLevel: "green",
 	isBookable: true,

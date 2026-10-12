@@ -36,6 +36,8 @@ const mockTripDetails: TripDetails = {
 	pricePerPerson: 1850000,
 	cancellationPolicy: { policy: "Hủy trước 5 ngày hoàn 80%" },
 	status: "published",
+	cancellationReason: null,
+	cancelledAt: null,
 	difficulty: "moderate",
 	weatherRiskLevel: "yellow",
 	registrationRisk: {

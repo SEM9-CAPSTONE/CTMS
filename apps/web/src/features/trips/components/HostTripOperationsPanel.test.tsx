@@ -27,6 +27,8 @@ const trip: TripDetails = {
 	pricePerPerson: 100000,
 	cancellationPolicy: null,
 	status: "published",
+	cancellationReason: null,
+	cancelledAt: null,
 	difficulty: "moderate",
 	weatherRiskLevel: "green",
 	isBookable: true,

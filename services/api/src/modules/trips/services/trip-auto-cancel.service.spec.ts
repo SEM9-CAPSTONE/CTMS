@@ -100,10 +100,7 @@ describe("TripAutoCancelService", () => {
 			TRIP_ID,
 			NOW,
 			"insufficient_participants_after_deadline",
-			{
-				refundIdempotencyPrefix: "ctms-036",
-				refundReason: "insufficient_participants_after_deadline",
-			}
+			{ refundIdempotencyPrefix: "ctms-036" }
 		);
 		expect(auditRepository.save).toHaveBeenCalledWith(
 			expect.objectContaining({

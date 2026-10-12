@@ -187,3 +187,42 @@ None beyond the authoritative Booking/refund/equipment policies.
 - [x] Task-specific unit tests added or updated.
 - [x] Task-specific unit tests passed.
 - [x] Applicable backend or integration tests passed.
+
+## 15. CTMS-179 (UI) Implementation Record
+
+CTMS-36-T02 -- makes the Camper/Host-facing UI reflect a Trip the CTMS-036 worker (above) auto-cancelled, instead of silently showing stale "still open" state or mislabeling the resulting refund.
+
+**Scope delivered (3 fixes, matching the approved plan):**
+
+1. **`TripResponseDto`/`TripsRepository` expose `cancellationReason`/`cancelledAt`** (detail DTO only, not the list/summary DTO) so the frontend can distinguish "why" a Trip is cancelled, not just that it is.
+2. **Fixed a refund **origin-mislabeling** bug in `RefundsService.getBookingRefundInfo`**: it checked `booking.status === CANCELLED` (-> always `CAMPER_CANCELLATION`) before ever checking whether the *Trip* was cancelled. Since `cancelTripWithCommitments` always cancels the Booking as a side effect of cancelling the Trip (shared by CTMS-027's Host-cancel and CTMS-036's auto-cancel), every Trip-cancellation-caused refund was being mislabeled as the Camper's own cancellation. Fixed by checking `trip.status === CANCELLED` first, branching to `SYSTEM_TRIP_CANCELLATION` (when `trip.cancellationReason === AUTO_CANCEL_REASON`) or `HOST_TRIP_CANCELLATION` (any other reason), and falling back to `CAMPER_CANCELLATION` only when the Trip itself was not cancelled.
+3. **Removed a stale, contradictory line from `BookingCancellationPanel`'s already-cancelled-Booking message** ("Thông tin hoàn tiền không có trong dữ liệu chi tiết hiện tại.") -- `BookingRefundPanel`, rendered on the same page, already shows accurate live refund data, so the old line was actively misleading.
+
+**Judgment calls surfaced while verifying end-to-end (both raised with and resolved by the user/product owner before implementing):**
+
+- **A Camper cannot load `GET /trips/:id` for a cancelled Trip at all**, regardless of this story: `trips.service.ts`'s `getTripDetails` throws 404 for any non-`published` Trip unless the caller is the owning Host or an Admin (`BR-073`/`BR-075`, from CTMS-023/024, with its own dedicated unit tests -- confirmed deliberate, not a bug). This means the new `TripCapacityBanner` "cancelled" state (item 1 above) is only ever reachable by the owning Host or an Admin, never by the Camper whose Booking was affected.
+  - **Resolved:** out of scope to change here -- the Camper-facing requirement (seeing their own payment/refund amount to request or verify a refund) is already fully satisfied by the Booking Details page (`BookingRefundPanel`), which does not call `GET /trips/:id` at all and is unaffected by this gate. Confirmed against product intent: the Camper does not need the Trip detail page itself, only their own booking/refund figures.
+  - E2E coverage therefore verifies the Trip-detail banner as the **Host**, and the Camper-facing surface via the **Booking Details page**.
+- **Pre-existing bug found and fixed (out of this story's original scope, approved before fixing):** `TripsRepository.createIdempotentRefund` stored the refund's internal `reason` string (e.g. `insufficient_participants_after_deadline`, or a Host's free-text cancellation reason) directly in the `payments.provider_reference` column -- a column reserved for a REAL payment-provider transaction reference (e.g. the bank transfer code an Admin enters when confirming a manual refund). This rendered as a fake "Mã giao dịch đối soát: insufficient_participants_after_deadline" in the Camper-facing refund history UI, discovered via a real evidence screenshot while verifying this story. Confirmed pre-existing via `git log -S` (introduced by CTMS-027's `22c2d06`, not touched by CTMS-178 or this story until now) and confirmed it affects **both** CTMS-027 (Host-cancel) and CTMS-036 (auto-cancel), since both share `createIdempotentRefund`. Fixed by no longer writing anything into `provider_reference` at obligation-creation time (left `NULL`, matching the existing convention already used by the Camper-initiated refund path in `booking-cancellation.service.ts`); the now-fully-unused `refundReason`/`CancelTripWithCommitmentsOptions.refundReason` parameter was removed rather than left dead. `trip.cancellation_reason` (a separate, correctly-used column) is unaffected and still stores the real reason.
+
+## 16. CTMS-179 (UI) Test Evidence
+
+- Unit (backend): `trip-auto-cancel.service.spec.ts` updated for the `refundReason` option removal -- `pnpm --filter @ctms/api test` -> 1089/1089 passed (94/94 suites).
+- Integration (backend, real Postgres): `pnpm --filter @ctms/api test:integration` -> 299/299 passed (33/33 suites), including `trips.auto-cancel.integration-spec.ts`, `bookings.cancel.integration-spec.ts` and `bookings.refund.integration-spec.ts` re-verified clean after the `provider_reference` fix (no regression to CTMS-027/034/035).
+- `pnpm --filter @ctms/api build` and `pnpm --filter @ctms/api lint` both pass clean.
+- Frontend unit (Vitest): `apps/web` -> 1055/1060 passed. The 5 failures are in `CreateTripForm.test.tsx` (Create Trip feature, unrelated to this story -- file untouched by this branch, reproduces identically in isolation on `develop`), reported separately and explicitly out of scope here.
+- Frontend `pnpm build` and `pnpm lint` both pass clean.
+- **E2E (Playwright, real Postgres, no mocking)**: `apps/web/tests/e2e/ctms-36-t02-cancel-trip-insufficient-participants.spec.ts`, 3/3 passed:
+  1. Seeds a published Trip past its `booking_deadline` with `capacity_min: 3` and a single 1-person confirmed+paid Booking, drives the real `TripAutoCancelService.evaluateTrip` (not HTTP -- this is a background job, matching Section 9), and verifies the owning Host sees the "Chuyến đi đã bị hủy" banner with the known reason text.
+  2. Verifies the Camper's Booking Details page shows the corrected cancelled-booking message (no stale text) and a refund panel correctly attributed to `SYSTEM_TRIP_CANCELLATION` -- proven by the **absence** of the pre-Trip "Khung thời gian yêu cầu" window box, which `RefundsService.getBookingRefundInfo` only populates for `CAMPER_CANCELLATION`.
+  3. Verifies the DB directly: Booking `cancelled`, refund obligation `pending` with idempotency key prefixed `ctms-036:trip-cancel:`.
+- Real screenshots captured via a temporary Playwright script (deleted immediately after use, not committed) confirming both the Host-viewed Trip detail banner and the Camper-viewed Booking Details refund panel render correctly; the screenshot review is what surfaced the `provider_reference` bug above.
+
+### UI Subtask DoD
+
+- [x] UI implementation completed per approved plan.
+- [x] Judgment calls and scope gaps found during implementation raised with and resolved by the user before proceeding.
+- [x] Task-specific unit tests added/updated and passed (backend + frontend).
+- [x] Real E2E test (Playwright, real Postgres) added and passed.
+- [x] Real evidence screenshots captured and reviewed (not committed, per repo convention).
+- [x] Pre-existing bug found during verification (`provider_reference` mislabeling) fixed with full git evidence and test coverage.
