@@ -1,5 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const runsMockedCtms26Only = process.argv.some((arg) => /ctms-26/i.test(arg));
+
 export default defineConfig({
 	testDir: "./tests/e2e",
 	fullyParallel: false,
@@ -17,13 +19,17 @@ export default defineConfig({
 		},
 	],
 	webServer: [
-		{
-			command: "node node_modules/ts-node/dist/bin.js src/main.ts",
-			cwd: "../../services/api",
-			url: "http://localhost:3000/api/docs",
-			reuseExistingServer: !process.env.CI,
-			timeout: 120_000,
-		},
+		...(runsMockedCtms26Only
+			? []
+			: [
+					{
+						command: "node node_modules/ts-node/dist/bin.js src/main.ts",
+						cwd: "../../services/api",
+						url: "http://localhost:3000/api/docs",
+						reuseExistingServer: !process.env.CI,
+						timeout: 120_000,
+					},
+				]),
 		{
 			command: "node node_modules/vite/bin/vite.js --host 0.0.0.0 --port 5174",
 			url: "http://localhost:5174",

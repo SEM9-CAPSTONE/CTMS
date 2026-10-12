@@ -125,6 +125,33 @@ const mockTripDetails: TripDetails = {
 	status: "published",
 	difficulty: "moderate",
 	weatherRiskLevel: "yellow",
+	registrationRisk: {
+		status: "available",
+		assessmentId: "risk-1",
+		level: "yellow",
+		assessedAt: "2026-09-25T00:00:00.000Z",
+		ruleVersionId: "rule-1",
+		factors: [
+			{
+				key: "rainfall",
+				label: "Rainfall",
+				value: 18,
+				level: "yellow",
+				weight: 0.3,
+				score: 1,
+			},
+			{
+				key: "wind",
+				label: "Wind",
+				value: 24,
+				level: "green",
+				weight: 0.25,
+				score: 0,
+			},
+		],
+		advice: "Nên mang áo mưa và theo dõi cập nhật thời tiết.",
+		recommendations: ["Mang áo mưa", "Theo sát hướng dẫn viên"],
+	},
 	isBookable: true,
 	createdAt: "2026-08-25T00:00:00.000Z",
 	updatedAt: "2026-08-25T00:00:00.000Z",
@@ -463,15 +490,63 @@ describe("TripDetailView", () => {
 	});
 
 	it("renders safety warning for red weather risk level", () => {
+		const registrationRisk = mockTripDetails.registrationRisk;
+		if (!registrationRisk || registrationRisk.status !== "available") {
+			throw new Error("Expected available registration risk fixture");
+		}
+
 		const redRiskTrip: TripDetails = {
 			...mockTripDetails,
 			weatherRiskLevel: "red",
+			registrationRisk: {
+				...registrationRisk,
+				level: "red",
+				factors: [
+					{
+						key: "thunderstorm",
+						label: "Thunderstorm",
+						value: true,
+						level: "red",
+						weight: 0.15,
+						score: 2,
+					},
+				],
+			},
 		};
 
 		render(<TripDetailView trip={redRiskTrip} />);
 
-		expect(screen.getByText("Lưu ý an toàn thời tiết:")).toBeInTheDocument();
+		expect(screen.getByTestId("registration-risk-panel")).toBeInTheDocument();
 		expect(screen.getAllByText("Cảnh báo rủi ro cao")[0]).toBeInTheDocument();
+		expect(screen.getByText("Dông sét")).toBeInTheDocument();
+	});
+
+	it("renders an unavailable risk state without presenting a fabricated safe result", () => {
+		render(
+			<TripDetailView
+				trip={{
+					...mockTripDetails,
+					weatherRiskLevel: null,
+					registrationRisk: {
+						status: "unavailable",
+						assessmentId: null,
+						level: null,
+						assessedAt: null,
+						ruleVersionId: null,
+						factors: [],
+						advice: null,
+						recommendations: [],
+					},
+				}}
+			/>
+		);
+
+		expect(screen.getByTestId("registration-risk-unavailable")).toHaveTextContent(
+			"Chưa có đánh giá rủi ro thời tiết"
+		);
+		expect(screen.getByTestId("registration-risk-unavailable")).toHaveTextContent(
+			"không được xem là mức an toàn mặc định"
+		);
 	});
 
 	it("renders gallery controls and switches images when multiple images exist", () => {
