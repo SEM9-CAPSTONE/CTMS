@@ -5,6 +5,7 @@ import { AuthModule } from "./auth/auth.module";
 import { BookingsModule } from "./bookings/bookings.module";
 import { ContentReportsModule } from "./content-reports/content-reports.module";
 import { EquipmentCatalogModule } from "./equipment-catalog/equipment-catalog.module";
+import { GpsTrackingModule } from "./gps-tracking/gps-tracking.module";
 import { HealthController } from "./health/health.controller";
 import { ProfilesModule } from "./profiles/profiles.module";
 import { RealtimeModule } from "./realtime/realtime.module";
@@ -24,6 +25,7 @@ import { WeatherModule } from "./weather/weather.module";
 		BookingsModule,
 		ContentReportsModule,
 		EquipmentCatalogModule,
+		GpsTrackingModule,
 		ProfilesModule,
 		RealtimeModule,
 		UsersModule,
