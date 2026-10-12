@@ -81,7 +81,12 @@ export function CreateCheckpointForm({
 					});
 					return;
 				}
-				const saved = await onSubmit(toCreateCheckpointInput({ ...values, location }));
+				const saved = await onSubmit(
+					toCreateCheckpointInput(
+						{ ...values, location },
+						checkpoint?.nearbyWaterOrShelter ?? false
+					)
+				);
 				if (saved) {
 					if (!checkpoint) {
 						nameCustomized.current = false;
@@ -165,10 +170,6 @@ export function CreateCheckpointForm({
 				{errors.instructions && (
 					<span className="mt-1 block text-xs text-red-600">{errors.instructions.message}</span>
 				)}
-			</label>
-			<label className="flex items-center gap-2 text-sm font-bold sm:col-span-2">
-				<input type="checkbox" disabled={fieldDisabled} {...register("nearbyWaterOrShelter")} />
-				Có nguồn nước hoặc nơi trú ẩn gần đây
 			</label>
 			{errors.location && (
 				<p role="alert" className="text-sm text-red-600 sm:col-span-2">

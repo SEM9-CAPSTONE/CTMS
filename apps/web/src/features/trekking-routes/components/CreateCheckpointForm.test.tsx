@@ -199,7 +199,7 @@ describe("CreateCheckpointForm", () => {
 		expect(screen.queryByLabelText("Bán kính (mét)")).not.toBeInTheDocument();
 		expect(screen.getByLabelText("Thời gian đến dự kiến (phút)")).toHaveValue("35");
 		expect(screen.getByLabelText("Hướng dẫn")).toHaveValue("Lấy nước tại đây");
-		expect(screen.getByRole("checkbox")).toBeChecked();
+		expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
 		await user.click(screen.getByRole("button", { name: "Hủy" }));
 		expect(onCancel).toHaveBeenCalledTimes(1);
 		expect(onSubmit).not.toHaveBeenCalled();
@@ -262,6 +262,8 @@ describe("CreateCheckpointForm", () => {
 			})
 		);
 		const payload = onSubmit.mock.calls[0][0];
+		expect(screen.getByLabelText("Loại điểm dừng")).toBeVisible();
+		expect(screen.queryByText("Có nguồn nước hoặc nơi trú ẩn gần đây")).not.toBeInTheDocument();
 		expect(payload).not.toHaveProperty("id");
 		expect(payload).not.toHaveProperty("routeId");
 		expect(payload).not.toHaveProperty("routePosition");
