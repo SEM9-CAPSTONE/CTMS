@@ -41,7 +41,6 @@ export const createCheckpointFormSchema = z.object({
 		.trim()
 		.min(1, "Hướng dẫn là bắt buộc")
 		.max(1000, "Hướng dẫn không được vượt quá 1000 ký tự"),
-	nearbyWaterOrShelter: z.boolean(),
 });
 
 export type CreateCheckpointFormValues = z.infer<typeof createCheckpointFormSchema>;
@@ -57,7 +56,6 @@ export function checkpointDefaultValues(
 			type: checkpoint.type,
 			expectedArrivalOffset: String(checkpoint.expectedArrivalOffset),
 			instructions: checkpoint.instructions,
-			nearbyWaterOrShelter: checkpoint.nearbyWaterOrShelter,
 		};
 	}
 	return {
@@ -66,11 +64,13 @@ export function checkpointDefaultValues(
 		type: "rest",
 		expectedArrivalOffset: "0",
 		instructions: "",
-		nearbyWaterOrShelter: false,
 	};
 }
 
-export function toCreateCheckpointInput(values: CreateCheckpointFormValues): CreateCheckpointInput {
+export function toCreateCheckpointInput(
+	values: CreateCheckpointFormValues,
+	nearbyWaterOrShelter = false
+): CreateCheckpointInput {
 	return {
 		name: values.name.trim(),
 		location: values.location,
@@ -78,6 +78,6 @@ export function toCreateCheckpointInput(values: CreateCheckpointFormValues): Cre
 		type: values.type,
 		expectedArrivalOffset: Number(values.expectedArrivalOffset),
 		instructions: values.instructions.trim(),
-		nearbyWaterOrShelter: values.nearbyWaterOrShelter,
+		nearbyWaterOrShelter,
 	};
 }
