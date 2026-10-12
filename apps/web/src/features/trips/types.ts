@@ -17,9 +17,9 @@ export const TRIP_STATUS_LABELS: Record<TripStatus, string> = {
 	pending_approval: "Chờ duyệt",
 	published: "Đã công bố",
 	ongoing: "Đang diễn ra",
-	completed: "Đã hoàn thành",
+	completed: "Kết thúc",
 	cancelled: "Đã huỷ",
-	rejected: "Bị từ chối",
+	rejected: "Từ chối",
 };
 
 export function formatTripStatus(status: TripStatus): string {
