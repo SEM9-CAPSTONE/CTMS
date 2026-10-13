@@ -60,4 +60,15 @@ export class EventsGateway implements OnGatewayConnection {
 	}) {
 		this.server?.emit("trip.review.auto_rejected", payload);
 	}
+
+	emitPorterRequestCreated(payload: {
+		requestId: string;
+		tripId: string;
+		porterId: string;
+		requestedBy: string;
+		requestedRole: string;
+		expiresAt: string;
+	}) {
+		this.server?.emit("porter.request.created", payload);
+	}
 }

@@ -9,8 +9,11 @@ import { PaginatedAvailablePortersResponseDto } from "../dto/available-porter-re
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { AvailablePortersQueryDto } from "../dto/available-porters-query.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
+import { CreatePorterRequestDto } from "../dto/create-porter-request.dto";
+// biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { ConfigureTripWaypointsDto, CreateTripDto } from "../dto/create-trip.dto";
 import { PorterAssignedTripResponseDto } from "../dto/porter-assigned-trip-response.dto";
+import { PorterRequestResponseDto } from "../dto/porter-request-response.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { CancelTripDto, RescheduleTripDto } from "../dto/reschedule-trip.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
@@ -22,6 +25,8 @@ import { TripIdParamDto } from "../dto/trip-id-param.dto";
 import { PaginatedTripsResponseDto, TripResponseDto } from "../dto/trip-response.dto";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { AvailablePortersService } from "../services/available-porters.service";
+// biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
+import { PorterRequestsService } from "../services/porter-requests.service";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { TripsService } from "../services/trips.service";
 
@@ -36,7 +41,8 @@ interface AuthenticatedRequest {
 export class TripsController {
 	constructor(
 		private readonly tripsService: TripsService,
-		private readonly availablePortersService: AvailablePortersService
+		private readonly availablePortersService: AvailablePortersService,
+		private readonly porterRequestsService: PorterRequestsService
 	) {}
 
 	@Get()
@@ -93,6 +99,23 @@ export class TripsController {
 		@Query() query: AvailablePortersQueryDto
 	): Promise<PaginatedAvailablePortersResponseDto> {
 		return this.availablePortersService.search(request.user.userId, params.tripId, query);
+	}
+
+	@Post(":tripId/porter-requests")
+	@Roles(UserRole.HOST)
+	@ApiOperation({ summary: "Request an eligible Porter for an owned Trip" })
+	@ApiResponse({ status: 201, type: PorterRequestResponseDto })
+	@ApiResponse({ status: 401, description: "Authentication required" })
+	@ApiResponse({ status: 403, description: "Host role and Trip ownership required" })
+	@ApiResponse({ status: 404, description: "Trip not found" })
+	@ApiResponse({ status: 409, description: "Trip or Porter is not eligible for a request" })
+	@ApiResponse({ status: 422, description: "Invalid request payload" })
+	createPorterRequest(
+		@Req() request: AuthenticatedRequest,
+		@Param() params: TripIdParamDto,
+		@Body() dto: CreatePorterRequestDto
+	): Promise<PorterRequestResponseDto> {
+		return this.porterRequestsService.create(request.user.userId, params.tripId, dto);
 	}
 
 	@Get(":tripId")
