@@ -27,6 +27,15 @@ export class PackingListResponseDto {
 	@ApiProperty({ format: "uuid" })
 	tripId!: string;
 
+	@ApiProperty({
+		format: "uuid",
+		description: "Stored generation whose generated_from inputs produced this list (BR-137)",
+	})
+	generationId!: string;
+
+	@ApiProperty({ description: "When this set of inputs was first used to generate the list" })
+	generatedAt!: Date;
+
 	@ApiProperty({ type: PackingListContextDto })
 	context!: PackingListContextDto;
 

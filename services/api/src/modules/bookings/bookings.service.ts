@@ -57,10 +57,12 @@ import type {
 } from "./dto/resolve-booking-member-candidate.dto";
 import type { BookingItem } from "./entities/booking-item.entity";
 import type { BookingMember } from "./entities/booking-member.entity";
+import type { PackingListGeneratedFrom } from "./entities/packing-list-generation.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { EquipmentReservationsRepository } from "./equipment-reservations.repository";
 import {
 	type HealthProfileInput,
+	PACKING_LIST_RULES_VERSION,
 	type PackingListContext,
 	type RentedEquipmentInput,
 	buildPackingListItems,
@@ -189,12 +191,68 @@ export class BookingsService {
 			weatherCriteria: assessment?.criteriaScores ?? null,
 		};
 
+		const healthConsidered = Boolean(healthProfile?.isConsentGranted);
+		const generatedFrom: PackingListGeneratedFrom = {
+			rulesVersion: PACKING_LIST_RULES_VERSION,
+			tripId: details.tripId,
+			durationNights,
+			tripType,
+			difficulty: context.difficulty,
+			memberCount: context.memberCount,
+			weatherAssessment: assessment ? { id: assessment.id, riskLevel: assessment.riskLevel } : null,
+			rentedEquipment: details.equipmentItems
+				.map((equipmentItem) => ({
+					equipmentCatalogItemId: equipmentItem.equipmentCatalogItemId,
+					quantity: equipmentItem.quantity,
+				}))
+				.sort(
+					(a, b) =>
+						a.equipmentCatalogItemId.localeCompare(b.equipmentCatalogItemId) ||
+						a.quantity - b.quantity
+				),
+			// Only whether consented health data was used and which version; never its content (BR-186, BR-192).
+			healthProfile: {
+				considered: healthConsidered,
+				updatedAt: healthConsidered && healthProfile ? healthProfile.updatedAt.toISOString() : null,
+			},
+		};
+		const generation = await this.recordPackingListGeneration(details.id, generatedFrom);
+
 		return {
 			bookingId: details.id,
 			tripId: details.tripId,
+			generationId: generation.id,
+			generatedAt: generation.createdAt,
 			context,
 			items: buildPackingListItems(context, rentedEquipment, health),
 		};
+	}
+
+	/**
+	 * BR-137/BR-219: stores the inputs once per distinct input set, so repeated views
+	 * reuse the same generation and a changed input creates a new traceable one.
+	 */
+	private async recordPackingListGeneration(
+		bookingId: string,
+		generatedFrom: PackingListGeneratedFrom
+	): Promise<{ id: string; createdAt: Date }> {
+		const serialized = JSON.stringify(generatedFrom);
+		const fingerprint = createHash("sha256").update(serialized).digest("hex");
+		const rows = (await this.dataSource.query(
+			`WITH inserted AS (
+				INSERT INTO "packing_list_generations" ("booking_id", "generated_from", "input_fingerprint")
+				VALUES ($1::uuid, $2::jsonb, $3::varchar)
+				ON CONFLICT ("booking_id", "input_fingerprint") DO NOTHING
+				RETURNING "id", "created_at"
+			)
+			SELECT "id", "created_at" AS "createdAt" FROM inserted
+			UNION ALL
+			SELECT "id", "created_at" AS "createdAt" FROM "packing_list_generations"
+			WHERE "booking_id" = $1::uuid AND "input_fingerprint" = $3::varchar
+			LIMIT 1`,
+			[bookingId, serialized, fingerprint]
+		)) as Array<{ id: string; createdAt: Date }>;
+		return rows[0];
 	}
 
 	async resolveMemberCandidate(

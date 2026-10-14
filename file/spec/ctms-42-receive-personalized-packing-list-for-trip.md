@@ -129,3 +129,18 @@ TBD — Technical Design.
 ## 12. Open Decisions
 
 Exact packing-list taxonomy/content library belongs to the approved packing/survival knowledge contract.
+
+**Resolved (2026-10-14, confirmed by the team leader):** BR-137 requires the generation source to be stored in `generated_from`. The first implementation computed the list on demand and returned its context but stored nothing; this is corrected below.
+
+## 13. Implementation Record — generated_from (BR-137)
+
+- **New table `packing_list_generations`** (migration `1787230000000-CreatePackingListGenerations`): `id`, `booking_id` (FK to `bookings`, `ON DELETE CASCADE`), `generated_from` (jsonb), `input_fingerprint` (sha256 of `generated_from`), `created_at`; unique on (`booking_id`, `input_fingerprint`).
+- **`generated_from` contents:** `rulesVersion` (`packing-list-rules-v1`, bumped whenever the deterministic rules change), `tripId`, `durationNights`, `tripType`, `difficulty`, `memberCount`, the Weather Risk assessment used (`id`, `riskLevel`), rented equipment (`equipmentCatalogItemId`, `quantity`, sorted), and `healthProfile: { considered, updatedAt }`.
+- **No health data is stored** (BR-186, BR-192, BR-138): only whether consented health data was used and the profile's `updatedAt` version. Allergy, condition and dietary content never leaves the health profile.
+- **Regeneration (BR-219):** every `GET /bookings/:bookingId/packing-list` builds `generated_from` from the current inputs. Unchanged inputs reuse the existing generation; changed inputs (new weather assessment, rented equipment, health consent, rules version…) create a new traceable row. The write is one `INSERT … ON CONFLICT DO NOTHING` statement, so concurrent requests with the same inputs store one row.
+- **API:** the response adds `generationId` and `generatedAt`. Existing fields and the web UI are unchanged.
+
+## 14. Test Evidence — generated_from (BR-137)
+
+- Unit (`bookings.packing-list.service.spec.ts`): stored inputs and returned generation id; same inputs give the same fingerprint, changed weather gives a new one; health content never stored, `considered` only with consent.
+- Integration (real Postgres, `bookings.packing-list.integration-spec.ts`): repeated calls store one generation; stored `generated_from` matches the real Trip, Route and weather assessment; renting equipment creates a second generation listing it; six concurrent requests store one row with one id; health content (allergy, dietary note) absent from the stored JSON.

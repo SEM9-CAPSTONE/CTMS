@@ -363,7 +363,14 @@ describe("Booking packing list (integration, real Postgres)", () => {
 		await getPackingList(camper.accessToken, bookingId).expect(409);
 	});
 
-	it("is a pure read: repeated calls return an identical, stable result with no new rows anywhere", async () => {
+	function countGenerations(bookingId: string): Promise<Array<{ count: number }>> {
+		return dataSource.query(
+			'SELECT COUNT(*)::int AS "count" FROM "packing_list_generations" WHERE "booking_id" = $1',
+			[bookingId]
+		);
+	}
+
+	it("repeated calls return an identical result and store a single generation (BR-137)", async () => {
 		const { camper, tripId } = await createFixture();
 		const bookingId = await createBooking(camper, tripId);
 
@@ -371,10 +378,104 @@ describe("Booking packing list (integration, real Postgres)", () => {
 		const second = await getPackingList(camper.accessToken, bookingId).expect(200);
 
 		expect(second.body).toEqual(first.body);
+		expect((await countGenerations(bookingId))[0].count).toBe(1);
 		const itemRows = await dataSource.query(
 			'SELECT COUNT(*)::int AS "count" FROM "booking_items" WHERE "booking_id" = $1',
 			[bookingId]
 		);
 		expect(itemRows[0].count).toBe(0);
+	});
+
+	it("stores generated_from with the authoritative inputs and returns its generation id", async () => {
+		const { camper, tripId, routeId } = await createFixture({
+			difficulty: "hard",
+			tripType: "overnight",
+			durationNights: 2,
+		});
+		const bookingId = await createBooking(camper, tripId);
+
+		const response = await getPackingList(camper.accessToken, bookingId).expect(200);
+
+		const rows = await dataSource.query(
+			`SELECT "id", "generated_from" AS "generatedFrom", "input_fingerprint" AS "fingerprint"
+			 FROM "packing_list_generations" WHERE "booking_id" = $1`,
+			[bookingId]
+		);
+		expect(rows).toHaveLength(1);
+		expect(response.body.generationId).toBe(rows[0].id);
+		expect(rows[0].fingerprint).toMatch(/^[0-9a-f]{64}$/);
+		const [assessment] = await dataSource.query(
+			'SELECT "id" FROM "weather_risk_assessments" WHERE "route_id" = $1',
+			[routeId]
+		);
+		expect(rows[0].generatedFrom).toEqual({
+			rulesVersion: "packing-list-rules-v1",
+			tripId,
+			durationNights: 2,
+			tripType: "overnight",
+			difficulty: "hard",
+			memberCount: 1,
+			weatherAssessment: { id: assessment.id, riskLevel: "green" },
+			rentedEquipment: [],
+			healthProfile: { considered: false, updatedAt: null },
+		});
+	});
+
+	it("creates a new traceable generation when an authoritative input changes", async () => {
+		const { camper, tripId, equipmentId } = await createFixture();
+		const bookingId = await createBooking(camper, tripId);
+		const first = await getPackingList(camper.accessToken, bookingId).expect(200);
+
+		await request(app.getHttpServer())
+			.post(`/api/bookings/${bookingId}/items`)
+			.set("Authorization", `Bearer ${camper.accessToken}`)
+			.set("Idempotency-Key", randomUUID())
+			.send({ equipmentCatalogItemId: equipmentId, quantity: 1 })
+			.expect(201);
+		const second = await getPackingList(camper.accessToken, bookingId).expect(200);
+
+		expect(second.body.generationId).not.toBe(first.body.generationId);
+		expect((await countGenerations(bookingId))[0].count).toBe(2);
+		const [latest] = await dataSource.query(
+			`SELECT "generated_from" AS "generatedFrom" FROM "packing_list_generations"
+			 WHERE "id" = $1`,
+			[second.body.generationId]
+		);
+		expect(latest.generatedFrom.rentedEquipment).toEqual([
+			{ equipmentCatalogItemId: equipmentId, quantity: 1 },
+		]);
+	});
+
+	it("stores one generation when the same inputs are requested concurrently", async () => {
+		const { camper, tripId } = await createFixture();
+		const bookingId = await createBooking(camper, tripId);
+
+		const responses = await Promise.all(
+			Array.from({ length: 6 }, () => getPackingList(camper.accessToken, bookingId))
+		);
+
+		expect(responses.every((response) => response.status === 200)).toBe(true);
+		expect(new Set(responses.map((response) => response.body.generationId)).size).toBe(1);
+		expect((await countGenerations(bookingId))[0].count).toBe(1);
+	});
+
+	it("records only that consented health data was used, never its content", async () => {
+		const { camper, tripId } = await createFixture();
+		const bookingId = await createBooking(camper, tripId);
+		await grantHealthConsent(camper, {
+			allergies: [{ id: "a1", name: "Peanuts", severity: "HIGH" }],
+			dietaryRestrictions: "Vegan",
+		});
+
+		await getPackingList(camper.accessToken, bookingId).expect(200);
+
+		const [row] = await dataSource.query(
+			`SELECT "generated_from" AS "generatedFrom", "generated_from"::text AS "raw"
+			 FROM "packing_list_generations" WHERE "booking_id" = $1`,
+			[bookingId]
+		);
+		expect(row.generatedFrom.healthProfile.considered).toBe(true);
+		expect(row.generatedFrom.healthProfile.updatedAt).toEqual(expect.any(String));
+		expect(row.raw).not.toMatch(/Peanuts|Vegan/);
 	});
 });
