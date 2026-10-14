@@ -80,9 +80,8 @@ test.describe("Record Audit Logs for Critical Actions (E2E, real backend)", () =
 	test("performs register -> verify otp -> login and asserts audit logs in DB", async ({
 		page,
 	}) => {
-		// Intercept SMS/Email delivery requests on the frontend to prevent failing
-		// due to unconfigured/mock external services (Twilio, SMTP).
-		// We will generate the actual database OTP record via runDbHelper below.
+		// Intercept delivery only; db-helper below creates the authoritative OTP row
+		// so this E2E remains independent of SMTP/SMS provider configuration.
 		await page.route("**/api/auth/send-otp", async (route) => {
 			await route.fulfill({
 				status: 200,

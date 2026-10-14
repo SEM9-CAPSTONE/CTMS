@@ -186,15 +186,15 @@ describe("POST /api/auth/resend (integration, real Postgres, fake delivery provi
 	});
 
 	// --- Resend limit (409, AC2, BR-007) ---------------------------------------
-	// Default OTP_RESEND_MAX_ATTEMPTS=5 (.env.example): 1 initial send (via
-	// /send-otp) + 4 more successful /resend calls = 5 total before the 6th
-	// call within the window is rejected.
+	// OTP_RESEND_MAX_ATTEMPTS=4 (BR-007): 1 initial send (via /send-otp) + 3
+	// more successful /resend calls = 4 total before the 5th call within the
+	// window is rejected.
 
 	it("returns 409 once the configured resend limit is exceeded within the window", async () => {
 		const userId = await registerAndSendFirstOtp("resend-limit");
 		fakeSmsProvider.send.mockClear(); // registerAndSendFirstOtp already made 1 call
 
-		for (let i = 0; i < 4; i++) {
+		for (let i = 0; i < 3; i++) {
 			await request(app.getHttpServer())
 				.post("/api/auth/resend")
 				.send({ userId, channel: "phone" })
@@ -207,8 +207,8 @@ describe("POST /api/auth/resend (integration, real Postgres, fake delivery provi
 			.expect(409);
 
 		expect(response.body.statusCode).toBe(409);
-		// The 6th (rejected) call must never have reached the provider.
-		expect(fakeSmsProvider.send).toHaveBeenCalledTimes(4);
+		// The 5th (rejected) call must never have reached the provider.
+		expect(fakeSmsProvider.send).toHaveBeenCalledTimes(3);
 	});
 
 	// --- Dispatch failure does not consume a resend attempt --------------------

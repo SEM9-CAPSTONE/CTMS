@@ -11,7 +11,6 @@ const valid = {
 	type: "rest" as const,
 	expectedArrivalOffset: "45",
 	instructions: "  Rest here  ",
-	nearbyWaterOrShelter: true,
 };
 
 describe("createCheckpointFormSchema", () => {
@@ -23,6 +22,7 @@ describe("createCheckpointFormSchema", () => {
 			radiusMeters: 20,
 			expectedArrivalOffset: 45,
 			instructions: "Rest here",
+			nearbyWaterOrShelter: false,
 		});
 	});
 
@@ -59,9 +59,10 @@ describe("createCheckpointFormSchema", () => {
 		expect(createCheckpointFormSchema.safeParse(value).success).toBe(false);
 	});
 
-	it("uses safe initial values without preselecting a real route location", () => {
-		expect(checkpointDefaultValues({ type: "Point", coordinates: [0, 0] })).toEqual(
-			expect.objectContaining({ type: "rest", nearbyWaterOrShelter: false })
-		);
+	it("keeps the compatibility flag out of form state while preserving it in API mapping", () => {
+		const defaults = checkpointDefaultValues({ type: "Point", coordinates: [0, 0] });
+		expect(defaults).toEqual(expect.objectContaining({ type: "rest" }));
+		expect(defaults).not.toHaveProperty("nearbyWaterOrShelter");
+		expect(toCreateCheckpointInput(defaults, true).nearbyWaterOrShelter).toBe(true);
 	});
 });

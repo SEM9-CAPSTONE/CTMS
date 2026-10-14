@@ -34,4 +34,8 @@ export class VerificationOtp {
 	/** BR-007, AC2: start of the current resend-limit window; resets sendCount when the window elapses. */
 	@Column({ name: "window_started_at", type: "timestamptz" })
 	windowStartedAt!: Date;
+
+	/** BR-007, BR-008: incorrect verify attempts against the current code; reset whenever a new code is issued. */
+	@Column({ name: "failed_attempts", type: "int", default: 0 })
+	failedAttempts!: number;
 }

@@ -4,12 +4,15 @@ import {
 	type AvailablePortersQueryDto,
 	IntendedPorterRole,
 } from "../dto/available-porters-query.dto";
+import type { CreatePorterRequestDto } from "../dto/create-porter-request.dto";
 import type { ConfigureTripWaypointsDto, CreateTripDto } from "../dto/create-trip.dto";
 import { ReviewTripAction, type ReviewTripDto } from "../dto/review-trip.dto";
 import type { SearchTripsQueryDto } from "../dto/search-trips-query.dto";
 import type { PaginatedTripsResponseDto, TripResponseDto } from "../dto/trip-response.dto";
+import { PorterRequestStatus } from "../entities/porter-request.entity";
 import { TripStatus, TripType } from "../entities/trip.entity";
 import type { AvailablePortersService } from "../services/available-porters.service";
+import type { PorterRequestsService } from "../services/porter-requests.service";
 import type { TripsService } from "../services/trips.service";
 import { TripsController } from "./trips.controller";
 
@@ -33,6 +36,7 @@ describe("TripsController", () => {
 		review: jest.Mock;
 	};
 	let availablePortersService: { search: jest.Mock };
+	let porterRequestsService: { create: jest.Mock; findPending: jest.Mock };
 	let controller: TripsController;
 
 	beforeEach(() => {
@@ -46,9 +50,11 @@ describe("TripsController", () => {
 			review: jest.fn(),
 		};
 		availablePortersService = { search: jest.fn() };
+		porterRequestsService = { create: jest.fn(), findPending: jest.fn() };
 		controller = new TripsController(
 			tripsService as unknown as TripsService,
-			availablePortersService as unknown as AvailablePortersService
+			availablePortersService as unknown as AvailablePortersService,
+			porterRequestsService as unknown as PorterRequestsService
 		);
 	});
 
@@ -88,6 +94,68 @@ describe("TripsController", () => {
 			);
 
 			expect(availablePortersService.search).toHaveBeenCalledWith(USER_ID, TRIP_ID, query);
+			expect(result).toBe(response);
+		});
+	});
+
+	describe("createPorterRequest", () => {
+		it("delegates the owning Host, Trip, Porter, role, and note to PorterRequestsService", async () => {
+			const dto: CreatePorterRequestDto = {
+				porterId: "55555555-5555-4555-8555-555555555555",
+				requestedRole: IntendedPorterRole.LEAD,
+				note: "Lead river crossing",
+			};
+			const response = {
+				id: "99999999-9999-4999-8999-999999999999",
+				tripId: TRIP_ID,
+				porterId: dto.porterId,
+				requestedBy: USER_ID,
+				requestedRole: dto.requestedRole,
+				note: dto.note,
+				status: PorterRequestStatus.PENDING,
+				expiresAt: new Date("2035-01-09T00:00:00.000Z"),
+				respondedAt: null,
+				createdAt: new Date("2035-01-01T00:00:00.000Z"),
+				updatedAt: new Date("2035-01-01T00:00:00.000Z"),
+			};
+			porterRequestsService.create.mockResolvedValue(response);
+
+			const result = await controller.createPorterRequest(
+				{ user: MOCK_USER },
+				{ tripId: TRIP_ID },
+				dto
+			);
+
+			expect(porterRequestsService.create).toHaveBeenCalledWith(USER_ID, TRIP_ID, dto);
+			expect(result).toBe(response);
+		});
+	});
+
+	describe("getPendingPorterRequest", () => {
+		it("delegates the owning Host, Trip, and Porter to PorterRequestsService", async () => {
+			const porterId = "55555555-5555-4555-8555-555555555555";
+			const response = {
+				id: "99999999-9999-4999-8999-999999999999",
+				tripId: TRIP_ID,
+				porterId,
+				requestedBy: USER_ID,
+				requestedRole: IntendedPorterRole.SUPPORT,
+				note: null,
+				status: PorterRequestStatus.PENDING,
+				expiresAt: new Date("2035-01-09T00:00:00.000Z"),
+				respondedAt: null,
+				createdAt: new Date("2035-01-01T00:00:00.000Z"),
+				updatedAt: new Date("2035-01-01T00:00:00.000Z"),
+			};
+			porterRequestsService.findPending.mockResolvedValue(response);
+
+			const result = await controller.getPendingPorterRequest(
+				{ user: MOCK_USER },
+				{ tripId: TRIP_ID },
+				{ porterId }
+			);
+
+			expect(porterRequestsService.findPending).toHaveBeenCalledWith(USER_ID, TRIP_ID, porterId);
 			expect(result).toBe(response);
 		});
 	});

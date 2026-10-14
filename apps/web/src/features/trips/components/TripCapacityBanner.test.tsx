@@ -7,6 +7,57 @@ describe("TripCapacityBanner", () => {
 	const futureDeadlineSoon = new Date(Date.now() + 5 * 60 * 60 * 1000).toISOString();
 	const pastDeadline = new Date(Date.now() - 60 * 60 * 1000).toISOString();
 
+	it("renders a cancelled banner with the known reason mapped to Vietnamese (CTMS-036/179)", () => {
+		render(
+			<TripCapacityBanner
+				remainingSeats={5}
+				bookingDeadline={futureDeadlineFar}
+				isBookable={false}
+				status="cancelled"
+				cancellationReason="insufficient_participants_after_deadline"
+			/>
+		);
+
+		expect(screen.getByTestId("trip-capacity-banner-cancelled")).toBeInTheDocument();
+		expect(screen.getByText("Chuyến đi đã bị hủy")).toBeInTheDocument();
+		expect(
+			screen.getByText(
+				"Chuyến đi không đạt đủ số lượng người tham gia tối thiểu trước hạn chót đặt chỗ."
+			)
+		).toBeInTheDocument();
+	});
+
+	it("falls back to a generic cancelled message for an unrecognized (e.g. Host free-text) reason", () => {
+		render(
+			<TripCapacityBanner
+				remainingSeats={5}
+				bookingDeadline={futureDeadlineFar}
+				isBookable={false}
+				status="cancelled"
+				cancellationReason="host typed something custom"
+			/>
+		);
+
+		expect(screen.getByTestId("trip-capacity-banner-cancelled")).toBeInTheDocument();
+		expect(
+			screen.getByText("Chuyến đi này đã bị hủy và không còn nhận đặt chỗ.")
+		).toBeInTheDocument();
+	});
+
+	it("takes priority over the sold-out condition when the trip is cancelled", () => {
+		render(
+			<TripCapacityBanner
+				remainingSeats={0}
+				bookingDeadline={futureDeadlineFar}
+				isBookable={false}
+				status="cancelled"
+			/>
+		);
+
+		expect(screen.getByTestId("trip-capacity-banner-cancelled")).toBeInTheDocument();
+		expect(screen.queryByTestId("trip-capacity-banner-sold-out")).not.toBeInTheDocument();
+	});
+
 	it("renders a neutral unavailable banner when the trip is not bookable for another reason", () => {
 		render(
 			<TripCapacityBanner

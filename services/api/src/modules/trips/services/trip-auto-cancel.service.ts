@@ -10,7 +10,10 @@ import { TripStatus } from "../entities/trip.entity";
 // biome-ignore lint/style/useImportType: NestJS constructor injection requires runtime metadata
 import { TripsRepository } from "../repositories/trips.repository";
 
-const AUTO_CANCEL_REASON = "insufficient_participants_after_deadline";
+/** CTMS-036. Exported so other modules (e.g. RefundsService.getBookingRefundInfo,
+ *  CTMS-179) can recognize a Trip cancelled by this worker specifically, distinct
+ *  from a Host-triggered cancellation (CTMS-027), without hardcoding the string twice. */
+export const AUTO_CANCEL_REASON = "insufficient_participants_after_deadline";
 const REFUND_IDEMPOTENCY_PREFIX = "ctms-036";
 
 export enum TripAutoCancelResult {
@@ -81,7 +84,7 @@ export class TripAutoCancelService {
 				tripId,
 				evaluatedAt,
 				AUTO_CANCEL_REASON,
-				{ refundIdempotencyPrefix: REFUND_IDEMPOTENCY_PREFIX, refundReason: AUTO_CANCEL_REASON }
+				{ refundIdempotencyPrefix: REFUND_IDEMPOTENCY_PREFIX }
 			);
 
 			await manager.getRepository(AuditLog).save({

@@ -92,6 +92,13 @@ function tripTypeLabel(startsAt: string, endsAt: string): string {
 	return inferTripTypeFromSchedule(startsAt, endsAt) === "overnight" ? "Qua đêm" : "Trong ngày";
 }
 
+function compareLocalDateTime(first: string, second: string): number {
+	const firstValue = first.trim().slice(0, 16);
+	const secondValue = second.trim().slice(0, 16);
+	if (!firstValue || !secondValue) return 0;
+	return firstValue.localeCompare(secondValue);
+}
+
 function isCreateTripFormValues(value: unknown): value is CreateTripFormValues {
 	if (typeof value !== "object" || value === null) return false;
 	const candidate = value as Partial<CreateTripFormValues>;
@@ -248,16 +255,32 @@ export function CreateTripForm({
 	const hasActiveRoutes = activeRoutes.length > 0;
 	const selectedRoute = activeRoutes.find((route) => route.id === selectedRouteId) ?? null;
 	const routeDurationError = getRouteDurationError(startsAt, endsAt, selectedRoute);
+	const rangeOrderError =
+		startsAt && endsAt && compareLocalDateTime(startsAt, endsAt) >= 0
+			? "Thời gian bắt đầu không được sau thời gian kết thúc"
+			: "";
+	const meetingAfterBookingDeadlineError =
+		bookingDeadline && meetingAt && compareLocalDateTime(bookingDeadline, meetingAt) >= 0
+			? "Thời gian tập trung phải sau hạn đặt chỗ"
+			: "";
+	const bookingDeadlineBeforeStartError =
+		bookingDeadline && startsAt && compareLocalDateTime(bookingDeadline, startsAt) >= 0
+			? "Hạn đặt chỗ phải trước thời gian bắt đầu"
+			: "";
+	const meetingBeforeStartError =
+		meetingAt && startsAt && compareLocalDateTime(meetingAt, startsAt) >= 0
+			? "Thời gian tập trung phải trước thời gian bắt đầu"
+			: "";
 	const startsAtPastError = getPastDateTimeMessage(
 		startsAt,
 		minDateTime,
-		"Thời gian bắt đầu phải sau thời điểm hiện tại"
+		"Thời gian bắt đầu không được ở quá khứ"
 	);
 
 	const endsAtPastError = getPastDateTimeMessage(
 		endsAt,
 		minDateTime,
-		"Thời gian kết thúc phải sau thời điểm hiện tại"
+		"Thời gian kết thúc không được ở quá khứ"
 	);
 
 	const bookingDeadlinePastError = getPastDateTimeMessage(
@@ -269,12 +292,17 @@ export function CreateTripForm({
 	const meetingAtPastError = getPastDateTimeMessage(
 		meetingAt,
 		minDateTime,
-		"Thời gian tập trung phải sau thời điểm hiện tại"
+		"Thời gian tập trung không được ở quá khứ"
 	);
-	const startsAtErrorMessage = errors.startsAt?.message || startsAtPastError;
-	const endsAtErrorMessage = routeDurationError || errors.endsAt?.message || endsAtPastError;
-	const bookingDeadlineErrorMessage = errors.bookingDeadline?.message || bookingDeadlinePastError;
-	const meetingAtErrorMessage = errors.meetingAt?.message || meetingAtPastError;
+	const startsAtErrorMessage = rangeOrderError || startsAtPastError || errors.startsAt?.message;
+	const endsAtErrorMessage = routeDurationError || endsAtPastError || errors.endsAt?.message;
+	const bookingDeadlineErrorMessage =
+		bookingDeadlineBeforeStartError || bookingDeadlinePastError || errors.bookingDeadline?.message;
+	const meetingAtErrorMessage =
+		meetingAfterBookingDeadlineError ||
+		meetingBeforeStartError ||
+		meetingAtPastError ||
+		errors.meetingAt?.message;
 	const routeSelectDisabled = isSubmitting || isRouteLoading || !hasActiveRoutes;
 	const submitDisabled = isSubmitting || !hasActiveRoutes || !selectedRouteId;
 
@@ -639,7 +667,7 @@ export function CreateTripForm({
 								disabled={isSubmitting}
 								error={meetingAtErrorMessage}
 								defaultTime="07:30"
-								minValue={meetingAtMinDateTime}
+								minValue={minDateTime}
 								maxValue={startsAt}
 								onChange={(value) => {
 									setValue("meetingAt", value, {

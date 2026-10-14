@@ -16,6 +16,7 @@ import { AuditLog } from "../auth/entities/audit-log.entity";
 import { BookingStatus } from "../profiles/entities/booking.entity";
 import { validateAccountHolderNameMatch } from "../profiles/utils/vietnamese-name.util";
 import { Trip, TripStatus } from "../trips/entities/trip.entity";
+import { AUTO_CANCEL_REASON } from "../trips/services/trip-auto-cancel.service";
 import { User, UserRole } from "../users/entities/user.entity";
 // biome-ignore lint/style/useImportType: NestJS constructor injection requires runtime metadata
 import { BookingsRepository } from "./bookings.repository";
@@ -645,9 +646,21 @@ export class RefundsService {
 			: { committedMinor: 0n, remainingMinor: 0n, remainingAmount: "0.00" };
 		const totalRefundedAmount = minorToMoney(committedMinor);
 
+		// CTMS-179: when the Trip itself is cancelled, the Booking's own `cancelled`
+		// status is a SIDE EFFECT of that (via cancelTripWithCommitments, shared by
+		// CTMS-027's Host-cancel and CTMS-036's auto-cancel) -- it must be checked
+		// before the generic Camper-cancellation fallback below, or every
+		// Trip-cancellation-caused refund would be mislabeled as the Camper's own
+		// cancellation. `cancellationReason` distinguishes the automated worker
+		// (CTMS-036) from a Host's own free-text reason (CTMS-027).
 		let determinedOrigin: RefundOrigin | undefined;
 		if (booking.status === BookingStatus.COMPLETED) {
 			determinedOrigin = RefundOrigin.CAMPER_COMPLAINT;
+		} else if (trip.status === TripStatus.CANCELLED) {
+			determinedOrigin =
+				trip.cancellationReason === AUTO_CANCEL_REASON
+					? RefundOrigin.SYSTEM_TRIP_CANCELLATION
+					: RefundOrigin.HOST_TRIP_CANCELLATION;
 		} else if (booking.status === BookingStatus.CANCELLED) {
 			determinedOrigin = RefundOrigin.CAMPER_CANCELLATION;
 		}

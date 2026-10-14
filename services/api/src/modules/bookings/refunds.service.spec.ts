@@ -3,6 +3,7 @@ import type { DataSource, EntityManager } from "typeorm";
 import { AuditLog } from "../auth/entities/audit-log.entity";
 import { Booking, BookingPaymentStatus, BookingStatus } from "../profiles/entities/booking.entity";
 import { Trip, TripStatus } from "../trips/entities/trip.entity";
+import { AUTO_CANCEL_REASON } from "../trips/services/trip-auto-cancel.service";
 import { User } from "../users/entities/user.entity";
 import type { BookingsRepository } from "./bookings.repository";
 import {
@@ -599,6 +600,53 @@ describe("RefundsService (CTMS-035)", () => {
 			);
 			expect(info.isEligible).toBe(false);
 			expect(info.ineligibleReason).toBe("Đang có yêu cầu hoàn tiền chờ Quản trị viên đối soát");
+		});
+
+		it("attributes origin to SYSTEM_TRIP_CANCELLATION when the Trip was auto-cancelled (CTMS-036/179)", async () => {
+			trip.status = TripStatus.CANCELLED;
+			trip.cancellationReason = AUTO_CANCEL_REASON;
+			bookingsRepo.findOne.mockResolvedValue(booking);
+			tripsRepo.findOne.mockResolvedValue(trip);
+			paymentsRepo.find.mockResolvedValue([charge]);
+
+			const info = await service.getBookingRefundInfo(
+				"camper-uuid-1",
+				["camper"],
+				"booking-uuid-1"
+			);
+
+			expect(info.origin).toBe(RefundOrigin.SYSTEM_TRIP_CANCELLATION);
+		});
+
+		it("attributes origin to HOST_TRIP_CANCELLATION when the Trip was cancelled for any other reason (CTMS-179)", async () => {
+			trip.status = TripStatus.CANCELLED;
+			trip.cancellationReason = "host_free_text_reason";
+			bookingsRepo.findOne.mockResolvedValue(booking);
+			tripsRepo.findOne.mockResolvedValue(trip);
+			paymentsRepo.find.mockResolvedValue([charge]);
+
+			const info = await service.getBookingRefundInfo(
+				"camper-uuid-1",
+				["camper"],
+				"booking-uuid-1"
+			);
+
+			expect(info.origin).toBe(RefundOrigin.HOST_TRIP_CANCELLATION);
+		});
+
+		it("still attributes origin to CAMPER_CANCELLATION when only the Booking (not the Trip) was cancelled", async () => {
+			bookingsRepo.findOne.mockResolvedValue(booking);
+			tripsRepo.findOne.mockResolvedValue(trip);
+			paymentsRepo.find.mockResolvedValue([charge]);
+
+			const info = await service.getBookingRefundInfo(
+				"camper-uuid-1",
+				["camper"],
+				"booking-uuid-1"
+			);
+
+			expect(trip.status).toBe(TripStatus.PUBLISHED);
+			expect(info.origin).toBe(RefundOrigin.CAMPER_CANCELLATION);
 		});
 	});
 

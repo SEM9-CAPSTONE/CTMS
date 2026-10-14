@@ -7,6 +7,9 @@ import {
 import type { PackingListItemResponseDto } from "./dto/packing-list-item-response.dto";
 import { PackingListItemCategory } from "./packing-list-item-category.enum";
 
+/** Bump whenever the rules below change, so stored generations stay attributable (BR-137). */
+export const PACKING_LIST_RULES_VERSION = "packing-list-rules-v1";
+
 export interface RentedEquipmentInput {
 	name: string;
 	category: string;

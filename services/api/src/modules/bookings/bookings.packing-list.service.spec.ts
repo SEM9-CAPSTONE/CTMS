@@ -25,6 +25,7 @@ const BOOKING_ID = "77777777-7777-4777-8777-777777777777";
 const TRIP_ID = "33333333-3333-4333-8333-333333333333";
 const ROUTE_ID = "44444444-4444-4444-8444-444444444444";
 const EQUIPMENT_ID = "55555555-5555-4555-8555-555555555555";
+const GENERATION_ID = "66666666-6666-4666-8666-666666666666";
 
 function details(overrides: Partial<BookingDetailsResponseDto> = {}): BookingDetailsResponseDto {
 	return {
@@ -69,6 +70,7 @@ describe("BookingsService.getPackingList", () => {
 	let weatherRiskRepository: { findLatestAssessmentForRoute: jest.Mock };
 	let healthProfileRepository: { findByUserId: jest.Mock };
 	let equipmentCatalogRepository: { find: jest.Mock };
+	let dataSourceQuery: jest.Mock;
 	let service: BookingsService;
 
 	beforeEach(() => {
@@ -84,8 +86,12 @@ describe("BookingsService.getPackingList", () => {
 		weatherRiskRepository = { findLatestAssessmentForRoute: jest.fn().mockResolvedValue(null) };
 		healthProfileRepository = { findByUserId: jest.fn().mockResolvedValue(null) };
 		equipmentCatalogRepository = { find: jest.fn().mockResolvedValue([]) };
+		dataSourceQuery = jest
+			.fn()
+			.mockResolvedValue([{ id: GENERATION_ID, createdAt: new Date("2030-01-01T00:00:00.000Z") }]);
 		const dataSource = {
 			getRepository: jest.fn(() => tripRepository),
+			query: dataSourceQuery,
 		} as unknown as DataSource;
 
 		service = new BookingsService(
@@ -233,6 +239,7 @@ describe("BookingsService.getPackingList", () => {
 			allergies: [{ id: "a1", name: "Peanuts", severity: "HIGH" }],
 			medicalConditions: [],
 			dietaryRestrictions: null,
+			updatedAt: new Date("2029-06-01T00:00:00.000Z"),
 		});
 
 		const result = await service.getPackingList(OWNER_ID, BOOKING_ID);
@@ -240,5 +247,85 @@ describe("BookingsService.getPackingList", () => {
 		expect(
 			result.items.find((packingItem) => packingItem.id === "allergy-medication")
 		).toBeDefined();
+	});
+
+	// --- BR-137: generation source stored for traceability ---------------------
+
+	it("stores the generation inputs and returns the generation id", async () => {
+		weatherRiskRepository.findLatestAssessmentForRoute.mockResolvedValue({
+			id: "assessment-1",
+			riskLevel: RiskLevel.GREEN,
+			criteriaScores: null,
+		});
+
+		const result = await service.getPackingList(OWNER_ID, BOOKING_ID);
+
+		expect(result.generationId).toBe(GENERATION_ID);
+		expect(result.generatedAt).toEqual(new Date("2030-01-01T00:00:00.000Z"));
+		expect(dataSourceQuery).toHaveBeenCalledTimes(1);
+		const [sql, params] = dataSourceQuery.mock.calls[0] as [string, unknown[]];
+		expect(sql).toContain('ON CONFLICT ("booking_id", "input_fingerprint") DO NOTHING');
+		expect(params[0]).toBe(BOOKING_ID);
+		expect(JSON.parse(params[1] as string)).toEqual({
+			rulesVersion: "packing-list-rules-v1",
+			tripId: TRIP_ID,
+			durationNights: 2,
+			tripType: "overnight",
+			difficulty: TrekkingRouteDifficulty.EASY,
+			memberCount: 1,
+			weatherAssessment: { id: "assessment-1", riskLevel: RiskLevel.GREEN },
+			rentedEquipment: [],
+			healthProfile: { considered: false, updatedAt: null },
+		});
+		expect(params[2]).toMatch(/^[0-9a-f]{64}$/);
+	});
+
+	it("uses the same fingerprint for the same inputs and a different one when inputs change", async () => {
+		await service.getPackingList(OWNER_ID, BOOKING_ID);
+		await service.getPackingList(OWNER_ID, BOOKING_ID);
+		weatherRiskRepository.findLatestAssessmentForRoute.mockResolvedValue({
+			id: "assessment-2",
+			riskLevel: RiskLevel.RED,
+			criteriaScores: null,
+		});
+		await service.getPackingList(OWNER_ID, BOOKING_ID);
+
+		const fingerprints = dataSourceQuery.mock.calls.map((call) => (call[1] as unknown[])[2]);
+		expect(fingerprints[0]).toBe(fingerprints[1]);
+		expect(fingerprints[2]).not.toBe(fingerprints[0]);
+	});
+
+	it("records only whether consented health data was used, never its content", async () => {
+		healthProfileRepository.findByUserId.mockResolvedValue({
+			isConsentGranted: true,
+			allergies: [{ id: "a1", name: "Peanuts", severity: "HIGH" }],
+			medicalConditions: [{ id: "m1", name: "Asthma" }],
+			dietaryRestrictions: "Vegan",
+			updatedAt: new Date("2029-06-01T00:00:00.000Z"),
+		});
+
+		await service.getPackingList(OWNER_ID, BOOKING_ID);
+
+		const stored = (dataSourceQuery.mock.calls[0] as [string, unknown[]])[1][1] as string;
+		expect(JSON.parse(stored).healthProfile).toEqual({
+			considered: true,
+			updatedAt: "2029-06-01T00:00:00.000Z",
+		});
+		expect(stored).not.toMatch(/Peanuts|Asthma|Vegan/);
+	});
+
+	it("does not mark health data as considered when consent is not granted", async () => {
+		healthProfileRepository.findByUserId.mockResolvedValue({
+			isConsentGranted: false,
+			allergies: [{ id: "a1", name: "Peanuts", severity: "HIGH" }],
+			medicalConditions: [],
+			dietaryRestrictions: null,
+			updatedAt: new Date("2029-06-01T00:00:00.000Z"),
+		});
+
+		await service.getPackingList(OWNER_ID, BOOKING_ID);
+
+		const stored = (dataSourceQuery.mock.calls[0] as [string, unknown[]])[1][1] as string;
+		expect(JSON.parse(stored).healthProfile).toEqual({ considered: false, updatedAt: null });
 	});
 });

@@ -5,11 +5,14 @@ import { RolesGuard } from "../auth/guards/roles.guard";
 import { PorterProfile } from "../profiles/entities/porter-profile.entity";
 import { RealtimeModule } from "../realtime/realtime.module";
 import { TripsController } from "./controllers/trips.controller";
+import { PorterRequest } from "./entities/porter-request.entity";
 import { Trip } from "./entities/trip.entity";
 import { AvailablePortersRepository } from "./repositories/available-porters.repository";
+import { PorterRequestsRepository } from "./repositories/porter-requests.repository";
 import { PorterScheduleConflictSource } from "./repositories/porter-schedule-conflict-source";
 import { TripsRepository } from "./repositories/trips.repository";
 import { AvailablePortersService } from "./services/available-porters.service";
+import { PorterRequestsService } from "./services/porter-requests.service";
 import { TripAutoCancelService } from "./services/trip-auto-cancel.service";
 import { TripAutoCancelWorker } from "./services/trip-auto-cancel.worker";
 import { TripReviewDeadlineService } from "./services/trip-review-deadline.service";
@@ -21,6 +24,7 @@ import { TripsService } from "./services/trips.service";
 	providers: [
 		TripsService,
 		AvailablePortersService,
+		PorterRequestsService,
 		PorterScheduleConflictSource,
 		TripAutoCancelService,
 		TripAutoCancelWorker,
@@ -41,6 +45,12 @@ import { TripsService } from "./services/trips.service";
 			provide: TripsRepository,
 			useFactory: (dataSource: DataSource) =>
 				new TripsRepository(Trip, dataSource.createEntityManager()),
+			inject: [DataSource],
+		},
+		{
+			provide: PorterRequestsRepository,
+			useFactory: (dataSource: DataSource) =>
+				new PorterRequestsRepository(PorterRequest, dataSource.createEntityManager()),
 			inject: [DataSource],
 		},
 	],

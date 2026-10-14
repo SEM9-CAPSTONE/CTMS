@@ -16,6 +16,7 @@ import {
 	Route,
 	Users,
 } from "lucide-react";
+import type { KeyboardEvent } from "react";
 import { useMemo, useState } from "react";
 import { Button } from "../../../shared/components/Button";
 import { useMyTrips } from "../../trips/hooks/useMyTrips";
@@ -38,20 +39,20 @@ const statusLabels: Record<TripStatus, { label: string; className: string }> = {
 	},
 	published: { label: "Đang mở bán", className: "bg-emerald-50 text-emerald-700 ring-emerald-200" },
 	ongoing: { label: "Đang diễn ra", className: "bg-sky-50 text-sky-700 ring-sky-200" },
-	completed: { label: "Đã hoàn thành", className: "bg-purple-50 text-purple-700 ring-purple-200" },
+	completed: { label: "Kết thúc", className: "bg-purple-50 text-purple-700 ring-purple-200" },
 	cancelled: { label: "Đã huỷ", className: "bg-red-50 text-red-700 ring-red-200" },
-	rejected: { label: "Bị từ chối", className: "bg-rose-50 text-rose-700 ring-rose-200" },
+	rejected: { label: "Từ chối", className: "bg-rose-50 text-rose-700 ring-rose-200" },
 };
 
 const filterTabs: Array<{ key: "all" | TripStatus; label: string }> = [
 	{ key: "all", label: "Tất cả" },
+	{ key: "ongoing", label: "Đang diễn ra" },
+	{ key: "completed", label: "Kết thúc" },
 	{ key: "published", label: "Đang mở bán" },
+	{ key: "rejected", label: "Từ chối" },
 	{ key: "pending_approval", label: "Chờ duyệt" },
 	{ key: "draft", label: "Bản nháp" },
-	{ key: "ongoing", label: "Đang diễn ra" },
-	{ key: "completed", label: "Đã hoàn thành" },
 	{ key: "cancelled", label: "Đã huỷ" },
-	{ key: "rejected", label: "Bị từ chối" },
 ];
 
 function formatDateRange(startsAt: string, endsAt: string): string {
@@ -116,6 +117,13 @@ export function HostMyTripsPanel({
 		if (newPage >= 1 && newPage <= totalPages) {
 			setCurrentPage(newPage);
 		}
+	};
+
+	const handleTripCardKeyDown = (event: KeyboardEvent<HTMLElement>, tripId: string) => {
+		if (!onNavigateToTripDetail || (event.key !== "Enter" && event.key !== " ")) return;
+
+		event.preventDefault();
+		onNavigateToTripDetail(tripId);
 	};
 
 	return (
@@ -294,7 +302,18 @@ export function HostMyTripsPanel({
 								return (
 									<article
 										key={trip.id}
-										className="group flex flex-col justify-between overflow-hidden rounded-2xl border border-[#e5eee7] bg-[#fbfdfb] transition-all hover:-translate-y-1 hover:border-[#b8cfbc] hover:shadow-md"
+										role={onNavigateToTripDetail ? "button" : undefined}
+										tabIndex={onNavigateToTripDetail ? 0 : undefined}
+										aria-label={`Xem chi tiết chuyến đi ${trip.title}`}
+										onClick={
+											onNavigateToTripDetail ? () => onNavigateToTripDetail(trip.id) : undefined
+										}
+										onKeyDown={(event) => handleTripCardKeyDown(event, trip.id)}
+										className={`group flex flex-col justify-between overflow-hidden rounded-2xl border border-[#e5eee7] bg-[#fbfdfb] text-left transition-all hover:-translate-y-1 hover:border-[#b8cfbc] hover:shadow-md ${
+											onNavigateToTripDetail
+												? "cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#164027] focus-visible:ring-offset-2"
+												: ""
+										}`}
 									>
 										<div className="relative aspect-[16/9] w-full overflow-hidden bg-[#e8efe9]">
 											{trip.coverImageUrl ? (
@@ -310,8 +329,9 @@ export function HostMyTripsPanel({
 											)}
 											<div className="absolute top-2.5 left-2.5">
 												<span
-													className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-extrabold ring-1 ${statusCfg.className}`}
+													className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-extrabold ring-1 ${statusCfg.className}`}
 												>
+													<span className="size-1.5 rounded-full bg-current" aria-hidden="true" />
 													{statusCfg.label}
 												</span>
 											</div>
@@ -355,7 +375,10 @@ export function HostMyTripsPanel({
 														onEditTripDraft && (
 															<button
 																type="button"
-																onClick={() => onEditTripDraft(trip.id)}
+																onClick={(event) => {
+																	event.stopPropagation();
+																	onEditTripDraft(trip.id);
+																}}
 																className="inline-flex items-center gap-1 rounded-xl bg-white px-3 py-1.5 text-xs font-bold text-[#164027] ring-1 ring-[#cbd9ce] transition-colors hover:bg-[#f4f7f2]"
 															>
 																<Pencil className="size-3.5" />
@@ -365,7 +388,10 @@ export function HostMyTripsPanel({
 													{onNavigateToTripDetail && (
 														<button
 															type="button"
-															onClick={() => onNavigateToTripDetail(trip.id)}
+															onClick={(event) => {
+																event.stopPropagation();
+																onNavigateToTripDetail(trip.id);
+															}}
 															className="inline-flex items-center gap-1 rounded-xl bg-white px-3 py-1.5 text-xs font-bold text-[#164027] ring-1 ring-[#cbd9ce] hover:bg-[#164027] hover:text-white transition-colors"
 														>
 															<Eye className="size-3.5" />

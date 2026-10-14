@@ -178,6 +178,13 @@ test.describe("Admin user accounts", () => {
 				})
 			);
 		}, camperBase);
+		await page.route("**/api/profiles/me", (route) =>
+			route.fulfill({
+				status: 200,
+				contentType: "application/json",
+				body: JSON.stringify({ ...camperBase, status: "active" }),
+			})
+		);
 
 		await page.goto("/admin/users");
 

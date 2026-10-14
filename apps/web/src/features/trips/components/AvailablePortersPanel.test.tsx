@@ -1,10 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HttpError } from "../../../core/api";
 import { tripsService } from "../services/trips.service";
-import type { AvailablePortersResponse } from "../types";
+import type { AvailablePortersResponse, PorterRequest } from "../types";
 import { AvailablePortersPanel } from "./AvailablePortersPanel";
 
 const SUPPORT_RESPONSE: AvailablePortersResponse = {
@@ -19,6 +19,20 @@ const SUPPORT_RESPONSE: AvailablePortersResponse = {
 		},
 	],
 	pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
+};
+
+const PORTER_REQUEST: PorterRequest = {
+	id: "request-1",
+	tripId: "trip-201",
+	porterId: "porter-private-id",
+	requestedBy: "host-1",
+	requestedRole: "support",
+	note: "Support river crossing",
+	status: "pending",
+	expiresAt: "2035-07-10T08:00:00.000Z",
+	respondedAt: null,
+	createdAt: "2035-07-08T08:00:00.000Z",
+	updatedAt: "2035-07-08T08:00:00.000Z",
 };
 
 function renderPanel() {
@@ -38,6 +52,10 @@ function selectRole(role: "lead" | "support") {
 afterEach(() => vi.restoreAllMocks());
 
 describe("AvailablePortersPanel", () => {
+	beforeEach(() => {
+		vi.spyOn(tripsService, "getPendingPorterRequest").mockResolvedValue(null);
+	});
+
 	it("requires an explicit role before fetching", () => {
 		const search = vi.spyOn(tripsService, "getAvailablePorters");
 		renderPanel();
@@ -147,5 +165,87 @@ describe("AvailablePortersPanel", () => {
 		});
 		expect(screen.getByText(/số nguyên từ 0 trở lên/)).toBeInTheDocument();
 		expect(search).toHaveBeenCalledTimes(callsBeforeInvalidInput);
+	});
+
+	it("submits a Porter Request and renders only the backend-confirmed pending state", async () => {
+		vi.spyOn(tripsService, "getAvailablePorters").mockResolvedValue(SUPPORT_RESPONSE);
+		let resolveRequest: ((value: PorterRequest) => void) | undefined;
+		const create = vi.spyOn(tripsService, "createPorterRequest").mockReturnValue(
+			new Promise((resolve) => {
+				resolveRequest = resolve;
+			})
+		);
+		renderPanel();
+		selectRole("support");
+		await screen.findByText("Nguyễn Minh Sơn");
+		await waitFor(() =>
+			expect(screen.getByRole("button", { name: "Gửi yêu cầu" })).not.toBeDisabled()
+		);
+		fireEvent.change(screen.getByLabelText("Ghi chú yêu cầu"), {
+			target: { value: " Support river crossing " },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "Gửi yêu cầu" }));
+
+		await waitFor(() => expect(screen.getByRole("button", { name: "Đang gửi" })).toBeDisabled());
+		expect(screen.queryByText("Đang chờ phản hồi")).not.toBeInTheDocument();
+		expect(create).toHaveBeenCalledWith("trip-201", {
+			porterId: "porter-private-id",
+			requestedRole: "support",
+			note: "Support river crossing",
+		});
+
+		resolveRequest?.(PORTER_REQUEST);
+		const state = await screen.findByTestId("porter-request-state-porter-private-id");
+		expect(state).toHaveTextContent("Đang chờ phản hồi");
+		expect(state).toHaveTextContent("Hết hạn:");
+		expect(screen.getByRole("button", { name: "Đã gửi yêu cầu" })).toBeDisabled();
+	});
+
+	it("restores a pending Porter Request from the backend", async () => {
+		vi.spyOn(tripsService, "getAvailablePorters").mockResolvedValue(SUPPORT_RESPONSE);
+		vi.spyOn(tripsService, "getPendingPorterRequest").mockResolvedValue(PORTER_REQUEST);
+
+		renderPanel();
+		selectRole("support");
+
+		const state = await screen.findByTestId("porter-request-state-porter-private-id");
+		expect(state).toHaveTextContent("Đang chờ phản hồi");
+		expect(state).toHaveTextContent("Hết hạn:");
+		expect(screen.getByRole("button", { name: "Đã gửi yêu cầu" })).toBeDisabled();
+		expect(screen.getByLabelText("Ghi chú yêu cầu")).toBeDisabled();
+	});
+
+	it("blocks sending when pending state cannot be verified", async () => {
+		vi.spyOn(tripsService, "getAvailablePorters").mockResolvedValue(SUPPORT_RESPONSE);
+		vi.spyOn(tripsService, "getPendingPorterRequest").mockRejectedValue(
+			new HttpError("unavailable", 503, {})
+		);
+
+		renderPanel();
+		selectRole("support");
+
+		const alert = await screen.findByRole("alert");
+		expect(alert).toHaveAttribute("data-error-kind", "pending-check");
+		expect(screen.getByRole("button", { name: "Gửi yêu cầu" })).toBeDisabled();
+	});
+
+	it("does not fabricate request success when the backend rejects the request", async () => {
+		vi.spyOn(tripsService, "getAvailablePorters").mockResolvedValue(SUPPORT_RESPONSE);
+		vi.spyOn(tripsService, "createPorterRequest").mockRejectedValue(
+			new HttpError("private conflict detail", 409, {})
+		);
+		renderPanel();
+		selectRole("support");
+		await screen.findByText("Nguyễn Minh Sơn");
+		await waitFor(() =>
+			expect(screen.getByRole("button", { name: "Gửi yêu cầu" })).not.toBeDisabled()
+		);
+		fireEvent.click(screen.getByRole("button", { name: "Gửi yêu cầu" }));
+
+		const alert = await screen.findByRole("alert");
+		expect(alert).toHaveAttribute("data-error-kind", "conflict");
+		expect(alert).not.toHaveTextContent("private conflict detail");
+		expect(screen.queryByText("Đang chờ phản hồi")).not.toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Gửi yêu cầu" })).not.toBeDisabled();
 	});
 });

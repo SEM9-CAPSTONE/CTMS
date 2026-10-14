@@ -6,9 +6,11 @@ import type {
 	BookTripResponse,
 	CancelTripInput,
 	ConfigureTripWaypointsInput,
+	CreatePorterRequestInput,
 	CreateTripInput,
 	PaginatedTrips,
 	PorterAssignedTrip,
+	PorterRequest,
 	RescheduleTripInput,
 	ReviewTripInput,
 	SearchTripsQuery,
@@ -54,6 +56,14 @@ export const tripsService = {
 			minExperienceYears: query.minExperienceYears,
 			page: query.page,
 			limit: query.limit,
+		}),
+
+	createPorterRequest: (tripId: string, input: CreatePorterRequestInput): Promise<PorterRequest> =>
+		httpClient.post<PorterRequest>(API_ENDPOINTS.TRIPS.PORTER_REQUESTS(tripId), input),
+
+	getPendingPorterRequest: (tripId: string, porterId: string): Promise<PorterRequest | null> =>
+		httpClient.get<PorterRequest | null>(API_ENDPOINTS.TRIPS.PENDING_PORTER_REQUEST(tripId), {
+			porterId,
 		}),
 
 	getMyTrips: (): Promise<TripDetails[]> =>

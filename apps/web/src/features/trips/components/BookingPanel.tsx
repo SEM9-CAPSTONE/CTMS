@@ -39,7 +39,7 @@ export type BookingAccess = "anonymous" | "camper" | "non-camper";
 export interface BookingPanelProps {
 	trip: Pick<
 		TripDetails,
-		"id" | "remainingSeats" | "isBookable" | "bookingDeadline" | "pricePerPerson"
+		"id" | "remainingSeats" | "isBookable" | "bookingDeadline" | "pricePerPerson" | "status"
 	>;
 	bookingAccess?: BookingAccess;
 	booking?: BookTripResponse | null;
@@ -378,7 +378,8 @@ export function BookingPanel({
 	}
 
 	let blockedMessage: string | null = null;
-	if (isSoldOut) blockedMessage = "Đã hết chỗ";
+	if (trip.status === "cancelled") blockedMessage = "Chuyến đi đã bị hủy";
+	else if (isSoldOut) blockedMessage = "Đã hết chỗ";
 	else if (isBookingClosed) blockedMessage = "Đã hết hạn đặt chỗ";
 	else if (!trip.isBookable) blockedMessage = "Hiện không thể đặt chỗ cho chuyến đi này";
 

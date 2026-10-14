@@ -33,6 +33,8 @@ const sampleTrip1: TripDetails = {
 	pricePerPerson: 550000,
 	cancellationPolicy: null,
 	status: "published",
+	cancellationReason: null,
+	cancelledAt: null,
 	difficulty: "moderate",
 	weatherRiskLevel: "green",
 	isBookable: true,
@@ -54,6 +56,13 @@ const sampleTrip3: TripDetails = {
 	title: "Langbiang chờ duyệt",
 	status: "pending_approval",
 };
+
+const trackedStatusTrips: TripDetails[] = [
+	{ ...sampleTrip1, id: "trip-published", title: "Chuyến đang mở bán", status: "published" },
+	{ ...sampleTrip1, id: "trip-ongoing", title: "Chuyến đang diễn ra", status: "ongoing" },
+	{ ...sampleTrip1, id: "trip-completed", title: "Chuyến đã kết thúc", status: "completed" },
+	{ ...sampleTrip1, id: "trip-rejected", title: "Chuyến từ chối", status: "rejected" },
+];
 
 describe("HostMyTripsPanel", () => {
 	beforeEach(() => {
@@ -157,9 +166,45 @@ describe("HostMyTripsPanel", () => {
 		expect(screen.getByText("Sơn Trà Trekking Discovery")).toBeInTheDocument();
 		expect(screen.getAllByText("Đang mở bán").length).toBeGreaterThanOrEqual(1);
 		expect(screen.getByText("550.000 đ")).toBeInTheDocument();
+		expect(screen.getByText("01/10/2026")).toBeInTheDocument();
 
-		const detailBtn = screen.getByRole("button", { name: /chi tiết/i });
+		const detailBtn = screen.getByRole("button", { name: /^chi tiết$/i });
 		fireEvent.click(detailBtn);
+		expect(onNavigateToTripDetail).toHaveBeenCalledWith("trip-1");
+	});
+
+	it("shows the primary trip tracking statuses clearly", () => {
+		mockUseMyTrips.mockReturnValue({
+			trips: trackedStatusTrips,
+			isLoading: false,
+			error: "",
+			refetch: vi.fn(),
+		});
+
+		render(<HostMyTripsPanel />);
+
+		expect(screen.getAllByText("Đang diễn ra").length).toBeGreaterThanOrEqual(1);
+		expect(screen.getAllByText("Kết thúc").length).toBeGreaterThanOrEqual(1);
+		expect(screen.getAllByText("Đang mở bán").length).toBeGreaterThanOrEqual(1);
+		expect(screen.getAllByText("Từ chối").length).toBeGreaterThanOrEqual(1);
+		expect(screen.queryByText("Bị từ chối")).not.toBeInTheDocument();
+	});
+
+	it("opens trip detail when clicking the whole trip card", () => {
+		const onNavigateToTripDetail = vi.fn();
+		mockUseMyTrips.mockReturnValue({
+			trips: [sampleTrip1],
+			isLoading: false,
+			error: "",
+			refetch: vi.fn(),
+		});
+
+		render(<HostMyTripsPanel onNavigateToTripDetail={onNavigateToTripDetail} />);
+
+		fireEvent.click(
+			screen.getByRole("button", { name: "Xem chi tiết chuyến đi Sơn Trà Trekking Discovery" })
+		);
+
 		expect(onNavigateToTripDetail).toHaveBeenCalledWith("trip-1");
 	});
 

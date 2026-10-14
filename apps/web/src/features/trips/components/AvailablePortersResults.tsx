@@ -38,7 +38,7 @@ export function AvailablePortersResults({
 		}
 	}, [page, query.data]);
 
-	if (query.isPending || query.isFetching) {
+	if (query.isPending) {
 		return (
 			<output className="mt-5 flex items-center justify-center gap-2 rounded-2xl bg-[#f8faf8] p-5 text-xs font-bold text-[#164027]">
 				<Loader2 className="size-4 animate-spin" />
@@ -94,7 +94,7 @@ export function AvailablePortersResults({
 				Tìm thấy {query.data.pagination.total} Porter
 			</p>
 			{query.data.items.map((porter) => (
-				<AvailablePorterCard key={porter.porterId} porter={porter} role={role} />
+				<AvailablePorterCard key={porter.porterId} tripId={tripId} porter={porter} role={role} />
 			))}
 			<Pagination
 				currentPage={query.data.pagination.page}

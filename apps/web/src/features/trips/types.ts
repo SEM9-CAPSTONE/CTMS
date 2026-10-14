@@ -17,9 +17,9 @@ export const TRIP_STATUS_LABELS: Record<TripStatus, string> = {
 	pending_approval: "Chờ duyệt",
 	published: "Đã công bố",
 	ongoing: "Đang diễn ra",
-	completed: "Đã hoàn thành",
+	completed: "Kết thúc",
 	cancelled: "Đã huỷ",
-	rejected: "Bị từ chối",
+	rejected: "Từ chối",
 };
 
 export function formatTripStatus(status: TripStatus): string {
@@ -129,6 +129,26 @@ export type TrekkingRouteDifficulty = "easy" | "moderate" | "hard" | "expert";
 
 export type RiskLevel = "green" | "yellow" | "red";
 
+export interface TripRegistrationRiskFactor {
+	key: string;
+	label: string;
+	value: number | boolean;
+	level: RiskLevel;
+	weight: number;
+	score: number;
+}
+
+export interface TripRegistrationRisk {
+	status: "available" | "unavailable";
+	assessmentId: string | null;
+	level: RiskLevel | null;
+	assessedAt: string | null;
+	ruleVersionId: string | null;
+	factors: TripRegistrationRiskFactor[];
+	advice: string | null;
+	recommendations: string[];
+}
+
 export interface SearchTripsQuery {
 	search?: string;
 	tripType?: TripType;
@@ -207,6 +227,28 @@ export interface AvailablePortersResponse {
 	pagination: TripsPagination;
 }
 
+export type PorterRequestStatus = "pending" | "accepted" | "declined" | "cancelled" | "expired";
+
+export interface CreatePorterRequestInput {
+	porterId: string;
+	requestedRole: IntendedPorterRole;
+	note?: string;
+}
+
+export interface PorterRequest {
+	id: string;
+	tripId: string;
+	porterId: string;
+	requestedBy: string;
+	requestedRole: IntendedPorterRole;
+	note: string | null;
+	status: PorterRequestStatus;
+	expiresAt: string;
+	respondedAt: string | null;
+	createdAt: string;
+	updatedAt: string;
+}
+
 export interface TripHost {
 	id: string;
 	fullName?: string | null;
@@ -240,8 +282,11 @@ export interface TripDetails {
 	pricePerPerson: number;
 	cancellationPolicy: Record<string, unknown> | null;
 	status: TripStatus;
+	cancellationReason: string | null;
+	cancelledAt: string | null;
 	difficulty?: TrekkingRouteDifficulty | null;
 	weatherRiskLevel?: RiskLevel | null;
+	registrationRisk?: TripRegistrationRisk;
 	isBookable: boolean;
 	createdAt: string;
 	updatedAt: string;

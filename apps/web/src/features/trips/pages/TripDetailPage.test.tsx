@@ -91,8 +91,29 @@ const mockTrip: TripDetails = {
 	pricePerPerson: 1850000,
 	cancellationPolicy: null,
 	status: "published",
+	cancellationReason: null,
+	cancelledAt: null,
 	difficulty: "moderate",
 	weatherRiskLevel: "green",
+	registrationRisk: {
+		status: "available",
+		assessmentId: "risk-1",
+		level: "green",
+		assessedAt: "2026-09-25T00:00:00.000Z",
+		ruleVersionId: "rule-1",
+		factors: [
+			{
+				key: "rainfall",
+				label: "Rainfall",
+				value: 4,
+				level: "green",
+				weight: 0.3,
+				score: 0,
+			},
+		],
+		advice: "Điều kiện phù hợp để đăng ký.",
+		recommendations: ["Mang áo mưa nhẹ"],
+	},
 	isBookable: true,
 	createdAt: "2026-08-25T00:00:00.000Z",
 	updatedAt: "2026-08-25T00:00:00.000Z",
@@ -665,6 +686,32 @@ describe("TripDetailPage", () => {
 
 		fireEvent.click(screen.getByRole("button", { name: /mở màn hình chỉnh sửa/i }));
 		expect(onEditTrip).toHaveBeenCalledWith("trip-abc");
+	});
+
+	it("routes the owning Host to Porter management instead of rendering request UI inline", () => {
+		const onManagePorters = vi.fn();
+		vi.mocked(useTripDetail).mockReturnValue({
+			trip: { ...mockTrip, hostId: "host-1" },
+			isLoading: false,
+			error: null,
+			isNotFound: false,
+			retry: vi.fn(),
+		});
+
+		render(
+			<TripDetailPage
+				tripId="trip-abc"
+				onBackToList={vi.fn()}
+				canManageTrips={true}
+				currentUserId="host-1"
+				onManagePorters={onManagePorters}
+			/>
+		);
+
+		expect(screen.getByTestId("host-porter-management-entry")).toBeInTheDocument();
+		expect(screen.queryByLabelText("Vai trò Porter")).not.toBeInTheDocument();
+		fireEvent.click(screen.getByRole("button", { name: "Quản lý Porter" }));
+		expect(onManagePorters).toHaveBeenCalledWith("trip-abc");
 	});
 
 	it("mounts the operational roster only when the authorized role context requests it", () => {

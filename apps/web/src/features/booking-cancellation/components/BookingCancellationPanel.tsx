@@ -38,7 +38,6 @@ export function BookingCancellationPanel({
 				className="rounded-2xl border border-[#cbd9ce] bg-white p-5 text-sm"
 			>
 				<p>Đơn đặt chỗ đã hủy và không còn quyền tham gia chuyến đi.</p>
-				<p className="mt-2">Thông tin hoàn tiền không có trong dữ liệu chi tiết hiện tại.</p>
 			</section>
 		);
 	// Presentation only. Policy, schedule and equipment eligibility are server-owned.

@@ -7,6 +7,7 @@ import {
 import type { RiskLevel } from "../../weather/entities/weather-risk-assessment.entity";
 import type { PorterAssignedTripResponseDto } from "../dto/porter-assigned-trip-response.dto";
 import type {
+	TripRegistrationRiskResponseDto,
 	TripResponseDto,
 	TripSummaryResponseDto,
 	TripWaypointResponseDto,
@@ -124,9 +125,6 @@ export interface CancelTripWithCommitmentsOptions {
 	/** Prefix for the per-Booking refund idempotency key; keeps CTMS-036's auto-cancel
 	 *  refund obligations distinguishable from CTMS-027's host-cancel ones. */
 	refundIdempotencyPrefix?: string;
-	/** Stored as the refund payment's `provider_reference`, mirroring the existing
-	 *  host-cancel call's own "trip_cancelled_by_host" value. */
-	refundReason?: string;
 }
 
 export interface PendingReviewDeadlineCandidate {
@@ -193,6 +191,7 @@ interface TripSummaryRow {
 	difficulty: TrekkingRouteDifficulty | null;
 	routeStatus: TrekkingRouteStatus | null;
 	weatherRiskLevel: RiskLevel | null;
+	registrationRisk?: TripRegistrationRiskResponseDto | null;
 }
 
 interface TripRow extends TripSummaryRow {
@@ -209,6 +208,8 @@ interface TripRow extends TripSummaryRow {
 	includes: Record<string, unknown> | null;
 	excludes: Record<string, unknown> | null;
 	cancellationPolicy: Record<string, unknown> | null;
+	cancellationReason: string | null;
+	cancelledAt: Date | null;
 	waypoints: TripWaypointRow[];
 }
 
@@ -297,6 +298,16 @@ function toTripSummaryResponse(row: TripSummaryRow): TripSummaryResponseDto {
 function toTripResponse(row: TripRow): TripResponseDto {
 	const capacityMax = row.capacityMax == null ? null : Number(row.capacityMax);
 	const seatsTaken = Number(row.seatsTaken);
+	const registrationRisk = row.registrationRisk ?? {
+		status: "unavailable" as const,
+		assessmentId: null,
+		level: null,
+		assessedAt: null,
+		ruleVersionId: null,
+		factors: [],
+		advice: null,
+		recommendations: [],
+	};
 	return {
 		id: row.id,
 		hostId: row.hostId,
@@ -322,8 +333,11 @@ function toTripResponse(row: TripRow): TripResponseDto {
 		pricePerPerson: Number(row.pricePerPerson),
 		cancellationPolicy: row.cancellationPolicy,
 		status: row.status,
+		cancellationReason: row.cancellationReason,
+		cancelledAt: row.cancelledAt,
 		difficulty: row.difficulty ?? null,
 		weatherRiskLevel: row.weatherRiskLevel ?? null,
+		registrationRisk,
 		isBookable: computeIsBookable(
 			row.status,
 			row.routeStatus,
@@ -373,17 +387,35 @@ const TRIP_SELECT = `
 		trip."price_per_person" AS "pricePerPerson",
 		trip."cancellation_policy" AS "cancellationPolicy",
 		trip."status",
+		trip."cancellation_reason" AS "cancellationReason",
+		trip."cancelled_at" AS "cancelledAt",
 		trip."created_at" AS "createdAt",
 		trip."updated_at" AS "updatedAt",
 		route."difficulty" AS "difficulty",
 		route."status" AS "routeStatus",
-		(
-			SELECT wra."risk_level"
-			FROM "weather_risk_assessments" wra
-			WHERE wra."route_id" = trip."route_id"
-			ORDER BY wra."created_at" DESC
-			LIMIT 1
-		) AS "weatherRiskLevel",
+		risk."riskLevel" AS "weatherRiskLevel",
+		CASE
+			WHEN risk."assessmentId" IS NULL THEN jsonb_build_object(
+				'status', 'unavailable',
+				'assessmentId', NULL,
+				'level', NULL,
+				'assessedAt', NULL,
+				'ruleVersionId', NULL,
+				'factors', '[]'::jsonb,
+				'advice', NULL,
+				'recommendations', '[]'::jsonb
+			)
+			ELSE jsonb_build_object(
+				'status', 'available',
+				'assessmentId', risk."assessmentId",
+				'level', risk."riskLevel",
+				'assessedAt', risk."assessedAt",
+				'ruleVersionId', risk."ruleVersionId",
+				'factors', risk."factors",
+				'advice', advice."adviceText",
+				'recommendations', COALESCE(advice."actions", '[]'::jsonb)
+			)
+		END AS "registrationRisk",
 		COALESCE((
 			SELECT jsonb_agg(
 				jsonb_build_object(
@@ -407,6 +439,66 @@ const TRIP_SELECT = `
 	FROM "trips" trip
 	LEFT JOIN "trekking_routes" route ON route."id" = trip."route_id"
 	LEFT JOIN "users" u ON u."id" = trip."host_id"
+	LEFT JOIN LATERAL (
+		SELECT
+			wra."id" AS "assessmentId",
+			wra."risk_level" AS "riskLevel",
+			wra."created_at" AS "assessedAt",
+			wra."rule_version_id" AS "ruleVersionId",
+			jsonb_build_array(
+				jsonb_build_object(
+					'key', 'rainfall',
+					'label', 'Rainfall',
+					'value', wra."criteria_scores"->'rainfall'->'value',
+					'level', wra."criteria_scores"->'rainfall'->'level',
+					'weight', wra."criteria_scores"->'rainfall'->'weight',
+					'score', wra."criteria_scores"->'rainfall'->'score'
+				),
+				jsonb_build_object(
+					'key', 'wind',
+					'label', 'Wind',
+					'value', wra."criteria_scores"->'wind'->'value',
+					'level', wra."criteria_scores"->'wind'->'level',
+					'weight', wra."criteria_scores"->'wind'->'weight',
+					'score', wra."criteria_scores"->'wind'->'score'
+				),
+				jsonb_build_object(
+					'key', 'temperature',
+					'label', 'Temperature',
+					'value', wra."criteria_scores"->'temperature'->'value',
+					'level', wra."criteria_scores"->'temperature'->'level',
+					'weight', wra."criteria_scores"->'temperature'->'weight',
+					'score', wra."criteria_scores"->'temperature'->'score'
+				),
+				jsonb_build_object(
+					'key', 'visibility',
+					'label', 'Visibility',
+					'value', wra."criteria_scores"->'visibility'->'value',
+					'level', wra."criteria_scores"->'visibility'->'level',
+					'weight', wra."criteria_scores"->'visibility'->'weight',
+					'score', wra."criteria_scores"->'visibility'->'score'
+				),
+				jsonb_build_object(
+					'key', 'thunderstorm',
+					'label', 'Thunderstorm',
+					'value', wra."criteria_scores"->'thunderstorm'->'value',
+					'level', wra."criteria_scores"->'thunderstorm'->'level',
+					'weight', wra."criteria_scores"->'thunderstorm'->'weight',
+					'score', wra."criteria_scores"->'thunderstorm'->'score'
+				)
+			) AS "factors"
+		FROM "weather_risk_assessments" wra
+		WHERE wra."route_id" = trip."route_id"
+		ORDER BY wra."created_at" DESC, wra."id" DESC
+		LIMIT 1
+	) risk ON TRUE
+	LEFT JOIN LATERAL (
+		SELECT wa."advice_text" AS "adviceText", wa."actions"
+		FROM "weather_advice" wa
+		WHERE wa."assessment_id" = risk."assessmentId"
+		ORDER BY wa."created_at" DESC
+		LIMIT 1
+	) advice ON TRUE
 `;
 
 @Injectable()
@@ -1001,8 +1093,7 @@ export class TripsRepository extends Repository<Trip> {
 			equipmentRefundsCreated += await this.createIdempotentRefund(
 				reservation.bookingId,
 				reservation.totalPrice,
-				`ctms-027:reschedule:${tripId}:equipment:${reservation.bookingItemId}`,
-				"reschedule_equipment_unavailable"
+				`ctms-027:reschedule:${tripId}:equipment:${reservation.bookingItemId}`
 			);
 		}
 
@@ -1022,7 +1113,6 @@ export class TripsRepository extends Repository<Trip> {
 		options?: CancelTripWithCommitmentsOptions
 	): Promise<TripCancellationCommitmentSummary> {
 		const refundIdempotencyPrefix = options?.refundIdempotencyPrefix ?? "ctms-027";
-		const refundReason = options?.refundReason ?? "trip_cancelled_by_host";
 		await this.query(
 			`
 			UPDATE "trips"
@@ -1090,8 +1180,7 @@ export class TripsRepository extends Repository<Trip> {
 				bookingRefundsCreated += await this.createIdempotentRefund(
 					booking.id,
 					booking.totalAmount,
-					`${refundIdempotencyPrefix}:trip-cancel:${tripId}:booking:${booking.id}`,
-					refundReason
+					`${refundIdempotencyPrefix}:trip-cancel:${tripId}:booking:${booking.id}`
 				);
 			}
 		}
@@ -1180,9 +1269,17 @@ export class TripsRepository extends Repository<Trip> {
 	private async createIdempotentRefund(
 		bookingId: string,
 		amount: string,
-		idempotencyKey: string,
-		reason: string
+		idempotencyKey: string
 	): Promise<number> {
+		// `provider_reference` holds a REAL payment-provider transaction reference
+		// (e.g. the bank transfer code an Admin enters when confirming a manual
+		// refund, see RefundsService.confirmManualTransfer) -- it must stay NULL
+		// here since creating this `pending` obligation does not itself involve
+		// any provider transaction yet. Pre-existing bug fixed while on CTMS-179:
+		// this previously stored the cancellation reason string in this column
+		// (confirmed via `git log -S` to predate this story, introduced by
+		// CTMS-027's 22c2d06), which rendered as a fake "Mã giao dịch đối soát"
+		// in the Camper-facing refund history UI.
 		const rows = (await this.query(
 			`
 			WITH parent_charge AS (
@@ -1202,8 +1299,7 @@ export class TripsRepository extends Repository<Trip> {
 					"status",
 					"idempotency_key",
 					"request_fingerprint",
-					"parent_payment_id",
-					"provider_reference"
+					"parent_payment_id"
 				)
 				SELECT
 					$1,
@@ -1212,8 +1308,7 @@ export class TripsRepository extends Repository<Trip> {
 					'pending',
 					$3::text,
 					substr(md5($3::text || ':' || $2::text) || md5($2::text || ':' || $3::text), 1, 64),
-					parent_charge."id",
-					$4
+					parent_charge."id"
 				FROM parent_charge
 				WHERE $2::numeric > 0
 				ON CONFLICT ("booking_id", "idempotency_key")
@@ -1223,7 +1318,7 @@ export class TripsRepository extends Repository<Trip> {
 			)
 			SELECT COUNT(*)::int AS "createdCount" FROM inserted
 			`,
-			[bookingId, amount, idempotencyKey, reason]
+			[bookingId, amount, idempotencyKey]
 		)) as Array<{ createdCount: number | string }>;
 
 		return Number(rows[0]?.createdCount ?? 0);

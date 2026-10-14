@@ -146,6 +146,13 @@ test.describe("Admin view audit logs UI", () => {
 			localStorage.setItem("accessToken", "camper-token");
 			localStorage.setItem("authUser", JSON.stringify({ ...user, status: "active" }));
 		}, camperBase);
+		await page.route("**/api/profiles/me", (route) =>
+			route.fulfill({
+				status: 200,
+				contentType: "application/json",
+				body: JSON.stringify({ ...camperBase, status: "active" }),
+			})
+		);
 
 		await page.goto("/admin/audit-logs");
 		await expect(page.getByText("403 - Hạn chế quyền truy cập")).toBeVisible();

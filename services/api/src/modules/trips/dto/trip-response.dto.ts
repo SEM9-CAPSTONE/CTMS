@@ -146,6 +146,52 @@ export class TripHostDto {
 	bio?: string | null;
 }
 
+export class TripRegistrationRiskFactorDto {
+	@ApiProperty()
+	key!: string;
+
+	@ApiProperty()
+	label!: string;
+
+	@ApiProperty()
+	value!: number | boolean;
+
+	@ApiProperty({ enum: RiskLevel })
+	level!: RiskLevel;
+
+	@ApiProperty()
+	weight!: number;
+
+	@ApiProperty()
+	score!: number;
+}
+
+export class TripRegistrationRiskResponseDto {
+	@ApiProperty({ enum: ["available", "unavailable"] })
+	status!: "available" | "unavailable";
+
+	@ApiPropertyOptional({ nullable: true })
+	assessmentId!: string | null;
+
+	@ApiPropertyOptional({ enum: RiskLevel, nullable: true })
+	level!: RiskLevel | null;
+
+	@ApiPropertyOptional({ nullable: true })
+	assessedAt!: Date | null;
+
+	@ApiPropertyOptional({ nullable: true })
+	ruleVersionId!: string | null;
+
+	@ApiProperty({ type: [TripRegistrationRiskFactorDto] })
+	factors!: TripRegistrationRiskFactorDto[];
+
+	@ApiPropertyOptional({ nullable: true })
+	advice!: string | null;
+
+	@ApiProperty({ type: [String] })
+	recommendations!: string[];
+}
+
 export class TripResponseDto {
 	@ApiProperty()
 	id!: string;
@@ -219,11 +265,20 @@ export class TripResponseDto {
 	@ApiProperty()
 	status!: TripStatus;
 
+	@ApiPropertyOptional({ nullable: true, description: "Set only when status is 'cancelled'" })
+	cancellationReason!: string | null;
+
+	@ApiPropertyOptional({ nullable: true, description: "Set only when status is 'cancelled'" })
+	cancelledAt!: Date | null;
+
 	@ApiPropertyOptional({ enum: TrekkingRouteDifficulty, nullable: true })
 	difficulty?: TrekkingRouteDifficulty | null;
 
 	@ApiPropertyOptional({ enum: RiskLevel, nullable: true })
 	weatherRiskLevel?: RiskLevel | null;
+
+	@ApiProperty({ type: TripRegistrationRiskResponseDto })
+	registrationRisk!: TripRegistrationRiskResponseDto;
 
 	@ApiProperty()
 	isBookable!: boolean;

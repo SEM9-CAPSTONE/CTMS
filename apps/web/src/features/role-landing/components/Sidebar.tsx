@@ -109,11 +109,14 @@ export function Sidebar({
 							window.location.pathname.startsWith("/host/equipment-catalog");
 						const isPathWallet =
 							typeof window !== "undefined" && window.location.pathname.startsWith("/host/wallet");
+						const isPathPorter =
+							typeof window !== "undefined" && window.location.pathname.startsWith("/host/porter");
 						const isActive =
 							(item.key === "explore" && isPathTrips) ||
 							(item.key === "overview" && isPathDashboard) ||
 							(item.key === "equipment" && isPathEquipment) ||
-							(item.key === "wallet" && isPathWallet);
+							(item.key === "wallet" && isPathWallet) ||
+							(item.key === "porters" && isPathPorter);
 
 						return (
 							<button
@@ -146,6 +149,9 @@ export function Sidebar({
 										window.dispatchEvent(new PopStateEvent("popstate"));
 									} else if (item.key === "wallet") {
 										window.history.pushState({}, "", "/host/wallet");
+										window.dispatchEvent(new PopStateEvent("popstate"));
+									} else if (item.key === "porters") {
+										window.history.pushState({}, "", "/host/porter");
 										window.dispatchEvent(new PopStateEvent("popstate"));
 									} else if (item.key === "profile") {
 										if (activeRole === "porter") {
