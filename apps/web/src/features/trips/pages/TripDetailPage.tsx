@@ -1,9 +1,8 @@
-import { ArrowLeft, Compass, Loader2, RefreshCw, Users } from "lucide-react";
+import { ArrowLeft, BriefcaseBusiness, Compass, Loader2, RefreshCw, Users } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { BookingDetails } from "../../booking-details/types";
 import { bookingEquipmentService } from "../../booking-equipment/services/booking-equipment.service";
 import { TripMemberRoster } from "../../booking-members/components/TripMemberRoster";
-import { AvailablePortersPanel } from "../components/AvailablePortersPanel";
 import type { BookingAccess } from "../components/BookingPanel";
 import type { SelectedEquipmentItem } from "../components/RentableEquipmentModal";
 import { TripDetailView } from "../components/TripDetailView";
@@ -31,6 +30,7 @@ export interface TripDetailPageProps {
 	canManageTrips?: boolean;
 	currentUserId?: string | null;
 	onEditTrip?: (tripId: string) => void;
+	onManagePorters?: (tripId: string) => void;
 	initialTab?: "overview" | "roster";
 }
 
@@ -78,6 +78,7 @@ export function TripDetailPage({
 	canManageTrips = false,
 	currentUserId = null,
 	onEditTrip,
+	onManagePorters,
 	initialTab,
 }: TripDetailPageProps) {
 	const [activeTab, setActiveTab] = useState<"overview" | "roster">(initialTab ?? "overview");
@@ -389,7 +390,35 @@ export function TripDetailPage({
 									onConflictRetry={retryBooking}
 									onViewBookingDetails={onViewBookingDetails}
 									canManageTrip={canManageThisTrip}
-									hostAvailablePorters={<AvailablePortersPanel tripId={trip.id} />}
+									hostPorterManagement={
+										<section
+											data-testid="host-porter-management-entry"
+											className="rounded-3xl border border-[#dfe8df] bg-white p-5 shadow-sm"
+										>
+											<div className="flex items-start gap-3">
+												<div className="rounded-2xl bg-[#164027]/5 p-3 text-[#164027]">
+													<BriefcaseBusiness className="size-5" />
+												</div>
+												<div>
+													<h3 className="text-base font-extrabold text-[#10221b]">
+														Quản lý Porter
+													</h3>
+													<p className="mt-1 text-xs leading-5 text-[#667a6d]">
+														Tìm Porter phù hợp và gửi yêu cầu theo chuyến đi này.
+													</p>
+												</div>
+											</div>
+											<button
+												type="button"
+												onClick={() => onManagePorters?.(trip.id)}
+												disabled={!onManagePorters}
+												className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#164027] px-4 py-3 text-xs font-extrabold text-white transition hover:bg-[#0f2e1c] disabled:cursor-not-allowed disabled:opacity-60"
+											>
+												<BriefcaseBusiness className="size-4" />
+												<span>Quản lý Porter</span>
+											</button>
+										</section>
+									}
 									hostOperations={{
 										trip,
 										isSubmitting: tripOperations.isSubmitting,

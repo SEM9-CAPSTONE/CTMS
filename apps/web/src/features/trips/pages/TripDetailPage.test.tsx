@@ -688,6 +688,32 @@ describe("TripDetailPage", () => {
 		expect(onEditTrip).toHaveBeenCalledWith("trip-abc");
 	});
 
+	it("routes the owning Host to Porter management instead of rendering request UI inline", () => {
+		const onManagePorters = vi.fn();
+		vi.mocked(useTripDetail).mockReturnValue({
+			trip: { ...mockTrip, hostId: "host-1" },
+			isLoading: false,
+			error: null,
+			isNotFound: false,
+			retry: vi.fn(),
+		});
+
+		render(
+			<TripDetailPage
+				tripId="trip-abc"
+				onBackToList={vi.fn()}
+				canManageTrips={true}
+				currentUserId="host-1"
+				onManagePorters={onManagePorters}
+			/>
+		);
+
+		expect(screen.getByTestId("host-porter-management-entry")).toBeInTheDocument();
+		expect(screen.queryByLabelText("Vai trò Porter")).not.toBeInTheDocument();
+		fireEvent.click(screen.getByRole("button", { name: "Quản lý Porter" }));
+		expect(onManagePorters).toHaveBeenCalledWith("trip-abc");
+	});
+
 	it("mounts the operational roster only when the authorized role context requests it", () => {
 		vi.mocked(useTripDetail).mockReturnValue({
 			trip: mockTrip,

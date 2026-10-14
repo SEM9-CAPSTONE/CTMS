@@ -12,6 +12,8 @@ import { AvailablePortersQueryDto } from "../dto/available-porters-query.dto";
 import { CreatePorterRequestDto } from "../dto/create-porter-request.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { ConfigureTripWaypointsDto, CreateTripDto } from "../dto/create-trip.dto";
+// biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
+import { PendingPorterRequestQueryDto } from "../dto/pending-porter-request-query.dto";
 import { PorterAssignedTripResponseDto } from "../dto/porter-assigned-trip-response.dto";
 import { PorterRequestResponseDto } from "../dto/porter-request-response.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
@@ -116,6 +118,26 @@ export class TripsController {
 		@Body() dto: CreatePorterRequestDto
 	): Promise<PorterRequestResponseDto> {
 		return this.porterRequestsService.create(request.user.userId, params.tripId, dto);
+	}
+
+	@Get(":tripId/porter-requests/pending")
+	@Roles(UserRole.HOST)
+	@ApiOperation({ summary: "Get an active pending Porter Request for an owned Trip and Porter" })
+	@ApiResponse({ status: 200, type: PorterRequestResponseDto })
+	@ApiResponse({ status: 401, description: "Authentication required" })
+	@ApiResponse({ status: 403, description: "Host role and Trip ownership required" })
+	@ApiResponse({ status: 404, description: "Trip not found" })
+	@ApiResponse({ status: 422, description: "Invalid query parameters" })
+	getPendingPorterRequest(
+		@Req() request: AuthenticatedRequest,
+		@Param() params: TripIdParamDto,
+		@Query() query: PendingPorterRequestQueryDto
+	): Promise<PorterRequestResponseDto | null> {
+		return this.porterRequestsService.findPending(
+			request.user.userId,
+			params.tripId,
+			query.porterId
+		);
 	}
 
 	@Get(":tripId")

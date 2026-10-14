@@ -227,6 +227,28 @@ export interface AvailablePortersResponse {
 	pagination: TripsPagination;
 }
 
+export type PorterRequestStatus = "pending" | "accepted" | "declined" | "cancelled" | "expired";
+
+export interface CreatePorterRequestInput {
+	porterId: string;
+	requestedRole: IntendedPorterRole;
+	note?: string;
+}
+
+export interface PorterRequest {
+	id: string;
+	tripId: string;
+	porterId: string;
+	requestedBy: string;
+	requestedRole: IntendedPorterRole;
+	note: string | null;
+	status: PorterRequestStatus;
+	expiresAt: string;
+	respondedAt: string | null;
+	createdAt: string;
+	updatedAt: string;
+}
+
 export interface TripHost {
 	id: string;
 	fullName?: string | null;

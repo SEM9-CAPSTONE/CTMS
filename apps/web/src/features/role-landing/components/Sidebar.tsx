@@ -107,10 +107,13 @@ export function Sidebar({
 						const isPathEquipment =
 							typeof window !== "undefined" &&
 							window.location.pathname.startsWith("/host/equipment-catalog");
+						const isPathPorter =
+							typeof window !== "undefined" && window.location.pathname.startsWith("/host/porter");
 						const isActive =
 							(item.key === "explore" && isPathTrips) ||
 							(item.key === "overview" && isPathDashboard) ||
-							(item.key === "equipment" && isPathEquipment);
+							(item.key === "equipment" && isPathEquipment) ||
+							(item.key === "porters" && isPathPorter);
 
 						return (
 							<button
@@ -140,6 +143,9 @@ export function Sidebar({
 										}
 									} else if (item.key === "equipment") {
 										window.history.pushState({}, "", "/host/equipment-catalog");
+										window.dispatchEvent(new PopStateEvent("popstate"));
+									} else if (item.key === "porters") {
+										window.history.pushState({}, "", "/host/porter");
 										window.dispatchEvent(new PopStateEvent("popstate"));
 									} else if (item.key === "profile") {
 										if (activeRole === "porter") {

@@ -21,6 +21,20 @@ function storeCamper() {
 	);
 }
 
+function storeHost() {
+	localStorage.setItem(
+		"authUser",
+		JSON.stringify({
+			id: "host-1",
+			email: "host@example.com",
+			role: "host",
+			roles: ["host"],
+			status: "active",
+			createdAt: "2026-01-01T00:00:00.000Z",
+		})
+	);
+}
+
 describe("HostLayout Booking navigation", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
@@ -45,4 +59,14 @@ describe("HostLayout Booking navigation", () => {
 			expect(screen.getByRole("button", { name: "Đơn đặt chỗ" })).toHaveClass("bg-[#164027]");
 		}
 	);
+
+	it("navigates the Host sidebar to Porter management", async () => {
+		localStorage.clear();
+		storeHost();
+		window.history.replaceState({}, "", "/dashboard");
+		render(<HostLayout>Content</HostLayout>);
+		fireEvent.click(screen.getByRole("button", { name: "Porter" }));
+		expect(window.location.pathname).toBe("/host/porter");
+		await waitFor(() => expect(camperProfileService.getProfile).toHaveBeenCalledTimes(1));
+	});
 });

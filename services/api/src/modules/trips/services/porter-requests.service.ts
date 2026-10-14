@@ -5,18 +5,24 @@ import {
 	Logger,
 	NotFoundException,
 } from "@nestjs/common";
-import type { ConfigService } from "@nestjs/config";
-import type { DataSource, EntityManager } from "typeorm";
+// biome-ignore lint/style/useImportType: NestJS DI requires runtime metadata
+import { ConfigService } from "@nestjs/config";
+
+// biome-ignore lint/style/useImportType: NestJS DI requires runtime metadata
+import { DataSource, type EntityManager } from "typeorm";
 import { PorterAvailabilityStatus } from "../../profiles/entities/porter-profile.entity";
 import { PorterRouteProficiency } from "../../profiles/entities/porter-route-qualification.entity";
-import type { EventsGateway } from "../../realtime/events.gateway";
+// biome-ignore lint/style/useImportType: NestJS DI requires runtime metadata
+import { EventsGateway } from "../../realtime/events.gateway";
 import { UserRole, UserStatus } from "../../users/entities/user.entity";
 import { IntendedPorterRole } from "../dto/available-porters-query.dto";
 import type { CreatePorterRequestDto } from "../dto/create-porter-request.dto";
 import type { PorterRequestResponseDto } from "../dto/porter-request-response.dto";
 import type { PorterRequest } from "../entities/porter-request.entity";
-import type { PorterRequestsRepository } from "../repositories/porter-requests.repository";
-import type { TripsRepository } from "../repositories/trips.repository";
+// biome-ignore lint/style/useImportType: NestJS DI requires runtime metadata
+import { PorterRequestsRepository } from "../repositories/porter-requests.repository";
+// biome-ignore lint/style/useImportType: NestJS DI requires runtime metadata
+import { TripsRepository } from "../repositories/trips.repository";
 
 const DEFAULT_PORTER_REQUEST_TTL_HOURS = 48;
 
@@ -82,6 +88,26 @@ export class PorterRequestsService {
 		}
 
 		return toPorterRequestResponse(result.request);
+	}
+
+	async findPending(
+		hostId: string,
+		tripId: string,
+		porterId: string
+	): Promise<PorterRequestResponseDto | null> {
+		const trip = await this.tripsRepository.findPorterAvailabilityContext(tripId);
+		if (!trip) {
+			throw new NotFoundException("Trip not found");
+		}
+		if (trip.hostId !== hostId) {
+			throw new ForbiddenException("Only the owning Host can view Porter Requests for this Trip");
+		}
+
+		const request = await this.porterRequestsRepository.findPendingByTripAndPorter(
+			tripId,
+			porterId
+		);
+		return request ? toPorterRequestResponse(request) : null;
 	}
 
 	private async assertPorterEligible(

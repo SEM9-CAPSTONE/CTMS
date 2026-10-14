@@ -54,7 +54,7 @@ export interface TripDetailViewProps {
 	onViewBookingDetails?: (bookingId: string) => void;
 	canManageTrip?: boolean;
 	hostOperations?: ComponentProps<typeof HostTripOperationsPanel>;
-	hostAvailablePorters?: ReactNode;
+	hostPorterManagement?: ReactNode;
 }
 
 export function formatDateTime(isoString: string | null | undefined): string {
@@ -130,7 +130,7 @@ export function TripDetailView({
 	onViewBookingDetails,
 	canManageTrip = false,
 	hostOperations,
-	hostAvailablePorters,
+	hostPorterManagement,
 }: TripDetailViewProps) {
 	const [packingListRefreshKey, setPackingListRefreshKey] = useState(0);
 	const [isPackingListModalOpen, setIsPackingListModalOpen] = useState(false);
@@ -722,7 +722,7 @@ export function TripDetailView({
 				<div className="relative">
 					<div className="lg:sticky lg:top-24 space-y-4">
 						{canManageTrip && hostOperations && <HostTripOperationsPanel {...hostOperations} />}
-						{canManageTrip && hostAvailablePorters}
+						{canManageTrip && hostPorterManagement}
 
 						{/* Overbooking and capacity urgency banner */}
 						<TripCapacityBanner

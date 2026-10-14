@@ -32,6 +32,7 @@ import { CreateTrekkingRoutePage } from "../features/trekking-routes/pages/Creat
 import { TrekkingRoutesPage } from "../features/trekking-routes/pages/TrekkingRoutesPage";
 import { AdminTripsPage } from "../features/trips/pages/AdminTripsPage";
 import { CreateTripPage } from "../features/trips/pages/CreateTripPage";
+import { HostPorterRequestsPage } from "../features/trips/pages/HostPorterRequestsPage";
 import { SearchTripsPage } from "../features/trips/pages/SearchTripsPage";
 import { TripDetailPage } from "../features/trips/pages/TripDetailPage";
 import { EdgeCasePage, ErrorPage, NotFoundPage, UnauthorizedPage } from "../shared/pages";
@@ -225,6 +226,9 @@ export function AppRoutes() {
 				}
 				onSignIn={() => navigateTo(RoutePath.LOGIN)}
 				onEditTrip={(tripId) => navigateTo(`/host/trips/${tripId}/edit`)}
+				onManagePorters={(tripId) =>
+					navigateTo(`${RoutePath.HOST_PORTER}?tripId=${encodeURIComponent(tripId)}`)
+				}
 				onViewBookingDetails={(selectedBookingId) =>
 					navigateTo(
 						`/bookings/${selectedBookingId}?from=trip&tripId=${encodeURIComponent(activeTripId)}`
@@ -434,6 +438,19 @@ export function AppRoutes() {
 							onBackHome={() => navigateTo(RoutePath.DASHBOARD)}
 							onCreateRoute={() => navigateTo(RoutePath.HOST_CREATE_TREKKING_ROUTE)}
 						/>
+					</HostLayout>
+				</AppRoleGuard>
+			);
+
+		case RoutePath.HOST_PORTER:
+			return (
+				<AppRoleGuard
+					allowedRoles={["host"]}
+					currentRoles={currentRoles}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
+						<HostPorterRequestsPage initialTripId={navigationContext.get("tripId")} />
 					</HostLayout>
 				</AppRoleGuard>
 			);
