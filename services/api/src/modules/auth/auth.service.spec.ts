@@ -51,14 +51,15 @@ type MockUsersRepositoryForVerify = {
 };
 
 type MockOtpRepositoryForVerify = {
-	findOneBy: jest.Mock;
+	findOne: jest.Mock;
+	update: jest.Mock;
 	delete: jest.Mock;
 };
 
 /** Matches .env.example defaults (Step 2) — string, as ConfigService.get returns raw env strings. */
 const OTP_CONFIG: Record<string, string> = {
 	OTP_TTL_MINUTES: "10",
-	OTP_RESEND_MAX_ATTEMPTS: "5",
+	OTP_RESEND_MAX_ATTEMPTS: "4",
 	OTP_RESEND_WINDOW_MINUTES: "1440",
 };
 
@@ -531,7 +532,7 @@ describe("AuthService.issueOtp", () => {
 
 	it("throws ConflictException and does not save when sendCount already reached the limit within the window", async () => {
 		const existing = buildOtpRow({
-			sendCount: 5,
+			sendCount: 4,
 			windowStartedAt: new Date(Date.now() - 60_000),
 		});
 		transactionalOtpRepository.findOneBy.mockResolvedValue(existing);
@@ -581,12 +582,13 @@ describe("AuthService.issueOtp", () => {
 describe("AuthService.verifyOtp", () => {
 	let authService: AuthService;
 	let usersRepository: MockUsersRepository;
-	let otpRepository: { findOneBy: jest.Mock };
+	let otpRepository: Record<string, never>;
 	let transactionalUsersRepository: MockUsersRepositoryForVerify;
 	let transactionalOtpRepository: MockOtpRepositoryForVerify;
 	let auditLogRepository: { save: jest.Mock };
 	let manager: { withRepository: jest.Mock; getRepository: jest.Mock };
 	let dataSource: { transaction: jest.Mock };
+	let configGet: jest.Mock;
 	let loggerLogSpy: jest.SpyInstance;
 	const bcryptCompare = bcrypt.compare as unknown as jest.Mock;
 
@@ -608,6 +610,7 @@ describe("AuthService.verifyOtp", () => {
 			expiresAt: new Date(Date.now() + 60_000),
 			sendCount: 1,
 			windowStartedAt: new Date(Date.now() - 60_000),
+			failedAttempts: 0,
 			...overrides,
 		};
 	}
@@ -618,12 +621,12 @@ describe("AuthService.verifyOtp", () => {
 
 		auditLogRepository = { save: jest.fn() };
 		usersRepository = { findByEmailOrPhone: jest.fn(), createUser: jest.fn() };
-		otpRepository = { findOneBy: jest.fn() };
+		otpRepository = {};
 		transactionalUsersRepository = {
 			update: jest.fn(),
 			findOneByOrFail: jest.fn(),
 		};
-		transactionalOtpRepository = { findOneBy: jest.fn(), delete: jest.fn() };
+		transactionalOtpRepository = { findOne: jest.fn(), update: jest.fn(), delete: jest.fn() };
 		manager = {
 			withRepository: jest.fn((repo: unknown) =>
 				repo === usersRepository ? transactionalUsersRepository : transactionalOtpRepository
@@ -640,6 +643,7 @@ describe("AuthService.verifyOtp", () => {
 				callback(manager as unknown as EntityManager)
 			),
 		};
+		configGet = jest.fn(); // unset -> default limit of 4 (BR-007)
 
 		bcryptCompare.mockResolvedValue(true);
 
@@ -648,7 +652,7 @@ describe("AuthService.verifyOtp", () => {
 			otpRepository as unknown as VerificationOtpRepository,
 			{} as RefreshTokenRepository, // verifyOtp() never touches refresh tokens or JwtService
 			dataSource as unknown as DataSource,
-			{ get: jest.fn() } as unknown as ConfigService,
+			{ get: configGet } as unknown as ConfigService,
 			{} as OtpDeliveryService, // verifyOtp() is channel-agnostic, never delivers
 			{} as JwtService
 		);
@@ -658,28 +662,27 @@ describe("AuthService.verifyOtp", () => {
 		loggerLogSpy.mockRestore();
 	});
 
-	// --- Success path (AC3, BR-207) ------------------------------------------
+	// --- Success path (AC3) ---------------------------------------------------
 
-	it("activates the user and deletes the OTP row when the code matches and is not expired", async () => {
+	it("locks the OTP row, activates the user and deletes the OTP when the code matches", async () => {
 		const otp = buildOtpRow();
-		otpRepository.findOneBy.mockResolvedValue(otp);
+		transactionalOtpRepository.findOne.mockResolvedValue(otp);
 		const activatedUser = buildUser({ status: UserStatus.ACTIVE });
 		transactionalUsersRepository.findOneByOrFail.mockResolvedValue(activatedUser);
 
 		const result = await authService.verifyOtp(buildDto());
 
-		expect(otpRepository.findOneBy).toHaveBeenCalledWith({ userId: USER_ID });
+		expect(transactionalOtpRepository.findOne).toHaveBeenCalledWith({
+			where: { userId: USER_ID },
+			lock: { mode: "pessimistic_write" },
+		});
 		expect(bcryptCompare).toHaveBeenCalledWith(SUBMITTED_CODE, otp.codeHash);
 		expect(dataSource.transaction).toHaveBeenCalledTimes(1);
 		expect(transactionalUsersRepository.update).toHaveBeenCalledWith(USER_ID, {
 			status: UserStatus.ACTIVE,
 		});
-		expect(transactionalOtpRepository.delete).toHaveBeenCalledWith({
-			userId: USER_ID,
-		});
-		expect(transactionalUsersRepository.findOneByOrFail).toHaveBeenCalledWith({
-			id: USER_ID,
-		});
+		expect(transactionalOtpRepository.delete).toHaveBeenCalledWith({ userId: USER_ID });
+		expect(transactionalOtpRepository.update).not.toHaveBeenCalled();
 		expect(result).toEqual({
 			id: activatedUser.id,
 			email: activatedUser.email,
@@ -691,8 +694,19 @@ describe("AuthService.verifyOtp", () => {
 		});
 	});
 
+	it("still accepts the correct code on the last allowed attempt (3 earlier failures)", async () => {
+		transactionalOtpRepository.findOne.mockResolvedValue(buildOtpRow({ failedAttempts: 3 }));
+		transactionalUsersRepository.findOneByOrFail.mockResolvedValue(
+			buildUser({ status: UserStatus.ACTIVE })
+		);
+
+		const result = await authService.verifyOtp(buildDto());
+
+		expect(result.status).toBe(UserStatus.ACTIVE);
+	});
+
 	it("never includes passwordHash in the returned profile", async () => {
-		otpRepository.findOneBy.mockResolvedValue(buildOtpRow());
+		transactionalOtpRepository.findOne.mockResolvedValue(buildOtpRow());
 		transactionalUsersRepository.findOneByOrFail.mockResolvedValue(
 			buildUser({ status: UserStatus.ACTIVE, passwordHash: HASHED_PASSWORD })
 		);
@@ -705,24 +719,21 @@ describe("AuthService.verifyOtp", () => {
 		);
 	});
 
-	// --- Not found (AC3, BR-231: 404) ----------------------------------------
+	// --- Not found / expired: no side effect ---------------------------------
 
-	it("throws NotFoundException when no OTP row exists for the userId", async () => {
-		otpRepository.findOneBy.mockResolvedValue(null);
+	it("throws NotFoundException without side effects when no OTP row exists", async () => {
+		transactionalOtpRepository.findOne.mockResolvedValue(null);
 
 		const error = await authService.verifyOtp(buildDto()).catch((e) => e);
 
 		expect(error).toBeInstanceOf(NotFoundException);
-		expect((error as NotFoundException).getStatus()).toBe(404);
-		// BR-243: no side effect.
 		expect(bcryptCompare).not.toHaveBeenCalled();
-		expect(dataSource.transaction).not.toHaveBeenCalled();
+		expect(transactionalOtpRepository.update).not.toHaveBeenCalled();
+		expect(transactionalUsersRepository.update).not.toHaveBeenCalled();
 	});
 
-	// --- Expired (AC3, BR-231: 409) ------------------------------------------
-
-	it("throws ConflictException and does not compare the code when the OTP is expired", async () => {
-		otpRepository.findOneBy.mockResolvedValue(
+	it("throws ConflictException without comparing the code when the OTP is expired", async () => {
+		transactionalOtpRepository.findOne.mockResolvedValue(
 			buildOtpRow({ expiresAt: new Date(Date.now() - 1000) })
 		);
 
@@ -730,29 +741,79 @@ describe("AuthService.verifyOtp", () => {
 
 		expect(error).toBeInstanceOf(ConflictException);
 		expect((error as ConflictException).getStatus()).toBe(409);
-		// BR-243: no side effect — code comparison and the transaction never run.
 		expect(bcryptCompare).not.toHaveBeenCalled();
-		expect(dataSource.transaction).not.toHaveBeenCalled();
+		expect(transactionalOtpRepository.update).not.toHaveBeenCalled();
+		expect(transactionalUsersRepository.update).not.toHaveBeenCalled();
 	});
 
-	// --- Incorrect code (AC3, BR-231: 409, BR-243) ---------------------------
+	// --- Incorrect code and attempt limit (BR-007, BR-008) -------------------
 
-	it("throws ConflictException and does not open a transaction when the OTP code is incorrect", async () => {
-		otpRepository.findOneBy.mockResolvedValue(buildOtpRow());
+	it("counts an incorrect code and rejects it without activating the account", async () => {
+		transactionalOtpRepository.findOne.mockResolvedValue(buildOtpRow({ failedAttempts: 1 }));
 		bcryptCompare.mockResolvedValue(false);
 
 		const error = await authService.verifyOtp(buildDto()).catch((e) => e);
 
 		expect(error).toBeInstanceOf(ConflictException);
-		expect((error as ConflictException).getStatus()).toBe(409);
-		// BR-243: no side effect.
-		expect(dataSource.transaction).not.toHaveBeenCalled();
+		expect((error as ConflictException).message).toBe("Incorrect OTP");
+		expect(transactionalOtpRepository.update).toHaveBeenCalledWith(
+			{ userId: USER_ID },
+			{ failedAttempts: 2 }
+		);
+		expect(transactionalUsersRepository.update).not.toHaveBeenCalled();
+		expect(transactionalOtpRepository.delete).not.toHaveBeenCalled();
+		expect(auditLogRepository.save).not.toHaveBeenCalled();
 	});
 
+	it("reports the limit as reached on the 4th incorrect attempt", async () => {
+		transactionalOtpRepository.findOne.mockResolvedValue(buildOtpRow({ failedAttempts: 3 }));
+		bcryptCompare.mockResolvedValue(false);
+
+		const error = await authService.verifyOtp(buildDto()).catch((e) => e);
+
+		expect(error).toBeInstanceOf(ConflictException);
+		expect((error as ConflictException).message).toBe(
+			"Too many incorrect OTP attempts, please request a new OTP"
+		);
+		expect(transactionalOtpRepository.update).toHaveBeenCalledWith(
+			{ userId: USER_ID },
+			{ failedAttempts: 4 }
+		);
+	});
+
+	it("rejects a 5th attempt, even with the correct code, without comparing or activating", async () => {
+		transactionalOtpRepository.findOne.mockResolvedValue(buildOtpRow({ failedAttempts: 4 }));
+
+		const error = await authService.verifyOtp(buildDto()).catch((e) => e);
+
+		expect(error).toBeInstanceOf(ConflictException);
+		expect((error as ConflictException).message).toBe(
+			"Too many incorrect OTP attempts, please request a new OTP"
+		);
+		expect(bcryptCompare).not.toHaveBeenCalled();
+		expect(transactionalOtpRepository.update).not.toHaveBeenCalled();
+		expect(transactionalUsersRepository.update).not.toHaveBeenCalled();
+	});
+
+	it("reads the attempt limit from OTP_VERIFY_MAX_ATTEMPTS (BR-190)", async () => {
+		configGet.mockImplementation((key: string) =>
+			key === "OTP_VERIFY_MAX_ATTEMPTS" ? "2" : undefined
+		);
+		transactionalOtpRepository.findOne.mockResolvedValue(buildOtpRow({ failedAttempts: 2 }));
+
+		const error = await authService.verifyOtp(buildDto()).catch((e) => e);
+
+		expect(error).toBeInstanceOf(ConflictException);
+		expect(bcryptCompare).not.toHaveBeenCalled();
+	});
+
+	// --- Audit -----------------------------------------------------------------
+
 	it("writes an audit log for auth.verify_otp inside the transaction", async () => {
-		otpRepository.findOneBy.mockResolvedValue(buildOtpRow());
-		const activatedUser = buildUser({ status: UserStatus.ACTIVE });
-		transactionalUsersRepository.findOneByOrFail.mockResolvedValue(activatedUser);
+		transactionalOtpRepository.findOne.mockResolvedValue(buildOtpRow());
+		transactionalUsersRepository.findOneByOrFail.mockResolvedValue(
+			buildUser({ status: UserStatus.ACTIVE })
+		);
 
 		await authService.verifyOtp(buildDto());
 
@@ -769,9 +830,10 @@ describe("AuthService.verifyOtp", () => {
 	});
 
 	it("propagates error and rolls back when the audit log write fails during verification", async () => {
-		otpRepository.findOneBy.mockResolvedValue(buildOtpRow());
-		const activatedUser = buildUser({ status: UserStatus.ACTIVE });
-		transactionalUsersRepository.findOneByOrFail.mockResolvedValue(activatedUser);
+		transactionalOtpRepository.findOne.mockResolvedValue(buildOtpRow());
+		transactionalUsersRepository.findOneByOrFail.mockResolvedValue(
+			buildUser({ status: UserStatus.ACTIVE })
+		);
 		const auditError = new Error("audit save error");
 		auditLogRepository.save.mockRejectedValue(auditError);
 
@@ -918,7 +980,7 @@ describe("AuthService.sendOtp", () => {
 			userId: USER_ID,
 			codeHash: "old-hash",
 			expiresAt: new Date(Date.now() + 60_000),
-			sendCount: 5,
+			sendCount: 4,
 			windowStartedAt: new Date(Date.now() - 60_000),
 		};
 		transactionalOtpRepository.findOneBy.mockResolvedValue(existing);

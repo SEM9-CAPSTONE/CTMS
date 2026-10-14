@@ -60,7 +60,7 @@ async function main() {
 
 			const ttlMinutes = 10;
 			const windowMinutes = 1440;
-			const maxAttempts = 5;
+			const maxAttempts = 4;
 
 			const code = randomInt(100000, 1000000).toString();
 			const codeHash = await bcrypt.hash(code, 10);
@@ -93,7 +93,8 @@ async function main() {
 				 VALUES ($1, $2, $3, $4, $5)
 				 ON CONFLICT (user_id) DO UPDATE 
 				 SET code_hash = EXCLUDED.code_hash, expires_at = EXCLUDED.expires_at, 
-				     send_count = EXCLUDED.send_count, window_started_at = EXCLUDED.window_started_at`,
+				     send_count = EXCLUDED.send_count, window_started_at = EXCLUDED.window_started_at,
+				     failed_attempts = 0`,
 				[userId, codeHash, expiresAt, sendCount, windowStartedAt]
 			);
 

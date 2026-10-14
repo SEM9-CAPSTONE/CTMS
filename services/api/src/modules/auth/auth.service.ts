@@ -58,6 +58,7 @@ const RESEND_LIMIT_MESSAGE = "OTP resend limit reached, try again later";
 const OTP_NOT_FOUND_MESSAGE = "No pending OTP found for this account";
 const OTP_EXPIRED_MESSAGE = "OTP has expired";
 const OTP_INCORRECT_MESSAGE = "Incorrect OTP";
+const OTP_ATTEMPTS_EXCEEDED_MESSAGE = "Too many incorrect OTP attempts, please request a new OTP";
 const RESET_CREDENTIAL_NOT_FOUND_MESSAGE = "No pending reset credential found";
 const RESET_CREDENTIAL_EXPIRED_MESSAGE = "Reset credential has expired";
 const RESET_CREDENTIAL_INCORRECT_MESSAGE = "Incorrect reset credential";
@@ -145,7 +146,7 @@ export class AuthService {
 		const windowMinutes = Number(
 			this.configService.get<string>("OTP_RESEND_WINDOW_MINUTES") ?? "1440"
 		);
-		const maxAttempts = Number(this.configService.get<string>("OTP_RESEND_MAX_ATTEMPTS") ?? "5");
+		const maxAttempts = Number(this.configService.get<string>("OTP_RESEND_MAX_ATTEMPTS") ?? "4");
 
 		const code = generateOtpCode();
 		const codeHash = await bcrypt.hash(code, BCRYPT_COST_FACTOR);
@@ -186,6 +187,7 @@ export class AuthService {
 			expiresAt: plan.expiresAt,
 			sendCount: plan.sendCount,
 			windowStartedAt: plan.windowStartedAt,
+			failedAttempts: 0,
 		});
 	}
 
@@ -205,26 +207,36 @@ export class AuthService {
 	}
 
 	async verifyOtp(dto: VerifyOtpDto): Promise<UserProfileDto> {
-		const otp = await this.verificationOtpRepository.findOneBy({
-			userId: dto.userId,
-		});
-		if (!otp) {
-			throw new NotFoundException(OTP_NOT_FOUND_MESSAGE);
-		}
+		const maxAttempts = Number(this.configService.get<string>("OTP_VERIFY_MAX_ATTEMPTS") ?? "4");
 
-		if (otp.expiresAt.getTime() <= Date.now()) {
-			throw new ConflictException(OTP_EXPIRED_MESSAGE);
-		}
-
-		const isMatch = await bcrypt.compare(dto.code, otp.codeHash);
-		if (!isMatch) {
-			throw new ConflictException(OTP_INCORRECT_MESSAGE);
-		}
-
-		const user = await this.dataSource.transaction(async (manager) => {
+		// The OTP row is locked for the whole check so concurrent guesses are
+		// serialized and cannot exceed the attempt limit (BR-007).
+		const outcome = await this.dataSource.transaction(async (manager) => {
 			const transactionalUsersRepository = manager.withRepository(this.usersRepository);
 			const transactionalOtpRepository = manager.withRepository(this.verificationOtpRepository);
 			const auditLogRepository = manager.getRepository(AuditLog);
+
+			const otp = await transactionalOtpRepository.findOne({
+				where: { userId: dto.userId },
+				lock: { mode: "pessimistic_write" },
+			});
+			if (!otp) {
+				throw new NotFoundException(OTP_NOT_FOUND_MESSAGE);
+			}
+			if (otp.expiresAt.getTime() <= Date.now()) {
+				throw new ConflictException(OTP_EXPIRED_MESSAGE);
+			}
+			if (otp.failedAttempts >= maxAttempts) {
+				throw new ConflictException(OTP_ATTEMPTS_EXCEEDED_MESSAGE);
+			}
+
+			const isMatch = await bcrypt.compare(dto.code, otp.codeHash);
+			if (!isMatch) {
+				// Returned instead of thrown so the incremented counter commits.
+				const failedAttempts = otp.failedAttempts + 1;
+				await transactionalOtpRepository.update({ userId: dto.userId }, { failedAttempts });
+				return { verified: false as const, limitReached: failedAttempts >= maxAttempts };
+			}
 
 			await transactionalUsersRepository.update(dto.userId, {
 				status: UserStatus.ACTIVE,
@@ -245,12 +257,18 @@ export class AuthService {
 				reason: null,
 			});
 
-			return updatedUser;
+			return { verified: true as const, user: updatedUser };
 		});
 
-		this.logger.log(`OTP verified, user activated: ${user.id}`);
+		if (!outcome.verified) {
+			throw new ConflictException(
+				outcome.limitReached ? OTP_ATTEMPTS_EXCEEDED_MESSAGE : OTP_INCORRECT_MESSAGE
+			);
+		}
 
-		return toUserProfile(user);
+		this.logger.log(`OTP verified, user activated: ${outcome.user.id}`);
+
+		return toUserProfile(outcome.user);
 	}
 
 	async sendOtp(dto: SendOtpDto): Promise<UserProfileDto> {

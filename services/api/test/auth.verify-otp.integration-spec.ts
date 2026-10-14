@@ -214,6 +214,78 @@ describe("POST /api/auth/verify (integration, real Postgres)", () => {
 			[userId]
 		);
 		expect(otpRows).toHaveLength(1);
+		expect(otpRows[0].failed_attempts).toBe(1);
+	});
+
+	// --- Attempt limit (BR-007, BR-008) -----------------------------------------
+
+	it("blocks verification after 4 incorrect attempts, even with the correct code", async () => {
+		const { userId, code } = await registerAndIssueOtp("verify-limit");
+
+		for (let attempt = 1; attempt <= 3; attempt++) {
+			const response = await request(app.getHttpServer())
+				.post("/api/auth/verify")
+				.send({ userId, code: "000000" })
+				.expect(409);
+			expect(response.body.message).toBe("Incorrect OTP");
+		}
+
+		const fourth = await request(app.getHttpServer())
+			.post("/api/auth/verify")
+			.send({ userId, code: "000000" })
+			.expect(409);
+		expect(fourth.body.message).toBe("Too many incorrect OTP attempts, please request a new OTP");
+
+		const fifth = await request(app.getHttpServer())
+			.post("/api/auth/verify")
+			.send({ userId, code })
+			.expect(409);
+		expect(fifth.body.message).toBe("Too many incorrect OTP attempts, please request a new OTP");
+
+		const userRows = await dataSource.query('SELECT "status" FROM "users" WHERE "id" = $1', [
+			userId,
+		]);
+		expect(userRows[0].status).toBe("pending_verification");
+		const otpRows = await dataSource.query(
+			'SELECT "failed_attempts" FROM "verification_otps" WHERE "user_id" = $1',
+			[userId]
+		);
+		expect(otpRows[0].failed_attempts).toBe(4);
+	});
+
+	it("never counts more than 4 failures under concurrent incorrect attempts", async () => {
+		const { userId } = await registerAndIssueOtp("verify-concurrent");
+
+		const responses = await Promise.all(
+			Array.from({ length: 8 }, () =>
+				request(app.getHttpServer()).post("/api/auth/verify").send({ userId, code: "000000" })
+			)
+		);
+
+		expect(responses.every((response) => response.status === 409)).toBe(true);
+		const otpRows = await dataSource.query(
+			'SELECT "failed_attempts" FROM "verification_otps" WHERE "user_id" = $1',
+			[userId]
+		);
+		expect(otpRows[0].failed_attempts).toBe(4);
+	});
+
+	it("resets the failure count when a new OTP is issued", async () => {
+		const { userId } = await registerAndIssueOtp("verify-reset");
+		for (let attempt = 1; attempt <= 4; attempt++) {
+			await request(app.getHttpServer())
+				.post("/api/auth/verify")
+				.send({ userId, code: "000000" })
+				.expect(409);
+		}
+
+		const newCode = await authService.issueOtp(userId);
+
+		const response = await request(app.getHttpServer())
+			.post("/api/auth/verify")
+			.send({ userId, code: newCode })
+			.expect(200);
+		expect(response.body.status).toBe("active");
 	});
 
 	// --- Expired code (409, AC3, BR-006/BR-220) ----------------------------------

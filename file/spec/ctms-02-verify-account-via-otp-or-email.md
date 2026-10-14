@@ -144,3 +144,20 @@ The source names both OTP and email verification. Provider-specific email-link t
 The source supports both OTP and email verification but does not define a separate email-link token contract.
 
 Email-link token generation, storage and transport remain TBD in Technical Design unless another approved source defines them.
+
+**Resolved (2026-10-14, confirmed by the team leader):** the BR-007 limit is four for both resend and verification attempts. The earlier implementation used a default resend limit of five and had no verification-attempt limit; both are corrected below.
+
+## 13. Implementation Record — BR-007 attempt limit fix
+
+- **Resend limit 5 → 4.** `OTP_RESEND_MAX_ATTEMPTS` defaults to `4` in `AuthService` and `.env.example`. The first send counts, so one send plus three resends are allowed and the fifth send within the window returns `409`. Local `.env` files must be updated by hand to `OTP_RESEND_MAX_ATTEMPTS=4`.
+- **New verification-attempt limit.** `verification_otps.failed_attempts` (migration `1787220000000-AddVerificationOtpFailedAttempts`, `NOT NULL DEFAULT 0`, `CHECK >= 0`) counts incorrect codes for the current OTP. `OTP_VERIFY_MAX_ATTEMPTS` (default `4`, BR-190) sets the limit.
+  - Each incorrect code increments the counter and returns `409 Incorrect OTP`; the attempt that reaches the limit returns `409 Too many incorrect OTP attempts, please request a new OTP`.
+  - Once the limit is reached, further attempts are rejected with the same message before the code is compared, even if the code is correct (BR-008), and the account stays `pending_verification`.
+  - Issuing a new OTP (send, resend or forgot-password) resets the counter to `0`.
+- **Concurrency.** `verifyOtp` now reads the OTP row with `SELECT ... FOR UPDATE` inside one transaction, so concurrent guesses are serialized and cannot exceed the limit. The incorrect-attempt result is returned from the transaction (not thrown) so the counter increment commits.
+- **Out of scope.** The forgot-password reset flow (CTMS-005) shares `verification_otps` but its code check was not changed.
+
+## 14. Test Evidence — BR-007 attempt limit fix
+
+- Unit (`auth.service.spec.ts`): row lock on verify; correct code still accepted after three failures; incorrect code increments the counter without activating; fourth failure reports the limit; fifth attempt rejected without comparing the code; limit read from `OTP_VERIFY_MAX_ATTEMPTS`; resend boundary moved to four.
+- Integration (real Postgres): `auth.verify-otp.integration-spec.ts` — counter stored, four failures then correct code still rejected, eight concurrent wrong attempts store exactly four failures, new OTP resets the counter; `auth.resend-otp.integration-spec.ts` — fifth send rejected and never reaches the provider.
