@@ -5,6 +5,7 @@ import {
 	mapCreatePorterRequestError,
 	useCreatePorterRequest,
 } from "../hooks/useCreatePorterRequest";
+import { usePendingPorterRequest } from "../hooks/usePendingPorterRequest";
 import type { IntendedPorterRole, PorterRequest } from "../types";
 
 interface PorterRequestActionProps {
@@ -26,13 +27,17 @@ export function PorterRequestAction({ tripId, porterId, role }: PorterRequestAct
 	const [note, setNote] = useState("");
 	const [confirmedRequest, setConfirmedRequest] = useState<PorterRequest | null>(null);
 	const mutation = useCreatePorterRequest();
+	const pendingQuery = usePendingPorterRequest(tripId, porterId);
 	const errorState = mutation.error ? mapCreatePorterRequestError(mutation.error) : null;
 	const normalizedNote = useMemo(() => note.trim(), [note]);
-	const isPendingRequest = confirmedRequest?.status === "pending";
+	const authoritativeRequest = pendingQuery.data ?? confirmedRequest;
+	const isPendingRequest = authoritativeRequest?.status === "pending";
+	const isCheckingPending = pendingQuery.isPending;
+	const cannotVerifyPending = pendingQuery.isError;
 	const isSubmitting = mutation.isPending;
 
 	function submitRequest() {
-		if (isSubmitting || isPendingRequest) return;
+		if (isSubmitting || isPendingRequest || isCheckingPending || cannotVerifyPending) return;
 		mutation.mutate(
 			{
 				tripId,
@@ -69,15 +74,21 @@ export function PorterRequestAction({ tripId, porterId, role }: PorterRequestAct
 				<Button
 					size="sm"
 					className="gap-2"
-					disabled={isSubmitting || isPendingRequest}
+					disabled={isSubmitting || isPendingRequest || isCheckingPending || cannotVerifyPending}
 					onClick={submitRequest}
 				>
-					{isSubmitting ? (
+					{isSubmitting || isCheckingPending ? (
 						<Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
 					) : (
 						<Send className="size-3.5" aria-hidden="true" />
 					)}
-					{isSubmitting ? "Đang gửi" : isPendingRequest ? "Đã gửi yêu cầu" : "Gửi yêu cầu"}
+					{isCheckingPending
+						? "Đang kiểm tra"
+						: isSubmitting
+							? "Đang gửi"
+							: isPendingRequest
+								? "Đã gửi yêu cầu"
+								: "Gửi yêu cầu"}
 				</Button>
 			</div>
 
@@ -90,11 +101,23 @@ export function PorterRequestAction({ tripId, porterId, role }: PorterRequestAct
 						<CheckCircle2 className="size-4" aria-hidden="true" />
 						{PENDING_STATUS_LABEL}
 					</p>
-					<p className="mt-1 font-semibold">Hết hạn: {formatExpiry(confirmedRequest.expiresAt)}</p>
+					<p className="mt-1 font-semibold">
+						Hết hạn: {formatExpiry(authoritativeRequest.expiresAt)}
+					</p>
 				</output>
 			)}
 
-			{errorState && !isPendingRequest && (
+			{cannotVerifyPending && !isPendingRequest && (
+				<div
+					role="alert"
+					data-error-kind="pending-check"
+					className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800"
+				>
+					Không thể kiểm tra yêu cầu Porter đang chờ. Vui lòng thử lại trước khi gửi yêu cầu mới.
+				</div>
+			)}
+
+			{errorState && !isPendingRequest && !cannotVerifyPending && (
 				<div
 					role="alert"
 					data-error-kind={errorState.kind}

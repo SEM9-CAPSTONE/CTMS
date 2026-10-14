@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HttpError } from "../../../core/api";
 import { tripsService } from "../services/trips.service";
 import type { AvailablePortersResponse, PorterRequest } from "../types";
@@ -52,6 +52,10 @@ function selectRole(role: "lead" | "support") {
 afterEach(() => vi.restoreAllMocks());
 
 describe("AvailablePortersPanel", () => {
+	beforeEach(() => {
+		vi.spyOn(tripsService, "getPendingPorterRequest").mockResolvedValue(null);
+	});
+
 	it("requires an explicit role before fetching", () => {
 		const search = vi.spyOn(tripsService, "getAvailablePorters");
 		renderPanel();
@@ -174,6 +178,9 @@ describe("AvailablePortersPanel", () => {
 		renderPanel();
 		selectRole("support");
 		await screen.findByText("Nguyễn Minh Sơn");
+		await waitFor(() =>
+			expect(screen.getByRole("button", { name: "Gửi yêu cầu" })).not.toBeDisabled()
+		);
 		fireEvent.change(screen.getByLabelText("Ghi chú yêu cầu"), {
 			target: { value: " Support river crossing " },
 		});
@@ -194,6 +201,34 @@ describe("AvailablePortersPanel", () => {
 		expect(screen.getByRole("button", { name: "Đã gửi yêu cầu" })).toBeDisabled();
 	});
 
+	it("restores a pending Porter Request from the backend", async () => {
+		vi.spyOn(tripsService, "getAvailablePorters").mockResolvedValue(SUPPORT_RESPONSE);
+		vi.spyOn(tripsService, "getPendingPorterRequest").mockResolvedValue(PORTER_REQUEST);
+
+		renderPanel();
+		selectRole("support");
+
+		const state = await screen.findByTestId("porter-request-state-porter-private-id");
+		expect(state).toHaveTextContent("Đang chờ phản hồi");
+		expect(state).toHaveTextContent("Hết hạn:");
+		expect(screen.getByRole("button", { name: "Đã gửi yêu cầu" })).toBeDisabled();
+		expect(screen.getByLabelText("Ghi chú yêu cầu")).toBeDisabled();
+	});
+
+	it("blocks sending when pending state cannot be verified", async () => {
+		vi.spyOn(tripsService, "getAvailablePorters").mockResolvedValue(SUPPORT_RESPONSE);
+		vi.spyOn(tripsService, "getPendingPorterRequest").mockRejectedValue(
+			new HttpError("unavailable", 503, {})
+		);
+
+		renderPanel();
+		selectRole("support");
+
+		const alert = await screen.findByRole("alert");
+		expect(alert).toHaveAttribute("data-error-kind", "pending-check");
+		expect(screen.getByRole("button", { name: "Gửi yêu cầu" })).toBeDisabled();
+	});
+
 	it("does not fabricate request success when the backend rejects the request", async () => {
 		vi.spyOn(tripsService, "getAvailablePorters").mockResolvedValue(SUPPORT_RESPONSE);
 		vi.spyOn(tripsService, "createPorterRequest").mockRejectedValue(
@@ -202,6 +237,9 @@ describe("AvailablePortersPanel", () => {
 		renderPanel();
 		selectRole("support");
 		await screen.findByText("Nguyễn Minh Sơn");
+		await waitFor(() =>
+			expect(screen.getByRole("button", { name: "Gửi yêu cầu" })).not.toBeDisabled()
+		);
 		fireEvent.click(screen.getByRole("button", { name: "Gửi yêu cầu" }));
 
 		const alert = await screen.findByRole("alert");

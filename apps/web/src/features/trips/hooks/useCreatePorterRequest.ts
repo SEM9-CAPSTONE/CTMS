@@ -76,6 +76,10 @@ export function useCreatePorterRequest() {
 				...(note ? { note } : {}),
 			}),
 		onSuccess: (request) => {
+			queryClient.setQueryData(
+				queryKeys.trips.pendingPorterRequest(request.tripId, request.porterId),
+				request
+			);
 			void queryClient.invalidateQueries({
 				queryKey: queryKeys.trips.porterRequests(request.tripId),
 			});

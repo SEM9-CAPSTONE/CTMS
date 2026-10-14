@@ -30,8 +30,14 @@ async function loginHost(page: import("@playwright/test").Page): Promise<void> {
 	await page.goto("/login");
 	await page.locator('input[type="text"]').first().fill(HOST_EMAIL);
 	await page.locator('input[type="password"]').first().fill(E2E_PASSWORD);
+	const loginResponsePromise = page.waitForResponse(
+		(response) => response.request().method() === "POST" && response.url().includes("/auth/login"),
+		{ timeout: 15_000 }
+	);
 	await page.locator('form button[type="submit"]').click();
-	await expect(page).toHaveURL(/\/dashboard$/);
+	const loginResponse = await loginResponsePromise;
+	expect(loginResponse.status()).toBe(200);
+	await expect(page).toHaveURL(/\/dashboard$/, { timeout: 15_000 });
 }
 
 test.describe("CTMS-45-T02 Request Porter UI", () => {
@@ -88,35 +94,88 @@ test.describe("CTMS-45-T02 Request Porter UI", () => {
 	}) => {
 		await loginHost(page);
 		await page.goto(`/host/porter?tripId=${tripId}`);
+		const pendingCheckPromise = page.waitForResponse(
+			(response) =>
+				response.request().method() === "GET" &&
+				response.url().includes(`/trips/${tripId}/porter-requests/pending`),
+			{ timeout: 10000 }
+		);
 		await page.getByLabel("Vai trò Porter").selectOption("support");
 		await expect(page.getByText("E2E Porter Nhận Lời Mời")).toBeVisible();
+		const pendingCheckResponse = await pendingCheckPromise;
+		expect(pendingCheckResponse.status()).toBe(200);
 		const porterCard = page
 			.getByRole("article")
 			.filter({ hasText: "E2E Porter Nhận Lời Mời" })
 			.first();
 
-		// Theo dõi API tạo Porter Request
-		const requestResponsePromise = page.waitForResponse(
+		const note = "Hỗ trợ đoàn tại đoạn suối";
+		const sendButton = porterCard.getByRole("button", {
+			name: "Gửi yêu cầu",
+			exact: true,
+		});
+
+		await porterCard.getByLabel("Ghi chú yêu cầu").fill(note);
+		await expect(sendButton).toBeEnabled({ timeout: 10000 });
+
+		const responsePromise = page.waitForResponse(
 			(response) =>
-				response.request().method() === "POST" && response.url().includes("porter-requests"),
+				response.request().method() === "POST" &&
+				response.url().includes(`/trips/${tripId}/porter-requests`),
 			{ timeout: 10000 }
 		);
 
-		// Nhấn nút gửi yêu cầu
-		await porterCard.getByRole("button", { name: "Gửi yêu cầu" }).click();
+		await sendButton.click();
+		const response = await responsePromise;
+		expect(response.status()).toBe(201);
+		const request = await response.json();
+		expect(request.status).toBe("pending");
+		expect(request.tripId).toBe(tripId);
+		expect(request.requestedRole).toBe("support");
+		expect(request.note).toBe(note);
+		expect(request.expiresAt).toBeTruthy();
+		const requestState = porterCard.getByTestId(`porter-request-state-${request.porterId}`);
 
-		// Chờ backend trả kết quả
-		const response = await requestResponsePromise;
+		await expect(requestState).toBeVisible({
+			timeout: 10000,
+		});
 
-		// In kết quả API
-		console.log("API status:", response.status());
-		console.log("API response:", await response.text());
+		await expect(requestState).toContainText("Đang chờ phản hồi");
+		await expect(requestState).toContainText("Hết hạn:");
+		await expect(
+			porterCard.getByRole("button", {
+				name: "Đã gửi yêu cầu",
+			})
+		).toBeDisabled();
+		await expect(porterCard.getByLabel("Ghi chú yêu cầu")).toBeDisabled();
 
-		// Kiểm tra UI sau khi backend phản hồi
-		console.log("Request states:", await page.getByTestId(/porter-request-state-/).count());
+		let duplicatePostCount = 0;
+		page.on("request", (networkRequest) => {
+			if (
+				networkRequest.method() === "POST" &&
+				networkRequest.url().includes(`/trips/${tripId}/porter-requests`)
+			) {
+				duplicatePostCount += 1;
+			}
+		});
 
-		console.log("Pending labels:", await page.getByText("Đang chờ phản hồi").count());
+		await page.reload();
+		await page.getByLabel("Vai trò Porter").selectOption("support");
+		await expect(page.getByText("E2E Porter Nhận Lời Mời")).toBeVisible();
+		const restoredCard = page
+			.getByRole("article")
+			.filter({ hasText: "E2E Porter Nhận Lời Mời" })
+			.first();
+		const restoredState = restoredCard.getByTestId(`porter-request-state-${request.porterId}`);
 
-		console.log("Page content:", await page.locator("main").innerText());
+		await expect(restoredState).toBeVisible({ timeout: 10000 });
+		await expect(restoredState).toContainText("Đang chờ phản hồi");
+		await expect(
+			restoredCard.getByRole("button", {
+				name: "Đã gửi yêu cầu",
+			})
+		).toBeDisabled();
+		await expect(restoredCard.getByLabel("Ghi chú yêu cầu")).toBeDisabled();
+		expect(duplicatePostCount).toBe(0);
 	});
 });

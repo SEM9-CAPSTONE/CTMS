@@ -39,7 +39,10 @@ describe("PorterRequestsService", () => {
 	let dataSource: { transaction: jest.Mock };
 	let manager: { withRepository: jest.Mock; query: jest.Mock };
 	let tripsRepository: { findPorterAvailabilityContext: jest.Mock };
-	let porterRequestsRepository: { createPendingIdempotent: jest.Mock };
+	let porterRequestsRepository: {
+		createPendingIdempotent: jest.Mock;
+		findPendingByTripAndPorter: jest.Mock;
+	};
 	let configService: { get: jest.Mock };
 	let eventsGateway: { emitPorterRequestCreated: jest.Mock };
 	let service: PorterRequestsService;
@@ -61,6 +64,7 @@ describe("PorterRequestsService", () => {
 				request: buildRequest(),
 				created: true,
 			}),
+			findPendingByTripAndPorter: jest.fn().mockResolvedValue(buildRequest()),
 		};
 		manager = {
 			withRepository: jest.fn((repository: unknown) => repository),
@@ -153,6 +157,38 @@ describe("PorterRequestsService", () => {
 
 		expect(result.id).toBe(REQUEST_ID);
 		expect(eventsGateway.emitPorterRequestCreated).not.toHaveBeenCalled();
+	});
+
+	it("finds an active pending request for the owning Host", async () => {
+		const result = await service.findPending(HOST_ID, TRIP_ID, PORTER_ID);
+
+		expect(tripsRepository.findPorterAvailabilityContext).toHaveBeenCalledWith(TRIP_ID);
+		expect(porterRequestsRepository.findPendingByTripAndPorter).toHaveBeenCalledWith(
+			TRIP_ID,
+			PORTER_ID
+		);
+		expect(result).toEqual(expect.objectContaining({ id: REQUEST_ID, status: "pending" }));
+	});
+
+	it("returns null when no active pending request exists", async () => {
+		porterRequestsRepository.findPendingByTripAndPorter.mockResolvedValue(null);
+
+		await expect(service.findPending(HOST_ID, TRIP_ID, PORTER_ID)).resolves.toBeNull();
+	});
+
+	it("rejects pending lookup for a Host that does not manage the Trip", async () => {
+		tripsRepository.findPorterAvailabilityContext.mockResolvedValue({
+			id: TRIP_ID,
+			hostId: OTHER_HOST_ID,
+			routeId: ROUTE_ID,
+			startsAt: STARTS_AT,
+			endsAt: ENDS_AT,
+		});
+
+		await expect(service.findPending(HOST_ID, TRIP_ID, PORTER_ID)).rejects.toBeInstanceOf(
+			ForbiddenException
+		);
+		expect(porterRequestsRepository.findPendingByTripAndPorter).not.toHaveBeenCalled();
 	});
 
 	it("keeps the committed request when post-commit notification fails", async () => {

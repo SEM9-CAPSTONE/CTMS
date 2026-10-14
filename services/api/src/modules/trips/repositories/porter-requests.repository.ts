@@ -18,6 +18,8 @@ export class PorterRequestsRepository extends Repository<PorterRequest> {
 		request: PorterRequest;
 		created: boolean;
 	}> {
+		await this.expirePendingByTripAndPorter(input.tripId, input.porterId);
+
 		const rows = (await this.query(
 			`
 			INSERT INTO "porter_requests" (
@@ -90,6 +92,7 @@ export class PorterRequestsRepository extends Repository<PorterRequest> {
 			WHERE "trip_id" = $1
 				AND "porter_id" = $2
 				AND "status" = $3
+				AND "expires_at" > clock_timestamp()
 			ORDER BY "created_at" DESC
 			LIMIT 1
 			`,
@@ -97,5 +100,20 @@ export class PorterRequestsRepository extends Repository<PorterRequest> {
 		)) as PorterRequest[];
 
 		return rows[0] ?? null;
+	}
+
+	private async expirePendingByTripAndPorter(tripId: string, porterId: string): Promise<void> {
+		await this.query(
+			`
+			UPDATE "porter_requests"
+			SET "status" = $3,
+				"updated_at" = clock_timestamp()
+			WHERE "trip_id" = $1
+				AND "porter_id" = $2
+				AND "status" = $4
+				AND "expires_at" <= clock_timestamp()
+			`,
+			[tripId, porterId, PorterRequestStatus.EXPIRED, PorterRequestStatus.PENDING]
+		);
 	}
 }

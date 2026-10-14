@@ -38,7 +38,7 @@ export function AvailablePortersResults({
 		}
 	}, [page, query.data]);
 
-	if (query.isPending || query.isFetching) {
+	if (query.isPending) {
 		return (
 			<output className="mt-5 flex items-center justify-center gap-2 rounded-2xl bg-[#f8faf8] p-5 text-xs font-bold text-[#164027]">
 				<Loader2 className="size-4 animate-spin" />

@@ -36,7 +36,7 @@ describe("TripsController", () => {
 		review: jest.Mock;
 	};
 	let availablePortersService: { search: jest.Mock };
-	let porterRequestsService: { create: jest.Mock };
+	let porterRequestsService: { create: jest.Mock; findPending: jest.Mock };
 	let controller: TripsController;
 
 	beforeEach(() => {
@@ -50,7 +50,7 @@ describe("TripsController", () => {
 			review: jest.fn(),
 		};
 		availablePortersService = { search: jest.fn() };
-		porterRequestsService = { create: jest.fn() };
+		porterRequestsService = { create: jest.fn(), findPending: jest.fn() };
 		controller = new TripsController(
 			tripsService as unknown as TripsService,
 			availablePortersService as unknown as AvailablePortersService,
@@ -127,6 +127,35 @@ describe("TripsController", () => {
 			);
 
 			expect(porterRequestsService.create).toHaveBeenCalledWith(USER_ID, TRIP_ID, dto);
+			expect(result).toBe(response);
+		});
+	});
+
+	describe("getPendingPorterRequest", () => {
+		it("delegates the owning Host, Trip, and Porter to PorterRequestsService", async () => {
+			const porterId = "55555555-5555-4555-8555-555555555555";
+			const response = {
+				id: "99999999-9999-4999-8999-999999999999",
+				tripId: TRIP_ID,
+				porterId,
+				requestedBy: USER_ID,
+				requestedRole: IntendedPorterRole.SUPPORT,
+				note: null,
+				status: PorterRequestStatus.PENDING,
+				expiresAt: new Date("2035-01-09T00:00:00.000Z"),
+				respondedAt: null,
+				createdAt: new Date("2035-01-01T00:00:00.000Z"),
+				updatedAt: new Date("2035-01-01T00:00:00.000Z"),
+			};
+			porterRequestsService.findPending.mockResolvedValue(response);
+
+			const result = await controller.getPendingPorterRequest(
+				{ user: MOCK_USER },
+				{ tripId: TRIP_ID },
+				{ porterId }
+			);
+
+			expect(porterRequestsService.findPending).toHaveBeenCalledWith(USER_ID, TRIP_ID, porterId);
 			expect(result).toBe(response);
 		});
 	});

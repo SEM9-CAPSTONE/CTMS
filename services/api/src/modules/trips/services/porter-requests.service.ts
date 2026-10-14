@@ -90,6 +90,26 @@ export class PorterRequestsService {
 		return toPorterRequestResponse(result.request);
 	}
 
+	async findPending(
+		hostId: string,
+		tripId: string,
+		porterId: string
+	): Promise<PorterRequestResponseDto | null> {
+		const trip = await this.tripsRepository.findPorterAvailabilityContext(tripId);
+		if (!trip) {
+			throw new NotFoundException("Trip not found");
+		}
+		if (trip.hostId !== hostId) {
+			throw new ForbiddenException("Only the owning Host can view Porter Requests for this Trip");
+		}
+
+		const request = await this.porterRequestsRepository.findPendingByTripAndPorter(
+			tripId,
+			porterId
+		);
+		return request ? toPorterRequestResponse(request) : null;
+	}
+
 	private async assertPorterEligible(
 		manager: EntityManager,
 		input: {
