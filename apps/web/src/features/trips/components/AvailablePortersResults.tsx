@@ -94,7 +94,7 @@ export function AvailablePortersResults({
 				Tìm thấy {query.data.pagination.total} Porter
 			</p>
 			{query.data.items.map((porter) => (
-				<AvailablePorterCard key={porter.porterId} porter={porter} role={role} />
+				<AvailablePorterCard key={porter.porterId} tripId={tripId} porter={porter} role={role} />
 			))}
 			<Pagination
 				currentPage={query.data.pagination.page}

@@ -6,9 +6,11 @@ import type {
 	BookTripResponse,
 	CancelTripInput,
 	ConfigureTripWaypointsInput,
+	CreatePorterRequestInput,
 	CreateTripInput,
 	PaginatedTrips,
 	PorterAssignedTrip,
+	PorterRequest,
 	RescheduleTripInput,
 	ReviewTripInput,
 	SearchTripsQuery,
@@ -55,6 +57,9 @@ export const tripsService = {
 			page: query.page,
 			limit: query.limit,
 		}),
+
+	createPorterRequest: (tripId: string, input: CreatePorterRequestInput): Promise<PorterRequest> =>
+		httpClient.post<PorterRequest>(API_ENDPOINTS.TRIPS.PORTER_REQUESTS(tripId), input),
 
 	getMyTrips: (): Promise<TripDetails[]> =>
 		httpClient.get<TripDetails[]>(API_ENDPOINTS.TRIPS.GET_MINE),

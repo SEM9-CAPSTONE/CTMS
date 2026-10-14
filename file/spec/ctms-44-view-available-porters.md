@@ -55,14 +55,14 @@ Trip context must exist when availability is evaluated for a specific Trip.
 
 ## 5. Business Rules
 
-| BR         | Rule                                                                                                                                                                                                                                          |
-| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| BR-141     | The available-Porter list for a Trip must filter by active account/profile status, current availability, experience, assignment conflicts, and Route qualification when the Trip/Route requires qualification under the qualification policy. |
-| BR-142     | A Porter with a held or accepted assignment whose work_range overlaps the Trip must not be considered available for the conflicting Trip. The backend must re-check conflicts at request and assignment time.                                 |
-| BR-220     | The Porter profile/availability screen may expose only fields required for operations. Eligibility must be computed from profile state, availability, applicable qualification, and assignment conflicts.                                     |
-| BR-201     | List-returning APIs must support pagination and enforce a maximum page size. Filtering and sorting are allowed only on documented fields.                                                                                                     |
-| BR-212     | Any change to a Business Rule, enum, state transition, or API contract must be reflected in the specification, test cases, and data documentation before the work is considered Done.                                                         |
-| BR-213     | Every Business Rule must have at least one valid-path test and one violation-path test. Concurrency, idempotency, and transaction rules require integration or E2E coverage.                                                                  |
+| BR     | Rule                                                                                                                                                                                                                                          |
+| ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| BR-141 | The available-Porter list for a Trip must filter by active account/profile status, current availability, experience, assignment conflicts, and Route qualification when the Trip/Route requires qualification under the qualification policy. |
+| BR-142 | A Porter with a held or accepted assignment whose work_range overlaps the Trip must not be considered available for the conflicting Trip. The backend must re-check conflicts at request and assignment time.                                 |
+| BR-220 | The Porter profile/availability screen may expose only fields required for operations. Eligibility must be computed from profile state, availability, applicable qualification, and assignment conflicts.                                     |
+| BR-201 | List-returning APIs must support pagination and enforce a maximum page size. Filtering and sorting are allowed only on documented fields.                                                                                                     |
+| BR-212 | Any change to a Business Rule, enum, state transition, or API contract must be reflected in the specification, test cases, and data documentation before the work is considered Done.                                                         |
+| BR-213 | Every Business Rule must have at least one valid-path test and one violation-path test. Concurrency, idempotency, and transaction rules require integration or E2E coverage.                                                                  |
 
 ## 6. State & Lifecycle
 

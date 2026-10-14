@@ -46,3 +46,24 @@ describe("tripsService.getAvailablePorters", () => {
 		});
 	});
 });
+
+describe("tripsService.createPorterRequest", () => {
+	it("posts only the supported Porter Request fields to the Trip-scoped endpoint", async () => {
+		const post = vi.spyOn(httpClient, "post").mockResolvedValue({
+			id: "request-1",
+			status: "pending",
+		});
+
+		await tripsService.createPorterRequest("trip-201", {
+			porterId: "porter-1",
+			requestedRole: "support",
+			note: "Can you support the river crossing?",
+		});
+
+		expect(post).toHaveBeenCalledWith("/trips/trip-201/porter-requests", {
+			porterId: "porter-1",
+			requestedRole: "support",
+			note: "Can you support the river crossing?",
+		});
+	});
+});

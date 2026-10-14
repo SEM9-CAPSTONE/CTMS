@@ -1,7 +1,9 @@
 import { Award, BriefcaseBusiness, CheckCircle2, Star } from "lucide-react";
 import type { AvailablePorter, IntendedPorterRole } from "../types";
+import { PorterRequestAction } from "./PorterRequestAction";
 
 interface AvailablePorterCardProps {
+	tripId: string;
 	porter: AvailablePorter;
 	role: IntendedPorterRole;
 }
@@ -12,7 +14,7 @@ const PROFICIENCY_LABELS = {
 	expert: "Chuyên gia",
 } as const;
 
-export function AvailablePorterCard({ porter, role }: AvailablePorterCardProps) {
+export function AvailablePorterCard({ tripId, porter, role }: AvailablePorterCardProps) {
 	return (
 		<article className="rounded-2xl border border-[#dfe8df] bg-[#fbfdfb] p-4">
 			<div className="flex items-start justify-between gap-3">
@@ -58,6 +60,8 @@ export function AvailablePorterCard({ porter, role }: AvailablePorterCardProps) 
 					</dd>
 				</div>
 			</dl>
+
+			<PorterRequestAction tripId={tripId} porterId={porter.porterId} role={role} />
 		</article>
 	);
 }
