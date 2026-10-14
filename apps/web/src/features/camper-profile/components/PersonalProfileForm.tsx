@@ -42,6 +42,24 @@ export function PersonalProfileForm({ form, isDisabled = false }: PersonalProfil
 					)}
 				</div>
 
+				{/* Phone Number */}
+				<div className="flex flex-col gap-1.5">
+					<label htmlFor="phone" className="text-xs font-bold text-[#10221b]">
+						Số điện thoại <span className="text-red-500">*</span>
+					</label>
+					<input
+						id="phone"
+						type="tel"
+						disabled={isDisabled}
+						{...register("phone")}
+						className="h-10 rounded-xl border border-[#dfe8df] bg-white px-3.5 text-xs text-[#10221b] outline-none transition focus:border-[#164027] focus:ring-2 focus:ring-[#164027]/10 disabled:bg-slate-50 disabled:text-slate-500"
+						placeholder="Ví dụ: 0912345678"
+					/>
+					{errors.phone && (
+						<span className="text-[11px] font-semibold text-red-500">{errors.phone.message}</span>
+					)}
+				</div>
+
 				{/* Date of Birth */}
 				<div className="flex flex-col gap-1.5">
 					<label htmlFor="dateOfBirth" className="text-xs font-bold text-[#10221b]">

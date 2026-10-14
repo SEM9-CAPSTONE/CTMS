@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { BookingDetails } from "../../booking-details/types";
 import { bookingEquipmentService } from "../../booking-equipment/services/booking-equipment.service";
 import { TripMemberRoster } from "../../booking-members/components/TripMemberRoster";
+import { HostTripSettlementCard } from "../../settlements/components/HostTripSettlementCard";
 import { AvailablePortersPanel } from "../components/AvailablePortersPanel";
 import type { BookingAccess } from "../components/BookingPanel";
 import type { SelectedEquipmentItem } from "../components/RentableEquipmentModal";
@@ -358,6 +359,17 @@ export function TripDetailPage({
 							)}
 
 							<div hidden={isRosterVisible && activeTab !== "overview"}>
+								{canManageThisTrip && trip.status === "completed" && (
+									<div className="mb-6">
+										<HostTripSettlementCard
+											tripId={trip.id}
+											onOpenWallet={() => {
+												window.history.pushState({}, "", "/host/wallet");
+												window.dispatchEvent(new PopStateEvent("popstate"));
+											}}
+										/>
+									</div>
+								)}
 								<TripDetailView
 									trip={trip}
 									onBook={handleBook}

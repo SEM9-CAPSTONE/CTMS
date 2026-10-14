@@ -53,8 +53,7 @@ test.describe("CTMS-43-T02 Manage Porter Profile & Route Qualifications", () => 
 
 	test.beforeAll(() => {
 		// Ensure dev accounts & host route exist
-		runSeed("src/seeds/dev-admin.seed.ts");
-		runSeed("src/seeds/dev-host-route.seed.ts");
+		runSeed("src/seeds/main.seed.ts");
 		runDbHelper("clean-porter-data", { porterEmail: "porter@ctms.local" });
 		const routeLookup = readDbHelper<{ route: { id: string } | null }>(
 			"get-trekking-route-by-name",

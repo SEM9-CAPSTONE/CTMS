@@ -25,6 +25,8 @@ Acceptance Criteria:
 | PB AC-5 | Refund execution is idempotent and provider-reconcilable.                                     |
 | PB AC-6 | Successful pre-settlement refund adjusts Held Funds/settlement base consistently.             |
 | PB AC-7 | Pending/failed refund is not treated as succeeded.                                            |
+| PB AC-8 | Refund modal auto-fills default linked bank account and allows selecting or adding accounts.  |
+| PB AC-9 | Refund submission strictly verifies accountHolderName matches camper's registered fullName.   |
 
 ## 2. Scope
 
@@ -66,6 +68,7 @@ Required:
 - Eligible parent charge exists.
 - Refund amount is approved by policy.
 - Refund has not already been fully applied.
+- Camper profile has registered `fullName` for account name verification (BR-351).
 
 ## 5. Business Rules
 
@@ -77,6 +80,8 @@ Required:
 | BR-106     | A complaint/refund request created within 24 hours after trips.completed_at must be treated as a blocking financial claim until resolved. States pending, reviewing, and approved-refund-pending must block settlement and payout. Settlement may resume only after the request is resolved and all succeeded refunds are reflected in the financial ledger.                                                      |
 | BR-336     | Every succeeded refund before settlement must reduce Held Funds and the settlement base accordingly. An approved refund that is still awaiting provider completion must continue to block settlement. Pending or failed refunds must not be treated as succeeded.                                                                                                                                                 |
 | BR-343     | Ordinary Camper refunds must be handled before settlement within the defined request windows. A succeeded refund reduces Held Funds/the settlement base, and no payout may be created for the refunded amount.                                                                                                                                                                                                    |
+| BR-350     | User Bank Account Management: Users (both Camper and Host) can link, manage, and delete receiving bank accounts (`user_bank_accounts`), with one designated default account. When adding the first account, it automatically becomes the default. When deleting the default account, the next remaining account becomes the default.                                                              |
+| BR-351     | Strict Account Holder Name Matching: The beneficiary bank account holder name (`accountHolderName`) MUST match the registered user's full name (`users.full_name`). The system performs accent-insensitive, uppercase normalized comparison (stripping Vietnamese NFD diacritics, mapping đ/Đ to d/D, collapsing whitespace). If the user has no registered full name or names mismatch, reject with HTTP 400. |
 | BR-174     | All input must be validated for required fields, data type, format, length, enum membership, and cross-field relationships before processing.                                                                                                                                                                                                                                                                     |
 | BR-175     | The backend is the authoritative source for authorization, state, pricing, capacity, inventory, risk level, and transaction outcome. The client must not establish these values authoritatively.                                                                                                                                                                                                                  |
 | BR-176     | Any business operation that changes multiple tables or records must execute within a transaction. If any step fails, the entire operation must roll back.                                                                                                                                                                                                                                                         |
@@ -114,10 +119,13 @@ Booking payment status is derived from charge/refund results according to the au
 ## 7. Business Flow
 
 1. Camper initiates refund request (or approved obligation is created):
-   - Camper inputs receiving bank details: bank name, account number, and account holder name.
+   - System retrieves Camper's linked bank accounts (`GET /profiles/me/bank-accounts`), automatically pre-selecting the default bank account and populating `bankName`, `accountNumber`, `accountHolderName`.
+   - Camper can select any other linked bank account or add a new bank account.
 2. Load Booking and parent succeeded charge.
 3. Calculate remaining refundable amount against policy limits.
-4. Validate requested refund and create/reuse idempotent refund transaction with status = `pending`.
+4. Validate requested refund and BR-351 strict name matching:
+   - `accountHolderName` must match normalized `camper.fullName` (accent-insensitive, uppercase). If mismatched or `fullName` is missing, reject immediately with HTTP 400.
+   - Create/reuse idempotent refund transaction with status = `pending`.
 5. Store beneficiary bank account details in refund payment record metadata.
 6. Admin reviews refund requests via Admin Management (`/admin/refunds`):
    - **Manual Transfer Confirmation**: Admin performs manual bank transfer to Camper's bank account, then confirms transfer on Admin portal with reference transaction code/bill and optional note.
@@ -139,6 +147,9 @@ Booking payment status is derived from charge/refund results according to the au
 
 ## 8. Data & Invariants
 
+- User bank accounts stored in `user_bank_accounts` linked to `users(id)`.
+- At most one bank account marked `isDefault = true` per user at any time.
+- `accountHolderName` must strictly match normalized `user.fullName` (BR-351).
 - Refund links to parent charge.
 - Refund transaction status ∈ `{pending, succeeded, failed}`.
 - Beneficiary bank details (bank name, account number, account holder name) stored in payment metadata.
@@ -151,8 +162,12 @@ Booking payment status is derived from charge/refund results according to the au
 
 ## 9. API / Integration Contract
 
+- `GET /profiles/me/bank-accounts`: List current user's linked bank accounts.
+- `POST /profiles/me/bank-accounts`: Add new bank account with name matching validation (BR-351).
+- `DELETE /profiles/me/bank-accounts/:id`: Delete linked bank account (next account promoted to default if default deleted).
+- `PATCH /profiles/me/bank-accounts/:id/default`: Set default bank account.
 - `GET /bookings/:bookingId/refunds`: Get refund eligibility, policy windows, and refund history for a booking (Admin/Camper).
-- `POST /bookings/:bookingId/refunds`: Submit refund request with optional bank details (`bankName`, `accountNumber`, `accountHolderName`, `reason`, `amount`).
+- `POST /bookings/:bookingId/refunds`: Submit refund request with bank details (`bankName`, `accountNumber`, `accountHolderName`, `reason`, `amount`) and name match validation (BR-351).
 - `GET /admin/refunds`: Retrieve all refund requests with pagination and status filters (Admin only).
 - `POST /admin/refunds/:obligationId/confirm`: Confirm manual transfer completed with `transactionRef` and optional `note` (Admin only).
 - `POST /admin/refunds/:obligationId/reject`: Reject refund request with `rejectionReason` (Admin only).
@@ -160,27 +175,33 @@ Booking payment status is derived from charge/refund results according to the au
 
 ## 10. Error & Edge Cases
 
-| Case                                           | Expected Behavior                               |
-| ---------------------------------------------- | ----------------------------------------------- |
-| Parent charge not succeeded                    | Reject refund.                                  |
-| Requested refund exceeds remainder             | Reject.                                         |
-| Duplicate callback                             | Apply once.                                     |
-| Provider timeout                               | Keep/reconcile pending state; no false success. |
-| Provider fails refund                          | Mark failed according to provider result.       |
-| Settlement tries while blocking refund pending | Enforce settlement rule.                        |
-| Concurrent refund requests exceed charge       | Concurrency protection prevents over-refund.    |
+| Case                                           | Expected Behavior                                                 |
+| ---------------------------------------------- | ----------------------------------------------------------------- |
+| User missing full name                         | Reject bank addition / refund request; prompt to update profile   |
+| Account holder name mismatch                   | Reject with 400 explaining name must match registered full name   |
+| Adding duplicate bank account                  | Reject with 409 conflict                                          |
+| Deleting active default bank                   | Next remaining account promoted to default                        |
+| Parent charge not succeeded                    | Reject refund.                                                    |
+| Requested refund exceeds remainder             | Reject.                                                           |
+| Duplicate callback                             | Apply once.                                                       |
+| Provider timeout                               | Keep/reconcile pending state; no false success.                   |
+| Provider fails refund                          | Mark failed according to provider result.                         |
+| Settlement tries while blocking refund pending | Enforce settlement rule.                                          |
+| Concurrent refund requests exceed charge       | Concurrency protection prevents over-refund.                      |
 
 ## 11. Acceptance & Test Matrix
 
-| Source              | Scenario                          | Expected Result                   | Test Type             |
-| ------------------- | --------------------------------- | --------------------------------- | --------------------- |
-| PB AC-1             | Valid refund obligation           | Refund processing allowed         | Integration           |
-| PB AC-2, BR-103     | Refund created                    | Linked refund transaction         | Integration           |
-| PB AC-3, BR-104     | Refund lifecycle                  | Only allowed transaction statuses | State                 |
-| PB AC-4, BR-105/106 | Over-refund attempted             | Rejected                          | Boundary              |
-| PB AC-5             | Callback retried                  | No duplicate refund               | Idempotency           |
-| PB AC-6, BR-336     | Refund succeeds before settlement | Held Funds adjusted               | Financial Integration |
-| PB AC-7, BR-343     | Refund pending                    | Not treated as settled/succeeded  | Financial Integration |
+| Source              | Scenario                          | Expected Result                                       | Test Type             |
+| ------------------- | --------------------------------- | ----------------------------------------------------- | --------------------- |
+| PB AC-1             | Valid refund obligation           | Refund processing allowed                             | Integration           |
+| PB AC-2, BR-103     | Refund created                    | Linked refund transaction                             | Integration           |
+| PB AC-3, BR-104     | Refund lifecycle                  | Only allowed transaction statuses                     | State                 |
+| PB AC-4, BR-105/106 | Over-refund attempted             | Rejected                                              | Boundary              |
+| PB AC-5             | Callback retried                  | No duplicate refund                                   | Idempotency           |
+| PB AC-6, BR-336     | Refund succeeds before settlement | Held Funds adjusted                                   | Financial Integration |
+| PB AC-7, BR-343     | Refund pending                    | Not treated as settled/succeeded                      | Financial Integration |
+| PB AC-8, BR-350     | Default bank pre-fill             | User's default bank pre-selected in refund modal      | UI / Integration      |
+| PB AC-9, BR-351     | Name mismatch rejected            | HTTP 400 with message requiring match with fullName   | Validation / Unit     |
 
 ## 12. Open Decisions
 

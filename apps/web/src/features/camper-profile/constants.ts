@@ -35,15 +35,9 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
 		iconName: "User",
 	},
 	{
-		key: SettingsTabEnum.CONTACT_INFO,
-		label: "Thông tin liên hệ",
-		iconName: "PhoneCall",
-	},
-	{
 		key: SettingsTabEnum.EMERGENCY_INFO,
 		label: "Thông tin khẩn cấp",
 		iconName: "ShieldAlert",
-		badgeCount: 1,
 	},
 	{
 		key: SettingsTabEnum.HEALTH_FITNESS,
@@ -51,14 +45,9 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
 		iconName: "HeartPulse",
 	},
 	{
-		key: SettingsTabEnum.PERSONAL_GEAR,
-		label: "Thiết bị cá nhân",
-		iconName: "Backpack",
-	},
-	{
-		key: SettingsTabEnum.NOTIFICATIONS,
-		label: "Thông báo",
-		iconName: "Bell",
+		key: SettingsTabEnum.BANK_ACCOUNTS,
+		label: "Tài khoản ngân hàng",
+		iconName: "CreditCard",
 	},
 	{
 		key: SettingsTabEnum.PRIVACY,

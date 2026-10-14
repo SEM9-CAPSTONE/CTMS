@@ -53,4 +53,16 @@ export const queryKeys = {
 		all: ["admin-refunds"] as const,
 		list: (filters?: Record<string, unknown>) => ["admin-refunds", "list", filters] as const,
 	},
+	settlements: {
+		all: ["settlements"] as const,
+		evaluation: (tripId: string) => ["settlements", "evaluation", tripId] as const,
+		adminList: (filters?: Record<string, unknown>) =>
+			["settlements", "adminList", filters] as const,
+		hostWallet: ["settlements", "hostWallet"] as const,
+		adminPayouts: (filters?: Record<string, unknown>) =>
+			["settlements", "adminPayouts", filters] as const,
+	},
+	bankAccounts: {
+		all: ["bank-accounts"] as const,
+	},
 };

@@ -94,6 +94,7 @@ function toCamperProfileData(apiProfile: ProfileApiResponse): CamperProfileData 
 function toUpdateProfilePayload(values: CamperProfileFormValues): UpdateProfilePayload {
 	return {
 		fullName: values.fullName,
+		phone: values.phone,
 		dateOfBirth: toApiDate(values.dateOfBirth),
 		gender: values.gender,
 		address: values.address,

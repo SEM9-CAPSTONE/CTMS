@@ -1,9 +1,31 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { bankAccountService } from "../../bank-accounts/services/bank-account.service";
 import type { BookingDetails } from "../../booking-details/types";
 import { bookingRefundService } from "../services/booking-refund.service";
 import { BookingRefundPanel } from "./BookingRefundPanel";
+
+vi.mock("../../bank-accounts/services/bank-account.service", () => ({
+	bankAccountService: {
+		getAll: vi.fn(),
+		create: vi.fn(),
+		delete: vi.fn(),
+		setDefault: vi.fn(),
+	},
+}));
+
+function renderWithClient(ui: React.ReactElement) {
+	const queryClient = new QueryClient({
+		defaultOptions: {
+			queries: {
+				retry: false,
+			},
+		},
+	});
+	return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
+}
 
 describe("BookingRefundPanel", () => {
 	beforeAll(() => {
@@ -43,15 +65,22 @@ describe("BookingRefundPanel", () => {
 		refunds: [],
 		settlementBlocked: false,
 		awaitingResolution: false,
-		applicableWindow: {
-			description: "Trong vòng 24 giờ kể từ khi hoàn thành chuyến đi",
-			deadline: "2030-05-04T18:00:00Z",
-			isExpired: false,
-		},
 	};
 
 	beforeEach(() => {
 		vi.clearAllMocks();
+		vi.mocked(bankAccountService.getAll).mockResolvedValue([
+			{
+				id: "bank-1",
+				userId: "u-1",
+				bankName: "Vietcombank",
+				accountNumber: "1029384756",
+				accountHolderName: "NGUYEN VAN AN",
+				isDefault: true,
+				createdAt: "2030-01-01T00:00:00Z",
+				updatedAt: "2030-01-01T00:00:00Z",
+			},
+		]);
 		vi.spyOn(bookingRefundService, "getRefundInfo").mockResolvedValue(mockRefundInfo);
 		vi.spyOn(bookingRefundService, "requestRefund").mockResolvedValue({
 			refundId: "r-1",
@@ -66,7 +95,7 @@ describe("BookingRefundPanel", () => {
 	});
 
 	it("renders refund information card once loaded", async () => {
-		render(<BookingRefundPanel booking={mockBooking} />);
+		renderWithClient(<BookingRefundPanel booking={mockBooking} />);
 
 		expect(await screen.findByText("Thông tin hoàn tiền")).toBeInTheDocument();
 		expect(screen.getByTestId("open-refund-request-modal")).toBeInTheDocument();
@@ -75,7 +104,7 @@ describe("BookingRefundPanel", () => {
 	it("opens modal and submits refund request, calling onReload on completion", async () => {
 		const user = userEvent.setup();
 		const onReload = vi.fn();
-		render(<BookingRefundPanel booking={mockBooking} onReload={onReload} />);
+		renderWithClient(<BookingRefundPanel booking={mockBooking} onReload={onReload} />);
 
 		const openBtn = await screen.findByTestId("open-refund-request-modal");
 		await user.click(openBtn);
@@ -112,7 +141,7 @@ describe("BookingRefundPanel", () => {
 			paymentStatus: "unpaid",
 		};
 
-		const { container } = render(<BookingRefundPanel booking={irrelevantBooking} />);
+		const { container } = renderWithClient(<BookingRefundPanel booking={irrelevantBooking} />);
 		await waitFor(() => {
 			expect(container).toBeEmptyDOMElement();
 		});

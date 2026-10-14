@@ -1,6 +1,7 @@
 import { AlertCircle, CheckCircle2 } from "lucide-react";
 import { useState } from "react";
 import { Collapse } from "../../../shared/components/Collapse";
+import { BankAccountList } from "../../bank-accounts";
 import { HealthProfileContainer } from "../../health-profile/routes";
 import { AvatarProfileCard } from "../components/AvatarProfileCard";
 import { CamperHeader } from "../components/CamperHeader";
@@ -27,7 +28,18 @@ export function CamperProfilePage({
 	onNavigateToTrips,
 	onLogout,
 }: CamperProfilePageProps) {
-	const [activeTab, setActiveTab] = useState<SettingsTabEnum>(SettingsTabEnum.PERSONAL_PROFILE);
+	const [activeTab, setActiveTab] = useState<SettingsTabEnum>(() => {
+		const params = new URLSearchParams(window.location.search);
+		const tabParam = params.get("tab");
+		if (
+			tabParam === "bank_accounts" ||
+			tabParam === "bank-accounts" ||
+			tabParam === SettingsTabEnum.BANK_ACCOUNTS
+		) {
+			return SettingsTabEnum.BANK_ACCOUNTS;
+		}
+		return SettingsTabEnum.PERSONAL_PROFILE;
+	});
 	const [activeNav, setActiveNav] = useState<string>("profile");
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
@@ -149,9 +161,18 @@ export function CamperProfilePage({
 
 								{activeTab === SettingsTabEnum.HEALTH_FITNESS && <HealthProfileContainer />}
 
+								{activeTab === SettingsTabEnum.BANK_ACCOUNTS && (
+									<BankAccountList
+										userFullName={profile?.fullName}
+										title="Tài khoản ngân hàng của bạn"
+										description="Quản lý tài khoản ngân hàng để nhận tiền hoàn khi có chuyến đi bị hủy hoặc phát sinh khiếu nại."
+									/>
+								)}
+
 								{activeTab !== SettingsTabEnum.PERSONAL_PROFILE &&
 									activeTab !== SettingsTabEnum.EMERGENCY_INFO &&
-									activeTab !== SettingsTabEnum.HEALTH_FITNESS && (
+									activeTab !== SettingsTabEnum.HEALTH_FITNESS &&
+									activeTab !== SettingsTabEnum.BANK_ACCOUNTS && (
 										<div className="flex flex-col items-center justify-center rounded-2xl border border-[#e0ebe0] bg-white p-12 text-center shadow-sm">
 											<div className="flex items-center justify-center rounded-2xl bg-[#eef7f0] p-2.5 mb-3">
 												<img

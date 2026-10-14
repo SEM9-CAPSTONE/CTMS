@@ -30,6 +30,8 @@ import { PaymentsService } from "./payments.service";
 import { PayOSService } from "./payos.service";
 import { RefundsController } from "./refunds.controller";
 import { RefundsService } from "./refunds.service";
+import { SettlementsController } from "./settlements.controller";
+import { SettlementsService } from "./settlements.service";
 import { TripRosterController } from "./trip-roster.controller";
 import { TripRosterService } from "./trip-roster.service";
 
@@ -40,6 +42,7 @@ import { TripRosterService } from "./trip-roster.service";
 		PaymentWebhookController,
 		BookingCancellationController,
 		RefundsController,
+		SettlementsController,
 		BookingMemberStatusController,
 		TripRosterController,
 	],
@@ -54,6 +57,7 @@ import { TripRosterService } from "./trip-roster.service";
 		PaymentsService,
 		PayOSService,
 		RefundsService,
+		SettlementsService,
 		JwtAuthGuard,
 		RolesGuard,
 		{
@@ -93,6 +97,7 @@ import { TripRosterService } from "./trip-roster.service";
 		PaymentsService,
 		PayOSService,
 		RefundsService,
+		SettlementsService,
 	],
 })
 export class BookingsModule {}

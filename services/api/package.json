@@ -13,8 +13,12 @@
 		"migration:run": "typeorm-ts-node-commonjs migration:run -d src/shared/database/data-source.ts",
 		"migration:revert": "typeorm-ts-node-commonjs migration:revert -d src/shared/database/data-source.ts",
 		"migration:generate": "typeorm-ts-node-commonjs migration:generate -d src/shared/database/data-source.ts",
-		"seed:dev-admin": "ts-node src/seeds/dev-admin.seed.ts",
-		"seed:dev-trips": "ts-node src/seeds/dev-trips.seed.ts"
+		"seed": "ts-node src/seeds/main.seed.ts --fresh",
+		"seed:all": "ts-node src/seeds/main.seed.ts --fresh",
+		"seed:fresh": "ts-node src/seeds/main.seed.ts --fresh",
+		"seed:dev-admin": "ts-node src/seeds/main.seed.ts --fresh",
+		"seed:dev-trips": "ts-node src/seeds/main.seed.ts --fresh",
+		"seed:settlements": "ts-node src/seeds/main.seed.ts --fresh"
 	},
 	"dependencies": {
 		"@nestjs/common": "^10.4.15",

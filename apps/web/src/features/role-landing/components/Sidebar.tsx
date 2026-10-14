@@ -107,10 +107,13 @@ export function Sidebar({
 						const isPathEquipment =
 							typeof window !== "undefined" &&
 							window.location.pathname.startsWith("/host/equipment-catalog");
+						const isPathWallet =
+							typeof window !== "undefined" && window.location.pathname.startsWith("/host/wallet");
 						const isActive =
 							(item.key === "explore" && isPathTrips) ||
 							(item.key === "overview" && isPathDashboard) ||
-							(item.key === "equipment" && isPathEquipment);
+							(item.key === "equipment" && isPathEquipment) ||
+							(item.key === "wallet" && isPathWallet);
 
 						return (
 							<button
@@ -141,6 +144,9 @@ export function Sidebar({
 									} else if (item.key === "equipment") {
 										window.history.pushState({}, "", "/host/equipment-catalog");
 										window.dispatchEvent(new PopStateEvent("popstate"));
+									} else if (item.key === "wallet") {
+										window.history.pushState({}, "", "/host/wallet");
+										window.dispatchEvent(new PopStateEvent("popstate"));
 									} else if (item.key === "profile") {
 										if (activeRole === "porter") {
 											window.history.pushState({}, "", "/porter/profile");
@@ -150,14 +156,25 @@ export function Sidebar({
 										}
 									}
 								}}
-								className={`flex w-full items-center gap-3.5 rounded-xl px-3.5 py-3 text-sm font-bold transition-all ${
-									isActive
-										? "bg-[#164027] text-white shadow-sm shadow-[#164027]/20"
-										: "text-[#55685a] hover:bg-[#f8faf7] hover:text-[#164027]"
-								} disabled:cursor-not-allowed disabled:opacity-50`}
+								className={`flex w-full items-center justify-between rounded-xl px-3.5 py-3 text-sm font-bold transition-all ${
+									item.disabled
+										? "cursor-not-allowed text-[#9aaba0] opacity-60 hover:bg-transparent"
+										: isActive
+											? "bg-[#164027] text-white shadow-sm shadow-[#164027]/20"
+											: "text-[#55685a] hover:bg-[#f8faf7] hover:text-[#164027]"
+								} disabled:cursor-not-allowed`}
 							>
-								<Icon className={`size-5 shrink-0 ${isActive ? "text-white" : "text-[#55685a]"}`} />
-								<span>{item.label}</span>
+								<div className="flex items-center gap-3.5">
+									<Icon
+										className={`size-5 shrink-0 ${isActive ? "text-white" : "text-[#55685a]"}`}
+									/>
+									<span>{item.label}</span>
+								</div>
+								{item.badge && (
+									<span className="rounded-md bg-[#edf2ee] px-1.5 py-0.5 text-[10px] font-semibold text-[#627769]">
+										{item.badge}
+									</span>
+								)}
 							</button>
 						);
 					})}
