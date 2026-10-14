@@ -1,0 +1,174 @@
+<mxfile host="65bd71144e">
+    <diagram id="approve-publish-trip" name="Approve and Publish Trip Sequence Diagram">
+        <mxGraphModel dx="942" dy="448" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="1450" background="#ffffff" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="title" value="Approve and Publish Trip (CTMS-023)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=18;fontStyle=1;fontColor=#000000;" parent="1" vertex="1">
+                    <mxGeometry x="55" y="15" width="900" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="actor" value="Admin" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontSize=12;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="55" y="65" width="30" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="ll_actor" value="" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;strokeColor=#000000;fillColor=none;strokeWidth=1;dashed=1;" parent="1" vertex="1">
+                    <mxGeometry x="70" y="150" width="1" height="1400" as="geometry"/>
+                </mxCell>
+                <mxCell id="ll_web" value="AdminTripsPage /&#10;TripReviewDecisionDialog" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="160" y="75" width="140" height="1400" as="geometry"/>
+                </mxCell>
+                <mxCell id="act_web" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_web" vertex="1">
+                    <mxGeometry x="65" y="85" width="10" height="1265" as="geometry"/>
+                </mxCell>
+                <mxCell id="ll_controller" value="TripsController" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="350" y="75" width="140" height="1400" as="geometry"/>
+                </mxCell>
+                <mxCell id="act_controller" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_controller" vertex="1">
+                    <mxGeometry x="65" y="115" width="10" height="1205" as="geometry"/>
+                </mxCell>
+                <mxCell id="ll_service" value="TripsService" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="540" y="75" width="140" height="1400" as="geometry"/>
+                </mxCell>
+                <mxCell id="act_service" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_service" vertex="1">
+                    <mxGeometry x="65" y="145" width="10" height="1115" as="geometry"/>
+                </mxCell>
+                <mxCell id="ll_repo" value="TripsRepository" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="730" y="75" width="140" height="1400" as="geometry"/>
+                </mxCell>
+                <mxCell id="act_repo" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_repo" vertex="1">
+                    <mxGeometry x="65" y="175" width="10" height="1035" as="geometry"/>
+                </mxCell>
+                <mxCell id="ll_db" value="PostgreSQL Database" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="920" y="75" width="150" height="1400" as="geometry"/>
+                </mxCell>
+
+                <mxCell id="m1" value="1. Open Trips Pending Review list" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="70" y="160" as="sourcePoint"/><mxPoint x="225" y="160" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m2" value="2. GET /trips/pending-review" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="235" y="190" as="sourcePoint"/><mxPoint x="415" y="190" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m3" value="3. listPendingReview()" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="425" y="220" as="sourcePoint"/><mxPoint x="605" y="220" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m4" value="4. findPendingReview()" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="615" y="250" as="sourcePoint"/><mxPoint x="795" y="250" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m5" value="5. SELECT trips WHERE status = pending_approval" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="805" y="280" as="sourcePoint"/><mxPoint x="990" y="280" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m6" value="6. Return pending Trips" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="990" y="310" as="sourcePoint"/><mxPoint x="805" y="310" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m7" value="7. Return pending Trips" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="805" y="340" as="sourcePoint"/><mxPoint x="615" y="340" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m8" value="8. Return pending Trips" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="615" y="370" as="sourcePoint"/><mxPoint x="425" y="370" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m9" value="9. Return 200 OK (list)" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="415" y="400" as="sourcePoint"/><mxPoint x="235" y="400" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m10" value="10. Render Trips Pending Review list" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="225" y="430" as="sourcePoint"/><mxPoint x="70" y="430" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m11" value="11. Open Review Decision Dialog, choose Approve / Decline (+ reason if Decline)" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="70" y="460" as="sourcePoint"/><mxPoint x="225" y="460" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m12" value="12. PATCH /trips/:tripId/review { action, reason?, reviewedUpdatedAt }" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="235" y="490" as="sourcePoint"/><mxPoint x="415" y="490" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m13" value="13. review(adminId, tripId, dto)" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="425" y="520" as="sourcePoint"/><mxPoint x="605" y="520" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m14" value="14. findByIdForReview(tripId) FOR UPDATE (begin Transaction)" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="615" y="550" as="sourcePoint"/><mxPoint x="795" y="550" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m15" value="15. SELECT trip FOR UPDATE" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="805" y="580" as="sourcePoint"/><mxPoint x="990" y="580" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m16" value="16. Return locked Trip row" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="990" y="610" as="sourcePoint"/><mxPoint x="805" y="610" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m17" value="17. Return Trip, routeId, status" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="805" y="640" as="sourcePoint"/><mxPoint x="615" y="640" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m18" value="18. Verify status = pending_approval AND reviewedUpdatedAt matches trip.updatedAt (else 409 Conflict)" style="html=1;align=left;spacingLeft=5;verticalAlign=middle;rounded=0;edgeStyle=orthogonalEdgeStyle;endArrow=classic;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="610" y="670" as="sourcePoint"/>
+                        <mxPoint x="610" y="700" as="targetPoint"/>
+                        <Array as="points"><mxPoint x="640" y="670"/><mxPoint x="640" y="700"/></Array>
+                    </mxGeometry>
+                </mxCell>
+
+                <mxCell id="alt_frame" value="alt" style="shape=umlFrame;whiteSpace=wrap;html=1;strokeColor=#000000;fillColor=none;fontColor=#000000;width=45;height=25;" parent="1" vertex="1">
+                    <mxGeometry x="130" y="720" width="940" height="570" as="geometry"/>
+                </mxCell>
+                <mxCell id="cond1" value="[dto.action = APPROVE]" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11;fontStyle=1;fontColor=#000000;" parent="1" vertex="1">
+                    <mxGeometry x="190" y="720" width="260" height="25" as="geometry"/>
+                </mxCell>
+                <mxCell id="m19" value="19. findRouteStatus(routeId)" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="425" y="750" as="sourcePoint"/><mxPoint x="605" y="750" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m20" value="20. SELECT status FROM trekking_routes" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="615" y="780" as="sourcePoint"/><mxPoint x="795" y="780" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m21" value="21. Return Route status" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="795" y="810" as="sourcePoint"/><mxPoint x="615" y="810" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m22" value="22. Return Route status (must be active, else 422 Unprocessable)" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="615" y="840" as="sourcePoint"/><mxPoint x="425" y="840" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m23" value="23. updateStatus(tripId, PUBLISHED)" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="425" y="870" as="sourcePoint"/><mxPoint x="605" y="870" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m24" value="24. UPDATE trips SET status = published, updated_at = now()" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="615" y="900" as="sourcePoint"/><mxPoint x="795" y="900" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m25" value="25. Return updated Trip row" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="795" y="930" as="sourcePoint"/><mxPoint x="615" y="930" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m26" value="26. Return published Trip" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="615" y="960" as="sourcePoint"/><mxPoint x="425" y="960" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m27" value="27. INSERT audit_logs (action = trip.approved, reason = NULL)" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="425" y="990" as="sourcePoint"/><mxPoint x="795" y="990" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m28" value="28. Return published Trip" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="605" y="1020" as="sourcePoint"/><mxPoint x="425" y="1020" as="targetPoint"/></mxGeometry>
+                </mxCell>
+
+                <mxCell id="alt_divider" value="" style="shape=line;strokeWidth=1;dashed=1;dashPattern=6 4;strokeColor=#000000;fillColor=none;" parent="1" vertex="1">
+                    <mxGeometry x="130" y="1050" width="940" height="10" as="geometry"/>
+                </mxCell>
+                <mxCell id="cond2" value="[dto.action = DECLINE]" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11;fontStyle=1;fontColor=#000000;" parent="1" vertex="1">
+                    <mxGeometry x="190" y="1055" width="260" height="25" as="geometry"/>
+                </mxCell>
+                <mxCell id="m19_1" value="19.1 updateStatus(tripId, DRAFT)" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="425" y="1090" as="sourcePoint"/><mxPoint x="605" y="1090" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m20_1" value="20.1 UPDATE trips SET status = draft, updated_at = now()" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="615" y="1120" as="sourcePoint"/><mxPoint x="795" y="1120" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m21_1" value="21.1 Return updated Trip row" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="795" y="1150" as="sourcePoint"/><mxPoint x="615" y="1150" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m22_1" value="22.1 Return declined Trip (draft)" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="615" y="1180" as="sourcePoint"/><mxPoint x="425" y="1180" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m23_1" value="23.1 INSERT audit_logs (action = trip.declined, reason = dto.reason)" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="425" y="1210" as="sourcePoint"/><mxPoint x="795" y="1210" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m24_1" value="24.1 Return declined Trip (draft)" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="605" y="1240" as="sourcePoint"/><mxPoint x="425" y="1240" as="targetPoint"/></mxGeometry>
+                </mxCell>
+
+                <mxCell id="m29" value="29. Return 200 OK (updated Trip)" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="415" y="1310" as="sourcePoint"/><mxPoint x="235" y="1310" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m30" value="30. Show Approve / Decline confirmation, refresh list" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="225" y="1340" as="sourcePoint"/><mxPoint x="70" y="1340" as="targetPoint"/></mxGeometry>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>
