@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { X } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { cancelBookingSchema } from "../schema/cancel-booking.schema";
@@ -57,9 +58,20 @@ export function CancelBookingDialog({
 			}}
 			className="m-auto w-[calc(100%-2rem)] max-w-lg rounded-3xl border border-rose-200 bg-white p-6 text-[#10221b] shadow-xl backdrop:bg-black/50"
 		>
-			<h2 id="cancel-booking-title" className="text-xl font-extrabold">
-				Xác nhận hủy đơn đặt chỗ
-			</h2>
+			<div className="flex items-center justify-between gap-3">
+				<h2 id="cancel-booking-title" className="text-xl font-extrabold text-[#10221b]">
+					Xác nhận hủy đơn đặt chỗ
+				</h2>
+				<button
+					type="button"
+					aria-label="Đóng"
+					disabled={busy}
+					onClick={onClose}
+					className="rounded-full p-1.5 text-[#667a6d] hover:bg-[#f4f7f2] hover:text-[#10221b] transition disabled:opacity-50"
+				>
+					<X className="size-5" />
+				</button>
+			</div>
 			<p id="cancel-booking-impact" className="mt-3 text-sm">
 				Nếu máy chủ chấp nhận, toàn bộ đơn đặt chỗ sẽ bị hủy và người tham gia trong đơn không còn
 				quyền tham gia chuyến đi.

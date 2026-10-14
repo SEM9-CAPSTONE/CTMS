@@ -1,9 +1,10 @@
-import { ConflictException } from "@nestjs/common";
+import { BadRequestException, ConflictException } from "@nestjs/common";
 import type { DataSource, EntityManager } from "typeorm";
 import { AuditLog } from "../auth/entities/audit-log.entity";
 import { Booking, BookingPaymentStatus, BookingStatus } from "../profiles/entities/booking.entity";
 import { Trip, TripStatus } from "../trips/entities/trip.entity";
 import { AUTO_CANCEL_REASON } from "../trips/services/trip-auto-cancel.service";
+import { User } from "../users/entities/user.entity";
 import type { BookingsRepository } from "./bookings.repository";
 import {
 	Payment,
@@ -44,6 +45,9 @@ describe("RefundsService (CTMS-035)", () => {
 		findOne: jest.Mock;
 		create: jest.Mock;
 		save: jest.Mock;
+	};
+	let usersRepo: {
+		findOne: jest.Mock;
 	};
 
 	let trip: Trip;
@@ -117,6 +121,7 @@ describe("RefundsService (CTMS-035)", () => {
 
 		txnRepo = {
 			findOne: jest.fn().mockResolvedValue(null),
+			find: jest.fn().mockResolvedValue([]),
 			create: jest.fn((attrs: Partial<PaymentTransaction>) =>
 				Object.assign(new PaymentTransaction(), attrs)
 			),
@@ -125,6 +130,15 @@ describe("RefundsService (CTMS-035)", () => {
 				if (!txn.createdAt) txn.createdAt = fixedNow;
 				return txn;
 			}),
+		};
+
+		usersRepo = {
+			findOne: jest.fn().mockResolvedValue(
+				Object.assign(new User(), {
+					id: "camper-uuid-1",
+					fullName: "Nguyen Van A",
+				})
+			),
 		};
 
 		const manager = {
@@ -138,6 +152,7 @@ describe("RefundsService (CTMS-035)", () => {
 				if (entity === AuditLog) return auditRepo;
 				if (entity === PaymentTransaction) return txnRepo;
 				if (entity === Payment) return paymentsRepo;
+				if (entity === User) return usersRepo;
 				throw new Error("Unexpected entity in test getRepository");
 			},
 		} as unknown as EntityManager;
@@ -537,6 +552,56 @@ describe("RefundsService (CTMS-035)", () => {
 			expect(info.bookingId).toBe("booking-uuid-1");
 		});
 
+		it("sets isEligible=false when total amount has already been refunded", async () => {
+			const fullyRefundedPayment = Object.assign(new Payment(), {
+				id: "ref-1",
+				bookingId: "booking-uuid-1",
+				type: PaymentType.REFUND,
+				status: PaymentStatus.SUCCEEDED,
+				amount: "100.00",
+				parentPaymentId: "charge-uuid-1",
+				createdAt: fixedNow,
+			});
+			bookingsRepo.findOne.mockResolvedValue(booking);
+			tripsRepo.findOne.mockResolvedValue(trip);
+			paymentsRepo.find.mockResolvedValue([charge, fullyRefundedPayment]);
+			paymentsRepo.findPaymentsByTripId.mockResolvedValue([charge, fullyRefundedPayment]);
+
+			const info = await service.getBookingRefundInfo(
+				"camper-uuid-1",
+				["camper"],
+				"booking-uuid-1"
+			);
+			expect(info.isEligible).toBe(false);
+			expect(info.remainingRefundableAmount).toBe("0.00");
+			expect(info.totalRefundedAmount).toBe("100.00");
+			expect(info.ineligibleReason).toBe("Toàn bộ số tiền đã thanh toán đã được hoàn tất");
+		});
+
+		it("sets isEligible=false when there is an active pending refund", async () => {
+			const pendingRefundPayment = Object.assign(new Payment(), {
+				id: "ref-pending-1",
+				bookingId: "booking-uuid-1",
+				type: PaymentType.REFUND,
+				status: PaymentStatus.PENDING,
+				amount: "50.00",
+				parentPaymentId: "charge-uuid-1",
+				createdAt: fixedNow,
+			});
+			bookingsRepo.findOne.mockResolvedValue(booking);
+			tripsRepo.findOne.mockResolvedValue(trip);
+			paymentsRepo.find.mockResolvedValue([charge, pendingRefundPayment]);
+			paymentsRepo.findPaymentsByTripId.mockResolvedValue([charge, pendingRefundPayment]);
+
+			const info = await service.getBookingRefundInfo(
+				"camper-uuid-1",
+				["camper"],
+				"booking-uuid-1"
+			);
+			expect(info.isEligible).toBe(false);
+			expect(info.ineligibleReason).toBe("Đang có yêu cầu hoàn tiền chờ Quản trị viên đối soát");
+		});
+
 		it("attributes origin to SYSTEM_TRIP_CANCELLATION when the Trip was auto-cancelled (CTMS-036/179)", async () => {
 			trip.status = TripStatus.CANCELLED;
 			trip.cancellationReason = AUTO_CANCEL_REASON;
@@ -645,6 +710,59 @@ describe("RefundsService (CTMS-035)", () => {
 					transactionRef: "VCB-123",
 				})
 			).rejects.toThrow("Refund has already been confirmed");
+		});
+	});
+
+	describe("Camper Refund Request & Strict Name Matching (BR-351)", () => {
+		it("rejects refund request when camper has no registered fullName", async () => {
+			usersRepo.findOne.mockResolvedValue({
+				id: "camper-uuid-1",
+				fullName: "",
+			});
+
+			await expect(
+				service.processRefund("camper-uuid-1", "booking-uuid-1", "key-name-test-1", {
+					bankName: "Vietcombank",
+					accountNumber: "0123456789",
+					accountHolderName: "Nguyen Van A",
+				})
+			).rejects.toThrow(BadRequestException);
+		});
+
+		it("rejects refund request when accountHolderName does not match camper fullName (BR-351)", async () => {
+			usersRepo.findOne.mockResolvedValue({
+				id: "camper-uuid-1",
+				fullName: "Nguyen Van A",
+			});
+
+			await expect(
+				service.processRefund("camper-uuid-1", "booking-uuid-1", "key-name-test-2", {
+					bankName: "Vietcombank",
+					accountNumber: "0123456789",
+					accountHolderName: "Le Van B",
+				})
+			).rejects.toThrow(BadRequestException);
+		});
+
+		it("accepts refund request when accountHolderName matches camper fullName normalized (BR-351)", async () => {
+			usersRepo.findOne.mockResolvedValue({
+				id: "camper-uuid-1",
+				fullName: "Nguyễn Văn A",
+			});
+
+			const res = await service.processRefund(
+				"camper-uuid-1",
+				"booking-uuid-1",
+				"key-name-test-3",
+				{
+					bankName: "Vietcombank",
+					accountNumber: "0123456789",
+					accountHolderName: "NGUYEN VAN A",
+				}
+			);
+
+			expect(res.status).toBe(PaymentStatus.PENDING);
+			expect(res.transactionStatus).toBe(PaymentTransactionStatus.PENDING);
 		});
 	});
 });

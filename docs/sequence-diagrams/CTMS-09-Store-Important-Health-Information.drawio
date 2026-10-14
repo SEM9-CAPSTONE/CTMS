@@ -1,0 +1,353 @@
+<mxfile host="65bd71144e">
+    <diagram id="store-important-health-information" name="Store Important Health Information Sequence Diagram">
+        <mxGraphModel dx="942" dy="448" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1350" pageHeight="1680" background="#ffffff" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="title" value="Store Important Health Information" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=18;fontStyle=1;fontColor=#000000;" parent="1" vertex="1">
+                    <mxGeometry x="275" y="15" width="800" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="actor" value="Camper" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontSize=12;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="65" y="65" width="30" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="ll_actor" value="" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;strokeColor=#000000;fillColor=none;strokeWidth=1;dashed=1;" parent="1" vertex="1">
+                    <mxGeometry x="80" y="150" width="1" height="1475" as="geometry"/>
+                </mxCell>
+                <mxCell id="ll_boundary" value="Health Profile Screen" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="200" y="75" width="150" height="1550" as="geometry"/>
+                </mxCell>
+                <mxCell id="act_boundary_load" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_boundary" vertex="1">
+                    <mxGeometry x="70" y="85" width="10" height="410" as="geometry"/>
+                </mxCell>
+                <mxCell id="act_boundary_save" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_boundary" vertex="1">
+                    <mxGeometry x="70" y="535" width="10" height="930" as="geometry"/>
+                </mxCell>
+                <mxCell id="ll_controller" value="Camper Health Profile Controller" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="430" y="75" width="150" height="1550" as="geometry"/>
+                </mxCell>
+                <mxCell id="act_controller_load" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_controller" vertex="1">
+                    <mxGeometry x="70" y="115" width="10" height="350" as="geometry"/>
+                </mxCell>
+                <mxCell id="act_controller_save" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_controller" vertex="1">
+                    <mxGeometry x="70" y="565" width="10" height="870" as="geometry"/>
+                </mxCell>
+                <mxCell id="ll_service" value="Camper Health Profile Service" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="660" y="75" width="150" height="1550" as="geometry"/>
+                </mxCell>
+                <mxCell id="act_service_load" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_service" vertex="1">
+                    <mxGeometry x="70" y="145" width="10" height="290" as="geometry"/>
+                </mxCell>
+                <mxCell id="act_service_save" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_service" vertex="1">
+                    <mxGeometry x="70" y="635" width="10" height="800" as="geometry"/>
+                </mxCell>
+                <mxCell id="ll_model" value="Health Profiles Model" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="890" y="75" width="150" height="1550" as="geometry"/>
+                </mxCell>
+                <mxCell id="act_model_user" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_model" vertex="1">
+                    <mxGeometry x="70" y="175" width="10" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="act_model_load" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_model" vertex="1">
+                    <mxGeometry x="70" y="295" width="10" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="act_model_user_upd" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_model" vertex="1">
+                    <mxGeometry x="70" y="665" width="10" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="act_model_find_ver" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_model" vertex="1">
+                    <mxGeometry x="70" y="785" width="10" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="act_model_save_all" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_model" vertex="1">
+                    <mxGeometry x="70" y="975" width="10" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="ll_db" value="PostgreSQL Database" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="1120" y="75" width="160" height="1550" as="geometry"/>
+                </mxCell>
+                <mxCell id="act_db_user" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_db" vertex="1">
+                    <mxGeometry x="75" y="205" width="10" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="act_db_load" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_db" vertex="1">
+                    <mxGeometry x="75" y="325" width="10" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="act_db_user_upd" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_db" vertex="1">
+                    <mxGeometry x="75" y="695" width="10" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="act_db_find_ver" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_db" vertex="1">
+                    <mxGeometry x="75" y="815" width="10" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="act_db_save_all" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_db" vertex="1">
+                    <mxGeometry x="75" y="1005" width="10" height="40" as="geometry"/>
+                </mxCell>
+                <!-- Flow 1: Load Health Profile -->
+                <mxCell id="msg1" value="1. Open Health Profile Page" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="80" y="160" as="sourcePoint"/>
+                        <mxPoint x="270" y="160" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg2" value="2. Send Get Health Profile Request" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="280" y="190" as="sourcePoint"/>
+                        <mxPoint x="500" y="190" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg3" value="3. Get Or Create Profile" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="510" y="220" as="sourcePoint"/>
+                        <mxPoint x="730" y="220" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg4" value="4. Verify User Is Active" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="740" y="250" as="sourcePoint"/>
+                        <mxPoint x="960" y="250" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg5" value="5. Query Users Table" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="970" y="280" as="sourcePoint"/>
+                        <mxPoint x="1195" y="280" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg6" value="6. Return Active User Record" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="1195" y="310" as="sourcePoint"/>
+                        <mxPoint x="970" y="310" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg7" value="7. Return Active User Entity" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="960" y="340" as="sourcePoint"/>
+                        <mxPoint x="740" y="340" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg8" value="8. Find Health Profile By User Id" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="740" y="370" as="sourcePoint"/>
+                        <mxPoint x="960" y="370" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg9" value="9. Query Health Profiles Table" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="970" y="400" as="sourcePoint"/>
+                        <mxPoint x="1195" y="400" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg10" value="10. Return Health Profile Record" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="1195" y="430" as="sourcePoint"/>
+                        <mxPoint x="970" y="430" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg11" value="11. Return Health Profile Entity" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="960" y="460" as="sourcePoint"/>
+                        <mxPoint x="740" y="460" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg12" value="12. Return Health Profile Response DTO" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="730" y="490" as="sourcePoint"/>
+                        <mxPoint x="510" y="490" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg13" value="13. Return 200 OK Response" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="500" y="520" as="sourcePoint"/>
+                        <mxPoint x="280" y="520" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg14" value="14. Render Health Profile Form And Consent State" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="270" y="550" as="sourcePoint"/>
+                        <mxPoint x="80" y="550" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <!-- Flow 2: Store Health Information & Sharing Consent -->
+                <mxCell id="msg15" value="15. Submit Health Information And Consent" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="80" y="610" as="sourcePoint"/>
+                        <mxPoint x="270" y="610" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg16" value="16. Send Update Profile Request" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="280" y="640" as="sourcePoint"/>
+                        <mxPoint x="500" y="640" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg17" value="17. Validate Payload And Parse Version Pipe" style="html=1;align=left;spacingLeft=5;verticalAlign=middle;rounded=0;edgeStyle=orthogonalEdgeStyle;endArrow=classic;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="510" y="650" as="sourcePoint"/>
+                        <mxPoint x="510" y="685" as="targetPoint"/>
+                        <Array as="points">
+                            <mxPoint x="545" y="650"/>
+                            <mxPoint x="545" y="685"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg18" value="18. Update Health Profile" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="510" y="710" as="sourcePoint"/>
+                        <mxPoint x="730" y="710" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg19" value="19. Verify User Status In Transaction" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="740" y="740" as="sourcePoint"/>
+                        <mxPoint x="960" y="740" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg20" value="20. Query Users Table For Active Status" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="970" y="770" as="sourcePoint"/>
+                        <mxPoint x="1195" y="770" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg21" value="21. Return User Record" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="1195" y="800" as="sourcePoint"/>
+                        <mxPoint x="970" y="800" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg22" value="22. Return User Entity" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="960" y="830" as="sourcePoint"/>
+                        <mxPoint x="740" y="830" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg23" value="23. Find Existing Profile For Concurrency Check" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="740" y="860" as="sourcePoint"/>
+                        <mxPoint x="960" y="860" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg24" value="24. Query Health Profile Record" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="970" y="890" as="sourcePoint"/>
+                        <mxPoint x="1195" y="890" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg25" value="25. Return Stored Profile Record" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="1195" y="920" as="sourcePoint"/>
+                        <mxPoint x="970" y="920" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg26" value="26. Return Stored Profile Entity" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="960" y="950" as="sourcePoint"/>
+                        <mxPoint x="740" y="950" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg27" value="27. Check Version And Apply Consent Timestamp" style="html=1;align=left;spacingLeft=5;verticalAlign=middle;rounded=0;edgeStyle=orthogonalEdgeStyle;endArrow=classic;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="740" y="960" as="sourcePoint"/>
+                        <mxPoint x="740" y="995" as="targetPoint"/>
+                        <Array as="points">
+                            <mxPoint x="775" y="960"/>
+                            <mxPoint x="775" y="995"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <!-- Alt Frame for Concurrency & Active Status -->
+                <mxCell id="alt_frame" value="alt" style="shape=umlFrame;whiteSpace=wrap;html=1;strokeColor=#000000;fillColor=none;fontColor=#000000;width=45;height=25;" parent="1" vertex="1">
+                    <mxGeometry x="130" y="1015" width="1140" height="540" as="geometry"/>
+                </mxCell>
+                <mxCell id="cond1" value="[Valid Version &amp; Active Account (clientVersion &gt;= profile.version)]" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11;fontStyle=1;fontColor=#000000;" parent="1" vertex="1">
+                    <mxGeometry x="180" y="1015" width="500" height="25" as="geometry"/>
+                </mxCell>
+                <mxCell id="msg28" value="28. Save Updated Health Profile And Audit Log" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="740" y="1050" as="sourcePoint"/>
+                        <mxPoint x="960" y="1050" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg29" value="29. Update Health Profiles And Insert Audit Log Table" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="970" y="1080" as="sourcePoint"/>
+                        <mxPoint x="1195" y="1080" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg30" value="30. Return Transaction Commit Result" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="1195" y="1110" as="sourcePoint"/>
+                        <mxPoint x="970" y="1110" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg31" value="31. Return Saved Health Profile Entity" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="960" y="1140" as="sourcePoint"/>
+                        <mxPoint x="740" y="1140" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg32" value="32. Return Updated Health Profile Response DTO" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="730" y="1170" as="sourcePoint"/>
+                        <mxPoint x="510" y="1170" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg33" value="33. Return 200 OK Response" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="500" y="1200" as="sourcePoint"/>
+                        <mxPoint x="280" y="1200" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg34" value="34. Display Profile Update Success Message" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="270" y="1230" as="sourcePoint"/>
+                        <mxPoint x="80" y="1230" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <!-- Divider 1 -->
+                <mxCell id="alt_divider" value="" style="shape=line;strokeWidth=1;dashed=1;dashPattern=6 4;strokeColor=#000000;fillColor=none;" parent="1" vertex="1">
+                    <mxGeometry x="130" y="1265" width="1140" height="10" as="geometry"/>
+                </mxCell>
+                <mxCell id="cond2" value="[Concurrency Conflict (clientVersion &lt; profile.version)]" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11;fontStyle=1;fontColor=#000000;" parent="1" vertex="1">
+                    <mxGeometry x="180" y="1275" width="450" height="25" as="geometry"/>
+                </mxCell>
+                <mxCell id="msg28_1" value="28.1 Return Concurrency Conflict Error" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="730" y="1315" as="sourcePoint"/>
+                        <mxPoint x="510" y="1315" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg29_1" value="29.1 Return 409 Conflict Response" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="500" y="1345" as="sourcePoint"/>
+                        <mxPoint x="280" y="1345" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg30_1" value="30.1 Show Conflict Alert And Preserve Form Data" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="270" y="1375" as="sourcePoint"/>
+                        <mxPoint x="80" y="1375" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <!-- Divider 2 -->
+                <mxCell id="alt_divider_2" value="" style="shape=line;strokeWidth=1;dashed=1;dashPattern=6 4;strokeColor=#000000;fillColor=none;" parent="1" vertex="1">
+                    <mxGeometry x="130" y="1410" width="1140" height="10" as="geometry"/>
+                </mxCell>
+                <mxCell id="cond3" value="[Account Inactive Or Suspended (BR-202)]" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11;fontStyle=1;fontColor=#000000;" parent="1" vertex="1">
+                    <mxGeometry x="180" y="1420" width="400" height="25" as="geometry"/>
+                </mxCell>
+                <mxCell id="msg28_2" value="28.2 Return Account Not Active Error" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="730" y="1460" as="sourcePoint"/>
+                        <mxPoint x="510" y="1460" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg29_2" value="29.2 Return 403 Forbidden Response" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="500" y="1490" as="sourcePoint"/>
+                        <mxPoint x="280" y="1490" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg30_2" value="30.2 Show Account Inactive Warning" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="270" y="1520" as="sourcePoint"/>
+                        <mxPoint x="80" y="1520" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

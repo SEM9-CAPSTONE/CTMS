@@ -41,6 +41,7 @@ export interface ProfileApiResponse {
 
 export interface UpdateProfilePayload {
 	fullName?: string;
+	phone?: string;
 	dateOfBirth?: string;
 	gender?: ProfileGender;
 	address?: string;

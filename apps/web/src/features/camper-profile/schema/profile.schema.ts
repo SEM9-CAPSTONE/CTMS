@@ -50,6 +50,13 @@ export const camperProfileSchema = z.object({
 		.string()
 		.min(2, "Họ và tên phải có ít nhất 2 ký tự")
 		.max(50, "Họ và tên không vượt quá 50 ký tự"),
+	phone: z
+		.string()
+		.min(1, "Vui lòng nhập số điện thoại")
+		.regex(
+			/^(0|\+84)(3|5|7|8|9)\d{8}$/,
+			"Số điện thoại không hợp lệ (gồm 10 số, bắt đầu bằng 03, 05, 07, 08, 09 hoặc +84)"
+		),
 	dateOfBirth: z
 		.string()
 		.min(1, "Vui lòng nhập ngày sinh")

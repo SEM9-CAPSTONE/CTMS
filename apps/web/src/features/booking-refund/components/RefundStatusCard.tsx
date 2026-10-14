@@ -21,6 +21,8 @@ export function RefundStatusCard({
 	const hasPendingRefund = refundInfo.refunds.some((r) => r.status === "pending");
 	const hasSucceededRefund = refundInfo.refunds.some((r) => r.status === "succeeded");
 	const hasFailedRefund = refundInfo.refunds.some((r) => r.status === "failed");
+	const remainingAmount = Number.parseFloat(refundInfo.remainingRefundableAmount || "0");
+	const hasRemainingRefundableAmount = Number.isFinite(remainingAmount) && remainingAmount > 0;
 
 	const windowInfo = refundInfo.applicableWindow;
 
@@ -171,7 +173,7 @@ export function RefundStatusCard({
 			)}
 
 			<div className="mt-6 flex flex-wrap items-center justify-between gap-3">
-				{refundInfo.isEligible && !hasPendingRefund ? (
+				{refundInfo.isEligible && !hasPendingRefund && hasRemainingRefundableAmount ? (
 					<button
 						type="button"
 						disabled={isSubmitting}
@@ -185,10 +187,13 @@ export function RefundStatusCard({
 					<p className="text-xs text-[#667a6d]">
 						{hasPendingRefund
 							? "Đang có yêu cầu hoàn tiền chờ Quản trị viên đối soát."
-							: (refundInfo.ineligibleReason ??
-								(windowInfo?.isExpired
-									? "Đã hết thời hạn yêu cầu hoàn tiền."
-									: "Đơn đặt chỗ hiện không trong diện gửi yêu cầu hoàn tiền."))}
+							: !hasRemainingRefundableAmount &&
+									Number.parseFloat(refundInfo.totalRefundedAmount || "0") > 0
+								? "Toàn bộ số tiền đã thanh toán đã được hoàn tất."
+								: (refundInfo.ineligibleReason ??
+									(windowInfo?.isExpired
+										? "Đã hết thời hạn yêu cầu hoàn tiền."
+										: "Đơn đặt chỗ hiện không trong diện gửi yêu cầu hoàn tiền."))}
 					</p>
 				)}
 			</div>

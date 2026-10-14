@@ -181,4 +181,31 @@ describe("CamperProfilePage", () => {
 			await screen.findByText("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.")
 		).toBeInTheDocument();
 	});
+
+	it("does not render removed settings tabs (Thiết bị cá nhân, Thông báo, Thông tin liên hệ)", async () => {
+		getProfileMock.mockResolvedValueOnce(PROFILE);
+
+		render(<CamperProfilePage />);
+
+		await screen.findByDisplayValue("Nguyen Van B");
+		expect(screen.queryByText("Thiết bị cá nhân")).not.toBeInTheDocument();
+		expect(screen.queryByText("Thông báo")).not.toBeInTheDocument();
+		expect(screen.queryByText("Thông tin liên hệ")).not.toBeInTheDocument();
+		expect(screen.getByText("Tài khoản ngân hàng")).toBeInTheDocument();
+		expect(screen.getByText("Hồ sơ cá nhân")).toBeInTheDocument();
+	});
+
+	it("validates mandatory phone number on personal profile form", async () => {
+		const user = userEvent.setup();
+		getProfileMock.mockResolvedValueOnce(PROFILE);
+
+		render(<CamperProfilePage />);
+
+		const phoneInput = await screen.findByDisplayValue("+84912345678");
+		await user.clear(phoneInput);
+		await user.click(screen.getByRole("button", { name: /Lưu thay đổi/i }));
+
+		expect(await screen.findByText("Vui lòng nhập số điện thoại")).toBeInTheDocument();
+		expect(updateProfileMock).not.toHaveBeenCalled();
+	});
 });

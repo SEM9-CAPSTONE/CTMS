@@ -40,9 +40,18 @@ describe("formatCancellationPolicyRules", () => {
 		]);
 	});
 
+	it("formats textual policy descriptions", () => {
+		expect(formatCancellationPolicyRules({ policy: "Hủy trước 48 giờ hoàn 80%" })).toEqual([
+			"Hủy trước 48 giờ hoàn 80%",
+		]);
+		expect(formatCancellationPolicyRules("Hủy trước 7 ngày hoàn 90%.")).toEqual([
+			"Hủy trước 7 ngày hoàn 90%.",
+		]);
+	});
+
 	it.each([
 		null,
-		{ policy: "Hủy trước 48 giờ" },
+		{ refundHours: 48 },
 		{ version: 2, rules: [{ minHoursBeforeTrip: 48, refundPercent: 100 }] },
 		{ version: 1, rules: [] },
 		{ version: 1, rules: [{ minHoursBeforeTrip: "48", refundPercent: 100 }] },

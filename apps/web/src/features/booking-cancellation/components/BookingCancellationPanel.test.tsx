@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { fireEvent, render as rtlRender, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterAll, afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { HttpError } from "../../../core/api";
@@ -9,6 +10,17 @@ import { bookingRefundService } from "../../booking-refund/services/booking-refu
 import { bookingCancellationService } from "../services/booking-cancellation.service";
 import { bookingFixture, cancellationFixture } from "../test-fixtures";
 import type { CancelBookingResponse } from "../types";
+
+function render(ui: React.ReactElement) {
+	const queryClient = new QueryClient({
+		defaultOptions: {
+			queries: {
+				retry: false,
+			},
+		},
+	});
+	return rtlRender(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
+}
 
 // This suite uses the real page; other suites mock it with isolate:false.
 vi.hoisted(() => vi.resetModules());
@@ -208,13 +220,24 @@ it.each([403, 404, 409, 422, 503, "network"] as const)(
 	}
 );
 it("isolates cancellation state when navigating to a different Booking", async () => {
-	const view = render(<BookingDetailsPage bookingId={bookingFixture.id} onBack={vi.fn()} />);
+	const queryClient = new QueryClient({
+		defaultOptions: { queries: { retry: false } },
+	});
+	const view = rtlRender(
+		<QueryClientProvider client={queryClient}>
+			<BookingDetailsPage bookingId={bookingFixture.id} onBack={vi.fn()} />
+		</QueryClientProvider>
+	);
 	fireEvent.click(await screen.findByRole("button", { name: "Yêu cầu hủy đơn" }));
 	fireEvent.click(screen.getByRole("button", { name: "Xác nhận hủy" }));
 	await screen.findByRole("heading", { name: "Đã xác nhận hủy đơn đặt chỗ" });
 	const other: BookingDetails = { ...bookingFixture, id: "other" };
 	vi.mocked(bookingDetailsService.getBookingDetails).mockResolvedValue(other);
-	view.rerender(<BookingDetailsPage bookingId="other" onBack={vi.fn()} />);
+	view.rerender(
+		<QueryClientProvider client={queryClient}>
+			<BookingDetailsPage bookingId="other" onBack={vi.fn()} />
+		</QueryClientProvider>
+	);
 	await screen.findByRole("button", { name: "Yêu cầu hủy đơn" });
 	expect(
 		screen.queryByRole("heading", { name: "Đã xác nhận hủy đơn đặt chỗ" })
