@@ -12,6 +12,7 @@ import { AvailablePortersQueryDto } from "../dto/available-porters-query.dto";
 import { CreatePorterRequestDto } from "../dto/create-porter-request.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { ConfigureTripWaypointsDto, CreateTripDto } from "../dto/create-trip.dto";
+import { HostPorterAssignmentTripDto } from "../dto/host-porter-assignment-response.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { PendingPorterRequestQueryDto } from "../dto/pending-porter-request-query.dto";
 import { PorterAssignedTripResponseDto } from "../dto/porter-assigned-trip-response.dto";
@@ -77,6 +78,28 @@ export class TripsController {
 		return this.tripsService.getMyTrips(request.user.userId);
 	}
 
+	@Get("porter-candidates")
+	@Roles(UserRole.HOST)
+	@ApiOperation({ summary: "List upcoming owned Trips that do not have an assigned Porter" })
+	@ApiResponse({ status: 200, type: TripResponseDto, isArray: true })
+	@ApiResponse({ status: 401, description: "Authentication required" })
+	@ApiResponse({ status: 403, description: "Host role required" })
+	getPorterCandidateTrips(@Req() request: AuthenticatedRequest): Promise<TripResponseDto[]> {
+		return this.tripsService.getUpcomingTripsWithoutPorter(request.user.userId);
+	}
+
+	@Get("porter-assignments")
+	@Roles(UserRole.HOST)
+	@ApiOperation({ summary: "List Porter assignment history for Trips owned by the current Host" })
+	@ApiResponse({ status: 200, type: HostPorterAssignmentTripDto, isArray: true })
+	@ApiResponse({ status: 401, description: "Authentication required" })
+	@ApiResponse({ status: 403, description: "Host role required" })
+	getPorterAssignmentHistory(
+		@Req() request: AuthenticatedRequest
+	): Promise<HostPorterAssignmentTripDto[]> {
+		return this.tripsService.getPorterAssignmentHistory(request.user.userId);
+	}
+
 	@Get("assigned")
 	@Roles(UserRole.PORTER)
 	@ApiOperation({ summary: "List Trips currently assigned to the authenticated Porter" })
@@ -85,6 +108,60 @@ export class TripsController {
 	@ApiResponse({ status: 403, description: "Porter role required" })
 	getAssignedTrips(@Req() request: AuthenticatedRequest): Promise<PorterAssignedTripResponseDto[]> {
 		return this.tripsService.getAssignedTrips(request.user.userId);
+	}
+
+	@Get("porter-requests/mine")
+	@Roles(UserRole.PORTER)
+	@ApiOperation({ summary: "List Porter Requests received by the authenticated Porter" })
+	@ApiResponse({ status: 200, type: PorterRequestResponseDto, isArray: true })
+	@ApiResponse({ status: 401, description: "Authentication required" })
+	@ApiResponse({ status: 403, description: "Porter role required" })
+	listMyPorterRequests(@Req() request: AuthenticatedRequest): Promise<PorterRequestResponseDto[]> {
+		return this.porterRequestsService.listForPorter(request.user.userId);
+	}
+
+	@Get("porter-requests/host")
+	@Roles(UserRole.HOST)
+	@ApiOperation({
+		summary: "List pending, accepted, and declined Porter Requests sent by the Host",
+	})
+	@ApiResponse({ status: 200, type: PorterRequestResponseDto, isArray: true })
+	@ApiResponse({ status: 401, description: "Authentication required" })
+	@ApiResponse({ status: 403, description: "Host role required" })
+	listHostPorterRequests(
+		@Req() request: AuthenticatedRequest
+	): Promise<PorterRequestResponseDto[]> {
+		return this.porterRequestsService.listForHost(request.user.userId);
+	}
+
+	@Patch("porter-requests/:requestId/accept")
+	@Roles(UserRole.PORTER)
+	@ApiOperation({ summary: "Accept a Porter Request and create the Trip assignment atomically" })
+	@ApiResponse({ status: 200, type: PorterRequestResponseDto })
+	@ApiResponse({ status: 401, description: "Authentication required" })
+	@ApiResponse({ status: 403, description: "Only the requested Porter may accept" })
+	@ApiResponse({ status: 404, description: "Porter Request not found" })
+	@ApiResponse({ status: 409, description: "Request, Trip, Porter, or Assignment is not eligible" })
+	acceptPorterRequest(
+		@Req() request: AuthenticatedRequest,
+		@Param("requestId") requestId: string
+	): Promise<PorterRequestResponseDto> {
+		return this.porterRequestsService.accept(request.user.userId, requestId);
+	}
+
+	@Patch("porter-requests/:requestId/decline")
+	@Roles(UserRole.PORTER)
+	@ApiOperation({ summary: "Decline a Porter Request" })
+	@ApiResponse({ status: 200, type: PorterRequestResponseDto })
+	@ApiResponse({ status: 401, description: "Authentication required" })
+	@ApiResponse({ status: 403, description: "Only the requested Porter may decline" })
+	@ApiResponse({ status: 404, description: "Porter Request not found" })
+	@ApiResponse({ status: 409, description: "Request is already terminal" })
+	declinePorterRequest(
+		@Req() request: AuthenticatedRequest,
+		@Param("requestId") requestId: string
+	): Promise<PorterRequestResponseDto> {
+		return this.porterRequestsService.decline(request.user.userId, requestId);
 	}
 
 	@Get(":tripId/available-porters")
@@ -138,6 +215,36 @@ export class TripsController {
 			params.tripId,
 			query.porterId
 		);
+	}
+
+	@Get(":tripId/porter-requests")
+	@Roles(UserRole.HOST)
+	@ApiOperation({ summary: "List Porter Requests for an owned Trip" })
+	@ApiResponse({ status: 200, type: PorterRequestResponseDto, isArray: true })
+	@ApiResponse({ status: 401, description: "Authentication required" })
+	@ApiResponse({ status: 403, description: "Host role and Trip ownership required" })
+	@ApiResponse({ status: 404, description: "Trip not found" })
+	listPorterRequestsForTrip(
+		@Req() request: AuthenticatedRequest,
+		@Param() params: TripIdParamDto
+	): Promise<PorterRequestResponseDto[]> {
+		return this.porterRequestsService.listForHostTrip(request.user.userId, params.tripId);
+	}
+
+	@Patch(":tripId/porter-requests/:requestId/cancel")
+	@Roles(UserRole.HOST)
+	@ApiOperation({ summary: "Cancel a pending Porter Request for an owned Trip" })
+	@ApiResponse({ status: 200, type: PorterRequestResponseDto })
+	@ApiResponse({ status: 401, description: "Authentication required" })
+	@ApiResponse({ status: 403, description: "Host role and Trip ownership required" })
+	@ApiResponse({ status: 404, description: "Porter Request not found" })
+	@ApiResponse({ status: 409, description: "Request is already terminal" })
+	cancelPorterRequest(
+		@Req() request: AuthenticatedRequest,
+		@Param() params: TripIdParamDto,
+		@Param("requestId") requestId: string
+	): Promise<PorterRequestResponseDto> {
+		return this.porterRequestsService.cancel(request.user.userId, params.tripId, requestId);
 	}
 
 	@Get(":tripId")

@@ -19,6 +19,7 @@ import type {
 	CreateTripWaypointDto,
 	GeoJsonPointDto,
 } from "../dto/create-trip.dto";
+import type { HostPorterAssignmentTripDto } from "../dto/host-porter-assignment-response.dto";
 import type { PorterAssignedTripResponseDto } from "../dto/porter-assigned-trip-response.dto";
 import type { CancelTripDto, RescheduleTripDto } from "../dto/reschedule-trip.dto";
 import { ReviewTripAction, type ReviewTripDto } from "../dto/review-trip.dto";
@@ -117,6 +118,14 @@ export class TripsService {
 
 	async getMyTrips(hostId: string): Promise<TripResponseDto[]> {
 		return this.tripsRepository.findTripsByHost(hostId);
+	}
+
+	async getUpcomingTripsWithoutPorter(hostId: string): Promise<TripResponseDto[]> {
+		return this.tripsRepository.findUpcomingTripsWithoutPorter(hostId);
+	}
+
+	async getPorterAssignmentHistory(hostId: string): Promise<HostPorterAssignmentTripDto[]> {
+		return this.tripsRepository.findPorterAssignmentHistoryByHost(hostId);
 	}
 
 	async getAssignedTrips(porterId: string): Promise<PorterAssignedTripResponseDto[]> {

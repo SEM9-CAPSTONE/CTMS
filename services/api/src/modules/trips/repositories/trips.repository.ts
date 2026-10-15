@@ -5,6 +5,10 @@ import {
 	TrekkingRouteStatus,
 } from "../../trekking-routes/entities/trekking-route.entity";
 import type { RiskLevel } from "../../weather/entities/weather-risk-assessment.entity";
+import type {
+	HostPorterAssignmentDto,
+	HostPorterAssignmentTripDto,
+} from "../dto/host-porter-assignment-response.dto";
 import type { PorterAssignedTripResponseDto } from "../dto/porter-assigned-trip-response.dto";
 import type {
 	TripRegistrationRiskResponseDto,
@@ -97,6 +101,8 @@ export interface PorterAvailabilityTripContext {
 	routeId: string | null;
 	startsAt: Date | null;
 	endsAt: Date | null;
+	status: TripStatus;
+	hasActivePorter: boolean;
 }
 
 export interface TripRescheduleCommitmentSummary {
@@ -132,6 +138,22 @@ export interface PendingReviewDeadlineCandidate {
 	hostId: string;
 	title: string;
 	updatedAt: Date;
+}
+
+interface HostPorterAssignmentRow {
+	tripId: string;
+	title: string;
+	tripStatus: TripStatus;
+	startsAt: Date;
+	endsAt: Date;
+	porterId: string;
+	displayName: string | null;
+	email: string | null;
+	assignmentStatus: HostPorterAssignmentDto["status"];
+	assignedAt: Date | null;
+	reconfirmationDeadline: Date | null;
+	reconfirmedAt: Date | null;
+	declinedAt: Date | null;
 }
 
 /**
@@ -828,9 +850,16 @@ export class TripsRepository extends Repository<Trip> {
 				"host_id" AS "hostId",
 				"route_id" AS "routeId",
 				"starts_at" AS "startsAt",
-				"ends_at" AS "endsAt"
-			 FROM "trips"
-			 WHERE "id" = $1`,
+				"ends_at" AS "endsAt",
+				"status",
+				EXISTS (
+					SELECT 1
+					FROM "trip_porters" assignment
+					WHERE assignment."trip_id" = trip."id"
+						AND assignment."status" IN ('assigned', 'pending_reconfirmation')
+				) AS "hasActivePorter"
+			 FROM "trips" trip
+			 WHERE trip."id" = $1`,
 			[tripId]
 		)) as PorterAvailabilityTripContext[];
 
@@ -904,6 +933,90 @@ export class TripsRepository extends Repository<Trip> {
 		)) as TripRow[];
 
 		return rows.map(toTripResponse);
+	}
+
+	async findUpcomingTripsWithoutPorter(hostId: string): Promise<TripResponseDto[]> {
+		const rows = (await this.query(
+			`${TRIP_SELECT}
+			WHERE trip."host_id" = $1
+				AND trip."status" = $2
+				AND trip."starts_at" > clock_timestamp()
+				AND NOT EXISTS (
+					SELECT 1
+					FROM "trip_porters" assignment
+					WHERE assignment."trip_id" = trip."id"
+						AND assignment."status" IN ('assigned', 'pending_reconfirmation')
+				)
+			ORDER BY trip."starts_at" ASC, trip."id" ASC`,
+			[hostId, TripStatus.PUBLISHED]
+		)) as TripRow[];
+
+		return rows.map(toTripResponse);
+	}
+
+	async findPorterAssignmentHistoryByHost(hostId: string): Promise<HostPorterAssignmentTripDto[]> {
+		const rows = (await this.query(
+			`SELECT
+				trip."id" AS "tripId",
+				trip."title",
+				trip."status" AS "tripStatus",
+				trip."starts_at" AS "startsAt",
+				trip."ends_at" AS "endsAt",
+				assignment."porter_id" AS "porterId",
+				porter."full_name" AS "displayName",
+				porter."email",
+				assignment."status" AS "assignmentStatus",
+				accepted_request."responded_at" AS "assignedAt",
+				assignment."reconfirmation_deadline" AS "reconfirmationDeadline",
+				assignment."reconfirmed_at" AS "reconfirmedAt",
+				assignment."declined_at" AS "declinedAt"
+			 FROM "trips" trip
+			 INNER JOIN "trip_porters" assignment ON assignment."trip_id" = trip."id"
+			 INNER JOIN "users" porter ON porter."id" = assignment."porter_id"
+			 LEFT JOIN LATERAL (
+				SELECT request."responded_at"
+				FROM "porter_requests" request
+				WHERE request."trip_id" = trip."id"
+					AND request."porter_id" = assignment."porter_id"
+					AND request."status" = 'accepted'
+				ORDER BY request."responded_at" DESC NULLS LAST, request."updated_at" DESC
+				LIMIT 1
+			 ) accepted_request ON TRUE
+			 WHERE trip."host_id" = $1
+			 ORDER BY trip."starts_at" DESC, trip."id" ASC, porter."full_name" ASC NULLS LAST`,
+			[hostId]
+		)) as HostPorterAssignmentRow[];
+
+		const trips = new Map<string, HostPorterAssignmentTripDto>();
+		for (const row of rows) {
+			let trip = trips.get(row.tripId);
+			if (!trip) {
+				trip = {
+					id: row.tripId,
+					title: row.title,
+					status: row.tripStatus,
+					startsAt: row.startsAt,
+					endsAt: row.endsAt,
+					assignedPorterCount: 0,
+					assignments: [],
+				};
+				trips.set(row.tripId, trip);
+			}
+
+			if (row.assignmentStatus !== "unassigned") trip.assignedPorterCount += 1;
+			trip.assignments.push({
+				porterId: row.porterId,
+				displayName: row.displayName,
+				email: row.email,
+				status: row.assignmentStatus,
+				assignedAt: row.assignedAt,
+				reconfirmationDeadline: row.reconfirmationDeadline,
+				reconfirmedAt: row.reconfirmedAt,
+				declinedAt: row.declinedAt,
+			});
+		}
+
+		return [...trips.values()];
 	}
 
 	findAssignedTripsByPorter(porterId: string): Promise<PorterAssignedTripResponseDto[]> {

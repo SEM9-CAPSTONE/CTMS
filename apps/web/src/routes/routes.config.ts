@@ -21,6 +21,7 @@ export enum RoutePath {
 	SAFETY = "/safety",
 	CAMPER_PROFILE = "/camper/profile",
 	PORTER_PROFILE = "/porter/profile",
+	PORTER_REQUESTS = "/porter/requests",
 	PROFILE = "/profile",
 	ADMIN_USERS = "/admin/users",
 	ADMIN_CONTENT_REPORTS = "/admin/content-reports",

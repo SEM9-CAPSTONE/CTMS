@@ -33,9 +33,6 @@ export function AvailablePortersPanel({ tripId }: AvailablePortersPanelProps) {
 				</div>
 				<div>
 					<h3 className="text-base font-extrabold text-[#10221b]">Porter phù hợp</h3>
-					<p className="mt-1 text-xs leading-5 text-[#667a6d]">
-						Chọn vai trò để xem Porter hiện đáp ứng điều kiện của chuyến đi.
-					</p>
 				</div>
 			</div>
 
@@ -62,10 +59,6 @@ export function AvailablePortersPanel({ tripId }: AvailablePortersPanelProps) {
 					minExperienceYears={experience.value}
 				/>
 			)}
-
-			<p className="mt-5 rounded-xl bg-amber-50 px-3 py-2 text-[11px] leading-4 text-amber-900">
-				Khả dụng của Porter sẽ được kiểm tra lại khi tạo yêu cầu hoặc phân công.
-			</p>
 		</section>
 	);
 }

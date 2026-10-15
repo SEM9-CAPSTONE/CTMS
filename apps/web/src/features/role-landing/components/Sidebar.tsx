@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { Clock, Send, Users, X } from "lucide-react";
 import { HomeLink } from "../../../shared/components/HomeLink";
 import { LogoutActions } from "../../auth/components/LogoutActions";
 import type { CamperProfileData } from "../../camper-profile/types";
@@ -28,6 +28,20 @@ export function Sidebar({
 	onNavigateToTrips,
 	onLogout,
 }: SidebarProps) {
+	const navigate = (path: string) => {
+		window.history.pushState({}, "", path);
+		window.dispatchEvent(new PopStateEvent("popstate"));
+	};
+	const porterView =
+		typeof window === "undefined"
+			? "find"
+			: (new URLSearchParams(window.location.search).get("view") ?? "find");
+	const hostPorterItems = [
+		{ key: "find", label: "Tìm người hỗ trợ", icon: Send },
+		{ key: "requests", label: "Yêu cầu đã gửi", icon: Clock },
+		{ key: "assigned", label: "Porter đã phân công", icon: Users },
+	] as const;
+
 	return (
 		<aside className="flex h-full w-72 flex-col border-r border-[#dfe8df] bg-white">
 			<div className="flex items-center gap-3 border-b border-[#e7eee7] px-5 py-5">
@@ -111,77 +125,100 @@ export function Sidebar({
 							typeof window !== "undefined" && window.location.pathname.startsWith("/host/wallet");
 						const isPathPorter =
 							typeof window !== "undefined" && window.location.pathname.startsWith("/host/porter");
+						const isPathPorterRequests =
+							typeof window !== "undefined" &&
+							window.location.pathname.startsWith("/porter/requests");
 						const isActive =
 							(item.key === "explore" && isPathTrips) ||
 							(item.key === "overview" && isPathDashboard) ||
 							(item.key === "equipment" && isPathEquipment) ||
 							(item.key === "wallet" && isPathWallet) ||
-							(item.key === "porters" && isPathPorter);
+							(item.key === "porters" && isPathPorter) ||
+							(item.key === "requests" && isPathPorterRequests);
 
 						return (
-							<button
-								key={item.key}
-								type="button"
-								disabled={item.disabled}
-								onClick={() => {
-									if (item.key === "overview") {
-										window.history.pushState({}, "", "/dashboard");
-										window.dispatchEvent(new PopStateEvent("popstate"));
-									} else if (item.key === "trips") {
-										if (activeRole === "host") {
-											const element = document.getElementById("host-my-trips");
-											if (element) {
-												element.scrollIntoView({ behavior: "smooth" });
-												return;
+							<div key={item.key}>
+								<button
+									type="button"
+									disabled={item.disabled}
+									onClick={() => {
+										if (item.key === "overview") {
+											navigate("/dashboard");
+										} else if (item.key === "trips") {
+											if (activeRole === "host") {
+												const element = document.getElementById("host-my-trips");
+												if (element) {
+													element.scrollIntoView({ behavior: "smooth" });
+													return;
+												}
+											}
+											navigate("/dashboard");
+										} else if (item.key === "explore") {
+											if (onNavigateToTrips) {
+												onNavigateToTrips();
+											} else {
+												navigate("/trips");
+											}
+										} else if (item.key === "equipment") {
+											navigate("/host/equipment-catalog");
+										} else if (item.key === "wallet") {
+											navigate("/host/wallet");
+										} else if (item.key === "porters") {
+											navigate("/host/porter?view=find");
+										} else if (item.key === "requests") {
+											navigate("/porter/requests");
+										} else if (item.key === "profile") {
+											if (activeRole === "porter") {
+												navigate("/porter/profile");
+											} else if (onOpenProfile) {
+												onOpenProfile();
 											}
 										}
-										window.history.pushState({}, "", "/dashboard");
-										window.dispatchEvent(new PopStateEvent("popstate"));
-									} else if (item.key === "explore") {
-										if (onNavigateToTrips) {
-											onNavigateToTrips();
-										} else {
-											window.history.pushState({}, "", "/trips");
-											window.dispatchEvent(new PopStateEvent("popstate"));
-										}
-									} else if (item.key === "equipment") {
-										window.history.pushState({}, "", "/host/equipment-catalog");
-										window.dispatchEvent(new PopStateEvent("popstate"));
-									} else if (item.key === "wallet") {
-										window.history.pushState({}, "", "/host/wallet");
-										window.dispatchEvent(new PopStateEvent("popstate"));
-									} else if (item.key === "porters") {
-										window.history.pushState({}, "", "/host/porter");
-										window.dispatchEvent(new PopStateEvent("popstate"));
-									} else if (item.key === "profile") {
-										if (activeRole === "porter") {
-											window.history.pushState({}, "", "/porter/profile");
-											window.dispatchEvent(new PopStateEvent("popstate"));
-										} else if (onOpenProfile) {
-											onOpenProfile();
-										}
-									}
-								}}
-								className={`flex w-full items-center justify-between rounded-xl px-3.5 py-3 text-sm font-bold transition-all ${
-									item.disabled
-										? "cursor-not-allowed text-[#9aaba0] opacity-60 hover:bg-transparent"
-										: isActive
-											? "bg-[#164027] text-white shadow-sm shadow-[#164027]/20"
-											: "text-[#55685a] hover:bg-[#f8faf7] hover:text-[#164027]"
-								} disabled:cursor-not-allowed`}
-							>
-								<div className="flex items-center gap-3.5">
-									<Icon
-										className={`size-5 shrink-0 ${isActive ? "text-white" : "text-[#55685a]"}`}
-									/>
-									<span>{item.label}</span>
-								</div>
-								{item.badge && (
-									<span className="rounded-md bg-[#edf2ee] px-1.5 py-0.5 text-[10px] font-semibold text-[#627769]">
-										{item.badge}
-									</span>
+									}}
+									className={`flex w-full items-center justify-between rounded-xl px-3.5 py-3 text-sm font-bold transition-all ${
+										item.disabled
+											? "cursor-not-allowed text-[#9aaba0] opacity-60 hover:bg-transparent"
+											: isActive
+												? "bg-[#164027] text-white shadow-sm shadow-[#164027]/20"
+												: "text-[#55685a] hover:bg-[#f8faf7] hover:text-[#164027]"
+									} disabled:cursor-not-allowed`}
+								>
+									<div className="flex items-center gap-3.5">
+										<Icon
+											className={`size-5 shrink-0 ${isActive ? "text-white" : "text-[#55685a]"}`}
+										/>
+										<span>{item.label}</span>
+									</div>
+									{item.badge && (
+										<span className="rounded-md bg-[#edf2ee] px-1.5 py-0.5 text-[10px] font-semibold text-[#627769]">
+											{item.badge}
+										</span>
+									)}
+								</button>
+								{activeRole === "host" && item.key === "porters" && isPathPorter && (
+									<div className="ml-5 mt-1 space-y-1 border-l border-[#dfe8df] pl-3">
+										{hostPorterItems.map((subItem) => {
+											const SubIcon = subItem.icon;
+											const isSubActive = porterView === subItem.key;
+											return (
+												<button
+													key={subItem.key}
+													type="button"
+													onClick={() => navigate(`/host/porter?view=${subItem.key}`)}
+													className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-xs font-bold transition ${
+														isSubActive
+															? "bg-[#edf5ee] text-[#164027]"
+															: "text-[#667a6d] hover:bg-[#f8faf7] hover:text-[#164027]"
+													}`}
+												>
+													<SubIcon className="size-4 shrink-0" />
+													<span>{subItem.label}</span>
+												</button>
+											);
+										})}
+									</div>
 								)}
-							</button>
+							</div>
 						);
 					})}
 				</nav>

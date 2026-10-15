@@ -6,6 +6,7 @@ import {
 } from "@nestjs/common";
 import type { PaginatedAvailablePortersResponseDto } from "../dto/available-porter-response.dto";
 import type { AvailablePortersQueryDto } from "../dto/available-porters-query.dto";
+import { TripStatus } from "../entities/trip.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { AvailablePortersRepository } from "../repositories/available-porters.repository";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
@@ -35,6 +36,12 @@ export class AvailablePortersService {
 		}
 		if (!trip.routeId || !trip.startsAt || !trip.endsAt || trip.startsAt >= trip.endsAt) {
 			throw new ConflictException("Trip Route and schedule must be valid before searching Porters");
+		}
+		if (trip.status !== TripStatus.PUBLISHED || trip.startsAt <= new Date()) {
+			throw new ConflictException("Only upcoming published Trips can search for Porters");
+		}
+		if (trip.hasActivePorter) {
+			throw new ConflictException("Trip already has an assigned Porter");
 		}
 
 		const excludedPorterIds = await this.scheduleConflictSource.findConflictingPorterIds({

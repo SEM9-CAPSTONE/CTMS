@@ -37,7 +37,7 @@ export function PorterRequestAction({ tripId, porterId, role }: PorterRequestAct
 	const isSubmitting = mutation.isPending;
 
 	function submitRequest() {
-		if (isSubmitting || isPendingRequest || isCheckingPending || cannotVerifyPending) return;
+		if (isSubmitting || isPendingRequest || isCheckingPending) return;
 		mutation.mutate(
 			{
 				tripId,
@@ -74,7 +74,7 @@ export function PorterRequestAction({ tripId, porterId, role }: PorterRequestAct
 				<Button
 					size="sm"
 					className="gap-2"
-					disabled={isSubmitting || isPendingRequest || isCheckingPending || cannotVerifyPending}
+					disabled={isSubmitting || isPendingRequest || isCheckingPending}
 					onClick={submitRequest}
 				>
 					{isSubmitting || isCheckingPending ? (
@@ -112,9 +112,7 @@ export function PorterRequestAction({ tripId, porterId, role }: PorterRequestAct
 					role="alert"
 					data-error-kind="pending-check"
 					className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800"
-				>
-					Không thể kiểm tra yêu cầu Porter đang chờ. Vui lòng thử lại trước khi gửi yêu cầu mới.
-				</div>
+				/>
 			)}
 
 			{errorState && !isPendingRequest && !cannotVerifyPending && (

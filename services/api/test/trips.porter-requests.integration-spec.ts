@@ -161,7 +161,8 @@ describe("POST /api/trips/:tripId/porter-requests (integration, real Postgres)",
 		hostId: string,
 		routeId: string,
 		startsAt = FAR_FUTURE_START,
-		endsAt = FAR_FUTURE_END
+		endsAt = FAR_FUTURE_END,
+		status = "draft"
 	): Promise<string> {
 		const tripId = randomUUID();
 		tripIds.add(tripId);
@@ -197,7 +198,7 @@ describe("POST /api/trips/:tripId/porter-requests (integration, real Postgres)",
 				1,
 				20,
 				100000,
-				"draft",
+				status,
 			]
 		);
 		return tripId;
@@ -223,6 +224,13 @@ describe("POST /api/trips/:tripId/porter-requests (integration, real Postgres)",
 			.post(`/api/trips/${tripId}/porter-requests`)
 			.set("Authorization", `Bearer ${token}`)
 			.send(body);
+	}
+
+	function respond(token: string, requestId: string, action: "accept" | "decline") {
+		return request(app.getHttpServer())
+			.patch(`/api/trips/porter-requests/${requestId}/${action}`)
+			.set("Authorization", `Bearer ${token}`)
+			.send({});
 	}
 
 	it("creates a pending Porter Request with Trip, Porter, requester, role, note, and no pay fields", async () => {
@@ -364,5 +372,107 @@ describe("POST /api/trips/:tripId/porter-requests (integration, real Postgres)",
 			[tripId]
 		);
 		expect(rows[0].count).toBe(0);
+	});
+
+	it("accepts a pending request by creating exactly one assigned Trip Porter atomically", async () => {
+		const host = await createActor(UserRole.HOST, "Owning Host");
+		const routeId = await createRoute(host.id);
+		const tripId = await createTrip(
+			host.id,
+			routeId,
+			FAR_FUTURE_START,
+			FAR_FUTURE_END,
+			"published"
+		);
+		const porterId = await createPorter("Eligible Porter");
+		const porterToken = jwtService.sign({ sub: porterId, roles: [UserRole.PORTER] });
+
+		const created = await createRequest(host.token, tripId, {
+			porterId,
+			requestedRole: "support",
+		}).expect(201);
+
+		const accepted = await respond(porterToken, created.body.id, "accept").expect(200);
+		expect(accepted.body).toMatchObject({
+			id: created.body.id,
+			status: "accepted",
+			assignment: { tripId, porterId, status: "assigned" },
+		});
+
+		const retry = await respond(porterToken, created.body.id, "accept").expect(200);
+		expect(retry.body).toMatchObject({
+			id: created.body.id,
+			status: "accepted",
+			assignment: { tripId, porterId, status: "assigned" },
+		});
+
+		const rows = await dataSource.query(
+			`SELECT COUNT(*)::int AS "count"
+			 FROM "trip_porters"
+			 WHERE "trip_id" = $1 AND "porter_id" = $2 AND "status" = $3`,
+			[tripId, porterId, TripPorterStatus.ASSIGNED]
+		);
+		expect(rows[0].count).toBe(1);
+	});
+
+	it("declines a pending request without creating an Assignment", async () => {
+		const host = await createActor(UserRole.HOST, "Owning Host");
+		const routeId = await createRoute(host.id);
+		const tripId = await createTrip(
+			host.id,
+			routeId,
+			FAR_FUTURE_START,
+			FAR_FUTURE_END,
+			"published"
+		);
+		const porterId = await createPorter("Eligible Porter");
+		const porterToken = jwtService.sign({ sub: porterId, roles: [UserRole.PORTER] });
+
+		const created = await createRequest(host.token, tripId, {
+			porterId,
+			requestedRole: "support",
+		}).expect(201);
+
+		const declined = await respond(porterToken, created.body.id, "decline").expect(200);
+		expect(declined.body).toMatchObject({ id: created.body.id, status: "declined" });
+
+		const rows = await dataSource.query(
+			`SELECT COUNT(*)::int AS "count" FROM "trip_porters" WHERE "trip_id" = $1`,
+			[tripId]
+		);
+		expect(rows[0].count).toBe(0);
+	});
+
+	it("rejects another Porter and stale availability at accept time", async () => {
+		const host = await createActor(UserRole.HOST, "Owning Host");
+		const routeId = await createRoute(host.id);
+		const tripId = await createTrip(
+			host.id,
+			routeId,
+			FAR_FUTURE_START,
+			FAR_FUTURE_END,
+			"published"
+		);
+		const porterId = await createPorter("Target Porter");
+		const otherPorterId = await createPorter("Other Porter");
+		const porterToken = jwtService.sign({ sub: porterId, roles: [UserRole.PORTER] });
+		const otherPorterToken = jwtService.sign({ sub: otherPorterId, roles: [UserRole.PORTER] });
+
+		const created = await createRequest(host.token, tripId, {
+			porterId,
+			requestedRole: "support",
+		}).expect(201);
+
+		await respond(otherPorterToken, created.body.id, "accept").expect(403);
+		await dataSource.query(
+			`UPDATE "porter_profiles" SET "availability_status" = 'unavailable' WHERE "porter_id" = $1`,
+			[porterId]
+		);
+		await respond(porterToken, created.body.id, "accept").expect(409);
+
+		const rows = await dataSource.query(`SELECT "status" FROM "porter_requests" WHERE "id" = $1`, [
+			created.body.id,
+		]);
+		expect(rows[0].status).toBe("pending");
 	});
 });

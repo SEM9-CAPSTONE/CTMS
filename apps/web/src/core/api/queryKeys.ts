@@ -24,8 +24,12 @@ export const queryKeys = {
 			limit: number
 		) => ["trips", tripId, "available-porters", { role, minExperienceYears, page, limit }] as const,
 		porterRequests: (tripId: string) => ["trips", tripId, "porter-requests"] as const,
+		myPorterRequests: ["trips", "porter-requests", "mine"] as const,
+		hostPorterRequests: ["trips", "porter-requests", "host"] as const,
 		pendingPorterRequest: (tripId: string, porterId: string) =>
 			["trips", tripId, "porter-requests", "pending", porterId] as const,
+		assigned: ["trips", "assigned"] as const,
+		hostPorterAssignments: ["trips", "porter-assignments", "host"] as const,
 		all: ["trips"] as const,
 		list: (filters?: Record<string, unknown>) => ["trips", "list", filters] as const,
 		detail: (id: string) => ["trips", "detail", id] as const,
