@@ -34,7 +34,7 @@ Acceptance Criteria:
 - Validate rotation state.
 - Issue new access token.
 - Apply configured refresh-token rotation.
-- End an idle web session after the configured inactivity timeout (BR-465).
+- End an idle web session after the configured inactivity timeout (BR-471).
 
 ### Out of Scope
 
@@ -72,7 +72,7 @@ Refresh credential must:
 | BR-190 | OTP TTL, token TTL, attempt limits, rate limits, Booking hold duration, and retry deadlines must come from configuration and must not be hard-coded in business logic.                                                                                 |
 | BR-212 | Any change to a Business Rule, enum, state transition, or API contract must be reflected in the specification, test cases, and data documentation before the work is considered Done.                                                                  |
 | BR-213 | Every Business Rule must have at least one valid-path test and one violation-path test. Concurrency, idempotency, and transaction rules require integration or E2E coverage.                                                                           |
-| BR-465 | The web client must end an authenticated session after the configured idle timeout (default 30 minutes) with no user interaction in any open CTMS tab: revoke the refresh token through logout, clear stored session data, and redirect to login. Any interaction resets the countdown; interaction after the deadline has passed must not revive the session. |
+| BR-471 | The web client must end an authenticated session after the configured idle timeout (default 30 minutes) with no user interaction in any open CTMS tab: revoke the refresh token through logout, clear stored session data, and redirect to login. Any interaction resets the countdown; interaction after the deadline has passed must not revive the session. |
 
 ## 6. State & Lifecycle
 
@@ -152,10 +152,10 @@ TBD — Technical Design.
 | BR-013           | Revoked token         | Rejected.                       | Integration               |
 | BR-013           | Replaced token reused | Rejected.                       | Concurrency / Integration |
 | BR-190           | Change configured TTL | Behavior follows configuration. | Configuration             |
-| BR-465           | No interaction for the idle timeout | Logged out, refresh token revoked, redirected to login. | Unit / E2E |
-| BR-465           | Interaction before the idle timeout | Countdown resets; session stays active. | Unit |
-| BR-465           | Interaction after the deadline (device slept) | Session not revived; logged out. | Unit |
-| BR-465           | Activity in another tab | Session stays active in all tabs. | Unit / E2E |
+| BR-471           | No interaction for the idle timeout | Logged out, refresh token revoked, redirected to login. | Unit / E2E |
+| BR-471           | Interaction before the idle timeout | Countdown resets; session stays active. | Unit |
+| BR-471           | Interaction after the deadline (device slept) | Session not revived; logged out. | Unit |
+| BR-471           | Activity in another tab | Session stays active in all tabs. | Unit / E2E |
 
 ## 12. Open Decisions
 

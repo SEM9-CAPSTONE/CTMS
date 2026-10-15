@@ -121,6 +121,8 @@ export function Sidebar({
 						const isPathEquipment =
 							typeof window !== "undefined" &&
 							window.location.pathname.startsWith("/host/equipment-catalog");
+						const isPathWallet =
+							typeof window !== "undefined" && window.location.pathname.startsWith("/host/wallet");
 						const isPathPorter =
 							typeof window !== "undefined" && window.location.pathname.startsWith("/host/porter");
 						const isPathPorterRequests =
@@ -132,6 +134,7 @@ export function Sidebar({
 							(item.key === "equipment" && isPathEquipment) ||
 							(item.key === "porters" && isPathPorter) ||
 							(item.key === "requests" && isPathPorterRequests);
+							(item.key === "wallet" && isPathWallet) ||
 
 						return (
 							<div key={item.key}>
@@ -170,13 +173,42 @@ export function Sidebar({
 												onOpenProfile();
 											}
 										}
-									}}
-									className={`flex w-full items-center gap-3.5 rounded-xl px-3.5 py-3 text-sm font-bold transition-all ${
-										isActive
+										window.history.pushState({}, "", "/dashboard");
+										window.dispatchEvent(new PopStateEvent("popstate"));
+									} else if (item.key === "explore") {
+										if (onNavigateToTrips) {
+											onNavigateToTrips();
+										} else {
+											window.history.pushState({}, "", "/trips");
+											window.dispatchEvent(new PopStateEvent("popstate"));
+										}
+									} else if (item.key === "equipment") {
+										window.history.pushState({}, "", "/host/equipment-catalog");
+										window.dispatchEvent(new PopStateEvent("popstate"));
+									} else if (item.key === "wallet") {
+										window.history.pushState({}, "", "/host/wallet");
+										window.dispatchEvent(new PopStateEvent("popstate"));
+									} else if (item.key === "porters") {
+										window.history.pushState({}, "", "/host/porter");
+										window.dispatchEvent(new PopStateEvent("popstate"));
+									} else if (item.key === "profile") {
+										if (activeRole === "porter") {
+											window.history.pushState({}, "", "/porter/profile");
+											window.dispatchEvent(new PopStateEvent("popstate"));
+										} else if (onOpenProfile) {
+											onOpenProfile();
+										}
+									}
+								}}
+								className={`flex w-full items-center justify-between rounded-xl px-3.5 py-3 text-sm font-bold transition-all ${
+									item.disabled
+										? "cursor-not-allowed text-[#9aaba0] opacity-60 hover:bg-transparent"
+										: isActive
 											? "bg-[#164027] text-white shadow-sm shadow-[#164027]/20"
 											: "text-[#55685a] hover:bg-[#f8faf7] hover:text-[#164027]"
-									} disabled:cursor-not-allowed disabled:opacity-50`}
-								>
+								} disabled:cursor-not-allowed`}
+							>
+								<div className="flex items-center gap-3.5">
 									<Icon
 										className={`size-5 shrink-0 ${isActive ? "text-white" : "text-[#55685a]"}`}
 									/>

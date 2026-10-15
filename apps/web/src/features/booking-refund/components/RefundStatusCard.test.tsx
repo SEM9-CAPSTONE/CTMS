@@ -121,4 +121,34 @@ describe("RefundStatusCard", () => {
 		expect(screen.getByText("(Đã hết hạn)")).toBeInTheDocument();
 		expect(screen.queryByTestId("open-refund-request-modal")).not.toBeInTheDocument();
 	});
+
+	it("shows full refund notice and suppresses request button when fully refunded", () => {
+		const fullyRefundedInfo: BookingRefundInfo = {
+			...baseInfo,
+			isEligible: false,
+			chargeAmount: "500000.00",
+			totalRefundedAmount: "500000.00",
+			remainingRefundableAmount: "0.00",
+			refunds: [
+				{
+					id: "r-succeeded-1",
+					amount: "500000.00",
+					status: "succeeded",
+					createdAt: "2026-10-14T22:39:00Z",
+					providerReference: "PAYOS-REF-500000",
+				},
+			],
+		};
+
+		render(
+			<RefundStatusCard
+				refundInfo={fullyRefundedInfo}
+				onRequestRefund={vi.fn()}
+				isSubmitting={false}
+			/>
+		);
+
+		expect(screen.getByText("Toàn bộ số tiền đã thanh toán đã được hoàn tất.")).toBeInTheDocument();
+		expect(screen.queryByTestId("open-refund-request-modal")).not.toBeInTheDocument();
+	});
 });

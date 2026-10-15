@@ -192,7 +192,7 @@ describe("BookingDetailsView", () => {
 	});
 
 	it.each([
-		{ policy: "legacy prose" },
+		{ unsupported: "data" },
 		{ version: 2, rules: [{ minHoursBeforeTrip: 48, refundPercent: 100 }] },
 		{ version: 1, rules: [{ refundPercent: 100 }] },
 	])("never renders raw JSON for unsupported policy %#", (snapshot) => {
@@ -206,9 +206,20 @@ describe("BookingDetailsView", () => {
 			screen.getByText("Chính sách hủy sẽ được hệ thống kiểm tra khi bạn gửi yêu cầu.")
 		).toBeVisible();
 		expect(screen.queryByText(JSON.stringify(snapshot))).not.toBeInTheDocument();
-		expect(
-			screen.queryByText(/legacy prose|refundPercent|minHoursBeforeTrip/)
-		).not.toBeInTheDocument();
+		expect(screen.queryByText(/refundPercent|minHoursBeforeTrip/)).not.toBeInTheDocument();
+	});
+
+	it("renders textual policy snapshot", () => {
+		render(
+			<BookingDetailsView
+				booking={{
+					...booking,
+					cancellationPolicySnapshot: { policy: "Hủy trước 7 ngày hoàn 90%." },
+				}}
+				onBack={() => {}}
+			/>
+		);
+		expect(screen.getByText("Hủy trước 7 ngày hoàn 90%.")).toBeVisible();
 	});
 
 	it("renders completedAt and completed status badge when booking is completed", () => {

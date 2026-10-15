@@ -1,4 +1,4 @@
-﻿import { zodResolver } from "@hookform/resolvers/zod";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import type { Path } from "react-hook-form";
@@ -13,6 +13,7 @@ const SAVE_ERROR_MESSAGE = "Không thể lưu hồ sơ. Vui lòng kiểm tra th�
 
 type ProfileValidationField =
 	| "fullName"
+	| "phone"
 	| "dateOfBirth"
 	| "gender"
 	| "address"
@@ -33,9 +34,15 @@ function isBackendErrorBody(value: unknown): value is BackendErrorBody {
 }
 
 function isProfileValidationField(field: string): field is ProfileValidationField {
-	return ["fullName", "dateOfBirth", "gender", "address", "bio", "emergencyContacts"].includes(
-		field
-	);
+	return [
+		"fullName",
+		"phone",
+		"dateOfBirth",
+		"gender",
+		"address",
+		"bio",
+		"emergencyContacts",
+	].includes(field);
 }
 
 function getValidationErrors(error: HttpError): BackendValidationError[] {
@@ -78,6 +85,7 @@ function mapProfileError(error: unknown): string {
 function formValuesFromProfile(profile: CamperProfileData): CamperProfileFormValues {
 	return {
 		fullName: profile.fullName,
+		phone: profile.phone || "",
 		dateOfBirth: profile.dateOfBirth,
 		gender: profile.gender,
 		address: profile.address,
@@ -102,6 +110,7 @@ export function useCamperProfile() {
 		resolver: zodResolver(camperProfileSchema),
 		defaultValues: {
 			fullName: "",
+			phone: "",
 			dateOfBirth: "",
 			gender: "male",
 			address: "",

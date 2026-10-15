@@ -10,14 +10,28 @@ interface CamperSidebarProps {
 	className?: string;
 }
 
-const navItems = [
+interface CamperSidebarItem {
+	key: string;
+	label: string;
+	icon: React.ComponentType<{ className?: string }>;
+	disabled?: boolean;
+	badge?: string;
+}
+
+const navItems: CamperSidebarItem[] = [
 	{ key: "overview", label: "Tổng quan", icon: LayoutDashboard },
 	{ key: "explore", label: "Khám phá địa điểm", icon: MapPin },
 	{ key: "bookings", label: "Đơn đặt chỗ", icon: Tent },
-	{ key: "trips", label: "Chuyến đi của tôi", icon: Compass },
+	{
+		key: "trips",
+		label: "Chuyến đi của tôi",
+		icon: Compass,
+		disabled: true,
+		badge: "Sắp ra mắt",
+	},
 	{ key: "profile", label: "Hồ sơ & Cài đặt", icon: UserCheck },
 	{ key: "safety", label: "Trung tâm an toàn", icon: Shield },
-] as const;
+];
 
 export function CamperSidebar({
 	profile,
@@ -59,15 +73,29 @@ export function CamperSidebar({
 							<button
 								key={item.key}
 								type="button"
-								onClick={() => onNavigate?.(item.key)}
-								className={`flex items-center gap-3 rounded-2xl px-3.5 py-2.5 text-sm font-bold transition-all ${
-									isActive
-										? "bg-[#164027] text-white shadow-md shadow-[#164027]/20"
-										: "text-[#4a5e51] hover:bg-[#f4f7f2] hover:text-[#164027]"
+								disabled={item.disabled}
+								onClick={() => {
+									if (!item.disabled) {
+										onNavigate?.(item.key);
+									}
+								}}
+								className={`flex items-center justify-between rounded-2xl px-3.5 py-2.5 text-sm font-bold transition-all ${
+									item.disabled
+										? "cursor-not-allowed text-[#9aaba0] opacity-60 hover:bg-transparent"
+										: isActive
+											? "bg-[#164027] text-white shadow-md shadow-[#164027]/20"
+											: "text-[#4a5e51] hover:bg-[#f4f7f2] hover:text-[#164027]"
 								}`}
 							>
-								<Icon className={`size-[18px] ${isActive ? "text-white" : "text-[#667a6d]"}`} />
-								<span>{item.label}</span>
+								<div className="flex items-center gap-3">
+									<Icon className={`size-[18px] ${isActive ? "text-white" : "text-[#667a6d]"}`} />
+									<span>{item.label}</span>
+								</div>
+								{item.badge && (
+									<span className="rounded-md bg-[#edf2ee] px-1.5 py-0.5 text-[10px] font-semibold text-[#627769]">
+										{item.badge}
+									</span>
+								)}
 							</button>
 						);
 					})}

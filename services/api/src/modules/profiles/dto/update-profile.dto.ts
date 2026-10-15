@@ -65,6 +65,14 @@ export class UpdateProfileDto {
 	@MaxLength(50)
 	fullName?: string;
 
+	@ApiPropertyOptional({ example: "0912345678" })
+	@IsOptional()
+	@Transform(({ value }) => (typeof value === "string" ? normalizeVietnamPhone(value) : value))
+	@Matches(VN_MOBILE_E164_REGEX, {
+		message: "phone must be a valid Vietnamese mobile number",
+	})
+	phone?: string;
+
 	@ApiPropertyOptional({ example: "1995-04-12" })
 	@IsOptional()
 	@IsISO8601({ strict: true })

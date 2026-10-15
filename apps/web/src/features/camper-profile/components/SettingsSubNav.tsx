@@ -1,6 +1,7 @@
 import {
 	Backpack,
 	Bell,
+	CreditCard,
 	HeartPulse,
 	KeyRound,
 	Lock,
@@ -23,6 +24,7 @@ const iconMap: Record<string, LucideIcon> = {
 	PhoneCall,
 	ShieldAlert,
 	HeartPulse,
+	CreditCard,
 	Backpack,
 	Bell,
 	Lock,

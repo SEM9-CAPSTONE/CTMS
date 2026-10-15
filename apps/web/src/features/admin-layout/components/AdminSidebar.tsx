@@ -2,6 +2,7 @@ import {
 	Compass,
 	FileClock,
 	Flag,
+	Landmark,
 	LayoutDashboard,
 	ReceiptText,
 	Route,
@@ -20,7 +21,8 @@ export type AdminNavigationItem =
 	| "route-review"
 	| "trip-review"
 	| "weather-rules"
-	| "refunds";
+	| "refunds"
+	| "settlements";
 
 interface AdminSidebarProps {
 	activeItem: AdminNavigationItem;
@@ -32,6 +34,7 @@ interface AdminSidebarProps {
 const navigationItems = [
 	{ key: "dashboard", label: "Bảng điều khiển", icon: LayoutDashboard, available: false },
 	{ key: "user-accounts", label: "Tài khoản người dùng", icon: Users, available: true },
+	{ key: "settlements", label: "Quyết toán & Ví Host", icon: Landmark, available: true },
 	{ key: "refunds", label: "Quản lý hoàn tiền", icon: ReceiptText, available: true },
 	{ key: "route-review", label: "Duyệt tuyến trekking", icon: Route, available: true },
 	{ key: "trip-review", label: "Duyệt trip", icon: Compass, available: true },
@@ -95,6 +98,9 @@ export function AdminSidebar({ activeItem, onLogout, onClose, className = "" }: 
 									window.dispatchEvent(new PopStateEvent("popstate"));
 								} else if (item.key === "weather-rules") {
 									window.history.pushState({}, "", "/admin/weather-rules");
+									window.dispatchEvent(new PopStateEvent("popstate"));
+								} else if (item.key === "settlements") {
+									window.history.pushState({}, "", "/admin/settlements");
 									window.dispatchEvent(new PopStateEvent("popstate"));
 								} else if (item.key === "refunds") {
 									window.history.pushState({}, "", "/admin/refunds");
