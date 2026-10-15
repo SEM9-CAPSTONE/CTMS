@@ -152,11 +152,11 @@ export const dashboards: Record<RoleKey, DashboardConfig> = {
 			"Giám sát chuyến đi, booking, cảnh báo rủi ro và điều phối porter theo thời gian thực.",
 		accent: "#1f4d34",
 		soft: "#f2f7ef",
-		navTitle: "Host Ops",
+		navTitle: "Vận hành",
 		navItems: [
 			{ key: "overview", label: "Tổng quan vận hành", icon: LayoutDashboard },
 			{ key: "explore", label: "Khám phá chuyến đi", icon: Compass },
-			{ key: "campers", label: "Camper & booking", icon: Users },
+			{ key: "campers", label: "Người tham gia & đặt chỗ", icon: Users },
 			{ key: "porters", label: "Porter", icon: BriefcaseBusiness },
 			{ key: "equipment", label: "Quản lý kho thiết bị", icon: Warehouse },
 			{ key: "reports", label: "Báo cáo", icon: FileClock },
@@ -242,6 +242,7 @@ export const dashboards: Record<RoleKey, DashboardConfig> = {
 		navItems: [
 			{ key: "overview", label: "Tổng quan", icon: LayoutDashboard },
 			{ key: "profile", label: "Hồ sơ & Năng lực", icon: User },
+			{ key: "requests", label: "Yêu cầu Trip", icon: Bell },
 			{ key: "assignments", label: "Phân công", icon: ClipboardList },
 			{ key: "routes", label: "Bản đồ tuyến", icon: MapPinned },
 			{ key: "checkins", label: "Check-in", icon: BadgeCheck },

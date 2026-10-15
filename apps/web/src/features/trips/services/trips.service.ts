@@ -8,6 +8,7 @@ import type {
 	ConfigureTripWaypointsInput,
 	CreatePorterRequestInput,
 	CreateTripInput,
+	HostPorterAssignmentTrip,
 	PaginatedTrips,
 	PorterAssignedTrip,
 	PorterRequest,
@@ -61,13 +62,40 @@ export const tripsService = {
 	createPorterRequest: (tripId: string, input: CreatePorterRequestInput): Promise<PorterRequest> =>
 		httpClient.post<PorterRequest>(API_ENDPOINTS.TRIPS.PORTER_REQUESTS(tripId), input),
 
+	listPorterRequests: (tripId: string): Promise<PorterRequest[]> =>
+		httpClient.get<PorterRequest[]>(API_ENDPOINTS.TRIPS.PORTER_REQUESTS(tripId)),
+
 	getPendingPorterRequest: (tripId: string, porterId: string): Promise<PorterRequest | null> =>
 		httpClient.get<PorterRequest | null>(API_ENDPOINTS.TRIPS.PENDING_PORTER_REQUEST(tripId), {
 			porterId,
 		}),
 
+	getMyPorterRequests: (): Promise<PorterRequest[]> =>
+		httpClient.get<PorterRequest[]>(API_ENDPOINTS.TRIPS.MY_PORTER_REQUESTS),
+
+	getHostPorterRequests: (): Promise<PorterRequest[]> =>
+		httpClient.get<PorterRequest[]>(API_ENDPOINTS.TRIPS.HOST_PORTER_REQUESTS),
+
+	acceptPorterRequest: (requestId: string): Promise<PorterRequest> =>
+		httpClient.patch<PorterRequest>(API_ENDPOINTS.TRIPS.ACCEPT_PORTER_REQUEST(requestId), {}),
+
+	declinePorterRequest: (requestId: string): Promise<PorterRequest> =>
+		httpClient.patch<PorterRequest>(API_ENDPOINTS.TRIPS.DECLINE_PORTER_REQUEST(requestId), {}),
+
+	cancelPorterRequest: (tripId: string, requestId: string): Promise<PorterRequest> =>
+		httpClient.patch<PorterRequest>(
+			API_ENDPOINTS.TRIPS.CANCEL_PORTER_REQUEST(tripId, requestId),
+			{}
+		),
+
 	getMyTrips: (): Promise<TripDetails[]> =>
 		httpClient.get<TripDetails[]>(API_ENDPOINTS.TRIPS.GET_MINE),
+
+	getPorterCandidateTrips: (): Promise<TripDetails[]> =>
+		httpClient.get<TripDetails[]>(API_ENDPOINTS.TRIPS.GET_PORTER_CANDIDATES),
+
+	getHostPorterAssignments: (): Promise<HostPorterAssignmentTrip[]> =>
+		httpClient.get<HostPorterAssignmentTrip[]>(API_ENDPOINTS.TRIPS.GET_PORTER_ASSIGNMENTS),
 
 	getAssignedTrips: (): Promise<PorterAssignedTrip[]> =>
 		httpClient.get<PorterAssignedTrip[]>(API_ENDPOINTS.TRIPS.GET_ASSIGNED),

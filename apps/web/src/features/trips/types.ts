@@ -247,6 +247,19 @@ export interface PorterRequest {
 	respondedAt: string | null;
 	createdAt: string;
 	updatedAt: string;
+	trip?: {
+		id: string;
+		title: string;
+		status: TripStatus;
+		startsAt: string;
+		endsAt: string;
+		meetingAt: string | null;
+	} | null;
+	assignment?: {
+		tripId: string;
+		porterId: string;
+		status: "assigned" | "pending_reconfirmation" | "unassigned";
+	} | null;
 }
 
 export interface TripHost {
@@ -299,6 +312,29 @@ export interface PorterAssignedTrip {
 	status: TripStatus;
 	startsAt: string;
 	endsAt: string;
+}
+
+export type TripPorterAssignmentStatus = "assigned" | "pending_reconfirmation" | "unassigned";
+
+export interface HostPorterAssignment {
+	porterId: string;
+	displayName: string | null;
+	email: string | null;
+	status: TripPorterAssignmentStatus;
+	assignedAt: string | null;
+	reconfirmationDeadline: string | null;
+	reconfirmedAt: string | null;
+	declinedAt: string | null;
+}
+
+export interface HostPorterAssignmentTrip {
+	id: string;
+	title: string;
+	status: TripStatus;
+	startsAt: string;
+	endsAt: string;
+	assignedPorterCount: number;
+	assignments: HostPorterAssignment[];
 }
 
 export type BookingBlockedReason =

@@ -79,20 +79,13 @@ export function AvailablePortersResults({
 				data-testid="available-porters-empty"
 				className="mt-5 rounded-2xl border border-dashed border-[#cbd9cd] bg-[#f8faf8] p-5 text-center"
 			>
-				<p className="text-sm font-extrabold text-[#10221b]">Không có Porter phù hợp</p>
-				<p className="mt-1 text-xs leading-5 text-[#667a6d]">
-					Hiện chưa có Porter khớp với chuyến đi và bộ lọc này. Hãy thử vai trò khác hoặc giảm mức
-					kinh nghiệm.
-				</p>
+				<div className="text-sm font-extrabold text-[#10221b]">Không có Porter phù hợp</div>
 			</div>
 		);
 	}
 
 	return (
 		<div className="mt-5 space-y-3">
-			<p className="text-xs font-bold text-[#667a6d]">
-				Tìm thấy {query.data.pagination.total} Porter
-			</p>
 			{query.data.items.map((porter) => (
 				<AvailablePorterCard key={porter.porterId} tripId={tripId} porter={porter} role={role} />
 			))}
