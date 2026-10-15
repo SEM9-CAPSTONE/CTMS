@@ -27,6 +27,8 @@ import { LandingPage } from "../features/landing/pages/LandingPage";
 import { PorterProfilePage } from "../features/porter-profile/pages/PorterProfilePage";
 import { HostLayout } from "../features/role-landing/components/HostLayout";
 import { RoleLandingPage } from "../features/role-landing/pages/RoleLandingPage";
+import { AdminSettlementsPage } from "../features/settlements/pages/AdminSettlementsPage";
+import { HostWalletPage } from "../features/settlements/pages/HostWalletPage";
 import { AdminTrekkingRoutesPage } from "../features/trekking-routes/pages/AdminTrekkingRoutesPage";
 import { CreateTrekkingRoutePage } from "../features/trekking-routes/pages/CreateTrekkingRoutePage";
 import { TrekkingRoutesPage } from "../features/trekking-routes/pages/TrekkingRoutesPage";
@@ -514,6 +516,19 @@ export function AppRoutes() {
 				</AppRoleGuard>
 			);
 
+		case RoutePath.HOST_WALLET:
+			return (
+				<AppRoleGuard
+					allowedRoles={["host"]}
+					currentRoles={currentRoles}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
+						<HostWalletPage onBackHome={() => navigateTo(RoutePath.DASHBOARD)} />
+					</HostLayout>
+				</AppRoleGuard>
+			);
+
 		case RoutePath.DASHBOARD: {
 			if (!storedUser || currentRoles.length === 0) {
 				return (
@@ -619,6 +634,18 @@ export function AppRoutes() {
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
 					<AdminRefundsPage onLogout={handleLogout} />
+				</AppRoleGuard>
+			);
+
+		case RoutePath.ADMIN_SETTLEMENTS:
+			return (
+				<AppRoleGuard
+					allowedRoles={["admin"]}
+					currentRoles={currentRoles}
+					fallback={unauthorizedFallback}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<AdminSettlementsPage onLogout={handleLogout} />
 				</AppRoleGuard>
 			);
 

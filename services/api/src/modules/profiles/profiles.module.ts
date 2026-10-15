@@ -9,6 +9,7 @@ import { PorterProfileController } from "./controllers/porter-profile.controller
 import { PorterRouteQualificationsController } from "./controllers/porter-route-qualifications.controller";
 import { ProfilesController } from "./controllers/profiles.controller";
 import { RoutePorterQualificationsController } from "./controllers/route-porter-qualifications.controller";
+import { UserBankAccountsController } from "./controllers/user-bank-accounts.controller";
 import { EmergencyContact } from "./entities/emergency-contact.entity";
 import { HealthProfile } from "./entities/health-profile.entity";
 import { PorterProfile } from "./entities/porter-profile.entity";
@@ -21,6 +22,7 @@ import { CamperHealthProfileService } from "./services/camper-health-profile.ser
 import { PorterProfilesService } from "./services/porter-profiles.service";
 import { PorterRouteQualificationsService } from "./services/porter-route-qualifications.service";
 import { ProfilesService } from "./services/profiles.service";
+import { UserBankAccountsService } from "./services/user-bank-accounts.service";
 
 @Module({
 	imports: [UsersModule, TrekkingRoutesModule],
@@ -30,12 +32,14 @@ import { ProfilesService } from "./services/profiles.service";
 		PorterProfileController,
 		PorterRouteQualificationsController,
 		RoutePorterQualificationsController,
+		UserBankAccountsController,
 	],
 	providers: [
 		ProfilesService,
 		CamperHealthProfileService,
 		PorterProfilesService,
 		PorterRouteQualificationsService,
+		UserBankAccountsService,
 		JwtAuthGuard,
 		RolesGuard,
 		{
@@ -66,6 +70,6 @@ import { ProfilesService } from "./services/profiles.service";
 			inject: [DataSource],
 		},
 	],
-	exports: [HealthProfileRepository, PorterRouteQualificationsService],
+	exports: [HealthProfileRepository, PorterRouteQualificationsService, UserBankAccountsService],
 })
 export class ProfilesModule {}

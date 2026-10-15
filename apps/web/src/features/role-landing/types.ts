@@ -26,6 +26,7 @@ export interface SidebarItem {
 	label: string;
 	icon: React.ComponentType<{ className?: string }>;
 	disabled?: boolean;
+	badge?: string;
 }
 
 export interface Metric {

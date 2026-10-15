@@ -80,19 +80,42 @@ function isCancellationPolicyRuleV1(value: unknown): value is CancellationPolicy
 	);
 }
 
-/** Formats persisted V1 policy data for display only; it does not evaluate cancellation eligibility. */
+/** Formats persisted policy data (structured V1 rules or text policy) for display only; it does not evaluate cancellation eligibility. */
 export function formatCancellationPolicyRules(snapshot: unknown): string[] | null {
+	if (typeof snapshot === "string" && snapshot.trim()) {
+		return [snapshot.trim()];
+	}
+
 	if (typeof snapshot !== "object" || snapshot === null || Array.isArray(snapshot)) return null;
 	const policy = snapshot as Record<string, unknown>;
-	if (policy.version !== 1 || !Array.isArray(policy.rules) || policy.rules.length === 0)
-		return null;
-	if (!policy.rules.every(isCancellationPolicyRuleV1)) return null;
 
-	return policy.rules.map((rule) => {
-		const timing =
-			rule.minHoursBeforeTrip === 0
-				? "Hủy trước giờ khởi hành"
-				: `Hủy trước ít nhất ${rule.minHoursBeforeTrip.toLocaleString("vi-VN")} giờ`;
-		return `${timing}: hoàn ${rule.refundPercent.toLocaleString("vi-VN")}% phần tiền đủ điều kiện.`;
-	});
+	if (
+		policy.version === 1 &&
+		Array.isArray(policy.rules) &&
+		policy.rules.length > 0 &&
+		policy.rules.every(isCancellationPolicyRuleV1)
+	) {
+		const formattedRules = policy.rules.map((rule) => {
+			const timing =
+				rule.minHoursBeforeTrip === 0
+					? "Hủy trước giờ khởi hành"
+					: `Hủy trước ít nhất ${rule.minHoursBeforeTrip.toLocaleString("vi-VN")} giờ`;
+			return `${timing}: hoàn ${rule.refundPercent.toLocaleString("vi-VN")}% phần tiền đủ điều kiện.`;
+		});
+
+		if (typeof policy.policy === "string" && policy.policy.trim()) {
+			formattedRules.unshift(policy.policy.trim());
+		}
+		return formattedRules;
+	}
+
+	if (typeof policy.policy === "string" && policy.policy.trim()) {
+		return [policy.policy.trim()];
+	}
+
+	if (typeof policy.description === "string" && policy.description.trim()) {
+		return [policy.description.trim()];
+	}
+
+	return null;
 }

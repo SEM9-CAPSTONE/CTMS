@@ -140,4 +140,20 @@ export const API_ENDPOINTS = {
 		CONFIRM: (obligationId: string) => `/admin/refunds/${obligationId}/confirm`,
 		REJECT: (obligationId: string) => `/admin/refunds/${obligationId}/reject`,
 	},
+	SETTLEMENTS: {
+		EVALUATION: (tripId: string) => `/settlements/trips/${tripId}/evaluation`,
+		SETTLE: (tripId: string) => `/settlements/trips/${tripId}/settle`,
+		ADMIN_LIST: "/settlements/admin",
+		HOST_WALLET: "/settlements/host/wallet",
+		HOST_PAYOUT: "/settlements/host/payout",
+		ADMIN_PAYOUTS: "/settlements/admin/payouts",
+		ADMIN_CONFIRM_PAYOUT: (id: string) => `/settlements/admin/payouts/${id}/confirm`,
+		ADMIN_REJECT_PAYOUT: (id: string) => `/settlements/admin/payouts/${id}/reject`,
+	},
+	BANK_ACCOUNTS: {
+		GET_ALL: "/profiles/me/bank-accounts",
+		CREATE: "/profiles/me/bank-accounts",
+		DELETE: (id: string) => `/profiles/me/bank-accounts/${id}`,
+		SET_DEFAULT: (id: string) => `/profiles/me/bank-accounts/${id}/default`,
+	},
 } as const;

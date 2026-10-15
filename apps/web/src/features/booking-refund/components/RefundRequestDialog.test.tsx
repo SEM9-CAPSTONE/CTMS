@@ -1,7 +1,29 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeAll, describe, expect, it, vi } from "vitest";
+import { bankAccountService } from "../../bank-accounts/services/bank-account.service";
 import { RefundRequestDialog } from "./RefundRequestDialog";
+
+vi.mock("../../bank-accounts/services/bank-account.service", () => ({
+	bankAccountService: {
+		getAll: vi.fn(),
+		create: vi.fn(),
+		delete: vi.fn(),
+		setDefault: vi.fn(),
+	},
+}));
+
+function renderWithClient(ui: React.ReactElement) {
+	const queryClient = new QueryClient({
+		defaultOptions: {
+			queries: {
+				retry: false,
+			},
+		},
+	});
+	return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
+}
 
 describe("RefundRequestDialog", () => {
 	beforeAll(() => {
@@ -13,12 +35,25 @@ describe("RefundRequestDialog", () => {
 		});
 	});
 
-	it("renders dialog and submits valid form data", async () => {
+	it("renders dialog and submits valid form data with default bank account", async () => {
+		vi.mocked(bankAccountService.getAll).mockResolvedValue([
+			{
+				id: "bank-1",
+				userId: "user-1",
+				bankName: "Vietcombank",
+				accountNumber: "1029384756",
+				accountHolderName: "CAMPER NGUYEN VAN AN",
+				isDefault: true,
+				createdAt: new Date().toISOString(),
+				updatedAt: new Date().toISOString(),
+			},
+		]);
+
 		const user = userEvent.setup();
 		const onSubmit = vi.fn().mockResolvedValue(undefined);
 		const onClose = vi.fn();
 
-		render(
+		renderWithClient(
 			<RefundRequestDialog
 				open={true}
 				isSubmitting={false}
@@ -31,6 +66,9 @@ describe("RefundRequestDialog", () => {
 		);
 
 		expect(screen.getByText("Yêu cầu hoàn tiền & Khiếu nại")).toBeInTheDocument();
+		expect(await screen.findByText("Vietcombank")).toBeInTheDocument();
+		expect(screen.getByText("1029384756")).toBeInTheDocument();
+		expect(screen.getByText("CAMPER NGUYEN VAN AN")).toBeInTheDocument();
 
 		const reasonInput = screen.getByPlaceholderText(/Mô tả chi tiết lý do yêu cầu hoàn tiền/i);
 		await user.type(reasonInput, "Chuyến đi bị hoãn do thiên tai bất khả kháng");
@@ -43,16 +81,53 @@ describe("RefundRequestDialog", () => {
 			expect(onSubmit).toHaveBeenCalledWith(
 				expect.objectContaining({
 					reason: "Chuyến đi bị hoãn do thiên tai bất khả kháng",
+					bankName: "Vietcombank",
+					accountNumber: "1029384756",
+					accountHolderName: "CAMPER NGUYEN VAN AN",
 				})
 			);
 		});
 	});
 
+	it("disables submit button and shows warning banner when user has no bank account", async () => {
+		vi.mocked(bankAccountService.getAll).mockResolvedValue([]);
+
+		renderWithClient(
+			<RefundRequestDialog
+				open={true}
+				isSubmitting={false}
+				error={null}
+				onSubmit={vi.fn()}
+				onClose={vi.fn()}
+				onClearError={vi.fn()}
+			/>
+		);
+
+		expect(await screen.findByText("Bạn chưa có tài khoản ngân hàng nào")).toBeInTheDocument();
+		expect(screen.getByText("Đi đến Hồ sơ cá nhân để thêm tài khoản")).toBeInTheDocument();
+
+		const submitBtn = screen.getByTestId("submit-refund-button");
+		expect(submitBtn).toBeDisabled();
+	});
+
 	it("shows validation error when reason is too short", async () => {
+		vi.mocked(bankAccountService.getAll).mockResolvedValue([
+			{
+				id: "bank-1",
+				userId: "user-1",
+				bankName: "Vietcombank",
+				accountNumber: "1029384756",
+				accountHolderName: "CAMPER NGUYEN VAN AN",
+				isDefault: true,
+				createdAt: new Date().toISOString(),
+				updatedAt: new Date().toISOString(),
+			},
+		]);
+
 		const user = userEvent.setup();
 		const onSubmit = vi.fn();
 
-		render(
+		renderWithClient(
 			<RefundRequestDialog
 				open={true}
 				isSubmitting={false}
@@ -74,7 +149,20 @@ describe("RefundRequestDialog", () => {
 	});
 
 	it("disables submit button and shows loading when isSubmitting is true", () => {
-		render(
+		vi.mocked(bankAccountService.getAll).mockResolvedValue([
+			{
+				id: "bank-1",
+				userId: "user-1",
+				bankName: "Vietcombank",
+				accountNumber: "1029384756",
+				accountHolderName: "CAMPER NGUYEN VAN AN",
+				isDefault: true,
+				createdAt: new Date().toISOString(),
+				updatedAt: new Date().toISOString(),
+			},
+		]);
+
+		renderWithClient(
 			<RefundRequestDialog
 				open={true}
 				isSubmitting={true}
@@ -91,7 +179,9 @@ describe("RefundRequestDialog", () => {
 	});
 
 	it("renders server error alert when error is provided", () => {
-		render(
+		vi.mocked(bankAccountService.getAll).mockResolvedValue([]);
+
+		renderWithClient(
 			<RefundRequestDialog
 				open={true}
 				isSubmitting={false}
@@ -111,11 +201,24 @@ describe("RefundRequestDialog", () => {
 		).toBeInTheDocument();
 	});
 
-	it("caps amount to maximum refundable amount and fills max on clicking max button", async () => {
+	it("displays fixed full refundable amount and submits full amount without amount input", async () => {
+		vi.mocked(bankAccountService.getAll).mockResolvedValue([
+			{
+				id: "bank-camper-1",
+				userId: "user-camper",
+				bankName: "Techcombank",
+				accountNumber: "1903678910",
+				accountHolderName: "NGUYEN VAN CAMPER",
+				isDefault: true,
+				createdAt: new Date().toISOString(),
+				updatedAt: new Date().toISOString(),
+			},
+		]);
+
 		const user = userEvent.setup();
 		const onSubmit = vi.fn().mockResolvedValue(undefined);
 
-		render(
+		renderWithClient(
 			<RefundRequestDialog
 				open={true}
 				isSubmitting={false}
@@ -127,21 +230,31 @@ describe("RefundRequestDialog", () => {
 			/>
 		);
 
-		const amountInput = screen.getByLabelText(/Số tiền yêu cầu hoàn/i);
-		expect(amountInput).toHaveValue("500000");
+		expect(screen.getByText("Số tiền hoàn toàn bộ (100%)")).toBeInTheDocument();
+		expect(screen.getByText("500.000 ₫")).toBeInTheDocument();
+		expect(screen.getByText("Rút hết")).toBeInTheDocument();
+		expect(screen.queryByLabelText(/Số tiền yêu cầu hoàn/i)).not.toBeInTheDocument();
 
-		// If user types an amount larger than max, it is automatically capped
-		await user.clear(amountInput);
-		await user.type(amountInput, "9999999");
-		expect(amountInput).toHaveValue("500000");
+		// Auto filled default bank account
+		expect(await screen.findByText("1903678910")).toBeInTheDocument();
+		expect(screen.getByText("NGUYEN VAN CAMPER")).toBeInTheDocument();
 
-		// Clicking the 'Tối đa' button fills maximum amount
-		await user.clear(amountInput);
-		await user.type(amountInput, "200000");
-		expect(amountInput).toHaveValue("200000");
+		const reasonInput = screen.getByPlaceholderText(/Mô tả chi tiết lý do yêu cầu hoàn tiền/i);
+		await user.type(reasonInput, "Lý do hủy hoàn tất chuyến đi");
 
-		const maxBtn = screen.getByRole("button", { name: "Tối đa" });
-		await user.click(maxBtn);
-		expect(amountInput).toHaveValue("500000");
+		const submitBtn = screen.getByTestId("submit-refund-button");
+		await user.click(submitBtn);
+
+		await waitFor(() => {
+			expect(onSubmit).toHaveBeenCalledTimes(1);
+			expect(onSubmit).toHaveBeenCalledWith(
+				expect.objectContaining({
+					amount: "500000",
+					bankName: "Techcombank",
+					accountNumber: "1903678910",
+					accountHolderName: "NGUYEN VAN CAMPER",
+				})
+			);
+		});
 	});
 });

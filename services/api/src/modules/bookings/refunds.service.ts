@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import {
+	BadRequestException,
 	ConflictException,
 	ForbiddenException,
 	Inject,
@@ -13,9 +14,10 @@ import {
 import { DataSource, type EntityManager } from "typeorm";
 import { AuditLog } from "../auth/entities/audit-log.entity";
 import { BookingStatus } from "../profiles/entities/booking.entity";
+import { validateAccountHolderNameMatch } from "../profiles/utils/vietnamese-name.util";
 import { Trip, TripStatus } from "../trips/entities/trip.entity";
 import { AUTO_CANCEL_REASON } from "../trips/services/trip-auto-cancel.service";
-import { UserRole } from "../users/entities/user.entity";
+import { User, UserRole } from "../users/entities/user.entity";
 // biome-ignore lint/style/useImportType: NestJS constructor injection requires runtime metadata
 import { BookingsRepository } from "./bookings.repository";
 import { minorToMoney } from "./cancellation-policy";
@@ -228,14 +230,22 @@ export class RefundsService {
 						origin = RefundOrigin.CAMPER_CANCELLATION;
 					}
 				}
-				if (!refundAmount) {
-					const existingRefunds = paymentRows.filter((p) => p.type === PaymentType.REFUND);
-					const { remainingAmount } = calculateRemainingRefundableAmount(
-						parentCharge.amount,
-						existingRefunds
-					);
+				const isCamperUser =
+					Boolean(options?.userRoles && !options.userRoles.includes(UserRole.ADMIN)) ||
+					Boolean(dto.bankName || dto.accountNumber);
+
+				const existingRefunds = paymentRows.filter((p) => p.type === PaymentType.REFUND);
+				const { remainingAmount } = calculateRemainingRefundableAmount(
+					parentCharge.amount,
+					existingRefunds
+				);
+
+				// Full-amount policy ("Rút hết, không cho tự nhập số tiền"):
+				// Camper refund requests 100% of the remaining refundable amount.
+				if (isCamperUser || !refundAmount) {
 					refundAmount = remainingAmount;
 				}
+
 				if (!refundAmount || refundAmount === "0.00") {
 					throw new ConflictException("Refund amount must be greater than zero");
 				}
@@ -303,6 +313,26 @@ export class RefundsService {
 			let txnStatus: PaymentTransactionStatus;
 
 			if (isCamperRequest) {
+				if (dto.accountHolderName) {
+					const camperUser = await manager
+						.getRepository(User)
+						.findOne({ where: { id: booking.userId } });
+					if (!camperUser || !camperUser.fullName || !camperUser.fullName.trim()) {
+						throw new BadRequestException(
+							"Vui lòng cập nhật họ và tên trong hồ sơ trước khi yêu cầu hoàn tiền"
+						);
+					}
+					const isNameMatch = validateAccountHolderNameMatch(
+						camperUser.fullName,
+						dto.accountHolderName
+					);
+					if (!isNameMatch) {
+						throw new BadRequestException(
+							`Tên chủ tài khoản không khớp với họ tên đăng ký (${camperUser.fullName}). Vui lòng kiểm tra lại.`
+						);
+					}
+				}
+
 				providerResult = {
 					succeeded: false,
 					isPending: true,
@@ -609,10 +639,11 @@ export class RefundsService {
 		const parentCharge = charges[0] ?? null;
 
 		const refundPayments = payments.filter((p) => p.type === PaymentType.REFUND);
+		const hasPendingRefund = refundPayments.some((r) => r.status === PaymentStatus.PENDING);
 
-		const { committedMinor, remainingAmount } = parentCharge
+		const { committedMinor, remainingMinor, remainingAmount } = parentCharge
 			? calculateRemainingRefundableAmount(parentCharge.amount, refundPayments)
-			: { committedMinor: 0n, remainingAmount: "0.00" };
+			: { committedMinor: 0n, remainingMinor: 0n, remainingAmount: "0.00" };
 		const totalRefundedAmount = minorToMoney(committedMinor);
 
 		// CTMS-179: when the Trip itself is cancelled, the Booking's own `cancelled`
@@ -649,14 +680,23 @@ export class RefundsService {
 				});
 				isEligible = eligibility.eligible;
 				policySource = eligibility.policySource;
+
+				if (remainingMinor <= 0n) {
+					isEligible = false;
+					ineligibleReason = "Toàn bộ số tiền đã thanh toán đã được hoàn tất";
+				} else if (hasPendingRefund) {
+					isEligible = false;
+					ineligibleReason = "Đang có yêu cầu hoàn tiền chờ Quản trị viên đối soát";
+				}
 			} catch (err) {
 				isEligible = false;
-				ineligibleReason = err instanceof Error ? err.message : "Not eligible for refund";
+				ineligibleReason =
+					err instanceof Error ? err.message : "Đơn đặt chỗ không đủ điều kiện hoàn tiền";
 			}
 		} else if (!parentCharge) {
-			ineligibleReason = "No succeeded charge found to refund";
+			ineligibleReason = "Không tìm thấy giao dịch thanh toán thành công để hoàn tiền";
 		} else {
-			ineligibleReason = "Booking state is not eligible for refund request";
+			ineligibleReason = "Trạng thái đơn đặt chỗ hiện không đủ điều kiện gửi yêu cầu hoàn tiền";
 		}
 
 		let applicableWindow: BookingRefundApplicableWindowDto | undefined;
@@ -686,7 +726,6 @@ export class RefundsService {
 			};
 		}
 
-		const hasPendingRefund = refundPayments.some((r) => r.status === PaymentStatus.PENDING);
 		const settlementStatus = await this.getSettlementStatus(trip.id);
 
 		const refundTxns =

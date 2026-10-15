@@ -1,4 +1,9 @@
-import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import {
+	ConflictException,
+	ForbiddenException,
+	Injectable,
+	NotFoundException,
+} from "@nestjs/common";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { DataSource } from "typeorm";
 import type { EntityManager } from "typeorm";
@@ -43,6 +48,15 @@ export class ProfilesService {
 			const user = await this.findActiveUser(userId, usersRepository);
 			const existingContacts = await contactsRepository.findByUserId(user.id);
 			const before = this.snapshot(user, existingContacts);
+
+			if (dto.phone) {
+				const existingUserWithPhone = await usersRepository.findOne({
+					where: { phone: dto.phone },
+				});
+				if (existingUserWithPhone && existingUserWithPhone.id !== user.id) {
+					throw new ConflictException("Số điện thoại này đã được sử dụng bởi tài khoản khác");
+				}
+			}
 
 			const userPatch = this.toUserPatch(dto);
 			if (Object.keys(userPatch).length > 0) {
@@ -119,6 +133,9 @@ export class ProfilesService {
 		if (dto.fullName !== undefined) {
 			patch.fullName = dto.fullName;
 		}
+		if (dto.phone !== undefined) {
+			patch.phone = dto.phone;
+		}
 		if (dto.dateOfBirth !== undefined) {
 			patch.dateOfBirth = dto.dateOfBirth;
 		}
@@ -137,6 +154,7 @@ export class ProfilesService {
 	private snapshot(user: User, contacts: EmergencyContact[]): ProfileSnapshot {
 		return {
 			fullName: user.fullName,
+			phone: user.phone,
 			dateOfBirth: user.dateOfBirth,
 			gender: user.gender,
 			address: user.address,

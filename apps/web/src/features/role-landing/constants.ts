@@ -18,6 +18,7 @@ import {
 	TentTree,
 	User,
 	Users,
+	Wallet,
 	Warehouse,
 	Wifi,
 } from "lucide-react";
@@ -59,7 +60,13 @@ export const dashboards: Record<RoleKey, DashboardConfig> = {
 			{ key: "overview", label: "Tổng quan", icon: LayoutDashboard },
 			{ key: "explore", label: "Khám phá địa điểm", icon: MapPinned },
 			{ key: "bookings", label: "Đơn đặt chỗ", icon: TentTree },
-			{ key: "trips", label: "Chuyến đi của tôi", icon: Compass },
+			{
+				key: "trips",
+				label: "Chuyến đi của tôi",
+				icon: Compass,
+				disabled: true,
+				badge: "Sắp ra mắt",
+			},
 			{ key: "profile", label: "Hồ sơ & sức khỏe", icon: Activity },
 			{ key: "safety", label: "Trung tâm an toàn", icon: ShieldCheck },
 		],
@@ -155,6 +162,7 @@ export const dashboards: Record<RoleKey, DashboardConfig> = {
 		navTitle: "Vận hành",
 		navItems: [
 			{ key: "overview", label: "Tổng quan vận hành", icon: LayoutDashboard },
+			{ key: "wallet", label: "Ví & Doanh thu", icon: Wallet },
 			{ key: "explore", label: "Khám phá chuyến đi", icon: Compass },
 			{ key: "campers", label: "Người tham gia & đặt chỗ", icon: Users },
 			{ key: "porters", label: "Porter", icon: BriefcaseBusiness },

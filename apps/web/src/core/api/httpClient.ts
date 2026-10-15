@@ -78,10 +78,25 @@ class HttpClient {
 			}
 
 			const errorData = await response.json().catch(() => ({}));
-			const message =
-				typeof errorData.message === "string"
-					? errorData.message
-					: `Request failed with status ${response.status}`;
+			let message = `Request failed with status ${response.status}`;
+			if (typeof errorData.message === "string") {
+				message = errorData.message;
+			} else if (Array.isArray(errorData.message)) {
+				message = errorData.message
+					.map((item: unknown) => {
+						if (typeof item === "string") return item;
+						if (
+							item &&
+							typeof item === "object" &&
+							"errors" in item &&
+							Array.isArray((item as { errors: unknown[] }).errors)
+						) {
+							return (item as { errors: string[] }).errors.join(", ");
+						}
+						return JSON.stringify(item);
+					})
+					.join("; ");
+			}
 			throw new HttpError(message, response.status, errorData);
 		}
 

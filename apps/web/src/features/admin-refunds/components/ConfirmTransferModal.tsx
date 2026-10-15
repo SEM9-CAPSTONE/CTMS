@@ -1,3 +1,4 @@
+import { X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { formatBookingMoney } from "../../booking-details/utils/booking-details-formatters";
 import type { AdminRefundItem } from "../types";
@@ -61,9 +62,20 @@ export function ConfirmTransferModal({
 			}}
 			className="m-auto w-[calc(100%-2rem)] max-w-lg rounded-3xl border border-[#cbd9ce] bg-white p-6 text-[#10221b] shadow-xl backdrop:bg-black/50"
 		>
-			<h2 id="confirm-transfer-modal-title" className="text-xl font-extrabold text-[#10221b]">
-				Xác nhận chuyển tiền thủ công
-			</h2>
+			<div className="flex items-center justify-between gap-3 border-b border-[#e7eee7] pb-3">
+				<h2 id="confirm-transfer-modal-title" className="text-xl font-extrabold text-[#10221b]">
+					Xác nhận chuyển tiền thủ công
+				</h2>
+				<button
+					type="button"
+					aria-label="Đóng"
+					disabled={isSubmitting}
+					onClick={onClose}
+					className="rounded-full p-1.5 text-[#667a6d] hover:bg-[#f4f7f2] hover:text-[#10221b] transition disabled:opacity-50"
+				>
+					<X className="size-5" />
+				</button>
+			</div>
 
 			{errorMessage && (
 				<div

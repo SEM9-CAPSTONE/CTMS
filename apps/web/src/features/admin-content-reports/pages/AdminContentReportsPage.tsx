@@ -1,4 +1,5 @@
-import { Flag, RefreshCw } from "lucide-react";
+import { Flag, Loader2, RefreshCw } from "lucide-react";
+import { Card } from "../../../shared/components";
 import { AdminLayout } from "../../admin-layout/components/AdminLayout";
 import { ReportDetailsPanel } from "../components/ReportDetailsPanel";
 import { ReportErrorNotice } from "../components/ReportErrorNotice";
@@ -14,24 +15,26 @@ export function AdminContentReportsPage({
 	return (
 		<AdminLayout activeItem="content-reports" onLogout={onLogout}>
 			<div className="mx-auto max-w-7xl space-y-5 px-4 py-6 sm:px-6 lg:px-8">
-				<div className="flex flex-wrap items-center justify-between gap-4">
+				<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 					<div>
-						<h1 className="flex items-center gap-3 text-2xl font-extrabold">
+						<h1 className="flex items-center gap-3 text-2xl font-extrabold text-[#10221b]">
 							<Flag className="size-7 text-[#164027]" />
 							Báo cáo nội dung
 						</h1>
-						<p className="mt-2 text-sm text-[#667a6d]">
-							Xem báo cáo và cập nhật trạng thái xử lý từ dữ liệu hệ thống.
+						<p className="mt-1 text-sm text-[#667a6d]">
+							Xem danh sách báo cáo vi phạm và cập nhật trạng thái xử lý từ dữ liệu hệ thống.
 						</p>
 					</div>
 					<button
 						type="button"
 						disabled={queue.loading || details.submitting}
 						onClick={() => void queue.reload()}
-						className="inline-flex items-center gap-2 rounded-xl border border-[#cbdaca] bg-white px-4 py-2.5 text-sm font-bold disabled:opacity-50"
+						className="inline-flex items-center gap-2 rounded-xl border border-[#dfe8df] bg-white px-3.5 py-2 text-xs font-bold text-[#55685a] shadow-xs hover:bg-[#f6f9f6] hover:text-[#164027] disabled:opacity-50"
 					>
-						<RefreshCw className="size-4" />
-						Tải lại danh sách
+						<RefreshCw
+							className={`size-3.5 ${queue.loading ? "animate-spin text-[#164027]" : ""}`}
+						/>
+						<span>Tải lại danh sách</span>
 					</button>
 				</div>
 				{details.selectedId && (
@@ -42,22 +45,24 @@ export function AdminContentReportsPage({
 						onSubmit={(status) => void details.submit(status)}
 					/>
 				)}
-				{queue.loading && (
-					<output className="rounded-xl bg-white p-12 text-center">
-						Đang tải danh sách báo cáo...
-					</output>
-				)}
 				{queue.error && (
 					<ReportErrorNotice error={queue.error} onRetry={() => void queue.reload()} />
 				)}
-				{queue.data && !queue.loading && !queue.error && (
-					<ReportQueueTable
-						data={queue.data}
-						disabled={details.submitting}
-						onOpen={details.open}
-						onPage={queue.setPage}
-					/>
-				)}
+				<Card className="overflow-hidden p-0 border border-[#dfe8df] bg-white rounded-2xl shadow-sm">
+					{queue.loading ? (
+						<div className="flex items-center justify-center gap-3 p-16 text-sm font-bold text-[#54655a]">
+							<Loader2 className="size-5 animate-spin text-[#164027]" />
+							<span>Đang tải danh sách báo cáo...</span>
+						</div>
+					) : queue.data ? (
+						<ReportQueueTable
+							data={queue.data}
+							disabled={details.submitting}
+							onOpen={details.open}
+							onPage={queue.setPage}
+						/>
+					) : null}
+				</Card>
 			</div>
 		</AdminLayout>
 	);
