@@ -1,11 +1,15 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useMyTrips } from "../../trips/hooks/useMyTrips";
 import type { TripDetails } from "../../trips/types";
 import { HostMyTripsPanel } from "./HostMyTripsPanel";
 
 vi.mock("../../trips/hooks/useMyTrips", () => ({
 	useMyTrips: vi.fn(),
+}));
+
+vi.mock("../../trips/hooks/useTripReviewNotifications", () => ({
+	useHostTripReviewNotifications: vi.fn(),
 }));
 
 const mockUseMyTrips = vi.mocked(useMyTrips);
@@ -67,6 +71,68 @@ const trackedStatusTrips: TripDetails[] = [
 describe("HostMyTripsPanel", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date("2026-09-29T00:00:00.000Z"));
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it("filters past trips as completed and departed trips as ongoing", () => {
+		vi.setSystemTime(new Date("2026-10-15T00:00:00.000Z"));
+		mockUseMyTrips.mockReturnValue({
+			trips: [
+				{ ...sampleTrip1, title: "Past trip" },
+				{
+					...sampleTrip1,
+					id: "started",
+					title: "Already started",
+					startsAt: "2026-10-15T07:00:00+07:00",
+					endsAt: "2026-10-15T14:00:00+07:00",
+				},
+				{
+					...sampleTrip1,
+					id: "future",
+					title: "Future trip",
+					startsAt: "2026-10-17T00:00:00.000Z",
+					endsAt: "2026-10-17T14:00:00.000Z",
+					bookingDeadline: "2026-10-16T00:00:00.000Z",
+				},
+			],
+			isLoading: false,
+			error: "",
+			refetch: vi.fn(),
+		});
+		render(<HostMyTripsPanel />);
+		fireEvent.click(screen.getByRole("button", { name: /Đang mở bán\s*1/ }));
+		expect(screen.getByText("Future trip")).toBeInTheDocument();
+		expect(screen.queryByText("Past trip")).not.toBeInTheDocument();
+		fireEvent.click(screen.getByRole("button", { name: /Đang diễn ra\s*1/ }));
+		expect(screen.getByText("Already started")).toBeInTheDocument();
+		expect(screen.queryByText("Future trip")).not.toBeInTheDocument();
+		fireEvent.click(screen.getByRole("button", { name: /Kết thúc\s*1/ }));
+		expect(screen.getByText("Past trip")).toBeInTheDocument();
+		expect(screen.queryByText("Already started")).not.toBeInTheDocument();
+		expect(screen.queryByText("Đã đóng đăng ký")).not.toBeInTheDocument();
+	});
+
+	it("advances from published to ongoing to completed while the page remains open", () => {
+		vi.setSystemTime(new Date("2026-10-01T05:59:59.000Z"));
+		mockUseMyTrips.mockReturnValue({
+			trips: [sampleTrip1],
+			isLoading: false,
+			error: "",
+			refetch: vi.fn(),
+		});
+		render(<HostMyTripsPanel />);
+		expect(screen.getByRole("button", { name: /Đang mở bán\s*1/ })).toBeInTheDocument();
+		act(() => vi.advanceTimersByTime(1000));
+		expect(screen.getByRole("button", { name: /Đang mở bán\s*0/ })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: /Đang diễn ra\s*1/ })).toBeInTheDocument();
+		act(() => vi.advanceTimersByTime(8 * 60 * 60 * 1000));
+		expect(screen.getByRole("button", { name: /Đang diễn ra\s*0/ })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: /Kết thúc\s*1/ })).toBeInTheDocument();
 	});
 
 	it("renders loading state", () => {
@@ -188,6 +254,25 @@ describe("HostMyTripsPanel", () => {
 		expect(screen.getAllByText("Đang mở bán").length).toBeGreaterThanOrEqual(1);
 		expect(screen.getAllByText("Từ chối").length).toBeGreaterThanOrEqual(1);
 		expect(screen.queryByText("Bị từ chối")).not.toBeInTheDocument();
+	});
+
+	it("preserves completed, cancelled and review statuses after their scheduled dates", () => {
+		vi.setSystemTime(new Date("2026-10-15T00:00:00.000Z"));
+		mockUseMyTrips.mockReturnValue({
+			trips: [
+				{ ...sampleTrip1, status: "completed" },
+				{ ...sampleTrip2, status: "cancelled" },
+				{ ...sampleTrip3, status: "rejected" },
+			],
+			isLoading: false,
+			error: "",
+			refetch: vi.fn(),
+		});
+		render(<HostMyTripsPanel />);
+		expect(screen.getByRole("button", { name: /Đã huỷ\s*1/ })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: /Kết thúc\s*1/ })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: /Từ chối\s*1/ })).toBeInTheDocument();
+		expect(screen.queryByText("Đã đóng đăng ký")).not.toBeInTheDocument();
 	});
 
 	it("opens trip detail when clicking the whole trip card", () => {

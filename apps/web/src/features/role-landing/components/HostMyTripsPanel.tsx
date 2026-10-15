@@ -17,11 +17,12 @@ import {
 	Users,
 } from "lucide-react";
 import type { KeyboardEvent } from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "../../../shared/components/Button";
 import { useMyTrips } from "../../trips/hooks/useMyTrips";
 import { useHostTripReviewNotifications } from "../../trips/hooks/useTripReviewNotifications";
 import type { TripStatus } from "../../trips/types";
+import { getTripDisplayStatus } from "../../trips/utils/trip-status";
 
 export interface HostMyTripsPanelProps {
 	onCreateTrip?: () => void;
@@ -32,27 +33,45 @@ export interface HostMyTripsPanelProps {
 }
 
 const statusLabels: Record<TripStatus, { label: string; className: string }> = {
-	draft: { label: "Bản nháp", className: "bg-slate-100 text-slate-700 ring-slate-200" },
+	draft: {
+		label: "Bản nháp",
+		className: "bg-slate-100 text-slate-700 ring-slate-200",
+	},
 	pending_approval: {
 		label: "Chờ duyệt",
 		className: "bg-amber-50 text-amber-700 ring-amber-200",
 	},
-	published: { label: "Đang mở bán", className: "bg-emerald-50 text-emerald-700 ring-emerald-200" },
-	ongoing: { label: "Đang diễn ra", className: "bg-sky-50 text-sky-700 ring-sky-200" },
-	completed: { label: "Kết thúc", className: "bg-purple-50 text-purple-700 ring-purple-200" },
-	cancelled: { label: "Đã huỷ", className: "bg-red-50 text-red-700 ring-red-200" },
-	rejected: { label: "Từ chối", className: "bg-rose-50 text-rose-700 ring-rose-200" },
+	published: {
+		label: "Đang mở bán",
+		className: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+	},
+	ongoing: {
+		label: "Đang diễn ra",
+		className: "bg-sky-50 text-sky-700 ring-sky-200",
+	},
+	completed: {
+		label: "Kết thúc",
+		className: "bg-purple-50 text-purple-700 ring-purple-200",
+	},
+	cancelled: {
+		label: "Đã huỷ",
+		className: "bg-red-50 text-red-700 ring-red-200",
+	},
+	rejected: {
+		label: "Từ chối",
+		className: "bg-rose-50 text-rose-700 ring-rose-200",
+	},
 };
 
 const filterTabs: Array<{ key: "all" | TripStatus; label: string }> = [
 	{ key: "all", label: "Tất cả" },
+	{ key: "draft", label: "Bản nháp" },
+	{ key: "pending_approval", label: "Chờ duyệt" },
+	{ key: "published", label: "Đang mở bán" },
 	{ key: "ongoing", label: "Đang diễn ra" },
 	{ key: "completed", label: "Kết thúc" },
-	{ key: "published", label: "Đang mở bán" },
-	{ key: "rejected", label: "Từ chối" },
-	{ key: "pending_approval", label: "Chờ duyệt" },
-	{ key: "draft", label: "Bản nháp" },
 	{ key: "cancelled", label: "Đã huỷ" },
+	{ key: "rejected", label: "Từ chối" },
 ];
 
 function formatDateRange(startsAt: string, endsAt: string): string {
@@ -81,7 +100,33 @@ export function HostMyTripsPanel({
 }: HostMyTripsPanelProps) {
 	const { trips: fetchedTrips = [], isLoading, error, refetch } = useMyTrips();
 	useHostTripReviewNotifications({ onChanged: refetch });
-	const trips = useMemo(() => (Array.isArray(fetchedTrips) ? fetchedTrips : []), [fetchedTrips]);
+	const [now, setNow] = useState(() => Date.now());
+	const trips = useMemo(
+		() =>
+			(Array.isArray(fetchedTrips) ? fetchedTrips : []).map((trip) => ({
+				...trip,
+				displayStatus: getTripDisplayStatus(trip, now),
+			})),
+		[fetchedTrips, now]
+	);
+	// Update at the next cutoff even when the host leaves this page open.
+	useEffect(() => {
+		const refresh = () => setNow(Date.now());
+		const nextCutoff = Math.min(
+			...trips
+				.filter((trip) => trip.displayStatus === "published" || trip.displayStatus === "ongoing")
+				.flatMap((trip) => [Date.parse(trip.endsAt), Date.parse(trip.startsAt)])
+				.filter((cutoff) => cutoff > now)
+		);
+		const timer = Number.isFinite(nextCutoff)
+			? window.setTimeout(refresh, Math.min(Math.max(0, nextCutoff - Date.now()), 2_147_483_647))
+			: undefined;
+		window.addEventListener("focus", refresh);
+		return () => {
+			window.clearTimeout(timer);
+			window.removeEventListener("focus", refresh);
+		};
+	}, [trips, now]);
 	const [selectedStatus, setSelectedStatus] = useState<"all" | TripStatus>("all");
 	const [currentPage, setCurrentPage] = useState(1);
 	const [pageSize, setPageSize] = useState(4);
@@ -90,7 +135,7 @@ export function HostMyTripsPanel({
 	const statusCounts = useMemo(() => {
 		const counts: Record<string, number> = { all: trips.length };
 		for (const trip of trips) {
-			counts[trip.status] = (counts[trip.status] || 0) + 1;
+			counts[trip.displayStatus] = (counts[trip.displayStatus] || 0) + 1;
 		}
 		return counts;
 	}, [trips]);
@@ -98,11 +143,14 @@ export function HostMyTripsPanel({
 	// Filtered trips
 	const filteredTrips = useMemo(() => {
 		if (selectedStatus === "all") return trips;
-		return trips.filter((t) => t.status === selectedStatus);
+		return trips.filter((t) => t.displayStatus === selectedStatus);
 	}, [trips, selectedStatus]);
 
 	// Pagination calculations
 	const totalPages = Math.max(1, Math.ceil(filteredTrips.length / pageSize));
+	useEffect(() => {
+		setCurrentPage((page) => Math.min(page, totalPages));
+	}, [totalPages]);
 	const paginatedTrips = useMemo(() => {
 		const startIndex = (currentPage - 1) * pageSize;
 		return filteredTrips.slice(startIndex, startIndex + pageSize);
@@ -199,13 +247,13 @@ export function HostMyTripsPanel({
 					{filterTabs.map((tab) => {
 						const count = statusCounts[tab.key] || 0;
 						const isActive = selectedStatus === tab.key;
-						if (tab.key !== "all" && count === 0) return null;
 
 						return (
 							<button
 								key={tab.key}
 								type="button"
 								onClick={() => handleStatusChange(tab.key)}
+								aria-pressed={isActive}
 								className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all ${
 									isActive
 										? "bg-[#164027] text-white shadow-sm shadow-[#164027]/20"
@@ -298,7 +346,7 @@ export function HostMyTripsPanel({
 					<>
 						<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
 							{paginatedTrips.map((trip) => {
-								const statusCfg = statusLabels[trip.status] ?? statusLabels.draft;
+								const statusCfg = statusLabels[trip.displayStatus] ?? statusLabels.draft;
 								return (
 									<article
 										key={trip.id}
@@ -410,7 +458,7 @@ export function HostMyTripsPanel({
 						<div className="mt-6 flex flex-col items-center justify-between gap-4 border-t border-[#edf3ee] pt-4 sm:flex-row">
 							<div className="flex items-center gap-3 text-xs font-bold text-[#667a6d]">
 								<span>
-									Trang {currentPage} / {totalPages} (Tổng cộng {filteredTrips.length} chuyến đi)
+									Trang {currentPage} / {totalPages}
 								</span>
 								<div className="flex items-center gap-1">
 									<span className="text-[#8fa096]">Hiển thị:</span>

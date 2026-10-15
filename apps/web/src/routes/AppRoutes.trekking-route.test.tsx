@@ -1,7 +1,28 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AppRoutes } from "./AppRoutes";
+
+vi.mock("../features/trips/services/trips.service", () => ({
+	tripsService: {
+		getMyTrips: vi.fn().mockResolvedValue([]),
+		getHostPorterAssignments: vi.fn().mockResolvedValue([]),
+		getAssignedTrips: vi.fn().mockResolvedValue([]),
+	},
+}));
+vi.mock("../features/camper-profile/services/camper-profile.service", () => ({
+	camperProfileService: { getProfile: vi.fn().mockResolvedValue(null) },
+}));
+
+function renderRoutes() {
+	const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+	return render(
+		<QueryClientProvider client={client}>
+			<AppRoutes />
+		</QueryClientProvider>
+	);
+}
 
 vi.mock("../features/auth/services/auth.service", () => ({
 	authService: {
@@ -117,7 +138,7 @@ describe("AppRoutes trekking route navigation", () => {
 	});
 
 	it("navigates to create route", async () => {
-		render(<AppRoutes />);
+		renderRoutes();
 		expect(screen.getByRole("button", { name: "Quản lý tuyến" })).toBeInTheDocument();
 		await userEvent.click(screen.getByRole("button", { name: "Tạo tuyến trekking" }));
 
@@ -129,7 +150,7 @@ describe("AppRoutes trekking route navigation", () => {
 	});
 
 	it("navigates to the route list", async () => {
-		render(<AppRoutes />);
+		renderRoutes();
 		expect(screen.getByRole("button", { name: "Tạo tuyến trekking" })).toBeInTheDocument();
 		await userEvent.click(screen.getByRole("button", { name: "Quản lý tuyến" }));
 
@@ -155,7 +176,7 @@ describe("AppRoutes trekking route navigation", () => {
 				})
 			);
 
-			render(<AppRoutes />);
+			renderRoutes();
 
 			expect(screen.queryByRole("button", { name: "Tạo tuyến trekking" })).not.toBeInTheDocument();
 			expect(
@@ -178,7 +199,7 @@ describe("AppRoutes trekking route navigation", () => {
 			})
 		);
 
-		render(<AppRoutes />);
+		renderRoutes();
 		await userEvent.click(screen.getByRole("button", { name: "Quản lý user" }));
 
 		expect(window.location.pathname).toBe("/admin/users");
@@ -199,7 +220,7 @@ describe("AppRoutes trekking route navigation", () => {
 		);
 		window.history.replaceState({}, "", "/host/trekking-routes");
 
-		render(<AppRoutes />);
+		renderRoutes();
 
 		expect(screen.queryByText("Trekking Routes Page")).not.toBeInTheDocument();
 		expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("Truy cập bị từ chối");

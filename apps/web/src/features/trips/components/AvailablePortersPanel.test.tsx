@@ -217,9 +217,10 @@ describe("AvailablePortersPanel", () => {
 
 	it("blocks sending when pending state cannot be verified", async () => {
 		vi.spyOn(tripsService, "getAvailablePorters").mockResolvedValue(SUPPORT_RESPONSE);
-		vi.spyOn(tripsService, "getPendingPorterRequest").mockRejectedValue(
-			new HttpError("unavailable", 503, {})
-		);
+		const pendingCheck = vi
+			.spyOn(tripsService, "getPendingPorterRequest")
+			.mockRejectedValue(new HttpError("unavailable", 503, {}));
+		const create = vi.spyOn(tripsService, "createPorterRequest");
 
 		renderPanel();
 		selectRole("support");
@@ -227,6 +228,16 @@ describe("AvailablePortersPanel", () => {
 		const alert = await screen.findByRole("alert");
 		expect(alert).toHaveAttribute("data-error-kind", "pending-check");
 		expect(screen.getByRole("button", { name: "Gửi yêu cầu" })).toBeDisabled();
+		fireEvent.click(screen.getByRole("button", { name: "Gửi yêu cầu" }));
+		expect(create).not.toHaveBeenCalled();
+
+		pendingCheck.mockResolvedValue(null);
+		fireEvent.click(screen.getByRole("button", { name: "Kiểm tra lại" }));
+		await waitFor(() =>
+			expect(screen.getByRole("button", { name: "Gửi yêu cầu" })).not.toBeDisabled()
+		);
+		expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+		expect(create).not.toHaveBeenCalled();
 	});
 
 	it("does not fabricate request success when the backend rejects the request", async () => {

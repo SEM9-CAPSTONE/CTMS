@@ -9,6 +9,8 @@ export const queryKeys = {
 		refunds: (bookingId: string) => ["bookings", "refunds", bookingId] as const,
 	},
 	trekking: {
+		hostTripMap: (hostId: string, routeId: string) =>
+			["trekking-routes", "host-trip-map", hostId, routeId] as const,
 		all: ["trekking-routes"] as const,
 		pendingReview: ["trekking-routes", "pending-review"] as const,
 		list: (filters?: Record<string, unknown>) => ["trekking-routes", "list", filters] as const,
@@ -16,6 +18,9 @@ export const queryKeys = {
 		checkpoints: (routeId: string) => ["trekking-routes", routeId, "checkpoints"] as const,
 	},
 	trips: {
+		hostOverview: (hostId: string) => ["trips", "host-overview", hostId] as const,
+		hostOverviewAssignments: (hostId: string) =>
+			["trips", "host-overview-assignments", hostId] as const,
 		availablePorters: (
 			tripId: string,
 			role: "lead" | "support" | null,

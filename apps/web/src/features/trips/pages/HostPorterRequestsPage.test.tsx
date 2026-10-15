@@ -1,11 +1,14 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { useMyTrips } from "../hooks/useMyTrips";
+import type { ComponentProps } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { usePorterCandidateTrips } from "../hooks/usePorterCandidateTrips";
+import { tripsService } from "../services/trips.service";
 import type { TripDetails } from "../types";
 import { HostPorterRequestsPage } from "./HostPorterRequestsPage";
 
-vi.mock("../hooks/useMyTrips", () => ({
-	useMyTrips: vi.fn(),
+vi.mock("../hooks/usePorterCandidateTrips", () => ({
+	usePorterCandidateTrips: vi.fn(),
 }));
 
 vi.mock("../components/AvailablePortersPanel", () => ({
@@ -53,49 +56,57 @@ const trips: TripDetails[] = [
 		...baseTrip,
 		id: "trip-2",
 		title: "Tà Năng mùa khô",
-		status: "pending_approval",
+		status: "published",
 	},
 ];
+
+function renderPage(props: ComponentProps<typeof HostPorterRequestsPage> = {}) {
+	const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+	return render(
+		<QueryClientProvider client={client}>
+			<HostPorterRequestsPage {...props} />
+		</QueryClientProvider>
+	);
+}
 
 describe("HostPorterRequestsPage", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		window.history.replaceState({}, "", "/host/porter");
-		vi.mocked(useMyTrips).mockReturnValue({
+		vi.spyOn(tripsService, "getHostPorterAssignments").mockResolvedValue([]);
+		vi.mocked(usePorterCandidateTrips).mockReturnValue({
 			trips,
 			isLoading: false,
 			error: "",
 			refetch: vi.fn(),
 		});
 	});
+	afterEach(() => vi.restoreAllMocks());
 
 	it("preselects the Trip from the query context and renders the request search panel", () => {
-		render(<HostPorterRequestsPage initialTripId="trip-2" />);
+		renderPage({ initialTripId: "trip-2" });
 
-		expect(screen.getByLabelText("Trip")).toHaveValue("trip-2");
+		expect(screen.getByLabelText("Chuyến đi")).toHaveValue("trip-2");
 		expect(screen.getByTestId("available-porters-panel")).toHaveTextContent("Trip: trip-2");
-		expect(screen.getByRole("button", { name: "Tìm Porter" })).toHaveClass("border-[#164027]");
+		expect(screen.getByRole("heading", { name: "Tìm người hỗ trợ chuyến đi" })).toBeInTheDocument();
 	});
 
 	it("updates the selected Trip without fabricating a request state", () => {
-		render(<HostPorterRequestsPage />);
+		renderPage();
 
-		fireEvent.change(screen.getByLabelText("Trip"), { target: { value: "trip-2" } });
+		fireEvent.change(screen.getByLabelText("Chuyến đi"), { target: { value: "trip-2" } });
 
 		expect(screen.getByTestId("available-porters-panel")).toHaveTextContent("Trip: trip-2");
-		expect(window.location.search).toBe("?tripId=trip-2");
+		expect(new URLSearchParams(window.location.search).get("tripId")).toBe("trip-2");
+		expect(new URLSearchParams(window.location.search).get("view")).toBe("find");
 		expect(screen.queryByText("Đang chờ phản hồi")).not.toBeInTheDocument();
 	});
 
-	it("keeps follow-up tabs scoped out of this UI implementation", () => {
-		render(<HostPorterRequestsPage initialTripId="trip-1" />);
-
-		fireEvent.click(screen.getByRole("button", { name: "Đã phân công" }));
-
-		expect(screen.getAllByText("Đã phân công")).toHaveLength(2);
-		expect(
-			screen.getByText(/chỉ triển khai thao tác tìm Porter và gửi yêu cầu/i)
-		).toBeInTheDocument();
+	it("loads the assigned view and shows the backend's empty assignment history", async () => {
+		renderPage({ initialView: "assigned" });
+		expect(screen.getByRole("heading", { name: "Porter đã phân công" })).toBeInTheDocument();
+		expect(await screen.findByText("Chưa có lịch sử phân công Porter.")).toBeInTheDocument();
+		expect(tripsService.getHostPorterAssignments).toHaveBeenCalledOnce();
 		expect(screen.queryByTestId("available-porters-panel")).not.toBeInTheDocument();
 	});
 });
