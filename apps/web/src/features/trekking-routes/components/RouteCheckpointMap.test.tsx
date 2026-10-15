@@ -17,6 +17,63 @@ const geometry = {
 };
 
 describe("RouteCheckpointMap fallback", () => {
+	it("zooms with controls and the mouse wheel, preserves the view on rerender and resets on request", () => {
+		const props = {
+			geometry,
+			checkpoints: [],
+			radiusMeters: 0,
+			disabled: true,
+			onSelectLocation: vi.fn(),
+		};
+		const { rerender } = render(<RouteCheckpointMap {...props} />);
+		const map = screen.getByLabelText("Bản đồ tuyến trekking");
+		expect(map).toHaveAttribute("viewBox", "0 0 100 100");
+		fireEvent.click(screen.getByRole("button", { name: "Phóng to bản đồ" }));
+		expect(map).toHaveAttribute("viewBox", "10 10 80 80");
+		rerender(<RouteCheckpointMap {...props} />);
+		expect(map).toHaveAttribute("viewBox", "10 10 80 80");
+		fireEvent.click(screen.getByRole("button", { name: "Thu nhỏ bản đồ" }));
+		expect(map).toHaveAttribute("viewBox", "0 0 100 100");
+		fireEvent.wheel(map, { deltaY: -100 });
+		expect(map).toHaveAttribute("viewBox", "10 10 80 80");
+		fireEvent.click(screen.getByRole("button", { name: "Xem toàn tuyến" }));
+		expect(map).toHaveAttribute("viewBox", "0 0 100 100");
+	});
+
+	it("allows dragging the read-only map without changing checkpoint locations", () => {
+		vi.stubGlobal("PointerEvent", MouseEvent);
+		try {
+			const onSelect = vi.fn();
+			render(
+				<RouteCheckpointMap
+					geometry={geometry}
+					checkpoints={[]}
+					radiusMeters={0}
+					disabled
+					onSelectLocation={onSelect}
+				/>
+			);
+			const map = screen.getByLabelText("Bản đồ tuyến trekking");
+			vi.spyOn(map, "getBoundingClientRect").mockReturnValue({
+				left: 0,
+				top: 0,
+				width: 100,
+				height: 100,
+				right: 100,
+				bottom: 100,
+				x: 0,
+				y: 0,
+				toJSON: () => ({}),
+			});
+			fireEvent.pointerDown(map, { button: 0, clientX: 50, clientY: 50 });
+			fireEvent.pointerMove(map, { clientX: 60, clientY: 65 });
+			fireEvent.pointerUp(map);
+			expect(map).toHaveAttribute("viewBox", "-10 -15 100 100");
+			expect(onSelect).not.toHaveBeenCalled();
+		} finally {
+			vi.unstubAllGlobals();
+		}
+	});
 	it("selects a canonical Point and renders a geodesic radius area", () => {
 		const onSelect = vi.fn();
 		render(
@@ -91,7 +148,7 @@ describe("RouteCheckpointMap fallback", () => {
 		);
 		expect(screen.getByTestId("checkpoint-marker-1")).toHaveTextContent("1");
 		expect(screen.getByTestId("checkpoint-marker-2")).toHaveTextContent("2");
-		fireEvent.click(screen.getByLabelText("Bản đồ chọn điểm dừng"));
+		fireEvent.click(screen.getByLabelText("Bản đồ tuyến trekking"));
 		expect(onSelect).not.toHaveBeenCalled();
 	});
 

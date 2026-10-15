@@ -1,6 +1,7 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { Map as MapLibreMap, Marker } from "maplibre-gl";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useMapViewport } from "../hooks/useMapViewport";
 import type {
 	GeoJsonLineString,
 	GeoJsonPoint,
@@ -40,6 +41,8 @@ interface Props {
 }
 
 const severityColors = { low: "#ca8a04", medium: "#ea580c", high: "#dc2626" } as const;
+const EMPTY_DANGER_ZONES: RouteDangerZone[] = [];
+const EMPTY_VERTICES: Position[] = [];
 const severityLabels: Record<RouteDangerZoneSeverity, string> = {
 	low: "thấp",
 	medium: "trung bình",
@@ -61,13 +64,13 @@ function fitRoute(map: MapLibreMap, coordinates: Position[]): void {
 export function RouteCheckpointMap({
 	geometry,
 	checkpoints,
-	dangerZones = [],
+	dangerZones = EMPTY_DANGER_ZONES,
 	mode = "checkpoint",
 	selectedLocation,
 	radiusMeters,
 	proposedHazard,
 	proposedHazardRadiusMeters = 0,
-	polygonVertices = [],
+	polygonVertices = EMPTY_VERTICES,
 	disabled,
 	onSelectLocation,
 }: Props) {
@@ -80,6 +83,7 @@ export function RouteCheckpointMap({
 	const [mapReady, setMapReady] = useState(false);
 	const styleUrl = getRouteMapStyleUrl(import.meta.env.VITE_MAPTILER_API_KEY as string | undefined);
 	const useFallback = !styleUrl || Boolean(mapError);
+	const viewport = useMapViewport(useFallback, Boolean(disabled));
 	const safetyPositions = useMemo(
 		() => [
 			...geometry.coordinates,
@@ -147,8 +151,9 @@ export function RouteCheckpointMap({
 		}),
 		[polygonVertices]
 	);
-	const mapLabel =
-		mode === "checkpoint"
+	const mapLabel = disabled
+		? "Bản đồ tuyến trekking"
+		: mode === "checkpoint"
 			? "Bản đồ chọn điểm dừng"
 			: mode === "hazard-point"
 				? "Bản đồ chọn điểm nguy hiểm"
@@ -297,7 +302,6 @@ export function RouteCheckpointMap({
 			| { setData?: (data: object) => void }
 			| undefined;
 		draftPolygonSource?.setData?.(draftPolygonFeature);
-		fitRoute(map, safetyPositions);
 		for (const marker of markersRef.current) marker.remove();
 		markersRef.current = [];
 		void import("maplibre-gl").then(({ Marker: MapMarker }) => {
@@ -389,7 +393,6 @@ export function RouteCheckpointMap({
 		persistedHazards,
 		polygonVertices,
 		proposedHazardFeature,
-		safetyPositions,
 		selectedCircle,
 		selectedLocation,
 	]);
@@ -403,17 +406,18 @@ export function RouteCheckpointMap({
 		>
 			{useFallback && (
 				<svg
+					ref={viewport.svgRef}
 					aria-label={mapLabel}
-					viewBox="0 0 100 100"
-					className={`absolute inset-0 h-full w-full ${disabled ? "cursor-not-allowed" : "cursor-crosshair"}`}
+					viewBox={viewport.viewBox}
+					className={`absolute inset-0 h-full w-full ${disabled ? "touch-none cursor-grab active:cursor-grabbing" : "cursor-crosshair"}`}
 					role="img"
+					onPointerDown={viewport.onPointerDown}
+					onPointerMove={viewport.onPointerMove}
+					onPointerUp={viewport.onPointerUp}
+					onPointerCancel={viewport.onPointerCancel}
 					onClick={(event) => {
 						if (disabled) return;
-						const rect = event.currentTarget.getBoundingClientRect();
-						const percent: Position = [
-							((event.clientX - rect.left) / rect.width) * 100,
-							((event.clientY - rect.top) / rect.height) * 100,
-						];
+						const percent = viewport.toMapPoint(event.clientX, event.clientY);
 						onSelectLocation({ type: "Point", coordinates: percentToCoordinate(percent, bounds) });
 					}}
 				>
@@ -580,13 +584,49 @@ export function RouteCheckpointMap({
 					})}
 				</svg>
 			)}
+			<div
+				className={`absolute right-3 z-10 flex flex-col gap-1 ${useFallback ? "top-3" : "top-24"}`}
+			>
+				{useFallback && (
+					<>
+						<button
+							type="button"
+							aria-label="Phóng to bản đồ"
+							onClick={viewport.zoomIn}
+							className="rounded-lg bg-white px-3 py-2 font-bold shadow"
+						>
+							+
+						</button>
+						<button
+							type="button"
+							aria-label="Thu nhỏ bản đồ"
+							onClick={viewport.zoomOut}
+							className="rounded-lg bg-white px-3 py-2 font-bold shadow"
+						>
+							−
+						</button>
+					</>
+				)}
+				<button
+					type="button"
+					onClick={() => {
+						if (useFallback) viewport.reset();
+						else if (mapRef.current) fitRoute(mapRef.current, safetyPositions);
+					}}
+					className="rounded-lg bg-white px-3 py-2 text-xs font-bold shadow"
+				>
+					Xem toàn tuyến
+				</button>
+			</div>
 			{!styleUrl && (
 				<span className="absolute top-3 left-3 rounded-lg bg-white/90 px-3 py-2 text-xs font-bold">
-					{mode === "checkpoint"
-						? "Nhấp trên bản đồ để chọn vị trí điểm dừng."
-						: mode === "hazard-point"
-							? "Nhấp trên bản đồ để chọn tâm vùng nguy hiểm."
-							: "Nhấp liên tiếp để thêm các đỉnh đa giác."}
+					{disabled
+						? "Sơ đồ tuyến trekking · Bản đồ nền chưa khả dụng"
+						: mode === "checkpoint"
+							? "Nhấp trên bản đồ để chọn vị trí điểm dừng."
+							: mode === "hazard-point"
+								? "Nhấp trên bản đồ để chọn tâm vùng nguy hiểm."
+								: "Nhấp liên tiếp để thêm các đỉnh đa giác."}
 				</span>
 			)}
 			{mapError && (

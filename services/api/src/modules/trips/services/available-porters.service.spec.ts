@@ -1,8 +1,12 @@
 import { ConflictException, ForbiddenException, NotFoundException } from "@nestjs/common";
 import { IntendedPorterRole } from "../dto/available-porters-query.dto";
+import { TripStatus } from "../entities/trip.entity";
 import type { AvailablePortersRepository } from "../repositories/available-porters.repository";
 import type { PorterScheduleConflictSource } from "../repositories/porter-schedule-conflict-source";
-import type { TripsRepository } from "../repositories/trips.repository";
+import type {
+	PorterAvailabilityTripContext,
+	TripsRepository,
+} from "../repositories/trips.repository";
 import { AvailablePortersService } from "./available-porters.service";
 
 const HOST_ID = "11111111-1111-4111-8111-111111111111";
@@ -19,6 +23,7 @@ describe("AvailablePortersService", () => {
 	let service: AvailablePortersService;
 
 	beforeEach(() => {
+		jest.useFakeTimers().setSystemTime(new Date("2035-01-01T00:00:00.000Z"));
 		tripsRepository = {
 			findPorterAvailabilityContext: jest.fn().mockResolvedValue({
 				id: TRIP_ID,
@@ -26,7 +31,9 @@ describe("AvailablePortersService", () => {
 				routeId: ROUTE_ID,
 				startsAt: STARTS_AT,
 				endsAt: ENDS_AT,
-			}),
+				status: TripStatus.PUBLISHED,
+				hasActivePorter: false,
+			} satisfies PorterAvailabilityTripContext),
 		};
 		availablePortersRepository = {
 			findEligibleCandidates: jest.fn().mockResolvedValue({ items: [], total: 0 }),
@@ -40,6 +47,8 @@ describe("AvailablePortersService", () => {
 			scheduleConflictSource as unknown as PorterScheduleConflictSource
 		);
 	});
+
+	afterEach(() => jest.useRealTimers());
 
 	it("searches an owned Trip with reusable eligibility inputs and pagination", async () => {
 		availablePortersRepository.findEligibleCandidates.mockResolvedValue({

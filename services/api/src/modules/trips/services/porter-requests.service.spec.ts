@@ -4,9 +4,13 @@ import type { DataSource, EntityManager } from "typeorm";
 import type { EventsGateway } from "../../realtime/events.gateway";
 import { IntendedPorterRole } from "../dto/available-porters-query.dto";
 import { type PorterRequest, PorterRequestStatus } from "../entities/porter-request.entity";
+import { TripStatus } from "../entities/trip.entity";
 import type { CreatePendingPorterRequestInput } from "../repositories/porter-requests.repository";
 import type { PorterRequestsRepository } from "../repositories/porter-requests.repository";
-import type { TripsRepository } from "../repositories/trips.repository";
+import type {
+	PorterAvailabilityTripContext,
+	TripsRepository,
+} from "../repositories/trips.repository";
 import { PorterRequestsService } from "./porter-requests.service";
 
 const HOST_ID = "11111111-1111-4111-8111-111111111111";
@@ -40,6 +44,7 @@ describe("PorterRequestsService", () => {
 	let manager: { withRepository: jest.Mock; query: jest.Mock };
 	let tripsRepository: { findPorterAvailabilityContext: jest.Mock };
 	let porterRequestsRepository: {
+		hasActiveAssignmentForTrip: jest.Mock;
 		createPendingIdempotent: jest.Mock;
 		findPendingByTripAndPorter: jest.Mock;
 	};
@@ -57,9 +62,12 @@ describe("PorterRequestsService", () => {
 				routeId: ROUTE_ID,
 				startsAt: STARTS_AT,
 				endsAt: ENDS_AT,
-			}),
+				status: TripStatus.PUBLISHED,
+				hasActivePorter: false,
+			} satisfies PorterAvailabilityTripContext),
 		};
 		porterRequestsRepository = {
+			hasActiveAssignmentForTrip: jest.fn().mockResolvedValue(false),
 			createPendingIdempotent: jest.fn().mockResolvedValue({
 				request: buildRequest(),
 				created: true,
