@@ -71,4 +71,15 @@ export class EventsGateway implements OnGatewayConnection {
 	}) {
 		this.server?.emit("porter.request.created", payload);
 	}
+
+	emitPorterRequestStateChanged(payload: {
+		requestId: string;
+		tripId: string;
+		porterId: string;
+		requestedBy: string;
+		status: string;
+		respondedAt: string | null;
+	}) {
+		this.server?.emit("porter.request.state_changed", payload);
+	}
 }

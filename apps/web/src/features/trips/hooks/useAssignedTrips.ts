@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { HttpError } from "../../../core/api";
+import { useQuery } from "@tanstack/react-query";
+import { HttpError, queryKeys } from "../../../core/api";
 import { tripsService } from "../services/trips.service";
 import type { PorterAssignedTrip } from "../types";
 
@@ -16,35 +16,17 @@ const loadAssignedTripsFromService = () => tripsService.getAssignedTrips();
 export function useAssignedTrips(
 	loadAssignedTrips: () => Promise<PorterAssignedTrip[]> = loadAssignedTripsFromService
 ) {
-	const [trips, setTrips] = useState<PorterAssignedTrip[]>([]);
-	const [isLoading, setIsLoading] = useState(true);
-	const [error, setError] = useState<string | null>(null);
-	const generation = useRef(0);
+	const query = useQuery<PorterAssignedTrip[], unknown>({
+		queryKey: queryKeys.trips.assigned,
+		queryFn: loadAssignedTrips,
+		retry: false,
+		staleTime: 15_000,
+	});
 
-	const refetch = useCallback(async () => {
-		const attempt = generation.current;
-		setIsLoading(true);
-		setError(null);
-		try {
-			const response = await loadAssignedTrips();
-			if (attempt !== generation.current) return null;
-			setTrips(response);
-			return response;
-		} catch (requestError) {
-			if (attempt === generation.current) setError(assignedTripsError(requestError));
-			return null;
-		} finally {
-			if (attempt === generation.current) setIsLoading(false);
-		}
-	}, [loadAssignedTrips]);
-
-	useEffect(() => {
-		generation.current += 1;
-		void refetch();
-		return () => {
-			generation.current += 1;
-		};
-	}, [refetch]);
-
-	return { trips, isLoading, error, refetch };
+	return {
+		trips: query.data ?? [],
+		isLoading: query.isLoading,
+		error: query.error ? assignedTripsError(query.error) : null,
+		refetch: query.refetch,
+	};
 }
