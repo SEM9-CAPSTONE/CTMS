@@ -18,8 +18,10 @@ import { useConfigureTripWaypoints } from "../hooks/useConfigureTripWaypoints";
 import {
 	type ConfigureTripWaypointsFormValues,
 	createConfigureTripWaypointsSchema,
+	toConfigureTripWaypointFormItem,
 	toConfigureTripWaypointsDefaultValues,
-	toConfigureTripWaypointsInput,
+	toCreateTripWaypointInput,
+	validateWaypointForSave,
 } from "../schema/configure-trip-waypoints.schema";
 import { type Trip, type TripWaypointType, formatTripStatus } from "../types";
 import { SoftSingleDateTimePicker } from "./TripDateTimePicker";
@@ -54,6 +56,7 @@ function toNewWaypoint(
 	type: TripWaypointType
 ): ConfigureTripWaypointsFormValues["waypoints"][number] {
 	return {
+		id: "",
 		checkpointId: "",
 		type,
 		name: "",
@@ -75,7 +78,21 @@ function waypointListError(values: ConfigureTripWaypointsFormValues): string {
 }
 
 function canConfigure(status: Trip["status"]): boolean {
-	return status === "draft" || status === "pending_approval";
+	return status === "draft";
+}
+
+type WaypointFormItem = ConfigureTripWaypointsFormValues["waypoints"][number];
+
+function sameWaypoint(first: WaypointFormItem, second: WaypointFormItem): boolean {
+	return (
+		first.type === second.type &&
+		first.name === second.name &&
+		first.longitude === second.longitude &&
+		first.latitude === second.latitude &&
+		first.routeOrder === second.routeOrder &&
+		first.plannedAt === second.plannedAt &&
+		first.checkpointId === second.checkpointId
+	);
 }
 
 function formatPosition(longitude: string, latitude: string): string {
@@ -139,7 +156,18 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 	const configuration = useConfigureTripWaypoints(trip.id);
 	const [activeWaypointIndex, setActiveWaypointIndex] = useState(0);
 	const [waypointFormIndex, setWaypointFormIndex] = useState<number | null>(null);
+	const [saveError, setSaveError] = useState<string | null>(null);
 	const serverTrip = configuration.configuredTrip ?? trip;
+	const savedWaypoints = useMemo(
+		() =>
+			new Map(
+				serverTrip.waypoints.map((waypoint) => [
+					waypoint.id,
+					toConfigureTripWaypointFormItem(waypoint, serverTrip.waypoints.length),
+				])
+			),
+		[serverTrip]
+	);
 	const isBlocked = !canConfigure(serverTrip.status);
 	const isPendingSuccess = serverTrip.status === "pending_approval";
 	const schema = useMemo(() => createConfigureTripWaypointsSchema(serverTrip), [serverTrip]);
@@ -149,7 +177,6 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 	);
 	const {
 		control,
-		register,
 		handleSubmit,
 		setError,
 		setValue,
@@ -178,43 +205,18 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 		errors.waypoints?.message ||
 		errors.waypoints?.root?.message ||
 		waypointListError(currentValues);
-	const submitDisabled = configuration.isSubmitting || isBlocked || fields.length < 2;
+	const isUnsaved = (waypoint: WaypointFormItem | undefined): boolean => {
+		if (!waypoint) return false;
+		const saved = waypoint.id ? savedWaypoints.get(waypoint.id) : undefined;
+		return !saved || !sameWaypoint(waypoint, saved);
+	};
+	const hasUnsavedChanges = currentValues.waypoints.some(isUnsaved);
+	const submitDisabled =
+		configuration.isSubmitting || isBlocked || fields.length < 2 || hasUnsavedChanges;
 
 	useEffect(() => {
 		reset(defaultValues);
 	}, [defaultValues, reset]);
-
-	useEffect(() => {
-		const routeCoordinates = route?.geometry.coordinates;
-		if (!routeCoordinates?.length) return;
-		const waypoints = getValues("waypoints");
-		const startIndex = waypoints.findIndex((waypoint) => waypoint.type === "start");
-		const finishIndex = waypoints.findIndex((waypoint) => waypoint.type === "finish");
-		const start = routeCoordinates[0];
-		const finish = routeCoordinates.at(-1);
-		if (startIndex >= 0 && start) {
-			setValue(`waypoints.${startIndex}.longitude`, String(start[0]), {
-				shouldValidate: true,
-			});
-			setValue(`waypoints.${startIndex}.latitude`, String(start[1]), {
-				shouldValidate: true,
-			});
-			setValue(`waypoints.${startIndex}.routeOrder`, "0", {
-				shouldValidate: true,
-			});
-		}
-		if (finishIndex >= 0 && finish) {
-			setValue(`waypoints.${finishIndex}.longitude`, String(finish[0]), {
-				shouldValidate: true,
-			});
-			setValue(`waypoints.${finishIndex}.latitude`, String(finish[1]), {
-				shouldValidate: true,
-			});
-			setValue(`waypoints.${finishIndex}.routeOrder`, "1", {
-				shouldValidate: true,
-			});
-		}
-	}, [getValues, route?.geometry.coordinates, setValue]);
 
 	useEffect(() => {
 		if (!configuration.error) return;
@@ -225,9 +227,66 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 		}
 	}, [configuration.error, setError]);
 
+	/** Drops unsaved edits of a waypoint; returns true when a never-saved waypoint was removed. */
+	const revertWaypoint = (index: number): boolean => {
+		const waypoint = getValues(`waypoints.${index}`);
+		if (!waypoint || !isUnsaved(waypoint)) return false;
+		const saved = waypoint.id ? savedWaypoints.get(waypoint.id) : undefined;
+		if (saved) {
+			setValue(`waypoints.${index}`, saved, { shouldValidate: true });
+			return false;
+		}
+		remove(index);
+		return true;
+	};
+
+	const closeWaypointForm = () => {
+		if (waypointFormIndex !== null) revertWaypoint(waypointFormIndex);
+		setSaveError(null);
+		setWaypointFormIndex(null);
+	};
+
 	const openWaypointForm = (index: number) => {
-		setActiveWaypointIndex(index);
-		setWaypointFormIndex(index);
+		let target = index;
+		if (waypointFormIndex !== null && waypointFormIndex !== index) {
+			const removed = revertWaypoint(waypointFormIndex);
+			if (removed && waypointFormIndex < index) target = index - 1;
+		}
+		setSaveError(null);
+		setActiveWaypointIndex(target);
+		setWaypointFormIndex(target);
+	};
+
+	const saveActiveWaypoint = async () => {
+		if (waypointFormIndex === null) return;
+		const waypoints = getValues("waypoints");
+		const problem = validateWaypointForSave(waypoints, waypointFormIndex, serverTrip);
+		if (problem) {
+			setSaveError(problem);
+			return;
+		}
+		const waypoint = waypoints[waypointFormIndex];
+		const saved = await configuration.saveWaypoint(
+			waypoint.id || null,
+			toCreateTripWaypointInput(waypoint)
+		);
+		if (saved) {
+			setSaveError(null);
+			setWaypointFormIndex(null);
+		}
+	};
+
+	const deleteActiveWaypoint = async () => {
+		if (waypointFormIndex === null) return;
+		const waypoint = getValues(`waypoints.${waypointFormIndex}`);
+		if (!waypoint?.id) {
+			remove(waypointFormIndex);
+		} else if (!(await configuration.deleteWaypoint(waypoint.id))) {
+			return;
+		}
+		setActiveWaypointIndex(Math.max(0, waypointFormIndex - 1));
+		setSaveError(null);
+		setWaypointFormIndex(null);
 	};
 
 	const findRouteInsertIndex = (routeOrder: number) => {
@@ -246,8 +305,7 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 			(waypoint) => !isFixedEndpoint(waypoint.type) && Number(waypoint.routeOrder) === routeOrder
 		);
 		if (existingIndex >= 0 && waypointFormIndex !== existingIndex) {
-			setActiveWaypointIndex(existingIndex);
-			setWaypointFormIndex(existingIndex);
+			openWaypointForm(existingIndex);
 			return;
 		}
 
@@ -274,6 +332,10 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 			return;
 		}
 
+		if (waypointFormIndex !== null && revertWaypoint(waypointFormIndex)) {
+			setWaypointFormIndex(null);
+			return;
+		}
 		const type: TripWaypointType = serverTrip.tripType === "overnight" ? "overnight" : "rest";
 		const insertIndex = findRouteInsertIndex(routeOrder);
 		insert(insertIndex, {
@@ -312,6 +374,15 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 
 	const activeEditorWaypoint =
 		waypointFormIndex !== null ? currentValues.waypoints[waypointFormIndex] : null;
+	// Editor inputs are controlled so removing the edited waypoint cannot leak their DOM values
+	// into the waypoint that shifts into its index.
+	const updateActiveField = (field: "type" | "name" | "plannedAt", value: string) => {
+		if (waypointFormIndex === null) return;
+		const options = { shouldDirty: true, shouldValidate: true };
+		if (field === "type")
+			setValue(`waypoints.${waypointFormIndex}.type`, value as TripWaypointType, options);
+		else setValue(`waypoints.${waypointFormIndex}.${field}`, value, options);
+	};
 	const activeEditorLocked = activeEditorWaypoint
 		? isFixedEndpoint(activeEditorWaypoint.type)
 		: false;
@@ -330,7 +401,7 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 					<button
 						type="button"
 						aria-label="Đóng form điểm dừng"
-						onClick={() => setWaypointFormIndex(null)}
+						onClick={closeWaypointForm}
 						className="rounded-lg border border-[#dce8dd] p-1.5 text-[#34483b]"
 					>
 						<X className="size-4" />
@@ -351,13 +422,16 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 								aria-label={`Điểm dừng ${waypointFormIndex + 1}`}
 								disabled={configuration.isSubmitting}
 								className={inputClass}
-								{...register(`waypoints.${waypointFormIndex}.type`)}
+								value={activeEditorWaypoint.type}
+								onChange={(event) => updateActiveField("type", event.target.value)}
 							>
-								{editableWaypointTypes.map((type) => (
-									<option key={type} value={type}>
-										{waypointTypeLabels[type]}
-									</option>
-								))}
+								{editableWaypointTypes
+									.filter((type) => type !== "overnight" || serverTrip.tripType === "overnight")
+									.map((type) => (
+										<option key={type} value={type}>
+											{waypointTypeLabels[type]}
+										</option>
+									))}
 							</select>
 						</label>
 					)}
@@ -369,7 +443,8 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 							maxLength={150}
 							placeholder="Nhập mô tả"
 							className={inputClass}
-							{...register(`waypoints.${waypointFormIndex}.name`)}
+							value={activeEditorWaypoint.name}
+							onChange={(event) => updateActiveField("name", event.target.value)}
 						/>
 						{errors.waypoints?.[waypointFormIndex]?.name && (
 							<span className="mt-1 block text-xs text-red-600">
@@ -400,18 +475,20 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 							max={toDateTimeLocalValue(serverTrip.endsAt)}
 							disabled={configuration.isSubmitting}
 							className="sr-only"
-							{...register(`waypoints.${waypointFormIndex}.plannedAt`)}
+							value={activeEditorWaypoint.plannedAt}
+							onChange={(event) => updateActiveField("plannedAt", event.target.value)}
 						/>
 					</div>
 				</div>
+				{saveError && (
+					<p role="alert" className="mt-3 text-xs font-semibold text-red-600">
+						{saveError}
+					</p>
+				)}
 				<div className="mt-3 flex justify-between gap-2">
 					<button
 						type="button"
-						onClick={() => {
-							remove(waypointFormIndex);
-							setActiveWaypointIndex(Math.max(0, waypointFormIndex - 1));
-							setWaypointFormIndex(null);
-						}}
+						onClick={() => void deleteActiveWaypoint()}
 						disabled={configuration.isSubmitting || fields.length <= 2 || activeEditorLocked}
 						className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm font-bold text-red-700 disabled:opacity-50"
 					>
@@ -420,10 +497,12 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 					</button>
 					<button
 						type="button"
-						onClick={() => setWaypointFormIndex(null)}
-						className="rounded-lg bg-[#164027] px-3 py-2 text-sm font-bold text-white"
+						onClick={() => void saveActiveWaypoint()}
+						disabled={configuration.isSubmitting || !isUnsaved(activeEditorWaypoint)}
+						className="inline-flex items-center gap-2 rounded-lg bg-[#164027] px-3 py-2 text-sm font-bold text-white disabled:opacity-50"
 					>
-						Xong
+						{configuration.isSubmitting && <Loader2 className="size-4 animate-spin" />}
+						{activeEditorWaypoint.id ? "Lưu thay đổi" : "Lưu điểm dừng"}
 					</button>
 				</div>
 				{!activeEditorLocked && (
@@ -434,8 +513,7 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 			</div>
 		) : null;
 
-	const submitForm = (values: ConfigureTripWaypointsFormValues) =>
-		configuration.submit(toConfigureTripWaypointsInput(values));
+	const submitForm = () => configuration.submit();
 
 	return (
 		<section className="mt-6 rounded-2xl border border-[#dce8dd] bg-white p-5 shadow-sm">
@@ -504,17 +582,6 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 				<div className="rounded-2xl border border-[#dce8dd] bg-[#f8faf7] p-4">
 					<h3 className="font-extrabold text-[#10221b]">Lịch trình dự kiến</h3>
 					<div className="mt-3 grid gap-2">
-						{fields.map((field, index) => (
-							<div key={field.id} className="hidden">
-								<input type="hidden" {...register(`waypoints.${index}.checkpointId`)} />
-								<input type="hidden" {...register(`waypoints.${index}.longitude`)} />
-								<input type="hidden" {...register(`waypoints.${index}.latitude`)} />
-								<input type="hidden" {...register(`waypoints.${index}.routeOrder`)} />
-								<input type="hidden" {...register(`waypoints.${index}.type`)} />
-								<input type="hidden" {...register(`waypoints.${index}.name`)} />
-								<input type="hidden" {...register(`waypoints.${index}.plannedAt`)} />
-							</div>
-						))}
 						{timelineItems.map((waypoint, displayIndex) => (
 							<button
 								key={`${waypoint.index}-${waypoint.type}`}
@@ -534,6 +601,11 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 								<span>
 									<b>{waypointTypeLabels[waypoint.type]}</b>
 									{waypoint.name ? ` - ${waypoint.name}` : ""}
+									{isUnsaved(waypoint) && (
+										<span className="ml-2 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-800 ring-1 ring-amber-200">
+											Chưa lưu
+										</span>
+									)}
 								</span>
 								<span className="sr-only">Điểm {displayIndex + 1} trên tuyến</span>
 							</button>
@@ -566,7 +638,12 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 					<ConfigureErrorAlert error={configuration.error} onRetry={configuration.retry} />
 				)}
 
-				<div className="flex flex-col gap-3 sm:flex-row sm:justify-between">
+				<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+					<p className="text-xs font-semibold text-[#667a6d]">
+						{hasUnsavedChanges
+							? "Còn điểm dừng chưa lưu. Hãy lưu hoặc đóng điểm đó trước khi gửi duyệt."
+							: "Các điểm dừng đã lưu vào chuyến đi và có thể thêm, sửa, xóa trước khi gửi duyệt."}
+					</p>
 					<button
 						type="submit"
 						disabled={submitDisabled}

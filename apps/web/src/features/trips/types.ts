@@ -1,4 +1,10 @@
-import type { GeoJsonPoint } from "../trekking-routes/types";
+import type {
+	GeoJsonLineString,
+	GeoJsonPoint,
+	RouteCheckpoint,
+	RouteDangerZone,
+	RouteStatus,
+} from "../trekking-routes/types";
 
 export const TRIP_TYPES = ["day_trip", "overnight"] as const;
 export type TripType = (typeof TRIP_TYPES)[number];
@@ -43,6 +49,7 @@ export interface CreateTripWaypointInput {
 	name: string;
 	location: GeoJsonPoint;
 	plannedAt: string;
+	metadata?: Record<string, unknown>;
 }
 
 export interface ConfigureTripWaypointsInput {
@@ -312,6 +319,58 @@ export interface PorterAssignedTrip {
 	status: TripStatus;
 	startsAt: string;
 	endsAt: string;
+	routeName: string | null;
+}
+
+export interface PorterTripWaypoint {
+	id: string;
+	name: string;
+	type: "start" | "checkpoint" | "rest" | "meal" | "activity" | "overnight" | "finish";
+	dayNumber: number;
+	sequenceOrder: number;
+	plannedAt: string | null;
+	durationMinutes: number | null;
+	location: GeoJsonPoint;
+}
+
+export interface PorterTripOperations extends PorterAssignedTrip {
+	assignmentStatus: "assigned";
+	updatedAt: string;
+	retrievedAt: string;
+	meetingAt: string | null;
+	meetingPoint: GeoJsonPoint | null;
+	meetingPointName: string | null;
+	waypoints: PorterTripWaypoint[];
+	route: {
+		id: string;
+		name: string;
+		status: RouteStatus;
+		geometry: GeoJsonLineString;
+		updatedAt: string;
+		checkpoints: RouteCheckpoint[];
+		dangerZones: RouteDangerZone[];
+	} | null;
+	members: Array<{
+		memberId: string;
+		displayName: string | null;
+		memberStatus: "registered" | "joined" | "no_show" | "left";
+	}>;
+	weather: {
+		availability: "recorded" | "stale" | "unavailable";
+		maxAgeMinutes: number;
+		record: {
+			status: "success" | "failed";
+			observedAt: string | null;
+			fetchedAt: string;
+			rainfallMm: number | null;
+			windKph: number | null;
+			temperatureC: number | null;
+			visibilityM: number | null;
+			thunderstorm: boolean | null;
+			riskLevel: RiskLevel | null;
+		} | null;
+	};
+	offlinePackage: { status: "unavailable"; downloadedAt: null };
 }
 
 export type TripPorterAssignmentStatus = "assigned" | "pending_reconfirmation" | "unassigned";

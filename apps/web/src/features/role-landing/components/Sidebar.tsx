@@ -1,4 +1,5 @@
 import { Clock, Send, Users, X } from "lucide-react";
+import { RoutePath } from "../../../routes/routes.config";
 import { HomeLink } from "../../../shared/components/HomeLink";
 import { LogoutActions } from "../../auth/components/LogoutActions";
 import type { CamperProfileData } from "../../camper-profile/types";
@@ -128,19 +129,24 @@ export function Sidebar({
 						const isPathPorterRequests =
 							typeof window !== "undefined" &&
 							window.location.pathname.startsWith("/porter/requests");
+						const isPathPorterAssignments =
+							window.location.pathname === RoutePath.PORTER_ASSIGNMENTS ||
+							window.location.pathname.startsWith(`${RoutePath.PORTER_ASSIGNMENTS}/`);
 						const isActive =
 							(item.key === "explore" && isPathTrips) ||
 							(item.key === "overview" && isPathDashboard) ||
 							(item.key === "equipment" && isPathEquipment) ||
 							(item.key === "wallet" && isPathWallet) ||
 							(item.key === "porters" && isPathPorter) ||
-							(item.key === "requests" && isPathPorterRequests);
+							(item.key === "requests" && isPathPorterRequests) ||
+							(item.key === "assignments" && activeRole === "porter" && isPathPorterAssignments);
 
 						return (
 							<div key={item.key}>
 								<button
 									type="button"
 									disabled={item.disabled}
+									aria-current={isActive ? "page" : undefined}
 									onClick={() => {
 										if (item.key === "overview") {
 											navigate("/dashboard");
@@ -167,6 +173,9 @@ export function Sidebar({
 											navigate("/host/porter?view=find");
 										} else if (item.key === "requests") {
 											navigate("/porter/requests");
+										} else if (item.key === "assignments" && activeRole === "porter") {
+											navigate(RoutePath.PORTER_ASSIGNMENTS);
+											onClose?.();
 										} else if (item.key === "profile") {
 											if (activeRole === "porter") {
 												navigate("/porter/profile");

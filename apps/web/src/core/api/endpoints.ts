@@ -62,6 +62,7 @@ export const API_ENDPOINTS = {
 		GET_PORTER_CANDIDATES: "/trips/porter-candidates",
 		GET_PORTER_ASSIGNMENTS: "/trips/porter-assignments",
 		GET_ASSIGNED: "/trips/assigned",
+		ASSIGNED_OPERATIONS: (tripId: string) => `/trips/assigned/${tripId}`,
 		MY_PORTER_REQUESTS: "/trips/porter-requests/mine",
 		HOST_PORTER_REQUESTS: "/trips/porter-requests/host",
 		ACCEPT_PORTER_REQUEST: (requestId: string) => `/trips/porter-requests/${requestId}/accept`,
@@ -75,6 +76,9 @@ export const API_ENDPOINTS = {
 		CREATE: "/trips",
 		UPDATE: (id: string) => `/trips/${id}`,
 		CONFIGURE_WAYPOINTS: (tripId: string) => `/trips/${tripId}/waypoints`,
+		WAYPOINTS: (tripId: string) => `/trips/${tripId}/waypoints`,
+		WAYPOINT: (tripId: string, waypointId: string) => `/trips/${tripId}/waypoints/${waypointId}`,
+		SUBMIT_FOR_APPROVAL: (tripId: string) => `/trips/${tripId}/submit`,
 		MEMBERS: (tripId: string) => `/trips/${tripId}/members`,
 		MEMBER_STATUS: (tripId: string, bookingId: string, memberId: string) =>
 			`/trips/${tripId}/bookings/${bookingId}/members/${memberId}/status`,

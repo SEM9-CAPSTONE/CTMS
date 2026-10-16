@@ -638,9 +638,14 @@ export function TripWaypointLocationMap({
 								vectorEffect="non-scaling-stroke"
 							/>
 						</svg>
+						{/* Interactions inside the editor must not reach the map surface, which treats a
+						    click or Enter as picking a new route point for the active waypoint. */}
 						<div
+							role="presentation"
 							className="absolute z-50 w-[min(320px,calc(100%-2rem))] overflow-visible rounded-2xl border border-[#dce8dd] bg-white/95 p-4 text-[#10221b] shadow-2xl backdrop-blur"
 							style={editorPositionStyle}
+							onClick={(event) => event.stopPropagation()}
+							onKeyDown={(event) => event.stopPropagation()}
 						>
 							{editor}
 						</div>

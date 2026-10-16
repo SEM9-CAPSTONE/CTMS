@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import { HttpError } from "../../../core/api";
 import { tripsService } from "../services/trips.service";
-import type { ConfigureTripWaypointsInput, Trip } from "../types";
+import type { CreateTripWaypointInput, Trip } from "../types";
 
 export interface ConfigureTripWaypointsError {
 	status?: number;
@@ -80,52 +80,75 @@ export function mapConfigureTripWaypointsError(error: unknown): ConfigureTripWay
 	};
 }
 
+/**
+ * Persists a draft Trip's waypoints one at a time (create, update, delete) and submits the stored
+ * waypoints for approval. Every call returns the Trip as saved in the database.
+ */
 export function useConfigureTripWaypoints(tripId: string) {
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [error, setError] = useState<ConfigureTripWaypointsError | null>(null);
 	const [configuredTrip, setConfiguredTrip] = useState<Trip | null>(null);
 	const inFlight = useRef(false);
-	const lastPayload = useRef<ConfigureTripWaypointsInput | null>(null);
+	const lastAction = useRef<(() => Promise<Trip>) | null>(null);
 
-	const execute = useCallback(
-		async (payload: ConfigureTripWaypointsInput) => {
-			if (inFlight.current) return null;
-			inFlight.current = true;
-			setIsSubmitting(true);
-			setError(null);
-			try {
-				const updated = await tripsService.configureWaypoints(tripId, payload);
-				setConfiguredTrip(updated);
-				return updated;
-			} catch (requestError) {
-				setError(mapConfigureTripWaypointsError(requestError));
-				return null;
-			} finally {
-				inFlight.current = false;
-				setIsSubmitting(false);
-			}
-		},
-		[tripId]
+	const execute = useCallback(async (action: () => Promise<Trip>) => {
+		if (inFlight.current) return null;
+		lastAction.current = action;
+		inFlight.current = true;
+		setIsSubmitting(true);
+		setError(null);
+		try {
+			const updated = await action();
+			setConfiguredTrip(updated);
+			return updated;
+		} catch (requestError) {
+			setError(mapConfigureTripWaypointsError(requestError));
+			return null;
+		} finally {
+			inFlight.current = false;
+			setIsSubmitting(false);
+		}
+	}, []);
+
+	const saveWaypoint = useCallback(
+		(waypointId: string | null, input: CreateTripWaypointInput) =>
+			execute(() =>
+				waypointId
+					? tripsService.updateWaypoint(tripId, waypointId, input)
+					: tripsService.createWaypoint(tripId, input)
+			),
+		[execute, tripId]
+	);
+
+	const deleteWaypoint = useCallback(
+		(waypointId: string) => execute(() => tripsService.deleteWaypoint(tripId, waypointId)),
+		[execute, tripId]
 	);
 
 	const submit = useCallback(
-		(payload: ConfigureTripWaypointsInput) => {
-			lastPayload.current = payload;
-			return execute(payload);
-		},
-		[execute]
+		() => execute(() => tripsService.submitForApproval(tripId)),
+		[execute, tripId]
 	);
 
 	const retry = useCallback(
-		() => (lastPayload.current ? execute(lastPayload.current) : Promise.resolve(null)),
+		() => (lastAction.current ? execute(lastAction.current) : Promise.resolve(null)),
 		[execute]
 	);
 
 	const reset = useCallback(() => {
 		setConfiguredTrip(null);
 		setError(null);
-		lastPayload.current = null;
+		lastAction.current = null;
 	}, []);
 
-	return { isSubmitting, error, configuredTrip, submit, retry, reset };
+	return {
+		isSubmitting,
+		error,
+		configuredTrip,
+		saveWaypoint,
+		deleteWaypoint,
+		submit,
+		retry,
+		reset,
+	};
 }

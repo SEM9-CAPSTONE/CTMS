@@ -1,5 +1,10 @@
 import { z } from "zod";
-import type { ConfigureTripWaypointsInput, Trip, TripWaypointType } from "../types";
+import type {
+	ConfigureTripWaypointsInput,
+	CreateTripWaypointInput,
+	Trip,
+	TripWaypointType,
+} from "../types";
 import { TRIP_WAYPOINT_TYPES } from "../types";
 
 const coordinateMessage = "Tọa độ phải nằm trong phạm vi hợp lệ";
@@ -20,6 +25,8 @@ const waypointTypeFallbackNames: Record<TripWaypointType, string> = {
 };
 
 export interface ConfigureTripWaypointFormItem {
+	/** Database id; empty while the waypoint has not been saved yet. */
+	id: string;
 	checkpointId: string;
 	type: TripWaypointType;
 	name: string;
@@ -54,6 +61,7 @@ export function createConfigureTripWaypointsSchema(trip: Trip) {
 			waypoints: z
 				.array(
 					z.object({
+						id: z.string(),
 						checkpointId: z.string(),
 						type: z.enum(TRIP_WAYPOINT_TYPES),
 						name: z.string().trim().max(150),
@@ -175,21 +183,80 @@ function toDateTimeLocalValue(value: string | null): string {
 	return localDate.toISOString().slice(0, 16);
 }
 
+/** Position along the route (0 = start, 1 = finish) saved with the waypoint, if any. */
+function storedRouteOrder(waypoint: Trip["waypoints"][number], count: number): string {
+	const saved = waypoint.metadata?.routeOrder;
+	if (typeof saved === "string" && saved.trim()) return saved;
+	if (typeof saved === "number" && Number.isFinite(saved)) return String(saved);
+	if (waypoint.type === "start") return "0";
+	if (waypoint.type === "finish") return "1";
+	return String(Math.min(0.99, (waypoint.sequenceOrder - 1) / Math.max(1, count - 1)));
+}
+
+export function toConfigureTripWaypointFormItem(
+	waypoint: Trip["waypoints"][number],
+	count: number
+): ConfigureTripWaypointFormItem {
+	return {
+		id: waypoint.id,
+		checkpointId: waypoint.checkpointId ?? "",
+		type: waypoint.type,
+		name: waypoint.name,
+		longitude: String(waypoint.location.coordinates[0]),
+		latitude: String(waypoint.location.coordinates[1]),
+		routeOrder: storedRouteOrder(waypoint, count),
+		plannedAt: toDateTimeLocalValue(waypoint.plannedAt),
+	};
+}
+
 export function toConfigureTripWaypointsDefaultValues(
 	trip: Trip
 ): ConfigureTripWaypointsFormValues {
 	return {
 		waypoints: normalizeEndpointWaypoints(
-			trip.waypoints.map((waypoint) => ({
-				checkpointId: waypoint.checkpointId ?? "",
-				type: waypoint.type,
-				name: waypoint.name,
-				longitude: String(waypoint.location.coordinates[0]),
-				latitude: String(waypoint.location.coordinates[1]),
-				routeOrder: String(Math.max(0, waypoint.sequenceOrder - 1)),
-				plannedAt: toDateTimeLocalValue(waypoint.plannedAt),
-			}))
+			trip.waypoints.map((waypoint) =>
+				toConfigureTripWaypointFormItem(waypoint, trip.waypoints.length)
+			)
 		),
+	};
+}
+
+/** Checks the fields of one waypoint before it is saved on its own. */
+export function validateWaypointForSave(
+	waypoints: ConfigureTripWaypointFormItem[],
+	index: number,
+	trip: Pick<Trip, "startsAt" | "endsAt">
+): string | null {
+	const waypoint = waypoints[index];
+	if (!waypoint) return "Không tìm thấy điểm dừng.";
+	if (!waypoint.longitude?.trim() || !waypoint.latitude?.trim())
+		return "Hãy chọn vị trí điểm dừng trên tuyến.";
+	if ((waypoint.name ?? "").trim().length > 150) return "Mô tả tối đa 150 ký tự.";
+	if (!waypoint.plannedAt) return "Thời gian điểm dừng là bắt buộc.";
+	const plannedAt = new Date(waypoint.plannedAt).getTime();
+	if (!Number.isFinite(plannedAt)) return "Thời gian điểm dừng chưa hợp lệ.";
+	if (plannedAt < new Date(trip.startsAt).getTime() || plannedAt > new Date(trip.endsAt).getTime())
+		return "Thời gian điểm dừng phải nằm trong lịch trình trip.";
+	const duplicate = waypoints.some(
+		(other, otherIndex) =>
+			otherIndex !== index && other.plannedAt && new Date(other.plannedAt).getTime() === plannedAt
+	);
+	return duplicate ? "Thời gian điểm dừng không được trùng trong cùng trip." : null;
+}
+
+export function toCreateTripWaypointInput(
+	waypoint: ConfigureTripWaypointFormItem
+): CreateTripWaypointInput {
+	return {
+		...(waypoint.checkpointId ? { checkpointId: waypoint.checkpointId } : {}),
+		type: waypoint.type,
+		name: waypoint.name.trim() || waypointTypeFallbackNames[waypoint.type],
+		location: {
+			type: "Point",
+			coordinates: [Number(waypoint.longitude), Number(waypoint.latitude)],
+		},
+		plannedAt: new Date(waypoint.plannedAt).toISOString(),
+		...(waypoint.routeOrder ? { metadata: { routeOrder: waypoint.routeOrder } } : {}),
 	};
 }
 

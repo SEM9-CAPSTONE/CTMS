@@ -8,10 +8,12 @@ import type {
 	ConfigureTripWaypointsInput,
 	CreatePorterRequestInput,
 	CreateTripInput,
+	CreateTripWaypointInput,
 	HostPorterAssignmentTrip,
 	PaginatedTrips,
 	PorterAssignedTrip,
 	PorterRequest,
+	PorterTripOperations,
 	RescheduleTripInput,
 	ReviewTripInput,
 	SearchTripsQuery,
@@ -26,6 +28,17 @@ export const tripsService = {
 		httpClient.patch<Trip>(API_ENDPOINTS.TRIPS.UPDATE(tripId), input),
 	configureWaypoints: (tripId: string, input: ConfigureTripWaypointsInput): Promise<Trip> =>
 		httpClient.patch<Trip>(API_ENDPOINTS.TRIPS.CONFIGURE_WAYPOINTS(tripId), input),
+	createWaypoint: (tripId: string, input: CreateTripWaypointInput): Promise<Trip> =>
+		httpClient.post<Trip>(API_ENDPOINTS.TRIPS.WAYPOINTS(tripId), input),
+	updateWaypoint: (
+		tripId: string,
+		waypointId: string,
+		input: CreateTripWaypointInput
+	): Promise<Trip> => httpClient.put<Trip>(API_ENDPOINTS.TRIPS.WAYPOINT(tripId, waypointId), input),
+	deleteWaypoint: (tripId: string, waypointId: string): Promise<Trip> =>
+		httpClient.delete<Trip>(API_ENDPOINTS.TRIPS.WAYPOINT(tripId, waypointId)),
+	submitForApproval: (tripId: string): Promise<Trip> =>
+		httpClient.post<Trip>(API_ENDPOINTS.TRIPS.SUBMIT_FOR_APPROVAL(tripId), {}),
 
 	listPendingReview: (): Promise<Trip[]> =>
 		httpClient.get<Trip[]>(API_ENDPOINTS.TRIPS.PENDING_REVIEW),
@@ -99,6 +112,8 @@ export const tripsService = {
 
 	getAssignedTrips: (): Promise<PorterAssignedTrip[]> =>
 		httpClient.get<PorterAssignedTrip[]>(API_ENDPOINTS.TRIPS.GET_ASSIGNED),
+	getAssignedTripOperations: (tripId: string): Promise<PorterTripOperations> =>
+		httpClient.get<PorterTripOperations>(API_ENDPOINTS.TRIPS.ASSIGNED_OPERATIONS(tripId)),
 
 	book: (input: BookTripInput, idempotencyKey: string): Promise<BookTripResponse> =>
 		httpClient.post<BookTripResponse>(API_ENDPOINTS.BOOKINGS.CREATE, input, {

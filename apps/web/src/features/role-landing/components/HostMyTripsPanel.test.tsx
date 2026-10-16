@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useMyTrips } from "../../trips/hooks/useMyTrips";
 import type { TripDetails } from "../../trips/types";
@@ -79,26 +79,12 @@ describe("HostMyTripsPanel", () => {
 		vi.useRealTimers();
 	});
 
-	it("filters past trips as completed and departed trips as ongoing", () => {
-		vi.setSystemTime(new Date("2026-10-15T00:00:00.000Z"));
+	it("groups trips by the status stored in the database", () => {
 		mockUseMyTrips.mockReturnValue({
 			trips: [
-				{ ...sampleTrip1, title: "Past trip" },
-				{
-					...sampleTrip1,
-					id: "started",
-					title: "Already started",
-					startsAt: "2026-10-15T07:00:00+07:00",
-					endsAt: "2026-10-15T14:00:00+07:00",
-				},
-				{
-					...sampleTrip1,
-					id: "future",
-					title: "Future trip",
-					startsAt: "2026-10-17T00:00:00.000Z",
-					endsAt: "2026-10-17T14:00:00.000Z",
-					bookingDeadline: "2026-10-16T00:00:00.000Z",
-				},
+				{ ...sampleTrip1, title: "Past trip", status: "completed" },
+				{ ...sampleTrip1, id: "started", title: "Already started", status: "ongoing" },
+				{ ...sampleTrip1, id: "future", title: "Future trip", status: "published" },
 			],
 			isLoading: false,
 			error: "",
@@ -114,25 +100,19 @@ describe("HostMyTripsPanel", () => {
 		fireEvent.click(screen.getByRole("button", { name: /Kết thúc\s*1/ }));
 		expect(screen.getByText("Past trip")).toBeInTheDocument();
 		expect(screen.queryByText("Already started")).not.toBeInTheDocument();
-		expect(screen.queryByText("Đã đóng đăng ký")).not.toBeInTheDocument();
 	});
 
-	it("advances from published to ongoing to completed while the page remains open", () => {
-		vi.setSystemTime(new Date("2026-10-01T05:59:59.000Z"));
+	it("does not derive a new status from the clock before the backend updates it", () => {
+		vi.setSystemTime(new Date("2030-01-01T00:00:00.000Z"));
 		mockUseMyTrips.mockReturnValue({
-			trips: [sampleTrip1],
+			trips: [{ ...sampleTrip1, status: "published" }],
 			isLoading: false,
 			error: "",
 			refetch: vi.fn(),
 		});
 		render(<HostMyTripsPanel />);
 		expect(screen.getByRole("button", { name: /Đang mở bán\s*1/ })).toBeInTheDocument();
-		act(() => vi.advanceTimersByTime(1000));
-		expect(screen.getByRole("button", { name: /Đang mở bán\s*0/ })).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: /Đang diễn ra\s*1/ })).toBeInTheDocument();
-		act(() => vi.advanceTimersByTime(8 * 60 * 60 * 1000));
-		expect(screen.getByRole("button", { name: /Đang diễn ra\s*0/ })).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: /Kết thúc\s*1/ })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: /Kết thúc\s*0/ })).toBeInTheDocument();
 	});
 
 	it("renders loading state", () => {

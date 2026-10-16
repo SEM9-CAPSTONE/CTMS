@@ -25,7 +25,7 @@ function trip(overrides: Partial<TripDetails> = {}): TripDetails {
 		remainingSeats: 7,
 		pricePerPerson: 100000,
 		cancellationPolicy: null,
-		status: "published",
+		status: "ongoing",
 		cancellationReason: null,
 		cancelledAt: null,
 		weatherRiskLevel: "red",
@@ -47,6 +47,7 @@ describe("buildHostOperationalOverview", () => {
 				trip({ id: "overnight", startsAt: "2026-10-14T20:00:00+07:00", seatsTaken: 2 }),
 				trip({
 					id: "yesterday",
+					status: "completed",
 					endsAt: "2026-10-15T00:00:00+07:00",
 					startsAt: "2026-10-14T08:00:00+07:00",
 				}),
@@ -102,6 +103,7 @@ describe("buildHostOperationalOverview", () => {
 				trip({ id: "yellow", weatherRiskLevel: "yellow" }),
 				trip({
 					id: "red",
+					status: "published",
 					startsAt: "2026-10-16T01:00:00+07:00",
 					endsAt: "2026-10-16T08:00:00+07:00",
 				}),
@@ -123,6 +125,7 @@ describe("buildHostOperationalOverview", () => {
 			[
 				trip({
 					weatherRiskLevel: "green",
+					status: "published",
 					startsAt: "2026-10-16T01:00:00+07:00",
 					endsAt: "2026-10-16T08:00:00+07:00",
 				}),

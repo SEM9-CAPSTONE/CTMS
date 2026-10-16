@@ -2,59 +2,87 @@ import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { HttpError } from "../../../core/api";
 import { tripsService } from "../services/trips.service";
-import type { ConfigureTripWaypointsInput } from "../types";
+import type { CreateTripWaypointInput } from "../types";
 import {
 	mapConfigureTripWaypointsError,
 	useConfigureTripWaypoints,
 } from "./useConfigureTripWaypoints";
 
 vi.mock("../services/trips.service", () => ({
-	tripsService: { configureWaypoints: vi.fn() },
+	tripsService: {
+		createWaypoint: vi.fn(),
+		updateWaypoint: vi.fn(),
+		deleteWaypoint: vi.fn(),
+		submitForApproval: vi.fn(),
+	},
 }));
 
 const tripId = "33333333-3333-4333-8333-333333333333";
-const payload: ConfigureTripWaypointsInput = {
-	waypoints: [
-		{
-			type: "start",
-			name: "Trailhead",
-			location: { type: "Point", coordinates: [108.22, 16.04] },
-			plannedAt: "2026-10-01T02:00:00.000Z",
-		},
-		{
-			type: "finish",
-			name: "Exit",
-			location: { type: "Point", coordinates: [108.25, 16.06] },
-			plannedAt: "2026-10-01T10:00:00.000Z",
-		},
-	],
+const waypointId = "44444444-4444-4444-8444-444444444444";
+const waypoint: CreateTripWaypointInput = {
+	type: "rest",
+	name: "Lunch",
+	location: { type: "Point", coordinates: [108.23, 16.05] },
+	plannedAt: "2026-10-01T05:00:00.000Z",
+	metadata: { routeOrder: "0.4" },
 };
+const savedTrip = { id: tripId, status: "draft", waypoints: [] } as never;
 
 describe("useConfigureTripWaypoints", () => {
 	beforeEach(() => vi.clearAllMocks());
 
-	it("prevents duplicate submissions while configure request is running", async () => {
+	it("creates a new waypoint and updates an existing one", async () => {
+		vi.mocked(tripsService.createWaypoint).mockResolvedValue(savedTrip);
+		vi.mocked(tripsService.updateWaypoint).mockResolvedValue(savedTrip);
+		const { result } = renderHook(() => useConfigureTripWaypoints(tripId));
+
+		await act(async () => {
+			await result.current.saveWaypoint(null, waypoint);
+			await result.current.saveWaypoint(waypointId, waypoint);
+		});
+
+		expect(tripsService.createWaypoint).toHaveBeenCalledWith(tripId, waypoint);
+		expect(tripsService.updateWaypoint).toHaveBeenCalledWith(tripId, waypointId, waypoint);
+		expect(result.current.configuredTrip).toBe(savedTrip);
+	});
+
+	it("deletes a waypoint and submits the stored waypoints for approval", async () => {
+		vi.mocked(tripsService.deleteWaypoint).mockResolvedValue(savedTrip);
+		vi.mocked(tripsService.submitForApproval).mockResolvedValue({
+			id: tripId,
+			status: "pending_approval",
+		} as never);
+		const { result } = renderHook(() => useConfigureTripWaypoints(tripId));
+
+		await act(async () => {
+			await result.current.deleteWaypoint(waypointId);
+			await result.current.submit();
+		});
+
+		expect(tripsService.deleteWaypoint).toHaveBeenCalledWith(tripId, waypointId);
+		expect(tripsService.submitForApproval).toHaveBeenCalledWith(tripId);
+		expect(result.current.configuredTrip).toMatchObject({ status: "pending_approval" });
+	});
+
+	it("prevents duplicate requests while one is running", async () => {
 		let resolve!: (value: never) => void;
-		vi.mocked(tripsService.configureWaypoints).mockImplementation(
+		vi.mocked(tripsService.submitForApproval).mockImplementation(
 			() =>
 				new Promise((done) => {
 					resolve = done;
 				})
 		);
-
 		const { result } = renderHook(() => useConfigureTripWaypoints(tripId));
-		let first!: Promise<unknown>;
 
 		await act(async () => {
-			first = result.current.submit(payload);
-			const second = await result.current.submit(payload);
-			expect(second).toBeNull();
-			resolve({ id: tripId, status: "pending_approval" } as never);
+			const first = result.current.submit();
+			expect(await result.current.saveWaypoint(null, waypoint)).toBeNull();
+			resolve(savedTrip);
 			await first;
 		});
 
-		expect(tripsService.configureWaypoints).toHaveBeenCalledTimes(1);
-		expect(tripsService.configureWaypoints).toHaveBeenCalledWith(tripId, payload);
+		expect(tripsService.submitForApproval).toHaveBeenCalledTimes(1);
+		expect(tripsService.createWaypoint).not.toHaveBeenCalled();
 	});
 
 	it.each([401, 403, 404, 409, 422])("maps API status %s", (status) => {
@@ -80,15 +108,14 @@ describe("useConfigureTripWaypoints", () => {
 		});
 	});
 
-	it("keeps the last payload available for retry after a recoverable failure", async () => {
-		vi.mocked(tripsService.configureWaypoints)
+	it("retries the last failed action", async () => {
+		vi.mocked(tripsService.createWaypoint)
 			.mockRejectedValueOnce(new Error("offline"))
-			.mockResolvedValueOnce({ id: tripId, status: "pending_approval" } as never);
-
+			.mockResolvedValueOnce(savedTrip);
 		const { result } = renderHook(() => useConfigureTripWaypoints(tripId));
 
 		await act(async () => {
-			await result.current.submit(payload);
+			await result.current.saveWaypoint(null, waypoint);
 		});
 		expect(result.current.error).not.toBeNull();
 
@@ -96,6 +123,7 @@ describe("useConfigureTripWaypoints", () => {
 			await result.current.retry();
 		});
 
-		expect(tripsService.configureWaypoints).toHaveBeenNthCalledWith(2, tripId, payload);
+		expect(tripsService.createWaypoint).toHaveBeenCalledTimes(2);
+		expect(result.current.error).toBeNull();
 	});
 });
