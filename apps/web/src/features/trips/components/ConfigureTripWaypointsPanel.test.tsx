@@ -6,7 +6,12 @@ import type { Trip } from "../types";
 import { ConfigureTripWaypointsPanel } from "./ConfigureTripWaypointsPanel";
 
 vi.mock("../services/trips.service", () => ({
-	tripsService: { configureWaypoints: vi.fn() },
+	tripsService: {
+		createWaypoint: vi.fn(),
+		updateWaypoint: vi.fn(),
+		deleteWaypoint: vi.fn(),
+		submitForApproval: vi.fn(),
+	},
 }));
 
 const checkpoint: RouteCheckpoint = {
@@ -121,9 +126,28 @@ describe("ConfigureTripWaypointsPanel", () => {
 		};
 	});
 
-	it("submits configured waypoints for the current draft Trip and shows server status", async () => {
-		vi.mocked(tripsService.configureWaypoints).mockResolvedValue({
+	it("saves a new route point to the database, then submits the stored waypoints", async () => {
+		const savedRest = {
+			...draftTrip.waypoints[0],
+			id: "99999999-9999-4999-8999-999999999999",
+			type: "rest" as const,
+			name: "Nghỉ chân",
+			location: { type: "Point" as const, coordinates: [108.24, 16.05] as [number, number] },
+			sequenceOrder: 2,
+			plannedAt: "2026-10-01T05:00:00.000Z",
+			metadata: { routeOrder: "0.5" },
+		};
+		const savedTrip: Trip = {
 			...draftTrip,
+			waypoints: [
+				draftTrip.waypoints[0],
+				savedRest,
+				{ ...draftTrip.waypoints[1], sequenceOrder: 3 },
+			],
+		};
+		vi.mocked(tripsService.createWaypoint).mockResolvedValue(savedTrip);
+		vi.mocked(tripsService.submitForApproval).mockResolvedValue({
+			...savedTrip,
 			status: "pending_approval",
 		});
 		render(<ConfigureTripWaypointsPanel trip={draftTrip} route={route} />);
@@ -132,55 +156,87 @@ describe("ConfigureTripWaypointsPanel", () => {
 		fireEvent.change(screen.getByLabelText("Thời gian điểm dừng 2"), {
 			target: { value: "2026-10-01T12:00" },
 		});
+		expect(screen.getByText("Chưa lưu")).toBeVisible();
+		expect(screen.getByRole("button", { name: "Gửi duyệt" })).toBeDisabled();
 
-		fireEvent.click(screen.getByRole("button", { name: "Gửi duyệt" }));
+		fireEvent.click(screen.getByRole("button", { name: "Lưu điểm dừng" }));
 
 		await waitFor(() =>
-			expect(tripsService.configureWaypoints).toHaveBeenCalledWith(
+			expect(tripsService.createWaypoint).toHaveBeenCalledWith(
 				draftTrip.id,
 				expect.objectContaining({
-					waypoints: expect.arrayContaining([
-						expect.objectContaining({
-							type: "start",
-							plannedAt: expect.any(String),
-						}),
-						expect.objectContaining({
-							type: "finish",
-							plannedAt: expect.any(String),
-						}),
-						expect.objectContaining({
-							type: "rest",
-							name: "Nghỉ chân",
-							location: expect.objectContaining({
-								coordinates: [108.24, 16.05],
-							}),
-							plannedAt: expect.any(String),
-						}),
-					]),
+					type: "rest",
+					name: "Nghỉ chân",
+					location: expect.objectContaining({ coordinates: [108.24, 16.05] }),
+					plannedAt: expect.any(String),
+					metadata: { routeOrder: expect.any(String) },
 				})
 			)
 		);
+		await waitFor(() => expect(screen.queryByText("Chưa lưu")).not.toBeInTheDocument());
+
+		fireEvent.click(screen.getByRole("button", { name: "Gửi duyệt" }));
+		await waitFor(() => expect(tripsService.submitForApproval).toHaveBeenCalledWith(draftTrip.id));
 		expect(await screen.findByTestId("configure-trip-status")).toHaveTextContent("Chờ duyệt");
 		expect(screen.getByText(/Lịch trình đã được lưu/)).toBeVisible();
 	});
 
-	it("blocks day-trip overnight waypoint before calling the backend", async () => {
+	it("deletes a saved stop waypoint from the database", async () => {
+		const stop = {
+			...draftTrip.waypoints[0],
+			id: "99999999-9999-4999-8999-999999999999",
+			type: "rest" as const,
+			name: "Picnic",
+			sequenceOrder: 2,
+			plannedAt: "2026-10-01T05:00:00.000Z",
+			metadata: { routeOrder: "0.5" },
+		};
+		vi.mocked(tripsService.deleteWaypoint).mockResolvedValue(draftTrip);
+		render(
+			<ConfigureTripWaypointsPanel
+				trip={{ ...draftTrip, waypoints: [draftTrip.waypoints[0], stop, draftTrip.waypoints[1]] }}
+			/>
+		);
+
+		fireEvent.click(screen.getByRole("button", { name: "Mở chỉnh sửa điểm dừng 2" }));
+		fireEvent.click(screen.getByRole("button", { name: "Xóa" }));
+
+		await waitFor(() =>
+			expect(tripsService.deleteWaypoint).toHaveBeenCalledWith(draftTrip.id, stop.id)
+		);
+		await waitFor(() => expect(screen.queryByText(/Picnic/)).not.toBeInTheDocument());
+	});
+
+	it("does not offer overnight stops on a day trip", () => {
 		render(<ConfigureTripWaypointsPanel trip={draftTrip} route={route} />);
 
 		fireEvent.click(screen.getByRole("button", { name: "Chọn vị trí tuyến 2" }));
-		fireEvent.change(screen.getByLabelText("Điểm dừng 2"), {
-			target: { value: "overnight" },
-		});
-		fireEvent.change(screen.getByLabelText("Thời gian điểm dừng 2"), {
-			target: { value: "2026-10-01T12:00" },
-		});
 
-		fireEvent.click(screen.getByRole("button", { name: "Gửi duyệt" }));
+		const options = Array.from(
+			(screen.getByLabelText("Điểm dừng 2") as HTMLSelectElement).options
+		).map((option) => option.value);
+		expect(options).not.toContain("overnight");
+	});
 
-		expect(
-			await screen.findByText("Chuyến đi trong ngày không được có điểm dừng qua đêm")
-		).toBeVisible();
-		expect(tripsService.configureWaypoints).not.toHaveBeenCalled();
+	it("validates the waypoint time before saving it", () => {
+		render(<ConfigureTripWaypointsPanel trip={draftTrip} route={route} />);
+
+		fireEvent.click(screen.getByRole("button", { name: "Chọn vị trí tuyến 2" }));
+		fireEvent.click(screen.getByRole("button", { name: "Lưu điểm dừng" }));
+
+		expect(screen.getByText("Thời gian điểm dừng là bắt buộc.")).toBeVisible();
+		expect(tripsService.createWaypoint).not.toHaveBeenCalled();
+	});
+
+	it("discards an unsaved new waypoint when its editor is closed", () => {
+		render(<ConfigureTripWaypointsPanel trip={draftTrip} route={route} />);
+
+		fireEvent.click(screen.getByRole("button", { name: "Chọn vị trí tuyến 2" }));
+		expect(screen.getByText("Chưa lưu")).toBeVisible();
+		fireEvent.click(screen.getByRole("button", { name: "Đóng form điểm dừng" }));
+
+		expect(screen.queryByText("Chưa lưu")).not.toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Gửi duyệt" })).toBeEnabled();
 	});
 
 	it("keeps selected day-trip route points on day one before arrival time is chosen", () => {
@@ -238,17 +294,22 @@ describe("ConfigureTripWaypointsPanel", () => {
 		expect(screen.getByRole("button", { name: "Gửi duyệt" })).toBeDisabled();
 	});
 
-	it("shows retry for a backend conflict without clearing form values", async () => {
-		vi.mocked(tripsService.configureWaypoints).mockRejectedValue(
-			new Error("conflict while submitting")
-		);
+	it("also blocks waypoint changes once the Trip is pending approval", () => {
+		render(<ConfigureTripWaypointsPanel trip={{ ...draftTrip, status: "pending_approval" }} />);
+
+		expect(screen.getByText(/không thể cấu hình điểm dừng/)).toBeVisible();
+		expect(screen.getByRole("button", { name: "Gửi duyệt" })).toBeDisabled();
+	});
+
+	it("shows retry for a failed save without clearing form values", async () => {
+		vi.mocked(tripsService.updateWaypoint).mockRejectedValue(new Error("conflict while saving"));
 		render(<ConfigureTripWaypointsPanel trip={draftTrip} />);
 
 		fireEvent.click(screen.getByRole("button", { name: "Mở chỉnh sửa điểm dừng 1" }));
 		fireEvent.change(screen.getByLabelText("Mô tả điểm dừng 1"), {
 			target: { value: "Keep me" },
 		});
-		fireEvent.click(screen.getByRole("button", { name: "Gửi duyệt" }));
+		fireEvent.click(screen.getByRole("button", { name: "Lưu thay đổi" }));
 
 		expect(await screen.findByRole("alert")).toHaveTextContent("Không thể cấu hình điểm dừng");
 		expect(screen.getByLabelText("Mô tả điểm dừng 1")).toHaveValue("Keep me");

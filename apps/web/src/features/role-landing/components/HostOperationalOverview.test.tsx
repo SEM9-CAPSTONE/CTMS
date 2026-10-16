@@ -34,7 +34,7 @@ function trip(id: string): TripDetails {
 		remainingSeats: 15,
 		pricePerPerson: 100000,
 		cancellationPolicy: null,
-		status: "published",
+		status: "ongoing",
 		cancellationReason: null,
 		cancelledAt: null,
 		weatherRiskLevel: "green",

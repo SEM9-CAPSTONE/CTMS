@@ -22,7 +22,6 @@ import { Button } from "../../../shared/components/Button";
 import { useMyTrips } from "../../trips/hooks/useMyTrips";
 import { useHostTripReviewNotifications } from "../../trips/hooks/useTripReviewNotifications";
 import type { TripStatus } from "../../trips/types";
-import { getTripDisplayStatus } from "../../trips/utils/trip-status";
 
 export interface HostMyTripsPanelProps {
 	onCreateTrip?: () => void;
@@ -100,33 +99,15 @@ export function HostMyTripsPanel({
 }: HostMyTripsPanelProps) {
 	const { trips: fetchedTrips = [], isLoading, error, refetch } = useMyTrips();
 	useHostTripReviewNotifications({ onChanged: refetch });
-	const [now, setNow] = useState(() => Date.now());
+	// Status comes straight from the database; the backend schedule worker advances it over time.
 	const trips = useMemo(
 		() =>
 			(Array.isArray(fetchedTrips) ? fetchedTrips : []).map((trip) => ({
 				...trip,
-				displayStatus: getTripDisplayStatus(trip, now),
+				displayStatus: trip.status,
 			})),
-		[fetchedTrips, now]
+		[fetchedTrips]
 	);
-	// Update at the next cutoff even when the host leaves this page open.
-	useEffect(() => {
-		const refresh = () => setNow(Date.now());
-		const nextCutoff = Math.min(
-			...trips
-				.filter((trip) => trip.displayStatus === "published" || trip.displayStatus === "ongoing")
-				.flatMap((trip) => [Date.parse(trip.endsAt), Date.parse(trip.startsAt)])
-				.filter((cutoff) => cutoff > now)
-		);
-		const timer = Number.isFinite(nextCutoff)
-			? window.setTimeout(refresh, Math.min(Math.max(0, nextCutoff - Date.now()), 2_147_483_647))
-			: undefined;
-		window.addEventListener("focus", refresh);
-		return () => {
-			window.clearTimeout(timer);
-			window.removeEventListener("focus", refresh);
-		};
-	}, [trips, now]);
 	const [selectedStatus, setSelectedStatus] = useState<"all" | TripStatus>("all");
 	const [currentPage, setCurrentPage] = useState(1);
 	const [pageSize, setPageSize] = useState(4);

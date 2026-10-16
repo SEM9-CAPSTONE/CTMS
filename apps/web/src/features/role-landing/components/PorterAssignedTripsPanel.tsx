@@ -1,31 +1,34 @@
-import { AlertCircle, CalendarDays, ChevronRight, Loader2, RefreshCw } from "lucide-react";
+import {
+	AlertCircle,
+	ArrowUpRight,
+	CalendarDays,
+	Loader2,
+	RefreshCw,
+	RotateCcw,
+} from "lucide-react";
+import { useMemo, useState } from "react";
 import { Button } from "../../../shared/components/Button";
 import { useAssignedTrips } from "../../trips/hooks/useAssignedTrips";
-import type { PorterAssignedTrip, TripStatus } from "../../trips/types";
+import type { PorterAssignedTrip } from "../../trips/types";
+import {
+	PORTER_TRIP_PHASES,
+	type PorterTripPhase,
+	formatTripSchedule,
+	normalizeSearchText,
+	porterTripPhaseLabels,
+	toPorterTripPhase,
+} from "../utils/porter-assignment";
+import { PorterTripPhaseBadge } from "./PorterTripPhaseBadge";
 
-const statusLabels: Record<TripStatus, string> = {
-	draft: "Bản nháp",
-	pending_approval: "Chờ duyệt",
-	published: "Đã xuất bản",
-	ongoing: "Đang diễn ra",
-	completed: "Đã hoàn thành",
-	cancelled: "Đã hủy",
-	rejected: "Bị từ chối",
-};
+type PhaseFilter = "all" | PorterTripPhase;
 
-function formatRange(startsAt: string, endsAt: string) {
-	const options: Intl.DateTimeFormatOptions = {
-		day: "2-digit",
-		month: "2-digit",
-		year: "numeric",
-		hour: "2-digit",
-		minute: "2-digit",
-	};
-	return `${new Date(startsAt).toLocaleString("vi-VN", options)} – ${new Date(endsAt).toLocaleString("vi-VN", options)}`;
-}
+const filterTabs: { key: PhaseFilter; label: string }[] = [
+	{ key: "all", label: "Tất cả" },
+	...PORTER_TRIP_PHASES.map((phase) => ({ key: phase, label: porterTripPhaseLabels[phase] })),
+];
 
 export interface PorterAssignedTripsPanelProps {
-	onNavigateToTripRoster?: (tripId: string) => void;
+	onViewTripDetail?: (tripId: string) => void;
 }
 
 export interface PorterAssignedTripsPanelViewProps extends PorterAssignedTripsPanelProps {
@@ -33,33 +36,113 @@ export interface PorterAssignedTripsPanelViewProps extends PorterAssignedTripsPa
 	isLoading: boolean;
 	error: string | null;
 	refetch: () => Promise<unknown>;
+	isStale?: boolean;
+	updatedAt?: number | null;
 }
 
 export function PorterAssignedTripsPanelView({
-	onNavigateToTripRoster,
+	onViewTripDetail,
 	trips,
 	isLoading,
 	error,
 	refetch,
+	isStale,
+	updatedAt,
 }: PorterAssignedTripsPanelViewProps) {
+	const [filter, setFilter] = useState<PhaseFilter>("all");
+	const [search, setSearch] = useState("");
+
+	const displayableTrips = useMemo(
+		() =>
+			trips.flatMap((trip) => {
+				const phase = toPorterTripPhase(trip.status);
+				return phase ? [{ trip, phase }] : [];
+			}),
+		[trips]
+	);
+	const visibleTrips = useMemo(() => {
+		const keyword = normalizeSearchText(search);
+		return displayableTrips.filter(
+			({ trip, phase }) =>
+				(filter === "all" || phase === filter) &&
+				(!keyword || normalizeSearchText(`${trip.title} ${trip.routeName ?? ""}`).includes(keyword))
+		);
+	}, [displayableTrips, filter, search]);
+	const hasCriteria = filter !== "all" || search.trim() !== "";
+
 	return (
 		<section
 			id="porter-assigned-trips"
 			aria-label="Chuyến đi được phân công"
 			className="rounded-[28px] border border-[#dfe8df] bg-white p-6 shadow-sm"
 		>
-			<div className="flex items-center justify-between gap-4">
+			<div className="flex items-start justify-between gap-4 border-b border-[#e5eee7] pb-5">
 				<div>
-					<h2 className="text-xl font-extrabold text-[#10221b]">Chuyến đi được phân công</h2>
-					<p className="mt-1 text-xs text-[#667a6d]">
-						Mở chuyến đi để xem danh sách và cập nhật điểm danh.
+					<h1 className="text-xl font-extrabold text-[#10221b]">Chuyến đi được phân công</h1>
+					<p className="mt-1 text-sm text-[#667a6d]">
+						Xem lịch trình và thông tin các chuyến đi bạn tham gia.
 					</p>
+					{updatedAt && isStale ? (
+						<p className="mt-1 text-xs text-[#667a6d]">
+							Dữ liệu tải lúc {new Date(updatedAt).toLocaleString("vi-VN")} · Cần tải lại để xác
+							nhận trạng thái mới nhất.
+						</p>
+					) : null}
 				</div>
-				{!isLoading && (
-					<Button variant="outline" size="sm" onClick={() => void refetch()} className="gap-2">
-						<RefreshCw className="size-4" /> Tải lại
-					</Button>
-				)}
+				<button
+					type="button"
+					aria-label="Tải lại danh sách"
+					onClick={() => void refetch()}
+					disabled={isLoading}
+					className="rounded-full p-2 text-[#55685a] transition hover:bg-[#eef4ef] disabled:opacity-50"
+				>
+					<RefreshCw className="size-5" />
+				</button>
+			</div>
+
+			<div
+				role="tablist"
+				aria-label="Lọc theo trạng thái"
+				className="mt-5 grid grid-cols-2 gap-1 rounded-2xl bg-[#f3f7f3] p-1 sm:grid-cols-4"
+			>
+				{filterTabs.map((tab) => (
+					<button
+						key={tab.key}
+						type="button"
+						role="tab"
+						aria-selected={filter === tab.key}
+						onClick={() => setFilter(tab.key)}
+						className={`rounded-xl px-3 py-2 text-sm font-bold transition ${
+							filter === tab.key
+								? "bg-white text-[#10221b] shadow-sm"
+								: "text-[#667a6d] hover:text-[#10221b]"
+						}`}
+					>
+						{tab.label}
+					</button>
+				))}
+			</div>
+
+			<div className="mt-4 flex gap-3">
+				<input
+					type="search"
+					value={search}
+					onChange={(event) => setSearch(event.target.value)}
+					placeholder="Tìm kiếm chuyến đi..."
+					aria-label="Tìm kiếm chuyến đi"
+					className="min-w-0 flex-1 rounded-2xl border border-[#dfe8df] px-4 py-2.5 text-sm outline-none focus:border-[#2d5a27] focus:ring-2 focus:ring-[#2d5a27]/20"
+				/>
+				<Button
+					variant="outline"
+					onClick={() => {
+						setFilter("all");
+						setSearch("");
+					}}
+					disabled={!hasCriteria}
+					className="shrink-0 gap-2 rounded-2xl"
+				>
+					<RotateCcw className="size-4" /> Đặt lại
+				</Button>
 			</div>
 
 			{isLoading && (
@@ -82,41 +165,62 @@ export function PorterAssignedTripsPanelView({
 				</div>
 			)}
 
-			{!isLoading && !error && trips.length === 0 && (
+			{!isLoading && !error && visibleTrips.length === 0 && (
 				<div className="mt-5 rounded-2xl border border-dashed border-[#d2ded3] bg-[#fbfdfb] p-10 text-center">
 					<CalendarDays className="mx-auto size-7 text-[#7b8c82]" />
 					<p className="mt-3 text-sm font-bold text-[#55685a]">
-						Chưa có chuyến đi nào được phân công.
+						{displayableTrips.length === 0
+							? "Chưa có chuyến đi nào được phân công."
+							: "Không tìm thấy chuyến đi phù hợp."}
 					</p>
 				</div>
 			)}
 
-			{!isLoading && !error && trips.length > 0 && (
-				<ul className="mt-5 grid gap-3 md:grid-cols-2">
-					{trips.map((trip) => (
-						<li key={trip.tripId} className="rounded-2xl border border-[#e5eee7] bg-[#fbfdfb] p-4">
-							<div className="flex items-start justify-between gap-3">
-								<div className="min-w-0">
-									<h3 className="truncate font-extrabold text-[#10221b]">{trip.title}</h3>
-									<p className="mt-1 text-xs text-[#667a6d]">
-										{formatRange(trip.startsAt, trip.endsAt)}
-									</p>
-									<span className="mt-2 inline-flex rounded-full bg-[#164027]/10 px-2.5 py-1 text-[11px] font-bold text-[#164027]">
-										{statusLabels[trip.status]}
-									</span>
-								</div>
-								<Button
-									variant="outline"
-									size="sm"
-									onClick={() => onNavigateToTripRoster?.(trip.tripId)}
-									className="shrink-0 gap-1"
+			{!isLoading && !error && visibleTrips.length > 0 && (
+				<div className="mt-5">
+					<div className="hidden grid-cols-[1.4fr_1fr_0.8fr_auto] gap-4 border-b border-[#e5eee7] pb-2 text-xs font-bold text-[#667a6d] md:grid">
+						<span>Chuyến đi</span>
+						<span>Thời gian</span>
+						<span>Trạng thái</span>
+						<span className="text-right">Thao tác</span>
+					</div>
+					<ul className="divide-y divide-[#eef3ef]">
+						{visibleTrips.map(({ trip, phase }) => {
+							const schedule = formatTripSchedule(trip.startsAt, trip.endsAt);
+							return (
+								<li
+									key={trip.tripId}
+									className="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-2 py-4 md:grid-cols-[1.4fr_1fr_0.8fr_auto]"
 								>
-									Mở danh sách <ChevronRight className="size-4" />
-								</Button>
-							</div>
-						</li>
-					))}
-				</ul>
+									<div className="min-w-0">
+										<h2 className="truncate font-extrabold text-[#10221b]">{trip.title}</h2>
+										{trip.routeName && (
+											<p className="truncate text-xs text-[#667a6d]">{trip.routeName}</p>
+										)}
+									</div>
+									<div className="col-start-1 md:col-start-auto">
+										<p className="text-sm font-bold text-[#10221b]">{schedule.date}</p>
+										<p className="text-xs text-[#667a6d]">{schedule.hours}</p>
+									</div>
+									<div className="col-start-1 md:col-start-auto">
+										<PorterTripPhaseBadge phase={phase} />
+									</div>
+									<div className="col-start-2 row-span-3 row-start-1 md:col-start-auto md:row-span-1 md:row-start-auto md:text-right">
+										<Button
+											variant="outline"
+											size="sm"
+											onClick={() => onViewTripDetail?.(trip.tripId)}
+											aria-label={`Chi tiết ${trip.title}`}
+											className="gap-1 rounded-full"
+										>
+											Chi tiết <ArrowUpRight className="size-4" />
+										</Button>
+									</div>
+								</li>
+							);
+						})}
+					</ul>
+				</div>
 			)}
 		</section>
 	);

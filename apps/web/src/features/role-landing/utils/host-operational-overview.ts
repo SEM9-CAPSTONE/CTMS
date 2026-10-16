@@ -1,5 +1,4 @@
 import type { HostPorterAssignmentTrip, TripDetails } from "../../trips/types";
-import { getTripDisplayStatus } from "../../trips/utils/trip-status";
 
 const vietnamDate = new Intl.DateTimeFormat("en-CA", {
 	timeZone: "Asia/Ho_Chi_Minh",
@@ -28,7 +27,7 @@ export function buildHostOperationalOverview(
 	const tomorrowStart = todayStart + 24 * 60 * 60 * 1000;
 	const normalized = trips.map((trip) => ({
 		...trip,
-		displayStatus: getTripDisplayStatus(trip, now),
+		displayStatus: trip.status,
 	}));
 	const todayTrips = normalized.filter(
 		(trip) =>

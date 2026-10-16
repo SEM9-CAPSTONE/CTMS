@@ -26,6 +26,8 @@ import { EquipmentCatalogPage } from "../features/equipment-catalog/pages/Equipm
 import { LandingPage } from "../features/landing/pages/LandingPage";
 import { PorterProfilePage } from "../features/porter-profile/pages/PorterProfilePage";
 import { HostLayout } from "../features/role-landing/components/HostLayout";
+import { PorterAssignedTripDetail } from "../features/role-landing/components/PorterAssignedTripDetail";
+import { PorterAssignedTripsPanel } from "../features/role-landing/components/PorterAssignedTripsPanel";
 import { RoleLandingPage } from "../features/role-landing/pages/RoleLandingPage";
 import { AdminSettlementsPage } from "../features/settlements/pages/AdminSettlementsPage";
 import { HostWalletPage } from "../features/settlements/pages/HostWalletPage";
@@ -160,6 +162,35 @@ export function AppRoutes() {
 					<BookingListPage
 						onViewDetails={(bookingId) => navigateTo(`/bookings/${bookingId}?from=bookings`)}
 					/>
+				</HostLayout>
+			</AppRoleGuard>
+		);
+	}
+
+	const porterAssignmentPrefix = `${RoutePath.PORTER_ASSIGNMENTS}/`;
+	if (currentPath.startsWith(porterAssignmentPrefix)) {
+		const tripId = currentPath.slice(porterAssignmentPrefix.length);
+		return (
+			<AppRoleGuard
+				allowedRoles={["porter"]}
+				currentRoles={currentRoles}
+				onNavigateHome={() => navigateTo(RoutePath.HOME)}
+			>
+				<HostLayout
+					activeRole="porter"
+					onLogout={handleLogout}
+					onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}
+				>
+					<main className="p-4 sm:p-6 lg:p-8">
+						{UUID_PATTERN.test(tripId) ? (
+							<PorterAssignedTripDetail
+								tripId={tripId}
+								onBack={() => navigateTo(RoutePath.PORTER_ASSIGNMENTS)}
+							/>
+						) : (
+							<NotFoundPage onBackToHome={() => navigateTo(RoutePath.PORTER_ASSIGNMENTS)} />
+						)}
+					</main>
 				</HostLayout>
 			</AppRoleGuard>
 		);
@@ -370,6 +401,29 @@ export function AppRoutes() {
 				</AppRoleGuard>
 			);
 
+		case RoutePath.PORTER_ASSIGNMENTS:
+			return (
+				<AppRoleGuard
+					allowedRoles={["porter"]}
+					currentRoles={currentRoles}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<HostLayout
+						activeRole="porter"
+						onLogout={handleLogout}
+						onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}
+					>
+						<main className="p-4 sm:p-6 lg:p-8">
+							<PorterAssignedTripsPanel
+								onViewTripDetail={(tripId) =>
+									navigateTo(`${RoutePath.PORTER_ASSIGNMENTS}/${tripId}`)
+								}
+							/>
+						</main>
+					</HostLayout>
+				</AppRoleGuard>
+			);
+
 		case RoutePath.PORTER_REQUESTS:
 			return (
 				<AppRoleGuard
@@ -550,7 +604,6 @@ export function AppRoutes() {
 					onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}
 					onNavigateToBookings={() => navigateTo(RoutePath.BOOKINGS)}
 					onNavigateToTripDetail={(tripId) => navigateTo(`/trips/${tripId}`)}
-					onNavigateToTripRoster={(tripId) => navigateTo(`/trips/${tripId}?view=roster`)}
 					onCreateTrip={() => navigateTo(RoutePath.HOST_CREATE_TRIP)}
 					onEditTripDraft={(tripId) => navigateTo(`/host/trips/${tripId}/edit`)}
 					onCreateTrekkingRoute={() => navigateTo(RoutePath.HOST_CREATE_TREKKING_ROUTE)}
