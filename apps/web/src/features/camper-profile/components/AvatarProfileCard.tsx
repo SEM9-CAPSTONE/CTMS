@@ -1,4 +1,6 @@
-import { Calendar, Camera, CheckCircle2 } from "lucide-react";
+import { Calendar, Camera, CheckCircle2, Loader2 } from "lucide-react";
+import { useState } from "react";
+import { uploadService } from "../../../core/services/upload.service";
 import type { CamperProfileData } from "../types";
 
 interface AvatarProfileCardProps {
@@ -7,11 +9,34 @@ interface AvatarProfileCardProps {
 }
 
 export function AvatarProfileCard({ profile, onAvatarChange }: AvatarProfileCardProps) {
-	const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+	const [isUploading, setIsUploading] = useState(false);
+	const [uploadError, setUploadError] = useState<string | null>(null);
+
+	const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
 		const file = e.target.files?.[0];
 		if (!file) return;
-		const objectUrl = URL.createObjectURL(file);
-		onAvatarChange?.(objectUrl);
+
+		if (!file.type.startsWith("image/")) {
+			setUploadError("Chỉ chấp nhận file hình ảnh");
+			return;
+		}
+
+		if (file.size > 5 * 1024 * 1024) {
+			setUploadError("Ảnh không được vượt quá 5 MB");
+			return;
+		}
+
+		setUploadError(null);
+		setIsUploading(true);
+		try {
+			const res = await uploadService.uploadImage(file, "avatars");
+			onAvatarChange?.(res.url);
+		} catch {
+			setUploadError("Tải ảnh đại diện thất bại");
+		} finally {
+			setIsUploading(false);
+			e.target.value = "";
+		}
 	};
 
 	return (
@@ -23,9 +48,16 @@ export function AvatarProfileCard({ profile, onAvatarChange }: AvatarProfileCard
 					alt={profile.fullName}
 					className="size-24 rounded-full object-cover ring-4 ring-white shadow-md"
 				/>
+				{isUploading && (
+					<div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40">
+						<Loader2 className="size-6 animate-spin text-white" />
+					</div>
+				)}
 				<label
 					htmlFor="avatar-upload-input"
-					className="absolute bottom-0 right-0 flex size-8 cursor-pointer items-center justify-center rounded-full bg-[#164027] text-white shadow-lg transition hover:bg-[#276143] hover:scale-105"
+					className={`absolute bottom-0 right-0 flex size-8 items-center justify-center rounded-full bg-[#164027] text-white shadow-lg transition hover:bg-[#276143] hover:scale-105 ${
+						isUploading ? "pointer-events-none opacity-50" : "cursor-pointer"
+					}`}
 					title="Thay đổi ảnh đại diện"
 				>
 					<Camera size={15} />
@@ -34,6 +66,7 @@ export function AvatarProfileCard({ profile, onAvatarChange }: AvatarProfileCard
 					id="avatar-upload-input"
 					type="file"
 					accept="image/*"
+					disabled={isUploading}
 					onChange={handleFileSelect}
 					className="hidden"
 				/>
@@ -48,6 +81,7 @@ export function AvatarProfileCard({ profile, onAvatarChange }: AvatarProfileCard
 				</div>
 
 				<p className="text-xs font-semibold text-[#5a6e61]">{profile.email}</p>
+				{uploadError && <p className="text-xs font-bold text-red-600">{uploadError}</p>}
 
 				<div className="mt-1 flex flex-wrap items-center justify-center sm:justify-start gap-4 text-xs font-semibold text-[#485c4f]">
 					<div className="flex items-center gap-1.5">

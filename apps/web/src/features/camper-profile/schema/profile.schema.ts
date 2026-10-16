@@ -50,6 +50,7 @@ export const camperProfileSchema = z.object({
 		.string()
 		.min(2, "Họ và tên phải có ít nhất 2 ký tự")
 		.max(50, "Họ và tên không vượt quá 50 ký tự"),
+	avatarUrl: z.string().optional(),
 	phone: z
 		.string()
 		.min(1, "Vui lòng nhập số điện thoại")

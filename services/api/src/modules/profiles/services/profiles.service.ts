@@ -133,6 +133,9 @@ export class ProfilesService {
 		if (dto.fullName !== undefined) {
 			patch.fullName = dto.fullName;
 		}
+		if (dto.avatarUrl !== undefined) {
+			patch.avatarUrl = dto.avatarUrl;
+		}
 		if (dto.phone !== undefined) {
 			patch.phone = dto.phone;
 		}
@@ -154,6 +157,7 @@ export class ProfilesService {
 	private snapshot(user: User, contacts: EmergencyContact[]): ProfileSnapshot {
 		return {
 			fullName: user.fullName,
+			avatarUrl: user.avatarUrl,
 			phone: user.phone,
 			dateOfBirth: user.dateOfBirth,
 			gender: user.gender,

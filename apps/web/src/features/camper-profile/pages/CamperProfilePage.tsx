@@ -14,11 +14,13 @@ import { SettingsSubNav } from "../components/SettingsSubNav";
 import { UnsavedChangesBar } from "../components/UnsavedChangesBar";
 import { SettingsTabEnum } from "../enums/settings-tab.enum";
 import { useCamperProfile } from "../hooks/useCamperProfile";
+import type { CamperProfileData } from "../types";
 
 interface CamperProfilePageProps {
 	onBackHome?: () => void;
 	onNavigateDashboard?: () => void;
 	onNavigateToTrips?: () => void;
+	onNavigateToBookings?: () => void;
 	onLogout?: (allDevices: boolean) => Promise<void>;
 }
 
@@ -26,6 +28,7 @@ export function CamperProfilePage({
 	onBackHome,
 	onNavigateDashboard,
 	onNavigateToTrips,
+	onNavigateToBookings,
 	onLogout,
 }: CamperProfilePageProps) {
 	const [activeTab, setActiveTab] = useState<SettingsTabEnum>(() => {
@@ -58,6 +61,53 @@ export function CamperProfilePage({
 	} = useCamperProfile();
 	const isEditingDisabled = isSaving || !isProfileEditable;
 
+	const watchedPhone = form.watch("phone");
+	const watchedEmergencyContacts = form.watch("emergencyContacts");
+	const watchedFullName = form.watch("fullName");
+	const watchedDateOfBirth = form.watch("dateOfBirth");
+	const watchedGender = form.watch("gender");
+	const watchedAddress = form.watch("address");
+
+	const activeEmergencyContacts = Array.isArray(watchedEmergencyContacts)
+		? watchedEmergencyContacts.map((c, idx) => ({
+				id: c.id || `contact-${idx}`,
+				name: c.name,
+				relationship: c.relationship,
+				phone: c.phone,
+				email: c.email || null,
+			}))
+		: profile?.emergencyContacts || [];
+
+	const activePhone = typeof watchedPhone === "string" ? watchedPhone : profile?.phone || "";
+
+	const activeCompletionPercentage = (() => {
+		if (!profile) return 0;
+		const fullName = typeof watchedFullName === "string" ? watchedFullName : profile.fullName;
+		const dob = typeof watchedDateOfBirth === "string" ? watchedDateOfBirth : profile.dateOfBirth;
+		const gender = watchedGender ?? profile.gender;
+		const addr = typeof watchedAddress === "string" ? watchedAddress : profile.address;
+
+		const required = [
+			Boolean(fullName?.trim()),
+			Boolean(activePhone?.trim()),
+			Boolean(dob?.trim()),
+			Boolean(gender),
+			Boolean(addr?.trim()),
+			activeEmergencyContacts.length > 0,
+		];
+		return Math.round((required.filter(Boolean).length / required.length) * 100);
+	})();
+
+	const activeProfile: CamperProfileData | null = profile
+		? {
+				...profile,
+				phone: activePhone,
+				emergencyContacts: activeEmergencyContacts,
+				emergencyContactAdded: activeEmergencyContacts.length > 0,
+				completionPercentage: activeCompletionPercentage,
+			}
+		: null;
+
 	if (isLoading) {
 		return (
 			<div className="flex h-screen w-full items-center justify-center bg-[#f4f7f2]">
@@ -83,7 +133,12 @@ export function CamperProfilePage({
 					onLogout={onLogout}
 					onNavigate={(navKey) => {
 						if (navKey === "overview") {
-							onNavigateDashboard?.();
+							if (onNavigateDashboard) {
+								onNavigateDashboard();
+							} else {
+								window.history.pushState({}, "", "/dashboard");
+								window.dispatchEvent(new PopStateEvent("popstate"));
+							}
 							return;
 						}
 						if (navKey === "trips" || navKey === "explore") {
@@ -91,6 +146,15 @@ export function CamperProfilePage({
 								onNavigateToTrips();
 							} else {
 								window.history.pushState({}, "", "/trips");
+								window.dispatchEvent(new PopStateEvent("popstate"));
+							}
+							return;
+						}
+						if (navKey === "bookings") {
+							if (onNavigateToBookings) {
+								onNavigateToBookings();
+							} else {
+								window.history.pushState({}, "", "/bookings");
 								window.dispatchEvent(new PopStateEvent("popstate"));
 							}
 							return;
@@ -127,17 +191,19 @@ export function CamperProfilePage({
 						{/* User Avatar & Info Header Card */}
 						{profile && <AvatarProfileCard profile={profile} onAvatarChange={handleAvatarChange} />}
 
+						{/* Profile Completion & Safety Bar (Thanh dài dưới Avatar Card) */}
+						{activeProfile && (
+							<ProfileCompletionCard
+								profile={activeProfile}
+								onSelectTab={(tab) => setActiveTab(tab)}
+							/>
+						)}
+
 						{/* Main Settings Grid */}
 						<div className="flex flex-col md:flex-row items-start gap-6">
-							{/* Left Settings Sub-Nav & Completion Widget */}
+							{/* Left Settings Sub-Nav */}
 							<div className="flex w-full md:w-64 shrink-0 flex-col gap-4">
 								<SettingsSubNav activeTab={activeTab} onTabChange={(tab) => setActiveTab(tab)} />
-								{profile && (
-									<ProfileCompletionCard
-										profile={profile}
-										onSelectTab={(tab) => setActiveTab(tab)}
-									/>
-								)}
 							</div>
 
 							{/* Center Main Form Panels (Expands across full remaining width) */}
