@@ -11,6 +11,10 @@ import type {
 } from "../dto/host-porter-assignment-response.dto";
 import type { PorterAssignedTripResponseDto } from "../dto/porter-assigned-trip-response.dto";
 import type {
+	PorterRecordedWeather,
+	PorterTripOperationsResponseDto,
+} from "../dto/porter-trip-operations-response.dto";
+import type {
 	TripRegistrationRiskResponseDto,
 	TripResponseDto,
 	TripSummaryResponseDto,
@@ -19,8 +23,20 @@ import type {
 import type { WaypointType } from "../entities/trip-waypoint.entity";
 import type { GeoPoint, Trip, TripType } from "../entities/trip.entity";
 import { TripStatus } from "../entities/trip.entity";
+import {
+	PORTER_TRIP_OPERATIONS_QUERY,
+	PORTER_VISIBLE_TRIP_STATUSES_SQL,
+} from "./porter-trip-operations.query";
+
+export interface PorterTripOperationsRow
+	extends Omit<PorterTripOperationsResponseDto, "weather" | "offlinePackage" | "retrievedAt"> {
+	retrievedAt: Date;
+	recordedWeather: PorterRecordedWeather | null;
+}
 
 export interface CreateTripWaypointInput {
+	/** Preserves an existing waypoint id when a draft's waypoints are rewritten. */
+	id?: string;
 	checkpointId: string | null;
 	type: WaypointType;
 	name: string;
@@ -709,11 +725,51 @@ export class TripsRepository extends Repository<Trip> {
 			]
 		);
 
+		await this.writeWaypoints(tripId, input.waypoints);
+
+		const updated = await this.findById(tripId);
+		if (!updated) {
+			throw new Error("Failed to load updated Trip");
+		}
+		return updated;
+	}
+
+	/** Replaces a draft Trip's waypoints, keeping the ids of waypoints that already existed. */
+	async saveDraftWaypoints(
+		tripId: string,
+		waypoints: CreateTripWaypointInput[]
+	): Promise<TripResponseDto> {
+		await this.writeWaypoints(tripId, waypoints);
+		await this.query(`UPDATE "trips" SET "updated_at" = now() WHERE "id" = $1`, [tripId]);
+		const updated = await this.findById(tripId);
+		if (!updated) {
+			throw new Error("Failed to load updated Trip");
+		}
+		return updated;
+	}
+
+	async submitDraftForApproval(tripId: string): Promise<TripResponseDto> {
+		await this.query(
+			`UPDATE "trips" SET "status" = $2, "updated_at" = now() WHERE "id" = $1 AND "status" = $3`,
+			[tripId, TripStatus.PENDING_APPROVAL, TripStatus.DRAFT]
+		);
+		const updated = await this.findById(tripId);
+		if (!updated) {
+			throw new Error("Failed to load submitted Trip");
+		}
+		return updated;
+	}
+
+	private async writeWaypoints(
+		tripId: string,
+		waypoints: CreateTripWaypointInput[]
+	): Promise<void> {
 		await this.query(`DELETE FROM "trip_waypoints" WHERE "trip_id" = $1`, [tripId]);
-		for (const waypoint of input.waypoints) {
+		for (const waypoint of waypoints) {
 			await this.query(
 				`
 				INSERT INTO "trip_waypoints" (
+					"id",
 					"trip_id",
 					"checkpoint_id",
 					"type",
@@ -726,6 +782,7 @@ export class TripsRepository extends Repository<Trip> {
 					"metadata"
 				)
 				VALUES (
+					COALESCE($11::uuid, gen_random_uuid()),
 					$1, $2, $3, $4, ST_SetSRID(ST_GeomFromGeoJSON($5), 4326)::geography,
 					$6, $7, $8, $9, $10::jsonb
 				)
@@ -741,15 +798,10 @@ export class TripsRepository extends Repository<Trip> {
 					waypoint.plannedAt,
 					waypoint.durationMinutes,
 					JSON.stringify(waypoint.metadata),
+					waypoint.id ?? null,
 				]
 			);
 		}
-
-		const updated = await this.findById(tripId);
-		if (!updated) {
-			throw new Error("Failed to load updated Trip");
-		}
-		return updated;
 	}
 
 	async findByIdForWaypointConfiguration(
@@ -1026,14 +1078,28 @@ export class TripsRepository extends Repository<Trip> {
 				trip."title",
 				trip."status",
 				trip."starts_at" AS "startsAt",
-				trip."ends_at" AS "endsAt"
+				trip."ends_at" AS "endsAt",
+				route."name" AS "routeName"
 			 FROM "trip_porters" assignment
 			 INNER JOIN "trips" trip ON trip."id" = assignment."trip_id"
+			 LEFT JOIN "trekking_routes" route ON route."id" = trip."route_id"
 			 WHERE assignment."porter_id" = $1
 			   AND assignment."status" = 'assigned'
+			   AND trip."status" IN (${PORTER_VISIBLE_TRIP_STATUSES_SQL})
 			 ORDER BY trip."starts_at" ASC, trip."id" ASC`,
 			[porterId]
 		);
+	}
+
+	async findPorterTripOperations(
+		porterId: string,
+		tripId: string
+	): Promise<PorterTripOperationsRow | null> {
+		const rows = (await this.query(PORTER_TRIP_OPERATIONS_QUERY, [
+			porterId,
+			tripId,
+		])) as PorterTripOperationsRow[];
+		return rows[0] ?? null;
 	}
 
 	async findByIdForReview(tripId: string): Promise<LockedTripForReview | null> {
@@ -1307,6 +1373,50 @@ export class TripsRepository extends Repository<Trip> {
 			bookingRefundsCreated,
 			cancelledBookings: bookingRows,
 		};
+	}
+
+	/**
+	 * Moves Trips along their time-based lifecycle in one atomic statement per phase:
+	 * `published` -> `ongoing` once `starts_at` is reached, and `published`/`ongoing` ->
+	 * `completed` once `ends_at` is reached. Each transition writes a system audit log.
+	 * When `awaitParticipationEvaluation` is true, `published` Trips the auto-cancel worker
+	 * has not evaluated yet are left alone so an under-subscribed Trip is cancelled, not started.
+	 */
+	async advanceTripStatusesByTime(
+		target: TripStatus.ONGOING | TripStatus.COMPLETED,
+		limit: number,
+		awaitParticipationEvaluation: boolean
+	): Promise<Array<{ id: string; previousStatus: TripStatus }>> {
+		const dueCondition =
+			target === TripStatus.COMPLETED
+				? `"status" IN ('published', 'ongoing') AND "ends_at" <= CURRENT_TIMESTAMP`
+				: `"status" = 'published' AND "starts_at" <= CURRENT_TIMESTAMP AND "ends_at" > CURRENT_TIMESTAMP`;
+		return (await this.query(
+			`WITH due AS (
+				SELECT "id", "status"
+				FROM "trips"
+				WHERE ${dueCondition}
+				  AND ("status" <> 'published' OR NOT $3::boolean OR "participation_evaluated_at" IS NOT NULL)
+				ORDER BY "starts_at" ASC, "id" ASC
+				LIMIT $2
+				FOR UPDATE SKIP LOCKED
+			 ), moved AS (
+				UPDATE "trips" trip
+				SET "status" = $1, "updated_at" = CURRENT_TIMESTAMP
+				FROM due
+				WHERE trip."id" = due."id"
+				RETURNING trip."id", due."status" AS "previousStatus"
+			 ), logged AS (
+				INSERT INTO "audit_logs" ("actor_id", "action", "target_type", "target_id", "before", "after", "reason")
+				SELECT NULL, 'trip.status_advanced', 'trip', moved."id",
+					jsonb_build_object('status', moved."previousStatus"),
+					jsonb_build_object('status', $1::text),
+					'schedule_reached'
+				FROM moved
+			 )
+			 SELECT "id", "previousStatus" FROM moved`,
+			[target, limit, awaitParticipationEvaluation]
+		)) as Array<{ id: string; previousStatus: TripStatus }>;
 	}
 
 	/**

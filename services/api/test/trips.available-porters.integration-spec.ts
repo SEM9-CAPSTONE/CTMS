@@ -168,7 +168,7 @@ describe("CTMS-200 available Porters (integration, real Postgres)", () => {
 				1,
 				20,
 				100000,
-				"draft",
+				"published",
 			]
 		);
 		return tripId;
@@ -401,11 +401,14 @@ describe("CTMS-200 available Porters (integration, real Postgres)", () => {
 			),
 			TripPorterStatus.ASSIGNED
 		);
-		await assign(sameTrip, targetTripId, TripPorterStatus.ASSIGNED);
-
 		const response = await search(host.token, targetTripId, { role: "support" }).expect(200);
 		const ids = response.body.items.map((item: { porterId: string }) => item.porterId);
-		expect(ids).toEqual([unassigned, nonOverlap, touchesStart, touchesEnd, unaffected].sort());
-		expect(ids).not.toEqual(expect.arrayContaining([assigned, pending, overnight, sameTrip]));
+		expect(ids).toEqual(
+			[unassigned, nonOverlap, touchesStart, touchesEnd, unaffected, sameTrip].sort()
+		);
+		for (const excluded of [assigned, pending, overnight]) expect(ids).not.toContain(excluded);
+
+		await assign(sameTrip, targetTripId, TripPorterStatus.ASSIGNED);
+		await search(host.token, targetTripId, { role: "support" }).expect(409);
 	});
 });

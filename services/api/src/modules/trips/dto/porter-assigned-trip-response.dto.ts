@@ -16,4 +16,7 @@ export class PorterAssignedTripResponseDto {
 
 	@ApiProperty({ type: String, format: "date-time" })
 	endsAt!: Date;
+
+	@ApiProperty({ type: String, nullable: true })
+	routeName!: string | null;
 }

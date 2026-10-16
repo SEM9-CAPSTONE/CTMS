@@ -17,6 +17,8 @@ import { PorterRequestsService } from "./services/porter-requests.service";
 import { TripAutoCancelService } from "./services/trip-auto-cancel.service";
 import { TripAutoCancelWorker } from "./services/trip-auto-cancel.worker";
 import { TripReviewDeadlineService } from "./services/trip-review-deadline.service";
+import { TripStatusScheduleService } from "./services/trip-status-schedule.service";
+import { TripStatusScheduleWorker } from "./services/trip-status-schedule.worker";
 import { TripsService } from "./services/trips.service";
 
 @Module({
@@ -30,6 +32,8 @@ import { TripsService } from "./services/trips.service";
 		PorterScheduleConflictSource,
 		TripAutoCancelService,
 		TripAutoCancelWorker,
+		TripStatusScheduleService,
+		TripStatusScheduleWorker,
 		{
 			provide: TripReviewDeadlineService,
 			useFactory: (tripsService: TripsService) => new TripReviewDeadlineService(tripsService),
