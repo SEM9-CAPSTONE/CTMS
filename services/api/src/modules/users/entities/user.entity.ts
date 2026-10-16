@@ -61,6 +61,9 @@ export class User {
 	@Column({ name: "full_name", type: "varchar", length: 50, nullable: true })
 	fullName!: string | null;
 
+	@Column({ name: "avatar_url", type: "varchar", length: 1000, nullable: true })
+	avatarUrl!: string | null;
+
 	@Column({ name: "date_of_birth", type: "date", nullable: true })
 	dateOfBirth!: string | null;
 

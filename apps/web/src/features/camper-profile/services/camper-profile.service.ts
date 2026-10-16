@@ -52,21 +52,44 @@ function getProfileDisplayName(apiProfile: ProfileApiResponse): string {
 	return apiProfile.phone ?? "Người dùng";
 }
 
+function getStoredAvatar(userId?: string): string | null {
+	if (typeof window === "undefined" || !userId) return null;
+	try {
+		return localStorage.getItem(`camper_avatar_${userId}`);
+	} catch {
+		return null;
+	}
+}
+
+function setStoredAvatar(userId: string, avatarUrl: string): void {
+	if (typeof window === "undefined" || !userId) return;
+	try {
+		localStorage.setItem(`camper_avatar_${userId}`, avatarUrl);
+	} catch {
+		// Ignore storage errors
+	}
+}
+
 function toCamperProfileData(apiProfile: ProfileApiResponse): CamperProfileData {
 	const joinedYear = new Date(apiProfile.createdAt).getFullYear();
-	const emergencyContactAdded = apiProfile.emergencyContacts.length > 0;
+	const emergencyContactAdded = (apiProfile.emergencyContacts?.length ?? 0) > 0;
 	const requiredFields = [
-		apiProfile.fullName,
-		apiProfile.dateOfBirth,
-		apiProfile.gender,
-		apiProfile.address,
-		apiProfile.phone,
+		Boolean(apiProfile.fullName?.trim()),
+		Boolean(apiProfile.phone?.trim()),
+		Boolean(apiProfile.dateOfBirth?.trim()),
+		Boolean(apiProfile.gender),
+		Boolean(apiProfile.address?.trim()),
+		emergencyContactAdded,
 	];
 	const completionPercentage = Math.round(
-		((requiredFields.filter(Boolean).length + (emergencyContactAdded ? 1 : 0)) /
-			(requiredFields.length + 1)) *
-			100
+		(requiredFields.filter(Boolean).length / requiredFields.length) * 100
 	);
+
+	const storedAvatar = getStoredAvatar(apiProfile.id);
+	const resolvedAvatarUrl = apiProfile.avatarUrl || storedAvatar || DEFAULT_AVATAR_URL;
+	if (apiProfile.avatarUrl && apiProfile.id) {
+		setStoredAvatar(apiProfile.id, apiProfile.avatarUrl);
+	}
 
 	return {
 		id: apiProfile.id,
@@ -74,7 +97,7 @@ function toCamperProfileData(apiProfile: ProfileApiResponse): CamperProfileData 
 		fullName: getProfileDisplayName(apiProfile),
 		email: apiProfile.email ?? "",
 		phone: apiProfile.phone ?? "",
-		avatarUrl: DEFAULT_AVATAR_URL,
+		avatarUrl: resolvedAvatarUrl,
 		isProMember: false,
 		joinedYear: Number.isFinite(joinedYear) ? joinedYear : new Date().getFullYear(),
 		dateOfBirth: toDisplayDate(apiProfile.dateOfBirth),
@@ -99,6 +122,7 @@ function toUpdateProfilePayload(values: CamperProfileFormValues): UpdateProfileP
 		gender: values.gender,
 		address: values.address,
 		bio: values.bio ?? "",
+		avatarUrl: values.avatarUrl,
 		emergencyContacts: values.emergencyContacts.map((contact) => ({
 			name: contact.name,
 			relationship: contact.relationship,
@@ -125,5 +149,16 @@ export const camperProfileService = {
 		return toCamperProfileData(updated);
 	},
 
-	updateAvatar: async (avatarUrl: string): Promise<string> => avatarUrl,
+	updateAvatar: async (avatarUrl: string, userId?: string): Promise<string> => {
+		if (userId) {
+			setStoredAvatar(userId, avatarUrl);
+		}
+		const updated = await httpClient.patch<ProfileApiResponse>(API_ENDPOINTS.PROFILE.ME, {
+			avatarUrl,
+		});
+		if (updated?.id) {
+			setStoredAvatar(updated.id, updated.avatarUrl || avatarUrl);
+		}
+		return updated?.avatarUrl || avatarUrl;
+	},
 };

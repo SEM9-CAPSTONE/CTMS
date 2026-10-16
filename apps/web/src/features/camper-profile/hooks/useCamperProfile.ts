@@ -90,6 +90,7 @@ function formValuesFromProfile(profile: CamperProfileData): CamperProfileFormVal
 		gender: profile.gender,
 		address: profile.address,
 		bio: profile.bio,
+		avatarUrl: profile.avatarUrl,
 		campingExperienceYears: profile.campingExperienceYears,
 		trekkingExperienceDetails: profile.trekkingExperienceDetails,
 		emergencyContacts: profile.emergencyContacts.map((contact) => ({
@@ -115,6 +116,7 @@ export function useCamperProfile() {
 			gender: "male",
 			address: "",
 			bio: "",
+			avatarUrl: "",
 			campingExperienceYears: 0,
 			trekkingExperienceDetails: "",
 			emergencyContacts: [],
@@ -176,9 +178,16 @@ export function useCamperProfile() {
 		setSaveSuccessMessage(null);
 		setErrorMessage(null);
 		try {
-			const updated = await camperProfileService.updateProfile(values, languages);
+			const updated = await camperProfileService.updateProfile(
+				{
+					...values,
+					avatarUrl: values.avatarUrl || profile?.avatarUrl,
+				},
+				languages
+			);
 			const nextProfile = {
 				...updated,
+				avatarUrl: updated.avatarUrl || values.avatarUrl || profile?.avatarUrl || "",
 				campingExperienceYears: values.campingExperienceYears,
 				trekkingExperienceDetails: values.trekkingExperienceDetails ?? "",
 				languages,
@@ -211,8 +220,9 @@ export function useCamperProfile() {
 
 	const handleAvatarChange = async (newAvatarUrl: string) => {
 		try {
-			const updatedUrl = await camperProfileService.updateAvatar(newAvatarUrl);
+			const updatedUrl = await camperProfileService.updateAvatar(newAvatarUrl, profile?.id);
 			setProfile((prev) => (prev ? { ...prev, avatarUrl: updatedUrl } : prev));
+			form.setValue("avatarUrl", updatedUrl);
 		} catch (err) {
 			setErrorMessage(mapProfileError(err));
 		}

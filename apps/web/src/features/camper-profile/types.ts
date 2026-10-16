@@ -30,6 +30,7 @@ export interface ProfileApiResponse {
 	role: "camper" | "host" | "porter" | "admin";
 	status: "pending_verification" | "active" | "suspended" | "deleted";
 	fullName: string | null;
+	avatarUrl?: string | null;
 	dateOfBirth: string | null;
 	gender: ProfileGender | null;
 	address: string | null;
@@ -41,6 +42,7 @@ export interface ProfileApiResponse {
 
 export interface UpdateProfilePayload {
 	fullName?: string;
+	avatarUrl?: string | null;
 	phone?: string;
 	dateOfBirth?: string;
 	gender?: ProfileGender;

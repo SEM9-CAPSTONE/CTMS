@@ -1,8 +1,11 @@
 import { Menu } from "lucide-react";
 import type React from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Collapse } from "../../../shared/components/Collapse";
 import { HomeLink } from "../../../shared/components/HomeLink";
+import { getStoredAuthUser } from "../../auth/utils/tokenStorage";
+import { camperProfileService } from "../../camper-profile/services/camper-profile.service";
+import type { CamperProfileData } from "../../camper-profile/types";
 import { type AdminNavigationItem, AdminSidebar } from "./AdminSidebar";
 
 interface AdminLayoutProps {
@@ -14,6 +17,55 @@ interface AdminLayoutProps {
 export function AdminLayout({ activeItem, children, onLogout }: AdminLayoutProps) {
 	const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+	const [profile, setProfile] = useState<CamperProfileData | null>(null);
+
+	useEffect(() => {
+		let isMounted = true;
+		const stored = getStoredAuthUser();
+		if (stored) {
+			setProfile(
+				(prev) =>
+					prev ??
+					({
+						id: stored.id,
+						accountStatus: "active",
+						fullName: stored.fullName || "Administrator",
+						email: stored.email || "admin@ctms.local",
+						phone: stored.phone || "",
+						avatarUrl:
+							"https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80",
+						isProMember: false,
+						joinedYear: 2024,
+						dateOfBirth: "",
+						gender: "other",
+						address: "",
+						bio: "",
+						campingExperienceYears: 0,
+						trekkingExperienceDetails: "",
+						languages: [],
+						emergencyContacts: [],
+						completionPercentage: 100,
+						emergencyContactAdded: false,
+						phoneVerified: true,
+					} as CamperProfileData)
+			);
+		}
+
+		camperProfileService
+			.getProfile()
+			.then((data) => {
+				if (isMounted && data) {
+					setProfile(data);
+				}
+			})
+			.catch(() => {
+				// Keep fallback from storedUser if API fails
+			});
+
+		return () => {
+			isMounted = false;
+		};
+	}, []);
 
 	return (
 		<div className="min-h-screen bg-[#f4f7f2] font-sans text-[#10221b] antialiased">
@@ -24,7 +76,12 @@ export function AdminLayout({ activeItem, children, onLogout }: AdminLayoutProps
 					onToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
 					widthClass="w-72"
 				>
-					<AdminSidebar activeItem={activeItem} onLogout={onLogout} className="h-full w-full" />
+					<AdminSidebar
+						activeItem={activeItem}
+						profile={profile}
+						onLogout={onLogout}
+						className="h-full w-full"
+					/>
 				</Collapse>
 			</div>
 
@@ -39,6 +96,7 @@ export function AdminLayout({ activeItem, children, onLogout }: AdminLayoutProps
 					/>
 					<AdminSidebar
 						activeItem={activeItem}
+						profile={profile}
 						onLogout={onLogout}
 						onClose={() => setMobileMenuOpen(false)}
 						className="relative z-10 shadow-2xl"

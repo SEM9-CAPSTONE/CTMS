@@ -18,6 +18,8 @@ export interface StoredAuthUser {
 	roles?: string[];
 	status: string;
 	createdAt: string;
+	fullName?: string | null;
+	avatarUrl?: string | null;
 }
 
 export function setAccessToken(token: string): void {

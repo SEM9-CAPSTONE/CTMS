@@ -459,6 +459,7 @@ export function AppRoutes() {
 					onBackHome={() => navigateTo(storedUser ? RoutePath.DASHBOARD : RoutePath.HOME)}
 					onNavigateDashboard={() => navigateTo(RoutePath.DASHBOARD)}
 					onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}
+					onNavigateToBookings={() => navigateTo(RoutePath.BOOKINGS)}
 					onLogout={handleLogout}
 				/>
 			);

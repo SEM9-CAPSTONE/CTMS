@@ -20,6 +20,7 @@ vi.mock("../../health-profile/routes", () => ({
 
 const getProfileMock = vi.mocked(camperProfileService.getProfile);
 const updateProfileMock = vi.mocked(camperProfileService.updateProfile);
+const updateAvatarMock = vi.mocked(camperProfileService.updateAvatar);
 
 const PROFILE: CamperProfileData = {
 	id: "user-1",
@@ -55,6 +56,7 @@ describe("CamperProfilePage", () => {
 	beforeEach(() => {
 		getProfileMock.mockReset();
 		updateProfileMock.mockReset();
+		updateAvatarMock.mockReset();
 	});
 
 	it("renders current profile data from the API", async () => {
@@ -207,5 +209,97 @@ describe("CamperProfilePage", () => {
 
 		expect(await screen.findByText("Vui lòng nhập số điện thoại")).toBeInTheDocument();
 		expect(updateProfileMock).not.toHaveBeenCalled();
+	});
+
+	it("renders ProfileCompletionCard with accurate 50% completion, emergency contacts, and phone", async () => {
+		const partialProfile: CamperProfileData = {
+			...PROFILE,
+			fullName: "Nguyen Van B",
+			phone: "0900000003",
+			dateOfBirth: "",
+			gender: "male" as const,
+			address: "",
+			emergencyContacts: [
+				{
+					id: "contact-1",
+					name: "Tran Thi C",
+					relationship: "mother",
+					phone: "+84911111111",
+					email: "mom@example.com",
+				},
+			],
+			completionPercentage: 50,
+			emergencyContactAdded: true,
+			phoneVerified: true,
+		};
+		// Notice: fullName (1), phone (1), emergencyContacts (1) = 3 / 6 = 50%
+		// dateOfBirth (""), gender (null or unset), address ("")
+		getProfileMock.mockResolvedValueOnce({
+			...partialProfile,
+			gender: null as unknown as "male",
+		});
+
+		const user = userEvent.setup();
+		render(<CamperProfilePage />);
+
+		expect(await screen.findByText("Hoàn thiện hồ sơ")).toBeInTheDocument();
+		expect(screen.getByText("50%")).toBeInTheDocument();
+		expect(
+			screen.getByText("Đảm bảo an toàn tuyệt đối và quy trình ứng cứu khẩn cấp.")
+		).toBeInTheDocument();
+
+		// Initially collapsed: shows progress and toggle button
+		const toggleButton = screen.getByRole("button", { name: /Chi tiết/i });
+		expect(toggleButton).toBeInTheDocument();
+		expect(screen.queryByText("Đã lưu 1 người thân")).not.toBeInTheDocument();
+
+		// Click toggle to view breakdown
+		await user.click(toggleButton);
+
+		// Now itemized details are visible
+		expect(screen.getByText("Đã lưu 1 người thân")).toBeInTheDocument();
+		expect(screen.getByText("0900000003")).toBeInTheDocument();
+		expect(screen.getByText(/Cần bổ sung/i)).toBeInTheDocument();
+		expect(screen.getByText(/Đã hoàn thành/i)).toBeInTheDocument();
+	});
+
+	it("navigates to bookings when clicking Đơn đặt chỗ in the sidebar", async () => {
+		const user = userEvent.setup();
+		const onNavigateToBookings = vi.fn();
+		getProfileMock.mockResolvedValueOnce(PROFILE);
+
+		render(<CamperProfilePage onNavigateToBookings={onNavigateToBookings} />);
+
+		await screen.findByDisplayValue("Nguyen Van B");
+		const bookingsButton = screen.getByRole("button", { name: /Đơn đặt chỗ/i });
+		await user.click(bookingsButton);
+
+		expect(onNavigateToBookings).toHaveBeenCalledTimes(1);
+	});
+
+	it("preserves avatarUrl when saving profile form", async () => {
+		const user = userEvent.setup();
+		getProfileMock.mockResolvedValueOnce({
+			...PROFILE,
+			avatarUrl: "https://cloudinary.com/test-avatar.jpg",
+		});
+		updateProfileMock.mockResolvedValueOnce({
+			...PROFILE,
+			avatarUrl: "https://cloudinary.com/test-avatar.jpg",
+			fullName: "Nguyen Van B Updated",
+		});
+
+		render(<CamperProfilePage />);
+
+		const nameInput = await screen.findByDisplayValue("Nguyen Van B");
+		await user.clear(nameInput);
+		await user.type(nameInput, "Nguyen Van B Updated");
+		await user.click(screen.getByRole("button", { name: /Lưu thay đổi/i }));
+
+		await waitFor(() => expect(updateProfileMock).toHaveBeenCalledTimes(1));
+		expect(updateProfileMock.mock.calls[0][0]).toMatchObject({
+			fullName: "Nguyen Van B Updated",
+			avatarUrl: "https://cloudinary.com/test-avatar.jpg",
+		});
 	});
 });
