@@ -25,6 +25,8 @@ import { ReviewTripDto } from "../dto/review-trip.dto";
 import { SearchTripsQueryDto } from "../dto/search-trips-query.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { TripIdParamDto } from "../dto/trip-id-param.dto";
+// biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
+import { TripPorterRequestParamDto } from "../dto/trip-porter-request-param.dto";
 import { PaginatedTripsResponseDto, TripResponseDto } from "../dto/trip-response.dto";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { AvailablePortersService } from "../services/available-porters.service";
@@ -241,10 +243,9 @@ export class TripsController {
 	@ApiResponse({ status: 409, description: "Request is already terminal" })
 	cancelPorterRequest(
 		@Req() request: AuthenticatedRequest,
-		@Param() params: TripIdParamDto,
-		@Param("requestId") requestId: string
+		@Param() params: TripPorterRequestParamDto
 	): Promise<PorterRequestResponseDto> {
-		return this.porterRequestsService.cancel(request.user.userId, params.tripId, requestId);
+		return this.porterRequestsService.cancel(request.user.userId, params.tripId, params.requestId);
 	}
 
 	@Get(":tripId")

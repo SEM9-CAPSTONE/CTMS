@@ -12,6 +12,7 @@ import { PorterRequestsRepository } from "./repositories/porter-requests.reposit
 import { PorterScheduleConflictSource } from "./repositories/porter-schedule-conflict-source";
 import { TripsRepository } from "./repositories/trips.repository";
 import { AvailablePortersService } from "./services/available-porters.service";
+import { PorterRequestExpiryWorker } from "./services/porter-request-expiry.worker";
 import { PorterRequestsService } from "./services/porter-requests.service";
 import { TripAutoCancelService } from "./services/trip-auto-cancel.service";
 import { TripAutoCancelWorker } from "./services/trip-auto-cancel.worker";
@@ -25,6 +26,7 @@ import { TripsService } from "./services/trips.service";
 		TripsService,
 		AvailablePortersService,
 		PorterRequestsService,
+		PorterRequestExpiryWorker,
 		PorterScheduleConflictSource,
 		TripAutoCancelService,
 		TripAutoCancelWorker,

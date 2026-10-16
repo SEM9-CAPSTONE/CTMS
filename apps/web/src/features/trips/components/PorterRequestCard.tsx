@@ -1,4 +1,5 @@
 import { CheckCircle2, Clock, Loader2, MapPin, XCircle } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Button } from "../../../shared/components/Button";
 import type { PorterRequest, PorterRequestStatus } from "../types";
 import { formatDateRange } from "./TripCard";
@@ -48,6 +49,25 @@ export function PorterRequestCard({
 }: PorterRequestCardProps) {
 	const trip = request.trip;
 	const isPending = request.status === "pending";
+	const [now, setNow] = useState(() => Date.now());
+	useEffect(() => {
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		const update = () => {
+			clearTimeout(timer);
+			const current = Date.now();
+			setNow(current);
+			const remaining = Date.parse(request.expiresAt) - current;
+			if (isPending && remaining > 0)
+				timer = setTimeout(update, Math.min(remaining, 2_147_483_647));
+		};
+		update();
+		window.addEventListener("focus", update);
+		return () => {
+			clearTimeout(timer);
+			window.removeEventListener("focus", update);
+		};
+	}, [isPending, request.expiresAt]);
+	const isExpired = Date.parse(request.expiresAt) <= now;
 
 	return (
 		<li className="rounded-2xl border border-[#dfe8df] bg-white p-5 shadow-sm">
@@ -79,6 +99,10 @@ export function PorterRequestCard({
 						<p>
 							Vai trò: {request.requestedRole === "lead" ? "Trưởng nhóm Porter" : "Porter hỗ trợ"}
 						</p>
+						<p>Hạn phản hồi: {formatDateTime(request.expiresAt)}</p>
+						{isPending && isExpired && (
+							<p className="text-amber-800">Đã quá hạn phản hồi. Tải lại để cập nhật trạng thái.</p>
+						)}
 						{trip && <p>Kết thúc: {formatDateTime(trip.endsAt)}</p>}
 					</div>
 					{request.note && <p className="mt-3 text-sm text-[#425048]">{request.note}</p>}
@@ -90,7 +114,7 @@ export function PorterRequestCard({
 							<Button
 								size="sm"
 								onClick={() => onAccept?.(request)}
-								disabled={isSubmitting}
+								disabled={isSubmitting || isExpired}
 								className="gap-2"
 							>
 								{isSubmitting ? (
@@ -104,7 +128,7 @@ export function PorterRequestCard({
 								size="sm"
 								variant="outline"
 								onClick={() => onDecline?.(request)}
-								disabled={isSubmitting}
+								disabled={isSubmitting || isExpired}
 								className="gap-2"
 							>
 								<XCircle className="size-4" />
@@ -117,7 +141,7 @@ export function PorterRequestCard({
 							size="sm"
 							variant="outline"
 							onClick={() => onCancel?.(request)}
-							disabled={isSubmitting}
+							disabled={isSubmitting || isExpired}
 						>
 							Hủy yêu cầu
 						</Button>
