@@ -1,11 +1,15 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useCreateEquipmentCatalogItem } from "../hooks/useCreateEquipmentCatalogItem";
 import { useEquipmentCatalog } from "../hooks/useEquipmentCatalog";
 import { useUpdateEquipmentCatalogItem } from "../hooks/useUpdateEquipmentCatalogItem";
 import type { EquipmentCatalogItem } from "../types";
 import { EquipmentCatalogPage } from "./EquipmentCatalogPage";
 
 vi.mock("../hooks/useEquipmentCatalog", () => ({ useEquipmentCatalog: vi.fn() }));
+vi.mock("../hooks/useCreateEquipmentCatalogItem", () => ({
+	useCreateEquipmentCatalogItem: vi.fn(),
+}));
 vi.mock("../hooks/useUpdateEquipmentCatalogItem", () => ({
 	useUpdateEquipmentCatalogItem: vi.fn(),
 }));
@@ -30,6 +34,14 @@ describe("EquipmentCatalogPage", () => {
 			isSubmitting: false,
 			error: null,
 			submit: vi.fn(),
+			reset: vi.fn(),
+		});
+		vi.mocked(useCreateEquipmentCatalogItem).mockReturnValue({
+			isSubmitting: false,
+			error: null,
+			createdItem: null,
+			submit: vi.fn(),
+			retry: vi.fn(),
 			reset: vi.fn(),
 		});
 	});
@@ -100,17 +112,81 @@ describe("EquipmentCatalogPage", () => {
 		expect(screen.queryByRole("heading", { name: "Sửa thiết bị" })).not.toBeInTheDocument();
 	});
 
-	it("calls onCreateItem when the create button is clicked", () => {
+	it("opens the create form in a modal instead of navigating to a new page", () => {
 		vi.mocked(useEquipmentCatalog).mockReturnValue({
 			items: [],
 			isLoading: false,
 			error: "",
 			retry: vi.fn(),
 		});
-		const onCreateItem = vi.fn();
-		render(<EquipmentCatalogPage onCreateItem={onCreateItem} />);
+		render(<EquipmentCatalogPage />);
+
+		expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+		fireEvent.click(screen.getByRole("button", { name: "Thêm thiết bị" }));
+
+		const dialog = screen.getByRole("dialog", { name: "Thêm thiết bị vào kho" });
+		expect(dialog).toBeInTheDocument();
+		expect(screen.getByLabelText("Tên thiết bị")).toBeInTheDocument();
+
+		fireEvent.click(screen.getByRole("button", { name: "Hủy" }));
+		expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+	});
+
+	it("closes the create modal and reloads the list after a successful create", async () => {
+		const retry = vi.fn();
+		const submit = vi.fn().mockResolvedValue({ ...item, id: "item-2", name: "Trekking pole" });
+		vi.mocked(useEquipmentCatalog).mockReturnValue({
+			items: [item],
+			isLoading: false,
+			error: "",
+			retry,
+		});
+		vi.mocked(useCreateEquipmentCatalogItem).mockReturnValue({
+			isSubmitting: false,
+			error: null,
+			createdItem: null,
+			submit,
+			retry: vi.fn(),
+			reset: vi.fn(),
+		});
+		render(<EquipmentCatalogPage />);
 
 		fireEvent.click(screen.getByRole("button", { name: "Thêm thiết bị" }));
-		expect(onCreateItem).toHaveBeenCalled();
+		fireEvent.change(screen.getByLabelText("Tên thiết bị"), { target: { value: "Trekking pole" } });
+		fireEvent.change(screen.getByLabelText("Loại thiết bị"), { target: { value: "gear" } });
+		fireEvent.change(screen.getByLabelText("Số lượng"), { target: { value: "4" } });
+		fireEvent.change(screen.getByLabelText("Giá thuê mỗi ngày"), { target: { value: "30000" } });
+		const dialog = screen.getByRole("dialog", { name: "Thêm thiết bị vào kho" });
+		fireEvent.click(within(dialog).getByRole("button", { name: "Thêm thiết bị" }));
+
+		await waitFor(() =>
+			expect(submit).toHaveBeenCalledWith(
+				expect.objectContaining({ name: "Trekking pole", quantityTotal: 4 })
+			)
+		);
+		await waitFor(() => expect(retry).toHaveBeenCalled());
+		expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+	});
+
+	it("paginates the table with the shared Pagination component", () => {
+		const items = Array.from({ length: 12 }, (_, index) => ({
+			...item,
+			id: `item-${index + 1}`,
+			name: `Item ${index + 1}`,
+		}));
+		vi.mocked(useEquipmentCatalog).mockReturnValue({
+			items,
+			isLoading: false,
+			error: "",
+			retry: vi.fn(),
+		});
+		render(<EquipmentCatalogPage />);
+
+		expect(screen.getByText("Item 10")).toBeInTheDocument();
+		expect(screen.queryByText("Item 11")).not.toBeInTheDocument();
+
+		fireEvent.click(screen.getByRole("button", { name: "Tiếp theo" }));
+		expect(screen.getByText("Item 11")).toBeInTheDocument();
+		expect(screen.queryByText("Item 1")).not.toBeInTheDocument();
 	});
 });
