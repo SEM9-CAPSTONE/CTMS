@@ -123,7 +123,7 @@ export class PorterRequestsService {
 	}
 
 	async listForPorter(porterId: string): Promise<PorterRequestResponseDto[]> {
-		const expired = await this.expirePendingForPorter(porterId);
+		const expired = await this.porterRequestsRepository.expirePendingByPorter(porterId);
 		for (const request of expired) this.emitStateChangedNotification(request);
 		const requests = await this.porterRequestsRepository.listForPorter(porterId);
 		return requests.map(toPorterRequestResponse);
@@ -150,7 +150,10 @@ export class PorterRequestsService {
 
 	async accept(porterId: string, requestId: string): Promise<PorterRequestResponseDto> {
 		const result = await this.dataSource.transaction(async (manager: EntityManager) => {
-			const now = await this.captureDatabaseTime(manager);
+			// Serialize assignment creation across different Trips for the same Porter.
+			await manager.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [
+				`porter-assignment:${porterId}`,
+			]);
 			const porterRequests = manager.withRepository(this.porterRequestsRepository);
 			const request = await porterRequests.findByIdForUpdate(requestId);
 			if (!request) throw new NotFoundException("Porter Request not found");
@@ -166,6 +169,8 @@ export class PorterRequestsService {
 			if (request.status !== PorterRequestStatus.PENDING) {
 				throw new ConflictException("Porter Request is no longer pending");
 			}
+			const trip = await this.findTripForAssignment(manager, request.tripId);
+			let now = await this.captureDatabaseTime(manager);
 			if (request.expiresAt.getTime() <= now.getTime()) {
 				const expired = await porterRequests.markStatus(
 					request.id,
@@ -175,7 +180,6 @@ export class PorterRequestsService {
 				return { request: expired, changed: true };
 			}
 
-			const trip = await this.findTripForAssignment(manager, request.tripId);
 			if (trip.status !== TripStatus.PUBLISHED) {
 				throw new ConflictException("Trip state does not allow Porter assignment");
 			}
@@ -192,6 +196,19 @@ export class PorterRequestsService {
 				endsAt: trip.endsAt,
 			});
 
+			// Locks and eligibility queries may have crossed the response deadline.
+			now = await this.captureDatabaseTime(manager);
+			if (request.expiresAt.getTime() <= now.getTime()) {
+				const expired = await porterRequests.markStatus(
+					request.id,
+					PorterRequestStatus.EXPIRED,
+					now
+				);
+				return { request: expired, changed: true };
+			}
+			if (trip.startsAt.getTime() <= now.getTime()) {
+				throw new ConflictException("Trip has already started");
+			}
 			const assignment = await porterRequests.createAssignedTripPorterIdempotent(
 				request.tripId,
 				request.porterId
@@ -249,35 +266,7 @@ export class PorterRequestsService {
 	}
 
 	async expirePending(limit = 100): Promise<number> {
-		const rows = (await this.dataSource.query(
-			`
-			UPDATE "porter_requests"
-			SET "status" = $1,
-				"responded_at" = clock_timestamp(),
-				"updated_at" = clock_timestamp()
-			WHERE "id" IN (
-				SELECT "id"
-				FROM "porter_requests"
-				WHERE "status" = $2
-					AND "expires_at" <= clock_timestamp()
-				ORDER BY "expires_at" ASC, "id" ASC
-				LIMIT $3
-			)
-			RETURNING
-				"id",
-				"trip_id" AS "tripId",
-				"porter_id" AS "porterId",
-				"requested_by" AS "requestedBy",
-				"requested_role" AS "requestedRole",
-				"note",
-				"status",
-				"expires_at" AS "expiresAt",
-				"responded_at" AS "respondedAt",
-				"created_at" AS "createdAt",
-				"updated_at" AS "updatedAt"
-			`,
-			[PorterRequestStatus.EXPIRED, PorterRequestStatus.PENDING, limit]
-		)) as PorterRequest[];
+		const rows = await this.porterRequestsRepository.expirePendingBatch(limit);
 		for (const request of rows) this.emitStateChangedNotification(request);
 		return rows.length;
 	}
@@ -292,7 +281,6 @@ export class PorterRequestsService {
 		forbiddenMessage: string;
 	}): Promise<{ request: PorterRequestWithContext; changed: boolean }> {
 		return this.dataSource.transaction(async (manager: EntityManager) => {
-			const now = await this.captureDatabaseTime(manager);
 			const porterRequests = manager.withRepository(this.porterRequestsRepository);
 			const request = await porterRequests.findByIdForUpdate(input.requestId);
 			if (!request) throw new NotFoundException("Porter Request not found");
@@ -306,6 +294,7 @@ export class PorterRequestsService {
 			if (request.status !== PorterRequestStatus.PENDING) {
 				throw new ConflictException("Porter Request is already terminal");
 			}
+			const now = await this.captureDatabaseTime(manager);
 			if (
 				input.status !== PorterRequestStatus.EXPIRED &&
 				request.expiresAt.getTime() <= now.getTime()
@@ -372,33 +361,6 @@ export class PorterRequestsService {
 			endsAt: trip.endsAt,
 			meetingAt: trip.meetingAt,
 		};
-	}
-
-	private async expirePendingForPorter(porterId: string): Promise<PorterRequest[]> {
-		return this.dataSource.query(
-			`
-			UPDATE "porter_requests"
-			SET "status" = $1,
-				"responded_at" = clock_timestamp(),
-				"updated_at" = clock_timestamp()
-			WHERE "porter_id" = $2
-				AND "status" = $3
-				AND "expires_at" <= clock_timestamp()
-			RETURNING
-				"id",
-				"trip_id" AS "tripId",
-				"porter_id" AS "porterId",
-				"requested_by" AS "requestedBy",
-				"requested_role" AS "requestedRole",
-				"note",
-				"status",
-				"expires_at" AS "expiresAt",
-				"responded_at" AS "respondedAt",
-				"created_at" AS "createdAt",
-				"updated_at" AS "updatedAt"
-			`,
-			[PorterRequestStatus.EXPIRED, porterId, PorterRequestStatus.PENDING]
-		);
 	}
 
 	private async assertPorterEligible(

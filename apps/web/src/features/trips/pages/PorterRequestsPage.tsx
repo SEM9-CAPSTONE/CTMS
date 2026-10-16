@@ -1,5 +1,5 @@
 import { AlertTriangle, BriefcaseBusiness, Loader2, RefreshCw } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "../../../shared/components/Button";
 import { ConfirmModal } from "../../../shared/components/ConfirmModal";
 import { PorterRequestCard } from "../components/PorterRequestCard";
@@ -17,6 +17,7 @@ export interface PorterRequestsPageProps {
 export function PorterRequestsPage({ onBackHome }: PorterRequestsPageProps) {
 	const query = useMyPorterRequests();
 	const mutation = useRespondToPorterRequest();
+	const submitting = useRef(false);
 	const [pendingAction, setPendingAction] = useState<{
 		request: PorterRequest;
 		action: "accept" | "decline";
@@ -26,14 +27,26 @@ export function PorterRequestsPage({ onBackHome }: PorterRequestsPageProps) {
 	const showInitialLoading = query.isLoading && requests.length === 0;
 	const error = query.error ? responseErrorMessage(query.error) : null;
 	const mutationError = mutation.error ? responseErrorMessage(mutation.error) : null;
+	useEffect(() => {
+		if (!pendingAction || mutation.isPending) return;
+		const current = query.data?.find((item) => item.id === pendingAction.request.id);
+		if (current && current.status !== "pending") setPendingAction(null);
+	}, [pendingAction, mutation.isPending, query.data]);
 
 	const confirmAction = async () => {
-		if (!pendingAction) return;
-		await mutation.mutateAsync({
-			requestId: pendingAction.request.id,
-			action: pendingAction.action,
-		});
-		setPendingAction(null);
+		if (!pendingAction || submitting.current) return;
+		submitting.current = true;
+		try {
+			await mutation.mutateAsync({
+				requestId: pendingAction.request.id,
+				action: pendingAction.action,
+			});
+			setPendingAction(null);
+		} catch {
+			// The mutation exposes the mapped error inside the confirmation dialog.
+		} finally {
+			submitting.current = false;
+		}
 	};
 
 	return (
@@ -85,7 +98,7 @@ export function PorterRequestsPage({ onBackHome }: PorterRequestsPageProps) {
 					</section>
 				)}
 
-				{mutationError && (
+				{mutationError && !pendingAction && (
 					<section
 						role="alert"
 						className="rounded-3xl border border-amber-200 bg-amber-50 p-5 text-sm font-bold text-amber-900"
@@ -110,12 +123,14 @@ export function PorterRequestsPage({ onBackHome }: PorterRequestsPageProps) {
 								key={request.id}
 								request={request}
 								mode="porter"
-								onAccept={(nextRequest) =>
-									setPendingAction({ request: nextRequest, action: "accept" })
-								}
-								onDecline={(nextRequest) =>
-									setPendingAction({ request: nextRequest, action: "decline" })
-								}
+								onAccept={(nextRequest) => {
+									mutation.reset();
+									setPendingAction({ request: nextRequest, action: "accept" });
+								}}
+								onDecline={(nextRequest) => {
+									mutation.reset();
+									setPendingAction({ request: nextRequest, action: "decline" });
+								}}
 								isSubmitting={mutation.isPending && mutation.variables?.requestId === request.id}
 							/>
 						))}
@@ -130,9 +145,18 @@ export function PorterRequestsPage({ onBackHome }: PorterRequestsPageProps) {
 					onConfirm={confirmAction}
 					title={pendingAction?.action === "accept" ? "Chấp nhận yêu cầu?" : "Từ chối yêu cầu?"}
 					description={
-						pendingAction?.action === "accept"
-							? "Hệ thống sẽ kiểm tra lại điều kiện hiện tại và tự động phân công bạn vào Trip nếu hợp lệ."
-							: "Yêu cầu sẽ chuyển sang trạng thái đã từ chối và không tạo phân công."
+						<div className="space-y-3">
+							<p>
+								{pendingAction?.action === "accept"
+									? "Hệ thống sẽ kiểm tra lại điều kiện hiện tại và tự động phân công bạn vào Trip nếu hợp lệ."
+									: "Yêu cầu sẽ chuyển sang trạng thái đã từ chối và không tạo phân công."}
+							</p>
+							{mutationError && (
+								<p role="alert" className="text-rose-800">
+									{mutationError}
+								</p>
+							)}
+						</div>
 					}
 					confirmText={pendingAction?.action === "accept" ? "Chấp nhận" : "Từ chối"}
 					variant={pendingAction?.action === "accept" ? "success" : "warning"}

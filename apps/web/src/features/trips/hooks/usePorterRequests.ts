@@ -20,6 +20,7 @@ export function useMyPorterRequests() {
 		queryFn: () => tripsService.getMyPorterRequests(),
 		retry: false,
 		staleTime: 15_000,
+		refetchInterval: 15_000,
 	});
 }
 
@@ -39,6 +40,7 @@ export function useAllHostPorterRequests() {
 		queryFn: () => tripsService.getHostPorterRequests(),
 		retry: false,
 		staleTime: 15_000,
+		refetchInterval: 15_000,
 	});
 }
 
@@ -62,6 +64,12 @@ export function useRespondToPorterRequest() {
 			});
 			void queryClient.invalidateQueries({ queryKey: queryKeys.trips.detail(request.tripId) });
 			void queryClient.invalidateQueries({ queryKey: queryKeys.trips.assigned });
+			void queryClient.invalidateQueries({ queryKey: queryKeys.trips.hostPorterRequests });
+			void queryClient.invalidateQueries({ queryKey: queryKeys.trips.hostPorterAssignments });
+		},
+		onError: async () => {
+			// Reconcile cancelled/expired requests and ambiguous network failures before retry.
+			await queryClient.invalidateQueries({ queryKey: queryKeys.trips.myPorterRequests });
 		},
 	});
 }
@@ -77,6 +85,13 @@ export function useCancelPorterRequest() {
 				queryKey: queryKeys.trips.porterRequests(request.tripId),
 			});
 			void queryClient.invalidateQueries({ queryKey: queryKeys.trips.myPorterRequests });
+		},
+		onError: async (_error, { tripId }) => {
+			await Promise.all([
+				queryClient.invalidateQueries({ queryKey: queryKeys.trips.hostPorterRequests }),
+				queryClient.invalidateQueries({ queryKey: queryKeys.trips.porterRequests(tripId) }),
+				queryClient.invalidateQueries({ queryKey: queryKeys.trips.myPorterRequests }),
+			]);
 		},
 	});
 }

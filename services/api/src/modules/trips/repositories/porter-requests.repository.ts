@@ -195,7 +195,6 @@ export class PorterRequestsRepository extends Repository<PorterRequest> {
 			LEFT JOIN "trip_porters" assignment
 				ON assignment."trip_id" = request."trip_id"
 				AND assignment."porter_id" = request."porter_id"
-				AND assignment."status" IN ('assigned', 'pending_reconfirmation')
 			WHERE request."id" = $1
 			`,
 			[requestId]
@@ -310,6 +309,30 @@ export class PorterRequestsRepository extends Repository<PorterRequest> {
 				 "created_at" AS "createdAt",
 				 "updated_at" AS "updatedAt"`,
 			[PorterRequestStatus.EXPIRED, hostId, PorterRequestStatus.PENDING]
+		);
+		return normalizeRows<PorterRequest>(result);
+	}
+
+	async expirePendingByPorter(porterId: string): Promise<PorterRequest[]> {
+		return this.expirePendingBatch(null, porterId);
+	}
+
+	async expirePendingBatch(limit: number | null, porterId?: string): Promise<PorterRequest[]> {
+		const result = await this.query(
+			`UPDATE "porter_requests"
+			 SET "status" = $1, "responded_at" = clock_timestamp(), "updated_at" = clock_timestamp()
+			 WHERE "id" IN (
+				SELECT "id" FROM "porter_requests"
+				WHERE "status" = $2 AND "expires_at" <= clock_timestamp()
+				  AND ($4::uuid IS NULL OR "porter_id" = $4)
+				ORDER BY "expires_at", "id"
+				LIMIT $3 FOR UPDATE SKIP LOCKED
+			 ) AND "status" = $2 AND "expires_at" <= clock_timestamp()
+			 RETURNING "id", "trip_id" AS "tripId", "porter_id" AS "porterId",
+			 "requested_by" AS "requestedBy", "requested_role" AS "requestedRole", "note", "status",
+			 "expires_at" AS "expiresAt", "responded_at" AS "respondedAt",
+			 "created_at" AS "createdAt", "updated_at" AS "updatedAt"`,
+			[PorterRequestStatus.EXPIRED, PorterRequestStatus.PENDING, limit, porterId ?? null]
 		);
 		return normalizeRows<PorterRequest>(result);
 	}

@@ -1,10 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { HttpError } from "../../../core/api";
 import { usePorterCandidateTrips } from "../hooks/usePorterCandidateTrips";
 import { tripsService } from "../services/trips.service";
-import type { TripDetails } from "../types";
+import type { PorterRequest, TripDetails } from "../types";
 import { HostPorterRequestsPage } from "./HostPorterRequestsPage";
 
 vi.mock("../hooks/usePorterCandidateTrips", () => ({
@@ -60,6 +61,20 @@ const trips: TripDetails[] = [
 	},
 ];
 
+const pendingRequest: PorterRequest = {
+	id: "request-1",
+	tripId: "trip-1",
+	porterId: "porter-1",
+	requestedBy: "host-1",
+	requestedRole: "support",
+	note: null,
+	status: "pending",
+	expiresAt: "2099-09-27T00:00:00Z",
+	respondedAt: null,
+	createdAt: "2026-01-01T00:00:00Z",
+	updatedAt: "2026-01-01T00:00:00Z",
+};
+
 function renderPage(props: ComponentProps<typeof HostPorterRequestsPage> = {}) {
 	const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
 	return render(
@@ -74,6 +89,7 @@ describe("HostPorterRequestsPage", () => {
 		vi.clearAllMocks();
 		window.history.replaceState({}, "", "/host/porter");
 		vi.spyOn(tripsService, "getHostPorterAssignments").mockResolvedValue([]);
+		vi.spyOn(tripsService, "getHostPorterRequests").mockResolvedValue([pendingRequest]);
 		vi.mocked(usePorterCandidateTrips).mockReturnValue({
 			trips,
 			isLoading: false,
@@ -108,5 +124,47 @@ describe("HostPorterRequestsPage", () => {
 		expect(await screen.findByText("Chưa có lịch sử phân công Porter.")).toBeInTheDocument();
 		expect(tripsService.getHostPorterAssignments).toHaveBeenCalledOnce();
 		expect(screen.queryByTestId("available-porters-panel")).not.toBeInTheDocument();
+	});
+
+	it("cancels a pending request after confirmation and refreshes its state", async () => {
+		const cancel = vi.spyOn(tripsService, "cancelPorterRequest").mockImplementation(async () => {
+			vi.mocked(tripsService.getHostPorterRequests).mockResolvedValue([]);
+			return { ...pendingRequest, status: "cancelled" };
+		});
+		renderPage({ initialView: "requests" });
+		fireEvent.click(await screen.findByRole("button", { name: "Hủy yêu cầu" }));
+		expect(cancel).not.toHaveBeenCalled();
+		fireEvent.click(screen.getByTestId("confirm-modal-submit"));
+		await waitFor(() => expect(screen.queryByTestId("confirm-modal")).not.toBeInTheDocument());
+		expect(cancel).toHaveBeenCalledExactlyOnceWith("trip-1", "request-1");
+		expect(await screen.findByText("Không có yêu cầu ở trạng thái này.")).toBeInTheDocument();
+	});
+
+	it("keeps cancellation network errors visible in the modal", async () => {
+		vi.spyOn(tripsService, "cancelPorterRequest").mockRejectedValue(new Error("offline"));
+		renderPage({ initialView: "requests" });
+		fireEvent.click(await screen.findByRole("button", { name: "Hủy yêu cầu" }));
+		fireEvent.click(screen.getByTestId("confirm-modal-submit"));
+		expect(await within(screen.getByTestId("confirm-modal")).findByRole("alert")).toHaveTextContent(
+			"Vui lòng thử lại"
+		);
+		await waitFor(() => expect(screen.getByTestId("confirm-modal-submit")).toBeEnabled());
+	});
+
+	it("refreshes a request accepted by the Porter before the Host cancellation", async () => {
+		vi.spyOn(tripsService, "cancelPorterRequest").mockImplementation(async () => {
+			vi.mocked(tripsService.getHostPorterRequests).mockResolvedValue([
+				{ ...pendingRequest, status: "accepted" },
+			]);
+			throw new HttpError("terminal", 409, null);
+		});
+		renderPage({ initialView: "requests" });
+		fireEvent.click(await screen.findByRole("button", { name: "Hủy yêu cầu" }));
+		fireEvent.click(screen.getByTestId("confirm-modal-submit"));
+		await waitFor(() => expect(screen.queryByTestId("confirm-modal")).not.toBeInTheDocument());
+		expect(screen.getByRole("alert")).toHaveTextContent("Yêu cầu không còn hợp lệ");
+		fireEvent.click(screen.getByRole("button", { name: "Đã chấp nhận" }));
+		expect(screen.getByText("Đã chấp nhận", { selector: "span" })).toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "Hủy yêu cầu" })).not.toBeInTheDocument();
 	});
 });

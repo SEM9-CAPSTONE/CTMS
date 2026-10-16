@@ -6,6 +6,8 @@ import request from "supertest";
 import { DataSource } from "typeorm";
 import { AppModule } from "../src/modules/app.module";
 import { TripPorterStatus } from "../src/modules/profiles/entities/trip-porter.entity";
+import { PorterRequestsRepository } from "../src/modules/trips/repositories/porter-requests.repository";
+import { PorterRequestsService } from "../src/modules/trips/services/porter-requests.service";
 import { UserRole, UserStatus } from "../src/modules/users/entities/user.entity";
 import { validationExceptionFactory } from "../src/shared/pipes/validation-exception-factory";
 import { assertSafeTestDatabase } from "./support/assert-safe-test-database";
@@ -18,7 +20,7 @@ interface TestActor {
 const FAR_FUTURE_START = new Date("2035-07-10T08:00:00.000Z");
 const FAR_FUTURE_END = new Date("2035-07-10T16:00:00.000Z");
 
-describe("POST /api/trips/:tripId/porter-requests (integration, real Postgres)", () => {
+describe("Porter Requests lifecycle (integration, real Postgres)", () => {
 	let app: INestApplication;
 	let dataSource: DataSource;
 	let jwtService: JwtService;
@@ -162,7 +164,7 @@ describe("POST /api/trips/:tripId/porter-requests (integration, real Postgres)",
 		routeId: string,
 		startsAt = FAR_FUTURE_START,
 		endsAt = FAR_FUTURE_END,
-		status = "draft"
+		status = "published"
 	): Promise<string> {
 		const tripId = randomUUID();
 		tripIds.add(tripId);
@@ -232,6 +234,305 @@ describe("POST /api/trips/:tripId/porter-requests (integration, real Postgres)",
 			.set("Authorization", `Bearer ${token}`)
 			.send({});
 	}
+
+	async function responseFixture(role: "lead" | "support" = "support") {
+		const host = await createActor(UserRole.HOST, "Response Host");
+		const routeId = await createRoute(host.id);
+		const tripId = await createTrip(
+			host.id,
+			routeId,
+			FAR_FUTURE_START,
+			FAR_FUTURE_END,
+			"published"
+		);
+		const porterId = await createPorter("Response Porter");
+		if (role === "lead") await qualifyLead(porterId, routeId, host.id);
+		const created = await createRequest(host.token, tripId, {
+			porterId,
+			requestedRole: role,
+		}).expect(201);
+		return {
+			host,
+			routeId,
+			tripId,
+			porterId,
+			requestId: created.body.id as string,
+			porterToken: jwtService.sign({ sub: porterId, roles: [UserRole.PORTER] }),
+		};
+	}
+
+	async function assertPersisted(
+		requestId: string,
+		tripId: string,
+		status: string,
+		assignments: number
+	) {
+		const rows = await dataSource.query(`SELECT "status" FROM "porter_requests" WHERE "id" = $1`, [
+			requestId,
+		]);
+		expect(rows[0].status).toBe(status);
+		const counts = await dataSource.query(
+			`SELECT COUNT(*)::int AS count FROM "trip_porters" WHERE "trip_id" = $1`,
+			[tripId]
+		);
+		expect(counts[0].count).toBe(assignments);
+	}
+
+	it("serializes two concurrent accepts into one Assignment", async () => {
+		const f = await responseFixture();
+		const results = await Promise.all([
+			respond(f.porterToken, f.requestId, "accept"),
+			respond(f.porterToken, f.requestId, "accept"),
+		]);
+		expect(results.map((result) => result.status)).toEqual([200, 200]);
+		await assertPersisted(f.requestId, f.tripId, "accepted", 1);
+	});
+
+	it("allows only one winner between concurrent accept and decline", async () => {
+		const f = await responseFixture();
+		const results = await Promise.all([
+			respond(f.porterToken, f.requestId, "accept"),
+			respond(f.porterToken, f.requestId, "decline"),
+		]);
+		expect(results.map((result) => result.status).sort()).toEqual([200, 409]);
+		const winner = results.find((result) => result.status === 200);
+		await assertPersisted(
+			f.requestId,
+			f.tripId,
+			winner?.body.status,
+			winner?.body.status === "accepted" ? 1 : 0
+		);
+	});
+
+	it("allows only one Porter to be assigned when two invitations for one Trip are accepted", async () => {
+		const f = await responseFixture();
+		const otherPorterId = await createPorter("Competing Porter");
+		const otherToken = jwtService.sign({ sub: otherPorterId, roles: [UserRole.PORTER] });
+		const other = await createRequest(f.host.token, f.tripId, {
+			porterId: otherPorterId,
+			requestedRole: "support",
+		}).expect(201);
+		const results = await Promise.all([
+			respond(f.porterToken, f.requestId, "accept"),
+			respond(otherToken, other.body.id, "accept"),
+		]);
+		expect(results.map((result) => result.status).sort()).toEqual([200, 409]);
+		const assignments = await dataSource.query(
+			`SELECT "porter_id" FROM "trip_porters" WHERE "trip_id" = $1 AND "status" = 'assigned'`,
+			[f.tripId]
+		);
+		expect(assignments).toHaveLength(1);
+	});
+
+	it("allows only one winner between Porter acceptance and Host cancellation", async () => {
+		const f = await responseFixture();
+		const cancel = request(app.getHttpServer())
+			.patch(`/api/trips/${f.tripId}/porter-requests/${f.requestId}/cancel`)
+			.set("Authorization", `Bearer ${f.host.token}`)
+			.send({});
+		const results = await Promise.all([respond(f.porterToken, f.requestId, "accept"), cancel]);
+		expect(results.map((result) => result.status).sort()).toEqual([200, 409]);
+		const winner = results.find((result) => result.status === 200);
+		await assertPersisted(
+			f.requestId,
+			f.tripId,
+			winner?.body.status,
+			winner?.body.status === "accepted" ? 1 : 0
+		);
+	});
+
+	it("skips a locked due request during expiry and expires it after release", async () => {
+		const f = await responseFixture();
+		await dataSource.query(
+			`UPDATE "porter_requests" SET "expires_at" = clock_timestamp() WHERE "id" = $1`,
+			[f.requestId]
+		);
+		const runner = dataSource.createQueryRunner();
+		await runner.connect();
+		await runner.startTransaction();
+		const repository = app.get(PorterRequestsRepository);
+		try {
+			await runner.query(`SELECT "id" FROM "porter_requests" WHERE "id" = $1 FOR UPDATE`, [
+				f.requestId,
+			]);
+			expect(await repository.expirePendingBatch(100, f.porterId)).toHaveLength(0);
+			await runner.commitTransaction();
+			expect(await repository.expirePendingBatch(100, f.porterId)).toHaveLength(1);
+		} finally {
+			if (runner.isTransactionActive) await runner.rollbackTransaction();
+			await runner.release();
+		}
+		await assertPersisted(f.requestId, f.tripId, "expired", 0);
+	});
+
+	it.each([true, false])(
+		"serializes same-Porter accepts across Trips (overlapping=%s)",
+		async (overlapping) => {
+			const f = await responseFixture();
+			const startsAt = new Date(FAR_FUTURE_START.getTime() + (overlapping ? 0 : 86_400_000));
+			const endsAt = new Date(FAR_FUTURE_END.getTime() + (overlapping ? 0 : 86_400_000));
+			const otherTrip = await createTrip(f.host.id, f.routeId, startsAt, endsAt, "published");
+			const other = await createRequest(f.host.token, otherTrip, {
+				porterId: f.porterId,
+				requestedRole: "support",
+			}).expect(201);
+			const results = await Promise.all([
+				respond(f.porterToken, f.requestId, "accept"),
+				respond(f.porterToken, other.body.id, "accept"),
+			]);
+			expect(results.map((result) => result.status).sort()).toEqual(
+				overlapping ? [200, 409] : [200, 200]
+			);
+			const assignments = await dataSource.query(
+				`SELECT "trip_id" FROM "trip_porters" WHERE "porter_id" = $1 AND "status" = 'assigned'`,
+				[f.porterId]
+			);
+			expect(assignments).toHaveLength(overlapping ? 1 : 2);
+		}
+	);
+
+	it("rolls back Assignment creation when the request transition fails", async () => {
+		const f = await responseFixture();
+		const transition = jest
+			.spyOn(PorterRequestsRepository.prototype, "markStatus")
+			.mockRejectedValueOnce(new Error("Injected transition failure"));
+		try {
+			await respond(f.porterToken, f.requestId, "accept").expect(500);
+		} finally {
+			transition.mockRestore();
+		}
+		await assertPersisted(f.requestId, f.tripId, "pending", 0);
+	});
+
+	it("revalidates a lead qualification revoked after the invitation", async () => {
+		const f = await responseFixture("lead");
+		await dataSource.query(
+			`DELETE FROM "porter_route_qualifications" WHERE "porter_id" = $1 AND "route_id" = $2`,
+			[f.porterId, f.routeId]
+		);
+		await respond(f.porterToken, f.requestId, "accept").expect(409);
+		await assertPersisted(f.requestId, f.tripId, "pending", 0);
+	});
+
+	it.each(["draft", "ongoing", "completed", "cancelled"])(
+		"rejects acceptance when the Trip changed to %s after invitation",
+		async (status) => {
+			const f = await responseFixture();
+			await dataSource.query(`UPDATE "trips" SET "status" = $2 WHERE "id" = $1`, [
+				f.tripId,
+				status,
+			]);
+			await respond(f.porterToken, f.requestId, "accept").expect(409);
+			await assertPersisted(f.requestId, f.tripId, "pending", 0);
+		}
+	);
+
+	it("uses fresh database time after waiting for a locked request", async () => {
+		const f = await responseFixture();
+		const runner = dataSource.createQueryRunner();
+		await runner.connect();
+		await runner.startTransaction();
+		let reached!: () => void;
+		const waiting = new Promise<void>((resolve) => {
+			reached = resolve;
+		});
+		const original = PorterRequestsRepository.prototype.findByIdForUpdate;
+		const lock = jest
+			.spyOn(PorterRequestsRepository.prototype, "findByIdForUpdate")
+			.mockImplementation(function (this: PorterRequestsRepository, requestId: string) {
+				reached();
+				return original.call(this, requestId);
+			});
+		let response: Promise<request.Response> | undefined;
+		try {
+			await runner.query(`SELECT "id" FROM "porter_requests" WHERE "id" = $1 FOR UPDATE`, [
+				f.requestId,
+			]);
+			response = respond(f.porterToken, f.requestId, "accept").then((result) => result);
+			await waiting;
+			await runner.query(
+				`UPDATE "porter_requests" SET "expires_at" = clock_timestamp() WHERE "id" = $1`,
+				[f.requestId]
+			);
+			await runner.commitTransaction();
+			const result = await response;
+			expect(result.status).toBe(200);
+			expect(result.body.status).toBe("expired");
+		} finally {
+			if (runner.isTransactionActive) await runner.rollbackTransaction();
+			await response;
+			lock.mockRestore();
+			await runner.release();
+		}
+		await assertPersisted(f.requestId, f.tripId, "expired", 0);
+	});
+
+	it.each(["accept", "decline"] as const)(
+		"expires a due request before %s and prevents revival",
+		async (action) => {
+			const f = await responseFixture();
+			await dataSource.query(
+				`UPDATE "porter_requests" SET "expires_at" = clock_timestamp() WHERE "id" = $1`,
+				[f.requestId]
+			);
+			const expired = await respond(f.porterToken, f.requestId, action).expect(200);
+			expect(expired.body.status).toBe("expired");
+			await respond(f.porterToken, f.requestId, "accept").expect(409);
+			await assertPersisted(f.requestId, f.tripId, "expired", 0);
+		}
+	);
+
+	it("supports only the owning Host cancelling, with idempotent retries", async () => {
+		const f = await responseFixture();
+		const other = await createActor(UserRole.HOST, "Foreign Host");
+		const cancel = (token: string) =>
+			request(app.getHttpServer())
+				.patch(`/api/trips/${f.tripId}/porter-requests/${f.requestId}/cancel`)
+				.set("Authorization", `Bearer ${token}`)
+				.send({});
+		await cancel(other.token).expect(403);
+		await cancel(f.host.token).expect(200);
+		await cancel(f.host.token).expect(200);
+		await respond(f.porterToken, f.requestId, "accept").expect(409);
+		await respond(f.porterToken, f.requestId, "decline").expect(409);
+		await assertPersisted(f.requestId, f.tripId, "cancelled", 0);
+	});
+
+	it("expires due requests once while preserving accepted requests", async () => {
+		const f = await responseFixture();
+		await respond(f.porterToken, f.requestId, "accept").expect(200);
+		const due = await responseFixture();
+		await dataSource.query(
+			`UPDATE "porter_requests" SET "expires_at" = clock_timestamp() WHERE "id" = ANY($1::uuid[])`,
+			[[f.requestId, due.requestId]]
+		);
+		const service = app.get(PorterRequestsService);
+		// Include both test Porters without processing unrelated rows in the shared test database.
+		const repository = app.get(PorterRequestsRepository);
+		const expire = jest
+			.spyOn(repository, "expirePendingBatch")
+			.mockImplementation(async (limit) => {
+				const acceptedRows = await PorterRequestsRepository.prototype.expirePendingBatch.call(
+					repository,
+					limit,
+					f.porterId
+				);
+				const dueRows = await PorterRequestsRepository.prototype.expirePendingBatch.call(
+					repository,
+					limit,
+					due.porterId
+				);
+				return [...acceptedRows, ...dueRows];
+			});
+		try {
+			expect(await service.expirePending()).toBe(1);
+			expect(await service.expirePending()).toBe(0);
+		} finally {
+			expire.mockRestore();
+		}
+		await assertPersisted(f.requestId, f.tripId, "accepted", 1);
+		await assertPersisted(due.requestId, due.tripId, "expired", 0);
+	});
 
 	it("creates a pending Porter Request with Trip, Porter, requester, role, note, and no pay fields", async () => {
 		const host = await createActor(UserRole.HOST, "Owning Host");

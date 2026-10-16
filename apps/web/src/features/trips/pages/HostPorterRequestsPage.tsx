@@ -9,7 +9,7 @@ import {
 	Search,
 	UserRound,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "../../../shared/components/Button";
 import { ConfirmModal } from "../../../shared/components/ConfirmModal";
 import { AvailablePortersPanel } from "../components/AvailablePortersPanel";
@@ -81,6 +81,7 @@ const hostRequestFilters: Array<{
 function HostRequestList() {
 	const query = useAllHostPorterRequests();
 	const cancelMutation = useCancelPorterRequest();
+	const submitting = useRef(false);
 	const [cancelRequest, setCancelRequest] = useState<PorterRequest | null>(null);
 	const [statusFilter, setStatusFilter] = useState<HostRequestFilter>("pending");
 	const requests = query.data ?? [];
@@ -88,14 +89,26 @@ function HostRequestList() {
 	const error = query.error ? responseErrorMessage(query.error) : null;
 	const mutationError = cancelMutation.error ? responseErrorMessage(cancelMutation.error) : null;
 	const showInitialLoading = query.isLoading && requests.length === 0;
+	useEffect(() => {
+		if (!cancelRequest || cancelMutation.isPending || !query.data) return;
+		const current = query.data.find((item) => item.id === cancelRequest.id);
+		if (!current || current.status !== "pending") setCancelRequest(null);
+	}, [cancelRequest, cancelMutation.isPending, query.data]);
 
 	const confirmCancel = async () => {
-		if (!cancelRequest) return;
-		await cancelMutation.mutateAsync({
-			tripId: cancelRequest.tripId,
-			requestId: cancelRequest.id,
-		});
-		setCancelRequest(null);
+		if (!cancelRequest || submitting.current) return;
+		submitting.current = true;
+		try {
+			await cancelMutation.mutateAsync({
+				tripId: cancelRequest.tripId,
+				requestId: cancelRequest.id,
+			});
+			setCancelRequest(null);
+		} catch {
+			// Keep recoverable errors visible in the confirmation modal.
+		} finally {
+			submitting.current = false;
+		}
 	};
 
 	return (
@@ -136,7 +149,7 @@ function HostRequestList() {
 					{error}
 				</div>
 			)}
-			{mutationError && (
+			{mutationError && !cancelRequest && (
 				<div
 					role="alert"
 					className="rounded-3xl border border-amber-200 bg-amber-50 p-5 text-sm font-bold text-amber-900"
@@ -156,7 +169,10 @@ function HostRequestList() {
 							key={request.id}
 							request={request}
 							mode="host"
-							onCancel={setCancelRequest}
+							onCancel={(request) => {
+								cancelMutation.reset();
+								setCancelRequest(request);
+							}}
 							isSubmitting={
 								cancelMutation.isPending && cancelMutation.variables?.requestId === request.id
 							}
@@ -171,7 +187,19 @@ function HostRequestList() {
 				}}
 				onConfirm={confirmCancel}
 				title="Hủy yêu cầu Porter?"
-				description="Yêu cầu đang chờ sẽ chuyển sang trạng thái đã hủy. Nếu Porter đã được phân công, thao tác này không thay đổi phân công."
+				description={
+					<div className="space-y-3">
+						<p>
+							Yêu cầu đang chờ sẽ chuyển sang trạng thái đã hủy. Nếu Porter đã được phân công, thao
+							tác này không thay đổi phân công.
+						</p>
+						{mutationError && (
+							<p role="alert" className="text-rose-800">
+								{mutationError}
+							</p>
+						)}
+					</div>
+				}
 				confirmText="Hủy yêu cầu"
 				variant="warning"
 				isLoading={cancelMutation.isPending}
