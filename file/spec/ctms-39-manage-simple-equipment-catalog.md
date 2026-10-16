@@ -143,3 +143,18 @@ TBD — Technical Design.
 ## 12. Open Decisions
 
 None. Per-asset maintenance/depreciation is explicitly outside the MVP requirement unless a later approved story introduces it.
+
+## 13. Implementation Record — Web UI on shared components (CTMS-189)
+
+- **Leader review (2026-10-16):** the Host catalog screen must reuse shared components, create a shared one when none exists, and open "add item" as a modal instead of a separate page.
+- **New shared components** in `apps/web/src/shared/components`: `DataTable` (generic column-based `<table>` matching the existing CTMS table look, with empty state) and `Modal` (generic dialog shell: title, icon, description, X button, Escape to close, closing blocked while submitting). `ConfirmModal` stays for yes/no confirmations.
+- **Catalog list** (`EquipmentCatalogList`) is now a `DataTable` with columns Thiết bị / Số lượng / Giá thuê/ngày / Trạng thái / Thao tác; actions use the shared `Button`; the page uses the shared `Pagination` (10 rows per page, newest first from the API).
+- **Add item:** "Thêm thiết bị" opens `CreateEquipmentCatalogItemDialog` (shared `Modal` + existing `CreateEquipmentCatalogItemForm` and validation). On success the modal closes, a shared `Toast` confirms the server-created item, and the list reloads from the server. Validation and server errors stay inside the open modal.
+- **Edit item:** `EditEquipmentCatalogItemDialog` now uses the shared `Modal` and `Button`; behavior unchanged.
+- **Removed:** `CreateEquipmentCatalogItemPage` and route `/host/equipment-catalog/create`.
+- No backend or API change.
+
+## 14. Test Evidence — Web UI on shared components (CTMS-189)
+
+- Unit: `DataTable.test.tsx`, `Modal.test.tsx` (new); `EquipmentCatalogList.test.tsx` (semantic table headers); `EquipmentCatalogPage.test.tsx` (create opens a modal without navigation, closes and reloads after success, pagination). Full web suite: 186 files / 1176 tests passed.
+- E2E (`ctms-39-t02-manage-equipment-catalog.spec.ts`, real backend, Postgres and Chrome): add from modal with URL unchanged and row shown in the list; edit via modal; negative quantity keeps the modal open with no success state. 3/3 passed. The spec's seed step now calls `seedDevHostAndRoute()` because `dev-host-route.seed.ts` was removed from develop.

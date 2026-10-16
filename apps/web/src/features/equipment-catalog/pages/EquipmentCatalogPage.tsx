@@ -1,5 +1,7 @@
 import { ArrowLeft, Loader2, PackagePlus, RefreshCw, Warehouse } from "lucide-react";
 import { useState } from "react";
+import { Button, Pagination, useToast } from "../../../shared/components";
+import { CreateEquipmentCatalogItemDialog } from "../components/CreateEquipmentCatalogItemDialog";
 import { EditEquipmentCatalogItemDialog } from "../components/EditEquipmentCatalogItemDialog";
 import { EquipmentCatalogList } from "../components/EquipmentCatalogList";
 import { useEquipmentCatalog } from "../hooks/useEquipmentCatalog";
@@ -8,13 +10,25 @@ import type { EquipmentCatalogItem } from "../types";
 
 export interface EquipmentCatalogPageProps {
 	onBackHome?: () => void;
-	onCreateItem?: () => void;
 }
 
-export function EquipmentCatalogPage({ onBackHome, onCreateItem }: EquipmentCatalogPageProps) {
+export const EQUIPMENT_CATALOG_PAGE_SIZE = 10;
+
+export function EquipmentCatalogPage({ onBackHome }: EquipmentCatalogPageProps) {
 	const catalog = useEquipmentCatalog();
 	const update = useUpdateEquipmentCatalogItem();
+	const toast = useToast();
 	const [editingItem, setEditingItem] = useState<EquipmentCatalogItem | null>(null);
+	const [isCreateOpen, setIsCreateOpen] = useState(false);
+	const [currentPage, setCurrentPage] = useState(1);
+
+	const totalPages = Math.max(1, Math.ceil(catalog.items.length / EQUIPMENT_CATALOG_PAGE_SIZE));
+	// Clamp so a shrinking list never leaves the user on an empty page.
+	const page = Math.min(currentPage, totalPages);
+	const pageItems = catalog.items.slice(
+		(page - 1) * EQUIPMENT_CATALOG_PAGE_SIZE,
+		page * EQUIPMENT_CATALOG_PAGE_SIZE
+	);
 
 	const closeDialog = () => {
 		setEditingItem(null);
@@ -47,16 +61,10 @@ export function EquipmentCatalogPage({ onBackHome, onCreateItem }: EquipmentCata
 						</p>
 					</div>
 
-					{onCreateItem && (
-						<button
-							type="button"
-							onClick={onCreateItem}
-							className="inline-flex items-center gap-2 rounded-xl bg-[#164027] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#123520]"
-						>
-							<PackagePlus className="size-4" />
-							Thêm thiết bị
-						</button>
-					)}
+					<Button onClick={() => setIsCreateOpen(true)} className="gap-2 font-bold">
+						<PackagePlus className="size-4" />
+						Thêm thiết bị
+					</Button>
 				</div>
 			</header>
 
@@ -100,10 +108,27 @@ export function EquipmentCatalogPage({ onBackHome, onCreateItem }: EquipmentCata
 
 				{!catalog.isLoading && !catalog.error && catalog.items.length > 0 && (
 					<div className="mt-6">
-						<EquipmentCatalogList items={catalog.items} onEdit={setEditingItem} />
+						<EquipmentCatalogList items={pageItems} onEdit={setEditingItem} />
+						<Pagination
+							currentPage={page}
+							totalPages={totalPages}
+							totalItems={catalog.items.length}
+							itemsPerPage={EQUIPMENT_CATALOG_PAGE_SIZE}
+							onPageChange={setCurrentPage}
+						/>
 					</div>
 				)}
 			</main>
+
+			<CreateEquipmentCatalogItemDialog
+				open={isCreateOpen}
+				onClose={() => setIsCreateOpen(false)}
+				onCreated={async (created) => {
+					setIsCreateOpen(false);
+					toast.success(`Đã thêm "${created.name}" vào kho`, "Thêm thiết bị thành công");
+					await catalog.retry();
+				}}
+			/>
 
 			<EditEquipmentCatalogItemDialog
 				open={editingItem !== null}

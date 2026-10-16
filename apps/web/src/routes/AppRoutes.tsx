@@ -21,7 +21,6 @@ import type { BookingDetails } from "../features/booking-details/types";
 import { BookingListPage } from "../features/booking-list/pages/BookingListPage";
 import { TripRosterPage } from "../features/booking-members/pages/TripRosterPage";
 import { CamperProfilePage } from "../features/camper-profile/pages/CamperProfilePage";
-import { CreateEquipmentCatalogItemPage } from "../features/equipment-catalog/pages/CreateEquipmentCatalogItemPage";
 import { EquipmentCatalogPage } from "../features/equipment-catalog/pages/EquipmentCatalogPage";
 import { LandingPage } from "../features/landing/pages/LandingPage";
 import { PorterProfilePage } from "../features/porter-profile/pages/PorterProfilePage";
@@ -549,23 +548,7 @@ export function AppRoutes() {
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
 					<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
-						<EquipmentCatalogPage
-							onBackHome={() => navigateTo(RoutePath.DASHBOARD)}
-							onCreateItem={() => navigateTo(RoutePath.HOST_CREATE_EQUIPMENT_CATALOG_ITEM)}
-						/>
-					</HostLayout>
-				</AppRoleGuard>
-			);
-
-		case RoutePath.HOST_CREATE_EQUIPMENT_CATALOG_ITEM:
-			return (
-				<AppRoleGuard
-					allowedRoles={["host"]}
-					currentRoles={currentRoles}
-					onNavigateHome={() => navigateTo(RoutePath.HOME)}
-				>
-					<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
-						<CreateEquipmentCatalogItemPage onBackHome={() => navigateTo(RoutePath.DASHBOARD)} />
+						<EquipmentCatalogPage onBackHome={() => navigateTo(RoutePath.DASHBOARD)} />
 					</HostLayout>
 				</AppRoleGuard>
 			);
