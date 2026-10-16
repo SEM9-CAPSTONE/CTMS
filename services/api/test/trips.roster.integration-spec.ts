@@ -74,6 +74,12 @@ describe("Trip operational roster reads (integration, real Postgres)", () => {
 				await dataSource.query('DELETE FROM "trips" WHERE "id" = ANY($1)', [tripIds]);
 			}
 			if (routeIds.length > 0)
+				await dataSource.query('DELETE FROM "checkpoints" WHERE "route_id" = ANY($1)', [routeIds]);
+			if (routeIds.length > 0)
+				await dataSource.query('DELETE FROM "route_danger_zones" WHERE "route_id" = ANY($1)', [
+					routeIds,
+				]);
+			if (routeIds.length > 0)
 				await dataSource.query('DELETE FROM "trekking_routes" WHERE "id" = ANY($1)', [routeIds]);
 			if (userIds.length > 0) {
 				await dataSource.query('DELETE FROM "user_roles" WHERE "user_id" = ANY($1)', [userIds]);
@@ -293,6 +299,251 @@ describe("Trip operational roster reads (integration, real Postgres)", () => {
 		return actor ? call.set("Authorization", `Bearer ${actor.accessToken}`) : call;
 	}
 
+	function operationsRequest(actor?: Account, tripId = fixture.tripId) {
+		const call = request(app.getHttpServer()).get(`/api/trips/assigned/${tripId}`);
+		return actor ? call.set("Authorization", `Bearer ${actor.accessToken}`) : call;
+	}
+
+	it("BR-160: returns only operational fields, current schedule, route and authorized members", async () => {
+		const response = await operationsRequest(fixture.assignedPorter).expect(200);
+		expect(response.headers["cache-control"]).toContain("no-store");
+		expect(response.body).toMatchObject({
+			tripId: fixture.tripId,
+			assignmentStatus: "assigned",
+			title: "Roster primary Trip",
+			route: {
+				name: "Trip roster route",
+				status: "active",
+				geometry: { type: "LineString" },
+				checkpoints: [],
+				dangerZones: [],
+			},
+			offlinePackage: { status: "unavailable", downloadedAt: null },
+			weather: { availability: "unavailable", record: null },
+		});
+		expect(response.body.retrievedAt).toBeTruthy();
+		expect(
+			response.body.members.map((member: { memberStatus: string }) => member.memberStatus)
+		).toEqual(["joined", "registered", "left"]);
+		for (const member of response.body.members)
+			expect(Object.keys(member).sort()).toEqual(["displayName", "memberId", "memberStatus"]);
+		for (const key of [
+			"hostId",
+			"host",
+			"pricePerPerson",
+			"cancellationPolicy",
+			"providerResponse",
+			"email",
+			"health",
+			"emergency",
+		])
+			expect(response.body).not.toHaveProperty(key);
+		expect(response.body.route).not.toHaveProperty("hostId");
+	});
+
+	it("BR-160: requires authentication and Porter role for operations", async () => {
+		await operationsRequest().expect(401);
+		for (const actor of [fixture.host, fixture.camper, fixture.admin])
+			await operationsRequest(actor).expect(403);
+	});
+
+	it("BR-160: denies foreign, pending-reconfirmation, unassigned and missing assignments", async () => {
+		for (const actor of [fixture.otherPorter, fixture.pendingPorter, fixture.unassignedPorter])
+			await operationsRequest(actor).expect(404);
+		await operationsRequest(fixture.assignedPorter, fixture.otherTripId).expect(404);
+		await operationsRequest(fixture.assignedPorter, randomUUID()).expect(404);
+		await operationsRequest(fixture.assignedPorter, "invalid-id").expect(422);
+	});
+
+	it("BR-160: ignores another Porter identity supplied in list or detail query parameters", async () => {
+		const response = await request(app.getHttpServer())
+			.get(`/api/trips/assigned?porterId=${fixture.otherPorter.id}`)
+			.set("Authorization", `Bearer ${fixture.assignedPorter.accessToken}`)
+			.expect(200);
+		expect(response.body.map((trip: { tripId: string }) => trip.tripId)).toEqual([
+			fixture.tripId,
+			fixture.laterAssignedTripId,
+		]);
+		await operationsRequest(fixture.otherPorter)
+			.query({ porterId: fixture.assignedPorter.id })
+			.expect(404);
+	});
+
+	it("BR-160: empty assignments return an empty list", async () => {
+		const response = await request(app.getHttpServer())
+			.get("/api/trips/assigned")
+			.set("Authorization", `Bearer ${fixture.unassignedPorter.accessToken}`)
+			.expect(200);
+		expect(response.body).toEqual([]);
+	});
+
+	it("BR-160: revocation immediately removes detail access and list visibility", async () => {
+		await dataSource.query(
+			`UPDATE "trip_porters" SET "status" = 'unassigned' WHERE "trip_id" = $1 AND "porter_id" = $2`,
+			[fixture.laterAssignedTripId, fixture.assignedPorter.id]
+		);
+		try {
+			await operationsRequest(fixture.assignedPorter, fixture.laterAssignedTripId).expect(404);
+			const response = await request(app.getHttpServer())
+				.get("/api/trips/assigned")
+				.set("Authorization", `Bearer ${fixture.assignedPorter.accessToken}`)
+				.expect(200);
+			expect(response.body.map((trip: { tripId: string }) => trip.tripId)).toEqual([
+				fixture.tripId,
+			]);
+		} finally {
+			await dataSource.query(
+				`UPDATE "trip_porters" SET "status" = 'assigned' WHERE "trip_id" = $1 AND "porter_id" = $2`,
+				[fixture.laterAssignedTripId, fixture.assignedPorter.id]
+			);
+		}
+	});
+
+	it("BR-160: returns current Trip state even for ongoing/completed assignments", async () => {
+		try {
+			for (const status of [TripStatus.ONGOING, TripStatus.COMPLETED]) {
+				await dataSource.query(`UPDATE "trips" SET "status" = $2 WHERE "id" = $1`, [
+					fixture.tripId,
+					status,
+				]);
+				const response = await operationsRequest(fixture.assignedPorter).expect(200);
+				expect(response.body.status).toBe(status);
+			}
+		} finally {
+			await dataSource.query(`UPDATE "trips" SET "status" = 'published' WHERE "id" = $1`, [
+				fixture.tripId,
+			]);
+		}
+	});
+
+	it("BR-160: hides assigned Trips outside the upcoming, ongoing and finished states", async () => {
+		try {
+			for (const status of [TripStatus.CANCELLED, TripStatus.DRAFT, TripStatus.REJECTED]) {
+				await dataSource.query(`UPDATE "trips" SET "status" = $2 WHERE "id" = $1`, [
+					fixture.tripId,
+					status,
+				]);
+				await operationsRequest(fixture.assignedPorter).expect(404);
+				const list = await request(app.getHttpServer())
+					.get("/api/trips/assigned")
+					.set("Authorization", `Bearer ${fixture.assignedPorter.accessToken}`)
+					.expect(200);
+				expect(list.body.map((trip: { tripId: string }) => trip.tripId)).toEqual([
+					fixture.laterAssignedTripId,
+				]);
+			}
+		} finally {
+			await dataSource.query(`UPDATE "trips" SET "status" = 'published' WHERE "id" = $1`, [
+				fixture.tripId,
+			]);
+		}
+	});
+
+	it("BR-160: lists the route name and returns the Trip schedule with its meeting point", async () => {
+		const list = await request(app.getHttpServer())
+			.get("/api/trips/assigned")
+			.set("Authorization", `Bearer ${fixture.assignedPorter.accessToken}`)
+			.expect(200);
+		expect(list.body[0]).toMatchObject({ tripId: fixture.tripId, routeName: "Trip roster route" });
+
+		const meetingId = randomUUID();
+		const finishId = randomUUID();
+		await dataSource.query(
+			`INSERT INTO "trip_waypoints" ("id", "trip_id", "type", "name", "location", "day_number", "sequence_order", "planned_at", "duration_minutes") VALUES
+			 ($1, $3, 'start', 'Cổng vườn', ST_SetSRID(ST_MakePoint(108.22, 16.04), 4326)::geography, 1, 1, '2035-01-10T08:00:00Z', 15),
+			 ($2, $3, 'finish', 'Bãi Bắc', ST_SetSRID(ST_MakePoint(108.25, 16.07), 4326)::geography, 1, 2, '2035-01-10T15:00:00Z', NULL)`,
+			[meetingId, finishId, fixture.tripId]
+		);
+		try {
+			const response = await operationsRequest(fixture.assignedPorter).expect(200);
+			expect(response.body.meetingPointName).toBe("Cổng vườn");
+			expect(
+				response.body.waypoints.map((wp: { id: string; dayNumber: number }) => [
+					wp.id,
+					wp.dayNumber,
+				])
+			).toEqual([
+				[meetingId, 1],
+				[finishId, 1],
+			]);
+			expect(response.body.waypoints[0].location).toEqual({
+				type: "Point",
+				coordinates: [108.22, 16.04],
+			});
+			expect(Date.parse(response.body.waypoints[0].plannedAt)).toBe(
+				Date.parse("2035-01-10T08:00:00Z")
+			);
+		} finally {
+			await dataSource.query(`DELETE FROM "trip_waypoints" WHERE "trip_id" = $1`, [fixture.tripId]);
+		}
+	});
+
+	it("BR-160: exposes route checkpoints and hazards without route administration data", async () => {
+		const checkpointId = randomUUID();
+		const hazardId = randomUUID();
+		await dataSource.query(
+			`INSERT INTO "checkpoints" ("id", "route_id", "name", "location", "radius_m", "type", "expected_arrival_offset", "instructions", "nearby_water_or_shelter", "route_position") VALUES ($1, $2, 'Water stop', ST_SetSRID(ST_MakePoint(108.23, 16.05), 4326)::geography, 50, 'water', 60, 'Refill water', true, 0.5)`,
+			[checkpointId, routeIds[0]]
+		);
+		await dataSource.query(
+			`INSERT INTO "route_danger_zones" ("id", "route_id", "geom", "radius_m", "description", "severity") VALUES ($1, $2, ST_SetSRID(ST_MakePoint(108.24, 16.06), 4326)::geography, 30, 'Slippery rocks', 'high')`,
+			[hazardId, routeIds[0]]
+		);
+		try {
+			const response = await operationsRequest(fixture.assignedPorter).expect(200);
+			expect(response.body.route.checkpoints).toEqual([
+				expect.objectContaining({
+					id: checkpointId,
+					instructions: "Refill water",
+					location: { type: "Point", coordinates: [108.23, 16.05] },
+				}),
+			]);
+			expect(response.body.route.dangerZones).toEqual([
+				expect.objectContaining({ id: hazardId, severity: "high", description: "Slippery rocks" }),
+			]);
+		} finally {
+			await dataSource.query(`DELETE FROM "checkpoints" WHERE "id" = $1`, [checkpointId]);
+			await dataSource.query(`DELETE FROM "route_danger_zones" WHERE "id" = $1`, [hazardId]);
+		}
+	});
+
+	it.each([
+		["success", 0, "recorded"],
+		["success", 60, "stale"],
+		["success", 120, "stale"],
+		["success", -10, "unavailable"],
+		["failed", 0, "unavailable"],
+	])(
+		"AC5: projects snapshot %s aged %s minutes as %s",
+		async (status, ageMinutes, availability) => {
+			const snapshotId = randomUUID();
+			if (status === "failed") {
+				await dataSource.query(
+					`INSERT INTO "weather_snapshots" ("id", "route_id", "status", "error_message") VALUES ($1, $2, 'failed', 'Provider unavailable')`,
+					[snapshotId, routeIds[0]]
+				);
+			} else {
+				await dataSource.query(
+					`INSERT INTO "weather_snapshots" ("id", "route_id", "status", "observed_at", "rainfall_mm", "wind_kph", "temperature_c", "visibility_m", "thunderstorm") VALUES ($1, $2, $3, clock_timestamp() - ($4::int * interval '1 minute'), 0, 0, 20, 10000, false)`,
+					[snapshotId, routeIds[0], status, ageMinutes]
+				);
+			}
+			try {
+				const response = await operationsRequest(fixture.assignedPorter).expect(200);
+				expect(response.body.weather.availability).toBe(availability);
+				if (availability === "unavailable") expect(response.body.weather.record).toBeNull();
+				else
+					expect(response.body.weather.record).toMatchObject({
+						rainfallMm: 0,
+						windKph: 0,
+						riskLevel: null,
+					});
+			} finally {
+				await dataSource.query(`DELETE FROM "weather_snapshots" WHERE "id" = $1`, [snapshotId]);
+			}
+		}
+	);
+
 	it("returns a deterministic, privacy-minimal mixed-state roster to the owning Host", async () => {
 		const response = await rosterRequest(fixture.host).expect(200);
 
@@ -371,7 +622,7 @@ describe("Trip operational roster reads (integration, real Postgres)", () => {
 		]);
 		for (const trip of response.body) {
 			expect(Object.keys(trip).sort()).toEqual(
-				["endsAt", "startsAt", "status", "title", "tripId"].sort()
+				["endsAt", "routeName", "startsAt", "status", "title", "tripId"].sort()
 			);
 		}
 	});

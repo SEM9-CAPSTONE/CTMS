@@ -1,4 +1,18 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from "@nestjs/common";
+import {
+	Body,
+	Controller,
+	Delete,
+	Get,
+	Header,
+	HttpCode,
+	Param,
+	Patch,
+	Post,
+	Put,
+	Query,
+	Req,
+	UseGuards,
+} from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
 import { Roles } from "../../auth/decorators/roles.decorator";
 import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
@@ -11,12 +25,17 @@ import { AvailablePortersQueryDto } from "../dto/available-porters-query.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { CreatePorterRequestDto } from "../dto/create-porter-request.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
-import { ConfigureTripWaypointsDto, CreateTripDto } from "../dto/create-trip.dto";
+import {
+	ConfigureTripWaypointsDto,
+	CreateTripDto,
+	CreateTripWaypointDto,
+} from "../dto/create-trip.dto";
 import { HostPorterAssignmentTripDto } from "../dto/host-porter-assignment-response.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { PendingPorterRequestQueryDto } from "../dto/pending-porter-request-query.dto";
 import { PorterAssignedTripResponseDto } from "../dto/porter-assigned-trip-response.dto";
 import { PorterRequestResponseDto } from "../dto/porter-request-response.dto";
+import { PorterTripOperationsResponseDto } from "../dto/porter-trip-operations-response.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { CancelTripDto, RescheduleTripDto } from "../dto/reschedule-trip.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
@@ -28,6 +47,8 @@ import { TripIdParamDto } from "../dto/trip-id-param.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { TripPorterRequestParamDto } from "../dto/trip-porter-request-param.dto";
 import { PaginatedTripsResponseDto, TripResponseDto } from "../dto/trip-response.dto";
+// biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
+import { TripWaypointParamDto } from "../dto/trip-waypoint-param.dto";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { AvailablePortersService } from "../services/available-porters.service";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
@@ -103,6 +124,7 @@ export class TripsController {
 	}
 
 	@Get("assigned")
+	@Header("Cache-Control", "private, no-store")
 	@Roles(UserRole.PORTER)
 	@ApiOperation({ summary: "List Trips currently assigned to the authenticated Porter" })
 	@ApiResponse({ status: 200, type: PorterAssignedTripResponseDto, isArray: true })
@@ -110,6 +132,24 @@ export class TripsController {
 	@ApiResponse({ status: 403, description: "Porter role required" })
 	getAssignedTrips(@Req() request: AuthenticatedRequest): Promise<PorterAssignedTripResponseDto[]> {
 		return this.tripsService.getAssignedTrips(request.user.userId);
+	}
+
+	@Get("assigned/:tripId")
+	@Header("Cache-Control", "private, no-store")
+	@Roles(UserRole.PORTER)
+	@ApiOperation({
+		summary: "View operational data for a Trip assigned to the authenticated Porter",
+	})
+	@ApiResponse({ status: 200, type: PorterTripOperationsResponseDto })
+	@ApiResponse({
+		status: 404,
+		description: "Trip does not have a valid Assignment for this Porter",
+	})
+	getAssignedTripOperations(
+		@Req() request: AuthenticatedRequest,
+		@Param() params: TripIdParamDto
+	): Promise<PorterTripOperationsResponseDto> {
+		return this.tripsService.getAssignedTripOperations(request.user.userId, params.tripId);
 	}
 
 	@Get("porter-requests/mine")
@@ -276,6 +316,73 @@ export class TripsController {
 		@Body() dto: ConfigureTripWaypointsDto
 	): Promise<TripResponseDto> {
 		return this.tripsService.configureWaypoints(request.user.userId, params.tripId, dto);
+	}
+
+	@Post(":tripId/waypoints")
+	@Roles(UserRole.HOST)
+	@ApiOperation({ summary: "Add a waypoint to an owned draft Trip" })
+	@ApiResponse({ status: 201, type: TripResponseDto })
+	@ApiResponse({ status: 403, description: "Host role and Trip ownership required" })
+	@ApiResponse({ status: 404, description: "Trip not found" })
+	@ApiResponse({ status: 409, description: "Trip is not a draft" })
+	@ApiResponse({ status: 422, description: "Invalid waypoint data" })
+	createWaypoint(
+		@Req() request: AuthenticatedRequest,
+		@Param() params: TripIdParamDto,
+		@Body() dto: CreateTripWaypointDto
+	): Promise<TripResponseDto> {
+		return this.tripsService.createWaypoint(request.user.userId, params.tripId, dto);
+	}
+
+	@Put(":tripId/waypoints/:waypointId")
+	@Roles(UserRole.HOST)
+	@ApiOperation({ summary: "Update a waypoint of an owned draft Trip" })
+	@ApiResponse({ status: 200, type: TripResponseDto })
+	@ApiResponse({ status: 403, description: "Host role and Trip ownership required" })
+	@ApiResponse({ status: 404, description: "Trip or waypoint not found" })
+	@ApiResponse({ status: 409, description: "Trip is not a draft or endpoint type change" })
+	@ApiResponse({ status: 422, description: "Invalid waypoint data" })
+	updateWaypoint(
+		@Req() request: AuthenticatedRequest,
+		@Param() params: TripWaypointParamDto,
+		@Body() dto: CreateTripWaypointDto
+	): Promise<TripResponseDto> {
+		return this.tripsService.updateWaypoint(
+			request.user.userId,
+			params.tripId,
+			params.waypointId,
+			dto
+		);
+	}
+
+	@Delete(":tripId/waypoints/:waypointId")
+	@Roles(UserRole.HOST)
+	@ApiOperation({ summary: "Delete a stop waypoint of an owned draft Trip" })
+	@ApiResponse({ status: 200, type: TripResponseDto })
+	@ApiResponse({ status: 403, description: "Host role and Trip ownership required" })
+	@ApiResponse({ status: 404, description: "Trip or waypoint not found" })
+	@ApiResponse({ status: 409, description: "Trip is not a draft or waypoint is start/finish" })
+	deleteWaypoint(
+		@Req() request: AuthenticatedRequest,
+		@Param() params: TripWaypointParamDto
+	): Promise<TripResponseDto> {
+		return this.tripsService.deleteWaypoint(request.user.userId, params.tripId, params.waypointId);
+	}
+
+	@Post(":tripId/submit")
+	@HttpCode(200)
+	@Roles(UserRole.HOST)
+	@ApiOperation({ summary: "Submit an owned draft Trip for approval with its stored waypoints" })
+	@ApiResponse({ status: 200, type: TripResponseDto })
+	@ApiResponse({ status: 403, description: "Host role and Trip ownership required" })
+	@ApiResponse({ status: 404, description: "Trip not found" })
+	@ApiResponse({ status: 409, description: "Trip is not a draft" })
+	@ApiResponse({ status: 422, description: "Stored waypoints are not ready for approval" })
+	submitForApproval(
+		@Req() request: AuthenticatedRequest,
+		@Param() params: TripIdParamDto
+	): Promise<TripResponseDto> {
+		return this.tripsService.submitForApproval(request.user.userId, params.tripId);
 	}
 
 	@Post()

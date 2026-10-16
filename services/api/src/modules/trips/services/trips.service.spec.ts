@@ -1201,6 +1201,16 @@ describe("TripsService", () => {
 			expect(result.routeId).toBeUndefined();
 		});
 
+		it.each([TripStatus.ONGOING, TripStatus.COMPLETED])(
+			"keeps a %s Trip viewable for Campers once the schedule has advanced",
+			async (status) => {
+				tripsRepository.findById.mockResolvedValue({ ...createdTrip(), status });
+				const result = await service.getTripDetails(CAMPER_ACTOR, TRIP_ID);
+				expect(result.status).toBe(status);
+				expect(result.routeId).toBeUndefined();
+			}
+		);
+
 		it("returns published Trip details with routeId retained for the owning Host", async () => {
 			const publishedTrip = {
 				...createdTrip(),

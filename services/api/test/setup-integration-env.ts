@@ -10,6 +10,7 @@ if (!databaseName.endsWith("_test")) {
 }
 
 process.env.NODE_ENV = "test";
+process.env.TRIP_STATUS_WORKER_ENABLED = "false";
 process.env.DATABASE_URL = databaseUrl;
 process.env.JWT_SECRET = process.env.JWT_SECRET ?? "integration-test-secret";
 process.env.JWT_ACCESS_TOKEN_TTL = process.env.JWT_ACCESS_TOKEN_TTL ?? "15m";

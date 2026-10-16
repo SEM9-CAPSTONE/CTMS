@@ -21,6 +21,7 @@ import type {
 } from "../dto/create-trip.dto";
 import type { HostPorterAssignmentTripDto } from "../dto/host-porter-assignment-response.dto";
 import type { PorterAssignedTripResponseDto } from "../dto/porter-assigned-trip-response.dto";
+import type { PorterTripOperationsResponseDto } from "../dto/porter-trip-operations-response.dto";
 import type { CancelTripDto, RescheduleTripDto } from "../dto/reschedule-trip.dto";
 import { ReviewTripAction, type ReviewTripDto } from "../dto/review-trip.dto";
 import type { SearchTripsQueryDto } from "../dto/search-trips-query.dto";
@@ -45,6 +46,12 @@ const TRIP_REVIEW_REMINDER_BEFORE_DEADLINE_MS = 60 * 60 * 1000;
 const TRIP_REVIEW_AUTO_REJECT_REASON =
 	"Trip was automatically rejected because it was not approved within 24 hours.";
 const TRIP_BUSINESS_TIME_ZONE = "Asia/Ho_Chi_Minh";
+const PORTER_WEATHER_MAX_AGE_MINUTES = 60;
+const PUBLICLY_VIEWABLE_TRIP_STATUSES = new Set<TripStatus>([
+	TripStatus.PUBLISHED,
+	TripStatus.ONGOING,
+	TripStatus.COMPLETED,
+]);
 const tripDateFormatter = new Intl.DateTimeFormat("en-CA", {
 	timeZone: TRIP_BUSINESS_TIME_ZONE,
 	year: "numeric",
@@ -103,7 +110,8 @@ export class TripsService {
 		const isOwningHost = trip.hostId === actor.userId;
 		const isAdmin = actor.roles?.includes(UserRole.ADMIN) ?? false;
 
-		if (trip.status !== TripStatus.PUBLISHED && !isOwningHost && !isAdmin) {
+		// Ongoing/completed Trips stay viewable so booked Campers keep access once the schedule advances.
+		if (!PUBLICLY_VIEWABLE_TRIP_STATUSES.has(trip.status) && !isOwningHost && !isAdmin) {
 			throw new NotFoundException("Trip not found");
 		}
 
@@ -130,6 +138,47 @@ export class TripsService {
 
 	async getAssignedTrips(porterId: string): Promise<PorterAssignedTripResponseDto[]> {
 		return this.tripsRepository.findAssignedTripsByPorter(porterId);
+	}
+
+	async getAssignedTripOperations(
+		porterId: string,
+		tripId: string
+	): Promise<PorterTripOperationsResponseDto> {
+		const row = await this.tripsRepository.findPorterTripOperations(porterId, tripId);
+		if (!row) throw new NotFoundException("Assigned Trip not found");
+		const { recordedWeather, retrievedAt, ...trip } = row;
+		const maxAgeMinutes = PORTER_WEATHER_MAX_AGE_MINUTES;
+		const observedAt = Date.parse(recordedWeather?.observedAt ?? "");
+		const age = retrievedAt.getTime() - observedAt;
+		const hasMeasurements =
+			recordedWeather &&
+			[
+				recordedWeather.rainfallMm,
+				recordedWeather.windKph,
+				recordedWeather.temperatureC,
+				recordedWeather.visibilityM,
+			].every((value) => typeof value === "number" && Number.isFinite(value)) &&
+			typeof recordedWeather.thunderstorm === "boolean";
+		const unavailable =
+			!recordedWeather ||
+			recordedWeather.status !== "success" ||
+			!hasMeasurements ||
+			!Number.isFinite(age) ||
+			age < 0;
+		return {
+			...trip,
+			retrievedAt: retrievedAt.toISOString(),
+			weather: {
+				availability: unavailable
+					? "unavailable"
+					: age >= maxAgeMinutes * 60_000
+						? "stale"
+						: "recorded",
+				maxAgeMinutes,
+				record: unavailable ? null : recordedWeather,
+			},
+			offlinePackage: { status: "unavailable", downloadedAt: null },
+		};
 	}
 
 	private assertSearchTripsQuery(query: SearchTripsQueryDto): void {
@@ -299,8 +348,9 @@ export class TripsService {
 				capacityMax: dto.capacityMax ?? null,
 				pricePerPerson: dto.pricePerPerson,
 				cancellationPolicy: dto.cancellationPolicy ?? null,
-				waypoints: sortWaypointsByPlannedAt(dto.waypoints).map((waypoint, index) =>
-					toWaypointInput(waypoint, index, schedule.startsAt)
+				waypoints: toDraftWaypointInputs(
+					mergeEndpointWaypoints(lockedTrip.trip.waypoints, dto.waypoints),
+					schedule.startsAt
 				),
 			});
 
@@ -393,6 +443,188 @@ export class TripsService {
 		);
 		if (result.submittedForReview) this.emitTripReviewRequested(result.trip);
 		return result.trip;
+	}
+
+	/** Adds one waypoint to an owned draft Trip. */
+	createWaypoint(
+		hostId: string,
+		tripId: string,
+		dto: CreateTripWaypointDto
+	): Promise<TripResponseDto> {
+		return this.mutateDraftWaypoints(hostId, tripId, "trip_waypoint.created", (current) => [
+			...current,
+			fromWaypointDto(dto),
+		]);
+	}
+
+	/** Replaces the fields of one waypoint on an owned draft Trip. */
+	updateWaypoint(
+		hostId: string,
+		tripId: string,
+		waypointId: string,
+		dto: CreateTripWaypointDto
+	): Promise<TripResponseDto> {
+		return this.mutateDraftWaypoints(hostId, tripId, "trip_waypoint.updated", (current) => {
+			const existing = current.find((waypoint) => waypoint.id === waypointId);
+			if (!existing) throw new NotFoundException("Waypoint not found");
+			if (
+				(isEndpointType(existing.type) || isEndpointType(dto.type)) &&
+				dto.type !== existing.type
+			) {
+				throw new ConflictException("Start and finish waypoints cannot change type");
+			}
+			return current.map((waypoint) =>
+				waypoint.id === waypointId ? fromWaypointDto(dto, waypointId) : waypoint
+			);
+		});
+	}
+
+	/** Removes one waypoint from an owned draft Trip; start and finish must stay. */
+	deleteWaypoint(hostId: string, tripId: string, waypointId: string): Promise<TripResponseDto> {
+		return this.mutateDraftWaypoints(hostId, tripId, "trip_waypoint.deleted", (current) => {
+			const existing = current.find((waypoint) => waypoint.id === waypointId);
+			if (!existing) throw new NotFoundException("Waypoint not found");
+			if (isEndpointType(existing.type)) {
+				throw new ConflictException("Start and finish waypoints cannot be deleted");
+			}
+			return current.filter((waypoint) => waypoint.id !== waypointId);
+		});
+	}
+
+	/** Submits an owned draft Trip for approval using the waypoints already stored for it. */
+	async submitForApproval(hostId: string, tripId: string): Promise<TripResponseDto> {
+		const result = await this.dataSource.transaction(async (manager: EntityManager) => {
+			const repository = manager.withRepository(this.tripsRepository);
+			const lockedTrip = await repository.findByIdForWaypointConfiguration(tripId);
+			if (!lockedTrip) throw new NotFoundException("Trip not found");
+			if (lockedTrip.hostId !== hostId) {
+				throw new ForbiddenException("Only the owning Host can submit this Trip");
+			}
+			if (lockedTrip.status === TripStatus.PENDING_APPROVAL) {
+				return { trip: lockedTrip.trip, submitted: false };
+			}
+			if (lockedTrip.status !== TripStatus.DRAFT) {
+				throw new ConflictException("Only draft Trips can be submitted for approval");
+			}
+
+			const stored = lockedTrip.trip.waypoints.map(fromStoredWaypoint);
+			const missingTime = stored.findIndex((waypoint) => waypoint.plannedAt === null);
+			if (missingTime >= 0) {
+				throw this.validationException([
+					{ field: `waypoints.${missingTime}.plannedAt`, errors: ["plannedAt is required"] },
+				]);
+			}
+			this.assertWaypointPayload(stored.map(toWaypointDto), lockedTrip.trip, true);
+
+			const updated = await repository.submitDraftForApproval(tripId);
+			await manager.getRepository(AuditLog).save({
+				actorId: hostId,
+				action: "trip.submitted_for_approval",
+				targetType: "trip",
+				targetId: tripId,
+				before: { status: lockedTrip.status },
+				after: this.buildWaypointAuditSnapshot(updated),
+				reason: "host_submit_trip_for_approval",
+			});
+			return { trip: updated, submitted: true };
+		});
+		if (result.submitted) this.emitTripReviewRequested(result.trip);
+		return result.trip;
+	}
+
+	private mutateDraftWaypoints(
+		hostId: string,
+		tripId: string,
+		action: string,
+		mutate: (current: DraftWaypoint[]) => DraftWaypoint[]
+	): Promise<TripResponseDto> {
+		return this.dataSource.transaction(async (manager: EntityManager) => {
+			const repository = manager.withRepository(this.tripsRepository);
+			const lockedTrip = await repository.findByIdForWaypointConfiguration(tripId);
+			if (!lockedTrip) throw new NotFoundException("Trip not found");
+			if (lockedTrip.hostId !== hostId) {
+				throw new ForbiddenException("Only the owning Host can configure this Trip");
+			}
+			if (lockedTrip.status !== TripStatus.DRAFT) {
+				throw new ConflictException("Only draft Trips can change waypoints");
+			}
+
+			const next = mutate(lockedTrip.trip.waypoints.map(fromStoredWaypoint));
+			this.assertDraftWaypoints(next, lockedTrip.trip);
+
+			const checkpointIds = next
+				.map((waypoint) => waypoint.checkpointId)
+				.filter((checkpointId): checkpointId is string => Boolean(checkpointId));
+			const invalidCheckpointIds = await repository.findInvalidWaypointCheckpointIds(
+				lockedTrip.routeId,
+				[...new Set(checkpointIds)]
+			);
+			if (invalidCheckpointIds.length > 0) {
+				throw this.validationException([
+					{
+						field: "waypoints.checkpointId",
+						errors: [
+							`checkpoint must exist on the selected Route: ${invalidCheckpointIds.join(", ")}`,
+						],
+					},
+				]);
+			}
+
+			const updated = await repository.saveDraftWaypoints(
+				tripId,
+				toDraftWaypointInputs(next, new Date(lockedTrip.trip.startsAt))
+			);
+			await manager.getRepository(AuditLog).save({
+				actorId: hostId,
+				action,
+				targetType: "trip",
+				targetId: tripId,
+				before: this.buildWaypointAuditSnapshot(lockedTrip.trip),
+				after: this.buildWaypointAuditSnapshot(updated),
+				reason: "host_edit_draft_trip_waypoints",
+			});
+			return updated;
+		});
+	}
+
+	/** Rules every saved draft must satisfy; completeness (start/finish order, nights) is checked on submit. */
+	private assertDraftWaypoints(
+		waypoints: DraftWaypoint[],
+		trip: Pick<TripResponseDto, "startsAt" | "endsAt" | "tripType">
+	): void {
+		const errors: FieldValidationError[] = [];
+		const startsAt = new Date(trip.startsAt).getTime();
+		const endsAt = new Date(trip.endsAt).getTime();
+		const plannedTimes = new Set<number>();
+		for (const [index, waypoint] of waypoints.entries()) {
+			if (!waypoint.plannedAt) continue;
+			const plannedAt = waypoint.plannedAt.getTime();
+			if (plannedTimes.has(plannedAt)) {
+				errors.push({
+					field: `waypoints.${index}.plannedAt`,
+					errors: ["plannedAt must be unique within the Trip"],
+				});
+			}
+			plannedTimes.add(plannedAt);
+			if (plannedAt < startsAt || plannedAt > endsAt) {
+				errors.push({
+					field: `waypoints.${index}.plannedAt`,
+					errors: ["plannedAt must be within the Trip schedule"],
+				});
+			}
+		}
+		for (const type of [WaypointType.START, WaypointType.FINISH]) {
+			if (waypoints.filter((waypoint) => waypoint.type === type).length > 1) {
+				errors.push({ field: "waypoints", errors: [`Trip can include only one ${type} waypoint`] });
+			}
+		}
+		if (
+			trip.tripType === TripType.DAY_TRIP &&
+			waypoints.some((waypoint) => waypoint.type === WaypointType.OVERNIGHT)
+		) {
+			errors.push({ field: "waypoints", errors: ["day_trip cannot include overnight waypoints"] });
+		}
+		if (errors.length > 0) throw this.validationException(errors);
 	}
 
 	/**
@@ -1034,6 +1266,100 @@ function deriveDurationNights(tripType: TripType, startsAt: Date, endsAt: Date):
 
 function isSameTripBusinessDate(firstDate: Date, secondDate: Date): boolean {
 	return tripDateFormatter.format(firstDate) === tripDateFormatter.format(secondDate);
+}
+
+interface DraftWaypoint {
+	id?: string;
+	checkpointId: string | null;
+	type: WaypointType;
+	name: string;
+	location: GeoPoint;
+	plannedAt: Date | null;
+	metadata: Record<string, unknown> | null;
+}
+
+function isEndpointType(type: WaypointType): boolean {
+	return type === WaypointType.START || type === WaypointType.FINISH;
+}
+
+function fromStoredWaypoint(waypoint: TripResponseDto["waypoints"][number]): DraftWaypoint {
+	return {
+		id: waypoint.id,
+		checkpointId: waypoint.checkpointId ?? null,
+		type: waypoint.type,
+		name: waypoint.name,
+		location: waypoint.location,
+		plannedAt: waypoint.plannedAt ? new Date(waypoint.plannedAt) : null,
+		metadata: waypoint.metadata ?? null,
+	};
+}
+
+function fromWaypointDto(dto: CreateTripWaypointDto, id?: string): DraftWaypoint {
+	return {
+		id,
+		checkpointId: dto.checkpointId ?? null,
+		type: dto.type,
+		name: dto.name,
+		location: toGeoPoint(dto.location),
+		plannedAt: new Date(dto.plannedAt),
+		metadata: dto.metadata ?? null,
+	};
+}
+
+/** Converts a fully scheduled stored waypoint back into the payload shape the submit rules check. */
+function toWaypointDto(waypoint: DraftWaypoint): CreateTripWaypointDto {
+	return {
+		...(waypoint.checkpointId ? { checkpointId: waypoint.checkpointId } : {}),
+		type: waypoint.type,
+		name: waypoint.name,
+		location: waypoint.location,
+		plannedAt: (waypoint.plannedAt as Date).toISOString(),
+		...(waypoint.metadata ? { metadata: waypoint.metadata } : {}),
+	} as CreateTripWaypointDto;
+}
+
+/** Orders waypoints by planned time (unscheduled ones last) and derives day and sequence. */
+function toDraftWaypointInputs(
+	waypoints: DraftWaypoint[],
+	tripStartsAt: Date
+): CreateTripWaypointInput[] {
+	return [...waypoints]
+		.sort(
+			(first, second) =>
+				(first.plannedAt?.getTime() ?? Number.MAX_SAFE_INTEGER) -
+				(second.plannedAt?.getTime() ?? Number.MAX_SAFE_INTEGER)
+		)
+		.map((waypoint, index) => ({
+			id: waypoint.id,
+			checkpointId: waypoint.checkpointId,
+			type: waypoint.type,
+			name: waypoint.name,
+			location: waypoint.location,
+			dayNumber: waypoint.plannedAt ? deriveWaypointDayNumber(tripStartsAt, waypoint.plannedAt) : 1,
+			sequenceOrder: index + 1,
+			plannedAt: waypoint.plannedAt,
+			durationMinutes: null,
+			metadata: waypoint.metadata,
+		}));
+}
+
+/**
+ * Trip info edits only carry the start/finish waypoints; keep the stop waypoints the Host
+ * configured separately. A payload that includes stop waypoints stays authoritative.
+ */
+function mergeEndpointWaypoints(
+	stored: TripResponseDto["waypoints"],
+	incoming: CreateTripWaypointDto[]
+): DraftWaypoint[] {
+	if (incoming.some((waypoint) => !isEndpointType(waypoint.type)))
+		return incoming.map((waypoint) => fromWaypointDto(waypoint));
+	const endpointIds = new Map<WaypointType, string>();
+	for (const waypoint of stored)
+		if (isEndpointType(waypoint.type)) endpointIds.set(waypoint.type, waypoint.id);
+	return [
+		...incoming.map((waypoint) => fromWaypointDto(waypoint, endpointIds.get(waypoint.type))),
+		...stored.filter((waypoint) => !isEndpointType(waypoint.type)).map(fromStoredWaypoint),
+	];
 }
 
 function toWaypointInput(
