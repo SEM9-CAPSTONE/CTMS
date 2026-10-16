@@ -1,0 +1,238 @@
+<mxfile host="65bd71144e">
+    <diagram id="retrieve-weather" name="Retrieve Weather Data (CTMS-015)">
+        <mxGraphModel dx="942" dy="448" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="900" background="#ffffff" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="title" value="Retrieve Weather Data for Trekking Area (CTMS-015)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=18;fontStyle=1;fontColor=#000000;" parent="1" vertex="1">
+                    <mxGeometry x="55" y="15" width="1000" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="actor" value="Host / Admin" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontSize=12;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="55" y="65" width="30" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="ll_actor" value="" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;strokeColor=#000000;fillColor=none;strokeWidth=1;dashed=1;" parent="1" vertex="1">
+                    <mxGeometry x="70" y="150" width="1" height="720" as="geometry"/>
+                </mxCell>
+                <mxCell id="ll_web" value="RouteWeatherPanel&#10;(React Web)" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="160" y="75" width="140" height="800" as="geometry"/>
+                </mxCell>
+                <mxCell id="act_web" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_web" vertex="1">
+                    <mxGeometry x="65" y="85" width="10" height="680" as="geometry"/>
+                </mxCell>
+                <mxCell id="ll_controller" value="WeatherController" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="350" y="75" width="140" height="800" as="geometry"/>
+                </mxCell>
+                <mxCell id="act_controller" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_controller" vertex="1">
+                    <mxGeometry x="65" y="115" width="10" height="620" as="geometry"/>
+                </mxCell>
+                <mxCell id="ll_service" value="WeatherService" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="540" y="75" width="140" height="800" as="geometry"/>
+                </mxCell>
+                <mxCell id="act_service" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_service" vertex="1">
+                    <mxGeometry x="65" y="145" width="10" height="560" as="geometry"/>
+                </mxCell>
+                <mxCell id="ll_db" value="PostgreSQL Database&#10;(trekking_routes / weather_snapshots)" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="730" y="75" width="150" height="800" as="geometry"/>
+                </mxCell>
+                <mxCell id="ll_ext" value="Open-Meteo Weather API" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="920" y="75" width="150" height="800" as="geometry"/>
+                </mxCell>
+                <mxCell id="act_ext" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_ext" vertex="1">
+                    <mxGeometry x="70" y="295" width="10" height="40" as="geometry"/>
+                </mxCell>
+
+                <mxCell id="m1" value="1. Click Refresh weather" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="70" y="160" as="sourcePoint"/><mxPoint x="225" y="160" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m2" value="2. POST /trekking-routes/:routeId/weather/refresh" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="235" y="190" as="sourcePoint"/><mxPoint x="415" y="190" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m3" value="3. refreshForRoute(actor, routeId)" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="425" y="220" as="sourcePoint"/><mxPoint x="605" y="220" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m4" value="4. findRouteForFetch(routeId)" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="615" y="250" as="sourcePoint"/><mxPoint x="800" y="250" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m5" value="5. Return Route (hostId, status, centroid)" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="800" y="280" as="sourcePoint"/><mxPoint x="615" y="280" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m6" value="6. Assert owning Host or Admin (else 403); Route active (else 409)" style="html=1;align=left;spacingLeft=5;verticalAlign=middle;rounded=0;edgeStyle=orthogonalEdgeStyle;endArrow=classic;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="610" y="305" as="sourcePoint"/>
+                        <mxPoint x="610" y="330" as="targetPoint"/>
+                        <Array as="points"><mxPoint x="640" y="305"/><mxPoint x="640" y="330"/></Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="loop_frame" value="loop" style="shape=umlFrame;whiteSpace=wrap;html=1;strokeColor=#000000;fillColor=none;fontColor=#000000;width=45;height=25;" parent="1" vertex="1">
+                    <mxGeometry x="560" y="345" width="560" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="loop_cond" value="[max 3 attempts, backoff 500 / 1000 / 2000 ms]" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11;fontStyle=1;fontColor=#000000;" parent="1" vertex="1">
+                    <mxGeometry x="610" y="345" width="320" height="25" as="geometry"/>
+                </mxCell>
+                <mxCell id="m7" value="7. fetchCurrent(latitude, longitude)" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="615" y="380" as="sourcePoint"/><mxPoint x="990" y="380" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m8" value="8. Return reading (rain, wind, temperature, visibility, thunderstorm)" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="990" y="410" as="sourcePoint"/><mxPoint x="615" y="410" as="targetPoint"/></mxGeometry>
+                </mxCell>
+
+                <mxCell id="alt_frame" value="alt" style="shape=umlFrame;whiteSpace=wrap;html=1;strokeColor=#000000;fillColor=none;fontColor=#000000;width=45;height=25;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="440" width="1090" height="400" as="geometry"/>
+                </mxCell>
+                <mxCell id="cond1" value="[provider returned a reading]" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11;fontStyle=1;fontColor=#000000;" parent="1" vertex="1">
+                    <mxGeometry x="100" y="440" width="260" height="25" as="geometry"/>
+                </mxCell>
+                <mxCell id="m9" value="9. INSERT weather_snapshots (status = success, readings, raw response)" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="615" y="480" as="sourcePoint"/><mxPoint x="800" y="480" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m10" value="10. Return snapshot" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="800" y="510" as="sourcePoint"/><mxPoint x="615" y="510" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m11" value="11. Return WeatherSnapshotResponseDto" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="605" y="540" as="sourcePoint"/><mxPoint x="425" y="540" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m12" value="12. Return 201 Created" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="415" y="570" as="sourcePoint"/><mxPoint x="235" y="570" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m13" value="13. Display latest weather readings and observed time" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="225" y="600" as="sourcePoint"/><mxPoint x="70" y="600" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="alt_divider" value="" style="shape=line;strokeWidth=1;dashed=1;dashPattern=6 4;strokeColor=#000000;fillColor=none;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="630" width="1090" height="10" as="geometry"/>
+                </mxCell>
+                <mxCell id="cond2" value="[all attempts failed / timeout]" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11;fontStyle=1;fontColor=#000000;" parent="1" vertex="1">
+                    <mxGeometry x="100" y="635" width="260" height="25" as="geometry"/>
+                </mxCell>
+                <mxCell id="m9_1" value="9.1 INSERT weather_snapshots (status = failed, errorMessage) -- no fabricated reading" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="615" y="680" as="sourcePoint"/><mxPoint x="800" y="680" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m10_1" value="10.1 Return 503 Service Unavailable" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="605" y="720" as="sourcePoint"/><mxPoint x="425" y="720" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m11_1" value="11.1 Return 503 error" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="415" y="750" as="sourcePoint"/><mxPoint x="235" y="750" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m12_1" value="12.1 Show weather provider unavailable message" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="225" y="780" as="sourcePoint"/><mxPoint x="70" y="780" as="targetPoint"/></mxGeometry>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+    <diagram id="weather-advice-llm" name="Generate Weather Risk Advice via LLM (CTMS-019)">
+        <mxGraphModel dx="942" dy="448" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="950" background="#ffffff" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="title" value="Generate Clear Weather Risk Advice Using LLM (CTMS-019)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=18;fontStyle=1;fontColor=#000000;" parent="1" vertex="1">
+                    <mxGeometry x="55" y="15" width="1000" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="actor" value="Host / Admin" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontSize=12;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="55" y="65" width="30" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="ll_actor" value="" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;strokeColor=#000000;fillColor=none;strokeWidth=1;dashed=1;" parent="1" vertex="1">
+                    <mxGeometry x="70" y="150" width="1" height="760" as="geometry"/>
+                </mxCell>
+                <mxCell id="ll_web" value="RouteWeatherPanel&#10;(React Web)" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="160" y="75" width="140" height="840" as="geometry"/>
+                </mxCell>
+                <mxCell id="act_web" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_web" vertex="1">
+                    <mxGeometry x="65" y="85" width="10" height="720" as="geometry"/>
+                </mxCell>
+                <mxCell id="ll_controller" value="WeatherController" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="350" y="75" width="140" height="840" as="geometry"/>
+                </mxCell>
+                <mxCell id="act_controller" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_controller" vertex="1">
+                    <mxGeometry x="65" y="115" width="10" height="660" as="geometry"/>
+                </mxCell>
+                <mxCell id="ll_service" value="WeatherAdviceService" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="540" y="75" width="140" height="840" as="geometry"/>
+                </mxCell>
+                <mxCell id="act_service" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_service" vertex="1">
+                    <mxGeometry x="65" y="145" width="10" height="600" as="geometry"/>
+                </mxCell>
+                <mxCell id="ll_db" value="PostgreSQL Database&#10;(weather_risk_assessments / weather_advice)" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="730" y="75" width="150" height="840" as="geometry"/>
+                </mxCell>
+                <mxCell id="ll_ai" value="Python AI Service&#10;(POST /weather-advisory, LLM)" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="920" y="75" width="150" height="840" as="geometry"/>
+                </mxCell>
+                <mxCell id="act_ai" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_ai" vertex="1">
+                    <mxGeometry x="70" y="565" width="10" height="40" as="geometry"/>
+                </mxCell>
+
+                <mxCell id="m1" value="1. Click Generate advice" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="70" y="160" as="sourcePoint"/><mxPoint x="225" y="160" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m2" value="2. POST /trekking-routes/:routeId/weather/advice" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="235" y="190" as="sourcePoint"/><mxPoint x="415" y="190" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m3" value="3. generateForRoute(actor, routeId)" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="425" y="220" as="sourcePoint"/><mxPoint x="605" y="220" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m4" value="4. findRouteForFetch(routeId)" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="615" y="250" as="sourcePoint"/><mxPoint x="800" y="250" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m5" value="5. Return Route (hostId, status)" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="800" y="280" as="sourcePoint"/><mxPoint x="615" y="280" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m6" value="6. Assert owning Host or Admin (else 403); Route active (else 409)" style="html=1;align=left;spacingLeft=5;verticalAlign=middle;rounded=0;edgeStyle=orthogonalEdgeStyle;endArrow=classic;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="610" y="305" as="sourcePoint"/>
+                        <mxPoint x="610" y="330" as="targetPoint"/>
+                        <Array as="points"><mxPoint x="640" y="305"/><mxPoint x="640" y="330"/></Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="m7" value="7. findLatestAssessmentForRoute(routeId) -- read only" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="615" y="360" as="sourcePoint"/><mxPoint x="800" y="360" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m8" value="8. Return assessment (riskLevel, compositeScore, criteriaScores) -- none: 409" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="800" y="390" as="sourcePoint"/><mxPoint x="615" y="390" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m9" value="9. findExistingForAssessment(assessmentId)" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="615" y="420" as="sourcePoint"/><mxPoint x="800" y="420" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m10" value="10. Return existing advice or null" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="800" y="450" as="sourcePoint"/><mxPoint x="615" y="450" as="targetPoint"/></mxGeometry>
+                </mxCell>
+
+                <mxCell id="alt_frame" value="alt" style="shape=umlFrame;whiteSpace=wrap;html=1;strokeColor=#000000;fillColor=none;fontColor=#000000;width=45;height=25;" parent="1" vertex="1">
+                    <mxGeometry x="380" y="480" width="750" height="290" as="geometry"/>
+                </mxCell>
+                <mxCell id="cond1" value="[advice already exists for this assessment]" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11;fontStyle=1;fontColor=#000000;" parent="1" vertex="1">
+                    <mxGeometry x="440" y="480" width="320" height="25" as="geometry"/>
+                </mxCell>
+                <mxCell id="m11" value="11. Return existing advice (idempotent, no new LLM call)" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="605" y="520" as="sourcePoint"/><mxPoint x="425" y="520" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="alt_divider" value="" style="shape=line;strokeWidth=1;dashed=1;dashPattern=6 4;strokeColor=#000000;fillColor=none;" parent="1" vertex="1">
+                    <mxGeometry x="380" y="540" width="750" height="10" as="geometry"/>
+                </mxCell>
+                <mxCell id="cond2" value="[no advice yet -- retry up to 3 attempts with backoff]" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11;fontStyle=1;fontColor=#000000;" parent="1" vertex="1">
+                    <mxGeometry x="440" y="545" width="380" height="25" as="geometry"/>
+                </mxCell>
+                <mxCell id="m11_1" value="11.1 generate({ riskLevel, compositeScore, rain, wind, temperature, visibility, thunderstorm })" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="615" y="640" as="sourcePoint"/><mxPoint x="990" y="640" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m12_1" value="12.1 Return { adviceText, actions }" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="990" y="670" as="sourcePoint"/><mxPoint x="615" y="670" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m13_1" value="13.1 INSERT weather_advice (assessmentId, adviceText, actions, createdBy)" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="615" y="700" as="sourcePoint"/><mxPoint x="800" y="700" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m14_1" value="14.1 Return new advice (LLM never changes riskLevel / score)" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="605" y="740" as="sourcePoint"/><mxPoint x="425" y="740" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="fail_note" value="If all LLM attempts fail: 503 Service Unavailable, nothing is persisted" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11;fontStyle=2;fontColor=#555555;" parent="1" vertex="1">
+                    <mxGeometry x="640" y="580" width="420" height="20" as="geometry"/>
+                </mxCell>
+
+                <mxCell id="m15" value="15. Return 201 Created (WeatherAdviceResponseDto)" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="415" y="800" as="sourcePoint"/><mxPoint x="235" y="800" as="targetPoint"/></mxGeometry>
+                </mxCell>
+                <mxCell id="m16" value="16. Display advice text and recommended actions" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry"><mxPoint x="225" y="830" as="sourcePoint"/><mxPoint x="70" y="830" as="targetPoint"/></mxGeometry>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>
