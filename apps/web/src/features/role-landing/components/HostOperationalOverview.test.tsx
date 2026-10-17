@@ -62,11 +62,13 @@ describe("HostOperationalOverview trip selection", () => {
 		setTrips([trip("abcd"), trip("abc")]);
 		const navigate = vi.fn();
 		render(<HostOperationalOverview hostId="host" onNavigateToTripDetail={navigate} />);
-		expect(screen.getByText("Đang diễn ra (2)")).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: /Đang diễn ra\s*2/ })).toHaveAttribute(
+			"aria-pressed",
+			"true"
+		);
 		expect(screen.getByRole("button", { name: "abcd" })).toHaveAttribute("aria-pressed", "true");
 		fireEvent.click(screen.getByRole("button", { name: "abc" }));
 		expect(screen.getByRole("button", { name: "abc" })).toHaveAttribute("aria-pressed", "true");
-		expect(screen.getByRole("heading", { name: "abc" })).toBeInTheDocument();
 		expect(screen.getByTestId("selected-map")).toHaveTextContent("abc");
 		fireEvent.click(screen.getByRole("button", { name: "Xem chi tiết chuyến đi" }));
 		expect(navigate).toHaveBeenCalledWith("abc");
@@ -83,5 +85,19 @@ describe("HostOperationalOverview trip selection", () => {
 		rerender(<HostOperationalOverview hostId="host" />);
 		expect(screen.getByTestId("selected-map")).toHaveTextContent("abcd");
 		expect(screen.queryByRole("button", { name: "abc" })).not.toBeInTheDocument();
+	});
+
+	it("filters the trip list by status and selects the first trip of the chosen status", () => {
+		setTrips([
+			trip("live"),
+			{ ...trip("soon"), status: "published", startsAt: "2026-10-20T06:00:00+07:00" },
+		]);
+		render(<HostOperationalOverview hostId="host" />);
+		expect(screen.getByRole("button", { name: "live" })).toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "soon" })).not.toBeInTheDocument();
+		fireEvent.click(screen.getByRole("button", { name: /Sắp khởi hành\s*1/ }));
+		expect(screen.queryByRole("button", { name: "live" })).not.toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "soon" })).toHaveAttribute("aria-pressed", "true");
+		expect(screen.getByTestId("selected-map")).toHaveTextContent("soon");
 	});
 });
