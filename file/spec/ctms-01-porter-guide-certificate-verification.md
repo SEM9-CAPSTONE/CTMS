@@ -1,8 +1,8 @@
-# CTMS-XXX — Porter Guide Certificate Verification
+# CTMS-1 — Porter Guide Certificate Verification
 
 ## 1. Overview
 
-Story: CTMS-XXX (Jira key to be confirmed)
+Story: CTMS-1 (tracked under the Register card at the user's request; extends CTMS-001 registration for Porters)
 
 Epic: EPIC 7. Porter Management
 
@@ -171,4 +171,4 @@ Acceptance Criteria:
 - [x] Unit, integration and web tests added and passing.
 - [x] Audit log written for submit, approve and reject.
 - [x] Screenshots of the running app captured.
-- [ ] Jira key confirmed and file renamed (pending from the user).
+- [x] Jira key confirmed (CTMS-1) and file renamed.
