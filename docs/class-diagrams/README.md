@@ -53,3 +53,20 @@ Reference examples (follow them exactly):
 
 - Folder: `docs/class-diagrams/`.
 - Name: `EPIC-<NN>-<Epic-Title>-Class-Diagram.drawio` (one Epic per file, plain draw.io XML).
+
+## 6. Design-level diagrams (no backend code yet)
+
+These Epics have no implementation in `services/api` yet, so their diagrams are **planned designs derived
+from the UC specifications in `file/spec/`** (Goal, Data & Invariants), not from code. They follow the
+same layout and visual rules. When an Epic is implemented, redraw its diagram from the real code
+following sections 1–5 and remove it from this list.
+
+- `EPIC-08-Offline-Package-Class-Diagram.drawio`
+- `EPIC-10-Buffer-and-Synchronization-Class-Diagram.drawio`
+- `EPIC-11-AI-Survival-Assistant-and-RAG-Class-Diagram.drawio`
+- `EPIC-12-SOS-and-Emergency-Management-Class-Diagram.drawio`
+- `EPIC-13-Real-Time-Communication-Class-Diagram.drawio`
+- `EPIC-14-Host-Monitoring-Dashboard-Class-Diagram.drawio`
+- `EPIC-15-Notifications-Class-Diagram.drawio`
+- `EPIC-16-Reviews-and-Feedback-Class-Diagram.drawio`
+- `EPIC-17-Reports-and-Evaluation-Metrics-Class-Diagram.drawio`
