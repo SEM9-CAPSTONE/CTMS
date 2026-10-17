@@ -82,4 +82,17 @@ export class EventsGateway implements OnGatewayConnection {
 	}) {
 		this.server?.emit("porter.request.state_changed", payload);
 	}
+
+	/** CTMS-049: classification only; description and coordinates stay behind the authorized API. */
+	emitTripIncidentReported(payload: {
+		incidentId: string;
+		tripId: string;
+		hostId: string;
+		reporterId: string;
+		category: string;
+		severity: string;
+		occurredAt: string;
+	}) {
+		this.server?.emit("trip.incident.reported", payload);
+	}
 }

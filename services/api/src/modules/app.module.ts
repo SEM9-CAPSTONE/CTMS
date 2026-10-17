@@ -7,6 +7,7 @@ import { ContentReportsModule } from "./content-reports/content-reports.module";
 import { EquipmentCatalogModule } from "./equipment-catalog/equipment-catalog.module";
 import { GpsTrackingModule } from "./gps-tracking/gps-tracking.module";
 import { HealthController } from "./health/health.controller";
+import { IncidentsModule } from "./incidents/incidents.module";
 import { ProfilesModule } from "./profiles/profiles.module";
 import { RealtimeModule } from "./realtime/realtime.module";
 import { TrekkingRoutesModule } from "./trekking-routes/trekking-routes.module";
@@ -27,6 +28,7 @@ import { WeatherModule } from "./weather/weather.module";
 		ContentReportsModule,
 		EquipmentCatalogModule,
 		GpsTrackingModule,
+		IncidentsModule,
 		ProfilesModule,
 		RealtimeModule,
 		UsersModule,
