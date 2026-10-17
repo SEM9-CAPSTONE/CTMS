@@ -44,16 +44,16 @@
                     <mxGeometry height="36" width="390" y="56" as="geometry"/>
                 </mxCell>
                 <mxCell id="healthCtl" parent="1" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=26;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=0;marginBottom=0;html=1;fillColor=#f5f5f5;swimlaneFillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontSize=12;" value="CamperHealthProfileController" vertex="1">
-                    <mxGeometry height="134" width="390" x="2120" y="70" as="geometry"/>
+                    <mxGeometry height="136" width="390" x="2120" y="70" as="geometry"/>
                 </mxCell>
-                <mxCell id="healthCtl-a" parent="healthCtl" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=6;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;fontColor=#000000;fontSize=11;" value="- healthProfileService: CamperHealthProfileService" vertex="1">
-                    <mxGeometry height="22" width="390" y="26" as="geometry"/>
+                <mxCell id="healthCtl-a" parent="healthCtl" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=6;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;fontColor=#000000;fontSize=11;" value="- camperHealthProfileService: CamperHealthProfileService" vertex="1">
+                    <mxGeometry height="21" width="390" y="26" as="geometry"/>
                 </mxCell>
                 <mxCell id="healthCtl-l" parent="healthCtl" style="line;strokeWidth=1;fillColor=none;align=left;verticalAlign=middle;spacingTop=-1;spacingLeft=3;spacingRight=3;rotatable=0;labelPosition=right;points=[];portConstraint=eastwest;strokeColor=#000000;" value="" vertex="1">
-                    <mxGeometry height="8" width="390" y="48" as="geometry"/>
+                    <mxGeometry height="8" width="390" y="47" as="geometry"/>
                 </mxCell>
-                <mxCell id="healthCtl-m" parent="healthCtl" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=6;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;fontColor=#000000;fontSize=11;" value="+ getMyProfile(req): GET /camper/health-profile&lt;br&gt;+ updateMyProfile(req, dto): PUT /camper/health-profile&lt;br&gt;+ grantConsent(req): POST /camper/health-profile/consent/grant&lt;br&gt;+ revokeConsent(req): POST /camper/health-profile/consent/revoke&lt;br&gt;+ getCamperProfile(req, userId): GET /camper/health-profile/:userId" vertex="1">
-                    <mxGeometry height="78" width="390" y="56" as="geometry"/>
+                <mxCell id="healthCtl-m" parent="healthCtl" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=6;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;fontColor=#000000;fontSize=11;" value="+ getMyProfile(req): GET /camper/health-profile&lt;br&gt;+ updateMyProfile(req, dto, version): PUT /camper/health-profile&lt;br&gt;+ grantConsent(req): POST /camper/health-profile/consent/grant&lt;br&gt;+ revokeConsent(req): POST /camper/health-profile/consent/revoke&lt;br&gt;+ getCamperProfile(req, camperId): GET /camper/health-profile/:userId" vertex="1">
+                    <mxGeometry height="81" width="390" y="55" as="geometry"/>
                 </mxCell>
                 <mxCell id="rolesGuard" parent="1" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=26;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=0;marginBottom=0;html=1;fillColor=#f5f5f5;swimlaneFillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontSize=12;" value="RolesGuard" vertex="1">
                     <mxGeometry height="78" width="260" x="2640" y="70" as="geometry"/>
@@ -68,16 +68,16 @@
                     <mxGeometry height="22" width="260" y="56" as="geometry"/>
                 </mxCell>
                 <mxCell id="jwtGuard" parent="1" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=26;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=0;marginBottom=0;html=1;fillColor=#f5f5f5;swimlaneFillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontSize=12;" value="JwtAuthGuard" vertex="1">
-                    <mxGeometry height="78" width="260" x="2640" y="210" as="geometry"/>
+                    <mxGeometry height="65" width="260" x="2640" y="210" as="geometry"/>
                 </mxCell>
-                <mxCell id="jwtGuard-a" parent="jwtGuard" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=6;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;fontColor=#000000;fontSize=11;" value="- jwtService: JwtService" vertex="1">
-                    <mxGeometry height="22" width="260" y="26" as="geometry"/>
+                <mxCell id="jwtGuard-a" parent="jwtGuard" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=6;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;fontColor=#000000;fontSize=11;" value="" vertex="1">
+                    <mxGeometry height="10" width="260" y="26" as="geometry"/>
                 </mxCell>
                 <mxCell id="jwtGuard-l" parent="jwtGuard" style="line;strokeWidth=1;fillColor=none;align=left;verticalAlign=middle;spacingTop=-1;spacingLeft=3;spacingRight=3;rotatable=0;labelPosition=right;points=[];portConstraint=eastwest;strokeColor=#000000;" value="" vertex="1">
-                    <mxGeometry height="8" width="260" y="48" as="geometry"/>
+                    <mxGeometry height="8" width="260" y="36" as="geometry"/>
                 </mxCell>
                 <mxCell id="jwtGuard-m" parent="jwtGuard" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=6;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;fontColor=#000000;fontSize=11;" value="+ canActivate(context): boolean" vertex="1">
-                    <mxGeometry height="22" width="260" y="56" as="geometry"/>
+                    <mxGeometry height="21" width="260" y="44" as="geometry"/>
                 </mxCell>
                 <mxCell id="refresh" parent="1" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=26;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=0;marginBottom=0;html=1;fillColor=#f5f5f5;swimlaneFillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontSize=12;" value="RefreshToken" vertex="1">
                     <mxGeometry height="190" width="390" x="40" y="370" as="geometry"/>
@@ -92,52 +92,52 @@
                     <mxGeometry height="64" width="390" y="126" as="geometry"/>
                 </mxCell>
                 <mxCell id="authSvc" parent="1" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=26;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=0;marginBottom=0;html=1;fillColor=#f5f5f5;swimlaneFillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontSize=12;" value="AuthService" vertex="1">
-                    <mxGeometry height="246" width="390" x="560" y="370" as="geometry"/>
+                    <mxGeometry height="286" width="390" x="560" y="370" as="geometry"/>
                 </mxCell>
-                <mxCell id="authSvc-a" parent="authSvc" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=6;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;fontColor=#000000;fontSize=11;" value="- usersRepository: UsersRepository&lt;br&gt;- refreshTokenRepository: RefreshTokenRepository&lt;br&gt;- verificationOtpRepository: VerificationOtpRepository&lt;br&gt;- otpDeliveryService: OtpDeliveryService&lt;br&gt;- jwtService: JwtService" vertex="1">
-                    <mxGeometry height="78" width="390" y="26" as="geometry"/>
+                <mxCell id="authSvc-a" parent="authSvc" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=6;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;fontColor=#000000;fontSize=11;" value="- usersRepository: UsersRepository&lt;br&gt;- verificationOtpRepository: VerificationOtpRepository&lt;br&gt;- refreshTokenRepository: RefreshTokenRepository&lt;br&gt;- dataSource: DataSource&lt;br&gt;- configService: ConfigService&lt;br&gt;- otpDeliveryService: OtpDeliveryService&lt;br&gt;- jwtService: JwtService" vertex="1">
+                    <mxGeometry height="111" width="390" y="26" as="geometry"/>
                 </mxCell>
                 <mxCell id="authSvc-l" parent="authSvc" style="line;strokeWidth=1;fillColor=none;align=left;verticalAlign=middle;spacingTop=-1;spacingLeft=3;spacingRight=3;rotatable=0;labelPosition=right;points=[];portConstraint=eastwest;strokeColor=#000000;" value="" vertex="1">
-                    <mxGeometry height="8" width="390" y="104" as="geometry"/>
+                    <mxGeometry height="8" width="390" y="137" as="geometry"/>
                 </mxCell>
-                <mxCell id="authSvc-m" parent="authSvc" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=6;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;fontColor=#000000;fontSize=11;" value="+ register(dto): UserProfileDto&lt;br&gt;+ issueOtp(userId): string&lt;br&gt;+ sendOtp(dto): UserProfileDto&lt;br&gt;+ verifyOtp(dto): UserProfileDto&lt;br&gt;+ login(dto): LoginResponseDto&lt;br&gt;+ refresh(dto): RefreshTokenResponseDto&lt;br&gt;+ logout(userId, dto): LogoutResponseDto&lt;br&gt;+ forgotPassword(dto): ForgotPasswordResponseDto&lt;br&gt;+ resetPassword(dto): ResetPasswordResponseDto" vertex="1">
-                    <mxGeometry height="134" width="390" y="112" as="geometry"/>
+                <mxCell id="authSvc-m" parent="authSvc" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=6;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;fontColor=#000000;fontSize=11;" value="+ register(dto): UserProfileDto&lt;br&gt;+ issueOtp(userId): string&lt;br&gt;+ sendOtp(dto): UserProfileDto&lt;br&gt;+ verifyOtp(dto): UserProfileDto&lt;br&gt;+ login(dto): LoginResponseDto&lt;br&gt;+ refresh(dto): RefreshTokenResponseDto&lt;br&gt;+ logout(authenticatedUserId, dto): LogoutResponseDto&lt;br&gt;+ forgotPassword(dto): ForgotPasswordResponseDto&lt;br&gt;+ resetPassword(dto): ResetPasswordResponseDto" vertex="1">
+                    <mxGeometry height="141" width="390" y="145" as="geometry"/>
                 </mxCell>
                 <mxCell id="usersSvc" parent="1" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=26;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=0;marginBottom=0;html=1;fillColor=#f5f5f5;swimlaneFillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontSize=12;" value="UsersService" vertex="1">
-                    <mxGeometry height="120" width="390" x="1080" y="370" as="geometry"/>
+                    <mxGeometry height="136" width="390" x="1080" y="370" as="geometry"/>
                 </mxCell>
-                <mxCell id="usersSvc-a" parent="usersSvc" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=6;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;fontColor=#000000;fontSize=11;" value="- usersRepository: UsersRepository" vertex="1">
-                    <mxGeometry height="22" width="390" y="26" as="geometry"/>
+                <mxCell id="usersSvc-a" parent="usersSvc" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=6;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;fontColor=#000000;fontSize=11;" value="- usersRepository: UsersRepository&lt;br&gt;- dataSource: DataSource" vertex="1">
+                    <mxGeometry height="36" width="390" y="26" as="geometry"/>
                 </mxCell>
                 <mxCell id="usersSvc-l" parent="usersSvc" style="line;strokeWidth=1;fillColor=none;align=left;verticalAlign=middle;spacingTop=-1;spacingLeft=3;spacingRight=3;rotatable=0;labelPosition=right;points=[];portConstraint=eastwest;strokeColor=#000000;" value="" vertex="1">
-                    <mxGeometry height="8" width="390" y="48" as="geometry"/>
+                    <mxGeometry height="8" width="390" y="62" as="geometry"/>
                 </mxCell>
                 <mxCell id="usersSvc-m" parent="usersSvc" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=6;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;fontColor=#000000;fontSize=11;" value="+ listUsers(actorId, query): PaginatedUserAccountsResponseDto&lt;br&gt;+ getUser(actorId, userId): UserAccountDetailDto&lt;br&gt;+ lockUser(actorId, userId, dto): UserAccountDetailDto&lt;br&gt;+ unlockUser(actorId, userId, dto): UserAccountDetailDto" vertex="1">
-                    <mxGeometry height="64" width="390" y="56" as="geometry"/>
+                    <mxGeometry height="66" width="390" y="70" as="geometry"/>
                 </mxCell>
                 <mxCell id="profSvc" parent="1" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=26;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=0;marginBottom=0;html=1;fillColor=#f5f5f5;swimlaneFillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontSize=12;" value="ProfilesService" vertex="1">
-                    <mxGeometry height="106" width="390" x="1600" y="370" as="geometry"/>
+                    <mxGeometry height="121" width="390" x="1600" y="370" as="geometry"/>
                 </mxCell>
-                <mxCell id="profSvc-a" parent="profSvc" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=6;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;fontColor=#000000;fontSize=11;" value="- usersRepository: UsersRepository&lt;br&gt;- emergencyContactsRepository: EmergencyContactsRepository" vertex="1">
-                    <mxGeometry height="36" width="390" y="26" as="geometry"/>
+                <mxCell id="profSvc-a" parent="profSvc" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=6;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;fontColor=#000000;fontSize=11;" value="- usersRepository: UsersRepository&lt;br&gt;- emergencyContactsRepository: EmergencyContactsRepository&lt;br&gt;- dataSource: DataSource" vertex="1">
+                    <mxGeometry height="51" width="390" y="26" as="geometry"/>
                 </mxCell>
                 <mxCell id="profSvc-l" parent="profSvc" style="line;strokeWidth=1;fillColor=none;align=left;verticalAlign=middle;spacingTop=-1;spacingLeft=3;spacingRight=3;rotatable=0;labelPosition=right;points=[];portConstraint=eastwest;strokeColor=#000000;" value="" vertex="1">
-                    <mxGeometry height="8" width="390" y="62" as="geometry"/>
+                    <mxGeometry height="8" width="390" y="77" as="geometry"/>
                 </mxCell>
                 <mxCell id="profSvc-m" parent="profSvc" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=6;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;fontColor=#000000;fontSize=11;" value="+ getMyProfile(userId): ProfileResponseDto&lt;br&gt;+ updateMyProfile(userId, dto): ProfileResponseDto" vertex="1">
-                    <mxGeometry height="36" width="390" y="70" as="geometry"/>
+                    <mxGeometry height="36" width="390" y="85" as="geometry"/>
                 </mxCell>
                 <mxCell id="healthSvc" parent="1" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=26;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=0;marginBottom=0;html=1;fillColor=#f5f5f5;swimlaneFillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontSize=12;" value="CamperHealthProfileService" vertex="1">
-                    <mxGeometry height="148" width="390" x="2120" y="370" as="geometry"/>
+                    <mxGeometry height="166" width="390" x="2120" y="370" as="geometry"/>
                 </mxCell>
-                <mxCell id="healthSvc-a" parent="healthSvc" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=6;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;fontColor=#000000;fontSize=11;" value="- healthProfileRepository: HealthProfileRepository&lt;br&gt;- usersRepository: UsersRepository" vertex="1">
-                    <mxGeometry height="36" width="390" y="26" as="geometry"/>
+                <mxCell id="healthSvc-a" parent="healthSvc" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=6;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;fontColor=#000000;fontSize=11;" value="- healthProfileRepository: HealthProfileRepository&lt;br&gt;- usersRepository: UsersRepository&lt;br&gt;- dataSource: DataSource" vertex="1">
+                    <mxGeometry height="51" width="390" y="26" as="geometry"/>
                 </mxCell>
                 <mxCell id="healthSvc-l" parent="healthSvc" style="line;strokeWidth=1;fillColor=none;align=left;verticalAlign=middle;spacingTop=-1;spacingLeft=3;spacingRight=3;rotatable=0;labelPosition=right;points=[];portConstraint=eastwest;strokeColor=#000000;" value="" vertex="1">
-                    <mxGeometry height="8" width="390" y="62" as="geometry"/>
+                    <mxGeometry height="8" width="390" y="77" as="geometry"/>
                 </mxCell>
-                <mxCell id="healthSvc-m" parent="healthSvc" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=6;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;fontColor=#000000;fontSize=11;" value="+ getOrCreateProfile(userId): HealthProfile&lt;br&gt;+ updateProfile(userId, dto): HealthProfile&lt;br&gt;+ grantConsent(userId): HealthProfile&lt;br&gt;+ revokeConsent(userId): HealthProfile&lt;br&gt;+ getCamperProfile(actor, camperId): HealthProfile" vertex="1">
-                    <mxGeometry height="78" width="390" y="70" as="geometry"/>
+                <mxCell id="healthSvc-m" parent="healthSvc" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=6;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;fontColor=#000000;fontSize=11;" value="+ getOrCreateProfile(userId): HealthProfile&lt;br&gt;+ updateProfile(userId, dto, clientVersion): HealthProfile&lt;br&gt;+ grantConsent(userId): HealthProfile&lt;br&gt;+ revokeConsent(userId): HealthProfile&lt;br&gt;+ getCamperProfile(callerId, camperId): { profile, activeTripTitle }" vertex="1">
+                    <mxGeometry height="81" width="390" y="85" as="geometry"/>
                 </mxCell>
                 <mxCell id="otp" parent="1" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=26;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=0;marginBottom=0;html=1;fillColor=#f5f5f5;swimlaneFillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontSize=12;" value="VerificationOtp" vertex="1">
                     <mxGeometry height="190" width="390" x="560" y="766" as="geometry"/>
@@ -154,7 +154,7 @@
                 <mxCell id="user" parent="1" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=26;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=0;marginBottom=0;html=1;fillColor=#f5f5f5;swimlaneFillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontSize=12;" value="User" vertex="1">
                     <mxGeometry height="358" width="390" x="1080" y="766" as="geometry"/>
                 </mxCell>
-                <mxCell id="user-a" parent="user" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=6;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;fontColor=#000000;fontSize=11;" value="+ id: uuid {PK}&lt;br&gt;+ email: string [0..1] {unique}&lt;br&gt;+ phone: string [0..1] {unique}&lt;br&gt;+ passwordHash: string&lt;br&gt;+ role: UserRole&lt;br&gt;+ status: UserStatus&lt;br&gt;+ fullName: string [0..1]&lt;br&gt;+ avatarUrl: string [0..1]&lt;br&gt;+ dateOfBirth: Date [0..1]&lt;br&gt;+ gender: UserGender [0..1]&lt;br&gt;+ address: string [0..1]&lt;br&gt;+ bio: string [0..1]&lt;br&gt;+ createdAt: Date&lt;br&gt;+ updatedAt: Date" vertex="1">
+                <mxCell id="user-a" parent="user" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=6;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;fontColor=#000000;fontSize=11;" value="+ id: uuid {PK}&lt;br&gt;+ email: string [0..1] {unique}&lt;br&gt;+ phone: string [0..1] {unique}&lt;br&gt;+ passwordHash: string&lt;br&gt;+ role: UserRole&lt;br&gt;+ status: UserStatus&lt;br&gt;+ fullName: string [0..1]&lt;br&gt;+ avatarUrl: string [0..1]&lt;br&gt;+ dateOfBirth: string [0..1]&lt;br&gt;+ gender: UserGender [0..1]&lt;br&gt;+ address: string [0..1]&lt;br&gt;+ bio: string [0..1]&lt;br&gt;+ createdAt: Date&lt;br&gt;+ updatedAt: Date" vertex="1">
                     <mxGeometry height="204" width="390" y="26" as="geometry"/>
                 </mxCell>
                 <mxCell id="user-l" parent="user" style="line;strokeWidth=1;fillColor=none;align=left;verticalAlign=middle;spacingTop=-1;spacingLeft=3;spacingRight=3;rotatable=0;labelPosition=right;points=[];portConstraint=eastwest;strokeColor=#000000;" value="" vertex="1">
@@ -243,7 +243,7 @@
                         <mxPoint as="offset"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="e9" edge="1" parent="1" source="healthCtl" style="html=1;rounded=0;strokeColor=#000000;fontColor=#000000;fontSize=11;labelBackgroundColor=#ffffff;endSize=10;dashed=1;endArrow=open;exitX=1;exitY=0.2;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="rolesGuard" value="">
+                <mxCell id="e9" edge="1" parent="1" source="healthCtl" style="html=1;rounded=0;strokeColor=#000000;fontColor=#000000;fontSize=11;labelBackgroundColor=#ffffff;endSize=10;dashed=1;endArrow=open;exitX=1;exitY=0.197059;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="rolesGuard" value="">
                     <mxGeometry relative="1" as="geometry">
                         <Array as="points">
                             <mxPoint x="2550" y="97"/>
@@ -264,7 +264,7 @@
                         <mxPoint as="offset"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="e13" edge="1" parent="1" source="authSvc" style="html=1;rounded=0;strokeColor=#000000;fontColor=#000000;fontSize=11;labelBackgroundColor=#ffffff;endSize=10;endArrow=open;exitX=0;exitY=0.16260162601626016;exitDx=0;exitDy=0;entryX=1;entryY=0.21052631578947367;entryDx=0;entryDy=0;" target="refresh" value="">
+                <mxCell id="e13" edge="1" parent="1" source="authSvc" style="html=1;rounded=0;strokeColor=#000000;fontColor=#000000;fontSize=11;labelBackgroundColor=#ffffff;endSize=10;endArrow=open;exitX=0;exitY=0.13986;exitDx=0;exitDy=0;entryX=1;entryY=0.21052631578947367;entryDx=0;entryDy=0;" target="refresh" value="">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
                 <mxCell id="e13-14" connectable="0" parent="e13" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=11;fontColor=#000000;labelBackgroundColor=#ffffff;" value="associates with" vertex="1">
@@ -365,8 +365,8 @@
                     <mxGeometry relative="1" as="geometry">
                         <Array as="points">
                             <mxPoint x="1055" y="780"/>
-                            <mxPoint x="1055" y="641"/>
-                            <mxPoint x="235" y="641"/>
+                            <mxPoint x="1055" y="711"/>
+                            <mxPoint x="235" y="711"/>
                         </Array>
                     </mxGeometry>
                 </mxCell>
