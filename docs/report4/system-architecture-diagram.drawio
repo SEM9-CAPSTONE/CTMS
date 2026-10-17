@@ -79,15 +79,18 @@
                     <mxGeometry x="1150" y="132" width="120" height="22" as="geometry"/>
                 </mxCell>
 
-                <!-- OpenStreetMap / MapLibre -->
+                <!-- OpenStreetMap (Map Tiles) -->
                 <mxCell id="card_maps" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#E5E7EB;shadow=1;" vertex="1" parent="1">
-                    <mxGeometry x="1290" y="75" width="130" height="85" as="geometry"/>
+                    <mxGeometry x="1290" y="75" width="145" height="85" as="geometry"/>
                 </mxCell>
                 <mxCell id="icon_maps" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;imageAspect=1;aspect=fixed;image=https://upload.wikimedia.org/wikipedia/commons/b/b0/Openstreetmap_logo.svg;" vertex="1" parent="1">
-                    <mxGeometry x="1333" y="85" width="44" height="44" as="geometry"/>
+                    <mxGeometry x="1341" y="82" width="42" height="42" as="geometry"/>
                 </mxCell>
-                <mxCell id="txt_maps" value="OpenStreetMap" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=12;fontStyle=1;fontColor=#7EBC6F;" vertex="1" parent="1">
-                    <mxGeometry x="1290" y="132" width="130" height="22" as="geometry"/>
+                <mxCell id="txt_maps" value="OpenStreetMap" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=12;fontStyle=1;fontColor=#2D8C3C;" vertex="1" parent="1">
+                    <mxGeometry x="1290" y="123" width="145" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="sub_maps" value="(Map Tiles Provider)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=10;fontStyle=0;fontColor=#6B7280;" vertex="1" parent="1">
+                    <mxGeometry x="1290" y="140" width="145" height="16" as="geometry"/>
                 </mxCell>
 
 
@@ -132,12 +135,12 @@
                 </mxCell>
 
 
-                <!-- ================= MAIN SYSTEM BOUNDARY (SELF-HOSTED DOCKER / COOLIFY) ================= -->
+                <!-- ================= MAIN SYSTEM BOUNDARY (VPS SIEU TOC / DOCKER & COOLIFY) ================= -->
                 <mxCell id="box_system" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FAFAFA;strokeColor=#111827;strokeWidth=2;" vertex="1" parent="1">
                     <mxGeometry x="360" y="220" width="1030" height="680" as="geometry"/>
                 </mxCell>
-                <mxCell id="lbl_system_title" value="On-premise Server (Self-hosted via Coolify)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;fontSize=16;fontStyle=1;fontColor=#111827;" vertex="1" parent="1">
-                    <mxGeometry x="380" y="235" width="550" height="30" as="geometry"/>
+                <mxCell id="lbl_system_title" value="Cloud VPS (VPS Sieu Toc — Self-hosted via Coolify &amp;amp; Docker)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;fontSize=16;fontStyle=1;fontColor=#111827;" vertex="1" parent="1">
+                    <mxGeometry x="380" y="235" width="600" height="30" as="geometry"/>
                 </mxCell>
 
 
@@ -154,10 +157,13 @@
                     <mxGeometry x="420" y="340" width="220" height="120" as="geometry"/>
                 </mxCell>
                 <mxCell id="icon_react" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;imageAspect=1;aspect=fixed;image=https://cdn.worldvectorlogo.com/logos/react-2.svg;" vertex="1" parent="1">
-                    <mxGeometry x="502" y="355" width="56" height="56" as="geometry"/>
+                    <mxGeometry x="507" y="348" width="46" height="46" as="geometry"/>
                 </mxCell>
-                <mxCell id="title_react" value="React JS" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#0F172A;" vertex="1" parent="1">
-                    <mxGeometry x="430" y="420" width="200" height="25" as="geometry"/>
+                <mxCell id="title_react" value="React JS (Web SPA)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=14;fontStyle=1;fontColor=#0F172A;" vertex="1" parent="1">
+                    <mxGeometry x="430" y="394" width="200" height="22" as="geometry"/>
+                </mxCell>
+                <mxCell id="badge_maps" value="MapLibre GL &amp;amp; Leaflet" style="text;html=1;strokeColor=#BFDBFE;fillColor=#EFF6FF;rounded=1;align=center;verticalAlign=middle;fontSize=11;fontStyle=1;fontColor=#1D4ED8;" vertex="1" parent="1">
+                    <mxGeometry x="435" y="420" width="190" height="24" as="geometry"/>
                 </mxCell>
 
                 <!-- Flutter Mobile App Card -->
@@ -216,10 +222,13 @@
                     <mxGeometry x="1110" y="340" width="220" height="120" as="geometry"/>
                 </mxCell>
                 <mxCell id="icon_postgres" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;imageAspect=1;aspect=fixed;image=https://cdn.worldvectorlogo.com/logos/postgresql.svg;" vertex="1" parent="1">
-                    <mxGeometry x="1192" y="353" width="56" height="56" as="geometry"/>
+                    <mxGeometry x="1195" y="348" width="50" height="50" as="geometry"/>
                 </mxCell>
-                <mxCell id="title_postgres" value="PostgreSQL / PostGIS" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#0F172A;" vertex="1" parent="1">
-                    <mxGeometry x="1120" y="420" width="200" height="25" as="geometry"/>
+                <mxCell id="title_postgres" value="PostgreSQL / PostGIS" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=14;fontStyle=1;fontColor=#0F172A;" vertex="1" parent="1">
+                    <mxGeometry x="1120" y="398" width="200" height="22" as="geometry"/>
+                </mxCell>
+                <mxCell id="sub_postgres" value="Spatial Geometry &amp;amp; Relational DB" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=10;fontStyle=2;fontColor=#64748B;" vertex="1" parent="1">
+                    <mxGeometry x="1120" y="422" width="200" height="20" as="geometry"/>
                 </mxCell>
 
                 <!-- Redis In-Memory Cache Card -->
@@ -321,7 +330,12 @@
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
 
-                <!-- 5. GitHub -> Coolify / Server (CI/CD Deployment Webhook) -->
+                <!-- 5. Presentation Layer -> External Services (Map Tiles via CDN / OpenStreetMap) -->
+                <mxCell id="edge_pres_maps" value="Map Tiles (HTTPS)" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;strokeColor=#111827;strokeWidth=2;fontSize=12;fontStyle=2;fontColor=#111827;labelBackgroundColor=#ffffff;exitX=0.65;exitY=0;exitDx=0;exitDy=0;entryX=0.18;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="box_presentation" target="box_external">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+
+                <!-- 6. GitHub -> Coolify / Server (CI/CD Deployment Webhook) -->
                 <mxCell id="edge_github_coolify" value="Webhook (CI/CD Trigger)" style="html=1;verticalAlign=bottom;endArrow=block;dashed=1;rounded=0;strokeColor=#111827;strokeWidth=1.5;fontSize=11;fontColor=#111827;labelBackgroundColor=#ffffff;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="box_github" target="box_system">
                     <mxGeometry relative="1" as="geometry">
                         <Array as="points">

@@ -1,0 +1,109 @@
+<mxfile host="65bd71144e">
+    <diagram id="access-survival-guidance-offline" name="Access Survival Guidance Offline Sequence Diagram">
+        <mxGraphModel dx="942" dy="448" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1380" pageHeight="1450" background="#ffffff" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="title" value="Access Survival Guidance Offline" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=18;fontStyle=1;fontColor=#000000;" parent="1" vertex="1">
+                    <mxGeometry x="275" y="15" width="800" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="actor" value="Camper" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontSize=12;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="65" y="65" width="30" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="ll_actor" value="" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;strokeColor=#000000;fillColor=none;strokeWidth=1;dashed=1;" parent="1" vertex="1">
+                    <mxGeometry x="80" y="150" width="1" height="550" as="geometry"/>
+                </mxCell>
+                <mxCell id="ll_boundary" value="Offline Survival Handbook View" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="200" y="75" width="150" height="625" as="geometry"/>
+                </mxCell>
+                <mxCell id="act_boundary" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_boundary" vertex="1">
+                    <mxGeometry x="70" y="85" width="10" height="520" as="geometry"/>
+                </mxCell>
+                <mxCell id="ll_controller" value="Local Knowledge Controller" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="430" y="75" width="150" height="625" as="geometry"/>
+                </mxCell>
+                <mxCell id="act_controller" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_controller" vertex="1">
+                    <mxGeometry x="70" y="115" width="10" height="470" as="geometry"/>
+                </mxCell>
+                <mxCell id="ll_service" value="Offline Guide Provider Service" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="660" y="75" width="150" height="625" as="geometry"/>
+                </mxCell>
+                <mxCell id="act_service" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_service" vertex="1">
+                    <mxGeometry x="70" y="145" width="10" height="420" as="geometry"/>
+                </mxCell>
+                <mxCell id="ll_model" value="Local Knowledge Article Model" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="890" y="75" width="150" height="625" as="geometry"/>
+                </mxCell>
+                <mxCell id="act_model" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_model" vertex="1">
+                    <mxGeometry x="70" y="175" width="10" height="370" as="geometry"/>
+                </mxCell>
+                <mxCell id="ll_db" value="Local SQLite Storage" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="1120" y="75" width="160" height="625" as="geometry"/>
+                </mxCell>
+                <mxCell id="act_db" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_db" vertex="1">
+                    <mxGeometry x="75" y="205" width="10" height="320" as="geometry"/>
+                </mxCell>
+                <mxCell id="msg_1" value="1. Search Hypothermia in Offline Guide" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="80" y="160" as="sourcePoint"/>
+                        <mxPoint x="275" y="160" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg_2" value="2. Search Cached Survival Articles" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="275" y="195" as="sourcePoint"/>
+                        <mxPoint x="505" y="195" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg_3" value="3. Query Local Full-Text Index (FTS5)" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="505" y="230" as="sourcePoint"/>
+                        <mxPoint x="735" y="230" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg_4" value="4. Search Offline Knowledge Articles Table" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="735" y="265" as="sourcePoint"/>
+                        <mxPoint x="965" y="265" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg_5" value="5. Execute Local FTS Search Query" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="965" y="300" as="sourcePoint"/>
+                        <mxPoint x="1200" y="300" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg_6" value="6. Return Matching Survival Protocols" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="1200" y="335" as="sourcePoint"/>
+                        <mxPoint x="965" y="335" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg_7" value="7. Return Matched Knowledge Records" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="965" y="370" as="sourcePoint"/>
+                        <mxPoint x="735" y="370" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg_8" value="8. Return Indexed First-Aid Guides" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="735" y="405" as="sourcePoint"/>
+                        <mxPoint x="505" y="405" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg_9" value="9. Render Article Cards with Offline Badge" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="505" y="440" as="sourcePoint"/>
+                        <mxPoint x="275" y="440" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg_10" value="10. Display Offline First-Aid Procedure Immediately" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="275" y="475" as="sourcePoint"/>
+                        <mxPoint x="80" y="475" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

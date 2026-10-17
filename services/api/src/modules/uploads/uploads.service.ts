@@ -2,7 +2,8 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { extname, join } from "node:path";
 import { Readable } from "node:stream";
 import { BadRequestException, Injectable, Logger } from "@nestjs/common";
-import type { ConfigService } from "@nestjs/config";
+// biome-ignore lint/style/useImportType: constructor-injected by NestJS DI
+import { ConfigService } from "@nestjs/config";
 import { type UploadApiResponse, v2 as cloudinary } from "cloudinary";
 import { UPLOAD_PUBLIC_PREFIX, getUploadRoot } from "../../shared/uploads/upload-paths";
 import type { UploadImageResponseDto } from "./dto/upload-image-response.dto";
