@@ -65,6 +65,12 @@ export class UpdateProfileDto {
 	@MaxLength(50)
 	fullName?: string;
 
+	@ApiPropertyOptional({ example: "https://res.cloudinary.com/demo/image/upload/sample.jpg" })
+	@IsOptional()
+	@IsString()
+	@MaxLength(1000)
+	avatarUrl?: string;
+
 	@ApiPropertyOptional({ example: "0912345678" })
 	@IsOptional()
 	@Transform(({ value }) => (typeof value === "string" ? normalizeVietnamPhone(value) : value))

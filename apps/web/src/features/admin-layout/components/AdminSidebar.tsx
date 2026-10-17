@@ -24,8 +24,11 @@ export type AdminNavigationItem =
 	| "refunds"
 	| "settlements";
 
+import type { CamperProfileData } from "../../camper-profile/types";
+
 interface AdminSidebarProps {
 	activeItem: AdminNavigationItem;
+	profile?: CamperProfileData | null;
 	onLogout?: (allDevices: boolean) => Promise<void>;
 	onClose?: () => void;
 	className?: string;
@@ -43,7 +46,13 @@ const navigationItems = [
 	{ key: "content-reports", label: "Báo cáo nội dung", icon: Flag, available: true },
 ] as const;
 
-export function AdminSidebar({ activeItem, onLogout, onClose, className = "" }: AdminSidebarProps) {
+export function AdminSidebar({
+	activeItem,
+	profile,
+	onLogout,
+	onClose,
+	className = "",
+}: AdminSidebarProps) {
 	return (
 		<aside className={`flex h-full w-72 flex-col border-r border-[#dfe8df] bg-white ${className}`}>
 			<div className="flex items-center gap-3 border-b border-[#e7eee7] px-5 py-5">
@@ -128,7 +137,28 @@ export function AdminSidebar({ activeItem, onLogout, onClose, className = "" }: 
 				})}
 			</nav>
 
-			<div className="border-t border-[#e7eee7] p-4">
+			<div className="border-t border-[#e7eee7] p-4 flex flex-col gap-3">
+				{profile && (
+					<div className="flex items-center gap-3 rounded-2xl border border-[#e0ebe0] bg-[#f8faf8] p-3">
+						<img
+							src={
+								profile.avatarUrl ||
+								"https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80"
+							}
+							alt={profile.fullName}
+							className="size-10 rounded-full object-cover ring-2 ring-[#164027]/20"
+						/>
+						<div className="min-w-0 flex-1">
+							<div className="flex items-center gap-1.5">
+								<p className="truncate text-sm font-extrabold text-[#10221b]">{profile.fullName}</p>
+								<span className="rounded bg-[#164027] px-1.5 py-0.5 text-[9px] font-bold text-white uppercase">
+									Admin
+								</span>
+							</div>
+							<p className="truncate text-[11px] font-semibold text-[#667a6d]">{profile.email}</p>
+						</div>
+					</div>
+				)}
 				{onLogout && <LogoutActions onLogout={onLogout} />}
 			</div>
 		</aside>

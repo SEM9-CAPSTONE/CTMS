@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { EquipmentCatalogItem } from "../types";
 import { EquipmentCatalogList } from "./EquipmentCatalogList";
@@ -29,6 +29,17 @@ describe("EquipmentCatalogList", () => {
 		expect(row).toHaveTextContent("10");
 		expect(row).toHaveTextContent(/50\.000\s*₫/);
 		expect(screen.getByText("Check zippers monthly", { exact: false })).toBeInTheDocument();
+	});
+
+	it("renders as a table built on the shared DataTable", () => {
+		render(<EquipmentCatalogList items={items} onEdit={vi.fn()} />);
+
+		const table = screen.getByRole("table", { name: "Danh sách thiết bị trong kho" });
+		expect(
+			within(table)
+				.getAllByRole("columnheader")
+				.map((th) => th.textContent)
+		).toEqual(["Thiết bị", "Số lượng", "Giá thuê/ngày", "Trạng thái", "Thao tác"]);
 	});
 
 	it("calls onEdit with the clicked item", () => {

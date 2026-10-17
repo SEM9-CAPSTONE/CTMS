@@ -42,6 +42,9 @@ export class ProfileResponseDto {
 	@ApiProperty({ type: String, nullable: true })
 	fullName!: string | null;
 
+	@ApiProperty({ type: String, nullable: true })
+	avatarUrl!: string | null;
+
 	@ApiProperty({ type: String, nullable: true, example: "1995-04-12" })
 	dateOfBirth!: string | null;
 
@@ -87,6 +90,7 @@ export function toProfileResponse(
 		roles,
 		status: user.status,
 		fullName: user.fullName,
+		avatarUrl: user.avatarUrl ?? null,
 		dateOfBirth: user.dateOfBirth,
 		gender: user.gender,
 		address: user.address,

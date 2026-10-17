@@ -3,4 +3,6 @@ export * from "./Card";
 export * from "./Pagination";
 export * from "./Collapse";
 export * from "./ConfirmModal";
+export * from "./DataTable";
+export * from "./Modal";
 export * from "./Toast";

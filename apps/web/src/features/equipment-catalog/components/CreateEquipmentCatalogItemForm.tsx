@@ -2,6 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertCircle, Loader2, PackagePlus, RefreshCw } from "lucide-react";
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
+import { Button } from "../../../shared/components";
 import type { CreateEquipmentCatalogItemError } from "../hooks/useCreateEquipmentCatalogItem";
 import {
 	CREATE_EQUIPMENT_CATALOG_ITEM_DEFAULT_VALUES,
@@ -16,6 +17,7 @@ export interface CreateEquipmentCatalogItemFormProps {
 	error: CreateEquipmentCatalogItemError | null;
 	onSubmit: (payload: CreateEquipmentCatalogItemInput) => Promise<unknown>;
 	onRetry: () => Promise<unknown>;
+	onCancel?: () => void;
 }
 
 const inputClass =
@@ -34,6 +36,7 @@ export function CreateEquipmentCatalogItemForm({
 	error,
 	onSubmit,
 	onRetry,
+	onCancel,
 }: CreateEquipmentCatalogItemFormProps) {
 	const {
 		register,
@@ -57,83 +60,78 @@ export function CreateEquipmentCatalogItemForm({
 
 	return (
 		<form onSubmit={submit} className="space-y-5">
-			<section className="rounded-2xl border border-[#e0ebe0] bg-white p-5 shadow-sm">
-				<h2 className="font-extrabold text-[#10221b]">Thông tin thiết bị</h2>
-				<div className="mt-4 grid gap-4 sm:grid-cols-2">
-					<label className="text-sm font-bold text-[#34483b]">
-						Tên thiết bị
-						<input
-							aria-label="Tên thiết bị"
-							disabled={isSubmitting}
-							maxLength={150}
-							className={inputClass}
-							{...register("name")}
-						/>
-						{errors.name && (
-							<span className="mt-1 block text-xs text-red-600">{errors.name.message}</span>
-						)}
-					</label>
-					<label className="text-sm font-bold text-[#34483b]">
-						Loại thiết bị
-						<input
-							aria-label="Loại thiết bị"
-							disabled={isSubmitting}
-							maxLength={100}
-							className={inputClass}
-							{...register("category")}
-						/>
-						{errors.category && (
-							<span className="mt-1 block text-xs text-red-600">{errors.category.message}</span>
-						)}
-					</label>
-					<label className="text-sm font-bold text-[#34483b]">
-						Số lượng
-						<input
-							type="number"
-							aria-label="Số lượng"
-							disabled={isSubmitting}
-							className={inputClass}
-							{...register("quantityTotal", { valueAsNumber: true })}
-						/>
-						{errors.quantityTotal && (
-							<span className="mt-1 block text-xs text-red-600">
-								{errors.quantityTotal.message}
-							</span>
-						)}
-					</label>
-					<label className="text-sm font-bold text-[#34483b]">
-						Giá thuê mỗi ngày (VND)
-						<input
-							type="number"
-							aria-label="Giá thuê mỗi ngày"
-							disabled={isSubmitting}
-							className={inputClass}
-							{...register("rentalPricePerDay", { valueAsNumber: true })}
-						/>
-						{errors.rentalPricePerDay && (
-							<span className="mt-1 block text-xs text-red-600">
-								{errors.rentalPricePerDay.message}
-							</span>
-						)}
-					</label>
-					<label className="text-sm font-bold text-[#34483b] sm:col-span-2">
-						Lịch bảo trì (không bắt buộc)
-						<textarea
-							aria-label="Lịch bảo trì"
-							disabled={isSubmitting}
-							maxLength={500}
-							rows={3}
-							className={inputClass}
-							{...register("maintenanceSchedule")}
-						/>
-						{errors.maintenanceSchedule && (
-							<span className="mt-1 block text-xs text-red-600">
-								{errors.maintenanceSchedule.message}
-							</span>
-						)}
-					</label>
-				</div>
-			</section>
+			<div className="grid gap-4 sm:grid-cols-2">
+				<label className="text-sm font-bold text-[#34483b]">
+					Tên thiết bị
+					<input
+						aria-label="Tên thiết bị"
+						disabled={isSubmitting}
+						maxLength={150}
+						className={inputClass}
+						{...register("name")}
+					/>
+					{errors.name && (
+						<span className="mt-1 block text-xs text-red-600">{errors.name.message}</span>
+					)}
+				</label>
+				<label className="text-sm font-bold text-[#34483b]">
+					Loại thiết bị
+					<input
+						aria-label="Loại thiết bị"
+						disabled={isSubmitting}
+						maxLength={100}
+						className={inputClass}
+						{...register("category")}
+					/>
+					{errors.category && (
+						<span className="mt-1 block text-xs text-red-600">{errors.category.message}</span>
+					)}
+				</label>
+				<label className="text-sm font-bold text-[#34483b]">
+					Số lượng
+					<input
+						type="number"
+						aria-label="Số lượng"
+						disabled={isSubmitting}
+						className={inputClass}
+						{...register("quantityTotal", { valueAsNumber: true })}
+					/>
+					{errors.quantityTotal && (
+						<span className="mt-1 block text-xs text-red-600">{errors.quantityTotal.message}</span>
+					)}
+				</label>
+				<label className="text-sm font-bold text-[#34483b]">
+					Giá thuê mỗi ngày (VND)
+					<input
+						type="number"
+						aria-label="Giá thuê mỗi ngày"
+						disabled={isSubmitting}
+						className={inputClass}
+						{...register("rentalPricePerDay", { valueAsNumber: true })}
+					/>
+					{errors.rentalPricePerDay && (
+						<span className="mt-1 block text-xs text-red-600">
+							{errors.rentalPricePerDay.message}
+						</span>
+					)}
+				</label>
+				<label className="text-sm font-bold text-[#34483b] sm:col-span-2">
+					Lịch bảo trì (không bắt buộc)
+					<textarea
+						aria-label="Lịch bảo trì"
+						disabled={isSubmitting}
+						maxLength={500}
+						rows={3}
+						className={inputClass}
+						{...register("maintenanceSchedule")}
+					/>
+					{errors.maintenanceSchedule && (
+						<span className="mt-1 block text-xs text-red-600">
+							{errors.maintenanceSchedule.message}
+						</span>
+					)}
+				</label>
+			</div>
 
 			{error && (
 				<div
@@ -157,18 +155,21 @@ export function CreateEquipmentCatalogItemForm({
 				</div>
 			)}
 
-			<button
-				type="submit"
-				disabled={isSubmitting}
-				className="inline-flex items-center gap-2 rounded-xl bg-[#164027] px-5 py-3 text-sm font-bold text-white disabled:opacity-60"
-			>
-				{isSubmitting ? (
-					<Loader2 className="size-4 animate-spin" />
-				) : (
-					<PackagePlus className="size-4" />
+			<div className="flex justify-end gap-3">
+				{onCancel && (
+					<Button variant="outline" onClick={onCancel} disabled={isSubmitting}>
+						Hủy
+					</Button>
 				)}
-				{isSubmitting ? "Đang tạo thiết bị..." : "Thêm thiết bị"}
-			</button>
+				<Button type="submit" disabled={isSubmitting} className="gap-2 font-bold">
+					{isSubmitting ? (
+						<Loader2 className="size-4 animate-spin" />
+					) : (
+						<PackagePlus className="size-4" />
+					)}
+					{isSubmitting ? "Đang tạo thiết bị..." : "Thêm thiết bị"}
+				</Button>
+			</div>
 		</form>
 	);
 }

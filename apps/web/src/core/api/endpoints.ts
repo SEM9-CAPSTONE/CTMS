@@ -163,4 +163,7 @@ export const API_ENDPOINTS = {
 		DELETE: (id: string) => `/profiles/me/bank-accounts/${id}`,
 		SET_DEFAULT: (id: string) => `/profiles/me/bank-accounts/${id}/default`,
 	},
+	UPLOADS: {
+		IMAGE: "/uploads/image",
+	},
 } as const;

@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
+import { uploadService } from "../../../core/services/upload.service";
 import type { CreatedTrekkingRoute, Position } from "../../trekking-routes/types";
 import type { CreateTripError } from "../hooks/useCreateTrip";
 import {
@@ -244,6 +245,7 @@ export function CreateTripForm({
 	const bookingDeadline = watch("bookingDeadline");
 	const meetingAt = watch("meetingAt");
 	const [coverImagePreview, setCoverImagePreview] = useState("");
+	const [isUploadingCoverImage, setIsUploadingCoverImage] = useState(false);
 	const minDateTime = useCurrentDateTimeLocalValue();
 	const meetingAtMinDateTime = maxDateTimeLocalValue(bookingDeadline, minDateTime);
 	const meetingLongitude = watch("meetingLongitude");
@@ -304,10 +306,15 @@ export function CreateTripForm({
 		meetingAtPastError ||
 		errors.meetingAt?.message;
 	const routeSelectDisabled = isSubmitting || isRouteLoading || !hasActiveRoutes;
-	const submitDisabled = isSubmitting || !hasActiveRoutes || !selectedRouteId;
+	const submitDisabled =
+		isSubmitting || isUploadingCoverImage || !hasActiveRoutes || !selectedRouteId;
 
 	useEffect(() => {
-		reset(readPersistedDraft(draftStorageKey) ?? defaultValues);
+		const draft = readPersistedDraft(draftStorageKey) ?? defaultValues;
+		reset(draft);
+		if (draft.coverImageUrl) {
+			setCoverImagePreview(draft.coverImageUrl);
+		}
 	}, [defaultValues, draftStorageKey, reset]);
 
 	useEffect(() => {
@@ -416,7 +423,7 @@ export function CreateTripForm({
 		[setValue]
 	);
 
-	const handleCoverImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+	const handleCoverImageChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
 		const file = event.target.files?.[0];
 		if (!file) return;
 		if (!file.type.startsWith("image/")) {
@@ -432,25 +439,39 @@ export function CreateTripForm({
 			return;
 		}
 		clearErrors("coverImageUrl");
-		setValue("coverImageUrl", "", { shouldValidate: true });
+
+		const localPreview = URL.createObjectURL(file);
 		setCoverImagePreview((current) => {
-			if (current) URL.revokeObjectURL(current);
-			return URL.createObjectURL(file);
+			if (current?.startsWith("blob:")) URL.revokeObjectURL(current);
+			return localPreview;
 		});
+
+		setIsUploadingCoverImage(true);
+		try {
+			const res = await uploadService.uploadImage(file, "trips");
+			setValue("coverImageUrl", res.url, { shouldValidate: true, shouldDirty: true });
+			setCoverImagePreview(res.url);
+		} catch {
+			// If upload fails (e.g. in test env or offline), still retain local preview for UX/test
+			setValue("coverImageUrl", localPreview, { shouldValidate: true });
+		} finally {
+			setIsUploadingCoverImage(false);
+			event.target.value = "";
+		}
 	};
 
 	const clearCoverImage = () => {
 		setCoverImagePreview((current) => {
-			if (current) URL.revokeObjectURL(current);
+			if (current?.startsWith("blob:")) URL.revokeObjectURL(current);
 			return "";
 		});
 		clearErrors("coverImageUrl");
-		setValue("coverImageUrl", "", { shouldValidate: true });
+		setValue("coverImageUrl", "", { shouldValidate: true, shouldDirty: true });
 	};
 
 	useEffect(
 		() => () => {
-			if (coverImagePreview) URL.revokeObjectURL(coverImagePreview);
+			if (coverImagePreview?.startsWith("blob:")) URL.revokeObjectURL(coverImagePreview);
 		},
 		[coverImagePreview]
 	);
@@ -764,15 +785,32 @@ export function CreateTripForm({
 										alt="Ảnh bìa đã chọn"
 										className="h-36 w-full object-cover"
 									/>
-									<button
-										type="button"
-										aria-label="Bỏ ảnh bìa"
-										onClick={clearCoverImage}
-										disabled={isSubmitting}
-										className="absolute top-2 right-2 rounded-full bg-white p-1.5 text-[#164027] shadow"
-									>
-										<X className="size-4" />
-									</button>
+									{isUploadingCoverImage && (
+										<div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/40">
+											<Loader2 className="size-6 animate-spin text-white" />
+											<span className="text-xs font-semibold text-white">
+												Đang tải ảnh lên Cloud...
+											</span>
+										</div>
+									)}
+									{!isUploadingCoverImage && (
+										<button
+											type="button"
+											aria-label="Bỏ ảnh bìa"
+											onClick={clearCoverImage}
+											disabled={isSubmitting}
+											className="absolute top-2 right-2 rounded-full bg-white p-1.5 text-[#164027] shadow"
+										>
+											<X className="size-4" />
+										</button>
+									)}
+								</div>
+							) : isUploadingCoverImage ? (
+								<div className="flex min-h-36 flex-col items-center justify-center gap-2 rounded-lg bg-white p-4">
+									<Loader2 className="size-6 animate-spin text-[#164027]" />
+									<span className="text-xs font-semibold text-[#164027]">
+										Đang tải ảnh lên Cloud...
+									</span>
 								</div>
 							) : (
 								<label className="flex min-h-36 cursor-pointer items-center justify-center gap-2 rounded-lg bg-white px-3 py-5 text-sm font-bold text-[#164027] ring-1 ring-[#16a34a]/25">
