@@ -53,6 +53,11 @@ class TrekkingEndpoints {
 class TripEndpoints {
   const TripEndpoints();
 
+  String get assigned => '/trips/assigned';
+  String incidents(String tripId) => '/trips/$tripId/incidents';
+  String incidentMedia(String tripId, String id) =>
+      '/trips/$tripId/incidents/$id/media';
+
   String get getAll => '/trips';
   String getById(String id) => '/trips/$id';
   String members(String tripId) => '/trips/$tripId/members';

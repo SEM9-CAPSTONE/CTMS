@@ -132,7 +132,7 @@ describe("useAssignedTripOperations", () => {
 		await waitFor(() => expect(result.current.data).toBeUndefined());
 		expect(result.current.error).toContain("Phân công không còn hợp lệ");
 	});
-	it("hides stale cached information on network failure and recovers on retry", async () => {
+	it("retains the authorized offline context on network failure and recovers on retry", async () => {
 		vi.spyOn(tripsService, "getAssignedTripOperations")
 			.mockResolvedValueOnce(data)
 			.mockRejectedValueOnce(new Error("offline"))
@@ -145,7 +145,8 @@ describe("useAssignedTripOperations", () => {
 			await result.current.refetch();
 		});
 		await waitFor(() => expect(result.current.error).toBeTruthy());
-		expect(result.current.data).toBeUndefined();
+		expect(result.current.data).toEqual(data);
+		expect(result.current.isStale).toBe(true);
 		await act(async () => {
 			await result.current.refetch();
 		});

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/lifecycle/app_lifecycle_observer.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'features/incidents/application/incidents_controller.dart';
 
 class CtmsApp extends ConsumerWidget {
   const CtmsApp({super.key});
@@ -11,6 +12,10 @@ class CtmsApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(appRouterProvider);
+    // Keep account-scoped synchronization active across navigation.
+    ref.watch(
+      incidentsControllerProvider.select((controller) => controller != null),
+    );
 
     // CTMS-04-T03, DG-M6: wraps the whole app so the lifecycle observer is
     // registered once for the app's lifetime, independent of whatever

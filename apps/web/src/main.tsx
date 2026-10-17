@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { initAuthSessionSync } from "./core/api/authSessionSync";
+import { initIncidentQueueSync } from "./features/trip-incidents/utils/incident-background-sync";
 import { AppRoutes } from "./routes";
 import "./index.css";
 
@@ -22,6 +23,9 @@ const queryClient = new QueryClient({
 		},
 	},
 });
+
+const stopIncidentSync = initIncidentQueueSync(queryClient);
+if (import.meta.hot) import.meta.hot.dispose(stopIncidentSync);
 
 if (rootElement) {
 	ReactDOM.createRoot(rootElement).render(
