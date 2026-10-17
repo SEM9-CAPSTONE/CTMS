@@ -1,0 +1,130 @@
+<mxfile host="65bd71144e">
+    <diagram id="mobile-package-diagram" name="Mobile Package Diagram">
+        <mxGraphModel dx="1511" dy="549" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1450" pageHeight="680" background="#ffffff" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="pkg_plugins" value="plugins" style="shape=folder;fontStyle=1;tabWidth=100;tabHeight=26;tabPosition=left;html=1;boundedLbl=1;labelInHeader=1;container=0;collapsible=0;recursiveResize=0;fillColor=#f8f9fa;strokeColor=#000000;fontSize=13;fontColor=#000000;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="60" y="30" width="180" height="85" as="geometry"/>
+                </mxCell>
+                <mxCell id="pkg_scripts" value="scripts" style="shape=folder;fontStyle=1;tabWidth=100;tabHeight=26;tabPosition=left;html=1;boundedLbl=1;labelInHeader=1;container=0;collapsible=0;recursiveResize=0;fillColor=#f8f9fa;strokeColor=#000000;fontSize=13;fontColor=#000000;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="280" y="30" width="180" height="85" as="geometry"/>
+                </mxCell>
+                <mxCell id="pkg_types" value="types" style="shape=folder;fontStyle=1;tabWidth=100;tabHeight=26;tabPosition=left;html=1;boundedLbl=1;labelInHeader=1;container=0;collapsible=0;recursiveResize=0;fillColor=#f8f9fa;strokeColor=#000000;fontSize=13;fontColor=#000000;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="500" y="30" width="180" height="85" as="geometry"/>
+                </mxCell>
+                <mxCell id="pkg_constants" value="constants" style="shape=folder;fontStyle=1;tabWidth=100;tabHeight=26;tabPosition=left;html=1;boundedLbl=1;labelInHeader=1;container=0;collapsible=0;recursiveResize=0;fillColor=#f8f9fa;strokeColor=#000000;fontSize=13;fontColor=#000000;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="720" y="30" width="180" height="85" as="geometry"/>
+                </mxCell>
+                <mxCell id="pkg_app" value="app" style="shape=folder;fontStyle=1;tabWidth=130;tabHeight=30;tabPosition=left;html=1;boundedLbl=1;labelInHeader=1;container=0;collapsible=0;recursiveResize=0;fillColor=#f8f9fa;strokeColor=#000000;fontSize=13;fontColor=#000000;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="185" width="880" height="170" as="geometry"/>
+                </mxCell>
+                <mxCell id="sub_auth" value="(auth)" style="shape=folder;fontStyle=0;tabWidth=35;tabHeight=10;tabPosition=left;html=1;boundedLbl=1;fillColor=#ffffff;strokeColor=#000000;fontSize=11;fontColor=#000000;align=center;verticalAlign=middle;whiteSpace=wrap;" parent="1" vertex="1">
+                    <mxGeometry x="65" y="235" width="125" height="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="sub_camper" value="(camper)" style="shape=folder;fontStyle=0;tabWidth=35;tabHeight=10;tabPosition=left;html=1;boundedLbl=1;fillColor=#ffffff;strokeColor=#000000;fontSize=11;fontColor=#000000;align=center;verticalAlign=middle;whiteSpace=wrap;" parent="1" vertex="1">
+                    <mxGeometry x="225" y="235" width="125" height="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="sub_porter" value="(porter)" style="shape=folder;fontStyle=0;tabWidth=35;tabHeight=10;tabPosition=left;html=1;boundedLbl=1;fillColor=#ffffff;strokeColor=#000000;fontSize=11;fontColor=#000000;align=center;verticalAlign=middle;whiteSpace=wrap;" parent="1" vertex="1">
+                    <mxGeometry x="390" y="235" width="150" height="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="sub_incidents" value="(incidents)" style="shape=folder;fontStyle=0;tabWidth=35;tabHeight=10;tabPosition=left;html=1;boundedLbl=1;fillColor=#ffffff;strokeColor=#000000;fontSize=11;fontColor=#000000;align=center;verticalAlign=middle;whiteSpace=wrap;" parent="1" vertex="1">
+                    <mxGeometry x="575" y="235" width="125" height="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="sub_shared" value="(shared)" style="shape=folder;fontStyle=0;tabWidth=35;tabHeight=10;tabPosition=left;html=1;boundedLbl=1;fillColor=#ffffff;strokeColor=#000000;fontSize=11;fontColor=#000000;align=center;verticalAlign=middle;whiteSpace=wrap;" parent="1" vertex="1">
+                    <mxGeometry x="740" y="235" width="125" height="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="sub_trips" value="(trips)" style="shape=folder;fontStyle=0;tabWidth=35;tabHeight=10;tabPosition=left;html=1;boundedLbl=1;fillColor=#ffffff;strokeColor=#000000;fontSize=11;fontColor=#000000;align=center;verticalAlign=middle;whiteSpace=wrap;" parent="1" vertex="1">
+                    <mxGeometry x="65" y="295" width="125" height="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="sub_bookings" value="(bookings)" style="shape=folder;fontStyle=0;tabWidth=35;tabHeight=10;tabPosition=left;html=1;boundedLbl=1;fillColor=#ffffff;strokeColor=#000000;fontSize=11;fontColor=#000000;align=center;verticalAlign=middle;whiteSpace=wrap;" parent="1" vertex="1">
+                    <mxGeometry x="225" y="295" width="125" height="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="sub_tracking" value="(tracking)" style="shape=folder;fontStyle=0;tabWidth=35;tabHeight=10;tabPosition=left;html=1;boundedLbl=1;fillColor=#ffffff;strokeColor=#000000;fontSize=11;fontColor=#000000;align=center;verticalAlign=middle;whiteSpace=wrap;" parent="1" vertex="1">
+                    <mxGeometry x="390" y="295" width="150" height="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="sub_weather" value="(weather)" style="shape=folder;fontStyle=0;tabWidth=35;tabHeight=10;tabPosition=left;html=1;boundedLbl=1;fillColor=#ffffff;strokeColor=#000000;fontSize=11;fontColor=#000000;align=center;verticalAlign=middle;whiteSpace=wrap;" parent="1" vertex="1">
+                    <mxGeometry x="575" y="295" width="125" height="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="sub_host" value="(host)" style="shape=folder;fontStyle=0;tabWidth=35;tabHeight=10;tabPosition=left;html=1;boundedLbl=1;fillColor=#ffffff;strokeColor=#000000;fontSize=11;fontColor=#000000;align=center;verticalAlign=middle;whiteSpace=wrap;" parent="1" vertex="1">
+                    <mxGeometry x="740" y="295" width="125" height="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="pkg_components" value="components" style="shape=folder;fontStyle=1;tabWidth=110;tabHeight=26;tabPosition=left;html=1;boundedLbl=1;labelInHeader=1;container=0;collapsible=0;recursiveResize=0;fillColor=#f8f9fa;strokeColor=#000000;fontSize=13;fontColor=#000000;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="1050" y="170" width="190" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="pkg_assets" value="assets" style="shape=folder;fontStyle=1;tabWidth=100;tabHeight=28;tabPosition=left;html=1;boundedLbl=1;labelInHeader=1;container=0;collapsible=0;recursiveResize=0;fillColor=#f8f9fa;strokeColor=#000000;fontSize=13;fontColor=#000000;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="1048" y="299" width="220" height="155" as="geometry"/>
+                </mxCell>
+                <mxCell id="sub_images" value="images" style="shape=folder;fontStyle=0;tabWidth=35;tabHeight=10;tabPosition=left;html=1;boundedLbl=1;fillColor=#ffffff;strokeColor=#000000;fontSize=11;fontColor=#000000;align=center;verticalAlign=middle;whiteSpace=wrap;" parent="1" vertex="1">
+                    <mxGeometry x="1081" y="345" width="120" height="35" as="geometry"/>
+                </mxCell>
+                <mxCell id="sub_icons" value="icons" style="shape=folder;fontStyle=0;tabWidth=35;tabHeight=10;tabPosition=left;html=1;boundedLbl=1;fillColor=#ffffff;strokeColor=#000000;fontSize=11;fontColor=#000000;align=center;verticalAlign=middle;whiteSpace=wrap;" parent="1" vertex="1">
+                    <mxGeometry x="1079" y="400" width="120" height="35" as="geometry"/>
+                </mxCell>
+                <mxCell id="pkg_services" value="services" style="shape=folder;fontStyle=1;tabWidth=100;tabHeight=26;tabPosition=left;html=1;boundedLbl=1;labelInHeader=1;container=0;collapsible=0;recursiveResize=0;fillColor=#f8f9fa;strokeColor=#000000;fontSize=13;fontColor=#000000;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="75" y="440" width="190" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="pkg_hooks" value="hooks" style="shape=folder;fontStyle=1;tabWidth=100;tabHeight=26;tabPosition=left;html=1;boundedLbl=1;labelInHeader=1;container=0;collapsible=0;recursiveResize=0;fillColor=#f8f9fa;strokeColor=#000000;fontSize=13;fontColor=#000000;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="295" y="440" width="190" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="pkg_store" value="store" style="shape=folder;fontStyle=1;tabWidth=100;tabHeight=26;tabPosition=left;html=1;boundedLbl=1;labelInHeader=1;container=0;collapsible=0;recursiveResize=0;fillColor=#f8f9fa;strokeColor=#000000;fontSize=13;fontColor=#000000;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="525" y="440" width="190" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="pkg_utils" value="utils" style="shape=folder;fontStyle=1;tabWidth=100;tabHeight=26;tabPosition=left;html=1;boundedLbl=1;labelInHeader=1;container=0;collapsible=0;recursiveResize=0;fillColor=#f8f9fa;strokeColor=#000000;fontSize=13;fontColor=#000000;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="755" y="440" width="190" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="edge_plugins_app" value="&amp;lt;&amp;lt;integrate&amp;gt;&amp;gt;" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;rounded=0;strokeColor=#000000;fontColor=#000000;fontSize=11;labelBackgroundColor=#ffffff;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.125;entryY=0;entryDx=0;entryDy=0;" parent="1" source="pkg_plugins" target="pkg_app" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="edge_scripts_app" value="&amp;lt;&amp;lt;automate&amp;gt;&amp;gt;" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;rounded=0;strokeColor=#000000;fontColor=#000000;fontSize=11;labelBackgroundColor=#ffffff;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.373;entryY=0.171;entryDx=0;entryDy=0;entryPerimeter=0;" parent="1" source="pkg_scripts" target="pkg_app" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="edge_types_app" value="&amp;lt;&amp;lt;define types&amp;gt;&amp;gt;" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;rounded=0;strokeColor=#000000;fontColor=#000000;fontSize=11;labelBackgroundColor=#ffffff;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.636;entryY=0.206;entryDx=0;entryDy=0;entryPerimeter=0;" parent="1" source="pkg_types" target="pkg_app" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="edge_constants_app" value="&amp;lt;&amp;lt;apply theme&amp;gt;&amp;gt;" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;rounded=0;strokeColor=#000000;fontColor=#000000;fontSize=11;labelBackgroundColor=#ffffff;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.891;entryY=0.171;entryDx=0;entryDy=0;entryPerimeter=0;" parent="1" source="pkg_constants" target="pkg_app" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                        <mxPoint x="920" y="197" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="edge_services_app" value="&amp;lt;&amp;lt;call API&amp;gt;&amp;gt;" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;rounded=0;strokeColor=#000000;fontColor=#000000;fontSize=11;labelBackgroundColor=#ffffff;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.148;entryY=1;entryDx=0;entryDy=0;" parent="1" source="pkg_services" target="pkg_app" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="edge_hooks_app" value="&amp;lt;&amp;lt;process logic&amp;gt;&amp;gt;" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;rounded=0;strokeColor=#000000;fontColor=#000000;fontSize=11;labelBackgroundColor=#ffffff;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.398;entryY=1;entryDx=0;entryDy=0;" parent="1" source="pkg_hooks" target="pkg_app" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="edge_store_app" value="&amp;lt;&amp;lt;manage state&amp;gt;&amp;gt;" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;rounded=0;strokeColor=#000000;fontColor=#000000;fontSize=11;labelBackgroundColor=#ffffff;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.659;entryY=1;entryDx=0;entryDy=0;" parent="1" source="pkg_store" target="pkg_app" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="edge_utils_app" value="&amp;lt;&amp;lt;format data&amp;gt;&amp;gt;" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;rounded=0;strokeColor=#000000;fontColor=#000000;fontSize=11;labelBackgroundColor=#ffffff;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.92;entryY=1;entryDx=0;entryDy=0;" parent="1" source="pkg_utils" target="pkg_app" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="edge_app_components" value="&amp;lt;&amp;lt;render UI&amp;gt;&amp;gt;" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;rounded=0;strokeColor=#000000;fontColor=#000000;fontSize=11;labelBackgroundColor=#ffffff;exitX=1;exitY=0.18;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="pkg_app" target="pkg_components" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="edge_app_assets" value="&amp;lt;&amp;lt;load assets&amp;gt;&amp;gt;" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;rounded=0;strokeColor=#000000;fontColor=#000000;fontSize=11;labelBackgroundColor=#ffffff;exitX=1;exitY=0.74;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="pkg_app" target="pkg_assets" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>
