@@ -8,6 +8,7 @@ import {
 	Param,
 	ParseUUIDPipe,
 	Post,
+	Put,
 	Req,
 	UseGuards,
 } from "@nestjs/common";
@@ -44,6 +45,9 @@ import {
 	ResolveBookingMemberCandidateDto,
 	ResolveBookingMemberCandidateResponseDto,
 } from "./dto/resolve-booking-member-candidate.dto";
+import { SyncBookingItemsResponseDto } from "./dto/sync-booking-items-response.dto";
+// biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
+import { SyncBookingItemsDto } from "./dto/sync-booking-items.dto";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { PaymentsService } from "./payments.service";
 
@@ -181,6 +185,30 @@ export class BookingsController {
 		@Param("bookingId", BOOKING_ID_PIPE) bookingId: string
 	): Promise<BookingItemResponseDto[]> {
 		return this.bookingsService.listItems(request.user.userId, bookingId);
+	}
+
+	@Put(":bookingId/items")
+	@Roles(UserRole.CAMPER)
+	@ApiOperation({
+		summary: "Synchronize/replace equipment rental items on the caller's own Booking",
+	})
+	@ApiResponse({ status: 200, type: SyncBookingItemsResponseDto })
+	@ApiResponse({ status: 403, description: "Not the Booking owner" })
+	@ApiResponse({ status: 404, description: "Booking, Trip, or Equipment catalog item not found" })
+	@ApiResponse({
+		status: 409,
+		description: "Booking not open, or insufficient equipment availability",
+	})
+	@ApiResponse({
+		status: 422,
+		description: "Invalid payload, inactive equipment, or wrong Host scope",
+	})
+	syncItems(
+		@Req() request: AuthenticatedRequest,
+		@Param("bookingId", BOOKING_ID_PIPE) bookingId: string,
+		@Body() dto: SyncBookingItemsDto
+	): Promise<SyncBookingItemsResponseDto> {
+		return this.bookingsService.syncItems(request.user.userId, bookingId, dto);
 	}
 
 	@Post(":bookingId/pay")

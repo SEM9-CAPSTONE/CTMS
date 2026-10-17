@@ -3,6 +3,17 @@ export interface CancellationPolicySnapshotV1 {
 	rules: Array<{ minHoursBeforeTrip: number; refundPercent: number }>;
 }
 
+export const DEFAULT_CANCELLATION_POLICY: CancellationPolicySnapshotV1 & { policy: string } = {
+	version: 1,
+	rules: [
+		{ minHoursBeforeTrip: 48, refundPercent: 100 },
+		{ minHoursBeforeTrip: 24, refundPercent: 50 },
+		{ minHoursBeforeTrip: 0, refundPercent: 0 },
+	],
+	policy:
+		"Hủy trước 48 giờ hoàn 100%, trước 24 giờ hoàn 50%, trong vòng 24 giờ trước khởi hành không hoàn tiền.",
+};
+
 export class CancellationPolicyError extends Error {}
 
 function record(value: unknown): value is Record<string, unknown> {

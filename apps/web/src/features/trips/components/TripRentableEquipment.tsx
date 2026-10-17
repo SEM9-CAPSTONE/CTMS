@@ -1,5 +1,5 @@
 import { Loader2, Package, RefreshCw, ShieldAlert } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTripEquipmentOptions } from "../../booking-equipment/hooks/useTripEquipmentOptions";
 import { bookingEquipmentService } from "../../booking-equipment/services/booking-equipment.service";
 import type { BookingAccess } from "./BookingPanel";
@@ -60,7 +60,11 @@ export function TripRentableEquipment({
 		useState<SelectedEquipmentItem[]>(selectedEquipment);
 	const [isSubmitting, setIsSubmitting] = useState(false);
 
-	const effectiveSelected = selectedEquipment.length > 0 ? selectedEquipment : internalSelected;
+	useEffect(() => {
+		setInternalSelected(selectedEquipment);
+	}, [selectedEquipment]);
+
+	const effectiveSelected = internalSelected;
 
 	const totalSelectedPrice = useMemo(() => {
 		return effectiveSelected.reduce(
@@ -74,28 +78,26 @@ export function TripRentableEquipment({
 	}, [effectiveSelected]);
 
 	const handleConfirm = async (selected: SelectedEquipmentItem[]) => {
-		setInternalSelected(selected);
-		if (bookingId && selected.length > 0) {
-			setIsSubmitting(true);
-			try {
-				let latestTotal: string | undefined;
-				for (const sel of selected) {
-					const res = await bookingEquipmentService.addBookingItem(bookingId, {
-						equipmentCatalogItemId: sel.item.id,
-						quantity: sel.quantity,
-					});
-					if (res?.booking?.totalAmount) {
-						latestTotal = res.booking.totalAmount;
-					}
+		setIsSubmitting(true);
+		try {
+			setInternalSelected(selected);
+			if (bookingId) {
+				const res = await bookingEquipmentService.syncItems(bookingId, {
+					items: selected.map((item) => ({
+						equipmentCatalogItemId: item.item.id,
+						quantity: item.quantity,
+					})),
+				});
+				if (res?.booking?.totalAmount) {
+					onTotalAmountChange?.(res.booking.totalAmount);
 				}
-				if (latestTotal) {
-					onTotalAmountChange?.(latestTotal);
-				}
-			} finally {
-				setIsSubmitting(false);
 			}
+			await onConfirmSelection?.(selected);
+		} catch (err) {
+			console.error("Lỗi khi cập nhật thiết bị thuê kèm:", err);
+		} finally {
+			setIsSubmitting(false);
 		}
-		await onConfirmSelection?.(selected);
 	};
 
 	return (

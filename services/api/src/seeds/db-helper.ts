@@ -3,6 +3,7 @@ import { randomInt } from "node:crypto";
 import * as bcrypt from "bcrypt";
 import { BookingExpiryService } from "../modules/bookings/booking-expiry.service";
 import { BookingsRepository } from "../modules/bookings/bookings.repository";
+import { DEFAULT_CANCELLATION_POLICY } from "../modules/bookings/cancellation-policy";
 import { EquipmentReservation } from "../modules/bookings/entities/equipment-reservation.entity";
 import { Payment } from "../modules/bookings/entities/payment.entity";
 import { EquipmentReservationsRepository } from "../modules/bookings/equipment-reservations.repository";
@@ -389,7 +390,9 @@ async function main() {
 						input.title,
 						JSON.stringify(meetingPoint),
 						input.pricePerPerson ?? "0.00",
-						input.cancellationPolicy ? JSON.stringify(input.cancellationPolicy) : null,
+						input.cancellationPolicy
+							? JSON.stringify(input.cancellationPolicy)
+							: JSON.stringify(DEFAULT_CANCELLATION_POLICY),
 						String(input.bookingDeadlineOffsetHours ?? 96),
 						input.capacityMin ?? 1,
 					]

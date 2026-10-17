@@ -95,18 +95,13 @@ export function formatCancellationPolicyRules(snapshot: unknown): string[] | nul
 		policy.rules.length > 0 &&
 		policy.rules.every(isCancellationPolicyRuleV1)
 	) {
-		const formattedRules = policy.rules.map((rule) => {
+		return policy.rules.map((rule) => {
 			const timing =
 				rule.minHoursBeforeTrip === 0
 					? "Hủy trước giờ khởi hành"
 					: `Hủy trước ít nhất ${rule.minHoursBeforeTrip.toLocaleString("vi-VN")} giờ`;
 			return `${timing}: hoàn ${rule.refundPercent.toLocaleString("vi-VN")}% phần tiền đủ điều kiện.`;
 		});
-
-		if (typeof policy.policy === "string" && policy.policy.trim()) {
-			formattedRules.unshift(policy.policy.trim());
-		}
-		return formattedRules;
 	}
 
 	if (typeof policy.policy === "string" && policy.policy.trim()) {

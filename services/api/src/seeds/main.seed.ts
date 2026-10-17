@@ -10,6 +10,7 @@
  * 6. Settlements, Host Wallets & Payout Requests
  */
 import { hash } from "bcrypt";
+import { DEFAULT_CANCELLATION_POLICY } from "../modules/bookings/cancellation-policy";
 import dataSource from "../shared/database/data-source";
 
 const BCRYPT_COST_FACTOR = 10;
@@ -608,11 +609,9 @@ export async function seedDevTrips(): Promise<void> {
 					summary:
 						"06:30 tập trung Chùa Linh Ứng, 07:00 bắt đầu trekking, 11:30 picnic trưa Bãi Rạng, 16:00 kết thúc.",
 				},
-				includes: {
-					items: ["Hướng dẫn viên", "Nước uống 2L/người", "Bữa trưa dã ngoại", "Bảo hiểm du lịch"],
-				},
-				excludes: { items: ["Chi phí cá nhân", "Xe đưa đón từ khách sạn"] },
-				cancellationPolicy: { policy: "Hủy trước 48h hoàn tiền 100%, sau 48h không hoàn phí." },
+				includes: null,
+				excludes: null,
+				cancellationPolicy: DEFAULT_CANCELLATION_POLICY,
 				waypoints: [
 					{
 						name: "Điểm tập kết Chùa Linh Ứng - Sơn Trà",
@@ -675,16 +674,9 @@ export async function seedDevTrips(): Promise<void> {
 					summary:
 						"Ngày 1: Chân đèo Hải Vân - Cửa Rừng Nam Hải Vân - Hạ trại Bãi Biển Làng Vân. Ngày 2: Đón bình minh biển - Lên đồn Nhất Hải Vân Quan - Kết thúc.",
 				},
-				includes: {
-					items: [
-						"Lều trại & túi ngủ dã ngoại",
-						"Bữa tối BBQ bên bãi biển Làng Vân",
-						"HDV dẫn đường & đồ cứu hộ",
-						"Bảo hiểm du lịch",
-					],
-				},
-				excludes: { items: ["Balo cá nhân", "Chi phí nước ngọt tại làng"] },
-				cancellationPolicy: { policy: "Hủy trước 5 ngày hoàn 80%, sau 5 ngày hoàn 50%." },
+				includes: null,
+				excludes: null,
+				cancellationPolicy: DEFAULT_CANCELLATION_POLICY,
 				waypoints: [
 					{
 						name: "Điểm tập kết Chân đèo Hải Vân - Hòa Hiệp Bắc",
@@ -755,16 +747,9 @@ export async function seedDevTrips(): Promise<void> {
 					summary:
 						"Ngày 1: Trạm Kiểm lâm Hòa Ninh - Lán Thác Tóc Tiên - Cắm trại đêm. Ngày 2: Chinh phục đỉnh Núi Chúa 1.487m - Xuống núi.",
 				},
-				includes: {
-					items: [
-						"Xe đưa đón từ trung tâm Đà Nẵng",
-						"Lều trại & túi ấm dã ngoại",
-						"Suất ăn ấm nóng tại lán",
-						"Người dẫn đường kiểm lâm bản địa",
-					],
-				},
-				excludes: { items: ["Đồ uống có cồn", "Tiền tip porter"] },
-				cancellationPolicy: { policy: "Hủy trước 7 ngày hoàn 90%." },
+				includes: null,
+				excludes: null,
+				cancellationPolicy: DEFAULT_CANCELLATION_POLICY,
 				waypoints: [
 					{
 						name: "Trạm Kiểm lâm Hòa Ninh - Hòa Vang",
@@ -835,16 +820,9 @@ export async function seedDevTrips(): Promise<void> {
 					summary:
 						"Ngày 1: Thôn Tà Lang - Lội suối Khe Ram - Cắm trại bãi cỏ Thác Mơ. Ngày 2: Khám phá Vách Đá Trắng - Trở về trạm sinh thái Hòa Bắc.",
 				},
-				includes: {
-					items: [
-						"Trang bị an toàn áo phao & SOS",
-						"Lều trại & bữa ăn dã ngoại",
-						"Đội ngũ dẫn đường người Cơ Tu bản địa",
-						"Bảo hiểm du lịch",
-					],
-				},
-				excludes: { items: ["Chi phí cá nhân"] },
-				cancellationPolicy: { policy: "Hủy trước 48h hoàn 80%." },
+				includes: null,
+				excludes: null,
+				cancellationPolicy: DEFAULT_CANCELLATION_POLICY,
 				waypoints: [
 					{
 						name: "Nhà Gươl Thôn Tà Lang - Hòa Bắc",
@@ -915,11 +893,9 @@ export async function seedDevTrips(): Promise<void> {
 					summary:
 						"14:00 tập kết Bãi Trẹm, 15:00 trekking ngắm hoàng hôn Mũi Nghê, 18:00 kết thúc.",
 				},
-				includes: {
-					items: ["Hướng dẫn viên chuyên nghiệp", "Nước khoáng & trái cây nhẹ"],
-				},
-				excludes: { items: ["Chi phí di chuyển cá nhân"] },
-				cancellationPolicy: { policy: "Không hoàn phí khi đã hết hạn đặt vé." },
+				includes: null,
+				excludes: null,
+				cancellationPolicy: DEFAULT_CANCELLATION_POLICY,
 				waypoints: [
 					{
 						name: "Điểm tập kết Bãi Trẹm - Sơn Trà",
@@ -977,28 +953,9 @@ export async function seedDevTrips(): Promise<void> {
 						"https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1600&q=80",
 					],
 				},
-				includes: {
-					items: [
-						"Hướng dẫn viên chuyên nghiệp & người hỗ trợ",
-						"Bữa tối BBQ hải sản và bữa sáng dã ngoại",
-						"Bảo hiểm du lịch",
-					],
-				},
-				excludes: {
-					items: [
-						"Thiết bị cá nhân (có thể thuê thêm lều, túi ngủ, balo ở mục bên dưới)",
-						"Chi phí phát sinh ngoài chương trình",
-					],
-				},
-				cancellationPolicy: {
-					version: 1,
-					rules: [
-						{ minHoursBeforeTrip: 72, refundPercent: 100 },
-						{ minHoursBeforeTrip: 24, refundPercent: 50 },
-						{ minHoursBeforeTrip: 0, refundPercent: 0 },
-					],
-					policy: "Hủy trước 3 ngày hoàn 100%, trước 24h hoàn 50%, sau 24h không hoàn tiền.",
-				},
+				includes: null,
+				excludes: null,
+				cancellationPolicy: DEFAULT_CANCELLATION_POLICY,
 				waypoints: [
 					{
 						name: "Điểm tập kết Chân đèo Hải Vân",
@@ -1063,28 +1020,9 @@ export async function seedDevTrips(): Promise<void> {
 						"https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=1600&q=80",
 					],
 				},
-				includes: {
-					items: [
-						"Hướng dẫn viên chuyên tuyến Sơn Trà",
-						"Nước uống & Bữa trưa picnic dinh dưỡng",
-						"Bảo hiểm du lịch",
-					],
-				},
-				excludes: {
-					items: [
-						"Gậy leo núi & Balo trợ lực (có thể chọn thuê ngay khi đặt tour)",
-						"Chi phí cá nhân",
-					],
-				},
-				cancellationPolicy: {
-					version: 1,
-					rules: [
-						{ minHoursBeforeTrip: 48, refundPercent: 100 },
-						{ minHoursBeforeTrip: 24, refundPercent: 50 },
-						{ minHoursBeforeTrip: 0, refundPercent: 0 },
-					],
-					policy: "Hủy trước 48h hoàn 100%, trước 24h hoàn 50%, sau 24h không hoàn tiền.",
-				},
+				includes: null,
+				excludes: null,
+				cancellationPolicy: DEFAULT_CANCELLATION_POLICY,
 				waypoints: [
 					{
 						name: "Điểm tập kết Chùa Linh Ứng",
@@ -1183,8 +1121,8 @@ export async function seedDevTrips(): Promise<void> {
 						st.seatsTaken,
 						st.pricePerPerson,
 						JSON.stringify(st.itinerary),
-						JSON.stringify(st.includes),
-						JSON.stringify(st.excludes),
+						st.includes ? JSON.stringify(st.includes) : null,
+						st.excludes ? JSON.stringify(st.excludes) : null,
 						JSON.stringify(st.cancellationPolicy),
 					]
 				);
@@ -1222,8 +1160,8 @@ export async function seedDevTrips(): Promise<void> {
 						st.seatsTaken,
 						st.pricePerPerson,
 						JSON.stringify(st.itinerary),
-						JSON.stringify(st.includes),
-						JSON.stringify(st.excludes),
+						st.includes ? JSON.stringify(st.includes) : null,
+						st.excludes ? JSON.stringify(st.excludes) : null,
 						JSON.stringify(st.cancellationPolicy),
 					]
 				);
@@ -1781,9 +1719,9 @@ async function seedDiverseTripAndRouteStatuses(
 				ST_GeogFromText('SRID=4326;POINT(108.020 16.090)'), $6, $7,
 				6, 15, 0, '650000',
 				'{"summary": "07:00 xuất phát, 16:30 hoàn thành."}'::jsonb,
-				'{"items": ["Hướng dẫn viên", "Nước uống"]}'::jsonb,
-				'{"items": ["Chi phí cá nhân"]}'::jsonb,
-				'{"policy": "Hủy trước 48h hoàn 100%"}'::jsonb,
+				NULL,
+				NULL,
+				$8::jsonb,
 				'pending_approval'
 			)`,
 			[
@@ -1794,6 +1732,7 @@ async function seedDiverseTripAndRouteStatuses(
 				inDays(10, 17),
 				inDays(10, 6),
 				inDays(8, 18),
+				JSON.stringify(DEFAULT_CANCELLATION_POLICY),
 			]
 		);
 	}
@@ -1819,9 +1758,9 @@ async function seedDiverseTripAndRouteStatuses(
 				ST_GeogFromText('SRID=4326;POINT(108.030 16.100)'), $6, $7,
 				5, 20, 0, '350000',
 				'{"summary": "Đang cập nhật lịch trình."}'::jsonb,
-				'{"items": ["Nước uống"]}'::jsonb,
-				'{"items": ["Chi phí cá nhân"]}'::jsonb,
-				'{"policy": "Theo quy chế chung"}'::jsonb,
+				NULL,
+				NULL,
+				$8::jsonb,
 				'draft'
 			)`,
 			[
@@ -1832,6 +1771,7 @@ async function seedDiverseTripAndRouteStatuses(
 				inDays(14, 16),
 				inDays(14, 7),
 				inDays(12, 18),
+				JSON.stringify(DEFAULT_CANCELLATION_POLICY),
 			]
 		);
 	}
@@ -1857,9 +1797,9 @@ async function seedDiverseTripAndRouteStatuses(
 				ST_GeogFromText('SRID=4326;POINT(108.010 15.990)'), $6, $7,
 				10, 25, 2, '550000',
 				'{"summary": "Chuyến đi đã bị hủy theo quy chế capacity_min."}'::jsonb,
-				'{"items": ["Bảo hiểm"]}'::jsonb,
-				'{"items": ["Chi phí khác"]}'::jsonb,
-				'{"policy": "Hoàn tiền 100% cho người đã đăng ký do hệ thống hủy."}'::jsonb,
+				NULL,
+				NULL,
+				$8::jsonb,
 				'cancelled'
 			)`,
 			[
@@ -1870,6 +1810,7 @@ async function seedDiverseTripAndRouteStatuses(
 				inDays(2, 17),
 				inDays(2, 6),
 				inDays(1, 18),
+				JSON.stringify(DEFAULT_CANCELLATION_POLICY),
 			]
 		);
 	}
@@ -2262,9 +2203,14 @@ export async function seedCamperRefunds(): Promise<{
 			now() - interval '10 hours', now() - interval '3 hours',
 			ST_SetSRID(ST_GeomFromGeoJSON($3), 4326)::geography, now() - interval '1 day',
 			1, 10, '850000.00', 'completed',
-			'{"version": 1, "rules": [{"minHoursBeforeTrip": 24, "refundPercent": 50}]}'::jsonb
+			$4::jsonb
 		 ) RETURNING "id"`,
-		[trip2Source.host_id, trip2Source.route_id, JSON.stringify(meetingPoint)]
+		[
+			trip2Source.host_id,
+			trip2Source.route_id,
+			JSON.stringify(meetingPoint),
+			JSON.stringify(DEFAULT_CANCELLATION_POLICY),
+		]
 	)) as Array<{ id: string }>;
 	const completedTripId = completedTripRows[0].id;
 
@@ -2620,9 +2566,9 @@ export async function seedSettlementsAndPayouts(): Promise<void> {
 			now() - interval '86 hours', now() - interval '80 hours',
 			ST_SetSRID(ST_GeomFromGeoJSON($3), 4326)::geography, now() - interval '4 days',
 			1, 15, '1500000.00', 'completed',
-			'{"version": 1, "rules": [{"minHoursBeforeTrip": 24, "refundPercent": 50}]}'::jsonb
+			$4::jsonb
 		 ) RETURNING "id"`,
-		[hostId, routeId, JSON.stringify(meetingPoint)]
+		[hostId, routeId, JSON.stringify(meetingPoint), JSON.stringify(DEFAULT_CANCELLATION_POLICY)]
 	)) as Array<{ id: string }>;
 	const trip1Id = trip1Rows[0].id;
 	await insertWaypoints(trip1Id);
@@ -2677,9 +2623,9 @@ export async function seedSettlementsAndPayouts(): Promise<void> {
 			now() - interval '26 hours', now() - interval '20 hours',
 			ST_SetSRID(ST_GeomFromGeoJSON($3), 4326)::geography, now() - interval '2 days',
 			1, 10, '850000.00', 'completed',
-			'{"version": 1, "rules": [{"minHoursBeforeTrip": 24, "refundPercent": 50}]}'::jsonb
+			$4::jsonb
 		 ) RETURNING "id"`,
-		[hostId, routeId, JSON.stringify(meetingPoint)]
+		[hostId, routeId, JSON.stringify(meetingPoint), JSON.stringify(DEFAULT_CANCELLATION_POLICY)]
 	)) as Array<{ id: string }>;
 	const trip2Id = trip2Rows[0].id;
 	await insertWaypoints(trip2Id);
@@ -2734,9 +2680,9 @@ export async function seedSettlementsAndPayouts(): Promise<void> {
 			now() - interval '96 hours', now() - interval '90 hours',
 			ST_SetSRID(ST_GeomFromGeoJSON($3), 4326)::geography, now() - interval '5 days',
 			1, 10, '3200000.00', 'completed',
-			'{"version": 1, "rules": [{"minHoursBeforeTrip": 24, "refundPercent": 50}]}'::jsonb
+			$4::jsonb
 		 ) RETURNING "id"`,
-		[hostId, routeId, JSON.stringify(meetingPoint)]
+		[hostId, routeId, JSON.stringify(meetingPoint), JSON.stringify(DEFAULT_CANCELLATION_POLICY)]
 	)) as Array<{ id: string }>;
 	const trip3Id = trip3Rows[0].id;
 	await insertWaypoints(trip3Id);
@@ -2813,9 +2759,9 @@ export async function seedSettlementsAndPayouts(): Promise<void> {
 			now() - interval '6 days', now() - interval '5 days',
 			ST_SetSRID(ST_GeomFromGeoJSON($3), 4326)::geography, now() - interval '7 days',
 			1, 10, '4000000.00', 'completed',
-			'{"version": 1, "rules": [{"minHoursBeforeTrip": 24, "refundPercent": 50}]}'::jsonb
+			$4::jsonb
 		 ) RETURNING "id"`,
-		[hostId, routeId, JSON.stringify(meetingPoint)]
+		[hostId, routeId, JSON.stringify(meetingPoint), JSON.stringify(DEFAULT_CANCELLATION_POLICY)]
 	)) as Array<{ id: string }>;
 	const trip4Id = trip4Rows[0].id;
 	await insertWaypoints(trip4Id);

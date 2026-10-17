@@ -1,4 +1,5 @@
 import { CalendarDays, FileJson, ShieldAlert, X } from "lucide-react";
+import { useEffect } from "react";
 import { ACTION_LABELS, TARGET_TYPE_LABELS } from "../constants";
 import type { AuditLogSummary } from "../types";
 
@@ -9,16 +10,32 @@ export interface AuditLogDetailsDialogProps {
 }
 
 export function AuditLogDetailsDialog({ open, log, onClose }: AuditLogDetailsDialogProps) {
+	useEffect(() => {
+		if (!open) return;
+		const handleKeyDown = (event: KeyboardEvent) => {
+			if (event.key === "Escape") onClose();
+		};
+		window.addEventListener("keydown", handleKeyDown);
+		return () => window.removeEventListener("keydown", handleKeyDown);
+	}, [open, onClose]);
+
 	if (!open || !log) return null;
 
 	return (
-		<dialog
-			open
+		// biome-ignore lint/a11y/useSemanticElements: custom modal overlay
+		<div
+			role="dialog"
 			aria-modal="true"
-			className="fixed inset-0 z-50 flex items-center justify-center bg-[#10221b]/50 p-4"
 			aria-labelledby="log-detail-title"
+			className="fixed inset-0 z-50 flex items-center justify-center bg-[#10221b]/50 p-4"
+			onClick={(e) => {
+				if (e.target === e.currentTarget) onClose();
+			}}
 		>
-			<div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl flex flex-col">
+			<div
+				className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl flex flex-col"
+				onClick={(e) => e.stopPropagation()}
+			>
 				<div className="flex items-center justify-between border-b border-[#e0ebe0] px-6 py-4 sticky top-0 bg-white z-10">
 					<h2
 						id="log-detail-title"
@@ -108,7 +125,7 @@ export function AuditLogDetailsDialog({ open, log, onClose }: AuditLogDetailsDia
 					</div>
 				</div>
 			</div>
-		</dialog>
+		</div>
 	);
 }
 

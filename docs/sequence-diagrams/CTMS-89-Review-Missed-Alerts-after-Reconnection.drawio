@@ -1,14 +1,11 @@
 <mxfile host="65bd71144e">
     <diagram id="review-missed-alerts-reconnection" name="Review Missed Alerts after Reconnection Sequence Diagram">
-        <mxGraphModel dx="942" dy="448" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1380" pageHeight="1450" background="#ffffff" math="0" shadow="0">
+        <mxGraphModel dx="1404" dy="1098" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1380" pageHeight="1450" background="#ffffff" math="0" shadow="0">
             <root>
                 <mxCell id="0"/>
                 <mxCell id="1" parent="0"/>
                 <mxCell id="alt_frame_8" value="alt" style="shape=umlFrame;whiteSpace=wrap;html=1;strokeColor=#000000;fillColor=none;fontColor=#000000;width=45;height=25;" parent="1" vertex="1">
                     <mxGeometry x="130" y="385" width="1180" height="260" as="geometry"/>
-                </mxCell>
-                <mxCell id="alt_c1_8" value="[Missed Critical Alerts Exist]" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11;fontStyle=1;fontColor=#000000;" parent="1" vertex="1">
-                    <mxGeometry x="180" y="385" width="400" height="25" as="geometry"/>
                 </mxCell>
                 <mxCell id="alt_div_8" value="" style="shape=line;strokeColor=#000000;dashed=1;labelBackgroundColor=none;fillColor=none;" parent="1" vertex="1">
                     <mxGeometry x="130" y="525" width="1180" height="10" as="geometry"/>
@@ -53,7 +50,7 @@
                     <mxGeometry x="1120" y="75" width="160" height="825" as="geometry"/>
                 </mxCell>
                 <mxCell id="act_db" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_db" vertex="1">
-                    <mxGeometry x="75" y="205" width="10" height="520" as="geometry"/>
+                    <mxGeometry x="75" y="205" width="10" height="79" as="geometry"/>
                 </mxCell>
                 <mxCell id="msg_1" value="1. Reconnect After Wilderness Section" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
                     <mxGeometry relative="1" as="geometry">
@@ -132,6 +129,9 @@
                         <mxPoint x="275" y="630" as="sourcePoint"/>
                         <mxPoint x="80" y="630" as="targetPoint"/>
                     </mxGeometry>
+                </mxCell>
+                <mxCell id="alt_c1_8" value="[Missed Critical Alerts Exist]" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11;fontStyle=1;fontColor=#000000;" parent="1" vertex="1">
+                    <mxGeometry x="180" y="385" width="400" height="25" as="geometry"/>
                 </mxCell>
             </root>
         </mxGraphModel>

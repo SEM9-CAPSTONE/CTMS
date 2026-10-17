@@ -168,14 +168,14 @@ export function TripDetailPage({
 				if (equipmentItems && equipmentItems.length > 0) {
 					setIsAddingEquipment(true);
 					try {
-						for (const sel of equipmentItems) {
-							const res = await bookingEquipmentService.addBookingItem(result.id, {
+						const res = await bookingEquipmentService.syncItems(result.id, {
+							items: equipmentItems.map((sel) => ({
 								equipmentCatalogItemId: sel.item.id,
 								quantity: sel.quantity,
-							});
-							if (res?.booking?.totalAmount) {
-								updateBookingTotal(res.booking.totalAmount);
-							}
+							})),
+						});
+						if (res?.booking?.totalAmount) {
+							updateBookingTotal(res.booking.totalAmount);
 						}
 					} catch (err) {
 						console.error("Lỗi khi thêm thiết bị đã chọn:", err);
@@ -374,6 +374,7 @@ export function TripDetailPage({
 								<TripDetailView
 									trip={trip}
 									onBook={handleBook}
+									onRefreshBooking={() => void retryBookingRestore(true)}
 									isBooking={isBooking || isAddingEquipment}
 									bookingError={bookingError}
 									booking={displayedBooking}

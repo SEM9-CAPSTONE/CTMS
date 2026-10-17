@@ -197,8 +197,6 @@ describe("TripDetailView", () => {
 		expect(screen.getByText("Mô tả chi tiết chuyến đi Bidoup")).toBeInTheDocument();
 		expect(screen.getAllByText("Thời tiết chú ý")[0]).toBeInTheDocument();
 		expect(screen.getByText("Còn 4 chỗ")).toBeInTheDocument();
-		expect(screen.getByText("Lều trại")).toBeInTheDocument();
-		expect(screen.getByText("Balo cá nhân")).toBeInTheDocument();
 		expect(screen.getByText("Hủy trước 48h hoàn tiền 100%")).toBeInTheDocument();
 
 		// Waypoints rendered in sequence order

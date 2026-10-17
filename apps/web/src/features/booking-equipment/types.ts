@@ -23,3 +23,15 @@ export interface AddBookingItemResult {
 	item: BookingItem;
 	booking: { id: string; totalAmount: string };
 }
+
+export interface SyncBookingItemsInput {
+	items: Array<{
+		equipmentCatalogItemId: string;
+		quantity: number;
+	}>;
+}
+
+export interface SyncBookingItemsResult {
+	items: BookingItem[];
+	booking: { id: string; totalAmount: string };
+}

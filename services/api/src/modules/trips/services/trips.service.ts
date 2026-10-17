@@ -10,6 +10,7 @@ import {
 import { DataSource, type EntityManager } from "typeorm";
 import { AuditLog } from "../../auth/entities/audit-log.entity";
 import type { AuthenticatedUser } from "../../auth/jwt.strategy";
+import { DEFAULT_CANCELLATION_POLICY } from "../../bookings/cancellation-policy";
 import type { EventsGateway } from "../../realtime/events.gateway";
 import { TrekkingRouteStatus } from "../../trekking-routes/entities/trekking-route.entity";
 import { UserRole } from "../../users/entities/user.entity";
@@ -260,7 +261,10 @@ export class TripsService {
 				capacityMin: dto.capacityMin,
 				capacityMax: dto.capacityMax ?? null,
 				pricePerPerson: dto.pricePerPerson,
-				cancellationPolicy: dto.cancellationPolicy ?? null,
+				cancellationPolicy: (dto.cancellationPolicy ?? DEFAULT_CANCELLATION_POLICY) as Record<
+					string,
+					unknown
+				>,
 				waypoints: sortWaypointsByPlannedAt(dto.waypoints).map((waypoint, index) =>
 					toWaypointInput(waypoint, index, schedule.startsAt)
 				),
@@ -347,7 +351,10 @@ export class TripsService {
 				capacityMin: dto.capacityMin,
 				capacityMax: dto.capacityMax ?? null,
 				pricePerPerson: dto.pricePerPerson,
-				cancellationPolicy: dto.cancellationPolicy ?? null,
+				cancellationPolicy: (dto.cancellationPolicy ?? DEFAULT_CANCELLATION_POLICY) as Record<
+					string,
+					unknown
+				>,
 				waypoints: toDraftWaypointInputs(
 					mergeEndpointWaypoints(lockedTrip.trip.waypoints, dto.waypoints),
 					schedule.startsAt

@@ -1,9 +1,19 @@
-import { Check, Clock3, Copy, Loader2, Minus, Plus, RefreshCw, ShieldAlert } from "lucide-react";
-import { useEffect, useId, useState } from "react";
 import {
-	formatBookingStatus,
-	formatPaymentStatus,
-} from "../../booking-details/utils/booking-details-formatters";
+	AlertCircle,
+	Check,
+	Clock3,
+	Copy,
+	CreditCard,
+	ExternalLink,
+	Loader2,
+	Minus,
+	Plus,
+	RefreshCw,
+	ShieldAlert,
+} from "lucide-react";
+import { useEffect, useId, useState } from "react";
+import { formatBookingStatus } from "../../booking-details/utils/booking-details-formatters";
+import { usePayBooking } from "../../booking-payment/hooks/usePayBooking";
 import { bookTripSchema } from "../schema/book-trip.schema";
 import type { BookTripResponse, TripDetails } from "../types";
 import { BookingConflictDialog } from "./BookingConflictDialog";
@@ -75,30 +85,20 @@ function getBookingStatusBadge(status: string): string {
 	}
 }
 
-function getPaymentStatusBadge(status: string): string {
-	switch (status) {
-		case "paid":
-			return "bg-emerald-100 text-emerald-800 border-emerald-300";
-		case "unpaid":
-			return "bg-amber-100 text-amber-900 border-amber-300";
-		case "not_required":
-			return "bg-sky-100 text-sky-800 border-sky-300";
-		default:
-			return "bg-slate-100 text-slate-800 border-slate-300";
-	}
-}
-
 function BookingResult({
 	booking,
+	bookingAccess = "camper",
 	onReset,
 	onViewBookingDetails,
 }: {
 	booking: BookTripResponse;
+	bookingAccess?: BookingAccess;
 	onReset?: () => void;
 	onViewBookingDetails?: (bookingId: string) => void;
 }) {
 	const isFreeConfirmed =
 		booking.status === "confirmed" && booking.paymentStatus === "not_required";
+	const isPaidConfirmed = booking.status === "confirmed" && booking.paymentStatus === "paid";
 	const isHoldOverdue = Boolean(
 		booking.holdExpiresAt && new Date(booking.holdExpiresAt).getTime() < Date.now()
 	);
@@ -107,6 +107,21 @@ function BookingResult({
 	const isPendingPayment =
 		booking.status === "pending_payment" && booking.paymentStatus === "unpaid" && !isExpired;
 	const [copied, setCopied] = useState(false);
+
+	const {
+		submit,
+		retry: retryPay,
+		isSubmitting: isPaying,
+		result: payResult,
+		error: payError,
+	} = usePayBooking();
+
+	const handlePay = async () => {
+		const result = await submit(booking.id, { method: "vietqr" });
+		if (result?.checkoutUrl && typeof window !== "undefined") {
+			window.location.href = result.checkoutUrl;
+		}
+	};
 
 	const handleCopyId = async () => {
 		try {
@@ -117,6 +132,10 @@ function BookingResult({
 			// ignore clipboard write failure in test/unsupported environments
 		}
 	};
+
+	const basePriceNum = Number(booking.basePrice || 0);
+	const totalAmountNum = Number(booking.totalAmount || booking.basePrice || 0);
+	const equipmentDiff = totalAmountNum - basePriceNum;
 
 	return (
 		// biome-ignore lint/a11y/useSemanticElements: The live status contains structured Booking details that are not valid phrasing content inside output.
@@ -142,7 +161,9 @@ function BookingResult({
 							? "Đơn đặt chỗ đã hết hạn"
 							: isFreeConfirmed
 								? "Đặt chỗ đã được xác nhận"
-								: "Đã tạo đặt chỗ thành công"}
+								: isPaidConfirmed
+									? "Đặt chỗ đã thanh toán thành công"
+									: "Đã tạo đặt chỗ thành công"}
 					</h3>
 				</div>
 				<div className="flex items-center gap-1 font-bold">
@@ -185,37 +206,25 @@ function BookingResult({
 					<dt className={isExpired ? "text-rose-900" : "text-emerald-900"}>Số lượng khách</dt>
 					<dd className="font-bold">{booking.numPeople} người</dd>
 				</div>
-				<div className="text-right">
-					<dt className={isExpired ? "text-rose-900" : "text-emerald-900"}>
-						{isExpired ? "Tổng tiền đặt chỗ" : "Tổng giá gốc"}
-					</dt>
-					<dd
-						data-testid="authoritative-booking-price"
-						className={`font-extrabold ${isExpired ? "text-rose-900" : "text-[#164027]"}`}
-					>
-						{formatVND(Number(booking.basePrice))}
-					</dd>
-				</div>
-				{booking.totalAmount && Number(booking.totalAmount) !== Number(booking.basePrice) && (
-					<>
-						<div>
-							<dt className="text-emerald-900">Thiết bị thuê kèm</dt>
-							<dd className="font-bold text-[#164027]">
-								+{formatVND(Number(booking.totalAmount) - Number(booking.basePrice))}
-							</dd>
-						</div>
-						<div className="text-right">
-							<dt className="text-emerald-900">Tổng thanh toán</dt>
-							<dd
-								data-testid="authoritative-total-amount"
-								className="font-extrabold text-[#164027]"
-							>
-								{formatVND(Number(booking.totalAmount))}
-							</dd>
-						</div>
-					</>
+				{equipmentDiff > 0 ? (
+					<div className="text-right">
+						<dt className="text-emerald-900">Thiết bị thuê kèm</dt>
+						<dd className="font-bold text-[#164027]">+{formatVND(equipmentDiff)}</dd>
+					</div>
+				) : (
+					<div className="text-right">
+						<dt className={isExpired ? "text-rose-900" : "text-emerald-900"}>
+							{isExpired ? "Tổng tiền đặt chỗ" : "Tổng thanh toán"}
+						</dt>
+						<dd
+							data-testid="authoritative-booking-price"
+							className={`font-extrabold ${isExpired ? "text-rose-900" : "text-[#164027]"}`}
+						>
+							<span data-testid="authoritative-total-amount">{formatVND(totalAmountNum)}</span>
+						</dd>
+					</div>
 				)}
-				<div>
+				<div className={equipmentDiff > 0 ? "" : "col-span-2 flex items-center justify-between"}>
 					<dt className={isExpired ? "text-rose-900" : "text-emerald-900"}>Trạng thái</dt>
 					<dd className="font-bold">
 						<span
@@ -226,17 +235,19 @@ function BookingResult({
 						<span className="sr-only"> ({booking.status})</span>
 					</dd>
 				</div>
-				<div className="text-right">
-					<dt className={isExpired ? "text-rose-900" : "text-emerald-900"}>Thanh toán</dt>
-					<dd className="font-bold">
-						<span
-							className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-extrabold ${getPaymentStatusBadge(booking.paymentStatus)}`}
+				{equipmentDiff > 0 && (
+					<div className="text-right">
+						<dt className={isExpired ? "text-rose-900" : "text-emerald-900"}>
+							{isExpired ? "Tổng tiền đặt chỗ" : "Tổng thanh toán"}
+						</dt>
+						<dd
+							data-testid="authoritative-booking-price"
+							className={`font-extrabold ${isExpired ? "text-rose-900" : "text-[#164027]"}`}
 						>
-							{formatPaymentStatus(booking.paymentStatus)}
-						</span>
-						<span className="sr-only"> ({booking.paymentStatus})</span>
-					</dd>
-				</div>
+							<span data-testid="authoritative-total-amount">{formatVND(totalAmountNum)}</span>
+						</dd>
+					</div>
+				)}
 				{isPendingPayment && booking.holdExpiresAt && (
 					<div className="col-span-2 flex items-center justify-between text-amber-900">
 						<dt>Giữ chỗ đến</dt>
@@ -251,30 +262,99 @@ function BookingResult({
 				)}
 			</dl>
 
-			<div className="mt-3 flex gap-2">
-				{onViewBookingDetails && (
+			<div className="mt-3.5 space-y-2">
+				{isPendingPayment && bookingAccess === "camper" && (
 					<button
 						type="button"
-						onClick={() => onViewBookingDetails(booking.id)}
-						className="flex-1 rounded-xl bg-[#164027] px-3 py-2 text-xs font-bold text-white transition hover:bg-[#0f2e1c]"
+						onClick={handlePay}
+						disabled={isPaying}
+						className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#164027] py-2.5 text-xs font-bold text-white transition hover:bg-[#0f2e1c] disabled:cursor-wait disabled:opacity-75 shadow-xs"
 					>
-						Xem chi tiết đặt chỗ
+						{isPaying ? (
+							<>
+								<Loader2 className="size-4 animate-spin" />
+								<span>Đang chuyển sang PayOS...</span>
+							</>
+						) : (
+							<>
+								<CreditCard className="size-4" />
+								<span>Thanh toán ngay</span>
+							</>
+						)}
 					</button>
 				)}
 
-				{onReset && (
-					<button
-						type="button"
-						onClick={onReset}
-						className={`rounded-xl border bg-white px-3 py-2 text-xs font-bold transition ${
-							isExpired
-								? "border-rose-300 text-rose-900 hover:bg-rose-100"
-								: "border-emerald-300 text-emerald-900 hover:bg-emerald-100"
-						}`}
-					>
-						{isExpired ? "Đặt chỗ lại" : "Đặt lại"}
-					</button>
+				{payResult?.checkoutUrl && (
+					<div className="rounded-xl border border-emerald-300 bg-white p-2.5 text-center text-xs">
+						<p className="text-[#52665b]">Đã tạo link thanh toán PayOS.</p>
+						<a
+							href={payResult.checkoutUrl}
+							target="_blank"
+							rel="noopener noreferrer"
+							className="mt-1.5 inline-flex items-center justify-center gap-1.5 font-bold text-[#164027] underline hover:text-[#0f2e1c]"
+						>
+							<ExternalLink className="size-3.5" />
+							<span>Bấm vào đây để mở trang thanh toán VietQR (PayOS)</span>
+						</a>
+					</div>
 				)}
+
+				{payError && (
+					<div
+						role="alert"
+						className="rounded-xl border border-rose-200 bg-rose-50 p-2.5 text-xs text-rose-700"
+					>
+						<div className="flex items-start gap-1.5">
+							<AlertCircle className="mt-0.5 size-3.5 shrink-0" />
+							<p className="flex-1 font-semibold">{payError.message}</p>
+						</div>
+						{payError.canRetry && (
+							<button
+								type="button"
+								onClick={() => void retryPay()}
+								disabled={isPaying}
+								className="mt-1.5 inline-flex items-center gap-1 rounded-lg border border-rose-300 bg-white px-2.5 py-1 text-[11px] font-bold text-rose-800 hover:bg-rose-50 disabled:opacity-50"
+							>
+								{isPaying ? (
+									<Loader2 className="size-3 animate-spin" />
+								) : (
+									<RefreshCw className="size-3" />
+								)}
+								<span>{isPaying ? "Đang thử lại..." : "Thử lại thanh toán"}</span>
+							</button>
+						)}
+					</div>
+				)}
+
+				<div className="flex gap-2">
+					{onViewBookingDetails && (
+						<button
+							type="button"
+							onClick={() => onViewBookingDetails(booking.id)}
+							className={`flex-1 rounded-xl px-3 py-2 text-xs font-bold transition ${
+								isPendingPayment && bookingAccess === "camper"
+									? "border border-[#dfe8df] bg-white text-[#10221b] hover:bg-slate-50 hover:border-[#164027]/40"
+									: "bg-[#164027] text-white hover:bg-[#0f2e1c]"
+							}`}
+						>
+							Xem chi tiết đặt chỗ
+						</button>
+					)}
+
+					{onReset && (
+						<button
+							type="button"
+							onClick={onReset}
+							className={`rounded-xl border bg-white px-3 py-2 text-xs font-bold transition ${
+								isExpired
+									? "border-rose-300 text-rose-900 hover:bg-rose-100"
+									: "border-[#dfe8df] text-[#52665b] hover:bg-slate-50"
+							}`}
+						>
+							{isExpired ? "Đặt chỗ lại" : "Đặt lại"}
+						</button>
+					)}
+				</div>
 			</div>
 		</section>
 	);
@@ -340,6 +420,7 @@ export function BookingPanel({
 		return (
 			<BookingResult
 				booking={booking}
+				bookingAccess={bookingAccess}
 				onReset={onReset}
 				onViewBookingDetails={onViewBookingDetails}
 			/>
