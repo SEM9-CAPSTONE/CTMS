@@ -8,7 +8,7 @@ export interface ModalProps {
 	icon?: ReactNode;
 	description?: ReactNode;
 	children: ReactNode;
-	size?: "md" | "lg";
+	size?: "md" | "lg" | "xl";
 	/** Blocks closing (X button and Escape) while a request is in flight. */
 	isCloseDisabled?: boolean;
 	closeLabel?: string;
@@ -17,6 +17,7 @@ export interface ModalProps {
 const sizeStyles = {
 	md: "max-w-md",
 	lg: "max-w-lg",
+	xl: "max-w-3xl",
 };
 
 /** Generic modal shell for forms and details; use ConfirmModal for yes/no confirmations. */

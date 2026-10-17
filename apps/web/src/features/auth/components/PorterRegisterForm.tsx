@@ -1,4 +1,4 @@
-import { Award, Compass, Lock, Mail, Phone, User } from "lucide-react";
+import { Award, Lock, Mail, Phone, User } from "lucide-react";
 import type React from "react";
 import type { PorterRegisterFormData } from "../types";
 import { isValidEmail, isValidPhoneNumber } from "../utils/auth.utils";
@@ -54,45 +54,7 @@ export const PorterRegisterForm: React.FC<PorterRegisterFormProps> = ({ formData
 				</div>
 			</div>
 
-			{/* Experience Years & Operating Areas */}
-			<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-				<div>
-					<label className="mb-1 block text-xs font-bold text-[#425048]">
-						Số năm kinh nghiệm *
-					</label>
-					<div className="flex items-center gap-2.5 rounded-xl border border-[#dfe8df] bg-white px-3.5 py-2.5 text-sm shadow-sm focus-within:border-[#164027]">
-						<Award size={16} className="text-[#2563eb]" />
-						<input
-							type="number"
-							min="0"
-							required
-							placeholder="3"
-							value={formData.experienceYears || ""}
-							onChange={(e) => onChange("experienceYears", Number(e.target.value))}
-							className="w-full bg-transparent outline-none text-[#10221b]"
-						/>
-					</div>
-				</div>
-
-				<div>
-					<label className="mb-1 block text-xs font-bold text-[#425048]">
-						Khu vực núi hoạt động chính *
-					</label>
-					<div className="flex items-center gap-2.5 rounded-xl border border-[#dfe8df] bg-white px-3.5 py-2.5 text-sm shadow-sm focus-within:border-[#164027]">
-						<Compass size={16} className="text-[#8a9990]" />
-						<input
-							type="text"
-							required
-							placeholder="Tà Xùa, Fansipan, Nhìu Cồ San..."
-							value={formData.operatingAreas}
-							onChange={(e) => onChange("operatingAreas", e.target.value)}
-							className="w-full bg-transparent outline-none text-[#10221b]"
-						/>
-					</div>
-				</div>
-			</div>
-
-			{/* Phone & Certification/Invite Code */}
+			{/* Phone & Experience Years */}
 			<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
 				<div>
 					<label className="mb-1 block text-xs font-bold text-[#425048]">Số điện thoại *</label>
@@ -112,18 +74,39 @@ export const PorterRegisterForm: React.FC<PorterRegisterFormProps> = ({ formData
 
 				<div>
 					<label className="mb-1 block text-xs font-bold text-[#425048]">
-						Mã mời / Thẻ chứng chỉ Porter
+						Số năm kinh nghiệm *
 					</label>
 					<div className="flex items-center gap-2.5 rounded-xl border border-[#dfe8df] bg-white px-3.5 py-2.5 text-sm shadow-sm focus-within:border-[#164027]">
-						<Award size={16} className="text-[#8a9990]" />
+						<Award size={16} className="text-[#2563eb]" />
 						<input
-							type="text"
-							placeholder="PTR-8821"
-							value={formData.certificationCode ?? ""}
-							onChange={(e) => onChange("certificationCode", e.target.value)}
+							type="number"
+							min="0"
+							max="80"
+							required
+							placeholder="3"
+							value={formData.experienceYears || ""}
+							onChange={(e) => onChange("experienceYears", Number(e.target.value))}
 							className="w-full bg-transparent outline-none text-[#10221b]"
 						/>
 					</div>
+				</div>
+			</div>
+
+			{/* Certification code */}
+			<div>
+				<label className="mb-1 block text-xs font-bold text-[#425048]">
+					Mã mời / Thẻ chứng chỉ Porter
+				</label>
+				<div className="flex items-center gap-2.5 rounded-xl border border-[#dfe8df] bg-white px-3.5 py-2.5 text-sm shadow-sm focus-within:border-[#164027]">
+					<Award size={16} className="text-[#8a9990]" />
+					<input
+						type="text"
+						maxLength={100}
+						placeholder="PTR-8821"
+						value={formData.certificationCode ?? ""}
+						onChange={(e) => onChange("certificationCode", e.target.value)}
+						className="w-full bg-transparent outline-none text-[#10221b]"
+					/>
 				</div>
 			</div>
 

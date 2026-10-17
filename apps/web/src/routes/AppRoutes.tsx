@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { HttpError } from "../core/api";
 import { clearAuthSessionAndRedirect } from "../core/api/authSessionSync";
 import { AdminAuditLogsPage } from "../features/admin-audit-logs/pages/AdminAuditLogsPage";
 import { AdminContentReportsPage } from "../features/admin-content-reports/pages/AdminContentReportsPage";
+import { AdminPorterVerificationsPage } from "../features/admin-porter-verifications/pages/AdminPorterVerificationsPage";
 import { AdminRefundsPage } from "../features/admin-refunds/pages/AdminRefundsPage";
 import { AdminUserAccountsPage } from "../features/admin-user-accounts/pages/AdminUserAccountsPage";
 import { AdminWeatherRulesPage } from "../features/admin-weather-rules/pages/AdminWeatherRulesPage";
@@ -24,6 +25,8 @@ import { CamperProfilePage } from "../features/camper-profile/pages/CamperProfil
 import { EquipmentCatalogPage } from "../features/equipment-catalog/pages/EquipmentCatalogPage";
 import { LandingPage } from "../features/landing/pages/LandingPage";
 import { PorterProfilePage } from "../features/porter-profile/pages/PorterProfilePage";
+import { PorterVerificationGate } from "../features/porter-verification/components/PorterVerificationGate";
+import { PorterVerificationPage } from "../features/porter-verification/pages/PorterVerificationPage";
 import { HostLayout } from "../features/role-landing/components/HostLayout";
 import { PorterAssignedTripDetail } from "../features/role-landing/components/PorterAssignedTripDetail";
 import { PorterAssignedTripsPanel } from "../features/role-landing/components/PorterAssignedTripsPanel";
@@ -113,6 +116,24 @@ export function AppRoutes() {
 		handleLogout(false).catch(() => clearAuthSessionAndRedirect());
 	});
 	const isCheckingSession = useSessionCheck(storedUser !== null);
+	const isPorterOnly =
+		currentRoles.includes("porter") && currentRoles.every((role) => role === "porter");
+	// Porter features stay locked until an Admin approves the guide certificate documents.
+	const withPorterVerification = (page: ReactNode): ReactNode =>
+		storedUser && currentRoles.includes("porter") ? (
+			<PorterVerificationGate
+				porterId={storedUser.id}
+				onRequireVerification={() => {
+					window.history.replaceState({}, "", RoutePath.PORTER_VERIFICATION);
+					setCurrentPath(RoutePath.PORTER_VERIFICATION);
+					setCurrentSearch("");
+				}}
+			>
+				{page}
+			</PorterVerificationGate>
+		) : (
+			page
+		);
 	const guestOnlyRedirectPath = isCheckingSession
 		? null
 		: getGuestOnlyRedirectPath(currentPath, storedUser);
@@ -175,22 +196,24 @@ export function AppRoutes() {
 				currentRoles={currentRoles}
 				onNavigateHome={() => navigateTo(RoutePath.HOME)}
 			>
-				<HostLayout
-					activeRole="porter"
-					onLogout={handleLogout}
-					onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}
-				>
-					<main className="p-4 sm:p-6 lg:p-8">
-						{UUID_PATTERN.test(tripId) ? (
-							<PorterAssignedTripDetail
-								tripId={tripId}
-								onBack={() => navigateTo(RoutePath.PORTER_ASSIGNMENTS)}
-							/>
-						) : (
-							<NotFoundPage onBackToHome={() => navigateTo(RoutePath.PORTER_ASSIGNMENTS)} />
-						)}
-					</main>
-				</HostLayout>
+				{withPorterVerification(
+					<HostLayout
+						activeRole="porter"
+						onLogout={handleLogout}
+						onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}
+					>
+						<main className="p-4 sm:p-6 lg:p-8">
+							{UUID_PATTERN.test(tripId) ? (
+								<PorterAssignedTripDetail
+									tripId={tripId}
+									onBack={() => navigateTo(RoutePath.PORTER_ASSIGNMENTS)}
+								/>
+							) : (
+								<NotFoundPage onBackToHome={() => navigateTo(RoutePath.PORTER_ASSIGNMENTS)} />
+							)}
+						</main>
+					</HostLayout>
+				)}
 			</AppRoleGuard>
 		);
 	}
@@ -392,10 +415,26 @@ export function AppRoutes() {
 					currentRoles={currentRoles}
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
-					<PorterProfilePage
-						onBackHome={() => navigateTo(storedUser ? RoutePath.DASHBOARD : RoutePath.HOME)}
-						onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}
+					{withPorterVerification(
+						<PorterProfilePage
+							onBackHome={() => navigateTo(storedUser ? RoutePath.DASHBOARD : RoutePath.HOME)}
+							onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}
+							onLogout={handleLogout}
+						/>
+					)}
+				</AppRoleGuard>
+			);
+
+		case RoutePath.PORTER_VERIFICATION:
+			return (
+				<AppRoleGuard
+					allowedRoles={["porter"]}
+					currentRoles={currentRoles}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<PorterVerificationPage
 						onLogout={handleLogout}
+						onContinue={() => navigateTo(RoutePath.DASHBOARD)}
 					/>
 				</AppRoleGuard>
 			);
@@ -407,19 +446,21 @@ export function AppRoutes() {
 					currentRoles={currentRoles}
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
-					<HostLayout
-						activeRole="porter"
-						onLogout={handleLogout}
-						onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}
-					>
-						<main className="p-4 sm:p-6 lg:p-8">
-							<PorterAssignedTripsPanel
-								onViewTripDetail={(tripId) =>
-									navigateTo(`${RoutePath.PORTER_ASSIGNMENTS}/${tripId}`)
-								}
-							/>
-						</main>
-					</HostLayout>
+					{withPorterVerification(
+						<HostLayout
+							activeRole="porter"
+							onLogout={handleLogout}
+							onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}
+						>
+							<main className="p-4 sm:p-6 lg:p-8">
+								<PorterAssignedTripsPanel
+									onViewTripDetail={(tripId) =>
+										navigateTo(`${RoutePath.PORTER_ASSIGNMENTS}/${tripId}`)
+									}
+								/>
+							</main>
+						</HostLayout>
+					)}
 				</AppRoleGuard>
 			);
 
@@ -430,9 +471,14 @@ export function AppRoutes() {
 					currentRoles={currentRoles}
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
-					<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
-						<PorterRequestsPage onBackHome={() => navigateTo(RoutePath.DASHBOARD)} />
-					</HostLayout>
+					{withPorterVerification(
+						<HostLayout
+							onLogout={handleLogout}
+							onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}
+						>
+							<PorterRequestsPage onBackHome={() => navigateTo(RoutePath.DASHBOARD)} />
+						</HostLayout>
+					)}
 				</AppRoleGuard>
 			);
 
@@ -445,11 +491,13 @@ export function AppRoutes() {
 						currentRoles={currentRoles}
 						onNavigateHome={() => navigateTo(RoutePath.HOME)}
 					>
-						<PorterProfilePage
-							onBackHome={() => navigateTo(storedUser ? RoutePath.DASHBOARD : RoutePath.HOME)}
-							onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}
-							onLogout={handleLogout}
-						/>
+						{withPorterVerification(
+							<PorterProfilePage
+								onBackHome={() => navigateTo(storedUser ? RoutePath.DASHBOARD : RoutePath.HOME)}
+								onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}
+								onLogout={handleLogout}
+							/>
+						)}
 					</AppRoleGuard>
 				);
 			}
@@ -577,7 +625,7 @@ export function AppRoutes() {
 				);
 			}
 
-			return (
+			const roleLanding = (
 				<RoleLandingPage
 					user={storedUser}
 					roles={currentRoles}
@@ -595,7 +643,20 @@ export function AppRoutes() {
 					onLogout={handleLogout}
 				/>
 			);
+			return isPorterOnly ? withPorterVerification(roleLanding) : roleLanding;
 		}
+
+		case RoutePath.ADMIN_PORTER_VERIFICATIONS:
+			return (
+				<AppRoleGuard
+					allowedRoles={["admin"]}
+					currentRoles={currentRoles}
+					fallback={unauthorizedFallback}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<AdminPorterVerificationsPage onLogout={handleLogout} />
+				</AppRoleGuard>
+			);
 
 		case RoutePath.ADMIN_USERS:
 		case RoutePath.ADMIN_CONTENT_REPORTS:

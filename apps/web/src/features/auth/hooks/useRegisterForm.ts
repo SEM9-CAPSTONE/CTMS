@@ -37,12 +37,22 @@ function selectActiveForm(
 function buildRegisterPayload(role: UserRole, formData: BaseRegisterFormData): RegisterApiPayload {
 	// Email and phone are both mandatory (business flow update) — the form's
 	// `required` fields guarantee non-empty values by the time this runs.
-	return {
+	const fullName = formData.fullName.trim();
+	const payload: RegisterApiPayload = {
 		email: formData.email,
 		phone: formData.phone,
 		password: formData.password,
 		role: role === "host" || role === "porter" ? role : "camper",
+		...(fullName ? { fullName } : {}),
 	};
+	if (role === "porter") {
+		// Seeds the Porter profile so the Admin sees it while reviewing the certificate.
+		const porterForm = formData as PorterRegisterFormData;
+		const certificationCode = porterForm.certificationCode?.trim();
+		payload.experienceYears = porterForm.experienceYears;
+		if (certificationCode) payload.certifications = [certificationCode];
+	}
+	return payload;
 }
 
 export function useRegisterForm(onRegisterSuccess: () => void) {
@@ -77,7 +87,6 @@ export function useRegisterForm(onRegisterSuccess: () => void) {
 		password: "",
 		confirmPassword: "",
 		experienceYears: 1,
-		operatingAreas: "",
 		certificationCode: "",
 	});
 

@@ -106,6 +106,45 @@ describe("RegisterPage", () => {
 			phone: "0912345678",
 			password: "s3cretPass",
 			role: "camper",
+			fullName: "Nguyen Van A",
+		});
+	});
+
+	it("sends the Porter's name, experience and certificate code so the profile is created", async () => {
+		const user = userEvent.setup();
+		registerMock.mockResolvedValueOnce({ ...SUCCESS_RESPONSE, role: "porter" });
+		render(
+			<RegisterPage
+				onBackToHome={vi.fn()}
+				onNavigateToLogin={vi.fn()}
+				onNavigateToVerifyOtp={vi.fn()}
+			/>
+		);
+		await user.click(screen.getByText(/Porter/, { selector: "h3, p, span, div" }));
+		expect(screen.getByText("Chứng chỉ")).toBeInTheDocument();
+		await user.click(screen.getByRole("button", { name: /tiếp tục nhập thông tin/i }));
+
+		expect(screen.queryByPlaceholderText(/Tà Xùa/)).not.toBeInTheDocument();
+		await user.type(screen.getByPlaceholderText("Lý A Porter"), " Ly A Porter ");
+		await user.type(screen.getByPlaceholderText("porter@example.com"), "porter@example.com");
+		await user.type(screen.getByPlaceholderText("0912345678"), "0912345678");
+		await user.clear(screen.getByPlaceholderText("3"));
+		await user.type(screen.getByPlaceholderText("3"), "5");
+		await user.type(screen.getByPlaceholderText("PTR-8821"), " PTR-1234 ");
+		const passwordInputs = screen.getAllByPlaceholderText("••••••••");
+		await user.type(passwordInputs[0], "s3cretPass");
+		await user.type(passwordInputs[1], "s3cretPass");
+		await user.click(submitButton());
+
+		await waitFor(() => expect(registerMock).toHaveBeenCalledTimes(1));
+		expect(registerMock).toHaveBeenCalledWith({
+			email: "porter@example.com",
+			phone: "0912345678",
+			password: "s3cretPass",
+			role: "porter",
+			fullName: "Ly A Porter",
+			experienceYears: 5,
+			certifications: ["PTR-1234"],
 		});
 	});
 

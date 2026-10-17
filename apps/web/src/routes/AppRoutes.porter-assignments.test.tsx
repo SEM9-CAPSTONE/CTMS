@@ -10,6 +10,11 @@ vi.mock("../features/auth/hooks/useIdleLogout", () => ({ useIdleLogout: () => un
 vi.mock("../features/camper-profile/services/camper-profile.service", () => ({
 	camperProfileService: { getProfile: vi.fn().mockResolvedValue(null) },
 }));
+vi.mock("../features/porter-verification/services/porter-verification.service", () => ({
+	porterVerificationService: {
+		getMine: vi.fn().mockResolvedValue({ porterId: "porter", status: "approved", documents: [] }),
+	},
+}));
 vi.mock("../features/role-landing/pages/RoleLandingPage", () => ({
 	RoleLandingPage: () => <p>Porter dashboard</p>,
 }));

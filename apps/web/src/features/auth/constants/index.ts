@@ -33,6 +33,9 @@ export const REGISTER_STEPS = [
 	{ step: 3, label: "Xác minh OTP" },
 ];
 
+/** Porters finish registration by uploading a guide certificate for Admin review. */
+export const PORTER_REGISTER_STEPS = [...REGISTER_STEPS, { step: 4, label: "Chứng chỉ" }];
+
 export const ROLE_OPTIONS: RoleOption[] = [
 	{
 		id: "camper",

@@ -5,7 +5,7 @@ import { HostRegisterForm } from "../components/HostRegisterForm";
 import { PorterRegisterForm } from "../components/PorterRegisterForm";
 import { RegisterStepper } from "../components/RegisterStepper";
 import { RoleSelectionCard } from "../components/RoleSelectionCard";
-import { ROLE_OPTIONS } from "../constants";
+import { PORTER_REGISTER_STEPS, REGISTER_STEPS, ROLE_OPTIONS } from "../constants";
 import { useRegisterForm } from "../hooks/useRegisterForm";
 import type { RegisterPageProps } from "../types";
 
@@ -75,7 +75,10 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({
 					</div>
 
 					{/* Stepper Progress Bar (Step 3 "Xác minh OTP" happens on VerifyOtpPage) */}
-					<RegisterStepper currentStep={currentStep} />
+					<RegisterStepper
+						currentStep={currentStep}
+						steps={selectedRole === "porter" ? PORTER_REGISTER_STEPS : REGISTER_STEPS}
+					/>
 
 					<div className="my-4 border-t border-[#f0f4f0]" />
 
