@@ -1,8 +1,7 @@
-import { CheckCircle2, Clock, Loader2, MapPin, XCircle } from "lucide-react";
+import { CheckCircle2, Clock, Loader2, XCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "../../../shared/components/Button";
 import type { PorterRequest, PorterRequestStatus } from "../types";
-import { formatDateRange } from "./TripCard";
 
 const statusLabels: Record<PorterRequestStatus, string> = {
 	pending: "Đang chờ phản hồi",
@@ -28,6 +27,10 @@ function formatDateTime(value: string) {
 		hour: "2-digit",
 		minute: "2-digit",
 	});
+}
+
+function formatTripDateTimeRange(startsAt: string, endsAt: string) {
+	return `${formatDateTime(startsAt)} - ${formatDateTime(endsAt)}`;
 }
 
 export interface PorterRequestCardProps {
@@ -86,13 +89,7 @@ export function PorterRequestCard({
 					{trip && (
 						<p className="mt-2 flex items-center gap-2 text-xs font-semibold text-[#667a6d]">
 							<Clock className="size-4" />
-							{formatDateRange(trip.startsAt, trip.endsAt)}
-						</p>
-					)}
-					{trip?.meetingAt && (
-						<p className="mt-1 flex items-center gap-2 text-xs font-semibold text-[#667a6d]">
-							<MapPin className="size-4" />
-							Tập trung: {formatDateTime(trip.meetingAt)}
+							{formatTripDateTimeRange(trip.startsAt, trip.endsAt)}
 						</p>
 					)}
 					<div className="mt-2 space-y-1 text-xs font-semibold text-[#667a6d]">
@@ -103,7 +100,6 @@ export function PorterRequestCard({
 						{isPending && isExpired && (
 							<p className="text-amber-800">Đã quá hạn phản hồi. Tải lại để cập nhật trạng thái.</p>
 						)}
-						{trip && <p>Kết thúc: {formatDateTime(trip.endsAt)}</p>}
 					</div>
 					{request.note && <p className="mt-3 text-sm text-[#425048]">{request.note}</p>}
 				</div>

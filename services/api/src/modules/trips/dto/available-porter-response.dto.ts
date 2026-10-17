@@ -9,6 +9,9 @@ export class AvailablePorterResponseDto {
 	@ApiProperty({ type: String, nullable: true })
 	displayName!: string | null;
 
+	@ApiProperty({ type: String, nullable: true })
+	avatarUrl!: string | null;
+
 	@ApiProperty()
 	experienceYears!: number;
 

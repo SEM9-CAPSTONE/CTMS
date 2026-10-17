@@ -26,6 +26,7 @@ export interface AvailablePorterPage {
 interface AvailablePorterRow {
 	porterId: string;
 	displayName: string | null;
+	avatarUrl: string | null;
 	experienceYears: number | string;
 	availabilityStatus: PorterAvailabilityStatus;
 	ratingAvg: number | string;
@@ -98,6 +99,7 @@ export class AvailablePortersRepository extends Repository<PorterProfile> {
 			`SELECT
 				profile."porter_id" AS "porterId",
 				candidate."full_name" AS "displayName",
+				candidate."avatar_url" AS "avatarUrl",
 				profile."experience_years" AS "experienceYears",
 				profile."availability_status" AS "availabilityStatus",
 				profile."rating_avg" AS "ratingAvg",
@@ -114,6 +116,7 @@ export class AvailablePortersRepository extends Repository<PorterProfile> {
 			items: rows.map((row) => ({
 				porterId: row.porterId,
 				displayName: row.displayName,
+				avatarUrl: row.avatarUrl,
 				experienceYears: Number(row.experienceYears),
 				availabilityStatus: row.availabilityStatus,
 				ratingAvg: Number(row.ratingAvg),

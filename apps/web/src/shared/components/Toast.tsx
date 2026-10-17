@@ -84,7 +84,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 						data-testid={`toast-${item.type}`}
 						className={`pointer-events-auto flex items-start gap-3 rounded-2xl p-4 shadow-xl border backdrop-blur-md transition-all animate-in fade-in slide-in-from-top-4 duration-200 ${
 							item.type === "success"
-								? "bg-emerald-900/95 text-white border-emerald-700"
+								? "bg-emerald-50/95 text-emerald-900 border-emerald-200"
 								: item.type === "error"
 									? "bg-red-900/95 text-white border-red-700"
 									: item.type === "warning"
@@ -93,7 +93,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 						}`}
 					>
 						{item.type === "success" && (
-							<CheckCircle2 className="size-5 shrink-0 text-emerald-400 mt-0.5" />
+							<CheckCircle2 className="size-5 shrink-0 text-emerald-600 mt-0.5" />
 						)}
 						{item.type === "error" && <XCircle className="size-5 shrink-0 text-red-400 mt-0.5" />}
 						{item.type === "warning" && (

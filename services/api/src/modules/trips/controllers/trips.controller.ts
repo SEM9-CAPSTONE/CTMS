@@ -103,7 +103,7 @@ export class TripsController {
 
 	@Get("porter-candidates")
 	@Roles(UserRole.HOST)
-	@ApiOperation({ summary: "List upcoming owned Trips that do not have an assigned Porter" })
+	@ApiOperation({ summary: "List upcoming owned Trips available for Porter search" })
 	@ApiResponse({ status: 200, type: TripResponseDto, isArray: true })
 	@ApiResponse({ status: 401, description: "Authentication required" })
 	@ApiResponse({ status: 403, description: "Host role required" })

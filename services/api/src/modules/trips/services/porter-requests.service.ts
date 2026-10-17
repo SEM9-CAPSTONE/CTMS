@@ -72,10 +72,6 @@ export class PorterRequestsService {
 			if (trip.status !== TripStatus.PUBLISHED) {
 				throw new ConflictException("Only upcoming published Trips can request Porters");
 			}
-			if (await porterRequests.hasActiveAssignmentForTrip(tripId)) {
-				throw new ConflictException("Trip already has an assigned Porter");
-			}
-
 			await this.assertPorterEligible(manager, {
 				tripId,
 				porterId: dto.porterId,
@@ -163,7 +159,9 @@ export class PorterRequestsService {
 
 			if (request.status === PorterRequestStatus.ACCEPTED) {
 				const existing = await porterRequests.findByIdWithContext(requestId);
-				if (existing?.assignment) return { request: existing, changed: false };
+				if (existing?.assignment) {
+					return { request: existing, changed: false, declinedRequests: [] };
+				}
 				throw new ConflictException("Accepted Porter Request is missing its Assignment");
 			}
 			if (request.status !== PorterRequestStatus.PENDING) {
@@ -177,16 +175,12 @@ export class PorterRequestsService {
 					PorterRequestStatus.EXPIRED,
 					now
 				);
-				return { request: expired, changed: true };
+				return { request: expired, changed: true, declinedRequests: [] };
 			}
 
 			if (trip.status !== TripStatus.PUBLISHED) {
 				throw new ConflictException("Trip state does not allow Porter assignment");
 			}
-			if (await porterRequests.hasActiveAssignmentForTrip(request.tripId)) {
-				throw new ConflictException("Trip already has an assigned Porter");
-			}
-
 			await this.assertPorterEligible(manager, {
 				tripId: request.tripId,
 				porterId: request.porterId,
@@ -204,7 +198,7 @@ export class PorterRequestsService {
 					PorterRequestStatus.EXPIRED,
 					now
 				);
-				return { request: expired, changed: true };
+				return { request: expired, changed: true, declinedRequests: [] };
 			}
 			if (trip.startsAt.getTime() <= now.getTime()) {
 				throw new ConflictException("Trip has already started");
@@ -218,6 +212,13 @@ export class PorterRequestsService {
 				PorterRequestStatus.ACCEPTED,
 				now
 			);
+			const declinedRequests = await porterRequests.declinePendingForOverlappingTrips({
+				porterId: request.porterId,
+				acceptedTripId: request.tripId,
+				startsAt: trip.startsAt,
+				endsAt: trip.endsAt,
+				respondedAt: now,
+			});
 			return {
 				request: {
 					...accepted,
@@ -232,10 +233,14 @@ export class PorterRequestsService {
 					assignment,
 				},
 				changed: true,
+				declinedRequests,
 			};
 		});
 
 		if (result.changed) this.emitStateChangedNotification(result.request);
+		for (const declinedRequest of result.declinedRequests) {
+			this.emitStateChangedNotification(declinedRequest);
+		}
 		return toPorterRequestResponse(result.request);
 	}
 
