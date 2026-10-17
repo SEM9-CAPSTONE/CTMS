@@ -4,6 +4,8 @@ const runsMockedCtms26Only = process.argv.some((arg) => /ctms-26/i.test(arg));
 
 export default defineConfig({
 	testDir: "./tests/e2e",
+	// CTMS49 owns isolated API/database ports through its dedicated configuration.
+	testIgnore: "**/ctms-49-report-trip-incident.spec.ts",
 	fullyParallel: false,
 	workers: 1,
 	retries: 0,

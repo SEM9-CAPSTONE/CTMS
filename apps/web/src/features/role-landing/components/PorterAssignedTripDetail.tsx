@@ -2,6 +2,7 @@ import { AlertCircle, ArrowLeft, CalendarDays, Loader2, MapPin, RefreshCw } from
 import { Suspense, lazy, useState } from "react";
 import { Button } from "../../../shared/components/Button";
 import type { RouteCheckpoint } from "../../trekking-routes/types";
+import { TripIncidentsPanel } from "../../trip-incidents";
 import { useAssignedTripOperations } from "../../trips/hooks/useAssignedTrips";
 import type { PorterTripOperations, PorterTripWaypoint } from "../../trips/types";
 import {
@@ -20,12 +21,13 @@ const RouteCheckpointMap = lazy(() =>
 );
 const ignoreLocationSelection = () => {};
 
-type DetailTab = "schedule" | "route" | "members";
+type DetailTab = "schedule" | "route" | "members" | "incidents";
 
 const detailTabs: { key: DetailTab; label: string }[] = [
 	{ key: "schedule", label: "Lịch trình" },
 	{ key: "route", label: "Tuyến đường" },
 	{ key: "members", label: "Thành viên" },
+	{ key: "incidents", label: "Sự cố" },
 ];
 
 const waypointTypeLabels: Record<PorterTripWaypoint["type"], string> = {
@@ -325,7 +327,7 @@ export function PorterAssignedTripDetailView({
 				</div>
 			)}
 
-			{!operations.isLoading && !operations.error && trip && phase && (
+			{!operations.isLoading && trip && phase && (
 				<>
 					<div className="mt-4 flex items-start justify-between gap-4">
 						<div className="min-w-0">
@@ -365,7 +367,11 @@ export function PorterAssignedTripDetailView({
 						<MeetingPointSummary trip={trip} />
 					</div>
 
-					<div role="tablist" aria-label="Thông tin chuyến đi" className="mt-5 flex gap-2">
+					<div
+						role="tablist"
+						aria-label="Thông tin chuyến đi"
+						className="mt-5 flex flex-wrap gap-2"
+					>
 						{detailTabs.map((item) => (
 							<button
 								key={item.key}
@@ -386,6 +392,9 @@ export function PorterAssignedTripDetailView({
 						{tab === "schedule" && <ScheduleTab trip={trip} />}
 						{tab === "route" && <RouteTab trip={trip} />}
 						{tab === "members" && <MembersTab trip={trip} />}
+						{tab === "incidents" && (
+							<TripIncidentsPanel key={trip.tripId} tripId={trip.tripId} tripStatus={trip.status} />
+						)}
 					</div>
 				</>
 			)}

@@ -54,6 +54,8 @@ export function useAssignedTripOperations(tripId: string | null) {
 		refetchInterval: 15_000,
 	});
 	const isRevoked = query.error instanceof HttpError && [403, 404].includes(query.error.status);
+	const isAccessDenied =
+		isRevoked || (query.error instanceof HttpError && query.error.status === 401);
 	useEffect(() => {
 		if (isRevoked && porterId)
 			void queryClient.invalidateQueries({
@@ -62,9 +64,11 @@ export function useAssignedTripOperations(tripId: string | null) {
 			});
 	}, [isRevoked, porterId, queryClient]);
 	return {
-		data: !porterId || query.error ? undefined : query.data,
+		// Keep a previously authorized context available for offline incident capture.
+		// Authentication failures and explicit revocation still hide the cached data.
+		data: !porterId || isAccessDenied ? undefined : query.data,
 		isLoading: !!tripId && !!porterId && query.isPending,
-		isStale: query.isStale,
+		isStale: query.isStale || !!query.error,
 		error: query.error
 			? isRevoked
 				? "Phân công không còn hợp lệ hoặc bạn không có quyền xem chuyến đi này."

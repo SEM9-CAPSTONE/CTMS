@@ -97,7 +97,7 @@ describe("PorterAssignedTripDetail", () => {
 		localStorage.clear();
 	});
 
-	it("shows the overview, Trip meeting point and exactly three tabs", () => {
+	it("shows the overview, Trip meeting point and four tabs including incidents", () => {
 		render(<PorterAssignedTripDetailView operations={operations()} />);
 		expect(screen.getByRole("heading", { level: 1, name: "Trekking Bạch Mã" })).toBeInTheDocument();
 		expect(screen.getByText("Sắp diễn ra")).toBeInTheDocument();
@@ -109,6 +109,7 @@ describe("PorterAssignedTripDetail", () => {
 			"Lịch trình",
 			"Tuyến đường",
 			"Thành viên",
+			"Sự cố",
 		]);
 	});
 
@@ -208,6 +209,14 @@ describe("PorterAssignedTripDetail", () => {
 		expect(state.refetch).toHaveBeenCalledOnce();
 		fireEvent.click(screen.getByRole("button", { name: "Quay lại danh sách phân công" }));
 		expect(onBack).toHaveBeenCalledOnce();
+	});
+
+	it("keeps the incident tab accessible with a previously authorized offline snapshot", () => {
+		render(
+			<PorterAssignedTripDetailView operations={operations(trip, "Không thể kết nối máy chủ")} />
+		);
+		expect(screen.getByRole("alert")).toHaveTextContent("Không thể kết nối máy chủ");
+		expect(screen.getByRole("tab", { name: "Sự cố" })).toBeInTheDocument();
 	});
 
 	it("loads the assigned Trip and reports a revoked assignment", async () => {

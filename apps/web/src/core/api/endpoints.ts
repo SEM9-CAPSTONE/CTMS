@@ -78,6 +78,9 @@ export const API_ENDPOINTS = {
 		CONFIGURE_WAYPOINTS: (tripId: string) => `/trips/${tripId}/waypoints`,
 		WAYPOINTS: (tripId: string) => `/trips/${tripId}/waypoints`,
 		WAYPOINT: (tripId: string, waypointId: string) => `/trips/${tripId}/waypoints/${waypointId}`,
+		INCIDENTS: (tripId: string) => `/trips/${tripId}/incidents`,
+		INCIDENT_MEDIA: (tripId: string, incidentId: string) =>
+			`/trips/${tripId}/incidents/${incidentId}/media`,
 		SUBMIT_FOR_APPROVAL: (tripId: string) => `/trips/${tripId}/submit`,
 		MEMBERS: (tripId: string) => `/trips/${tripId}/members`,
 		MEMBER_STATUS: (tripId: string, bookingId: string, memberId: string) =>

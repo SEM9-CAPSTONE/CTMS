@@ -37,6 +37,7 @@ export const queryKeys = {
 		assignedOperations: (porterId: string, tripId: string) =>
 			["trips", "assigned", porterId, tripId] as const,
 		hostPorterAssignments: ["trips", "porter-assignments", "host"] as const,
+		incidents: (userId: string, tripId: string) => ["trips", tripId, "incidents", userId] as const,
 		all: ["trips"] as const,
 		list: (filters?: Record<string, unknown>) => ["trips", "list", filters] as const,
 		detail: (id: string) => ["trips", "detail", id] as const,
