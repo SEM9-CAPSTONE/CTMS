@@ -1,6 +1,6 @@
 <mxfile host="65bd71144e">
     <diagram id="update-trip-availability-realtime" name="Update Trip Availability in Real Time Sequence Diagram">
-        <mxGraphModel dx="942" dy="448" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1380" pageHeight="1450" background="#ffffff" math="0" shadow="0">
+        <mxGraphModel dx="1716" dy="1342" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1380" pageHeight="1450" background="#ffffff" math="0" shadow="0">
             <root>
                 <mxCell id="0"/>
                 <mxCell id="1" parent="0"/>
@@ -41,7 +41,7 @@
                     <mxGeometry x="1120" y="75" width="160" height="785" as="geometry"/>
                 </mxCell>
                 <mxCell id="act_db" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_db" vertex="1">
-                    <mxGeometry x="75" y="205" width="10" height="480" as="geometry"/>
+                    <mxGeometry x="75" y="205" width="10" height="77" as="geometry"/>
                 </mxCell>
                 <mxCell id="msg_1" value="1. View Trip Detail Page" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
                     <mxGeometry relative="1" as="geometry">

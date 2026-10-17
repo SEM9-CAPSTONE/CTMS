@@ -1,5 +1,5 @@
 import { Loader2, Minus, Plus, Trash2, X } from "lucide-react";
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import type { TripEquipmentOption } from "../../booking-equipment/types";
 import { formatVND } from "./TripCard";
 import { formatEquipmentCategory } from "./TripRentableEquipment";
@@ -39,6 +39,17 @@ export function RentableEquipmentModal({
 
 	const [activeCategory, setActiveCategory] = useState<string>("all");
 	const [isConfirmStep, setIsConfirmStep] = useState(false);
+
+	useEffect(() => {
+		if (isOpen) {
+			const map = new Map<string, number>();
+			for (const sel of initialSelected) {
+				map.set(sel.item.id, sel.quantity);
+			}
+			setSelectedMap(map);
+			setIsConfirmStep(false);
+		}
+	}, [isOpen, initialSelected]);
 
 	const categories = useMemo(() => {
 		const set = new Set<string>();
@@ -197,23 +208,14 @@ export function RentableEquipmentModal({
 										>
 											<div>
 												<div className="flex items-start justify-between gap-2">
-													<label className="flex items-start gap-2.5 cursor-pointer">
-														<input
-															type="checkbox"
-															checked={isSelected}
-															onChange={() => handleToggleItem(item)}
-															aria-label={`Chọn thuê ${item.name}`}
-															className="mt-0.5 size-4 rounded accent-[#164027]"
-														/>
-														<div>
-															<h4 className="text-xs font-extrabold text-[#10221b] leading-snug">
-																{item.name}
-															</h4>
-															<span className="mt-1 inline-block rounded-md bg-[#edf3ed] px-2 py-0.5 text-[10px] font-bold text-[#445b4c]">
-																{formatEquipmentCategory(item.category)}
-															</span>
-														</div>
-													</label>
+													<div>
+														<h4 className="text-xs font-extrabold text-[#10221b] leading-snug">
+															{item.name}
+														</h4>
+														<span className="mt-1 inline-block rounded-md bg-[#edf3ed] px-2 py-0.5 text-[10px] font-bold text-[#445b4c]">
+															{formatEquipmentCategory(item.category)}
+														</span>
+													</div>
 													<span className="shrink-0 text-xs font-extrabold text-[#164027]">
 														{formatVND(item.rentalPricePerDay)}
 														<span className="text-[10px] font-normal text-[#667a6d]"> / ngày</span>
@@ -235,11 +237,14 @@ export function RentableEquipmentModal({
 															<button
 																type="button"
 																aria-label={`Giảm số lượng ${item.name}`}
-																onClick={() =>
-																	handleQuantityChange(item.id, item.quantityTotal, -1)
-																}
-																disabled={currentQty <= 1}
-																className="flex size-6 items-center justify-center text-[#164027] hover:bg-gray-100 disabled:opacity-40"
+																onClick={() => {
+																	if (currentQty <= 1) {
+																		handleRemoveItem(item.id);
+																	} else {
+																		handleQuantityChange(item.id, item.quantityTotal, -1);
+																	}
+																}}
+																className="flex size-6 items-center justify-center text-[#164027] hover:bg-gray-100"
 															>
 																<Minus className="size-3" />
 															</button>
@@ -259,11 +264,21 @@ export function RentableEquipmentModal({
 																<Plus className="size-3" />
 															</button>
 														</div>
+														<button
+															type="button"
+															aria-label={`Bỏ chọn ${item.name}`}
+															onClick={() => handleRemoveItem(item.id)}
+															className="rounded-md p-1 text-[#667a6d] transition hover:bg-rose-50 hover:text-rose-600"
+															title="Bỏ chọn"
+														>
+															<Trash2 className="size-3.5" />
+														</button>
 													</div>
 												) : (
 													<button
 														type="button"
 														onClick={() => handleToggleItem(item)}
+														aria-label={`Chọn thuê ${item.name}`}
 														className="rounded-lg border border-[#cbd9ce] bg-white px-2.5 py-1 text-[11px] font-bold text-[#164027] hover:bg-[#edf3ed]"
 													>
 														+ Chọn thuê
@@ -278,39 +293,46 @@ export function RentableEquipmentModal({
 					) : (
 						/* Confirmation Step (Modal xác nhận) */
 						<div data-testid="equipment-confirm-modal-step" className="space-y-4">
-							<div className="divide-y divide-[#edf3ed] rounded-2xl border border-[#dfe8df] bg-[#fcfdfc]">
-								{selectedList.map((sel) => (
-									<div
-										key={sel.item.id}
-										className="flex items-center justify-between p-3.5 text-xs"
-									>
-										<div>
-											<p className="font-bold text-[#10221b]">{sel.item.name}</p>
-											<p className="text-[11px] text-[#667a6d]">
-												{formatEquipmentCategory(sel.item.category)} • Đơn giá:{" "}
-												{formatVND(sel.item.rentalPricePerDay)}/ngày
-											</p>
-										</div>
+							{selectedList.length > 0 ? (
+								<div className="divide-y divide-[#edf3ed] rounded-2xl border border-[#dfe8df] bg-[#fcfdfc]">
+									{selectedList.map((sel) => (
+										<div
+											key={sel.item.id}
+											className="flex items-center justify-between p-3.5 text-xs"
+										>
+											<div>
+												<p className="font-bold text-[#10221b]">{sel.item.name}</p>
+												<p className="text-[11px] text-[#667a6d]">
+													{formatEquipmentCategory(sel.item.category)} • Đơn giá:{" "}
+													{formatVND(sel.item.rentalPricePerDay)}/ngày
+												</p>
+											</div>
 
-										<div className="flex items-center gap-4 text-right">
-											<span className="rounded-md bg-[#edf3ed] px-2 py-0.5 font-bold text-[#164027]">
-												x{sel.quantity}
-											</span>
-											<span className="font-extrabold text-[#10221b] min-w-[80px]">
-												{formatVND(sel.item.rentalPricePerDay * sel.quantity)}
-											</span>
-											<button
-												type="button"
-												aria-label={`Bỏ chọn ${sel.item.name}`}
-												onClick={() => handleRemoveItem(sel.item.id)}
-												className="text-gray-400 hover:text-rose-600 transition"
-											>
-												<Trash2 className="size-3.5" />
-											</button>
+											<div className="flex items-center gap-4 text-right">
+												<span className="rounded-md bg-[#edf3ed] px-2 py-0.5 font-bold text-[#164027]">
+													x{sel.quantity}
+												</span>
+												<span className="font-extrabold text-[#10221b] min-w-[80px]">
+													{formatVND(sel.item.rentalPricePerDay * sel.quantity)}
+												</span>
+												<button
+													type="button"
+													aria-label={`Bỏ chọn ${sel.item.name}`}
+													onClick={() => handleRemoveItem(sel.item.id)}
+													className="text-gray-400 hover:text-rose-600 transition"
+												>
+													<Trash2 className="size-3.5" />
+												</button>
+											</div>
 										</div>
-									</div>
-								))}
-							</div>
+									))}
+								</div>
+							) : (
+								<div className="rounded-2xl border border-dashed border-[#dfe8df] bg-[#fcfdfc] p-6 text-center text-xs text-[#667a6d]">
+									Bạn đã bỏ chọn toàn bộ thiết bị thuê kèm. Nhấn &quot;Xác nhận &amp; Áp dụng&quot;
+									để lưu lại.
+								</div>
+							)}
 						</div>
 					)}
 				</div>
@@ -349,11 +371,12 @@ export function RentableEquipmentModal({
 								</button>
 								<button
 									type="button"
-									disabled={selectedList.length === 0}
 									onClick={() => setIsConfirmStep(true)}
-									className="rounded-xl bg-[#164027] px-5 py-2 text-xs font-bold text-white transition hover:bg-[#0f2e1c] disabled:opacity-50 disabled:cursor-not-allowed"
+									className="rounded-xl bg-[#164027] px-5 py-2 text-xs font-bold text-white transition hover:bg-[#0f2e1c]"
 								>
-									Xác nhận thuê ({formatVND(totalRentalAmount)})
+									{selectedList.length > 0
+										? `Xác nhận thuê (${formatVND(totalRentalAmount)})`
+										: "Xác nhận không thuê"}
 								</button>
 							</>
 						) : (
@@ -368,7 +391,7 @@ export function RentableEquipmentModal({
 								</button>
 								<button
 									type="button"
-									disabled={isSubmitting || selectedList.length === 0}
+									disabled={isSubmitting}
 									onClick={handleFinalConfirm}
 									className="inline-flex items-center gap-1.5 rounded-xl bg-[#164027] px-5 py-2 text-xs font-bold text-white transition hover:bg-[#0f2e1c] disabled:opacity-50 disabled:cursor-not-allowed"
 								>

@@ -1,6 +1,6 @@
 <mxfile host="65bd71144e">
     <diagram id="send-sos-alert" name="Send SOS Alert in an Emergency Sequence Diagram">
-        <mxGraphModel dx="942" dy="448" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1450" background="#ffffff" math="0" shadow="0">
+        <mxGraphModel dx="1544" dy="1208" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1450" background="#ffffff" math="0" shadow="0">
             <root>
                 <mxCell id="0"/>
                 <mxCell id="1" parent="0"/>
@@ -47,7 +47,7 @@
                     <mxGeometry x="1350" y="75" width="170" height="745" as="geometry"/>
                 </mxCell>
                 <mxCell id="act_ext" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_ext" vertex="1">
-                    <mxGeometry x="80" y="235" width="10" height="390" as="geometry"/>
+                    <mxGeometry x="80" y="362" width="10" height="69" as="geometry"/>
                 </mxCell>
                 <mxCell id="msg_1" value="1. Press And Hold SOS Trigger Button for 3 Seconds" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
                     <mxGeometry relative="1" as="geometry">

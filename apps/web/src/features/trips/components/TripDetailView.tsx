@@ -1,5 +1,4 @@
 import {
-	AlertCircle,
 	Calendar,
 	Camera,
 	Check,
@@ -17,10 +16,8 @@ import {
 } from "lucide-react";
 import { type ComponentProps, type ReactNode, useEffect, useMemo, useState } from "react";
 import type { BookingDetails } from "../../booking-details/types";
-import { bookingEquipmentService } from "../../booking-equipment/services/booking-equipment.service";
 import { InitializeBookingMembersPanel } from "../../booking-members/components/InitializeBookingMembersPanel";
 import type { InitializeBookingMembersResponse } from "../../booking-members/types";
-import { BookingPaymentPanel } from "../../booking-payment/components/BookingPaymentPanel";
 import { PackingListModal } from "../../packing-list/components/PackingListModal";
 import { type BookTripResponse, type TripDetails, formatTripStatus } from "../types";
 import { type BookingAccess, BookingPanel } from "./BookingPanel";
@@ -51,6 +48,7 @@ export interface TripDetailViewProps {
 	onConflictDismiss?: () => void;
 	onConflictReload?: () => void;
 	onConflictRetry?: () => void;
+	onRefreshBooking?: () => Promise<void> | void;
 	onViewBookingDetails?: (bookingId: string) => void;
 	canManageTrip?: boolean;
 	hostOperations?: ComponentProps<typeof HostTripOperationsPanel>;
@@ -127,6 +125,7 @@ export function TripDetailView({
 	onConflictDismiss,
 	onConflictReload,
 	onConflictRetry,
+	onRefreshBooking,
 	onViewBookingDetails,
 	canManageTrip = false,
 	hostOperations,
@@ -138,6 +137,27 @@ export function TripDetailView({
 	const [selectedPreBookingEquipment, setSelectedPreBookingEquipment] = useState<
 		SelectedEquipmentItem[]
 	>([]);
+
+	useEffect(() => {
+		if (booking && restoredBookingDetails && Array.isArray(restoredBookingDetails.equipmentItems)) {
+			const items: SelectedEquipmentItem[] = restoredBookingDetails.equipmentItems.map((eq) => ({
+				item: {
+					id: eq.equipmentCatalogItemId,
+					name: eq.presentation?.currentName ?? "Thiết bị",
+					rentalPricePerDay: Number(eq.unitPrice),
+					category: "gear",
+					hostId: trip.hostId ?? "",
+					status: "active" as const,
+					quantityTotal: eq.quantity,
+					maintenanceSchedule: null,
+					createdAt: eq.createdAt,
+					updatedAt: eq.createdAt,
+				},
+				quantity: eq.quantity,
+			}));
+			setSelectedPreBookingEquipment(items);
+		}
+	}, [booking, restoredBookingDetails, trip.hostId]);
 
 	const equipmentRentalTotal = useMemo(() => {
 		return selectedPreBookingEquipment.reduce(
@@ -199,38 +219,11 @@ export function TripDetailView({
 		return () => window.removeEventListener("keydown", handleKeyDown);
 	}, [isLightboxOpen, tripImages.length]);
 
-	useEffect(() => {
-		if (booking?.id && selectedPreBookingEquipment.length > 0) {
-			const itemsToAdd = [...selectedPreBookingEquipment];
-			setSelectedPreBookingEquipment([]);
-			(async () => {
-				let latestTotal: string | undefined;
-				for (const sel of itemsToAdd) {
-					try {
-						const res = await bookingEquipmentService.addBookingItem(booking.id, {
-							equipmentCatalogItemId: sel.item.id,
-							quantity: sel.quantity,
-						});
-						if (res?.booking?.totalAmount) {
-							latestTotal = res.booking.totalAmount;
-						}
-					} catch (err) {
-						console.error("Lỗi khi thêm thiết bị đã chọn:", err);
-					}
-				}
-				if (latestTotal) {
-					setBookingTotalAmount(latestTotal);
-				}
-				setPackingListRefreshKey((k) => k + 1);
-			})();
-		}
-	}, [booking?.id, selectedPreBookingEquipment]);
-
 	const handleConfirmEquipment = async (selected: SelectedEquipmentItem[]) => {
+		setSelectedPreBookingEquipment(selected);
 		if (booking) {
 			setPackingListRefreshKey((k) => k + 1);
-		} else {
-			setSelectedPreBookingEquipment(selected);
+			await onRefreshBooking?.();
 		}
 	};
 
@@ -243,8 +236,24 @@ export function TripDetailView({
 		}
 	};
 
-	const currentTotalAmount =
-		bookingTotalAmount ?? booking?.totalAmount ?? booking?.basePrice ?? "0.00";
+	const effectiveBooking = useMemo(() => {
+		if (!booking) return null;
+		const basePriceNum = Number(booking.basePrice ?? 0);
+		const dbTotalNum = Number(bookingTotalAmount ?? booking.totalAmount ?? booking.basePrice ?? 0);
+		const computedTotal = (basePriceNum + equipmentRentalTotal).toFixed(2);
+		const finalTotal = bookingTotalAmount
+			? Number(bookingTotalAmount).toFixed(2)
+			: equipmentRentalTotal > 0
+				? computedTotal
+				: dbTotalNum > 0
+					? dbTotalNum.toFixed(2)
+					: computedTotal;
+		return {
+			...booking,
+			totalAmount: finalTotal,
+		};
+	}, [booking, equipmentRentalTotal, bookingTotalAmount]);
+
 	const registrationRisk = trip.registrationRisk ?? {
 		status: "unavailable" as const,
 		assessmentId: null,
@@ -294,26 +303,6 @@ export function TripDetailView({
 		const elevated = registrationRisk.factors.filter((factor) => factor.level !== "green");
 		return (elevated.length > 0 ? elevated : registrationRisk.factors).slice(0, 3);
 	}, [registrationRisk.factors]);
-
-	const includesList = useMemo<string[]>(() => {
-		if (!trip.includes) return [];
-		if (Array.isArray(trip.includes.items)) {
-			return (trip.includes.items as unknown[]).filter(
-				(item): item is string => typeof item === "string"
-			);
-		}
-		return [];
-	}, [trip.includes]);
-
-	const excludesList = useMemo<string[]>(() => {
-		if (!trip.excludes) return [];
-		if (Array.isArray(trip.excludes.items)) {
-			return (trip.excludes.items as unknown[]).filter(
-				(item): item is string => typeof item === "string"
-			);
-		}
-		return [];
-	}, [trip.excludes]);
 
 	return (
 		<div className="space-y-8">
@@ -648,49 +637,6 @@ export function TripDetailView({
 						)}
 					</section>
 
-					{/* Includes & Excludes */}
-					<section className="grid gap-6 sm:grid-cols-2">
-						{/* Inclusions */}
-						<div className="rounded-3xl border border-[#dfe8df] bg-white p-6 shadow-sm">
-							<h3 className="flex items-center gap-2 text-base font-extrabold text-[#164027]">
-								<ShieldCheck className="size-5 text-emerald-700" />
-								<span>Dịch vụ bao gồm</span>
-							</h3>
-							{includesList.length > 0 ? (
-								<ul className="mt-4 space-y-2.5 text-xs text-[#4f6356]">
-									{includesList.map((item) => (
-										<li key={item} className="flex items-start gap-2">
-											<Check className="size-4 shrink-0 text-emerald-700" />
-											<span>{item}</span>
-										</li>
-									))}
-								</ul>
-							) : (
-								<p className="mt-3 text-xs text-[#667a6d]">Theo thỏa thuận tiêu chuẩn.</p>
-							)}
-						</div>
-
-						{/* Exclusions */}
-						<div className="rounded-3xl border border-[#dfe8df] bg-white p-6 shadow-sm">
-							<h3 className="flex items-center gap-2 text-base font-extrabold text-rose-800">
-								<AlertCircle className="size-5 text-rose-700" />
-								<span>Không bao gồm</span>
-							</h3>
-							{excludesList.length > 0 ? (
-								<ul className="mt-4 space-y-2.5 text-xs text-[#4f6356]">
-									{excludesList.map((item) => (
-										<li key={item} className="flex items-start gap-2">
-											<X className="size-4 shrink-0 text-rose-600" />
-											<span>{item}</span>
-										</li>
-									))}
-								</ul>
-							) : (
-								<p className="mt-3 text-xs text-[#667a6d]">Chi phí cá nhân ngoài chương trình.</p>
-							)}
-						</div>
-					</section>
-
 					{/* Rentable Equipment Preview */}
 					<TripRentableEquipment
 						tripId={trip.id}
@@ -777,7 +723,7 @@ export function TripDetailView({
 								<BookingPanel
 									trip={trip}
 									bookingAccess={bookingAccess}
-									booking={booking}
+									booking={effectiveBooking}
 									isBooking={isBooking}
 									bookingError={bookingError}
 									fieldErrors={fieldErrors}
@@ -801,22 +747,14 @@ export function TripDetailView({
 												booking.holdExpiresAt &&
 													new Date(booking.holdExpiresAt).getTime() < Date.now()
 											)
-										) && (
-											<>
-												{booking.numPeople > 1 && (
-													<InitializeBookingMembersPanel
-														booking={booking}
-														confirmedRoster={confirmedRoster}
-														confirmedLabelsByUserId={confirmedLabelsByUserId}
-													/>
-												)}
-												<BookingPaymentPanel
+										) &&
+											booking.numPeople > 1 && (
+												<InitializeBookingMembersPanel
 													booking={booking}
-													bookingAccess={bookingAccess}
-													totalAmount={currentTotalAmount}
+													confirmedRoster={confirmedRoster}
+													confirmedLabelsByUserId={confirmedLabelsByUserId}
 												/>
-											</>
-										)}
+											)}
 										<button
 											type="button"
 											onClick={() => setIsPackingListModalOpen(true)}

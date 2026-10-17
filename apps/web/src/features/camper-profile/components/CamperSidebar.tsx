@@ -1,4 +1,4 @@
-import { Compass, LayoutDashboard, MapPin, Shield, Tent, UserCheck } from "lucide-react";
+import { LayoutDashboard, MapPin, Shield, Tent, UserCheck } from "lucide-react";
 import { HomeLink } from "../../../shared/components/HomeLink";
 import { LogoutActions } from "../../auth/components/LogoutActions";
 import type { CamperProfileData } from "../types";
@@ -22,13 +22,6 @@ const navItems: CamperSidebarItem[] = [
 	{ key: "overview", label: "Tổng quan", icon: LayoutDashboard },
 	{ key: "explore", label: "Khám phá địa điểm", icon: MapPin },
 	{ key: "bookings", label: "Đơn đặt chỗ", icon: Tent },
-	{
-		key: "trips",
-		label: "Chuyến đi của tôi",
-		icon: Compass,
-		disabled: true,
-		badge: "Sắp ra mắt",
-	},
 	{ key: "profile", label: "Hồ sơ & Cài đặt", icon: UserCheck },
 	{ key: "safety", label: "Trung tâm an toàn", icon: Shield },
 ];

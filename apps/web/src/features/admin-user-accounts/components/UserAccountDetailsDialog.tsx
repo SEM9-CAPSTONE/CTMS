@@ -1,4 +1,5 @@
-import { CalendarDays, Mail, MapPin, Phone, UserRound, X } from "lucide-react";
+import { CalendarDays, Mail, MapPin, Phone, UserRound, Users, X } from "lucide-react";
+import { useEffect } from "react";
 import type { UserAccountDetail } from "../types";
 import { AccountStatusBadge } from "./AccountStatusBadge";
 
@@ -9,21 +10,57 @@ export interface UserAccountDetailsDialogProps {
 	onClose: () => void;
 }
 
+const GENDER_LABELS: Record<string, string> = {
+	male: "Nam",
+	female: "Nữ",
+	other: "Khác",
+};
+
 export function UserAccountDetailsDialog({
 	open,
 	user,
 	isLoading,
 	onClose,
 }: UserAccountDetailsDialogProps) {
+	useEffect(() => {
+		if (!open) return;
+		const handleKeyDown = (event: KeyboardEvent) => {
+			if (event.key === "Escape") onClose();
+		};
+		window.addEventListener("keydown", handleKeyDown);
+		return () => window.removeEventListener("keydown", handleKeyDown);
+	}, [open, onClose]);
+
 	if (!open) return null;
+
+	const roleDisplay =
+		user?.roles && user.roles.length > 0
+			? user.roles.map((r) => r.toUpperCase()).join(", ")
+			: (user?.role ?? "").toUpperCase() || "CHƯA CẬP NHẬT";
+
+	const createdAtDisplay = user?.createdAt
+		? new Date(user.createdAt).toLocaleString("vi-VN")
+		: "Chưa cập nhật";
+
+	const genderDisplay = user?.gender
+		? (GENDER_LABELS[user.gender] ?? user.gender)
+		: "Chưa cập nhật";
+
 	return (
-		<dialog
-			open
+		// biome-ignore lint/a11y/useSemanticElements: custom modal overlay
+		<div
+			role="dialog"
 			aria-modal="true"
-			className="fixed inset-0 z-50 flex items-center justify-center bg-[#10221b]/50 p-4"
 			aria-labelledby="user-detail-title"
+			className="fixed inset-0 z-50 flex items-center justify-center bg-[#10221b]/50 p-4"
+			onClick={(e) => {
+				if (e.target === e.currentTarget) onClose();
+			}}
 		>
-			<div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
+			<div
+				className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl"
+				onClick={(e) => e.stopPropagation()}
+			>
 				<div className="flex items-center justify-between border-b border-[#e0ebe0] px-6 py-4">
 					<h2 id="user-detail-title" className="text-xl font-extrabold text-[#10221b]">
 						Chi tiết tài khoản
@@ -59,18 +96,15 @@ export function UserAccountDetailsDialog({
 								label="Số điện thoại"
 								value={user.phone || "Chưa cập nhật"}
 							/>
-							<DetailItem icon={UserRound} label="Vai trò" value={user.role.toUpperCase()} />
+							<DetailItem icon={UserRound} label="Vai trò" value={roleDisplay} />
+							<DetailItem icon={Users} label="Giới tính" value={genderDisplay} />
 							<DetailItem
 								icon={CalendarDays}
 								label="Ngày sinh"
 								value={user.dateOfBirth || "Chưa cập nhật"}
 							/>
 							<DetailItem icon={MapPin} label="Địa chỉ" value={user.address || "Chưa cập nhật"} />
-							<DetailItem
-								icon={CalendarDays}
-								label="Ngày tạo"
-								value={new Date(user.createdAt).toLocaleString("vi-VN")}
-							/>
+							<DetailItem icon={CalendarDays} label="Ngày tạo" value={createdAtDisplay} />
 						</div>
 						<div className="rounded-xl bg-[#f4f7f2] p-4">
 							<p className="text-xs font-bold uppercase tracking-wide text-[#667a6d]">Giới thiệu</p>
@@ -79,7 +113,7 @@ export function UserAccountDetailsDialog({
 					</div>
 				)}
 			</div>
-		</dialog>
+		</div>
 	);
 }
 

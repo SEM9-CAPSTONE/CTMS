@@ -41,6 +41,7 @@ import { BookingMemberStatus } from "./booking-member-status.enum";
 import { BookingMembersRepository } from "./booking-members.repository";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { BookingsRepository } from "./bookings.repository";
+import { DEFAULT_CANCELLATION_POLICY } from "./cancellation-policy";
 import type { AddBookingItemResponseDto } from "./dto/add-booking-item-response.dto";
 import type { AddBookingItemDto } from "./dto/add-booking-item.dto";
 import type { BookingDetailsResponseDto } from "./dto/booking-details-response.dto";
@@ -55,6 +56,8 @@ import type {
 	ResolveBookingMemberCandidateDto,
 	ResolveBookingMemberCandidateResponseDto,
 } from "./dto/resolve-booking-member-candidate.dto";
+import type { SyncBookingItemsResponseDto } from "./dto/sync-booking-items-response.dto";
+import type { SyncBookingItemsDto } from "./dto/sync-booking-items.dto";
 import type { BookingItem } from "./entities/booking-item.entity";
 import type { BookingMember } from "./entities/booking-member.entity";
 import type { PackingListGeneratedFrom } from "./entities/packing-list-generation.entity";
@@ -453,7 +456,8 @@ export class BookingsService {
 				tripEndsAtSnapshot: trip.endsAt,
 				basePrice,
 				totalAmount: basePrice,
-				cancellationPolicySnapshot: trip.cancellationPolicy,
+				cancellationPolicySnapshot: (trip.cancellationPolicy ??
+					DEFAULT_CANCELLATION_POLICY) as Record<string, unknown>,
 				idempotencyKey: normalizedKey,
 				requestFingerprint,
 				createdAt,
@@ -638,6 +642,156 @@ export class BookingsService {
 		}
 		const items = await this.bookingItemsRepository.findByBooking(bookingId);
 		return items.map((item) => this.toItemResponse(item));
+	}
+
+	/**
+	 * Synchronizes and authoritative replaces equipment rental items on a Booking,
+	 * then recalculates the Booking's totalAmount and inventory reservations atomically.
+	 */
+	async syncItems(
+		userId: string,
+		bookingId: string,
+		dto: SyncBookingItemsDto
+	): Promise<SyncBookingItemsResponseDto> {
+		return this.dataSource.transaction(async (manager: EntityManager) => {
+			const bookingRepository = manager.withRepository(this.bookingsRepository);
+			const booking = await bookingRepository.findForUpdate(bookingId);
+			if (!booking) throw new NotFoundException("Booking not found");
+			if (booking.userId !== userId) {
+				throw new ForbiddenException("Only the Booking owner can modify items");
+			}
+			this.assertBookingOpenForItems(booking);
+
+			const bookingItemsRepository = manager.withRepository(this.bookingItemsRepository);
+			const reservationsRepository = manager.withRepository(this.equipmentReservationsRepository);
+			const equipmentRepository = manager.withRepository(this.equipmentCatalogRepository);
+
+			const trip = await manager
+				.getRepository(Trip)
+				.findOne({ where: { id: booking.tripId }, select: { id: true, hostId: true } });
+			if (!trip) throw new NotFoundException("Trip not found");
+
+			const tripStartsAt = booking.tripStartsAtSnapshot;
+			const tripEndsAt = booking.tripEndsAtSnapshot;
+			if (!tripStartsAt || !tripEndsAt) {
+				throw new Error("Booking is missing its Trip date snapshot");
+			}
+			const rentalStartDate = this.toDateOnly(tripStartsAt);
+			const rentalEndDate = this.toDateOnly(tripEndsAt);
+			const rentalDays = this.calculateRentalDays(tripStartsAt, tripEndsAt);
+
+			// Delete existing reservations and booking items for this booking
+			const existingItems = await bookingItemsRepository.find({ where: { bookingId: booking.id } });
+			if (existingItems.length > 0) {
+				const existingIds = existingItems.map((item) => item.id);
+				await reservationsRepository.delete({ bookingItemId: In(existingIds) });
+				await bookingItemsRepository.delete({ bookingId: booking.id });
+			}
+
+			const consolidatedMap = new Map<string, number>();
+			if (Array.isArray(dto.items)) {
+				for (const entry of dto.items) {
+					if (!Number.isSafeInteger(entry.quantity) || entry.quantity < 1) {
+						throw this.validationError("quantity", "quantity must be a positive integer");
+					}
+					const current = consolidatedMap.get(entry.equipmentCatalogItemId) ?? 0;
+					consolidatedMap.set(entry.equipmentCatalogItemId, current + entry.quantity);
+				}
+			}
+
+			const savedItems: BookingItem[] = [];
+			for (const [equipmentCatalogItemId, quantity] of consolidatedMap.entries()) {
+				const equipment = await equipmentRepository.findForUpdate(equipmentCatalogItemId);
+				if (!equipment) throw new NotFoundException("Equipment catalog item not found");
+				if (equipment.status !== EquipmentCatalogStatus.ACTIVE) {
+					throw this.validationError("equipmentCatalogItemId", "Equipment is not active");
+				}
+				if (equipment.hostId !== trip.hostId) {
+					throw this.validationError(
+						"equipmentCatalogItemId",
+						"Equipment does not belong to this Trip's Host"
+					);
+				}
+
+				const alreadyReserved = await reservationsRepository.sumOverlappingQuantity(
+					equipment.id,
+					rentalStartDate,
+					rentalEndDate
+				);
+				const remaining = equipment.quantityTotal - alreadyReserved;
+				if (quantity > remaining) {
+					throw new ConflictException(
+						`Only ${Math.max(remaining, 0)} unit(s) of this equipment are available for the requested dates`
+					);
+				}
+
+				const unitPrice = equipment.rentalPricePerDay.toFixed(2);
+				const totalPrice = this.multiplyMoney(unitPrice, quantity, rentalDays);
+
+				const bookingItem = bookingItemsRepository.create({
+					bookingId: booking.id,
+					itemType: BookingItemType.EQUIPMENT,
+					equipmentCatalogItemId: equipment.id,
+					quantity,
+					unitPrice,
+					rentalDays,
+					totalPrice,
+					idempotencyKey: null,
+					requestFingerprint: null,
+				});
+				const saved = await bookingItemsRepository.save(bookingItem);
+				savedItems.push(saved);
+
+				await reservationsRepository.save(
+					reservationsRepository.create({
+						bookingItemId: saved.id,
+						equipmentCatalogItemId: equipment.id,
+						quantity,
+						rentalStartDate,
+						rentalEndDate,
+					})
+				);
+			}
+
+			if (booking.basePrice === null) throw new Error("Booking is missing its base price");
+			const equipmentTotal = await bookingItemsRepository.sumTotalPriceForBooking(booking.id);
+			const formattedEquipmentTotal = Number(equipmentTotal).toFixed(2);
+			booking.totalAmount = this.addMoney(booking.basePrice, formattedEquipmentTotal);
+
+			if (
+				booking.paymentStatus === BookingPaymentStatus.NOT_REQUIRED &&
+				booking.totalAmount !== "0.00"
+			) {
+				booking.status = BookingStatus.PENDING_PAYMENT;
+				booking.paymentStatus = BookingPaymentStatus.UNPAID;
+				if (!booking.holdExpiresAt) {
+					booking.holdExpiresAt = new Date(
+						Date.now() + this.getHoldTtlMinutes() * MILLISECONDS_PER_MINUTE
+					);
+				}
+			}
+
+			const savedBooking = await bookingRepository.save(booking);
+
+			await manager.getRepository(AuditLog).save({
+				actorId: userId,
+				action: "booking_items.synced",
+				targetType: "booking",
+				targetId: booking.id,
+				before: null,
+				after: {
+					bookingId: booking.id,
+					totalAmount: savedBooking.totalAmount,
+					itemCount: savedItems.length,
+				},
+				reason: "camper_sync_booking_equipment_items",
+			});
+
+			return {
+				items: savedItems.map((item) => this.toItemResponse(item)),
+				booking: this.toResponse(savedBooking),
+			};
+		});
 	}
 
 	private assertBookingOpenForItems(booking: Booking): void {

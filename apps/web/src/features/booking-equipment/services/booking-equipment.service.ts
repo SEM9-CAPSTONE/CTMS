@@ -3,6 +3,8 @@ import type {
 	AddBookingItemInput,
 	AddBookingItemResult,
 	BookingItem,
+	SyncBookingItemsInput,
+	SyncBookingItemsResult,
 	TripEquipmentOption,
 } from "../types";
 
@@ -30,6 +32,8 @@ export const bookingEquipmentService = {
 					? crypto.randomUUID()
 					: `${Date.now()}-${Math.random()}`)
 		),
+	syncItems: (bookingId: string, input: SyncBookingItemsInput): Promise<SyncBookingItemsResult> =>
+		httpClient.put<SyncBookingItemsResult>(API_ENDPOINTS.BOOKINGS.ITEMS(bookingId), input),
 	listItems: (bookingId: string): Promise<BookingItem[]> =>
 		httpClient.get<BookingItem[]>(API_ENDPOINTS.BOOKINGS.ITEMS(bookingId)),
 };
