@@ -5,12 +5,10 @@ import { Card } from "../../../shared/components/Card";
 import { useHostOperationalOverview } from "../hooks/useHostOperationalOverview";
 import type { Metric } from "../types";
 import { getOperationalTripHeading } from "../utils/host-operational-overview";
-import { HostOperationalTripSelector } from "./HostOperationalTripSelector";
+import { HostOperationalTripSelector, type OperationalStatus } from "./HostOperationalTripSelector";
 import { HostTripMap } from "./HostTripMap";
 import { MetricCard } from "./MetricCard";
 
-const statusLabels = { published: "Đang mở bán", ongoing: "Đang diễn ra" };
-const riskLabels = { green: "Thấp", yellow: "Trung bình", red: "Cao" };
 const formatDateTime = (value: string | number) =>
 	new Date(value).toLocaleString("vi-VN", {
 		timeZone: "Asia/Ho_Chi_Minh",
@@ -30,6 +28,7 @@ export function HostOperationalOverview({
 }) {
 	const data = useHostOperationalOverview(hostId);
 	const [selectedTripId, setSelectedTripId] = useState<string>();
+	const [statusFilter, setStatusFilter] = useState<OperationalStatus>();
 	if (data.isLoading) return <output>Đang tải tổng quan vận hành...</output>;
 	if (data.isError)
 		return (
@@ -74,7 +73,17 @@ export function HostOperationalOverview({
 			icon: BriefcaseBusiness,
 		},
 	];
-	const trip = data.operationalTrips.find((item) => item.id === selectedTripId) ?? data.focusTrip;
+	// Default to the status of the selected/focus trip until the host picks a filter.
+	const defaultTrip =
+		data.operationalTrips.find((item) => item.id === selectedTripId) ?? data.focusTrip;
+	const activeStatus: OperationalStatus =
+		statusFilter ?? (defaultTrip?.displayStatus === "published" ? "published" : "ongoing");
+	const filteredTrips = data.operationalTrips.filter((item) => item.displayStatus === activeStatus);
+	const trip = filteredTrips.find((item) => item.id === selectedTripId) ?? filteredTrips[0];
+	const handleStatusChange = (status: OperationalStatus) => {
+		setStatusFilter(status);
+		setSelectedTripId(data.operationalTrips.find((item) => item.displayStatus === status)?.id);
+	};
 	return (
 		<>
 			<div className="flex flex-wrap items-center justify-between gap-3 text-xs text-[#667a6d]">
@@ -99,54 +108,24 @@ export function HostOperationalOverview({
 				<Card className="grid items-start gap-6 rounded-[28px] border-[#dfe8df] lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
 					<div className="min-w-0">
 						<h2 className="text-xl font-extrabold">{getOperationalTripHeading(trip)}</h2>
-						<HostOperationalTripSelector
-							trips={data.operationalTrips}
-							selectedTripId={trip?.id}
-							onSelect={setSelectedTripId}
-						/>
-						{trip ? (
-							<div className="mt-5">
-								<div className="min-w-0 space-y-4">
-									<h3 className="text-2xl font-extrabold text-[#164027]">{trip.title}</h3>
-									<p>
-										{trip.displayStatus === "ongoing"
-											? statusLabels.ongoing
-											: statusLabels.published}
-									</p>
-									<dl className="grid gap-4 rounded-2xl bg-[#f2f7ef] p-4 sm:grid-cols-2">
-										<div>
-											<dt>Khởi hành</dt>
-											<dd className="font-bold">{formatDateTime(trip.startsAt)}</dd>
-										</div>
-										<div>
-											<dt>Kết thúc</dt>
-											<dd className="font-bold">{formatDateTime(trip.endsAt)}</dd>
-										</div>
-										<div>
-											<dt>Chỗ giữ / đặt</dt>
-											<dd className="font-bold">
-												{trip.seatsTaken} / {trip.capacityMax ?? "Không giới hạn"}
-											</dd>
-										</div>
-										<div>
-											<dt>Rủi ro thời tiết</dt>
-											<dd className="font-bold">
-												{trip.weatherRiskLevel
-													? riskLabels[trip.weatherRiskLevel]
-													: "Chưa có dữ liệu"}
-											</dd>
-										</div>
-									</dl>
-									{onNavigateToTripDetail && (
-										<Button
-											onClick={() => onNavigateToTripDetail(trip.id)}
-											className="rounded-xl bg-[#164027] px-4 py-2 font-bold text-white"
-										>
-											Xem chi tiết chuyến đi
-										</Button>
-									)}
-								</div>
-							</div>
+						{data.operationalTrips.length ? (
+							<>
+								<HostOperationalTripSelector
+									trips={data.operationalTrips}
+									status={activeStatus}
+									onStatusChange={handleStatusChange}
+									selectedTripId={trip?.id}
+									onSelect={setSelectedTripId}
+								/>
+								{trip && onNavigateToTripDetail && (
+									<Button
+										onClick={() => onNavigateToTripDetail(trip.id)}
+										className="mt-5 rounded-xl bg-[#164027] px-4 py-2 font-bold text-white"
+									>
+										Xem chi tiết chuyến đi
+									</Button>
+								)}
+							</>
 						) : (
 							<p className="mt-5 text-[#667a6d]">Chưa có chuyến sắp khởi hành hoặc đang diễn ra.</p>
 						)}
