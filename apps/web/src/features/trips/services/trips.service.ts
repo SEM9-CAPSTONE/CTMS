@@ -78,10 +78,16 @@ export const tripsService = {
 	listPorterRequests: (tripId: string): Promise<PorterRequest[]> =>
 		httpClient.get<PorterRequest[]>(API_ENDPOINTS.TRIPS.PORTER_REQUESTS(tripId)),
 
-	getPendingPorterRequest: (tripId: string, porterId: string): Promise<PorterRequest | null> =>
-		httpClient.get<PorterRequest | null>(API_ENDPOINTS.TRIPS.PENDING_PORTER_REQUEST(tripId), {
-			porterId,
-		}),
+	getPendingPorterRequest: async (
+		tripId: string,
+		porterId: string
+	): Promise<PorterRequest | null> => {
+		const request = await httpClient.get<PorterRequest | null>(
+			API_ENDPOINTS.TRIPS.PENDING_PORTER_REQUEST(tripId),
+			{ porterId }
+		);
+		return request ?? null;
+	},
 
 	getMyPorterRequests: (): Promise<PorterRequest[]> =>
 		httpClient.get<PorterRequest[]>(API_ENDPOINTS.TRIPS.MY_PORTER_REQUESTS),

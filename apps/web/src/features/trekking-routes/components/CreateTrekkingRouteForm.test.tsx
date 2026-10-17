@@ -48,7 +48,7 @@ describe("CreateTrekkingRouteForm", () => {
 			target: { value: "120" },
 		});
 		fireEvent.click(screen.getByRole("button", { name: "Draw test route" }));
-		fireEvent.click(screen.getByRole("button", { name: "Lưu nháp và thêm điểm dừng" }));
+		fireEvent.click(screen.getByRole("button", { name: "Bước tiếp theo" }));
 		await waitFor(() =>
 			expect(submit).toHaveBeenCalledWith({
 				name: "Ridge",

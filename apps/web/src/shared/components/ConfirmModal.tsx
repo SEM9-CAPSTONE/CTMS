@@ -74,7 +74,9 @@ export function ConfirmModal({
 					</button>
 				</div>
 
-				<div className="text-sm font-medium text-[#425048] leading-relaxed">{description}</div>
+				{description && (
+					<div className="text-sm font-medium text-[#425048] leading-relaxed">{description}</div>
+				)}
 
 				<div className="flex items-center justify-end gap-3 pt-2">
 					<button

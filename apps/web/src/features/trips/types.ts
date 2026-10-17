@@ -215,6 +215,7 @@ export type PorterRouteProficiency = "learning" | "proficient" | "expert";
 export interface AvailablePorter {
 	porterId: string;
 	displayName: string | null;
+	avatarUrl?: string | null;
 	experienceYears: number;
 	availabilityStatus: PorterAvailabilityStatus;
 	ratingAvg: number;

@@ -14,10 +14,11 @@ function responseErrorMessage(error: unknown): string {
 	return "Không thể xử lý yêu cầu Porter. Vui lòng thử lại.";
 }
 
-export function useMyPorterRequests() {
+export function useMyPorterRequests(enabled = true) {
 	return useQuery<PorterRequest[], unknown>({
 		queryKey: queryKeys.trips.myPorterRequests,
 		queryFn: () => tripsService.getMyPorterRequests(),
+		enabled,
 		retry: false,
 		staleTime: 15_000,
 		refetchInterval: 15_000,

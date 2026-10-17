@@ -1,6 +1,7 @@
-import { CheckCircle2, Loader2, Send, XCircle } from "lucide-react";
+import { Loader2, Send, XCircle } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button } from "../../../shared/components/Button";
+import { useToast } from "../../../shared/components/Toast";
 import {
 	mapCreatePorterRequestError,
 	useCreatePorterRequest,
@@ -14,18 +15,10 @@ interface PorterRequestActionProps {
 	role: IntendedPorterRole;
 }
 
-const PENDING_STATUS_LABEL = "Đang chờ phản hồi";
-
-function formatExpiry(value: string): string {
-	return new Intl.DateTimeFormat("vi-VN", {
-		dateStyle: "short",
-		timeStyle: "short",
-	}).format(new Date(value));
-}
-
 export function PorterRequestAction({ tripId, porterId, role }: PorterRequestActionProps) {
 	const [note, setNote] = useState("");
 	const [confirmedRequest, setConfirmedRequest] = useState<PorterRequest | null>(null);
+	const toast = useToast();
 	const mutation = useCreatePorterRequest();
 	const pendingQuery = usePendingPorterRequest(tripId, porterId);
 	const errorState = mutation.error ? mapCreatePorterRequestError(mutation.error) : null;
@@ -46,34 +39,44 @@ export function PorterRequestAction({ tripId, porterId, role }: PorterRequestAct
 				...(normalizedNote ? { note: normalizedNote } : {}),
 			},
 			{
-				onSuccess: setConfirmedRequest,
+				onSuccess: (request) => {
+					setConfirmedRequest(request);
+					toast.success("Đã gửi yêu cầu thành công");
+				},
 			}
 		);
 	}
 
 	return (
-		<div className="mt-4 border-t border-[#dfe8df] pt-4">
-			<label
-				htmlFor={`porter-request-note-${porterId}`}
-				className="text-xs font-bold text-[#10221b]"
-			>
-				Ghi chú yêu cầu
-			</label>
-			<textarea
-				id={`porter-request-note-${porterId}`}
-				value={note}
-				onChange={(event) => setNote(event.target.value)}
-				maxLength={500}
-				disabled={isSubmitting || isPendingRequest}
-				className="mt-2 min-h-20 w-full resize-none rounded-xl border border-[#dfe8df] bg-white px-3 py-2 text-sm text-[#10221b] outline-none transition focus:border-[#2d5a27] focus:ring-2 focus:ring-[#2d5a27]/15 disabled:bg-[#f5f7f5]"
-				placeholder="Thêm vai trò, điểm cần lưu ý hoặc lời mời ngắn..."
-			/>
-
-			<div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-				<p className="text-[11px] font-semibold text-[#667a6d]">{note.length}/500</p>
+		<div className="mt-3 border-t border-[#e2e9e3] pt-3">
+			<div className="flex flex-wrap items-center justify-between gap-3">
+				<details className="group min-w-0 flex-1">
+					<summary className="cursor-pointer list-none text-xs font-semibold text-[#667a6d] transition hover:text-[#164027] [&::-webkit-details-marker]:hidden">
+						<span className="inline-flex items-center gap-2">
+							<span className="text-sm leading-none">＋</span>
+							Thêm ghi chú yêu cầu
+						</span>
+					</summary>
+					<label
+						htmlFor={`porter-request-note-${porterId}`}
+						className="mt-3 block text-xs font-bold text-[#10221b]"
+					>
+						Ghi chú yêu cầu
+					</label>
+					<textarea
+						id={`porter-request-note-${porterId}`}
+						value={note}
+						onChange={(event) => setNote(event.target.value)}
+						maxLength={500}
+						disabled={isSubmitting || isPendingRequest}
+						className="mt-2 min-h-20 w-full resize-none rounded-xl border border-[#dfe8df] bg-[#fbfdfb] px-3 py-2 text-sm text-[#10221b] outline-none transition focus:border-[#2d5a27] focus:ring-2 focus:ring-[#2d5a27]/15 disabled:bg-[#f5f7f5]"
+						placeholder="Thêm vai trò, điểm cần lưu ý hoặc lời mời ngắn..."
+					/>
+					<p className="mt-1 text-[11px] font-semibold text-[#667a6d]">{note.length}/500</p>
+				</details>
 				<Button
 					size="sm"
-					className="gap-2"
+					className="shrink-0 gap-2"
 					disabled={isSubmitting || isPendingRequest || isCheckingPending || cannotVerifyPending}
 					onClick={submitRequest}
 				>
@@ -91,21 +94,6 @@ export function PorterRequestAction({ tripId, porterId, role }: PorterRequestAct
 								: "Gửi yêu cầu"}
 				</Button>
 			</div>
-
-			{isPendingRequest && (
-				<output
-					data-testid={`porter-request-state-${porterId}`}
-					className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800"
-				>
-					<p className="flex items-center gap-2 font-extrabold">
-						<CheckCircle2 className="size-4" aria-hidden="true" />
-						{PENDING_STATUS_LABEL}
-					</p>
-					<p className="mt-1 font-semibold">
-						Hết hạn: {formatExpiry(authoritativeRequest.expiresAt)}
-					</p>
-				</output>
-			)}
 
 			{cannotVerifyPending && !isPendingRequest && (
 				<div

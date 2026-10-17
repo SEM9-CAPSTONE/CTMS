@@ -36,19 +36,6 @@ export interface PorterRequestWithContext extends Omit<PorterRequest, "trip"> {
 
 @Injectable()
 export class PorterRequestsRepository extends Repository<PorterRequest> {
-	async hasActiveAssignmentForTrip(tripId: string): Promise<boolean> {
-		const rows = (await this.query(
-			`SELECT 1
-			 FROM "trip_porters"
-			 WHERE "trip_id" = $1
-			   AND "status" IN ('assigned', 'pending_reconfirmation')
-			 LIMIT 1`,
-			[tripId]
-		)) as Array<{ "?column?": number }>;
-
-		return rows.length > 0;
-	}
-
 	async createPendingIdempotent(input: CreatePendingPorterRequestInput): Promise<{
 		request: PorterRequest;
 		created: boolean;
@@ -414,6 +401,44 @@ export class PorterRequestsRepository extends Repository<PorterRequest> {
 			throw new Error("Porter Request transition failed to return a row");
 		}
 		return rows[0];
+	}
+
+	async declinePendingForOverlappingTrips(input: {
+		porterId: string;
+		acceptedTripId: string;
+		startsAt: Date;
+		endsAt: Date;
+		respondedAt: Date;
+	}): Promise<PorterRequest[]> {
+		const result = await this.query(
+			`UPDATE "porter_requests" request
+			 SET "status" = $1,
+			     "responded_at" = $5,
+			     "updated_at" = clock_timestamp()
+			 FROM "trips" pending_trip
+			 WHERE pending_trip."id" = request."trip_id"
+			   AND request."porter_id" = $2
+			   AND request."trip_id" <> $3
+			   AND request."status" = $4
+			   AND request."expires_at" > $5
+			   AND pending_trip."starts_at" < $6
+			   AND pending_trip."ends_at" > $7
+			 RETURNING request."id", request."trip_id" AS "tripId",
+			   request."porter_id" AS "porterId", request."requested_by" AS "requestedBy",
+			   request."requested_role" AS "requestedRole", request."note", request."status",
+			   request."expires_at" AS "expiresAt", request."responded_at" AS "respondedAt",
+			   request."created_at" AS "createdAt", request."updated_at" AS "updatedAt"`,
+			[
+				PorterRequestStatus.DECLINED,
+				input.porterId,
+				input.acceptedTripId,
+				PorterRequestStatus.PENDING,
+				input.respondedAt,
+				input.endsAt,
+				input.startsAt,
+			]
+		);
+		return normalizeRows<PorterRequest>(result);
 	}
 
 	async createAssignedTripPorterIdempotent(

@@ -3,6 +3,7 @@ import { RoutePath } from "../../../routes/routes.config";
 import { HomeLink } from "../../../shared/components/HomeLink";
 import { LogoutActions } from "../../auth/components/LogoutActions";
 import type { CamperProfileData } from "../../camper-profile/types";
+import { useMyPorterRequests } from "../../trips/hooks/usePorterRequests";
 import { roleLabels } from "../constants";
 import type { DashboardConfig, RoleKey } from "../types";
 
@@ -29,6 +30,9 @@ export function Sidebar({
 	onNavigateToTrips,
 	onLogout,
 }: SidebarProps) {
+	const porterRequestsQuery = useMyPorterRequests(activeRole === "porter");
+	const pendingPorterRequestCount =
+		porterRequestsQuery.data?.filter((request) => request.status === "pending").length ?? 0;
 	const navigate = (path: string) => {
 		window.history.pushState({}, "", path);
 		window.dispatchEvent(new PopStateEvent("popstate"));
@@ -198,11 +202,20 @@ export function Sidebar({
 										/>
 										<span>{item.label}</span>
 									</div>
-									{item.badge && (
+									{item.key === "requests" &&
+									activeRole === "porter" &&
+									pendingPorterRequestCount > 0 ? (
+										<span
+											aria-label={`${pendingPorterRequestCount} yêu cầu đang chờ`}
+											className="min-w-5 rounded-full bg-rose-600 px-1.5 py-0.5 text-center text-[10px] font-bold text-white"
+										>
+											{pendingPorterRequestCount}
+										</span>
+									) : item.badge ? (
 										<span className="rounded-md bg-[#edf2ee] px-1.5 py-0.5 text-[10px] font-semibold text-[#627769]">
 											{item.badge}
 										</span>
-									)}
+									) : null}
 								</button>
 								{activeRole === "host" && item.key === "porters" && isPathPorter && (
 									<div className="ml-5 mt-1 space-y-1 border-l border-[#dfe8df] pl-3">

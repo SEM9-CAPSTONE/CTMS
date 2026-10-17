@@ -186,21 +186,16 @@ function HostRequestList() {
 					if (!cancelMutation.isPending) setCancelRequest(null);
 				}}
 				onConfirm={confirmCancel}
-				title="Hủy yêu cầu Porter?"
+				title="Bạn có chắc chắn muốn hủy yêu cầu?"
 				description={
-					<div className="space-y-3">
-						<p>
-							Yêu cầu đang chờ sẽ chuyển sang trạng thái đã hủy. Nếu Porter đã được phân công, thao
-							tác này không thay đổi phân công.
+					mutationError ? (
+						<p role="alert" className="text-rose-800">
+							{mutationError}
 						</p>
-						{mutationError && (
-							<p role="alert" className="text-rose-800">
-								{mutationError}
-							</p>
-						)}
-					</div>
+					) : null
 				}
-				confirmText="Hủy yêu cầu"
+				confirmText="Chắc chắn"
+				cancelText="Hủy"
 				variant="warning"
 				isLoading={cancelMutation.isPending}
 			/>
@@ -322,7 +317,11 @@ function HostAssignedPortersList({ trip }: { trip: HostPorterAssignmentTrip }) {
 							size="sm"
 							className="gap-2"
 							onClick={() => {
-								window.history.pushState({}, "", "/host/porter?view=find");
+								window.history.pushState(
+									{},
+									"",
+									`/host/porter?view=find&tripId=${encodeURIComponent(trip.id)}`
+								);
 								window.dispatchEvent(new PopStateEvent("popstate"));
 							}}
 						>
@@ -471,7 +470,7 @@ export function HostPorterRequestsPage({
 						{activeTab === "find"
 							? "Tìm người hỗ trợ chuyến đi"
 							: activeTab === "requests"
-								? "Yêu cầu Porter đã gửi"
+								? "Yêu cầu đã gửi"
 								: "Porter đã phân công"}
 					</h1>
 				</header>
@@ -519,41 +518,42 @@ export function HostPorterRequestsPage({
 
 							{!isLoading && !error && trips.length > 0 && (
 								<>
-									<label
-										htmlFor="host-porter-trip"
-										className="mt-5 block text-xs font-extrabold text-[#10221b]"
+									<p className="mt-5 text-xs font-extrabold text-[#10221b]">Chuyến đi</p>
+									<ul
+										aria-label="Chuyến đi"
+										className="mt-2 max-h-[min(60vh,36rem)] space-y-2 overflow-y-auto pr-1"
 									>
-										Chuyến đi
-									</label>
-									<select
-										id="host-porter-trip"
-										value={selectedTripId}
-										onChange={(event) => {
-											setSelectedTripId(event.target.value);
-											syncSelectedTripToUrl(event.target.value, activeTab);
-										}}
-										className="mt-2 w-full rounded-2xl border border-[#cbd9cd] bg-white px-3 py-3 text-sm font-semibold text-[#10221b] outline-none transition focus:border-[#164027] focus:ring-2 focus:ring-[#164027]/15"
-									>
-										{trips.map((trip) => (
-											<option key={trip.id} value={trip.id}>
-												{getTripOptionLabel(trip)}
-											</option>
-										))}
-									</select>
-
-									{selectedRegularTrip && (
-										<div className="mt-4 rounded-2xl bg-[#f8faf8] p-4 text-xs text-[#55685a]">
-											<span className="block font-extrabold text-[#10221b]">
-												{selectedRegularTrip.title}
-											</span>
-											<span className="mt-1 block">
-												{formatDateRange(selectedRegularTrip.startsAt, selectedRegularTrip.endsAt)}
-											</span>
-											<span className="mt-1 block">
-												Trạng thái: {formatTripStatus(selectedRegularTrip.status)}
-											</span>
-										</div>
-									)}
+										{trips.map((trip) => {
+											const isSelected = trip.id === selectedTripId;
+											return (
+												<li key={trip.id}>
+													<button
+														type="button"
+														aria-pressed={isSelected}
+														onClick={() => {
+															setSelectedTripId(trip.id);
+															syncSelectedTripToUrl(trip.id, activeTab);
+														}}
+														className={`w-full rounded-2xl border p-4 text-left transition focus:outline-none focus:ring-2 focus:ring-[#164027]/20 ${
+															isSelected
+																? "border-[#164027] bg-[#edf5ee]"
+																: "border-transparent bg-[#f8faf8] hover:border-[#cbd9cd]"
+														}`}
+													>
+														<span className="block text-sm font-extrabold text-[#10221b]">
+															{getTripOptionLabel(trip)}
+														</span>
+														<span className="mt-1 block text-xs text-[#667a6d]">
+															{formatDateRange(trip.startsAt, trip.endsAt)}
+														</span>
+														<span className="mt-1 block text-xs text-[#55685a]">
+															Trạng thái: {formatTripStatus(trip.status)}
+														</span>
+													</button>
+												</li>
+											);
+										})}
+									</ul>
 
 									{selectedTripMissing && (
 										<div

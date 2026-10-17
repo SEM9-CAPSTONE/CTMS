@@ -118,7 +118,8 @@ export interface PorterAvailabilityTripContext {
 	startsAt: Date | null;
 	endsAt: Date | null;
 	status: TripStatus;
-	hasActivePorter: boolean;
+	/** Legacy projection field; candidate search no longer rejects Trips with existing Porters. */
+	hasActivePorter?: boolean;
 }
 
 export interface TripRescheduleCommitmentSummary {
@@ -903,13 +904,7 @@ export class TripsRepository extends Repository<Trip> {
 				"route_id" AS "routeId",
 				"starts_at" AS "startsAt",
 				"ends_at" AS "endsAt",
-				"status",
-				EXISTS (
-					SELECT 1
-					FROM "trip_porters" assignment
-					WHERE assignment."trip_id" = trip."id"
-						AND assignment."status" IN ('assigned', 'pending_reconfirmation')
-				) AS "hasActivePorter"
+				"status"
 			 FROM "trips" trip
 			 WHERE trip."id" = $1`,
 			[tripId]
@@ -987,18 +982,12 @@ export class TripsRepository extends Repository<Trip> {
 		return rows.map(toTripResponse);
 	}
 
-	async findUpcomingTripsWithoutPorter(hostId: string): Promise<TripResponseDto[]> {
+	async findUpcomingPorterCandidateTrips(hostId: string): Promise<TripResponseDto[]> {
 		const rows = (await this.query(
 			`${TRIP_SELECT}
 			WHERE trip."host_id" = $1
 				AND trip."status" = $2
 				AND trip."starts_at" > clock_timestamp()
-				AND NOT EXISTS (
-					SELECT 1
-					FROM "trip_porters" assignment
-					WHERE assignment."trip_id" = trip."id"
-						AND assignment."status" IN ('assigned', 'pending_reconfirmation')
-				)
 			ORDER BY trip."starts_at" ASC, trip."id" ASC`,
 			[hostId, TripStatus.PUBLISHED]
 		)) as TripRow[];

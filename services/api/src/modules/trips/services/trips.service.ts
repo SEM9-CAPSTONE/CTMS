@@ -130,7 +130,7 @@ export class TripsService {
 	}
 
 	async getUpcomingTripsWithoutPorter(hostId: string): Promise<TripResponseDto[]> {
-		return this.tripsRepository.findUpcomingTripsWithoutPorter(hostId);
+		return this.tripsRepository.findUpcomingPorterCandidateTrips(hostId);
 	}
 
 	async getPorterAssignmentHistory(hostId: string): Promise<HostPorterAssignmentTripDto[]> {

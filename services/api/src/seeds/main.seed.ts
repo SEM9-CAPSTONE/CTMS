@@ -53,6 +53,7 @@ interface SeedAccount {
 	password: string;
 	role: "admin" | "porter" | "camper" | "host";
 	fullName?: string;
+	avatarUrl?: string;
 }
 
 const SEED_ACCOUNTS: SeedAccount[] = [
@@ -79,6 +80,16 @@ const SEED_ACCOUNTS: SeedAccount[] = [
 		password: "Porter@123",
 		role: "porter",
 		fullName: "Porter Chuyên Nghiệp",
+		avatarUrl: "https://i.pravatar.cc/160?img=12",
+	},
+	{
+		label: "porter2",
+		email: "porter2@ctms.local",
+		phone: "0900000004",
+		password: "Porter2@123",
+		role: "porter",
+		fullName: "Porter 2",
+		avatarUrl: "https://i.pravatar.cc/160?img=68",
 	},
 	{
 		label: "camper",
@@ -113,8 +124,8 @@ async function seedAccount(account: SeedAccount): Promise<void> {
 	if (existing.length > 0) {
 		await grantRole(existing[0].id, account.role);
 		await dataSource.query(
-			'UPDATE "users" SET "full_name" = COALESCE("full_name", $2) WHERE "id" = $1',
-			[existing[0].id, account.fullName ?? account.label]
+			'UPDATE "users" SET "full_name" = COALESCE("full_name", $2), "avatar_url" = COALESCE("avatar_url", $3) WHERE "id" = $1',
+			[existing[0].id, account.fullName ?? account.label, account.avatarUrl ?? null]
 		);
 		console.log(
 			`[seed:dev-admin] ${account.label} already exists (id=${existing[0].id}, email=${existing[0].email}) — ensured role=${account.role}.`
@@ -125,11 +136,18 @@ async function seedAccount(account: SeedAccount): Promise<void> {
 	const passwordHash = await hash(account.password, BCRYPT_COST_FACTOR);
 
 	const inserted: Array<{ id: string }> = await dataSource.query(
-		`INSERT INTO "users" (email, phone, password_hash, role, status, full_name)
-			 VALUES ($1, $2, $3, $4, 'active', $5)
+		`INSERT INTO "users" (email, phone, password_hash, role, status, full_name, avatar_url)
+				 VALUES ($1, $2, $3, $4, 'active', $5, $6)
 			 ON CONFLICT (email) DO NOTHING
 			 RETURNING id`,
-		[account.email, account.phone, passwordHash, account.role, account.fullName ?? account.label]
+		[
+			account.email,
+			account.phone,
+			passwordHash,
+			account.role,
+			account.fullName ?? account.label,
+			account.avatarUrl ?? null,
+		]
 	);
 
 	if (inserted.length === 0) {
@@ -499,10 +517,26 @@ export async function seedDevTrips(): Promise<void> {
 		}
 
 		const weatherRisks = [
-			{ routeName: "Bán Đảo Sơn Trà Discovery", riskLevel: "green", score: 0.15 },
-			{ routeName: "Hải Vân Pass - Nam Hải Vân Trail", riskLevel: "yellow", score: 0.45 },
-			{ routeName: "Rừng Nguyên Sinh Bà Nà - Núi Chúa", riskLevel: "green", score: 0.2 },
-			{ routeName: "Khe Ram - Suối Mơ - Rừng Hòa Bắc", riskLevel: "red", score: 0.78 },
+			{
+				routeName: "Bán Đảo Sơn Trà Discovery",
+				riskLevel: "green",
+				score: 0.15,
+			},
+			{
+				routeName: "Hải Vân Pass - Nam Hải Vân Trail",
+				riskLevel: "yellow",
+				score: 0.45,
+			},
+			{
+				routeName: "Rừng Nguyên Sinh Bà Nà - Núi Chúa",
+				riskLevel: "green",
+				score: 0.2,
+			},
+			{
+				routeName: "Khe Ram - Suối Mơ - Rừng Hòa Bắc",
+				riskLevel: "red",
+				score: 0.78,
+			},
 		];
 
 		for (const wr of weatherRisks) {
@@ -537,10 +571,25 @@ export async function seedDevTrips(): Promise<void> {
 						wr.riskLevel,
 						wr.score,
 						JSON.stringify({
-							rainfall: { value: 0, level: wr.riskLevel, weight: 0.3, score: 0 },
+							rainfall: {
+								value: 0,
+								level: wr.riskLevel,
+								weight: 0.3,
+								score: 0,
+							},
 							wind: { value: 10, level: wr.riskLevel, weight: 0.25, score: 0 },
-							temperature: { value: 24, level: wr.riskLevel, weight: 0.15, score: 0 },
-							visibility: { value: 10000, level: wr.riskLevel, weight: 0.15, score: 0 },
+							temperature: {
+								value: 24,
+								level: wr.riskLevel,
+								weight: 0.15,
+								score: 0,
+							},
+							visibility: {
+								value: 10000,
+								level: wr.riskLevel,
+								weight: 0.15,
+								score: 0,
+							},
 							thunderstorm: {
 								value: wr.riskLevel === "red",
 								level: wr.riskLevel,
@@ -1893,6 +1942,58 @@ async function seedPorterProfileAndAssignments(routeIds: Record<string, string>)
 			[t.id, porterId]
 		);
 	}
+
+	await seedAdditionalPorterProfileAndQualifications(routeIds, adminId);
+}
+
+async function seedAdditionalPorterProfileAndQualifications(
+	routeIds: Record<string, string>,
+	adminId: string | null
+): Promise<void> {
+	const porterRows: Array<{ id: string }> = await dataSource.query(
+		'SELECT "id" FROM "users" WHERE "email" = $1',
+		["porter2@ctms.local"]
+	);
+	const porterId = porterRows[0]?.id;
+	if (!porterId) return;
+
+	await dataSource.query(
+		`INSERT INTO "porter_profiles" (
+			"porter_id", "experience_years", "certifications", "languages",
+			"availability_status", "rating_avg", "completed_trips"
+		) VALUES (
+			$1, 3,
+			ARRAY['Chứng chỉ Sơ cấp cứu cơ bản', 'Chứng chỉ An toàn trekking'],
+			ARRAY['Tiếng Việt', 'Tiếng Anh giao tiếp'],
+			'available', 4.7, 16
+		) ON CONFLICT ("porter_id") DO UPDATE SET
+			"experience_years" = EXCLUDED."experience_years",
+			"certifications" = EXCLUDED."certifications",
+			"languages" = EXCLUDED."languages",
+			"availability_status" = EXCLUDED."availability_status",
+			"rating_avg" = EXCLUDED."rating_avg",
+			"completed_trips" = EXCLUDED."completed_trips"`,
+		[porterId]
+	);
+
+	for (const [name, proficiency, timesLed] of [
+		["Bán Đảo Sơn Trà Discovery", "proficient", 8],
+		["Hải Vân Pass - Nam Hải Vân Trail", "expert", 12],
+	] as const) {
+		const routeId = routeIds[name];
+		if (!routeId) continue;
+		await dataSource.query(
+			`INSERT INTO "porter_route_qualifications" (
+				"porter_id", "route_id", "proficiency", "times_led", "verified_by", "verified_at"
+			) VALUES ($1, $2, $3, $4, $5, NOW())
+			ON CONFLICT ("porter_id", "route_id") DO UPDATE SET
+				"proficiency" = EXCLUDED."proficiency",
+				"times_led" = EXCLUDED."times_led",
+				"verified_by" = EXCLUDED."verified_by",
+				"verified_at" = EXCLUDED."verified_at"`,
+			[porterId, routeId, proficiency, timesLed, adminId]
+		);
+	}
 }
 
 // --------------------------------------------------------------------------
@@ -2044,7 +2145,12 @@ export async function seedWeatherRiskScenarios(): Promise<void> {
 					wind: { value: 10, level: "green", weight: 0.25, score: 0 },
 					temperature: { value: 24, level: "green", weight: 0.15, score: 0 },
 					visibility: { value: 10000, level: "green", weight: 0.15, score: 0 },
-					thunderstorm: { value: false, level: "green", weight: 0.15, score: 0 },
+					thunderstorm: {
+						value: false,
+						level: "green",
+						weight: 0.15,
+						score: 0,
+					},
 				}),
 				hostId,
 			]
@@ -3019,6 +3125,7 @@ export async function runMasterSeed(): Promise<void> {
 		console.log(
 			"└──────────────┴──────────────────────┴─────────────┴────────────────────────────────────┘"
 		);
+		console.log("   Porter bổ sung: porter2@ctms.local / Porter2@123 (Porter Hải Vân)");
 
 		console.log("\n🔗 CÁC KỊCH BẢN KIỂM THỬ SẴN SÀNG TRÊN HỆ THỐNG:");
 		console.log("1. Quyết toán & Chi trả Host (Admin):");
