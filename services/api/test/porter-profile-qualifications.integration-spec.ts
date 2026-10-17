@@ -94,6 +94,13 @@ describe("CTMS-199 Porter profiles and Route qualifications (integration, real P
 			id,
 			role,
 		]);
+		if (role === UserRole.PORTER) {
+			// Guide certificate verification is a separate gate; these tests cover profile rules.
+			await dataSource.query(
+				`INSERT INTO "porter_verifications" ("porter_id", "status", "reviewed_at") VALUES ($1, 'approved', now())`,
+				[id]
+			);
+		}
 		return { id, token: jwtService.sign({ sub: id, roles: [role] }) };
 	}
 

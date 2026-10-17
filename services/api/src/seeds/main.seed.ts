@@ -1906,6 +1906,17 @@ async function seedPorterProfileAndAssignments(routeIds: Record<string, string>)
 		[porterId]
 	);
 
+	// 1b. Demo Porter's guide certificate verification is already approved
+	await dataSource.query(
+		`INSERT INTO "porter_verifications" (porter_id, status, submitted_at, reviewed_at)
+		 VALUES ($1, 'approved', now(), now())
+		 ON CONFLICT (porter_id) DO UPDATE SET
+			status = 'approved',
+			reviewed_at = COALESCE("porter_verifications".reviewed_at, now()),
+			rejection_reason = NULL`,
+		[porterId]
+	);
+
 	// Get an admin user ID for qualification verification
 	const adminRows: Array<{ id: string }> = await dataSource.query(
 		'SELECT "id" FROM "users" WHERE "email" = $1',

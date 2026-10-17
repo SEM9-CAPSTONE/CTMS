@@ -1,12 +1,26 @@
-import { ApiProperty } from "@nestjs/swagger";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { Transform } from "class-transformer";
-import { IsEmail, IsIn, IsNotEmpty, IsString, Matches, MaxLength } from "class-validator";
+import {
+	IsEmail,
+	IsIn,
+	IsInt,
+	IsNotEmpty,
+	IsOptional,
+	IsString,
+	Matches,
+	Max,
+	MaxLength,
+	Min,
+	MinLength,
+	ValidateIf,
+} from "class-validator";
 import {
 	VN_MOBILE_E164_REGEX,
 	normalizeEmail,
 	normalizeVietnamPhone,
 } from "../../../shared/utils/normalize.util";
 import { AtLeastOneContactMethod } from "../../../shared/validators/at-least-one-contact-method.validator";
+import { IsNormalizedStringArray } from "../../profiles/dto/normalized-string-array.validator";
 import { UserRole } from "../../users/entities/user.entity";
 
 /**
@@ -44,4 +58,40 @@ export class RegisterDto {
 	@ApiProperty({ enum: PUBLIC_REGISTER_ROLES })
 	@IsIn(PUBLIC_REGISTER_ROLES, { message: "role must be one of camper, host, porter" })
 	role!: (typeof PUBLIC_REGISTER_ROLES)[number];
+
+	@ApiPropertyOptional({ example: "Nguyen Van A", minLength: 2, maxLength: 50 })
+	@IsOptional()
+	@Transform(({ value }) => {
+		if (typeof value !== "string") return value;
+		const trimmed = value.trim();
+		return trimmed === "" ? undefined : trimmed;
+	})
+	@IsString()
+	@MinLength(2)
+	@MaxLength(50)
+	fullName?: string;
+
+	@ApiPropertyOptional({
+		minimum: 0,
+		maximum: 80,
+		description: "Porter only: years of guiding experience, stored in the Porter profile",
+	})
+	@ValidateIf(
+		(dto: RegisterDto, value: unknown) => value !== undefined && dto.role === UserRole.PORTER
+	)
+	@IsInt()
+	@Min(0)
+	@Max(80)
+	experienceYears?: number;
+
+	@ApiPropertyOptional({
+		type: [String],
+		maxItems: 20,
+		description: "Porter only: declared certifications, stored in the Porter profile",
+	})
+	@ValidateIf(
+		(dto: RegisterDto, value: unknown) => value !== undefined && dto.role === UserRole.PORTER
+	)
+	@IsNormalizedStringArray()
+	certifications?: string[];
 }

@@ -20,12 +20,16 @@ import type { UpdatePorterProfileDto } from "../dto/update-porter-profile.dto";
 import { PorterAvailabilityStatus, type PorterProfile } from "../entities/porter-profile.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs runtime metadata
 import { PorterProfilesRepository } from "../repositories/porter-profiles.repository";
+// biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs runtime metadata
+import { PorterVerificationsRepository } from "../repositories/porter-verifications.repository";
 
 const PROFILE_VERSION_REQUIRED = "expectedVersion is required for an existing Porter profile";
 const PROFILE_VERSION_NOT_ALLOWED = "expectedVersion must be absent when creating a Porter profile";
 const PROFILE_STALE = "Porter profile has changed; reload the latest version";
 const ACTIVE_PORTER_REQUIRED = "An active Porter account is required";
 const PROFILE_PRIMARY_KEY = "PK_porter_profiles_porter_id";
+const VERIFICATION_REQUIRED =
+	"Guide certificate verification must be approved before becoming available";
 
 interface ProfileWritableSnapshot extends Record<string, unknown> {
 	experienceYears: number;
@@ -39,7 +43,8 @@ export class PorterProfilesService {
 	constructor(
 		private readonly porterProfilesRepository: PorterProfilesRepository,
 		private readonly usersRepository: UsersRepository,
-		private readonly dataSource: DataSource
+		private readonly dataSource: DataSource,
+		private readonly verificationsRepository: PorterVerificationsRepository
 	) {}
 
 	async getMyProfile(porterId: string): Promise<PorterProfileResponseDto> {
@@ -57,6 +62,12 @@ export class PorterProfilesService {
 				const usersRepository = manager.withRepository(this.usersRepository);
 				const profilesRepository = manager.withRepository(this.porterProfilesRepository);
 				await this.requireActivePorter(porterId, usersRepository, true);
+				if (
+					dto.availabilityStatus === PorterAvailabilityStatus.AVAILABLE &&
+					!(await manager.withRepository(this.verificationsRepository).isApproved(porterId))
+				) {
+					throw new ForbiddenException(VERIFICATION_REQUIRED);
+				}
 				const current = await profilesRepository.findByPorterIdForUpdate(porterId);
 
 				if (!current) {

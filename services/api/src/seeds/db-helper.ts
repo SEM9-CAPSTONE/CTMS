@@ -132,6 +132,9 @@ async function main() {
 				password: string;
 				role: "camper" | "host" | "porter" | "admin";
 				status?: "pending_verification" | "active" | "suspended" | "deleted";
+				// Porters default to an approved guide certificate verification so
+				// existing E2E flows keep working; pass "none" to test the review flow.
+				porterVerification?: "approved" | "none";
 			}>(arg);
 			const passwordHash = await bcrypt.hash(input.password, 10);
 			const rows = await dataSource.query(
@@ -144,6 +147,13 @@ async function main() {
 				`INSERT INTO "user_roles" ("user_id", "role") VALUES ($1, $2) ON CONFLICT ("user_id", "role") DO NOTHING`,
 				[userId, input.role]
 			);
+			if (input.role === "porter" && (input.porterVerification ?? "approved") === "approved") {
+				await dataSource.query(
+					`INSERT INTO "porter_verifications" ("porter_id", "status", "reviewed_at")
+					 VALUES ($1, 'approved', now()) ON CONFLICT DO NOTHING`,
+					[userId]
+				);
+			}
 			console.log(JSON.stringify({ id: userId }));
 		} else if (action === "seed-trekking-routes") {
 			const input = parseJsonArg<{
