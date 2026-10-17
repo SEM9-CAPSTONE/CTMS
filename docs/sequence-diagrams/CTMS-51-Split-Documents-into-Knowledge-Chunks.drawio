@@ -1,0 +1,137 @@
+<mxfile host="65bd71144e">
+    <diagram id="split-documents-knowledge-chunks" name="Split Documents into Knowledge Chunks Sequence Diagram">
+        <mxGraphModel dx="942" dy="448" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1450" background="#ffffff" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="title" value="Split Documents into Knowledge Chunks" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=18;fontStyle=1;fontColor=#000000;" parent="1" vertex="1">
+                    <mxGeometry x="275" y="15" width="800" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="actor" value="Admin" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontSize=12;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="65" y="65" width="30" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="ll_actor" value="" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;strokeColor=#000000;fillColor=none;strokeWidth=1;dashed=1;" parent="1" vertex="1">
+                    <mxGeometry x="80" y="150" width="1" height="670" as="geometry"/>
+                </mxCell>
+                <mxCell id="ll_boundary" value="Knowledge Ingestion Console" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="200" y="75" width="150" height="745" as="geometry"/>
+                </mxCell>
+                <mxCell id="act_boundary" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_boundary" vertex="1">
+                    <mxGeometry x="70" y="85" width="10" height="640" as="geometry"/>
+                </mxCell>
+                <mxCell id="ll_controller" value="Knowledge Chunks Controller" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="430" y="75" width="150" height="745" as="geometry"/>
+                </mxCell>
+                <mxCell id="act_controller" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_controller" vertex="1">
+                    <mxGeometry x="70" y="115" width="10" height="590" as="geometry"/>
+                </mxCell>
+                <mxCell id="ll_service" value="Text Chunking &amp; Embedding Service" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="660" y="75" width="150" height="745" as="geometry"/>
+                </mxCell>
+                <mxCell id="act_service" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_service" vertex="1">
+                    <mxGeometry x="70" y="145" width="10" height="540" as="geometry"/>
+                </mxCell>
+                <mxCell id="ll_model" value="Knowledge Chunk Model" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="890" y="75" width="150" height="745" as="geometry"/>
+                </mxCell>
+                <mxCell id="act_model" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_model" vertex="1">
+                    <mxGeometry x="70" y="175" width="10" height="490" as="geometry"/>
+                </mxCell>
+                <mxCell id="ll_db" value="PostgreSQL (pgvector)" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="1120" y="75" width="160" height="745" as="geometry"/>
+                </mxCell>
+                <mxCell id="act_db" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_db" vertex="1">
+                    <mxGeometry x="75" y="205" width="10" height="440" as="geometry"/>
+                </mxCell>
+                <mxCell id="ll_ext" value="OpenAI Embedding API" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="1350" y="75" width="170" height="745" as="geometry"/>
+                </mxCell>
+                <mxCell id="act_ext" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_ext" vertex="1">
+                    <mxGeometry x="80" y="235" width="10" height="390" as="geometry"/>
+                </mxCell>
+                <mxCell id="msg_1" value="1. Trigger Document Ingestion and Chunking" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="80" y="160" as="sourcePoint"/>
+                        <mxPoint x="275" y="160" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg_2" value="2. Send Chunk Document Request" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="275" y="195" as="sourcePoint"/>
+                        <mxPoint x="505" y="195" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg_3" value="3. Chunk Document into Semantic Passages" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="505" y="230" as="sourcePoint"/>
+                        <mxPoint x="735" y="230" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg_4" value="4. Extract Plain Text &amp; Split with Token Overlap" style="html=1;align=left;spacingLeft=5;verticalAlign=middle;rounded=0;edgeStyle=orthogonalEdgeStyle;endArrow=classic;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="735" y="265" as="sourcePoint"/>
+                        <mxPoint x="735" y="295" as="targetPoint"/>
+                        <Array as="points">
+                            <mxPoint x="770" y="265"/>
+                            <mxPoint x="770" y="295"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg_5" value="5. Request Vector Embeddings (text-embedding-3-small)" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="735" y="310" as="sourcePoint"/>
+                        <mxPoint x="1435" y="310" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg_6" value="6. Return 1536-Dimensional Float Vectors" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="1435" y="345" as="sourcePoint"/>
+                        <mxPoint x="735" y="345" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg_7" value="7. Batch Insert Knowledge Chunks with Vector Embeddings" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="735" y="380" as="sourcePoint"/>
+                        <mxPoint x="965" y="380" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg_8" value="8. Insert into Knowledge Chunks Table with pgvector" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="965" y="415" as="sourcePoint"/>
+                        <mxPoint x="1200" y="415" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg_9" value="9. Confirm Chunks Indexed" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="1200" y="450" as="sourcePoint"/>
+                        <mxPoint x="965" y="450" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg_10" value="10. Return Chunks Persistence Result" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="965" y="485" as="sourcePoint"/>
+                        <mxPoint x="735" y="485" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg_11" value="11. Return Chunking Statistics" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="735" y="520" as="sourcePoint"/>
+                        <mxPoint x="505" y="520" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg_12" value="12. Display Ingestion Complete Summary" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="505" y="555" as="sourcePoint"/>
+                        <mxPoint x="275" y="555" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg_13" value="13. Show Total Chunks Created and Vectorized" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="275" y="590" as="sourcePoint"/>
+                        <mxPoint x="80" y="590" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>
