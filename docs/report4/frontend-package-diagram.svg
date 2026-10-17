@@ -1,0 +1,307 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1360 700" width="1360" height="700" style="background-color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 8 5 L 0 8.5" fill="none" stroke="#000000" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <!-- Container: routes -->
+  <g id="pkg_routes">
+    <!-- Folder body -->
+    <rect x="60" y="68" width="340" height="127" fill="#f8f9fa" stroke="#000000" stroke-width="1.2" rx="1"/>
+    <!-- Folder tab -->
+    <path d="M 60 68 L 60 42 Q 60 40 62 40 L 166 40 Q 170 40 170 42 L 170 68 Z" fill="#f8f9fa" stroke="#000000" stroke-width="1.2"/>
+    <line x1="60" y1="68" x2="170" y2="68" stroke="#f8f9fa" stroke-width="1.5"/>
+    <!-- Tab label -->
+    <text x="115" y="59" font-size="13" font-weight="bold" fill="#000000" text-anchor="middle">routes</text>
+  </g>
+    <!-- Subpackage: auth -->
+    <g id="sub_auth">
+      <rect x="80" y="89" width="100" height="26" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+      <path d="M 80 89 L 80 80 L 112 80 L 112 89 Z" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+      <line x1="80.5" y1="89" x2="111.5" y2="89" stroke="#ffffff" stroke-width="1.2"/>
+      <text x="130" y="106" font-size="11" fill="#000000" text-anchor="middle">auth</text>
+    </g>
+    <!-- Subpackage: common -->
+    <g id="sub_common">
+      <rect x="230" y="89" width="110" height="26" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+      <path d="M 230 89 L 230 80 L 262 80 L 262 89 Z" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+      <line x1="230.5" y1="89" x2="261.5" y2="89" stroke="#ffffff" stroke-width="1.2"/>
+      <text x="285" y="106" font-size="11" fill="#000000" text-anchor="middle">common</text>
+    </g>
+    <!-- Subpackage: role-guard -->
+    <g id="sub_role_guard">
+      <rect x="150" y="144" width="110" height="26" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+      <path d="M 150 144 L 150 135 L 182 135 L 182 144 Z" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+      <line x1="150.5" y1="144" x2="181.5" y2="144" stroke="#ffffff" stroke-width="1.2"/>
+      <text x="205" y="161" font-size="11" fill="#000000" text-anchor="middle">role-guard</text>
+    </g>
+  <!-- Container: layouts -->
+  <g id="pkg_layouts">
+    <!-- Folder body -->
+    <rect x="440" y="91" width="180" height="79" fill="#f8f9fa" stroke="#000000" stroke-width="1.2" rx="1"/>
+    <!-- Folder tab -->
+    <path d="M 440 91 L 440 67 Q 440 65 442 65 L 536 65 Q 540 65 540 67 L 540 91 Z" fill="#f8f9fa" stroke="#000000" stroke-width="1.2"/>
+    <line x1="440" y1="91" x2="540" y2="91" stroke="#f8f9fa" stroke-width="1.5"/>
+    <!-- Tab label -->
+    <text x="490" y="83" font-size="13" font-weight="bold" fill="#000000" text-anchor="middle">layouts</text>
+  </g>
+  <!-- Container: components -->
+  <g id="pkg_components">
+    <!-- Folder body -->
+    <rect x="680" y="111" width="180" height="69" fill="#f8f9fa" stroke="#000000" stroke-width="1.2" rx="1"/>
+    <!-- Folder tab -->
+    <path d="M 680 111 L 680 87 Q 680 85 682 85 L 786 85 Q 790 85 790 87 L 790 111 Z" fill="#f8f9fa" stroke="#000000" stroke-width="1.2"/>
+    <line x1="680" y1="111" x2="790" y2="111" stroke="#f8f9fa" stroke-width="1.5"/>
+    <!-- Tab label -->
+    <text x="735" y="103" font-size="13" font-weight="bold" fill="#000000" text-anchor="middle">components</text>
+  </g>
+  <!-- Container: pages -->
+  <g id="pkg_pages">
+    <!-- Folder body -->
+    <rect x="60" y="288" width="970" height="207" fill="#f8f9fa" stroke="#000000" stroke-width="1.2" rx="1"/>
+    <!-- Folder tab -->
+    <path d="M 60 288 L 60 262 Q 60 260 62 260 L 166 260 Q 170 260 170 262 L 170 288 Z" fill="#f8f9fa" stroke="#000000" stroke-width="1.2"/>
+    <line x1="60" y1="288" x2="170" y2="288" stroke="#f8f9fa" stroke-width="1.5"/>
+    <!-- Tab label -->
+    <text x="115" y="279" font-size="13" font-weight="bold" fill="#000000" text-anchor="middle">pages</text>
+  </g>
+    <!-- Subpackage: auth -->
+    <g id="sub_auth">
+      <rect x="80" y="314" width="138" height="29" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+      <path d="M 80 314 L 80 305 L 112 305 L 112 314 Z" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+      <line x1="80.5" y1="314" x2="111.5" y2="314" stroke="#ffffff" stroke-width="1.2"/>
+      <text x="149" y="332.5" font-size="11" fill="#000000" text-anchor="middle">auth</text>
+    </g>
+    <!-- Subpackage: landing -->
+    <g id="sub_landing">
+      <rect x="238" y="314" width="138" height="29" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+      <path d="M 238 314 L 238 305 L 270 305 L 270 314 Z" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+      <line x1="238.5" y1="314" x2="269.5" y2="314" stroke="#ffffff" stroke-width="1.2"/>
+      <text x="307" y="332.5" font-size="11" fill="#000000" text-anchor="middle">landing</text>
+    </g>
+    <!-- Subpackage: trips -->
+    <g id="sub_trips">
+      <rect x="396" y="314" width="138" height="29" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+      <path d="M 396 314 L 396 305 L 428 305 L 428 314 Z" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+      <line x1="396.5" y1="314" x2="427.5" y2="314" stroke="#ffffff" stroke-width="1.2"/>
+      <text x="465" y="332.5" font-size="11" fill="#000000" text-anchor="middle">trips</text>
+    </g>
+    <!-- Subpackage: trekking-routes -->
+    <g id="sub_trekking_routes">
+      <rect x="554" y="314" width="138" height="29" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+      <path d="M 554 314 L 554 305 L 586 305 L 586 314 Z" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+      <line x1="554.5" y1="314" x2="585.5" y2="314" stroke="#ffffff" stroke-width="1.2"/>
+      <text x="623" y="332.5" font-size="10.5" fill="#000000" text-anchor="middle">trekking-routes</text>
+    </g>
+    <!-- Subpackage: booking-list -->
+    <g id="sub_booking_list">
+      <rect x="712" y="314" width="138" height="29" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+      <path d="M 712 314 L 712 305 L 744 305 L 744 314 Z" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+      <line x1="712.5" y1="314" x2="743.5" y2="314" stroke="#ffffff" stroke-width="1.2"/>
+      <text x="781" y="332.5" font-size="11" fill="#000000" text-anchor="middle">booking-list</text>
+    </g>
+    <!-- Subpackage: booking-details -->
+    <g id="sub_booking_details">
+      <rect x="870" y="314" width="138" height="29" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+      <path d="M 870 314 L 870 305 L 902 305 L 902 314 Z" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+      <line x1="870.5" y1="314" x2="901.5" y2="314" stroke="#ffffff" stroke-width="1.2"/>
+      <text x="939" y="332.5" font-size="10.5" fill="#000000" text-anchor="middle">booking-details</text>
+    </g>
+    <!-- Subpackage: booking-payment -->
+    <g id="sub_booking_payment">
+      <rect x="80" y="374" width="138" height="29" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+      <path d="M 80 374 L 80 365 L 112 365 L 112 374 Z" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+      <line x1="80.5" y1="374" x2="111.5" y2="374" stroke="#ffffff" stroke-width="1.2"/>
+      <text x="149" y="392.5" font-size="10.5" fill="#000000" text-anchor="middle">booking-payment</text>
+    </g>
+    <!-- Subpackage: booking-cancellation -->
+    <g id="sub_booking_cancellation">
+      <rect x="238" y="374" width="138" height="29" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+      <path d="M 238 374 L 238 365 L 270 365 L 270 374 Z" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+      <line x1="238.5" y1="374" x2="269.5" y2="374" stroke="#ffffff" stroke-width="1.2"/>
+      <text x="307" y="392.5" font-size="9.5" fill="#000000" text-anchor="middle">booking-cancellation</text>
+    </g>
+    <!-- Subpackage: equipment-catalog -->
+    <g id="sub_equipment_catalog">
+      <rect x="396" y="374" width="138" height="29" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+      <path d="M 396 374 L 396 365 L 428 365 L 428 374 Z" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+      <line x1="396.5" y1="374" x2="427.5" y2="374" stroke="#ffffff" stroke-width="1.2"/>
+      <text x="465" y="392.5" font-size="9.5" fill="#000000" text-anchor="middle">equipment-catalog</text>
+    </g>
+    <!-- Subpackage: packing-list -->
+    <g id="sub_packing_list">
+      <rect x="554" y="374" width="138" height="29" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+      <path d="M 554 374 L 554 365 L 586 365 L 586 374 Z" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+      <line x1="554.5" y1="374" x2="585.5" y2="374" stroke="#ffffff" stroke-width="1.2"/>
+      <text x="623" y="392.5" font-size="11" fill="#000000" text-anchor="middle">packing-list</text>
+    </g>
+    <!-- Subpackage: camper-profile -->
+    <g id="sub_camper_profile">
+      <rect x="712" y="374" width="138" height="29" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+      <path d="M 712 374 L 712 365 L 744 365 L 744 374 Z" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+      <line x1="712.5" y1="374" x2="743.5" y2="374" stroke="#ffffff" stroke-width="1.2"/>
+      <text x="781" y="392.5" font-size="10.5" fill="#000000" text-anchor="middle">camper-profile</text>
+    </g>
+    <!-- Subpackage: porter-profile -->
+    <g id="sub_porter_profile">
+      <rect x="870" y="374" width="138" height="29" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+      <path d="M 870 374 L 870 365 L 902 365 L 902 374 Z" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+      <line x1="870.5" y1="374" x2="901.5" y2="374" stroke="#ffffff" stroke-width="1.2"/>
+      <text x="939" y="392.5" font-size="10.5" fill="#000000" text-anchor="middle">porter-profile</text>
+    </g>
+    <!-- Subpackage: bank-accounts -->
+    <g id="sub_bank_accounts">
+      <rect x="80" y="434" width="138" height="29" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+      <path d="M 80 434 L 80 425 L 112 425 L 112 434 Z" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+      <line x1="80.5" y1="434" x2="111.5" y2="434" stroke="#ffffff" stroke-width="1.2"/>
+      <text x="149" y="452.5" font-size="11" fill="#000000" text-anchor="middle">bank-accounts</text>
+    </g>
+    <!-- Subpackage: settlements -->
+    <g id="sub_settlements">
+      <rect x="238" y="434" width="138" height="29" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+      <path d="M 238 434 L 238 425 L 270 425 L 270 434 Z" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+      <line x1="238.5" y1="434" x2="269.5" y2="434" stroke="#ffffff" stroke-width="1.2"/>
+      <text x="307" y="452.5" font-size="11" fill="#000000" text-anchor="middle">settlements</text>
+    </g>
+    <!-- Subpackage: admin-user-accounts -->
+    <g id="sub_admin_user_accounts">
+      <rect x="396" y="434" width="138" height="29" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+      <path d="M 396 434 L 396 425 L 428 425 L 428 434 Z" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+      <line x1="396.5" y1="434" x2="427.5" y2="434" stroke="#ffffff" stroke-width="1.2"/>
+      <text x="465" y="452.5" font-size="9.5" fill="#000000" text-anchor="middle">admin-user-accounts</text>
+    </g>
+    <!-- Subpackage: admin-audit-logs -->
+    <g id="sub_admin_audit_logs">
+      <rect x="554" y="434" width="138" height="29" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+      <path d="M 554 434 L 554 425 L 586 425 L 586 434 Z" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+      <line x1="554.5" y1="434" x2="585.5" y2="434" stroke="#ffffff" stroke-width="1.2"/>
+      <text x="623" y="452.5" font-size="10.5" fill="#000000" text-anchor="middle">admin-audit-logs</text>
+    </g>
+    <!-- Subpackage: admin-weather-rules -->
+    <g id="sub_admin_weather_rules">
+      <rect x="712" y="434" width="138" height="29" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+      <path d="M 712 434 L 712 425 L 744 425 L 744 434 Z" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+      <line x1="712.5" y1="434" x2="743.5" y2="434" stroke="#ffffff" stroke-width="1.2"/>
+      <text x="781" y="452.5" font-size="9.5" fill="#000000" text-anchor="middle">admin-weather-rules</text>
+    </g>
+    <!-- Subpackage: error -->
+    <g id="sub_error">
+      <rect x="870" y="434" width="138" height="29" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+      <path d="M 870 434 L 870 425 L 902 425 L 902 434 Z" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+      <line x1="870.5" y1="434" x2="901.5" y2="434" stroke="#ffffff" stroke-width="1.2"/>
+      <text x="939" y="452.5" font-size="11" fill="#000000" text-anchor="middle">error</text>
+    </g>
+  <!-- Container: public -->
+  <g id="pkg_public">
+    <!-- Folder body -->
+    <rect x="1110" y="256" width="190" height="89" fill="#f8f9fa" stroke="#000000" stroke-width="1.2" rx="1"/>
+    <!-- Folder tab -->
+    <path d="M 1110 256 L 1110 232 Q 1110 230 1112 230 L 1201 230 Q 1205 230 1205 232 L 1205 256 Z" fill="#f8f9fa" stroke="#000000" stroke-width="1.2"/>
+    <line x1="1110" y1="256" x2="1205" y2="256" stroke="#f8f9fa" stroke-width="1.5"/>
+    <!-- Tab label -->
+    <text x="1157.5" y="248" font-size="13" font-weight="bold" fill="#000000" text-anchor="middle">public</text>
+  </g>
+    <!-- Subpackage: image -->
+    <g id="sub_image">
+      <rect x="1135" y="284" width="120" height="31" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+      <path d="M 1135 284 L 1135 275 L 1167 275 L 1167 284 Z" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+      <line x1="1135.5" y1="284" x2="1166.5" y2="284" stroke="#ffffff" stroke-width="1.2"/>
+      <text x="1195" y="303.5" font-size="11" fill="#000000" text-anchor="middle">image</text>
+    </g>
+  <!-- Container: assets -->
+  <g id="pkg_assets">
+    <!-- Folder body -->
+    <rect x="1110" y="411" width="190" height="89" fill="#f8f9fa" stroke="#000000" stroke-width="1.2" rx="1"/>
+    <!-- Folder tab -->
+    <path d="M 1110 411 L 1110 387 Q 1110 385 1112 385 L 1201 385 Q 1205 385 1205 387 L 1205 411 Z" fill="#f8f9fa" stroke="#000000" stroke-width="1.2"/>
+    <line x1="1110" y1="411" x2="1205" y2="411" stroke="#f8f9fa" stroke-width="1.5"/>
+    <!-- Tab label -->
+    <text x="1157.5" y="403" font-size="13" font-weight="bold" fill="#000000" text-anchor="middle">assets</text>
+  </g>
+    <!-- Subpackage: css -->
+    <g id="sub_css">
+      <rect x="1135" y="439" width="120" height="31" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+      <path d="M 1135 439 L 1135 430 L 1167 430 L 1167 439 Z" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+      <line x1="1135.5" y1="439" x2="1166.5" y2="439" stroke="#ffffff" stroke-width="1.2"/>
+      <text x="1195" y="458.5" font-size="11" fill="#000000" text-anchor="middle">css</text>
+    </g>
+  <!-- Container: services -->
+  <g id="pkg_services">
+    <!-- Folder body -->
+    <rect x="120" y="581" width="170" height="69" fill="#f8f9fa" stroke="#000000" stroke-width="1.2" rx="1"/>
+    <!-- Folder tab -->
+    <path d="M 120 581 L 120 557 Q 120 555 122 555 L 216 555 Q 220 555 220 557 L 220 581 Z" fill="#f8f9fa" stroke="#000000" stroke-width="1.2"/>
+    <line x1="120" y1="581" x2="220" y2="581" stroke="#f8f9fa" stroke-width="1.5"/>
+    <!-- Tab label -->
+    <text x="170" y="573" font-size="13" font-weight="bold" fill="#000000" text-anchor="middle">services</text>
+  </g>
+  <!-- Container: store -->
+  <g id="pkg_store">
+    <!-- Folder body -->
+    <rect x="520" y="581" width="170" height="69" fill="#f8f9fa" stroke="#000000" stroke-width="1.2" rx="1"/>
+    <!-- Folder tab -->
+    <path d="M 520 581 L 520 557 Q 520 555 522 555 L 616 555 Q 620 555 620 557 L 620 581 Z" fill="#f8f9fa" stroke="#000000" stroke-width="1.2"/>
+    <line x1="520" y1="581" x2="620" y2="581" stroke="#f8f9fa" stroke-width="1.5"/>
+    <!-- Tab label -->
+    <text x="570" y="573" font-size="13" font-weight="bold" fill="#000000" text-anchor="middle">store</text>
+  </g>
+  <!-- Container: utils -->
+  <g id="pkg_utils">
+    <!-- Folder body -->
+    <rect x="750" y="581" width="170" height="69" fill="#f8f9fa" stroke="#000000" stroke-width="1.2" rx="1"/>
+    <!-- Folder tab -->
+    <path d="M 750 581 L 750 557 Q 750 555 752 555 L 846 555 Q 850 555 850 557 L 850 581 Z" fill="#f8f9fa" stroke="#000000" stroke-width="1.2"/>
+    <line x1="750" y1="581" x2="850" y2="581" stroke="#f8f9fa" stroke-width="1.5"/>
+    <!-- Tab label -->
+    <text x="800" y="573" font-size="13" font-weight="bold" fill="#000000" text-anchor="middle">utils</text>
+  </g>
+  <!-- Edge: &lt;&lt;wraps&gt;&gt; -->
+  <g>
+    <line x1="440" y1="118" x2="400" y2="118" stroke="#000000" stroke-width="1.2" stroke-dasharray="6,4" marker-end="url(#arrow)"/>
+    <rect x="375" y="108" width="90" height="20" fill="#ffffff" stroke="none"/>
+    <text x="420" y="122" font-size="11" fill="#000000" text-anchor="middle">&lt;&lt;wraps&gt;&gt;</text>
+  </g>
+  <!-- Edge: &lt;&lt;navigates to&gt;&gt; -->
+  <g>
+    <line x1="280" y1="195" x2="280" y2="260" stroke="#000000" stroke-width="1.2" stroke-dasharray="6,4" marker-end="url(#arrow)"/>
+    <rect x="235" y="217" width="90" height="20" fill="#ffffff" stroke="none"/>
+    <text x="280" y="231" font-size="11" fill="#000000" text-anchor="middle">&lt;&lt;navigates to&gt;&gt;</text>
+  </g>
+  <!-- Edge: &lt;&lt;renders in&gt;&gt; -->
+  <g>
+    <line x1="770" y1="180" x2="770" y2="260" stroke="#000000" stroke-width="1.2" stroke-dasharray="6,4" marker-end="url(#arrow)"/>
+    <rect x="725" y="210" width="90" height="20" fill="#ffffff" stroke="none"/>
+    <text x="770" y="224" font-size="11" fill="#000000" text-anchor="middle">&lt;&lt;renders in&gt;&gt;</text>
+  </g>
+  <!-- Edge: &lt;&lt;loads assets&gt;&gt; -->
+  <g>
+    <line x1="1030" y1="288" x2="1110" y2="288" stroke="#000000" stroke-width="1.2" stroke-dasharray="6,4" marker-end="url(#arrow)"/>
+    <rect x="1025" y="278" width="90" height="20" fill="#ffffff" stroke="none"/>
+    <text x="1070" y="292" font-size="11" fill="#000000" text-anchor="middle">&lt;&lt;loads assets&gt;&gt;</text>
+  </g>
+  <!-- Edge: &lt;&lt;applies styles&gt;&gt; -->
+  <g>
+    <line x1="1030" y1="443" x2="1110" y2="443" stroke="#000000" stroke-width="1.2" stroke-dasharray="6,4" marker-end="url(#arrow)"/>
+    <rect x="1025" y="433" width="90" height="20" fill="#ffffff" stroke="none"/>
+    <text x="1070" y="447" font-size="11" fill="#000000" text-anchor="middle">&lt;&lt;applies styles&gt;&gt;</text>
+  </g>
+  <!-- Edge: &lt;&lt;fetches data&gt;&gt; -->
+  <g>
+    <line x1="205" y1="555" x2="205" y2="495" stroke="#000000" stroke-width="1.2" stroke-dasharray="6,4" marker-end="url(#arrow)"/>
+    <rect x="160" y="515" width="90" height="20" fill="#ffffff" stroke="none"/>
+    <text x="205" y="529" font-size="11" fill="#000000" text-anchor="middle">&lt;&lt;fetches data&gt;&gt;</text>
+  </g>
+  <!-- Edge: &lt;&lt;manages state&gt;&gt; -->
+  <g>
+    <line x1="605" y1="555" x2="605" y2="495" stroke="#000000" stroke-width="1.2" stroke-dasharray="6,4" marker-end="url(#arrow)"/>
+    <rect x="560" y="515" width="90" height="20" fill="#ffffff" stroke="none"/>
+    <text x="605" y="529" font-size="11" fill="#000000" text-anchor="middle">&lt;&lt;manages state&gt;&gt;</text>
+  </g>
+  <!-- Edge: &lt;&lt;provides helpers&gt;&gt; -->
+  <g>
+    <line x1="835" y1="555" x2="835" y2="495" stroke="#000000" stroke-width="1.2" stroke-dasharray="6,4" marker-end="url(#arrow)"/>
+    <rect x="790" y="515" width="90" height="20" fill="#ffffff" stroke="none"/>
+    <text x="835" y="529" font-size="11" fill="#000000" text-anchor="middle">&lt;&lt;provides helpers&gt;&gt;</text>
+  </g>
+</svg>
