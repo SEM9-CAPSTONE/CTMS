@@ -1,3 +1,5 @@
+import { ImageOff } from "lucide-react";
+import { useState } from "react";
 import { type AdminTripReview, TRIP_STATUS_LABELS } from "../types";
 
 const OUTCOME_LABELS = {
@@ -35,10 +37,54 @@ const WAYPOINT_TYPE_LABELS: Record<string, string> = {
 	finish: "Điểm kết thúc",
 };
 
+function CoverImage({ title, url }: { title: string; url: string | null }) {
+	// Tracks the URL that failed so switching to another Trip retries its own image.
+	const [failedUrl, setFailedUrl] = useState<string | null>(null);
+
+	if (!url) {
+		return (
+			<div className="flex h-48 items-center justify-center gap-2 rounded-xl bg-[#f4f7f2] text-sm font-bold text-[#667a6d]">
+				<ImageOff className="size-4" />
+				Host chưa tải ảnh bìa.
+			</div>
+		);
+	}
+
+	return (
+		<div className="space-y-2">
+			{failedUrl === url ? (
+				<div className="flex h-48 items-center justify-center gap-2 rounded-xl bg-amber-50 text-sm font-bold text-amber-800">
+					<ImageOff className="size-4" />
+					Không tải được ảnh bìa.
+				</div>
+			) : (
+				<img
+					src={url}
+					alt={`Ảnh bìa ${title}`}
+					className="h-64 w-full rounded-xl object-cover"
+					onError={() => setFailedUrl(url)}
+				/>
+			)}
+			<a
+				href={url}
+				target="_blank"
+				rel="noopener noreferrer"
+				className="inline-block text-xs font-bold text-[#164027] underline"
+			>
+				Xem ảnh gốc
+			</a>
+		</div>
+	);
+}
+
 export function AdminTripReviewDetails({ trip, onReview }: Props) {
 	const canReview = trip.reviewOutcome === "pending" && trip.status === "pending_approval";
 	return (
 		<div className="space-y-5">
+			<section className="rounded-2xl border border-[#e0ebe0] bg-white p-5 shadow-sm">
+				<h2 className="mb-3 font-extrabold">Ảnh bìa</h2>
+				<CoverImage title={trip.title} url={trip.coverImageUrl} />
+			</section>
 			<section className="rounded-2xl border border-[#e0ebe0] bg-white p-5 shadow-sm">
 				<div className="flex flex-wrap items-start justify-between gap-4">
 					<div>

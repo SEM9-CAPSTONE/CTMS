@@ -121,10 +121,10 @@ test.describe("CTMS-23-T02 Approve and Publish Trip (UI)", () => {
 		await expect(page.getByText(approveTripTitle).first()).toBeVisible();
 		await page.getByLabel(`Xem xét trip ${approveTripTitle}`).click();
 		await page.getByRole("button", { name: "Ra quyết định" }).click();
-		await page.getByRole("button", { name: "Phê duyệt và xuất bản" }).click();
+		await page.getByRole("button", { name: "Đồng ý", exact: true }).click();
 		await page.getByRole("button", { name: "Xác nhận quyết định" }).click();
 
-		await expect(page.getByText(/Đã phê duyệt và xuất bản/).first()).toBeVisible();
+		await expect(page.getByText(/Đã đồng ý và xuất bản/).first()).toBeVisible();
 
 		const { trip } = db<{ trip: { status: string } | null }>("get-trip", { tripId: approveTripId });
 		expect(trip?.status).toBe("published");
@@ -139,7 +139,7 @@ test.describe("CTMS-23-T02 Approve and Publish Trip (UI)", () => {
 		await expect(page.getByText(declineTripTitle).first()).toBeVisible();
 		await page.getByLabel(`Xem xét trip ${declineTripTitle}`).click();
 		await page.getByRole("button", { name: "Ra quyết định" }).click();
-		await page.getByRole("button", { name: "Trả về bản nháp" }).click();
+		await page.getByRole("button", { name: "Từ chối", exact: true }).click();
 		await page.getByRole("button", { name: "Xác nhận quyết định" }).click();
 
 		await expect(page.getByText("Lý do là bắt buộc cho quyết định này.")).toBeVisible();
@@ -147,7 +147,7 @@ test.describe("CTMS-23-T02 Approve and Publish Trip (UI)", () => {
 		await page.getByLabel("Lý do *").fill("Thiếu mô tả điểm cắm trại qua đêm");
 		await page.getByRole("button", { name: "Xác nhận quyết định" }).click();
 
-		await expect(page.getByText(/Đã trả về bản nháp/).first()).toBeVisible();
+		await expect(page.getByText(/Đã từ chối trip/).first()).toBeVisible();
 
 		const { trip } = db<{ trip: { status: string } | null }>("get-trip", { tripId: declineTripId });
 		expect(trip?.status).toBe("draft");
