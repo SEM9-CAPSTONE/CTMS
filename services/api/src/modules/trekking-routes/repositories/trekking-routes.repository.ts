@@ -54,10 +54,6 @@ export interface ApprovalIntegrityResult {
 
 export interface SubmissionCheckpointIntegrityResult {
 	checkpointsValid: boolean;
-	startCount: number;
-	finishCount: number;
-	startPosition: number | null;
-	finishPosition: number | null;
 }
 
 const CHECKPOINT_INTEGRITY_PREDICATE = `
@@ -71,7 +67,6 @@ const CHECKPOINT_INTEGRITY_PREDICATE = `
 	)
 	AND checkpoint."expected_arrival_offset" BETWEEN 0
 		AND route."expected_duration_minutes"
-	AND BTRIM(checkpoint."instructions") <> ''
 	AND checkpoint."route_position" BETWEEN 0 AND 1
 	AND ST_DWithin(route."route_geom", checkpoint."location", 50)
 `;
@@ -275,41 +270,14 @@ export class TrekkingRoutesRepository extends Repository<TrekkingRoute> {
 					FROM "checkpoints" checkpoint
 					WHERE checkpoint."route_id" = route."id"
 						AND NOT (${CHECKPOINT_INTEGRITY_PREDICATE})
-				) AS "checkpointsValid",
-				COUNT(checkpoint."id") FILTER (
-					WHERE checkpoint."type" = 'start'
-				)::int AS "startCount",
-				COUNT(checkpoint."id") FILTER (
-					WHERE checkpoint."type" = 'finish'
-				)::int AS "finishCount",
-				MIN(checkpoint."route_position") FILTER (
-					WHERE checkpoint."type" = 'start'
-				) AS "startPosition",
-				MIN(checkpoint."route_position") FILTER (
-					WHERE checkpoint."type" = 'finish'
-				) AS "finishPosition"
+				) AS "checkpointsValid"
 			FROM "trekking_routes" route
-			LEFT JOIN "checkpoints" checkpoint ON checkpoint."route_id" = route."id"
 			WHERE route."id" = $1
-			GROUP BY route."id"
 			`,
 			[routeId]
-		)) as Array<{
-			checkpointsValid: boolean;
-			startCount: number | string;
-			finishCount: number | string;
-			startPosition: number | string | null;
-			finishPosition: number | string | null;
-		}>;
+		)) as Array<{ checkpointsValid: boolean }>;
 
-		const result = rows[0];
-		return {
-			checkpointsValid: Boolean(result?.checkpointsValid),
-			startCount: Number(result?.startCount ?? 0),
-			finishCount: Number(result?.finishCount ?? 0),
-			startPosition: result?.startPosition == null ? null : Number(result.startPosition),
-			finishPosition: result?.finishPosition == null ? null : Number(result.finishPosition),
-		};
+		return { checkpointsValid: Boolean(rows[0]?.checkpointsValid) };
 	}
 
 	async updateStatus(

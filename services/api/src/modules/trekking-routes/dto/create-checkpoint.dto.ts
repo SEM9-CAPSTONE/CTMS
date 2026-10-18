@@ -5,7 +5,7 @@ import {
 	IsArray,
 	IsBoolean,
 	IsDefined,
-	IsEnum,
+	IsIn,
 	IsInt,
 	IsNotEmpty,
 	IsString,
@@ -17,6 +17,13 @@ import {
 import { CHECKPOINT_RADIUS_METERS } from "../constants";
 import { CheckpointType } from "../entities/checkpoint.entity";
 import { CanonicalPointCoordinatesConstraint } from "../validators/point.validator";
+
+/** Start/finish/rest belong to trip waypoints; route checkpoints only mark on-route locations. */
+export const ROUTE_CHECKPOINT_TYPES = [
+	CheckpointType.WATER,
+	CheckpointType.DANGEROUS,
+	CheckpointType.EMERGENCY_SHELTER,
+] as const;
 
 function trimmedString(value: unknown): unknown {
 	return typeof value === "string" ? value.trim() : value;
@@ -54,8 +61,8 @@ export class CreateCheckpointDto {
 	@Equals(CHECKPOINT_RADIUS_METERS)
 	radiusMeters: number = CHECKPOINT_RADIUS_METERS;
 
-	@ApiProperty({ enum: CheckpointType })
-	@IsEnum(CheckpointType)
+	@ApiProperty({ enum: ROUTE_CHECKPOINT_TYPES })
+	@IsIn(ROUTE_CHECKPOINT_TYPES)
 	type!: CheckpointType;
 
 	@ApiProperty({ minimum: 0, example: 45 })
@@ -64,12 +71,11 @@ export class CreateCheckpointDto {
 	@Min(0)
 	expectedArrivalOffset!: number;
 
-	@ApiProperty({ maxLength: 1000 })
-	@Transform(({ value }) => trimmedString(value))
+	@ApiProperty({ maxLength: 1000, required: false, default: "" })
+	@Transform(({ value }) => (value == null ? "" : trimmedString(value)))
 	@IsString()
-	@IsNotEmpty()
 	@MaxLength(1000)
-	instructions!: string;
+	instructions = "";
 
 	@ApiProperty()
 	@IsBoolean()

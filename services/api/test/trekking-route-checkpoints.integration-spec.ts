@@ -129,7 +129,7 @@ describe("trekking route checkpoint update (integration, real Postgres)", () => 
 			name: "Ridge rest",
 			location: { type: "Point", coordinates: [108.2208, 16.0471] },
 			radiusMeters: 20,
-			type: CheckpointType.REST,
+			type: CheckpointType.DANGEROUS,
 			expectedArrivalOffset: 45,
 			instructions: "Rest here.",
 			nearbyWaterOrShelter: false,
@@ -278,7 +278,7 @@ describe("trekking route checkpoint update (integration, real Postgres)", () => 
 			[created.body.id, "trekking_route_checkpoint.updated"]
 		);
 		expect(audits).toHaveLength(1);
-		expect(audits[0].before).toMatchObject({ name: "Ridge rest", type: CheckpointType.REST });
+		expect(audits[0].before).toMatchObject({ name: "Ridge rest", type: CheckpointType.DANGEROUS });
 		expect(audits[0].after).toMatchObject({
 			name: "Điểm cấp nước",
 			type: CheckpointType.WATER,

@@ -14,6 +14,8 @@ export enum RoutePath {
 	HOST_PORTER = "/host/porter",
 	HOST_TREKKING_ROUTES = "/host/trekking-routes",
 	HOST_CREATE_TREKKING_ROUTE = "/host/trekking-routes/create",
+	HOST_TREKKING_ROUTE_DETAIL = "/host/trekking-routes/:id",
+	HOST_EDIT_TREKKING_ROUTE = "/host/trekking-routes/:id/edit",
 	HOST_EQUIPMENT_CATALOG = "/host/equipment-catalog",
 	HOST_WALLET = "/host/wallet",
 	TREKKING = "/trekking",

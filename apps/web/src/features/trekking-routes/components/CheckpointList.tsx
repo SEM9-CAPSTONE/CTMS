@@ -23,12 +23,12 @@ export function CheckpointList({ items, disabled, onEdit }: CheckpointListProps)
 				data-testid="checkpoints-empty"
 				className="mt-4 rounded-xl border border-dashed p-4 text-sm text-[#667a6d]"
 			>
-				Tuyến này chưa có điểm dừng.
+				Tuyến này chưa có vị trí.
 			</p>
 		);
 	}
 	return (
-		<ol className="mt-4 grid gap-3" aria-label="Danh sách điểm dừng">
+		<ol className="mt-4 grid gap-3" aria-label="Danh sách các vị trí trên tuyến">
 			{items.map((item) => (
 				<li key={item.id} className="rounded-xl border border-[#e0ebe0] bg-[#f8fbf7] p-4">
 					<div className="flex flex-wrap items-center justify-between gap-2">
@@ -49,10 +49,9 @@ export function CheckpointList({ items, disabled, onEdit }: CheckpointListProps)
 							)}
 						</div>
 					</div>
-					<p className="mt-2 text-sm text-[#52675a]">{item.instructions}</p>
+					{item.instructions && <p className="mt-2 text-sm text-[#52675a]">{item.instructions}</p>}
 					<p className="mt-2 text-xs font-bold text-[#667a6d]">
-						Bán kính {item.radiusMeters} m · Đến sau {item.expectedArrivalOffset} phút · Vị trí
-						tuyến {(item.routePosition * 100).toFixed(1)}%
+						Bán kính {item.radiusMeters} m · Vị trí tuyến {(item.routePosition * 100).toFixed(1)}%
 					</p>
 				</li>
 			))}

@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertCircle, FileUp, Loader2, RefreshCw } from "lucide-react";
+import { AlertCircle, Loader2, RefreshCw } from "lucide-react";
 import { Controller, useForm } from "react-hook-form";
 import type { CreateRouteError } from "../hooks/useCreateTrekkingRoute";
 import {
@@ -9,7 +9,6 @@ import {
 	toCreateTrekkingRouteInput,
 } from "../schema/create-trekking-route.schema";
 import type { CreateTrekkingRouteInput, CreatedTrekkingRoute } from "../types";
-import { parseRouteImportFile } from "../utils/route-import";
 import { RouteGeometryEditor } from "./RouteGeometryEditor";
 
 interface Props {
@@ -19,6 +18,8 @@ interface Props {
 	error: CreateRouteError | null;
 	onSubmit: (payload: CreateTrekkingRouteInput) => Promise<unknown>;
 	onRetry: () => Promise<unknown>;
+	/** Overrides the idle submit label, e.g. when saving moves to the next edit step. */
+	submitLabel?: string;
 }
 
 const inputClass =
@@ -31,13 +32,12 @@ export function CreateTrekkingRouteForm({
 	error,
 	onSubmit,
 	onRetry,
+	submitLabel,
 }: Props) {
 	const {
 		register,
 		control,
 		handleSubmit,
-		setError,
-		clearErrors,
 		formState: { errors },
 	} = useForm<CreateTrekkingRouteFormValues>({
 		resolver: zodResolver(createTrekkingRouteFormSchema),
@@ -51,20 +51,6 @@ export function CreateTrekkingRouteForm({
 				}
 			: CREATE_TREKKING_ROUTE_DEFAULT_VALUES,
 	});
-
-	const importFile = async (file: File | undefined) => {
-		if (!file) return;
-		try {
-			const geometry = await parseRouteImportFile(file);
-			clearErrors("geometry");
-			return geometry;
-		} catch (importError) {
-			setError("geometry", {
-				message:
-					importError instanceof Error ? importError.message : "Không thể đọc tệp tuyến đường.",
-			});
-		}
-	};
 
 	return (
 		<form
@@ -121,7 +107,7 @@ export function CreateTrekkingRouteForm({
 						</span>
 					</label>
 					<label className="text-sm font-bold text-[#34483b] sm:col-span-2">
-						Mô tả (không bắt buộc)
+						Mô tả
 						<textarea
 							aria-label="Mô tả"
 							disabled={isSubmitting}
@@ -137,34 +123,11 @@ export function CreateTrekkingRouteForm({
 				name="geometry"
 				control={control}
 				render={({ field }) => (
-					<>
-						<RouteGeometryEditor
-							value={field.value}
-							disabled={isSubmitting}
-							onChange={field.onChange}
-						/>
-						<div className="rounded-2xl border border-dashed border-[#b8cbbd] bg-white p-4">
-							<label className="flex cursor-pointer items-center gap-3 text-sm font-bold text-[#164027]">
-								<FileUp className="size-5" />
-								Nhập GPX hoặc GeoJSON (tối đa 5 MB)
-								<input
-									aria-label="Nhập GPX hoặc GeoJSON"
-									type="file"
-									accept=".gpx,.geojson,.json,application/gpx+xml,application/geo+json,application/json"
-									disabled={isSubmitting}
-									className="sr-only"
-									onChange={async (event) => {
-										const geometry = await importFile(event.target.files?.[0]);
-										if (geometry) field.onChange(geometry);
-										event.target.value = "";
-									}}
-								/>
-							</label>
-							<p className="mt-1 text-xs text-[#667a6d]">
-								Đường đi được nhập sẽ thay thế đường đang vẽ và có thể tiếp tục chỉnh sửa.
-							</p>
-						</div>
-					</>
+					<RouteGeometryEditor
+						value={field.value}
+						disabled={isSubmitting}
+						onChange={field.onChange}
+					/>
 				)}
 			/>
 			{errors.geometry && (
@@ -200,7 +163,9 @@ export function CreateTrekkingRouteForm({
 				className="flex items-center justify-center gap-2 rounded-xl bg-[#164027] px-5 py-3 font-bold text-white disabled:opacity-60"
 			>
 				{isSubmitting && <Loader2 className="size-4 animate-spin" />}
-				{isSubmitting ? "Đang lưu tuyến..." : route ? "Lưu thay đổi" : "Bước tiếp theo"}
+				{isSubmitting
+					? "Đang lưu tuyến..."
+					: (submitLabel ?? (route ? "Lưu thay đổi" : "Bước tiếp theo"))}
 			</button>
 			{onCancel && (
 				<button

@@ -30,9 +30,7 @@ export function DangerZoneList({ items }: { items: RouteDangerZone[] }) {
 				<li key={item.id} className="rounded-xl border border-[#e0ebe0] bg-[#fffaf5] p-4">
 					<div className="flex flex-wrap items-center justify-between gap-2">
 						<strong>
-							{item.geometry.type === "Point"
-								? "Vùng nguy hiểm dạng điểm"
-								: "Vùng nguy hiểm đa giác"}
+							{item.geometry.type === "Point" ? "Vùng nguy hiểm dạng điểm" : "Khu vực nguy hiểm"}
 						</strong>
 						<span
 							className={`rounded-full px-2.5 py-1 text-xs font-bold ${severityClasses[item.severity]}`}
@@ -44,7 +42,7 @@ export function DangerZoneList({ items }: { items: RouteDangerZone[] }) {
 					<p className="mt-2 text-xs font-bold text-[#667a6d]">
 						{item.geometry.type === "Point"
 							? `Bán kính ${item.radiusMeters} m`
-							: "Ranh giới đa giác"}
+							: "Ranh giới khu vực"}
 					</p>
 				</li>
 			))}

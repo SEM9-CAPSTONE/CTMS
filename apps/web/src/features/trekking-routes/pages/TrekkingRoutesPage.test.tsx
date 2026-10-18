@@ -1,30 +1,29 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useTrekkingRoutes } from "../hooks/useTrekkingRoutes";
 import type { CreatedTrekkingRoute } from "../types";
 import { TrekkingRoutesPage } from "./TrekkingRoutesPage";
 
 vi.mock("../hooks/useTrekkingRoutes", () => ({ useTrekkingRoutes: vi.fn() }));
-vi.mock("../components/RouteGeometryPreview", () => ({
-	RouteGeometryPreview: ({ geometry }: { geometry: { coordinates: number[][] } }) => (
-		<div data-testid="geometry-preview">{JSON.stringify(geometry.coordinates)}</div>
-	),
+vi.mock("../hooks/useRouteCheckpoints", () => ({
+	useRouteCheckpoints: () => ({ items: [], isLoading: false, error: "", reload: vi.fn() }),
 }));
-vi.mock("../components/RouteCheckpointsPanel", () => ({
-	RouteCheckpointsPanel: ({
-		route,
-		onRouteSubmitted,
+vi.mock("../hooks/useRouteDangerZones", () => ({
+	useRouteDangerZones: () => ({ items: [], isLoading: false, error: "", reload: vi.fn() }),
+}));
+vi.mock("../components/RouteGeometryPreview", () => ({
+	RouteGeometryPreview: ({
+		geometry,
+		footer,
 	}: {
-		route: CreatedTrekkingRoute;
-		onRouteSubmitted: (route: CreatedTrekkingRoute) => void;
+		geometry: { coordinates: number[][] };
+		footer?: ReactNode;
 	}) => (
-		<button
-			type="button"
-			data-testid="checkpoints-panel"
-			onClick={() => onRouteSubmitted({ ...route, status: "pending_approval" })}
-		>
-			{route.id}
-		</button>
+		<div>
+			<div data-testid="geometry-preview">{JSON.stringify(geometry.coordinates)}</div>
+			{footer}
+		</div>
 	),
 }));
 
@@ -93,14 +92,15 @@ describe("TrekkingRoutesPage", () => {
 		expect(retry).toHaveBeenCalledTimes(1);
 	});
 
-	it("shows route metadata and previews the selected geometry", async () => {
+	it("shows route metadata, previews the selected geometry, and opens its detail", async () => {
 		vi.mocked(useTrekkingRoutes).mockReturnValue({
 			items: routes,
 			isLoading: false,
 			error: "",
 			retry: vi.fn(),
 		});
-		render(<TrekkingRoutesPage />);
+		const onViewRouteDetail = vi.fn();
+		render(<TrekkingRoutesPage onViewRouteDetail={onViewRouteDetail} />);
 
 		await waitFor(() => expect(screen.getAllByText("Son Tra Ridge")[0]).toBeInTheDocument());
 		expect(screen.getByText("Khó")).toBeInTheDocument();
@@ -110,22 +110,10 @@ describe("TrekkingRoutesPage", () => {
 		expect(screen.getByTestId("geometry-preview")).toHaveTextContent(
 			JSON.stringify(routes[0].geometry.coordinates)
 		);
-		expect(screen.getByTestId("checkpoints-panel")).toHaveTextContent(routes[0].id);
-	});
+		expect(screen.queryByLabelText("Hoàn thiện tuyến đường")).not.toBeInTheDocument();
+		expect(screen.queryByText(/Xác minh chứng chỉ Porter/)).not.toBeInTheDocument();
 
-	it("keeps submission success feedback mounted across the authoritative reload", async () => {
-		vi.mocked(useTrekkingRoutes).mockReturnValue({
-			items: routes,
-			isLoading: false,
-			error: "",
-			retry: vi.fn(),
-		});
-		render(<TrekkingRoutesPage />);
-
-		await waitFor(() => expect(screen.getByTestId("checkpoints-panel")).toBeInTheDocument());
-		fireEvent.click(screen.getByTestId("checkpoints-panel"));
-
-		expect(screen.getByTestId("route-submission-success")).toHaveTextContent("Chờ duyệt");
-		expect(screen.getByTestId("route-submission-success")).toHaveTextContent("Son Tra Ridge");
+		fireEvent.click(screen.getByRole("button", { name: "Chi tiết" }));
+		expect(onViewRouteDetail).toHaveBeenCalledWith(routes[0].id);
 	});
 });

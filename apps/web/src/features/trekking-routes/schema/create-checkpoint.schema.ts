@@ -1,10 +1,11 @@
 import { z } from "zod";
 import { CHECKPOINT_RADIUS_METERS } from "../constants";
 import {
-	CHECKPOINT_TYPES,
 	type CheckpointType,
 	type CreateCheckpointInput,
+	ROUTE_CHECKPOINT_TYPES,
 	type RouteCheckpoint,
+	type RouteCheckpointType,
 } from "../types";
 
 export const CHECKPOINT_DEFAULT_NAMES: Record<CheckpointType, string> = {
@@ -24,23 +25,16 @@ const pointSchema = z.object({
 		.refine(([, latitude]) => latitude >= -90 && latitude <= 90, "Vĩ độ phải từ -90 đến 90"),
 });
 
+const isRouteCheckpointType = (value: string): value is RouteCheckpointType =>
+	(ROUTE_CHECKPOINT_TYPES as readonly string[]).includes(value);
+
 export const createCheckpointFormSchema = z.object({
-	name: z
-		.string()
-		.trim()
-		.min(1, "Tên điểm dừng là bắt buộc")
-		.max(150, "Tên không được vượt quá 150 ký tự"),
 	location: pointSchema,
-	type: z.enum(CHECKPOINT_TYPES),
-	expectedArrivalOffset: z
+	// "" lets a legacy start/rest/finish checkpoint open for editing until the host picks a new type.
+	type: z
 		.string()
-		.trim()
-		.regex(/^\d+$/, "Thời gian đến phải là số nguyên không âm"),
-	instructions: z
-		.string()
-		.trim()
-		.min(1, "Hướng dẫn là bắt buộc")
-		.max(1000, "Hướng dẫn không được vượt quá 1000 ký tự"),
+		.refine((value): boolean => isRouteCheckpointType(value), "Vui lòng chọn loại vị trí"),
+	instructions: z.string().trim().max(1000, "Hướng dẫn không được vượt quá 1000 ký tự"),
 });
 
 export type CreateCheckpointFormValues = z.infer<typeof createCheckpointFormSchema>;
@@ -51,33 +45,26 @@ export function checkpointDefaultValues(
 ): CreateCheckpointFormValues {
 	if (checkpoint) {
 		return {
-			name: checkpoint.name,
 			location: checkpoint.location,
-			type: checkpoint.type,
-			expectedArrivalOffset: String(checkpoint.expectedArrivalOffset),
+			type: isRouteCheckpointType(checkpoint.type) ? checkpoint.type : "",
 			instructions: checkpoint.instructions,
 		};
 	}
-	return {
-		name: CHECKPOINT_DEFAULT_NAMES.rest,
-		location,
-		type: "rest",
-		expectedArrivalOffset: "0",
-		instructions: "",
-	};
+	return { location, type: "water", instructions: "" };
 }
 
 export function toCreateCheckpointInput(
 	values: CreateCheckpointFormValues,
-	nearbyWaterOrShelter = false
+	checkpoint?: Pick<RouteCheckpoint, "expectedArrivalOffset" | "nearbyWaterOrShelter">
 ): CreateCheckpointInput {
+	const type = values.type as RouteCheckpointType;
 	return {
-		name: values.name.trim(),
+		name: CHECKPOINT_DEFAULT_NAMES[type],
 		location: values.location,
 		radiusMeters: CHECKPOINT_RADIUS_METERS,
-		type: values.type,
-		expectedArrivalOffset: Number(values.expectedArrivalOffset),
+		type,
+		expectedArrivalOffset: checkpoint?.expectedArrivalOffset ?? 0,
 		instructions: values.instructions.trim(),
-		nearbyWaterOrShelter,
+		nearbyWaterOrShelter: checkpoint?.nearbyWaterOrShelter ?? false,
 	};
 }

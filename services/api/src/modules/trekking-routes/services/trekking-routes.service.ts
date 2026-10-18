@@ -62,30 +62,6 @@ export class TrekkingRoutesService {
 			if (!checkpointIntegrity.checkpointsValid) {
 				errors.push({ field: "checkpoints", errors: ["stored route checkpoints are invalid"] });
 			}
-			if (checkpointIntegrity.startCount !== 1) {
-				errors.push({
-					field: "checkpoints",
-					errors: ["route must have exactly one start checkpoint"],
-				});
-			}
-			if (checkpointIntegrity.finishCount !== 1) {
-				errors.push({
-					field: "checkpoints",
-					errors: ["route must have exactly one finish checkpoint"],
-				});
-			}
-			if (
-				checkpointIntegrity.startCount === 1 &&
-				checkpointIntegrity.finishCount === 1 &&
-				(checkpointIntegrity.startPosition == null ||
-					checkpointIntegrity.finishPosition == null ||
-					checkpointIntegrity.startPosition >= checkpointIntegrity.finishPosition)
-			) {
-				errors.push({
-					field: "checkpoints",
-					errors: ["start checkpoint must occur before finish checkpoint"],
-				});
-			}
 			if (errors.length > 0) {
 				throw this.submissionValidationException(errors);
 			}

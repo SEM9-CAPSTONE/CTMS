@@ -10,10 +10,12 @@ import {
 } from "../schema/create-route-danger-zone.schema";
 import type {
 	CreateRouteDangerZoneInput,
+	RouteCheckpointType,
 	RouteDangerZone,
 	RouteDangerZoneGeometry,
 	RouteMapMode,
 } from "../types";
+import { DANGER_AREA_VALUE, LocationTypeOptions } from "./LocationTypeOptions";
 
 interface Props {
 	mode: RouteMapMode;
@@ -23,7 +25,7 @@ interface Props {
 	isSubmitting: boolean;
 	error: string;
 	polygonError: string;
-	onModeChange: (mode: RouteMapMode) => void;
+	onSelectCheckpointType: (type: RouteCheckpointType) => void;
 	onFinishPolygon: () => void;
 	onUndoPolygon: () => void;
 	onClearGeometry: () => void;
@@ -44,7 +46,7 @@ export function CreateRouteDangerZoneForm({
 	isSubmitting,
 	error,
 	polygonError,
-	onModeChange,
+	onSelectCheckpointType,
 	onFinishPolygon,
 	onUndoPolygon,
 	onClearGeometry,
@@ -78,41 +80,23 @@ export function CreateRouteDangerZoneForm({
 	const hazardMode = mode !== "checkpoint";
 
 	return (
-		<section className="mt-6 border-t border-[#e0ebe0] pt-5" aria-labelledby="hazard-create-title">
-			<h3 id="hazard-create-title" className="font-extrabold">
-				Thêm khu vực nguy hiểm
-			</h3>
-			<p className="mt-1 text-sm text-[#667a6d]">
-				Chọn chế độ bản đồ. Điểm cần bán kính; đa giác cần ít nhất ba đỉnh khác nhau.
-			</p>
-			<div className="mt-3 flex flex-wrap gap-2" aria-label="Chế độ bản đồ">
-				<button
-					type="button"
-					aria-pressed={mode === "checkpoint"}
-					disabled={fieldDisabled}
-					onClick={() => onModeChange("checkpoint")}
-					className="rounded-lg border px-3 py-2 text-sm font-bold disabled:opacity-50"
-				>
-					Điểm dừng / nơi trú ẩn
-				</button>
-				<button
-					type="button"
-					aria-pressed={mode === "hazard-point"}
-					disabled={fieldDisabled}
-					onClick={() => onModeChange("hazard-point")}
-					className="rounded-lg border px-3 py-2 text-sm font-bold disabled:opacity-50"
-				>
-					Điểm nguy hiểm
-				</button>
-				<button
-					type="button"
-					aria-pressed={mode === "hazard-polygon"}
-					disabled={fieldDisabled}
-					onClick={() => onModeChange("hazard-polygon")}
-					className="rounded-lg border px-3 py-2 text-sm font-bold disabled:opacity-50"
-				>
-					Đa giác nguy hiểm
-				</button>
+		<section className="mt-5" aria-label="Thêm khu vực nguy hiểm">
+			<div className="grid gap-4 sm:grid-cols-2">
+				<label className="text-sm font-bold">
+					Vị trí
+					<select
+						aria-label="Vị trí"
+						value={DANGER_AREA_VALUE}
+						disabled={fieldDisabled}
+						onChange={(event) => onSelectCheckpointType(event.target.value as RouteCheckpointType)}
+						className={inputClass}
+					>
+						<LocationTypeOptions includeDangerArea />
+					</select>
+				</label>
+				<p className="self-end text-sm text-[#667a6d]">
+					Nhấp lên bản đồ để thêm các đỉnh; khu vực cần ít nhất ba đỉnh khác nhau.
+				</p>
 			</div>
 
 			{mode === "hazard-polygon" && (
@@ -124,7 +108,7 @@ export function CreateRouteDangerZoneForm({
 						onClick={onFinishPolygon}
 						className="rounded-lg bg-orange-700 px-3 py-2 text-sm font-bold text-white disabled:opacity-50"
 					>
-						Hoàn tất đa giác
+						Hoàn tất khu vực
 					</button>
 					<button
 						type="button"
@@ -142,7 +126,7 @@ export function CreateRouteDangerZoneForm({
 						className="rounded-lg border px-3 py-2 text-sm font-bold disabled:opacity-50"
 					>
 						<Trash2 className="mr-1 inline size-4" />
-						Xóa đa giác
+						Xóa khu vực
 					</button>
 					{polygonError && (
 						<span role="alert" className="text-sm text-red-700">

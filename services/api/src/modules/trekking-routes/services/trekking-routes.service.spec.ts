@@ -85,13 +85,7 @@ describe("TrekkingRoutesService", () => {
 				checkpointsValid: true,
 				checkpointCount: 0,
 			}),
-			validateSubmissionCheckpoints: jest.fn().mockResolvedValue({
-				checkpointsValid: true,
-				startCount: 1,
-				finishCount: 1,
-				startPosition: 0,
-				finishPosition: 1,
-			}),
+			validateSubmissionCheckpoints: jest.fn().mockResolvedValue({ checkpointsValid: true }),
 			updateStatus: jest.fn((_routeId: string, status: TrekkingRouteStatus) =>
 				Promise.resolve(createdRoute(status))
 			),
@@ -276,13 +270,7 @@ describe("TrekkingRoutesService", () => {
 		});
 
 		it("returns 422 when any authoritative stored checkpoint is invalid", async () => {
-			routeRepository.validateSubmissionCheckpoints.mockResolvedValue({
-				checkpointsValid: false,
-				startCount: 1,
-				finishCount: 1,
-				startPosition: 0,
-				finishPosition: 1,
-			});
+			routeRepository.validateSubmissionCheckpoints.mockResolvedValue({ checkpointsValid: false });
 
 			await expect(service.submitForApproval(HOST_ID, ROUTE_ID)).rejects.toMatchObject({
 				status: 422,
@@ -291,42 +279,14 @@ describe("TrekkingRoutesService", () => {
 			expect(auditRepository.save).not.toHaveBeenCalled();
 		});
 
-		it.each([
-			{ name: "no start", startCount: 0, finishCount: 1 },
-			{ name: "multiple starts", startCount: 2, finishCount: 1 },
-			{ name: "no finish", startCount: 1, finishCount: 0 },
-			{ name: "multiple finishes", startCount: 1, finishCount: 2 },
-		])("returns 422 for $name", async ({ startCount, finishCount }) => {
-			routeRepository.validateSubmissionCheckpoints.mockResolvedValue({
-				checkpointsValid: true,
-				startCount,
-				finishCount,
-				startPosition: startCount > 0 ? 0 : null,
-				finishPosition: finishCount > 0 ? 1 : null,
+		it("submits without start or finish checkpoints because those belong to trip waypoints", async () => {
+			await expect(service.submitForApproval(HOST_ID, ROUTE_ID)).resolves.toMatchObject({
+				status: TrekkingRouteStatus.PENDING_APPROVAL,
 			});
-
-			await expect(service.submitForApproval(HOST_ID, ROUTE_ID)).rejects.toMatchObject({
-				status: 422,
-			});
-			expect(routeRepository.updateStatus).not.toHaveBeenCalled();
-		});
-
-		it.each([
-			{ name: "equal positions", startPosition: 0.5, finishPosition: 0.5 },
-			{ name: "start after finish", startPosition: 0.75, finishPosition: 0.25 },
-		])("returns 422 when $name", async ({ startPosition, finishPosition }) => {
-			routeRepository.validateSubmissionCheckpoints.mockResolvedValue({
-				checkpointsValid: true,
-				startCount: 1,
-				finishCount: 1,
-				startPosition,
-				finishPosition,
-			});
-
-			await expect(service.submitForApproval(HOST_ID, ROUTE_ID)).rejects.toMatchObject({
-				status: 422,
-			});
-			expect(routeRepository.updateStatus).not.toHaveBeenCalled();
+			expect(routeRepository.updateStatus).toHaveBeenCalledWith(
+				ROUTE_ID,
+				TrekkingRouteStatus.PENDING_APPROVAL
+			);
 		});
 
 		it("propagates audit failure so the transaction can roll back the status", async () => {

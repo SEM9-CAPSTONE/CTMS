@@ -84,7 +84,7 @@ describe("RouteCheckpointMap fallback", () => {
 				onSelectLocation={onSelect}
 			/>
 		);
-		const map = screen.getByLabelText("Bản đồ chọn điểm dừng");
+		const map = screen.getByLabelText("Bản đồ chọn vị trí");
 		vi.spyOn(map, "getBoundingClientRect").mockReturnValue({
 			left: 0,
 			top: 0,
@@ -261,7 +261,7 @@ describe("RouteCheckpointMap fallback", () => {
 				onSelectLocation={onSelect}
 			/>
 		);
-		const map = screen.getByLabelText("Bản đồ vẽ đa giác nguy hiểm");
+		const map = screen.getByLabelText("Bản đồ vẽ khu vực nguy hiểm");
 		vi.spyOn(map, "getBoundingClientRect").mockReturnValue({
 			left: 0,
 			top: 0,

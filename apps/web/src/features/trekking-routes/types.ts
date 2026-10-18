@@ -14,6 +14,9 @@ export const CHECKPOINT_TYPES = [
 	"finish",
 ] as const;
 export type CheckpointType = (typeof CHECKPOINT_TYPES)[number];
+/** Types a host can pick for a route location; start/finish/rest are configured on trip waypoints. */
+export const ROUTE_CHECKPOINT_TYPES = ["water", "dangerous", "emergency_shelter"] as const;
+export type RouteCheckpointType = (typeof ROUTE_CHECKPOINT_TYPES)[number];
 
 export interface GeoJsonPoint {
 	type: "Point";

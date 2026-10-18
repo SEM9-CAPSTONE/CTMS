@@ -6,22 +6,21 @@ import {
 } from "./create-checkpoint.schema";
 
 const valid = {
-	name: "  Ridge rest  ",
 	location: { type: "Point" as const, coordinates: [108.46, 11.94] as [number, number] },
-	type: "rest" as const,
-	expectedArrivalOffset: "45",
-	instructions: "  Rest here  ",
+	type: "water",
+	instructions: "  Refill here  ",
 };
 
 describe("createCheckpointFormSchema", () => {
-	it("accepts exact metadata and converts numeric strings", () => {
+	it("maps form values to the API input with a type-derived name", () => {
 		const parsed = createCheckpointFormSchema.parse(valid);
 		expect(toCreateCheckpointInput(parsed)).toEqual({
-			...valid,
-			name: "Ridge rest",
+			name: "Điểm cấp nước",
+			location: valid.location,
 			radiusMeters: 20,
-			expectedArrivalOffset: 45,
-			instructions: "Rest here",
+			type: "water",
+			expectedArrivalOffset: 0,
+			instructions: "Refill here",
 			nearbyWaterOrShelter: false,
 		});
 	});
@@ -32,37 +31,34 @@ describe("createCheckpointFormSchema", () => {
 		expect(toCreateCheckpointInput(parsed).radiusMeters).toBe(20);
 	});
 
-	it("accepts exact text maxima and rejects values above them", () => {
+	it("treats guidance as optional but caps it at 1000 characters", () => {
+		expect(createCheckpointFormSchema.safeParse({ ...valid, instructions: " " }).success).toBe(
+			true
+		);
 		expect(
-			createCheckpointFormSchema.safeParse({
-				...valid,
-				name: "n".repeat(150),
-				instructions: "i".repeat(1000),
-			}).success
+			createCheckpointFormSchema.safeParse({ ...valid, instructions: "i".repeat(1000) }).success
 		).toBe(true);
-		const tooLongName = createCheckpointFormSchema.safeParse({ ...valid, name: "n".repeat(151) });
-		const tooLongInstructions = createCheckpointFormSchema.safeParse({
-			...valid,
-			instructions: "i".repeat(1001),
-		});
-		expect(tooLongName.success).toBe(false);
-		expect(tooLongInstructions.success).toBe(false);
+		expect(
+			createCheckpointFormSchema.safeParse({ ...valid, instructions: "i".repeat(1001) }).success
+		).toBe(false);
 	});
 
 	it.each([
-		{ ...valid, name: " " },
-		{ ...valid, expectedArrivalOffset: "-1" },
-		{ ...valid, type: "viewpoint" },
-		{ ...valid, instructions: " " },
+		{ ...valid, type: "start" },
+		{ ...valid, type: "rest" },
+		{ ...valid, type: "finish" },
+		{ ...valid, type: "" },
 		{ ...valid, location: { type: "Point", coordinates: [181, 0] } },
-	])("rejects invalid checkpoint form values", (value) => {
+	])("rejects invalid checkpoint form values %#", (value) => {
 		expect(createCheckpointFormSchema.safeParse(value).success).toBe(false);
 	});
 
-	it("keeps the compatibility flag out of form state while preserving it in API mapping", () => {
+	it("keeps stored arrival offset and compatibility flag when editing", () => {
 		const defaults = checkpointDefaultValues({ type: "Point", coordinates: [0, 0] });
-		expect(defaults).toEqual(expect.objectContaining({ type: "rest" }));
+		expect(defaults).toEqual(expect.objectContaining({ type: "water", instructions: "" }));
 		expect(defaults).not.toHaveProperty("nearbyWaterOrShelter");
-		expect(toCreateCheckpointInput(defaults, true).nearbyWaterOrShelter).toBe(true);
+		expect(
+			toCreateCheckpointInput(defaults, { expectedArrivalOffset: 40, nearbyWaterOrShelter: true })
+		).toEqual(expect.objectContaining({ expectedArrivalOffset: 40, nearbyWaterOrShelter: true }));
 	});
 });

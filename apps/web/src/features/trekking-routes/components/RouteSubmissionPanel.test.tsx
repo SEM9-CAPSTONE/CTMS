@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useSubmitRouteForApproval } from "../hooks/useSubmitRouteForApproval";
-import type { CreatedTrekkingRoute, RouteCheckpoint, RouteStatus } from "../types";
+import type { CreatedTrekkingRoute, RouteStatus } from "../types";
 import { RouteSubmissionPanel } from "./RouteSubmissionPanel";
 
 vi.mock("../hooks/useSubmitRouteForApproval", () => ({ useSubmitRouteForApproval: vi.fn() }));
@@ -31,30 +31,10 @@ function route(status: RouteStatus = "draft"): CreatedTrekkingRoute {
 	};
 }
 
-function checkpoint(type: "start" | "finish", routePosition: number): RouteCheckpoint {
-	return {
-		id: `${type}-${routePosition}`,
-		routeId: "route-id",
-		name: type,
-		location: { type: "Point", coordinates: [108.46, 11.94] },
-		radiusMeters: 20,
-		type,
-		expectedArrivalOffset: 30,
-		instructions: type,
-		nearbyWaterOrShelter: false,
-		routePosition,
-		createdAt: "2026-08-28T00:00:00.000Z",
-		updatedAt: "2026-08-28T00:00:00.000Z",
-	};
-}
-
-const readyCheckpoints = [checkpoint("start", 0.1), checkpoint("finish", 0.9)];
-
 function renderPanel(overrides: Partial<Parameters<typeof RouteSubmissionPanel>[0]> = {}) {
 	return render(
 		<RouteSubmissionPanel
 			route={route()}
-			checkpoints={readyCheckpoints}
 			isLoadingCheckpoints={false}
 			checkpointError=""
 			onReload={vi.fn()}
@@ -75,40 +55,11 @@ describe("RouteSubmissionPanel", () => {
 		});
 	});
 
-	it("enables submission for one ordered start and finish", () => {
+	it("enables submission without requiring start or finish locations", () => {
 		renderPanel();
 		expect(screen.getByRole("button", { name: "Gửi duyệt" })).toBeEnabled();
-		expect(screen.getByText("Bắt đầu: 1/1")).toBeInTheDocument();
-		expect(screen.getByText("Kết thúc: 1/1")).toBeInTheDocument();
-	});
-
-	it("recomputes counters and readiness from a refreshed checkpoint collection", () => {
-		const rest = { ...checkpoint("start", 0.1), type: "rest" as const };
-		const { rerender } = renderPanel({
-			checkpoints: [rest, checkpoint("finish", 0.9)],
-		});
-		expect(screen.getByText("Bắt đầu: 0/1")).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "Gửi duyệt" })).toBeDisabled();
-
-		rerender(
-			<RouteSubmissionPanel
-				route={route()}
-				checkpoints={[checkpoint("start", 0.1), checkpoint("finish", 0.9)]}
-				isLoadingCheckpoints={false}
-				checkpointError=""
-				onReload={vi.fn()}
-				onSubmitted={vi.fn()}
-			/>
-		);
-		expect(screen.getByText("Bắt đầu: 1/1")).toBeInTheDocument();
-		expect(screen.getByText("Kết thúc: 1/1")).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "Gửi duyệt" })).toBeEnabled();
-	});
-
-	it("disables submission and explains incomplete preparation", () => {
-		renderPanel({ checkpoints: [checkpoint("finish", 0.9)] });
-		expect(screen.getByRole("button", { name: "Gửi duyệt" })).toBeDisabled();
-		expect(screen.getByText("Thiếu điểm dừng Bắt đầu.")).toBeInTheDocument();
+		expect(screen.queryByText(/Bắt đầu:/)).not.toBeInTheDocument();
+		expect(screen.queryByText("Tuyến chưa đủ điều kiện gửi duyệt.")).not.toBeInTheDocument();
 	});
 
 	it.each(["pending_approval", "active", "closed"] as RouteStatus[])(
@@ -121,20 +72,18 @@ describe("RouteSubmissionPanel", () => {
 
 	it("shows checkpoint loading and error states without enabling submit", () => {
 		const { rerender } = renderPanel({ isLoadingCheckpoints: true });
-		expect(screen.getByTestId("submission-readiness-loading")).toBeInTheDocument();
+		expect(screen.queryByText("Chuẩn bị gửi duyệt")).not.toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "Gửi duyệt" })).toBeDisabled();
 
 		rerender(
 			<RouteSubmissionPanel
 				route={route()}
-				checkpoints={[]}
 				isLoadingCheckpoints={false}
 				checkpointError="load failure"
 				onReload={vi.fn()}
 				onSubmitted={vi.fn()}
 			/>
 		);
-		expect(screen.getByText(/Không thể xác định mức độ sẵn sàng/)).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "Gửi duyệt" })).toBeDisabled();
 	});
 

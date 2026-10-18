@@ -17,22 +17,22 @@ const polygonGeometrySchema = z.object({
 		.array(
 			z
 				.array(positionSchema)
-				.min(4, "Đa giác cần ít nhất 3 đỉnh và một điểm đóng vòng")
+				.min(4, "Khu vực cần ít nhất 3 đỉnh và một điểm đóng vòng")
 				.superRefine((ring, context) => {
 					const first = ring[0];
 					const last = ring.at(-1);
 					if (!first || !last || first[0] !== last[0] || first[1] !== last[1]) {
-						context.addIssue({ code: "custom", message: "Vòng đa giác phải được đóng" });
+						context.addIssue({ code: "custom", message: "Vòng khu vực phải được đóng" });
 					}
 					const distinctVertices = new Set(
 						ring.slice(0, -1).map(([longitude, latitude]) => `${longitude},${latitude}`)
 					);
 					if (distinctVertices.size < 3) {
-						context.addIssue({ code: "custom", message: "Đa giác cần ít nhất 3 đỉnh khác nhau" });
+						context.addIssue({ code: "custom", message: "Khu vực cần ít nhất 3 đỉnh khác nhau" });
 					}
 				})
 		)
-		.min(1, "Đa giác cần ít nhất một vòng"),
+		.min(1, "Khu vực cần ít nhất một vòng"),
 });
 
 export const routeDangerZoneGeometrySchema = z.union([pointGeometrySchema, polygonGeometrySchema]);
@@ -71,7 +71,7 @@ export const createRouteDangerZoneFormSchema = z
 			context.addIssue({
 				code: "custom",
 				path: ["radiusMeters"],
-				message: "Đa giác không được có bán kính",
+				message: "Khu vực không được có bán kính",
 			});
 		}
 	});

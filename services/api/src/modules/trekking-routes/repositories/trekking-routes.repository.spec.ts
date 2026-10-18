@@ -146,28 +146,16 @@ describe("TrekkingRoutesRepository", () => {
 		expect(query.mock.calls[0][0]).not.toContain("checkpoint_type = 'start'");
 	});
 
-	it("validates submission checkpoint integrity and maps authoritative completeness data", async () => {
+	it("validates submission checkpoint integrity without requiring start or finish", async () => {
 		const repository = new TrekkingRoutesRepository(TrekkingRoute, {} as EntityManager);
-		const query = jest.spyOn(repository, "query").mockResolvedValue([
-			{
-				checkpointsValid: true,
-				startCount: "1",
-				finishCount: "1",
-				startPosition: "0.1",
-				finishPosition: "0.9",
-			},
-		]);
+		const query = jest.spyOn(repository, "query").mockResolvedValue([{ checkpointsValid: true }]);
 
 		await expect(repository.validateSubmissionCheckpoints("route-id")).resolves.toEqual({
 			checkpointsValid: true,
-			startCount: 1,
-			finishCount: 1,
-			startPosition: 0.1,
-			finishPosition: 0.9,
 		});
 		expect(query.mock.calls[0][0]).toContain("ST_DWithin");
-		expect(query.mock.calls[0][0]).toContain("FILTER");
-		expect(query.mock.calls[0][0]).toContain("GROUP BY route");
+		expect(query.mock.calls[0][0]).not.toContain("FILTER");
+		expect(query.mock.calls[0][0]).not.toContain('checkpoint."instructions"');
 		expect(query).toHaveBeenCalledWith(expect.any(String), ["route-id"]);
 	});
 
