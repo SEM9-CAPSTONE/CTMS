@@ -2,6 +2,7 @@ export const ROUTE_DIFFICULTIES = ["easy", "moderate", "hard", "expert"] as cons
 export type RouteDifficulty = (typeof ROUTE_DIFFICULTIES)[number];
 
 export type RouteStatus = "draft" | "pending_approval" | "active" | "closed";
+export type RouteStatusFilter = RouteStatus | "all";
 export type RouteLifecycleAction = "close" | "reopen";
 export type Position = [number, number];
 
@@ -75,8 +76,22 @@ export interface CreatedTrekkingRoute extends Omit<CreateTrekkingRouteInput, "de
 	description: string | null;
 	lengthMeters: number;
 	status: RouteStatus;
+	latestRejectionReason?: string | null;
+	latestRejectionAt?: string | null;
 	createdAt: string;
 	updatedAt: string;
+}
+
+export interface TrekkingRoutesPagination {
+	page: number;
+	limit: number;
+	total: number;
+	totalPages: number;
+}
+
+export interface PaginatedTrekkingRoutesResponse {
+	items: CreatedTrekkingRoute[];
+	pagination: TrekkingRoutesPagination;
 }
 
 export interface RouteStatusReasonInput {
@@ -111,8 +126,24 @@ export interface ReviewTrekkingRouteInput {
 }
 
 export interface AdminTrekkingRouteReview extends CreatedTrekkingRoute {
+	reviewOutcome?: RouteReviewOutcome;
+	reviewedAt?: string | null;
 	checkpoints: RouteCheckpoint[];
 	dangerZones: RouteDangerZone[];
+}
+
+export type RouteReviewOutcome = "pending" | "approved" | "returned_for_revision";
+export type RouteReviewOutcomeFilter = RouteReviewOutcome | "all";
+
+export interface AdminRouteReviewsQuery {
+	reviewOutcome: RouteReviewOutcomeFilter;
+	page: number;
+	limit: number;
+}
+
+export interface PaginatedAdminRouteReviews {
+	items: AdminTrekkingRouteReview[];
+	pagination: TrekkingRoutesPagination;
 }
 
 export type WeatherSnapshotStatus = "success" | "failed";

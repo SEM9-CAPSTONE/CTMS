@@ -11,6 +11,50 @@ describe("trekkingRoutesService", () => {
 		expect(get).toHaveBeenCalledWith("/trekking-routes");
 	});
 
+	it("maps the Host status filter with pagination", async () => {
+		const get = vi.spyOn(httpClient, "get").mockResolvedValue({ items: [], pagination: {} });
+
+		await trekkingRoutesService.listMinePaginated(2, 20, "pending_approval");
+
+		expect(get).toHaveBeenCalledWith("/trekking-routes/paginated", {
+			page: 2,
+			limit: 20,
+			status: "pending_approval",
+		});
+	});
+
+	it("uses the approved pagination and filter defaults for Host route list", async () => {
+		const get = vi.spyOn(httpClient, "get").mockResolvedValue({ items: [], pagination: {} });
+
+		await trekkingRoutesService.listMinePaginated();
+
+		expect(get).toHaveBeenCalledWith("/trekking-routes/paginated", {
+			page: 1,
+			limit: 20,
+			status: "all",
+		});
+	});
+
+	it("maps the Admin review filter and pagination query", async () => {
+		const get = vi.spyOn(httpClient, "get").mockResolvedValue({ items: [], pagination: {} });
+		await trekkingRoutesService.listAdminReviews({
+			reviewOutcome: "returned_for_revision",
+			page: 3,
+			limit: 20,
+		});
+		expect(get).toHaveBeenCalledWith("/trekking-routes/admin-reviews", {
+			reviewOutcome: "returned_for_revision",
+			page: 3,
+			limit: 20,
+		});
+	});
+
+	it("gets one owned route by id for the edit workflow", async () => {
+		const get = vi.spyOn(httpClient, "get").mockResolvedValue({ id: "route-id" });
+		await trekkingRoutesService.getMineById("route-id");
+		expect(get).toHaveBeenCalledWith("/trekking-routes/route-id");
+	});
+
 	it("posts only the canonical create payload", async () => {
 		const post = vi.spyOn(httpClient, "post").mockResolvedValue({ id: "route-id" });
 		const payload = {

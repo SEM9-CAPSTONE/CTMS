@@ -11,13 +11,24 @@ import { AuditLog } from "../../auth/entities/audit-log.entity";
 import type { AuthenticatedUser } from "../../auth/jwt.strategy";
 import { UserRole } from "../../users/entities/user.entity";
 import type { CreateTrekkingRouteDto } from "../dto/create-trekking-route.dto";
+import type { ListRouteReviewsQueryDto } from "../dto/list-route-reviews-query.dto";
+import {
+	ALL_TREKKING_ROUTE_STATUSES,
+	type ListTrekkingRoutesQueryDto,
+} from "../dto/list-trekking-routes-query.dto";
 import {
 	ReviewTrekkingRouteAction,
 	type ReviewTrekkingRouteDto,
 } from "../dto/review-trekking-route.dto";
 import type { RouteStatusReasonDto } from "../dto/route-status-reason.dto";
-import type { TrekkingRouteResponseDto } from "../dto/trekking-route-response.dto";
-import type { TrekkingRouteReviewResponseDto } from "../dto/trekking-route-review-response.dto";
+import type {
+	PaginatedTrekkingRoutesResponseDto,
+	TrekkingRouteResponseDto,
+} from "../dto/trekking-route-response.dto";
+import type {
+	PaginatedRouteReviewsResponseDto,
+	TrekkingRouteReviewResponseDto,
+} from "../dto/trekking-route-review-response.dto";
 import { type GeoLineString, TrekkingRouteStatus } from "../entities/trekking-route.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { TrekkingRoutesRepository } from "../repositories/trekking-routes.repository";
@@ -33,8 +44,58 @@ export class TrekkingRoutesService {
 		return this.trekkingRoutesRepository.findByHost(hostId);
 	}
 
+	async getOwnedById(hostId: string, routeId: string): Promise<TrekkingRouteResponseDto> {
+		const route = await this.trekkingRoutesRepository.findRouteById(routeId);
+		if (!route) throw new NotFoundException("Trekking route not found");
+		if (route.hostId !== hostId) {
+			throw new ForbiddenException("Only the owning Host can view this trekking route");
+		}
+		return route;
+	}
+
+	async listByHostPaginated(
+		hostId: string,
+		query: ListTrekkingRoutesQueryDto
+	): Promise<PaginatedTrekkingRoutesResponseDto> {
+		const status = query.status === ALL_TREKKING_ROUTE_STATUSES ? null : query.status;
+		const { items, total } = await this.trekkingRoutesRepository.findByHostPaginated(
+			hostId,
+			query.page,
+			query.limit,
+			status
+		);
+		return {
+			items,
+			pagination: {
+				page: query.page,
+				limit: query.limit,
+				total,
+				totalPages: total === 0 ? 0 : Math.ceil(total / query.limit),
+			},
+		};
+	}
+
 	listPendingReview(): Promise<TrekkingRouteReviewResponseDto[]> {
 		return this.trekkingRoutesRepository.findPendingReview();
+	}
+
+	async listAdminReviews(
+		query: ListRouteReviewsQueryDto
+	): Promise<PaginatedRouteReviewsResponseDto> {
+		const { items, total } = await this.trekkingRoutesRepository.findAdminReviews(
+			query.reviewOutcome,
+			query.page,
+			query.limit
+		);
+		return {
+			items,
+			pagination: {
+				page: query.page,
+				limit: query.limit,
+				total,
+				totalPages: total === 0 ? 0 : Math.ceil(total / query.limit),
+			},
+		};
 	}
 
 	async submitForApproval(hostId: string, routeId: string): Promise<TrekkingRouteResponseDto> {
@@ -61,6 +122,30 @@ export class TrekkingRoutesService {
 			const errors: Array<{ field: string; errors: string[] }> = [];
 			if (!checkpointIntegrity.checkpointsValid) {
 				errors.push({ field: "checkpoints", errors: ["stored route checkpoints are invalid"] });
+			}
+			if (checkpointIntegrity.startCount !== 1) {
+				errors.push({
+					field: "checkpoints",
+					errors: ["route must have exactly one start checkpoint"],
+				});
+			}
+			if (checkpointIntegrity.finishCount !== 1) {
+				errors.push({
+					field: "checkpoints",
+					errors: ["route must have exactly one finish checkpoint"],
+				});
+			}
+			if (
+				checkpointIntegrity.startCount === 1 &&
+				checkpointIntegrity.finishCount === 1 &&
+				(checkpointIntegrity.startPosition == null ||
+					checkpointIntegrity.finishPosition == null ||
+					checkpointIntegrity.startPosition >= checkpointIntegrity.finishPosition)
+			) {
+				errors.push({
+					field: "checkpoints",
+					errors: ["start checkpoint must occur before finish checkpoint"],
+				});
 			}
 			if (errors.length > 0) {
 				throw this.submissionValidationException(errors);

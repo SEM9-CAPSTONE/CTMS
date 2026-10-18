@@ -105,6 +105,28 @@ describe("PorterProfileForm & PorterProfileHeader", () => {
 		});
 	});
 
+	it("renders Vietnamese-only availability labels while preserving enum-backed options", async () => {
+		const user = userEvent.setup();
+		const onSave = vi.fn();
+		render(<FormWrapper onSave={onSave} />);
+
+		expect(screen.getByRole("button", { name: "Sẵn sàng nhận ca" })).toBeVisible();
+		const unavailableButton = screen.getByRole("button", { name: "Tạm ngưng nhận ca" });
+		expect(unavailableButton).toBeVisible();
+		expect(screen.queryByText(/\bAvailable\b/)).not.toBeInTheDocument();
+		expect(screen.queryByText(/\bUnavailable\b/)).not.toBeInTheDocument();
+
+		await user.click(unavailableButton);
+		await user.click(screen.getByTestId("save-porter-profile-button"));
+
+		await waitFor(() => {
+			expect(onSave).toHaveBeenCalledWith(
+				expect.objectContaining({ availabilityStatus: "unavailable" }),
+				expect.anything()
+			);
+		});
+	});
+
 	it("rejects negative experience input and shows validation error", async () => {
 		const onSave = vi.fn();
 
@@ -120,15 +142,20 @@ describe("PorterProfileForm & PorterProfileHeader", () => {
 		expect(onSave).not.toHaveBeenCalled();
 	});
 
-	it("adds certifications and prevents case-insensitive duplicates", async () => {
+	it("replaces the certificate editor while preserving certification values in form submission", async () => {
 		const user = userEvent.setup();
-		render(<FormWrapper />);
+		const onSave = vi.fn();
+		render(<FormWrapper onSave={onSave} />);
 
-		const certInput = screen.getByPlaceholderText(/VD: Sơ cấp cứu WFA/i);
-		await user.type(certInput, "wfa"); // duplicate of existing "WFA"
-		await user.keyboard("{Enter}");
+		expect(screen.queryByLabelText(/Chứng chỉ chuyên môn/i)).not.toBeInTheDocument();
+		await user.click(screen.getByTestId("save-porter-profile-button"));
 
-		expect(screen.getByText("Mục này đã tồn tại trong danh sách")).toBeVisible();
+		await waitFor(() => {
+			expect(onSave).toHaveBeenCalledWith(
+				expect.objectContaining({ certifications: ["WFA"] }),
+				expect.anything()
+			);
+		});
 	});
 
 	it("disables save button and shows pending spinner when isSaving is true", () => {

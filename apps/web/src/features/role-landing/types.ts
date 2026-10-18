@@ -7,7 +7,7 @@ export interface RoleLandingPageProps {
 	user: StoredAuthUser;
 	roles: readonly string[];
 	onBackHome: () => void;
-	onOpenProfile?: () => void;
+	onOpenProfile?: (activeRole: RoleKey) => void;
 	onOpenAdminUsers?: () => void;
 	onCreateTrip?: () => void;
 	onCreateTrekkingRoute?: () => void;

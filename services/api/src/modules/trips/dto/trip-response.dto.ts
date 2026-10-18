@@ -3,6 +3,7 @@ import { TrekkingRouteDifficulty } from "../../trekking-routes/entities/trekking
 import { RiskLevel } from "../../weather/entities/weather-risk-assessment.entity";
 import type { WaypointType } from "../entities/trip-waypoint.entity";
 import type { GeoPoint, TripStatus, TripType } from "../entities/trip.entity";
+import { TripReviewOutcome } from "./list-trip-reviews-query.dto";
 
 export class TripWaypointResponseDto {
 	@ApiProperty()
@@ -291,4 +292,20 @@ export class TripResponseDto {
 
 	@ApiProperty({ type: TripWaypointResponseDto, isArray: true })
 	waypoints!: TripWaypointResponseDto[];
+}
+
+export class AdminTripReviewResponseDto extends TripResponseDto {
+	@ApiProperty({ enum: TripReviewOutcome })
+	reviewOutcome!: Exclude<TripReviewOutcome, TripReviewOutcome.ALL>;
+
+	@ApiPropertyOptional({ nullable: true })
+	reviewedAt!: Date | null;
+}
+
+export class PaginatedTripReviewsResponseDto {
+	@ApiProperty({ type: [AdminTripReviewResponseDto] })
+	items!: AdminTripReviewResponseDto[];
+
+	@ApiProperty({ type: TripsPaginationDto })
+	pagination!: TripsPaginationDto;
 }

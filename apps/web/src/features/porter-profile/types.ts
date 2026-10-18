@@ -26,6 +26,27 @@ export interface PorterProfile {
 	updatedAt: string | null;
 }
 
+export interface PorterLedTripHistoryItem {
+	tripId: string;
+	tripTitle: string;
+	routeId: string;
+	routeName: string;
+	startsAt: string;
+	endsAt: string;
+	role: "lead";
+	status: "completed";
+}
+
+export interface PorterLedTripHistoryResponse {
+	items: PorterLedTripHistoryItem[];
+	pagination: {
+		page: number;
+		limit: number;
+		total: number;
+		totalPages: number;
+	};
+}
+
 export interface UpdatePorterProfileInput {
 	experienceYears?: number;
 	certifications?: string[];

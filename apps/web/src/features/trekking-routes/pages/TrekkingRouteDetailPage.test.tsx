@@ -46,8 +46,12 @@ function route(status: RouteStatus): CreatedTrekkingRoute {
 function mockRoutes(items: CreatedTrekkingRoute[]) {
 	vi.mocked(useTrekkingRoutes).mockReturnValue({
 		items,
+		pagination: { page: 1, limit: 20, total: items.length, totalPages: 1 },
+		statusFilter: "all",
 		isLoading: false,
 		error: "",
+		setPage: vi.fn(),
+		setStatusFilter: vi.fn(),
 		retry: vi.fn(),
 	});
 }

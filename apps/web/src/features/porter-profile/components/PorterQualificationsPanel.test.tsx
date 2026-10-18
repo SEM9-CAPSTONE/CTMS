@@ -71,7 +71,7 @@ describe("PorterQualificationsPanel", () => {
 		);
 
 		expect(screen.getByTestId("qualifications-empty-state")).toBeVisible();
-		expect(screen.getByText("Chưa có chứng chỉ tuyến trekking nào")).toBeVisible();
+		expect(screen.getByText("Chưa có năng lực tuyến trekking nào")).toBeVisible();
 	});
 
 	it("renders existing qualifications with verified and unverified statuses", () => {
@@ -98,7 +98,7 @@ describe("PorterQualificationsPanel", () => {
 
 		// Check lead eligibility
 		expect(screen.getByText("Đủ điều kiện làm Trưởng nhóm")).toBeVisible();
-		expect(screen.getByText("Học việc (Không đủ điều kiện Lead)")).toBeVisible();
+		expect(screen.getByText("Học việc (Không đủ điều kiện Trưởng nhóm)")).toBeVisible();
 	});
 
 	it("opens dialog to create new qualification and submits without expectedVersion", async () => {
@@ -125,10 +125,10 @@ describe("PorterQualificationsPanel", () => {
 		await user.click(screen.getByTestId("add-qualification-button"));
 
 		expect(screen.getByTestId("qualification-dialog")).toBeVisible();
-		expect(screen.getByRole("heading", { name: "Thêm chứng chỉ tuyến trekking" })).toBeVisible();
+		expect(screen.getByRole("heading", { name: "Thêm năng lực tuyến trekking" })).toBeVisible();
 
 		// Select proficiency "proficient"
-		await user.click(screen.getByText("Thành thạo (Proficient)"));
+		await user.click(screen.getByText("Thành thạo"));
 
 		// Times led input
 		const timesLedInput = screen.getByLabelText(/Số lần đã dẫn/i);

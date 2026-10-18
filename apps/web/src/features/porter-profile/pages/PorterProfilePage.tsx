@@ -1,9 +1,11 @@
 import { AlertCircle, ArrowLeft, Briefcase, CheckCircle2, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { tripsService } from "../../trips/services/trips.service";
+import { PorterLedTripHistory } from "../components/PorterLedTripHistory";
 import { PorterProfileForm } from "../components/PorterProfileForm";
 import { PorterProfileHeader } from "../components/PorterProfileHeader";
 import { PorterQualificationsPanel } from "../components/PorterQualificationsPanel";
+import { usePorterLedTripHistory } from "../hooks/usePorterLedTripHistory";
 import { usePorterProfile } from "../hooks/usePorterProfile";
 import { usePorterRouteQualifications } from "../hooks/usePorterRouteQualifications";
 
@@ -46,6 +48,8 @@ export function PorterProfilePage({
 		reload: reloadQuals,
 		upsertQualification,
 	} = usePorterRouteQualifications();
+
+	const ledTripHistory = usePorterLedTripHistory();
 
 	// Fetch available published trips/routes for discovery
 	useEffect(() => {
@@ -113,11 +117,9 @@ export function PorterProfilePage({
 							<Briefcase size={20} />
 						</div>
 						<div>
-							<h1 className="text-lg font-extrabold text-[#10221b]">
-								Hồ sơ & Năng lực chuyên môn Porter
-							</h1>
+							<h1 className="text-lg font-extrabold text-[#10221b]">Hồ sơ & Kinh nghiệm Porter</h1>
 							<p className="text-xs text-[#627769]">
-								Cập nhật kinh nghiệm, chứng chỉ và đăng ký năng lực tuyến leo núi
+								Cập nhật kinh nghiệm, theo dõi chuyến đã dẫn và năng lực theo tuyến
 							</p>
 						</div>
 					</div>
@@ -128,6 +130,7 @@ export function PorterProfilePage({
 							onClick={async () => {
 								await reloadProfile();
 								await reloadQuals();
+								await ledTripHistory.reload();
 							}}
 							className="flex items-center gap-1.5 rounded-xl border border-[#d2ded2] px-3.5 py-2 text-xs font-bold text-[#4a5e51] hover:bg-[#f4f7f2]"
 						>
@@ -139,7 +142,7 @@ export function PorterProfilePage({
 			</header>
 
 			{/* Main Container */}
-			<main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 space-y-6">
+			<div className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
 				{/* Top Global Alerts */}
 				{saveSuccessMessage && (
 					<div
@@ -183,6 +186,15 @@ export function PorterProfilePage({
 					isDirty={isDirty}
 				/>
 
+				<PorterLedTripHistory
+					items={ledTripHistory.items}
+					isLoading={ledTripHistory.isLoading}
+					errorMessage={ledTripHistory.errorMessage}
+					pagination={ledTripHistory.pagination}
+					onPageChange={ledTripHistory.setPage}
+					onRetry={ledTripHistory.reload}
+				/>
+
 				{/* Route Qualifications Section */}
 				<PorterQualificationsPanel
 					qualifications={qualifications}
@@ -195,7 +207,7 @@ export function PorterProfilePage({
 					onUpsert={upsertQualification}
 					onReload={reloadQuals}
 				/>
-			</main>
+			</div>
 		</div>
 	);
 }

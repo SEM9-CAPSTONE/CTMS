@@ -1,7 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { HttpError } from "../../../core/api";
 import { tripsService } from "../services/trips.service";
-import type { ReviewTripInput, Trip } from "../types";
+import type {
+	AdminTripReview,
+	ReviewTripInput,
+	TripReviewOutcomeFilter,
+	TripsPagination,
+} from "../types";
+
+const EMPTY_PAGINATION: TripsPagination = {
+	page: 1,
+	limit: 20,
+	total: 0,
+	totalPages: 0,
+};
 
 function backendMessage(error: HttpError): string | null {
 	const data = error.errorData as { message?: unknown } | null;
@@ -35,28 +47,39 @@ export function mapTripReviewError(error: unknown): string {
 	return message || "Không thể xử lý xét duyệt trip.";
 }
 
-export function useAdminTripReviews() {
-	const [items, setItems] = useState<Trip[]>([]);
+export function useAdminTripReviews(
+	reviewOutcome: TripReviewOutcomeFilter = "pending",
+	page = 1,
+	limit = 20
+) {
+	const [items, setItems] = useState<AdminTripReview[]>([]);
+	const [pagination, setPagination] = useState<TripsPagination>(EMPTY_PAGINATION);
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState("");
+	const requestSequence = useRef(0);
 
 	const reload = useCallback(async () => {
+		const requestId = ++requestSequence.current;
 		setIsLoading(true);
 		setError("");
 		try {
-			setItems(await tripsService.listPendingReview());
+			const response = await tripsService.listAdminReviews({ reviewOutcome, page, limit });
+			if (requestId !== requestSequence.current) return;
+			setItems(response.items);
+			setPagination(response.pagination);
 		} catch (requestError) {
+			if (requestId !== requestSequence.current) return;
 			setError(mapTripReviewError(requestError));
 		} finally {
-			setIsLoading(false);
+			if (requestId === requestSequence.current) setIsLoading(false);
 		}
-	}, []);
+	}, [limit, page, reviewOutcome]);
 
 	useEffect(() => {
 		void reload();
 	}, [reload]);
 
-	return { items, isLoading, error, reload };
+	return { items, pagination, isLoading, error, reload };
 }
 
 export function useReviewTrip() {

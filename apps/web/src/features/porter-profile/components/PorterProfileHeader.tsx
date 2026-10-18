@@ -43,8 +43,7 @@ export function PorterProfileHeader({ profile }: PorterProfileHeaderProps) {
 							</span>
 						</div>
 						<p className="mt-1 text-sm text-[#627769]">
-							Quản lý thông tin kinh nghiệm, chứng chỉ, ngôn ngữ và trạng thái sẵn sàng làm việc độc
-							lập của Porter.
+							Quản lý kinh nghiệm, ngôn ngữ, trạng thái nhận ca và năng lực theo từng tuyến.
 						</p>
 					</div>
 				</div>

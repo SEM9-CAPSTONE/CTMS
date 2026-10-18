@@ -7,6 +7,7 @@ import {
 	ParseUUIDPipe,
 	Patch,
 	Post,
+	Query,
 	Req,
 	UseGuards,
 } from "@nestjs/common";
@@ -26,14 +27,24 @@ import { CreateRouteDangerZoneDto } from "../dto/create-route-danger-zone.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { CreateTrekkingRouteDto } from "../dto/create-trekking-route.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
+import { ListRouteReviewsQueryDto } from "../dto/list-route-reviews-query.dto";
+// biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
+import { ListTrekkingRoutesQueryDto } from "../dto/list-trekking-routes-query.dto";
+// biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { ReviewTrekkingRouteDto } from "../dto/review-trekking-route.dto";
 import { RouteDangerZoneResponseDto } from "../dto/route-danger-zone-response.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { RouteIdParamDto } from "../dto/route-id-param.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { RouteStatusReasonDto } from "../dto/route-status-reason.dto";
-import { TrekkingRouteResponseDto } from "../dto/trekking-route-response.dto";
-import { TrekkingRouteReviewResponseDto } from "../dto/trekking-route-review-response.dto";
+import {
+	PaginatedTrekkingRoutesResponseDto,
+	TrekkingRouteResponseDto,
+} from "../dto/trekking-route-response.dto";
+import {
+	PaginatedRouteReviewsResponseDto,
+	TrekkingRouteReviewResponseDto,
+} from "../dto/trekking-route-review-response.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { UpdateCheckpointDto } from "../dto/update-checkpoint.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
@@ -70,6 +81,33 @@ export class TrekkingRoutesController {
 		return this.trekkingRoutesService.listPendingReview();
 	}
 
+	@Get("admin-reviews")
+	@Roles(UserRole.ADMIN)
+	@ApiOperation({ summary: "List Route review outcomes for Admin" })
+	@ApiResponse({ status: 200, type: PaginatedRouteReviewsResponseDto })
+	@ApiResponse({ status: 400, description: "Invalid review filter or pagination query" })
+	@ApiResponse({ status: 401, description: "Authentication required" })
+	@ApiResponse({ status: 403, description: "Admin access required" })
+	listAdminReviews(
+		@Query() query: ListRouteReviewsQueryDto
+	): Promise<PaginatedRouteReviewsResponseDto> {
+		return this.trekkingRoutesService.listAdminReviews(query);
+	}
+
+	@Get("paginated")
+	@Roles(UserRole.HOST)
+	@ApiOperation({ summary: "List paginated trekking routes owned by the current Host" })
+	@ApiResponse({ status: 200, type: PaginatedTrekkingRoutesResponseDto })
+	@ApiResponse({ status: 400, description: "Invalid pagination query" })
+	@ApiResponse({ status: 401, description: "Authentication required" })
+	@ApiResponse({ status: 403, description: "Host role required" })
+	listPaginated(
+		@Req() request: AuthenticatedRequest,
+		@Query() query: ListTrekkingRoutesQueryDto
+	): Promise<PaginatedTrekkingRoutesResponseDto> {
+		return this.trekkingRoutesService.listByHostPaginated(request.user.userId, query);
+	}
+
 	@Patch(":routeId/submit-for-approval")
 	@Roles(UserRole.HOST)
 	@ApiOperation({ summary: "Submit an owned draft trekking route for Admin approval" })
@@ -88,7 +126,7 @@ export class TrekkingRoutesController {
 
 	@Patch(":routeId/review")
 	@Roles(UserRole.ADMIN)
-	@ApiOperation({ summary: "Approve, decline, or mark a pending trekking route non-operable" })
+	@ApiOperation({ summary: "Approve or return a pending trekking route to draft" })
 	@ApiResponse({ status: 200, type: TrekkingRouteReviewResponseDto })
 	@ApiResponse({ status: 401, description: "Authentication required" })
 	@ApiResponse({ status: 403, description: "Admin access required" })
@@ -220,6 +258,20 @@ export class TrekkingRoutesController {
 		@Body() dto: CreateRouteDangerZoneDto
 	): Promise<RouteDangerZoneResponseDto> {
 		return this.routeDangerZonesService.create(request.user.userId, params.routeId, dto);
+	}
+
+	@Get(":routeId")
+	@Roles(UserRole.HOST)
+	@ApiOperation({ summary: "Get an owned trekking route by id" })
+	@ApiResponse({ status: 200, type: TrekkingRouteResponseDto })
+	@ApiResponse({ status: 401, description: "Authentication required" })
+	@ApiResponse({ status: 403, description: "Host ownership required" })
+	@ApiResponse({ status: 404, description: "Route not found" })
+	getById(
+		@Req() request: AuthenticatedRequest,
+		@Param() params: RouteIdParamDto
+	): Promise<TrekkingRouteResponseDto> {
+		return this.trekkingRoutesService.getOwnedById(request.user.userId, params.routeId);
 	}
 
 	@Patch(":routeId")

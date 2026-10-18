@@ -21,12 +21,26 @@ vi.mock("../features/role-landing/pages/RoleLandingPage", () => ({
 vi.mock("../features/role-landing/components/PorterAssignedTripsPanel", () => ({
 	PorterAssignedTripsPanel: ({
 		onViewTripDetail,
-	}: { onViewTripDetail?: (tripId: string) => void }) => (
-		<section aria-label="Chuyến đi được phân công">
-			<p>Assigned Trips</p>
-			<button type="button" onClick={() => onViewTripDetail?.(TRIP_ID)}>
-				Chi tiết
-			</button>
+		onOpenRoster,
+		mode,
+	}: {
+		onViewTripDetail?: (tripId: string) => void;
+		onOpenRoster?: (tripId: string) => void;
+		mode?: "assignments" | "checkins";
+	}) => (
+		<section
+			aria-label={mode === "checkins" ? "Chọn chuyến đi để điểm danh" : "Chuyến đi được phân công"}
+		>
+			<p>{mode === "checkins" ? "Check-in Trip Selection" : "Assigned Trips"}</p>
+			{mode === "checkins" ? (
+				<button type="button" onClick={() => onOpenRoster?.(TRIP_ID)}>
+					Mở điểm danh
+				</button>
+			) : (
+				<button type="button" onClick={() => onViewTripDetail?.(TRIP_ID)}>
+					Chi tiết
+				</button>
+			)}
 		</section>
 	),
 }));
@@ -36,6 +50,20 @@ vi.mock("../features/role-landing/components/PorterAssignedTripDetail", () => ({
 			<p>Detail {tripId}</p>
 			<button type="button" onClick={onBack}>
 				Quay lại
+			</button>
+		</section>
+	),
+}));
+vi.mock("../features/booking-members/pages/TripRosterPage", () => ({
+	TripRosterPage: ({
+		tripId,
+		onBack,
+		backLabel,
+	}: { tripId: string; onBack: () => void; backLabel?: string }) => (
+		<section aria-label="Điểm danh chuyến đi">
+			<p>Roster {tripId}</p>
+			<button type="button" onClick={onBack}>
+				{backLabel ?? "Quay lại"}
 			</button>
 		</section>
 	),
@@ -95,6 +123,60 @@ describe("Porter assignment navigation", () => {
 			"page"
 		);
 		expect(screen.getByRole("button", { name: "Tổng quan" })).not.toHaveAttribute("aria-current");
+	});
+	it("opens Check-In through assigned Trip selection and preserves the return path", () => {
+		signIn();
+		window.history.replaceState({}, "", RoutePath.DASHBOARD);
+		const close = vi.fn();
+		const { unmount } = render(
+			<Sidebar
+				config={dashboards.porter}
+				grantedRoles={["porter"]}
+				activeRole="porter"
+				onRoleChange={() => {}}
+				profile={null}
+				onClose={close}
+			/>
+		);
+
+		fireEvent.click(screen.getByRole("button", { name: "Điểm danh" }));
+		expect(window.location.pathname).toBe(RoutePath.PORTER_ASSIGNMENTS);
+		expect(window.location.search).toBe("?view=checkins");
+		expect(close).toHaveBeenCalledOnce();
+		unmount();
+		render(<AppRoutes />);
+		expect(screen.getByText("Check-in Trip Selection")).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Điểm danh" })).toHaveAttribute(
+			"aria-current",
+			"page"
+		);
+		expect(screen.getByRole("button", { name: "Phân công" })).not.toHaveAttribute("aria-current");
+
+		fireEvent.click(screen.getByRole("button", { name: "Mở điểm danh" }));
+		expect(window.location.pathname).toBe(`/trips/${TRIP_ID}`);
+		expect(window.location.search).toBe("?view=roster&from=porter-checkins");
+		expect(screen.getByText(`Roster ${TRIP_ID}`)).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Điểm danh" })).toHaveAttribute(
+			"aria-current",
+			"page"
+		);
+
+		fireEvent.click(screen.getByRole("button", { name: "Quay lại chọn chuyến đi" }));
+		expect(window.location.pathname).toBe(RoutePath.PORTER_ASSIGNMENTS);
+		expect(window.location.search).toBe("?view=checkins");
+		expect(screen.getByText("Check-in Trip Selection")).toBeInTheDocument();
+	});
+
+	it("supports directly opening the Check-In selection URL", () => {
+		signIn();
+		window.history.replaceState({}, "", `${RoutePath.PORTER_ASSIGNMENTS}?view=checkins`);
+		render(<AppRoutes />);
+
+		expect(screen.getByText("Check-in Trip Selection")).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Điểm danh" })).toHaveAttribute(
+			"aria-current",
+			"page"
+		);
 	});
 	it("retains Porter navigation for a user who also has the Host role", () => {
 		signIn(["host", "porter"]);

@@ -1,5 +1,6 @@
 import { API_ENDPOINTS, httpClient } from "../../../core/api";
 import type {
+	AdminTripReviewsQuery,
 	AvailablePortersQuery,
 	AvailablePortersResponse,
 	BookTripInput,
@@ -10,6 +11,7 @@ import type {
 	CreateTripInput,
 	CreateTripWaypointInput,
 	HostPorterAssignmentTrip,
+	PaginatedAdminTripReviews,
 	PaginatedTrips,
 	PorterAssignedTrip,
 	PorterRequest,
@@ -42,6 +44,12 @@ export const tripsService = {
 
 	listPendingReview: (): Promise<Trip[]> =>
 		httpClient.get<Trip[]>(API_ENDPOINTS.TRIPS.PENDING_REVIEW),
+	listAdminReviews: (query: AdminTripReviewsQuery): Promise<PaginatedAdminTripReviews> =>
+		httpClient.get<PaginatedAdminTripReviews>(API_ENDPOINTS.TRIPS.ADMIN_REVIEWS, {
+			reviewOutcome: query.reviewOutcome,
+			page: query.page,
+			limit: query.limit,
+		}),
 
 	review: (tripId: string, input: ReviewTripInput): Promise<Trip> =>
 		httpClient.patch<Trip>(API_ENDPOINTS.TRIPS.REVIEW(tripId), input),

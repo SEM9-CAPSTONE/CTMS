@@ -74,8 +74,8 @@ describe("RoutePorterQualificationsPanel", () => {
 
 		expect(screen.getByText("Alex Porter")).toBeVisible();
 		expect(screen.getByText("Sam Porter")).toBeVisible();
-		expect(screen.getByText("Thành thạo (Proficient)")).toBeVisible();
-		expect(screen.getByText("Chuyên gia (Expert)")).toBeVisible();
+		expect(screen.getByText("Thành thạo")).toBeVisible();
+		expect(screen.getByText("Chuyên gia")).toBeVisible();
 
 		// Check sensitive data absence
 		expect(screen.queryByText(/email/i)).toBeNull();

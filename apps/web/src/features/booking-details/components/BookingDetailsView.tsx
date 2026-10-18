@@ -3,12 +3,12 @@ import type { BookingDetails } from "../types";
 import {
 	formatBookingDateTime,
 	formatBookingMoney,
-	formatBookingStatus,
 	formatCancellationPolicyRules,
 	formatPaymentStatus,
 } from "../utils/booking-details-formatters";
 import { BookingEquipmentSection } from "./BookingEquipmentSection";
 import { BookingMembersSection } from "./BookingMembersSection";
+import { BookingStatusBadge, PaymentStatusBadge } from "./BookingStatusBadge";
 
 function SummaryRow({ label, value }: { label: string; value: React.ReactNode }) {
 	return (
@@ -48,12 +48,16 @@ export function BookingDetailsView({
 					<h1 className="mt-2 text-2xl font-extrabold sm:text-3xl">Chi tiết đơn đặt chỗ</h1>
 					<p className="mt-2 break-all text-sm text-emerald-100">Mã: {booking.id}</p>
 					<div className="mt-5 flex flex-wrap gap-2">
-						<span className="rounded-full bg-white px-3 py-1.5 text-xs font-extrabold text-[#164027]">
-							Trạng thái: {formatBookingStatus(booking.status)}
-						</span>
-						<span className="rounded-full bg-emerald-100 px-3 py-1.5 text-xs font-extrabold text-emerald-900">
-							Thanh toán: {formatPaymentStatus(booking.paymentStatus)}
-						</span>
+						<BookingStatusBadge
+							status={booking.status}
+							prefix="Trạng thái: "
+							testId="booking-details-status"
+						/>
+						<PaymentStatusBadge
+							status={booking.paymentStatus}
+							prefix="Thanh toán: "
+							testId="booking-details-payment-status"
+						/>
 					</div>
 				</header>
 

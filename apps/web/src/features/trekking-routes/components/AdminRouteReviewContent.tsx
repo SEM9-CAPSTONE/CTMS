@@ -25,7 +25,7 @@ export function AdminRouteReviewContent({
 				className="flex items-center justify-center gap-2 rounded-2xl bg-white p-16 font-bold"
 			>
 				<Loader2 className="size-5 animate-spin" />
-				Đang tải tuyến chờ duyệt...
+				Đang tải kết quả xét duyệt tuyến...
 			</div>
 		);
 	}
@@ -37,7 +37,7 @@ export function AdminRouteReviewContent({
 				className="rounded-2xl border border-dashed bg-white p-16 text-center"
 			>
 				<Route className="mx-auto size-12 text-[#9aaba0]" />
-				<p className="mt-3 font-extrabold">Không có tuyến nào đang chờ duyệt</p>
+				<p className="mt-3 font-extrabold">Không có kết quả xét duyệt tuyến phù hợp</p>
 			</div>
 		);
 	}

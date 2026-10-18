@@ -1,3 +1,4 @@
+import { ROLES_KEY } from "../../auth/decorators/roles.decorator";
 import type { AuthenticatedUser } from "../../auth/jwt.strategy";
 import { UserRole, UserStatus } from "../../users/entities/user.entity";
 import {
@@ -6,6 +7,7 @@ import {
 } from "../dto/available-porters-query.dto";
 import type { CreatePorterRequestDto } from "../dto/create-porter-request.dto";
 import type { ConfigureTripWaypointsDto, CreateTripDto } from "../dto/create-trip.dto";
+import { TripReviewOutcome } from "../dto/list-trip-reviews-query.dto";
 import { ReviewTripAction, type ReviewTripDto } from "../dto/review-trip.dto";
 import type { SearchTripsQueryDto } from "../dto/search-trips-query.dto";
 import type { PaginatedTripsResponseDto, TripResponseDto } from "../dto/trip-response.dto";
@@ -33,6 +35,7 @@ describe("TripsController", () => {
 		updateDraft: jest.Mock;
 		configureWaypoints: jest.Mock;
 		listPendingReview: jest.Mock;
+		listAdminReviews: jest.Mock;
 		review: jest.Mock;
 	};
 	let availablePortersService: { search: jest.Mock };
@@ -47,6 +50,7 @@ describe("TripsController", () => {
 			updateDraft: jest.fn(),
 			configureWaypoints: jest.fn(),
 			listPendingReview: jest.fn(),
+			listAdminReviews: jest.fn(),
 			review: jest.fn(),
 		};
 		availablePortersService = { search: jest.fn() };
@@ -256,6 +260,23 @@ describe("TripsController", () => {
 
 			expect(tripsService.listPendingReview).toHaveBeenCalledWith();
 			expect(result).toBe(mockPending);
+		});
+	});
+
+	describe("listAdminReviews", () => {
+		it("delegates validated filters and remains Admin-only", async () => {
+			const query = { reviewOutcome: TripReviewOutcome.AUTO_REJECTED, page: 2, limit: 10 };
+			tripsService.listAdminReviews.mockResolvedValue({
+				items: [],
+				pagination: { page: 2, limit: 10, total: 0, totalPages: 0 },
+			});
+
+			await controller.listAdminReviews(query);
+
+			expect(tripsService.listAdminReviews).toHaveBeenCalledWith(query);
+			expect(Reflect.getMetadata(ROLES_KEY, TripsController.prototype.listAdminReviews)).toEqual([
+				UserRole.ADMIN,
+			]);
 		});
 	});
 

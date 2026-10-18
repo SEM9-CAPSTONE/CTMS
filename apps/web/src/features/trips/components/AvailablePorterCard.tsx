@@ -10,7 +10,7 @@ interface AvailablePorterCardProps {
 }
 
 const PROFICIENCY_LABELS = {
-	learning: "Đang học",
+	learning: "Học việc",
 	proficient: "Thành thạo",
 	expert: "Chuyên gia",
 } as const;

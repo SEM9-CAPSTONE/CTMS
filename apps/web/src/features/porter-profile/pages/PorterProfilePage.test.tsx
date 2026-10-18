@@ -25,6 +25,10 @@ describe("PorterProfilePage", () => {
 		};
 		vi.spyOn(porterProfileService, "getProfile").mockResolvedValue(mockProfile);
 		vi.spyOn(porterProfileService, "getMyRouteQualifications").mockResolvedValue([]);
+		vi.spyOn(porterProfileService, "getLedTripHistory").mockResolvedValue({
+			items: [],
+			pagination: { page: 1, limit: 5, total: 0, totalPages: 0 },
+		});
 		vi.spyOn(tripsService, "search").mockResolvedValue({
 			items: [],
 			pagination: { page: 1, limit: 10, total: 0, totalPages: 1 },
@@ -37,6 +41,8 @@ describe("PorterProfilePage", () => {
 		});
 
 		expect(screen.getByTestId("porter-profile-form")).toBeVisible();
+		expect(screen.getByTestId("porter-led-trip-history")).toBeVisible();
+		expect(screen.queryByLabelText(/Chứng chỉ chuyên môn/i)).not.toBeInTheDocument();
 		expect(screen.getByTestId("porter-qualifications-panel")).toBeVisible();
 		expect(screen.getByTestId("readonly-rating-card")).toHaveTextContent("4.7");
 		expect(screen.getByTestId("readonly-completed-trips-card")).toHaveTextContent("8");
@@ -58,6 +64,10 @@ describe("PorterProfilePage", () => {
 		};
 		vi.spyOn(porterProfileService, "getProfile").mockResolvedValue(mockProfile);
 		vi.spyOn(porterProfileService, "getMyRouteQualifications").mockResolvedValue([]);
+		vi.spyOn(porterProfileService, "getLedTripHistory").mockResolvedValue({
+			items: [],
+			pagination: { page: 1, limit: 5, total: 0, totalPages: 0 },
+		});
 		vi.spyOn(tripsService, "search").mockResolvedValue({
 			items: [],
 			pagination: { page: 1, limit: 10, total: 0, totalPages: 1 },

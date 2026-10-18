@@ -1,13 +1,13 @@
 import { Compass, Loader2 } from "lucide-react";
-import type { Trip } from "../types";
+import type { AdminTripReview } from "../types";
 import { AdminTripReviewDetails } from "./AdminTripReviewDetails";
 import { AdminTripReviewList } from "./AdminTripReviewList";
 
 interface AdminTripReviewContentProps {
 	isLoading: boolean;
-	items: Trip[];
-	selected: Trip | null;
-	onSelect: (trip: Trip) => void;
+	items: AdminTripReview[];
+	selected: AdminTripReview | null;
+	onSelect: (trip: AdminTripReview) => void;
 	onReview: () => void;
 }
 
@@ -25,7 +25,7 @@ export function AdminTripReviewContent({
 				className="flex items-center justify-center gap-2 rounded-2xl bg-white p-16 font-bold"
 			>
 				<Loader2 className="size-5 animate-spin" />
-				Đang tải trip chờ duyệt...
+				Đang tải kết quả xét duyệt trip...
 			</div>
 		);
 	}
@@ -37,7 +37,7 @@ export function AdminTripReviewContent({
 				className="rounded-2xl border border-dashed bg-white p-16 text-center"
 			>
 				<Compass className="mx-auto size-12 text-[#9aaba0]" />
-				<p className="mt-3 font-extrabold">Không có trip nào đang chờ duyệt</p>
+				<p className="mt-3 font-extrabold">Không có kết quả xét duyệt trip phù hợp</p>
 			</div>
 		);
 	}

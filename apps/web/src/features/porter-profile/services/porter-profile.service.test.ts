@@ -51,6 +51,19 @@ describe("porterProfileService", () => {
 		expect(result.version).toBe(2);
 	});
 
+	it("getLedTripHistory calls the Porter-scoped paginated endpoint", async () => {
+		const mockResponse = {
+			items: [],
+			pagination: { page: 2, limit: 5, total: 0, totalPages: 0 },
+		};
+		const getSpy = vi.spyOn(httpClient, "get").mockResolvedValue(mockResponse);
+
+		const result = await porterProfileService.getLedTripHistory(2, 5);
+
+		expect(getSpy).toHaveBeenCalledWith("/porter/profile/led-trips?page=2&limit=5");
+		expect(result).toEqual(mockResponse);
+	});
+
 	it("getMyRouteQualifications calls GET /porter/route-qualifications", async () => {
 		const mockList = [
 			{

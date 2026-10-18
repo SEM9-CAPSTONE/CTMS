@@ -1,18 +1,32 @@
 import { AlertCircle, CheckCircle, RefreshCw, Route } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { toast } from "../../../shared/components";
+import { Pagination, toast } from "../../../shared/components";
+import {
+	type AdminReviewFilterOption,
+	AdminReviewFilters,
+} from "../../../shared/components/AdminReviewFilters";
 import { AdminLayout } from "../../admin-layout/components/AdminLayout";
 import { AdminRouteReviewContent } from "../components/AdminRouteReviewContent";
 import { RouteReviewDecisionDialog } from "../components/RouteReviewDecisionDialog";
 import { useAdminRouteReviews, useReviewTrekkingRoute } from "../hooks/useAdminRouteReviews";
 import type { ReviewTrekkingRouteFormValues } from "../schema/review-trekking-route.schema";
+import type { RouteReviewOutcomeFilter } from "../types";
+
+const REVIEW_FILTERS: Array<AdminReviewFilterOption<RouteReviewOutcomeFilter>> = [
+	{ value: "pending", label: "Chờ duyệt" },
+	{ value: "approved", label: "Đã phê duyệt" },
+	{ value: "returned_for_revision", label: "Trả về chỉnh sửa" },
+	{ value: "all", label: "Tất cả" },
+];
 
 export interface AdminTrekkingRoutesPageProps {
 	onLogout?: (allDevices: boolean) => Promise<void>;
 }
 
 export function AdminTrekkingRoutesPage({ onLogout }: AdminTrekkingRoutesPageProps) {
-	const list = useAdminRouteReviews();
+	const [reviewOutcome, setReviewOutcome] = useState<RouteReviewOutcomeFilter>("pending");
+	const [page, setPage] = useState(1);
+	const list = useAdminRouteReviews(reviewOutcome, page);
 	const review = useReviewTrekkingRoute();
 	const [selectedId, setSelectedId] = useState<string>();
 	const [dialogOpen, setDialogOpen] = useState(false);
@@ -40,7 +54,6 @@ export function AdminTrekkingRoutesPage({ onLogout }: AdminTrekkingRoutesPagePro
 		const labels = {
 			approve: "Đã phê duyệt và kích hoạt",
 			decline: "Đã trả về bản nháp",
-			non_operable: "Đã đóng vì không được vận hành",
 		};
 		const message = `${labels[values.action]} tuyến “${selected.name}”.`;
 		setSuccessMessage(message);
@@ -60,6 +73,16 @@ export function AdminTrekkingRoutesPage({ onLogout }: AdminTrekkingRoutesPagePro
 					<p className="mt-1 text-sm text-[#667a6d]">
 						Kiểm tra hình học, độ khó và checkpoint trước khi đưa tuyến vào vận hành.
 					</p>
+					<AdminReviewFilters
+						value={reviewOutcome}
+						options={REVIEW_FILTERS}
+						onChange={(value) => {
+							setReviewOutcome(value);
+							setPage(1);
+							setSuccessMessage(null);
+							review.clearError();
+						}}
+					/>
 				</header>
 
 				{list.error && (
@@ -88,21 +111,32 @@ export function AdminTrekkingRoutesPage({ onLogout }: AdminTrekkingRoutesPagePro
 					</output>
 				)}
 				{!list.error && (
-					<AdminRouteReviewContent
-						isLoading={list.isLoading}
-						items={list.items}
-						selected={selected}
-						onSelect={(route) => {
-							setSelectedId(route.id);
-							review.clearError();
-							setSuccessMessage(null);
-						}}
-						onReview={() => {
-							review.clearError();
-							setSuccessMessage(null);
-							setDialogOpen(true);
-						}}
-					/>
+					<>
+						<AdminRouteReviewContent
+							isLoading={list.isLoading}
+							items={list.items}
+							selected={selected}
+							onSelect={(route) => {
+								setSelectedId(route.id);
+								review.clearError();
+								setSuccessMessage(null);
+							}}
+							onReview={() => {
+								review.clearError();
+								setSuccessMessage(null);
+								setDialogOpen(true);
+							}}
+						/>
+						{!list.isLoading && (
+							<Pagination
+								currentPage={list.pagination.page}
+								totalPages={list.pagination.totalPages}
+								totalItems={list.pagination.total}
+								itemsPerPage={list.pagination.limit}
+								onPageChange={setPage}
+							/>
+						)}
+					</>
 				)}
 			</main>
 			<RouteReviewDecisionDialog

@@ -132,6 +132,26 @@ describe("PorterAssignedTripsPanel", () => {
 		expect(onViewTripDetail).toHaveBeenCalledWith("trip-ongoing");
 	});
 
+	it("uses assigned trips as the check-in selection workflow", () => {
+		const onViewTripDetail = vi.fn();
+		const onOpenRoster = vi.fn();
+		render(
+			<PorterAssignedTripsPanelView
+				{...baseState}
+				mode="checkins"
+				onViewTripDetail={onViewTripDetail}
+				onOpenRoster={onOpenRoster}
+			/>
+		);
+
+		expect(
+			screen.getByRole("heading", { name: "Chọn chuyến đi để điểm danh" })
+		).toBeInTheDocument();
+		fireEvent.click(screen.getByRole("button", { name: "Mở điểm danh Khám phá Sơn Trà" }));
+		expect(onOpenRoster).toHaveBeenCalledWith("trip-ongoing");
+		expect(onViewTripDetail).not.toHaveBeenCalled();
+	});
+
 	it("shows an error with retry and refreshes from the header", () => {
 		const refetch = vi.fn().mockResolvedValue(null);
 		const { rerender } = render(

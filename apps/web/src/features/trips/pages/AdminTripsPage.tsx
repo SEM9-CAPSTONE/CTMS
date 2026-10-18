@@ -1,19 +1,34 @@
 import { AlertCircle, CheckCircle, Compass, RefreshCw } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { toast } from "../../../shared/components";
+import { Pagination, toast } from "../../../shared/components";
+import {
+	type AdminReviewFilterOption,
+	AdminReviewFilters,
+} from "../../../shared/components/AdminReviewFilters";
 import { AdminLayout } from "../../admin-layout/components/AdminLayout";
 import { AdminTripReviewContent } from "../components/AdminTripReviewContent";
 import { TripReviewDecisionDialog } from "../components/TripReviewDecisionDialog";
 import { useAdminTripReviews, useReviewTrip } from "../hooks/useAdminTripReviews";
 import { useAdminTripReviewNotifications } from "../hooks/useTripReviewNotifications";
 import type { ReviewTripFormValues } from "../schema/review-trip.schema";
+import type { TripReviewOutcomeFilter } from "../types";
+
+const REVIEW_FILTERS: Array<AdminReviewFilterOption<TripReviewOutcomeFilter>> = [
+	{ value: "pending", label: "Chờ duyệt" },
+	{ value: "approved", label: "Đã phê duyệt" },
+	{ value: "returned_for_revision", label: "Trả về chỉnh sửa" },
+	{ value: "auto_rejected", label: "Tự động từ chối" },
+	{ value: "all", label: "Tất cả" },
+];
 
 export interface AdminTripsPageProps {
 	onLogout?: (allDevices: boolean) => Promise<void>;
 }
 
 export function AdminTripsPage({ onLogout }: AdminTripsPageProps) {
-	const list = useAdminTripReviews();
+	const [reviewOutcome, setReviewOutcome] = useState<TripReviewOutcomeFilter>("pending");
+	const [page, setPage] = useState(1);
+	const list = useAdminTripReviews(reviewOutcome, page);
 	const review = useReviewTrip();
 	const [selectedId, setSelectedId] = useState<string>();
 	const [dialogOpen, setDialogOpen] = useState(false);
@@ -63,6 +78,16 @@ export function AdminTripsPage({ onLogout }: AdminTripsPageProps) {
 					<p className="mt-1 text-sm text-[#667a6d]">
 						Kiểm tra lịch trình, sức chứa và điểm dừng trước khi công bố chuyến đi cho Camper.
 					</p>
+					<AdminReviewFilters
+						value={reviewOutcome}
+						options={REVIEW_FILTERS}
+						onChange={(value) => {
+							setReviewOutcome(value);
+							setPage(1);
+							setSuccessMessage(null);
+							review.clearError();
+						}}
+					/>
 				</header>
 
 				{list.error && (
@@ -91,21 +116,32 @@ export function AdminTripsPage({ onLogout }: AdminTripsPageProps) {
 					</output>
 				)}
 				{!list.error && (
-					<AdminTripReviewContent
-						isLoading={list.isLoading}
-						items={list.items}
-						selected={selected}
-						onSelect={(trip) => {
-							setSelectedId(trip.id);
-							review.clearError();
-							setSuccessMessage(null);
-						}}
-						onReview={() => {
-							review.clearError();
-							setSuccessMessage(null);
-							setDialogOpen(true);
-						}}
-					/>
+					<>
+						<AdminTripReviewContent
+							isLoading={list.isLoading}
+							items={list.items}
+							selected={selected}
+							onSelect={(trip) => {
+								setSelectedId(trip.id);
+								review.clearError();
+								setSuccessMessage(null);
+							}}
+							onReview={() => {
+								review.clearError();
+								setSuccessMessage(null);
+								setDialogOpen(true);
+							}}
+						/>
+						{!list.isLoading && (
+							<Pagination
+								currentPage={list.pagination.page}
+								totalPages={list.pagination.totalPages}
+								totalItems={list.pagination.total}
+								itemsPerPage={list.pagination.limit}
+								onPageChange={setPage}
+							/>
+						)}
+					</>
 				)}
 			</main>
 			<TripReviewDecisionDialog

@@ -1,4 +1,5 @@
 import type { EntityManager } from "typeorm";
+import { RouteReviewOutcome } from "../dto/list-route-reviews-query.dto";
 import {
 	TrekkingRoute,
 	TrekkingRouteDifficulty,
@@ -7,6 +8,101 @@ import {
 import { TrekkingRoutesRepository } from "./trekking-routes.repository";
 
 describe("TrekkingRoutesRepository", () => {
+	it.each(Object.values(RouteReviewOutcome))(
+		"filters Admin review outcomes by %s with stable pagination",
+		async (reviewOutcome) => {
+			const repository = new TrekkingRoutesRepository(TrekkingRoute, {} as EntityManager);
+			const query = jest
+				.spyOn(repository, "query")
+				.mockResolvedValueOnce([])
+				.mockResolvedValueOnce([{ total: "0" }]);
+
+			await expect(repository.findAdminReviews(reviewOutcome, 2, 10)).resolves.toEqual({
+				items: [],
+				total: 0,
+			});
+			expect(query.mock.calls[0][1]).toEqual([reviewOutcome, 10, 10]);
+			expect(query.mock.calls[0][0]).toContain('route."id" ASC');
+			expect(query.mock.calls[0][0]).toContain("trekking_route.approved");
+			expect(query.mock.calls[0][0]).toContain("returned_for_revision");
+			expect(query.mock.calls[0][0]).toContain(`route."status" = 'draft'`);
+			expect(query.mock.calls[0][0]).toContain("trekking_route.submitted_for_approval");
+		}
+	);
+
+	it("resolves one latest Route outcome without inferring from ambiguous lifecycle statuses", async () => {
+		const repository = new TrekkingRoutesRepository(TrekkingRoute, {} as EntityManager);
+		const query = jest
+			.spyOn(repository, "query")
+			.mockResolvedValueOnce([])
+			.mockResolvedValueOnce([{ total: "0" }]);
+
+		await repository.findAdminReviews(RouteReviewOutcome.ALL, 1, 20);
+		const sql = query.mock.calls[0][0] as string;
+		const pendingRule = sql.indexOf(`route."status" = 'pending_approval'`);
+		const approvedRule = sql.indexOf(`latest_review."action" = 'trekking_route.approved'`);
+
+		expect(pendingRule).toBeGreaterThan(-1);
+		expect(pendingRule).toBeLessThan(approvedRule);
+		expect(sql).toContain(`route."status" = 'draft'`);
+		expect(sql).toContain(`latest_review."action" = 'trekking_route.declined'`);
+		expect(sql).toContain("trekking_route.submitted_for_approval");
+		expect(sql).toContain('ORDER BY audit."created_at" DESC, audit."id" DESC');
+		expect(sql).toContain("LIMIT 1");
+		expect(sql).not.toContain(`route."status" = 'active' THEN 'approved'`);
+		expect(sql).not.toContain(`route."status" = 'closed' THEN 'approved'`);
+	});
+	it("loads one authoritative Route by id without a lifecycle lock", async () => {
+		const rejectedAt = new Date("2026-08-24T01:00:00.000Z");
+		const repository = new TrekkingRoutesRepository(TrekkingRoute, {} as EntityManager);
+		const query = jest.spyOn(repository, "query").mockResolvedValue([
+			{
+				id: "route-id",
+				hostId: "host-id",
+				name: "Ridge Trail",
+				description: null,
+				geometry: {
+					type: "LineString",
+					coordinates: [
+						[108.441, 11.941],
+						[108.449, 11.946],
+					],
+				},
+				lengthMeters: "1024.5",
+				difficulty: TrekkingRouteDifficulty.HARD,
+				expectedDurationMinutes: "90",
+				status: TrekkingRouteStatus.DRAFT,
+				latestRejectionReason: "Clarify the finish checkpoint",
+				latestRejectionAt: rejectedAt,
+				createdAt: new Date("2026-08-24T00:00:00.000Z"),
+				updatedAt: new Date("2026-08-24T00:00:00.000Z"),
+			},
+		]);
+
+		await expect(repository.findRouteById("route-id")).resolves.toEqual(
+			expect.objectContaining({
+				id: "route-id",
+				hostId: "host-id",
+				lengthMeters: 1024.5,
+				expectedDurationMinutes: 90,
+				latestRejectionReason: "Clarify the finish checkpoint",
+				latestRejectionAt: rejectedAt,
+			})
+		);
+		expect(query).toHaveBeenCalledWith(expect.not.stringContaining("FOR UPDATE"), ["route-id"]);
+		expect(query.mock.calls[0][0]).toContain("LEFT JOIN LATERAL");
+		expect(query.mock.calls[0][0]).toContain("trekking_route.declined");
+		expect(query.mock.calls[0][0]).toContain('ORDER BY audit."created_at" DESC, audit."id" DESC');
+		expect(query.mock.calls[0][0]).toContain(`route."status" = 'draft'`);
+	});
+
+	it("returns null when a Route detail does not exist", async () => {
+		const repository = new TrekkingRoutesRepository(TrekkingRoute, {} as EntityManager);
+		jest.spyOn(repository, "query").mockResolvedValue([]);
+
+		await expect(repository.findRouteById("missing-route")).resolves.toBeNull();
+	});
+
 	it("rejects an incompatible draft update before recalculating checkpoints", async () => {
 		const repository = new TrekkingRoutesRepository(TrekkingRoute, {} as EntityManager);
 		const query = jest.spyOn(repository, "query").mockResolvedValue([]);
@@ -146,16 +242,28 @@ describe("TrekkingRoutesRepository", () => {
 		expect(query.mock.calls[0][0]).not.toContain("checkpoint_type = 'start'");
 	});
 
-	it("validates submission checkpoint integrity without requiring start or finish", async () => {
+	it("validates submission checkpoint integrity and maps authoritative completeness data", async () => {
 		const repository = new TrekkingRoutesRepository(TrekkingRoute, {} as EntityManager);
-		const query = jest.spyOn(repository, "query").mockResolvedValue([{ checkpointsValid: true }]);
+		const query = jest.spyOn(repository, "query").mockResolvedValue([
+			{
+				checkpointsValid: true,
+				startCount: "1",
+				finishCount: "1",
+				startPosition: "0.1",
+				finishPosition: "0.9",
+			},
+		]);
 
 		await expect(repository.validateSubmissionCheckpoints("route-id")).resolves.toEqual({
 			checkpointsValid: true,
+			startCount: 1,
+			finishCount: 1,
+			startPosition: 0.1,
+			finishPosition: 0.9,
 		});
 		expect(query.mock.calls[0][0]).toContain("ST_DWithin");
-		expect(query.mock.calls[0][0]).not.toContain("FILTER");
-		expect(query.mock.calls[0][0]).not.toContain('checkpoint."instructions"');
+		expect(query.mock.calls[0][0]).toContain("FILTER");
+		expect(query.mock.calls[0][0]).toContain("GROUP BY route");
 		expect(query).toHaveBeenCalledWith(expect.any(String), ["route-id"]);
 	});
 
@@ -222,10 +330,10 @@ describe("TrekkingRoutesRepository", () => {
 		const routes = await repository.findByHost("host-id");
 
 		expect(query).toHaveBeenCalledWith(
-			expect.stringContaining('ST_AsGeoJSON("route_geom"::geometry)'),
+			expect.stringContaining('ST_AsGeoJSON(route."route_geom"::geometry)'),
 			["host-id"]
 		);
-		expect(query.mock.calls[0][0]).toContain('WHERE "host_id" = $1');
+		expect(query.mock.calls[0][0]).toContain('WHERE route."host_id" = $1');
 		expect(routes[0]).toEqual(
 			expect.objectContaining({
 				geometry: {
@@ -238,6 +346,97 @@ describe("TrekkingRoutesRepository", () => {
 				lengthMeters: 1024.5,
 				expectedDurationMinutes: 90,
 			})
+		);
+	});
+
+	it("paginates only the Host's routes with stable ordering and a scoped total", async () => {
+		const repository = new TrekkingRoutesRepository(TrekkingRoute, {} as EntityManager);
+		const query = jest.spyOn(repository, "query").mockResolvedValueOnce([
+			{
+				id: "route-id",
+				hostId: "host-id",
+				name: "Ridge Trail",
+				description: null,
+				geometry: {
+					type: "LineString",
+					coordinates: [
+						[108.441, 11.941],
+						[108.449, 11.946],
+					],
+				},
+				lengthMeters: "1024.5",
+				difficulty: TrekkingRouteDifficulty.HARD,
+				expectedDurationMinutes: "90",
+				status: TrekkingRouteStatus.DRAFT,
+				createdAt: new Date("2026-08-24T00:00:00.000Z"),
+				updatedAt: new Date("2026-08-24T00:00:00.000Z"),
+				total: "41",
+			},
+		]);
+
+		const result = await repository.findByHostPaginated(
+			"host-id",
+			3,
+			20,
+			TrekkingRouteStatus.DRAFT
+		);
+
+		expect(query).toHaveBeenNthCalledWith(
+			1,
+			expect.stringContaining('WHERE route."host_id" = $1'),
+			["host-id", TrekkingRouteStatus.DRAFT, 20, 40]
+		);
+		expect(query.mock.calls[0][0]).toContain('route."status" = $2::trekking_route_status');
+		expect(query.mock.calls[0][0]).toContain('ORDER BY route."created_at" DESC, route."id" ASC');
+		expect(query.mock.calls[0][0]).toContain("LIMIT $3 OFFSET $4");
+		expect(query.mock.calls[0][0]).toContain("COUNT(*) OVER()");
+		expect(query).toHaveBeenCalledTimes(1);
+		expect(result).toEqual({
+			items: [expect.objectContaining({ id: "route-id", lengthMeters: 1024.5 })],
+			total: 41,
+		});
+	});
+
+	it("returns an accurate total for an empty page", async () => {
+		const repository = new TrekkingRoutesRepository(TrekkingRoute, {} as EntityManager);
+		const query = jest
+			.spyOn(repository, "query")
+			.mockResolvedValueOnce([])
+			.mockResolvedValueOnce([{ total: "7" }]);
+
+		await expect(repository.findByHostPaginated("host-id", 4, 3, null)).resolves.toEqual({
+			items: [],
+			total: 7,
+		});
+		expect(query).toHaveBeenNthCalledWith(
+			2,
+			expect.stringContaining('"status" = $2::trekking_route_status'),
+			["host-id", null]
+		);
+	});
+
+	it("returns an accurate total for an empty page with a status filter", async () => {
+		const repository = new TrekkingRoutesRepository(TrekkingRoute, {} as EntityManager);
+		const query = jest
+			.spyOn(repository, "query")
+			.mockResolvedValueOnce([])
+			.mockResolvedValueOnce([{ total: "0" }]);
+
+		await expect(
+			repository.findByHostPaginated("host-id", 1, 20, TrekkingRouteStatus.CLOSED)
+		).resolves.toEqual({
+			items: [],
+			total: 0,
+		});
+		expect(query).toHaveBeenNthCalledWith(
+			1,
+			expect.stringContaining('WHERE route."host_id" = $1'),
+			["host-id", TrekkingRouteStatus.CLOSED, 20, 0]
+		);
+		expect(query).toHaveBeenNthCalledWith(
+			2,
+			expect.stringContaining('"status" = $2::trekking_route_status'),
+			["host-id", TrekkingRouteStatus.CLOSED]
 		);
 	});
 

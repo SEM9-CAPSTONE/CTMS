@@ -9,12 +9,14 @@ import type {
 	HostPorterAssignmentDto,
 	HostPorterAssignmentTripDto,
 } from "../dto/host-porter-assignment-response.dto";
+import type { TripReviewOutcome } from "../dto/list-trip-reviews-query.dto";
 import type { PorterAssignedTripResponseDto } from "../dto/porter-assigned-trip-response.dto";
 import type {
 	PorterRecordedWeather,
 	PorterTripOperationsResponseDto,
 } from "../dto/porter-trip-operations-response.dto";
 import type {
+	AdminTripReviewResponseDto,
 	TripRegistrationRiskResponseDto,
 	TripResponseDto,
 	TripSummaryResponseDto,
@@ -234,6 +236,8 @@ interface TripSummaryRow {
 }
 
 interface TripRow extends TripSummaryRow {
+	reviewOutcome?: Exclude<TripReviewOutcome, TripReviewOutcome.ALL>;
+	reviewedAt?: Date | null;
 	hostId: string;
 	host?: {
 		id: string;
@@ -391,7 +395,47 @@ function toTripResponse(row: TripRow): TripResponseDto {
 	};
 }
 
-const TRIP_SELECT = `
+function toAdminTripReviewResponse(row: TripRow): AdminTripReviewResponseDto {
+	return {
+		...toTripResponse(row),
+		reviewOutcome: row.reviewOutcome as Exclude<TripReviewOutcome, TripReviewOutcome.ALL>,
+		reviewedAt: row.reviewedAt ?? null,
+	};
+}
+
+const TRIP_REVIEW_OUTCOME_EXPRESSION = `
+	CASE
+		WHEN trip."status" = 'pending_approval' THEN 'pending'
+		WHEN latest_review."action" = 'trip.approved' THEN 'approved'
+		WHEN trip."status" = 'draft'
+			AND latest_review."action" = 'trip.declined'
+		THEN 'returned_for_revision'
+		WHEN trip."status" = 'rejected'
+			AND latest_review."action" = 'trip.auto_rejected'
+		THEN 'auto_rejected'
+		ELSE NULL
+	END
+`;
+
+const LATEST_TRIP_REVIEW_JOIN = `
+	LEFT JOIN LATERAL (
+		SELECT audit."action", audit."created_at"
+		FROM "audit_logs" audit
+		WHERE audit."target_type" = 'trip'
+			AND audit."target_id" = trip."id"
+			AND audit."action" IN (
+				'trip.submitted_for_approval',
+				'trip.approved',
+				'trip.declined',
+				'trip.auto_rejected'
+			)
+		ORDER BY audit."created_at" DESC, audit."id" DESC
+		LIMIT 1
+	) latest_review ON TRUE
+`;
+
+function buildTripSelect(reviewColumns = "", reviewJoin = ""): string {
+	return `
 	SELECT
 		trip."id",
 		trip."host_id" AS "hostId",
@@ -426,6 +470,7 @@ const TRIP_SELECT = `
 		trip."price_per_person" AS "pricePerPerson",
 		trip."cancellation_policy" AS "cancellationPolicy",
 		trip."status",
+		${reviewColumns}
 		trip."cancellation_reason" AS "cancellationReason",
 		trip."cancelled_at" AS "cancelledAt",
 		trip."created_at" AS "createdAt",
@@ -478,6 +523,7 @@ const TRIP_SELECT = `
 	FROM "trips" trip
 	LEFT JOIN "trekking_routes" route ON route."id" = trip."route_id"
 	LEFT JOIN "users" u ON u."id" = trip."host_id"
+	${reviewJoin}
 	LEFT JOIN LATERAL (
 		SELECT
 			wra."id" AS "assessmentId",
@@ -539,6 +585,14 @@ const TRIP_SELECT = `
 		LIMIT 1
 	) advice ON TRUE
 `;
+}
+
+const TRIP_SELECT = buildTripSelect();
+const ADMIN_TRIP_SELECT = buildTripSelect(
+	`${TRIP_REVIEW_OUTCOME_EXPRESSION} AS "reviewOutcome",
+		latest_review."created_at" AS "reviewedAt",`,
+	LATEST_TRIP_REVIEW_JOIN
+);
 
 @Injectable()
 export class TripsRepository extends Repository<Trip> {
@@ -904,7 +958,13 @@ export class TripsRepository extends Repository<Trip> {
 				"route_id" AS "routeId",
 				"starts_at" AS "startsAt",
 				"ends_at" AS "endsAt",
-				"status"
+				"status",
+				EXISTS (
+					SELECT 1
+					FROM "trip_porters" assignment
+					WHERE assignment."trip_id" = trip."id"
+						AND assignment."status" IN ('assigned', 'pending_reconfirmation')
+				) AS "hasActivePorter"
 			 FROM "trips" trip
 			 WHERE trip."id" = $1`,
 			[tripId]
@@ -922,6 +982,37 @@ export class TripsRepository extends Repository<Trip> {
 		)) as TripRow[];
 
 		return rows.map(toTripResponse);
+	}
+
+	async findAdminReviews(
+		reviewOutcome: TripReviewOutcome,
+		page: number,
+		limit: number
+	): Promise<{ items: AdminTripReviewResponseDto[]; total: number }> {
+		const offset = (page - 1) * limit;
+		const outcomePredicate = `(
+			($1 = 'all' AND ${TRIP_REVIEW_OUTCOME_EXPRESSION} IS NOT NULL)
+			OR ${TRIP_REVIEW_OUTCOME_EXPRESSION} = $1
+		)`;
+		const rows = (await this.query(
+			`${ADMIN_TRIP_SELECT}
+			WHERE ${outcomePredicate}
+			ORDER BY COALESCE(latest_review."created_at", trip."updated_at") DESC, trip."id" ASC
+			LIMIT $2 OFFSET $3`,
+			[reviewOutcome, limit, offset]
+		)) as TripRow[];
+		const countRows = (await this.query(
+			`SELECT COUNT(*) AS "total"
+			FROM "trips" trip
+			${LATEST_TRIP_REVIEW_JOIN}
+			WHERE ${outcomePredicate}`,
+			[reviewOutcome]
+		)) as Array<{ total: string }>;
+
+		return {
+			items: rows.map(toAdminTripReviewResponse),
+			total: Number(countRows[0]?.total ?? 0),
+		};
 	}
 
 	async findPendingReviewReminderCandidates(

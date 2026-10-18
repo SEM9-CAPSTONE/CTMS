@@ -7,18 +7,18 @@ type HttpErrorConstructor = typeof import("../../../core/api").HttpError;
 let testingLibrary: TestingLibrary;
 let adminRouteReviewsModule: AdminRouteReviewsModule;
 let HttpError: HttpErrorConstructor;
-let listPendingReviewMock: ReturnType<typeof vi.fn>;
+let listAdminReviewsMock: ReturnType<typeof vi.fn>;
 let reviewMock: ReturnType<typeof vi.fn>;
 
 describe("useAdminRouteReviews", () => {
 	beforeEach(async () => {
 		vi.resetModules();
 		vi.doUnmock("../../../core/api");
-		listPendingReviewMock = vi.fn();
+		listAdminReviewsMock = vi.fn();
 		reviewMock = vi.fn();
 		vi.doMock("../services/trekking-routes.service", () => ({
 			trekkingRoutesService: {
-				listPendingReview: listPendingReviewMock,
+				listAdminReviews: listAdminReviewsMock,
 				review: reviewMock,
 			},
 		}));
@@ -58,6 +58,46 @@ describe("useAdminRouteReviews", () => {
 		expect(adminRouteReviewsModule.mapRouteReviewError(error)).toBe(
 			"stored route checkpoints are invalid stored route geometry is invalid"
 		);
+	});
+
+	it("keeps the latest filter response when an older request finishes later", async () => {
+		let resolvePending!: (value: unknown) => void;
+		let resolveApproved!: (value: unknown) => void;
+		const pendingRequest = new Promise((resolve) => {
+			resolvePending = resolve;
+		});
+		const approvedRequest = new Promise((resolve) => {
+			resolveApproved = resolve;
+		});
+		listAdminReviewsMock.mockReturnValueOnce(pendingRequest).mockReturnValueOnce(approvedRequest);
+
+		const { result, rerender } = testingLibrary.renderHook(
+			({ outcome }) => adminRouteReviewsModule.useAdminRouteReviews(outcome),
+			{ initialProps: { outcome: "pending" as "pending" | "approved" } }
+		);
+
+		rerender({ outcome: "approved" });
+		await testingLibrary.act(async () => {
+			resolveApproved({
+				items: [{ id: "approved-route", reviewOutcome: "approved" }],
+				pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
+			});
+		});
+		await testingLibrary.waitFor(() => expect(result.current.isLoading).toBe(false));
+
+		await testingLibrary.act(async () => {
+			resolvePending({
+				items: [{ id: "pending-route", reviewOutcome: "pending" }],
+				pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
+			});
+		});
+
+		expect(result.current.items).toEqual([{ id: "approved-route", reviewOutcome: "approved" }]);
+		expect(listAdminReviewsMock).toHaveBeenNthCalledWith(2, {
+			reviewOutcome: "approved",
+			page: 1,
+			limit: 20,
+		});
 	});
 
 	it("rejects a duplicate review mutation while the first request is in flight", async () => {

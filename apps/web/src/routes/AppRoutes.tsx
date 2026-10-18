@@ -112,6 +112,10 @@ export function AppRoutes() {
 
 	const storedUser = getStoredAuthUser();
 	const currentRoles = getGrantedRoles(storedUser);
+	const shouldCanonicalizePorterProfile =
+		(currentPath === RoutePath.CAMPER_PROFILE || currentPath === RoutePath.PROFILE) &&
+		currentRoles.includes("porter") &&
+		!currentRoles.includes("camper");
 	useIdleLogout(storedUser !== null, () => {
 		// Always end the session, even if the logout request itself fails.
 		handleLogout(false).catch(() => clearAuthSessionAndRedirect());
@@ -149,6 +153,13 @@ export function AppRoutes() {
 		setCurrentSearch("");
 	}, [guestOnlyRedirectPath]);
 
+	useEffect(() => {
+		if (!shouldCanonicalizePorterProfile) return;
+		window.history.replaceState({}, "", RoutePath.PORTER_PROFILE);
+		setCurrentPath(RoutePath.PORTER_PROFILE);
+		setCurrentSearch("");
+	}, [shouldCanonicalizePorterProfile]);
+
 	const unauthorizedFallback = (
 		<UnauthorizedPage
 			requiredRole="admin"
@@ -169,6 +180,9 @@ export function AppRoutes() {
 		return <SessionCheckScreen />;
 	}
 	if (guestOnlyRedirectPath) {
+		return null;
+	}
+	if (shouldCanonicalizePorterProfile) {
 		return null;
 	}
 	if (currentPath === RoutePath.BOOKINGS) {
@@ -289,6 +303,8 @@ export function AppRoutes() {
 	const isBookingFromTrip = Boolean(bookingId && tripReturnId);
 	const isOperationalRosterRoute =
 		Boolean(routeTripId) && navigationContext.get("view") === "roster";
+	const isPorterCheckInRoster =
+		isOperationalRosterRoute && navigationContext.get("from") === "porter-checkins";
 
 	if (activeTripId) {
 		if (isOperationalRosterRoute) {
@@ -299,8 +315,24 @@ export function AppRoutes() {
 					fallback={unauthorizedFallback}
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
-					<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
-						<TripRosterPage tripId={activeTripId} onBack={() => navigateTo(RoutePath.DASHBOARD)} />
+					<HostLayout
+						activeRole={
+							isPorterCheckInRoster && currentRoles.includes("porter") ? "porter" : undefined
+						}
+						onLogout={handleLogout}
+						onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}
+					>
+						<TripRosterPage
+							tripId={activeTripId}
+							onBack={() =>
+								navigateTo(
+									isPorterCheckInRoster
+										? `${RoutePath.PORTER_ASSIGNMENTS}?view=checkins`
+										: RoutePath.DASHBOARD
+								)
+							}
+							backLabel={isPorterCheckInRoster ? "Quay lại chọn chuyến đi" : undefined}
+						/>
 					</HostLayout>
 				</AppRoleGuard>
 			);
@@ -451,11 +483,17 @@ export function AppRoutes() {
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
 					{withPorterVerification(
-						<PorterProfilePage
-							onBackHome={() => navigateTo(storedUser ? RoutePath.DASHBOARD : RoutePath.HOME)}
-							onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}
+						<HostLayout
+							activeRole="porter"
 							onLogout={handleLogout}
-						/>
+							onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}
+						>
+							<PorterProfilePage
+								onBackHome={() => navigateTo(storedUser ? RoutePath.DASHBOARD : RoutePath.HOME)}
+								onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}
+								onLogout={handleLogout}
+							/>
+						</HostLayout>
 					)}
 				</AppRoleGuard>
 			);
@@ -474,7 +512,8 @@ export function AppRoutes() {
 				</AppRoleGuard>
 			);
 
-		case RoutePath.PORTER_ASSIGNMENTS:
+		case RoutePath.PORTER_ASSIGNMENTS: {
+			const isCheckInSelection = navigationContext.get("view") === "checkins";
 			return (
 				<AppRoleGuard
 					allowedRoles={["porter"]}
@@ -489,8 +528,12 @@ export function AppRoutes() {
 						>
 							<main className="p-4 sm:p-6 lg:p-8">
 								<PorterAssignedTripsPanel
+									mode={isCheckInSelection ? "checkins" : "assignments"}
 									onViewTripDetail={(tripId) =>
 										navigateTo(`${RoutePath.PORTER_ASSIGNMENTS}/${tripId}`)
+									}
+									onOpenRoster={(tripId) =>
+										navigateTo(`/trips/${tripId}?view=roster&from=porter-checkins`)
 									}
 								/>
 							</main>
@@ -498,6 +541,7 @@ export function AppRoutes() {
 					)}
 				</AppRoleGuard>
 			);
+		}
 
 		case RoutePath.PORTER_REQUESTS:
 			return (
@@ -519,24 +563,6 @@ export function AppRoutes() {
 
 		case RoutePath.CAMPER_PROFILE:
 		case RoutePath.PROFILE:
-			if (currentRoles.includes("porter") && !currentRoles.includes("camper")) {
-				return (
-					<AppRoleGuard
-						allowedRoles={["porter"]}
-						currentRoles={currentRoles}
-						onNavigateHome={() => navigateTo(RoutePath.HOME)}
-					>
-						{withPorterVerification(
-							<PorterProfilePage
-								onBackHome={() => navigateTo(storedUser ? RoutePath.DASHBOARD : RoutePath.HOME)}
-								onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}
-								onLogout={handleLogout}
-							/>
-						)}
-					</AppRoleGuard>
-				);
-			}
-
 			return (
 				<CamperProfilePage
 					onBackHome={() => navigateTo(storedUser ? RoutePath.DASHBOARD : RoutePath.HOME)}
@@ -671,7 +697,11 @@ export function AppRoutes() {
 					user={storedUser}
 					roles={currentRoles}
 					onBackHome={() => navigateTo(RoutePath.HOME)}
-					onOpenProfile={() => navigateTo(RoutePath.CAMPER_PROFILE)}
+					onOpenProfile={(activeRole) =>
+						navigateTo(
+							activeRole === "porter" ? RoutePath.PORTER_PROFILE : RoutePath.CAMPER_PROFILE
+						)
+					}
 					onOpenAdminUsers={() => navigateTo(RoutePath.ADMIN_USERS)}
 					onExplore={() => navigateTo(RoutePath.TRIPS)}
 					onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}

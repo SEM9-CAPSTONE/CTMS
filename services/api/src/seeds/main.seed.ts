@@ -12,6 +12,7 @@
 import { hash } from "bcrypt";
 import { DEFAULT_CANCELLATION_POLICY } from "../modules/bookings/cancellation-policy";
 import dataSource from "../shared/database/data-source";
+import { PORTER_SEED_FIXTURES } from "./porter.seed-fixtures";
 
 const BCRYPT_COST_FACTOR = 10;
 
@@ -1870,140 +1871,126 @@ async function seedDiverseTripAndRouteStatuses(
 // --------------------------------------------------------------------------
 async function seedPorterProfileAndAssignments(routeIds: Record<string, string>): Promise<void> {
 	console.log("[seed:dev-trips] Seeding Porter profiles, qualifications and trip assignments...");
-	const porterRows: Array<{ id: string }> = await dataSource.query(
-		'SELECT "id" FROM "users" WHERE "email" = $1',
-		["porter@ctms.local"]
-	);
-	if (porterRows.length === 0) return;
-	const porterId = porterRows[0].id;
-
-	// 1. Porter profile
-	await dataSource.query(
-		`INSERT INTO "porter_profiles" (
-			porter_id, experience_years, certifications, languages, availability_status, rating_avg, completed_trips
-		) VALUES (
-			$1, 5,
-			ARRAY['Chứng chỉ Sơ cấp cứu Y tế (Red Cross)', 'Chứng chỉ Dẫn đường & Sinh tồn Dã ngoại Cấp 2'],
-			ARRAY['Tiếng Việt', 'Tiếng Anh giao tiếp'],
-			'available', 4.95, 42
-		) ON CONFLICT (porter_id) DO UPDATE SET
-			experience_years = EXCLUDED.experience_years,
-			certifications = EXCLUDED.certifications,
-			languages = EXCLUDED.languages,
-			availability_status = EXCLUDED.availability_status,
-			rating_avg = EXCLUDED.rating_avg,
-			completed_trips = EXCLUDED.completed_trips`,
-		[porterId]
-	);
-
-	// 1b. Demo Porter's guide certificate verification is already approved
-	await dataSource.query(
-		`INSERT INTO "porter_verifications" (porter_id, status, submitted_at, reviewed_at)
-		 VALUES ($1, 'approved', now(), now())
-		 ON CONFLICT (porter_id) DO UPDATE SET
-			status = 'approved',
-			reviewed_at = COALESCE("porter_verifications".reviewed_at, now()),
-			rejection_reason = NULL`,
-		[porterId]
-	);
-
-	// Get an admin user ID for qualification verification
 	const adminRows: Array<{ id: string }> = await dataSource.query(
 		'SELECT "id" FROM "users" WHERE "email" = $1',
 		["admin@ctms.local"]
 	);
 	const adminId = adminRows.length > 0 ? adminRows[0].id : null;
+	if (!adminId) {
+		throw new Error("[seed:dev-trips] Admin account is required to verify Porter qualifications.");
+	}
 
-	// 2. Porter qualifications on Son Tra and Hai Van routes
-	for (const [name, prof, times] of [
-		["Bán Đảo Sơn Trà Discovery", "expert", 28],
-		["Hải Vân Pass - Nam Hải Vân Trail", "proficient", 14],
-	] as const) {
-		const routeId = routeIds[name];
-		if (routeId) {
-			const existingQual: Array<{ id: string }> = await dataSource.query(
-				'SELECT "id" FROM "porter_route_qualifications" WHERE "porter_id" = $1 AND "route_id" = $2',
-				[porterId, routeId]
+	for (const fixture of PORTER_SEED_FIXTURES) {
+		await seedAccount({
+			label: fixture.key,
+			email: fixture.email,
+			phone: fixture.phone,
+			password: "Porter@123",
+			role: "porter",
+			fullName: fixture.fullName,
+		});
+
+		const porterRows: Array<{ id: string }> = await dataSource.query(
+			'SELECT "id" FROM "users" WHERE "email" = $1',
+			[fixture.email]
+		);
+		const porterId = porterRows[0]?.id;
+		if (!porterId) {
+			throw new Error(`[seed:dev-trips] Porter account was not created: ${fixture.email}`);
+		}
+
+		await dataSource.query(
+			`UPDATE "users"
+			 SET "status" = $2, "full_name" = $3, "updated_at" = NOW()
+			 WHERE "id" = $1`,
+			[porterId, fixture.userStatus, fixture.fullName]
+		);
+		await grantRole(porterId, "porter");
+
+		await dataSource.query('DELETE FROM "trip_porters" WHERE "porter_id" = $1', [porterId]);
+		await dataSource.query('DELETE FROM "porter_route_qualifications" WHERE "porter_id" = $1', [
+			porterId,
+		]);
+
+		if (!fixture.profile) {
+			await dataSource.query('DELETE FROM "porter_profiles" WHERE "porter_id" = $1', [porterId]);
+			continue;
+		}
+
+		await dataSource.query(
+			`INSERT INTO "porter_profiles" (
+				porter_id, experience_years, certifications, languages,
+				availability_status, rating_avg, completed_trips
+			) VALUES ($1, $2, '{}', $3, $4, $5, $6)
+			ON CONFLICT (porter_id) DO UPDATE SET
+				experience_years = EXCLUDED.experience_years,
+				certifications = EXCLUDED.certifications,
+				languages = EXCLUDED.languages,
+				availability_status = EXCLUDED.availability_status,
+				rating_avg = EXCLUDED.rating_avg,
+				completed_trips = EXCLUDED.completed_trips,
+				updated_at = NOW()`,
+			[
+				porterId,
+				fixture.profile.experienceYears,
+				fixture.profile.languages,
+				fixture.profile.availabilityStatus,
+				fixture.profile.ratingAvg,
+				fixture.profile.completedTrips,
+			]
+		);
+
+		if (fixture.key === "expert-lead") {
+			await dataSource.query(
+				`INSERT INTO "porter_verifications" (porter_id, status, submitted_at, reviewed_at)
+				 VALUES ($1, 'approved', now(), now())
+				 ON CONFLICT (porter_id) DO UPDATE SET
+					status = 'approved',
+					reviewed_at = COALESCE("porter_verifications".reviewed_at, now()),
+					rejection_reason = NULL`,
+				[porterId]
 			);
-			if (existingQual.length > 0) {
-				await dataSource.query(
-					'UPDATE "porter_route_qualifications" SET "proficiency" = $2, "times_led" = $3 WHERE "id" = $1',
-					[existingQual[0].id, prof, times]
-				);
-			} else {
+		}
+
+		if (fixture.qualification) {
+			for (const routeName of fixture.qualification.routeNames) {
+				const routeId = routeIds[routeName];
+				if (!routeId) {
+					throw new Error(`[seed:dev-trips] Missing Route for Porter qualification: ${routeName}`);
+				}
 				await dataSource.query(
 					`INSERT INTO "porter_route_qualifications" (
 						porter_id, route_id, proficiency, times_led, verified_by, verified_at
 					) VALUES ($1, $2, $3, $4, $5, NOW())`,
-					[porterId, routeId, prof, times, adminId]
+					[
+						porterId,
+						routeId,
+						fixture.qualification.proficiency,
+						fixture.qualification.timesLed,
+						adminId,
+					]
 				);
 			}
 		}
-	}
 
-	// 3. Assign Porter to trips
-	const eligibleTrips: Array<{ id: string }> = await dataSource.query(`
-		SELECT "id" FROM "trips" WHERE "status" IN ('published', 'ongoing') ORDER BY "starts_at" ASC LIMIT 3
-	`);
-	for (const t of eligibleTrips) {
-		await dataSource.query(
-			`INSERT INTO "trip_porters" (trip_id, porter_id, status)
-			 VALUES ($1, $2, 'assigned')
-			 ON CONFLICT (trip_id, porter_id) DO UPDATE SET status = 'assigned'`,
-			[t.id, porterId]
-		);
-	}
-
-	await seedAdditionalPorterProfileAndQualifications(routeIds, adminId);
-}
-
-async function seedAdditionalPorterProfileAndQualifications(
-	routeIds: Record<string, string>,
-	adminId: string | null
-): Promise<void> {
-	const porterRows: Array<{ id: string }> = await dataSource.query(
-		'SELECT "id" FROM "users" WHERE "email" = $1',
-		["porter2@ctms.local"]
-	);
-	const porterId = porterRows[0]?.id;
-	if (!porterId) return;
-
-	await dataSource.query(
-		`INSERT INTO "porter_profiles" (
-			"porter_id", "experience_years", "certifications", "languages",
-			"availability_status", "rating_avg", "completed_trips"
-		) VALUES (
-			$1, 3,
-			ARRAY['Chứng chỉ Sơ cấp cứu cơ bản', 'Chứng chỉ An toàn trekking'],
-			ARRAY['Tiếng Việt', 'Tiếng Anh giao tiếp'],
-			'available', 4.7, 16
-		) ON CONFLICT ("porter_id") DO UPDATE SET
-			"experience_years" = EXCLUDED."experience_years",
-			"certifications" = EXCLUDED."certifications",
-			"languages" = EXCLUDED."languages",
-			"availability_status" = EXCLUDED."availability_status",
-			"rating_avg" = EXCLUDED."rating_avg",
-			"completed_trips" = EXCLUDED."completed_trips"`,
-		[porterId]
-	);
-
-	for (const [name, proficiency, timesLed] of [
-		["Bán Đảo Sơn Trà Discovery", "proficient", 8],
-		["Hải Vân Pass - Nam Hải Vân Trail", "expert", 12],
-	] as const) {
-		const routeId = routeIds[name];
-		if (!routeId) continue;
-		await dataSource.query(
-			`INSERT INTO "porter_route_qualifications" (
-				"porter_id", "route_id", "proficiency", "times_led", "verified_by", "verified_at"
-			) VALUES ($1, $2, $3, $4, $5, NOW())
-			ON CONFLICT ("porter_id", "route_id") DO UPDATE SET
-				"proficiency" = EXCLUDED."proficiency",
-				"times_led" = EXCLUDED."times_led",
-				"verified_by" = EXCLUDED."verified_by",
-				"verified_at" = EXCLUDED."verified_at"`,
-			[porterId, routeId, proficiency, timesLed, adminId]
-		);
+		if (fixture.conflictingTripTitle) {
+			const tripRows: Array<{ id: string }> = await dataSource.query(
+				'SELECT "id" FROM "trips" WHERE "title" = $1',
+				[fixture.conflictingTripTitle]
+			);
+			const tripId = tripRows[0]?.id;
+			if (!tripId) {
+				throw new Error(
+					`[seed:dev-trips] Missing Trip for Porter conflict fixture: ${fixture.conflictingTripTitle}`
+				);
+			}
+			await dataSource.query(
+				`INSERT INTO "trip_porters" (trip_id, porter_id, status)
+				 VALUES ($1, $2, 'assigned')
+				 ON CONFLICT (trip_id, porter_id) DO UPDATE SET status = 'assigned'`,
+				[tripId, porterId]
+			);
+		}
 	}
 }
 
@@ -3128,7 +3115,7 @@ export async function runMasterSeed(): Promise<void> {
 			"│ Host         │ host@ctms.local      │ Host@123    │ Host Ban Mai (Tất cả tour, ví 3.8M)│"
 		);
 		console.log(
-			"│ Porter       │ porter@ctms.local    │ Porter@123  │ Porter Chuyên Nghiệp (Bidoup/ST)   │"
+			"│ Porter       │ porter@ctms.local    │ Porter@123  │ Nguyễn Minh Sơn (chuyên gia Route) │"
 		);
 		console.log(
 			"│ Camper       │ camper@ctms.local    │ Camper@123  │ Camper Nguyễn Văn An               │"
@@ -3136,7 +3123,6 @@ export async function runMasterSeed(): Promise<void> {
 		console.log(
 			"└──────────────┴──────────────────────┴─────────────┴────────────────────────────────────┘"
 		);
-		console.log("   Porter bổ sung: porter2@ctms.local / Porter2@123 (Porter Hải Vân)");
 
 		console.log("\n🔗 CÁC KỊCH BẢN KIỂM THỬ SẴN SÀNG TRÊN HỆ THỐNG:");
 		console.log("1. Quyết toán & Chi trả Host (Admin):");
@@ -3169,7 +3155,7 @@ export async function runMasterSeed(): Promise<void> {
 		);
 		console.log("\n6. Hệ sinh thái Porter & Hồ sơ Camper:");
 		console.log(
-			"   👉 Porter: porter_profiles (5 năm kn, 42 chuyến), chứng chỉ trên tuyến & phân công vào trip"
+			"   👉 Porter: hồ sơ đa dạng về availability, kinh nghiệm, qualification và xung đột lịch"
 		);
 		console.log(
 			"   👉 Camper: Hồ sơ sức khỏe (nhóm máu O+, dị ứng, ăn chay) & Người liên hệ khẩn cấp"

@@ -1,6 +1,6 @@
 import { AlertCircle, Check, Loader2, RotateCcw, Save } from "lucide-react";
 import type { UseFormReturn } from "react-hook-form";
-import { AVAILABILITY_STATUS_LABELS, MAX_CERTIFICATIONS, MAX_LANGUAGES } from "../constants";
+import { AVAILABILITY_STATUS_LABELS, MAX_LANGUAGES } from "../constants";
 import type { PorterProfileFormValues } from "../schema/porter-profile.schema";
 import type { PorterAvailabilityStatus } from "../types";
 import { TagListInput } from "./TagListInput";
@@ -27,7 +27,6 @@ export function PorterProfileForm({
 		formState: { errors },
 	} = form;
 
-	const certifications = watch("certifications") || [];
 	const languages = watch("languages") || [];
 	const availabilityStatus = watch("availabilityStatus");
 
@@ -40,7 +39,7 @@ export function PorterProfileForm({
 			<div className="border-b border-[#e7eee7] pb-4">
 				<h2 className="text-lg font-extrabold text-[#10221b]">Thông tin hồ sơ chuyên môn</h2>
 				<p className="mt-0.5 text-xs text-[#627769]">
-					Cập nhật kinh nghiệm thực địa, chứng chỉ kỹ năng và ngôn ngữ giao tiếp.
+					Cập nhật kinh nghiệm thực địa, trạng thái nhận ca và ngôn ngữ giao tiếp.
 				</p>
 			</div>
 
@@ -120,24 +119,6 @@ export function PorterProfileForm({
 						</div>
 					)}
 				</div>
-
-				{/* Certifications List */}
-				<TagListInput
-					id="certifications-input"
-					label="Chứng chỉ chuyên môn & Kỹ năng"
-					placeholder="VD: Sơ cấp cứu WFA, Hướng dẫn viên địa phương, Cứu hộ rừng núi..."
-					tags={certifications}
-					onChange={(next) =>
-						setValue("certifications", next, {
-							shouldDirty: true,
-							shouldValidate: true,
-						})
-					}
-					maxItems={MAX_CERTIFICATIONS}
-					disabled={isSaving}
-					error={errors.certifications?.message}
-					helperText="Tối đa 20 chứng chỉ, tối đa 100 ký tự mỗi mục. Nhấn Enter hoặc nút Thêm."
-				/>
 
 				{/* Languages List */}
 				<TagListInput
