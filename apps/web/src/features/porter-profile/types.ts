@@ -47,16 +47,8 @@ export interface PorterRouteQualification {
 	updatedAt: string;
 }
 
-export interface RoutePorterQualification extends PorterRouteQualification {
-	porterDisplayName: string | null;
-}
-
 export interface UpsertPorterRouteQualificationInput {
 	proficiency: PorterRouteProficiency;
 	timesLed: number;
 	expectedVersion?: number;
-}
-
-export interface VerifyPorterRouteQualificationInput {
-	expectedVersion: number;
 }

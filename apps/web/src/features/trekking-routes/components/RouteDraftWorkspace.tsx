@@ -28,24 +28,23 @@ export function RouteDraftWorkspace({
 		workspace.setRoute(updated);
 		onRouteChanged?.(updated);
 	};
-	const routeForm = (onCancel?: () => void, onSaved?: () => void, submitLabel?: string) => (
+	const routeForm = (
 		<CreateTrekkingRouteForm
 			route={route}
 			isSubmitting={workspace.isSubmitting}
 			error={workspace.error}
-			submitLabel={submitLabel}
+			submitLabel="Bước tiếp theo"
 			onSubmit={async (payload) => {
 				const saved = await workspace.submit(payload);
 				if (saved) {
 					onRouteChanged?.(saved);
-					onSaved?.();
+					setEditStep(2);
 				}
 			}}
 			onRetry={async () => {
 				const saved = await workspace.retry();
 				if (saved) onRouteChanged?.(saved);
 			}}
-			onCancel={onCancel}
 		/>
 	);
 	const checkpointsPanel = (
@@ -63,7 +62,7 @@ export function RouteDraftWorkspace({
 		return (
 			<section aria-label="Chỉnh sửa tuyến đường" className="grid gap-5">
 				{editStep === 1 && route.status === "draft" ? (
-					routeForm(undefined, () => setEditStep(2), "Bước tiếp theo")
+					routeForm
 				) : (
 					<>
 						{route.status === "draft" && (
@@ -85,28 +84,7 @@ export function RouteDraftWorkspace({
 
 	return (
 		<section aria-label="Hoàn thiện tuyến đường" className="mt-6 grid gap-5">
-			<div className="rounded-2xl border bg-white p-5">
-				<h2 className="font-extrabold">{route.name}</h2>
-				<p>
-					Trạng thái: <span data-testid="server-route-status">{route.status}</span>
-				</p>
-				<p>
-					Chiều dài đã lưu:{" "}
-					<span data-testid="server-route-length">{route.lengthMeters.toFixed(1)} m</span>
-				</p>
-				{route.status === "draft" && !workspace.isEditing && (
-					<button
-						type="button"
-						className="mt-3 rounded-xl border px-4 py-2 font-bold"
-						onClick={() => workspace.setIsEditing(true)}
-					>
-						Chỉnh sửa tuyến nháp
-					</button>
-				)}
-			</div>
-			{workspace.isEditing && route.status === "draft"
-				? routeForm(() => workspace.setIsEditing(false))
-				: checkpointsPanel}
+			{checkpointsPanel}
 		</section>
 	);
 }

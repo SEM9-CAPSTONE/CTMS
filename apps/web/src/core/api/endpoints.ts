@@ -46,15 +46,6 @@ export const API_ENDPOINTS = {
 		CHECKPOINT: (routeId: string, checkpointId: string) =>
 			`/trekking-routes/${routeId}/checkpoints/${checkpointId}`,
 		HAZARD_AREAS: (routeId: string) => `/trekking-routes/${routeId}/hazard-areas`,
-		WEATHER_LATEST: (routeId: string) => `/trekking-routes/${routeId}/weather/latest`,
-		WEATHER_REFRESH: (routeId: string) => `/trekking-routes/${routeId}/weather/refresh`,
-		WEATHER_RISK_LATEST: (routeId: string) =>
-			`/trekking-routes/${routeId}/weather/risk-score/latest`,
-		WEATHER_RISK_CALCULATE: (routeId: string) => `/trekking-routes/${routeId}/weather/risk-score`,
-		WEATHER_ADVICE_LATEST: (routeId: string) => `/trekking-routes/${routeId}/weather/advice/latest`,
-		WEATHER_ADVICE_GENERATE: (routeId: string) => `/trekking-routes/${routeId}/weather/advice`,
-		CHECK_REGISTRATION_ELIGIBILITY: (routeId: string) =>
-			`/trekking-routes/${routeId}/check-registration-eligibility`,
 	},
 	TRIPS: {
 		GET_ALL: "/trips",
@@ -141,10 +132,6 @@ export const API_ENDPOINTS = {
 		VERIFICATION_SUBMIT: "/porter/verification/submit",
 		ROUTE_QUALIFICATIONS: "/porter/route-qualifications",
 		ROUTE_QUALIFICATION_BY_ROUTE: (routeId: string) => `/porter/route-qualifications/${routeId}`,
-		VERIFY_QUALIFICATION: (qualificationId: string) =>
-			`/porter/route-qualifications/${qualificationId}/verify`,
-		ROUTE_PORTER_QUALIFICATIONS: (routeId: string) =>
-			`/trekking-routes/${routeId}/porter-qualifications`,
 	},
 	ADMIN_PORTER_VERIFICATIONS: {
 		LIST: "/admin/porter-verifications",

@@ -147,7 +147,7 @@ export function RouteCheckpointsPanel({
 				</div>
 				{createDisabled && (
 					<span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-900">
-						Chỉ xem — tuyến không còn ở trạng thái nháp
+						Đang chờ duyệt
 					</span>
 				)}
 			</div>
