@@ -5,7 +5,6 @@ import { type CreateRouteError, mapCreateRouteError } from "./useCreateTrekkingR
 
 export function useDraftRouteWorkspace(initialRoute: CreatedTrekkingRoute) {
 	const [route, setRoute] = useState(initialRoute);
-	const [isEditing, setIsEditing] = useState(false);
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [error, setError] = useState<CreateRouteError | null>(null);
 	const inFlight = useRef(false);
@@ -20,7 +19,6 @@ export function useDraftRouteWorkspace(initialRoute: CreatedTrekkingRoute) {
 			try {
 				const updated = await trekkingRoutesService.updateDraft(initialRoute.id, payload);
 				setRoute(updated);
-				setIsEditing(false);
 				return updated;
 			} catch (requestError) {
 				setError(mapCreateRouteError(requestError, "lưu"));
@@ -40,5 +38,5 @@ export function useDraftRouteWorkspace(initialRoute: CreatedTrekkingRoute) {
 		return current;
 	}, [initialRoute.id]);
 	const retry = () => (lastPayload.current ? submit(lastPayload.current) : Promise.resolve(null));
-	return { route, setRoute, isEditing, setIsEditing, isSubmitting, error, submit, reload, retry };
+	return { route, setRoute, isSubmitting, error, submit, reload, retry };
 }

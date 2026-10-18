@@ -15,12 +15,6 @@ vi.mock("../components/RouteGeometryPreview", () => ({
 	RouteGeometryPreview: () => <div data-testid="geometry-preview" />,
 }));
 vi.mock("../components/RouteStatusActionDialog", () => ({ RouteStatusActionDialog: () => null }));
-vi.mock("../components/RouteWeatherPanel", () => ({ RouteWeatherPanel: () => null }));
-vi.mock("../components/RouteWeatherRiskPanel", () => ({ RouteWeatherRiskPanel: () => null }));
-vi.mock("../components/RouteWeatherAdvicePanel", () => ({ RouteWeatherAdvicePanel: () => null }));
-vi.mock("../components/RouteRegistrationBlockPanel", () => ({
-	RouteRegistrationBlockPanel: () => null,
-}));
 
 function route(status: RouteStatus): CreatedTrekkingRoute {
 	return {

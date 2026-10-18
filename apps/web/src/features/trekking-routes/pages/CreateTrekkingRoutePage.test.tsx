@@ -35,7 +35,7 @@ describe("CreateTrekkingRoutePage", () => {
 		expect(screen.getByTestId("route-form")).toBeInTheDocument();
 	});
 
-	it("renders authoritative server length and status after success", () => {
+	it("goes straight to picking locations after success", () => {
 		vi.mocked(useCreateTrekkingRoute).mockReturnValue({
 			...creation,
 			createdRoute: {
@@ -48,8 +48,7 @@ describe("CreateTrekkingRoutePage", () => {
 		} as never);
 		render(<CreateTrekkingRoutePage />);
 		expect(screen.getByTestId("inline-checkpoints")).toHaveTextContent("saved-route");
-		expect(screen.getByTestId("server-route-status")).toHaveTextContent("draft");
-		expect(screen.getByTestId("server-route-length")).toHaveTextContent("1234.6 m");
+		expect(screen.queryByRole("button", { name: "Chỉnh sửa tuyến nháp" })).not.toBeInTheDocument();
 	});
 
 	it("edits a saved route in the same workspace when given a route id", () => {
@@ -72,7 +71,6 @@ describe("CreateTrekkingRoutePage", () => {
 		expect(screen.getByRole("heading", { name: "Chỉnh sửa tuyến trekking" })).toBeInTheDocument();
 		expect(screen.getByTestId("route-form")).toBeInTheDocument();
 		expect(screen.queryByTestId("inline-checkpoints")).not.toBeInTheDocument();
-		expect(screen.queryByTestId("server-route-status")).not.toBeInTheDocument();
 		expect(screen.queryByRole("button", { name: "Chỉnh sửa tuyến nháp" })).not.toBeInTheDocument();
 		fireEvent.click(screen.getByRole("button", { name: "Quay về chi tiết tuyến" }));
 		expect(onViewRouteDetail).toHaveBeenCalledWith("saved-route");

@@ -8,16 +8,12 @@ import type {
 	CreatedTrekkingRoute,
 	PaginatedAdminRouteReviews,
 	PaginatedTrekkingRoutesResponse,
-	RegistrationEligibilityResponse,
 	ReviewTrekkingRouteInput,
 	RouteCheckpoint,
 	RouteDangerZone,
 	RouteStatusFilter,
 	RouteStatusReasonInput,
 	UpdateCheckpointInput,
-	WeatherAdvice,
-	WeatherRiskAssessment,
-	WeatherSnapshot,
 } from "../types";
 
 export const trekkingRoutesService = {
@@ -75,36 +71,4 @@ export const trekkingRoutesService = {
 		input: CreateRouteDangerZoneInput
 	): Promise<RouteDangerZone> =>
 		httpClient.post<RouteDangerZone>(API_ENDPOINTS.TREKKING.HAZARD_AREAS(routeId), input),
-	// The backend sends a genuinely empty body (Content-Length: 0), not the
-	// JSON string "{}", for a route with no weather history yet --
-	// httpClient maps that to `undefined` (verified against a real response,
-	// not assumed).
-	getLatestWeather: async (routeId: string): Promise<WeatherSnapshot | null> => {
-		const result = await httpClient.get<WeatherSnapshot | undefined>(
-			API_ENDPOINTS.TREKKING.WEATHER_LATEST(routeId)
-		);
-		return result ?? null;
-	},
-	refreshWeather: (routeId: string): Promise<WeatherSnapshot> =>
-		httpClient.post<WeatherSnapshot>(API_ENDPOINTS.TREKKING.WEATHER_REFRESH(routeId)),
-	getLatestWeatherRisk: async (routeId: string): Promise<WeatherRiskAssessment | null> => {
-		const result = await httpClient.get<WeatherRiskAssessment | undefined>(
-			API_ENDPOINTS.TREKKING.WEATHER_RISK_LATEST(routeId)
-		);
-		return result ?? null;
-	},
-	calculateWeatherRisk: (routeId: string): Promise<WeatherRiskAssessment> =>
-		httpClient.post<WeatherRiskAssessment>(API_ENDPOINTS.TREKKING.WEATHER_RISK_CALCULATE(routeId)),
-	getLatestWeatherAdvice: async (routeId: string): Promise<WeatherAdvice | null> => {
-		const result = await httpClient.get<WeatherAdvice | undefined>(
-			API_ENDPOINTS.TREKKING.WEATHER_ADVICE_LATEST(routeId)
-		);
-		return result ?? null;
-	},
-	generateWeatherAdvice: (routeId: string): Promise<WeatherAdvice> =>
-		httpClient.post<WeatherAdvice>(API_ENDPOINTS.TREKKING.WEATHER_ADVICE_GENERATE(routeId)),
-	checkRegistrationEligibility: (routeId: string): Promise<RegistrationEligibilityResponse> =>
-		httpClient.post<RegistrationEligibilityResponse>(
-			API_ENDPOINTS.TREKKING.CHECK_REGISTRATION_ELIGIBILITY(routeId)
-		),
 };

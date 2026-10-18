@@ -1,4 +1,3 @@
-import { RoutePorterQualificationsPanel } from "../../porter-profile/components/RoutePorterQualificationsPanel";
 import type { AdminTrekkingRouteReview } from "../types";
 import { CheckpointList } from "./CheckpointList";
 import { RouteGeometryPreview } from "./RouteGeometryPreview";
@@ -77,7 +76,6 @@ export function AdminRouteReviewDetails({ route, onReview }: Props) {
 				<h2 className="font-extrabold">Checkpoint theo thứ tự tuyến</h2>
 				<CheckpointList items={route.checkpoints} />
 			</section>
-			<RoutePorterQualificationsPanel routeId={route.id} routeName={route.name} />
 		</div>
 	);
 }
