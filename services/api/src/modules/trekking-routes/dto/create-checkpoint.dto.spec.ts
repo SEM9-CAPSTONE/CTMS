@@ -102,16 +102,11 @@ describe("CreateCheckpointDto", () => {
 		).toContain("radiusMeters");
 	});
 
-	it("accepts only on-route location types", async () => {
+	it("accepts all approved checkpoint types", async () => {
 		for (const type of ROUTE_CHECKPOINT_TYPES) {
 			expect((await validationErrors(validPayload({ type }))).errors).toEqual([]);
 		}
-		for (const type of [
-			CheckpointType.START,
-			CheckpointType.REST,
-			CheckpointType.FINISH,
-			"waypoint",
-		]) {
+		for (const type of ["waypoint", "invalid", 123]) {
 			expect(allProperties((await validationErrors(validPayload({ type }))).errors)).toContain(
 				"type"
 			);

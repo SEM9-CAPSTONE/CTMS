@@ -72,6 +72,12 @@ export function CreateCheckpointForm({
 		if (location) setValue("location", location, { shouldValidate: true });
 	}, [location, setValue]);
 
+	useEffect(() => {
+		if (initialType && !checkpoint) {
+			setValue("type", initialType, { shouldValidate: true });
+		}
+	}, [initialType, checkpoint, setValue]);
+
 	const fieldDisabled = disabled || isSubmitting;
 
 	return (

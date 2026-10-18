@@ -58,12 +58,22 @@ describe("useSubmitRouteForApproval", () => {
 		);
 	});
 
-	it("surfaces structured 422 details from the authoritative backend", () => {
+	it("surfaces structured 422 details translated into Vietnamese", () => {
 		const error = new HttpError("invalid", 422, {
 			message: [{ field: "checkpoints", errors: ["exactly one finish checkpoint is required"] }],
 		});
+		expect(mapRouteSubmissionError(error).message).toBe("Tuyến phải có đúng một điểm kết thúc.");
+	});
+
+	it("translates known backend validation errors into clear Vietnamese", () => {
+		const error = new HttpError("invalid", 422, {
+			message: [
+				{ field: "checkpoints", errors: ["stored route checkpoints are invalid"] },
+				{ field: "checkpoints", errors: ["route must have exactly one start checkpoint"] },
+			],
+		});
 		expect(mapRouteSubmissionError(error).message).toBe(
-			"exactly one finish checkpoint is required"
+			"Dữ liệu các vị trí trên tuyến không hợp lệ. Tuyến phải có đúng một điểm bắt đầu."
 		);
 	});
 

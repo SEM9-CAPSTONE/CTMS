@@ -67,7 +67,7 @@ export class CheckpointsService {
 				radiusMeters: CHECKPOINT_RADIUS_METERS,
 				type: dto.type,
 				expectedArrivalOffset: dto.expectedArrivalOffset,
-				instructions: dto.instructions,
+				instructions: dto.instructions?.trim() || dto.name,
 				nearbyWaterOrShelter: dto.nearbyWaterOrShelter,
 			});
 
@@ -130,7 +130,7 @@ export class CheckpointsService {
 				radiusMeters: CHECKPOINT_RADIUS_METERS,
 				type: dto.type,
 				expectedArrivalOffset: dto.expectedArrivalOffset,
-				instructions: dto.instructions,
+				instructions: dto.instructions?.trim() || dto.name,
 				nearbyWaterOrShelter: dto.nearbyWaterOrShelter,
 			});
 

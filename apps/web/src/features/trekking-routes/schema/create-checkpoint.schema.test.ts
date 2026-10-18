@@ -43,10 +43,16 @@ describe("createCheckpointFormSchema", () => {
 		).toBe(false);
 	});
 
+	it.each(["start", "finish", "rest", "water", "dangerous", "emergency_shelter"])(
+		"accepts valid checkpoint type %s",
+		(type) => {
+			expect(createCheckpointFormSchema.safeParse({ ...valid, type }).success).toBe(true);
+		}
+	);
+
 	it.each([
-		{ ...valid, type: "start" },
-		{ ...valid, type: "rest" },
-		{ ...valid, type: "finish" },
+		{ ...valid, type: "camp" },
+		{ ...valid, type: "summit" },
 		{ ...valid, type: "" },
 		{ ...valid, location: { type: "Point", coordinates: [181, 0] } },
 	])("rejects invalid checkpoint form values %#", (value) => {

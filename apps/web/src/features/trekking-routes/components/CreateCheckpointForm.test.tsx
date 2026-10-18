@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import type { RouteCheckpointType } from "../types";
 import { CreateCheckpointForm } from "./CreateCheckpointForm";
 
 const location = { type: "Point" as const, coordinates: [108.46, 11.94] as [number, number] };
@@ -51,7 +52,15 @@ describe("CreateCheckpointForm", () => {
 		const options = Array.from((screen.getByLabelText("Vị trí") as HTMLSelectElement).options).map(
 			(option) => option.value
 		);
-		expect(options).toEqual(["", "water", "dangerous", "emergency_shelter"]);
+		expect(options).toEqual([
+			"",
+			"start",
+			"finish",
+			"rest",
+			"water",
+			"dangerous",
+			"emergency_shelter",
+		]);
 		expect(screen.queryByLabelText("Tên điểm dừng")).not.toBeInTheDocument();
 		expect(screen.queryByLabelText("Thời gian đến dự kiến (phút)")).not.toBeInTheDocument();
 	});
@@ -111,7 +120,7 @@ describe("CreateCheckpointForm", () => {
 				radiusMeters: 20,
 				type: "emergency_shelter",
 				expectedArrivalOffset: 0,
-				instructions: "",
+				instructions: "Nơi trú ẩn khẩn cấp",
 				nearbyWaterOrShelter: false,
 			})
 		);
@@ -204,12 +213,15 @@ describe("CreateCheckpointForm", () => {
 		expect(onSubmit).not.toHaveBeenCalled();
 	});
 
-	it("asks for a new type when editing a legacy start checkpoint", async () => {
+	it("asks for a new type when editing a checkpoint with an unrecognized type", async () => {
 		const user = userEvent.setup();
 		const onSubmit = vi.fn();
 		render(
 			<CreateCheckpointForm
-				checkpoint={{ ...existingCheckpoint, type: "start" }}
+				checkpoint={{
+					...existingCheckpoint,
+					type: "unrecognized" as unknown as RouteCheckpointType,
+				}}
 				location={existingCheckpoint.location}
 				disabled={false}
 				isSubmitting={false}

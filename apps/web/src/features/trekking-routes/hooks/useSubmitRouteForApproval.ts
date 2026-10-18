@@ -8,17 +8,40 @@ export interface RouteSubmissionError {
 	message: string;
 }
 
+const SUBMISSION_ERROR_TRANSLATIONS: Record<string, string> = {
+	"stored route checkpoints are invalid": "Dữ liệu các vị trí trên tuyến không hợp lệ.",
+	"route must have exactly one start checkpoint": "Tuyến phải có đúng một điểm bắt đầu.",
+	"route must have exactly one finish checkpoint": "Tuyến phải có đúng một điểm kết thúc.",
+	"start checkpoint must occur before finish checkpoint":
+		"Điểm bắt đầu phải nằm trước điểm kết thúc.",
+	"stored route data is invalid": "Dữ liệu tuyến đường không hợp lệ.",
+	"stored route geometry is invalid": "Dữ liệu đường tuyến không hợp lệ.",
+	"stored route difficulty is invalid": "Độ khó của tuyến không hợp lệ.",
+	"exactly one start checkpoint is required": "Tuyến phải có đúng một điểm bắt đầu.",
+	"exactly one finish checkpoint is required": "Tuyến phải có đúng một điểm kết thúc.",
+};
+
+function translateBackendMessage(raw: string): string {
+	let message = raw;
+	for (const [en, vi] of Object.entries(SUBMISSION_ERROR_TRANSLATIONS)) {
+		message = message.replaceAll(en, vi);
+	}
+	return message;
+}
+
 function backendMessage(error: HttpError): string | null {
 	if (typeof error.errorData !== "object" || error.errorData === null) return null;
 	const data = error.errorData as { message?: unknown };
-	if (typeof data.message === "string") return data.message;
+	if (typeof data.message === "string") return translateBackendMessage(data.message);
 	if (!Array.isArray(data.message)) return null;
 	const details = data.message.flatMap((item) => {
-		if (typeof item === "string") return [item];
+		if (typeof item === "string") return [translateBackendMessage(item)];
 		if (typeof item !== "object" || item === null) return [];
 		const issue = item as { errors?: unknown };
 		return Array.isArray(issue.errors)
-			? issue.errors.filter((value): value is string => typeof value === "string")
+			? issue.errors
+					.filter((value): value is string => typeof value === "string")
+					.map(translateBackendMessage)
 			: [];
 	});
 	return details.length > 0 ? details.join(" ") : null;
