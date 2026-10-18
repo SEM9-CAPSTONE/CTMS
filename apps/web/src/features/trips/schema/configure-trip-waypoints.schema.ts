@@ -111,11 +111,11 @@ export function createConfigureTripWaypointsSchema(trip: Trip) {
 					message: "Chuyến đi trong ngày không được có điểm dừng qua đêm",
 				});
 			}
-			if (trip.tripType === "overnight" && overnightWaypoints.length !== trip.durationNights) {
+			if (trip.tripType === "overnight" && overnightWaypoints.length === 0) {
 				context.addIssue({
 					code: z.ZodIssueCode.custom,
 					path: ["waypoints"],
-					message: `Chuyến đi qua đêm cần đúng ${trip.durationNights} điểm ngủ qua đêm`,
+					message: "Chuyến đi nhiều ngày cần ít nhất 1 chỗ ngủ qua đêm",
 				});
 			}
 
