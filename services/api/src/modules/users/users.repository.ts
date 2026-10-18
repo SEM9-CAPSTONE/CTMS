@@ -9,6 +9,7 @@ interface CreateUserInput {
 	phone: string | null;
 	passwordHash: string;
 	role: UserRole;
+	fullName?: string | null;
 }
 
 /**

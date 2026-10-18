@@ -9,6 +9,11 @@ import { UPLOAD_PUBLIC_PREFIX, getUploadRoot } from "../../shared/uploads/upload
 import type { UploadImageResponseDto } from "./dto/upload-image-response.dto";
 
 const ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+const DOCUMENT_IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const PDF_MIME_TYPE = "application/pdf";
+const PDF_SIGNATURE = Buffer.from("%PDF-");
+
+type StoredResourceType = "image" | "raw";
 
 @Injectable()
 export class UploadsService {
@@ -49,21 +54,55 @@ export class UploadsService {
 		}
 
 		if (this.isCloudinaryConfigured) {
-			return this.uploadToCloudinary(file, folder);
+			return this.uploadToCloudinary(file, folder, "image");
 		}
 
-		return this.uploadToLocalDisk(file, folder);
+		return this.uploadToLocalDisk(file, folder, "img");
+	}
+
+	/**
+	 * Stores a supporting document (JPG/PNG/WEBP image or PDF). PDFs go to
+	 * Cloudinary as `raw` resources because image-type PDF delivery is commonly
+	 * blocked on Cloudinary accounts.
+	 */
+	async uploadDocument(
+		file?: Express.Multer.File,
+		folder = "ctms"
+	): Promise<UploadImageResponseDto> {
+		if (!file) {
+			throw new BadRequestException("Vui lòng chọn file tài liệu");
+		}
+
+		const isPdf = file.mimetype === PDF_MIME_TYPE;
+		if (!isPdf && !DOCUMENT_IMAGE_MIME_TYPES.has(file.mimetype)) {
+			throw new BadRequestException(
+				"Định dạng tài liệu không hợp lệ. Chỉ chấp nhận JPG, PNG, WEBP hoặc PDF."
+			);
+		}
+		if (isPdf && !file.buffer.subarray(0, PDF_SIGNATURE.length).equals(PDF_SIGNATURE)) {
+			throw new BadRequestException("File PDF không hợp lệ");
+		}
+
+		if (this.isCloudinaryConfigured) {
+			return this.uploadToCloudinary(file, folder, isPdf ? "raw" : "image");
+		}
+
+		return this.uploadToLocalDisk(file, folder, "doc");
 	}
 
 	private uploadToCloudinary(
 		file: Express.Multer.File,
-		folder: string
+		folder: string,
+		resourceType: StoredResourceType
 	): Promise<UploadImageResponseDto> {
 		return new Promise((resolve, reject) => {
 			const uploadStream = cloudinary.uploader.upload_stream(
 				{
 					folder,
-					resource_type: "image",
+					resource_type: resourceType,
+					// Raw resources keep no format, so the extension must be part of the id
+					// for the delivered file to be served with the right content type.
+					...(resourceType === "raw" ? { public_id: `doc-${uniqueSuffix()}.pdf` } : {}),
 				},
 				(error, result: UploadApiResponse | undefined) => {
 					if (error || !result) {
@@ -83,13 +122,16 @@ export class UploadsService {
 		});
 	}
 
-	private uploadToLocalDisk(file: Express.Multer.File, folder: string): UploadImageResponseDto {
+	private uploadToLocalDisk(
+		file: Express.Multer.File,
+		folder: string,
+		filePrefix: string
+	): UploadImageResponseDto {
 		const targetDir = join(getUploadRoot(), folder);
 		mkdirSync(targetDir, { recursive: true });
 
 		const ext = extname(file.originalname).toLowerCase() || ".jpg";
-		const safeSuffix = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-		const fileName = `img-${safeSuffix}${ext}`;
+		const fileName = `${filePrefix}-${uniqueSuffix()}${ext}`;
 		const filePath = join(targetDir, fileName);
 
 		writeFileSync(filePath, file.buffer);
@@ -102,4 +144,8 @@ export class UploadsService {
 			url: `${baseUrl}${UPLOAD_PUBLIC_PREFIX}${folder}/${fileName}`,
 		};
 	}
+}
+
+function uniqueSuffix(): string {
+	return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }

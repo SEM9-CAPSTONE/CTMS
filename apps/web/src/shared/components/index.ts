@@ -6,3 +6,6 @@ export * from "./ConfirmModal";
 export * from "./DataTable";
 export * from "./Modal";
 export * from "./Toast";
+export * from "./DocumentPreview";
+export * from "./FileDropzone";
+export * from "./StatusBadge";

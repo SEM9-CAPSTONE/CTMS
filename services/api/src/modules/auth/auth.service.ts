@@ -22,7 +22,9 @@ import { DataSource, type EntityManager } from "typeorm";
 import { isUniqueViolation } from "../../shared/database/postgres-error-codes";
 import { normalizeEmail, normalizeVietnamPhone } from "../../shared/utils/normalize.util";
 
-import { type User, UserStatus } from "../users/entities/user.entity";
+import { normalizeStringArray } from "../profiles/dto/normalized-string-array.validator";
+import { PorterProfile } from "../profiles/entities/porter-profile.entity";
+import { type User, UserRole, UserStatus } from "../users/entities/user.entity";
 
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI
 import { UsersRepository } from "../users/users.repository";
@@ -113,6 +115,7 @@ export class AuthService {
 					phone,
 					passwordHash,
 					role: dto.role,
+					fullName: dto.fullName ?? null,
 				});
 			} catch (error) {
 				if (isUniqueViolation(error)) {
@@ -121,13 +124,33 @@ export class AuthService {
 				throw error;
 			}
 
+			// Porter details entered at registration seed the Porter profile so the Admin
+			// can see them while reviewing the guide certificate.
+			const porterProfile =
+				dto.role === UserRole.PORTER
+					? await manager.getRepository(PorterProfile).save({
+							porterId: createdUser.id,
+							experienceYears: dto.experienceYears ?? 0,
+							certifications: normalizeStringArray(dto.certifications ?? []),
+						})
+					: null;
+
 			await auditLogRepository.save({
 				actorId: createdUser.id,
 				action: "auth.register",
 				targetType: "user",
 				targetId: createdUser.id,
 				before: null,
-				after: { role: createdUser.role },
+				after: {
+					role: createdUser.role,
+					...(createdUser.fullName ? { fullName: createdUser.fullName } : {}),
+					...(porterProfile
+						? {
+								experienceYears: porterProfile.experienceYears,
+								certifications: porterProfile.certifications,
+							}
+						: {}),
+				},
 				reason: null,
 			});
 

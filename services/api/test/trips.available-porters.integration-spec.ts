@@ -22,6 +22,7 @@ interface CandidateOptions {
 	profile?: boolean;
 	availability?: "available" | "unavailable";
 	experienceYears?: number;
+	verification?: "approved" | "none";
 }
 
 interface QualificationOptions {
@@ -115,6 +116,12 @@ describe("CTMS-200 available Porters (integration, real Postgres)", () => {
 		);
 		for (const role of grantedRoles) {
 			await dataSource.query("INSERT INTO user_roles (user_id, role) VALUES ($1, $2)", [id, role]);
+		}
+		if ((options.verification ?? "approved") === "approved") {
+			await dataSource.query(
+				`INSERT INTO "porter_verifications" ("porter_id", "status", "reviewed_at") VALUES ($1, 'approved', now())`,
+				[id]
+			);
 		}
 		if (options.profile !== false) {
 			await dataSource.query(
@@ -255,6 +262,7 @@ describe("CTMS-200 available Porters (integration, real Postgres)", () => {
 		});
 		await createCandidate("Missing Profile", { profile: false });
 		await createCandidate("Unavailable", { availability: "unavailable", experienceYears: 9 });
+		await createCandidate("Unverified", { verification: "none", experienceYears: 9 });
 
 		const omitted = await search(host.token, tripId, { role: "support" }).expect(200);
 		expect(omitted.body.items.map((item: { porterId: string }) => item.porterId)).toEqual([

@@ -84,7 +84,6 @@ export interface HostRegisterFormData extends BaseRegisterFormData {
 
 export interface PorterRegisterFormData extends BaseRegisterFormData {
 	experienceYears: number;
-	operatingAreas: string;
 	certificationCode?: string;
 }
 
@@ -97,6 +96,11 @@ export interface RegisterApiPayload {
 	phone: string;
 	password: string;
 	role: "camper" | "host" | "porter";
+	fullName?: string;
+	/** Porter only. */
+	experienceYears?: number;
+	/** Porter only. */
+	certifications?: string[];
 }
 
 export interface RegisterApiResponse {

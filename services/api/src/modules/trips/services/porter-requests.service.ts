@@ -12,6 +12,7 @@ import { ConfigService } from "@nestjs/config";
 import { DataSource, type EntityManager } from "typeorm";
 import { PorterAvailabilityStatus } from "../../profiles/entities/porter-profile.entity";
 import { PorterRouteProficiency } from "../../profiles/entities/porter-route-qualification.entity";
+import { APPROVED_PORTER_VERIFICATION_SQL } from "../../profiles/repositories/porter-verifications.repository";
 // biome-ignore lint/style/useImportType: NestJS DI requires runtime metadata
 import { EventsGateway } from "../../realtime/events.gateway";
 import { UserRole, UserStatus } from "../../users/entities/user.entity";
@@ -418,6 +419,7 @@ export class PorterRequestsService {
 				)
 			)`,
 			`profile."availability_status" = $4`,
+			APPROVED_PORTER_VERIFICATION_SQL,
 		];
 
 		if (input.role === IntendedPorterRole.LEAD) {

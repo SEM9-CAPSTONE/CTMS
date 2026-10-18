@@ -135,12 +135,22 @@ export const API_ENDPOINTS = {
 	},
 	PORTER: {
 		PROFILE: "/porter/profile",
+		VERIFICATION: "/porter/verification",
+		VERIFICATION_DOCUMENTS: "/porter/verification/documents",
+		VERIFICATION_DOCUMENT: (documentId: string) => `/porter/verification/documents/${documentId}`,
+		VERIFICATION_SUBMIT: "/porter/verification/submit",
 		ROUTE_QUALIFICATIONS: "/porter/route-qualifications",
 		ROUTE_QUALIFICATION_BY_ROUTE: (routeId: string) => `/porter/route-qualifications/${routeId}`,
 		VERIFY_QUALIFICATION: (qualificationId: string) =>
 			`/porter/route-qualifications/${qualificationId}/verify`,
 		ROUTE_PORTER_QUALIFICATIONS: (routeId: string) =>
 			`/trekking-routes/${routeId}/porter-qualifications`,
+	},
+	ADMIN_PORTER_VERIFICATIONS: {
+		LIST: "/admin/porter-verifications",
+		DETAIL: (porterId: string) => `/admin/porter-verifications/${porterId}`,
+		APPROVE: (porterId: string) => `/admin/porter-verifications/${porterId}/approve`,
+		REJECT: (porterId: string) => `/admin/porter-verifications/${porterId}/reject`,
 	},
 	ADMIN_REFUNDS: {
 		LIST: "/admin/refunds",

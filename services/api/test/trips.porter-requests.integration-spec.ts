@@ -102,7 +102,11 @@ describe("Porter Requests lifecycle (integration, real Postgres)", () => {
 
 	async function createPorter(
 		name: string,
-		options: { status?: UserStatus; availability?: "available" | "unavailable" } = {}
+		options: {
+			status?: UserStatus;
+			availability?: "available" | "unavailable";
+			verification?: "approved" | "none";
+		} = {}
 	): Promise<string> {
 		const id = randomUUID();
 		userIds.add(id);
@@ -127,6 +131,12 @@ describe("Porter Requests lifecycle (integration, real Postgres)", () => {
 			 VALUES ($1, $2, $3)`,
 			[id, 4, options.availability ?? "available"]
 		);
+		if ((options.verification ?? "approved") === "approved") {
+			await dataSource.query(
+				`INSERT INTO "porter_verifications" ("porter_id", "status", "reviewed_at") VALUES ($1, 'approved', now())`,
+				[id]
+			);
+		}
 		return id;
 	}
 
@@ -775,5 +785,34 @@ describe("Porter Requests lifecycle (integration, real Postgres)", () => {
 			created.body.id,
 		]);
 		expect(rows[0].status).toBe("pending");
+	});
+
+	it("rejects requesting or accepting with a Porter whose certificate is not approved", async () => {
+		const host = await createActor(UserRole.HOST, "Owning Host");
+		const routeId = await createRoute(host.id);
+		const tripId = await createTrip(
+			host.id,
+			routeId,
+			FAR_FUTURE_START,
+			FAR_FUTURE_END,
+			"published"
+		);
+		const unverifiedId = await createPorter("Unverified Porter", { verification: "none" });
+		await createRequest(host.token, tripId, {
+			porterId: unverifiedId,
+			requestedRole: "support",
+		}).expect(409);
+
+		const porterId = await createPorter("Revoked Porter");
+		const porterToken = jwtService.sign({ sub: porterId, roles: [UserRole.PORTER] });
+		const created = await createRequest(host.token, tripId, {
+			porterId,
+			requestedRole: "support",
+		}).expect(201);
+		await dataSource.query(
+			`UPDATE "porter_verifications" SET "status" = 'pending_review', "reviewed_at" = NULL WHERE "porter_id" = $1`,
+			[porterId]
+		);
+		await respond(porterToken, created.body.id, "accept").expect(409);
 	});
 });

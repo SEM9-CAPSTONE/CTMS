@@ -340,4 +340,90 @@ describe("POST /api/auth/register (integration, real Postgres)", () => {
 		const rows = await dataSource.query('SELECT "status" FROM "users" WHERE "email" = $1', [email]);
 		expect(rows[0].status).toBe("pending_verification");
 	});
+
+	// --- Profile details entered on the registration form --------------------
+
+	it("stores the full name entered at registration", async () => {
+		const email = uniqueEmail("full-name");
+		const local = uniqueLocalPhone();
+		cleanupEmails.push(email);
+		cleanupPhones.push(`+84${local.slice(1)}`);
+
+		const response = await request(app.getHttpServer())
+			.post("/api/auth/register")
+			.send({ email, phone: local, password: "x", role: "host", fullName: "  Nguyễn Văn Host  " })
+			.expect(201);
+
+		const rows = await dataSource.query('SELECT "full_name" FROM "users" WHERE "id" = $1', [
+			response.body.id,
+		]);
+		expect(rows[0].full_name).toBe("Nguyễn Văn Host");
+		const profiles = await dataSource.query(
+			'SELECT 1 FROM "porter_profiles" WHERE "porter_id" = $1',
+			[response.body.id]
+		);
+		expect(profiles).toHaveLength(0);
+	});
+
+	it("creates the Porter profile from the experience and certificate entered", async () => {
+		const email = uniqueEmail("porter-profile");
+		const local = uniqueLocalPhone();
+		cleanupEmails.push(email);
+		cleanupPhones.push(`+84${local.slice(1)}`);
+
+		const response = await request(app.getHttpServer())
+			.post("/api/auth/register")
+			.send({
+				email,
+				phone: local,
+				password: "x",
+				role: "porter",
+				fullName: "Lý A Porter",
+				experienceYears: 6,
+				certifications: [" PTR-8821 "],
+			})
+			.expect(201);
+
+		const profiles = await dataSource.query(
+			`SELECT "experience_years", "certifications", "availability_status", "version"
+			 FROM "porter_profiles" WHERE "porter_id" = $1`,
+			[response.body.id]
+		);
+		expect(profiles).toEqual([
+			{
+				experience_years: 6,
+				certifications: ["PTR-8821"],
+				availability_status: "unavailable",
+				version: 1,
+			},
+		]);
+		const auditRows = await dataSource.query(
+			'SELECT "after" FROM "audit_logs" WHERE "actor_id" = $1 AND "action" = $2',
+			[response.body.id, "auth.register"]
+		);
+		expect(auditRows[0].after).toEqual({
+			role: "porter",
+			fullName: "Lý A Porter",
+			experienceYears: 6,
+			certifications: ["PTR-8821"],
+		});
+	});
+
+	it("rejects invalid Porter details (422) and creates no row", async () => {
+		const email = uniqueEmail("porter-invalid");
+		const local = uniqueLocalPhone();
+		cleanupEmails.push(email);
+
+		await request(app.getHttpServer())
+			.post("/api/auth/register")
+			.send({ email, phone: local, password: "x", role: "porter", experienceYears: -1 })
+			.expect(422);
+		await request(app.getHttpServer())
+			.post("/api/auth/register")
+			.send({ email, phone: local, password: "x", role: "porter", fullName: "A" })
+			.expect(422);
+
+		const rows = await dataSource.query('SELECT 1 FROM "users" WHERE "email" = $1', [email]);
+		expect(rows).toHaveLength(0);
+	});
 });

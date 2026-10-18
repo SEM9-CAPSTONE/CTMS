@@ -5,6 +5,7 @@ import {
 	type PorterProfile,
 } from "../../profiles/entities/porter-profile.entity";
 import { PorterRouteProficiency } from "../../profiles/entities/porter-route-qualification.entity";
+import { APPROVED_PORTER_VERIFICATION_SQL } from "../../profiles/repositories/porter-verifications.repository";
 import { UserRole, UserStatus } from "../../users/entities/user.entity";
 import type { AvailablePorterResponseDto } from "../dto/available-porter-response.dto";
 import { IntendedPorterRole } from "../dto/available-porters-query.dto";
@@ -58,6 +59,7 @@ export class AvailablePortersRepository extends Repository<PorterProfile> {
 				)
 			)`,
 			`profile."availability_status" = $3`,
+			APPROVED_PORTER_VERIFICATION_SQL,
 		];
 
 		if (filters.minExperienceYears != null) {

@@ -3,15 +3,19 @@ import { REGISTER_STEPS } from "../constants";
 
 interface RegisterStepperProps {
 	currentStep: number;
+	steps?: ReadonlyArray<{ step: number; label: string }>;
 }
 
-export const RegisterStepper: React.FC<RegisterStepperProps> = ({ currentStep }) => {
+export const RegisterStepper: React.FC<RegisterStepperProps> = ({
+	currentStep,
+	steps = REGISTER_STEPS,
+}) => {
 	return (
 		<div className="relative mb-4 flex items-center justify-between">
 			{/* Background Connecting Line */}
 			<div className="absolute top-3.5 left-6 right-6 h-0.5 bg-[#e0ebe0] -z-0" />
 
-			{REGISTER_STEPS.map((stepItem) => {
+			{steps.map((stepItem) => {
 				const isActive = stepItem.step === currentStep;
 				const isCompleted = stepItem.step < currentStep;
 

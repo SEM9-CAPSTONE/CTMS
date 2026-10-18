@@ -178,6 +178,7 @@ describe("AuthService.register", () => {
 			phone: "+84987654321",
 			passwordHash: HASHED_PASSWORD,
 			role: UserRole.HOST,
+			fullName: null,
 		});
 		expect(result).toEqual({
 			id: createdUser.id,
