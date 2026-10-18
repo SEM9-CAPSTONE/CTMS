@@ -170,6 +170,39 @@ export function RouteCheckpointsPanel({
 					Điểm đã chọn: {selectedLocation.coordinates.map((value) => value.toFixed(6)).join(", ")}
 				</p>
 			)}
+			{mapMode === "checkpoint" && (
+				<div className="mt-3 flex flex-wrap items-center gap-2">
+					<span className="text-xs font-semibold text-[#667a6d]">Chọn nhanh vị trí:</span>
+					<button
+						type="button"
+						disabled={createDisabled}
+						onClick={() => {
+							const startCoord = route.geometry.coordinates[0];
+							if (startCoord) {
+								setSelectedLocation({ type: "Point", coordinates: startCoord });
+								setCheckpointType("start");
+							}
+						}}
+						className="rounded-lg border border-[#cbd9ce] bg-[#f8fbf7] px-3 py-1 text-xs font-bold text-[#10221b] hover:bg-[#e0ebe0] disabled:cursor-not-allowed disabled:opacity-50"
+					>
+						📍 Điểm đầu tuyến (Start)
+					</button>
+					<button
+						type="button"
+						disabled={createDisabled}
+						onClick={() => {
+							const finishCoord = route.geometry.coordinates.at(-1);
+							if (finishCoord) {
+								setSelectedLocation({ type: "Point", coordinates: finishCoord });
+								setCheckpointType("finish");
+							}
+						}}
+						className="rounded-lg border border-[#cbd9ce] bg-[#f8fbf7] px-3 py-1 text-xs font-bold text-[#10221b] hover:bg-[#e0ebe0] disabled:cursor-not-allowed disabled:opacity-50"
+					>
+						🏁 Điểm cuối tuyến (Finish)
+					</button>
+				</div>
+			)}
 
 			{mapMode === "checkpoint" ? (
 				<CreateCheckpointForm
@@ -190,6 +223,7 @@ export function RouteCheckpointsPanel({
 						toast.success(editingCheckpoint ? "Đã cập nhật vị trí." : "Đã thêm vị trí.");
 						setEditingCheckpoint(undefined);
 						setSelectedLocation(undefined);
+						setCheckpointType(undefined);
 					}}
 					onCancel={cancelCheckpointEdit}
 				/>
@@ -279,6 +313,7 @@ export function RouteCheckpointsPanel({
 			</div>
 			<RouteSubmissionPanel
 				route={route}
+				checkpoints={checkpoints.items}
 				isLoadingCheckpoints={checkpoints.isLoading}
 				checkpointError={checkpoints.error}
 				onReload={onRouteReload}

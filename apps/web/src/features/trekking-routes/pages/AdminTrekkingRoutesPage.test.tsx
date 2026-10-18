@@ -93,7 +93,12 @@ async function setup(options: SetupOptions = {}) {
 	);
 	const userEvent = (await import("@testing-library/user-event")).default;
 	const { AdminTrekkingRoutesPage } = await import("./AdminTrekkingRoutesPage");
-	render(<AdminTrekkingRoutesPage />);
+	const { ToastProvider } = await import("../../../shared/components");
+	render(
+		<ToastProvider>
+			<AdminTrekkingRoutesPage />
+		</ToastProvider>
+	);
 	return {
 		act,
 		fireEvent,

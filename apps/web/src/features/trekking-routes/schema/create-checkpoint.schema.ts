@@ -58,13 +58,14 @@ export function toCreateCheckpointInput(
 	checkpoint?: Pick<RouteCheckpoint, "expectedArrivalOffset" | "nearbyWaterOrShelter">
 ): CreateCheckpointInput {
 	const type = values.type as RouteCheckpointType;
+	const name = CHECKPOINT_DEFAULT_NAMES[type];
 	return {
-		name: CHECKPOINT_DEFAULT_NAMES[type],
+		name,
 		location: values.location,
 		radiusMeters: CHECKPOINT_RADIUS_METERS,
 		type,
 		expectedArrivalOffset: checkpoint?.expectedArrivalOffset ?? 0,
-		instructions: values.instructions.trim(),
+		instructions: values.instructions.trim() || name,
 		nearbyWaterOrShelter: checkpoint?.nearbyWaterOrShelter ?? false,
 	};
 }

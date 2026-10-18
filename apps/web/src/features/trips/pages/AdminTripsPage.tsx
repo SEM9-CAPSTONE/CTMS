@@ -1,4 +1,4 @@
-import { AlertCircle, CheckCircle, Compass, RefreshCw } from "lucide-react";
+import { AlertCircle, Compass, RefreshCw } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Pagination, toast } from "../../../shared/components";
 import {
@@ -32,7 +32,6 @@ export function AdminTripsPage({ onLogout }: AdminTripsPageProps) {
 	const review = useReviewTrip();
 	const [selectedId, setSelectedId] = useState<string>();
 	const [dialogOpen, setDialogOpen] = useState(false);
-	const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
 	useAdminTripReviewNotifications({ onChanged: list.reload });
 
@@ -49,7 +48,6 @@ export function AdminTripsPage({ onLogout }: AdminTripsPageProps) {
 
 	const confirm = async (values: ReviewTripFormValues) => {
 		if (!selected) return;
-		setSuccessMessage(null);
 		const result = await review.submit(selected.id, {
 			action: values.action,
 			reviewedUpdatedAt: selected.updatedAt,
@@ -61,7 +59,6 @@ export function AdminTripsPage({ onLogout }: AdminTripsPageProps) {
 			decline: "Đã trả về bản nháp",
 		};
 		const message = `${labels[values.action]} trip “${selected.title}”.`;
-		setSuccessMessage(message);
 		toast.success(message, "Xét duyệt hoàn tất");
 		setDialogOpen(false);
 		await list.reload();
@@ -84,7 +81,6 @@ export function AdminTripsPage({ onLogout }: AdminTripsPageProps) {
 						onChange={(value) => {
 							setReviewOutcome(value);
 							setPage(1);
-							setSuccessMessage(null);
 							review.clearError();
 						}}
 					/>
@@ -109,12 +105,6 @@ export function AdminTripsPage({ onLogout }: AdminTripsPageProps) {
 						</button>
 					</div>
 				)}
-				{successMessage && (
-					<output className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-700">
-						<CheckCircle className="size-5" />
-						{successMessage}
-					</output>
-				)}
 				{!list.error && (
 					<>
 						<AdminTripReviewContent
@@ -124,11 +114,9 @@ export function AdminTripsPage({ onLogout }: AdminTripsPageProps) {
 							onSelect={(trip) => {
 								setSelectedId(trip.id);
 								review.clearError();
-								setSuccessMessage(null);
 							}}
 							onReview={() => {
 								review.clearError();
-								setSuccessMessage(null);
 								setDialogOpen(true);
 							}}
 						/>

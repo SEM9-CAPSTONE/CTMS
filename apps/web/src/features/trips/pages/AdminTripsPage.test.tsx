@@ -89,7 +89,12 @@ async function setup(options: SetupOptions = {}) {
 	const { act, render, screen, waitFor, within } = await import("@testing-library/react");
 	const userEvent = (await import("@testing-library/user-event")).default;
 	const { AdminTripsPage } = await import("./AdminTripsPage");
-	render(<AdminTripsPage />);
+	const { ToastProvider } = await import("../../../shared/components");
+	render(
+		<ToastProvider>
+			<AdminTripsPage />
+		</ToastProvider>
+	);
 	return { act, screen, waitFor, within, user: userEvent.setup(), listAdminReviews, review };
 }
 

@@ -89,10 +89,16 @@ vi.mock("./CreateCheckpointForm", () => ({
 	),
 }));
 const toastSuccess = vi.hoisted(() => vi.fn());
+const mockRouteSubmissionPanel = vi.hoisted(() => vi.fn());
 vi.mock("../../../shared/components/Toast", () => ({
 	useToast: () => ({ success: toastSuccess }),
 }));
-vi.mock("./RouteSubmissionPanel", () => ({ RouteSubmissionPanel: () => null }));
+vi.mock("./RouteSubmissionPanel", () => ({
+	RouteSubmissionPanel: (props: unknown) => {
+		mockRouteSubmissionPanel(props);
+		return null;
+	},
+}));
 
 const checkpoint: RouteCheckpoint = {
 	id: "checkpoint-id",
@@ -378,5 +384,37 @@ describe("RouteCheckpointsPanel", () => {
 		});
 		rerender(<RouteCheckpointsPanel {...props} />);
 		expect(screen.getByTestId("checkpoints-empty")).toBeInTheDocument();
+	});
+
+	it("passes loaded checkpoints to RouteSubmissionPanel", () => {
+		render(
+			<RouteCheckpointsPanel
+				route={route("route-one", "draft")}
+				onRouteReload={vi.fn()}
+				onRouteSubmitted={vi.fn()}
+			/>
+		);
+		expect(mockRouteSubmissionPanel).toHaveBeenCalledWith(
+			expect.objectContaining({
+				checkpoints: [checkpoint],
+				isLoadingCheckpoints: false,
+				checkpointError: "",
+			})
+		);
+	});
+
+	it("selects start and finish route endpoints using quick select buttons", () => {
+		render(
+			<RouteCheckpointsPanel
+				route={route("route-one", "draft")}
+				onRouteReload={vi.fn()}
+				onRouteSubmitted={vi.fn()}
+			/>
+		);
+		fireEvent.click(screen.getByRole("button", { name: "📍 Điểm đầu tuyến (Start)" }));
+		expect(screen.getByTestId("panel-map")).toHaveAttribute("data-selected", "108.45,11.94");
+
+		fireEvent.click(screen.getByRole("button", { name: "🏁 Điểm cuối tuyến (Finish)" }));
+		expect(screen.getByTestId("panel-map")).toHaveAttribute("data-selected", "108.47,11.94");
 	});
 });
