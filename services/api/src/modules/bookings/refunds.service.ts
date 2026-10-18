@@ -877,14 +877,15 @@ export class RefundsService {
 			}
 
 			const beforeStatus = refund.status;
+			const transactionRef = dto.transactionRef?.trim() || `MANUAL-${Date.now()}`;
 			refund.status = PaymentStatus.SUCCEEDED;
-			refund.providerReference = dto.transactionRef;
+			refund.providerReference = transactionRef;
 			await paymentsRepo.save(refund);
 
 			const txn = await manager.getRepository(PaymentTransaction).save(
 				manager.getRepository(PaymentTransaction).create({
 					paymentId: refund.id,
-					transactionRef: dto.transactionRef,
+					transactionRef,
 					status: PaymentTransactionStatus.SUCCEEDED,
 					rawPayload: {
 						adminConfirmedBy: actorId,

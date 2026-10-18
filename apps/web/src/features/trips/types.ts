@@ -21,7 +21,7 @@ export type TripStatus =
 export const TRIP_STATUS_LABELS: Record<TripStatus, string> = {
 	draft: "Bản nháp",
 	pending_approval: "Chờ duyệt",
-	published: "Đã công bố",
+	published: "Đã mở bán",
 	ongoing: "Đang diễn ra",
 	completed: "Kết thúc",
 	cancelled: "Đã huỷ",
@@ -447,4 +447,71 @@ export interface BookTripResponse {
 	totalAmount: string;
 	cancellationPolicySnapshot: Record<string, unknown> | null;
 	createdAt: string;
+}
+
+export interface TripBookingBooker {
+	id: string;
+	fullName: string | null;
+	email: string | null;
+	phone: string | null;
+	avatarUrl?: string | null;
+}
+
+export interface TripBookingEquipmentItem {
+	id: string;
+	equipmentCatalogItemId: string;
+	name: string;
+	category: string;
+	quantity: number;
+	unitPrice: string;
+	rentalDays: number;
+	totalPrice: string;
+}
+
+export interface TripBookingMember {
+	id: string;
+	userId: string | null;
+	displayName: string | null;
+	email: string | null;
+	isPrimary: boolean;
+	memberStatus: string;
+}
+
+export interface TripBookingItem {
+	id: string;
+	tripId: string;
+	userId: string;
+	numPeople: number;
+	status:
+		| "pending_payment"
+		| "pending_reconfirmation"
+		| "confirmed"
+		| "cancelled"
+		| "expired"
+		| "completed";
+	paymentStatus: "not_required" | "unpaid" | "paid";
+	basePrice: string | null;
+	totalAmount: string | null;
+	createdAt: string;
+	completedAt: string | null;
+	booker: TripBookingBooker;
+	members: TripBookingMember[];
+	equipmentItems: TripBookingEquipmentItem[];
+}
+
+export interface TripEquipmentPreparationItem {
+	equipmentCatalogItemId: string;
+	name: string;
+	category: string;
+	inventoryQuantity: number;
+	totalQuantity: number;
+	bookingCount: number;
+}
+
+export interface TripBookingsResponse {
+	tripId: string;
+	status: TripStatus;
+	startsAt: string;
+	bookings: TripBookingItem[];
+	equipmentSummary: TripEquipmentPreparationItem[];
 }

@@ -10,6 +10,30 @@ vi.mock("../features/trekking-routes/pages/CreateTrekkingRoutePage", () => ({
 vi.mock("../features/trekking-routes/pages/TrekkingRoutesPage", () => ({
 	TrekkingRoutesPage: () => <div>Trekking Routes Page</div>,
 }));
+vi.mock("../features/trips/pages/HostCampersPage", () => ({
+	HostCampersPage: ({
+		initialTripId,
+		onNavigateToTripDetail,
+	}: {
+		initialTripId?: string | null;
+		onNavigateToTripDetail?: (id: string) => void;
+	}) => (
+		<div>
+			<h1>Người tham gia & đặt chỗ</h1>
+			<p>Trip: {initialTripId ?? "none"}</p>
+			{onNavigateToTripDetail && (
+				<button type="button" onClick={() => onNavigateToTripDetail("trip-detail-123")}>
+					Xem chi tiết
+				</button>
+			)}
+		</div>
+	),
+}));
+
+vi.mock("../features/trips/hooks/usePorterRequests", () => ({
+	useMyPorterRequests: vi.fn(() => ({ data: [] })),
+}));
+
 vi.mock("../features/trips/pages/SearchTripsPage", () => ({
 	SearchTripsPage: ({
 		onBackHome,
@@ -223,5 +247,28 @@ describe("AppRoutes operational roster routing", () => {
 		render(<AppRoutes />);
 
 		expect(screen.getByRole("heading", { name: "Điểm danh chuyến đi" })).toBeInTheDocument();
+	});
+
+	it("renders HostCampersPage when path is /host/campers for a host", async () => {
+		localStorage.setItem(
+			"authUser",
+			JSON.stringify({
+				id: "host-1",
+				email: "host@example.com",
+				phone: null,
+				role: "host",
+				roles: ["host"],
+				status: "active",
+				createdAt: "2026-01-01T00:00:00.000Z",
+			})
+		);
+		window.history.replaceState({}, "", "/host/campers?tripId=trip-abc");
+		render(<AppRoutes />);
+
+		expect(screen.getByRole("heading", { name: "Người tham gia & đặt chỗ" })).toBeInTheDocument();
+		expect(screen.getByText("Trip: trip-abc")).toBeInTheDocument();
+
+		await userEvent.click(screen.getByRole("button", { name: "Xem chi tiết" }));
+		expect(window.location.pathname).toBe("/trips/trip-detail-123");
 	});
 });

@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2, Clock, Landmark, Loader2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock, Eye, Landmark, Loader2 } from "lucide-react";
 import { formatBookingMoney } from "../../booking-details/utils/booking-details-formatters";
 import type { TripSettlementEvaluation } from "../types";
 
@@ -7,6 +7,7 @@ export interface AdminSettlementsTableProps {
 	isLoading: boolean;
 	isSettling: boolean;
 	onSettle: (tripId: string) => Promise<void>;
+	onViewTrip: (item: TripSettlementEvaluation) => void;
 }
 
 export function AdminSettlementsTable({
@@ -14,6 +15,7 @@ export function AdminSettlementsTable({
 	isLoading,
 	isSettling,
 	onSettle,
+	onViewTrip,
 }: AdminSettlementsTableProps) {
 	if (isLoading) {
 		return (
@@ -35,85 +37,97 @@ export function AdminSettlementsTable({
 	}
 
 	return (
-		<div className="overflow-x-auto">
-			<table className="w-full min-w-[900px] text-left text-sm">
-				<thead className="bg-[#f4f7f2] text-xs uppercase tracking-wide text-[#667a6d]">
+		<div className="w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+			<table className="w-full text-left text-xs">
+				<thead className="bg-[#f4f7f2] text-[11px] uppercase tracking-wide text-[#667a6d]">
 					<tr>
-						<th className="px-4 py-3">Chuyến đi</th>
-						<th className="px-4 py-3">Host</th>
-						<th className="px-4 py-3 text-right">Doanh thu Base</th>
-						<th className="px-4 py-3 text-right">Phí sàn 5%</th>
-						<th className="px-4 py-3 text-right">Ví Host 95%</th>
-						<th className="px-4 py-3 text-center">Trạng thái</th>
-						<th className="px-4 py-3 text-right">Thao tác</th>
+						<th className="px-3.5 py-3 font-semibold">Chuyến đi</th>
+						<th className="px-3.5 py-3 font-semibold">Host</th>
+						<th className="px-3.5 py-3 font-semibold text-right">Doanh thu Base</th>
+						<th className="px-3.5 py-3 font-semibold text-right">Phí sàn 5%</th>
+						<th className="px-3.5 py-3 font-semibold text-right">Ví Host 95%</th>
+						<th className="px-3.5 py-3 font-semibold text-center">Trạng thái</th>
+						<th className="px-3.5 py-3 font-semibold text-right">Thao tác</th>
 					</tr>
 				</thead>
 				<tbody className="divide-y divide-[#e8efe7]">
 					{items.map((item) => (
 						<tr key={item.tripId} className="hover:bg-[#f8faf7] transition">
-							<td className="px-4 py-4 font-bold text-[#10221b] max-w-xs truncate">
-								{item.tripTitle}
-								<p className="text-xs text-[#7d8d83] font-normal">#{item.tripId.slice(0, 8)}</p>
+							<td className="px-3.5 py-3">
+								<div className="min-w-0">
+									<p
+										className="text-xs font-semibold text-[#10221b] line-clamp-1 hover:text-[#164027] transition"
+										title={item.tripTitle}
+									>
+										{item.tripTitle}
+									</p>
+									<p className="text-[11px] text-[#7d8d83] font-mono">#{item.tripId.slice(0, 8)}</p>
+								</div>
 							</td>
-							<td className="px-4 py-4 text-[#425048] whitespace-nowrap">
-								<p className="font-semibold">{item.hostName}</p>
-								<p className="text-xs text-[#7d8d83]">#{item.hostId.slice(0, 8)}</p>
+							<td className="px-3.5 py-3 text-[#425048] whitespace-nowrap">
+								<p className="font-semibold text-xs text-[#10221b]">{item.hostName}</p>
+								<p className="text-[11px] text-[#7d8d83]">#{item.hostId.slice(0, 8)}</p>
 							</td>
-							<td className="px-4 py-4 text-right font-semibold whitespace-nowrap text-[#10221b]">
+							<td className="px-3.5 py-3 text-right font-medium whitespace-nowrap text-[#10221b]">
 								{formatBookingMoney(item.settlementBase)}
 							</td>
-							<td className="px-4 py-4 text-right font-semibold whitespace-nowrap text-amber-800">
+							<td className="px-3.5 py-3 text-right font-medium whitespace-nowrap text-amber-800">
 								{formatBookingMoney(item.platformFee)}
 							</td>
-							<td className="px-4 py-4 text-right font-black whitespace-nowrap text-[#164027]">
+							<td className="px-3.5 py-3 text-right font-bold whitespace-nowrap text-[#164027]">
 								{formatBookingMoney(item.hostNetAmount)}
 							</td>
-							<td className="px-4 py-4 text-center whitespace-nowrap">
+							<td className="px-3.5 py-3 text-center whitespace-nowrap">
 								{item.isSettled ? (
-									<span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-800">
+									<span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-bold text-emerald-800">
 										<CheckCircle2 className="size-3" />
 										Đã quyết toán
 									</span>
 								) : item.isBlocked ? (
 									<span
 										title={item.blockingReasons.join("; ")}
-										className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-0.5 text-xs font-bold text-rose-800 cursor-help"
+										className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-0.5 text-[11px] font-bold text-rose-800 cursor-help"
 									>
 										<AlertTriangle className="size-3" />
 										Bị chặn khiếu nại
 									</span>
 								) : item.isEligible ? (
-									<span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-bold text-blue-800">
+									<span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-0.5 text-[11px] font-bold text-blue-800">
 										<Landmark className="size-3" />
 										Đủ điều kiện
 									</span>
 								) : (
 									<span
 										title={item.blockingReasons.join("; ")}
-										className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-bold text-amber-800 cursor-help"
+										className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-bold text-amber-800 cursor-help"
 									>
 										<Clock className="size-3" />
 										Giữ tiền ({item.hoursSinceCompleted ?? 0}/72h)
 									</span>
 								)}
 							</td>
-							<td className="px-4 py-4 text-right whitespace-nowrap">
-								{item.isEligible && !item.isSettled && (
+							<td className="px-3.5 py-3 text-right whitespace-nowrap">
+								<div className="flex items-center justify-end gap-1.5">
 									<button
 										type="button"
-										disabled={isSettling}
-										onClick={() => onSettle(item.tripId)}
-										className="rounded-xl bg-[#164027] px-3.5 py-2 text-xs font-bold text-white shadow-xs hover:bg-[#11321f] disabled:opacity-50"
+										onClick={() => onViewTrip(item)}
+										title="Xem chi tiết chuyến đi"
+										aria-label={`Xem chi tiết chuyến đi ${item.tripTitle}`}
+										className="rounded-lg border border-[#dfe8df] p-1.5 text-[#164027] hover:bg-[#eef7f0] transition"
 									>
-										Quyết toán ngay
+										<Eye className="size-4" />
 									</button>
-								)}
-								{item.isSettled && (
-									<span className="text-xs text-[#7d8d83] italic">Đã hoàn tất</span>
-								)}
-								{!item.isEligible && !item.isSettled && (
-									<span className="text-xs text-[#98a69d]">Chưa đủ điều kiện</span>
-								)}
+									{item.isEligible && !item.isSettled && (
+										<button
+											type="button"
+											disabled={isSettling}
+											onClick={() => onSettle(item.tripId)}
+											className="rounded-lg bg-[#164027] px-3 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-[#11321f] transition disabled:opacity-50"
+										>
+											Quyết toán ngay
+										</button>
+									)}
+								</div>
 							</td>
 						</tr>
 					))}

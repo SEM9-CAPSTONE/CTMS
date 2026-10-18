@@ -14,6 +14,7 @@ import { AdminLayout } from "../../admin-layout/components/AdminLayout";
 import type { PaymentStatus } from "../../booking-refund/types";
 import { AdminRefundsTable } from "../components/AdminRefundsTable";
 import { ConfirmTransferModal } from "../components/ConfirmTransferModal";
+import { RefundDetailsModal } from "../components/RefundDetailsModal";
 import { RejectRefundModal } from "../components/RejectRefundModal";
 import { ADMIN_REFUNDS_PAGE_SIZE, ADMIN_REFUND_STATUS_TABS } from "../constants";
 import { useAdminRefunds } from "../hooks/useAdminRefunds";
@@ -28,6 +29,9 @@ export function AdminRefundsPage({ onLogout }: AdminRefundsPageProps) {
 	const [searchInput, setSearchInput] = useState("");
 	const [appliedSearch, setAppliedSearch] = useState("");
 	const [page, setPage] = useState(1);
+	const [selectedRefundForDetail, setSelectedRefundForDetail] = useState<AdminRefundItem | null>(
+		null
+	);
 	const [selectedRefundForConfirm, setSelectedRefundForConfirm] = useState<AdminRefundItem | null>(
 		null
 	);
@@ -74,10 +78,13 @@ export function AdminRefundsPage({ onLogout }: AdminRefundsPageProps) {
 		setPage(1);
 	};
 
-	const handleConfirm = async (obligationId: string, transactionRef: string, note?: string) => {
+	const handleConfirm = async (obligationId: string, note?: string) => {
 		await confirmTransfer({
 			obligationId,
-			payload: { transactionRef, note },
+			payload: {
+				transactionRef: `MANUAL-${Date.now()}`,
+				note,
+			},
 		});
 		setSuccessNotification(
 			`Đã xác nhận chuyển tiền thành công cho yêu cầu #${obligationId.slice(0, 8)}`
@@ -205,6 +212,7 @@ export function AdminRefundsPage({ onLogout }: AdminRefundsPageProps) {
 						isLoading={isLoading}
 						onOpenConfirm={(item) => setSelectedRefundForConfirm(item)}
 						onOpenReject={(item) => setSelectedRefundForReject(item)}
+						onOpenDetail={(item) => setSelectedRefundForDetail(item)}
 					/>
 
 					{/* Integrated Pagination Bar */}
@@ -238,6 +246,20 @@ export function AdminRefundsPage({ onLogout }: AdminRefundsPageProps) {
 					</div>
 				</Card>
 			</div>
+
+			<RefundDetailsModal
+				refund={selectedRefundForDetail}
+				open={Boolean(selectedRefundForDetail)}
+				onClose={() => setSelectedRefundForDetail(null)}
+				onOpenConfirm={(item) => {
+					setSelectedRefundForDetail(null);
+					setSelectedRefundForConfirm(item);
+				}}
+				onOpenReject={(item) => {
+					setSelectedRefundForDetail(null);
+					setSelectedRefundForReject(item);
+				}}
+			/>
 
 			<ConfirmTransferModal
 				refund={selectedRefundForConfirm}

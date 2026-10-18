@@ -1,4 +1,4 @@
-import { Loader2, ReceiptText } from "lucide-react";
+import { Eye, Loader2, ReceiptText } from "lucide-react";
 import {
 	formatBookingDateTime,
 	formatBookingMoney,
@@ -11,6 +11,7 @@ export interface AdminRefundsTableProps {
 	isLoading: boolean;
 	onOpenConfirm: (item: AdminRefundItem) => void;
 	onOpenReject: (item: AdminRefundItem) => void;
+	onOpenDetail: (item: AdminRefundItem) => void;
 }
 
 export function AdminRefundsTable({
@@ -18,6 +19,7 @@ export function AdminRefundsTable({
 	isLoading,
 	onOpenConfirm,
 	onOpenReject,
+	onOpenDetail,
 }: AdminRefundsTableProps) {
 	if (isLoading) {
 		return (
@@ -39,17 +41,15 @@ export function AdminRefundsTable({
 	}
 
 	return (
-		<div className="overflow-x-auto">
-			<table className="w-full min-w-[960px] text-left text-sm">
+		<div className="w-full overflow-x-auto">
+			<table className="w-full text-left text-sm">
 				<thead className="bg-[#f4f7f2] text-xs uppercase tracking-wide text-[#667a6d]">
 					<tr>
 						<th className="px-4 py-3 whitespace-nowrap">Thời gian</th>
 						<th className="px-4 py-3 whitespace-nowrap">Khách hàng</th>
 						<th className="px-4 py-3 whitespace-nowrap text-right">Số tiền hoàn</th>
 						<th className="px-4 py-3 whitespace-nowrap">Tài khoản nhận tiền</th>
-						<th className="px-4 py-3 whitespace-nowrap">Lý do hoàn</th>
 						<th className="px-4 py-3 whitespace-nowrap text-center">Trạng thái</th>
-						<th className="px-4 py-3 whitespace-nowrap">Đối soát / Ghi chú</th>
 						<th className="px-4 py-3 whitespace-nowrap text-right">Thao tác</th>
 					</tr>
 				</thead>
@@ -87,64 +87,40 @@ export function AdminRefundsTable({
 								)}
 							</td>
 
-							<td className="px-4 py-3.5 max-w-[180px]">
-								<p className="text-xs text-[#10221b] line-clamp-2" title={refund.reason ?? ""}>
-									{refund.reason || "-"}
-								</p>
-							</td>
-
 							<td className="px-4 py-3.5 text-center whitespace-nowrap">
 								<RefundStateBadge status={refund.status} />
 							</td>
 
-							<td className="px-4 py-3.5 max-w-[200px]">
-								{refund.providerReference && (
-									<p
-										className="font-mono text-xs font-bold text-emerald-900 truncate"
-										title={refund.providerReference}
-									>
-										Mã GD: {refund.providerReference}
-									</p>
-								)}
-								{refund.note && (
-									<p className="text-xs text-[#52665b] truncate" title={refund.note}>
-										{refund.note}
-									</p>
-								)}
-								{refund.rejectionReason && (
-									<p
-										className="text-xs font-semibold text-rose-600 truncate"
-										title={refund.rejectionReason}
-									>
-										Từ chối: {refund.rejectionReason}
-									</p>
-								)}
-								{!refund.providerReference && !refund.note && !refund.rejectionReason && (
-									<span className="text-gray-400">-</span>
-								)}
-							</td>
-
 							<td className="px-4 py-3.5 text-right whitespace-nowrap">
-								{refund.status === "pending" ? (
-									<div className="flex justify-end gap-2">
-										<button
-											type="button"
-											onClick={() => onOpenReject(refund)}
-											className="rounded-xl border border-rose-200 px-3 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-50"
-										>
-											Từ chối
-										</button>
-										<button
-											type="button"
-											onClick={() => onOpenConfirm(refund)}
-											className="rounded-xl bg-[#164027] px-3.5 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-[#11321f]"
-										>
-											Xác nhận chuyển
-										</button>
-									</div>
-								) : (
-									<span className="text-xs text-[#7d8d83] italic">Đã xử lý</span>
-								)}
+								<div className="flex items-center justify-end gap-2">
+									<button
+										type="button"
+										onClick={() => onOpenDetail(refund)}
+										aria-label={`Xem chi tiết hoàn tiền #${refund.id.slice(0, 8)}`}
+										title="Xem chi tiết"
+										className="rounded-xl border border-[#dfe8df] p-2 text-[#164027] hover:bg-[#eef7f0] transition"
+									>
+										<Eye className="size-4" />
+									</button>
+									{refund.status === "pending" && (
+										<>
+											<button
+												type="button"
+												onClick={() => onOpenReject(refund)}
+												className="rounded-xl border border-rose-200 px-3 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-50 transition"
+											>
+												Từ chối
+											</button>
+											<button
+												type="button"
+												onClick={() => onOpenConfirm(refund)}
+												className="rounded-xl bg-[#164027] px-3.5 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-[#11321f] transition"
+											>
+												Xác nhận chuyển
+											</button>
+										</>
+									)}
+								</div>
 							</td>
 						</tr>
 					))}

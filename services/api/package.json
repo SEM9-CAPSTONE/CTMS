@@ -19,7 +19,9 @@
 		"seed:fresh": "ts-node src/seeds/main.seed.ts --fresh",
 		"seed:dev-admin": "ts-node src/seeds/main.seed.ts --fresh",
 		"seed:dev-trips": "ts-node src/seeds/main.seed.ts --fresh",
-		"seed:settlements": "ts-node src/seeds/main.seed.ts --fresh"
+		"seed:settlements": "ts-node src/seeds/main.seed.ts --fresh",
+		"seed:bank-accounts": "ts-node -e \"import { seedUserBankAccounts } from './src/seeds/main.seed'; seedUserBankAccounts().then(() => process.exit(0));\"",
+		"seed:group-bookings": "ts-node -e \"import { seedHostGroupBookingsWithEquipment } from './src/seeds/main.seed'; seedHostGroupBookingsWithEquipment().then(() => process.exit(0));\""
 	},
 	"dependencies": {
 		"@nestjs/common": "^10.4.15",

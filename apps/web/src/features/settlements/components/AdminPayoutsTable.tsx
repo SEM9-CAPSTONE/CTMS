@@ -35,40 +35,40 @@ export function AdminPayoutsTable({
 	}
 
 	return (
-		<div className="overflow-x-auto">
-			<table className="w-full min-w-[900px] text-left text-sm">
-				<thead className="bg-[#f4f7f2] text-xs uppercase tracking-wide text-[#667a6d]">
+		<div className="w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+			<table className="w-full text-left text-xs">
+				<thead className="bg-[#f4f7f2] text-[11px] uppercase tracking-wide text-[#667a6d]">
 					<tr>
-						<th className="px-4 py-3">Thời gian</th>
-						<th className="px-4 py-3">Host</th>
-						<th className="px-4 py-3 text-right">Số tiền rút</th>
-						<th className="px-4 py-3">Thông tin ngân hàng</th>
-						<th className="px-4 py-3 text-center">Trạng thái</th>
-						<th className="px-4 py-3">Mã GD / Lý do</th>
-						<th className="px-4 py-3 text-right">Thao tác</th>
+						<th className="px-3.5 py-3 font-semibold">Thời gian</th>
+						<th className="px-3.5 py-3 font-semibold">Host</th>
+						<th className="px-3.5 py-3 font-semibold text-right">Số tiền rút</th>
+						<th className="px-3.5 py-3 font-semibold">Thông tin ngân hàng</th>
+						<th className="px-3.5 py-3 font-semibold text-center">Trạng thái</th>
+						<th className="px-3.5 py-3 font-semibold">Mã GD / Lý do</th>
+						<th className="px-3.5 py-3 font-semibold text-right">Thao tác</th>
 					</tr>
 				</thead>
 				<tbody className="divide-y divide-[#e8efe7]">
 					{items.map((item) => (
 						<tr key={item.id} className="hover:bg-[#f8faf7] transition">
-							<td className="px-4 py-4 text-[#52665b] whitespace-nowrap">
+							<td className="px-3.5 py-3 text-[#52665b] whitespace-nowrap">
 								{new Date(item.createdAt).toLocaleString("vi-VN")}
 							</td>
-							<td className="px-4 py-4 text-[#10221b] whitespace-nowrap">
+							<td className="px-3.5 py-3 text-[#10221b] whitespace-nowrap">
 								<p className="font-bold">{item.hostName}</p>
 								<p className="text-xs text-[#7d8d83]">
 									{item.hostEmail || item.hostPhone || `#${item.hostId.slice(0, 8)}`}
 								</p>
 							</td>
-							<td className="px-4 py-4 text-right font-black whitespace-nowrap text-[#164027]">
+							<td className="px-3.5 py-3 text-right font-black whitespace-nowrap text-[#164027]">
 								{formatBookingMoney(item.amount)}
 							</td>
-							<td className="px-4 py-4 text-[#425048]">
+							<td className="px-3.5 py-3 text-[#425048]">
 								<p className="font-bold text-[#10221b]">{item.bankName}</p>
 								<p className="text-xs font-mono font-medium">{item.accountNumber}</p>
 								<p className="text-xs text-[#7d8d83] uppercase">{item.accountHolderName}</p>
 							</td>
-							<td className="px-4 py-4 text-center whitespace-nowrap">
+							<td className="px-3.5 py-3 text-center whitespace-nowrap">
 								{item.status === "succeeded" ? (
 									<span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-800">
 										<CheckCircle2 className="size-3" />
@@ -86,7 +86,7 @@ export function AdminPayoutsTable({
 									</span>
 								)}
 							</td>
-							<td className="px-4 py-4 text-[#425048] max-w-xs">
+							<td className="px-3.5 py-3 text-[#425048] max-w-xs">
 								{item.transactionRef && (
 									<p className="font-mono font-bold text-emerald-900 truncate">
 										Mã GD: {item.transactionRef}
@@ -101,7 +101,7 @@ export function AdminPayoutsTable({
 									<p className="text-xs text-[#7d8d83] italic truncate">{item.adminNotes}</p>
 								)}
 							</td>
-							<td className="px-4 py-4 text-right whitespace-nowrap">
+							<td className="px-3.5 py-3 text-right whitespace-nowrap">
 								{item.status === "pending" ? (
 									<div className="flex items-center justify-end gap-2">
 										<button

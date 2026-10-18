@@ -18,20 +18,42 @@ export interface TripRentableEquipmentProps {
 }
 
 export function formatEquipmentCategory(category: string): string {
-	switch (category.toLowerCase()) {
+	if (!category) return "Khác";
+	const normalized = category.toLowerCase().trim();
+	switch (normalized) {
 		case "shelter":
+		case "lều bạt":
+		case "lều cắm trại":
+		case "lều":
 			return "Lều bạt";
 		case "sleeping":
+		case "túi & đệm ngủ":
+		case "túi ngủ":
+		case "đệm ngủ":
 			return "Túi & đệm ngủ";
 		case "backpack":
+		case "balo & túi":
+		case "balo":
 			return "Balo & túi";
 		case "gear":
+		case "trang bị dã ngoại":
+		case "trang bị leo núi":
+		case "dụng cụ":
 			return "Trang bị dã ngoại";
 		case "lighting":
+		case "đèn & chiếu sáng":
+		case "chiếu sáng":
+		case "đèn pin":
 			return "Đèn & chiếu sáng";
 		case "cooking":
+		case "dụng cụ nấu nướng":
+		case "nấu nướng":
+		case "bếp & nấu nướng":
 			return "Dụng cụ nấu nướng";
 		case "safety":
+		case "an toàn & y tế":
+		case "y tế":
+		case "an toàn":
 			return "An toàn & y tế";
 		default:
 			return category;

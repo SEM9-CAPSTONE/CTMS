@@ -20,6 +20,7 @@ import type {
 	ReviewTripInput,
 	SearchTripsQuery,
 	Trip,
+	TripBookingsResponse,
 	TripDetails,
 } from "../types";
 
@@ -133,4 +134,7 @@ export const tripsService = {
 		httpClient.post<BookTripResponse>(API_ENDPOINTS.BOOKINGS.CREATE, input, {
 			headers: { "Idempotency-Key": idempotencyKey },
 		}),
+
+	getTripBookings: (tripId: string): Promise<TripBookingsResponse> =>
+		httpClient.get<TripBookingsResponse>(API_ENDPOINTS.TRIPS.BOOKINGS(tripId)),
 };

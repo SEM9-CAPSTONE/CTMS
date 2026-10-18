@@ -1,342 +1,253 @@
 <mxfile host="65bd71144e">
     <diagram id="system-architecture-diagram" name="System Architecture Diagram">
-        <mxGraphModel dx="1600" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1650" pageHeight="950" background="#ffffff" math="0" shadow="0">
+        <mxGraphModel dx="1367" dy="591" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1650" pageHeight="950" background="#ffffff" math="0" shadow="0">
             <root>
                 <mxCell id="0"/>
                 <mxCell id="1" parent="0"/>
-
-                <!-- ================= EXTERNAL SERVICES (TOP DASHED BOX) ================= -->
-                <mxCell id="box_external" value="" style="rounded=0;whiteSpace=wrap;html=1;dashed=1;dashPattern=8 8;strokeColor=#4B5563;strokeWidth=2;fillColor=none;" vertex="1" parent="1">
+                <mxCell id="box_external" value="" style="rounded=0;whiteSpace=wrap;html=1;dashed=1;dashPattern=8 8;strokeColor=#4B5563;strokeWidth=2;fillColor=none;" parent="1" vertex="1">
                     <mxGeometry x="360" y="30" width="1180" height="150" as="geometry"/>
                 </mxCell>
-                <mxCell id="lbl_external" value="External Services" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;fontSize=15;fontStyle=1;fontColor=#1F2937;" vertex="1" parent="1">
+                <mxCell id="lbl_external" value="External Services" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;fontSize=15;fontStyle=1;fontColor=#1F2937;" parent="1" vertex="1">
                     <mxGeometry x="380" y="40" width="180" height="30" as="geometry"/>
                 </mxCell>
-
-                <!-- PayOS -->
-                <mxCell id="card_payos" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#E5E7EB;shadow=1;" vertex="1" parent="1">
+                <mxCell id="card_payos" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#E5E7EB;shadow=1;" parent="1" vertex="1">
                     <mxGeometry x="390" y="75" width="130" height="85" as="geometry"/>
                 </mxCell>
-                <mxCell id="icon_payos" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;imageAspect=1;aspect=fixed;image=https://payos.vn/wp-content/uploads/2023/12/logo-payos.svg;" vertex="1" parent="1">
-                    <mxGeometry x="405" y="90" width="100" height="38" as="geometry"/>
+                <mxCell id="icon_payos" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;imageAspect=1;aspect=fixed;image=https://payos.vn/docs/img/logo.svg;" parent="1" vertex="1">
+                    <mxGeometry x="405" y="90" width="100" height="41" as="geometry"/>
                 </mxCell>
-                <mxCell id="txt_payos" value="PayOS" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=12;fontStyle=1;fontColor=#2563EB;" vertex="1" parent="1">
+                <mxCell id="txt_payos" value="PayOS" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=12;fontStyle=1;fontColor=#00A85E;" parent="1" vertex="1">
                     <mxGeometry x="390" y="132" width="130" height="22" as="geometry"/>
                 </mxCell>
-
-                <!-- Cloudinary -->
-                <mxCell id="card_cloudinary" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#E5E7EB;shadow=1;" vertex="1" parent="1">
+                <mxCell id="card_cloudinary" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#E5E7EB;shadow=1;" parent="1" vertex="1">
                     <mxGeometry x="540" y="75" width="140" height="85" as="geometry"/>
                 </mxCell>
-                <mxCell id="icon_cloudinary" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;imageAspect=1;aspect=fixed;image=https://cloudinary-res.cloudinary.com/image/upload/website/cloudinary_web_favicon.png;" vertex="1" parent="1">
+                <mxCell id="icon_cloudinary" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;imageAspect=1;aspect=fixed;image=https://cloudinary-res.cloudinary.com/image/upload/website/cloudinary_web_favicon.png;" parent="1" vertex="1">
                     <mxGeometry x="588" y="85" width="44" height="44" as="geometry"/>
                 </mxCell>
-                <mxCell id="txt_cloudinary" value="Cloudinary" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=12;fontStyle=1;fontColor=#3448C5;" vertex="1" parent="1">
+                <mxCell id="txt_cloudinary" value="Cloudinary" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=12;fontStyle=1;fontColor=#3448C5;" parent="1" vertex="1">
                     <mxGeometry x="540" y="132" width="140" height="22" as="geometry"/>
                 </mxCell>
-
-                <!-- Open-Meteo -->
-                <mxCell id="card_weather" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#E5E7EB;shadow=1;" vertex="1" parent="1">
+                <mxCell id="card_weather" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#E5E7EB;shadow=1;" parent="1" vertex="1">
                     <mxGeometry x="700" y="75" width="140" height="85" as="geometry"/>
                 </mxCell>
-                <mxCell id="icon_weather" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;imageAspect=1;aspect=fixed;image=https://open-meteo.com/favicon.png;" vertex="1" parent="1">
-                    <mxGeometry x="720" y="88" width="100" height="38" as="geometry"/>
+                <mxCell id="icon_weather" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;imageAspect=1;aspect=fixed;image=https://cdn.jsdelivr.net/gh/open-meteo/open-meteo-website@main/static/android-chrome-192x192.png;" parent="1" vertex="1">
+                    <mxGeometry x="748" y="85" width="44" height="44" as="geometry"/>
                 </mxCell>
-                <mxCell id="txt_weather" value="Open-Meteo" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=12;fontStyle=1;fontColor=#D97706;" vertex="1" parent="1">
+                <mxCell id="txt_weather" value="Open-Meteo" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=12;fontStyle=1;fontColor=#D97706;" parent="1" vertex="1">
                     <mxGeometry x="700" y="132" width="140" height="22" as="geometry"/>
                 </mxCell>
-
-                <!-- OpenAI (LLM) -->
-                <mxCell id="card_openai" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#E5E7EB;shadow=1;" vertex="1" parent="1">
+                <mxCell id="card_openai" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#E5E7EB;shadow=1;" parent="1" vertex="1">
                     <mxGeometry x="860" y="75" width="130" height="85" as="geometry"/>
                 </mxCell>
-                <mxCell id="icon_openai" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;imageAspect=1;aspect=fixed;image=https://cdn.worldvectorlogo.com/logos/openai-2.svg;" vertex="1" parent="1">
+                <mxCell id="icon_openai" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;imageAspect=1;aspect=fixed;image=https://cdn.worldvectorlogo.com/logos/openai-2.svg;" parent="1" vertex="1">
                     <mxGeometry x="903" y="85" width="44" height="44" as="geometry"/>
                 </mxCell>
-                <mxCell id="txt_openai" value="OpenAI (GPT-4o)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=12;fontStyle=1;fontColor=#10A37F;" vertex="1" parent="1">
+                <mxCell id="txt_openai" value="OpenAI (GPT-4o)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=12;fontStyle=1;fontColor=#10A37F;" parent="1" vertex="1">
                     <mxGeometry x="860" y="132" width="130" height="22" as="geometry"/>
                 </mxCell>
-
-                <!-- Twilio (SMS OTP) -->
-                <mxCell id="card_twilio" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#E5E7EB;shadow=1;" vertex="1" parent="1">
+                <mxCell id="card_twilio" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#E5E7EB;shadow=1;" parent="1" vertex="1">
                     <mxGeometry x="1010" y="75" width="120" height="85" as="geometry"/>
                 </mxCell>
-                <mxCell id="icon_twilio" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;imageAspect=1;aspect=fixed;image=https://cdn.worldvectorlogo.com/logos/twilio.svg;" vertex="1" parent="1">
+                <mxCell id="icon_twilio" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;imageAspect=1;aspect=fixed;image=https://cdn.worldvectorlogo.com/logos/twilio.svg;" parent="1" vertex="1">
                     <mxGeometry x="1048" y="85" width="44" height="44" as="geometry"/>
                 </mxCell>
-                <mxCell id="txt_twilio" value="Twilio (SMS)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=12;fontStyle=1;fontColor=#F22F46;" vertex="1" parent="1">
+                <mxCell id="txt_twilio" value="Twilio (SMS)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=12;fontStyle=1;fontColor=#F22F46;" parent="1" vertex="1">
                     <mxGeometry x="1010" y="132" width="120" height="22" as="geometry"/>
                 </mxCell>
-
-                <!-- SMTP Mailer -->
-                <mxCell id="card_smtp" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#E5E7EB;shadow=1;" vertex="1" parent="1">
+                <mxCell id="card_smtp" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#E5E7EB;shadow=1;" parent="1" vertex="1">
                     <mxGeometry x="1150" y="75" width="120" height="85" as="geometry"/>
                 </mxCell>
-                <mxCell id="icon_smtp" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;imageAspect=1;aspect=fixed;image=https://upload.wikimedia.org/wikipedia/commons/thumb/4/4e/Mail_%28iOS%29.svg/512px-Mail_%28iOS%29.svg.png;" vertex="1" parent="1">
+                <mxCell id="icon_smtp" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;imageAspect=1;aspect=fixed;image=https://upload.wikimedia.org/wikipedia/commons/4/4e/Mail_%28iOS%29.svg;" parent="1" vertex="1">
                     <mxGeometry x="1188" y="85" width="44" height="44" as="geometry"/>
                 </mxCell>
-                <mxCell id="txt_smtp" value="SMTP Mailer" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=12;fontStyle=1;fontColor=#EA4335;" vertex="1" parent="1">
+                <mxCell id="txt_smtp" value="SMTP Mailer" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=12;fontStyle=1;fontColor=#EA4335;" parent="1" vertex="1">
                     <mxGeometry x="1150" y="132" width="120" height="22" as="geometry"/>
                 </mxCell>
-
-                <!-- OpenStreetMap (Map Tiles) -->
-                <mxCell id="card_maps" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#E5E7EB;shadow=1;" vertex="1" parent="1">
+                <mxCell id="card_maps" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#E5E7EB;shadow=1;" parent="1" vertex="1">
                     <mxGeometry x="1290" y="75" width="145" height="85" as="geometry"/>
                 </mxCell>
-                <mxCell id="icon_maps" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;imageAspect=1;aspect=fixed;image=https://upload.wikimedia.org/wikipedia/commons/b/b0/Openstreetmap_logo.svg;" vertex="1" parent="1">
+                <mxCell id="icon_maps" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;imageAspect=1;aspect=fixed;image=https://upload.wikimedia.org/wikipedia/commons/b/b0/Openstreetmap_logo.svg;" parent="1" vertex="1">
                     <mxGeometry x="1341" y="82" width="42" height="42" as="geometry"/>
                 </mxCell>
-                <mxCell id="txt_maps" value="OpenStreetMap" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=12;fontStyle=1;fontColor=#2D8C3C;" vertex="1" parent="1">
+                <mxCell id="txt_maps" value="OpenStreetMap" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=12;fontStyle=1;fontColor=#2D8C3C;" parent="1" vertex="1">
                     <mxGeometry x="1290" y="123" width="145" height="20" as="geometry"/>
                 </mxCell>
-                <mxCell id="sub_maps" value="(Map Tiles Provider)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=10;fontStyle=0;fontColor=#6B7280;" vertex="1" parent="1">
+                <mxCell id="sub_maps" value="(Map Tiles Provider)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=10;fontStyle=0;fontColor=#6B7280;" parent="1" vertex="1">
                     <mxGeometry x="1290" y="140" width="145" height="16" as="geometry"/>
                 </mxCell>
-
-
-                <!-- ================= ACTOR: USERS ================= -->
-                <mxCell id="actor_user" value="" style="shape=actor;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1F2937;strokeWidth=2;" vertex="1" parent="1">
+                <mxCell id="actor_user" value="" style="shape=actor;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1F2937;strokeWidth=2;" parent="1" vertex="1">
                     <mxGeometry x="85" y="270" width="50" height="70" as="geometry"/>
                 </mxCell>
-                <mxCell id="lbl_users" value="Users" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=top;whiteSpace=wrap;rounded=0;fontSize=15;fontStyle=1;fontColor=#111827;" vertex="1" parent="1">
+                <mxCell id="lbl_users" value="Users" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=top;whiteSpace=wrap;rounded=0;fontSize=15;fontStyle=1;fontColor=#111827;" parent="1" vertex="1">
                     <mxGeometry x="50" y="350" width="120" height="25" as="geometry"/>
                 </mxCell>
-
-                <!-- Client Devices Container -->
-                <mxCell id="box_client_devices" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F9FAFB;strokeColor=#9CA3AF;strokeWidth=1.5;" vertex="1" parent="1">
+                <mxCell id="box_client_devices" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F9FAFB;strokeColor=#9CA3AF;strokeWidth=1.5;" parent="1" vertex="1">
                     <mxGeometry x="35" y="420" width="150" height="120" as="geometry"/>
                 </mxCell>
-                <mxCell id="icon_phone" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;imageAspect=1;aspect=fixed;image=https://upload.wikimedia.org/wikipedia/commons/thumb/1/14/Smartphone_icon.svg/512px-Smartphone_icon.svg.png;" vertex="1" parent="1">
-                    <mxGeometry x="50" y="445" width="40" height="40" as="geometry"/>
+                <mxCell id="icon_phone" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;imageAspect=1;aspect=fixed;image=https://cdn.jsdelivr.net/npm/lucide-static@latest/icons/smartphone.svg;" parent="1" vertex="1">
+                    <mxGeometry x="58" y="445" width="36" height="36" as="geometry"/>
                 </mxCell>
-                <mxCell id="icon_desktop" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;imageAspect=1;aspect=fixed;image=https://upload.wikimedia.org/wikipedia/commons/thumb/2/24/Monitor_icon.svg/512px-Monitor_icon.svg.png;" vertex="1" parent="1">
-                    <mxGeometry x="110" y="440" width="55" height="50" as="geometry"/>
+                <mxCell id="icon_desktop" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;imageAspect=1;aspect=fixed;image=https://cdn.jsdelivr.net/npm/lucide-static@latest/icons/monitor.svg;" parent="1" vertex="1">
+                    <mxGeometry x="108" y="441" width="44" height="44" as="geometry"/>
                 </mxCell>
-                <mxCell id="lbl_clients" value="Clients" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=12;fontStyle=1;fontColor=#374151;" vertex="1" parent="1">
+                <mxCell id="lbl_clients" value="Clients" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=12;fontStyle=1;fontColor=#374151;" parent="1" vertex="1">
                     <mxGeometry x="40" y="505" width="140" height="25" as="geometry"/>
                 </mxCell>
-
-                <!-- Arrow: Users -> Devices -->
-                <mxCell id="edge_user_device" value="" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;strokeColor=#1F2937;strokeWidth=2;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="lbl_users" target="box_client_devices">
+                <mxCell id="edge_user_device" value="" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;strokeColor=#1F2937;strokeWidth=2;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="lbl_users" target="box_client_devices" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-
-                <!-- Internet Cloud -->
-                <mxCell id="cloud_internet" value="" style="ellipse;shape=cloud;whiteSpace=wrap;html=1;fillColor=#EFF6FF;strokeColor=#3B82F6;strokeWidth=2;" vertex="1" parent="1">
+                <mxCell id="cloud_internet" value="" style="ellipse;shape=cloud;whiteSpace=wrap;html=1;fillColor=#EFF6FF;strokeColor=#3B82F6;strokeWidth=2;" parent="1" vertex="1">
                     <mxGeometry x="220" y="435" width="110" height="90" as="geometry"/>
                 </mxCell>
-                <mxCell id="lbl_internet" value="Public&lt;br&gt;Internet" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=12;fontStyle=1;fontColor=#1D4ED8;" vertex="1" parent="1">
+                <mxCell id="lbl_internet" value="Public&lt;br&gt;Internet" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=12;fontStyle=1;fontColor=#1D4ED8;" parent="1" vertex="1">
                     <mxGeometry x="235" y="460" width="80" height="40" as="geometry"/>
                 </mxCell>
-
-                <!-- Arrow: Devices -> Internet -->
-                <mxCell id="edge_device_internet" value="" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;strokeColor=#1F2937;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="box_client_devices" target="cloud_internet">
+                <mxCell id="edge_device_internet" value="" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;strokeColor=#1F2937;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="box_client_devices" target="cloud_internet" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-
-
-                <!-- ================= MAIN SYSTEM BOUNDARY (VPS SIEU TOC / DOCKER & COOLIFY) ================= -->
-                <mxCell id="box_system" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FAFAFA;strokeColor=#111827;strokeWidth=2;" vertex="1" parent="1">
+                <mxCell id="box_system" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FAFAFA;strokeColor=#111827;strokeWidth=2;" parent="1" vertex="1">
                     <mxGeometry x="360" y="220" width="1030" height="680" as="geometry"/>
                 </mxCell>
-                <mxCell id="lbl_system_title" value="Cloud VPS (VPS Sieu Toc — Self-hosted via Coolify &amp;amp; Docker)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;fontSize=16;fontStyle=1;fontColor=#111827;" vertex="1" parent="1">
+                <mxCell id="lbl_system_title" value="Cloud VPS (VPS Sieu Toc — Self-hosted via Docker)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;fontSize=16;fontStyle=1;fontColor=#111827;" parent="1" vertex="1">
                     <mxGeometry x="380" y="235" width="600" height="30" as="geometry"/>
                 </mxCell>
-
-
-                <!-- ========== 1. PRESENTATION LAYER ========== -->
-                <mxCell id="box_presentation" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#D1D5DB;strokeWidth=1.5;" vertex="1" parent="1">
+                <mxCell id="box_presentation" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#D1D5DB;strokeWidth=1.5;" parent="1" vertex="1">
                     <mxGeometry x="390" y="280" width="280" height="370" as="geometry"/>
                 </mxCell>
-                <mxCell id="lbl_presentation" value="Presentation Layer" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;fontSize=14;fontStyle=1;fontColor=#111827;" vertex="1" parent="1">
+                <mxCell id="lbl_presentation" value="Presentation Layer" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;fontSize=14;fontStyle=1;fontColor=#111827;" parent="1" vertex="1">
                     <mxGeometry x="410" y="295" width="200" height="25" as="geometry"/>
                 </mxCell>
-
-                <!-- React Web App Card -->
-                <mxCell id="card_react" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#CBD5E1;strokeWidth=1.5;" vertex="1" parent="1">
+                <mxCell id="card_react" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#CBD5E1;strokeWidth=1.5;" parent="1" vertex="1">
                     <mxGeometry x="420" y="340" width="220" height="120" as="geometry"/>
                 </mxCell>
-                <mxCell id="icon_react" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;imageAspect=1;aspect=fixed;image=https://cdn.worldvectorlogo.com/logos/react-2.svg;" vertex="1" parent="1">
+                <mxCell id="icon_react" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;imageAspect=1;aspect=fixed;image=https://cdn.jsdelivr.net/gh/devicons/devicon/icons/react/react-original.svg;" parent="1" vertex="1">
                     <mxGeometry x="507" y="348" width="46" height="46" as="geometry"/>
                 </mxCell>
-                <mxCell id="title_react" value="React JS (Web SPA)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=14;fontStyle=1;fontColor=#0F172A;" vertex="1" parent="1">
+                <mxCell id="title_react" value="React JS (Web SPA)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=14;fontStyle=1;fontColor=#0F172A;" parent="1" vertex="1">
                     <mxGeometry x="430" y="394" width="200" height="22" as="geometry"/>
                 </mxCell>
-                <mxCell id="badge_maps" value="MapLibre GL &amp;amp; Leaflet" style="text;html=1;strokeColor=#BFDBFE;fillColor=#EFF6FF;rounded=1;align=center;verticalAlign=middle;fontSize=11;fontStyle=1;fontColor=#1D4ED8;" vertex="1" parent="1">
+                <mxCell id="badge_maps" value="MapLibre GL &amp;amp; Leaflet" style="text;html=1;strokeColor=#BFDBFE;fillColor=#EFF6FF;rounded=1;align=center;verticalAlign=middle;fontSize=11;fontStyle=1;fontColor=#1D4ED8;" parent="1" vertex="1">
                     <mxGeometry x="435" y="420" width="190" height="24" as="geometry"/>
                 </mxCell>
-
-                <!-- Flutter Mobile App Card -->
-                <mxCell id="card_flutter" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#CBD5E1;strokeWidth=1.5;" vertex="1" parent="1">
+                <mxCell id="card_flutter" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#CBD5E1;strokeWidth=1.5;" parent="1" vertex="1">
                     <mxGeometry x="420" y="495" width="220" height="120" as="geometry"/>
                 </mxCell>
-                <mxCell id="icon_flutter" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;imageAspect=1;aspect=fixed;image=https://cdn.worldvectorlogo.com/logos/flutter.svg;" vertex="1" parent="1">
+                <mxCell id="icon_flutter" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;imageAspect=1;aspect=fixed;image=https://cdn.worldvectorlogo.com/logos/flutter.svg;" parent="1" vertex="1">
                     <mxGeometry x="503" y="510" width="54" height="54" as="geometry"/>
                 </mxCell>
-                <mxCell id="title_flutter" value="Flutter Mobile" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#0F172A;" vertex="1" parent="1">
+                <mxCell id="title_flutter" value="Flutter Mobile" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#0F172A;" parent="1" vertex="1">
                     <mxGeometry x="430" y="575" width="200" height="25" as="geometry"/>
                 </mxCell>
-
-
-                <!-- ========== 2. APPLICATION LAYER ========== -->
-                <mxCell id="box_application" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#D1D5DB;strokeWidth=1.5;" vertex="1" parent="1">
+                <mxCell id="box_application" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#D1D5DB;strokeWidth=1.5;" parent="1" vertex="1">
                     <mxGeometry x="720" y="280" width="310" height="370" as="geometry"/>
                 </mxCell>
-                <mxCell id="lbl_application" value="Application Layer" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;fontSize=14;fontStyle=1;fontColor=#111827;" vertex="1" parent="1">
+                <mxCell id="lbl_application" value="Application Layer" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;fontSize=14;fontStyle=1;fontColor=#111827;" parent="1" vertex="1">
                     <mxGeometry x="740" y="295" width="200" height="25" as="geometry"/>
                 </mxCell>
-
-                <!-- NestJS Backend API Card -->
-                <mxCell id="card_nestjs" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#CBD5E1;strokeWidth=1.5;" vertex="1" parent="1">
+                <mxCell id="card_nestjs" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#CBD5E1;strokeWidth=1.5;" parent="1" vertex="1">
                     <mxGeometry x="750" y="340" width="250" height="120" as="geometry"/>
                 </mxCell>
-                <mxCell id="icon_nestjs" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;imageAspect=1;aspect=fixed;image=https://cdn.worldvectorlogo.com/logos/nestjs.svg;" vertex="1" parent="1">
+                <mxCell id="icon_nestjs" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;imageAspect=1;aspect=fixed;image=https://cdn.worldvectorlogo.com/logos/nestjs.svg;" parent="1" vertex="1">
                     <mxGeometry x="847" y="353" width="56" height="56" as="geometry"/>
                 </mxCell>
-                <mxCell id="title_nestjs" value="NestJS API Gateway" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#0F172A;" vertex="1" parent="1">
+                <mxCell id="title_nestjs" value="NestJS API Gateway" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#0F172A;" parent="1" vertex="1">
                     <mxGeometry x="760" y="420" width="230" height="25" as="geometry"/>
                 </mxCell>
-
-                <!-- Python AI Microservice Card -->
-                <mxCell id="card_fastapi" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#CBD5E1;strokeWidth=1.5;" vertex="1" parent="1">
+                <mxCell id="card_fastapi" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#CBD5E1;strokeWidth=1.5;" parent="1" vertex="1">
                     <mxGeometry x="750" y="495" width="250" height="120" as="geometry"/>
                 </mxCell>
-                <mxCell id="icon_fastapi" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;imageAspect=1;aspect=fixed;image=https://cdn.worldvectorlogo.com/logos/fastapi-1.svg;" vertex="1" parent="1">
+                <mxCell id="icon_fastapi" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;imageAspect=1;aspect=fixed;image=https://cdn.worldvectorlogo.com/logos/fastapi-1.svg;" parent="1" vertex="1">
                     <mxGeometry x="850" y="510" width="50" height="50" as="geometry"/>
                 </mxCell>
-                <mxCell id="title_fastapi" value="FastAPI (AI Service)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#0F172A;" vertex="1" parent="1">
+                <mxCell id="title_fastapi" value="FastAPI (AI Service)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#0F172A;" parent="1" vertex="1">
                     <mxGeometry x="760" y="575" width="230" height="25" as="geometry"/>
                 </mxCell>
-
-
-                <!-- ========== 3. DATA LAYER ========== -->
-                <mxCell id="box_data" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#D1D5DB;strokeWidth=1.5;" vertex="1" parent="1">
+                <mxCell id="box_data" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#D1D5DB;strokeWidth=1.5;" parent="1" vertex="1">
                     <mxGeometry x="1080" y="280" width="280" height="370" as="geometry"/>
                 </mxCell>
-                <mxCell id="lbl_data" value="Data Layer" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;fontSize=14;fontStyle=1;fontColor=#111827;" vertex="1" parent="1">
+                <mxCell id="lbl_data" value="Data Layer" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;fontSize=14;fontStyle=1;fontColor=#111827;" parent="1" vertex="1">
                     <mxGeometry x="1100" y="295" width="200" height="25" as="geometry"/>
                 </mxCell>
-
-                <!-- PostgreSQL & PostGIS Card -->
-                <mxCell id="card_postgres" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#CBD5E1;strokeWidth=1.5;" vertex="1" parent="1">
+                <mxCell id="card_postgres" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#CBD5E1;strokeWidth=1.5;" parent="1" vertex="1">
                     <mxGeometry x="1110" y="340" width="220" height="120" as="geometry"/>
                 </mxCell>
-                <mxCell id="icon_postgres" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;imageAspect=1;aspect=fixed;image=https://cdn.worldvectorlogo.com/logos/postgresql.svg;" vertex="1" parent="1">
+                <mxCell id="icon_postgres" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;imageAspect=1;aspect=fixed;image=https://cdn.jsdelivr.net/gh/devicons/devicon/icons/postgresql/postgresql-original.svg;" parent="1" vertex="1">
                     <mxGeometry x="1195" y="348" width="50" height="50" as="geometry"/>
                 </mxCell>
-                <mxCell id="title_postgres" value="PostgreSQL / PostGIS" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=14;fontStyle=1;fontColor=#0F172A;" vertex="1" parent="1">
+                <mxCell id="title_postgres" value="PostgreSQL / PostGIS" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=14;fontStyle=1;fontColor=#0F172A;" parent="1" vertex="1">
                     <mxGeometry x="1120" y="398" width="200" height="22" as="geometry"/>
                 </mxCell>
-                <mxCell id="sub_postgres" value="Spatial Geometry &amp;amp; Relational DB" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=10;fontStyle=2;fontColor=#64748B;" vertex="1" parent="1">
+                <mxCell id="sub_postgres" value="Spatial Geometry &amp;amp; Relational DB" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=10;fontStyle=2;fontColor=#64748B;" parent="1" vertex="1">
                     <mxGeometry x="1120" y="422" width="200" height="20" as="geometry"/>
                 </mxCell>
-
-                <!-- Redis In-Memory Cache Card -->
-                <mxCell id="card_redis" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#CBD5E1;strokeWidth=1.5;" vertex="1" parent="1">
+                <mxCell id="card_redis" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#CBD5E1;strokeWidth=1.5;" parent="1" vertex="1">
                     <mxGeometry x="1110" y="495" width="220" height="120" as="geometry"/>
                 </mxCell>
-                <mxCell id="icon_redis" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;imageAspect=1;aspect=fixed;image=https://cdn.worldvectorlogo.com/logos/redis.svg;" vertex="1" parent="1">
+                <mxCell id="icon_redis" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;imageAspect=1;aspect=fixed;image=https://cdn.worldvectorlogo.com/logos/redis.svg;" parent="1" vertex="1">
                     <mxGeometry x="1193" y="510" width="54" height="54" as="geometry"/>
                 </mxCell>
-                <mxCell id="title_redis" value="Redis" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#0F172A;" vertex="1" parent="1">
+                <mxCell id="title_redis" value="Redis" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#0F172A;" parent="1" vertex="1">
                     <mxGeometry x="1120" y="575" width="200" height="25" as="geometry"/>
                 </mxCell>
-
-
-                <!-- ========== 4. INFRASTRUCTURE & DEVOPS LAYER ========== -->
-                <mxCell id="box_infra" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#D1D5DB;strokeWidth=1.5;" vertex="1" parent="1">
+                <mxCell id="box_infra" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#D1D5DB;strokeWidth=1.5;" parent="1" vertex="1">
                     <mxGeometry x="390" y="685" width="970" height="190" as="geometry"/>
                 </mxCell>
-                <mxCell id="lbl_infra" value="Infrastructure &amp; DevOps" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;fontSize=14;fontStyle=1;fontColor=#111827;" vertex="1" parent="1">
+                <mxCell id="lbl_infra" value="Infrastructure &amp; DevOps" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;fontSize=14;fontStyle=1;fontColor=#111827;" parent="1" vertex="1">
                     <mxGeometry x="410" y="700" width="250" height="25" as="geometry"/>
                 </mxCell>
-
-                <!-- Nginx Proxy -->
-                <mxCell id="card_nginx" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#E2E8F0;strokeWidth=1;" vertex="1" parent="1">
-                    <mxGeometry x="420" y="735" width="200" height="115" as="geometry"/>
+                <mxCell id="card_nginx" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#E2E8F0;strokeWidth=1;" parent="1" vertex="1">
+                    <mxGeometry x="420" y="735" width="270" height="115" as="geometry"/>
                 </mxCell>
-                <mxCell id="icon_nginx" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;imageAspect=1;aspect=fixed;image=https://cdn.worldvectorlogo.com/logos/nginx-1.svg;" vertex="1" parent="1">
-                    <mxGeometry x="495" y="750" width="50" height="50" as="geometry"/>
+                <mxCell id="icon_nginx" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;imageAspect=1;aspect=fixed;image=https://cdn.worldvectorlogo.com/logos/nginx-1.svg;" parent="1" vertex="1">
+                    <mxGeometry x="530" y="750" width="50" height="50" as="geometry"/>
                 </mxCell>
-                <mxCell id="title_nginx" value="Nginx" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=14;fontStyle=1;fontColor=#1E293B;" vertex="1" parent="1">
-                    <mxGeometry x="430" y="810" width="180" height="25" as="geometry"/>
+                <mxCell id="title_nginx" value="Nginx" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=14;fontStyle=1;fontColor=#1E293B;" parent="1" vertex="1">
+                    <mxGeometry x="430" y="810" width="250" height="25" as="geometry"/>
                 </mxCell>
-
-                <!-- Docker Compose -->
-                <mxCell id="card_docker" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#E2E8F0;strokeWidth=1;" vertex="1" parent="1">
-                    <mxGeometry x="650" y="735" width="210" height="115" as="geometry"/>
+                <mxCell id="card_docker" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#E2E8F0;strokeWidth=1;" parent="1" vertex="1">
+                    <mxGeometry x="740" y="735" width="270" height="115" as="geometry"/>
                 </mxCell>
-                <mxCell id="icon_docker" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;imageAspect=1;aspect=fixed;image=https://cdn.worldvectorlogo.com/logos/docker.svg;" vertex="1" parent="1">
-                    <mxGeometry x="728" y="750" width="54" height="48" as="geometry"/>
+                <mxCell id="icon_docker" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;imageAspect=1;aspect=fixed;image=https://cdn.worldvectorlogo.com/logos/docker.svg;" parent="1" vertex="1">
+                    <mxGeometry x="848" y="751" width="54" height="48" as="geometry"/>
                 </mxCell>
-                <mxCell id="title_docker" value="Docker Compose" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=14;fontStyle=1;fontColor=#1E293B;" vertex="1" parent="1">
-                    <mxGeometry x="660" y="810" width="190" height="25" as="geometry"/>
+                <mxCell id="title_docker" value="Docker Compose" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=14;fontStyle=1;fontColor=#1E293B;" parent="1" vertex="1">
+                    <mxGeometry x="750" y="810" width="250" height="25" as="geometry"/>
                 </mxCell>
-
-                <!-- Coolify Self-Hosted PaaS -->
-                <mxCell id="card_coolify" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#E2E8F0;strokeWidth=1;" vertex="1" parent="1">
-                    <mxGeometry x="890" y="735" width="220" height="115" as="geometry"/>
+                <mxCell id="card_adminer" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#E2E8F0;strokeWidth=1;" parent="1" vertex="1">
+                    <mxGeometry x="1060" y="735" width="270" height="115" as="geometry"/>
                 </mxCell>
-                <mxCell id="icon_coolify" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;imageAspect=1;aspect=fixed;image=https://cdn.coollabs.io/assets/coolify/icon.png;" vertex="1" parent="1">
-                    <mxGeometry x="976" y="750" width="48" height="48" as="geometry"/>
+                <mxCell id="icon_adminer" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;imageAspect=1;aspect=fixed;image=https://www.adminer.org/static/images/logo.png;" parent="1" vertex="1">
+                    <mxGeometry x="1171" y="750" width="48" height="48" as="geometry"/>
                 </mxCell>
-                <mxCell id="title_coolify" value="Coolify" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=14;fontStyle=1;fontColor=#1E293B;" vertex="1" parent="1">
-                    <mxGeometry x="900" y="810" width="200" height="25" as="geometry"/>
+                <mxCell id="title_adminer" value="Adminer" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=14;fontStyle=1;fontColor=#1E293B;" parent="1" vertex="1">
+                    <mxGeometry x="1070" y="810" width="250" height="25" as="geometry"/>
                 </mxCell>
-
-                <!-- Adminer Database Management Tool -->
-                <mxCell id="card_adminer" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#E2E8F0;strokeWidth=1;" vertex="1" parent="1">
-                    <mxGeometry x="1140" y="735" width="200" height="115" as="geometry"/>
-                </mxCell>
-                <mxCell id="icon_adminer" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;imageAspect=1;aspect=fixed;image=https://www.adminer.org/static/images/logo.png;" vertex="1" parent="1">
-                    <mxGeometry x="1216" y="750" width="48" height="48" as="geometry"/>
-                </mxCell>
-                <mxCell id="title_adminer" value="Adminer" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=14;fontStyle=1;fontColor=#1E293B;" vertex="1" parent="1">
-                    <mxGeometry x="1150" y="810" width="180" height="25" as="geometry"/>
-                </mxCell>
-
-
-                <!-- ================= RIGHT COLUMN: GITHUB CI/CD ================= -->
-                <mxCell id="box_github" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1F2937;strokeWidth=1.5;shadow=1;" vertex="1" parent="1">
+                <mxCell id="box_github" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1F2937;strokeWidth=1.5;shadow=1;" parent="1" vertex="1">
                     <mxGeometry x="1430" y="440" width="170" height="160" as="geometry"/>
                 </mxCell>
-                <mxCell id="icon_github" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;imageAspect=1;aspect=fixed;image=https://cdn.worldvectorlogo.com/logos/github-icon-1.svg;" vertex="1" parent="1">
+                <mxCell id="icon_github" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;imageAspect=1;aspect=fixed;image=https://cdn.worldvectorlogo.com/logos/github-icon-1.svg;" parent="1" vertex="1">
                     <mxGeometry x="1475" y="465" width="80" height="80" as="geometry"/>
                 </mxCell>
-                <mxCell id="title_github" value="GitHub" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=16;fontStyle=1;fontColor=#111827;" vertex="1" parent="1">
+                <mxCell id="title_github" value="GitHub" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=16;fontStyle=1;fontColor=#111827;" parent="1" vertex="1">
                     <mxGeometry x="1440" y="555" width="150" height="30" as="geometry"/>
                 </mxCell>
-
-
-                <!-- ================= CONNECTIONS & FLOW ARROWS ================= -->
-
-                <!-- 1. Internet -> Presentation Layer (Nginx / Web) -->
-                <mxCell id="edge_internet_server" value="" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;strokeColor=#111827;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.48;entryDx=0;entryDy=0;" edge="1" parent="1" source="cloud_internet" target="box_presentation">
+                <mxCell id="edge_internet_server" value="" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;strokeColor=#111827;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.48;entryDx=0;entryDy=0;" parent="1" source="cloud_internet" target="box_presentation" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-
-                <!-- 2. Presentation Layer <-> Application Layer -->
-                <mxCell id="edge_pres_app" value="RESTful API" style="html=1;verticalAlign=bottom;endArrow=block;startArrow=block;rounded=0;strokeColor=#111827;strokeWidth=2;fontSize=12;fontStyle=2;fontColor=#111827;labelBackgroundColor=#ffffff;exitX=1;exitY=0.45;exitDx=0;exitDy=0;entryX=0;entryY=0.45;entryDx=0;entryDy=0;" edge="1" parent="1" source="box_presentation" target="box_application">
+                <mxCell id="edge_pres_app" value="RESTful API" style="html=1;verticalAlign=bottom;endArrow=block;startArrow=block;rounded=0;strokeColor=#111827;strokeWidth=2;fontSize=12;fontStyle=2;fontColor=#111827;labelBackgroundColor=#ffffff;exitX=1;exitY=0.45;exitDx=0;exitDy=0;entryX=0;entryY=0.45;entryDx=0;entryDy=0;" parent="1" source="box_presentation" target="box_application" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-
-                <!-- 3. Application Layer <-> Data Layer -->
-                <mxCell id="edge_app_data" value="SQL Queries" style="html=1;verticalAlign=bottom;endArrow=block;startArrow=block;rounded=0;strokeColor=#111827;strokeWidth=2;fontSize=12;fontStyle=2;fontColor=#111827;labelBackgroundColor=#ffffff;exitX=1;exitY=0.45;exitDx=0;exitDy=0;entryX=0;entryY=0.45;entryDx=0;entryDy=0;" edge="1" parent="1" source="box_application" target="box_data">
+                <mxCell id="edge_app_data" value="SQL Queries" style="html=1;verticalAlign=bottom;endArrow=block;startArrow=block;rounded=0;strokeColor=#111827;strokeWidth=2;fontSize=12;fontStyle=2;fontColor=#111827;labelBackgroundColor=#ffffff;exitX=1;exitY=0.45;exitDx=0;exitDy=0;entryX=0;entryY=0.45;entryDx=0;entryDy=0;" parent="1" source="box_application" target="box_data" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-
-                <!-- 4. Application Layer -> External Services (Top) -->
-                <mxCell id="edge_app_external" value="Webhook / API" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;strokeColor=#111827;strokeWidth=2;fontSize=12;fontColor=#111827;labelBackgroundColor=#ffffff;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.43;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="box_application" target="box_external">
+                <mxCell id="edge_app_external" value="Webhook / API" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;strokeColor=#111827;strokeWidth=2;fontSize=12;fontColor=#111827;labelBackgroundColor=#ffffff;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.43;entryY=1;entryDx=0;entryDy=0;" parent="1" source="box_application" target="box_external" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-
-                <!-- 5. Presentation Layer -> External Services (Map Tiles via CDN / OpenStreetMap) -->
-                <mxCell id="edge_pres_maps" value="Map Tiles (HTTPS)" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;strokeColor=#111827;strokeWidth=2;fontSize=12;fontStyle=2;fontColor=#111827;labelBackgroundColor=#ffffff;exitX=0.65;exitY=0;exitDx=0;exitDy=0;entryX=0.18;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="box_presentation" target="box_external">
+                <mxCell id="edge_pres_maps" value="Map Tiles (HTTPS)" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;strokeColor=#111827;strokeWidth=2;fontSize=12;fontStyle=2;fontColor=#111827;labelBackgroundColor=#ffffff;exitX=0.65;exitY=0;exitDx=0;exitDy=0;entryX=0.18;entryY=1;entryDx=0;entryDy=0;" parent="1" source="box_presentation" target="box_external" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-
-                <!-- 6. GitHub -> Coolify / Server (CI/CD Deployment Webhook) -->
-                <mxCell id="edge_github_coolify" value="Webhook (CI/CD Trigger)" style="html=1;verticalAlign=bottom;endArrow=block;dashed=1;rounded=0;strokeColor=#111827;strokeWidth=1.5;fontSize=11;fontColor=#111827;labelBackgroundColor=#ffffff;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="box_github" target="box_system">
+                <mxCell id="edge_github_deploy" value="Webhook (CI/CD Trigger)" style="html=1;verticalAlign=bottom;endArrow=block;dashed=1;rounded=0;strokeColor=#111827;strokeWidth=1.5;fontSize=11;fontColor=#111827;labelBackgroundColor=#ffffff;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="box_github" target="box_system">
                     <mxGeometry relative="1" as="geometry">
                         <Array as="points">
                             <mxPoint x="1515" y="700"/>
@@ -344,18 +255,15 @@
                         </Array>
                     </mxGeometry>
                 </mxCell>
-
-                <!-- 6. Coolify -> Containers management (Dashed control arrows up to layers) -->
-                <mxCell id="edge_infra_pres" value="" style="html=1;verticalAlign=bottom;endArrow=block;dashed=1;rounded=0;strokeColor=#9CA3AF;strokeWidth=1.5;exitX=0.15;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="box_infra" target="box_presentation">
+                <mxCell id="edge_infra_pres" value="" style="html=1;verticalAlign=bottom;endArrow=block;dashed=1;rounded=0;strokeColor=#9CA3AF;strokeWidth=1.5;exitX=0.15;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" parent="1" source="box_infra" target="box_presentation" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="edge_infra_app" value="" style="html=1;verticalAlign=bottom;endArrow=block;dashed=1;rounded=0;strokeColor=#9CA3AF;strokeWidth=1.5;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="box_infra" target="box_application">
+                <mxCell id="edge_infra_app" value="" style="html=1;verticalAlign=bottom;endArrow=block;dashed=1;rounded=0;strokeColor=#9CA3AF;strokeWidth=1.5;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" parent="1" source="box_infra" target="box_application" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="edge_infra_data" value="" style="html=1;verticalAlign=bottom;endArrow=block;dashed=1;rounded=0;strokeColor=#9CA3AF;strokeWidth=1.5;exitX=0.85;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="box_infra" target="box_data">
+                <mxCell id="edge_infra_data" value="" style="html=1;verticalAlign=bottom;endArrow=block;dashed=1;rounded=0;strokeColor=#9CA3AF;strokeWidth=1.5;exitX=0.85;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" parent="1" source="box_infra" target="box_data" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-
             </root>
         </mxGraphModel>
     </diagram>

@@ -7,6 +7,10 @@ vi.mock("../../camper-profile/services/camper-profile.service", () => ({
 	camperProfileService: { getProfile: vi.fn() },
 }));
 
+vi.mock("../../trips/hooks/usePorterRequests", () => ({
+	useMyPorterRequests: vi.fn(() => ({ data: [] })),
+}));
+
 function storeCamper() {
 	localStorage.setItem(
 		"authUser",
@@ -69,4 +73,27 @@ describe("HostLayout Booking navigation", () => {
 		expect(window.location.pathname).toBe("/host/porter");
 		await waitFor(() => expect(camperProfileService.getProfile).toHaveBeenCalledTimes(1));
 	});
+
+	it("navigates the Host sidebar to Campers and Bookings management", async () => {
+		localStorage.clear();
+		storeHost();
+		window.history.replaceState({}, "", "/dashboard");
+		render(<HostLayout>Content</HostLayout>);
+		fireEvent.click(screen.getByRole("button", { name: "Người tham gia & đặt chỗ" }));
+		expect(window.location.pathname).toBe("/host/campers");
+		await waitFor(() => expect(camperProfileService.getProfile).toHaveBeenCalledTimes(1));
+	});
+
+	it.each(["/host/campers", "/host/campers?tripId=trip-1"])(
+		"derives the active Campers and Bookings item from %s",
+		(path) => {
+			localStorage.clear();
+			storeHost();
+			window.history.replaceState({}, "", path);
+			render(<HostLayout>Content</HostLayout>);
+			expect(screen.getByRole("button", { name: "Người tham gia & đặt chỗ" })).toHaveClass(
+				"bg-[#164027]"
+			);
+		}
+	);
 });

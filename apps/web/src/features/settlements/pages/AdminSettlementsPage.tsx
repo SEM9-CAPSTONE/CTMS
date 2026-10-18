@@ -16,6 +16,7 @@ import { AdminPayoutsTable } from "../components/AdminPayoutsTable";
 import { AdminSettlementsTable } from "../components/AdminSettlementsTable";
 import { ConfirmPayoutModal } from "../components/ConfirmPayoutModal";
 import { RejectPayoutModal } from "../components/RejectPayoutModal";
+import { TripSettlementDetailModal } from "../components/TripSettlementDetailModal";
 import { SETTLEMENT_STATUS_TABS } from "../constants";
 import {
 	useAdminPayouts,
@@ -24,7 +25,7 @@ import {
 	useRejectPayout,
 	useSettleTrip,
 } from "../hooks/useSettlements";
-import type { AdminPayoutItem } from "../types";
+import type { AdminPayoutItem, TripSettlementEvaluation } from "../types";
 
 export interface AdminSettlementsPageProps {
 	onLogout?: (allDevices: boolean) => Promise<void>;
@@ -41,6 +42,7 @@ export function AdminSettlementsPage({ onLogout }: AdminSettlementsPageProps) {
 		null
 	);
 	const [rejectPayoutModalItem, setRejectPayoutModalItem] = useState<AdminPayoutItem | null>(null);
+	const [detailTripItem, setDetailTripItem] = useState<TripSettlementEvaluation | null>(null);
 	const [notification, setNotification] = useState<string | null>(null);
 
 	const {
@@ -296,6 +298,7 @@ export function AdminSettlementsPage({ onLogout }: AdminSettlementsPageProps) {
 							isLoading={isSettlementsLoading}
 							isSettling={settleMutation.isPending}
 							onSettle={handleSettleTrip}
+							onViewTrip={setDetailTripItem}
 						/>
 					) : (
 						<AdminPayoutsTable
@@ -353,6 +356,15 @@ export function AdminSettlementsPage({ onLogout }: AdminSettlementsPageProps) {
 				isSubmitting={rejectPayoutMutation.isPending}
 				onClose={() => setRejectPayoutModalItem(null)}
 				onReject={handleRejectPayout}
+			/>
+
+			{/* Trip Settlement Detail Modal */}
+			<TripSettlementDetailModal
+				item={detailTripItem}
+				isOpen={Boolean(detailTripItem)}
+				onClose={() => setDetailTripItem(null)}
+				onSettle={handleSettleTrip}
+				isSettling={settleMutation.isPending}
 			/>
 		</AdminLayout>
 	);

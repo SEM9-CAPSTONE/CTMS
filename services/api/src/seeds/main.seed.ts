@@ -55,6 +55,9 @@ interface SeedAccount {
 	role: "admin" | "porter" | "camper" | "host";
 	fullName?: string;
 	avatarUrl?: string;
+	dateOfBirth?: string;
+	address?: string;
+	gender?: "male" | "female" | "other";
 }
 
 const SEED_ACCOUNTS: SeedAccount[] = [
@@ -99,6 +102,9 @@ const SEED_ACCOUNTS: SeedAccount[] = [
 		password: "Camper@123",
 		role: "camper",
 		fullName: "Camper Nguyễn Văn An",
+		dateOfBirth: "1998-10-20",
+		gender: "male",
+		address: "Số 123 Đường Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh",
 	},
 ];
 
@@ -125,8 +131,21 @@ async function seedAccount(account: SeedAccount): Promise<void> {
 	if (existing.length > 0) {
 		await grantRole(existing[0].id, account.role);
 		await dataSource.query(
-			'UPDATE "users" SET "full_name" = COALESCE("full_name", $2), "avatar_url" = COALESCE("avatar_url", $3) WHERE "id" = $1',
-			[existing[0].id, account.fullName ?? account.label, account.avatarUrl ?? null]
+			`UPDATE "users" 
+			 SET "full_name" = COALESCE("full_name", $2), 
+			     "avatar_url" = COALESCE("avatar_url", $3),
+			     "date_of_birth" = COALESCE($4, "date_of_birth"),
+			     "address" = COALESCE($5, "address"),
+			     "gender" = COALESCE($6, "gender")
+			 WHERE "id" = $1`,
+			[
+				existing[0].id,
+				account.fullName ?? account.label,
+				account.avatarUrl ?? null,
+				account.dateOfBirth ?? null,
+				account.address ?? null,
+				account.gender ?? null,
+			]
 		);
 		console.log(
 			`[seed:dev-admin] ${account.label} already exists (id=${existing[0].id}, email=${existing[0].email}) — ensured role=${account.role}.`
@@ -137,8 +156,8 @@ async function seedAccount(account: SeedAccount): Promise<void> {
 	const passwordHash = await hash(account.password, BCRYPT_COST_FACTOR);
 
 	const inserted: Array<{ id: string }> = await dataSource.query(
-		`INSERT INTO "users" (email, phone, password_hash, role, status, full_name, avatar_url)
-				 VALUES ($1, $2, $3, $4, 'active', $5, $6)
+		`INSERT INTO "users" (email, phone, password_hash, role, status, full_name, avatar_url, date_of_birth, address, gender)
+				 VALUES ($1, $2, $3, $4, 'active', $5, $6, $7, $8, $9)
 			 ON CONFLICT (email) DO NOTHING
 			 RETURNING id`,
 		[
@@ -148,6 +167,9 @@ async function seedAccount(account: SeedAccount): Promise<void> {
 			account.role,
 			account.fullName ?? account.label,
 			account.avatarUrl ?? null,
+			account.dateOfBirth ?? null,
+			account.address ?? null,
+			account.gender ?? null,
 		]
 	);
 
@@ -289,63 +311,63 @@ export async function seedDevTrips(): Promise<void> {
 		const equipmentData = [
 			{
 				name: "Lều cắm trại 2 người Naturehike chống nước",
-				category: "shelter",
+				category: "Lều bạt",
 				quantityTotal: 15,
 				rentalPricePerDay: 80000,
 				maintenanceSchedule: "Kiểm tra khung nhôm và vải lều sau mỗi chuyến đi",
 			},
 			{
 				name: "Lều cắm trại 4 người Coleman cao cấp",
-				category: "shelter",
+				category: "Lều bạt",
 				quantityTotal: 10,
 				rentalPricePerDay: 140000,
 				maintenanceSchedule: "Vệ sinh, phơi khô và kiểm tra cọc ghim định kỳ",
 			},
 			{
 				name: "Túi ngủ dã ngoại du lịch (10°C - 15°C)",
-				category: "sleeping",
+				category: "Túi & đệm ngủ",
 				quantityTotal: 25,
 				rentalPricePerDay: 40000,
 				maintenanceSchedule: "Giặt sấy tiệt trùng sau mỗi lần sử dụng",
 			},
 			{
 				name: "Đệm hơi cách nhiệt dã ngoại xếp gọn",
-				category: "sleeping",
+				category: "Túi & đệm ngủ",
 				quantityTotal: 20,
 				rentalPricePerDay: 35000,
 				maintenanceSchedule: "Kiểm tra van khí và áp lực giữ hơi",
 			},
 			{
 				name: "Balo trekking trợ lực 50L Deuter",
-				category: "backpack",
+				category: "Balo & túi",
 				quantityTotal: 12,
 				rentalPricePerDay: 70000,
 				maintenanceSchedule: "Kiểm tra hệ thống đai hông, khóa cài và khóa kéo",
 			},
 			{
 				name: "Gậy leo núi Carbon siêu nhẹ (Cặp)",
-				category: "gear",
+				category: "Trang bị dã ngoại",
 				quantityTotal: 30,
 				rentalPricePerDay: 30000,
 				maintenanceSchedule: "Kiểm tra khớp vặn khóa và đầu bọc cao su",
 			},
 			{
 				name: "Đèn pin đội đầu chống nước IPX8 Black Diamond",
-				category: "lighting",
+				category: "Đèn & chiếu sáng",
 				quantityTotal: 25,
 				rentalPricePerDay: 35000,
 				maintenanceSchedule: "Sạc đầy pin lithium và kiểm tra roong chống nước",
 			},
 			{
 				name: "Bếp ga dã ngoại mini và bộ nồi nhôm xếp gọn",
-				category: "cooking",
+				category: "Dụng cụ nấu nướng",
 				quantityTotal: 10,
 				rentalPricePerDay: 65000,
 				maintenanceSchedule: "Kiểm tra van ngắt an toàn và vệ sinh đầu đốt",
 			},
 			{
 				name: "Bộ sơ cứu y tế sinh tồn Trekking",
-				category: "safety",
+				category: "An toàn & y tế",
 				quantityTotal: 20,
 				rentalPricePerDay: 25000,
 				maintenanceSchedule: "Bổ sung gạc y tế và kiểm tra hạn thuốc sát khuẩn",
@@ -1258,6 +1280,9 @@ export async function seedDevTrips(): Promise<void> {
 		// Seed extra members for check-in testing (present/absent)
 		await seedDemoBookingMembers();
 
+		// Seed multi-person bookings with equipment rentals for host@ctms.local
+		await seedHostGroupBookingsWithEquipment();
+
 		console.log("[seed:dev-trips] Seeding completed successfully!");
 	} catch (error) {
 		console.error("[seed:dev-trips] Error seeding trips:", error);
@@ -1504,6 +1529,469 @@ async function ensureBookingWithMembers(
 			);
 		}
 	}
+}
+
+// --------------------------------------------------------------------------
+// Helper: Seed Multi-person Bookings with Equipment Rentals for host@ctms.local
+// --------------------------------------------------------------------------
+export async function seedHostGroupBookingsWithEquipment(): Promise<void> {
+	if (!dataSource.isInitialized) {
+		await dataSource.initialize();
+	}
+	console.log(
+		"[seed:group-bookings] Seeding multi-person bookings with equipment rentals for host@ctms.local..."
+	);
+
+	const hostRows: Array<{ id: string }> = await dataSource.query(
+		'SELECT "id" FROM "users" WHERE "email" = $1',
+		["host@ctms.local"]
+	);
+	if (hostRows.length === 0) {
+		console.warn("[seed:group-bookings] Host host@ctms.local not found, skipping.");
+		return;
+	}
+	const hostId = hostRows[0].id;
+
+	// 1. Ensure all demo campers exist with full profiles
+	const demoCampers: Array<{
+		email: string;
+		phone: string;
+		name: string;
+		dateOfBirth: string;
+		gender: "male" | "female" | "other";
+		address: string;
+	}> = [
+		{
+			email: "camper.lan@ctms.local",
+			phone: "0900000011",
+			name: "Trần Thị Lan",
+			dateOfBirth: "1999-05-15",
+			gender: "female",
+			address: "Số 45 Lê Duẩn, Quận Hải Châu, TP. Đà Nẵng",
+		},
+		{
+			email: "camper.nam@ctms.local",
+			phone: "0900000012",
+			name: "Lê Hoàng Nam",
+			dateOfBirth: "1997-08-22",
+			gender: "male",
+			address: "Số 88 Hùng Vương, Quận Thanh Khê, TP. Đà Nẵng",
+		},
+		{
+			email: "camper.tuan@ctms.local",
+			phone: "0900000013",
+			name: "Phạm Minh Tuấn",
+			dateOfBirth: "1995-12-03",
+			gender: "male",
+			address: "Số 12 Quang Trung, Quận Hải Châu, TP. Đà Nẵng",
+		},
+		{
+			email: "camper.nhu@ctms.local",
+			phone: "0900000014",
+			name: "Võ Quỳnh Như",
+			dateOfBirth: "2000-03-18",
+			gender: "female",
+			address: "Số 32 Nguyễn Văn Linh, Quận Hải Châu, TP. Đà Nẵng",
+		},
+		{
+			email: "camper.long@ctms.local",
+			phone: "0900000021",
+			name: "Đỗ Hoàng Long",
+			dateOfBirth: "1996-07-09",
+			gender: "male",
+			address: "Số 56 Bạch Đằng, Quận Hải Châu, TP. Đà Nẵng",
+		},
+		{
+			email: "camper.maianh@ctms.local",
+			phone: "0900000022",
+			name: "Ngô Mai Anh",
+			dateOfBirth: "1998-11-25",
+			gender: "female",
+			address: "Số 102 Trần Phú, Quận Hải Châu, TP. Đà Nẵng",
+		},
+		{
+			email: "camper.bao@ctms.local",
+			phone: "0900000023",
+			name: "Trịnh Quốc Bảo",
+			dateOfBirth: "1994-01-30",
+			gender: "male",
+			address: "Số 77 Điện Biên Phủ, Quận Thanh Khê, TP. Đà Nẵng",
+		},
+		{
+			email: "camper.thao@ctms.local",
+			phone: "0900000024",
+			name: "Đinh Thu Thảo",
+			dateOfBirth: "2001-09-14",
+			gender: "female",
+			address: "Số 204 Nguyễn Tri Phương, Quận Hải Châu, TP. Đà Nẵng",
+		},
+		{
+			email: "camper.linh@ctms.local",
+			phone: "0900000025",
+			name: "Bùi Phương Linh",
+			dateOfBirth: "1997-04-12",
+			gender: "female",
+			address: "Số 33 Phan Châu Trinh, Quận Hải Châu, TP. Đà Nẵng",
+		},
+		{
+			email: "camper.dung@ctms.local",
+			phone: "0900000026",
+			name: "Lý Thế Dũng",
+			dateOfBirth: "1995-10-05",
+			gender: "male",
+			address: "Số 91 Hoàng Diệu, Quận Hải Châu, TP. Đà Nẵng",
+		},
+		{
+			email: "camper.kien@ctms.local",
+			phone: "0900000027",
+			name: "Trần Hữu Kiên",
+			dateOfBirth: "1993-06-19",
+			gender: "male",
+			address: "Số 15 Võ Văn Kiệt, Quận Sơn Trà, TP. Đà Nẵng",
+		},
+		{
+			email: "camper.yen@ctms.local",
+			phone: "0900000028",
+			name: "Nguyễn Hoàng Yến",
+			dateOfBirth: "1999-02-28",
+			gender: "female",
+			address: "Số 48 Ngô Quyền, Quận Sơn Trà, TP. Đà Nẵng",
+		},
+		{
+			email: "camper.huy@ctms.local",
+			phone: "0900000029",
+			name: "Vũ Đức Huy",
+			dateOfBirth: "1996-12-11",
+			gender: "male",
+			address: "Số 64 Tôn Đức Thắng, Quận Liên Chiểu, TP. Đà Nẵng",
+		},
+	];
+
+	const defaultPasswordHash = await hash("Camper@123", BCRYPT_COST_FACTOR);
+	const userMap = new Map<string, string>();
+
+	// Add main camper
+	const mainCamperRows: Array<{ id: string }> = await dataSource.query(
+		'SELECT "id" FROM "users" WHERE "email" = $1',
+		["camper@ctms.local"]
+	);
+	if (mainCamperRows.length > 0) {
+		userMap.set("camper@ctms.local", mainCamperRows[0].id);
+	}
+
+	for (const c of demoCampers) {
+		const existing: Array<{ id: string }> = await dataSource.query(
+			'SELECT "id" FROM "users" WHERE "email" = $1 OR "phone" = $2',
+			[c.email, c.phone]
+		);
+		let userId = "";
+		if (existing.length > 0) {
+			userId = existing[0].id;
+			await dataSource.query(
+				`UPDATE "users" 
+				 SET "full_name" = $2, "role" = 'camper', "status" = 'active',
+				     "date_of_birth" = $3, "address" = $4, "gender" = $5
+				 WHERE "id" = $1`,
+				[userId, c.name, c.dateOfBirth, c.address, c.gender]
+			);
+		} else {
+			const inserted: Array<{ id: string }> = await dataSource.query(
+				`INSERT INTO "users" (email, phone, password_hash, role, status, full_name, date_of_birth, address, gender)
+				 VALUES ($1, $2, $3, 'camper', 'active', $4, $5, $6, $7) RETURNING id`,
+				[c.email, c.phone, defaultPasswordHash, c.name, c.dateOfBirth, c.address, c.gender]
+			);
+			userId = inserted[0].id;
+		}
+		await dataSource.query(
+			`INSERT INTO "user_roles" (user_id, role) VALUES ($1, 'camper') ON CONFLICT DO NOTHING`,
+			[userId]
+		);
+		userMap.set(c.email, userId);
+	}
+
+	// 2. Specifications for group bookings (1 booker + 2-3 companions, 2-3 equipment items)
+	interface GroupBookingSpec {
+		tripTitlePattern: string;
+		bookerEmail: string;
+		companionEmails: string[];
+		equipment: Array<{ name: string; quantity: number }>;
+	}
+
+	const bookingSpecs: GroupBookingSpec[] = [
+		// 1. Chuyến Sơn Trà: Đỗ Hoàng Long đặt cho mình + Mai Anh + Quốc Bảo (Tổng 3 người, thuê 3 món)
+		{
+			tripTitlePattern: "%Khám Phá Bán Đảo Sơn Trà (Bình thường%",
+			bookerEmail: "camper.long@ctms.local",
+			companionEmails: ["camper.maianh@ctms.local", "camper.bao@ctms.local"],
+			equipment: [
+				{ name: "Balo trekking trợ lực 50L Deuter", quantity: 2 },
+				{ name: "Gậy leo núi Carbon siêu nhẹ (Cặp)", quantity: 2 },
+				{ name: "Đèn pin đội đầu chống nước IPX8 Black Diamond", quantity: 3 },
+			],
+		},
+		// 2. Chuyến Sơn Trà: Camper Nguyễn Văn An đặt cho mình + Lan + Nam + Thu Thảo (Tổng 4 người, thuê 3 món)
+		{
+			tripTitlePattern: "%Khám Phá Bán Đảo Sơn Trà (Bình thường%",
+			bookerEmail: "camper@ctms.local",
+			companionEmails: ["camper.lan@ctms.local", "camper.nam@ctms.local", "camper.thao@ctms.local"],
+			equipment: [
+				{ name: "Lều cắm trại 4 người Coleman cao cấp", quantity: 1 },
+				{ name: "Đệm hơi cách nhiệt dã ngoại xếp gọn", quantity: 4 },
+				{ name: "Bộ sơ cứu y tế sinh tồn Trekking", quantity: 1 },
+			],
+		},
+		// 3. Chuyến Làng Vân Tháng 12: Phạm Minh Tuấn đặt cho mình + Quỳnh Như + Đức Huy (Tổng 3 người, thuê 3 món)
+		{
+			tripTitlePattern: "%Cắm Trại Đêm Vịnh Làng Vân & Trekking Đèo Hải Vân%",
+			bookerEmail: "camper.tuan@ctms.local",
+			companionEmails: ["camper.nhu@ctms.local", "camper.huy@ctms.local"],
+			equipment: [
+				{ name: "Lều cắm trại 2 người Naturehike chống nước", quantity: 2 },
+				{ name: "Túi ngủ dã ngoại du lịch (10°C - 15°C)", quantity: 3 },
+				{ name: "Bếp ga dã ngoại mini và bộ nồi nhôm xếp gọn", quantity: 1 },
+			],
+		},
+		// 4. Chuyến Làng Vân Tháng 12: Bùi Phương Linh đặt cho mình + Thế Dũng + Hữu Kiên + Hoàng Yến (Tổng 4 người, thuê 3 món)
+		{
+			tripTitlePattern: "%Cắm Trại Đêm Vịnh Làng Vân & Trekking Đèo Hải Vân%",
+			bookerEmail: "camper.linh@ctms.local",
+			companionEmails: [
+				"camper.dung@ctms.local",
+				"camper.kien@ctms.local",
+				"camper.yen@ctms.local",
+			],
+			equipment: [
+				{ name: "Lều cắm trại 4 người Coleman cao cấp", quantity: 1 },
+				{ name: "Đệm hơi cách nhiệt dã ngoại xếp gọn", quantity: 4 },
+				{ name: "Đèn pin đội đầu chống nước IPX8 Black Diamond", quantity: 4 },
+			],
+		},
+		// 5. Chuyến Khe Ram Hòa Bắc: Trần Thị Lan đặt cho mình + Hoàng Nam + Hoàng Long (Tổng 3 người, thuê 2 món)
+		{
+			tripTitlePattern: "%Trekking Khe Ram - Rừng Hòa Bắc (Sắp hết hạn%",
+			bookerEmail: "camper.lan@ctms.local",
+			companionEmails: ["camper.nam@ctms.local", "camper.long@ctms.local"],
+			equipment: [
+				{ name: "Túi ngủ dã ngoại du lịch (10°C - 15°C)", quantity: 3 },
+				{ name: "Gậy leo núi Carbon siêu nhẹ (Cặp)", quantity: 3 },
+			],
+		},
+		// 6. Chuyến Rừng Sơn Trà Tháng 12: Vũ Đức Huy đặt cho mình + Mai Anh + Quốc Bảo + Thu Thảo (Tổng 4 người, thuê 2 món)
+		{
+			tripTitlePattern: "%Khám Phá Rừng Nguyên Sinh Sơn Trà - Đỉnh Bàn Cờ%",
+			bookerEmail: "camper.huy@ctms.local",
+			companionEmails: [
+				"camper.maianh@ctms.local",
+				"camper.bao@ctms.local",
+				"camper.thao@ctms.local",
+			],
+			equipment: [
+				{ name: "Balo trekking trợ lực 50L Deuter", quantity: 2 },
+				{ name: "Gậy leo núi Carbon siêu nhẹ (Cặp)", quantity: 4 },
+			],
+		},
+	];
+
+	for (const spec of bookingSpecs) {
+		const tripRows: Array<{
+			id: string;
+			starts_at: Date;
+			ends_at: Date;
+			price_per_person: string | number;
+			title: string;
+		}> = await dataSource.query(
+			'SELECT "id", "starts_at", "ends_at", "price_per_person", "title" FROM "trips" WHERE "host_id" = $1 AND "title" ILIKE $2 LIMIT 1',
+			[hostId, spec.tripTitlePattern]
+		);
+		if (tripRows.length === 0) {
+			console.warn(
+				`[seed:group-bookings] Trip matching pattern "${spec.tripTitlePattern}" not found.`
+			);
+			continue;
+		}
+		const trip = tripRows[0];
+		const tripId = trip.id;
+
+		const bookerId = userMap.get(spec.bookerEmail);
+		if (!bookerId) continue;
+
+		const companionIds = spec.companionEmails
+			.map((e) => userMap.get(e))
+			.filter(Boolean) as string[];
+		const allMembers = [
+			{ userId: bookerId, isPrimary: true },
+			...companionIds.map((id) => ({ userId: id, isPrimary: false })),
+		];
+
+		const diffMs = new Date(trip.ends_at).getTime() - new Date(trip.starts_at).getTime();
+		const rentalDays = Math.max(1, Math.ceil(diffMs / 86400000));
+		const rentalStartDate = new Date(trip.starts_at).toISOString().slice(0, 10);
+		const rentalEndDate = new Date(trip.ends_at).toISOString().slice(0, 10);
+
+		const pricePerPerson = Number(trip.price_per_person) || 450000;
+		const basePrice = pricePerPerson * allMembers.length;
+
+		// 2.1 Upsert Booking
+		const existingBooking: Array<{ id: string }> = await dataSource.query(
+			'SELECT "id" FROM "bookings" WHERE "trip_id" = $1 AND "user_id" = $2',
+			[tripId, bookerId]
+		);
+
+		let bookingId = "";
+		if (existingBooking.length > 0) {
+			bookingId = existingBooking[0].id;
+			await dataSource.query(
+				`UPDATE "bookings"
+				 SET "num_people" = $2, "status" = 'confirmed', "payment_status" = 'paid',
+				     "trip_starts_at_snapshot" = $3, "trip_ends_at_snapshot" = $4,
+				     "base_price" = $5, "total_amount" = $5
+				 WHERE "id" = $1`,
+				[bookingId, allMembers.length, trip.starts_at, trip.ends_at, basePrice.toFixed(2)]
+			);
+		} else {
+			const insertedBooking: Array<{ id: string }> = await dataSource.query(
+				`INSERT INTO "bookings" (
+					trip_id, user_id, num_people, status, payment_status,
+					trip_starts_at_snapshot, trip_ends_at_snapshot, base_price, total_amount
+				) VALUES (
+					$1, $2, $3, 'confirmed', 'paid',
+					$4, $5, $6, $7
+				) RETURNING id`,
+				[
+					tripId,
+					bookerId,
+					allMembers.length,
+					trip.starts_at,
+					trip.ends_at,
+					basePrice.toFixed(2),
+					basePrice.toFixed(2),
+				]
+			);
+			bookingId = insertedBooking[0].id;
+		}
+
+		// 2.2 Upsert Booking Members
+		for (const m of allMembers) {
+			const existingMember: Array<{ id: string }> = await dataSource.query(
+				'SELECT "id" FROM "booking_members" WHERE "booking_id" = $1 AND "user_id" = $2',
+				[bookingId, m.userId]
+			);
+			if (existingMember.length > 0) {
+				await dataSource.query(
+					`UPDATE "booking_members"
+					 SET "member_status" = 'registered', "is_primary" = $2, "checked_in_at" = NULL, "no_show_at" = NULL, "left_at" = NULL
+					 WHERE "id" = $1`,
+					[existingMember[0].id, m.isPrimary]
+				);
+			} else {
+				await dataSource.query(
+					`INSERT INTO "booking_members" (booking_id, user_id, is_primary, member_status)
+					 VALUES ($1, $2, $3, 'registered')`,
+					[bookingId, m.userId, m.isPrimary]
+				);
+			}
+		}
+		await dataSource.query(
+			'DELETE FROM "booking_members" WHERE "booking_id" = $1 AND "user_id" NOT IN (SELECT UNNEST($2::uuid[]))',
+			[bookingId, allMembers.map((m) => m.userId)]
+		);
+
+		// 2.3 Clean old equipment items & reservations for idempotent seed
+		await dataSource.query(
+			'DELETE FROM "equipment_reservations" WHERE "booking_item_id" IN (SELECT "id" FROM "booking_items" WHERE "booking_id" = $1)',
+			[bookingId]
+		);
+		await dataSource.query('DELETE FROM "booking_items" WHERE "booking_id" = $1', [bookingId]);
+
+		// 2.4 Insert Equipment Items & Reservations
+		let equipmentTotal = 0;
+		for (const eqItem of spec.equipment) {
+			const eqRows: Array<{ id: string; rental_price_per_day: string | number }> =
+				await dataSource.query(
+					'SELECT "id", "rental_price_per_day" FROM "equipment_catalog_items" WHERE "host_id" = $1 AND "name" = $2 LIMIT 1',
+					[hostId, eqItem.name]
+				);
+			if (eqRows.length === 0) {
+				console.warn(`[seed:group-bookings] Equipment item "${eqItem.name}" not found for host.`);
+				continue;
+			}
+			const eq = eqRows[0];
+			const unitPrice = Number(eq.rental_price_per_day);
+			const itemTotal = unitPrice * eqItem.quantity * rentalDays;
+			equipmentTotal += itemTotal;
+
+			const insertedItem: Array<{ id: string }> = await dataSource.query(
+				`INSERT INTO "booking_items" (
+					"booking_id", "item_type", "equipment_catalog_item_id", "quantity", "unit_price", "rental_days", "total_price"
+				) VALUES ($1, 'equipment', $2, $3, $4, $5, $6)
+				RETURNING "id"`,
+				[bookingId, eq.id, eqItem.quantity, unitPrice.toFixed(2), rentalDays, itemTotal.toFixed(2)]
+			);
+			const bookingItemId = insertedItem[0].id;
+
+			await dataSource.query(
+				`INSERT INTO "equipment_reservations" (
+					"booking_item_id", "equipment_catalog_item_id", "quantity", "rental_start_date", "rental_end_date", "status"
+				) VALUES ($1, $2, $3, $4, $5, 'active')`,
+				[bookingItemId, eq.id, eqItem.quantity, rentalStartDate, rentalEndDate]
+			);
+		}
+
+		// 2.5 Update Booking total amount with equipment
+		const finalTotal = basePrice + equipmentTotal;
+		await dataSource.query(
+			'UPDATE "bookings" SET "base_price" = $2, "total_amount" = $3 WHERE "id" = $1',
+			[bookingId, basePrice.toFixed(2), finalTotal.toFixed(2)]
+		);
+
+		// 2.6 Ensure Payment & Transaction
+		const paymentRows: Array<{ id: string }> = await dataSource.query(
+			'SELECT "id" FROM "payments" WHERE "booking_id" = $1 LIMIT 1',
+			[bookingId]
+		);
+		let paymentId = "";
+		if (paymentRows.length > 0) {
+			paymentId = paymentRows[0].id;
+			await dataSource.query(
+				'UPDATE "payments" SET "amount" = $2, "status" = \'succeeded\' WHERE "id" = $1',
+				[paymentId, finalTotal.toFixed(2)]
+			);
+		} else {
+			const insertedPayment: Array<{ id: string }> = await dataSource.query(
+				`INSERT INTO "payments" (
+					"booking_id", "type", "status", "amount", "idempotency_key", "request_fingerprint", "provider_reference"
+				) VALUES ($1, 'charge', 'succeeded', $2, $3, 'seed-fingerprint', 'PAYOS-DEMO-REF')
+				RETURNING "id"`,
+				[bookingId, finalTotal.toFixed(2), `charge-group-${bookingId}`]
+			);
+			paymentId = insertedPayment[0].id;
+		}
+
+		await dataSource.query(
+			`INSERT INTO "payment_transactions" ("payment_id", "status")
+			 SELECT $1, 'succeeded'
+			 WHERE NOT EXISTS (SELECT 1 FROM "payment_transactions" WHERE "payment_id" = $1 AND "status" = 'succeeded')`,
+			[paymentId]
+		);
+
+		console.log(
+			`[seed:group-bookings] ✅ Seeded booking for ${spec.bookerEmail} on "${trip.title}": ${allMembers.length} members, ${spec.equipment.length} equipment items, total=${finalTotal.toLocaleString("vi-VN")} VND.`
+		);
+	}
+
+	// 3. Sync seats_taken across all Host trips
+	await dataSource.query(
+		`UPDATE "trips" t
+		 SET "seats_taken" = (
+			SELECT COALESCE(SUM(b."num_people"), 0)
+			FROM "bookings" b
+			WHERE b."trip_id" = t."id" AND b."status" IN ('confirmed', 'pending_payment')
+		 )
+		 WHERE t."host_id" = $1`,
+		[hostId]
+	);
+
+	console.log("[seed:group-bookings] ✅ All group bookings with equipment seeded successfully.");
 }
 
 // --------------------------------------------------------------------------
@@ -2006,6 +2494,16 @@ async function seedCamperHealthAndContacts(): Promise<void> {
 	if (camperRows.length === 0) return;
 	const camperId = camperRows[0].id;
 
+	// Camper basic profile information (DOB, address, gender)
+	await dataSource.query(
+		`UPDATE "users"
+		 SET "date_of_birth" = '1998-10-20',
+		     "address" = 'Số 123 Đường Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh',
+		     "gender" = 'male'
+		 WHERE "id" = $1`,
+		[camperId]
+	);
+
 	// Emergency contact
 	await dataSource.query('DELETE FROM "emergency_contacts" WHERE "user_id" = $1', [camperId]);
 	await dataSource.query(
@@ -2473,6 +2971,9 @@ interface SeedSettlementUser {
 	fullName: string;
 	role: "admin" | "host" | "camper";
 	password: string;
+	dateOfBirth?: string;
+	address?: string;
+	gender?: "male" | "female" | "other";
 }
 
 const SEED_SETTLEMENT_USERS: SeedSettlementUser[] = [
@@ -2496,6 +2997,9 @@ const SEED_SETTLEMENT_USERS: SeedSettlementUser[] = [
 		fullName: "Camper Nguyễn Văn An",
 		role: "camper",
 		password: "Camper@123",
+		dateOfBirth: "1998-10-20",
+		gender: "male",
+		address: "Số 123 Đường Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh",
 	},
 ];
 
@@ -2517,16 +3021,39 @@ async function ensureSettlementUser(user: SeedSettlementUser): Promise<string> {
 		userId = existing[0].id;
 		const passwordHash = await hash(user.password, BCRYPT_COST_FACTOR);
 		await dataSource.query(
-			'UPDATE "users" SET "password_hash" = $1, "status" = \'active\', "full_name" = $2 WHERE "id" = $3',
-			[passwordHash, user.fullName, userId]
+			`UPDATE "users" 
+			 SET "password_hash" = $1, 
+			     "status" = 'active', 
+			     "full_name" = $2,
+			     "date_of_birth" = COALESCE($4, "date_of_birth"),
+			     "address" = COALESCE($5, "address"),
+			     "gender" = COALESCE($6, "gender")
+			 WHERE "id" = $3`,
+			[
+				passwordHash,
+				user.fullName,
+				userId,
+				user.dateOfBirth ?? null,
+				user.address ?? null,
+				user.gender ?? null,
+			]
 		);
 	} else {
 		const passwordHash = await hash(user.password, BCRYPT_COST_FACTOR);
 		const inserted = (await dataSource.query(
-			`INSERT INTO "users" ("email", "phone", "password_hash", "role", "status", "full_name")
-			 VALUES ($1, $2, $3, $4, 'active', $5)
+			`INSERT INTO "users" ("email", "phone", "password_hash", "role", "status", "full_name", "date_of_birth", "address", "gender")
+			 VALUES ($1, $2, $3, $4, 'active', $5, $6, $7, $8)
 			 RETURNING "id"`,
-			[user.email, user.phone, passwordHash, user.role, user.fullName]
+			[
+				user.email,
+				user.phone,
+				passwordHash,
+				user.role,
+				user.fullName,
+				user.dateOfBirth ?? null,
+				user.address ?? null,
+				user.gender ?? null,
+			]
 		)) as Array<{ id: string }>;
 		userId = inserted[0].id;
 	}
@@ -3014,6 +3541,72 @@ export async function seedSettlementsAndPayouts(): Promise<void> {
 }
 
 // ==========================================================================
+// [7/7] USER BANK ACCOUNTS
+// ==========================================================================
+export async function seedUserBankAccounts(): Promise<void> {
+	if (!dataSource.isInitialized) {
+		await dataSource.initialize();
+	}
+	console.log("[seed:bank-accounts] Seeding user bank accounts for camper and host...");
+
+	// 1. Host Bank Accounts (host@ctms.local)
+	const hostRows: Array<{ id: string }> = await dataSource.query(
+		'SELECT "id" FROM "users" WHERE "email" = $1',
+		["host@ctms.local"]
+	);
+	if (hostRows.length > 0) {
+		const hostId = hostRows[0].id;
+		await dataSource.query(
+			'UPDATE "user_bank_accounts" SET "is_default" = false WHERE "user_id" = $1',
+			[hostId]
+		);
+		await dataSource.query(
+			`INSERT INTO "user_bank_accounts" ("user_id", "bank_name", "account_number", "account_holder_name", "is_default")
+			 VALUES 
+				($1, 'Vietcombank', '0123456789', 'HOST BAN MAI', true),
+				($1, 'MB Bank (Ngân hàng Quân đội)', '9876543210', 'HOST BAN MAI', false)
+			 ON CONFLICT ("user_id", "bank_name", "account_number") 
+			 DO UPDATE SET 
+				"account_holder_name" = EXCLUDED."account_holder_name",
+				"is_default" = EXCLUDED."is_default",
+				"updated_at" = now()`,
+			[hostId]
+		);
+		console.log("[seed:bank-accounts] ✅ Seeded bank accounts for Host (host@ctms.local).");
+	}
+
+	// 2. Camper Bank Accounts (camper@ctms.local)
+	const camperRows: Array<{ id: string }> = await dataSource.query(
+		'SELECT "id" FROM "users" WHERE "email" = $1',
+		["camper@ctms.local"]
+	);
+	if (camperRows.length > 0) {
+		const camperId = camperRows[0].id;
+		await dataSource.query(
+			'DELETE FROM "user_bank_accounts" WHERE "user_id" = $1 AND "account_number" = \'3243234\'',
+			[camperId]
+		);
+		await dataSource.query(
+			'UPDATE "user_bank_accounts" SET "is_default" = false WHERE "user_id" = $1',
+			[camperId]
+		);
+		await dataSource.query(
+			`INSERT INTO "user_bank_accounts" ("user_id", "bank_name", "account_number", "account_holder_name", "is_default")
+			 VALUES 
+				($1, 'Vietcombank', '1012345678', 'CAMPER NGUYEN VAN AN', true),
+				($1, 'Techcombank', '19034567890123', 'CAMPER NGUYEN VAN AN', false)
+			 ON CONFLICT ("user_id", "bank_name", "account_number") 
+			 DO UPDATE SET 
+				"account_holder_name" = EXCLUDED."account_holder_name",
+				"is_default" = EXCLUDED."is_default",
+				"updated_at" = now()`,
+			[camperId]
+		);
+		console.log("[seed:bank-accounts] ✅ Seeded bank accounts for Camper (camper@ctms.local).");
+	}
+}
+
+// ==========================================================================
 // MASTER RUNNER & SUMMARY
 // ==========================================================================
 
@@ -3043,7 +3636,7 @@ export async function runMasterSeed(): Promise<void> {
 	try {
 		if (isFresh) {
 			console.log("--------------------------------------------------------------------------");
-			console.log("👉 [0/6] Wiping all database tables clean (--fresh mode)...");
+			console.log("👉 [0/7] Wiping all database tables clean (--fresh mode)...");
 			console.log("--------------------------------------------------------------------------");
 			await cleanDatabase(dataSource);
 			console.log("✅ Database wiped clean.\n");
@@ -3051,14 +3644,14 @@ export async function runMasterSeed(): Promise<void> {
 
 		// Step 1: Admin & Porter default accounts
 		console.log("--------------------------------------------------------------------------");
-		console.log("👉 [1/6] Seeding Admin & Porter accounts...");
+		console.log("👉 [1/7] Seeding Admin & Porter accounts...");
 		console.log("--------------------------------------------------------------------------");
 		await seedDevAdmin();
 		console.log("✅ Step 1 completed.\n");
 
 		// Step 2: Host & default trekking route
 		console.log("--------------------------------------------------------------------------");
-		console.log("👉 [2/6] Seeding Host profile & baseline trekking route...");
+		console.log("👉 [2/7] Seeding Host profile & baseline trekking route...");
 		console.log("--------------------------------------------------------------------------");
 		await seedDevHostAndRoute();
 		console.log("✅ Step 2 completed.\n");
@@ -3066,7 +3659,7 @@ export async function runMasterSeed(): Promise<void> {
 		// Step 3: Full Trips ecosystem (Catalogs, Equipment, Routes, Checkpoints, Danger Zones, Porters, Campers, Health & Contacts, Bookings, Diverse Statuses)
 		console.log("--------------------------------------------------------------------------");
 		console.log(
-			"👉 [3/6] Seeding Trips ecosystem (Routes, Checkpoints, Danger Zones, Equipment, Porters, Health, Bookings & Statuses)..."
+			"👉 [3/7] Seeding Trips ecosystem (Routes, Checkpoints, Danger Zones, Equipment, Porters, Health, Bookings & Statuses)..."
 		);
 		console.log("--------------------------------------------------------------------------");
 		await seedDevTrips();
@@ -3074,24 +3667,31 @@ export async function runMasterSeed(): Promise<void> {
 
 		// Step 4: Weather Risk Assessment scenarios (Green / Red routes + Weather Advice)
 		console.log("--------------------------------------------------------------------------");
-		console.log("👉 [4/6] Seeding Weather Risk Scenarios (Green & Red routes + AI Advice)...");
+		console.log("👉 [4/7] Seeding Weather Risk Scenarios (Green & Red routes + AI Advice)...");
 		console.log("--------------------------------------------------------------------------");
 		await seedWeatherRiskScenarios();
 		console.log("✅ Step 4 completed.\n");
 
 		// Step 5: Camper Refund Scenarios (Pre-trip cancellation, Post-completion complaint, Already refunded)
 		console.log("--------------------------------------------------------------------------");
-		console.log("👉 [5/6] Seeding Camper Refund & Dispute Scenarios...");
+		console.log("👉 [5/7] Seeding Camper Refund & Dispute Scenarios...");
 		console.log("--------------------------------------------------------------------------");
 		const refundScenarios = await seedCamperRefunds();
 		console.log("✅ Step 5 completed.\n");
 
 		// Step 6: Settlements, Host Wallets & Payout Requests
 		console.log("--------------------------------------------------------------------------");
-		console.log("👉 [6/6] Seeding Settlements, Host Wallets & Payout Requests...");
+		console.log("👉 [6/7] Seeding Settlements, Host Wallets & Payout Requests...");
 		console.log("--------------------------------------------------------------------------");
 		await seedSettlementsAndPayouts();
 		console.log("✅ Step 6 completed.\n");
+
+		// Step 7: User Bank Accounts (Host & Camper)
+		console.log("--------------------------------------------------------------------------");
+		console.log("👉 [7/7] Seeding User Bank Accounts for Camper & Host...");
+		console.log("--------------------------------------------------------------------------");
+		await seedUserBankAccounts();
+		console.log("✅ Step 7 completed.\n");
 
 		const elapsedSec = ((Date.now() - startTime) / 1000).toFixed(2);
 
@@ -3166,6 +3766,13 @@ export async function runMasterSeed(): Promise<void> {
 		);
 		console.log(
 			"   👉 Routes: Active, Pending Approval (chờ Admin duyệt), Closed (đóng do sạt lở)"
+		);
+		console.log("\n8. Tài khoản ngân hàng liên kết (User Bank Accounts):");
+		console.log(
+			"   👉 Host (host@ctms.local): Vietcombank 0123456789 (mặc định), MBBank 9876543210"
+		);
+		console.log(
+			"   👉 Camper (camper@ctms.local): Vietcombank 1012345678 (mặc định), Techcombank 19034567890123"
 		);
 		console.log("==========================================================================\n");
 	} catch (error) {

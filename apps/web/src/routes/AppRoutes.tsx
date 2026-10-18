@@ -39,6 +39,7 @@ import { TrekkingRouteDetailPage } from "../features/trekking-routes/pages/Trekk
 import { TrekkingRoutesPage } from "../features/trekking-routes/pages/TrekkingRoutesPage";
 import { AdminTripsPage } from "../features/trips/pages/AdminTripsPage";
 import { CreateTripPage } from "../features/trips/pages/CreateTripPage";
+import { HostCampersPage } from "../features/trips/pages/HostCampersPage";
 import { HostPorterRequestsPage } from "../features/trips/pages/HostPorterRequestsPage";
 import { PorterRequestsPage } from "../features/trips/pages/PorterRequestsPage";
 import { SearchTripsPage } from "../features/trips/pages/SearchTripsPage";
@@ -635,6 +636,23 @@ export function AppRoutes() {
 						<HostPorterRequestsPage
 							initialTripId={navigationContext.get("tripId")}
 							initialView={navigationContext.get("view")}
+						/>
+					</HostLayout>
+				</AppRoleGuard>
+			);
+
+		case RoutePath.HOST_CAMPERS:
+			return (
+				<AppRoleGuard
+					allowedRoles={["host"]}
+					currentRoles={currentRoles}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
+						<HostCampersPage
+							initialTripId={navigationContext.get("tripId")}
+							onNavigateToTripDetail={(tripId) => navigateTo(`/trips/${tripId}`)}
+							onCreateTrip={() => navigateTo(RoutePath.HOST_CREATE_TRIP)}
 						/>
 					</HostLayout>
 				</AppRoleGuard>

@@ -32,6 +32,8 @@ import { RefundsController } from "./refunds.controller";
 import { RefundsService } from "./refunds.service";
 import { SettlementsController } from "./settlements.controller";
 import { SettlementsService } from "./settlements.service";
+import { TripBookingsController } from "./trip-bookings.controller";
+import { TripBookingsService } from "./trip-bookings.service";
 import { TripRosterController } from "./trip-roster.controller";
 import { TripRosterService } from "./trip-roster.service";
 
@@ -45,6 +47,7 @@ import { TripRosterService } from "./trip-roster.service";
 		SettlementsController,
 		BookingMemberStatusController,
 		TripRosterController,
+		TripBookingsController,
 	],
 	providers: [
 		BookingsService,
@@ -52,6 +55,7 @@ import { TripRosterService } from "./trip-roster.service";
 		BookingCompletionService,
 		BookingMemberStatusService,
 		TripRosterService,
+		TripBookingsService,
 		BookingExpiryService,
 		BookingExpiryWorker,
 		PaymentsService,
@@ -98,6 +102,7 @@ import { TripRosterService } from "./trip-roster.service";
 		PayOSService,
 		RefundsService,
 		SettlementsService,
+		TripBookingsService,
 	],
 })
 export class BookingsModule {}
