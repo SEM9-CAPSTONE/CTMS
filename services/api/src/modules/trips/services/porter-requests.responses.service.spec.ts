@@ -65,6 +65,7 @@ function createHarness() {
 		}),
 		expirePendingBatch: jest.fn().mockResolvedValue([]),
 		expirePendingByPorter: jest.fn().mockResolvedValue([]),
+		declinePendingForOverlappingTrips: jest.fn().mockResolvedValue([]),
 		listForPorter: jest.fn().mockResolvedValue([]),
 	};
 	const manager = {
@@ -139,7 +140,7 @@ describe("Porter Request responses", () => {
 		h.state.request = null;
 		await expect(h.service[action]("porter", "missing")).rejects.toBeInstanceOf(NotFoundException);
 	});
-	it.each(["eligible", "conflicting", "activeAssignment"] as const)(
+	it.each(["eligible", "conflicting"] as const)(
 		"revalidates %s before accepting",
 		async (condition) => {
 			const h = createHarness();
@@ -181,9 +182,12 @@ describe("Porter Request responses", () => {
 	});
 	it("rechecks expiry after eligibility queries", async () => {
 		const h = createHarness();
-		h.repository.hasActiveAssignmentForTrip.mockImplementation(async () => {
-			h.state.now = DEADLINE;
-			return false;
+		const originalQuery = h.manager.query.getMockImplementation();
+		h.manager.query.mockImplementation(async (sql: string) => {
+			if (sql.includes('FROM "porter_profiles"')) {
+				h.state.now = DEADLINE;
+			}
+			return originalQuery ? originalQuery(sql) : [];
 		});
 		expect((await h.service.accept("porter", "request")).status).toBe(PorterRequestStatus.EXPIRED);
 		expect(h.repository.createAssignedTripPorterIdempotent).not.toHaveBeenCalled();

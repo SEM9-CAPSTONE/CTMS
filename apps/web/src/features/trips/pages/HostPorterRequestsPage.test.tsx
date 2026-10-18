@@ -102,7 +102,8 @@ describe("HostPorterRequestsPage", () => {
 	it("preselects the Trip from the query context and renders the request search panel", () => {
 		renderPage({ initialTripId: "trip-2" });
 
-		expect(screen.getByLabelText("Chuyến đi")).toHaveValue("trip-2");
+		const selectedTripButton = screen.getByRole("button", { name: /Tà Năng mùa khô/i });
+		expect(selectedTripButton).toHaveAttribute("aria-pressed", "true");
 		expect(screen.getByTestId("available-porters-panel")).toHaveTextContent("Trip: trip-2");
 		expect(screen.getByRole("heading", { name: "Tìm người hỗ trợ chuyến đi" })).toBeInTheDocument();
 	});
@@ -110,7 +111,7 @@ describe("HostPorterRequestsPage", () => {
 	it("updates the selected Trip without fabricating a request state", () => {
 		renderPage();
 
-		fireEvent.change(screen.getByLabelText("Chuyến đi"), { target: { value: "trip-2" } });
+		fireEvent.click(screen.getByRole("button", { name: /Tà Năng mùa khô/i }));
 
 		expect(screen.getByTestId("available-porters-panel")).toHaveTextContent("Trip: trip-2");
 		expect(new URLSearchParams(window.location.search).get("tripId")).toBe("trip-2");

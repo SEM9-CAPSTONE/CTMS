@@ -264,24 +264,34 @@ function BookingResult({
 
 			<div className="mt-3.5 space-y-2">
 				{isPendingPayment && bookingAccess === "camper" && (
-					<button
-						type="button"
-						onClick={handlePay}
-						disabled={isPaying}
-						className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#164027] py-2.5 text-xs font-bold text-white transition hover:bg-[#0f2e1c] disabled:cursor-wait disabled:opacity-75 shadow-xs"
-					>
-						{isPaying ? (
-							<>
-								<Loader2 className="size-4 animate-spin" />
-								<span>Đang chuyển sang PayOS...</span>
-							</>
-						) : (
-							<>
-								<CreditCard className="size-4" />
-								<span>Thanh toán ngay</span>
-							</>
-						)}
-					</button>
+					<div className="flex flex-col gap-2">
+						<button
+							type="button"
+							onClick={handlePay}
+							disabled={isPaying}
+							className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#164027] py-2.5 text-xs font-bold text-white transition hover:bg-[#0f2e1c] disabled:cursor-wait disabled:opacity-75 shadow-xs"
+						>
+							{isPaying ? (
+								<>
+									<Loader2 className="size-4 animate-spin" />
+									<span>Đang chuyển sang PayOS...</span>
+								</>
+							) : (
+								<>
+									<CreditCard className="size-4" />
+									<span>Thanh toán ngay</span>
+								</>
+							)}
+						</button>
+						<button
+							type="button"
+							onClick={() => window.location.reload()}
+							className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#dfe8df] bg-white py-2 text-xs font-bold text-[#164027] transition hover:bg-[#f4f7f2]"
+						>
+							<RefreshCw className="size-3.5" />
+							<span>Tôi đã chuyển khoản (Kiểm tra thanh toán)</span>
+						</button>
+					</div>
 				)}
 
 				{payResult?.checkoutUrl && (

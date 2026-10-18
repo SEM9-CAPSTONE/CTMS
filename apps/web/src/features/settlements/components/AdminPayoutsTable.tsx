@@ -1,4 +1,4 @@
-import { CheckCircle2, Clock, Loader2, Wallet, XCircle } from "lucide-react";
+import { CheckCircle2, Clock, Eye, Loader2, Wallet, XCircle } from "lucide-react";
 import { formatBookingMoney } from "../../booking-details/utils/booking-details-formatters";
 import type { AdminPayoutItem } from "../types";
 
@@ -7,6 +7,7 @@ export interface AdminPayoutsTableProps {
 	isLoading: boolean;
 	onOpenConfirmModal: (payout: AdminPayoutItem) => void;
 	onOpenRejectModal: (payout: AdminPayoutItem) => void;
+	onOpenDetailModal: (payout: AdminPayoutItem) => void;
 }
 
 export function AdminPayoutsTable({
@@ -14,6 +15,7 @@ export function AdminPayoutsTable({
 	isLoading,
 	onOpenConfirmModal,
 	onOpenRejectModal,
+	onOpenDetailModal,
 }: AdminPayoutsTableProps) {
 	if (isLoading) {
 		return (
@@ -44,7 +46,6 @@ export function AdminPayoutsTable({
 						<th className="px-3.5 py-3 font-semibold text-right">Số tiền rút</th>
 						<th className="px-3.5 py-3 font-semibold">Thông tin ngân hàng</th>
 						<th className="px-3.5 py-3 font-semibold text-center">Trạng thái</th>
-						<th className="px-3.5 py-3 font-semibold">Mã GD / Lý do</th>
 						<th className="px-3.5 py-3 font-semibold text-right">Thao tác</th>
 					</tr>
 				</thead>
@@ -86,42 +87,36 @@ export function AdminPayoutsTable({
 									</span>
 								)}
 							</td>
-							<td className="px-3.5 py-3 text-[#425048] max-w-xs">
-								{item.transactionRef && (
-									<p className="font-mono font-bold text-emerald-900 truncate">
-										Mã GD: {item.transactionRef}
-									</p>
-								)}
-								{item.rejectionReason && (
-									<p className="text-rose-700 truncate" title={item.rejectionReason}>
-										{item.rejectionReason}
-									</p>
-								)}
-								{item.adminNotes && (
-									<p className="text-xs text-[#7d8d83] italic truncate">{item.adminNotes}</p>
-								)}
-							</td>
 							<td className="px-3.5 py-3 text-right whitespace-nowrap">
-								{item.status === "pending" ? (
-									<div className="flex items-center justify-end gap-2">
-										<button
-											type="button"
-											onClick={() => onOpenRejectModal(item)}
-											className="rounded-xl border border-rose-200 px-3 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-50"
-										>
-											Từ chối
-										</button>
-										<button
-											type="button"
-											onClick={() => onOpenConfirmModal(item)}
-											className="rounded-xl bg-[#164027] px-3.5 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-[#11321f]"
-										>
-											Xác nhận chuyển
-										</button>
-									</div>
-								) : (
-									<span className="text-xs text-[#7d8d83] italic">Đã xử lý</span>
-								)}
+								<div className="flex items-center justify-end gap-1.5">
+									<button
+										type="button"
+										onClick={() => onOpenDetailModal(item)}
+										title="Xem chi tiết yêu cầu rút tiền"
+										aria-label={`Xem chi tiết yêu cầu ${item.id}`}
+										className="rounded-lg border border-[#dfe8df] p-1.5 text-[#52665b] hover:bg-[#edf3ed] hover:text-[#164027] hover:border-[#cbd9ce] transition"
+									>
+										<Eye className="size-3.5" />
+									</button>
+									{item.status === "pending" && (
+										<>
+											<button
+												type="button"
+												onClick={() => onOpenRejectModal(item)}
+												className="rounded-xl border border-rose-200 px-3 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-50"
+											>
+												Từ chối
+											</button>
+											<button
+												type="button"
+												onClick={() => onOpenConfirmModal(item)}
+												className="rounded-xl bg-[#164027] px-3.5 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-[#11321f]"
+											>
+												Xác nhận chuyển
+											</button>
+										</>
+									)}
+								</div>
 							</td>
 						</tr>
 					))}

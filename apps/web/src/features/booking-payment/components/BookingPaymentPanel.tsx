@@ -62,6 +62,14 @@ export function BookingPaymentPanel({
 						>
 							<span>Mở trang thanh toán VietQR</span>
 						</a>
+						<button
+							type="button"
+							onClick={() => window.location.reload()}
+							className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#dfe8df] bg-white py-2 text-xs font-bold text-[#164027] transition hover:bg-[#f4f7f2]"
+						>
+							<RefreshCw className="size-3.5" />
+							<span>Tôi đã thanh toán (Kiểm tra kết quả)</span>
+						</button>
 						<p className="text-center text-[11px] text-[#667a6d]">
 							(Nếu trang thanh toán chưa tự mở, vui lòng bấm vào nút trên)
 						</p>
