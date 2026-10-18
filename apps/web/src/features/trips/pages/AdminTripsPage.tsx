@@ -54,12 +54,11 @@ export function AdminTripsPage({ onLogout }: AdminTripsPageProps) {
 			reason: values.action === "approve" ? undefined : values.reason,
 		});
 		if (!result) return;
-		const labels = {
-			approve: "Đã phê duyệt và xuất bản",
-			decline: "Đã trả về bản nháp",
+		const messages = {
+			approve: `Đã đồng ý và xuất bản trip “${selected.title}”.`,
+			decline: `Đã từ chối trip “${selected.title}”. Trip được trả về bản nháp.`,
 		};
-		const message = `${labels[values.action]} trip “${selected.title}”.`;
-		toast.success(message, "Xét duyệt hoàn tất");
+		toast.success(messages[values.action], "Xét duyệt hoàn tất");
 		setDialogOpen(false);
 		await list.reload();
 	};

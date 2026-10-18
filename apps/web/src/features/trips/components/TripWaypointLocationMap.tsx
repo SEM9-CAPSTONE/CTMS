@@ -579,10 +579,12 @@ export function TripWaypointLocationMap({
 							/>
 						</svg>
 						{/* Interactions inside the editor must not reach the map surface, which treats a
-						    click or Enter as picking a new route point for the active waypoint. */}
+						    click or Enter as picking a new route point for the active waypoint.
+						    font-sans re-applies the app font: MapLibre's unlayered `.maplibregl-map` rule sets
+						    Helvetica/Arial on the container and would otherwise be inherited here. */}
 						<div
 							role="presentation"
-							className="absolute z-50 w-[min(320px,calc(100%-2rem))] overflow-visible rounded-2xl border border-[#dce8dd] bg-white/95 p-4 text-[#10221b] shadow-2xl backdrop-blur"
+							className="absolute z-50 w-[min(320px,calc(100%-2rem))] overflow-visible rounded-2xl border border-[#dce8dd] bg-white/95 p-4 font-sans text-[#10221b] leading-normal shadow-2xl backdrop-blur"
 							style={editorPositionStyle}
 							onClick={(event) => event.stopPropagation()}
 							onKeyDown={(event) => event.stopPropagation()}

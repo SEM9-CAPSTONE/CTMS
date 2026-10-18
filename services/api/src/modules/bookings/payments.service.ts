@@ -398,6 +398,66 @@ export class PaymentsService {
 		});
 	}
 
+	/**
+	 * Actively checks PayOS API for any pending charge associated with the booking.
+	 * If PayOS confirms the order has been PAID, processes the payment confirmation.
+	 * Returns true if a payment was synced, false otherwise.
+	 */
+	async syncPayOSPaymentForBooking(bookingId: string): Promise<boolean> {
+		if (!this.payosService || !this.payosService.isConfigured()) {
+			return false;
+		}
+
+		const pendingPayment = await this.dataSource.getRepository(Payment).findOne({
+			where: {
+				bookingId,
+				type: PaymentType.CHARGE,
+				status: PaymentStatus.PENDING,
+			},
+			order: { createdAt: "DESC" },
+		});
+
+		if (!pendingPayment || !pendingPayment.providerReference) {
+			return false;
+		}
+
+		const orderCode = Number(pendingPayment.providerReference);
+		if (Number.isNaN(orderCode)) {
+			return false;
+		}
+
+		try {
+			const paymentLinkInfo = await this.payosService.getPaymentLinkInformation(orderCode);
+			if (paymentLinkInfo && paymentLinkInfo.status === "PAID") {
+				const tx = paymentLinkInfo.transactions?.[0];
+				const webhookData: WebhookData = {
+					orderCode: paymentLinkInfo.orderCode,
+					amount: paymentLinkInfo.amountPaid || paymentLinkInfo.amount,
+					description: tx?.description || "PayOS payment verified",
+					accountNumber: tx?.accountNumber || "",
+					reference: tx?.reference || String(paymentLinkInfo.orderCode),
+					transactionDateTime: tx?.transactionDateTime || paymentLinkInfo.createdAt,
+					currency: "VND",
+					paymentLinkId: paymentLinkInfo.id,
+					code: "00",
+					desc: "success",
+				};
+
+				await this.handlePayOSWebhook(webhookData);
+				this.logger.log(
+					`Successfully synced PayOS payment for booking ${bookingId} (orderCode ${orderCode})`
+				);
+				return true;
+			}
+		} catch (error) {
+			this.logger.warn(
+				`Failed to query PayOS for orderCode ${orderCode}: ${error instanceof Error ? error.message : String(error)}`
+			);
+		}
+
+		return false;
+	}
+
 	// ---------------------------------------------------------------------------
 	// Private helpers
 	// ---------------------------------------------------------------------------

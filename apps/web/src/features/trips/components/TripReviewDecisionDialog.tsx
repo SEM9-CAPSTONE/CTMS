@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertTriangle, Check, Loader2, X } from "lucide-react";
+import { Check, Loader2, X } from "lucide-react";
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { type ReviewTripFormValues, reviewTripSchema } from "../schema/review-trip.schema";
@@ -22,14 +22,14 @@ const decisions: Array<{
 }> = [
 	{
 		action: "approve",
-		label: "Phê duyệt và xuất bản",
+		label: "Đồng ý",
 		icon: Check,
 		selectedClass: "border-emerald-500 bg-emerald-50 text-emerald-800",
 	},
 	{
 		action: "decline",
-		label: "Trả về bản nháp",
-		icon: AlertTriangle,
+		label: "Từ chối",
+		icon: X,
 		selectedClass: "border-amber-500 bg-amber-50 text-amber-900",
 	},
 ];
@@ -103,6 +103,9 @@ export function TripReviewDecisionDialog({
 						</div>
 						{action !== "approve" && (
 							<div>
+								<p className="mb-3 text-xs font-semibold text-[#667a6d]">
+									Trip sẽ được trả về bản nháp để Host chỉnh sửa và gửi duyệt lại.
+								</p>
 								<label htmlFor="trip-review-reason" className="text-sm font-bold">
 									Lý do *
 								</label>

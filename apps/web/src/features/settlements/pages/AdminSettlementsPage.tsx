@@ -12,6 +12,7 @@ import type { FormEvent } from "react";
 import { useState } from "react";
 import { Card } from "../../../shared/components";
 import { AdminLayout } from "../../admin-layout/components/AdminLayout";
+import { AdminPayoutDetailModal } from "../components/AdminPayoutDetailModal";
 import { AdminPayoutsTable } from "../components/AdminPayoutsTable";
 import { AdminSettlementsTable } from "../components/AdminSettlementsTable";
 import { ConfirmPayoutModal } from "../components/ConfirmPayoutModal";
@@ -43,6 +44,7 @@ export function AdminSettlementsPage({ onLogout }: AdminSettlementsPageProps) {
 	);
 	const [rejectPayoutModalItem, setRejectPayoutModalItem] = useState<AdminPayoutItem | null>(null);
 	const [detailTripItem, setDetailTripItem] = useState<TripSettlementEvaluation | null>(null);
+	const [detailPayoutItem, setDetailPayoutItem] = useState<AdminPayoutItem | null>(null);
 	const [notification, setNotification] = useState<string | null>(null);
 
 	const {
@@ -306,6 +308,7 @@ export function AdminSettlementsPage({ onLogout }: AdminSettlementsPageProps) {
 							isLoading={isPayoutsLoading}
 							onOpenConfirmModal={setConfirmPayoutModalItem}
 							onOpenRejectModal={setRejectPayoutModalItem}
+							onOpenDetailModal={setDetailPayoutItem}
 						/>
 					)}
 
@@ -365,6 +368,21 @@ export function AdminSettlementsPage({ onLogout }: AdminSettlementsPageProps) {
 				onClose={() => setDetailTripItem(null)}
 				onSettle={handleSettleTrip}
 				isSettling={settleMutation.isPending}
+			/>
+
+			{/* Payout Detail Modal */}
+			<AdminPayoutDetailModal
+				payout={detailPayoutItem}
+				isOpen={Boolean(detailPayoutItem)}
+				onClose={() => setDetailPayoutItem(null)}
+				onOpenConfirm={(payout) => {
+					setDetailPayoutItem(null);
+					setConfirmPayoutModalItem(payout);
+				}}
+				onOpenReject={(payout) => {
+					setDetailPayoutItem(null);
+					setRejectPayoutModalItem(payout);
+				}}
 			/>
 		</AdminLayout>
 	);

@@ -2,7 +2,7 @@ import { Injectable, Logger } from "@nestjs/common";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI
 import { ConfigService } from "@nestjs/config";
 import { PayOS } from "@payos/node";
-import type { CreatePaymentLinkResponse, Webhook, WebhookData } from "@payos/node";
+import type { CreatePaymentLinkResponse, PaymentLink, Webhook, WebhookData } from "@payos/node";
 
 @Injectable()
 export class PayOSService {
@@ -63,5 +63,12 @@ export class PayOSService {
 			throw new Error("PayOS client is not configured.");
 		}
 		return this.client.webhooks.verify(body);
+	}
+
+	async getPaymentLinkInformation(orderId: number | string): Promise<PaymentLink> {
+		if (!this.client) {
+			throw new Error("PayOS client is not configured.");
+		}
+		return this.client.paymentRequests.get(orderId as string);
 	}
 }

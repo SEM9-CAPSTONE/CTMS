@@ -88,14 +88,20 @@ async function setup(options: SetupOptions = {}) {
 	}));
 	const { act, render, screen, waitFor, within } = await import("@testing-library/react");
 	const userEvent = (await import("@testing-library/user-event")).default;
+	const { toast } = await import("../../../shared/components");
+	const toastSuccess = vi.spyOn(toast, "success");
 	const { AdminTripsPage } = await import("./AdminTripsPage");
-	const { ToastProvider } = await import("../../../shared/components");
-	render(
-		<ToastProvider>
-			<AdminTripsPage />
-		</ToastProvider>
-	);
-	return { act, screen, waitFor, within, user: userEvent.setup(), listAdminReviews, review };
+	render(<AdminTripsPage />);
+	return {
+		act,
+		screen,
+		waitFor,
+		within,
+		user: userEvent.setup(),
+		listAdminReviews,
+		review,
+		toastSuccess,
+	};
 }
 
 afterEach(() => {
@@ -131,6 +137,23 @@ describe("AdminTripsPage", () => {
 		expect(screen.getByRole("button", { name: "Tất cả" })).toBeInTheDocument();
 	});
 
+	it("shows the uploaded cover image so the admin can review it", async () => {
+		const coverImageUrl = "https://res.cloudinary.com/demo/image/upload/trips/cover.jpg";
+		const { screen } = await setup({ list: [{ ...trip, coverImageUrl }] });
+
+		const image = await screen.findByRole("img", { name: "Ảnh bìa Langbiang sunrise trek" });
+		expect(image).toHaveAttribute("src", coverImageUrl);
+		expect(screen.getByRole("link", { name: "Xem ảnh gốc" })).toHaveAttribute(
+			"href",
+			coverImageUrl
+		);
+	});
+
+	it("tells the admin when the Trip has no cover image", async () => {
+		const { screen } = await setup();
+		expect(await screen.findByText("Host chưa tải ảnh bìa.")).toBeInTheDocument();
+	});
+
 	it("renders the empty and error states", async () => {
 		const empty = await setup({ list: [] });
 		expect(await empty.screen.findByTestId("trip-reviews-empty")).toBeInTheDocument();
@@ -161,14 +184,21 @@ describe("AdminTripsPage", () => {
 			reviewedUpdatedAt: trip.updatedAt,
 			reason: undefined,
 		});
-		expect(await test.screen.findByText(/Đã phê duyệt và xuất bản/)).toBeInTheDocument();
-		expect(test.listAdminReviews).toHaveBeenCalledTimes(2);
+		await test.waitFor(() =>
+			expect(test.toastSuccess).toHaveBeenCalledWith(
+				"Đã đồng ý và xuất bản trip “Langbiang sunrise trek”.",
+				"Xét duyệt hoàn tất"
+			)
+		);
+		// The toast is the only success feedback; no inline banner stays on the page.
+		expect(test.screen.queryByText(/Đã đồng ý và xuất bản/)).not.toBeInTheDocument();
+		await test.waitFor(() => expect(test.listAdminReviews).toHaveBeenCalledTimes(2));
 	});
 
 	it("requires a decline reason and accepts the 255-character boundary", async () => {
 		const test = await setup({ reviewResult: { ...trip, status: "draft" } });
 		await test.user.click(await test.screen.findByRole("button", { name: "Ra quyết định" }));
-		await test.user.click(test.screen.getByRole("button", { name: "Trả về bản nháp" }));
+		await test.user.click(test.screen.getByRole("button", { name: "Từ chối" }));
 		await test.user.click(test.screen.getByRole("button", { name: "Xác nhận quyết định" }));
 		expect(
 			await test.screen.findByText("Lý do là bắt buộc cho quyết định này.")
@@ -189,7 +219,7 @@ describe("AdminTripsPage", () => {
 	it("preserves the reason when a stale decision fails", async () => {
 		const test = await setup({ reviewError: new Error("stale") });
 		await test.user.click(await test.screen.findByRole("button", { name: "Ra quyết định" }));
-		await test.user.click(test.screen.getByRole("button", { name: "Trả về bản nháp" }));
+		await test.user.click(test.screen.getByRole("button", { name: "Từ chối" }));
 		const reason = test.screen.getByLabelText("Lý do *");
 		await test.user.type(reason, "Keep this reason");
 		await test.user.click(test.screen.getByRole("button", { name: "Xác nhận quyết định" }));
