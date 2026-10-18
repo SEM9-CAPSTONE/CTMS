@@ -297,7 +297,8 @@ describe("ConfigureTripWaypointsPanel", () => {
 	it("also blocks waypoint changes once the Trip is pending approval", () => {
 		render(<ConfigureTripWaypointsPanel trip={{ ...draftTrip, status: "pending_approval" }} />);
 
-		expect(screen.getByText(/không thể cấu hình điểm dừng/)).toBeVisible();
+		expect(screen.getByText("Lịch trình đã được lưu và chuyến đi đang chờ duyệt.")).toBeVisible();
+		expect(screen.queryByText(/không thể cấu hình điểm dừng/)).not.toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "Gửi duyệt" })).toBeDisabled();
 	});
 
