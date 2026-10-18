@@ -997,7 +997,6 @@ export class TripsService {
 				startsAt,
 				endsAt,
 				tripType: dto.tripType,
-				durationNights: deriveDurationNights(dto.tripType, startsAt, endsAt),
 				waypoints: [],
 			},
 			false
@@ -1012,10 +1011,7 @@ export class TripsService {
 
 	private assertWaypointPayload(
 		waypoints: CreateTripWaypointDto[],
-		trip: Pick<
-			TripResponseDto,
-			"startsAt" | "endsAt" | "tripType" | "durationNights" | "waypoints"
-		>,
+		trip: Pick<TripResponseDto, "startsAt" | "endsAt" | "tripType" | "waypoints">,
 		requireApprovalReady: boolean
 	): void {
 		const errors: FieldValidationError[] = [];
@@ -1075,14 +1071,10 @@ export class TripsService {
 				errors: ["day_trip cannot include overnight waypoints"],
 			});
 		}
-		if (
-			requireApprovalReady &&
-			trip.tripType === TripType.OVERNIGHT &&
-			overnightCount !== trip.durationNights
-		) {
+		if (requireApprovalReady && trip.tripType === TripType.OVERNIGHT && overnightCount === 0) {
 			errors.push({
 				field: "waypoints",
-				errors: ["overnight Trips must include one overnight waypoint per duration night"],
+				errors: ["overnight Trips must include at least one overnight waypoint"],
 			});
 		}
 		if (errors.length > 0) {

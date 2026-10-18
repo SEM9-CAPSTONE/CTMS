@@ -33,7 +33,7 @@ interface Props {
 }
 
 const inputClass =
-	"mt-1 w-full rounded-xl border border-[#cbd9ce] bg-white px-3 py-2.5 text-sm outline-none focus:border-[#164027] focus:ring-2 focus:ring-[#164027]/10 disabled:bg-[#f4f7f2] disabled:text-[#7b8c82]";
+	"mt-1 min-h-11 w-full rounded-xl border border-[#cbd9ce] bg-white px-3 py-2.5 text-sm font-semibold text-[#10221b] outline-none placeholder:font-normal placeholder:text-[#7b8c82] focus:border-[#164027] focus:ring-2 focus:ring-[#164027]/10 disabled:bg-[#f4f7f2] disabled:text-[#7b8c82]";
 
 const waypointTypeLabels: Record<TripWaypointType, string> = {
 	start: "Bắt đầu",
@@ -410,13 +410,13 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 				<div className="mt-3 grid gap-3">
 					{activeEditorLocked ? (
 						<div>
-							<p className="text-xs font-bold text-[#34483b]">Điểm dừng</p>
-							<span className="mt-1 inline-flex min-h-10 w-full items-center rounded-xl bg-[#f8faf7] px-3 text-sm font-extrabold text-[#164027] ring-1 ring-[#dce8dd]">
+							<p className="block text-sm font-bold text-[#34483b]">Điểm dừng</p>
+							<span className="mt-1 inline-flex min-h-11 w-full items-center rounded-xl bg-[#f8faf7] px-3 text-sm font-semibold text-[#164027] ring-1 ring-[#dce8dd]">
 								{waypointTypeLabels[activeEditorWaypoint.type]}
 							</span>
 						</div>
 					) : (
-						<label className="text-xs font-bold text-[#34483b]">
+						<label className="block text-sm font-bold text-[#34483b]">
 							Điểm dừng
 							<select
 								aria-label={`Điểm dừng ${waypointFormIndex + 1}`}
@@ -435,7 +435,7 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 							</select>
 						</label>
 					)}
-					<label className="text-xs font-bold text-[#34483b]">
+					<label className="block text-sm font-bold text-[#34483b]">
 						Mô tả
 						<input
 							aria-label={`Mô tả điểm dừng ${waypointFormIndex + 1}`}

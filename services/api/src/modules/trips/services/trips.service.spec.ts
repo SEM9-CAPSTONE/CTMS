@@ -612,6 +612,81 @@ describe("TripsService", () => {
 			expect(tripsRepository.replaceWaypointsAndSubmitForApproval).not.toHaveBeenCalled();
 		});
 
+		describe("multi-day Trips", () => {
+			const point = { type: "Point" as const, coordinates: [108.445, 11.943] as [number, number] };
+			const overnightStop = (plannedAt: string) => ({
+				type: WaypointType.OVERNIGHT,
+				name: "Camp",
+				location: point,
+				plannedAt,
+			});
+			const restStop = (plannedAt: string) => ({
+				type: WaypointType.REST,
+				name: "Rest",
+				location: point,
+				plannedAt,
+			});
+			const multiDayWaypoints = (middle: ReturnType<typeof createTripDto>["waypoints"]) => [
+				{
+					type: WaypointType.START,
+					name: "Trailhead",
+					location: point,
+					plannedAt: "2026-09-20T01:00:00.000Z",
+				},
+				...middle,
+				{
+					type: WaypointType.FINISH,
+					name: "Summit exit",
+					location: point,
+					plannedAt: "2026-09-22T10:00:00.000Z",
+				},
+			];
+
+			beforeEach(() => {
+				tripsRepository.findByIdForWaypointConfiguration.mockResolvedValue({
+					trip: {
+						...createdTrip(),
+						tripType: TripType.OVERNIGHT,
+						durationNights: 2,
+						endsAt: new Date("2026-09-22T10:00:00.000Z"),
+					},
+					hostId: HOST_ID,
+					routeId: ROUTE_ID,
+					status: TripStatus.DRAFT,
+				});
+			});
+
+			it("returns 422 when no overnight waypoint is included", async () => {
+				const waypoints = multiDayWaypoints([restStop("2026-09-20T05:00:00.000Z")]);
+
+				await expect(
+					service.configureWaypoints(HOST_ID, TRIP_ID, { waypoints })
+				).rejects.toMatchObject({ status: 422 });
+				expect(tripsRepository.replaceWaypointsAndSubmitForApproval).not.toHaveBeenCalled();
+			});
+
+			it("accepts a single overnight waypoint even when the Trip spans several nights", async () => {
+				const waypoints = multiDayWaypoints([overnightStop("2026-09-20T12:00:00.000Z")]);
+
+				await service.configureWaypoints(HOST_ID, TRIP_ID, { waypoints });
+
+				expect(tripsRepository.replaceWaypointsAndSubmitForApproval).toHaveBeenCalled();
+			});
+
+			it("accepts more overnight waypoints than nights alongside other rest stops", async () => {
+				const waypoints = multiDayWaypoints([
+					restStop("2026-09-20T05:00:00.000Z"),
+					overnightStop("2026-09-20T12:00:00.000Z"),
+					overnightStop("2026-09-21T03:00:00.000Z"),
+					overnightStop("2026-09-21T12:00:00.000Z"),
+				]);
+
+				await service.configureWaypoints(HOST_ID, TRIP_ID, { waypoints });
+
+				expect(tripsRepository.replaceWaypointsAndSubmitForApproval).toHaveBeenCalled();
+			});
+		});
+
 		it("returns 422 when a waypoint references a checkpoint outside the Trip route", async () => {
 			tripsRepository.findInvalidWaypointCheckpointIds.mockResolvedValue([CHECKPOINT_ID]);
 
