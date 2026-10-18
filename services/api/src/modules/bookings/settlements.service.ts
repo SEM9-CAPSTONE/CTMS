@@ -335,7 +335,6 @@ export class SettlementsService {
 		const transactions = await this.dataSource.getRepository(WalletTransaction).find({
 			where: { walletId: wallet.id },
 			order: { createdAt: "DESC" },
-			take: 50,
 		});
 
 		return {

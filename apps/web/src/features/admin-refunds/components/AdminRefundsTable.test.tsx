@@ -34,6 +34,7 @@ describe("AdminRefundsTable", () => {
 				isLoading={true}
 				onOpenConfirm={vi.fn()}
 				onOpenReject={vi.fn()}
+				onOpenDetail={vi.fn()}
 			/>
 		);
 		expect(screen.getByText("Đang tải danh sách yêu cầu hoàn tiền...")).toBeInTheDocument();
@@ -46,6 +47,7 @@ describe("AdminRefundsTable", () => {
 				isLoading={false}
 				onOpenConfirm={vi.fn()}
 				onOpenReject={vi.fn()}
+				onOpenDetail={vi.fn()}
 			/>
 		);
 		expect(screen.getByText("Không tìm thấy yêu cầu hoàn tiền nào")).toBeInTheDocument();
@@ -55,6 +57,7 @@ describe("AdminRefundsTable", () => {
 		const user = userEvent.setup();
 		const onOpenConfirm = vi.fn();
 		const onOpenReject = vi.fn();
+		const onOpenDetail = vi.fn();
 
 		render(
 			<AdminRefundsTable
@@ -62,6 +65,7 @@ describe("AdminRefundsTable", () => {
 				isLoading={false}
 				onOpenConfirm={onOpenConfirm}
 				onOpenReject={onOpenReject}
+				onOpenDetail={onOpenDetail}
 			/>
 		);
 
@@ -70,6 +74,12 @@ describe("AdminRefundsTable", () => {
 		expect(screen.getByText("Vietcombank")).toBeInTheDocument();
 		expect(screen.getByText("0123456789")).toBeInTheDocument();
 		expect(screen.getByText("NGUYEN VAN A")).toBeInTheDocument();
+
+		const detailBtn = screen.getByRole("button", {
+			name: "Xem chi tiết hoàn tiền #refund-1",
+		});
+		await user.click(detailBtn);
+		expect(onOpenDetail).toHaveBeenCalledWith(mockRefund);
 
 		const confirmBtn = screen.getByRole("button", { name: "Xác nhận chuyển" });
 		await user.click(confirmBtn);

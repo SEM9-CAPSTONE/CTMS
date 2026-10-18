@@ -8,7 +8,7 @@ export interface ConfirmTransferModalProps {
 	open: boolean;
 	isSubmitting: boolean;
 	onClose: () => void;
-	onConfirm: (obligationId: string, transactionRef: string, note?: string) => Promise<void>;
+	onConfirm: (obligationId: string, note?: string) => Promise<void>;
 }
 
 export function ConfirmTransferModal({
@@ -19,33 +19,35 @@ export function ConfirmTransferModal({
 	onConfirm,
 }: ConfirmTransferModalProps) {
 	const dialogRef = useRef<HTMLDialogElement>(null);
-	const [transactionRef, setTransactionRef] = useState("");
 	const [note, setNote] = useState("");
 	const [errorMessage, setErrorMessage] = useState("");
 
 	useEffect(() => {
 		const el = dialogRef.current;
 		if (open) {
-			setTransactionRef("");
 			setNote("");
 			setErrorMessage("");
-			el?.showModal();
+			if (typeof el?.showModal === "function") {
+				el.showModal();
+			}
 		} else {
-			el?.close();
+			if (typeof el?.close === "function") {
+				el.close();
+			}
 		}
-		return () => el?.close();
+		return () => {
+			if (typeof el?.close === "function") {
+				el.close();
+			}
+		};
 	}, [open]);
 
 	if (!refund) return null;
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
-		if (!transactionRef.trim()) {
-			setErrorMessage("Vui lòng nhập mã giao dịch chuyển khoản / mã bill ngân hàng.");
-			return;
-		}
 		try {
-			await onConfirm(refund.id, transactionRef.trim(), note.trim() || undefined);
+			await onConfirm(refund.id, note.trim() || undefined);
 			onClose();
 		} catch (err) {
 			setErrorMessage(err instanceof Error ? err.message : "Có lỗi xảy ra khi xác nhận.");
@@ -121,21 +123,6 @@ export function ConfirmTransferModal({
 
 			<form onSubmit={handleSubmit} className="mt-4 space-y-4">
 				<div>
-					<label htmlFor="transaction-ref-input" className="block text-xs font-bold text-[#10221b]">
-						Mã giao dịch / Mã bill chuyển khoản ngân hàng <span className="text-rose-600">*</span>
-					</label>
-					<input
-						id="transaction-ref-input"
-						type="text"
-						disabled={isSubmitting}
-						value={transactionRef}
-						onChange={(e) => setTransactionRef(e.target.value)}
-						placeholder="Ví dụ: FT24091002345678 hoặc MB123456"
-						className="mt-1 w-full rounded-xl border border-[#cbd9ce] p-2.5 text-sm focus:border-[#164027] focus:outline-none disabled:bg-gray-100"
-					/>
-				</div>
-
-				<div>
 					<label htmlFor="confirm-note-input" className="block text-xs font-bold text-[#10221b]">
 						Ghi chú đối soát (tùy chọn)
 					</label>
@@ -145,7 +132,7 @@ export function ConfirmTransferModal({
 						disabled={isSubmitting}
 						value={note}
 						onChange={(e) => setNote(e.target.value)}
-						placeholder="Ví dụ: Đã chuyển khoản qua app VCB lúc 15:30"
+						placeholder="Ví dụ: Đã chuyển khoản qua app lúc 15:30"
 						className="mt-1 w-full rounded-xl border border-[#cbd9ce] p-2.5 text-sm focus:border-[#164027] focus:outline-none disabled:bg-gray-100"
 					/>
 				</div>

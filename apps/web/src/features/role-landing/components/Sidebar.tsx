@@ -130,6 +130,9 @@ export function Sidebar({
 							typeof window !== "undefined" && window.location.pathname.startsWith("/host/wallet");
 						const isPathPorter =
 							typeof window !== "undefined" && window.location.pathname.startsWith("/host/porter");
+						const isPathCampers =
+							typeof window !== "undefined" &&
+							window.location.pathname.startsWith(RoutePath.HOST_CAMPERS);
 						const isPathPorterRequests =
 							typeof window !== "undefined" &&
 							window.location.pathname.startsWith("/porter/requests");
@@ -142,6 +145,7 @@ export function Sidebar({
 							(item.key === "equipment" && isPathEquipment) ||
 							(item.key === "wallet" && isPathWallet) ||
 							(item.key === "porters" && isPathPorter) ||
+							(item.key === "campers" && isPathCampers) ||
 							(item.key === "requests" && isPathPorterRequests) ||
 							(item.key === "assignments" && activeRole === "porter" && isPathPorterAssignments);
 
@@ -175,6 +179,9 @@ export function Sidebar({
 											navigate("/host/wallet");
 										} else if (item.key === "porters") {
 											navigate("/host/porter?view=find");
+										} else if (item.key === "campers") {
+											navigate(RoutePath.HOST_CAMPERS);
+											onClose?.();
 										} else if (item.key === "requests") {
 											navigate("/porter/requests");
 										} else if (item.key === "assignments" && activeRole === "porter") {

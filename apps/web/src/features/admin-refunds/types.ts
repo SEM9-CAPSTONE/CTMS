@@ -46,7 +46,7 @@ export interface AdminRefundFilter {
 }
 
 export interface ConfirmManualRefundPayload {
-	transactionRef: string;
+	transactionRef?: string;
 	note?: string;
 }
 

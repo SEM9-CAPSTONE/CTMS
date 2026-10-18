@@ -7,7 +7,7 @@ export interface RefundStateBadgeProps {
 
 const BADGE_CONFIG = {
 	pending: {
-		label: "Đang xử lý (chờ đối tác)",
+		label: "Đang xử lý",
 		classes: "bg-amber-100 text-amber-900 border-amber-300",
 	},
 	succeeded: {

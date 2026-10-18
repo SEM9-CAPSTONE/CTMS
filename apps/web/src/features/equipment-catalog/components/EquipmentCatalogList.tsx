@@ -1,5 +1,6 @@
 import { Package, Pencil, Wrench } from "lucide-react";
 import { Button, DataTable, type DataTableColumn } from "../../../shared/components";
+import { formatEquipmentCategory } from "../../trips/components/TripRentableEquipment";
 import type { EquipmentCatalogItem } from "../types";
 import { EquipmentCatalogStatusBadge } from "./EquipmentCatalogStatusBadge";
 
@@ -25,7 +26,7 @@ export function EquipmentCatalogList({ items, onEdit }: EquipmentCatalogListProp
 					<div className="min-w-0">
 						<p className="font-extrabold text-[#10221b]">{item.name}</p>
 						<div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs font-semibold text-[#667a6d]">
-							<span className="shrink-0">{item.category}</span>
+							<span className="shrink-0">{formatEquipmentCategory(item.category)}</span>
 							{item.maintenanceSchedule && (
 								<>
 									<span aria-hidden="true" className="text-[#c5d1c8]">

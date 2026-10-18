@@ -1,19 +1,10 @@
-import {
-	ArrowDownRight,
-	ArrowUpRight,
-	Clock,
-	Coins,
-	History,
-	Loader2,
-	RefreshCw,
-	Wallet,
-} from "lucide-react";
+import { Clock, Coins, Loader2, RefreshCw, Wallet } from "lucide-react";
 import { useState } from "react";
 import { BankAccountList } from "../../bank-accounts";
 import { formatBookingMoney } from "../../booking-details/utils/booking-details-formatters";
 import { useCurrentUserProfile } from "../../camper-profile/hooks/useCurrentUserProfile";
 import { HostPayoutModal } from "../components/HostPayoutModal";
-import { TRANSACTION_TYPE_LABELS } from "../constants";
+import { HostWalletTransactionsTable } from "../components/HostWalletTransactionsTable";
 import { useHostWallet, useRequestHostPayout } from "../hooks/useSettlements";
 import type { RequestPayoutPayload } from "../types";
 
@@ -218,86 +209,7 @@ export function HostWalletPage({ onBackHome }: HostWalletPageProps) {
 						/>
 
 						{/* Ledger / Transaction History */}
-						<div className="rounded-3xl border border-[#dfe8df] bg-white p-6 shadow-sm">
-							<div className="flex items-center justify-between border-b border-[#e7eee7] pb-4">
-								<div className="flex items-center gap-2.5">
-									<History className="size-5 text-[#164027]" />
-									<h2 className="text-base font-extrabold text-[#10221b]">
-										Lịch sử biến động số dư
-									</h2>
-								</div>
-								<span className="text-xs font-semibold text-[#667a6d]">
-									{wallet.transactions.length} giao dịch gần nhất
-								</span>
-							</div>
-
-							{wallet.transactions.length === 0 ? (
-								<div className="py-12 text-center text-xs text-[#667a6d]">
-									Chưa có biến động số dư nào trong ví của bạn.
-								</div>
-							) : (
-								<div className="mt-4 overflow-x-auto">
-									<table className="w-full text-left text-xs">
-										<thead>
-											<tr className="border-b border-[#edf3ed] text-[11px] font-bold uppercase tracking-wider text-[#7d8d83]">
-												<th className="py-3 px-3">Thời gian</th>
-												<th className="py-3 px-3">Loại giao dịch</th>
-												<th className="py-3 px-3">Mô tả</th>
-												<th className="py-3 px-3 text-right">Biến động</th>
-												<th className="py-3 px-3 text-right">Số dư sau GD</th>
-											</tr>
-										</thead>
-										<tbody className="divide-y divide-[#f1f5f0]">
-											{wallet.transactions.map((t) => {
-												const typeInfo = TRANSACTION_TYPE_LABELS[t.type] || {
-													label: t.type,
-													tone: "blue" as const,
-												};
-												const isPositive = Number(t.netAmount) > 0;
-
-												return (
-													<tr key={t.id} className="hover:bg-[#fafcfa]">
-														<td className="py-3.5 px-3 text-[#52665b] whitespace-nowrap">
-															{new Date(t.createdAt).toLocaleString("vi-VN")}
-														</td>
-														<td className="py-3.5 px-3 whitespace-nowrap">
-															<span
-																className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-bold ${
-																	typeInfo.tone === "green"
-																		? "bg-emerald-50 text-emerald-800"
-																		: typeInfo.tone === "rose"
-																			? "bg-rose-50 text-rose-800"
-																			: "bg-sky-50 text-sky-800"
-																}`}
-															>
-																{isPositive ? (
-																	<ArrowUpRight className="size-3" />
-																) : (
-																	<ArrowDownRight className="size-3" />
-																)}
-																{typeInfo.label}
-															</span>
-														</td>
-														<td className="py-3.5 px-3 text-[#10221b] max-w-xs truncate">
-															{t.description}
-														</td>
-														<td className="py-3.5 px-3 text-right font-black whitespace-nowrap">
-															<span className={isPositive ? "text-emerald-700" : "text-rose-700"}>
-																{isPositive ? "+" : ""}
-																{formatBookingMoney(t.netAmount)}
-															</span>
-														</td>
-														<td className="py-3.5 px-3 text-right font-bold text-[#10221b] whitespace-nowrap">
-															{formatBookingMoney(t.balanceAfter)}
-														</td>
-													</tr>
-												);
-											})}
-										</tbody>
-									</table>
-								</div>
-							)}
-						</div>
+						<HostWalletTransactionsTable transactions={wallet.transactions} />
 					</>
 				)}
 			</main>

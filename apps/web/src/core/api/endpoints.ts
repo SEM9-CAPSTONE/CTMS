@@ -83,6 +83,7 @@ export const API_ENDPOINTS = {
 			`/trips/${tripId}/incidents/${incidentId}/media`,
 		SUBMIT_FOR_APPROVAL: (tripId: string) => `/trips/${tripId}/submit`,
 		MEMBERS: (tripId: string) => `/trips/${tripId}/members`,
+		BOOKINGS: (tripId: string) => `/trips/${tripId}/bookings`,
 		MEMBER_STATUS: (tripId: string, bookingId: string, memberId: string) =>
 			`/trips/${tripId}/bookings/${bookingId}/members/${memberId}/status`,
 		GPS_LOGS: (tripId: string) => `/trips/${tripId}/gps-logs`,
