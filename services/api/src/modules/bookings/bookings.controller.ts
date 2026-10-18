@@ -270,6 +270,20 @@ export class BookingsController {
 		return this.bookingsService.getBookingDetails(request.user.userId, bookingId);
 	}
 
+	@Post(":bookingId/sync-payment")
+	@Roles(UserRole.CAMPER)
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({ summary: "Sync payment status directly from PayOS" })
+	@ApiResponse({ status: 200, type: BookingDetailsResponseDto })
+	@ApiResponse({ status: 403, description: "Not the Booking owner" })
+	@ApiResponse({ status: 404, description: "Booking not found" })
+	syncPayment(
+		@Req() request: AuthenticatedRequest,
+		@Param("bookingId", BOOKING_ID_PIPE) bookingId: string
+	): Promise<BookingDetailsResponseDto> {
+		return this.bookingsService.syncPaymentStatus(request.user.userId, bookingId);
+	}
+
 	@Post(":bookingId/complete")
 	@Roles(UserRole.HOST, UserRole.ADMIN)
 	@HttpCode(HttpStatus.OK)

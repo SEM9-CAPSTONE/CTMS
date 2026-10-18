@@ -2,8 +2,10 @@ import { createHash } from "node:crypto";
 import {
 	ConflictException,
 	ForbiddenException,
+	Inject,
 	Injectable,
 	NotFoundException,
+	Optional,
 	UnprocessableEntityException,
 } from "@nestjs/common";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
@@ -70,6 +72,8 @@ import {
 	type RentedEquipmentInput,
 	buildPackingListItems,
 } from "./packing-list-builder";
+// biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
+import { PaymentsService } from "./payments.service";
 
 const IDEMPOTENCY_KEY_MAX_LENGTH = 128;
 const IDEMPOTENCY_KEY_PATTERN = /^[A-Za-z0-9._:-]+$/;
@@ -96,11 +100,30 @@ export class BookingsService {
 		private readonly equipmentCatalogRepository: EquipmentCatalogRepository,
 		private readonly equipmentReservationsRepository: EquipmentReservationsRepository,
 		private readonly weatherRiskRepository: WeatherRiskRepository,
-		private readonly healthProfileRepository: HealthProfileRepository
+		private readonly healthProfileRepository: HealthProfileRepository,
+		@Optional() @Inject(PaymentsService) private readonly paymentsService?: PaymentsService
 	) {}
 
-	listForOwner(actorId: string): Promise<BookingListItemResponseDto[]> {
-		return this.bookingsRepository.findListByOwner(actorId);
+	async listForOwner(actorId: string): Promise<BookingListItemResponseDto[]> {
+		const list = await this.bookingsRepository.findListByOwner(actorId);
+		if (this.paymentsService) {
+			const pending = list.filter(
+				(b) =>
+					b.status === BookingStatus.PENDING_PAYMENT &&
+					b.paymentStatus === BookingPaymentStatus.UNPAID
+			);
+			if (pending.length > 0) {
+				let anySynced = false;
+				for (const item of pending) {
+					const synced = await this.paymentsService.syncPayOSPaymentForBooking(item.id);
+					if (synced) anySynced = true;
+				}
+				if (anySynced) {
+					return this.bookingsRepository.findListByOwner(actorId);
+				}
+			}
+		}
+		return list;
 	}
 
 	async getBookingDetails(actorId: string, bookingId: string): Promise<BookingDetailsResponseDto> {
@@ -110,6 +133,39 @@ export class BookingsService {
 			throw new ForbiddenException("Only the Booking owner can view Booking details");
 		}
 
+		let details = await this.bookingsRepository.findDetailsByIdForOwner(bookingId, actorId);
+		if (!details) throw new NotFoundException("Booking not found");
+
+		if (
+			this.paymentsService &&
+			(details.status === BookingStatus.PENDING_PAYMENT ||
+				details.paymentStatus === BookingPaymentStatus.UNPAID)
+		) {
+			const synced = await this.paymentsService.syncPayOSPaymentForBooking(bookingId);
+			if (synced) {
+				const updatedDetails = await this.bookingsRepository.findDetailsByIdForOwner(
+					bookingId,
+					actorId
+				);
+				if (updatedDetails) {
+					details = updatedDetails;
+				}
+			}
+		}
+
+		return details;
+	}
+
+	async syncPaymentStatus(actorId: string, bookingId: string): Promise<BookingDetailsResponseDto> {
+		const ownership = await this.bookingsRepository.findOwnershipById(bookingId);
+		if (!ownership) throw new NotFoundException("Booking not found");
+		if (ownership.userId !== actorId) {
+			throw new ForbiddenException("Only the Booking owner can sync payment status");
+		}
+
+		if (this.paymentsService) {
+			await this.paymentsService.syncPayOSPaymentForBooking(bookingId);
+		}
 		const details = await this.bookingsRepository.findDetailsByIdForOwner(bookingId, actorId);
 		if (!details) throw new NotFoundException("Booking not found");
 		return details;
