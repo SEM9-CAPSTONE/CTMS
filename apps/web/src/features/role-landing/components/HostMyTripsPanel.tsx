@@ -10,7 +10,6 @@ import {
 	Filter,
 	Loader2,
 	MapPinned,
-	Mountain,
 	Pencil,
 	RefreshCw,
 	Route,
@@ -345,17 +344,15 @@ export function HostMyTripsPanel({
 										}`}
 									>
 										<div className="relative aspect-[16/9] w-full overflow-hidden bg-[#e8efe9]">
-											{trip.coverImageUrl ? (
-												<img
-													src={trip.coverImageUrl}
-													alt={trip.title}
-													className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
-												/>
-											) : (
-												<div className="flex size-full items-center justify-center text-[#7b8c82]">
-													<Mountain className="size-10 opacity-40" />
-												</div>
-											)}
+											<img
+												src={
+													trip.coverImageUrl ||
+													"https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=800&q=80"
+												}
+												alt={trip.title}
+												className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
+												loading="lazy"
+											/>
 											<div className="absolute top-2.5 left-2.5">
 												<span
 													className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-extrabold ring-1 ${statusCfg.className}`}
