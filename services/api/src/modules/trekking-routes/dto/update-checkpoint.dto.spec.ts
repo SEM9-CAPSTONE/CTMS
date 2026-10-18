@@ -27,7 +27,7 @@ describe("UpdateCheckpointDto", () => {
 			radiusMeters: 9,
 			type: "waypoint",
 			expectedArrivalOffset: -1,
-			instructions: "",
+			instructions: "i".repeat(1001),
 			nearbyWaterOrShelter: "true",
 			routePosition: 0.5,
 		});

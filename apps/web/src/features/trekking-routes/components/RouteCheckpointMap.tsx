@@ -154,10 +154,10 @@ export function RouteCheckpointMap({
 	const mapLabel = disabled
 		? "Bản đồ tuyến trekking"
 		: mode === "checkpoint"
-			? "Bản đồ chọn điểm dừng"
+			? "Bản đồ chọn vị trí"
 			: mode === "hazard-point"
 				? "Bản đồ chọn điểm nguy hiểm"
-				: "Bản đồ vẽ đa giác nguy hiểm";
+				: "Bản đồ vẽ khu vực nguy hiểm";
 
 	useEffect(() => {
 		selectRef.current = onSelectLocation;
@@ -374,7 +374,7 @@ export function RouteCheckpointMap({
 					}
 					element.textContent = hazardSeverity ? "!" : shelter ? "S" : label;
 					if (shelter) element.setAttribute("aria-label", `Nơi trú ẩn ${label}`);
-					if (vertex) element.setAttribute("aria-label", `Đỉnh đa giác ${label}`);
+					if (vertex) element.setAttribute("aria-label", `Đỉnh khu vực ${label}`);
 					if (hazardSeverity) {
 						const accessibleLabel = `Điểm nguy hiểm mức ${severityLabels[hazardSeverity]}: ${hazardDescription}`;
 						element.setAttribute("aria-label", accessibleLabel);
@@ -623,10 +623,10 @@ export function RouteCheckpointMap({
 					{disabled
 						? "Sơ đồ tuyến trekking · Bản đồ nền chưa khả dụng"
 						: mode === "checkpoint"
-							? "Nhấp trên bản đồ để chọn vị trí điểm dừng."
+							? "Nhấp lên đường tuyến để chọn vị trí."
 							: mode === "hazard-point"
 								? "Nhấp trên bản đồ để chọn tâm vùng nguy hiểm."
-								: "Nhấp liên tiếp để thêm các đỉnh đa giác."}
+								: "Nhấp liên tiếp để thêm các đỉnh khu vực."}
 				</span>
 			)}
 			{mapError && (

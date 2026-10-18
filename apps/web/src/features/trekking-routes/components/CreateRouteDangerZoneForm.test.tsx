@@ -26,7 +26,7 @@ function props() {
 		isSubmitting: false,
 		error: "",
 		polygonError: "",
-		onModeChange: vi.fn(),
+		onSelectCheckpointType: vi.fn(),
 		onFinishPolygon: vi.fn(),
 		onUndoPolygon: vi.fn(),
 		onClearGeometry: vi.fn(),
@@ -76,9 +76,9 @@ describe("CreateRouteDangerZoneForm", () => {
 		input.polygonVertexCount = 3;
 		input.onSubmit.mockResolvedValue({ ...created, geometry: input.geometry, radiusMeters: null });
 		render(<CreateRouteDangerZoneForm {...input} />);
-		await user.click(screen.getByRole("button", { name: "Hoàn tất đa giác" }));
+		await user.click(screen.getByRole("button", { name: "Hoàn tất khu vực" }));
 		await user.click(screen.getByRole("button", { name: "Hoàn tác đỉnh" }));
-		await user.click(screen.getByRole("button", { name: "Xóa đa giác" }));
+		await user.click(screen.getByRole("button", { name: "Xóa khu vực" }));
 		expect(input.onFinishPolygon).toHaveBeenCalledTimes(1);
 		expect(input.onUndoPolygon).toHaveBeenCalledTimes(1);
 		expect(input.onClearGeometry).toHaveBeenCalledTimes(1);
@@ -95,11 +95,22 @@ describe("CreateRouteDangerZoneForm", () => {
 		expect(input.onCancel).toHaveBeenCalledTimes(1);
 	});
 
+	it("shows the Vị trí dropdown on Khu vực nguy hiểm and switches back to a route location", async () => {
+		const user = userEvent.setup();
+		const input = props();
+		input.mode = "hazard-polygon";
+		render(<CreateRouteDangerZoneForm {...input} />);
+		expect(screen.getByLabelText("Vị trí")).toHaveValue("danger_area");
+		expect(screen.queryByRole("button", { name: "Điểm nguy hiểm" })).not.toBeInTheDocument();
+		await user.selectOptions(screen.getByLabelText("Vị trí"), "water");
+		expect(input.onSelectCheckpointType).toHaveBeenCalledWith("water");
+	});
+
 	it("disables every creation action for a read-only Route", () => {
 		const input = props();
 		input.disabled = true;
 		render(<CreateRouteDangerZoneForm {...input} />);
-		expect(screen.getByRole("button", { name: "Điểm nguy hiểm" })).toBeDisabled();
+		expect(screen.getByLabelText("Vị trí")).toBeDisabled();
 		expect(screen.getByRole("button", { name: "Tạo khu vực nguy hiểm" })).toBeDisabled();
 		expect(screen.getByLabelText("Mô tả an toàn")).toBeDisabled();
 	});

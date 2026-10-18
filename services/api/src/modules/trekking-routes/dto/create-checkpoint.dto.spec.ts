@@ -1,14 +1,14 @@
 import { plainToInstance } from "class-transformer";
 import { type ValidationError, validate } from "class-validator";
 import { CheckpointType } from "../entities/checkpoint.entity";
-import { CreateCheckpointDto } from "./create-checkpoint.dto";
+import { CreateCheckpointDto, ROUTE_CHECKPOINT_TYPES } from "./create-checkpoint.dto";
 
 function validPayload(overrides: Record<string, unknown> = {}): Record<string, unknown> {
 	return {
 		name: "  Ridge rest  ",
 		location: { type: "Point", coordinates: [108.458313, 11.940419] },
 		radiusMeters: 20,
-		type: CheckpointType.REST,
+		type: CheckpointType.WATER,
 		expectedArrivalOffset: 45,
 		instructions: "  Rest and check water.  ",
 		nearbyWaterOrShelter: true,
@@ -102,13 +102,20 @@ describe("CreateCheckpointDto", () => {
 		).toContain("radiusMeters");
 	});
 
-	it("accepts exactly the six approved checkpoint types", async () => {
-		for (const type of Object.values(CheckpointType)) {
+	it("accepts only on-route location types", async () => {
+		for (const type of ROUTE_CHECKPOINT_TYPES) {
 			expect((await validationErrors(validPayload({ type }))).errors).toEqual([]);
 		}
-		expect(
-			allProperties((await validationErrors(validPayload({ type: "waypoint" }))).errors)
-		).toContain("type");
+		for (const type of [
+			CheckpointType.START,
+			CheckpointType.REST,
+			CheckpointType.FINISH,
+			"waypoint",
+		]) {
+			expect(allProperties((await validationErrors(validPayload({ type }))).errors)).toContain(
+				"type"
+			);
+		}
 	});
 
 	it.each([-1, 1.5])("rejects invalid expected arrival offset %s", async (value) => {
@@ -117,10 +124,25 @@ describe("CreateCheckpointDto", () => {
 		).toContain("expectedArrivalOffset");
 	});
 
-	it.each(["   ", "i".repeat(1001)])("rejects invalid instructions", async (instructions) => {
+	it("rejects instructions longer than 1000 characters", async () => {
 		expect(
-			allProperties((await validationErrors(validPayload({ instructions }))).errors)
+			allProperties(
+				(await validationErrors(validPayload({ instructions: "i".repeat(1001) }))).errors
+			)
 		).toContain("instructions");
+	});
+
+	it.each([
+		["missing", undefined],
+		["blank", "   "],
+		["null", null],
+	])("accepts %s instructions as an empty string", async (_label, instructions) => {
+		const { instructions: _current, ...withoutInstructions } = validPayload();
+		const payload =
+			instructions === undefined ? withoutInstructions : { ...withoutInstructions, instructions };
+		const { dto, errors } = await validationErrors(payload);
+		expect(errors).toEqual([]);
+		expect(dto.instructions).toBe("");
 	});
 
 	it("requires nearbyWaterOrShelter to be a boolean", async () => {

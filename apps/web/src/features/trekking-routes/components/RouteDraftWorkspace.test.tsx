@@ -46,6 +46,34 @@ const route: CreatedTrekkingRoute = {
 };
 describe("RouteDraftWorkspace", () => {
 	beforeEach(() => vi.clearAllMocks());
+	it("edits route info first and moves to picking locations on Bước tiếp theo", async () => {
+		vi.mocked(trekkingRoutesService.updateDraft).mockResolvedValue({
+			...route,
+			name: "Updated ridge",
+			updatedAt: "2026-09-02",
+		});
+		render(<RouteDraftWorkspace route={route} mode="edit" />);
+		expect(screen.queryByRole("button", { name: "Chỉnh sửa tuyến nháp" })).not.toBeInTheDocument();
+		expect(screen.queryByRole("tab")).not.toBeInTheDocument();
+		expect(screen.getByLabelText("Tên tuyến")).toHaveValue("Ridge");
+		expect(screen.queryByTestId("preparation")).not.toBeInTheDocument();
+
+		fireEvent.click(screen.getByRole("button", { name: "Bước tiếp theo" }));
+		await waitFor(() => expect(screen.getByTestId("preparation")).toBeInTheDocument());
+		expect(screen.queryByLabelText("Tên tuyến")).not.toBeInTheDocument();
+
+		fireEvent.click(screen.getByRole("button", { name: "Quay lại thông tin tuyến" }));
+		expect(screen.getByLabelText("Tên tuyến")).toHaveValue("Updated ridge");
+	});
+
+	it("opens a non-draft route straight on the locations step", () => {
+		render(<RouteDraftWorkspace route={{ ...route, status: "active" }} mode="edit" />);
+		expect(screen.getByTestId("preparation")).toHaveTextContent("saved-id:active");
+		expect(
+			screen.queryByRole("button", { name: "Quay lại thông tin tuyến" })
+		).not.toBeInTheDocument();
+	});
+
 	it("edits the persisted draft and resumes preparation only after a successful save", async () => {
 		vi.mocked(trekkingRoutesService.updateDraft).mockResolvedValue({
 			...route,

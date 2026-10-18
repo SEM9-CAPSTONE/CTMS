@@ -7,21 +7,21 @@ interface TrekkingRouteListProps {
 	onSelect: (route: CreatedTrekkingRoute) => void;
 }
 
-const difficultyLabels: Record<RouteDifficulty, string> = {
+export const difficultyLabels: Record<RouteDifficulty, string> = {
 	easy: "Dễ",
 	moderate: "Trung bình",
 	hard: "Khó",
 	expert: "Chuyên gia",
 };
 
-const statusLabels: Record<RouteStatus, string> = {
+export const statusLabels: Record<RouteStatus, string> = {
 	draft: "Nháp",
 	pending_approval: "Chờ duyệt",
 	active: "Đang hoạt động",
 	closed: "Đã đóng",
 };
 
-function formatLength(lengthMeters: number): string {
+export function formatLength(lengthMeters: number): string {
 	return lengthMeters >= 1000
 		? `${(lengthMeters / 1000).toFixed(2)} km`
 		: `${lengthMeters.toFixed(0)} m`;

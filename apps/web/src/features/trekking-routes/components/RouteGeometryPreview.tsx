@@ -1,5 +1,7 @@
 import "maplibre-gl/dist/maplibre-gl.css";
+import { Flag, Map as MapIcon, MapPin } from "lucide-react";
 import type { Map as MapLibreMap, Marker } from "maplibre-gl";
+import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type {
 	GeoJsonLineString,
@@ -19,6 +21,9 @@ interface RouteGeometryPreviewProps {
 	geometry: GeoJsonLineString;
 	checkpoints?: RouteCheckpoint[];
 	dangerZones?: RouteDangerZone[];
+	footer?: ReactNode;
+	/** "embedded" drops the card frame so the preview can sit inside another card. */
+	variant?: "card" | "embedded";
 }
 
 interface PreviewBounds {
@@ -112,7 +117,7 @@ function checkpointMarkerColor(type: RouteCheckpoint["type"]): string {
 }
 
 function checkpointDescription(checkpoint: RouteCheckpoint): string {
-	return `${checkpoint.name} · ${checkpointTypeLabels[checkpoint.type]} · ${checkpoint.radiusMeters} m · ${checkpoint.expectedArrivalOffset} phút`;
+	return `${checkpoint.name} · ${checkpointTypeLabels[checkpoint.type]} · ${checkpoint.radiusMeters} m`;
 }
 
 function dangerZoneDescription(dangerZone: RouteDangerZone): string {
@@ -123,6 +128,8 @@ export function RouteGeometryPreview({
 	geometry,
 	checkpoints: providedCheckpoints,
 	dangerZones: providedDangerZones,
+	footer,
+	variant = "card",
 }: RouteGeometryPreviewProps) {
 	const checkpoints = providedCheckpoints ?? EMPTY_CHECKPOINTS;
 	const dangerZones = providedDangerZones ?? EMPTY_DANGER_ZONES;
@@ -328,8 +335,17 @@ export function RouteGeometryPreview({
 	}, [checkpoints, dangerZones, mapReady]);
 
 	return (
-		<section className="rounded-2xl border border-[#e0ebe0] bg-white p-5 shadow-sm">
-			<h2 className="font-extrabold text-[#10221b]">Xem trước đường đi của tuyến</h2>
+		<section
+			className={
+				variant === "card"
+					? "rounded-2xl border border-[#e0ebe0] bg-white p-5 shadow-sm"
+					: undefined
+			}
+		>
+			<h2 className="flex items-center gap-2 font-extrabold text-[#10221b]">
+				<MapIcon className="size-5 text-[#34483b]" aria-hidden="true" />
+				Xem trước đường đi của tuyến
+			</h2>
 			<div
 				ref={containerRef}
 				data-testid="route-geometry-preview"
@@ -468,7 +484,7 @@ export function RouteGeometryPreview({
 				)}
 				{checkpoints.length > 0 && (
 					<div
-						aria-label="Chú giải điểm dừng"
+						aria-label="Chú giải vị trí"
 						className="absolute right-3 bottom-3 flex flex-wrap gap-2 rounded-lg bg-white/90 px-3 py-2 text-[11px] font-bold"
 					>
 						{checkpointTypes.has("start") && <span>S: Bắt đầu</span>}
@@ -513,7 +529,7 @@ export function RouteGeometryPreview({
 										opacity: 0.55,
 									}}
 								/>
-								Khu vực nguy hiểm đa giác
+								Khu vực nguy hiểm
 							</span>
 						)}
 						<span className="text-[#34483b]">Mức độ:</span>
@@ -525,10 +541,18 @@ export function RouteGeometryPreview({
 					</div>
 				)}
 			</div>
-			<div className="mt-3 grid gap-2 text-xs font-bold text-[#667a6d] sm:grid-cols-2">
-				<span>Bắt đầu: {geometry.coordinates[0]?.join(", ")}</span>
-				<span className="sm:text-right">Kết thúc: {geometry.coordinates.at(-1)?.join(", ")}</span>
+			<div className="mt-3 grid gap-2 text-xs text-[#667a6d] sm:grid-cols-2">
+				<span className="flex items-center gap-1.5">
+					<MapPin className="size-4 text-[#164027]" aria-hidden="true" />
+					<strong className="text-[#34483b]">Bắt đầu:</strong> {geometry.coordinates[0]?.join(", ")}
+				</span>
+				<span className="flex items-center gap-1.5 sm:justify-end">
+					<Flag className="size-4 text-[#164027]" aria-hidden="true" />
+					<strong className="text-[#34483b]">Kết thúc:</strong>{" "}
+					{geometry.coordinates.at(-1)?.join(", ")}
+				</span>
 			</div>
+			{footer}
 		</section>
 	);
 }

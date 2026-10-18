@@ -1,33 +1,19 @@
-import { ArrowLeft, CheckCircle2, Loader2, RefreshCw, Route } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { RoutePorterQualificationsPanel } from "../../porter-profile/components/RoutePorterQualificationsPanel";
-import { RouteDraftWorkspace } from "../components/RouteDraftWorkspace";
+import { ArrowLeft, Eye, Loader2, RefreshCw, Route } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { RouteGeometryPreview } from "../components/RouteGeometryPreview";
-import { RouteRegistrationBlockPanel } from "../components/RouteRegistrationBlockPanel";
-import { RouteStatusActionDialog } from "../components/RouteStatusActionDialog";
-import { RouteWeatherAdvicePanel } from "../components/RouteWeatherAdvicePanel";
-import { RouteWeatherPanel } from "../components/RouteWeatherPanel";
-import { RouteWeatherRiskPanel } from "../components/RouteWeatherRiskPanel";
 import { TrekkingRouteList } from "../components/TrekkingRouteList";
+import { useRouteCheckpoints } from "../hooks/useRouteCheckpoints";
+import { useRouteDangerZones } from "../hooks/useRouteDangerZones";
 import { useTrekkingRoutes } from "../hooks/useTrekkingRoutes";
-import type { RouteCheckpoint, RouteDangerZone } from "../types";
 
 export interface TrekkingRoutesPageProps {
 	onBackHome?: () => void;
+	onViewRouteDetail?: (routeId: string) => void;
 }
 
-export function TrekkingRoutesPage({ onBackHome }: TrekkingRoutesPageProps) {
+export function TrekkingRoutesPage({ onBackHome, onViewRouteDetail }: TrekkingRoutesPageProps) {
 	const routes = useTrekkingRoutes();
 	const [selectedRouteId, setSelectedRouteId] = useState<string>();
-	const [submittedRouteName, setSubmittedRouteName] = useState("");
-	const [previewCheckpoints, setPreviewCheckpoints] = useState<RouteCheckpoint[]>([]);
-	const [previewDangerZones, setPreviewDangerZones] = useState<RouteDangerZone[]>([]);
-	const updatePreviewCheckpoints = useCallback((checkpoints: RouteCheckpoint[]) => {
-		setPreviewCheckpoints(checkpoints);
-	}, []);
-	const updatePreviewDangerZones = useCallback((dangerZones: RouteDangerZone[]) => {
-		setPreviewDangerZones(dangerZones);
-	}, []);
 
 	useEffect(() => {
 		setSelectedRouteId((current) =>
@@ -39,14 +25,8 @@ export function TrekkingRoutesPage({ onBackHome }: TrekkingRoutesPageProps) {
 		() => routes.items.find((route) => route.id === selectedRouteId),
 		[routes.items, selectedRouteId]
 	);
-	const selectedPreviewCheckpoints = useMemo(
-		() => previewCheckpoints.filter((checkpoint) => checkpoint.routeId === selectedRoute?.id),
-		[previewCheckpoints, selectedRoute?.id]
-	);
-	const selectedPreviewDangerZones = useMemo(
-		() => previewDangerZones.filter((dangerZone) => dangerZone.routeId === selectedRoute?.id),
-		[previewDangerZones, selectedRoute?.id]
-	);
+	const checkpoints = useRouteCheckpoints(selectedRoute?.id);
+	const dangerZones = useRouteDangerZones(selectedRoute?.id);
 
 	return (
 		<div className="min-h-screen bg-[#f4f7f2] text-[#10221b]">
@@ -70,26 +50,13 @@ export function TrekkingRoutesPage({ onBackHome }: TrekkingRoutesPageProps) {
 					<div>
 						<h1 className="text-xl font-extrabold sm:text-2xl">Tuyến trekking của Host</h1>
 						<p className="text-sm text-[#667a6d]">
-							Xem lại thông tin và đường đi của tuyến đã tạo.
+							Chọn một tuyến để xem trước đường đi, mở chi tiết để chỉnh sửa hoặc gửi duyệt.
 						</p>
 					</div>
 				</div>
 			</header>
 
 			<main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
-				{submittedRouteName && (
-					<div
-						data-testid="route-submission-success"
-						className="mb-5 flex gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800 font-bold"
-					>
-						<CheckCircle2 className="size-5 shrink-0" />
-						<p>
-							Đã gửi tuyến <strong>{submittedRouteName}</strong> để duyệt. Trạng thái chính thức
-							hiện là <strong>Chờ duyệt</strong>.
-						</p>
-					</div>
-				)}
-
 				{routes.isLoading && (
 					<div
 						data-testid="routes-loading"
@@ -133,54 +100,33 @@ export function TrekkingRoutesPage({ onBackHome }: TrekkingRoutesPageProps) {
 						<TrekkingRouteList
 							items={routes.items}
 							selectedRouteId={selectedRouteId}
-							onSelect={(route) => {
-								setSelectedRouteId(route.id);
-								setSubmittedRouteName("");
-								setPreviewCheckpoints([]);
-								setPreviewDangerZones([]);
-							}}
+							onSelect={(route) => setSelectedRouteId(route.id)}
 						/>
 
 						{selectedRoute && (
-							<RouteGeometryPreview
-								geometry={selectedRoute.geometry}
-								checkpoints={selectedPreviewCheckpoints}
-								dangerZones={selectedPreviewDangerZones}
-							/>
+							<div className="lg:sticky lg:top-6 lg:self-start">
+								<RouteGeometryPreview
+									geometry={selectedRoute.geometry}
+									checkpoints={checkpoints.items}
+									dangerZones={dangerZones.items}
+									footer={
+										onViewRouteDetail && (
+											<div className="mt-4 flex justify-end">
+												<button
+													type="button"
+													onClick={() => onViewRouteDetail(selectedRoute.id)}
+													className="flex items-center gap-2 rounded-xl bg-[#164027] px-5 py-2.5 font-bold text-white"
+												>
+													<Eye className="size-4" />
+													Chi tiết
+												</button>
+											</div>
+										)
+									}
+								/>
+							</div>
 						)}
 					</div>
-				)}
-
-				{selectedRoute && <RouteStatusActionDialog route={selectedRoute} onReload={routes.retry} />}
-
-				{selectedRoute && <RouteWeatherPanel route={selectedRoute} />}
-
-				{selectedRoute && <RouteWeatherRiskPanel route={selectedRoute} />}
-
-				{selectedRoute && <RouteWeatherAdvicePanel route={selectedRoute} />}
-
-				{selectedRoute && (
-					<RouteRegistrationBlockPanel routeId={selectedRoute.id} routeName={selectedRoute.name} />
-				)}
-
-				{selectedRoute && (
-					<RoutePorterQualificationsPanel
-						routeId={selectedRoute.id}
-						routeName={selectedRoute.name}
-					/>
-				)}
-
-				{!routes.isLoading && !routes.error && selectedRoute && (
-					<RouteDraftWorkspace
-						key={`${selectedRoute.id}:${selectedRoute.updatedAt}`}
-						route={selectedRoute}
-						onRouteChanged={(route) => {
-							if (route.status === "pending_approval") setSubmittedRouteName(route.name);
-							void routes.retry();
-						}}
-						onCheckpointsChange={updatePreviewCheckpoints}
-						onDangerZonesChange={updatePreviewDangerZones}
-					/>
 				)}
 			</main>
 		</div>

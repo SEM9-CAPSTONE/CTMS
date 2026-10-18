@@ -45,7 +45,7 @@ describe("DangerZoneList", () => {
 		];
 		render(<DangerZoneList items={items} />);
 		expect(screen.getByText("Bán kính 30 m")).toBeInTheDocument();
-		expect(screen.getByText("Ranh giới đa giác")).toBeInTheDocument();
+		expect(screen.getByText("Ranh giới khu vực")).toBeInTheDocument();
 		expect(screen.getByText("Mức độ Thấp")).toBeInTheDocument();
 		expect(screen.getByText("Mức độ Cao")).toBeInTheDocument();
 	});

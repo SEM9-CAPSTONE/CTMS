@@ -13,7 +13,7 @@ const dto: CreateCheckpointDto = {
 	name: "Ridge rest",
 	location: { type: "Point", coordinates: [108.46, 11.94] },
 	radiusMeters: 20,
-	type: CheckpointType.REST,
+	type: CheckpointType.WATER,
 	expectedArrivalOffset: 45,
 	instructions: "Rest and check water.",
 	nearbyWaterOrShelter: true,
@@ -228,7 +228,7 @@ describe("CheckpointsService", () => {
 			action: "trekking_route_checkpoint.updated",
 			targetType: "trekking_route_checkpoint",
 			targetId: CHECKPOINT_ID,
-			before: expect.objectContaining({ name: "Ridge rest", type: CheckpointType.REST }),
+			before: expect.objectContaining({ name: "Ridge rest", type: CheckpointType.WATER }),
 			after: expect.objectContaining({
 				name: "Updated ridge rest",
 				type: CheckpointType.WATER,

@@ -25,7 +25,6 @@ describe("CreateCheckpointForm", () => {
 		const onSubmit = vi.fn();
 		render(
 			<CreateCheckpointForm
-				expectedDurationMinutes={120}
 				disabled={false}
 				isSubmitting={false}
 				error=""
@@ -33,15 +32,92 @@ describe("CreateCheckpointForm", () => {
 				onCreated={vi.fn()}
 			/>
 		);
-		await user.clear(screen.getByLabelText("Tên điểm dừng"));
-		await user.type(screen.getByLabelText("Tên điểm dừng"), "Start");
-		await user.type(screen.getByLabelText("Hướng dẫn"), "Begin here");
-		await user.click(screen.getByRole("button", { name: "Thêm điểm dừng" }));
+		await user.click(screen.getByRole("button", { name: "Thêm vị trí" }));
 		expect(await screen.findByText("Vui lòng chọn vị trí trên bản đồ")).toBeInTheDocument();
 		expect(onSubmit).not.toHaveBeenCalled();
 	});
 
-	it("preserves all values after a failed POST and clears them only after success", async () => {
+	it("offers only on-route location types and no name or arrival time fields", () => {
+		render(
+			<CreateCheckpointForm
+				location={location}
+				disabled={false}
+				isSubmitting={false}
+				error=""
+				onSubmit={vi.fn()}
+				onCreated={vi.fn()}
+			/>
+		);
+		const options = Array.from((screen.getByLabelText("Vị trí") as HTMLSelectElement).options).map(
+			(option) => option.value
+		);
+		expect(options).toEqual(["", "water", "dangerous", "emergency_shelter"]);
+		expect(screen.queryByLabelText("Tên điểm dừng")).not.toBeInTheDocument();
+		expect(screen.queryByLabelText("Thời gian đến dự kiến (phút)")).not.toBeInTheDocument();
+	});
+
+	it("offers Khu vực nguy hiểm for new locations and hands off to the danger area form", async () => {
+		const user = userEvent.setup();
+		const onSelectDangerArea = vi.fn();
+		render(
+			<CreateCheckpointForm
+				location={location}
+				onSelectDangerArea={onSelectDangerArea}
+				disabled={false}
+				isSubmitting={false}
+				error=""
+				onSubmit={vi.fn()}
+				onCreated={vi.fn()}
+			/>
+		);
+		await user.selectOptions(screen.getByLabelText("Vị trí"), "danger_area");
+		expect(onSelectDangerArea).toHaveBeenCalledTimes(1);
+	});
+
+	it("starts with the type picked from the danger area form", () => {
+		render(
+			<CreateCheckpointForm
+				location={location}
+				initialType="emergency_shelter"
+				disabled={false}
+				isSubmitting={false}
+				error=""
+				onSubmit={vi.fn()}
+				onCreated={vi.fn()}
+			/>
+		);
+		expect(screen.getByLabelText("Vị trí")).toHaveValue("emergency_shelter");
+	});
+
+	it("submits without guidance and derives the name from the type", async () => {
+		const user = userEvent.setup();
+		const onSubmit = vi.fn().mockResolvedValue({ id: "checkpoint-id" });
+		render(
+			<CreateCheckpointForm
+				location={location}
+				disabled={false}
+				isSubmitting={false}
+				error=""
+				onSubmit={onSubmit}
+				onCreated={vi.fn()}
+			/>
+		);
+		await user.selectOptions(screen.getByLabelText("Vị trí"), "emergency_shelter");
+		await user.click(screen.getByRole("button", { name: "Thêm vị trí" }));
+		await waitFor(() =>
+			expect(onSubmit).toHaveBeenCalledWith({
+				name: "Nơi trú ẩn khẩn cấp",
+				location,
+				radiusMeters: 20,
+				type: "emergency_shelter",
+				expectedArrivalOffset: 0,
+				instructions: "",
+				nearbyWaterOrShelter: false,
+			})
+		);
+	});
+
+	it("preserves values after a failed POST and clears them only after success", async () => {
 		const user = userEvent.setup();
 		const onSubmit = vi
 			.fn()
@@ -51,7 +127,6 @@ describe("CreateCheckpointForm", () => {
 		render(
 			<CreateCheckpointForm
 				location={location}
-				expectedDurationMinutes={120}
 				disabled={false}
 				isSubmitting={false}
 				error="Vị trí cách tuyến quá 50 mét"
@@ -59,55 +134,25 @@ describe("CreateCheckpointForm", () => {
 				onCreated={onCreated}
 			/>
 		);
-		await user.clear(screen.getByLabelText("Tên điểm dừng"));
-		await user.type(screen.getByLabelText("Tên điểm dừng"), "Ridge rest");
-		await user.clear(screen.getByLabelText("Thời gian đến dự kiến (phút)"));
-		await user.type(screen.getByLabelText("Thời gian đến dự kiến (phút)"), "45");
-		await user.type(screen.getByLabelText("Hướng dẫn"), "Rest here");
-		await user.click(screen.getByRole("button", { name: "Thêm điểm dừng" }));
+		await user.selectOptions(screen.getByLabelText("Vị trí"), "dangerous");
+		await user.type(screen.getByLabelText("Hướng dẫn"), "Đi chậm");
+		await user.click(screen.getByRole("button", { name: "Thêm vị trí" }));
 
 		await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
-		expect(screen.getByLabelText("Tên điểm dừng")).toHaveValue("Ridge rest");
-		expect(screen.getByLabelText("Hướng dẫn")).toHaveValue("Rest here");
+		expect(screen.getByLabelText("Vị trí")).toHaveValue("dangerous");
+		expect(screen.getByLabelText("Hướng dẫn")).toHaveValue("Đi chậm");
 		expect(onCreated).not.toHaveBeenCalled();
 
-		await user.click(screen.getByRole("button", { name: "Thêm điểm dừng" }));
+		await user.click(screen.getByRole("button", { name: "Thêm vị trí" }));
 		await waitFor(() => expect(onCreated).toHaveBeenCalledTimes(1));
-		expect(screen.getByLabelText("Tên điểm dừng")).toHaveValue("Điểm nghỉ chân");
+		expect(screen.getByLabelText("Vị trí")).toHaveValue("water");
 		expect(screen.getByLabelText("Hướng dẫn")).toHaveValue("");
-	});
-
-	it("enforces the parent route duration before calling the API", async () => {
-		const user = userEvent.setup();
-		const onSubmit = vi.fn();
-		render(
-			<CreateCheckpointForm
-				location={location}
-				expectedDurationMinutes={60}
-				disabled={false}
-				isSubmitting={false}
-				error=""
-				onSubmit={onSubmit}
-				onCreated={vi.fn()}
-			/>
-		);
-		await user.clear(screen.getByLabelText("Tên điểm dừng"));
-		await user.type(screen.getByLabelText("Tên điểm dừng"), "Finish");
-		await user.clear(screen.getByLabelText("Thời gian đến dự kiến (phút)"));
-		await user.type(screen.getByLabelText("Thời gian đến dự kiến (phút)"), "61");
-		await user.type(screen.getByLabelText("Hướng dẫn"), "Finish safely");
-		await user.click(screen.getByRole("button", { name: "Thêm điểm dừng" }));
-		expect(
-			await screen.findByText("Thời gian đến không được vượt quá 60 phút")
-		).toBeInTheDocument();
-		expect(onSubmit).not.toHaveBeenCalled();
 	});
 
 	it("disables every create control for non-draft routes", () => {
 		render(
 			<CreateCheckpointForm
 				location={location}
-				expectedDurationMinutes={60}
 				disabled
 				isSubmitting={false}
 				error=""
@@ -115,15 +160,14 @@ describe("CreateCheckpointForm", () => {
 				onCreated={vi.fn()}
 			/>
 		);
-		expect(screen.getByRole("button", { name: "Thêm điểm dừng" })).toBeDisabled();
-		expect(screen.getByLabelText("Tên điểm dừng")).toBeDisabled();
+		expect(screen.getByRole("button", { name: "Thêm vị trí" })).toBeDisabled();
+		expect(screen.getByLabelText("Vị trí")).toBeDisabled();
 	});
 
 	it("shows pending copy and disables duplicate form actions", () => {
 		render(
 			<CreateCheckpointForm
 				location={location}
-				expectedDurationMinutes={60}
 				disabled={false}
 				isSubmitting
 				error=""
@@ -131,53 +175,12 @@ describe("CreateCheckpointForm", () => {
 				onCreated={vi.fn()}
 			/>
 		);
-		expect(screen.getByRole("button", { name: "Đang thêm điểm dừng..." })).toBeDisabled();
-		expect(screen.getByLabelText("Tên điểm dừng")).toBeDisabled();
-		expect(screen.getByLabelText("Loại điểm dừng")).toBeDisabled();
+		expect(screen.getByRole("button", { name: "Đang thêm vị trí..." })).toBeDisabled();
+		expect(screen.getByLabelText("Vị trí")).toBeDisabled();
+		expect(screen.getByLabelText("Hướng dẫn")).toBeDisabled();
 	});
 
-	it.each([
-		["start", "Điểm bắt đầu"],
-		["finish", "Điểm kết thúc"],
-		["rest", "Điểm nghỉ chân"],
-	] as const)("suggests the default name for %s", async (type, expectedName) => {
-		const user = userEvent.setup();
-		render(
-			<CreateCheckpointForm
-				location={location}
-				expectedDurationMinutes={120}
-				disabled={false}
-				isSubmitting={false}
-				error=""
-				onSubmit={vi.fn()}
-				onCreated={vi.fn()}
-			/>
-		);
-		await user.selectOptions(screen.getByLabelText("Loại điểm dừng"), type);
-		expect(screen.getByLabelText("Tên điểm dừng")).toHaveValue(expectedName);
-	});
-
-	it("keeps a manually customized name when checkpoint type changes", async () => {
-		const user = userEvent.setup();
-		render(
-			<CreateCheckpointForm
-				location={location}
-				expectedDurationMinutes={120}
-				disabled={false}
-				isSubmitting={false}
-				error=""
-				onSubmit={vi.fn()}
-				onCreated={vi.fn()}
-			/>
-		);
-		const name = screen.getByLabelText("Tên điểm dừng");
-		await user.clear(name);
-		await user.type(name, "Mỏm đá riêng");
-		await user.selectOptions(screen.getByLabelText("Loại điểm dừng"), "dangerous");
-		expect(name).toHaveValue("Mỏm đá riêng");
-	});
-
-	it("loads every editable checkpoint field and cancel does not submit", async () => {
+	it("loads editable fields and cancel does not submit", async () => {
 		const user = userEvent.setup();
 		const onSubmit = vi.fn();
 		const onCancel = vi.fn();
@@ -185,7 +188,6 @@ describe("CreateCheckpointForm", () => {
 			<CreateCheckpointForm
 				checkpoint={existingCheckpoint}
 				location={existingCheckpoint.location}
-				expectedDurationMinutes={120}
 				disabled={false}
 				isSubmitting={false}
 				error=""
@@ -194,10 +196,7 @@ describe("CreateCheckpointForm", () => {
 				onCancel={onCancel}
 			/>
 		);
-		expect(screen.getByLabelText("Tên điểm dừng")).toHaveValue("Tên tùy chỉnh");
-		expect(screen.getByLabelText("Loại điểm dừng")).toHaveValue("water");
-		expect(screen.queryByLabelText("Bán kính (mét)")).not.toBeInTheDocument();
-		expect(screen.getByLabelText("Thời gian đến dự kiến (phút)")).toHaveValue("35");
+		expect(screen.getByLabelText("Vị trí")).toHaveValue("water");
 		expect(screen.getByLabelText("Hướng dẫn")).toHaveValue("Lấy nước tại đây");
 		expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
 		await user.click(screen.getByRole("button", { name: "Hủy" }));
@@ -205,39 +204,13 @@ describe("CreateCheckpointForm", () => {
 		expect(onSubmit).not.toHaveBeenCalled();
 	});
 
-	it("preserves edited values when an update fails", async () => {
+	it("asks for a new type when editing a legacy start checkpoint", async () => {
 		const user = userEvent.setup();
-		const onSubmit = vi.fn().mockResolvedValue(null);
+		const onSubmit = vi.fn();
 		render(
 			<CreateCheckpointForm
-				checkpoint={existingCheckpoint}
+				checkpoint={{ ...existingCheckpoint, type: "start" }}
 				location={existingCheckpoint.location}
-				expectedDurationMinutes={120}
-				disabled={false}
-				isSubmitting={false}
-				error="Không thể cập nhật điểm dừng"
-				onSubmit={onSubmit}
-				onCreated={vi.fn()}
-				onCancel={vi.fn()}
-			/>
-		);
-		const name = screen.getByLabelText("Tên điểm dừng");
-		await user.clear(name);
-		await user.type(name, "Tên sau chỉnh sửa");
-		await user.click(screen.getByRole("button", { name: "Lưu thay đổi" }));
-		await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
-		expect(name).toHaveValue("Tên sau chỉnh sửa");
-		expect(screen.getByRole("alert")).toHaveTextContent("Không thể cập nhật điểm dừng");
-	});
-
-	it("submits only the editable checkpoint update fields", async () => {
-		const user = userEvent.setup();
-		const onSubmit = vi.fn().mockResolvedValue({ ...existingCheckpoint, name: "Điểm bắt đầu" });
-		render(
-			<CreateCheckpointForm
-				checkpoint={existingCheckpoint}
-				location={existingCheckpoint.location}
-				expectedDurationMinutes={120}
 				disabled={false}
 				isSubmitting={false}
 				error=""
@@ -246,24 +219,41 @@ describe("CreateCheckpointForm", () => {
 				onCancel={vi.fn()}
 			/>
 		);
-		await user.clear(screen.getByLabelText("Tên điểm dừng"));
-		await user.type(screen.getByLabelText("Tên điểm dừng"), "Điểm bắt đầu");
-		await user.selectOptions(screen.getByLabelText("Loại điểm dừng"), "start");
+		expect(screen.getByLabelText("Vị trí")).toHaveValue("");
+		await user.click(screen.getByRole("button", { name: "Lưu thay đổi" }));
+		expect(await screen.findByText("Vui lòng chọn loại vị trí")).toBeInTheDocument();
+		expect(onSubmit).not.toHaveBeenCalled();
+	});
+
+	it("keeps stored arrival offset and compatibility flag when updating", async () => {
+		const user = userEvent.setup();
+		const onSubmit = vi.fn().mockResolvedValue(existingCheckpoint);
+		render(
+			<CreateCheckpointForm
+				checkpoint={existingCheckpoint}
+				location={existingCheckpoint.location}
+				disabled={false}
+				isSubmitting={false}
+				error=""
+				onSubmit={onSubmit}
+				onCreated={vi.fn()}
+				onCancel={vi.fn()}
+			/>
+		);
+		await user.selectOptions(screen.getByLabelText("Vị trí"), "dangerous");
 		await user.click(screen.getByRole("button", { name: "Lưu thay đổi" }));
 		await waitFor(() =>
 			expect(onSubmit).toHaveBeenCalledWith({
-				name: "Điểm bắt đầu",
+				name: "Điểm nguy hiểm",
 				location,
 				radiusMeters: 20,
-				type: "start",
+				type: "dangerous",
 				expectedArrivalOffset: 35,
 				instructions: "Lấy nước tại đây",
 				nearbyWaterOrShelter: true,
 			})
 		);
 		const payload = onSubmit.mock.calls[0][0];
-		expect(screen.getByLabelText("Loại điểm dừng")).toBeVisible();
-		expect(screen.queryByText("Có nguồn nước hoặc nơi trú ẩn gần đây")).not.toBeInTheDocument();
 		expect(payload).not.toHaveProperty("id");
 		expect(payload).not.toHaveProperty("routeId");
 		expect(payload).not.toHaveProperty("routePosition");

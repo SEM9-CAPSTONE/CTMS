@@ -32,6 +32,7 @@ import { AdminSettlementsPage } from "../features/settlements/pages/AdminSettlem
 import { HostWalletPage } from "../features/settlements/pages/HostWalletPage";
 import { AdminTrekkingRoutesPage } from "../features/trekking-routes/pages/AdminTrekkingRoutesPage";
 import { CreateTrekkingRoutePage } from "../features/trekking-routes/pages/CreateTrekkingRoutePage";
+import { TrekkingRouteDetailPage } from "../features/trekking-routes/pages/TrekkingRouteDetailPage";
 import { TrekkingRoutesPage } from "../features/trekking-routes/pages/TrekkingRoutesPage";
 import { AdminTripsPage } from "../features/trips/pages/AdminTripsPage";
 import { CreateTripPage } from "../features/trips/pages/CreateTripPage";
@@ -190,6 +191,40 @@ export function AppRoutes() {
 							<NotFoundPage onBackToHome={() => navigateTo(RoutePath.PORTER_ASSIGNMENTS)} />
 						)}
 					</main>
+				</HostLayout>
+			</AppRoleGuard>
+		);
+	}
+
+	const trekkingRoutePrefix = `${RoutePath.HOST_TREKKING_ROUTES}/`;
+	if (
+		currentPath.startsWith(trekkingRoutePrefix) &&
+		currentPath !== RoutePath.HOST_CREATE_TREKKING_ROUTE
+	) {
+		const [routeId, action] = currentPath.slice(trekkingRoutePrefix.length).split("/");
+		const isEdit = action === "edit";
+		const valid = UUID_PATTERN.test(routeId) && (action === undefined || isEdit);
+		return (
+			<AppRoleGuard
+				allowedRoles={["host"]}
+				currentRoles={currentRoles}
+				onNavigateHome={() => navigateTo(RoutePath.HOME)}
+			>
+				<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
+					{!valid ? (
+						<NotFoundPage onBackToHome={() => navigateTo(RoutePath.HOST_TREKKING_ROUTES)} />
+					) : isEdit ? (
+						<CreateTrekkingRoutePage
+							routeId={routeId}
+							onViewRouteDetail={(id) => navigateTo(`${trekkingRoutePrefix}${id}`)}
+						/>
+					) : (
+						<TrekkingRouteDetailPage
+							routeId={routeId}
+							onBack={() => navigateTo(RoutePath.HOST_TREKKING_ROUTES)}
+							onEdit={(id) => navigateTo(`${trekkingRoutePrefix}${id}/edit`)}
+						/>
+					)}
 				</HostLayout>
 			</AppRoleGuard>
 		);
@@ -472,7 +507,10 @@ export function AppRoutes() {
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
 					<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
-						<CreateTrekkingRoutePage onBackHome={() => navigateTo(RoutePath.DASHBOARD)} />
+						<CreateTrekkingRoutePage
+							onBackHome={() => navigateTo(RoutePath.DASHBOARD)}
+							onViewRouteDetail={(id) => navigateTo(`${RoutePath.HOST_TREKKING_ROUTES}/${id}`)}
+						/>
 					</HostLayout>
 				</AppRoleGuard>
 			);
@@ -536,7 +574,10 @@ export function AppRoutes() {
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
 					<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
-						<TrekkingRoutesPage onBackHome={() => navigateTo(RoutePath.DASHBOARD)} />
+						<TrekkingRoutesPage
+							onBackHome={() => navigateTo(RoutePath.DASHBOARD)}
+							onViewRouteDetail={(id) => navigateTo(`${RoutePath.HOST_TREKKING_ROUTES}/${id}`)}
+						/>
 					</HostLayout>
 				</AppRoleGuard>
 			);

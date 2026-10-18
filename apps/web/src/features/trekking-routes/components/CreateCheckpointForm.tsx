@@ -1,20 +1,26 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertCircle, Loader2 } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import {
-	CHECKPOINT_DEFAULT_NAMES,
 	type CreateCheckpointFormValues,
 	checkpointDefaultValues,
 	createCheckpointFormSchema,
 	toCreateCheckpointInput,
 } from "../schema/create-checkpoint.schema";
-import type { CreateCheckpointInput, GeoJsonPoint, RouteCheckpoint } from "../types";
+import type {
+	CreateCheckpointInput,
+	GeoJsonPoint,
+	RouteCheckpoint,
+	RouteCheckpointType,
+} from "../types";
+import { DANGER_AREA_VALUE, LocationTypeOptions } from "./LocationTypeOptions";
 
 interface Props {
 	checkpoint?: RouteCheckpoint;
 	location?: GeoJsonPoint;
-	expectedDurationMinutes: number;
+	initialType?: RouteCheckpointType;
+	onSelectDangerArea?: () => void;
 	disabled: boolean;
 	isSubmitting: boolean;
 	error: string;
@@ -29,7 +35,8 @@ const inputClass =
 export function CreateCheckpointForm({
 	checkpoint,
 	location,
-	expectedDurationMinutes,
+	initialType,
+	onSelectDangerArea,
 	disabled,
 	isSubmitting,
 	error,
@@ -37,7 +44,13 @@ export function CreateCheckpointForm({
 	onCreated,
 	onCancel,
 }: Props) {
-	const nameCustomized = useRef(Boolean(checkpoint));
+	const defaultsFor = (current?: RouteCheckpoint): CreateCheckpointFormValues => {
+		const values = checkpointDefaultValues(
+			current?.location ?? { type: "Point", coordinates: [0, 0] },
+			current
+		);
+		return current || !initialType ? values : { ...values, type: initialType };
+	};
 	const {
 		register,
 		handleSubmit,
@@ -47,17 +60,12 @@ export function CreateCheckpointForm({
 		formState: { errors },
 	} = useForm<CreateCheckpointFormValues>({
 		resolver: zodResolver(createCheckpointFormSchema),
-		defaultValues: checkpointDefaultValues({ type: "Point", coordinates: [0, 0] }, checkpoint),
+		defaultValues: defaultsFor(checkpoint),
 	});
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: reset only when the edited checkpoint changes
 	useEffect(() => {
-		nameCustomized.current = Boolean(checkpoint);
-		reset(
-			checkpointDefaultValues(
-				checkpoint?.location ?? { type: "Point", coordinates: [0, 0] },
-				checkpoint
-			)
-		);
+		reset(defaultsFor(checkpoint));
 	}, [checkpoint, reset]);
 
 	useEffect(() => {
@@ -68,93 +76,36 @@ export function CreateCheckpointForm({
 
 	return (
 		<form
-			aria-label={checkpoint ? "Sửa điểm dừng" : "Thêm điểm dừng"}
+			aria-label={checkpoint ? "Sửa vị trí" : "Thêm vị trí"}
 			className="mt-5 grid gap-4 sm:grid-cols-2"
 			onSubmit={handleSubmit(async (values) => {
 				if (!location) {
 					setError("location", { message: "Vui lòng chọn vị trí trên bản đồ" });
 					return;
 				}
-				if (Number(values.expectedArrivalOffset) > expectedDurationMinutes) {
-					setError("expectedArrivalOffset", {
-						message: `Thời gian đến không được vượt quá ${expectedDurationMinutes} phút`,
-					});
-					return;
-				}
-				const saved = await onSubmit(
-					toCreateCheckpointInput(
-						{ ...values, location },
-						checkpoint?.nearbyWaterOrShelter ?? false
-					)
-				);
+				const saved = await onSubmit(toCreateCheckpointInput({ ...values, location }, checkpoint));
 				if (saved) {
-					if (!checkpoint) {
-						nameCustomized.current = false;
-						reset(checkpointDefaultValues({ type: "Point", coordinates: [0, 0] }));
-					}
+					if (!checkpoint) reset(defaultsFor());
 					onCreated();
 				}
 			})}
 		>
 			<label className="text-sm font-bold">
-				Tên điểm dừng
-				<input
-					aria-label="Tên điểm dừng"
-					maxLength={150}
-					disabled={fieldDisabled}
-					className={inputClass}
-					{...register("name", {
-						onChange: () => {
-							nameCustomized.current = true;
-						},
-					})}
-				/>
-				{errors.name && (
-					<span className="mt-1 block text-xs text-red-600">{errors.name.message}</span>
-				)}
-			</label>
-			<label className="text-sm font-bold">
-				Loại điểm dừng
+				Vị trí
 				<select
-					aria-label="Loại điểm dừng"
+					aria-label="Vị trí"
 					disabled={fieldDisabled}
 					className={inputClass}
 					{...register("type", {
 						onChange: (event) => {
-							if (!nameCustomized.current) {
-								setValue(
-									"name",
-									CHECKPOINT_DEFAULT_NAMES[
-										event.target.value as keyof typeof CHECKPOINT_DEFAULT_NAMES
-									],
-									{ shouldDirty: true, shouldValidate: true }
-								);
-							}
+							if (event.target.value === DANGER_AREA_VALUE) onSelectDangerArea?.();
 						},
 					})}
 				>
-					<option value="start">Bắt đầu</option>
-					<option value="rest">Nghỉ chân</option>
-					<option value="water">Nguồn nước</option>
-					<option value="dangerous">Nguy hiểm</option>
-					<option value="emergency_shelter">Nơi trú ẩn khẩn cấp</option>
-					<option value="finish">Kết thúc</option>
+					<LocationTypeOptions includeDangerArea={!checkpoint && Boolean(onSelectDangerArea)} />
 				</select>
-			</label>
-			<p className="text-sm text-[#667a6d]">Bán kính an toàn của điểm dừng cố định: 20 mét.</p>
-			<label className="text-sm font-bold">
-				Thời gian đến dự kiến (phút)
-				<input
-					aria-label="Thời gian đến dự kiến (phút)"
-					inputMode="numeric"
-					disabled={fieldDisabled}
-					className={inputClass}
-					{...register("expectedArrivalOffset")}
-				/>
-				{errors.expectedArrivalOffset && (
-					<span className="mt-1 block text-xs text-red-600">
-						{errors.expectedArrivalOffset.message}
-					</span>
+				{errors.type && (
+					<span className="mt-1 block text-xs text-red-600">{errors.type.message}</span>
 				)}
 			</label>
 			<label className="text-sm font-bold sm:col-span-2">
@@ -196,8 +147,8 @@ export function CreateCheckpointForm({
 							? "Đang lưu thay đổi..."
 							: "Lưu thay đổi"
 						: isSubmitting
-							? "Đang thêm điểm dừng..."
-							: "Thêm điểm dừng"}
+							? "Đang thêm vị trí..."
+							: "Thêm vị trí"}
 				</button>
 				{checkpoint && (
 					<button
