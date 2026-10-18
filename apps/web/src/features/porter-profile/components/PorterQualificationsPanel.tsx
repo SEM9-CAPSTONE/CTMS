@@ -75,9 +75,7 @@ export function PorterQualificationsPanel({
 			{/* Panel Header */}
 			<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-[#e7eee7] pb-5">
 				<div>
-					<h2 className="text-lg font-extrabold text-[#10221b]">
-						Chứng chỉ & Năng lực tuyến trekking
-					</h2>
+					<h2 className="text-lg font-extrabold text-[#10221b]">Năng lực theo tuyến trekking</h2>
 					<p className="mt-0.5 text-xs text-[#627769]">
 						Khai báo độ thành thạo và số lần dẫn đoàn cho từng tuyến để Host/Admin xác minh điều
 						kiện làm Trưởng nhóm.
@@ -101,7 +99,7 @@ export function PorterQualificationsPanel({
 						className="flex items-center gap-1.5 rounded-xl bg-[#164027] px-4 py-2.5 text-xs font-extrabold text-white shadow-xs transition hover:bg-[#205234] disabled:cursor-not-allowed disabled:opacity-50"
 					>
 						<Plus size={15} />
-						<span>Thêm chứng chỉ tuyến</span>
+						<span>Thêm năng lực tuyến</span>
 					</button>
 				</div>
 			</div>
@@ -145,7 +143,7 @@ export function PorterQualificationsPanel({
 						className="flex flex-col items-center justify-center py-12 text-[#627769]"
 					>
 						<Loader2 size={32} className="animate-spin text-[#164027]" />
-						<p className="mt-3 text-xs font-bold">Đang tải danh sách chứng chỉ tuyến...</p>
+						<p className="mt-3 text-xs font-bold">Đang tải danh sách năng lực tuyến...</p>
 					</div>
 				) : qualifications.length === 0 ? (
 					<div
@@ -156,7 +154,7 @@ export function PorterQualificationsPanel({
 							<Compass size={28} />
 						</div>
 						<h4 className="mt-3 font-extrabold text-[#10221b]">
-							Chưa có chứng chỉ tuyến trekking nào
+							Chưa có năng lực tuyến trekking nào
 						</h4>
 						<p className="mt-1 max-w-md text-xs text-[#627769]">
 							Bạn chưa đăng ký năng lực cho tuyến trekking nào. Hãy thêm tuyến để Host và Admin có
@@ -168,7 +166,7 @@ export function PorterQualificationsPanel({
 							className="mt-4 flex items-center gap-1.5 rounded-xl bg-[#164027] px-4 py-2 text-xs font-extrabold text-white transition hover:bg-[#205234]"
 						>
 							<Plus size={14} />
-							<span>Thêm chứng chỉ tuyến đầu tiên</span>
+							<span>Thêm năng lực tuyến đầu tiên</span>
 						</button>
 					</div>
 				) : (

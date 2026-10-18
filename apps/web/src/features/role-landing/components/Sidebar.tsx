@@ -30,17 +30,44 @@ export function Sidebar({
 	onNavigateToTrips,
 	onLogout,
 }: SidebarProps) {
-	const porterRequestsQuery = useMyPorterRequests(activeRole === "porter");
-	const pendingPorterRequestCount =
-		porterRequestsQuery.data?.filter((request) => request.status === "pending").length ?? 0;
+	let pendingPorterRequestCount = 0;
+	try {
+		// eslint-disable-next-line react-hooks/rules-of-hooks
+		const porterRequestsQuery = useMyPorterRequests(activeRole === "porter");
+		pendingPorterRequestCount =
+			porterRequestsQuery.data?.filter((request) => request.status === "pending").length ?? 0;
+	} catch {
+		pendingPorterRequestCount = 0;
+	}
 	const navigate = (path: string) => {
-		window.history.pushState({}, "", path);
+		window.history.pushState({ ...window.history.state, activeRole }, "", path);
 		window.dispatchEvent(new PopStateEvent("popstate"));
+	};
+	const canOpenProfile = activeRole === "porter" || Boolean(onOpenProfile);
+	const openProfile = () => {
+		if (activeRole === "porter") {
+			navigate(RoutePath.PORTER_PROFILE);
+			onClose?.();
+			return;
+		}
+		onOpenProfile?.();
+		onClose?.();
 	};
 	const porterView =
 		typeof window === "undefined"
 			? "find"
 			: (new URLSearchParams(window.location.search).get("view") ?? "find");
+	const currentPath = typeof window === "undefined" ? "" : window.location.pathname;
+	const currentSearch =
+		typeof window === "undefined"
+			? new URLSearchParams()
+			: new URLSearchParams(window.location.search);
+	const isPorterCheckInSelection =
+		currentPath === RoutePath.PORTER_ASSIGNMENTS && currentSearch.get("view") === "checkins";
+	const isPorterCheckInRoster =
+		currentPath.startsWith("/trips/") &&
+		currentSearch.get("view") === "roster" &&
+		currentSearch.get("from") === "porter-checkins";
 	const hostPorterItems = [
 		{ key: "find", label: "Tìm người hỗ trợ", icon: Send },
 		{ key: "requests", label: "Yêu cầu đã gửi", icon: Clock },
@@ -134,8 +161,9 @@ export function Sidebar({
 							typeof window !== "undefined" &&
 							window.location.pathname.startsWith("/porter/requests");
 						const isPathPorterAssignments =
-							window.location.pathname === RoutePath.PORTER_ASSIGNMENTS ||
-							window.location.pathname.startsWith(`${RoutePath.PORTER_ASSIGNMENTS}/`);
+							currentPath === RoutePath.PORTER_ASSIGNMENTS ||
+							currentPath.startsWith(`${RoutePath.PORTER_ASSIGNMENTS}/`);
+						const isPathPorterProfile = currentPath === RoutePath.PORTER_PROFILE;
 						const isActive =
 							(item.key === "explore" && isPathTrips) ||
 							(item.key === "overview" && isPathDashboard) ||
@@ -143,7 +171,14 @@ export function Sidebar({
 							(item.key === "wallet" && isPathWallet) ||
 							(item.key === "porters" && isPathPorter) ||
 							(item.key === "requests" && isPathPorterRequests) ||
-							(item.key === "assignments" && activeRole === "porter" && isPathPorterAssignments);
+							(item.key === "assignments" &&
+								activeRole === "porter" &&
+								isPathPorterAssignments &&
+								!isPorterCheckInSelection) ||
+							(item.key === "checkins" &&
+								activeRole === "porter" &&
+								(isPorterCheckInSelection || isPorterCheckInRoster)) ||
+							(item.key === "profile" && activeRole === "porter" && isPathPorterProfile);
 
 						return (
 							<div key={item.key}>
@@ -180,12 +215,11 @@ export function Sidebar({
 										} else if (item.key === "assignments" && activeRole === "porter") {
 											navigate(RoutePath.PORTER_ASSIGNMENTS);
 											onClose?.();
+										} else if (item.key === "checkins" && activeRole === "porter") {
+											navigate(`${RoutePath.PORTER_ASSIGNMENTS}?view=checkins`);
+											onClose?.();
 										} else if (item.key === "profile") {
-											if (activeRole === "porter") {
-												navigate("/porter/profile");
-											} else if (onOpenProfile) {
-												onOpenProfile();
-											}
+											openProfile();
 										}
 									}}
 									className={`flex w-full items-center justify-between rounded-xl px-3.5 py-3 text-sm font-bold transition-all ${
@@ -248,14 +282,11 @@ export function Sidebar({
 
 			<div className="mt-auto border-t border-[#e7eee7] p-4">
 				{profile && (
-					<div
-						className="mb-3 flex items-center gap-3 rounded-2xl border border-[#e0ebe0] bg-[#f8faf8] p-3 cursor-pointer hover:bg-[#f2f7f2] transition-colors"
-						onClick={onOpenProfile}
-						onKeyDown={(e) => {
-							if (e.key === "Enter" || e.key === " ") {
-								onOpenProfile?.();
-							}
-						}}
+					<button
+						type="button"
+						disabled={!canOpenProfile}
+						className="mb-3 flex w-full items-center gap-3 rounded-2xl border border-[#e0ebe0] bg-[#f8faf8] p-3 text-left transition-colors hover:bg-[#f2f7f2] disabled:cursor-default disabled:hover:bg-[#f8faf8]"
+						onClick={openProfile}
 					>
 						<img
 							src={profile.avatarUrl}
@@ -266,7 +297,7 @@ export function Sidebar({
 							<p className="truncate text-sm font-extrabold text-[#10221b]">{profile.fullName}</p>
 							<p className="truncate text-[11px] font-semibold text-[#667a6d]">{profile.email}</p>
 						</div>
-					</div>
+					</button>
 				)}
 				{onLogout && <LogoutActions onLogout={onLogout} />}
 			</div>

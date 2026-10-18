@@ -11,6 +11,16 @@ const ACTOR: AuthenticatedUser = {
 };
 
 describe("PorterProfileController", () => {
+	it("derives led-Trip history ownership from the authenticated actor", async () => {
+		const service = { getMyLedTripHistory: jest.fn().mockResolvedValue({ items: [] }) };
+		const controller = new PorterProfileController(service as unknown as PorterProfilesService);
+		const query = { page: 2, limit: 5 };
+
+		await controller.getMyLedTripHistory({ user: ACTOR }, query);
+
+		expect(service.getMyLedTripHistory).toHaveBeenCalledWith(ACTOR.userId, query);
+	});
+
 	it("derives profile ownership from the authenticated actor", async () => {
 		const service = { updateMyProfile: jest.fn().mockResolvedValue({ version: 1 }) };
 		const controller = new PorterProfileController(service as unknown as PorterProfilesService);

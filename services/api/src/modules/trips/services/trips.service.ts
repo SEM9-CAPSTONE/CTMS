@@ -21,12 +21,17 @@ import type {
 	GeoJsonPointDto,
 } from "../dto/create-trip.dto";
 import type { HostPorterAssignmentTripDto } from "../dto/host-porter-assignment-response.dto";
+import type { ListTripReviewsQueryDto } from "../dto/list-trip-reviews-query.dto";
 import type { PorterAssignedTripResponseDto } from "../dto/porter-assigned-trip-response.dto";
 import type { PorterTripOperationsResponseDto } from "../dto/porter-trip-operations-response.dto";
 import type { CancelTripDto, RescheduleTripDto } from "../dto/reschedule-trip.dto";
 import { ReviewTripAction, type ReviewTripDto } from "../dto/review-trip.dto";
 import type { SearchTripsQueryDto } from "../dto/search-trips-query.dto";
-import type { PaginatedTripsResponseDto, TripResponseDto } from "../dto/trip-response.dto";
+import type {
+	PaginatedTripReviewsResponseDto,
+	PaginatedTripsResponseDto,
+	TripResponseDto,
+} from "../dto/trip-response.dto";
 import { WaypointType } from "../entities/trip-waypoint.entity";
 import { type GeoPoint, TripStatus, TripType } from "../entities/trip.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
@@ -641,6 +646,23 @@ export class TripsService {
 	 */
 	listPendingReview(): Promise<TripResponseDto[]> {
 		return this.tripsRepository.findPendingReview();
+	}
+
+	async listAdminReviews(query: ListTripReviewsQueryDto): Promise<PaginatedTripReviewsResponseDto> {
+		const { items, total } = await this.tripsRepository.findAdminReviews(
+			query.reviewOutcome,
+			query.page,
+			query.limit
+		);
+		return {
+			items,
+			pagination: {
+				page: query.page,
+				limit: query.limit,
+				total,
+				totalPages: total === 0 ? 0 : Math.ceil(total / query.limit),
+			},
+		};
 	}
 
 	async processPendingReviewDeadlines(now = new Date()): Promise<{

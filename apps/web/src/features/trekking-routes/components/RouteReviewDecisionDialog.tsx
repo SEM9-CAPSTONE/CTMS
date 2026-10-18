@@ -1,12 +1,12 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertTriangle, Check, Loader2, ShieldX, X } from "lucide-react";
+import { AlertTriangle, Check, Loader2, X } from "lucide-react";
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import {
 	type ReviewTrekkingRouteFormValues,
 	reviewTrekkingRouteSchema,
 } from "../schema/review-trekking-route.schema";
-import type { AdminTrekkingRouteReview, ReviewTrekkingRouteAction } from "../types";
+import type { AdminTrekkingRouteReview } from "../types";
 
 interface Props {
 	open: boolean;
@@ -18,7 +18,7 @@ interface Props {
 }
 
 const decisions: Array<{
-	action: ReviewTrekkingRouteAction;
+	action: ReviewTrekkingRouteFormValues["action"];
 	label: string;
 	icon: typeof Check;
 	selectedClass: string;
@@ -31,15 +31,9 @@ const decisions: Array<{
 	},
 	{
 		action: "decline",
-		label: "Trả về bản nháp",
+		label: "Từ chối và trả về bản nháp",
 		icon: AlertTriangle,
 		selectedClass: "border-amber-500 bg-amber-50 text-amber-900",
-	},
-	{
-		action: "non_operable",
-		label: "Không được vận hành",
-		icon: ShieldX,
-		selectedClass: "border-red-500 bg-red-50 text-red-800",
 	},
 ];
 
@@ -94,7 +88,7 @@ export function RouteReviewDecisionDialog({
 						</button>
 					</header>
 					<div className="space-y-5 p-5">
-						<div className="grid gap-3 sm:grid-cols-3">
+						<div className="grid gap-3 sm:grid-cols-2">
 							{decisions.map((decision) => {
 								const Icon = decision.icon;
 								return (

@@ -1,7 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { HttpError } from "../../../core/api";
 import { trekkingRoutesService } from "../services/trekking-routes.service";
-import type { AdminTrekkingRouteReview, ReviewTrekkingRouteInput } from "../types";
+import type {
+	AdminTrekkingRouteReview,
+	ReviewTrekkingRouteInput,
+	RouteReviewOutcomeFilter,
+	TrekkingRoutesPagination,
+} from "../types";
+
+const EMPTY_PAGINATION: TrekkingRoutesPagination = {
+	page: 1,
+	limit: 20,
+	total: 0,
+	totalPages: 0,
+};
 
 function backendMessage(error: HttpError): string | null {
 	const data = error.errorData as { message?: unknown } | null;
@@ -33,28 +45,39 @@ export function mapRouteReviewError(error: unknown): string {
 	return message || "Không thể xử lý xét duyệt tuyến đường.";
 }
 
-export function useAdminRouteReviews() {
+export function useAdminRouteReviews(
+	reviewOutcome: RouteReviewOutcomeFilter = "pending",
+	page = 1,
+	limit = 20
+) {
 	const [items, setItems] = useState<AdminTrekkingRouteReview[]>([]);
+	const [pagination, setPagination] = useState<TrekkingRoutesPagination>(EMPTY_PAGINATION);
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState("");
+	const requestSequence = useRef(0);
 
 	const reload = useCallback(async () => {
+		const requestId = ++requestSequence.current;
 		setIsLoading(true);
 		setError("");
 		try {
-			setItems(await trekkingRoutesService.listPendingReview());
+			const response = await trekkingRoutesService.listAdminReviews({ reviewOutcome, page, limit });
+			if (requestId !== requestSequence.current) return;
+			setItems(response.items);
+			setPagination(response.pagination);
 		} catch (requestError) {
+			if (requestId !== requestSequence.current) return;
 			setError(mapRouteReviewError(requestError));
 		} finally {
-			setIsLoading(false);
+			if (requestId === requestSequence.current) setIsLoading(false);
 		}
-	}, []);
+	}, [limit, page, reviewOutcome]);
 
 	useEffect(() => {
 		void reload();
 	}, [reload]);
 
-	return { items, isLoading, error, reload };
+	return { items, pagination, isLoading, error, reload };
 }
 
 export function useReviewTrekkingRoute() {

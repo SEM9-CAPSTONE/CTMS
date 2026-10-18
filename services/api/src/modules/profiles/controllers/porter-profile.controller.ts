@@ -1,10 +1,15 @@
-import { Body, Controller, Get, Patch, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Patch, Query, Req, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
 import { Roles } from "../../auth/decorators/roles.decorator";
 import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../../auth/guards/roles.guard";
 import type { AuthenticatedUser } from "../../auth/jwt.strategy";
 import { UserRole } from "../../users/entities/user.entity";
+// biome-ignore lint/style/useImportType: decorated request DTO needs runtime metadata for NestJS ValidationPipe
+import {
+	PaginatedPorterLedTripHistoryResponseDto,
+	PorterLedTripHistoryQueryDto,
+} from "../dto/porter-led-trip-history.dto";
 import { PorterProfileResponseDto } from "../dto/porter-profile-response.dto";
 // biome-ignore lint/style/useImportType: decorated request DTO needs runtime metadata
 import { UpdatePorterProfileDto } from "../dto/update-porter-profile.dto";
@@ -28,6 +33,16 @@ export class PorterProfileController {
 	@ApiResponse({ status: 200, type: PorterProfileResponseDto })
 	getMyProfile(@Req() request: AuthenticatedRequest): Promise<PorterProfileResponseDto> {
 		return this.porterProfilesService.getMyProfile(request.user.userId);
+	}
+
+	@Get("led-trips")
+	@ApiOperation({ summary: "List completed Trips led by the authenticated Porter" })
+	@ApiResponse({ status: 200, type: PaginatedPorterLedTripHistoryResponseDto })
+	getMyLedTripHistory(
+		@Req() request: AuthenticatedRequest,
+		@Query() query: PorterLedTripHistoryQueryDto
+	): Promise<PaginatedPorterLedTripHistoryResponseDto> {
+		return this.porterProfilesService.getMyLedTripHistory(request.user.userId, query);
 	}
 
 	@Patch()

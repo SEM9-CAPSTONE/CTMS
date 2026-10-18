@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { AdminTrekkingRouteReview } from "../types";
+import type { AdminTrekkingRouteReview, PaginatedAdminRouteReviews } from "../types";
 
 const route: AdminTrekkingRouteReview = {
 	id: "route-1",
@@ -35,13 +35,27 @@ const route: AdminTrekkingRouteReview = {
 		},
 	],
 	dangerZones: [],
+	reviewOutcome: "pending",
+	reviewedAt: null,
 };
+
+function paginated(
+	items: AdminTrekkingRouteReview[],
+	page = 1,
+	totalPages = items.length > 0 ? 1 : 0
+): PaginatedAdminRouteReviews {
+	return {
+		items,
+		pagination: { page, limit: 20, total: totalPages > 1 ? 21 : items.length, totalPages },
+	};
+}
 
 interface SetupOptions {
 	list?: AdminTrekkingRouteReview[];
+	totalPages?: number;
 	listError?: Error;
 	listErrorOnce?: Error;
-	deferredList?: Promise<AdminTrekkingRouteReview[]>;
+	deferredList?: Promise<PaginatedAdminRouteReviews>;
 	reviewResult?: AdminTrekkingRouteReview | null;
 	reviewError?: Error;
 	deferredReview?: Promise<AdminTrekkingRouteReview>;
@@ -49,17 +63,17 @@ interface SetupOptions {
 
 async function setup(options: SetupOptions = {}) {
 	vi.resetModules();
-	const listPendingReview = vi.fn();
+	const listAdminReviews = vi.fn();
 	if (options.deferredList) {
-		listPendingReview.mockReturnValue(options.deferredList);
+		listAdminReviews.mockReturnValue(options.deferredList);
 	} else if (options.listErrorOnce) {
-		listPendingReview
+		listAdminReviews
 			.mockRejectedValueOnce(options.listErrorOnce)
-			.mockResolvedValue(options.list ?? [route]);
+			.mockResolvedValue(paginated(options.list ?? [route], 1, options.totalPages));
 	} else if (options.listError) {
-		listPendingReview.mockRejectedValue(options.listError);
+		listAdminReviews.mockRejectedValue(options.listError);
 	} else {
-		listPendingReview.mockResolvedValue(options.list ?? [route]);
+		listAdminReviews.mockResolvedValue(paginated(options.list ?? [route], 1, options.totalPages));
 	}
 	const review = options.deferredReview
 		? vi.fn().mockReturnValue(options.deferredReview)
@@ -67,7 +81,7 @@ async function setup(options: SetupOptions = {}) {
 			? vi.fn().mockRejectedValue(options.reviewError)
 			: vi.fn().mockResolvedValue(options.reviewResult ?? { ...route, status: "active" });
 	vi.doMock("../services/trekking-routes.service", () => ({
-		trekkingRoutesService: { listPendingReview, review },
+		trekkingRoutesService: { listAdminReviews, review },
 	}));
 	vi.doMock("../components/RouteGeometryPreview", () => ({
 		RouteGeometryPreview: ({ geometry }: { geometry: { coordinates: unknown[] } }) => (
@@ -87,7 +101,7 @@ async function setup(options: SetupOptions = {}) {
 		waitFor,
 		within,
 		user: userEvent.setup(),
-		listPendingReview,
+		listAdminReviews,
 		review,
 	};
 }
@@ -100,14 +114,14 @@ afterEach(() => {
 
 describe("AdminTrekkingRoutesPage", () => {
 	it("renders the pending-review loading state", async () => {
-		let resolveList!: (items: AdminTrekkingRouteReview[]) => void;
-		const deferredList = new Promise<AdminTrekkingRouteReview[]>((resolve) => {
+		let resolveList!: (items: PaginatedAdminRouteReviews) => void;
+		const deferredList = new Promise<PaginatedAdminRouteReviews>((resolve) => {
 			resolveList = resolve;
 		});
 		const test = await setup({ deferredList });
 
 		expect(test.screen.getByTestId("route-reviews-loading")).toBeInTheDocument();
-		await test.act(async () => resolveList([route]));
+		await test.act(async () => resolveList(paginated([route])));
 		expect((await test.screen.findAllByText("Pine Ridge")).length).toBeGreaterThan(0);
 	});
 
@@ -118,6 +132,13 @@ describe("AdminTrekkingRoutesPage", () => {
 		expect(screen.getAllByText("Chờ duyệt").length).toBeGreaterThan(0);
 		expect(screen.getByTestId("route-geometry-preview")).toHaveTextContent("2 vertices");
 		expect(screen.getByText("Trail start")).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Chờ duyệt" })).toHaveAttribute(
+			"aria-pressed",
+			"true"
+		);
+		expect(screen.getByRole("button", { name: "Đã phê duyệt" })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Trả về chỉnh sửa" })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Tất cả" })).toBeInTheDocument();
 	});
 
 	it("renders the empty and error states", async () => {
@@ -135,25 +156,25 @@ describe("AdminTrekkingRoutesPage", () => {
 		await test.user.click(test.within(alert).getByRole("button"));
 
 		expect((await test.screen.findAllByText("Pine Ridge")).length).toBeGreaterThan(0);
-		expect(test.listPendingReview).toHaveBeenCalledTimes(2);
+		expect(test.listAdminReviews).toHaveBeenCalledTimes(2);
 	});
 
 	it("approves once and reloads authoritative pending data", async () => {
 		const test = await setup();
-		test.listPendingReview.mockResolvedValueOnce([]);
+		test.listAdminReviews.mockResolvedValueOnce(paginated([]));
 		await test.user.click(await test.screen.findByRole("button", { name: "Ra quyết định" }));
 		const confirm = test.screen.getByRole("button", { name: "Xác nhận quyết định" });
 		await test.user.dblClick(confirm);
 		await test.waitFor(() => expect(test.review).toHaveBeenCalledTimes(1));
 		expect(test.review).toHaveBeenCalledWith("route-1", { action: "approve", reason: undefined });
 		expect(await test.screen.findByText(/Đã phê duyệt và kích hoạt/)).toBeInTheDocument();
-		expect(test.listPendingReview).toHaveBeenCalledTimes(2);
+		expect(test.listAdminReviews).toHaveBeenCalledTimes(2);
 	});
 
 	it("requires a decline reason and accepts the 255-character boundary", async () => {
 		const test = await setup({ reviewResult: { ...route, status: "draft" } });
 		await test.user.click(await test.screen.findByRole("button", { name: "Ra quyết định" }));
-		await test.user.click(test.screen.getByRole("button", { name: "Trả về bản nháp" }));
+		await test.user.click(test.screen.getByRole("button", { name: "Từ chối và trả về bản nháp" }));
 		await test.user.click(test.screen.getByRole("button", { name: "Xác nhận quyết định" }));
 		expect(
 			await test.screen.findByText("Lý do là bắt buộc cho quyết định này.")
@@ -175,7 +196,7 @@ describe("AdminTrekkingRoutesPage", () => {
 	it("preserves the reason when a stale decision fails", async () => {
 		const test = await setup({ reviewError: new Error("stale") });
 		await test.user.click(await test.screen.findByRole("button", { name: "Ra quyết định" }));
-		await test.user.click(test.screen.getByRole("button", { name: "Trả về bản nháp" }));
+		await test.user.click(test.screen.getByRole("button", { name: "Từ chối và trả về bản nháp" }));
 		const reason = test.screen.getByLabelText("Lý do *");
 		await test.user.type(reason, "Keep this reason");
 		await test.user.click(test.screen.getByRole("button", { name: "Xác nhận quyết định" }));
@@ -183,17 +204,55 @@ describe("AdminTrekkingRoutesPage", () => {
 		expect(reason).toHaveValue("Keep this reason");
 	});
 
-	it("makes non-operable an explicit reasoned action", async () => {
-		const test = await setup({ reviewResult: { ...route, status: "closed" } });
+	it("keeps operational closure out of the approval workflow", async () => {
+		const test = await setup();
 		await test.user.click(await test.screen.findByRole("button", { name: "Ra quyết định" }));
-		await test.user.click(test.screen.getByRole("button", { name: "Không được vận hành" }));
-		await test.user.type(test.screen.getByLabelText("Lý do *"), "Protected area closure");
-		await test.user.click(test.screen.getByRole("button", { name: "Xác nhận quyết định" }));
+
+		expect(test.screen.getByRole("button", { name: "Phê duyệt" })).toBeInTheDocument();
+		expect(
+			test.screen.getByRole("button", { name: "Từ chối và trả về bản nháp" })
+		).toBeInTheDocument();
+		expect(
+			test.screen.queryByRole("button", { name: "Không được vận hành" })
+		).not.toBeInTheDocument();
+	});
+
+	it("maps filters to the API and resets pagination to page one", async () => {
+		const test = await setup({ totalPages: 2 });
+		await test.screen.findAllByText("Pine Ridge");
+
+		await test.user.click(test.screen.getByRole("button", { name: "Tiếp theo" }));
 		await test.waitFor(() =>
-			expect(test.review).toHaveBeenCalledWith("route-1", {
-				action: "non_operable",
-				reason: "Protected area closure",
+			expect(test.listAdminReviews).toHaveBeenCalledWith({
+				reviewOutcome: "pending",
+				page: 2,
+				limit: 20,
 			})
 		);
+
+		await test.user.click(test.screen.getByRole("button", { name: "Đã phê duyệt" }));
+		await test.waitFor(() =>
+			expect(test.listAdminReviews).toHaveBeenCalledWith({
+				reviewOutcome: "approved",
+				page: 1,
+				limit: 20,
+			})
+		);
+	});
+
+	it("renders historical approved Routes as read-only with their current status", async () => {
+		const approvedRoute: AdminTrekkingRouteReview = {
+			...route,
+			status: "closed",
+			reviewOutcome: "approved",
+			reviewedAt: "2026-08-29T00:00:00.000Z",
+		};
+		const test = await setup({ list: [approvedRoute] });
+
+		await test.screen.findAllByText("Pine Ridge");
+		expect(test.screen.getByText("Chỉ xem")).toBeInTheDocument();
+		expect(test.screen.queryByRole("button", { name: "Ra quyết định" })).not.toBeInTheDocument();
+		expect(test.screen.getAllByText("Đã phê duyệt").length).toBeGreaterThan(0);
+		expect(test.screen.getAllByText("Đã đóng").length).toBeGreaterThan(0);
 	});
 });

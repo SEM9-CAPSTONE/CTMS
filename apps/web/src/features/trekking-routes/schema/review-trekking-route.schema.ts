@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const reviewTrekkingRouteSchema = z
 	.object({
-		action: z.enum(["approve", "decline", "non_operable"]),
+		action: z.enum(["approve", "decline"]),
 		reason: z
 			.string()
 			.optional()

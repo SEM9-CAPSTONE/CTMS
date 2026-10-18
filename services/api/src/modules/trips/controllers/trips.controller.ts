@@ -32,6 +32,8 @@ import {
 } from "../dto/create-trip.dto";
 import { HostPorterAssignmentTripDto } from "../dto/host-porter-assignment-response.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
+import { ListTripReviewsQueryDto } from "../dto/list-trip-reviews-query.dto";
+// biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { PendingPorterRequestQueryDto } from "../dto/pending-porter-request-query.dto";
 import { PorterAssignedTripResponseDto } from "../dto/porter-assigned-trip-response.dto";
 import { PorterRequestResponseDto } from "../dto/porter-request-response.dto";
@@ -46,7 +48,11 @@ import { SearchTripsQueryDto } from "../dto/search-trips-query.dto";
 import { TripIdParamDto } from "../dto/trip-id-param.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { TripPorterRequestParamDto } from "../dto/trip-porter-request-param.dto";
-import { PaginatedTripsResponseDto, TripResponseDto } from "../dto/trip-response.dto";
+import {
+	PaginatedTripReviewsResponseDto,
+	PaginatedTripsResponseDto,
+	TripResponseDto,
+} from "../dto/trip-response.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { TripWaypointParamDto } from "../dto/trip-waypoint-param.dto";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
@@ -89,6 +95,19 @@ export class TripsController {
 	@ApiResponse({ status: 403, description: "Admin role required" })
 	listPendingReview(): Promise<TripResponseDto[]> {
 		return this.tripsService.listPendingReview();
+	}
+
+	@Get("admin-reviews")
+	@Roles(UserRole.ADMIN)
+	@ApiOperation({ summary: "List Trip review outcomes for Admin" })
+	@ApiResponse({ status: 200, type: PaginatedTripReviewsResponseDto })
+	@ApiResponse({ status: 400, description: "Invalid review filter or pagination query" })
+	@ApiResponse({ status: 401, description: "Authentication required" })
+	@ApiResponse({ status: 403, description: "Admin role required" })
+	listAdminReviews(
+		@Query() query: ListTripReviewsQueryDto
+	): Promise<PaginatedTripReviewsResponseDto> {
+		return this.tripsService.listAdminReviews(query);
 	}
 
 	@Get("mine")

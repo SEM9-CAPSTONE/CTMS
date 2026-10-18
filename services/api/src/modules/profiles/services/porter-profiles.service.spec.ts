@@ -26,6 +26,48 @@ function profile(overrides: Partial<PorterProfile> = {}): PorterProfile {
 }
 
 describe("PorterProfilesService", () => {
+	it("returns authenticated Porter led-Trip history with pagination metadata", async () => {
+		const profilesRepository = {
+			findLedTripHistory: jest.fn().mockResolvedValue({
+				items: [
+					{
+						tripId: "trip-1",
+						tripTitle: "Trekking Tà Năng",
+						routeId: "route-1",
+						routeName: "Tà Năng - Phan Dũng",
+						startsAt: FIXED_DATE,
+						endsAt: FIXED_DATE,
+						role: "lead",
+						status: "completed",
+					},
+				],
+				total: 6,
+			}),
+		};
+		const usersRepository = {
+			findOneWithRolesById: jest.fn().mockResolvedValue({
+				id: PORTER_ID,
+				status: UserStatus.ACTIVE,
+				role: UserRole.PORTER,
+				roleAssignments: [{ role: UserRole.PORTER }],
+			}),
+			getGrantedRoles: jest.fn().mockReturnValue([UserRole.PORTER]),
+		};
+		const service = new PorterProfilesService(
+			profilesRepository as unknown as PorterProfilesRepository,
+			usersRepository as unknown as UsersRepository,
+			{} as DataSource,
+			{} as PorterVerificationsRepository
+		);
+
+		const result = await service.getMyLedTripHistory(PORTER_ID, { page: 2, limit: 5 });
+
+		expect(profilesRepository.findLedTripHistory).toHaveBeenCalledWith(PORTER_ID, 2, 5);
+		expect(result.pagination).toEqual({ page: 2, limit: 5, total: 6, totalPages: 2 });
+		expect(result.items[0]).not.toHaveProperty("porterId");
+		expect(result.items[0]).not.toHaveProperty("hostId");
+	});
+
 	it("returns a version-zero default without persisting on GET", async () => {
 		const profilesRepository = {
 			findByPorterId: jest.fn().mockResolvedValue(null),

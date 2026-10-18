@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { Trip } from "../types";
+import type { AdminTripReview, PaginatedAdminTripReviews } from "../types";
 
-const trip: Trip = {
+const trip: AdminTripReview = {
 	id: "trip-1",
 	hostId: "host-1",
 	routeId: "route-1",
@@ -26,6 +26,8 @@ const trip: Trip = {
 	status: "pending_approval",
 	createdAt: "2026-09-15T00:00:00.000Z",
 	updatedAt: "2026-09-15T00:00:00.000Z",
+	reviewOutcome: "pending",
+	reviewedAt: null,
 	waypoints: [
 		{
 			id: "waypoint-1",
@@ -43,40 +45,52 @@ const trip: Trip = {
 	],
 };
 
+function paginated(
+	items: AdminTripReview[],
+	page = 1,
+	totalPages = items.length > 0 ? 1 : 0
+): PaginatedAdminTripReviews {
+	return {
+		items,
+		pagination: { page, limit: 20, total: totalPages > 1 ? 21 : items.length, totalPages },
+	};
+}
+
 interface SetupOptions {
-	list?: Trip[];
+	list?: AdminTripReview[];
+	totalPages?: number;
 	listError?: Error;
 	listErrorOnce?: Error;
-	deferredList?: Promise<Trip[]>;
-	reviewResult?: Trip | null;
+	deferredList?: Promise<PaginatedAdminTripReviews>;
+	reviewResult?: AdminTripReview | null;
 	reviewError?: Error;
 }
 
 async function setup(options: SetupOptions = {}) {
 	vi.resetModules();
-	const listPendingReview = vi.fn();
+	const listAdminReviews = vi.fn();
 	if (options.deferredList) {
-		listPendingReview.mockReturnValue(options.deferredList);
+		listAdminReviews.mockReturnValue(options.deferredList);
 	} else if (options.listErrorOnce) {
-		listPendingReview
+		listAdminReviews
 			.mockRejectedValueOnce(options.listErrorOnce)
-			.mockResolvedValue(options.list ?? [trip]);
+			.mockResolvedValue(paginated(options.list ?? [trip], 1, options.totalPages));
 	} else if (options.listError) {
-		listPendingReview.mockRejectedValue(options.listError);
+		listAdminReviews.mockRejectedValue(options.listError);
 	} else {
-		listPendingReview.mockResolvedValue(options.list ?? [trip]);
+		listAdminReviews.mockResolvedValue(paginated(options.list ?? [trip], 1, options.totalPages));
 	}
 	const review = options.reviewError
 		? vi.fn().mockRejectedValue(options.reviewError)
 		: vi.fn().mockResolvedValue(options.reviewResult ?? { ...trip, status: "published" });
 	vi.doMock("../services/trips.service", () => ({
-		tripsService: { listPendingReview, review },
+		tripsService: { listAdminReviews, review },
 	}));
 	const { act, render, screen, waitFor, within } = await import("@testing-library/react");
 	const userEvent = (await import("@testing-library/user-event")).default;
 	const { AdminTripsPage } = await import("./AdminTripsPage");
 	render(<AdminTripsPage />);
-	return { act, screen, waitFor, within, user: userEvent.setup(), listPendingReview, review };
+	return { act, screen, waitFor, within, user: userEvent.setup(), listAdminReviews, review };
 }
 
 afterEach(() => {
@@ -86,14 +100,14 @@ afterEach(() => {
 
 describe("AdminTripsPage", () => {
 	it("renders the pending-review loading state", async () => {
-		let resolveList!: (items: Trip[]) => void;
-		const deferredList = new Promise<Trip[]>((resolve) => {
+		let resolveList!: (items: PaginatedAdminTripReviews) => void;
+		const deferredList = new Promise<PaginatedAdminTripReviews>((resolve) => {
 			resolveList = resolve;
 		});
 		const test = await setup({ deferredList });
 
 		expect(test.screen.getByTestId("trip-reviews-loading")).toBeInTheDocument();
-		await test.act(async () => resolveList([trip]));
+		await test.act(async () => resolveList(paginated([trip])));
 		expect((await test.screen.findAllByText("Langbiang sunrise trek")).length).toBeGreaterThan(0);
 	});
 
@@ -102,6 +116,14 @@ describe("AdminTripsPage", () => {
 		expect((await screen.findAllByText("Langbiang sunrise trek")).length).toBeGreaterThan(0);
 		expect(screen.getAllByText("Chờ duyệt").length).toBeGreaterThan(0);
 		expect(screen.getByText("1. Trailhead")).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Chờ duyệt" })).toHaveAttribute(
+			"aria-pressed",
+			"true"
+		);
+		expect(screen.getByRole("button", { name: "Đã phê duyệt" })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Trả về chỉnh sửa" })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Tự động từ chối" })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Tất cả" })).toBeInTheDocument();
 	});
 
 	it("renders the empty and error states", async () => {
@@ -119,12 +141,12 @@ describe("AdminTripsPage", () => {
 		await test.user.click(test.within(alert).getByRole("button"));
 
 		expect((await test.screen.findAllByText("Langbiang sunrise trek")).length).toBeGreaterThan(0);
-		expect(test.listPendingReview).toHaveBeenCalledTimes(2);
+		expect(test.listAdminReviews).toHaveBeenCalledTimes(2);
 	});
 
 	it("approves once and reloads authoritative pending data", async () => {
 		const test = await setup();
-		test.listPendingReview.mockResolvedValueOnce([]);
+		test.listAdminReviews.mockResolvedValueOnce(paginated([]));
 		await test.user.click(await test.screen.findByRole("button", { name: "Ra quyết định" }));
 		const confirm = test.screen.getByRole("button", { name: "Xác nhận quyết định" });
 		await test.user.dblClick(confirm);
@@ -135,7 +157,7 @@ describe("AdminTripsPage", () => {
 			reason: undefined,
 		});
 		expect(await test.screen.findByText(/Đã phê duyệt và xuất bản/)).toBeInTheDocument();
-		expect(test.listPendingReview).toHaveBeenCalledTimes(2);
+		expect(test.listAdminReviews).toHaveBeenCalledTimes(2);
 	});
 
 	it("requires a decline reason and accepts the 255-character boundary", async () => {
@@ -168,5 +190,44 @@ describe("AdminTripsPage", () => {
 		await test.user.click(test.screen.getByRole("button", { name: "Xác nhận quyết định" }));
 		expect(await test.screen.findByRole("alert")).toHaveTextContent("Không thể kết nối");
 		expect(reason).toHaveValue("Keep this reason");
+	});
+
+	it("maps filters to the API and resets pagination to page one", async () => {
+		const test = await setup({ totalPages: 2 });
+		await test.screen.findAllByText("Langbiang sunrise trek");
+
+		await test.user.click(test.screen.getByRole("button", { name: "Tiếp theo" }));
+		await test.waitFor(() =>
+			expect(test.listAdminReviews).toHaveBeenCalledWith({
+				reviewOutcome: "pending",
+				page: 2,
+				limit: 20,
+			})
+		);
+
+		await test.user.click(test.screen.getByRole("button", { name: "Tự động từ chối" }));
+		await test.waitFor(() =>
+			expect(test.listAdminReviews).toHaveBeenCalledWith({
+				reviewOutcome: "auto_rejected",
+				page: 1,
+				limit: 20,
+			})
+		);
+	});
+
+	it("renders historical approved Trips as read-only with their current status", async () => {
+		const approvedTrip: AdminTripReview = {
+			...trip,
+			status: "completed",
+			reviewOutcome: "approved",
+			reviewedAt: "2026-09-16T00:00:00.000Z",
+		};
+		const test = await setup({ list: [approvedTrip] });
+
+		await test.screen.findAllByText("Langbiang sunrise trek");
+		expect(test.screen.getByText("Chỉ xem")).toBeInTheDocument();
+		expect(test.screen.queryByRole("button", { name: "Ra quyết định" })).not.toBeInTheDocument();
+		expect(test.screen.getAllByText("Đã phê duyệt").length).toBeGreaterThan(0);
+		expect(test.screen.getAllByText("Kết thúc").length).toBeGreaterThan(0);
 	});
 });

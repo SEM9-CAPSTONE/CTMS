@@ -21,6 +21,7 @@ import {
 import { PorterTripPhaseBadge } from "./PorterTripPhaseBadge";
 
 type PhaseFilter = "all" | PorterTripPhase;
+export type PorterAssignedTripsPanelMode = "assignments" | "checkins";
 
 const filterTabs: { key: PhaseFilter; label: string }[] = [
 	{ key: "all", label: "Tất cả" },
@@ -29,6 +30,8 @@ const filterTabs: { key: PhaseFilter; label: string }[] = [
 
 export interface PorterAssignedTripsPanelProps {
 	onViewTripDetail?: (tripId: string) => void;
+	onOpenRoster?: (tripId: string) => void;
+	mode?: PorterAssignedTripsPanelMode;
 }
 
 export interface PorterAssignedTripsPanelViewProps extends PorterAssignedTripsPanelProps {
@@ -42,6 +45,8 @@ export interface PorterAssignedTripsPanelViewProps extends PorterAssignedTripsPa
 
 export function PorterAssignedTripsPanelView({
 	onViewTripDetail,
+	onOpenRoster,
+	mode = "assignments",
 	trips,
 	isLoading,
 	error,
@@ -69,19 +74,22 @@ export function PorterAssignedTripsPanelView({
 		);
 	}, [displayableTrips, filter, search]);
 	const hasCriteria = filter !== "all" || search.trim() !== "";
+	const isCheckInMode = mode === "checkins";
+	const title = isCheckInMode ? "Chọn chuyến đi để điểm danh" : "Chuyến đi được phân công";
+	const description = isCheckInMode
+		? "Chọn một chuyến đi được phân công để mở danh sách điểm danh thành viên."
+		: "Xem lịch trình và thông tin các chuyến đi bạn tham gia.";
 
 	return (
 		<section
 			id="porter-assigned-trips"
-			aria-label="Chuyến đi được phân công"
+			aria-label={title}
 			className="rounded-[28px] border border-[#dfe8df] bg-white p-6 shadow-sm"
 		>
 			<div className="flex items-start justify-between gap-4 border-b border-[#e5eee7] pb-5">
 				<div>
-					<h1 className="text-xl font-extrabold text-[#10221b]">Chuyến đi được phân công</h1>
-					<p className="mt-1 text-sm text-[#667a6d]">
-						Xem lịch trình và thông tin các chuyến đi bạn tham gia.
-					</p>
+					<h1 className="text-xl font-extrabold text-[#10221b]">{title}</h1>
+					<p className="mt-1 text-sm text-[#667a6d]">{description}</p>
 					{updatedAt && isStale ? (
 						<p className="mt-1 text-xs text-[#667a6d]">
 							Dữ liệu tải lúc {new Date(updatedAt).toLocaleString("vi-VN")} · Cần tải lại để xác
@@ -209,11 +217,16 @@ export function PorterAssignedTripsPanelView({
 										<Button
 											variant="outline"
 											size="sm"
-											onClick={() => onViewTripDetail?.(trip.tripId)}
-											aria-label={`Chi tiết ${trip.title}`}
+											onClick={() =>
+												isCheckInMode
+													? onOpenRoster?.(trip.tripId)
+													: onViewTripDetail?.(trip.tripId)
+											}
+											aria-label={`${isCheckInMode ? "Mở điểm danh" : "Chi tiết"} ${trip.title}`}
 											className="gap-1 rounded-full"
 										>
-											Chi tiết <ArrowUpRight className="size-4" />
+											{isCheckInMode ? "Mở điểm danh" : "Chi tiết"}{" "}
+											<ArrowUpRight className="size-4" />
 										</Button>
 									</div>
 								</li>

@@ -1,5 +1,36 @@
 import { describe, expect, it } from "vitest";
-import { formatCancellationPolicyRules } from "./booking-details-formatters";
+import type { BookingPaymentStatus, BookingStatus } from "../types";
+import {
+	formatBookingStatus,
+	formatCancellationPolicyRules,
+	formatPaymentStatus,
+} from "./booking-details-formatters";
+
+describe("Booking status formatters", () => {
+	it.each([
+		["pending_payment", "Chờ thanh toán"],
+		["pending_reconfirmation", "Chờ xác nhận lại"],
+		["confirmed", "Đã xác nhận"],
+		["cancelled", "Đã hủy"],
+		["expired", "Đã hết hạn"],
+		["completed", "Đã hoàn thành"],
+	] as Array<[BookingStatus, string]>)("formats Booking status %s", (status, expected) => {
+		expect(formatBookingStatus(status)).toBe(expected);
+	});
+
+	it.each([
+		["not_required", "Không yêu cầu thanh toán"],
+		["unpaid", "Chưa thanh toán"],
+		["paid", "Đã thanh toán"],
+	] as Array<[BookingPaymentStatus, string]>)("formats Payment status %s", (status, expected) => {
+		expect(formatPaymentStatus(status)).toBe(expected);
+	});
+
+	it("formats null legacy values without inferring a workflow state", () => {
+		expect(formatBookingStatus(null)).toBe("Chưa cập nhật");
+		expect(formatPaymentStatus(null)).toBe("Chưa cập nhật");
+	});
+});
 
 describe("formatCancellationPolicyRules", () => {
 	it.each([

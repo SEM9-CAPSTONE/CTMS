@@ -36,7 +36,9 @@ export const API_ENDPOINTS = {
 	},
 	TREKKING: {
 		ROUTES: "/trekking-routes",
+		PAGINATED_ROUTES: "/trekking-routes/paginated",
 		PENDING_REVIEW: "/trekking-routes/pending-review",
+		ADMIN_REVIEWS: "/trekking-routes/admin-reviews",
 		ROUTE_BY_ID: (id: string) => `/trekking-routes/${id}`,
 		SUBMIT_FOR_APPROVAL: (routeId: string) => `/trekking-routes/${routeId}/submit-for-approval`,
 		CLOSE_ROUTE: (routeId: string) => `/trekking-routes/${routeId}/close`,
@@ -78,6 +80,7 @@ export const API_ENDPOINTS = {
 			`/trips/${tripId}/bookings/${bookingId}/members/${memberId}/status`,
 		GPS_LOGS: (tripId: string) => `/trips/${tripId}/gps-logs`,
 		PENDING_REVIEW: "/trips/pending-review",
+		ADMIN_REVIEWS: "/trips/admin-reviews",
 		REVIEW: (id: string) => `/trips/${id}/review`,
 		RESCHEDULE: (id: string) => `/trips/${id}/reschedule`,
 		CANCEL: (id: string) => `/trips/${id}/cancel`,
@@ -126,6 +129,7 @@ export const API_ENDPOINTS = {
 	},
 	PORTER: {
 		PROFILE: "/porter/profile",
+		LED_TRIPS: "/porter/profile/led-trips",
 		VERIFICATION: "/porter/verification",
 		VERIFICATION_DOCUMENTS: "/porter/verification/documents",
 		VERIFICATION_DOCUMENT: (documentId: string) => `/porter/verification/documents/${documentId}`,

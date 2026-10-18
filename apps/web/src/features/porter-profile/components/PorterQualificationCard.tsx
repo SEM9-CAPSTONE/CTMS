@@ -30,7 +30,7 @@ export function PorterQualificationCard({
 		if (qualification.proficiency === "learning") {
 			return (
 				<span className="inline-flex items-center gap-1 rounded-md bg-zinc-100 px-2 py-0.5 text-[11px] font-bold text-zinc-700">
-					Học việc (Không đủ điều kiện Lead)
+					Học việc (Không đủ điều kiện Trưởng nhóm)
 				</span>
 			);
 		}
@@ -44,7 +44,7 @@ export function PorterQualificationCard({
 		}
 		return (
 			<span className="inline-flex items-center gap-1 rounded-md bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800">
-				Chưa xác minh (Chưa đủ điều kiện Lead)
+				Chưa xác minh (Chưa đủ điều kiện Trưởng nhóm)
 			</span>
 		);
 	};

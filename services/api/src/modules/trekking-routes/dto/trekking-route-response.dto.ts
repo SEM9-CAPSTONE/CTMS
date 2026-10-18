@@ -30,9 +30,37 @@ export class TrekkingRouteResponseDto {
 	@ApiProperty({ enum: TrekkingRouteStatus })
 	status!: TrekkingRouteStatus;
 
+	@ApiPropertyOptional({ nullable: true })
+	latestRejectionReason?: string | null;
+
+	@ApiPropertyOptional({ nullable: true })
+	latestRejectionAt?: Date | null;
+
 	@ApiProperty()
 	createdAt!: Date;
 
 	@ApiProperty()
 	updatedAt!: Date;
+}
+
+export class TrekkingRoutesPaginationDto {
+	@ApiProperty()
+	page!: number;
+
+	@ApiProperty()
+	limit!: number;
+
+	@ApiProperty()
+	total!: number;
+
+	@ApiProperty()
+	totalPages!: number;
+}
+
+export class PaginatedTrekkingRoutesResponseDto {
+	@ApiProperty({ type: [TrekkingRouteResponseDto] })
+	items!: TrekkingRouteResponseDto[];
+
+	@ApiProperty({ type: TrekkingRoutesPaginationDto })
+	pagination!: TrekkingRoutesPaginationDto;
 }

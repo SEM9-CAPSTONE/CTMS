@@ -1,13 +1,17 @@
 import { API_ENDPOINTS, httpClient } from "../../../core/api";
 import type {
+	AdminRouteReviewsQuery,
 	AdminTrekkingRouteReview,
 	CreateCheckpointInput,
 	CreateRouteDangerZoneInput,
 	CreateTrekkingRouteInput,
 	CreatedTrekkingRoute,
+	PaginatedAdminRouteReviews,
+	PaginatedTrekkingRoutesResponse,
 	ReviewTrekkingRouteInput,
 	RouteCheckpoint,
 	RouteDangerZone,
+	RouteStatusFilter,
 	RouteStatusReasonInput,
 	UpdateCheckpointInput,
 } from "../types";
@@ -15,10 +19,28 @@ import type {
 export const trekkingRoutesService = {
 	listPendingReview: (): Promise<AdminTrekkingRouteReview[]> =>
 		httpClient.get<AdminTrekkingRouteReview[]>(API_ENDPOINTS.TREKKING.PENDING_REVIEW),
+	listAdminReviews: (query: AdminRouteReviewsQuery): Promise<PaginatedAdminRouteReviews> =>
+		httpClient.get<PaginatedAdminRouteReviews>(API_ENDPOINTS.TREKKING.ADMIN_REVIEWS, {
+			reviewOutcome: query.reviewOutcome,
+			page: query.page,
+			limit: query.limit,
+		}),
 	review: (routeId: string, input: ReviewTrekkingRouteInput): Promise<AdminTrekkingRouteReview> =>
 		httpClient.patch<AdminTrekkingRouteReview>(API_ENDPOINTS.TREKKING.REVIEW(routeId), input),
 	listMine: (): Promise<CreatedTrekkingRoute[]> =>
 		httpClient.get<CreatedTrekkingRoute[]>(API_ENDPOINTS.TREKKING.ROUTES),
+	listMinePaginated: (
+		page = 1,
+		limit = 20,
+		status: RouteStatusFilter = "all"
+	): Promise<PaginatedTrekkingRoutesResponse> =>
+		httpClient.get<PaginatedTrekkingRoutesResponse>(API_ENDPOINTS.TREKKING.PAGINATED_ROUTES, {
+			page,
+			limit,
+			status,
+		}),
+	getMineById: (routeId: string): Promise<CreatedTrekkingRoute> =>
+		httpClient.get<CreatedTrekkingRoute>(API_ENDPOINTS.TREKKING.ROUTE_BY_ID(routeId)),
 	create: (input: CreateTrekkingRouteInput): Promise<CreatedTrekkingRoute> =>
 		httpClient.post<CreatedTrekkingRoute>(API_ENDPOINTS.TREKKING.ROUTES, input),
 	updateDraft: (routeId: string, input: CreateTrekkingRouteInput): Promise<CreatedTrekkingRoute> =>

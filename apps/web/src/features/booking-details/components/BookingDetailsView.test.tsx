@@ -76,6 +76,14 @@ describe("BookingDetailsView", () => {
 		expect(screen.getByText("Người đặt chỗ chính")).toBeVisible();
 		expect(screen.getByText("Trekking Tent")).toBeVisible();
 		expect(screen.getByTestId("authoritative-total-amount")).toHaveTextContent(/1\.700\.000/);
+		expect(screen.getByTestId("booking-details-status")).toHaveClass(
+			"bg-amber-100",
+			"text-amber-900"
+		);
+		expect(screen.getByTestId("booking-details-payment-status")).toHaveClass(
+			"bg-amber-100",
+			"text-amber-900"
+		);
 		expect(
 			screen.getByText("Hủy trước ít nhất 48 giờ: hoàn 100% phần tiền đủ điều kiện.")
 		).toBeVisible();
@@ -88,6 +96,7 @@ describe("BookingDetailsView", () => {
 
 	it.each([
 		["pending_payment", "Chờ thanh toán"],
+		["pending_reconfirmation", "Chờ xác nhận lại"],
 		["confirmed", "Đã xác nhận"],
 		["cancelled", "Đã hủy"],
 		["expired", "Đã hết hạn"],
@@ -189,6 +198,8 @@ describe("BookingDetailsView", () => {
 			)
 		).toBeVisible();
 		expect(screen.queryByTestId("cancellation-refund-amount")).not.toBeInTheDocument();
+		expect(screen.getByTestId("booking-details-status")).toHaveClass("bg-emerald-100");
+		expect(screen.getByTestId("booking-details-payment-status")).toHaveClass("bg-slate-100");
 	});
 
 	it.each([

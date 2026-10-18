@@ -9,8 +9,10 @@ describe("reviewTrekkingRouteSchema", () => {
 		});
 	});
 
-	it.each(["decline", "non_operable"] as const)("requires a nonblank reason for %s", (action) => {
-		expect(reviewTrekkingRouteSchema.safeParse({ action, reason: "   " }).success).toBe(false);
+	it("requires a nonblank reason for decline", () => {
+		expect(reviewTrekkingRouteSchema.safeParse({ action: "decline", reason: "   " }).success).toBe(
+			false
+		);
 	});
 
 	it("trims a 255-character reason and rejects 256 characters", () => {
@@ -20,8 +22,13 @@ describe("reviewTrekkingRouteSchema", () => {
 		});
 		expect(valid.reason).toHaveLength(255);
 		expect(
-			reviewTrekkingRouteSchema.safeParse({ action: "non_operable", reason: "x".repeat(256) })
-				.success
+			reviewTrekkingRouteSchema.safeParse({ action: "decline", reason: "x".repeat(256) }).success
+		).toBe(false);
+	});
+
+	it("rejects operational closure as an approval decision", () => {
+		expect(
+			reviewTrekkingRouteSchema.safeParse({ action: "non_operable", reason: "Unsafe" }).success
 		).toBe(false);
 	});
 });

@@ -1,10 +1,20 @@
 import { ArrowLeft, Eye, Loader2, RefreshCw, Route } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { Pagination } from "../../../shared/components";
 import { RouteGeometryPreview } from "../components/RouteGeometryPreview";
 import { TrekkingRouteList } from "../components/TrekkingRouteList";
 import { useRouteCheckpoints } from "../hooks/useRouteCheckpoints";
 import { useRouteDangerZones } from "../hooks/useRouteDangerZones";
 import { useTrekkingRoutes } from "../hooks/useTrekkingRoutes";
+import type { RouteStatusFilter } from "../types";
+
+const HOST_ROUTE_STATUS_FILTERS: Array<{ value: RouteStatusFilter; label: string }> = [
+	{ value: "all", label: "Tất cả" },
+	{ value: "draft", label: "Bản nháp" },
+	{ value: "pending_approval", label: "Chờ duyệt" },
+	{ value: "active", label: "Đang hoạt động" },
+	{ value: "closed", label: "Đã đóng" },
+];
 
 export interface TrekkingRoutesPageProps {
 	onBackHome?: () => void;
@@ -57,6 +67,27 @@ export function TrekkingRoutesPage({ onBackHome, onViewRouteDetail }: TrekkingRo
 			</header>
 
 			<main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+				<div className="rounded-2xl border border-[#dce6de] bg-white p-4 shadow-sm">
+					<label
+						htmlFor="host-route-status-filter"
+						className="mb-2 block text-sm font-bold text-[#31483b]"
+					>
+						Trạng thái tuyến
+					</label>
+					<select
+						id="host-route-status-filter"
+						value={routes.statusFilter}
+						onChange={(event) => routes.setStatusFilter(event.target.value as RouteStatusFilter)}
+						className="w-full rounded-xl border border-[#cbd8ce] bg-white px-3 py-2.5 text-sm font-semibold text-[#10221b] outline-none transition focus:border-[#2f6b3f] focus:ring-2 focus:ring-[#2f6b3f]/20 sm:max-w-xs"
+					>
+						{HOST_ROUTE_STATUS_FILTERS.map((option) => (
+							<option key={option.value} value={option.value}>
+								{option.label}
+							</option>
+						))}
+					</select>
+				</div>
+
 				{routes.isLoading && (
 					<div
 						data-testid="routes-loading"
@@ -91,41 +122,57 @@ export function TrekkingRoutesPage({ onBackHome, onViewRouteDetail }: TrekkingRo
 						className="mt-6 rounded-2xl border border-dashed bg-white p-8 text-center"
 					>
 						<Route className="mx-auto size-10 text-[#8fa096]" />
-						<p className="mt-3 font-extrabold">Bạn chưa có tuyến trekking</p>
+						<p className="mt-3 font-extrabold">
+							{routes.statusFilter === "all"
+								? "Bạn chưa có tuyến trekking"
+								: "Không có tuyến trekking phù hợp với bộ lọc"}
+						</p>
 					</div>
 				)}
 
 				{!routes.isLoading && !routes.error && routes.items.length > 0 && (
-					<div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
-						<TrekkingRouteList
-							items={routes.items}
-							selectedRouteId={selectedRouteId}
-							onSelect={(route) => setSelectedRouteId(route.id)}
-						/>
+					<div className="mt-6 space-y-6">
+						<div className="grid gap-6 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+							<TrekkingRouteList
+								items={routes.items}
+								selectedRouteId={selectedRouteId}
+								onSelect={(route) => setSelectedRouteId(route.id)}
+							/>
 
-						{selectedRoute && (
-							<div className="lg:sticky lg:top-6 lg:self-start">
-								<RouteGeometryPreview
-									geometry={selectedRoute.geometry}
-									checkpoints={checkpoints.items}
-									dangerZones={dangerZones.items}
-									footer={
-										onViewRouteDetail && (
-											<div className="mt-4 flex justify-end">
-												<button
-													type="button"
-													onClick={() => onViewRouteDetail(selectedRoute.id)}
-													className="flex items-center gap-2 rounded-xl bg-[#164027] px-5 py-2.5 font-bold text-white"
-												>
-													<Eye className="size-4" />
-													Chi tiết
-												</button>
-											</div>
-										)
-									}
-								/>
-							</div>
-						)}
+							{selectedRoute && (
+								<div className="lg:sticky lg:top-6 lg:self-start">
+									<RouteGeometryPreview
+										geometry={selectedRoute.geometry}
+										checkpoints={checkpoints.items}
+										dangerZones={dangerZones.items}
+										footer={
+											onViewRouteDetail && (
+												<div className="mt-4 flex justify-end">
+													<button
+														type="button"
+														onClick={() => onViewRouteDetail(selectedRoute.id)}
+														className="flex items-center gap-2 rounded-xl bg-[#164027] px-5 py-2.5 font-bold text-white"
+													>
+														<Eye className="size-4" />
+														Chi tiết
+													</button>
+												</div>
+											)
+										}
+									/>
+								</div>
+							)}
+						</div>
+
+						<div className="overflow-x-auto rounded-2xl bg-white px-4 pb-4">
+							<Pagination
+								currentPage={routes.pagination.page}
+								totalPages={routes.pagination.totalPages}
+								totalItems={routes.pagination.total}
+								itemsPerPage={routes.pagination.limit}
+								onPageChange={routes.setPage}
+							/>
+						</div>
 					</div>
 				)}
 			</main>

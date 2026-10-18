@@ -1,6 +1,19 @@
 import { Clock3, MapPinned, Mountain, Route } from "lucide-react";
 import type { AdminTrekkingRouteReview } from "../types";
 
+const OUTCOME_LABELS = {
+	pending: "Chờ duyệt",
+	approved: "Đã phê duyệt",
+	returned_for_revision: "Trả về chỉnh sửa",
+} as const;
+
+const STATUS_LABELS: Record<AdminTrekkingRouteReview["status"], string> = {
+	draft: "Bản nháp",
+	pending_approval: "Chờ duyệt",
+	active: "Đang hoạt động",
+	closed: "Đã đóng",
+};
+
 interface Props {
 	items: AdminTrekkingRouteReview[];
 	selectedId?: string;
@@ -13,7 +26,7 @@ function formatLength(meters: number): string {
 
 export function AdminRouteReviewList({ items, selectedId, onSelect }: Props) {
 	return (
-		<div className="space-y-3" aria-label="Danh sách tuyến chờ duyệt">
+		<div className="space-y-3" aria-label="Danh sách kết quả xét duyệt tuyến">
 			{items.map((route) => (
 				<button
 					key={route.id}
@@ -31,9 +44,14 @@ export function AdminRouteReviewList({ items, selectedId, onSelect }: Props) {
 						<div>
 							<h2 className="font-extrabold text-[#10221b]">{route.name}</h2>
 						</div>
-						<span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-900">
-							Chờ duyệt
-						</span>
+						<div className="flex flex-col items-end gap-1">
+							<span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-900">
+								{OUTCOME_LABELS[route.reviewOutcome ?? "pending"]}
+							</span>
+							<span className="text-[11px] font-bold text-[#667a6d]">
+								Hiện tại: {STATUS_LABELS[route.status]}
+							</span>
+						</div>
 					</div>
 					<div className="mt-4 grid grid-cols-2 gap-2 text-xs font-bold text-[#52665b]">
 						<span className="flex items-center gap-1">

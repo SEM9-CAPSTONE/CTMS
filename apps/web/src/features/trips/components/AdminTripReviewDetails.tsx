@@ -1,7 +1,14 @@
-import type { Trip } from "../types";
+import { type AdminTripReview, TRIP_STATUS_LABELS } from "../types";
+
+const OUTCOME_LABELS = {
+	pending: "Chờ duyệt",
+	approved: "Đã phê duyệt",
+	returned_for_revision: "Trả về chỉnh sửa",
+	auto_rejected: "Tự động từ chối",
+} as const;
 
 interface Props {
-	trip: Trip;
+	trip: AdminTripReview;
 	onReview: () => void;
 }
 
@@ -13,7 +20,7 @@ function formatPrice(value: number): string {
 	return value === 0 ? "Miễn phí" : `${value.toLocaleString("vi-VN")} đ`;
 }
 
-const TRIP_TYPE_LABELS: Record<Trip["tripType"], string> = {
+const TRIP_TYPE_LABELS: Record<AdminTripReview["tripType"], string> = {
 	day_trip: "Trong ngày",
 	overnight: "Qua đêm",
 };
@@ -29,6 +36,7 @@ const WAYPOINT_TYPE_LABELS: Record<string, string> = {
 };
 
 export function AdminTripReviewDetails({ trip, onReview }: Props) {
+	const canReview = trip.reviewOutcome === "pending" && trip.status === "pending_approval";
 	return (
 		<div className="space-y-5">
 			<section className="rounded-2xl border border-[#e0ebe0] bg-white p-5 shadow-sm">
@@ -37,18 +45,28 @@ export function AdminTripReviewDetails({ trip, onReview }: Props) {
 						<h2 className="text-xl font-extrabold">{trip.title}</h2>
 						{trip.description && <p className="mt-1 text-sm text-[#667a6d]">{trip.description}</p>}
 					</div>
-					<button
-						type="button"
-						onClick={onReview}
-						className="rounded-xl bg-[#164027] px-5 py-2.5 text-sm font-extrabold text-white hover:bg-[#276143]"
-					>
-						Ra quyết định
-					</button>
+					{canReview ? (
+						<button
+							type="button"
+							onClick={onReview}
+							className="rounded-xl bg-[#164027] px-5 py-2.5 text-sm font-extrabold text-white hover:bg-[#276143]"
+						>
+							Ra quyết định
+						</button>
+					) : (
+						<span className="rounded-xl bg-[#f4f7f2] px-4 py-2 text-sm font-bold text-[#667a6d]">
+							Chỉ xem
+						</span>
+					)}
 				</div>
 				<div className="mt-5 grid gap-3 sm:grid-cols-3">
 					<div className="rounded-xl bg-[#f4f7f2] p-3">
-						<p className="text-xs text-[#667a6d]">Trạng thái</p>
-						<strong>Chờ duyệt</strong>
+						<p className="text-xs text-[#667a6d]">Kết quả xét duyệt</p>
+						<strong>{OUTCOME_LABELS[trip.reviewOutcome]}</strong>
+					</div>
+					<div className="rounded-xl bg-[#f4f7f2] p-3">
+						<p className="text-xs text-[#667a6d]">Trạng thái hiện tại</p>
+						<strong>{TRIP_STATUS_LABELS[trip.status]}</strong>
 					</div>
 					<div className="rounded-xl bg-[#f4f7f2] p-3">
 						<p className="text-xs text-[#667a6d]">Loại trip</p>

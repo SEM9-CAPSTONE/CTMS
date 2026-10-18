@@ -1,24 +1,31 @@
 import { Calendar, DoorOpen, Users } from "lucide-react";
-import type { Trip } from "../types";
+import { type AdminTripReview, TRIP_STATUS_LABELS } from "../types";
+
+const OUTCOME_LABELS = {
+	pending: "Chờ duyệt",
+	approved: "Đã phê duyệt",
+	returned_for_revision: "Trả về chỉnh sửa",
+	auto_rejected: "Tự động từ chối",
+} as const;
 
 interface Props {
-	items: Trip[];
+	items: AdminTripReview[];
 	selectedId?: string;
-	onSelect: (trip: Trip) => void;
+	onSelect: (trip: AdminTripReview) => void;
 }
 
 function formatDate(value: string): string {
 	return new Date(value).toLocaleDateString("vi-VN");
 }
 
-const TRIP_TYPE_LABELS: Record<Trip["tripType"], string> = {
+const TRIP_TYPE_LABELS: Record<AdminTripReview["tripType"], string> = {
 	day_trip: "Trong ngày",
 	overnight: "Qua đêm",
 };
 
 export function AdminTripReviewList({ items, selectedId, onSelect }: Props) {
 	return (
-		<div className="space-y-3" aria-label="Danh sách trip chờ duyệt">
+		<div className="space-y-3" aria-label="Danh sách kết quả xét duyệt trip">
 			{items.map((trip) => (
 				<button
 					key={trip.id}
@@ -36,9 +43,14 @@ export function AdminTripReviewList({ items, selectedId, onSelect }: Props) {
 						<div>
 							<h2 className="font-extrabold text-[#10221b]">{trip.title}</h2>
 						</div>
-						<span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-900">
-							Chờ duyệt
-						</span>
+						<div className="flex flex-col items-end gap-1">
+							<span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-900">
+								{OUTCOME_LABELS[trip.reviewOutcome]}
+							</span>
+							<span className="text-[11px] font-bold text-[#667a6d]">
+								Hiện tại: {TRIP_STATUS_LABELS[trip.status]}
+							</span>
+						</div>
 					</div>
 					<div className="mt-4 grid grid-cols-2 gap-2 text-xs font-bold text-[#52665b]">
 						<span className="flex items-center gap-1">

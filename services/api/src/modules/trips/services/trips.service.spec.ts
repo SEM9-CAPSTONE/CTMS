@@ -6,6 +6,7 @@ import {
 } from "../../trekking-routes/entities/trekking-route.entity";
 import { UserRole, UserStatus } from "../../users/entities/user.entity";
 import { RiskLevel } from "../../weather/entities/weather-risk-assessment.entity";
+import { TripReviewOutcome } from "../dto/list-trip-reviews-query.dto";
 import { ReviewTripAction } from "../dto/review-trip.dto";
 import type { SearchTripsQueryDto } from "../dto/search-trips-query.dto";
 import { WaypointType } from "../entities/trip-waypoint.entity";
@@ -169,6 +170,7 @@ describe("TripsService", () => {
 		findAssignedTripsByPorter: jest.Mock;
 		searchPublishedTrips: jest.Mock;
 		findPendingReview: jest.Mock;
+		findAdminReviews: jest.Mock;
 		findByIdForBooking: jest.Mock;
 		adjustSeatsTaken: jest.Mock;
 		recomputeSeatsTaken: jest.Mock;
@@ -215,6 +217,7 @@ describe("TripsService", () => {
 			findAssignedTripsByPorter: jest.fn().mockResolvedValue([]),
 			searchPublishedTrips: jest.fn().mockResolvedValue({ items: [], total: 0 }),
 			findPendingReview: jest.fn().mockResolvedValue([configuredTrip()]),
+			findAdminReviews: jest.fn().mockResolvedValue({ items: [configuredTrip()], total: 21 }),
 			findByIdForBooking: jest.fn().mockResolvedValue(null),
 			adjustSeatsTaken: jest.fn().mockResolvedValue(undefined),
 			recomputeSeatsTaken: jest.fn().mockResolvedValue(undefined),
@@ -698,6 +701,24 @@ describe("TripsService", () => {
 	});
 
 	describe("listPendingReview", () => {
+		it("returns the requested review outcome with accurate pagination", async () => {
+			const result = await service.listAdminReviews({
+				reviewOutcome: TripReviewOutcome.AUTO_REJECTED,
+				page: 2,
+				limit: 20,
+			});
+
+			expect(tripsRepository.findAdminReviews).toHaveBeenCalledWith(
+				TripReviewOutcome.AUTO_REJECTED,
+				2,
+				20
+			);
+			expect(result).toEqual({
+				items: [configuredTrip()],
+				pagination: { page: 2, limit: 20, total: 21, totalPages: 2 },
+			});
+		});
+
 		it("returns Trips pending Admin approval from the repository", async () => {
 			const result = await service.listPendingReview();
 

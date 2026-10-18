@@ -1,5 +1,6 @@
 import type { AuthenticatedUser } from "../../auth/jwt.strategy";
 import { UserRole, UserStatus } from "../../users/entities/user.entity";
+import { RouteReviewOutcome } from "../dto/list-route-reviews-query.dto";
 import { ReviewTrekkingRouteAction } from "../dto/review-trekking-route.dto";
 import { TrekkingRouteDifficulty, TrekkingRouteStatus } from "../entities/trekking-route.entity";
 import type { TrekkingRoutesRepository } from "../repositories/trekking-routes.repository";
@@ -55,8 +56,11 @@ describe("TrekkingRoutesService", () => {
 		updateDraft: jest.Mock;
 		hasTripReferences: jest.Mock;
 		findByHost: jest.Mock;
+		findByHostPaginated: jest.Mock;
+		findRouteById: jest.Mock;
 		findOneForLifecycleUpdate: jest.Mock;
 		findPendingReview: jest.Mock;
+		findAdminReviews: jest.Mock;
 		findReviewRouteByIdForUpdate: jest.Mock;
 		validateApprovalIntegrity: jest.Mock;
 		validateSubmissionCheckpoints: jest.Mock;
@@ -72,12 +76,15 @@ describe("TrekkingRoutesService", () => {
 			updateDraft: jest.fn().mockResolvedValue(createdRoute()),
 			hasTripReferences: jest.fn().mockResolvedValue(false),
 			findByHost: jest.fn().mockResolvedValue([createdRoute()]),
+			findByHostPaginated: jest.fn().mockResolvedValue({ items: [createdRoute()], total: 41 }),
+			findRouteById: jest.fn().mockResolvedValue(createdRoute()),
 			findOneForLifecycleUpdate: jest.fn().mockResolvedValue({
 				route: createdRoute(TrekkingRouteStatus.ACTIVE),
 				hostId: HOST_ID,
 				integrityValid: true,
 			}),
 			findPendingReview: jest.fn().mockResolvedValue([reviewRoute()]),
+			findAdminReviews: jest.fn().mockResolvedValue({ items: [reviewRoute()], total: 41 }),
 			findReviewRouteByIdForUpdate: jest.fn().mockResolvedValue(reviewRoute()),
 			validateApprovalIntegrity: jest.fn().mockResolvedValue({
 				geometryValid: true,
@@ -85,7 +92,13 @@ describe("TrekkingRoutesService", () => {
 				checkpointsValid: true,
 				checkpointCount: 0,
 			}),
-			validateSubmissionCheckpoints: jest.fn().mockResolvedValue({ checkpointsValid: true }),
+			validateSubmissionCheckpoints: jest.fn().mockResolvedValue({
+				checkpointsValid: true,
+				startCount: 1,
+				finishCount: 1,
+				startPosition: 0,
+				finishPosition: 1,
+			}),
 			updateStatus: jest.fn((_routeId: string, status: TrekkingRouteStatus) =>
 				Promise.resolve(createdRoute(status))
 			),
@@ -186,6 +199,85 @@ describe("TrekkingRoutesService", () => {
 		});
 	});
 
+	describe("getOwnedById", () => {
+		it("returns the selected Route to its owning Host", async () => {
+			await expect(service.getOwnedById(HOST_ID, ROUTE_ID)).resolves.toEqual(createdRoute());
+			expect(routeRepository.findRouteById).toHaveBeenCalledWith(ROUTE_ID);
+		});
+
+		it("returns 404 when the Route does not exist", async () => {
+			routeRepository.findRouteById.mockResolvedValue(null);
+			await expect(service.getOwnedById(HOST_ID, ROUTE_ID)).rejects.toMatchObject({ status: 404 });
+		});
+
+		it("returns 403 when another Host owns the Route", async () => {
+			await expect(service.getOwnedById(OTHER_HOST_ID, ROUTE_ID)).rejects.toMatchObject({
+				status: 403,
+			});
+		});
+	});
+
+	describe("listByHostPaginated", () => {
+		it.each([
+			[1, 20, 3],
+			[2, 20, 3],
+			[3, 20, 3],
+		] as const)("returns metadata for page %i", async (page, limit, totalPages) => {
+			const result = await service.listByHostPaginated(HOST_ID, {
+				page,
+				limit,
+				status: "all",
+			});
+
+			expect(routeRepository.findByHostPaginated).toHaveBeenCalledWith(HOST_ID, page, limit, null);
+			expect(result).toEqual({
+				items: [createdRoute()],
+				pagination: { page, limit, total: 41, totalPages },
+			});
+		});
+
+		it("returns empty pagination metadata without changing Host scope", async () => {
+			routeRepository.findByHostPaginated.mockResolvedValueOnce({ items: [], total: 0 });
+
+			await expect(
+				service.listByHostPaginated(HOST_ID, { page: 1, limit: 20, status: "active" })
+			).resolves.toEqual({
+				items: [],
+				pagination: { page: 1, limit: 20, total: 0, totalPages: 0 },
+			});
+			expect(routeRepository.findByHostPaginated).toHaveBeenCalledWith(
+				HOST_ID,
+				1,
+				20,
+				TrekkingRouteStatus.ACTIVE
+			);
+		});
+
+		it.each([
+			["draft", TrekkingRouteStatus.DRAFT],
+			["pending_approval", TrekkingRouteStatus.PENDING_APPROVAL],
+			["active", TrekkingRouteStatus.ACTIVE],
+			["closed", TrekkingRouteStatus.CLOSED],
+			["all", null],
+		] as const)(
+			"forwards status filter %s to the repository as %s",
+			async (statusFilter, expectedStatus) => {
+				await service.listByHostPaginated(HOST_ID, {
+					page: 2,
+					limit: 15,
+					status: statusFilter,
+				});
+
+				expect(routeRepository.findByHostPaginated).toHaveBeenCalledWith(
+					HOST_ID,
+					2,
+					15,
+					expectedStatus
+				);
+			}
+		);
+	});
+
 	describe("Host submission for approval", () => {
 		beforeEach(() => {
 			routeRepository.findOneForLifecycleUpdate.mockResolvedValue({
@@ -270,7 +362,13 @@ describe("TrekkingRoutesService", () => {
 		});
 
 		it("returns 422 when any authoritative stored checkpoint is invalid", async () => {
-			routeRepository.validateSubmissionCheckpoints.mockResolvedValue({ checkpointsValid: false });
+			routeRepository.validateSubmissionCheckpoints.mockResolvedValue({
+				checkpointsValid: false,
+				startCount: 1,
+				finishCount: 1,
+				startPosition: 0,
+				finishPosition: 1,
+			});
 
 			await expect(service.submitForApproval(HOST_ID, ROUTE_ID)).rejects.toMatchObject({
 				status: 422,
@@ -279,14 +377,42 @@ describe("TrekkingRoutesService", () => {
 			expect(auditRepository.save).not.toHaveBeenCalled();
 		});
 
-		it("submits without start or finish checkpoints because those belong to trip waypoints", async () => {
-			await expect(service.submitForApproval(HOST_ID, ROUTE_ID)).resolves.toMatchObject({
-				status: TrekkingRouteStatus.PENDING_APPROVAL,
+		it.each([
+			{ name: "no start", startCount: 0, finishCount: 1 },
+			{ name: "multiple starts", startCount: 2, finishCount: 1 },
+			{ name: "no finish", startCount: 1, finishCount: 0 },
+			{ name: "multiple finishes", startCount: 1, finishCount: 2 },
+		])("returns 422 for $name", async ({ startCount, finishCount }) => {
+			routeRepository.validateSubmissionCheckpoints.mockResolvedValue({
+				checkpointsValid: true,
+				startCount,
+				finishCount,
+				startPosition: startCount > 0 ? 0 : null,
+				finishPosition: finishCount > 0 ? 1 : null,
 			});
-			expect(routeRepository.updateStatus).toHaveBeenCalledWith(
-				ROUTE_ID,
-				TrekkingRouteStatus.PENDING_APPROVAL
-			);
+
+			await expect(service.submitForApproval(HOST_ID, ROUTE_ID)).rejects.toMatchObject({
+				status: 422,
+			});
+			expect(routeRepository.updateStatus).not.toHaveBeenCalled();
+		});
+
+		it.each([
+			{ name: "equal positions", startPosition: 0.5, finishPosition: 0.5 },
+			{ name: "start after finish", startPosition: 0.75, finishPosition: 0.25 },
+		])("returns 422 when $name", async ({ startPosition, finishPosition }) => {
+			routeRepository.validateSubmissionCheckpoints.mockResolvedValue({
+				checkpointsValid: true,
+				startCount: 1,
+				finishCount: 1,
+				startPosition,
+				finishPosition,
+			});
+
+			await expect(service.submitForApproval(HOST_ID, ROUTE_ID)).rejects.toMatchObject({
+				status: 422,
+			});
+			expect(routeRepository.updateStatus).not.toHaveBeenCalled();
 		});
 
 		it("propagates audit failure so the transaction can roll back the status", async () => {
@@ -303,6 +429,24 @@ describe("TrekkingRoutesService", () => {
 	});
 
 	describe("Admin review", () => {
+		it("returns the requested review outcome with accurate pagination", async () => {
+			await expect(
+				service.listAdminReviews({
+					reviewOutcome: RouteReviewOutcome.APPROVED,
+					page: 2,
+					limit: 20,
+				})
+			).resolves.toEqual({
+				items: [reviewRoute()],
+				pagination: { page: 2, limit: 20, total: 41, totalPages: 3 },
+			});
+			expect(routeRepository.findAdminReviews).toHaveBeenCalledWith(
+				RouteReviewOutcome.APPROVED,
+				2,
+				20
+			);
+		});
+
 		it("lists only repository-provided pending review Routes", async () => {
 			await expect(service.listPendingReview()).resolves.toEqual([reviewRoute()]);
 			expect(routeRepository.findPendingReview).toHaveBeenCalledTimes(1);
@@ -331,34 +475,26 @@ describe("TrekkingRoutesService", () => {
 			});
 		});
 
-		it.each([
-			{
+		it("returns a declined Route to draft and audits the reason", async () => {
+			await service.review(HOST_ID, ROUTE_ID, {
 				action: ReviewTrekkingRouteAction.DECLINE,
-				target: TrekkingRouteStatus.DRAFT,
-				auditAction: "trekking_route.declined",
-			},
-			{
-				action: ReviewTrekkingRouteAction.NON_OPERABLE,
-				target: TrekkingRouteStatus.CLOSED,
-				auditAction: "trekking_route.closed",
-			},
-		])(
-			"handles $action without requiring approval integrity",
-			async ({ action, target, auditAction }) => {
-				await service.review(HOST_ID, ROUTE_ID, { action, reason: "Unsafe terrain" });
+				reason: "Unsafe terrain",
+			});
 
-				expect(routeRepository.validateApprovalIntegrity).not.toHaveBeenCalled();
-				expect(routeRepository.updateStatus).toHaveBeenCalledWith(ROUTE_ID, target);
-				expect(auditRepository.save).toHaveBeenCalledWith(
-					expect.objectContaining({
-						action: auditAction,
-						before: { status: TrekkingRouteStatus.PENDING_APPROVAL },
-						after: { status: target },
-						reason: "Unsafe terrain",
-					})
-				);
-			}
-		);
+			expect(routeRepository.validateApprovalIntegrity).not.toHaveBeenCalled();
+			expect(routeRepository.updateStatus).toHaveBeenCalledWith(
+				ROUTE_ID,
+				TrekkingRouteStatus.DRAFT
+			);
+			expect(auditRepository.save).toHaveBeenCalledWith(
+				expect.objectContaining({
+					action: "trekking_route.declined",
+					before: { status: TrekkingRouteStatus.PENDING_APPROVAL },
+					after: { status: TrekkingRouteStatus.DRAFT },
+					reason: "Unsafe terrain",
+				})
+			);
+		});
 
 		it("returns 404 without mutation when the Route is missing", async () => {
 			routeRepository.findReviewRouteByIdForUpdate.mockResolvedValue(null);

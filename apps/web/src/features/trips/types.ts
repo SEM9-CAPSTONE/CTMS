@@ -132,6 +132,25 @@ export interface Trip {
 	waypoints: TripWaypoint[];
 }
 
+export type TripReviewOutcome = "pending" | "approved" | "returned_for_revision" | "auto_rejected";
+export type TripReviewOutcomeFilter = TripReviewOutcome | "all";
+
+export interface AdminTripReview extends Trip {
+	reviewOutcome: TripReviewOutcome;
+	reviewedAt: string | null;
+}
+
+export interface AdminTripReviewsQuery {
+	reviewOutcome: TripReviewOutcomeFilter;
+	page: number;
+	limit: number;
+}
+
+export interface PaginatedAdminTripReviews {
+	items: AdminTripReview[];
+	pagination: TripsPagination;
+}
+
 export type TrekkingRouteDifficulty = "easy" | "moderate" | "hard" | "expert";
 
 export type RiskLevel = "green" | "yellow" | "red";

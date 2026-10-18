@@ -29,6 +29,16 @@ function toRoleKey(role: string): RoleKey | null {
 	return null;
 }
 
+function getHistoryActiveRole(): RoleKey | null {
+	const historyState: unknown = window.history.state;
+	if (!historyState || typeof historyState !== "object" || !("activeRole" in historyState)) {
+		return null;
+	}
+
+	const activeRole = (historyState as { activeRole?: unknown }).activeRole;
+	return typeof activeRole === "string" ? toRoleKey(activeRole) : null;
+}
+
 function getDisplayName(user: StoredAuthUser): string {
 	return user.email || user.phone || user.id;
 }
@@ -312,16 +322,26 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 			.filter((role): role is RoleKey => Boolean(role));
 	}, [roles, user.role]);
 	const normalizedRoles = Array.from(new Set(grantedRoles));
-	const [selectedRole, setSelectedRole] = useState<RoleKey>(() => normalizedRoles[0] ?? "camper");
+	const [selectedRole, setSelectedRole] = useState<RoleKey>(() => {
+		const historyActiveRole = getHistoryActiveRole();
+		return historyActiveRole && normalizedRoles.includes(historyActiveRole)
+			? historyActiveRole
+			: (normalizedRoles[0] ?? "camper");
+	});
 	const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 	const activeRole = normalizedRoles.includes(selectedRole)
 		? selectedRole
 		: (normalizedRoles[0] ?? "camper");
 	const config = dashboards[activeRole];
+	const handleOpenProfile = () => onOpenProfile?.(activeRole);
+	const handleRoleChange = (role: RoleKey) => {
+		window.history.replaceState({ ...window.history.state, activeRole: role }, "");
+		setSelectedRole(role);
+	};
 	const handleCamperNav = (navKey: string) => {
 		if (navKey === "profile") {
-			onOpenProfile?.();
+			handleOpenProfile();
 		} else if (navKey === "explore") {
 			if (onExplore) {
 				onExplore();
@@ -363,9 +383,9 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 							config={config}
 							grantedRoles={normalizedRoles}
 							activeRole={activeRole}
-							onRoleChange={setSelectedRole}
+							onRoleChange={handleRoleChange}
 							profile={profile}
-							onOpenProfile={onOpenProfile}
+							onOpenProfile={handleOpenProfile}
 							onNavigateToTrips={onNavigateToTrips}
 							onLogout={onLogout}
 						/>
@@ -398,12 +418,12 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 								grantedRoles={normalizedRoles}
 								activeRole={activeRole}
 								onRoleChange={(role) => {
-									setSelectedRole(role);
+									handleRoleChange(role);
 									setMobileMenuOpen(false);
 								}}
 								onClose={() => setMobileMenuOpen(false)}
 								profile={profile}
-								onOpenProfile={onOpenProfile}
+								onOpenProfile={handleOpenProfile}
 								onNavigateToTrips={onNavigateToTrips}
 								onLogout={onLogout}
 							/>
@@ -441,7 +461,7 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 					config={config}
 					user={user}
 					profile={profile}
-					onOpenProfile={onOpenProfile}
+					onOpenProfile={handleOpenProfile}
 					onOpenAdminUsers={onOpenAdminUsers}
 					onCreateTrip={onCreateTrip}
 					onCreateTrekkingRoute={onCreateTrekkingRoute}

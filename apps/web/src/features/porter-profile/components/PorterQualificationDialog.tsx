@@ -107,7 +107,7 @@ export function PorterQualificationDialog({
 							<MapPin size={18} />
 						</div>
 						<h3 className="text-lg font-extrabold text-[#10221b]">
-							{isEditMode ? "Chỉnh sửa chứng chỉ tuyến" : "Thêm chứng chỉ tuyến trekking"}
+							{isEditMode ? "Chỉnh sửa năng lực tuyến" : "Thêm năng lực tuyến trekking"}
 						</h3>
 					</div>
 					<button
@@ -267,7 +267,7 @@ export function PorterQualificationDialog({
 									<span>Đang lưu...</span>
 								</>
 							) : (
-								<span>{isEditMode ? "Lưu cập nhật" : "Thêm chứng chỉ"}</span>
+								<span>{isEditMode ? "Lưu cập nhật" : "Thêm năng lực"}</span>
 							)}
 						</button>
 					</div>

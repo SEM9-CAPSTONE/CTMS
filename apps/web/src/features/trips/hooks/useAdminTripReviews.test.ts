@@ -7,18 +7,18 @@ type HttpErrorConstructor = typeof import("../../../core/api").HttpError;
 let testingLibrary: TestingLibrary;
 let adminTripReviewsModule: AdminTripReviewsModule;
 let HttpError: HttpErrorConstructor;
-let listPendingReviewMock: ReturnType<typeof vi.fn>;
+let listAdminReviewsMock: ReturnType<typeof vi.fn>;
 let reviewMock: ReturnType<typeof vi.fn>;
 
 describe("useAdminTripReviews", () => {
 	beforeEach(async () => {
 		vi.resetModules();
 		vi.doUnmock("../../../core/api");
-		listPendingReviewMock = vi.fn();
+		listAdminReviewsMock = vi.fn();
 		reviewMock = vi.fn();
 		vi.doMock("../services/trips.service", () => ({
 			tripsService: {
-				listPendingReview: listPendingReviewMock,
+				listAdminReviews: listAdminReviewsMock,
 				review: reviewMock,
 			},
 		}));
@@ -58,14 +58,63 @@ describe("useAdminTripReviews", () => {
 	});
 
 	it("loads pending Trips on mount", async () => {
-		listPendingReviewMock.mockResolvedValue([{ id: "trip-1", status: "pending_approval" }]);
+		listAdminReviewsMock.mockResolvedValue({
+			items: [{ id: "trip-1", status: "pending_approval" }],
+			pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
+		});
 		const { result } = testingLibrary.renderHook(() =>
 			adminTripReviewsModule.useAdminTripReviews()
 		);
 
 		await testingLibrary.waitFor(() => expect(result.current.isLoading).toBe(false));
 		expect(result.current.items).toEqual([{ id: "trip-1", status: "pending_approval" }]);
-		expect(listPendingReviewMock).toHaveBeenCalledTimes(1);
+		expect(listAdminReviewsMock).toHaveBeenCalledWith({
+			reviewOutcome: "pending",
+			page: 1,
+			limit: 20,
+		});
+	});
+
+	it("keeps the latest filter response when an older request finishes later", async () => {
+		let resolvePending!: (value: unknown) => void;
+		let resolveAutoRejected!: (value: unknown) => void;
+		const pendingRequest = new Promise((resolve) => {
+			resolvePending = resolve;
+		});
+		const autoRejectedRequest = new Promise((resolve) => {
+			resolveAutoRejected = resolve;
+		});
+		listAdminReviewsMock
+			.mockReturnValueOnce(pendingRequest)
+			.mockReturnValueOnce(autoRejectedRequest);
+
+		const { result, rerender } = testingLibrary.renderHook(
+			({ outcome }) => adminTripReviewsModule.useAdminTripReviews(outcome),
+			{ initialProps: { outcome: "pending" as "pending" | "auto_rejected" } }
+		);
+
+		rerender({ outcome: "auto_rejected" });
+		await testingLibrary.act(async () => {
+			resolveAutoRejected({
+				items: [{ id: "rejected-trip", reviewOutcome: "auto_rejected" }],
+				pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
+			});
+		});
+		await testingLibrary.waitFor(() => expect(result.current.isLoading).toBe(false));
+
+		await testingLibrary.act(async () => {
+			resolvePending({
+				items: [{ id: "pending-trip", reviewOutcome: "pending" }],
+				pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
+			});
+		});
+
+		expect(result.current.items).toEqual([{ id: "rejected-trip", reviewOutcome: "auto_rejected" }]);
+		expect(listAdminReviewsMock).toHaveBeenNthCalledWith(2, {
+			reviewOutcome: "auto_rejected",
+			page: 1,
+			limit: 20,
+		});
 	});
 
 	it("rejects a duplicate review mutation while the first request is in flight", async () => {

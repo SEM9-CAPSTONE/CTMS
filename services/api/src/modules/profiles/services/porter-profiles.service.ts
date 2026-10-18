@@ -11,6 +11,10 @@ import { UserRole, UserStatus } from "../../users/entities/user.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs runtime metadata
 import { UsersRepository } from "../../users/users.repository";
 import { normalizeStringArray } from "../dto/normalized-string-array.validator";
+import type {
+	PaginatedPorterLedTripHistoryResponseDto,
+	PorterLedTripHistoryQueryDto,
+} from "../dto/porter-led-trip-history.dto";
 import {
 	type PorterProfileResponseDto,
 	defaultPorterProfileResponse,
@@ -51,6 +55,28 @@ export class PorterProfilesService {
 		await this.requireActivePorter(porterId, this.usersRepository);
 		const profile = await this.porterProfilesRepository.findByPorterId(porterId);
 		return profile ? toPorterProfileResponse(profile) : defaultPorterProfileResponse(porterId);
+	}
+
+	async getMyLedTripHistory(
+		porterId: string,
+		query: PorterLedTripHistoryQueryDto
+	): Promise<PaginatedPorterLedTripHistoryResponseDto> {
+		await this.requireActivePorter(porterId, this.usersRepository);
+		const result = await this.porterProfilesRepository.findLedTripHistory(
+			porterId,
+			query.page,
+			query.limit
+		);
+
+		return {
+			items: result.items,
+			pagination: {
+				page: query.page,
+				limit: query.limit,
+				total: result.total,
+				totalPages: result.total === 0 ? 0 : Math.ceil(result.total / query.limit),
+			},
+		};
 	}
 
 	async updateMyProfile(

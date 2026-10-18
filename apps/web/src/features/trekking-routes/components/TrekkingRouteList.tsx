@@ -1,4 +1,4 @@
-import { Clock3, MapPinned, Mountain, Route } from "lucide-react";
+import { AlertTriangle, Clock3, MapPinned, Mountain, Route } from "lucide-react";
 import type { CreatedTrekkingRoute, RouteDifficulty, RouteStatus } from "../types";
 
 interface TrekkingRouteListProps {
@@ -40,43 +40,58 @@ export function TrekkingRouteList({ items, selectedRouteId, onSelect }: Trekking
 			{items.map((route) => {
 				const selected = route.id === selectedRouteId;
 				return (
-					<button
+					<div
 						key={route.id}
-						type="button"
-						aria-pressed={selected}
-						onClick={() => onSelect(route)}
-						className={`w-full rounded-2xl border p-4 text-left transition ${selected ? "border-[#164027] bg-emerald-50 ring-2 ring-[#164027]/10" : "border-[#dfe8df] bg-white hover:border-[#9db5a3]"}`}
+						className={`overflow-hidden rounded-2xl border transition ${selected ? "border-[#164027] bg-emerald-50 ring-2 ring-[#164027]/10" : "border-[#dfe8df] bg-white hover:border-[#9db5a3]"}`}
 					>
-						<div className="flex items-start justify-between gap-3">
-							<div className="min-w-0">
-								<h3 className="truncate font-extrabold text-[#10221b]">{route.name}</h3>
-								<p className="mt-1 text-xs font-semibold text-[#667a6d]">
-									Tạo lúc {formatCreatedAt(route.createdAt)}
+						<button
+							type="button"
+							aria-pressed={selected}
+							onClick={() => onSelect(route)}
+							className="w-full p-4 text-left"
+						>
+							<div className="flex items-start justify-between gap-3">
+								<div className="min-w-0">
+									<h3 className="truncate font-extrabold text-[#10221b]">{route.name}</h3>
+									<p className="mt-1 text-xs font-semibold text-[#667a6d]">
+										Tạo lúc {formatCreatedAt(route.createdAt)}
+									</p>
+								</div>
+								<span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-[11px] font-extrabold text-[#164027] ring-1 ring-[#cbd9ce]">
+									{statusLabels[route.status]}
+								</span>
+							</div>
+							<div className="mt-4 grid grid-cols-2 gap-2 text-xs font-bold text-[#52665b] sm:grid-cols-4">
+								<span className="flex items-center gap-1">
+									<Mountain className="size-3.5" />
+									{difficultyLabels[route.difficulty]}
+								</span>
+								<span className="flex items-center gap-1">
+									<Clock3 className="size-3.5" />
+									{route.expectedDurationMinutes} phút
+								</span>
+								<span className="flex items-center gap-1">
+									<Route className="size-3.5" />
+									{formatLength(route.lengthMeters)}
+								</span>
+								<span className="flex items-center gap-1">
+									<MapPinned className="size-3.5" />
+									{route.geometry.coordinates.length} điểm
+								</span>
+							</div>
+						</button>
+						{route.status === "draft" && route.latestRejectionReason && (
+							<div className="mx-4 mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+								<p className="flex items-center gap-2 font-extrabold">
+									<AlertTriangle className="size-4 shrink-0" />
+									Admin yêu cầu chỉnh sửa
+								</p>
+								<p className="mt-1 whitespace-pre-wrap break-words">
+									{route.latestRejectionReason}
 								</p>
 							</div>
-							<span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-[11px] font-extrabold text-[#164027] ring-1 ring-[#cbd9ce]">
-								{statusLabels[route.status]}
-							</span>
-						</div>
-						<div className="mt-4 grid grid-cols-2 gap-2 text-xs font-bold text-[#52665b] sm:grid-cols-4">
-							<span className="flex items-center gap-1">
-								<Mountain className="size-3.5" />
-								{difficultyLabels[route.difficulty]}
-							</span>
-							<span className="flex items-center gap-1">
-								<Clock3 className="size-3.5" />
-								{route.expectedDurationMinutes} phút
-							</span>
-							<span className="flex items-center gap-1">
-								<Route className="size-3.5" />
-								{formatLength(route.lengthMeters)}
-							</span>
-							<span className="flex items-center gap-1">
-								<MapPinned className="size-3.5" />
-								{route.geometry.coordinates.length} điểm
-							</span>
-						</div>
-					</button>
+						)}
+					</div>
 				);
 			})}
 		</div>

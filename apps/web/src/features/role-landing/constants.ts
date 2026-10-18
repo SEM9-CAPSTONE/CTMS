@@ -182,7 +182,7 @@ export const dashboards: Record<RoleKey, DashboardConfig> = {
 			{ key: "requests", label: "Yêu cầu Trip", icon: Bell },
 			{ key: "assignments", label: "Phân công", icon: ClipboardList },
 			{ key: "routes", label: "Bản đồ tuyến", icon: MapPinned },
-			{ key: "checkins", label: "Check-in", icon: BadgeCheck },
+			{ key: "checkins", label: "Điểm danh", icon: BadgeCheck },
 			{ key: "alerts", label: "Cảnh báo", icon: Bell },
 			{ key: "support", label: "Hỗ trợ", icon: MessageSquare },
 		],

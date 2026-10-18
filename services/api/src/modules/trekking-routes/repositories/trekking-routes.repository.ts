@@ -1,6 +1,7 @@
 import { Injectable, UnprocessableEntityException } from "@nestjs/common";
 import { Repository } from "typeorm";
 import type { CheckpointResponseDto } from "../dto/checkpoint-response.dto";
+import type { RouteReviewOutcome } from "../dto/list-route-reviews-query.dto";
 import type { RouteDangerZoneResponseDto } from "../dto/route-danger-zone-response.dto";
 import type { TrekkingRouteResponseDto } from "../dto/trekking-route-response.dto";
 import type { TrekkingRouteReviewResponseDto } from "../dto/trekking-route-review-response.dto";
@@ -26,6 +27,8 @@ interface CreatedRouteRow {
 	difficulty: TrekkingRouteDifficulty;
 	expectedDurationMinutes: number;
 	status: TrekkingRouteStatus;
+	latestRejectionReason?: string | null;
+	latestRejectionAt?: Date | null;
 	createdAt: Date;
 	updatedAt: Date;
 }
@@ -41,6 +44,8 @@ export interface LockedTrekkingRoute {
 }
 
 interface ReviewRouteRow extends CreatedRouteRow {
+	reviewOutcome?: Exclude<RouteReviewOutcome, RouteReviewOutcome.ALL>;
+	reviewedAt?: Date | null;
 	checkpoints: CheckpointResponseDto[];
 	dangerZones: RouteDangerZoneResponseDto[];
 }
@@ -54,6 +59,10 @@ export interface ApprovalIntegrityResult {
 
 export interface SubmissionCheckpointIntegrityResult {
 	checkpointsValid: boolean;
+	startCount: number;
+	finishCount: number;
+	startPosition: number | null;
+	finishPosition: number | null;
 }
 
 const CHECKPOINT_INTEGRITY_PREDICATE = `
@@ -67,8 +76,51 @@ const CHECKPOINT_INTEGRITY_PREDICATE = `
 	)
 	AND checkpoint."expected_arrival_offset" BETWEEN 0
 		AND route."expected_duration_minutes"
+	AND BTRIM(checkpoint."instructions") <> ''
 	AND checkpoint."route_position" BETWEEN 0 AND 1
 	AND ST_DWithin(route."route_geom", checkpoint."location", 50)
+`;
+
+const LATEST_REVIEW_AUDIT_SELECT = `
+	CASE
+		WHEN route."status" = 'draft'
+			AND latest_review."action" = 'trekking_route.declined'
+		THEN latest_review."reason"
+		ELSE NULL
+	END AS "latestRejectionReason",
+	CASE
+		WHEN route."status" = 'draft'
+			AND latest_review."action" = 'trekking_route.declined'
+		THEN latest_review."created_at"
+		ELSE NULL
+	END AS "latestRejectionAt"
+`;
+
+const LATEST_REVIEW_AUDIT_JOIN = `
+	LEFT JOIN LATERAL (
+		SELECT audit."action", audit."reason", audit."created_at"
+		FROM "audit_logs" audit
+		WHERE audit."target_type" = 'trekking_route'
+			AND audit."target_id" = route."id"
+			AND audit."action" IN (
+				'trekking_route.submitted_for_approval',
+				'trekking_route.approved',
+				'trekking_route.declined'
+			)
+		ORDER BY audit."created_at" DESC, audit."id" DESC
+		LIMIT 1
+	) latest_review ON TRUE
+`;
+
+const ROUTE_REVIEW_OUTCOME_EXPRESSION = `
+	CASE
+		WHEN route."status" = 'pending_approval' THEN 'pending'
+		WHEN latest_review."action" = 'trekking_route.approved' THEN 'approved'
+		WHEN route."status" = 'draft'
+			AND latest_review."action" = 'trekking_route.declined'
+		THEN 'returned_for_revision'
+		ELSE NULL
+	END
 `;
 
 function toResponse(row: CreatedRouteRow): TrekkingRouteResponseDto {
@@ -106,6 +158,8 @@ const REVIEW_ROUTE_SELECT = `
 		route."difficulty",
 		route."expected_duration_minutes" AS "expectedDurationMinutes",
 		route."status",
+		${ROUTE_REVIEW_OUTCOME_EXPRESSION} AS "reviewOutcome",
+		latest_review."created_at" AS "reviewedAt",
 		route."created_at" AS "createdAt",
 		route."updated_at" AS "updatedAt",
 		COALESCE((
@@ -147,10 +201,37 @@ const REVIEW_ROUTE_SELECT = `
 			WHERE danger_zone."route_id" = route."id"
 		), '[]'::jsonb) AS "dangerZones"
 	FROM "trekking_routes" route
+	${LATEST_REVIEW_AUDIT_JOIN}
 `;
 
 @Injectable()
 export class TrekkingRoutesRepository extends Repository<TrekkingRoute> {
+	async findRouteById(routeId: string): Promise<TrekkingRouteResponseDto | null> {
+		const rows = (await this.query(
+			`
+			SELECT
+				route."id",
+				route."host_id" AS "hostId",
+				route."name",
+				route."description",
+				ST_AsGeoJSON(route."route_geom"::geometry)::json AS "geometry",
+				route."length_meters" AS "lengthMeters",
+				route."difficulty",
+				route."expected_duration_minutes" AS "expectedDurationMinutes",
+				route."status",
+				${LATEST_REVIEW_AUDIT_SELECT},
+				route."created_at" AS "createdAt",
+				route."updated_at" AS "updatedAt"
+			FROM "trekking_routes" route
+			${LATEST_REVIEW_AUDIT_JOIN}
+			WHERE route."id" = $1
+			`,
+			[routeId]
+		)) as CreatedRouteRow[];
+
+		return rows[0] ? toResponse(rows[0]) : null;
+	}
+
 	async findOneForLifecycleUpdate(routeId: string): Promise<LockedTrekkingRoute | null> {
 		const rows = (await this.query(
 			`
@@ -205,6 +286,37 @@ export class TrekkingRoutesRepository extends Repository<TrekkingRoute> {
 		)) as ReviewRouteRow[];
 
 		return rows.map(toReviewResponse);
+	}
+
+	async findAdminReviews(
+		reviewOutcome: RouteReviewOutcome,
+		page: number,
+		limit: number
+	): Promise<{ items: TrekkingRouteReviewResponseDto[]; total: number }> {
+		const offset = (page - 1) * limit;
+		const outcomePredicate = `(
+			($1 = 'all' AND ${ROUTE_REVIEW_OUTCOME_EXPRESSION} IS NOT NULL)
+			OR ${ROUTE_REVIEW_OUTCOME_EXPRESSION} = $1
+		)`;
+		const rows = (await this.query(
+			`${REVIEW_ROUTE_SELECT}
+			WHERE ${outcomePredicate}
+			ORDER BY COALESCE(latest_review."created_at", route."updated_at") DESC, route."id" ASC
+			LIMIT $2 OFFSET $3`,
+			[reviewOutcome, limit, offset]
+		)) as ReviewRouteRow[];
+		const countRows = (await this.query(
+			`SELECT COUNT(*) AS "total"
+			FROM "trekking_routes" route
+			${LATEST_REVIEW_AUDIT_JOIN}
+			WHERE ${outcomePredicate}`,
+			[reviewOutcome]
+		)) as Array<{ total: string }>;
+
+		return {
+			items: rows.map(toReviewResponse),
+			total: Number(countRows[0]?.total ?? 0),
+		};
 	}
 
 	async findReviewRouteByIdForUpdate(
@@ -270,14 +382,41 @@ export class TrekkingRoutesRepository extends Repository<TrekkingRoute> {
 					FROM "checkpoints" checkpoint
 					WHERE checkpoint."route_id" = route."id"
 						AND NOT (${CHECKPOINT_INTEGRITY_PREDICATE})
-				) AS "checkpointsValid"
+				) AS "checkpointsValid",
+				COUNT(checkpoint."id") FILTER (
+					WHERE checkpoint."type" = 'start'
+				)::int AS "startCount",
+				COUNT(checkpoint."id") FILTER (
+					WHERE checkpoint."type" = 'finish'
+				)::int AS "finishCount",
+				MIN(checkpoint."route_position") FILTER (
+					WHERE checkpoint."type" = 'start'
+				) AS "startPosition",
+				MIN(checkpoint."route_position") FILTER (
+					WHERE checkpoint."type" = 'finish'
+				) AS "finishPosition"
 			FROM "trekking_routes" route
+			LEFT JOIN "checkpoints" checkpoint ON checkpoint."route_id" = route."id"
 			WHERE route."id" = $1
+			GROUP BY route."id"
 			`,
 			[routeId]
-		)) as Array<{ checkpointsValid: boolean }>;
+		)) as Array<{
+			checkpointsValid: boolean;
+			startCount: number | string;
+			finishCount: number | string;
+			startPosition: number | string | null;
+			finishPosition: number | string | null;
+		}>;
 
-		return { checkpointsValid: Boolean(rows[0]?.checkpointsValid) };
+		const result = rows[0];
+		return {
+			checkpointsValid: Boolean(result?.checkpointsValid),
+			startCount: Number(result?.startCount ?? 0),
+			finishCount: Number(result?.finishCount ?? 0),
+			startPosition: result?.startPosition == null ? null : Number(result.startPosition),
+			finishPosition: result?.finishPosition == null ? null : Number(result.finishPosition),
+		};
 	}
 
 	async updateStatus(
@@ -316,25 +455,77 @@ export class TrekkingRoutesRepository extends Repository<TrekkingRoute> {
 		const rows = (await this.query(
 			`
 			SELECT
-				"id",
-				"host_id" AS "hostId",
-				"name",
-				"description",
-				ST_AsGeoJSON("route_geom"::geometry)::json AS "geometry",
-				"length_meters" AS "lengthMeters",
-				"difficulty",
-				"expected_duration_minutes" AS "expectedDurationMinutes",
-				"status",
-				"created_at" AS "createdAt",
-				"updated_at" AS "updatedAt"
-			FROM "trekking_routes"
-			WHERE "host_id" = $1
-			ORDER BY "created_at" DESC, "id" ASC
+				route."id",
+				route."host_id" AS "hostId",
+				route."name",
+				route."description",
+				ST_AsGeoJSON(route."route_geom"::geometry)::json AS "geometry",
+				route."length_meters" AS "lengthMeters",
+				route."difficulty",
+				route."expected_duration_minutes" AS "expectedDurationMinutes",
+				route."status",
+				${LATEST_REVIEW_AUDIT_SELECT},
+				route."created_at" AS "createdAt",
+				route."updated_at" AS "updatedAt"
+			FROM "trekking_routes" route
+			${LATEST_REVIEW_AUDIT_JOIN}
+			WHERE route."host_id" = $1
+			ORDER BY route."created_at" DESC, route."id" ASC
 			`,
 			[hostId]
 		)) as CreatedRouteRow[];
 
 		return rows.map(toResponse);
+	}
+
+	async findByHostPaginated(
+		hostId: string,
+		page: number,
+		limit: number,
+		status: TrekkingRouteStatus | null
+	): Promise<{ items: TrekkingRouteResponseDto[]; total: number }> {
+		const offset = (page - 1) * limit;
+		const rows = (await this.query(
+			`
+			SELECT
+				route."id",
+				route."host_id" AS "hostId",
+				route."name",
+				route."description",
+				ST_AsGeoJSON(route."route_geom"::geometry)::json AS "geometry",
+				route."length_meters" AS "lengthMeters",
+				route."difficulty",
+				route."expected_duration_minutes" AS "expectedDurationMinutes",
+				route."status",
+				${LATEST_REVIEW_AUDIT_SELECT},
+				route."created_at" AS "createdAt",
+				route."updated_at" AS "updatedAt",
+				COUNT(*) OVER() AS "total"
+			FROM "trekking_routes" route
+			${LATEST_REVIEW_AUDIT_JOIN}
+			WHERE route."host_id" = $1
+				AND ($2::trekking_route_status IS NULL OR route."status" = $2::trekking_route_status)
+			ORDER BY route."created_at" DESC, route."id" ASC
+			LIMIT $3 OFFSET $4
+			`,
+			[hostId, status, limit, offset]
+		)) as Array<CreatedRouteRow & { total: string }>;
+		let total = Number(rows[0]?.total ?? 0);
+		if (rows.length === 0) {
+			const countRows = (await this.query(
+				`SELECT COUNT(*) AS "total"
+				 FROM "trekking_routes"
+				 WHERE "host_id" = $1
+					AND ($2::trekking_route_status IS NULL OR "status" = $2::trekking_route_status)`,
+				[hostId, status]
+			)) as Array<{ total: string }>;
+			total = Number(countRows[0]?.total ?? 0);
+		}
+
+		return {
+			items: rows.map(toResponse),
+			total,
+		};
 	}
 
 	async hasTripReferences(routeId: string): Promise<boolean> {
