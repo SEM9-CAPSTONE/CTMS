@@ -336,7 +336,7 @@ describe("RouteCheckpointsPanel", () => {
 				/>
 			);
 			expect(useRouteCheckpoints).toHaveBeenLastCalledWith("route-two");
-			expect(screen.getByText(/Chỉ xem/)).toBeInTheDocument();
+			expect(screen.getByText("Đang chờ duyệt")).toBeInTheDocument();
 			expect(screen.getByRole("button", { name: "Thêm điểm dừng" })).toBeDisabled();
 			expect(screen.getByText("Rest")).toBeInTheDocument();
 			expect(screen.getByTestId("panel-map")).toHaveAttribute("data-disabled", "true");

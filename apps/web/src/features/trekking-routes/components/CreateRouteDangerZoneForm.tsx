@@ -94,9 +94,6 @@ export function CreateRouteDangerZoneForm({
 						<LocationTypeOptions includeDangerArea />
 					</select>
 				</label>
-				<p className="self-end text-sm text-[#667a6d]">
-					Nhấp lên bản đồ để thêm các đỉnh; khu vực cần ít nhất ba đỉnh khác nhau.
-				</p>
 			</div>
 
 			{mode === "hazard-polygon" && (

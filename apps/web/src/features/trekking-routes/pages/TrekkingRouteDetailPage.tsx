@@ -13,11 +13,7 @@ import {
 import { CheckpointList } from "../components/CheckpointList";
 import { DangerZoneList } from "../components/DangerZoneList";
 import { RouteGeometryPreview } from "../components/RouteGeometryPreview";
-import { RouteRegistrationBlockPanel } from "../components/RouteRegistrationBlockPanel";
 import { RouteStatusActionDialog } from "../components/RouteStatusActionDialog";
-import { RouteWeatherAdvicePanel } from "../components/RouteWeatherAdvicePanel";
-import { RouteWeatherPanel } from "../components/RouteWeatherPanel";
-import { RouteWeatherRiskPanel } from "../components/RouteWeatherRiskPanel";
 import { difficultyLabels, formatLength, statusLabels } from "../components/TrekkingRouteList";
 import { useRouteCheckpoints } from "../hooks/useRouteCheckpoints";
 import { useRouteDangerZones } from "../hooks/useRouteDangerZones";
@@ -181,10 +177,6 @@ export function TrekkingRouteDetailPage({ routeId, onBack, onEdit }: TrekkingRou
 						</section>
 
 						<RouteStatusActionDialog route={route} onReload={routes.retry} />
-						<RouteWeatherPanel route={route} />
-						<RouteWeatherRiskPanel route={route} />
-						<RouteWeatherAdvicePanel route={route} />
-						<RouteRegistrationBlockPanel routeId={route.id} routeName={route.name} />
 					</>
 				)}
 			</main>
