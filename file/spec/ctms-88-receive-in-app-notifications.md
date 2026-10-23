@@ -141,3 +141,14 @@ TBD — Technical Design.
 ## 12. Open Decisions
 
 Exact supported notification-event catalog belongs to notification configuration/domain rules.
+
+## Camper cancellation event (mentor feedback, 2026-10-22)
+
+Ordinary Camper cancellation persists a transactional inbox record for the active
+owning Host and active Admin users, visible only after commit. One (Booking, recipient)
+pair is stored once. The record includes Camper name where available, required reason,
+Trip reference, timestamp and nullable read_at. GET /api/booking-cancellation-notices
+returns only the authenticated recipient's newest 50 rows; PATCH /api/booking-cancellation-notices/:id/read
+marks only an owned row as read and preserves the first timestamp on retries.
+Rejected/rolled-back/replayed cancellations must not produce additional notifications.
+The Web polls this inbox every 30 seconds. Background push/email is not implemented here.

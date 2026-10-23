@@ -40,6 +40,9 @@ export class AvailablePortersService {
 		if (trip.status !== TripStatus.PUBLISHED || trip.startsAt <= new Date()) {
 			throw new ConflictException("Only upcoming published Trips can search for Porters");
 		}
+		if (trip.hasActivePorter) {
+			throw new ConflictException("Trip already has an active Porter assignment");
+		}
 		const excludedPorterIds = await this.scheduleConflictSource.findConflictingPorterIds({
 			tripId,
 			startsAt: trip.startsAt,

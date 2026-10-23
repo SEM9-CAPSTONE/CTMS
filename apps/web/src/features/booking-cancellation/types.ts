@@ -1,7 +1,7 @@
 import type { BookingPaymentStatus } from "../booking-details/types";
 
 export interface CancelBookingRequest {
-	reason?: string;
+	reason: string;
 }
 
 export interface CancelBookingResponse {

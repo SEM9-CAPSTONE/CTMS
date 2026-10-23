@@ -1,9 +1,9 @@
 import { expect, it } from "vitest";
 import { cancelBookingSchema } from "./cancel-booking.schema";
 
-it("accepts omitted/blank reason, trims and accepts 255 characters", () => {
-	expect(cancelBookingSchema.parse({})).toEqual({});
-	expect(cancelBookingSchema.parse({ reason: "   " })).toEqual({ reason: "" });
+it("requires a reason, trims and accepts 255 characters", () => {
+	expect(cancelBookingSchema.safeParse({}).success).toBe(false);
+	expect(cancelBookingSchema.safeParse({ reason: "   " }).success).toBe(false);
 	expect(cancelBookingSchema.parse({ reason: " reason " })).toEqual({ reason: "reason" });
 	expect(cancelBookingSchema.safeParse({ reason: "x".repeat(255) }).success).toBe(true);
 });

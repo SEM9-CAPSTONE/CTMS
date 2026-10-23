@@ -791,4 +791,34 @@ describe("TripDetailPage", () => {
 		);
 		expect(screen.getByRole("button", { name: /Điểm danh & Hoàn tất/ })).toBeInTheDocument();
 	});
+	it.each([
+		["cancelled", "booking-cancelled", true],
+		["confirmed", "booking-cancelled", false],
+		["cancelled", "different-booking", false],
+	] as const)(
+		"honors rebook navigation only for an authoritative cancelled matching Booking (%s/%s)",
+		(status, rebookId, allowed) => {
+			const previousUrl = window.location.href;
+			window.history.replaceState({}, "", `/trips/${mockTrip.id}?rebook=${rebookId}`);
+			try {
+				vi.mocked(useTripDetail).mockReturnValue({
+					trip: mockTrip,
+					isLoading: false,
+					error: null,
+					isNotFound: false,
+					retry: vi.fn(),
+				});
+				vi.mocked(useTripBooking).mockReturnValue({
+					...defaultTripBookingState,
+					booking: { ...cancelledBookingDetails, status },
+				});
+				render(<TripDetailPage tripId={mockTrip.id} onBackToList={vi.fn()} />);
+				const action = screen.queryByRole("button", { name: /Đặt chỗ ngay/ });
+				if (allowed) expect(action).toBeEnabled();
+				else expect(action).not.toBeInTheDocument();
+			} finally {
+				window.history.replaceState({}, "", previousUrl);
+			}
+		}
+	);
 });

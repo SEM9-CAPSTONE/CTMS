@@ -9,6 +9,7 @@ export interface QuickTasksPanelProps {
 	onCreateTrekkingRoute?: () => void;
 	onViewTrekkingRoutes?: () => void;
 	onNavigateToTrips?: () => void;
+	onExploreTrip?: () => void;
 }
 
 const roleSubtitles: Record<string, string> = {
@@ -25,6 +26,7 @@ export function QuickTasksPanel({
 	onCreateTrekkingRoute,
 	onViewTrekkingRoutes,
 	onNavigateToTrips,
+	onExploreTrip,
 }: QuickTasksPanelProps) {
 	return (
 		<div className="rounded-[28px] border border-[#dfe8df] bg-white p-6 shadow-sm">
@@ -41,8 +43,12 @@ export function QuickTasksPanel({
 						<ArrowRight className="size-4" />
 					</Button>
 				)}
-				{config.role === "camper" && onNavigateToTrips && (
-					<Button onClick={onNavigateToTrips} className="gap-2">
+				{config.role === "camper" && (
+					<Button
+						onClick={onExploreTrip ?? onNavigateToTrips}
+						disabled={!onExploreTrip && !onNavigateToTrips}
+						className="gap-2"
+					>
 						<ArrowRight className="size-4" />
 						<span>Khám phá chuyến đi</span>
 					</Button>

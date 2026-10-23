@@ -33,7 +33,7 @@ export function useCancelBooking(bookingId: string) {
 			setError(null);
 			try {
 				const response = await bookingCancellationService.cancel(bookingId, {
-					...(input.reason?.trim() ? { reason: input.reason.trim() } : {}),
+					reason: input.reason.trim(),
 				});
 				if (attempt !== generation.current) return null;
 				setResult(response);

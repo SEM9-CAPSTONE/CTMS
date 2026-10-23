@@ -4,6 +4,7 @@ import {
 	ForbiddenException,
 	Injectable,
 	NotFoundException,
+	UnprocessableEntityException,
 } from "@nestjs/common";
 // biome-ignore lint/style/useImportType: NestJS constructor injection requires runtime metadata
 import { DataSource, type EntityManager } from "typeorm";
@@ -13,9 +14,10 @@ import {
 	BookingPaymentStatus,
 	BookingStatus,
 } from "../profiles/entities/booking.entity";
-import { Trip } from "../trips/entities/trip.entity";
+import { Trip, TripStatus } from "../trips/entities/trip.entity";
 // biome-ignore lint/style/useImportType: NestJS constructor injection requires runtime metadata
 import { TripsRepository } from "../trips/repositories/trips.repository";
+import { UserRole, UserStatus } from "../users/entities/user.entity";
 // biome-ignore lint/style/useImportType: NestJS constructor injection requires runtime metadata
 import { BookingsRepository } from "./bookings.repository";
 import {
@@ -32,7 +34,6 @@ import { EquipmentReservationsRepository } from "./equipment-reservations.reposi
 // biome-ignore lint/style/useImportType: NestJS constructor injection requires runtime metadata
 import { PaymentsRepository } from "./payments.repository";
 
-const DEFAULT_CANCELLATION_REASON = "camper_cancel_booking";
 const refundKey = (bookingId: string): string => `ctms-174:cancel:${bookingId}`;
 
 @Injectable()
@@ -60,7 +61,14 @@ export class BookingCancellationService {
 				});
 				if (!identity) throw new NotFoundException("Booking not found");
 				const trip = await manager.getRepository(Trip).findOne({
-					select: { id: true, seatsTaken: true },
+					select: {
+						id: true,
+						seatsTaken: true,
+						startsAt: true,
+						status: true,
+						hostId: true,
+						title: true,
+					},
 					where: { id: identity.tripId },
 					lock: { mode: "pessimistic_write" },
 				});
@@ -121,19 +129,31 @@ export class BookingCancellationService {
 					policy.refundPercent,
 					previousRefunds.map((refund) => refund.amount)
 				);
-				const reservations = await manager
-					.withRepository(this.equipmentRepository)
-					.findByBookingForUpdate(bookingId);
-				// There is no persisted pickup discriminator. An active reservation cannot
-				// be proven reserved, so the approved MVP rejects before any mutation.
+				// Validate the live Trip as well as the booking snapshot before releasing rentals.
 				if (
-					reservations.some(
-						(reservation) => reservation.status !== EquipmentReservationStatus.CANCELLED
-					)
+					trip.status !== TripStatus.PUBLISHED ||
+					!trip.startsAt ||
+					trip.startsAt <= requestTime
 				) {
-					throw new ConflictException("Equipment reservation cannot be proven safely releasable");
+					throw new ConflictException("Trip is no longer open for pre-departure cancellation");
 				}
-				const reason = dto.reason?.trim() || DEFAULT_CANCELLATION_REASON;
+				const reason = dto.reason?.trim();
+				if (!reason || reason.length > 255) {
+					throw new UnprocessableEntityException(
+						"Vui lòng nhập lý do hủy chuyến, tối đa 255 ký tự."
+					);
+				}
+				const equipment = manager.withRepository(this.equipmentRepository);
+				const reservations = await equipment.findByBookingForUpdate(bookingId);
+				const activeReservations = reservations.filter(
+					(reservation) => reservation.status === EquipmentReservationStatus.ACTIVE
+				);
+				for (const reservation of activeReservations) {
+					reservation.status = EquipmentReservationStatus.CANCELLED;
+					reservation.cancelledAt = requestTime;
+					reservation.cancellationReason = reason;
+					await equipment.save(reservation);
+				}
 				const before = {
 					status: booking.status,
 					paymentStatus: booking.paymentStatus,
@@ -179,7 +199,10 @@ export class BookingCancellationService {
 						policy,
 						seatReleaseCount: numPeople,
 						seatsTaken: trip.seatsTaken - numPeople,
-						equipment: { releasedCount: 0, alreadyCancelledCount: reservations.length },
+						equipment: {
+							releasedCount: activeReservations.length,
+							alreadyCancelledCount: reservations.length - activeReservations.length,
+						},
 						refund: {
 							...refundResult,
 							parentPaymentId: charge?.id ?? null,
@@ -188,6 +211,28 @@ export class BookingCancellationService {
 					},
 					reason,
 				});
+				// Transactional inbox rows become visible only after commit.
+				await manager.query(
+					`INSERT INTO booking_cancellation_notices
+					(recipient_id, booking_id, trip_id, trip_title, camper_name, reason)
+					SELECT DISTINCT recipient.id, $1::uuid, $2::uuid, $3::varchar, camper.full_name, $4::varchar
+					FROM users recipient
+					LEFT JOIN user_roles role ON role.user_id = recipient.id
+					LEFT JOIN users camper ON camper.id = $5
+					WHERE recipient.status = $6
+					AND (recipient.id = $7 OR recipient.role = $8 OR role.role = $8)
+					ON CONFLICT (booking_id, recipient_id) DO NOTHING`,
+					[
+						bookingId,
+						trip.id,
+						trip.title,
+						reason,
+						actorId,
+						UserStatus.ACTIVE,
+						trip.hostId,
+						UserRole.ADMIN,
+					]
+				);
 				return this.response(booking, obligation);
 			});
 		} catch (error: unknown) {

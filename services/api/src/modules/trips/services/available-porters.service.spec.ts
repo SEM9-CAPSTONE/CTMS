@@ -50,6 +50,18 @@ describe("AvailablePortersService", () => {
 
 	afterEach(() => jest.useRealTimers());
 
+	it("rejects searching when the Trip already has a schedule-holding Porter", async () => {
+		const trip = await tripsRepository.findPorterAvailabilityContext();
+		tripsRepository.findPorterAvailabilityContext.mockResolvedValue({
+			...trip,
+			hasActivePorter: true,
+		});
+		await expect(
+			service.search(HOST_ID, TRIP_ID, { role: IntendedPorterRole.SUPPORT, page: 1, limit: 20 })
+		).rejects.toBeInstanceOf(ConflictException);
+		expect(availablePortersRepository.findEligibleCandidates).not.toHaveBeenCalled();
+	});
+
 	it("searches an owned Trip with reusable eligibility inputs and pagination", async () => {
 		availablePortersRepository.findEligibleCandidates.mockResolvedValue({
 			items: [

@@ -515,3 +515,10 @@ export interface TripBookingsResponse {
 	bookings: TripBookingItem[];
 	equipmentSummary: TripEquipmentPreparationItem[];
 }
+
+export interface BookedTripRouteMap {
+	tripId: string;
+	title: string;
+	meetingPoint: GeoJsonPoint | null;
+	route: PorterTripOperations["route"];
+}

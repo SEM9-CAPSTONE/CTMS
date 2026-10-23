@@ -349,3 +349,6 @@ export const dashboards: Record<RoleKey, DashboardConfig> = {
 		],
 	},
 };
+
+export const CAMPER_DISCOVERY_PAGE_SIZE = 6;
+export const CAMPER_DISCOVERY_REFRESH_MS = 30_000;

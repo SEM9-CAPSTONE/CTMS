@@ -1,6 +1,7 @@
 import { AlertCircle, BadgeCheck, CheckCircle, Loader2, RefreshCw } from "lucide-react";
 import { Card, Pagination } from "../../../shared/components";
 import { AdminLayout } from "../../admin-layout/components/AdminLayout";
+import { PorterQualificationGuidance } from "../../porter-verification/components/PorterQualificationGuidance";
 import { PorterVerificationDetailDialog } from "../components/PorterVerificationDetailDialog";
 import { PorterVerificationsFilters } from "../components/PorterVerificationsFilters";
 import { PorterVerificationsTable } from "../components/PorterVerificationsTable";
@@ -26,6 +27,7 @@ export function AdminPorterVerificationsPage({ onLogout }: AdminPorterVerificati
 					</p>
 				</div>
 
+				<PorterQualificationGuidance />
 				{state.errorMessage && (
 					<div
 						role="alert"

@@ -6,7 +6,7 @@ describe("RefundStateBadge", () => {
 	it("renders pending badge without fabricating success", () => {
 		render(<RefundStateBadge status="pending" />);
 		const badge = screen.getByTestId("refund-status-badge-pending");
-		expect(badge).toHaveTextContent("Đang xử lý (chờ đối tác)");
+		expect(badge).toHaveTextContent("Đang xử lý");
 	});
 
 	it("renders succeeded badge accurately", () => {

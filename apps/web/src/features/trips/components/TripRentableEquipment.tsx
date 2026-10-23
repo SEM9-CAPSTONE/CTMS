@@ -60,12 +60,14 @@ export function formatEquipmentCategory(category: string): string {
 	}
 }
 
+const EMPTY_SELECTED_EQUIPMENT: SelectedEquipmentItem[] = [];
+
 export function TripRentableEquipment({
 	tripId,
 	bookingAccess = "camper",
 	onSignIn,
 	bookingId = null,
-	selectedEquipment = [],
+	selectedEquipment = EMPTY_SELECTED_EQUIPMENT,
 	onConfirmSelection,
 	onTotalAmountChange,
 	defaultOpen = false,

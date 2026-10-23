@@ -20,6 +20,7 @@ import {
 import { LogoutActions } from "../../auth/components/LogoutActions";
 import { RegisterStepper } from "../../auth/components/RegisterStepper";
 import { PORTER_REGISTER_STEPS } from "../../auth/constants";
+import { PorterQualificationGuidance } from "../components/PorterQualificationGuidance";
 import {
 	PORTER_VERIFICATION_MAX_DOCUMENTS,
 	PORTER_VERIFICATION_MAX_FILE_BYTES,
@@ -134,6 +135,7 @@ export function PorterVerificationPage({ onLogout, onContinue }: PorterVerificat
 				</div>
 
 				<RegisterStepper currentStep={4} steps={PORTER_REGISTER_STEPS} />
+				<PorterQualificationGuidance />
 				<div className="my-4 border-t border-[#f0f4f0]" />
 
 				{state.isLoading ? (

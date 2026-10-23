@@ -1,3 +1,4 @@
+import { TRIP_ROUTE_PROJECTION_SQL } from "./trip-route-projection";
 // Explicit operational projection: never expose Host, billing, health, or provider payloads.
 // Porters only see Trips that are upcoming, ongoing or finished; other lifecycle states stay hidden.
 export const PORTER_VISIBLE_TRIP_STATUSES_SQL = "'published', 'ongoing', 'completed'";
@@ -19,22 +20,7 @@ SELECT trip."id" AS "tripId", trip."title", trip."status",
  FROM "trip_waypoints" wp WHERE wp."trip_id" = trip."id"), '[]'::jsonb) AS "waypoints",
  trip."updated_at" AS "updatedAt", assignment."status" AS "assignmentStatus",
  statement_timestamp() AS "retrievedAt",
- CASE WHEN route."id" IS NULL THEN NULL ELSE jsonb_build_object(
-  'id', route."id", 'name', route."name", 'status', route."status",
-  'geometry', ST_AsGeoJSON(route."route_geom")::jsonb, 'updatedAt', route."updated_at",
-  'checkpoints', COALESCE((SELECT jsonb_agg(jsonb_build_object(
-   'id', cp."id", 'routeId', cp."route_id", 'name', cp."name", 'type', cp."type",
-   'location', ST_AsGeoJSON(cp."location")::jsonb, 'radiusMeters', cp."radius_m",
-   'expectedArrivalOffset', cp."expected_arrival_offset", 'instructions', cp."instructions",
-   'nearbyWaterOrShelter', cp."nearby_water_or_shelter", 'routePosition', cp."route_position",
-   'createdAt', cp."created_at", 'updatedAt', cp."updated_at"
-  ) ORDER BY cp."route_position", cp."id") FROM "checkpoints" cp WHERE cp."route_id" = route."id"), '[]'::jsonb),
-  'dangerZones', COALESCE((SELECT jsonb_agg(jsonb_build_object(
-   'id', hazard."id", 'routeId', hazard."route_id", 'geometry', ST_AsGeoJSON(hazard."geom")::jsonb,
-   'radiusMeters', hazard."radius_m", 'description', hazard."description", 'severity', hazard."severity",
-   'createdAt', hazard."created_at", 'updatedAt', hazard."updated_at"
-  ) ORDER BY hazard."id") FROM "route_danger_zones" hazard WHERE hazard."route_id" = route."id"), '[]'::jsonb)
- ) END AS "route",
+ ${TRIP_ROUTE_PROJECTION_SQL} AS "route",
  COALESCE((SELECT jsonb_agg(jsonb_build_object(
   'memberId', member."id", 'displayName', camper."full_name", 'memberStatus', member."member_status"
  ) ORDER BY member."created_at", member."id")

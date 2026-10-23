@@ -207,6 +207,13 @@ describe("BookingsService", () => {
 		);
 	});
 
+	it("defaults to a 120-minute hold when configuration is absent", async () => {
+		const config = (service as unknown as { configService: ConfigService }).configService;
+		jest.spyOn(config, "get").mockReturnValue(undefined);
+		const result = await service.create(USER_ID, "default-hold", { tripId: TRIP_ID, numPeople: 1 });
+		expect(result.holdExpiresAt).toEqual(new Date("2029-09-01T02:00:00.000Z"));
+	});
+
 	it("creates a free confirmed Booking without a hold", async () => {
 		tripRepository.findByIdForBooking.mockResolvedValue(lockedTrip({ pricePerPerson: "0.00" }));
 		const result = await service.create(USER_ID, "attempt-free", { tripId: TRIP_ID, numPeople: 2 });

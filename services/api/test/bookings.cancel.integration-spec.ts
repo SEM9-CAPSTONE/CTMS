@@ -11,6 +11,7 @@ import {
 	BookingStatus,
 } from "../src/modules/profiles/entities/booking.entity";
 import { UserRole } from "../src/modules/users/entities/user.entity";
+import { repairDemoBookingCancellation } from "../src/seeds/repair-demo-booking-cancellation";
 import { validationExceptionFactory } from "../src/shared/pipes/validation-exception-factory";
 import { assertSafeTestDatabase } from "./support/assert-safe-test-database";
 
@@ -149,7 +150,11 @@ describe("PATCH /api/bookings/:bookingId/cancel (real Postgres)", () => {
 		return { bookingId, tripId, chargeId, orderCode };
 	}
 
-	function cancel(bookingId: string, token = owner.token, body: object = {}) {
+	function cancel(
+		bookingId: string,
+		token = owner.token,
+		body: object = { reason: "Changed plans" }
+	) {
 		return request(app.getHttpServer())
 			.patch(`/api/bookings/${bookingId}/cancel`)
 			.set("Authorization", `Bearer ${token}`)
@@ -165,6 +170,52 @@ describe("PATCH /api/bookings/:bookingId/cancel (real Postgres)", () => {
 		);
 		return rows[0];
 	}
+
+	it("serves saved route geometry only to an eligible booking owner and revokes access after cancellation", async () => {
+		const f = await fixture();
+		const get = (token: string) =>
+			request(app.getHttpServer())
+				.get(`/api/trips/${f.tripId}/route-map`)
+				.set("Authorization", `Bearer ${token}`);
+		const response = await get(owner.token).expect(200);
+		expect(response.body.route.geometry).toMatchObject({
+			type: "LineString",
+			coordinates: [
+				[108.22, 16.04],
+				[108.25, 16.07],
+			],
+		});
+		expect(response.body.route.checkpoints).toEqual([]);
+		expect(Object.keys(response.body).sort()).toEqual(["meetingPoint", "route", "title", "tripId"]);
+		await get(foreign.token).expect(404);
+		await get(host.token).expect(403);
+		await cancel(f.bookingId).expect(200);
+		await get(owner.token).expect(404);
+	});
+	it("repairs only synthetic demo policy/payment evidence, is idempotent, then permits ordinary cancellation", async () => {
+		const f = await fixture({ policy: null, charge: false });
+		await expect(repairDemoBookingCancellation(db, f.bookingId)).rejects.toThrow("non-seed");
+		await db.query(`UPDATE users SET email='camper.lan@ctms.local' WHERE id=$1`, [owner.id]);
+		await db.query(`UPDATE trips SET title='[CTMS-024] Cancellation demo repair' WHERE id=$1`, [
+			f.tripId,
+		]);
+		try {
+			expect(await repairDemoBookingCancellation(db, f.bookingId)).toEqual({
+				policyRepaired: true,
+				chargeCreated: true,
+			});
+			expect(await repairDemoBookingCancellation(db, f.bookingId)).toEqual({
+				policyRepaired: false,
+				chargeCreated: false,
+			});
+			await cancel(f.bookingId).expect(200);
+		} finally {
+			await db.query("UPDATE users SET email=$2 WHERE id=$1", [
+				owner.id,
+				`cancel-${owner.id}@example.com`,
+			]);
+		}
+	});
 
 	it("atomically cancels using snapshot policy and actual charge, preserves members and returns minimal data", async () => {
 		const f = await fixture();
@@ -362,7 +413,7 @@ describe("PATCH /api/bookings/:bookingId/cancel (real Postgres)", () => {
 		expect(await state(f)).toEqual(before);
 	});
 
-	it("rejects ambiguous active equipment atomically, and does not touch already cancelled reservations", async () => {
+	it("releases pre-departure equipment once and preserves cancelled reservations on replay", async () => {
 		const f = await fixture();
 		const equipmentId = randomUUID();
 		const itemId = randomUUID();
@@ -378,13 +429,15 @@ describe("PATCH /api/bookings/:bookingId/cancel (real Postgres)", () => {
 			`INSERT INTO equipment_reservations (booking_item_id,equipment_catalog_item_id,quantity,rental_start_date,rental_end_date) VALUES ($1,$2,1,'2099-10-10','2099-10-10')`,
 			[itemId, equipmentId]
 		);
-		const before = await state(f);
-		await cancel(f.bookingId).expect(409);
-		expect(await state(f)).toEqual(before);
-		await db.query(
-			"UPDATE equipment_reservations SET status='cancelled' WHERE booking_item_id=$1",
-			[itemId]
-		);
+		await cancel(f.bookingId).expect(200);
+		expect(
+			(
+				await db.query(
+					"SELECT status, cancellation_reason FROM equipment_reservations WHERE booking_item_id=$1",
+					[itemId]
+				)
+			)[0]
+		).toMatchObject({ status: "cancelled", cancellation_reason: "Changed plans" });
 		const reservationBefore = await db.query(
 			"SELECT * FROM equipment_reservations WHERE booking_item_id=$1",
 			[itemId]
@@ -395,16 +448,23 @@ describe("PATCH /api/bookings/:bookingId/cancel (real Postgres)", () => {
 		).toEqual(reservationBefore);
 	});
 
-	it.each(["audit", "refund"])(
+	it.each(["audit", "refund", "notice"])(
 		"rolls back Booking, seats, metadata and refund on %s persistence failure",
 		async (failure) => {
 			const f = await fixture();
 			const before = await state(f);
-			const table = failure === "audit" ? "audit_logs" : "payments";
+			const table =
+				failure === "audit"
+					? "audit_logs"
+					: failure === "notice"
+						? "booking_cancellation_notices"
+						: "payments";
 			const condition =
 				failure === "audit"
 					? `NEW.action = 'booking.cancelled' AND NEW.target_id = '${f.bookingId}'::uuid`
-					: `NEW.type = 'refund' AND NEW.booking_id = '${f.bookingId}'::uuid`;
+					: failure === "notice"
+						? `NEW.booking_id = '${f.bookingId}'::uuid`
+						: `NEW.type = 'refund' AND NEW.booking_id = '${f.bookingId}'::uuid`;
 			await db.query(
 				`CREATE FUNCTION ctms174_test_reject() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF ${condition} THEN RAISE EXCEPTION 'forced cancellation persistence failure'; END IF; RETURN NEW; END $$`
 			);
@@ -464,6 +524,73 @@ describe("PATCH /api/bookings/:bookingId/cancel (real Postgres)", () => {
 			cancelledAt: null,
 			refund: null,
 		});
+		expect(await state(f)).toEqual(before);
+	});
+	it("notifies only the owning host and active admins once, with private idempotent read state", async () => {
+		const admin = await account(UserRole.ADMIN);
+		const otherHost = await account(UserRole.HOST);
+		const f = await fixture();
+		await cancel(f.bookingId, owner.token, { reason: "Need another date" }).expect(200);
+		await cancel(f.bookingId, owner.token, { reason: "Retry reason" }).expect(200);
+		const inbox = async (token: string) =>
+			(
+				await request(app.getHttpServer())
+					.get("/api/booking-cancellation-notices")
+					.set("Authorization", `Bearer ${token}`)
+					.expect(200)
+			).body as Array<{ id: string; bookingId: string; reason: string; readAt: string | null }>;
+		const hostRows = (await inbox(host.token)).filter((row) => row.bookingId === f.bookingId);
+		const adminRows = (await inbox(admin.token)).filter((row) => row.bookingId === f.bookingId);
+		expect(hostRows).toHaveLength(1);
+		expect(adminRows).toHaveLength(1);
+		expect(hostRows[0]).toMatchObject({ reason: "Need another date", readAt: null });
+		expect((await inbox(otherHost.token)).some((row) => row.bookingId === f.bookingId)).toBe(false);
+		await request(app.getHttpServer())
+			.get("/api/booking-cancellation-notices")
+			.set("Authorization", `Bearer ${owner.token}`)
+			.expect(403);
+		const readUrl = `/api/booking-cancellation-notices/${hostRows[0].id}/read`;
+		await request(app.getHttpServer())
+			.patch(readUrl)
+			.set("Authorization", `Bearer ${otherHost.token}`)
+			.expect(404);
+		await request(app.getHttpServer())
+			.patch(readUrl)
+			.set("Authorization", `Bearer ${host.token}`)
+			.expect(204);
+		const readAt = (await inbox(host.token)).find((row) => row.id === hostRows[0].id)?.readAt;
+		expect(readAt).toBeTruthy();
+		await request(app.getHttpServer())
+			.patch(readUrl)
+			.set("Authorization", `Bearer ${host.token}`)
+			.expect(204);
+		expect((await inbox(host.token)).find((row) => row.id === hostRows[0].id)?.readAt).toBe(readAt);
+		expect((await inbox(admin.token)).find((row) => row.id === adminRows[0].id)?.readAt).toBeNull();
+	});
+
+	it.each([{}, { reason: "" }, { reason: "   " }, { reason: null }])(
+		"rejects missing or blank reason %p without changes",
+		async (body) => {
+			const f = await fixture();
+			const before = await state(f);
+			await cancel(f.bookingId, owner.token, body).expect(422);
+			expect(await state(f)).toEqual(before);
+			expect(
+				await db.query("SELECT id FROM booking_cancellation_notices WHERE booking_id=$1", [
+					f.bookingId,
+				])
+			).toHaveLength(0);
+		}
+	);
+
+	it("does not release rentals when the live trip has already started", async () => {
+		const f = await fixture();
+		await db.query(
+			"UPDATE trips SET starts_at=now()-interval '1 hour', booking_deadline=now()-interval '2 hours' WHERE id=$1",
+			[f.tripId]
+		);
+		const before = await state(f);
+		await cancel(f.bookingId).expect(409);
 		expect(await state(f)).toEqual(before);
 	});
 });

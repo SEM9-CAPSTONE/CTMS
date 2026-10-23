@@ -179,6 +179,7 @@ it("confirms once, locks pending dialog, reloads details and propagates cancelle
 it("keeps confirmed cancellation visible when the follow-up GET fails and retries only GET", async () => {
 	await openDialog();
 	vi.mocked(bookingDetailsService.getBookingDetails).mockRejectedValueOnce(new Error("GET failed"));
+	fireEvent.change(screen.getByRole("textbox"), { target: { value: "Changed plans" } });
 	fireEvent.click(screen.getByRole("button", { name: "Xác nhận hủy" }));
 	expect(
 		await screen.findByText(/Kết quả hủy đã xác nhận ở trên vẫn được giữ nguyên/)
@@ -229,6 +230,7 @@ it("isolates cancellation state when navigating to a different Booking", async (
 		</QueryClientProvider>
 	);
 	fireEvent.click(await screen.findByRole("button", { name: "Yêu cầu hủy đơn" }));
+	fireEvent.change(screen.getByRole("textbox"), { target: { value: "Changed plans" } });
 	fireEvent.click(screen.getByRole("button", { name: "Xác nhận hủy" }));
 	await screen.findByRole("heading", { name: "Đã xác nhận hủy đơn đặt chỗ" });
 	const other: BookingDetails = { ...bookingFixture, id: "other" };

@@ -76,7 +76,7 @@ describe("AvailablePortersPanel", () => {
 		resolveRequest?.(SUPPORT_RESPONSE);
 
 		await screen.findByText("Nguyễn Minh Sơn");
-		expect(screen.getByText("6 năm")).toBeInTheDocument();
+		expect(screen.getByText("6 năm kinh nghiệm")).toBeInTheDocument();
 		expect(screen.getByText("4.8")).toBeInTheDocument();
 		expect(screen.getByText("18 chuyến")).toBeInTheDocument();
 		expect(screen.queryByText("porter-private-id")).not.toBeInTheDocument();

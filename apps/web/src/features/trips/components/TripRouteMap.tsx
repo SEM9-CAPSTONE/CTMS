@@ -1,3 +1,4 @@
+import { trackMapRenderReadiness } from "../../trekking-routes/utils/map-render-readiness";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { MapPin } from "lucide-react";
 import type { Map as MapLibreMap, MapMouseEvent, Marker } from "maplibre-gl";
@@ -98,6 +99,7 @@ export function TripRouteMap({
 					zoom: 13,
 					attributionControl: false,
 				});
+				trackMapRenderReadiness(map, containerRef.current);
 				map.addControl(new maplibre.NavigationControl({ showCompass: false }), "top-right");
 				map.on("load", () => {
 					map.addSource("trip-route", {

@@ -7,6 +7,8 @@ import { Booking } from "../profiles/entities/booking.entity";
 import { ProfilesModule } from "../profiles/profiles.module";
 import { TripsModule } from "../trips/trips.module";
 import { WeatherModule } from "../weather/weather.module";
+import { BookingCancellationNoticesController } from "./booking-cancellation-notices.controller";
+import { BookingCancellationNoticesService } from "./booking-cancellation-notices.service";
 import { BookingCancellationController } from "./booking-cancellation.controller";
 import { BookingCancellationService } from "./booking-cancellation.service";
 import { BookingCompletionService } from "./booking-completion.service";
@@ -40,6 +42,7 @@ import { TripRosterService } from "./trip-roster.service";
 @Module({
 	imports: [TripsModule, WeatherModule, EquipmentCatalogModule, ProfilesModule],
 	controllers: [
+		BookingCancellationNoticesController,
 		BookingsController,
 		PaymentWebhookController,
 		BookingCancellationController,
@@ -50,6 +53,7 @@ import { TripRosterService } from "./trip-roster.service";
 		TripBookingsController,
 	],
 	providers: [
+		BookingCancellationNoticesService,
 		BookingsService,
 		BookingCancellationService,
 		BookingCompletionService,

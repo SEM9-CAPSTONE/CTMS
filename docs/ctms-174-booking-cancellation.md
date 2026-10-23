@@ -3,6 +3,42 @@
 The reviewed rules remain in `file/spec/ctms-34-cancel-booking-according-to-policy.md`.
 The decisions below are approved **PROJECT/MVP DECISIONS**, not PB/BR replacements.
 
+## Mentor review amendment — 2026-10-22
+
+This amendment implements the user's mentor feedback and supersedes the conflicting
+MVP decisions below. It does not retroactively rewrite existing Booking policies.
+
+- Cancellation reason is required, trimmed, nonblank and at most 255 characters.
+- The built-in Trip policy is 100% at >=72 hours, 30% at >=48 and <72 hours,
+  and 0% below 48 hours, strictly before departure. Booking snapshots remain authoritative.
+- Booking hold configuration defaults to 120 minutes. Existing hold deadlines are unchanged.
+- In the release where CTMS-041 handover tracking is explicitly cut, `active` is the
+  application's rental allocation. An ordinary cancellation may release this allocation
+  only while the live Trip is published and both live and snapshotted departure times
+  are in the future. Physical handover/return remains an off-platform Host responsibility.
+  No picked_up/returned states or speculative handover subsystem are introduced.
+- Active allocations transition to cancelled atomically with Booking cancellation,
+  exact seat release, refund obligation, audit, and transactional notification inbox rows.
+  Already-cancelled allocations remain unchanged. Requests after departure reject before writes.
+- Each active owning Host and active Admin receives one persisted inbox row per Booking.
+  Reads are recipient-scoped. `PATCH /api/booking-cancellation-notices/:id/read` records
+  an idempotent read timestamp; a different recipient gets 404. Delivery is in-app polling
+  after commit; no email, push or unauthenticated global WebSocket broadcast is added.
+- All cancellation refund entry points use the entitlement fixed at cancelled_at.
+  Pending/succeeded refunds consume that entitlement; retrying cannot claim the retained
+  percentage. Host/System Trip cancellation retains its separate refund origin.
+- Migration 1792627200001 upgrades only exact previous built-in rules on future draft,
+  pending-review and published Trips, backing up affected policies for rollback. Custom
+  policies, unknown legacy formats, every existing Booking snapshot and expired hold
+  remain unchanged. Legacy unsupported policies still fail closed for manual resolution.
+- The cancellation UI preserves entered reasons after a conflict, allows keeping the
+  Booking, and links to the Trip for a new Booking subject to current capacity/eligibility.
+
+Schema: `booking_cancellation_notices` stores recipient_id, booking_id, trip_id,
+trip_title, camper_name, reason, read_at, created_at and a unique (booking_id, recipient_id)
+constraint. Foreign keys cascade only when their referenced test/business data is deleted.
+`mentor_default_policy_backups` is migration rollback data, not an application ledger.
+
 ## API
 
 `PATCH /api/bookings/:bookingId/cancel` requires an active authenticated Camper
@@ -10,9 +46,8 @@ who owns the Booking. Participant membership does not authorize cancellation.
 Ownership is checked before returning a replay. Missing Booking is 404; foreign
 Booking is 403; invalid UUID/body is 422; business/integrity conflicts are 409.
 
-Request body contains only optional `reason: string`, trimmed, maximum 255 chars.
-Omitted or blank reason becomes `camper_cancel_booking`. Explicit null/non-string
-reason and server-owned fields are rejected. There is no cancellation request key.
+Request body contains only required `reason: string`, trimmed, nonblank, maximum 255 chars.
+Omitted, blank, null/non-string reasons and server-owned fields are rejected. There is no cancellation request key.
 
 Response:
 
@@ -74,8 +109,8 @@ operation key are rejected instead of guessing an allocation. A not-required
 Booking with no succeeded charge has no refund obligation. Succeeded charge
 evidence inconsistent with not-required status is rejected.
 
-No fee/percentage table or policy is seeded in production. Percentages in tests
-are synthetic fixtures. The current Trip policy and Booking total are not used to
+The built-in default follows the mentor amendment above; custom persisted snapshots
+remain authoritative. Historical synthetic policy tests also remain supported. The current Trip policy and Booking total are not used to
 replace policy/charge evidence. Equipment fees are never separately added.
 
 ## Persistence and ownership
@@ -118,10 +153,9 @@ write `booking.cancelled` audit. Any failure rolls back all writes.
 Seats below num_people cause a conflict. No clamping, lazy expiry, reconciliation,
 or global recompute function is used. Other reconfirmation seats are preserved.
 
-Current reservation states are active/cancelled. Active does not prove physically
-uncollected equipment, so it blocks cancellation without mutation. A Booking with
-no reservations or only already-cancelled reservations can proceed. No stock
-counter is increased and no reservation/member history is rewritten.
+Current reservation states are active/cancelled. Pre-departure application allocations
+are cancelled under the live/snapshot guards in the mentor amendment. Already-cancelled
+records remain unchanged. No catalog stock counter is increased or member history rewritten.
 
 Audit includes actor/Booking, before/after status, evaluation time, schedule
 snapshot, selected policy, exact percentage and rational monetary result, rounding,
@@ -141,5 +175,5 @@ failure propagation. PostgreSQL API integration tests cover atomic success,
 concurrent/sequential duplicate requests, actual refund/audit failure rollback,
 privacy, reconfirmation capacity preservation and callback/member regressions.
 
-Automatic expiry, reschedule decline, provider refund execution, equipment pickup
-tracking, notification/UI work and migration of legacy policies remain excluded.
+Provider execution, reschedule decline, physical equipment pickup/return tracking,
+background push/email delivery and interpretation of unknown legacy policies remain excluded.

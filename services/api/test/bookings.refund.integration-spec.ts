@@ -72,10 +72,10 @@ describe("CTMS-035 Process Refund Integration (real Postgres)", () => {
 			await manager.query(
 				`INSERT INTO bookings (
 					id, trip_id, user_id, num_people, status, payment_status,
-					base_price, total_amount, cancelled_at, trip_starts_at_snapshot
+					base_price, total_amount, cancelled_at, trip_starts_at_snapshot, cancellation_policy_snapshot
 				) VALUES (
 					$1, $2, $3, 1, 'cancelled', 'paid',
-					1000000, 1000000, '2035-10-08T01:00:00Z', '2035-10-10T01:00:00Z'
+					1000000, 1000000, '2035-10-08T01:00:00Z', '2035-10-10T01:00:00Z', '{"version":1,"rules":[{"minHoursBeforeTrip":0,"refundPercent":100}]}'::jsonb
 				)`,
 				[bookingId, tripId, userId]
 			);

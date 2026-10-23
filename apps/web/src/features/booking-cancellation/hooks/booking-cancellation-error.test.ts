@@ -34,3 +34,22 @@ it("extracts structured reason errors and tolerates malformed data", () => {
 		).reasonError
 	).toBeUndefined();
 });
+
+it("explains missing policy or charge without leaking unknown server internals", () => {
+	expect(
+		mapBookingCancellationError(
+			new HttpError("conflict", 409, { message: "Unsupported cancellation policy snapshot" })
+		).message
+	).toContain("thiếu chính sách");
+	expect(
+		mapBookingCancellationError(
+			new HttpError("conflict", 409, {
+				message: "Booking must have one unambiguous eligible succeeded charge",
+			})
+		).message
+	).toContain("giao dịch thanh toán");
+	expect(
+		mapBookingCancellationError(new HttpError("conflict", 409, { message: "SQL private stack" }))
+			.message
+	).not.toContain("SQL");
+});

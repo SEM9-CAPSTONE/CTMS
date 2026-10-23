@@ -1,10 +1,14 @@
-import { AlertTriangle, CalendarDays, LayoutDashboard, MapPinned, Menu } from "lucide-react";
+import { AlertTriangle, CalendarDays, LayoutDashboard, Menu } from "lucide-react";
 import type React from "react";
 import { useEffect, useMemo, useState } from "react";
 import { type RoleBearingUser, getGrantedRoles } from "../../auth/utils/permissions";
 import type { StoredAuthUser } from "../../auth/utils/tokenStorage";
 import { camperProfileService } from "../../camper-profile/services/camper-profile.service";
 import type { CamperProfileData } from "../../camper-profile/types";
+import { CamperOperationalMap } from "../components/CamperOperationalMap";
+import { CamperTripPager } from "../components/CamperTripPager";
+import { PorterOperationalMap } from "../components/PorterOperationalMap";
+import { useCamperTripCarousel } from "../hooks/useCamperTripCarousel";
 
 import { Collapse } from "../../../shared/components/Collapse";
 import { CamperSidebar } from "../../camper-profile/components/CamperSidebar";
@@ -111,7 +115,37 @@ function DashboardMain({
 }) {
 	const displayName = profile?.fullName || getDisplayName(user);
 	const timeOfDay = getTimeOfDay();
+	const carousel = useCamperTripCarousel(user.id, config.role === "camper");
+	const displayedTrip = carousel.trip;
+	const exploreShownTrip =
+		displayedTrip && !carousel.isLoading && !carousel.isError
+			? () => {
+					if (onNavigateToTripDetail) onNavigateToTripDetail(displayedTrip.id);
+					else {
+						window.history.pushState({}, "", `/trips/${displayedTrip.id}`);
+						window.dispatchEvent(new PopStateEvent("popstate"));
+					}
+				}
+			: undefined;
 
+	const timeline =
+		config.role === "camper"
+			? [...(displayedTrip?.waypoints ?? [])]
+					.sort((a, b) => a.dayNumber - b.dayNumber || a.sequenceOrder - b.sequenceOrder)
+					.map((item) => ({
+						time: item.plannedAt
+							? new Date(item.plannedAt).toLocaleTimeString("vi-VN", {
+									hour: "2-digit",
+									minute: "2-digit",
+								})
+							: "—",
+						title: item.name,
+						status: "Lịch trình",
+						description: item.durationMinutes
+							? `Thời lượng: ${item.durationMinutes} phút.`
+							: "Theo lịch trình chuyến đi.",
+					}))
+			: config.timeline;
 	return (
 		<main className="flex-1 p-4 sm:p-6 lg:p-8">
 			<div className="mx-auto flex max-w-[1440px] flex-col gap-6">
@@ -160,56 +194,42 @@ function DashboardMain({
 						</section>
 
 						<section id="camper-active-trip" className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
-							<div className="overflow-hidden rounded-[28px] border border-[#dfe8df] bg-white shadow-sm">
-								<div className="grid min-h-[380px] gap-0 lg:grid-cols-[0.9fr_1.1fr]">
-									<div className="p-6" style={{ backgroundColor: config.soft }}>
-										<p
-											className="text-xs font-extrabold uppercase tracking-wider"
-											style={{ color: config.accent }}
-										>
-											{config.primaryPanel.kicker}
-										</p>
-										<h2 className="mt-3 text-2xl font-extrabold text-[#10221b]">
-											{config.primaryPanel.title}
-										</h2>
-										<p className="mt-3 text-sm font-medium leading-6 text-[#52665b]">
-											{config.primaryPanel.description}
-										</p>
-										<div className="mt-6 grid gap-3 sm:grid-cols-2">
-											{config.primaryPanel.items.map((item) => (
-												<div
-													key={item.label}
-													className="rounded-2xl bg-white/80 p-4 ring-1 ring-white"
-												>
-													<p className="text-xs font-bold text-[#7b8c82]">{item.label}</p>
-													<p className="mt-1 text-sm font-extrabold text-[#10221b]">{item.value}</p>
-												</div>
-											))}
-										</div>
-									</div>
-									<div className="relative min-h-[320px] bg-[#10221b] p-6 text-white">
-										<div className="absolute inset-0 opacity-20 [background-image:linear-gradient(90deg,#ffffff_1px,transparent_1px),linear-gradient(#ffffff_1px,transparent_1px)] [background-size:42px_42px]" />
-										<div className="relative flex h-full flex-col justify-between">
-											<div>
-												<div className="flex items-center gap-2 text-sm font-bold text-white/80">
-													<MapPinned className="size-4" />
-													<span>Bản đồ vận hành</span>
-												</div>
-												<div className="mt-10 space-y-4">
-													<div className="ml-8 h-3 w-3 rounded-full bg-emerald-300 shadow-[0_0_0_8px_rgba(110,231,183,0.16)]" />
-													<div className="ml-28 h-3 w-3 rounded-full bg-amber-300 shadow-[0_0_0_8px_rgba(252,211,77,0.16)]" />
-													<div className="ml-52 h-3 w-3 rounded-full bg-sky-300 shadow-[0_0_0_8px_rgba(125,211,252,0.16)]" />
-												</div>
-											</div>
-											<div className="rounded-2xl bg-white/10 p-4 backdrop-blur">
-												<p className="text-xs font-bold uppercase tracking-wider text-white/60">
-													Trạng thái trực tiếp
-												</p>
-												<p className="mt-1 text-lg font-extrabold">Đồng bộ dữ liệu tuyến</p>
-											</div>
-										</div>
-									</div>
-								</div>
+							<div className="min-w-0 overflow-hidden rounded-[28px] border border-[#dfe8df] bg-white shadow-sm">
+								{config.role === "camper" && (
+									<>
+										{carousel.isLoading ? (
+											<p className="p-6">Đang tải chuyến đi...</p>
+										) : carousel.isError ? (
+											<button type="button" onClick={carousel.retry} className="p-6 underline">
+												Không tải được chuyến đi. Thử lại
+											</button>
+										) : carousel.trip ? (
+											<CamperOperationalMap
+												userId={user.id}
+												trip={carousel.trip}
+												isBooked={carousel.isBooked}
+												navigation={
+													<CamperTripPager
+														index={carousel.index}
+														canPrevious={carousel.canPrevious}
+														canNext={carousel.canNext}
+														disabled={carousel.isLoading || carousel.isPaging}
+														onPrevious={carousel.previous}
+														onNext={() => void carousel.next()}
+													/>
+												}
+											/>
+										) : (
+											<p className="p-6">Chưa có chuyến sắp khởi hành hoặc đang hoạt động.</p>
+										)}
+										{carousel.listError && (
+											<button type="button" onClick={carousel.retry} className="p-4 underline">
+												Không tải được các chuyến khác. Thử lại
+											</button>
+										)}
+									</>
+								)}
+								{config.role === "porter" && <PorterOperationalMap />}
 							</div>
 
 							<div className="rounded-[28px] border border-[#dfe8df] bg-white p-6 shadow-sm">
@@ -218,7 +238,12 @@ function DashboardMain({
 									<CalendarDays className="size-5 text-[#667a6d]" />
 								</div>
 								<div className="mt-5 space-y-4">
-									{config.timeline.map((item) => (
+									{timeline.length === 0 && (
+										<p className="text-sm text-[#627769]">
+											Chưa có lịch trình chi tiết cho chuyến đang xem.
+										</p>
+									)}
+									{timeline.map((item) => (
 										<div key={`${item.time}-${item.title}`} className="flex gap-4">
 											<div
 												className="w-14 shrink-0 text-sm font-extrabold"
@@ -276,7 +301,8 @@ function DashboardMain({
 							onCreateTrip={onCreateTrip}
 							onCreateTrekkingRoute={onCreateTrekkingRoute}
 							onViewTrekkingRoutes={onViewTrekkingRoutes}
-							onNavigateToTrips={onNavigateToTrips}
+							onNavigateToTrips={config.role === "camper" ? undefined : onNavigateToTrips}
+							onExploreTrip={exploreShownTrip}
 						/>
 					</section>
 				) : (
@@ -287,7 +313,8 @@ function DashboardMain({
 							onCreateTrip={onCreateTrip}
 							onCreateTrekkingRoute={onCreateTrekkingRoute}
 							onViewTrekkingRoutes={onViewTrekkingRoutes}
-							onNavigateToTrips={onNavigateToTrips}
+							onNavigateToTrips={config.role === "camper" ? undefined : onNavigateToTrips}
+							onExploreTrip={exploreShownTrip}
 						/>
 					</section>
 				)}

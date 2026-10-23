@@ -6,6 +6,7 @@ import { Trip, TripStatus } from "../trips/entities/trip.entity";
 import { AUTO_CANCEL_REASON } from "../trips/services/trip-auto-cancel.service";
 import { User } from "../users/entities/user.entity";
 import type { BookingsRepository } from "./bookings.repository";
+import { DEFAULT_CANCELLATION_POLICY } from "./cancellation-policy";
 import {
 	Payment,
 	PaymentStatus,
@@ -71,6 +72,7 @@ describe("RefundsService (CTMS-035)", () => {
 			userId: "camper-uuid-1",
 			status: BookingStatus.CANCELLED,
 			paymentStatus: BookingPaymentStatus.PAID,
+			cancellationPolicySnapshot: DEFAULT_CANCELLATION_POLICY,
 			cancelledAt: new Date("2030-05-01T10:00:00Z"), // 2 hours before fixedNow
 			tripStartsAtSnapshot: new Date("2030-05-10T08:00:00Z"),
 			tripEndsAtSnapshot: new Date("2030-05-12T18:00:00Z"),
@@ -174,6 +176,33 @@ describe("RefundsService (CTMS-035)", () => {
 
 	afterEach(() => {
 		jest.useRealTimers();
+	});
+
+	it("limits cancellation refunds to 30 percent and rejects requesting the rest after success", async () => {
+		booking.tripStartsAtSnapshot = new Date("2030-05-03T10:00:00Z");
+		const info = await service.getBookingRefundInfo("camper-uuid-1", ["camper"], "booking-uuid-1");
+		expect(info.remainingRefundableAmount).toBe("30.00");
+		await expect(
+			service.processRefund(
+				"admin-1",
+				booking.id,
+				"exceeds-policy",
+				{ amount: "31.00", origin: RefundOrigin.CAMPER_CANCELLATION },
+				{ mockProvider: true }
+			)
+		).rejects.toThrow(ConflictException);
+		const refund = Object.assign(new Payment(), {
+			id: "prior-policy-refund",
+			bookingId: booking.id,
+			type: PaymentType.REFUND,
+			status: PaymentStatus.SUCCEEDED,
+			parentPaymentId: charge.id,
+			amount: "30.00",
+		});
+		paymentsRepo.find.mockResolvedValue([charge, refund]);
+		const after = await service.getBookingRefundInfo("camper-uuid-1", ["camper"], booking.id);
+		expect(after.remainingRefundableAmount).toBe("0.00");
+		expect(after.isEligible).toBe(false);
 	});
 
 	describe("processRefund (PB AC-1, PB AC-2, PB AC-3, BR-105)", () => {
@@ -575,7 +604,7 @@ describe("RefundsService (CTMS-035)", () => {
 			expect(info.isEligible).toBe(false);
 			expect(info.remainingRefundableAmount).toBe("0.00");
 			expect(info.totalRefundedAmount).toBe("100.00");
-			expect(info.ineligibleReason).toBe("Toàn bộ số tiền đã thanh toán đã được hoàn tất");
+			expect(info.ineligibleReason).toBe("Đã hết số tiền được hoàn theo chính sách của đơn");
 		});
 
 		it("sets isEligible=false when there is an active pending refund", async () => {

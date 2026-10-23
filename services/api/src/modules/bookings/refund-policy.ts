@@ -1,8 +1,34 @@
 import { ConflictException } from "@nestjs/common";
 import { type Booking, BookingStatus } from "../profiles/entities/booking.entity";
 import { type Trip, TripStatus } from "../trips/entities/trip.entity";
-import { minorToMoney, moneyToMinor } from "./cancellation-policy";
+import {
+	calculateCancellationRefund,
+	evaluateCancellationPolicy,
+	minorToMoney,
+	moneyToMinor,
+} from "./cancellation-policy";
+
 import { type Payment, PaymentStatus, PaymentType } from "./entities/payment.entity";
+
+/** The cancellation entitlement is fixed at cancellation time, including retries. */
+export function cancellationRefundLimit(booking: Booking, chargeAmount: string): string {
+	if (!booking.cancelledAt)
+		throw new ConflictException(
+			"Cancellation timestamp is required to calculate refund entitlement"
+		);
+	try {
+		const policy = evaluateCancellationPolicy(
+			booking.cancellationPolicySnapshot,
+			booking.cancelledAt,
+			booking.tripStartsAtSnapshot
+		);
+		return calculateCancellationRefund(chargeAmount, policy.refundPercent, []).amount;
+	} catch (error: unknown) {
+		throw new ConflictException(
+			error instanceof Error ? error.message : "Invalid cancellation policy"
+		);
+	}
+}
 
 export enum RefundOrigin {
 	CAMPER_CANCELLATION = "camper_cancellation",
@@ -10,6 +36,22 @@ export enum RefundOrigin {
 	HOST_TRIP_CANCELLATION = "host_trip_cancellation",
 	SYSTEM_TRIP_CANCELLATION = "system_trip_cancellation",
 	LATE_PAYMENT_AFTER_EXPIRY = "late_payment_after_expiry",
+}
+
+/** Trip cancellation precedes its Booking side effects when selecting a refund flow. */
+export function inferRefundOrigin(
+	booking: Booking,
+	trip: Trip,
+	systemCancelReason: string
+): RefundOrigin {
+	if (trip.status === TripStatus.CANCELLED) {
+		return trip.cancellationReason === systemCancelReason
+			? RefundOrigin.SYSTEM_TRIP_CANCELLATION
+			: RefundOrigin.HOST_TRIP_CANCELLATION;
+	}
+	if (booking.status === BookingStatus.COMPLETED) return RefundOrigin.CAMPER_COMPLAINT;
+	if (booking.status === BookingStatus.EXPIRED) return RefundOrigin.LATE_PAYMENT_AFTER_EXPIRY;
+	return RefundOrigin.CAMPER_CANCELLATION;
 }
 
 export interface RefundEligibilityValidationParams {

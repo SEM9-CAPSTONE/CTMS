@@ -2,6 +2,7 @@ import { Clock, Send, Users, X } from "lucide-react";
 import { RoutePath } from "../../../routes/routes.config";
 import { HomeLink } from "../../../shared/components/HomeLink";
 import { LogoutActions } from "../../auth/components/LogoutActions";
+import { BookingCancellationNotices } from "../../booking-cancellation/components/BookingCancellationNotices";
 import type { CamperProfileData } from "../../camper-profile/types";
 import { useMyPorterRequests } from "../../trips/hooks/usePorterRequests";
 import { roleLabels } from "../constants";
@@ -75,8 +76,8 @@ export function Sidebar({
 	] as const;
 
 	return (
-		<aside className="flex h-full w-72 flex-col border-r border-[#dfe8df] bg-white">
-			<div className="flex items-center gap-3 border-b border-[#e7eee7] px-5 py-5">
+		<aside className="flex h-full min-h-0 w-72 flex-col border-r border-[#dfe8df] bg-white">
+			<div className="flex shrink-0 items-center gap-3 border-b border-[#e7eee7] px-5 py-5">
 				<HomeLink className="flex min-w-0 flex-1 items-center gap-3">
 					<img
 						src="/ctms_logo.png"
@@ -99,6 +100,7 @@ export function Sidebar({
 						<p className="text-xs font-semibold text-[#667a6d]">{config.navTitle}</p>
 					</div>
 				</HomeLink>
+				{(activeRole === "host" || activeRole === "admin") && <BookingCancellationNotices />}
 				{onClose && (
 					<button
 						type="button"
@@ -287,7 +289,7 @@ export function Sidebar({
 				</nav>
 			</div>
 
-			<div className="mt-auto border-t border-[#e7eee7] p-4">
+			<div className="mt-auto shrink-0 border-t border-[#e7eee7] p-4">
 				{profile && (
 					<button
 						type="button"

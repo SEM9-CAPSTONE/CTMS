@@ -17,6 +17,7 @@ import { PorterRequestsService } from "./services/porter-requests.service";
 import { TripAutoCancelService } from "./services/trip-auto-cancel.service";
 import { TripAutoCancelWorker } from "./services/trip-auto-cancel.worker";
 import { TripReviewDeadlineService } from "./services/trip-review-deadline.service";
+import { TripRouteMapService } from "./services/trip-route-map.service";
 import { TripStatusScheduleService } from "./services/trip-status-schedule.service";
 import { TripStatusScheduleWorker } from "./services/trip-status-schedule.worker";
 import { TripsService } from "./services/trips.service";
@@ -25,6 +26,7 @@ import { TripsService } from "./services/trips.service";
 	imports: [RealtimeModule],
 	controllers: [TripsController],
 	providers: [
+		TripRouteMapService,
 		TripsService,
 		AvailablePortersService,
 		PorterRequestsService,

@@ -38,11 +38,11 @@ function formatBookingDateTime(isoString: string): string {
 //   completed: "Đã hoàn thành",
 // };
 
-// const paymentStatusLabels: Record<BookTripResponse["paymentStatus"], string> = {
-//   not_required: "Không cần thanh toán",
-//   unpaid: "Chưa thanh toán",
-//   paid: "Đã thanh toán",
-// };
+const paymentStatusLabels: Record<BookTripResponse["paymentStatus"], string> = {
+	not_required: "Không yêu cầu thanh toán",
+	unpaid: "Chưa thanh toán",
+	paid: "Đã thanh toán",
+};
 
 export type BookingAccess = "anonymous" | "camper" | "non-camper";
 
@@ -248,6 +248,10 @@ function BookingResult({
 						</dd>
 					</div>
 				)}
+				<div className="col-span-2 flex items-center justify-between">
+					<dt>Thanh toán</dt>
+					<dd className="font-bold">{paymentStatusLabels[booking.paymentStatus]}</dd>
+				</div>
 				{isPendingPayment && booking.holdExpiresAt && (
 					<div className="col-span-2 flex items-center justify-between text-amber-900">
 						<dt>Giữ chỗ đến</dt>

@@ -341,7 +341,7 @@ describe("TripDetailView", () => {
 
 		expect(screen.queryByTestId("booking-equipment-picker")).not.toBeInTheDocument();
 		expect(screen.getByTestId("booking-members-panel")).toHaveTextContent("booking-1");
-		expect(screen.getByTestId("booking-payment-panel")).toHaveTextContent("booking-1");
+		expect(screen.queryByTestId("booking-payment-panel")).not.toBeInTheDocument();
 	});
 
 	it("bumps the packing list refresh key when equipment is confirmed", () => {

@@ -73,6 +73,9 @@ export class PorterRequestsService {
 			if (trip.status !== TripStatus.PUBLISHED) {
 				throw new ConflictException("Only upcoming published Trips can request Porters");
 			}
+			if (await porterRequests.hasActiveAssignmentForTrip(tripId)) {
+				throw new ConflictException("Trip already has an active Porter assignment");
+			}
 			await this.assertPorterEligible(manager, {
 				tripId,
 				porterId: dto.porterId,
@@ -181,6 +184,9 @@ export class PorterRequestsService {
 
 			if (trip.status !== TripStatus.PUBLISHED) {
 				throw new ConflictException("Trip state does not allow Porter assignment");
+			}
+			if (await porterRequests.hasActiveAssignmentForTrip(request.tripId)) {
+				throw new ConflictException("Trip already has an active Porter assignment");
 			}
 			await this.assertPorterEligible(manager, {
 				tripId: request.tripId,

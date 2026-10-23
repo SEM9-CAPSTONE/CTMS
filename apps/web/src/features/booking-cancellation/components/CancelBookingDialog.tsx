@@ -73,16 +73,17 @@ export function CancelBookingDialog({
 				</button>
 			</div>
 			<p id="cancel-booking-impact" className="mt-3 text-sm">
-				Nếu máy chủ chấp nhận, toàn bộ đơn đặt chỗ sẽ bị hủy và người tham gia trong đơn không còn
+				Khi xác nhận thành công, toàn bộ đơn đặt chỗ sẽ bị hủy và người tham gia trong đơn không còn
 				quyền tham gia chuyến đi.
 			</p>
 			<p className="mt-2 text-sm">
-				Máy chủ quyết định điều kiện hủy và kết quả hoàn tiền. Chưa có báo giá hoàn tiền trước khi
-				xác nhận.
+				Tiền hoàn được tính theo chính sách đã lưu trong đơn tại thời điểm đặt chỗ. Chưa có báo giá
+				hoàn tiền trước khi xác nhận. Host và quản trị viên sẽ nhận được thông báo kèm lý do hủy của
+				bạn. Bạn có thể đặt lại chuyến sau khi hủy nếu còn chỗ.
 			</p>
 			<form onSubmit={handleSubmit(onSubmit)} className="mt-4 space-y-3">
 				<label htmlFor="cancel-booking-reason" className="block text-sm font-bold">
-					Lý do (không bắt buộc)
+					Lý do hủy chuyến (bắt buộc)
 				</label>
 				<textarea
 					{...register("reason")}

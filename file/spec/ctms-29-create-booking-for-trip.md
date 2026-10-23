@@ -145,3 +145,11 @@ TBD — Technical Design.
 ## 12. Open Decisions
 
 Exact initial Booking status for paid/free Trips and exact payment-hold deadline must follow the authoritative Booking/Payment rules.
+
+## Mentor configuration amendment (2026-10-22)
+
+The BOOKING_HOLD_TTL_MINUTES configuration defaults to 120 minutes for newly created
+paid Bookings. An explicit deployment override remains configurable under BR-190.
+Existing Booking hold_expires_at timestamps are not extended. Free Bookings still
+confirm without a payment hold. The current Trip policy is snapshotted unchanged;
+new built-in policy defaults are described in the CTMS-034 cancellation amendment.
