@@ -17,6 +17,9 @@ export const API_ENDPOINTS = {
 		ME: "/auth/me",
 	},
 	BOOKINGS: {
+		CANCELLATION_NOTICES: "/booking-cancellation-notices",
+		READ_CANCELLATION_NOTICE: (noticeId: string) =>
+			`/booking-cancellation-notices/${noticeId}/read`,
 		GET_ALL: "/bookings",
 		GET_BY_ID: (id: string) => `/bookings/${id}`,
 		CREATE: "/bookings",
@@ -50,6 +53,7 @@ export const API_ENDPOINTS = {
 		HAZARD_AREAS: (routeId: string) => `/trekking-routes/${routeId}/hazard-areas`,
 	},
 	TRIPS: {
+		BOOKED_ROUTE_MAP: (tripId: string) => `/trips/${tripId}/route-map`,
 		GET_ALL: "/trips",
 		GET_MINE: "/trips/mine",
 		GET_PORTER_CANDIDATES: "/trips/porter-candidates",

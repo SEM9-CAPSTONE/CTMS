@@ -37,13 +37,13 @@ it("allows explicit retry after uncertain failure without inventing success", as
 		.mockResolvedValue(cancellationFixture);
 	const { result } = renderHook(() => useCancelBooking(cancellationFixture.bookingId));
 	await act(async () => {
-		await result.current.submit({ reason: "   " });
+		await result.current.submit({ reason: " Changed plans " });
 	});
 	expect(result.current.result).toBeNull();
 	expect(result.current.error?.kind).toBe("uncertain");
-	expect(call).toHaveBeenLastCalledWith(cancellationFixture.bookingId, {});
+	expect(call).toHaveBeenLastCalledWith(cancellationFixture.bookingId, { reason: "Changed plans" });
 	await act(async () => {
-		await result.current.submit({});
+		await result.current.submit({ reason: "Changed plans" });
 	});
 	expect(result.current.result).toEqual(cancellationFixture);
 });
@@ -60,7 +60,7 @@ it("ignores responses after a Booking change or unmount", async () => {
 	});
 	let pending!: Promise<CancelBookingResponse | null>;
 	act(() => {
-		pending = result.current.submit({});
+		pending = result.current.submit({ reason: "Changed plans" });
 	});
 	rerender({ id: "other" });
 	await act(async () => {
@@ -69,7 +69,7 @@ it("ignores responses after a Booking change or unmount", async () => {
 	});
 	expect(result.current.result).toBeNull();
 	act(() => {
-		pending = result.current.submit({});
+		pending = result.current.submit({ reason: "Changed plans" });
 	});
 	unmount();
 	await act(async () => {

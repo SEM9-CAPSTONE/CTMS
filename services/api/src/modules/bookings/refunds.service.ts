@@ -50,7 +50,9 @@ import { PayOSService } from "./payos.service";
 import {
 	RefundOrigin,
 	calculateRemainingRefundableAmount,
+	cancellationRefundLimit,
 	evaluateSettlementBlockers,
+	inferRefundOrigin,
 	validatePreTripProcessingWindow,
 	validateRefundEligibility,
 } from "./refund-policy";
@@ -181,7 +183,7 @@ export class RefundsService {
 
 			// 6. Resolve refund obligation or new refund.
 			let refundPayment: Payment | null = null;
-			let origin = dto.origin;
+			const origin = dto.origin ?? inferRefundOrigin(booking, trip, AUTO_CANCEL_REASON);
 			let refundAmount = dto.amount;
 
 			if (dto.obligationId) {
@@ -208,35 +210,16 @@ export class RefundsService {
 					throw new ConflictException("Refund obligation has already failed");
 				}
 				refundAmount = refundPayment.amount;
-
-				if (!origin) {
-					if (booking.status === BookingStatus.CANCELLED) {
-						origin = RefundOrigin.CAMPER_CANCELLATION;
-					} else if (booking.status === BookingStatus.COMPLETED) {
-						origin = RefundOrigin.CAMPER_COMPLAINT;
-					} else if (trip.status === TripStatus.CANCELLED) {
-						origin = RefundOrigin.HOST_TRIP_CANCELLATION;
-					} else if (booking.status === BookingStatus.EXPIRED) {
-						origin = RefundOrigin.LATE_PAYMENT_AFTER_EXPIRY;
-					} else {
-						origin = RefundOrigin.CAMPER_CANCELLATION;
-					}
-				}
 			} else {
-				if (!origin) {
-					if (booking.status === BookingStatus.COMPLETED) {
-						origin = RefundOrigin.CAMPER_COMPLAINT;
-					} else {
-						origin = RefundOrigin.CAMPER_CANCELLATION;
-					}
-				}
 				const isCamperUser =
 					Boolean(options?.userRoles && !options.userRoles.includes(UserRole.ADMIN)) ||
 					Boolean(dto.bankName || dto.accountNumber);
 
 				const existingRefunds = paymentRows.filter((p) => p.type === PaymentType.REFUND);
 				const { remainingAmount } = calculateRemainingRefundableAmount(
-					parentCharge.amount,
+					origin === RefundOrigin.CAMPER_CANCELLATION
+						? cancellationRefundLimit(booking, parentCharge.amount)
+						: parentCharge.amount,
 					existingRefunds
 				);
 
@@ -268,7 +251,9 @@ export class RefundsService {
 			// 9. Cumulative cap validation (PB AC-4, BR-105).
 			const existingRefunds = paymentRows.filter((p) => p.type === PaymentType.REFUND);
 			const { remainingMinor, remainingAmount } = calculateRemainingRefundableAmount(
-				parentCharge.amount,
+				origin === RefundOrigin.CAMPER_CANCELLATION
+					? cancellationRefundLimit(booking, parentCharge.amount)
+					: parentCharge.amount,
 				existingRefunds,
 				refundPayment?.id
 			);
@@ -641,7 +626,7 @@ export class RefundsService {
 		const refundPayments = payments.filter((p) => p.type === PaymentType.REFUND);
 		const hasPendingRefund = refundPayments.some((r) => r.status === PaymentStatus.PENDING);
 
-		const { committedMinor, remainingMinor, remainingAmount } = parentCharge
+		let { committedMinor, remainingMinor, remainingAmount } = parentCharge
 			? calculateRemainingRefundableAmount(parentCharge.amount, refundPayments)
 			: { committedMinor: 0n, remainingMinor: 0n, remainingAmount: "0.00" };
 		const totalRefundedAmount = minorToMoney(committedMinor);
@@ -664,6 +649,22 @@ export class RefundsService {
 		} else if (booking.status === BookingStatus.CANCELLED) {
 			determinedOrigin = RefundOrigin.CAMPER_CANCELLATION;
 		}
+		let cancellationPolicyError: string | undefined;
+		if (parentCharge && determinedOrigin === RefundOrigin.CAMPER_CANCELLATION) {
+			try {
+				const capped = calculateRemainingRefundableAmount(
+					cancellationRefundLimit(booking, parentCharge.amount),
+					refundPayments
+				);
+				remainingMinor = capped.remainingMinor;
+				remainingAmount = capped.remainingAmount;
+			} catch (error: unknown) {
+				remainingMinor = 0n;
+				remainingAmount = "0.00";
+				cancellationPolicyError =
+					error instanceof Error ? error.message : "Không xác định được chính sách hoàn tiền";
+			}
+		}
 
 		const now = new Date();
 		let isEligible = false;
@@ -683,7 +684,8 @@ export class RefundsService {
 
 				if (remainingMinor <= 0n) {
 					isEligible = false;
-					ineligibleReason = "Toàn bộ số tiền đã thanh toán đã được hoàn tất";
+					ineligibleReason =
+						cancellationPolicyError ?? "Đã hết số tiền được hoàn theo chính sách của đơn";
 				} else if (hasPendingRefund) {
 					isEligible = false;
 					ineligibleReason = "Đang có yêu cầu hoàn tiền chờ Quản trị viên đối soát";

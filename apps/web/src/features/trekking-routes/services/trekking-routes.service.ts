@@ -17,6 +17,16 @@ import type {
 } from "../types";
 
 export const trekkingRoutesService = {
+	getRouteSafety: async (routeId: string) => {
+		const [checkpoints, dangerZones] = await Promise.all([
+			trekkingRoutesService.listCheckpoints(routeId),
+			trekkingRoutesService.listRouteDangerZones(routeId),
+		]);
+		return {
+			checkpoints: checkpoints.sort((a, b) => a.routePosition - b.routePosition),
+			dangerZones,
+		};
+	},
 	listPendingReview: (): Promise<AdminTrekkingRouteReview[]> =>
 		httpClient.get<AdminTrekkingRouteReview[]>(API_ENDPOINTS.TREKKING.PENDING_REVIEW),
 	listAdminReviews: (query: AdminRouteReviewsQuery): Promise<PaginatedAdminRouteReviews> =>

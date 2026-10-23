@@ -15,6 +15,7 @@ import { PorterRequestStatus } from "../entities/porter-request.entity";
 import { TripStatus, TripType } from "../entities/trip.entity";
 import type { AvailablePortersService } from "../services/available-porters.service";
 import type { PorterRequestsService } from "../services/porter-requests.service";
+import type { TripRouteMapService } from "../services/trip-route-map.service";
 import type { TripsService } from "../services/trips.service";
 import { TripsController } from "./trips.controller";
 
@@ -58,7 +59,8 @@ describe("TripsController", () => {
 		controller = new TripsController(
 			tripsService as unknown as TripsService,
 			availablePortersService as unknown as AvailablePortersService,
-			porterRequestsService as unknown as PorterRequestsService
+			porterRequestsService as unknown as PorterRequestsService,
+			{ getBookedTripMap: jest.fn() } as unknown as TripRouteMapService
 		);
 	});
 

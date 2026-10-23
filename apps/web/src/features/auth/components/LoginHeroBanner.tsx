@@ -44,7 +44,7 @@ export const LoginHeroBanner: React.FC = () => {
 
 			<div className="relative z-10 flex items-center gap-2 text-xs font-semibold text-white/80">
 				<ShieldCheck size={16} />
-				<span>Hệ thống quản lý leo núi đạt chuẩn quốc tế</span>
+				<span>Quản lý hành trình thông minh, khám phá thiên nhiên an tâm</span>
 			</div>
 		</div>
 	);

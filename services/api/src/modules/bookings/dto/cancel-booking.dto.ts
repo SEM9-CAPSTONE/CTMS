@@ -1,12 +1,12 @@
-import { ApiPropertyOptional } from "@nestjs/swagger";
+import { ApiProperty } from "@nestjs/swagger";
 import { Transform } from "class-transformer";
-import { IsString, MaxLength, ValidateIf } from "class-validator";
+import { IsNotEmpty, IsString, MaxLength } from "class-validator";
 
 export class CancelBookingDto {
-	@ApiPropertyOptional({ maxLength: 255 })
+	@ApiProperty({ maxLength: 255, description: "Camper cancellation reason" })
 	@Transform(({ value }: { value: unknown }) => (typeof value === "string" ? value.trim() : value))
-	@ValidateIf((_object: unknown, value: unknown) => value !== undefined)
+	@IsNotEmpty()
 	@IsString()
 	@MaxLength(255)
-	reason?: string;
+	reason!: string;
 }

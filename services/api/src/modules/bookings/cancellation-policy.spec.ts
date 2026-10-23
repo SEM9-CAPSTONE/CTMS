@@ -1,5 +1,6 @@
 import {
 	CancellationPolicyError,
+	DEFAULT_CANCELLATION_POLICY,
 	calculateCancellationRefund,
 	evaluateCancellationPolicy,
 	parseCancellationPolicy,
@@ -118,5 +119,26 @@ describe("exact refund arithmetic with approved HALF_UP rounding", () => {
 	});
 	it("rejects already over-refunded financial evidence", () => {
 		expect(() => calculateCancellationRefund("1.00", 100, ["1.01"])).toThrow("exceed");
+	});
+});
+
+describe("mentor cancellation policy boundaries", () => {
+	it.each([
+		[73, 100],
+		[72, 100],
+		[71.999, 30],
+		[48, 30],
+		[47.999, 0],
+		[1, 0],
+	])("applies %s hours -> %s percent", (hours, percent) => {
+		const start = new Date(NOW.getTime() + hours * 3_600_000);
+		expect(evaluateCancellationPolicy(DEFAULT_CANCELLATION_POLICY, NOW, start).refundPercent).toBe(
+			percent
+		);
+	});
+	it("rejects at departure", () => {
+		expect(() => evaluateCancellationPolicy(DEFAULT_CANCELLATION_POLICY, NOW, NOW)).toThrow(
+			CancellationPolicyError
+		);
 	});
 });

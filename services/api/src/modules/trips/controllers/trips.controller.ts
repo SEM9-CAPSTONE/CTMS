@@ -53,12 +53,15 @@ import {
 	PaginatedTripsResponseDto,
 	TripResponseDto,
 } from "../dto/trip-response.dto";
+import { TripRouteMapResponseDto } from "../dto/trip-route-map-response.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { TripWaypointParamDto } from "../dto/trip-waypoint-param.dto";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { AvailablePortersService } from "../services/available-porters.service";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { PorterRequestsService } from "../services/porter-requests.service";
+// biome-ignore lint/style/useImportType: NestJS dependency injection needs runtime metadata
+import { TripRouteMapService } from "../services/trip-route-map.service";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { TripsService } from "../services/trips.service";
 
@@ -73,8 +76,10 @@ interface AuthenticatedRequest {
 export class TripsController {
 	constructor(
 		private readonly tripsService: TripsService,
+
 		private readonly availablePortersService: AvailablePortersService,
-		private readonly porterRequestsService: PorterRequestsService
+		private readonly porterRequestsService: PorterRequestsService,
+		private readonly tripRouteMapService: TripRouteMapService
 	) {}
 
 	@Get()
@@ -169,6 +174,19 @@ export class TripsController {
 		@Param() params: TripIdParamDto
 	): Promise<PorterTripOperationsResponseDto> {
 		return this.tripsService.getAssignedTripOperations(request.user.userId, params.tripId);
+	}
+
+	@Get(":tripId/route-map")
+	@Header("Cache-Control", "private, no-store")
+	@Roles(UserRole.CAMPER)
+	@ApiOperation({ summary: "View saved route map for a Trip booked by the current Camper" })
+	@ApiResponse({ status: 200, type: TripRouteMapResponseDto })
+	@ApiResponse({ status: 404, description: "No eligible Booking for this Trip" })
+	getBookedTripMap(
+		@Req() request: AuthenticatedRequest,
+		@Param() params: TripIdParamDto
+	): Promise<TripRouteMapResponseDto> {
+		return this.tripRouteMapService.getBookedTripMap(request.user.userId, params.tripId);
 	}
 
 	@Get("porter-requests/mine")

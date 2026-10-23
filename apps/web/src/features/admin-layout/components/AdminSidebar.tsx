@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { HomeLink } from "../../../shared/components/HomeLink";
 import { LogoutActions } from "../../auth/components/LogoutActions";
+import { BookingCancellationNotices } from "../../booking-cancellation/components/BookingCancellationNotices";
 
 export type AdminNavigationItem =
 	| "dashboard"
@@ -57,8 +58,10 @@ export function AdminSidebar({
 	className = "",
 }: AdminSidebarProps) {
 	return (
-		<aside className={`flex h-full w-72 flex-col border-r border-[#dfe8df] bg-white ${className}`}>
-			<div className="flex items-center gap-3 border-b border-[#e7eee7] px-5 py-5">
+		<aside
+			className={`flex h-full min-h-0 w-72 flex-col border-r border-[#dfe8df] bg-white ${className}`}
+		>
+			<div className="flex shrink-0 items-center gap-3 border-b border-[#e7eee7] px-5 py-5">
 				<HomeLink className="flex min-w-0 flex-1 items-center gap-3">
 					<img
 						src="/ctms_logo.png"
@@ -70,6 +73,7 @@ export function AdminSidebar({
 						<p className="text-xs font-medium text-[#667a6d]">Không gian quản trị</p>
 					</div>
 				</HomeLink>
+				<BookingCancellationNotices />
 				{onClose && (
 					<button
 						type="button"
@@ -82,7 +86,10 @@ export function AdminSidebar({
 				)}
 			</div>
 
-			<nav aria-label="Administration navigation" className="flex-1 space-y-1.5 px-4 py-5">
+			<nav
+				aria-label="Administration navigation"
+				className="min-h-0 flex-1 overflow-y-auto space-y-1.5 px-4 py-5"
+			>
 				{navigationItems.map((item) => {
 					const Icon = item.icon;
 					const isActive = activeItem === item.key;
@@ -143,7 +150,7 @@ export function AdminSidebar({
 				})}
 			</nav>
 
-			<div className="border-t border-[#e7eee7] p-4 flex flex-col gap-3">
+			<div className="shrink-0 border-t border-[#e7eee7] p-4 flex flex-col gap-3">
 				{profile && (
 					<div className="flex items-center gap-3 rounded-2xl border border-[#e0ebe0] bg-[#f8faf8] p-3">
 						<img

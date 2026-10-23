@@ -30,6 +30,7 @@ import {
 	toDateTimeLocalInputValue,
 } from "./TripDateTimePicker";
 import { TripRouteMap } from "./TripRouteMap";
+import { TripRouteSuggestions } from "./TripRouteSuggestions";
 
 interface Props {
 	activeRoutes: CreatedTrekkingRoute[];
@@ -845,6 +846,8 @@ export function CreateTripForm({
 				disabled={isSubmitting}
 				onMeetingPointChange={setMeetingPoint}
 			/>
+
+			<TripRouteSuggestions selectedRoute={selectedRoute} />
 
 			{(errors.meetingLongitude ||
 				errors.meetingLatitude ||

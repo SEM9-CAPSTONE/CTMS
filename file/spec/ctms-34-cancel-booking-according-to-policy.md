@@ -128,8 +128,8 @@ Cancelled Booking does not continue granting Trip participation.
 
 CTMS-174 MVP: `PATCH /api/bookings/:bookingId/cancel`.
 
-Active authenticated Camper / Booking owner only. Body: `{ reason?: string }`;
-reason is trimmed and limited to 255 characters. Other body fields are rejected.
+Active authenticated Camper / Booking owner only. Body: `{ reason: string }`;
+reason is required, trimmed, nonblank and limited to 255 characters. Other body fields are rejected.
 No `Idempotency-Key` is required: cancellation is naturally idempotent per Booking.
 
 Response: `{ bookingId, status, cancelledAt, paymentStatus, refund }`, where refund
@@ -186,7 +186,7 @@ Business Rules or replacements for the rules above.
   Thresholds are finite and nonnegative; percentages are finite in 0..100.
   Select the greatest matching threshold (`hoursBeforeTrip >= minHoursBeforeTrip`).
   No match, null, unsupported, or invalid policy causes conflict without mutation.
-  Prose and legacy keys are never interpreted; there are no production defaults.
+  Prose and unknown legacy keys are never interpreted. The 2026-10-22 mentor amendment defines the built-in Trip default; it does not replace existing Booking snapshots.
 - Refund calculation uses succeeded charge evidence, exact minor-unit arithmetic,
   and approved ROUND HALF UP at the final minor-unit boundary. Existing applicable
   pending/succeeded refund obligations reduce remaining entitlement; never exceed
@@ -196,13 +196,23 @@ Business Rules or replacements for the rules above.
   never invokes a payment/refund provider.
 - Preserve member history. Booking status controls participation; no member
   `cancelled` enum is introduced. Preserve the late-payment callback safeguard.
-- Current equipment `active` state cannot distinguish reserved from picked up.
-  Any such reservation causes an atomic conflict. Already-cancelled reservations
-  remain unchanged; no equipment handover redesign is part of this task.
+- Superseded 2026-10-22: pre-departure active application rental allocations may be
+  released under the live Trip and Booking-snapshot time guards. CTMS-041 physical
+  handover tracking remains out of scope; see the mentor amendment in docs/ctms-174-booking-cancellation.md.
 - Use one transaction, Trip then Booking locks, deterministic Payment/reservation
   locks, and an exact seat decrement. Preserve seats held by other Bookings,
   including pending reconfirmation; do not call global capacity recomputation.
 - Persist nullable Booking cancellation timestamp/reason and one success audit.
   A replay performs no policy recalculation, release, refund creation, or new audit.
-- Automatic expiry, reschedule decline, notification/UI work, and provider refund
-  execution remain outside CTMS-174.
+- This mentor follow-up additionally includes required reason UI and recipient-scoped
+  persisted cancellation notifications. Provider execution and physical handover tracking remain separate.
+
+## 14. Mentor amendment (2026-10-22)
+
+Requested policy defaults: >=72h returns 100%, >=48h and <72h returns 30%, <48h
+returns 0%, all before departure. Existing Booking snapshots remain unchanged (BR-098).
+All refund request/execution paths cap cancellation entitlement at the persisted
+cancellation time, with no second claim on the retained percentage. Host and Admin
+receive a unique notification with Camper reason, read state and authorized Trip link.
+Full implementation/data details and migration behavior are maintained in
+[the cancellation contract](../../docs/ctms-174-booking-cancellation.md).

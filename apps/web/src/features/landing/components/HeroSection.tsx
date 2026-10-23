@@ -11,11 +11,11 @@ export const HeroSection: React.FC = () => {
 					<span>Sẵn sàng cho mọi hành trình cắm trại và trekking</span>
 				</div>
 				<h1 className="mb-4 text-3xl font-extrabold leading-tight tracking-tight text-[#10221b] sm:text-4xl md:text-5xl">
-					Hệ thống quản lý và vận hành thông minh cho người dựng lều, Host và Trekker.
+					Trekking nhẹ nhàng, an toàn trọn vẹn.
 				</h1>
 				<p className="mb-7 max-w-[600px] text-base leading-relaxed text-[#425048] sm:text-lg">
-					Tích hợp AI, bản đồ ngoại tuyến và cứu hộ thông minh. Tối ưu hoá lộ trình, giám sát thời
-					tiết, điều phối đội nhóm và kết nối liên tục với CTMS.
+					Chọn tour, xem thời tiết, tải bản đồ, gọi cứu hộ, tất cả trong một ứng dụng. Chuẩn bị ít
+					hơn, tận hưởng nhiều hơn.
 				</p>
 
 				<div className="mb-8 flex flex-wrap gap-3.5">

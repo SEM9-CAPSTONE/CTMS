@@ -30,7 +30,21 @@ export function BookingCancellationPanel({
 	onBack,
 }: Props) {
 	const [open, setOpen] = useState(false);
-	if (result) return <CancellationResultCard result={result} />;
+	const rebook = (
+		<a
+			className="mt-3 inline-block rounded-xl border border-emerald-800 px-4 py-2 font-bold text-emerald-900"
+			href={`/trips/${booking.tripId}?rebook=${booking.id}`}
+		>
+			Xem chuyến và đặt lại
+		</a>
+	);
+	if (result)
+		return (
+			<div>
+				<CancellationResultCard result={result} />
+				{rebook}
+			</div>
+		);
 	if (booking.status === "cancelled")
 		return (
 			<section
@@ -38,6 +52,7 @@ export function BookingCancellationPanel({
 				className="rounded-2xl border border-[#cbd9ce] bg-white p-5 text-sm"
 			>
 				<p>Đơn đặt chỗ đã hủy và không còn quyền tham gia chuyến đi.</p>
+				{rebook}
 			</section>
 		);
 	// Presentation only. Policy, schedule and equipment eligibility are server-owned.

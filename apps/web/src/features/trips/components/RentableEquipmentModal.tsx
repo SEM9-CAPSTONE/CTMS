@@ -19,11 +19,13 @@ export interface RentableEquipmentModalProps {
 	bookingId?: string | null;
 }
 
+const EMPTY_INITIAL_SELECTED: SelectedEquipmentItem[] = [];
+
 export function RentableEquipmentModal({
 	isOpen,
 	onClose,
 	items,
-	initialSelected = [],
+	initialSelected = EMPTY_INITIAL_SELECTED,
 	onConfirm,
 	isSubmitting = false,
 	bookingId: _bookingId = null,

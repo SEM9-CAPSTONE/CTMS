@@ -24,7 +24,7 @@ describe("BookingCancellationService", () => {
 		create: jest.Mock;
 		save: jest.Mock;
 	};
-	let equipment: { findByBookingForUpdate: jest.Mock };
+	let equipment: { findByBookingForUpdate: jest.Mock; save: jest.Mock };
 	let audit: { save: jest.Mock };
 	const now = new Date("2030-01-01T00:00:00Z");
 
@@ -55,17 +55,28 @@ describe("BookingCancellationService", () => {
 			save: jest.fn(async (value: Booking) => value),
 		};
 		trips = { adjustSeatsTaken: jest.fn().mockResolvedValue(undefined) };
-		tripRows = { findOne: jest.fn().mockResolvedValue({ id: "trip", seatsTaken: 5 }) };
+		tripRows = {
+			findOne: jest.fn().mockResolvedValue({
+				id: "trip",
+				seatsTaken: 5,
+				startsAt: new Date("2030-01-03T00:00:00Z"),
+				status: "published",
+			}),
+		};
 		payments = {
 			findByBookingForUpdate: jest.fn().mockResolvedValue([charge]),
 			findByIdempotencyKey: jest.fn().mockResolvedValue(null),
 			create: jest.fn((value: Partial<Payment>) => Object.assign(new Payment(), value)),
 			save: jest.fn(async (value: Payment) => Object.assign(value, { id: "refund" })),
 		};
-		equipment = { findByBookingForUpdate: jest.fn().mockResolvedValue([]) };
+		equipment = {
+			findByBookingForUpdate: jest.fn().mockResolvedValue([]),
+			save: jest.fn().mockResolvedValue(undefined),
+		};
 		audit = { save: jest.fn().mockResolvedValue(undefined) };
 		const manager = {
 			withRepository: (repository: object) => repository,
+			query: jest.fn().mockResolvedValue([]),
 			getRepository: (entity: unknown) => {
 				if (entity === Trip) return tripRows;
 				if (entity === AuditLog) return audit;
@@ -84,7 +95,7 @@ describe("BookingCancellationService", () => {
 		);
 	});
 	afterEach(() => jest.useRealTimers());
-	const cancel = () => service.cancel("owner", "booking", {});
+	const cancel = () => service.cancel("owner", "booking", { reason: "Changed plans" });
 	function expectNoWrites() {
 		expect(bookings.save).not.toHaveBeenCalled();
 		expect(trips.adjustSeatsTaken).not.toHaveBeenCalled();
@@ -136,7 +147,9 @@ describe("BookingCancellationService", () => {
 	});
 	it("checks ownership even on cancelled replay", async () => {
 		booking.status = BookingStatus.CANCELLED;
-		await expect(service.cancel("other", "booking", {})).rejects.toBeInstanceOf(ForbiddenException);
+		await expect(
+			service.cancel("other", "booking", { reason: "Changed plans" })
+		).rejects.toBeInstanceOf(ForbiddenException);
 		expectNoWrites();
 		expect(payments.findByIdempotencyKey).not.toHaveBeenCalled();
 	});
@@ -255,12 +268,18 @@ describe("BookingCancellationService", () => {
 		expect((await cancel()).cancelledAt).toBeNull();
 		expectNoWrites();
 	});
-	it("rejects ambiguous active equipment before any mutation", async () => {
+	it("releases active equipment before departure in the cancellation transaction", async () => {
 		equipment.findByBookingForUpdate.mockResolvedValue([
 			{ status: EquipmentReservationStatus.ACTIVE },
 		]);
-		await expect(cancel()).rejects.toBeInstanceOf(ConflictException);
-		expectNoWrites();
+		await expect(cancel()).resolves.toMatchObject({ status: BookingStatus.CANCELLED });
+		expect(equipment.save).toHaveBeenCalledWith(
+			expect.objectContaining({
+				status: EquipmentReservationStatus.CANCELLED,
+				cancelledAt: now,
+				cancellationReason: "Changed plans",
+			})
+		);
 	});
 	it("leaves already-cancelled equipment unchanged", async () => {
 		equipment.findByBookingForUpdate.mockResolvedValue([

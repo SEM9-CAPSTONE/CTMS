@@ -23,7 +23,7 @@ describe("EquipmentCatalogList", () => {
 		render(<EquipmentCatalogList items={items} onEdit={vi.fn()} />);
 
 		expect(screen.getByText("4-person tent")).toBeInTheDocument();
-		expect(screen.getByText("shelter")).toBeInTheDocument();
+		expect(screen.getByText("Lều bạt")).toBeInTheDocument();
 		expect(screen.getByText("Đang hoạt động")).toBeInTheDocument();
 		const row = screen.getByTestId("equipment-catalog-item-item-1");
 		expect(row).toHaveTextContent("10");

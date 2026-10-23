@@ -13,6 +13,7 @@ import { hash } from "bcrypt";
 import { DEFAULT_CANCELLATION_POLICY } from "../modules/bookings/cancellation-policy";
 import dataSource from "../shared/database/data-source";
 import { PORTER_SEED_FIXTURES } from "./porter.seed-fixtures";
+import { repairDemoBookingCancellation } from "./repair-demo-booking-cancellation";
 
 const BCRYPT_COST_FACTOR = 10;
 
@@ -1508,6 +1509,8 @@ async function ensureBookingWithMembers(
 		bookingId = inserted[0].id;
 	}
 
+	await repairDemoBookingCancellation(dataSource, bookingId);
+
 	for (const m of members) {
 		const existingMember: Array<{ id: string }> = await dataSource.query(
 			'SELECT "id" FROM "booking_members" WHERE "booking_id" = $1 AND "user_id" = $2',
@@ -1869,6 +1872,13 @@ export async function seedHostGroupBookingsWithEquipment(): Promise<void> {
 			);
 			bookingId = insertedBooking[0].id;
 		}
+
+		// Seeded group bookings retain the policy used by ordinary cancellation.
+		await dataSource.query(
+			`UPDATE bookings booking SET cancellation_policy_snapshot = COALESCE(booking.cancellation_policy_snapshot, trip.cancellation_policy)
+             FROM trips trip WHERE booking.trip_id = trip.id AND booking.id = $1`,
+			[bookingId]
+		);
 
 		// 2.2 Upsert Booking Members
 		for (const m of allMembers) {

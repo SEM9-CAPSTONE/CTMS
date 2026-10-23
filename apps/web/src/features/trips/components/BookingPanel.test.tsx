@@ -149,6 +149,7 @@ describe("BookingPanel", () => {
 					paymentStatus: "unpaid",
 					holdExpiresAt: "2099-01-01T01:15:00.000Z",
 					basePrice: "900000.00",
+					totalAmount: "900000.00",
 				}}
 			/>
 		);
@@ -181,7 +182,9 @@ describe("BookingPanel", () => {
 			expect(result).toHaveClass("border-rose-200", "bg-rose-50");
 			expect(result).not.toHaveClass("border-emerald-200", "bg-emerald-50");
 			expect(result).toHaveTextContent("Đơn đặt chỗ đã hết hạn");
-			expect(result).toHaveTextContent(paymentStatus);
+			expect(result).toHaveTextContent(
+				paymentStatus === "paid" ? "Đã thanh toán" : "Chưa thanh toán"
+			);
 			expect(result).not.toHaveTextContent("Đã tạo đặt chỗ thành công");
 			expect(result).not.toHaveTextContent("Đặt chỗ đã được xác nhận");
 			expect(screen.queryByText(/giữ chỗ đến/i)).not.toBeInTheDocument();

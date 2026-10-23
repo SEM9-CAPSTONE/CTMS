@@ -111,6 +111,14 @@ function createHarness() {
 }
 
 describe("Porter Request responses", () => {
+	it("rejects a new acceptance when another Porter already holds the Trip", async () => {
+		const { state, service, repository } = createHarness();
+		state.activeAssignment = true;
+		await expect(service.accept("porter", "request")).rejects.toThrow(ConflictException);
+		expect(repository.createAssignedTripPorterIdempotent).not.toHaveBeenCalled();
+		expect(repository.markStatus).not.toHaveBeenCalled();
+	});
+
 	it("locks the Porter before checking eligibility and commits Assignment + ACCEPTED before notifying", async () => {
 		const h = createHarness();
 		const result = await h.service.accept("porter", "request");

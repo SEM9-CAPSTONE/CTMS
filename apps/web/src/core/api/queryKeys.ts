@@ -3,6 +3,8 @@ export const queryKeys = {
 		me: ["auth", "me"] as const,
 	},
 	bookings: {
+		camperMap: (userId: string) => ["bookings", "camper-map", userId] as const,
+		cancellationNotices: (userId: string) => ["bookings", "cancellation-notices", userId] as const,
 		all: ["bookings"] as const,
 		list: (filters?: Record<string, unknown>) => ["bookings", "list", filters] as const,
 		detail: (id: string) => ["bookings", "detail", id] as const,
@@ -18,6 +20,9 @@ export const queryKeys = {
 		checkpoints: (routeId: string) => ["trekking-routes", routeId, "checkpoints"] as const,
 	},
 	trips: {
+		camperCarousel: (userId: string) => ["trips", "camper-carousel", userId] as const,
+		bookedRouteMap: (userId: string, tripId: string) =>
+			["trips", "booked-route-map", userId, tripId] as const,
 		hostOverview: (hostId: string) => ["trips", "host-overview", hostId] as const,
 		hostOverviewAssignments: (hostId: string) =>
 			["trips", "host-overview-assignments", hostId] as const,

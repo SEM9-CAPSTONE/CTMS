@@ -94,7 +94,7 @@ Actual commitment occurs through Request/Assignment workflow.
 
 ## 9. API / Integration Contract
 
-TBD — Technical Design.
+The current Trip-Porter workflow supports one schedule-holding Porter per Trip. Searching an upcoming published Trip with an assigned or pending-reconfirmation Porter returns 409. An unassigned historical row does not block search. Candidate DTOs include nullable avatarUrl for the operational profile card. Acceptance revalidates the same capacity under the Trip row lock.
 
 ## 10. Error & Edge Cases
 

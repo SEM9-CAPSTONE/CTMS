@@ -115,6 +115,13 @@ export function TripDetailPage({
 		[serverBookingDetails]
 	);
 	const [dismissedBookingId, setDismissedBookingId] = useState<string | null>(null);
+	const rebookId = new URLSearchParams(window.location.search).get("rebook");
+	useEffect(() => {
+		// Only a server-confirmed cancelled Booking may be dismissed for a new booking.
+		if (serverBooking?.status === "cancelled" && serverBooking.id === rebookId) {
+			setDismissedBookingId(serverBooking.id);
+		}
+	}, [rebookId, serverBooking?.id, serverBooking?.status]);
 	const temporaryBooking = restoredBooking ?? booking;
 	const serverNeedsCancellationRefresh = Boolean(
 		restoredBooking?.status === "cancelled" &&

@@ -130,3 +130,8 @@ TBD — Technical Design.
 ## 12. Open Decisions
 
 Exact pagination/sorting defaults and the complete public Trip DTO belong to Technical Design unless explicitly defined in PB/Data Dictionary.
+
+
+### Camper dashboard trip navigation
+
+The existing dashboard journey panel displays one Trip at a time. Previous/next controls change the displayed Trip, its map and public itinerary. The current confirmed upcoming/ongoing Booking is preferred, followed by public published active Trips from paginated search, without duplicates. The existing “Khám phá chuyến đi” button in Quick Tasks opens the displayed Trip's exact detail URL and is disabled while the displayed Trip is loading or unavailable. No separate discovery grid is added. Raw Route/safety data is requested only for the eligible booked Trip; other Trips use public itinerary locations. Paging/opening does not create a Booking.

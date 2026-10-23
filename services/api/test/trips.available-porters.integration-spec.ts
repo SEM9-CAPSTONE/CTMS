@@ -274,6 +274,7 @@ describe("CTMS-200 available Porters (integration, real Postgres)", () => {
 			[
 				"porterId",
 				"displayName",
+				"avatarUrl",
 				"experienceYears",
 				"availabilityStatus",
 				"ratingAvg",

@@ -36,6 +36,15 @@ export interface PorterRequestWithContext extends Omit<PorterRequest, "trip"> {
 
 @Injectable()
 export class PorterRequestsRepository extends Repository<PorterRequest> {
+	async hasActiveAssignmentForTrip(tripId: string): Promise<boolean> {
+		const rows = (await this.query(
+			`SELECT 1 FROM "trip_porters" WHERE "trip_id" = $1
+			 AND "status" IN ('assigned', 'pending_reconfirmation') LIMIT 1`,
+			[tripId]
+		)) as Array<{ value: number }>;
+		return rows.length > 0;
+	}
+
 	async createPendingIdempotent(input: CreatePendingPorterRequestInput): Promise<{
 		request: PorterRequest;
 		created: boolean;

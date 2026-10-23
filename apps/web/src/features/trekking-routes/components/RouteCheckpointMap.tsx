@@ -1,3 +1,4 @@
+import { trackMapRenderReadiness } from "../utils/map-render-readiness";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { Map as MapLibreMap, Marker } from "maplibre-gl";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -166,6 +167,8 @@ export function RouteCheckpointMap({
 
 	useEffect(() => {
 		if (!styleUrl || !containerRef.current) return;
+		setMapReady(false);
+		setMapError("");
 		let disposed = false;
 		void import("maplibre-gl")
 			.then((maplibre) => {
@@ -177,6 +180,7 @@ export function RouteCheckpointMap({
 					zoom: 13,
 					attributionControl: false,
 				});
+				trackMapRenderReadiness(map, containerRef.current);
 				map.addControl(new maplibre.NavigationControl({ showCompass: false }), "top-right");
 				map.on("click", (event) => {
 					if (!disabledRef.current) {

@@ -1,0 +1,1 @@
+export const CANCELLATION_NOTICE_POLL_MS = 30_000;

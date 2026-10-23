@@ -5,6 +5,7 @@ import type {
 	AvailablePortersResponse,
 	BookTripInput,
 	BookTripResponse,
+	BookedTripRouteMap,
 	CancelTripInput,
 	ConfigureTripWaypointsInput,
 	CreatePorterRequestInput,
@@ -25,6 +26,8 @@ import type {
 } from "../types";
 
 export const tripsService = {
+	getBookedRouteMap: (tripId: string): Promise<BookedTripRouteMap> =>
+		httpClient.get<BookedTripRouteMap>(API_ENDPOINTS.TRIPS.BOOKED_ROUTE_MAP(tripId)),
 	create: (input: CreateTripInput): Promise<Trip> =>
 		httpClient.post<Trip>(API_ENDPOINTS.TRIPS.CREATE, input),
 	updateDraft: (tripId: string, input: CreateTripInput): Promise<Trip> =>

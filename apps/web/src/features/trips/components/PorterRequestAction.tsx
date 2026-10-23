@@ -49,6 +49,15 @@ export function PorterRequestAction({ tripId, porterId, role }: PorterRequestAct
 
 	return (
 		<div className="mt-3 border-t border-[#e2e9e3] pt-3">
+			{isPendingRequest && authoritativeRequest && (
+				<output
+					data-testid={`porter-request-state-${porterId}`}
+					className="mb-3 text-xs font-semibold text-[#164027]"
+				>
+					Đang chờ phản hồi · Hết hạn:{" "}
+					{new Date(authoritativeRequest.expiresAt).toLocaleString("vi-VN")}
+				</output>
+			)}
 			<div className="flex flex-wrap items-center justify-between gap-3">
 				<details className="group min-w-0 flex-1">
 					<summary className="cursor-pointer list-none text-xs font-semibold text-[#667a6d] transition hover:text-[#164027] [&::-webkit-details-marker]:hidden">
