@@ -1,6 +1,8 @@
 import { ImageOff } from "lucide-react";
 import { useState } from "react";
+import { useTripWeatherForecast } from "../hooks/useTripWeatherForecast";
 import { type AdminTripReview, TRIP_STATUS_LABELS } from "../types";
+import { TripWeatherForecastCard } from "./TripWeatherForecastCard";
 
 const OUTCOME_LABELS = {
 	pending: "Chờ duyệt",
@@ -74,6 +76,26 @@ function CoverImage({ title, url }: { title: string; url: string | null }) {
 				Xem ảnh gốc
 			</a>
 		</div>
+	);
+}
+
+/** Forecast attached when the Host submitted the Trip; shown for every risk level. */
+function SubmittedTripWeather({ trip }: { trip: AdminTripReview }) {
+	const weather = useTripWeatherForecast(trip.id, "submitted");
+	return (
+		<TripWeatherForecastCard
+			variant="admin"
+			forecast={weather.forecast}
+			isLoading={weather.isLoading}
+			error={weather.error}
+			onRetry={() => void weather.refresh()}
+		>
+			{trip.submittedWeatherForecast?.riskAcknowledged && (
+				<p className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-800">
+					Host đã xác nhận biết rủi ro thời tiết cao khi gửi duyệt.
+				</p>
+			)}
+		</TripWeatherForecastCard>
 	);
 }
 
@@ -151,6 +173,7 @@ export function AdminTripReviewDetails({ trip, onReview }: Props) {
 					</div>
 				</div>
 			</section>
+			<SubmittedTripWeather trip={trip} />
 			<section className="rounded-2xl border border-[#e0ebe0] bg-white p-5 shadow-sm">
 				<h2 className="font-extrabold">Lịch trình điểm dừng</h2>
 				{trip.waypoints.length === 0 ? (

@@ -84,7 +84,11 @@ async function setup(options: SetupOptions = {}) {
 		? vi.fn().mockRejectedValue(options.reviewError)
 		: vi.fn().mockResolvedValue(options.reviewResult ?? { ...trip, status: "published" });
 	vi.doMock("../services/trips.service", () => ({
-		tripsService: { listAdminReviews, review },
+		tripsService: {
+			listAdminReviews,
+			review,
+			getSubmittedWeatherForecast: vi.fn().mockResolvedValue(null),
+		},
 	}));
 	const { act, render, screen, waitFor, within } = await import("@testing-library/react");
 	const userEvent = (await import("@testing-library/user-event")).default;
