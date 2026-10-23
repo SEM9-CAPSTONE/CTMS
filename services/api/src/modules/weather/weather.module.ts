@@ -3,8 +3,10 @@ import { DataSource } from "typeorm";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { RouteRegistrationRiskController } from "./controllers/route-registration-risk.controller";
+import { TripWeatherForecastController } from "./controllers/trip-weather-forecast.controller";
 import { WeatherRiskRulesController } from "./controllers/weather-risk-rules.controller";
 import { WeatherController } from "./controllers/weather.controller";
+import { TripWeatherForecast } from "./entities/trip-weather-forecast.entity";
 import { WeatherAdvice } from "./entities/weather-advice.entity";
 import { WeatherRiskAssessment } from "./entities/weather-risk-assessment.entity";
 import { WeatherSnapshot } from "./entities/weather-snapshot.entity";
@@ -12,22 +14,30 @@ import { HttpWeatherAdviceProvider } from "./providers/http-weather-advice.provi
 import { OpenMeteoWeatherProvider } from "./providers/open-meteo-weather.provider";
 import { WEATHER_ADVICE_PROVIDER } from "./providers/weather-advice-provider.interface";
 import { WEATHER_PROVIDER } from "./providers/weather-provider.interface";
+import { TripWeatherForecastsRepository } from "./repositories/trip-weather-forecasts.repository";
 import { WeatherAdviceRepository } from "./repositories/weather-advice.repository";
 import { WeatherRiskRepository } from "./repositories/weather-risk.repository";
 import { WeatherSnapshotsRepository } from "./repositories/weather-snapshots.repository";
 import { RouteRegistrationRiskService } from "./services/route-registration-risk.service";
+import { TripWeatherForecastService } from "./services/trip-weather-forecast.service";
 import { WeatherAdviceService } from "./services/weather-advice.service";
 import { WeatherRiskRulesService } from "./services/weather-risk-rules.service";
 import { WeatherRiskService } from "./services/weather-risk.service";
 import { WeatherService } from "./services/weather.service";
 
 @Module({
-	controllers: [WeatherController, RouteRegistrationRiskController, WeatherRiskRulesController],
+	controllers: [
+		WeatherController,
+		RouteRegistrationRiskController,
+		WeatherRiskRulesController,
+		TripWeatherForecastController,
+	],
 	providers: [
 		WeatherService,
 		WeatherRiskService,
 		WeatherAdviceService,
 		WeatherRiskRulesService,
+		TripWeatherForecastService,
 		{
 			provide: RouteRegistrationRiskService,
 			useFactory: (
@@ -56,6 +66,12 @@ import { WeatherService } from "./services/weather.service";
 			provide: WeatherRiskRepository,
 			useFactory: (dataSource: DataSource) =>
 				new WeatherRiskRepository(WeatherRiskAssessment, dataSource.createEntityManager()),
+			inject: [DataSource],
+		},
+		{
+			provide: TripWeatherForecastsRepository,
+			useFactory: (dataSource: DataSource) =>
+				new TripWeatherForecastsRepository(TripWeatherForecast, dataSource.createEntityManager()),
 			inject: [DataSource],
 		},
 		{

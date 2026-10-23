@@ -27,6 +27,40 @@ export interface WeatherProvider {
 	 * to do with a failure (retry, then persist a FAILED snapshot).
 	 */
 	fetchCurrent(latitude: number, longitude: number): Promise<WeatherReading>;
+
+	/**
+	 * Hourly forecast for the inclusive UTC window [from, to]. The caller keeps the
+	 * window inside the provider horizon (`WEATHER_FORECAST_HORIZON_DAYS`).
+	 * @throws WeatherProviderError like `fetchCurrent`.
+	 */
+	fetchHourlyForecast(
+		latitude: number,
+		longitude: number,
+		from: Date,
+		to: Date
+	): Promise<WeatherHourlyForecast>;
+}
+
+/**
+ * Open-Meteo serves hourly forecasts up to the end of the 15th day after today
+ * (it rejects later `start_hour`/`end_hour` with "out of allowed range"), so a
+ * Trip is forecast only when it starts within this many days.
+ */
+export const WEATHER_FORECAST_HORIZON_DAYS = 15;
+
+export interface WeatherForecastHour {
+	time: Date;
+	rainfallMm: number;
+	windKph: number;
+	temperatureC: number;
+	visibilityM: number;
+	thunderstorm: boolean;
+	providerWeatherCode: number;
+}
+
+export interface WeatherHourlyForecast {
+	hours: WeatherForecastHour[];
+	raw: Record<string, unknown>;
 }
 
 export class WeatherProviderError extends Error {

@@ -9,17 +9,13 @@ import type { AuthenticatedUser } from "../../auth/jwt.strategy";
 import { TrekkingRouteStatus } from "../../trekking-routes/entities/trekking-route.entity";
 import { UserRole } from "../../users/entities/user.entity";
 import type { WeatherRiskAssessmentResponseDto } from "../dto/weather-risk-assessment-response.dto";
-import {
-	RiskLevel,
-	type WeatherCriteriaScoresDetail,
-	type WeatherRiskAssessment,
-} from "../entities/weather-risk-assessment.entity";
-import type { WeatherRiskRule } from "../entities/weather-risk-rule.entity";
+import type { WeatherRiskAssessment } from "../entities/weather-risk-assessment.entity";
 import { WeatherSnapshotStatus } from "../entities/weather-snapshot.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { WeatherRiskRepository } from "../repositories/weather-risk.repository";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { WeatherSnapshotsRepository } from "../repositories/weather-snapshots.repository";
+import { scoreWeatherReading } from "./weather-risk-scoring";
 
 function toResponse(assessment: WeatherRiskAssessment): WeatherRiskAssessmentResponseDto {
 	return {
@@ -83,36 +79,23 @@ export class WeatherRiskService {
 			return toResponse(existing);
 		}
 
-		// Calculate criteria scores
-		const rainfall = this.scoreRainfall(latestSnapshot.rainfallMm ?? 0, activeRule);
-		const wind = this.scoreWind(latestSnapshot.windKph ?? 0, activeRule);
-		const temperature = this.scoreTemperature(latestSnapshot.temperatureC ?? 20, activeRule);
-		const visibility = this.scoreVisibility(latestSnapshot.visibilityM ?? 10000, activeRule);
-		const thunderstorm = this.scoreThunderstorm(latestSnapshot.thunderstorm ?? false, activeRule);
-
-		const compositeScore =
-			rainfall.score * activeRule.rainfallWeight +
-			wind.score * activeRule.windWeight +
-			temperature.score * activeRule.temperatureWeight +
-			visibility.score * activeRule.visibilityWeight +
-			thunderstorm.score * activeRule.thunderstormWeight;
-
-		const riskLevel = this.classifyRisk(compositeScore, activeRule);
-
-		const criteriaScores: WeatherCriteriaScoresDetail = {
-			rainfall,
-			wind,
-			temperature,
-			visibility,
-			thunderstorm,
-		};
+		const { criteriaScores, compositeScore, riskLevel } = scoreWeatherReading(
+			{
+				rainfallMm: latestSnapshot.rainfallMm ?? 0,
+				windKph: latestSnapshot.windKph ?? 0,
+				temperatureC: latestSnapshot.temperatureC ?? 20,
+				visibilityM: latestSnapshot.visibilityM ?? 10000,
+				thunderstorm: latestSnapshot.thunderstorm ?? false,
+			},
+			activeRule
+		);
 
 		const assessment = await this.weatherRiskRepository.createAssessment({
 			routeId,
 			snapshotId: latestSnapshot.id,
 			ruleVersionId: activeRule.id,
 			riskLevel,
-			compositeScore: Number(compositeScore.toFixed(4)),
+			compositeScore,
 			criteriaScores,
 			createdBy: actor.userId,
 		});
@@ -139,82 +122,5 @@ export class WeatherRiskService {
 		if (actor.userId !== owningHostId) {
 			throw new ForbiddenException("Only the owning Host can access weather risk for this route");
 		}
-	}
-
-	private scoreRainfall(value: number, rule: WeatherRiskRule) {
-		let level = RiskLevel.GREEN;
-		let score = 0;
-		if (value >= rule.rainfallRedThreshold) {
-			level = RiskLevel.RED;
-			score = 2;
-		} else if (value >= rule.rainfallYellowThreshold) {
-			level = RiskLevel.YELLOW;
-			score = 1;
-		}
-		return { value, level, weight: rule.rainfallWeight, score };
-	}
-
-	private scoreWind(value: number, rule: WeatherRiskRule) {
-		let level = RiskLevel.GREEN;
-		let score = 0;
-		if (value >= rule.windRedThreshold) {
-			level = RiskLevel.RED;
-			score = 2;
-		} else if (value >= rule.windYellowThreshold) {
-			level = RiskLevel.YELLOW;
-			score = 1;
-		}
-		return { value, level, weight: rule.windWeight, score };
-	}
-
-	private scoreTemperature(value: number, rule: WeatherRiskRule) {
-		let level = RiskLevel.GREEN;
-		let score = 0;
-		if (value <= rule.tempLowRed || value >= rule.tempHighRed) {
-			level = RiskLevel.RED;
-			score = 2;
-		} else if (value <= rule.tempLowYellow || value >= rule.tempHighYellow) {
-			level = RiskLevel.YELLOW;
-			score = 1;
-		}
-		return { value, level, weight: rule.temperatureWeight, score };
-	}
-
-	private scoreVisibility(value: number, rule: WeatherRiskRule) {
-		let level = RiskLevel.GREEN;
-		let score = 0;
-		if (value <= rule.visibilityRedThreshold) {
-			level = RiskLevel.RED;
-			score = 2;
-		} else if (value <= rule.visibilityYellowThreshold) {
-			level = RiskLevel.YELLOW;
-			score = 1;
-		}
-		return { value, level, weight: rule.visibilityWeight, score };
-	}
-
-	private scoreThunderstorm(value: boolean, rule: WeatherRiskRule) {
-		let level = RiskLevel.GREEN;
-		let score = 0;
-		if (value) {
-			if (rule.thunderstormRed) {
-				level = RiskLevel.RED;
-				score = 2;
-			} else if (rule.thunderstormYellow) {
-				level = RiskLevel.YELLOW;
-				score = 1;
-			}
-		}
-		return { value, level, weight: rule.thunderstormWeight, score };
-	}
-
-	private classifyRisk(score: number, rule: WeatherRiskRule): RiskLevel {
-		if (score < rule.greenMaxScore) {
-			return RiskLevel.GREEN;
-		}
-		if (score < rule.yellowMaxScore) {
-			return RiskLevel.YELLOW;
-		}
-		return RiskLevel.RED;
 	}
 }

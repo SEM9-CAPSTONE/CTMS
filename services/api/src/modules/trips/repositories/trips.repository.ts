@@ -17,6 +17,7 @@ import type {
 } from "../dto/porter-trip-operations-response.dto";
 import type {
 	AdminTripReviewResponseDto,
+	SubmittedWeatherForecastSummaryDto,
 	TripRegistrationRiskResponseDto,
 	TripResponseDto,
 	TripSummaryResponseDto,
@@ -980,8 +981,7 @@ export class TripsRepository extends Repository<Trip> {
 			ORDER BY trip."created_at" ASC, trip."id" ASC`,
 			[TripStatus.PENDING_APPROVAL]
 		)) as TripRow[];
-
-		return rows.map(toTripResponse);
+		return this.attachSubmittedWeatherForecasts(rows.map(toTripResponse));
 	}
 
 	async findAdminReviews(
@@ -1010,9 +1010,31 @@ export class TripsRepository extends Repository<Trip> {
 		)) as Array<{ total: string }>;
 
 		return {
-			items: rows.map(toAdminTripReviewResponse),
+			items: await this.attachSubmittedWeatherForecasts(rows.map(toAdminTripReviewResponse)),
 			total: Number(countRows[0]?.total ?? 0),
 		};
+	}
+
+	/** Adds the weather forecast attached at submission (Admin review screens). */
+	private async attachSubmittedWeatherForecasts<T extends { id: string }>(
+		trips: T[]
+	): Promise<Array<T & { submittedWeatherForecast: SubmittedWeatherForecastSummaryDto | null }>> {
+		if (trips.length === 0) return [];
+		const forecasts = (await this.query(
+			`SELECT trip."id" AS "tripId", forecast."id", forecast."status",
+				forecast."risk_level" AS "riskLevel",
+				(trip."weather_risk_acknowledged_at" IS NOT NULL) AS "riskAcknowledged"
+			 FROM "trips" trip
+			 JOIN "trip_weather_forecasts" forecast
+				ON forecast."id" = trip."submitted_weather_forecast_id"
+			 WHERE trip."id" = ANY($1::uuid[])`,
+			[trips.map((trip) => trip.id)]
+		)) as Array<SubmittedWeatherForecastSummaryDto & { tripId: string }>;
+		const byTrip = new Map(forecasts.map(({ tripId, ...summary }) => [tripId, summary]));
+		return trips.map((trip) => ({
+			...trip,
+			submittedWeatherForecast: byTrip.get(trip.id) ?? null,
+		}));
 	}
 
 	async findPendingReviewReminderCandidates(

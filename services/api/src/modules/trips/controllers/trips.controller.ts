@@ -44,6 +44,8 @@ import { CancelTripDto, RescheduleTripDto } from "../dto/reschedule-trip.dto";
 import { ReviewTripDto } from "../dto/review-trip.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { SearchTripsQueryDto } from "../dto/search-trips-query.dto";
+// biome-ignore lint/style/useImportType: decorated request DTO needs runtime metadata
+import { SubmitTripDto } from "../dto/submit-trip.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { TripIdParamDto } from "../dto/trip-id-param.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
@@ -414,12 +416,17 @@ export class TripsController {
 	@ApiResponse({ status: 403, description: "Host role and Trip ownership required" })
 	@ApiResponse({ status: 404, description: "Trip not found" })
 	@ApiResponse({ status: 409, description: "Trip is not a draft" })
-	@ApiResponse({ status: 422, description: "Stored waypoints are not ready for approval" })
+	@ApiResponse({
+		status: 422,
+		description:
+			"Stored waypoints are not ready, the weather forecast is outdated, or a Red forecast is not acknowledged",
+	})
 	submitForApproval(
 		@Req() request: AuthenticatedRequest,
-		@Param() params: TripIdParamDto
+		@Param() params: TripIdParamDto,
+		@Body() dto: SubmitTripDto
 	): Promise<TripResponseDto> {
-		return this.tripsService.submitForApproval(request.user.userId, params.tripId);
+		return this.tripsService.submitForApproval(request.user.userId, params.tripId, dto);
 	}
 
 	@Post()
