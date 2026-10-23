@@ -20,9 +20,11 @@ import type {
 	RescheduleTripInput,
 	ReviewTripInput,
 	SearchTripsQuery,
+	SubmitTripInput,
 	Trip,
 	TripBookingsResponse,
 	TripDetails,
+	TripWeatherForecast,
 } from "../types";
 
 export const tripsService = {
@@ -43,8 +45,19 @@ export const tripsService = {
 	): Promise<Trip> => httpClient.put<Trip>(API_ENDPOINTS.TRIPS.WAYPOINT(tripId, waypointId), input),
 	deleteWaypoint: (tripId: string, waypointId: string): Promise<Trip> =>
 		httpClient.delete<Trip>(API_ENDPOINTS.TRIPS.WAYPOINT(tripId, waypointId)),
-	submitForApproval: (tripId: string): Promise<Trip> =>
-		httpClient.post<Trip>(API_ENDPOINTS.TRIPS.SUBMIT_FOR_APPROVAL(tripId), {}),
+	submitForApproval: (tripId: string, input: SubmitTripInput = {}): Promise<Trip> =>
+		httpClient.post<Trip>(API_ENDPOINTS.TRIPS.SUBMIT_FOR_APPROVAL(tripId), input),
+
+	forecastWeather: (tripId: string): Promise<TripWeatherForecast> =>
+		httpClient.post<TripWeatherForecast>(API_ENDPOINTS.TRIPS.WEATHER_FORECAST(tripId)),
+	getLatestWeatherForecast: (tripId: string): Promise<TripWeatherForecast | null> =>
+		httpClient.get<TripWeatherForecast | null>(API_ENDPOINTS.TRIPS.WEATHER_FORECAST_LATEST(tripId)),
+	getSubmittedWeatherForecast: (tripId: string): Promise<TripWeatherForecast | null> =>
+		httpClient.get<TripWeatherForecast | null>(
+			API_ENDPOINTS.TRIPS.WEATHER_FORECAST_SUBMITTED(tripId)
+		),
+	generateWeatherAdvice: (tripId: string): Promise<TripWeatherForecast> =>
+		httpClient.post<TripWeatherForecast>(API_ENDPOINTS.TRIPS.WEATHER_FORECAST_ADVICE(tripId)),
 
 	listPendingReview: (): Promise<Trip[]> =>
 		httpClient.get<Trip[]>(API_ENDPOINTS.TRIPS.PENDING_REVIEW),

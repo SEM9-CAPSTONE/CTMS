@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import { HttpError } from "../../../core/api";
 import { tripsService } from "../services/trips.service";
-import type { CreateTripWaypointInput, Trip } from "../types";
+import type { CreateTripWaypointInput, SubmitTripInput, Trip } from "../types";
 
 export interface ConfigureTripWaypointsError {
 	status?: number;
@@ -72,11 +72,22 @@ export function mapConfigureTripWaypointsError(error: unknown): ConfigureTripWay
 		422: "Danh sách điểm dừng chưa hợp lệ. Vui lòng kiểm tra các trường được đánh dấu.",
 	};
 
+	const fieldErrors = extractFieldErrors(error.errorData);
+	const weatherMessage = fieldErrors.weatherForecast
+		? "Dự báo thời tiết không còn khớp lịch trình chuyến đi. Hệ thống đang dự báo lại, vui lòng gửi duyệt lại sau khi có kết quả."
+		: fieldErrors.acknowledgeWeatherRisk
+			? "Dự báo thời tiết đang ở mức Nguy hiểm. Hãy xác nhận đã biết rủi ro trước khi gửi duyệt."
+			: null;
+
 	return {
 		status: error.status,
-		message: detail || byStatus[error.status] || "Không thể cấu hình điểm dừng. Vui lòng thử lại.",
+		message:
+			weatherMessage ||
+			detail ||
+			byStatus[error.status] ||
+			"Không thể cấu hình điểm dừng. Vui lòng thử lại.",
 		canRetry: error.status === 409 || error.status >= 500,
-		fieldErrors: extractFieldErrors(error.errorData),
+		fieldErrors,
 	};
 }
 
@@ -126,7 +137,7 @@ export function useConfigureTripWaypoints(tripId: string) {
 	);
 
 	const submit = useCallback(
-		() => execute(() => tripsService.submitForApproval(tripId)),
+		(input: SubmitTripInput = {}) => execute(() => tripsService.submitForApproval(tripId, input)),
 		[execute, tripId]
 	);
 

@@ -40,6 +40,20 @@ export class TripWaypointResponseDto {
 	metadata!: Record<string, unknown> | null;
 }
 
+export class SubmittedWeatherForecastSummaryDto {
+	@ApiProperty({ format: "uuid" })
+	id!: string;
+
+	@ApiProperty({ enum: ["available", "out_of_range"] })
+	status!: "available" | "out_of_range";
+
+	@ApiPropertyOptional({ enum: RiskLevel, nullable: true })
+	riskLevel!: RiskLevel | null;
+
+	@ApiProperty({ description: "Host confirmed a Red forecast when submitting" })
+	riskAcknowledged!: boolean;
+}
+
 export class TripSummaryResponseDto {
 	@ApiProperty()
 	id!: string;
@@ -277,6 +291,13 @@ export class TripResponseDto {
 
 	@ApiPropertyOptional({ enum: RiskLevel, nullable: true })
 	weatherRiskLevel?: RiskLevel | null;
+
+	@ApiPropertyOptional({
+		type: () => SubmittedWeatherForecastSummaryDto,
+		nullable: true,
+		description: "Only on the Admin pending-review list: forecast attached at submission",
+	})
+	submittedWeatherForecast?: SubmittedWeatherForecastSummaryDto | null;
 
 	@ApiProperty({ type: TripRegistrationRiskResponseDto })
 	registrationRisk!: TripRegistrationRiskResponseDto;

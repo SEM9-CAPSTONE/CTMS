@@ -1,5 +1,6 @@
 import { Calendar, DoorOpen, Users } from "lucide-react";
 import { type AdminTripReview, TRIP_STATUS_LABELS } from "../types";
+import { TripWeatherBadge } from "./TripWeatherBadge";
 
 const OUTCOME_LABELS = {
 	pending: "Chờ duyệt",
@@ -66,6 +67,9 @@ export function AdminTripReviewList({ items, selectedId, onSelect }: Props) {
 							{trip.capacityMin}
 							{trip.capacityMax != null ? `–${trip.capacityMax}` : "+"} khách
 						</span>
+					</div>
+					<div className="mt-3" data-testid={`admin-trip-weather-${trip.id}`}>
+						<TripWeatherBadge forecast={trip.submittedWeatherForecast} />
 					</div>
 				</button>
 			))}

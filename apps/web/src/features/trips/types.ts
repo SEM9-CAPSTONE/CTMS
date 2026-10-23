@@ -5,6 +5,7 @@ import type {
 	RouteDangerZone,
 	RouteStatus,
 } from "../trekking-routes/types";
+import type { WeatherCriteriaScores } from "../weather/utils/weather-risk";
 
 export const TRIP_TYPES = ["day_trip", "overnight"] as const;
 export type TripType = (typeof TRIP_TYPES)[number];
@@ -104,6 +105,52 @@ export interface CancelTripInput {
 	reason: string;
 }
 
+export interface SubmittedWeatherForecastSummary {
+	id: string;
+	status: TripWeatherForecastStatus;
+	riskLevel: RiskLevel | null;
+	riskAcknowledged: boolean;
+}
+
+export type TripWeatherForecastStatus = "available" | "out_of_range";
+
+export interface TripWeatherWorstReading {
+	rainfallMm: number;
+	rainfallAt: string;
+	windKph: number;
+	windAt: string;
+	temperatureC: number;
+	temperatureAt: string;
+	visibilityM: number;
+	visibilityAt: string;
+	thunderstorm: boolean;
+	thunderstormAt: string | null;
+	hoursCovered: number;
+}
+
+/** Weather forecast over a Trip's own schedule (not today's weather). */
+export interface TripWeatherForecast {
+	id: string;
+	tripId: string;
+	status: TripWeatherForecastStatus;
+	tripStartsAt: string;
+	tripEndsAt: string;
+	forecastFrom: string | null;
+	forecastTo: string | null;
+	coversWholeTrip: boolean;
+	worstReading: TripWeatherWorstReading | null;
+	riskLevel: RiskLevel | null;
+	compositeScore: number | null;
+	criteriaScores: WeatherCriteriaScores | null;
+	advice: { text: string; actions: string[]; generatedAt: string } | null;
+	horizonDays: number;
+	createdAt: string;
+}
+
+export interface SubmitTripInput {
+	acknowledgeWeatherRisk?: boolean;
+}
+
 export interface Trip {
 	id: string;
 	hostId: string;
@@ -130,6 +177,8 @@ export interface Trip {
 	createdAt: string;
 	updatedAt: string;
 	waypoints: TripWaypoint[];
+	/** Only on the Admin pending-review list. */
+	submittedWeatherForecast?: SubmittedWeatherForecastSummary | null;
 }
 
 export type TripReviewOutcome = "pending" | "approved" | "returned_for_revision" | "auto_rejected";

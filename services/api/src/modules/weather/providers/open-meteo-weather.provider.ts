@@ -1,7 +1,12 @@
 import { Injectable, Logger } from "@nestjs/common";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { ConfigService } from "@nestjs/config";
-import type { WeatherProvider, WeatherReading } from "./weather-provider.interface";
+import type {
+	WeatherForecastHour,
+	WeatherHourlyForecast,
+	WeatherProvider,
+	WeatherReading,
+} from "./weather-provider.interface";
 import { WeatherProviderError } from "./weather-provider.interface";
 
 const OPEN_METEO_BASE_URL = "https://api.open-meteo.com/v1/forecast";
@@ -22,6 +27,19 @@ interface OpenMeteoCurrentResponse {
 		weather_code: number;
 		wind_speed_10m: number;
 		visibility: number;
+	};
+	error?: boolean;
+	reason?: string;
+}
+
+interface OpenMeteoHourlyResponse {
+	hourly?: {
+		time: string[];
+		temperature_2m: Array<number | null>;
+		rain: Array<number | null>;
+		weather_code: Array<number | null>;
+		wind_speed_10m: Array<number | null>;
+		visibility: Array<number | null>;
 	};
 	error?: boolean;
 	reason?: string;
@@ -96,4 +114,90 @@ export class OpenMeteoWeatherProvider implements WeatherProvider {
 			raw: body as unknown as Record<string, unknown>,
 		};
 	}
+
+	async fetchHourlyForecast(
+		latitude: number,
+		longitude: number,
+		from: Date,
+		to: Date
+	): Promise<WeatherHourlyForecast> {
+		const url = new URL(OPEN_METEO_BASE_URL);
+		url.searchParams.set("latitude", latitude.toString());
+		url.searchParams.set("longitude", longitude.toString());
+		url.searchParams.set("hourly", "temperature_2m,rain,weather_code,wind_speed_10m,visibility");
+		url.searchParams.set("timezone", "GMT");
+		url.searchParams.set("start_hour", toOpenMeteoHour(floorToHour(from)));
+		url.searchParams.set("end_hour", toOpenMeteoHour(floorToHour(to)));
+
+		const body = await this.requestJson<OpenMeteoHourlyResponse>(url);
+		const hourly = body.hourly;
+		if (!hourly || !Array.isArray(hourly.time)) {
+			throw new WeatherProviderError(body.reason ?? "Weather provider returned no hourly forecast");
+		}
+
+		const hours: WeatherForecastHour[] = [];
+		hourly.time.forEach((time, index) => {
+			const temperature = hourly.temperature_2m[index];
+			const rain = hourly.rain[index];
+			const code = hourly.weather_code[index];
+			const wind = hourly.wind_speed_10m[index];
+			const visibility = hourly.visibility[index];
+			// Skip hours the model has not filled in rather than inventing values (BR-229).
+			if ([temperature, rain, code, wind, visibility].some((value) => value == null)) return;
+			hours.push({
+				// timezone=GMT, so "YYYY-MM-DDTHH:MM" is already UTC.
+				time: new Date(`${time}:00Z`),
+				rainfallMm: rain as number,
+				windKph: wind as number,
+				temperatureC: temperature as number,
+				visibilityM: visibility as number,
+				thunderstorm: THUNDERSTORM_WMO_CODES.has(code as number),
+				providerWeatherCode: code as number,
+			});
+		});
+		if (hours.length === 0) {
+			throw new WeatherProviderError("Weather provider returned no usable forecast hours");
+		}
+		return { hours, raw: body as unknown as Record<string, unknown> };
+	}
+
+	private async requestJson<T extends { error?: boolean; reason?: string }>(url: URL): Promise<T> {
+		const timeoutMs = Number(
+			this.configService.get<string>("WEATHER_API_TIMEOUT_MS") ?? DEFAULT_TIMEOUT_MS
+		);
+		const controller = new AbortController();
+		const timeout = setTimeout(() => controller.abort(), timeoutMs);
+		let response: Response;
+		try {
+			response = await fetch(url, { signal: controller.signal });
+		} catch (error) {
+			this.logger.error(`Open-Meteo request failed: ${(error as Error).message}`);
+			throw new WeatherProviderError("Weather provider request failed", error);
+		} finally {
+			clearTimeout(timeout);
+		}
+
+		let body: T;
+		try {
+			body = (await response.json()) as T;
+		} catch (error) {
+			throw new WeatherProviderError("Weather provider returned a malformed response", error);
+		}
+		if (!response.ok || body.error) {
+			throw new WeatherProviderError(
+				body.reason ?? `Weather provider returned HTTP ${response.status}`
+			);
+		}
+		return body;
+	}
+}
+
+function floorToHour(date: Date): Date {
+	const copy = new Date(date.getTime());
+	copy.setUTCMinutes(0, 0, 0);
+	return copy;
+}
+
+function toOpenMeteoHour(date: Date): string {
+	return date.toISOString().slice(0, 16);
 }

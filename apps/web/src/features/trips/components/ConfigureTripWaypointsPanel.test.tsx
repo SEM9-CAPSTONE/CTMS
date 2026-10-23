@@ -11,6 +11,9 @@ vi.mock("../services/trips.service", () => ({
 		updateWaypoint: vi.fn(),
 		deleteWaypoint: vi.fn(),
 		submitForApproval: vi.fn(),
+		// Step 2 forecasts the Trip days automatically; no forecast keeps submission unblocked.
+		forecastWeather: vi.fn().mockResolvedValue(null),
+		generateWeatherAdvice: vi.fn(),
 	},
 }));
 
@@ -176,7 +179,9 @@ describe("ConfigureTripWaypointsPanel", () => {
 		await waitFor(() => expect(screen.queryByText("Chưa lưu")).not.toBeInTheDocument());
 
 		fireEvent.click(screen.getByRole("button", { name: "Gửi duyệt" }));
-		await waitFor(() => expect(tripsService.submitForApproval).toHaveBeenCalledWith(draftTrip.id));
+		await waitFor(() =>
+			expect(tripsService.submitForApproval).toHaveBeenCalledWith(draftTrip.id, {})
+		);
 		expect(await screen.findByTestId("configure-trip-status")).toHaveTextContent("Chờ duyệt");
 		expect(screen.getByText(/Lịch trình đã được lưu/)).toBeVisible();
 	});
@@ -228,7 +233,53 @@ describe("ConfigureTripWaypointsPanel", () => {
 		expect(tripsService.createWaypoint).not.toHaveBeenCalled();
 	});
 
-	it("discards an unsaved new waypoint when its editor is closed", () => {
+	it("forecasts the Trip days and requires acknowledgement before submitting a Red forecast", async () => {
+		vi.mocked(tripsService.forecastWeather).mockResolvedValueOnce({
+			id: "forecast-red",
+			tripId: draftTrip.id,
+			status: "available",
+			tripStartsAt: draftTrip.startsAt,
+			tripEndsAt: draftTrip.endsAt,
+			forecastFrom: draftTrip.startsAt,
+			forecastTo: draftTrip.endsAt,
+			coversWholeTrip: true,
+			worstReading: null,
+			riskLevel: "red",
+			compositeScore: 1.5,
+			criteriaScores: {
+				rainfall: { value: 80, level: "red", weight: 0.3, score: 2 },
+				wind: { value: 90, level: "red", weight: 0.25, score: 2 },
+				temperature: { value: 22, level: "green", weight: 0.15, score: 0 },
+				visibility: { value: 200, level: "red", weight: 0.15, score: 2 },
+				thunderstorm: { value: true, level: "red", weight: 0.15, score: 2 },
+			},
+			advice: { text: "Nên đổi ngày.", actions: [], generatedAt: draftTrip.startsAt },
+			horizonDays: 15,
+			createdAt: draftTrip.startsAt,
+		});
+		vi.mocked(tripsService.submitForApproval).mockResolvedValue({
+			...draftTrip,
+			status: "pending_approval",
+		});
+		render(<ConfigureTripWaypointsPanel trip={draftTrip} route={route} />);
+
+		expect(await screen.findByText("Nguy hiểm (Đỏ)")).toBeInTheDocument();
+		expect(tripsService.forecastWeather).toHaveBeenCalledWith(draftTrip.id);
+		const submit = screen.getByRole("button", { name: "Gửi duyệt" });
+		expect(submit).toBeDisabled();
+
+		fireEvent.click(screen.getByRole("checkbox", { name: /rủi ro thời tiết cao/ }));
+		await waitFor(() => expect(submit).toBeEnabled());
+		fireEvent.click(submit);
+
+		await waitFor(() =>
+			expect(tripsService.submitForApproval).toHaveBeenCalledWith(draftTrip.id, {
+				acknowledgeWeatherRisk: true,
+			})
+		);
+	});
+
+	it("discards an unsaved new waypoint when its editor is closed", async () => {
 		render(<ConfigureTripWaypointsPanel trip={draftTrip} route={route} />);
 
 		fireEvent.click(screen.getByRole("button", { name: "Chọn vị trí tuyến 2" }));
@@ -236,7 +287,8 @@ describe("ConfigureTripWaypointsPanel", () => {
 		fireEvent.click(screen.getByRole("button", { name: "Đóng form điểm dừng" }));
 
 		expect(screen.queryByText("Chưa lưu")).not.toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "Gửi duyệt" })).toBeEnabled();
+		// Submission waits for the automatic Trip forecast to finish.
+		await waitFor(() => expect(screen.getByRole("button", { name: "Gửi duyệt" })).toBeEnabled());
 	});
 
 	it("keeps selected day-trip route points on day one before arrival time is chosen", () => {

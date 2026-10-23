@@ -14,6 +14,7 @@ import { DEFAULT_CANCELLATION_POLICY } from "../../bookings/cancellation-policy"
 import type { EventsGateway } from "../../realtime/events.gateway";
 import { TrekkingRouteStatus } from "../../trekking-routes/entities/trekking-route.entity";
 import { UserRole } from "../../users/entities/user.entity";
+import { RiskLevel } from "../../weather/entities/weather-risk-assessment.entity";
 import type {
 	ConfigureTripWaypointsDto,
 	CreateTripDto,
@@ -27,6 +28,7 @@ import type { PorterTripOperationsResponseDto } from "../dto/porter-trip-operati
 import type { CancelTripDto, RescheduleTripDto } from "../dto/reschedule-trip.dto";
 import { ReviewTripAction, type ReviewTripDto } from "../dto/review-trip.dto";
 import type { SearchTripsQueryDto } from "../dto/search-trips-query.dto";
+import type { SubmitTripDto } from "../dto/submit-trip.dto";
 import type {
 	PaginatedTripReviewsResponseDto,
 	PaginatedTripsResponseDto,
@@ -504,7 +506,11 @@ export class TripsService {
 	}
 
 	/** Submits an owned draft Trip for approval using the waypoints already stored for it. */
-	async submitForApproval(hostId: string, tripId: string): Promise<TripResponseDto> {
+	async submitForApproval(
+		hostId: string,
+		tripId: string,
+		dto: SubmitTripDto = {}
+	): Promise<TripResponseDto> {
 		const result = await this.dataSource.transaction(async (manager: EntityManager) => {
 			const repository = manager.withRepository(this.tripsRepository);
 			const lockedTrip = await repository.findByIdForWaypointConfiguration(tripId);
@@ -527,21 +533,102 @@ export class TripsService {
 				]);
 			}
 			this.assertWaypointPayload(stored.map(toWaypointDto), lockedTrip.trip, true);
+			const weather = await this.resolveSubmissionWeather(
+				manager,
+				tripId,
+				lockedTrip.trip,
+				dto.acknowledgeWeatherRisk === true
+			);
 
 			const updated = await repository.submitDraftForApproval(tripId);
+			await manager.query(
+				`UPDATE "trips"
+				 SET "submitted_weather_forecast_id" = $2,
+				     "weather_risk_acknowledged_at" = CASE WHEN $3::boolean THEN now() ELSE NULL END
+				 WHERE "id" = $1`,
+				[tripId, weather.forecastId, weather.acknowledged]
+			);
 			await manager.getRepository(AuditLog).save({
 				actorId: hostId,
 				action: "trip.submitted_for_approval",
 				targetType: "trip",
 				targetId: tripId,
 				before: { status: lockedTrip.status },
-				after: this.buildWaypointAuditSnapshot(updated),
+				after: { ...this.buildWaypointAuditSnapshot(updated), weatherForecast: weather },
 				reason: "host_submit_trip_for_approval",
 			});
 			return { trip: updated, submitted: true };
 		});
 		if (result.submitted) this.emitTripReviewRequested(result.trip);
 		return result.trip;
+	}
+
+	/**
+	 * Attaches the latest Trip weather forecast to the submission. A Red forecast needs
+	 * the Host's explicit acknowledgement; a forecast made for an older schedule must be
+	 * refreshed first. Without any forecast (provider down) the Trip is still submitted
+	 * and the Admin sees that no forecast was available.
+	 */
+	private async resolveSubmissionWeather(
+		manager: EntityManager,
+		tripId: string,
+		trip: { startsAt: Date | string | null; endsAt: Date | string | null },
+		acknowledged: boolean
+	): Promise<{
+		forecastId: string | null;
+		status: string | null;
+		riskLevel: string | null;
+		acknowledged: boolean;
+	}> {
+		const rows = (await manager.query(
+			`SELECT "id", "status", "risk_level" AS "riskLevel",
+				"trip_starts_at" AS "tripStartsAt", "trip_ends_at" AS "tripEndsAt"
+			 FROM "trip_weather_forecasts"
+			 WHERE "trip_id" = $1
+			 ORDER BY "created_at" DESC, "id" DESC
+			 LIMIT 1`,
+			[tripId]
+		)) as Array<{
+			id: string;
+			status: string;
+			riskLevel: string | null;
+			tripStartsAt: Date;
+			tripEndsAt: Date;
+		}>;
+		const forecast = rows[0];
+		if (!forecast) {
+			return { forecastId: null, status: null, riskLevel: null, acknowledged: false };
+		}
+		const sameSchedule =
+			trip.startsAt !== null &&
+			trip.endsAt !== null &&
+			new Date(forecast.tripStartsAt).getTime() === new Date(trip.startsAt).getTime() &&
+			new Date(forecast.tripEndsAt).getTime() === new Date(trip.endsAt).getTime();
+		if (!sameSchedule) {
+			throw this.validationException([
+				{
+					field: "weatherForecast",
+					errors: [
+						"weather forecast no longer matches the Trip schedule; refresh it before submitting",
+					],
+				},
+			]);
+		}
+		const isRed = forecast.riskLevel === RiskLevel.RED;
+		if (isRed && !acknowledged) {
+			throw this.validationException([
+				{
+					field: "acknowledgeWeatherRisk",
+					errors: ["acknowledgeWeatherRisk must be true when the Trip weather forecast is red"],
+				},
+			]);
+		}
+		return {
+			forecastId: forecast.id,
+			status: forecast.status,
+			riskLevel: forecast.riskLevel,
+			acknowledged: isRed && acknowledged,
+		};
 	}
 
 	private mutateDraftWaypoints(

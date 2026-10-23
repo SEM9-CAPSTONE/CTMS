@@ -60,8 +60,24 @@ describe("useConfigureTripWaypoints", () => {
 		});
 
 		expect(tripsService.deleteWaypoint).toHaveBeenCalledWith(tripId, waypointId);
-		expect(tripsService.submitForApproval).toHaveBeenCalledWith(tripId);
+		expect(tripsService.submitForApproval).toHaveBeenCalledWith(tripId, {});
 		expect(result.current.configuredTrip).toMatchObject({ status: "pending_approval" });
+	});
+
+	it("passes the Red weather acknowledgement to the submission", async () => {
+		vi.mocked(tripsService.submitForApproval).mockResolvedValue({
+			id: tripId,
+			status: "pending_approval",
+		} as never);
+		const { result } = renderHook(() => useConfigureTripWaypoints(tripId));
+
+		await act(async () => {
+			await result.current.submit({ acknowledgeWeatherRisk: true });
+		});
+
+		expect(tripsService.submitForApproval).toHaveBeenCalledWith(tripId, {
+			acknowledgeWeatherRisk: true,
+		});
 	});
 
 	it("prevents duplicate requests while one is running", async () => {

@@ -15,6 +15,7 @@ import { useRouteCheckpoints } from "../../trekking-routes/hooks/useRouteCheckpo
 import type { CreatedTrekkingRoute, Position } from "../../trekking-routes/types";
 import type { ConfigureTripWaypointsError } from "../hooks/useConfigureTripWaypoints";
 import { useConfigureTripWaypoints } from "../hooks/useConfigureTripWaypoints";
+import { useTripWeatherForecast } from "../hooks/useTripWeatherForecast";
 import {
 	type ConfigureTripWaypointsFormValues,
 	createConfigureTripWaypointsSchema,
@@ -26,6 +27,8 @@ import {
 import { type Trip, type TripWaypointType, formatTripStatus } from "../types";
 import { SoftSingleDateTimePicker } from "./TripDateTimePicker";
 import { TripWaypointLocationMap } from "./TripWaypointLocationMap";
+import { TripWeatherForecastCard } from "./TripWeatherForecastCard";
+import { WeatherSubmissionNotice } from "./WeatherSubmissionNotice";
 
 interface Props {
 	trip: Trip;
@@ -158,6 +161,19 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 	const [waypointFormIndex, setWaypointFormIndex] = useState<number | null>(null);
 	const [saveError, setSaveError] = useState<string | null>(null);
 	const serverTrip = configuration.configuredTrip ?? trip;
+	// Forecast for the Trip's own trekking days; re-runs when the schedule changes.
+	const weather = useTripWeatherForecast(
+		trip.id,
+		"auto",
+		`${serverTrip.startsAt}|${serverTrip.endsAt}`
+	);
+	const weatherRisk = weather.forecast?.riskLevel ?? null;
+	const [weatherAcknowledged, setWeatherAcknowledged] = useState(false);
+	const forecastId = weather.forecast?.id;
+	// biome-ignore lint/correctness/useExhaustiveDependencies: a new forecast needs a fresh acknowledgement
+	useEffect(() => {
+		setWeatherAcknowledged(false);
+	}, [forecastId]);
 	const savedWaypoints = useMemo(
 		() =>
 			new Map(
@@ -211,8 +227,13 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 		return !saved || !sameWaypoint(waypoint, saved);
 	};
 	const hasUnsavedChanges = currentValues.waypoints.some(isUnsaved);
+	const weatherBlocksSubmit = weather.isLoading || (weatherRisk === "red" && !weatherAcknowledged);
 	const submitDisabled =
-		configuration.isSubmitting || isBlocked || fields.length < 2 || hasUnsavedChanges;
+		configuration.isSubmitting ||
+		isBlocked ||
+		fields.length < 2 ||
+		hasUnsavedChanges ||
+		weatherBlocksSubmit;
 
 	useEffect(() => {
 		reset(defaultValues);
@@ -226,6 +247,11 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 			}
 		}
 	}, [configuration.error, setError]);
+
+	const refreshWeather = weather.refresh;
+	useEffect(() => {
+		if (configuration.error?.fieldErrors.weatherForecast) void refreshWeather();
+	}, [configuration.error, refreshWeather]);
 
 	/** Drops unsaved edits of a waypoint; returns true when a never-saved waypoint was removed. */
 	const revertWaypoint = (index: number): boolean => {
@@ -513,7 +539,10 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 			</div>
 		) : null;
 
-	const submitForm = () => configuration.submit();
+	const submitForm = () =>
+		configuration.submit(
+			weatherRisk === "red" ? { acknowledgeWeatherRisk: weatherAcknowledged } : {}
+		);
 
 	return (
 		<section className="mt-6 rounded-2xl border border-[#dce8dd] bg-white p-5 shadow-sm">
@@ -638,6 +667,22 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 				{configuration.error && (
 					<ConfigureErrorAlert error={configuration.error} onRetry={configuration.retry} />
 				)}
+
+				<TripWeatherForecastCard
+					forecast={weather.forecast}
+					isLoading={weather.isLoading}
+					error={weather.error}
+					isAdviceLoading={weather.isAdviceLoading}
+					adviceError={weather.adviceError}
+					onRefresh={() => void weather.refresh()}
+				/>
+
+				<WeatherSubmissionNotice
+					riskLevel={weatherRisk}
+					acknowledged={weatherAcknowledged}
+					onAcknowledgedChange={setWeatherAcknowledged}
+					disabled={configuration.isSubmitting || isBlocked}
+				/>
 
 				<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 					<p className="text-xs font-semibold text-[#667a6d]">
