@@ -176,4 +176,7 @@ export const API_ENDPOINTS = {
 	UPLOADS: {
 		IMAGE: "/uploads/image",
 	},
+	DEVICE_SYNC: {
+		STATUS: (tripId: string) => `/trips/${tripId}/device-sync/status`,
+	},
 } as const;

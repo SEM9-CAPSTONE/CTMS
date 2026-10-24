@@ -5,17 +5,8 @@ import '../theme/app_radius.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_typography.dart';
 
-/// §2.5 Badge / StatusPill.
-///
-/// ```dart
-/// CtmsStatusBadge(label: 'Chờ xác nhận', status: CtmsStatus.warning)
-/// CtmsStatusBadge(
-///   label: 'NGUY HIỂM',
-///   status: CtmsStatus.danger,
-///   variant: CtmsBadgeVariant.solid,
-///   showDot: true,
-/// )
-/// ```
+/// §2.5 Badge / StatusPill — 100% mirrors Web `StatusBadge.tsx`:
+/// emerald-50/200/700, amber-50/200/700, red-50/200/700, sky-50/200/700, slate-100/200/600.
 enum CtmsBadgeVariant { soft, solid }
 
 enum CtmsStatus { success, warning, danger, info, neutral }
@@ -44,16 +35,36 @@ class CtmsStatusBadge extends StatelessWidget {
     CtmsStatus.neutral => AppColors.statusNeutral,
   };
 
+  static Color backgroundFor(CtmsStatus status) => switch (status) {
+    CtmsStatus.success => AppColors.statusSuccessBg,
+    CtmsStatus.warning => AppColors.statusWarningBg,
+    CtmsStatus.danger => AppColors.statusDangerBg,
+    CtmsStatus.info => AppColors.statusInfoBg,
+    CtmsStatus.neutral => AppColors.statusNeutralBg,
+  };
+
+  static Color borderFor(CtmsStatus status) => switch (status) {
+    CtmsStatus.success => AppColors.statusSuccessBorder,
+    CtmsStatus.warning => AppColors.statusWarningBorder,
+    CtmsStatus.danger => AppColors.statusDangerBorder,
+    CtmsStatus.info => AppColors.statusInfoBorder,
+    CtmsStatus.neutral => AppColors.statusNeutralBorder,
+  };
+
   @override
   Widget build(BuildContext context) {
     final color = colorFor(status);
     final isSolid = variant == CtmsBadgeVariant.solid;
+
     final foreground = isSolid ? Colors.white : color;
+    final background = isSolid ? color : backgroundFor(status);
+    final border = isSolid ? null : Border.all(color: borderFor(status), width: 1);
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: AppSpacing.xs),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
       decoration: BoxDecoration(
-        color: isSolid ? color : color.withValues(alpha: 0.1),
+        color: background,
+        border: border,
         borderRadius: AppRadius.pillBorderRadius,
       ),
       child: Row(
@@ -72,7 +83,10 @@ class CtmsStatusBadge extends StatelessWidget {
           ],
           Text(
             label,
-            style: AppTypography.caption.copyWith(color: foreground, fontWeight: FontWeight.w600),
+            style: AppTypography.caption.copyWith(
+              color: foreground,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ],
       ),

@@ -11,9 +11,7 @@ import '../../domain/camper_overview_models.dart';
 import '../camper_overview_strings.dart';
 import '../overview_severity_x.dart';
 
-/// "Gợi ý dành cho bạn" — a horizontally scrolling row of route cards,
-/// the natural mobile shape for 3 photo cards that sit side by side on
-/// desktop.
+/// "Gợi ý dành cho bạn" — pure white cards matching /camper/explore style.
 class CamperOverviewSuggestionsSection extends StatelessWidget {
   const CamperOverviewSuggestionsSection({super.key, required this.suggestions});
 
@@ -24,16 +22,31 @@ class CamperOverviewSuggestionsSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(CamperOverviewStrings.suggestionsTitle, style: AppTypography.h3),
+        Text(
+          CamperOverviewStrings.suggestionsTitle,
+          style: AppTypography.h3.copyWith(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
         const SizedBox(height: AppSpacing.md),
         if (suggestions.isEmpty)
-          const CtmsEmptyState(
-            icon: Icons.explore_outlined,
-            title: CamperOverviewStrings.emptySuggestionsTitle,
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.cardPadding),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: AppRadius.cardBorderRadius,
+              border: Border.all(color: AppColors.border),
+              boxShadow: AppColors.cardShadowSm,
+            ),
+            child: const CtmsEmptyState(
+              icon: Icons.explore_outlined,
+              title: CamperOverviewStrings.emptySuggestionsTitle,
+            ),
           )
         else
           SizedBox(
-            height: 216,
+            height: 180,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: suggestions.length,
@@ -56,43 +69,25 @@ class _SuggestionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final price = _priceFormat.format(route.pricePerPersonVnd).replaceAll(',', '.');
 
     return Container(
       decoration: BoxDecoration(
-        color: scheme.surface,
+        color: Colors.white,
         borderRadius: AppRadius.cardBorderRadius,
-        border: Border.all(color: scheme.outline),
+        border: Border.all(color: AppColors.border, width: 1.0),
+        boxShadow: AppColors.cardShadowSm,
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Stack(
-            children: [
-              // TODO(assets): swap for the real route photo.
-              Container(
-                height: 92,
-                width: double.infinity,
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [AppColors.brandSecondary, AppColors.brandPrimary],
-                  ),
-                ),
-              ),
-              Positioned(
-                top: AppSpacing.sm,
-                right: AppSpacing.sm,
-                child: CtmsStatusBadge(
-                  label: route.badgeLabel,
-                  status: route.badgeSeverity.ctmsStatus,
-                  variant: CtmsBadgeVariant.solid,
-                ),
-              ),
-            ],
+          Container(
+            height: 72,
+            width: double.infinity,
+            color: AppColors.brandLight,
+            alignment: Alignment.center,
+            child: const Icon(Icons.terrain_rounded, size: 32, color: AppColors.brandPrimary),
           ),
           Padding(
             padding: const EdgeInsets.all(AppSpacing.md),
@@ -101,29 +96,45 @@ class _SuggestionCard extends StatelessWidget {
               children: [
                 Text(
                   route.name,
-                  style: AppTypography.bodyStrong.copyWith(color: scheme.onSurface),
+                  style: AppTypography.bodyStrong.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary,
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 4),
                 Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Icon(Icons.location_on_outlined, size: 14, color: scheme.onSurfaceVariant),
-                    const SizedBox(width: 2),
                     Expanded(
                       child: Text(
                         route.location,
-                        style: AppTypography.caption.copyWith(color: scheme.onSurfaceVariant),
+                        style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                    const SizedBox(width: 4),
+                    CtmsStatusBadge(
+                      label: route.badgeLabel,
+                      status: route.badgeSeverity.ctmsStatus,
+                    ),
                   ],
                 ),
                 const SizedBox(height: AppSpacing.sm),
-                Text(
-                  '$priceđ${CamperOverviewStrings.perPersonSuffix}',
-                  style: AppTypography.bodyStrong.copyWith(color: AppColors.brandPrimary),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '$price đ',
+                      style: AppTypography.caption.copyWith(
+                        color: AppColors.brandPrimary,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const Icon(Icons.arrow_forward_rounded, size: 16, color: AppColors.brandPrimary),
+                  ],
                 ),
               ],
             ),
@@ -133,4 +144,3 @@ class _SuggestionCard extends StatelessWidget {
     );
   }
 }
-

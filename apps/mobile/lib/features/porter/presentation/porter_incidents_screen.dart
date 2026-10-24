@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/widgets/ctms_button.dart';
 import '../../../core/widgets/ctms_scaffold.dart';
 import '../../incidents/application/incidents_controller.dart';
 import '../../incidents/domain/trip_incident.dart';
@@ -122,9 +123,10 @@ class _PorterIncidentsScreenState extends ConsumerState<PorterIncidentsScreen> {
           ),
           const SizedBox(height: 16),
           if (trip != null && trip.canReport && controller.ready)
-            FilledButton.icon(
-              icon: const Icon(Icons.add),
-              label: const Text('Báo cáo sự cố'),
+            CtmsButton(
+              icon: Icons.add,
+              label: 'Báo cáo sự cố',
+              variant: CtmsButtonVariant.primary,
               onPressed: () async {
                 final saved = await Navigator.of(context).push<bool>(
                   MaterialPageRoute(

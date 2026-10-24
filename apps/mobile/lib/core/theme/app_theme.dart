@@ -6,14 +6,9 @@ import 'app_spacing.dart';
 import 'app_typography.dart';
 
 /// Builds the Material 3 [ThemeData] for both brightnesses straight from
-/// [AppColors]/[AppTypography]/[AppSpacing]/[AppRadius] — no
-/// `ColorScheme.fromSeed`, since a generated seed drifts from the Figma
-/// palette (`docs/design/CTMS-DESIGN-SYSTEM.md`).
+/// [AppColors]/[AppTypography]/[AppSpacing]/[AppRadius].
 ///
-/// The design system only documents a light theme (every Figma frame is
-/// light-mode). [dark] reuses the same [AppColors] tokens with roles
-/// remapped for a dark surface — treat it as a provisional dark theme to
-/// revisit once a dark Figma frame exists.
+/// Features a fresh, modern White + Light Green palette mirroring the web app.
 class AppTheme {
   AppTheme._();
 
@@ -53,7 +48,7 @@ class AppTheme {
     onError: Colors.white,
     surface: AppColors.brandDark,
     onSurface: AppColors.brandLight,
-    surfaceContainerHighest: AppColors.textSecondary,
+    surfaceContainerHighest: AppColors.surfaceContainerHighest,
     onSurfaceVariant: AppColors.textMuted,
     outline: AppColors.textSecondary,
     outlineVariant: AppColors.textMuted,
@@ -61,8 +56,6 @@ class AppTheme {
 
   static ThemeData _build(ColorScheme scheme) {
     final isDark = scheme.brightness == Brightness.dark;
-    // brandBg is the Figma page background (--brand-bg); dark has no
-    // documented counterpart, so fall back to the dark surface tone.
     final scaffoldBackground = isDark ? AppColors.brandDark : AppColors.brandBg;
     final inputFill = isDark ? scheme.surface : AppColors.surface;
 
@@ -73,12 +66,19 @@ class AppTheme {
       scaffoldBackgroundColor: scaffoldBackground,
       textTheme: _textTheme(scheme),
       appBarTheme: AppBarTheme(
-        backgroundColor: scheme.surface,
-        foregroundColor: scheme.onSurface,
+        backgroundColor: Colors.white,
+        foregroundColor: isDark ? Colors.white : AppColors.textPrimary,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
+        scrolledUnderElevation: 0,
         centerTitle: false,
-        titleTextStyle: AppTypography.h2.copyWith(color: scheme.onSurface),
+        titleTextStyle: AppTypography.h2.copyWith(
+          color: isDark ? Colors.white : AppColors.textPrimary,
+          fontWeight: FontWeight.w800,
+        ),
+        iconTheme: IconThemeData(
+          color: isDark ? Colors.white : AppColors.textPrimary,
+        ),
       ),
       cardTheme: CardThemeData(
         color: scheme.surface,
@@ -86,32 +86,40 @@ class AppTheme {
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           borderRadius: AppRadius.cardBorderRadius,
-          side: BorderSide(color: scheme.outline),
+          side: BorderSide(
+            color: isDark ? scheme.outline : AppColors.border,
+            width: 1.2,
+          ),
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: scheme.primary,
-          foregroundColor: scheme.onPrimary,
+          backgroundColor: AppColors.brandPrimary,
+          foregroundColor: Colors.white,
           disabledBackgroundColor: scheme.outline,
           disabledForegroundColor: scheme.onSurfaceVariant,
-          minimumSize: const Size(64, 40),
+          minimumSize: const Size(64, 42),
+          elevation: 0,
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
-          elevation: 0,
           textStyle: AppTypography.bodyStrong,
-          shape: RoundedRectangleBorder(borderRadius: AppRadius.controlBorderRadius),
+          shape: const StadiumBorder(),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: scheme.onSurface,
-          side: BorderSide(color: scheme.outlineVariant),
-          minimumSize: const Size(64, 40),
+          backgroundColor: isDark ? Colors.transparent : Colors.white,
+          foregroundColor: isDark ? scheme.onSurface : AppColors.textPrimary,
+          side: BorderSide(
+            color: isDark ? scheme.outlineVariant : AppColors.border,
+            width: 1.2,
+          ),
+          minimumSize: const Size(64, 42),
+          elevation: 0,
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
           textStyle: AppTypography.bodyStrong,
-          shape: RoundedRectangleBorder(borderRadius: AppRadius.controlBorderRadius),
+          shape: const StadiumBorder(),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
@@ -129,6 +137,10 @@ class AppTheme {
           vertical: AppSpacing.md,
         ),
         labelStyle: AppTypography.body.copyWith(color: scheme.onSurfaceVariant),
+        floatingLabelStyle: AppTypography.body.copyWith(
+          color: isDark ? Colors.white : AppColors.textPrimary,
+          fontWeight: FontWeight.w600,
+        ),
         hintStyle: AppTypography.body.copyWith(color: AppColors.textMuted),
         border: OutlineInputBorder(
           borderRadius: AppRadius.controlBorderRadius,
@@ -140,7 +152,7 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: AppRadius.controlBorderRadius,
-          borderSide: BorderSide(color: AppColors.brandPrimary, width: 1.5),
+          borderSide: const BorderSide(color: AppColors.brandPrimary, width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: AppRadius.controlBorderRadius,
@@ -158,22 +170,29 @@ class AppTheme {
       dividerTheme: DividerThemeData(color: scheme.outline, thickness: 1, space: 1),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: scheme.surface,
-        indicatorColor: scheme.primaryContainer,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        indicatorColor: isDark ? scheme.primaryContainer : AppColors.brandLight,
+        indicatorShape: const StadiumBorder(),
         iconTheme: WidgetStateProperty.resolveWith((states) {
-          final color = states.contains(WidgetState.selected)
-              ? scheme.primary
-              : scheme.onSurfaceVariant;
-          return IconThemeData(color: color, size: 24);
+          final isSelected = states.contains(WidgetState.selected);
+          return IconThemeData(
+            color: isSelected
+                ? (isDark ? Colors.white : AppColors.brandPrimary)
+                : AppColors.textMuted,
+            size: 24,
+          );
         }),
         labelTextStyle: WidgetStateProperty.resolveWith(
-          (states) => AppTypography.caption.copyWith(
-            color: states.contains(WidgetState.selected)
-                ? scheme.primary
-                : scheme.onSurfaceVariant,
-            fontWeight: states.contains(WidgetState.selected)
-                ? FontWeight.w700
-                : FontWeight.w500,
-          ),
+          (states) {
+            final isSelected = states.contains(WidgetState.selected);
+            return AppTypography.caption.copyWith(
+              color: isSelected
+                  ? (isDark ? Colors.white : AppColors.brandPrimary)
+                  : AppColors.textMuted,
+              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+            );
+          },
         ),
       ),
     );

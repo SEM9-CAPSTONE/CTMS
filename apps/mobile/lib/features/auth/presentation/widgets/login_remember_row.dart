@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../login_strings.dart';
 
@@ -18,8 +19,6 @@ class LoginRememberRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-
     return Row(
       children: [
         SizedBox(
@@ -27,21 +26,38 @@ class LoginRememberRow extends StatelessWidget {
           width: 24,
           child: Checkbox(
             value: rememberMe,
+            activeColor: AppColors.brandPrimary,
+            side: const BorderSide(color: AppColors.borderStrong),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
             onChanged: (value) => onRememberMeChanged(value ?? false),
           ),
         ),
-        const SizedBox(width: 6),
+        const SizedBox(width: 8),
         GestureDetector(
           onTap: () => onRememberMeChanged(!rememberMe),
           child: Text(
             LoginStrings.rememberMe,
-            style: AppTypography.body.copyWith(color: scheme.onSurface),
+            style: AppTypography.body.copyWith(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ),
         const Spacer(),
         TextButton(
           onPressed: onForgotPassword,
-          child: const Text(LoginStrings.forgotPassword),
+          style: TextButton.styleFrom(
+            foregroundColor: AppColors.brandPrimary,
+            padding: EdgeInsets.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          child: const Text(
+            LoginStrings.forgotPassword,
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              color: AppColors.brandPrimary,
+            ),
+          ),
         ),
       ],
     );

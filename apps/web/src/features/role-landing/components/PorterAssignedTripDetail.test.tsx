@@ -110,6 +110,7 @@ describe("PorterAssignedTripDetail", () => {
 			"Tuyến đường",
 			"Thành viên",
 			"Sự cố",
+			"Đồng bộ",
 		]);
 	});
 

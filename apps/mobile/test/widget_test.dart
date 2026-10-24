@@ -352,7 +352,7 @@ void main() {
 
       await _tapVisible(
         tester,
-        find.widgetWithText(OutlinedButton, 'Đăng ký tài khoản mới'),
+        find.text('Đăng ký ngay'),
       );
       await _tapVisible(tester, find.text('Camper (Khách cắm trại)'));
       await _tapVisible(
@@ -418,8 +418,7 @@ void main() {
     // to fire — pump an explicit duration instead.
     await tester.pump(const Duration(milliseconds: 500));
     await tester.pump();
-    expect(find.textContaining('Trần!'), findsOneWidget);
-    expect(find.text('Thông báo quan trọng'), findsOneWidget);
+    expect(find.text('Chuyến đi sắp tới'), findsWidgets);
 
     // Scroll down to confirm the rest of the screen (trip, weather, transactions,
     // suggestions) assembles without error too.
@@ -447,7 +446,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Tìm tuyến trekking cho chuyến đi tiếp theo'), findsOneWidget);
-    expect(find.text('Phạm vi hiện tại tập trung vào tuyến trekking và trip.'), findsOneWidget);
+    expect(find.textContaining('Chuyến đi nổi bật'), findsOneWidget);
   });
 
   testWidgets('porter "Thêm" sheet opens the folded-in destinations', (
@@ -556,7 +555,7 @@ void main() {
       // Login -> Register.
       await _tapVisible(
         tester,
-        find.widgetWithText(OutlinedButton, 'Đăng ký tài khoản mới'),
+        find.text('Đăng ký ngay'),
       );
       expect(find.text('Tham gia CTMS'), findsOneWidget);
 

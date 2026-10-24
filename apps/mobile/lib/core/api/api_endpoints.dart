@@ -62,6 +62,8 @@ class TripEndpoints {
   String getById(String id) => '/trips/$id';
   String members(String tripId) => '/trips/$tripId/members';
   String gpsLogs(String tripId) => '/trips/$tripId/gps-logs';
+  String deviceSyncStatus(String tripId) =>
+      '/trips/$tripId/device-sync/status';
 }
 
 class WeatherEndpoints {
@@ -86,3 +88,4 @@ class SosEndpoints {
   String get alerts => '/sos-alerts';
   String alertById(String id) => '/sos-alerts/$id';
 }
+

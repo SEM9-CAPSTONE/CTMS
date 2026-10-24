@@ -1,6 +1,7 @@
 import { AlertCircle, ArrowLeft, CalendarDays, Loader2, MapPin, RefreshCw } from "lucide-react";
 import { Suspense, lazy, useState } from "react";
 import { Button } from "../../../shared/components/Button";
+import { DeviceSyncStatusCard } from "../../device-sync";
 import type { RouteCheckpoint } from "../../trekking-routes/types";
 import { TripIncidentsPanel } from "../../trip-incidents";
 import { useAssignedTripOperations } from "../../trips/hooks/useAssignedTrips";
@@ -21,13 +22,14 @@ const RouteCheckpointMap = lazy(() =>
 );
 const ignoreLocationSelection = () => {};
 
-type DetailTab = "schedule" | "route" | "members" | "incidents";
+type DetailTab = "schedule" | "route" | "members" | "incidents" | "device-sync";
 
 const detailTabs: { key: DetailTab; label: string }[] = [
 	{ key: "schedule", label: "Lịch trình" },
 	{ key: "route", label: "Tuyến đường" },
 	{ key: "members", label: "Thành viên" },
 	{ key: "incidents", label: "Sự cố" },
+	{ key: "device-sync", label: "Đồng bộ" },
 ];
 
 const waypointTypeLabels: Record<PorterTripWaypoint["type"], string> = {
@@ -394,6 +396,9 @@ export function PorterAssignedTripDetailView({
 						{tab === "members" && <MembersTab trip={trip} />}
 						{tab === "incidents" && (
 							<TripIncidentsPanel key={trip.tripId} tripId={trip.tripId} tripStatus={trip.status} />
+						)}
+						{tab === "device-sync" && (
+							<DeviceSyncStatusCard key={trip.tripId} tripId={trip.tripId} />
 						)}
 					</div>
 				</>

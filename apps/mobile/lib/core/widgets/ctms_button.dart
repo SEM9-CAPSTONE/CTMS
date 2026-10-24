@@ -1,30 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
-import '../theme/app_radius.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_typography.dart';
 
-/// §2.15 Button. Wraps the Material button matching each [variant] — the
-/// global [ElevatedButtonTheme]/[OutlinedButtonTheme]/[TextButtonTheme] set
-/// in `app_theme.dart` already cover `primary`/`secondary`/`ghost`;
-/// `danger` overrides the fill color inline since it has no dedicated theme.
-///
-/// ```dart
-/// CtmsButton(
-///   label: 'Báo cáo sự cố',
-///   icon: Icons.report_outlined,
-///   onPressed: () => reportIncident(),
-/// )
-/// CtmsButton(
-///   label: 'Xoá tài khoản',
-///   variant: CtmsButtonVariant.danger,
-///   size: CtmsButtonSize.lg,
-///   isLoading: isDeleting,
-///   onPressed: isDeleting ? null : onDelete,
-/// )
-/// ```
-enum CtmsButtonVariant { primary, secondary, ghost, danger }
+/// §2.15 Button — mirrors Web Button styles (HeroSection / Button.tsx).
+/// Supports primary, secondary, soft (light green mint), ghost, and danger.
+enum CtmsButtonVariant { primary, secondary, soft, ghost, danger }
 
 enum CtmsButtonSize { md, lg }
 
@@ -48,11 +30,16 @@ class CtmsButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final height = size == CtmsButtonSize.lg ? 48.0 : 40.0;
+    final height = size == CtmsButtonSize.lg ? 48.0 : 42.0;
     final horizontalPadding = size == CtmsButtonSize.lg ? AppSpacing.xxl : AppSpacing.xl;
-    final onColor = variant == CtmsButtonVariant.secondary || variant == CtmsButtonVariant.ghost
-        ? Theme.of(context).colorScheme.onSurface
-        : Colors.white;
+
+    final onColor = switch (variant) {
+      CtmsButtonVariant.primary => Colors.white,
+      CtmsButtonVariant.secondary => AppColors.textPrimary,
+      CtmsButtonVariant.soft => AppColors.brandPrimary,
+      CtmsButtonVariant.ghost => AppColors.brandPrimary,
+      CtmsButtonVariant.danger => Colors.white,
+    };
 
     final child = isLoading
         ? SizedBox(
@@ -62,9 +49,13 @@ class CtmsButton extends StatelessWidget {
           )
         : Row(
             mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (icon != null) ...[Icon(icon, size: 18), const SizedBox(width: AppSpacing.sm)],
-              Text(label),
+              Text(
+                label,
+                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+              ),
             ],
           );
 
@@ -72,29 +63,57 @@ class CtmsButton extends StatelessWidget {
     final sizeStyle = ButtonStyle(
       minimumSize: WidgetStatePropertyAll(Size(64, height)),
       padding: WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: horizontalPadding)),
+      shape: const WidgetStatePropertyAll(StadiumBorder()),
     );
 
     return switch (variant) {
       CtmsButtonVariant.primary => ElevatedButton(
         onPressed: pressed,
-        style: sizeStyle,
+        style: sizeStyle.copyWith(
+          backgroundColor: const WidgetStatePropertyAll(AppColors.brandPrimary),
+          foregroundColor: const WidgetStatePropertyAll(Colors.white),
+          elevation: const WidgetStatePropertyAll(0),
+        ),
         child: child,
       ),
       CtmsButtonVariant.secondary => OutlinedButton(
         onPressed: pressed,
-        style: sizeStyle,
+        style: sizeStyle.copyWith(
+          backgroundColor: const WidgetStatePropertyAll(Colors.white),
+          foregroundColor: const WidgetStatePropertyAll(AppColors.textPrimary),
+          side: const WidgetStatePropertyAll(
+            BorderSide(color: AppColors.border, width: 1.2),
+          ),
+          elevation: const WidgetStatePropertyAll(0),
+        ),
         child: child,
       ),
-      CtmsButtonVariant.ghost => TextButton(onPressed: pressed, style: sizeStyle, child: child),
+      CtmsButtonVariant.soft => ElevatedButton(
+        onPressed: pressed,
+        style: sizeStyle.copyWith(
+          backgroundColor: const WidgetStatePropertyAll(AppColors.brandLight),
+          foregroundColor: const WidgetStatePropertyAll(AppColors.brandPrimary),
+          elevation: const WidgetStatePropertyAll(0),
+          side: const WidgetStatePropertyAll(
+            BorderSide(color: AppColors.brandLightBorder, width: 1.2),
+          ),
+        ),
+        child: child,
+      ),
+      CtmsButtonVariant.ghost => TextButton(
+        onPressed: pressed,
+        style: sizeStyle.copyWith(
+          foregroundColor: const WidgetStatePropertyAll(AppColors.brandPrimary),
+        ),
+        child: child,
+      ),
       CtmsButtonVariant.danger => ElevatedButton(
         onPressed: pressed,
         style: sizeStyle.copyWith(
           backgroundColor: const WidgetStatePropertyAll(AppColors.statusDanger),
           foregroundColor: const WidgetStatePropertyAll(Colors.white),
-          shape: WidgetStatePropertyAll(
-            RoundedRectangleBorder(borderRadius: AppRadius.controlBorderRadius),
-          ),
-          textStyle: WidgetStatePropertyAll(AppTypography.bodyStrong),
+          elevation: const WidgetStatePropertyAll(0),
+          textStyle: const WidgetStatePropertyAll(AppTypography.bodyStrong),
         ),
         child: child,
       ),

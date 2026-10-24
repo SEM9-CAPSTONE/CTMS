@@ -2,23 +2,354 @@
  * CTMS MASTER DATABASE SEED SCRIPT
  *
  * Consolidates all seed scenarios into a single idempotent script:
- * 1. Admin & Porter Accounts
+ * 1. Admin & Porter Accounts & Qualifications
  * 2. Host & Baseline Trekking Route
  * 3. Trips, Campsites, Routes, Equipment Catalog, Campers & Bookings
  * 4. Weather Risk Assessment Scenarios (Green & Red routes)
  * 5. Camper Refund & Dispute Scenarios (Pre-trip cancellation, Post-completion complaint, Already refunded)
  * 6. Settlements, Host Wallets & Payout Requests
+ * 7. User Bank Accounts (Host & Camper)
+ * 8. Offline Device Telemetry & Sync Scenarios (CTMS-067)
+ * 9. Content Moderation Reports
  */
+import { createHash } from "node:crypto";
 import { hash } from "bcrypt";
-import { DEFAULT_CANCELLATION_POLICY } from "../modules/bookings/cancellation-policy";
+import type { DataSource } from "typeorm";
+import {
+	DEFAULT_CANCELLATION_POLICY,
+	parseCancellationPolicy,
+} from "../modules/bookings/cancellation-policy";
 import dataSource from "../shared/database/data-source";
-import { PORTER_SEED_FIXTURES } from "./porter.seed-fixtures";
-import { repairDemoBookingCancellation } from "./repair-demo-booking-cancellation";
 
 const BCRYPT_COST_FACTOR = 10;
+export const DEMO_SYNC_TRIP_ID = "a1736fee-62be-4991-9478-a62288e9b80a";
 
 // ==========================================================================
-// [0/6] CLEAN / WIPE DATABASE (FRESH SEED)
+// PORTER SEED FIXTURES & DATA DEFINITIONS
+// ==========================================================================
+
+export const PORTER_SEED_ROUTE_NAMES = [
+	"Bán Đảo Sơn Trà Discovery",
+	"Hải Vân Pass - Nam Hải Vân Trail",
+	"Rừng Nguyên Sinh Bà Nà - Núi Chúa",
+	"Khe Ram - Suối Mơ - Rừng Hòa Bắc",
+] as const;
+
+export type PorterSeedRouteName = (typeof PORTER_SEED_ROUTE_NAMES)[number];
+export type PorterSeedAvailability = "available" | "unavailable";
+export type PorterSeedProficiency = "learning" | "proficient" | "expert";
+export type PorterSeedUserStatus = "active" | "suspended";
+
+export interface PorterSeedFixture {
+	key: string;
+	email: string;
+	phone: string;
+	fullName: string;
+	userStatus: PorterSeedUserStatus;
+	profile: {
+		experienceYears: number;
+		availabilityStatus: PorterSeedAvailability;
+		ratingAvg: number;
+		completedTrips: number;
+		languages: string[];
+	} | null;
+	qualification: {
+		proficiency: PorterSeedProficiency;
+		timesLed: number;
+		routeNames: readonly PorterSeedRouteName[];
+	} | null;
+	conflictingTripTitle?: string;
+}
+
+export interface PorterSeedTripScenario {
+	title: string;
+	window: {
+		startsAfterDays: number;
+		startHour: number;
+		endsAfterDays: number;
+		endHour: number;
+	};
+}
+
+export const PORTER_CONFLICT_TARGET_TRIP: PorterSeedTripScenario = {
+	title: "[CTMS-024] Trekking Khe Ram - Rừng Hòa Bắc (Sắp hết hạn - Còn 8h)",
+	window: { startsAfterDays: 2, startHour: 6, endsAfterDays: 3, endHour: 17 },
+};
+
+export const PORTER_NON_CONFLICT_TARGET_TRIP: PorterSeedTripScenario = {
+	title: "[CTMS-024] Khám Phá Bán Đảo Sơn Trà (Bình thường - Còn 12 chỗ)",
+	window: { startsAfterDays: 4, startHour: 7, endsAfterDays: 4, endHour: 16 },
+};
+
+export const PORTER_CONFLICT_ASSIGNMENT_TRIP: PorterSeedTripScenario = {
+	title: "[H-09] Chuyến phân công Porter trùng lịch Khe Ram",
+	window: { startsAfterDays: 2, startHour: 12, endsAfterDays: 2, endHour: 16 },
+};
+
+export const PORTER_CONFLICT_TRIP_TITLE = PORTER_CONFLICT_ASSIGNMENT_TRIP.title;
+
+export function porterSeedTripWindowsOverlap(
+	left: PorterSeedTripScenario["window"],
+	right: PorterSeedTripScenario["window"]
+): boolean {
+	const leftStart = left.startsAfterDays * 24 + left.startHour;
+	const leftEnd = left.endsAfterDays * 24 + left.endHour;
+	const rightStart = right.startsAfterDays * 24 + right.startHour;
+	const rightEnd = right.endsAfterDays * 24 + right.endHour;
+	return leftStart < rightEnd && leftEnd > rightStart;
+}
+
+export const PORTER_SEED_FIXTURES: readonly PorterSeedFixture[] = [
+	{
+		key: "expert-lead",
+		email: "porter@ctms.local",
+		phone: "0900000001",
+		fullName: "Nguyễn Minh Sơn",
+		userStatus: "active",
+		profile: {
+			experienceYears: 5,
+			availabilityStatus: "available",
+			ratingAvg: 4.95,
+			completedTrips: 42,
+			languages: ["Tiếng Việt", "Tiếng Anh"],
+		},
+		qualification: {
+			proficiency: "expert",
+			timesLed: 28,
+			routeNames: PORTER_SEED_ROUTE_NAMES,
+		},
+	},
+	{
+		key: "proficient-lead",
+		email: "porter.proficient@ctms.local",
+		phone: "0900000021",
+		fullName: "Trần Hoàng An",
+		userStatus: "active",
+		profile: {
+			experienceYears: 4,
+			availabilityStatus: "available",
+			ratingAvg: 4.7,
+			completedTrips: 24,
+			languages: ["Tiếng Việt"],
+		},
+		qualification: {
+			proficiency: "proficient",
+			timesLed: 9,
+			routeNames: PORTER_SEED_ROUTE_NAMES,
+		},
+	},
+	{
+		key: "learning-support",
+		email: "porter.learning@ctms.local",
+		phone: "0900000022",
+		fullName: "Lê Thị Mai",
+		userStatus: "active",
+		profile: {
+			experienceYears: 1,
+			availabilityStatus: "available",
+			ratingAvg: 4.2,
+			completedTrips: 5,
+			languages: ["Tiếng Việt"],
+		},
+		qualification: {
+			proficiency: "learning",
+			timesLed: 0,
+			routeNames: PORTER_SEED_ROUTE_NAMES,
+		},
+	},
+	{
+		key: "support-no-qualification",
+		email: "porter.support@ctms.local",
+		phone: "0900000023",
+		fullName: "Phạm Quốc Bảo",
+		userStatus: "active",
+		profile: {
+			experienceYears: 2,
+			availabilityStatus: "available",
+			ratingAvg: 4.4,
+			completedTrips: 11,
+			languages: ["Tiếng Việt"],
+		},
+		qualification: null,
+	},
+	{
+		key: "second-expert-lead",
+		email: "porter.expert@ctms.local",
+		phone: "0900000024",
+		fullName: "Đỗ Thanh Tùng",
+		userStatus: "active",
+		profile: {
+			experienceYears: 8,
+			availabilityStatus: "available",
+			ratingAvg: 4.85,
+			completedTrips: 67,
+			languages: ["Tiếng Việt", "Tiếng Anh"],
+		},
+		qualification: {
+			proficiency: "expert",
+			timesLed: 41,
+			routeNames: PORTER_SEED_ROUTE_NAMES,
+		},
+	},
+	{
+		key: "unavailable",
+		email: "porter.unavailable@ctms.local",
+		phone: "0900000025",
+		fullName: "Võ Ngọc Hà",
+		userStatus: "active",
+		profile: {
+			experienceYears: 6,
+			availabilityStatus: "unavailable",
+			ratingAvg: 4.6,
+			completedTrips: 31,
+			languages: ["Tiếng Việt"],
+		},
+		qualification: {
+			proficiency: "expert",
+			timesLed: 17,
+			routeNames: PORTER_SEED_ROUTE_NAMES,
+		},
+	},
+	{
+		key: "inactive-account",
+		email: "porter.inactive@ctms.local",
+		phone: "0900000026",
+		fullName: "Bùi Đức Long",
+		userStatus: "suspended",
+		profile: {
+			experienceYears: 7,
+			availabilityStatus: "available",
+			ratingAvg: 4.8,
+			completedTrips: 38,
+			languages: ["Tiếng Việt"],
+		},
+		qualification: null,
+	},
+	{
+		key: "missing-profile",
+		email: "porter.no-profile@ctms.local",
+		phone: "0900000027",
+		fullName: "Ngô Hải Nam",
+		userStatus: "active",
+		profile: null,
+		qualification: null,
+	},
+	{
+		key: "schedule-conflict",
+		email: "porter.conflict@ctms.local",
+		phone: "0900000028",
+		fullName: "Hoàng Gia Huy",
+		userStatus: "active",
+		profile: {
+			experienceYears: 3,
+			availabilityStatus: "available",
+			ratingAvg: 4.5,
+			completedTrips: 16,
+			languages: ["Tiếng Việt"],
+		},
+		qualification: {
+			proficiency: "proficient",
+			timesLed: 6,
+			routeNames: PORTER_SEED_ROUTE_NAMES,
+		},
+		conflictingTripTitle: PORTER_CONFLICT_TRIP_TITLE,
+	},
+];
+
+// ==========================================================================
+// REPAIR DEMO BOOKING CANCELLATION HELPER
+// ==========================================================================
+
+export interface DemoBooking {
+	id: string;
+	status: string;
+	paymentStatus: string;
+	email: string;
+	title: string;
+	totalAmount: string;
+	policy: unknown;
+	snapshot: unknown;
+	idempotencyKey: string | null;
+	fingerprint: string | null;
+}
+
+export const DEMO_EMAILS = new Set([
+	"camper@ctms.local",
+	"camper.lan@ctms.local",
+	"camper.nam@ctms.local",
+	"camper.tuan@ctms.local",
+	"camper.nhu@ctms.local",
+]);
+
+/** Repair synthetic seed data only. Never call from a booking/payment request. */
+export async function repairDemoBookingCancellation(
+	dataSource: DataSource,
+	bookingId: string
+): Promise<{ policyRepaired: boolean; chargeCreated: boolean }> {
+	if (process.env.NODE_ENV === "production") {
+		throw new Error("Demo repair is disabled in production");
+	}
+	return dataSource.transaction(async (manager) => {
+		const rows: DemoBooking[] = await manager.query(
+			`SELECT b.id,b.status,b.payment_status AS "paymentStatus",u.email,t.title,b.total_amount AS "totalAmount",t.cancellation_policy AS policy,b.cancellation_policy_snapshot AS snapshot,b.idempotency_key AS "idempotencyKey",b.request_fingerprint AS fingerprint
+   FROM bookings b JOIN users u ON u.id=b.user_id JOIN trips t ON t.id=b.trip_id WHERE b.id=$1 FOR UPDATE OF b,t`,
+			[bookingId]
+		);
+		const booking = rows[0];
+		if (
+			!booking ||
+			!DEMO_EMAILS.has(booking.email) ||
+			!booking.title.startsWith("[CTMS-024]") ||
+			booking.idempotencyKey ||
+			booking.fingerprint
+		) {
+			throw new Error("Refusing to repair a non-seed Booking");
+		}
+		if (booking.status !== "confirmed" || booking.paymentStatus !== "paid") {
+			return { policyRepaired: false, chargeCreated: false };
+		}
+		const policy = parseCancellationPolicy(booking.policy);
+		let policyRepaired = false;
+		if (booking.snapshot === null) {
+			await manager.query(
+				"UPDATE bookings SET cancellation_policy_snapshot=$2::jsonb WHERE id=$1",
+				[bookingId, JSON.stringify(policy)]
+			);
+			policyRepaired = true;
+		}
+		const payments: { id: string }[] = await manager.query(
+			"SELECT id FROM payments WHERE booking_id=$1",
+			[bookingId]
+		);
+		let chargeCreated = false;
+		if (!payments.length && Number(booking.totalAmount) > 0) {
+			const key = `demo-seed:charge:${bookingId}`;
+			const charge: { id: string }[] = await manager.query(
+				`INSERT INTO payments (booking_id,type,status,amount,idempotency_key,request_fingerprint,provider_reference) VALUES ($1,'charge','succeeded',$2,$3,$4,'DEMO-SEED-NO-REAL-PAYMENT') RETURNING id`,
+				[bookingId, booking.totalAmount, key, createHash("sha256").update(key).digest("hex")]
+			);
+			await manager.query(
+				`INSERT INTO payment_transactions (payment_id,status,raw_payload) VALUES ($1,'succeeded',$2::jsonb)`,
+				[charge[0].id, JSON.stringify({ source: "demo-seed-repair", simulated: true })]
+			);
+			chargeCreated = true;
+		}
+		if (policyRepaired || chargeCreated) {
+			await manager.query(
+				`INSERT INTO audit_logs (actor_id,action,target_type,target_id,before,after,reason) SELECT user_id,'demo.booking_repaired','booking',id,$2::jsonb,$3::jsonb,'Repair synthetic seed policy/payment evidence; no real payment' FROM bookings WHERE id=$1`,
+				[
+					bookingId,
+					JSON.stringify({ policySnapshot: booking.snapshot, paymentCount: payments.length }),
+					JSON.stringify({ policyRepaired, chargeCreated }),
+				]
+			);
+		}
+		return { policyRepaired, chargeCreated };
+	});
+}
+
+// ==========================================================================
+// [0/9] CLEAN / WIPE DATABASE (FRESH SEED)
 // ==========================================================================
 export async function cleanDatabase(ds = dataSource): Promise<void> {
 	if (process.env.NODE_ENV === "production") {
@@ -2807,17 +3138,18 @@ export async function seedCamperRefunds(): Promise<{
 	const meetingPoint = { type: "Point", coordinates: [108.2022, 16.0544] };
 	const completedTripRows = (await dataSource.query(
 		`INSERT INTO "trips" (
-			"host_id", "route_id", "title", "description", "trip_type", "duration_nights",
+			"id", "host_id", "route_id", "title", "description", "trip_type", "duration_nights",
 			"starts_at", "ends_at", "meeting_point", "booking_deadline",
 			"capacity_min", "capacity_max", "price_per_person", "status", "cancellation_policy"
 		 ) VALUES (
-			$1, $2, 'Trekking Sơn Trà Hoàn Thành - Demo Khiếu Nại', 'Chuyến đi vừa hoàn thành cách đây 3 giờ', 'day_trip', 0,
+			$1, $2, $3, 'Trekking Sơn Trà Hoàn Thành - Demo Khiếu Nại', 'Chuyến đi vừa hoàn thành cách đây 3 giờ', 'day_trip', 0,
 			now() - interval '10 hours', now() - interval '3 hours',
-			ST_SetSRID(ST_GeomFromGeoJSON($3), 4326)::geography, now() - interval '1 day',
+			ST_SetSRID(ST_GeomFromGeoJSON($4), 4326)::geography, now() - interval '1 day',
 			1, 10, '850000.00', 'completed',
-			$4::jsonb
-		 ) RETURNING "id"`,
+			$5::jsonb
+		 ) ON CONFLICT ("id") DO UPDATE SET "title" = EXCLUDED."title", "status" = 'completed' RETURNING "id"`,
 		[
+			DEMO_SYNC_TRIP_ID,
 			trip2Source.host_id,
 			trip2Source.route_id,
 			JSON.stringify(meetingPoint),
@@ -3617,6 +3949,271 @@ export async function seedUserBankAccounts(): Promise<void> {
 }
 
 // ==========================================================================
+// [8/8] OFFLINE DEVICE TELEMETRY & SYNC SCENARIOS (CTMS-067)
+// ==========================================================================
+export async function seedDeviceSyncTelemetry(ds = dataSource): Promise<void> {
+	if (!ds.isInitialized) {
+		await ds.initialize();
+	}
+	console.log("[seed:device-sync] Seeding CTMS-067 offline GPS logs & safety incidents...");
+
+	// 1. Get Camper and Porter accounts
+	const [camperRows, porterRows] = await Promise.all([
+		ds.query('SELECT "id" FROM "users" WHERE "email" = $1', ["camper@ctms.local"]) as Promise<
+			Array<{ id: string }>
+		>,
+		ds.query('SELECT "id" FROM "users" WHERE "email" = $1', ["porter@ctms.local"]) as Promise<
+			Array<{ id: string }>
+		>,
+	]);
+
+	if (camperRows.length === 0 || porterRows.length === 0) {
+		console.warn(
+			"[seed:device-sync] Camper or Porter account not found. Skipping device sync telemetry."
+		);
+		return;
+	}
+
+	const camperId = camperRows[0].id;
+	const porterId = porterRows[0].id;
+
+	// 2. Ensure Trip exists with ID DEMO_SYNC_TRIP_ID
+	const tripRows = (await ds.query(
+		'SELECT "id", "host_id", "route_id" FROM "trips" WHERE "id" = $1',
+		[DEMO_SYNC_TRIP_ID]
+	)) as Array<{ id: string; host_id: string; route_id: string }>;
+
+	if (tripRows.length === 0) {
+		const fallbackTrip = (await ds.query(
+			'SELECT "host_id", "route_id" FROM "trips" LIMIT 1'
+		)) as Array<{ host_id: string; route_id: string }>;
+
+		if (fallbackTrip.length === 0) {
+			console.warn("[seed:device-sync] No trips found to attach device sync.");
+			return;
+		}
+
+		const meetingPoint = { type: "Point", coordinates: [108.2022, 16.0544] };
+		await ds.query(
+			`INSERT INTO "trips" (
+				"id", "host_id", "route_id", "title", "description", "trip_type", "duration_nights",
+				"starts_at", "ends_at", "meeting_point", "booking_deadline",
+				"capacity_min", "capacity_max", "price_per_person", "status", "cancellation_policy"
+			 ) VALUES (
+				$1, $2, $3, 'Trekking Sơn Trà Hoàn Thành - Demo Khiếu Nại', 'Chuyến đi phục vụ đồng bộ GPS & an toàn ngoại tuyến', 'day_trip', 0,
+				now() - interval '10 hours', now() - interval '3 hours',
+				ST_SetSRID(ST_GeomFromGeoJSON($4), 4326)::geography, now() - interval '1 day',
+				1, 10, '850000.00', 'completed',
+				$5::jsonb
+			 ) ON CONFLICT ("id") DO NOTHING`,
+			[
+				DEMO_SYNC_TRIP_ID,
+				fallbackTrip[0].host_id,
+				fallbackTrip[0].route_id,
+				JSON.stringify(meetingPoint),
+				JSON.stringify(DEFAULT_CANCELLATION_POLICY),
+			]
+		);
+	}
+
+	// 3. Ensure Porter is assigned to this trip in trip_porters
+	await ds.query(
+		`INSERT INTO "trip_porters" ("trip_id", "porter_id", "status")
+		 VALUES ($1, $2, 'assigned')
+		 ON CONFLICT ("trip_id", "porter_id") DO UPDATE SET "status" = 'assigned'`,
+		[DEMO_SYNC_TRIP_ID, porterId]
+	);
+
+	// 4. Ensure Camper is a joined member on this trip
+	const bookingRows = (await ds.query(
+		'SELECT "id" FROM "bookings" WHERE "trip_id" = $1 AND "user_id" = $2 LIMIT 1',
+		[DEMO_SYNC_TRIP_ID, camperId]
+	)) as Array<{ id: string }>;
+
+	let bookingId = bookingRows[0]?.id;
+	if (!bookingId) {
+		const newBooking = (await ds.query(
+			`INSERT INTO "bookings" (
+				"trip_id", "user_id", "num_people", "status", "payment_status",
+				"trip_starts_at_snapshot", "trip_ends_at_snapshot", "base_price", "total_amount",
+				"cancellation_policy_snapshot"
+			 )
+			 SELECT "id", $2, 1, 'completed', 'paid', "starts_at", "ends_at", '850000.00', '850000.00',
+			        "cancellation_policy"
+			 FROM "trips" WHERE "id" = $1
+			 RETURNING "id"`,
+			[DEMO_SYNC_TRIP_ID, camperId]
+		)) as Array<{ id: string }>;
+		bookingId = newBooking[0].id;
+	}
+
+	await ds.query(
+		`INSERT INTO "booking_members" ("booking_id", "user_id", "is_primary", "member_status", "checked_in_at")
+		 VALUES ($1, $2, true, 'joined', now() - interval '9 hours')
+		 ON CONFLICT DO NOTHING`,
+		[bookingId, camperId]
+	);
+
+	// 5. Seed 15 GPS Logs for Camper and 15 GPS Logs for Porter (BR-226, CTMS-067)
+	await ds.query('DELETE FROM "gps_logs" WHERE "trip_id" = $1', [DEMO_SYNC_TRIP_ID]);
+
+	// Insert Camper GPS Logs
+	await ds.query(
+		`INSERT INTO "gps_logs" (
+			"id", "trip_id", "user_id", "participant_role", "event_time", 
+			"location", "accuracy_meters", "altitude_meters", "battery_level", 
+			"package_version", "config_version", "received_at"
+		 )
+		 SELECT 
+			gen_random_uuid(),
+			$1,
+			$2,
+			'camper',
+			now() - (15 - s.i) * interval '1 minute',
+			ST_SetSRID(ST_MakePoint(108.43 + s.i * 0.001, 11.53 + s.i * 0.001), 4326)::geography,
+			5.0,
+			800.0 + s.i * 25.0,
+			85 - s.i,
+			'pkg-v2',
+			'v3',
+			now() - (15 - s.i) * interval '1 minute'
+		 FROM generate_series(1, 15) AS s(i);`,
+		[DEMO_SYNC_TRIP_ID, camperId]
+	);
+
+	// Insert Porter GPS Logs
+	await ds.query(
+		`INSERT INTO "gps_logs" (
+			"id", "trip_id", "user_id", "participant_role", "event_time", 
+			"location", "accuracy_meters", "altitude_meters", "battery_level", 
+			"package_version", "config_version", "received_at"
+		 )
+		 SELECT 
+			gen_random_uuid(),
+			$1,
+			$2,
+			'porter',
+			now() - (15 - s.i) * interval '1 minute',
+			ST_SetSRID(ST_MakePoint(108.43 + s.i * 0.001, 11.53 + s.i * 0.001), 4326)::geography,
+			4.5,
+			800.0 + s.i * 25.0,
+			90 - s.i,
+			'pkg-v2',
+			'v3',
+			now() - (15 - s.i) * interval '1 minute'
+		 FROM generate_series(1, 15) AS s(i);`,
+		[DEMO_SYNC_TRIP_ID, porterId]
+	);
+
+	// 6. Seed Safety Incident (CTMS-067)
+	await ds.query('DELETE FROM "trip_incidents" WHERE "trip_id" = $1', [DEMO_SYNC_TRIP_ID]);
+	await ds.query(
+		`INSERT INTO "trip_incidents" (
+			"id", "trip_id", "reporter_id", "category", "severity", "status", "description",
+			"occurred_at", "location_status", "captured_offline", "received_at"
+		 ) VALUES (
+			gen_random_uuid(),
+			$1,
+			$2,
+			'injury',
+			'low',
+			'open',
+			'Trượt chân nhẹ gần suối, đã xử lý băng bó tại chỗ',
+			now() - interval '30 minutes',
+			'unavailable',
+			false,
+			now() - interval '30 minutes'
+		 );`,
+		[DEMO_SYNC_TRIP_ID, camperId]
+	);
+
+	console.log(
+		`[seed:device-sync] ✅ Seeded 15 GPS logs & 1 safety incident for trip: ${DEMO_SYNC_TRIP_ID}`
+	);
+}
+
+// ==========================================================================
+// [9/9] CONTENT REPORTS & MODERATION SCENARIOS
+// ==========================================================================
+
+export async function seedContentReports(ds = dataSource): Promise<void> {
+	if (!ds.isInitialized) {
+		await ds.initialize();
+	}
+	console.log("[seed:content-reports] 🚩 Seeding content moderation reports...");
+
+	const camperRows: Array<{ id: string }> = await ds.query(
+		'SELECT "id" FROM "users" WHERE "email" = $1',
+		["camper@ctms.local"]
+	);
+	const camperLanRows: Array<{ id: string }> = await ds.query(
+		'SELECT "id" FROM "users" WHERE "email" = $1',
+		["camper.lan@ctms.local"]
+	);
+	const camperId = camperRows[0]?.id;
+	const camperLanId = camperLanRows[0]?.id || camperId;
+
+	if (!camperId) {
+		console.log("[seed:content-reports] ⚠️ Camper account not found, skipping.");
+		return;
+	}
+
+	const tripRows: Array<{ id: string; title: string }> = await ds.query(
+		'SELECT "id", "title" FROM "trips" LIMIT 5'
+	);
+	if (tripRows.length === 0) {
+		console.log("[seed:content-reports] ⚠️ No trips found, skipping.");
+		return;
+	}
+
+	const sampleReports = [
+		{
+			reporterId: camperId,
+			targetType: "trip",
+			targetId: tripRows[0].id,
+			reason:
+				"Host không chuẩn bị đúng dụng cụ bảo hộ và lều trại như đã cam kết trong lịch trình.",
+			status: "pending",
+		},
+		{
+			reporterId: camperLanId,
+			targetType: "trip",
+			targetId: tripRows[1] ? tripRows[1].id : tripRows[0].id,
+			reason:
+				"Lịch trình thực tế bị rút ngắn 3 tiếng so với mô tả mà không có thông báo trước cho đoàn.",
+			status: "reviewing",
+		},
+		{
+			reporterId: camperId,
+			targetType: "review",
+			targetId: "b1111111-1111-4111-8111-111111111111",
+			reason: "Đánh giá chứa ngôn từ thô tục, mang tính công kích và vu khống hướng dẫn viên.",
+			status: "actioned",
+		},
+		{
+			reporterId: camperLanId,
+			targetType: "review",
+			targetId: "b2222222-2222-4222-8222-222222222222",
+			reason: "Báo cáo nội dung spam quảng cáo dịch vụ du lịch bên ngoài không liên quan.",
+			status: "rejected",
+		},
+	];
+
+	for (const report of sampleReports) {
+		await ds.query('DELETE FROM "content_reports" WHERE "reason" = $1', [report.reason]);
+		await ds.query(
+			`INSERT INTO "content_reports" ("reporter_id", "target_type", "target_id", "reason", "status")
+			 VALUES ($1, $2, $3, $4, $5)`,
+			[report.reporterId, report.targetType, report.targetId, report.reason, report.status]
+		);
+	}
+
+	console.log(
+		`[seed:content-reports] ✅ Seeded ${sampleReports.length} content reports across multiple moderation statuses.`
+	);
+}
+
+// ==========================================================================
 // MASTER RUNNER & SUMMARY
 // ==========================================================================
 
@@ -3646,7 +4243,7 @@ export async function runMasterSeed(): Promise<void> {
 	try {
 		if (isFresh) {
 			console.log("--------------------------------------------------------------------------");
-			console.log("👉 [0/7] Wiping all database tables clean (--fresh mode)...");
+			console.log("👉 [0/9] Wiping all database tables clean (--fresh mode)...");
 			console.log("--------------------------------------------------------------------------");
 			await cleanDatabase(dataSource);
 			console.log("✅ Database wiped clean.\n");
@@ -3654,14 +4251,14 @@ export async function runMasterSeed(): Promise<void> {
 
 		// Step 1: Admin & Porter default accounts
 		console.log("--------------------------------------------------------------------------");
-		console.log("👉 [1/7] Seeding Admin & Porter accounts...");
+		console.log("👉 [1/9] Seeding Admin & Porter accounts...");
 		console.log("--------------------------------------------------------------------------");
 		await seedDevAdmin();
 		console.log("✅ Step 1 completed.\n");
 
 		// Step 2: Host & default trekking route
 		console.log("--------------------------------------------------------------------------");
-		console.log("👉 [2/7] Seeding Host profile & baseline trekking route...");
+		console.log("👉 [2/9] Seeding Host profile & baseline trekking route...");
 		console.log("--------------------------------------------------------------------------");
 		await seedDevHostAndRoute();
 		console.log("✅ Step 2 completed.\n");
@@ -3669,7 +4266,7 @@ export async function runMasterSeed(): Promise<void> {
 		// Step 3: Full Trips ecosystem (Catalogs, Equipment, Routes, Checkpoints, Danger Zones, Porters, Campers, Health & Contacts, Bookings, Diverse Statuses)
 		console.log("--------------------------------------------------------------------------");
 		console.log(
-			"👉 [3/7] Seeding Trips ecosystem (Routes, Checkpoints, Danger Zones, Equipment, Porters, Health, Bookings & Statuses)..."
+			"👉 [3/9] Seeding Trips ecosystem (Routes, Checkpoints, Danger Zones, Equipment, Porters, Health, Bookings & Statuses)..."
 		);
 		console.log("--------------------------------------------------------------------------");
 		await seedDevTrips();
@@ -3677,31 +4274,45 @@ export async function runMasterSeed(): Promise<void> {
 
 		// Step 4: Weather Risk Assessment scenarios (Green / Red routes + Weather Advice)
 		console.log("--------------------------------------------------------------------------");
-		console.log("👉 [4/7] Seeding Weather Risk Scenarios (Green & Red routes + AI Advice)...");
+		console.log("👉 [4/9] Seeding Weather Risk Scenarios (Green & Red routes + AI Advice)...");
 		console.log("--------------------------------------------------------------------------");
 		await seedWeatherRiskScenarios();
 		console.log("✅ Step 4 completed.\n");
 
 		// Step 5: Camper Refund Scenarios (Pre-trip cancellation, Post-completion complaint, Already refunded)
 		console.log("--------------------------------------------------------------------------");
-		console.log("👉 [5/7] Seeding Camper Refund & Dispute Scenarios...");
+		console.log("👉 [5/9] Seeding Camper Refund & Dispute Scenarios...");
 		console.log("--------------------------------------------------------------------------");
 		const refundScenarios = await seedCamperRefunds();
 		console.log("✅ Step 5 completed.\n");
 
 		// Step 6: Settlements, Host Wallets & Payout Requests
 		console.log("--------------------------------------------------------------------------");
-		console.log("👉 [6/7] Seeding Settlements, Host Wallets & Payout Requests...");
+		console.log("👉 [6/9] Seeding Settlements, Host Wallets & Payout Requests...");
 		console.log("--------------------------------------------------------------------------");
 		await seedSettlementsAndPayouts();
 		console.log("✅ Step 6 completed.\n");
 
 		// Step 7: User Bank Accounts (Host & Camper)
 		console.log("--------------------------------------------------------------------------");
-		console.log("👉 [7/7] Seeding User Bank Accounts for Camper & Host...");
+		console.log("👉 [7/9] Seeding User Bank Accounts for Camper & Host...");
 		console.log("--------------------------------------------------------------------------");
 		await seedUserBankAccounts();
 		console.log("✅ Step 7 completed.\n");
+
+		// Step 8: Offline Device Telemetry & Sync Scenarios (CTMS-067)
+		console.log("--------------------------------------------------------------------------");
+		console.log("👉 [8/9] Seeding Offline Device Telemetry & Sync Scenarios (CTMS-067)...");
+		console.log("--------------------------------------------------------------------------");
+		await seedDeviceSyncTelemetry();
+		console.log("✅ Step 8 completed.\n");
+
+		// Step 9: Content Moderation Reports
+		console.log("--------------------------------------------------------------------------");
+		console.log("👉 [9/9] Seeding Content Moderation Reports...");
+		console.log("--------------------------------------------------------------------------");
+		await seedContentReports();
+		console.log("✅ Step 9 completed.\n");
 
 		const elapsedSec = ((Date.now() - startTime) / 1000).toFixed(2);
 
@@ -3783,6 +4394,17 @@ export async function runMasterSeed(): Promise<void> {
 		);
 		console.log(
 			"   👉 Camper (camper@ctms.local): Vietcombank 1012345678 (mặc định), Techcombank 19034567890123"
+		);
+		console.log("\n9. Đồng bộ thiết bị ngoại tuyến (CTMS-067 Offline Device Telemetry & GPS):");
+		console.log("   👉 Trip ID: a1736fee-62be-4991-9478-a62288e9b80a");
+		console.log("   👉 Camper (camper@ctms.local): 15 GPS logs đã xác nhận, 1 sự cố an toàn");
+		console.log("   👉 Porter (porter@ctms.local): Đã phân công (assigned), 15 GPS logs");
+		console.log("   👉 Web: http://localhost:5173/trips/a1736fee-62be-4991-9478-a62288e9b80a");
+		console.log("   👉 Mobile: http://localhost:50565/#/camper/overview");
+		console.log("\n10. Báo cáo & Kiểm duyệt nội dung (Content Moderation Reports):");
+		console.log("   👉 Admin: http://localhost:5173/admin/content-reports");
+		console.log(
+			"   👉 Đa dạng báo cáo chuyến đi & đánh giá (chờ duyệt, đang xử lý, đã xử lý, từ chối)"
 		);
 		console.log("==========================================================================\n");
 	} catch (error) {

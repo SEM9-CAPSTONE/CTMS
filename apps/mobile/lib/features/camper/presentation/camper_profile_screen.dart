@@ -13,6 +13,8 @@
   import '../profile/domain/health_profile.dart';
   import '../../auth/application/auth_controller.dart';
   import '../../auth/presentation/widgets/logout_actions.dart';
+  import '../../../core/theme/app_colors.dart';
+  import '../../sync/presentation/device_sync_status_screen.dart';
 
   class CamperProfileScreen extends ConsumerStatefulWidget {
     const CamperProfileScreen({super.key});
@@ -442,7 +444,12 @@
           children: [
             // Elegant Custom Tab Header
             Container(
-              color: Colors.white,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                border: Border(
+                  bottom: BorderSide(color: AppColors.border, width: 1.0),
+                ),
+              ),
               child: Row(
                 children: [
                   Expanded(
@@ -454,7 +461,7 @@
                           border: Border(
                             bottom: BorderSide(
                               color: _activeTab == 0
-                                  ? const Color(0xFF164027)
+                                  ? AppColors.brandPrimary
                                   : Colors.transparent,
                               width: 2.5,
                             ),
@@ -465,11 +472,11 @@
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontWeight: _activeTab == 0
-                                ? FontWeight.bold
-                                : FontWeight.normal,
+                                ? FontWeight.w700
+                                : FontWeight.w500,
                             color: _activeTab == 0
-                                ? const Color(0xFF164027)
-                                : Colors.grey[600],
+                                ? AppColors.brandPrimary
+                                : AppColors.textSecondary,
                           ),
                         ),
                       ),
@@ -484,7 +491,7 @@
                           border: Border(
                             bottom: BorderSide(
                               color: _activeTab == 1
-                                  ? const Color(0xFF164027)
+                                  ? AppColors.brandPrimary
                                   : Colors.transparent,
                               width: 2.5,
                             ),
@@ -495,11 +502,11 @@
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontWeight: _activeTab == 1
-                                ? FontWeight.bold
-                                : FontWeight.normal,
+                                ? FontWeight.w700
+                                : FontWeight.w500,
                             color: _activeTab == 1
-                                ? const Color(0xFF164027)
-                                : Colors.grey[600],
+                                ? AppColors.brandPrimary
+                                : AppColors.textSecondary,
                           ),
                         ),
                       ),
@@ -666,8 +673,35 @@
                   onPressed: _isSavingPersonal ? null : _savePersonal,
                 ),
 
+                const SizedBox(height: 16),
+                CtmsSectionCard(
+                  title: 'Đồng bộ & Ngoại tuyến',
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(
+                      Icons.sync_outlined,
+                      color: AppColors.textPrimary,
+                    ),
+                    title: const Text(
+                      'Trạng thái đồng bộ thiết bị',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    subtitle: const Text(
+                      'Xem GPS và sự cố an toàn chờ tải lên máy chủ',
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const DeviceSyncStatusScreen(
+                            tripId: 'a1736fee-62be-4991-9478-a62288e9b80a',
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
                 const SizedBox(height: 24),
-
                 const LogoutActions(),
 
                 const SizedBox(height: 32),
@@ -880,7 +914,7 @@
                           ),
                           Switch(
                             value: _isConsentGranted,
-                            activeThumbColor: const Color(0xFF164027),
+                            activeThumbColor: AppColors.brandPrimary,
                             onChanged: _isSavingHealth
                                 ? null
                                 : (val) => _toggleConsent(val),

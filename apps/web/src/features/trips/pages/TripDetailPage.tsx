@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { BookingDetails } from "../../booking-details/types";
 import { bookingEquipmentService } from "../../booking-equipment/services/booking-equipment.service";
 import { TripMemberRoster } from "../../booking-members/components/TripMemberRoster";
+import { DeviceSyncStatusCard } from "../../device-sync";
 import { HostTripSettlementCard } from "../../settlements/components/HostTripSettlementCard";
 import type { BookingAccess } from "../components/BookingPanel";
 import type { SelectedEquipmentItem } from "../components/RentableEquipmentModal";
@@ -452,6 +453,11 @@ export function TripDetailPage({
 										onEditTrip: onEditTrip ? () => onEditTrip(trip.id) : undefined,
 									}}
 								/>
+								{displayedBooking && displayedBooking.status !== "cancelled" && (
+									<div className="mt-6">
+										<DeviceSyncStatusCard tripId={trip.id} />
+									</div>
+								)}
 							</div>
 
 							{isRosterVisible && (

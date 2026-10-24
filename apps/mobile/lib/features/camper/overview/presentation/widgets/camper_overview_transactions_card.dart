@@ -6,17 +6,18 @@ import '../../../../../core/theme/app_radius.dart';
 import '../../../../../core/theme/app_spacing.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../../../../../core/widgets/ctms_empty_state.dart';
-import '../../../../../core/widgets/ctms_key_value_row.dart';
 import '../../../../../core/widgets/ctms_status_badge.dart';
 import '../../domain/camper_overview_models.dart';
 import '../camper_overview_strings.dart';
 import '../overview_severity_x.dart';
 
-/// "Giao dịch gần đây" — the desktop `DataTable` turned into one card per
-/// row: line 1 = mã đơn (`brand.primary`) + status badge, line 2 = địa
-/// điểm, then label/value pairs, per the DataTable→card conversion rule.
+/// "Giao dịch gần đây" — pure white cards matching /camper/explore style.
 class CamperOverviewTransactionsCard extends StatelessWidget {
-  const CamperOverviewTransactionsCard({super.key, required this.transactions, this.onSeeAll});
+  const CamperOverviewTransactionsCard({
+    super.key,
+    required this.transactions,
+    this.onSeeAll,
+  });
 
   final List<RecentTransaction> transactions;
   final VoidCallback? onSeeAll;
@@ -27,24 +28,42 @@ class CamperOverviewTransactionsCard extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Expanded(
-              child: Text(CamperOverviewStrings.transactionsTitle, style: AppTypography.h3),
+            Text(
+              CamperOverviewStrings.transactionsTitle,
+              style: AppTypography.h3.copyWith(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w800,
+              ),
             ),
             TextButton(
               onPressed: onSeeAll,
-              child: const Text(CamperOverviewStrings.transactionsSeeAll),
+              child: const Text(
+                CamperOverviewStrings.transactionsSeeAll,
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
             ),
           ],
         ),
+        const SizedBox(height: AppSpacing.sm),
         if (transactions.isEmpty)
-          const CtmsEmptyState(
-            icon: Icons.receipt_long_outlined,
-            title: CamperOverviewStrings.emptyTransactionsTitle,
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.cardPadding),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: AppRadius.cardBorderRadius,
+              border: Border.all(color: AppColors.border),
+              boxShadow: AppColors.cardShadowSm,
+            ),
+            child: const CtmsEmptyState(
+              icon: Icons.receipt_long_outlined,
+              title: CamperOverviewStrings.emptyTransactionsTitle,
+            ),
           )
         else
           for (var i = 0; i < transactions.length; i++) ...[
-            if (i > 0) const SizedBox(height: AppSpacing.sm),
+            if (i > 0) const SizedBox(height: AppSpacing.md),
             _TransactionTile(transaction: transactions[i]),
           ],
       ],
@@ -62,24 +81,26 @@ class _TransactionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-
     return Container(
-      padding: const EdgeInsets.all(AppSpacing.lg),
+      padding: const EdgeInsets.all(AppSpacing.cardPadding),
       decoration: BoxDecoration(
-        color: scheme.surface,
+        color: Colors.white,
         borderRadius: AppRadius.cardBorderRadius,
-        border: Border.all(color: scheme.outline),
+        border: Border.all(color: AppColors.border, width: 1.0),
+        boxShadow: AppColors.cardShadowSm,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(
-                child: Text(
-                  transaction.code,
-                  style: AppTypography.bodyStrong.copyWith(color: AppColors.brandPrimary),
+              Text(
+                transaction.code,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 14,
+                  color: AppColors.textPrimary,
                 ),
               ),
               CtmsStatusBadge(
@@ -88,23 +109,29 @@ class _TransactionTile extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 2),
+          const SizedBox(height: 6),
           Text(
-            transaction.location,
-            style: AppTypography.body.copyWith(color: scheme.onSurface),
+            '${transaction.location} • ${transaction.guestCount} khách',
+            style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
           ),
           const SizedBox(height: AppSpacing.sm),
-          CtmsKeyValueRow(
-            label: CamperOverviewStrings.transactionStayDateLabel,
-            value: _dateFormat.format(transaction.stayDate),
-          ),
-          CtmsKeyValueRow(
-            label: CamperOverviewStrings.transactionGuestsLabel,
-            value: CamperOverviewStrings.guestCount(transaction.guestCount),
-          ),
-          CtmsKeyValueRow(
-            label: CamperOverviewStrings.transactionAmountLabel,
-            value: '${_amountFormat.format(transaction.amountVnd).replaceAll(',', '.')}đ',
+          const Divider(height: 1, thickness: 1, color: AppColors.border),
+          const SizedBox(height: AppSpacing.sm),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                _dateFormat.format(transaction.stayDate),
+                style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
+              ),
+              Text(
+                '${_amountFormat.format(transaction.amountVnd).replaceAll(',', '.')} đ',
+                style: AppTypography.h3.copyWith(
+                  color: AppColors.brandPrimary,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
           ),
         ],
       ),

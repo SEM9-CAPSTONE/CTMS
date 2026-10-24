@@ -6,8 +6,8 @@ import '../../../../../core/theme/app_spacing.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../camper_overview_strings.dart';
 
-/// The 4 quick-action cards — "KPI/action row -> GridView 2 cột" per the
-/// desktop→mobile rules.
+/// The 4 quick-action cards — styled with clean white cards, soft mint icon boxes,
+/// and subtle shadows.
 class CamperOverviewQuickActions extends StatelessWidget {
   const CamperOverviewQuickActions({
     super.key,
@@ -30,7 +30,7 @@ class CamperOverviewQuickActions extends StatelessWidget {
       physics: const NeverScrollableScrollPhysics(),
       crossAxisSpacing: AppSpacing.md,
       mainAxisSpacing: AppSpacing.md,
-      childAspectRatio: 2.6,
+      childAspectRatio: 2.1,
       children: [
         _QuickActionCard(
           icon: Icons.menu_book_outlined,
@@ -66,7 +66,7 @@ class _QuickActionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return InkWell(
       onTap: onTap,
@@ -74,27 +74,38 @@ class _QuickActionCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
         decoration: BoxDecoration(
-          color: scheme.surface,
+          color: isDark ? AppColors.brandDark : Colors.white,
           borderRadius: AppRadius.cardBorderRadius,
-          border: Border.all(color: scheme.outline),
+          border: Border.all(
+            color: isDark ? AppColors.textSecondary : AppColors.brandLightBorder,
+            width: 1,
+          ),
+          boxShadow: isDark ? null : AppColors.cardShadowSm,
         ),
         child: Row(
           children: [
             Container(
-              width: 36,
-              height: 36,
+              width: 38,
+              height: 38,
               decoration: BoxDecoration(
-                color: AppColors.brandLight,
+                color: isDark ? AppColors.surfaceContainerHighest : AppColors.brandLight,
                 borderRadius: AppRadius.iconBoxBorderRadius,
+                border: Border.all(
+                  color: isDark ? Colors.transparent : AppColors.brandLightBorder,
+                ),
               ),
               alignment: Alignment.center,
-              child: Icon(icon, size: 18, color: AppColors.brandPrimary),
+              child: Icon(icon, size: 20, color: AppColors.brandPrimary),
             ),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
                 label,
-                style: AppTypography.bodyStrong.copyWith(color: scheme.onSurface),
+                style: AppTypography.bodyStrong.copyWith(
+                  color: isDark ? Colors.white : AppColors.brandDark,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
                 maxLines: 2,
               ),
             ),
