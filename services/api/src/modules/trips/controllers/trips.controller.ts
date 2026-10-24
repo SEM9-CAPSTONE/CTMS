@@ -22,6 +22,9 @@ import { UserRole } from "../../users/entities/user.entity";
 import { PaginatedAvailablePortersResponseDto } from "../dto/available-porter-response.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { AvailablePortersQueryDto } from "../dto/available-porters-query.dto";
+import type { CheckpointArrivalParamDto } from "../dto/checkpoint-arrival-param.dto";
+// biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
+import { ConfirmCheckpointArrivalDto } from "../dto/confirm-checkpoint-arrival.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { CreatePorterRequestDto } from "../dto/create-porter-request.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
@@ -47,7 +50,10 @@ import { SearchTripsQueryDto } from "../dto/search-trips-query.dto";
 // biome-ignore lint/style/useImportType: decorated request DTO needs runtime metadata
 import { SubmitTripDto } from "../dto/submit-trip.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
+import { SyncCheckpointArrivalsDto } from "../dto/sync-checkpoint-arrivals.dto";
+// biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { TripIdParamDto } from "../dto/trip-id-param.dto";
+import { TripOperationalProgressResponseDto } from "../dto/trip-operational-progress-response.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { TripPorterRequestParamDto } from "../dto/trip-porter-request-param.dto";
 import {
@@ -58,6 +64,9 @@ import {
 import { TripRouteMapResponseDto } from "../dto/trip-route-map-response.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { TripWaypointParamDto } from "../dto/trip-waypoint-param.dto";
+// biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
+import { CheckpointVisitsService } from "../services/checkpoint-visits.service";
+
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { AvailablePortersService } from "../services/available-porters.service";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
@@ -81,7 +90,8 @@ export class TripsController {
 
 		private readonly availablePortersService: AvailablePortersService,
 		private readonly porterRequestsService: PorterRequestsService,
-		private readonly tripRouteMapService: TripRouteMapService
+		private readonly tripRouteMapService: TripRouteMapService,
+		private readonly checkpointVisitsService: CheckpointVisitsService
 	) {}
 
 	@Get()
@@ -176,6 +186,66 @@ export class TripsController {
 		@Param() params: TripIdParamDto
 	): Promise<PorterTripOperationsResponseDto> {
 		return this.tripsService.getAssignedTripOperations(request.user.userId, params.tripId);
+	}
+
+	@Post(":tripId/checkpoints/:checkpointId/arrival")
+	@Header("Cache-Control", "private, no-store")
+	@Roles(UserRole.PORTER)
+	@ApiOperation({
+		summary: "Confirm Checkpoint arrival for an assigned Trip (CTMS-056 / BR-234)",
+	})
+	@ApiResponse({ status: 200, type: TripOperationalProgressResponseDto })
+	@ApiResponse({ status: 400, description: "Invalid Checkpoint or Trip not operational" })
+	@ApiResponse({ status: 403, description: "Porter has no valid assignment for this Trip" })
+	@ApiResponse({ status: 404, description: "Trip or Checkpoint not found" })
+	confirmCheckpointArrival(
+		@Req() request: AuthenticatedRequest,
+		@Param() params: CheckpointArrivalParamDto,
+		@Body() dto: ConfirmCheckpointArrivalDto
+	): Promise<TripOperationalProgressResponseDto> {
+		return this.checkpointVisitsService.confirmCheckpointArrival(
+			request.user.userId,
+			params.tripId,
+			params.checkpointId,
+			dto
+		);
+	}
+
+	@Post(":tripId/checkpoints/sync")
+	@Header("Cache-Control", "private, no-store")
+	@Roles(UserRole.PORTER)
+	@ApiOperation({
+		summary: "Synchronize offline Checkpoint arrival events idempotently (CTMS-056 / BR-234)",
+	})
+	@ApiResponse({ status: 200, type: TripOperationalProgressResponseDto })
+	@ApiResponse({ status: 400, description: "Invalid arrival events or Trip not operational" })
+	@ApiResponse({ status: 403, description: "Porter has no valid assignment for this Trip" })
+	@ApiResponse({ status: 404, description: "Trip not found" })
+	syncCheckpointArrivals(
+		@Req() request: AuthenticatedRequest,
+		@Param() params: TripIdParamDto,
+		@Body() dto: SyncCheckpointArrivalsDto
+	): Promise<TripOperationalProgressResponseDto> {
+		return this.checkpointVisitsService.syncCheckpointArrivals(
+			request.user.userId,
+			params.tripId,
+			dto
+		);
+	}
+
+	@Get(":tripId/progress")
+	@Header("Cache-Control", "private, no-store")
+	@Roles(UserRole.PORTER, UserRole.HOST, UserRole.ADMIN, UserRole.CAMPER)
+	@ApiOperation({
+		summary:
+			"View authoritative operational Trip progress and Checkpoint visits (CTMS-056 / BR-234)",
+	})
+	@ApiResponse({ status: 200, type: TripOperationalProgressResponseDto })
+	@ApiResponse({ status: 404, description: "Trip not found or has no Route context" })
+	getTripOperationalProgress(
+		@Param() params: TripIdParamDto
+	): Promise<TripOperationalProgressResponseDto> {
+		return this.checkpointVisitsService.getTripOperationalProgress(params.tripId);
 	}
 
 	@Get(":tripId/route-map")

@@ -37,9 +37,10 @@ import type {
 import { WaypointType } from "../entities/trip-waypoint.entity";
 import { type GeoPoint, TripStatus, TripType } from "../entities/trip.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
-import {
-	type CreateTripWaypointInput,
-	type LockedTripForBooking,
+import { CheckpointVisitsRepository } from "../repositories/checkpoint-visits.repository";
+import type {
+	CreateTripWaypointInput,
+	LockedTripForBooking,
 	TripsRepository,
 } from "../repositories/trips.repository";
 
@@ -72,7 +73,8 @@ export class TripsService {
 	constructor(
 		private readonly tripsRepository: TripsRepository,
 		private readonly dataSource: DataSource,
-		@Optional() private readonly eventsGateway?: EventsGateway
+		@Optional() private readonly eventsGateway?: EventsGateway,
+		@Optional() private readonly checkpointVisitsRepository?: CheckpointVisitsRepository
 	) {}
 
 	async search(query: SearchTripsQueryDto): Promise<PaginatedTripsResponseDto> {
@@ -173,8 +175,12 @@ export class TripsService {
 			!hasMeasurements ||
 			!Number.isFinite(age) ||
 			age < 0;
+		const progress = this.checkpointVisitsRepository
+			? await this.checkpointVisitsRepository.getOperationalProgress(tripId)
+			: null;
 		return {
 			...trip,
+			progress,
 			retrievedAt: retrievedAt.toISOString(),
 			weather: {
 				availability: unavailable

@@ -440,6 +440,7 @@ export interface PorterTripOperations extends PorterAssignedTrip {
 		} | null;
 	};
 	offlinePackage: { status: "unavailable"; downloadedAt: null };
+	progress?: TripOperationalProgress | null;
 }
 
 export type TripPorterAssignmentStatus = "assigned" | "pending_reconfirmation" | "unassigned";
@@ -570,4 +571,73 @@ export interface BookedTripRouteMap {
 	title: string;
 	meetingPoint: GeoJsonPoint | null;
 	route: PorterTripOperations["route"];
+}
+
+export interface MemberCheckpointVisit {
+	memberId: string;
+	userId: string | null;
+	displayName: string | null;
+	arrivedAt: string;
+	capturedOffline: boolean;
+}
+
+export interface CheckpointProgressItem {
+	checkpointId: string;
+	name: string;
+	type: "start" | "rest" | "water" | "dangerous" | "emergency_shelter" | "finish";
+	routePosition: number;
+	radiusMeters: number;
+	status: "not_visited" | "arrival_confirmed";
+	arrivedAt: string | null;
+	confirmedById: string | null;
+	visitedMembersCount: number;
+	totalJoinedMembersCount: number;
+	visits: MemberCheckpointVisit[];
+}
+
+export interface LastVisitedCheckpoint {
+	checkpointId: string;
+	name: string;
+	arrivedAt: string;
+	confirmedById: string;
+}
+
+export interface TripOperationalProgress {
+	tripId: string;
+	status: TripStatus;
+	totalCheckpoints: number;
+	visitedCheckpoints: number;
+	progressPercentage: number;
+	lastVisitedCheckpoint: LastVisitedCheckpoint | null;
+	checkpoints: CheckpointProgressItem[];
+}
+
+export interface ConfirmCheckpointArrivalPayload {
+	arrivedAt?: string;
+	location?: GeoJsonPoint | null;
+	memberIds?: string[];
+	capturedOffline?: boolean;
+	syncId?: string;
+}
+
+export interface SyncCheckpointArrivalItemPayload extends ConfirmCheckpointArrivalPayload {
+	checkpointId: string;
+}
+
+export interface SyncCheckpointArrivalsPayload {
+	arrivals: SyncCheckpointArrivalItemPayload[];
+}
+
+export interface LocalCheckpointArrivalRecord {
+	id: string;
+	tripId: string;
+	checkpointId: string;
+	checkpointName: string;
+	porterId: string;
+	arrivedAt: string;
+	location: GeoJsonPoint | null;
+	memberIds?: string[];
+	syncStatus: "pending" | "syncing" | "failed";
+	lastError?: string;
+	createdAt: string;
 }

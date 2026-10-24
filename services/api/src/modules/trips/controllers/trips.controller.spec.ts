@@ -41,6 +41,11 @@ describe("TripsController", () => {
 	};
 	let availablePortersService: { search: jest.Mock };
 	let porterRequestsService: { create: jest.Mock; findPending: jest.Mock };
+	let checkpointVisitsService: {
+		confirmCheckpointArrival: jest.Mock;
+		syncCheckpointArrivals: jest.Mock;
+		getTripOperationalProgress: jest.Mock;
+	};
 	let controller: TripsController;
 
 	beforeEach(() => {
@@ -56,11 +61,17 @@ describe("TripsController", () => {
 		};
 		availablePortersService = { search: jest.fn() };
 		porterRequestsService = { create: jest.fn(), findPending: jest.fn() };
+		checkpointVisitsService = {
+			confirmCheckpointArrival: jest.fn(),
+			syncCheckpointArrivals: jest.fn(),
+			getTripOperationalProgress: jest.fn(),
+		};
 		controller = new TripsController(
 			tripsService as unknown as TripsService,
 			availablePortersService as unknown as AvailablePortersService,
 			porterRequestsService as unknown as PorterRequestsService,
-			{ getBookedTripMap: jest.fn() } as unknown as TripRouteMapService
+			{ getBookedTripMap: jest.fn() } as unknown as TripRouteMapService,
+			checkpointVisitsService as unknown as CheckpointVisitsService
 		);
 	});
 
@@ -295,6 +306,75 @@ describe("TripsController", () => {
 
 			expect(tripsService.review).toHaveBeenCalledWith(USER_ID, TRIP_ID, dto);
 			expect(result).toBe(mockReviewed);
+		});
+	});
+	describe("confirmCheckpointArrival (CTMS-056 / BR-234)", () => {
+		it("delegates to CheckpointVisitsService.confirmCheckpointArrival with porterId, tripId, checkpointId, and dto", async () => {
+			const mockProgress = {
+				tripId: TRIP_ID,
+				visitedCheckpoints: 1,
+			} as unknown as TripOperationalProgressResponseDto;
+			checkpointVisitsService.confirmCheckpointArrival.mockResolvedValue(mockProgress);
+			const dto: ConfirmCheckpointArrivalDto = { arrivedAt: "2026-10-24T12:00:00.000Z" };
+
+			const result = await controller.confirmCheckpointArrival(
+				{ user: { ...MOCK_USER, roles: [UserRole.PORTER] } },
+				{ tripId: TRIP_ID, checkpointId: "cp-1" },
+				dto
+			);
+
+			expect(checkpointVisitsService.confirmCheckpointArrival).toHaveBeenCalledWith(
+				USER_ID,
+				TRIP_ID,
+				"cp-1",
+				dto
+			);
+			expect(result).toBe(mockProgress);
+			expect(
+				Reflect.getMetadata(ROLES_KEY, TripsController.prototype.confirmCheckpointArrival)
+			).toEqual([UserRole.PORTER]);
+		});
+	});
+
+	describe("syncCheckpointArrivals (CTMS-056 / BR-234)", () => {
+		it("delegates to CheckpointVisitsService.syncCheckpointArrivals with porterId, tripId, and dto", async () => {
+			const mockProgress = {
+				tripId: TRIP_ID,
+				visitedCheckpoints: 2,
+			} as unknown as TripOperationalProgressResponseDto;
+			checkpointVisitsService.syncCheckpointArrivals.mockResolvedValue(mockProgress);
+			const dto: SyncCheckpointArrivalsDto = { arrivals: [] };
+
+			const result = await controller.syncCheckpointArrivals(
+				{ user: { ...MOCK_USER, roles: [UserRole.PORTER] } },
+				{ tripId: TRIP_ID },
+				dto
+			);
+
+			expect(checkpointVisitsService.syncCheckpointArrivals).toHaveBeenCalledWith(
+				USER_ID,
+				TRIP_ID,
+				dto
+			);
+			expect(result).toBe(mockProgress);
+			expect(
+				Reflect.getMetadata(ROLES_KEY, TripsController.prototype.syncCheckpointArrivals)
+			).toEqual([UserRole.PORTER]);
+		});
+	});
+
+	describe("getTripOperationalProgress (CTMS-056 / BR-234)", () => {
+		it("delegates to CheckpointVisitsService.getTripOperationalProgress with tripId", async () => {
+			const mockProgress = {
+				tripId: TRIP_ID,
+				totalCheckpoints: 3,
+			} as unknown as TripOperationalProgressResponseDto;
+			checkpointVisitsService.getTripOperationalProgress.mockResolvedValue(mockProgress);
+
+			const result = await controller.getTripOperationalProgress({ tripId: TRIP_ID });
+
+			expect(checkpointVisitsService.getTripOperationalProgress).toHaveBeenCalledWith(TRIP_ID);
+			expect(result).toBe(mockProgress);
 		});
 	});
 });
