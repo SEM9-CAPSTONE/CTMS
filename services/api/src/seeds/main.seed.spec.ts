@@ -6,7 +6,7 @@ import {
 	PORTER_SEED_FIXTURES,
 	PORTER_SEED_ROUTE_NAMES,
 	porterSeedTripWindowsOverlap,
-} from "./porter.seed-fixtures";
+} from "./main.seed";
 
 describe("PORTER_SEED_FIXTURES", () => {
 	it("uses unique deterministic account identifiers and valid profile values", () => {

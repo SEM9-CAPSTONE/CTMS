@@ -3,38 +3,24 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/api/api_exception.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/ctms_alert_banner.dart';
 import '../../../core/widgets/ctms_button.dart';
+import '../../../core/widgets/ctms_logo.dart';
 import '../application/auth_controller.dart';
 import '../data/auth_api.dart';
 import '../domain/user_role.dart';
 import 'login_strings.dart';
-import 'widgets/login_divider.dart';
-import 'widgets/login_hero_panel.dart';
 import 'widgets/login_remember_row.dart';
-import 'widgets/social_login_button.dart';
 
 /// Backend (CTMS-03-T01) only ever sends these 2 message strings for a
-/// login failure — see LoginStrings.accountNotActive's doc comment for why
-/// there's nothing more specific to map "locked"/"unverified" to.
+/// login failure.
 const _accountNotActiveMessage = 'Account is not active';
 
-/// `/login` — §A.2 in `docs/design/FIGMA-SCREEN-INVENTORY.md`. The desktop
-/// frame is a 50/50 split (mountain photo | white form); on a phone that
-/// becomes [LoginHeroPanel] as a top banner over a scrollable form, per the
-/// desktop→mobile rules agreed in PROMPT 1.
-///
-/// Two elements from the Figma frame have no mobile equivalent and are
-/// intentionally dropped rather than copied:
-/// - "🏠 Quay về trang chủ" — links to the public web landing page, which
-///   doesn't exist in this app (mobile only serves signed-in Camper/Porter
-///   flows).
-/// - Loading/error/empty states: this is a submit form, not a data list, so
-///   "loading" is the button spinner and "error" is [CtmsAlertBanner] above
-///   the fields — a full-screen [CtmsErrorState]/[CtmsEmptyState] would be
-///   the wrong tool here (there's no page data to retry-load or find empty).
+/// `/login` — Clean, modern White theme with Green brand accents.
+/// Social auth (Google/Lark) and the 4 feature chips are removed per user specs.
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
@@ -84,21 +70,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         );
   }
 
-  void _showComingSoon() {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text(LoginStrings.comingSoon)));
-  }
-
   bool _isAccountNotActive(Object error) =>
       error is ApiException && error.message == _accountNotActiveMessage;
 
-  /// CTMS-03-T03 checklist: "Handle offline, timeout, server-error, ...
-  /// states" as distinct cases. [ApiExceptionKind.network]/`.timeout`
-  /// messages are already Vietnamese copy set by [ApiClient] itself (every
-  /// caller in the app wants the same wording for those); only
-  /// `.response` (a real backend reply) needs mapping here, since only this
-  /// screen knows what "Invalid credentials"/"Account is not active" mean.
   String _mapLoginError(Object error) {
     if (error is! ApiException) return LoginStrings.genericError;
 
@@ -118,12 +92,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
-  /// CTMS-03-T03 checklist: "navigation to ... Account Verification ...
-  /// where applicable" — applicable here means the login failure was
-  /// specifically "account not active". There is no id to hand off (a
-  /// failed login never reveals it, on purpose — same anti-enumeration
-  /// reasoning as the shared invalid-credentials message), so /verify
-  /// receives only whichever of email/phone the user actually typed.
   void _navigateToVerify() {
     final identifier = _identifierController.text.trim();
     final isEmail = _emailPattern.hasMatch(identifier);
@@ -145,144 +113,209 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final error = authState.hasError ? authState.error : null;
 
     return Scaffold(
-      body: Column(
-        children: [
-          const LoginHeroPanel(),
-          Expanded(
-            child: SafeArea(
-              top: false,
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(AppSpacing.xxl),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.xxl,
+              vertical: AppSpacing.xl,
+            ),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // 1. Logo CTMS
+                  const Center(
+                    child: CtmsLogo(size: 46, showText: true),
+                  ),
+                  const SizedBox(height: AppSpacing.xl),
+
+                  // 2. Welcome Title & Subtitle
+                  Text(
+                    LoginStrings.welcomeTitle,
+                    style: AppTypography.h1.copyWith(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 26,
+                      letterSpacing: -0.5,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    LoginStrings.welcomeSubtitle,
+                    style: AppTypography.body.copyWith(
+                      color: AppColors.textSecondary,
+                      fontSize: 14,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 32),
+
+                  // 3. Error Alert (if any)
+                  if (error != null) ...[
+                    CtmsAlertBanner(
+                      severity: CtmsAlertSeverity.danger,
+                      title: LoginStrings.loginErrorTitle,
+                      message: _mapLoginError(error),
+                      actions: _isAccountNotActive(error)
+                          ? [
+                              CtmsButton(
+                                label: LoginStrings.verifyAccountAction,
+                                size: CtmsButtonSize.md,
+                                onPressed: _navigateToVerify,
+                              ),
+                            ]
+                          : const [],
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                  ],
+
+                  // 4. Identifier Field (Email / Phone)
+                  TextFormField(
+                    controller: _identifierController,
+                    keyboardType: TextInputType.emailAddress,
+                    textInputAction: TextInputAction.next,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 15,
+                    ),
+                    cursorColor: AppColors.textPrimary,
+                    decoration: InputDecoration(
+                      labelText: LoginStrings.emailLabel,
+                      labelStyle: const TextStyle(color: AppColors.textSecondary),
+                      floatingLabelStyle: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      prefixIcon: const Icon(
+                        Icons.person_outline,
+                        color: AppColors.textPrimary,
+                      ),
+                      filled: true,
+                      fillColor: Colors.white,
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                          color: AppColors.border,
+                          width: 1.2,
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                          color: AppColors.brandPrimary,
+                          width: 1.8,
+                        ),
+                      ),
+                    ),
+                    validator: _validateIdentifier,
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+
+                  // 5. Password Field
+                  TextFormField(
+                    controller: _passwordController,
+                    obscureText: _obscurePassword,
+                    textInputAction: TextInputAction.done,
+                    onFieldSubmitted: (_) => _submit(),
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 15,
+                    ),
+                    cursorColor: AppColors.textPrimary,
+                    decoration: InputDecoration(
+                      labelText: LoginStrings.passwordLabel,
+                      labelStyle: const TextStyle(color: AppColors.textSecondary),
+                      floatingLabelStyle: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      prefixIcon: const Icon(
+                        Icons.lock_outline,
+                        color: AppColors.textPrimary,
+                      ),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscurePassword
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined,
+                          color: AppColors.textMuted,
+                        ),
+                        onPressed: () => setState(
+                          () => _obscurePassword = !_obscurePassword,
+                        ),
+                      ),
+                      filled: true,
+                      fillColor: Colors.white,
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                          color: AppColors.border,
+                          width: 1.2,
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                          color: AppColors.brandPrimary,
+                          width: 1.8,
+                        ),
+                      ),
+                    ),
+                    validator: _validatePassword,
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+
+                  // 6. Remember Me & Forgot Password
+                  LoginRememberRow(
+                    rememberMe: _rememberMe,
+                    onRememberMeChanged: (value) =>
+                        setState(() => _rememberMe = value),
+                    onForgotPassword: () =>
+                        context.push('/forgot-password'),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // 7. Submit Action Button
+                  CtmsButton(
+                    label: LoginStrings.submit,
+                    size: CtmsButtonSize.lg,
+                    isLoading: authState.isLoading,
+                    onPressed: authState.isLoading ? null : _submit,
+                  ),
+                  const SizedBox(height: AppSpacing.xl),
+
+                  // 8. Bottom Register Text Link
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(LoginStrings.welcomeTitle, style: AppTypography.h1),
-                      const SizedBox(height: AppSpacing.xs),
                       Text(
-                        LoginStrings.welcomeSubtitle,
+                        LoginStrings.noAccountYet,
                         style: AppTypography.body.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          color: AppColors.textSecondary,
                         ),
                       ),
-                      const SizedBox(height: AppSpacing.xxl),
-                      if (error != null) ...[
-                        CtmsAlertBanner(
-                          severity: CtmsAlertSeverity.danger,
-                          title: LoginStrings.loginErrorTitle,
-                          message: _mapLoginError(error),
-                          actions: _isAccountNotActive(error)
-                              ? [
-                                  CtmsButton(
-                                    label: LoginStrings.verifyAccountAction,
-                                    size: CtmsButtonSize.md,
-                                    onPressed: _navigateToVerify,
-                                  ),
-                                ]
-                              : const [],
-                        ),
-                        const SizedBox(height: AppSpacing.lg),
-                      ],
-                      TextFormField(
-                        controller: _identifierController,
-                        keyboardType: TextInputType.emailAddress,
-                        textInputAction: TextInputAction.next,
-                        decoration: const InputDecoration(
-                          labelText: LoginStrings.emailLabel,
-                          prefixIcon: Icon(Icons.person_outline),
-                        ),
-                        validator: _validateIdentifier,
-                      ),
-                      const SizedBox(height: AppSpacing.lg),
-                      TextFormField(
-                        controller: _passwordController,
-                        obscureText: _obscurePassword,
-                        textInputAction: TextInputAction.done,
-                        onFieldSubmitted: (_) => _submit(),
-                        decoration: InputDecoration(
-                          labelText: LoginStrings.passwordLabel,
-                          prefixIcon: const Icon(Icons.lock_outline),
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              _obscurePassword
-                                  ? Icons.visibility_outlined
-                                  : Icons.visibility_off_outlined,
-                            ),
-                            onPressed: () => setState(
-                              () => _obscurePassword = !_obscurePassword,
-                            ),
-                          ),
-                        ),
-                        validator: _validatePassword,
-                      ),
-                      const SizedBox(height: AppSpacing.sm),
-                      LoginRememberRow(
-                        rememberMe: _rememberMe,
-                        onRememberMeChanged: (value) =>
-                            setState(() => _rememberMe = value),
-                        onForgotPassword: () =>
-                            context.push('/forgot-password'),
-                      ),
-                      const SizedBox(height: AppSpacing.lg),
-                      CtmsButton(
-                        label: LoginStrings.submit,
-                        isLoading: authState.isLoading,
-                        onPressed: authState.isLoading ? null : _submit,
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-                      CtmsButton(
-                        label: LoginStrings.createAccount,
-                        variant: CtmsButtonVariant.secondary,
+                      TextButton(
                         onPressed: () => context.push('/register'),
-                      ),
-                      const SizedBox(height: AppSpacing.xxl),
-                      const LoginDivider(label: LoginStrings.orSignInWith),
-                      const SizedBox(height: AppSpacing.lg),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: SocialLoginButton(
-                              label: LoginStrings.google,
-                              icon: Icons.g_mobiledata,
-                              onPressed: _showComingSoon,
-                            ),
-                          ),
-                          const SizedBox(width: AppSpacing.md),
-                          Expanded(
-                            child: SocialLoginButton(
-                              label: LoginStrings.lark,
-                              icon: Icons.chat_bubble_outline,
-                              onPressed: _showComingSoon,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: AppSpacing.xxl),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            LoginStrings.noAccountYet,
-                            style: AppTypography.body.copyWith(
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                          TextButton(
-                            onPressed: () => context.push('/register'),
-                            child: const Text(LoginStrings.registerNow),
-                          ),
-                        ],
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.brandPrimary,
+                        ),
+                        child: const Text(
+                          LoginStrings.registerNow,
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
                       ),
                     ],
                   ),
-                ),
+                ],
               ),
             ),
           ),
-        ],
+        ),
       ),
     );
   }

@@ -1,4 +1,5 @@
 import { CalendarDays, CreditCard, FileText, MapPin, ReceiptText } from "lucide-react";
+import { DeviceSyncStatusCard } from "../../device-sync";
 import type { BookingDetails } from "../types";
 import {
 	formatBookingDateTime,
@@ -187,6 +188,11 @@ export function BookingDetailsView({
 							</p>
 						)}
 					</section>
+				</div>
+
+				{/* Device Synchronization Status (CTMS-067) */}
+				<div className="mt-6">
+					<DeviceSyncStatusCard tripId={booking.tripId} />
 				</div>
 
 				{cancellationPanel}

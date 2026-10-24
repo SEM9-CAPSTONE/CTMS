@@ -6,7 +6,10 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../core/widgets/ctms_button.dart';
+import '../../../core/widgets/ctms_scaffold.dart';
 import '../../../core/widgets/ctms_section_card.dart';
+import '../../../core/widgets/ctms_status_badge.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../auth/domain/auth_user.dart';
 
@@ -30,37 +33,43 @@ class PorterOverviewScreen extends ConsumerWidget {
     return '$weekday, $day/$month/${now.year}';
   }
 
-  String _greeting(String displayName) {
-    final hour = DateTime.now().hour;
-    final timeOfDay = hour < 11 ? 'sáng' : (hour < 18 ? 'chiều' : 'tối');
-    return 'Chào buổi $timeOfDay, $displayName';
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authControllerProvider).valueOrNull;
     final displayName = user?.displayName ?? 'Porter';
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Tổng quan')),
+    return CtmsScaffold(
+      title: 'Tổng quan',
+      subtitle: 'Bảng điều phối ca trekking & giám sát an toàn',
       body: ListView(
         padding: const EdgeInsets.all(AppSpacing.xxl),
         children: [
-          _PorterHero(
+          // 1. Shift Header Card (Styled exactly like PorterScheduleScreen's _ShiftCard)
+          _PorterShiftCard(
             dateLabel: _dateLabel(DateTime.now()),
-            greeting: _greeting(displayName),
+            displayName: displayName,
             onSchedule: () => context.go('/porter/schedule'),
             onReport: () => context.push('/porter/incidents'),
           ),
           const SizedBox(height: AppSpacing.lg),
+
+          // 2. Metrics Grid (Column of Rows for reliable hit-testing & zero pointer absorption)
           const _MetricGrid(),
           const SizedBox(height: AppSpacing.lg),
-          const _CurrentRouteCard(),
+
+          // 3. Current Route Section Card (Refined to Schedule Card style)
+          _CurrentRouteCard(onOpenMap: () => context.go('/porter/map')),
           const SizedBox(height: AppSpacing.lg),
+
+          // 4. Shift Schedule Section Card (Refined to Schedule Card style)
           _ScheduleCard(onOpenSchedule: () => context.go('/porter/schedule')),
           const SizedBox(height: AppSpacing.lg),
+
+          // 5. Active Alerts Section Card (Refined to Schedule Card style)
           _AlertCard(onOpenAlerts: () => context.go('/porter/alerts')),
           const SizedBox(height: AppSpacing.lg),
+
+          // 6. Quick Actions Section Card (Refined to Schedule Card style)
           _QuickActions(
             onMap: () => context.go('/porter/map'),
             onTeam: () => context.push('/porter/team'),
@@ -72,16 +81,16 @@ class PorterOverviewScreen extends ConsumerWidget {
   }
 }
 
-class _PorterHero extends StatelessWidget {
-  const _PorterHero({
+class _PorterShiftCard extends StatelessWidget {
+  const _PorterShiftCard({
     required this.dateLabel,
-    required this.greeting,
+    required this.displayName,
     required this.onSchedule,
     required this.onReport,
   });
 
   final String dateLabel;
-  final String greeting;
+  final String displayName;
   final VoidCallback onSchedule;
   final VoidCallback onReport;
 
@@ -90,62 +99,102 @@ class _PorterHero extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.cardPadding),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [AppColors.brandDark, AppColors.porterClay],
-        ),
+        color: Colors.white,
         borderRadius: AppRadius.cardBorderRadius,
+        border: Border.all(color: AppColors.border, width: 1.0),
+        boxShadow: AppColors.cardShadowSm,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            dateLabel,
-            style: AppTypography.caption.copyWith(
-              color: Colors.white70,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Text(greeting, style: AppTypography.h1.copyWith(color: Colors.white)),
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            'Theo dõi ca trekking, điểm danh đoàn, cảnh báo tuyến và sự cố cần xử lý.',
-            style: AppTypography.body.copyWith(color: Colors.white70),
-          ),
-          const SizedBox(height: AppSpacing.xl),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: onSchedule,
-                  icon: const Icon(Icons.event_note_outlined, size: 18),
-                  label: const Text('Lịch ca'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: AppColors.brandPrimary,
-                    minimumSize: const Size(64, 40),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: AppRadius.controlBorderRadius,
-                    ),
+                child: Text(
+                  'Điều phối viên: $displayName',
+                  style: AppTypography.h3.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary,
                   ),
                 ),
               ),
               const SizedBox(width: AppSpacing.sm),
+              const CtmsStatusBadge(
+                label: 'Đang trực ca',
+                status: CtmsStatus.success,
+                showDot: true,
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              const Icon(Icons.schedule_outlined, size: 14, color: AppColors.textSecondary),
+              const SizedBox(width: 4),
               Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: onReport,
-                  icon: const Icon(Icons.report_outlined, size: 18),
-                  label: const Text('Báo cáo'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    side: const BorderSide(color: Colors.white70),
-                    minimumSize: const Size(64, 40),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: AppRadius.controlBorderRadius,
-                    ),
+                child: Text(
+                  '$dateLabel • 06:30 – 16:30',
+                  style: AppTypography.body.copyWith(
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w500,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              const Icon(Icons.location_on_outlined, size: 14, color: AppColors.textSecondary),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  'Điểm tập kết: Trạm Kiểm lâm Cổng Bắc • Tuyến Sơn Trà – Bãi Bắc',
+                  style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              const Icon(Icons.groups_outlined, size: 14, color: AppColors.textSecondary),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  'Đoàn 24 khách • 4 porter phụ trách',
+                  style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          const Divider(height: 1, thickness: 1, color: AppColors.border),
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            children: [
+              Expanded(
+                child: CtmsButton(
+                  label: 'Lịch ca',
+                  icon: Icons.event_note_outlined,
+                  variant: CtmsButtonVariant.primary,
+                  onPressed: onSchedule,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: CtmsButton(
+                  label: 'Báo cáo',
+                  icon: Icons.report_outlined,
+                  variant: CtmsButtonVariant.secondary,
+                  onPressed: onReport,
                 ),
               ),
             ],
@@ -162,25 +211,30 @@ class _MetricGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const metrics = [
-      _MetricData('Ca hôm nay', '03', 'Sơn Trà, Bãi Bắc', Icons.hiking),
-      _MetricData('Đoàn phụ trách', '24', '2 khách cần hỗ trợ', Icons.groups),
-      _MetricData(
-        'Cảnh báo',
-        '02',
-        '1 cảnh báo thời tiết',
-        Icons.warning_amber,
-      ),
-      _MetricData('Sự cố mở', '01', 'Đang theo dõi', Icons.report_problem),
+      _MetricData('CA HÔM NAY', '03', 'Sơn Trà, Bãi Bắc', Icons.hiking_rounded),
+      _MetricData('ĐOÀN PHỤ TRÁCH', '24', '2 khách cần hỗ trợ', Icons.groups_rounded),
+      _MetricData('CẢNH BÁO', '02', '1 cảnh báo thời tiết', Icons.warning_amber_rounded),
+      _MetricData('SỰ CỐ MỞ', '01', 'Đang theo dõi', Icons.report_problem_rounded),
     ];
 
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisSpacing: AppSpacing.md,
-      mainAxisSpacing: AppSpacing.md,
-      childAspectRatio: 1.12,
-      children: metrics.map((metric) => _MetricCard(metric: metric)).toList(),
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(child: _MetricCard(metric: metrics[0])),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(child: _MetricCard(metric: metrics[1])),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.md),
+        Row(
+          children: [
+            Expanded(child: _MetricCard(metric: metrics[2])),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(child: _MetricCard(metric: metrics[3])),
+          ],
+        ),
+      ],
     );
   }
 }
@@ -202,11 +256,12 @@ class _MetricCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(AppSpacing.lg),
+      padding: const EdgeInsets.all(AppSpacing.cardPadding),
       decoration: BoxDecoration(
-        color: AppColors.surface,
-        border: Border.all(color: AppColors.border),
+        color: Colors.white,
+        border: Border.all(color: AppColors.border, width: 1.0),
         borderRadius: AppRadius.cardBorderRadius,
+        boxShadow: AppColors.cardShadowSm,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -215,27 +270,30 @@ class _MetricCard extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  metric.label.toUpperCase(),
+                  metric.label,
                   style: AppTypography.label.copyWith(
                     color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
-              Icon(metric.icon, color: AppColors.porterClay, size: 20),
+              Icon(metric.icon, color: AppColors.textPrimary, size: 18),
             ],
           ),
-          const Spacer(),
+          const SizedBox(height: 12),
           Text(
             metric.value,
-            style: AppTypography.display.copyWith(color: AppColors.textPrimary),
+            style: AppTypography.display.copyWith(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w800,
+            ),
           ),
+          const SizedBox(height: 4),
           Text(
             metric.helper,
-            maxLines: 2,
+            maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: AppTypography.caption.copyWith(
-              color: AppColors.textSecondary,
-            ),
+            style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
           ),
         ],
       ),
@@ -243,84 +301,114 @@ class _MetricCard extends StatelessWidget {
   }
 }
 
+/// 1. Tuyến đang vận hành (Đồng bộ chuẩn giao diện thẻ _ShiftCard của trang Schedule)
 class _CurrentRouteCard extends StatelessWidget {
-  const _CurrentRouteCard();
+  const _CurrentRouteCard({required this.onOpenMap});
+
+  final VoidCallback onOpenMap;
 
   @override
   Widget build(BuildContext context) {
     return CtmsSectionCard(
       title: 'Tuyến đang vận hành',
-      trailing: _StatusPill(label: 'Đang mở', color: AppColors.statusSuccess),
+      trailing: const CtmsStatusBadge(
+        label: 'Đang mở',
+        status: CtmsStatus.success,
+        showDot: true,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Trekking Sơn Trà - Bãi Bắc',
-            style: AppTypography.h2.copyWith(color: AppColors.textPrimary),
+            'Trekking Sơn Trà – Bãi Bắc',
+            style: AppTypography.bodyStrong.copyWith(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w800,
+              fontSize: 16,
+            ),
           ),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            'Khởi hành 06:30 · Checkpoint 2/5 · Thời tiết ổn định',
-            style: AppTypography.body.copyWith(color: AppColors.textSecondary),
-          ),
-          const SizedBox(height: AppSpacing.lg),
+          const SizedBox(height: 6),
           Row(
-            children: const [
+            children: [
+              const Icon(Icons.schedule_outlined, size: 14, color: AppColors.textSecondary),
+              const SizedBox(width: 4),
               Expanded(
-                child: _RouteStat(label: 'Check-in', value: '22/24'),
-              ),
-              SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: _RouteStat(label: 'Porter', value: '4'),
-              ),
-              SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: _RouteStat(label: 'ETA', value: '16:20'),
+                child: Text(
+                  'Khởi hành: 06:30 • Dự kiến đến (ETA): 16:20',
+                  style: AppTypography.body.copyWith(
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ],
           ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              const Icon(Icons.location_on_outlined, size: 14, color: AppColors.textSecondary),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  'Điểm tập kết: Trạm Kiểm lâm Cổng Bắc • Checkpoint 2/5 (Bãi Bắc)',
+                  style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              const Icon(Icons.groups_outlined, size: 14, color: AppColors.textSecondary),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  'Đoàn 24 khách • Điểm danh: 22/24 • 4 porter phụ trách',
+                  style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              const Icon(Icons.wb_sunny_outlined, size: 14, color: AppColors.textSecondary),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  'Thời tiết: 28°C • Nắng nhẹ, gió 12km/h, an toàn di chuyển',
+                  style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          const Divider(height: 1, thickness: 1, color: AppColors.border),
+          const SizedBox(height: AppSpacing.md),
+          Align(
+            alignment: Alignment.centerRight,
+            child: CtmsButton(
+              label: 'Mở GPS & Bản đồ tuyến',
+              icon: Icons.map_outlined,
+              variant: CtmsButtonVariant.secondary,
+              onPressed: onOpenMap,
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
-class _RouteStat extends StatelessWidget {
-  const _RouteStat({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: AppColors.brandBg,
-        borderRadius: AppRadius.controlBorderRadius,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: AppTypography.caption.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            value,
-            style: AppTypography.bodyStrong.copyWith(
-              color: AppColors.textPrimary,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
+/// 2. Lịch vận hành (Đồng bộ chuẩn giao diện thẻ _ShiftCard của trang Schedule)
 class _ScheduleCard extends StatelessWidget {
   const _ScheduleCard({required this.onOpenSchedule});
 
@@ -333,53 +421,121 @@ class _ScheduleCard extends StatelessWidget {
       trailing: IconButton(
         tooltip: 'Mở lịch',
         onPressed: onOpenSchedule,
-        icon: const Icon(Icons.calendar_month_outlined),
+        icon: const Icon(Icons.calendar_month_outlined, color: AppColors.textPrimary),
       ),
-      child: const Column(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _TimelineItem(time: '06:30', title: 'Điểm danh tại cổng Bắc'),
-          _TimelineItem(time: '08:10', title: 'Dẫn đoàn qua tuyến rừng'),
-          _TimelineItem(time: '12:00', title: 'Nghỉ tại trạm Bãi Bắc'),
+          Row(
+            children: [
+              const Icon(Icons.today_outlined, size: 14, color: AppColors.textSecondary),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  'Hôm nay • 3 mốc vận hành chính của ca trực',
+                  style: AppTypography.caption.copyWith(
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          const _ScheduleTimelineRow(
+            time: '06:30',
+            title: 'Điểm danh tại cổng Bắc (22/24 camper đã có mặt)',
+            status: 'Hoàn thành',
+            isDone: true,
+          ),
+          const SizedBox(height: 6),
+          const _ScheduleTimelineRow(
+            time: '08:10',
+            title: 'Dẫn đoàn qua tuyến rừng nguyên sinh',
+            status: 'Đang diễn ra',
+            isOngoing: true,
+          ),
+          const SizedBox(height: 6),
+          const _ScheduleTimelineRow(
+            time: '12:00',
+            title: 'Nghỉ trưa & nạp năng lượng tại trạm Bãi Bắc',
+            status: 'Tiếp theo',
+          ),
+          const SizedBox(height: AppSpacing.md),
+          const Divider(height: 1, thickness: 1, color: AppColors.border),
+          const SizedBox(height: AppSpacing.md),
+          Align(
+            alignment: Alignment.centerRight,
+            child: CtmsButton(
+              label: 'Xem chi tiết lịch ca',
+              icon: Icons.event_note_outlined,
+              variant: CtmsButtonVariant.secondary,
+              onPressed: onOpenSchedule,
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
-class _TimelineItem extends StatelessWidget {
-  const _TimelineItem({required this.time, required this.title});
+class _ScheduleTimelineRow extends StatelessWidget {
+  const _ScheduleTimelineRow({
+    required this.time,
+    required this.title,
+    required this.status,
+    this.isDone = false,
+    this.isOngoing = false,
+  });
 
   final String time;
   final String title;
+  final String status;
+  final bool isDone;
+  final bool isOngoing;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.md),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 54,
-            child: Text(
-              time,
-              style: AppTypography.bodyStrong.copyWith(
-                color: AppColors.brandPrimary,
-              ),
-            ),
+    return Row(
+      children: [
+        const Icon(Icons.schedule_outlined, size: 14, color: AppColors.textSecondary),
+        const SizedBox(width: 4),
+        Text(
+          time,
+          style: AppTypography.caption.copyWith(
+            color: isOngoing ? AppColors.brandPrimary : AppColors.textPrimary,
+            fontWeight: FontWeight.w700,
           ),
-          Expanded(
-            child: Text(
-              title,
-              style: AppTypography.body.copyWith(color: AppColors.textPrimary),
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            title,
+            style: AppTypography.caption.copyWith(
+              color: AppColors.textSecondary,
+              fontWeight: isOngoing ? FontWeight.w600 : FontWeight.w400,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
-        ],
-      ),
+        ),
+        const SizedBox(width: 4),
+        CtmsStatusBadge(
+          label: status,
+          status: isDone
+              ? CtmsStatus.success
+              : isOngoing
+                  ? CtmsStatus.info
+                  : CtmsStatus.neutral,
+        ),
+      ],
     );
   }
 }
 
+/// 3. Cảnh báo cần xử lý (Đồng bộ chuẩn giao diện thẻ _ShiftCard của trang Schedule)
 class _AlertCard extends StatelessWidget {
   const _AlertCard({required this.onOpenAlerts});
 
@@ -389,21 +545,155 @@ class _AlertCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return CtmsSectionCard(
       title: 'Cảnh báo cần xử lý',
-      trailing: TextButton(onPressed: onOpenAlerts, child: const Text('Xem')),
+      trailing: CtmsButton(
+        label: 'Xem tất cả',
+        variant: CtmsButtonVariant.secondary,
+        onPressed: onOpenAlerts,
+      ),
       child: Column(
-        children: const [
-          _AlertRow(
-            icon: Icons.cloudy_snowing,
-            title: 'Mưa nhẹ sau 15:00',
-            detail: 'Chuẩn bị áo mưa và nhắc đoàn giữ nhịp.',
-            color: AppColors.statusWarning,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Alert Item 1: Weather
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  'Cảnh báo thời tiết: Mưa nhẹ sau 15:00',
+                  style: AppTypography.bodyStrong.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              const CtmsStatusBadge(
+                label: 'Thời tiết',
+                status: CtmsStatus.warning,
+                showDot: true,
+              ),
+            ],
           ),
-          SizedBox(height: AppSpacing.md),
-          _AlertRow(
-            icon: Icons.health_and_safety_outlined,
-            title: '1 camper cần theo dõi sức khỏe',
-            detail: 'Đã chia sẻ hồ sơ y tế cho porter phụ trách.',
-            color: AppColors.statusInfo,
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              const Icon(Icons.schedule_outlined, size: 14, color: AppColors.textSecondary),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  'Thời gian: 15:00 – 16:30 hôm nay',
+                  style: AppTypography.body.copyWith(
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              const Icon(Icons.location_on_outlined, size: 14, color: AppColors.textSecondary),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  'Khu vực ảnh hưởng: Tuyến rừng Bãi Bắc & đỉnh Bàn Cờ',
+                  style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              const Icon(Icons.cloudy_snowing, size: 14, color: AppColors.textSecondary),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  'Chuẩn bị áo mưa và nhắc đoàn giữ nhịp độ di chuyển an toàn',
+                  style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: AppSpacing.md),
+          const Divider(height: 1, thickness: 1, color: AppColors.border),
+          const SizedBox(height: AppSpacing.md),
+
+          // Alert Item 2: Camper Health
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  'Cảnh báo sức khỏe: 1 camper cần hỗ trợ y tế',
+                  style: AppTypography.bodyStrong.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              const CtmsStatusBadge(
+                label: 'Y tế đoàn',
+                status: CtmsStatus.danger,
+                showDot: true,
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              const Icon(Icons.schedule_outlined, size: 14, color: AppColors.textSecondary),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  'Ghi nhận: 08:30 sáng nay tại Checkpoint 2',
+                  style: AppTypography.body.copyWith(
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              const Icon(Icons.health_and_safety_outlined, size: 14, color: AppColors.textSecondary),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  'Khách Nguyễn Văn A (Lều 04) - Cần bổ sung điện giải & theo dõi huyết áp',
+                  style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: AppSpacing.md),
+          const Divider(height: 1, thickness: 1, color: AppColors.border),
+          const SizedBox(height: AppSpacing.md),
+
+          Align(
+            alignment: Alignment.centerRight,
+            child: CtmsButton(
+              label: 'Mở trung tâm cảnh báo',
+              icon: Icons.notifications_active_outlined,
+              variant: CtmsButtonVariant.secondary,
+              onPressed: onOpenAlerts,
+            ),
           ),
         ],
       ),
@@ -411,59 +701,7 @@ class _AlertCard extends StatelessWidget {
   }
 }
 
-class _AlertRow extends StatelessWidget {
-  const _AlertRow({
-    required this.icon,
-    required this.title,
-    required this.detail,
-    required this.color,
-  });
-
-  final IconData icon;
-  final String title;
-  final String detail;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 38,
-          height: 38,
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.12),
-            borderRadius: AppRadius.iconBoxBorderRadius,
-          ),
-          child: Icon(icon, color: color, size: 20),
-        ),
-        const SizedBox(width: AppSpacing.md),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: AppTypography.bodyStrong.copyWith(
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                detail,
-                style: AppTypography.caption.copyWith(
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
+/// 4. Tác vụ nhanh (Đồng bộ chuẩn giao diện thẻ _ShiftCard của trang Schedule)
 class _QuickActions extends StatelessWidget {
   const _QuickActions({
     required this.onMap,
@@ -481,19 +719,31 @@ class _QuickActions extends StatelessWidget {
       title: 'Tác vụ nhanh',
       child: Column(
         children: [
-          _ActionTile(
+          _QuickActionTile(
+            title: 'Mở bản đồ tuyến & GPS ngoại tuyến',
+            subtitle: 'Xem checkpoint, độ cao và tọa độ đoàn realtime',
             icon: Icons.map_outlined,
-            label: 'Mở bản đồ tuyến',
+            actionLabel: 'Mở bản đồ',
             onTap: onMap,
           ),
-          _ActionTile(
+          const SizedBox(height: AppSpacing.md),
+          const Divider(height: 1, thickness: 1, color: AppColors.border),
+          const SizedBox(height: AppSpacing.md),
+          _QuickActionTile(
+            title: 'Danh sách thành viên đoàn',
+            subtitle: 'Điểm danh 24 khách và xem hồ sơ y tế',
             icon: Icons.groups_outlined,
-            label: 'Danh sách đoàn',
+            actionLabel: 'Xem đoàn',
             onTap: onTeam,
           ),
-          _ActionTile(
+          const SizedBox(height: AppSpacing.md),
+          const Divider(height: 1, thickness: 1, color: AppColors.border),
+          const SizedBox(height: AppSpacing.md),
+          _QuickActionTile(
+            title: 'Hồ sơ & Cài đặt thiết bị',
+            subtitle: 'Đồng bộ viễn trắc thiết bị và tùy chọn tài khoản',
             icon: Icons.settings_outlined,
-            label: 'Hồ sơ & cài đặt',
+            actionLabel: 'Cài đặt',
             onTap: onSettings,
           ),
         ],
@@ -502,56 +752,62 @@ class _QuickActions extends StatelessWidget {
   }
 }
 
-class _ActionTile extends StatelessWidget {
-  const _ActionTile({
+class _QuickActionTile extends StatelessWidget {
+  const _QuickActionTile({
+    required this.title,
+    required this.subtitle,
     required this.icon,
-    required this.label,
+    required this.actionLabel,
     required this.onTap,
   });
 
+  final String title;
+  final String subtitle;
   final IconData icon;
-  final String label;
+  final String actionLabel;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: ListTile(
-        contentPadding: EdgeInsets.zero,
-        leading: Icon(icon, color: AppColors.brandPrimary),
-        title: Text(label, style: AppTypography.bodyStrong),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: onTap,
-      ),
-    );
-  }
-}
-
-class _StatusPill extends StatelessWidget {
-  const _StatusPill({required this.label, required this.color});
-
-  final String label;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.md,
-        vertical: AppSpacing.xs,
-      ),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: AppRadius.pillBorderRadius,
-      ),
-      child: Text(
-        label,
-        style: AppTypography.caption.copyWith(
-          color: color,
-          fontWeight: FontWeight.w700,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Text(
+                title,
+                style: AppTypography.bodyStrong.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            CtmsButton(
+              label: actionLabel,
+              variant: CtmsButtonVariant.secondary,
+              onPressed: onTap,
+            ),
+          ],
         ),
-      ),
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            Icon(icon, size: 14, color: AppColors.textSecondary),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Text(
+                subtitle,
+                style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

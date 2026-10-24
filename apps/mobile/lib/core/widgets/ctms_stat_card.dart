@@ -38,6 +38,8 @@ class CtmsStatCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     final deltaColor = delta == null
         ? scheme.onSurfaceVariant
         : delta!.startsWith('-')
@@ -51,7 +53,11 @@ class CtmsStatCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: scheme.surface,
         borderRadius: AppRadius.cardBorderRadius,
-        border: Border.all(color: scheme.outline),
+        border: Border.all(
+          color: isDark ? scheme.outline : AppColors.border,
+          width: 1,
+        ),
+        boxShadow: isDark ? null : AppColors.cardShadow,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -61,10 +67,26 @@ class CtmsStatCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   label.toUpperCase(),
-                  style: AppTypography.label.copyWith(color: scheme.onSurfaceVariant),
+                  style: AppTypography.label.copyWith(
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
-              if (icon != null) Icon(icon, size: 18, color: scheme.onSurfaceVariant),
+              if (icon != null)
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: isDark ? scheme.surfaceContainerHighest : AppColors.brandLight,
+                    borderRadius: AppRadius.iconBoxBorderRadius,
+                  ),
+                  child: Icon(
+                    icon,
+                    size: 16,
+                    color: isDark ? Colors.white : AppColors.brandPrimary,
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: AppSpacing.sm),
@@ -73,13 +95,22 @@ class CtmsStatCard extends StatelessWidget {
             children: [
               Text(
                 value,
-                style: AppTypography.display.copyWith(color: valueColor ?? scheme.onSurface),
+                style: AppTypography.display.copyWith(
+                  color: valueColor ?? (isDark ? Colors.white : AppColors.brandDark),
+                  fontWeight: FontWeight.w800,
+                ),
               ),
               if (delta != null) ...[
                 const SizedBox(width: AppSpacing.sm),
                 Padding(
                   padding: const EdgeInsets.only(bottom: 4),
-                  child: Text(delta!, style: AppTypography.caption.copyWith(color: deltaColor)),
+                  child: Text(
+                    delta!,
+                    style: AppTypography.caption.copyWith(
+                      color: deltaColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
               ],
             ],

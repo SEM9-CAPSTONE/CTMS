@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
 
-/// One of the 2×2 "frosted glass" feature chips on the login hero panel
-/// (§A.2 in `docs/design/FIGMA-SCREEN-INVENTORY.md`). Approximated with a
-/// translucent white fill rather than a real backdrop blur, to keep this a
-/// cheap, purely-decorative widget.
+/// One of the 2×2 feature chips on the login hero panel
+/// (§A.2 in `docs/design/FIGMA-SCREEN-INVENTORY.md`).
+/// Updated for light green + white aesthetic.
 class LoginFeatureChip extends StatelessWidget {
   const LoginFeatureChip({super.key, required this.label});
 
@@ -18,13 +18,16 @@ class LoginFeatureChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.14),
+        color: Colors.white.withValues(alpha: 0.9),
         borderRadius: AppRadius.controlBorderRadius,
-        border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+        border: Border.all(color: AppColors.brandLightBorder),
       ),
       child: Text(
         label,
-        style: AppTypography.caption.copyWith(color: Colors.white, fontWeight: FontWeight.w600),
+        style: AppTypography.caption.copyWith(
+          color: AppColors.brandPrimary,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }

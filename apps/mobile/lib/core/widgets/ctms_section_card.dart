@@ -1,19 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../theme/app_colors.dart';
 import '../theme/app_radius.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_typography.dart';
 
-/// White radius-12 card with a title row — the generic content container
-/// used across DetailDrawer/ChecklistCard-style sections (§2.10–2.11).
-///
-/// ```dart
-/// CtmsSectionCard(
-///   title: 'Trạng thái chuẩn bị',
-///   trailing: Text('6/8', style: AppTypography.caption),
-///   child: const CtmsProgressBar(progress: 0.75),
-/// )
-/// ```
+/// White card with radius-16, subtle soft shadow, and a title row.
+/// Generic content container mirroring the web's clean card component.
 class CtmsSectionCard extends StatelessWidget {
   const CtmsSectionCard({super.key, required this.title, this.trailing, required this.child});
 
@@ -23,14 +16,18 @@ class CtmsSectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.cardPadding),
       decoration: BoxDecoration(
-        color: scheme.surface,
+        color: isDark ? AppColors.brandDark : Colors.white,
         borderRadius: AppRadius.cardBorderRadius,
-        border: Border.all(color: scheme.outline),
+        border: Border.all(
+          color: isDark ? AppColors.textSecondary : AppColors.border,
+          width: 1.0,
+        ),
+        boxShadow: isDark ? null : AppColors.cardShadowSm,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -40,7 +37,10 @@ class CtmsSectionCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   title,
-                  style: AppTypography.h3.copyWith(color: scheme.onSurface),
+                  style: AppTypography.h3.copyWith(
+                    color: isDark ? Colors.white : AppColors.textPrimary,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
               ?trailing,

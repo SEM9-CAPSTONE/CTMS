@@ -67,7 +67,7 @@ class RoleSelectionCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     title,
-                    style: AppTypography.h3.copyWith(color: AppColors.brandPrimary),
+                    style: AppTypography.h3.copyWith(color: AppColors.textPrimary),
                   ),
                 ),
                 if (isSelected)

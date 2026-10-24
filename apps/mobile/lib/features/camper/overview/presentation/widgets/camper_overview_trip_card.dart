@@ -1,18 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_radius.dart';
 import '../../../../../core/theme/app_spacing.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../../../../../core/widgets/ctms_button.dart';
 import '../../../../../core/widgets/ctms_status_badge.dart';
 import '../../domain/camper_overview_models.dart';
-import '../camper_overview_strings.dart';
 
-/// "Chuyến đi sắp tới" card — status badge, trip name/date, a 2×2 info
-/// grid, and the primary CTA into the trip's detail page (not built yet).
+/// "Chuyến đi sắp tới" card — pure white card with subtle border and shadow matching /camper/explore.
 class CamperOverviewTripCard extends StatelessWidget {
-  const CamperOverviewTripCard({super.key, required this.trip, required this.onViewDetail});
+  const CamperOverviewTripCard({
+    super.key,
+    required this.trip,
+    required this.onViewDetail,
+  });
 
   final UpcomingTrip trip;
   final VoidCallback onViewDetail;
@@ -21,94 +24,107 @@ class CamperOverviewTripCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.cardPadding),
-      decoration: BoxDecoration(
-        color: scheme.surface,
-        borderRadius: AppRadius.cardBorderRadius,
-        border: Border.all(color: scheme.outline),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  CamperOverviewStrings.upcomingTripTitle,
-                  style: AppTypography.h3.copyWith(color: scheme.onSurface),
+    return InkWell(
+      onTap: onViewDetail,
+      borderRadius: AppRadius.cardBorderRadius,
+      child: Container(
+        padding: const EdgeInsets.all(AppSpacing.cardPadding),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: AppRadius.cardBorderRadius,
+          border: Border.all(color: AppColors.border, width: 1.0),
+          boxShadow: AppColors.cardShadowSm,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    trip.name,
+                    style: AppTypography.h3.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
                 ),
-              ),
-              CtmsStatusBadge(label: trip.statusLabel, status: CtmsStatus.info),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Text(trip.name, style: AppTypography.bodyStrong.copyWith(color: scheme.onSurface)),
-          const SizedBox(height: 2),
-          Text(
-            '${_dateFormat.format(trip.startDate)} · ${trip.durationDays} ngày',
-            style: AppTypography.caption.copyWith(color: scheme.onSurfaceVariant),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          Row(
-            children: [
-              _InfoCell(
-                label: CamperOverviewStrings.memberCountLabel,
-                value: '${trip.memberCount}',
-              ),
-              _InfoCell(label: CamperOverviewStrings.difficultyLabel, value: trip.difficulty),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Row(
-            children: [
-              _InfoCell(
-                label: CamperOverviewStrings.porterInChargeLabel,
-                value: trip.porterName,
-              ),
-              _InfoCell(
-                label: CamperOverviewStrings.weatherRiskLabel,
-                value: trip.weatherRiskLabel,
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          SizedBox(
-            width: double.infinity,
-            child: CtmsButton(
-              label: CamperOverviewStrings.viewTripDetailCta,
-              onPressed: onViewDetail,
+                const SizedBox(width: AppSpacing.sm),
+                CtmsStatusBadge(
+                  label: trip.statusLabel,
+                  status: CtmsStatus.success,
+                  showDot: true,
+                ),
+              ],
             ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _InfoCell extends StatelessWidget {
-  const _InfoCell({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-
-    return Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label.toUpperCase(),
-            style: AppTypography.label.copyWith(color: scheme.onSurfaceVariant),
-          ),
-          const SizedBox(height: 2),
-          Text(value, style: AppTypography.bodyStrong.copyWith(color: scheme.onSurface)),
-        ],
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                const Icon(Icons.calendar_today_outlined, size: 14, color: AppColors.textSecondary),
+                const SizedBox(width: 4),
+                Text(
+                  '${_dateFormat.format(trip.startDate)} • ${trip.durationDays} ngày',
+                  style: AppTypography.body.copyWith(
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                const Icon(Icons.person_pin_outlined, size: 14, color: AppColors.textSecondary),
+                const SizedBox(width: 4),
+                Text(
+                  'Porter: ${trip.porterName}',
+                  style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                const Icon(Icons.group_outlined, size: 14, color: AppColors.textSecondary),
+                const SizedBox(width: 4),
+                Text(
+                  '${trip.memberCount} thành viên • Độ khó: ${trip.difficulty}',
+                  style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.md),
+            const Divider(height: 1, thickness: 1, color: AppColors.border),
+            const SizedBox(height: AppSpacing.md),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Row(
+                    children: [
+                      const Icon(Icons.sync_outlined, size: 16, color: AppColors.brandPrimary),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          'Đồng bộ ngoại tuyến (15 GPS, 1 sự cố)',
+                          style: AppTypography.caption.copyWith(
+                            color: AppColors.brandPrimary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                CtmsButton(
+                  label: 'Xem chi tiết',
+                  variant: CtmsButtonVariant.primary,
+                  onPressed: onViewDetail,
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

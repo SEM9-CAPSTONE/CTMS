@@ -11,7 +11,7 @@ import {
 	BookingStatus,
 } from "../src/modules/profiles/entities/booking.entity";
 import { UserRole } from "../src/modules/users/entities/user.entity";
-import { repairDemoBookingCancellation } from "../src/seeds/repair-demo-booking-cancellation";
+import { repairDemoBookingCancellation } from "../src/seeds/main.seed";
 import { validationExceptionFactory } from "../src/shared/pipes/validation-exception-factory";
 import { assertSafeTestDatabase } from "./support/assert-safe-test-database";
 
