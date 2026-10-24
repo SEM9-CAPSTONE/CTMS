@@ -8,6 +8,7 @@ import type {
 	BookedTripRouteMap,
 	CancelTripInput,
 	ConfigureTripWaypointsInput,
+	ConfirmCheckpointArrivalPayload,
 	CreatePorterRequestInput,
 	CreateTripInput,
 	CreateTripWaypointInput,
@@ -21,9 +22,11 @@ import type {
 	ReviewTripInput,
 	SearchTripsQuery,
 	SubmitTripInput,
+	SyncCheckpointArrivalsPayload,
 	Trip,
 	TripBookingsResponse,
 	TripDetails,
+	TripOperationalProgress,
 	TripWeatherForecast,
 } from "../types";
 
@@ -153,4 +156,22 @@ export const tripsService = {
 
 	getTripBookings: (tripId: string): Promise<TripBookingsResponse> =>
 		httpClient.get<TripBookingsResponse>(API_ENDPOINTS.TRIPS.BOOKINGS(tripId)),
+	confirmCheckpointArrival: (
+		tripId: string,
+		checkpointId: string,
+		payload: ConfirmCheckpointArrivalPayload
+	): Promise<TripOperationalProgress> =>
+		httpClient.post<TripOperationalProgress>(
+			API_ENDPOINTS.TRIPS.CHECKPOINT_ARRIVAL(tripId, checkpointId),
+			payload
+		),
+
+	syncCheckpointArrivals: (
+		tripId: string,
+		payload: SyncCheckpointArrivalsPayload
+	): Promise<TripOperationalProgress> =>
+		httpClient.post<TripOperationalProgress>(API_ENDPOINTS.TRIPS.CHECKPOINTS_SYNC(tripId), payload),
+
+	getProgress: (tripId: string): Promise<TripOperationalProgress> =>
+		httpClient.get<TripOperationalProgress>(API_ENDPOINTS.TRIPS.PROGRESS(tripId)),
 };

@@ -1,4 +1,4 @@
-import { ApiProperty } from "@nestjs/swagger";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import type { BookingMemberStatus } from "../../bookings/booking-member-status.enum";
 import type { Checkpoint } from "../../trekking-routes/entities/checkpoint.entity";
 import type { RouteDangerZone } from "../../trekking-routes/entities/route-danger-zone.entity";
@@ -10,6 +10,7 @@ import type { RiskLevel } from "../../weather/entities/weather-risk-assessment.e
 import type { WaypointType } from "../entities/trip-waypoint.entity";
 import type { GeoPoint } from "../entities/trip.entity";
 import { PorterAssignedTripResponseDto } from "./porter-assigned-trip-response.dto";
+import type { TripOperationalProgressResponseDto } from "./trip-operational-progress-response.dto";
 
 export interface PorterOperationalRoute {
 	id: string;
@@ -96,4 +97,11 @@ export class PorterTripOperationsResponseDto extends PorterAssignedTripResponseD
 		description: "No offline-package download tracking is implemented yet.",
 	})
 	offlinePackage!: { status: "unavailable"; downloadedAt: null };
+
+	@ApiPropertyOptional({
+		type: Object,
+		description:
+			"Authoritative operational progress and checkpoint arrival visits (CTMS-056 / BR-234)",
+	})
+	progress?: TripOperationalProgressResponseDto | null;
 }

@@ -4,6 +4,7 @@ import { Button } from "../../../shared/components/Button";
 import { DeviceSyncStatusCard } from "../../device-sync";
 import type { RouteCheckpoint } from "../../trekking-routes/types";
 import { TripIncidentsPanel } from "../../trip-incidents";
+import { CheckpointProgressCard } from "../../trips/components/CheckpointProgressCard";
 import { useAssignedTripOperations } from "../../trips/hooks/useAssignedTrips";
 import type { PorterTripOperations, PorterTripWaypoint } from "../../trips/types";
 import {
@@ -221,6 +222,9 @@ function RouteTab({ trip }: { trip: PorterTripOperations }) {
 					/>
 				</Suspense>
 			</div>
+
+			<CheckpointProgressCard tripId={trip.tripId} />
+
 			<h3 className="text-sm font-extrabold text-[#10221b]">
 				Các điểm trên tuyến ({points.length})
 			</h3>

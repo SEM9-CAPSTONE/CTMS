@@ -5,13 +5,16 @@ import { RolesGuard } from "../auth/guards/roles.guard";
 import { PorterProfile } from "../profiles/entities/porter-profile.entity";
 import { RealtimeModule } from "../realtime/realtime.module";
 import { TripsController } from "./controllers/trips.controller";
+import { CheckpointVisit } from "./entities/checkpoint-visit.entity";
 import { PorterRequest } from "./entities/porter-request.entity";
 import { Trip } from "./entities/trip.entity";
 import { AvailablePortersRepository } from "./repositories/available-porters.repository";
+import { CheckpointVisitsRepository } from "./repositories/checkpoint-visits.repository";
 import { PorterRequestsRepository } from "./repositories/porter-requests.repository";
 import { PorterScheduleConflictSource } from "./repositories/porter-schedule-conflict-source";
 import { TripsRepository } from "./repositories/trips.repository";
 import { AvailablePortersService } from "./services/available-porters.service";
+import { CheckpointVisitsService } from "./services/checkpoint-visits.service";
 import { PorterRequestExpiryWorker } from "./services/porter-request-expiry.worker";
 import { PorterRequestsService } from "./services/porter-requests.service";
 import { TripAutoCancelService } from "./services/trip-auto-cancel.service";
@@ -36,6 +39,7 @@ import { TripsService } from "./services/trips.service";
 		TripAutoCancelWorker,
 		TripStatusScheduleService,
 		TripStatusScheduleWorker,
+		CheckpointVisitsService,
 		{
 			provide: TripReviewDeadlineService,
 			useFactory: (tripsService: TripsService) => new TripReviewDeadlineService(tripsService),
@@ -61,7 +65,13 @@ import { TripsService } from "./services/trips.service";
 				new PorterRequestsRepository(PorterRequest, dataSource.createEntityManager()),
 			inject: [DataSource],
 		},
+		{
+			provide: CheckpointVisitsRepository,
+			useFactory: (dataSource: DataSource) =>
+				new CheckpointVisitsRepository(CheckpointVisit, dataSource.createEntityManager()),
+			inject: [DataSource],
+		},
 	],
-	exports: [TripsRepository],
+	exports: [TripsRepository, CheckpointVisitsRepository, CheckpointVisitsService],
 })
 export class TripsModule {}

@@ -46,6 +46,7 @@ export const queryKeys = {
 		all: ["trips"] as const,
 		list: (filters?: Record<string, unknown>) => ["trips", "list", filters] as const,
 		detail: (id: string) => ["trips", "detail", id] as const,
+		progress: (tripId: string) => ["trips", tripId, "progress"] as const,
 	},
 	weather: {
 		risk: (routeId?: string) => ["weather", "risk", { routeId }] as const,

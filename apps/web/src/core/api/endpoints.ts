@@ -93,6 +93,10 @@ export const API_ENDPOINTS = {
 		REVIEW: (id: string) => `/trips/${id}/review`,
 		RESCHEDULE: (id: string) => `/trips/${id}/reschedule`,
 		CANCEL: (id: string) => `/trips/${id}/cancel`,
+		CHECKPOINT_ARRIVAL: (tripId: string, checkpointId: string) =>
+			`/trips/${tripId}/checkpoints/${checkpointId}/arrival`,
+		CHECKPOINTS_SYNC: (tripId: string) => `/trips/${tripId}/checkpoints/sync`,
+		PROGRESS: (tripId: string) => `/trips/${tripId}/progress`,
 	},
 	WEATHER: {
 		RISK_ASSESSMENT: "/weather/risk-assessment",
