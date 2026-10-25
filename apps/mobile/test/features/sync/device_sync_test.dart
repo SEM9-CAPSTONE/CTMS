@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mobile/features/gps_tracking/domain/gps_tracking_models.dart';
 import 'package:mobile/features/incidents/data/incident_store.dart';
 import 'package:mobile/features/incidents/data/incidents_api.dart';
 import 'package:mobile/features/incidents/domain/trip_incident.dart';
@@ -9,6 +10,8 @@ import 'package:mobile/features/sync/application/device_sync_controller.dart';
 import 'package:mobile/features/sync/data/device_sync_api.dart';
 import 'package:mobile/features/sync/domain/device_sync_models.dart';
 import 'package:mobile/features/sync/presentation/device_sync_status_screen.dart';
+
+import '../gps_tracking/gps_fakes.dart' as gps;
 
 class FakeDeviceSyncApi implements DeviceSyncApi {
   Map<String, Object?> response = {
@@ -138,6 +141,50 @@ void main() {
 
       await controller.retry();
       expect(fakeIncidentsApi.reportCalls, equals(1));
+    });
+  });
+
+  group('DeviceSyncController with GPS breadcrumbs (CTMS-059)', () {
+    LocalGpsLog gpsLog() => LocalGpsLog.fromSample(
+      id: newGpsLogId(),
+      tripId: gps.tripId,
+      sample: gps.sampleAt(DateTime.utc(2026, 10, 25, 1)),
+      configVersion: 'v3',
+    );
+
+    test('counts locally buffered GPS logs as pending', () async {
+      final gpsStore = gps.MemoryGpsLogStore()..logs[gps.tripId] = [gpsLog(), gpsLog()];
+      final controller = DeviceSyncController(
+        tripId: gps.tripId,
+        api: FakeDeviceSyncApi(),
+        incidentStore: FakeIncidentStore(),
+        incidentsApi: FakeIncidentsApi(),
+        gpsStore: gpsStore,
+        gpsApi: gps.FakeGpsTrackingApi(),
+      );
+
+      await controller.refresh();
+
+      expect(controller.summary.pendingGpsCount, 2);
+      expect(controller.summary.state, DeviceSyncState.pending);
+    });
+
+    test('retry also uploads pending GPS logs', () async {
+      final gpsStore = gps.MemoryGpsLogStore()..logs[gps.tripId] = [gpsLog()];
+      final gpsApi = gps.FakeGpsTrackingApi();
+      final controller = DeviceSyncController(
+        tripId: gps.tripId,
+        api: FakeDeviceSyncApi(),
+        incidentStore: FakeIncidentStore(),
+        incidentsApi: FakeIncidentsApi(),
+        gpsStore: gpsStore,
+        gpsApi: gpsApi,
+      );
+
+      await controller.retry();
+
+      expect(gpsApi.uploads, hasLength(1));
+      expect(controller.summary.pendingGpsCount, 0);
     });
   });
 

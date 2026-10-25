@@ -62,6 +62,7 @@ class TripEndpoints {
   String getById(String id) => '/trips/$id';
   String members(String tripId) => '/trips/$tripId/members';
   String gpsLogs(String tripId) => '/trips/$tripId/gps-logs';
+  String gpsTrackingContext(String tripId) => '/trips/$tripId/gps-tracking/context';
   String deviceSyncStatus(String tripId) =>
       '/trips/$tripId/device-sync/status';
 }
