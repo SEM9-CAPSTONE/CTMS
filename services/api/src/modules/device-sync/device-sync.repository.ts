@@ -15,7 +15,7 @@ export class DeviceSyncRepository {
 	constructor(private readonly dataSource: DataSource) {}
 
 	async getParticipantSyncStats(tripId: string, userId: string): Promise<ParticipantSyncStats> {
-		const [gpsResult, incidentResult] = await Promise.all([
+		const [gpsResult, safetyResult] = await Promise.all([
 			this.dataSource.query(
 				`SELECT 
 					COUNT(*)::int AS count,
@@ -31,24 +31,29 @@ export class DeviceSyncRepository {
 				`SELECT 
 					COUNT(*)::int AS count,
 					MAX("received_at") AS "lastReceivedAt"
-				 FROM "trip_incidents"
-				 WHERE "trip_id" = $1 AND "reporter_id" = $2`,
+				 FROM (
+					SELECT "received_at" FROM "trip_incidents"
+					WHERE "trip_id" = $1 AND "reporter_id" = $2
+					UNION ALL
+					SELECT "received_at" FROM "safety_events"
+					WHERE "trip_id" = $1 AND "user_id" = $2
+				 ) safety`,
 				[tripId, userId]
 			),
 		]);
 
 		const gpsCount = Number(gpsResult[0]?.count ?? 0);
-		const safetyCount = Number(incidentResult[0]?.count ?? 0);
+		const safetyCount = Number(safetyResult[0]?.count ?? 0);
 		const gpsLast = gpsResult[0]?.lastReceivedAt ? new Date(gpsResult[0].lastReceivedAt) : null;
-		const incidentLast = incidentResult[0]?.lastReceivedAt
-			? new Date(incidentResult[0].lastReceivedAt)
+		const safetyLast = safetyResult[0]?.lastReceivedAt
+			? new Date(safetyResult[0].lastReceivedAt)
 			: null;
 
 		let lastReceivedAt: Date | null = null;
-		if (gpsLast && incidentLast) {
-			lastReceivedAt = gpsLast > incidentLast ? gpsLast : incidentLast;
+		if (gpsLast && safetyLast) {
+			lastReceivedAt = gpsLast > safetyLast ? gpsLast : safetyLast;
 		} else {
-			lastReceivedAt = gpsLast ?? incidentLast;
+			lastReceivedAt = gpsLast ?? safetyLast;
 		}
 
 		const packageVersion = (gpsResult[0]?.packageVersion as string | undefined) ?? null;
@@ -107,10 +112,13 @@ export class DeviceSyncRepository {
 				WHERE "trip_id" = $1
 				GROUP BY "user_id"
 			),
-			user_incidents AS (
+			user_safety AS (
 				SELECT "reporter_id", COUNT(*)::int AS count, MAX("received_at") AS "last_recv"
-				FROM "trip_incidents"
-				WHERE "trip_id" = $1
+				FROM (
+					SELECT "reporter_id", "received_at" FROM "trip_incidents" WHERE "trip_id" = $1
+					UNION ALL
+					SELECT "user_id", "received_at" FROM "safety_events" WHERE "trip_id" = $1
+				) safety
 				GROUP BY "reporter_id"
 			)
 			SELECT 
@@ -122,7 +130,7 @@ export class DeviceSyncRepository {
 				GREATEST(g."last_recv", i."last_recv") AS "lastReceivedAt"
 			FROM trip_participants p
 			LEFT JOIN user_gps g ON g."user_id" = p."userId"
-			LEFT JOIN user_incidents i ON i."reporter_id" = p."userId"
+			LEFT JOIN user_safety i ON i."reporter_id" = p."userId"
 			ORDER BY p."role" DESC, p."displayName" ASC`,
 			[tripId]
 		)) as Array<{

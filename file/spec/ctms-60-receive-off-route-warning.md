@@ -192,3 +192,78 @@ Safety-event synchronization belongs to synchronization stories.
 ## 12. Open Decisions
 
 None for V3 detection thresholds: the PB already fixes the applicable values. Do not replace them with inferred configurable thresholds.
+
+Pending Decisions (raised during CTMS-060-T01, not resolved by any PB/BR value):
+
+- **Authoritative Route/package version.** CTMS-052 Offline Safety Package versioning does not exist yet, so there is no package version to bind events to. Until it does, `routeVersion` is the md5 fingerprint of the Trip's Route geometry. This is safe because a Route referenced by a Trip cannot be edited in place. `package_version` is stored as reported by the client and may be null. Replace or complement `routeVersion` with the package/version identity once CTMS-052 provides it (BR-360, BR-428).
+- **Participants who may report.** The spec names only the Camper. The implementation also accepts events from an assigned Porter, reusing the CTMS-059 participation rules (BR-363 "participant identity"). Confirm or narrow this when the Host dashboard (CTMS-085) consumes the events.
+- **Retention period for `safety_events`.** No retention period has been approved. Rows are append-only and kept indefinitely, same as `gps_logs`.
+
+## 13. Implementation Record
+
+CTMS-060-T01 (Jira CTMS-311): system-side Preparation and Logic. Detection itself stays on the device (BR-238). The server supplies the data needed to detect offline and accepts the resulting events.
+
+- **New `safety-events` API module** with migration `1792713600000-CreateSafetyEventsTable`, which creates `safety_events`:
+  - client UUID as primary key, plus `trip_id`, `user_id`, `participant_role`;
+  - `event_type` enum `OFF_ROUTE | ON_ROUTE_RECOVERED | GPS_DEGRADED | GPS_RESTORED`;
+  - the original client context: `event_time`, optional `location` + `accuracy_meters`, `distance_to_route_meters`, `consecutive_valid_samples`, `no_valid_sample_since`, `detected_offline`;
+  - version context: `route_id` (resolved by the server from the Trip), client `route_version`, optional `package_version`, `config_version`;
+  - server `received_at`.
+
+  Rows are append-only. CHECK constraints repeat the fixed V3 thresholds per type, so no row can claim a transition that its own context does not support, even when written outside the API.
+- **`GET /api/trips/:tripId/route-deviation/context` (Preparation).** Returns:
+  - eligibility, using the same BR-237 live rule as GPS tracking;
+  - the Trip's Route id, `routeVersion` and GeoJSON geometry;
+  - the fixed V3 thresholds as constants, not configuration (Section 8): accuracy ≤ 20 m, OFF_ROUTE > 50 m, recovery < 20 m, 3 consecutive samples, GPS_DEGRADED after 120 s, config version `v3`.
+- **`POST /api/trips/:tripId/safety-events` (Logic).** Accepts at most 100 events and returns a per-event outcome: `accepted`, `duplicate` or `rejected` with a reason. Repeated or concurrent uploads of one UUID store one row and keep the first stored context (BR-244). A UUID owned by another user or Trip is rejected with `ID_CONFLICT`.
+- **Event integrity without re-detection.** The server does not recompute distance or detection state from GPS data; the device result is kept as reported. It checks only that the reported context supports the transition:
+  - the event was detected against the Trip's current Route (`ROUTE_VERSION_MISMATCH` otherwise);
+  - OFF_ROUTE has accuracy ≤ 20, distance > 50 and ≥ 3 samples;
+  - ON_ROUTE_RECOVERED has accuracy ≤ 20, distance < 20 and ≥ 3 samples;
+  - GPS_DEGRADED has `event_time − no_valid_sample_since ≥ 120 s`;
+  - GPS_RESTORED has a VALID sample;
+  - anything else is rejected with `THRESHOLD_NOT_MET`.
+
+  Participation and time-window rejections are the same as for GPS logs.
+- **Audit.** Each newly accepted event writes one `audit_logs` row (`safety_event.received`) in the same SQL statement as the insert. A duplicate upload writes no second audit row.
+- **Synced vs local state (BR-226).** `received_at` and the per-event outcomes are the only server-confirmed state; local detection state stays on the device. The device sync status (CTMS-067) `serverConfirmedSafetyCount` / `lastReceivedAt` and the Host member health now count `safety_events` together with `trip_incidents`. The DTO already described the count as "safety events/incidents"; this change was approved with the plan.
+- **Shared participation rules.** The CTMS-059 participant resolution, live eligibility and participation-window checks moved unchanged from `GpsTrackingService` into `gps-tracking/gps-participant.ts`, so GPS logs and safety events apply identical rules. The existing GPS tests pass unchanged.
+- `docs/report4/DATABASE-TABLE-DESCRIPTIONS.md` lists the new `safety_events` table (BR-212).
+
+Judgment calls (the spec is silent; approved with the plan):
+
+- `routeVersion` is the geometry fingerprint, and Porters may also report (see Pending Decisions).
+- Malformed payloads are rejected as a whole with `422`. Examples: missing confirming sample for OFF_ROUTE / ON_ROUTE_RECOVERED / GPS_RESTORED, missing distance or sample count, missing `noValidSampleSince` for GPS_DEGRADED, a partial location, a timestamp without offset, a config other than `v3`, more than 100 events. Business rejections are per event, so one bad event never blocks the rest of a client buffer.
+- A Trip whose Route cannot be resolved returns `409`.
+
+## 14. Test Evidence
+
+- **Unit:** 36 new tests, all passed: `safety-events.service.spec.ts` (23) and `dto/create-safety-events.dto.spec.ts` (13). They cover a valid path and a violation path for:
+  - BR-375/377/378: 50 m boundary, 2 samples, accuracy 25 m vs exactly 20 m;
+  - BR-382/383: 30 m buffer, exactly 20 m, 1 sample;
+  - BR-387/388: 120 s vs 119 s, restored with accuracy 15 vs 25;
+  - Route version mismatch, participation window, Trip status, Porter assigned/unassigned, idempotency and ID conflict.
+
+  Full suite: `pnpm --filter @ctms/api test` → 1467/1467 passed (125/125 suites).
+- **Integration** (`test/safety-events.integration-spec.ts`, real Postgres/PostGIS, no mocking): 14 passed. Covered:
+  - context for Camper and Porter, version differs for a different geometry, non-ongoing Trip, 403/404/401;
+  - exact persistence of the client context with the server Route and one audit row;
+  - recovery, GPS_DEGRADED without location, and GPS_RESTORED from a Porter;
+  - duplicate retry keeps the first context with no second audit row;
+  - **5 concurrent uploads of one UUID store exactly one row**;
+  - foreign UUID rejected; mixed batch with threshold, route-version and time-window rejections;
+  - non-trackable Trip; 422 and 403;
+  - DB CHECK rejects an inconsistent OFF_ROUTE row;
+  - device sync status counts the accepted safety event.
+
+  Full suite: `pnpm --filter @ctms/api test:integration` (8 shards) → 442/442 passed (44/44 suites), no regression in other modules.
+- `pnpm --filter @ctms/api build` and `pnpm --filter @ctms/api lint` both pass clean.
+- Backend-only task: no UI, so no screenshots.
+
+### Logic Subtask DoD
+
+- [x] Logic implementation completed.
+- [x] Applicable business rules and invariants implemented.
+- [x] Task-specific unit tests added or updated.
+- [x] Task-specific unit tests passed.
+- [x] Applicable backend or integration tests passed.
