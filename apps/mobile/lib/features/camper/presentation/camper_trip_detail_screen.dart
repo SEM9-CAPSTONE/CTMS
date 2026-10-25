@@ -10,6 +10,7 @@ import '../../../core/widgets/ctms_alert_banner.dart';
 import '../../../core/widgets/ctms_button.dart';
 import '../../../core/widgets/ctms_scaffold.dart';
 import '../../../core/widgets/ctms_status_badge.dart';
+import '../../gps_tracking/presentation/gps_tracking_panel.dart';
 import '../../sync/application/device_sync_controller.dart';
 import '../../sync/domain/device_sync_models.dart';
 import '../../sync/presentation/device_sync_status_screen.dart';
@@ -33,7 +34,6 @@ class CamperTripDetailScreen extends ConsumerStatefulWidget {
 class _CamperTripDetailScreenState
     extends ConsumerState<CamperTripDetailScreen> {
   static final _dateFormat = DateFormat('dd/MM/yyyy');
-  bool _showAllGpsLogs = false;
 
   (String, CtmsStatus) _syncBadgeInfo(DeviceSyncState state) => switch (state) {
         DeviceSyncState.synced => ('Đã đồng bộ', CtmsStatus.success),
@@ -54,129 +54,6 @@ class _CamperTripDetailScreenState
     return '$day/$month/$year $hour:$minute';
   }
 
-  static const _sampleGpsLogs = [
-    (
-      order: 15,
-      coord: '11.5432° N, 108.4521° E',
-      landmark: 'Đỉnh Đồi Lính',
-      elevation: '1.240m',
-      time: '14:30:00',
-      synced: true
-    ),
-    (
-      order: 14,
-      coord: '11.5398° N, 108.4485° E',
-      landmark: 'Rừng thông Tà Năng',
-      elevation: '1.215m',
-      time: '14:15:00',
-      synced: true
-    ),
-    (
-      order: 13,
-      coord: '11.5350° N, 108.4420° E',
-      landmark: 'Dốc Cổng Trời',
-      elevation: '1.180m',
-      time: '14:00:00',
-      synced: true
-    ),
-    (
-      order: 12,
-      coord: '11.5312° N, 108.4380° E',
-      landmark: 'Suối Yavly',
-      elevation: '1.120m',
-      time: '13:45:00',
-      synced: true
-    ),
-    (
-      order: 11,
-      coord: '11.5280° N, 108.4335° E',
-      landmark: 'Trạm kiểm lâm',
-      elevation: '1.090m',
-      time: '13:30:00',
-      synced: true
-    ),
-    (
-      order: 10,
-      coord: '11.5245° N, 108.4290° E',
-      landmark: 'Ngã ba Đa Quyn',
-      elevation: '1.050m',
-      time: '13:15:00',
-      synced: true
-    ),
-    (
-      order: 9,
-      coord: '11.5210° N, 108.4245° E',
-      landmark: 'Đồi cỏ cháy',
-      elevation: '1.020m',
-      time: '13:00:00',
-      synced: true
-    ),
-    (
-      order: 8,
-      coord: '11.5175° N, 108.4200° E',
-      landmark: 'Điểm cắm trại C1',
-      elevation: '990m',
-      time: '12:45:00',
-      synced: true
-    ),
-    (
-      order: 7,
-      coord: '11.5140° N, 108.4155° E',
-      landmark: 'Rừng trúc lùn',
-      elevation: '960m',
-      time: '12:30:00',
-      synced: true
-    ),
-    (
-      order: 6,
-      coord: '11.5105° N, 108.4110° E',
-      landmark: 'Khe suối cạn',
-      elevation: '930m',
-      time: '12:15:00',
-      synced: true
-    ),
-    (
-      order: 5,
-      coord: '11.5070° N, 108.4065° E',
-      landmark: 'Cột mốc Lâm Đồng',
-      elevation: '900m',
-      time: '12:00:00',
-      synced: true
-    ),
-    (
-      order: 4,
-      coord: '11.5035° N, 108.4020° E',
-      landmark: 'Bãi hạ trại trưa',
-      elevation: '880m',
-      time: '11:45:00',
-      synced: true
-    ),
-    (
-      order: 3,
-      coord: '11.5000° N, 108.3975° E',
-      landmark: 'Lối mòn sườn đông',
-      elevation: '850m',
-      time: '11:30:00',
-      synced: true
-    ),
-    (
-      order: 2,
-      coord: '11.4965° N, 108.3930° E',
-      landmark: 'Cửa rừng Tà Năng',
-      elevation: '820m',
-      time: '11:15:00',
-      synced: true
-    ),
-    (
-      order: 1,
-      coord: '11.4930° N, 108.3885° E',
-      landmark: 'Điểm xuất phát (Basecamp)',
-      elevation: '800m',
-      time: '11:00:00',
-      synced: true
-    ),
-  ];
-
   @override
   Widget build(BuildContext context) {
     final syncController =
@@ -194,9 +71,6 @@ class _CamperTripDetailScreenState
     final difficultyText = widget.trip?.difficulty ?? 'Trung bình';
     final porterText = widget.trip?.porterName ?? 'Nguyễn Minh Sơn';
     final weatherRiskText = widget.trip?.weatherRiskLabel ?? 'An toàn';
-
-    final displayedLogs =
-        _showAllGpsLogs ? _sampleGpsLogs : _sampleGpsLogs.take(5).toList();
 
     return CtmsScaffold(
       title: 'Chi tiết chuyến đi',
@@ -478,49 +352,6 @@ class _CamperTripDetailScreenState
 
                 const SizedBox(height: AppSpacing.lg),
 
-                // GPS Logs Stream / Breadcrumbs List Header (Protected from overflow)
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.route_outlined,
-                      size: 16,
-                      color: Colors.black,
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        'Lịch sử tọa độ GPS (${summary.serverConfirmedGpsCount > 0 ? summary.serverConfirmedGpsCount : _sampleGpsLogs.length} điểm)',
-                        style: AppTypography.caption.copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: Colors.black,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.sm),
-                    GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          _showAllGpsLogs = !_showAllGpsLogs;
-                        });
-                      },
-                      child: Text(
-                        _showAllGpsLogs ? 'Thu gọn' : 'Xem tất cả',
-                        style: AppTypography.caption.copyWith(
-                          color: Colors.black,
-                          fontWeight: FontWeight.w800,
-                          decoration: TextDecoration.underline,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: AppSpacing.sm),
-
-                // GPS Log items
-                ...displayedLogs.map((log) => _GpsBreadcrumbTile(log: log)),
 
                 const SizedBox(height: AppSpacing.md),
                 const Divider(height: 1, thickness: 1, color: AppColors.border),
@@ -577,6 +408,10 @@ class _CamperTripDetailScreenState
               ],
             ),
           ),
+
+          // GPS breadcrumbs recorded on this device (CTMS-059)
+          GpsTrackingPanel(tripId: widget.tripId),
+          const SizedBox(height: AppSpacing.lg),
 
           // 3. Section: Hỗ trợ an toàn & Khẩn cấp
           Text(
@@ -843,87 +678,6 @@ class _TelemetryMetricCard extends StatelessWidget {
                 ],
               ),
             ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _GpsBreadcrumbTile extends StatelessWidget {
-  const _GpsBreadcrumbTile({required this.log});
-
-  final ({
-    int order,
-    String coord,
-    String landmark,
-    String elevation,
-    String time,
-    bool synced,
-  }) log;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(top: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: AppRadius.controlBorderRadius,
-        border: Border.all(color: AppColors.border, width: 1.0),
-        boxShadow: AppColors.cardShadowSm,
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 24,
-            height: 24,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: AppColors.brandLight,
-              borderRadius: AppRadius.pillBorderRadius,
-            ),
-            child: Text(
-              '#${log.order}',
-              style: const TextStyle(
-                color: Colors.black,
-                fontSize: 10,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  '${log.landmark} (${log.elevation})',
-                  style: AppTypography.caption.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: Colors.black,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                Text(
-                  '${log.coord} · ${log.time}',
-                  style: AppTypography.caption.copyWith(
-                    color: Colors.black,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 6),
-          const CtmsStatusBadge(
-            label: 'Đã nhận',
-            status: CtmsStatus.success,
           ),
         ],
       ),

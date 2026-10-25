@@ -190,3 +190,54 @@ Judgment calls (spec silent; chosen by the user/agent and recorded here):
 - [x] Task-specific unit tests added or updated.
 - [x] Task-specific unit tests passed.
 - [x] Applicable backend or integration tests passed.
+
+## 15. Implementation Record — CTMS-059-T02 (Jira CTMS-310), mobile UI
+
+- **New Flutter feature `lib/features/gps_tracking/`:**
+  - `GpsTrackingController` (one per Trip, Riverpod family) asks the server tracking context first and records only when `eligible` is true and location permission is granted (BR-237). It re-reads eligibility every 5 minutes and stops as soon as the Trip or participation is no longer trackable or the permission is revoked.
+  - Sampling and logging intervals come from the server context (10 s / 30 s, BR-368/396); the client exposes no setting to change them.
+  - At each logging boundary the latest sample captured since the previous boundary is persisted (`selectBoundarySample`). Without a fresh sample nothing is logged and the panel says so; an old coordinate is never re-logged as new (BR-396). The sample keeps the platform fix time as `eventTime`, sent as UTC with offset (BR-188).
+  - Each log gets a device-generated UUID v4 and carries coordinates, accuracy, altitude when available and `configVersion`; it is owned by user + Trip, not by device.
+- **Local-first buffer:** `FileGpsLogStore` keeps one JSON file per Trip in private app storage, isolated by account. `update` serializes read-modify-write so a new log appended while an upload result is recorded is never lost; one store instance is shared by tracking and the device sync screen.
+- **Upload with per-log outcome (`synchronizeGpsLogs`):** batches of at most 100; `accepted`/`duplicate` → synced, `rejected` → failed with the server reason (final), transport errors → pending with exponential backoff (5 s … 300 s).
+- **UI:** `GpsTrackingPanel` (built on `CtmsSectionCard`, `CtmsStatusBadge`, `CtmsAlertBanner`, `CtmsButton`, colours from the active `ColorScheme`, so it follows the dark theme): status, latest sample with freshness (stale after 30 s), pending/synced/rejected counts, recent logs, permission request and "Đồng bộ ngay".
+  - Camper trip detail: the hard-coded sample GPS list was replaced by the panel.
+  - Porter "Bản đồ": the hard-coded "GPS Đang bật" card was replaced by the panel for the Porter's ongoing assigned Trip (from `GET /trips/assigned`).
+  - Device sync (CTMS-067): `pendingGpsCount` now comes from the real buffer and "Thử lại" also uploads pending GPS logs.
+  - iOS location usage text now also mentions GPS recording.
+
+Judgment calls (approved by the user on 2026-10-25):
+
+- Basic upload and retry are implemented here because the Jira DoD requires backend integration and visible pending/sync/error state; the full buffer and synchronization behaviour stays in CTMS-064/065.
+- Recording runs while the app is open. Background location and power management remain a Technical Design decision (Section 12).
+- `batteryLevel` is left empty: no battery package is installed and no new dependency was added. `packageVersion` is empty until offline packages (EPIC-08) exist.
+- Altitude `0` from the platform is treated as "not available".
+
+Pending issues found (not fixed in this task):
+
+- `develop` has two DI bugs that stop the API from booting: `import type { TripsService }` in `trip-review-deadline.service.ts`, and `import type` of `TripsRepository` / `EventsGateway` in `trips.service.ts` (from the CTMS-56 merge). They were patched locally only to run the app.
+- In the camper trip detail, the existing CTMS-067 action row overflows when its label is rendered wider; the screen still uses hard-coded light colours in dark mode. Both belong to the ongoing mobile UI refactor.
+
+## 16. Test Evidence — CTMS-059-T02
+
+- `flutter analyze`: no issues.
+- `flutter test`: 157 tests passed (new: `gps_tracking_models_test.dart`, `gps_log_store_sync_test.dart`, `gps_tracking_controller_test.dart`, `gps_tracking_panel_test.dart` with light and dark themes; `device_sync_test.dart` GPS cases).
+  - Covered: eligible start, not-eligible and no-permission paths, permission granted later, boundary log with capture time and config, no fresh sample → no log, offline buffering then upload, permission revoked and eligibility lost → stop, offline recheck keeps the last decision, accepted/duplicate/rejected outcomes, backoff, 422 failure, batches of 100, concurrent appends and append during upload.
+- Backend integration on the local stack: the tracking context returned `eligible: true` (10 s / 30 s, `v3`) for a checked-in Camper of an ongoing Trip; logs built with `LocalGpsLog.toPayload` were `accepted`, and re-sending them returned `duplicate`.
+- Screens rendered from the real widgets (camper trip detail, dark and light theme) are attached to the PR; no Android emulator was available on this machine, so device screenshots are still to be taken.
+
+### UI Subtask DoD
+
+- [x] UI implementation completed
+- [x] Applicable client-side behavior implemented
+- [x] Task-specific unit/component tests passed
+- [x] Backend integration completed
+- [ ] Task-specific E2E tests passed (no device/emulator available)
+- [x] All Story Acceptance Criteria verified (unit/widget level)
+- [x] Unit regression tests passed
+- [ ] E2E regression tests passed (no device/emulator available)
+- [x] lint:all passed (mobile `flutter analyze`)
+- [x] build:all passed (no API/web change; mobile analyze clean)
+- [x] test:all passed (mobile `flutter test`)
+- [ ] Required CI checks passed
+

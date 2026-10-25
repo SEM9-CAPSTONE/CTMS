@@ -7,6 +7,7 @@ import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/ctms_button.dart';
 import '../../../core/widgets/ctms_scaffold.dart';
 import '../../../core/widgets/ctms_status_badge.dart';
+import '../../gps_tracking/presentation/porter_gps_tracking_section.dart';
 
 class PorterMapScreen extends StatelessWidget {
   const PorterMapScreen({super.key});
@@ -19,56 +20,8 @@ class PorterMapScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(AppSpacing.xxl),
         children: [
-          // 1. Current Telemetry Status Card
-          Container(
-            padding: const EdgeInsets.all(AppSpacing.cardPadding),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: AppRadius.cardBorderRadius,
-              border: Border.all(color: AppColors.border, width: 1.0),
-              boxShadow: AppColors.cardShadowSm,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Tuyến Sơn Trà – Bãi Bắc',
-                      style: AppTypography.h3.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    const CtmsStatusBadge(
-                      label: 'GPS Đang bật',
-                      status: CtmsStatus.success,
-                      showDot: true,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Vị trí hiện tại: 11.5312° N, 108.4380° E • Suối Yavly',
-                  style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                const Divider(height: 1, thickness: 1, color: AppColors.border),
-                const SizedBox(height: AppSpacing.md),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _MapStat(label: 'ĐỘ CAO', value: '1.120 m'),
-                    Container(width: 1, height: 32, color: AppColors.border),
-                    _MapStat(label: 'TỐC ĐỘ', value: '3.2 km/h'),
-                    Container(width: 1, height: 32, color: AppColors.border),
-                    _MapStat(label: 'QUÃNG ĐƯỜNG', value: '5.4 / 12.5 km'),
-                  ],
-                ),
-              ],
-            ),
-          ),
+          // 1. GPS breadcrumbs of the ongoing assigned Trip (CTMS-059)
+          const PorterGpsTrackingSection(),
 
           const SizedBox(height: AppSpacing.lg),
 
@@ -178,23 +131,6 @@ class PorterMapScreen extends StatelessWidget {
   }
 }
 
-class _MapStat extends StatelessWidget {
-  const _MapStat({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(label, style: AppTypography.label.copyWith(fontSize: 10, color: AppColors.textSecondary)),
-        const SizedBox(height: 2),
-        Text(value, style: AppTypography.bodyStrong.copyWith(color: AppColors.textPrimary)),
-      ],
-    );
-  }
-}
 
 class _CheckpointRow extends StatelessWidget {
   const _CheckpointRow({
