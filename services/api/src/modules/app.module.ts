@@ -11,6 +11,7 @@ import { HealthController } from "./health/health.controller";
 import { IncidentsModule } from "./incidents/incidents.module";
 import { ProfilesModule } from "./profiles/profiles.module";
 import { RealtimeModule } from "./realtime/realtime.module";
+import { SafetyEventsModule } from "./safety-events/safety-events.module";
 import { TrekkingRoutesModule } from "./trekking-routes/trekking-routes.module";
 import { TripsModule } from "./trips/trips.module";
 import { UploadsModule } from "./uploads/uploads.module";
@@ -33,6 +34,7 @@ import { WeatherModule } from "./weather/weather.module";
 		IncidentsModule,
 		ProfilesModule,
 		RealtimeModule,
+		SafetyEventsModule,
 		UsersModule,
 		TrekkingRoutesModule,
 		TripsModule,

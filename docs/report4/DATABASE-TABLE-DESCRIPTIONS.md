@@ -1,6 +1,6 @@
 # Database Table Descriptions
 
-The following table provides the technical and functional descriptions for all 42 database tables in the CTMS (Camping & Trekking Management System) schema.
+The following table provides the technical and functional descriptions for all 43 database tables in the CTMS (Camping & Trekking Management System) schema.
 
 | No | Table | Description |
 | :---: | :--- | :--- |
@@ -46,3 +46,4 @@ The following table provides the technical and functional descriptions for all 4
 | **40** | `incidents` | Manages formal incident resolution cases stemming from SOS alarms or on-trail reports, tracking assigned handlers, incident statuses, and resolution notes. |
 | **41** | `notifications` | Manages multi-channel user alerts (trip updates, booking deadlines, weather warnings, SOS broadcast alerts) and delivery/read statuses. |
 | **42** | `audit_logs` | Provides immutable security audit logging of critical actions, entity changes, actor identities, and metadata for compliance and traceability. |
+| **43** | `safety_events` | Stores route-deviation and GPS-quality transitions detected on hiker devices (OFF_ROUTE, ON_ROUTE_RECOVERED, GPS_DEGRADED, GPS_RESTORED) with the original client context (event time, location, accuracy, distance to route, offline flag), the authoritative route and route/package/config versions, and the server receipt time; idempotent by client UUID. |

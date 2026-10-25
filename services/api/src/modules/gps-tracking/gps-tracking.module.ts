@@ -15,5 +15,6 @@ import { GpsTrackingService } from "./gps-tracking.service";
 		JwtAuthGuard,
 		RolesGuard,
 	],
+	exports: [GpsParticipationSource],
 })
 export class GpsTrackingModule {}
