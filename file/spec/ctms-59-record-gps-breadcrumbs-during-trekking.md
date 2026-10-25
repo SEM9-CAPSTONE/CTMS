@@ -224,7 +224,12 @@ Pending issues found (not fixed in this task):
 - `flutter test`: 157 tests passed (new: `gps_tracking_models_test.dart`, `gps_log_store_sync_test.dart`, `gps_tracking_controller_test.dart`, `gps_tracking_panel_test.dart` with light and dark themes; `device_sync_test.dart` GPS cases).
   - Covered: eligible start, not-eligible and no-permission paths, permission granted later, boundary log with capture time and config, no fresh sample → no log, offline buffering then upload, permission revoked and eligibility lost → stop, offline recheck keeps the last decision, accepted/duplicate/rejected outcomes, backoff, 422 failure, batches of 100, concurrent appends and append during upload.
 - Backend integration on the local stack: the tracking context returned `eligible: true` (10 s / 30 s, `v3`) for a checked-in Camper of an ongoing Trip; logs built with `LocalGpsLog.toPayload` were `accepted`, and re-sending them returned `duplicate`.
-- Screens rendered from the real widgets (camper trip detail, dark and light theme) are attached to the PR; no Android emulator was available on this machine, so device screenshots are still to be taken.
+- Screens rendered from the real widgets (camper trip detail, dark and light theme) are attached to the PR.
+- Manual end-to-end run of the app built for the web (release build, 412×915 mobile viewport, dark mode, browser geolocation emulated by Playwright) against the local API, signed in as the assigned Porter of an ongoing Trip:
+  - The Porter "Bản đồ" panel showed "Đang ghi" with the real coordinates.
+  - With a stationary position the browser kept returning the same fix: the panel showed "Tín hiệu cũ 70s" and "Không có mẫu GPS mới…" and created no log (BR-396).
+  - While moving (new fix every 8 s) one log was created every 30 s (21:16:46, 21:17:18, 21:17:50) and all were "Đã đồng bộ"; `gps_logs` contained exactly those three rows with the same event times, coordinates and `config_version = v3`.
+  - The web build needed a temporary in-memory buffer because file storage is unavailable on the web; that patch was local only and is not part of the change. No Android device or emulator was available, so a run on a physical device is still pending.
 
 ### UI Subtask DoD
 
@@ -232,7 +237,7 @@ Pending issues found (not fixed in this task):
 - [x] Applicable client-side behavior implemented
 - [x] Task-specific unit/component tests passed
 - [x] Backend integration completed
-- [ ] Task-specific E2E tests passed (no device/emulator available)
+- [x] Task-specific E2E tests passed (manual run of the web build in a mobile viewport against the real API; physical device run still pending)
 - [x] All Story Acceptance Criteria verified (unit/widget level)
 - [x] Unit regression tests passed
 - [ ] E2E regression tests passed (no device/emulator available)
