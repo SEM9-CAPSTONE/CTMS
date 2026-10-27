@@ -1,9 +1,21 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resetPorterVerificationGateCache } from "../features/porter-verification/components/PorterVerificationGate";
 import type { RoleKey } from "../features/role-landing/types";
 import { AppRoutes } from "./AppRoutes";
 import { RoutePath } from "./routes.config";
+
+async function renderLazy(...args: Parameters<typeof render>) {
+	const result = render(...args);
+	await waitForPage();
+	return result;
+}
+
+async function waitForPage() {
+	await waitFor(() => {
+		expect(document.querySelector('[aria-busy="true"]')).toBeNull();
+	});
+}
 
 vi.mock("../features/auth/hooks/useSessionCheck", () => ({ useSessionCheck: () => false }));
 vi.mock("../features/auth/hooks/useIdleLogout", () => ({ useIdleLogout: () => undefined }));
@@ -59,30 +71,36 @@ describe("Porter Profile routing", () => {
 		window.history.replaceState({}, "", RoutePath.DASHBOARD);
 	});
 
-	it("routes the dashboard Porter action to the Porter-specific Profile URL", () => {
+	it("routes the dashboard Porter action to the Porter-specific Profile URL", async () => {
 		signIn(["porter"]);
-		render(<AppRoutes />);
+		await renderLazy(<AppRoutes />);
 
-		fireEvent.click(screen.getByRole("button", { name: "Open Porter Profile" }));
+		await act(async () => {
+			fireEvent.click(screen.getByRole("button", { name: "Open Porter Profile" }));
+		});
+		await waitForPage();
 
 		expect(window.location.pathname).toBe(RoutePath.PORTER_PROFILE);
 		expect(screen.getByRole("region", { name: "Porter profile content" })).toBeInTheDocument();
 	});
 
-	it("preserves Camper dashboard Profile navigation", () => {
+	it("preserves Camper dashboard Profile navigation", async () => {
 		signIn(["camper"]);
-		render(<AppRoutes />);
+		await renderLazy(<AppRoutes />);
 
-		fireEvent.click(screen.getByRole("button", { name: "Open Camper Profile" }));
+		await act(async () => {
+			fireEvent.click(screen.getByRole("button", { name: "Open Camper Profile" }));
+		});
+		await waitForPage();
 
 		expect(window.location.pathname).toBe(RoutePath.CAMPER_PROFILE);
 		expect(screen.getByRole("region", { name: "Camper profile content" })).toBeInTheDocument();
 	});
 
-	it("renders a direct Porter Profile URL inside the Porter layout and marks Profile active", () => {
+	it("renders a direct Porter Profile URL inside the Porter layout and marks Profile active", async () => {
 		signIn(["porter"]);
 		window.history.replaceState({}, "", RoutePath.PORTER_PROFILE);
-		render(<AppRoutes />);
+		await renderLazy(<AppRoutes />);
 
 		expect(screen.getByRole("region", { name: "Porter profile content" })).toBeInTheDocument();
 		expect(screen.getByRole("navigation", { name: "Dashboard navigation" })).toBeInTheDocument();
@@ -92,10 +110,10 @@ describe("Porter Profile routing", () => {
 		);
 	});
 
-	it("keeps the Porter layout for a multi-role Host and Porter account", () => {
+	it("keeps the Porter layout for a multi-role Host and Porter account", async () => {
 		signIn(["host", "porter"]);
 		window.history.replaceState({}, "", RoutePath.PORTER_PROFILE);
-		render(<AppRoutes />);
+		await renderLazy(<AppRoutes />);
 
 		expect(screen.getByText("Porter Ops")).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "Hồ sơ & Năng lực" })).toHaveAttribute(
@@ -107,16 +125,16 @@ describe("Porter Profile routing", () => {
 	it("canonicalizes a legacy Camper Profile URL for a Porter-only account", async () => {
 		signIn(["porter"]);
 		window.history.replaceState({}, "", RoutePath.CAMPER_PROFILE);
-		render(<AppRoutes />);
+		await renderLazy(<AppRoutes />);
 
 		await waitFor(() => expect(window.location.pathname).toBe(RoutePath.PORTER_PROFILE));
 		expect(screen.getByRole("region", { name: "Porter profile content" })).toBeInTheDocument();
 	});
 
-	it("denies the Porter Profile route to users without the Porter role", () => {
+	it("denies the Porter Profile route to users without the Porter role", async () => {
 		signIn(["host"]);
 		window.history.replaceState({}, "", RoutePath.PORTER_PROFILE);
-		render(<AppRoutes />);
+		await renderLazy(<AppRoutes />);
 
 		expect(screen.getByRole("heading", { name: "Truy cập bị từ chối" })).toBeInTheDocument();
 		expect(

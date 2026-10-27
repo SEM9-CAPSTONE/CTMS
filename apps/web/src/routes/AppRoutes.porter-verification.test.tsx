@@ -5,6 +5,18 @@ import { porterVerificationService } from "../features/porter-verification/servi
 import { AppRoutes } from "./AppRoutes";
 import { RoutePath } from "./routes.config";
 
+async function renderLazy(...args: Parameters<typeof render>) {
+	const result = render(...args);
+	await waitForPage();
+	return result;
+}
+
+async function waitForPage() {
+	await waitFor(() => {
+		expect(document.querySelector('[aria-busy="true"]')).toBeNull();
+	});
+}
+
 vi.mock("../features/auth/hooks/useSessionCheck", () => ({ useSessionCheck: () => false }));
 vi.mock("../features/auth/hooks/useIdleLogout", () => ({ useIdleLogout: () => undefined }));
 vi.mock("../features/camper-profile/services/camper-profile.service", () => ({
@@ -64,7 +76,7 @@ describe("Porter verification routing", () => {
 			verification("pending_documents")
 		);
 		window.history.replaceState({}, "", RoutePath.PORTER_REQUESTS);
-		render(<AppRoutes />);
+		await renderLazy(<AppRoutes />);
 
 		expect(await screen.findByText("Xác minh chứng chỉ Porter")).toBeInTheDocument();
 		expect(window.location.pathname).toBe(RoutePath.PORTER_VERIFICATION);
@@ -77,7 +89,7 @@ describe("Porter verification routing", () => {
 			verification("pending_documents")
 		);
 		window.history.replaceState({}, "", RoutePath.DASHBOARD);
-		render(<AppRoutes />);
+		await renderLazy(<AppRoutes />);
 
 		await waitFor(() => expect(window.location.pathname).toBe(RoutePath.PORTER_VERIFICATION));
 		expect(screen.queryByText("Role dashboard")).not.toBeInTheDocument();
@@ -87,7 +99,7 @@ describe("Porter verification routing", () => {
 		signIn(["porter"]);
 		vi.mocked(porterVerificationService.getMine).mockResolvedValue(verification("approved"));
 		window.history.replaceState({}, "", RoutePath.PORTER_REQUESTS);
-		render(<AppRoutes />);
+		await renderLazy(<AppRoutes />);
 
 		expect(await screen.findByText("Porter requests")).toBeInTheDocument();
 		expect(window.location.pathname).toBe(RoutePath.PORTER_REQUESTS);
@@ -96,7 +108,7 @@ describe("Porter verification routing", () => {
 	it("does not gate the dashboard for a user who also has another role", async () => {
 		signIn(["host", "porter"]);
 		window.history.replaceState({}, "", RoutePath.DASHBOARD);
-		render(<AppRoutes />);
+		await renderLazy(<AppRoutes />);
 
 		expect(await screen.findByText("Role dashboard")).toBeInTheDocument();
 		expect(porterVerificationService.getMine).not.toHaveBeenCalled();

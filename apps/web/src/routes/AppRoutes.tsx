@@ -1,58 +1,221 @@
-import { type ReactNode, useCallback, useEffect, useState } from "react";
+import { type ReactNode, Suspense, lazy, useCallback, useEffect, useState } from "react";
 import { HttpError } from "../core/api";
 import { clearAuthSessionAndRedirect } from "../core/api/authSessionSync";
 import { guardedNavigation } from "../core/navigation-guard";
-import { AdminAuditLogsPage } from "../features/admin-audit-logs/pages/AdminAuditLogsPage";
-import { AdminContentReportsPage } from "../features/admin-content-reports/pages/AdminContentReportsPage";
-import { AdminPorterVerificationsPage } from "../features/admin-porter-verifications/pages/AdminPorterVerificationsPage";
-import { AdminRefundsPage } from "../features/admin-refunds/pages/AdminRefundsPage";
-import { AdminUserAccountsPage } from "../features/admin-user-accounts/pages/AdminUserAccountsPage";
-import { AdminWeatherRulesPage } from "../features/admin-weather-rules/pages/AdminWeatherRulesPage";
 import { SessionCheckScreen } from "../features/auth/components/SessionCheckScreen";
 import { useIdleLogout } from "../features/auth/hooks/useIdleLogout";
 import { useSessionCheck } from "../features/auth/hooks/useSessionCheck";
-import { ForgotPasswordPage } from "../features/auth/pages/ForgotPasswordPage";
-import { LoginPage } from "../features/auth/pages/LoginPage";
-import { RegisterPage } from "../features/auth/pages/RegisterPage";
-import { VerifyOtpPage } from "../features/auth/pages/VerifyOtpPage";
 import { authService } from "../features/auth/services/auth.service";
 import { getGrantedRoles } from "../features/auth/utils/permissions";
 import { getRefreshToken, getStoredAuthUser } from "../features/auth/utils/tokenStorage";
-import { BookingDetailsPage } from "../features/booking-details/pages/BookingDetailsPage";
 import type { BookingDetails } from "../features/booking-details/types";
-import { BookingListPage } from "../features/booking-list/pages/BookingListPage";
-import { TripRosterPage } from "../features/booking-members/pages/TripRosterPage";
-import { CamperProfilePage } from "../features/camper-profile/pages/CamperProfilePage";
-import { EquipmentCatalogPage } from "../features/equipment-catalog/pages/EquipmentCatalogPage";
-import { LandingPage } from "../features/landing/pages/LandingPage";
-import { PorterProfilePage } from "../features/porter-profile/pages/PorterProfilePage";
-import { PorterVerificationGate } from "../features/porter-verification/components/PorterVerificationGate";
-import { PorterVerificationPage } from "../features/porter-verification/pages/PorterVerificationPage";
-import { HostLayout } from "../features/role-landing/components/HostLayout";
-import { PorterAssignedTripDetail } from "../features/role-landing/components/PorterAssignedTripDetail";
-import { PorterAssignedTripsPanel } from "../features/role-landing/components/PorterAssignedTripsPanel";
-import { RoleLandingPage } from "../features/role-landing/pages/RoleLandingPage";
-import { AdminSettlementsPage } from "../features/settlements/pages/AdminSettlementsPage";
-import { HostWalletPage } from "../features/settlements/pages/HostWalletPage";
-import { AdminTrekkingRoutesPage } from "../features/trekking-routes/pages/AdminTrekkingRoutesPage";
-import { CreateTrekkingRoutePage } from "../features/trekking-routes/pages/CreateTrekkingRoutePage";
-import { TrekkingRouteDetailPage } from "../features/trekking-routes/pages/TrekkingRouteDetailPage";
-import { TrekkingRoutesPage } from "../features/trekking-routes/pages/TrekkingRoutesPage";
-import { AdminTripsPage } from "../features/trips/pages/AdminTripsPage";
-import { CreateTripPage } from "../features/trips/pages/CreateTripPage";
-import { HostCampersPage } from "../features/trips/pages/HostCampersPage";
-import { HostPorterRequestsPage } from "../features/trips/pages/HostPorterRequestsPage";
-import { PorterRequestsPage } from "../features/trips/pages/PorterRequestsPage";
-import { SearchTripsPage } from "../features/trips/pages/SearchTripsPage";
-import { TripDetailPage } from "../features/trips/pages/TripDetailPage";
-import { EdgeCasePage, ErrorPage, NotFoundPage, UnauthorizedPage } from "../shared/pages";
+import { PageSkeleton } from "../shared/components/PageSkeleton";
 import { AppRoleGuard } from "./AppRoleGuard";
 import { getAuthenticatedHomePath, getGuestOnlyRedirectPath } from "./authRedirect";
 import { GUEST_ONLY_PATHS, RoutePath } from "./routes.config";
 
+const AdminAuditLogsPage = lazy(() =>
+	import("../features/admin-audit-logs/pages/AdminAuditLogsPage").then((module) => ({
+		default: module.AdminAuditLogsPage,
+	}))
+);
+const AdminContentReportsPage = lazy(() =>
+	import("../features/admin-content-reports/pages/AdminContentReportsPage").then((module) => ({
+		default: module.AdminContentReportsPage,
+	}))
+);
+const AdminPorterVerificationsPage = lazy(() =>
+	import("../features/admin-porter-verifications/pages/AdminPorterVerificationsPage").then(
+		(module) => ({ default: module.AdminPorterVerificationsPage })
+	)
+);
+const AdminRefundsPage = lazy(() =>
+	import("../features/admin-refunds/pages/AdminRefundsPage").then((module) => ({
+		default: module.AdminRefundsPage,
+	}))
+);
+const AdminUserAccountsPage = lazy(() =>
+	import("../features/admin-user-accounts/pages/AdminUserAccountsPage").then((module) => ({
+		default: module.AdminUserAccountsPage,
+	}))
+);
+const AdminWeatherRulesPage = lazy(() =>
+	import("../features/admin-weather-rules/pages/AdminWeatherRulesPage").then((module) => ({
+		default: module.AdminWeatherRulesPage,
+	}))
+);
+const ForgotPasswordPage = lazy(() =>
+	import("../features/auth/pages/ForgotPasswordPage").then((module) => ({
+		default: module.ForgotPasswordPage,
+	}))
+);
+const LoginPage = lazy(() =>
+	import("../features/auth/pages/LoginPage").then((module) => ({ default: module.LoginPage }))
+);
+const RegisterPage = lazy(() =>
+	import("../features/auth/pages/RegisterPage").then((module) => ({ default: module.RegisterPage }))
+);
+const VerifyOtpPage = lazy(() =>
+	import("../features/auth/pages/VerifyOtpPage").then((module) => ({
+		default: module.VerifyOtpPage,
+	}))
+);
+const BookingDetailsPage = lazy(() =>
+	import("../features/booking-details/pages/BookingDetailsPage").then((module) => ({
+		default: module.BookingDetailsPage,
+	}))
+);
+const BookingListPage = lazy(() =>
+	import("../features/booking-list/pages/BookingListPage").then((module) => ({
+		default: module.BookingListPage,
+	}))
+);
+const TripRosterPage = lazy(() =>
+	import("../features/booking-members/pages/TripRosterPage").then((module) => ({
+		default: module.TripRosterPage,
+	}))
+);
+const CamperProfilePage = lazy(() =>
+	import("../features/camper-profile/pages/CamperProfilePage").then((module) => ({
+		default: module.CamperProfilePage,
+	}))
+);
+const EquipmentCatalogPage = lazy(() =>
+	import("../features/equipment-catalog/pages/EquipmentCatalogPage").then((module) => ({
+		default: module.EquipmentCatalogPage,
+	}))
+);
+const LandingPage = lazy(() =>
+	import("../features/landing/pages/LandingPage").then((module) => ({
+		default: module.LandingPage,
+	}))
+);
+const PorterProfilePage = lazy(() =>
+	import("../features/porter-profile/pages/PorterProfilePage").then((module) => ({
+		default: module.PorterProfilePage,
+	}))
+);
+const PorterVerificationGate = lazy(() =>
+	import("../features/porter-verification/components/PorterVerificationGate").then((module) => ({
+		default: module.PorterVerificationGate,
+	}))
+);
+const PorterVerificationPage = lazy(() =>
+	import("../features/porter-verification/pages/PorterVerificationPage").then((module) => ({
+		default: module.PorterVerificationPage,
+	}))
+);
+const HostLayout = lazy(() =>
+	import("../features/role-landing/components/HostLayout").then((module) => ({
+		default: module.HostLayout,
+	}))
+);
+const PorterAssignedTripDetail = lazy(() =>
+	import("../features/role-landing/components/PorterAssignedTripDetail").then((module) => ({
+		default: module.PorterAssignedTripDetail,
+	}))
+);
+const PorterAssignedTripsPanel = lazy(() =>
+	import("../features/role-landing/components/PorterAssignedTripsPanel").then((module) => ({
+		default: module.PorterAssignedTripsPanel,
+	}))
+);
+const RoleLandingPage = lazy(() =>
+	import("../features/role-landing/pages/RoleLandingPage").then((module) => ({
+		default: module.RoleLandingPage,
+	}))
+);
+const AdminSettlementsPage = lazy(() =>
+	import("../features/settlements/pages/AdminSettlementsPage").then((module) => ({
+		default: module.AdminSettlementsPage,
+	}))
+);
+const HostWalletPage = lazy(() =>
+	import("../features/settlements/pages/HostWalletPage").then((module) => ({
+		default: module.HostWalletPage,
+	}))
+);
+const AdminTrekkingRoutesPage = lazy(() =>
+	import("../features/trekking-routes/pages/AdminTrekkingRoutesPage").then((module) => ({
+		default: module.AdminTrekkingRoutesPage,
+	}))
+);
+const CreateTrekkingRoutePage = lazy(() =>
+	import("../features/trekking-routes/pages/CreateTrekkingRoutePage").then((module) => ({
+		default: module.CreateTrekkingRoutePage,
+	}))
+);
+const TrekkingRouteDetailPage = lazy(() =>
+	import("../features/trekking-routes/pages/TrekkingRouteDetailPage").then((module) => ({
+		default: module.TrekkingRouteDetailPage,
+	}))
+);
+const TrekkingRoutesPage = lazy(() =>
+	import("../features/trekking-routes/pages/TrekkingRoutesPage").then((module) => ({
+		default: module.TrekkingRoutesPage,
+	}))
+);
+const AdminTripsPage = lazy(() =>
+	import("../features/trips/pages/AdminTripsPage").then((module) => ({
+		default: module.AdminTripsPage,
+	}))
+);
+const CreateTripPage = lazy(() =>
+	import("../features/trips/pages/CreateTripPage").then((module) => ({
+		default: module.CreateTripPage,
+	}))
+);
+const HostCampersPage = lazy(() =>
+	import("../features/trips/pages/HostCampersPage").then((module) => ({
+		default: module.HostCampersPage,
+	}))
+);
+const HostPorterRequestsPage = lazy(() =>
+	import("../features/trips/pages/HostPorterRequestsPage").then((module) => ({
+		default: module.HostPorterRequestsPage,
+	}))
+);
+const PorterRequestsPage = lazy(() =>
+	import("../features/trips/pages/PorterRequestsPage").then((module) => ({
+		default: module.PorterRequestsPage,
+	}))
+);
+const SearchTripsPage = lazy(() =>
+	import("../features/trips/pages/SearchTripsPage").then((module) => ({
+		default: module.SearchTripsPage,
+	}))
+);
+const TripDetailPage = lazy(() =>
+	import("../features/trips/pages/TripDetailPage").then((module) => ({
+		default: module.TripDetailPage,
+	}))
+);
+const EdgeCasePage = lazy(() =>
+	import("../shared/pages/EdgeCasePage").then((module) => ({ default: module.EdgeCasePage }))
+);
+const ErrorPage = lazy(() =>
+	import("../shared/pages/ErrorPage").then((module) => ({ default: module.ErrorPage }))
+);
+const NotFoundPage = lazy(() =>
+	import("../shared/pages/NotFoundPage").then((module) => ({ default: module.NotFoundPage }))
+);
+const UnauthorizedPage = lazy(() =>
+	import("../shared/pages/UnauthorizedPage").then((module) => ({
+		default: module.UnauthorizedPage,
+	}))
+);
+
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export function AppRoutes() {
+	return (
+		<Suspense fallback={<PageSkeleton />}>
+			<AppRouteContent />
+		</Suspense>
+	);
+}
+
+function AppRouteContent() {
 	const [currentPath, setCurrentPath] = useState<string>(() => {
 		if (window.location.hash) {
 			const hashPath = window.location.hash.replace("#", "/");

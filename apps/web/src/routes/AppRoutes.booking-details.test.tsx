@@ -1,7 +1,19 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AppRoutes } from "./AppRoutes";
+
+async function renderLazy(...args: Parameters<typeof render>) {
+	const result = render(...args);
+	await waitForPage();
+	return result;
+}
+
+async function waitForPage() {
+	await waitFor(() => {
+		expect(document.querySelector('[aria-busy="true"]')).toBeNull();
+	});
+}
 
 vi.mock("../features/booking-details/pages/BookingDetailsPage", () => ({
 	BookingDetailsPage: ({
@@ -101,94 +113,112 @@ describe("AppRoutes Booking details", () => {
 		window.history.replaceState({}, "", "/bookings/booking-123");
 	});
 
-	it("renders a direct Booking detail route for a Camper", () => {
+	it("renders a direct Booking detail route for a Camper", async () => {
 		setUser("camper");
-		render(<AppRoutes />);
+		await renderLazy(<AppRoutes />);
 		expect(screen.getByRole("heading", { name: "Booking detail booking-123" })).toBeVisible();
 	});
 
-	it("renders the owner list and navigates to details", () => {
+	it("renders the owner list and navigates to details", async () => {
 		setUser("camper");
 		window.history.replaceState({}, "", "/bookings");
-		render(<AppRoutes />);
+		await renderLazy(<AppRoutes />);
 		expect(screen.getByRole("heading", { name: "Booking list" })).toBeVisible();
-		fireEvent.click(screen.getByRole("button", { name: "Open booking" }));
+		await act(async () => {
+			fireEvent.click(screen.getByRole("button", { name: "Open booking" }));
+		});
+		await waitForPage();
 		expect(`${window.location.pathname}${window.location.search}`).toBe(
 			"/bookings/booking-456?from=bookings"
 		);
 		expect(screen.getByRole("heading", { name: "Booking detail booking-456" })).toBeVisible();
 	});
 
-	it("returns from details to the owner list without browser history", () => {
+	it("returns from details to the owner list without browser history", async () => {
 		setUser("camper");
-		render(<AppRoutes />);
-		fireEvent.click(screen.getByRole("button", { name: "Quay lại đơn đặt chỗ" }));
+		await renderLazy(<AppRoutes />);
+		await act(async () => {
+			fireEvent.click(screen.getByRole("button", { name: "Quay lại đơn đặt chỗ" }));
+		});
+		await waitForPage();
 		expect(window.location.pathname).toBe("/bookings");
 		expect(screen.getByRole("heading", { name: "Booking list" })).toBeVisible();
 	});
 
-	it("returns to the same Trip Detail and preserves the mounted booking flow", () => {
+	it("returns to the same Trip Detail and preserves the mounted booking flow", async () => {
 		setUser("camper");
 		const tripId = "33333333-3333-4333-8333-333333333333";
 		window.history.replaceState({}, "", `/trips/${tripId}`);
-		render(<AppRoutes />);
+		await renderLazy(<AppRoutes />);
 
-		fireEvent.click(screen.getByRole("button", { name: "Open booking from trip" }));
+		await act(async () => {
+			fireEvent.click(screen.getByRole("button", { name: "Open booking from trip" }));
+		});
+		await waitForPage();
 		expect(`${window.location.pathname}${window.location.search}`).toBe(
 			`/bookings/booking-from-trip?from=trip&tripId=${tripId}`
 		);
-		fireEvent.click(screen.getByRole("button", { name: "Quay lại chi tiết chuyến đi" }));
+		await act(async () => {
+			fireEvent.click(screen.getByRole("button", { name: "Quay lại chi tiết chuyến đi" }));
+		});
+		await waitForPage();
 
 		expect(window.location.pathname).toBe(`/trips/${tripId}`);
 		expect(screen.getByText("Existing booking flow")).toBeVisible();
 	});
 
-	it("preserves a Trip return destination after a direct refresh", () => {
+	it("preserves a Trip return destination after a direct refresh", async () => {
 		setUser("camper");
 		const tripId = "33333333-3333-4333-8333-333333333333";
 		window.history.replaceState({}, "", `/bookings/booking-from-trip?from=trip&tripId=${tripId}`);
-		render(<AppRoutes />);
+		await renderLazy(<AppRoutes />);
 
-		fireEvent.click(screen.getByRole("button", { name: "Quay lại chi tiết chuyến đi" }));
+		await act(async () => {
+			fireEvent.click(screen.getByRole("button", { name: "Quay lại chi tiết chuyến đi" }));
+		});
+		await waitForPage();
 		expect(window.location.pathname).toBe(`/trips/${tripId}`);
 	});
 
-	it("falls back to the Booking list for invalid Trip context", () => {
+	it("falls back to the Booking list for invalid Trip context", async () => {
 		setUser("camper");
 		window.history.replaceState({}, "", "/bookings/booking-123?from=trip&tripId=not-a-uuid");
-		render(<AppRoutes />);
+		await renderLazy(<AppRoutes />);
 
-		fireEvent.click(screen.getByRole("button", { name: "Quay lại đơn đặt chỗ" }));
+		await act(async () => {
+			fireEvent.click(screen.getByRole("button", { name: "Quay lại đơn đặt chỗ" }));
+		});
+		await waitForPage();
 		expect(window.location.pathname).toBe("/bookings");
 	});
 
-	it("guards an anonymous visitor", () => {
-		render(<AppRoutes />);
+	it("guards an anonymous visitor", async () => {
+		await renderLazy(<AppRoutes />);
 		expect(screen.queryByText("Booking detail booking-123")).not.toBeInTheDocument();
 		expect(screen.getByRole("heading", { name: "Không có quyền truy cập" })).toBeVisible();
 		expect(screen.getByText("camper")).toBeVisible();
 	});
 
-	it("guards an anonymous visitor even when a valid Trip context is supplied", () => {
+	it("guards an anonymous visitor even when a valid Trip context is supplied", async () => {
 		const tripId = "33333333-3333-4333-8333-333333333333";
 		window.history.replaceState({}, "", `/bookings/booking-123?from=trip&tripId=${tripId}`);
-		render(<AppRoutes />);
+		await renderLazy(<AppRoutes />);
 		expect(screen.queryByText("Booking detail booking-123")).not.toBeInTheDocument();
 		expect(screen.getByRole("heading", { name: "Không có quyền truy cập" })).toBeVisible();
 	});
 
-	it("guards a signed-in non-Camper", () => {
+	it("guards a signed-in non-Camper", async () => {
 		setUser("host");
-		render(<AppRoutes />);
+		await renderLazy(<AppRoutes />);
 		expect(screen.queryByText("Booking detail booking-123")).not.toBeInTheDocument();
 		expect(screen.getByRole("heading", { name: "Không có quyền truy cập" })).toBeVisible();
 		expect(screen.getByText("camper")).toBeVisible();
 	});
 
-	it.each([undefined, "host"] as const)("guards the owner list for %s", (role) => {
+	it.each([undefined, "host"] as const)("guards the owner list for %s", async (role) => {
 		if (role) setUser(role);
 		window.history.replaceState({}, "", "/bookings");
-		render(<AppRoutes />);
+		await renderLazy(<AppRoutes />);
 		expect(screen.queryByText("Booking list")).not.toBeInTheDocument();
 		expect(screen.getByRole("heading", { name: "Không có quyền truy cập" })).toBeVisible();
 	});
