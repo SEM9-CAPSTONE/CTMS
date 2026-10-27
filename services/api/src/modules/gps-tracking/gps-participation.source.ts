@@ -8,6 +8,7 @@ import type { TripStatus } from "../trips/entities/trip.entity";
 
 export interface TrackedTrip {
 	id: string;
+	hostId?: string;
 	status: TripStatus;
 	startsAt: Date;
 	endsAt: Date;
@@ -35,7 +36,7 @@ export class GpsParticipationSource {
 
 	async findTrip(tripId: string): Promise<TrackedTrip | null> {
 		const rows = (await this.dataSource.query(
-			`SELECT "id", "status", "starts_at" AS "startsAt", "ends_at" AS "endsAt"
+			`SELECT "id", "host_id" AS "hostId", "status", "starts_at" AS "startsAt", "ends_at" AS "endsAt"
 			 FROM "trips" WHERE "id" = $1`,
 			[tripId]
 		)) as TrackedTrip[];

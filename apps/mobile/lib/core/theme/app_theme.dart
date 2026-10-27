@@ -109,7 +109,7 @@ class AppTheme {
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           backgroundColor: isDark ? Colors.transparent : Colors.white,
-          foregroundColor: isDark ? scheme.onSurface : AppColors.textPrimary,
+          foregroundColor: isDark ? Colors.white : Colors.black,
           side: BorderSide(
             color: isDark ? scheme.outlineVariant : AppColors.border,
             width: 1.2,

@@ -12,6 +12,7 @@ import { IncidentsModule } from "./incidents/incidents.module";
 import { ProfilesModule } from "./profiles/profiles.module";
 import { RealtimeModule } from "./realtime/realtime.module";
 import { SafetyEventsModule } from "./safety-events/safety-events.module";
+import { SosModule } from "./sos/sos.module";
 import { TrekkingRoutesModule } from "./trekking-routes/trekking-routes.module";
 import { TripsModule } from "./trips/trips.module";
 import { UploadsModule } from "./uploads/uploads.module";
@@ -35,6 +36,7 @@ import { WeatherModule } from "./weather/weather.module";
 		ProfilesModule,
 		RealtimeModule,
 		SafetyEventsModule,
+		SosModule,
 		UsersModule,
 		TrekkingRoutesModule,
 		TripsModule,

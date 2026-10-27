@@ -35,9 +35,9 @@ class CtmsButton extends StatelessWidget {
 
     final onColor = switch (variant) {
       CtmsButtonVariant.primary => Colors.white,
-      CtmsButtonVariant.secondary => AppColors.textPrimary,
+      CtmsButtonVariant.secondary => Colors.black, // Pure black on white background
       CtmsButtonVariant.soft => AppColors.brandPrimary,
-      CtmsButtonVariant.ghost => AppColors.brandPrimary,
+      CtmsButtonVariant.ghost => Colors.black,
       CtmsButtonVariant.danger => Colors.white,
     };
 
@@ -51,10 +51,10 @@ class CtmsButton extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              if (icon != null) ...[Icon(icon, size: 18), const SizedBox(width: AppSpacing.sm)],
+              if (icon != null) ...[Icon(icon, size: 18, color: onColor), const SizedBox(width: AppSpacing.sm)],
               Text(
                 label,
-                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: onColor),
               ),
             ],
           );
@@ -80,9 +80,9 @@ class CtmsButton extends StatelessWidget {
         onPressed: pressed,
         style: sizeStyle.copyWith(
           backgroundColor: const WidgetStatePropertyAll(Colors.white),
-          foregroundColor: const WidgetStatePropertyAll(AppColors.textPrimary),
+          foregroundColor: const WidgetStatePropertyAll(Colors.black),
           side: const WidgetStatePropertyAll(
-            BorderSide(color: AppColors.border, width: 1.2),
+            BorderSide(color: AppColors.borderStrong, width: 1.2),
           ),
           elevation: const WidgetStatePropertyAll(0),
         ),
@@ -103,7 +103,7 @@ class CtmsButton extends StatelessWidget {
       CtmsButtonVariant.ghost => TextButton(
         onPressed: pressed,
         style: sizeStyle.copyWith(
-          foregroundColor: const WidgetStatePropertyAll(AppColors.brandPrimary),
+          foregroundColor: const WidgetStatePropertyAll(Colors.black),
         ),
         child: child,
       ),

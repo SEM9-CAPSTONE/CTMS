@@ -4214,6 +4214,73 @@ export async function seedContentReports(ds = dataSource): Promise<void> {
 }
 
 // ==========================================================================
+// [10/10] SOS & EMERGENCY ALERTS (CTMS-074, CTMS-077)
+// ==========================================================================
+
+export async function seedSosAlerts(ds = dataSource): Promise<void> {
+	if (!ds.isInitialized) {
+		await ds.initialize();
+	}
+
+	const camperRows = (await ds.query('SELECT "id" FROM "users" WHERE "email" = $1', [
+		"camper@ctms.local",
+	])) as Array<{ id: string }>;
+	const camperId = camperRows[0]?.id;
+	if (!camperId) {
+		console.log("[seed:sos] ⚠️ Camper account camper@ctms.local not found, skipping.");
+		return;
+	}
+
+	const tripId = "a1736fee-62be-4991-9478-a62288e9b80a";
+	const tripRows = (await ds.query('SELECT "id" FROM "trips" WHERE "id" = $1', [tripId])) as Array<{
+		id: string;
+	}>;
+	if (tripRows.length === 0) {
+		console.log(`[seed:sos] ⚠️ Trip ${tripId} not found, skipping.`);
+		return;
+	}
+
+	// Clean existing seeded demo SOS alerts
+	await ds.query('DELETE FROM "sos_alerts" WHERE "id" IN ($1, $2)', [
+		"e0500000-0000-4000-8000-000000000001",
+		"e0500000-0000-4000-8000-000000000002",
+	]);
+
+	// 1. ACTIVE SOS Alert ready for testing accidental cancellation (CTMS-077)
+	await ds.query(
+		`INSERT INTO "sos_alerts" (
+			"id", "trip_id", "sender_id", "emergency_type", "location", "battery_level",
+			"event_time", "status", "received_at", "created_at", "updated_at"
+		 ) VALUES (
+			$1, $2, $3, 'medical',
+			ST_SetSRID(ST_MakePoint(108.2345, 16.0543), 4326)::geography, 88,
+			now() - interval '5 minutes', 'active', now() - interval '5 minutes', now() - interval '5 minutes', now() - interval '5 minutes'
+		 )`,
+		["e0500000-0000-4000-8000-000000000001", tripId, camperId]
+	);
+
+	// 2. Previously CANCELLED SOS Alert (demo history preservation)
+	await ds.query(
+		`INSERT INTO "sos_alerts" (
+			"id", "trip_id", "sender_id", "emergency_type", "location", "battery_level",
+			"event_time", "status", "cancelled_by", "cancelled_at", "cancellation_reason",
+			"received_at", "created_at", "updated_at"
+		 ) VALUES (
+			$1, $2, $3, 'other',
+			ST_SetSRID(ST_MakePoint(108.2250, 16.0510), 4326)::geography, 92,
+			now() - interval '1 hour', 'cancelled', $3, now() - interval '55 minutes',
+			'Cấn nút SOS trong ba lô khi dừng nghỉ chân tại trạm 1',
+			now() - interval '1 hour', now() - interval '1 hour', now() - interval '55 minutes'
+		 )`,
+		["e0500000-0000-4000-8000-000000000002", tripId, camperId]
+	);
+
+	console.log(
+		"[seed:sos] ✅ Seeded 2 demo SOS alerts for camper@ctms.local (1 ACTIVE, 1 CANCELLED history)."
+	);
+}
+
+// ==========================================================================
 // MASTER RUNNER & SUMMARY
 // ==========================================================================
 
@@ -4313,6 +4380,13 @@ export async function runMasterSeed(): Promise<void> {
 		console.log("--------------------------------------------------------------------------");
 		await seedContentReports();
 		console.log("✅ Step 9 completed.\n");
+
+		// Step 10: SOS & Emergency Alerts (CTMS-074, CTMS-077)
+		console.log("--------------------------------------------------------------------------");
+		console.log("👉 [10/10] Seeding SOS Emergency Alerts (CTMS-074, CTMS-077)...");
+		console.log("--------------------------------------------------------------------------");
+		await seedSosAlerts();
+		console.log("✅ Step 10 completed.\n");
 
 		const elapsedSec = ((Date.now() - startTime) / 1000).toFixed(2);
 

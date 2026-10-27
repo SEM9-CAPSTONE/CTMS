@@ -15,6 +15,7 @@ import '../../sync/application/device_sync_controller.dart';
 import '../../sync/domain/device_sync_models.dart';
 import '../../sync/presentation/device_sync_status_screen.dart';
 import '../overview/domain/camper_overview_models.dart';
+import '../../sos/presentation/sos_active_banner.dart';
 
 class CamperTripDetailScreen extends ConsumerStatefulWidget {
   const CamperTripDetailScreen({
@@ -95,6 +96,7 @@ class _CamperTripDetailScreenState
           vertical: AppSpacing.lg,
         ),
         children: [
+          SosActiveBanner(tripId: widget.tripId),
           // 1. Trip Header Card (Designed identically to _ExploreTripCard)
           Container(
             margin: const EdgeInsets.only(bottom: AppSpacing.lg),

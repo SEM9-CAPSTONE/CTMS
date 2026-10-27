@@ -103,7 +103,74 @@ Emergency history remains auditable.
 
 ## 9. API / Integration Contract
 
-TBD — Technical Design.
+### Cancel Accidental SOS Alert
+- **Endpoint**: `PATCH /trips/:tripId/sos/:sosId/cancel`
+- **Authentication**: Bearer JWT (`Roles: camper`)
+- **Headers**:
+  - `Authorization: Bearer <token>`
+  - `Content-Type: application/json`
+
+#### Request Body
+```json
+{
+  "reason": "Accidentally clicked SOS while checking map, false alarm"
+}
+```
+
+#### Response Body (HTTP 200 OK)
+```json
+{
+  "id": "123e4567-e89b-12d3-a456-426614174000",
+  "tripId": "123e4567-e89b-12d3-a456-426614174001",
+  "senderId": "123e4567-e89b-12d3-a456-426614174002",
+  "emergencyType": "medical",
+  "location": {
+    "latitude": 16.0544,
+    "longitude": 108.2022
+  },
+  "batteryLevel": 85,
+  "eventTime": "2026-10-27T10:00:00.000Z",
+  "status": "cancelled",
+  "cancelledBy": "123e4567-e89b-12d3-a456-426614174002",
+  "cancelledAt": "2026-10-27T10:02:00.000Z",
+  "cancellationReason": "Accidentally clicked SOS while checking map, false alarm",
+  "acknowledgedBy": null,
+  "acknowledgedAt": null,
+  "closedBy": null,
+  "closedAt": null,
+  "resolutionNote": null,
+  "receivedAt": "2026-10-27T10:00:01.000Z",
+  "createdAt": "2026-10-27T10:00:01.000Z",
+  "updatedAt": "2026-10-27T10:02:00.000Z"
+}
+```
+
+#### Status Codes & Error Responses
+- `200 OK`: SOS alert successfully cancelled.
+- `401 Unauthorized`: Authentication required.
+- `403 Forbidden`: `NOT_SOS_SENDER` or `NOT_TRIP_PARTICIPANT`.
+- `404 Not Found`: `TRIP_NOT_FOUND` or `SOS_NOT_FOUND`.
+- `409 Conflict`:
+  - `SOS_ALREADY_CANCELLED`: Alert was already cancelled.
+  - `SOS_ALREADY_ACKNOWLEDGED`: Alert has already been acknowledged by Host for emergency handling.
+  - `SOS_ALREADY_CLOSED`: Alert has already been closed.
+  - `SOS_NOT_ACTIVE`: Alert is in an invalid state for cancellation.
+- `422 Unprocessable Entity`: Validation failed (e.g. empty reason, reason > 500 characters, invalid UUID).
+
+#### Real-Time Broadcast (WebSocket)
+- Event: `sos.state_changed`
+- Payload:
+  ```json
+  {
+    "sosId": "uuid",
+    "tripId": "uuid",
+    "senderId": "uuid",
+    "status": "cancelled",
+    "cancelledBy": "uuid",
+    "cancelledAt": "iso-date-string",
+    "cancellationReason": "string"
+  }
+  ```
 
 ## 10. Error & Edge Cases
 
@@ -128,4 +195,4 @@ TBD — Technical Design.
 
 ## 12. Open Decisions
 
-Exact cancellation window/conditions are configuration-policy concerns and are not defined numerically by BR-258.
+Cancellation is permitted while the SOS is in `active` state (before Host acknowledgement/closure) by the original sender.
