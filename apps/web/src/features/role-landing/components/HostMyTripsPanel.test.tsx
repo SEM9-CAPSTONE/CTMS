@@ -4,6 +4,8 @@ import { useMyTrips } from "../../trips/hooks/useMyTrips";
 import type { TripDetails } from "../../trips/types";
 import { HostMyTripsPanel } from "./HostMyTripsPanel";
 
+vi.mock("../../trips/components/TripFormDraftList", () => ({ TripFormDraftList: () => null }));
+
 vi.mock("../../trips/hooks/useMyTrips", () => ({
 	useMyTrips: vi.fn(),
 }));
@@ -284,13 +286,12 @@ describe("HostMyTripsPanel", () => {
 
 		render(<HostMyTripsPanel onEditTripDraft={onEditTripDraft} />);
 
-		const editButtons = screen.getAllByRole("button", { name: /sửa/i });
-		expect(editButtons).toHaveLength(2);
-
-		fireEvent.click(editButtons[0]);
-		expect(onEditTripDraft).toHaveBeenCalledWith("trip-2");
-		fireEvent.click(editButtons[1]);
+		const pendingEdit = screen.getByRole("button", { name: "Cập nhật" });
+		fireEvent.click(pendingEdit);
 		expect(onEditTripDraft).toHaveBeenCalledWith("trip-3");
+		fireEvent.click(screen.getByRole("button", { name: /bản nháp/i }));
+		fireEvent.click(screen.getByRole("button", { name: /sửa/i }));
+		expect(onEditTripDraft).toHaveBeenCalledWith("trip-2");
 	});
 
 	it("filters trips by status and updates pagination", () => {
@@ -303,9 +304,9 @@ describe("HostMyTripsPanel", () => {
 
 		render(<HostMyTripsPanel />);
 
-		// Both trips visible initially under "Tất cả"
+		// Drafts are only visible in their dedicated filter.
 		expect(screen.getByText("Sơn Trà Trekking Discovery")).toBeInTheDocument();
-		expect(screen.getByText("Bidoup Núi Bà Chinh Phục")).toBeInTheDocument();
+		expect(screen.queryByText("Bidoup Núi Bà Chinh Phục")).not.toBeInTheDocument();
 
 		// Click "Bản nháp" tab
 		const draftTab = screen.getByRole("button", { name: /bản nháp/i });
@@ -320,7 +321,7 @@ describe("HostMyTripsPanel", () => {
 		fireEvent.click(allTab);
 
 		expect(screen.getByText("Sơn Trà Trekking Discovery")).toBeInTheDocument();
-		expect(screen.getByText("Bidoup Núi Bà Chinh Phục")).toBeInTheDocument();
+		expect(screen.queryByText("Bidoup Núi Bà Chinh Phục")).not.toBeInTheDocument();
 	});
 
 	it("renders pagination controls and info", () => {

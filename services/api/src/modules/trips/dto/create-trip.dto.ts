@@ -8,7 +8,6 @@ import {
 	IsISO8601,
 	IsInt,
 	IsNotEmpty,
-	IsNumber,
 	IsObject,
 	IsOptional,
 	IsString,
@@ -45,6 +44,7 @@ export class GeoJsonPointDto {
 }
 
 export class CreateTripWaypointDto {
+	@ApiPropertyOptional({ format: "uuid" }) @IsOptional() @IsUUID() id?: string;
 	@ApiPropertyOptional({ format: "uuid" })
 	@IsOptional()
 	@IsUUID()
@@ -57,7 +57,6 @@ export class CreateTripWaypointDto {
 	@ApiProperty({ maxLength: 150 })
 	@Transform(({ value }) => trimmedString(value))
 	@IsString()
-	@IsNotEmpty()
 	@MaxLength(150)
 	name!: string;
 
@@ -115,7 +114,12 @@ export class CreateTripDto {
 	@IsString()
 	description?: string;
 
-	@ApiPropertyOptional({ maxLength: 500 })
+	@ApiPropertyOptional({
+		maxLength: 500,
+		deprecated: true,
+		description:
+			"Compatibility field. Use the Trip image upload endpoint; direct cover changes are ignored.",
+	})
 	@IsOptional()
 	@Transform(({ value }) => trimmedString(value))
 	@IsString()
@@ -176,9 +180,9 @@ export class CreateTripDto {
 	@Min(1)
 	capacityMax?: number | null;
 
-	@ApiProperty({ minimum: 0 })
+	@ApiProperty({ minimum: 0, type: "integer" })
 	@Type(() => Number)
-	@IsNumber()
+	@IsInt({ message: "Price per person must be a non-negative integer" })
 	@Min(0)
 	pricePerPerson!: number;
 

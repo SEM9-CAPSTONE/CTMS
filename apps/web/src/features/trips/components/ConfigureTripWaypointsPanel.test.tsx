@@ -1,9 +1,13 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { toast } from "../../../shared/components/Toast";
 import type { CreatedTrekkingRoute, RouteCheckpoint } from "../../trekking-routes/types";
 import { tripsService } from "../services/trips.service";
 import type { Trip } from "../types";
 import { ConfigureTripWaypointsPanel } from "./ConfigureTripWaypointsPanel";
+import { toDateTimeLocalInputValue } from "./TripDateTimePicker";
+
+vi.mock("../../../shared/components/Toast", () => ({ toast: { success: vi.fn() } }));
 
 vi.mock("../services/trips.service", () => ({
 	tripsService: {
@@ -11,8 +15,10 @@ vi.mock("../services/trips.service", () => ({
 		updateWaypoint: vi.fn(),
 		deleteWaypoint: vi.fn(),
 		submitForApproval: vi.fn(),
+		getById: vi.fn(),
 		// Step 2 forecasts the Trip days automatically; no forecast keeps submission unblocked.
 		forecastWeather: vi.fn().mockResolvedValue(null),
+		getSubmittedWeatherForecast: vi.fn().mockResolvedValue(null),
 		generateWeatherAdvice: vi.fn(),
 	},
 }));
@@ -134,7 +140,7 @@ describe("ConfigureTripWaypointsPanel", () => {
 			...draftTrip.waypoints[0],
 			id: "99999999-9999-4999-8999-999999999999",
 			type: "rest" as const,
-			name: "Nghỉ chân",
+			name: "",
 			location: { type: "Point" as const, coordinates: [108.24, 16.05] as [number, number] },
 			sequenceOrder: 2,
 			plannedAt: "2026-10-01T05:00:00.000Z",
@@ -169,7 +175,7 @@ describe("ConfigureTripWaypointsPanel", () => {
 				draftTrip.id,
 				expect.objectContaining({
 					type: "rest",
-					name: "Nghỉ chân",
+					name: "",
 					location: expect.objectContaining({ coordinates: [108.24, 16.05] }),
 					plannedAt: expect.any(String),
 					metadata: { routeOrder: expect.any(String) },
@@ -183,7 +189,14 @@ describe("ConfigureTripWaypointsPanel", () => {
 			expect(tripsService.submitForApproval).toHaveBeenCalledWith(draftTrip.id, {})
 		);
 		expect(await screen.findByTestId("configure-trip-status")).toHaveTextContent("Chờ duyệt");
-		expect(screen.getByText(/Lịch trình đã được lưu/)).toBeVisible();
+		await waitFor(() =>
+			expect(toast.success).toHaveBeenCalledWith(
+				"Lịch trình đã được lưu và chuyến đi đang chờ duyệt."
+			)
+		);
+		expect(
+			screen.queryByText("Lịch trình đã được lưu và chuyến đi đang chờ duyệt.")
+		).not.toBeInTheDocument();
 	});
 
 	it("deletes a saved stop waypoint from the database", async () => {
@@ -346,12 +359,14 @@ describe("ConfigureTripWaypointsPanel", () => {
 		expect(screen.getByRole("button", { name: "Gửi duyệt" })).toBeDisabled();
 	});
 
-	it("also blocks waypoint changes once the Trip is pending approval", () => {
+	it("blocks the legacy direct-write view after a Trip enters pending approval", () => {
 		render(<ConfigureTripWaypointsPanel trip={{ ...draftTrip, status: "pending_approval" }} />);
-
-		expect(screen.getByText("Lịch trình đã được lưu và chuyến đi đang chờ duyệt.")).toBeVisible();
-		expect(screen.queryByText(/không thể cấu hình điểm dừng/)).not.toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "Gửi duyệt" })).toBeDisabled();
+		expect(screen.getByRole("button", { name: "Hoàn tất cập nhật" })).toBeDisabled();
+		fireEvent.click(screen.getByRole("button", { name: "Mở chỉnh sửa điểm dừng 1" }));
+		expect(screen.getByLabelText("Mô tả điểm dừng 1")).toBeDisabled();
+		fireEvent.click(screen.getByRole("button", { name: "Lưu thay đổi" }));
+		expect(tripsService.updateWaypoint).not.toHaveBeenCalled();
+		expect(tripsService.submitForApproval).not.toHaveBeenCalled();
 	});
 
 	it("shows retry for a failed save without clearing form values", async () => {
@@ -367,5 +382,85 @@ describe("ConfigureTripWaypointsPanel", () => {
 		expect(await screen.findByRole("alert")).toHaveTextContent("Không thể cấu hình điểm dừng");
 		expect(screen.getByLabelText("Mô tả điểm dừng 1")).toHaveValue("Keep me");
 		expect(screen.getByRole("button", { name: "Thử lại" })).toBeVisible();
+	});
+	it("keeps itinerary edits local until Finish Update is pressed", async () => {
+		const pending: Trip = { ...draftTrip, status: "pending_approval" };
+		const stage = vi.fn();
+		const finish = vi.fn().mockResolvedValue(pending);
+		const { rerender } = render(
+			<ConfigureTripWaypointsPanel
+				trip={pending}
+				onStageTripChange={stage}
+				onFinalizeUpdate={finish}
+			/>
+		);
+		fireEvent.click(screen.getByRole("button", { name: "Mở chỉnh sửa điểm dừng 1" }));
+		fireEvent.change(screen.getByLabelText("Mô tả điểm dừng 1"), {
+			target: { value: "Local description" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "Lưu thay đổi" }));
+		expect(stage).toHaveBeenCalledTimes(1);
+		expect(tripsService.updateWaypoint).not.toHaveBeenCalled();
+		expect(tripsService.createWaypoint).not.toHaveBeenCalled();
+		expect(finish).not.toHaveBeenCalled();
+		const preview = stage.mock.calls[0][0] as Trip;
+		rerender(
+			<ConfigureTripWaypointsPanel
+				trip={preview}
+				onStageTripChange={stage}
+				onFinalizeUpdate={finish}
+			/>
+		);
+		await waitFor(() =>
+			expect(screen.getByRole("button", { name: "Hoàn tất cập nhật" })).toBeEnabled()
+		);
+		fireEvent.click(screen.getByRole("button", { name: "Hoàn tất cập nhật" }));
+		await waitFor(() => expect(finish).toHaveBeenCalledTimes(1));
+		expect(tripsService.submitForApproval).not.toHaveBeenCalled();
+	});
+	it("shows the next-stop time error immediately when choosing a time, before Save", async () => {
+		const first = {
+			...draftTrip.waypoints[0],
+			id: "rest-one",
+			type: "rest" as const,
+			name: "",
+			sequenceOrder: 2,
+			plannedAt: "2026-10-01T05:00:00.000Z",
+			metadata: { routeOrder: "0.3" },
+		};
+		const second = {
+			...first,
+			id: "rest-two",
+			sequenceOrder: 3,
+			plannedAt: "2026-10-01T06:00:00.000Z",
+			metadata: { routeOrder: "0.6" },
+		};
+		render(
+			<ConfigureTripWaypointsPanel
+				trip={{
+					...draftTrip,
+					waypoints: [
+						draftTrip.waypoints[0],
+						first,
+						second,
+						{ ...draftTrip.waypoints[1], sequenceOrder: 4 },
+					],
+				}}
+			/>
+		);
+		fireEvent.click(screen.getByRole("button", { name: "Mở chỉnh sửa điểm dừng 2" }));
+		fireEvent.change(screen.getByLabelText("Thời gian điểm dừng 2"), {
+			target: { value: toDateTimeLocalInputValue(new Date("2026-10-01T07:00:00.000Z")) },
+		});
+		expect(await screen.findByText("Thời gian phải trước điểm đứng sau trên tuyến")).toBeVisible();
+		expect(tripsService.updateWaypoint).not.toHaveBeenCalled();
+		fireEvent.change(screen.getByLabelText("Thời gian điểm dừng 2"), {
+			target: { value: toDateTimeLocalInputValue(new Date("2026-10-01T05:30:00.000Z")) },
+		});
+		await waitFor(() =>
+			expect(
+				screen.queryByText("Thời gian phải trước điểm đứng sau trên tuyến")
+			).not.toBeInTheDocument()
+		);
 	});
 });

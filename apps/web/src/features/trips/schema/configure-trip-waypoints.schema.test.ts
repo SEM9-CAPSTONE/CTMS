@@ -3,6 +3,9 @@ import type { Trip, TripWaypointType } from "../types";
 import {
 	type ConfigureTripWaypointFormItem,
 	createConfigureTripWaypointsSchema,
+	toConfigureTripWaypointsInput,
+	toCreateTripWaypointInput,
+	validateWaypointForSave,
 } from "./configure-trip-waypoints.schema";
 
 const OVERNIGHT_REQUIRED_MESSAGE = "Chuyến đi nhiều ngày cần ít nhất 1 chỗ ngủ qua đêm";
@@ -124,5 +127,45 @@ describe("createConfigureTripWaypointsSchema overnight stops", () => {
 				finish,
 			])
 		).toContain(DAY_TRIP_OVERNIGHT_MESSAGE);
+	});
+});
+
+describe("optional waypoint descriptions", () => {
+	it("keeps a blank description empty when saving one stop", () => {
+		const stop = { ...waypoint("meal", "0.5", "2026-10-01T05:00:00.000Z"), name: "   " };
+		expect(toCreateTripWaypointInput(stop).name).toBe("");
+	});
+	it("does not substitute the waypoint type when saving the itinerary", () => {
+		const stop = { ...waypoint("meal", "0.5", "2026-10-01T05:00:00.000Z"), name: "" };
+		const values = { waypoints: multiDayWaypoints([stop]) };
+		expect(
+			toConfigureTripWaypointsInput(values).waypoints.find((item) => item.type === "meal")?.name
+		).toBe("");
+	});
+});
+
+describe("time increases along the route", () => {
+	const trip = buildTrip({ startsAt: "2026-11-04T08:00:00", endsAt: "2026-11-04T20:00:00" });
+	const stops = () => [
+		waypoint("start", "0", "2026-11-04T08:00:00"),
+		waypoint("rest", "0.3", "2026-11-04T11:00:00"),
+		waypoint("rest", "0.6", "2026-11-04T10:00:00"),
+		waypoint("finish", "1", "2026-11-04T20:00:00"),
+	];
+	it("blocks saving 11 AM before the following 10 AM stop", () => {
+		expect(validateWaypointForSave(stops(), 1, trip)).toBe(
+			"Thời gian phải trước điểm đứng sau trên tuyến"
+		);
+		expect(validateWaypointForSave(stops(), 2, trip)).toBe(
+			"Thời gian phải sau điểm đứng trước trên tuyến"
+		);
+		expect(issueMessages(trip, stops())).toContain("Thời gian phải sau điểm đứng trước trên tuyến");
+	});
+	it("allows the later stop once it is moved after 11 AM", () => {
+		const points = stops();
+		points[2].plannedAt = "2026-11-04T12:00:00";
+		expect(validateWaypointForSave(points, 1, trip)).toBeNull();
+		expect(validateWaypointForSave(points, 2, trip)).toBeNull();
+		expect(issueMessages(trip, points)).toEqual([]);
 	});
 });

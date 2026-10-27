@@ -11,7 +11,8 @@ import { DataSource, type EntityManager } from "typeorm";
 import { AuditLog } from "../../auth/entities/audit-log.entity";
 import type { AuthenticatedUser } from "../../auth/jwt.strategy";
 import { DEFAULT_CANCELLATION_POLICY } from "../../bookings/cancellation-policy";
-import type { EventsGateway } from "../../realtime/events.gateway";
+// biome-ignore lint/style/useImportType: Nest constructor injection requires runtime metadata
+import { EventsGateway } from "../../realtime/events.gateway";
 import { TrekkingRouteStatus } from "../../trekking-routes/entities/trekking-route.entity";
 import { UserRole } from "../../users/entities/user.entity";
 import { RiskLevel } from "../../weather/entities/weather-risk-assessment.entity";
@@ -21,6 +22,7 @@ import type {
 	CreateTripWaypointDto,
 	GeoJsonPointDto,
 } from "../dto/create-trip.dto";
+import type { FinalizeTripUpdateDto } from "../dto/finalize-trip-update.dto";
 import type { HostPorterAssignmentTripDto } from "../dto/host-porter-assignment-response.dto";
 import type { ListTripReviewsQueryDto } from "../dto/list-trip-reviews-query.dto";
 import type { PorterAssignedTripResponseDto } from "../dto/porter-assigned-trip-response.dto";
@@ -41,8 +43,11 @@ import { CheckpointVisitsRepository } from "../repositories/checkpoint-visits.re
 import type {
 	CreateTripWaypointInput,
 	LockedTripForBooking,
-	TripsRepository,
 } from "../repositories/trips.repository";
+// biome-ignore lint/style/useImportType: Nest constructor injection requires runtime metadata
+import { TripsRepository } from "../repositories/trips.repository";
+// biome-ignore lint/style/useImportType: Nest injection
+import { TripImagesService } from "./trip-images.service";
 
 interface FieldValidationError {
 	field: string;
@@ -74,7 +79,8 @@ export class TripsService {
 		private readonly tripsRepository: TripsRepository,
 		private readonly dataSource: DataSource,
 		@Optional() private readonly eventsGateway?: EventsGateway,
-		@Optional() private readonly checkpointVisitsRepository?: CheckpointVisitsRepository
+		@Optional() private readonly checkpointVisitsRepository?: CheckpointVisitsRepository,
+		@Optional() private readonly tripImages?: TripImagesService
 	) {}
 
 	async search(query: SearchTripsQueryDto): Promise<PaginatedTripsResponseDto> {
@@ -260,7 +266,7 @@ export class TripsService {
 				routeId: dto.routeId,
 				title: dto.title,
 				description: dto.description ?? null,
-				coverImageUrl: dto.coverImageUrl ?? null,
+				coverImageUrl: null,
 				itinerary: dto.itinerary ?? null,
 				includes: dto.includes ?? null,
 				excludes: dto.excludes ?? null,
@@ -297,10 +303,15 @@ export class TripsService {
 		});
 	}
 
-	async updateDraft(hostId: string, tripId: string, dto: CreateTripDto): Promise<TripResponseDto> {
+	async updateDraft(
+		hostId: string,
+		tripId: string,
+		dto: CreateTripDto,
+		final?: { manager: EntityManager; expectedUpdatedAt: string }
+	): Promise<TripResponseDto> {
 		const schedule = this.assertCreateTripPayload(dto);
 
-		return this.dataSource.transaction(async (manager: EntityManager) => {
+		const persist = async (manager: EntityManager) => {
 			const repository = manager.withRepository(this.tripsRepository);
 			const lockedTrip = await repository.findByIdForWaypointConfiguration(tripId);
 
@@ -315,6 +326,33 @@ export class TripsService {
 				lockedTrip.status !== TripStatus.PENDING_APPROVAL
 			) {
 				throw new ConflictException("Only draft or pending_approval Trips can be edited");
+			}
+
+			if (lockedTrip.status === TripStatus.PENDING_APPROVAL && !final) {
+				throw new ConflictException("Pending Trip changes must be applied through Finish Update");
+			}
+
+			if (final) {
+				if (lockedTrip.status !== TripStatus.PENDING_APPROVAL)
+					throw new ConflictException("Trip is no longer pending approval");
+				if (normalizeDate(lockedTrip.trip.updatedAt) !== normalizeDate(final.expectedUpdatedAt))
+					throw new ConflictException(
+						"Trip changed while this update was being edited. Reload before applying changes."
+					);
+				const storedIds = new Set(lockedTrip.trip.waypoints.map((w) => w.id));
+				const ids = dto.waypoints.flatMap((w) => (w.id ? [w.id] : []));
+				if (new Set(ids).size !== ids.length || ids.some((id) => !storedIds.has(id)))
+					throw new UnprocessableEntityException("Invalid waypoint identifiers");
+				this.assertWaypointPayload(
+					dto.waypoints,
+					{
+						...lockedTrip.trip,
+						startsAt: schedule.startsAt,
+						endsAt: schedule.endsAt,
+						tripType: dto.tripType,
+					},
+					true
+				);
 			}
 
 			const route = await repository.findRouteDependencyForUpdate(dto.routeId);
@@ -350,7 +388,7 @@ export class TripsService {
 				routeId: dto.routeId,
 				title: dto.title,
 				description: dto.description ?? null,
-				coverImageUrl: dto.coverImageUrl ?? null,
+				coverImageUrl: lockedTrip.trip.coverImageUrl ?? null,
 				itinerary: dto.itinerary ?? null,
 				includes: dto.includes ?? null,
 				excludes: dto.excludes ?? null,
@@ -369,7 +407,9 @@ export class TripsService {
 					unknown
 				>,
 				waypoints: toDraftWaypointInputs(
-					mergeEndpointWaypoints(lockedTrip.trip.waypoints, dto.waypoints),
+					final
+						? dto.waypoints.map((w) => fromWaypointDto(w, w.id))
+						: mergeEndpointWaypoints(lockedTrip.trip.waypoints, dto.waypoints),
 					schedule.startsAt
 				),
 			});
@@ -388,7 +428,51 @@ export class TripsService {
 			});
 
 			return updated;
-		});
+		};
+		const result = final
+			? await persist(final.manager)
+			: await this.dataSource.transaction(persist);
+		if (!final) this.emitTripReviewUpdated(result);
+		return result;
+	}
+
+	async finalizePendingUpdate(
+		hostId: string,
+		tripId: string,
+		dto: FinalizeTripUpdateDto,
+		files: Express.Multer.File[]
+	): Promise<TripResponseDto> {
+		if (!this.tripImages) throw new Error("Trip image service unavailable");
+		const imageService = this.tripImages;
+		const prepared = await imageService.preparePendingUpdate(
+			hostId,
+			tripId,
+			files,
+			dto.retainedImageIds.length
+		);
+		try {
+			const result = await this.dataSource.transaction(async (manager) => {
+				await this.updateDraft(hostId, tripId, dto, {
+					manager,
+					expectedUpdatedAt: dto.expectedUpdatedAt,
+				});
+				await imageService.applyPendingUpdate(
+					manager,
+					hostId,
+					tripId,
+					dto.retainedImageIds,
+					prepared
+				);
+				const saved = await manager.withRepository(this.tripsRepository).findById(tripId);
+				if (!saved) throw new NotFoundException("Trip not found");
+				return { ...saved, images: await imageService.list(tripId, manager) };
+			});
+			this.emitTripReviewUpdated(result);
+			return result;
+		} catch (error) {
+			await imageService.releasePendingUploads(prepared);
+			throw error;
+		}
 	}
 
 	async configureWaypoints(
@@ -637,13 +721,13 @@ export class TripsService {
 		};
 	}
 
-	private mutateDraftWaypoints(
+	private async mutateDraftWaypoints(
 		hostId: string,
 		tripId: string,
 		action: string,
 		mutate: (current: DraftWaypoint[]) => DraftWaypoint[]
 	): Promise<TripResponseDto> {
-		return this.dataSource.transaction(async (manager: EntityManager) => {
+		const result = await this.dataSource.transaction(async (manager: EntityManager) => {
 			const repository = manager.withRepository(this.tripsRepository);
 			const lockedTrip = await repository.findByIdForWaypointConfiguration(tripId);
 			if (!lockedTrip) throw new NotFoundException("Trip not found");
@@ -651,7 +735,9 @@ export class TripsService {
 				throw new ForbiddenException("Only the owning Host can configure this Trip");
 			}
 			if (lockedTrip.status !== TripStatus.DRAFT) {
-				throw new ConflictException("Only draft Trips can change waypoints");
+				throw new ConflictException(
+					"Pending Trip changes must be applied through Finish Update; only draft Trips can save individual waypoints"
+				);
 			}
 
 			const next = mutate(lockedTrip.trip.waypoints.map(fromStoredWaypoint));
@@ -686,10 +772,65 @@ export class TripsService {
 				targetId: tripId,
 				before: this.buildWaypointAuditSnapshot(lockedTrip.trip),
 				after: this.buildWaypointAuditSnapshot(updated),
-				reason: "host_edit_draft_trip_waypoints",
+				reason:
+					lockedTrip.status === TripStatus.PENDING_APPROVAL
+						? "host_update_pending_trip_waypoints"
+						: "host_edit_draft_trip_waypoints",
 			});
 			return updated;
 		});
+		this.emitTripReviewUpdated(result);
+		return result;
+	}
+
+	private routeTimeErrors(
+		waypoints: {
+			type: WaypointType;
+			plannedAt: Date | string | null;
+			metadata?: Record<string, unknown> | null;
+			sequenceOrder?: number;
+		}[]
+	): FieldValidationError[] {
+		const position = (w: (typeof waypoints)[number], index: number) => {
+			if (w.type === WaypointType.START) return 0;
+			if (w.type === WaypointType.FINISH) return 1;
+			const raw = w.metadata?.routeOrder;
+			if (
+				(typeof raw === "number" || (typeof raw === "string" && raw.trim())) &&
+				Number.isFinite(Number(raw))
+			)
+				return Number(raw);
+			return ((w.sequenceOrder ?? index + 1) - 1) / Math.max(1, waypoints.length - 1);
+		};
+		const ordered = waypoints
+			.map((waypoint, index) => ({ waypoint, index, order: position(waypoint, index) }))
+			.sort(
+				(a, b) =>
+					a.order - b.order ||
+					(a.waypoint.type === WaypointType.START
+						? -1
+						: b.waypoint.type === WaypointType.START
+							? 1
+							: a.waypoint.type === WaypointType.FINISH
+								? 1
+								: b.waypoint.type === WaypointType.FINISH
+									? -1
+									: a.index - b.index)
+			);
+		const errors: FieldValidationError[] = [];
+		let previousTime: number | null = null;
+		for (const item of ordered) {
+			if (!item.waypoint.plannedAt) continue;
+			const time = new Date(item.waypoint.plannedAt).getTime();
+			if (!Number.isFinite(time)) continue;
+			if (previousTime !== null && time <= previousTime)
+				errors.push({
+					field: `waypoints.${item.index}.plannedAt`,
+					errors: ["plannedAt must be after the preceding waypoint along the route"],
+				});
+			previousTime = time;
+		}
+		return errors;
 	}
 
 	/** Rules every saved draft must satisfy; completeness (start/finish order, nights) is checked on submit. */
@@ -697,7 +838,7 @@ export class TripsService {
 		waypoints: DraftWaypoint[],
 		trip: Pick<TripResponseDto, "startsAt" | "endsAt" | "tripType">
 	): void {
-		const errors: FieldValidationError[] = [];
+		const errors: FieldValidationError[] = this.routeTimeErrors(waypoints);
 		const startsAt = new Date(trip.startsAt).getTime();
 		const endsAt = new Date(trip.endsAt).getTime();
 		const plannedTimes = new Set<number>();
@@ -1129,7 +1270,7 @@ export class TripsService {
 		trip: Pick<TripResponseDto, "startsAt" | "endsAt" | "tripType" | "waypoints">,
 		requireApprovalReady: boolean
 	): void {
-		const errors: FieldValidationError[] = [];
+		const errors: FieldValidationError[] = this.routeTimeErrors(waypoints);
 		const startsAt = new Date(trip.startsAt);
 		const endsAt = new Date(trip.endsAt);
 		const plannedTimes = new Set<string>();
@@ -1326,6 +1467,16 @@ export class TripsService {
 		return new Date(
 			new Date(reviewedUpdatedAt).getTime() + TWENTY_FOUR_HOURS_IN_MILLISECONDS
 		).toISOString();
+	}
+
+	private emitTripReviewUpdated(trip: TripResponseDto): void {
+		if (trip.status !== TripStatus.PENDING_APPROVAL) return;
+		this.eventsGateway?.emitTripReviewUpdated({
+			tripId: trip.id,
+			title: trip.title,
+			hostId: trip.hostId,
+			updatedAt: new Date(trip.updatedAt).toISOString(),
+		});
 	}
 
 	private emitTripReviewRequested(trip: TripResponseDto): void {

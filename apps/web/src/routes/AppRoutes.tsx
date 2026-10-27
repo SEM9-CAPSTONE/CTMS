@@ -1,6 +1,7 @@
 import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { HttpError } from "../core/api";
 import { clearAuthSessionAndRedirect } from "../core/api/authSessionSync";
+import { guardedNavigation } from "../core/navigation-guard";
 import { AdminAuditLogsPage } from "../features/admin-audit-logs/pages/AdminAuditLogsPage";
 import { AdminContentReportsPage } from "../features/admin-content-reports/pages/AdminContentReportsPage";
 import { AdminPorterVerificationsPage } from "../features/admin-porter-verifications/pages/AdminPorterVerificationsPage";
@@ -64,10 +65,11 @@ export function AppRoutes() {
 	const [restoredTripBooking, setRestoredTripBooking] = useState<BookingDetails | null>(null);
 
 	useEffect(() => {
-		const handleLocationChange = () => {
-			setCurrentPath(window.location.pathname.toLowerCase());
-			setCurrentSearch(window.location.search);
-		};
+		const handleLocationChange = () =>
+			guardedNavigation(() => {
+				setCurrentPath(window.location.pathname.toLowerCase());
+				setCurrentSearch(window.location.search);
+			});
 
 		window.addEventListener("popstate", handleLocationChange);
 		return () => {
@@ -75,13 +77,14 @@ export function AppRoutes() {
 		};
 	}, []);
 
-	const navigateTo = (path: string) => {
-		const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-		const nextLocation = new URL(normalizedPath, window.location.origin);
-		window.history.pushState({}, "", normalizedPath);
-		setCurrentPath(nextLocation.pathname.toLowerCase());
-		setCurrentSearch(nextLocation.search);
-	};
+	const navigateTo = (path: string) =>
+		guardedNavigation(() => {
+			const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+			const nextLocation = new URL(normalizedPath, window.location.origin);
+			window.history.pushState({}, "", normalizedPath);
+			setCurrentPath(nextLocation.pathname.toLowerCase());
+			setCurrentSearch(nextLocation.search);
+		});
 	const handleBookingLoaded = useCallback((booking: BookingDetails) => {
 		setRestoredTripBooking(booking);
 	}, []);
@@ -278,7 +281,10 @@ export function AppRoutes() {
 			>
 				<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
 					<CreateTripPage
-						editTripId={tripId}
+						key={tripId}
+						onEditTripInfo={(id) => navigateTo(`/host/trips/${id}/edit`)}
+						editTripId={tripId.startsWith("form-") ? undefined : tripId}
+						formDraftId={tripId.startsWith("form-") ? tripId.slice(5) : undefined}
 						onBackHome={() => navigateTo(RoutePath.DASHBOARD)}
 						onCreateRoute={() => navigateTo(RoutePath.HOST_CREATE_TREKKING_ROUTE)}
 					/>
@@ -618,6 +624,8 @@ export function AppRoutes() {
 				>
 					<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
 						<CreateTripPage
+							key="new-trip"
+							onEditTripInfo={(id) => navigateTo(`/host/trips/${id}/edit`)}
 							onBackHome={() => navigateTo(RoutePath.DASHBOARD)}
 							onCreateRoute={() => navigateTo(RoutePath.HOST_CREATE_TREKKING_ROUTE)}
 						/>

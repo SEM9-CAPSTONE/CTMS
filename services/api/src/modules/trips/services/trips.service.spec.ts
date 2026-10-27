@@ -1,5 +1,6 @@
 import { ConflictException, ForbiddenException, NotFoundException } from "@nestjs/common";
 import type { AuthenticatedUser } from "../../auth/jwt.strategy";
+import type { EventsGateway } from "../../realtime/events.gateway";
 import {
 	TrekkingRouteDifficulty,
 	TrekkingRouteStatus,
@@ -12,6 +13,7 @@ import type { SearchTripsQueryDto } from "../dto/search-trips-query.dto";
 import { WaypointType } from "../entities/trip-waypoint.entity";
 import { TripStatus, TripType } from "../entities/trip.entity";
 import type { TripsRepository } from "../repositories/trips.repository";
+import type { TripImagesService } from "./trip-images.service";
 import { TripsService } from "./trips.service";
 
 const HOST_ID = "11111111-1111-4111-8111-111111111111";
@@ -155,9 +157,16 @@ function configuredTrip() {
 }
 
 describe("TripsService", () => {
+	const gateway = {
+		emitTripReviewUpdated: jest.fn(),
+		emitTripReviewRequested: jest.fn(),
+		emitTripReviewReminder: jest.fn(),
+		emitTripReviewAutoRejected: jest.fn(),
+	};
 	let tripsRepository: {
 		createDraft: jest.Mock;
 		updateDraft: jest.Mock;
+		saveDraftWaypoints: jest.Mock;
 		findByIdForWaypointConfiguration: jest.Mock;
 		findInvalidWaypointCheckpointIds: jest.Mock;
 		findRouteDependencyForUpdate: jest.Mock;
@@ -188,6 +197,7 @@ describe("TripsService", () => {
 		tripsRepository = {
 			createDraft: jest.fn().mockResolvedValue(createdTrip()),
 			updateDraft: jest.fn().mockResolvedValue(createdTrip()),
+			saveDraftWaypoints: jest.fn().mockResolvedValue(createdTrip()),
 			findByIdForWaypointConfiguration: jest.fn().mockResolvedValue({
 				trip: createdTrip(),
 				hostId: HOST_ID,
@@ -257,7 +267,11 @@ describe("TripsService", () => {
 				})
 			),
 		};
-		service = new TripsService(tripsRepository as unknown as TripsRepository, dataSource as never);
+		service = new TripsService(
+			tripsRepository as unknown as TripsRepository,
+			dataSource as never,
+			gateway as unknown as EventsGateway
+		);
 	});
 
 	it("creates a draft Trip for the authenticated owning Host and audits the create action", async () => {
@@ -461,39 +475,19 @@ describe("TripsService", () => {
 			);
 		});
 
-		it("edits an owned pending_approval Trip, keeps it pending, and makes Admin review the updated version", async () => {
-			const pendingTrip = configuredTrip();
+		it("rejects direct pending Trip writes before Finish Update", async () => {
+			const pending = configuredTrip();
 			tripsRepository.findByIdForWaypointConfiguration.mockResolvedValue({
-				trip: pendingTrip,
+				trip: pending,
 				hostId: HOST_ID,
 				routeId: ROUTE_ID,
 				status: TripStatus.PENDING_APPROVAL,
 			});
-			tripsRepository.updateDraft.mockResolvedValue({
-				...pendingTrip,
-				updatedAt: new Date("2026-09-15T01:00:00.000Z"),
-			});
-
-			const result = await service.updateDraft(HOST_ID, TRIP_ID, {
-				...createTripDto(),
-				title: "Updated pending review trip",
-			});
-
-			expect(tripsRepository.updateDraft).toHaveBeenCalledWith(
-				TRIP_ID,
-				expect.objectContaining({ title: "Updated pending review trip" })
+			await expect(service.updateDraft(HOST_ID, TRIP_ID, createTripDto())).rejects.toBeInstanceOf(
+				ConflictException
 			);
-			expect(result.status).toBe(TripStatus.PENDING_APPROVAL);
-			expect(auditRepository.save).toHaveBeenCalledWith(
-				expect.objectContaining({
-					reason: "host_update_trip_pending_approval",
-					before: expect.objectContaining({ status: TripStatus.PENDING_APPROVAL }),
-					after: expect.objectContaining({
-						status: TripStatus.PENDING_APPROVAL,
-						updatedAt: new Date("2026-09-15T01:00:00.000Z"),
-					}),
-				})
-			);
+			expect(tripsRepository.updateDraft).not.toHaveBeenCalled();
+			expect(auditRepository.save).not.toHaveBeenCalled();
 		});
 
 		it("rejects published Trip editing so schedule changes must use reschedule", async () => {
@@ -512,7 +506,146 @@ describe("TripsService", () => {
 		});
 	});
 
+	describe("finalizing a pending Trip update", () => {
+		const images = {
+			preparePendingUpdate: jest.fn(),
+			applyPendingUpdate: jest.fn(),
+			releasePendingUploads: jest.fn(),
+			list: jest.fn(),
+		};
+		beforeEach(() => {
+			jest.clearAllMocks();
+			images.preparePendingUpdate.mockResolvedValue([]);
+			images.applyPendingUpdate.mockResolvedValue(undefined);
+			images.releasePendingUploads.mockResolvedValue(undefined);
+			images.list.mockResolvedValue([]);
+			service = new TripsService(
+				tripsRepository as unknown as TripsRepository,
+				dataSource as never,
+				gateway as unknown as EventsGateway,
+				undefined,
+				images as unknown as TripImagesService
+			);
+		});
+		it("commits information and images before notifying Admin once", async () => {
+			const pending = configuredTrip();
+			tripsRepository.findByIdForWaypointConfiguration.mockResolvedValue({
+				trip: pending,
+				hostId: HOST_ID,
+				routeId: ROUTE_ID,
+				status: TripStatus.PENDING_APPROVAL,
+			});
+			const updated = { ...pending, updatedAt: new Date("2026-09-15T02:00:00.000Z") };
+			tripsRepository.updateDraft.mockResolvedValue(updated);
+			tripsRepository.findById.mockResolvedValue(updated);
+			const result = await service.finalizePendingUpdate(
+				HOST_ID,
+				TRIP_ID,
+				{
+					...createTripDto(),
+					expectedUpdatedAt: new Date(pending.updatedAt).toISOString(),
+					retainedImageIds: [],
+				},
+				[]
+			);
+			expect(result.status).toBe(TripStatus.PENDING_APPROVAL);
+			expect(images.applyPendingUpdate).toHaveBeenCalledTimes(1);
+			expect(gateway.emitTripReviewUpdated).toHaveBeenCalledTimes(1);
+			expect(gateway.emitTripReviewUpdated.mock.invocationCallOrder[0]).toBeGreaterThan(
+				images.applyPendingUpdate.mock.invocationCallOrder[0]
+			);
+			expect(gateway.emitTripReviewRequested).not.toHaveBeenCalled();
+		});
+		it("rejects a stale edit without saving fields, images, or notifying Admin", async () => {
+			const pending = configuredTrip();
+			tripsRepository.findByIdForWaypointConfiguration.mockResolvedValue({
+				trip: pending,
+				hostId: HOST_ID,
+				routeId: ROUTE_ID,
+				status: TripStatus.PENDING_APPROVAL,
+			});
+			await expect(
+				service.finalizePendingUpdate(
+					HOST_ID,
+					TRIP_ID,
+					{
+						...createTripDto(),
+						expectedUpdatedAt: "2000-01-01T00:00:00.000Z",
+						retainedImageIds: [],
+					},
+					[]
+				)
+			).rejects.toBeInstanceOf(ConflictException);
+			expect(tripsRepository.updateDraft).not.toHaveBeenCalled();
+			expect(images.applyPendingUpdate).not.toHaveBeenCalled();
+			expect(gateway.emitTripReviewUpdated).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("pending itinerary updates", () => {
+		it("rejects individual pending waypoint writes before Finish Update", async () => {
+			const pending = configuredTrip();
+			tripsRepository.findByIdForWaypointConfiguration.mockResolvedValue({
+				trip: pending,
+				hostId: HOST_ID,
+				routeId: ROUTE_ID,
+				status: TripStatus.PENDING_APPROVAL,
+			});
+			await expect(
+				service.updateWaypoint(
+					HOST_ID,
+					TRIP_ID,
+					pending.waypoints[0].id,
+					createTripDto().waypoints[0]
+				)
+			).rejects.toBeInstanceOf(ConflictException);
+			expect(tripsRepository.saveDraftWaypoints).not.toHaveBeenCalled();
+			expect(auditRepository.save).not.toHaveBeenCalled();
+		});
+
+		it("rejects itinerary updates after the Trip is published", async () => {
+			const published = { ...configuredTrip(), status: TripStatus.PUBLISHED };
+			tripsRepository.findByIdForWaypointConfiguration.mockResolvedValue({
+				trip: published,
+				hostId: HOST_ID,
+				routeId: ROUTE_ID,
+				status: TripStatus.PUBLISHED,
+			});
+			await expect(
+				service.updateWaypoint(
+					HOST_ID,
+					TRIP_ID,
+					published.waypoints[0].id,
+					createTripDto().waypoints[0]
+				)
+			).rejects.toBeInstanceOf(ConflictException);
+			expect(tripsRepository.saveDraftWaypoints).not.toHaveBeenCalled();
+		});
+	});
+
 	describe("configureWaypoints", () => {
+		it("rejects reversed route times instead of silently sorting them by time", async () => {
+			const dto = createTripDto();
+			const middle = (order: string, time: string) => ({
+				type: WaypointType.REST,
+				name: "",
+				location: { type: "Point" as const, coordinates: [108.445, 11.944] as [number, number] },
+				plannedAt: time,
+				metadata: { routeOrder: order },
+			});
+			await expect(
+				service.configureWaypoints(HOST_ID, TRIP_ID, {
+					waypoints: [
+						dto.waypoints[0],
+						middle("0.3", "2026-09-20T05:00:00.000Z"),
+						middle("0.6", "2026-09-20T04:00:00.000Z"),
+						dto.waypoints[1],
+					],
+				})
+			).rejects.toMatchObject({ status: 422 });
+			expect(tripsRepository.replaceWaypointsAndSubmitForApproval).not.toHaveBeenCalled();
+		});
+
 		it("replaces draft Trip waypoints, submits the Trip for approval, and audits the change", async () => {
 			const result = await service.configureWaypoints(HOST_ID, TRIP_ID, {
 				waypoints: createTripDto().waypoints,

@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import type { CreatedTrekkingRoute, Position } from "../../trekking-routes/types";
 import { approximateLengthMeters } from "../../trekking-routes/utils/route-import";
 import { DEFAULT_ROUTE_CENTER, getRouteMapStyleUrl } from "../../trekking-routes/utils/route-map";
+import { RequiredFieldMark } from "./TripFormSection";
 
 interface TripRouteMapProps {
 	route: CreatedTrekkingRoute | null;
@@ -58,6 +59,7 @@ export function TripRouteMap({
 	const containerRef = useRef<HTMLDivElement | null>(null);
 	const mapRef = useRef<MapLibreMap | null>(null);
 	const markerRef = useRef<Marker | null>(null);
+	const centeredRouteIdRef = useRef<string | null>(null);
 	const routeRef = useRef(route);
 	const meetingPointRef = useRef<Position | null>(meetingPoint);
 	const disabledRef = useRef(disabled);
@@ -67,6 +69,7 @@ export function TripRouteMap({
 	const key = import.meta.env.VITE_MAPTILER_API_KEY as string | undefined;
 	const styleUrl = getRouteMapStyleUrl(key);
 	const fallback = !styleUrl || Boolean(mapError);
+	const selectedRouteId = route?.id ?? null;
 	const coordinates = route?.geometry.coordinates ?? [];
 	const start = coordinates[0] ?? null;
 	const finish = coordinates.at(-1) ?? null;
@@ -80,6 +83,7 @@ export function TripRouteMap({
 
 	useEffect(() => {
 		if (!styleUrl || !containerRef.current) return;
+		setMapReady(false);
 		if (!canUseMapLibre()) {
 			setMapError("Thiết bị không hỗ trợ bản đồ nền; bản đồ dự phòng vẫn hoạt động.");
 			return;
@@ -104,11 +108,13 @@ export function TripRouteMap({
 				map.on("load", () => {
 					map.addSource("trip-route", {
 						type: "geojson",
-						data: {
-							type: "Feature",
-							properties: {},
-							geometry: routeRef.current?.geometry ?? { type: "LineString", coordinates: [] },
-						},
+						data: routeRef.current
+							? {
+									type: "Feature",
+									properties: {},
+									geometry: routeRef.current.geometry,
+								}
+							: { type: "FeatureCollection", features: [] },
 					});
 					map.addLayer({
 						id: "trip-route-line",
@@ -119,7 +125,7 @@ export function TripRouteMap({
 					setMapReady(true);
 				});
 				map.on("click", (event: MapMouseEvent) => {
-					if (disabledRef.current) return;
+					if (disabledRef.current || !routeRef.current) return;
 					onMeetingPointChangeRef.current([
 						Number(event.lngLat.lng.toFixed(6)),
 						Number(event.lngLat.lat.toFixed(6)),
@@ -137,6 +143,7 @@ export function TripRouteMap({
 			markerRef.current = null;
 			mapRef.current?.remove();
 			mapRef.current = null;
+			centeredRouteIdRef.current = null;
 		};
 	}, [styleUrl]);
 
@@ -145,17 +152,34 @@ export function TripRouteMap({
 		const map = mapRef.current;
 		if (!map) return;
 		const source = map.getSource("trip-route") as { setData?: (data: object) => void } | undefined;
-		source?.setData?.({
-			type: "Feature",
-			properties: {},
-			geometry: route?.geometry ?? { type: "LineString", coordinates: [] },
-		});
+		source?.setData?.(
+			route
+				? {
+						type: "Feature",
+						properties: {},
+						geometry: route.geometry,
+					}
+				: { type: "FeatureCollection", features: [] }
+		);
+		// Updating the meeting marker must never move the camera back to the route start.
+		if (centeredRouteIdRef.current !== (route?.id ?? null)) {
+			centeredRouteIdRef.current = route?.id ?? null;
+			const routeStart = route?.geometry.coordinates[0];
+			if (routeStart) map.setCenter(routeStart);
+		}
+	}, [mapReady, route]);
+
+	useEffect(() => {
+		if (!mapReady) return;
+		const map = mapRef.current;
+		if (!map) return;
+		let cancelled = false;
+
 		void import("maplibre-gl").then((maplibre) => {
-			if (mapRef.current !== map) return;
-			if (!meetingPoint) {
+			if (cancelled || mapRef.current !== map) return;
+			if (!meetingPoint || !selectedRouteId) {
 				markerRef.current?.remove();
 				markerRef.current = null;
-				if (route?.geometry.coordinates[0]) map.setCenter(route.geometry.coordinates[0]);
 				return;
 			}
 			if (!markerRef.current) {
@@ -166,23 +190,29 @@ export function TripRouteMap({
 					.addTo(map);
 				markerRef.current.on("dragend", () => {
 					const point = markerRef.current?.getLngLat();
-					if (!point) return;
+					if (!point || disabledRef.current || !routeRef.current) return;
 					onMeetingPointChangeRef.current([
 						Number(point.lng.toFixed(6)),
 						Number(point.lat.toFixed(6)),
 					]);
 				});
 			}
+			markerRef.current.setDraggable(!disabled);
 			markerRef.current.setLngLat(meetingPoint);
 		});
-		if (route?.geometry.coordinates[0]) map.setCenter(route.geometry.coordinates[0]);
-	}, [disabled, mapReady, meetingPoint, route]);
+		return () => {
+			cancelled = true;
+		};
+	}, [disabled, mapReady, meetingPoint, selectedRouteId]);
 
 	return (
 		<section className="rounded-2xl border border-[#e0ebe0] bg-white p-5 shadow-sm">
 			<div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
 				<div>
-					<h2 className="font-extrabold text-[#10221b]">Tuyến và điểm tập trung</h2>
+					<h2 className="font-extrabold text-[#10221b]">
+						Tuyến và điểm tập trung
+						<RequiredFieldMark />
+					</h2>
 					<p className="text-sm text-[#667a6d]">
 						Chọn tuyến có sẵn, sau đó bấm trên bản đồ để đặt điểm tập trung.
 					</p>

@@ -3,6 +3,23 @@ import { describe, expect, it, vi } from "vitest";
 import type { TripDetails } from "../types";
 import { TripDetailView } from "./TripDetailView";
 
+vi.mock("./TripImageGallery", () => ({
+	TripImageGallery: ({ onImagesChange }: { onImagesChange: (urls: string[]) => void }) => (
+		<button
+			type="button"
+			onClick={() =>
+				onImagesChange([
+					"https://example.com/cover1.jpg",
+					"https://example.com/gallery1.jpg",
+					"https://example.com/gallery2.jpg",
+				])
+			}
+		>
+			load-trip-gallery
+		</button>
+	),
+}));
+
 vi.mock("../../booking-equipment/components/BookingEquipmentPicker", () => ({
 	BookingEquipmentPicker: ({
 		bookingId,
@@ -561,6 +578,7 @@ describe("TripDetailView", () => {
 
 		render(<TripDetailView trip={tripWithGallery} />);
 
+		fireEvent.click(screen.getByRole("button", { name: "load-trip-gallery" }));
 		// Counter shows 1 / 3
 		expect(screen.getByText("1 / 3")).toBeInTheDocument();
 

@@ -18,6 +18,7 @@ import {
 import type { KeyboardEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "../../../shared/components/Button";
+import { TripFormDraftList } from "../../trips/components/TripFormDraftList";
 import { useMyTrips } from "../../trips/hooks/useMyTrips";
 import { useHostTripReviewNotifications } from "../../trips/hooks/useTripReviewNotifications";
 import type { TripStatus } from "../../trips/types";
@@ -96,16 +97,20 @@ export function HostMyTripsPanel({
 	onNavigateToTripDetail,
 	onEditTripDraft,
 }: HostMyTripsPanelProps) {
+	const [formDraftCount, setFormDraftCount] = useState(0);
+	const [linkedDraftTrips, setLinkedDraftTrips] = useState<string[]>([]);
 	const { trips: fetchedTrips = [], isLoading, error, refetch } = useMyTrips();
 	useHostTripReviewNotifications({ onChanged: refetch });
 	// Status comes straight from the database; the backend schedule worker advances it over time.
 	const trips = useMemo(
 		() =>
-			(Array.isArray(fetchedTrips) ? fetchedTrips : []).map((trip) => ({
-				...trip,
-				displayStatus: trip.status,
-			})),
-		[fetchedTrips]
+			(Array.isArray(fetchedTrips) ? fetchedTrips : [])
+				.filter((trip) => !linkedDraftTrips.includes(trip.id))
+				.map((trip) => ({
+					...trip,
+					displayStatus: trip.status,
+				})),
+		[fetchedTrips, linkedDraftTrips]
 	);
 	const [selectedStatus, setSelectedStatus] = useState<"all" | TripStatus>("all");
 	const [currentPage, setCurrentPage] = useState(1);
@@ -113,16 +118,19 @@ export function HostMyTripsPanel({
 
 	// Count trips by status
 	const statusCounts = useMemo(() => {
-		const counts: Record<string, number> = { all: trips.length };
+		const counts: Record<string, number> = {
+			all: trips.filter((trip) => trip.displayStatus !== "draft").length,
+			draft: formDraftCount,
+		};
 		for (const trip of trips) {
 			counts[trip.displayStatus] = (counts[trip.displayStatus] || 0) + 1;
 		}
 		return counts;
-	}, [trips]);
+	}, [trips, formDraftCount]);
 
 	// Filtered trips
 	const filteredTrips = useMemo(() => {
-		if (selectedStatus === "all") return trips;
+		if (selectedStatus === "all") return trips.filter((trip) => trip.displayStatus !== "draft");
 		return trips.filter((t) => t.displayStatus === selectedStatus);
 	}, [trips, selectedStatus]);
 
@@ -172,7 +180,7 @@ export function HostMyTripsPanel({
 								Chuyến đi của bạn
 							</h2>
 							<span className="rounded-full bg-[#eef7f0] px-2.5 py-0.5 text-xs font-bold text-[#164027]">
-								{trips.length} chuyến
+								{trips.length + formDraftCount} chuyến
 							</span>
 						</div>
 						<p className="mt-0.5 text-xs font-medium text-[#667a6d]">
@@ -218,7 +226,7 @@ export function HostMyTripsPanel({
 			</div>
 
 			{/* Status Filter Bar */}
-			{!isLoading && !error && trips.length > 0 && (
+			{!isLoading && !error && (trips.length > 0 || formDraftCount > 0) && (
 				<div className="mt-5 flex flex-wrap items-center gap-2 border-y border-[#edf3ee] py-3">
 					<div className="mr-1 flex items-center gap-1.5 text-xs font-bold text-[#7b8c82]">
 						<Filter className="size-3.5" />
@@ -255,6 +263,12 @@ export function HostMyTripsPanel({
 			)}
 
 			<div className="mt-6">
+				<TripFormDraftList
+					visible={selectedStatus === "draft"}
+					onCountChange={setFormDraftCount}
+					onLinkedTrips={setLinkedDraftTrips}
+					onOpen={(id) => onEditTripDraft?.(`form-${id}`)}
+				/>
 				{isLoading && (
 					<div className="flex flex-col items-center justify-center gap-3 py-12 text-[#667a6d]">
 						<Loader2 className="size-8 animate-spin text-[#164027]" />
@@ -280,7 +294,7 @@ export function HostMyTripsPanel({
 					</div>
 				)}
 
-				{!isLoading && !error && trips.length === 0 && (
+				{!isLoading && !error && trips.length === 0 && formDraftCount === 0 && (
 					<div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-[#d2ded3] bg-[#fbfdfb] py-12 text-center">
 						<div className="flex size-14 items-center justify-center rounded-2xl bg-emerald-50 text-[#164027]">
 							<CalendarDays className="size-7" />
@@ -305,45 +319,50 @@ export function HostMyTripsPanel({
 					</div>
 				)}
 
-				{!isLoading && !error && trips.length > 0 && filteredTrips.length === 0 && (
-					<div className="flex flex-col items-center justify-center rounded-2xl border border-[#dfe8df] bg-[#fbfdfb] py-10 text-center">
-						<p className="text-sm font-bold text-[#55685a]">
-							Không có chuyến đi nào ở trạng thái này.
-						</p>
-						<Button
-							type="button"
-							variant="outline"
-							size="sm"
-							onClick={() => handleStatusChange("all")}
-							className="mt-3 text-xs"
-						>
-							Xem tất cả chuyến đi ({trips.length})
-						</Button>
-					</div>
-				)}
+				{!isLoading &&
+					!error &&
+					(trips.length > 0 || formDraftCount > 0) &&
+					filteredTrips.length === 0 &&
+					(selectedStatus !== "draft" || formDraftCount === 0) && (
+						<div className="flex flex-col items-center justify-center rounded-2xl border border-[#dfe8df] bg-[#fbfdfb] py-10 text-center">
+							<p className="text-sm font-bold text-[#55685a]">
+								Không có chuyến đi nào ở trạng thái này.
+							</p>
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								onClick={() => handleStatusChange("all")}
+								className="mt-3 text-xs"
+							>
+								Xem tất cả chuyến đi ({trips.length})
+							</Button>
+						</div>
+					)}
 
 				{!isLoading && !error && paginatedTrips.length > 0 && (
 					<>
 						<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
 							{paginatedTrips.map((trip) => {
 								const statusCfg = statusLabels[trip.displayStatus] ?? statusLabels.draft;
+								const canViewDetails = trip.status !== "draft" && Boolean(onNavigateToTripDetail);
 								return (
 									<article
 										key={trip.id}
-										role={onNavigateToTripDetail ? "button" : undefined}
-										tabIndex={onNavigateToTripDetail ? 0 : undefined}
-										aria-label={`Xem chi tiết chuyến đi ${trip.title}`}
-										onClick={
-											onNavigateToTripDetail ? () => onNavigateToTripDetail(trip.id) : undefined
+										role={canViewDetails ? "button" : undefined}
+										tabIndex={canViewDetails ? 0 : undefined}
+										aria-label={canViewDetails ? `Xem chi tiết chuyến đi ${trip.title}` : undefined}
+										onClick={canViewDetails ? () => onNavigateToTripDetail?.(trip.id) : undefined}
+										onKeyDown={
+											canViewDetails ? (event) => handleTripCardKeyDown(event, trip.id) : undefined
 										}
-										onKeyDown={(event) => handleTripCardKeyDown(event, trip.id)}
 										className={`group flex flex-col justify-between overflow-hidden rounded-2xl border border-[#e5eee7] bg-[#fbfdfb] text-left transition-all hover:-translate-y-1 hover:border-[#b8cfbc] hover:shadow-md ${
-											onNavigateToTripDetail
+											canViewDetails
 												? "cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#164027] focus-visible:ring-offset-2"
 												: ""
 										}`}
 									>
-										<div className="relative aspect-[16/9] w-full overflow-hidden bg-[#e8efe9]">
+										<div className="relative aspect-[4/3] w-full shrink-0 overflow-hidden bg-[#e8efe9]">
 											<img
 												src={
 													trip.coverImageUrl ||
@@ -366,12 +385,12 @@ export function HostMyTripsPanel({
 										<div className="flex flex-1 flex-col p-4">
 											<h4
 												title={trip.title}
-												className="line-clamp-2 text-sm font-extrabold text-[#10221b] group-hover:text-[#164027]"
+												className="truncate h-5 text-sm leading-5 font-extrabold text-[#10221b] group-hover:text-[#164027]"
 											>
 												{trip.title}
 											</h4>
 
-											<div className="mt-3 space-y-1.5 text-xs text-[#55685a]">
+											<div className="mt-3 mb-4 space-y-1.5 text-xs text-[#55685a]">
 												<div className="flex items-center gap-2">
 													<Calendar className="size-3.5 shrink-0 text-[#8fa096]" />
 													<span className="truncate">
@@ -386,7 +405,7 @@ export function HostMyTripsPanel({
 												</div>
 											</div>
 
-											<div className="mt-4 flex items-center justify-between border-t border-[#edf3ee] pt-3">
+											<div className="mt-auto flex min-h-[53px] items-center justify-between gap-2 border-t border-[#edf3ee] pt-3">
 												<div>
 													<p className="text-[10px] font-bold uppercase tracking-wider text-[#8fa096]">
 														Giá vé
@@ -396,7 +415,7 @@ export function HostMyTripsPanel({
 													</p>
 												</div>
 
-												<div className="flex items-center gap-2">
+												<div className="flex shrink-0 items-center gap-2">
 													{(trip.status === "draft" || trip.status === "pending_approval") &&
 														onEditTripDraft && (
 															<button
@@ -408,15 +427,17 @@ export function HostMyTripsPanel({
 																className="inline-flex items-center gap-1 rounded-xl bg-white px-3 py-1.5 text-xs font-bold text-[#164027] ring-1 ring-[#cbd9ce] transition-colors hover:bg-[#f4f7f2]"
 															>
 																<Pencil className="size-3.5" />
-																<span>Sửa</span>
+																<span>
+																	{trip.status === "pending_approval" ? "Cập nhật" : "Sửa"}
+																</span>
 															</button>
 														)}
-													{onNavigateToTripDetail && (
+													{canViewDetails && (
 														<button
 															type="button"
 															onClick={(event) => {
 																event.stopPropagation();
-																onNavigateToTripDetail(trip.id);
+																onNavigateToTripDetail?.(trip.id);
 															}}
 															className="inline-flex items-center gap-1 rounded-xl bg-white px-3 py-1.5 text-xs font-bold text-[#164027] ring-1 ring-[#cbd9ce] hover:bg-[#164027] hover:text-white transition-colors"
 														>

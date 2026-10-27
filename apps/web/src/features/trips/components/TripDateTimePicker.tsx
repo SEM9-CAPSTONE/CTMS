@@ -470,6 +470,8 @@ export function SoftDateTimeRangePicker({
 interface SoftSingleDateTimePickerProps {
 	modal?: boolean;
 	title: string;
+	required?: boolean;
+	placeholder?: string;
 	value: string;
 	disabled?: boolean;
 	error?: string;
@@ -481,6 +483,8 @@ interface SoftSingleDateTimePickerProps {
 }
 export function SoftSingleDateTimePicker({
 	title,
+	required = false,
+	placeholder,
 	value,
 	disabled = false,
 	error,
@@ -565,11 +569,19 @@ export function SoftSingleDateTimePicker({
 	return (
 		<div ref={popoverRef} className="relative">
 			<div className="block text-sm font-bold text-[#34483b]">
-				<span>{title}</span>
+				<span>
+					{title}
+					{required && (
+						<span aria-hidden="true" className="ml-1 text-red-600">
+							*
+						</span>
+					)}
+				</span>
 				<button
 					type="button"
 					disabled={disabled}
 					aria-expanded={isOpen}
+					aria-required={required || undefined}
 					aria-label={`Mở ${title.toLowerCase()}`}
 					onClick={() => {
 						if (!isOpen) setMonthDate(makeInitialMonth(value, minValue));
@@ -578,7 +590,7 @@ export function SoftSingleDateTimePicker({
 					className="mt-1 flex min-h-11 w-full items-center justify-between gap-3 rounded-xl border border-[#cbd9ce] bg-white px-3 py-2.5 text-left text-sm font-semibold text-[#10221b] outline-none transition hover:border-[#9db6a3] focus:border-[#164027] focus:ring-2 focus:ring-[#164027]/10 disabled:bg-[#f4f7f2] disabled:text-[#7b8c82]"
 				>
 					<span className={value ? "" : "text-[#7b8c82]"}>
-						{formatDateTimeField(value, `Chọn ${title.toLowerCase()}`)}
+						{formatDateTimeField(value, placeholder ?? `Chọn ${title.toLowerCase()}`)}
 					</span>
 					<CalendarDays className="size-4 shrink-0 text-[#607368]" />
 				</button>

@@ -122,6 +122,36 @@ TBD — Technical Design.
 | PB AC-4, BR-081 | Storage fails                | No false authoritative success     | Integration            |
 | PB AC-5         | Public Trip image request    | Only permitted image state exposed | Security / Integration |
 
-## 12. Open Decisions
+## 12. Implementation Decisions
 
-Exact image-size/type limits, maximum image count, ordering mechanism, primary-cover-image behavior and physical-vs-soft deletion must come from the approved media/Data Dictionary contract.
+- A Trip supports at most five images, including a migrated existing cover. Supported uploads are JPEG, PNG, and WebP, at most 5 MiB each. The backend verifies file signatures and declared media type.
+- Hosts can select and preview up to five images directly in the Create Trip form. Submission creates the draft and uploads the selected files sequentially before proceeding to waypoint configuration. No image is uploaded merely by selecting it.
+- If an upload fails after draft creation, the form preserves the original submission and saved Trip ID, locks the saved fields, and offers retry from the failed image. Confirmed uploads are not repeated, and retry does not create another Trip. A lost upload response is safe because the backend deduplicates image content.
+- The details gallery continues to support adding/removing images. The deprecated `coverImageUrl` create/update input cannot replace the managed thumbnail.
+- Upload order is explicit and stable. The first successful upload becomes the thumbnail; later uploads do not replace it. Removing it promotes the earliest remaining image. Removing every image clears the cover.
+- The owning Host can mutate images except while the Trip is ongoing, completed, or cancelled. Collection reads use the existing Trip details visibility policy.
+- `GET /trips/:tripId/images` returns ordered `{ id, url, sortOrder }` records. `POST` accepts one multipart `file` and returns the authoritative collection. `DELETE /trips/:tripId/images/:imageId` returns `{ images, storageCleanup: "queued" }`.
+- Mutations serialize on the Trip row. A unique Trip/content hash prevents duplicate metadata; repeated uploads reuse the existing result without another storage upload, including when the Trip already has five images. Repeated deletion is a no-op. A reference to another Trip's existing image is rejected.
+- `trip_images.trip_id` uses `ON DELETE CASCADE`. Deleting an image physically removes its database record. A database trigger updates the cover and durably queues storage deletion in the same transaction, including when the Trip is deleted outside the image API.
+- Before upload, a deterministic storage location and independently committed cleanup receipt are reserved. Successful metadata/audit commit removes that receipt atomically. Failed or interrupted uploads retain it for cleanup. The reservation is locked during upload to prevent concurrent cleanup.
+- The cleanup worker runs every 30 seconds, processes up to 20 jobs per batch with `SKIP LOCKED`, and retries storage failures after five minutes. Interrupted reservations become eligible after one hour. Storage deletion is idempotent. The API/UI describe storage cleanup as queued rather than completed.
+- Existing covers are migrated into the image collection. Cleanup only deletes local files and Cloudinary objects owned by the configured application; third-party external references are removed from the database without attempting to delete their source.
+- Storage delivery continues to use the existing application's public upload/CDN URLs. The authenticated collection API enforces Trip visibility, but these URLs are not private delivery links. Private byte delivery requires a separate storage/access-control change.
+
+## 13. Verification
+
+- Backend unit tests cover first/subsequent uploads, duplicate content at the limit, a sixth image, unauthorized/missing/locked Trips, invalid and oversized files, storage errors, metadata errors, deletion, retries, and cleanup failure retention.
+- PostgreSQL integration tests cover concurrent uploads and retries, thumbnail promotion, physical cascade deletion, durable cleanup receipts, rollback on audit failure, and isolation between Trips.
+- Client tests cover authoritative upload/removal rendering, the five-image boundary, invalid files, storage failures, queued cleanup feedback, and read-only states.
+
+### Task-specific HTTP E2E
+
+`services/api/test/trips.images.e2e-spec.ts` boots the complete Nest application and exercises authenticated HTTP requests with real PostgreSQL and isolated local file storage. It covers upload/list/removal, stable thumbnail selection, concurrent five-image enforcement, duplicate request safety, file cleanup, Trip cascade deletion, invalid uploads, ownership, lifecycle protection, and collection visibility. The cleanup worker is driven explicitly to avoid timer races. Trip deletion itself is exercised through SQL because no Trip deletion HTTP endpoint exists.
+
+Run from the repository root:
+
+```powershell
+pnpm --filter @ctms/api test:e2e --runTestsByPath test/trips.images.e2e-spec.ts
+```
+
+The suite requires the dedicated PostgreSQL test database configured by `TEST_DATABASE_URL` (default `ctms_test`). It does not require a separately running API or Cloudinary.

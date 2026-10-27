@@ -14,7 +14,14 @@ import {
 	Users,
 	X,
 } from "lucide-react";
-import { type ComponentProps, type ReactNode, useEffect, useMemo, useState } from "react";
+import {
+	type ComponentProps,
+	type ReactNode,
+	useCallback,
+	useEffect,
+	useMemo,
+	useState,
+} from "react";
 import type { BookingDetails } from "../../booking-details/types";
 import { InitializeBookingMembersPanel } from "../../booking-members/components/InitializeBookingMembersPanel";
 import type { InitializeBookingMembersResponse } from "../../booking-members/types";
@@ -25,6 +32,7 @@ import { HostTripOperationsPanel } from "./HostTripOperationsPanel";
 import type { SelectedEquipmentItem } from "./RentableEquipmentModal";
 import { TripCapacityBanner } from "./TripCapacityBanner";
 import { formatDateRange, formatVND, getDifficultyBadge, getWeatherRiskBadge } from "./TripCard";
+import { TripImageGallery } from "./TripImageGallery";
 import { TripRentableEquipment } from "./TripRentableEquipment";
 
 export interface TripDetailViewProps {
@@ -170,18 +178,19 @@ export function TripDetailView({
 		return selectedPreBookingEquipment.reduce((sum, sel) => sum + sel.quantity, 0);
 	}, [selectedPreBookingEquipment]);
 
+	const [managedImages, setManagedImages] = useState<{ tripId: string; urls: string[] } | null>(
+		null
+	);
 	const tripImages = useMemo<string[]>(() => {
+		if (managedImages?.tripId === trip.id)
+			return managedImages.urls.length
+				? managedImages.urls
+				: [
+						"https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1600&q=80",
+					];
 		const result: string[] = [];
 		if (trip.coverImageUrl) {
 			result.push(trip.coverImageUrl);
-		}
-		const itinerary = trip.itinerary as Record<string, unknown> | null;
-		if (itinerary && Array.isArray(itinerary.images)) {
-			for (const item of itinerary.images) {
-				if (typeof item === "string" && !result.includes(item)) {
-					result.push(item);
-				}
-			}
 		}
 		if (result.length === 0) {
 			result.push(
@@ -189,10 +198,17 @@ export function TripDetailView({
 			);
 		}
 		return result;
-	}, [trip.coverImageUrl, trip.itinerary]);
+	}, [trip.coverImageUrl, trip.id, managedImages]);
 
 	const [activeImageIndex, setActiveImageIndex] = useState(0);
 	const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+	const handleImagesChange = useCallback(
+		(urls: string[]) => {
+			setManagedImages({ tripId: trip.id, urls });
+			setActiveImageIndex(0);
+		},
+		[trip.id]
+	);
 
 	const handlePrevImage = (e?: React.MouseEvent) => {
 		e?.stopPropagation();
@@ -400,6 +416,12 @@ export function TripDetailView({
 					</div>
 				</div>
 
+				<TripImageGallery
+					tripId={trip.id}
+					status={trip.status}
+					canManage={canManageTrip}
+					onImagesChange={handleImagesChange}
+				/>
 				{/* Key Highlights Bar */}
 				<div className="grid gap-4 border-t border-[#dfe8df] p-6 sm:grid-cols-2 lg:grid-cols-4">
 					<div className="flex items-start gap-3">

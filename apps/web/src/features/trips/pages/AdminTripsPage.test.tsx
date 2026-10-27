@@ -68,6 +68,12 @@ interface SetupOptions {
 
 async function setup(options: SetupOptions = {}) {
 	vi.resetModules();
+	vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+	// Socket behavior is covered by useTripReviewNotifications.test.ts.
+	// Page tests must not connect to a running development API.
+	vi.doMock("../hooks/useTripReviewNotifications", () => ({
+		useAdminTripReviewNotifications: vi.fn(),
+	}));
 	const listAdminReviews = vi.fn();
 	if (options.deferredList) {
 		listAdminReviews.mockReturnValue(options.deferredList);
@@ -111,6 +117,7 @@ async function setup(options: SetupOptions = {}) {
 afterEach(() => {
 	vi.restoreAllMocks();
 	vi.doUnmock("../services/trips.service");
+	vi.doUnmock("../hooks/useTripReviewNotifications");
 });
 
 describe("AdminTripsPage", () => {
@@ -178,9 +185,9 @@ describe("AdminTripsPage", () => {
 
 	it("approves once and reloads authoritative pending data", async () => {
 		const test = await setup();
-		test.listAdminReviews.mockResolvedValueOnce(paginated([]));
 		await test.user.click(await test.screen.findByRole("button", { name: "Ra quyết định" }));
-		const confirm = test.screen.getByRole("button", { name: "Xác nhận quyết định" });
+		const confirm = await test.screen.findByRole("button", { name: "Xác nhận quyết định" });
+		test.listAdminReviews.mockResolvedValueOnce(paginated([]));
 		await test.user.dblClick(confirm);
 		await test.waitFor(() => expect(test.review).toHaveBeenCalledTimes(1));
 		expect(test.review).toHaveBeenCalledWith("trip-1", {
@@ -269,4 +276,19 @@ describe("AdminTripsPage", () => {
 		expect(test.screen.getAllByText("Đã phê duyệt").length).toBeGreaterThan(0);
 		expect(test.screen.getAllByText("Kết thúc").length).toBeGreaterThan(0);
 	});
+});
+
+it("closes a stale decision dialog when a newer pending version arrives", async () => {
+	const { screen, user, listAdminReviews, act, waitFor, review } = await setup();
+	await user.click(await screen.findByRole("button", { name: "Ra quyết định" }));
+	expect(await screen.findByRole("dialog")).toBeVisible();
+	listAdminReviews.mockResolvedValue(
+		paginated([{ ...trip, title: "Latest pending title", updatedAt: "2026-09-15T01:00:00.000Z" }])
+	);
+	await act(async () => {
+		window.dispatchEvent(new Event("focus"));
+	});
+	await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+	expect(screen.getAllByText("Latest pending title").length).toBeGreaterThan(0);
+	expect(review).not.toHaveBeenCalled();
 });

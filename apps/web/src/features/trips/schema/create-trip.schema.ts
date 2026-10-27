@@ -21,8 +21,8 @@ const optionalPositiveIntegerString = (message: string) =>
 const nonNegativeMoneyString = z
 	.string()
 	.trim()
-	.regex(/^\d+(\.\d{1,2})?$/, "Giá phải là số không âm, tối đa 2 chữ số thập phân")
-	.refine((value) => Number(value) >= 0, "Giá phải lớn hơn hoặc bằng 0");
+	.regex(/^\d+$/, "Giá phải là số nguyên không âm")
+	.refine((value) => Number.isInteger(Number(value)), "Giá phải là số nguyên không âm");
 
 const meetingCoordinateString = z
 	.string()

@@ -128,7 +128,7 @@ function fitRoute(map: MapLibreMap, coordinates: Position[]): void {
 export function TripWaypointLocationMap({
 	route,
 	checkpoints,
-	waypoints,
+	waypoints: incomingWaypoints,
 	activeIndex,
 	disabled = false,
 	editor,
@@ -136,6 +136,13 @@ export function TripWaypointLocationMap({
 	onRouteNodeSelect,
 	onWaypointMove,
 }: TripWaypointLocationMapProps) {
+	// Form libraries may mutate the same waypoint array during coordinate edits.
+	// Snapshot its contents so marker effects observe every move, including repeated clicks.
+	const waypointVersion = JSON.stringify(incomingWaypoints);
+	const waypoints = useMemo(
+		() => JSON.parse(waypointVersion) as ConfigureTripWaypointFormItem[],
+		[waypointVersion]
+	);
 	const containerRef = useRef<HTMLDivElement | null>(null);
 	const mapRef = useRef<MapLibreMap | null>(null);
 	const markerRefs = useRef<Marker[]>([]);
@@ -305,8 +312,9 @@ export function TripWaypointLocationMap({
 		if (!map) return;
 		for (const marker of markerRefs.current) marker.remove();
 		markerRefs.current = [];
+		let disposed = false;
 		void import("maplibre-gl").then((maplibre) => {
-			if (mapRef.current !== map) return;
+			if (disposed || mapRef.current !== map) return;
 			coordinates.forEach((coordinate, routeOrder) => {
 				const isEndpoint = routeOrder === 0 || routeOrder === coordinates.length - 1;
 				const element = document.createElement("button");
@@ -360,10 +368,19 @@ export function TripWaypointLocationMap({
 				element.className = `flex size-9 items-center justify-center rounded-full border-4 border-white shadow-lg ${
 					index === activeIndex ? "bg-[#164027] text-white" : "bg-white text-[#164027]"
 				} ${lockedWaypoint || disabled ? "cursor-pointer" : "cursor-grab active:cursor-grabbing"}`;
-				element.textContent = lockedWaypoint ? "" : String(sortedIndex + 1);
+				element.textContent = String(sortedIndex + 1);
+				element.setAttribute(
+					"aria-label",
+					`Chọn điểm dừng ${sortedIndex + 1}${lockedWaypoint ? " (cố định)" : ""}`
+				);
 				if (lockedWaypoint) {
-					element.innerHTML =
-						'<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="10" x="5" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>';
+					const badge = document.createElement("span");
+					badge.className =
+						"absolute -bottom-1 -right-1 flex size-4 items-center justify-center rounded-full bg-white text-[#164027] ring-1 ring-[#cbd9ce]";
+					badge.setAttribute("aria-hidden", "true");
+					badge.innerHTML =
+						'<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="10" x="5" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>';
+					element.appendChild(badge);
 				}
 				element.addEventListener("click", (event) => {
 					event.stopPropagation();
@@ -389,6 +406,11 @@ export function TripWaypointLocationMap({
 				markerRefs.current.push(marker);
 			});
 		});
+		return () => {
+			disposed = true;
+			for (const marker of markerRefs.current) marker.remove();
+			markerRefs.current = [];
+		};
 	}, [activeIndex, checkpoints, coordinates, disabled, mapReady, sortedWaypoints, waypoints]);
 
 	useEffect(() => {
@@ -543,7 +565,15 @@ export function TripWaypointLocationMap({
 								style={fallbackPosition(position, bounds)}
 								aria-label={`Chọn điểm dừng ${index + 1}`}
 							>
-								{isFixedEndpoint(waypoint) ? <Lock className="size-4" /> : sortedIndex + 1}
+								{sortedIndex + 1}
+								{isFixedEndpoint(waypoint) && (
+									<span
+										aria-hidden="true"
+										className="absolute -bottom-1 -right-1 flex size-4 items-center justify-center rounded-full bg-white text-[#164027] ring-1 ring-[#cbd9ce]"
+									>
+										<Lock className="size-2.5" />
+									</span>
+								)}
 							</button>
 						);
 					})}

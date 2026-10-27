@@ -1,4 +1,7 @@
+import { randomUUID } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
+import { writeFile } from "node:fs/promises";
+import { unlink } from "node:fs/promises";
 import { extname, join } from "node:path";
 import { Readable } from "node:stream";
 import { BadRequestException, Injectable, Logger } from "@nestjs/common";
@@ -90,15 +93,85 @@ export class UploadsService {
 		return this.uploadToLocalDisk(file, folder, "doc");
 	}
 
+	/** Reserve a deterministic storage location before I/O, allowing durable orphan cleanup. */
+	prepareTripImage(file: Express.Multer.File): {
+		url: string;
+		key?: string;
+		upload: () => Promise<UploadImageResponseDto>;
+	} {
+		const id = randomUUID();
+		if (this.isCloudinaryConfigured) {
+			const key = `trips/${id}`;
+			return {
+				url: `https://res.cloudinary.com/${this.configService.get<string>("CLOUDINARY_CLOUD_NAME")?.trim()}/image/upload/${key}`,
+				key,
+				upload: () => this.uploadToCloudinary(file, "trips", "image", id),
+			};
+		}
+		const extension = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" }[
+			file.mimetype
+		];
+		if (!extension) throw new BadRequestException("Unsupported Trip image type");
+		const name = `img-${id}.${extension}`;
+		const base =
+			this.configService.get<string>("API_PUBLIC_URL") ??
+			`http://localhost:${this.configService.get<string>("API_PORT") ?? "3000"}`;
+		const url = `${base}${UPLOAD_PUBLIC_PREFIX}trips/${name}`;
+		return {
+			url,
+			upload: async () => {
+				const directory = join(getUploadRoot(), "trips");
+				mkdirSync(directory, { recursive: true });
+				await writeFile(join(directory, name), file.buffer);
+				return { url };
+			},
+		};
+	}
+
+	async deleteStoredImage(url: string, key?: string | null): Promise<void> {
+		let storageKey = key;
+		// Recover provider identity for existing Trip covers created before the image table.
+		if (!storageKey && this.isCloudinaryConfigured) {
+			const legacy =
+				/^https:\/\/res\.cloudinary\.com\/([^/]+)\/image\/upload\/(?:v[0-9]+\/)?(trips\/[^?#]+)\.[a-zA-Z0-9]+$/.exec(
+					url
+				);
+			if (legacy && legacy[1] === this.configService.get<string>("CLOUDINARY_CLOUD_NAME")?.trim())
+				storageKey = legacy[2];
+		}
+		if (storageKey) {
+			if (!storageKey.startsWith("trips/")) return;
+			const result = await cloudinary.uploader.destroy(storageKey, { invalidate: true });
+			if (result.result !== "ok" && result.result !== "not found")
+				throw new Error("Image storage deletion failed");
+			return;
+		}
+		const base =
+			this.configService.get<string>("API_PUBLIC_URL") ??
+			`http://localhost:${this.configService.get<string>("API_PORT") ?? "3000"}`;
+		const parsed = new URL(url, base);
+		if (parsed.origin !== new URL(base).origin) return;
+		const pathname = parsed.pathname;
+		const match = /^\/uploads\/trips\/(img-[a-zA-Z0-9.-]+)$/.exec(pathname);
+		if (!match) return;
+		try {
+			await unlink(join(getUploadRoot(), "trips", match[1]));
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+		}
+	}
+
 	private uploadToCloudinary(
 		file: Express.Multer.File,
 		folder: string,
-		resourceType: StoredResourceType
+		resourceType: StoredResourceType,
+		publicId?: string
 	): Promise<UploadImageResponseDto> {
 		return new Promise((resolve, reject) => {
 			const uploadStream = cloudinary.uploader.upload_stream(
 				{
 					folder,
+					...(publicId ? { public_id: publicId } : {}),
 					resource_type: resourceType,
 					// Raw resources keep no format, so the extension must be part of the id
 					// for the delivered file to be served with the right content type.

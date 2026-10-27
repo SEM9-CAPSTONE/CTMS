@@ -11,9 +11,15 @@ import {
 	Put,
 	Query,
 	Req,
+	UnprocessableEntityException,
+	UploadedFiles,
 	UseGuards,
+	UseInterceptors,
 } from "@nestjs/common";
+import { FilesInterceptor } from "@nestjs/platform-express";
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
+import { plainToInstance } from "class-transformer";
+import { validate } from "class-validator";
 import { Roles } from "../../auth/decorators/roles.decorator";
 import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../../auth/guards/roles.guard";
@@ -33,6 +39,7 @@ import {
 	CreateTripDto,
 	CreateTripWaypointDto,
 } from "../dto/create-trip.dto";
+import { FinalizeTripUpdateDto } from "../dto/finalize-trip-update.dto";
 import { HostPorterAssignmentTripDto } from "../dto/host-porter-assignment-response.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS parameter needs runtime metadata
 import { ListTripReviewsQueryDto } from "../dto/list-trip-reviews-query.dto";
@@ -515,12 +522,39 @@ export class TripsController {
 		return this.tripsService.create(request.user.userId, dto);
 	}
 
+	@Patch(":tripId/pending-update")
+	@Roles(UserRole.HOST)
+	@UseInterceptors(
+		FilesInterceptor("images", 5, {
+			limits: { files: 5, fileSize: 5242880, fields: 1, fieldSize: 65536 },
+		})
+	)
+	async finalizePendingUpdate(
+		@Req() request: AuthenticatedRequest,
+		@Param() params: TripIdParamDto,
+		@Body("payload") raw: string,
+		@UploadedFiles() files: Express.Multer.File[] = []
+	) {
+		let value: unknown;
+		try {
+			value = JSON.parse(raw);
+		} catch {
+			throw new UnprocessableEntityException("Invalid Trip update payload");
+		}
+		if (!value || typeof value !== "object" || Array.isArray(value))
+			throw new UnprocessableEntityException("Invalid Trip update payload");
+		const dto = plainToInstance(FinalizeTripUpdateDto, value);
+		const errors = await validate(dto, { whitelist: true, forbidNonWhitelisted: true });
+		if (errors.length) throw new UnprocessableEntityException("Invalid Trip update fields");
+		return this.tripsService.finalizePendingUpdate(request.user.userId, params.tripId, dto, files);
+	}
+
 	@Patch(":tripId")
 	@Roles(UserRole.HOST)
 	@ApiOperation({
 		summary: "Edit an owned pre-published Trip without changing its identity",
 		description:
-			"Allowed while the Trip is draft or pending_approval. A pending_approval edit remains pending_approval and updates updated_at so Admin review must use the latest version.",
+			"Direct edits are allowed only for draft Trips. Pending Trips must use the atomic pending-update endpoint when Finish Update is pressed.",
 	})
 	@ApiResponse({ status: 200, type: TripResponseDto })
 	@ApiResponse({ status: 401, description: "Authentication required" })

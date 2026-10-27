@@ -8,6 +8,8 @@ import { mapCreateTripError, useCreateTrip } from "./useCreateTrip";
 vi.mock("../services/trips.service", () => ({
 	tripsService: {
 		create: vi.fn(),
+		updateDraft: vi.fn(),
+		addImage: vi.fn(),
 		configureWaypoints: vi.fn(),
 		search: vi.fn(),
 		getById: vi.fn(),
@@ -104,5 +106,114 @@ describe("useCreateTrip", () => {
 		});
 
 		expect(tripsService.create).toHaveBeenNthCalledWith(2, payload);
+	});
+	it("uploads selected images in order before completing creation", async () => {
+		const first = new File(["first"], "first.png", { type: "image/png" });
+		const second = new File(["second"], "second.png", { type: "image/png" });
+		vi.mocked(tripsService.create).mockResolvedValueOnce({
+			id: "trip",
+			coverImageUrl: null,
+		} as never);
+		vi.mocked(tripsService.addImage)
+			.mockResolvedValueOnce([{ id: "first", url: "first-url", sortOrder: 0 }])
+			.mockResolvedValueOnce([
+				{ id: "first", url: "first-url", sortOrder: 0 },
+				{ id: "second", url: "second-url", sortOrder: 1 },
+			]);
+		const { result } = renderHook(() => useCreateTrip());
+		await act(async () => {
+			await result.current.submit(payload, [first, second]);
+		});
+		expect(tripsService.create).toHaveBeenCalledTimes(1);
+		expect(tripsService.addImage).toHaveBeenNthCalledWith(1, "trip", first);
+		expect(tripsService.addImage).toHaveBeenNthCalledWith(2, "trip", second);
+		expect(result.current.createdTrip).toMatchObject({ id: "trip", coverImageUrl: "first-url" });
+		expect(result.current.pendingTrip).toBeNull();
+	});
+	it("retains the created draft and retries only the failed upload", async () => {
+		const first = new File(["first"], "first.png", { type: "image/png" });
+		const second = new File(["second"], "second.png", { type: "image/png" });
+		vi.mocked(tripsService.create).mockResolvedValueOnce({
+			id: "trip",
+			coverImageUrl: null,
+		} as never);
+		vi.mocked(tripsService.addImage)
+			.mockResolvedValueOnce([{ id: "first", url: "first-url", sortOrder: 0 }])
+			.mockRejectedValueOnce(new Error("offline"))
+			.mockResolvedValueOnce([
+				{ id: "first", url: "first-url", sortOrder: 0 },
+				{ id: "second", url: "second-url", sortOrder: 1 },
+			]);
+		const { result } = renderHook(() => useCreateTrip());
+		await act(async () => {
+			await result.current.submit(payload, [first, second]);
+		});
+		expect(result.current.createdTrip).toBeNull();
+		expect(result.current.pendingTrip?.id).toBe("trip");
+		expect(result.current.error).toMatchObject({ canRetry: true });
+		await act(async () => {
+			await result.current.retry();
+		});
+		expect(tripsService.create).toHaveBeenCalledTimes(1);
+		expect(vi.mocked(tripsService.addImage).mock.calls.map((call) => call[1])).toEqual([
+			first,
+			second,
+			second,
+		]);
+		expect(result.current.createdTrip?.coverImageUrl).toBe("first-url");
+	});
+	it("blocks duplicate submits while an upload is in flight", async () => {
+		let finish!: (images: []) => void;
+		vi.mocked(tripsService.create).mockResolvedValueOnce({ id: "trip" } as never);
+		vi.mocked(tripsService.addImage).mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					finish = resolve;
+				})
+		);
+		const { result } = renderHook(() => useCreateTrip());
+		let submission!: Promise<unknown>;
+		await act(async () => {
+			submission = result.current.submit(payload, [
+				new File(["x"], "x.png", { type: "image/png" }),
+			]);
+		});
+		expect(result.current.isSubmitting).toBe(true);
+		expect(result.current.createdTrip).toBeNull();
+		await act(async () => {
+			expect(await result.current.submit(payload)).toBeNull();
+			finish([]);
+			await submission;
+		});
+		expect(tripsService.create).toHaveBeenCalledTimes(1);
+	});
+	it("rejects too many files before creating a Trip", async () => {
+		const { result } = renderHook(() => useCreateTrip());
+		await act(async () => {
+			await result.current.submit(
+				payload,
+				Array.from({ length: 6 }, () => new File(["x"], "x.png", { type: "image/png" }))
+			);
+		});
+		expect(tripsService.create).not.toHaveBeenCalled();
+		expect(result.current.error).toMatchObject({ canRetry: false });
+	});
+	it("resumes an existing saved Trip after leaving an interrupted image upload without creating another Trip", async () => {
+		const existing = { id: "saved-trip", coverImageUrl: null } as never;
+		vi.mocked(tripsService.updateDraft).mockResolvedValueOnce(existing);
+		vi.mocked(tripsService.addImage).mockResolvedValueOnce([
+			{ id: "image", url: "image-url", sortOrder: 0 },
+		]);
+		const { result } = renderHook(() => useCreateTrip());
+		await act(async () => {
+			await result.current.submit(
+				payload,
+				[new File(["png"], "first.png", { type: "image/png" })],
+				existing
+			);
+		});
+		expect(tripsService.create).not.toHaveBeenCalled();
+		expect(tripsService.updateDraft).toHaveBeenCalledWith("saved-trip", payload);
+		expect(tripsService.addImage).toHaveBeenCalledWith("saved-trip", expect.any(File));
 	});
 });

@@ -1,5 +1,5 @@
 import { AlertCircle, Compass, RefreshCw } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Pagination, toast } from "../../../shared/components";
 import {
 	type AdminReviewFilterOption,
@@ -32,8 +32,12 @@ export function AdminTripsPage({ onLogout }: AdminTripsPageProps) {
 	const review = useReviewTrip();
 	const [selectedId, setSelectedId] = useState<string>();
 	const [dialogOpen, setDialogOpen] = useState(false);
+	const [dialogVersion, setDialogVersion] = useState<string | null>(null);
 
-	useAdminTripReviewNotifications({ onChanged: list.reload });
+	const refreshInBackground = useCallback(() => {
+		void list.reload(true);
+	}, [list.reload]);
+	useAdminTripReviewNotifications({ onChanged: refreshInBackground });
 
 	useEffect(() => {
 		setSelectedId((current) =>
@@ -46,11 +50,24 @@ export function AdminTripsPage({ onLogout }: AdminTripsPageProps) {
 		[list.items, selectedId]
 	);
 
+	useEffect(() => {
+		if (dialogOpen && dialogVersion && selected?.updatedAt !== dialogVersion) {
+			setDialogOpen(false);
+			setDialogVersion(null);
+			review.clearError();
+			toast.info("Trip đã được cập nhật. Vui lòng kiểm tra phiên bản mới trước khi xét duyệt.");
+		}
+	}, [dialogOpen, dialogVersion, selected?.updatedAt, review.clearError]);
+
 	const confirm = async (values: ReviewTripFormValues) => {
-		if (!selected) return;
+		if (!selected || list.isLoading || list.isRefreshing) return;
+		if (!dialogVersion || dialogVersion !== selected.updatedAt) {
+			setDialogOpen(false);
+			return;
+		}
 		const result = await review.submit(selected.id, {
 			action: values.action,
-			reviewedUpdatedAt: selected.updatedAt,
+			reviewedUpdatedAt: dialogVersion,
 			reason: values.action === "approve" ? undefined : values.reason,
 		});
 		if (!result) return;
@@ -116,6 +133,7 @@ export function AdminTripsPage({ onLogout }: AdminTripsPageProps) {
 							}}
 							onReview={() => {
 								review.clearError();
+								setDialogVersion(selected?.updatedAt ?? null);
 								setDialogOpen(true);
 							}}
 						/>
@@ -134,7 +152,7 @@ export function AdminTripsPage({ onLogout }: AdminTripsPageProps) {
 			<TripReviewDecisionDialog
 				open={dialogOpen}
 				trip={selected}
-				isSubmitting={review.isSubmitting}
+				isSubmitting={review.isSubmitting || list.isLoading || list.isRefreshing}
 				error={review.error}
 				onClose={() => {
 					if (!review.isSubmitting) setDialogOpen(false);

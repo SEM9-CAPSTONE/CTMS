@@ -136,6 +136,16 @@ export function useConfigureTripWaypoints(tripId: string) {
 		[execute, tripId]
 	);
 
+	const refresh = useCallback(
+		() =>
+			execute(async () => {
+				const latest = await tripsService.getById(tripId);
+				if (!latest.routeId) throw new Error("Trip route is unavailable");
+				return { ...latest, routeId: latest.routeId };
+			}),
+		[execute, tripId]
+	);
+
 	const submit = useCallback(
 		(input: SubmitTripInput = {}) => execute(() => tripsService.submitForApproval(tripId, input)),
 		[execute, tripId]
@@ -159,6 +169,7 @@ export function useConfigureTripWaypoints(tripId: string) {
 		saveWaypoint,
 		deleteWaypoint,
 		submit,
+		refresh,
 		retry,
 		reset,
 	};

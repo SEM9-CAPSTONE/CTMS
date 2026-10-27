@@ -13,6 +13,7 @@ interface TripReviewEvent {
 	title: string;
 	hostId: string;
 	submittedAt?: string;
+	updatedAt?: string;
 	deadlineAt?: string;
 	rejectedAt?: string;
 	reason?: string;
@@ -27,6 +28,11 @@ export function useAdminTripReviewNotifications({
 }: UseTripReviewNotificationOptions = {}) {
 	useEffect(() => {
 		const socket = io(socketBaseUrl(), { transports: ["websocket"] });
+		socket.on("connect", () => onChanged?.());
+		socket.on("trip.review.updated", (payload: TripReviewEvent) => {
+			toast.info(`Trip "${payload.title}" vừa được Host cập nhật.`, "Bản cập nhật chờ duyệt");
+			onChanged?.();
+		});
 		socket.on("trip.review.requested", (payload: TripReviewEvent) => {
 			toast.info(`Trip "${payload.title}" vừa được gửi chờ duyệt.`, "Trip mới cần duyệt");
 			onChanged?.();
