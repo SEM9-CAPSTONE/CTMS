@@ -88,5 +88,6 @@ class SosEndpoints {
 
   String get alerts => '/sos-alerts';
   String alertById(String id) => '/sos-alerts/$id';
+  String tripSos(String tripId) => '/trips/$tripId/sos';
+  String cancel(String tripId, String sosId) => '/trips/$tripId/sos/$sosId/cancel';
 }
-

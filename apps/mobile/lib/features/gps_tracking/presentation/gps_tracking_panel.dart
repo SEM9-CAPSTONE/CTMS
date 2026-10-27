@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
@@ -60,7 +61,6 @@ class _GpsTrackingPanelState extends ConsumerState<GpsTrackingPanel> {
   @override
   Widget build(BuildContext context) {
     final controller = ref.watch(gpsTrackingControllerProvider(widget.tripId));
-    final scheme = Theme.of(context).colorScheme;
     final now = (widget.now ?? DateTime.now)();
     final recent = controller.logs.reversed.toList();
     final shown = _showAll ? recent : recent.take(5).toList();
@@ -120,14 +120,15 @@ class _GpsTrackingPanelState extends ConsumerState<GpsTrackingPanel> {
                   'Bản ghi GPS (${controller.logs.length})',
                   style: AppTypography.caption.copyWith(
                     fontWeight: FontWeight.w800,
-                    color: scheme.onSurface,
+                    color: Colors.black,
                   ),
                 ),
               ),
               if (recent.length > 5)
                 TextButton(
                   onPressed: () => setState(() => _showAll = !_showAll),
-                  child: Text(_showAll ? 'Thu gọn' : 'Xem tất cả'),
+                  style: TextButton.styleFrom(foregroundColor: Colors.black),
+                  child: Text(_showAll ? 'Thu gọn' : 'Xem tất cả', style: const TextStyle(fontWeight: FontWeight.w700)),
                 ),
             ],
           ),
@@ -136,7 +137,7 @@ class _GpsTrackingPanelState extends ConsumerState<GpsTrackingPanel> {
               padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
               child: Text(
                 'Chưa có bản ghi GPS nào cho chuyến đi này.',
-                style: AppTypography.caption.copyWith(color: scheme.onSurfaceVariant),
+                style: AppTypography.caption.copyWith(color: Colors.black54),
               ),
             )
           else
@@ -146,7 +147,7 @@ class _GpsTrackingPanelState extends ConsumerState<GpsTrackingPanel> {
             key: const Key('gps-sync-now'),
             label: 'Đồng bộ ngay',
             icon: Icons.cloud_upload_outlined,
-            variant: CtmsButtonVariant.secondary,
+            variant: CtmsButtonVariant.primary,
             isLoading: controller.syncing,
             onPressed: controller.pendingCount == 0 || controller.syncing
                 ? null
@@ -211,7 +212,7 @@ class _GpsTrackingPanelState extends ConsumerState<GpsTrackingPanel> {
           [
             CtmsButton(
               label: 'Kiểm tra lại',
-              variant: CtmsButtonVariant.soft,
+              variant: CtmsButtonVariant.primary,
               onPressed: () => unawaited(controller.refreshEligibility()),
             ),
           ],
@@ -225,7 +226,7 @@ class _GpsTrackingPanelState extends ConsumerState<GpsTrackingPanel> {
           [
             CtmsButton(
               label: 'Thử lại',
-              variant: CtmsButtonVariant.soft,
+              variant: CtmsButtonVariant.primary,
               onPressed: () => unawaited(controller.refreshEligibility()),
             ),
           ],
@@ -243,7 +244,6 @@ class _SampleRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final sample = controller.lastSample;
     final stale = sample == null || sample.ageAt(now) > gpsStaleAfter;
     final ageSeconds = sample?.ageAt(now).inSeconds;
@@ -252,21 +252,22 @@ class _SampleRow extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: scheme.surfaceContainerHighest.withValues(alpha: 0.35),
+        color: Colors.white,
         borderRadius: AppRadius.controlBorderRadius,
-        border: Border.all(color: scheme.outlineVariant),
+        border: Border.all(color: AppColors.border, width: 1.0),
+        boxShadow: AppColors.cardShadowSm,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.gps_fixed, size: 16, color: scheme.primary),
+              const Icon(Icons.gps_fixed, size: 16, color: Colors.black),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
                   'Mẫu GPS gần nhất',
-                  style: AppTypography.caption.copyWith(fontWeight: FontWeight.w800, color: scheme.onSurface),
+                  style: AppTypography.caption.copyWith(fontWeight: FontWeight.w800, color: Colors.black),
                 ),
               ),
               CtmsStatusBadge(
@@ -282,12 +283,12 @@ class _SampleRow extends StatelessWidget {
                 ? 'Đang chờ tín hiệu GPS đầu tiên...'
                 : '${formatGpsCoordinate(sample.latitude, sample.longitude)} · ±${sample.accuracyMeters.round()} m'
                       '${sample.altitudeMeters != null ? ' · ${sample.altitudeMeters!.round()} m' : ''}',
-            style: AppTypography.body.copyWith(color: scheme.onSurface),
+            style: AppTypography.body.copyWith(color: Colors.black, fontWeight: FontWeight.w600),
           ),
           if (sample != null)
             Text(
               'Đo lúc ${formatGpsTime(sample.capturedAt)}',
-              style: AppTypography.caption.copyWith(color: scheme.onSurfaceVariant),
+              style: AppTypography.caption.copyWith(color: Colors.black54),
             ),
           if (controller.lastBoundarySkipped)
             Padding(
@@ -295,7 +296,7 @@ class _SampleRow extends StatelessWidget {
               child: Text(
                 'Không có mẫu GPS mới ở lần ghi gần nhất nên không tạo bản ghi.',
                 key: const Key('gps-boundary-skipped'),
-                style: AppTypography.caption.copyWith(color: scheme.error, fontWeight: FontWeight.w600),
+                style: AppTypography.caption.copyWith(color: AppColors.statusDanger, fontWeight: FontWeight.w600),
               ),
             ),
         ],
@@ -312,24 +313,25 @@ class _CountTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.md),
       decoration: BoxDecoration(
+        color: Colors.white,
         borderRadius: AppRadius.controlBorderRadius,
-        border: Border.all(color: scheme.outlineVariant),
+        border: Border.all(color: AppColors.border, width: 1.0),
+        boxShadow: AppColors.cardShadowSm,
       ),
       child: Column(
         children: [
           Text(
             '$value',
-            style: AppTypography.h3.copyWith(fontWeight: FontWeight.w800, color: scheme.onSurface),
+            style: AppTypography.h3.copyWith(fontWeight: FontWeight.w800, color: Colors.black),
           ),
           const SizedBox(height: 2),
           Text(
             label,
             textAlign: TextAlign.center,
-            style: AppTypography.caption.copyWith(color: scheme.onSurfaceVariant),
+            style: AppTypography.caption.copyWith(color: Colors.black, fontWeight: FontWeight.w600),
           ),
         ],
       ),
@@ -343,7 +345,6 @@ class _LogTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final (label, status) = switch (log.syncState) {
       GpsLogSyncState.synced => ('Đã đồng bộ', CtmsStatus.success),
       GpsLogSyncState.pending => ('Chờ đồng bộ', CtmsStatus.warning),
@@ -357,7 +358,7 @@ class _LogTile extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
       child: Row(
         children: [
-          Icon(Icons.place_outlined, size: 18, color: scheme.onSurfaceVariant),
+          const Icon(Icons.place_outlined, size: 18, color: Colors.black),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Column(
@@ -365,11 +366,11 @@ class _LogTile extends StatelessWidget {
               children: [
                 Text(
                   formatGpsCoordinate(log.latitude, log.longitude),
-                  style: AppTypography.body.copyWith(color: scheme.onSurface, fontWeight: FontWeight.w600),
+                  style: AppTypography.body.copyWith(color: Colors.black, fontWeight: FontWeight.w600),
                 ),
                 Text(
                   '${formatGpsTime(log.eventTime)} · ±${log.accuracyMeters.round()} m',
-                  style: AppTypography.caption.copyWith(color: scheme.onSurfaceVariant),
+                  style: AppTypography.caption.copyWith(color: Colors.black54),
                 ),
               ],
             ),

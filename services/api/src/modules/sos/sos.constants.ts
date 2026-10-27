@@ -1,0 +1,1 @@
+export const MAX_CANCELLATION_REASON_LENGTH = 500;

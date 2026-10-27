@@ -104,4 +104,28 @@ export class EventsGateway implements OnGatewayConnection {
 	}) {
 		this.server?.emit("trip.incident.reported", payload);
 	}
+
+	/** CTMS-074: Broadcast new emergency alert to trip participants and Host. */
+	emitSosCreated(payload: {
+		sosId: string;
+		tripId: string;
+		senderId: string;
+		emergencyType: string;
+		eventTime: string;
+	}) {
+		this.server?.emit("sos.created", payload);
+	}
+
+	/** CTMS-077 / CTMS-080: Broadcast SOS state transition (e.g. cancelled, acknowledged, closed). */
+	emitSosStateChanged(payload: {
+		sosId: string;
+		tripId: string;
+		senderId: string;
+		status: string;
+		cancelledBy?: string | null;
+		cancelledAt?: string | null;
+		cancellationReason?: string | null;
+	}) {
+		this.server?.emit("sos.state_changed", payload);
+	}
 }
