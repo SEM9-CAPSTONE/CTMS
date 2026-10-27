@@ -1,8 +1,20 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AppRoutes } from "./AppRoutes";
+
+async function renderLazy(...args: Parameters<typeof render>) {
+	const result = render(...args);
+	await waitForPage();
+	return result;
+}
+
+async function waitForPage() {
+	await waitFor(() => {
+		expect(document.querySelector('[aria-busy="true"]')).toBeNull();
+	});
+}
 
 vi.mock("../features/trips/services/trips.service", () => ({
 	tripsService: {
@@ -15,9 +27,9 @@ vi.mock("../features/camper-profile/services/camper-profile.service", () => ({
 	camperProfileService: { getProfile: vi.fn().mockResolvedValue(null) },
 }));
 
-function renderRoutes() {
+async function renderRoutes() {
 	const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
-	return render(
+	return await renderLazy(
 		<QueryClientProvider client={client}>
 			<AppRoutes />
 		</QueryClientProvider>
@@ -138,9 +150,10 @@ describe("AppRoutes trekking route navigation", () => {
 	});
 
 	it("navigates to create route", async () => {
-		renderRoutes();
+		await renderRoutes();
 		expect(screen.getByRole("button", { name: "Quản lý tuyến" })).toBeInTheDocument();
 		await userEvent.click(screen.getByRole("button", { name: "Tạo tuyến trekking" }));
+		await waitForPage();
 
 		expect(window.location.pathname).toBe("/host/trekking-routes/create");
 		expect(window.location.search).toBe("");
@@ -150,9 +163,10 @@ describe("AppRoutes trekking route navigation", () => {
 	});
 
 	it("navigates to the route list", async () => {
-		renderRoutes();
+		await renderRoutes();
 		expect(screen.getByRole("button", { name: "Tạo tuyến trekking" })).toBeInTheDocument();
 		await userEvent.click(screen.getByRole("button", { name: "Quản lý tuyến" }));
+		await waitForPage();
 
 		expect(window.location.pathname).toBe("/host/trekking-routes");
 		expect(window.location.search).toBe("");
@@ -162,7 +176,7 @@ describe("AppRoutes trekking route navigation", () => {
 
 	it.each(["camper", "porter", "admin"])(
 		"does not expose Host Route actions on the %s dashboard",
-		(role) => {
+		async (role) => {
 			localStorage.setItem(
 				"authUser",
 				JSON.stringify({
@@ -176,7 +190,7 @@ describe("AppRoutes trekking route navigation", () => {
 				})
 			);
 
-			renderRoutes();
+			await renderRoutes();
 
 			expect(screen.queryByRole("button", { name: "Tạo tuyến trekking" })).not.toBeInTheDocument();
 			expect(
@@ -199,13 +213,14 @@ describe("AppRoutes trekking route navigation", () => {
 			})
 		);
 
-		renderRoutes();
+		await renderRoutes();
 		await userEvent.click(screen.getByRole("button", { name: "Quản lý user" }));
+		await waitForPage();
 
 		expect(window.location.pathname).toBe("/admin/users");
 	});
 
-	it.each(["camper", "porter"])("prevents %s from mounting the Host Route page", (role) => {
+	it.each(["camper", "porter"])("prevents %s from mounting the Host Route page", async (role) => {
 		localStorage.setItem(
 			"authUser",
 			JSON.stringify({
@@ -220,7 +235,7 @@ describe("AppRoutes trekking route navigation", () => {
 		);
 		window.history.replaceState({}, "", "/host/trekking-routes");
 
-		renderRoutes();
+		await renderRoutes();
 
 		expect(screen.queryByText("Trekking Routes Page")).not.toBeInTheDocument();
 		expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("Truy cập bị từ chối");

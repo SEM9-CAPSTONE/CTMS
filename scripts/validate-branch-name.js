@@ -3,6 +3,7 @@ const { execSync } = require("node:child_process");
 const ALLOWED_BRANCH_PATTERNS = [
 	/^(feature|feat)\/[A-Za-z][A-Za-z0-9]+-[0-9]+(-[a-z0-9._-]+)?$/,
 	/^(bugfix|fix)\/[A-Za-z][A-Za-z0-9]+-[0-9]+(-[a-z0-9._-]+)?$/,
+	/^fix\/[a-z0-9]+(?:[._-][a-z0-9]+)*$/,
 	/^hotfix\/[A-Za-z][A-Za-z0-9]+-[0-9]+(-[a-z0-9._-]+)?$/,
 	/^refactor\/[A-Za-z][A-Za-z0-9]+-[0-9]+(-[a-z0-9._-]+)?$/,
 	/^chore\/[A-Za-z][A-Za-z0-9]+-[0-9]+(-[a-z0-9._-]+)?$/,
@@ -34,7 +35,7 @@ function main() {
 		console.error(`Current branch: "${branchName}"`);
 		console.error("\nUse this format: <branch-type>/<JIRA-KEY>-<short-kebab-description>");
 		console.error(
-			"The Jira key can be CTMS-123 or ctms-123. Docs and chore branches may omit the Jira key."
+			"The Jira key can be CTMS-123 or ctms-123. Fix, docs and chore branches may omit the Jira key."
 		);
 		console.error("Allowed branch types:");
 		console.error("- feature/<JIRA-KEY>-<description> or feat/<JIRA-KEY>-<description>");

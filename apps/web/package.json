@@ -12,6 +12,7 @@
 		"test:watch": "vitest",
 		"test:e2e": "playwright test",
 		"test:e2e:incidents": "playwright test --config playwright.incidents.config.ts",
+		"test:e2e:loading": "pnpm build && playwright test --config playwright.loading.config.ts",
 		"test:e2e:ui": "playwright test --ui"
 	},
 	"dependencies": {

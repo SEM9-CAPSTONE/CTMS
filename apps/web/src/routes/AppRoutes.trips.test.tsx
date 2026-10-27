@@ -1,8 +1,20 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AppRoutes } from "./AppRoutes";
+
+async function renderLazy(...args: Parameters<typeof render>) {
+	const result = render(...args);
+	await waitForPage();
+	return result;
+}
+
+async function waitForPage() {
+	await waitFor(() => {
+		expect(document.querySelector('[aria-busy="true"]')).toBeNull();
+	});
+}
 
 vi.mock("../features/trekking-routes/pages/CreateTrekkingRoutePage", () => ({
 	CreateTrekkingRoutePage: () => <div>Create Trekking Route Page</div>,
@@ -148,20 +160,21 @@ describe("AppRoutes trip discovery and detail routing", () => {
 		window.history.replaceState({}, "", "/trips");
 	});
 
-	it("renders SearchTripsPage when path is /trips", () => {
-		render(<AppRoutes />);
+	it("renders SearchTripsPage when path is /trips", async () => {
+		await renderLazy(<AppRoutes />);
 
 		expect(screen.getByText("Khám phá chuyến đi")).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "Chi tiết" })).toBeInTheDocument();
 	});
 
 	it("navigates to TripDetailPage when a trip is selected and back", async () => {
-		render(<AppRoutes />);
+		await renderLazy(<AppRoutes />);
 
 		expect(screen.getByText("Khám phá chuyến đi")).toBeInTheDocument();
 
 		const detailBtn = screen.getByRole("button", { name: "Chi tiết" });
 		await userEvent.click(detailBtn);
+		await waitForPage();
 
 		expect(window.location.pathname).toBe("/trips/trip-123");
 		expect(screen.getByText("Chi tiết chuyến đi")).toBeInTheDocument();
@@ -169,21 +182,22 @@ describe("AppRoutes trip discovery and detail routing", () => {
 
 		const backBtn = screen.getByRole("button", { name: "Quay lại danh sách chuyến đi" });
 		await userEvent.click(backBtn);
+		await waitForPage();
 
 		expect(window.location.pathname).toBe("/trips");
 		expect(screen.getByText("Khám phá chuyến đi")).toBeInTheDocument();
 	});
 
-	it("renders TripDetailPage directly when path has /trips/:id", () => {
+	it("renders TripDetailPage directly when path has /trips/:id", async () => {
 		window.history.replaceState({}, "", "/trips/trip-123");
-		render(<AppRoutes />);
+		await renderLazy(<AppRoutes />);
 
 		expect(screen.getByText("Chi tiết chuyến đi")).toBeInTheDocument();
 		expect(screen.getByText("Mã chuyến: trip-123")).toBeInTheDocument();
 		expect(screen.getByText("Quyền đặt chỗ: anonymous")).toBeInTheDocument();
 	});
 
-	it("passes Camper booking access for a signed-in Camper", () => {
+	it("passes Camper booking access for a signed-in Camper", async () => {
 		localStorage.setItem(
 			"authUser",
 			JSON.stringify({
@@ -197,7 +211,7 @@ describe("AppRoutes trip discovery and detail routing", () => {
 			})
 		);
 		window.history.replaceState({}, "", "/trips/trip-123");
-		render(<AppRoutes />);
+		await renderLazy(<AppRoutes />);
 
 		expect(screen.getByText("Quyền đặt chỗ: camper")).toBeInTheDocument();
 	});
@@ -209,7 +223,7 @@ describe("AppRoutes operational roster routing", () => {
 		vi.clearAllMocks();
 	});
 
-	it("shows the roster section in an owning Host Trip context", () => {
+	it("shows the roster section in an owning Host Trip context", async () => {
 		localStorage.setItem(
 			"authUser",
 			JSON.stringify({
@@ -223,14 +237,14 @@ describe("AppRoutes operational roster routing", () => {
 			})
 		);
 		window.history.replaceState({}, "", "/trips/trip-123");
-		render(<AppRoutes />);
+		await renderLazy(<AppRoutes />);
 
 		expect(
 			screen.getByRole("region", { name: "Danh sách thành viên chuyến đi" })
 		).toBeInTheDocument();
 	});
 
-	it("renders the dedicated operational roster route for a Porter", () => {
+	it("renders the dedicated operational roster route for a Porter", async () => {
 		localStorage.setItem(
 			"authUser",
 			JSON.stringify({
@@ -244,7 +258,7 @@ describe("AppRoutes operational roster routing", () => {
 			})
 		);
 		window.history.replaceState({}, "", "/trips/trip-123?view=roster");
-		render(<AppRoutes />);
+		await renderLazy(<AppRoutes />);
 
 		expect(screen.getByRole("heading", { name: "Điểm danh chuyến đi" })).toBeInTheDocument();
 	});
@@ -263,12 +277,13 @@ describe("AppRoutes operational roster routing", () => {
 			})
 		);
 		window.history.replaceState({}, "", "/host/campers?tripId=trip-abc");
-		render(<AppRoutes />);
+		await renderLazy(<AppRoutes />);
 
 		expect(screen.getByRole("heading", { name: "Người tham gia & đặt chỗ" })).toBeInTheDocument();
 		expect(screen.getByText("Trip: trip-abc")).toBeInTheDocument();
 
 		await userEvent.click(screen.getByRole("button", { name: "Xem chi tiết" }));
+		await waitForPage();
 		expect(window.location.pathname).toBe("/trips/trip-detail-123");
 	});
 });
