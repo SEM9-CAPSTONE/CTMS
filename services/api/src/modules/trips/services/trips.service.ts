@@ -772,10 +772,7 @@ export class TripsService {
 				targetId: tripId,
 				before: this.buildWaypointAuditSnapshot(lockedTrip.trip),
 				after: this.buildWaypointAuditSnapshot(updated),
-				reason:
-					lockedTrip.status === TripStatus.PENDING_APPROVAL
-						? "host_update_pending_trip_waypoints"
-						: "host_edit_draft_trip_waypoints",
+				reason: "host_edit_draft_trip_waypoints",
 			});
 			return updated;
 		});
