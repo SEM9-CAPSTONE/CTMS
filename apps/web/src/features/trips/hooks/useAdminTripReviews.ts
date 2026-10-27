@@ -55,31 +55,57 @@ export function useAdminTripReviews(
 	const [items, setItems] = useState<AdminTripReview[]>([]);
 	const [pagination, setPagination] = useState<TripsPagination>(EMPTY_PAGINATION);
 	const [isLoading, setIsLoading] = useState(true);
+	const [isRefreshing, setIsRefreshing] = useState(false);
 	const [error, setError] = useState("");
 	const requestSequence = useRef(0);
 
-	const reload = useCallback(async () => {
-		const requestId = ++requestSequence.current;
-		setIsLoading(true);
-		setError("");
-		try {
-			const response = await tripsService.listAdminReviews({ reviewOutcome, page, limit });
-			if (requestId !== requestSequence.current) return;
-			setItems(response.items);
-			setPagination(response.pagination);
-		} catch (requestError) {
-			if (requestId !== requestSequence.current) return;
-			setError(mapTripReviewError(requestError));
-		} finally {
-			if (requestId === requestSequence.current) setIsLoading(false);
-		}
-	}, [limit, page, reviewOutcome]);
+	const reload = useCallback(
+		async (background = false) => {
+			const requestId = ++requestSequence.current;
+			if (background) setIsRefreshing(true);
+			else setIsLoading(true);
+			setError("");
+			try {
+				const response = await tripsService.listAdminReviews({ reviewOutcome, page, limit });
+				if (requestId !== requestSequence.current) return;
+				setItems(response.items);
+				setPagination(response.pagination);
+			} catch (requestError) {
+				if (requestId !== requestSequence.current) return;
+				setError(mapTripReviewError(requestError));
+			} finally {
+				if (requestId === requestSequence.current) setIsLoading(false);
+				if (requestId === requestSequence.current) setIsRefreshing(false);
+			}
+		},
+		[limit, page, reviewOutcome]
+	);
 
 	useEffect(() => {
 		void reload();
 	}, [reload]);
 
-	return { items, pagination, isLoading, error, reload };
+	useEffect(() => {
+		const refresh = () => {
+			if (document.visibilityState !== "hidden") void reload(true);
+		};
+		const windowFocus = (event: FocusEvent) => {
+			// Compare event targets rather than Window/WindowProxy identities.
+			if (event.target === event.currentTarget) refresh();
+		};
+		const timer = window.setInterval(refresh, 30000);
+		window.addEventListener("focus", windowFocus);
+		window.addEventListener("online", refresh);
+		document.addEventListener("visibilitychange", refresh);
+		return () => {
+			window.clearInterval(timer);
+			window.removeEventListener("focus", windowFocus);
+			window.removeEventListener("online", refresh);
+			document.removeEventListener("visibilitychange", refresh);
+		};
+	}, [reload]);
+
+	return { items, pagination, isLoading, isRefreshing, error, reload };
 }
 
 export function useReviewTrip() {

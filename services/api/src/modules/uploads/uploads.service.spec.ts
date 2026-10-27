@@ -37,6 +37,17 @@ describe("UploadsService.uploadDocument (local disk fallback)", () => {
 		else process.env.UPLOAD_ROOT = previousRoot;
 	});
 
+	it("reserves a deterministic Trip image and deletes its local file idempotently", async () => {
+		const prepared = service.prepareTripImage(file({ mimetype: "image/png" }));
+		const stored = await prepared.upload();
+		expect(stored.url).toBe(prepared.url);
+		const name = stored.url.split("/").pop() as string;
+		expect(existsSync(join(uploadRoot, "trips", name))).toBe(true);
+		await service.deleteStoredImage(stored.url);
+		expect(existsSync(join(uploadRoot, "trips", name))).toBe(false);
+		await expect(service.deleteStoredImage(stored.url)).resolves.toBeUndefined();
+	});
+
 	it("stores a PDF and returns its public URL", async () => {
 		const result = await service.uploadDocument(file({}), "porter-verifications");
 

@@ -20,6 +20,11 @@ export const queryKeys = {
 		checkpoints: (routeId: string) => ["trekking-routes", routeId, "checkpoints"] as const,
 	},
 	trips: {
+		formDrafts: ["trip-form-drafts"] as const,
+		formDraftThumbnail: (id: string, version: string) =>
+			["trip-form-draft-thumbnail", id, version] as const,
+		formDraft: (id: string) => ["trip-form-drafts", id] as const,
+		images: (tripId: string) => ["trips", "images", tripId] as const,
 		camperCarousel: (userId: string) => ["trips", "camper-carousel", userId] as const,
 		bookedRouteMap: (userId: string, tripId: string) =>
 			["trips", "booked-route-map", userId, tripId] as const,

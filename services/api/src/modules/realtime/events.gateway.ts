@@ -31,6 +31,15 @@ export class EventsGateway implements OnGatewayConnection {
 		};
 	}
 
+	emitTripReviewUpdated(payload: {
+		tripId: string;
+		title: string;
+		hostId: string;
+		updatedAt: string;
+	}) {
+		this.server?.emit("trip.review.updated", payload);
+	}
+
 	emitTripReviewRequested(payload: {
 		tripId: string;
 		title: string;

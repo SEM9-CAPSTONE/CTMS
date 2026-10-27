@@ -273,3 +273,32 @@ The current CTMS-021 generated source material identifies the required Trip conc
 - whether duplicate Create Trip requests require an explicit idempotency key or are protected only through the final API/domain implementation.
 
 These values must come from the approved Business Rules, Data Dictionary, Domain Model, or recorded product decision. They must not be invented in this specification.
+
+## Implementation: Leaving an Unfinished Create Form
+
+- Back from the Create Trip form (including browser Back and in-app navigation) persists the current non-empty form and up to five images as an owning-Host-only form draft before navigation proceeds.
+- Incomplete forms are private staging records, separate from operational Trips; missing dates, meeting coordinates, or capacities are allowed in this staging state. Normal Trip creation retains all existing required-field and lifecycle validation.
+- The Host Trip list includes these drafts with an action to resume. Opening one restores the values and image order. Creating a new Trip always opens a fresh form, without restoring the last unfinished global browser cache.
+- A stable client-generated draft ID makes retries and further edits update the same authoritative draft. Draft values and original image bytes commit atomically; unauthorized or invalid image requests cannot change the saved state.
+- There is no manual Save Draft button. Non-empty edits are cached immediately on the device and automatically synchronized in the background. Back, in-app navigation, hiding or closing the tab also trigger persistence.
+- Reload restores the same draft session, including image order and edits not yet synchronized. A new Create Trip navigation starts a separate blank form.
+- If the server is unavailable, a durable local draft remains visible in the Host list and is synchronized when connectivity returns. Navigation is blocked only if neither the server nor local storage can preserve the current content. Empty new forms do not create list entries.
+- Metadata-only autosaves preserve existing image bytes, avoiding repeated uploads of unchanged photos. Image replacements remain atomic with the form values.
+- After successful Trip creation and image upload, the form draft is retired from the list and its temporary image bytes are removed. Operational Trip images continue to use the Trip image storage lifecycle.
+
+- If Trip creation already succeeded but image upload was interrupted, the saved form draft links to that existing Trip. Resuming updates the same Trip and safely replays image uploads; the Host list presents one draft entry rather than duplicate cards.
+
+- An explicit route selection or meeting-point change counts as draft content even when the title and dates are still empty. Navigation reads the latest form snapshot directly before saving.
+- New forms do not automatically select a route. The route selector and map share the same selected route; clearing the selector clears the route geometry. The Create Trip form does not show the extra checkpoint/danger-zone section.
+
+
+## Pending Review Updates
+
+- The owning Host edits a private working copy of a pending Trip. Step one uses Next Step and does not write to the authoritative Trip. Step two keeps waypoint edits local. Only Finish Update atomically commits Trip information, the complete itinerary and retained/new images, retaining the same Trip identifier and pending approval status.
+- Trip field and image changes advance the authoritative review version. Retries of an identical image upload or already completed deletion do not advance it.
+- After a pending update commits, Admin review screens refresh through a realtime update event. Reconnect, focus and a periodic reconciliation recover missed events.
+- An Admin decision remains bound to the version opened for confirmation. A changed version closes that dialog and requires checking the refreshed content; the backend rejects any stale decision without publishing or declining the changed Trip.
+
+- Next Step does not notify Admin. Finish Update compares the original review version under the Trip lock; stale edits fail with a conflict. The database transaction commits all changes before publishing one review update event. Failures roll back the Trip and image metadata; uploaded orphan files remain covered by durable cleanup receipts. The Host does not submit the Trip for approval again.
+
+- Legacy direct field, waypoint and image mutation endpoints reject pending-approval writes. After initial submission the direct waypoint editor becomes read-only; editing resumes through the staged two-step update flow. Only the atomic Finish Update endpoint can replace the Admin-visible pending version.

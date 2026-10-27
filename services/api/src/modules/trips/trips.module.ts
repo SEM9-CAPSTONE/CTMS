@@ -4,6 +4,9 @@ import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { PorterProfile } from "../profiles/entities/porter-profile.entity";
 import { RealtimeModule } from "../realtime/realtime.module";
+import { UploadsModule } from "../uploads/uploads.module";
+import { TripFormDraftsController } from "./controllers/trip-form-drafts.controller";
+import { TripImagesController } from "./controllers/trip-images.controller";
 import { TripsController } from "./controllers/trips.controller";
 import { CheckpointVisit } from "./entities/checkpoint-visit.entity";
 import { PorterRequest } from "./entities/porter-request.entity";
@@ -19,6 +22,9 @@ import { PorterRequestExpiryWorker } from "./services/porter-request-expiry.work
 import { PorterRequestsService } from "./services/porter-requests.service";
 import { TripAutoCancelService } from "./services/trip-auto-cancel.service";
 import { TripAutoCancelWorker } from "./services/trip-auto-cancel.worker";
+import { TripFormDraftsService } from "./services/trip-form-drafts.service";
+import { TripImageCleanupWorker } from "./services/trip-image-cleanup.worker";
+import { TripImagesService } from "./services/trip-images.service";
 import { TripReviewDeadlineService } from "./services/trip-review-deadline.service";
 import { TripRouteMapService } from "./services/trip-route-map.service";
 import { TripStatusScheduleService } from "./services/trip-status-schedule.service";
@@ -26,9 +32,12 @@ import { TripStatusScheduleWorker } from "./services/trip-status-schedule.worker
 import { TripsService } from "./services/trips.service";
 
 @Module({
-	imports: [RealtimeModule],
-	controllers: [TripsController],
+	imports: [RealtimeModule, UploadsModule],
+	controllers: [TripsController, TripImagesController, TripFormDraftsController],
 	providers: [
+		TripFormDraftsService,
+		TripImagesService,
+		TripImageCleanupWorker,
 		TripRouteMapService,
 		TripsService,
 		AvailablePortersService,

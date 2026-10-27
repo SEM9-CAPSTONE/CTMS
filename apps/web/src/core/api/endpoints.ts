@@ -53,6 +53,11 @@ export const API_ENDPOINTS = {
 		HAZARD_AREAS: (routeId: string) => `/trekking-routes/${routeId}/hazard-areas`,
 	},
 	TRIPS: {
+		FORM_DRAFTS: "/trip-drafts",
+		FORM_DRAFT: (id: string) => `/trip-drafts/${id}`,
+		COMPLETE_FORM_DRAFT: (id: string) => `/trip-drafts/${id}/complete`,
+		IMAGES: (tripId: string) => `/trips/${tripId}/images`,
+		IMAGE: (tripId: string, imageId: string) => `/trips/${tripId}/images/${imageId}`,
 		BOOKED_ROUTE_MAP: (tripId: string) => `/trips/${tripId}/route-map`,
 		GET_ALL: "/trips",
 		GET_MINE: "/trips/mine",

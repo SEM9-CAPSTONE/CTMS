@@ -10,6 +10,7 @@
 		"build": "node -e \"fs.rmSync('dist', { recursive: true, force: true })\" && nest build",
 		"lint": "eslint src",
 		"test": "jest",
+		"test:e2e": "jest --config ./test/jest-e2e.json --runInBand",
 		"test:integration": "jest --config ./test/jest-integration.json --runInBand",
 		"migration:run": "typeorm-ts-node-commonjs migration:run -d src/shared/database/data-source.ts",
 		"migration:revert": "typeorm-ts-node-commonjs migration:revert -d src/shared/database/data-source.ts",

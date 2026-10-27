@@ -3,15 +3,23 @@ import {
 	AlertCircle,
 	ArrowRight,
 	CalendarDays,
-	ImagePlus,
+	FileText,
 	Loader2,
+	Map as MapIcon,
 	RefreshCw,
 	Route,
-	X,
+	Users,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+	type ReactNode,
+	type Ref,
+	useCallback,
+	useEffect,
+	useImperativeHandle,
+	useMemo,
+	useState,
+} from "react";
 import { useForm } from "react-hook-form";
-import { uploadService } from "../../../core/services/upload.service";
 import type { CreatedTrekkingRoute, Position } from "../../trekking-routes/types";
 import type { CreateTripError } from "../hooks/useCreateTrip";
 import {
@@ -23,22 +31,31 @@ import {
 } from "../schema/create-trip.schema";
 import type { CreateTripInput } from "../types";
 import {
-	SoftDateTimeRangePicker,
 	SoftSingleDateTimePicker,
 	getPastDateTimeMessage,
 	maxDateTimeLocalValue,
 	toDateTimeLocalInputValue,
 } from "./TripDateTimePicker";
+import { RequiredFieldMark, TripFormSection } from "./TripFormSection";
+import { TripImagePicker } from "./TripImagePicker";
 import { TripRouteMap } from "./TripRouteMap";
-import { TripRouteSuggestions } from "./TripRouteSuggestions";
 
+export interface CreateTripFormHandle {
+	getSnapshot: () => { values: CreateTripFormValues; images: File[] };
+}
 interface Props {
+	draftHandle?: Ref<CreateTripFormHandle>;
 	activeRoutes: CreatedTrekkingRoute[];
 	isRouteLoading: boolean;
 	routeError: string;
 	isSubmitting: boolean;
 	error: CreateTripError | null;
-	onSubmit: (payload: CreateTripInput) => Promise<unknown>;
+	onSubmit: (payload: CreateTripInput, images?: File[]) => Promise<unknown>;
+	onDraftChange?: (values: CreateTripFormValues, images: File[]) => void;
+	initialImages?: File[];
+	locked?: boolean;
+	allowImages?: boolean;
+	imageEditor?: ReactNode;
 	onRetry: () => Promise<unknown>;
 	onRetryRoutes: () => void;
 	onCreateRoute?: () => void;
@@ -51,7 +68,6 @@ interface Props {
 
 const inputClass =
 	"mt-1 w-full rounded-xl border border-[#cbd9ce] bg-white px-3 py-2.5 text-sm outline-none focus:border-[#164027] focus:ring-2 focus:ring-[#164027]/10 disabled:bg-[#f4f7f2] disabled:text-[#7b8c82]";
-const MAX_COVER_IMAGE_SIZE = 5 * 1024 * 1024;
 const MAX_REASONABLE_TREKKING_METERS_PER_MINUTE = 100;
 
 const backendFieldMap: Record<string, keyof CreateTripFormValues> = {
@@ -214,6 +230,12 @@ export function CreateTripForm({
 	isSubmitting,
 	error,
 	onSubmit,
+	draftHandle,
+	onDraftChange,
+	initialImages,
+	locked = false,
+	allowImages = true,
+	imageEditor,
 	onRetry,
 	onRetryRoutes,
 	onCreateRoute,
@@ -223,6 +245,7 @@ export function CreateTripForm({
 	submittingLabel = "Đang tạo trip...",
 	title = "Thông tin chuyến đi",
 }: Props) {
+	const [images, setImages] = useState<File[]>(() => initialImages ?? []);
 	const formSchema = useMemo(() => createCreateTripFormSchema(), []);
 	const {
 		register,
@@ -240,13 +263,32 @@ export function CreateTripForm({
 		defaultValues,
 		mode: "onChange",
 	});
+	useEffect(() => {
+		if (initialImages) setImages(initialImages);
+	}, [initialImages]);
+	useEffect(() => {
+		if (!onDraftChange) return;
+		onDraftChange(getValues(), images);
+		const subscription = watch((values) => {
+			if (isCreateTripFormValues(values)) onDraftChange(values, images);
+		});
+		return () => subscription.unsubscribe();
+	}, [watch, getValues, images, onDraftChange]);
+
+	useImperativeHandle(
+		draftHandle,
+		() => ({ getSnapshot: () => ({ values: getValues(), images }) }),
+		[getValues, images]
+	);
+
 	const selectedRouteId = watch("routeId");
 	const startsAt = watch("startsAt");
 	const endsAt = watch("endsAt");
 	const bookingDeadline = watch("bookingDeadline");
 	const meetingAt = watch("meetingAt");
-	const [coverImagePreview, setCoverImagePreview] = useState("");
-	const [isUploadingCoverImage, setIsUploadingCoverImage] = useState(false);
+	const pricePerPerson = watch("pricePerPerson") ?? "";
+	const isFreeTrip = pricePerPerson.trim() !== "" && Number(pricePerPerson) === 0;
+
 	const minDateTime = useCurrentDateTimeLocalValue();
 	const meetingAtMinDateTime = maxDateTimeLocalValue(bookingDeadline, minDateTime);
 	const meetingLongitude = watch("meetingLongitude");
@@ -307,15 +349,11 @@ export function CreateTripForm({
 		meetingAtPastError ||
 		errors.meetingAt?.message;
 	const routeSelectDisabled = isSubmitting || isRouteLoading || !hasActiveRoutes;
-	const submitDisabled =
-		isSubmitting || isUploadingCoverImage || !hasActiveRoutes || !selectedRouteId;
+	const submitDisabled = locked || isSubmitting || !hasActiveRoutes || !selectedRoute;
 
 	useEffect(() => {
 		const draft = readPersistedDraft(draftStorageKey) ?? defaultValues;
 		reset(draft);
-		if (draft.coverImageUrl) {
-			setCoverImagePreview(draft.coverImageUrl);
-		}
 	}, [defaultValues, draftStorageKey, reset]);
 
 	useEffect(() => {
@@ -325,11 +363,6 @@ export function CreateTripForm({
 		});
 		return () => subscription.unsubscribe();
 	}, [draftStorageKey, watch]);
-
-	useEffect(() => {
-		if (!hasActiveRoutes || selectedRouteId) return;
-		setValue("routeId", activeRoutes[0].id, { shouldValidate: true });
-	}, [activeRoutes, hasActiveRoutes, selectedRouteId, setValue]);
 
 	useEffect(() => {
 		if (!selectedRoute) return;
@@ -424,59 +457,6 @@ export function CreateTripForm({
 		[setValue]
 	);
 
-	const handleCoverImageChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-		const file = event.target.files?.[0];
-		if (!file) return;
-		if (!file.type.startsWith("image/")) {
-			setError("coverImageUrl", { message: "Ảnh bìa phải là file hình ảnh" });
-			event.target.value = "";
-			return;
-		}
-		if (file.size > MAX_COVER_IMAGE_SIZE) {
-			setError("coverImageUrl", {
-				message: "Ảnh bìa không được vượt quá 5 MB",
-			});
-			event.target.value = "";
-			return;
-		}
-		clearErrors("coverImageUrl");
-
-		const localPreview = URL.createObjectURL(file);
-		setCoverImagePreview((current) => {
-			if (current?.startsWith("blob:")) URL.revokeObjectURL(current);
-			return localPreview;
-		});
-
-		setIsUploadingCoverImage(true);
-		try {
-			const res = await uploadService.uploadImage(file, "trips");
-			setValue("coverImageUrl", res.url, { shouldValidate: true, shouldDirty: true });
-			setCoverImagePreview(res.url);
-		} catch {
-			// If upload fails (e.g. in test env or offline), still retain local preview for UX/test
-			setValue("coverImageUrl", localPreview, { shouldValidate: true });
-		} finally {
-			setIsUploadingCoverImage(false);
-			event.target.value = "";
-		}
-	};
-
-	const clearCoverImage = () => {
-		setCoverImagePreview((current) => {
-			if (current?.startsWith("blob:")) URL.revokeObjectURL(current);
-			return "";
-		});
-		clearErrors("coverImageUrl");
-		setValue("coverImageUrl", "", { shouldValidate: true, shouldDirty: true });
-	};
-
-	useEffect(
-		() => () => {
-			if (coverImagePreview?.startsWith("blob:")) URL.revokeObjectURL(coverImagePreview);
-		},
-		[coverImagePreview]
-	);
-
 	useEffect(() => {
 		if (!error) return;
 		for (const [field, message] of Object.entries(error.fieldErrors)) {
@@ -486,382 +466,400 @@ export function CreateTripForm({
 		}
 	}, [error, setError]);
 
-	const submitForm = (values: CreateTripFormValues) => {
+	const submitValues = (values: CreateTripFormValues, save: Props["onSubmit"]) => {
 		const durationError = getRouteDurationError(values.startsAt, values.endsAt, selectedRoute);
 		if (durationError) {
 			setError("endsAt", { type: "routeDuration", message: durationError });
 			return Promise.resolve();
 		}
-		return onSubmit(toCreateTripInput(withRouteEndpointWaypoints(values, selectedRoute))).then(
-			(result) => {
-				if (result) clearPersistedDraft(draftStorageKey);
-				return result;
-			}
-		);
+		const payload = toCreateTripInput(withRouteEndpointWaypoints(values, selectedRoute));
+		return (images.length ? save(payload, images) : save(payload)).then((result) => {
+			if (result) clearPersistedDraft(draftStorageKey);
+			return result;
+		});
 	};
 
 	return (
-		<form className="grid gap-5" noValidate onSubmit={handleSubmit(submitForm)}>
-			<section className="overflow-hidden rounded-2xl border border-[#dce8dd] bg-white shadow-sm">
-				<div className="grid gap-0 lg:grid-cols-[0.88fr_1.12fr]">
-					<div className="bg-[#f7faf6] p-5">
-						<div className="flex items-start gap-3">
-							<div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-[#164027]">
-								<Route className="size-5" />
+		<form
+			className="grid gap-5"
+			noValidate
+			onSubmit={handleSubmit((values) => submitValues(values, onSubmit))}
+		>
+			<fieldset disabled={locked || isSubmitting} className="contents">
+				<section className="overflow-hidden rounded-2xl border border-[#dce8dd] bg-white shadow-sm">
+					<div className="grid gap-0 lg:grid-cols-[0.88fr_1.12fr]">
+						<div className="bg-[#f7faf6] p-5">
+							<div className="flex items-start gap-3">
+								<div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-[#164027]">
+									<Route className="size-5" />
+								</div>
+								<div>
+									<p className="text-xs font-extrabold uppercase tracking-[0.18em] text-[#728578]">
+										Tuyến trekking
+									</p>
+									<h2 className="mt-1 text-lg font-extrabold text-[#10221b]">
+										Chọn tuyến đã duyệt để tạo trip
+									</h2>
+									<p className="mt-2 text-sm leading-6 text-[#667a6d]">
+										Chuyến đi dùng tuyến trekking có sẵn. Điểm bắt đầu và kết thúc sẽ tự lấy từ
+										tuyến bạn chọn.
+									</p>
+								</div>
 							</div>
-							<div>
-								<p className="text-xs font-extrabold uppercase tracking-[0.18em] text-[#728578]">
-									Tuyến trekking
-								</p>
-								<h2 className="mt-1 text-lg font-extrabold text-[#10221b]">
-									Chọn tuyến đã duyệt để tạo trip
-								</h2>
-								<p className="mt-2 text-sm leading-6 text-[#667a6d]">
-									Chuyến đi dùng tuyến trekking có sẵn. Điểm bắt đầu và kết thúc sẽ tự lấy từ tuyến
-									bạn chọn.
-								</p>
+							{!isRouteLoading && !routeError && !hasActiveRoutes && onCreateRoute && (
+								<button
+									type="button"
+									onClick={onCreateRoute}
+									className="mt-5 inline-flex items-center justify-center gap-2 rounded-xl bg-[#164027] px-4 py-2.5 text-sm font-bold text-white"
+								>
+									Tạo tuyến trekking
+									<ArrowRight className="size-4" />
+								</button>
+							)}
+						</div>
+						<div className="p-5">
+							<div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+								<label className="flex-1 text-sm font-bold text-[#34483b]">
+									Tuyến đã duyệt
+									<RequiredFieldMark />
+									<select
+										aria-label="Tuyến đã duyệt"
+										disabled={routeSelectDisabled}
+										className={inputClass}
+										aria-required="true"
+										{...register("routeId")}
+										value={selectedRouteId ?? ""}
+									>
+										<option value="">
+											{isRouteLoading ? "Đang tải tuyến..." : "Chọn tuyến đã duyệt"}
+										</option>
+										{activeRoutes.map((route) => (
+											<option key={route.id} value={route.id}>
+												{route.name}
+											</option>
+										))}
+									</select>
+									{errors.routeId && (
+										<span className="mt-1 block text-xs text-red-600">
+											{errors.routeId.message}
+										</span>
+									)}
+								</label>
+								<button
+									type="button"
+									onClick={onRetryRoutes}
+									disabled={isRouteLoading}
+									className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#cbd9ce] px-3 py-2.5 text-sm font-bold text-[#164027] disabled:opacity-60"
+								>
+									<RefreshCw className={`size-4 ${isRouteLoading ? "animate-spin" : ""}`} />
+									Tải lại tuyến
+								</button>
 							</div>
 						</div>
-						{!isRouteLoading && !routeError && !hasActiveRoutes && onCreateRoute && (
-							<button
-								type="button"
-								onClick={onCreateRoute}
-								className="mt-5 inline-flex items-center justify-center gap-2 rounded-xl bg-[#164027] px-4 py-2.5 text-sm font-bold text-white"
-							>
-								Tạo tuyến trekking
-								<ArrowRight className="size-4" />
-							</button>
-						)}
 					</div>
-					<div className="p-5">
-						<div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-							<label className="flex-1 text-sm font-bold text-[#34483b]">
-								Tuyến đã duyệt
-								<select
-									aria-label="Tuyến đã duyệt"
-									disabled={routeSelectDisabled}
+					{routeError && (
+						<p
+							role="alert"
+							className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800"
+						>
+							{routeError}
+						</p>
+					)}
+					{!isRouteLoading && !routeError && !hasActiveRoutes && (
+						<p
+							role="alert"
+							className="mx-5 mb-5 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"
+						>
+							Chưa có tuyến trekking đã duyệt. Form vẫn cho nhập nháp; nút tạo chuyến đi sẽ mở sau
+							khi có tuyến phù hợp.
+						</p>
+					)}
+				</section>
+
+				<input type="hidden" {...register("meetingLongitude")} />
+				<input type="hidden" {...register("meetingLatitude")} />
+				<input type="hidden" {...register("tripType")} />
+				<input type="hidden" {...register("waypoints.0.type")} />
+				<input type="hidden" {...register("waypoints.0.name")} />
+				<input type="hidden" {...register("waypoints.0.longitude")} />
+				<input type="hidden" {...register("waypoints.0.latitude")} />
+				<input type="hidden" {...register("waypoints.0.plannedAt")} />
+				<input type="hidden" {...register("waypoints.1.type")} />
+				<input type="hidden" {...register("waypoints.1.name")} />
+				<input type="hidden" {...register("waypoints.1.longitude")} />
+				<input type="hidden" {...register("waypoints.1.latitude")} />
+				<input type="hidden" {...register("waypoints.1.plannedAt")} />
+
+				<section
+					aria-label={title}
+					className="rounded-2xl border border-[#e0ebe0] bg-white p-4 shadow-sm sm:p-5"
+				>
+					<div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+						<h2 className="flex items-center gap-3 font-extrabold text-[#10221b]">
+							<span className="flex size-10 items-center justify-center rounded-xl bg-[#e6f2ea] text-[#167347]">
+								<MapIcon className="size-5" aria-hidden="true" />
+							</span>
+							{title}
+						</h2>
+						<div className="inline-flex items-center gap-2 rounded-xl border border-[#dce8dd] bg-[#eef6f0] px-4 py-2 text-xs font-extrabold text-[#164027]">
+							<CalendarDays className="size-4" aria-hidden="true" />
+							{tripTypeLabel(startsAt, endsAt)}
+						</div>
+					</div>
+					<div className="grid gap-4">
+						<TripFormSection title="Thông tin cơ bản" icon={FileText}>
+							<label className="text-sm font-bold text-[#34483b] sm:col-span-2">
+								Tên chuyến đi
+								<RequiredFieldMark />
+								<input
+									aria-label="Tên trip"
+									aria-required="true"
+									placeholder="Nhập tên chuyến đi..."
+									disabled={isSubmitting}
+									maxLength={150}
 									className={inputClass}
-									{...register("routeId")}
-								>
-									<option value="">
-										{isRouteLoading ? "Đang tải tuyến..." : "Chọn tuyến đã duyệt"}
-									</option>
-									{activeRoutes.map((route) => (
-										<option key={route.id} value={route.id}>
-											{route.name}
-										</option>
-									))}
-								</select>
-								{errors.routeId && (
-									<span className="mt-1 block text-xs text-red-600">{errors.routeId.message}</span>
+									{...register("title")}
+								/>
+								{errors.title && (
+									<span className="mt-1 block text-xs text-red-600">{errors.title.message}</span>
 								)}
 							</label>
-							<button
-								type="button"
-								onClick={onRetryRoutes}
-								disabled={isRouteLoading}
-								className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#cbd9ce] px-3 py-2.5 text-sm font-bold text-[#164027] disabled:opacity-60"
-							>
-								<RefreshCw className={`size-4 ${isRouteLoading ? "animate-spin" : ""}`} />
-								Tải lại tuyến
-							</button>
-						</div>
-					</div>
-				</div>
-				{routeError && (
-					<p
-						role="alert"
-						className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800"
-					>
-						{routeError}
-					</p>
-				)}
-				{!isRouteLoading && !routeError && !hasActiveRoutes && (
-					<p
-						role="alert"
-						className="mx-5 mb-5 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"
-					>
-						Chưa có tuyến trekking đã duyệt. Form vẫn cho nhập nháp; nút tạo chuyến đi sẽ mở sau khi
-						có tuyến phù hợp.
-					</p>
-				)}
-			</section>
-
-			<input type="hidden" {...register("meetingLongitude")} />
-			<input type="hidden" {...register("meetingLatitude")} />
-			<input type="hidden" {...register("tripType")} />
-			<input type="hidden" {...register("waypoints.0.type")} />
-			<input type="hidden" {...register("waypoints.0.name")} />
-			<input type="hidden" {...register("waypoints.0.longitude")} />
-			<input type="hidden" {...register("waypoints.0.latitude")} />
-			<input type="hidden" {...register("waypoints.0.plannedAt")} />
-			<input type="hidden" {...register("waypoints.1.type")} />
-			<input type="hidden" {...register("waypoints.1.name")} />
-			<input type="hidden" {...register("waypoints.1.longitude")} />
-			<input type="hidden" {...register("waypoints.1.latitude")} />
-			<input type="hidden" {...register("waypoints.1.plannedAt")} />
-
-			<section className="rounded-2xl border border-[#e0ebe0] bg-white p-5 shadow-sm">
-				<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-					<div>
-						<h2 className="font-extrabold text-[#10221b]">{title}</h2>
-					</div>
-					<div className="inline-flex items-center gap-2 self-start rounded-full bg-[#f0f6ef] px-4 py-2 text-sm font-extrabold text-[#164027]">
-						<CalendarDays className="size-4" />
-						{tripTypeLabel(startsAt, endsAt)}
-					</div>
-				</div>
-				<div className="mt-4 grid gap-4 sm:grid-cols-2">
-					<label className="text-sm font-bold text-[#34483b] sm:col-span-2">
-						Tên trip
-						<input
-							aria-label="Tên trip"
-							disabled={isSubmitting}
-							maxLength={150}
-							className={inputClass}
-							{...register("title")}
-						/>
-						{errors.title && (
-							<span className="mt-1 block text-xs text-red-600">{errors.title.message}</span>
-						)}
-					</label>
-					<div>
-						<SoftDateTimeRangePicker
-							title="Thời gian"
-							startsAt={startsAt}
-							endsAt={endsAt}
-							minValue={minDateTime}
-							disabled={isSubmitting}
-							startError={startsAtErrorMessage}
-							endError={endsAtErrorMessage}
-							onStartChange={(value) => {
-								setValue("startsAt", value, {
-									shouldValidate: true,
-									shouldDirty: true,
-								});
-								void trigger(["startsAt", "endsAt", "meetingAt", "bookingDeadline"]);
-							}}
-							onEndChange={(value) => {
-								setValue("endsAt", value, {
-									shouldValidate: true,
-									shouldDirty: true,
-								});
-								void trigger(["startsAt", "endsAt"]);
-							}}
-						/>
-						<input
-							aria-label="Bắt đầu"
-							type="datetime-local"
-							min={minDateTime}
-							disabled={isSubmitting}
-							className="sr-only"
-							{...register("startsAt")}
-						/>
-						<input
-							aria-label="Kết thúc"
-							type="datetime-local"
-							min={startsAt || minDateTime}
-							disabled={isSubmitting}
-							className="sr-only"
-							{...register("endsAt")}
-						/>
-					</div>
-					<label className="text-sm font-bold text-[#34483b]">
-						Giá mỗi người
-						<input
-							aria-label="Giá mỗi người"
-							inputMode="decimal"
-							disabled={isSubmitting}
-							className={inputClass}
-							{...register("pricePerPerson")}
-						/>
-						{errors.pricePerPerson && (
-							<span className="mt-1 block text-xs text-red-600">
-								{errors.pricePerPerson.message}
-							</span>
-						)}
-					</label>
-					<div className="sm:col-span-2 grid gap-4 xl:grid-cols-2">
-						<div>
-							<SoftSingleDateTimePicker
-								title="Thời gian tập trung"
-								value={meetingAt}
-								disabled={isSubmitting}
-								error={meetingAtErrorMessage}
-								defaultTime="07:30"
-								minValue={minDateTime}
-								maxValue={startsAt}
-								onChange={(value) => {
-									setValue("meetingAt", value, {
-										shouldValidate: true,
-										shouldDirty: true,
-									});
-
-									void trigger(["meetingAt", "bookingDeadline", "startsAt"]);
-								}}
-							/>
-							<input
-								aria-label="Thời gian tập trung"
-								type="datetime-local"
-								min={meetingAtMinDateTime}
-								max={startsAt || undefined}
-								disabled={isSubmitting}
-								className="sr-only"
-								{...register("meetingAt")}
-							/>
-						</div>
-						<div>
-							<SoftSingleDateTimePicker
-								title="Hạn đặt chỗ"
-								value={bookingDeadline}
-								disabled={isSubmitting}
-								error={bookingDeadlineErrorMessage}
-								defaultTime="18:00"
-								minValue={minDateTime}
-								maxValue={startsAt}
-								onChange={(value) => {
-									setValue("bookingDeadline", value, {
-										shouldValidate: true,
-										shouldDirty: true,
-									});
-									void trigger(["bookingDeadline", "meetingAt"]);
-								}}
-							/>
-							<input
-								aria-label="Hạn đặt chỗ"
-								type="datetime-local"
-								min={minDateTime}
-								max={startsAt || undefined}
-								disabled={isSubmitting}
-								className="sr-only"
-								{...register("bookingDeadline")}
-							/>
-						</div>
-					</div>
-					<label className="text-sm font-bold text-[#34483b]">
-						Số khách tối thiểu
-						<input
-							aria-label="Số khách tối thiểu"
-							inputMode="numeric"
-							disabled={isSubmitting}
-							className={inputClass}
-							{...register("capacityMin")}
-						/>
-						{errors.capacityMin && (
-							<span className="mt-1 block text-xs text-red-600">{errors.capacityMin.message}</span>
-						)}
-					</label>
-					<label className="text-sm font-bold text-[#34483b]">
-						Số khách tối đa
-						<input
-							aria-label="Số khách tối đa"
-							inputMode="numeric"
-							placeholder="Không giới hạn"
-							disabled={isSubmitting}
-							className={inputClass}
-							{...register("capacityMax")}
-						/>
-						{errors.capacityMax && (
-							<span className="mt-1 block text-xs text-red-600">{errors.capacityMax.message}</span>
-						)}
-					</label>
-					<label className="text-sm font-bold text-[#34483b]">
-						Mô tả
-						<textarea
-							aria-label="Mô tả"
-							disabled={isSubmitting}
-							rows={5}
-							className={inputClass}
-							{...register("description")}
-						/>
-					</label>
-					<div className="text-sm font-bold text-[#34483b]">
-						<span>Ảnh bìa</span>
-						<input type="hidden" {...register("coverImageUrl")} />
-						<div className="mt-1 rounded-xl border border-dashed border-[#16a34a]/35 bg-[#fbfdfb] p-3">
-							{coverImagePreview ? (
-								<div className="relative overflow-hidden rounded-lg">
-									<img
-										src={coverImagePreview}
-										alt="Ảnh bìa đã chọn"
-										className="h-36 w-full object-cover"
-									/>
-									{isUploadingCoverImage && (
-										<div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/40">
-											<Loader2 className="size-6 animate-spin text-white" />
-											<span className="text-xs font-semibold text-white">
-												Đang tải ảnh lên Cloud...
-											</span>
-										</div>
-									)}
-									{!isUploadingCoverImage && (
-										<button
-											type="button"
-											aria-label="Bỏ ảnh bìa"
-											onClick={clearCoverImage}
-											disabled={isSubmitting}
-											className="absolute top-2 right-2 rounded-full bg-white p-1.5 text-[#164027] shadow"
-										>
-											<X className="size-4" />
-										</button>
-									)}
-								</div>
-							) : isUploadingCoverImage ? (
-								<div className="flex min-h-36 flex-col items-center justify-center gap-2 rounded-lg bg-white p-4">
-									<Loader2 className="size-6 animate-spin text-[#164027]" />
-									<span className="text-xs font-semibold text-[#164027]">
-										Đang tải ảnh lên Cloud...
-									</span>
-								</div>
-							) : (
-								<label className="flex min-h-36 cursor-pointer items-center justify-center gap-2 rounded-lg bg-white px-3 py-5 text-sm font-bold text-[#164027] ring-1 ring-[#16a34a]/25">
-									<ImagePlus className="size-4" />
-									Chọn ảnh từ máy
-									<input
-										aria-label="Ảnh bìa"
-										type="file"
-										accept="image/*"
+						</TripFormSection>
+						<TripFormSection title="Lịch trình" icon={CalendarDays}>
+							<div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+								<div className="min-w-0">
+									<SoftSingleDateTimePicker
+										title="Thời gian bắt đầu"
+										required
+										modal
+										placeholder="Chọn ngày và giờ"
+										value={startsAt}
 										disabled={isSubmitting}
-										onChange={handleCoverImageChange}
-										className="sr-only"
+										error={startsAtErrorMessage}
+										minValue={minDateTime}
+										onChange={(value) => {
+											setValue("startsAt", value, { shouldValidate: true, shouldDirty: true });
+											void trigger(["startsAt", "endsAt", "meetingAt", "bookingDeadline"]);
+										}}
 									/>
+									<input
+										aria-label="Bắt đầu"
+										aria-required="true"
+										type="datetime-local"
+										min={minDateTime}
+										disabled={isSubmitting}
+										className="sr-only"
+										{...register("startsAt")}
+									/>
+								</div>
+								<div className="min-w-0">
+									<SoftSingleDateTimePicker
+										title="Thời gian kết thúc"
+										required
+										modal
+										placeholder="Chọn ngày và giờ"
+										value={endsAt}
+										disabled={isSubmitting}
+										error={endsAtErrorMessage}
+										minValue={minDateTime}
+										onChange={(value) => {
+											setValue("endsAt", value, { shouldValidate: true, shouldDirty: true });
+											void trigger(["startsAt", "endsAt"]);
+										}}
+									/>
+									<input
+										aria-label="Kết thúc"
+										aria-required="true"
+										type="datetime-local"
+										min={startsAt || minDateTime}
+										disabled={isSubmitting}
+										className="sr-only"
+										{...register("endsAt")}
+									/>
+								</div>
+								<div className="min-w-0">
+									<SoftSingleDateTimePicker
+										title="Thời gian tập trung"
+										required
+										modal
+										placeholder="Chọn ngày và giờ"
+										value={meetingAt}
+										disabled={isSubmitting}
+										error={meetingAtErrorMessage}
+										minValue={meetingAtMinDateTime}
+										maxValue={startsAt}
+										defaultTime="07:30"
+										onChange={(value) => {
+											setValue("meetingAt", value, { shouldValidate: true, shouldDirty: true });
+											void trigger(["meetingAt", "bookingDeadline", "startsAt"]);
+										}}
+									/>
+									<input
+										aria-label="Thời gian tập trung"
+										aria-required="true"
+										type="datetime-local"
+										min={meetingAtMinDateTime}
+										max={startsAt || undefined}
+										disabled={isSubmitting}
+										className="sr-only"
+										{...register("meetingAt")}
+									/>
+								</div>
+								<div className="min-w-0">
+									<SoftSingleDateTimePicker
+										title="Hạn đặt chỗ"
+										required
+										modal
+										placeholder="Chọn ngày và giờ"
+										value={bookingDeadline}
+										disabled={isSubmitting}
+										error={bookingDeadlineErrorMessage}
+										minValue={minDateTime}
+										maxValue={startsAt}
+										defaultTime="18:00"
+										onChange={(value) => {
+											setValue("bookingDeadline", value, {
+												shouldValidate: true,
+												shouldDirty: true,
+											});
+											void trigger(["bookingDeadline", "meetingAt"]);
+										}}
+									/>
+									<input
+										aria-label="Hạn đặt chỗ"
+										aria-required="true"
+										type="datetime-local"
+										min={minDateTime}
+										max={startsAt || undefined}
+										disabled={isSubmitting}
+										className="sr-only"
+										{...register("bookingDeadline")}
+									/>
+								</div>
+							</div>
+						</TripFormSection>
+						<TripFormSection title="Đặt chỗ & Giá" icon={Users}>
+							<div className="grid gap-4 sm:grid-cols-3">
+								<label className="text-sm font-bold text-[#34483b]">
+									Giá mỗi người
+									<RequiredFieldMark />
+									<div className="mt-1 flex items-stretch overflow-hidden rounded-xl border border-[#cbd9ce] bg-white focus-within:border-[#164027] focus-within:ring-2 focus-within:ring-[#164027]/10">
+										<input
+											aria-label="Giá mỗi người"
+											inputMode="numeric"
+											pattern="[0-9]*"
+											disabled={isSubmitting}
+											readOnly={isFreeTrip}
+											className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-sm outline-none read-only:text-[#667a6d] disabled:bg-[#f4f7f2] disabled:text-[#7b8c82]"
+											aria-required="true"
+											{...register("pricePerPerson")}
+										/>
+										<span className="m-1 flex shrink-0 items-center justify-center rounded-lg bg-[#f1f4f2] px-3 text-xs font-semibold text-[#667a6d]">
+											VND
+										</span>
+									</div>
+									{errors.pricePerPerson && (
+										<span className="mt-1 block text-xs text-red-600">
+											{errors.pricePerPerson.message}
+										</span>
+									)}
 								</label>
-							)}
-							<p className="mt-2 text-xs font-medium text-[#667a6d]">
-								Hỗ trợ JPG, PNG hoặc WebP, tối đa 5 MB.
-							</p>
-						</div>
-						{errors.coverImageUrl && (
-							<span className="mt-1 block text-xs text-red-600">
-								{errors.coverImageUrl.message}
-							</span>
-						)}
+								<label className="text-sm font-bold text-[#34483b]">
+									Số khách tối thiểu
+									<RequiredFieldMark />
+									<input
+										aria-label="Số khách tối thiểu"
+										inputMode="numeric"
+										aria-required="true"
+										placeholder="Nhập số lượng"
+										disabled={isSubmitting}
+										className={inputClass}
+										{...register("capacityMin")}
+									/>
+									{errors.capacityMin && (
+										<span className="mt-1 block text-xs text-red-600">
+											{errors.capacityMin.message}
+										</span>
+									)}
+								</label>
+								<label className="text-sm font-bold text-[#34483b]">
+									Số khách tối đa
+									<input
+										aria-label="Số khách tối đa"
+										inputMode="numeric"
+										placeholder="Không giới hạn"
+										disabled={isSubmitting}
+										className={inputClass}
+										{...register("capacityMax")}
+									/>
+									{errors.capacityMax && (
+										<span className="mt-1 block text-xs text-red-600">
+											{errors.capacityMax.message}
+										</span>
+									)}
+								</label>
+							</div>
+							<label className="mt-3 inline-flex items-center gap-2 text-sm text-[#34483b]">
+								<input
+									type="checkbox"
+									className="size-4 accent-[#167347]"
+									checked={isFreeTrip}
+									disabled={isSubmitting}
+									onChange={(event) =>
+										setValue("pricePerPerson", event.target.checked ? "0" : "", {
+											shouldValidate: true,
+											shouldDirty: true,
+										})
+									}
+								/>
+								Chuyến đi miễn phí
+							</label>
+						</TripFormSection>
+						<TripFormSection title="Mô tả" icon={FileText}>
+							<label className="text-sm font-bold text-[#34483b]">
+								<span className="sr-only">Mô tả</span>
+								<textarea
+									aria-label="Mô tả"
+									disabled={isSubmitting}
+									rows={3}
+									placeholder="Nhập mô tả chuyến đi..."
+									className={inputClass}
+									{...register("description")}
+								/>
+							</label>
+						</TripFormSection>
+						{imageEditor ??
+							(allowImages && (
+								<TripImagePicker
+									layout="slots"
+									files={images}
+									onChange={setImages}
+									disabled={locked || isSubmitting}
+								/>
+							))}
 					</div>
-				</div>
-			</section>
+				</section>
 
-			<TripRouteMap
-				route={selectedRoute}
-				meetingPoint={meetingPoint}
-				disabled={isSubmitting}
-				onMeetingPointChange={setMeetingPoint}
-			/>
+				<TripRouteMap
+					route={selectedRoute}
+					meetingPoint={meetingPoint}
+					disabled={locked || isSubmitting}
+					onMeetingPointChange={setMeetingPoint}
+				/>
 
-			<TripRouteSuggestions selectedRoute={selectedRoute} />
-
-			{(errors.meetingLongitude ||
-				errors.meetingLatitude ||
-				errors.waypoints?.message ||
-				errors.waypoints?.root) && (
-				<p role="alert" className="text-sm font-bold text-red-600">
-					{errors.meetingLongitude?.message ??
-						errors.meetingLatitude?.message ??
-						errors.waypoints?.message ??
-						errors.waypoints?.root?.message ??
-						"Vui lòng kiểm tra các điểm trên tuyến."}
-				</p>
-			)}
-
+				{(errors.meetingLongitude ||
+					errors.meetingLatitude ||
+					errors.waypoints?.message ||
+					errors.waypoints?.root) && (
+					<p role="alert" className="text-sm font-bold text-red-600">
+						{errors.meetingLongitude?.message ??
+							errors.meetingLatitude?.message ??
+							errors.waypoints?.message ??
+							errors.waypoints?.root?.message ??
+							"Vui lòng kiểm tra các điểm trên tuyến."}
+					</p>
+				)}
+			</fieldset>
 			{error && (
 				<div
 					role="alert"
@@ -875,6 +873,7 @@ export function CreateTripForm({
 						<button
 							type="button"
 							onClick={() => void onRetry()}
+							disabled={isSubmitting}
 							className="mt-3 rounded-lg border border-red-300 px-3 py-2 font-bold"
 						>
 							<RefreshCw className="mr-1 inline size-4" />
@@ -884,18 +883,20 @@ export function CreateTripForm({
 				</div>
 			)}
 
-			<button
-				type="submit"
-				disabled={submitDisabled}
-				className="flex items-center justify-center gap-2 rounded-xl bg-[#164027] px-5 py-3 font-bold text-white disabled:opacity-60"
-			>
-				{isSubmitting && <Loader2 className="size-4 animate-spin" />}
-				{isSubmitting
-					? submittingLabel
-					: hasActiveRoutes
-						? submitLabel
-						: "Cần tuyến đã duyệt để tạo trip"}
-			</button>
+			<div className="flex flex-wrap justify-end gap-3">
+				<button
+					type="submit"
+					disabled={submitDisabled}
+					className="flex items-center justify-center gap-2 rounded-xl bg-[#164027] px-5 py-3 font-bold text-white disabled:opacity-60"
+				>
+					{isSubmitting && <Loader2 className="size-4 animate-spin" />}
+					{isSubmitting
+						? submittingLabel
+						: hasActiveRoutes
+							? submitLabel
+							: "Cần tuyến đã duyệt để tạo trip"}
+				</button>
+			</div>
 		</form>
 	);
 }

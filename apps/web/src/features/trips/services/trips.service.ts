@@ -30,11 +30,42 @@ import type {
 	TripWeatherForecast,
 } from "../types";
 
+export interface TripImage {
+	id: string;
+	url: string;
+	sortOrder: number;
+}
 export const tripsService = {
+	getImages: (tripId: string): Promise<TripImage[]> =>
+		httpClient.get(API_ENDPOINTS.TRIPS.IMAGES(tripId)),
+	addImage: (tripId: string, file: File): Promise<TripImage[]> => {
+		const form = new FormData();
+		form.append("file", file);
+		return httpClient.post(API_ENDPOINTS.TRIPS.IMAGES(tripId), form);
+	},
+	removeImage: (
+		tripId: string,
+		imageId: string
+	): Promise<{ images: TripImage[]; storageCleanup: "queued" }> =>
+		httpClient.delete(API_ENDPOINTS.TRIPS.IMAGE(tripId, imageId)),
+
 	getBookedRouteMap: (tripId: string): Promise<BookedTripRouteMap> =>
 		httpClient.get<BookedTripRouteMap>(API_ENDPOINTS.TRIPS.BOOKED_ROUTE_MAP(tripId)),
 	create: (input: CreateTripInput): Promise<Trip> =>
 		httpClient.post<Trip>(API_ENDPOINTS.TRIPS.CREATE, input),
+	finalizePendingUpdate: (
+		tripId: string,
+		payload: CreateTripInput & { expectedUpdatedAt: string; retainedImageIds: string[] },
+		images: File[]
+	): Promise<Trip & { images: TripImage[] }> => {
+		const body = new FormData();
+		body.append("payload", JSON.stringify(payload));
+		for (const image of images) body.append("images", image);
+		return httpClient.patch<Trip & { images: TripImage[] }>(
+			`/trips/${tripId}/pending-update`,
+			body
+		);
+	},
 	updateDraft: (tripId: string, input: CreateTripInput): Promise<Trip> =>
 		httpClient.patch<Trip>(API_ENDPOINTS.TRIPS.UPDATE(tripId), input),
 	configureWaypoints: (tripId: string, input: ConfigureTripWaypointsInput): Promise<Trip> =>

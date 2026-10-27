@@ -1,28 +1,22 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-	AlertCircle,
-	CheckCircle2,
-	Loader2,
-	MapPin,
-	RefreshCw,
-	Send,
-	Trash2,
-	X,
-} from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { AlertCircle, Loader2, MapPin, RefreshCw, Send, Trash2, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
+import { toast } from "../../../shared/components/Toast";
 import { useRouteCheckpoints } from "../../trekking-routes/hooks/useRouteCheckpoints";
 import type { CreatedTrekkingRoute, Position } from "../../trekking-routes/types";
 import type { ConfigureTripWaypointsError } from "../hooks/useConfigureTripWaypoints";
 import { useConfigureTripWaypoints } from "../hooks/useConfigureTripWaypoints";
 import { useTripWeatherForecast } from "../hooks/useTripWeatherForecast";
 import {
+	type ConfigureTripWaypointFormItem,
 	type ConfigureTripWaypointsFormValues,
 	createConfigureTripWaypointsSchema,
 	toConfigureTripWaypointFormItem,
 	toConfigureTripWaypointsDefaultValues,
 	toCreateTripWaypointInput,
 	validateWaypointForSave,
+	validateWaypointTime,
 } from "../schema/configure-trip-waypoints.schema";
 import { type Trip, type TripWaypointType, formatTripStatus } from "../types";
 import { SoftSingleDateTimePicker } from "./TripDateTimePicker";
@@ -33,6 +27,9 @@ import { WeatherSubmissionNotice } from "./WeatherSubmissionNotice";
 interface Props {
 	trip: Trip;
 	route?: CreatedTrekkingRoute | null;
+	onStageTripChange?: (trip: Trip) => void;
+	onFinalizeUpdate?: (items: ConfigureTripWaypointFormItem[]) => Promise<Trip | null>;
+	isFinalizing?: boolean;
 }
 
 const inputClass =
@@ -81,7 +78,7 @@ function waypointListError(values: ConfigureTripWaypointsFormValues): string {
 }
 
 function canConfigure(status: Trip["status"]): boolean {
-	return status === "draft";
+	return status === "draft" || status === "pending_approval";
 }
 
 type WaypointFormItem = ConfigureTripWaypointsFormValues["waypoints"][number];
@@ -154,17 +151,37 @@ function toDateTimeLocalValue(value: string): string {
 	return localDate.toISOString().slice(0, 16);
 }
 
-export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
+export function ConfigureTripWaypointsPanel({
+	trip,
+	route,
+	onStageTripChange,
+	onFinalizeUpdate,
+	isFinalizing = false,
+}: Props) {
 	const checkpoints = useRouteCheckpoints(trip.routeId);
 	const configuration = useConfigureTripWaypoints(trip.id);
 	const [activeWaypointIndex, setActiveWaypointIndex] = useState(0);
 	const [waypointFormIndex, setWaypointFormIndex] = useState<number | null>(null);
 	const [saveError, setSaveError] = useState<string | null>(null);
-	const serverTrip = configuration.configuredTrip ?? trip;
+	const serverTrip = onFinalizeUpdate ? trip : (configuration.configuredTrip ?? trip);
+	const isSubmitting = configuration.isSubmitting || isFinalizing;
+	const notifiedTrip = useRef<string | null>(null);
+	useEffect(() => {
+		const saved = configuration.configuredTrip;
+		if (
+			trip.status !== "draft" ||
+			saved?.status !== "pending_approval" ||
+			notifiedTrip.current === saved.id
+		)
+			return;
+		notifiedTrip.current = saved.id;
+		toast.success("Lịch trình đã được lưu và chuyến đi đang chờ duyệt.");
+	}, [configuration.configuredTrip, trip.status]);
+
 	// Forecast for the Trip's own trekking days; re-runs when the schedule changes.
 	const weather = useTripWeatherForecast(
 		trip.id,
-		"auto",
+		serverTrip.status === "pending_approval" ? "submitted" : "auto",
 		`${serverTrip.startsAt}|${serverTrip.endsAt}`
 	);
 	const weatherRisk = weather.forecast?.riskLevel ?? null;
@@ -184,7 +201,10 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 			),
 		[serverTrip]
 	);
-	const isBlocked = !canConfigure(serverTrip.status);
+	const stagingPending = Boolean(onStageTripChange && onFinalizeUpdate);
+	const isBlocked =
+		!canConfigure(serverTrip.status) ||
+		(serverTrip.status === "pending_approval" && !stagingPending);
 	const isPendingSuccess = serverTrip.status === "pending_approval";
 	const schema = useMemo(() => createConfigureTripWaypointsSchema(serverTrip), [serverTrip]);
 	const defaultValues = useMemo(
@@ -227,13 +247,10 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 		return !saved || !sameWaypoint(waypoint, saved);
 	};
 	const hasUnsavedChanges = currentValues.waypoints.some(isUnsaved);
-	const weatherBlocksSubmit = weather.isLoading || (weatherRisk === "red" && !weatherAcknowledged);
+	const weatherBlocksSubmit =
+		!isPendingSuccess && (weather.isLoading || (weatherRisk === "red" && !weatherAcknowledged));
 	const submitDisabled =
-		configuration.isSubmitting ||
-		isBlocked ||
-		fields.length < 2 ||
-		hasUnsavedChanges ||
-		weatherBlocksSubmit;
+		isSubmitting || isBlocked || fields.length < 2 || hasUnsavedChanges || weatherBlocksSubmit;
 
 	useEffect(() => {
 		reset(defaultValues);
@@ -284,7 +301,7 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 	};
 
 	const saveActiveWaypoint = async () => {
-		if (waypointFormIndex === null) return;
+		if (waypointFormIndex === null || isBlocked || isSubmitting) return;
 		const waypoints = getValues("waypoints");
 		const problem = validateWaypointForSave(waypoints, waypointFormIndex, serverTrip);
 		if (problem) {
@@ -292,6 +309,22 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 			return;
 		}
 		const waypoint = waypoints[waypointFormIndex];
+		if (onStageTripChange) {
+			const next = waypoints.map((w, index) => ({
+				...toCreateTripWaypointInput(w),
+				id: w.id || crypto.randomUUID(),
+				tripId: serverTrip.id,
+				checkpointId: w.checkpointId || null,
+				dayNumber: 1,
+				sequenceOrder: index + 1,
+				durationMinutes: null,
+				metadata: { routeOrder: w.routeOrder },
+			}));
+			onStageTripChange({ ...serverTrip, waypoints: next });
+			setSaveError(null);
+			setWaypointFormIndex(null);
+			return;
+		}
 		const saved = await configuration.saveWaypoint(
 			waypoint.id || null,
 			toCreateTripWaypointInput(waypoint)
@@ -303,8 +336,18 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 	};
 
 	const deleteActiveWaypoint = async () => {
-		if (waypointFormIndex === null) return;
+		if (waypointFormIndex === null || isBlocked || isSubmitting) return;
 		const waypoint = getValues(`waypoints.${waypointFormIndex}`);
+		if (onStageTripChange && waypoint?.id) {
+			onStageTripChange({
+				...serverTrip,
+				waypoints: serverTrip.waypoints.filter((w) => w.id !== waypoint?.id),
+			});
+			setActiveWaypointIndex(Math.max(0, waypointFormIndex - 1));
+			setSaveError(null);
+			setWaypointFormIndex(null);
+			return;
+		}
 		if (!waypoint?.id) {
 			remove(waypointFormIndex);
 		} else if (!(await configuration.deleteWaypoint(waypoint.id))) {
@@ -400,10 +443,15 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 
 	const activeEditorWaypoint =
 		waypointFormIndex !== null ? currentValues.waypoints[waypointFormIndex] : null;
+	const activeTimeError =
+		waypointFormIndex !== null && activeEditorWaypoint?.plannedAt
+			? (validateWaypointTime(currentValues.waypoints, waypointFormIndex, serverTrip) ?? undefined)
+			: undefined;
 	// Editor inputs are controlled so removing the edited waypoint cannot leak their DOM values
 	// into the waypoint that shifts into its index.
 	const updateActiveField = (field: "type" | "name" | "plannedAt", value: string) => {
-		if (waypointFormIndex === null) return;
+		if (waypointFormIndex === null || isBlocked || isSubmitting) return;
+		if (field === "plannedAt") setSaveError(null);
 		const options = { shouldDirty: true, shouldValidate: true };
 		if (field === "type")
 			setValue(`waypoints.${waypointFormIndex}.type`, value as TripWaypointType, options);
@@ -446,7 +494,7 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 							Điểm dừng
 							<select
 								aria-label={`Điểm dừng ${waypointFormIndex + 1}`}
-								disabled={configuration.isSubmitting}
+								disabled={isSubmitting || isBlocked}
 								className={inputClass}
 								value={activeEditorWaypoint.type}
 								onChange={(event) => updateActiveField("type", event.target.value)}
@@ -465,7 +513,7 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 						Mô tả
 						<input
 							aria-label={`Mô tả điểm dừng ${waypointFormIndex + 1}`}
-							disabled={configuration.isSubmitting}
+							disabled={isSubmitting || isBlocked}
 							maxLength={150}
 							placeholder="Nhập mô tả"
 							className={inputClass}
@@ -485,21 +533,16 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 							value={activeEditorWaypoint.plannedAt}
 							minValue={toDateTimeLocalValue(serverTrip.startsAt)}
 							maxValue={toDateTimeLocalValue(serverTrip.endsAt)}
-							disabled={configuration.isSubmitting}
-							error={errors.waypoints?.[waypointFormIndex]?.plannedAt?.message}
-							onChange={(value) => {
-								setValue(`waypoints.${waypointFormIndex}.plannedAt`, value, {
-									shouldDirty: true,
-									shouldValidate: true,
-								});
-							}}
+							disabled={isSubmitting || isBlocked}
+							error={activeTimeError ?? errors.waypoints?.[waypointFormIndex]?.plannedAt?.message}
+							onChange={(value) => updateActiveField("plannedAt", value)}
 						/>
 						<input
 							aria-label={`Thời gian điểm dừng ${waypointFormIndex + 1}`}
 							type="datetime-local"
 							min={toDateTimeLocalValue(serverTrip.startsAt)}
 							max={toDateTimeLocalValue(serverTrip.endsAt)}
-							disabled={configuration.isSubmitting}
+							disabled={isSubmitting || isBlocked}
 							className="sr-only"
 							value={activeEditorWaypoint.plannedAt}
 							onChange={(event) => updateActiveField("plannedAt", event.target.value)}
@@ -515,7 +558,7 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 					<button
 						type="button"
 						onClick={() => void deleteActiveWaypoint()}
-						disabled={configuration.isSubmitting || fields.length <= 2 || activeEditorLocked}
+						disabled={isSubmitting || fields.length <= 2 || activeEditorLocked}
 						className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm font-bold text-red-700 disabled:opacity-50"
 					>
 						<Trash2 className="size-4" />
@@ -524,10 +567,10 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 					<button
 						type="button"
 						onClick={() => void saveActiveWaypoint()}
-						disabled={configuration.isSubmitting || !isUnsaved(activeEditorWaypoint)}
+						disabled={isSubmitting || !isUnsaved(activeEditorWaypoint)}
 						className="inline-flex items-center gap-2 rounded-lg bg-[#164027] px-3 py-2 text-sm font-bold text-white disabled:opacity-50"
 					>
-						{configuration.isSubmitting && <Loader2 className="size-4 animate-spin" />}
+						{isSubmitting && <Loader2 className="size-4 animate-spin" />}
 						{activeEditorWaypoint.id ? "Lưu thay đổi" : "Lưu điểm dừng"}
 					</button>
 				</div>
@@ -539,10 +582,16 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 			</div>
 		) : null;
 
-	const submitForm = () =>
-		configuration.submit(
+	const submitForm = async () => {
+		if (onFinalizeUpdate) {
+			await onFinalizeUpdate(getValues("waypoints"));
+			return;
+		}
+		if (isPendingSuccess) return;
+		return configuration.submit(
 			weatherRisk === "red" ? { acknowledgeWeatherRisk: weatherAcknowledged } : {}
 		);
+	};
 
 	return (
 		<section className="mt-6 rounded-2xl border border-[#dce8dd] bg-white p-5 shadow-sm">
@@ -556,7 +605,9 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 							Điểm dừng
 						</p>
 						<h2 className="mt-1 text-lg font-extrabold text-[#10221b]">
-							Lịch trình điểm dừng và gửi duyệt
+							{isPendingSuccess
+								? "Cập nhật lịch trình điểm dừng"
+								: "Lịch trình điểm dừng và gửi duyệt"}
 						</h2>
 					</div>
 				</div>
@@ -568,7 +619,7 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 				</div>
 			</div>
 
-			{/* A pending Trip already shows the success notice below, which implies it is locked. */}
+			{/* The pending status is shown in the header; submission success uses a toast. */}
 			{isBlocked && !isPendingSuccess && (
 				<p
 					role="alert"
@@ -579,11 +630,10 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 				</p>
 			)}
 
-			{isPendingSuccess && (
-				<div className="mt-4 flex items-start gap-2 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-800">
-					<CheckCircle2 className="mt-0.5 size-4 shrink-0" />
-					<span>Lịch trình đã được lưu và chuyến đi đang chờ duyệt.</span>
-				</div>
+			{isPendingSuccess && !stagingPending && (
+				<p className="mt-4 text-sm text-[#667a6d]">
+					Để cập nhật chuyến đi, quay lại bước 1. Thay đổi chỉ được gửi khi hoàn tất cập nhật.
+				</p>
 			)}
 
 			{checkpoints.isLoading && (
@@ -608,6 +658,11 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 					</button>
 				</div>
 			)}
+			{onFinalizeUpdate && (
+				<p className="mt-4 text-sm text-[#667a6d]">
+					Thay đổi ở cả hai bước chỉ được gửi cho admin khi bấm Hoàn tất cập nhật.
+				</p>
+			)}
 			<form className="mt-5 grid gap-5" noValidate onSubmit={handleSubmit(submitForm)}>
 				<div className="rounded-2xl border border-[#dce8dd] bg-[#f8faf7] p-4">
 					<h3 className="font-extrabold text-[#10221b]">Lịch trình dự kiến</h3>
@@ -618,11 +673,11 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 								type="button"
 								onClick={() => openWaypointForm(waypoint.index)}
 								aria-label={`Mở chỉnh sửa điểm dừng ${waypoint.index + 1}`}
-								className={`grid gap-2 rounded-lg bg-white p-3 text-left text-sm ring-1 transition hover:ring-[#164027]/30 sm:grid-cols-[88px_120px_1fr] ${
+								className={`grid gap-2 rounded-lg bg-white p-3 text-left text-sm ring-1 transition hover:ring-[#164027]/30 sm:grid-cols-[max-content_120px_minmax(0,1fr)] ${
 									activeWaypointIndex === waypoint.index ? "ring-[#164027]" : "ring-[#e0ebe0]"
 								}`}
 							>
-								<span className="font-bold text-[#164027]">
+								<span className="whitespace-nowrap font-bold tabular-nums text-[#164027]">
 									{formatWaypointDateTime(waypoint.plannedAt)}
 								</span>
 								<span className="font-semibold text-[#667a6d]">
@@ -648,7 +703,7 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 					checkpoints={checkpoints.items}
 					waypoints={currentValues.waypoints}
 					activeIndex={activeWaypointIndex}
-					disabled={configuration.isSubmitting || isBlocked}
+					disabled={isSubmitting || isBlocked}
 					editor={activeWaypointEditor}
 					onActiveIndexChange={openWaypointForm}
 					onRouteNodeSelect={selectWaypointLocation}
@@ -669,6 +724,7 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 				)}
 
 				<TripWeatherForecastCard
+					variant={onFinalizeUpdate ? "admin" : "host"}
 					forecast={weather.forecast}
 					isLoading={weather.isLoading}
 					error={weather.error}
@@ -677,30 +733,33 @@ export function ConfigureTripWaypointsPanel({ trip, route }: Props) {
 					onRefresh={() => void weather.refresh()}
 				/>
 
-				<WeatherSubmissionNotice
-					riskLevel={weatherRisk}
-					acknowledged={weatherAcknowledged}
-					onAcknowledgedChange={setWeatherAcknowledged}
-					disabled={configuration.isSubmitting || isBlocked}
-				/>
+				{!isPendingSuccess && (
+					<WeatherSubmissionNotice
+						riskLevel={weatherRisk}
+						acknowledged={weatherAcknowledged}
+						onAcknowledgedChange={setWeatherAcknowledged}
+						disabled={isSubmitting || isBlocked}
+					/>
+				)}
 
 				<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-					<p className="text-xs font-semibold text-[#667a6d]">
-						{hasUnsavedChanges
-							? "Còn điểm dừng chưa lưu. Hãy lưu hoặc đóng điểm đó trước khi gửi duyệt."
-							: "Các điểm dừng đã lưu vào chuyến đi và có thể thêm, sửa, xóa trước khi gửi duyệt."}
-					</p>
 					<button
 						type="submit"
 						disabled={submitDisabled}
 						className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#164027] px-5 py-3 font-bold text-white disabled:opacity-60"
 					>
-						{configuration.isSubmitting ? (
+						{isSubmitting ? (
 							<Loader2 className="size-4 animate-spin" />
 						) : (
 							<Send className="size-4" />
 						)}
-						{configuration.isSubmitting ? "Đang gửi duyệt..." : "Gửi duyệt"}
+						{isSubmitting
+							? isPendingSuccess
+								? "Đang cập nhật..."
+								: "Đang gửi duyệt..."
+							: isPendingSuccess
+								? "Hoàn tất cập nhật"
+								: "Gửi duyệt"}
 					</button>
 				</div>
 			</form>

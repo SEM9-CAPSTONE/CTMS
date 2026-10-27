@@ -1,6 +1,8 @@
 import { useCallback, useRef, useState } from "react";
 import { HttpError } from "../../../core/api";
 import { tripsService } from "../services/trips.service";
+import { tripImageText } from "../trip-image-text";
+import { MAX_TRIP_IMAGES, isValidTripImage } from "../trip-images.constants";
 import type { CreateTripInput, Trip } from "../types";
 
 export interface CreateTripError {
@@ -80,49 +82,99 @@ export function mapCreateTripError(error: unknown): CreateTripError {
 	};
 }
 
+interface Submission {
+	payload: CreateTripInput;
+	existingTrip?: Trip;
+	images: File[];
+}
+interface PendingCreation {
+	trip: Trip;
+	nextImage: number;
+}
 export function useCreateTrip() {
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [error, setError] = useState<CreateTripError | null>(null);
 	const [createdTrip, setCreatedTrip] = useState<Trip | null>(null);
+	const [pendingTrip, setPendingTrip] = useState<Trip | null>(null);
 	const inFlight = useRef(false);
-	const lastPayload = useRef<CreateTripInput | null>(null);
-
-	const execute = useCallback(async (payload: CreateTripInput) => {
+	const lastSubmission = useRef<Submission | null>(null);
+	const pending = useRef<PendingCreation | null>(null);
+	const execute = useCallback(async (submission: Submission) => {
 		if (inFlight.current) return null;
 		inFlight.current = true;
 		setIsSubmitting(true);
 		setError(null);
 		try {
-			const created = await tripsService.create(payload);
-			setCreatedTrip(created);
-			return created;
+			if (
+				submission.images.length > MAX_TRIP_IMAGES ||
+				submission.images.some((file) => !isValidTripImage(file))
+			) {
+				setError({
+					message:
+						submission.images.length > MAX_TRIP_IMAGES
+							? tripImageText().limit
+							: tripImageText().invalid,
+					canRetry: false,
+					fieldErrors: {},
+				});
+				return null;
+			}
+			if (!pending.current) {
+				const trip = submission.existingTrip
+					? await tripsService.updateDraft(submission.existingTrip.id, submission.payload)
+					: await tripsService.create(submission.payload);
+				pending.current = { trip, nextImage: 0 };
+				setPendingTrip(trip);
+			}
+			const progress = pending.current;
+			while (progress.nextImage < submission.images.length) {
+				// Sequential uploads preserve selection order and the first-image thumbnail rule.
+				const images = await tripsService.addImage(
+					progress.trip.id,
+					submission.images[progress.nextImage]
+				);
+				progress.trip = { ...progress.trip, coverImageUrl: images[0]?.url ?? null };
+				progress.nextImage += 1;
+			}
+			const completed = progress.trip;
+			pending.current = null;
+			setPendingTrip(null);
+			setCreatedTrip(completed);
+			return completed;
 		} catch (requestError) {
-			setError(mapCreateTripError(requestError));
+			setError(
+				pending.current
+					? { message: tripImageText().createUploadFailed, canRetry: true, fieldErrors: {} }
+					: mapCreateTripError(requestError)
+			);
 			return null;
 		} finally {
 			inFlight.current = false;
 			setIsSubmitting(false);
 		}
 	}, []);
-
 	const submit = useCallback(
-		(payload: CreateTripInput) => {
-			lastPayload.current = payload;
-			return execute(payload);
+		(payload: CreateTripInput, images: File[] = [], existingTrip?: Trip) => {
+			if (inFlight.current) return Promise.resolve(null);
+			// A saved draft awaiting images must finish its original submission before moving on.
+			if (pending.current && lastSubmission.current) return execute(lastSubmission.current);
+			const submission = { payload, images: [...images], existingTrip };
+			lastSubmission.current = submission;
+			return execute(submission);
 		},
 		[execute]
 	);
-
 	const retry = useCallback(
-		() => (lastPayload.current ? execute(lastPayload.current) : Promise.resolve(null)),
+		() => (lastSubmission.current ? execute(lastSubmission.current) : Promise.resolve(null)),
 		[execute]
 	);
-
 	const reset = useCallback(() => {
+		if (inFlight.current) return;
 		setCreatedTrip(null);
+		setPendingTrip(null);
 		setError(null);
-		lastPayload.current = null;
+		lastSubmission.current = null;
+		pending.current = null;
 	}, []);
-
-	return { isSubmitting, error, createdTrip, submit, retry, reset };
+	return { isSubmitting, error, createdTrip, pendingTrip, submit, retry, reset };
 }

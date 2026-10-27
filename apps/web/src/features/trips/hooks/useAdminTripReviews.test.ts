@@ -13,6 +13,7 @@ let reviewMock: ReturnType<typeof vi.fn>;
 describe("useAdminTripReviews", () => {
 	beforeEach(async () => {
 		vi.resetModules();
+		vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
 		vi.doUnmock("../../../core/api");
 		listAdminReviewsMock = vi.fn();
 		reviewMock = vi.fn();
@@ -32,6 +33,7 @@ describe("useAdminTripReviews", () => {
 
 	afterEach(() => {
 		testingLibrary.cleanup();
+		vi.restoreAllMocks();
 		vi.doUnmock("../services/trips.service");
 	});
 
@@ -148,5 +150,52 @@ describe("useAdminTripReviews", () => {
 
 		expect(reviewMock).toHaveBeenCalledTimes(1);
 		expect(result.current.isSubmitting).toBe(false);
+	});
+	it("keeps loaded review content visible during a background refresh", async () => {
+		const response = {
+			items: [{ id: "trip-1", status: "pending_approval" }],
+			pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
+		};
+		listAdminReviewsMock.mockResolvedValue(response);
+		const { result } = testingLibrary.renderHook(() =>
+			adminTripReviewsModule.useAdminTripReviews()
+		);
+		await testingLibrary.waitFor(() => expect(result.current.isLoading).toBe(false));
+		let resolve!: (value: typeof response) => void;
+		listAdminReviewsMock.mockReturnValueOnce(
+			new Promise<typeof response>((done) => {
+				resolve = done;
+			})
+		);
+		testingLibrary.act(() => {
+			window.dispatchEvent(new Event("focus"));
+		});
+		expect(result.current.isLoading).toBe(false);
+		expect(result.current.isRefreshing).toBe(true);
+		expect(result.current.items).toEqual(response.items);
+		await testingLibrary.act(async () => {
+			resolve(response);
+		});
+		expect(result.current.isRefreshing).toBe(false);
+	});
+	it("does not reload when focus moves between page controls", async () => {
+		listAdminReviewsMock.mockResolvedValue({
+			items: [],
+			pagination: { page: 1, limit: 20, total: 0, totalPages: 0 },
+		});
+		const { result } = testingLibrary.renderHook(() =>
+			adminTripReviewsModule.useAdminTripReviews()
+		);
+		await testingLibrary.waitFor(() => expect(result.current.isLoading).toBe(false));
+		const button = document.createElement("button");
+		document.body.appendChild(button);
+		try {
+			testingLibrary.act(() => {
+				button.dispatchEvent(new FocusEvent("focus", { bubbles: true }));
+			});
+			expect(listAdminReviewsMock).toHaveBeenCalledTimes(1);
+		} finally {
+			button.remove();
+		}
 	});
 });

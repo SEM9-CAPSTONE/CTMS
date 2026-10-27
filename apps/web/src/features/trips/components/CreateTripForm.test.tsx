@@ -1,8 +1,9 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { createRef } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { CreatedTrekkingRoute } from "../../trekking-routes/types";
 import { type CreateTripFormValues, createTripFormSchema } from "../schema/create-trip.schema";
-import { CreateTripForm } from "./CreateTripForm";
+import { CreateTripForm, type CreateTripFormHandle } from "./CreateTripForm";
 
 const activeRoute: CreatedTrekkingRoute = {
 	id: "11111111-1111-4111-8111-111111111111",
@@ -166,6 +167,20 @@ describe("CreateTripForm", () => {
 		);
 	});
 
+	it("reports incomplete changes for autosave without a manual save button", async () => {
+		const changed = vi.fn();
+		const props = renderForm({ onDraftChange: changed });
+		fireEvent.change(screen.getByLabelText("Tên trip"), { target: { value: "Chưa điền xong" } });
+		await waitFor(() =>
+			expect(changed).toHaveBeenLastCalledWith(
+				expect.objectContaining({ title: "Chưa điền xong", startsAt: "", endsAt: "" }),
+				[]
+			)
+		);
+		expect(screen.queryByRole("button", { name: "Lưu nháp" })).not.toBeInTheDocument();
+		expect(props.onSubmit).not.toHaveBeenCalled();
+	});
+
 	it("allows maximum guests to be empty and sends null", async () => {
 		const props = renderForm();
 		fillValidForm();
@@ -190,7 +205,7 @@ describe("CreateTripForm", () => {
 		expect(await screen.findByText("Tên trip là bắt buộc")).toBeVisible();
 		expect(screen.getByText("Thời gian bắt đầu là bắt buộc")).toBeVisible();
 		expect(screen.getByText("Vui lòng chọn điểm tập trung trên bản đồ")).toBeVisible();
-		expect(screen.getByLabelText("Tuyến đã duyệt")).toHaveValue(activeRoute.id);
+		expect(screen.getByLabelText("Tuyến đã duyệt")).toHaveValue("");
 	});
 
 	it("requires the Host to choose a meeting point on the map before submitting", async () => {
@@ -289,8 +304,7 @@ describe("CreateTripForm", () => {
 	it("keeps the selected invalid range and shows an inline error", async () => {
 		renderForm({ defaultValues: rangePickerDefaults });
 
-		fireEvent.click(screen.getByRole("button", { name: "Mở thời gian" }));
-		fireEvent.click(screen.getByText("Kết thúc"));
+		fireEvent.click(screen.getByRole("button", { name: "Mở thời gian kết thúc" }));
 		fireEvent.click(screen.getByRole("button", { name: "9" }));
 
 		await waitFor(() => expect(screen.getByLabelText("Kết thúc")).toHaveValue("2099-10-09T13:28"));
@@ -302,18 +316,13 @@ describe("CreateTripForm", () => {
 	it("keeps a start date after the end date and shows an inline error", async () => {
 		renderForm({ defaultValues: rangePickerDefaults });
 
-		fireEvent.click(screen.getByRole("button", { name: "Mở thời gian" }));
+		fireEvent.click(screen.getByRole("button", { name: "Mở thời gian bắt đầu" }));
 		fireEvent.click(screen.getByRole("button", { name: "17" }));
 
 		await waitFor(() => expect(screen.getByLabelText("Bắt đầu")).toHaveValue("2099-10-17T14:43"));
-		await waitFor(() =>
-			expect(screen.getByTestId("date-time-card-start")).toHaveTextContent(
-				"Thời gian bắt đầu không được sau thời gian kết thúc"
-			)
-		);
-		expect(screen.getByTestId("date-time-card-end")).not.toHaveTextContent(
-			"Thời gian bắt đầu không được sau thời gian kết thúc"
-		);
+		expect(
+			screen.getAllByText("Thời gian bắt đầu không được sau thời gian kết thúc").length
+		).toBeGreaterThan(0);
 	});
 
 	it("does not block the trip info step with waypoint ordering errors", () => {
@@ -408,21 +417,66 @@ describe("CreateTripForm", () => {
 		).not.toBeInTheDocument();
 	});
 
-	it("uses a local cover image picker instead of a URL input", () => {
-		const createObjectURL = vi.fn(() => "blob:cover-image");
-		const revokeObjectURL = vi.fn();
+	it("selects and previews images before creating the Trip", async () => {
+		const createObjectURL = vi.fn((file: File) => `blob:${file.name}`);
 		Object.defineProperty(URL, "createObjectURL", { configurable: true, value: createObjectURL });
-		Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: revokeObjectURL });
+		Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: vi.fn() });
+		const props = renderForm();
+		fillValidForm();
+		const first = new File(["first"], "first.png", { type: "image/png" });
+		const second = new File(["second"], "second.png", { type: "image/png" });
+		fireEvent.change(screen.getByLabelText("Thêm ảnh"), { target: { files: [first, second] } });
+		expect(screen.getByAltText("first.png")).toBeVisible();
+		expect(screen.getByAltText("second.png")).toBeVisible();
+		expect(screen.getByText("Ảnh bìa")).toBeVisible();
+		expect(props.onSubmit).not.toHaveBeenCalled();
+		submitFormDirectly();
+		await waitFor(() =>
+			expect(props.onSubmit).toHaveBeenCalledWith(
+				expect.objectContaining({ title: "Bidoup morning" }),
+				[first, second]
+			)
+		);
+	});
+
+	it("does not select a route automatically and clears the map when the selection is cleared", () => {
 		renderForm();
+		expect(screen.getByLabelText("Tuyến đã duyệt")).toHaveValue("");
+		expect(screen.getByText("Điểm bắt đầu: Chưa có tuyến")).toBeVisible();
+		fireEvent.change(screen.getByLabelText("Tuyến đã duyệt"), {
+			target: { value: activeRoute.id },
+		});
+		expect(screen.getByText("Điểm bắt đầu: 108.22, 16.04")).toBeVisible();
+		fireEvent.change(screen.getByLabelText("Tuyến đã duyệt"), { target: { value: "" } });
+		expect(screen.getByText("Điểm bắt đầu: Chưa có tuyến")).toBeVisible();
+		expect(screen.queryByText("Xem checkpoint và vùng nguy hiểm")).not.toBeInTheDocument();
+	});
+	it("reports draft edits even when no approved route is available", async () => {
+		const changed = vi.fn();
+		renderForm({ activeRoutes: [], onDraftChange: changed });
+		fireEvent.change(screen.getByLabelText("Tên trip"), {
+			target: { value: "Nháp chưa chọn tuyến" },
+		});
+		await waitFor(() =>
+			expect(changed).toHaveBeenLastCalledWith(
+				expect.objectContaining({ title: "Nháp chưa chọn tuyến", routeId: "" }),
+				[]
+			)
+		);
+		expect(screen.queryByRole("button", { name: "Lưu nháp" })).not.toBeInTheDocument();
+	});
 
-		expect(screen.queryByLabelText("URL ảnh bìa")).not.toBeInTheDocument();
-		const imageInput = screen.getByLabelText("Ảnh bìa");
-		const image = new File(["cover"], "cover.png", { type: "image/png" });
-
-		fireEvent.change(imageInput, { target: { files: [image] } });
-
-		expect(createObjectURL).toHaveBeenCalledWith(image);
-		expect(screen.getByAltText("Ảnh bìa đã chọn")).toBeVisible();
+	it("exposes the latest form values synchronously when leaving", () => {
+		const handle = createRef<CreateTripFormHandle>();
+		renderForm({ draftHandle: handle });
+		fireEvent.change(screen.getByLabelText("Tên trip"), { target: { value: "Vừa nhập" } });
+		fireEvent.change(screen.getByLabelText("Tuyến đã duyệt"), {
+			target: { value: activeRoute.id },
+		});
+		expect(handle.current?.getSnapshot().values).toMatchObject({
+			title: "Vừa nhập",
+			routeId: activeRoute.id,
+		});
 	});
 
 	it("shows the map-driven route section", () => {
@@ -435,6 +489,9 @@ describe("CreateTripForm", () => {
 
 	it("does not overwrite a selected meeting point when the route changes", () => {
 		renderForm({ activeRoutes: [activeRoute, fiveKilometerRoute] });
+		fireEvent.change(screen.getByLabelText("Tuyến đã duyệt"), {
+			target: { value: activeRoute.id },
+		});
 
 		fireEvent.click(screen.getByLabelText("Chọn điểm tập trung trên bản đồ"));
 		expect(screen.getByText("Điểm tập trung: 108.2022, 16.0544")).toBeVisible();
@@ -508,5 +565,26 @@ describe("CreateTripForm", () => {
 		});
 
 		expect(await screen.findByText("bookingDeadline must be before startsAt")).toBeVisible();
+	});
+});
+
+describe("Trip price in whole VND", () => {
+	it.each(["0", "150000"])("accepts integer price %s", (pricePerPerson) => {
+		expect(createTripFormSchema.safeParse({ ...rangePickerDefaults, pricePerPerson }).success).toBe(
+			true
+		);
+	});
+	it.each(["150000.50", "150000.00", "-1", "150,000", ""])("rejects price %s", (pricePerPerson) => {
+		const result = createTripFormSchema.safeParse({ ...rangePickerDefaults, pricePerPerson });
+		expect(result.success).toBe(false);
+		if (!result.success)
+			expect(result.error.issues).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						path: ["pricePerPerson"],
+						message: "Giá phải là số nguyên không âm",
+					}),
+				])
+			);
 	});
 });

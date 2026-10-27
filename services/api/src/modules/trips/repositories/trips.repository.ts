@@ -755,7 +755,7 @@ export class TripsRepository extends Repository<Trip> {
 				"capacity_max" = $17,
 				"price_per_person" = $18,
 				"cancellation_policy" = $19::jsonb,
-				"updated_at" = now()
+				"updated_at" = GREATEST(date_trunc('milliseconds', clock_timestamp()), "updated_at" + interval '1 millisecond')
 			WHERE "id" = $1
 			`,
 			[
@@ -796,7 +796,10 @@ export class TripsRepository extends Repository<Trip> {
 		waypoints: CreateTripWaypointInput[]
 	): Promise<TripResponseDto> {
 		await this.writeWaypoints(tripId, waypoints);
-		await this.query(`UPDATE "trips" SET "updated_at" = now() WHERE "id" = $1`, [tripId]);
+		await this.query(
+			`UPDATE "trips" SET "updated_at" = GREATEST(date_trunc('milliseconds',clock_timestamp()), "updated_at" + interval '1 millisecond') WHERE "id" = $1`,
+			[tripId]
+		);
 		const updated = await this.findById(tripId);
 		if (!updated) {
 			throw new Error("Failed to load updated Trip");
