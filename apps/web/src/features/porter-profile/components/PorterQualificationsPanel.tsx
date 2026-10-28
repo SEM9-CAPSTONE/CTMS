@@ -77,8 +77,7 @@ export function PorterQualificationsPanel({
 				<div>
 					<h2 className="text-lg font-extrabold text-[#10221b]">Năng lực theo tuyến trekking</h2>
 					<p className="mt-0.5 text-xs text-[#627769]">
-						Khai báo độ thành thạo và số lần dẫn đoàn cho từng tuyến để Host/Admin xác minh điều
-						kiện làm Trưởng nhóm.
+						Khai báo năng lực theo từng tuyến để Admin đối chiếu tiêu chí và xét cấp thủ công.
 					</p>
 				</div>
 				<div className="flex items-center gap-2">
@@ -157,8 +156,8 @@ export function PorterQualificationsPanel({
 							Chưa có năng lực tuyến trekking nào
 						</h4>
 						<p className="mt-1 max-w-md text-xs text-[#627769]">
-							Bạn chưa đăng ký năng lực cho tuyến trekking nào. Hãy thêm tuyến để Host và Admin có
-							thể xác minh và phân công ca dẫn đoàn.
+							Bạn chưa đăng ký năng lực cho tuyến trekking nào. Hãy thêm tuyến để Admin có thể xác
+							minh và phân công ca dẫn đoàn.
 						</p>
 						<button
 							type="button"

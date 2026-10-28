@@ -1,5 +1,6 @@
 import {
 	Body,
+	ConflictException,
 	Controller,
 	Get,
 	HttpCode,
@@ -63,13 +64,21 @@ export class PorterRouteQualificationsController {
 
 	@Patch(":qualificationId/verify")
 	@Roles(UserRole.HOST, UserRole.ADMIN)
-	@ApiOperation({ summary: "Verify the current Porter Route qualification claim" })
+	@ApiOperation({
+		summary: "Deprecated: use the Admin manual level review with criteria and reason",
+		deprecated: true,
+	})
 	@ApiResponse({ status: 200, type: PorterRouteQualificationResponseDto })
 	verify(
 		@Req() request: AuthenticatedRequest,
 		@Param() params: PorterQualificationIdParamDto,
 		@Body() dto: VerifyPorterRouteQualificationDto
 	): Promise<PorterRouteQualificationResponseDto> {
-		return this.qualificationsService.verify(request.user, params.qualificationId, dto);
+		void request;
+		void params;
+		void dto;
+		throw new ConflictException(
+			"Use Admin Porter level review: criteria, evidence and reason are required"
+		);
 	}
 }

@@ -4,6 +4,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { tripsService } from "../../trips/services/trips.service";
 import { porterProfileService } from "../services/porter-profile.service";
 import { PorterProfilePage } from "./PorterProfilePage";
+vi.mock("../../porter-levels/components/PorterLevelRequestsPanel", () => ({
+	PorterLevelRequestsPanel: () => null,
+}));
+
+// This page suite covers the existing profile form; level review has its own Query-backed suite.
+vi.mock("../../porter-levels/components/PorterLevelPanel", () => ({
+	PorterLevelPanel: () => <section aria-label="Porter level review" />,
+}));
 
 describe("PorterProfilePage", () => {
 	afterEach(() => {

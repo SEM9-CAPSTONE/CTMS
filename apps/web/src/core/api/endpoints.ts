@@ -1,4 +1,16 @@
 export const API_ENDPOINTS = {
+	PORTER_LEVEL_REQUESTS: {
+		MINE: "/porter/level-requests",
+		ADMIN: "/admin/porter-level-requests",
+		NOTIFICATIONS: "/porter/level-notifications",
+		NOTIFICATION_READ: (id: string) => `/porter/level-notifications/${id}/read`,
+		DETAIL: (admin: boolean, id: string) =>
+			`${admin ? "/admin/porter-level-requests" : "/porter/level-requests"}/${id}`,
+		ACTION: (admin: boolean, id: string, action: string) =>
+			`${admin ? "/admin/porter-level-requests" : "/porter/level-requests"}/${id}/${action}`,
+		EVIDENCE: (admin: boolean, id: string, fileId: string) =>
+			`${admin ? "/admin/porter-level-requests" : "/porter/level-requests"}/${id}/evidence/${fileId}`,
+	},
 	CONTENT_REPORTS: {
 		LIST: "/content-reports",
 		DETAIL: (id: string) => `/content-reports/${id}`,
@@ -154,6 +166,19 @@ export const API_ENDPOINTS = {
 		VERIFICATION_SUBMIT: "/porter/verification/submit",
 		ROUTE_QUALIFICATIONS: "/porter/route-qualifications",
 		ROUTE_QUALIFICATION_BY_ROUTE: (routeId: string) => `/porter/route-qualifications/${routeId}`,
+	},
+	PORTER_LEVELS: {
+		MY_QUALIFICATIONS: "/porter/level-review/qualifications",
+		POLICIES: "/admin/porter-levels/policies",
+		POLICY: (level: string) => `/admin/porter-levels/policies/${level}`,
+		QUALIFICATIONS: "/admin/porter-levels/qualifications",
+		COMPARISON: (id: string, level: string) =>
+			`/admin/porter-levels/qualifications/${id}/comparison/${level}`,
+		DECISIONS: (id: string) => `/admin/porter-levels/qualifications/${id}/decisions`,
+		HISTORY: (id: string) => `/admin/porter-levels/qualifications/${id}/history`,
+		MY_POLICIES: "/porter/level-review/policies",
+		MY_SKILLS: "/porter/level-review/skills",
+		MY_HISTORY: "/porter/level-review/history",
 	},
 	ADMIN_PORTER_VERIFICATIONS: {
 		LIST: "/admin/porter-verifications",

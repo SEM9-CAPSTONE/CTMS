@@ -9,6 +9,7 @@ import { EquipmentCatalogModule } from "./equipment-catalog/equipment-catalog.mo
 import { GpsTrackingModule } from "./gps-tracking/gps-tracking.module";
 import { HealthController } from "./health/health.controller";
 import { IncidentsModule } from "./incidents/incidents.module";
+import { PorterLevelsModule } from "./porter-levels/porter-levels.module";
 import { ProfilesModule } from "./profiles/profiles.module";
 import { RealtimeModule } from "./realtime/realtime.module";
 import { SafetyEventsModule } from "./safety-events/safety-events.module";
@@ -35,6 +36,7 @@ import { WeatherModule } from "./weather/weather.module";
 		GpsTrackingModule,
 		IncidentsModule,
 		ProfilesModule,
+		PorterLevelsModule,
 		RealtimeModule,
 		SafetyEventsModule,
 		SosModule,

@@ -136,7 +136,10 @@ export function PorterQualificationCard({
 				<button
 					type="button"
 					onClick={onEdit}
-					disabled={disabled}
+					disabled={disabled || isVerified}
+					title={
+						isVerified ? "Cấp đã duyệt chỉ được Admin thay đổi qua xét cấp thủ công" : undefined
+					}
 					data-testid={`edit-qualification-${qualification.qualificationId}`}
 					className="flex items-center gap-1.5 rounded-xl border border-[#d2ded2] bg-white px-3 py-1.5 text-xs font-bold text-[#4a5e51] transition hover:bg-[#f4f7f2] hover:text-[#164027] disabled:opacity-50"
 				>

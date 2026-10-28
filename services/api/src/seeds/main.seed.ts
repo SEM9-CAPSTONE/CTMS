@@ -2695,6 +2695,135 @@ async function seedDiverseTripAndRouteStatuses(
 	}
 }
 
+/** Optional demo records only; never overwrite an Admin policy or reviewed qualification. */
+export async function seedPorterLevelDemo(ds: DataSource = dataSource): Promise<void> {
+	if (process.env.NODE_ENV === "production") {
+		throw new Error("CTMS-138 demo seed must not run in production.");
+	}
+	await ds.transaction(async (manager) => {
+		const accounts: Array<{ id: string; email: string }> = await manager.query(
+			"SELECT id,email FROM users WHERE email IN ('admin@ctms.local','porter.learning@ctms.local')"
+		);
+		const admin = accounts.find((account) => account.email === "admin@ctms.local");
+		const porter = accounts.find((account) => account.email === "porter.learning@ctms.local");
+		if (!admin || !porter)
+			throw new Error("CTMS-138 demo requires existing Admin and learning Porter.");
+		for (const [level, name] of [
+			["learning", "Học việc"],
+			["proficient", "Thành thạo"],
+			["expert", "Chuyên gia"],
+		]) {
+			await manager.query(
+				`INSERT INTO porter_level_policies(level,definition,version,updated_by)
+				 VALUES($1,$2::jsonb,1,$3) ON CONFLICT(level) DO NOTHING`,
+				[
+					level,
+					JSON.stringify({
+						name,
+						minExperienceYears: null,
+						minTimesLed: null,
+						requiredSkills: [],
+						requiredCertifications: [],
+						responsibilities:
+							"[DEMO CTMS-138] Nội dung minh họa để test UI. Admin cần cấu hình tiêu chí thực tế; chưa quy định ngưỡng nghiệp vụ.",
+					}),
+					admin.id,
+				]
+			);
+		}
+		await manager.query(
+			`INSERT INTO porter_profiles(porter_id,experience_years,certifications,languages)
+			 VALUES($1,0,'{}','{}') ON CONFLICT(porter_id) DO NOTHING`,
+			[porter.id]
+		);
+		await manager.query(
+			`INSERT INTO porter_verifications(porter_id,status,submitted_at,reviewed_at)
+			 VALUES($1,'approved',now(),now()) ON CONFLICT(porter_id) DO NOTHING`,
+			[porter.id]
+		);
+		const statuses = ["pending", "needs_info", "cancelled"] as const;
+		for (const [index, routeName] of PORTER_SEED_ROUTE_NAMES.entries()) {
+			const routes: Array<{ id: string }> = await manager.query(
+				"SELECT id FROM trekking_routes WHERE name=$1",
+				[routeName]
+			);
+			if (!routes[0]) throw new Error(`CTMS-138 demo Route missing: ${routeName}`);
+			await manager.query(
+				`INSERT INTO porter_route_qualifications(porter_id,route_id,proficiency,times_led)
+				 VALUES($1,$2,'learning',0) ON CONFLICT(porter_id,route_id) DO NOTHING`,
+				[porter.id, routes[0].id]
+			);
+			// Leave the fourth Route free so Porter can test creating a new request.
+			const status = statuses[index];
+			if (!status) continue;
+			const qualifications: Array<{ id: string; proficiency: string; verified: boolean }> =
+				await manager.query(
+					`SELECT id,proficiency,verified_by IS NOT NULL AS verified FROM porter_route_qualifications
+				 WHERE porter_id=$1 AND route_id=$2 FOR UPDATE`,
+					[porter.id, routes[0].id]
+				);
+			const qualification = qualifications[0];
+			if (qualification.proficiency !== "learning") continue;
+			// Stable IDs prevent reseeding a request after a tester completes or cancels it.
+			const id = `c1380000-0000-4000-8000-00000000000${index + 1}`;
+			const reason = `[DEMO CTMS-138] Yêu cầu minh họa ${status}; người test tự tải minh chứng nếu cần.`;
+			const inserted: Array<{ id: string }> = await manager.query(
+				`INSERT INTO porter_level_requests(id,qualification_id,porter_id,route_id,current_level,current_verified,
+				 target_level,reason,status,submission_hash)
+				 SELECT $1,$2,$3,$4,'learning',$5,'proficient',$6,'pending',$7
+				 WHERE NOT EXISTS(SELECT 1 FROM porter_level_requests WHERE porter_id=$3 AND route_id=$4 AND status IN ('pending','needs_info'))
+				 ON CONFLICT DO NOTHING RETURNING id`,
+				[
+					id,
+					qualification.id,
+					porter.id,
+					routes[0].id,
+					qualification.verified,
+					reason,
+					createHash("sha256").update(reason).digest("hex"),
+				]
+			);
+			if (!inserted.length) continue;
+			await manager.query(
+				`INSERT INTO porter_level_request_events(request_id,actor_id,action,from_status,to_status,reason,snapshot)
+				 VALUES($1,$2,'created',NULL,'pending',$3,$4::jsonb)`,
+				[
+					id,
+					porter.id,
+					reason,
+					JSON.stringify({ version: 1, reason, targetLevel: "proficient", evidence: [] }),
+				]
+			);
+			if (status === "pending") continue;
+			const feedback =
+				status === "needs_info"
+					? "[DEMO] Vui lòng bổ sung kinh nghiệm dẫn tuyến và minh chứng."
+					: "[DEMO] Porter rút yêu cầu mẫu.";
+			await manager.query(
+				`UPDATE porter_level_requests SET status=$2::varchar,version=2,decision_reason=$3,
+				 decided_by=CASE WHEN $2::varchar='needs_info' THEN $4::uuid END,
+				 decided_at=CASE WHEN $2::varchar='needs_info' THEN now() END WHERE id=$1`,
+				[id, status, status === "needs_info" ? feedback : null, admin.id]
+			);
+			await manager.query(
+				`INSERT INTO porter_level_request_events(request_id,actor_id,action,from_status,to_status,reason,snapshot)
+				 VALUES($1,$2,$3,'pending',$4,$5,$6::jsonb)`,
+				[
+					id,
+					status === "needs_info" ? admin.id : porter.id,
+					status === "needs_info" ? "needs_info" : "cancelled",
+					status,
+					feedback,
+					JSON.stringify({ version: 2, reason, targetLevel: "proficient", evidence: [] }),
+				]
+			);
+		}
+	});
+	console.log(
+		"[CTMS-138] Demo: porter.learning@ctms.local / Porter@123; pending, needs_info, cancelled; fourth Route free."
+	);
+}
+
 // --------------------------------------------------------------------------
 // Helper: Seed Porter Profile, Route Qualifications & Assignments
 // --------------------------------------------------------------------------
@@ -2737,9 +2866,7 @@ async function seedPorterProfileAndAssignments(routeIds: Record<string, string>)
 		await grantRole(porterId, "porter");
 
 		await dataSource.query('DELETE FROM "trip_porters" WHERE "porter_id" = $1', [porterId]);
-		await dataSource.query('DELETE FROM "porter_route_qualifications" WHERE "porter_id" = $1', [
-			porterId,
-		]);
+		// Preserve qualification identity, reviewed ranks and request/history foreign keys on reruns.
 
 		if (!fixture.profile) {
 			await dataSource.query('DELETE FROM "porter_profiles" WHERE "porter_id" = $1', [porterId]);
@@ -2790,7 +2917,8 @@ async function seedPorterProfileAndAssignments(routeIds: Record<string, string>)
 				await dataSource.query(
 					`INSERT INTO "porter_route_qualifications" (
 						porter_id, route_id, proficiency, times_led, verified_by, verified_at
-					) VALUES ($1, $2, $3, $4, $5, NOW())`,
+					) VALUES ($1, $2, $3, $4, $5, NOW())
+					ON CONFLICT (porter_id, route_id) DO NOTHING`,
 					[
 						porterId,
 						routeId,
@@ -4337,6 +4465,7 @@ export async function runMasterSeed(): Promise<void> {
 		);
 		console.log("--------------------------------------------------------------------------");
 		await seedDevTrips();
+		await seedPorterLevelDemo();
 		console.log("✅ Step 3 completed.\n");
 
 		// Step 4: Weather Risk Assessment scenarios (Green / Red routes + Weather Advice)

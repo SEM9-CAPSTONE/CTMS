@@ -24,6 +24,11 @@ const AdminContentReportsPage = lazy(() =>
 		default: module.AdminContentReportsPage,
 	}))
 );
+const AdminPorterLevelsPage = lazy(() =>
+	import("../features/porter-levels/pages/AdminPorterLevelsPage").then((module) => ({
+		default: module.AdminPorterLevelsPage,
+	}))
+);
 const AdminPorterVerificationsPage = lazy(() =>
 	import("../features/admin-porter-verifications/pages/AdminPorterVerificationsPage").then(
 		(module) => ({ default: module.AdminPorterVerificationsPage })
@@ -905,6 +910,18 @@ function AppRouteContent() {
 			);
 			return isPorterOnly ? withPorterVerification(roleLanding) : roleLanding;
 		}
+
+		case RoutePath.ADMIN_PORTER_LEVELS:
+			return (
+				<AppRoleGuard
+					allowedRoles={["admin"]}
+					currentRoles={currentRoles}
+					fallback={unauthorizedFallback}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<AdminPorterLevelsPage onLogout={handleLogout} />
+				</AppRoleGuard>
+			);
 
 		case RoutePath.ADMIN_PORTER_VERIFICATIONS:
 			return (

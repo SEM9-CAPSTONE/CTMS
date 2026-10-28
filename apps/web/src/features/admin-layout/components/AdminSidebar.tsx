@@ -19,6 +19,7 @@ export type AdminNavigationItem =
 	| "dashboard"
 	| "user-accounts"
 	| "porter-verifications"
+	| "porter-levels"
 	| "audit-logs"
 	| "content-reports"
 	| "route-review"
@@ -41,6 +42,7 @@ const navigationItems = [
 	{ key: "dashboard", label: "Bảng điều khiển", icon: LayoutDashboard, available: false },
 	{ key: "user-accounts", label: "Tài khoản người dùng", icon: Users, available: true },
 	{ key: "porter-verifications", label: "Duyệt hồ sơ Porter", icon: BadgeCheck, available: true },
+	{ key: "porter-levels", label: "Cấp độ Porter", icon: BadgeCheck, available: true },
 	{ key: "settlements", label: "Quyết toán & Ví Host", icon: Landmark, available: true },
 	{ key: "refunds", label: "Quản lý hoàn tiền", icon: ReceiptText, available: true },
 	{ key: "route-review", label: "Duyệt tuyến trekking", icon: Route, available: true },
@@ -108,6 +110,9 @@ export function AdminSidebar({
 									window.dispatchEvent(new PopStateEvent("popstate"));
 								} else if (item.key === "porter-verifications") {
 									window.history.pushState({}, "", "/admin/porter-verifications");
+									window.dispatchEvent(new PopStateEvent("popstate"));
+								} else if (item.key === "porter-levels") {
+									window.history.pushState({}, "", "/admin/porter-levels");
 									window.dispatchEvent(new PopStateEvent("popstate"));
 								} else if (item.key === "audit-logs") {
 									window.history.pushState({}, "", "/admin/audit-logs");

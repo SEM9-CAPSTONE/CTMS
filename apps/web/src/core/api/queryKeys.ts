@@ -1,4 +1,22 @@
 export const queryKeys = {
+	porterLevels: {
+		requests: (userId: string, admin: boolean, filters: unknown) =>
+			["porter-levels", "requests", userId, admin, filters] as const,
+		request: (userId: string, admin: boolean, id: string | null) =>
+			["porter-levels", "request", userId, admin, id] as const,
+		myQualifications: (userId: string) =>
+			["porter-levels", "mine", userId, "qualifications"] as const,
+		notifications: (userId: string) => ["porter-levels", "notifications", userId] as const,
+		all: ["porter-levels"] as const,
+		policies: ["porter-levels", "policies"] as const,
+		qualifications: (page: number) => ["porter-levels", "qualifications", page] as const,
+		comparison: (id: string | null, level: string) =>
+			["porter-levels", "comparison", id, level] as const,
+		history: (id: string | null) => ["porter-levels", "history", id] as const,
+		myPolicies: ["porter-levels", "mine", "policies"] as const,
+		myEvidence: (userId: string) => ["porter-levels", "mine", userId, "evidence"] as const,
+		myHistory: (userId: string) => ["porter-levels", "mine", userId, "history"] as const,
+	},
 	auth: {
 		me: ["auth", "me"] as const,
 	},
