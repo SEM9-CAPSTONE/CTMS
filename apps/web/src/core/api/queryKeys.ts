@@ -1,4 +1,8 @@
 export const queryKeys = {
+	hostOverview: {
+		page: (hostId: string, page: number, limit: number) =>
+			["host-overview", hostId, { page, limit }] as const,
+	},
 	porterLevels: {
 		requests: (userId: string, admin: boolean, filters: unknown) =>
 			["porter-levels", "requests", userId, admin, filters] as const,

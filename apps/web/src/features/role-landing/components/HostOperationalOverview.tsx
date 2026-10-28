@@ -22,9 +22,11 @@ const formatDateTime = (value: string | number) =>
 export function HostOperationalOverview({
 	hostId,
 	onNavigateToTripDetail,
+	showMetrics = true,
 }: {
 	hostId: string;
 	onNavigateToTripDetail?: (tripId: string) => void;
+	showMetrics?: boolean;
 }) {
 	const data = useHostOperationalOverview(hostId);
 	const [selectedTripId, setSelectedTripId] = useState<string>();
@@ -99,11 +101,13 @@ export function HostOperationalOverview({
 					Làm mới dữ liệu
 				</Button>
 			</div>
-			<section aria-label="Chỉ số vận hành" className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-				{metrics.map((metric) => (
-					<MetricCard key={metric.label} metric={metric} />
-				))}
-			</section>
+			{showMetrics && (
+				<section aria-label="Chỉ số vận hành" className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+					{metrics.map((metric) => (
+						<MetricCard key={metric.label} metric={metric} />
+					))}
+				</section>
+			)}
 			<section>
 				<Card className="grid items-start gap-6 rounded-[28px] border-[#dfe8df] lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
 					<div className="min-w-0">

@@ -5,6 +5,7 @@ import { type RoleBearingUser, getGrantedRoles } from "../../auth/utils/permissi
 import type { StoredAuthUser } from "../../auth/utils/tokenStorage";
 import { camperProfileService } from "../../camper-profile/services/camper-profile.service";
 import type { CamperProfileData } from "../../camper-profile/types";
+import { HostDashboardOverview } from "../../host-overview/components/HostDashboardOverview";
 import { CamperOperationalMap } from "../components/CamperOperationalMap";
 import { CamperTripPager } from "../components/CamperTripPager";
 import { PorterOperationalMap } from "../components/PorterOperationalMap";
@@ -168,10 +169,18 @@ function DashboardMain({
 				</section>
 
 				{config.role === "host" ? (
-					<HostOperationalOverview
-						hostId={user.id}
-						onNavigateToTripDetail={onNavigateToTripDetail}
-					/>
+					<>
+						<HostDashboardOverview
+							key={user.id}
+							hostId={user.id}
+							onNavigateToTripDetail={onNavigateToTripDetail}
+						/>
+						<HostOperationalOverview
+							showMetrics={false}
+							hostId={user.id}
+							onNavigateToTripDetail={onNavigateToTripDetail}
+						/>
+					</>
 				) : (
 					<>
 						<section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">

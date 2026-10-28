@@ -1,4 +1,5 @@
 export const API_ENDPOINTS = {
+	HOST_OVERVIEW: "/host/monitoring/overview",
 	PORTER_LEVEL_REQUESTS: {
 		MINE: "/porter/level-requests",
 		ADMIN: "/admin/porter-level-requests",

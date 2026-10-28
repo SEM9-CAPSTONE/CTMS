@@ -65,8 +65,8 @@ schema from `host-overview.schema.ts`.
 
 ## Validation and limits
 
-PR-ready screenshots and machine-readable results from the latest test run are in
-[`docs/evidence/ctms-377`](../evidence/ctms-377/README.md).
+Test screenshots are attached/referenced in PR #788. Evidence artifacts are not
+maintained in the source tree; local generated reports belong in ignored test-results.
 
 Verified on this branch: 136 API unit suites / 1,540 tests passed; after final module
 wiring/schema changes, focused overview/sync-evaluation unit coverage passed again
