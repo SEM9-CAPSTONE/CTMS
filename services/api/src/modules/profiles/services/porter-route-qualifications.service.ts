@@ -117,6 +117,25 @@ export class PorterRouteQualificationsService {
 				if (current.proficiency === dto.proficiency && current.timesLed === dto.timesLed) {
 					return toPorterRouteQualificationResponse(current);
 				}
+				const open = (await manager.query(
+					"SELECT id FROM porter_level_requests WHERE qualification_id=$1 AND status IN ('pending','needs_info')",
+					[current.id]
+				)) as Array<{ id: string }>;
+				if (open[0])
+					throw new ConflictException({
+						code: "OPEN_REQUEST_EXISTS",
+						message: "Đang có yêu cầu chờ xử lý",
+						requestId: open[0].id,
+					});
+				const reviewed = (await manager.query(
+					"SELECT id FROM porter_level_decisions WHERE qualification_id=$1 AND outcome='approved' LIMIT 1",
+					[current.id]
+				)) as Array<{ id: string }>;
+				if (current.verifiedBy || reviewed.length) {
+					throw new ConflictException(
+						"An Admin-reviewed level can only be changed through manual Admin review"
+					);
+				}
 
 				const before = qualificationSnapshot(current);
 				const verificationCleared = current.verifiedBy !== null;

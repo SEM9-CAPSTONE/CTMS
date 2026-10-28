@@ -360,7 +360,7 @@ describe("CTMS-199 Porter profiles and Route qualifications (integration, real P
 			expect(constraint).toHaveLength(1);
 		});
 
-		it("verifies by owner, protects Route reads, and clears verification on effective edits only", async () => {
+		it("protects Route reads, closes legacy verification, and permits edits to unverified claims", async () => {
 			const host = await createActor(UserRole.HOST, "Owning Host");
 			const otherHost = await createActor(UserRole.HOST, "Other Host");
 			const admin = await createActor(UserRole.ADMIN, "Admin");
@@ -394,10 +394,9 @@ describe("CTMS-199 Porter profiles and Route qualifications (integration, real P
 				.patch(`/api/porter/route-qualifications/${claim.qualificationId}/verify`)
 				.set("Authorization", `Bearer ${host.token}`)
 				.send({ expectedVersion: 1 })
-				.expect(200);
-			expect(verified.body).toMatchObject({ verifiedBy: host.id, version: 2 });
-			expect(verified.body.verifiedAt).toEqual(expect.any(String));
-			await expect(qualificationsService.isLeadEligible(porter.id, routeId)).resolves.toBe(true);
+				.expect(409);
+			expect(verified.body.message).toContain("Admin Porter level review");
+			await expect(qualificationsService.isLeadEligible(porter.id, routeId)).resolves.toBe(false);
 			const anotherRoute = await createRoute(host.id, "Exact Route");
 			await expect(qualificationsService.isLeadEligible(porter.id, anotherRoute)).resolves.toBe(
 				false
@@ -406,24 +405,24 @@ describe("CTMS-199 Porter profiles and Route qualifications (integration, real P
 			const noOp = await request(app.getHttpServer())
 				.put(`/api/porter/route-qualifications/${routeId}`)
 				.set("Authorization", `Bearer ${porter.token}`)
-				.send({ proficiency: "proficient", timesLed: 2, expectedVersion: 2 })
+				.send({ proficiency: "proficient", timesLed: 2, expectedVersion: 1 })
 				.expect(200);
-			expect(noOp.body).toMatchObject({ verifiedBy: host.id, version: 2 });
+			expect(noOp.body).toMatchObject({ verifiedBy: null, version: 1 });
 
 			const changed = await request(app.getHttpServer())
 				.put(`/api/porter/route-qualifications/${routeId}`)
 				.set("Authorization", `Bearer ${porter.token}`)
-				.send({ proficiency: "learning", timesLed: 3, expectedVersion: 2 })
+				.send({ proficiency: "learning", timesLed: 3, expectedVersion: 1 })
 				.expect(200);
 			expect(changed.body).toMatchObject({
 				verifiedBy: null,
 				verifiedAt: null,
-				version: 3,
+				version: 2,
 			});
 			await expect(qualificationsService.isLeadEligible(porter.id, routeId)).resolves.toBe(false);
 		});
 
-		it("allows exactly one concurrent verifier and commits one verification audit", async () => {
+		it("rejects concurrent legacy verification without changing qualification or writing verification audit", async () => {
 			const host = await createActor(UserRole.HOST, "Concurrent Host");
 			const admin = await createActor(UserRole.ADMIN, "Concurrent Admin");
 			const porter = await createActor(UserRole.PORTER, "Concurrent Porter");
@@ -441,25 +440,24 @@ describe("CTMS-199 Porter profiles and Route qualifications (integration, real P
 					.set("Authorization", `Bearer ${admin.token}`)
 					.send({ expectedVersion: 1 }),
 			]);
-			expect(attempts.filter((result) => result.status === 200)).toHaveLength(1);
-			expect(attempts.filter((result) => result.status === 409)).toHaveLength(1);
+			expect(attempts.map((result) => result.status)).toEqual([409, 409]);
 			const rows = await dataSource.query(
 				`SELECT "version", "verified_by", "verified_at" FROM "porter_route_qualifications"
 				 WHERE "id" = $1`,
 				[claim.qualificationId]
 			);
-			expect(rows[0].version).toBe(2);
-			expect([host.id, admin.id]).toContain(rows[0].verified_by);
-			expect(rows[0].verified_at).not.toBeNull();
+			expect(rows[0].version).toBe(1);
+			expect(rows[0].verified_by).toBeNull();
+			expect(rows[0].verified_at).toBeNull();
 			const audits = await dataSource.query(
 				`SELECT COUNT(*)::int AS count FROM "audit_logs"
 				 WHERE "target_id" = $1 AND "action" = 'porter_route_qualification.verified'`,
 				[claim.qualificationId]
 			);
-			expect(audits[0].count).toBe(1);
+			expect(audits[0].count).toBe(0);
 		});
 
-		it("blocks self-verification and invalid target state", async () => {
+		it("legacy verification stays closed for self-verification and invalid target state", async () => {
 			const porter = await createActor(UserRole.PORTER, "Multi-role Porter");
 			await addRole(porter.id, UserRole.HOST);
 			const routeId = await createRoute(porter.id);
@@ -469,7 +467,7 @@ describe("CTMS-199 Porter profiles and Route qualifications (integration, real P
 				.patch(`/api/porter/route-qualifications/${claim.qualificationId}/verify`)
 				.set("Authorization", `Bearer ${porter.token}`)
 				.send({ expectedVersion: 1 })
-				.expect(403);
+				.expect(409);
 
 			const host = await createActor(UserRole.HOST, "Validity Host");
 			const route2 = await createRoute(host.id);
@@ -518,7 +516,7 @@ describe("CTMS-199 Porter profiles and Route qualifications (integration, real P
 				.patch(`/api/porter/route-qualifications/${claim.qualificationId}/verify`)
 				.set("Authorization", `Bearer ${host.token}`)
 				.send({ expectedVersion: 1 })
-				.expect(500);
+				.expect(409);
 			await disableAuditFailure();
 			rows = await dataSource.query(
 				'SELECT "verified_by", "verified_at", "version" FROM "porter_route_qualifications" WHERE "id" = $1',

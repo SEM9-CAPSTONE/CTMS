@@ -1,5 +1,7 @@
 import { AlertCircle, ArrowLeft, Briefcase, CheckCircle2, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
+import { PorterLevelPanel } from "../../porter-levels/components/PorterLevelPanel";
+import { PorterLevelRequestsPanel } from "../../porter-levels/components/PorterLevelRequestsPanel";
 import { tripsService } from "../../trips/services/trips.service";
 import { PorterLedTripHistory } from "../components/PorterLedTripHistory";
 import { PorterProfileForm } from "../components/PorterProfileForm";
@@ -176,6 +178,7 @@ export function PorterProfilePage({
 
 				{/* Header Section with Read-only metrics */}
 				<PorterProfileHeader profile={profile} />
+				<PorterLevelRequestsPanel />
 
 				{/* Profile Edit Form */}
 				<PorterProfileForm
@@ -195,6 +198,7 @@ export function PorterProfilePage({
 					onRetry={ledTripHistory.reload}
 				/>
 
+				<PorterLevelPanel />
 				{/* Route Qualifications Section */}
 				<PorterQualificationsPanel
 					qualifications={qualifications}

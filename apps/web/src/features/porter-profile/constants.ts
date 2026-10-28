@@ -31,7 +31,8 @@ export const PROFICIENCY_LABELS: Record<PorterRouteProficiency, string> = {
 export const PROFICIENCY_DESCRIPTIONS: Record<PorterRouteProficiency, string> = {
 	learning: "Đang làm quen với tuyến đường, chưa đủ điều kiện dẫn đoàn độc lập.",
 	proficient: "Đã am hiểu tuyến đường, có kinh nghiệm hỗ trợ và dẫn đoàn an toàn.",
-	expert: "Chuyên gia địa hình trên tuyến, có thể xử lý mọi tình huống khẩn cấp phức tạp.",
+	expert:
+		"Năng lực chuyên gia trên tuyến; phạm vi phụ trách theo tiêu chí Admin áp dụng khi xét cấp.",
 };
 
 export function isLeadEligible(qualification: {

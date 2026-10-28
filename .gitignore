@@ -20,6 +20,7 @@ yarn-error.log*
 pnpm-debug.log*
 /uploads/
 services/api/uploads/
+services/api/.private-porter-level-evidence/
 .DS_Store
 Thumbs.db
 .idea/

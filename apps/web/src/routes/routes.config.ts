@@ -29,6 +29,7 @@ export enum RoutePath {
 	PROFILE = "/profile",
 	ADMIN_USERS = "/admin/users",
 	ADMIN_PORTER_VERIFICATIONS = "/admin/porter-verifications",
+	ADMIN_PORTER_LEVELS = "/admin/porter-levels",
 	ADMIN_CONTENT_REPORTS = "/admin/content-reports",
 	ADMIN_AUDIT_LOGS = "/admin/audit-logs",
 	ADMIN_TREKKING_ROUTES = "/admin/trekking-routes",

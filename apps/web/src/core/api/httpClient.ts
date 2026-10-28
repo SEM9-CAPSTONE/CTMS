@@ -7,6 +7,7 @@ const SESSION_EXPIRED_MESSAGE = "Phiên đăng nhập đã hết hạn. Vui lòn
 export interface RequestOptions extends Omit<RequestInit, "body"> {
 	body?: unknown;
 	params?: Record<string, string | number | boolean | undefined>;
+	responseType?: "json" | "blob";
 }
 interface InternalRequestOptions extends RequestOptions {
 	isRetryAfterRefresh?: boolean;
@@ -52,7 +53,7 @@ class HttpClient {
 	}
 
 	private async performRequest<T>(endpoint: string, options: InternalRequestOptions): Promise<T> {
-		const { body, params, headers, isRetryAfterRefresh, ...customConfig } = options;
+		const { body, params, headers, isRetryAfterRefresh, responseType, ...customConfig } = options;
 		const token = this.getAuthToken();
 		const isFormDataBody = typeof FormData !== "undefined" && body instanceof FormData;
 
@@ -111,6 +112,7 @@ class HttpClient {
 			return undefined as T;
 		}
 
+		if (responseType === "blob") return response.blob() as Promise<T>;
 		return response.json() as Promise<T>;
 	}
 

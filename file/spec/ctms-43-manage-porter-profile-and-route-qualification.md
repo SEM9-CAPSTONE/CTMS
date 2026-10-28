@@ -1,5 +1,9 @@
 # CTMS-043 — Manage Porter Profile and Route Qualification
 
+> Amendment approved 28/10/2026: [Porter level requests and manual Admin review](ctms-138-porter-level-requests.md)
+> supersedes the direct Host/Admin verification flow below for new level decisions. Existing verified
+> qualifications are preserved; only Admin can approve requests or make direct level decisions.
+
 ## 1. Overview
 
 Story: CTMS-043
