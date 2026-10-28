@@ -10,5 +10,6 @@ import { SafetyEventsService } from "./safety-events.service";
 	imports: [GpsTrackingModule],
 	controllers: [SafetyEventsController],
 	providers: [SafetyEventsService, SafetyEventRepository, JwtAuthGuard, RolesGuard],
+	exports: [SafetyEventsService, SafetyEventRepository],
 })
 export class SafetyEventsModule {}

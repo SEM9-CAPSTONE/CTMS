@@ -95,7 +95,14 @@ Dashboard must not fabricate missing source data or infer unsupported operationa
 
 ## 9. API / Integration Contract
 
-TBD — Technical Design.
+CTMS-377 / CTMS-087-T01 implements `GET /api/host/monitoring/overview` for active
+Hosts, with bounded `page`/`limit`, server-derived ownership scope, source timestamps,
+nullable unavailable KPIs and per-Route weather availability/freshness.
+
+The source inventory, exact KPI/date definitions, current `trip_porters` compatibility
+source, response contract, configuration and validation limits are documented in
+[`docs/features/ctms-377-host-overview.md`](../../docs/features/ctms-377-host-overview.md).
+The endpoint is a read model and does not create or alter authoritative business state.
 
 ## 10. Error & Edge Cases
 

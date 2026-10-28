@@ -8,6 +8,7 @@ import { DeviceSyncModule } from "./device-sync/device-sync.module";
 import { EquipmentCatalogModule } from "./equipment-catalog/equipment-catalog.module";
 import { GpsTrackingModule } from "./gps-tracking/gps-tracking.module";
 import { HealthController } from "./health/health.controller";
+import { HostOverviewModule } from "./host-overview/host-overview.module";
 import { IncidentsModule } from "./incidents/incidents.module";
 import { PorterLevelsModule } from "./porter-levels/porter-levels.module";
 import { ProfilesModule } from "./profiles/profiles.module";
@@ -34,6 +35,7 @@ import { WeatherModule } from "./weather/weather.module";
 		DeviceSyncModule,
 		EquipmentCatalogModule,
 		GpsTrackingModule,
+		HostOverviewModule,
 		IncidentsModule,
 		ProfilesModule,
 		PorterLevelsModule,
