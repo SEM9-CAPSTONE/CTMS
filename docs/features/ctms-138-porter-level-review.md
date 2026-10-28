@@ -10,6 +10,33 @@ level; each decision applies to one Porter's qualification on one Route.
 
 ## Manual UI test
 
+### Shared demo data (main.seed.ts only)
+
+The master seed includes CTMS-138 demo requests for the existing account
+`porter.learning@ctms.local` / `Porter@123`. Admin uses `admin@ctms.local` / `Admin@123`.
+No additional seed file is needed. After migrations, run the master seed without
+`--fresh` against a development database:
+
+```powershell
+cd services/api
+node -r ts-node/register src/seeds/main.seed.ts
+```
+
+The first three canonical Routes contain a pending request, a needs-info request,
+and a cancelled request. The fourth Route remains free to test request creation.
+Admin can approve/reject the pending request; Porter can supplement the needs-info
+request. Upload test evidence through the UI; no fabricated file references are seeded.
+The learning Porter receives an approved demo certificate dossier only if no dossier
+already exists. Existing verification decisions are preserved.
+
+Missing level policies receive clearly marked demo descriptions with no numeric
+thresholds or required skills/certificates. Existing policies, ranks, requests and
+history are preserved; rerunning the demo does not reset completed requests.
+The main `porter@ctms.local` account retains its existing ranks. This is development
+data, not approved business criteria. Other sections of the master seed still refresh
+their own scenarios; use a development database. The package `seed` scripts include
+`--fresh` and wipe data, so do not use them to retain existing local records.
+
 1. Run API and web using the existing environment. API startup applies migrations, including
    `1793100000000-CreatePorterLevelReviews` and `1793100000001-CreatePorterLevelRequests`.
    No seed execution is required for an existing database.
