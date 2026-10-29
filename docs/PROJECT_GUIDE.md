@@ -62,7 +62,7 @@ Kiểm tra container:
 docker compose ps
 ```
 
-`pnpm dev:infra` bật PostgreSQL, Redis và Adminer, đồng thời chờ database và cache healthy. Docker Desktop cần đang mở. `pnpm dev:quick` tự gọi bước này nên không cần chạy riêng trước.
+`pnpm dev:infra` tự kiểm tra Docker Engine, khởi động Docker Desktop nếu cần, chờ tối đa 120 giây để Engine sẵn sàng, rồi bật PostgreSQL, Redis và Adminer và chờ database/cache healthy. Máy cần cài Docker Desktop có hỗ trợ lệnh `docker desktop start`. `pnpm dev:quick` tự gọi bước này nên không cần mở ứng dụng trước hay chạy riêng lệnh hạ tầng. `pnpm dev:api` và `pnpm dev:web` cũng tự kiểm tra và khởi động Docker trước khi build.
 
 ### 4. Chạy API và Web nhanh
 
@@ -72,7 +72,7 @@ Lệnh thường dùng nhất khi dev backend + frontend:
 pnpm dev:quick
 ```
 
-Lệnh này dừng API và Web trong Docker nếu đang chạy để tránh trùng cổng với bản local, bật PostgreSQL, Redis và Adminer, rồi chạy cùng lúc:
+Lệnh này bật PostgreSQL, Redis và Adminer, dừng API và Web trong Docker nếu đang chạy để tránh trùng cổng với bản local, rồi chạy cùng lúc:
 
 - NestJS API
 - ReactJS Web Dashboard
