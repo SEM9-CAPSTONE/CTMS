@@ -1,4 +1,5 @@
 export type Availability = "available" | "unavailable";
+export type OverviewInventoryTab = "bookings" | "porters" | "routes";
 export type WeatherState = Availability | "stale";
 export type RiskLevel = "green" | "yellow" | "red";
 export interface OverviewSection<T> {

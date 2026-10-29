@@ -21,7 +21,7 @@ export const OVERVIEW_TEXT = {
 	routes: "Tuyến của tôi",
 	porters: "Porter có phân công",
 	sos: "SOS chưa đóng",
-	weather: "Weather Risk",
+	weather: "Rủi ro thời tiết",
 	updated: "Dữ liệu tải lúc",
 	created: "Tạo lúc",
 	event: "Thời điểm SOS",

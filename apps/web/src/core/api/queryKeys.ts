@@ -1,5 +1,8 @@
 export const queryKeys = {
 	hostOverview: {
+		forHost: (hostId: string) => ["host-overview", hostId] as const,
+		routeName: (hostId: string, routeId: string) =>
+			["host-overview", hostId, "route-name", routeId] as const,
 		page: (hostId: string, page: number, limit: number) =>
 			["host-overview", hostId, { page, limit }] as const,
 	},

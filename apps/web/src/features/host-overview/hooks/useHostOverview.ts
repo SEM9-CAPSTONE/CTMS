@@ -14,15 +14,15 @@ import { hostOverviewService } from "../services/host-overview.service";
 export const isOverviewRestricted = (error: unknown) =>
 	error instanceof HttpError && (error.status === 401 || error.status === 403);
 
-export function useHostOverview(hostId: string, page: number) {
+export function useHostOverview(hostId: string, page: number, enabled = true) {
 	const query = useQuery({
 		queryKey: queryKeys.hostOverview.page(hostId, page, OVERVIEW_PAGE_SIZE),
 		queryFn: ({ signal }) => hostOverviewService.get(page, OVERVIEW_PAGE_SIZE, signal),
-		enabled: Boolean(hostId),
+		enabled: Boolean(hostId) && enabled,
 		retry: false,
 		staleTime: OVERVIEW_STALE_TIME_MS,
 		refetchInterval: (current) =>
-			isOverviewRestricted(current.state.error) ? false : OVERVIEW_REFRESH_MS,
+			!enabled || isOverviewRestricted(current.state.error) ? false : OVERVIEW_REFRESH_MS,
 	});
 	const [now, setNow] = useState(Date.now);
 	useEffect(() => {

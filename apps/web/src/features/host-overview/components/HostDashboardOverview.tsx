@@ -1,22 +1,28 @@
-import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useCallback, useState } from "react";
+import { queryKeys } from "../../../core/api/queryKeys";
 import { RoutePath } from "../../../routes/routes.config";
 import { Button } from "../../../shared/components/Button";
 import { OVERVIEW_TEXT as text } from "../constants";
 import { useHostOverview } from "../hooks/useHostOverview";
-import { openOverviewDetail, overviewDate } from "../utils";
+import { openOverviewDetail } from "../utils";
 import { OverviewKpis } from "./OverviewKpis";
 import { OverviewSections } from "./OverviewSections";
+import { OverviewToolbar } from "./OverviewToolbar";
 
 export function HostDashboardOverview({
 	hostId,
 	onNavigateToTripDetail,
 }: { hostId: string; onNavigateToTripDetail?: (id: string) => void }) {
 	const [page, setPage] = useState(1);
-	const query = useHostOverview(hostId, page);
+	const [accessDenied, setAccessDenied] = useState(false);
+	const handleRestricted = useCallback(() => setAccessDenied(true), []);
+	const client = useQueryClient();
+	const query = useHostOverview(hostId, page, !accessDenied);
 	const retry = () => {
-		void query.refetch();
+		void client.invalidateQueries({ queryKey: queryKeys.hostOverview.forHost(hostId) });
 	};
-	if (query.restricted)
+	if (accessDenied || query.restricted)
 		return (
 			<p role="alert" className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
 				{text.restricted}
@@ -41,58 +47,34 @@ export function HostDashboardOverview({
 			</div>
 		);
 	const data = query.data;
-	const totals = [
-		data.bookings,
-		data.activeTrips,
-		data.routes,
-		data.porters,
-		data.sos,
-		data.weather,
-	].map((section) => section.data?.total ?? 0);
+	const totals = [data.activeTrips, data.sos, data.weather].map(
+		(section) => section.data?.total ?? 0
+	);
 	const pages = Math.max(1, ...totals.map((total) => Math.ceil(total / data.limit)));
 	const openTrip =
 		onNavigateToTripDetail ?? ((id: string) => openOverviewDetail(RoutePath.TRIP_DETAIL, id));
 	return (
-		<div data-testid="host-dashboard-overview" className="space-y-6">
-			<div className="flex flex-wrap items-center justify-between gap-3">
-				<p className="text-xs text-[#627769]">
-					Cập nhật: {overviewDate(data.generatedAt, data.timeZone)} · {data.timeZone}
-				</p>
-				<Button size="sm" variant="outline" onClick={retry} disabled={query.isFetching}>
-					{query.isFetching ? text.refreshing : text.refresh}
-				</Button>
-			</div>
+		<div data-testid="host-dashboard-overview" className="space-y-4">
 			{query.stale && (
 				<output className="block rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
 					{text.stale}
 				</output>
 			)}
 			<OverviewKpis overview={data} />
-			<OverviewSections data={data} onTrip={openTrip} />
-			<nav
-				aria-label="Phân trang tổng quan"
-				className="flex flex-wrap items-center justify-end gap-3 text-sm"
-			>
-				<Button
-					size="sm"
-					variant="outline"
-					disabled={page <= 1 || query.isFetching}
-					onClick={() => setPage((value) => value - 1)}
-				>
-					{text.previous}
-				</Button>
-				<span>
-					Trang {data.page} / {Math.max(data.page, pages)}
-				</span>
-				<Button
-					size="sm"
-					variant="outline"
-					disabled={page >= pages || query.isFetching}
-					onClick={() => setPage((value) => value + 1)}
-				>
-					{text.next}
-				</Button>
-			</nav>
+			<OverviewToolbar
+				data={data}
+				pages={pages}
+				busy={query.isFetching}
+				onPrevious={() => setPage((value) => value - 1)}
+				onNext={() => setPage((value) => value + 1)}
+				onRefresh={retry}
+			/>
+			<OverviewSections
+				hostId={hostId}
+				data={data}
+				onTrip={openTrip}
+				onRestricted={handleRestricted}
+			/>
 		</div>
 	);
 }

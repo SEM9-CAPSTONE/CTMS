@@ -5,6 +5,7 @@ import { type RoleBearingUser, getGrantedRoles } from "../../auth/utils/permissi
 import type { StoredAuthUser } from "../../auth/utils/tokenStorage";
 import { camperProfileService } from "../../camper-profile/services/camper-profile.service";
 import type { CamperProfileData } from "../../camper-profile/types";
+import { HostDashboardHeader } from "../../host-overview/components/HostDashboardHeader";
 import { HostDashboardOverview } from "../../host-overview/components/HostDashboardOverview";
 import { CamperOperationalMap } from "../components/CamperOperationalMap";
 import { CamperTripPager } from "../components/CamperTripPager";
@@ -149,24 +150,40 @@ function DashboardMain({
 			: config.timeline;
 	return (
 		<main className="flex-1 p-4 sm:p-6 lg:p-8">
-			<div className="mx-auto flex max-w-[1440px] flex-col gap-6">
-				<section className="rounded-[28px] border border-[#dfe8df] bg-white p-6 shadow-sm">
-					<div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-						<div className="min-w-0">
-							{config.figmaName ? (
-								<p className="text-xs font-extrabold uppercase tracking-[0.22em] text-[#7b8c82]">
-									{config.figmaName}
+			<div
+				className={
+					config.role === "host"
+						? "mx-auto flex max-w-[1440px] flex-col gap-4"
+						: "mx-auto flex max-w-[1440px] flex-col gap-6"
+				}
+			>
+				{config.role === "host" ? (
+					<HostDashboardHeader
+						name={displayName}
+						onCreateTrip={onCreateTrip}
+						onViewRoutes={onViewTrekkingRoutes}
+					/>
+				) : (
+					<section className="rounded-[28px] border border-[#dfe8df] bg-white p-6 shadow-sm">
+						<div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+							<div className="min-w-0">
+								{config.figmaName ? (
+									<p className="text-xs font-extrabold uppercase tracking-[0.22em] text-[#7b8c82]">
+										{config.figmaName}
+									</p>
+								) : null}
+								<h1 className="mt-2 text-3xl font-extrabold tracking-tight text-[#10221b] sm:text-4xl">
+									{config.role === "camper"
+										? `Chào buổi ${timeOfDay}, ${displayName}`
+										: config.title}
+								</h1>
+								<p className="mt-2 max-w-3xl text-sm font-medium leading-6 text-[#627769]">
+									{config.subtitle}
 								</p>
-							) : null}
-							<h1 className="mt-2 text-3xl font-extrabold tracking-tight text-[#10221b] sm:text-4xl">
-								{config.role === "camper" ? `Chào buổi ${timeOfDay}, ${displayName}` : config.title}
-							</h1>
-							<p className="mt-2 max-w-3xl text-sm font-medium leading-6 text-[#627769]">
-								{config.subtitle}
-							</p>
+							</div>
 						</div>
-					</div>
-				</section>
+					</section>
+				)}
 
 				{config.role === "host" ? (
 					<>
@@ -177,6 +194,7 @@ function DashboardMain({
 						/>
 						<HostOperationalOverview
 							showMetrics={false}
+							showToolbar={false}
 							hostId={user.id}
 							onNavigateToTripDetail={onNavigateToTripDetail}
 						/>
