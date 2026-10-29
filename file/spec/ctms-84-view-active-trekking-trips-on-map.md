@@ -99,7 +99,61 @@ Unsynced local device location must not be represented as server-known current p
 
 ## 9. API / Integration Contract
 
-TBD — Technical Design.
+Implemented by **CTMS-369 — Preparation + Logic** (backend only).
+
+- `GET /api/host/monitoring/active-trips?page=1&limit=20`
+- `GET /api/host/monitoring/active-trips/:tripId/participants/:role/:participantId`
+
+Both endpoints require an active authenticated Host and return `Cache-Control: private, no-store`.
+Authorization uses the server-granted role and `trips.host_id`. Only `ONGOING` Trips are eligible.
+Detail reads return the same 404 for missing participants, inactive Trips and out-of-scope Trips.
+Invalid pagination, UUIDs or participant roles return 422. No authenticated session returns 401;
+an authenticated non-Host returns 403.
+
+List pagination applies to Trips, with deterministic `starts_at, id` ordering. `page` defaults to 1
+(maximum 1,000,000), and `limit` defaults to 20 (maximum 100). `total` remains the full authorized
+Trip count, including when the selected page is empty. Each Trip includes its current persisted
+Route geometry, ordered Route checkpoints, and the applicable participants. No Route/Trip write,
+lifecycle change, package generation or GPS/safety ingest change is performed by this projection.
+
+Participants follow the existing GPS eligibility sources: booking members with `JOINED` or `LEFT`
+status on `CONFIRMED`/`COMPLETED` bookings, plus Porters with `ASSIGNED` status in `trip_porters`.
+Registered, removed, no-show and cancelled-booking members are excluded. Members without a linked
+user remain visible with an unavailable location; no other member's location is substituted.
+`participantId` is the booking-member ID for role `camper`, or the assigned user's ID for role
+`porter`. Names and identifiers are included; contact details, health profiles and credentials
+are excluded.
+
+Response metadata includes `generatedAt`, `locationSource: "server_confirmed"`, and
+`freshnessMaxAgeSeconds`. Each participant contains:
+
+- `location`: nullable accepted GPS sample (`id`, latitude/longitude, `accuracyMeters`,
+  `eventTime`, `receivedAt`). Latest means descending capture `event_time`, then `received_at`
+  and ID for deterministic ties, scoped by Trip, user and participant role. A delayed upload
+  of an older capture cannot replace the latest position.
+- `lastSeenAt`: capture time of that latest accepted position, not upload time. This is the
+  API's camelCase representation of `last_seen_at`; it is not a connection heartbeat.
+- `locationAgeSeconds`: elapsed capture age at response generation, floored to seconds and
+  clamped to zero for future captures; null when no position exists.
+- `freshness`: `fresh` when capture age is between zero and the configured threshold inclusive;
+  `stale` for older or future-dated captures; `unavailable` when no accepted location exists.
+- `safety.route` and `safety.gps`: latest accepted transition in each independent event family,
+  with its capture and receipt timestamps. Recovery transitions supersede earlier warnings.
+- `safety.lastCheckpoint`: latest server-persisted checkpoint visit for that booking member,
+  including arrival time and receipt (`created_at`) time.
+- `safety.behindSchedule`: null because no authoritative behind-schedule source exists yet.
+  Null safety context means unknown/unavailable, never an assertion that the member is safe.
+
+`HOST_TRIP_MAP_FRESHNESS_MAX_AGE_SECONDS` defaults to **120 seconds** and must be a positive safe
+integer. This is a configurable display threshold, not a change to GPS collection or Trip rules.
+Fresh means a recent server-confirmed capture; neither endpoint claims real-time location or
+infers online/offline connectivity. Unsynced local samples/events are absent from this projection.
+Consumers must distinguish stale/unavailable state and recompute freshness or refetch as time
+passes using the returned timestamps and threshold.
+
+The read model uses one PostgreSQL statement snapshot for authorization, count, Route/checkpoints,
+participants and synchronized context. Source/database errors fail the request rather than
+fabricating an empty list or a safe state. OpenAPI response schemas are registered with both endpoints.
 
 ## 10. Error & Edge Cases
 
@@ -125,3 +179,38 @@ TBD — Technical Design.
 ## 12. Open Decisions
 
 Exact visual freshness categories belong to UI/Technical Design unless defined elsewhere.
+
+CTMS-369 supplies `fresh/stale/unavailable` as the backend contract above; visual treatment remains
+outside this backend task. `trip_porters` is the existing assignment source (also used by GPS
+participation); migrate this read source when an authoritative `porter_assignments` implementation
+becomes available. Behind-schedule detection is a separate dependency and is not implemented here.
+
+## 13. CTMS-369 Backend Verification
+
+Verified locally on 2026-10-29:
+
+- [x] Read-only map aggregation and participant detail implemented.
+- [x] Host scope, active Trip filtering, synchronized data selection and freshness invariants covered.
+- [x] Task-specific unit tests: 18 passed.
+- [x] Task-specific PostgreSQL/HTTP integration tests: 9 passed on `ctms_test`, with database-name
+  safety checks before fixture creation and cleanup.
+- [x] Related GPS/safety/overview/map regression: 98 unit tests across 6 suites and 54 integration
+  tests across 4 suites passed.
+- [x] Complete backend unit suite: 1,558 tests across 137 suites passed.
+- [x] Backend ESLint, TypeScript no-emit check, Nest build and Biome check for changed TypeScript passed.
+
+Commands used from `services/api` (existing local dependencies):
+
+```text
+node node_modules/jest/bin/jest.js --config jest.config.js --runInBand --silent
+node node_modules/jest/bin/jest.js --config test/jest-integration.json --runInBand host-trip-map gps-tracking safety-events host-overview
+node node_modules/typescript/bin/tsc --noEmit -p tsconfig.json
+```
+
+Backend scripts `pnpm --filter @ctms/api lint` and `pnpm --filter @ctms/api build` passed from the
+repository root. Initial sandboxed pnpm attempts could not reach the registry to verify its pinned
+version; the authorized retries succeeded. No dependency/package-manager settings were changed.
+
+Frontend/mobile, repository-wide `lint:all`/`build:all`/`test:all`, the full integration suite and
+remote CI were not run for this backend-only task. Visual acceptance remains in the UI task.
+No development seed/reset, migration, commit, push or PR creation was performed.
