@@ -1,0 +1,30 @@
+# Install Linux dependencies inside the images instead of copying Windows links.
+**/node_modules
+**/.pnpm-store
+
+# Local build output and caches.
+**/dist
+**/build
+**/coverage
+**/*.tsbuildinfo
+**/.dart_tool
+**/.venv
+**/venv
+**/__pycache__
+**/.pytest_cache
+**/*.py[cod]
+**/*.log
+
+# Local configuration and repository metadata.
+.git
+.agents
+.codex
+.gemini
+.vscode
+.idea
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.*.example
+/uploads
+/services/api/uploads

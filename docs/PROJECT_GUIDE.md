@@ -53,7 +53,7 @@ pnpm install
 Backend sẽ cần PostgreSQL và Redis khi bắt đầu làm các chức năng thật như authentication, booking, slot lock, tracking hoặc cache.
 
 ```bash
-docker compose up -d postgres redis
+pnpm dev:infra
 ```
 
 Kiểm tra container:
@@ -62,7 +62,7 @@ Kiểm tra container:
 docker compose ps
 ```
 
-Nếu `postgres` và `redis` đang chạy hoặc healthy thì không cần chạy lại Docker ở mỗi lần dev. Các lần sau thường chỉ cần chạy app bằng pnpm.
+`pnpm dev:infra` bật PostgreSQL, Redis và Adminer, đồng thời chờ database và cache healthy. Docker Desktop cần đang mở. `pnpm dev:quick` tự gọi bước này nên không cần chạy riêng trước.
 
 ### 4. Chạy API và Web nhanh
 
@@ -72,7 +72,7 @@ Lệnh thường dùng nhất khi dev backend + frontend:
 pnpm dev:quick
 ```
 
-Lệnh này chạy cùng lúc:
+Lệnh này dừng API và Web trong Docker nếu đang chạy để tránh trùng cổng với bản local, bật PostgreSQL, Redis và Adminer, rồi chạy cùng lúc:
 
 - NestJS API
 - ReactJS Web Dashboard
@@ -83,21 +83,36 @@ Các URL kiểm tra:
 Web: http://localhost:5173
 API Health: http://localhost:3000/api/health
 Swagger: http://localhost:3000/api/docs
+Adminer: http://localhost:8081
 ```
 
 ### 5. Chạy từng phần riêng
 
-Chạy API:
+Build và chạy API bằng `infra/docker/api.Dockerfile`, kèm PostgreSQL, Redis và Adminer:
 
 ```bash
 pnpm dev:api
 ```
 
-Chạy Web:
+Lệnh này chạy container ở nền. Xem log bằng `docker compose logs -f api`; sau khi sửa code, chạy lại `pnpm dev:api` để build lại. Dừng API local bằng Ctrl+C trước khi chuyển sang API Docker để tránh trùng cổng 3000.
+
+Nếu chỉ muốn chạy API local ở chế độ watch:
+
+```bash
+pnpm dev:infra
+docker compose stop api
+pnpm dev:api:local
+```
+
+Build và chạy Web bằng `infra/docker/web.Dockerfile`, kèm API, PostgreSQL, Redis và Adminer:
 
 ```bash
 pnpm dev:web
 ```
+
+Web Docker: http://localhost:5173. Lệnh chạy ở nền; sau khi sửa code, chạy lại `pnpm dev:web` để build lại. Dừng API/Web local bằng Ctrl+C trước khi chuyển sang Docker để tránh trùng cổng 3000 và 5173.
+
+Chạy riêng Web local ở chế độ hot reload bằng `pnpm dev:web:local` (dừng container Web bằng `docker compose stop web` trước nếu đang chạy).
 
 Chạy Mobile:
 
@@ -128,11 +143,10 @@ Không phải lúc nào cũng cần chạy toàn bộ Docker.
 Khi dev bình thường, nên chạy:
 
 ```bash
-docker compose up -d postgres redis
 pnpm dev:quick
 ```
 
-Tức là PostgreSQL và Redis chạy bằng Docker, còn API và Web chạy local để hot reload nhanh hơn.
+Tức là PostgreSQL, Redis và Adminer chạy bằng Docker, còn API và Web chạy local để hot reload nhanh hơn. Ctrl+C dừng API/Web local; các container hạ tầng vẫn chạy. Dừng chúng bằng `docker compose stop postgres redis adminer` khi không cần nữa.
 
 Chỉ chạy full Docker khi muốn kiểm tra gần giống môi trường deploy:
 
@@ -154,6 +168,7 @@ URL khi chạy full Docker:
 ```text
 Web qua container: http://localhost:5173
 Nginx gateway: http://localhost:8080
+Adminer: http://localhost:8081
 API: http://localhost:3000/api/health
 AI: http://localhost:8000/health
 ```
@@ -218,9 +233,12 @@ pnpm test:all
 
 Ý nghĩa:
 
-- `pnpm dev:quick`: chạy nhanh API và Web cùng lúc.
-- `pnpm dev:api`: chạy NestJS API ở chế độ watch.
-- `pnpm dev:web`: chạy React web dashboard.
+- `pnpm dev:quick`: tự bật PostgreSQL, Redis, Adminer rồi chạy API và Web local ở chế độ watch; dừng các container ứng dụng trước khi chạy.
+- `pnpm dev:infra`: bật PostgreSQL, Redis, Adminer và chờ sẵn sàng.
+- `pnpm dev:api`: build và chạy API Docker, kèm PostgreSQL, Redis và Adminer.
+- `pnpm dev:api:local`: chạy NestJS API local ở chế độ watch.
+- `pnpm dev:web`: build và chạy Web Docker, kèm API, PostgreSQL, Redis và Adminer.
+- `pnpm dev:web:local`: chạy React web dashboard local có hot reload.
 - `pnpm dev:mobile`: chạy Flutter mobile app (tương đương `cd apps/mobile && flutter run`).
 - `pnpm lint:all`: chạy lint cho các workspace có script `lint`.
 - `pnpm build:all`: build các workspace có script `build`.
