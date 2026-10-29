@@ -11,6 +11,9 @@ vi.mock("../../camper-profile/services/camper-profile.service", () => ({
 vi.mock("../components/HostOperationalOverview", () => ({
 	HostOperationalOverview: () => null,
 }));
+vi.mock("../../host-overview/components/HostDashboardOverview", () => ({
+	HostDashboardOverview: () => null,
+}));
 vi.mock("../components/HostMyTripsPanel", () => ({
 	HostMyTripsPanel: () => null,
 }));

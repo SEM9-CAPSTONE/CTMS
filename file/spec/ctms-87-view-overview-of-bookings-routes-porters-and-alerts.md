@@ -104,6 +104,11 @@ source, response contract, configuration and validation limits are documented in
 [`docs/features/ctms-377-host-overview.md`](../../docs/features/ctms-377-host-overview.md).
 The endpoint is a read model and does not create or alter authoritative business state.
 
+CTMS-378 / CTMS-087-T02 consumes this endpoint from the Host landing page.
+Client states, supported navigation, pagination, refresh behavior and validation
+are documented in
+[`docs/features/ctms-378-host-overview-ui.md`](../../docs/features/ctms-378-host-overview-ui.md).
+
 ## 10. Error & Edge Cases
 
 | Case                               | Expected Behavior                        |

@@ -22,9 +22,13 @@ const formatDateTime = (value: string | number) =>
 export function HostOperationalOverview({
 	hostId,
 	onNavigateToTripDetail,
+	showMetrics = true,
+	showToolbar = true,
 }: {
 	hostId: string;
 	onNavigateToTripDetail?: (tripId: string) => void;
+	showMetrics?: boolean;
+	showToolbar?: boolean;
 }) {
 	const data = useHostOperationalOverview(hostId);
 	const [selectedTripId, setSelectedTripId] = useState<string>();
@@ -86,28 +90,50 @@ export function HostOperationalOverview({
 	};
 	return (
 		<>
-			<div className="flex flex-wrap items-center justify-between gap-3 text-xs text-[#667a6d]">
-				<p>Dữ liệu cập nhật lúc {formatDateTime(data.updatedAt)} · Tự làm mới mỗi 30 giây</p>
-				<Button
-					variant="ghost"
-					size="sm"
-					onClick={data.refresh}
-					disabled={data.isRefreshing}
-					className="inline-flex items-center gap-2 font-bold disabled:opacity-50"
-				>
-					<RefreshCw className="size-4" />
-					Làm mới dữ liệu
-				</Button>
-			</div>
-			<section aria-label="Chỉ số vận hành" className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-				{metrics.map((metric) => (
-					<MetricCard key={metric.label} metric={metric} />
-				))}
-			</section>
+			{showToolbar && (
+				<div className="flex flex-wrap items-center justify-between gap-3 text-xs text-[#667a6d]">
+					<p>Dữ liệu cập nhật lúc {formatDateTime(data.updatedAt)} · Tự làm mới mỗi 30 giây</p>
+					<Button
+						variant="ghost"
+						size="sm"
+						onClick={data.refresh}
+						disabled={data.isRefreshing}
+						className="inline-flex items-center gap-2 font-bold disabled:opacity-50"
+					>
+						<RefreshCw className="size-4" />
+						Làm mới dữ liệu
+					</Button>
+				</div>
+			)}
+			{showMetrics && (
+				<section aria-label="Chỉ số vận hành" className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+					{metrics.map((metric) => (
+						<MetricCard key={metric.label} metric={metric} />
+					))}
+				</section>
+			)}
 			<section>
 				<Card className="grid items-start gap-6 rounded-[28px] border-[#dfe8df] lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
 					<div className="min-w-0">
-						<h2 className="text-xl font-extrabold">{getOperationalTripHeading(trip)}</h2>
+						<div className="flex items-center justify-between gap-2">
+							<h2 className="text-xl font-extrabold">{getOperationalTripHeading(trip)}</h2>
+							{!showToolbar && (
+								<Button
+									size="sm"
+									variant="ghost"
+									aria-label="Làm mới bản đồ"
+									onClick={data.refresh}
+									disabled={data.isRefreshing}
+								>
+									<RefreshCw aria-hidden="true" className="size-3.5" />
+								</Button>
+							)}
+						</div>
+						{!showToolbar && (
+							<p className="mt-1 text-[11px] text-[#829087]">
+								Cập nhật bản đồ: {formatDateTime(data.updatedAt)}
+							</p>
+						)}
 						{data.operationalTrips.length ? (
 							<>
 								<HostOperationalTripSelector
