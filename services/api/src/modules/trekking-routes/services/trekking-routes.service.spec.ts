@@ -63,7 +63,6 @@ describe("TrekkingRoutesService", () => {
 		findAdminReviews: jest.Mock;
 		findReviewRouteByIdForUpdate: jest.Mock;
 		validateApprovalIntegrity: jest.Mock;
-		validateSubmissionCheckpoints: jest.Mock;
 		updateStatus: jest.Mock;
 	};
 	let auditRepository: { save: jest.Mock };
@@ -89,15 +88,6 @@ describe("TrekkingRoutesService", () => {
 			validateApprovalIntegrity: jest.fn().mockResolvedValue({
 				geometryValid: true,
 				difficultyValid: true,
-				checkpointsValid: true,
-				checkpointCount: 0,
-			}),
-			validateSubmissionCheckpoints: jest.fn().mockResolvedValue({
-				checkpointsValid: true,
-				startCount: 1,
-				finishCount: 1,
-				startPosition: 0,
-				finishPosition: 1,
 			}),
 			updateStatus: jest.fn((_routeId: string, status: TrekkingRouteStatus) =>
 				Promise.resolve(createdRoute(status))
@@ -178,9 +168,9 @@ describe("TrekkingRoutesService", () => {
 			});
 		});
 		it("propagates validation and audit failures through the transaction", async () => {
-			routeRepository.updateDraft.mockRejectedValueOnce(new Error("checkpoint outside route"));
+			routeRepository.updateDraft.mockRejectedValueOnce(new Error("route update failed"));
 			await expect(service.updateDraft(HOST_ID, ROUTE_ID, createDto())).rejects.toThrow(
-				"checkpoint outside route"
+				"route update failed"
 			);
 			expect(auditRepository.save).not.toHaveBeenCalled();
 			auditRepository.save.mockRejectedValueOnce(new Error("audit unavailable"));
@@ -229,7 +219,14 @@ describe("TrekkingRoutesService", () => {
 				status: "all",
 			});
 
-			expect(routeRepository.findByHostPaginated).toHaveBeenCalledWith(HOST_ID, page, limit, null);
+			expect(routeRepository.findByHostPaginated).toHaveBeenCalledWith(
+				HOST_ID,
+				page,
+				limit,
+				null,
+				"",
+				"newest"
+			);
 			expect(result).toEqual({
 				items: [createdRoute()],
 				pagination: { page, limit, total: 41, totalPages },
@@ -249,7 +246,9 @@ describe("TrekkingRoutesService", () => {
 				HOST_ID,
 				1,
 				20,
-				TrekkingRouteStatus.ACTIVE
+				TrekkingRouteStatus.ACTIVE,
+				"",
+				"newest"
 			);
 		});
 
@@ -272,7 +271,9 @@ describe("TrekkingRoutesService", () => {
 					HOST_ID,
 					2,
 					15,
-					expectedStatus
+					expectedStatus,
+					"",
+					"newest"
 				);
 			}
 		);
@@ -291,7 +292,6 @@ describe("TrekkingRoutesService", () => {
 			const result = await service.submitForApproval(HOST_ID, ROUTE_ID);
 
 			expect(routeRepository.findOneForLifecycleUpdate).toHaveBeenCalledWith(ROUTE_ID);
-			expect(routeRepository.validateSubmissionCheckpoints).toHaveBeenCalledWith(ROUTE_ID);
 			expect(routeRepository.updateStatus).toHaveBeenCalledWith(
 				ROUTE_ID,
 				TrekkingRouteStatus.PENDING_APPROVAL
@@ -314,7 +314,6 @@ describe("TrekkingRoutesService", () => {
 			await expect(service.submitForApproval(HOST_ID, ROUTE_ID)).rejects.toMatchObject({
 				status: 404,
 			});
-			expect(routeRepository.validateSubmissionCheckpoints).not.toHaveBeenCalled();
 			expect(routeRepository.updateStatus).not.toHaveBeenCalled();
 			expect(auditRepository.save).not.toHaveBeenCalled();
 		});
@@ -323,7 +322,6 @@ describe("TrekkingRoutesService", () => {
 			await expect(service.submitForApproval(OTHER_HOST_ID, ROUTE_ID)).rejects.toMatchObject({
 				status: 403,
 			});
-			expect(routeRepository.validateSubmissionCheckpoints).not.toHaveBeenCalled();
 			expect(routeRepository.updateStatus).not.toHaveBeenCalled();
 			expect(auditRepository.save).not.toHaveBeenCalled();
 		});
@@ -342,7 +340,6 @@ describe("TrekkingRoutesService", () => {
 			await expect(service.submitForApproval(HOST_ID, ROUTE_ID)).rejects.toMatchObject({
 				status: 409,
 			});
-			expect(routeRepository.validateSubmissionCheckpoints).not.toHaveBeenCalled();
 			expect(routeRepository.updateStatus).not.toHaveBeenCalled();
 			expect(auditRepository.save).not.toHaveBeenCalled();
 		});
@@ -352,61 +349,6 @@ describe("TrekkingRoutesService", () => {
 				route: createdRoute(TrekkingRouteStatus.DRAFT),
 				hostId: HOST_ID,
 				integrityValid: false,
-			});
-
-			await expect(service.submitForApproval(HOST_ID, ROUTE_ID)).rejects.toMatchObject({
-				status: 422,
-			});
-			expect(routeRepository.validateSubmissionCheckpoints).not.toHaveBeenCalled();
-			expect(routeRepository.updateStatus).not.toHaveBeenCalled();
-		});
-
-		it("returns 422 when any authoritative stored checkpoint is invalid", async () => {
-			routeRepository.validateSubmissionCheckpoints.mockResolvedValue({
-				checkpointsValid: false,
-				startCount: 1,
-				finishCount: 1,
-				startPosition: 0,
-				finishPosition: 1,
-			});
-
-			await expect(service.submitForApproval(HOST_ID, ROUTE_ID)).rejects.toMatchObject({
-				status: 422,
-			});
-			expect(routeRepository.updateStatus).not.toHaveBeenCalled();
-			expect(auditRepository.save).not.toHaveBeenCalled();
-		});
-
-		it.each([
-			{ name: "no start", startCount: 0, finishCount: 1 },
-			{ name: "multiple starts", startCount: 2, finishCount: 1 },
-			{ name: "no finish", startCount: 1, finishCount: 0 },
-			{ name: "multiple finishes", startCount: 1, finishCount: 2 },
-		])("returns 422 for $name", async ({ startCount, finishCount }) => {
-			routeRepository.validateSubmissionCheckpoints.mockResolvedValue({
-				checkpointsValid: true,
-				startCount,
-				finishCount,
-				startPosition: startCount > 0 ? 0 : null,
-				finishPosition: finishCount > 0 ? 1 : null,
-			});
-
-			await expect(service.submitForApproval(HOST_ID, ROUTE_ID)).rejects.toMatchObject({
-				status: 422,
-			});
-			expect(routeRepository.updateStatus).not.toHaveBeenCalled();
-		});
-
-		it.each([
-			{ name: "equal positions", startPosition: 0.5, finishPosition: 0.5 },
-			{ name: "start after finish", startPosition: 0.75, finishPosition: 0.25 },
-		])("returns 422 when $name", async ({ startPosition, finishPosition }) => {
-			routeRepository.validateSubmissionCheckpoints.mockResolvedValue({
-				checkpointsValid: true,
-				startCount: 1,
-				finishCount: 1,
-				startPosition,
-				finishPosition,
 			});
 
 			await expect(service.submitForApproval(HOST_ID, ROUTE_ID)).rejects.toMatchObject({
@@ -518,14 +460,12 @@ describe("TrekkingRoutesService", () => {
 			}
 		);
 
-		it.each(["geometryValid", "difficultyValid", "checkpointsValid"] as const)(
+		it.each(["geometryValid", "difficultyValid"] as const)(
 			"returns 422 and does not mutate when %s is false",
 			async (invalidField) => {
 				routeRepository.validateApprovalIntegrity.mockResolvedValue({
 					geometryValid: true,
 					difficultyValid: true,
-					checkpointsValid: true,
-					checkpointCount: 1,
 					[invalidField]: false,
 				});
 

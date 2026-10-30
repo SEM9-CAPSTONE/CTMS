@@ -22,17 +22,6 @@ describe("RouteGeometryPreview", () => {
 
 		const line = screen.getByTestId("route-preview-line");
 		expect(line.getAttribute("points")?.trim().split(/\s+/)).toHaveLength(3);
-		expect(
-			screen.getByText(
-				(_, element) =>
-					element?.tagName === "SPAN" && element.textContent === "Bắt đầu: 108.2, 16.05"
-			)
-		).toBeInTheDocument();
-		expect(
-			screen.getByText(
-				(_, element) =>
-					element?.tagName === "SPAN" && element.textContent === "Kết thúc: 108.23, 16.08"
-			)
-		).toBeInTheDocument();
+		expect(screen.queryByText(/Bắt đầu:|Kết thúc:/)).not.toBeInTheDocument();
 	});
 });

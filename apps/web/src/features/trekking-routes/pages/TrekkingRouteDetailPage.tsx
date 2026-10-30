@@ -10,13 +10,9 @@ import {
 	Route,
 	Spline,
 } from "lucide-react";
-import { CheckpointList } from "../components/CheckpointList";
-import { DangerZoneList } from "../components/DangerZoneList";
-import { RouteGeometryPreview } from "../components/RouteGeometryPreview";
+import { RouteSafetyPreview } from "../components/RouteSafetyPreview";
 import { RouteStatusActionDialog } from "../components/RouteStatusActionDialog";
 import { difficultyLabels, formatLength, statusLabels } from "../components/TrekkingRouteList";
-import { useRouteCheckpoints } from "../hooks/useRouteCheckpoints";
-import { useRouteDangerZones } from "../hooks/useRouteDangerZones";
 import { useTrekkingRoutes } from "../hooks/useTrekkingRoutes";
 
 export interface TrekkingRouteDetailPageProps {
@@ -28,8 +24,6 @@ export interface TrekkingRouteDetailPageProps {
 export function TrekkingRouteDetailPage({ routeId, onBack, onEdit }: TrekkingRouteDetailPageProps) {
 	const routes = useTrekkingRoutes();
 	const route = routes.items.find((item) => item.id === routeId);
-	const checkpoints = useRouteCheckpoints(routeId);
-	const dangerZones = useRouteDangerZones(routeId);
 
 	return (
 		<div className="min-h-screen bg-[#f4f7f2] text-[#10221b]">
@@ -144,35 +138,11 @@ export function TrekkingRouteDetailPage({ routeId, onBack, onEdit }: TrekkingRou
 								</p>
 							)}
 							<div className="mt-5 border-t border-[#e0ebe0] pt-5">
-								<RouteGeometryPreview
+								<RouteSafetyPreview
 									variant="embedded"
 									geometry={route.geometry}
-									checkpoints={checkpoints.items}
-									dangerZones={dangerZones.items}
+									routeId={route.id}
 								/>
-							</div>
-						</section>
-
-						<section className="mt-6 grid gap-6 rounded-2xl border border-[#e0ebe0] bg-white p-5 shadow-sm lg:grid-cols-2">
-							<div>
-								<h2 className="font-extrabold">Danh sách các vị trí trên tuyến</h2>
-								{checkpoints.isLoading ? (
-									<p className="mt-3 flex items-center gap-2 text-sm">
-										<Loader2 className="size-4 animate-spin" /> Đang tải vị trí...
-									</p>
-								) : (
-									<CheckpointList items={checkpoints.items} />
-								)}
-							</div>
-							<div>
-								<h2 className="font-extrabold">Danh sách khu vực nguy hiểm</h2>
-								{dangerZones.isLoading ? (
-									<p className="mt-3 flex items-center gap-2 text-sm">
-										<Loader2 className="size-4 animate-spin" /> Đang tải khu vực nguy hiểm...
-									</p>
-								) : (
-									<DangerZoneList items={dangerZones.items} />
-								)}
 							</div>
 						</section>
 

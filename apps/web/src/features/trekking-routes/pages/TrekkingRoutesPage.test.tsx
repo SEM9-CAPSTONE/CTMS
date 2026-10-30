@@ -1,213 +1,146 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { useTrekkingRoutes } from "../hooks/useTrekkingRoutes";
+import { useHostRouteBrowser } from "../hooks/useHostRouteBrowser";
 import type { CreatedTrekkingRoute } from "../types";
 import { TrekkingRoutesPage } from "./TrekkingRoutesPage";
-
-vi.mock("../hooks/useTrekkingRoutes", () => ({
-	useTrekkingRoutes: vi.fn(),
-}));
-
-vi.mock("../hooks/useRouteCheckpoints", () => ({
-	useRouteCheckpoints: () => ({
-		items: [],
-		isLoading: false,
-		error: "",
-		retry: vi.fn(),
-	}),
-}));
-
-vi.mock("../hooks/useRouteDangerZones", () => ({
-	useRouteDangerZones: () => ({
-		items: [],
-		isLoading: false,
-		error: "",
-		retry: vi.fn(),
-	}),
-}));
-
-vi.mock("../components/RouteGeometryPreview", () => ({
-	RouteGeometryPreview: ({
+vi.mock("../hooks/useHostRouteBrowser", () => ({ useHostRouteBrowser: vi.fn() }));
+vi.mock("../components/RouteSafetyPreview", () => ({
+	RouteSafetyPreview: ({
 		geometry,
-		footer,
-	}: {
-		geometry: { coordinates: number[][] };
-		footer?: ReactNode;
-	}) => (
-		<div>
-			<div data-testid="geometry-preview">{JSON.stringify(geometry.coordinates)}</div>
-			{footer}
+		routeId,
+	}: { geometry: { coordinates: number[][] }; routeId: string }) => (
+		<div data-testid="geometry-preview" data-route-id={routeId}>
+			{JSON.stringify(geometry.coordinates)}
 		</div>
 	),
 }));
-
-const routes: CreatedTrekkingRoute[] = [
-	{
-		id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-		name: "Son Tra Ridge",
-		description: "Coastal trail",
-		geometry: {
-			type: "LineString",
-			coordinates: [
-				[108.2, 16.1],
-				[108.21, 16.11],
-			],
-		},
-		difficulty: "hard",
-		expectedDurationMinutes: 150,
-		lengthMeters: 3250,
-		status: "draft",
-		createdAt: "2026-03-30T10:00:00.000Z",
-		updatedAt: "2026-03-30T10:00:00.000Z",
+const route: CreatedTrekkingRoute = {
+	id: "route-one",
+	name: "Sơn Trà",
+	description: "Đường ven biển",
+	geometry: {
+		type: "LineString",
+		coordinates: [
+			[108.2, 16.05],
+			[108.23, 16.08],
+		],
 	},
-];
-
-describe("TrekkingRoutesPage", () => {
-	beforeEach(() => {
-		vi.clearAllMocks();
-	});
-
-	it("shows an empty state when the Host has no routes", () => {
-		vi.mocked(useTrekkingRoutes).mockReturnValue({
-			items: [],
-			pagination: { page: 1, limit: 20, total: 0, totalPages: 0 },
-			statusFilter: "all",
-			isLoading: false,
-			error: "",
-			setPage: vi.fn(),
-			setStatusFilter: vi.fn(),
-			retry: vi.fn(),
-		});
+	difficulty: "hard",
+	expectedDurationMinutes: 150,
+	lengthMeters: 3250,
+	status: "draft",
+	createdAt: "2026-10-26T08:42:00Z",
+	updatedAt: "2026-10-26T08:42:00Z",
+};
+function mockBrowser(overrides: Partial<ReturnType<typeof useHostRouteBrowser>> = {}) {
+	const model: ReturnType<typeof useHostRouteBrowser> = {
+		items: [route],
+		pagination: { page: 1, limit: 5, total: 36, totalPages: 8 },
+		statusCounts: { all: 36, draft: 8, pending_approval: 4, active: 24, closed: 0 },
+		statusFilter: "all",
+		search: "",
+		sort: "newest",
+		isLoading: false,
+		error: "",
+		setPage: vi.fn(),
+		setStatusFilter: vi.fn(),
+		setSearch: vi.fn(),
+		setSort: vi.fn(),
+		retry: vi.fn().mockResolvedValue(undefined),
+		...overrides,
+	};
+	vi.mocked(useHostRouteBrowser).mockReturnValue(model);
+	return model;
+}
+describe("Host route browser", () => {
+	beforeEach(() => vi.clearAllMocks());
+	it("uses a route list beside the selected map without the removed tabs", () => {
+		mockBrowser();
 		render(<TrekkingRoutesPage />);
-
-		expect(screen.getByTestId("routes-empty")).toBeInTheDocument();
-		expect(screen.getByText("Bạn chưa có tuyến trekking")).toBeInTheDocument();
+		expect(screen.getByRole("heading", { level: 2, name: "Sơn Trà" })).toBeInTheDocument();
+		expect(screen.getByTestId("geometry-preview")).toHaveAttribute("data-route-id", "route-one");
+		expect(screen.getAllByText("3.25 km")).toHaveLength(2);
+		expect(screen.queryByRole("tab")).not.toBeInTheDocument();
+		expect(screen.queryByText("Điểm trên tuyến")).not.toBeInTheDocument();
 	});
-
-	it("shows Vietnamese status options and forwards filter changes", () => {
-		const setStatusFilter = vi.fn();
-		vi.mocked(useTrekkingRoutes).mockReturnValue({
-			items: [],
-			pagination: { page: 1, limit: 20, total: 0, totalPages: 0 },
-			statusFilter: "draft",
-			isLoading: false,
-			error: "",
-			setPage: vi.fn(),
-			setStatusFilter,
-			retry: vi.fn(),
-		});
+	it("selects another route for its metadata and map", () => {
+		mockBrowser({ items: [route, { ...route, id: "route-two", name: "Bạch Mã" }] });
 		render(<TrekkingRoutesPage />);
-
-		const filter = screen.getByRole("combobox", { name: "Trạng thái tuyến" });
-		expect(filter).toHaveValue("draft");
-		expect(screen.getByRole("option", { name: "Tất cả" })).toBeInTheDocument();
-		expect(screen.getByRole("option", { name: "Bản nháp" })).toBeInTheDocument();
-		expect(screen.getByRole("option", { name: "Chờ duyệt" })).toBeInTheDocument();
-		expect(screen.getByRole("option", { name: "Đang hoạt động" })).toBeInTheDocument();
-		expect(screen.getByRole("option", { name: "Đã đóng" })).toBeInTheDocument();
-		expect(screen.getByText("Không có tuyến trekking phù hợp với bộ lọc")).toBeInTheDocument();
-
-		fireEvent.change(filter, { target: { value: "active" } });
-		expect(setStatusFilter).toHaveBeenCalledWith("active");
+		fireEvent.click(screen.getByRole("button", { name: /Bạch Mã/ }));
+		expect(screen.getByRole("heading", { level: 2, name: "Bạch Mã" })).toBeInTheDocument();
+		expect(screen.getByTestId("geometry-preview")).toHaveAttribute("data-route-id", "route-two");
 	});
-
-	it("shows the Route loading state", () => {
-		vi.mocked(useTrekkingRoutes).mockReturnValue({
-			items: [],
-			pagination: { page: 1, limit: 20, total: 0, totalPages: 0 },
-			statusFilter: "all",
-			isLoading: true,
-			error: "",
-			setPage: vi.fn(),
-			setStatusFilter: vi.fn(),
-			retry: vi.fn(),
-		});
+	it("shows counts and forwards status, search and sort changes", () => {
+		const model = mockBrowser();
 		render(<TrekkingRoutesPage />);
-
-		expect(screen.getByTestId("routes-loading")).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Tất cả" })).toHaveTextContent("36");
+		fireEvent.click(screen.getByRole("button", { name: "Đang hoạt động" }));
+		expect(model.setStatusFilter).toHaveBeenCalledWith("active");
+		fireEvent.change(screen.getByLabelText("Tìm tuyến"), { target: { value: "Sơn" } });
+		expect(model.setSearch).toHaveBeenCalledWith("Sơn");
+		fireEvent.change(screen.getByLabelText("Sắp xếp tuyến"), { target: { value: "oldest" } });
+		expect(model.setSort).toHaveBeenCalledWith("oldest");
 	});
-
-	it("shows an error state with retry", () => {
-		const retry = vi.fn().mockResolvedValue(undefined);
-		vi.mocked(useTrekkingRoutes).mockReturnValue({
-			items: [],
-			pagination: { page: 1, limit: 20, total: 0, totalPages: 0 },
-			statusFilter: "all",
-			isLoading: false,
-			error: "Không thể tải danh sách tuyến đường.",
-			retry,
-			setPage: vi.fn(),
-			setStatusFilter: vi.fn(),
-		});
+	it("places numbered pagination and ellipsis under the list and changes page", () => {
+		const model = mockBrowser();
 		render(<TrekkingRoutesPage />);
-
-		expect(screen.getByRole("alert")).toHaveTextContent("Không thể tải danh sách tuyến đường.");
-		fireEvent.click(screen.getByRole("button", { name: "Tải lại" }));
-		expect(retry).toHaveBeenCalledTimes(1);
-	});
-
-	it("shows route metadata, previews the selected geometry, and opens its detail", async () => {
-		vi.mocked(useTrekkingRoutes).mockReturnValue({
-			items: routes,
-			pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
-			statusFilter: "all",
-			isLoading: false,
-			error: "",
-			setPage: vi.fn(),
-			setStatusFilter: vi.fn(),
-			retry: vi.fn(),
-		});
-		const onViewRouteDetail = vi.fn();
-		render(<TrekkingRoutesPage onViewRouteDetail={onViewRouteDetail} />);
-
-		await waitFor(() => expect(screen.getAllByText("Son Tra Ridge")[0]).toBeInTheDocument());
-		expect(screen.getByText("Khó")).toBeInTheDocument();
-		expect(screen.getByText("150 phút")).toBeInTheDocument();
-		expect(screen.getByText("3.25 km")).toBeInTheDocument();
-		expect(screen.getByText("Nháp")).toBeInTheDocument();
-		expect(screen.getByTestId("geometry-preview")).toHaveTextContent(
-			JSON.stringify(routes[0].geometry.coordinates)
+		const list = screen.getByRole("complementary", { name: "Danh sách tuyến của Host" });
+		const pagination = within(list).getByRole("navigation", { name: "Phân trang danh sách tuyến" });
+		expect(within(pagination).getByRole("button", { name: "Trang 1" })).toHaveAttribute(
+			"aria-current",
+			"page"
 		);
-
-		fireEvent.click(screen.getByRole("button", { name: "Chi tiết" }));
-		expect(onViewRouteDetail).toHaveBeenCalledWith(routes[0].id);
+		expect(within(pagination).getByText("…")).toBeInTheDocument();
+		expect(within(pagination).getByRole("button", { name: "Trang trước" })).toBeDisabled();
+		fireEvent.click(within(pagination).getByRole("button", { name: "Trang 8" }));
+		expect(model.setPage).toHaveBeenCalledWith(8);
 	});
-
-	it("shows the latest authoritative rejection reason on the returned Draft Route", async () => {
-		vi.mocked(useTrekkingRoutes).mockReturnValue({
-			items: [{ ...routes[0], latestRejectionReason: "Bổ sung hướng dẫn tại điểm nguy hiểm." }],
-			pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
-			statusFilter: "all",
-			isLoading: false,
-			error: "",
-			setPage: vi.fn(),
-			setStatusFilter: vi.fn(),
-			retry: vi.fn(),
-		});
-		render(<TrekkingRoutesPage />);
-
-		expect(await screen.findByText("Admin yêu cầu chỉnh sửa")).toBeInTheDocument();
-		expect(screen.getByText("Bổ sung hướng dẫn tại điểm nguy hiểm.")).toBeInTheDocument();
+	it("wires create, edit and detail actions to navigation", () => {
+		mockBrowser();
+		const onCreate = vi.fn();
+		const onEdit = vi.fn();
+		const onDetail = vi.fn();
+		render(
+			<TrekkingRoutesPage
+				onCreateRoute={onCreate}
+				onEditRoute={onEdit}
+				onViewRouteDetail={onDetail}
+			/>
+		);
+		fireEvent.click(screen.getByRole("button", { name: "Tạo tuyến mới" }));
+		expect(onCreate).toHaveBeenCalledOnce();
+		fireEvent.click(screen.getByRole("button", { name: "Chỉnh sửa" }));
+		expect(onEdit).toHaveBeenCalledWith(route.id);
+		fireEvent.click(screen.getByLabelText("Tùy chọn tuyến"));
+		fireEvent.click(screen.getByRole("button", { name: "Xem chi tiết" }));
+		expect(onDetail).toHaveBeenCalledWith(route.id);
 	});
-
-	it("renders shared pagination metadata and requests the next page", () => {
-		const setPage = vi.fn();
-		vi.mocked(useTrekkingRoutes).mockReturnValue({
-			items: routes,
-			pagination: { page: 1, limit: 20, total: 21, totalPages: 2 },
-			statusFilter: "all",
-			isLoading: false,
-			error: "",
-			setPage,
-			setStatusFilter: vi.fn(),
-			retry: vi.fn(),
-		});
+	it("does not offer editing an active route", () => {
+		mockBrowser({ items: [{ ...route, status: "active" }] });
+		render(<TrekkingRoutesPage onEditRoute={vi.fn()} />);
+		expect(screen.queryByRole("button", { name: "Chỉnh sửa" })).not.toBeInTheDocument();
+	});
+	it("keeps rejection feedback from the authoritative route", () => {
+		mockBrowser({ items: [{ ...route, latestRejectionReason: "Bổ sung mô tả đường đi." }] });
 		render(<TrekkingRoutesPage />);
-
-		expect(screen.getByText("Trang 1 / 2")).toBeInTheDocument();
-		expect(screen.getByText(/1 - 20/)).toBeInTheDocument();
-		fireEvent.click(screen.getByRole("button", { name: "Tiếp theo" }));
-		expect(setPage).toHaveBeenCalledWith(2);
+		expect(screen.getByText("Bổ sung mô tả đường đi.")).toBeInTheDocument();
+	});
+	it("shows loading, failures and empty filtered results", () => {
+		const model = mockBrowser({ items: [], isLoading: true });
+		const view = render(<TrekkingRoutesPage />);
+		expect(screen.getByTestId("routes-loading")).toBeInTheDocument();
+		mockBrowser({ ...model, isLoading: false, error: "Không thể tải danh sách tuyến đường." });
+		view.rerender(<TrekkingRoutesPage />);
+		fireEvent.click(screen.getByRole("button", { name: "Tải lại" }));
+		expect(model.retry).toHaveBeenCalledOnce();
+		mockBrowser({
+			items: [],
+			pagination: { page: 1, limit: 5, total: 0, totalPages: 0 },
+			search: "Không tồn tại",
+		});
+		view.rerender(<TrekkingRoutesPage />);
+		expect(screen.getByTestId("routes-empty")).toHaveTextContent(
+			"Không có tuyến trekking phù hợp với bộ lọc"
+		);
 	});
 });

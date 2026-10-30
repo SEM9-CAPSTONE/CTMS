@@ -130,13 +130,13 @@ describe("AdminTrekkingRoutesPage", () => {
 		expect((await test.screen.findAllByText("Pine Ridge")).length).toBeGreaterThan(0);
 	});
 
-	it("renders pending Route geometry, difficulty, status, and checkpoints", async () => {
+	it("reviews route geometry, difficulty and status without a checkpoint step", async () => {
 		const { screen } = await setup();
 		expect((await screen.findAllByText("Pine Ridge")).length).toBeGreaterThan(0);
 		expect(screen.getAllByText("hard").length).toBeGreaterThan(0);
 		expect(screen.getAllByText("Chờ duyệt").length).toBeGreaterThan(0);
 		expect(screen.getByTestId("route-geometry-preview")).toHaveTextContent("2 vertices");
-		expect(screen.getByText("Trail start")).toBeInTheDocument();
+		expect(screen.queryByText("Trail start")).not.toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "Chờ duyệt" })).toHaveAttribute(
 			"aria-pressed",
 			"true"

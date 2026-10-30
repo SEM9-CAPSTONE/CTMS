@@ -5,9 +5,10 @@
 		"declaration": true,
 		"emitDecoratorMetadata": true,
 		"experimentalDecorators": true,
-		"module": "commonjs",
-		"moduleResolution": "node",
-		"outDir": "dist",
+		"moduleResolution": "node16",
+		"rootDir": "./src",
+		"outDir": "./dist",
+		"declarationDir": "./dist",
 		"sourceMap": true
 	},
 	"include": ["src/**/*.ts"],

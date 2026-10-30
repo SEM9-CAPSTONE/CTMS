@@ -1,4 +1,5 @@
 export const API_ENDPOINTS = {
+	ROUTE_SAFETY: { ANALYZE: "/route-safety/analyze" },
 	HOST_OVERVIEW: "/host/monitoring/overview",
 	PORTER_LEVEL_REQUESTS: {
 		MINE: "/porter/level-requests",

@@ -18,8 +18,6 @@ interface Props {
 	error: CreateRouteError | null;
 	onSubmit: (payload: CreateTrekkingRouteInput) => Promise<unknown>;
 	onRetry: () => Promise<unknown>;
-	/** Overrides the idle submit label, e.g. when saving moves to the next edit step. */
-	submitLabel?: string;
 }
 
 const inputClass =
@@ -32,7 +30,6 @@ export function CreateTrekkingRouteForm({
 	error,
 	onSubmit,
 	onRetry,
-	submitLabel,
 }: Props) {
 	const {
 		register,
@@ -124,6 +121,7 @@ export function CreateTrekkingRouteForm({
 				control={control}
 				render={({ field }) => (
 					<RouteGeometryEditor
+						routeId={route?.id}
 						value={field.value}
 						disabled={isSubmitting}
 						onChange={field.onChange}
@@ -163,9 +161,7 @@ export function CreateTrekkingRouteForm({
 				className="flex items-center justify-center gap-2 rounded-xl bg-[#164027] px-5 py-3 font-bold text-white disabled:opacity-60"
 			>
 				{isSubmitting && <Loader2 className="size-4 animate-spin" />}
-				{isSubmitting
-					? "Đang lưu tuyến..."
-					: (submitLabel ?? (route ? "Lưu thay đổi" : "Bước tiếp theo"))}
+				{isSubmitting ? "Đang lưu tuyến..." : route ? "Lưu thay đổi" : "Lưu tuyến"}
 			</button>
 			{onCancel && (
 				<button

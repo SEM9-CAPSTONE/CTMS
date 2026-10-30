@@ -120,3 +120,8 @@ TBD — Technical Design.
 ## 12. Open Decisions
 
 Exact incident type/severity enums must follow the authoritative incident Data Dictionary.
+
+
+## Route Safety v2 read integration
+
+CTMS-010 may surface these existing records through Route Safety Analysis. The current actor, ownership, write validation, audit and authoritative lifecycle in this story remain unchanged. See `docs/business-rules/route-safety-v2.md` BR-477 and BR-479. No duplicate safety observation or additional reporting permission is created.

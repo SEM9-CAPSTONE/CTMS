@@ -9,7 +9,8 @@ import { RouteDraftWorkspace } from "./RouteDraftWorkspace";
 vi.hoisted(() => vi.resetModules());
 afterAll(() => {
 	vi.doUnmock("./RouteGeometryEditor");
-	vi.doUnmock("./RouteCheckpointsPanel");
+	vi.doUnmock("./RouteSafetyPreview");
+	vi.doUnmock("./RouteSubmissionPanel");
 	vi.doUnmock("../services/trekking-routes.service");
 	vi.resetModules();
 });
@@ -18,12 +19,13 @@ vi.mock("../services/trekking-routes.service", () => ({
 	trekkingRoutesService: { updateDraft: vi.fn(), listMine: vi.fn() },
 }));
 vi.mock("./RouteGeometryEditor", () => ({ RouteGeometryEditor: () => <div>Vẽ tuyến đường</div> }));
-vi.mock("./RouteCheckpointsPanel", () => ({
-	RouteCheckpointsPanel: ({ route }: { route: CreatedTrekkingRoute }) => (
-		<div data-testid="preparation">
-			{route.id}:{route.status}
-		</div>
+vi.mock("./RouteSafetyPreview", () => ({
+	RouteSafetyPreview: ({ routeId }: { routeId: string }) => (
+		<div data-testid="safety-preview">{routeId}</div>
 	),
+}));
+vi.mock("./RouteSubmissionPanel", () => ({
+	RouteSubmissionPanel: () => <button type="button">Gửi duyệt</button>,
 }));
 const route: CreatedTrekkingRoute = {
 	id: "saved-id",
@@ -45,7 +47,7 @@ const route: CreatedTrekkingRoute = {
 };
 describe("RouteDraftWorkspace", () => {
 	beforeEach(() => vi.clearAllMocks());
-	it("edits route info first and moves to picking locations on Bước tiếp theo", async () => {
+	it("saves route edits directly to the safety preview without a waypoint step", async () => {
 		vi.mocked(trekkingRoutesService.updateDraft).mockResolvedValue({
 			...route,
 			name: "Updated ridge",
@@ -54,30 +56,29 @@ describe("RouteDraftWorkspace", () => {
 		render(<RouteDraftWorkspace route={route} mode="edit" />);
 		expect(screen.queryByRole("button", { name: "Chỉnh sửa tuyến nháp" })).not.toBeInTheDocument();
 		expect(screen.queryByRole("tab")).not.toBeInTheDocument();
+		expect(screen.queryByTestId("route-checkpoints-panel")).not.toBeInTheDocument();
 		expect(screen.getByLabelText("Tên tuyến")).toHaveValue("Ridge");
-		expect(screen.queryByTestId("preparation")).not.toBeInTheDocument();
+		expect(screen.queryByTestId("safety-preview")).not.toBeInTheDocument();
 
-		fireEvent.click(screen.getByRole("button", { name: "Bước tiếp theo" }));
-		await waitFor(() => expect(screen.getByTestId("preparation")).toBeInTheDocument());
+		fireEvent.click(screen.getByRole("button", { name: "Lưu thay đổi" }));
+		await waitFor(() => expect(screen.getByTestId("safety-preview")).toBeInTheDocument());
 		expect(screen.queryByLabelText("Tên tuyến")).not.toBeInTheDocument();
 
-		fireEvent.click(screen.getByRole("button", { name: "Quay lại thông tin tuyến" }));
+		fireEvent.click(screen.getByRole("button", { name: "Chỉnh sửa tuyến" }));
 		expect(screen.getByLabelText("Tên tuyến")).toHaveValue("Updated ridge");
 	});
 
-	it("opens a non-draft route straight on the locations step", () => {
+	it("shows a non-draft route without edit or waypoint controls", () => {
 		render(<RouteDraftWorkspace route={{ ...route, status: "active" }} mode="edit" />);
-		expect(screen.getByTestId("preparation")).toHaveTextContent("saved-id:active");
-		expect(
-			screen.queryByRole("button", { name: "Quay lại thông tin tuyến" })
-		).not.toBeInTheDocument();
+		expect(screen.getByTestId("safety-preview")).toHaveTextContent("saved-id");
+		expect(screen.queryByRole("button", { name: "Chỉnh sửa tuyến" })).not.toBeInTheDocument();
 	});
 
 	it.each(["draft", "pending_approval", "active", "closed"] as const)(
-		"opens %s routes straight on the locations step without a draft summary card",
+		"shows saved %s geometry and safety without waypoint controls",
 		(status) => {
 			render(<RouteDraftWorkspace route={{ ...route, status }} />);
-			expect(screen.getByTestId("preparation")).toHaveTextContent(`saved-id:${status}`);
+			expect(screen.getByTestId("safety-preview")).toHaveTextContent("saved-id");
 			expect(
 				screen.queryByRole("button", { name: "Chỉnh sửa tuyến nháp" })
 			).not.toBeInTheDocument();

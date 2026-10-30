@@ -58,14 +58,17 @@ export class TrekkingRoutesService {
 		query: ListTrekkingRoutesQueryDto
 	): Promise<PaginatedTrekkingRoutesResponseDto> {
 		const status = query.status === ALL_TREKKING_ROUTE_STATUSES ? null : query.status;
-		const { items, total } = await this.trekkingRoutesRepository.findByHostPaginated(
+		const { items, total, statusCounts } = await this.trekkingRoutesRepository.findByHostPaginated(
 			hostId,
 			query.page,
 			query.limit,
-			status
+			status,
+			query.search ?? "",
+			query.sort ?? "newest"
 		);
 		return {
 			items,
+			statusCounts,
 			pagination: {
 				page: query.page,
 				limit: query.limit,
@@ -118,39 +121,6 @@ export class TrekkingRoutesService {
 				]);
 			}
 
-			const checkpointIntegrity = await repository.validateSubmissionCheckpoints(routeId);
-			const errors: Array<{ field: string; errors: string[] }> = [];
-			if (!checkpointIntegrity.checkpointsValid) {
-				errors.push({ field: "checkpoints", errors: ["stored route checkpoints are invalid"] });
-			}
-			if (checkpointIntegrity.startCount !== 1) {
-				errors.push({
-					field: "checkpoints",
-					errors: ["route must have exactly one start checkpoint"],
-				});
-			}
-			if (checkpointIntegrity.finishCount !== 1) {
-				errors.push({
-					field: "checkpoints",
-					errors: ["route must have exactly one finish checkpoint"],
-				});
-			}
-			if (
-				checkpointIntegrity.startCount === 1 &&
-				checkpointIntegrity.finishCount === 1 &&
-				(checkpointIntegrity.startPosition == null ||
-					checkpointIntegrity.finishPosition == null ||
-					checkpointIntegrity.startPosition >= checkpointIntegrity.finishPosition)
-			) {
-				errors.push({
-					field: "checkpoints",
-					errors: ["start checkpoint must occur before finish checkpoint"],
-				});
-			}
-			if (errors.length > 0) {
-				throw this.submissionValidationException(errors);
-			}
-
 			const updated = await repository.updateStatus(routeId, TrekkingRouteStatus.PENDING_APPROVAL);
 			await manager.getRepository(AuditLog).save({
 				actorId: hostId,
@@ -192,9 +162,6 @@ export class TrekkingRoutesService {
 				}
 				if (!integrity.difficultyValid) {
 					errors.push({ field: "difficulty", errors: ["stored route difficulty is invalid"] });
-				}
-				if (!integrity.checkpointsValid) {
-					errors.push({ field: "checkpoints", errors: ["stored route checkpoints are invalid"] });
 				}
 				if (errors.length > 0) {
 					throw new UnprocessableEntityException({

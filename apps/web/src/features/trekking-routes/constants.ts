@@ -1,5 +1,8 @@
 import type { RouteLifecycleAction, RouteStatus } from "./types";
 
+export const HOST_ROUTE_PAGE_SIZE = 5;
+export const HOST_ROUTE_SEARCH_DELAY_MS = 300;
+
 export interface RouteStatusActionContent {
 	trigger: string;
 	title: string;

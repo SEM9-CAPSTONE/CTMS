@@ -116,7 +116,7 @@ export class TrekkingRoutesController {
 	@ApiResponse({ status: 403, description: "Host role and route ownership required" })
 	@ApiResponse({ status: 404, description: "Trekking route not found" })
 	@ApiResponse({ status: 409, description: "Route is not in draft status" })
-	@ApiResponse({ status: 422, description: "Invalid stored Route or checkpoint preparation" })
+	@ApiResponse({ status: 422, description: "Invalid stored route geometry or metadata" })
 	submitForApproval(
 		@Req() request: AuthenticatedRequest,
 		@Param() params: RouteIdParamDto

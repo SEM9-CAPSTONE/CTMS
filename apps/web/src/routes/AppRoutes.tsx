@@ -843,6 +843,8 @@ function AppRouteContent() {
 				>
 					<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
 						<TrekkingRoutesPage
+							onCreateRoute={() => navigateTo(RoutePath.HOST_CREATE_TREKKING_ROUTE)}
+							onEditRoute={(id) => navigateTo(`${RoutePath.HOST_TREKKING_ROUTES}/${id}/edit`)}
 							onBackHome={() => navigateTo(RoutePath.DASHBOARD)}
 							onViewRouteDetail={(id) => navigateTo(`${RoutePath.HOST_TREKKING_ROUTES}/${id}`)}
 						/>

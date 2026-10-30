@@ -311,14 +311,7 @@ export function RouteCheckpointsPanel({
 					<DangerZoneList items={dangerZones.items} />
 				)}
 			</div>
-			<RouteSubmissionPanel
-				route={route}
-				checkpoints={checkpoints.items}
-				isLoadingCheckpoints={checkpoints.isLoading}
-				checkpointError={checkpoints.error}
-				onReload={onRouteReload}
-				onSubmitted={onRouteSubmitted}
-			/>
+			<RouteSubmissionPanel route={route} onReload={onRouteReload} onSubmitted={onRouteSubmitted} />
 		</section>
 	);
 }

@@ -2,6 +2,7 @@ import { Injectable, UnprocessableEntityException } from "@nestjs/common";
 import { Repository } from "typeorm";
 import type { CheckpointResponseDto } from "../dto/checkpoint-response.dto";
 import type { RouteReviewOutcome } from "../dto/list-route-reviews-query.dto";
+import type { TrekkingRouteSort } from "../dto/list-trekking-routes-query.dto";
 import type { RouteDangerZoneResponseDto } from "../dto/route-danger-zone-response.dto";
 import type { TrekkingRouteResponseDto } from "../dto/trekking-route-response.dto";
 import type { TrekkingRouteReviewResponseDto } from "../dto/trekking-route-review-response.dto";
@@ -53,33 +54,7 @@ interface ReviewRouteRow extends CreatedRouteRow {
 export interface ApprovalIntegrityResult {
 	geometryValid: boolean;
 	difficultyValid: boolean;
-	checkpointsValid: boolean;
-	checkpointCount: number;
 }
-
-export interface SubmissionCheckpointIntegrityResult {
-	checkpointsValid: boolean;
-	startCount: number;
-	finishCount: number;
-	startPosition: number | null;
-	finishPosition: number | null;
-}
-
-const CHECKPOINT_INTEGRITY_PREDICATE = `
-	BTRIM(checkpoint."name") <> ''
-	AND NOT ST_IsEmpty(checkpoint."location"::geometry)
-	AND ST_IsValid(checkpoint."location"::geometry)
-	AND GeometryType(checkpoint."location"::geometry) = 'POINT'
-	AND ST_SRID(checkpoint."location"::geometry) = 4326
-	AND checkpoint."type"::text IN (
-		'start', 'rest', 'water', 'dangerous', 'emergency_shelter', 'finish'
-	)
-	AND checkpoint."expected_arrival_offset" BETWEEN 0
-		AND route."expected_duration_minutes"
-	AND BTRIM(checkpoint."instructions") <> ''
-	AND checkpoint."route_position" BETWEEN 0 AND 1
-	AND ST_DWithin(route."route_geom", checkpoint."location", 50)
-`;
 
 const LATEST_REVIEW_AUDIT_SELECT = `
 	CASE
@@ -345,17 +320,7 @@ export class TrekkingRoutesRepository extends Repository<TrekkingRoute> {
 					AND ST_Length(route."route_geom") > 0
 					AND route."length_meters" > 0
 				) AS "geometryValid",
-				(route."difficulty"::text IN ('easy', 'moderate', 'hard', 'expert')) AS "difficultyValid",
-				NOT EXISTS (
-					SELECT 1
-					FROM "checkpoints" checkpoint
-					WHERE checkpoint."route_id" = route."id"
-						AND NOT (${CHECKPOINT_INTEGRITY_PREDICATE})
-				) AS "checkpointsValid",
-				(
-					SELECT COUNT(*)::int FROM "checkpoints" checkpoint
-					WHERE checkpoint."route_id" = route."id"
-				) AS "checkpointCount"
+				(route."difficulty"::text IN ('easy', 'moderate', 'hard', 'expert')) AS "difficultyValid"
 			FROM "trekking_routes" route
 			WHERE route."id" = $1
 			`,
@@ -366,56 +331,6 @@ export class TrekkingRoutesRepository extends Repository<TrekkingRoute> {
 		return {
 			geometryValid: Boolean(result?.geometryValid),
 			difficultyValid: Boolean(result?.difficultyValid),
-			checkpointsValid: Boolean(result?.checkpointsValid),
-			checkpointCount: Number(result?.checkpointCount ?? 0),
-		};
-	}
-
-	async validateSubmissionCheckpoints(
-		routeId: string
-	): Promise<SubmissionCheckpointIntegrityResult> {
-		const rows = (await this.query(
-			`
-			SELECT
-				NOT EXISTS (
-					SELECT 1
-					FROM "checkpoints" checkpoint
-					WHERE checkpoint."route_id" = route."id"
-						AND NOT (${CHECKPOINT_INTEGRITY_PREDICATE})
-				) AS "checkpointsValid",
-				COUNT(checkpoint."id") FILTER (
-					WHERE checkpoint."type" = 'start'
-				)::int AS "startCount",
-				COUNT(checkpoint."id") FILTER (
-					WHERE checkpoint."type" = 'finish'
-				)::int AS "finishCount",
-				MIN(checkpoint."route_position") FILTER (
-					WHERE checkpoint."type" = 'start'
-				) AS "startPosition",
-				MIN(checkpoint."route_position") FILTER (
-					WHERE checkpoint."type" = 'finish'
-				) AS "finishPosition"
-			FROM "trekking_routes" route
-			LEFT JOIN "checkpoints" checkpoint ON checkpoint."route_id" = route."id"
-			WHERE route."id" = $1
-			GROUP BY route."id"
-			`,
-			[routeId]
-		)) as Array<{
-			checkpointsValid: boolean;
-			startCount: number | string;
-			finishCount: number | string;
-			startPosition: number | string | null;
-			finishPosition: number | string | null;
-		}>;
-
-		const result = rows[0];
-		return {
-			checkpointsValid: Boolean(result?.checkpointsValid),
-			startCount: Number(result?.startCount ?? 0),
-			finishCount: Number(result?.finishCount ?? 0),
-			startPosition: result?.startPosition == null ? null : Number(result.startPosition),
-			finishPosition: result?.finishPosition == null ? null : Number(result.finishPosition),
 		};
 	}
 
@@ -482,9 +397,20 @@ export class TrekkingRoutesRepository extends Repository<TrekkingRoute> {
 		hostId: string,
 		page: number,
 		limit: number,
-		status: TrekkingRouteStatus | null
-	): Promise<{ items: TrekkingRouteResponseDto[]; total: number }> {
+		status: TrekkingRouteStatus | null,
+		search = "",
+		sort: TrekkingRouteSort = "newest"
+	): Promise<{
+		items: TrekkingRouteResponseDto[];
+		total: number;
+		statusCounts: Record<"all" | TrekkingRouteStatus, number>;
+	}> {
 		const offset = (page - 1) * limit;
+		const orderBy = {
+			newest: 'route."created_at" DESC',
+			oldest: 'route."created_at" ASC',
+			name: 'LOWER(route."name") ASC',
+		}[sort];
 		const rows = (await this.query(
 			`
 			SELECT
@@ -499,33 +425,38 @@ export class TrekkingRoutesRepository extends Repository<TrekkingRoute> {
 				route."status",
 				${LATEST_REVIEW_AUDIT_SELECT},
 				route."created_at" AS "createdAt",
-				route."updated_at" AS "updatedAt",
-				COUNT(*) OVER() AS "total"
+				route."updated_at" AS "updatedAt"
 			FROM "trekking_routes" route
 			${LATEST_REVIEW_AUDIT_JOIN}
 			WHERE route."host_id" = $1
 				AND ($2::trekking_route_status IS NULL OR route."status" = $2::trekking_route_status)
-			ORDER BY route."created_at" DESC, route."id" ASC
+			AND ($5 = '' OR strpos(LOWER(route."name"), LOWER($5)) > 0)
+			ORDER BY ${orderBy}, route."id" ASC
 			LIMIT $3 OFFSET $4
 			`,
-			[hostId, status, limit, offset]
+			[hostId, status, limit, offset, search]
 		)) as Array<CreatedRouteRow & { total: string }>;
-		let total = Number(rows[0]?.total ?? 0);
-		if (rows.length === 0) {
-			const countRows = (await this.query(
-				`SELECT COUNT(*) AS "total"
-				 FROM "trekking_routes"
-				 WHERE "host_id" = $1
-					AND ($2::trekking_route_status IS NULL OR "status" = $2::trekking_route_status)`,
-				[hostId, status]
-			)) as Array<{ total: string }>;
-			total = Number(countRows[0]?.total ?? 0);
-		}
-
-		return {
-			items: rows.map(toResponse),
-			total,
+		const countRows = (await this.query(
+			`
+ SELECT COUNT(*)::int AS "all",
+ COUNT(*) FILTER (WHERE status='draft')::int AS draft,
+ COUNT(*) FILTER (WHERE status='pending_approval')::int AS pending_approval,
+ COUNT(*) FILTER (WHERE status='active')::int AS active,
+ COUNT(*) FILTER (WHERE status='closed')::int AS closed
+ FROM trekking_routes WHERE host_id=$1
+ AND ($2 = '' OR strpos(LOWER(name), LOWER($2)) > 0)
+ `,
+			[hostId, search]
+		)) as Array<Record<"all" | TrekkingRouteStatus, number>>;
+		const counts = countRows[0];
+		const statusCounts = {
+			all: Number(counts?.all ?? 0),
+			draft: Number(counts?.draft ?? 0),
+			pending_approval: Number(counts?.pending_approval ?? 0),
+			active: Number(counts?.active ?? 0),
+			closed: Number(counts?.closed ?? 0),
 		};
+		return { items: rows.map(toResponse), total: statusCounts[status ?? "all"], statusCounts };
 	}
 
 	async hasTripReferences(routeId: string): Promise<boolean> {
@@ -553,12 +484,6 @@ export class TrekkingRoutesRepository extends Repository<TrekkingRoute> {
 				FROM proposed
 				WHERE route."id" = $1 AND route."host_id" = $7 AND route."status" = 'draft'
 					AND ST_Length(proposed.geom) > 0 AND $6 > 0
-					AND NOT EXISTS (
-						SELECT 1 FROM "checkpoints" checkpoint
-						WHERE checkpoint."route_id" = route."id"
-							AND (NOT ST_DWithin(proposed.geom, checkpoint."location", 50)
-								OR checkpoint."expected_arrival_offset" > $6)
-					)
 				RETURNING route.*
 			)
 			SELECT "id", "host_id" AS "hostId", "name", "description",
@@ -585,21 +510,11 @@ export class TrekkingRoutesRepository extends Repository<TrekkingRoute> {
 				message: [
 					{
 						field: "geometry",
-						errors: [
-							"Route must have positive length and duration; existing checkpoints must remain within 50 meters and within the route duration",
-						],
+						errors: ["Route must have positive length and duration"],
 					},
 				],
 			});
 		}
-		await this.query(
-			`UPDATE "checkpoints" checkpoint
-			 SET "route_position" = ST_LineLocatePoint(route."route_geom"::geometry, checkpoint."location"::geometry),
-				 "updated_at" = now()
-			 FROM "trekking_routes" route
-			 WHERE route."id" = $1 AND checkpoint."route_id" = route."id"`,
-			[routeId]
-		);
 		return toResponse(rows[0]);
 	}
 

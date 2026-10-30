@@ -1,180 +1,135 @@
-# CTMS-010 — Create Trekking Route on Map
+# CTMS-010 Create and Edit Trekking Route with Safety Analysis
 
-## 1. Overview
+## 1 Overview
 
-Story: CTMS-010
+Epic: Trekking Route and Checkpoint Management. Actor: authenticated Host. Priority: Must Have.
 
-Epic: EPIC 2. Trekking Route and Checkpoint Management
+Host creates an internal DRAFT Trekking Route by drawing a WGS84 LineString, entering metadata and reviewing automatically retrieved safety information. When editing an owned DRAFT route, unsaved geometry is analyzed without saving it first. Safety remains decision support and does not create a new approval or route-publication flow.
 
-Use Case: Create Trekking Route on Map
+This revision implements the supplied `CTMS_Route_Safety_Spec_v2.docx`. Business-rule changes are recorded in [Route Safety v2 rules](../../docs/business-rules/route-safety-v2.md); the technical contract is in [Route Safety v2](../../docs/features/route-safety-v2.md).
 
-Priority: Must Have
+## 2 Scope
 
-Goal: Allow an authorized Host to create an internal Trekking Route with valid ownership and route geometry for downstream route-management workflows.
+In scope:
 
-Backlog story:
-As a Host, I want to create a trekking route on a map so I can define the route used by later checkpoint, approval, and Trip workflows.
+- Host create/update workflow, metadata validation and route ownership. Saving, submitting and approving a Route do not require or generate start/finish checkpoints or waypoints.
+- Automatic safety preview after route geometry changes.
+- Unified external, Host-defined and authorized Trip-incident features.
+- PostGIS proximity/intersection/distance and independent lifecycle evaluation.
+- Source, severity, observed/issued/fetched/validity times, verification and position accuracy in the UI.
+- Controlled Admin import from explicitly approved sources with stable identity and quarantine.
 
-Acceptance Criteria:
+Out of scope:
 
-| Source  | Criterion                                                                                                                      |
-| ------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| PB AC-1 | Authorized Host can create a Trekking Route using supported route data.                                                        |
-| PB AC-2 | Unauthorized or invalid route creation does not produce a successful route.                                                    |
-| PB AC-3 | Route ownership and referenced data are validated by the backend.                                                              |
-| PB AC-4 | Created Route remains an internal operational resource rather than becoming Camper-public content merely because it is active. |
+- Trip start/finish selection and waypoint planning. These belong to Create Trip and will be refactored separately.
+- Altering the reporter role or authoritative state of CTMS-049 incidents.
+- Replacing Host danger-zone management or its DRAFT/audit rules.
+- Automatically changing route geometry/status, blocking save or registration, or certifying a route safe.
+- Public Camper route browsing, independent scientific forecasts or automatic rerouting.
+- Unapproved source scraping or bypassing provider authentication.
+- Claiming water availability or potability from base geography.
 
-## 2. Scope
+## 3 Actors and authorization
 
-### In Scope
+The backend enforces Host role for analysis. A saved `routeId` must exist and belong to the Host; supplied geometry can represent unsaved edits. Without `routeId`, preview is supported, but cannot expose another Host's route zones or incidents. Trip incidents are read only through Trips owned by the requesting Host and, for saved routes, matching that route. Camper receives no new permissions.
 
-- Authorize Host route creation.
-- Validate Host/business scope.
-- Validate required route fields.
-- Persist route geometry.
-- Persist start location.
-- Create internal Trekking Route resource.
+Admin alone may call controlled import. A source must appear in `ROUTE_SAFETY_APPROVED_SOURCES` and each import supplies a permission reference. This is a deployment gate, not evidence that a readable endpoint automatically permits reuse.
 
-### Out of Scope
+## 4 Preconditions and dependencies
 
-- Creating checkpoints; downstream story.
-- Route approval.
-- Hazard/shelter management.
-- Trip creation.
-- Camper public route browsing.
-- Automatic duration calculation unless defined by another approved story/source.
+Existing authenticated active account, route authorization and PostGIS database are required. MapLibre remains the renderer. After a valid geometry change is debounced, analysis collects current NCHMF warnings, VNDMS hazard events and mapped OSM water resources. Panning alone does not trigger collection. External sources may initially be empty; this must not stop route creation.
 
-## 3. Actors & Authorization
+## 5 Business rules
 
-Primary actor: Host.
+| Rule | Contract |
+| --- | --- |
+| BR-027 clarified | Host ownership; name, optional description, non-zero LineString(4326), computed positive length, difficulty, positive manually entered duration, DRAFT status and timestamps. Endpoints derive from line coordinates. |
+| BR-172 and BR-202 retained | Backend access authority; Route remains internal even when active. |
+| BR-174 and BR-188 retained | Validate all input and use explicit timezone timestamps. |
+| BR-191 and BR-212 retained | Preserve audits and update contract, tests and data documentation together. |
+| BR-472 | Role and saved-route ownership for analysis. |
+| BR-473 | Separate observation, issue, fetch and validity times; history never becomes current by refetching. |
+| BR-474 | Canonical provenance, geometry role, verification and independent position accuracy. |
+| BR-475 | Longitude/latitude GeoJSON; valid route; geography-meter proximity; segment/area intersection. |
+| BR-476 | Non-blocking decision support, UNKNOWN for no evidence, explicit partial coverage. |
+| BR-477 | Preserve Host danger-zone ownership, DRAFT restriction and audits. |
+| BR-478 | Approved Admin import, idempotent identity, no old overwrite, invalid quarantine. |
+| BR-479 | Read authoritative incidents within existing Trip authorization; do not fabricate positions. |
+| BR-480 | Debounce, bounded response, cache isolation, no stale response on changed geometry, stable map source. |
+| BR-481 | Resource presence does not imply availability or drinking safety. |
 
-Host must be authenticated and authorized to create the Route within the relevant business scope.
+## 6 Route and safety lifecycle
 
-Backend authorization is authoritative.
+Route: no route → valid authorized creation → DRAFT. Ownership and lifecycle rules for editing, submitting, approving, closing and reopening remain enforced. Checkpoint presence/order is not a Route approval requirement. Analysis is read-only and cannot transition Route status.
 
-## 4. Preconditions & Dependencies
+Safety: explicit provider validity is authoritative; expiry at the deadline is EXPIRED and future validity is SCHEDULED. BASE_HISTORICAL stays HISTORICAL. For records without provider expiry, use the configured maximum age from issued/observed time; unknown time yields UNKNOWN, old time yields STALE. `fetchedAt` is not the freshness anchor. Existing resolved/closed incident state is preserved in the view. Host-defined zones are active configured route context, without inventing an observation verification.
 
-Dependencies: CTMS-006.
+## 7 Main flow
 
-Preconditions:
+1. Host opens Create or Edit Route and enters route metadata.
+2. Host draws or changes the reusable route line; its distance is displayed. Drawing vertices are geometry controls, not Trip waypoints.
+3. After 500 ms without geometry change, the UI requests analysis for the exact geometry.
+4. Backend validates Host context, saved-route ownership and geometry.
+5. PostGIS finds relevant live and stored features within the configured proximity of the complete route.
+6. Analysis merges external records, selected route's Host zones and authorized Trip incidents, then computes lifecycle.
+7. Backend returns canonical GeoJSON and a summary. Only ACTIVE non-resource evidence contributes to the risk maximum.
+8. MapLibre updates a stable source with `setData`; Host can expand details to review source, time, lifecycle, verification and distance.
+9. Further drawing hides the previous geometry's result until a matching analysis arrives.
+10. Host may adjust the route, then uses the existing save/update workflow. Analysis error or missing data cannot block saving.
 
-- Host is authenticated.
-- Host is authorized for the target business scope.
-- Referenced records exist.
-- Required route data is valid.
+## 8 Data and invariants
 
-## 5. Business Rules
+Route is geography LineString with SRID 4326. Safety geometries support Point, LineString, Polygon and MultiPolygon. The current Host-zone write contract remains Point/Polygon. Canonical coordinate order is `[longitude, latitude]`.
 
-| BR     | Rule                                                                                                                                                                                                                                                                                                                |
-| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| BR-027 | A Trekking Route is owned by a Host through route.host_id and must store, at minimum, name, route_geom as LineString(4326), start_location, end_location, distance_km > 0, difficulty, estimated_duration > 0, porter_required, version, and status. Route-management authorization must be based on route.host_id. |
-| BR-172 | Access control must be enforced by the backend using role, ownership, and business scope. Hiding or disabling functionality in the UI is not a substitute for backend authorization.                                                                                                                                |
-| BR-174 | All input must be validated for required fields, data type, format, length, enum membership, and cross-field relationships before processing.                                                                                                                                                                       |
-| BR-183 | Every data relationship must reference an existing, valid record. Child records must not be created for a resource outside the correct business scope.                                                                                                                                                              |
-| BR-188 | Absolute timestamps must be stored as timestamptz. Pure calendar dates use date, and time-of-day values use time where defined by schema. APIs must transmit timezone/offset explicitly, and the UI must display values using the configured timezone.                                                              |
-| BR-199 | APIs must use consistent error semantics: 401 for authentication failures, 403 for insufficient authorization, 404 for not found, 409 for business conflicts, and 422 for invalid input.                                                                                                                            |
-| BR-200 | Error messages must clearly describe the problem and the user action required, while never exposing stack traces, secrets, or resources the user is not authorized to see.                                                                                                                                          |
-| BR-202 | List/public endpoints may return only resources in states permitted for public exposure. Route is an internal operational resource and must not provide Camper-facing public browse/detail access even when route.status = active.                                                                                  |
-| BR-212 | Any change to a Business Rule, enum, state transition, or API contract must be reflected in the specification, test cases, and data documentation before the work is considered Done.                                                                                                                               |
-| BR-213 | Every Business Rule must have at least one valid-path test and one violation-path test. Concurrency, idempotency, and transaction rules require integration or E2E coverage.                                                                                                                                        |
+External data is stored separately in `external_safety_features`; the unique key is `(source, external_id)`. Invalid imports are retained in `safety_import_rejections`. Existing `route_danger_zones` and `trip_incidents` are queried without duplication or lifecycle mutation. Timestamps are timestamptz and API output includes UTC offset. A historical event, an administrative warning area and a physical incident footprint must remain distinguishable.
 
-## 6. State & Lifecycle
+## 9 API contract
 
-No Route
-→ authorized valid creation
-→ internal Trekking Route created.
+- Existing `POST /api/trekking-routes` and DRAFT update contract remain unchanged.
+- `POST /api/route-safety/analyze`: `{ routeId?, geometry }`.
+- Response: `riskLevel`, `summary`, `features` FeatureCollection, `analyzedAt`, `dataVersion`, `proximityMeters`, `truncated`, `coverage: PARTIAL`.
+- `POST /api/route-safety/import`: Admin-only controlled import of up to 1000 canonical records with source and permission reference. Returns accepted/rejected/unchanged counts.
+- Analysis returns at most 500 features and flags truncation. Summary/risk describe returned evidence, never complete coverage of every risk on the route.
+- Provider-specific raw payload, credentials and internal import errors are not part of the frontend contract.
 
-Invalid/unauthorized creation:
-No Route
-→ rejected
-→ no Route created.
+Defaults are 300 m Point proximity, 360-minute current-data fallback age and 1440-minute field-incident fallback age, configurable on the backend. These are product parameters and are not scientific safety standards. UI refresh is 60 seconds; this is not a promise that the source updates every minute.
 
-This story does not define route approval/publication lifecycle.
+## 10 Error and edge cases
 
-## 7. Business Flow
+| Case | Behavior |
+| --- | --- |
+| No authentication or wrong role | 401 or 403; no analysis data exposed. |
+| Saved route missing or owned by another Host | 404 or 403 before spatial queries. |
+| Non-LineString, out-of-range coordinates, zero-length route or more than 10000 positions | 422; no write. |
+| Empty safety store or far-away route | Empty FeatureCollection and UNKNOWN; no absolute safe message. |
+| Expired, stale or historical feature | May remain labeled context; excluded from active warning/risk calculation. |
+| Provider unavailable | Stored data keeps its original time; fetching or rendering cannot renew it. |
+| Invalid import geometry/time or duplicate identity | Quarantine invalid records; upsert valid identities; preserve valid newer observations. |
+| Incident location absent | Omit it from spatial results; do not infer a position from Trip/route. |
+| Host changes route during request | Abort or discard prior geometry result; no stale map overlay. |
+| Safety request fails | Explain failure; preserve route form and allow save. |
+| Route intersects an NCHMF commune | Label administrative warning area, not a confirmed physical landslide footprint. |
 
-1. Host opens route creation.
-2. Host provides supported route metadata and map geometry.
-3. Backend authenticates Host.
-4. Backend authorizes Host/business scope.
-5. Backend validates referenced records.
-6. Backend validates required route fields.
-7. Backend validates `route_geom` according to the supported LineString contract.
-8. System persists the Route atomically.
-9. Route becomes available to downstream internal checkpoint/approval workflows.
-10. Route is not exposed as Camper-public browse/detail solely because its status is active.
+## 11 Acceptance and test matrix
 
-## 8. Data & Invariants
+| Scenario | Expected | Test |
+| --- | --- | --- |
+| Authorized creation/edit | Existing DRAFT route and form behavior remain correct | Existing route unit/UI suites |
+| Own versus other Host route | Only owned saved route analyzes | Service and HTTP integration |
+| Cross active Polygon/MultiPolygon or LineString | Relevant feature returned with intersection metadata | Real PostGIS and browser overlay tests |
+| Point near middle of line versus far point | Meter threshold applies to full route | Real PostGIS |
+| Current versus expired/historical/resource record | Only appropriate active evidence affects risk | Lifecycle/service/PostGIS tests |
+| Host zone and authorized Trip incident | Unified features without duplicating source records | Real PostGIS |
+| Repeated controlled import and malformed records | Stable identity, independent quarantine | Real PostGIS/import unit tests |
+| Debounced geometry change with late response | Correct line's result only | Hook/browser tests |
+| Provider or analysis failure | No fabricated current data and no save block | Unit/UI/browser tests |
 
-Concrete data concepts supported by the mapped source include:
+## 12 Delivery and deployment
 
-- `route.host_id`
-- `name`
-- `route_geom`
-- LineString geometry
-- `start_location`
+The Host preview collects NCHMF administrative warning areas, VNDMS event points and OSM mapped water resources during analysis. Each source reports availability independently. Controlled import remains available for additional historical/resource context. See docs/features/route-safety-v2.md for public endpoints, geometry semantics, limits and source timestamp rules.
 
-Invariants:
+For reproducible configuration, schema, API examples and operational limits, see `docs/features/route-safety-v2.md`. Related CTMS-014 and CTMS-049 contracts remain authoritative for their write flows. This revision supersedes the prior CTMS-010 exclusion of hazard analysis; it does not absorb their management stories.
 
-- Route belongs to an authorized Host/business scope.
-- Referenced records must exist.
-- Invalid geometry must not be persisted as a successful Route.
-- Failed creation leaves no partially created authoritative Route.
-- Route remains an internal operational resource.
+## Scope completion amendment — 2026-10-30
 
-## 9. API / Integration Contract
-
-TBD — Technical Design.
-
-Technical Design may define:
-
-- Map provider.
-- Geometry DTO.
-- Coordinate representation.
-- Endpoint.
-- Persistence type.
-- Geometry validation implementation.
-
-These technical choices must not introduce new business requirements without an approved source.
-
-## 10. Error & Edge Cases
-
-| Case                                                      | Expected Behavior                                   |
-| --------------------------------------------------------- | --------------------------------------------------- |
-| Non-Host attempts creation                                | Reject.                                             |
-| Host lacks business scope                                 | Reject.                                             |
-| Invalid `host_id` relationship                            | Reject.                                             |
-| Required route field missing                              | Reject before persistence.                          |
-| `route_geom` invalid                                      | Reject.                                             |
-| Unsupported geometry type                                 | Reject.                                             |
-| Persistence fails                                         | No successful Route state.                          |
-| Client requests Route through Camper-public browse/detail | Do not expose Route as public content under BR-202. |
-
-## 11. Acceptance & Test Matrix
-
-| Source           | Scenario                                     | Expected Result                                    | Test Type   |
-| ---------------- | -------------------------------------------- | -------------------------------------------------- | ----------- |
-| PB AC-1 / BR-027 | Authorized Host + valid route data           | Route created.                                     | E2E         |
-| PB AC-2 / BR-172 | Unauthorized actor                           | Rejected; no Route created.                        | Security    |
-| BR-174           | Missing required route data                  | Rejected before persistence.                       | Boundary    |
-| BR-183           | Invalid Host/business relationship           | Rejected.                                          | Integration |
-| BR-027           | Invalid/non-LineString route geometry        | Rejected according to supported geometry contract. | Boundary    |
-| PB AC-4 / BR-202 | Query Route from Camper-public browse/detail | Route not publicly exposed.                        | Integration |
-
-## 12. Open Decisions
-
-BR-027 in the current Business Rules source contains malformed/generated wording.
-
-The source clearly identifies `route.host_id`, Host, `name`, `route_geom`, LineString and `start_location`, so those concepts are retained.
-
-The source does not support inventing:
-
-- minimum/maximum route distance;
-- minimum number of route points;
-- automatic duration calculation;
-- elevation constraints;
-- route self-intersection policy;
-- map provider;
-- coordinate precision.
-
-Those remain outside this spec until defined by an approved Business Rule, PB AC, or Technical Design where technically appropriate.
+Host route creation must show three independent groups: dangerous areas, nearby hazard points, and nearby mapped water. Sources are NCHMF, VNDMS and OpenStreetMap respectively. Results retain real source geometries and source times, include distance to the full route, and refresh after geometry changes. Water data is unverified map context; ended VNDMS events are labeled as ended/history. A failed source must be visible independently of successful sources. The same behavior applies to unsaved edits; ownership checks precede all provider calls.

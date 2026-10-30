@@ -12,7 +12,6 @@ import {
 	MapPinned,
 	Pencil,
 	RefreshCw,
-	Route,
 	Users,
 } from "lucide-react";
 import type { KeyboardEvent } from "react";
@@ -92,7 +91,6 @@ function formatDateRange(startsAt: string, endsAt: string): string {
 
 export function HostMyTripsPanel({
 	onCreateTrip,
-	onCreateTrekkingRoute,
 	onViewTrekkingRoutes,
 	onNavigateToTripDetail,
 	onEditTripDraft,
@@ -200,17 +198,7 @@ export function HostMyTripsPanel({
 							<span>Tạo chuyến đi</span>
 						</Button>
 					)}
-					{onCreateTrekkingRoute && (
-						<Button
-							type="button"
-							variant="outline"
-							onClick={onCreateTrekkingRoute}
-							className="gap-2 text-xs font-bold"
-						>
-							<Route className="size-4" />
-							<span>Tạo tuyến trekking</span>
-						</Button>
-					)}
+
 					{onViewTrekkingRoutes && (
 						<Button
 							type="button"

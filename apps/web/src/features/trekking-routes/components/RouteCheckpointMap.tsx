@@ -38,6 +38,7 @@ interface Props {
 	proposedHazardRadiusMeters?: number;
 	polygonVertices?: Position[];
 	disabled?: boolean;
+	showFitRouteControl?: boolean;
 	onSelectLocation: (location: GeoJsonPoint) => void;
 }
 
@@ -73,6 +74,7 @@ export function RouteCheckpointMap({
 	proposedHazardRadiusMeters = 0,
 	polygonVertices = EMPTY_VERTICES,
 	disabled,
+	showFitRouteControl = true,
 	onSelectLocation,
 }: Props) {
 	const containerRef = useRef<HTMLDivElement | null>(null);
@@ -611,16 +613,18 @@ export function RouteCheckpointMap({
 						</button>
 					</>
 				)}
-				<button
-					type="button"
-					onClick={() => {
-						if (useFallback) viewport.reset();
-						else if (mapRef.current) fitRoute(mapRef.current, safetyPositions);
-					}}
-					className="rounded-lg bg-white px-3 py-2 text-xs font-bold shadow"
-				>
-					Xem toàn tuyến
-				</button>
+				{showFitRouteControl && (
+					<button
+						type="button"
+						onClick={() => {
+							if (useFallback) viewport.reset();
+							else if (mapRef.current) fitRoute(mapRef.current, safetyPositions);
+						}}
+						className="rounded-lg bg-white px-3 py-2 text-xs font-bold shadow"
+					>
+						Xem toàn tuyến
+					</button>
+				)}
 			</div>
 			{!styleUrl && (
 				<span className="absolute top-3 left-3 rounded-lg bg-white/90 px-3 py-2 text-xs font-bold">

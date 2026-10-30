@@ -6,10 +6,13 @@ import { CreateTrekkingRoutePage } from "./CreateTrekkingRoutePage";
 
 vi.mock("../hooks/useCreateTrekkingRoute", () => ({ useCreateTrekkingRoute: vi.fn() }));
 vi.mock("../hooks/useTrekkingRoutes", () => ({ useTrekkingRoutes: vi.fn() }));
-vi.mock("../components/RouteCheckpointsPanel", () => ({
-	RouteCheckpointsPanel: ({ route }: { route: { id: string } }) => (
-		<div data-testid="inline-checkpoints">{route.id}</div>
+vi.mock("../components/RouteSafetyPreview", () => ({
+	RouteSafetyPreview: ({ routeId }: { routeId: string }) => (
+		<div data-testid="safety-preview">{routeId}</div>
 	),
+}));
+vi.mock("../components/RouteSubmissionPanel", () => ({
+	RouteSubmissionPanel: () => <button type="button">Gửi duyệt</button>,
 }));
 vi.mock("../components/CreateTrekkingRouteForm", () => ({
 	CreateTrekkingRouteForm: () => <div data-testid="route-form" />,
@@ -35,7 +38,7 @@ describe("CreateTrekkingRoutePage", () => {
 		expect(screen.getByTestId("route-form")).toBeInTheDocument();
 	});
 
-	it("goes straight to picking locations after success", () => {
+	it("shows route safety and submission after saving without a waypoint step", () => {
 		vi.mocked(useCreateTrekkingRoute).mockReturnValue({
 			...creation,
 			createdRoute: {
@@ -47,7 +50,9 @@ describe("CreateTrekkingRoutePage", () => {
 			},
 		} as never);
 		render(<CreateTrekkingRoutePage />);
-		expect(screen.getByTestId("inline-checkpoints")).toHaveTextContent("saved-route");
+		expect(screen.getByTestId("safety-preview")).toHaveTextContent("saved-route");
+		expect(screen.queryByTestId("route-checkpoints-panel")).not.toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Gửi duyệt" })).toBeEnabled();
 		expect(screen.queryByRole("button", { name: "Chỉnh sửa tuyến nháp" })).not.toBeInTheDocument();
 	});
 
@@ -70,7 +75,7 @@ describe("CreateTrekkingRoutePage", () => {
 		render(<CreateTrekkingRoutePage routeId="saved-route" onViewRouteDetail={onViewRouteDetail} />);
 		expect(screen.getByRole("heading", { name: "Chỉnh sửa tuyến trekking" })).toBeInTheDocument();
 		expect(screen.getByTestId("route-form")).toBeInTheDocument();
-		expect(screen.queryByTestId("inline-checkpoints")).not.toBeInTheDocument();
+		expect(screen.queryByTestId("safety-preview")).not.toBeInTheDocument();
 		expect(screen.queryByRole("button", { name: "Chỉnh sửa tuyến nháp" })).not.toBeInTheDocument();
 		fireEvent.click(screen.getByRole("button", { name: "Quay về chi tiết tuyến" }));
 		expect(onViewRouteDetail).toHaveBeenCalledWith("saved-route");

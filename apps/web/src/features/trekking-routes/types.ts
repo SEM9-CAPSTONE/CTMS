@@ -3,6 +3,12 @@ export type RouteDifficulty = (typeof ROUTE_DIFFICULTIES)[number];
 
 export type RouteStatus = "draft" | "pending_approval" | "active" | "closed";
 export type RouteStatusFilter = RouteStatus | "all";
+export type RouteSort = "newest" | "oldest" | "name";
+export type RouteStatusCounts = Record<RouteStatusFilter, number>;
+export interface RouteListFilters {
+	search?: string;
+	sort?: RouteSort;
+}
 export type RouteLifecycleAction = "close" | "reopen";
 export type Position = [number, number];
 
@@ -99,6 +105,7 @@ export interface TrekkingRoutesPagination {
 export interface PaginatedTrekkingRoutesResponse {
 	items: CreatedTrekkingRoute[];
 	pagination: TrekkingRoutesPagination;
+	statusCounts?: RouteStatusCounts;
 }
 
 export interface RouteStatusReasonInput {

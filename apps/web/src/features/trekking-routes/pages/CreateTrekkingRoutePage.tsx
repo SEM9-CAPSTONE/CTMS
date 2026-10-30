@@ -79,8 +79,8 @@ function CreateTrekkingRoute({
 	if (createdRoute) {
 		return (
 			<PageShell
-				title="Hoàn thiện tuyến đường"
-				subtitle="Đã lưu tuyến nháp. Thêm vị trí và khu vực nguy hiểm bên dưới, rồi gửi duyệt khi đã sẵn sàng."
+				title="Tuyến đường đã lưu"
+				subtitle="Xem đường đi và thông tin nguy hiểm, nguồn nước quanh tuyến trước khi gửi duyệt."
 				onBack={onBackHome}
 				backLabel="Quay về Host Dashboard"
 			>
@@ -131,7 +131,7 @@ function EditTrekkingRoute({ routeId, onBack }: { routeId: string; onBack?: () =
 	return (
 		<PageShell
 			title="Chỉnh sửa tuyến trekking"
-			subtitle="Cập nhật thông tin, đường đi, các vị trí trên tuyến, rồi gửi duyệt khi đã sẵn sàng."
+			subtitle="Điều chỉnh đường đi và xem thông tin nguy hiểm, nguồn nước quanh tuyến."
 			onBack={onBack}
 			backLabel="Quay về chi tiết tuyến"
 		>

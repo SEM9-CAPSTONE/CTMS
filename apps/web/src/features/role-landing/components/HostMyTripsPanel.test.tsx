@@ -189,9 +189,8 @@ describe("HostMyTripsPanel", () => {
 		fireEvent.click(createTripBtn);
 		expect(onCreateTrip).toHaveBeenCalled();
 
-		const createRouteBtn = screen.getByRole("button", { name: /tạo tuyến trekking/i });
-		fireEvent.click(createRouteBtn);
-		expect(onCreateTrekkingRoute).toHaveBeenCalled();
+		expect(screen.queryByRole("button", { name: /tạo tuyến trekking/i })).not.toBeInTheDocument();
+		expect(onCreateTrekkingRoute).not.toHaveBeenCalled();
 
 		const viewRoutesBtn = screen.getByRole("button", { name: /quản lý tuyến/i });
 		fireEvent.click(viewRoutesBtn);
