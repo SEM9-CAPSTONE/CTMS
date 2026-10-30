@@ -63,4 +63,9 @@ export class PaginatedTrekkingRoutesResponseDto {
 
 	@ApiProperty({ type: TrekkingRoutesPaginationDto })
 	pagination!: TrekkingRoutesPaginationDto;
+
+	@ApiPropertyOptional({
+		description: "Counts for the current Host and search, across all statuses",
+	})
+	statusCounts?: Record<"all" | "draft" | "pending_approval" | "active" | "closed", number>;
 }

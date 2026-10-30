@@ -1,6 +1,6 @@
 # Database Table Descriptions
 
-The following table provides the technical and functional descriptions for all 43 database tables in the CTMS (Camping & Trekking Management System) schema.
+The following baseline table provides technical and functional descriptions for the CTMS schema. Feature-specific additions are documented below and must be read together with their migrations.
 
 | No | Table | Description |
 | :---: | :--- | :--- |
@@ -9,9 +9,9 @@ The following table provides the technical and functional descriptions for all 4
 | **03** | `devices` | Tracks user mobile devices, registered push notification tokens, and last active timestamps for push delivery and session management. |
 | **04** | `refresh_tokens` | Manages hashed session refresh tokens per user device to support secure JWT authentication cycles and token revocation. |
 | **05** | `otp_codes` | Handles temporary one-time passcodes for authentication verification (registration, phone verification, password reset) with expiry and attempt counting. |
-| **06** | `trekking_routes` | Defines geographic trekking trails with PostGIS spatial line geometries (LineString/Point), elevation profiles, distance, difficulty ratings, and approval statuses. |
+| **06** | `trekking_routes` | Host-owned internal routes with geography LineString SRID 4326, computed length, difficulty, manually entered duration and approval status. Start and finish derive from line coordinates. |
 | **07** | `checkpoints` | Defines designated milestone points, rest areas, and spatial monitoring coordinates along a specific trekking route. |
-| **08** | `route_hazard_areas` | Stores spatial hazard polygons (landslides, flash flood zones, cliffs) along trekking trails with severity levels to issue safety alerts to hikers. |
+| **08** | `route_danger_zones` | Host-defined Point-with-radius or Polygon route context. The implementation name supersedes the earlier conceptual name route_hazard_areas; ownership, DRAFT creation and audits remain in the route domain. |
 | **09** | `trips` | Manages scheduled camping and trekking expeditions organized by Hosts based on approved routes, including capacity, pricing, schedules, and policies. |
 | **10** | `trip_waypoints` | Defines planned operational stops and itinerary milestones during a trip (start, meal, checkpoint, overnight, finish) with scheduled arrival times. |
 | **11** | `trip_media` | Catalogs promotional media, route imagery, and video URLs associated with specific trips for user catalog browsing. |
@@ -47,3 +47,15 @@ The following table provides the technical and functional descriptions for all 4
 | **41** | `notifications` | Manages multi-channel user alerts (trip updates, booking deadlines, weather warnings, SOS broadcast alerts) and delivery/read statuses. |
 | **42** | `audit_logs` | Provides immutable security audit logging of critical actions, entity changes, actor identities, and metadata for compliance and traceability. |
 | **43** | `safety_events` | Stores route-deviation and GPS-quality transitions detected on hiker devices (OFF_ROUTE, ON_ROUTE_RECOVERED, GPS_DEGRADED, GPS_RESTORED) with the original client context (event time, location, accuracy, distance to route, offline flag), the authoritative route and route/package/config versions, and the server receipt time; idempotent by client UUID. |
+
+
+## Route Safety v2 additions
+
+Migration `1793270000000-CreateExternalSafetyFeatures` adds the following independent external-data store. Existing Route and Incident writes are unchanged. Migration `1793270000001-IndexIncidentSafetyLocation` adds a partial geography GiST index to positioned Trip incidents.
+
+| Table | Data and constraints |
+| --- | --- |
+| `external_safety_features` | UUID id; unique `(source, external_id)`; canonical source type, source reference and permission reference; hazard type/severity; nonempty valid geography Point/LineString/Polygon/MultiPolygon SRID 4326; geometry role; description; observed/issued/fetched/valid-from/valid-until/updated timestamptz; lifecycle/verification; optional accuracy meters; raw JSON. GiST geometry and validity indexes. |
+| `safety_import_rejections` | UUID id; source and permission reference; input record index; sanitized reason; raw JSON; rejection timestamptz. Quarantines invalid records without aborting valid siblings. Access remains server-side/Admin. |
+
+Freshness is calculated on read using the provider validity or configured age from observation/issue time. `fetched_at` cannot renew a historical/current event. The canonical analysis view merges these rows with `route_danger_zones` and authorized `trip_incidents` without creating copies. See `docs/business-rules/route-safety-v2.md` BR-472 through BR-481.

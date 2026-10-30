@@ -32,6 +32,7 @@ export function HostTripMap({
 				selectedLocation={trip.meetingPoint}
 				radiusMeters={0}
 				disabled
+				showFitRouteControl={false}
 				onSelectLocation={ignoreLocationSelection}
 			/>
 		</section>

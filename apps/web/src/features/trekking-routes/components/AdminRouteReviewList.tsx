@@ -68,7 +68,7 @@ export function AdminRouteReviewList({ items, selectedId, onSelect }: Props) {
 						</span>
 						<span className="flex items-center gap-1">
 							<MapPinned className="size-3.5" />
-							{route.checkpoints.length} checkpoint
+							{route.geometry.coordinates.length} đỉnh vẽ
 						</span>
 					</div>
 				</button>

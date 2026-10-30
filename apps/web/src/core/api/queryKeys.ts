@@ -1,4 +1,8 @@
 export const queryKeys = {
+	routeSafety: {
+		analyze: (hostId: string, routeId: string | undefined, geometry: string, source?: string) =>
+			["route-safety", hostId, routeId ?? "preview", geometry, source ?? "all"] as const,
+	},
 	hostOverview: {
 		forHost: (hostId: string) => ["host-overview", hostId] as const,
 		routeName: (hostId: string, routeId: string) =>
@@ -36,6 +40,8 @@ export const queryKeys = {
 		refunds: (bookingId: string) => ["bookings", "refunds", bookingId] as const,
 	},
 	trekking: {
+		hostList: (hostId: string, filters: Record<string, string | number>) =>
+			["trekking-routes", "host-list", hostId, filters] as const,
 		hostTripMap: (hostId: string, routeId: string) =>
 			["trekking-routes", "host-trip-map", hostId, routeId] as const,
 		all: ["trekking-routes"] as const,

@@ -70,7 +70,9 @@ describe("trekking route checkpoint update (integration, real Postgres)", () => 
 		}
 	});
 
-	async function createHost(): Promise<{ id: string; token: string }> {
+	async function createUser(
+		role: UserRole = UserRole.HOST
+	): Promise<{ id: string; token: string }> {
 		const id = randomUUID();
 		const passwordHash = await hash("S3curePass!", 10);
 		await dataSource.query(
@@ -78,21 +80,14 @@ describe("trekking route checkpoint update (integration, real Postgres)", () => 
 			INSERT INTO "users" ("id", "email", "password_hash", "role", "status", "full_name")
 			VALUES ($1, $2, $3, $4, $5, $6)
 			`,
-			[
-				id,
-				`checkpoint-${id}@example.com`,
-				passwordHash,
-				UserRole.HOST,
-				UserStatus.ACTIVE,
-				"Checkpoint Host",
-			]
+			[id, `checkpoint-${id}@example.com`, passwordHash, role, UserStatus.ACTIVE, "Checkpoint Host"]
 		);
 		await dataSource.query('INSERT INTO "user_roles" ("user_id", "role") VALUES ($1, $2)', [
 			id,
-			UserRole.HOST,
+			role,
 		]);
 		userIds.push(id);
-		return { id, token: jwtService.sign({ sub: id, roles: [UserRole.HOST] }) };
+		return { id, token: jwtService.sign({ sub: id, roles: [role] }) };
 	}
 
 	async function createDraftRoute(hostId: string): Promise<string> {
@@ -152,9 +147,131 @@ describe("trekking route checkpoint update (integration, real Postgres)", () => 
 		};
 	}
 
-	it("updates an owned draft, recomputes length/positions, and protects ownership and status", async () => {
-		const host = await createHost();
-		const other = await createHost();
+	it("paginates, searches and sorts Host routes with scoped status totals", async () => {
+		const host = await createUser();
+		const other = await createUser();
+		for (let index = 1; index <= 8; index++) {
+			const routeId = await createDraftRoute(host.id);
+			await dataSource.query(
+				"UPDATE trekking_routes SET name=$2, status=$3, created_at=$4 WHERE id=$1",
+				[
+					routeId,
+					`Ridge ${index}`,
+					index % 2 ? "draft" : "active",
+					`2026-10-${String(index).padStart(2, "0")}T00:00:00Z`,
+				]
+			);
+		}
+		const foreignId = await createDraftRoute(other.id);
+		await dataSource.query("UPDATE trekking_routes SET name=$2 WHERE id=$1", [
+			foreignId,
+			"Ridge 1 foreign",
+		]);
+		const list = (query: Record<string, string | number>) =>
+			request(app.getHttpServer())
+				.get("/api/trekking-routes/paginated")
+				.set("Authorization", `Bearer ${host.token}`)
+				.query(query)
+				.expect(200);
+		const first = await list({ limit: 6 });
+		expect(first.body.pagination).toMatchObject({ page: 1, limit: 6, total: 8, totalPages: 2 });
+		expect(first.body.statusCounts).toEqual({
+			all: 8,
+			draft: 4,
+			pending_approval: 0,
+			active: 4,
+			closed: 0,
+		});
+		expect(first.body.items).toHaveLength(6);
+		expect(first.body.items[0].name).toBe("Ridge 8");
+		const second = await list({ page: 2, limit: 6 });
+		expect(second.body.items.map((row: { name: string }) => row.name)).toEqual([
+			"Ridge 2",
+			"Ridge 1",
+		]);
+		const searched = await list({ search: "  ridge 1 ", limit: 6 });
+		expect(searched.body.items.map((row: { name: string }) => row.name)).toEqual(["Ridge 1"]);
+		expect(searched.body.statusCounts.all).toBe(1);
+		const active = await list({ status: "active", sort: "name", limit: 6 });
+		expect(active.body.items.map((row: { name: string }) => row.name)).toEqual([
+			"Ridge 2",
+			"Ridge 4",
+			"Ridge 6",
+			"Ridge 8",
+		]);
+		expect(active.body.pagination.total).toBe(4);
+		expect(active.body.statusCounts.all).toBe(8);
+		const literal = await list({ search: "%", limit: 6 });
+		expect(literal.body.items).toEqual([]);
+		expect(literal.body.pagination.total).toBe(0);
+	});
+
+	it("creates, edits and submits a route without creating any checkpoints", async () => {
+		const host = await createUser();
+		const created = await request(app.getHttpServer())
+			.post("/api/trekking-routes")
+			.set("Authorization", `Bearer ${host.token}`)
+			.send(routePayload())
+			.expect(201);
+		const routeId: string = created.body.id;
+		routeIds.push(routeId);
+		const assertNoCheckpoints = async () => {
+			const response = await request(app.getHttpServer())
+				.get(`/api/trekking-routes/${routeId}/checkpoints`)
+				.set("Authorization", `Bearer ${host.token}`)
+				.expect(200);
+			expect(response.body).toEqual([]);
+		};
+		await assertNoCheckpoints();
+		const moved = {
+			...routePayload(),
+			expectedDurationMinutes: 90,
+			geometry: {
+				type: "LineString",
+				coordinates: [
+					[108.3, 16.1],
+					[108.4, 16.2],
+				],
+			},
+		};
+		await request(app.getHttpServer())
+			.patch(`/api/trekking-routes/${routeId}`)
+			.set("Authorization", `Bearer ${host.token}`)
+			.send(moved)
+			.expect(200)
+			.expect(({ body }) => expect(body.geometry).toEqual(moved.geometry));
+		await assertNoCheckpoints();
+		await request(app.getHttpServer())
+			.patch(`/api/trekking-routes/${routeId}/submit-for-approval`)
+			.set("Authorization", `Bearer ${host.token}`)
+			.expect(200)
+			.expect(({ body }) => expect(body.status).toBe("pending_approval"));
+		await assertNoCheckpoints();
+		const admin = await createUser(UserRole.ADMIN);
+		await request(app.getHttpServer())
+			.patch(`/api/trekking-routes/${routeId}/review`)
+			.set("Authorization", `Bearer ${admin.token}`)
+			.send({ action: "approve" })
+			.expect(200)
+			.expect(({ body }) => expect(body.status).toBe("active"));
+		await assertNoCheckpoints();
+	});
+
+	it("submits an existing draft without endpoint checkpoints", async () => {
+		const host = await createUser();
+		const routeId = await createDraftRoute(host.id);
+		await request(app.getHttpServer())
+			.patch(`/api/trekking-routes/${routeId}/submit-for-approval`)
+			.set("Authorization", `Bearer ${host.token}`)
+			.expect(200)
+			.expect(({ body }) => expect(body.status).toBe("pending_approval"));
+		const rows = await dataSource.query("SELECT id FROM checkpoints WHERE route_id=$1", [routeId]);
+		expect(rows).toEqual([]);
+	});
+
+	it("updates route geometry and length while protecting ownership and status", async () => {
+		const host = await createUser();
+		const other = await createUser();
 		const routeId = await createDraftRoute(host.id);
 		await request(app.getHttpServer())
 			.patch(`/api/trekking-routes/${routeId}`)
@@ -200,8 +317,8 @@ describe("trekking route checkpoint update (integration, real Postgres)", () => 
 			.expect(200);
 	});
 
-	it("rejects radius overrides and incompatible geometry/duration without changing the draft", async () => {
-		const host = await createHost();
+	it("keeps legacy checkpoint data independent when route geometry and duration change", async () => {
+		const host = await createUser();
 		const routeId = await createDraftRoute(host.id);
 		await request(app.getHttpServer())
 			.post(`/api/trekking-routes/${routeId}/checkpoints`)
@@ -213,6 +330,9 @@ describe("trekking route checkpoint update (integration, real Postgres)", () => 
 			.set("Authorization", `Bearer ${host.token}`)
 			.send(checkpointPayload())
 			.expect(201);
+		const legacyBefore = await dataSource.query('SELECT * FROM "checkpoints" WHERE "route_id"=$1', [
+			routeId,
+		]);
 		for (const payload of [
 			{ ...routePayload(), expectedDurationMinutes: 1 },
 			{
@@ -230,20 +350,20 @@ describe("trekking route checkpoint update (integration, real Postgres)", () => 
 				.patch(`/api/trekking-routes/${routeId}`)
 				.set("Authorization", `Bearer ${host.token}`)
 				.send(payload)
-				.expect(422);
+				.expect(200);
 		}
-		const rows = await dataSource.query(
-			'SELECT "name", "expected_duration_minutes" FROM "trekking_routes" WHERE "id" = $1',
-			[routeId]
-		);
-		expect(rows[0]).toMatchObject({
-			name: `Checkpoint route ${routeId}`,
-			expected_duration_minutes: 240,
-		});
+		const legacyAfter = await dataSource.query('SELECT * FROM "checkpoints" WHERE "route_id"=$1', [
+			routeId,
+		]);
+		expect(legacyAfter).toEqual(legacyBefore);
+		await request(app.getHttpServer())
+			.patch(`/api/trekking-routes/${routeId}/submit-for-approval`)
+			.set("Authorization", `Bearer ${host.token}`)
+			.expect(200);
 	});
 
 	it("keeps POST working and PATCHes every editable field with derived route position and audit", async () => {
-		const host = await createHost();
+		const host = await createUser();
 		const routeId = await createDraftRoute(host.id);
 		const created = await request(app.getHttpServer())
 			.post(`/api/trekking-routes/${routeId}/checkpoints`)
@@ -286,7 +406,7 @@ describe("trekking route checkpoint update (integration, real Postgres)", () => 
 	});
 
 	it("rejects a moved point outside 50 meters and preserves the stored checkpoint", async () => {
-		const host = await createHost();
+		const host = await createUser();
 		const routeId = await createDraftRoute(host.id);
 		const created = await request(app.getHttpServer())
 			.post(`/api/trekking-routes/${routeId}/checkpoints`)

@@ -11,6 +11,7 @@ import type {
 	ReviewTrekkingRouteInput,
 	RouteCheckpoint,
 	RouteDangerZone,
+	RouteListFilters,
 	RouteStatusFilter,
 	RouteStatusReasonInput,
 	UpdateCheckpointInput,
@@ -42,12 +43,14 @@ export const trekkingRoutesService = {
 	listMinePaginated: (
 		page = 1,
 		limit = 20,
-		status: RouteStatusFilter = "all"
+		status: RouteStatusFilter = "all",
+		filters?: RouteListFilters
 	): Promise<PaginatedTrekkingRoutesResponse> =>
 		httpClient.get<PaginatedTrekkingRoutesResponse>(API_ENDPOINTS.TREKKING.PAGINATED_ROUTES, {
 			page,
 			limit,
 			status,
+			...filters,
 		}),
 	getMineById: (routeId: string): Promise<CreatedTrekkingRoute> =>
 		httpClient.get<CreatedTrekkingRoute>(API_ENDPOINTS.TREKKING.ROUTE_BY_ID(routeId)),

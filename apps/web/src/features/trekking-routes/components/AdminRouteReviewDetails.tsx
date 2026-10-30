@@ -1,5 +1,4 @@
 import type { AdminTrekkingRouteReview } from "../types";
-import { CheckpointList } from "./CheckpointList";
 import { RouteGeometryPreview } from "./RouteGeometryPreview";
 
 const OUTCOME_LABELS = {
@@ -67,15 +66,7 @@ export function AdminRouteReviewDetails({ route, onReview }: Props) {
 					</div>
 				</div>
 			</section>
-			<RouteGeometryPreview
-				geometry={route.geometry}
-				checkpoints={route.checkpoints}
-				dangerZones={route.dangerZones}
-			/>
-			<section className="rounded-2xl border border-[#e0ebe0] bg-white p-5 shadow-sm">
-				<h2 className="font-extrabold">Checkpoint theo thứ tự tuyến</h2>
-				<CheckpointList items={route.checkpoints} />
-			</section>
+			<RouteGeometryPreview geometry={route.geometry} dangerZones={route.dangerZones} />
 		</div>
 	);
 }

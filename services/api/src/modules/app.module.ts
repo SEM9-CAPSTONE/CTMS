@@ -13,6 +13,7 @@ import { IncidentsModule } from "./incidents/incidents.module";
 import { PorterLevelsModule } from "./porter-levels/porter-levels.module";
 import { ProfilesModule } from "./profiles/profiles.module";
 import { RealtimeModule } from "./realtime/realtime.module";
+import { RouteSafetyModule } from "./route-safety/route-safety.module";
 import { SafetyEventsModule } from "./safety-events/safety-events.module";
 import { SosModule } from "./sos/sos.module";
 import { SyncEvaluationModule } from "./sync-evaluation/sync-evaluation.module";
@@ -40,6 +41,7 @@ import { WeatherModule } from "./weather/weather.module";
 		ProfilesModule,
 		PorterLevelsModule,
 		RealtimeModule,
+		RouteSafetyModule,
 		SafetyEventsModule,
 		SosModule,
 		SyncEvaluationModule,

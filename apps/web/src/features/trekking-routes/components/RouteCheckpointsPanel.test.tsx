@@ -386,7 +386,7 @@ describe("RouteCheckpointsPanel", () => {
 		expect(screen.getByTestId("checkpoints-empty")).toBeInTheDocument();
 	});
 
-	it("passes loaded checkpoints to RouteSubmissionPanel", () => {
+	it("keeps route submission independent of legacy checkpoint loading", () => {
 		render(
 			<RouteCheckpointsPanel
 				route={route("route-one", "draft")}
@@ -396,9 +396,7 @@ describe("RouteCheckpointsPanel", () => {
 		);
 		expect(mockRouteSubmissionPanel).toHaveBeenCalledWith(
 			expect.objectContaining({
-				checkpoints: [checkpoint],
-				isLoadingCheckpoints: false,
-				checkpointError: "",
+				route: expect.objectContaining({ id: "route-one" }),
 			})
 		);
 	});

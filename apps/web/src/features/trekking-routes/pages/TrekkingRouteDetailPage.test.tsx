@@ -11,8 +11,8 @@ vi.mock("../hooks/useRouteCheckpoints", () => ({
 vi.mock("../hooks/useRouteDangerZones", () => ({
 	useRouteDangerZones: () => ({ items: [], isLoading: false, error: "", reload: vi.fn() }),
 }));
-vi.mock("../components/RouteGeometryPreview", () => ({
-	RouteGeometryPreview: () => <div data-testid="geometry-preview" />,
+vi.mock("../components/RouteSafetyPreview", () => ({
+	RouteSafetyPreview: () => <div data-testid="geometry-preview" />,
 }));
 vi.mock("../components/RouteStatusActionDialog", () => ({ RouteStatusActionDialog: () => null }));
 

@@ -38,6 +38,9 @@ describe("RouteCheckpointMap fallback", () => {
 		expect(map).toHaveAttribute("viewBox", "10 10 80 80");
 		fireEvent.click(screen.getByRole("button", { name: "Xem toàn tuyến" }));
 		expect(map).toHaveAttribute("viewBox", "0 0 100 100");
+		rerender(<RouteCheckpointMap {...props} showFitRouteControl={false} />);
+		expect(screen.queryByRole("button", { name: "Xem toàn tuyến" })).not.toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Phóng to bản đồ" })).toBeInTheDocument();
 	});
 
 	it("allows dragging the read-only map without changing checkpoint locations", () => {

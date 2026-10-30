@@ -8,6 +8,20 @@ async function validateQuery(payload: Record<string, unknown>) {
 }
 
 describe("ListTrekkingRoutesQueryDto", () => {
+	it("trims name search and accepts the three stable sort orders", async () => {
+		for (const sort of ["newest", "oldest", "name"]) {
+			const { dto, errors } = await validateQuery({ search: "  Ridge  ", sort });
+			expect(errors).toEqual([]);
+			expect(dto.search).toBe("Ridge");
+		}
+	});
+	it.each([{ search: "x".repeat(151) }, { search: { value: "Ridge" } }, { sort: "unsafe-order" }])(
+		"rejects malformed browser filters %#",
+		async (input) => {
+			const { errors } = await validateQuery(input);
+			expect(errors.length).toBeGreaterThan(0);
+		}
+	);
 	it("uses the approved pagination defaults", async () => {
 		const { dto, errors } = await validateQuery({});
 

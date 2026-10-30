@@ -129,3 +129,8 @@ TBD — Technical Design.
 BR-034–036 contain generated wording.
 
 Exact distinction between hazard, shelter, water, overnight and checkpoint records must follow the Data Dictionary rather than be inferred here.
+
+
+## Route Safety v2 read integration
+
+CTMS-010 may surface these existing records through Route Safety Analysis. The current actor, ownership, write validation, audit and authoritative lifecycle in this story remain unchanged. See `docs/business-rules/route-safety-v2.md` BR-477 and BR-479. No duplicate safety observation or additional reporting permission is created.
