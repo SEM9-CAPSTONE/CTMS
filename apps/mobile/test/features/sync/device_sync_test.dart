@@ -6,12 +6,14 @@ import 'package:mobile/features/gps_tracking/domain/gps_tracking_models.dart';
 import 'package:mobile/features/incidents/data/incident_store.dart';
 import 'package:mobile/features/incidents/data/incidents_api.dart';
 import 'package:mobile/features/incidents/domain/trip_incident.dart';
+import 'package:mobile/features/route_deviation/domain/route_deviation_models.dart';
 import 'package:mobile/features/sync/application/device_sync_controller.dart';
 import 'package:mobile/features/sync/data/device_sync_api.dart';
 import 'package:mobile/features/sync/domain/device_sync_models.dart';
 import 'package:mobile/features/sync/presentation/device_sync_status_screen.dart';
 
 import '../gps_tracking/gps_fakes.dart' as gps;
+import '../route_deviation/route_deviation_fakes.dart' as route;
 
 class FakeDeviceSyncApi implements DeviceSyncApi {
   Map<String, Object?> response = {
@@ -185,6 +187,46 @@ void main() {
 
       expect(gpsApi.uploads, hasLength(1));
       expect(controller.summary.pendingGpsCount, 0);
+    });
+  });
+
+  group('DeviceSyncController with route-deviation safety events (CTMS-060)', () {
+    DeviceSyncController build(route.MemoryRouteDeviationStore store, route.FakeRouteDeviationApi api) =>
+        DeviceSyncController(
+          tripId: gps.tripId,
+          api: FakeDeviceSyncApi(),
+          incidentStore: FakeIncidentStore(),
+          incidentsApi: FakeIncidentsApi(),
+          safetyEventStore: store,
+          safetyEventApi: api,
+        );
+
+    test('counts locally confirmed safety events as pending safety data', () async {
+      final store = route.MemoryRouteDeviationStore()
+        ..records[gps.tripId] = RouteDeviationRecord(
+          events: [route.offRouteEvent(DateTime.utc(2026, 10, 31, 3))],
+        );
+      final controller = build(store, route.FakeRouteDeviationApi());
+
+      await controller.refresh();
+
+      expect(controller.summary.pendingSafetyCount, 1);
+      expect(controller.summary.state, DeviceSyncState.pending);
+    });
+
+    test('retry also uploads pending safety events', () async {
+      final store = route.MemoryRouteDeviationStore()
+        ..records[gps.tripId] = RouteDeviationRecord(
+          events: [route.offRouteEvent(DateTime.utc(2026, 10, 31, 3))],
+        );
+      final api = route.FakeRouteDeviationApi();
+      final controller = build(store, api);
+
+      await controller.retry();
+
+      expect(api.uploads, hasLength(1));
+      expect(controller.summary.pendingSafetyCount, 0);
+      expect(store.records[gps.tripId]!.events.single.syncState, SafetyEventSyncState.synced);
     });
   });
 

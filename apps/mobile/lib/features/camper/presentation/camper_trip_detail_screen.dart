@@ -11,6 +11,7 @@ import '../../../core/widgets/ctms_button.dart';
 import '../../../core/widgets/ctms_scaffold.dart';
 import '../../../core/widgets/ctms_status_badge.dart';
 import '../../gps_tracking/presentation/gps_tracking_panel.dart';
+import '../../route_deviation/presentation/route_deviation_panel.dart';
 import '../../sync/application/device_sync_controller.dart';
 import '../../sync/domain/device_sync_models.dart';
 import '../../sync/presentation/device_sync_status_screen.dart';
@@ -413,6 +414,10 @@ class _CamperTripDetailScreenState
 
           // GPS breadcrumbs recorded on this device (CTMS-059)
           GpsTrackingPanel(tripId: widget.tripId),
+          const SizedBox(height: AppSpacing.lg),
+
+          // On-device off-route / GPS-degraded detection (CTMS-060)
+          RouteDeviationPanel(tripId: widget.tripId),
           const SizedBox(height: AppSpacing.lg),
 
           // 3. Section: Hỗ trợ an toàn & Khẩn cấp

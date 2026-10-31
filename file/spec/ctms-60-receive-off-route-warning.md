@@ -199,6 +199,13 @@ Pending Decisions (raised during CTMS-060-T01, not resolved by any PB/BR value):
 - **Participants who may report.** The spec names only the Camper. The implementation also accepts events from an assigned Porter, reusing the CTMS-059 participation rules (BR-363 "participant identity"). Confirm or narrow this when the Host dashboard (CTMS-085) consumes the events.
 - **Retention period for `safety_events`.** No retention period has been approved. Rows are append-only and kept indefinitely, same as `gps_logs`.
 
+Pending Decisions (raised during CTMS-060-T02, not resolved by any PB/BR value):
+
+- **Wording of the OFF_ROUTE safe action (BR-384).** No approved UX/safety text exists. The app shows: "Bạn có thể đã đi lệch tuyến (cách tuyến khoảng X m). Dừng lại, kiểm tra xung quanh và quay về đoạn tuyến gần nhất. Nếu không chắc chắn, liên hệ Host/Porter hoặc dùng SOS." Replace it when the approved text exists. Directions back to the Route stay in CTMS-062.
+- **Restart behaviour.** After the app is reopened, the confirmed OFF_ROUTE / GPS_DEGRADED states are restored from the local record, but the consecutive counters start from 0. The spec does not say whether partial counts survive a restart; restarting them avoids confirming a transition from stale samples.
+- **Detection lifecycle.** Detection runs exactly while GPS breadcrumbs are recorded (CTMS-059: Trip ongoing, participant eligible, location permission granted, app open). Without permission the GPS panel already explains the problem, so detection shows "Tạm dừng" instead of raising GPS_DEGRADED. Background execution belongs to Technical Design.
+- **Offline Safety Package.** CTMS-052 package download does not exist yet. The Route context from `GET /route-deviation/context` is cached locally per account and Trip, and is used when the server cannot be reached. `packageVersion` is not sent until a package exists.
+
 ## 13. Implementation Record
 
 CTMS-060-T01 (Jira CTMS-311): system-side Preparation and Logic. Detection itself stays on the device (BR-238). The server supplies the data needed to detect offline and accepts the resulting events.
@@ -267,3 +274,67 @@ Judgment calls (the spec is silent; approved with the plan):
 - [x] Task-specific unit tests added or updated.
 - [x] Task-specific unit tests passed.
 - [x] Applicable backend or integration tests passed.
+
+## 15. Implementation Record — CTMS-060-T02 (Jira CTMS-312), mobile UI
+
+- **New `apps/mobile/lib/features/route_deviation` feature.**
+  - `domain/route_geometry.dart`: `distanceToRouteMeters` computes the distance to the nearest Route segment on the device, by projecting each segment onto a local metric plane around the position (BR-238, BR-375).
+  - `domain/route_deviation_detector.dart`: a pure, synchronous state machine with the fixed V3 thresholds as constants (Section 8).
+    - Accuracy > 20 m is INVALID and resets all counters (BR-378).
+    - OFF_ROUTE after 3 consecutive VALID samples > 50 m; ON_ROUTE after 3 consecutive VALID samples < 20 m. Any VALID sample failing the active threshold, including the 20–50 m buffer, resets that counter and causes no transition (BR-377, BR-382, BR-383).
+    - GPS_DEGRADED after ≥ 120 s without a VALID sample; INVALID samples do not count as signal and GPS_DEGRADED never changes the navigation state (BR-387). The next VALID sample returns to NORMAL with counters restarted (BR-388).
+    - Each transition produces an `OFF_ROUTE`, `ON_ROUTE_RECOVERED`, `GPS_DEGRADED` or `GPS_RESTORED` event with its confirming context.
+  - `data/route_deviation_store.dart`: one JSON file per account and Trip, written to a flushed temporary file and then renamed. It holds the cached Route context, the confirmed navigation and GPS-quality states, and the safety events. **A confirmed transition and its event are written in the same atomic write, before the warning is shown or anything is uploaded** (BR-386).
+  - `application/safety_event_sync.dart`: uploads due events to `POST /trips/:tripId/safety-events` in batches of 100. `accepted` / `duplicate` → synced; `rejected` → failed with the server reason; transport errors → pending with bounded exponential backoff (BR-244, BR-245).
+  - `application/route_deviation_controller.dart`:
+    - Consumes the samples already taken by the CTMS-059 `GpsTrackingController` (no second GPS stream) and processes only new fixes (a repeated `capturedAt` is ignored).
+    - Evaluates the GPS_DEGRADED rule every 5 s and serializes detection steps.
+    - Records `detectedOffline` from `connectivity_plus`.
+    - Plays the local warning with Flutter's built-in `HapticFeedback` and `SystemSound`, so no new package is needed (BR-384).
+    - A new `routeVersion` resets states detected against the old geometry; events already confirmed are kept.
+    - A sync request made while an upload is running runs again right after it, so an event confirmed during an upload is not left waiting.
+  - `presentation/route_deviation_panel.dart` ("Cảnh báo lệch tuyến"):
+    - Built from the shared `CtmsSectionCard`, `CtmsStatusBadge`, `CtmsAlertBanner` and `CtmsButton`, with theme-aware colours for the light and dark themes.
+    - Shows the navigation and GPS-quality states, the distance to the Route, whether the last sample was VALID, confirmation progress ("2/3 mẫu…") and the buffer zone. When the last sample is INVALID, it never shows the previous distance as current.
+    - On OFF_ROUTE: an alert dialog plus a persistent danger banner while OFF_ROUTE. GPS_DEGRADED shows a warning banner that does not claim off-route.
+    - Safety events are labelled "Chờ đồng bộ" / "Đã đồng bộ" / rejection reason, never as server-confirmed before the server answered (BR-226), and marked "phát hiện khi offline" when applicable.
+- **Screens.**
+  - Camper trip detail: `RouteDeviationPanel` added right after `GpsTrackingPanel` (one insertion).
+  - Porter "Bản đồ" tab: the panel is added inside `PorterGpsTrackingSection` (CTMS-059 file), so `porter_map_screen.dart` is unchanged.
+- **Device sync (CTMS-067).** Pending and failed safety events count in the pending-safety number and the failed state, and "Đồng bộ ngay" also uploads them.
+- `api_endpoints.dart`: `routeDeviationContext` and `safetyEvents`.
+- **Out of scope, unchanged.** Automatic upload on reconnection belongs to CTMS-065. Today pending events upload on the next transition, on "Đồng bộ sự kiện" or on the device sync retry.
+
+## 16. Test Evidence — CTMS-060-T02
+
+- **Unit / widget** (`flutter test`), 41 new tests:
+  - `route_deviation_detector_test.dart` (15): distance geometry, plus every Section 10/11 case — accuracy 25 m vs exactly 20 m, INVALID between qualifying samples, 55/60/65 m, 2 samples only, 55/60/30 m, 18/15/12 m, 18/30/15 m, 30 m buffer, GPS_DEGRADED at 119 s vs 120 s, INVALID samples not counting as signal, VALID return restarting counters.
+  - `route_deviation_store_sync_test.dart` (8): payload with offsets (BR-188), atomic per-account file store, 20 concurrent writes with no lost event, accepted/duplicate/rejected outcomes, offline backoff, 422 final.
+  - `route_deviation_controller_test.dart` (9): detection only while GPS recording, offline OFF_ROUTE persisted with state + alert + pending, online sync, repeated fix not double-counted, GPS_DEGRADED/RESTORED with no off-route alert, cached context offline, unavailable without context, new route version resets state, ineligible / unsupported config.
+  - `route_deviation_panel_test.dart` (7): light and dark themes, progress → dialog → banner → pending event, buffer zone, degraded banner with INVALID sample, synced/rejected labels and paused state, unavailable state.
+  - `device_sync_test.dart` (+2): pending safety events counted, retry uploads them.
+- Full mobile suite: `flutter test` → 210/210 passed. `flutter analyze` → no issue in the changed code; 4 pre-existing issues remain in `features/sos` (not touched by this task).
+- **Manual end-to-end run of the app built for the web**, against the local API and Postgres. Setup: release build, 412×915 mobile viewport, dark scheme, browser geolocation emulated by Playwright, signed in as the assigned Porter of an ongoing Trip.
+  - On the Route: "Đúng tuyến", distance 0 m.
+  - Two samples ~72 m away: "Đang xác nhận lệch tuyến: 2/3". Third sample ~74 m: OFF_ROUTE dialog, danger banner, event synced.
+  - Three samples back on the Route: "Đã quay lại tuyến", state "Đúng tuyến".
+  - Samples with ±50 m accuracy for ~2 minutes: GPS_DEGRADED banner ("Tín hiệu GPS yếu"), navigation state unchanged. The next ±8 m sample: "GPS ổn định trở lại".
+  - **Network offline** (Playwright `setOffline`): OFF_ROUTE still warned and stored as "Chờ đồng bộ · phát hiện khi offline". Back online, "Đồng bộ sự kiện" synced it.
+  - An INVALID sample after that showed "Chưa xác định được khoảng cách tới tuyến" instead of the old distance.
+  - `safety_events` contained exactly the 5 events with the device event times, distances (74.5 m / 0 m), samples (3), `no_valid_sample_since` equal to the last VALID sample time, `detected_offline` = true only for the offline one, and `participant_role` = porter.
+  - The web build needed a temporary in-memory buffer because file storage is unavailable on the web. That patch was local only and is not part of the change. No Android device or emulator was available, so a run on a physical device is still pending.
+
+### UI Subtask DoD
+
+- [x] UI implementation completed.
+- [x] Applicable client-side behavior implemented.
+- [x] Task-specific unit/component tests passed.
+- [x] Backend integration completed.
+- [x] Task-specific E2E tests passed (manual run of the web build in a mobile viewport against the real API; physical device run still pending).
+- [x] All Story Acceptance Criteria verified.
+- [x] Unit regression tests passed (mobile 210/210).
+- [ ] E2E regression tests passed (no automated mobile E2E suite exists in the repo).
+- [x] lint:all passed (mobile `flutter analyze`: no issue in changed code).
+- [x] build:all passed (`flutter build web --release` succeeded; no API/web change).
+- [x] test:all passed (mobile suite).
+- [ ] Required CI checks passed (runs on the PR).
