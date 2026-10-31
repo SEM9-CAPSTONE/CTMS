@@ -11,6 +11,7 @@ import { HealthController } from "./health/health.controller";
 import { HostOverviewModule } from "./host-overview/host-overview.module";
 import { HostTripMapModule } from "./host-trip-map/host-trip-map.module";
 import { IncidentsModule } from "./incidents/incidents.module";
+import { OverbookingEvaluationModule } from "./overbooking-evaluation/overbooking-evaluation.module";
 import { PorterLevelsModule } from "./porter-levels/porter-levels.module";
 import { ProfilesModule } from "./profiles/profiles.module";
 import { RealtimeModule } from "./realtime/realtime.module";
@@ -46,6 +47,7 @@ import { WeatherModule } from "./weather/weather.module";
 		RouteSafetyModule,
 		SafetyEventsModule,
 		SosModule,
+		OverbookingEvaluationModule,
 		SyncEvaluationModule,
 		UsersModule,
 		TrekkingRoutesModule,
