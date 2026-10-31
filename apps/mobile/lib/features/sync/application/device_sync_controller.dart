@@ -12,6 +12,11 @@ import '../../incidents/application/incident_sync.dart';
 import '../../incidents/data/incident_store.dart';
 import '../../incidents/data/incidents_api.dart';
 import '../../incidents/domain/trip_incident.dart';
+import '../../route_deviation/application/route_deviation_controller.dart';
+import '../../route_deviation/application/safety_event_sync.dart';
+import '../../route_deviation/data/route_deviation_api.dart';
+import '../../route_deviation/data/route_deviation_store.dart';
+import '../../route_deviation/domain/route_deviation_models.dart';
 import '../data/device_sync_api.dart';
 import '../domain/device_sync_models.dart';
 
@@ -23,6 +28,8 @@ class DeviceSyncController extends ChangeNotifier {
     required this.incidentsApi,
     this.gpsStore,
     this.gpsApi,
+    this.safetyEventStore,
+    this.safetyEventApi,
   }) {
     unawaited(refresh());
   }
@@ -35,6 +42,10 @@ class DeviceSyncController extends ChangeNotifier {
   /// Local GPS breadcrumb buffer (CTMS-059); null keeps GPS counts at zero.
   final GpsLogStore? gpsStore;
   final GpsTrackingApi? gpsApi;
+
+  /// Local route-deviation safety events (CTMS-060); null keeps them out of the counts.
+  final RouteDeviationStore? safetyEventStore;
+  final RouteDeviationApi? safetyEventApi;
 
   DeviceSyncSummary summary = const DeviceSyncSummary(
     pendingGpsCount: 0,
@@ -97,6 +108,17 @@ class DeviceSyncController extends ChangeNotifier {
       final failedGps = gpsLogs.where((log) => log.syncState == GpsLogSyncState.failed).length;
       final gpsErr = gpsLogs.where((log) => log.error != null).map((log) => log.error).firstOrNull;
 
+      // 1c. Read local route-deviation safety events (CTMS-060)
+      final safetyEvents = safetyEventStore == null
+          ? const <LocalSafetyEvent>[]
+          : (await safetyEventStore!.read(tripId)).events;
+      final pendingEvents =
+          safetyEvents.where((event) => event.syncState == SafetyEventSyncState.pending).length;
+      final failedEvents =
+          safetyEvents.where((event) => event.syncState == SafetyEventSyncState.failed).length;
+      final eventErr =
+          safetyEvents.where((event) => event.error != null).map((event) => event.error).firstOrNull;
+
       // 2. Read server-confirmed telemetry
       Map<String, Object?>? serverData;
       String? serverErr;
@@ -119,8 +141,11 @@ class DeviceSyncController extends ChangeNotifier {
           (serverData?['configVersion'] as String?) ?? 'v3';
 
       DeviceSyncState state = DeviceSyncState.idle;
-      final pendingTotal = pendingSafety + pendingGps;
-      if (failedSafety > 0 || failedGps > 0 || (serverErr != null && pendingTotal > 0)) {
+      final pendingTotal = pendingSafety + pendingEvents + pendingGps;
+      if (failedSafety > 0 ||
+          failedEvents > 0 ||
+          failedGps > 0 ||
+          (serverErr != null && pendingTotal > 0)) {
         state = DeviceSyncState.failed;
       } else if (pendingTotal > 0) {
         state = DeviceSyncState.pending;
@@ -130,11 +155,11 @@ class DeviceSyncController extends ChangeNotifier {
 
       summary = DeviceSyncSummary(
         pendingGpsCount: pendingGps,
-        pendingSafetyCount: pendingSafety,
+        pendingSafetyCount: pendingSafety + pendingEvents,
         serverConfirmedGpsCount: serverGps,
         serverConfirmedSafetyCount: serverSafety,
         lastSyncAt: lastReceivedAt,
-        lastError: lastErr ?? gpsErr ?? serverErr,
+        lastError: lastErr ?? eventErr ?? gpsErr ?? serverErr,
         packageVersion: pkgVersion,
         configVersion: cfgVersion,
         state: state,
@@ -177,6 +202,15 @@ class DeviceSyncController extends ChangeNotifier {
         );
       }
 
+      if (safetyEventStore != null && safetyEventApi != null) {
+        await synchronizeSafetyEvents(
+          tripId: tripId,
+          store: safetyEventStore!,
+          api: safetyEventApi!,
+          now: DateTime.now(),
+        );
+      }
+
       await refresh();
     } catch (e) {
       summary = summary.copyWith(
@@ -215,5 +249,7 @@ final deviceSyncControllerProvider = ChangeNotifierProvider.autoDispose
     incidentsApi: incidentsApi,
     gpsStore: ref.watch(gpsLogStoreProvider),
     gpsApi: ref.watch(gpsTrackingApiProvider),
+    safetyEventStore: ref.watch(routeDeviationStoreProvider),
+    safetyEventApi: ref.watch(routeDeviationApiProvider),
   );
 });

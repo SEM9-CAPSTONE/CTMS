@@ -7,6 +7,7 @@ import '../../../core/widgets/ctms_alert_banner.dart';
 import '../../../core/widgets/ctms_button.dart';
 import '../../incidents/data/incidents_api.dart';
 import '../../incidents/domain/trip_incident.dart';
+import '../../route_deviation/presentation/route_deviation_panel.dart';
 import 'gps_tracking_panel.dart';
 
 /// Porter's assigned Trips currently `ongoing` (`GET /trips/assigned`).
@@ -15,7 +16,8 @@ final porterOngoingTripsProvider = FutureProvider.autoDispose<List<IncidentTrip>
   return trips.where((trip) => trip.status == 'ongoing').toList();
 });
 
-/// GPS breadcrumb recording for the Porter's ongoing assigned Trip.
+/// GPS breadcrumb recording and route-deviation detection for the Porter's
+/// ongoing assigned Trip.
 class PorterGpsTrackingSection extends ConsumerStatefulWidget {
   const PorterGpsTrackingSection({super.key});
 
@@ -75,6 +77,8 @@ class _PorterGpsTrackingSectionState extends ConsumerState<PorterGpsTrackingSect
               const SizedBox(height: AppSpacing.md),
             ],
             GpsTrackingPanel(key: ValueKey(selected.id), tripId: selected.id),
+            const SizedBox(height: AppSpacing.md),
+            RouteDeviationPanel(key: ValueKey('route-${selected.id}'), tripId: selected.id),
           ],
         );
       },
