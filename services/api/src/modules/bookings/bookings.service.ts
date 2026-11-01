@@ -4,6 +4,7 @@ import {
 	ForbiddenException,
 	Inject,
 	Injectable,
+	InternalServerErrorException,
 	NotFoundException,
 	Optional,
 	UnprocessableEntityException,
@@ -297,7 +298,28 @@ export class BookingsService {
 	): Promise<{ id: string; createdAt: Date }> {
 		const serialized = JSON.stringify(generatedFrom);
 		const fingerprint = createHash("sha256").update(serialized).digest("hex");
-		const rows = (await this.dataSource.query(
+		const [recorded] = await this.insertPackingListGeneration(bookingId, serialized, fingerprint);
+		if (recorded) return recorded;
+
+		// A concurrent request committed the same input set while this statement waited on the
+		// unique key; the statement's snapshot cannot see that row, so read it in a new statement.
+		const [existing] = (await this.dataSource.query(
+			`SELECT "id", "created_at" AS "createdAt" FROM "packing_list_generations"
+			 WHERE "booking_id" = $1::uuid AND "input_fingerprint" = $2::varchar`,
+			[bookingId, fingerprint]
+		)) as Array<{ id: string; createdAt: Date }>;
+		if (!existing) {
+			throw new InternalServerErrorException("Packing list generation could not be recorded");
+		}
+		return existing;
+	}
+
+	private async insertPackingListGeneration(
+		bookingId: string,
+		serialized: string,
+		fingerprint: string
+	): Promise<Array<{ id: string; createdAt: Date }>> {
+		return (await this.dataSource.query(
 			`WITH inserted AS (
 				INSERT INTO "packing_list_generations" ("booking_id", "generated_from", "input_fingerprint")
 				VALUES ($1::uuid, $2::jsonb, $3::varchar)
@@ -311,7 +333,6 @@ export class BookingsService {
 			LIMIT 1`,
 			[bookingId, serialized, fingerprint]
 		)) as Array<{ id: string; createdAt: Date }>;
-		return rows[0];
 	}
 
 	async resolveMemberCandidate(

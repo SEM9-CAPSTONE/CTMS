@@ -1,4 +1,9 @@
-import { ConflictException, ForbiddenException, NotFoundException } from "@nestjs/common";
+import {
+	ConflictException,
+	ForbiddenException,
+	InternalServerErrorException,
+	NotFoundException,
+} from "@nestjs/common";
 import type { ConfigService } from "@nestjs/config";
 import type { DataSource } from "typeorm";
 import { EquipmentCatalogStatus } from "../equipment-catalog/equipment-catalog-status.enum";
@@ -278,6 +283,28 @@ describe("BookingsService.getPackingList", () => {
 			healthProfile: { considered: false, updatedAt: null },
 		});
 		expect(params[2]).toMatch(/^[0-9a-f]{64}$/);
+	});
+
+	it("reads the generation committed by a concurrent request when the insert returns no row", async () => {
+		const createdAt = new Date("2030-01-02T00:00:00.000Z");
+		dataSourceQuery.mockResolvedValueOnce([]).mockResolvedValueOnce([{ id: "winner", createdAt }]);
+
+		const result = await service.getPackingList(OWNER_ID, BOOKING_ID);
+
+		expect(result.generationId).toBe("winner");
+		expect(result.generatedAt).toEqual(createdAt);
+		expect(dataSourceQuery).toHaveBeenCalledTimes(2);
+		const [insertCall, readCall] = dataSourceQuery.mock.calls as Array<[string, unknown[]]>;
+		expect(readCall[0]).not.toContain("INSERT");
+		expect(readCall[1]).toEqual([BOOKING_ID, insertCall[1][2]]);
+	});
+
+	it("fails explicitly instead of reading an undefined generation when no row can be found", async () => {
+		dataSourceQuery.mockResolvedValue([]);
+
+		await expect(service.getPackingList(OWNER_ID, BOOKING_ID)).rejects.toBeInstanceOf(
+			InternalServerErrorException
+		);
 	});
 
 	it("uses the same fingerprint for the same inputs and a different one when inputs change", async () => {

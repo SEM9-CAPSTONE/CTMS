@@ -144,3 +144,34 @@ Exact packing-list taxonomy/content library belongs to the approved packing/surv
 
 - Unit (`bookings.packing-list.service.spec.ts`): stored inputs and returned generation id; same inputs give the same fingerprint, changed weather gives a new one; health content never stored, `considered` only with consent.
 - Integration (real Postgres, `bookings.packing-list.integration-spec.ts`): repeated calls store one generation; stored `generated_from` matches the real Trip, Route and weather assessment; renting equipment creates a second generation listing it; six concurrent requests store one row with one id; health content (allergy, dietary note) absent from the stored JSON.
+
+## 15. Bug Fix — Concurrent First View Returned 500 (CTMS-196, 2026-11-01)
+
+**Symptom:** Opening the packing list sometimes failed with "Không thể tải packing list". The API logged `TypeError: Cannot read properties of undefined (reading 'id')` at `bookings.service.ts:283` (`generationId: generation.id`).
+
+**Root cause:**
+- The §13 write was a single statement: `INSERT … ON CONFLICT DO NOTHING RETURNING` followed by `UNION ALL SELECT` from the same table.
+- When two requests with the same inputs ran together, the second one waited on the unique key and then did nothing.
+- Under READ COMMITTED, its `SELECT` uses the statement snapshot taken **before** the first request committed, so it found no row. `rows[0]` was `undefined`.
+- The web app triggers this on every first view, and whenever the inputs change: `React.StrictMode` in `apps/web/src/main.tsx` mounts `usePackingList` twice, which sends two concurrent `GET`s. Double clicks or two open tabs can trigger it in production too.
+- The §14 six-request integration test did not catch it, because in-process requests rarely overlap at that exact moment.
+
+**Fix (`BookingsService.recordPackingListGeneration`):**
+- When the insert statement returns no row, the existing row is read with a **new** statement, which gets a fresh snapshot and sees the committed row.
+- If that read is also empty, the request fails with an explicit `InternalServerErrorException` instead of a `TypeError`.
+- Behavior, schema and API response are unchanged, and no web change is needed: concurrent calls are legitimate.
+
+**Test evidence:**
+- Integration "returns the generation committed by a concurrent request that won the insert" is deterministic:
+  - a second connection inserts the same input set inside an open transaction;
+  - the API request is started and the test waits until `pg_stat_activity` shows it blocked on the lock;
+  - the transaction commits.
+  - Before the fix: **500**. After the fix: **200**, with the competitor's `generationId` and one stored row.
+- Unit: the fallback read returns the committed generation; an empty fallback throws `InternalServerErrorException`.
+- Gates:
+  - API build and ESLint clean. Biome reports only the pre-existing CRLF format errors and one unused suppression, identical on `develop`.
+  - API unit: 143 suites, 1608 tests passed.
+  - API integration, run in 8 shards: every suite passed except `sync-evaluation` and `overbooking-evaluation`. Those 8 tests fail identically on clean `develop`, because their fixtures violate `CHK_trips_duration_by_type`; they are unrelated to this change.
+- Manual check on the local app (web dev server with StrictMode, API built from this branch, camper demo booking with its generations cleared):
+  - opening "Xem danh sách đồ cần chuẩn bị" sent two concurrent `GET /bookings/:id/packing-list`;
+  - both returned 200 with the same `generationId`, one row was stored, and no error was shown.
