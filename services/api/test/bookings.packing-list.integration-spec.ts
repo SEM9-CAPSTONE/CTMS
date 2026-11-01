@@ -459,6 +459,57 @@ describe("Booking packing list (integration, real Postgres)", () => {
 		expect((await countGenerations(bookingId))[0].count).toBe(1);
 	});
 
+	it("returns the generation committed by a concurrent request that won the insert", async () => {
+		const { camper, tripId } = await createFixture();
+		const bookingId = await createBooking(camper, tripId);
+		const first = await getPackingList(camper.accessToken, bookingId).expect(200);
+		const [stored] = await dataSource.query(
+			`SELECT "generated_from" AS "generatedFrom", "input_fingerprint" AS "fingerprint"
+			 FROM "packing_list_generations" WHERE "id" = $1`,
+			[first.body.generationId]
+		);
+		await dataSource.query('DELETE FROM "packing_list_generations" WHERE "booking_id" = $1', [
+			bookingId,
+		]);
+
+		// The competing request inserts the same input set but has not committed yet, so the
+		// request under test blocks on the unique key and its statement snapshot misses the row.
+		const competitor = dataSource.createQueryRunner();
+		await competitor.connect();
+		try {
+			await competitor.startTransaction();
+			const [winner] = await competitor.query(
+				`INSERT INTO "packing_list_generations" ("booking_id", "generated_from", "input_fingerprint")
+				 VALUES ($1, $2, $3) RETURNING "id"`,
+				[bookingId, stored.generatedFrom, stored.fingerprint]
+			);
+			const pending = getPackingList(camper.accessToken, bookingId).then((response) => response);
+			await waitForLockWait(bookingId);
+			await competitor.commitTransaction();
+
+			const response = await pending;
+			expect(response.status).toBe(200);
+			expect(response.body.generationId).toBe(winner.id);
+			expect((await countGenerations(bookingId))[0].count).toBe(1);
+		} finally {
+			if (competitor.isTransactionActive) await competitor.rollbackTransaction();
+			await competitor.release();
+		}
+	});
+
+	async function waitForLockWait(bookingId: string): Promise<void> {
+		for (let attempt = 0; attempt < 100; attempt++) {
+			const [row] = await dataSource.query(
+				`SELECT COUNT(*)::int AS "count" FROM pg_stat_activity
+				 WHERE "wait_event_type" = 'Lock' AND "query" LIKE '%packing_list_generations%'
+				   AND "query" NOT LIKE '%pg_stat_activity%'`
+			);
+			if (row.count > 0) return;
+			await new Promise((resolve) => setTimeout(resolve, 50));
+		}
+		throw new Error(`Packing list request for ${bookingId} never waited on the competing insert`);
+	}
+
 	it("records only that consented health data was used, never its content", async () => {
 		const { camper, tripId } = await createFixture();
 		const bookingId = await createBooking(camper, tripId);
