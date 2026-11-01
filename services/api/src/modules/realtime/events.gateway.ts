@@ -105,6 +105,18 @@ export class EventsGateway implements OnGatewayConnection {
 		this.server?.emit("trip.incident.reported", payload);
 	}
 
+	/** CTMS-086: Broadcast incident handling state changes and assignments to the Host and team. */
+	emitTripIncidentUpdated(payload: {
+		incidentId: string;
+		tripId: string;
+		hostId: string;
+		status: string;
+		assignedTo: string | null;
+		updatedAt: string;
+	}) {
+		this.server?.emit("trip.incident.updated", payload);
+	}
+
 	/** CTMS-074: Broadcast new emergency alert to trip participants and Host. */
 	emitSosCreated(payload: {
 		sosId: string;

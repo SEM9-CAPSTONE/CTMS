@@ -3,22 +3,33 @@ import { useState } from "react";
 import { Button } from "../../../shared/components/Button";
 import type { TripStatus } from "../../trips/types";
 import { type UseTripIncidentsOptions, useTripIncidents } from "../hooks/useTripIncidents";
+import type { IncidentListItem } from "../types";
 import type { NewIncidentInput } from "../utils/incident-record";
 import { IncidentCard } from "./IncidentCard";
+import { IncidentResolutionModal } from "./IncidentResolutionModal";
 import { ReportIncidentForm } from "./ReportIncidentForm";
 
 export interface TripIncidentsPanelProps extends UseTripIncidentsOptions {
 	tripId: string;
 	tripStatus: TripStatus;
+	canManage?: boolean;
 }
 
 /** New incidents are accepted only while the Trip is running (AC1); old ones still sync. */
 const REPORTABLE_TRIP_STATUS: TripStatus = "ongoing";
 
-export function TripIncidentsPanel({ tripId, tripStatus, store, api }: TripIncidentsPanelProps) {
+export function TripIncidentsPanel({
+	tripId,
+	tripStatus,
+	canManage = false,
+	store,
+	api,
+}: TripIncidentsPanelProps) {
 	const incidents = useTripIncidents(tripId, { store, api });
 	const [isFormOpen, setIsFormOpen] = useState(false);
 	const [notice, setNotice] = useState<string | null>(null);
+	const [resolvingIncident, setResolvingIncident] = useState<IncidentListItem | null>(null);
+
 	const canReport = incidents.canReport && tripStatus === REPORTABLE_TRIP_STATUS;
 
 	const handleSubmit = async (input: NewIncidentInput) => {
@@ -30,6 +41,15 @@ export function TripIncidentsPanel({ tripId, tripStatus, store, api }: TripIncid
 				? "Đã lưu sự cố trên thiết bị và đang gửi lên máy chủ."
 				: "Đã lưu sự cố trên thiết bị. Sự cố sẽ được gửi khi có kết nối."
 		);
+	};
+
+	const handleIncidentUpdated = async () => {
+		await incidents.syncNow();
+		// Also update current modal incident if open
+		if (resolvingIncident) {
+			const updatedItem = incidents.items.find((i) => i.id === resolvingIncident.id);
+			if (updatedItem) setResolvingIncident(updatedItem);
+		}
 	};
 
 	return (
@@ -97,12 +117,36 @@ export function TripIncidentsPanel({ tripId, tripStatus, store, api }: TripIncid
 					{incidents.listError}
 				</p>
 			)}
-			<IncidentList incidents={incidents} />
+
+			<IncidentList
+				incidents={incidents}
+				canManage={canManage}
+				onManage={(item) => setResolvingIncident(item)}
+			/>
+
+			{resolvingIncident && (
+				<IncidentResolutionModal
+					isOpen={resolvingIncident !== null}
+					onClose={() => setResolvingIncident(null)}
+					incident={resolvingIncident}
+					tripId={tripId}
+					onIncidentUpdated={handleIncidentUpdated}
+					api={api}
+				/>
+			)}
 		</div>
 	);
 }
 
-function IncidentList({ incidents }: { incidents: ReturnType<typeof useTripIncidents> }) {
+function IncidentList({
+	incidents,
+	canManage,
+	onManage,
+}: {
+	incidents: ReturnType<typeof useTripIncidents>;
+	canManage?: boolean;
+	onManage?: (item: IncidentListItem) => void;
+}) {
 	if (incidents.isLoading) {
 		return (
 			<p className="flex items-center gap-2 text-sm text-[#667a6d]">
@@ -123,6 +167,7 @@ function IncidentList({ incidents }: { incidents: ReturnType<typeof useTripIncid
 					onRetry={(id) => void incidents.retry(id)}
 					onDiscard={(id) => void incidents.discard(id)}
 					onDropPhoto={(id) => void incidents.dropPhoto(id)}
+					onManage={canManage ? onManage : undefined}
 				/>
 			))}
 		</ul>

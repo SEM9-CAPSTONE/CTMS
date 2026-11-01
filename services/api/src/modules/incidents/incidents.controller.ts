@@ -6,6 +6,7 @@ import {
 	HttpStatus,
 	Param,
 	ParseUUIDPipe,
+	Patch,
 	Post,
 	Put,
 	Req,
@@ -28,6 +29,8 @@ import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import type { AuthenticatedUser } from "../auth/jwt.strategy";
 import { UserRole } from "../users/entities/user.entity";
+import type { AssignIncidentDto } from "./dto/assign-incident.dto";
+import { IncidentActionListResponseDto } from "./dto/incident-action-response.dto";
 import {
 	IncidentListResponseDto,
 	IncidentResponseDto,
@@ -35,6 +38,7 @@ import {
 } from "./dto/incident-response.dto";
 // biome-ignore lint/style/useImportType: Body validation needs runtime DTO metadata
 import { ReportIncidentDto } from "./dto/report-incident.dto";
+import type { UpdateIncidentStatusDto } from "./dto/update-incident-status.dto";
 import { INCIDENT_MEDIA_MAX_BYTES } from "./incidents.constants";
 // biome-ignore lint/style/useImportType: Nest runtime injection metadata
 import { type IncidentMediaUpload, IncidentsService } from "./incidents.service";
@@ -61,13 +65,16 @@ export class IncidentsController {
 	constructor(private readonly incidents: IncidentsService) {}
 
 	@Post()
-	@Roles(UserRole.PORTER)
+	@Roles(UserRole.PORTER, UserRole.HOST)
 	@HttpCode(HttpStatus.OK)
 	@ApiOperation({
 		summary: "Report (or re-synchronize) a Trip incident; a repeated id returns the stored one",
 	})
 	@ApiResponse({ status: 200, type: ReportIncidentResponseDto })
-	@ApiResponse({ status: 403, description: "Caller is not a Porter assigned to the Trip" })
+	@ApiResponse({
+		status: 403,
+		description: "Caller is not a Porter assigned to the Trip or the Trip's Host",
+	})
 	@ApiResponse({
 		status: 409,
 		description:
@@ -79,7 +86,7 @@ export class IncidentsController {
 		@Param("tripId", UUID_PIPE) tripId: string,
 		@Body() dto: ReportIncidentDto
 	): Promise<ReportIncidentResponseDto> {
-		return this.incidents.reportIncident(request.user.userId, tripId, dto);
+		return this.incidents.reportIncident(request.user.userId, tripId, dto, request.user.roles);
 	}
 
 	@Get()
@@ -97,7 +104,7 @@ export class IncidentsController {
 	}
 
 	@Put(":incidentId/media")
-	@Roles(UserRole.PORTER)
+	@Roles(UserRole.PORTER, UserRole.HOST)
 	@UseInterceptors(MEDIA_UPLOAD_INTERCEPTOR)
 	@ApiConsumes("multipart/form-data")
 	@ApiBody({
@@ -121,5 +128,62 @@ export class IncidentsController {
 		@UploadedFile() file: IncidentMediaUpload | undefined
 	): Promise<IncidentResponseDto> {
 		return this.incidents.attachMedia(request.user.userId, tripId, incidentId, file);
+	}
+
+	@Patch(":incidentId/assign")
+	@Roles(UserRole.HOST)
+	@ApiOperation({
+		summary: "Assign handling responsibility for a Trip incident (CTMS-086, PB AC-2)",
+	})
+	@ApiResponse({ status: 200, type: IncidentResponseDto })
+	@ApiResponse({
+		status: 403,
+		description: "Only the Trip's Host can assign handling responsibility",
+	})
+	@ApiResponse({ status: 404, description: "Trip, incident, or assignee not found" })
+	assign(
+		@Req() request: AuthenticatedRequest,
+		@Param("tripId", UUID_PIPE) tripId: string,
+		@Param("incidentId", UUID_PIPE) incidentId: string,
+		@Body() dto: AssignIncidentDto
+	): Promise<IncidentResponseDto> {
+		return this.incidents.assignIncident(request.user.userId, tripId, incidentId, dto);
+	}
+
+	@Patch(":incidentId/status")
+	@Roles(UserRole.HOST)
+	@ApiOperation({
+		summary: "Update incident lifecycle status with valid transition rules (CTMS-086, PB AC-3)",
+	})
+	@ApiResponse({ status: 200, type: IncidentResponseDto })
+	@ApiResponse({ status: 403, description: "Only the Trip's Host can update incident status" })
+	@ApiResponse({ status: 404, description: "Trip or incident not found" })
+	@ApiResponse({
+		status: 409,
+		description: "Invalid status transition or concurrent update conflict",
+	})
+	updateStatus(
+		@Req() request: AuthenticatedRequest,
+		@Param("tripId", UUID_PIPE) tripId: string,
+		@Param("incidentId", UUID_PIPE) incidentId: string,
+		@Body() dto: UpdateIncidentStatusDto
+	): Promise<IncidentResponseDto> {
+		return this.incidents.updateStatus(request.user.userId, tripId, incidentId, dto);
+	}
+
+	@Get(":incidentId/history")
+	@Roles(UserRole.HOST, UserRole.PORTER)
+	@ApiOperation({
+		summary: "List chronological auditable action history for an incident (CTMS-086, PB AC-4)",
+	})
+	@ApiResponse({ status: 200, type: IncidentActionListResponseDto })
+	@ApiResponse({ status: 403, description: "Not authorized to view history of this incident" })
+	@ApiResponse({ status: 404, description: "Trip or incident not found" })
+	listHistory(
+		@Req() request: AuthenticatedRequest,
+		@Param("tripId", UUID_PIPE) tripId: string,
+		@Param("incidentId", UUID_PIPE) incidentId: string
+	): Promise<IncidentActionListResponseDto> {
+		return this.incidents.listHistory(request.user.userId, request.user.roles, tripId, incidentId);
 	}
 }

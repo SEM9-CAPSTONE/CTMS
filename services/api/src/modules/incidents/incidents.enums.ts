@@ -17,9 +17,20 @@ export enum IncidentSeverity {
 	CRITICAL = "critical",
 }
 
-/** Only the initial state belongs to CTMS-049; handling states are added by CTMS-086. */
+/** Handling states defined by CTMS-086 (BR-269). */
 export enum IncidentStatus {
 	OPEN = "open",
+	INVESTIGATING = "investigating",
+	RESOLVED = "resolved",
+	CLOSED = "closed",
+}
+
+/** Action types recorded in the incident action audit history (CTMS-086, PB AC-4). */
+export enum IncidentActionType {
+	REPORTED = "reported",
+	ASSIGNED = "assigned",
+	STATUS_CHANGED = "status_changed",
+	NOTE_ADDED = "note_added",
 }
 
 /** How trustworthy the stored location is; decided by the server, never by the client. */
@@ -41,4 +52,5 @@ export enum IncidentErrorCode {
 	OUTSIDE_TRIP_WINDOW = "INCIDENT_OUTSIDE_TRIP_WINDOW",
 	ID_CONFLICT = "INCIDENT_ID_CONFLICT",
 	MEDIA_INVALID = "INCIDENT_MEDIA_INVALID",
+	INVALID_STATUS_TRANSITION = "INCIDENT_INVALID_STATUS_TRANSITION",
 }

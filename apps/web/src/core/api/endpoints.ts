@@ -97,6 +97,12 @@ export const API_ENDPOINTS = {
 		INCIDENTS: (tripId: string) => `/trips/${tripId}/incidents`,
 		INCIDENT_MEDIA: (tripId: string, incidentId: string) =>
 			`/trips/${tripId}/incidents/${incidentId}/media`,
+		INCIDENT_ASSIGN: (tripId: string, incidentId: string) =>
+			`/trips/${tripId}/incidents/${incidentId}/assign`,
+		INCIDENT_STATUS: (tripId: string, incidentId: string) =>
+			`/trips/${tripId}/incidents/${incidentId}/status`,
+		INCIDENT_HISTORY: (tripId: string, incidentId: string) =>
+			`/trips/${tripId}/incidents/${incidentId}/history`,
 		SUBMIT_FOR_APPROVAL: (tripId: string) => `/trips/${tripId}/submit`,
 		WEATHER_FORECAST: (tripId: string) => `/trips/${tripId}/weather-forecast`,
 		WEATHER_FORECAST_LATEST: (tripId: string) => `/trips/${tripId}/weather-forecast/latest`,

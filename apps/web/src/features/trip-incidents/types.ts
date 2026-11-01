@@ -14,6 +14,17 @@ export type IncidentCategory = (typeof INCIDENT_CATEGORIES)[number];
 export const INCIDENT_SEVERITIES = ["low", "medium", "high", "critical"] as const;
 export type IncidentSeverity = (typeof INCIDENT_SEVERITIES)[number];
 
+export const INCIDENT_STATUSES = ["open", "investigating", "resolved", "closed"] as const;
+export type IncidentStatus = (typeof INCIDENT_STATUSES)[number];
+
+export const INCIDENT_ACTION_TYPES = [
+	"reported",
+	"assigned",
+	"status_changed",
+	"note_added",
+] as const;
+export type IncidentActionType = (typeof INCIDENT_ACTION_TYPES)[number];
+
 export type IncidentLocationStatus = "fresh" | "stale" | "unavailable";
 
 export interface IncidentLocation {
@@ -30,15 +41,17 @@ export interface TripIncidentMedia {
 	uploadedAt: string;
 }
 
-/** Authoritative incident as returned by the API. */
+/** Authoritative incident as returned by the API (CTMS-049 & CTMS-086). */
 export interface TripIncident {
 	id: string;
 	tripId: string;
 	reporterId: string;
 	reporterName: string | null;
+	assignedTo?: string | null;
+	assignedToName?: string | null;
 	category: IncidentCategory;
 	severity: IncidentSeverity;
-	status: "open";
+	status: IncidentStatus;
 	description: string;
 	occurredAt: string;
 	location: IncidentLocation | null;
@@ -46,6 +59,29 @@ export interface TripIncident {
 	capturedOffline: boolean;
 	media: TripIncidentMedia | null;
 	receivedAt: string;
+}
+
+export interface IncidentAction {
+	id: string;
+	incidentId: string;
+	actorId: string;
+	actorName: string | null;
+	actorRole: string | null;
+	action: IncidentActionType;
+	fromStatus: IncidentStatus | null;
+	toStatus: IncidentStatus | null;
+	note: string | null;
+	createdAt: string;
+}
+
+export interface AssignIncidentPayload {
+	assignedTo: string | null;
+	note?: string;
+}
+
+export interface UpdateIncidentStatusPayload {
+	status: IncidentStatus;
+	note?: string;
 }
 
 export interface ReportIncidentPayload {
@@ -104,8 +140,13 @@ export interface LocalIncidentRecord {
 /** What the incident list renders, whether the data came from the server or the device. */
 export interface IncidentListItem {
 	id: string;
+	tripId?: string;
+	reporterName?: string | null;
+	assignedTo?: string | null;
+	assignedToName?: string | null;
 	category: IncidentCategory;
 	severity: IncidentSeverity;
+	status: IncidentStatus;
 	description: string;
 	occurredAt: string;
 	location: IncidentLocation | null;

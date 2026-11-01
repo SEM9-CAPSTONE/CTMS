@@ -1,4 +1,4 @@
-import { ImageIcon, MapPin } from "lucide-react";
+import { Edit3, ImageIcon, MapPin, User } from "lucide-react";
 import { Button } from "../../../shared/components/Button";
 import {
 	incidentCategoryLabels,
@@ -6,6 +6,8 @@ import {
 	incidentMediaLabels,
 	incidentSeverityLabels,
 	incidentSeverityStyles,
+	incidentStatusLabels,
+	incidentStatusStyles,
 } from "../constants";
 import { type IncidentListItem, IncidentMediaState, IncidentSyncState } from "../types";
 import { IncidentSyncBadge } from "./IncidentSyncBadge";
@@ -15,6 +17,7 @@ export interface IncidentCardProps {
 	onRetry: (id: string) => void;
 	onDiscard: (id: string) => void;
 	onDropPhoto: (id: string) => void;
+	onManage?: (item: IncidentListItem) => void;
 }
 
 function locationText(item: IncidentListItem): string {
@@ -25,26 +28,63 @@ function locationText(item: IncidentListItem): string {
 	return note ? `${coordinates} · ${note}` : coordinates;
 }
 
-export function IncidentCard({ item, onRetry, onDiscard, onDropPhoto }: IncidentCardProps) {
+export function IncidentCard({
+	item,
+	onRetry,
+	onDiscard,
+	onDropPhoto,
+	onManage,
+}: IncidentCardProps) {
 	const isFailed = item.syncState === IncidentSyncState.FAILED;
 	const isMediaFailed = item.mediaState === IncidentMediaState.FAILED;
 	const mediaLabel = incidentMediaLabels[item.mediaState];
+	const isSynced = item.syncState === IncidentSyncState.SYNCED;
+
 	return (
 		<li className="space-y-2 rounded-2xl border border-[#e5eee7] bg-[#fbfdfb] p-4">
-			<div className="flex flex-wrap items-center gap-2">
-				<span className="font-extrabold text-[#10221b]">
-					{incidentCategoryLabels[item.category]}
-				</span>
-				<span
-					className={`rounded-full px-2 py-0.5 text-xs font-bold ${incidentSeverityStyles[item.severity]}`}
-				>
-					{incidentSeverityLabels[item.severity]}
-				</span>
-				<IncidentSyncBadge state={item.syncState} />
+			<div className="flex flex-wrap items-center justify-between gap-2">
+				<div className="flex flex-wrap items-center gap-2">
+					<span className="font-extrabold text-[#10221b]">
+						{incidentCategoryLabels[item.category]}
+					</span>
+					<span
+						className={`rounded-full px-2 py-0.5 text-xs font-bold ${incidentSeverityStyles[item.severity]}`}
+					>
+						{incidentSeverityLabels[item.severity]}
+					</span>
+					{item.status && (
+						<span
+							className={`rounded-full border px-2 py-0.5 text-xs font-bold ${incidentStatusStyles[item.status]}`}
+						>
+							{incidentStatusLabels[item.status]}
+						</span>
+					)}
+					<IncidentSyncBadge state={item.syncState} />
+				</div>
+
+				{onManage && isSynced && (
+					<Button
+						size="sm"
+						variant="outline"
+						onClick={() => onManage(item)}
+						className="text-xs h-7 px-2.5 font-bold"
+					>
+						<Edit3 className="size-3 mr-1" />
+						<span>Xử lý sự cố</span>
+					</Button>
+				)}
 			</div>
+
 			<p className="text-sm text-[#33463a]">{item.description}</p>
+
 			<div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-[#667a6d]">
 				<span>{new Date(item.occurredAt).toLocaleString("vi-VN")}</span>
+				{item.assignedToName && (
+					<span className="flex items-center gap-1 font-semibold text-emerald-800">
+						<User className="size-3.5 text-emerald-700" />
+						<span>Phụ trách: {item.assignedToName}</span>
+					</span>
+				)}
 				<span className="flex items-center gap-1">
 					<MapPin aria-hidden="true" className="size-3.5" />
 					<span>{locationText(item)}</span>
@@ -62,6 +102,7 @@ export function IncidentCard({ item, onRetry, onDiscard, onDropPhoto }: Incident
 					</span>
 				)}
 			</div>
+
 			{item.lastError && (
 				<p
 					role={isFailed || isMediaFailed ? "alert" : undefined}
@@ -70,6 +111,7 @@ export function IncidentCard({ item, onRetry, onDiscard, onDropPhoto }: Incident
 					{item.lastError}
 				</p>
 			)}
+
 			{(isFailed || isMediaFailed) && (
 				<div className="flex flex-wrap gap-2">
 					<Button size="sm" variant="outline" onClick={() => onRetry(item.id)}>

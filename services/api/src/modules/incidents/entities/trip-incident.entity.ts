@@ -1,4 +1,12 @@
-import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryColumn } from "typeorm";
+import {
+	Column,
+	CreateDateColumn,
+	Entity,
+	JoinColumn,
+	ManyToOne,
+	OneToMany,
+	PrimaryColumn,
+} from "typeorm";
 import type { GeoPoint } from "../../trekking-routes/entities/checkpoint.entity";
 import { Trip } from "../../trips/entities/trip.entity";
 import { User } from "../../users/entities/user.entity";
@@ -8,10 +16,12 @@ import {
 	IncidentSeverity,
 	IncidentStatus,
 } from "../incidents.enums";
+import { IncidentAction } from "./incident-action.entity";
 
 /**
- * CTMS-049. One Porter-reported Trip incident. `id` is the client-generated UUID, so an
+ * CTMS-049 & CTMS-086. One Trip incident. `id` is the client-generated UUID, so an
  * offline report synchronized repeatedly maps to this single row (BR-162, BR-221).
+ * Handling state and assignment are managed by the authorized Host (BR-269).
  */
 @Entity({ name: "trip_incidents" })
 export class TripIncident {
@@ -31,6 +41,13 @@ export class TripIncident {
 	@ManyToOne(() => User, { onDelete: "RESTRICT" })
 	@JoinColumn({ name: "reporter_id", foreignKeyConstraintName: "FK_trip_incidents_reporter_id" })
 	reporter?: User;
+
+	@Column({ name: "assigned_to", type: "uuid", nullable: true })
+	assignedTo!: string | null;
+
+	@ManyToOne(() => User, { onDelete: "SET NULL", nullable: true })
+	@JoinColumn({ name: "assigned_to", foreignKeyConstraintName: "FK_trip_incidents_assigned_to" })
+	assignee?: User | null;
 
 	@Column({ type: "enum", enum: IncidentCategory, enumName: "incident_category" })
 	category!: IncidentCategory;
@@ -88,4 +105,10 @@ export class TripIncident {
 	/** When the server first accepted the incident; distinguishes synced from device-only data. */
 	@CreateDateColumn({ name: "received_at", type: "timestamptz" })
 	receivedAt!: Date;
+
+	@OneToMany(
+		() => IncidentAction,
+		(action) => action.incident
+	)
+	actions?: IncidentAction[];
 }

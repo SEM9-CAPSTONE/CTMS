@@ -2,7 +2,10 @@ import type { QueryClient } from "@tanstack/react-query";
 import { queryKeys } from "../../../core/api";
 import { getStoredAuthUser } from "../../auth/utils/tokenStorage";
 import { INCIDENT_SYNC_INTERVAL_MS } from "../constants";
-import { type TripIncidentsApi, tripIncidentsService } from "../services/trip-incidents.service";
+import {
+	type TripIncidentsSyncApi,
+	tripIncidentsService,
+} from "../services/trip-incidents.service";
 import {
 	type IncidentQueueStore,
 	getDefaultIncidentQueueStore,
@@ -26,7 +29,7 @@ export function registerVisibleIncidentTrip(porterId: string, tripId: string): (
 export async function syncBackgroundIncidents(
 	porterId: string,
 	store: IncidentQueueStore,
-	api: TripIncidentsApi,
+	api: TripIncidentsSyncApi,
 	isActive: () => boolean,
 	onSynced: (tripId: string) => void
 ): Promise<void> {

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { TripIncidentsApi } from "../services/trip-incidents.service";
+import type { TripIncidentsSyncApi } from "../services/trip-incidents.service";
 import { createMemoryIncidentQueueStore } from "../storage/incident-queue.store";
 import { IncidentSyncState, type TripIncident } from "../types";
 import { registerVisibleIncidentTrip, syncBackgroundIncidents } from "./incident-background-sync";
@@ -27,7 +27,7 @@ describe("background incident synchronization", () => {
 		const first = record("trip-a", "porter-a");
 		const second = record("trip-b", "porter-b");
 		const store = createMemoryIncidentQueueStore([first, second]);
-		const api: TripIncidentsApi = {
+		const api: TripIncidentsSyncApi = {
 			list: vi.fn(),
 			uploadMedia: vi.fn(),
 			report: vi.fn(async () => ({
@@ -53,7 +53,7 @@ describe("background incident synchronization", () => {
 	});
 	it("leaves a visible Trip to its panel and stops when the account changes", async () => {
 		const store = createMemoryIncidentQueueStore([record("trip-a", "porter-a")]);
-		const api: TripIncidentsApi = { list: vi.fn(), uploadMedia: vi.fn(), report: vi.fn() };
+		const api: TripIncidentsSyncApi = { list: vi.fn(), uploadMedia: vi.fn(), report: vi.fn() };
 		const release = registerVisibleIncidentTrip("porter-a", "trip-a");
 		try {
 			await syncBackgroundIncidents("porter-a", store, api, () => true, vi.fn());

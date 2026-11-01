@@ -1,6 +1,6 @@
 import { HttpError } from "../../../core/api";
 import { INCIDENT_RETRY_BASE_DELAY_MS, INCIDENT_RETRY_MAX_DELAY_MS } from "../constants";
-import type { TripIncidentsApi } from "../services/trip-incidents.service";
+import type { TripIncidentsSyncApi } from "../services/trip-incidents.service";
 import {
 	type IncidentListItem,
 	IncidentMediaState,
@@ -19,6 +19,7 @@ const incidentErrorReasons: Record<string, string> = {
 	INCIDENT_OUTSIDE_TRIP_WINDOW: "Thời điểm sự cố nằm ngoài thời gian của chuyến đi.",
 	INCIDENT_ID_CONFLICT: "Mã sự cố bị trùng với một báo cáo khác.",
 	INCIDENT_MEDIA_INVALID: "Ảnh phải là JPEG, PNG hoặc WebP và không quá 5 MB.",
+	INCIDENT_INVALID_STATUS_TRANSITION: "Chuyển đổi trạng thái sự cố không hợp lệ.",
 };
 
 function errorCode(error: HttpError): string | null {
@@ -31,7 +32,7 @@ function errorCode(error: HttpError): string | null {
 
 /**
  * Network problems, expired sessions and server hiccups are retried later; anything the
- * server refused on business or validation grounds is final and shown to the Porter.
+ * server refused on business or validation grounds is final and shown to the user.
  */
 export function classifySyncError(error: unknown): SyncFailure {
 	if (!(error instanceof HttpError)) {
@@ -48,6 +49,8 @@ export function classifySyncError(error: unknown): SyncFailure {
 			return { retryable: false, reason: "Bạn không còn được phân công cho chuyến đi này." };
 		case error.status === 404:
 			return { retryable: false, reason: "Không tìm thấy chuyến đi hoặc sự cố." };
+		case error.status === 409:
+			return { retryable: false, reason: knownReason ?? error.message };
 		case error.status === 413:
 			return { retryable: false, reason: incidentErrorReasons.INCIDENT_MEDIA_INVALID };
 		default:
@@ -116,7 +119,7 @@ function afterIncidentSynced(
  */
 export async function syncIncidentRecord(
 	record: LocalIncidentRecord,
-	api: TripIncidentsApi,
+	api: TripIncidentsSyncApi,
 	now: number,
 	isActive: () => boolean = () => true
 ): Promise<LocalIncidentRecord> {
@@ -165,8 +168,13 @@ export function isSettled(record: LocalIncidentRecord): boolean {
 function fromServer(incident: TripIncident): IncidentListItem {
 	return {
 		id: incident.id,
+		tripId: incident.tripId,
+		reporterName: incident.reporterName,
+		assignedTo: incident.assignedTo,
+		assignedToName: incident.assignedToName,
 		category: incident.category,
 		severity: incident.severity,
+		status: incident.status,
 		description: incident.description,
 		occurredAt: incident.occurredAt,
 		location: incident.location,
@@ -185,8 +193,13 @@ function fromDevice(record: LocalIncidentRecord): IncidentListItem {
 			? fromServer(server)
 			: {
 					id: record.id,
+					tripId: record.tripId,
+					reporterName: null,
+					assignedTo: null,
+					assignedToName: null,
 					category: record.payload.category,
 					severity: record.payload.severity,
+					status: "open" as const,
 					description: record.payload.description,
 					occurredAt: record.payload.occurredAt,
 					location: record.payload.location,

@@ -1,8 +1,10 @@
 import type {
+	IncidentActionType,
 	IncidentCategory,
 	IncidentLocationStatus,
 	IncidentMediaState,
 	IncidentSeverity,
+	IncidentStatus,
 	IncidentSyncState,
 } from "./types";
 
@@ -44,6 +46,27 @@ export const incidentSeverityStyles: Record<IncidentSeverity, string> = {
 	medium: "bg-amber-50 text-amber-800",
 	high: "bg-orange-100 text-orange-800",
 	critical: "bg-rose-100 text-rose-800",
+};
+
+export const incidentStatusLabels: Record<IncidentStatus, string> = {
+	open: "Mở",
+	investigating: "Đang xử lý",
+	resolved: "Đã giải quyết",
+	closed: "Đã đóng",
+};
+
+export const incidentStatusStyles: Record<IncidentStatus, string> = {
+	open: "bg-blue-50 text-blue-800 border-blue-200",
+	investigating: "bg-amber-50 text-amber-800 border-amber-200",
+	resolved: "bg-emerald-50 text-emerald-800 border-emerald-200",
+	closed: "bg-slate-100 text-slate-700 border-slate-200",
+};
+
+export const incidentActionLabels: Record<IncidentActionType, string> = {
+	reported: "Báo cáo sự cố",
+	assigned: "Phân công xử lý",
+	status_changed: "Thay đổi trạng thái",
+	note_added: "Ghi chú hành động",
 };
 
 export const incidentSyncLabels: Record<IncidentSyncState, string> = {

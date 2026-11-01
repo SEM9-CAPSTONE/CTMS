@@ -1,10 +1,19 @@
-import { ArrowLeft, BriefcaseBusiness, Compass, Loader2, RefreshCw, Users } from "lucide-react";
+import {
+	AlertTriangle,
+	ArrowLeft,
+	BriefcaseBusiness,
+	Compass,
+	Loader2,
+	RefreshCw,
+	Users,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { BookingDetails } from "../../booking-details/types";
 import { bookingEquipmentService } from "../../booking-equipment/services/booking-equipment.service";
 import { TripMemberRoster } from "../../booking-members/components/TripMemberRoster";
 import { DeviceSyncStatusCard } from "../../device-sync";
 import { HostTripSettlementCard } from "../../settlements/components/HostTripSettlementCard";
+import { TripIncidentsPanel } from "../../trip-incidents";
 import type { BookingAccess } from "../components/BookingPanel";
 import type { SelectedEquipmentItem } from "../components/RentableEquipmentModal";
 import { TripDetailView } from "../components/TripDetailView";
@@ -33,7 +42,7 @@ export interface TripDetailPageProps {
 	currentUserId?: string | null;
 	onEditTrip?: (tripId: string) => void;
 	onManagePorters?: (tripId: string) => void;
-	initialTab?: "overview" | "roster";
+	initialTab?: "overview" | "roster" | "incidents";
 }
 
 function toBookTripResponse(booking: BookingDetails | null | undefined): BookTripResponse | null {
@@ -83,7 +92,9 @@ export function TripDetailPage({
 	onManagePorters,
 	initialTab,
 }: TripDetailPageProps) {
-	const [activeTab, setActiveTab] = useState<"overview" | "roster">(initialTab ?? "overview");
+	const [activeTab, setActiveTab] = useState<"overview" | "roster" | "incidents">(
+		initialTab ?? "overview"
+	);
 	const [isAddingEquipment, setIsAddingEquipment] = useState(false);
 	const { trip, isLoading, error, isNotFound, retry } = useTripDetail(tripId);
 	const {
@@ -364,6 +375,18 @@ export function TripDetailPage({
 										<Users className="size-4" />
 										<span>Điểm danh & Hoàn tất</span>
 									</button>
+									<button
+										type="button"
+										onClick={() => setActiveTab("incidents")}
+										className={`inline-flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-extrabold transition ${
+											activeTab === "incidents"
+												? "border-[#164027] text-[#164027]"
+												: "border-transparent text-[#667a6d] hover:border-slate-300 hover:text-[#10221b]"
+										}`}
+									>
+										<AlertTriangle className="size-4" />
+										<span>Sự cố chuyến đi</span>
+									</button>
 								</div>
 							)}
 
@@ -463,6 +486,17 @@ export function TripDetailPage({
 							{isRosterVisible && (
 								<div hidden={activeTab !== "roster"}>
 									<TripMemberRoster tripId={trip.id} />
+								</div>
+							)}
+							{isRosterVisible && (
+								<div hidden={activeTab !== "incidents"}>
+									<div className="rounded-3xl border border-[#dfe8df] bg-white p-6 shadow-sm">
+										<TripIncidentsPanel
+											tripId={trip.id}
+											tripStatus={trip.status}
+											canManage={canManageThisTrip}
+										/>
+									</div>
 								</div>
 							)}
 						</>

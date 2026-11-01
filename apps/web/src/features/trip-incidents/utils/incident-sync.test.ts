@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { HttpError } from "../../../core/api";
-import type { TripIncidentsApi } from "../services/trip-incidents.service";
+import type { TripIncidentsSyncApi } from "../services/trip-incidents.service";
 import {
 	IncidentMediaState,
 	IncidentSyncState,
@@ -57,7 +57,7 @@ function serverIncident(id: string, overrides: Partial<TripIncident> = {}): Trip
 	};
 }
 
-function api(overrides: Partial<TripIncidentsApi> = {}): TripIncidentsApi {
+function api(overrides: Partial<TripIncidentsSyncApi> = {}): TripIncidentsSyncApi {
 	return {
 		report: vi.fn(async (_tripId, payload) => ({
 			outcome: "created" as const,

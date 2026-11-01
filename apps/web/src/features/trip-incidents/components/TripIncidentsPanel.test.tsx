@@ -64,6 +64,9 @@ describe("TripIncidentsPanel", () => {
 			}),
 			list: vi.fn(async () => ({ items: [...serverIncidents] })),
 			uploadMedia: vi.fn(),
+			assign: vi.fn(),
+			updateStatus: vi.fn(),
+			listHistory: vi.fn(),
 		};
 	});
 
