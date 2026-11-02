@@ -3,7 +3,6 @@ import { OVERVIEW_TEXT as text } from "../constants";
 import type { HostOverview } from "../types";
 import { overviewDate, overviewStatus } from "../utils";
 import { OverviewActiveTrips } from "./OverviewActiveTrips";
-import { OverviewInventory } from "./OverviewInventory";
 import { OverviewSection } from "./OverviewSection";
 
 export function OverviewSections({
@@ -15,8 +14,11 @@ export function OverviewSections({
 	const zone = data.timeZone;
 	return (
 		<div className="grid items-stretch gap-4 lg:grid-cols-2">
-			<OverviewActiveTrips hostId={hostId} onTrip={onTrip} onRestricted={onRestricted} />
+			<div id="host-active-trips">
+				<OverviewActiveTrips hostId={hostId} onTrip={onTrip} onRestricted={onRestricted} />
+			</div>
 			<OverviewSection
+				id="host-rescue-requests"
 				title={text.sos}
 				section={data.sos}
 				timeZone={zone}
@@ -25,7 +27,7 @@ export function OverviewSections({
 				{(item) => (
 					<div className="border-l-2 border-red-400 pl-3">
 						<p className="text-sm font-semibold text-red-800">
-							SOS · {overviewStatus(item.emergencyType)}
+							Yêu cầu cứu trợ · {overviewStatus(item.emergencyType)}
 						</p>
 						<p className="mt-1 text-xs text-[#65756a]">
 							{item.status === "active"
@@ -41,7 +43,6 @@ export function OverviewSections({
 					</div>
 				)}
 			</OverviewSection>
-			<OverviewInventory hostId={hostId} data={data} onTrip={onTrip} onRestricted={onRestricted} />
 		</div>
 	);
 }

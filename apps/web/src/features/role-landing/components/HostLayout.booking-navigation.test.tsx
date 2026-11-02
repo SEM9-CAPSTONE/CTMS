@@ -69,7 +69,7 @@ describe("HostLayout Booking navigation", () => {
 		storeHost();
 		window.history.replaceState({}, "", "/dashboard");
 		render(<HostLayout>Content</HostLayout>);
-		fireEvent.click(screen.getByRole("button", { name: "Porter" }));
+		fireEvent.click(screen.getByRole("button", { name: "Người hỗ trợ" }));
 		expect(window.location.pathname).toBe("/host/porter");
 		await waitFor(() => expect(camperProfileService.getProfile).toHaveBeenCalledTimes(1));
 	});

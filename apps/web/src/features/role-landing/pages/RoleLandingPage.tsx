@@ -14,7 +14,6 @@ import { useCamperTripCarousel } from "../hooks/useCamperTripCarousel";
 
 import { Collapse } from "../../../shared/components/Collapse";
 import { CamperSidebar } from "../../camper-profile/components/CamperSidebar";
-import { HostMyTripsPanel } from "../components/HostMyTripsPanel";
 import { MetricCard } from "../components/MetricCard";
 import { QuickTasksPanel } from "../components/QuickTasksPanel";
 import { Sidebar } from "../components/Sidebar";
@@ -100,7 +99,6 @@ function DashboardMain({
 	onViewTrekkingRoutes,
 	onNavigateToTrips,
 	onNavigateToTripDetail,
-	onEditTripDraft,
 }: {
 	config: DashboardConfig;
 	user: StoredAuthUser;
@@ -112,7 +110,6 @@ function DashboardMain({
 	onViewTrekkingRoutes?: () => void;
 	onNavigateToTrips?: () => void;
 	onNavigateToTripDetail?: (tripId: string) => void;
-	onEditTripDraft?: (tripId: string) => void;
 }) {
 	const displayName = profile?.fullName || getDisplayName(user);
 	const timeOfDay = getTimeOfDay();
@@ -157,11 +154,7 @@ function DashboardMain({
 				}
 			>
 				{config.role === "host" ? (
-					<HostDashboardHeader
-						name={displayName}
-						onCreateTrip={onCreateTrip}
-						onViewRoutes={onViewTrekkingRoutes}
-					/>
+					<HostDashboardHeader name={displayName} onCreateTrip={onCreateTrip} />
 				) : (
 					<section className="rounded-[28px] border border-[#dfe8df] bg-white p-6 shadow-sm">
 						<div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
@@ -287,15 +280,8 @@ function DashboardMain({
 						</section>
 					</>
 				)}
-				{config.role === "host" ? (
-					<HostMyTripsPanel
-						onCreateTrip={onCreateTrip}
-						onCreateTrekkingRoute={onCreateTrekkingRoute}
-						onViewTrekkingRoutes={onViewTrekkingRoutes}
-						onNavigateToTripDetail={onNavigateToTripDetail}
-						onEditTripDraft={onEditTripDraft}
-					/>
-				) : config.role === "porter" ? null : config.alerts.length > 0 ? (
+				{config.role === "host" ? null : config.role === "porter" ? null : config.alerts.length >
+					0 ? (
 					<section className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
 						<div className="rounded-[28px] border border-[#dfe8df] bg-white p-6 shadow-sm">
 							<div className="flex items-center justify-between">
@@ -354,7 +340,7 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 	onNavigateToTrips,
 	onNavigateToBookings,
 	onNavigateToTripDetail,
-	onEditTripDraft,
+	onNavigateToHostTripDetail,
 	onLogout,
 	onExplore,
 }) => {
@@ -411,7 +397,7 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 
 	return (
 		<div className="min-h-screen bg-[#f4f7f2] font-sans text-[#10221b] antialiased">
-			<div className="fixed inset-y-0 left-0 z-30 hidden lg:flex">
+			<div className="fixed inset-y-0 left-0 z-30 hidden h-dvh lg:flex">
 				<Collapse
 					isCollapsed={isSidebarCollapsed}
 					onToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
@@ -514,8 +500,11 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 					onCreateTrekkingRoute={onCreateTrekkingRoute}
 					onViewTrekkingRoutes={onViewTrekkingRoutes}
 					onNavigateToTrips={onNavigateToTrips}
-					onNavigateToTripDetail={onNavigateToTripDetail}
-					onEditTripDraft={onEditTripDraft}
+					onNavigateToTripDetail={
+						config.role === "host"
+							? (onNavigateToHostTripDetail ?? onNavigateToTripDetail)
+							: onNavigateToTripDetail
+					}
 				/>
 			</div>
 		</div>

@@ -5,6 +5,7 @@ import type { OverviewSection as Section } from "../types";
 import { overviewDate } from "../utils";
 
 interface Props<T> {
+	id?: string;
 	title: string;
 	section: Section<T>;
 	timeZone: string;
@@ -16,6 +17,7 @@ interface Props<T> {
 	children: (item: T) => ReactNode;
 }
 export function OverviewSection<T extends { id: string }>({
+	id,
 	title,
 	section,
 	timeZone,
@@ -29,6 +31,7 @@ export function OverviewSection<T extends { id: string }>({
 	const available = section.availability === "available" && section.data !== null;
 	return (
 		<section
+			id={id}
 			aria-label={title}
 			className={cn(
 				"flex min-w-0 flex-col",

@@ -72,6 +72,7 @@ vi.mock("../features/trips/pages/TripDetailPage", () => ({
 	TripDetailPage: ({
 		tripId,
 		onBackToList,
+		backLabel,
 		onBackHome,
 		bookingAccess,
 		showOperationalRoster,
@@ -79,6 +80,7 @@ vi.mock("../features/trips/pages/TripDetailPage", () => ({
 	}: {
 		tripId: string;
 		onBackToList: () => void;
+		backLabel?: string;
 		onBackHome?: () => void;
 		bookingAccess?: string;
 		showOperationalRoster?: boolean;
@@ -96,7 +98,7 @@ vi.mock("../features/trips/pages/TripDetailPage", () => ({
 				{showOperationalRoster && <section aria-label="Danh sách thành viên chuyến đi" />}
 				{flowIsActive && <p>Existing booking flow</p>}
 				<button type="button" onClick={onBackToList}>
-					Quay lại danh sách chuyến đi
+					{backLabel ?? "Quay lại danh sách chuyến đi"}
 				</button>
 				<button type="button" onClick={() => onViewBookingDetails("booking-from-trip")}>
 					Open booking from trip
@@ -214,6 +216,54 @@ describe("AppRoutes trip discovery and detail routing", () => {
 		await renderLazy(<AppRoutes />);
 
 		expect(screen.getByText("Quyền đặt chỗ: camper")).toBeInTheDocument();
+	});
+
+	it("returns Host trip details opened from the dashboard to the dashboard", async () => {
+		localStorage.setItem(
+			"authUser",
+			JSON.stringify({
+				id: "host-1",
+				email: "host@example.com",
+				phone: null,
+				role: "host",
+				roles: ["host"],
+				status: "active",
+				createdAt: "2026-01-01T00:00:00.000Z",
+			})
+		);
+		window.history.replaceState({}, "", "/trips/trip-123?from=host-dashboard");
+		await renderLazy(<AppRoutes />);
+
+		expect(screen.getByRole("button", { name: "Quay về tổng quan vận hành" })).toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "Trang chủ" })).not.toBeInTheDocument();
+		await userEvent.click(screen.getByRole("button", { name: "Quay về tổng quan vận hành" }));
+		await waitForPage();
+		expect(window.location.pathname).toBe("/dashboard");
+	});
+
+	it("keeps the trip list as the back destination for Host trip details opened from trip discovery", async () => {
+		localStorage.setItem(
+			"authUser",
+			JSON.stringify({
+				id: "host-1",
+				email: "host@example.com",
+				phone: null,
+				role: "host",
+				roles: ["host"],
+				status: "active",
+				createdAt: "2026-01-01T00:00:00.000Z",
+			})
+		);
+		window.history.replaceState({}, "", "/trips/trip-123");
+		await renderLazy(<AppRoutes />);
+
+		expect(
+			screen.getByRole("button", { name: "Quay lại danh sách chuyến đi" })
+		).toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "Trang chủ" })).not.toBeInTheDocument();
+		await userEvent.click(screen.getByRole("button", { name: "Quay lại danh sách chuyến đi" }));
+		await waitForPage();
+		expect(window.location.pathname).toBe("/trips");
 	});
 });
 

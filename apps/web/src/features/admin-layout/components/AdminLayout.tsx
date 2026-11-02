@@ -1,8 +1,6 @@
-import { Menu } from "lucide-react";
 import type React from "react";
 import { useEffect, useState } from "react";
 import { Collapse } from "../../../shared/components/Collapse";
-import { HomeLink } from "../../../shared/components/HomeLink";
 import { getStoredAuthUser } from "../../auth/utils/tokenStorage";
 import { camperProfileService } from "../../camper-profile/services/camper-profile.service";
 import type { CamperProfileData } from "../../camper-profile/types";
@@ -15,7 +13,6 @@ interface AdminLayoutProps {
 }
 
 export function AdminLayout({ activeItem, children, onLogout }: AdminLayoutProps) {
-	const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 	const [profile, setProfile] = useState<CamperProfileData | null>(null);
 
@@ -85,44 +82,21 @@ export function AdminLayout({ activeItem, children, onLogout }: AdminLayoutProps
 				</Collapse>
 			</div>
 
-			{/* Mobile Sidebar overlay */}
-			{mobileMenuOpen && (
-				<div className="fixed inset-0 z-50 lg:hidden">
-					<button
-						type="button"
-						aria-label="Close administration menu"
-						onClick={() => setMobileMenuOpen(false)}
-						className="absolute inset-0 bg-[#10221b]/45"
-					/>
-					<AdminSidebar
-						activeItem={activeItem}
-						profile={profile}
-						onLogout={onLogout}
-						onClose={() => setMobileMenuOpen(false)}
-						className="relative z-10 shadow-2xl"
-					/>
-				</div>
-			)}
-
 			<div
 				className={`min-h-screen transition-all duration-300 ${isSidebarCollapsed ? "lg:pl-0" : "lg:pl-72"}`}
 			>
-				<header className="sticky top-0 z-20 flex items-center gap-3 border-b border-[#dfe8df] bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
-					<button
-						type="button"
-						onClick={() => setMobileMenuOpen(true)}
-						aria-label="Open administration menu"
-						className="rounded-xl border border-[#dfe8df] p-2.5 text-[#164027] transition hover:bg-[#f1f5f0]"
-					>
-						<Menu className="size-5" />
-					</button>
-					<HomeLink className="flex items-center gap-2.5">
-						<img src="/ctms_logo.png" alt="CTMS Logo" className="h-8 w-auto object-contain" />
-						<p className="font-extrabold text-[#10221b]">Quản trị CTMS</p>
-					</HomeLink>
-				</header>
+				<div className="flex min-h-dvh items-center justify-center bg-[#f4f7f2] p-6 text-center lg:hidden">
+					<section className="max-w-md rounded-3xl border border-[#dfe8df] bg-white p-8 shadow-sm">
+						<h1 className="text-xl font-extrabold text-[#164027]">
+							Vui lòng mở CTMS trên máy tính
+						</h1>
+						<p className="mt-2 text-sm leading-6 text-[#627769]">
+							Khu vực quản lý Host và Quản trị viên được thiết kế để sử dụng trên màn hình máy tính.
+						</p>
+					</section>
+				</div>
 
-				<main>{children}</main>
+				<main className="hidden lg:block">{children}</main>
 			</div>
 		</div>
 	);

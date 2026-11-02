@@ -225,7 +225,7 @@ describe("TripDetailPage", () => {
 				restoredBookingDetails={cancelledBookingDetails}
 			/>
 		);
-		expect(screen.getByRole("status")).toHaveTextContent("cancelled");
+		expect(document.querySelector('[data-booking-state="cancelled"]')).toBeInTheDocument();
 		expect(retry).toHaveBeenCalledTimes(1);
 		expect(retryBookingRestore).toHaveBeenCalledTimes(1);
 		vi.mocked(useTripBooking).mockReturnValue({
@@ -269,7 +269,7 @@ describe("TripDetailPage", () => {
 			/>
 		);
 
-		expect(screen.getByRole("status")).toHaveTextContent("cancelled");
+		expect(document.querySelector('[data-booking-state="cancelled"]')).toBeInTheDocument();
 	});
 
 	it("restores a cancelled Booking on a full load without navigation state", () => {
@@ -290,7 +290,7 @@ describe("TripDetailPage", () => {
 
 		render(<TripDetailPage tripId={mockTrip.id} onBackToList={vi.fn()} />);
 
-		expect(screen.getByRole("status")).toHaveTextContent("cancelled");
+		expect(document.querySelector('[data-booking-state="cancelled"]')).toBeInTheDocument();
 		expect(screen.getByTestId("trip-remaining-seats")).toHaveTextContent("7 chỗ");
 		expect(screen.queryByRole("button", { name: /đặt chỗ ngay/i })).not.toBeInTheDocument();
 		expect(screen.queryByRole("button", { name: /tạo đặt chỗ khác/i })).not.toBeInTheDocument();
@@ -392,11 +392,7 @@ describe("TripDetailPage", () => {
 		});
 
 		const onBackToList = vi.fn();
-		const onBackHome = vi.fn();
-
-		render(
-			<TripDetailPage tripId="trip-abc" onBackToList={onBackToList} onBackHome={onBackHome} />
-		);
+		render(<TripDetailPage tripId="trip-abc" onBackToList={onBackToList} />);
 
 		expect(screen.getByText("Chinh Phục Đỉnh Núi Bidoup")).toBeInTheDocument();
 
@@ -407,8 +403,28 @@ describe("TripDetailPage", () => {
 		);
 		expect(onBackToList).toHaveBeenCalled();
 
-		fireEvent.click(screen.getByRole("button", { name: "Trang chủ" }));
-		expect(onBackHome).toHaveBeenCalled();
+		expect(screen.queryByRole("button", { name: "Trang chủ" })).not.toBeInTheDocument();
+	});
+
+	it("uses the source-specific back label and hides the home action when returning to Host Dashboard", () => {
+		vi.mocked(useTripDetail).mockReturnValue({
+			trip: mockTrip,
+			isLoading: false,
+			error: null,
+			isNotFound: false,
+			retry: vi.fn(),
+		});
+
+		render(
+			<TripDetailPage
+				tripId="trip-abc"
+				onBackToList={vi.fn()}
+				backLabel="Quay về tổng quan vận hành"
+			/>
+		);
+
+		expect(screen.getByRole("button", { name: "Quay về tổng quan vận hành" })).toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "Trang chủ" })).not.toBeInTheDocument();
 	});
 
 	it("delegates to onBook prop when provided", async () => {
@@ -520,7 +536,7 @@ describe("TripDetailPage", () => {
 
 		render(<TripDetailPage tripId="trip-abc" onBackToList={vi.fn()} />);
 
-		expect(screen.getByRole("status")).toHaveTextContent("Chờ thanh toán");
+		expect(document.querySelector("[data-booking-state]")).toHaveTextContent("Chờ thanh toán");
 		expect(screen.getByTestId("authoritative-booking-price")).toHaveTextContent(/765\.432/);
 	});
 

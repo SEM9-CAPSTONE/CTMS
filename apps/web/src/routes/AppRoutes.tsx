@@ -467,6 +467,8 @@ function AppRouteContent() {
 	const routeTripId = isTripDetailRoute ? currentPath.substring("/trips/".length) : null;
 	const navigationContext = new URLSearchParams(currentSearch);
 	const contextTripId = navigationContext.get("tripId");
+	const isHostDashboardTripDetail =
+		isTripDetailRoute && navigationContext.get("from") === "host-dashboard";
 	const tripReturnId =
 		isBookingDetailRoute &&
 		navigationContext.get("from") === "trip" &&
@@ -515,8 +517,10 @@ function AppRouteContent() {
 		const detailView = (
 			<TripDetailPage
 				tripId={activeTripId}
-				onBackToList={() => navigateTo(RoutePath.TRIPS)}
-				onBackHome={() => navigateTo(storedUser ? RoutePath.DASHBOARD : RoutePath.HOME)}
+				onBackToList={() =>
+					navigateTo(isHostDashboardTripDetail ? RoutePath.DASHBOARD : RoutePath.TRIPS)
+				}
+				backLabel={isHostDashboardTripDetail ? "Quay về tổng quan vận hành" : undefined}
 				canManageTrips={currentRoles.includes("host")}
 				currentUserId={storedUser?.id ?? null}
 				bookingAccess={
@@ -812,6 +816,7 @@ function AppRouteContent() {
 						<HostPorterRequestsPage
 							initialTripId={navigationContext.get("tripId")}
 							initialView={navigationContext.get("view")}
+							onBackHome={() => navigateTo(RoutePath.DASHBOARD)}
 						/>
 					</HostLayout>
 				</AppRoleGuard>
@@ -827,6 +832,8 @@ function AppRouteContent() {
 					<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
 						<HostCampersPage
 							initialTripId={navigationContext.get("tripId")}
+							initialStatus={navigationContext.get("status")}
+							onBackHome={() => navigateTo(RoutePath.DASHBOARD)}
 							onNavigateToTripDetail={(tripId) => navigateTo(`/trips/${tripId}`)}
 							onCreateTrip={() => navigateTo(RoutePath.HOST_CREATE_TRIP)}
 						/>
@@ -903,6 +910,9 @@ function AppRouteContent() {
 					onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}
 					onNavigateToBookings={() => navigateTo(RoutePath.BOOKINGS)}
 					onNavigateToTripDetail={(tripId) => navigateTo(`/trips/${tripId}`)}
+					onNavigateToHostTripDetail={(tripId) =>
+						navigateTo(`/trips/${tripId}?from=host-dashboard`)
+					}
 					onCreateTrip={() => navigateTo(RoutePath.HOST_CREATE_TRIP)}
 					onEditTripDraft={(tripId) => navigateTo(`/host/trips/${tripId}/edit`)}
 					onCreateTrekkingRoute={() => navigateTo(RoutePath.HOST_CREATE_TREKKING_ROUTE)}
