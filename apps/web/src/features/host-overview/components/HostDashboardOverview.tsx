@@ -47,24 +47,18 @@ export function HostDashboardOverview({
 			</div>
 		);
 	const data = query.data;
-	const totals = [data.activeTrips, data.sos, data.weather].map(
-		(section) => section.data?.total ?? 0
-	);
+	const totals = [data.sos].map((section) => section.data?.total ?? 0);
 	const pages = Math.max(1, ...totals.map((total) => Math.ceil(total / data.limit)));
 	const openTrip =
 		onNavigateToTripDetail ?? ((id: string) => openOverviewDetail(RoutePath.TRIP_DETAIL, id));
 	return (
 		<div data-testid="host-dashboard-overview" className="space-y-4">
-			{query.stale && (
-				<output className="block rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-					{text.stale}
-				</output>
-			)}
 			<OverviewKpis overview={data} />
 			<OverviewToolbar
 				data={data}
 				pages={pages}
 				busy={query.isFetching}
+				stale={query.stale}
 				onPrevious={() => setPage((value) => value - 1)}
 				onNext={() => setPage((value) => value + 1)}
 				onRefresh={retry}

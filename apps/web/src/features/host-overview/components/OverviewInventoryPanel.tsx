@@ -9,7 +9,6 @@ export function OverviewInventoryPanel({
 	data,
 	loading,
 	restricted,
-	stale,
 	onRetry,
 	onTrip,
 }: {
@@ -17,7 +16,6 @@ export function OverviewInventoryPanel({
 	data?: HostOverview;
 	loading: boolean;
 	restricted: boolean;
-	stale: boolean;
 	onRetry: () => void;
 	onTrip: (id: string) => void;
 }) {
@@ -45,11 +43,6 @@ export function OverviewInventoryPanel({
 	const tripNames = new Map(data.activeTrips.data?.items.map((trip) => [trip.id, trip.title]));
 	return (
 		<div className="flex h-full flex-col">
-			{stale && (
-				<output className="mb-3 text-xs text-amber-800">
-					Dữ liệu danh sách đang cũ. {text.refresh} để cập nhật.
-				</output>
-			)}
 			{active === "bookings" && (
 				<OverviewSection
 					title={text.bookings}

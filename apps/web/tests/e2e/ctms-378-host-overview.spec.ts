@@ -44,18 +44,20 @@ test("renders backend KPIs, pages and supported detail navigation", async ({ pag
 		overview.getByRole("region", { name: "Chỉ số vận hành" }).getByText("7", { exact: true })
 	).toBeVisible();
 	await expect(overview.getByText("SOS · Chấn thương")).toBeVisible();
-	await expect(overview.getByText("Rủi ro cao", { exact: true })).toBeVisible();
+	await expect(overview.getByRole("region", { name: "Rủi ro thời tiết", exact: true })).toHaveCount(
+		0
+	);
 	await overview.screenshot({ path: testInfo.outputPath("host-overview-desktop.png") });
 	await overview.getByRole("button", { name: "Sau", exact: true }).click();
 	await expect(
-		overview.getByRole("navigation", { name: "Phân trang Booking hôm nay" })
+		overview.getByRole("navigation", { name: "Phân trang Đặt chỗ hôm nay" })
 	).toContainText("2 / 2");
 	await expect(
 		overview.getByRole("region", { name: "Chỉ số vận hành" }).getByText("7", { exact: true })
 	).toBeVisible();
 	await overview
-		.getByRole("region", { name: "Trip đang diễn ra", exact: true })
-		.getByRole("button", { name: "Xem Trip", exact: true })
+		.getByRole("region", { name: "Chuyến đi đang diễn ra", exact: true })
+		.getByRole("button", { name: "Xem chuyến đi", exact: true })
 		.click();
 	await expect(page).toHaveURL(/\/trips\/trip-one$/);
 });
@@ -72,11 +74,12 @@ test("shows unavailable and stale states, and hides cached data after 403", asyn
 		const weather = data.weather.data?.items[0];
 		if (!weather) throw new Error("Missing weather fixture");
 		weather.state = "stale";
+		data.generatedAt = new Date(Date.now() - 120_000).toISOString();
 		return route.fulfill({ json: data });
 	});
 	await page.goto("/dashboard");
 	await expect(page.getByText("Nguồn dữ liệu chưa khả dụng", { exact: true })).toBeVisible();
-	await expect(page.getByText("Đánh giá đã cũ", { exact: true })).toBeVisible();
+	await expect(page.getByText("Chưa cập nhật", { exact: true })).toBeVisible();
 	denied = true;
 	await page
 		.getByTestId("host-dashboard-overview")
@@ -116,105 +119,87 @@ test("supports error retry and real empty state on a narrow viewport", async ({ 
 	failing = false;
 	await page.getByRole("button", { name: "Thử lại", exact: true }).click();
 	await expect(
-		page.getByTestId("host-dashboard-overview").getByText("Chưa có dữ liệu.", { exact: true })
-	).toHaveCount(3);
-	await expect(page.getByText("Không có SOS đang chờ xử lý.")).toBeVisible();
+		page.getByRole("region", { name: "Chuyến đi đang diễn ra", exact: true })
+	).toContainText("Chưa có dữ liệu.");
+	await expect(page.getByRole("region", { name: "Đặt chỗ hôm nay", exact: true })).toContainText(
+		"Chưa có dữ liệu."
+	);
+	await expect(page.getByText("Hiện không có yêu cầu cứu trợ cần xử lý.")).toBeVisible();
 	expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
 		true
 	);
 });
 
-test("keeps a long weather list compact without pushing other sections into empty columns", async ({
+test("pages active Trips independently in groups of three and keeps rescue cards aligned", async ({
 	page,
 }, testInfo) => {
 	await page.setViewportSize({ width: 1900, height: 1080 });
 	await setup(page);
 	await page.route("**/api/host/monitoring/overview?*", (route) => {
+		const url = new URL(route.request().url());
 		const data = overviewFixture();
-		const weather = data.weather.data?.items[0];
-		const ownedRoute = data.routes.data?.items[0];
-		if (!weather || !ownedRoute) throw new Error("Missing fixture");
-		const requestedPage = Number(new URL(route.request().url()).searchParams.get("page"));
-		data.page = requestedPage;
-		data.kpis.routes = 11;
-		data.bookings.data = { total: 0, items: [] };
-		data.kpis.todaysBookings = 0;
+		const trip = data.activeTrips.data?.items[0];
+		if (!trip) throw new Error("Missing Trip fixture");
+		data.page = Number(url.searchParams.get("page"));
+		data.limit = Number(url.searchParams.get("limit"));
+		data.kpis.activeTrips = 7;
+		data.activeTrips.data = {
+			total: 7,
+			items: Array.from(
+				{ length: Math.min(data.limit, 7 - (data.page - 1) * data.limit) },
+				(_, index) => ({
+					...trip,
+					id: `trip-${(data.page - 1) * data.limit + index + 1}`,
+					title: `Chuyến kiểm tra ${(data.page - 1) * data.limit + index + 1}`,
+				})
+			),
+		};
 		data.sos.data = { total: 0, items: [] };
 		data.kpis.unresolvedSos = 0;
-		data.weather.data = {
-			total: 5,
-			items: Array.from({ length: 5 }, (_, index) => ({
-				...weather,
-				id: `weather-${index}`,
-				routeId: `route-${index}`,
-				state: index === 0 ? "unavailable" : "stale",
-				riskLevel: index === 0 ? null : weather.riskLevel,
-			})),
-		};
-		data.routes.data = {
-			total: 11,
-			items: Array.from({ length: requestedPage === 3 ? 1 : 5 }, (_, row) => ({
-				...ownedRoute,
-				id: `route-${(requestedPage - 1) * 5 + row}`,
-				name: `Tuyến kiểm tra ${(requestedPage - 1) * 5 + row + 1}`,
-			})),
-		};
 		return route.fulfill({ json: data });
 	});
 	await page.goto("/dashboard");
 	const overview = page.getByTestId("host-dashboard-overview");
-	const weather = overview.getByRole("region", { name: "Rủi ro thời tiết", exact: true });
-	await expect(weather.getByText("Tuyến kiểm tra 5", { exact: true })).toBeVisible();
-	const weatherBox = await weather.boundingBox();
-	const overviewBox = await overview.boundingBox();
-	if (!weatherBox || !overviewBox) throw new Error("Missing dashboard bounds");
-	expect(weatherBox.width).toBeLessThan(overviewBox.width * 0.6);
-	expect(weatherBox.height).toBeLessThan(700);
-	const inventory = overview.getByRole("tablist", { name: "Danh sách vận hành" }).locator("..");
-	const inventoryBox = await inventory.boundingBox();
-	if (!inventoryBox) throw new Error("Missing inventory bounds");
-	expect(Math.abs(inventoryBox.width - weatherBox.width)).toBeLessThan(1);
-	expect(Math.abs(inventoryBox.height - weatherBox.height)).toBeLessThan(1);
-	await weather.locator("summary").first().click();
-	await expect(weather.getByRole("button", { name: "Xem tuyến", exact: true })).toBeVisible();
-	await weather.locator("summary").first().click();
-	await overview.getByRole("tab", { name: /^Tuyến/ }).click();
-	await expect(
-		overview
-			.getByRole("region", { name: "Tuyến của tôi", exact: true })
-			.getByText("Tuyến kiểm tra 5", { exact: true })
-	).toBeVisible();
-	await overview.getByRole("tab", { name: /^Porter/ }).focus();
-	await page.keyboard.press("ArrowLeft");
-	await expect(overview.getByRole("tab", { name: /^Booking hôm nay/ })).toHaveAttribute(
-		"aria-selected",
-		"true"
-	);
-	await overview.getByRole("tab", { name: /^Tuyến/ }).click();
-	await overview.getByRole("heading", { name: "Trip đang diễn ra", exact: true }).click();
-	await overview.screenshot({ path: testInfo.outputPath("host-overview-long-list.png") });
-	const pager = overview.getByRole("navigation", { name: "Phân trang Tuyến", exact: true });
+	const trips = overview.getByRole("region", { name: "Chuyến đi đang diễn ra", exact: true });
+	const rescue = overview.getByRole("region", { name: "Yêu cầu cứu trợ", exact: true });
+	const pager = overview.getByRole("navigation", {
+		name: "Phân trang Chuyến đi đang diễn ra",
+		exact: true,
+	});
+	await expect(trips.getByRole("button", { name: "Xem chuyến đi", exact: true })).toHaveCount(3);
+	await expect(pager).toContainText("1–3 / 7");
+	const tripsBox = await trips.locator("..").boundingBox();
+	const rescueBox = await rescue.boundingBox();
+	if (!tripsBox || !rescueBox) throw new Error("Missing dashboard bounds");
+	expect(Math.abs(tripsBox.width - rescueBox.width)).toBeLessThan(1);
+	expect(Math.abs(tripsBox.height - rescueBox.height)).toBeLessThan(1);
+	await overview.screenshot({ path: testInfo.outputPath("host-overview-three-trips.png") });
 	await pager.getByRole("button", { name: "Sau", exact: true }).click();
-	await expect(
-		overview
-			.getByRole("region", { name: "Tuyến của tôi", exact: true })
-			.getByText("Tuyến kiểm tra 6", { exact: true })
-	).toBeVisible();
-	await expect(pager).toContainText("6–10 / 11");
-	await expect(
-		overview
-			.getByRole("region", { name: "Trip đang diễn ra", exact: true })
-			.getByText("Chuyến Núi Chúa", { exact: true })
-	).toBeVisible();
-	await expect(weather.getByText("Tuyến kiểm tra 5", { exact: true })).toBeVisible();
+	await expect(trips.getByText("Chuyến kiểm tra 4", { exact: true })).toBeVisible();
+	await expect(trips.getByText("Chuyến kiểm tra 1", { exact: true })).toHaveCount(0);
+	await expect(pager).toContainText("4–6 / 7");
 	await pager.getByRole("button", { name: "Sau", exact: true }).click();
-	await expect(
-		overview
-			.getByRole("region", { name: "Tuyến của tôi", exact: true })
-			.getByText("Tuyến kiểm tra 11", { exact: true })
-	).toBeVisible();
+	await expect(trips.getByRole("button", { name: "Xem chuyến đi", exact: true })).toHaveCount(1);
+	await expect(pager).toContainText("7–7 / 7");
 	await expect(pager.getByRole("button", { name: "Sau", exact: true })).toBeDisabled();
-	expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
-		true
-	);
+	await expect(rescue).toContainText("Hiện không có yêu cầu cứu trợ cần xử lý.");
+});
+
+test("refreshes silently without requiring a manual refresh", async ({ page }) => {
+	await setup(page);
+	await page.clock.install();
+	let refreshed = false;
+	await page.route("**/api/host/monitoring/overview?*", (route) => {
+		const data = overviewFixture();
+		data.kpis.todaysBookings = refreshed ? 8 : 7;
+		return route.fulfill({ json: data });
+	});
+	await page.goto("/dashboard");
+	const kpis = page.getByRole("region", { name: "Chỉ số vận hành" });
+	await expect(kpis.getByText("7", { exact: true })).toBeVisible();
+	refreshed = true;
+	await page.clock.fastForward(30_000);
+	await expect(kpis.getByText("8", { exact: true })).toBeVisible();
+	await expect(page.getByText(/Dữ liệu đang cũ/)).toHaveCount(0);
+	await expect(page.getByText(/Cập nhật .*Asia\/Ho_Chi_Minh/)).toHaveCount(0);
 });

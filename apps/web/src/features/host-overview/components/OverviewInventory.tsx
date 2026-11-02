@@ -6,7 +6,7 @@ import { OverviewInventoryPanel } from "./OverviewInventoryPanel";
 import { OverviewListPagination } from "./OverviewListPagination";
 
 const tabs = [
-	{ key: "bookings", label: "Booking hôm nay" },
+	{ key: "bookings", label: "Đặt chỗ hôm nay" },
 	{ key: "porters", label: "Porter" },
 	{ key: "routes", label: "Tuyến" },
 ] as const;
@@ -31,7 +31,7 @@ export function OverviewInventory({
 		: (data[active].data?.total ?? null);
 	const buttons = useRef<(HTMLButtonElement | null)[]>([]);
 	return (
-		<div className="flex min-w-0 flex-col rounded-2xl border border-[#e0e7df] bg-white p-5 shadow-[0_2px_6px_#183a2805] lg:min-h-[500px]">
+		<div className="flex min-w-0 flex-col rounded-2xl border border-[#e0e7df] bg-white p-5 shadow-[0_2px_6px_#183a2805] lg:col-span-2">
 			<div
 				role="tablist"
 				aria-label="Danh sách vận hành"
@@ -96,7 +96,6 @@ export function OverviewInventory({
 					data={query.data}
 					loading={query.isPending}
 					restricted={query.restricted}
-					stale={query.stale}
 					onRetry={() => {
 						void query.refetch();
 					}}
