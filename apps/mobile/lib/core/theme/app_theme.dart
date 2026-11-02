@@ -169,17 +169,15 @@ class AppTheme {
       ),
       dividerTheme: DividerThemeData(color: scheme.outline, thickness: 1, space: 1),
       navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: scheme.surface,
+        backgroundColor: AppColors.brandPrimary,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
-        indicatorColor: isDark ? scheme.primaryContainer : AppColors.brandLight,
+        indicatorColor: const Color(0x33FFFFFF),
         indicatorShape: const StadiumBorder(),
         iconTheme: WidgetStateProperty.resolveWith((states) {
           final isSelected = states.contains(WidgetState.selected);
           return IconThemeData(
-            color: isSelected
-                ? (isDark ? Colors.white : AppColors.brandPrimary)
-                : AppColors.textMuted,
+            color: isSelected ? Colors.white : Colors.white70,
             size: 24,
           );
         }),
@@ -187,9 +185,7 @@ class AppTheme {
           (states) {
             final isSelected = states.contains(WidgetState.selected);
             return AppTypography.caption.copyWith(
-              color: isSelected
-                  ? (isDark ? Colors.white : AppColors.brandPrimary)
-                  : AppColors.textMuted,
+              color: isSelected ? Colors.white : Colors.white70,
               fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
             );
           },

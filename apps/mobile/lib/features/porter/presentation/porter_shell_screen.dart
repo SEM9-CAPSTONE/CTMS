@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/theme/app_typography.dart';
 
 /// Bottom-nav frame for the Porter role — the mobile adaptation of §2.1
 /// AppSidebar (`docs/design/CTMS-DESIGN-SYSTEM.md`). The sidebar has 7
@@ -10,6 +11,8 @@ import '../../../core/theme/app_spacing.dart';
 /// Thêm"), only the top 4 get a [StatefulShellBranch] in
 /// `core/router/app_router.dart` — "Thêm" opens a sheet that pushes the rest
 /// (`Thành viên đoàn`, `Sự cố`, `Hồ sơ & cài đặt`) as regular routes.
+///
+/// Styled with Brand Green background (#164027) and crisp white text/icons.
 class PorterShellScreen extends StatelessWidget {
   const PorterShellScreen({super.key, required this.navigationShell});
 
@@ -106,31 +109,62 @@ class PorterShellScreen extends StatelessWidget {
       body: navigationShell,
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
-          color: Colors.white,
+          color: AppColors.brandPrimary,
           border: Border(
-            top: BorderSide(color: AppColors.border, width: 1),
+            top: BorderSide(color: Color(0xFF0F2E1C), width: 1),
           ),
           boxShadow: [
             BoxShadow(
-              color: Color(0x06164027),
+              color: Color(0x33164027),
               blurRadius: 10,
               offset: Offset(0, -2),
             ),
           ],
         ),
-        child: NavigationBar(
-          selectedIndex: navigationShell.currentIndex,
-          onDestinationSelected: (index) {
-            if (index == _branchDestinations.length) {
-              _openMoreSheet(context);
-              return;
-            }
-            navigationShell.goBranch(
-              index,
-              initialLocation: index == navigationShell.currentIndex,
-            );
-          },
-          destinations: const [..._branchDestinations, _moreDestination],
+        child: SafeArea(
+          top: false,
+          child: NavigationBarTheme(
+            data: NavigationBarThemeData(
+              backgroundColor: AppColors.brandPrimary,
+              elevation: 0,
+              surfaceTintColor: Colors.transparent,
+              indicatorColor: const Color(0x33FFFFFF),
+              indicatorShape: const StadiumBorder(),
+              iconTheme: WidgetStateProperty.resolveWith((states) {
+                final isSelected = states.contains(WidgetState.selected);
+                return IconThemeData(
+                  color: isSelected ? Colors.white : Colors.white70,
+                  size: 24,
+                );
+              }),
+              labelTextStyle: WidgetStateProperty.resolveWith(
+                (states) {
+                  final isSelected = states.contains(WidgetState.selected);
+                  return AppTypography.caption.copyWith(
+                    color: isSelected ? Colors.white : Colors.white70,
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                  );
+                },
+              ),
+            ),
+            child: NavigationBar(
+              backgroundColor: AppColors.brandPrimary,
+              elevation: 0,
+              surfaceTintColor: Colors.transparent,
+              selectedIndex: navigationShell.currentIndex,
+              onDestinationSelected: (index) {
+                if (index == _branchDestinations.length) {
+                  _openMoreSheet(context);
+                  return;
+                }
+                navigationShell.goBranch(
+                  index,
+                  initialLocation: index == navigationShell.currentIndex,
+                );
+              },
+              destinations: const [..._branchDestinations, _moreDestination],
+            ),
+          ),
         ),
       ),
     );

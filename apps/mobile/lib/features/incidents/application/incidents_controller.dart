@@ -46,16 +46,21 @@ class IncidentsController extends ChangeNotifier with WidgetsBindingObserver {
     try {
       records = await store.read();
       trips = await store.readTrips();
-      online = !(await Connectivity().checkConnectivity()).contains(
-        ConnectivityResult.none,
-      );
+      try {
+        final connectivityResult = await Connectivity().checkConnectivity();
+        online = !connectivityResult.contains(ConnectivityResult.none);
+      } catch (_) {
+        online = true;
+      }
       if (_disposed) return;
       ready = true;
-      _connection = Connectivity().onConnectivityChanged.listen((results) {
-        online = !results.contains(ConnectivityResult.none);
-        _changed();
-        if (online) unawaited(refresh());
-      });
+      try {
+        _connection = Connectivity().onConnectivityChanged.listen((results) {
+          online = !results.contains(ConnectivityResult.none);
+          _changed();
+          if (online) unawaited(refresh());
+        });
+      } catch (_) {}
       _timer = Timer.periodic(
         const Duration(seconds: 15),
         (_) => unawaited(refresh()),
@@ -138,9 +143,8 @@ class IncidentsController extends ChangeNotifier with WidgetsBindingObserver {
     IncidentJson? location,
     Uint8List? photo,
   }) async {
-    if (_disposed ||
-        !ready ||
-        !trips.any((item) => item.id == trip.id && item.canReport)) {
+    final canSave = trips.any((item) => item.id == trip.id && item.canReport) || trip.canReport;
+    if (_disposed || !ready || !canSave) {
       throw StateError('Chuyến đi không còn cho phép báo cáo sự cố.');
     }
     if (!incidentCategories.containsKey(category) ||
@@ -150,6 +154,12 @@ class IncidentsController extends ChangeNotifier with WidgetsBindingObserver {
         (photo != null && photo.length > incidentPhotoMaxBytes)) {
       throw ArgumentError('Thông tin sự cố không hợp lệ.');
     }
+
+    if (!trips.any((item) => item.id == trip.id)) {
+      trips = [...trips, trip];
+      unawaited(store.saveTrips(trips));
+    }
+
     final record = LocalIncident(
       tripId: trip.id,
       payload: {
@@ -209,7 +219,7 @@ final incidentsControllerProvider =
         return null;
       }
       return IncidentsController(
-        FileIncidentStore(user.id),
+        IncidentStore.create(user.id),
         HttpIncidentsApi(ref.watch(apiClientProvider)),
       );
     });

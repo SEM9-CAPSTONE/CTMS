@@ -45,7 +45,7 @@ class IncidentTrip {
   final String id;
   final String title;
   final String status;
-  bool get canReport => status == 'ongoing';
+  bool get canReport => status == 'ongoing' || status == 'completed';
   factory IncidentTrip.fromJson(IncidentJson json) => IncidentTrip(
     id: json['tripId'] as String,
     title: json['title'] as String,

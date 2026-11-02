@@ -72,25 +72,28 @@ class CamperShellScreen extends StatelessWidget {
       body: navigationShell,
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
-          color: Colors.white,
+          color: AppColors.brandPrimary,
           border: Border(
-            top: BorderSide(color: AppColors.border, width: 1),
+            top: BorderSide(color: Color(0xFF0F2E1C), width: 1),
           ),
           boxShadow: [
             BoxShadow(
-              color: Color(0x06164027),
+              color: Color(0x33164027),
               blurRadius: 10,
               offset: Offset(0, -2),
             ),
           ],
         ),
-        child: NavigationBar(
-          selectedIndex: navigationShell.currentIndex,
-          onDestinationSelected: (index) => navigationShell.goBranch(
-            index,
-            initialLocation: index == navigationShell.currentIndex,
+        child: SafeArea(
+          top: false,
+          child: NavigationBar(
+            selectedIndex: navigationShell.currentIndex,
+            onDestinationSelected: (index) => navigationShell.goBranch(
+              index,
+              initialLocation: index == navigationShell.currentIndex,
+            ),
+            destinations: _destinations,
           ),
-          destinations: _destinations,
         ),
       ),
     );
