@@ -75,7 +75,7 @@ describe("IncidentResolutionModal (CTMS-086)", () => {
 		expect(screen.getByText("Xử lý sự cố")).toBeInTheDocument();
 		expect(screen.getByText("Chấn thương")).toBeInTheDocument();
 		expect(screen.getByText("Cao")).toBeInTheDocument();
-		expect(screen.getByText("Mở")).toBeInTheDocument();
+		expect(screen.getAllByText("Mở").length).toBeGreaterThanOrEqual(1);
 		expect(screen.getByText("Camper fell on steep trail")).toBeInTheDocument();
 
 		await waitFor(() => {
@@ -115,7 +115,7 @@ describe("IncidentResolutionModal (CTMS-086)", () => {
 		});
 	});
 
-	it("shows terminal state message when incident is closed", () => {
+	it("allows reopening an incident when incident is closed", () => {
 		const api = createMockApi();
 		const closedIncident: IncidentListItem = { ...mockIncident, status: "closed" };
 
@@ -130,7 +130,7 @@ describe("IncidentResolutionModal (CTMS-086)", () => {
 			/>
 		);
 
-		expect(screen.getByText(/Sự cố đang ở trạng thái này/i)).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: /Chuyển sang "Mở"/i })).toBeInTheDocument();
 	});
 
 	it("disables submit button when selecting the current status", () => {

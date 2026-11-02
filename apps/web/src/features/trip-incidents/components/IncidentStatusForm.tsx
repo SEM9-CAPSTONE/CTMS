@@ -14,13 +14,6 @@ export interface IncidentStatusFormProps {
 
 const ALL_STATUSES: IncidentStatus[] = ["open", "investigating", "resolved", "closed"];
 
-const VALID_TRANSITIONS: Record<IncidentStatus, IncidentStatus[]> = {
-	open: ["investigating", "resolved", "closed"],
-	investigating: ["open", "resolved", "closed"],
-	resolved: ["investigating", "closed"],
-	closed: [],
-};
-
 export function IncidentStatusForm({
 	currentStatus,
 	targetStatus,
@@ -29,14 +22,11 @@ export function IncidentStatusForm({
 	onSubmit,
 }: IncidentStatusFormProps): ReactNode {
 	const isSameStatus = targetStatus === currentStatus;
-	const isAllowed =
-		isSameStatus || (VALID_TRANSITIONS[currentStatus]?.includes(targetStatus) ?? false);
-	const isButtonDisabled = isSubmitting || isSameStatus || !isAllowed;
+	const isButtonDisabled = isSubmitting || isSameStatus;
 
 	const getButtonLabel = () => {
 		if (isSubmitting) return "Đang lưu...";
 		if (isSameStatus) return "Sự cố đang ở trạng thái này";
-		if (!isAllowed) return "Không thể chuyển sang trạng thái này";
 		return `Chuyển sang "${incidentStatusLabels[targetStatus]}"`;
 	};
 
@@ -56,7 +46,6 @@ export function IncidentStatusForm({
 					{ALL_STATUSES.map((st) => (
 						<option key={st} value={st}>
 							{incidentStatusLabels[st]}
-							{st === currentStatus ? " (Hiện tại)" : ""}
 						</option>
 					))}
 				</select>

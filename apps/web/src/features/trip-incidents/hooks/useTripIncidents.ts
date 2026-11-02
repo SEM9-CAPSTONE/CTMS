@@ -239,6 +239,11 @@ export function useTripIncidents(tripId: string, options: UseTripIncidentsOption
 		[updateRecord]
 	);
 
+	const refetch = useCallback(async () => {
+		await queryClient.invalidateQueries({ queryKey: listKey });
+		return serverQuery.refetch();
+	}, [queryClient, listKey, serverQuery]);
+
 	const items: IncidentListItem[] = useMemo(
 		() => mergeIncidentLists(serverIncidents ?? [], records),
 		[serverIncidents, records]
@@ -259,5 +264,6 @@ export function useTripIncidents(tripId: string, options: UseTripIncidentsOption
 		discard,
 		dropPhoto,
 		syncNow,
+		refetch,
 	};
 }

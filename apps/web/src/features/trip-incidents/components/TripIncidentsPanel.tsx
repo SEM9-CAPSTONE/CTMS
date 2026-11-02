@@ -53,15 +53,13 @@ export function TripIncidentsPanel({
 		);
 	};
 
-	const handleIncidentUpdated = async () => {
-		await incidents.syncNow();
-		if (resolvingIncident) {
-			const updated = incidents.items.find((i) => i.id === resolvingIncident.id);
-			if (updated) {
-				setResolvingIncident(updated);
-				setDetailedIncident(updated);
-			}
+	const handleIncidentUpdated = async (optimistic?: IncidentListItem) => {
+		if (optimistic) {
+			setResolvingIncident(optimistic);
+			setDetailedIncident(optimistic);
 		}
+		await incidents.refetch();
+		await incidents.syncNow();
 	};
 
 	// Status counts for filter pills

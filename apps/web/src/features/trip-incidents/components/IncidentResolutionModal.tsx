@@ -13,15 +13,15 @@ export interface IncidentResolutionModalProps {
 	onClose: () => void;
 	incident: IncidentListItem | null;
 	tripId: string;
-	onIncidentUpdated: () => Promise<void> | void;
+	onIncidentUpdated: (updated?: IncidentListItem) => Promise<void> | void;
 	api?: TripIncidentsApi;
 }
 
-const ALLOWED_TRANSITIONS: Record<IncidentStatus, IncidentStatus[]> = {
-	open: ["investigating", "resolved", "closed"],
-	investigating: ["open", "resolved", "closed"],
-	resolved: ["investigating", "closed"],
-	closed: [],
+const DEFAULT_NEXT_STATUS: Record<IncidentStatus, IncidentStatus> = {
+	open: "investigating",
+	investigating: "resolved",
+	resolved: "closed",
+	closed: "open",
 };
 
 export function IncidentResolutionModal({
@@ -32,10 +32,11 @@ export function IncidentResolutionModal({
 	onIncidentUpdated,
 	api = tripIncidentsService,
 }: IncidentResolutionModalProps) {
-	const currentStatus = incident?.status ?? "open";
+	const [activeIncident, setActiveIncident] = useState<IncidentListItem | null>(incident);
+	const currentStatus = activeIncident?.status ?? incident?.status ?? "open";
 
 	const [targetStatus, setTargetStatus] = useState<IncidentStatus>(
-		ALLOWED_TRANSITIONS[currentStatus]?.[0] ?? currentStatus
+		DEFAULT_NEXT_STATUS[currentStatus] ?? "open"
 	);
 	const [actionNote, setActionNote] = useState<string>("");
 	const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -46,21 +47,23 @@ export function IncidentResolutionModal({
 	const [isLoadingHistory, setIsLoadingHistory] = useState<boolean>(false);
 
 	const loadHistory = useCallback(async () => {
-		if (!incident) return;
+		const targetId = activeIncident?.id ?? incident?.id;
+		if (!targetId) return;
 		setIsLoadingHistory(true);
 		try {
-			const res = await api.listHistory(tripId, incident.id);
+			const res = await api.listHistory(tripId, targetId);
 			setHistory(res.items);
 		} catch {
 			// Non-blocking history fetch
 		} finally {
 			setIsLoadingHistory(false);
 		}
-	}, [api, tripId, incident]);
+	}, [api, tripId, activeIncident?.id, incident?.id]);
 
 	useEffect(() => {
 		if (isOpen && incident) {
-			setTargetStatus(ALLOWED_TRANSITIONS[incident.status]?.[0] ?? incident.status);
+			setActiveIncident(incident);
+			setTargetStatus(DEFAULT_NEXT_STATUS[incident.status] ?? "open");
 			setActionNote("");
 			setErrorMessage(null);
 			setSuccessMessage(null);
@@ -68,7 +71,7 @@ export function IncidentResolutionModal({
 		}
 	}, [isOpen, incident, loadHistory]);
 
-	if (!incident) return null;
+	if (!incident || !activeIncident) return null;
 
 	const handleStatusUpdate = async () => {
 		if (!targetStatus || targetStatus === currentStatus) return;
@@ -76,13 +79,17 @@ export function IncidentResolutionModal({
 		setErrorMessage(null);
 		setSuccessMessage(null);
 		try {
-			await api.updateStatus(tripId, incident.id, {
+			const res = await api.updateStatus(tripId, activeIncident.id, {
 				status: targetStatus,
 				note: actionNote.trim() || undefined,
 			});
-			setSuccessMessage(`Đã chuyển trạng thái sang: ${incidentStatusLabels[targetStatus]}`);
+			const nextStatus = (res?.status ?? targetStatus) as IncidentStatus;
+			const updatedIncident: IncidentListItem = { ...activeIncident, status: nextStatus };
+			setActiveIncident(updatedIncident);
+			setTargetStatus(DEFAULT_NEXT_STATUS[nextStatus] ?? nextStatus);
+			setSuccessMessage(`Đã chuyển trạng thái sang: ${incidentStatusLabels[nextStatus]}`);
 			setActionNote("");
-			await onIncidentUpdated();
+			await onIncidentUpdated(updatedIncident);
 			await loadHistory();
 		} catch (err: unknown) {
 			let msg = "Không thể cập nhật trạng thái.";
@@ -108,7 +115,7 @@ export function IncidentResolutionModal({
 			isCloseDisabled={isSubmitting}
 		>
 			<div className="space-y-4 p-5 text-sm text-[#10221b]">
-				<IncidentOverviewSection incident={incident} />
+				<IncidentOverviewSection incident={activeIncident} />
 
 				{errorMessage && (
 					<div
@@ -136,26 +143,24 @@ export function IncidentResolutionModal({
 						onSubmit={handleStatusUpdate}
 					/>
 
-					{currentStatus !== "closed" && (
-						<div>
-							<label
-								htmlFor="incident-action-note"
-								className="block text-xs font-bold text-[#44594c]"
-							>
-								Ghi chú
-							</label>
-							<textarea
-								id="incident-action-note"
-								rows={2}
-								value={actionNote}
-								onChange={(e) => setActionNote(e.target.value)}
-								maxLength={2000}
-								placeholder="Nhập ghi chú (tùy chọn)..."
-								disabled={isSubmitting}
-								className="mt-1 block w-full rounded-lg border border-slate-300 p-2.5 text-xs focus:border-[#164027] focus:outline-none"
-							/>
-						</div>
-					)}
+					<div>
+						<label
+							htmlFor="incident-action-note"
+							className="block text-xs font-bold text-[#44594c]"
+						>
+							Ghi chú
+						</label>
+						<textarea
+							id="incident-action-note"
+							rows={2}
+							value={actionNote}
+							onChange={(e) => setActionNote(e.target.value)}
+							maxLength={2000}
+							placeholder="Nhập ghi chú (tùy chọn)..."
+							disabled={isSubmitting}
+							className="mt-1 block w-full rounded-lg border border-slate-300 p-2.5 text-xs focus:border-[#164027] focus:outline-none"
+						/>
+					</div>
 				</div>
 
 				<IncidentAuditTimeline history={history} isLoading={isLoadingHistory} />

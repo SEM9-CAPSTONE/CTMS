@@ -515,20 +515,16 @@ describe("IncidentsService", () => {
 			).rejects.toBeInstanceOf(ConflictException);
 		});
 
-		it("rejects invalid transition from CLOSED (terminal state)", async () => {
+		it("allows transitioning back to OPEN or RESOLVED from CLOSED", async () => {
 			await service.updateStatus(HOST_ID, TRIP_ID, INCIDENT_ID, {
 				status: IncidentStatus.CLOSED,
 			});
 
-			await expect(
-				service.updateStatus(HOST_ID, TRIP_ID, INCIDENT_ID, {
-					status: IncidentStatus.RESOLVED,
-				})
-			).rejects.toMatchObject({
-				response: expect.objectContaining({
-					code: IncidentErrorCode.INVALID_STATUS_TRANSITION,
-				}),
+			const result = await service.updateStatus(HOST_ID, TRIP_ID, INCIDENT_ID, {
+				status: IncidentStatus.OPEN,
+				note: "Reopening incident for further check",
 			});
+			expect(result.status).toBe(IncidentStatus.OPEN);
 		});
 
 		it("rejects update by unauthorized user (PB AC-5)", async () => {
@@ -630,16 +626,17 @@ describe("IncidentsService", () => {
 				true
 			);
 			expect(isValidStatusTransition(IncidentStatus.RESOLVED, IncidentStatus.CLOSED)).toBe(true);
+			expect(isValidStatusTransition(IncidentStatus.RESOLVED, IncidentStatus.OPEN)).toBe(true);
 			expect(isValidStatusTransition(IncidentStatus.RESOLVED, IncidentStatus.RESOLVED)).toBe(false);
-			expect(isValidStatusTransition(IncidentStatus.RESOLVED, IncidentStatus.OPEN)).toBe(false);
 		});
 
-		it("validates CLOSED as terminal", () => {
-			expect(isValidStatusTransition(IncidentStatus.CLOSED, IncidentStatus.OPEN)).toBe(false);
+		it("validates CLOSED transitions to any non-identical status", () => {
+			expect(isValidStatusTransition(IncidentStatus.CLOSED, IncidentStatus.OPEN)).toBe(true);
 			expect(isValidStatusTransition(IncidentStatus.CLOSED, IncidentStatus.INVESTIGATING)).toBe(
-				false
+				true
 			);
-			expect(isValidStatusTransition(IncidentStatus.CLOSED, IncidentStatus.RESOLVED)).toBe(false);
+			expect(isValidStatusTransition(IncidentStatus.CLOSED, IncidentStatus.RESOLVED)).toBe(true);
+			expect(isValidStatusTransition(IncidentStatus.CLOSED, IncidentStatus.CLOSED)).toBe(false);
 		});
 	});
 
