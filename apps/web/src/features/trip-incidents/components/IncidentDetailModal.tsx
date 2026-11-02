@@ -1,4 +1,4 @@
-import { Edit3, ExternalLink, ImageIcon, MapPin, User, X } from "lucide-react";
+import { Edit3, ExternalLink, ImageIcon, MapPin, X } from "lucide-react";
 import type { ReactNode } from "react";
 import { Button } from "../../../shared/components/Button";
 import { Modal } from "../../../shared/components/Modal";
@@ -42,7 +42,7 @@ export function IncidentDetailModal({
 	const mediaLabel = incidentMediaLabels[incident.mediaState];
 
 	return (
-		<Modal isOpen={isOpen} onClose={onClose} title="Chi tiết sự cố chuyến đi" size="lg">
+		<Modal isOpen={isOpen} onClose={onClose} title="Chi tiết sự cố" size="lg">
 			<div className="space-y-4 p-5 text-sm text-[#10221b]">
 				{/* Top Badges */}
 				<div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#edf3ed] pb-3">
@@ -75,7 +75,7 @@ export function IncidentDetailModal({
 					</p>
 				</div>
 
-				{/* Metadata info */}
+				{/* Reporter & Location info */}
 				<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
 					<div className="rounded-xl border border-[#dfe8df] p-3">
 						<span className="block text-xs font-bold text-[#7b8c82]">Người báo cáo</span>
@@ -85,40 +85,27 @@ export function IncidentDetailModal({
 					</div>
 
 					<div className="rounded-xl border border-[#dfe8df] p-3">
-						<span className="block text-xs font-bold text-[#7b8c82]">Người phụ trách xử lý</span>
-						<p className="mt-1 flex items-center gap-1 font-semibold text-[#10221b]">
-							<User className="size-3.5 text-[#164027]" />
-							{incident.assignedToName ? (
-								<span className="text-emerald-800">{incident.assignedToName}</span>
-							) : (
-								<span className="italic text-slate-500">Chưa phân công</span>
-							)}
-						</p>
+						<span className="flex items-center gap-1 text-xs font-bold text-[#7b8c82]">
+							<MapPin className="size-3.5" />
+							Toạ độ GPS
+						</span>
+						{incident.location ? (
+							<p className="mt-1 text-xs text-[#33463a]">
+								<span className="font-semibold">
+									{incident.location.latitude.toFixed(5)}, {incident.location.longitude.toFixed(5)}
+								</span>{" "}
+								(±{Math.round(incident.location.accuracyMeters)}m)
+								{incident.locationStatus && incidentLocationNotes[incident.locationStatus] && (
+									<span className="text-[#667a6d]">
+										{" "}
+										· {incidentLocationNotes[incident.locationStatus]}
+									</span>
+								)}
+							</p>
+						) : (
+							<p className="mt-1 text-xs italic text-slate-500">Không có dữ liệu GPS.</p>
+						)}
 					</div>
-				</div>
-
-				{/* Location Info */}
-				<div className="rounded-xl border border-[#dfe8df] p-3">
-					<span className="flex items-center gap-1 text-xs font-bold text-[#7b8c82]">
-						<MapPin className="size-3.5" />
-						Toạ độ GPS
-					</span>
-					{incident.location ? (
-						<p className="mt-1 text-xs text-[#33463a]">
-							<span className="font-semibold">
-								{incident.location.latitude.toFixed(5)}, {incident.location.longitude.toFixed(5)}
-							</span>{" "}
-							(±{Math.round(incident.location.accuracyMeters)}m)
-							{incident.locationStatus && incidentLocationNotes[incident.locationStatus] && (
-								<span className="text-[#667a6d]">
-									{" "}
-									· {incidentLocationNotes[incident.locationStatus]}
-								</span>
-							)}
-						</p>
-					) : (
-						<p className="mt-1 text-xs italic text-slate-500">Không có dữ liệu vị trí GPS.</p>
-					)}
 				</div>
 
 				{/* Media Info */}

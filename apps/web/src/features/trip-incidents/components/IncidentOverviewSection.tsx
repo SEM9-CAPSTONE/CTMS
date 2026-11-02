@@ -38,21 +38,14 @@ export function IncidentOverviewSection({ incident }: IncidentOverviewSectionPro
 					</StatusBadge>
 				</div>
 				<span className="text-xs text-[#667a6d]">
-					Thời điểm: {new Date(incident.occurredAt).toLocaleString("vi-VN")}
+					{new Date(incident.occurredAt).toLocaleString("vi-VN")}
 				</span>
 			</div>
 
 			<p className="mt-2 text-sm text-[#33463a]">{incident.description}</p>
 
 			<div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[#667a6d]">
-				{incident.reporterName && <span>Người báo cáo: {incident.reporterName}</span>}
-				{incident.assignedToName ? (
-					<span className="font-semibold text-emerald-800">
-						Người xử lý: {incident.assignedToName}
-					</span>
-				) : (
-					<span className="italic text-slate-500">Chưa có người xử lý</span>
-				)}
+				{incident.reporterName && <span>Báo cáo bởi: {incident.reporterName}</span>}
 				{incident.location && (
 					<span>
 						Tọa độ: {incident.location.latitude.toFixed(5)},{" "}

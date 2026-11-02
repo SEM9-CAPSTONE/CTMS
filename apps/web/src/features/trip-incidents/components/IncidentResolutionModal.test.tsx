@@ -33,11 +33,7 @@ function createMockApi(overrides: Partial<TripIncidentsApi> = {}): TripIncidents
 		report: vi.fn(),
 		list: vi.fn().mockResolvedValue({ items: [] }),
 		uploadMedia: vi.fn(),
-		assign: vi.fn().mockResolvedValue({
-			...mockIncident,
-			assignedTo: "user-2",
-			assignedToName: "Lead Porter",
-		}),
+		assign: vi.fn(),
 		updateStatus: vi.fn().mockResolvedValue({
 			...mockIncident,
 			status: "investigating",
@@ -76,7 +72,7 @@ describe("IncidentResolutionModal (CTMS-086)", () => {
 			/>
 		);
 
-		expect(screen.getByText("Quản lý sự cố chuyến đi")).toBeInTheDocument();
+		expect(screen.getByText("Xử lý sự cố")).toBeInTheDocument();
 		expect(screen.getByText("Chấn thương")).toBeInTheDocument();
 		expect(screen.getByText("Cao")).toBeInTheDocument();
 		expect(screen.getByText("Mở")).toBeInTheDocument();
@@ -88,7 +84,7 @@ describe("IncidentResolutionModal (CTMS-086)", () => {
 		});
 	});
 
-	it("updates incident status through valid transition", async () => {
+	it("updates incident status through valid transition with note", async () => {
 		const api = createMockApi();
 		const onUpdated = vi.fn();
 
@@ -103,7 +99,7 @@ describe("IncidentResolutionModal (CTMS-086)", () => {
 			/>
 		);
 
-		const noteInput = screen.getByLabelText(/Ghi chú xử lý/i);
+		const noteInput = screen.getByLabelText(/^Ghi chú$/i);
 		fireEvent.change(noteInput, { target: { value: "Medical kit dispatched" } });
 
 		const submitBtn = screen.getByRole("button", { name: /Chuyển sang "Đang xử lý"/i });
@@ -115,40 +111,7 @@ describe("IncidentResolutionModal (CTMS-086)", () => {
 				note: "Medical kit dispatched",
 			});
 			expect(onUpdated).toHaveBeenCalled();
-			expect(
-				screen.getByText(/Đã cập nhật trạng thái sự cố sang: Đang xử lý/i)
-			).toBeInTheDocument();
-		});
-	});
-
-	it("assigns handling responsibility to a user", async () => {
-		const api = createMockApi();
-		const onUpdated = vi.fn();
-
-		render(
-			<IncidentResolutionModal
-				isOpen={true}
-				onClose={vi.fn()}
-				incident={mockIncident}
-				tripId="trip-1"
-				onIncidentUpdated={onUpdated}
-				api={api}
-			/>
-		);
-
-		const assigneeInput = screen.getByLabelText(/Mã người xử lý/i);
-		fireEvent.change(assigneeInput, { target: { value: "user-2" } });
-
-		const assignBtn = screen.getByRole("button", { name: /Phân công/i });
-		fireEvent.click(assignBtn);
-
-		await waitFor(() => {
-			expect(api.assign).toHaveBeenCalledWith("trip-1", "inc-1", {
-				assignedTo: "user-2",
-				note: undefined,
-			});
-			expect(onUpdated).toHaveBeenCalled();
-			expect(screen.getByText(/Đã phân công người xử lý sự cố/i)).toBeInTheDocument();
+			expect(screen.getByText(/Đã chuyển trạng thái sang: Đang xử lý/i)).toBeInTheDocument();
 		});
 	});
 
@@ -168,9 +131,7 @@ describe("IncidentResolutionModal (CTMS-086)", () => {
 		);
 
 		expect(
-			screen.getByText(
-				/Sự cố đã ở trạng thái kết thúc \(Đã đóng\)\. Không thể chuyển trạng thái\./i
-			)
+			screen.getByText(/Sự cố đã kết thúc \(Đã đóng\)\. Không thể chuyển trạng thái\./i)
 		).toBeInTheDocument();
 	});
 

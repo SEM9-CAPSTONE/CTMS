@@ -118,17 +118,6 @@ export function TripIncidentsTable({
 					),
 			},
 			{
-				key: "assignedToName",
-				header: "Người phụ trách",
-				className: "min-w-[140px]",
-				render: (row) =>
-					row.assignedToName ? (
-						<span className="font-semibold text-emerald-800">{row.assignedToName}</span>
-					) : (
-						<span className="italic text-slate-400">Chưa phân công</span>
-					),
-			},
-			{
 				key: "syncState",
 				header: "Đồng bộ",
 				className: "w-[140px] whitespace-nowrap",

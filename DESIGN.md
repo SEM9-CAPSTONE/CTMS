@@ -190,3 +190,18 @@ Quy chuẩn thẻ Tag phân loại (lấy từ `HostMyTripsPanel` trên `/dashbo
   - Cung cấp nút thao tác với icon con mắt (`Eye` từ `lucide-react`) trên từng hàng. Khi bấm vào, mở một Pop-up (`DetailModal`) hiển thị toàn bộ chi tiết cụ thể.
 - **Vị Trí Nút Hành Động Xử Lý Nghiệp Vụ Chính**:
   - Các nút hành động xử lý tác vụ chính (ví dụ: *"Xử lý sự cố"*, *"Duyệt yêu cầu"*,...) được đặt bên trong Pop-up chi tiết (hoặc action footer của modal) thay vì đặt tràn lan ra ngoài bảng, giúp bảng luôn thông thoáng và đảm bảo người quản trị đã xem xét đầy đủ ngữ cảnh sự việc trước khi quyết định xử lý.
+
+
+---
+
+## 10. Nguyên Tắc Ngôn Ngữ & Từ Ngữ Giao Diện (UX Copywriting Rules)
+
+- **Ngắn gọn, súc tích và trực diện**:
+  - Tiêu đề, nhãn (label), nút bấm và placeholder phải dùng từ ngữ tối giản nhất có thể, tránh câu chữ dài dòng hoặc hoa mỹ.
+  - Ví dụ: Dùng `"Ghi chú"` thay vì `"Ghi chú xử lý / Biên bản hành động"`; dùng `"Lịch sử"` thay vì `"Lịch sử xử lý sự cố (Audit History)"`; dùng `"Xử lý sự cố"` thay vì `"Quản lý và điều phối xử lý sự cố chuyến đi"`.
+- **Tuyệt đối KHÔNG chèn tiếng Anh vào giao diện**:
+  - Không kèm theo từ tiếng Anh trong ngoặc đơn (ví dụ: `(Audit History)`, `(User ID)`, `(Action log)`).
+  - Không đan xen các từ ngữ tiếng Anh không cần thiết trong văn cảnh tiếng Việt.
+- **Không dịch thô / dịch máy móc từ tiếng Anh**:
+  - Tránh lối dịch nguyên mẫu từ chuyên ngành máy móc (chẳng hạn: "Biên bản hành động" dịch từ "Action Note", "Nhật ký kiểm toán" dịch từ "Audit Log").
+  - Sử dụng các từ ngữ tự nhiên, thuần Việt, chuẩn ngữ cảnh sản phẩm (như "Lịch sử", "Ghi chú", "Thời điểm").

@@ -8,6 +8,13 @@ export interface IncidentAuditTimelineProps {
 	isLoading: boolean;
 }
 
+const ROLE_LABELS: Record<string, string> = {
+	host: "Host",
+	porter: "Porter",
+	camper: "Camper",
+	admin: "Quản trị",
+};
+
 export function IncidentAuditTimeline({
 	history,
 	isLoading,
@@ -16,16 +23,16 @@ export function IncidentAuditTimeline({
 		<section className="border-t border-slate-200 pt-4">
 			<div className="flex items-center gap-1.5 font-extrabold text-[#10221b]">
 				<History className="size-4" />
-				<span>Lịch sử xử lý sự cố (Audit History)</span>
+				<span>Lịch sử</span>
 			</div>
 
 			{isLoading ? (
 				<div className="mt-3 flex items-center justify-center p-4 text-xs text-[#667a6d]">
 					<Loader2 className="mr-2 size-4 animate-spin" />
-					<span>Đang tải lịch sử...</span>
+					<span>Đang tải...</span>
 				</div>
 			) : history.length === 0 ? (
-				<p className="mt-2 text-xs italic text-slate-500">Chưa có hành động xử lý nào.</p>
+				<p className="mt-2 text-xs italic text-slate-500">Chưa có lịch sử.</p>
 			) : (
 				<ul className="mt-3 divide-y divide-slate-100 rounded-xl border border-slate-100 bg-[#fbfdfb]">
 					{history.map((act) => (
@@ -37,7 +44,10 @@ export function IncidentAuditTimeline({
 									</span>
 									{act.actorName && (
 										<span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700">
-											{act.actorName} ({act.actorRole ?? "user"})
+											{act.actorName}
+											{act.actorRole && ROLE_LABELS[act.actorRole]
+												? ` · ${ROLE_LABELS[act.actorRole]}`
+												: ""}
 										</span>
 									)}
 								</div>

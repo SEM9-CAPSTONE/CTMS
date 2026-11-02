@@ -4,7 +4,6 @@ import { Modal } from "../../../shared/components/Modal";
 import { incidentStatusLabels } from "../constants";
 import { type TripIncidentsApi, tripIncidentsService } from "../services/trip-incidents.service";
 import type { IncidentAction, IncidentListItem, IncidentStatus } from "../types";
-import { IncidentAssigneeForm } from "./IncidentAssigneeForm";
 import { IncidentAuditTimeline } from "./IncidentAuditTimeline";
 import { IncidentOverviewSection } from "./IncidentOverviewSection";
 import { IncidentStatusForm } from "./IncidentStatusForm";
@@ -42,7 +41,6 @@ export function IncidentResolutionModal({
 	const [targetStatus, setTargetStatus] = useState<IncidentStatus>(
 		availableStatuses[0] ?? currentStatus
 	);
-	const [assigneeId, setAssigneeId] = useState<string>(incident?.assignedTo ?? "");
 	const [actionNote, setActionNote] = useState<string>("");
 	const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -67,7 +65,6 @@ export function IncidentResolutionModal({
 	useEffect(() => {
 		if (isOpen && incident) {
 			setTargetStatus(ALLOWED_TRANSITIONS[incident.status]?.[0] ?? incident.status);
-			setAssigneeId(incident.assignedTo ?? "");
 			setActionNote("");
 			setErrorMessage(null);
 			setSuccessMessage(null);
@@ -87,35 +84,12 @@ export function IncidentResolutionModal({
 				status: targetStatus,
 				note: actionNote.trim() || undefined,
 			});
-			setSuccessMessage(`Đã cập nhật trạng thái sự cố sang: ${incidentStatusLabels[targetStatus]}`);
+			setSuccessMessage(`Đã chuyển trạng thái sang: ${incidentStatusLabels[targetStatus]}`);
 			setActionNote("");
 			await onIncidentUpdated();
 			await loadHistory();
 		} catch (err: unknown) {
-			const msg = err instanceof Error ? err.message : "Không thể cập nhật trạng thái sự cố.";
-			setErrorMessage(msg);
-		} finally {
-			setIsSubmitting(false);
-		}
-	};
-
-	const handleAssign = async (assignTo: string | null) => {
-		setIsSubmitting(true);
-		setErrorMessage(null);
-		setSuccessMessage(null);
-		try {
-			await api.assign(tripId, incident.id, {
-				assignedTo: assignTo,
-				note: actionNote.trim() || undefined,
-			});
-			setSuccessMessage(
-				assignTo ? "Đã phân công người xử lý sự cố." : "Đã hủy phân công người xử lý sự cố."
-			);
-			setActionNote("");
-			await onIncidentUpdated();
-			await loadHistory();
-		} catch (err: unknown) {
-			const msg = err instanceof Error ? err.message : "Không thể phân công xử lý.";
+			const msg = err instanceof Error ? err.message : "Không thể cập nhật trạng thái.";
 			setErrorMessage(msg);
 		} finally {
 			setIsSubmitting(false);
@@ -126,11 +100,11 @@ export function IncidentResolutionModal({
 		<Modal
 			isOpen={isOpen}
 			onClose={onClose}
-			title="Quản lý sự cố chuyến đi"
-			size="xl"
+			title="Xử lý sự cố"
+			size="lg"
 			isCloseDisabled={isSubmitting}
 		>
-			<div className="space-y-5 p-5 text-sm text-[#10221b]">
+			<div className="space-y-4 p-5 text-sm text-[#10221b]">
 				<IncidentOverviewSection incident={incident} />
 
 				{errorMessage && (
@@ -150,7 +124,7 @@ export function IncidentResolutionModal({
 					</output>
 				)}
 
-				<div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+				<div className="rounded-xl border border-slate-200 p-4 space-y-3">
 					<IncidentStatusForm
 						currentStatus={currentStatus}
 						targetStatus={targetStatus}
@@ -160,29 +134,26 @@ export function IncidentResolutionModal({
 						onSubmit={handleStatusUpdate}
 					/>
 
-					<IncidentAssigneeForm
-						assigneeId={assigneeId}
-						currentAssignedTo={incident.assignedTo ?? null}
-						isSubmitting={isSubmitting}
-						onAssigneeIdChange={setAssigneeId}
-						onAssign={handleAssign}
-					/>
-				</div>
-
-				<div>
-					<label htmlFor="incident-action-note" className="block text-xs font-bold text-[#44594c]">
-						Ghi chú xử lý / Biên bản hành động
-					</label>
-					<textarea
-						id="incident-action-note"
-						rows={2}
-						value={actionNote}
-						onChange={(e) => setActionNote(e.target.value)}
-						maxLength={2000}
-						placeholder="Nhập ghi chú hoặc mô tả hành động xử lý (tùy chọn)..."
-						disabled={isSubmitting}
-						className="mt-1 block w-full rounded-lg border border-slate-300 p-2.5 text-xs focus:border-[#164027] focus:outline-none"
-					/>
+					{availableStatuses.length > 0 && (
+						<div>
+							<label
+								htmlFor="incident-action-note"
+								className="block text-xs font-bold text-[#44594c]"
+							>
+								Ghi chú
+							</label>
+							<textarea
+								id="incident-action-note"
+								rows={2}
+								value={actionNote}
+								onChange={(e) => setActionNote(e.target.value)}
+								maxLength={2000}
+								placeholder="Nhập ghi chú (tùy chọn)..."
+								disabled={isSubmitting}
+								className="mt-1 block w-full rounded-lg border border-slate-300 p-2.5 text-xs focus:border-[#164027] focus:outline-none"
+							/>
+						</div>
+					)}
 				</div>
 
 				<IncidentAuditTimeline history={history} isLoading={isLoadingHistory} />

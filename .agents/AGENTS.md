@@ -171,6 +171,7 @@ const { t } = useTranslation("featureName");
 - **Minimalist Headers**: Hạn chế lạm dụng icon ở tiêu đề chính / tiêu đề modal; KHÔNG thêm các dòng mô tả hiển nhiên dưới các mục lớn để tối ưu không gian và giữ UI gãy gọn.
 - **No Redundant UI & Single Total Display**: Trong cùng 1 modal/panel, CHỈ hiển thị thông tin tổng tiền / số lượng ở 1 vị trí duy nhất (ưu tiên tại footer action bar). TUYỆT ĐỐI KHÔNG render lặp lại 2 hộp tổng tiền trong cùng UI; KHÔNG thêm các câu miêu tả giải thích hiển nhiên làm loãng giao diện.
 - **Data Table, Filter & Detail Pop-up Pattern**: Các danh sách quản lý (sự cố, đơn hàng, nhật ký) phải dùng `DataTable` kết hợp `Pagination` và thanh lọc (`FilterBar`) với pill tabs & search input. Thông tin trên từng dòng phải ngắn gọn; chi tiết phức tạp được xem qua pop-up (`DetailModal`) khi bấm icon `Eye`. Nút hành động xử lý nghiệp vụ chính (như *"Xử lý sự cố"*) đặt bên trong pop-up chi tiết để giữ bảng thông thoáng.
+- **UX Copywriting & Language Rule**: Giao diện người dùng phải ngắn gọn, súc tích, trực diện. Tuyệt đối KHÔNG chèn tiếng Anh (cả trong ngoặc đơn như `(Audit History)`, `(User ID)` lẫn đan xen); KHÔNG dịch thô / dịch máy móc từ tiếng Anh; sử dụng từ ngữ tự nhiên, thuần Việt (ví dụ: dùng `"Ghi chú"` thay vì *"Ghi chú xử lý / Biên bản hành động"*, dùng `"Lịch sử"` thay vì *"Lịch sử xử lý sự cố (Audit History)"*).
 
 ### 3.8 Form Handling
 

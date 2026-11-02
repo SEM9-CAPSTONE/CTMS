@@ -29,7 +29,8 @@ import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import type { AuthenticatedUser } from "../auth/jwt.strategy";
 import { UserRole } from "../users/entities/user.entity";
-import type { AssignIncidentDto } from "./dto/assign-incident.dto";
+// biome-ignore lint/style/useImportType: Body validation needs runtime DTO metadata
+import { AssignIncidentDto } from "./dto/assign-incident.dto";
 import { IncidentActionListResponseDto } from "./dto/incident-action-response.dto";
 import {
 	IncidentListResponseDto,
@@ -38,7 +39,8 @@ import {
 } from "./dto/incident-response.dto";
 // biome-ignore lint/style/useImportType: Body validation needs runtime DTO metadata
 import { ReportIncidentDto } from "./dto/report-incident.dto";
-import type { UpdateIncidentStatusDto } from "./dto/update-incident-status.dto";
+// biome-ignore lint/style/useImportType: Body validation needs runtime DTO metadata
+import { UpdateIncidentStatusDto } from "./dto/update-incident-status.dto";
 import { INCIDENT_MEDIA_MAX_BYTES } from "./incidents.constants";
 // biome-ignore lint/style/useImportType: Nest runtime injection metadata
 import { type IncidentMediaUpload, IncidentsService } from "./incidents.service";
