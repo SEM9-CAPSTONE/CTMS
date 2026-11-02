@@ -15,6 +15,7 @@ import {
 	type IncidentStatus,
 	IncidentSyncState,
 } from "../types";
+import { resolveMediaUrl } from "../utils/media-url";
 import { IncidentSyncBadge } from "./IncidentSyncBadge";
 
 const STATUS_TONES: Record<IncidentStatus, StatusBadgeTone> = {
@@ -103,7 +104,12 @@ export function IncidentCard({
 					<span className="flex items-center gap-1">
 						<ImageIcon aria-hidden="true" className="size-3.5" />
 						{item.mediaUrl ? (
-							<a href={item.mediaUrl} target="_blank" rel="noreferrer" className="underline">
+							<a
+								href={resolveMediaUrl(item.mediaUrl) ?? item.mediaUrl}
+								target="_blank"
+								rel="noreferrer"
+								className="underline"
+							>
 								{mediaLabel}
 							</a>
 						) : (

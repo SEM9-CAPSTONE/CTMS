@@ -12,6 +12,7 @@ import {
 	incidentStatusLabels,
 } from "../constants";
 import { type IncidentListItem, type IncidentStatus, IncidentSyncState } from "../types";
+import { resolveMediaUrl } from "../utils/media-url";
 import { IncidentSyncBadge } from "./IncidentSyncBadge";
 
 export interface IncidentDetailModalProps {
@@ -117,15 +118,24 @@ export function IncidentDetailModal({
 						</span>
 						<div className="mt-2">
 							{incident.mediaUrl ? (
-								<a
-									href={incident.mediaUrl}
-									target="_blank"
-									rel="noreferrer"
-									className="inline-flex items-center gap-1 text-xs font-bold text-[#164027] underline hover:text-[#0f2e1c]"
-								>
-									<span>Xem ảnh gốc</span>
-									<ExternalLink className="size-3" />
-								</a>
+								<div className="space-y-2">
+									<div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+										<img
+											src={resolveMediaUrl(incident.mediaUrl) ?? incident.mediaUrl}
+											alt="Hình ảnh sự cố"
+											className="max-h-60 w-full object-contain"
+										/>
+									</div>
+									<a
+										href={resolveMediaUrl(incident.mediaUrl) ?? incident.mediaUrl}
+										target="_blank"
+										rel="noreferrer"
+										className="inline-flex items-center gap-1 text-xs font-bold text-[#164027] underline hover:text-[#0f2e1c]"
+									>
+										<span>Xem ảnh gốc</span>
+										<ExternalLink className="size-3" />
+									</a>
+								</div>
 							) : (
 								<span className="text-xs text-slate-500">{mediaLabel}</span>
 							)}
