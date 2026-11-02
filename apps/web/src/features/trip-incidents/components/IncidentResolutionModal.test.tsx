@@ -130,9 +130,27 @@ describe("IncidentResolutionModal (CTMS-086)", () => {
 			/>
 		);
 
-		expect(
-			screen.getByText(/Sự cố đã kết thúc \(Đã đóng\)\. Không thể chuyển trạng thái\./i)
-		).toBeInTheDocument();
+		expect(screen.getByText(/Sự cố đang ở trạng thái này/i)).toBeInTheDocument();
+	});
+
+	it("disables submit button when selecting the current status", () => {
+		const api = createMockApi();
+		render(
+			<IncidentResolutionModal
+				isOpen={true}
+				onClose={vi.fn()}
+				incident={{ ...mockIncident, status: "investigating" }}
+				tripId="trip-1"
+				onIncidentUpdated={vi.fn()}
+				api={api}
+			/>
+		);
+
+		const select = screen.getByLabelText(/^Trạng thái$/i);
+		fireEvent.change(select, { target: { value: "investigating" } });
+
+		const button = screen.getByRole("button", { name: /Sự cố đang ở trạng thái này/i });
+		expect(button).toBeDisabled();
 	});
 
 	it("renders error message if updateStatus fails", async () => {

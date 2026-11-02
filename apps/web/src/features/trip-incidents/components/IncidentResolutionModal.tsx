@@ -1,5 +1,5 @@
 import { AlertCircle, CheckCircle2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Modal } from "../../../shared/components/Modal";
 import { incidentStatusLabels } from "../constants";
 import { type TripIncidentsApi, tripIncidentsService } from "../services/trip-incidents.service";
@@ -33,13 +33,9 @@ export function IncidentResolutionModal({
 	api = tripIncidentsService,
 }: IncidentResolutionModalProps) {
 	const currentStatus = incident?.status ?? "open";
-	const availableStatuses = useMemo(
-		() => ALLOWED_TRANSITIONS[currentStatus] ?? [],
-		[currentStatus]
-	);
 
 	const [targetStatus, setTargetStatus] = useState<IncidentStatus>(
-		availableStatuses[0] ?? currentStatus
+		ALLOWED_TRANSITIONS[currentStatus]?.[0] ?? currentStatus
 	);
 	const [actionNote, setActionNote] = useState<string>("");
 	const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -89,7 +85,14 @@ export function IncidentResolutionModal({
 			await onIncidentUpdated();
 			await loadHistory();
 		} catch (err: unknown) {
-			const msg = err instanceof Error ? err.message : "Không thể cập nhật trạng thái.";
+			let msg = "Không thể cập nhật trạng thái.";
+			if (err instanceof Error) {
+				if (err.message.includes("Cannot transition incident status")) {
+					msg = "Không thể chuyển sang trạng thái này.";
+				} else {
+					msg = err.message;
+				}
+			}
 			setErrorMessage(msg);
 		} finally {
 			setIsSubmitting(false);
@@ -128,13 +131,12 @@ export function IncidentResolutionModal({
 					<IncidentStatusForm
 						currentStatus={currentStatus}
 						targetStatus={targetStatus}
-						availableStatuses={availableStatuses}
 						isSubmitting={isSubmitting}
 						onTargetStatusChange={setTargetStatus}
 						onSubmit={handleStatusUpdate}
 					/>
 
-					{availableStatuses.length > 0 && (
+					{currentStatus !== "closed" && (
 						<div>
 							<label
 								htmlFor="incident-action-note"
