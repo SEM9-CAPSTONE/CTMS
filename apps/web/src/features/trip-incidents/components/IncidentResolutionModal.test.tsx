@@ -127,7 +127,7 @@ describe("IncidentResolutionModal (CTMS-086)", () => {
 		});
 	});
 
-	it("allows reopening an incident when incident is closed", () => {
+	it("disables transitions when incident is closed (terminal state)", () => {
 		const api = createMockApi();
 		const closedIncident: IncidentListItem = { ...mockIncident, status: "closed" };
 
@@ -142,7 +142,9 @@ describe("IncidentResolutionModal (CTMS-086)", () => {
 			/>
 		);
 
-		expect(screen.getByRole("button", { name: /Chuyển sang "Mở"/i })).toBeInTheDocument();
+		const button = screen.getByRole("button", { name: /Sự cố đã đóng/i });
+		expect(button).toBeDisabled();
+		expect(screen.getByText(/Sự cố đã đóng và không thể thay đổi trạng thái/i)).toBeInTheDocument();
 	});
 
 	it("disables submit button when selecting the current status", () => {

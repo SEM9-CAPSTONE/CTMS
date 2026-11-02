@@ -56,7 +56,7 @@ const INCIDENT_ACCEPTING_TRIP_STATUSES: ReadonlySet<TripStatus> = new Set([
 
 const SECOND_MS = 1000;
 
-/** Valid status transitions (CTMS-086, PB AC-3, BR-269). Allows any transition between non-identical statuses. */
+/** Valid status transitions (CTMS-086, PB AC-3, BR-269). CLOSED is terminal (END). */
 const VALID_INCIDENT_TRANSITIONS: Readonly<Record<IncidentStatus, ReadonlySet<IncidentStatus>>> = {
 	[IncidentStatus.OPEN]: new Set([
 		IncidentStatus.INVESTIGATING,
@@ -73,11 +73,7 @@ const VALID_INCIDENT_TRANSITIONS: Readonly<Record<IncidentStatus, ReadonlySet<In
 		IncidentStatus.INVESTIGATING,
 		IncidentStatus.CLOSED,
 	]),
-	[IncidentStatus.CLOSED]: new Set([
-		IncidentStatus.OPEN,
-		IncidentStatus.INVESTIGATING,
-		IncidentStatus.RESOLVED,
-	]),
+	[IncidentStatus.CLOSED]: new Set([]),
 };
 
 export function isValidStatusTransition(from: IncidentStatus, to: IncidentStatus): boolean {

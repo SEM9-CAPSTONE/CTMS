@@ -53,11 +53,9 @@ export function TripIncidentsPanel({
 		);
 	};
 
-	const handleIncidentUpdated = async (optimistic?: IncidentListItem) => {
-		if (optimistic) {
-			setResolvingIncident(optimistic);
-			setDetailedIncident(optimistic);
-		}
+	const handleIncidentUpdated = async () => {
+		setResolvingIncident(null);
+		setDetailedIncident(null);
 		await incidents.refetch();
 		await incidents.syncNow();
 	};

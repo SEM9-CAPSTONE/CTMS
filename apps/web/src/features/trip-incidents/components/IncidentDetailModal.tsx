@@ -152,11 +152,14 @@ export function IncidentDetailModal({
 
 				{/* Action Footer */}
 				<div className="flex items-center justify-end gap-2 border-t border-[#edf3ed] pt-4">
+					{incident.status === "closed" && (
+						<span className="mr-auto text-xs italic text-slate-500">Sự cố đã đóng.</span>
+					)}
 					<Button variant="outline" size="sm" onClick={onClose}>
 						<X className="mr-1 size-3.5" />
 						<span>Đóng</span>
 					</Button>
-					{canManage && isSynced && onOpenResolution && (
+					{canManage && isSynced && incident.status !== "closed" && onOpenResolution && (
 						<Button
 							size="sm"
 							onClick={() => {

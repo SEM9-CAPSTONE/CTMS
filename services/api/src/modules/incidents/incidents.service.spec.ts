@@ -515,16 +515,16 @@ describe("IncidentsService", () => {
 			).rejects.toBeInstanceOf(ConflictException);
 		});
 
-		it("allows transitioning back to OPEN or RESOLVED from CLOSED", async () => {
+		it("rejects transition from CLOSED (terminal state)", async () => {
 			await service.updateStatus(HOST_ID, TRIP_ID, INCIDENT_ID, {
 				status: IncidentStatus.CLOSED,
 			});
 
-			const result = await service.updateStatus(HOST_ID, TRIP_ID, INCIDENT_ID, {
-				status: IncidentStatus.OPEN,
-				note: "Reopening incident for further check",
-			});
-			expect(result.status).toBe(IncidentStatus.OPEN);
+			await expect(
+				service.updateStatus(HOST_ID, TRIP_ID, INCIDENT_ID, {
+					status: IncidentStatus.OPEN,
+				})
+			).rejects.toBeInstanceOf(ConflictException);
 		});
 
 		it("rejects update by unauthorized user (PB AC-5)", async () => {
@@ -630,12 +630,12 @@ describe("IncidentsService", () => {
 			expect(isValidStatusTransition(IncidentStatus.RESOLVED, IncidentStatus.RESOLVED)).toBe(false);
 		});
 
-		it("validates CLOSED transitions to any non-identical status", () => {
-			expect(isValidStatusTransition(IncidentStatus.CLOSED, IncidentStatus.OPEN)).toBe(true);
+		it("validates CLOSED as terminal", () => {
+			expect(isValidStatusTransition(IncidentStatus.CLOSED, IncidentStatus.OPEN)).toBe(false);
 			expect(isValidStatusTransition(IncidentStatus.CLOSED, IncidentStatus.INVESTIGATING)).toBe(
-				true
+				false
 			);
-			expect(isValidStatusTransition(IncidentStatus.CLOSED, IncidentStatus.RESOLVED)).toBe(true);
+			expect(isValidStatusTransition(IncidentStatus.CLOSED, IncidentStatus.RESOLVED)).toBe(false);
 			expect(isValidStatusTransition(IncidentStatus.CLOSED, IncidentStatus.CLOSED)).toBe(false);
 		});
 	});

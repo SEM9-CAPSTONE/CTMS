@@ -22,7 +22,7 @@ const DEFAULT_NEXT_STATUS: Record<IncidentStatus, IncidentStatus> = {
 	open: "investigating",
 	investigating: "resolved",
 	resolved: "closed",
-	closed: "open",
+	closed: "closed",
 };
 
 export function IncidentResolutionModal({
@@ -73,7 +73,7 @@ export function IncidentResolutionModal({
 	if (!incident || !activeIncident) return null;
 
 	const handleStatusUpdate = async () => {
-		if (!targetStatus || targetStatus === currentStatus) return;
+		if (!targetStatus || targetStatus === currentStatus || currentStatus === "closed") return;
 		setIsSubmitting(true);
 		setErrorMessage(null);
 		try {
@@ -84,8 +84,8 @@ export function IncidentResolutionModal({
 			const nextStatus = (res?.status ?? targetStatus) as IncidentStatus;
 			const updatedIncident: IncidentListItem = { ...activeIncident, status: nextStatus };
 			toast.success(`Đã chuyển trạng thái sang "${incidentStatusLabels[nextStatus]}"`);
-			await onIncidentUpdated(updatedIncident);
 			onClose();
+			await onIncidentUpdated(updatedIncident);
 		} catch (err: unknown) {
 			let msg = "Không thể cập nhật trạng thái.";
 			if (err instanceof Error) {
