@@ -1,4 +1,5 @@
 import type { AuthenticatedUser } from "../../auth/jwt.strategy";
+import type { TerrainService } from "../../route-safety/terrain.service";
 import { UserRole, UserStatus } from "../../users/entities/user.entity";
 import { RouteReviewOutcome } from "../dto/list-route-reviews-query.dto";
 import { ReviewTrekkingRouteAction } from "../dto/review-trekking-route.dto";
@@ -68,8 +69,10 @@ describe("TrekkingRoutesService", () => {
 	let auditRepository: { save: jest.Mock };
 	let dataSource: { getRepository: jest.Mock; transaction: jest.Mock };
 	let service: TrekkingRoutesService;
+	let terrain: { validateMinimumDuration: jest.Mock };
 
 	beforeEach(() => {
+		terrain = { validateMinimumDuration: jest.fn().mockResolvedValue(undefined) };
 		routeRepository = {
 			createDraft: jest.fn().mockResolvedValue(createdRoute()),
 			updateDraft: jest.fn().mockResolvedValue(createdRoute()),
@@ -105,7 +108,8 @@ describe("TrekkingRoutesService", () => {
 		};
 		service = new TrekkingRoutesService(
 			routeRepository as unknown as TrekkingRoutesRepository,
-			dataSource as never
+			dataSource as never,
+			terrain as unknown as TerrainService
 		);
 	});
 
@@ -116,6 +120,14 @@ describe("TrekkingRoutesService", () => {
 				hostId: HOST_ID,
 				integrityValid: true,
 			});
+		});
+		it("does not write an update when the duration minimum is rejected", async () => {
+			terrain.validateMinimumDuration.mockRejectedValue(new Error("duration too short"));
+			await expect(service.updateDraft(HOST_ID, ROUTE_ID, createDto())).rejects.toThrow(
+				"duration too short"
+			);
+			expect(routeRepository.updateDraft).not.toHaveBeenCalled();
+			expect(auditRepository.save).not.toHaveBeenCalled();
 		});
 		it("updates an owned draft without changing its lifecycle and audits the result", async () => {
 			await expect(service.updateDraft(HOST_ID, ROUTE_ID, createDto())).resolves.toEqual(
@@ -489,6 +501,11 @@ describe("TrekkingRoutesService", () => {
 
 	it("creates a draft route for the current Host and writes a summarized audit", async () => {
 		const route = await service.create(HOST_ID, createDto());
+		expect(terrain.validateMinimumDuration).toHaveBeenCalledWith(
+			HOST_ID,
+			createDto().geometry,
+			createDto().expectedDurationMinutes
+		);
 
 		expect(routeRepository.createDraft).toHaveBeenCalledWith(
 			expect.objectContaining({ hostId: HOST_ID, name: "Pine Ridge Trail" })
@@ -515,6 +532,13 @@ describe("TrekkingRoutesService", () => {
 				}),
 			})
 		);
+	});
+	it("does not create or audit a route below the required duration", async () => {
+		terrain.validateMinimumDuration.mockRejectedValue(new Error("duration too short"));
+		await expect(service.create(HOST_ID, createDto())).rejects.toThrow("duration too short");
+		expect(dataSource.transaction).not.toHaveBeenCalled();
+		expect(routeRepository.createDraft).not.toHaveBeenCalled();
+		expect(auditRepository.save).not.toHaveBeenCalled();
 	});
 
 	it("propagates audit failure so the transaction can roll back route creation", async () => {

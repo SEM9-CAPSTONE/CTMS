@@ -1,42 +1,89 @@
-import { useCallback, useRef, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRef } from "react";
+import { queryKeys } from "../../../core/api/queryKeys";
 import { trekkingRoutesService } from "../services/trekking-routes.service";
-import type { CreateTrekkingRouteInput, CreatedTrekkingRoute } from "../types";
+import {
+	type CreateTrekkingRouteInput,
+	type CreatedTrekkingRoute,
+	ROUTE_SAVE_INTENTS,
+	ROUTE_STATUSES,
+	type RouteSaveIntent,
+	type SaveRouteRequest,
+} from "../types";
 import { type CreateRouteError, mapCreateRouteError } from "./useCreateTrekkingRoute";
+import { mapRouteSubmissionError } from "./useSubmitRouteForApproval";
 
-export function useDraftRouteWorkspace(initialRoute: CreatedTrekkingRoute) {
-	const [route, setRoute] = useState(initialRoute);
-	const [isSubmitting, setIsSubmitting] = useState(false);
-	const [error, setError] = useState<CreateRouteError | null>(null);
+export function useDraftRouteWorkspace(initialRoute?: CreatedTrekkingRoute) {
+	const queryClient = useQueryClient();
+	const savedRoute = useRef(initialRoute);
+	const savedPayload = useRef<string>();
 	const inFlight = useRef(false);
-	const lastPayload = useRef<CreateTrekkingRouteInput>();
-	const submit = useCallback(
-		async (payload: CreateTrekkingRouteInput) => {
-			if (inFlight.current) return null;
-			inFlight.current = true;
-			lastPayload.current = payload;
-			setIsSubmitting(true);
-			setError(null);
+	const mutation = useMutation<CreatedTrekkingRoute, CreateRouteError, SaveRouteRequest>({
+		retry: false,
+		mutationFn: async ({ payload, intent }) => {
+			const fingerprint = JSON.stringify(payload);
+			if (!savedRoute.current || savedPayload.current !== fingerprint) {
+				try {
+					savedRoute.current = savedRoute.current
+						? await trekkingRoutesService.updateDraft(savedRoute.current.id, payload)
+						: await trekkingRoutesService.create(payload);
+					savedPayload.current = fingerprint;
+				} catch (error) {
+					throw mapCreateRouteError(error, "lưu");
+				}
+			}
+			const route = savedRoute.current;
+			if (intent === ROUTE_SAVE_INTENTS.SAVE || route.status !== ROUTE_STATUSES.DRAFT) return route;
 			try {
-				const updated = await trekkingRoutesService.updateDraft(initialRoute.id, payload);
-				setRoute(updated);
-				return updated;
-			} catch (requestError) {
-				setError(mapCreateRouteError(requestError, "lưu"));
-				return null;
-			} finally {
-				inFlight.current = false;
-				setIsSubmitting(false);
+				const submitted = await trekkingRoutesService.submitForApproval(route.id);
+				savedRoute.current = submitted;
+				return submitted;
+			} catch (error) {
+				const mapped = mapRouteSubmissionError(error);
+				// Reconcile a potentially successful request whose response was lost.
+				if (!mapped.status || mapped.status === 409 || mapped.status >= 500) {
+					try {
+						const latest = await trekkingRoutesService.getMineById(route.id);
+						if (latest.status !== ROUTE_STATUSES.DRAFT) {
+							savedRoute.current = latest;
+							return latest;
+						}
+					} catch {
+						// Retain the saved draft if the status check also fails.
+					}
+				}
+				throw {
+					...mapped,
+					canRetry: !mapped.status || mapped.status === 409 || mapped.status >= 500,
+				} satisfies CreateRouteError;
 			}
 		},
-		[initialRoute.id]
-	);
-	const reload = useCallback(async () => {
-		const routes = await trekkingRoutesService.listMine();
-		const current = routes.find((item) => item.id === initialRoute.id);
-		if (!current) throw new Error("Không tìm thấy tuyến đường đã lưu.");
-		setRoute(current);
-		return current;
-	}, [initialRoute.id]);
-	const retry = () => (lastPayload.current ? submit(lastPayload.current) : Promise.resolve(null));
-	return { route, setRoute, isSubmitting, error, submit, reload, retry };
+		onSettled: () => {
+			void queryClient.invalidateQueries({ queryKey: queryKeys.trekking.all });
+		},
+	});
+
+	async function submit(
+		payload: CreateTrekkingRouteInput,
+		intent: RouteSaveIntent = ROUTE_SAVE_INTENTS.SAVE
+	) {
+		if (inFlight.current) return null;
+		inFlight.current = true;
+		try {
+			return await mutation.mutateAsync({ payload, intent });
+		} catch {
+			return null;
+		} finally {
+			inFlight.current = false;
+		}
+	}
+	return {
+		route: savedRoute.current,
+		isSubmitting: mutation.isPending,
+		isSendingForApproval:
+			mutation.isPending && mutation.variables?.intent === ROUTE_SAVE_INTENTS.SUBMIT,
+		error: mutation.error,
+		saved: mutation.isSuccess && mutation.data.status === ROUTE_STATUSES.DRAFT,
+		submit,
+	};
 }

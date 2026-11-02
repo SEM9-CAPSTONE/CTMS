@@ -311,16 +311,15 @@ test("analysis failure cannot block saving the Host draft", async ({ page }) => 
 	);
 	await page.getByLabel("Tên tuyến", { exact: true }).fill("Tuyến thử Route Safety");
 	await page.getByLabel("Thời lượng dự kiến (phút)", { exact: true }).fill("120");
-	await page.getByRole("button", { name: "Lưu tuyến", exact: true }).click();
-	await expect(
-		page.getByRole("heading", { name: "Tuyến đường đã lưu", exact: true })
-	).toBeVisible();
+	await page.getByRole("button", { name: "Lưu nháp", exact: true }).click();
+	await expect(page.getByRole("status")).toHaveText("Đã lưu nháp.");
+	await expect(page.getByLabel("Tên tuyến", { exact: true })).toHaveValue("Tuyến thử Route Safety");
 	await expect(page.getByRole("button", { name: "Gửi duyệt", exact: true })).toBeEnabled();
 });
 
 test("saves and submits geometry with safety context without planning trip waypoints", async ({
 	page,
-}) => {
+}, info) => {
 	await setup(page);
 	const checkpointRequests: string[] = [];
 	page.on("request", (request) => {
@@ -328,12 +327,14 @@ test("saves and submits geometry with safety context without planning trip waypo
 			checkpointRequests.push(request.url());
 	});
 	let saved: Record<string, unknown> | null = null;
+	const saveAndSubmitRequests: string[] = [];
 	await page.route(
 		(url) => url.pathname.startsWith("/api/trekking-routes"),
 		async (route) => {
 			const request = route.request();
 			const path = new URL(request.url()).pathname;
 			if (request.method() === "POST" && path === "/api/trekking-routes") {
+				saveAndSubmitRequests.push("save");
 				saved = {
 					...request.postDataJSON(),
 					id: "22222222-2222-4222-8222-222222222222",
@@ -346,8 +347,17 @@ test("saves and submits geometry with safety context without planning trip waypo
 				return route.fulfill({ status: 201, json: saved });
 			}
 			if (request.method() === "PATCH" && path.endsWith("/submit-for-approval")) {
+				saveAndSubmitRequests.push("submit");
 				saved = { ...saved, status: "pending_approval" };
 				return route.fulfill({ json: saved });
+			}
+			if (path === "/api/trekking-routes/paginated") {
+				return route.fulfill({
+					json: {
+						items: saved ? [saved] : [],
+						pagination: { page: 1, limit: 20, total: saved ? 1 : 0, totalPages: 1 },
+					},
+				});
 			}
 			return route.fulfill({ json: saved ? [saved] : [] });
 		}
@@ -356,21 +366,23 @@ test("saves and submits geometry with safety context without planning trip waypo
 	await expect(page.getByRole("button", { name: "Điểm bắt đầu", exact: true })).toHaveCount(0);
 	await page.getByLabel("Tên tuyến", { exact: true }).fill("Đường tuyến dùng lại");
 	await page.getByLabel("Thời lượng dự kiến (phút)", { exact: true }).fill("120");
-	await page.getByRole("button", { name: "Lưu tuyến", exact: true }).click();
-	await expect(
-		page.getByRole("heading", { name: "Tuyến đường đã lưu", exact: true })
-	).toBeVisible();
 	await expect(page.getByTestId("route-checkpoints-panel")).toHaveCount(0);
-	await expect(page.getByTestId("route-geometry-preview").locator("canvas")).toBeVisible();
+	await expect(page.getByTestId("route-map-surface").locator("canvas")).toBeVisible();
 	const panel = page.getByRole("region", { name: "Chú giải bản đồ" });
 	await expect(panel).toBeVisible();
 	await expect(page.locator('[data-safety-symbol="water"]')).toHaveCount(1);
 	await expect(page.getByRole("button", { name: "Gửi duyệt", exact: true })).toBeEnabled();
+	await page.screenshot({ path: info.outputPath("route-approval-form.png"), fullPage: true });
 	await page.getByRole("button", { name: "Gửi duyệt", exact: true }).click();
-	await expect(page.getByRole("status", { name: "Trạng thái tuyến" })).toHaveText("Chờ duyệt");
+	await expect(page).toHaveURL(/\/host\/trekking-routes\/22222222-2222-4222-8222-222222222222$/);
+	await expect(
+		page.getByRole("heading", { name: "Đường tuyến dùng lại", exact: true })
+	).toBeVisible();
+	await expect(page.getByText("Chờ duyệt", { exact: true })).toBeVisible();
 	await expect(page.getByRole("button", { name: "Gửi duyệt", exact: true })).toHaveCount(0);
 	expect(checkpointRequests).toEqual([]);
 	expect(saved).not.toHaveProperty("checkpoints");
+	expect(saveAndSubmitRequests).toEqual(["save", "submit"]);
 });
 
 test("Host route browser uses the split layout, server pagination and full-list filtering", async ({

@@ -1,6 +1,7 @@
 import { AlertTriangle } from "lucide-react";
 import { SAFETY_COLORS, WATER_COLOR, isDisplayableFeature } from "../map-symbols";
 import type { LiveSafetySource, SafetyCollection } from "../types";
+import { uniqueWarningAreas } from "../utils/unique-warning-areas";
 import { SafetySymbol } from "./SafetySymbol";
 
 export function RouteSafetySummary({
@@ -13,9 +14,7 @@ export function RouteSafetySummary({
 			feature.properties.lifecycleStatus === "ACTIVE" &&
 			feature.properties.sourceType !== "RESOURCE"
 	);
-	const areas = active.filter((feature) =>
-		["Polygon", "MultiPolygon"].includes(feature.geometry.type)
-	);
+	const areas = uniqueWarningAreas(active);
 	const counts = [
 		areas.filter((feature) => feature.properties.severity === "MEDIUM").length,
 		areas.filter((feature) => feature.properties.severity === "HIGH").length,
@@ -25,21 +24,21 @@ export function RouteSafetySummary({
 	];
 	const cards = [
 		{
-			label: "Vùng nguy hiểm",
+			label: "",
 			detail: "Mức trung bình",
 			color: SAFETY_COLORS.MEDIUM,
 			background: "bg-amber-50",
 			provider: "NCHMF",
 		},
 		{
-			label: "Vùng nguy hiểm",
+			label: "",
 			detail: "Mức cao",
 			color: SAFETY_COLORS.HIGH,
 			background: "bg-orange-50",
 			provider: "NCHMF",
 		},
 		{
-			label: "Vùng nguy hiểm",
+			label: "",
 			detail: "Mức rất cao",
 			color: SAFETY_COLORS.VERY_HIGH,
 			background: "bg-red-50",
@@ -84,7 +83,9 @@ export function RouteSafetySummary({
 								<SafetySymbol kind={index === 4 ? "water" : "hazard"} color={card.color} />
 								<strong className="text-xl font-extrabold text-[#10221b]">{count}</strong>
 							</div>
-							<p className="mt-1 text-xs font-semibold text-[#34483b]">{card.label}</p>
+							{card.label && (
+								<p className="mt-1 text-xs font-semibold text-[#34483b]">{card.label}</p>
+							)}
 							{card.detail && <p className="mt-1 text-[10px] text-[#667a6d]">{card.detail}</p>}
 						</div>
 					);

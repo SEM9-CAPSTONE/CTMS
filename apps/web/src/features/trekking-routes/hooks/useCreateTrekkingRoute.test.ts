@@ -48,6 +48,18 @@ describe("useCreateTrekkingRoute", () => {
 			expect.objectContaining({ status })
 		);
 	});
+	it("maps the server duration minimum to a localized field message", () => {
+		expect(
+			mapCreateRouteError(
+				new HttpError("invalid", 422, { code: "ROUTE_DURATION_TOO_SHORT", minimumMinutes: 265 })
+			)
+		).toEqual({
+			status: 422,
+			message: "Thời lượng di chuyển phải từ 265 phút.",
+			minimumMinutes: 265,
+			canRetry: false,
+		});
+	});
 
 	it("keeps the last payload available for retry after failure", async () => {
 		vi.mocked(trekkingRoutesService.create)

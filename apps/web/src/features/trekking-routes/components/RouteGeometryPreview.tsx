@@ -1,5 +1,5 @@
 import "maplibre-gl/dist/maplibre-gl.css";
-import { Map as MapIcon } from "lucide-react";
+import { Map as MapIcon, Maximize } from "lucide-react";
 import type { ReactNode } from "react";
 import { SafetyMapFallback } from "../../route-safety/components/SafetyMapFallback";
 import { useSafetyMapLayers } from "../../route-safety/hooks/useSafetyMapLayers";
@@ -102,9 +102,9 @@ export function RouteGeometryPreview({
 						onClick={() => {
 							fitAll();
 						}}
-						className="absolute right-3 top-24 z-10 rounded-xl bg-white px-4 py-3 text-sm font-bold text-[#10221b] shadow"
+						className="absolute right-3 top-24 z-10 flex size-10 items-center justify-center rounded-lg bg-white text-[#10221b] shadow hover:bg-slate-50"
 					>
-						Xem toàn tuyến
+						<Maximize className="size-5" aria-hidden="true" />
 					</button>
 				)}
 				{mapOverlay}

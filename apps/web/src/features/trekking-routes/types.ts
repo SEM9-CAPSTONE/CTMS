@@ -1,7 +1,15 @@
 export const ROUTE_DIFFICULTIES = ["easy", "moderate", "hard", "expert"] as const;
 export type RouteDifficulty = (typeof ROUTE_DIFFICULTIES)[number];
 
-export type RouteStatus = "draft" | "pending_approval" | "active" | "closed";
+export const ROUTE_STATUSES = {
+	DRAFT: "draft",
+	PENDING_APPROVAL: "pending_approval",
+	ACTIVE: "active",
+	CLOSED: "closed",
+} as const;
+export type RouteStatus = (typeof ROUTE_STATUSES)[keyof typeof ROUTE_STATUSES];
+export const ROUTE_SAVE_INTENTS = { SAVE: "save", SUBMIT: "submit" } as const;
+export type RouteSaveIntent = (typeof ROUTE_SAVE_INTENTS)[keyof typeof ROUTE_SAVE_INTENTS];
 export type RouteStatusFilter = RouteStatus | "all";
 export type RouteSort = "newest" | "oldest" | "name";
 export type RouteStatusCounts = Record<RouteStatusFilter, number>;
@@ -82,6 +90,11 @@ export interface CreateTrekkingRouteInput {
 	geometry: GeoJsonLineString;
 	difficulty: RouteDifficulty;
 	expectedDurationMinutes: number;
+}
+
+export interface SaveRouteRequest {
+	payload: CreateTrekkingRouteInput;
+	intent: RouteSaveIntent;
 }
 
 export interface CreatedTrekkingRoute extends Omit<CreateTrekkingRouteInput, "description"> {

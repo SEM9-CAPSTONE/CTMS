@@ -1,8 +1,6 @@
 import { ArrowLeft, Loader2, Map as MapIcon, RefreshCw } from "lucide-react";
 import type { ReactNode } from "react";
-import { CreateTrekkingRouteForm } from "../components/CreateTrekkingRouteForm";
 import { RouteDraftWorkspace } from "../components/RouteDraftWorkspace";
-import { useCreateTrekkingRoute } from "../hooks/useCreateTrekkingRoute";
 import { useTrekkingRoutes } from "../hooks/useTrekkingRoutes";
 
 export interface CreateTrekkingRoutePageProps {
@@ -63,6 +61,7 @@ export function CreateTrekkingRoutePage({
 			<EditTrekkingRoute
 				routeId={routeId}
 				onBack={onViewRouteDetail ? () => onViewRouteDetail(routeId) : onBackHome}
+				onSubmitted={onViewRouteDetail}
 			/>
 		);
 	}
@@ -73,40 +72,6 @@ function CreateTrekkingRoute({
 	onBackHome,
 	onViewRouteDetail,
 }: Pick<CreateTrekkingRoutePageProps, "onBackHome" | "onViewRouteDetail">) {
-	const creation = useCreateTrekkingRoute();
-	const createdRoute = creation.createdRoute;
-
-	if (createdRoute) {
-		return (
-			<PageShell
-				title="Tuyến đường đã lưu"
-				subtitle="Xem đường đi và thông tin nguy hiểm, nguồn nước quanh tuyến trước khi gửi duyệt."
-				onBack={onBackHome}
-				backLabel="Quay về Host Dashboard"
-			>
-				<RouteDraftWorkspace key={createdRoute.id} route={createdRoute} />
-				<div className="mt-6 flex gap-3">
-					<button
-						type="button"
-						onClick={creation.reset}
-						className="rounded-xl border px-4 py-3 font-bold"
-					>
-						Tạo tuyến khác
-					</button>
-					{onViewRouteDetail && (
-						<button
-							type="button"
-							onClick={() => onViewRouteDetail(createdRoute.id)}
-							className="rounded-xl border px-4 py-3 font-bold"
-						>
-							Xem chi tiết tuyến
-						</button>
-					)}
-				</div>
-			</PageShell>
-		);
-	}
-
 	return (
 		<PageShell
 			title="Tạo tuyến trekking trên bản đồ"
@@ -114,17 +79,20 @@ function CreateTrekkingRoute({
 			onBack={onBackHome}
 			backLabel="Quay về Host Dashboard"
 		>
-			<CreateTrekkingRouteForm
-				isSubmitting={creation.isSubmitting}
-				error={creation.error}
-				onSubmit={creation.submit}
-				onRetry={creation.retry}
-			/>
+			<RouteDraftWorkspace onSubmitted={(route) => onViewRouteDetail?.(route.id)} />
 		</PageShell>
 	);
 }
 
-function EditTrekkingRoute({ routeId, onBack }: { routeId: string; onBack?: () => void }) {
+function EditTrekkingRoute({
+	routeId,
+	onBack,
+	onSubmitted,
+}: {
+	routeId: string;
+	onBack?: () => void;
+	onSubmitted?: (routeId: string) => void;
+}) {
 	const routes = useTrekkingRoutes();
 	const route = routes.items.find((item) => item.id === routeId);
 
@@ -159,7 +127,13 @@ function EditTrekkingRoute({ routeId, onBack }: { routeId: string; onBack?: () =
 					Không tìm thấy tuyến đường.
 				</div>
 			)}
-			{route && <RouteDraftWorkspace key={route.id} route={route} mode="edit" />}
+			{route && (
+				<RouteDraftWorkspace
+					key={route.id}
+					route={route}
+					onSubmitted={(updated) => onSubmitted?.(updated.id)}
+				/>
+			)}
 		</PageShell>
 	);
 }

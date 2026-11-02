@@ -9,6 +9,8 @@ import {
 import { DataSource, type EntityManager } from "typeorm";
 import { AuditLog } from "../../auth/entities/audit-log.entity";
 import type { AuthenticatedUser } from "../../auth/jwt.strategy";
+// biome-ignore lint/style/useImportType: Nest injection metadata
+import { TerrainService } from "../../route-safety/terrain.service";
 import { UserRole } from "../../users/entities/user.entity";
 import type { CreateTrekkingRouteDto } from "../dto/create-trekking-route.dto";
 import type { ListRouteReviewsQueryDto } from "../dto/list-route-reviews-query.dto";
@@ -37,7 +39,8 @@ import { TrekkingRoutesRepository } from "../repositories/trekking-routes.reposi
 export class TrekkingRoutesService {
 	constructor(
 		private readonly trekkingRoutesRepository: TrekkingRoutesRepository,
-		private readonly dataSource: DataSource
+		private readonly dataSource: DataSource,
+		private readonly terrain: TerrainService
 	) {}
 
 	async listByHost(hostId: string): Promise<TrekkingRouteResponseDto[]> {
@@ -193,6 +196,7 @@ export class TrekkingRoutesService {
 	}
 
 	async create(hostId: string, dto: CreateTrekkingRouteDto): Promise<TrekkingRouteResponseDto> {
+		await this.terrain.validateMinimumDuration(hostId, dto.geometry, dto.expectedDurationMinutes);
 		return this.dataSource.transaction(async (manager: EntityManager) => {
 			const transactionalRepository = manager.withRepository(this.trekkingRoutesRepository);
 			const route = await transactionalRepository.createDraft({
@@ -238,6 +242,7 @@ export class TrekkingRoutesService {
 			if (await repository.hasTripReferences(routeId)) {
 				throw new ConflictException("Routes already referenced by Trips cannot be edited in place");
 			}
+			await this.terrain.validateMinimumDuration(hostId, dto.geometry, dto.expectedDurationMinutes);
 			const updated = await repository.updateDraft(routeId, {
 				...dto,
 				hostId,
