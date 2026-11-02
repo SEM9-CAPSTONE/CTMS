@@ -96,10 +96,10 @@ export function TripIncidentsTable({
 			{
 				key: "severity",
 				header: "Mức độ",
-				className: "w-[110px]",
+				className: "w-[120px] whitespace-nowrap",
 				render: (row) => (
 					<span
-						className={`inline-block rounded-full px-2 py-0.5 text-xs font-bold ${incidentSeverityStyles[row.severity]}`}
+						className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-bold ${incidentSeverityStyles[row.severity]}`}
 					>
 						{incidentSeverityLabels[row.severity]}
 					</span>
@@ -108,7 +108,7 @@ export function TripIncidentsTable({
 			{
 				key: "status",
 				header: "Trạng thái",
-				className: "w-[140px]",
+				className: "w-[130px] whitespace-nowrap",
 				render: (row) =>
 					row.status ? (
 						<StatusBadge tone={STATUS_TONES[row.status]}>
@@ -121,6 +121,7 @@ export function TripIncidentsTable({
 			{
 				key: "assignedToName",
 				header: "Người phụ trách",
+				className: "min-w-[140px]",
 				render: (row) =>
 					row.assignedToName ? (
 						<span className="font-semibold text-emerald-800">{row.assignedToName}</span>
@@ -131,14 +132,14 @@ export function TripIncidentsTable({
 			{
 				key: "syncState",
 				header: "Đồng bộ",
-				className: "w-[130px]",
+				className: "w-[140px] whitespace-nowrap",
 				render: (row) => <IncidentSyncBadge state={row.syncState} />,
 			},
 			{
 				key: "actions",
 				header: "Thao tác",
 				align: "right",
-				className: "w-[120px]",
+				className: "w-[100px] whitespace-nowrap",
 				render: (row) => {
 					const isFailed = row.syncState === IncidentSyncState.FAILED;
 					const isMediaFailed = row.mediaState === IncidentMediaState.FAILED;
