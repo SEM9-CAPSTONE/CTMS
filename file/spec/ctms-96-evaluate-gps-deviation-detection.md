@@ -135,3 +135,28 @@ TBD — Technical Design.
 ## 12. Open Decisions
 
 Detailed formulas/sample-selection rules should follow BR-434/BR-435/BR-438 and the approved evaluation dataset definition; they are not redefined here.
+
+## CTMS-395 — Simulation implementation scope (2026-11-02)
+
+The current implementation is development-only replay of the existing CTMS-245
+Dart detector with deterministic labeled synthetic tracks. Method B (situations)
+is primary; method A (samples) is supplementary. Full formulas, half-open matching,
+nearest-rank P95, quality exclusions and reproduction commands are documented in
+`apps/mobile/tool/gps_evaluation/README.md` (policy `ctms395-simulation-v1`).
+
+Runtime accuracy validity remains <=20 m; replay does not remove 10–20 m samples
+before detection. Metrics apply the <=10 m simulation evidence selection separately.
+Reports record exclusions and unavailable denominators explicitly.
+
+### Limits and pending evidence
+
+- Synthetic truth is generated before measurement noise; it is not independent
+  field ground truth under BR-434/438. `releaseConclusion` is always `incomplete`.
+- No AC, release gate or field-evaluation requirement above is removed or relaxed.
+- Checkpoint detector replay, independent field data, full offline/reconnect sync
+  evaluation and real-device battery measurements remain pending.
+- Server GPS at 30 s intervals cannot substitute for the detector's original 10 s
+  sample stream when evaluating the configured runtime behavior.
+- Route/package/config provenance must be complete before field evidence is valid;
+  simulation uses explicit null package context rather than inventing a package.
+- No UI, runtime detection change, API, database migration or seed is introduced.
