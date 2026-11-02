@@ -1,6 +1,5 @@
 import { Eye, RefreshCw, Trash2 } from "lucide-react";
 import { type ReactNode, useMemo } from "react";
-import { Button } from "../../../shared/components/Button";
 import { DataTable, type DataTableColumn } from "../../../shared/components/DataTable";
 import { Pagination } from "../../../shared/components/Pagination";
 import { StatusBadge, type StatusBadgeTone } from "../../../shared/components/StatusBadge";
@@ -145,41 +144,38 @@ export function TripIncidentsTable({
 					const isMediaFailed = row.mediaState === IncidentMediaState.FAILED;
 
 					return (
-						<div className="flex items-center justify-end gap-1">
+						<div className="flex items-center justify-end gap-1.5">
 							{isFailed && onDiscard && (
-								<Button
-									size="sm"
-									variant="ghost"
+								<button
+									type="button"
 									onClick={() => onDiscard(row.id)}
-									className="size-7 p-0 text-rose-700 hover:bg-rose-50 hover:text-rose-800"
+									className="cursor-pointer rounded-lg border border-red-200 p-2 text-rose-700 transition hover:bg-rose-50"
 									title="Xóa khỏi thiết bị"
 									aria-label="Xóa khỏi thiết bị"
 								>
-									<Trash2 className="size-3.5" />
-								</Button>
+									<Trash2 className="size-4" />
+								</button>
 							)}
 							{(isFailed || isMediaFailed) && onRetry && (
-								<Button
-									size="sm"
-									variant="ghost"
+								<button
+									type="button"
 									onClick={() => onRetry(row.id)}
-									className="size-7 p-0 text-amber-700 hover:bg-amber-50 hover:text-amber-800"
+									className="cursor-pointer rounded-lg border border-amber-200 p-2 text-amber-700 transition hover:bg-amber-50"
 									title="Thử lại"
 									aria-label="Thử lại"
 								>
-									<RefreshCw className="size-3.5" />
-								</Button>
+									<RefreshCw className="size-4" />
+								</button>
 							)}
-							<Button
-								size="sm"
-								variant="outline"
+							<button
+								type="button"
 								onClick={() => onViewDetail(row)}
-								className="size-7 p-0 font-bold text-[#164027] hover:bg-[#edf3ed]"
+								className="cursor-pointer inline-flex items-center justify-center rounded-lg border border-[#dfe8df] p-2 text-[#164027] transition hover:border-[#164027]/40 hover:bg-[#eef7f0] shadow-2xs"
 								title="Xem chi tiết sự cố"
 								aria-label="Xem chi tiết sự cố"
 							>
 								<Eye className="size-4" />
-							</Button>
+							</button>
 						</div>
 					);
 				},
