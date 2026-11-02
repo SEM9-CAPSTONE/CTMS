@@ -224,7 +224,10 @@ export function TripIncidentsPanel({
 					onClose={() => setDetailedIncident(null)}
 					incident={detailedIncident}
 					canManage={canManage}
-					onOpenResolution={(item) => setResolvingIncident(item)}
+					onOpenResolution={(item) => {
+						setDetailedIncident(null);
+						setResolvingIncident(item);
+					}}
 				/>
 			)}
 

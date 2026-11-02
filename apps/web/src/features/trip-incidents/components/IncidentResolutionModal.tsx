@@ -1,6 +1,7 @@
-import { AlertCircle, CheckCircle2 } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Modal } from "../../../shared/components/Modal";
+import { toast } from "../../../shared/components/Toast";
 import { incidentStatusLabels } from "../constants";
 import { type TripIncidentsApi, tripIncidentsService } from "../services/trip-incidents.service";
 import type { IncidentAction, IncidentListItem, IncidentStatus } from "../types";
@@ -41,7 +42,6 @@ export function IncidentResolutionModal({
 	const [actionNote, setActionNote] = useState<string>("");
 	const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
-	const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
 	const [history, setHistory] = useState<IncidentAction[]>([]);
 	const [isLoadingHistory, setIsLoadingHistory] = useState<boolean>(false);
@@ -66,7 +66,6 @@ export function IncidentResolutionModal({
 			setTargetStatus(DEFAULT_NEXT_STATUS[incident.status] ?? "open");
 			setActionNote("");
 			setErrorMessage(null);
-			setSuccessMessage(null);
 			void loadHistory();
 		}
 	}, [isOpen, incident, loadHistory]);
@@ -77,7 +76,6 @@ export function IncidentResolutionModal({
 		if (!targetStatus || targetStatus === currentStatus) return;
 		setIsSubmitting(true);
 		setErrorMessage(null);
-		setSuccessMessage(null);
 		try {
 			const res = await api.updateStatus(tripId, activeIncident.id, {
 				status: targetStatus,
@@ -85,12 +83,9 @@ export function IncidentResolutionModal({
 			});
 			const nextStatus = (res?.status ?? targetStatus) as IncidentStatus;
 			const updatedIncident: IncidentListItem = { ...activeIncident, status: nextStatus };
-			setActiveIncident(updatedIncident);
-			setTargetStatus(DEFAULT_NEXT_STATUS[nextStatus] ?? nextStatus);
-			setSuccessMessage(`Đã chuyển trạng thái sang: ${incidentStatusLabels[nextStatus]}`);
-			setActionNote("");
+			toast.success(`Đã chuyển trạng thái sang "${incidentStatusLabels[nextStatus]}"`);
 			await onIncidentUpdated(updatedIncident);
-			await loadHistory();
+			onClose();
 		} catch (err: unknown) {
 			let msg = "Không thể cập nhật trạng thái.";
 			if (err instanceof Error) {
@@ -125,13 +120,6 @@ export function IncidentResolutionModal({
 						<AlertCircle className="mt-0.5 size-4 shrink-0" />
 						<span>{errorMessage}</span>
 					</div>
-				)}
-
-				{successMessage && (
-					<output className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-semibold text-emerald-800">
-						<CheckCircle2 className="mt-0.5 size-4 shrink-0" />
-						<span>{successMessage}</span>
-					</output>
 				)}
 
 				<div className="rounded-xl border border-slate-200 p-4 space-y-3">

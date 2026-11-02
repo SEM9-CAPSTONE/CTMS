@@ -1,8 +1,18 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { toast } from "../../../shared/components/Toast";
 import type { TripIncidentsApi } from "../services/trip-incidents.service";
 import type { IncidentListItem } from "../types";
 import { IncidentResolutionModal } from "./IncidentResolutionModal";
+
+vi.mock("../../../shared/components/Toast", () => ({
+	toast: {
+		success: vi.fn(),
+		error: vi.fn(),
+		info: vi.fn(),
+		warning: vi.fn(),
+	},
+}));
 
 const mockIncident: IncidentListItem = {
 	id: "inc-1",
@@ -84,14 +94,15 @@ describe("IncidentResolutionModal (CTMS-086)", () => {
 		});
 	});
 
-	it("updates incident status through valid transition with note", async () => {
+	it("updates incident status through valid transition with note and closes modal", async () => {
 		const api = createMockApi();
 		const onUpdated = vi.fn();
+		const onClose = vi.fn();
 
 		render(
 			<IncidentResolutionModal
 				isOpen={true}
-				onClose={vi.fn()}
+				onClose={onClose}
 				incident={mockIncident}
 				tripId="trip-1"
 				onIncidentUpdated={onUpdated}
@@ -111,7 +122,8 @@ describe("IncidentResolutionModal (CTMS-086)", () => {
 				note: "Medical kit dispatched",
 			});
 			expect(onUpdated).toHaveBeenCalled();
-			expect(screen.getByText(/Đã chuyển trạng thái sang: Đang xử lý/i)).toBeInTheDocument();
+			expect(toast.success).toHaveBeenCalledWith('Đã chuyển trạng thái sang "Đang xử lý"');
+			expect(onClose).toHaveBeenCalled();
 		});
 	});
 
