@@ -2,8 +2,14 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+// Standalone CLI intentionally works without Flutter package resolution.
+// ignore: avoid_relative_lib_imports
 import '../../lib/features/gps_tracking/domain/gps_tracking_models.dart';
+// Standalone CLI intentionally works without Flutter package resolution.
+// ignore: avoid_relative_lib_imports
 import '../../lib/features/route_deviation/domain/route_deviation_detector.dart';
+// Standalone CLI intentionally works without Flutter package resolution.
+// ignore: avoid_relative_lib_imports
 import '../../lib/features/route_deviation/domain/route_deviation_models.dart';
 import 'metrics.dart';
 
@@ -69,7 +75,9 @@ Map<String, Object?> simulate({int seed = 395}) {
         }
       }
       previousTick = second;
-      if (id == 'signal-loss' && index > 0) continue;
+      if (id == 'signal-loss' && index > 0) {
+        continue;
+      }
       final measured = clean + (random.nextDouble() * 6 - 3);
       // A horizontal reference line makes the independent clean-track offset
       // explicit. Longitude remains inside the Route segment.
@@ -90,8 +98,9 @@ Map<String, Object?> simulate({int seed = 395}) {
       run = accuracy <= 10 ? run + 1 : 0;
       for (final event in detector.onSample(sample)) {
         events.add({'second': second, 'type': event.type.wireName});
-        if (event.type == SafetyEventType.offRoute)
+        if (event.type == SafetyEventType.offRoute) {
           alerts.add(Alert(second, run >= 3));
+        }
       }
       observations.add(
         Observation(

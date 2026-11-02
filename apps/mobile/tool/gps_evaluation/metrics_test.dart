@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:convert';
 import 'metrics.dart';
 import 'replay.dart' as replay;
@@ -171,5 +172,5 @@ void main() {
     unlabelled = true;
   }
   verify(unlabelled, 'Unlabelled alerts cannot vanish');
-  print('$checks checks passed (synthetic; not field evidence).');
+  stdout.writeln('$checks checks passed (synthetic; not field evidence).');
 }
