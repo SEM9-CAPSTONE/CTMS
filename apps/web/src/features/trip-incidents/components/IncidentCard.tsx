@@ -1,5 +1,6 @@
 import { Edit3, ImageIcon, MapPin, User } from "lucide-react";
 import { Button } from "../../../shared/components/Button";
+import { StatusBadge, type StatusBadgeTone } from "../../../shared/components/StatusBadge";
 import {
 	incidentCategoryLabels,
 	incidentLocationNotes,
@@ -7,10 +8,21 @@ import {
 	incidentSeverityLabels,
 	incidentSeverityStyles,
 	incidentStatusLabels,
-	incidentStatusStyles,
 } from "../constants";
-import { type IncidentListItem, IncidentMediaState, IncidentSyncState } from "../types";
+import {
+	type IncidentListItem,
+	IncidentMediaState,
+	type IncidentStatus,
+	IncidentSyncState,
+} from "../types";
 import { IncidentSyncBadge } from "./IncidentSyncBadge";
+
+const STATUS_TONES: Record<IncidentStatus, StatusBadgeTone> = {
+	open: "warning",
+	investigating: "info",
+	resolved: "success",
+	closed: "neutral",
+};
 
 export interface IncidentCardProps {
 	item: IncidentListItem;
@@ -53,11 +65,9 @@ export function IncidentCard({
 						{incidentSeverityLabels[item.severity]}
 					</span>
 					{item.status && (
-						<span
-							className={`rounded-full border px-2 py-0.5 text-xs font-bold ${incidentStatusStyles[item.status]}`}
-						>
+						<StatusBadge tone={STATUS_TONES[item.status]}>
 							{incidentStatusLabels[item.status]}
-						</span>
+						</StatusBadge>
 					)}
 					<IncidentSyncBadge state={item.syncState} />
 				</div>

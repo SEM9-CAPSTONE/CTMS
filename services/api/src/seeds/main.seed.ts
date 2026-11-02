@@ -4467,11 +4467,14 @@ export async function seedManageTripIncidents(
 	await ds.query(
 		`INSERT INTO "trip_incidents" (
 			"id", "trip_id", "reporter_id", "assigned_to", "category", "severity", "status",
-			"description", "occurred_at", "location_status", "captured_offline", "received_at"
+			"description", "occurred_at", "location", "location_accuracy_meters", "location_captured_at",
+			"location_status", "captured_offline", "received_at"
 		 ) VALUES (
 			$1, $2, $3, NULL, 'route_obstruction', 'medium', 'open',
 			'Cành cây lớn gãy chắn lối đi qua trạm quan sát số 2. Cần người dọn dẹp cành lá để đoàn tiếp tục di chuyển an toàn.',
-			now() - interval '45 minutes', 'fresh', false, now() - interval '40 minutes'
+			now() - interval '45 minutes',
+			ST_SetSRID(ST_MakePoint(108.280, 16.120), 4326)::geography, 10.0, now() - interval '45 minutes',
+			'fresh', false, now() - interval '40 minutes'
 		 );`,
 		[inc1Id, ongoingTripId, porterId]
 	);
@@ -4490,11 +4493,14 @@ export async function seedManageTripIncidents(
 	await ds.query(
 		`INSERT INTO "trip_incidents" (
 			"id", "trip_id", "reporter_id", "assigned_to", "category", "severity", "status",
-			"description", "occurred_at", "location_status", "captured_offline", "received_at"
+			"description", "occurred_at", "location", "location_accuracy_meters", "location_captured_at",
+			"location_status", "captured_offline", "received_at"
 		 ) VALUES (
 			$1, $2, $3, $4, 'injury', 'high', 'investigating',
 			'Camper Nguyễn Văn An bị trượt chân trên dốc đá gần Bãi Rạng. Cần sơ cứu vết thương và theo dõi sức khỏe.',
-			now() - interval '120 minutes', 'fresh', false, now() - interval '115 minutes'
+			now() - interval '120 minutes',
+			ST_SetSRID(ST_MakePoint(108.290, 16.115), 4326)::geography, 8.5, now() - interval '120 minutes',
+			'fresh', false, now() - interval '115 minutes'
 		 );`,
 		[inc2Id, ongoingTripId, camperId, porterId]
 	);
@@ -4513,11 +4519,14 @@ export async function seedManageTripIncidents(
 	await ds.query(
 		`INSERT INTO "trip_incidents" (
 			"id", "trip_id", "reporter_id", "assigned_to", "category", "severity", "status",
-			"description", "occurred_at", "location_status", "captured_offline", "received_at"
+			"description", "occurred_at", "location", "location_accuracy_meters", "location_captured_at",
+			"location_status", "captured_offline", "received_at"
 		 ) VALUES (
 			$1, $2, $3, $3, 'equipment_failure', 'medium', 'resolved',
 			'Gió biển giật mạnh làm cong cọc lều số 3 tại khu vực bãi cắm trại. Đã thay thế bằng cọc nhôm dự phòng.',
-			now() - interval '180 minutes', 'unavailable', false, now() - interval '175 minutes'
+			now() - interval '180 minutes',
+			NULL, NULL, NULL,
+			'unavailable', false, now() - interval '175 minutes'
 		 );`,
 		[inc3Id, ongoingTripId, hostId]
 	);
@@ -4537,11 +4546,14 @@ export async function seedManageTripIncidents(
 	await ds.query(
 		`INSERT INTO "trip_incidents" (
 			"id", "trip_id", "reporter_id", "assigned_to", "category", "severity", "status",
-			"description", "occurred_at", "location_status", "captured_offline", "received_at"
+			"description", "occurred_at", "location", "location_accuracy_meters", "location_captured_at",
+			"location_status", "captured_offline", "received_at"
 		 ) VALUES (
 			$1, $2, $3, $4, 'lost_member', 'low', 'closed',
 			'Một thành viên rẽ nhầm nhánh đường mòn phụ khi chụp ảnh. Porter dẫn đoàn đã tìm thấy và đưa về đoàn sau 15 phút.',
-			now() - interval '240 minutes', 'fresh', false, now() - interval '235 minutes'
+			now() - interval '240 minutes',
+			ST_SetSRID(ST_MakePoint(108.260, 16.110), 4326)::geography, 15.0, now() - interval '240 minutes',
+			'fresh', false, now() - interval '235 minutes'
 		 );`,
 		[inc4Id, ongoingTripId, camperId, porterId]
 	);
