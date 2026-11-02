@@ -33,10 +33,22 @@ export class IncidentAction {
 	@Column({ type: "enum", enum: IncidentActionType, enumName: "incident_action_type" })
 	action!: IncidentActionType;
 
-	@Column({ type: "enum", enum: IncidentStatus, enumName: "incident_status", nullable: true })
+	@Column({
+		name: "from_status",
+		type: "enum",
+		enum: IncidentStatus,
+		enumName: "incident_status",
+		nullable: true,
+	})
 	fromStatus!: IncidentStatus | null;
 
-	@Column({ type: "enum", enum: IncidentStatus, enumName: "incident_status", nullable: true })
+	@Column({
+		name: "to_status",
+		type: "enum",
+		enum: IncidentStatus,
+		enumName: "incident_status",
+		nullable: true,
+	})
 	toStatus!: IncidentStatus | null;
 
 	@Column({ type: "varchar", length: 2000, nullable: true })
