@@ -36,6 +36,7 @@ export interface OverviewBooking {
 	createdAt: string;
 }
 export interface OverviewTrip {
+	coverImageUrl?: string | null;
 	id: string;
 	title: string;
 	routeId: string;

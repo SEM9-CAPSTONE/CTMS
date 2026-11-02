@@ -15,7 +15,6 @@ import { useCamperTripCarousel } from "../hooks/useCamperTripCarousel";
 import { Collapse } from "../../../shared/components/Collapse";
 import { CamperSidebar } from "../../camper-profile/components/CamperSidebar";
 import { HostMyTripsPanel } from "../components/HostMyTripsPanel";
-import { HostOperationalOverview } from "../components/HostOperationalOverview";
 import { MetricCard } from "../components/MetricCard";
 import { QuickTasksPanel } from "../components/QuickTasksPanel";
 import { Sidebar } from "../components/Sidebar";
@@ -189,12 +188,6 @@ function DashboardMain({
 					<>
 						<HostDashboardOverview
 							key={user.id}
-							hostId={user.id}
-							onNavigateToTripDetail={onNavigateToTripDetail}
-						/>
-						<HostOperationalOverview
-							showMetrics={false}
-							showToolbar={false}
 							hostId={user.id}
 							onNavigateToTripDetail={onNavigateToTripDetail}
 						/>

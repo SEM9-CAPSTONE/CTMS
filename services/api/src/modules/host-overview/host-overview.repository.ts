@@ -59,7 +59,7 @@ export class HostOverviewRepository {
 
 	trips(hostId: string, page: number, limit: number): Promise<OverviewPage<OverviewTrip>> {
 		return this.page(
-			`SELECT t.id,t.title,t.route_id AS "routeId",t.status,t.starts_at AS "startsAt",
+			`SELECT t.id,t.title,t.cover_image_url AS "coverImageUrl",t.route_id AS "routeId",t.status,t.starts_at AS "startsAt",
 		 t.ends_at AS "endsAt",t.updated_at AS "updatedAt",t.starts_at AS "sortKey"
 		 FROM trips t WHERE t.host_id=$1 AND t.status=$2`,
 			[hostId, TripStatus.ONGOING],

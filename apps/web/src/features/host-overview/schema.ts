@@ -53,6 +53,7 @@ export const hostOverviewSchema: z.ZodType<HostOverview> = z.object({
 	),
 	activeTrips: section(
 		z.object({
+			coverImageUrl: z.string().nullable().optional(),
 			id: z.string(),
 			title: z.string(),
 			routeId: z.string(),

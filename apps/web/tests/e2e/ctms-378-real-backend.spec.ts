@@ -81,17 +81,17 @@ test("shows actual persisted overview after real UI login and follows a supporte
 	await expect(overview).toBeVisible();
 	await expect(
 		overview
-			.getByRole("region", { name: "Trip đang diễn ra", exact: true })
+			.getByRole("region", { name: "Chuyến đi đang diễn ra", exact: true })
 			.getByText("Trip thật CTMS-378", { exact: true })
 	).toBeVisible();
 	await expect(overview.getByText("SOS · Y tế")).toBeVisible();
 	await overview.screenshot({ path: testInfo.outputPath("host-overview-real-api.png") });
-	await expect(
-		overview.getByText("Chưa có đánh giá thời tiết khả dụng", { exact: true })
-	).toBeVisible();
+	await expect(overview.getByRole("region", { name: "Rủi ro thời tiết", exact: true })).toHaveCount(
+		0
+	);
 	await overview
-		.getByRole("region", { name: "Trip đang diễn ra", exact: true })
-		.getByRole("button", { name: "Xem Trip", exact: true })
+		.getByRole("region", { name: "Chuyến đi đang diễn ra", exact: true })
+		.getByRole("button", { name: "Xem chuyến đi", exact: true })
 		.click();
 	await expect(page).toHaveURL(new RegExp(`/trips/${tripId}$`));
 });

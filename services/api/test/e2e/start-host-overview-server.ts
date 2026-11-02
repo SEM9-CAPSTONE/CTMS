@@ -17,7 +17,7 @@ Object.assign(process.env, {
 });
 async function start() {
 	await setupIntegrationDatabase();
-	await import("../../src/main");
+	require("../../src/main");
 }
 void start().catch((error: unknown) => {
 	console.error(error);

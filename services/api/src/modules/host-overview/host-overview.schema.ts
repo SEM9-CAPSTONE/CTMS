@@ -53,6 +53,7 @@ export const HOST_OVERVIEW_SCHEMA: SchemaObject = object({
 	activeTrips: section({
 		id: uuid,
 		title: text,
+		coverImageUrl: { ...text, nullable: true },
 		routeId: uuid,
 		status: enumeration(Object.values(TripStatus)),
 		startsAt: timestamp,

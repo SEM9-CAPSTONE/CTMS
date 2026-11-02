@@ -33,7 +33,7 @@ export function OverviewKpis({ overview }: { overview: HostOverview }) {
 			label: OVERVIEW_TEXT.sos,
 			value: overview.kpis.unresolvedSos,
 			icon: Siren,
-			helper: "Cần theo dõi",
+			helper: "Chờ tiếp nhận hoặc đang hỗ trợ",
 		},
 	];
 	return (

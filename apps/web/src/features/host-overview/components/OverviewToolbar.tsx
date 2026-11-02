@@ -8,6 +8,7 @@ export function OverviewToolbar({
 	data,
 	pages,
 	busy,
+	stale,
 	onPrevious,
 	onNext,
 	onRefresh,
@@ -15,22 +16,28 @@ export function OverviewToolbar({
 	data: HostOverview;
 	pages: number;
 	busy: boolean;
+	stale: boolean;
 	onPrevious: () => void;
 	onNext: () => void;
 	onRefresh: () => void;
 }) {
 	return (
 		<div className="flex flex-wrap items-center justify-between gap-3">
-			<div>
+			<div className="flex items-center gap-2">
 				<h2 className="text-base font-semibold text-[#233c2c]">Hoạt động & cảnh báo</h2>
-				<p className="mt-1 text-[11px] text-[#7c8b80]">
-					Cập nhật {overviewDate(data.generatedAt, data.timeZone)} · {data.timeZone}
-				</p>
+				{stale && (
+					<span
+						className="text-xs text-amber-800"
+						title={`Dữ liệu tải lúc ${overviewDate(data.generatedAt, data.timeZone)}`}
+					>
+						Chưa cập nhật
+					</span>
+				)}
 			</div>
 			<div className="flex flex-wrap items-center gap-3">
 				{pages > 1 && (
 					<nav
-						aria-label="Phân trang chuyến đi và cảnh báo"
+						aria-label="Phân trang yêu cầu cứu trợ"
 						className="flex items-center gap-1 rounded-lg border border-[#dfe7dc] bg-white px-1 py-1"
 					>
 						<Button
@@ -46,7 +53,7 @@ export function OverviewToolbar({
 							<p className="text-xs font-medium text-[#3e5545]">
 								Trang {data.page} / {Math.max(data.page, pages)}
 							</p>
-							<p className="text-[10px] text-[#829087]">Trip · SOS · thời tiết</p>
+							<p className="text-[10px] text-[#829087]">Yêu cầu cứu trợ</p>
 						</div>
 						<Button
 							size="sm"
