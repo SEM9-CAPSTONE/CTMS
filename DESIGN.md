@@ -173,3 +173,20 @@ Quy chuẩn thẻ Tag phân loại (lấy từ `HostMyTripsPanel` trên `/dashbo
   - Bảng/danh sách xác nhận chỉ cần hiển thị trực quan các mục đã chọn, số lượng, thành tiền từng món và nút xoá/sửa.
   - Toàn bộ tổng hợp cuối cùng nằm ở footer cùng với các nút hành động chính (`Quay lại`, `Xác nhận & Áp dụng`).
 
+
+
+---
+
+## 9. Nguyên Tắc Hiển Thị Bảng Dữ Liệu, Bộ Lọc & Pop-up Chi Tiết (Data Table, Filter & Detail Pop-up Pattern)
+
+- **Danh sách dạng Bảng ngắn gọn (`DataTable`)**:
+  - Các danh sách quản lý (sự cố, yêu cầu, đơn hàng, nhật ký) cần được hiển thị ở dạng bảng ngắn gọn (`DataTable` từ `shared/components/DataTable`) thay vì các thẻ Card cồng kềnh chiếm diện tích.
+  - Các cột hiển thị thông tin cốt lõi (Thời điểm, Danh mục, Mức độ, Trạng thái bằng `StatusBadge`, Người phụ trách, Đồng bộ, Thao tác).
+- **Bộ Lọc Chuẩn (`FilterBar`) & Phân Trang (`Pagination`)**:
+  - Luôn đi kèm thanh bộ lọc (`FilterBar`) với các thẻ Pill tabs theo phong cách Section 4 (Active: `#164027`, Inactive: `#f4f7f2`, có badge số lượng) kết hợp ô tìm kiếm và select danh mục.
+  - Sử dụng component phân trang có sẵn (`Pagination` từ `shared/components/Pagination`) để kiểm soát số lượng bản ghi hiển thị (mặc định 5–10 dòng/trang).
+- **Xem Chi Tiết Qua Pop-up (`DetailModal`) với Icon Mắt (`Eye`)**:
+  - Không nhồi nhét thông tin dài (mô tả chi tiết, toạ độ, hình ảnh, log chi tiết) ngay trên từng dòng của bảng.
+  - Cung cấp nút thao tác với icon con mắt (`Eye` từ `lucide-react`) trên từng hàng. Khi bấm vào, mở một Pop-up (`DetailModal`) hiển thị toàn bộ chi tiết cụ thể.
+- **Vị Trí Nút Hành Động Xử Lý Nghiệp Vụ Chính**:
+  - Các nút hành động xử lý tác vụ chính (ví dụ: *"Xử lý sự cố"*, *"Duyệt yêu cầu"*,...) được đặt bên trong Pop-up chi tiết (hoặc action footer của modal) thay vì đặt tràn lan ra ngoài bảng, giúp bảng luôn thông thoáng và đảm bảo người quản trị đã xem xét đầy đủ ngữ cảnh sự việc trước khi quyết định xử lý.
