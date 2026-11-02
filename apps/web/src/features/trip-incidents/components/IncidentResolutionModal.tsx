@@ -122,33 +122,16 @@ export function IncidentResolutionModal({
 					</div>
 				)}
 
-				<div className="rounded-xl border border-slate-200 p-4 space-y-3">
+				<div className="rounded-xl border border-slate-200 p-4">
 					<IncidentStatusForm
 						currentStatus={currentStatus}
 						targetStatus={targetStatus}
+						actionNote={actionNote}
+						onActionNoteChange={setActionNote}
 						isSubmitting={isSubmitting}
 						onTargetStatusChange={setTargetStatus}
 						onSubmit={handleStatusUpdate}
 					/>
-
-					<div>
-						<label
-							htmlFor="incident-action-note"
-							className="block text-xs font-bold text-[#44594c]"
-						>
-							Ghi chú
-						</label>
-						<textarea
-							id="incident-action-note"
-							rows={2}
-							value={actionNote}
-							onChange={(e) => setActionNote(e.target.value)}
-							maxLength={2000}
-							placeholder="Nhập ghi chú (tùy chọn)..."
-							disabled={isSubmitting}
-							className="mt-1 block w-full rounded-lg border border-slate-300 p-2.5 text-xs focus:border-[#164027] focus:outline-none"
-						/>
-					</div>
 				</div>
 
 				<IncidentAuditTimeline history={history} isLoading={isLoadingHistory} />

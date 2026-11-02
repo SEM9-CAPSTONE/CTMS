@@ -7,6 +7,8 @@ import type { IncidentStatus } from "../types";
 export interface IncidentStatusFormProps {
 	currentStatus: IncidentStatus;
 	targetStatus: IncidentStatus;
+	actionNote: string;
+	onActionNoteChange: (note: string) => void;
 	isSubmitting: boolean;
 	onTargetStatusChange: (status: IncidentStatus) => void;
 	onSubmit: () => Promise<void>;
@@ -17,6 +19,8 @@ const ALL_STATUSES: IncidentStatus[] = ["open", "investigating", "resolved", "cl
 export function IncidentStatusForm({
 	currentStatus,
 	targetStatus,
+	actionNote,
+	onActionNoteChange,
 	isSubmitting,
 	onTargetStatusChange,
 	onSubmit,
@@ -51,6 +55,22 @@ export function IncidentStatusForm({
 						</option>
 					))}
 				</select>
+			</div>
+
+			<div>
+				<label htmlFor="incident-action-note" className="block text-xs font-bold text-[#44594c]">
+					Ghi chú
+				</label>
+				<textarea
+					id="incident-action-note"
+					rows={2}
+					value={actionNote}
+					onChange={(e) => onActionNoteChange(e.target.value)}
+					maxLength={2000}
+					placeholder="Nhập ghi chú (tùy chọn)..."
+					disabled={isSubmitting || isClosed}
+					className="mt-1 block w-full rounded-lg border border-slate-300 p-2.5 text-xs focus:border-[#164027] focus:outline-none disabled:bg-slate-100 disabled:text-slate-500"
+				/>
 			</div>
 
 			<Button
