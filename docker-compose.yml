@@ -47,6 +47,8 @@ services:
       API_PORT: 3000
       DATABASE_URL: postgresql://ctms:ctms@postgres:5432/ctms
       REDIS_URL: redis://redis:6379
+      MAPTILER_API_KEY: ${MAPTILER_API_KEY:-}
+      ROUTE_TERRAIN_ROAD_ENABLED: ${ROUTE_TERRAIN_ROAD_ENABLED:-true}
       AI_SERVICE_URL: http://ai:8000
       JWT_SECRET: ${JWT_SECRET:-change-me}
       OTP_TTL_MINUTES: ${OTP_TTL_MINUTES:-10}

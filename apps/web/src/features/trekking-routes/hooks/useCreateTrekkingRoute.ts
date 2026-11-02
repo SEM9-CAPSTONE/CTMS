@@ -1,5 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import { HttpError } from "../../../core/api";
+import { ROUTE_DURATION_ERROR_CODE } from "../../route-safety/terrain-constants";
+import { terrainMessages } from "../../route-safety/terrain-messages";
 import { trekkingRoutesService } from "../services/trekking-routes.service";
 import type { CreateTrekkingRouteInput, CreatedTrekkingRoute } from "../types";
 
@@ -7,6 +9,7 @@ export interface CreateRouteError {
 	status?: number;
 	message: string;
 	canRetry: boolean;
+	minimumMinutes?: number;
 }
 
 function backendMessage(error: HttpError): string | null {
@@ -40,6 +43,22 @@ export function mapCreateRouteError(error: unknown, action = "tạo"): CreateRou
 			canRetry: true,
 		};
 	const detail = backendMessage(error);
+	if (error.status === 422 && error.errorData && typeof error.errorData === "object") {
+		const data = error.errorData as Record<string, unknown>;
+		if (
+			data.code === ROUTE_DURATION_ERROR_CODE &&
+			typeof data.minimumMinutes === "number" &&
+			Number.isFinite(data.minimumMinutes) &&
+			data.minimumMinutes > 0
+		) {
+			return {
+				status: error.status,
+				message: terrainMessages.vi.minimum(data.minimumMinutes),
+				minimumMinutes: data.minimumMinutes,
+				canRetry: false,
+			};
+		}
+	}
 	const byStatus: Record<number, string> = {
 		401: "Phiên đăng nhập không hợp lệ hoặc đã hết hạn.",
 		403: "Bạn không có quyền thao tác với tuyến đường này.",

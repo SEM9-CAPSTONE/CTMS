@@ -1,6 +1,9 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertCircle, Loader2, RefreshCw } from "lucide-react";
-import { Controller, useForm } from "react-hook-form";
+import { AlertCircle, RefreshCw } from "lucide-react";
+import { useRef } from "react";
+import { Controller, useForm, useWatch } from "react-hook-form";
+import { RouteDurationAdvice } from "../../route-safety/components/RouteDurationAdvice";
+import { useRouteTerrain } from "../../route-safety/hooks/useRouteTerrain";
 import type { CreateRouteError } from "../hooks/useCreateTrekkingRoute";
 import {
 	CREATE_TREKKING_ROUTE_DEFAULT_VALUES,
@@ -8,16 +11,23 @@ import {
 	createTrekkingRouteFormSchema,
 	toCreateTrekkingRouteInput,
 } from "../schema/create-trekking-route.schema";
-import type { CreateTrekkingRouteInput, CreatedTrekkingRoute } from "../types";
+import {
+	type CreateTrekkingRouteInput,
+	type CreatedTrekkingRoute,
+	ROUTE_SAVE_INTENTS,
+	type RouteSaveIntent,
+} from "../types";
+import { RouteFormActions } from "./RouteFormActions";
 import { RouteGeometryEditor } from "./RouteGeometryEditor";
 
 interface Props {
 	route?: CreatedTrekkingRoute;
 	onCancel?: () => void;
 	isSubmitting: boolean;
+	isSendingForApproval?: boolean;
 	error: CreateRouteError | null;
 	onSubmit: (payload: CreateTrekkingRouteInput) => Promise<unknown>;
-	onRetry: () => Promise<unknown>;
+	onSubmitForApproval?: (payload: CreateTrekkingRouteInput) => Promise<unknown>;
 }
 
 const inputClass =
@@ -27,14 +37,16 @@ export function CreateTrekkingRouteForm({
 	route,
 	onCancel,
 	isSubmitting,
+	isSendingForApproval = false,
 	error,
 	onSubmit,
-	onRetry,
+	onSubmitForApproval,
 }: Props) {
 	const {
 		register,
 		control,
 		handleSubmit,
+		setFocus,
 		formState: { errors },
 	} = useForm<CreateTrekkingRouteFormValues>({
 		resolver: zodResolver(createTrekkingRouteFormSchema),
@@ -48,11 +60,38 @@ export function CreateTrekkingRouteForm({
 				}
 			: CREATE_TREKKING_ROUTE_DEFAULT_VALUES,
 	});
+	const geometry = useWatch({ control, name: "geometry" });
+	const duration = useWatch({ control, name: "expectedDurationMinutes" });
+	const assessment = useRouteTerrain(geometry, duration);
+	const submittedGeometry = useRef<string>();
+	const lastIntent = useRef<RouteSaveIntent>(ROUTE_SAVE_INTENTS.SAVE);
+	const serverDurationError =
+		error?.minimumMinutes &&
+		submittedGeometry.current === JSON.stringify(geometry) &&
+		Number(duration) > 0 &&
+		Number(duration) < error.minimumMinutes;
+	const minimumMinutes =
+		serverDurationError && error?.minimumMinutes ? error.minimumMinutes : assessment.minimumMinutes;
 
 	return (
 		<form
 			className="grid gap-5"
-			onSubmit={handleSubmit((values) => onSubmit(toCreateTrekkingRouteInput(values)))}
+			onSubmit={handleSubmit(async (values, event) => {
+				if (isSubmitting) return;
+				if (assessment.warning || serverDurationError) {
+					setFocus("expectedDurationMinutes");
+					return;
+				}
+				submittedGeometry.current = JSON.stringify(values.geometry);
+				const submitter = (event?.nativeEvent as SubmitEvent | undefined)?.submitter;
+				lastIntent.current =
+					submitter instanceof HTMLButtonElement && submitter.value === ROUTE_SAVE_INTENTS.SUBMIT
+						? ROUTE_SAVE_INTENTS.SUBMIT
+						: ROUTE_SAVE_INTENTS.SAVE;
+				const action =
+					lastIntent.current === ROUTE_SAVE_INTENTS.SUBMIT ? onSubmitForApproval : onSubmit;
+				await action?.(toCreateTrekkingRouteInput(values));
+			})}
 		>
 			<section className="rounded-2xl border border-[#e0ebe0] bg-white p-5 shadow-sm">
 				<h2 className="font-extrabold text-[#10221b]">Thông tin tuyến đường</h2>
@@ -88,6 +127,11 @@ export function CreateTrekkingRouteForm({
 						Thời lượng dự kiến (phút)
 						<input
 							aria-label="Thời lượng dự kiến (phút)"
+							aria-invalid={
+								Boolean(errors.expectedDurationMinutes) ||
+								assessment.warning ||
+								Boolean(serverDurationError)
+							}
 							inputMode="numeric"
 							disabled={isSubmitting}
 							className={inputClass}
@@ -98,10 +142,12 @@ export function CreateTrekkingRouteForm({
 								{errors.expectedDurationMinutes.message}
 							</span>
 						)}
-						<span className="mt-1 block text-xs font-normal text-[#667a6d]">
-							Host nhập thời lượng dự kiến, gồm thời gian lên dốc và nghỉ chân. Bản đồ hiện chưa
-							cung cấp dữ liệu độ cao để tự tính thời gian.
-						</span>
+						{!errors.expectedDurationMinutes && (
+							<RouteDurationAdvice
+								invalid={assessment.warning || Boolean(serverDurationError)}
+								minimumMinutes={minimumMinutes}
+							/>
+						)}
 					</label>
 					<label className="text-sm font-bold text-[#34483b] sm:col-span-2">
 						Mô tả
@@ -134,7 +180,7 @@ export function CreateTrekkingRouteForm({
 				</p>
 			)}
 
-			{error && (
+			{error && !error.minimumMinutes && (
 				<div
 					role="alert"
 					className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"
@@ -145,8 +191,10 @@ export function CreateTrekkingRouteForm({
 					</div>
 					{error.canRetry && (
 						<button
-							type="button"
-							onClick={() => void onRetry()}
+							type="submit"
+							name="routeAction"
+							value={lastIntent.current}
+							disabled={isSubmitting}
 							className="mt-3 rounded-lg border border-red-300 px-3 py-2 font-bold"
 						>
 							<RefreshCw className="mr-1 inline size-4" />
@@ -155,14 +203,12 @@ export function CreateTrekkingRouteForm({
 					)}
 				</div>
 			)}
-			<button
-				type="submit"
-				disabled={isSubmitting}
-				className="flex items-center justify-center gap-2 rounded-xl bg-[#164027] px-5 py-3 font-bold text-white disabled:opacity-60"
-			>
-				{isSubmitting && <Loader2 className="size-4 animate-spin" />}
-				{isSubmitting ? "Đang lưu tuyến..." : route ? "Lưu thay đổi" : "Lưu tuyến"}
-			</button>
+			<RouteFormActions
+				isEditing={Boolean(route)}
+				isSubmitting={isSubmitting}
+				isSendingForApproval={isSendingForApproval}
+				canSubmitForApproval={Boolean(onSubmitForApproval)}
+			/>
 			{onCancel && (
 				<button
 					type="button"

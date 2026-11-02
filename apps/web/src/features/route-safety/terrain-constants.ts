@@ -1,0 +1,7 @@
+export const TERRAIN_DEBOUNCE_MS = 1200;
+export const TERRAIN_CACHE_MS = 7 * 24 * 60 * 60 * 1000;
+export const TERRAIN_FAILURE_CACHE_MS = 60_000;
+export const TERRAIN_MAX_VERTICES = 10_000;
+export const TERRAIN_WALKING_KMH = 4;
+export const TERRAIN_MODEL_VERSION = "tcvn-14602-v2";
+export const ROUTE_DURATION_ERROR_CODE = "ROUTE_DURATION_TOO_SHORT";

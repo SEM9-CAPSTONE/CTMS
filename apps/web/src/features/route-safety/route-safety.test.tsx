@@ -1,14 +1,16 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render, renderHook, screen, waitFor } from "@testing-library/react";
+import { act, render, renderHook, screen, waitFor, within } from "@testing-library/react";
 import type { Map as MapLibreMap } from "maplibre-gl";
 import type { PropsWithChildren } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { GeoJsonLineString } from "../trekking-routes/types";
 import { RouteSafetyPanel } from "./components/RouteSafetyPanel";
+import { RouteSafetySummary } from "./components/RouteSafetySummary";
 import { useRouteSafety } from "./hooks/useRouteSafety";
 import { setSafetyMapData } from "./hooks/useSafetyMapLayers";
 import { routeSafetyService } from "./services/route-safety.service";
-import type { RouteSafetyResult, SafetyProvider } from "./types";
+import type { RouteSafetyResult, SafetyFeature, SafetyProvider, SafetySeverity } from "./types";
+import { uniqueWarningAreas } from "./utils/unique-warning-areas";
 
 vi.mock("./services/route-safety.service", () => ({ routeSafetyService: { analyze: vi.fn() } }));
 const result = (version: string): RouteSafetyResult => ({
@@ -61,6 +63,88 @@ const wrapper = () => {
 		<QueryClientProvider client={client}>{children}</QueryClientProvider>
 	);
 };
+
+const warningArea = (area: number, hazard: string, severity: SafetySeverity): SafetyFeature => ({
+	type: "Feature",
+	id: `live:NCHMF:${area}:${hazard}`,
+	geometry: {
+		type: "Polygon",
+		coordinates: [
+			[
+				[area, 12],
+				[area + 0.01, 12],
+				[area, 12.01],
+				[area, 12],
+			],
+		],
+	},
+	properties: {
+		sourceType: "OFFICIAL_CURRENT",
+		source: "NCHMF",
+		sourceReference: "https://example.com/warnings",
+		hazardType: hazard,
+		severity,
+		geometryRole: "administrative_warning_area",
+		description: hazard,
+		observedAt: null,
+		issuedAt: null,
+		fetchedAt: null,
+		validFrom: null,
+		validUntil: null,
+		updatedAt: "2026-11-02T00:00:00Z",
+		lifecycleStatus: "ACTIVE",
+		verificationStatus: "SOURCE_PROVIDED",
+		accuracyMeters: null,
+		distanceMeters: 0,
+		intersects: true,
+		radiusMeters: null,
+	},
+});
+
+describe("Route safety area counts", () => {
+	it("counts three areas once even when each has landslide and flash-flood warnings", () => {
+		const features = (["HIGH", "HIGH", "VERY_HIGH"] as const).flatMap((severity, index) =>
+			["landslide", "flash_flood"].map((hazard) => warningArea(108 + index, hazard, severity))
+		);
+		render(<RouteSafetySummary data={{ type: "FeatureCollection", features }} />);
+		for (const [label, count] of [
+			["Mức cao", "2"],
+			["Mức rất cao", "1"],
+		]) {
+			const card = screen.getByText(label).parentElement;
+			expect(card).not.toBeNull();
+			expect(within(card as HTMLElement).getByText(count)).toBeInTheDocument();
+		}
+	});
+	it.each([false, true])(
+		"uses the highest severity regardless of warning order (reverse: %s)",
+		(reverse) => {
+			const features = [
+				warningArea(108, "landslide", "HIGH"),
+				warningArea(108, "flash_flood", "VERY_HIGH"),
+			];
+			const areas = uniqueWarningAreas(reverse ? features.reverse() : features);
+			expect(areas).toHaveLength(1);
+			expect(areas[0].properties.severity).toBe("VERY_HIGH");
+		}
+	);
+	it("keeps independently defined host zones with matching geometry separate", () => {
+		const features = [
+			warningArea(108, "landslide", "HIGH"),
+			warningArea(108, "flash_flood", "HIGH"),
+		].map(
+			(feature): SafetyFeature => ({
+				...feature,
+				properties: {
+					...feature.properties,
+					sourceType: "HOST_DEFINED",
+					geometryRole: "host_defined_area",
+				},
+			})
+		);
+		expect(uniqueWarningAreas(features)).toHaveLength(2);
+	});
+});
 
 describe("Route Safety preview BR-480", () => {
 	beforeEach(() => {

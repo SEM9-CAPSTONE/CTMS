@@ -7,7 +7,7 @@
 		"start": "nest start",
 		"start:dev": "nest start --watch",
 		"start:e2e:incidents": "ts-node --transpile-only test/e2e/start-incidents-server.ts",
-		"build": "node -e \"fs.rmSync('dist', { recursive: true, force: true })\" && nest build",
+		"build": "node -e \"fs.rmSync('dist', { recursive: true, force: true, maxRetries: 5, retryDelay: 200 })\" && nest build",
 		"lint": "eslint src",
 		"test": "jest",
 		"test:e2e": "jest --config ./test/jest-e2e.json --runInBand",

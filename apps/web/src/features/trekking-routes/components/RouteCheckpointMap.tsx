@@ -1,5 +1,6 @@
 import { trackMapRenderReadiness } from "../utils/map-render-readiness";
 import "maplibre-gl/dist/maplibre-gl.css";
+import { Maximize } from "lucide-react";
 import type { Map as MapLibreMap, Marker } from "maplibre-gl";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMapViewport } from "../hooks/useMapViewport";
@@ -616,13 +617,15 @@ export function RouteCheckpointMap({
 				{showFitRouteControl && (
 					<button
 						type="button"
+						aria-label="Xem toàn tuyến"
+						title="Xem toàn tuyến"
 						onClick={() => {
 							if (useFallback) viewport.reset();
 							else if (mapRef.current) fitRoute(mapRef.current, safetyPositions);
 						}}
-						className="rounded-lg bg-white px-3 py-2 text-xs font-bold shadow"
+						className="flex size-10 items-center justify-center rounded-lg bg-white shadow hover:bg-slate-50"
 					>
-						Xem toàn tuyến
+						<Maximize className="size-5" aria-hidden="true" />
 					</button>
 				)}
 			</div>

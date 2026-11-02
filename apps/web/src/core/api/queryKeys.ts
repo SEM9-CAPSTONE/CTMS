@@ -1,5 +1,7 @@
 export const queryKeys = {
 	routeSafety: {
+		terrain: (hostId: string, geometry: string, version: string) =>
+			["route-terrain", version, hostId, geometry] as const,
 		analyze: (hostId: string, routeId: string | undefined, geometry: string, source?: string) =>
 			["route-safety", hostId, routeId ?? "preview", geometry, source ?? "all"] as const,
 	},

@@ -1,83 +1,85 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { useCreateTrekkingRoute } from "../hooks/useCreateTrekkingRoute";
 import { useTrekkingRoutes } from "../hooks/useTrekkingRoutes";
+import type { CreatedTrekkingRoute } from "../types";
 import { CreateTrekkingRoutePage } from "./CreateTrekkingRoutePage";
 
-vi.mock("../hooks/useCreateTrekkingRoute", () => ({ useCreateTrekkingRoute: vi.fn() }));
-vi.mock("../hooks/useTrekkingRoutes", () => ({ useTrekkingRoutes: vi.fn() }));
-vi.mock("../components/RouteSafetyPreview", () => ({
-	RouteSafetyPreview: ({ routeId }: { routeId: string }) => (
-		<div data-testid="safety-preview">{routeId}</div>
-	),
-}));
-vi.mock("../components/RouteSubmissionPanel", () => ({
-	RouteSubmissionPanel: () => <button type="button">Gửi duyệt</button>,
-}));
-vi.mock("../components/CreateTrekkingRouteForm", () => ({
-	CreateTrekkingRouteForm: () => <div data-testid="route-form" />,
-}));
-
-const creation = {
-	isSubmitting: false,
-	error: null,
-	createdRoute: null,
-	submit: vi.fn(),
-	retry: vi.fn(),
-	reset: vi.fn(),
+const savedRoute: CreatedTrekkingRoute = {
+	id: "saved-route",
+	name: "Ridge",
+	description: null,
+	geometry: {
+		type: "LineString",
+		coordinates: [
+			[108, 16],
+			[108.02, 16.02],
+		],
+	},
+	difficulty: "moderate",
+	expectedDurationMinutes: 120,
+	lengthMeters: 3500,
+	status: "draft",
+	createdAt: "2026-09-01",
+	updatedAt: "2026-09-01",
 };
 
+vi.mock("../hooks/useTrekkingRoutes", () => ({ useTrekkingRoutes: vi.fn() }));
+vi.mock("../components/RouteDraftWorkspace", () => ({
+	RouteDraftWorkspace: ({
+		route,
+		onSubmitted,
+	}: {
+		route?: CreatedTrekkingRoute;
+		onSubmitted?: (route: CreatedTrekkingRoute) => void;
+	}) => (
+		<div data-testid="route-workspace">
+			{route?.id ?? "new-route"}
+			<button
+				type="button"
+				onClick={() =>
+					onSubmitted?.({
+						...savedRoute,
+						id: route?.id ?? "created-id",
+						status: "pending_approval",
+					})
+				}
+			>
+				Submit completed
+			</button>
+		</div>
+	),
+}));
+
 describe("CreateTrekkingRoutePage", () => {
-	beforeEach(() => {
-		vi.clearAllMocks();
-		vi.mocked(useCreateTrekkingRoute).mockReturnValue(creation as never);
+	beforeEach(() => vi.clearAllMocks());
+
+	it("opens the form workspace for a new route and navigates only after submission", () => {
+		const onViewRouteDetail = vi.fn();
+		render(<CreateTrekkingRoutePage onViewRouteDetail={onViewRouteDetail} />);
+		expect(screen.getByTestId("route-workspace")).toHaveTextContent("new-route");
+		expect(onViewRouteDetail).not.toHaveBeenCalled();
+		fireEvent.click(screen.getByRole("button", { name: "Submit completed" }));
+		expect(onViewRouteDetail).toHaveBeenCalledWith("created-id");
 	});
 
-	it("shows the route creation form immediately", () => {
-		render(<CreateTrekkingRoutePage />);
-		expect(screen.getByTestId("route-form")).toBeInTheDocument();
-	});
-
-	it("shows route safety and submission after saving without a waypoint step", () => {
-		vi.mocked(useCreateTrekkingRoute).mockReturnValue({
-			...creation,
-			createdRoute: {
-				id: "saved-route",
-				name: "Ridge",
-				status: "draft",
-				lengthMeters: 1234.56,
-				difficulty: "hard",
-			},
-		} as never);
-		render(<CreateTrekkingRoutePage />);
-		expect(screen.getByTestId("safety-preview")).toHaveTextContent("saved-route");
-		expect(screen.queryByTestId("route-checkpoints-panel")).not.toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "Gửi duyệt" })).toBeEnabled();
-		expect(screen.queryByRole("button", { name: "Chỉnh sửa tuyến nháp" })).not.toBeInTheDocument();
-	});
-
-	it("edits a saved route in the same workspace when given a route id", () => {
+	it("uses the same workspace to edit and submit an existing route", () => {
 		vi.mocked(useTrekkingRoutes).mockReturnValue({
-			items: [
-				{
-					id: "saved-route",
-					name: "Ridge",
-					status: "draft",
-					lengthMeters: 1234.56,
-					difficulty: "hard",
-				},
-			],
+			items: [savedRoute],
+			pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
+			statusFilter: "all",
+			setPage: vi.fn(),
+			setStatusFilter: vi.fn(),
 			isLoading: false,
 			error: "",
 			retry: vi.fn(),
-		} as never);
+		});
 		const onViewRouteDetail = vi.fn();
 		render(<CreateTrekkingRoutePage routeId="saved-route" onViewRouteDetail={onViewRouteDetail} />);
 		expect(screen.getByRole("heading", { name: "Chỉnh sửa tuyến trekking" })).toBeInTheDocument();
-		expect(screen.getByTestId("route-form")).toBeInTheDocument();
-		expect(screen.queryByTestId("safety-preview")).not.toBeInTheDocument();
-		expect(screen.queryByRole("button", { name: "Chỉnh sửa tuyến nháp" })).not.toBeInTheDocument();
-		fireEvent.click(screen.getByRole("button", { name: "Quay về chi tiết tuyến" }));
+		expect(screen.getByTestId("route-workspace")).toHaveTextContent("saved-route");
+		fireEvent.click(screen.getByRole("button", { name: "Submit completed" }));
 		expect(onViewRouteDetail).toHaveBeenCalledWith("saved-route");
+		fireEvent.click(screen.getByRole("button", { name: "Quay về chi tiết tuyến" }));
+		expect(onViewRouteDetail).toHaveBeenCalledTimes(2);
 	});
 });

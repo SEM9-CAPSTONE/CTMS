@@ -32,16 +32,29 @@ vi.mock("./RouteGeometryEditor", () => ({
 }));
 
 describe("CreateTrekkingRouteForm", () => {
+	it("rejects a duration below the distance minimum and allows correcting it", async () => {
+		const submit = vi.fn().mockResolvedValue(null);
+		render(<CreateTrekkingRouteForm isSubmitting={false} error={null} onSubmit={submit} />);
+		fireEvent.change(screen.getByLabelText("Tên tuyến"), { target: { value: "Ridge" } });
+		fireEvent.change(screen.getByLabelText("Thời lượng dự kiến (phút)"), {
+			target: { value: "1" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "Draw test route" }));
+		fireEvent.click(screen.getByRole("button", { name: "Lưu tuyến" }));
+		await waitFor(() =>
+			expect(screen.getByRole("alert")).toHaveTextContent("Thời lượng di chuyển phải từ")
+		);
+		expect(submit).not.toHaveBeenCalled();
+		fireEvent.change(screen.getByLabelText("Thời lượng dự kiến (phút)"), {
+			target: { value: "120" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "Lưu tuyến" }));
+		await waitFor(() => expect(submit).toHaveBeenCalledTimes(1));
+		expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+	});
 	it("validates metadata and submits the exact payload", async () => {
 		const submit = vi.fn().mockResolvedValue(null);
-		render(
-			<CreateTrekkingRouteForm
-				isSubmitting={false}
-				error={null}
-				onSubmit={submit}
-				onRetry={vi.fn()}
-			/>
-		);
+		render(<CreateTrekkingRouteForm isSubmitting={false} error={null} onSubmit={submit} />);
 		fireEvent.change(screen.getByLabelText("Tên tuyến"), { target: { value: "  Ridge  " } });
 		fireEvent.change(screen.getByLabelText("Độ khó"), { target: { value: "hard" } });
 		fireEvent.change(screen.getByLabelText("Thời lượng dự kiến (phút)"), {
@@ -71,7 +84,6 @@ describe("CreateTrekkingRouteForm", () => {
 				isSubmitting={false}
 				error={{ status: 422, message: "invalid", canRetry: false }}
 				onSubmit={vi.fn()}
-				onRetry={vi.fn()}
 			/>
 		);
 		fireEvent.change(screen.getByLabelText("Tên tuyến"), { target: { value: "Keep me" } });
@@ -83,8 +95,15 @@ describe("CreateTrekkingRouteForm", () => {
 
 	it("disables submission while a request is in flight", () => {
 		render(
-			<CreateTrekkingRouteForm isSubmitting error={null} onSubmit={vi.fn()} onRetry={vi.fn()} />
+			<CreateTrekkingRouteForm
+				isSubmitting
+				isSendingForApproval
+				error={null}
+				onSubmit={vi.fn()}
+				onSubmitForApproval={vi.fn()}
+			/>
 		);
-		expect(screen.getByRole("button", { name: /Đang lưu tuyến/ })).toBeDisabled();
+		expect(screen.getByRole("button", { name: /Đang gửi duyệt/ })).toBeDisabled();
+		expect(screen.getByRole("button", { name: "Lưu nháp" })).toBeDisabled();
 	});
 });
