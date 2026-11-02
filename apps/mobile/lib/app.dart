@@ -26,7 +26,8 @@ class CtmsApp extends ConsumerWidget {
         title: 'CTMS',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light(),
-        darkTheme: AppTheme.dark(),
+        darkTheme: AppTheme.light(),
+        themeMode: ThemeMode.light,
         routerConfig: router,
         // Required for RestorationMixin anywhere in the tree (e.g.
         // RegisterScreen) to actually persist/restore state across the app

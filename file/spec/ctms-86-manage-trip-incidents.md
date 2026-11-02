@@ -28,11 +28,11 @@ Acceptance Criteria:
 
 ### In Scope
 
-- Incident creation/reception.
-- Assignment.
-- State updates.
-- Action history.
-- Audit.
+- Incident creation/reception by authorized Host or Lead Porter.
+- Assigning handling responsibility (`assigned_to`).
+- State updates through authoritative transition graph.
+- Chronological action history and audit log (`incident_actions`).
+- Real-time notification and optimistic sync updates.
 
 ### Out of Scope
 
@@ -41,16 +41,17 @@ Acceptance Criteria:
 
 ## 3. Actors & Authorization
 
-Primary actor:
+Primary actors:
 
-- Authorized Host.
-
-System may create/deliver an incident from another supported operational source.
+- **Authorized Host**: Owning Host of the Trip or Administrator. Has full management access: report, assign, update status, and view audit history.
+- **Lead Porter**: Assigned to the Trip. Can report incidents and update assigned status.
+- **Unauthorized users**: Forbidden (403 Forbidden) from mutating incident state or viewing unassigned Trip operational incidents.
 
 ## 4. Preconditions & Dependencies
 
-- Applicable Trip exists.
-- Host is authorized for that Trip.
+- Applicable Trip exists and is not draft.
+- Host owns the Trip (or has Admin privileges), or Porter is assigned to the Trip.
+- User assigned as handler must exist and be active.
 
 ## 5. Business Rules
 
@@ -62,63 +63,160 @@ System may create/deliver an incident from another supported operational source.
 
 ## 6. State & Lifecycle
 
-Incident
-→ created/received
-→ assigned
-→ handling-state transitions
-→ terminal state according to authoritative incident lifecycle.
+### Incident Status Enum (`incident_status`)
 
-Exact state enum is not defined by BR-269 itself.
+- `OPEN` (`open`): Incident has been created/reported and awaits investigation or assignment.
+- `INVESTIGATING` (`investigating`): Incident is being handled/investigated by assigned personnel.
+- `RESOLVED` (`resolved`): Root cause or immediate danger has been mitigated; pending final closure or verification.
+- `CLOSED` (`closed`): Incident handling completed. Terminal state.
+
+### Allowed Status Transitions
+
+```
+ [OPEN] <--------------> [INVESTIGATING]
+    │                          │
+    ▼                          ▼
+ [RESOLVED] <------------------+
+    │   ▲
+    │   │ (re-investigate)
+    ▼   │
+ [CLOSED] (Terminal: No further transitions allowed)
+```
+
+- `open` -> `investigating`, `resolved`, `closed`
+- `investigating` -> `open`, `resolved`, `closed`
+- `resolved` -> `investigating`, `closed`
+- `closed` -> (terminal; no transitions permitted. Rejects with 400 Bad Request `INVALID_STATUS_TRANSITION`)
+- Transitioning to the exact same status returns 409 Conflict.
+
+### Incident Action Types (`incident_action_type`)
+
+- `REPORTED` (`reported`): Incident initially reported.
+- `ASSIGNED` (`assigned`): Responsibility assigned to a user.
+- `STATUS_CHANGED` (`status_changed`): Status transitioned.
+- `NOTE_ADDED` (`note_added`): Operational note or resolution remark appended.
 
 ## 7. Business Flow
 
-1. Incident is created or received.
-2. Associate incident with Trip.
-3. Verify Host authorization.
-4. Host reviews incident.
-5. Assign handling responsibility.
-6. Update incident through permitted states.
-7. Record each action/history entry.
-8. Reject invalid state transition.
+1. **Incident Creation/Reporting**:
+   - Host or Porter submits incident details (`title`, `description`, `severity`, `occurredAt`).
+   - Incident is persisted with status `OPEN` and an initial audit action (`REPORTED`) is recorded.
+2. **Assignment (PB AC-2)**:
+   - Host assigns incident to an active user (`assignedTo`).
+   - System records an `ASSIGNED` action in `incident_actions`.
+3. **State Transition & Resolution (PB AC-3)**:
+   - Handler/Host transitions status (e.g. `OPEN` -> `INVESTIGATING` -> `RESOLVED` -> `CLOSED`).
+   - Validated against transition matrix.
+   - Database row is locked (`FOR UPDATE`) to prevent race conditions.
+   - An audit record `STATUS_CHANGED` is appended with optional note.
+4. **Audit History Retrieval (PB AC-4)**:
+   - Host queries incident history.
+   - System returns chronological timeline of all actions taken with author details and timestamps.
 
 ## 8. Data & Invariants
 
-Incident requires sufficient context for:
+### Database Entities
 
-- Trip;
-- incident identity;
-- handling responsibility;
-- current state;
-- action history.
+1. **`trip_incidents` Table**:
+   - `id`: UUID (Primary Key).
+   - `trip_id`: UUID (Foreign Key -> `trips.id`).
+   - `reported_by`: UUID (Foreign Key -> `users.id`).
+   - `assigned_to`: UUID (Foreign Key -> `users.id`, nullable).
+   - `title`: VARCHAR(255).
+   - `description`: TEXT.
+   - `severity`: Enum (`low`, `medium`, `high`, `critical`).
+   - `status`: Enum (`open`, `investigating`, `resolved`, `closed`).
+   - `occurred_at`: TIMESTAMPTZ.
+   - `created_at`, `updated_at`: TIMESTAMPTZ.
 
-Every authoritative mutation must remain traceable.
+2. **`incident_actions` Table**:
+   - `id`: UUID (Primary Key).
+   - `incident_id`: UUID (Foreign Key -> `trip_incidents.id` ON DELETE CASCADE).
+   - `action_type`: Enum (`reported`, `assigned`, `status_changed`, `note_added`).
+   - `previous_status`: Enum (`incident_status`, nullable).
+   - `new_status`: Enum (`incident_status`, nullable).
+   - `note`: TEXT (nullable).
+   - `performed_by`: UUID (Foreign Key -> `users.id`).
+   - `created_at`: TIMESTAMPTZ.
 
 ## 9. API / Integration Contract
 
-TBD — Technical Design.
+### 1. Report Incident
+- **POST** `/trips/:tripId/incidents`
+- **Auth**: Bearer Token (Host or Assigned Porter)
+- **Body**:
+  ```json
+  {
+    "clientIncidentId": "uuid-optional",
+    "title": "Sạt lở nhỏ trên đường",
+    "description": "Cần dọn dẹp cành cây",
+    "severity": "medium",
+    "occurredAt": "2026-10-12T08:00:00.000Z"
+  }
+  ```
+- **Response**: `201 Created` with `IncidentResponseDto`.
+
+### 2. Assign Incident Handler
+- **PATCH** `/trips/:tripId/incidents/:incidentId/assign`
+- **Auth**: Bearer Token (Owning Host or Admin)
+- **Body**:
+  ```json
+  {
+    "assignedTo": "user-uuid",
+    "note": "Phân công xử lý"
+  }
+  ```
+- **Response**: `200 OK` with updated `IncidentResponseDto`.
+
+### 3. Update Incident Status
+- **PATCH** `/trips/:tripId/incidents/:incidentId/status`
+- **Auth**: Bearer Token (Owning Host, Admin, or Assigned Handler)
+- **Body**:
+  ```json
+  {
+    "status": "investigating",
+    "note": "Đang kiểm tra hiện trường"
+  }
+  ```
+- **Response**: `200 OK` with updated `IncidentResponseDto`.
+- **Errors**:
+  - `400 Bad Request` with `INVALID_STATUS_TRANSITION` if transition is invalid or incident is `closed`.
+  - `409 Conflict` if target status matches current status.
+
+### 4. Get Incident Action History
+- **GET** `/trips/:tripId/incidents/:incidentId/history`
+- **Auth**: Bearer Token (Owning Host, Admin, or Assigned Porter)
+- **Response**: `200 OK` with `IncidentActionResponseDto[]` sorted chronologically.
 
 ## 10. Error & Edge Cases
 
-| Case                     | Expected Behavior         |
-| ------------------------ | ------------------------- |
-| Authorized Host creates  | Incident created          |
-| Unauthorized Host        | Reject                    |
-| Valid assignment         | Responsibility updated    |
-| Invalid transition       | Reject                    |
-| Concurrent state update  | Do not silently overwrite |
-| Incident history queried | Previous actions retained |
+| Case                                 | Expected Behavior                                          |
+| ------------------------------------ | ---------------------------------------------------------- |
+| Authorized Host creates              | Incident created with status `OPEN` and `REPORTED` action  |
+| Unauthorized user mutation           | `403 Forbidden`                                            |
+| Valid assignment                     | Responsibility updated and `ASSIGNED` action recorded      |
+| Assign to non-existent user          | `404 Not Found`                                            |
+| Valid state transition               | Status updated and `STATUS_CHANGED` action recorded        |
+| Invalid state transition             | `400 Bad Request` (`INVALID_STATUS_TRANSITION`)            |
+| Same state transition                | `409 Conflict`                                             |
+| Transition on `CLOSED` incident      | `400 Bad Request` (`INVALID_STATUS_TRANSITION`)            |
+| Concurrent state update              | `FOR UPDATE` row lock prevents dirty writes                |
+| Incident history queried             | Returns complete, immutable chronological audit trail      |
 
 ## 11. Acceptance & Test Matrix
 
-| Source | Scenario           | Expected Result             | Test Type   |
-| ------ | ------------------ | --------------------------- | ----------- |
-| BR-269 | Create incident    | Persisted                   | Integration |
-| BR-269 | Assign handler     | Assignment stored           | Functional  |
-| BR-269 | Valid transition   | Accepted                    | State       |
-| BR-269 | Invalid transition | Rejected                    | Negative    |
-| BR-269 | Mutation           | History auditable           | Audit       |
-| BR-213 | Concurrent update  | Correct authoritative state | Concurrency |
+| Source | Scenario                   | Expected Result                         | Test Type   |
+| ------ | -------------------------- | --------------------------------------- | ----------- |
+| PB AC-1| Create incident by Host    | Persisted with `OPEN` status            | Unit/Integ  |
+| PB AC-2| Assign handler             | `assignedTo` saved, action logged       | Unit/Integ  |
+| PB AC-3| Valid transitions          | Status updated, action logged           | Unit/State  |
+| PB AC-3| Invalid/terminal transitions| `INVALID_STATUS_TRANSITION` error      | Negative    |
+| PB AC-3| Same status transition     | `409 Conflict`                          | Negative    |
+| PB AC-4| Query action history       | Complete chronological log returned     | Unit/Audit  |
+| PB AC-5| Unauthorized mutation      | `403 Forbidden`                         | Security    |
+| BR-213 | Concurrency lock           | `FOR UPDATE` query lock                 | Concurrency |
 
-## 12. Open Decisions
+## 12. Open Decisions & Resolution
 
-Incident state enum and transition graph require authoritative lifecycle definition if not already defined elsewhere.
+- **Decision 1 (Status Lifecycle)**: Standardized on 4 states: `OPEN` -> `INVESTIGATING` -> `RESOLVED` -> `CLOSED`. `CLOSED` is final/terminal.
+- **Decision 2 (Action Logging)**: Audit records stored in `incident_actions` table, capturing `action_type`, `previous_status`, `new_status`, `note`, `performed_by`, and timestamp.

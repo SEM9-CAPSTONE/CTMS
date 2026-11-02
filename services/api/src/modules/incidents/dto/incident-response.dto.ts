@@ -1,4 +1,4 @@
-import { ApiProperty } from "@nestjs/swagger";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import {
 	IncidentCategory,
 	IncidentLocationStatus,
@@ -45,8 +45,14 @@ export class IncidentResponseDto {
 	@ApiProperty({ format: "uuid" })
 	reporterId!: string;
 
-	@ApiProperty({ nullable: true })
+	@ApiPropertyOptional({ nullable: true })
 	reporterName!: string | null;
+
+	@ApiPropertyOptional({ format: "uuid", nullable: true })
+	assignedTo!: string | null;
+
+	@ApiPropertyOptional({ nullable: true })
+	assignedToName!: string | null;
 
 	@ApiProperty({ enum: IncidentCategory })
 	category!: IncidentCategory;

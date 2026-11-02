@@ -9,12 +9,18 @@ import {
 import { EventsGateway } from "../realtime/events.gateway";
 import { TripStatus } from "../trips/entities/trip.entity";
 import { UserRole } from "../users/entities/user.entity";
+import type { AssignIncidentDto } from "./dto/assign-incident.dto";
+import type {
+	IncidentActionListResponseDto,
+	IncidentActionResponseDto,
+} from "./dto/incident-action-response.dto";
 import type {
 	IncidentListResponseDto,
 	IncidentResponseDto,
 	ReportIncidentResponseDto,
 } from "./dto/incident-response.dto";
 import type { IncidentLocationInputDto, ReportIncidentDto } from "./dto/report-incident.dto";
+import type { UpdateIncidentStatusDto } from "./dto/update-incident-status.dto";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { IncidentMediaStorage } from "./incident-media.storage";
 import {
@@ -26,8 +32,10 @@ import {
 	IncidentErrorCode,
 	IncidentLocationStatus,
 	IncidentReportOutcome,
+	IncidentStatus,
 } from "./incidents.enums";
 import {
+	type IncidentActionRow,
 	type IncidentRow,
 	type IncidentTrip,
 	// biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
@@ -48,6 +56,32 @@ const INCIDENT_ACCEPTING_TRIP_STATUSES: ReadonlySet<TripStatus> = new Set([
 
 const SECOND_MS = 1000;
 
+/** Valid status transitions (CTMS-086, PB AC-3, BR-269). CLOSED is terminal (END). */
+const VALID_INCIDENT_TRANSITIONS: Readonly<Record<IncidentStatus, ReadonlySet<IncidentStatus>>> = {
+	[IncidentStatus.OPEN]: new Set([
+		IncidentStatus.INVESTIGATING,
+		IncidentStatus.RESOLVED,
+		IncidentStatus.CLOSED,
+	]),
+	[IncidentStatus.INVESTIGATING]: new Set([
+		IncidentStatus.OPEN,
+		IncidentStatus.RESOLVED,
+		IncidentStatus.CLOSED,
+	]),
+	[IncidentStatus.RESOLVED]: new Set([
+		IncidentStatus.OPEN,
+		IncidentStatus.INVESTIGATING,
+		IncidentStatus.CLOSED,
+	]),
+	[IncidentStatus.CLOSED]: new Set([]),
+};
+
+export function isValidStatusTransition(from: IncidentStatus, to: IncidentStatus): boolean {
+	if (from === to) return false;
+	const allowed = VALID_INCIDENT_TRANSITIONS[from];
+	return allowed ? allowed.has(to) : false;
+}
+
 @Injectable()
 export class IncidentsService {
 	constructor(
@@ -57,23 +91,30 @@ export class IncidentsService {
 	) {}
 
 	/**
-	 * Records a Porter incident idempotently. A repeated sync of an id the same Porter
-	 * already stored returns that stored incident unchanged (BR-162, BR-221), even if the
-	 * Trip has since completed; a rejected report has no side effect (BR-243).
+	 * Records an incident idempotently (CTMS-049 / CTMS-086, PB AC-1).
+	 * Authorized Host or assigned Porter may report incidents.
+	 * A repeated sync of an id the same reporter already stored returns that stored incident
+	 * unchanged (BR-162, BR-221); a rejected report has no side effect (BR-243).
 	 */
 	async reportIncident(
-		porterId: string,
+		reporterId: string,
 		tripId: string,
-		dto: ReportIncidentDto
+		dto: ReportIncidentDto,
+		roles: string[] = []
 	): Promise<ReportIncidentResponseDto> {
 		const trip = await this.requireTrip(tripId);
-		if (!(await this.incidents.isPorterAssigned(tripId, porterId))) {
-			throw new ForbiddenException("Only a Porter assigned to this Trip can report incidents");
+		const isHost = trip.hostId === reporterId || roles.includes(UserRole.HOST);
+		const isAssignedPorter = await this.incidents.isPorterAssigned(tripId, reporterId);
+
+		if (!isHost && !isAssignedPorter) {
+			throw new ForbiddenException(
+				"Only the Trip's Host or an assigned Porter can report incidents"
+			);
 		}
 
 		const existing = await this.incidents.findById(dto.id);
 		if (existing) {
-			return this.duplicateOutcome(existing, porterId, tripId);
+			return this.duplicateOutcome(existing, reporterId, tripId);
 		}
 
 		const now = Date.now();
@@ -84,7 +125,7 @@ export class IncidentsService {
 		}
 		this.assertAcceptedByTrip(trip, occurredAt, now);
 
-		const newIncident = toNewIncident(dto, tripId, porterId, occurredAt);
+		const newIncident = toNewIncident(dto, tripId, reporterId, occurredAt);
 		const inserted = await this.incidents.insertIfAbsent(newIncident);
 		const stored = await this.incidents.findById(dto.id);
 		if (!stored) {
@@ -92,14 +133,14 @@ export class IncidentsService {
 		}
 		if (!inserted) {
 			// A concurrent sync of the same id won the insert.
-			return this.duplicateOutcome(stored, porterId, tripId);
+			return this.duplicateOutcome(stored, reporterId, tripId);
 		}
 
 		this.events.emitTripIncidentReported({
 			incidentId: stored.id,
 			tripId,
 			hostId: trip.hostId,
-			reporterId: porterId,
+			reporterId,
 			category: stored.category,
 			severity: stored.severity,
 			occurredAt: stored.occurredAt.toISOString(),
@@ -136,7 +177,7 @@ export class IncidentsService {
 	 * success returns the stored incident without replacing the photo.
 	 */
 	async attachMedia(
-		porterId: string,
+		reporterId: string,
 		tripId: string,
 		incidentId: string,
 		file: IncidentMediaUpload | undefined
@@ -145,8 +186,8 @@ export class IncidentsService {
 		if (!incident || incident.tripId !== tripId) {
 			throw new NotFoundException("Incident not found");
 		}
-		if (incident.reporterId !== porterId) {
-			throw new ForbiddenException("Only the reporting Porter can attach media to this incident");
+		if (incident.reporterId !== reporterId) {
+			throw new ForbiddenException("Only the reporting user can attach media to this incident");
 		}
 		if (incident.mediaUrl) {
 			return toIncidentResponse(incident);
@@ -163,9 +204,145 @@ export class IncidentsService {
 		}
 
 		const media = await this.mediaStorage.save(incidentId, file.buffer, signature);
-		await this.incidents.attachMediaIfAbsent(incidentId, porterId, media);
+		await this.incidents.attachMediaIfAbsent(incidentId, reporterId, media);
 		const updated = await this.incidents.findById(incidentId);
 		return toIncidentResponse(updated ?? incident);
+	}
+
+	/**
+	 * Assigns handling responsibility for an incident (CTMS-086, PB AC-2, PB AC-5).
+	 * Only the authorized Host of the Trip can assign handlers.
+	 */
+	async assignIncident(
+		hostId: string,
+		tripId: string,
+		incidentId: string,
+		dto: AssignIncidentDto
+	): Promise<IncidentResponseDto> {
+		const trip = await this.requireTrip(tripId);
+		if (trip.hostId !== hostId) {
+			throw new ForbiddenException("Only the Trip's Host can assign handling responsibility");
+		}
+
+		const incident = await this.incidents.findById(incidentId);
+		if (!incident || incident.tripId !== tripId) {
+			throw new NotFoundException("Incident not found");
+		}
+
+		if (dto.assignedTo) {
+			const targetUser = await this.incidents.findUser(dto.assignedTo);
+			if (!targetUser) {
+				throw new NotFoundException("Assignee user not found");
+			}
+		}
+
+		const updated = await this.incidents.assignHandler(
+			incidentId,
+			hostId,
+			dto.assignedTo ?? null,
+			dto.note
+		);
+		if (!updated) {
+			throw new NotFoundException("Incident not found");
+		}
+
+		this.events.emitTripIncidentUpdated({
+			incidentId: updated.id,
+			tripId,
+			hostId,
+			status: updated.status,
+			assignedTo: updated.assignedTo,
+			updatedAt: new Date().toISOString(),
+		});
+
+		return toIncidentResponse(updated);
+	}
+
+	/**
+	 * Updates the incident status following valid lifecycle transitions (CTMS-086, PB AC-3, PB AC-5).
+	 * Only the authorized Host of the Trip can update status.
+	 */
+	async updateStatus(
+		hostId: string,
+		tripId: string,
+		incidentId: string,
+		dto: UpdateIncidentStatusDto
+	): Promise<IncidentResponseDto> {
+		const trip = await this.requireTrip(tripId);
+		if (trip.hostId !== hostId) {
+			throw new ForbiddenException("Only the Trip's Host can update incident status");
+		}
+
+		const incident = await this.incidents.findById(incidentId);
+		if (!incident || incident.tripId !== tripId) {
+			throw new NotFoundException("Incident not found");
+		}
+
+		if (!isValidStatusTransition(incident.status, dto.status)) {
+			throw new ConflictException({
+				statusCode: 409,
+				error: "Conflict",
+				code: IncidentErrorCode.INVALID_STATUS_TRANSITION,
+				message: `Cannot transition incident status from '${incident.status}' to '${dto.status}'`,
+			});
+		}
+
+		const updated = await this.incidents.updateStatus(
+			incidentId,
+			hostId,
+			incident.status,
+			dto.status,
+			dto.note
+		);
+		if (!updated) {
+			// Concurrently modified
+			throw new ConflictException({
+				statusCode: 409,
+				error: "Conflict",
+				message: "Incident status was concurrently updated by another operation",
+			});
+		}
+
+		this.events.emitTripIncidentUpdated({
+			incidentId: updated.id,
+			tripId,
+			hostId,
+			status: updated.status,
+			assignedTo: updated.assignedTo,
+			updatedAt: new Date().toISOString(),
+		});
+
+		return toIncidentResponse(updated);
+	}
+
+	/**
+	 * Lists the auditable action history for an incident (CTMS-086, PB AC-4).
+	 * Host of the Trip or assigned Porter can view history.
+	 */
+	async listHistory(
+		userId: string,
+		roles: string[],
+		tripId: string,
+		incidentId: string
+	): Promise<IncidentActionListResponseDto> {
+		const trip = await this.requireTrip(tripId);
+		const isHost = roles.includes(UserRole.HOST) && trip.hostId === userId;
+		const isAssignedPorter =
+			roles.includes(UserRole.PORTER) && (await this.incidents.isPorterAssigned(tripId, userId));
+
+		if (!isHost && !isAssignedPorter) {
+			throw new ForbiddenException("You cannot view history of this incident");
+		}
+
+		const incident = await this.incidents.findById(incidentId);
+		if (!incident || incident.tripId !== tripId) {
+			throw new NotFoundException("Incident not found");
+		}
+
+		const rows = await this.incidents.listActions(incidentId);
+		return {
+			items: rows.map(toIncidentActionResponse),
+		};
 	}
 
 	private async requireTrip(tripId: string): Promise<IncidentTrip> {
@@ -178,10 +355,10 @@ export class IncidentsService {
 
 	private duplicateOutcome(
 		existing: IncidentRow,
-		porterId: string,
+		reporterId: string,
 		tripId: string
 	): ReportIncidentResponseDto {
-		const isOwnRetry = existing.reporterId === porterId && existing.tripId === tripId;
+		const isOwnRetry = existing.reporterId === reporterId && existing.tripId === tripId;
 		if (!isOwnRetry) {
 			throw new ConflictException({
 				statusCode: 409,
@@ -285,6 +462,8 @@ export function toIncidentResponse(row: IncidentRow): IncidentResponseDto {
 		tripId: row.tripId,
 		reporterId: row.reporterId,
 		reporterName: row.reporterName,
+		assignedTo: row.assignedTo,
+		assignedToName: row.assignedToName,
 		category: row.category,
 		severity: row.severity,
 		status: row.status,
@@ -309,5 +488,20 @@ export function toIncidentResponse(row: IncidentRow): IncidentResponseDto {
 				}
 			: null,
 		receivedAt: row.receivedAt.toISOString(),
+	};
+}
+
+export function toIncidentActionResponse(row: IncidentActionRow): IncidentActionResponseDto {
+	return {
+		id: row.id,
+		incidentId: row.incidentId,
+		actorId: row.actorId,
+		actorName: row.actorName,
+		actorRole: row.actorRole,
+		action: row.action,
+		fromStatus: row.fromStatus,
+		toStatus: row.toStatus,
+		note: row.note,
+		createdAt: row.createdAt.toISOString(),
 	};
 }

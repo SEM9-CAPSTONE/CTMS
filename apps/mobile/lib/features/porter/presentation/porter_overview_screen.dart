@@ -8,7 +8,6 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/ctms_button.dart';
 import '../../../core/widgets/ctms_scaffold.dart';
-import '../../../core/widgets/ctms_section_card.dart';
 import '../../../core/widgets/ctms_status_badge.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../auth/domain/auth_user.dart';
@@ -44,7 +43,7 @@ class PorterOverviewScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.all(AppSpacing.xxl),
         children: [
-          // 1. Shift Header Card (Styled exactly like PorterScheduleScreen's _ShiftCard)
+          // 1. Shift Header Card (Cục lịch ca và báo cáo ở đầu UI)
           _PorterShiftCard(
             dateLabel: _dateLabel(DateTime.now()),
             displayName: displayName,
@@ -53,23 +52,19 @@ class PorterOverviewScreen extends ConsumerWidget {
           ),
           const SizedBox(height: AppSpacing.lg),
 
-          // 2. Metrics Grid (Column of Rows for reliable hit-testing & zero pointer absorption)
-          const _MetricGrid(),
-          const SizedBox(height: AppSpacing.lg),
-
-          // 3. Current Route Section Card (Refined to Schedule Card style)
+          // 2. Current Route Section Card (Tuyến đang vận hành)
           _CurrentRouteCard(onOpenMap: () => context.go('/porter/map')),
           const SizedBox(height: AppSpacing.lg),
 
-          // 4. Shift Schedule Section Card (Refined to Schedule Card style)
+          // 3. Shift Schedule Section Card (Lịch vận hành)
           _ScheduleCard(onOpenSchedule: () => context.go('/porter/schedule')),
           const SizedBox(height: AppSpacing.lg),
 
-          // 5. Active Alerts Section Card (Refined to Schedule Card style)
+          // 4. Active Alerts Section Card (Cảnh báo cần xử lý)
           _AlertCard(onOpenAlerts: () => context.go('/porter/alerts')),
           const SizedBox(height: AppSpacing.lg),
 
-          // 6. Quick Actions Section Card (Refined to Schedule Card style)
+          // 5. Quick Actions Section Card (Tác vụ nhanh)
           _QuickActions(
             onMap: () => context.go('/porter/map'),
             onTeam: () => context.push('/porter/team'),
@@ -205,103 +200,7 @@ class _PorterShiftCard extends StatelessWidget {
   }
 }
 
-class _MetricGrid extends StatelessWidget {
-  const _MetricGrid();
-
-  @override
-  Widget build(BuildContext context) {
-    const metrics = [
-      _MetricData('CA HÔM NAY', '03', 'Sơn Trà, Bãi Bắc', Icons.hiking_rounded),
-      _MetricData('ĐOÀN PHỤ TRÁCH', '24', '2 khách cần hỗ trợ', Icons.groups_rounded),
-      _MetricData('CẢNH BÁO', '02', '1 cảnh báo thời tiết', Icons.warning_amber_rounded),
-      _MetricData('SỰ CỐ MỞ', '01', 'Đang theo dõi', Icons.report_problem_rounded),
-    ];
-
-    return Column(
-      children: [
-        Row(
-          children: [
-            Expanded(child: _MetricCard(metric: metrics[0])),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(child: _MetricCard(metric: metrics[1])),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.md),
-        Row(
-          children: [
-            Expanded(child: _MetricCard(metric: metrics[2])),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(child: _MetricCard(metric: metrics[3])),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-class _MetricData {
-  const _MetricData(this.label, this.value, this.helper, this.icon);
-
-  final String label;
-  final String value;
-  final String helper;
-  final IconData icon;
-}
-
-class _MetricCard extends StatelessWidget {
-  const _MetricCard({required this.metric});
-
-  final _MetricData metric;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.cardPadding),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: AppColors.border, width: 1.0),
-        borderRadius: AppRadius.cardBorderRadius,
-        boxShadow: AppColors.cardShadowSm,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  metric.label,
-                  style: AppTypography.label.copyWith(
-                    color: AppColors.textSecondary,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              Icon(metric.icon, color: AppColors.textPrimary, size: 18),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            metric.value,
-            style: AppTypography.display.copyWith(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            metric.helper,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// 1. Tuyến đang vận hành (Đồng bộ chuẩn giao diện thẻ _ShiftCard của trang Schedule)
+/// 1. Tuyến đang vận hành
 class _CurrentRouteCard extends StatelessWidget {
   const _CurrentRouteCard({required this.onOpenMap});
 
@@ -309,21 +208,43 @@ class _CurrentRouteCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CtmsSectionCard(
-      title: 'Tuyến đang vận hành',
-      trailing: const CtmsStatusBadge(
-        label: 'Đang mở',
-        status: CtmsStatus.success,
-        showDot: true,
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.cardPadding),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: AppRadius.cardBorderRadius,
+        border: Border.all(color: AppColors.border, width: 1.0),
+        boxShadow: AppColors.cardShadowSm,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  'Tuyến đang vận hành',
+                  style: AppTypography.h3.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              const CtmsStatusBadge(
+                label: 'Đang mở',
+                status: CtmsStatus.success,
+                showDot: true,
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
           Text(
             'Trekking Sơn Trà – Bãi Bắc',
             style: AppTypography.bodyStrong.copyWith(
               color: AppColors.textPrimary,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w700,
               fontSize: 16,
             ),
           ),
@@ -393,8 +314,8 @@ class _CurrentRouteCard extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
           const Divider(height: 1, thickness: 1, color: AppColors.border),
           const SizedBox(height: AppSpacing.md),
-          Align(
-            alignment: Alignment.centerRight,
+          SizedBox(
+            width: double.infinity,
             child: CtmsButton(
               label: 'Mở GPS & Bản đồ tuyến',
               icon: Icons.map_outlined,
@@ -408,7 +329,7 @@ class _CurrentRouteCard extends StatelessWidget {
   }
 }
 
-/// 2. Lịch vận hành (Đồng bộ chuẩn giao diện thẻ _ShiftCard của trang Schedule)
+/// 2. Lịch vận hành
 class _ScheduleCard extends StatelessWidget {
   const _ScheduleCard({required this.onOpenSchedule});
 
@@ -416,26 +337,48 @@ class _ScheduleCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CtmsSectionCard(
-      title: 'Lịch vận hành',
-      trailing: IconButton(
-        tooltip: 'Mở lịch',
-        onPressed: onOpenSchedule,
-        icon: const Icon(Icons.calendar_month_outlined, color: AppColors.textPrimary),
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.cardPadding),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: AppRadius.cardBorderRadius,
+        border: Border.all(color: AppColors.border, width: 1.0),
+        boxShadow: AppColors.cardShadowSm,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  'Lịch vận hành',
+                  style: AppTypography.h3.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              const CtmsStatusBadge(
+                label: 'Hôm nay',
+                status: CtmsStatus.info,
+                showDot: true,
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
           Row(
             children: [
               const Icon(Icons.today_outlined, size: 14, color: AppColors.textSecondary),
               const SizedBox(width: 4),
               Expanded(
                 child: Text(
-                  'Hôm nay • 3 mốc vận hành chính của ca trực',
+                  '3 mốc vận hành chính của ca trực',
                   style: AppTypography.caption.copyWith(
                     color: AppColors.textSecondary,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w500,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -450,14 +393,14 @@ class _ScheduleCard extends StatelessWidget {
             status: 'Hoàn thành',
             isDone: true,
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           const _ScheduleTimelineRow(
             time: '08:10',
             title: 'Dẫn đoàn qua tuyến rừng nguyên sinh',
             status: 'Đang diễn ra',
             isOngoing: true,
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           const _ScheduleTimelineRow(
             time: '12:00',
             title: 'Nghỉ trưa & nạp năng lượng tại trạm Bãi Bắc',
@@ -466,8 +409,8 @@ class _ScheduleCard extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
           const Divider(height: 1, thickness: 1, color: AppColors.border),
           const SizedBox(height: AppSpacing.md),
-          Align(
-            alignment: Alignment.centerRight,
+          SizedBox(
+            width: double.infinity,
             child: CtmsButton(
               label: 'Xem chi tiết lịch ca',
               icon: Icons.event_note_outlined,
@@ -535,7 +478,7 @@ class _ScheduleTimelineRow extends StatelessWidget {
   }
 }
 
-/// 3. Cảnh báo cần xử lý (Đồng bộ chuẩn giao diện thẻ _ShiftCard của trang Schedule)
+/// 3. Cảnh báo cần xử lý
 class _AlertCard extends StatelessWidget {
   const _AlertCard({required this.onOpenAlerts});
 
@@ -543,16 +486,38 @@ class _AlertCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CtmsSectionCard(
-      title: 'Cảnh báo cần xử lý',
-      trailing: CtmsButton(
-        label: 'Xem tất cả',
-        variant: CtmsButtonVariant.secondary,
-        onPressed: onOpenAlerts,
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.cardPadding),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: AppRadius.cardBorderRadius,
+        border: Border.all(color: AppColors.border, width: 1.0),
+        boxShadow: AppColors.cardShadowSm,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  'Cảnh báo cần xử lý',
+                  style: AppTypography.h3.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              const CtmsStatusBadge(
+                label: '2 cảnh báo',
+                status: CtmsStatus.warning,
+                showDot: true,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
           // Alert Item 1: Weather
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -686,8 +651,8 @@ class _AlertCard extends StatelessWidget {
           const Divider(height: 1, thickness: 1, color: AppColors.border),
           const SizedBox(height: AppSpacing.md),
 
-          Align(
-            alignment: Alignment.centerRight,
+          SizedBox(
+            width: double.infinity,
             child: CtmsButton(
               label: 'Mở trung tâm cảnh báo',
               icon: Icons.notifications_active_outlined,
@@ -701,7 +666,7 @@ class _AlertCard extends StatelessWidget {
   }
 }
 
-/// 4. Tác vụ nhanh (Đồng bộ chuẩn giao diện thẻ _ShiftCard của trang Schedule)
+/// 4. Tác vụ nhanh
 class _QuickActions extends StatelessWidget {
   const _QuickActions({
     required this.onMap,
@@ -715,10 +680,38 @@ class _QuickActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CtmsSectionCard(
-      title: 'Tác vụ nhanh',
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.cardPadding),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: AppRadius.cardBorderRadius,
+        border: Border.all(color: AppColors.border, width: 1.0),
+        boxShadow: AppColors.cardShadowSm,
+      ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  'Tác vụ nhanh',
+                  style: AppTypography.h3.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              const CtmsStatusBadge(
+                label: 'Phím tắt',
+                status: CtmsStatus.neutral,
+                showDot: false,
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
           _QuickActionTile(
             title: 'Mở bản đồ tuyến & GPS ngoại tuyến',
             subtitle: 'Xem checkpoint, độ cao và tọa độ đoàn realtime',
@@ -769,19 +762,42 @@ class _QuickActionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return InkWell(
+      onTap: onTap,
+      borderRadius: AppRadius.controlBorderRadius,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
           children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: AppColors.brandLight,
+                borderRadius: AppRadius.iconBoxBorderRadius,
+              ),
+              child: Icon(icon, size: 18, color: AppColors.brandPrimary),
+            ),
+            const SizedBox(width: AppSpacing.md),
             Expanded(
-              child: Text(
-                title,
-                style: AppTypography.bodyStrong.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: AppTypography.bodyStrong.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
               ),
             ),
             const SizedBox(width: AppSpacing.sm),
@@ -792,22 +808,7 @@ class _QuickActionTile extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 4),
-        Row(
-          children: [
-            Icon(icon, size: 14, color: AppColors.textSecondary),
-            const SizedBox(width: 4),
-            Expanded(
-              child: Text(
-                subtitle,
-                style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
-      ],
+      ),
     );
   }
 }

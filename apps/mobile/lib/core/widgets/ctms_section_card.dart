@@ -5,7 +5,7 @@ import '../theme/app_radius.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_typography.dart';
 
-/// White card with radius-16, subtle soft shadow, and a title row.
+/// White card with radius-12, subtle soft shadow, and a title row.
 /// Generic content container mirroring the web's clean card component.
 class CtmsSectionCard extends StatelessWidget {
   const CtmsSectionCard({super.key, required this.title, this.trailing, required this.child});
@@ -16,18 +16,16 @@ class CtmsSectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Container(
       padding: const EdgeInsets.all(AppSpacing.cardPadding),
       decoration: BoxDecoration(
-        color: isDark ? AppColors.brandDark : Colors.white,
+        color: Colors.white,
         borderRadius: AppRadius.cardBorderRadius,
         border: Border.all(
-          color: isDark ? AppColors.textSecondary : AppColors.border,
+          color: AppColors.border,
           width: 1.0,
         ),
-        boxShadow: isDark ? null : AppColors.cardShadowSm,
+        boxShadow: AppColors.cardShadowSm,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -38,12 +36,12 @@ class CtmsSectionCard extends StatelessWidget {
                 child: Text(
                   title,
                   style: AppTypography.h3.copyWith(
-                    color: isDark ? Colors.white : AppColors.textPrimary,
+                    color: AppColors.textPrimary,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
               ),
-              ?trailing,
+              if (trailing != null) trailing!,
             ],
           ),
           const SizedBox(height: AppSpacing.md),

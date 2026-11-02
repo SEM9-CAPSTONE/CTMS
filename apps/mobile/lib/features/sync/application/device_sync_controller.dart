@@ -238,7 +238,7 @@ final deviceSyncControllerProvider = ChangeNotifierProvider.autoDispose
     .family<DeviceSyncController, String>((ref, tripId) {
   final user = ref.watch(authControllerProvider).valueOrNull;
   final userId = user?.id ?? 'anonymous';
-  final store = FileIncidentStore(userId);
+  final store = IncidentStore.create(userId);
   final api = ref.watch(deviceSyncApiProvider);
   final incidentsApi = HttpIncidentsApi(ref.watch(apiClientProvider));
 

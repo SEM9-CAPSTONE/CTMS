@@ -13,13 +13,13 @@ export function IncidentSyncBadge({ state }: { state: IncidentSyncState }) {
 	const Icon = icons[state];
 	return (
 		<span
-			className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-bold ${incidentSyncStyles[state]}`}
+			className={`inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-bold ${incidentSyncStyles[state]}`}
 		>
 			<Icon
 				aria-hidden="true"
-				className={`size-3.5 ${state === IncidentSyncState.SYNCING ? "animate-spin" : ""}`}
+				className={`size-3.5 shrink-0 ${state === IncidentSyncState.SYNCING ? "animate-spin" : ""}`}
 			/>
-			<span>{incidentSyncLabels[state]}</span>
+			<span className="whitespace-nowrap">{incidentSyncLabels[state]}</span>
 		</span>
 	);
 }

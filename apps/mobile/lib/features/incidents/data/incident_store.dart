@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../domain/trip_incident.dart';
@@ -10,6 +12,90 @@ abstract interface class IncidentStore {
   Future<void> put(LocalIncident record);
   Future<List<IncidentTrip>> readTrips();
   Future<void> saveTrips(List<IncidentTrip> trips);
+
+  factory IncidentStore.create(String userId) {
+    if (kIsWeb) {
+      return WebIncidentStore(userId);
+    }
+    return FileIncidentStore(userId);
+  }
+}
+
+/// Web-compatible incident store using FlutterSecureStorage with in-memory caching.
+class WebIncidentStore implements IncidentStore {
+  WebIncidentStore(this.userId, [FlutterSecureStorage? storage])
+      : _storage = storage ?? const FlutterSecureStorage();
+
+  final String userId;
+  final FlutterSecureStorage _storage;
+
+  String get _tripsKey => 'ctms_incidents_trips_$userId';
+  String get _recordsKey => 'ctms_incidents_records_$userId';
+
+  final Map<String, LocalIncident> _recordsCache = {};
+  List<IncidentTrip> _tripsCache = [];
+  bool _initialized = false;
+
+  Future<void> _ensureLoaded() async {
+    if (_initialized) return;
+    try {
+      final rawTrips = await _storage.read(key: _tripsKey);
+      if (rawTrips != null && rawTrips.isNotEmpty) {
+        final list = jsonDecode(rawTrips) as List;
+        _tripsCache = list
+            .map((v) => IncidentTrip.fromJson(Map<String, Object?>.from(v as Map)))
+            .toList();
+      }
+    } catch (_) {}
+
+    try {
+      final rawRecords = await _storage.read(key: _recordsKey);
+      if (rawRecords != null && rawRecords.isNotEmpty) {
+        final list = jsonDecode(rawRecords) as List;
+        for (final item in list) {
+          final record = LocalIncident.fromJson(Map<String, Object?>.from(item as Map));
+          _recordsCache[record.id] = record;
+        }
+      }
+    } catch (_) {}
+
+    _initialized = true;
+  }
+
+  @override
+  Future<List<LocalIncident>> read() async {
+    await _ensureLoaded();
+    return _recordsCache.values.toList();
+  }
+
+  @override
+  Future<void> put(LocalIncident record) async {
+    if (!RegExp(r'^[a-fA-F0-9-]{36}$').hasMatch(record.id)) {
+      throw ArgumentError('Invalid incident identity');
+    }
+    await _ensureLoaded();
+    _recordsCache[record.id] = record;
+    try {
+      final list = _recordsCache.values.map((v) => v.toJson()).toList();
+      await _storage.write(key: _recordsKey, value: jsonEncode(list));
+    } catch (_) {}
+  }
+
+  @override
+  Future<List<IncidentTrip>> readTrips() async {
+    await _ensureLoaded();
+    return List.unmodifiable(_tripsCache);
+  }
+
+  @override
+  Future<void> saveTrips(List<IncidentTrip> trips) async {
+    await _ensureLoaded();
+    _tripsCache = List.from(trips);
+    try {
+      final list = trips.map((v) => v.toJson()).toList();
+      await _storage.write(key: _tripsKey, value: jsonEncode(list));
+    } catch (_) {}
+  }
 }
 
 /// Files are inside private application support storage, isolated by account.

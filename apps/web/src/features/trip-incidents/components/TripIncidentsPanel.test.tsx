@@ -64,6 +64,9 @@ describe("TripIncidentsPanel", () => {
 			}),
 			list: vi.fn(async () => ({ items: [...serverIncidents] })),
 			uploadMedia: vi.fn(),
+			assign: vi.fn(),
+			updateStatus: vi.fn(),
+			listHistory: vi.fn(),
 		};
 	});
 
@@ -97,7 +100,7 @@ describe("TripIncidentsPanel", () => {
 
 		await fillAndSubmit("Thành viên bị trượt chân ở suối");
 
-		const list = await screen.findByRole("list", { name: "Danh sách sự cố" });
+		const list = await screen.findByRole("table", { name: "Danh sách sự cố" });
 		expect(await within(list).findByText("Chờ đồng bộ")).toBeInTheDocument();
 		expect(within(list).queryByText("Đã đồng bộ")).not.toBeInTheDocument();
 		expect(
@@ -122,7 +125,7 @@ describe("TripIncidentsPanel", () => {
 		expect(api.report).toHaveBeenCalledTimes(1);
 		expect(api.report).toHaveBeenCalledWith("trip-1", stored.payload);
 		await waitFor(async () => expect(await store.list("trip-1", "porter-1")).toHaveLength(0));
-		expect(within(list).getAllByRole("listitem")).toHaveLength(1);
+		expect(within(list).getAllByRole("row")).toHaveLength(2); // 1 thead row + 1 tbody row
 	});
 
 	it("submits without coordinates when the device cannot locate", async () => {

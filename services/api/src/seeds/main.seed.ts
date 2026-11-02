@@ -4409,6 +4409,174 @@ export async function seedSosAlerts(ds = dataSource): Promise<void> {
 }
 
 // ==========================================================================
+// [11/11] TRIP INCIDENT MANAGEMENT SCENARIOS (CTMS-086)
+// ==========================================================================
+
+export async function seedManageTripIncidents(
+	ds = dataSource
+): Promise<{ ongoingTripId: string | null; incidentCount: number }> {
+	if (!ds.isInitialized) {
+		await ds.initialize();
+	}
+
+	console.log("[seed:incidents] 🛠️ Seeding CTMS-086 Trip Incident Management scenarios...");
+
+	// 1. Fetch Accounts
+	const [hostRows, porterRows, camperRows] = (await Promise.all([
+		ds.query('SELECT "id" FROM "users" WHERE "email" = $1', ["host@ctms.local"]),
+		ds.query('SELECT "id" FROM "users" WHERE "email" = $1', ["porter@ctms.local"]),
+		ds.query('SELECT "id" FROM "users" WHERE "email" = $1', ["camper@ctms.local"]),
+	])) as [Array<{ id: string }>, Array<{ id: string }>, Array<{ id: string }>];
+
+	if (hostRows.length === 0 || porterRows.length === 0 || camperRows.length === 0) {
+		console.warn(
+			"[seed:incidents] ⚠️ Host, Porter or Camper account not found. Skipping incident scenarios."
+		);
+		return { ongoingTripId: null, incidentCount: 0 };
+	}
+
+	const hostId = hostRows[0].id;
+	const porterId = porterRows[0].id;
+	const camperId = camperRows[0].id;
+
+	// 2. Locate the ongoing trip of host@ctms.local
+	const ongoingTripRows: Array<{ id: string; title: string }> = await ds.query(
+		`SELECT "id", "title" FROM "trips"
+		 WHERE "host_id" = $1 AND ("status" = 'ongoing' OR "title" ILIKE '%Sơn Trà Sunset%')
+		 ORDER BY "created_at" DESC
+		 LIMIT 1`,
+		[hostId]
+	);
+
+	if (ongoingTripRows.length === 0) {
+		console.warn("[seed:incidents] ⚠️ Ongoing trip not found. Skipping incident scenarios.");
+		return { ongoingTripId: null, incidentCount: 0 };
+	}
+
+	const ongoingTripId = ongoingTripRows[0].id;
+
+	// 3. Clear old incidents & actions for this trip
+	await ds.query(
+		'DELETE FROM "incident_actions" WHERE "incident_id" IN (SELECT "id" FROM "trip_incidents" WHERE "trip_id" = $1)',
+		[ongoingTripId]
+	);
+	await ds.query('DELETE FROM "trip_incidents" WHERE "trip_id" = $1', [ongoingTripId]);
+
+	// Incident 1: OPEN (Chưa phân công, chờ xử lý)
+	const inc1Id = "c1000000-0000-4000-8000-000000000001";
+	await ds.query(
+		`INSERT INTO "trip_incidents" (
+			"id", "trip_id", "reporter_id", "assigned_to", "category", "severity", "status",
+			"description", "occurred_at", "location", "location_accuracy_meters", "location_captured_at",
+			"location_status", "captured_offline", "received_at"
+		 ) VALUES (
+			$1, $2, $3, NULL, 'route_obstruction', 'medium', 'open',
+			'Cành cây lớn gãy chắn lối đi qua trạm quan sát số 2. Cần người dọn dẹp cành lá để đoàn tiếp tục di chuyển an toàn.',
+			now() - interval '45 minutes',
+			ST_SetSRID(ST_MakePoint(108.280, 16.120), 4326)::geography, 10.0, now() - interval '45 minutes',
+			'fresh', false, now() - interval '40 minutes'
+		 );`,
+		[inc1Id, ongoingTripId, porterId]
+	);
+	await ds.query(
+		`INSERT INTO "incident_actions" (
+			"id", "incident_id", "actor_id", "action", "from_status", "to_status", "note", "created_at"
+		 ) VALUES (
+			gen_random_uuid(), $1, $2, 'reported', NULL, 'open',
+			'Porter phát hiện chướng ngại vật khi dẫn đoàn qua km số 3.', now() - interval '40 minutes'
+		 );`,
+		[inc1Id, porterId]
+	);
+
+	// Incident 2: INVESTIGATING (Đang điều tra/xử lý, đã phân công cho Porter)
+	const inc2Id = "c1000000-0000-4000-8000-000000000002";
+	await ds.query(
+		`INSERT INTO "trip_incidents" (
+			"id", "trip_id", "reporter_id", "assigned_to", "category", "severity", "status",
+			"description", "occurred_at", "location", "location_accuracy_meters", "location_captured_at",
+			"location_status", "captured_offline", "received_at"
+		 ) VALUES (
+			$1, $2, $3, $4, 'injury', 'high', 'investigating',
+			'Camper Nguyễn Văn An bị trượt chân trên dốc đá gần Bãi Rạng. Cần sơ cứu vết thương và theo dõi sức khỏe.',
+			now() - interval '120 minutes',
+			ST_SetSRID(ST_MakePoint(108.290, 16.115), 4326)::geography, 8.5, now() - interval '120 minutes',
+			'fresh', false, now() - interval '115 minutes'
+		 );`,
+		[inc2Id, ongoingTripId, camperId, porterId]
+	);
+	await ds.query(
+		`INSERT INTO "incident_actions" (
+			"id", "incident_id", "actor_id", "action", "from_status", "to_status", "note", "created_at"
+		 ) VALUES 
+		 (gen_random_uuid(), $1, $2, 'reported', NULL, 'open', 'Camper thông báo chấn thương nhẹ ở mắt cá chân.', now() - interval '115 minutes'),
+		 (gen_random_uuid(), $1, $3, 'assigned', NULL, NULL, 'Host phân công Porter Nguyễn Minh Sơn tiếp cận hiện trường để hỗ trợ.', now() - interval '110 minutes'),
+		 (gen_random_uuid(), $1, $4, 'status_changed', 'open', 'investigating', 'Đã tiếp cận camper, đang tiến hành rửa vết thương bằng nước muối và băng bó.', now() - interval '90 minutes');`,
+		[inc2Id, camperId, hostId, porterId]
+	);
+
+	// Incident 3: RESOLVED (Đã khắc phục xong, người phụ trách là Host)
+	const inc3Id = "c1000000-0000-4000-8000-000000000003";
+	await ds.query(
+		`INSERT INTO "trip_incidents" (
+			"id", "trip_id", "reporter_id", "assigned_to", "category", "severity", "status",
+			"description", "occurred_at", "location", "location_accuracy_meters", "location_captured_at",
+			"location_status", "captured_offline", "received_at"
+		 ) VALUES (
+			$1, $2, $3, $3, 'equipment_failure', 'medium', 'resolved',
+			'Gió biển giật mạnh làm cong cọc lều số 3 tại khu vực bãi cắm trại. Đã thay thế bằng cọc nhôm dự phòng.',
+			now() - interval '180 minutes',
+			NULL, NULL, NULL,
+			'unavailable', false, now() - interval '175 minutes'
+		 );`,
+		[inc3Id, ongoingTripId, hostId]
+	);
+	await ds.query(
+		`INSERT INTO "incident_actions" (
+			"id", "incident_id", "actor_id", "action", "from_status", "to_status", "note", "created_at"
+		 ) VALUES 
+		 (gen_random_uuid(), $1, $2, 'reported', NULL, 'open', 'Kiểm tra trang thiết bị trước giờ hạ trại.', now() - interval '175 minutes'),
+		 (gen_random_uuid(), $1, $2, 'assigned', NULL, NULL, 'Host tự tiếp nhận và xử lý trang thiết bị.', now() - interval '170 minutes'),
+		 (gen_random_uuid(), $1, $2, 'status_changed', 'open', 'investigating', 'Đang kiểm tra lều dự phòng từ kho vật dụng dã ngoại.', now() - interval '160 minutes'),
+		 (gen_random_uuid(), $1, $2, 'status_changed', 'investigating', 'resolved', 'Đã thay cọc dự phòng và cố định lại dây neo, các camper sinh hoạt an toàn.', now() - interval '140 minutes');`,
+		[inc3Id, hostId]
+	);
+
+	// Incident 4: CLOSED (Đã đóng - Terminal State)
+	const inc4Id = "c1000000-0000-4000-8000-000000000004";
+	await ds.query(
+		`INSERT INTO "trip_incidents" (
+			"id", "trip_id", "reporter_id", "assigned_to", "category", "severity", "status",
+			"description", "occurred_at", "location", "location_accuracy_meters", "location_captured_at",
+			"location_status", "captured_offline", "received_at"
+		 ) VALUES (
+			$1, $2, $3, $4, 'lost_member', 'low', 'closed',
+			'Một thành viên rẽ nhầm nhánh đường mòn phụ khi chụp ảnh. Porter dẫn đoàn đã tìm thấy và đưa về đoàn sau 15 phút.',
+			now() - interval '240 minutes',
+			ST_SetSRID(ST_MakePoint(108.260, 16.110), 4326)::geography, 15.0, now() - interval '240 minutes',
+			'fresh', false, now() - interval '235 minutes'
+		 );`,
+		[inc4Id, ongoingTripId, camperId, porterId]
+	);
+	await ds.query(
+		`INSERT INTO "incident_actions" (
+			"id", "incident_id", "actor_id", "action", "from_status", "to_status", "note", "created_at"
+		 ) VALUES 
+		 (gen_random_uuid(), $1, $2, 'reported', NULL, 'open', 'Báo cáo lạc thành viên qua app ngoại tuyến.', now() - interval '235 minutes'),
+		 (gen_random_uuid(), $1, $3, 'assigned', NULL, NULL, 'Host phân công porter dẫn đường quay lại tìm kiếm.', now() - interval '230 minutes'),
+		 (gen_random_uuid(), $1, $4, 'status_changed', 'open', 'investigating', 'Đang rà soát theo dấu chân tại ngã ba Suối Mơ.', now() - interval '225 minutes'),
+		 (gen_random_uuid(), $1, $4, 'status_changed', 'investigating', 'resolved', 'Đã tìm thấy thành viên, tình trạng sức khỏe tốt.', now() - interval '210 minutes'),
+		 (gen_random_uuid(), $1, $3, 'status_changed', 'resolved', 'closed', 'Đoàn đã tập trung đầy đủ, đóng sự cố an toàn.', now() - interval '200 minutes');`,
+		[inc4Id, camperId, hostId, porterId]
+	);
+
+	console.log(
+		`[seed:incidents] ✅ Seeded 4 demo incidents (open, investigating, resolved, closed) with full audit actions for trip: ${ongoingTripId}`
+	);
+
+	return { ongoingTripId, incidentCount: 4 };
+}
+
+// ==========================================================================
 // MASTER RUNNER & SUMMARY
 // ==========================================================================
 
@@ -4516,6 +4684,12 @@ export async function runMasterSeed(): Promise<void> {
 		console.log("--------------------------------------------------------------------------");
 		await seedSosAlerts();
 		console.log("✅ Step 10 completed.\n");
+		// Step 11: Trip Incident Management Scenarios (CTMS-086)
+		console.log("--------------------------------------------------------------------------");
+		console.log("👉 [11/11] Seeding Trip Incident Management Scenarios (CTMS-086)...");
+		console.log("--------------------------------------------------------------------------");
+		const incidentScenarios = await seedManageTripIncidents();
+		console.log("✅ Step 11 completed.\n");
 
 		const elapsedSec = ((Date.now() - startTime) / 1000).toFixed(2);
 
@@ -4609,6 +4783,20 @@ export async function runMasterSeed(): Promise<void> {
 		console.log(
 			"   👉 Đa dạng báo cáo chuyến đi & đánh giá (chờ duyệt, đang xử lý, đã xử lý, từ chối)"
 		);
+		console.log("\n11. Quản lý sự cố chuyến đi (CTMS-086 Manage Trip Incidents):");
+		console.log("   👉 Host login: host@ctms.local / Host@123");
+		console.log(
+			"   👉 Đầy đủ 4 trạng thái sự cố: Mới báo cáo (open), Đang điều tra (investigating), Đã xử lý (resolved), Đã đóng (closed)"
+		);
+		console.log(
+			"   👉 Phân công phụ trách (assigned_to) cho Porter / Host kèm lịch sử thao tác (incident_actions) và ghi chú."
+		);
+		if (incidentScenarios?.ongoingTripId) {
+			console.log(
+				`   👉 Web quản lý sự cố: http://localhost:5173/trips/${incidentScenarios.ongoingTripId}`
+			);
+		}
+
 		console.log("==========================================================================\n");
 	} catch (error) {
 		console.error("\n❌ MASTER SEED ENCOUNTERED AN ERROR:", error);

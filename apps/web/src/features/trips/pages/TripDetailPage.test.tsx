@@ -29,6 +29,14 @@ vi.mock("../components/AvailablePortersPanel", () => ({
 	AvailablePortersPanel: () => null,
 }));
 
+vi.mock("../components/TripImageGallery", () => ({
+	TripImageGallery: () => null,
+}));
+
+vi.mock("../../trip-incidents", () => ({
+	TripIncidentsPanel: () => <div data-testid="trip-incidents-panel" />,
+}));
+
 vi.mock("../../booking-equipment/components/BookingEquipmentPicker", () => ({
 	BookingEquipmentPicker: ({ bookingId }: { bookingId: string }) => (
 		<div data-testid="booking-equipment-picker">{bookingId}</div>

@@ -37,27 +37,24 @@ class CtmsStatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     final deltaColor = delta == null
-        ? scheme.onSurfaceVariant
+        ? AppColors.textSecondary
         : delta!.startsWith('-')
         ? AppColors.statusDanger
         : delta!.startsWith('+')
         ? AppColors.statusSuccess
-        : scheme.onSurfaceVariant;
+        : AppColors.textSecondary;
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.cardPadding),
       decoration: BoxDecoration(
-        color: scheme.surface,
+        color: Colors.white,
         borderRadius: AppRadius.cardBorderRadius,
         border: Border.all(
-          color: isDark ? scheme.outline : AppColors.border,
+          color: AppColors.border,
           width: 1,
         ),
-        boxShadow: isDark ? null : AppColors.cardShadow,
+        boxShadow: AppColors.cardShadow,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -78,13 +75,13 @@ class CtmsStatCard extends StatelessWidget {
                   width: 32,
                   height: 32,
                   decoration: BoxDecoration(
-                    color: isDark ? scheme.surfaceContainerHighest : AppColors.brandLight,
+                    color: AppColors.brandLight,
                     borderRadius: AppRadius.iconBoxBorderRadius,
                   ),
                   child: Icon(
                     icon,
                     size: 16,
-                    color: isDark ? Colors.white : AppColors.brandPrimary,
+                    color: AppColors.brandPrimary,
                   ),
                 ),
             ],
@@ -96,7 +93,7 @@ class CtmsStatCard extends StatelessWidget {
               Text(
                 value,
                 style: AppTypography.display.copyWith(
-                  color: valueColor ?? (isDark ? Colors.white : AppColors.brandDark),
+                  color: valueColor ?? AppColors.brandDark,
                   fontWeight: FontWeight.w800,
                 ),
               ),
