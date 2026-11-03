@@ -5,6 +5,15 @@ import { tripsService } from "../services/trips.service";
 import type { TripDetails } from "../types";
 import { useTripDetail } from "./useTripDetail";
 
+let capturedAvailabilityHandler: ((event: unknown) => void) | undefined;
+vi.mock("./useTripAvailabilityRealtime", () => ({
+	useTripAvailabilityRealtime: ({
+		onAvailabilityUpdated,
+	}: { onAvailabilityUpdated?: (event: unknown) => void }) => {
+		capturedAvailabilityHandler = onAvailabilityUpdated;
+	},
+}));
+
 vi.mock("../services/trips.service", () => ({
 	tripsService: {
 		create: vi.fn(),
@@ -142,5 +151,35 @@ describe("useTripDetail", () => {
 		expect(result.current.isLoading).toBe(false);
 		expect(result.current.isNotFound).toBe(true);
 		expect(result.current.error).toContain("Không tìm thấy mã chuyến đi");
+	});
+
+	it("updates trip capacity and remaining seats in real time when availability event is received", async () => {
+		vi.mocked(tripsService.getById).mockResolvedValue(mockTripDetails);
+
+		const { result } = renderHook(() => useTripDetail("trip-1"));
+
+		await waitFor(() => {
+			expect(result.current.isLoading).toBe(false);
+		});
+
+		expect(result.current.trip?.remainingSeats).toBe(6);
+		expect(result.current.trip?.seatsTaken).toBe(10);
+		expect(result.current.trip?.isBookable).toBe(true);
+
+		// Realtime event arrives: trip capacity sold out
+		act(() => {
+			capturedAvailabilityHandler?.({
+				eventId: "event-1",
+				tripId: "trip-1",
+				seatsTaken: 16,
+				capacityMax: 16,
+				remainingSeats: 0,
+				updatedAt: new Date().toISOString(),
+			});
+		});
+
+		expect(result.current.trip?.remainingSeats).toBe(0);
+		expect(result.current.trip?.seatsTaken).toBe(16);
+		expect(result.current.trip?.isBookable).toBe(false);
 	});
 });

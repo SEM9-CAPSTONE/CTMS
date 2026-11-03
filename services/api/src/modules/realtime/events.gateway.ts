@@ -145,4 +145,16 @@ export class EventsGateway implements OnGatewayConnection {
 	}) {
 		this.server?.emit("sos.state_changed", payload);
 	}
+
+	/** CTMS-083: Broadcast trip capacity and availability changes to connected clients in real time. */
+	emitTripAvailabilityUpdated(payload: {
+		eventId: string;
+		tripId: string;
+		seatsTaken: number;
+		capacityMax: number | null;
+		remainingSeats: number | null;
+		updatedAt: string;
+	}) {
+		this.server?.emit("trip.availability.updated", payload);
+	}
 }

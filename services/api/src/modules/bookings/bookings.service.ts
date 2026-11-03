@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
 	ConflictException,
 	ForbiddenException,
@@ -24,6 +24,7 @@ import {
 } from "../profiles/entities/booking.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { HealthProfileRepository } from "../profiles/repositories/health-profile.repository";
+import { EventsGateway } from "../realtime/events.gateway";
 import {
 	TrekkingRoute,
 	TrekkingRouteStatus,
@@ -102,7 +103,8 @@ export class BookingsService {
 		private readonly equipmentReservationsRepository: EquipmentReservationsRepository,
 		private readonly weatherRiskRepository: WeatherRiskRepository,
 		private readonly healthProfileRepository: HealthProfileRepository,
-		@Optional() @Inject(PaymentsService) private readonly paymentsService?: PaymentsService
+		@Optional() @Inject(PaymentsService) private readonly paymentsService?: PaymentsService,
+		@Optional() @Inject(EventsGateway) private readonly eventsGateway?: EventsGateway
 	) {}
 
 	async listForOwner(actorId: string): Promise<BookingListItemResponseDto[]> {
@@ -499,7 +501,8 @@ export class BookingsService {
 		const normalizedKey = this.validateIdempotencyKey(idempotencyKey);
 		const requestFingerprint = this.fingerprint(dto);
 
-		return this.dataSource.transaction(async (manager: EntityManager) => {
+		let committedTrip: { id: string; seatsTaken: number; capacityMax: number | null } | null = null;
+		const result = await this.dataSource.transaction(async (manager: EntityManager) => {
 			const bookingRepository = manager.withRepository(this.bookingsRepository);
 			await bookingRepository.lockIdempotencyKey(userId, normalizedKey);
 
@@ -551,8 +554,37 @@ export class BookingsService {
 				reason: "camper_create_booking",
 			});
 
+			committedTrip = {
+				id: trip.id,
+				seatsTaken: trip.seatsTaken,
+				capacityMax: trip.capacityMax,
+			};
+
 			return this.toResponse(saved);
 		});
+
+		if (committedTrip) {
+			const targetTrip = committedTrip as {
+				id: string;
+				seatsTaken: number;
+				capacityMax: number | null;
+			};
+			const newSeatsTaken = targetTrip.seatsTaken + dto.numPeople;
+			const remainingSeats =
+				targetTrip.capacityMax !== null
+					? Math.max(0, targetTrip.capacityMax - newSeatsTaken)
+					: null;
+			this.eventsGateway?.emitTripAvailabilityUpdated({
+				eventId: randomUUID(),
+				tripId: targetTrip.id,
+				seatsTaken: newSeatsTaken,
+				capacityMax: targetTrip.capacityMax,
+				remainingSeats,
+				updatedAt: new Date().toISOString(),
+			});
+		}
+
+		return result;
 	}
 
 	/**
