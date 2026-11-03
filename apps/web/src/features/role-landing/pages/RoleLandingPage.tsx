@@ -160,11 +160,11 @@ function DashboardMain({
 						<div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
 							<div className="min-w-0">
 								{config.figmaName ? (
-									<p className="text-xs font-extrabold uppercase tracking-[0.22em] text-[#7b8c82]">
+									<p className="text-xs font-semibold uppercase tracking-wider text-[#7b8c82]">
 										{config.figmaName}
 									</p>
 								) : null}
-								<h1 className="mt-2 text-3xl font-extrabold tracking-tight text-[#10221b] sm:text-4xl">
+								<h1 className="mt-2 text-2xl font-bold tracking-tight text-[#10221b] sm:text-3xl">
 									{config.role === "camper"
 										? `Chào buổi ${timeOfDay}, ${displayName}`
 										: config.title}
@@ -247,7 +247,7 @@ function DashboardMain({
 
 							<div className="rounded-[28px] border border-[#dfe8df] bg-white p-6 shadow-sm">
 								<div className="flex items-center justify-between">
-									<h2 className="text-xl font-extrabold text-[#10221b]">Lịch vận hành</h2>
+									<h2 className="text-lg font-bold text-[#10221b]">Lịch vận hành</h2>
 									<CalendarDays className="size-5 text-[#667a6d]" />
 								</div>
 								<div className="mt-5 space-y-4">
@@ -259,15 +259,15 @@ function DashboardMain({
 									{timeline.map((item) => (
 										<div key={`${item.time}-${item.title}`} className="flex gap-4">
 											<div
-												className="w-14 shrink-0 text-sm font-extrabold"
+												className="w-14 shrink-0 text-sm font-semibold"
 												style={{ color: config.accent }}
 											>
 												{item.time}
 											</div>
 											<div className="flex-1 rounded-2xl border border-[#e5eee7] bg-[#fbfdfb] p-4">
 												<div className="flex items-start justify-between gap-3">
-													<h3 className="font-extrabold text-[#10221b]">{item.title}</h3>
-													<span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-extrabold text-[#667a6d] ring-1 ring-[#dfe8df]">
+													<h3 className="font-semibold text-[#10221b]">{item.title}</h3>
+													<span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-[#667a6d] ring-1 ring-[#dfe8df]">
 														{item.status}
 													</span>
 												</div>
@@ -285,7 +285,7 @@ function DashboardMain({
 					<section className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
 						<div className="rounded-[28px] border border-[#dfe8df] bg-white p-6 shadow-sm">
 							<div className="flex items-center justify-between">
-								<h2 className="text-xl font-extrabold text-[#10221b]">Cảnh báo</h2>
+								<h2 className="text-lg font-bold text-[#10221b]">Cảnh báo</h2>
 								<AlertTriangle className="size-5 text-amber-600" />
 							</div>
 							<div className="mt-5 space-y-3">
@@ -294,7 +294,7 @@ function DashboardMain({
 										key={alert.title}
 										className={`rounded-2xl border p-4 ${alertClasses[alert.tone]}`}
 									>
-										<p className="font-extrabold">{alert.title}</p>
+										<p className="font-semibold">{alert.title}</p>
 										<p className="mt-1 text-sm leading-6 opacity-80">{alert.detail}</p>
 									</div>
 								))}
@@ -486,7 +486,7 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 						>
 							<LayoutDashboard className="size-5" />
 						</div>
-						<p className="font-extrabold">{config.productLabel}</p>
+						<p className="font-bold">{config.productLabel}</p>
 					</div>
 				</header>
 

@@ -7,7 +7,7 @@ export function CamperTripSummary({ trip }: { trip: TripDetails }) {
 					? "Chuyến đang diễn ra"
 					: "Chuyến sắp khởi hành"}
 			</p>
-			<h2 className="mt-3 text-2xl font-extrabold">{trip.title}</h2>
+			<h2 className="mt-3 text-2xl font-bold">{trip.title}</h2>
 			<p className="mt-3 text-sm">Khởi hành: {new Date(trip.startsAt).toLocaleString("vi-VN")}</p>
 			{trip.host?.fullName && <p className="mt-3 text-sm">Host: {trip.host.fullName}</p>}
 			<a

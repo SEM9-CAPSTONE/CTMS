@@ -31,7 +31,7 @@ export function QuickTasksPanel({
 		<div className="rounded-[28px] border border-[#dfe8df] bg-white p-6 shadow-sm">
 			<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 				<div>
-					<h2 className="text-xl font-extrabold text-[#10221b]">Tác vụ nhanh</h2>
+					<h2 className="text-xl font-bold text-[#10221b]">Tác vụ nhanh</h2>
 					<p className="mt-1 text-sm font-medium text-[#667a6d]">
 						{roleSubtitles[config.role] || "Truy cập nhanh các chức năng và tiện ích chính."}
 					</p>
@@ -81,7 +81,7 @@ export function QuickTasksPanel({
 								<Icon className="size-5" />
 							</div>
 							<p className="mt-4 text-sm font-bold text-[#667a6d]">{task.label}</p>
-							<p className="mt-1 text-xl font-extrabold text-[#10221b]">{task.value}</p>
+							<p className="mt-1 text-xl font-bold text-[#10221b]">{task.value}</p>
 						</div>
 					);
 				})}

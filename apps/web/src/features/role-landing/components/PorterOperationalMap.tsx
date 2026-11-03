@@ -21,7 +21,7 @@ export function PorterOperationalMap() {
 	return (
 		<div>
 			<div className="bg-sky-50 p-6">
-				<h2 className="text-xl font-extrabold">{selected.title}</h2>
+				<h2 className="text-xl font-bold">{selected.title}</h2>
 				<p className="mt-2 text-sm">
 					Khởi hành: {new Date(selected.startsAt).toLocaleString("vi-VN")}
 				</p>
