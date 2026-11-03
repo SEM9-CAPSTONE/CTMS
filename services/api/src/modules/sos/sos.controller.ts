@@ -20,6 +20,8 @@ import { UserRole } from "../users/entities/user.entity";
 // biome-ignore lint/style/useImportType: Swagger and class-validator runtime metadata
 import { CancelSosDto } from "./dto/cancel-sos.dto";
 // biome-ignore lint/style/useImportType: Swagger and class-validator runtime metadata
+import { CloseSosDto } from "./dto/close-sos.dto";
+// biome-ignore lint/style/useImportType: Swagger and class-validator runtime metadata
 import { CreateSosDto } from "./dto/create-sos.dto";
 import { SosAlertResponseDto } from "./dto/sos-alert-response.dto";
 // biome-ignore lint/style/useImportType: NestJS constructor injection runtime metadata
@@ -77,6 +79,53 @@ export class SosController {
 		@Body() dto: CancelSosDto
 	): Promise<SosAlertResponseDto> {
 		return this.sosService.cancel(req.user.userId, tripId, sosId, dto);
+	}
+
+	@Patch(":sosId/acknowledge")
+	@Roles(UserRole.HOST)
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({ summary: "Acknowledge an SOS alert (CTMS-080, BR-261)" })
+	@ApiParam({ name: "tripId", description: "Trip UUID" })
+	@ApiParam({ name: "sosId", description: "SOS Alert UUID" })
+	@ApiResponse({ status: 200, type: SosAlertResponseDto, description: "SOS alert acknowledged" })
+	@ApiResponse({ status: 403, description: "Not the authorized Host for this Trip" })
+	@ApiResponse({ status: 404, description: "SOS alert or Trip not found" })
+	@ApiResponse({
+		status: 409,
+		description: "Conflict: SOS is not active, already acknowledged, cancelled, or closed",
+	})
+	@ApiResponse({ status: 422, description: "Validation failure or invalid UUID" })
+	async acknowledge(
+		@Req() req: AuthenticatedRequest,
+		@Param("tripId", UUID_PIPE) tripId: string,
+		@Param("sosId", UUID_PIPE) sosId: string
+	): Promise<SosAlertResponseDto> {
+		return this.sosService.acknowledge(req.user.userId, tripId, sosId);
+	}
+
+	@Patch(":sosId/close")
+	@Roles(UserRole.HOST)
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({
+		summary: "Close an acknowledged SOS alert with resolution note (CTMS-080, BR-261)",
+	})
+	@ApiParam({ name: "tripId", description: "Trip UUID" })
+	@ApiParam({ name: "sosId", description: "SOS Alert UUID" })
+	@ApiResponse({ status: 200, type: SosAlertResponseDto, description: "SOS alert closed" })
+	@ApiResponse({ status: 403, description: "Not the authorized Host for this Trip" })
+	@ApiResponse({ status: 404, description: "SOS alert or Trip not found" })
+	@ApiResponse({
+		status: 409,
+		description: "Conflict: SOS is not acknowledged, already closed, or cancelled",
+	})
+	@ApiResponse({ status: 422, description: "Validation failure or invalid UUID" })
+	async close(
+		@Req() req: AuthenticatedRequest,
+		@Param("tripId", UUID_PIPE) tripId: string,
+		@Param("sosId", UUID_PIPE) sosId: string,
+		@Body() dto: CloseSosDto
+	): Promise<SosAlertResponseDto> {
+		return this.sosService.close(req.user.userId, tripId, sosId, dto);
 	}
 
 	@Get()

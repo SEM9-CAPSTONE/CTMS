@@ -98,6 +98,7 @@ export const queryKeys = {
 	sos: {
 		alerts: ["sos-alerts"] as const,
 		detail: (id: string) => ["sos-alerts", id] as const,
+		tripList: (tripId: string) => ["trips", tripId, "sos"] as const,
 	},
 	profile: {
 		me: ["profile", "me"] as const,

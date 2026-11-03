@@ -113,6 +113,55 @@ void main() {
       expect(updated.cancelledBy, 'sender-1');
     });
 
+    test('acknowledge calls PATCH /trips/:tripId/sos/:sosId/acknowledge', () async {
+      adapter.onFetch = (options) {
+        expect(options.method, 'PATCH');
+        expect(options.path, '/trips/$tripId/sos/$sosId/acknowledge');
+        return _jsonResponse({
+          'id': sosId,
+          'tripId': tripId,
+          'senderId': 'sender-1',
+          'emergencyType': 'medical',
+          'status': 'acknowledged',
+          'eventTime': '2026-10-27T10:00:00.000Z',
+          'acknowledgedBy': 'host-1',
+          'acknowledgedAt': '2026-10-27T10:02:00.000Z',
+        }, 200);
+      };
+
+      final updated = await api.acknowledge(tripId, sosId);
+      expect(updated.id, sosId);
+      expect(updated.isAcknowledged, isTrue);
+      expect(updated.acknowledgedBy, 'host-1');
+      expect(updated.acknowledgedAt, isNotNull);
+    });
+
+    test('close calls PATCH /trips/:tripId/sos/:sosId/close with resolutionNote', () async {
+      adapter.onFetch = (options) {
+        expect(options.method, 'PATCH');
+        expect(options.path, '/trips/$tripId/sos/$sosId/close');
+        final body = options.data as Map<String, dynamic>;
+        expect(body['resolutionNote'], 'Đã cứu hộ thành công');
+        return _jsonResponse({
+          'id': sosId,
+          'tripId': tripId,
+          'senderId': 'sender-1',
+          'emergencyType': 'medical',
+          'status': 'closed',
+          'eventTime': '2026-10-27T10:00:00.000Z',
+          'closedBy': 'host-1',
+          'closedAt': '2026-10-27T11:00:00.000Z',
+          'resolutionNote': 'Đã cứu hộ thành công',
+        }, 200);
+      };
+
+      final updated = await api.close(tripId, sosId, 'Đã cứu hộ thành công');
+      expect(updated.id, sosId);
+      expect(updated.isClosed, isTrue);
+      expect(updated.closedBy, 'host-1');
+      expect(updated.resolutionNote, 'Đã cứu hộ thành công');
+    });
+
     test('cancel propagates 409 Conflict as ApiException when alert not active', () async {
       adapter.onFetch = (options) {
         return _jsonResponse({

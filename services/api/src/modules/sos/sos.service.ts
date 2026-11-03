@@ -13,6 +13,7 @@ import { GpsParticipationSource } from "../gps-tracking/gps-participation.source
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI
 import { EventsGateway } from "../realtime/events.gateway";
 import type { CancelSosDto } from "./dto/cancel-sos.dto";
+import type { CloseSosDto } from "./dto/close-sos.dto";
 import type { CreateSosDto } from "./dto/create-sos.dto";
 import { type SosAlertResponseDto, toSosAlertResponseDto } from "./dto/sos-alert-response.dto";
 import { SosAlert } from "./entities/sos-alert.entity";
@@ -199,12 +200,239 @@ export class SosService {
 	}
 
 	/**
+	 * CTMS-080, BR-261: Acknowledge an SOS alert.
+	 * Only an authorized Host managing the Trip may acknowledge.
+	 * Transitions SOS from ACTIVE -> ACKNOWLEDGED, records acknowledged_by and acknowledged_at.
+	 * Preserves audit history (BR-191) and notifies sender and participants after commit (PB AC-4, PB AC-8).
+	 */
+	async acknowledge(userId: string, tripId: string, sosId: string): Promise<SosAlertResponseDto> {
+		await this.assertTripHost(userId, tripId);
+
+		let updatedAlert: SosAlert | null = null;
+
+		await this.dataSource.transaction(async (manager) => {
+			const alert = await this.sosRepository.findForUpdate(sosId, manager);
+			if (!alert || alert.tripId !== tripId) {
+				throw new NotFoundException({
+					statusCode: HttpStatus.NOT_FOUND,
+					error: SosErrorCode.SOS_NOT_FOUND,
+					message: "SOS alert not found for this trip",
+				});
+			}
+
+			if (alert.status !== SosStatus.ACTIVE) {
+				if (alert.status === SosStatus.CANCELLED) {
+					throw new ConflictException({
+						statusCode: HttpStatus.CONFLICT,
+						error: SosErrorCode.SOS_ALREADY_CANCELLED,
+						message: "Cannot acknowledge SOS: alert has been cancelled by sender",
+					});
+				}
+				if (alert.status === SosStatus.ACKNOWLEDGED) {
+					throw new ConflictException({
+						statusCode: HttpStatus.CONFLICT,
+						error: SosErrorCode.SOS_ALREADY_ACKNOWLEDGED,
+						message: "SOS alert has already been acknowledged",
+					});
+				}
+				if (alert.status === SosStatus.CLOSED) {
+					throw new ConflictException({
+						statusCode: HttpStatus.CONFLICT,
+						error: SosErrorCode.SOS_ALREADY_CLOSED,
+						message: "Cannot acknowledge SOS: alert has already been closed",
+					});
+				}
+				throw new ConflictException({
+					statusCode: HttpStatus.CONFLICT,
+					error: SosErrorCode.SOS_NOT_ACTIVE,
+					message: `SOS alert cannot be acknowledged in state: ${alert.status}`,
+				});
+			}
+
+			const beforeSnapshot = {
+				id: alert.id,
+				status: alert.status,
+				acknowledgedBy: alert.acknowledgedBy,
+				acknowledgedAt: alert.acknowledgedAt,
+			};
+
+			const now = new Date();
+			alert.status = SosStatus.ACKNOWLEDGED;
+			alert.acknowledgedBy = userId;
+			alert.acknowledgedAt = now;
+
+			updatedAlert = await manager.getRepository(SosAlert).save(alert);
+
+			// BR-191: Critical action audit logging
+			await manager.getRepository(AuditLog).save({
+				actorId: userId,
+				action: "SOS_ACKNOWLEDGED",
+				targetType: "sos_alert",
+				targetId: alert.id,
+				before: beforeSnapshot,
+				after: {
+					id: alert.id,
+					status: alert.status,
+					acknowledgedBy: alert.acknowledgedBy,
+					acknowledgedAt: alert.acknowledgedAt,
+				},
+				reason: null,
+			});
+		});
+
+		if (updatedAlert) {
+			const alert = updatedAlert as SosAlert;
+			// AC3 / AC6: Broadcast real-time event to sender and team only after commit
+			this.eventsGateway.emitSosStateChanged({
+				sosId: alert.id,
+				tripId: alert.tripId,
+				senderId: alert.senderId,
+				status: alert.status,
+				acknowledgedBy: alert.acknowledgedBy,
+				acknowledgedAt: alert.acknowledgedAt ? alert.acknowledgedAt.toISOString() : null,
+			});
+		}
+
+		return toSosAlertResponseDto(updatedAlert as unknown as SosAlert);
+	}
+
+	/**
+	 * CTMS-080, BR-261: Close an acknowledged SOS alert with resolution note.
+	 * Only an authorized Host managing the Trip may close.
+	 * Closing is allowed ONLY from ACKNOWLEDGED state.
+	 * CLOSED is a terminal state in MVP and cannot be reopened (PB AC-7).
+	 * Records closed_by, closed_at, and resolution_note.
+	 * Preserves audit history (BR-191) and notifies sender/team after commit (PB AC-8).
+	 */
+	async close(
+		userId: string,
+		tripId: string,
+		sosId: string,
+		dto: CloseSosDto
+	): Promise<SosAlertResponseDto> {
+		await this.assertTripHost(userId, tripId);
+
+		let updatedAlert: SosAlert | null = null;
+
+		await this.dataSource.transaction(async (manager) => {
+			const alert = await this.sosRepository.findForUpdate(sosId, manager);
+			if (!alert || alert.tripId !== tripId) {
+				throw new NotFoundException({
+					statusCode: HttpStatus.NOT_FOUND,
+					error: SosErrorCode.SOS_NOT_FOUND,
+					message: "SOS alert not found for this trip",
+				});
+			}
+
+			if (alert.status !== SosStatus.ACKNOWLEDGED) {
+				if (alert.status === SosStatus.CLOSED) {
+					throw new ConflictException({
+						statusCode: HttpStatus.CONFLICT,
+						error: SosErrorCode.SOS_ALREADY_CLOSED,
+						message: "SOS alert is already closed and cannot be reopened in MVP",
+					});
+				}
+				if (alert.status === SosStatus.CANCELLED) {
+					throw new ConflictException({
+						statusCode: HttpStatus.CONFLICT,
+						error: SosErrorCode.SOS_ALREADY_CANCELLED,
+						message: "Cannot close SOS: alert has been cancelled",
+					});
+				}
+				if (alert.status === SosStatus.ACTIVE) {
+					throw new ConflictException({
+						statusCode: HttpStatus.CONFLICT,
+						error: SosErrorCode.SOS_NOT_ACKNOWLEDGED,
+						message: "Cannot close SOS: alert must be in acknowledged status before closing",
+					});
+				}
+				throw new ConflictException({
+					statusCode: HttpStatus.CONFLICT,
+					error: SosErrorCode.SOS_NOT_ACKNOWLEDGED,
+					message: `SOS alert cannot be closed in state: ${alert.status}`,
+				});
+			}
+
+			const beforeSnapshot = {
+				id: alert.id,
+				status: alert.status,
+				closedBy: alert.closedBy,
+				closedAt: alert.closedAt,
+				resolutionNote: alert.resolutionNote,
+			};
+
+			const now = new Date();
+			alert.status = SosStatus.CLOSED;
+			alert.closedBy = userId;
+			alert.closedAt = now;
+			alert.resolutionNote = dto.resolutionNote;
+
+			updatedAlert = await manager.getRepository(SosAlert).save(alert);
+
+			// BR-191: Critical action audit logging
+			await manager.getRepository(AuditLog).save({
+				actorId: userId,
+				action: "SOS_CLOSED",
+				targetType: "sos_alert",
+				targetId: alert.id,
+				before: beforeSnapshot,
+				after: {
+					id: alert.id,
+					status: alert.status,
+					closedBy: alert.closedBy,
+					closedAt: alert.closedAt,
+					resolutionNote: alert.resolutionNote,
+				},
+				reason: dto.resolutionNote,
+			});
+		});
+
+		if (updatedAlert) {
+			const alert = updatedAlert as SosAlert;
+			// AC6: Broadcast real-time event to sender and team only after commit
+			this.eventsGateway.emitSosStateChanged({
+				sosId: alert.id,
+				tripId: alert.tripId,
+				senderId: alert.senderId,
+				status: alert.status,
+				closedBy: alert.closedBy,
+				closedAt: alert.closedAt ? alert.closedAt.toISOString() : null,
+				resolutionNote: alert.resolutionNote,
+			});
+		}
+
+		return toSosAlertResponseDto(updatedAlert as unknown as SosAlert);
+	}
+
+	/**
 	 * List all SOS alerts for a given trip.
 	 */
 	async listForTrip(userId: string, tripId: string): Promise<SosAlertResponseDto[]> {
 		await this.assertTripParticipant(userId, tripId);
 		const alerts = await this.sosRepository.findByTripId(tripId);
 		return alerts.map(toSosAlertResponseDto);
+	}
+
+	/**
+	 * Helper to verify caller is the authorized Host of the Trip (CTMS-080, BR-261).
+	 */
+	private async assertTripHost(userId: string, tripId: string): Promise<void> {
+		const trip = await this.participation.findTrip(tripId);
+		if (!trip) {
+			throw new NotFoundException({
+				statusCode: HttpStatus.NOT_FOUND,
+				error: SosErrorCode.TRIP_NOT_FOUND,
+				message: "Trip not found",
+			});
+		}
+
+		if (trip.hostId !== userId) {
+			throw new ForbiddenException({
+				statusCode: HttpStatus.FORBIDDEN,
+				error: SosErrorCode.NOT_TRIP_HOST,
+				message: "Only the authorized Host of this Trip can manage SOS alerts",
+			});
+		}
 	}
 
 	/**

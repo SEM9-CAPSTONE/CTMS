@@ -137,6 +137,11 @@ export class EventsGateway implements OnGatewayConnection {
 		cancelledBy?: string | null;
 		cancelledAt?: string | null;
 		cancellationReason?: string | null;
+		acknowledgedBy?: string | null;
+		acknowledgedAt?: string | null;
+		closedBy?: string | null;
+		closedAt?: string | null;
+		resolutionNote?: string | null;
 	}) {
 		this.server?.emit("sos.state_changed", payload);
 	}

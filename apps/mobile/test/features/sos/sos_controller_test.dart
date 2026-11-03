@@ -35,6 +35,45 @@ class _MockSosApi implements SosApi {
   }
 
   @override
+  Future<SosAlert> acknowledge(String tripId, String sosId) async {
+    if (shouldThrow) throw ApiException(errorMessage);
+    final alert = alerts.firstWhere((a) => a.id == sosId);
+    final updated = SosAlert(
+      id: alert.id,
+      tripId: alert.tripId,
+      senderId: alert.senderId,
+      emergencyType: alert.emergencyType,
+      status: 'acknowledged',
+      eventTime: alert.eventTime,
+      acknowledgedBy: 'host-1',
+      acknowledgedAt: DateTime.now(),
+    );
+    alerts = alerts.map((a) => a.id == sosId ? updated : a).toList();
+    return updated;
+  }
+
+  @override
+  Future<SosAlert> close(String tripId, String sosId, String resolutionNote) async {
+    if (shouldThrow) throw ApiException(errorMessage);
+    final alert = alerts.firstWhere((a) => a.id == sosId);
+    final updated = SosAlert(
+      id: alert.id,
+      tripId: alert.tripId,
+      senderId: alert.senderId,
+      emergencyType: alert.emergencyType,
+      status: 'closed',
+      eventTime: alert.eventTime,
+      acknowledgedBy: alert.acknowledgedBy ?? 'host-1',
+      acknowledgedAt: alert.acknowledgedAt ?? DateTime.now(),
+      closedBy: 'host-1',
+      closedAt: DateTime.now(),
+      resolutionNote: resolutionNote,
+    );
+    alerts = alerts.map((a) => a.id == sosId ? updated : a).toList();
+    return updated;
+  }
+
+  @override
   Future<SosAlert> create(
     String tripId, {
     required String emergencyType,
@@ -113,6 +152,42 @@ void main() {
       expect(res?.cancellationReason, 'Cấn nút điện thoại');
       expect(controller.activeAlert, isNull); // no longer active
       expect(controller.alerts.first.isCancelled, isTrue);
+    });
+
+    test('acknowledge transitions SOS to acknowledged', () async {
+      await controller.load();
+      final res = await controller.acknowledge('sos-1');
+      expect(res, isNotNull);
+      expect(res?.status, 'acknowledged');
+      expect(res?.isAcknowledged, isTrue);
+      expect(controller.alerts.first.isAcknowledged, isTrue);
+    });
+
+    test('close validates empty resolution note', () async {
+      await controller.load();
+      final res = await controller.close(sosId: 'sos-1', resolutionNote: '   ');
+      expect(res, isNull);
+      expect(controller.error, 'Vui lòng nhập ghi chú kết quả xử lý SOS');
+    });
+
+    test('close validates resolution note longer than 500 characters', () async {
+      await controller.load();
+      final longNote = 'B' * 501;
+      final res = await controller.close(sosId: 'sos-1', resolutionNote: longNote);
+      expect(res, isNull);
+      expect(controller.error, 'Ghi chú xử lý không được vượt quá 500 ký tự');
+    });
+
+    test('close transitions SOS to closed with resolution note', () async {
+      await controller.load();
+      final res = await controller.close(
+        sosId: 'sos-1',
+        resolutionNote: 'Đã tìm thấy camper và đưa về lều an toàn',
+      );
+      expect(res, isNotNull);
+      expect(res?.status, 'closed');
+      expect(res?.isClosed, isTrue);
+      expect(res?.resolutionNote, 'Đã tìm thấy camper và đưa về lều an toàn');
     });
 
     test('surfaces error message when cancellation fails', () async {

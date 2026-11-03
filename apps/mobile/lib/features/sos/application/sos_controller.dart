@@ -68,7 +68,6 @@ class SosController extends ChangeNotifier {
     try {
       final updated = await api.cancel(tripId, sosId, trimmedReason);
       alerts = alerts.map((a) => a.id == sosId ? updated : a).toList();
-      // If not in alerts, prepend
       if (!alerts.any((a) => a.id == sosId)) {
         alerts = [updated, ...alerts];
       }
@@ -78,6 +77,65 @@ class SosController extends ChangeNotifier {
     } catch (e) {
       submitting = false;
       error = e is ApiException ? e.message : 'Không thể hủy cảnh báo SOS';
+      notifyListeners();
+      return null;
+    }
+  }
+
+  Future<SosAlert?> acknowledge(String sosId) async {
+    submitting = true;
+    error = null;
+    notifyListeners();
+
+    try {
+      final updated = await api.acknowledge(tripId, sosId);
+      alerts = alerts.map((a) => a.id == sosId ? updated : a).toList();
+      if (!alerts.any((a) => a.id == sosId)) {
+        alerts = [updated, ...alerts];
+      }
+      submitting = false;
+      notifyListeners();
+      return updated;
+    } catch (e) {
+      submitting = false;
+      error = e is ApiException ? e.message : 'Không thể tiếp nhận cảnh báo SOS';
+      notifyListeners();
+      return null;
+    }
+  }
+
+  Future<SosAlert?> close({
+    required String sosId,
+    required String resolutionNote,
+  }) async {
+    final trimmedNote = resolutionNote.trim();
+    if (trimmedNote.isEmpty) {
+      error = 'Vui lòng nhập ghi chú kết quả xử lý SOS';
+      notifyListeners();
+      return null;
+    }
+    if (trimmedNote.length > 500) {
+      error = 'Ghi chú xử lý không được vượt quá 500 ký tự';
+      notifyListeners();
+      return null;
+    }
+
+    submitting = true;
+    error = null;
+    notifyListeners();
+
+    try {
+      final updated = await api.close(tripId, sosId, trimmedNote);
+      alerts = alerts.map((a) => a.id == sosId ? updated : a).toList();
+      if (!alerts.any((a) => a.id == sosId)) {
+        alerts = [updated, ...alerts];
+      }
+      submitting = false;
+      notifyListeners();
+      return updated;
+    } catch (e) {
+      submitting = false;
+      error = e is ApiException ? e.message : 'Không thể đóng cảnh báo SOS';
       notifyListeners();
       return null;
     }

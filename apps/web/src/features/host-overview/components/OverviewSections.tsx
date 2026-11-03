@@ -1,6 +1,10 @@
+import { useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { queryKeys } from "../../../core/api/queryKeys";
 import { Button } from "../../../shared/components/Button";
+import { SosResolutionModal } from "../../sos-handling/components/SosResolutionModal";
 import { OVERVIEW_TEXT as text } from "../constants";
-import type { HostOverview } from "../types";
+import type { HostOverview, OverviewSos } from "../types";
 import { overviewDate, overviewStatus } from "../utils";
 import { OverviewActiveTrips } from "./OverviewActiveTrips";
 import { OverviewSection } from "./OverviewSection";
@@ -10,8 +14,16 @@ export function OverviewSections({
 	data,
 	onTrip,
 	onRestricted,
-}: { hostId: string; data: HostOverview; onTrip: (id: string) => void; onRestricted: () => void }) {
+}: {
+	hostId: string;
+	data: HostOverview;
+	onTrip: (id: string) => void;
+	onRestricted: () => void;
+}) {
 	const zone = data.timeZone;
+	const client = useQueryClient();
+	const [selectedSos, setSelectedSos] = useState<OverviewSos | null>(null);
+
 	return (
 		<div className="grid items-stretch gap-4 lg:grid-cols-2">
 			<div id="host-active-trips">
@@ -37,12 +49,31 @@ export function OverviewSections({
 									: overviewStatus(item.status)}{" "}
 							· {overviewDate(item.eventTime, zone)}
 						</p>
-						<Button size="sm" variant="ghost" className="mt-1" onClick={() => onTrip(item.tripId)}>
-							{text.tripDetail}
-						</Button>
+						<div className="mt-2 flex items-center gap-2">
+							{(item.status === "active" || item.status === "acknowledged") && (
+								<Button
+									size="sm"
+									variant={item.status === "active" ? "default" : "outline"}
+									onClick={() => setSelectedSos(item)}
+								>
+									{item.status === "active" ? "Tiếp nhận" : "Đóng SOS"}
+								</Button>
+							)}
+							<Button size="sm" variant="ghost" onClick={() => onTrip(item.tripId)}>
+								{text.tripDetail}
+							</Button>
+						</div>
 					</div>
 				)}
 			</OverviewSection>
+			<SosResolutionModal
+				isOpen={selectedSos !== null}
+				onClose={() => setSelectedSos(null)}
+				sos={selectedSos}
+				onUpdated={() => {
+					void client.invalidateQueries({ queryKey: queryKeys.hostOverview.forHost(hostId) });
+				}}
+			/>
 		</div>
 	);
 }

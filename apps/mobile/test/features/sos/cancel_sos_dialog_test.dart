@@ -31,6 +31,16 @@ class _FakeSosApi implements SosApi {
   }
 
   @override
+  Future<SosAlert> acknowledge(String tripId, String sosId) async {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<SosAlert> close(String tripId, String sosId, String resolutionNote) async {
+    throw UnimplementedError();
+  }
+
+  @override
   Future<SosAlert> create(
     String tripId, {
     required String emergencyType,
