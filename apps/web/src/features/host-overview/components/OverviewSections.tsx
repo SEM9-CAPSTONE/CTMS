@@ -53,7 +53,7 @@ export function OverviewSections({
 							{(item.status === "active" || item.status === "acknowledged") && (
 								<Button
 									size="sm"
-									variant={item.status === "active" ? "default" : "outline"}
+									variant={item.status === "active" ? "primary" : "outline"}
 									onClick={() => setSelectedSos(item)}
 								>
 									{item.status === "active" ? "Tiếp nhận" : "Đóng SOS"}
