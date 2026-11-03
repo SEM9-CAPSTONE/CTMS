@@ -12,7 +12,7 @@ export function HostDashboardHeader({
 		year: "numeric",
 	}).format(new Date());
 	return (
-		<header className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-5 rounded-2xl bg-[#173f2b] px-5 py-5 text-white shadow-md sm:px-6">
+		<header className="flex flex-wrap items-center justify-between gap-5 rounded-2xl bg-[#173f2b] px-5 py-5 text-white shadow-md sm:px-6">
 			<div>
 				<p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#b5cfb7]">
 					Khu vực chủ chuyến

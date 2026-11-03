@@ -146,7 +146,7 @@ describe("PorterQualificationsPanel", () => {
 		});
 	});
 
-	it("shows verified edit warning when opening edit dialog for a verified qualification", async () => {
+	it("prevents editing a verified qualification", async () => {
 		const user = userEvent.setup();
 		const onUpsert = vi.fn().mockResolvedValue(null);
 
@@ -164,22 +164,45 @@ describe("PorterQualificationsPanel", () => {
 			/>
 		);
 
-		await user.click(screen.getByTestId("edit-qualification-qual-1"));
+		const editButton = screen.getByTestId("edit-qualification-qual-1");
+		expect(editButton).toBeDisabled();
+		expect(editButton).toHaveAttribute(
+			"title",
+			"Cấp đã duyệt chỉ được Admin thay đổi qua xét cấp thủ công"
+		);
+		await user.click(editButton);
+		expect(screen.queryByTestId("qualification-dialog")).not.toBeInTheDocument();
+		expect(onUpsert).not.toHaveBeenCalled();
+	});
 
+	it("edits an unverified qualification with its expected version", async () => {
+		const user = userEvent.setup();
+		const onUpsert = vi.fn().mockResolvedValue(null);
+		render(
+			<PorterQualificationsPanel
+				qualifications={sampleQualifications}
+				isLoading={false}
+				isSubmitting={false}
+				errorMessage={null}
+				successMessage={null}
+				conflictMessage={null}
+				availableRoutes={mockRoutes}
+				onUpsert={onUpsert}
+				onReload={vi.fn()}
+			/>
+		);
+		await user.click(screen.getByTestId("edit-qualification-qual-2"));
 		expect(screen.getByTestId("qualification-dialog")).toBeVisible();
-		expect(screen.getByTestId("verified-edit-warning")).toBeVisible();
-		expect(
-			screen.getByText(/Thay đổi mức độ thành thạo hoặc số lần dẫn đoàn sẽ hủy xác minh hiện tại/i)
-		).toBeVisible();
+		expect(screen.queryByTestId("verified-edit-warning")).not.toBeInTheDocument();
 
 		// Submit with expectedVersion
 		await user.click(screen.getByTestId("submit-qualification-button"));
 
 		await waitFor(() => {
-			expect(onUpsert).toHaveBeenCalledWith("route-1", {
-				proficiency: "proficient",
-				timesLed: 4,
-				expectedVersion: 2,
+			expect(onUpsert).toHaveBeenCalledWith("route-2", {
+				proficiency: "learning",
+				timesLed: 0,
+				expectedVersion: 1,
 			});
 		});
 	});
