@@ -5,6 +5,7 @@ import { RolesGuard } from "../auth/guards/roles.guard";
 import { EquipmentCatalogModule } from "../equipment-catalog/equipment-catalog.module";
 import { Booking } from "../profiles/entities/booking.entity";
 import { ProfilesModule } from "../profiles/profiles.module";
+import { RealtimeModule } from "../realtime/realtime.module";
 import { TripsModule } from "../trips/trips.module";
 import { WeatherModule } from "../weather/weather.module";
 import { BookingCancellationNoticesController } from "./booking-cancellation-notices.controller";
@@ -40,7 +41,7 @@ import { TripRosterController } from "./trip-roster.controller";
 import { TripRosterService } from "./trip-roster.service";
 
 @Module({
-	imports: [TripsModule, WeatherModule, EquipmentCatalogModule, ProfilesModule],
+	imports: [TripsModule, WeatherModule, EquipmentCatalogModule, ProfilesModule, RealtimeModule],
 	controllers: [
 		BookingCancellationNoticesController,
 		BookingsController,

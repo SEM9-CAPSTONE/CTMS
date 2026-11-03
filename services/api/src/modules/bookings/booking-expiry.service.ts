@@ -1,8 +1,10 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { randomUUID } from "node:crypto";
+import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
 // biome-ignore lint/style/useImportType: NestJS constructor injection requires runtime metadata
 import { DataSource, type EntityManager } from "typeorm";
 import { AuditLog } from "../auth/entities/audit-log.entity";
 import { BookingPaymentStatus, BookingStatus } from "../profiles/entities/booking.entity";
+import { EventsGateway } from "../realtime/events.gateway";
 import { Trip } from "../trips/entities/trip.entity";
 // biome-ignore lint/style/useImportType: NestJS constructor injection requires runtime metadata
 import { TripsRepository } from "../trips/repositories/trips.repository";
@@ -35,7 +37,8 @@ export class BookingExpiryService {
 		private readonly bookingsRepository: BookingsRepository,
 		private readonly tripsRepository: TripsRepository,
 		private readonly paymentsRepository: PaymentsRepository,
-		private readonly equipmentRepository: EquipmentReservationsRepository
+		private readonly equipmentRepository: EquipmentReservationsRepository,
+		@Optional() @Inject(EventsGateway) private readonly eventsGateway?: EventsGateway
 	) {}
 
 	async expireDueBookings(batchSize: number): Promise<void> {
@@ -51,7 +54,13 @@ export class BookingExpiryService {
 	}
 
 	async expireBooking(bookingId: string, evaluatedAtOverride?: Date): Promise<BookingExpiryResult> {
-		return this.dataSource.transaction(async (manager: EntityManager) => {
+		let committedTrip: {
+			id: string;
+			seatsTaken: number;
+			capacityMax: number | null;
+			numPeople: number;
+		} | null = null;
+		const result = await this.dataSource.transaction(async (manager: EntityManager) => {
 			const evaluatedAt = evaluatedAtOverride ?? (await this.captureDatabaseTime(manager));
 			const bookings = manager.withRepository(this.bookingsRepository);
 			const identity = await bookings.findOne({
@@ -120,6 +129,12 @@ export class BookingExpiryService {
 			booking.status = BookingStatus.EXPIRED;
 			await bookings.save(booking);
 			await manager.withRepository(this.tripsRepository).adjustSeatsTaken(trip.id, -numPeople);
+			committedTrip = {
+				id: trip.id,
+				seatsTaken: seatsTakenBefore,
+				capacityMax: trip.capacityMax,
+				numPeople,
+			};
 			if (activeReservations.length > 0) {
 				await manager.withRepository(this.equipmentRepository).save(activeReservations);
 			}
@@ -168,6 +183,28 @@ export class BookingExpiryService {
 
 			return BookingExpiryResult.EXPIRED;
 		});
+
+		if (result === BookingExpiryResult.EXPIRED && committedTrip) {
+			const target = committedTrip as {
+				id: string;
+				seatsTaken: number;
+				capacityMax: number | null;
+				numPeople: number;
+			};
+			const newSeatsTaken = Math.max(0, target.seatsTaken - target.numPeople);
+			const capacityMax = target.capacityMax;
+			const remainingSeats = capacityMax !== null ? Math.max(0, capacityMax - newSeatsTaken) : null;
+			this.eventsGateway?.emitTripAvailabilityUpdated({
+				eventId: randomUUID(),
+				tripId: target.id,
+				seatsTaken: newSeatsTaken,
+				capacityMax,
+				remainingSeats,
+				updatedAt: new Date().toISOString(),
+			});
+		}
+
+		return result;
 	}
 
 	private async captureDatabaseTime(manager: EntityManager): Promise<Date> {

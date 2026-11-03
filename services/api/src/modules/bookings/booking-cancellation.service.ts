@@ -1,9 +1,11 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
 	ConflictException,
 	ForbiddenException,
+	Inject,
 	Injectable,
 	NotFoundException,
+	Optional,
 	UnprocessableEntityException,
 } from "@nestjs/common";
 // biome-ignore lint/style/useImportType: NestJS constructor injection requires runtime metadata
@@ -14,6 +16,7 @@ import {
 	BookingPaymentStatus,
 	BookingStatus,
 } from "../profiles/entities/booking.entity";
+import { EventsGateway } from "../realtime/events.gateway";
 import { Trip, TripStatus } from "../trips/entities/trip.entity";
 // biome-ignore lint/style/useImportType: NestJS constructor injection requires runtime metadata
 import { TripsRepository } from "../trips/repositories/trips.repository";
@@ -43,7 +46,8 @@ export class BookingCancellationService {
 		private readonly bookingsRepository: BookingsRepository,
 		private readonly tripsRepository: TripsRepository,
 		private readonly paymentsRepository: PaymentsRepository,
-		private readonly equipmentRepository: EquipmentReservationsRepository
+		private readonly equipmentRepository: EquipmentReservationsRepository,
+		@Optional() @Inject(EventsGateway) private readonly eventsGateway?: EventsGateway
 	) {}
 
 	async cancel(
@@ -52,8 +56,14 @@ export class BookingCancellationService {
 		dto: CancelBookingDto
 	): Promise<CancelBookingResponseDto> {
 		const requestTime = new Date();
+		let committedTrip: {
+			id: string;
+			seatsTaken: number;
+			capacityMax: number | null;
+			numPeople: number;
+		} | null = null;
 		try {
-			return await this.dataSource.transaction(async (manager: EntityManager) => {
+			const result = await this.dataSource.transaction(async (manager: EntityManager) => {
 				const bookings = manager.withRepository(this.bookingsRepository);
 				const identity = await bookings.findOne({
 					select: { id: true, tripId: true },
@@ -164,6 +174,12 @@ export class BookingCancellationService {
 				booking.cancellationReason = reason;
 				await bookings.save(booking);
 				await manager.withRepository(this.tripsRepository).adjustSeatsTaken(trip.id, -numPeople);
+				committedTrip = {
+					id: trip.id,
+					seatsTaken: trip.seatsTaken,
+					capacityMax: trip.capacityMax,
+					numPeople,
+				};
 				let obligation: Payment | null = null;
 				if (charge && refundResult.amount !== "0.00") {
 					obligation = await payments.save(
@@ -235,6 +251,29 @@ export class BookingCancellationService {
 				);
 				return this.response(booking, obligation);
 			});
+
+			if (committedTrip) {
+				const target = committedTrip as {
+					id: string;
+					seatsTaken: number;
+					capacityMax: number | null;
+					numPeople: number;
+				};
+				const newSeatsTaken = Math.max(0, target.seatsTaken - target.numPeople);
+				const capacityMax = target.capacityMax;
+				const remainingSeats =
+					capacityMax !== null ? Math.max(0, capacityMax - newSeatsTaken) : null;
+				this.eventsGateway?.emitTripAvailabilityUpdated({
+					eventId: randomUUID(),
+					tripId: target.id,
+					seatsTaken: newSeatsTaken,
+					capacityMax,
+					remainingSeats,
+					updatedAt: new Date().toISOString(),
+				});
+			}
+
+			return result;
 		} catch (error: unknown) {
 			if (error instanceof CancellationPolicyError) throw new ConflictException(error.message);
 			throw error;

@@ -1,7 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+﻿import { useCallback, useEffect, useRef, useState } from "react";
 import { HttpError } from "../../../core/api";
 import { tripsService } from "../services/trips.service";
 import type { TripDetails } from "../types";
+import {
+	type TripAvailabilityEvent,
+	useTripAvailabilityRealtime,
+} from "./useTripAvailabilityRealtime";
 
 export function useTripDetail(tripId: string | undefined) {
 	const [trip, setTrip] = useState<TripDetails | null>(null);
@@ -11,6 +15,24 @@ export function useTripDetail(tripId: string | undefined) {
 
 	const tripIdRef = useRef(tripId);
 	tripIdRef.current = tripId;
+
+	const handleAvailabilityUpdate = useCallback((event: TripAvailabilityEvent) => {
+		setTrip((current) => {
+			if (!current || current.id !== event.tripId) return current;
+			const isAvailable = event.remainingSeats === null || event.remainingSeats > 0;
+			return {
+				...current,
+				seatsTaken: event.seatsTaken,
+				remainingSeats: event.remainingSeats,
+				isBookable: current.isBookable && isAvailable,
+			};
+		});
+	}, []);
+
+	useTripAvailabilityRealtime({
+		tripId,
+		onAvailabilityUpdated: handleAvailabilityUpdate,
+	});
 
 	const fetchTrip = useCallback(async (id: string | undefined, isSilent = false) => {
 		if (!id) {
