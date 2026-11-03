@@ -3,6 +3,8 @@ import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AppRoutes } from "./AppRoutes";
 
+vi.mock("../features/auth/hooks/useSessionCheck", () => ({ useSessionCheck: () => false }));
+
 async function renderLazy(...args: Parameters<typeof render>) {
 	const result = render(...args);
 	await waitForPage();
