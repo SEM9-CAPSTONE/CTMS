@@ -9,6 +9,7 @@ import { HostDashboardHeader } from "../../host-overview/components/HostDashboar
 import { HostDashboardOverview } from "../../host-overview/components/HostDashboardOverview";
 import { CamperOperationalMap } from "../components/CamperOperationalMap";
 import { CamperTripPager } from "../components/CamperTripPager";
+import { HostOperationalOverview } from "../components/HostOperationalOverview";
 import { PorterOperationalMap } from "../components/PorterOperationalMap";
 import { useCamperTripCarousel } from "../hooks/useCamperTripCarousel";
 
@@ -145,16 +146,27 @@ function DashboardMain({
 					}))
 			: config.timeline;
 	return (
-		<main className="flex-1 p-4 sm:p-6 lg:p-8">
+		<main
+			className={
+				config.role === "host"
+					? "min-h-0 flex-1 overflow-y-auto overscroll-y-contain"
+					: "flex-1 p-4 sm:p-6 lg:p-8"
+			}
+		>
 			<div
 				className={
 					config.role === "host"
-						? "mx-auto flex max-w-[1440px] flex-col gap-4"
+						? "flex w-full flex-col gap-4"
 						: "mx-auto flex max-w-[1440px] flex-col gap-6"
 				}
 			>
 				{config.role === "host" ? (
-					<HostDashboardHeader name={displayName} onCreateTrip={onCreateTrip} />
+					<div className="sticky top-0 z-20 shrink-0 bg-[#f4f7f2]">
+						<div className="mx-auto w-full max-w-[1504px] space-y-4 px-4 pt-4 sm:px-6 sm:pt-6 lg:px-8 lg:pt-8">
+							<HostDashboardHeader name={displayName} onCreateTrip={onCreateTrip} />
+							<HostDashboardOverview key={user.id} hostId={user.id} />
+						</div>
+					</div>
 				) : (
 					<section className="rounded-[28px] border border-[#dfe8df] bg-white p-6 shadow-sm">
 						<div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
@@ -177,153 +189,170 @@ function DashboardMain({
 					</section>
 				)}
 
-				{config.role === "host" ? (
-					<>
-						<HostDashboardOverview
-							key={user.id}
-							hostId={user.id}
-							onNavigateToTripDetail={onNavigateToTripDetail}
-						/>
-					</>
-				) : (
-					<>
-						<section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-							{config.metrics.map((metric) => {
-								const isProfileMetric =
-									config.role === "camper" && metric.label === "Hồ sơ sức khỏe";
-								return isProfileMetric ? (
-									<button
-										key={metric.label}
-										type="button"
-										onClick={onOpenProfile}
-										className="text-left transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-[#164027]/30"
-									>
-										<MetricCard metric={metric} />
-									</button>
-								) : (
-									<MetricCard key={metric.label} metric={metric} />
-								);
-							})}
-						</section>
-
-						<section id="camper-active-trip" className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
-							<div className="min-w-0 overflow-hidden rounded-[28px] border border-[#dfe8df] bg-white shadow-sm">
-								{config.role === "camper" && (
-									<>
-										{carousel.isLoading ? (
-											<p className="p-6">Đang tải chuyến đi...</p>
-										) : carousel.isError ? (
-											<button type="button" onClick={carousel.retry} className="p-6 underline">
-												Không tải được chuyến đi. Thử lại
-											</button>
-										) : carousel.trip ? (
-											<CamperOperationalMap
-												userId={user.id}
-												trip={carousel.trip}
-												isBooked={carousel.isBooked}
-												navigation={
-													<CamperTripPager
-														index={carousel.index}
-														canPrevious={carousel.canPrevious}
-														canNext={carousel.canNext}
-														disabled={carousel.isLoading || carousel.isPaging}
-														onPrevious={carousel.previous}
-														onNext={() => void carousel.next()}
-													/>
-												}
-											/>
-										) : (
-											<p className="p-6">Chưa có chuyến sắp khởi hành hoặc đang hoạt động.</p>
-										)}
-										{carousel.listError && (
-											<button type="button" onClick={carousel.retry} className="p-4 underline">
-												Không tải được các chuyến khác. Thử lại
-											</button>
-										)}
-									</>
-								)}
-								{config.role === "porter" && <PorterOperationalMap />}
-							</div>
-
-							<div className="rounded-[28px] border border-[#dfe8df] bg-white p-6 shadow-sm">
-								<div className="flex items-center justify-between">
-									<h2 className="text-xl font-extrabold text-[#10221b]">Lịch vận hành</h2>
-									<CalendarDays className="size-5 text-[#667a6d]" />
-								</div>
-								<div className="mt-5 space-y-4">
-									{timeline.length === 0 && (
-										<p className="text-sm text-[#627769]">
-											Chưa có lịch trình chi tiết cho chuyến đang xem.
-										</p>
-									)}
-									{timeline.map((item) => (
-										<div key={`${item.time}-${item.title}`} className="flex gap-4">
-											<div
-												className="w-14 shrink-0 text-sm font-extrabold"
-												style={{ color: config.accent }}
+				<div className="contents">
+					<div
+						className={
+							config.role === "host"
+								? "mx-auto w-full max-w-[1504px] space-y-4 px-4 pb-4 sm:px-6 sm:pb-6 lg:px-8 lg:pb-8"
+								: "contents"
+						}
+					>
+						{config.role === "host" ? (
+							<>
+								<HostOperationalOverview
+									key={`operations-${user.id}`}
+									hostId={user.id}
+									onNavigateToTripDetail={onNavigateToTripDetail}
+									showMetrics={false}
+									showToolbar={false}
+								/>
+							</>
+						) : (
+							<>
+								<section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+									{config.metrics.map((metric) => {
+										const isProfileMetric =
+											config.role === "camper" && metric.label === "Hồ sơ sức khỏe";
+										return isProfileMetric ? (
+											<button
+												key={metric.label}
+												type="button"
+												onClick={onOpenProfile}
+												className="text-left transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-[#164027]/30"
 											>
-												{item.time}
-											</div>
-											<div className="flex-1 rounded-2xl border border-[#e5eee7] bg-[#fbfdfb] p-4">
-												<div className="flex items-start justify-between gap-3">
-													<h3 className="font-extrabold text-[#10221b]">{item.title}</h3>
-													<span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-extrabold text-[#667a6d] ring-1 ring-[#dfe8df]">
-														{item.status}
-													</span>
-												</div>
-												<p className="mt-1 text-sm leading-6 text-[#627769]">{item.description}</p>
-											</div>
-										</div>
-									))}
-								</div>
-							</div>
-						</section>
-					</>
-				)}
-				{config.role === "host" ? null : config.role === "porter" ? null : config.alerts.length >
-					0 ? (
-					<section className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-						<div className="rounded-[28px] border border-[#dfe8df] bg-white p-6 shadow-sm">
-							<div className="flex items-center justify-between">
-								<h2 className="text-xl font-extrabold text-[#10221b]">Cảnh báo</h2>
-								<AlertTriangle className="size-5 text-amber-600" />
-							</div>
-							<div className="mt-5 space-y-3">
-								{config.alerts.map((alert) => (
-									<div
-										key={alert.title}
-										className={`rounded-2xl border p-4 ${alertClasses[alert.tone]}`}
-									>
-										<p className="font-extrabold">{alert.title}</p>
-										<p className="mt-1 text-sm leading-6 opacity-80">{alert.detail}</p>
-									</div>
-								))}
-							</div>
-						</div>
+												<MetricCard metric={metric} />
+											</button>
+										) : (
+											<MetricCard key={metric.label} metric={metric} />
+										);
+									})}
+								</section>
 
-						<QuickTasksPanel
-							config={config}
-							onOpenAdminUsers={onOpenAdminUsers}
-							onCreateTrip={onCreateTrip}
-							onCreateTrekkingRoute={onCreateTrekkingRoute}
-							onViewTrekkingRoutes={onViewTrekkingRoutes}
-							onNavigateToTrips={config.role === "camper" ? undefined : onNavigateToTrips}
-							onExploreTrip={exploreShownTrip}
-						/>
-					</section>
-				) : (
-					<section>
-						<QuickTasksPanel
-							config={config}
-							onOpenAdminUsers={onOpenAdminUsers}
-							onCreateTrip={onCreateTrip}
-							onCreateTrekkingRoute={onCreateTrekkingRoute}
-							onViewTrekkingRoutes={onViewTrekkingRoutes}
-							onNavigateToTrips={config.role === "camper" ? undefined : onNavigateToTrips}
-							onExploreTrip={exploreShownTrip}
-						/>
-					</section>
-				)}
+								<section
+									id="camper-active-trip"
+									className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]"
+								>
+									<div className="min-w-0 overflow-hidden rounded-[28px] border border-[#dfe8df] bg-white shadow-sm">
+										{config.role === "camper" && (
+											<>
+												{carousel.isLoading ? (
+													<p className="p-6">Đang tải chuyến đi...</p>
+												) : carousel.isError ? (
+													<button type="button" onClick={carousel.retry} className="p-6 underline">
+														Không tải được chuyến đi. Thử lại
+													</button>
+												) : carousel.trip ? (
+													<CamperOperationalMap
+														userId={user.id}
+														trip={carousel.trip}
+														isBooked={carousel.isBooked}
+														navigation={
+															<CamperTripPager
+																index={carousel.index}
+																canPrevious={carousel.canPrevious}
+																canNext={carousel.canNext}
+																disabled={carousel.isLoading || carousel.isPaging}
+																onPrevious={carousel.previous}
+																onNext={() => void carousel.next()}
+															/>
+														}
+													/>
+												) : (
+													<p className="p-6">Chưa có chuyến sắp khởi hành hoặc đang hoạt động.</p>
+												)}
+												{carousel.listError && (
+													<button type="button" onClick={carousel.retry} className="p-4 underline">
+														Không tải được các chuyến khác. Thử lại
+													</button>
+												)}
+											</>
+										)}
+										{config.role === "porter" && <PorterOperationalMap />}
+									</div>
+
+									<div className="rounded-[28px] border border-[#dfe8df] bg-white p-6 shadow-sm">
+										<div className="flex items-center justify-between">
+											<h2 className="text-xl font-extrabold text-[#10221b]">Lịch vận hành</h2>
+											<CalendarDays className="size-5 text-[#667a6d]" />
+										</div>
+										<div className="mt-5 space-y-4">
+											{timeline.length === 0 && (
+												<p className="text-sm text-[#627769]">
+													Chưa có lịch trình chi tiết cho chuyến đang xem.
+												</p>
+											)}
+											{timeline.map((item) => (
+												<div key={`${item.time}-${item.title}`} className="flex gap-4">
+													<div
+														className="w-14 shrink-0 text-sm font-extrabold"
+														style={{ color: config.accent }}
+													>
+														{item.time}
+													</div>
+													<div className="flex-1 rounded-2xl border border-[#e5eee7] bg-[#fbfdfb] p-4">
+														<div className="flex items-start justify-between gap-3">
+															<h3 className="font-extrabold text-[#10221b]">{item.title}</h3>
+															<span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-extrabold text-[#667a6d] ring-1 ring-[#dfe8df]">
+																{item.status}
+															</span>
+														</div>
+														<p className="mt-1 text-sm leading-6 text-[#627769]">
+															{item.description}
+														</p>
+													</div>
+												</div>
+											))}
+										</div>
+									</div>
+								</section>
+							</>
+						)}
+						{config.role === "host" ? null : config.role === "porter" ? null : config.alerts
+								.length > 0 ? (
+							<section className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+								<div className="rounded-[28px] border border-[#dfe8df] bg-white p-6 shadow-sm">
+									<div className="flex items-center justify-between">
+										<h2 className="text-xl font-extrabold text-[#10221b]">Cảnh báo</h2>
+										<AlertTriangle className="size-5 text-amber-600" />
+									</div>
+									<div className="mt-5 space-y-3">
+										{config.alerts.map((alert) => (
+											<div
+												key={alert.title}
+												className={`rounded-2xl border p-4 ${alertClasses[alert.tone]}`}
+											>
+												<p className="font-extrabold">{alert.title}</p>
+												<p className="mt-1 text-sm leading-6 opacity-80">{alert.detail}</p>
+											</div>
+										))}
+									</div>
+								</div>
+
+								<QuickTasksPanel
+									config={config}
+									onOpenAdminUsers={onOpenAdminUsers}
+									onCreateTrip={onCreateTrip}
+									onCreateTrekkingRoute={onCreateTrekkingRoute}
+									onViewTrekkingRoutes={onViewTrekkingRoutes}
+									onNavigateToTrips={config.role === "camper" ? undefined : onNavigateToTrips}
+									onExploreTrip={exploreShownTrip}
+								/>
+							</section>
+						) : (
+							<section>
+								<QuickTasksPanel
+									config={config}
+									onOpenAdminUsers={onOpenAdminUsers}
+									onCreateTrip={onCreateTrip}
+									onCreateTrekkingRoute={onCreateTrekkingRoute}
+									onViewTrekkingRoutes={onViewTrekkingRoutes}
+									onNavigateToTrips={config.role === "camper" ? undefined : onNavigateToTrips}
+									onExploreTrip={exploreShownTrip}
+								/>
+							</section>
+						)}
+					</div>
+				</div>
 			</div>
 		</main>
 	);
@@ -466,11 +495,11 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 			)}
 
 			<div
-				className={`min-h-screen transition-all duration-300 ${
+				className={`${activeRole === "host" ? "flex h-dvh flex-col overflow-hidden" : "min-h-screen"} transition-all duration-300 ${
 					isSidebarCollapsed ? "lg:pl-0" : activeRole === "camper" ? "lg:pl-64" : "lg:pl-72"
 				}`}
 			>
-				<header className="sticky top-0 z-20 flex items-center gap-3 border-b border-[#dfe8df] bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
+				<header className="sticky top-0 z-20 flex shrink-0 items-center gap-3 border-b border-[#dfe8df] bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
 					<button
 						type="button"
 						onClick={() => setMobileMenuOpen(true)}
