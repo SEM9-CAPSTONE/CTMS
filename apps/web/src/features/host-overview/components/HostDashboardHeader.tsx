@@ -1,10 +1,9 @@
-import { ArrowUpRight, CalendarDays, Plus } from "lucide-react";
+import { CalendarDays, Plus } from "lucide-react";
 
 export function HostDashboardHeader({
 	name,
 	onCreateTrip,
-	onViewRoutes,
-}: { name: string; onCreateTrip?: () => void; onViewRoutes?: () => void }) {
+}: { name: string; onCreateTrip?: () => void }) {
 	const date = new Intl.DateTimeFormat("vi-VN", {
 		timeZone: "Asia/Ho_Chi_Minh",
 		weekday: "long",
@@ -13,10 +12,10 @@ export function HostDashboardHeader({
 		year: "numeric",
 	}).format(new Date());
 	return (
-		<header className="flex flex-wrap items-center justify-between gap-5 rounded-2xl bg-[#173f2b] px-5 py-5 text-white sm:px-6">
+		<header className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-5 rounded-2xl bg-[#173f2b] px-5 py-5 text-white shadow-md sm:px-6">
 			<div>
 				<p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#b5cfb7]">
-					Không gian Host / Dashboard
+					Khu vực chủ chuyến
 				</p>
 				<h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
 					Tổng quan vận hành
@@ -29,16 +28,6 @@ export function HostDashboardHeader({
 					{date}
 				</p>
 				<div className="flex flex-wrap gap-2">
-					{onViewRoutes && (
-						<button
-							type="button"
-							onClick={onViewRoutes}
-							className="inline-flex items-center gap-2 rounded-lg border border-white/25 px-3 py-2 text-xs font-medium text-white transition hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
-						>
-							Danh sách tuyến
-							<ArrowUpRight aria-hidden="true" className="size-3.5" />
-						</button>
-					)}
 					{onCreateTrip && (
 						<button
 							type="button"

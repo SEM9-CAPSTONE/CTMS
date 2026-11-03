@@ -26,7 +26,7 @@ import type { BookTripResponse } from "../types";
 export interface TripDetailPageProps {
 	tripId: string;
 	onBackToList: () => void;
-	onBackHome?: () => void;
+	backLabel?: string;
 	onBook?: (
 		tripId: string,
 		numPeople: number,
@@ -78,7 +78,7 @@ function toBookTripResponse(booking: BookingDetails | null | undefined): BookTri
 export function TripDetailPage({
 	tripId,
 	onBackToList,
-	onBackHome,
+	backLabel,
 	onBook,
 	bookingAccess = "camper",
 	onSignIn,
@@ -229,7 +229,7 @@ export function TripDetailPage({
 					<div className="flex items-center gap-4">
 						<button
 							type="button"
-							aria-label="Quay lại danh sách chuyến đi"
+							aria-label={backLabel ?? "Quay lại danh sách chuyến đi"}
 							onClick={onBackToList}
 							className="rounded-2xl border border-[#dfe8df] p-2.5 text-[#55685a] transition hover:bg-[#f6f9f6] hover:text-[#164027]"
 						>
@@ -245,16 +245,6 @@ export function TripDetailPage({
 							</p>
 						</div>
 					</div>
-
-					{onBackHome && (
-						<button
-							type="button"
-							onClick={onBackHome}
-							className="text-xs font-bold text-[#55685a] hover:text-[#164027]"
-						>
-							Trang chủ
-						</button>
-					)}
 				</div>
 			</header>
 

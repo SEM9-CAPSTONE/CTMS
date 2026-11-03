@@ -40,9 +40,9 @@ export const alertClasses: Record<DashboardConfig["alerts"][number]["tone"], str
 
 export const roleLabels: Record<RoleKey, string> = {
 	camper: "Camper",
-	host: "Host",
-	porter: "Porter",
-	admin: "Admin",
+	host: "Chủ chuyến",
+	porter: "Người hỗ trợ",
+	admin: "Quản trị viên",
 };
 
 export const dashboards: Record<RoleKey, DashboardConfig> = {
@@ -145,10 +145,9 @@ export const dashboards: Record<RoleKey, DashboardConfig> = {
 	host: {
 		role: "host",
 		figmaName: "",
-		productLabel: "Host Dashboard",
+		productLabel: "Tổng quan chủ chuyến",
 		title: "Tổng quan vận hành",
-		subtitle:
-			"Theo dõi chuyến đi, số chỗ giữ / đặt, rủi ro thời tiết và phân công porter từ dữ liệu vận hành.",
+		subtitle: "Theo dõi chuyến đi, đặt chỗ, tuyến trekking và người hỗ trợ từ dữ liệu vận hành.",
 		accent: "#1f4d34",
 		soft: "#f2f7ef",
 		navTitle: "Vận hành",
@@ -157,7 +156,7 @@ export const dashboards: Record<RoleKey, DashboardConfig> = {
 			{ key: "wallet", label: "Ví & Doanh thu", icon: Wallet },
 			{ key: "explore", label: "Khám phá chuyến đi", icon: Compass },
 			{ key: "campers", label: "Người tham gia & đặt chỗ", icon: Users },
-			{ key: "porters", label: "Porter", icon: BriefcaseBusiness },
+			{ key: "porters", label: "Người hỗ trợ", icon: BriefcaseBusiness },
 			{ key: "equipment", label: "Quản lý kho thiết bị", icon: Warehouse },
 			{ key: "reports", label: "Báo cáo", icon: FileClock },
 		],

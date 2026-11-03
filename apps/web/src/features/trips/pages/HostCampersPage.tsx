@@ -1,4 +1,13 @@
-import { AlertCircle, Calendar, ExternalLink, Loader2, Plus, RefreshCw, Users } from "lucide-react";
+import {
+	AlertCircle,
+	ArrowLeft,
+	Calendar,
+	ExternalLink,
+	Loader2,
+	Plus,
+	RefreshCw,
+	Users,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { RoutePath } from "../../../routes/routes.config";
 import { Button } from "../../../shared/components/Button";
@@ -13,6 +22,8 @@ import { type TripStatus, formatTripStatus } from "../types";
 
 export interface HostCampersPageProps {
 	initialTripId?: string | null;
+	initialStatus?: string | null;
+	onBackHome?: () => void;
 	onNavigateToTripDetail?: (tripId: string) => void;
 	onCreateTrip?: () => void;
 }
@@ -27,15 +38,36 @@ const statusBadgeClasses: Record<TripStatus, string> = {
 	rejected: "bg-rose-50 text-rose-700 ring-rose-200",
 };
 
+function normalizeTripFilterStatus(value?: string | null): TripFilterStatus {
+	const validStatuses: TripFilterStatus[] = [
+		"all",
+		"draft",
+		"pending_approval",
+		"published",
+		"ongoing",
+		"completed",
+		"cancelled",
+		"rejected",
+	];
+	return validStatuses.includes(value as TripFilterStatus) ? (value as TripFilterStatus) : "all";
+}
+
 export function HostCampersPage({
 	initialTripId,
+	initialStatus,
+	onBackHome,
 	onNavigateToTripDetail,
 	onCreateTrip,
 }: HostCampersPageProps) {
 	const { trips = [], isLoading, error, refetch } = useMyTrips();
-	const [statusFilter, setStatusFilter] = useState<TripFilterStatus>("all");
+	const [statusFilter, setStatusFilter] = useState<TripFilterStatus>(() =>
+		normalizeTripFilterStatus(initialStatus)
+	);
 	const [searchQuery, setSearchQuery] = useState("");
 	const [selectedTripId, setSelectedTripId] = useState<string | null>(initialTripId ?? null);
+	useEffect(() => {
+		if (initialStatus) setStatusFilter(normalizeTripFilterStatus(initialStatus));
+	}, [initialStatus]);
 
 	const statusCounts = useMemo(() => {
 		const counts: Record<string, number> = { all: trips.length };
@@ -58,22 +90,19 @@ export function HostCampersPage({
 	useEffect(() => {
 		if (trips.length === 0) return;
 
-		if (selectedTripId && trips.some((t) => t.id === selectedTripId)) {
+		if (selectedTripId && filteredTrips.some((t) => t.id === selectedTripId)) {
 			return;
 		}
 
-		if (initialTripId && trips.some((t) => t.id === initialTripId)) {
+		if (initialTripId && filteredTrips.some((t) => t.id === initialTripId)) {
 			setSelectedTripId(initialTripId);
 			return;
 		}
 
 		const preferred =
 			filteredTrips.find((t) => t.status === "ongoing" || t.status === "published") ??
-			filteredTrips[0] ??
-			trips[0];
-		if (preferred) {
-			setSelectedTripId(preferred.id);
-		}
+			filteredTrips[0];
+		setSelectedTripId(preferred?.id ?? null);
 	}, [trips, initialTripId, filteredTrips, selectedTripId]);
 
 	const handleSelectTrip = (tripId: string) => {
@@ -124,10 +153,23 @@ export function HostCampersPage({
 		<main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
 			{/* Page Header */}
 			<div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-				<div>
-					<h1 className="text-2xl font-extrabold text-[#10221b] sm:text-3xl">
-						Người tham gia & đặt chỗ
-					</h1>
+				<div className="flex items-center gap-3">
+					{onBackHome && (
+						<button
+							type="button"
+							aria-label="Quay về Host Dashboard"
+							title="Quay về Host Dashboard"
+							onClick={onBackHome}
+							className="rounded-xl border border-[#d8e2da] p-2.5 text-[#164027] transition hover:bg-[#f6f9f6]"
+						>
+							<ArrowLeft className="size-5" />
+						</button>
+					)}
+					<div>
+						<h1 className="text-2xl font-extrabold text-[#10221b] sm:text-3xl">
+							Người tham gia & đặt chỗ
+						</h1>
+					</div>
 				</div>
 				<div className="flex flex-wrap items-center gap-2.5">
 					<Button variant="outline" size="sm" onClick={() => void refetch()} className="gap-2">

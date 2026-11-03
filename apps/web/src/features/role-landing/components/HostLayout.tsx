@@ -100,6 +100,7 @@ export function HostLayout({ children, activeRole, onNavigateToTrips, onLogout }
 				: "overview";
 
 	const sidebarWidthClass = currentRole === "camper" ? "w-64" : "w-72";
+	const desktopOnlyRole = currentRole === "host" || currentRole === "admin";
 	const contentPaddingClass =
 		currentRole === "camper"
 			? isSidebarCollapsed
@@ -141,7 +142,7 @@ export function HostLayout({ children, activeRole, onNavigateToTrips, onLogout }
 			</div>
 
 			{/* Mobile Sidebar overlay */}
-			{mobileMenuOpen && (
+			{mobileMenuOpen && !desktopOnlyRole && (
 				<div className="fixed inset-0 z-50 lg:hidden">
 					<button
 						type="button"
@@ -181,7 +182,9 @@ export function HostLayout({ children, activeRole, onNavigateToTrips, onLogout }
 
 			{/* Main Content Area */}
 			<div className={`min-h-screen transition-all duration-300 ${contentPaddingClass}`}>
-				<header className="sticky top-0 z-20 flex items-center gap-3 border-b border-[#dfe8df] bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
+				<header
+					className={`sticky top-0 z-20 flex items-center gap-3 border-b border-[#dfe8df] bg-white/95 px-4 py-3 backdrop-blur ${desktopOnlyRole ? "hidden" : "lg:hidden"}`}
+				>
 					<button
 						type="button"
 						onClick={() => setMobileMenuOpen(true)}
@@ -196,7 +199,21 @@ export function HostLayout({ children, activeRole, onNavigateToTrips, onLogout }
 					</HomeLink>
 				</header>
 
-				<main>{children}</main>
+				{desktopOnlyRole && (
+					<div className="flex min-h-dvh items-center justify-center bg-[#f4f7f2] p-6 text-center lg:hidden">
+						<section className="max-w-md rounded-3xl border border-[#dfe8df] bg-white p-8 shadow-sm">
+							<h1 className="text-xl font-extrabold text-[#164027]">
+								Vui lòng mở CTMS trên máy tính
+							</h1>
+							<p className="mt-2 text-sm leading-6 text-[#627769]">
+								Khu vực quản lý Host và Quản trị viên được thiết kế để sử dụng trên màn hình máy
+								tính.
+							</p>
+						</section>
+					</div>
+				)}
+
+				<main className={desktopOnlyRole ? "hidden lg:block" : undefined}>{children}</main>
 			</div>
 		</div>
 	);

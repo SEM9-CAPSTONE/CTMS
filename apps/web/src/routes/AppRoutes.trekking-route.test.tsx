@@ -2,6 +2,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { overviewFixture } from "../../tests/fixtures/host-overview";
+import { hostOverviewService } from "../features/host-overview/services/host-overview.service";
 import { AppRoutes } from "./AppRoutes";
 
 async function renderLazy(...args: Parameters<typeof render>) {
@@ -26,6 +28,9 @@ vi.mock("../features/trips/services/trips.service", () => ({
 vi.mock("../features/camper-profile/services/camper-profile.service", () => ({
 	camperProfileService: { getProfile: vi.fn().mockResolvedValue(null) },
 }));
+vi.mock("../features/host-overview/services/host-overview.service", () => ({
+	hostOverviewService: { get: vi.fn() },
+}));
 
 async function renderRoutes() {
 	const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
@@ -46,7 +51,16 @@ vi.mock("../features/trekking-routes/pages/CreateTrekkingRoutePage", () => ({
 	CreateTrekkingRoutePage: () => <div>Create Trekking Route Page</div>,
 }));
 vi.mock("../features/trekking-routes/pages/TrekkingRoutesPage", () => ({
-	TrekkingRoutesPage: () => <div>Trekking Routes Page</div>,
+	TrekkingRoutesPage: ({ onCreateRoute }: { onCreateRoute?: () => void }) => (
+		<div>
+			<div>Trekking Routes Page</div>
+			{onCreateRoute && (
+				<button type="button" onClick={onCreateRoute}>
+					Tạo tuyến mới
+				</button>
+			)}
+		</div>
+	),
 }));
 vi.mock("../features/trips/pages/SearchTripsPage", () => ({
 	SearchTripsPage: ({
@@ -147,12 +161,14 @@ describe("AppRoutes trekking route navigation", () => {
 			})
 		);
 		window.history.replaceState({}, "", "/dashboard");
+		vi.mocked(hostOverviewService.get).mockResolvedValue(overviewFixture());
 	});
 
 	it("navigates to create route", async () => {
 		await renderRoutes();
-		expect(screen.getByRole("button", { name: "Quản lý tuyến" })).toBeInTheDocument();
-		await userEvent.click(screen.getByRole("button", { name: "Tạo tuyến trekking" }));
+		await userEvent.click(await screen.findByRole("button", { name: /Tuyến của tôi:/ }));
+		expect(await screen.findByText("Trekking Routes Page")).toBeInTheDocument();
+		await userEvent.click(screen.getByRole("button", { name: "Tạo tuyến mới" }));
 		await waitForPage();
 
 		expect(window.location.pathname).toBe("/host/trekking-routes/create");
@@ -164,13 +180,12 @@ describe("AppRoutes trekking route navigation", () => {
 
 	it("navigates to the route list", async () => {
 		await renderRoutes();
-		expect(screen.getByRole("button", { name: "Tạo tuyến trekking" })).toBeInTheDocument();
-		await userEvent.click(screen.getByRole("button", { name: "Quản lý tuyến" }));
+		await userEvent.click(await screen.findByRole("button", { name: /Tuyến của tôi:/ }));
 		await waitForPage();
 
 		expect(window.location.pathname).toBe("/host/trekking-routes");
 		expect(window.location.search).toBe("");
-		expect(screen.getByText("Trekking Routes Page")).toBeInTheDocument();
+		expect(await screen.findByText("Trekking Routes Page")).toBeInTheDocument();
 		expect(screen.getAllByRole("complementary")).toHaveLength(1);
 	});
 
@@ -192,7 +207,7 @@ describe("AppRoutes trekking route navigation", () => {
 
 			await renderRoutes();
 
-			expect(screen.queryByRole("button", { name: "Tạo tuyến trekking" })).not.toBeInTheDocument();
+			expect(screen.queryByRole("button", { name: /Tuyến của tôi:/ })).not.toBeInTheDocument();
 			expect(
 				screen.queryByRole("button", { name: "Quản lý tuyến trekking" })
 			).not.toBeInTheDocument();

@@ -70,7 +70,7 @@ describe("RoleLandingPage profile navigation", () => {
 			/>
 		);
 
-		fireEvent.click(screen.getAllByRole("button", { name: "Porter" })[0]);
+		fireEvent.click(screen.getAllByRole("button", { name: "Người hỗ trợ" })[0]);
 		fireEvent.click(screen.getByRole("button", { name: "Hồ sơ & Năng lực" }));
 
 		expect(window.location.pathname).toBe("/porter/profile");
@@ -89,7 +89,7 @@ describe("RoleLandingPage profile navigation", () => {
 			/>
 		);
 
-		fireEvent.click(screen.getAllByRole("button", { name: "Porter" })[0]);
+		fireEvent.click(screen.getAllByRole("button", { name: "Người hỗ trợ" })[0]);
 		const profileButton = await screen.findByRole("button", { name: /Porter Test/ });
 		fireEvent.click(profileButton);
 

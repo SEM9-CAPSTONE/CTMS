@@ -1,5 +1,6 @@
 import {
 	AlertTriangle,
+	ArrowLeft,
 	BriefcaseBusiness,
 	CalendarDays,
 	CheckCircle2,
@@ -37,6 +38,7 @@ type AssignmentTripFilter = "all" | AssignmentTripTiming;
 interface HostPorterRequestsPageProps {
 	initialTripId?: string | null;
 	initialView?: string | null;
+	onBackHome?: () => void;
 }
 
 function normalizeView(value?: string | null): PorterTab {
@@ -393,6 +395,7 @@ function HostAssignedPortersList({ trip }: { trip: HostPorterAssignmentTrip }) {
 export function HostPorterRequestsPage({
 	initialTripId,
 	initialView,
+	onBackHome,
 }: HostPorterRequestsPageProps) {
 	const candidateTripsQuery = usePorterCandidateTrips();
 	const assignmentTripsQuery = useHostPorterAssignments();
@@ -466,13 +469,26 @@ export function HostPorterRequestsPage({
 		<div className="min-h-screen bg-[#f4f7f2] px-4 py-8 sm:px-6">
 			<div className="mx-auto max-w-[1440px] space-y-6">
 				<header className="rounded-3xl border border-[#dfe8df] bg-white p-6 shadow-sm">
-					<h1 className="text-2xl font-extrabold text-[#10221b]">
-						{activeTab === "find"
-							? "Tìm người hỗ trợ chuyến đi"
-							: activeTab === "requests"
-								? "Yêu cầu đã gửi"
-								: "Porter đã phân công"}
-					</h1>
+					<div className="flex items-center gap-3">
+						{onBackHome && (
+							<button
+								type="button"
+								aria-label="Quay về Host Dashboard"
+								title="Quay về Host Dashboard"
+								onClick={onBackHome}
+								className="rounded-xl border border-[#d8e2da] p-2.5 text-[#164027] transition hover:bg-[#f6f9f6]"
+							>
+								<ArrowLeft className="size-5" />
+							</button>
+						)}
+						<h1 className="text-2xl font-extrabold text-[#10221b]">
+							{activeTab === "find"
+								? "Tìm người hỗ trợ chuyến đi"
+								: activeTab === "requests"
+									? "Yêu cầu đã gửi"
+									: "Porter đã phân công"}
+						</h1>
+					</div>
 				</header>
 
 				{activeTab === "find" && (

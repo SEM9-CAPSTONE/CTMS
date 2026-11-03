@@ -72,7 +72,7 @@ export function Sidebar({
 	const hostPorterItems = [
 		{ key: "find", label: "Tìm người hỗ trợ", icon: Send },
 		{ key: "requests", label: "Yêu cầu đã gửi", icon: Clock },
-		{ key: "assigned", label: "Porter đã phân công", icon: Users },
+		{ key: "assigned", label: "Người hỗ trợ đã phân công", icon: Users },
 	] as const;
 
 	return (
@@ -197,7 +197,7 @@ export function Sidebar({
 											navigate("/dashboard");
 										} else if (item.key === "trips") {
 											if (activeRole === "host") {
-												const element = document.getElementById("host-my-trips");
+												const element = document.getElementById("host-active-trips");
 												if (element) {
 													element.scrollIntoView({ behavior: "smooth" });
 													return;

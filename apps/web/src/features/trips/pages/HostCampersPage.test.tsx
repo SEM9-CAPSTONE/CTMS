@@ -170,6 +170,21 @@ describe("HostCampersPage", () => {
 		);
 	});
 
+	it("applies the initial status filter from Dashboard navigation", () => {
+		render(<HostCampersPage initialStatus="published" />);
+
+		expect(screen.getByRole("combobox", { name: "Lọc trạng thái chuyến đi" })).toHaveValue(
+			"published"
+		);
+		expect(screen.getByRole("button", { name: /Trekking Fansipan 3N2D/i })).toBeInTheDocument();
+		expect(
+			screen.queryByRole("button", { name: /Trekking Bidoup Núi Bà/i })
+		).not.toBeInTheDocument();
+		expect(screen.getByTestId("host-trip-bookings-view")).toHaveTextContent(
+			"Bookings for trip trip-published-1"
+		);
+	});
+
 	it("switches selected trip when another trip is clicked", () => {
 		render(<HostCampersPage initialTripId="trip-published-1" />);
 
