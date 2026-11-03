@@ -9,7 +9,7 @@ import {
 import { DataSource } from "typeorm";
 import { AuditLog } from "../auth/entities/audit-log.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI
-import { GpsParticipationSource } from "../gps-tracking/gps-participation.source";
+import { GpsParticipationSource, type TrackedTrip } from "../gps-tracking/gps-participation.source";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI
 import { EventsGateway } from "../realtime/events.gateway";
 import type { CancelSosDto } from "./dto/cancel-sos.dto";
@@ -22,6 +22,8 @@ import { SosAlert } from "./entities/sos-alert.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI
 import { SosAlertsRepository } from "./sos-alerts.repository";
 import { SosErrorCode, SosStatus } from "./sos.enums";
+
+type SosTrip = TrackedTrip & { hostId: string };
 
 @Injectable()
 export class SosService {
@@ -36,7 +38,7 @@ export class SosService {
 	 * CTMS-074: Create an emergency SOS alert for an active Trip.
 	 */
 	async createSos(userId: string, tripId: string, dto: CreateSosDto): Promise<SosAlertResponseDto> {
-		await this.assertTripParticipant(userId, tripId);
+		const trip = await this.assertTripParticipant(userId, tripId);
 
 		const now = new Date();
 		const alert = this.sosRepository.create({
@@ -75,13 +77,16 @@ export class SosService {
 			reason: null,
 		});
 
-		// Broadcast real-time event to Host and trip participants
-		this.eventsGateway.emitSosCreated({
+		// CTMS-079, BR-260: only after persistence, and only to the Host authorized for this Trip
+		this.eventsGateway.emitSosCreated(trip.hostId, {
+			eventId: saved.id,
 			sosId: saved.id,
 			tripId: saved.tripId,
 			senderId: saved.senderId,
 			emergencyType: saved.emergencyType,
+			status: saved.status,
 			eventTime: saved.eventTime.toISOString(),
+			persistedAt: saved.receivedAt.toISOString(),
 		});
 
 		return toSosAlertResponseDto(saved);
@@ -98,7 +103,7 @@ export class SosService {
 		sosId: string,
 		dto: CancelSosDto
 	): Promise<SosAlertResponseDto> {
-		await this.assertTripParticipant(userId, tripId);
+		const trip = await this.assertTripParticipant(userId, tripId);
 
 		let updatedAlert: SosAlert | null = null;
 
@@ -187,7 +192,7 @@ export class SosService {
 
 		if (updatedAlert) {
 			const alert = updatedAlert as SosAlert;
-			this.eventsGateway.emitSosStateChanged({
+			this.eventsGateway.emitSosStateChanged(trip.hostId, {
 				sosId: alert.id,
 				tripId: alert.tripId,
 				senderId: alert.senderId,
@@ -208,7 +213,7 @@ export class SosService {
 	 * Preserves audit history (BR-191) and notifies sender and participants after commit (PB AC-4, PB AC-8).
 	 */
 	async acknowledge(userId: string, tripId: string, sosId: string): Promise<SosAlertResponseDto> {
-		await this.assertTripHost(userId, tripId);
+		const trip = await this.assertTripHost(userId, tripId);
 
 		let updatedAlert: SosAlert | null = null;
 
@@ -285,7 +290,7 @@ export class SosService {
 		if (updatedAlert) {
 			const alert = updatedAlert as SosAlert;
 			// AC3 / AC6: Broadcast real-time event to sender and team only after commit
-			this.eventsGateway.emitSosStateChanged({
+			this.eventsGateway.emitSosStateChanged(trip.hostId, {
 				sosId: alert.id,
 				tripId: alert.tripId,
 				senderId: alert.senderId,
@@ -312,7 +317,7 @@ export class SosService {
 		sosId: string,
 		dto: CloseSosDto
 	): Promise<SosAlertResponseDto> {
-		await this.assertTripHost(userId, tripId);
+		const trip = await this.assertTripHost(userId, tripId);
 
 		let updatedAlert: SosAlert | null = null;
 
@@ -392,7 +397,7 @@ export class SosService {
 		if (updatedAlert) {
 			const alert = updatedAlert as SosAlert;
 			// AC6: Broadcast real-time event to sender and team only after commit
-			this.eventsGateway.emitSosStateChanged({
+			this.eventsGateway.emitSosStateChanged(trip.hostId, {
 				sosId: alert.id,
 				tripId: alert.tripId,
 				senderId: alert.senderId,
@@ -440,15 +445,8 @@ export class SosService {
 	/**
 	 * Helper to verify caller is the authorized Host of the Trip (CTMS-080, BR-261).
 	 */
-	private async assertTripHost(userId: string, tripId: string): Promise<void> {
-		const trip = await this.participation.findTrip(tripId);
-		if (!trip) {
-			throw new NotFoundException({
-				statusCode: HttpStatus.NOT_FOUND,
-				error: SosErrorCode.TRIP_NOT_FOUND,
-				message: "Không tìm thấy thông tin chuyến đi",
-			});
-		}
+	private async assertTripHost(userId: string, tripId: string): Promise<SosTrip> {
+		const trip = await this.findTripOrThrow(tripId);
 
 		if (trip.hostId !== userId) {
 			throw new ForbiddenException({
@@ -457,20 +455,14 @@ export class SosService {
 				message: "Chỉ chủ chuyến đi (Host) mới có quyền xử lý yêu cầu cứu trợ",
 			});
 		}
+		return trip;
 	}
 
 	/**
 	 * Helper to verify caller is an active participant (Camper, Porter, or Host) of the Trip.
 	 */
-	private async assertTripParticipant(userId: string, tripId: string): Promise<void> {
-		const trip = await this.participation.findTrip(tripId);
-		if (!trip) {
-			throw new NotFoundException({
-				statusCode: HttpStatus.NOT_FOUND,
-				error: SosErrorCode.TRIP_NOT_FOUND,
-				message: "Không tìm thấy thông tin chuyến đi",
-			});
-		}
+	private async assertTripParticipant(userId: string, tripId: string): Promise<SosTrip> {
+		const trip = await this.findTripOrThrow(tripId);
 
 		const [camper, porter] = await Promise.all([
 			this.participation.findCamperParticipation(tripId, userId),
@@ -485,5 +477,19 @@ export class SosService {
 				message: "Bạn không phải thành viên tham gia chuyến đi này",
 			});
 		}
+		return trip;
+	}
+
+	/** The Trip with its Host resolved — the only recipient authorized for real-time SOS delivery. */
+	private async findTripOrThrow(tripId: string): Promise<SosTrip> {
+		const trip = await this.participation.findTrip(tripId);
+		if (!trip?.hostId) {
+			throw new NotFoundException({
+				statusCode: HttpStatus.NOT_FOUND,
+				error: SosErrorCode.TRIP_NOT_FOUND,
+				message: "Không tìm thấy thông tin chuyến đi",
+			});
+		}
+		return { ...trip, hostId: trip.hostId };
 	}
 }
