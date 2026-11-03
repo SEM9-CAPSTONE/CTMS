@@ -174,13 +174,49 @@ describe("SosService", () => {
 					targetType: "sos_alert",
 				})
 			);
-			expect(eventsGateway.emitSosCreated).toHaveBeenCalledWith(
-				expect.objectContaining({
-					tripId: TRIP_ID,
-					senderId: USER_ID,
-					emergencyType: EmergencyType.MEDICAL,
-				})
-			);
+			expect(eventsGateway.emitSosCreated).toHaveBeenCalledWith(HOST_ID, {
+				eventId: result.id,
+				sosId: result.id,
+				tripId: TRIP_ID,
+				senderId: USER_ID,
+				emergencyType: EmergencyType.MEDICAL,
+				status: SosStatus.ACTIVE,
+				eventTime: createDto.eventTime,
+				persistedAt: result.receivedAt,
+			});
+		});
+
+		it("CTMS-079: emits only after the SOS and its audit record are persisted", async () => {
+			const order: string[] = [];
+			sosRepository.save.mockImplementation(async (alert: SosAlert) => {
+				order.push("sos.save");
+				return alert;
+			});
+			auditRepository.save.mockImplementation(async () => {
+				order.push("audit.save");
+			});
+			eventsGateway.emitSosCreated.mockImplementation(() => order.push("emit"));
+
+			await service.createSos(USER_ID, TRIP_ID, createDto);
+
+			expect(order).toEqual(["sos.save", "audit.save", "emit"]);
+		});
+
+		it("CTMS-079: routes the event to the Trip Host even when a Porter raises the SOS", async () => {
+			participation.findCamperParticipation.mockResolvedValue(null);
+			participation.findPorterAssignment.mockResolvedValue({ assigned: true });
+
+			await service.createSos(OTHER_USER_ID, TRIP_ID, createDto);
+
+			expect(eventsGateway.emitSosCreated).toHaveBeenCalledTimes(1);
+			expect(eventsGateway.emitSosCreated.mock.calls[0][0]).toBe(HOST_ID);
+		});
+
+		it("CTMS-079: emits nothing when persistence fails", async () => {
+			sosRepository.save.mockRejectedValue(new Error("db down"));
+
+			await expect(service.createSos(USER_ID, TRIP_ID, createDto)).rejects.toThrow("db down");
+			expect(eventsGateway.emitSosCreated).not.toHaveBeenCalled();
 		});
 
 		it("throws NotFoundException if trip does not exist", async () => {
@@ -236,6 +272,7 @@ describe("SosService", () => {
 
 			// Realtime broadcast to Host and room
 			expect(eventsGateway.emitSosStateChanged).toHaveBeenCalledWith(
+				HOST_ID,
 				expect.objectContaining({
 					sosId: SOS_ID,
 					tripId: TRIP_ID,
@@ -341,6 +378,7 @@ describe("SosService", () => {
 
 			// PB AC-4, AC3: Realtime event to sender/team after commit
 			expect(eventsGateway.emitSosStateChanged).toHaveBeenCalledWith(
+				HOST_ID,
 				expect.objectContaining({
 					sosId: SOS_ID,
 					tripId: TRIP_ID,
@@ -464,6 +502,7 @@ describe("SosService", () => {
 
 			// AC6: Realtime event after commit
 			expect(eventsGateway.emitSosStateChanged).toHaveBeenCalledWith(
+				HOST_ID,
 				expect.objectContaining({
 					sosId: SOS_ID,
 					tripId: TRIP_ID,
