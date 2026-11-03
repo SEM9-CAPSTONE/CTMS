@@ -99,6 +99,7 @@ export const queryKeys = {
 		alerts: ["sos-alerts"] as const,
 		detail: (id: string) => ["sos-alerts", id] as const,
 		tripList: (tripId: string) => ["trips", tripId, "sos"] as const,
+		hostList: (filters?: Record<string, unknown>) => ["sos", "host-list", filters] as const,
 	},
 	profile: {
 		me: ["profile", "me"] as const,

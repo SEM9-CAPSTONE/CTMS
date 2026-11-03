@@ -37,6 +37,7 @@ describe("SosResolutionModal (CTMS-080, BR-261)", () => {
 			}),
 			close: vi.fn(),
 			listByTrip: vi.fn(),
+			listForHost: vi.fn(),
 		};
 		const onUpdated = vi.fn();
 
@@ -80,6 +81,7 @@ describe("SosResolutionModal (CTMS-080, BR-261)", () => {
 				resolutionNote: "Đã cứu hộ xong",
 			}),
 			listByTrip: vi.fn(),
+			listForHost: vi.fn(),
 		};
 		const onUpdated = vi.fn();
 		const onClose = vi.fn();

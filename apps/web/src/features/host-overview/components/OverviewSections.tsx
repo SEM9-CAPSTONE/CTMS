@@ -1,6 +1,8 @@
 import { useQueryClient } from "@tanstack/react-query";
+import { ArrowRight } from "lucide-react";
 import { useState } from "react";
 import { queryKeys } from "../../../core/api/queryKeys";
+import { RoutePath } from "../../../routes/routes.config";
 import { Button } from "../../../shared/components/Button";
 import { SosResolutionModal } from "../../sos-handling/components/SosResolutionModal";
 import { OVERVIEW_TEXT as text } from "../constants";
@@ -29,43 +31,61 @@ export function OverviewSections({
 			<div id="host-active-trips">
 				<OverviewActiveTrips hostId={hostId} onTrip={onTrip} onRestricted={onRestricted} />
 			</div>
-			<OverviewSection
-				id="host-rescue-requests"
-				title={text.sos}
-				section={data.sos}
-				timeZone={zone}
-				emptyMessage="Hiện không có yêu cầu cứu trợ cần xử lý."
-			>
-				{(item) => (
-					<div className="border-l-2 border-red-400 pl-3">
-						<p className="text-sm font-semibold text-red-800">
-							Yêu cầu cứu trợ · {overviewStatus(item.emergencyType)}
-						</p>
-						<p className="mt-1 text-xs text-[#65756a]">
-							{item.status === "active"
-								? "Chờ tiếp nhận"
-								: item.status === "acknowledged"
-									? "Đã tiếp nhận · Đang hỗ trợ"
-									: overviewStatus(item.status)}{" "}
-							· {overviewDate(item.eventTime, zone)}
-						</p>
-						<div className="mt-2 flex items-center gap-2">
-							{(item.status === "active" || item.status === "acknowledged") && (
-								<Button
-									size="sm"
-									variant={item.status === "active" ? "primary" : "outline"}
-									onClick={() => setSelectedSos(item)}
-								>
-									{item.status === "active" ? "Tiếp nhận" : "Đóng SOS"}
+			<div className="flex flex-col justify-between rounded-2xl border border-[#e0e7df] bg-white p-5 shadow-[0_2px_6px_#183a2805]">
+				<OverviewSection
+					id="host-rescue-requests"
+					title={text.sos}
+					section={data.sos}
+					timeZone={zone}
+					surface="plain"
+					emptyMessage="Hiện không có yêu cầu cứu trợ cần xử lý."
+				>
+					{(item) => (
+						<div className="border-l-2 border-red-400 pl-3">
+							<p className="text-sm font-semibold text-red-800">
+								Yêu cầu cứu trợ · {overviewStatus(item.emergencyType)}
+							</p>
+							<p className="mt-1 text-xs text-[#65756a]">
+								{item.status === "active"
+									? "Chờ tiếp nhận"
+									: item.status === "acknowledged"
+										? "Đã tiếp nhận · Đang hỗ trợ"
+										: overviewStatus(item.status)}{" "}
+								· {overviewDate(item.eventTime, zone)}
+							</p>
+							<div className="mt-2 flex items-center gap-2">
+								{(item.status === "active" || item.status === "acknowledged") && (
+									<Button
+										size="sm"
+										variant={item.status === "active" ? "primary" : "outline"}
+										onClick={() => setSelectedSos(item)}
+									>
+										{item.status === "active" ? "Tiếp nhận" : "Đóng SOS"}
+									</Button>
+								)}
+								<Button size="sm" variant="ghost" onClick={() => onTrip(item.tripId)}>
+									{text.tripDetail}
 								</Button>
-							)}
-							<Button size="sm" variant="ghost" onClick={() => onTrip(item.tripId)}>
-								{text.tripDetail}
-							</Button>
+							</div>
 						</div>
-					</div>
-				)}
-			</OverviewSection>
+					)}
+				</OverviewSection>
+				<div className="mt-4 pt-3 border-t border-[#e7eee7] flex items-center justify-between">
+					<span className="text-xs text-[#627769]">Quản lý toàn bộ cứu trợ</span>
+					<Button
+						size="sm"
+						variant="ghost"
+						onClick={() => {
+							window.history.pushState({}, "", RoutePath.HOST_SOS);
+							window.dispatchEvent(new PopStateEvent("popstate"));
+						}}
+						className="text-xs font-bold text-[#164027] hover:bg-[#f1f5f0]"
+					>
+						<span>Xem tất cả</span>
+						<ArrowRight className="size-3.5 ml-1" />
+					</Button>
+				</div>
+			</div>
 			<SosResolutionModal
 				isOpen={selectedSos !== null}
 				onClose={() => setSelectedSos(null)}

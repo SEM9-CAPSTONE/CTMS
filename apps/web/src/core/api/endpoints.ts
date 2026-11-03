@@ -141,6 +141,7 @@ export const API_ENDPOINTS = {
 		ALERTS: "/sos-alerts",
 		ALERT_BY_ID: (id: string) => `/sos-alerts/${id}`,
 		TRIP_SOS: (tripId: string) => `/trips/${tripId}/sos`,
+		HOST_SOS: "/host/sos-alerts",
 		ACKNOWLEDGE: (tripId: string, sosId: string) => `/trips/${tripId}/sos/${sosId}/acknowledge`,
 		CLOSE: (tripId: string, sosId: string) => `/trips/${tripId}/sos/${sosId}/close`,
 	},

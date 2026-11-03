@@ -15,6 +15,8 @@ import { EventsGateway } from "../realtime/events.gateway";
 import type { CancelSosDto } from "./dto/cancel-sos.dto";
 import type { CloseSosDto } from "./dto/close-sos.dto";
 import type { CreateSosDto } from "./dto/create-sos.dto";
+import type { GetHostSosQueryDto } from "./dto/get-host-sos-query.dto";
+import type { HostSosListResponseDto } from "./dto/host-sos-list-response.dto";
 import { type SosAlertResponseDto, toSosAlertResponseDto } from "./dto/sos-alert-response.dto";
 import { SosAlert } from "./entities/sos-alert.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI
@@ -402,6 +404,28 @@ export class SosService {
 		}
 
 		return toSosAlertResponseDto(updatedAlert as unknown as SosAlert);
+	}
+
+	/**
+	 * List all SOS alerts across trips owned by the authenticated Host.
+	 */
+	async listForHost(hostId: string, query: GetHostSosQueryDto): Promise<HostSosListResponseDto> {
+		const page = query.page ?? 1;
+		const limit = query.limit ?? 10;
+		const { items, total } = await this.sosRepository.findForHost(hostId, {
+			status: query.status,
+			tripId: query.tripId,
+			search: query.search,
+			page,
+			limit,
+		});
+
+		return {
+			items: items.map(toSosAlertResponseDto),
+			total,
+			page,
+			limit,
+		};
 	}
 
 	/**

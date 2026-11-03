@@ -153,6 +153,7 @@ export const dashboards: Record<RoleKey, DashboardConfig> = {
 		navTitle: "Vận hành",
 		navItems: [
 			{ key: "overview", label: "Tổng quan vận hành", icon: LayoutDashboard },
+			{ key: "sos", label: "Cứu trợ khẩn cấp", icon: ShieldAlert },
 			{ key: "wallet", label: "Ví & Doanh thu", icon: Wallet },
 			{ key: "explore", label: "Khám phá chuyến đi", icon: Compass },
 			{ key: "campers", label: "Người tham gia & đặt chỗ", icon: Users },

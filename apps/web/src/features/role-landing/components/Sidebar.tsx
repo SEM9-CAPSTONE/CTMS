@@ -4,6 +4,7 @@ import { HomeLink } from "../../../shared/components/HomeLink";
 import { LogoutActions } from "../../auth/components/LogoutActions";
 import { BookingCancellationNotices } from "../../booking-cancellation/components/BookingCancellationNotices";
 import type { CamperProfileData } from "../../camper-profile/types";
+import { useHostSos } from "../../sos-handling/hooks/useHostSos";
 import { useMyPorterRequests } from "../../trips/hooks/usePorterRequests";
 import { roleLabels } from "../constants";
 import type { DashboardConfig, RoleKey } from "../types";
@@ -39,6 +40,16 @@ export function Sidebar({
 			porterRequestsQuery.data?.filter((request) => request.status === "pending").length ?? 0;
 	} catch {
 		pendingPorterRequestCount = 0;
+	}
+	let activeSosCount = 0;
+	try {
+		// eslint-disable-next-line react-hooks/rules-of-hooks
+		const hostSosQuery = useHostSos(
+			activeRole === "host" ? { status: "active", limit: 10 } : undefined
+		);
+		activeSosCount = hostSosQuery.data?.total ?? hostSosQuery.data?.items?.length ?? 0;
+	} catch {
+		activeSosCount = 0;
 	}
 	const navigate = (path: string) => {
 		window.history.pushState({ ...window.history.state, activeRole }, "", path);
@@ -157,6 +168,9 @@ export function Sidebar({
 							window.location.pathname.startsWith("/host/equipment-catalog");
 						const isPathWallet =
 							typeof window !== "undefined" && window.location.pathname.startsWith("/host/wallet");
+						const isPathSos =
+							typeof window !== "undefined" &&
+							window.location.pathname.startsWith(RoutePath.HOST_SOS);
 						const isPathPorter =
 							typeof window !== "undefined" && window.location.pathname.startsWith("/host/porter");
 						const isPathCampers =
@@ -172,6 +186,7 @@ export function Sidebar({
 						const isActive =
 							(item.key === "explore" && isPathTrips) ||
 							(item.key === "overview" && isPathDashboard) ||
+							(item.key === "sos" && isPathSos) ||
 							(item.key === "equipment" && isPathEquipment) ||
 							(item.key === "wallet" && isPathWallet) ||
 							(item.key === "porters" && isPathPorter) ||
@@ -195,6 +210,9 @@ export function Sidebar({
 									onClick={() => {
 										if (item.key === "overview") {
 											navigate("/dashboard");
+										} else if (item.key === "sos") {
+											navigate(RoutePath.HOST_SOS);
+											onClose?.();
 										} else if (item.key === "trips") {
 											if (activeRole === "host") {
 												const element = document.getElementById("host-active-trips");
@@ -245,9 +263,16 @@ export function Sidebar({
 										/>
 										<span>{item.label}</span>
 									</div>
-									{item.key === "requests" &&
-									activeRole === "porter" &&
-									pendingPorterRequestCount > 0 ? (
+									{item.key === "sos" && activeRole === "host" && activeSosCount > 0 ? (
+										<span
+											aria-label={`${activeSosCount} yêu cầu cứu trợ khẩn cấp`}
+											className="min-w-5 rounded-full bg-red-600 px-1.5 py-0.5 text-center text-[10px] font-bold text-white animate-pulse"
+										>
+											{activeSosCount}
+										</span>
+									) : item.key === "requests" &&
+										activeRole === "porter" &&
+										pendingPorterRequestCount > 0 ? (
 										<span
 											aria-label={`${pendingPorterRequestCount} yêu cầu đang chờ`}
 											className="min-w-5 rounded-full bg-rose-600 px-1.5 py-0.5 text-center text-[10px] font-bold text-white"

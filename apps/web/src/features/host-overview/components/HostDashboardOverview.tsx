@@ -3,6 +3,7 @@ import { useCallback, useState } from "react";
 import { queryKeys } from "../../../core/api/queryKeys";
 import { RoutePath } from "../../../routes/routes.config";
 import { Button } from "../../../shared/components/Button";
+import { EmergencyAlertBanner } from "../../sos-handling/components/EmergencyAlertBanner";
 import { OVERVIEW_TEXT as text } from "../constants";
 import { useHostOverview } from "../hooks/useHostOverview";
 import { openOverviewDetail } from "../utils";
@@ -53,6 +54,14 @@ export function HostDashboardOverview({
 		onNavigateToTripDetail ?? ((id: string) => openOverviewDetail(RoutePath.TRIP_DETAIL, id));
 	return (
 		<div data-testid="host-dashboard-overview" className="space-y-4">
+			<EmergencyAlertBanner
+				alerts={data.sos.data?.items}
+				onNavigateToSosCenter={() => {
+					window.history.pushState({}, "", RoutePath.HOST_SOS);
+					window.dispatchEvent(new PopStateEvent("popstate"));
+				}}
+				onUpdated={retry}
+			/>
 			<OverviewKpis overview={data} />
 			<OverviewToolbar
 				data={data}

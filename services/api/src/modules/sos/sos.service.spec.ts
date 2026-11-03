@@ -74,6 +74,7 @@ describe("SosService", () => {
 		findById: jest.Mock;
 		findForUpdate: jest.Mock;
 		findByTripId: jest.Mock;
+		findForHost: jest.Mock;
 		save: jest.Mock;
 		create: jest.Mock;
 	};
@@ -102,6 +103,7 @@ describe("SosService", () => {
 			findById: jest.fn(),
 			findForUpdate: jest.fn(),
 			findByTripId: jest.fn(),
+			findForHost: jest.fn(),
 			save: jest.fn((alert: SosAlert) => Promise.resolve(alert)),
 			create: jest.fn((data: Partial<SosAlert>) => Object.assign(new SosAlert(), data)),
 		};
@@ -571,6 +573,28 @@ describe("SosService", () => {
 			participation.findPorterAssignment.mockResolvedValue(null);
 
 			await expect(service.listForTrip(OTHER_USER_ID, TRIP_ID)).rejects.toThrow(ForbiddenException);
+		});
+	});
+	describe("listForHost", () => {
+		it("delegates to repository and returns paginated response", async () => {
+			const alert = buildSosAlert();
+			sosRepository.findForHost.mockResolvedValue({
+				items: [alert],
+				total: 1,
+			});
+
+			const res = await service.listForHost(HOST_ID, { page: 1, limit: 10 });
+			expect(res.items).toHaveLength(1);
+			expect(res.total).toBe(1);
+			expect(res.page).toBe(1);
+			expect(res.limit).toBe(10);
+			expect(sosRepository.findForHost).toHaveBeenCalledWith(HOST_ID, {
+				status: undefined,
+				tripId: undefined,
+				search: undefined,
+				page: 1,
+				limit: 10,
+			});
 		});
 	});
 });
