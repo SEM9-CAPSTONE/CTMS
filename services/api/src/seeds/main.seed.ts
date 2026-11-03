@@ -4342,7 +4342,7 @@ export async function seedContentReports(ds = dataSource): Promise<void> {
 }
 
 // ==========================================================================
-// [10/10] SOS & EMERGENCY ALERTS (CTMS-074, CTMS-077)
+// [10/10] SOS & EMERGENCY ALERTS (CTMS-074, CTMS-077, CTMS-80)
 // ==========================================================================
 
 export async function seedSosAlerts(ds = dataSource): Promise<void> {
@@ -4350,12 +4350,15 @@ export async function seedSosAlerts(ds = dataSource): Promise<void> {
 		await ds.initialize();
 	}
 
-	const camperRows = (await ds.query('SELECT "id" FROM "users" WHERE "email" = $1', [
-		"camper@ctms.local",
-	])) as Array<{ id: string }>;
+	const [camperRows, hostRows] = (await Promise.all([
+		ds.query('SELECT "id" FROM "users" WHERE "email" = $1', ["camper@ctms.local"]),
+		ds.query('SELECT "id" FROM "users" WHERE "email" = $1', ["host@ctms.local"]),
+	])) as [Array<{ id: string }>, Array<{ id: string }>];
+
 	const camperId = camperRows[0]?.id;
-	if (!camperId) {
-		console.log("[seed:sos] ⚠️ Camper account camper@ctms.local not found, skipping.");
+	const hostId = hostRows[0]?.id;
+	if (!camperId || !hostId) {
+		console.log("[seed:sos] ⚠️ Camper or Host account not found, skipping.");
 		return;
 	}
 
@@ -4368,13 +4371,20 @@ export async function seedSosAlerts(ds = dataSource): Promise<void> {
 		return;
 	}
 
-	// Clean existing seeded demo SOS alerts
-	await ds.query('DELETE FROM "sos_alerts" WHERE "id" IN ($1, $2)', [
+	// Ensure Host owns this demo sync trip for authorized SOS handling (AC1)
+	await ds.query('UPDATE "trips" SET "host_id" = $1 WHERE "id" = $2', [hostId, tripId]);
+
+	// Clean existing seeded demo SOS alerts & audit logs
+	const demoAlertIds = [
 		"e0500000-0000-4000-8000-000000000001",
 		"e0500000-0000-4000-8000-000000000002",
-	]);
+		"e0500000-0000-4000-8000-000000000003",
+		"e0500000-0000-4000-8000-000000000004",
+	];
+	await ds.query('DELETE FROM "audit_logs" WHERE "target_id" = ANY($1)', [demoAlertIds]);
+	await ds.query('DELETE FROM "sos_alerts" WHERE "id" = ANY($1)', [demoAlertIds]);
 
-	// 1. ACTIVE SOS Alert ready for testing accidental cancellation (CTMS-077)
+	// 1. ACTIVE SOS Alert: Ready for Host to test "Tiếp nhận" (Acknowledge)
 	await ds.query(
 		`INSERT INTO "sos_alerts" (
 			"id", "trip_id", "sender_id", "emergency_type", "location", "battery_level",
@@ -4382,12 +4392,56 @@ export async function seedSosAlerts(ds = dataSource): Promise<void> {
 		 ) VALUES (
 			$1, $2, $3, 'medical',
 			ST_SetSRID(ST_MakePoint(108.2345, 16.0543), 4326)::geography, 88,
-			now() - interval '5 minutes', 'active', now() - interval '5 minutes', now() - interval '5 minutes', now() - interval '5 minutes'
+			now() - interval '15 minutes', 'active', now() - interval '15 minutes', now() - interval '15 minutes', now() - interval '15 minutes'
 		 )`,
 		["e0500000-0000-4000-8000-000000000001", tripId, camperId]
 	);
 
-	// 2. Previously CANCELLED SOS Alert (demo history preservation)
+	// 2. ACKNOWLEDGED SOS Alert: Ready for Host to test "Đóng SOS" (Close with resolution note)
+	await ds.query(
+		`INSERT INTO "sos_alerts" (
+			"id", "trip_id", "sender_id", "emergency_type", "location", "battery_level",
+			"event_time", "status", "acknowledged_by", "acknowledged_at",
+			"received_at", "created_at", "updated_at"
+		 ) VALUES (
+			$1, $2, $3, 'injury',
+			ST_SetSRID(ST_MakePoint(108.2310, 16.0520), 4326)::geography, 75,
+			now() - interval '30 minutes', 'acknowledged', $4, now() - interval '20 minutes',
+			now() - interval '30 minutes', now() - interval '30 minutes', now() - interval '20 minutes'
+		 )`,
+		["e0500000-0000-4000-8000-000000000002", tripId, camperId, hostId]
+	);
+	await ds.query(
+		`INSERT INTO "audit_logs" ("actor_id", "action", "target_type", "target_id", "before", "after", "created_at")
+		 VALUES ($1, 'SOS_ACKNOWLEDGED', 'sos_alert', $2, '{"status": "active"}'::jsonb, '{"status": "acknowledged"}'::jsonb, now() - interval '20 minutes')`,
+		[hostId, "e0500000-0000-4000-8000-000000000002"]
+	);
+
+	// 3. CLOSED SOS Alert: Terminal state verification (cannot be reopened / resolution note preserved)
+	await ds.query(
+		`INSERT INTO "sos_alerts" (
+			"id", "trip_id", "sender_id", "emergency_type", "location", "battery_level",
+			"event_time", "status", "acknowledged_by", "acknowledged_at", "closed_by", "closed_at", "resolution_note",
+			"received_at", "created_at", "updated_at"
+		 ) VALUES (
+			$1, $2, $3, 'lost',
+			ST_SetSRID(ST_MakePoint(108.2280, 16.0490), 4326)::geography, 60,
+			now() - interval '2 hours', 'closed', $4, now() - interval '1 hour 45 minutes',
+			$4, now() - interval '1 hour',
+			'Đã tìm thấy camper tại trạm kiểm lâm số 2, sức khỏe ổn định và đã đoàn tụ cùng đoàn.',
+			now() - interval '2 hours', now() - interval '2 hours', now() - interval '1 hour'
+		 )`,
+		["e0500000-0000-4000-8000-000000000003", tripId, camperId, hostId]
+	);
+	await ds.query(
+		`INSERT INTO "audit_logs" ("actor_id", "action", "target_type", "target_id", "before", "after", "created_at")
+		 VALUES
+		 ($1, 'SOS_ACKNOWLEDGED', 'sos_alert', $2, '{"status": "active"}'::jsonb, '{"status": "acknowledged"}'::jsonb, now() - interval '1 hour 45 minutes'),
+		 ($1, 'SOS_CLOSED', 'sos_alert', $2, '{"status": "acknowledged"}'::jsonb, '{"status": "closed", "resolution_note": "Đã tìm thấy camper tại trạm kiểm lâm số 2, sức khỏe ổn định."}'::jsonb, now() - interval '1 hour')`,
+		[hostId, "e0500000-0000-4000-8000-000000000003"]
+	);
+
+	// 4. CANCELLED SOS Alert: Accidental SOS cancellation flow preservation (CTMS-077)
 	await ds.query(
 		`INSERT INTO "sos_alerts" (
 			"id", "trip_id", "sender_id", "emergency_type", "location", "battery_level",
@@ -4396,15 +4450,20 @@ export async function seedSosAlerts(ds = dataSource): Promise<void> {
 		 ) VALUES (
 			$1, $2, $3, 'other',
 			ST_SetSRID(ST_MakePoint(108.2250, 16.0510), 4326)::geography, 92,
-			now() - interval '1 hour', 'cancelled', $3, now() - interval '55 minutes',
+			now() - interval '3 hours', 'cancelled', $3, now() - interval '2 hours 55 minutes',
 			'Cấn nút SOS trong ba lô khi dừng nghỉ chân tại trạm 1',
-			now() - interval '1 hour', now() - interval '1 hour', now() - interval '55 minutes'
+			now() - interval '3 hours', now() - interval '3 hours', now() - interval '2 hours 55 minutes'
 		 )`,
-		["e0500000-0000-4000-8000-000000000002", tripId, camperId]
+		["e0500000-0000-4000-8000-000000000004", tripId, camperId]
+	);
+	await ds.query(
+		`INSERT INTO "audit_logs" ("actor_id", "action", "target_type", "target_id", "before", "after", "reason", "created_at")
+		 VALUES ($1, 'SOS_CANCELLED', 'sos_alert', $2, '{"status": "active"}'::jsonb, '{"status": "cancelled"}'::jsonb, 'Cấn nút SOS trong ba lô khi dừng nghỉ chân tại trạm 1', now() - interval '2 hours 55 minutes')`,
+		[camperId, "e0500000-0000-4000-8000-000000000004"]
 	);
 
 	console.log(
-		"[seed:sos] ✅ Seeded 2 demo SOS alerts for camper@ctms.local (1 ACTIVE, 1 CANCELLED history)."
+		"[seed:sos] ✅ Seeded 4 demo SOS alerts for CTMS-80 & CTMS-077 (ACTIVE, ACKNOWLEDGED, CLOSED, CANCELLED) with audit logs."
 	);
 }
 
@@ -4797,6 +4856,21 @@ export async function runMasterSeed(): Promise<void> {
 			);
 		}
 
+		console.log("\n12. Tiếp nhận & Đóng SOS cứu trợ (CTMS-80 Acknowledge and Close SOS):");
+		console.log("   👉 Host login: host@ctms.local / Host@123");
+		console.log("   👉 Trang Tổng quan Host: http://localhost:5173/host (Mục Yêu cầu cứu trợ)");
+		console.log(
+			"   👉 Alert 1 (ACTIVE): e0500000-0000-4000-8000-000000000001 -> Test bấm Tiếp nhận"
+		);
+		console.log(
+			"   👉 Alert 2 (ACKNOWLEDGED): e0500000-0000-4000-8000-000000000002 -> Test bấm Đóng SOS kèm ghi chú"
+		);
+		console.log(
+			"   👉 Alert 3 (CLOSED): e0500000-0000-4000-8000-000000000003 -> Trạng thái cuối, không mở lại"
+		);
+		console.log(
+			"   👉 Alert 4 (CANCELLED): e0500000-0000-4000-8000-000000000004 -> Camper đã hủy (CTMS-077)\n"
+		);
 		console.log("==========================================================================\n");
 	} catch (error) {
 		console.error("\n❌ MASTER SEED ENCOUNTERED AN ERROR:", error);

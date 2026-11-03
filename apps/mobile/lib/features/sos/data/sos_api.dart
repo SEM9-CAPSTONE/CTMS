@@ -5,6 +5,8 @@ import '../domain/sos_alert.dart';
 abstract interface class SosApi {
   Future<List<SosAlert>> list(String tripId);
   Future<SosAlert> cancel(String tripId, String sosId, String reason);
+  Future<SosAlert> acknowledge(String tripId, String sosId);
+  Future<SosAlert> close(String tripId, String sosId, String resolutionNote);
   Future<SosAlert> create(
     String tripId, {
     required String emergencyType,
@@ -39,6 +41,23 @@ class HttpSosApi implements SosApi {
     final response = await client.patch<dynamic>(
       ApiEndpoints.sos.cancel(tripId, sosId),
       data: {'reason': reason},
+    );
+    return SosAlert.fromJson(Map<String, dynamic>.from(response.data as Map));
+  }
+
+  @override
+  Future<SosAlert> acknowledge(String tripId, String sosId) async {
+    final response = await client.patch<dynamic>(
+      ApiEndpoints.sos.acknowledge(tripId, sosId),
+    );
+    return SosAlert.fromJson(Map<String, dynamic>.from(response.data as Map));
+  }
+
+  @override
+  Future<SosAlert> close(String tripId, String sosId, String resolutionNote) async {
+    final response = await client.patch<dynamic>(
+      ApiEndpoints.sos.close(tripId, sosId),
+      data: {'resolutionNote': resolutionNote},
     );
     return SosAlert.fromJson(Map<String, dynamic>.from(response.data as Map));
   }

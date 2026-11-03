@@ -140,6 +140,10 @@ export const API_ENDPOINTS = {
 	SOS: {
 		ALERTS: "/sos-alerts",
 		ALERT_BY_ID: (id: string) => `/sos-alerts/${id}`,
+		TRIP_SOS: (tripId: string) => `/trips/${tripId}/sos`,
+		HOST_SOS: "/host/sos-alerts",
+		ACKNOWLEDGE: (tripId: string, sosId: string) => `/trips/${tripId}/sos/${sosId}/acknowledge`,
+		CLOSE: (tripId: string, sosId: string) => `/trips/${tripId}/sos/${sosId}/close`,
 	},
 	HEALTH_PROFILE: {
 		GET: "/camper/health-profile",

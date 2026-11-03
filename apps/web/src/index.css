@@ -52,9 +52,18 @@ html {
 body {
 	min-height: 100vh;
 	overflow-x: clip;
+	font-family: var(--font-sans);
 	-webkit-font-smoothing: antialiased;
 	-moz-osx-font-smoothing: grayscale;
 	caret-color: transparent;
+}
+
+button,
+input,
+optgroup,
+select,
+textarea {
+	font-family: inherit;
 }
 
 input,

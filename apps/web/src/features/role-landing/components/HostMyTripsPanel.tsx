@@ -174,9 +174,7 @@ export function HostMyTripsPanel({
 					</div>
 					<div>
 						<div className="flex items-center gap-2.5">
-							<h2 className="text-xl font-extrabold tracking-tight text-[#10221b]">
-								Chuyến đi của bạn
-							</h2>
+							<h2 className="text-xl font-bold text-[#10221b]">Chuyến đi của bạn</h2>
 							<span className="rounded-full bg-[#eef7f0] px-2.5 py-0.5 text-xs font-bold text-[#164027]">
 								{trips.length + formDraftCount} chuyến
 							</span>
@@ -238,7 +236,7 @@ export function HostMyTripsPanel({
 							>
 								<span>{tab.label}</span>
 								<span
-									className={`rounded-full px-1.5 py-0.2 text-[10px] font-extrabold ${
+									className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
 										isActive ? "bg-white/20 text-white" : "bg-[#dfe8df] text-[#4a5e51]"
 									}`}
 								>
@@ -287,7 +285,7 @@ export function HostMyTripsPanel({
 						<div className="flex size-14 items-center justify-center rounded-2xl bg-emerald-50 text-[#164027]">
 							<CalendarDays className="size-7" />
 						</div>
-						<h3 className="mt-4 text-base font-extrabold text-[#10221b]">
+						<h3 className="mt-4 text-base font-semibold text-[#10221b]">
 							Chưa có chuyến đi nào được tạo
 						</h3>
 						<p className="mt-1 max-w-sm text-xs text-[#667a6d]">
@@ -362,7 +360,7 @@ export function HostMyTripsPanel({
 											/>
 											<div className="absolute top-2.5 left-2.5">
 												<span
-													className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-extrabold ring-1 ${statusCfg.className}`}
+													className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ${statusCfg.className}`}
 												>
 													<span className="size-1.5 rounded-full bg-current" aria-hidden="true" />
 													{statusCfg.label}
@@ -373,7 +371,7 @@ export function HostMyTripsPanel({
 										<div className="flex flex-1 flex-col p-4">
 											<h4
 												title={trip.title}
-												className="truncate h-5 text-sm leading-5 font-extrabold text-[#10221b] group-hover:text-[#164027]"
+												className="truncate h-5 text-sm leading-5 font-semibold text-[#10221b] group-hover:text-[#164027]"
 											>
 												{trip.title}
 											</h4>
@@ -398,7 +396,7 @@ export function HostMyTripsPanel({
 													<p className="text-[10px] font-bold uppercase tracking-wider text-[#8fa096]">
 														Giá vé
 													</p>
-													<p className="text-sm font-extrabold text-[#164027]">
+													<p className="text-sm font-bold text-[#164027]">
 														{trip.pricePerPerson.toLocaleString("vi-VN")} đ
 													</p>
 												</div>

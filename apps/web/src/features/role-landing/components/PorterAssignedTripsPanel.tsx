@@ -88,7 +88,7 @@ export function PorterAssignedTripsPanelView({
 		>
 			<div className="flex items-start justify-between gap-4 border-b border-[#e5eee7] pb-5">
 				<div>
-					<h1 className="text-xl font-extrabold text-[#10221b]">{title}</h1>
+					<h1 className="text-xl font-bold text-[#10221b]">{title}</h1>
 					<p className="mt-1 text-sm text-[#667a6d]">{description}</p>
 					{updatedAt && isStale ? (
 						<p className="mt-1 text-xs text-[#667a6d]">
@@ -201,7 +201,7 @@ export function PorterAssignedTripsPanelView({
 									className="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-2 py-4 md:grid-cols-[1.4fr_1fr_0.8fr_auto]"
 								>
 									<div className="min-w-0">
-										<h2 className="truncate font-extrabold text-[#10221b]">{trip.title}</h2>
+										<h2 className="truncate font-bold text-[#10221b]">{trip.title}</h2>
 										{trip.routeName && (
 											<p className="truncate text-xs text-[#667a6d]">{trip.routeName}</p>
 										)}

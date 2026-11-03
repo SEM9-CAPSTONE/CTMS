@@ -10,6 +10,7 @@ import type {
 import type { EventsGateway } from "../realtime/events.gateway";
 import { TripStatus } from "../trips/entities/trip.entity";
 import type { CancelSosDto } from "./dto/cancel-sos.dto";
+import type { CloseSosDto } from "./dto/close-sos.dto";
 import type { CreateSosDto } from "./dto/create-sos.dto";
 import { SosAlert } from "./entities/sos-alert.entity";
 import type { SosAlertsRepository } from "./sos-alerts.repository";
@@ -19,6 +20,7 @@ import { SosService } from "./sos.service";
 const USER_ID = "11111111-1111-4111-8111-111111111111";
 const OTHER_USER_ID = "22222222-2222-4222-8222-222222222222";
 const HOST_ID = "33333333-3333-4333-8333-333333333333";
+const OTHER_HOST_ID = "33333333-3333-4333-8333-999999999999";
 const TRIP_ID = "44444444-4444-4444-8444-444444444444";
 const SOS_ID = "55555555-5555-4555-8555-555555555555";
 
@@ -72,6 +74,7 @@ describe("SosService", () => {
 		findById: jest.Mock;
 		findForUpdate: jest.Mock;
 		findByTripId: jest.Mock;
+		findForHost: jest.Mock;
 		save: jest.Mock;
 		create: jest.Mock;
 	};
@@ -100,6 +103,7 @@ describe("SosService", () => {
 			findById: jest.fn(),
 			findForUpdate: jest.fn(),
 			findByTripId: jest.fn(),
+			findForHost: jest.fn(),
 			save: jest.fn((alert: SosAlert) => Promise.resolve(alert)),
 			create: jest.fn((data: Partial<SosAlert>) => Object.assign(new SosAlert(), data)),
 		};
@@ -309,6 +313,248 @@ describe("SosService", () => {
 		});
 	});
 
+	describe("acknowledge (CTMS-080, BR-261)", () => {
+		it("transitions SOS from ACTIVE to ACKNOWLEDGED, saves acknowledged_by and acknowledged_at, audits, and emits event", async () => {
+			const existing = buildSosAlert({ status: SosStatus.ACTIVE });
+			sosRepository.findForUpdate.mockResolvedValue(existing);
+
+			const result = await service.acknowledge(HOST_ID, TRIP_ID, SOS_ID);
+
+			expect(result.status).toBe(SosStatus.ACKNOWLEDGED);
+			expect(result.acknowledgedBy).toBe(HOST_ID);
+			expect(result.acknowledgedAt).toBeTruthy();
+
+			// PB AC-8, BR-191: Audit log
+			expect(auditRepository.save).toHaveBeenCalledWith(
+				expect.objectContaining({
+					actorId: HOST_ID,
+					action: "SOS_ACKNOWLEDGED",
+					targetType: "sos_alert",
+					targetId: SOS_ID,
+					before: expect.objectContaining({ status: SosStatus.ACTIVE }),
+					after: expect.objectContaining({
+						status: SosStatus.ACKNOWLEDGED,
+						acknowledgedBy: HOST_ID,
+					}),
+				})
+			);
+
+			// PB AC-4, AC3: Realtime event to sender/team after commit
+			expect(eventsGateway.emitSosStateChanged).toHaveBeenCalledWith(
+				expect.objectContaining({
+					sosId: SOS_ID,
+					tripId: TRIP_ID,
+					senderId: USER_ID,
+					status: SosStatus.ACKNOWLEDGED,
+					acknowledgedBy: HOST_ID,
+				})
+			);
+		});
+
+		it("throws NotFoundException if trip does not exist", async () => {
+			participation.findTrip.mockResolvedValue(null);
+
+			await expect(service.acknowledge(HOST_ID, TRIP_ID, SOS_ID)).rejects.toThrow(
+				NotFoundException
+			);
+		});
+
+		it("throws ForbiddenException if caller is not the authorized Host managing the Trip (PB AC-1)", async () => {
+			await expect(service.acknowledge(OTHER_HOST_ID, TRIP_ID, SOS_ID)).rejects.toThrow(
+				ForbiddenException
+			);
+
+			expect(auditRepository.save).not.toHaveBeenCalled();
+			expect(eventsGateway.emitSosStateChanged).not.toHaveBeenCalled();
+		});
+
+		it("throws NotFoundException if SOS does not exist or belongs to another trip", async () => {
+			sosRepository.findForUpdate.mockResolvedValue(null);
+
+			await expect(service.acknowledge(HOST_ID, TRIP_ID, SOS_ID)).rejects.toThrow(
+				NotFoundException
+			);
+		});
+
+		it("throws ConflictException if SOS alert is CANCELLED", async () => {
+			const existing = buildSosAlert({ status: SosStatus.CANCELLED });
+			sosRepository.findForUpdate.mockResolvedValue(existing);
+
+			const error = await service.acknowledge(HOST_ID, TRIP_ID, SOS_ID).catch((e: unknown) => e);
+
+			expect(error).toBeInstanceOf(ConflictException);
+			expect((error as ConflictException).getResponse()).toMatchObject({
+				error: SosErrorCode.SOS_ALREADY_CANCELLED,
+			});
+		});
+
+		it("throws ConflictException if SOS alert is already ACKNOWLEDGED", async () => {
+			const existing = buildSosAlert({ status: SosStatus.ACKNOWLEDGED });
+			sosRepository.findForUpdate.mockResolvedValue(existing);
+
+			const error = await service.acknowledge(HOST_ID, TRIP_ID, SOS_ID).catch((e: unknown) => e);
+
+			expect(error).toBeInstanceOf(ConflictException);
+			expect((error as ConflictException).getResponse()).toMatchObject({
+				error: SosErrorCode.SOS_ALREADY_ACKNOWLEDGED,
+			});
+		});
+
+		it("throws ConflictException if SOS alert is already CLOSED", async () => {
+			const existing = buildSosAlert({ status: SosStatus.CLOSED });
+			sosRepository.findForUpdate.mockResolvedValue(existing);
+
+			const error = await service.acknowledge(HOST_ID, TRIP_ID, SOS_ID).catch((e: unknown) => e);
+
+			expect(error).toBeInstanceOf(ConflictException);
+			expect((error as ConflictException).getResponse()).toMatchObject({
+				error: SosErrorCode.SOS_ALREADY_CLOSED,
+			});
+		});
+
+		it("does not emit real-time event if transaction fails", async () => {
+			const existing = buildSosAlert({ status: SosStatus.ACTIVE });
+			sosRepository.findForUpdate.mockResolvedValue(existing);
+			alertRepositoryMock.save.mockRejectedValue(new Error("Database failure"));
+
+			await expect(service.acknowledge(HOST_ID, TRIP_ID, SOS_ID)).rejects.toThrow(
+				"Database failure"
+			);
+
+			expect(eventsGateway.emitSosStateChanged).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("close (CTMS-080, BR-261)", () => {
+		const closeDto: CloseSosDto = {
+			resolutionNote: "Camper recovered safely by medical team, minor bruises treated.",
+		};
+
+		it("transitions SOS from ACKNOWLEDGED to CLOSED, records closed_by, closed_at, resolution_note, audits, and emits event", async () => {
+			const existing = buildSosAlert({
+				status: SosStatus.ACKNOWLEDGED,
+				acknowledgedBy: HOST_ID,
+				acknowledgedAt: new Date("2026-10-27T03:02:00.000Z"),
+			});
+			sosRepository.findForUpdate.mockResolvedValue(existing);
+
+			const result = await service.close(HOST_ID, TRIP_ID, SOS_ID, closeDto);
+
+			expect(result.status).toBe(SosStatus.CLOSED);
+			expect(result.closedBy).toBe(HOST_ID);
+			expect(result.closedAt).toBeTruthy();
+			expect(result.resolutionNote).toBe(closeDto.resolutionNote);
+
+			// PB AC-8, BR-191: Audit log
+			expect(auditRepository.save).toHaveBeenCalledWith(
+				expect.objectContaining({
+					actorId: HOST_ID,
+					action: "SOS_CLOSED",
+					targetType: "sos_alert",
+					targetId: SOS_ID,
+					reason: closeDto.resolutionNote,
+					before: expect.objectContaining({ status: SosStatus.ACKNOWLEDGED }),
+					after: expect.objectContaining({
+						status: SosStatus.CLOSED,
+						closedBy: HOST_ID,
+						resolutionNote: closeDto.resolutionNote,
+					}),
+				})
+			);
+
+			// AC6: Realtime event after commit
+			expect(eventsGateway.emitSosStateChanged).toHaveBeenCalledWith(
+				expect.objectContaining({
+					sosId: SOS_ID,
+					tripId: TRIP_ID,
+					senderId: USER_ID,
+					status: SosStatus.CLOSED,
+					closedBy: HOST_ID,
+					resolutionNote: closeDto.resolutionNote,
+				})
+			);
+		});
+
+		it("throws NotFoundException if trip does not exist", async () => {
+			participation.findTrip.mockResolvedValue(null);
+
+			await expect(service.close(HOST_ID, TRIP_ID, SOS_ID, closeDto)).rejects.toThrow(
+				NotFoundException
+			);
+		});
+
+		it("throws ForbiddenException if caller is not the authorized Host managing the Trip (PB AC-1)", async () => {
+			await expect(service.close(OTHER_HOST_ID, TRIP_ID, SOS_ID, closeDto)).rejects.toThrow(
+				ForbiddenException
+			);
+
+			expect(auditRepository.save).not.toHaveBeenCalled();
+			expect(eventsGateway.emitSosStateChanged).not.toHaveBeenCalled();
+		});
+
+		it("throws NotFoundException if SOS does not exist or belongs to another trip", async () => {
+			sosRepository.findForUpdate.mockResolvedValue(null);
+
+			await expect(service.close(HOST_ID, TRIP_ID, SOS_ID, closeDto)).rejects.toThrow(
+				NotFoundException
+			);
+		});
+
+		it("throws ConflictException if SOS alert is in ACTIVE state (closing only allowed from acknowledged, PB AC-4)", async () => {
+			const existing = buildSosAlert({ status: SosStatus.ACTIVE });
+			sosRepository.findForUpdate.mockResolvedValue(existing);
+
+			const error = await service
+				.close(HOST_ID, TRIP_ID, SOS_ID, closeDto)
+				.catch((e: unknown) => e);
+
+			expect(error).toBeInstanceOf(ConflictException);
+			expect((error as ConflictException).getResponse()).toMatchObject({
+				error: SosErrorCode.SOS_NOT_ACKNOWLEDGED,
+			});
+		});
+
+		it("throws ConflictException if SOS alert is CANCELLED", async () => {
+			const existing = buildSosAlert({ status: SosStatus.CANCELLED });
+			sosRepository.findForUpdate.mockResolvedValue(existing);
+
+			const error = await service
+				.close(HOST_ID, TRIP_ID, SOS_ID, closeDto)
+				.catch((e: unknown) => e);
+
+			expect(error).toBeInstanceOf(ConflictException);
+			expect((error as ConflictException).getResponse()).toMatchObject({
+				error: SosErrorCode.SOS_ALREADY_CANCELLED,
+			});
+		});
+
+		it("throws ConflictException if SOS alert is already CLOSED (terminal state, PB AC-7)", async () => {
+			const existing = buildSosAlert({ status: SosStatus.CLOSED });
+			sosRepository.findForUpdate.mockResolvedValue(existing);
+
+			const error = await service
+				.close(HOST_ID, TRIP_ID, SOS_ID, closeDto)
+				.catch((e: unknown) => e);
+
+			expect(error).toBeInstanceOf(ConflictException);
+			expect((error as ConflictException).getResponse()).toMatchObject({
+				error: SosErrorCode.SOS_ALREADY_CLOSED,
+			});
+		});
+
+		it("does not emit real-time event if transaction fails", async () => {
+			const existing = buildSosAlert({ status: SosStatus.ACKNOWLEDGED });
+			sosRepository.findForUpdate.mockResolvedValue(existing);
+			alertRepositoryMock.save.mockRejectedValue(new Error("Database failure"));
+
+			await expect(service.close(HOST_ID, TRIP_ID, SOS_ID, closeDto)).rejects.toThrow(
+				"Database failure"
+			);
+
+			expect(eventsGateway.emitSosStateChanged).not.toHaveBeenCalled();
+		});
+	});
+
 	describe("listForTrip", () => {
 		it("returns SOS alerts for the trip", async () => {
 			const alert1 = buildSosAlert({ id: "alert-1" });
@@ -327,6 +573,28 @@ describe("SosService", () => {
 			participation.findPorterAssignment.mockResolvedValue(null);
 
 			await expect(service.listForTrip(OTHER_USER_ID, TRIP_ID)).rejects.toThrow(ForbiddenException);
+		});
+	});
+	describe("listForHost", () => {
+		it("delegates to repository and returns paginated response", async () => {
+			const alert = buildSosAlert();
+			sosRepository.findForHost.mockResolvedValue({
+				items: [alert],
+				total: 1,
+			});
+
+			const res = await service.listForHost(HOST_ID, { page: 1, limit: 10 });
+			expect(res.items).toHaveLength(1);
+			expect(res.total).toBe(1);
+			expect(res.page).toBe(1);
+			expect(res.limit).toBe(10);
+			expect(sosRepository.findForHost).toHaveBeenCalledWith(HOST_ID, {
+				status: undefined,
+				tripId: undefined,
+				search: undefined,
+				page: 1,
+				limit: 10,
+			});
 		});
 	});
 });

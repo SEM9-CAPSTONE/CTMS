@@ -1,6 +1,7 @@
 import type { AuthenticatedUser } from "../auth/jwt.strategy";
 import { UserRole } from "../users/entities/user.entity";
 import type { CancelSosDto } from "./dto/cancel-sos.dto";
+import type { CloseSosDto } from "./dto/close-sos.dto";
 import type { CreateSosDto } from "./dto/create-sos.dto";
 import type { SosAlertResponseDto } from "./dto/sos-alert-response.dto";
 import { SosController } from "./sos.controller";
@@ -8,6 +9,7 @@ import { EmergencyType, SosStatus } from "./sos.enums";
 import type { SosService } from "./sos.service";
 
 const USER_ID = "11111111-1111-4111-8111-111111111111";
+const HOST_ID = "33333333-3333-4333-8333-333333333333";
 const TRIP_ID = "44444444-4444-4444-8444-444444444444";
 const SOS_ID = "55555555-5555-4555-8555-555555555555";
 
@@ -16,14 +18,23 @@ describe("SosController", () => {
 	let sosService: {
 		createSos: jest.Mock;
 		cancel: jest.Mock;
+		acknowledge: jest.Mock;
+		close: jest.Mock;
 		listForTrip: jest.Mock;
 	};
 
-	const authUser: AuthenticatedUser = {
+	const camperUser: AuthenticatedUser = {
 		userId: USER_ID,
 		email: "camper@ctms.local",
 		phone: "+84901234567",
 		roles: [UserRole.CAMPER],
+	};
+
+	const hostUser: AuthenticatedUser = {
+		userId: HOST_ID,
+		email: "host@ctms.local",
+		phone: "+84909999999",
+		roles: [UserRole.HOST],
 	};
 
 	const sampleResponse: SosAlertResponseDto = {
@@ -48,10 +59,30 @@ describe("SosController", () => {
 		updatedAt: "2026-10-27T03:05:00.000Z",
 	};
 
+	const acknowledgedResponse: SosAlertResponseDto = {
+		...sampleResponse,
+		status: SosStatus.ACKNOWLEDGED,
+		cancelledBy: null,
+		cancelledAt: null,
+		cancellationReason: null,
+		acknowledgedBy: HOST_ID,
+		acknowledgedAt: "2026-10-27T03:02:00.000Z",
+	};
+
+	const closedResponse: SosAlertResponseDto = {
+		...acknowledgedResponse,
+		status: SosStatus.CLOSED,
+		closedBy: HOST_ID,
+		closedAt: "2026-10-27T04:00:00.000Z",
+		resolutionNote: "Camper recovered safely by medical team",
+	};
+
 	beforeEach(() => {
 		sosService = {
 			createSos: jest.fn().mockResolvedValue(sampleResponse),
 			cancel: jest.fn().mockResolvedValue(sampleResponse),
+			acknowledge: jest.fn().mockResolvedValue(acknowledgedResponse),
+			close: jest.fn().mockResolvedValue(closedResponse),
 			listForTrip: jest.fn().mockResolvedValue([sampleResponse]),
 		};
 
@@ -66,7 +97,7 @@ describe("SosController", () => {
 			eventTime: "2026-10-27T03:00:00.000Z",
 		};
 
-		const result = await controller.create({ user: authUser }, TRIP_ID, dto);
+		const result = await controller.create({ user: camperUser }, TRIP_ID, dto);
 
 		expect(result).toEqual(sampleResponse);
 		expect(sosService.createSos).toHaveBeenCalledWith(USER_ID, TRIP_ID, dto);
@@ -77,14 +108,32 @@ describe("SosController", () => {
 			reason: "Accidentally clicked button",
 		};
 
-		const result = await controller.cancel({ user: authUser }, TRIP_ID, SOS_ID, dto);
+		const result = await controller.cancel({ user: camperUser }, TRIP_ID, SOS_ID, dto);
 
 		expect(result).toEqual(sampleResponse);
 		expect(sosService.cancel).toHaveBeenCalledWith(USER_ID, TRIP_ID, SOS_ID, dto);
 	});
 
+	it("PATCH /trips/:tripId/sos/:sosId/acknowledge delegates to sosService.acknowledge", async () => {
+		const result = await controller.acknowledge({ user: hostUser }, TRIP_ID, SOS_ID);
+
+		expect(result).toEqual(acknowledgedResponse);
+		expect(sosService.acknowledge).toHaveBeenCalledWith(HOST_ID, TRIP_ID, SOS_ID);
+	});
+
+	it("PATCH /trips/:tripId/sos/:sosId/close delegates to sosService.close", async () => {
+		const dto: CloseSosDto = {
+			resolutionNote: "Camper recovered safely by medical team",
+		};
+
+		const result = await controller.close({ user: hostUser }, TRIP_ID, SOS_ID, dto);
+
+		expect(result).toEqual(closedResponse);
+		expect(sosService.close).toHaveBeenCalledWith(HOST_ID, TRIP_ID, SOS_ID, dto);
+	});
+
 	it("GET /trips/:tripId/sos delegates to sosService.listForTrip", async () => {
-		const result = await controller.list({ user: authUser }, TRIP_ID);
+		const result = await controller.list({ user: camperUser }, TRIP_ID);
 
 		expect(result).toEqual([sampleResponse]);
 		expect(sosService.listForTrip).toHaveBeenCalledWith(USER_ID, TRIP_ID);

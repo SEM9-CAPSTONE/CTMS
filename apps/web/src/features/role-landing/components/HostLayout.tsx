@@ -195,16 +195,14 @@ export function HostLayout({ children, activeRole, onNavigateToTrips, onLogout }
 					</button>
 					<HomeLink className="flex items-center gap-2.5">
 						<img src="/ctms_logo.png" alt="CTMS Logo" className="h-8 w-auto object-contain" />
-						<p className="font-extrabold text-[#10221b]">{config.productLabel}</p>
+						<p className="font-bold text-[#10221b]">{config.productLabel}</p>
 					</HomeLink>
 				</header>
 
 				{desktopOnlyRole && (
 					<div className="flex min-h-dvh items-center justify-center bg-[#f4f7f2] p-6 text-center lg:hidden">
 						<section className="max-w-md rounded-3xl border border-[#dfe8df] bg-white p-8 shadow-sm">
-							<h1 className="text-xl font-extrabold text-[#164027]">
-								Vui lòng mở CTMS trên máy tính
-							</h1>
+							<h1 className="text-xl font-bold text-[#164027]">Vui lòng mở CTMS trên máy tính</h1>
 							<p className="mt-2 text-sm leading-6 text-[#627769]">
 								Khu vực quản lý Host và Quản trị viên được thiết kế để sử dụng trên màn hình máy
 								tính.

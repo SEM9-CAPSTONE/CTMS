@@ -9,3 +9,4 @@ export * from "./Toast";
 export * from "./DocumentPreview";
 export * from "./FileDropzone";
 export * from "./StatusBadge";
+export * from "./Typography";

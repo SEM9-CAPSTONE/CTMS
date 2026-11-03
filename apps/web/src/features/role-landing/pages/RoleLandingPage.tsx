@@ -199,6 +199,11 @@ function DashboardMain({
 					>
 						{config.role === "host" ? (
 							<>
+								<HostDashboardOverview
+									key={user.id}
+									hostId={user.id}
+									onNavigateToTripDetail={onNavigateToTripDetail}
+								/>
 								<HostOperationalOverview
 									key={`operations-${user.id}`}
 									hostId={user.id}

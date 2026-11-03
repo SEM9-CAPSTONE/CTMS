@@ -17,8 +17,17 @@ export class SosAlertResponseDto {
 	@ApiProperty({ example: "123e4567-e89b-12d3-a456-426614174001" })
 	tripId!: string;
 
+	@ApiPropertyOptional({ example: "Trekking Sơn Trà - Bãi Bắc", nullable: true })
+	tripTitle?: string | null;
+
 	@ApiProperty({ example: "123e4567-e89b-12d3-a456-426614174002" })
 	senderId!: string;
+
+	@ApiPropertyOptional({ example: "Nguyễn Văn Camper", nullable: true })
+	senderName?: string | null;
+
+	@ApiPropertyOptional({ example: "camper@ctms.local", nullable: true })
+	senderEmail?: string | null;
 
 	@ApiProperty({ enum: EmergencyType, example: EmergencyType.MEDICAL })
 	emergencyType!: EmergencyType;
@@ -47,11 +56,17 @@ export class SosAlertResponseDto {
 	@ApiPropertyOptional({ example: null, nullable: true })
 	acknowledgedBy!: string | null;
 
+	@ApiPropertyOptional({ example: "Trần Host", nullable: true })
+	acknowledgedByName?: string | null;
+
 	@ApiPropertyOptional({ example: null, nullable: true })
 	acknowledgedAt!: string | null;
 
 	@ApiPropertyOptional({ example: null, nullable: true })
 	closedBy!: string | null;
+
+	@ApiPropertyOptional({ example: "Trần Host", nullable: true })
+	closedByName?: string | null;
 
 	@ApiPropertyOptional({ example: null, nullable: true })
 	closedAt!: string | null;
@@ -77,7 +92,10 @@ export function toSosAlertResponseDto(alert: SosAlert): SosAlertResponseDto {
 	return {
 		id: alert.id,
 		tripId: alert.tripId,
+		tripTitle: alert.trip?.title ?? null,
 		senderId: alert.senderId,
+		senderName: alert.sender?.fullName ?? alert.sender?.email ?? null,
+		senderEmail: alert.sender?.email ?? null,
 		emergencyType: alert.emergencyType,
 		location: alert.location
 			? {
@@ -92,8 +110,10 @@ export function toSosAlertResponseDto(alert: SosAlert): SosAlertResponseDto {
 		cancelledAt: alert.cancelledAt ? alert.cancelledAt.toISOString() : null,
 		cancellationReason: alert.cancellationReason ?? null,
 		acknowledgedBy: alert.acknowledgedBy ?? null,
+		acknowledgedByName: alert.acknowledger?.fullName ?? alert.acknowledger?.email ?? null,
 		acknowledgedAt: alert.acknowledgedAt ? alert.acknowledgedAt.toISOString() : null,
 		closedBy: alert.closedBy ?? null,
+		closedByName: alert.closer?.fullName ?? alert.closer?.email ?? null,
 		closedAt: alert.closedAt ? alert.closedAt.toISOString() : null,
 		resolutionNote: alert.resolutionNote ?? null,
 		receivedAt: receivedAt.toISOString(),

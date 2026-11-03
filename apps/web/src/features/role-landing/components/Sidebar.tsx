@@ -4,6 +4,7 @@ import { HomeLink } from "../../../shared/components/HomeLink";
 import { LogoutActions } from "../../auth/components/LogoutActions";
 import { BookingCancellationNotices } from "../../booking-cancellation/components/BookingCancellationNotices";
 import type { CamperProfileData } from "../../camper-profile/types";
+import { useHostSos } from "../../sos-handling/hooks/useHostSos";
 import { useMyPorterRequests } from "../../trips/hooks/usePorterRequests";
 import { roleLabels } from "../constants";
 import type { DashboardConfig, RoleKey } from "../types";
@@ -39,6 +40,16 @@ export function Sidebar({
 			porterRequestsQuery.data?.filter((request) => request.status === "pending").length ?? 0;
 	} catch {
 		pendingPorterRequestCount = 0;
+	}
+	let activeSosCount = 0;
+	try {
+		// eslint-disable-next-line react-hooks/rules-of-hooks
+		const hostSosQuery = useHostSos(
+			activeRole === "host" ? { status: "active", limit: 10 } : undefined
+		);
+		activeSosCount = hostSosQuery.data?.total ?? hostSosQuery.data?.items?.length ?? 0;
+	} catch {
+		activeSosCount = 0;
 	}
 	const navigate = (path: string) => {
 		window.history.pushState({ ...window.history.state, activeRole }, "", path);
@@ -86,7 +97,7 @@ export function Sidebar({
 					/>
 					<div className="min-w-0 flex-1">
 						<div className="flex items-center gap-1.5">
-							<span className="text-base font-extrabold tracking-tight text-[#164027]">CTMS</span>
+							<span className="text-base font-bold text-[#164027]">CTMS</span>
 							<span
 								className="rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase"
 								style={{
@@ -115,7 +126,7 @@ export function Sidebar({
 
 			{grantedRoles.length > 1 && (
 				<div className="border-b border-[#e7eee7] px-4 py-4">
-					<p className="px-2 text-[10px] font-extrabold uppercase tracking-wider text-[#8fa096]">
+					<p className="px-2 text-[10px] font-semibold uppercase tracking-wider text-[#8fa096]">
 						Vai trò hiện tại
 					</p>
 					<div className="mt-2 grid grid-cols-2 gap-1.5">
@@ -142,7 +153,7 @@ export function Sidebar({
 
 			<div className="flex-1 overflow-y-auto px-4 py-4">
 				<nav className="space-y-1" aria-label="Dashboard navigation">
-					<p className="px-3 pb-2 text-[10px] font-extrabold uppercase tracking-wider text-[#8fa096]">
+					<p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-wider text-[#8fa096]">
 						Menu chính
 					</p>
 					{config.navItems.map((item) => {
@@ -157,6 +168,9 @@ export function Sidebar({
 							window.location.pathname.startsWith("/host/equipment-catalog");
 						const isPathWallet =
 							typeof window !== "undefined" && window.location.pathname.startsWith("/host/wallet");
+						const isPathSos =
+							typeof window !== "undefined" &&
+							window.location.pathname.startsWith(RoutePath.HOST_SOS);
 						const isPathPorter =
 							typeof window !== "undefined" && window.location.pathname.startsWith("/host/porter");
 						const isPathCampers =
@@ -172,6 +186,7 @@ export function Sidebar({
 						const isActive =
 							(item.key === "explore" && isPathTrips) ||
 							(item.key === "overview" && isPathDashboard) ||
+							(item.key === "sos" && isPathSos) ||
 							(item.key === "equipment" && isPathEquipment) ||
 							(item.key === "wallet" && isPathWallet) ||
 							(item.key === "porters" && isPathPorter) ||
@@ -195,6 +210,9 @@ export function Sidebar({
 									onClick={() => {
 										if (item.key === "overview") {
 											navigate("/dashboard");
+										} else if (item.key === "sos") {
+											navigate(RoutePath.HOST_SOS);
+											onClose?.();
 										} else if (item.key === "trips") {
 											if (activeRole === "host") {
 												const element = document.getElementById("host-active-trips");
@@ -245,9 +263,16 @@ export function Sidebar({
 										/>
 										<span>{item.label}</span>
 									</div>
-									{item.key === "requests" &&
-									activeRole === "porter" &&
-									pendingPorterRequestCount > 0 ? (
+									{item.key === "sos" && activeRole === "host" && activeSosCount > 0 ? (
+										<span
+											aria-label={`${activeSosCount} yêu cầu cứu trợ khẩn cấp`}
+											className="min-w-5 rounded-full bg-red-600 px-1.5 py-0.5 text-center text-[10px] font-bold text-white animate-pulse"
+										>
+											{activeSosCount}
+										</span>
+									) : item.key === "requests" &&
+										activeRole === "porter" &&
+										pendingPorterRequestCount > 0 ? (
 										<span
 											aria-label={`${pendingPorterRequestCount} yêu cầu đang chờ`}
 											className="min-w-5 rounded-full bg-rose-600 px-1.5 py-0.5 text-center text-[10px] font-bold text-white"
@@ -303,7 +328,7 @@ export function Sidebar({
 							className="size-10 rounded-full object-cover ring-2 ring-[#164027]/20"
 						/>
 						<div className="min-w-0 flex-1">
-							<p className="truncate text-sm font-extrabold text-[#10221b]">{profile.fullName}</p>
+							<p className="truncate text-sm font-semibold text-[#10221b]">{profile.fullName}</p>
 							<p className="truncate text-[11px] font-semibold text-[#667a6d]">{profile.email}</p>
 						</div>
 					</button>

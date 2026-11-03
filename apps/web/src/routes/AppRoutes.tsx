@@ -90,6 +90,11 @@ const EquipmentCatalogPage = lazy(() =>
 		default: module.EquipmentCatalogPage,
 	}))
 );
+const HostSosPage = lazy(() =>
+	import("../features/sos-handling/pages/HostSosPage").then((module) => ({
+		default: module.HostSosPage,
+	}))
+);
 const LandingPage = lazy(() =>
 	import("../features/landing/pages/LandingPage").then((module) => ({
 		default: module.LandingPage,
@@ -881,6 +886,19 @@ function AppRouteContent() {
 				>
 					<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
 						<HostWalletPage onBackHome={() => navigateTo(RoutePath.DASHBOARD)} />
+					</HostLayout>
+				</AppRoleGuard>
+			);
+
+		case RoutePath.HOST_SOS:
+			return (
+				<AppRoleGuard
+					allowedRoles={["host"]}
+					currentRoles={currentRoles}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
+						<HostSosPage />
 					</HostLayout>
 				</AppRoleGuard>
 			);
