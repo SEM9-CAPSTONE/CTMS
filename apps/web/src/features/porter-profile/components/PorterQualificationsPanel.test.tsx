@@ -146,10 +146,7 @@ describe("PorterQualificationsPanel", () => {
 		});
 	});
 
-	it("shows verified edit warning when opening edit dialog for a verified qualification", async () => {
-		const user = userEvent.setup();
-		const onUpsert = vi.fn().mockResolvedValue(null);
-
+	it("prevents editing a verified qualification", async () => {
 		render(
 			<PorterQualificationsPanel
 				qualifications={sampleQualifications}
@@ -159,28 +156,17 @@ describe("PorterQualificationsPanel", () => {
 				successMessage={null}
 				conflictMessage={null}
 				availableRoutes={mockRoutes}
-				onUpsert={onUpsert}
+				onUpsert={vi.fn()}
 				onReload={vi.fn()}
 			/>
 		);
 
-		await user.click(screen.getByTestId("edit-qualification-qual-1"));
-
-		expect(screen.getByTestId("qualification-dialog")).toBeVisible();
-		expect(screen.getByTestId("verified-edit-warning")).toBeVisible();
-		expect(
-			screen.getByText(/Thay đổi mức độ thành thạo hoặc số lần dẫn đoàn sẽ hủy xác minh hiện tại/i)
-		).toBeVisible();
-
-		// Submit with expectedVersion
-		await user.click(screen.getByTestId("submit-qualification-button"));
-
-		await waitFor(() => {
-			expect(onUpsert).toHaveBeenCalledWith("route-1", {
-				proficiency: "proficient",
-				timesLed: 4,
-				expectedVersion: 2,
-			});
-		});
+		const editButton = screen.getByTestId("edit-qualification-qual-1");
+		expect(editButton).toBeDisabled();
+		expect(editButton).toHaveAttribute(
+			"title",
+			"Cấp đã duyệt chỉ được Admin thay đổi qua xét cấp thủ công"
+		);
+		expect(screen.queryByTestId("qualification-dialog")).not.toBeInTheDocument();
 	});
 });

@@ -107,17 +107,19 @@ export function HostLayout({ children, activeRole, onNavigateToTrips, onLogout }
 				? "lg:pl-0"
 				: "lg:pl-64"
 			: isSidebarCollapsed
-				? "lg:pl-0"
+				? "lg:pl-20"
 				: "lg:pl-72";
 
 	return (
 		<div className="min-h-screen bg-[#f4f7f2] font-sans text-[#10221b] antialiased">
 			{/* Desktop Sidebar */}
-			<div className="fixed inset-y-0 left-0 z-30 hidden lg:flex">
+			<div className="fixed inset-y-0 left-0 z-[60] hidden lg:flex">
 				<Collapse
 					isCollapsed={isSidebarCollapsed}
 					onToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
 					widthClass={sidebarWidthClass}
+					collapsedWidthClass={currentRole === "camper" ? "w-0" : "w-20"}
+					keepChildrenWhenCollapsed={currentRole !== "camper"}
 				>
 					{currentRole === "camper" ? (
 						<CamperSidebar
@@ -132,6 +134,7 @@ export function HostLayout({ children, activeRole, onNavigateToTrips, onLogout }
 							config={config}
 							grantedRoles={normalizedRoles}
 							activeRole={currentRole}
+							isCollapsed={isSidebarCollapsed}
 							onRoleChange={handleRoleChange}
 							profile={profile}
 							onNavigateToTrips={onNavigateToTrips}

@@ -9,6 +9,7 @@ import { HostDashboardHeader } from "../../host-overview/components/HostDashboar
 import { HostDashboardOverview } from "../../host-overview/components/HostDashboardOverview";
 import { CamperOperationalMap } from "../components/CamperOperationalMap";
 import { CamperTripPager } from "../components/CamperTripPager";
+import { HostOperationalOverview } from "../components/HostOperationalOverview";
 import { PorterOperationalMap } from "../components/PorterOperationalMap";
 import { useCamperTripCarousel } from "../hooks/useCamperTripCarousel";
 
@@ -96,6 +97,7 @@ function DashboardMain({
 	onOpenAdminUsers,
 	onCreateTrip,
 	onCreateTrekkingRoute,
+	isSidebarCollapsed,
 	onViewTrekkingRoutes,
 	onNavigateToTrips,
 	onNavigateToTripDetail,
@@ -107,6 +109,7 @@ function DashboardMain({
 	onOpenAdminUsers?: () => void;
 	onCreateTrip?: () => void;
 	onCreateTrekkingRoute?: () => void;
+	isSidebarCollapsed: boolean;
 	onViewTrekkingRoutes?: () => void;
 	onNavigateToTrips?: () => void;
 	onNavigateToTripDetail?: (tripId: string) => void;
@@ -154,7 +157,12 @@ function DashboardMain({
 				}
 			>
 				{config.role === "host" ? (
-					<HostDashboardHeader name={displayName} onCreateTrip={onCreateTrip} />
+					<HostDashboardHeader
+						name={displayName}
+						onCreateTrip={onCreateTrip}
+						onCreateRoute={onCreateTrekkingRoute}
+						isSidebarCollapsed={isSidebarCollapsed}
+					/>
 				) : (
 					<section className="rounded-[28px] border border-[#dfe8df] bg-white p-6 shadow-sm">
 						<div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
@@ -183,6 +191,12 @@ function DashboardMain({
 							key={user.id}
 							hostId={user.id}
 							onNavigateToTripDetail={onNavigateToTripDetail}
+						/>
+						<HostOperationalOverview
+							hostId={user.id}
+							onNavigateToTripDetail={onNavigateToTripDetail}
+							showMetrics={false}
+							showToolbar={false}
 						/>
 					</>
 				) : (
@@ -397,11 +411,13 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 
 	return (
 		<div className="min-h-screen bg-[#f4f7f2] font-sans text-[#10221b] antialiased">
-			<div className="fixed inset-y-0 left-0 z-30 hidden h-dvh lg:flex">
+			<div className="fixed inset-y-0 left-0 z-[60] hidden h-dvh lg:flex">
 				<Collapse
 					isCollapsed={isSidebarCollapsed}
 					onToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
 					widthClass={activeRole === "camper" ? "w-64" : "w-72"}
+					collapsedWidthClass={activeRole === "camper" ? "w-0" : "w-20"}
+					keepChildrenWhenCollapsed={activeRole !== "camper"}
 				>
 					{activeRole === "camper" ? (
 						<CamperSidebar
@@ -416,6 +432,7 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 							config={config}
 							grantedRoles={normalizedRoles}
 							activeRole={activeRole}
+							isCollapsed={isSidebarCollapsed}
 							onRoleChange={handleRoleChange}
 							profile={profile}
 							onOpenProfile={handleOpenProfile}
@@ -467,7 +484,13 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 
 			<div
 				className={`min-h-screen transition-all duration-300 ${
-					isSidebarCollapsed ? "lg:pl-0" : activeRole === "camper" ? "lg:pl-64" : "lg:pl-72"
+					isSidebarCollapsed
+						? activeRole === "camper"
+							? "lg:pl-0"
+							: "lg:pl-20"
+						: activeRole === "camper"
+							? "lg:pl-64"
+							: "lg:pl-72"
 				}`}
 			>
 				<header className="sticky top-0 z-20 flex items-center gap-3 border-b border-[#dfe8df] bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
@@ -498,6 +521,7 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 					onOpenAdminUsers={onOpenAdminUsers}
 					onCreateTrip={onCreateTrip}
 					onCreateTrekkingRoute={onCreateTrekkingRoute}
+					isSidebarCollapsed={isSidebarCollapsed}
 					onViewTrekkingRoutes={onViewTrekkingRoutes}
 					onNavigateToTrips={onNavigateToTrips}
 					onNavigateToTripDetail={

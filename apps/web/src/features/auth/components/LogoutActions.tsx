@@ -3,9 +3,10 @@ import { useState } from "react";
 
 interface LogoutActionsProps {
 	onLogout: (allDevices: boolean) => Promise<void>;
+	compact?: boolean;
 }
 
-export function LogoutActions({ onLogout }: LogoutActionsProps) {
+export function LogoutActions({ onLogout, compact = false }: LogoutActionsProps) {
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
@@ -28,12 +29,13 @@ export function LogoutActions({ onLogout }: LogoutActionsProps) {
 		<div className="space-y-2">
 			<button
 				type="button"
+				title={compact ? "Đăng xuất" : undefined}
 				disabled={isLoading}
 				onClick={() => void submitLogout()}
 				className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#dfe8df] bg-white py-2 text-xs font-bold text-[#4a5e51] transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-60"
 			>
 				<LogOut size={14} />
-				<span>{isLoading ? "Đang đăng xuất..." : "Đăng xuất"}</span>
+				{!compact && <span>{isLoading ? "Đang đăng xuất..." : "Đăng xuất"}</span>}
 			</button>
 
 			{error && (

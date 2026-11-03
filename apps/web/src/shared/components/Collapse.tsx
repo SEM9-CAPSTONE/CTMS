@@ -6,6 +6,8 @@ export interface CollapseProps {
 	isCollapsed: boolean;
 	onToggle: () => void;
 	widthClass?: string; // e.g. "w-72" or "w-64"
+	collapsedWidthClass?: string;
+	keepChildrenWhenCollapsed?: boolean;
 	className?: string;
 	buttonClassName?: string;
 }
@@ -15,19 +17,21 @@ export const Collapse: React.FC<CollapseProps> = ({
 	isCollapsed,
 	onToggle,
 	widthClass = "w-72",
+	collapsedWidthClass = "w-0",
+	keepChildrenWhenCollapsed = false,
 	className = "",
 	buttonClassName = "",
 }) => {
 	return (
 		<div
 			className={`relative transition-all duration-300 ease-in-out shrink-0 h-full ${
-				isCollapsed ? "w-0" : widthClass
+				isCollapsed ? collapsedWidthClass : widthClass
 			} ${className}`}
 		>
 			{/* Sidebar Content Wrapper: prevents content squishing/shrinking during transitions */}
 			<div
-				className={`h-full transition-transform duration-300 ease-in-out ${widthClass} ${
-					isCollapsed ? "-translate-x-full" : "translate-x-0"
+				className={`h-full transition-transform duration-300 ease-in-out ${isCollapsed && keepChildrenWhenCollapsed ? collapsedWidthClass : widthClass} ${
+					isCollapsed && !keepChildrenWhenCollapsed ? "-translate-x-full" : "translate-x-0"
 				}`}
 			>
 				{children}
@@ -38,7 +42,11 @@ export const Collapse: React.FC<CollapseProps> = ({
 				type="button"
 				onClick={onToggle}
 				className={`absolute top-6 z-40 hidden lg:flex size-6 items-center justify-center rounded-full border border-[#dfe8df] bg-white text-[#164027] shadow-md transition-all duration-300 hover:bg-[#f1f5f0] hover:scale-105 active:scale-95 ${
-					isCollapsed ? "left-4 rotate-180" : "left-[calc(100%-12px)]"
+					isCollapsed
+						? keepChildrenWhenCollapsed
+							? "left-[calc(100%-12px)] rotate-180"
+							: "left-4 rotate-180"
+						: "left-[calc(100%-12px)]"
 				} ${buttonClassName}`}
 				aria-label={isCollapsed ? "Mở rộng sidebar" : "Thu gọn sidebar"}
 			>

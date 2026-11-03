@@ -59,7 +59,7 @@ export function HostOperationalTripSelector({
 				})}
 			</div>
 			{filteredTrips.length ? (
-				<div className="flex max-h-60 flex-col gap-2 overflow-y-auto pr-1">
+				<div className="flex h-60 flex-col gap-2 overflow-y-auto pr-1">
 					{filteredTrips.map((trip) => (
 						<Button
 							key={trip.id}
