@@ -3,6 +3,7 @@ import { queryKeys } from "../../../core/api/queryKeys";
 import { RoutePath } from "../../../routes/routes.config";
 import { Button } from "../../../shared/components/Button";
 import { EmergencyAlertBanner } from "../../sos-handling/components/EmergencyAlertBanner";
+import { SosRealtimeStatus } from "../../sos-handling/components/SosRealtimeStatus";
 import { OVERVIEW_TEXT as text } from "../constants";
 import { useHostOverview } from "../hooks/useHostOverview";
 import { OverviewKpis } from "./OverviewKpis";
@@ -42,6 +43,9 @@ export function HostDashboardOverview({
 	const data = query.data;
 	return (
 		<div data-testid="host-dashboard-overview" className="space-y-4">
+			<div className="flex justify-end">
+				<SosRealtimeStatus />
+			</div>
 			<EmergencyAlertBanner
 				alerts={data.sos.data?.items}
 				onNavigateToSosCenter={() => {

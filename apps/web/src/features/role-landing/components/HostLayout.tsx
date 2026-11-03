@@ -8,6 +8,7 @@ import { getStoredAuthUser } from "../../auth/utils/tokenStorage";
 import { CamperSidebar } from "../../camper-profile/components/CamperSidebar";
 import { camperProfileService } from "../../camper-profile/services/camper-profile.service";
 import type { CamperProfileData } from "../../camper-profile/types";
+import { HostSosRealtimeProvider } from "../../sos-handling/components/HostSosRealtimeProvider";
 import { dashboards } from "../constants";
 import type { RoleKey } from "../types";
 import { Sidebar } from "./Sidebar";
@@ -211,7 +212,9 @@ export function HostLayout({ children, activeRole, onNavigateToTrips, onLogout }
 					</div>
 				)}
 
-				<main className={desktopOnlyRole ? "hidden lg:block" : undefined}>{children}</main>
+				<HostSosRealtimeProvider enabled={currentRole === "host"}>
+					<main className={desktopOnlyRole ? "hidden lg:block" : undefined}>{children}</main>
+				</HostSosRealtimeProvider>
 			</div>
 		</div>
 	);

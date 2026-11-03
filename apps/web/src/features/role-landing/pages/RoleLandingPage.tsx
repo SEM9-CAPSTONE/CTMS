@@ -15,6 +15,7 @@ import { useCamperTripCarousel } from "../hooks/useCamperTripCarousel";
 
 import { Collapse } from "../../../shared/components/Collapse";
 import { CamperSidebar } from "../../camper-profile/components/CamperSidebar";
+import { HostSosRealtimeProvider } from "../../sos-handling/components/HostSosRealtimeProvider";
 import { MetricCard } from "../components/MetricCard";
 import { QuickTasksPanel } from "../components/QuickTasksPanel";
 import { Sidebar } from "../components/Sidebar";
@@ -524,22 +525,24 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 					</div>
 				</header>
 
-				<DashboardMain
-					config={config}
-					user={user}
-					profile={profile}
-					onOpenProfile={handleOpenProfile}
-					onOpenAdminUsers={onOpenAdminUsers}
-					onCreateTrip={onCreateTrip}
-					onCreateTrekkingRoute={onCreateTrekkingRoute}
-					onViewTrekkingRoutes={onViewTrekkingRoutes}
-					onNavigateToTrips={onNavigateToTrips}
-					onNavigateToTripDetail={
-						config.role === "host"
-							? (onNavigateToHostTripDetail ?? onNavigateToTripDetail)
-							: onNavigateToTripDetail
-					}
-				/>
+				<HostSosRealtimeProvider enabled={activeRole === "host"}>
+					<DashboardMain
+						config={config}
+						user={user}
+						profile={profile}
+						onOpenProfile={handleOpenProfile}
+						onOpenAdminUsers={onOpenAdminUsers}
+						onCreateTrip={onCreateTrip}
+						onCreateTrekkingRoute={onCreateTrekkingRoute}
+						onViewTrekkingRoutes={onViewTrekkingRoutes}
+						onNavigateToTrips={onNavigateToTrips}
+						onNavigateToTripDetail={
+							config.role === "host"
+								? (onNavigateToHostTripDetail ?? onNavigateToTripDetail)
+								: onNavigateToTripDetail
+						}
+					/>
+				</HostSosRealtimeProvider>
 			</div>
 		</div>
 	);
