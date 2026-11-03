@@ -229,6 +229,24 @@ export function HostSosDetailModal({
 							)}
 						</>
 					)}
+					{sos.status === "closed" && (
+						<Button
+							variant="outline"
+							disabled
+							className="cursor-not-allowed opacity-60 bg-[#f4f7f2] text-[#8fa096] border-[#dfe8df]"
+						>
+							Đã đóng
+						</Button>
+					)}
+					{sos.status === "cancelled" && (
+						<Button
+							variant="outline"
+							disabled
+							className="cursor-not-allowed opacity-60 bg-[#f4f7f2] text-[#8fa096] border-[#dfe8df]"
+						>
+							Đã hủy
+						</Button>
+					)}
 				</div>
 			</div>
 		</Modal>

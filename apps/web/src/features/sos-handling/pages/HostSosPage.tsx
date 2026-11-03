@@ -82,8 +82,6 @@ export function HostSosPage() {
 				limit={10}
 				onPageChange={setPage}
 				onViewDetail={setDetailItem}
-				onAcknowledge={setResolutionItem}
-				onCloseSos={setResolutionItem}
 				isLoading={isLoading}
 			/>
 

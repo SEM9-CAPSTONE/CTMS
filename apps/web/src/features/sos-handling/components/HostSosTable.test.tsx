@@ -56,10 +56,8 @@ const mockItems: SosAlertItem[] = [
 ];
 
 describe("HostSosTable", () => {
-	it("renders table with items and handles action clicks", () => {
+	it("renders table with items and only Eye icon action to open modal", () => {
 		const onViewDetail = vi.fn();
-		const onAcknowledge = vi.fn();
-		const onCloseSos = vi.fn();
 
 		render(
 			<HostSosTable
@@ -69,8 +67,6 @@ describe("HostSosTable", () => {
 				limit={10}
 				onPageChange={vi.fn()}
 				onViewDetail={onViewDetail}
-				onAcknowledge={onAcknowledge}
-				onCloseSos={onCloseSos}
 			/>
 		);
 
@@ -79,20 +75,14 @@ describe("HostSosTable", () => {
 		expect(screen.getByText("Sự cố y tế")).toBeInTheDocument();
 		expect(screen.getByText("Chấn thương")).toBeInTheDocument();
 
-		// Check buttons
-		const ackButton = screen.getByRole("button", { name: "Tiếp nhận" });
-		fireEvent.click(ackButton);
-		expect(onAcknowledge).toHaveBeenCalledWith(mockItems[0]);
+		// Outside row actions MUST NOT have direct Acknowledge or Close buttons
+		expect(screen.queryByRole("button", { name: "Tiếp nhận" })).not.toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "Đã tiếp nhận" })).not.toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "Đóng SOS" })).not.toBeInTheDocument();
 
-		const disabledAckButton = screen.getByRole("button", { name: "Đã tiếp nhận" });
-		expect(disabledAckButton).toBeDisabled();
-
-		const closeButton = screen.getByRole("button", { name: "Đóng SOS" });
-		fireEvent.click(closeButton);
-		expect(onCloseSos).toHaveBeenCalledWith(mockItems[1]);
-
-		// View detail button
+		// Only Eye detail button is present on each row
 		const detailButtons = screen.getAllByRole("button", { name: "Xem chi tiết" });
+		expect(detailButtons).toHaveLength(2);
 		fireEvent.click(detailButtons[0]);
 		expect(onViewDetail).toHaveBeenCalledWith(mockItems[0]);
 	});
@@ -106,8 +96,6 @@ describe("HostSosTable", () => {
 				limit={10}
 				onPageChange={vi.fn()}
 				onViewDetail={vi.fn()}
-				onAcknowledge={vi.fn()}
-				onCloseSos={vi.fn()}
 			/>
 		);
 

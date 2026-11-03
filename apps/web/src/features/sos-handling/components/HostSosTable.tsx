@@ -9,8 +9,6 @@ export interface HostSosTableProps {
 	limit: number;
 	onPageChange: (newPage: number) => void;
 	onViewDetail: (item: SosAlertItem) => void;
-	onAcknowledge: (item: SosAlertItem) => void;
-	onCloseSos: (item: SosAlertItem) => void;
 	isLoading?: boolean;
 }
 
@@ -42,8 +40,6 @@ export function HostSosTable({
 	limit,
 	onPageChange,
 	onViewDetail,
-	onAcknowledge,
-	onCloseSos,
 	isLoading,
 }: HostSosTableProps) {
 	const totalPages = Math.max(1, Math.ceil(total / limit));
@@ -129,36 +125,17 @@ export function HostSosTable({
 										</span>
 									</td>
 									<td className="py-3 pr-4 pl-3 text-right whitespace-nowrap">
-										<div className="flex items-center justify-end gap-1.5">
+										<div className="flex items-center justify-end">
 											<Button
 												size="sm"
 												variant="ghost"
 												onClick={() => onViewDetail(item)}
 												aria-label="Xem chi tiết"
-												className="px-2"
+												className="px-2.5 py-1 text-[#164027] hover:bg-[#edf4ea] hover:text-[#164027]"
+												title="Xem chi tiết"
 											>
 												<Eye className="size-4" />
 											</Button>
-											{item.status === "active" && (
-												<Button size="sm" variant="primary" onClick={() => onAcknowledge(item)}>
-													Tiếp nhận
-												</Button>
-											)}
-											{item.status === "acknowledged" && (
-												<>
-													<Button
-														size="sm"
-														variant="outline"
-														disabled
-														className="cursor-not-allowed opacity-60 bg-[#f4f7f2] text-[#8fa096] border-[#dfe8df]"
-													>
-														Đã tiếp nhận
-													</Button>
-													<Button size="sm" variant="primary" onClick={() => onCloseSos(item)}>
-														Đóng SOS
-													</Button>
-												</>
-											)}
 										</div>
 									</td>
 								</tr>

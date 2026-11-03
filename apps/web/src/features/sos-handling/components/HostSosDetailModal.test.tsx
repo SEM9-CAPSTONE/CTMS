@@ -83,6 +83,21 @@ describe("HostSosDetailModal", () => {
 		expect(onClose).toHaveBeenCalled();
 	});
 
+	it("renders closed SOS with disabled Đã đóng button", () => {
+		const closedSos: SosAlertItem = {
+			...mockSos,
+			status: "closed",
+			closedBy: "host-1",
+			closedAt: "2026-10-27T03:10:00.000Z",
+			resolutionNote: "Đã an toàn",
+		};
+
+		render(<HostSosDetailModal isOpen={true} onClose={vi.fn()} sos={closedSos} />);
+
+		const disabledBtn = screen.getByRole("button", { name: "Đã đóng" });
+		expect(disabledBtn).toBeDisabled();
+	});
+
 	it("does not render when isOpen is false", () => {
 		render(<HostSosDetailModal isOpen={false} onClose={vi.fn()} sos={mockSos} />);
 
