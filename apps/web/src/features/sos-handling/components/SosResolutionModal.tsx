@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { CheckCircle2 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Button } from "../../../shared/components/Button";
 import { Modal } from "../../../shared/components/Modal";
 import { toast } from "../../../shared/components/Toast";
@@ -36,6 +37,53 @@ const statusLabels: Record<SosStatus, string> = {
 	closed: "Đã đóng (Xử lý xong)",
 };
 
+const ERROR_CODE_MESSAGES: Record<string, string> = {
+	SOS_ALREADY_ACKNOWLEDGED: "Yêu cầu cứu trợ này đã được tiếp nhận xử lý trước đó",
+	SOS_ALREADY_CLOSED: "Yêu cầu cứu trợ này đã được đóng hoàn tất",
+	SOS_ALREADY_CANCELLED: "Yêu cầu cứu trợ này đã bị người gửi hủy bỏ",
+	SOS_NOT_ACKNOWLEDGED: "Yêu cầu cứu trợ phải được tiếp nhận trước khi đóng",
+	SOS_NOT_ACTIVE: "Yêu cầu cứu trợ không ở trạng thái chờ tiếp nhận",
+	NOT_TRIP_HOST: "Chỉ chủ chuyến đi (Host) mới có quyền xử lý yêu cầu cứu trợ",
+	TRIP_NOT_FOUND: "Không tìm thấy thông tin chuyến đi",
+	SOS_NOT_FOUND: "Không tìm thấy yêu cầu cứu trợ",
+	NOT_SOS_SENDER: "Chỉ người gửi mới có quyền hủy yêu cầu cứu trợ này",
+};
+
+function parseErrorMessage(e: unknown): string {
+	if (typeof e === "object" && e !== null) {
+		const err = e as {
+			error?: string;
+			message?: string;
+			response?: { data?: { error?: string; message?: string } };
+		};
+		const code = err.response?.data?.error || err.error;
+		if (code && ERROR_CODE_MESSAGES[code]) {
+			return ERROR_CODE_MESSAGES[code];
+		}
+		const msg = err.response?.data?.message || err.message;
+		if (typeof msg === "string") {
+			const lower = msg.toLowerCase();
+			if (lower.includes("already been acknowledged") || lower.includes("already acknowledged")) {
+				return ERROR_CODE_MESSAGES.SOS_ALREADY_ACKNOWLEDGED;
+			}
+			if (lower.includes("already closed")) {
+				return ERROR_CODE_MESSAGES.SOS_ALREADY_CLOSED;
+			}
+			if (lower.includes("already cancelled") || lower.includes("cancelled by sender")) {
+				return ERROR_CODE_MESSAGES.SOS_ALREADY_CANCELLED;
+			}
+			if (lower.includes("not acknowledged") || lower.includes("must be in acknowledged")) {
+				return ERROR_CODE_MESSAGES.SOS_NOT_ACKNOWLEDGED;
+			}
+			if (lower.includes("not authorized") || lower.includes("only the authorized host")) {
+				return ERROR_CODE_MESSAGES.NOT_TRIP_HOST;
+			}
+			return msg;
+		}
+	}
+	return "Không thể thực hiện thao tác";
+}
+
 export function SosResolutionModal({
 	isOpen,
 	onClose,
@@ -48,6 +96,15 @@ export function SosResolutionModal({
 	const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 	const [error, setError] = useState<string | null>(null);
 
+	// Synchronize status whenever target SOS changes
+	useEffect(() => {
+		if (sos) {
+			setStatus(sos.status);
+			setResolutionNote("");
+			setError(null);
+		}
+	}, [sos]);
+
 	if (!isOpen || !sos) return null;
 
 	const handleAcknowledge = async () => {
@@ -59,9 +116,20 @@ export function SosResolutionModal({
 			toast.success("Đã tiếp nhận xử lý yêu cầu SOS");
 			onUpdated?.();
 		} catch (e) {
-			const msg = e instanceof Error ? e.message : "Không thể tiếp nhận SOS";
+			const msg = parseErrorMessage(e);
 			setError(msg);
 			toast.error(msg);
+			// If already acknowledged on server, sync UI status immediately
+			if (
+				typeof e === "object" &&
+				e !== null &&
+				((e as { error?: string }).error === "SOS_ALREADY_ACKNOWLEDGED" ||
+					(e as { response?: { data?: { error?: string } } }).response?.data?.error ===
+						"SOS_ALREADY_ACKNOWLEDGED")
+			) {
+				setStatus("acknowledged");
+				onUpdated?.();
+			}
 		} finally {
 			setIsSubmitting(false);
 		}
@@ -87,7 +155,7 @@ export function SosResolutionModal({
 			onUpdated?.();
 			onClose();
 		} catch (e) {
-			const msg = e instanceof Error ? e.message : "Không thể đóng SOS";
+			const msg = parseErrorMessage(e);
 			setError(msg);
 			toast.error(msg);
 		} finally {
@@ -138,6 +206,10 @@ export function SosResolutionModal({
 
 				{currentStatus === "acknowledged" && (
 					<div className="space-y-3">
+						<div className="flex items-center gap-2 rounded-xl bg-amber-50 p-2.5 text-xs text-amber-900 border border-amber-200">
+							<CheckCircle2 className="size-4 text-amber-700 shrink-0" />
+							<span>Yêu cầu cứu trợ này đã được tiếp nhận. Nút tiếp nhận đã được vô hiệu hóa.</span>
+						</div>
 						<div>
 							<label htmlFor="sos-resolution-note" className="block text-sm font-medium mb-1">
 								Ghi chú kết quả xử lý
@@ -160,8 +232,12 @@ export function SosResolutionModal({
 							</div>
 						</div>
 						<div className="flex justify-end gap-2 pt-2">
-							<Button variant="ghost" onClick={onClose} disabled={isSubmitting}>
-								Hủy
+							<Button
+								variant="outline"
+								disabled
+								className="cursor-not-allowed opacity-60 bg-[#f4f7f2] text-[#8fa096] border-[#dfe8df]"
+							>
+								Đã tiếp nhận
 							</Button>
 							<Button onClick={handleClose} disabled={isSubmitting || !resolutionNote.trim()}>
 								{isSubmitting ? "Đang xử lý..." : "Đóng SOS"}

@@ -207,16 +207,27 @@ export function HostSosDetailModal({
 							Tiếp nhận cứu trợ
 						</Button>
 					)}
-					{sos.status === "acknowledged" && onCloseSos && (
-						<Button
-							variant="outline"
-							onClick={() => {
-								onClose();
-								onCloseSos(sos);
-							}}
-						>
-							Đóng SOS
-						</Button>
+					{sos.status === "acknowledged" && (
+						<>
+							<Button
+								variant="outline"
+								disabled
+								className="cursor-not-allowed opacity-60 bg-[#f4f7f2] text-[#8fa096] border-[#dfe8df]"
+							>
+								Đã tiếp nhận
+							</Button>
+							{onCloseSos && (
+								<Button
+									variant="primary"
+									onClick={() => {
+										onClose();
+										onCloseSos(sos);
+									}}
+								>
+									Đóng SOS
+								</Button>
+							)}
+						</>
 					)}
 				</div>
 			</div>

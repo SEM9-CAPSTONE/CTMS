@@ -108,7 +108,7 @@ export class SosService {
 				throw new NotFoundException({
 					statusCode: HttpStatus.NOT_FOUND,
 					error: SosErrorCode.SOS_NOT_FOUND,
-					message: "SOS alert not found for this trip",
+					message: "Không tìm thấy yêu cầu cứu trợ cho chuyến đi này",
 				});
 			}
 
@@ -117,7 +117,7 @@ export class SosService {
 				throw new ForbiddenException({
 					statusCode: HttpStatus.FORBIDDEN,
 					error: SosErrorCode.NOT_SOS_SENDER,
-					message: "Only the sender can cancel this accidental SOS alert",
+					message: "Chỉ người gửi mới có quyền hủy yêu cầu cứu trợ này",
 				});
 			}
 
@@ -127,27 +127,27 @@ export class SosService {
 					throw new ConflictException({
 						statusCode: HttpStatus.CONFLICT,
 						error: SosErrorCode.SOS_ALREADY_CANCELLED,
-						message: "SOS alert is already cancelled",
+						message: "Yêu cầu cứu trợ này đã được hủy trước đó",
 					});
 				}
 				if (alert.status === SosStatus.ACKNOWLEDGED) {
 					throw new ConflictException({
 						statusCode: HttpStatus.CONFLICT,
 						error: SosErrorCode.SOS_ALREADY_ACKNOWLEDGED,
-						message: "Cannot cancel SOS: rescue handling has already been acknowledged by the Host",
+						message: "Không thể hủy: Yêu cầu cứu trợ đã được Host tiếp nhận xử lý",
 					});
 				}
 				if (alert.status === SosStatus.CLOSED) {
 					throw new ConflictException({
 						statusCode: HttpStatus.CONFLICT,
 						error: SosErrorCode.SOS_ALREADY_CLOSED,
-						message: "Cannot cancel SOS: alert has already been closed",
+						message: "Không thể hủy: Yêu cầu cứu trợ đã được đóng hoàn tất",
 					});
 				}
 				throw new ConflictException({
 					statusCode: HttpStatus.CONFLICT,
 					error: SosErrorCode.SOS_NOT_ACTIVE,
-					message: `SOS alert cannot be cancelled in state: ${alert.status}`,
+					message: `Không thể hủy yêu cầu cứu trợ ở trạng thái: ${alert.status}`,
 				});
 			}
 
@@ -218,7 +218,7 @@ export class SosService {
 				throw new NotFoundException({
 					statusCode: HttpStatus.NOT_FOUND,
 					error: SosErrorCode.SOS_NOT_FOUND,
-					message: "SOS alert not found for this trip",
+					message: "Không tìm thấy yêu cầu cứu trợ cho chuyến đi này",
 				});
 			}
 
@@ -227,27 +227,27 @@ export class SosService {
 					throw new ConflictException({
 						statusCode: HttpStatus.CONFLICT,
 						error: SosErrorCode.SOS_ALREADY_CANCELLED,
-						message: "Cannot acknowledge SOS: alert has been cancelled by sender",
+						message: "Không thể tiếp nhận: Yêu cầu cứu trợ đã bị người gửi hủy bỏ",
 					});
 				}
 				if (alert.status === SosStatus.ACKNOWLEDGED) {
 					throw new ConflictException({
 						statusCode: HttpStatus.CONFLICT,
 						error: SosErrorCode.SOS_ALREADY_ACKNOWLEDGED,
-						message: "SOS alert has already been acknowledged",
+						message: "Yêu cầu cứu trợ này đã được tiếp nhận xử lý trước đó",
 					});
 				}
 				if (alert.status === SosStatus.CLOSED) {
 					throw new ConflictException({
 						statusCode: HttpStatus.CONFLICT,
 						error: SosErrorCode.SOS_ALREADY_CLOSED,
-						message: "Cannot acknowledge SOS: alert has already been closed",
+						message: "Không thể tiếp nhận: Yêu cầu cứu trợ đã được đóng hoàn tất",
 					});
 				}
 				throw new ConflictException({
 					statusCode: HttpStatus.CONFLICT,
 					error: SosErrorCode.SOS_NOT_ACTIVE,
-					message: `SOS alert cannot be acknowledged in state: ${alert.status}`,
+					message: `Không thể tiếp nhận yêu cầu cứu trợ ở trạng thái: ${alert.status}`,
 				});
 			}
 
@@ -322,7 +322,7 @@ export class SosService {
 				throw new NotFoundException({
 					statusCode: HttpStatus.NOT_FOUND,
 					error: SosErrorCode.SOS_NOT_FOUND,
-					message: "SOS alert not found for this trip",
+					message: "Không tìm thấy yêu cầu cứu trợ cho chuyến đi này",
 				});
 			}
 
@@ -331,27 +331,27 @@ export class SosService {
 					throw new ConflictException({
 						statusCode: HttpStatus.CONFLICT,
 						error: SosErrorCode.SOS_ALREADY_CLOSED,
-						message: "SOS alert is already closed and cannot be reopened in MVP",
+						message: "Yêu cầu cứu trợ này đã được đóng hoàn tất và không thể mở lại",
 					});
 				}
 				if (alert.status === SosStatus.CANCELLED) {
 					throw new ConflictException({
 						statusCode: HttpStatus.CONFLICT,
 						error: SosErrorCode.SOS_ALREADY_CANCELLED,
-						message: "Cannot close SOS: alert has been cancelled",
+						message: "Không thể đóng: Yêu cầu cứu trợ đã bị người gửi hủy bỏ",
 					});
 				}
 				if (alert.status === SosStatus.ACTIVE) {
 					throw new ConflictException({
 						statusCode: HttpStatus.CONFLICT,
 						error: SosErrorCode.SOS_NOT_ACKNOWLEDGED,
-						message: "Cannot close SOS: alert must be in acknowledged status before closing",
+						message: "Yêu cầu cứu trợ phải được tiếp nhận trước khi đóng",
 					});
 				}
 				throw new ConflictException({
 					statusCode: HttpStatus.CONFLICT,
 					error: SosErrorCode.SOS_NOT_ACKNOWLEDGED,
-					message: `SOS alert cannot be closed in state: ${alert.status}`,
+					message: `Không thể đóng yêu cầu cứu trợ ở trạng thái: ${alert.status}`,
 				});
 			}
 
@@ -446,7 +446,7 @@ export class SosService {
 			throw new NotFoundException({
 				statusCode: HttpStatus.NOT_FOUND,
 				error: SosErrorCode.TRIP_NOT_FOUND,
-				message: "Trip not found",
+				message: "Không tìm thấy thông tin chuyến đi",
 			});
 		}
 
@@ -454,7 +454,7 @@ export class SosService {
 			throw new ForbiddenException({
 				statusCode: HttpStatus.FORBIDDEN,
 				error: SosErrorCode.NOT_TRIP_HOST,
-				message: "Only the authorized Host of this Trip can manage SOS alerts",
+				message: "Chỉ chủ chuyến đi (Host) mới có quyền xử lý yêu cầu cứu trợ",
 			});
 		}
 	}
@@ -468,7 +468,7 @@ export class SosService {
 			throw new NotFoundException({
 				statusCode: HttpStatus.NOT_FOUND,
 				error: SosErrorCode.TRIP_NOT_FOUND,
-				message: "Trip not found",
+				message: "Không tìm thấy thông tin chuyến đi",
 			});
 		}
 
@@ -482,7 +482,7 @@ export class SosService {
 			throw new ForbiddenException({
 				statusCode: HttpStatus.FORBIDDEN,
 				error: SosErrorCode.NOT_TRIP_PARTICIPANT,
-				message: "You are not a participant of this Trip",
+				message: "Bạn không phải thành viên tham gia chuyến đi này",
 			});
 		}
 	}

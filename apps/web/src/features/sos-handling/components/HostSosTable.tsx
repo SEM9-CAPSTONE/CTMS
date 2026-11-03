@@ -145,9 +145,19 @@ export function HostSosTable({
 												</Button>
 											)}
 											{item.status === "acknowledged" && (
-												<Button size="sm" variant="outline" onClick={() => onCloseSos(item)}>
-													Đóng SOS
-												</Button>
+												<>
+													<Button
+														size="sm"
+														variant="outline"
+														disabled
+														className="cursor-not-allowed opacity-60 bg-[#f4f7f2] text-[#8fa096] border-[#dfe8df]"
+													>
+														Đã tiếp nhận
+													</Button>
+													<Button size="sm" variant="primary" onClick={() => onCloseSos(item)}>
+														Đóng SOS
+													</Button>
+												</>
 											)}
 										</div>
 									</td>

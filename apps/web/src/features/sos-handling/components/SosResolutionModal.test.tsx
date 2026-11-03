@@ -97,6 +97,9 @@ describe("SosResolutionModal (CTMS-080, BR-261)", () => {
 		);
 
 		expect(screen.getByText("Đã tiếp nhận (Đang hỗ trợ)")).toBeInTheDocument();
+		const disabledAckButton = screen.getByRole("button", { name: "Đã tiếp nhận" });
+		expect(disabledAckButton).toBeDisabled();
+
 		const textarea = screen.getByLabelText("Ghi chú kết quả xử lý");
 		const closeButton = screen.getByRole("button", { name: "Đóng SOS" });
 
@@ -119,6 +122,40 @@ describe("SosResolutionModal (CTMS-080, BR-261)", () => {
 			);
 			expect(onUpdated).toHaveBeenCalled();
 			expect(onClose).toHaveBeenCalled();
+		});
+	});
+
+	it("translates error to Vietnamese and disables acknowledge button when already acknowledged", async () => {
+		const mockService: SosHandlingService = {
+			acknowledge: vi.fn().mockRejectedValue({
+				error: "SOS_ALREADY_ACKNOWLEDGED",
+				message: "SOS alert has already been acknowledged",
+			}),
+			close: vi.fn(),
+			listByTrip: vi.fn(),
+			listForHost: vi.fn(),
+		};
+		const onUpdated = vi.fn();
+
+		render(
+			<SosResolutionModal
+				isOpen={true}
+				onClose={vi.fn()}
+				sos={mockSampleSos}
+				onUpdated={onUpdated}
+				service={mockService}
+			/>
+		);
+
+		const ackButton = screen.getByRole("button", { name: "Tiếp nhận SOS" });
+		fireEvent.click(ackButton);
+
+		await waitFor(() => {
+			expect(
+				screen.getByText("Yêu cầu cứu trợ này đã được tiếp nhận xử lý trước đó")
+			).toBeInTheDocument();
+			const disabledAckButton = screen.getByRole("button", { name: "Đã tiếp nhận" });
+			expect(disabledAckButton).toBeDisabled();
 		});
 	});
 });

@@ -84,6 +84,9 @@ describe("HostSosTable", () => {
 		fireEvent.click(ackButton);
 		expect(onAcknowledge).toHaveBeenCalledWith(mockItems[0]);
 
+		const disabledAckButton = screen.getByRole("button", { name: "Đã tiếp nhận" });
+		expect(disabledAckButton).toBeDisabled();
+
 		const closeButton = screen.getByRole("button", { name: "Đóng SOS" });
 		fireEvent.click(closeButton);
 		expect(onCloseSos).toHaveBeenCalledWith(mockItems[1]);

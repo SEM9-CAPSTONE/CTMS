@@ -54,6 +54,35 @@ describe("HostSosDetailModal", () => {
 		expect(onClose).toHaveBeenCalled();
 	});
 
+	it("renders acknowledged SOS with disabled acknowledge button and active close button", () => {
+		const onClose = vi.fn();
+		const onCloseSos = vi.fn();
+		const acknowledgedSos: SosAlertItem = {
+			...mockSos,
+			status: "acknowledged",
+			acknowledgedBy: "host-1",
+			acknowledgedByName: "Host Trần",
+			acknowledgedAt: "2026-10-27T03:05:00.000Z",
+		};
+
+		render(
+			<HostSosDetailModal
+				isOpen={true}
+				onClose={onClose}
+				sos={acknowledgedSos}
+				onCloseSos={onCloseSos}
+			/>
+		);
+
+		const disabledBtn = screen.getByRole("button", { name: "Đã tiếp nhận" });
+		expect(disabledBtn).toBeDisabled();
+
+		const closeBtn = screen.getByRole("button", { name: "Đóng SOS" });
+		fireEvent.click(closeBtn);
+		expect(onCloseSos).toHaveBeenCalledWith(acknowledgedSos);
+		expect(onClose).toHaveBeenCalled();
+	});
+
 	it("does not render when isOpen is false", () => {
 		render(<HostSosDetailModal isOpen={false} onClose={vi.fn()} sos={mockSos} />);
 

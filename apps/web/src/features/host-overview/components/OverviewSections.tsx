@@ -54,14 +54,25 @@ export function OverviewSections({
 								· {overviewDate(item.eventTime, zone)}
 							</p>
 							<div className="mt-2 flex items-center gap-2">
-								{(item.status === "active" || item.status === "acknowledged") && (
-									<Button
-										size="sm"
-										variant={item.status === "active" ? "primary" : "outline"}
-										onClick={() => setSelectedSos(item)}
-									>
-										{item.status === "active" ? "Tiếp nhận" : "Đóng SOS"}
+								{item.status === "active" && (
+									<Button size="sm" variant="primary" onClick={() => setSelectedSos(item)}>
+										Tiếp nhận
 									</Button>
+								)}
+								{item.status === "acknowledged" && (
+									<>
+										<Button
+											size="sm"
+											variant="outline"
+											disabled
+											className="cursor-not-allowed opacity-60 bg-[#f4f7f2] text-[#8fa096] border-[#dfe8df]"
+										>
+											Đã tiếp nhận
+										</Button>
+										<Button size="sm" variant="primary" onClick={() => setSelectedSos(item)}>
+											Đóng SOS
+										</Button>
+									</>
 								)}
 								<Button size="sm" variant="ghost" onClick={() => onTrip(item.tripId)}>
 									{text.tripDetail}
