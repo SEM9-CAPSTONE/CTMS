@@ -1,29 +1,20 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useCallback, useState } from "react";
 import { queryKeys } from "../../../core/api/queryKeys";
-import { RoutePath } from "../../../routes/routes.config";
 import { Button } from "../../../shared/components/Button";
 import { EmergencyAlertBanner } from "../../sos-handling/components/EmergencyAlertBanner";
 import { OVERVIEW_TEXT as text } from "../constants";
 import { useHostOverview } from "../hooks/useHostOverview";
-import { openOverviewDetail } from "../utils";
 import { OverviewKpis } from "./OverviewKpis";
-import { OverviewSections } from "./OverviewSections";
-import { OverviewToolbar } from "./OverviewToolbar";
 
 export function HostDashboardOverview({
 	hostId,
-	onNavigateToTripDetail,
 }: { hostId: string; onNavigateToTripDetail?: (id: string) => void }) {
-	const [page, setPage] = useState(1);
-	const [accessDenied, setAccessDenied] = useState(false);
-	const handleRestricted = useCallback(() => setAccessDenied(true), []);
 	const client = useQueryClient();
-	const query = useHostOverview(hostId, page, !accessDenied);
+	const query = useHostOverview(hostId, 1);
 	const retry = () => {
 		void client.invalidateQueries({ queryKey: queryKeys.hostOverview.forHost(hostId) });
 	};
-	if (accessDenied || query.restricted)
+	if (query.restricted)
 		return (
 			<p role="alert" className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
 				{text.restricted}
@@ -48,10 +39,6 @@ export function HostDashboardOverview({
 			</div>
 		);
 	const data = query.data;
-	const totals = [data.sos].map((section) => section.data?.total ?? 0);
-	const pages = Math.max(1, ...totals.map((total) => Math.ceil(total / data.limit)));
-	const openTrip =
-		onNavigateToTripDetail ?? ((id: string) => openOverviewDetail(RoutePath.TRIP_DETAIL, id));
 	return (
 		<div data-testid="host-dashboard-overview" className="space-y-4">
 			<EmergencyAlertBanner
@@ -63,21 +50,7 @@ export function HostDashboardOverview({
 				onUpdated={retry}
 			/>
 			<OverviewKpis overview={data} />
-			<OverviewToolbar
-				data={data}
-				pages={pages}
-				busy={query.isFetching}
-				stale={query.stale}
-				onPrevious={() => setPage((value) => value - 1)}
-				onNext={() => setPage((value) => value + 1)}
-				onRefresh={retry}
-			/>
-			<OverviewSections
-				hostId={hostId}
-				data={data}
-				onTrip={openTrip}
-				onRestricted={handleRestricted}
-			/>
+			{query.stale && <p className="text-right text-xs text-amber-800">Chưa cập nhật</p>}
 		</div>
 	);
 }
