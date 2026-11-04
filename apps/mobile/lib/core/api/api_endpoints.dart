@@ -36,6 +36,9 @@ class BookingEndpoints {
   String cancel(String id) => '/bookings/$id/cancel';
   String payments(String id) => '/bookings/$id/payments';
   String complete(String id) => '/bookings/$id/complete';
+  String reviewContext(String id) => '/bookings/$id/reviews/context';
+  String reviews(String id) => '/bookings/$id/reviews';
+  String review(String id) => '/trip-reviews/$id';
   String completeTripBookings(String tripId) =>
       '/bookings/trip/$tripId/complete-all';
 }
@@ -62,11 +65,12 @@ class TripEndpoints {
   String getById(String id) => '/trips/$id';
   String members(String tripId) => '/trips/$tripId/members';
   String gpsLogs(String tripId) => '/trips/$tripId/gps-logs';
-  String gpsTrackingContext(String tripId) => '/trips/$tripId/gps-tracking/context';
-  String routeDeviationContext(String tripId) => '/trips/$tripId/route-deviation/context';
+  String gpsTrackingContext(String tripId) =>
+      '/trips/$tripId/gps-tracking/context';
+  String routeDeviationContext(String tripId) =>
+      '/trips/$tripId/route-deviation/context';
   String safetyEvents(String tripId) => '/trips/$tripId/safety-events';
-  String deviceSyncStatus(String tripId) =>
-      '/trips/$tripId/device-sync/status';
+  String deviceSyncStatus(String tripId) => '/trips/$tripId/device-sync/status';
 }
 
 class WeatherEndpoints {
@@ -91,7 +95,10 @@ class SosEndpoints {
   String get alerts => '/sos-alerts';
   String alertById(String id) => '/sos-alerts/$id';
   String tripSos(String tripId) => '/trips/$tripId/sos';
-  String cancel(String tripId, String sosId) => '/trips/$tripId/sos/$sosId/cancel';
-  String acknowledge(String tripId, String sosId) => '/trips/$tripId/sos/$sosId/acknowledge';
-  String close(String tripId, String sosId) => '/trips/$tripId/sos/$sosId/close';
+  String cancel(String tripId, String sosId) =>
+      '/trips/$tripId/sos/$sosId/cancel';
+  String acknowledge(String tripId, String sosId) =>
+      '/trips/$tripId/sos/$sosId/acknowledge';
+  String close(String tripId, String sosId) =>
+      '/trips/$tripId/sos/$sosId/close';
 }

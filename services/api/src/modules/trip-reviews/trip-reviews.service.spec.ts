@@ -34,6 +34,7 @@ const review: TripReviewRecord = {
 	targetId: "trip",
 	rating: 2,
 	comment: "Original",
+	images: [],
 	revision: 1,
 	createdAt: now,
 	updatedAt: now,
@@ -69,7 +70,7 @@ describe("TripReviewsService", () => {
 	});
 	describe("context", () => {
 		it("reports current eligibility and keeps existing own reviews after expiry", async () => {
-			repository.now.mockResolvedValue(new Date("2026-11-05T00:00:00Z"));
+			repository.now.mockResolvedValue(new Date("2026-11-07T00:00:00Z"));
 			repository.listOwn.mockResolvedValue([review]);
 			expect(await service.context("camper", "booking")).toMatchObject({
 				eligible: false,
@@ -113,7 +114,7 @@ describe("TripReviewsService", () => {
 			expect(saveAudit).not.toHaveBeenCalled();
 		});
 		it("uses time read after locking, and rejects a request that waited past expiry", async () => {
-			repository.now.mockResolvedValue(new Date("2026-11-05T00:00:00Z"));
+			repository.now.mockResolvedValue(new Date("2026-11-07T00:00:00Z"));
 			await expect(
 				service.create("camper", "booking", { target: ReviewTarget.HOST, rating: 4 })
 			).rejects.toThrow("WINDOW_EXPIRED");
@@ -124,6 +125,35 @@ describe("TripReviewsService", () => {
 		});
 	});
 	describe("update", () => {
+		it.each([23, 24, 25])(
+			"checks the edit deadline at %sh from initial submission",
+			async (hours) => {
+				repository.now.mockResolvedValue(new Date(now.getTime() + hours * 3600000));
+				const result = service.update("camper", "review", { expectedRevision: 1, rating: 4 });
+				if (hours < 24) await expect(result).resolves.toMatchObject({ rating: 4 });
+				else await expect(result).rejects.toBeInstanceOf(ConflictException);
+			}
+		);
+		it("allows editing a late submission after the creation window", async () => {
+			const createdAt = new Date(new Date("2026-11-04T00:00:00Z").getTime() + 71 * 3600000);
+			repository.find.mockResolvedValue({ ...review, createdAt });
+			repository.now.mockResolvedValue(new Date(createdAt.getTime() + 2 * 3600000));
+			await expect(
+				service.update("camper", "review", { expectedRevision: 1, rating: 4 })
+			).resolves.toMatchObject({ rating: 4 });
+		});
+		it("never renews the edit deadline", async () => {
+			repository.find.mockResolvedValue({
+				...review,
+				revision: 2,
+				updatedAt: new Date(now.getTime() + 23 * 3600000),
+			});
+			repository.now.mockResolvedValue(new Date(now.getTime() + 24 * 3600000));
+			await expect(
+				service.update("camper", "review", { expectedRevision: 2, rating: 4 })
+			).rejects.toBeInstanceOf(ConflictException);
+		});
+
 		it("retains identity and increments revision without mutating the old source", async () => {
 			const updated = await service.update("camper", "review", { expectedRevision: 1, rating: 5 });
 			expect(updated).toEqual({ ...review, revision: 2, rating: 5, comment: null });

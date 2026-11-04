@@ -22,11 +22,14 @@ const participation: ReviewParticipation = {
 };
 
 describe("reviewEligibility (BR-297/300)", () => {
-	it.each([0, REVIEW_WINDOW_MS - 1])("allows completed participation at +%d ms", (elapsed) => {
-		expect(
-			reviewEligibility(participation, new Date(completedAt.getTime() + elapsed))
-		).toMatchObject({ eligible: true, reason: null });
-	});
+	it.each([0, 24 * 60 * 60 * 1000, 48 * 60 * 60 * 1000, REVIEW_WINDOW_MS - 1])(
+		"allows completed participation at +%d ms",
+		(elapsed) => {
+			expect(
+				reviewEligibility(participation, new Date(completedAt.getTime() + elapsed))
+			).toMatchObject({ eligible: true, reason: null });
+		}
+	);
 	it.each([REVIEW_WINDOW_MS, REVIEW_WINDOW_MS + 1])("expires at +%d ms", (elapsed) => {
 		expect(
 			reviewEligibility(participation, new Date(completedAt.getTime() + elapsed))

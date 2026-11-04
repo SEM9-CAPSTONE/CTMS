@@ -1,9 +1,29 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { Transform } from "class-transformer";
-import { IsEnum, IsInt, IsOptional, IsString, Max, MaxLength, Min } from "class-validator";
+import {
+	ArrayMaxSize,
+	ArrayUnique,
+	IsArray,
+	IsEnum,
+	IsInt,
+	IsOptional,
+	IsString,
+	IsUrl,
+	Max,
+	MaxLength,
+	Min,
+} from "class-validator";
 import { REVIEW_COMMENT_MAX_LENGTH, ReviewTarget } from "../trip-reviews.types";
 
 export class ReviewContentDto {
+	@ApiPropertyOptional({ type: [String], maxItems: 5 })
+	@IsOptional()
+	@IsArray()
+	@ArrayMaxSize(5)
+	@ArrayUnique()
+	@IsUrl({ require_tld: false }, { each: true })
+	images?: string[];
+
 	@ApiProperty({ minimum: 1, maximum: 5 })
 	@IsInt()
 	@Min(1)

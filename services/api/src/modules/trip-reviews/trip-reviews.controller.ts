@@ -42,6 +42,12 @@ const ID_PIPE = new ParseUUIDPipe({ errorHttpStatusCode: HttpStatus.UNPROCESSABL
 export class TripReviewsController {
 	constructor(private readonly reviews: TripReviewsService) {}
 
+	@Get("trip-reviews/summary")
+	@ApiOperation({ summary: "Read own completed participation review counts" })
+	summary(@Req() request: AuthenticatedRequest) {
+		return this.reviews.summary(request.user.userId);
+	}
+
 	@Get("bookings/:bookingId/reviews/context")
 	@ApiResponse({ status: 200, type: TripReviewContextResponseDto })
 	@ApiOperation({ summary: "Read own review eligibility, deadline and current Trip/Host reviews" })

@@ -4639,7 +4639,115 @@ export async function seedManageTripIncidents(
 // MASTER RUNNER & SUMMARY
 // ==========================================================================
 
+/** CTMS-388: additive review scenarios; never resets unrelated development data. */
+export async function seedTripReviewScenarios(ds = dataSource, titlesOnly = false): Promise<void> {
+	if (process.env.NODE_ENV === "production") throw new Error("Review seed is development-only");
+	if (!ds.isInitialized) await ds.initialize();
+	await ds.transaction(async (manager) => {
+		const accounts: Array<{ id: string; role: string }> = await manager.query(
+			"SELECT id, role FROM users WHERE email IN ('host@ctms.local','camper@ctms.local') AND status='active'"
+		);
+		const host = accounts.find((item) => item.role === "host");
+		const camper = accounts.find((item) => item.role === "camper");
+		if (!host || !camper)
+			throw new Error("Existing active demo Host and Camper accounts are required");
+		const routes: Array<{ id: string }> = await manager.query(
+			"SELECT id FROM trekking_routes WHERE host_id=$1 ORDER BY created_at LIMIT 1",
+			[host.id]
+		);
+		if (!routes[0]) throw new Error("Existing demo Host Route is required");
+		const scenarios = [
+			{
+				key: "1",
+				title: "Sơn Trà",
+				hours: 1,
+				noShow: false,
+				saved: false,
+			},
+			{ key: "2", title: "Hải Vân", hours: 2, noShow: false, saved: true },
+			{ key: "6", title: "Ngũ Hành Sơn", hours: 1, noShow: false, saved: false },
+			{
+				key: "5",
+				title: "Bạch Mã — Hết hạn chỉnh sửa",
+				hours: 48,
+				noShow: false,
+				saved: true,
+			},
+			{
+				key: "3",
+				title: "Bà Nà — Hết hạn đánh giá",
+				hours: 80,
+				noShow: false,
+				saved: true,
+			},
+			{
+				key: "4",
+				title: "Hòa Bắc — Không tham gia",
+				hours: 1,
+				noShow: true,
+				saved: false,
+			},
+		];
+		for (const scenario of scenarios) {
+			const tripId = `d3880000-0000-4000-8000-00000000000${scenario.key}`;
+			const bookingId = `d3880000-0000-4000-8001-00000000000${scenario.key}`;
+			const memberId = `d3880000-0000-4000-8002-00000000000${scenario.key}`;
+			await manager.query(
+				`INSERT INTO trips (id,host_id,route_id,title,trip_type,duration_nights,starts_at,ends_at,meeting_point,booking_deadline,capacity_min,capacity_max,seats_taken,price_per_person,status)
+				VALUES ($1,$2,$3,$4,'day_trip',0,now()-interval '4 days',now()-interval '3 days',ST_GeogFromText('POINT(108.22 16.04)'),now()-interval '5 days',1,10,1,0,'completed') ON CONFLICT (id) DO UPDATE SET title=EXCLUDED.title`,
+				[tripId, host.id, routes[0].id, scenario.title]
+			);
+			if (titlesOnly) continue;
+			await manager.query(
+				`INSERT INTO bookings (id,trip_id,user_id,num_people,status,payment_status,completed_at) VALUES ($1,$2,$3,1,'completed','not_required',now()-make_interval(hours=>$4)) ON CONFLICT (id) DO UPDATE SET completed_at=EXCLUDED.completed_at`,
+				[bookingId, tripId, camper.id, scenario.hours]
+			);
+			await manager.query(
+				`INSERT INTO booking_members (id,booking_id,user_id,is_primary,member_status,checked_in_at,no_show_at)
+				VALUES ($1,$2,$3,true,$4::booking_member_status,CASE WHEN $4::booking_member_status='joined' THEN now()-interval '4 days' ELSE NULL END,CASE WHEN $4::booking_member_status='no_show' THEN now()-interval '4 days' ELSE NULL END) ON CONFLICT (id) DO NOTHING`,
+				[memberId, bookingId, camper.id, scenario.noShow ? "no_show" : "joined"]
+			);
+			await manager.query(
+				"UPDATE bookings b SET trip_starts_at_snapshot=t.starts_at, trip_ends_at_snapshot=t.ends_at FROM trips t WHERE b.id=$1 AND t.id=b.trip_id",
+				[bookingId]
+			);
+			if (scenario.saved) {
+				// Existing review content is retained when refreshing these demo scenarios.
+				for (const target of ["trip", "host"]) {
+					await manager.query(
+						`WITH inserted AS (
+						INSERT INTO trip_reviews (booking_id,member_id,reviewer_id,trip_id,host_id,target,target_id,rating,comment,created_at,updated_at)
+						VALUES ($1,$2,$3,$4,$5,$6,$7,4,'Dữ liệu seed: chuyến đi được tổ chức tốt.',now()-($8::double precision * interval '1 hour'),now()-($8::double precision * interval '1 hour')) ON CONFLICT DO NOTHING RETURNING *
+					) INSERT INTO trip_review_revisions (review_id,revision,rating,comment,recorded_at) SELECT id,revision,rating,comment,updated_at FROM inserted`,
+						[
+							bookingId,
+							memberId,
+							camper.id,
+							tripId,
+							host.id,
+							target,
+							target === "trip" ? tripId : host.id,
+							scenario.hours - 0.5,
+						]
+					);
+				}
+			}
+		}
+	});
+}
+
 export async function runMasterSeed(): Promise<void> {
+	if (
+		process.argv.includes("--trip-reviews-only") ||
+		process.argv.includes("--trip-review-titles-only")
+	) {
+		try {
+			await seedTripReviewScenarios(dataSource, process.argv.includes("--trip-review-titles-only"));
+		} finally {
+			if (dataSource.isInitialized) await dataSource.destroy();
+		}
+		return;
+	}
 	const startTime = Date.now();
 	const isFresh =
 		process.argv.includes("--fresh") ||
