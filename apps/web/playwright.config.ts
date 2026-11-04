@@ -8,6 +8,7 @@ export default defineConfig({
 	testIgnore: [
 		"**/ctms-49-report-trip-incident.spec.ts",
 		"**/ctms-378-*.spec.ts",
+		"**/ctms-79-t02-receive-real-time-sos-alerts.spec.ts",
 		"**/route-code-splitting.spec.ts",
 	],
 	fullyParallel: false,

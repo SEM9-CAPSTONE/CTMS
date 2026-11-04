@@ -4,7 +4,7 @@ import { RoutePath } from "../../../routes/routes.config";
 import type { OverviewSos } from "../../host-overview/types";
 import { SosResolutionModal } from "./SosResolutionModal";
 
-const EMERGENCY_LABELS: Record<string, string> = {
+export const EMERGENCY_LABELS: Record<string, string> = {
 	medical: "Sự cố y tế",
 	injury: "Chấn thương",
 	lost: "Lạc đường",
