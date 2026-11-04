@@ -9,6 +9,7 @@ export default defineConfig({
 		"**/ctms-49-report-trip-incident.spec.ts",
 		"**/ctms-378-*.spec.ts",
 		"**/ctms-79-t02-receive-real-time-sos-alerts.spec.ts",
+		"**/ctms-78-t02-authenticated-websocket.spec.ts",
 		"**/route-code-splitting.spec.ts",
 	],
 	fullyParallel: false,

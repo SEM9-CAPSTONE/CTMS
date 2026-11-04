@@ -175,7 +175,7 @@ Backend only (`services/api/src/modules/realtime`). It builds on the handshake a
 
 **Pending Decisions**
 
-- **PD-1 (client follow-up, CTMS-078-T02).** The web hooks `useAdminTripReviewNotifications` and `useHostTripReviewNotifications` (`apps/web/src/features/trips/hooks/useTripReviewNotifications.ts`) still connect without a token. After this change they no longer receive review toasts; their lists still refresh through their existing refetch. They must send `auth: { token }`, as `useHostSosRealtime` does. Clients that want incident events must call `trip.subscribe`.
+- **PD-1 (client follow-up, CTMS-078-T02) — resolved by CTMS-356 (Section 15).** The web hooks `useAdminTripReviewNotifications` and `useHostTripReviewNotifications` (`apps/web/src/features/trips/hooks/useTripReviewNotifications.ts`) still connect without a token. After this change they no longer receive review toasts; their lists still refresh through their existing refetch. They must send `auth: { token }`, as `useHostSosRealtime` does. Clients that want incident events must call `trip.subscribe`.
 - **PD-2.** Should an active Trip-room membership be revoked immediately when the Trip relationship ends, or when the account is suspended mid-connection? Today both are bounded by unsubscribe/reconnect and the token expiry. Immediate revocation needs those business flows to call the gateway.
 
 ## 14. Test Evidence
@@ -220,3 +220,109 @@ Backend only (`services/api/src/modules/realtime`). It builds on the handshake a
 - [x] Task-specific unit tests added or updated.
 - [x] Task-specific unit tests passed.
 - [x] Applicable backend or integration tests passed.
+
+## 15. Implementation Record — CTMS-078-T02 (Jira CTMS-356), web client
+
+Web client only (`apps/web`). It consumes the Section 9 contract.
+
+**Before this task on `develop`**
+
+- `useHostSosRealtime` (CTMS-079) opened its own authenticated socket per mount and reported a failed session refresh only as "disconnected".
+- The review-notification hooks connected without a token, so after CTMS-355 they no longer received events (PD-1).
+- Nothing used `trip.subscribe`, so Trip incident lists relied on manual refresh only.
+
+**Changes**
+
+- **`core/realtime/realtimeConnection.ts`: one shared authenticated socket per tab.**
+  - The socket is reference-counted: it opens on the first `acquire()` and closes, deferred so StrictMode or a remount keeps it, after the last release.
+  - The access token is re-read from storage on every (re)connect. With no session stored, no socket is opened and the state is `disconnected`, because an anonymous socket never carries protected events.
+  - States:
+    - `connecting`;
+    - `connected`: only after the server confirms `connected { authenticated: true }`. The `rooms` the server reports are kept, and `epoch` increases on every authenticated connect so features can reload missed data;
+    - `reconnecting`: socket.io is retrying;
+    - `disconnected`: retries exhausted, or the server answered with an anonymous socket;
+    - `auth_rejected`: the server sent `auth.error`.
+  - **Session recovery** is the same behaviour CTMS-04 already applies to HTTP 401: on `auth.error`, call the single-flight `refreshAccessToken()` once, then reconnect. If the refresh fails, or the refreshed token is rejected again, call `clearAuthSessionAndRedirect()` (session cleared, Login).
+  - **Trip rooms:**
+    - `subscribeTrip(tripId)` is reference-counted;
+    - a room counts as `joined` only after the server acks `ok: true`; it is `refused` on a negative ack;
+    - all rooms reset to `pending` on any disconnect and are requested again after every authenticated reconnect;
+    - a late ack from a lost connection is ignored;
+    - the last subscriber leaving sends `trip.unsubscribe`.
+  - Event handlers are registered on the connection, so they survive socket re-creation.
+- **`core/realtime/useRealtime.ts`.** `useRealtimeConnection()` (via `useSyncExternalStore`), `useRealtimeEvent()` (always calls the latest handler) and `useTripRoom()`.
+- **Migrated consumers**
+  - `useHostSosRealtime` now runs on the shared connection; its dedupe/refetch rules are unchanged. It adds the `reconnecting` and `auth_rejected` states.
+  - `useAdminTripReviewNotifications` / `useHostTripReviewNotifications` now use the authenticated connection, which **resolves PD-1**. They reload after every authenticated (re)connect and return the connection state.
+  - `useTripIncidentsRealtime` (new) is used by `TripIncidentsPanel`, on the Host Trip page and the Porter assigned-Trip page:
+    - it subscribes to the Trip room;
+    - it reloads the authoritative incident list on a `trip.incident.*` event for that Trip, and whenever the room is (re)joined;
+    - it ignores events while the room is not joined.
+  - `useTripAvailabilityRealtime` (CTMS-083) intentionally keeps its anonymous public socket.
+- **Connection state UI.**
+  - New `shared/components/RealtimeConnectionStatus`, built on the shared `StatusBadge`. States: connecting (neutral), connected (success), reconnecting / disconnected (warning), auth_rejected (danger), plus the feature states recovered (info) and unauthorized (warning, Trip room refused).
+  - `SosRealtimeStatus` is now a thin wrapper that keeps its SOS wording.
+  - New badges were approved for the Admin "Phê duyệt trip" header and the "Sự cố đã báo cáo" panel header.
+- **Real-backend E2E.** `tests/e2e/ctms-78-t02-authenticated-websocket.spec.ts` was added to `playwright.sos-realtime.config.ts` and excluded from the default config. The CTMS-079 E2E now expects the generic `data-state` values (`connected`; `reconnecting`/`disconnected` while offline).
+
+- **Test isolation in other modules' UI-mock specs.** One line per fake-token setup in 7 specs; see Section 16. This was chosen over weakening session recovery, and approved by the user.
+
+**Judgment calls** (approved with the plan):
+
+1. Session recovery reuses the approved HTTP behaviour (refresh once, otherwise Login) rather than introducing a new socket-specific flow.
+2. A refused Trip room is shown as "Không có quyền nhận cập nhật thời gian thực cho mục này", not as an error. The REST list still works.
+3. The review queue toasts are verified end to end only through the API integration test (CTMS-355) and the hook unit tests. Triggering `trip.review.requested` from the browser needs a fully valid Trip submission (waypoints, weather forecast), which is outside this harness. The Admin page's authenticated `role:admin` channel itself is verified in the browser.
+
+## 16. Test Evidence — CTMS-078-T02
+
+- **Vitest (new or updated)**
+  - `core/realtime/realtimeConnection.test.ts` (19):
+    - one shared socket and release semantics; StrictMode re-acquire;
+    - token re-read; no session → no socket;
+    - `connected` only after server auth; anonymous → `disconnected`;
+    - reconnecting / disconnected transitions; epoch;
+    - refresh then reconnect; failed refresh → session cleared; second rejection → session cleared; refresh allowed again after a success;
+    - Trip room joined / refused / waits for auth / re-requested after reconnect / shared refcount and unsubscribe / late ack ignored;
+    - event dispatch and unsubscribe.
+  - `useHostSosRealtime.test.tsx` (12), `SosRealtimeStatus.test.tsx` (7), `useTripReviewNotifications.test.ts` (8), `useTripIncidentsRealtime.test.ts` (5), `RealtimeConnectionStatus.test.tsx` (9).
+- **Task E2E (real API + Postgres + socket.io)**: `pnpm --filter @ctms/web test:e2e:sos-realtime` passed 6/6, and 12/12 with `--repeat-each=2`.
+  1. The Host Trip page joins the server-authorized Trip room ("Đang nhận cập nhật thời gian thực"), and an incident reported by the assigned Porter through the API appears in the list with no polling.
+  2. The Admin review page opens the authenticated `role:admin` channel (connected). Offline → "Mất kết nối — đang kết nối lại…" → connected again.
+  3. With an expired access token in storage, the socket is rejected, the token is refreshed, and the channel goes connected with a new token.
+  4. With an invalid access token and a revoked refresh token, the session is cleared and the user lands on Login.
+  5–6. The CTMS-079 SOS E2E still passes on the shared connection.
+
+  Mutation check: disabling the Trip-room subscription made E2E 1 fail. The code was then restored.
+
+  Screenshots (Playwright output):
+  - `host-incidents-trip-room.png`
+  - `admin-review-connected.png`
+  - `admin-review-reconnecting.png`
+  - `host-dashboard-sos-realtime.png`
+  - `host-sos-center-disconnected.png` (now "đang kết nối lại")
+  - `host-sos-center-recovered.png`
+- **Gates**
+  - `pnpm lint:all`: 0 errors. The 12 warnings are pre-existing; the 2 in `AdminTripsPage.tsx` are identical on `develop`.
+  - `pnpm build:all`: passed.
+  - `pnpm test:all`: API 1785/1785, web 1533/1533.
+  - Default Playwright regression: **No regression versus `develop`.**
+    - The first full run on this branch found 2 new failures: `mentor-ui-refinements › host bell…` and `ctms-28-trip-drafts › Reload restores…`. Cause: those UI-mock specs put a fake access token in storage and mock all HTTP, but the socket still reached the real API. The socket was rejected, the approved session recovery ran, and the test ended on Login.
+    - Fix: the 7 UI-mock specs that seed a fake token now mock the socket.io channel in their existing setup, one `page.routeWebSocket(/\/socket\.io\//, () => {})` per fake-token setup. This matches how they already mock HTTP. No feature code of those modules changed. The specs are `mentor-ui-refinements`, `ctms-28-trip-drafts`, `admin-user-accounts`, `content-reports`, `ctms-378-host-overview`, `route-safety` and `view-audit-logs`.
+    - After the fix, the 6 default-config UI-mock specs give **11 passed / 19 failed on both this branch and a fresh `develop` run, with the identical 19 failing tests**. The two that had broken pass again.
+    - `playwright.host-overview.config.ts` (CTMS-378) gives 1 passed / 5 failed on both, with identical tests.
+    - Every remaining failure is pre-existing on `develop`: seed-command failures, outdated selectors, and the dashboard layout.
+
+### UI Subtask DoD
+
+- [x] UI implementation completed.
+- [x] Applicable client-side behavior implemented.
+- [x] Task-specific unit/component tests passed.
+- [x] Backend integration completed.
+- [x] Task-specific E2E tests passed.
+- [x] All Story Acceptance Criteria verified (PB AC-1..AC-3 via the handshake and session-recovery E2E; PB AC-4/AC-5 via the Trip-room E2E and the CTMS-355 integration tests).
+- [x] Unit regression tests passed.
+- [x] E2E regression tests passed (see the regression result above).
+- [x] lint:all passed.
+- [x] build:all passed.
+- [x] test:all passed.
+- [ ] Required CI checks passed — runs on the PR.

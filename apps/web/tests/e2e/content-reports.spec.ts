@@ -32,6 +32,8 @@ async function login(request: APIRequestContext, page: Page, email: string): Pro
 	});
 	expect(response.ok()).toBeTruthy();
 	const session = (await response.json()) as Session;
+	// CTMS-078: these UI tests mock the backend, so the authenticated realtime channel is mocked too.
+	await page.routeWebSocket(/\/socket\.io\//, () => {});
 	await page.addInitScript((auth) => {
 		localStorage.setItem("accessToken", auth.accessToken);
 		localStorage.setItem("refreshToken", auth.refreshToken);

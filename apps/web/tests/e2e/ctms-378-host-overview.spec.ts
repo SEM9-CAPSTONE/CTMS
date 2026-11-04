@@ -10,6 +10,8 @@ async function setup(page: Page) {
 		email: "host378@example.test",
 		createdAt: "2026-01-01",
 	};
+	// CTMS-078: these UI tests mock the backend, so the authenticated realtime channel is mocked too.
+	await page.routeWebSocket(/\/socket\.io\//, () => {});
 	await page.addInitScript((user) => {
 		localStorage.setItem("authUser", JSON.stringify(user));
 		localStorage.setItem("accessToken", "test-token");

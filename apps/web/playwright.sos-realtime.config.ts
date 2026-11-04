@@ -2,7 +2,10 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
 	testDir: "./tests/e2e",
-	testMatch: "ctms-79-t02-receive-real-time-sos-alerts.spec.ts",
+	testMatch: [
+		"ctms-79-t02-receive-real-time-sos-alerts.spec.ts",
+		"ctms-78-t02-authenticated-websocket.spec.ts",
+	],
 	workers: 1,
 	fullyParallel: false,
 	retries: 0,

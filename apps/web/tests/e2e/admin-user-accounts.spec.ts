@@ -27,6 +27,8 @@ test.describe("Admin user accounts", () => {
 	test("searches, views, locks, and unlocks an account", async ({ page }) => {
 		let status: "active" | "suspended" = "active";
 
+		// CTMS-078: these UI tests mock the backend, so the authenticated realtime channel is mocked too.
+		await page.routeWebSocket(/\/socket\.io\//, () => {});
 		await page.addInitScript((user) => {
 			localStorage.setItem("accessToken", "admin-token");
 			localStorage.setItem("authUser", JSON.stringify(user));
@@ -168,6 +170,8 @@ test.describe("Admin user accounts", () => {
 	});
 
 	test("blocks direct navigation for a non-admin before loading admin data", async ({ page }) => {
+		// CTMS-078: these UI tests mock the backend, so the authenticated realtime channel is mocked too.
+		await page.routeWebSocket(/\/socket\.io\//, () => {});
 		await page.addInitScript((user) => {
 			localStorage.setItem("accessToken", "camper-token");
 			localStorage.setItem(
@@ -198,6 +202,8 @@ test.describe("Admin user accounts", () => {
 	});
 
 	test("shows the authorization error returned by the API", async ({ page }) => {
+		// CTMS-078: these UI tests mock the backend, so the authenticated realtime channel is mocked too.
+		await page.routeWebSocket(/\/socket\.io\//, () => {});
 		await page.addInitScript((user) => {
 			localStorage.setItem("accessToken", "admin-token");
 			localStorage.setItem("authUser", JSON.stringify(user));

@@ -52,6 +52,8 @@ test.describe("Admin view audit logs UI", () => {
 	test("navigates to audit logs workspace, applies filters, and views log details", async ({
 		page,
 	}) => {
+		// CTMS-078: these UI tests mock the backend, so the authenticated realtime channel is mocked too.
+		await page.routeWebSocket(/\/socket\.io\//, () => {});
 		await page.addInitScript((user) => {
 			localStorage.setItem("accessToken", "admin-token");
 			localStorage.setItem("authUser", JSON.stringify(user));
@@ -142,6 +144,8 @@ test.describe("Admin view audit logs UI", () => {
 	});
 
 	test("blocks direct navigation for a non-admin to audit logs", async ({ page }) => {
+		// CTMS-078: these UI tests mock the backend, so the authenticated realtime channel is mocked too.
+		await page.routeWebSocket(/\/socket\.io\//, () => {});
 		await page.addInitScript((user) => {
 			localStorage.setItem("accessToken", "camper-token");
 			localStorage.setItem("authUser", JSON.stringify({ ...user, status: "active" }));
