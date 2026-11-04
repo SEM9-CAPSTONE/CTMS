@@ -1,5 +1,6 @@
 import {
 	BadgeCheck,
+	BookOpen,
 	Compass,
 	FileClock,
 	Flag,
@@ -16,6 +17,7 @@ import { LogoutActions } from "../../auth/components/LogoutActions";
 import { BookingCancellationNotices } from "../../booking-cancellation/components/BookingCancellationNotices";
 
 export type AdminNavigationItem =
+	| "survival-documents"
 	| "dashboard"
 	| "user-accounts"
 	| "porter-verifications"
@@ -47,6 +49,7 @@ const navigationItems = [
 	{ key: "refunds", label: "Quản lý hoàn tiền", icon: ReceiptText, available: true },
 	{ key: "route-review", label: "Duyệt tuyến trekking", icon: Route, available: true },
 	{ key: "trip-review", label: "Duyệt trip", icon: Compass, available: true },
+	{ key: "survival-documents", label: "Tài liệu sinh tồn", icon: BookOpen, available: true },
 	{ key: "weather-rules", label: "Cấu hình rủi ro thời tiết", icon: ShieldAlert, available: true },
 	{ key: "audit-logs", label: "Nhật ký hệ thống", icon: FileClock, available: true },
 	{ key: "content-reports", label: "Báo cáo nội dung", icon: Flag, available: true },
@@ -102,7 +105,10 @@ export function AdminSidebar({
 							type="button"
 							disabled={!item.available}
 							onClick={() => {
-								if (item.key === "content-reports") {
+								if (item.key === "survival-documents") {
+									window.history.pushState({}, "", "/admin/survival-documents");
+									window.dispatchEvent(new PopStateEvent("popstate"));
+								} else if (item.key === "content-reports") {
 									window.history.pushState({}, "", "/admin/content-reports");
 									window.dispatchEvent(new PopStateEvent("popstate"));
 								} else if (item.key === "user-accounts") {

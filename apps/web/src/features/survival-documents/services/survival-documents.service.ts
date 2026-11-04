@@ -1,0 +1,43 @@
+import { API_ENDPOINTS } from "../../../core/api/endpoints";
+import { httpClient } from "../../../core/api/httpClient";
+import type {
+	DocumentDetail,
+	DocumentListItem,
+	SourceAction,
+	SourceDecision,
+	SourceFilters,
+	SourceMetadata,
+	SourceReference,
+} from "../types";
+const endpoints = API_ENDPOINTS.SURVIVAL_DOCUMENTS;
+export const survivalDocumentsService = {
+	list: (filters: SourceFilters) =>
+		httpClient.get<{ items: DocumentListItem[]; total: number; page: number; limit: number }>(
+			endpoints.ROOT,
+			{ ...filters, search: filters.search || undefined }
+		),
+	detail: (id: string) => httpClient.get<DocumentDetail>(endpoints.DETAIL(id)),
+	references: () =>
+		httpClient.get<{ items: SourceReference[]; maxBytes: number }>(endpoints.REFERENCES),
+	upload: (metadata: SourceMetadata, file: File, document?: DocumentDetail) => {
+		const body = new FormData();
+		body.append("file", file);
+		body.append("metadata", JSON.stringify(metadata));
+		if (document) body.append("expectedDocumentRevision", String(document.revision));
+		return httpClient.post<DocumentDetail>(
+			document ? endpoints.VERSIONS(document.id) : endpoints.ROOT,
+			body
+		);
+	},
+	edit: (id: string, versionId: string, expectedRevision: number, metadata: SourceMetadata) =>
+		httpClient.patch<DocumentDetail>(endpoints.VERSION(id, versionId, "metadata"), {
+			expectedRevision,
+			metadata,
+		}),
+	action: (id: string, versionId: string, action: SourceAction, payload: SourceDecision) =>
+		httpClient.post<DocumentDetail>(endpoints.VERSION(id, versionId, action), payload),
+	file: (id: string, versionId: string) =>
+		httpClient.get<Blob>(endpoints.VERSION(id, versionId, "file"), undefined, {
+			responseType: "blob",
+		}),
+};

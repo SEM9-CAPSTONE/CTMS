@@ -1,4 +1,12 @@
 export const API_ENDPOINTS = {
+	SURVIVAL_DOCUMENTS: {
+		ROOT: "/admin/survival-documents",
+		REFERENCES: "/admin/survival-documents/references",
+		DETAIL: (id: string) => `/admin/survival-documents/${id}`,
+		VERSIONS: (id: string) => `/admin/survival-documents/${id}/versions`,
+		VERSION: (id: string, versionId: string, suffix: string) =>
+			`/admin/survival-documents/${id}/versions/${versionId}/${suffix}`,
+	},
 	ROUTE_SAFETY: { ANALYZE: "/route-safety/analyze", TERRAIN: "/route-safety/terrain" },
 	HOST_OVERVIEW: "/host/monitoring/overview",
 	PORTER_LEVEL_REQUESTS: {

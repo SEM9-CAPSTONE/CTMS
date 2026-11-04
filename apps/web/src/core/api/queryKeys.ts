@@ -1,4 +1,10 @@
 export const queryKeys = {
+	survivalDocuments: {
+		all: ["survival-documents"] as const,
+		list: (filters: unknown) => ["survival-documents", "list", filters] as const,
+		detail: (id: string | null) => ["survival-documents", "detail", id] as const,
+		references: ["survival-documents", "references"] as const,
+	},
 	routeSafety: {
 		terrain: (hostId: string, geometry: string, version: string) =>
 			["route-terrain", version, hostId, geometry] as const,
