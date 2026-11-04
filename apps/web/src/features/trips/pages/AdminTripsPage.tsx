@@ -5,6 +5,7 @@ import {
 	type AdminReviewFilterOption,
 	AdminReviewFilters,
 } from "../../../shared/components/AdminReviewFilters";
+import { RealtimeConnectionStatus } from "../../../shared/components/RealtimeConnectionStatus";
 import { AdminLayout } from "../../admin-layout/components/AdminLayout";
 import { AdminTripReviewContent } from "../components/AdminTripReviewContent";
 import { TripReviewDecisionDialog } from "../components/TripReviewDecisionDialog";
@@ -37,7 +38,7 @@ export function AdminTripsPage({ onLogout }: AdminTripsPageProps) {
 	const refreshInBackground = useCallback(() => {
 		void list.reload(true);
 	}, [list.reload]);
-	useAdminTripReviewNotifications({ onChanged: refreshInBackground });
+	const realtimeState = useAdminTripReviewNotifications({ onChanged: refreshInBackground });
 
 	useEffect(() => {
 		setSelectedId((current) =>
@@ -91,6 +92,12 @@ export function AdminTripsPage({ onLogout }: AdminTripsPageProps) {
 					<p className="mt-1 text-sm text-[#667a6d]">
 						Kiểm tra lịch trình, sức chứa và điểm dừng trước khi công bố chuyến đi cho Camper.
 					</p>
+					<div className="mt-2">
+						<RealtimeConnectionStatus
+							state={realtimeState === "idle" ? "connecting" : realtimeState}
+							testId="trip-review-realtime-status"
+						/>
+					</div>
 					<AdminReviewFilters
 						value={reviewOutcome}
 						options={REVIEW_FILTERS}

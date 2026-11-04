@@ -89,6 +89,8 @@ async function setup(
 	page.on("console", (message) => {
 		if (message.type() === "error") console.error("BROWSER_ERROR", message.text());
 	});
+	// CTMS-078: these UI tests mock the backend, so the authenticated realtime channel is mocked too.
+	await page.routeWebSocket(/\/socket\.io\//, () => {});
 	await page.addInitScript((user) => {
 		localStorage.setItem("authUser", JSON.stringify(user));
 		localStorage.setItem("accessToken", "test");

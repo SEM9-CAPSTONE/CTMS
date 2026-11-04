@@ -136,8 +136,8 @@ test("authorized Host gets the SOS in real time with attention signal and acknow
 }, testInfo) => {
 	const host = await signInHost(browser, hostEmail);
 	const otherHost = await signInHost(browser, otherHostEmail);
-	await expect(realtimeStatus(host)).toHaveAttribute("data-state", "live");
-	await expect(realtimeStatus(otherHost)).toHaveAttribute("data-state", "live");
+	await expect(realtimeStatus(host)).toHaveAttribute("data-state", "connected");
+	await expect(realtimeStatus(otherHost)).toHaveAttribute("data-state", "connected");
 	await expect(host.getByTestId("emergency-alert-banner")).toHaveCount(0);
 
 	const sos = await raiseSos("injury");
@@ -181,7 +181,7 @@ test("SOS center shows real-time, disconnected and recovered states and reloads 
 	const host = await signInHost(browser, hostEmail);
 	await host.goto("/host/sos");
 	await expect(host.getByRole("heading", { name: "Yêu cầu cứu trợ khẩn cấp" })).toBeVisible();
-	await expect(realtimeStatus(host)).toHaveAttribute("data-state", "live");
+	await expect(realtimeStatus(host)).toHaveAttribute("data-state", "connected");
 
 	await raiseSos("medical");
 	await expect(host.getByText("Yêu cầu cứu trợ khẩn cấp", { exact: true }).last()).toBeVisible({
@@ -193,7 +193,7 @@ test("SOS center shows real-time, disconnected and recovered states and reloads 
 
 	// Connection loss: the page must stop claiming real-time delivery.
 	await host.context().setOffline(true);
-	await expect(realtimeStatus(host)).toHaveAttribute("data-state", "disconnected", {
+	await expect(realtimeStatus(host)).toHaveAttribute("data-state", /reconnecting|disconnected/, {
 		timeout: 30_000,
 	});
 	await host.screenshot({ path: testInfo.outputPath("host-sos-center-disconnected.png") });
@@ -208,7 +208,9 @@ test("SOS center shows real-time, disconnected and recovered states and reloads 
 		timeout: SOS_DELIVERY_BUDGET_MS,
 	});
 	await host.screenshot({ path: testInfo.outputPath("host-sos-center-recovered.png") });
-	await expect(realtimeStatus(host)).toHaveAttribute("data-state", "live", { timeout: 10_000 });
+	await expect(realtimeStatus(host)).toHaveAttribute("data-state", "connected", {
+		timeout: 10_000,
+	});
 
 	const result = (await db.query("SELECT count(*)::int AS n FROM sos_alerts WHERE id=$1", [
 		missed.id,

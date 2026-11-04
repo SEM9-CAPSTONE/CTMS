@@ -1,12 +1,10 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
-import { type Socket, io } from "socket.io-client";
-import { refreshAccessToken } from "../../../core/api/authRefresh";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { RealtimeConnection } from "../../../core/realtime/realtimeConnection";
+import { useRealtimeConnection, useRealtimeEvent } from "../../../core/realtime/useRealtime";
 import { toast } from "../../../shared/components/Toast";
 import { EMERGENCY_LABELS } from "../components/EmergencyAlertBanner";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api";
-const ACCESS_TOKEN_KEY = "accessToken";
 const SEEN_EVENT_LIMIT = 200;
 /** How long the "recovered" state stays visible before settling back to live. */
 export const SOS_RECOVERED_DISPLAY_MS = 5_000;
@@ -14,15 +12,17 @@ export const SOS_RECOVERED_DISPLAY_MS = 5_000;
 const HOST_SOS_LIST_KEY = ["sos", "host-list"] as const;
 const HOST_OVERVIEW_KEY = ["host-overview"] as const;
 
-function socketBaseUrl(): string {
-	return API_BASE_URL.replace(/\/api\/?$/, "");
-}
-
 /**
- * CTMS-079: `live` only once the server has authenticated the socket (BR-259); `recovered` right after
- * a reconnect, when lists have been reloaded to pick up SOS that may have been missed while offline.
+ * CTMS-079 / CTMS-078: `live` only once the server has authenticated the shared socket (BR-259);
+ * `recovered` right after a reconnect, when lists have been reloaded to pick up missed SOS.
  */
-export type SosRealtimeState = "connecting" | "live" | "disconnected" | "recovered";
+export type SosRealtimeState =
+	| "connecting"
+	| "live"
+	| "reconnecting"
+	| "disconnected"
+	| "auth_rejected"
+	| "recovered";
 
 /** `sos.created` payload from CTMS-079-T01 (spec Section 9). */
 export interface SosCreatedEvent {
@@ -62,7 +62,7 @@ export function resetSosRealtimeDedupe(): void {
 }
 
 /**
- * CTMS-079-T02 (BR-260): receive the Host's SOS events over the authenticated WebSocket.
+ * CTMS-079-T02 (BR-260): receive the Host's SOS events over the shared authenticated WebSocket.
  *
  * Events never become UI rows on their own: each one only invalidates the Host SOS queries so the
  * authoritative API is reloaded, which keeps the client from fabricating an SOS it did not get from
@@ -71,103 +71,67 @@ export function resetSosRealtimeDedupe(): void {
  */
 export function useHostSosRealtime({
 	enabled = true,
-}: { enabled?: boolean } = {}): SosRealtimeState {
+	connection,
+}: { enabled?: boolean; connection?: RealtimeConnection } = {}): SosRealtimeState {
 	const queryClient = useQueryClient();
-	const [state, setState] = useState<SosRealtimeState>("connecting");
+	const snapshot = useRealtimeConnection(enabled, connection);
+	const [recovered, setRecovered] = useState(false);
+	const firstEpochRef = useRef<number | null>(null);
 
+	const reloadAuthoritativeSos = useCallback(() => {
+		void queryClient.invalidateQueries({ queryKey: HOST_SOS_LIST_KEY });
+		void queryClient.invalidateQueries({ queryKey: HOST_OVERVIEW_KEY });
+	}, [queryClient]);
+
+	// Every authenticated (re)connect reloads the lists, picking up anything persisted meanwhile.
 	useEffect(() => {
-		if (!enabled) return;
+		if (!enabled || snapshot.state !== "connected") return;
+		reloadAuthoritativeSos();
+		if (firstEpochRef.current === null) {
+			firstEpochRef.current = snapshot.epoch;
+			return;
+		}
+		if (snapshot.epoch === firstEpochRef.current) return;
+		setRecovered(true);
+		const timer = window.setTimeout(() => setRecovered(false), SOS_RECOVERED_DISPLAY_MS);
+		return () => window.clearTimeout(timer);
+	}, [enabled, snapshot.state, snapshot.epoch, reloadAuthoritativeSos]);
 
-		let socket: Socket | undefined;
-		let disposed = false;
-		let hasBeenLive = false;
-		let refreshAttempted = false;
-		let recoveredTimer: number | undefined;
+	useRealtimeEvent<SosCreatedEvent>(
+		"sos.created",
+		(payload) => {
+			if (!payload?.sosId) return;
+			if (!markSeen(`created:${payload.eventId || payload.sosId}`)) return;
+			reloadAuthoritativeSos();
+			const label = EMERGENCY_LABELS[payload.emergencyType] || "Yêu cầu cứu trợ";
+			toast.error(
+				`${label} · Mã chuyến: ${payload.tripId.slice(0, 8)}`,
+				"Yêu cầu cứu trợ khẩn cấp"
+			);
+		},
+		enabled,
+		connection
+	);
 
-		const reloadAuthoritativeSos = () => {
-			void queryClient.invalidateQueries({ queryKey: HOST_SOS_LIST_KEY });
-			void queryClient.invalidateQueries({ queryKey: HOST_OVERVIEW_KEY });
-		};
+	useRealtimeEvent<SosStateChangedEvent>(
+		"sos.state_changed",
+		(payload) => {
+			if (!payload?.sosId) return;
+			if (!markSeen(`state:${payload.sosId}:${payload.status}`)) return;
+			reloadAuthoritativeSos();
+		},
+		enabled,
+		connection
+	);
 
-		setState("connecting");
-
-		// StrictMode's discarded mount must not open a connection that is immediately closed.
-		const timer = window.setTimeout(() => {
-			socket = io(socketBaseUrl(), {
-				transports: ["websocket"],
-				// Re-read on every (re)connect so a refreshed access token is always used.
-				auth: (cb) => cb({ token: localStorage.getItem(ACCESS_TOKEN_KEY) ?? undefined }),
-			});
-
-			socket.on("connected", (payload?: { authenticated?: boolean }) => {
-				if (!payload?.authenticated) {
-					// Anonymous sockets never receive SOS, so real-time delivery must not be claimed.
-					setState("disconnected");
-					return;
-				}
-				refreshAttempted = false;
-				// Pick up anything persisted between the last load (or disconnect) and this connection.
-				reloadAuthoritativeSos();
-				if (hasBeenLive) {
-					setState("recovered");
-					window.clearTimeout(recoveredTimer);
-					recoveredTimer = window.setTimeout(() => {
-						if (!disposed) setState("live");
-					}, SOS_RECOVERED_DISPLAY_MS);
-				} else {
-					setState("live");
-				}
-				hasBeenLive = true;
-			});
-
-			socket.on("disconnect", () => {
-				if (disposed) return;
-				window.clearTimeout(recoveredTimer);
-				setState("disconnected");
-			});
-
-			socket.on("connect_error", () => {
-				if (!disposed) setState("disconnected");
-			});
-
-			// Invalid/expired token: the server drops the socket. Refresh once, then reconnect.
-			socket.on("auth.error", () => {
-				if (disposed || refreshAttempted) return;
-				refreshAttempted = true;
-				refreshAccessToken()
-					.then(() => {
-						if (!disposed) socket?.connect();
-					})
-					.catch(() => {
-						if (!disposed) setState("disconnected");
-					});
-			});
-
-			socket.on("sos.created", (payload: SosCreatedEvent) => {
-				if (!payload?.sosId) return;
-				if (!markSeen(`created:${payload.eventId || payload.sosId}`)) return;
-				reloadAuthoritativeSos();
-				const label = EMERGENCY_LABELS[payload.emergencyType] || "Yêu cầu cứu trợ";
-				toast.error(
-					`${label} · Mã chuyến: ${payload.tripId.slice(0, 8)}`,
-					"Yêu cầu cứu trợ khẩn cấp"
-				);
-			});
-
-			socket.on("sos.state_changed", (payload: SosStateChangedEvent) => {
-				if (!payload?.sosId) return;
-				if (!markSeen(`state:${payload.sosId}:${payload.status}`)) return;
-				reloadAuthoritativeSos();
-			});
-		}, 0);
-
-		return () => {
-			disposed = true;
-			window.clearTimeout(timer);
-			window.clearTimeout(recoveredTimer);
-			socket?.disconnect();
-		};
-	}, [enabled, queryClient]);
-
-	return state;
+	switch (snapshot.state) {
+		case "connected":
+			return recovered ? "recovered" : "live";
+		case "reconnecting":
+		case "disconnected":
+		case "auth_rejected":
+			return snapshot.state;
+		default:
+			return "connecting";
+	}
 }
