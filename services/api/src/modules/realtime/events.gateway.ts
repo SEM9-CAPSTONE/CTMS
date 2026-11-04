@@ -2,21 +2,54 @@ import { Logger, type OnModuleDestroy } from "@nestjs/common";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI
 import { JwtService } from "@nestjs/jwt";
 import {
+	ConnectedSocket,
+	MessageBody,
 	type OnGatewayConnection,
 	type OnGatewayDisconnect,
+	SubscribeMessage,
 	WebSocketGateway,
 	WebSocketServer,
 } from "@nestjs/websockets";
 import type { Server, Socket } from "socket.io";
 import type { JwtPayload } from "../auth/jwt.strategy";
-import { UserStatus } from "../users/entities/user.entity";
+import { BookingMemberStatus } from "../bookings/booking-member-status.enum";
+// biome-ignore lint/style/useImportType: constructor-injected by NestJS DI
+import { GpsParticipationSource } from "../gps-tracking/gps-participation.source";
+import { UserRole, UserStatus } from "../users/entities/user.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI
 import { UsersRepository } from "../users/users.repository";
 
-/** CTMS-079, BR-259: private room an authenticated socket joins; only its own user is ever joined. */
+/** CTMS-078, BR-259: private room an authenticated socket joins; only its own user is ever joined. */
 export function userRoom(userId: string): string {
 	return `user:${userId}`;
 }
+
+/** CTMS-078: one room per role the user actually holds, resolved from the database (BR-172). */
+export function roleRoom(role: UserRole): string {
+	return `role:${role}`;
+}
+
+/** CTMS-078: joined only through an authorized `trip.subscribe`. */
+export function tripRoom(tripId: string): string {
+	return `trip:${tripId}`;
+}
+
+/** Camper member states that currently belong to the Trip team. */
+const TRIP_ROOM_MEMBER_STATUSES: ReadonlySet<BookingMemberStatus> = new Set([
+	BookingMemberStatus.REGISTERED,
+	BookingMemberStatus.JOINED,
+]);
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export enum TripRoomError {
+	NOT_AUTHENTICATED = "NOT_AUTHENTICATED",
+	INVALID_TRIP_ID = "INVALID_TRIP_ID",
+	TRIP_NOT_FOUND = "TRIP_NOT_FOUND",
+	NOT_TRIP_MEMBER = "NOT_TRIP_MEMBER",
+}
+
+export type TripRoomAck = { ok: true; room: string } | { ok: false; error: TripRoomError };
 
 /** CTMS-079: SOS event identity — `eventId` is stable per persisted SOS so clients can dedupe. */
 export interface SosCreatedPayload {
@@ -48,6 +81,7 @@ export interface SosStateChangedPayload {
 
 interface SocketSession {
 	userId: string;
+	roles: UserRole[];
 	expiryTimer?: ReturnType<typeof setTimeout>;
 }
 
@@ -67,13 +101,15 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 
 	constructor(
 		private readonly jwtService: JwtService,
-		private readonly usersRepository: UsersRepository
+		private readonly usersRepository: UsersRepository,
+		private readonly participation: GpsParticipationSource
 	) {}
 
 	/**
-	 * CTMS-079, BR-259: a socket that presents an access token is authenticated and joined only to its
-	 * own user room; an invalid/expired token or a non-active user is rejected. A socket without a token
-	 * stays anonymous (public broadcasts only, e.g. CTMS-083 availability) and never joins a private room.
+	 * CTMS-078, BR-259/BR-170/BR-171: a socket that presents an access token is authenticated against
+	 * an active account and joined to its own user room and its database-granted role rooms; an
+	 * invalid/expired token or a non-active user is rejected. A socket without a token stays anonymous
+	 * (public broadcasts only, e.g. CTMS-083 availability) and never joins a private room.
 	 */
 	async handleConnection(client: Socket) {
 		const token = extractAccessToken(client);
@@ -93,8 +129,11 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 			}
 			if (client.disconnected) return;
 
-			await client.join(userRoom(user.id));
-			const session: SocketSession = { userId: user.id };
+			// Roles come from the database, never from token claims (BR-172).
+			const roles = this.usersRepository.getGrantedRoles(user);
+			const rooms = [userRoom(user.id), ...roles.map(roleRoom)];
+			await client.join(rooms);
+			const session: SocketSession = { userId: user.id, roles };
 			if (payload.exp) {
 				// The socket must not outlive the access token; the client reconnects with a fresh one.
 				session.expiryTimer = setTimeout(
@@ -103,9 +142,11 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 				);
 			}
 			this.sessions.set(client.id, session);
+			client.data.identity = { userId: user.id, roles };
 			client.emit("connected", {
 				message: "Connected to CTMS real-time gateway",
 				authenticated: true,
+				rooms,
 			});
 		} catch {
 			this.rejectSocket(client);
@@ -125,6 +166,61 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 		this.sessions.clear();
 	}
 
+	/**
+	 * CTMS-078 PB AC-4/AC-5: join a Trip room only when the server-owned Trip relationship allows it.
+	 * Authentication alone grants nothing; the decision is re-evaluated on every subscribe, so a
+	 * reconnecting client must subscribe again.
+	 */
+	@SubscribeMessage("trip.subscribe")
+	async subscribeTrip(
+		@ConnectedSocket() client: Socket,
+		@MessageBody() body: { tripId?: unknown } | undefined
+	): Promise<TripRoomAck> {
+		const session = this.sessions.get(client.id);
+		if (!session) return { ok: false, error: TripRoomError.NOT_AUTHENTICATED };
+		const tripId = body?.tripId;
+		if (typeof tripId !== "string" || !UUID_PATTERN.test(tripId)) {
+			return { ok: false, error: TripRoomError.INVALID_TRIP_ID };
+		}
+
+		const error = await this.tripRoomRejection(session.userId, tripId);
+		if (error) return { ok: false, error };
+		if (client.disconnected) return { ok: false, error: TripRoomError.NOT_AUTHENTICATED };
+
+		const room = tripRoom(tripId);
+		await client.join(room);
+		return { ok: true, room };
+	}
+
+	@SubscribeMessage("trip.unsubscribe")
+	async unsubscribeTrip(
+		@ConnectedSocket() client: Socket,
+		@MessageBody() body: { tripId?: unknown } | undefined
+	): Promise<TripRoomAck> {
+		const tripId = body?.tripId;
+		if (typeof tripId !== "string" || !UUID_PATTERN.test(tripId)) {
+			return { ok: false, error: TripRoomError.INVALID_TRIP_ID };
+		}
+		const room = tripRoom(tripId);
+		await client.leave(room);
+		return { ok: true, room };
+	}
+
+	/** Trip team: its Host, Campers registered or joined on a participating Booking, assigned Porters. */
+	private async tripRoomRejection(userId: string, tripId: string): Promise<TripRoomError | null> {
+		const trip = await this.participation.findTrip(tripId);
+		if (!trip) return TripRoomError.TRIP_NOT_FOUND;
+		if (trip.hostId === userId) return null;
+
+		const [camper, porter] = await Promise.all([
+			this.participation.findCamperParticipation(tripId, userId),
+			this.participation.findPorterAssignment(tripId, userId),
+		]);
+		if (camper && TRIP_ROOM_MEMBER_STATUSES.has(camper.memberStatus)) return null;
+		if (porter?.assigned) return null;
+		return TripRoomError.NOT_TRIP_MEMBER;
+	}
+
 	private rejectSocket(client: Socket) {
 		client.emit("auth.error", { message: SOCKET_AUTH_FAILED_MESSAGE });
 		client.disconnect(true);
@@ -137,7 +233,7 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 		hostId: string;
 		updatedAt: string;
 	}) {
-		this.server?.emit("trip.review.updated", payload);
+		this.server?.to(roleRoom(UserRole.ADMIN)).emit("trip.review.updated", payload);
 	}
 
 	emitTripReviewRequested(payload: {
@@ -147,7 +243,7 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 		submittedAt: string;
 		deadlineAt: string;
 	}) {
-		this.server?.emit("trip.review.requested", payload);
+		this.server?.to(roleRoom(UserRole.ADMIN)).emit("trip.review.requested", payload);
 	}
 
 	emitTripReviewReminder(payload: {
@@ -157,7 +253,7 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 		submittedAt: string;
 		deadlineAt: string;
 	}) {
-		this.server?.emit("trip.review.reminder", payload);
+		this.server?.to(roleRoom(UserRole.ADMIN)).emit("trip.review.reminder", payload);
 	}
 
 	emitTripReviewAutoRejected(payload: {
@@ -167,7 +263,9 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 		rejectedAt: string;
 		reason: string;
 	}) {
-		this.server?.emit("trip.review.auto_rejected", payload);
+		this.server
+			?.to([userRoom(payload.hostId), roleRoom(UserRole.ADMIN)])
+			.emit("trip.review.auto_rejected", payload);
 	}
 
 	emitPorterRequestCreated(payload: {
@@ -178,7 +276,9 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 		requestedRole: string;
 		expiresAt: string;
 	}) {
-		this.server?.emit("porter.request.created", payload);
+		this.server
+			?.to([userRoom(payload.porterId), userRoom(payload.requestedBy)])
+			.emit("porter.request.created", payload);
 	}
 
 	emitPorterRequestStateChanged(payload: {
@@ -189,7 +289,9 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 		status: string;
 		respondedAt: string | null;
 	}) {
-		this.server?.emit("porter.request.state_changed", payload);
+		this.server
+			?.to([userRoom(payload.porterId), userRoom(payload.requestedBy)])
+			.emit("porter.request.state_changed", payload);
 	}
 
 	/** CTMS-049: classification only; description and coordinates stay behind the authorized API. */
@@ -202,7 +304,9 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 		severity: string;
 		occurredAt: string;
 	}) {
-		this.server?.emit("trip.incident.reported", payload);
+		this.server
+			?.to([tripRoom(payload.tripId), userRoom(payload.hostId)])
+			.emit("trip.incident.reported", payload);
 	}
 
 	/** CTMS-086: Broadcast incident handling state changes and assignments to the Host and team. */
@@ -214,7 +318,9 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 		assignedTo: string | null;
 		updatedAt: string;
 	}) {
-		this.server?.emit("trip.incident.updated", payload);
+		const rooms = [tripRoom(payload.tripId), userRoom(payload.hostId)];
+		if (payload.assignedTo) rooms.push(userRoom(payload.assignedTo));
+		this.server?.to(rooms).emit("trip.incident.updated", payload);
 	}
 
 	/**
@@ -232,7 +338,10 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 			.emit("sos.state_changed", payload);
 	}
 
-	/** CTMS-083: Broadcast trip capacity and availability changes to connected clients in real time. */
+	/**
+	 * CTMS-083: public seat counts, intentionally the only broadcast anonymous sockets receive
+	 * (CTMS-078 decision recorded in the spec).
+	 */
 	emitTripAvailabilityUpdated(payload: {
 		eventId: string;
 		tripId: string;
