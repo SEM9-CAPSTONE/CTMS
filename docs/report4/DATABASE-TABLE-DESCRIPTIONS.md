@@ -59,3 +59,14 @@ Migration `1793270000000-CreateExternalSafetyFeatures` adds the following indepe
 | `safety_import_rejections` | UUID id; source and permission reference; input record index; sanitized reason; raw JSON; rejection timestamptz. Quarantines invalid records without aborting valid siblings. Access remains server-side/Admin. |
 
 Freshness is calculated on read using the provider validity or configured age from observation/issue time. `fetched_at` cannot renew a historical/current event. The canonical analysis view merges these rows with `route_danger_zones` and authorized `trip_incidents` without creating copies. See `docs/business-rules/route-safety-v2.md` BR-472 through BR-481.
+
+## Trip and Host reviews — CTMS-387
+
+Migration `1793490000000-CreateTripReviews` adds two feature-owned tables:
+
+| Table | Data and constraints |
+| --- | --- |
+| `trip_reviews` | UUID id; Booking, Booking Member, reviewer, Trip and actual Host UUID references with ON DELETE RESTRICT; target `trip` or `host` and matching target ID; integer rating 1–5; nullable comment up to 2,000 characters; positive current revision; created/updated timestamptz. Unique `(reviewer_id, member_id, target)` prevents duplicate ratings for one participation/target. Booking/reviewer index supports own review context. |
+| `trip_review_revisions` | Composite PK `(review_id, revision)`; RESTRICT reference to current review; rating/comment snapshot for every revision starting at 1; recorded timestamptz. Preserves original and edited review evidence for later moderation/AI traceability. |
+
+Owner writes are limited to the original 24-hour window after `bookings.completed_at`, with verified completed participation. Current content, revision and minimal audit are transactional. These tables do not replace numeric reputation with AI output and do not implement content-report target actions. See `docs/features/ctms-387-trip-host-reviews.md`.

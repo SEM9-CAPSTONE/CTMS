@@ -20,6 +20,7 @@ import { SafetyEventsModule } from "./safety-events/safety-events.module";
 import { SosModule } from "./sos/sos.module";
 import { SyncEvaluationModule } from "./sync-evaluation/sync-evaluation.module";
 import { TrekkingRoutesModule } from "./trekking-routes/trekking-routes.module";
+import { TripReviewsModule } from "./trip-reviews/trip-reviews.module";
 import { TripsModule } from "./trips/trips.module";
 import { UploadsModule } from "./uploads/uploads.module";
 import { UsersModule } from "./users/users.module";
@@ -52,6 +53,7 @@ import { WeatherModule } from "./weather/weather.module";
 		UsersModule,
 		TrekkingRoutesModule,
 		TripsModule,
+		TripReviewsModule,
 		UploadsModule,
 		WeatherModule,
 	],
