@@ -180,6 +180,9 @@ describe("AppRoutes trekking route navigation", () => {
 
 	it("navigates to the route list", async () => {
 		await renderRoutes();
+		await screen.findByRole("button", { name: /Tuyến của tôi:/ });
+		expect(screen.getAllByTestId("host-dashboard-overview")).toHaveLength(1);
+		expect(screen.getAllByRole("region", { name: "Chỉ số vận hành" })).toHaveLength(1);
 		await userEvent.click(await screen.findByRole("button", { name: /Tuyến của tôi:/ }));
 		await waitForPage();
 
