@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import {
+	BadRequestException,
 	ConflictException,
 	ForbiddenException,
 	Injectable,
@@ -14,6 +15,7 @@ import { reviewEligibility } from "./trip-reviews.policy";
 // biome-ignore lint/style/useImportType: Nest runtime injection metadata
 import { TripReviewsRepository } from "./trip-reviews.repository";
 import {
+	REVIEW_EDIT_WINDOW_MS,
 	type ReviewParticipation,
 	ReviewTarget,
 	type TripReviewRecord,
@@ -26,6 +28,10 @@ export class TripReviewsService {
 		private readonly reviews: TripReviewsRepository
 	) {}
 
+	summary(userId: string) {
+		return this.dataSource.transaction((manager) => this.reviews.summary(manager, userId));
+	}
+
 	context(userId: string, bookingId: string): Promise<TripReviewContextResponseDto> {
 		return this.dataSource.transaction(async (manager) => {
 			const participation = await this.requireParticipation(manager, userId, bookingId);
@@ -37,7 +43,12 @@ export class TripReviewsService {
 				completedAt: participation.completedAt,
 				serverTime: now,
 				...reviewEligibility(participation, now),
-				reviews: await this.reviews.listOwn(manager, userId, bookingId),
+				reviews: (await this.reviews.listOwn(manager, userId, bookingId)).map((review) => ({
+					...review,
+					images: review.images ?? [],
+					editExpiresAt: new Date(review.createdAt.getTime() + REVIEW_EDIT_WINDOW_MS),
+					canEdit: this.canEdit(participation, review, now),
+				})),
 			};
 		});
 	}
@@ -47,6 +58,7 @@ export class TripReviewsService {
 			const participation = await this.requireParticipation(manager, userId, bookingId);
 			const now = await this.reviews.now(manager);
 			this.assertEligible(participation, now);
+			await this.validateImages(manager, userId, dto.images ?? []);
 			const review: TripReviewRecord = {
 				id: randomUUID(),
 				bookingId,
@@ -58,6 +70,7 @@ export class TripReviewsService {
 				targetId: dto.target === ReviewTarget.TRIP ? participation.tripId : participation.hostId,
 				rating: dto.rating,
 				comment: dto.comment?.trim() || null,
+				images: dto.images ?? [],
 				revision: 1,
 				createdAt: now,
 				updatedAt: now,
@@ -81,11 +94,14 @@ export class TripReviewsService {
 			const current = await this.reviews.find(manager, reviewId);
 			if (!current) throw new NotFoundException("Review not found");
 			const now = await this.reviews.now(manager);
-			this.assertEligible(participation, now);
+			if (!this.canEdit(participation, current, now))
+				throw new ConflictException("Review edit window expired");
+			await this.validateImages(manager, userId, dto.images ?? current.images ?? []);
 			if (current.revision !== dto.expectedRevision)
 				throw new ConflictException("Review has changed; reload before editing");
 			const updated = {
 				...current,
+				images: dto.images ?? current.images ?? [],
 				rating: dto.rating,
 				comment: dto.comment?.trim() || null,
 				revision: current.revision + 1,
@@ -96,6 +112,36 @@ export class TripReviewsService {
 			await this.audit(manager, userId, updated, current.revision);
 			return updated;
 		});
+	}
+
+	private canEdit(
+		participation: ReviewParticipation,
+		review: TripReviewRecord,
+		now: Date
+	): boolean {
+		const atCompletion = participation.completedAt;
+		return (
+			atCompletion !== null &&
+			now >= atCompletion &&
+			review.createdAt >= atCompletion &&
+			reviewEligibility(participation, atCompletion).eligible &&
+			now >= review.createdAt &&
+			now.getTime() < review.createdAt.getTime() + REVIEW_EDIT_WINDOW_MS
+		);
+	}
+
+	private async validateImages(
+		manager: EntityManager,
+		userId: string,
+		images: string[]
+	): Promise<void> {
+		if (!images.length) return;
+		const rows: { url: string }[] = await manager.query(
+			"SELECT url FROM trip_review_uploads WHERE reviewer_id = $1 AND url = ANY($2::text[])",
+			[userId, images]
+		);
+		if (rows.length !== images.length)
+			throw new BadRequestException("Images must be uploaded by the reviewer");
 	}
 
 	private async requireParticipation(

@@ -26,7 +26,7 @@ The repository locks the Booking and linked member before inspecting database ti
 
 ## Validation
 
-Focused policy/DTO unit tests cover the exact 24-hour boundary and rating/comment validation. Real PostgreSQL HTTP integration tests cover targets, auth, eligibility, concurrent submissions/edits, history, rollback and database constraints. Current run results are reported separately; previous runs are not evidence for unexecuted checks.
+Focused policy/DTO unit tests cover the original 24-hour boundary and rating/comment validation. Real PostgreSQL HTTP integration tests cover targets, auth, eligibility, concurrent submissions/edits, history, rollback and database constraints. Current run results are reported separately; previous runs are not evidence for unexecuted checks.
 
 ### Verified local results — 2026-11-04
 

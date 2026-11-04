@@ -1,10 +1,15 @@
 import { randomUUID } from "node:crypto";
+import { mkdtemp, readFile, unlink } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { basename, join } from "node:path";
 import { type INestApplication, ValidationPipe } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
 import { Test } from "@nestjs/testing";
 import request from "supertest";
 import { DataSource } from "typeorm";
 import { AppModule } from "../src/modules/app.module";
+import { UploadsService } from "../src/modules/uploads/uploads.service";
 import { User, UserRole, UserStatus } from "../src/modules/users/entities/user.entity";
 import { validationExceptionFactory } from "../src/shared/pipes/validation-exception-factory";
 import { assertSafeTestDatabase } from "./support/assert-safe-test-database";
@@ -23,7 +28,10 @@ describe("CTMS-387 Trip/Host reviews (real Postgres)", () => {
 	const userIds: string[] = [];
 
 	beforeAll(async () => {
-		const module = await Test.createTestingModule({ imports: [AppModule] }).compile();
+		const module = await Test.createTestingModule({ imports: [AppModule] })
+			.overrideProvider(UploadsService)
+			.useValue(new UploadsService(new ConfigService({ API_PUBLIC_URL: "http://localhost:3000" })))
+			.compile();
 		app = module.createNestApplication();
 		app.setGlobalPrefix("api");
 		app.useGlobalPipes(
@@ -120,6 +128,7 @@ describe("CTMS-387 Trip/Host reviews (real Postgres)", () => {
 			[bookingId]
 		);
 		await db.query("DELETE FROM trip_reviews WHERE booking_id=$1", [bookingId]);
+		await db.query("DELETE FROM trip_review_uploads WHERE reviewer_id=ANY($1::uuid[])", [userIds]);
 	});
 	afterAll(async () => {
 		if (db?.isInitialized) {
@@ -151,9 +160,104 @@ describe("CTMS-387 Trip/Host reviews (real Postgres)", () => {
 		expect(res.body.eligible).toBe(true);
 		expect(res.body.reviews).toHaveLength(2);
 		expect(new Date(res.body.expiresAt).getTime() - new Date(res.body.completedAt).getTime()).toBe(
-			86400000
+			259200000
 		);
 	});
+	it("validates image ownership and preserves image revision snapshots", async () => {
+		const own = "https://example.test/reviews/own.png";
+		const other = "https://example.test/reviews/other.png";
+		await db.query(
+			"INSERT INTO trip_review_uploads (id,reviewer_id,url) VALUES ($1,$2,$3),($4,$5,$6)",
+			[randomUUID(), camper.id, own, randomUUID(), outsider.id, other]
+		);
+		await create({ target: "trip", rating: 4, images: [other] }).expect(400);
+		await create({ target: "trip", rating: 4, images: [own, own] }).expect(422);
+		await create({
+			target: "trip",
+			rating: 4,
+			images: Array.from({ length: 6 }, (_, i) => `https://example.test/${i}.png`),
+		}).expect(422);
+		const saved = await create({ target: "trip", rating: 4, images: [own] }).expect(201);
+		expect(saved.body.images).toEqual([own]);
+		await edit(saved.body.id, { rating: 5, expectedRevision: 1, images: [] }).expect(200);
+		const history = await revisions();
+		expect(history[0].images).toEqual([own]);
+		expect(history[1].images).toEqual([]);
+	});
+	it("reports authoritative own review counts without exposing another camper", async () => {
+		const getSummary = (actor = camper) =>
+			request(app.getHttpServer())
+				.get("/api/trip-reviews/summary")
+				.set("Authorization", auth(actor));
+		expect((await getSummary().expect(200)).body).toContainEqual({
+			bookingId,
+			count: 0,
+			canCreate: true,
+		});
+		await create().expect(201);
+		expect((await getSummary().expect(200)).body).toContainEqual({
+			bookingId,
+			count: 1,
+			canCreate: true,
+		});
+		await create({ target: "host", rating: 5 }).expect(201);
+		expect((await getSummary().expect(200)).body).toContainEqual({
+			bookingId,
+			count: 2,
+			canCreate: true,
+		});
+		expect((await getSummary(outsider).expect(200)).body).not.toContainEqual(
+			expect.objectContaining({ bookingId })
+		);
+	});
+	it("uploads a real PNG to isolated local storage and saves its owned URL", async () => {
+		const previousRoot = process.env.UPLOAD_ROOT;
+		const root = await mkdtemp(join(tmpdir(), "ctms-review-upload-"));
+		process.env.UPLOAD_ROOT = root;
+		let storedPath: string | undefined;
+		try {
+			const png = Buffer.from(
+				"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aZ1sAAAAASUVORK5CYII=",
+				"base64"
+			);
+			const uploaded = await request(app.getHttpServer())
+				.post("/api/trip-reviews/images")
+				.set("Authorization", auth())
+				.attach("file", png, { filename: "demo.png", contentType: "image/png" })
+				.expect(201);
+			const url: string = uploaded.body.url;
+			storedPath = join(root, "trip-reviews", basename(new URL(url).pathname));
+			expect(await readFile(storedPath)).toEqual(png);
+			await create({ target: "trip", rating: 5, images: [url] }).expect(201);
+			expect((await context().expect(200)).body.reviews[0].images).toEqual([url]);
+		} finally {
+			if (storedPath) await unlink(storedPath);
+			// biome-ignore lint/performance/noDelete: assigning undefined creates a literal environment value
+			if (previousRoot === undefined) delete process.env.UPLOAD_ROOT;
+			else process.env.UPLOAD_ROOT = previousRoot;
+		}
+	});
+
+	it("rejects unauthenticated or invalid image uploads before storage", async () => {
+		await request(app.getHttpServer()).post("/api/trip-reviews/images").expect(401);
+		await request(app.getHttpServer())
+			.post("/api/trip-reviews/images")
+			.set("Authorization", auth())
+			.attach("file", Buffer.from("not an image"), {
+				filename: "fake.png",
+				contentType: "image/png",
+			})
+			.expect(400);
+		await request(app.getHttpServer())
+			.post("/api/trip-reviews/images")
+			.set("Authorization", auth())
+			.attach("file", Buffer.alloc(5 * 1024 * 1024 + 1), {
+				filename: "large.png",
+				contentType: "image/png",
+			})
+			.expect(413);
+	});
+
 	it("serializes concurrent duplicate creates and stores one review/revision/audit", async () => {
 		const results = await Promise.all(Array.from({ length: 4 }, () => create()));
 		expect(results.map((res) => res.status).sort()).toEqual([201, 409, 409, 409]);
@@ -220,15 +324,23 @@ describe("CTMS-387 Trip/Host reviews (real Postgres)", () => {
 		await db.query("UPDATE booking_members SET checked_in_at=NULL WHERE id=$1", [memberId]);
 		await create().expect(409);
 	});
-	it("expiry prevents both creation and owner edits without losing old evidence", async () => {
+	it("independent creation and edit expiry preserve evidence", async () => {
 		const created = await create().expect(201);
-		await db.query("UPDATE bookings SET completed_at=now()-interval '24 hours' WHERE id=$1", [
+		await db.query("UPDATE bookings SET completed_at=now()-interval '72 hours' WHERE id=$1", [
 			bookingId,
 		]);
+		await db.query("UPDATE booking_members SET checked_in_at=now()-interval '4 days' WHERE id=$1", [
+			memberId,
+		]);
 		await create({ target: "host", rating: 4 }).expect(409);
-		await edit(created.body.id, { rating: 2, expectedRevision: 1 }).expect(409);
+		await edit(created.body.id, { rating: 2, expectedRevision: 1 }).expect(200);
+		await db.query(
+			"UPDATE trip_reviews SET created_at=clock_timestamp()-interval '24 hours' WHERE id=$1",
+			[created.body.id]
+		);
+		await edit(created.body.id, { rating: 3, expectedRevision: 2 }).expect(409);
 		expect((await context().expect(200)).body.reason).toBe("WINDOW_EXPIRED");
-		expect(await revisions()).toHaveLength(1);
+		expect(await revisions()).toHaveLength(2);
 	});
 	it.each([
 		{ rating: 0 },

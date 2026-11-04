@@ -6,7 +6,8 @@ export enum ReviewTarget {
 	HOST = "host",
 }
 
-export const REVIEW_WINDOW_MS = 24 * 60 * 60 * 1000;
+export const REVIEW_WINDOW_MS = 72 * 60 * 60 * 1000;
+export const REVIEW_EDIT_WINDOW_MS = 24 * 60 * 60 * 1000;
 export const REVIEW_COMMENT_MAX_LENGTH = 2000;
 
 export enum ReviewIneligibleReason {
@@ -28,6 +29,9 @@ export interface ReviewParticipation {
 }
 
 export interface TripReviewRecord {
+	images?: string[];
+	canEdit?: boolean;
+	editExpiresAt?: Date;
 	id: string;
 	bookingId: string;
 	memberId: string;

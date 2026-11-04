@@ -69,4 +69,7 @@ Migration `1793490000000-CreateTripReviews` adds two feature-owned tables:
 | `trip_reviews` | UUID id; Booking, Booking Member, reviewer, Trip and actual Host UUID references with ON DELETE RESTRICT; target `trip` or `host` and matching target ID; integer rating 1–5; nullable comment up to 2,000 characters; positive current revision; created/updated timestamptz. Unique `(reviewer_id, member_id, target)` prevents duplicate ratings for one participation/target. Booking/reviewer index supports own review context. |
 | `trip_review_revisions` | Composite PK `(review_id, revision)`; RESTRICT reference to current review; rating/comment snapshot for every revision starting at 1; recorded timestamptz. Preserves original and edited review evidence for later moderation/AI traceability. |
 
-Owner writes are limited to the original 24-hour window after `bookings.completed_at`, with verified completed participation. Current content, revision and minimal audit are transactional. These tables do not replace numeric reputation with AI output and do not implement content-report target actions. See `docs/features/ctms-387-trip-host-reviews.md`.
+Owner writes are limited to the original 72-hour window after `bookings.completed_at`, with verified completed participation. Current content, revision and minimal audit are transactional. These tables do not replace numeric reputation with AI output and do not implement content-report target actions. See `docs/features/ctms-387-trip-host-reviews.md`.
+
+
+CTMS-388 amendment: `trip_reviews.images` and `trip_review_revisions.images` store up to five image URL snapshots as JSONB. `trip_review_uploads` records uploader identity and URL. Creation closes 72h after completion; editing closes 24h after initial submission.

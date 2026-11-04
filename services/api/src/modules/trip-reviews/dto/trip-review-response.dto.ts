@@ -7,6 +7,9 @@ import {
 } from "../trip-reviews.types";
 
 export class TripReviewResponseDto implements TripReviewRecord {
+	@ApiProperty({ type: [String] }) images!: string[];
+	@ApiProperty({ required: false }) canEdit?: boolean;
+	@ApiProperty({ required: false, type: String, format: "date-time" }) editExpiresAt?: Date;
 	@ApiProperty({ format: "uuid" }) id!: string;
 	@ApiProperty({ format: "uuid" }) bookingId!: string;
 	@ApiProperty({ format: "uuid" }) memberId!: string;
