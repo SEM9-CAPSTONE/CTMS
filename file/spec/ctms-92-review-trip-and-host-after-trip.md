@@ -1,5 +1,7 @@
 # CTMS-092 — Review Trip and Host after Trip
 
+User-approved amendment, 2026-11-04 (CTMS-388): create within 72 hours after `booking.completed_at`; edit each review within 24 hours after its initial `created_at`. Editing never renews the deadline, and can remain available after creation expires. Both deadlines are exclusive. Up to five JPEG/PNG/WebP images (5 MB each) may be attached per review. Only reviewer-owned uploads are accepted; revisions retain prior image lists. Porter remains a separate story.
+
 ## 1. Overview
 
 Story: CTMS-092
@@ -19,14 +21,14 @@ Acceptance Criteria:
 | Source  | Criterion                                                                                                               |
 | ------- | ----------------------------------------------------------------------------------------------------------------------- |
 | PB AC-1 | Only a Camper with an actually completed Booking/participation may create the review.                                   |
-| PB AC-2 | Review may be created only within 24 hours after `booking.completed_at`.                                                |
+| PB AC-2 | Review may be created only within 72 hours after `booking.completed_at`.                                                |
 | PB AC-3 | Review is associated with `trip_id`.                                                                                    |
 | PB AC-4 | Backend derives `host_id` from the Trip; client cannot select an unrelated Host.                                        |
 | PB AC-5 | One reviewer may create at most one review for the same target within the same participation.                           |
 | PB AC-6 | Rating must be an integer from 1 to 5.                                                                                  |
 | PB AC-7 | Rating/comment must pass validation.                                                                                    |
-| PB AC-8 | Camper may edit their own review within the same 24-hour window.                                                        |
-| PB AC-9 | After the 24-hour window, Camper cannot edit the review; moderation may still change content state according to policy. |
+| PB AC-8 | Camper may edit each own review within 24 hours after its initial created_at.                                                        |
+| PB AC-9 | After 24 hours from initial submission, Camper cannot edit the review; moderation remains separate. |
 
 ## 2. Scope
 
@@ -35,7 +37,7 @@ Acceptance Criteria:
 - Completed-participation eligibility.
 - Trip review.
 - Actual Host relationship.
-- 24-hour review window.
+- 72-hour review window.
 - Rating 1–5.
 - Comment validation.
 - Duplicate prevention.
@@ -68,17 +70,17 @@ Booking/participation is completed.
 
 Current time must be within:
 
-`booking.completed_at + 24 hours`
+`booking.completed_at + 72 hours`
 
-for Camper create/edit operations.
+for Camper creation. Owner editing remains available until the initial review `created_at + 24 hours`.
 
 ## 5. Business Rules
 
 | BR         | Rule                                                                                                                                                                                                                                                                                                                                                                                |
 | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| BR-297     | A Trip review may be created only by a Camper with an actual completed Booking/participation and only within 24 hours after booking.completed_at. The review must reference trip_id and a reviewer identity verified by the backend.                                                                                                                                                |
+| BR-297     | A Trip review may be created only by a Camper with an actual completed Booking/participation and only within 72 hours after booking.completed_at. The review must reference trip_id and a reviewer identity verified by the backend.                                                                                                                                                |
 | BR-298     | A Host may be reviewed only through a Trip the Host actually organized. The backend must derive host_id from trip_id and must not allow the client to select an unrelated Host.                                                                                                                                                                                                     |
-| BR-300     | A reviewer may create at most one review for the same target within the same Trip participation. Duplicate submissions must be rejected or handled idempotently. A Camper may edit their own review within the same 24-hour window after booking.completed_at; after that window, the Camper may no longer edit it, although moderation may still be performed according to policy. |
+| BR-300     | A reviewer may create at most one review for the same target within the same Trip participation. Duplicate submissions must be rejected or handled idempotently. A Camper may edit their own review within 24 hours after its initial created_at; after that window, the Camper may no longer edit it, although moderation may still be performed according to policy. |
 | BR-301     | rating must be an integer from 1 to 5. Both rating and comment must pass validation, and the original user review must be preserved unchanged as the authoritative input.                                                                                                                                                                                                           |
 | BR-188     | Absolute timestamps must be stored as timestamptz. Pure calendar dates use date, and time-of-day values use time where defined by schema. APIs must transmit timezone/offset explicitly, and the UI must display values using the configured timezone.                                                                                                                              |
 | BR-212     | Any change to a Business Rule, enum, state transition, or API contract must be reflected in the specification, test cases, and data documentation before the work is considered Done.                                                                                                                                                                                               |
@@ -90,8 +92,8 @@ Completed participation
 → review window opens
 → review created
 → optionally edited by Camper
-→ 24-hour window expires
-→ Camper editing closed.
+→ creation closes after 72 hours from completion
+→ editing closes 24 hours from initial submission.
 
 Review may later enter moderation flow according to applicable policy.
 
@@ -99,14 +101,14 @@ Review may later enter moderation flow according to applicable policy.
 
 1. Camper opens completed Booking/Trip.
 2. Backend verifies completed participation.
-3. Verify current time is within 24 hours of `booking.completed_at`.
+3. Verify current time is within 72 hours of `booking.completed_at`.
 4. Resolve Trip.
 5. Backend resolves actual Host from Trip.
 6. Check duplicate review.
 7. Camper enters integer rating 1–5 and optional/required comment according to validation.
 8. Validate input.
 9. Create review.
-10. Camper may edit own review while review window remains open.
+10. Camper may edit own review while its independent 24-hour edit window remains open.
 11. After window expiry, reject Camper edit.
 
 ## 8. Data & Invariants
@@ -127,7 +129,7 @@ Invariants:
 - rating is integer;
 - Host must derive from Trip;
 - maximum one review per reviewer/target/participation;
-- Camper create/edit window = 24 hours after `booking.completed_at`.
+- Camper creation window = 72 hours after `booking.completed_at`; editing window = 24 hours after initial review `created_at`.
 
 ## 9. API / Integration Contract
 
@@ -138,21 +140,21 @@ TBD — Technical Design.
 | Case                           | Expected Behavior                   |
 | ------------------------------ | ----------------------------------- |
 | Booking not completed          | Reject                              |
-| Completed but >24h             | Reject create                       |
+| Completed but >72h             | Reject create                       |
 | Client supplies unrelated Host | Ignore/reject; backend derives Host |
 | Rating 0 or 6                  | Reject                              |
 | Non-integer rating             | Reject                              |
 | Duplicate submit               | No duplicate review                 |
-| Edit own review within 24h     | Allowed                             |
-| Edit after 24h                 | Reject                              |
+| Edit own review within 24h of submission     | Allowed                             |
+| Edit after 24h of submission                 | Reject                              |
 | Edit another Camper's review   | Reject                              |
 
 ## 11. Acceptance & Test Matrix
 
 | Source | Scenario                           | Expected Result    | Test Type   |
 | ------ | ---------------------------------- | ------------------ | ----------- |
-| BR-297 | Completed participation within 24h | Review allowed     | E2E         |
-| BR-297 | >24h                               | Rejected           | Boundary    |
+| BR-297 | Completed participation within 72h | Review allowed     | E2E         |
+| BR-297 | >72h                               | Rejected           | Boundary    |
 | BR-298 | Client chooses unrelated Host      | Not accepted       | Security    |
 | BR-300 | Duplicate submit                   | One review maximum | Idempotency |
 | BR-301 | Rating 1–5 integer                 | Accepted           | Validation  |
@@ -162,4 +164,22 @@ TBD — Technical Design.
 
 ## 12. Open Decisions
 
-Comment length/content validation must follow the authoritative validation definition; no new numeric limit is introduced here.
+Technical design approved for CTMS-387: comment is optional, with a maximum of 2,000 Unicode characters after trimming outer whitespace. Blank input becomes null. Rating remains required and must be an integer from 1 to 5.
+
+## 13. Implementation — CTMS-387 (Preparation + Logic)
+
+- Separate `trip` and `host` targets each have their own rating/comment. The backend derives both target IDs from the Booking's Trip. One review is allowed per reviewer/Booking Member/target; the unique constraint protects concurrent submissions.
+- Only a linked `booking_members.user_id` may act for that participation. Booking ownership alone is insufficient. A completed Booking, non-future `completed_at`, member status `joined`, check-in at or before completion and no `left_at` are required. Anonymous members, no-shows, removed/registered members and early leavers cannot review.
+- Creation uses `[completed_at, completed_at + 72 hours)`; editing uses `[review.created_at, review.created_at + 24 hours)`. Each closes at its exact deadline. Database `clock_timestamp()` is read after participation locks so a request waiting across the deadline cannot use transaction-start time.
+- Reads expose only the caller's reviews for that Booking. Unknown or unlinked Bookings return 403 without exposing another participant's information. No public review listing, reputation calculation or Host/Admin review editing is introduced.
+- `trip_reviews` stores the current version, authoritative reviewer/member/Booking/Trip/Host and target context. `trip_review_revisions` retains every content version including the initial submission. Parent foreign keys use RESTRICT to preserve evidence. No delete endpoint is provided.
+- Create/edit, revision persistence and `trip_review.created`/`trip_review.updated` audit are atomic. Audit records contain revision/target identities, not review comments. Edits require `expectedRevision`; concurrent stale edits return 409.
+- API (JWT + Camper role):
+  - `GET /api/bookings/:bookingId/reviews/context`: creation eligibility/reason, per-review `canEdit`/`editExpiresAt`/`images`, `completedAt`, `expiresAt`, `serverTime`, Trip/Host IDs and own current reviews.
+  - `POST /api/bookings/:bookingId/reviews`: `{ target: "trip" | "host", rating, comment?, images? }` → 201 current review.
+  - `PATCH /api/trip-reviews/:reviewId`: `{ rating, comment?, expectedRevision, images? }` → 200 updated review. This is a complete content replacement: omitted comment clears it.
+  - 401 unauthenticated, 403 wrong role/ownership/participation link, 404 missing review, 409 ineligible/expired/duplicate/stale, 422 malformed or extra fields. Errors follow the existing CTMS API exception format.
+- Original review content is never replaced by AI. AI analysis, target-specific moderation actions, visibility policy and reputation remain separate tasks. Report status alone does not imply a review was hidden.
+- No development seed or data reset is required for this backend task. Integration fixtures exist only in the test suite; future seed scenarios must be added to `main.seed.ts`.
+
+- `POST /api/trip-reviews/images`: Camper-owned JPEG/PNG/WebP upload (5 MB), returns URL; create/update accepts at most five owned upload URLs. `GET /api/trip-reviews/summary` returns caller-scoped review counts and creation eligibility.

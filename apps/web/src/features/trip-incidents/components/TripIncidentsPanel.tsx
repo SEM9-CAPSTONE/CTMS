@@ -1,8 +1,10 @@
 import { Loader2, Plus, RefreshCw, Wifi, WifiOff } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button } from "../../../shared/components/Button";
+import { RealtimeConnectionStatus } from "../../../shared/components/RealtimeConnectionStatus";
 import type { TripStatus } from "../../trips/types";
 import { type UseTripIncidentsOptions, useTripIncidents } from "../hooks/useTripIncidents";
+import { useTripIncidentsRealtime } from "../hooks/useTripIncidentsRealtime";
 import type { IncidentCategory, IncidentListItem } from "../types";
 import type { NewIncidentInput } from "../utils/incident-record";
 import { IncidentDetailModal } from "./IncidentDetailModal";
@@ -28,6 +30,7 @@ export function TripIncidentsPanel({
 	api,
 }: TripIncidentsPanelProps) {
 	const incidents = useTripIncidents(tripId, { store, api });
+	const realtimeState = useTripIncidentsRealtime(tripId, incidents.refetch);
 	const [isFormOpen, setIsFormOpen] = useState(false);
 	const [notice, setNotice] = useState<string | null>(null);
 
@@ -110,7 +113,10 @@ export function TripIncidentsPanel({
 		<div className="space-y-4">
 			{/* Header with Connection Indicator */}
 			<div className="flex flex-wrap items-center justify-between gap-3">
-				<h2 className="font-extrabold text-[#10221b]">Sự cố đã báo cáo</h2>
+				<div className="flex flex-wrap items-center gap-2">
+					<h2 className="font-extrabold text-[#10221b]">Sự cố đã báo cáo</h2>
+					<RealtimeConnectionStatus state={realtimeState} testId="incidents-realtime-status" />
+				</div>
 				<span
 					className={`inline-flex items-center gap-1 text-xs font-bold ${
 						incidents.isOnline ? "text-[#2d5a27]" : "text-amber-800"

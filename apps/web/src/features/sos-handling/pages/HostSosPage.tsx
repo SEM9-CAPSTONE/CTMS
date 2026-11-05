@@ -3,6 +3,7 @@ import { useState } from "react";
 import { HostSosDetailModal } from "../components/HostSosDetailModal";
 import { HostSosFilterBar, type SosStatusFilter } from "../components/HostSosFilterBar";
 import { HostSosTable } from "../components/HostSosTable";
+import { SosRealtimeStatus } from "../components/SosRealtimeStatus";
 import { SosResolutionModal } from "../components/SosResolutionModal";
 import { useHostSos } from "../hooks/useHostSos";
 import type { SosAlertItem } from "../types";
@@ -63,6 +64,9 @@ export function HostSosPage() {
 				<p className="text-xs text-[#627769]">
 					Theo dõi, tiếp nhận và điều phối cứu hộ tức thời cho các thành viên trong chuyến đi.
 				</p>
+				<div className="mt-2">
+					<SosRealtimeStatus />
+				</div>
 			</div>
 
 			{/* Filter Bar */}

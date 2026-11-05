@@ -15,12 +15,14 @@ import { OverbookingEvaluationModule } from "./overbooking-evaluation/overbookin
 import { PorterLevelsModule } from "./porter-levels/porter-levels.module";
 import { ProfilesModule } from "./profiles/profiles.module";
 import { RealtimeModule } from "./realtime/realtime.module";
+import { ReviewAnalysisModule } from "./review-analysis/review-analysis.module";
 import { RouteSafetyModule } from "./route-safety/route-safety.module";
 import { SafetyEventsModule } from "./safety-events/safety-events.module";
 import { SosModule } from "./sos/sos.module";
 import { SurvivalDocumentsModule } from "./survival-documents/survival-documents.module";
 import { SyncEvaluationModule } from "./sync-evaluation/sync-evaluation.module";
 import { TrekkingRoutesModule } from "./trekking-routes/trekking-routes.module";
+import { TripReviewsModule } from "./trip-reviews/trip-reviews.module";
 import { TripsModule } from "./trips/trips.module";
 import { UploadsModule } from "./uploads/uploads.module";
 import { UsersModule } from "./users/users.module";
@@ -53,6 +55,8 @@ import { WeatherModule } from "./weather/weather.module";
 		UsersModule,
 		TrekkingRoutesModule,
 		TripsModule,
+		TripReviewsModule,
+		ReviewAnalysisModule,
 		UploadsModule,
 		WeatherModule,
 		SurvivalDocumentsModule,

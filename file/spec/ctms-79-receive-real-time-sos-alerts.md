@@ -232,3 +232,103 @@ Backend only (`services/api`). The Host client UI (attention signal, acknowledge
 - [x] Task-specific unit tests added or updated.
 - [x] Task-specific unit tests passed.
 - [x] Applicable backend or integration tests passed.
+
+## 15. Implementation Record — CTMS-079-T02 (Jira CTMS-358), Host web UI
+
+Web client only (`apps/web`); it consumes the CTMS-357 contract in Section 9. The existing team UI is reused: the red `EmergencyAlertBanner`, the SOS center page, the CTMS-080 acknowledge modal, the shared `Toast` and the shared `StatusBadge`. The only new visible element is the delivery-state badge, approved with the plan.
+
+**Before this task on `develop`**, the Host saw SOS only through polling: 30 s on the dashboard and 15 s on the SOS center. The web app did not open an authenticated socket, and after CTMS-357 an anonymous socket never receives SOS. A Host on any page other than the dashboard had no attention signal at all.
+
+**Changes**
+
+- **`useHostSosRealtime`** (`features/sos-handling/hooks`).
+  - Connection:
+    - Opens one socket.io connection with `auth: (cb) => cb({ token })`. The access token is re-read from storage on every (re)connect, so a refreshed token is always used.
+    - On `auth.error` (invalid/expired token, including the server's disconnect at token expiry), the hook calls the existing single-flight `refreshAccessToken()` once and reconnects. If the refresh fails, it stays `disconnected`.
+  - Delivery state:
+    - `connecting`, then `live` only after the server confirms `connected { authenticated: true }`. An anonymous socket is reported as `disconnected`, because it can never receive SOS.
+    - `disconnect` or `connect_error` → `disconnected`.
+    - The next authenticated connect → `recovered` for 5 s, then `live`.
+  - No fabricated SOS:
+    - `sos.created` and `sos.state_changed` never become UI rows. They only invalidate the Host SOS list (`["sos","host-list"]`) and the dashboard overview (`["host-overview"]`) queries, so what is shown always comes from the authorized API.
+    - Malformed payloads (no `sosId`) are ignored.
+    - Every authenticated connect also reloads both queries, which recovers SOS missed while offline.
+  - Dedupe:
+    - `created:{eventId}` and `state:{sosId}:{status}` keys are kept in a bounded (200) module-level set.
+    - Every Host route renders its own `HostLayout`, so a remount does not re-alert an SOS that was already announced in the tab.
+  - The existing polling is unchanged and stays as the fallback.
+- **Attention signal (PB AC-4).**
+  - A new SOS raises the existing error toast "Yêu cầu cứu trợ khẩn cấp — <loại> · Mã chuyến: <8 ký tự>" on any Host page, once per SOS.
+  - The dashboard banner and the SOS center table refresh immediately.
+  - State changes refresh the lists without a new toast.
+- **Acknowledge entry point (PB AC-5).** The existing banner "Tiếp nhận ngay" → CTMS-080 modal "Tiếp nhận SOS", and the SOS center detail modal, are unchanged. The Toast component has no action slot, and it was not modified.
+- **`HostSosRealtimeProvider`.** It renders nothing and is enabled only for the `host` role. It is mounted in `HostLayout` (every Host route) and around `DashboardMain` in `RoleLandingPage`, because the dashboard has its own layout and does not use `HostLayout`.
+- **`SosRealtimeStatus`.** Built on the shared `StatusBadge`. It sits under the SOS center subtitle and above the dashboard banner:
+  - `live`: success tone, "Đang nhận cảnh báo SOS theo thời gian thực";
+  - `disconnected`: warning tone, "Mất kết nối thời gian thực — đang thử lại, danh sách vẫn tự cập nhật định kỳ";
+  - `recovered`: info tone, "Đã kết nối lại — đã tải lại các SOS có thể bị lỡ";
+  - `connecting`: neutral tone.
+
+  It uses `aria-live="polite"`.
+- `EMERGENCY_LABELS` in `EmergencyAlertBanner` is now exported so the toast uses the same wording as the banner.
+- **Real-backend E2E harness**, following the CTMS-049/CTMS-378 pattern:
+  - `services/api/test/e2e/start-sos-realtime-server.ts` (API on 3019, database `ctms_79_test`, isolated JWT secret);
+  - `apps/web/playwright.sos-realtime.config.ts` (web on 5189) and the script `pnpm --filter @ctms/web test:e2e:sos-realtime`;
+  - the spec is excluded from the default Playwright config.
+
+**Judgment calls** (approved with the plan):
+
+1. Reuse existing components; the status badge is the only new UI.
+2. An SOS missed while offline is recovered into the lists and the banner on reconnect, but no toast is raised for it. Toasts mean "just arrived in real time"; the `recovered` badge tells the Host the list was reloaded.
+3. Dedupe is per browser tab (module memory). A full page reload starts clean and shows the authoritative lists.
+
+**Findings outside this task (pre-existing on `develop`, not fixed here)**
+
+- `RoleLandingPage` renders `HostDashboardOverview` twice: in the sticky header and again in the body. The KPI row, the SOS banner (and now its status badge) therefore appear twice on the Host dashboard. This also makes `src/routes/AppRoutes.trekking-route.test.tsx` fail (2 tests, "multiple elements … Tuyến của tôi"), with or without this task. It needs its own Jira task (CTMS-378 owner).
+
+## 16. Test Evidence — CTMS-079-T02
+
+- **Unit/component (Vitest)**
+  - `hooks/useHostSosRealtime.test.tsx` (13 tests):
+    - authenticated socket re-reads the token on each connect;
+    - `live` only after server-confirmed auth; anonymous socket → `disconnected`;
+    - new SOS reloads both queries and raises one toast;
+    - duplicate delivery deduped; no re-alert after a layout remount;
+    - malformed payload ignored; state change reloads without a toast;
+    - disconnect → recovered (with reload) → live after 5 s; `connect_error` → disconnected;
+    - `auth.error` refreshes once and reconnects; failed refresh stays disconnected;
+    - disabled → no socket; unmount disconnects.
+  - `components/SosRealtimeStatus.test.tsx` (5 tests): hidden outside a Host session, plus each of the four states.
+  - Affected features (sos-handling, role-landing, host-overview): 21 files / 110 tests passed.
+- **Task E2E (real API + Postgres + socket.io)**: `tests/e2e/ctms-79-t02-receive-real-time-sos-alerts.spec.ts`, 2 tests. Passed, and 3/3 with `--repeat-each=3`.
+  1. The authorized Host on the dashboard gets the toast and the banner for a Camper-raised SOS within the 5 s budget (measured 60–81 ms from `persistedAt`). The dashboard polls every 30 s, so this delivery is the socket. Another Host gets nothing. The SOS stays `active` after receipt. "Tiếp nhận ngay" → "Tiếp nhận SOS" acknowledges it and the banner disappears.
+  2. The SOS center shows `live`, receives a new row in real time, switches to `disconnected` when the browser goes offline, and switches to `recovered` on reconnect with the SOS raised while offline loaded from the API. It then settles back to `live`.
+
+  Mutation check: disabling the hook's `sos.created` handler made test 1 fail (banner not visible within 5 s). The code was then restored.
+
+  Screenshots from the running app (Playwright output):
+  - `host-dashboard-sos-realtime.png`
+  - `host-sos-center-disconnected.png`
+  - `host-sos-center-recovered.png`
+- **Gates**
+  - `pnpm lint:all`: 0 errors (12 pre-existing warnings, none in changed files).
+  - `pnpm build:all`: passed.
+  - `pnpm test:all`:
+    - API 1710/1710 passed;
+    - web 1493/1495 passed. The 2 failures are the pre-existing `AppRoutes.trekking-route.test.tsx` failures above, which reproduce identically with this task stashed.
+  - Default Playwright E2E regression: 41 passed / 36 failed / 32 did not run. The **identical** 36 tests fail and the same 32 do not run on a clean `develop` worktree (same machine, same DB), so this task adds no E2E regression. The failures are environmental or pre-existing: `seed:dev-admin` / `main.seed.ts` / `dev-host-route.seed.ts` seed commands failing, outdated selectors in booking/route-safety/trip-draft flows, and the duplicated dashboard overview.
+
+### UI Subtask DoD
+
+- [x] UI implementation completed.
+- [x] Applicable client-side behavior implemented.
+- [x] Task-specific unit/component tests passed.
+- [x] Backend integration completed.
+- [x] Task-specific E2E tests passed.
+- [x] All Story Acceptance Criteria verified (PB AC-1…AC-5: E2E 1 and 2; AC-2 measured 60–81 ms).
+- [x] Unit regression tests passed (except the 2 pre-existing `develop` failures listed above).
+- [x] E2E regression tests passed: no new failure vs `develop` (the 36 identical pre-existing failures are listed above).
+- [x] lint:all passed.
+- [x] build:all passed.
+- [x] test:all passed (except the 2 pre-existing `develop` failures listed above).
+- [ ] Required CI checks passed — runs on the PR.

@@ -1,12 +1,10 @@
-import { useEffect, useRef } from "react";
-import { io } from "socket.io-client";
+import { type MutableRefObject, useEffect, useRef } from "react";
+import type {
+	RealtimeConnection,
+	RealtimeConnectionState,
+} from "../../../core/realtime/realtimeConnection";
+import { useRealtimeConnection, useRealtimeEvent } from "../../../core/realtime/useRealtime";
 import { toast } from "../../../shared/components";
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api";
-
-function socketBaseUrl(): string {
-	return API_BASE_URL.replace(/\/api\/?$/, "");
-}
 
 interface TripReviewEvent {
 	tripId: string;
@@ -21,64 +19,81 @@ interface TripReviewEvent {
 
 interface UseTripReviewNotificationOptions {
 	onChanged?: () => void;
+	connection?: RealtimeConnection;
 }
 
+/**
+ * Calls `onChanged` after every authenticated (re)connect so events missed while offline are
+ * recovered from the API, and returns the shared connection state (CTMS-078-T02).
+ */
+function useReviewChannel(
+	onChanged: (() => void) | undefined,
+	connection: RealtimeConnection | undefined
+): { changedRef: MutableRefObject<(() => void) | undefined>; state: RealtimeConnectionState } {
+	const changedRef = useRef(onChanged);
+	useEffect(() => {
+		changedRef.current = onChanged;
+	}, [onChanged]);
+	const snapshot = useRealtimeConnection(true, connection);
+	useEffect(() => {
+		if (snapshot.state === "connected") changedRef.current?.();
+	}, [snapshot.state]);
+	return { changedRef, state: snapshot.state };
+}
+
+/** CTMS-023 review queue events, delivered only to `role:admin` sockets since CTMS-078. */
 export function useAdminTripReviewNotifications({
 	onChanged,
-}: UseTripReviewNotificationOptions = {}) {
-	const changedRef = useRef(onChanged);
-	useEffect(() => {
-		changedRef.current = onChanged;
-	}, [onChanged]);
-	useEffect(() => {
-		let socket: ReturnType<typeof io> | undefined;
-		// StrictMode's discarded mount must not open a connection that is immediately closed.
-		const timer = window.setTimeout(() => {
-			socket = io(socketBaseUrl(), { transports: ["websocket"] });
-			socket.on("connect", () => changedRef.current?.());
-			socket.on("trip.review.updated", (payload: TripReviewEvent) => {
-				toast.info(`Trip "${payload.title}" vừa được Host cập nhật.`, "Bản cập nhật chờ duyệt");
-				changedRef.current?.();
-			});
-			socket.on("trip.review.requested", (payload: TripReviewEvent) => {
-				toast.info(`Trip "${payload.title}" vừa được gửi chờ duyệt.`, "Trip mới cần duyệt");
-				changedRef.current?.();
-			});
-			socket.on("trip.review.reminder", (payload: TripReviewEvent) => {
-				toast.warning(`Trip "${payload.title}" sắp quá hạn duyệt 24 giờ.`, "Nhắc duyệt Trip");
-				changedRef.current?.();
-			});
-		}, 0);
-		return () => {
-			window.clearTimeout(timer);
-			socket?.disconnect();
-		};
-	}, []);
+	connection,
+}: UseTripReviewNotificationOptions = {}): RealtimeConnectionState {
+	const { changedRef, state } = useReviewChannel(onChanged, connection);
+	useRealtimeEvent<TripReviewEvent>(
+		"trip.review.updated",
+		(payload) => {
+			toast.info(`Trip "${payload.title}" vừa được Host cập nhật.`, "Bản cập nhật chờ duyệt");
+			changedRef.current?.();
+		},
+		true,
+		connection
+	);
+	useRealtimeEvent<TripReviewEvent>(
+		"trip.review.requested",
+		(payload) => {
+			toast.info(`Trip "${payload.title}" vừa được gửi chờ duyệt.`, "Trip mới cần duyệt");
+			changedRef.current?.();
+		},
+		true,
+		connection
+	);
+	useRealtimeEvent<TripReviewEvent>(
+		"trip.review.reminder",
+		(payload) => {
+			toast.warning(`Trip "${payload.title}" sắp quá hạn duyệt 24 giờ.`, "Nhắc duyệt Trip");
+			changedRef.current?.();
+		},
+		true,
+		connection
+	);
+	return state;
 }
 
+/** CTMS-023 auto-rejection, delivered only to the owning Host's user room since CTMS-078. */
 export function useHostTripReviewNotifications({
 	onChanged,
-}: UseTripReviewNotificationOptions = {}) {
-	const changedRef = useRef(onChanged);
-	useEffect(() => {
-		changedRef.current = onChanged;
-	}, [onChanged]);
-	useEffect(() => {
-		let socket: ReturnType<typeof io> | undefined;
-		// StrictMode's discarded mount must not open a connection that is immediately closed.
-		const timer = window.setTimeout(() => {
-			socket = io(socketBaseUrl(), { transports: ["websocket"] });
-			socket.on("trip.review.auto_rejected", (payload: TripReviewEvent) => {
-				toast.warning(
-					`Trip "${payload.title}" đã bị từ chối tự động vì quá 24 giờ chưa được duyệt.`,
-					"Trip bị từ chối"
-				);
-				changedRef.current?.();
-			});
-		}, 0);
-		return () => {
-			window.clearTimeout(timer);
-			socket?.disconnect();
-		};
-	}, []);
+	connection,
+}: UseTripReviewNotificationOptions = {}): RealtimeConnectionState {
+	const { changedRef, state } = useReviewChannel(onChanged, connection);
+	useRealtimeEvent<TripReviewEvent>(
+		"trip.review.auto_rejected",
+		(payload) => {
+			toast.warning(
+				`Trip "${payload.title}" đã bị từ chối tự động vì quá 24 giờ chưa được duyệt.`,
+				"Trip bị từ chối"
+			);
+			changedRef.current?.();
+		},
+		true,
+		connection
+	);
+	return state;
 }
