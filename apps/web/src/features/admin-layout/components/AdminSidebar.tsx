@@ -6,6 +6,7 @@ import {
 	Flag,
 	Landmark,
 	LayoutDashboard,
+	MessageSquareText,
 	ReceiptText,
 	Route,
 	ShieldAlert,
@@ -17,6 +18,7 @@ import { LogoutActions } from "../../auth/components/LogoutActions";
 import { BookingCancellationNotices } from "../../booking-cancellation/components/BookingCancellationNotices";
 
 export type AdminNavigationItem =
+	| "review-analysis"
 	| "survival-documents"
 	| "dashboard"
 	| "user-accounts"
@@ -41,6 +43,12 @@ interface AdminSidebarProps {
 }
 
 const navigationItems = [
+	{
+		key: "review-analysis",
+		label: "Phân tích đánh giá AI",
+		icon: MessageSquareText,
+		available: true,
+	},
 	{ key: "dashboard", label: "Bảng điều khiển", icon: LayoutDashboard, available: false },
 	{ key: "user-accounts", label: "Tài khoản người dùng", icon: Users, available: true },
 	{ key: "porter-verifications", label: "Duyệt hồ sơ Porter", icon: BadgeCheck, available: true },
@@ -105,7 +113,10 @@ export function AdminSidebar({
 							type="button"
 							disabled={!item.available}
 							onClick={() => {
-								if (item.key === "survival-documents") {
+								if (item.key === "review-analysis") {
+									window.history.pushState({}, "", "/admin/review-analysis");
+									window.dispatchEvent(new PopStateEvent("popstate"));
+								} else if (item.key === "survival-documents") {
 									window.history.pushState({}, "", "/admin/survival-documents");
 									window.dispatchEvent(new PopStateEvent("popstate"));
 								} else if (item.key === "content-reports") {

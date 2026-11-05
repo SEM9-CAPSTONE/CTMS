@@ -1,10 +1,10 @@
-import { HttpException, Injectable, NotFoundException } from "@nestjs/common";
+import { ForbiddenException, HttpException, Injectable, NotFoundException } from "@nestjs/common";
 // biome-ignore lint/style/useImportType: Nest injection
 import { DataSource } from "typeorm";
 import type { EntityManager } from "typeorm";
 import { AuditLog } from "../auth/entities/audit-log.entity";
 import { authorizeAnalysis } from "./review-analysis.access";
-import type { AnalysisPageDto } from "./review-analysis.dto";
+import type { AnalysisInsightsQueryDto, AnalysisPageDto } from "./review-analysis.dto";
 // biome-ignore lint/style/useImportType: Nest injection
 import { ReviewAnalysisProvider } from "./review-analysis.provider";
 // biome-ignore lint/style/useImportType: Nest injection
@@ -37,6 +37,50 @@ export class ReviewAnalysisService {
 			createdAt: batch.created_at,
 			completedAt: batch.completed_at,
 		};
+	}
+	async trips(actorId: string, page: AnalysisPageDto) {
+		return this.db.transaction("REPEATABLE READ", async (m) => {
+			await authorizeAnalysis(m, actorId);
+			const filter = `WHERE t.host_id=$1 OR EXISTS(SELECT 1 FROM users u WHERE u.id=$1 AND
+ (EXISTS(SELECT 1 FROM user_roles ur WHERE ur.user_id=u.id AND ur.role='admin') OR (u.role='admin' AND NOT EXISTS(SELECT 1 FROM user_roles ur WHERE ur.user_id=u.id))))`;
+			const [count]: { total: number }[] = await m.query(
+				`SELECT count(*)::int AS total FROM trips t ${filter}`,
+				[actorId]
+			);
+			const items: { id: string; title: string; status: string }[] = await m.query(
+				`SELECT t.id,t.title,t.status FROM trips t ${filter} ORDER BY t.updated_at DESC,t.id LIMIT $2 OFFSET $3`,
+				[actorId, page.limit, (page.page - 1) * page.limit]
+			);
+			return {
+				items,
+				pagination: {
+					page: page.page,
+					totalPages: Math.ceil(count.total / page.limit),
+					total: count.total,
+				},
+			};
+		});
+	}
+	async sourceReview(actorId: string, tripId: string, reviewId: string, revision: string) {
+		return this.db.transaction("REPEATABLE READ", async (m) => {
+			await authorizeAnalysis(m, actorId, tripId);
+			const rows = await this.repository.coverageRows(m, tripId, this.provider.configuration());
+			const row = rows.find((r) => r.reviewId === reviewId);
+			if (!row || !/^[1-9]\d{0,8}$/.test(revision))
+				throw new NotFoundException("Source revision not found");
+			if (!row.eligible) throw new ForbiddenException("Source review unavailable for analysis");
+			const [source]: {
+				revision: number;
+				rating: number;
+				comment: string | null;
+				createdAt: Date;
+			}[] = await m.query(
+				`SELECT revision,rating,comment,recorded_at AS "createdAt" FROM trip_review_revisions WHERE review_id=$1 AND revision=$2`,
+				[reviewId, Number(revision)]
+			);
+			if (!source) throw new NotFoundException("Source revision not found");
+			return { reviewId, ...source, currentRevision: row.sourceRevision };
+		});
 	}
 	async create(actorId: string, tripId: string) {
 		const config = this.provider.configuration();
@@ -110,6 +154,21 @@ export class ReviewAnalysisService {
 					.filter((row) => row.eligible && row.status === "succeeded")
 					.map((row) => row.analysisId)
 			);
+			const reasonFor = (item: AnalysisItem) => {
+				const source = coverage.find((row) => row.reviewId === item.review_id);
+				if (!source || source.suppressed) return "source_unavailable";
+				if (source.blocked) return "eligibility_restricted";
+				if (source.sourceRevision !== item.source_revision) return "review_changed";
+				const config = this.provider.configuration();
+				if (
+					item.provider !== config.provider ||
+					item.model !== config.model ||
+					item.config_version !== config.configVersion ||
+					item.prompt_version !== config.promptVersion
+				)
+					return "configuration_changed";
+				return source.eligible ? null : "source_unavailable";
+			};
 			const progress = {
 				total: items.length,
 				pending: 0,
@@ -149,6 +208,7 @@ export class ReviewAnalysisService {
 					attempts: (item.end_attempt ?? item.attempts) - item.start_attempt,
 					errorCode: item.terminal_status ? item.terminal_error_code : item.error_code,
 					current: statusOf(item) === "succeeded" && current.has(item.id),
+					freshnessReason: reasonFor(item),
 					history: attempts
 						.filter(
 							(a) =>
@@ -179,7 +239,7 @@ export class ReviewAnalysisService {
 			};
 		});
 	}
-	async insights(actorId: string, tripId: string, page: AnalysisPageDto) {
+	async insights(actorId: string, tripId: string, page: AnalysisInsightsQueryDto) {
 		return this.db.transaction("REPEATABLE READ", async (m) => {
 			await authorizeAnalysis(m, actorId, tripId);
 			const rows = await this.repository.coverageRows(m, tripId, this.provider.configuration());
@@ -220,17 +280,29 @@ export class ReviewAnalysisService {
 				else coverage.unprocessed++;
 			}
 			coverage.ratio = coverage.eligible ? coverage.analyzed / coverage.eligible : 0;
+			const filtered = page.sentiment
+				? current.filter((row) => row.sentiment === page.sentiment)
+				: current;
 			return {
 				tripId,
+				...(await this.readExecutionContext(m, tripId)),
 				configuration: this.provider.configuration(),
 				coverage,
+				freshness: {
+					reviewChanged: rows.filter(
+						(r) => r.eligible && !r.status && r.hasHistory && !r.hasRevisionHistory
+					).length,
+					configurationChanged: rows.filter((r) => r.eligible && !r.status && r.hasRevisionHistory)
+						.length,
+					restricted: rows.filter((r) => r.blocked).length,
+				},
 				sentimentCounts,
 				topics: TOPICS.filter((topic) => topics[topic] > 0).map((topic) => ({
 					topic,
 					count: topics[topic],
 					denominator: coverage.analyzed,
 				})),
-				items: current.slice((page.page - 1) * page.limit, page.page * page.limit).map((row) => ({
+				items: filtered.slice((page.page - 1) * page.limit, page.page * page.limit).map((row) => ({
 					id: row.analysisId,
 					reviewId: row.reviewId,
 					sourceRevision: row.sourceRevision,
@@ -244,11 +316,25 @@ export class ReviewAnalysisService {
 				pagination: {
 					page: page.page,
 					limit: page.limit,
-					total: current.length,
-					totalPages: Math.ceil(current.length / page.limit),
+					total: filtered.length,
+					totalPages: Math.ceil(filtered.length / page.limit),
 				},
 			};
 		});
+	}
+	private async readExecutionContext(m: EntityManager, tripId: string) {
+		const [batch]: AnalysisBatch[] = await m.query(
+			"SELECT * FROM trip_review_analysis_batches WHERE trip_id=$1 ORDER BY created_at DESC,id DESC LIMIT 1",
+			[tripId]
+		);
+		const [control]: { retryAfterSeconds: number }[] = await m.query(
+			`SELECT GREATEST(0,ceil(60-extract(epoch FROM (clock_timestamp()-last_batch_at))))::int AS "retryAfterSeconds" FROM trip_review_analysis_controls WHERE trip_id=$1`,
+			[tripId]
+		);
+		return {
+			latestBatch: batch ? this.batchResponse(batch) : null,
+			retryAfterSeconds: control?.retryAfterSeconds ?? 0,
+		};
 	}
 	async redact(actorId: string, reviewId: string) {
 		return this.db.transaction(async (m) => {

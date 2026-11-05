@@ -1,4 +1,12 @@
 export const API_ENDPOINTS = {
+	REVIEW_ANALYSIS: {
+		TRIPS: "/review-analysis/trips",
+		INSIGHTS: (id: string) => `/trips/${id}/review-analyses`,
+		CREATE: (id: string) => `/trips/${id}/review-analysis-batches`,
+		BATCH: (trip: string, id: string) => `/trips/${trip}/review-analysis-batches/${id}`,
+		SOURCE: (trip: string, review: string, revision: number) =>
+			`/trips/${trip}/review-analyses/${review}/source/${revision}`,
+	},
 	SURVIVAL_DOCUMENTS: {
 		ROOT: "/admin/survival-documents",
 		IMPORT_URL: "/admin/survival-documents/import-url",

@@ -7,12 +7,18 @@ import type { CamperProfileData } from "../../camper-profile/types";
 import { type AdminNavigationItem, AdminSidebar } from "./AdminSidebar";
 
 interface AdminLayoutProps {
+	allowMobile?: boolean;
 	activeItem: AdminNavigationItem;
 	children: React.ReactNode;
 	onLogout?: (allDevices: boolean) => Promise<void>;
 }
 
-export function AdminLayout({ activeItem, children, onLogout }: AdminLayoutProps) {
+export function AdminLayout({
+	activeItem,
+	children,
+	onLogout,
+	allowMobile = false,
+}: AdminLayoutProps) {
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 	const [profile, setProfile] = useState<CamperProfileData | null>(null);
 
@@ -85,18 +91,21 @@ export function AdminLayout({ activeItem, children, onLogout }: AdminLayoutProps
 			<div
 				className={`min-h-screen transition-all duration-300 ${isSidebarCollapsed ? "lg:pl-0" : "lg:pl-72"}`}
 			>
-				<div className="flex min-h-dvh items-center justify-center bg-[#f4f7f2] p-6 text-center lg:hidden">
-					<section className="max-w-md rounded-3xl border border-[#dfe8df] bg-white p-8 shadow-sm">
-						<h1 className="text-xl font-extrabold text-[#164027]">
-							Vui lòng mở CTMS trên máy tính
-						</h1>
-						<p className="mt-2 text-sm leading-6 text-[#627769]">
-							Khu vực quản lý Host và Quản trị viên được thiết kế để sử dụng trên màn hình máy tính.
-						</p>
-					</section>
-				</div>
+				{!allowMobile && (
+					<div className="flex min-h-dvh items-center justify-center bg-[#f4f7f2] p-6 text-center lg:hidden">
+						<section className="max-w-md rounded-3xl border border-[#dfe8df] bg-white p-8 shadow-sm">
+							<h1 className="text-xl font-extrabold text-[#164027]">
+								Vui lòng mở CTMS trên máy tính
+							</h1>
+							<p className="mt-2 text-sm leading-6 text-[#627769]">
+								Khu vực quản lý Host và Quản trị viên được thiết kế để sử dụng trên màn hình máy
+								tính.
+							</p>
+						</section>
+					</div>
+				)}
 
-				<main className="hidden lg:block">{children}</main>
+				<main className={allowMobile ? undefined : "hidden lg:block"}>{children}</main>
 			</div>
 		</div>
 	);

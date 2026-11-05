@@ -12,7 +12,7 @@
  * 8. Offline Device Telemetry & Sync Scenarios (CTMS-067)
  * 9. Content Moderation Reports
  */
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { hash } from "bcrypt";
 import type { DataSource } from "typeorm";
 import {
@@ -4736,7 +4736,181 @@ export async function seedTripReviewScenarios(ds = dataSource, titlesOnly = fals
 	});
 }
 
+/** CTMS-412: additive source evidence for multi-batch analysis; never seeds AI output. */
+export async function seedReviewAnalysisScenarios(
+	ds = dataSource,
+	refreshVietnamese = false,
+	demoNumber: 1 | 2 = 1
+): Promise<void> {
+	if (process.env.NODE_ENV === "production") throw new Error("Analysis seed is development-only");
+	const database = new URL(
+		process.env.DATABASE_URL ?? "postgresql://ctms:ctms@localhost:5432/ctms"
+	);
+	if (
+		!["localhost", "127.0.0.1", "postgres"].includes(database.hostname) ||
+		!["/ctms", "/ctms_test"].includes(database.pathname)
+	)
+		throw new Error("Analysis seed requires a local development/test database");
+	if (!ds.isInitialized) await ds.initialize();
+	const passwordHash = await hash(randomBytes(32).toString("hex"), BCRYPT_COST_FACTOR);
+	const comments: ReadonlyArray<readonly [number, string]> = [
+		[
+			5,
+			"Cảnh quan Sơn Trà rất đẹp, khâu tổ chức chu đáo và lịch trình phù hợp. Tôi có đủ thời gian nghỉ và chụp ảnh.",
+		],
+		[
+			4,
+			"Cảnh quan đẹp và mọi người trong nhóm thân thiện. Lịch trình rõ ràng, tuy nhiên chặng đi bộ đầu tiên hơi gấp.",
+		],
+		[
+			2,
+			"Điểm tập trung thông báo muộn, nhóm phải chờ khá lâu. Mong lần sau tổ chức đúng giờ và hướng dẫn rõ hơn.",
+		],
+		[
+			5,
+			"Hướng dẫn an toàn đầy đủ trước khi đi. Các điểm nghỉ hợp lý, tôi thấy yên tâm trong suốt hành trình.",
+		],
+		[
+			3,
+			"Phong cảnh rất đẹp, nhưng tiện nghi ở điểm nghỉ trưa chưa sạch sẽ. Nhìn chung trải nghiệm tốt nhưng vẫn cần cải thiện.",
+		],
+		[
+			4,
+			"Giá tour khá hợp lý so với trải nghiệm, đồ ăn vừa đủ. Phần giao tiếp trước chuyến đi cần phản hồi nhanh hơn.",
+		],
+		[
+			1,
+			"Điểm tập trung thay đổi mà không thông báo rõ ràng. Cách trao đổi thông tin và tổ chức cần cải thiện nhiều.",
+		],
+		[
+			5,
+			"Lịch trình hợp lý, nhóm đi đúng tốc độ và được hỗ trợ khi cần. Cảnh biển lúc bình minh rất đáng nhớ.",
+		],
+		[
+			3,
+			"Chuyến đi đúng như mô tả. Không có vấn đề lớn, nhưng chưa có hoạt động nào thật sự nổi bật.",
+		],
+		[
+			4,
+			"Hướng dẫn an toàn rõ ràng và hỗ trợ tận tình. Một số điểm nghỉ nên có thêm bóng mát và nước uống.",
+		],
+		[
+			2,
+			"Lịch trình hơi dày, thời gian nghỉ ít. Nhà vệ sinh ở điểm dừng chưa sạch nên trải nghiệm chưa thoải mái.",
+		],
+		[
+			5,
+			"Cảnh biển tuyệt đẹp, kế hoạch chu đáo và thông tin trước khi khởi hành đầy đủ. Trải nghiệm xứng đáng với chi phí.",
+		],
+		[
+			4,
+			"Tổ chức tốt, thông tin chi phí minh bạch. Tôi thích các điểm ngắm cảnh, mong có thêm thời gian tìm hiểu thiên nhiên.",
+		],
+		[
+			3,
+			"Trải nghiệm ở mức trung bình. Tuyến đi đúng mô tả và tiện nghi cơ bản vẫn đáp ứng nhu cầu.",
+		],
+		[
+			2,
+			"Chi phí phát sinh chưa được giải thích rõ trước chuyến đi. Cảnh đẹp nhưng tôi chưa hài lòng về cách trao đổi.",
+		],
+		[
+			5,
+			"Rất hài lòng với sự hỗ trợ và cách hướng dẫn an toàn. Cả nhóm phối hợp tốt, hành trình nhẹ nhàng và vui vẻ.",
+		],
+	];
+	await ds.transaction(async (manager) => {
+		const [host]: { id: string }[] = await manager.query(
+			"SELECT id FROM users WHERE email='host@ctms.local' AND status='active'"
+		);
+		if (!host) throw new Error("Existing active demo Host required");
+		const [route]: { id: string }[] = await manager.query(
+			"SELECT id FROM trekking_routes WHERE host_id=$1 ORDER BY created_at LIMIT 1",
+			[host.id]
+		);
+		if (!route) throw new Error("Existing demo Host Route required");
+		const tripId = `d4120000-0000-4000-8004-${String(demoNumber).padStart(12, "0")}`;
+		const title =
+			demoNumber === 1
+				? "Khám phá Sơn Trà – Trải nghiệm thiên nhiên"
+				: "Khám phá Sơn Trà – Bình minh trên biển";
+		await manager.query(
+			`INSERT INTO trips(id,host_id,route_id,title,description,trip_type,duration_nights,starts_at,ends_at,meeting_point,booking_deadline,capacity_min,capacity_max,seats_taken,price_per_person,status)
+   VALUES($1,$2,$3,$4,'Chuyến đi mẫu phục vụ kiểm thử phân tích đánh giá, gồm 32 nhận xét tiếng Việt.','day_trip',0,now()-interval '4 days',now()-interval '3 days',ST_GeogFromText('POINT(108.22 16.04)'),now()-interval '5 days',1,40,32,0,'completed') ON CONFLICT(id) DO NOTHING`,
+			[tripId, host.id, route.id, title]
+		);
+		for (let index = 0; index < 32; index++) {
+			const suffix = String(index + 1 + (demoNumber - 1) * 100).padStart(12, "0");
+			const userId = `d4120000-0000-4000-8000-${suffix}`;
+			const bookingId = `d4120000-0000-4000-8001-${suffix}`;
+			const memberId = `d4120000-0000-4000-8002-${suffix}`;
+			const reviewId = `d4120000-0000-4000-8003-${suffix}`;
+			const [rating, comment] = comments[index % comments.length];
+			if (refreshVietnamese) {
+				await manager.query(
+					`WITH changed AS (
+                  UPDATE trip_reviews SET comment=$2,revision=revision+1,updated_at=clock_timestamp()
+                  WHERE id=$1 AND trip_id=$3 AND comment IS DISTINCT FROM $2 RETURNING *)
+                  INSERT INTO trip_review_revisions(review_id,revision,rating,comment,recorded_at)
+                  SELECT id,revision,rating,comment,updated_at FROM changed`,
+					[reviewId, comment, tripId]
+				);
+				continue;
+			}
+
+			await manager.query(
+				`INSERT INTO users(id,email,password_hash,role,status,full_name) VALUES($1,$2,$3,'camper','active',$4) ON CONFLICT(id) DO NOTHING`,
+				[
+					userId,
+					`review-demo-${index + 1 + (demoNumber - 1) * 100}@example.test`,
+					passwordHash,
+					`Camper Demo ${index + 1}`,
+				]
+			);
+			await manager.query(
+				"INSERT INTO user_roles(user_id,role) VALUES($1,'camper') ON CONFLICT DO NOTHING",
+				[userId]
+			);
+			await manager.query(
+				`INSERT INTO bookings(id,trip_id,user_id,num_people,status,payment_status,completed_at,trip_starts_at_snapshot,trip_ends_at_snapshot)
+    SELECT $1,id,$3,1,'completed','not_required',ends_at,starts_at,ends_at FROM trips WHERE id=$2 ON CONFLICT(id) DO NOTHING`,
+				[bookingId, tripId, userId]
+			);
+			await manager.query(
+				`INSERT INTO booking_members(id,booking_id,user_id,is_primary,member_status,checked_in_at)
+    SELECT $1,$2,$3,true,'joined',starts_at FROM trips WHERE id=$4 ON CONFLICT(id) DO NOTHING`,
+				[memberId, bookingId, userId, tripId]
+			);
+			await manager.query(
+				`WITH inserted AS (INSERT INTO trip_reviews(id,booking_id,member_id,reviewer_id,trip_id,host_id,target,target_id,rating,comment,created_at,updated_at)
+    SELECT $1,$2,$3,$4,id,$6,'trip',id,$7,$8,ends_at+interval '2 hours',ends_at+interval '2 hours' FROM trips WHERE id=$5 ON CONFLICT DO NOTHING RETURNING *)
+    INSERT INTO trip_review_revisions(review_id,revision,rating,comment,recorded_at) SELECT id,revision,rating,comment,updated_at FROM inserted`,
+				[reviewId, bookingId, memberId, userId, tripId, host.id, rating, comment]
+			);
+		}
+	});
+	console.log(
+		"[seed:review-analysis] Ensured Vietnamese demo source reviews; AI history preserved."
+	);
+}
+
 export async function runMasterSeed(): Promise<void> {
+	if (
+		process.argv.includes("--review-analysis-only") ||
+		process.argv.includes("--review-analysis-vietnamese-only") ||
+		process.argv.includes("--review-analysis-video-only")
+	) {
+		try {
+			await seedReviewAnalysisScenarios(
+				dataSource,
+				process.argv.includes("--review-analysis-vietnamese-only"),
+				process.argv.includes("--review-analysis-video-only") ? 2 : 1
+			);
+		} finally {
+			if (dataSource.isInitialized) await dataSource.destroy();
+		}
+		return;
+	}
 	if (
 		process.argv.includes("--trip-reviews-only") ||
 		process.argv.includes("--trip-review-titles-only")
