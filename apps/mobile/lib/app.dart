@@ -5,6 +5,7 @@ import 'core/lifecycle/app_lifecycle_observer.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'features/incidents/application/incidents_controller.dart';
+import 'features/sync/application/reconnection_sync_coordinator.dart';
 
 class CtmsApp extends ConsumerWidget {
   const CtmsApp({super.key});
@@ -16,6 +17,8 @@ class CtmsApp extends ConsumerWidget {
     ref.watch(
       incidentsControllerProvider.select((controller) => controller != null),
     );
+    // Keep reconnection sync coordinator active across app navigation (CTMS-065).
+    ref.watch(reconnectionSyncCoordinatorProvider);
 
     // CTMS-04-T03, DG-M6: wraps the whole app so the lifecycle observer is
     // registered once for the app's lifetime, independent of whatever
