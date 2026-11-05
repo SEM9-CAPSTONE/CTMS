@@ -15,6 +15,7 @@ import { OverbookingEvaluationModule } from "./overbooking-evaluation/overbookin
 import { PorterLevelsModule } from "./porter-levels/porter-levels.module";
 import { ProfilesModule } from "./profiles/profiles.module";
 import { RealtimeModule } from "./realtime/realtime.module";
+import { ReviewAnalysisModule } from "./review-analysis/review-analysis.module";
 import { RouteSafetyModule } from "./route-safety/route-safety.module";
 import { SafetyEventsModule } from "./safety-events/safety-events.module";
 import { SosModule } from "./sos/sos.module";
@@ -54,6 +55,7 @@ import { WeatherModule } from "./weather/weather.module";
 		TrekkingRoutesModule,
 		TripsModule,
 		TripReviewsModule,
+		ReviewAnalysisModule,
 		UploadsModule,
 		WeatherModule,
 	],
