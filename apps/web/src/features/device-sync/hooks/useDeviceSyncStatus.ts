@@ -210,6 +210,18 @@ export function useDeviceSyncStatus(
 		queryClient,
 	]);
 
+	// Automatic synchronization on reconnection (PB AC-1, BR-243)
+	useEffect(() => {
+		if (typeof window === "undefined") return;
+		const handleOnline = () => {
+			void retry();
+		};
+		window.addEventListener("online", handleOnline);
+		return () => {
+			window.removeEventListener("online", handleOnline);
+		};
+	}, [retry]);
+
 	const summary: DeviceSyncSummary = {
 		pendingGpsCount,
 		failedGpsCount,
