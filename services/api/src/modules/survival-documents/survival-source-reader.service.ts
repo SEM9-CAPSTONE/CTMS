@@ -1,7 +1,8 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
+import { invalidSource } from "./dto/source.dto";
 // biome-ignore lint/style/useImportType: Nest injection
 import { SourceFilesService } from "./source-files.service";
-import { assertRights } from "./source-policy";
+import { assertRights, hasRecordedUseRights } from "./source-policy";
 // biome-ignore lint/style/useImportType: Nest injection
 import { SurvivalDocumentsRepository, sourceConflict } from "./survival-documents.repository";
 import {
@@ -58,6 +59,8 @@ export class SurvivalSourceReader {
 				document.currentPublishedVersionId !== version.id
 			)
 				sourceConflict();
+			if (!hasRecordedUseRights(version))
+				throw invalidSource("Chưa xác minh quyền sử dụng cho phiên bản này.");
 			assertRights(version.metadata, version.rights, use);
 			return {
 				manifest: {

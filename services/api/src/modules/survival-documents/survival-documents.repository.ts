@@ -17,6 +17,52 @@ export function sourceConflict(): never {
 @Injectable()
 export class SurvivalDocumentsRepository {
 	constructor(readonly db: DataSource) {}
+	async assertPdfIsNew(
+		manager: EntityManager,
+		checksum: string,
+		filename: string,
+		targetDocumentId?: string
+	): Promise<void> {
+		const [match]: Array<{
+			documentId: string;
+			versionId: string;
+			versionNumber: number;
+			sourceTitle: string;
+			sameContent: boolean;
+			sameName: boolean;
+		}> = await manager.query(
+			`SELECT document_id AS "documentId", id AS "versionId",
+			        version_number AS "versionNumber", metadata->>'sourceTitle' AS "sourceTitle",
+			        checksum=$1 AS "sameContent",
+			        lower(btrim(normalize(original_filename)))=lower(btrim(normalize($2))) AS "sameName"
+			 FROM survival_document_versions
+			 WHERE checksum=$1 OR lower(btrim(normalize(original_filename)))=lower(btrim(normalize($2)))
+			 ORDER BY "sameContent" DESC, "sameName" DESC,
+			          (document_id=$3::uuid) DESC NULLS LAST, (status='PUBLISHED') DESC,
+			          created_at, id
+			 LIMIT 1`,
+			[checksum, filename, targetDocumentId ?? null]
+		);
+		if (!match) return;
+		const { sameContent, sameName, ...existing } = match;
+		if (sameContent && sameName)
+			throw new ConflictException({
+				code: "SOURCE_DUPLICATE_PDF_NAME_AND_CONTENT",
+				message: "Trùng cả tên tệp và nội dung PDF.",
+				...existing,
+			});
+		if (sameContent)
+			throw new ConflictException({
+				code: "SOURCE_DUPLICATE_PDF",
+				message: "Trùng nội dung PDF.",
+				...existing,
+			});
+		throw new ConflictException({
+			code: "SOURCE_DUPLICATE_PDF_NAME",
+			message: "Trùng tên tệp PDF.",
+			...existing,
+		});
+	}
 	async document(manager: EntityManager, id: string, lock = false): Promise<SurvivalDocument> {
 		const rows: SurvivalDocument[] = await manager.query(
 			`${DOCUMENT_SELECT} WHERE id=$1 ${lock ? "FOR UPDATE" : ""}`,

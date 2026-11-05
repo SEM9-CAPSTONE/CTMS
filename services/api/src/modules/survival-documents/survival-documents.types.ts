@@ -1,9 +1,6 @@
 export enum DocumentStatus {
 	DRAFT = "DRAFT",
-	IN_REVIEW = "IN_REVIEW",
-	APPROVED = "APPROVED",
 	PUBLISHED = "PUBLISHED",
-	REJECTED = "REJECTED",
 	SUPERSEDED = "SUPERSEDED",
 	ARCHIVED = "ARCHIVED",
 }
@@ -28,18 +25,18 @@ export enum Classification {
 }
 export interface SourceMetadata {
 	sourceTitle: string;
-	publisher: string;
+	publisher?: string;
 	sourceUrl?: string;
 	classification: Classification;
 	locale: string;
-	originalLocale: string;
+	originalLocale?: string;
 	sourcePublishedAt?: string;
-	retrievedAt: string;
-	licenseType: string;
+	retrievedAt?: string;
+	licenseType?: string;
 	licenseUrl?: string;
-	permissionEvidence: string;
-	changeSummary: string;
-	attribution: string;
+	permissionEvidence?: string;
+	changeSummary?: string;
+	attribution?: string;
 	originalVersionId?: string;
 	adaptationDisclaimer?: string;
 }

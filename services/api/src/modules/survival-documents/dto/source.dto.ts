@@ -6,9 +6,9 @@ import {
 	IsDateString,
 	IsDefined,
 	IsEnum,
-	IsIn,
 	IsInt,
 	IsJSON,
+	IsObject,
 	IsOptional,
 	IsString,
 	IsUUID,
@@ -30,23 +30,61 @@ import {
 const trim = ({ value }: { value: unknown }) => (typeof value === "string" ? value.trim() : value);
 export class SourceMetadataDto {
 	@ApiProperty() @Transform(trim) @IsString() @MinLength(2) @MaxLength(250) sourceTitle!: string;
-	@ApiProperty() @Transform(trim) @IsString() @MinLength(2) @MaxLength(250) publisher!: string;
-	@ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(2000) sourceUrl?: string;
+	@ApiPropertyOptional()
+	@IsOptional()
+	@Transform(trim)
+	@IsString()
+	@MinLength(2)
+	@MaxLength(250)
+	publisher?: string;
+	@ApiPropertyOptional()
+	@IsOptional()
+	@Transform(trim)
+	@IsString()
+	@MaxLength(2000)
+	sourceUrl?: string;
 	@ApiProperty({ enum: Classification }) @IsEnum(Classification) classification!: Classification;
 	@ApiProperty() @Matches(/^[a-z]{2,3}(?:-[A-Z]{2})?$/) locale!: string;
-	@ApiProperty() @Matches(/^[a-z]{2,3}(?:-[A-Z]{2})?$/) originalLocale!: string;
+	@ApiPropertyOptional()
+	@IsOptional()
+	@Matches(/^[a-z]{2,3}(?:-[A-Z]{2})?$/)
+	originalLocale?: string;
 	@ApiPropertyOptional() @IsOptional() @IsDateString({ strict: true }) sourcePublishedAt?: string;
-	@ApiProperty() @IsDateString({ strict: true }) retrievedAt!: string;
-	@ApiProperty() @Transform(trim) @IsString() @MinLength(2) @MaxLength(250) licenseType!: string;
-	@ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(2000) licenseUrl?: string;
-	@ApiProperty()
+	@ApiPropertyOptional() @IsOptional() @IsDateString({ strict: true }) retrievedAt?: string;
+	@ApiPropertyOptional()
+	@IsOptional()
+	@Transform(trim)
+	@IsString()
+	@MinLength(2)
+	@MaxLength(250)
+	licenseType?: string;
+	@ApiPropertyOptional()
+	@IsOptional()
+	@Transform(trim)
+	@IsString()
+	@MaxLength(2000)
+	licenseUrl?: string;
+	@ApiPropertyOptional()
+	@IsOptional()
 	@Transform(trim)
 	@IsString()
 	@MinLength(10)
 	@MaxLength(5000)
-	permissionEvidence!: string;
-	@ApiProperty() @Transform(trim) @IsString() @MinLength(3) @MaxLength(2000) changeSummary!: string;
-	@ApiProperty() @Transform(trim) @IsString() @MinLength(3) @MaxLength(2000) attribution!: string;
+	permissionEvidence?: string;
+	@ApiPropertyOptional()
+	@IsOptional()
+	@Transform(trim)
+	@IsString()
+	@MinLength(3)
+	@MaxLength(2000)
+	changeSummary?: string;
+	@ApiPropertyOptional()
+	@IsOptional()
+	@Transform(trim)
+	@IsString()
+	@MinLength(3)
+	@MaxLength(2000)
+	attribution?: string;
 	@ApiPropertyOptional() @IsOptional() @IsUUID() originalVersionId?: string;
 	@ApiPropertyOptional()
 	@IsOptional()
@@ -68,6 +106,25 @@ export class UploadSourceDto {
 	@Min(1)
 	expectedDocumentRevision?: number;
 }
+export class ImportSourceDto {
+	@ApiProperty({ description: "Direct HTTPS URL of the PDF" })
+	@Transform(trim)
+	@IsString()
+	@Matches(/^https:\/\//i)
+	@MaxLength(2000)
+	sourceUrl!: string;
+	@ApiProperty({ type: SourceMetadataDto })
+	@IsDefined()
+	@IsObject()
+	@ValidateNested()
+	@Type(() => SourceMetadataDto)
+	metadata!: SourceMetadataDto;
+	@ApiPropertyOptional()
+	@IsOptional()
+	@IsInt()
+	@Min(1)
+	expectedDocumentRevision?: number;
+}
 export class RevisionDto {
 	@ApiProperty() @IsInt() @Min(1) expectedRevision!: number;
 	@ApiPropertyOptional()
@@ -77,9 +134,17 @@ export class RevisionDto {
 	@MaxLength(2000)
 	reason?: string;
 }
+export class DeleteSourceDto {
+	@ApiProperty()
+	@Type(() => Number)
+	@IsInt()
+	@Min(1)
+	expectedRevision!: number;
+}
 export class EditSourceDto extends RevisionDto {
 	@ApiProperty({ type: SourceMetadataDto })
 	@IsDefined()
+	@IsObject()
 	@ValidateNested()
 	@Type(() => SourceMetadataDto)
 	metadata!: SourceMetadataDto;
@@ -95,15 +160,13 @@ export class SourceRightsDto {
 	medicalContentReviewStatus!: MedicalStatus;
 	@ApiProperty() @Transform(trim) @IsString() @MinLength(10) @MaxLength(5000) evidence!: string;
 }
-export class ReviewSourceDto extends RevisionDto {
-	@ApiProperty({ enum: ["approve", "reject"] }) @IsIn(["approve", "reject"]) decision!:
-		| "approve"
-		| "reject";
-	@ApiProperty({ type: SourceRightsDto })
-	@IsDefined()
+export class PublishSourceDto extends RevisionDto {
+	@ApiPropertyOptional({ type: SourceRightsDto })
+	@IsOptional()
+	@IsObject()
 	@ValidateNested()
 	@Type(() => SourceRightsDto)
-	rights!: SourceRightsDto;
+	rights?: SourceRightsDto;
 }
 export class ListSourcesDto {
 	@ApiPropertyOptional() @Type(() => Number) @IsInt() @Min(1) page = 1;
@@ -126,11 +189,14 @@ export function parseMetadata(value: string): SourceMetadataDto {
 	} catch {
 		throw invalidSource("Thông tin tài liệu không hợp lệ.");
 	}
-	if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+	return validateMetadata(parsed);
+}
+export function validateMetadata(value: unknown): SourceMetadataDto {
+	if (!value || typeof value !== "object" || Array.isArray(value))
 		throw invalidSource("Thông tin tài liệu không hợp lệ.");
-	const dto = plainToInstance(SourceMetadataDto, parsed);
+	const dto = plainToInstance(SourceMetadataDto, value);
 	if (validateSync(dto, { whitelist: true, forbidNonWhitelisted: true }).length)
-		throw invalidSource("Vui lòng kiểm tra thông tin nguồn, ngôn ngữ và minh chứng quyền sử dụng.");
+		throw invalidSource("Vui lòng kiểm tra tên tài liệu, danh mục, ngôn ngữ và metadata đã nhập.");
 	return dto;
 }
 export function invalidSource(message: string): UnprocessableEntityException {

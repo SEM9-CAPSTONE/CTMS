@@ -1,11 +1,4 @@
-export type DocumentStatus =
-	| "DRAFT"
-	| "IN_REVIEW"
-	| "APPROVED"
-	| "PUBLISHED"
-	| "REJECTED"
-	| "SUPERSEDED"
-	| "ARCHIVED";
+export type DocumentStatus = "DRAFT" | "PUBLISHED" | "SUPERSEDED" | "ARCHIVED";
 export type Classification =
 	| "NATURAL_HAZARDS"
 	| "TREKKING_SAFETY"
@@ -15,18 +8,18 @@ export type Classification =
 	| "FIRST_AID";
 export interface SourceMetadata {
 	sourceTitle: string;
-	publisher: string;
+	publisher?: string;
 	sourceUrl?: string;
 	classification: Classification;
 	locale: string;
-	originalLocale: string;
+	originalLocale?: string;
 	sourcePublishedAt?: string;
-	retrievedAt: string;
-	licenseType: string;
+	retrievedAt?: string;
+	licenseType?: string;
 	licenseUrl?: string;
-	permissionEvidence: string;
-	changeSummary: string;
-	attribution: string;
+	permissionEvidence?: string;
+	changeSummary?: string;
+	attribution?: string;
 	originalVersionId?: string;
 	adaptationDisclaimer?: string;
 }
@@ -86,21 +79,7 @@ export interface DocumentDetail extends SurvivalDocument {
 		createdAt: string;
 	}>;
 }
-export interface SourceReference {
-	id: string;
-	publisher: string;
-	title: string;
-	category: Classification;
-	contentUrl: string;
-	rightsPolicyUrl: string | null;
-	language: string;
-	rightsNote: string;
-	reviewStatus: "NOT_REVIEWED";
-	isApproved: false;
-	internalRagUseAllowed: false;
-	offlineRedistributionAllowed: false;
-	translationAllowed: false;
-}
+export type PdfSource = { kind: "upload"; file: File } | { kind: "url"; sourceUrl: string };
 export interface SourceFilters {
 	page: number;
 	limit: number;
@@ -109,10 +88,9 @@ export interface SourceFilters {
 	locale?: string;
 	status?: DocumentStatus;
 }
-export type SourceAction = "submit" | "review" | "publish" | "archive";
+export type SourceAction = "publish" | "archive";
 export interface SourceDecision {
 	expectedRevision: number;
 	reason?: string;
-	decision?: "approve" | "reject";
 	rights?: SourceRights;
 }

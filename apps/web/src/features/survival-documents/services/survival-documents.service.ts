@@ -7,18 +7,20 @@ import type {
 	SourceDecision,
 	SourceFilters,
 	SourceMetadata,
-	SourceReference,
 } from "../types";
 const endpoints = API_ENDPOINTS.SURVIVAL_DOCUMENTS;
 export const survivalDocumentsService = {
 	list: (filters: SourceFilters) =>
-		httpClient.get<{ items: DocumentListItem[]; total: number; page: number; limit: number }>(
-			endpoints.ROOT,
-			{ ...filters, search: filters.search || undefined }
-		),
+		httpClient.get<{
+			items: DocumentListItem[];
+			total: number;
+			page: number;
+			limit: number;
+			maxBytes?: number;
+		}>(endpoints.ROOT, { ...filters, search: filters.search || undefined }),
 	detail: (id: string) => httpClient.get<DocumentDetail>(endpoints.DETAIL(id)),
-	references: () =>
-		httpClient.get<{ items: SourceReference[]; maxBytes: number }>(endpoints.REFERENCES),
+	remove: (id: string, expectedRevision: number) =>
+		httpClient.delete<void>(`${endpoints.DETAIL(id)}?expectedRevision=${expectedRevision}`),
 	upload: (metadata: SourceMetadata, file: File, document?: DocumentDetail) => {
 		const body = new FormData();
 		body.append("file", file);
@@ -29,6 +31,11 @@ export const survivalDocumentsService = {
 			body
 		);
 	},
+	importUrl: (metadata: SourceMetadata, sourceUrl: string, document?: DocumentDetail) =>
+		httpClient.post<DocumentDetail>(
+			document ? endpoints.IMPORT_VERSION_URL(document.id) : endpoints.IMPORT_URL,
+			{ metadata, sourceUrl, expectedDocumentRevision: document?.revision }
+		),
 	edit: (id: string, versionId: string, expectedRevision: number, metadata: SourceMetadata) =>
 		httpClient.patch<DocumentDetail>(endpoints.VERSION(id, versionId, "metadata"), {
 			expectedRevision,
@@ -36,8 +43,9 @@ export const survivalDocumentsService = {
 		}),
 	action: (id: string, versionId: string, action: SourceAction, payload: SourceDecision) =>
 		httpClient.post<DocumentDetail>(endpoints.VERSION(id, versionId, action), payload),
-	file: (id: string, versionId: string) =>
+	file: (id: string, versionId: string, signal?: AbortSignal) =>
 		httpClient.get<Blob>(endpoints.VERSION(id, versionId, "file"), undefined, {
 			responseType: "blob",
+			signal,
 		}),
 };

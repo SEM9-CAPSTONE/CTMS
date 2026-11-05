@@ -2,8 +2,7 @@ import { AdminLayout } from "../../admin-layout/components/AdminLayout";
 import { SourceDetail } from "../components/SourceDetail";
 import { SourceDocumentTable } from "../components/SourceDocumentTable";
 import { SourceFilters } from "../components/SourceFilters";
-import { SourceReferenceCatalog } from "../components/SourceReferenceCatalog";
-import { SourceUploadForm } from "../components/SourceUploadForm";
+import { DocumentEditor } from "../components/editor/DocumentEditor";
 import { SOURCE_BUTTON } from "../constants";
 import { useSourceWorkspace } from "../hooks/useSourceWorkspace";
 
@@ -15,16 +14,30 @@ export function SurvivalDocumentsPage({
 		filters,
 		setFilters,
 		selectedId,
-		setSelectedId,
+		selectedVersionId,
+		openDocument,
+		selectVersion,
 		mode,
 		setMode,
 		notice,
 		busy,
 		openForm,
 		actOnVersion,
+		deleteDocument,
 		save,
 		formMetadata,
+		formError,
+		duplicatePdf,
+		openDuplicate,
+		resetPdfError,
 	} = useSourceWorkspace();
+	const filtered = !!(filters.search || filters.classification || filters.locale || filters.status);
+	const empty = state.list.data?.total === 0;
+	const missingSelectedVersion =
+		!!selectedVersionId &&
+		!state.detail.data?.versions.some((item) => item.id === selectedVersionId);
+	const loadingDetail =
+		state.detail.isPending || (missingSelectedVersion && state.detail.isFetching);
 	return (
 		<AdminLayout activeItem="survival-documents" onLogout={onLogout}>
 			<div className="mx-auto max-w-7xl space-y-5 px-6 py-6">
@@ -52,7 +65,7 @@ export function SurvivalDocumentsPage({
 							disabled={busy}
 							onClick={() => openForm({ kind: "create" })}
 						>
-							Thêm nguồn tài liệu
+							Thêm tài liệu
 						</button>
 					</div>
 				</header>
@@ -61,65 +74,76 @@ export function SurvivalDocumentsPage({
 						{notice}
 					</output>
 				)}
-				{state.references.data && (
-					<SourceReferenceCatalog
-						items={state.references.data.items}
-						disabled={busy}
-						onSelect={(reference) => openForm({ kind: "create", reference })}
-					/>
-				)}
-				{state.references.error && (
-					<p role="alert">Không tải được nguồn gợi ý. Bạn vẫn có thể thêm tài liệu thủ công.</p>
-				)}
-				<SourceFilters filters={filters} onChange={setFilters} />
+				<div className="rounded-2xl border border-[#dfe8df] bg-white p-4">
+					<SourceFilters filters={filters} onChange={setFilters} />
+				</div>
 				{state.list.isPending && <output>Đang tải tài liệu…</output>}
 				{state.list.error && (
 					<p role="alert" className="text-red-700">
 						{state.list.error.message} Dùng nút Tải lại để thử lại.
 					</p>
 				)}
-				{state.list.data && (
+				{empty && (
+					<div className="rounded-2xl border border-dashed border-[#dfe8df] bg-white px-5 py-12 text-center">
+						<p className="font-bold text-[#164027]">
+							{filtered ? "Chưa có tài liệu phù hợp." : "Kho tài liệu đang trống."}
+						</p>
+						<p className="mt-1 text-sm text-[#667a6d]">
+							{filtered
+								? "Thử đổi từ khóa hoặc bộ lọc."
+								: "Thêm tài liệu đầu tiên bằng tệp PDF hoặc URL PDF."}
+						</p>
+					</div>
+				)}
+				{state.list.data && !empty && (
 					<SourceDocumentTable
 						items={state.list.data.items}
 						total={state.list.data.total}
 						page={filters.page}
 						disabled={busy}
 						onPage={(page) => setFilters({ ...filters, page })}
-						onOpen={(id) => {
-							state.action.reset();
-							setSelectedId(id);
-						}}
+						onOpen={openDocument}
 					/>
 				)}
-				{selectedId && state.detail.isPending && <output>Đang tải chi tiết…</output>}
+				{selectedId && loadingDetail && <output>Đang tải chi tiết…</output>}
 				{selectedId && state.detail.error && (
 					<p role="alert" className="text-red-700">
 						{state.detail.error.message}
 					</p>
 				)}
-				{state.detail.data && selectedId && !mode && (
+				{selectedId && !loadingDetail && !state.detail.error && missingSelectedVersion && (
+					<p role="alert" className="text-red-700">
+						Không tìm thấy phiên bản PDF đã chọn.
+					</p>
+				)}
+				{state.detail.data && selectedId && !mode && !missingSelectedVersion && (
 					<SourceDetail
 						key={state.detail.data.id}
 						document={state.detail.data}
+						selectedVersionId={selectedVersionId}
 						busy={busy}
-						error={state.action.error}
-						onClose={() => setSelectedId(null)}
-						onNewVersion={() => openForm({ kind: "version" })}
+						error={state.remove.error ?? state.action.error}
+						onClose={() => openDocument(null)}
+						onNewVersion={(document, version) => openForm({ kind: "version", document, version })}
+						onSelectVersion={selectVersion}
 						onEdit={(version) => openForm({ kind: "edit", version })}
 						onAction={actOnVersion}
+						onDelete={deleteDocument}
 					/>
 				)}
 				{mode && (
-					<SourceUploadForm
+					<DocumentEditor
 						key={`${mode.kind}-${mode.kind === "edit" ? mode.version.id : "new"}`}
 						initial={formMetadata}
-						reference={mode.kind === "create" ? mode.reference : undefined}
-						editing={mode.kind === "edit"}
-						maxBytes={state.references.data?.maxBytes ?? 10485760}
+						kind={mode.kind}
+						maxBytes={state.list.data?.maxBytes}
 						busy={busy}
-						error={mode.kind === "edit" ? state.edit.error : state.upload.error}
+						error={formError}
+						duplicatePdf={duplicatePdf}
 						onClose={() => setMode(null)}
+						onOpenDuplicate={openDuplicate}
 						onSubmit={save}
+						onSourceChange={resetPdfError}
 					/>
 				)}
 			</div>

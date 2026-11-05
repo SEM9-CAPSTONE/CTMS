@@ -1,6 +1,6 @@
 import { Eye } from "lucide-react";
 import { DataTable, Pagination } from "../../../shared/components";
-import { CATEGORY_LABELS, SOURCE_PAGE_SIZE, STATUS_LABELS } from "../constants";
+import { CATEGORY_LABELS, SOURCE_PAGE_SIZE } from "../constants";
 import type { DocumentListItem } from "../types";
 export function SourceDocumentTable({
 	items,
@@ -35,7 +35,7 @@ export function SourceDocumentTable({
 					{
 						key: "publisher",
 						header: "Tổ chức",
-						render: (item) => item.latestVersion.metadata.publisher,
+						render: (item) => item.latestVersion.metadata.publisher || "—",
 					},
 					{
 						key: "classification",
@@ -52,15 +52,6 @@ export function SourceDocumentTable({
 						header: "Đang xuất bản",
 						render: (item) =>
 							item.publishedVersionNumber ? `Phiên bản ${item.publishedVersionNumber}` : "Chưa có",
-					},
-					{
-						key: "status",
-						header: "Bản mới nhất",
-						render: (item) => (
-							<span className="rounded-full bg-[#e8f0e6] px-2 py-1 text-xs font-bold text-[#164027]">
-								{STATUS_LABELS[item.latestVersion.status]} · {item.latestVersion.versionNumber}
-							</span>
-						),
 					},
 					{
 						key: "updated",

@@ -1,9 +1,10 @@
 export const API_ENDPOINTS = {
 	SURVIVAL_DOCUMENTS: {
 		ROOT: "/admin/survival-documents",
-		REFERENCES: "/admin/survival-documents/references",
+		IMPORT_URL: "/admin/survival-documents/import-url",
 		DETAIL: (id: string) => `/admin/survival-documents/${id}`,
 		VERSIONS: (id: string) => `/admin/survival-documents/${id}/versions`,
+		IMPORT_VERSION_URL: (id: string) => `/admin/survival-documents/${id}/versions/import-url`,
 		VERSION: (id: string, versionId: string, suffix: string) =>
 			`/admin/survival-documents/${id}/versions/${versionId}/${suffix}`,
 	},

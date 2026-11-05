@@ -1,65 +1,48 @@
-import { CATEGORY_LABELS, RIGHTS_LABELS } from "../constants";
+import { CATEGORY_LABELS } from "../constants";
 import type { SourceVersion } from "../types";
+const languageLabels: Record<string, string> = { vi: "Tiếng Việt", en: "Tiếng Anh" };
+
 export function SourceVersionProvenance({ version }: { version: SourceVersion }) {
-	const { metadata, rights } = version;
-	const entries = [
-		["Tổ chức xuất bản", metadata.publisher],
+	const { metadata } = version;
+	const language = languageLabels[metadata.locale] ?? metadata.locale;
+	const overview = [
 		["Phân loại", CATEGORY_LABELS[metadata.classification]],
-		["Ngôn ngữ", metadata.locale],
-		["Ngôn ngữ gốc", metadata.originalLocale],
-		["Ngày xuất bản nguồn", metadata.sourcePublishedAt ?? "Chưa xác định"],
-		["Ngày truy cập", metadata.retrievedAt],
-		["Giấy phép", metadata.licenseType],
-		["Minh chứng nguồn", metadata.permissionEvidence],
-		["Ghi công nguồn", metadata.attribution],
-		["Thay đổi", metadata.changeSummary],
-		["Phiên bản gốc", metadata.originalVersionId ?? "—"],
-		["Thông báo bản dịch", metadata.adaptationDisclaimer ?? "—"],
-		["Quyền sử dụng", RIGHTS_LABELS[rights.rightsReviewStatus]],
-		["Quyền xử lý AI", rights.internalRagUseAllowed ? "Đã xác minh" : "Chưa được phép"],
-		[
-			"Phân phối ngoại tuyến",
-			rights.offlineRedistributionAllowed ? "Đã xác minh" : "Chưa được phép",
-		],
-		["Dịch hoặc chuyển thể", rights.translationAllowed ? "Đã xác minh" : "Chưa được phép"],
-		[
-			"Chuyên môn y tế",
-			rights.medicalContentReviewStatus === "APPROVED" ? "Đã kiểm tra" : "Chưa xác nhận phù hợp",
-		],
-		["Minh chứng xét duyệt", rights.evidence || "Chưa có"],
-		["Người duyệt", version.reviewedBy ?? "—"],
-		["Thời gian duyệt", version.reviewedAt ?? "—"],
-		["Người xuất bản", version.publishedBy ?? "—"],
-		["Thời gian xuất bản", version.publishedAt ?? "—"],
-		["Mã phiên bản", version.id],
-		["Mã kiểm tra SHA-256", version.checksum],
-		["Tệp", `${version.originalFilename} · ${version.size} byte`],
+		["Ngôn ngữ", language],
+		["Tổ chức phát hành", metadata.publisher || "—"],
+		["Tệp", version.originalFilename],
+		["Dung lượng", formatFileSize(version.size)],
 	];
 	return (
-		<>
-			<dl className="grid gap-3 text-sm sm:grid-cols-2">
-				{entries.map(([label, value]) => (
-					<div key={label} className="min-w-0">
-						<dt className="font-semibold text-[#667a6d]">{label}</dt>
-						<dd className="break-words whitespace-pre-wrap">{value}</dd>
+		<div className="space-y-4">
+			<h3 className="text-sm font-bold">Thông tin tài liệu</h3>
+			<dl className="space-y-3 text-sm">
+				{overview.map(([label, value]) => (
+					<div key={label} className="flex justify-between gap-3">
+						<dt className="shrink-0 text-[#526c5e]">{label}</dt>
+						<dd className="min-w-0 break-words text-right font-semibold">{value}</dd>
 					</div>
 				))}
 			</dl>
-			<div className="my-3 flex gap-4 text-sm underline">
+			<div className="space-y-2 border-t border-[#dfe8df] pt-3 text-sm">
+				<h3 className="font-bold">Nguồn tài liệu</h3>
 				{metadata.sourceUrl && (
-					<a href={metadata.sourceUrl} target="_blank" rel="noopener noreferrer">
-						Nguồn gốc
+					<a
+						href={metadata.sourceUrl}
+						target="_blank"
+						rel="noopener noreferrer"
+						className="inline-flex items-center gap-1.5 font-semibold text-[#164027] underline"
+					>
+						<ExternalLink size={14} aria-hidden="true" />
+						Xem nguồn gốc
 					</a>
 				)}
-				{metadata.licenseUrl && (
-					<a href={metadata.licenseUrl} target="_blank" rel="noopener noreferrer">
-						Điều khoản gốc
-					</a>
-				)}
+				{!metadata.sourceUrl && <p className="text-[#526c5e]">Chưa có URL nguồn.</p>}
 			</div>
 			{version.reason && (
 				<p className="rounded-lg bg-amber-50 p-3 text-sm">Lý do: {version.reason}</p>
 			)}
-		</>
+		</div>
 	);
 }
+import { ExternalLink } from "lucide-react";
+import { formatFileSize } from "../../../shared/components/FileDropzone";

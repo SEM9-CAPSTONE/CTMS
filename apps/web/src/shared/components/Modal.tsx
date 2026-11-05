@@ -8,7 +8,7 @@ export interface ModalProps {
 	icon?: ReactNode;
 	description?: ReactNode;
 	children: ReactNode;
-	size?: "md" | "lg" | "xl";
+	size?: "md" | "lg" | "xl" | "2xl";
 	/** Blocks closing (X button and Escape) while a request is in flight. */
 	isCloseDisabled?: boolean;
 	closeLabel?: string;
@@ -18,6 +18,7 @@ const sizeStyles = {
 	md: "max-w-md",
 	lg: "max-w-lg",
 	xl: "max-w-3xl",
+	"2xl": "max-w-5xl",
 };
 
 /** Generic modal shell for forms and details; use ConfirmModal for yes/no confirmations. */
@@ -37,7 +38,8 @@ export function Modal({
 	useEffect(() => {
 		if (!isOpen || isCloseDisabled) return;
 		const handleKeyDown = (event: KeyboardEvent) => {
-			if (event.key === "Escape") onClose();
+			if (event.key === "Escape" && !event.defaultPrevented && !document.fullscreenElement)
+				onClose();
 		};
 		window.addEventListener("keydown", handleKeyDown);
 		return () => window.removeEventListener("keydown", handleKeyDown);

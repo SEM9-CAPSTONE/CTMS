@@ -1,20 +1,15 @@
-import { useMutation } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { queryKeys } from "../../../core/api/queryKeys";
 import { survivalDocumentsService } from "../services/survival-documents.service";
+import { usePdfPreviewUrl } from "./usePdfPreviewUrl";
 export function useSourceFile(documentId: string, versionId: string) {
-	const [preview, setPreview] = useState<{ versionId: string; url: string } | null>(null);
-	const url = preview?.versionId === versionId ? preview.url : null;
-	useEffect(
-		() => () => {
-			if (preview) URL.revokeObjectURL(preview.url);
-		},
-		[preview]
-	);
-	const file = useMutation({
-		mutationKey: [documentId, versionId, "private-file"],
-		mutationFn: (requestedId: string) => survivalDocumentsService.file(documentId, requestedId),
-		onSuccess: (blob, requestedId) =>
-			setPreview({ versionId: requestedId, url: URL.createObjectURL(blob) }),
+	const file = useQuery({
+		queryKey: queryKeys.survivalDocuments.file(documentId, versionId),
+		queryFn: ({ signal }) => survivalDocumentsService.file(documentId, versionId, signal),
+		staleTime: Number.POSITIVE_INFINITY,
+		gcTime: 0,
+		retry: false,
 	});
+	const url = usePdfPreviewUrl(file.data);
 	return { url, file };
 }

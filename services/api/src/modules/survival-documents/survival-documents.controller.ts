@@ -1,8 +1,10 @@
 import {
 	Body,
 	Controller,
+	Delete,
 	Get,
 	Header,
+	HttpCode,
 	Param,
 	ParseUUIDPipe,
 	Patch,
@@ -30,14 +32,14 @@ import type { AuthenticatedUser } from "../auth/jwt.strategy";
 import { UserRole } from "../users/entities/user.entity";
 // biome-ignore lint/style/useImportType: runtime DTO validation metadata
 import {
+	DeleteSourceDto,
 	EditSourceDto,
+	ImportSourceDto,
 	ListSourcesDto,
-	ReviewSourceDto,
+	PublishSourceDto,
 	RevisionDto,
 	UploadSourceDto,
 } from "./dto/source.dto";
-import catalog from "./official-sources.json";
-import { sourceMaxBytes } from "./source-files.service";
 // biome-ignore lint/style/useImportType: Nest injection
 import { SurvivalDocumentsService } from "./survival-documents.service";
 
@@ -58,7 +60,7 @@ const multipart = {
 @ApiBearerAuth()
 @ApiResponse({ status: 401, description: "Authentication required" })
 @ApiResponse({ status: 403, description: "Admin required" })
-@ApiResponse({ status: 409, description: "Stale revision or illegal transition" })
+@ApiResponse({ status: 409, description: "Duplicate PDF, stale revision or illegal transition" })
 @ApiResponse({ status: 413, description: "Upload too large" })
 @ApiResponse({ status: 422, description: "Invalid metadata, rights or PDF" })
 @Controller("admin/survival-documents")
@@ -66,13 +68,6 @@ const multipart = {
 @Roles(UserRole.ADMIN)
 export class SurvivalDocumentsController {
 	constructor(private readonly documents: SurvivalDocumentsService) {}
-	@Get("references")
-	@ApiOperation({
-		summary: "Read link-only, unreviewed reference catalog; never fetches external content",
-	})
-	references() {
-		return { items: catalog.items, maxBytes: sourceMaxBytes() };
-	}
 	@Get()
 	@ApiOperation({ summary: "List source documents by latest version metadata and status" })
 	list(@Query() query: ListSourcesDto) {
@@ -82,6 +77,16 @@ export class SurvivalDocumentsController {
 	@ApiOperation({ summary: "Read exact-version history, provenance and audit" })
 	detail(@Param("id", uuid) id: string) {
 		return this.documents.detail(id);
+	}
+	@Delete(":id")
+	@HttpCode(204)
+	@ApiOperation({ summary: "Permanently delete a document and its versions" })
+	remove(
+		@Param("id", uuid) id: string,
+		@CurrentUser() actor: AuthenticatedUser,
+		@Query() dto: DeleteSourceDto
+	) {
+		return this.documents.remove(actor.userId, id, dto.expectedRevision);
 	}
 	@Get(":id/versions")
 	@ApiOperation({ summary: "Read complete immutable version history" })
@@ -100,6 +105,11 @@ export class SurvivalDocumentsController {
 	) {
 		return this.documents.upload(actor.userId, dto, file);
 	}
+	@Post("import-url")
+	@ApiOperation({ summary: "Import a private PDF from a public HTTPS URL as a draft" })
+	importUrl(@CurrentUser() actor: AuthenticatedUser, @Body() dto: ImportSourceDto) {
+		return this.documents.importUrl(actor.userId, dto);
+	}
 	@Post(":id/versions")
 	@ApiOperation({ summary: "Upload a new draft with document revision protection" })
 	@ApiConsumes("multipart/form-data")
@@ -112,6 +122,15 @@ export class SurvivalDocumentsController {
 		@UploadedFile() file?: Express.Multer.File
 	) {
 		return this.documents.upload(actor.userId, dto, file, id);
+	}
+	@Post(":id/versions/import-url")
+	@ApiOperation({ summary: "Import a new draft from HTTPS with document revision protection" })
+	importVersion(
+		@Param("id", uuid) id: string,
+		@CurrentUser() actor: AuthenticatedUser,
+		@Body() dto: ImportSourceDto
+	) {
+		return this.documents.importUrl(actor.userId, dto, id);
 	}
 	@Get(":id/versions/:versionId/file")
 	@ApiOperation({ summary: "Download private original; Admin authentication required" })
@@ -134,39 +153,17 @@ export class SurvivalDocumentsController {
 		@CurrentUser() actor: AuthenticatedUser,
 		@Body() dto: EditSourceDto
 	) {
-		return this.documents.change(actor.userId, id, versionId, "metadata", dto);
-	}
-	@Post(":id/versions/:versionId/submit")
-	@ApiOperation({ summary: "Submit draft to source and rights review" })
-	submit(
-		@Param("id", uuid) id: string,
-		@Param("versionId", uuid) versionId: string,
-		@CurrentUser() actor: AuthenticatedUser,
-		@Body() dto: RevisionDto
-	) {
-		return this.documents.change(actor.userId, id, versionId, "submit", dto);
-	}
-	@Post(":id/versions/:versionId/review")
-	@ApiOperation({
-		summary: "Record exact-work source, licensing and medical review; approve or reject",
-	})
-	review(
-		@Param("id", uuid) id: string,
-		@Param("versionId", uuid) versionId: string,
-		@CurrentUser() actor: AuthenticatedUser,
-		@Body() dto: ReviewSourceDto
-	) {
-		return this.documents.change(actor.userId, id, versionId, "review", dto);
+		return this.documents.change(actor.userId, id, versionId, { action: "metadata", dto });
 	}
 	@Post(":id/versions/:versionId/publish")
-	@ApiOperation({ summary: "Atomically publish approved source and queue regeneration context" })
+	@ApiOperation({ summary: "Publish an eligible draft and queue regeneration context" })
 	publish(
 		@Param("id", uuid) id: string,
 		@Param("versionId", uuid) versionId: string,
 		@CurrentUser() actor: AuthenticatedUser,
-		@Body() dto: RevisionDto
+		@Body() dto: PublishSourceDto
 	) {
-		return this.documents.change(actor.userId, id, versionId, "publish", dto);
+		return this.documents.change(actor.userId, id, versionId, { action: "publish", dto });
 	}
 	@Post(":id/versions/:versionId/archive")
 	@ApiOperation({ summary: "Stop use of current publication without deleting provenance" })
@@ -176,6 +173,6 @@ export class SurvivalDocumentsController {
 		@CurrentUser() actor: AuthenticatedUser,
 		@Body() dto: RevisionDto
 	) {
-		return this.documents.change(actor.userId, id, versionId, "archive", dto);
+		return this.documents.change(actor.userId, id, versionId, { action: "archive", dto });
 	}
 }

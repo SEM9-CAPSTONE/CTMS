@@ -2,9 +2,11 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fictionalPdf as pdf } from "../../../test/support/survival-source-fixture";
 import { parseMetadata } from "./dto/source.dto";
+import { PdfSourceService } from "./pdf-source.service";
 import { SourceFilesService } from "./source-files.service";
-import { assertRights, validateSourceMetadata } from "./source-policy";
+import { assertRights, validatePublicationMetadata, validateSourceMetadata } from "./source-policy";
 import {
 	Classification,
 	MedicalStatus,
@@ -33,7 +35,6 @@ const permitted = {
 	internalRagUseAllowed: true,
 	evidence: "Owner permission verified for exact test PDF",
 };
-const pdf = Buffer.from("%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF\n");
 const file = (changes: Partial<Express.Multer.File> = {}) =>
 	({
 		buffer: pdf,
@@ -79,21 +80,27 @@ describe("CTMS-050 source policy and private storage", () => {
 	])("rejects unsafe URL %s", (sourceUrl) =>
 		expect(() => validateSourceMetadata({ ...metadata, sourceUrl })).toThrow()
 	);
-	it.each([
-		{ publisher: "" },
-		{ locale: "../../vi" },
-		{ permissionEvidence: "" },
-		{ licenseType: "" },
-		{ isApproved: true },
-	])("rejects invalid or injected metadata %j", (changes) =>
-		expect(() => parseMetadata(JSON.stringify({ ...metadata, ...changes }))).toThrow()
+	it.each([{ sourceTitle: "" }, { locale: "../../vi" }, { isApproved: true }])(
+		"rejects invalid or injected metadata %j",
+		(changes) => expect(() => parseMetadata(JSON.stringify({ ...metadata, ...changes }))).toThrow()
 	);
-	it("rejects future provenance and translations lacking original/disclaimer", () => {
+	it("accepts minimal draft metadata and requires license, permission evidence and attribution at publication", () => {
+		const draft = {
+			sourceTitle: metadata.sourceTitle,
+			classification: metadata.classification,
+			locale: metadata.locale,
+		};
+		expect(parseMetadata(JSON.stringify(draft))).toMatchObject(draft);
+		expect(() => validateSourceMetadata(draft)).not.toThrow();
+		expect(() => validatePublicationMetadata(draft)).toThrow();
+		expect(() => validatePublicationMetadata(metadata)).not.toThrow();
+	});
+	it("rejects future provenance and blocks publication of translations lacking original/disclaimer", () => {
 		expect(() => validateSourceMetadata({ ...metadata, retrievedAt: "2999-01-01" })).toThrow();
 		expect(() =>
 			validateSourceMetadata({ ...metadata, sourcePublishedAt: "2027-01-01" })
 		).toThrow();
-		expect(() => validateSourceMetadata({ ...metadata, originalLocale: "en" })).toThrow();
+		expect(() => validatePublicationMetadata({ ...metadata, originalLocale: "en" })).toThrow();
 	});
 	it("separates AI, offline, translation and medical decisions", () => {
 		expect(() => assertRights(metadata, permitted)).not.toThrow();
@@ -123,8 +130,10 @@ describe("CTMS-050 source policy and private storage", () => {
 		{ buffer: Buffer.from("%PDF-1.4\n/EmbeddedFile 1 0 R\n%%EOF") },
 		{ buffer: Buffer.from("%PDF-1.4\n/Encrypt 1 0 R\n%%EOF") },
 		{ buffer: Buffer.alloc(10485761) },
-	])("rejects invalid or dangerous PDF case %#", (changes) =>
-		expect(() => new SourceFilesService().validate(file(changes))).toThrow()
+	])(
+		"rejects invalid or dangerous PDF case %#",
+		async (changes) =>
+			await expect(new PdfSourceService().fromUpload(file(changes))).rejects.toThrow()
 	);
 	it("stores privately, verifies checksum, rejects traversal and detects missing/tampered bytes", async () => {
 		const root = await mkdtemp(join(tmpdir(), "ctms50-unit-"));
@@ -132,7 +141,10 @@ describe("CTMS-050 source policy and private storage", () => {
 		process.env.SURVIVAL_DOCUMENT_STORAGE_ROOT = root;
 		try {
 			const storage = new SourceFilesService();
-			const stored = { ...storage.validate(file()), fileRef: randomUUID() };
+			const stored = {
+				...(await new PdfSourceService().fromUpload(file())),
+				fileRef: randomUUID(),
+			};
 			expect(stored.checksum).toBe(createHash("sha256").update(pdf).digest("hex"));
 			await storage.write(stored.fileRef, pdf);
 			expect(await storage.read(stored)).toEqual(pdf);

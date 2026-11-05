@@ -25,11 +25,15 @@ export class SourceUploadCleanupService implements OnModuleInit, OnModuleDestroy
 	onModuleDestroy(): void {
 		if (this.timer) clearInterval(this.timer);
 	}
-	async cleanup(): Promise<void> {
+	async cleanup(releasedFileRefs?: string[]): Promise<void> {
 		await this.repo.db.transaction(async (manager) => {
-			const rows: Array<{ fileRef: string }> =
-				await manager.query(`SELECT file_ref AS "fileRef" FROM survival_document_uploads
-			 WHERE version_id IS NULL AND created_at < now()-interval '24 hours' ORDER BY created_at LIMIT 100 FOR UPDATE SKIP LOCKED`);
+			const rows: Array<{ fileRef: string }> = await manager.query(
+				`SELECT file_ref AS "fileRef" FROM survival_document_uploads
+				 WHERE version_id IS NULL AND created_at < now()-interval '24 hours'
+				  AND ($1::uuid[] IS NULL OR file_ref=ANY($1::uuid[]))
+				 ORDER BY created_at LIMIT 100 FOR UPDATE SKIP LOCKED`,
+				[releasedFileRefs ?? null]
+			);
 			for (const row of rows) {
 				await this.files.remove(row.fileRef);
 				await manager.query(

@@ -13,7 +13,10 @@ import type {
 export function useSurvivalDocuments(filters: SourceFilters, id: string | null) {
 	const client = useQueryClient();
 	const refresh = async () => {
-		await client.invalidateQueries({ queryKey: queryKeys.survivalDocuments.all });
+		await Promise.all([
+			client.invalidateQueries({ queryKey: queryKeys.survivalDocuments.lists }),
+			client.invalidateQueries({ queryKey: queryKeys.survivalDocuments.details }),
+		]);
 	};
 	const save = (data: DocumentDetail) => {
 		client.setQueryData(queryKeys.survivalDocuments.detail(data.id), data);
@@ -33,11 +36,6 @@ export function useSurvivalDocuments(filters: SourceFilters, id: string | null) 
 		enabled: !!id,
 		staleTime: SOURCE_STALE_TIME,
 	});
-	const references = useQuery({
-		queryKey: queryKeys.survivalDocuments.references,
-		queryFn: service.references,
-		staleTime: SOURCE_STALE_TIME,
-	});
 	const upload = useMutation({
 		mutationFn: ({
 			metadata,
@@ -45,6 +43,16 @@ export function useSurvivalDocuments(filters: SourceFilters, id: string | null) 
 			document,
 		}: { metadata: SourceMetadata; file: File; document?: DocumentDetail }) =>
 			service.upload(metadata, file, document),
+		onSuccess: save,
+		onError: refresh,
+	});
+	const importUrl = useMutation({
+		mutationFn: ({
+			metadata,
+			sourceUrl,
+			document,
+		}: { metadata: SourceMetadata; sourceUrl: string; document?: DocumentDetail }) =>
+			service.importUrl(metadata, sourceUrl, document),
 		onSuccess: save,
 		onError: refresh,
 	});
@@ -70,5 +78,17 @@ export function useSurvivalDocuments(filters: SourceFilters, id: string | null) 
 		onSuccess: save,
 		onError: refresh,
 	});
-	return { list, detail, references, upload, edit, action, refresh };
+	const remove = useMutation({
+		mutationFn: ({
+			documentId,
+			expectedRevision,
+		}: { documentId: string; expectedRevision: number }) =>
+			service.remove(documentId, expectedRevision),
+		onSuccess: (_, { documentId }) => {
+			client.removeQueries({ queryKey: queryKeys.survivalDocuments.detail(documentId) });
+			void client.invalidateQueries({ queryKey: queryKeys.survivalDocuments.lists });
+		},
+		onError: refresh,
+	});
+	return { list, detail, upload, importUrl, edit, action, remove, refresh };
 }

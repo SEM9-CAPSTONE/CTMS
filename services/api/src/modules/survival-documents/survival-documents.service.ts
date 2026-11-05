@@ -1,18 +1,30 @@
 import { randomUUID } from "node:crypto";
-import { Injectable, Logger, ServiceUnavailableException } from "@nestjs/common";
-import type { EntityManager } from "typeorm";
+import { ConflictException, Injectable, Logger, ServiceUnavailableException } from "@nestjs/common";
+import { type EntityManager, QueryFailedError } from "typeorm";
 import {
 	type EditSourceDto,
+	type ImportSourceDto,
 	type ListSourcesDto,
-	type ReviewSourceDto,
+	type PublishSourceDto,
 	type RevisionDto,
 	type UploadSourceDto,
 	invalidSource,
 	parseMetadata,
+	validateMetadata,
 } from "./dto/source.dto";
+import { sourceMaxBytes } from "./pdf-file-validator";
+// biome-ignore lint/style/useImportType: Nest injection
+import { type PdfSource, PdfSourceService } from "./pdf-source.service";
 // biome-ignore lint/style/useImportType: Nest injection
 import { SourceFilesService } from "./source-files.service";
-import { assertRights, validateSourceMetadata } from "./source-policy";
+import {
+	assertRights,
+	hasRecordedUseRights,
+	validatePublicationMetadata,
+	validateSourceMetadata,
+} from "./source-policy";
+// biome-ignore lint/style/useImportType: Nest injection
+import { SourceUploadCleanupService } from "./source-upload-cleanup.service";
 // biome-ignore lint/style/useImportType: Nest injection
 import { SurvivalDocumentsRepository, sourceConflict } from "./survival-documents.repository";
 import {
@@ -25,12 +37,19 @@ import {
 	publicVersion,
 } from "./survival-documents.types";
 
+type VersionChange =
+	| { action: "metadata"; dto: EditSourceDto }
+	| { action: "publish"; dto: PublishSourceDto }
+	| { action: "archive"; dto: RevisionDto };
+
 @Injectable()
 export class SurvivalDocumentsService {
 	private readonly logger = new Logger(SurvivalDocumentsService.name);
 	constructor(
 		private readonly repo: SurvivalDocumentsRepository,
-		private readonly files: SourceFilesService
+		private readonly files: SourceFilesService,
+		private readonly pdf: PdfSourceService,
+		private readonly uploadCleanup: SourceUploadCleanupService
 	) {}
 	async list(query: ListSourcesDto) {
 		return this.repo.db.transaction("REPEATABLE READ", async (manager) => {
@@ -58,19 +77,25 @@ export class SurvivalDocumentsService {
 					`${VERSION_SELECT} WHERE document_id=$1 AND version_number=$2`,
 					[id, document.versionCount]
 				);
+				const published = document.currentPublishedVersionId
+					? await this.repo.version(manager, id, document.currentPublishedVersionId)
+					: undefined;
 				items.push({
 					...document,
-					publishedVersionNumber: document.currentPublishedVersionId
-						? (await this.repo.version(manager, id, document.currentPublishedVersionId))
-								.versionNumber
-						: null,
+					publishedVersionNumber: published?.versionNumber ?? null,
 					latestVersion: publicVersion(versions[0]),
-					processingSyncStatus: document.currentPublishedVersionId
+					processingSyncStatus: hasRecordedUseRights(published)
 						? "REGENERATION_NEEDED"
 						: "NOT_PROCESSED",
 				});
 			}
-			return { items, total: count[0].total, page: query.page, limit: query.limit };
+			return {
+				items,
+				total: count[0].total,
+				page: query.page,
+				limit: query.limit,
+				maxBytes: sourceMaxBytes(),
+			};
 		});
 	}
 	async detail(id: string) {
@@ -96,7 +121,9 @@ export class SurvivalDocumentsService {
 				...document,
 				versions: versions.map(publicVersion),
 				history,
-				processingSyncStatus: document.currentPublishedVersionId
+				processingSyncStatus: hasRecordedUseRights(
+					versions.find((version) => version.id === document.currentPublishedVersionId)
+				)
 					? ("REGENERATION_NEEDED" as const)
 					: ("NOT_PROCESSED" as const),
 			};
@@ -109,36 +136,79 @@ export class SurvivalDocumentsService {
 		]);
 		if (
 			!originals[0] ||
-			![DocumentStatus.APPROVED, DocumentStatus.PUBLISHED, DocumentStatus.SUPERSEDED].includes(
-				originals[0].status
-			) ||
-			originals[0].metadata.locale !== metadata.originalLocale
+			![DocumentStatus.PUBLISHED, DocumentStatus.SUPERSEDED].includes(originals[0].status) ||
+			originals[0].metadata.locale !== (metadata.originalLocale ?? metadata.locale)
 		)
-			throw invalidSource("Phiên bản gốc chưa được duyệt hoặc không đúng ngôn ngữ gốc.");
+			throw invalidSource("Phiên bản gốc chưa từng xuất bản hoặc không đúng ngôn ngữ gốc.");
 	}
 	async upload(actorId: string, dto: UploadSourceDto, file?: Express.Multer.File, id?: string) {
 		const metadata = parseMetadata(dto.metadata);
 		validateSourceMetadata(metadata);
-		if (id && !dto.expectedDocumentRevision) throw invalidSource("Thiếu số đối chiếu tài liệu.");
-		const stored = this.files.validate(file);
-		if (!file) throw invalidSource("Vui lòng chọn tệp PDF.");
+		this.requireDocumentRevision(id, dto.expectedDocumentRevision);
+		const stored = await this.pdf.fromUpload(file);
+		if (id) await this.repo.document(this.repo.db.manager, id);
+		return this.storeDraft(actorId, metadata, stored, "upload", id, dto.expectedDocumentRevision);
+	}
+	async importUrl(actorId: string, dto: ImportSourceDto, id?: string) {
+		if (dto.metadata.sourceUrl && dto.metadata.sourceUrl !== dto.sourceUrl)
+			throw invalidSource("URL nguồn phải khớp với URL PDF được nhập.");
+		const metadata = {
+			...dto.metadata,
+			sourceUrl: dto.sourceUrl,
+			retrievedAt: new Date().toISOString(),
+		};
+		validateSourceMetadata(metadata);
+		this.requireDocumentRevision(id, dto.expectedDocumentRevision);
+		if (id) await this.repo.document(this.repo.db.manager, id);
+		return this.storeDraft(
+			actorId,
+			metadata,
+			await this.pdf.fromUrl(dto.sourceUrl),
+			"import_url",
+			id,
+			dto.expectedDocumentRevision
+		);
+	}
+	private requireDocumentRevision(id?: string, expectedDocumentRevision?: number): void {
+		if (id && !expectedDocumentRevision) throw invalidSource("Thiếu số đối chiếu tài liệu.");
+	}
+	private async storeDraft(
+		actorId: string,
+		metadata: SourceMetadata,
+		stored: PdfSource,
+		action: "upload" | "import_url",
+		id?: string,
+		expectedDocumentRevision?: number
+	) {
+		const { checksum, originalFilename } = stored;
+		await this.repo.assertPdfIsNew(this.repo.db.manager, checksum, originalFilename, id);
 		const fileRef = randomUUID();
 		await this.repo.db.query("INSERT INTO survival_document_uploads(file_ref) VALUES($1)", [
 			fileRef,
 		]);
 		const documentId = id ?? randomUUID();
 		try {
-			await this.files.write(fileRef, file.buffer);
-			await this.repo.db.transaction(async (manager) => {
-				// Lock the reservation so cleanup cannot remove a long-running upload at commit.
+			await this.repo.db.transaction("READ COMMITTED", async (manager) => {
+				// Always lock checksum before filename, then check again with a fresh snapshot.
 				await manager.query(
+					"SELECT pg_advisory_xact_lock(hashtextextended('survival_pdf:' || $1, 0))",
+					[checksum]
+				);
+				await manager.query(
+					"SELECT pg_advisory_xact_lock(hashtext('survival_pdf_filename'), hashtext(lower(btrim(normalize($1)))))",
+					[originalFilename]
+				);
+				await this.repo.assertPdfIsNew(manager, checksum, originalFilename, id);
+				// Hold the reservation while writing to keep cleanup from racing file storage.
+				const reservations: Array<{ file_ref: string }> = await manager.query(
 					"SELECT file_ref FROM survival_document_uploads WHERE file_ref=$1 FOR UPDATE",
 					[fileRef]
 				);
+				if (!reservations.length) throw new Error("File reservation expired");
 				let versionNumber = 1;
 				if (id) {
 					const document = await this.repo.document(manager, documentId, true);
-					if (document.revision !== dto.expectedDocumentRevision) sourceConflict();
+					if (document.revision !== expectedDocumentRevision) sourceConflict();
 					versionNumber = document.versionCount + 1;
 					await manager.query(
 						"UPDATE survival_documents SET version_count=$2,revision=revision+1,updated_at=now() WHERE id=$1",
@@ -151,6 +221,7 @@ export class SurvivalDocumentsService {
 					]);
 				}
 				await this.original(manager, metadata);
+				await this.files.write(fileRef, stored.bytes);
 				const versionId = randomUUID();
 				await manager.query(
 					`INSERT INTO survival_document_versions(id,document_id,version_number,metadata,rights,file_ref,original_filename,checksum,size,content_type,original_version_id,created_by)
@@ -177,7 +248,7 @@ export class SurvivalDocumentsService {
 				await this.repo.audit(
 					manager,
 					actorId,
-					"upload",
+					action,
 					documentId,
 					await this.repo.version(manager, documentId, versionId),
 					null
@@ -214,12 +285,76 @@ export class SurvivalDocumentsService {
 		const version = await this.repo.version(this.repo.db.manager, documentId, versionId);
 		return { bytes: await this.files.read(version), filename: version.originalFilename };
 	}
+	async remove(actorId: string, id: string, expectedRevision: number): Promise<void> {
+		let released: string[];
+		try {
+			released = await this.repo.db.transaction(async (manager) => {
+				const document = await this.repo.document(manager, id, true);
+				if (document.revision !== expectedRevision) sourceConflict();
+				const versions: SourceVersion[] = await manager.query(
+					`${VERSION_SELECT} WHERE document_id=$1 ORDER BY version_number DESC`,
+					[id]
+				);
+				const fileRefs = versions.map((version) => version.fileRef);
+				await manager.query(
+					"UPDATE survival_documents SET current_published_version_id=NULL WHERE id=$1",
+					[id]
+				);
+				await manager.query(
+					`UPDATE survival_document_uploads SET version_id=NULL,
+					 created_at=now()-interval '25 hours' WHERE file_ref=ANY($1::uuid[])`,
+					[fileRefs]
+				);
+				await manager.query("DELETE FROM survival_documents WHERE id=$1", [id]);
+				await manager.query(
+					`INSERT INTO audit_logs(actor_id,action,target_type,target_id,"before")
+					 VALUES($1,'survival_document.delete','survival_document',$2,$3::jsonb)`,
+					[
+						actorId,
+						id,
+						JSON.stringify({
+							revision: document.revision,
+							versionCount: document.versionCount,
+							currentPublishedVersionId: document.currentPublishedVersionId,
+						}),
+					]
+				);
+				const latestPublished = versions.find((version) => version.publishedAt);
+				if (latestPublished)
+					await this.event(
+						manager,
+						id,
+						latestPublished,
+						document.currentPublishedVersionId,
+						"document_deleted"
+					);
+				return fileRefs;
+			});
+		} catch (error) {
+			if (
+				error instanceof QueryFailedError &&
+				"code" in error.driverError &&
+				error.driverError.code === "23503"
+			)
+				throw new ConflictException({
+					code: "SOURCE_DELETE_REFERENCED",
+					message:
+						"Tài liệu đang được tài liệu khác tham chiếu. Hãy xử lý tài liệu phụ thuộc trước.",
+				});
+			throw error;
+		}
+		if (released.length)
+			await this.uploadCleanup
+				.cleanup(released)
+				.catch(() =>
+					this.logger.error("Private files from deleted survival document are queued for cleanup.")
+				);
+	}
 	async change(
 		actorId: string,
 		documentId: string,
 		versionId: string,
-		action: "metadata" | "submit" | "review" | "publish" | "archive",
-		dto: RevisionDto | EditSourceDto | ReviewSourceDto
+		{ action, dto }: VersionChange
 	) {
 		await this.repo.db.transaction(async (manager) => {
 			const document = await this.repo.document(manager, documentId, true);
@@ -229,47 +364,41 @@ export class SurvivalDocumentsService {
 			switch (action) {
 				case "metadata": {
 					if (status !== DocumentStatus.DRAFT) sourceConflict();
-					const metadata = (dto as EditSourceDto).metadata;
+					const metadata = dto.metadata;
 					validateSourceMetadata(metadata);
 					await this.original(manager, metadata);
 					await manager.query(
-						"UPDATE survival_document_versions SET metadata=$2::jsonb,original_version_id=$3 WHERE id=$1",
-						[versionId, JSON.stringify(metadata), metadata.originalVersionId ?? null]
-					);
-					break;
-				}
-				case "submit":
-					if (status !== DocumentStatus.DRAFT) sourceConflict();
-					validateSourceMetadata(before.metadata);
-					await this.files.read(before);
-					status = DocumentStatus.IN_REVIEW;
-					break;
-				case "review": {
-					if (status !== DocumentStatus.IN_REVIEW) sourceConflict();
-					const review = dto as ReviewSourceDto;
-					if (!review.rights) throw invalidSource("Thiếu quyết định quyền sử dụng.");
-					if (review.decision === "reject") {
-						if (!review.reason?.trim()) throw invalidSource("Vui lòng nhập lý do từ chối.");
-						status = DocumentStatus.REJECTED;
-					} else {
-						assertRights(before.metadata, review.rights);
-						await this.files.read(before);
-						status = DocumentStatus.APPROVED;
-					}
-					await manager.query(
-						"UPDATE survival_document_versions SET rights=$2::jsonb,reviewed_by=$3,reviewed_at=now() WHERE id=$1",
-						[versionId, JSON.stringify(review.rights), actorId]
+						`UPDATE survival_document_versions
+						 SET metadata=$2::jsonb,original_version_id=$3,
+						 rights=CASE WHEN metadata IS DISTINCT FROM $2::jsonb THEN $4::jsonb ELSE rights END,
+						 reviewed_by=CASE WHEN metadata IS DISTINCT FROM $2::jsonb THEN NULL ELSE reviewed_by END,
+						 reviewed_at=CASE WHEN metadata IS DISTINCT FROM $2::jsonb THEN NULL ELSE reviewed_at END
+						 WHERE id=$1`,
+						[
+							versionId,
+							JSON.stringify(metadata),
+							metadata.originalVersionId ?? null,
+							JSON.stringify(UNREVIEWED_RIGHTS),
+						]
 					);
 					break;
 				}
 				case "publish": {
-					if (status !== DocumentStatus.APPROVED) sourceConflict();
+					if (status !== DocumentStatus.DRAFT) sourceConflict();
 					const newer: Array<{ id: string }> = await manager.query(
 						"SELECT id FROM survival_document_versions WHERE document_id=$1 AND version_number>$2 AND published_at IS NOT NULL",
 						[documentId, before.versionNumber]
 					);
 					if (newer.length) sourceConflict();
-					assertRights(before.metadata, before.rights);
+					const rights = dto.rights ?? before.rights;
+					if (dto.rights) {
+						validatePublicationMetadata(before.metadata);
+						assertRights(before.metadata, dto.rights);
+					} else {
+						validateMetadata(before.metadata);
+						validateSourceMetadata(before.metadata);
+					}
+					await this.original(manager, before.metadata);
 					await this.files.read(before);
 					if (document.currentPublishedVersionId) {
 						const previous = await this.repo.version(
@@ -293,8 +422,12 @@ export class SurvivalDocumentsService {
 					}
 					status = DocumentStatus.PUBLISHED;
 					await manager.query(
-						"UPDATE survival_document_versions SET published_by=$2,published_at=now() WHERE id=$1",
-						[versionId, actorId]
+						`UPDATE survival_document_versions
+						 SET published_by=$2,published_at=now(),rights=$3::jsonb,
+						 reviewed_by=CASE WHEN $4 THEN $2 ELSE reviewed_by END,
+						 reviewed_at=CASE WHEN $4 THEN now() ELSE reviewed_at END
+						 WHERE id=$1`,
+						[versionId, actorId, JSON.stringify(rights), !!dto.rights]
 					);
 					await manager.query(
 						"UPDATE survival_documents SET current_published_version_id=$2 WHERE id=$1",
@@ -303,9 +436,10 @@ export class SurvivalDocumentsService {
 					await this.event(
 						manager,
 						documentId,
-						before,
+						{ ...before, rights },
 						document.currentPublishedVersionId,
-						"published_version_changed"
+						"published_version_changed",
+						!!dto.rights || hasRecordedUseRights(before)
 					);
 					break;
 				}
@@ -325,7 +459,8 @@ export class SurvivalDocumentsService {
 					break;
 			}
 			await manager.query(
-				"UPDATE survival_document_versions SET status=$2,revision=revision+1,reason=COALESCE($3,reason) WHERE id=$1",
+				`UPDATE survival_document_versions SET status=$2::varchar,revision=revision+1,
+				 reason=CASE WHEN $2::varchar='PUBLISHED' THEN $3::varchar ELSE COALESCE($3::varchar,reason) END WHERE id=$1`,
 				[versionId, status, dto.reason ?? null]
 			);
 			await manager.query(
@@ -349,7 +484,8 @@ export class SurvivalDocumentsService {
 		documentId: string,
 		version: SourceVersion,
 		previousId: string | null,
-		type: string
+		type: "published_version_changed" | "source_unavailable" | "document_deleted",
+		canProcess = false
 	): Promise<void> {
 		await manager.query(
 			"INSERT INTO survival_document_outbox(document_id,version_id,previous_version_id,event_type,payload) VALUES($1,$2,$3,$4,$5::jsonb)",
@@ -365,8 +501,9 @@ export class SurvivalDocumentsService {
 					sourceVersion: version.versionNumber,
 					checksum: version.checksum,
 					locale: version.metadata.locale,
-					regenerationNeeded: true,
-					offlineRedistributionAllowed: version.rights.offlineRedistributionAllowed,
+					regenerationNeeded: type !== "published_version_changed" || canProcess,
+					internalRagUseAllowed: canProcess,
+					offlineRedistributionAllowed: canProcess && version.rights.offlineRedistributionAllowed,
 				}),
 			]
 		);

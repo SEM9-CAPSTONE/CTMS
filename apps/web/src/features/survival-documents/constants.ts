@@ -11,10 +11,7 @@ export const CATEGORY_LABELS: Record<Classification, string> = {
 };
 export const STATUS_LABELS: Record<DocumentStatus, string> = {
 	DRAFT: "Bản nháp",
-	IN_REVIEW: "Chờ duyệt",
-	APPROVED: "Đã duyệt",
 	PUBLISHED: "Đã xuất bản",
-	REJECTED: "Từ chối",
 	SUPERSEDED: "Đã thay thế",
 	ARCHIVED: "Ngừng sử dụng",
 };
@@ -30,6 +27,7 @@ export const RIGHTS_LABELS = {
 };
 export const AUDIT_LABELS: Record<string, string> = {
 	upload: "Tải tệp lên",
+	import_url: "Nhập PDF từ URL",
 	metadata: "Sửa thông tin",
 	submit: "Gửi duyệt",
 	review: "Xét duyệt",

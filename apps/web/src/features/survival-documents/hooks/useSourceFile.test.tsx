@@ -16,10 +16,13 @@ it("never labels delayed v1 bytes as a newly selected v2 and revokes the private
 	});
 	Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: revoke });
 	let finish!: (blob: Blob) => void;
-	const read = vi.spyOn(survivalDocumentsService, "file").mockReturnValue(
-		new Promise((resolve) => {
-			finish = resolve;
-		})
+	const newerPdf = new Blob(["Fictional v2 PDF"]);
+	const read = vi.spyOn(survivalDocumentsService, "file").mockImplementation((_doc, version) =>
+		version === "v1"
+			? new Promise((resolve) => {
+					finish = resolve;
+				})
+			: Promise.resolve(newerPdf)
 	);
 	const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 	const wrapper = ({ children }: { children: ReactNode }) => (
@@ -30,14 +33,16 @@ it("never labels delayed v1 bytes as a newly selected v2 and revokes the private
 			wrapper,
 			initialProps: { id: "v1" },
 		});
-		act(() => hook.result.current.file.mutate("v1"));
-		await waitFor(() => expect(read).toHaveBeenCalledWith("document", "v1"));
+		await waitFor(() =>
+			expect(read).toHaveBeenCalledWith("document", "v1", expect.any(AbortSignal))
+		);
 		hook.rerender({ id: "v2" });
 		await act(async () => {
 			finish(new Blob(["Fictional v1 PDF"]));
 		});
 		await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
-		expect(hook.result.current.url).toBeNull();
+		expect(create).toHaveBeenCalledWith(newerPdf);
+		expect(hook.result.current.file.data).toBe(newerPdf);
 		hook.unmount();
 		expect(revoke).toHaveBeenCalledWith("blob:private-test");
 	} finally {
