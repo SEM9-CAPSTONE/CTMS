@@ -27,13 +27,20 @@ function toRoleKey(role: string): RoleKey | null {
 }
 
 export interface HostLayoutProps {
+	allowMobile?: boolean;
 	children: React.ReactNode;
 	activeRole?: RoleKey;
 	onNavigateToTrips?: () => void;
 	onLogout?: (allDevices: boolean) => Promise<void>;
 }
 
-export function HostLayout({ children, activeRole, onNavigateToTrips, onLogout }: HostLayoutProps) {
+export function HostLayout({
+	children,
+	activeRole,
+	onNavigateToTrips,
+	onLogout,
+	allowMobile = false,
+}: HostLayoutProps) {
 	const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 	const [profile, setProfile] = useState<CamperProfileData | null>(null);
@@ -101,7 +108,7 @@ export function HostLayout({ children, activeRole, onNavigateToTrips, onLogout }
 				: "overview";
 
 	const sidebarWidthClass = currentRole === "camper" ? "w-64" : "w-72";
-	const desktopOnlyRole = currentRole === "host" || currentRole === "admin";
+	const desktopOnlyRole = !allowMobile && (currentRole === "host" || currentRole === "admin");
 	const contentPaddingClass =
 		currentRole === "camper"
 			? isSidebarCollapsed

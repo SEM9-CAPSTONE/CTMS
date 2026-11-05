@@ -579,4 +579,115 @@ describe("CTMS-411 durable review analysis (real PostgreSQL, fake provider edge)
 		});
 		expect(provider.generate).not.toHaveBeenCalled();
 	});
+	describe("CTMS-412 authorized UI read contract", () => {
+		const readSource = (id: string, actor = host, revision = "1") =>
+			request(app.getHttpServer())
+				.get(`/api/trips/${tripId}/review-analyses/${id}/source/${revision}`)
+				.set("Authorization", auth(actor));
+		it("lists only owned Trips for Host and allows Admin to list the same Trip", async () => {
+			for (const actor of [host, admin]) {
+				const response = await request(app.getHttpServer())
+					.get("/api/review-analysis/trips?limit=50")
+					.set("Authorization", auth(actor))
+					.expect(200);
+				expect(response.body.items.some((t: { id: string }) => t.id === tripId)).toBe(true);
+			}
+			const other = await request(app.getHttpServer())
+				.get("/api/review-analysis/trips?limit=50")
+				.set("Authorization", auth(outsider))
+				.expect(200);
+			expect(other.body.items.some((t: { id: string }) => t.id === tripId)).toBe(false);
+			await request(app.getHttpServer())
+				.get("/api/review-analysis/trips")
+				.set("Authorization", auth(camper))
+				.expect(403);
+		});
+		it("returns exact source revision without identity and refuses other Hosts", async () => {
+			const id = await review("Nhận xét gốc <b>giữ nguyên</b>");
+			const response = await readSource(id).expect(200);
+			expect(response.body).toMatchObject({
+				reviewId: id,
+				revision: 1,
+				currentRevision: 1,
+				rating: 2,
+				comment: "Nhận xét gốc <b>giữ nguyên</b>",
+			});
+			expect(Object.keys(response.body).sort()).toEqual(
+				["comment", "createdAt", "currentRevision", "rating", "reviewId", "revision"].sort()
+			);
+			await readSource(id, outsider).expect(403);
+			await readSource(id, admin).expect(200);
+			await readSource(id, host, "999").expect(404);
+			await readSource(id, host, "not-a-revision").expect(404);
+		});
+		it("blocks source access during moderation and restores it after rejection", async () => {
+			const id = await review();
+			const reportId = await report(id);
+			await readSource(id).expect(403);
+			await db.query("UPDATE content_reports SET status='rejected' WHERE id=$1", [reportId]);
+			await readSource(id).expect(200);
+		});
+		it("restores active batch and cooldown without creating a new batch", async () => {
+			await review();
+			const created = await create().expect(202);
+			const response = await insights().expect(200);
+			expect(response.body.latestBatch.id).toBe(created.body.batch.id);
+			expect(response.body.retryAfterSeconds).toBeGreaterThan(0);
+			const [count] = await db.query(
+				"SELECT count(*)::int AS n FROM trip_review_analysis_batches WHERE trip_id=$1",
+				[tripId]
+			);
+			expect(count.n).toBe(1);
+		});
+		it("filters all current results before pagination while preserving global aggregates", async () => {
+			await review();
+			await review();
+			await review();
+			await create().expect(202);
+			provider.generate
+				.mockResolvedValueOnce({ ...derived, sentiment: "neutral" })
+				.mockResolvedValueOnce({ ...derived, sentiment: "negative" })
+				.mockResolvedValueOnce({ ...derived, sentiment: "neutral" });
+			await worker.processOne();
+			await worker.processOne();
+			await worker.processOne();
+			for (const page of [1, 2]) {
+				const response = await request(app.getHttpServer())
+					.get(`/api/trips/${tripId}/review-analyses?sentiment=neutral&limit=1&page=${page}`)
+					.set("Authorization", auth())
+					.expect(200);
+				expect(response.body.items).toHaveLength(1);
+				expect(response.body.items[0].sentiment).toBe("neutral");
+				expect(response.body.pagination).toMatchObject({ total: 2, totalPages: 2 });
+				expect(response.body.coverage.analyzed).toBe(3);
+				expect(response.body.sentimentCounts).toMatchObject({ neutral: 2, negative: 1 });
+			}
+			await request(app.getHttpServer())
+				.get(`/api/trips/${tripId}/review-analyses?sentiment=forged`)
+				.set("Authorization", auth())
+				.expect(422);
+		});
+		it("explains review/config changes separately without leaking report details", async () => {
+			const changed = await review();
+			const reported = await review();
+			await create();
+			await worker.processOne();
+			await worker.processOne();
+			await db.query("UPDATE trip_reviews SET revision=2,comment='Updated' WHERE id=$1", [changed]);
+			await db.query(
+				"INSERT INTO trip_review_revisions(review_id,revision,rating,comment) VALUES($1,2,2,'Updated')",
+				[changed]
+			);
+			let response = await insights().expect(200);
+			expect(response.body.freshness.reviewChanged).toBe(1);
+			config.promptVersion = "v2";
+			response = await insights().expect(200);
+			expect(response.body.freshness.configurationChanged).toBe(1);
+			await report(reported);
+			response = await insights().expect(200);
+			expect(response.body.freshness.restricted).toBe(1);
+			expect(JSON.stringify(response.body)).not.toContain("Test report");
+			expect(response.body.items).toHaveLength(0);
+		});
+	});
 });

@@ -18,7 +18,11 @@ import { RolesGuard } from "../auth/guards/roles.guard";
 import type { AuthenticatedUser } from "../auth/jwt.strategy";
 import { UserRole } from "../users/entities/user.entity";
 // biome-ignore lint/style/useImportType: DTO runtime validation
-import { AnalysisPageDto, EmptyAnalysisRequestDto } from "./review-analysis.dto";
+import {
+	AnalysisInsightsQueryDto,
+	AnalysisPageDto,
+	EmptyAnalysisRequestDto,
+} from "./review-analysis.dto";
 // biome-ignore lint/style/useImportType: Nest injection
 import { ReviewAnalysisService } from "./review-analysis.service";
 const ID = new ParseUUIDPipe({ errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY });
@@ -32,6 +36,23 @@ interface ActorRequest {
 @Roles(UserRole.HOST, UserRole.ADMIN)
 export class ReviewAnalysisController {
 	constructor(private readonly service: ReviewAnalysisService) {}
+	@Get("review-analysis/trips")
+	@ApiOperation({ summary: "List analysis Trips visible to the current Host or Admin" })
+	trips(@Req() req: ActorRequest, @Query() page: AnalysisPageDto) {
+		return this.service.trips(req.user.userId, page);
+	}
+	@Get("trips/:tripId/review-analyses/:reviewId/source/:revision")
+	@ApiOperation({
+		summary: "Read an authorized, eligible source revision without reviewer identity",
+	})
+	source(
+		@Req() req: ActorRequest,
+		@Param("tripId", ID) tripId: string,
+		@Param("reviewId", ID) reviewId: string,
+		@Param("revision") revision: string
+	) {
+		return this.service.sourceReview(req.user.userId, tripId, reviewId, revision);
+	}
 	@Post("trips/:tripId/review-analysis-batches")
 	@HttpCode(202)
 	@ApiOperation({ summary: "Queue up to 20 eligible review revisions, or return the active batch" })
@@ -57,7 +78,7 @@ export class ReviewAnalysisController {
 	insights(
 		@Req() req: ActorRequest,
 		@Param("tripId", ID) tripId: string,
-		@Query() page: AnalysisPageDto
+		@Query() page: AnalysisInsightsQueryDto
 	) {
 		return this.service.insights(req.user.userId, tripId, page);
 	}

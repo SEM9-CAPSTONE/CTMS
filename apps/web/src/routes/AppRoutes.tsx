@@ -2,6 +2,7 @@ import { type ReactNode, Suspense, lazy, useCallback, useEffect, useState } from
 import { HttpError } from "../core/api";
 import { clearAuthSessionAndRedirect } from "../core/api/authSessionSync";
 import { guardedNavigation } from "../core/navigation-guard";
+import { AdminLayout } from "../features/admin-layout/components/AdminLayout";
 import { SessionCheckScreen } from "../features/auth/components/SessionCheckScreen";
 import { useIdleLogout } from "../features/auth/hooks/useIdleLogout";
 import { useSessionCheck } from "../features/auth/hooks/useSessionCheck";
@@ -13,6 +14,12 @@ import { PageSkeleton } from "../shared/components/PageSkeleton";
 import { AppRoleGuard } from "./AppRoleGuard";
 import { getAuthenticatedHomePath, getGuestOnlyRedirectPath } from "./authRedirect";
 import { GUEST_ONLY_PATHS, RoutePath } from "./routes.config";
+
+const ReviewAnalysisPage = lazy(() =>
+	import("../features/review-analysis/ReviewAnalysisPage").then((module) => ({
+		default: module.ReviewAnalysisPage,
+	}))
+);
 
 const AdminAuditLogsPage = lazy(() =>
 	import("../features/admin-audit-logs/pages/AdminAuditLogsPage").then((module) => ({
@@ -467,6 +474,33 @@ function AppRouteContent() {
 						onCreateRoute={() => navigateTo(RoutePath.HOST_CREATE_TREKKING_ROUTE)}
 					/>
 				</HostLayout>
+			</AppRoleGuard>
+		);
+	}
+
+	if (currentPath === "/host/review-analysis" || currentPath === "/admin/review-analysis") {
+		const admin = currentPath.startsWith("/admin/");
+		const content = (
+			<ReviewAnalysisPage
+				actor={storedUser?.id ?? ""}
+				initialTripId={new URLSearchParams(currentSearch).get("trip") ?? ""}
+			/>
+		);
+		return (
+			<AppRoleGuard
+				allowedRoles={admin ? ["admin"] : ["host"]}
+				currentRoles={currentRoles}
+				onNavigateHome={() => navigateTo(RoutePath.HOME)}
+			>
+				{admin ? (
+					<AdminLayout allowMobile activeItem="review-analysis" onLogout={handleLogout}>
+						{content}
+					</AdminLayout>
+				) : (
+					<HostLayout allowMobile onLogout={handleLogout}>
+						{content}
+					</HostLayout>
+				)}
 			</AppRoleGuard>
 		);
 	}

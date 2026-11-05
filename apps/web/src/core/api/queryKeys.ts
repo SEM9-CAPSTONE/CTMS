@@ -1,4 +1,14 @@
 export const queryKeys = {
+	reviewAnalysis: {
+		all: ["review-analysis"] as const,
+		trips: (actor: string, page: number) => ["review-analysis", actor, "trips", page] as const,
+		insights: (actor: string, trip: string, page: number) =>
+			["review-analysis", actor, trip, "insights", page] as const,
+		batch: (actor: string, trip: string, batch: string) =>
+			["review-analysis", actor, trip, "batch", batch] as const,
+		source: (actor: string, trip: string, review: string, revision: number) =>
+			["review-analysis", actor, trip, "source", review, revision] as const,
+	},
 	survivalDocuments: {
 		all: ["survival-documents"] as const,
 		lists: ["survival-documents", "list"] as const,

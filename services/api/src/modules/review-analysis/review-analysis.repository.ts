@@ -118,7 +118,8 @@ export class ReviewAnalysisRepository {
 			`SELECT r.id AS "reviewId",r.revision AS "sourceRevision", ${ELIGIBLE} AS eligible,
    ${BASE_ELIGIBLE} AS "participationEligible", ${BLOCKED} AS blocked, ${SUPPRESSED} AS suppressed,
    i.id AS "analysisId",i.status,i.sentiment,i.topics,i.summary,i.confidence,i.actual_model AS "actualModel",
-   i.updated_at AS "analyzedAt", EXISTS(SELECT 1 FROM trip_review_analysis_items old WHERE old.review_id=r.id AND old.status='succeeded') AS "hasHistory"
+   i.updated_at AS "analyzedAt", EXISTS(SELECT 1 FROM trip_review_analysis_items old WHERE old.review_id=r.id AND old.status='succeeded') AS "hasHistory",
+   EXISTS(SELECT 1 FROM trip_review_analysis_items old WHERE old.review_id=r.id AND old.status='succeeded' AND old.source_revision=r.revision) AS "hasRevisionHistory"
    ${SOURCE_FROM} LEFT JOIN trip_review_analysis_items i ON i.review_id=r.id AND i.source_revision=r.revision
     AND i.provider=$2 AND i.model=$3 AND i.config_version=$4 AND i.prompt_version=$5
    WHERE r.trip_id=$1 AND r.target='trip' ORDER BY r.created_at,r.id`,

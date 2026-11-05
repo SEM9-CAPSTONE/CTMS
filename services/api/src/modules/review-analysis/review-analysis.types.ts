@@ -104,4 +104,5 @@ export interface CoverageRow {
 	actualModel: string | null;
 	analyzedAt: Date | null;
 	hasHistory: boolean;
+	hasRevisionHistory: boolean;
 }
