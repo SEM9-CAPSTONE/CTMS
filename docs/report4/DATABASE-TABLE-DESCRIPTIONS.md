@@ -73,3 +73,20 @@ Owner writes are limited to the original 72-hour window after `bookings.complete
 
 
 CTMS-388 amendment: `trip_reviews.images` and `trip_review_revisions.images` store up to five image URL snapshots as JSONB. `trip_review_uploads` records uploader identity and URL. Creation closes 72h after completion; editing closes 24h after initial submission.
+
+
+## CTMS-411 — Derived Trip Review Analysis
+
+Additive migration: `1793900000000-CreateTripReviewAnalyses`; original reviews/revisions are unchanged.
+
+| Table | Purpose and invariants |
+| --- | --- |
+| `trip_review_analysis_controls` | Trip PK and DB-clock last batch timestamp; serializes creation and cooldown |
+| `trip_review_analysis_batches` | Trip/requester/configuration/status/timestamps; partial unique index permits one pending/running batch per Trip |
+| `trip_review_analysis_items` | Unique review/revision/provider/model/config/prompt; immutable source revision FK, derived content, bounded attempts and fenced lease |
+| `trip_review_analysis_batch_items` | Membership plus frozen terminal status/error and attempt range for stable historical progress |
+| `trip_review_analysis_attempts` | Numbered, timestamped attempts, lease token, outcome and sanitized error code; no review text |
+| `trip_review_analysis_slots` | Two fixed globally shared worker lease slots |
+| `trip_review_analysis_suppressions` | Sticky per-review privacy suppression; blocks future analysis after derived erasure |
+
+All operational timestamps are timestamptz. Derived source FKs cascade only when source deletion is otherwise permitted. Ordinary reports do not delete source or analysis history. Admin privacy erasure is the explicit exception for derived content and hashes. Ratings and reputation remain independent of AI results.

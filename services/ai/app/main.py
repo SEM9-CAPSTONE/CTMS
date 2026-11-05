@@ -1,12 +1,17 @@
+import hmac
 import os
 from functools import lru_cache
 
-from fastapi import Depends, FastAPI, HTTPException
-from openai import OpenAI
+from fastapi import Depends, FastAPI, HTTPException, Header
+from openai import OpenAI, APIStatusError, APITimeoutError, APIConnectionError
 from pydantic import BaseModel
 
 from app.models import WeatherAdvisoryRequest, WeatherAdvisoryResponse
 from app.weather_advisory_service import WeatherAdvisoryService
+from app.review_analysis_service import (
+    ReviewAnalysisRequest, ReviewAnalysisResponse, ReviewAnalysisService,
+    InvalidReviewOutput, ReviewProviderRefusal,
+)
 
 app = FastAPI(
 	title="CTMS AI Service",
@@ -88,3 +93,51 @@ def generate_weather_advisory(
 			status_code=502,
 			detail=f"Weather advisory generation failed: {error}",
 		) from error
+
+
+# Review analysis is an internal authenticated operation; it does not share the
+# legacy weather endpoint's unauthenticated provider boundary.
+
+
+def require_review_token(x_ctms_ai_token: str | None = Header(default=None)) -> None:
+    expected = os.environ.get("AI_REVIEW_SERVICE_TOKEN")
+    if not expected:
+        raise HTTPException(status_code=503, detail={"code": "provider_not_configured"})
+    if not x_ctms_ai_token or not hmac.compare_digest(expected, x_ctms_ai_token):
+        raise HTTPException(status_code=401, detail={"code": "unauthorized"})
+
+
+@lru_cache
+def get_review_analysis_service() -> ReviewAnalysisService:
+    provider = os.environ.get("REVIEW_ANALYSIS_PROVIDER", "openai")
+    if provider not in ("openai", "gemini"):
+        raise HTTPException(status_code=503, detail={"code": "provider_not_configured"})
+    key = os.environ.get("GEMINI_API_KEY" if provider == "gemini" else "OPENAI_API_KEY")
+    if not key:
+        raise HTTPException(status_code=503, detail={"code": "provider_not_configured"})
+    options = {"base_url": "https://generativelanguage.googleapis.com/v1beta/openai/"} if provider == "gemini" else {}
+    return ReviewAnalysisService(OpenAI(api_key=key, timeout=12.0, max_retries=0, **options))
+
+
+@app.post("/review-analysis", response_model=ReviewAnalysisResponse, dependencies=[Depends(require_review_token)])
+def analyze_review(payload: ReviewAnalysisRequest, service: ReviewAnalysisService = Depends(get_review_analysis_service)) -> ReviewAnalysisResponse:
+    try:
+        return service.generate(payload)
+    except ReviewProviderRefusal:
+        raise HTTPException(status_code=422, detail={"code": "provider_refusal"}) from None
+    except InvalidReviewOutput:
+        raise HTTPException(status_code=422, detail={"code": "invalid_output"}) from None
+    except (APITimeoutError, APIConnectionError):
+        raise HTTPException(status_code=504, detail={"code": "provider_transport"}) from None
+    except APIStatusError as error:
+        status = error.status_code
+        billing_codes = {"credit_balance_exhausted", "insufficient_quota", "organization_spend_limit_exceeded", "project_spend_limit_exceeded", "organization_usage_limit_exceeded"}
+        code = error.code if isinstance(error.code, str) and error.code in billing_codes else None
+        if code is None and error.type == "insufficient_quota":
+            code = "insufficient_quota"
+        if code:
+            raise HTTPException(status_code=429, detail={"code": code}) from None
+        raise HTTPException(status_code=status if status == 429 or 400 <= status < 500 else 502, detail={"code": "provider_failure"}) from None
+    except Exception:
+        # Never expose provider bodies, prompts or review contents to logs/HTTP errors.
+        raise HTTPException(status_code=502, detail={"code": "provider_failure"}) from None
