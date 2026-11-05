@@ -6,6 +6,7 @@ export default defineConfig({
 	testDir: "./tests/e2e",
 	// CTMS49 owns isolated API/database ports through its dedicated configuration.
 	testIgnore: [
+		"**/ctms-50-survival-documents.spec.ts",
 		"**/ctms-49-report-trip-incident.spec.ts",
 		"**/ctms-378-*.spec.ts",
 		"**/ctms-79-t02-receive-real-time-sos-alerts.spec.ts",

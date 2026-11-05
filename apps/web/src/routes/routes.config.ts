@@ -1,4 +1,5 @@
 export enum RoutePath {
+	ADMIN_SURVIVAL_DOCUMENTS = "/admin/survival-documents",
 	HOME = "/",
 	LOGIN = "/login",
 	REGISTER = "/register",
