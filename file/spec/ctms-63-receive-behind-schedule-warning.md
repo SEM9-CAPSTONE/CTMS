@@ -310,3 +310,73 @@ Backend only (`services/api`), in the new read-only module `schedule-progress`. 
 - [x] Task-specific unit tests added or updated.
 - [x] Task-specific unit tests passed.
 - [x] Applicable backend or integration tests passed.
+
+## 16. Implementation Record — CTMS-063-T02 (Jira CTMS-320), Camper/Porter mobile + Host web UI
+
+The clients consume `GET /api/trips/:tripId/schedule-progress` (§14). Every status, lag, reference Checkpoint, safe Checkpoint and guidance text comes from the server evaluation. The clients never compute or invent a warning.
+
+**Mobile (`apps/mobile/lib/features/schedule_progress`)**
+
+- `ScheduleProgressController`:
+  - loads on open and refreshes every 60 s (approved cadence);
+  - on a failed refresh it keeps the last successful evaluation and marks it stale ("Không cập nhật được — đang hiển thị dữ liệu lúc HH:mm"), so offline never produces a new or fabricated warning.
+- **Camper:** `CamperScheduleProgressPanel` ("Tiến độ so với đoàn") sits under the route-deviation panel on the Camper Trip screen. States:
+  - **loading**;
+  - **normal** (`ON_TRACK` badge and the last Porter-confirmed Checkpoint);
+  - **warning** (`BEHIND` → warning banner, `SEVERELY_BEHIND` → danger banner, with the server guidance verbatim, the Porter reference and "Điểm an toàn: …", or "không có checkpoint an toàn gần đây");
+  - **unavailable** (`LOCATION_UNKNOWN` → info banner "Chưa đánh giá được tiến độ", never presented as behind; Trip not running; not checked in);
+  - **error** (retry).
+- **Porter:** `PorterTeamProgressPanel` ("Tiến độ thành viên") sits in `PorterGpsTrackingSection` for the selected Trip. It lists every joined Camper most urgent first (SEVERELY_BEHIND, BEHIND, LOCATION_UNKNOWN, ON_TRACK), with a status badge, the reference Checkpoint, the lag and the safe Checkpoint, so the Porter can decide on site (§13.5).
+- Reuses `CtmsSectionCard`, `CtmsAlertBanner`, `CtmsStatusBadge` and `CtmsButton`. `CtmsSectionCard` is always white, so text inside it uses `AppColors.text*` like the card title. This was found and fixed while capturing dark-theme evidence.
+
+**Web Host (`apps/web/src/features/schedule-progress`)**
+
+- `TeamScheduleProgressCard` ("Tiến độ thành viên so với Porter") is shown at the top of the "Điểm danh & Hoàn tất" tab of the Trip detail page while the Trip is `ongoing`.
+- It uses the same ordering and fields as the Porter view, the shared `StatusBadge`, a refresh every 60 s through React Query, and a manual "Làm mới" button.
+- States: loading, list, Trip not running, no checked-in Camper, first-load error, and failed refresh (keeps the last data with "Đang hiển thị dữ liệu lúc HH:mm").
+- E2E harness: `tests/e2e/ctms-63-t02-behind-schedule-warning.spec.ts` was added to `playwright.sos-realtime.config.ts` and excluded from the default config.
+
+**Judgment calls** (approved with the plan): the Host card sits in the roster tab; the Porter view is mobile only; refresh every 60 s.
+
+## 17. Test Evidence — CTMS-063-T02
+
+- **Flutter widget tests** (`test/features/schedule_progress/schedule_progress_panels_test.dart`, 10):
+  - Camper: loading; on track; BEHIND verbatim guidance and safe Checkpoint; SEVERELY_BEHIND fallback; LOCATION_UNKNOWN never "behind"; Trip not running; error then retry; a failed refresh keeps the last evaluation as stale.
+  - Porter: urgency ordering with lag and safe Checkpoint; empty state.
+  - `flutter analyze` reports no issue in the changed files. The 7 remaining infos/warnings are pre-existing in other files.
+  - Full `flutter test`: the only failure is `widget_test.dart › porter overview renders dashboard UI` ("CA HÔM NAY" not found), which fails identically on `develop` with this task stashed.
+- **Vitest** (`TeamScheduleProgressCard.test.tsx`, 7): loading; ordering and server texts; on-track Campers show no lag or safe Checkpoint; no-safe-Checkpoint wording; Trip not running and no members; first-load error and retry; failed refresh keeps stale data. Full web `vitest run`: 1575/1575 passed.
+- **E2E (real API + PostGIS)**, `pnpm --filter @ctms/web test:e2e:sos-realtime`: 7/7 passed, including the new CTMS-063 test.
+  - The Host sees 4 seeded Campers in order:
+    - SEVERELY_BEHIND, 65 min after the Porter reached "Đèo Gió", safe Checkpoint "Trạm nghỉ suối", verbatim guidance;
+    - BEHIND, 35 min after "Trạm nghỉ suối";
+    - LOCATION_UNKNOWN, with no lag shown;
+    - ON_TRACK.
+  - After a manual refresh, the database holds exactly BEHIND + SEVERELY_BEHIND for the first Camper and BEHIND for the second.
+- **Screenshots:**
+  - `host-team-schedule-progress.png` (Playwright, running app);
+  - widget-rendered with the app dark theme and Roboto at 412 dp wide: `camper-behind.png`, `camper-severely-behind.png`, `camper-location-unknown.png`, `camper-on-track.png`, `porter-team.png`.
+
+  No Android emulator is available on this machine, so the mobile images come from the real widgets, captured by a temporary test that was deleted afterwards. The black boxes on the "Làm mới" button exist only in that capture, because the button font is not available to the test renderer.
+- **Gates**
+  - `pnpm lint:all`: 0 errors (12 pre-existing warnings, none in changed files).
+  - `pnpm build:all`: passed.
+  - `pnpm test:all`:
+    - API 2037/2039; the 2 `offline-packages` (CTMS-221) failures are pre-existing on `develop`;
+    - web 1575/1575.
+  - Default Playwright regression: 41 passed, 36 failed, 32 did not run — identical counts to the `develop` baseline (pre-existing failures in route-safety, refresh-session, view-audit-logs, mentor-ui-refinements, etc.; none touch Trip detail or schedule progress).
+
+### UI Subtask DoD
+
+- [x] UI implementation completed.
+- [x] Applicable client-side behavior implemented.
+- [x] Task-specific unit/component tests passed.
+- [x] Backend integration completed.
+- [x] Task-specific E2E tests passed.
+- [x] All Story Acceptance Criteria verified (BR-241: no false warning, warning, safe Checkpoint included, policy action included).
+- [x] Unit regression tests passed (except the pre-existing `develop` failures listed above).
+- [x] E2E regression tests passed (see the regression result above).
+- [x] lint:all passed.
+- [x] build:all passed.
+- [x] test:all passed (except the pre-existing `develop` failures listed above).
+- [ ] Required CI checks passed — runs on the PR.

@@ -94,6 +94,7 @@ export const API_ENDPOINTS = {
 		IMAGES: (tripId: string) => `/trips/${tripId}/images`,
 		IMAGE: (tripId: string, imageId: string) => `/trips/${tripId}/images/${imageId}`,
 		BOOKED_ROUTE_MAP: (tripId: string) => `/trips/${tripId}/route-map`,
+		SCHEDULE_PROGRESS: (tripId: string) => `/trips/${tripId}/schedule-progress`,
 		GET_ALL: "/trips",
 		GET_MINE: "/trips/mine",
 		GET_PORTER_CANDIDATES: "/trips/porter-candidates",

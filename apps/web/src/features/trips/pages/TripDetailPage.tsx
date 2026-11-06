@@ -12,6 +12,7 @@ import type { BookingDetails } from "../../booking-details/types";
 import { bookingEquipmentService } from "../../booking-equipment/services/booking-equipment.service";
 import { TripMemberRoster } from "../../booking-members/components/TripMemberRoster";
 import { DeviceSyncStatusCard } from "../../device-sync";
+import { TeamScheduleProgressCard } from "../../schedule-progress/components/TeamScheduleProgressCard";
 import { HostTripSettlementCard } from "../../settlements/components/HostTripSettlementCard";
 import { TripIncidentsPanel } from "../../trip-incidents";
 import type { BookingAccess } from "../components/BookingPanel";
@@ -474,7 +475,8 @@ export function TripDetailPage({
 							</div>
 
 							{isRosterVisible && (
-								<div hidden={activeTab !== "roster"}>
+								<div hidden={activeTab !== "roster"} className="space-y-6">
+									{trip.status === "ongoing" && <TeamScheduleProgressCard tripId={trip.id} />}
 									<TripMemberRoster tripId={trip.id} />
 								</div>
 							)}
