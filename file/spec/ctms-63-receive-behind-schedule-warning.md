@@ -91,7 +91,7 @@ Recovery behavior follows the authoritative operational policy.
 
 ## 9. API / Integration Contract
 
-TBD — Technical Design.
+Defined by CTMS-063-T01 (Jira CTMS-319); see §14 for the contract.
 
 ## 10. Error & Edge Cases
 
@@ -215,3 +215,98 @@ The retrieved source does not define a numeric behind-schedule threshold in BR-2
 2. Exact guidance wording in §13.3 and §13.4.
 3. Server-side "location unknown" window: GPS breadcrumbs are uploaded in batches, so 120 s may be too strict when evaluated on the server. Confirm the window against the actual upload interval.
 4. Which Checkpoint types count as safe (§13.4).
+
+### 13.11 Resolutions of §13.10 (approved with the CTMS-319 plan, 2026-11-06)
+
+1. The 30-minute `BEHIND` reminder is kept.
+2. The guidance text is used verbatim from §13.3 and §13.4.
+3. The server-side "location unknown" window is **5 minutes**, a fixed V3 constant. Breadcrumbs are logged every 30 s (`GPS_LOGGING_INTERVAL_SECONDS`) and uploaded in batches, so the on-device 120 s rule would flag Campers who are walking normally.
+4. The safe Checkpoint types are as in §13.4: `rest`, `water`, `emergency_shelter`, `finish`, or `nearby_water_or_shelter = true`.
+5. The device-sync counts (CTMS-067) exclude `BEHIND_SCHEDULE` rows, because a server-raised warning is not a device upload.
+6. The `behindSchedule: null` placeholder in the Host Trip map is left for the UI subtask (CTMS-063-T02) or CTMS-084/085.
+
+## 14. Implementation Record — CTMS-063-T01 (Jira CTMS-319), Preparation + Logic
+
+Backend only (`services/api`), in the new read-only module `schedule-progress`. Neither the trips/route modules nor the Porter confirmation flow (CTMS-056) changed.
+
+**API:** `GET /api/trips/:tripId/schedule-progress` (Bearer; roles Camper, Porter, Host)
+
+- **Access:**
+  - Trip Host or assigned Porter: `viewer: "team"`, every joined Camper.
+  - Trip Camper: `viewer: "camper"`, only their own entry.
+  - Anyone else: 403. Unknown Trip: 404. Malformed id: 422. No token: 401.
+- **Response:** `tripId`, `tripStatus`, `evaluatedAt`, `viewer`, `configVersion: "v3"`, `thresholds { behindLagMinutes: 30, severelyBehindLagMinutes: 60, locationUnknownAfterMinutes: 5 }`, and `members[]`. Each member has `userId`, `fullName`, `status` (`ON_TRACK | BEHIND | SEVERELY_BEHIND | LOCATION_UNKNOWN`), `reference { checkpointId, checkpointName, porterArrivedAt }`, `lagMinutes`, `safeCheckpoint { id, name, type } | null`, `guidance`, `lastValidSampleAt` and `levelsReached`.
+- When the Trip is not `ongoing`, `members` is empty and nothing is evaluated or stored.
+
+**Calculation** (`schedule-progress.evaluator.ts`, a pure function; database facts come from `schedule-progress.repository.ts`)
+
+- **Porter baseline:** `T(X) = MIN(checkpoint_visits.arrived_at)` per Checkpoint of the Trip.
+- **"Camper passed X"** uses only the Camper's own VALID `gps_logs` (`participant_role = 'camper'`, `accuracy_meters ≤ 20`). A sample counts when it is either:
+  - within 20 m of `X` (`ST_DWithin`), or
+  - within the 50 m on-route corridor and further along the Route than `X` (`ST_LineLocatePoint`).
+
+  Samples taken before `T(X)` also count. `checkpoint_visits` rows are never used as Camper evidence.
+- **Reference:** the earliest Porter-confirmed Checkpoint along the Route that the Camper has not passed. Lag = whole minutes of `now − T(X)`.
+- **Status:**
+  - No fresh VALID sample (older than 5 minutes, or none) → `LOCATION_UNKNOWN`, never "behind".
+  - Lag of 30 minutes or more → `BEHIND`.
+  - Lag of 60 minutes or more → `SEVERELY_BEHIND`.
+  - Otherwise → `ON_TRACK`.
+- **Safe Checkpoint:**
+  - `BEHIND`: the first safe Checkpoint ahead of the Camper's position along the Route. If the Camper is outside the corridor, "ahead" starts at `X`.
+  - `SEVERELY_BEHIND`: the nearest safe Checkpoint in either direction from the last VALID position (haversine).
+  - None found: `safeCheckpoint: null` and the §13.4 fallback text. A Checkpoint is never invented.
+
+**Storage** (migration `1794300000000-AddBehindScheduleSafetyEvents`)
+
+- Adds `BEHIND_SCHEDULE` to `safety_event_type`, a new enum `behind_schedule_level (BEHIND, SEVERELY_BEHIND)`, and the columns `safety_events.checkpoint_id` (FK `checkpoints`) and `warning_level`.
+- `CHK_safety_events_behind_schedule`: a row is `BEHIND_SCHEDULE` exactly when both new columns are set.
+- Unique partial index `UQ_safety_events_behind_schedule (trip_id, user_id, checkpoint_id, warning_level) WHERE checkpoint_id IS NOT NULL`. The predicate is on `checkpoint_id` because index predicates must be IMMUTABLE; the CHECK makes the two conditions equivalent.
+- On each evaluation, every level reached is written once with `INSERT … ON CONFLICT DO NOTHING`:
+  - `event_time = T(X) + 30/60 min`, so a re-evaluation describes the same warning;
+  - location and accuracy come from the last VALID sample;
+  - `route_id` / `route_version` come from the Trip's Route, with `config_version 'v3'`.
+- A warning "clears" because the status is derived on every read. History rows are kept.
+- `BEHIND_SCHEDULE` is deliberately **not** added to the TypeScript `SafetyEventType`, so `POST /safety-events` cannot accept client-forged warnings.
+- `device-sync.repository.ts`: both safety-count queries exclude `BEHIND_SCHEDULE` (§13.11-5).
+
+## 15. Test Evidence — CTMS-063-T01
+
+- **Unit:**
+  - `schedule-progress.evaluator.spec.ts` (13):
+    - passed via own GPS; no Porter baseline;
+    - 29 / 30 / 60-minute boundaries with safe-Checkpoint selection and verbatim guidance;
+    - stale sample (more than 5 minutes) and missing sample → `LOCATION_UNKNOWN`; exactly 5 minutes is still known;
+    - no safe Checkpoint → fallback;
+    - earliest unpassed Checkpoint; moving on after passing;
+    - off-corridor "ahead"; safe types.
+  - `schedule-progress.service.spec.ts` (9): Host, Porter and Camper scoping; unassigned Porter and stranger refused; 404; non-ongoing Trip; each level recorded once with its timestamp; only Porter-confirmed Checkpoints are queried.
+  - Full `pnpm test`: 2037/2039 passed. The 2 failures are in `offline-packages/package-readiness.spec.ts` (CTMS-221, merged in #819) and fail identically on `develop` with this task stashed.
+- **Integration** (`test/schedule-progress.integration-spec.ts`, real Postgres + PostGIS, every §13.9 scenario): 16/16 passed.
+  - Within 20 m → `ON_TRACK`.
+  - Passed before the Porter → `ON_TRACK`.
+  - 29 minutes → `ON_TRACK`; 30 minutes → `BEHIND` with the safe Checkpoint ahead and the policy text.
+  - 60 minutes → `SEVERELY_BEHIND` with the nearest safe Checkpoint behind the Camper.
+  - Stale GPS → `LOCATION_UNKNOWN` and no row.
+  - INVALID sample at `X` → not passed. Porter-written `checkpoint_visits` → not passed.
+  - No baseline → `ON_TRACK`. No safe Checkpoint → fallback.
+  - 5 concurrent evaluations plus 1 more → exactly 2 rows.
+  - Recovery moves on to the next Checkpoint.
+  - Server rows are not counted as device events.
+  - Authorization (Camper only self; Host and Porter all; other Host and stranger 403; 404; 401); non-ongoing Trip.
+  - The DB CHECK rejects an incomplete `BEHIND_SCHEDULE` row.
+  - Mutation check: relaxing the VALID-sample accuracy to 1000 m made the INVALID-sample test fail. The code was then restored.
+  - Full `pnpm test:integration` (8 shards): 652/680 passed. All 28 failures are pre-existing on `develop`, with identical counts when this task is stashed:
+    - `sync-evaluation` ×4, `overbooking-evaluation` ×4, `trekking-route-checkpoints` ×2, `incidents.report` ×1 (the known list);
+    - `trip-reviews` ×1 (CTMS-387) and `review-analysis` ×16 (CTMS-411): 17/17 identical on `develop`.
+    - Shard 1 crashed Jest once (a known issue on this machine) and passed 53/53 on rerun.
+- `pnpm build` and `pnpm lint` pass; biome is clean on all new files.
+- Backend-only task: no UI, so no screenshots.
+
+### Logic Subtask DoD
+
+- [x] Logic implementation completed.
+- [x] Applicable business rules and invariants implemented (BR-241 per §13; BR-212 spec updated; BR-213 valid and violation paths, with integration tests for idempotency and concurrency).
+- [x] Task-specific unit tests added or updated.
+- [x] Task-specific unit tests passed.
+- [x] Applicable backend or integration tests passed.

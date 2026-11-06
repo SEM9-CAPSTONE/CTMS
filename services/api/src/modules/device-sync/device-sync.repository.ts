@@ -36,7 +36,8 @@ export class DeviceSyncRepository {
 					WHERE "trip_id" = $1 AND "reporter_id" = $2
 					UNION ALL
 					SELECT "received_at" FROM "safety_events"
-					WHERE "trip_id" = $1 AND "user_id" = $2
+					-- CTMS-063: server-raised BEHIND_SCHEDULE warnings are not device uploads.
+					WHERE "trip_id" = $1 AND "user_id" = $2 AND "event_type"::text <> 'BEHIND_SCHEDULE'
 				 ) safety`,
 				[tripId, userId]
 			),
@@ -117,7 +118,8 @@ export class DeviceSyncRepository {
 				FROM (
 					SELECT "reporter_id", "received_at" FROM "trip_incidents" WHERE "trip_id" = $1
 					UNION ALL
-					SELECT "user_id", "received_at" FROM "safety_events" WHERE "trip_id" = $1
+					SELECT "user_id", "received_at" FROM "safety_events"
+					WHERE "trip_id" = $1 AND "event_type"::text <> 'BEHIND_SCHEDULE'
 				) safety
 				GROUP BY "reporter_id"
 			)
