@@ -12,6 +12,7 @@ import '../../../core/widgets/ctms_status_badge.dart';
 import '../application/sos_controller.dart';
 import '../domain/sos_alert.dart';
 import 'cancel_sos_dialog.dart';
+import 'sos_safety_guidance_card.dart';
 
 class SosActiveScreen extends ConsumerWidget {
   const SosActiveScreen({
@@ -37,10 +38,15 @@ class SosActiveScreen extends ConsumerWidget {
 
     final isAlertActive = currentAlert.isActive;
     final isAlertCancelled = currentAlert.isCancelled;
+    final isPendingOffline = currentAlert.isLocalPending;
 
     return CtmsScaffold(
       title: isAlertActive ? 'Cảnh báo Khẩn cấp SOS' : 'Chi tiết Sự vụ SOS',
-      subtitle: isAlertActive ? 'Trạng thái phát tín hiệu trực tiếp' : 'Lịch sử sự vụ SOS',
+      subtitle: isAlertActive
+          ? (isPendingOffline
+              ? 'Lưu trữ ngoại tuyến · Chờ đồng bộ'
+              : 'Trạng thái phát tín hiệu trực tiếp')
+          : 'Lịch sử sự vụ SOS',
       body: ListView(
         padding: const EdgeInsets.all(AppSpacing.cardPadding),
         children: [
@@ -51,14 +57,18 @@ class SosActiveScreen extends ConsumerWidget {
               horizontal: AppSpacing.lg,
             ),
             decoration: BoxDecoration(
-              color: isAlertActive
+              color: isPendingOffline
+                  ? AppColors.brandLight
+                  : isAlertActive
                   ? AppColors.statusDangerBg
                   : isAlertCancelled
                   ? Colors.green.shade50
                   : AppColors.brandLight,
               borderRadius: AppRadius.cardBorderRadius,
               border: Border.all(
-                color: isAlertActive
+                color: isPendingOffline
+                    ? AppColors.brandPrimary
+                    : isAlertActive
                     ? AppColors.statusDanger
                     : isAlertCancelled
                     ? Colors.green.shade400
@@ -73,7 +83,9 @@ class SosActiveScreen extends ConsumerWidget {
                   width: 72,
                   height: 72,
                   decoration: BoxDecoration(
-                    color: isAlertActive
+                    color: isPendingOffline
+                        ? AppColors.brandPrimary
+                        : isAlertActive
                         ? AppColors.statusDanger
                         : isAlertCancelled
                         ? Colors.green.shade600
@@ -81,7 +93,9 @@ class SosActiveScreen extends ConsumerWidget {
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
-                    isAlertActive
+                    isPendingOffline
+                        ? Icons.offline_bolt_rounded
+                        : isAlertActive
                         ? Icons.sos_rounded
                         : isAlertCancelled
                         ? Icons.check_circle_outline
@@ -92,14 +106,18 @@ class SosActiveScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: AppSpacing.md),
                 Text(
-                  isAlertActive
+                  isPendingOffline
+                      ? 'TÍN HIỆU SOS ĐÃ LƯU TRÊN MÁY'
+                      : isAlertActive
                       ? 'TÍN HIỆU SOS ĐANG PHÁT'
                       : isAlertCancelled
                       ? 'BÁO ĐỘNG ĐÃ ĐƯỢC HỦY'
                       : currentAlert.statusLabel.toUpperCase(),
                   style: AppTypography.h2.copyWith(
                     fontWeight: FontWeight.w900,
-                    color: isAlertActive
+                    color: isPendingOffline
+                        ? AppColors.brandPrimary
+                        : isAlertActive
                         ? AppColors.statusDanger
                         : isAlertCancelled
                         ? Colors.green.shade800
@@ -109,7 +127,9 @@ class SosActiveScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: AppSpacing.xs),
                 Text(
-                  isAlertActive
+                  isPendingOffline
+                      ? 'Thiết bị đang ngoại tuyến. Cảnh báo đã được lưu an toàn vào máy và sẽ tự động ưu tiên đồng bộ ngay khi có mạng trở lại.'
+                      : isAlertActive
                       ? 'Trưởng đoàn và các thành viên đã nhận được cảnh báo. Nếu đây là sự cố gửi nhầm, hãy bấm nút Hủy bên dưới.'
                       : isAlertCancelled
                       ? 'Tín hiệu đã được xác nhận là gửi nhầm hoặc tình huống đã an toàn. Lịch sử đã được cập nhật.'
@@ -125,7 +145,10 @@ class SosActiveScreen extends ConsumerWidget {
 
           const SizedBox(height: AppSpacing.lg),
 
-          // 2. Alert Specifications Card
+          // 2. Immediate Local Safety Guidance Card (PB AC-3, BR-256)
+          SosSafetyGuidanceCard(emergencyType: currentAlert.emergencyType),
+
+          // 3. Alert Specifications Card
           Container(
             padding: const EdgeInsets.all(AppSpacing.cardPadding),
             decoration: BoxDecoration(
@@ -149,7 +172,9 @@ class SosActiveScreen extends ConsumerWidget {
                     ),
                     CtmsStatusBadge(
                       label: currentAlert.statusLabel,
-                      status: isAlertActive
+                      status: isPendingOffline
+                          ? CtmsStatus.warning
+                          : isAlertActive
                           ? CtmsStatus.danger
                           : isAlertCancelled
                           ? CtmsStatus.neutral
@@ -162,6 +187,14 @@ class SosActiveScreen extends ConsumerWidget {
                   label: 'Loại khẩn cấp:',
                   value: currentAlert.emergencyTypeLabel,
                   isBold: true,
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                _InfoRow(
+                  label: 'Trạng thái truyền tin:',
+                  value: isPendingOffline
+                      ? 'Chờ đồng bộ ngoại tuyến (Ưu tiên số 1)'
+                      : 'Đã gửi tới máy chủ điều phối',
+                  isBold: isPendingOffline,
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 _InfoRow(
@@ -199,7 +232,7 @@ class SosActiveScreen extends ConsumerWidget {
             ),
           ),
 
-          // 3. Cancellation Audit Card (BR-258 / BR-191)
+          // 4. Cancellation Audit Card (BR-258 / BR-191)
           if (isAlertCancelled) ...[
             const SizedBox(height: AppSpacing.lg),
             Container(
@@ -272,7 +305,7 @@ class SosActiveScreen extends ConsumerWidget {
 
           const SizedBox(height: AppSpacing.xl),
 
-          // 4. Action Buttons
+          // 5. Action Buttons
           if (isAlertActive) ...[
             CtmsButton(
               label: 'HỦY BÁO ĐỘNG SOS (GỬI NHẦM)',
@@ -300,10 +333,11 @@ class SosActiveScreen extends ConsumerWidget {
           ],
 
           CtmsButton(
-            label: 'Quay lại chuyến đi',
+            label: 'Quay lại',
             variant: CtmsButtonVariant.secondary,
             onPressed: () => Navigator.of(context).pop(),
           ),
+          const SizedBox(height: AppSpacing.xxl),
         ],
       ),
     );
@@ -327,21 +361,22 @@ class _InfoRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(
-          width: 140,
+          width: 135,
           child: Text(
             label,
             style: AppTypography.caption.copyWith(
               color: AppColors.textSecondary,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w500,
             ),
           ),
         ),
+        const SizedBox(width: AppSpacing.sm),
         Expanded(
           child: Text(
             value,
-            style: AppTypography.caption.copyWith(
+            style: AppTypography.body.copyWith(
+              fontWeight: isBold ? FontWeight.w700 : FontWeight.w600,
               color: Colors.black,
-              fontWeight: isBold ? FontWeight.w800 : FontWeight.w600,
             ),
           ),
         ),

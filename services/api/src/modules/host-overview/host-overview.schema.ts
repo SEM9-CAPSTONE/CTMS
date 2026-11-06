@@ -77,6 +77,8 @@ export const HOST_OVERVIEW_SCHEMA: SchemaObject = object({
 	sos: section({
 		id: uuid,
 		tripId: uuid,
+		tripTitle: { ...text, nullable: true },
+		senderName: { ...text, nullable: true },
 		status: enumeration(Object.values(SosStatus)),
 		emergencyType: enumeration(Object.values(EmergencyType)),
 		eventTime: timestamp,

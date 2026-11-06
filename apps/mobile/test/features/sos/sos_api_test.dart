@@ -8,7 +8,7 @@ import 'package:mobile/core/api/api_client.dart';
 import 'package:mobile/core/api/api_exception.dart';
 import 'package:mobile/core/storage/token_storage.dart';
 import 'package:mobile/features/sos/data/sos_api.dart';
-import 'package:mobile/features/sos/domain/sos_alert.dart';
+
 
 class _FakeTokenStorage extends TokenStorage {
   _FakeTokenStorage() : super(const FlutterSecureStorage());
