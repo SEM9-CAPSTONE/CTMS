@@ -1,5 +1,9 @@
 # CTMS-057 — Receive Outdated Offline Package Warning
 
+## CTMS-052 freshness clarification — 2026-11-06
+
+BR-235 retains warnings for relevant Route/weather/knowledge changes, with impact evaluation owned by 119. Distinguish package integrity, package publication/outdated status and per-source freshness (`checkedAt`, original `validUntil`, unavailable/partial/stale). Ordinary weather collection or a changed checkedAt alone must not create unlimited versions. Matching SHA-256 does not mean a warning is current; an expired source can need a freshness warning without corrupting the artifact. Ongoing Trips keep their locked package and receive separate online alerts where supported. Shared schema 1 has no personal medical section; BR-230 still applies to other cached medical data. Acceptance: stale weather warns separately from byte corruption; offline client shows last known version/freshness without claiming current evidence; ongoing package is not hot-swapped.
+
 ## 1. Overview
 
 Story: CTMS-057

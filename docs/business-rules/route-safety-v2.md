@@ -4,6 +4,10 @@ Effective change: 2026-10-29. Source: `CTMS_Route_Safety_Spec_v2.docx`, supplied
 
 User-requested amendment, 2026-10-30: fetch current NCHMF warnings during Host analysis. This supersedes the earlier stored-only ingestion choice.
 
+## CTMS-052 consumer boundary — 2026-11-06
+
+BR-473/474/476/477/479/480 retain their preview meaning. Package eligibility is stricter: only normalized GOVERNMENT evidence with source validity or FIELD_VERIFIED evidence with an independent authorized Host decision is eligible. HOST_DEFINED remains a preview source; resolved/closed is not verification. A package source adapter must preserve complete run availability, exact versions, spatial scope and validity. Interactive preview or an empty feature table cannot prove a successful no-alert check. This adds a consumer contract and does not replace existing preview rules. See `file/spec/ctms-52-upstream-safety-contracts.md` for proposed upstream tasks.
+
 ## Rule changes
 
 | Rule | Decision | Current wording |

@@ -1,5 +1,9 @@
 # CTMS-055 — View Route, Checkpoints and Survival Guidance Offline
 
+## CTMS-052 archive handoff — 2026-11-06
+
+Schema 1 ZIP contains route.geojson, checkpoints.json, waypoints.json, hazards.geojson and guidance.json plus manifest.json. Render only a verified and activated package for the selected Trip/version; full guidance includes source attribution and exact-version/page/chunk provenance. No personal medical data is included. An ongoing Trip retains its locked version. `routeVersion` used for GPS is distinct from `packageVersion`; offline basemap assets are not part of 052. Acceptance: airplane-mode content uses these local payloads, mismatched identity/schema is rejected and source freshness labels survive offline. See [052 implementation](../../docs/features/CTMS-052-Implementation.md).
+
 ## 1. Overview
 
 Story: CTMS-055

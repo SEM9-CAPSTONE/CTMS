@@ -1,5 +1,9 @@
 # CTMS-049 — Report Incident During Trip
 
+## CTMS-052 dependency amendment — 2026-11-06
+
+BR-161/162/221/224 and current reporting permissions remain unchanged. Extending reports to Camper or another person at the scene requires a separately approved task and RBAC change. 052 grants no reporting permission. Receiving/resolving a report does not verify it for offline hazard use; the proposed Host verification and source-promotion tasks in [upstream contracts](ctms-52-upstream-safety-contracts.md) own that path. Acceptance: existing authorized reporting still succeeds; an unassigned/unauthorized actor remains rejected; a resolved report without an explicit Host decision is excluded from 052.
+
 ## 1. Overview
 
 Story: CTMS-049

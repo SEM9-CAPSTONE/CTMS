@@ -22,6 +22,7 @@ pnpm-debug.log*
 services/api/uploads/
 services/api/.private-porter-level-evidence/
 .private-survival-documents/
+.private-offline-packages/
 .DS_Store
 Thumbs.db
 .idea/
