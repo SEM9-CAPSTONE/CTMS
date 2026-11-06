@@ -12,6 +12,7 @@ import { HealthController } from "./health/health.controller";
 import { HostOverviewModule } from "./host-overview/host-overview.module";
 import { HostTripMapModule } from "./host-trip-map/host-trip-map.module";
 import { IncidentsModule } from "./incidents/incidents.module";
+import { KnowledgeChunksModule } from "./knowledge-chunks/knowledge-chunks.module";
 import { OverbookingEvaluationModule } from "./overbooking-evaluation/overbooking-evaluation.module";
 import { PorterLevelsModule } from "./porter-levels/porter-levels.module";
 import { ProfilesModule } from "./profiles/profiles.module";
@@ -62,6 +63,7 @@ import { WeatherModule } from "./weather/weather.module";
 		UploadsModule,
 		WeatherModule,
 		SurvivalDocumentsModule,
+		KnowledgeChunksModule,
 	],
 	controllers: [HealthController],
 })

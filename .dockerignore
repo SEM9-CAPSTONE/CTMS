@@ -9,6 +9,8 @@
 **/*.tsbuildinfo
 **/.dart_tool
 **/.venv
+**/.venv-ingestion
+**/.python
 **/venv
 **/__pycache__
 **/.pytest_cache

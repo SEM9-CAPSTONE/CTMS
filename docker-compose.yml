@@ -50,6 +50,9 @@ services:
       MAPTILER_API_KEY: ${MAPTILER_API_KEY:-}
       ROUTE_TERRAIN_ROAD_ENABLED: ${ROUTE_TERRAIN_ROAD_ENABLED:-true}
       AI_SERVICE_URL: http://ai:8000
+      KNOWLEDGE_SERVICE_URL: http://ingestion:8001
+      KNOWLEDGE_SERVICE_TOKEN: ${KNOWLEDGE_SERVICE_TOKEN:-}
+      KNOWLEDGE_WORKER_ENABLED: ${KNOWLEDGE_WORKER_ENABLED:-true}
       SURVIVAL_DOCUMENT_STORAGE_ROOT: /var/lib/ctms/survival-documents
       SURVIVAL_DOCUMENT_MAX_BYTES: ${SURVIVAL_DOCUMENT_MAX_BYTES:-10485760}
       AI_REVIEW_SERVICE_TOKEN: ${AI_REVIEW_SERVICE_TOKEN:-}
@@ -116,6 +119,19 @@ services:
     ports:
       - "8000:8000"
 
+  ingestion:
+    build:
+      context: .
+      dockerfile: infra/docker/ingestion.Dockerfile
+    container_name: ctms-ingestion
+    environment:
+      KNOWLEDGE_SERVICE_TOKEN: ${KNOWLEDGE_SERVICE_TOKEN:-}
+      HF_HOME: /var/cache/ctms-models
+    volumes:
+      - knowledge-model-cache:/var/cache/ctms-models
+    ports:
+      - "127.0.0.1:8001:8001"
+
   web:
     build:
       context: .
@@ -145,3 +161,4 @@ volumes:
   postgres-data:
   redis-data:
   survival-document-data:
+  knowledge-model-cache:
