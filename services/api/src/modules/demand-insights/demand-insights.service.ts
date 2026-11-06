@@ -29,6 +29,8 @@ interface Report {
 	suggestions: DemandSuggestion[];
 	status: "pending" | "running" | "succeeded" | "failed" | "insufficient_data";
 	attempts: number;
+	manual_retries: number;
+	next_attempt_at: Date;
 	lease_token: string;
 	generated_at: Date | null;
 	error_code: string | null;
@@ -40,6 +42,34 @@ export class DemandInsightsService {
 		private readonly repository: DemandInsightsRepository,
 		private readonly provider: DemandInsightsProvider
 	) {}
+	async periods(actor: string) {
+		return this.db.transaction(async (m) => {
+			await this.repository.authorize(m, actor);
+			const now = new Date();
+			const local = new Date(now.getTime() + 7 * 3600000);
+			const config = this.provider.configuration();
+			const reports: { month: string }[] = await m.query(
+				"SELECT month FROM demand_insight_reports"
+			);
+			const existing = new Set(reports.map((report) => report.month));
+			return {
+				periods: Array.from({ length: 12 }, (_, index) => {
+					const date = new Date(
+						Date.UTC(local.getUTCFullYear(), local.getUTCMonth() - index - 1, 1)
+					);
+					const month = date.toISOString().slice(0, 7);
+					const window = monthWindow(month, now);
+					const availableAt = new Date(window.end.getTime() + config.minDaysAfterClose * 86400000);
+					return {
+						month,
+						availableAt: availableAt.toISOString(),
+						canCreate: !existing.has(month) && now >= availableAt,
+						hasReport: existing.has(month),
+					};
+				}),
+			};
+		});
+	}
 	async create(actor: string, month: string) {
 		const window = monthWindow(month);
 		return this.db.transaction("READ COMMITTED", async (m) => {
@@ -50,7 +80,28 @@ export class DemandInsightsService {
 				"SELECT * FROM demand_insight_reports WHERE month=$1",
 				[month]
 			);
-			if (existing) return { version: existing.id, month, status: existing.status, reused: true };
+			if (existing) {
+				if (this.retryable(existing) && (await this.sourceMatches(m, existing))) {
+					const [gate]: { wait: number }[] = await m.query(
+						"SELECT GREATEST(0,ceil(extract(epoch FROM (GREATEST($1::timestamptz,last_created_at+interval '60 seconds')-clock_timestamp()))))::int AS wait FROM demand_insight_control WHERE id=1",
+						[existing.next_attempt_at]
+					);
+					if (gate.wait > 0)
+						throw new HttpException(
+							{ message: "Demand generation cooldown", retryAfterSeconds: gate.wait },
+							429
+						);
+					await m.query(
+						"UPDATE demand_insight_reports SET status='pending',attempts=0,manual_retries=manual_retries+1,error_code=NULL,lease_token=NULL,lease_until=NULL,next_attempt_at=clock_timestamp() WHERE id=$1",
+						[existing.id]
+					);
+					await m.query(
+						"UPDATE demand_insight_control SET last_created_at=clock_timestamp() WHERE id=1"
+					);
+					return { version: existing.id, month, status: "pending", reused: true };
+				}
+				return { version: existing.id, month, status: existing.status, reused: true };
+			}
 			const config = this.provider.configuration();
 			assertSettled(window.end, config.minDaysAfterClose);
 			const rows = await this.repository.source(m, window.start, window.end);
@@ -108,6 +159,13 @@ export class DemandInsightsService {
 			);
 		});
 	}
+	private retryable(report: Report) {
+		return (
+			report.status === "failed" &&
+			report.manual_retries < 1 &&
+			["provider_transport", "provider_unavailable"].includes(report.error_code ?? "")
+		);
+	}
 	private publicReport(report: Report, stale: boolean, restricted: boolean) {
 		const visible = report.status === "succeeded" && !restricted;
 		return {
@@ -117,6 +175,7 @@ export class DemandInsightsService {
 			generatedAt: report.generated_at,
 			status: restricted && report.status === "succeeded" ? "withheld" : report.status,
 			stale,
+			canRetry: !stale && !restricted && this.retryable(report),
 			granularity: visible ? report.release.granularity : null,
 			cells: visible ? report.release.cells : [],
 			suggestions: visible ? report.suggestions : [],

@@ -184,6 +184,7 @@ export function Sidebar({
 							currentPath.startsWith(`${RoutePath.PORTER_ASSIGNMENTS}/`);
 						const isPathPorterProfile = currentPath === RoutePath.PORTER_PROFILE;
 						const isActive =
+							(item.key === "demand-insights" && currentPath === "/host/demand-insights") ||
 							(item.key === "explore" && isPathTrips) ||
 							(item.key === "review-analysis" && currentPath === "/host/review-analysis") ||
 							(item.key === "overview" && isPathDashboard) ||
@@ -209,7 +210,10 @@ export function Sidebar({
 									disabled={item.disabled}
 									aria-current={isActive ? "page" : undefined}
 									onClick={() => {
-										if (item.key === "review-analysis") {
+										if (item.key === "demand-insights") {
+											navigate("/host/demand-insights");
+											onClose?.();
+										} else if (item.key === "review-analysis") {
 											navigate("/host/review-analysis");
 											onClose?.();
 										} else if (item.key === "overview") {

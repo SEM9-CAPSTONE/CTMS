@@ -179,12 +179,15 @@ describe("CTMS-415 shared Booking demand (real PostgreSQL, fake provider edge)",
 		expect(await service.processOne()).toBe(false);
 		expect(provider.generate).toHaveBeenCalledTimes(1);
 		const first = await read().expect(200);
+		expect(first.body.status).toBe("succeeded");
+		expect(first.body.stale).toBe(false);
 		const second = await read(hosts[2]).expect(200);
 		expect(first.body).toEqual(second.body);
 		expect(first.body.cells[0].bookerBand).toEqual({ min: 10, max: 19 });
 		expect(Object.keys(first.body).sort()).toEqual(
 			[
 				"advisory",
+				"canRetry",
 				"cells",
 				"dataWindow",
 				"errorCode",
@@ -296,6 +299,42 @@ describe("CTMS-415 shared Booking demand (real PostgreSQL, fake provider edge)",
 		expect(await service.finish(b, output)).toBe(true);
 		expect((await read().expect(200)).body.status).toBe("succeeded");
 	});
+	it("lists twelve closed server-owned periods with Host authorization and existing-report availability", async () => {
+		const endpoint = "/api/host/demand-insights";
+		await request(app.getHttpServer()).get(endpoint).expect(401);
+		await request(app.getHttpServer())
+			.get(endpoint)
+			.set("Authorization", token(campers[0]))
+			.expect(403);
+		const before = await request(app.getHttpServer())
+			.get(endpoint)
+			.set("Authorization", token())
+			.expect(200);
+		expect(before.body.periods).toHaveLength(12);
+		expect(before.body.periods[0]).toMatchObject({ month, hasReport: false, canCreate: true });
+		expect(before.body.periods.map((p: { month: string }) => p.month)).toEqual(
+			Array.from({ length: 12 }, (_, i) => monthAt(i + 1))
+		);
+		expect(before.headers["cache-control"]).toBe("no-store");
+		await create().expect(202);
+		const after = await request(app.getHttpServer())
+			.get(endpoint)
+			.set("Authorization", token(hosts[1]))
+			.expect(200);
+		expect(after.body.periods[0]).toMatchObject({ month, hasReport: true, canCreate: false });
+	});
+	it("derives disabled period availability from the configured stabilization delay", async () => {
+		config.minDaysAfterClose = 31;
+		const result = await request(app.getHttpServer())
+			.get("/api/host/demand-insights")
+			.set("Authorization", token())
+			.expect(200);
+		const period = result.body.periods[0];
+		const [year, monthNumber] = month.split("-").map(Number);
+		const availableAt = new Date(Date.UTC(year, monthNumber, 1) - 7 * 3600000 + 31 * 86400000);
+		expect(period.availableAt).toBe(availableAt.toISOString());
+		expect(period.canCreate).toBe(Date.now() >= availableAt.getTime());
+	});
 	it("caps transient attempts at three and redacts provider errors", async () => {
 		await create().expect(202);
 		provider.generate.mockRejectedValue(
@@ -313,6 +352,49 @@ describe("CTMS-415 shared Booking demand (real PostgreSQL, fake provider edge)",
 		const result = await read().expect(200);
 		expect(result.body.status).toBe("failed");
 		expect(result.text).not.toContain("private transport");
+	});
+	it("permits one explicit retry round for transient failures, enforces cooldown and serializes double clicks", async () => {
+		const created = await create().expect(202);
+		await db.query(
+			"UPDATE demand_insight_reports SET status='failed',attempts=3,error_code='provider_transport',next_attempt_at=clock_timestamp()-interval '1 second' WHERE month=$1",
+			[month]
+		);
+		expect((await read().expect(200)).body.canRetry).toBe(true);
+		const waiting = await create().expect(429);
+		expect(Number(waiting.headers["retry-after"])).toBeGreaterThan(0);
+		await db.query(
+			"UPDATE demand_insight_control SET last_created_at=clock_timestamp()-interval '61 seconds' WHERE id=1"
+		);
+		const responses = await Promise.all([create(), create()]);
+		expect(responses.map((r) => r.status)).toEqual([202, 202]);
+		expect(responses.every((r) => r.body.version === created.body.version)).toBe(true);
+		const [row] = await db.query(
+			"SELECT manual_retries,attempts FROM demand_insight_reports WHERE month=$1",
+			[month]
+		);
+		expect(row).toEqual({ manual_retries: 1, attempts: 0 });
+		await db.query(
+			"UPDATE demand_insight_reports SET status='failed',attempts=3,error_code='provider_transport' WHERE month=$1",
+			[month]
+		);
+		expect((await read().expect(200)).body.canRetry).toBe(false);
+		await create().expect(200);
+		expect(await service.processOne()).toBe(false);
+	});
+	it("never retries permanent errors or a changed frozen source", async () => {
+		await create().expect(202);
+		await db.query(
+			"UPDATE demand_insight_reports SET status='failed',error_code='invalid_output' WHERE month=$1",
+			[month]
+		);
+		expect((await read().expect(200)).body.canRetry).toBe(false);
+		await create().expect(200);
+		await db.query(
+			"UPDATE demand_insight_reports SET error_code='provider_transport',source_hash='changed' WHERE month=$1",
+			[month]
+		);
+		expect((await read().expect(200)).body.canRetry).toBe(false);
+		await create().expect(200);
 	});
 	it("does not retry invalid output or permit provider-supplied numbers", async () => {
 		await create().expect(202);

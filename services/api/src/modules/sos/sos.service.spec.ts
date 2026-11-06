@@ -235,6 +235,48 @@ describe("SosService", () => {
 				ForbiddenException
 			);
 		});
+
+		it("CTMS-076: creates SOS with client-supplied UUID", async () => {
+			const clientUuid = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
+			const result = await service.createSos(USER_ID, TRIP_ID, {
+				...createDto,
+				id: clientUuid,
+			});
+
+			expect(result.id).toBe(clientUuid);
+			expect(sosRepository.create).toHaveBeenCalledWith(
+				expect.objectContaining({
+					id: clientUuid,
+				})
+			);
+		});
+
+		it("CTMS-076: returns existing SOS idempotently when called repeatedly with same UUID (BR-244, PB AC-6)", async () => {
+			const existingAlert = buildSosAlert({ id: SOS_ID, tripId: TRIP_ID, senderId: USER_ID });
+			sosRepository.findById.mockResolvedValue(existingAlert);
+
+			const result = await service.createSos(USER_ID, TRIP_ID, {
+				...createDto,
+				id: SOS_ID,
+			});
+
+			expect(result.id).toBe(SOS_ID);
+			expect(sosRepository.save).not.toHaveBeenCalled();
+			expect(auditRepository.save).not.toHaveBeenCalled();
+			expect(eventsGateway.emitSosCreated).not.toHaveBeenCalled();
+		});
+
+		it("CTMS-076: rejects duplicate UUID belonging to different trip or sender with ConflictException", async () => {
+			const otherAlert = buildSosAlert({ id: SOS_ID, tripId: TRIP_ID, senderId: OTHER_USER_ID });
+			sosRepository.findById.mockResolvedValue(otherAlert);
+
+			await expect(
+				service.createSos(USER_ID, TRIP_ID, {
+					...createDto,
+					id: SOS_ID,
+				})
+			).rejects.toThrow(ConflictException);
+		});
 	});
 
 	describe("cancel (CTMS-077, BR-258)", () => {

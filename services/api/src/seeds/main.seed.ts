@@ -4907,15 +4907,37 @@ export async function seedDemandInsightScenarios(ds = dataSource): Promise<void>
 		throw new Error("Demand seed requires a local development/test database");
 	if (!ds.isInitialized) await ds.initialize();
 	const now = new Date(Date.now() + 7 * 3600000);
-	const month = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 15))
+	const defaultMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 15))
 		.toISOString()
 		.slice(0, 7);
+	const requestedMonth = process.argv
+		.find((argument) => argument.startsWith("--demand-month="))
+		?.split("=")[1];
+	const month = requestedMonth ?? defaultMonth;
+	if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month) || month > defaultMonth) {
+		throw new Error("Demand seed month must be a closed calendar month in YYYY-MM format");
+	}
+	const alternative = process.argv.includes("--demand-alternative");
+	const varied = process.argv.includes("--demand-varied");
+	const bookersPerGroup = varied ? [24, 36] : [12, 12];
+	if ((alternative || varied) && month === defaultMonth) {
+		throw new Error(
+			"Alternative demand scenario requires an earlier month to preserve the latest-month fixture"
+		);
+	}
 	const suffix = (n: number) => `${month.replace("-", "")}${String(n).padStart(6, "0")}`;
 	const hostId = (n: number) => `d4150000-0000-4000-8100-${String(n).padStart(12, "0")}`;
 	const camperId = (n: number) => `d4150000-0000-4000-8200-${String(n).padStart(12, "0")}`;
 	const passwordHash = await hash(randomBytes(32).toString("hex"), BCRYPT_COST_FACTOR);
 	await ds.transaction(async (m) => {
-		for (let n = 1; n <= 15; n++) {
+		if (varied) {
+			const reports: { id: string }[] = await m.query(
+				"SELECT id FROM demand_insight_reports WHERE month=$1",
+				[month]
+			);
+			if (reports.length) throw new Error("Refusing to change sources for an existing report");
+		}
+		for (let n = 1; n <= 3 + Math.max(...bookersPerGroup); n++) {
 			const host = n <= 3;
 			const id = host ? hostId(n) : camperId(n - 3);
 			const role = host ? "host" : "camper";
@@ -4939,7 +4961,7 @@ export async function seedDemandInsightScenarios(ds = dataSource): Promise<void>
 						route,
 						hostId(h),
 						kind ? "Hành trình khám phá thiên nhiên" : "Tuyến dã ngoại thư giãn",
-						kind ? "moderate" : "easy",
+						alternative ? (kind ? "hard" : "moderate") : kind ? "moderate" : "easy",
 					]
 				);
 				await m.query(
@@ -4956,11 +4978,11 @@ export async function seedDemandInsightScenarios(ds = dataSource): Promise<void>
 						`${month}-10T00:00:00Z`,
 					]
 				);
-				for (let c = h; c <= 12; c += 3) {
+				for (let c = h; c <= bookersPerGroup[kind]; c += 3) {
 					await m.query(
 						"INSERT INTO bookings(id,trip_id,user_id,num_people,status,payment_status,created_at,completed_at) VALUES($1,$2,$3,1,'completed','not_required',$4,$5) ON CONFLICT(id) DO NOTHING",
 						[
-							`d4150000-0000-4000-8500-${suffix(kind * 12 + c)}`,
+							`d4150000-0000-4000-8500-${suffix(kind * (varied ? 100 : 12) + c)}`,
 							trip,
 							camperId(c),
 							`${month}-05T00:00:00Z`,
@@ -4972,7 +4994,7 @@ export async function seedDemandInsightScenarios(ds = dataSource): Promise<void>
 		}
 	});
 	console.log(
-		`[seed:demand] Ensured synthetic Booking sources for ${month}: two taxonomy cells, twelve distinct bookers and three Hosts per cell. No AI report was seeded.`
+		`[seed:demand] Ensured synthetic Booking sources for ${month}: two taxonomy cells with ${bookersPerGroup.join(" / ")} distinct bookers and three Hosts per cell. No AI report was seeded.`
 	);
 }
 

@@ -63,7 +63,7 @@ export function ReviewAnalysisPage({
 						<MessageSquareText className="size-6" />
 					</div>
 					<div className="min-w-0 flex-1">
-						<h1 className="text-xl font-extrabold sm:text-2xl">Phân tích đánh giá với AI</h1>
+						<h1 className="text-xl font-extrabold sm:text-2xl">Phân tích đánh giá</h1>
 						<p className="mt-0.5 text-sm text-[#667a6d]">
 							Tổng hợp cảm nhận và chủ đề từ đánh giá chuyến đi.
 						</p>

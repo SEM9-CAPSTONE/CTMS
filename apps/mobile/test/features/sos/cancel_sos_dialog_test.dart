@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mobile/features/sos/application/sos_controller.dart';
+
 import 'package:mobile/features/sos/data/sos_api.dart';
 import 'package:mobile/features/sos/domain/sos_alert.dart';
 import 'package:mobile/features/sos/presentation/cancel_sos_dialog.dart';
@@ -43,11 +43,13 @@ class _FakeSosApi implements SosApi {
   @override
   Future<SosAlert> create(
     String tripId, {
+    String? id,
     required String emergencyType,
     String? notes,
     double? latitude,
     double? longitude,
     int? batteryLevel,
+    DateTime? eventTime,
   }) async {
     throw UnimplementedError();
   }

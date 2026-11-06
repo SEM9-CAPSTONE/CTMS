@@ -1,3 +1,5 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../core/api/api_client.dart';
 import '../../../core/api/api_endpoints.dart';
 import '../domain/sos_alert.dart';
@@ -9,11 +11,13 @@ abstract interface class SosApi {
   Future<SosAlert> close(String tripId, String sosId, String resolutionNote);
   Future<SosAlert> create(
     String tripId, {
+    String? id,
     required String emergencyType,
     String? notes,
     double? latitude,
     double? longitude,
     int? batteryLevel,
+    DateTime? eventTime,
   });
 }
 
@@ -65,14 +69,18 @@ class HttpSosApi implements SosApi {
   @override
   Future<SosAlert> create(
     String tripId, {
+    String? id,
     required String emergencyType,
     String? notes,
     double? latitude,
     double? longitude,
     int? batteryLevel,
+    DateTime? eventTime,
   }) async {
     final body = <String, dynamic>{
+      if (id != null) 'id': id,
       'emergencyType': emergencyType,
+      'eventTime': (eventTime ?? DateTime.now()).toUtc().toIso8601String(),
       if (notes != null) 'notes': notes,
       if (latitude != null && longitude != null)
         'location': {'latitude': latitude, 'longitude': longitude},
@@ -86,3 +94,7 @@ class HttpSosApi implements SosApi {
     return SosAlert.fromJson(Map<String, dynamic>.from(response.data as Map));
   }
 }
+
+final sosApiProvider = Provider<SosApi>((ref) {
+  return HttpSosApi(ref.watch(apiClientProvider));
+});

@@ -98,8 +98,12 @@ export class HostOverviewRepository {
 	sos(hostId: string, page: number, limit: number): Promise<OverviewPage<OverviewSos>> {
 		return this.page(
 			`SELECT s.id,s.trip_id AS "tripId",s.status,s.emergency_type AS "emergencyType",
-		 s.event_time AS "eventTime",s.received_at AS "receivedAt",s.updated_at AS "updatedAt",s.event_time AS "sortKey"
-		 FROM sos_alerts s JOIN trips t ON t.id=s.trip_id WHERE t.host_id=$1 AND s.status=ANY($2::sos_status[])`,
+		 s.event_time AS "eventTime",s.received_at AS "receivedAt",s.updated_at AS "updatedAt",s.event_time AS "sortKey",
+		 t.title AS "tripTitle",u.full_name AS "senderName"
+		 FROM sos_alerts s
+		 JOIN trips t ON t.id=s.trip_id
+		 LEFT JOIN users u ON u.id=s.sender_id
+		 WHERE t.host_id=$1 AND s.status=ANY($2::sos_status[])`,
 			[hostId, [SosStatus.ACTIVE, SosStatus.ACKNOWLEDGED]],
 			page,
 			limit

@@ -12,6 +12,9 @@ import 'package:mobile/features/incidents/domain/trip_incident.dart';
 import 'package:mobile/features/sync/application/connectivity_source.dart';
 import 'package:mobile/features/sync/application/reconnection_sync_coordinator.dart';
 import 'package:mobile/features/sync/data/offline_medical_store.dart';
+import 'package:mobile/features/sos/data/sos_api.dart';
+import 'package:mobile/features/sos/data/sos_store.dart';
+import 'package:mobile/features/sos/domain/sos_alert.dart';
 
 import '../gps_tracking/gps_fakes.dart';
 import '../route_deviation/route_deviation_fakes.dart';
@@ -107,6 +110,36 @@ class FakeHealthProfileRepository implements CamperHealthProfileRepository {
       version: 1,
     );
   }
+}
+
+class OrderTrackingSosApi implements SosApi {
+  OrderTrackingSosApi(this.onCall);
+  final void Function(String event) onCall;
+
+  @override
+  Future<SosAlert> create(
+    String tripId, {
+    String? id,
+    required String emergencyType,
+    String? notes,
+    double? latitude,
+    double? longitude,
+    int? batteryLevel,
+    DateTime? eventTime,
+  }) async {
+    onCall('sos');
+    return SosAlert(
+      id: id ?? newSosId(),
+      tripId: tripId,
+      senderId: 'user-1',
+      emergencyType: emergencyType,
+      status: 'active',
+      eventTime: eventTime ?? DateTime.now(),
+    );
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 void main() {
@@ -349,6 +382,67 @@ void main() {
       // Verify medical data was purged and cannot be reauthorized
       expect(await fakeMedicalStore.isConsentActive(), isFalse);
       expect(await fakeMedicalStore.readMedicalData(), isNull);
+
+      coordinator.dispose();
+    });
+
+    test('PB AC-4, PB AC-5 & BR-257: SOS alerts synchronize BEFORE Incidents and BEFORE GPS logs', () async {
+      final syncOrder = <String>[];
+
+      final sosStore = InMemorySosStore();
+      await sosStore.put(LocalSosAlert(
+        id: newSosId(),
+        tripId: tripId,
+        senderId: 'camper-1',
+        emergencyType: 'medical',
+        eventTime: now,
+        syncState: SosSyncState.pending,
+      ));
+
+      final sosApi = OrderTrackingSosApi((event) => syncOrder.add(event));
+
+      fakeIncidentStore.records.add(const LocalIncident(
+        tripId: tripId,
+        syncState: IncidentSyncState.pending,
+        payload: {
+          'id': 'incident-priority-test',
+          'category': 'injury',
+          'severity': 'high',
+          'description': 'Priority test incident',
+          'occurredAt': '2026-10-24T09:30:00.000Z',
+        },
+      ));
+
+      final gpsLog = LocalGpsLog.fromSample(
+        id: 'gps-priority-test',
+        tripId: tripId,
+        sample: sampleAt(now),
+        configVersion: 'v3',
+      );
+      await fakeGpsStore.update(tripId, (_) => [gpsLog]);
+
+      final coordinator = ReconnectionSyncCoordinator(
+        connectivitySource: fakeConnectivity,
+        incidentStore: fakeIncidentStore,
+        incidentsApi: fakeIncidentsApi,
+        sosStore: sosStore,
+        sosApi: sosApi,
+        gpsStore: fakeGpsStore,
+        gpsApi: fakeGpsApi,
+        safetyEventStore: fakeSafetyStore,
+        safetyEventApi: fakeSafetyApi,
+        medicalStore: fakeMedicalStore,
+        healthProfileRepository: fakeHealthRepo,
+        clock: () => now,
+        autoStart: false,
+      );
+
+      fakeConnectivity.setConnected(true);
+      await coordinator.synchronizeAll();
+
+      expect(syncOrder, contains('sos'));
+      final sosAlerts = await sosStore.read(tripId);
+      expect(sosAlerts.first.syncState, SosSyncState.synced);
 
       coordinator.dispose();
     });

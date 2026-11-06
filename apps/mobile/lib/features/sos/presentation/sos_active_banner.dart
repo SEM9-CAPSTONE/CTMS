@@ -8,7 +8,7 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/ctms_button.dart';
 import '../application/sos_controller.dart';
-import '../domain/sos_alert.dart';
+
 import 'cancel_sos_dialog.dart';
 import 'sos_active_screen.dart';
 
@@ -27,16 +27,21 @@ class SosActiveBanner extends ConsumerWidget {
     final activeAlert = controller.activeAlert;
 
     if (activeAlert != null) {
+      final isPending = activeAlert.isLocalPending;
+
       return Container(
         margin: const EdgeInsets.only(bottom: AppSpacing.lg),
         padding: const EdgeInsets.all(AppSpacing.cardPadding),
         decoration: BoxDecoration(
-          color: AppColors.statusDangerBg,
+          color: isPending ? AppColors.brandLight : AppColors.statusDangerBg,
           borderRadius: AppRadius.cardBorderRadius,
-          border: Border.all(color: AppColors.statusDanger, width: 1.5),
+          border: Border.all(
+            color: isPending ? AppColors.brandPrimary : AppColors.statusDanger,
+            width: 1.5,
+          ),
           boxShadow: [
             BoxShadow(
-              color: AppColors.statusDanger.withValues(alpha: 0.15),
+              color: (isPending ? AppColors.brandPrimary : AppColors.statusDanger).withValues(alpha: 0.15),
               blurRadius: 8,
               offset: const Offset(0, 3),
             ),
@@ -50,11 +55,11 @@ class SosActiveBanner extends ConsumerWidget {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: AppColors.statusDanger,
+                    color: isPending ? AppColors.brandPrimary : AppColors.statusDanger,
                     borderRadius: AppRadius.controlBorderRadius,
                   ),
-                  child: const Icon(
-                    Icons.sos,
+                  child: Icon(
+                    isPending ? Icons.offline_bolt_rounded : Icons.sos,
                     color: Colors.white,
                     size: 20,
                   ),
@@ -65,9 +70,9 @@ class SosActiveBanner extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'CẢNH BÁO SOS ĐANG PHÁT',
+                        isPending ? 'CẢNH BÁO SOS ĐÃ LƯU (NGOẠI TUYẾN)' : 'CẢNH BÁO SOS ĐANG PHÁT',
                         style: AppTypography.bodyStrong.copyWith(
-                          color: AppColors.statusDanger,
+                          color: isPending ? AppColors.brandPrimary : AppColors.statusDanger,
                           fontWeight: FontWeight.w900,
                           fontSize: 14,
                         ),
@@ -90,7 +95,9 @@ class SosActiveBanner extends ConsumerWidget {
             ),
             const SizedBox(height: AppSpacing.sm),
             Text(
-              'Tín hiệu khẩn cấp đang được gửi tới Trưởng đoàn và Đội cứu hộ. Nếu bạn lỡ tay bấm nhầm, hãy bấm HỦY ngay dưới đây:',
+              isPending
+                  ? 'Tín hiệu khẩn cấp đã được lưu an toàn trên máy và sẽ tự động ưu tiên đồng bộ ngay khi có mạng. Nếu bạn bấm nhầm, hãy bấm HỦY dưới đây:'
+                  : 'Tín hiệu khẩn cấp đang được gửi tới Trưởng đoàn và Đội cứu hộ. Nếu bạn lỡ tay bấm nhầm, hãy bấm HỦY ngay dưới đây:',
               style: AppTypography.caption.copyWith(
                 color: Colors.black87,
               ),
@@ -117,7 +124,7 @@ class SosActiveBanner extends ConsumerWidget {
                             const SnackBar(
                               backgroundColor: AppColors.statusSuccess,
                               content: Text(
-                                'Đã hủy cảnh báo SOS thành công. Hệ thống đã cập trạng thái an toàn.',
+                                'Đã hủy cảnh báo SOS thành công. Hệ thống đã cập nhật trạng thái an toàn.',
                               ),
                             ),
                           );

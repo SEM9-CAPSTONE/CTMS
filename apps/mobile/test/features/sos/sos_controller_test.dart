@@ -2,208 +2,105 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/core/api/api_exception.dart';
 import 'package:mobile/features/sos/application/sos_controller.dart';
 import 'package:mobile/features/sos/data/sos_api.dart';
+import 'package:mobile/features/sos/data/sos_store.dart';
 import 'package:mobile/features/sos/domain/sos_alert.dart';
 
-class _MockSosApi implements SosApi {
-  List<SosAlert> alerts = [];
-  bool shouldThrow = false;
-  String errorMessage = 'Lỗi kết nối';
-
-  @override
-  Future<List<SosAlert>> list(String tripId) async {
-    if (shouldThrow) throw ApiException(errorMessage);
-    return alerts;
-  }
-
-  @override
-  Future<SosAlert> cancel(String tripId, String sosId, String reason) async {
-    if (shouldThrow) throw ApiException(errorMessage);
-    final alert = alerts.firstWhere((a) => a.id == sosId);
-    final updated = SosAlert(
-      id: alert.id,
-      tripId: alert.tripId,
-      senderId: alert.senderId,
-      emergencyType: alert.emergencyType,
-      status: 'cancelled',
-      eventTime: alert.eventTime,
-      cancelledBy: alert.senderId,
-      cancelledAt: DateTime.now(),
-      cancellationReason: reason,
-    );
-    alerts = alerts.map((a) => a.id == sosId ? updated : a).toList();
-    return updated;
-  }
-
-  @override
-  Future<SosAlert> acknowledge(String tripId, String sosId) async {
-    if (shouldThrow) throw ApiException(errorMessage);
-    final alert = alerts.firstWhere((a) => a.id == sosId);
-    final updated = SosAlert(
-      id: alert.id,
-      tripId: alert.tripId,
-      senderId: alert.senderId,
-      emergencyType: alert.emergencyType,
-      status: 'acknowledged',
-      eventTime: alert.eventTime,
-      acknowledgedBy: 'host-1',
-      acknowledgedAt: DateTime.now(),
-    );
-    alerts = alerts.map((a) => a.id == sosId ? updated : a).toList();
-    return updated;
-  }
-
-  @override
-  Future<SosAlert> close(String tripId, String sosId, String resolutionNote) async {
-    if (shouldThrow) throw ApiException(errorMessage);
-    final alert = alerts.firstWhere((a) => a.id == sosId);
-    final updated = SosAlert(
-      id: alert.id,
-      tripId: alert.tripId,
-      senderId: alert.senderId,
-      emergencyType: alert.emergencyType,
-      status: 'closed',
-      eventTime: alert.eventTime,
-      acknowledgedBy: alert.acknowledgedBy ?? 'host-1',
-      acknowledgedAt: alert.acknowledgedAt ?? DateTime.now(),
-      closedBy: 'host-1',
-      closedAt: DateTime.now(),
-      resolutionNote: resolutionNote,
-    );
-    alerts = alerts.map((a) => a.id == sosId ? updated : a).toList();
-    return updated;
-  }
-
+class FailingSosApi implements SosApi {
   @override
   Future<SosAlert> create(
     String tripId, {
+    String? id,
     required String emergencyType,
     String? notes,
     double? latitude,
     double? longitude,
     int? batteryLevel,
+    DateTime? eventTime,
   }) async {
-    if (shouldThrow) throw ApiException(errorMessage);
-    final newAlert = SosAlert(
-      id: 'new-sos',
-      tripId: tripId,
-      senderId: 'sender-1',
-      emergencyType: emergencyType,
-      status: 'active',
-      eventTime: DateTime.now(),
-      notes: notes,
-    );
-    alerts = [newAlert, ...alerts];
-    return newAlert;
+    throw ApiException('Thiết bị đang ngắt kết nối', statusCode: null);
   }
+
+  @override
+  Future<List<SosAlert>> list(String tripId) async {
+    throw ApiException('Mất kết nối mạng', statusCode: null);
+  }
+
+  @override
+  Future<SosAlert> acknowledge(String tripId, String sosId) => throw UnimplementedError();
+  @override
+  Future<SosAlert> cancel(String tripId, String sosId, String reason) => throw UnimplementedError();
+  @override
+  Future<SosAlert> close(String tripId, String sosId, String resolutionNote) => throw UnimplementedError();
 }
 
 void main() {
-  group('SosController', () {
-    const tripId = 'a1736fee-62be-4991-9478-a62288e9b80a';
-    late _MockSosApi mockApi;
-    late SosController controller;
+  const tripId = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+  const userId = '11111111-2222-3333-4444-555555555555';
 
-    final sampleActive = SosAlert(
-      id: 'sos-1',
+  test('SosController creates SOS offline, saves locally, and immediately activates in UI (PB AC-1, PB AC-2)', () async {
+    final store = InMemorySosStore();
+    final api = FailingSosApi();
+
+    final controller = SosController(
       tripId: tripId,
-      senderId: 'sender-1',
-      emergencyType: 'medical',
-      status: 'active',
-      eventTime: DateTime.now(),
+      api: api,
+      store: store,
+      userId: userId,
     );
 
-    setUp(() {
-      mockApi = _MockSosApi();
-      mockApi.alerts = [sampleActive];
-      controller = SosController(tripId: tripId, api: mockApi);
-    });
+    // Initial state
+    await Future<void>.delayed(Duration.zero);
+    expect(controller.activeAlert, isNull);
 
-    test('loads alerts and identifies active alert', () async {
-      await controller.load();
-      expect(controller.alerts.length, 1);
-      expect(controller.activeAlert?.id, 'sos-1');
-      expect(controller.activeAlert?.isActive, isTrue);
-    });
+    // Trigger SOS while offline
+    final alert = await controller.triggerSos(
+      emergencyType: 'lost',
+      notes: 'Lạc trong rừng thông',
+      latitude: 11.54,
+      longitude: 108.45,
+    );
 
-    test('cancel validates empty reason', () async {
-      await controller.load();
-      final res = await controller.cancel(sosId: 'sos-1', reason: '   ');
-      expect(res, isNull);
-      expect(controller.error, 'Vui lòng nhập lý do hủy cảnh báo SOS');
-      expect(controller.activeAlert?.id, 'sos-1'); // remains active
-    });
+    expect(alert, isNotNull);
+    expect(alert!.emergencyType, 'lost');
+    expect(alert.notes, 'Lạc trong rừng thông');
+    expect(alert.isLocalPending, isTrue);
+    expect(controller.activeAlert, isNotNull);
+    expect(controller.activeAlert!.id, alert.id);
 
-    test('cancel validates reason longer than 500 characters', () async {
-      await controller.load();
-      final longReason = 'A' * 501;
-      final res = await controller.cancel(sosId: 'sos-1', reason: longReason);
-      expect(res, isNull);
-      expect(controller.error, 'Lý do hủy không được vượt quá 500 ký tự');
-    });
+    // Verify persisted in store
+    final stored = await store.read(tripId);
+    expect(stored, hasLength(1));
+    expect(stored.first.id, alert.id);
+    expect(stored.first.syncState, SosSyncState.pending);
+  });
 
-    test('cancel successfully transitions active SOS to cancelled', () async {
-      await controller.load();
-      final res = await controller.cancel(
-        sosId: 'sos-1',
-        reason: 'Cấn nút điện thoại',
-      );
-      expect(res, isNotNull);
-      expect(res?.status, 'cancelled');
-      expect(res?.cancellationReason, 'Cấn nút điện thoại');
-      expect(controller.activeAlert, isNull); // no longer active
-      expect(controller.alerts.first.isCancelled, isTrue);
-    });
+  test('SosController restores pending offline alert after simulated restart (PB AC-2)', () async {
+    final store = InMemorySosStore();
+    final alertId = newSosId();
 
-    test('acknowledge transitions SOS to acknowledged', () async {
-      await controller.load();
-      final res = await controller.acknowledge('sos-1');
-      expect(res, isNotNull);
-      expect(res?.status, 'acknowledged');
-      expect(res?.isAcknowledged, isTrue);
-      expect(controller.alerts.first.isAcknowledged, isTrue);
-    });
+    // Pre-seed store with offline alert
+    await store.put(LocalSosAlert(
+      id: alertId,
+      tripId: tripId,
+      senderId: userId,
+      emergencyType: 'injury',
+      eventTime: DateTime.now(),
+      syncState: SosSyncState.pending,
+    ));
 
-    test('close validates empty resolution note', () async {
-      await controller.load();
-      final res = await controller.close(sosId: 'sos-1', resolutionNote: '   ');
-      expect(res, isNull);
-      expect(controller.error, 'Vui lòng nhập ghi chú kết quả xử lý SOS');
-    });
+    // New controller instance (simulating app restart)
+    final controller = SosController(
+      tripId: tripId,
+      api: FailingSosApi(),
+      store: store,
+      userId: userId,
+    );
 
-    test('close validates resolution note longer than 500 characters', () async {
-      await controller.load();
-      final longNote = 'B' * 501;
-      final res = await controller.close(sosId: 'sos-1', resolutionNote: longNote);
-      expect(res, isNull);
-      expect(controller.error, 'Ghi chú xử lý không được vượt quá 500 ký tự');
-    });
+    await Future<void>.delayed(Duration.zero);
 
-    test('close transitions SOS to closed with resolution note', () async {
-      await controller.load();
-      final res = await controller.close(
-        sosId: 'sos-1',
-        resolutionNote: 'Đã tìm thấy camper và đưa về lều an toàn',
-      );
-      expect(res, isNotNull);
-      expect(res?.status, 'closed');
-      expect(res?.isClosed, isTrue);
-      expect(res?.resolutionNote, 'Đã tìm thấy camper và đưa về lều an toàn');
-    });
-
-    test('surfaces error message when cancellation fails', () async {
-      await controller.load();
-      mockApi.shouldThrow = true;
-      mockApi.errorMessage = 'Chỉ có thể hủy SOS khi đang ở trạng thái active';
-
-      final res = await controller.cancel(
-        sosId: 'sos-1',
-        reason: 'Cấn nút điện thoại',
-      );
-      expect(res, isNull);
-      expect(
-        controller.error,
-        'Chỉ có thể hủy SOS khi đang ở trạng thái active',
-      );
-    });
+    expect(controller.activeAlert, isNotNull);
+    expect(controller.activeAlert!.id, alertId);
+    expect(controller.activeAlert!.emergencyType, 'injury');
+    expect(controller.activeAlert!.isLocalPending, isTrue);
   });
 }

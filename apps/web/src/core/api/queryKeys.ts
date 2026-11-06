@@ -1,4 +1,8 @@
 export const queryKeys = {
+	demandInsights: {
+		periods: (actor: string) => ["demand-insights", actor, "periods"] as const,
+		report: (actor: string, month: string) => ["demand-insights", actor, month] as const,
+	},
 	reviewAnalysis: {
 		all: ["review-analysis"] as const,
 		trips: (actor: string, page: number) => ["review-analysis", actor, "trips", page] as const,

@@ -18,6 +18,7 @@ import '../../sync/presentation/device_sync_status_screen.dart';
 import '../overview/domain/camper_overview_models.dart';
 import '../../sos/presentation/sos_active_banner.dart';
 import '../../schedule_progress/presentation/schedule_progress_panels.dart';
+import '../../sos/presentation/trigger_sos_dialog.dart';
 
 class CamperTripDetailScreen extends ConsumerStatefulWidget {
   const CamperTripDetailScreen({
@@ -80,6 +81,13 @@ class _CamperTripDetailScreenState
       title: 'Chi tiết chuyến đi',
       subtitle: tripName,
       actions: [
+        IconButton(
+          icon: const Icon(Icons.sos_rounded, color: AppColors.statusDanger, size: 28),
+          tooltip: 'Phát tín hiệu SOS khẩn cấp',
+          onPressed: () {
+            TriggerSosDialog.show(context, tripId: widget.tripId);
+          },
+        ),
         IconButton(
           icon: const Icon(Icons.sync_outlined, color: Colors.black),
           tooltip: 'Trạng thái đồng bộ thiết bị',
@@ -433,6 +441,63 @@ class _CamperTripDetailScreenState
             ),
           ),
           const SizedBox(height: AppSpacing.md),
+
+          Container(
+            margin: const EdgeInsets.only(bottom: AppSpacing.md),
+            padding: const EdgeInsets.all(AppSpacing.cardPadding),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: AppRadius.cardBorderRadius,
+              border: Border.all(color: AppColors.statusDanger.withValues(alpha: 0.3)),
+              boxShadow: AppColors.cardShadowSm,
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.statusDangerBg,
+                    borderRadius: AppRadius.controlBorderRadius,
+                  ),
+                  child: const Icon(
+                    Icons.sos_rounded,
+                    color: AppColors.statusDanger,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Cứu hộ khẩn cấp SOS',
+                        style: AppTypography.bodyStrong.copyWith(
+                          color: AppColors.statusDanger,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      Text(
+                        'Hoạt động ngay cả khi ngoại tuyến/mất mạng',
+                        style: AppTypography.caption.copyWith(
+                          color: Colors.black54,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                CtmsButton(
+                  label: 'Phát SOS',
+                  variant: CtmsButtonVariant.danger,
+                  onPressed: () {
+                    TriggerSosDialog.show(context, tripId: widget.tripId);
+                  },
+                ),
+              ],
+            ),
+          ),
 
           Container(
             margin: const EdgeInsets.only(bottom: AppSpacing.xxl),

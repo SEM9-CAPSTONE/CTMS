@@ -41,7 +41,21 @@ export class SosService {
 		const trip = await this.assertTripParticipant(userId, tripId);
 
 		const now = new Date();
+		if (dto.id) {
+			const existing = await this.sosRepository.findById(dto.id);
+			if (existing) {
+				if (existing.tripId !== tripId || existing.senderId !== userId) {
+					throw new ConflictException({
+						code: SosErrorCode.NOT_SOS_SENDER,
+						message: "SOS alert ID belongs to a different trip or sender",
+					});
+				}
+				return toSosAlertResponseDto(existing);
+			}
+		}
+
 		const alert = this.sosRepository.create({
+			...(dto.id ? { id: dto.id } : {}),
 			tripId,
 			senderId: userId,
 			emergencyType: dto.emergencyType,
