@@ -71,21 +71,56 @@ Configure the same nonempty `KNOWLEDGE_SERVICE_TOKEN` for API and ingestion. API
 docker compose up -d --build ingestion api
 ```
 
-For local Python work, use a Python 3.12 environment:
+For local Python work, use Python 3.12 installed independently of the editor/application. Virtual environments retain the base interpreter path; an interpreter inside a versioned application directory can disappear after an update. Do not create the project environment from such a bundled runtime.
+
+On Windows, with [uv installed](https://docs.astral.sh/uv/getting-started/installation/), run from the repository root. Use the full path to `uv.exe` if it is not on PATH:
 
 ```powershell
-python -m pip install -r services/ai/requirements-ingestion.txt
-cd services/ai
-python -m uvicorn app.knowledge_api:app --host 127.0.0.1 --port 8001 --workers 1
+uv python install 3.12 --install-dir .python --no-bin --no-registry
+$env:UV_PYTHON_INSTALL_DIR=(Resolve-Path .python).Path
+$knowledgePython = uv python find 3.12 --managed-python --no-project --resolve-links
+& $knowledgePython -m venv .venv-ingestion
+.\.venv-ingestion\Scripts\python.exe -m pip install -r services/ai/requirements-ingestion.txt
+.\.venv-ingestion\Scripts\python.exe -m uvicorn app.knowledge_api:app --app-dir services/ai --env-file .env --host 127.0.0.1 --port 8001 --workers 1
 ```
+
+The base interpreter lives in `.python` and dependencies in `.venv-ingestion`; both directories are excluded from Git and Docker build context. A separately installed system Python 3.12 is also suitable. Keep the ingestion environment separate from the weather/review service's environment because their dependency versions differ.
+
+If an existing environment prints `No Python at ...`, install the independent base interpreter as above and repair the environment without clearing existing packages/model cache:
+
+```powershell
+& $knowledgePython -m venv --upgrade --without-pip .venv-ingestion
+.\.venv-ingestion\Scripts\python.exe -c "import sys; print(sys.version); print(sys.base_prefix)"
+```
+
+Reinstall the requirements if imports or the dependency check fail. Run commands through the environment's own `python.exe`, so an unrelated Python installation is not selected accidentally.
 
 Tests:
 
+Run PostgreSQL integration/E2E tests against the isolated test service. From the repository root, in the same PowerShell terminal:
+
 ```powershell
-pnpm --filter @ctms/api test -- --runInBand knowledge-chunks.policy.spec.ts
-pnpm --filter @ctms/api test:integration -- knowledge-chunks.integration-spec.ts survival-documents.integration-spec.ts
-cd services/ai
-python -m pytest app/test_knowledge_chunking.py app/test_knowledge_api.py app/test_knowledge_recall.py -q
+docker compose -f docker-compose.test.yml up -d --wait
+$env:TEST_DATABASE_URL='postgresql://ctms:ctms@127.0.0.1:55451/ctms_test'
+
+pnpm --filter @ctms/api exec jest --runInBand knowledge-chunks
+pnpm --filter @ctms/api exec jest --config test/jest-integration.json --runInBand knowledge-chunks.integration-spec.ts survival-documents.integration-spec.ts
+pnpm --filter @ctms/api exec jest --config test/jest-e2e.json --runInBand survival-documents.e2e-spec.ts
+
+Push-Location services/ai
+..\..\.venv-ingestion\Scripts\python.exe -m pytest app/test_knowledge_chunking.py app/test_knowledge_api.py app/test_knowledge_recall.py -q
+Pop-Location
+```
+
+`docker-compose.test.yml` uses a separate Compose project, localhost port 55451 and disposable in-memory storage. It never mounts the application's `postgres-data` volume. Test data is recreated after restarting the container. `TEST_DATABASE_URL` must remain set in the terminal running Jest; setting it only in the root `.env` does not configure Jest's database setup. The existing test guards still require the database name to end in `_test`.
+
+If the existing PostgreSQL instance reports `could not open critical system index 2662` or repeatedly enters recovery mode, its system catalog/index needs separate investigation. Index 2662 is PostgreSQL's [pg_class_oid_index](https://github.com/postgres/postgres/blob/REL_16_STABLE/src/include/catalog/pg_class.h). Running isolated tests does not repair that database. Diagnose and back up the affected instance before attempting recovery; rebuilding the application's data volume is not part of the test workflow.
+
+Stop the isolated test service when finished:
+
+```powershell
+docker compose -f docker-compose.test.yml down
+Remove-Item Env:TEST_DATABASE_URL -ErrorAction SilentlyContinue
 ```
 
 The integration suite uses real PostgreSQL, transactions, guarded HTTP, private source files, publication/stop-use and worker claims. Its provider response is controlled; it is not a real-model quality benchmark. Python boundary tests use real `DoclingDocument`, `HybridChunker` and table serializers with an offline word tokenizer; HTTP tests cover authenticated validation and failures. The evaluator tests are synthetic correctness tests, not production Recall@5 results.
@@ -93,12 +128,13 @@ The integration suite uses real PostgreSQL, transactions, guarded HTTP, private 
 An additional opt-in smoke test runs a synthetic PDF through the real pinned parser and embedding model, checks reproducible text/provenance and encodes a Vietnamese query. It downloads model weights on the first run:
 
 ```powershell
-cd services/ai
+Push-Location services/ai
 $env:RUN_KNOWLEDGE_MODEL_SMOKE='true'
-python -m pytest app/test_knowledge_smoke.py -q
+..\..\.venv-ingestion\Scripts\python.exe -m pytest app/test_knowledge_smoke.py -q
+Pop-Location
 ```
 
-Verification on 2026-11-06 passed 27 TypeScript unit tests, 26 PostgreSQL integration/regression tests covering CTMS-050/051, and 25 Python tests including the real parser/model smoke test. TypeScript compilation, Biome and whitespace checks passed. PostgreSQL integration used an isolated temporary PostGIS container after the existing test database reported a system-index error; the temporary container was removed after verification. Production deployment and actual-corpus Recall@5 were not performed.
+Verification on 2026-11-06 passed 27 TypeScript unit tests, 26 PostgreSQL integration/regression tests covering CTMS-050/051, 4 HTTP E2E tests with real login, and 25 Python tests including the real parser/model smoke test. TypeScript compilation, Biome and whitespace checks passed. The 26 integration and 4 E2E tests were rerun successfully against `docker-compose.test.yml` after the existing database reported a system-index error. The isolated test service is reusable; use the cleanup command above when finished. Production deployment, recovery of the existing database and actual-corpus Recall@5 were not performed.
 
 ## Retrieval acceptance
 
