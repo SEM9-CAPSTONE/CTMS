@@ -45,3 +45,15 @@ Official compatibility guide: https://aistudio.google.com/docs/openai
 A live synthetic-comment smoke test succeeded with `gemini-3.1-flash-lite`,
 returning valid mixed sentiment, taxonomy topics, summary and token usage.
 This verifies the provider edge, not the complete API/DB batch workflow or UI.
+
+## Booking demand suggestions (CTMS-415)
+
+`POST /demand-insight` uses the same internal shared-token protection and configured
+OpenAI/Gemini client as review analysis. Nest sends only privacy-gated taxonomy cells,
+ten-wide booker intervals, a closed month and server model/prompt settings. It never
+sends source identities, names, prices, private questions or safety data.
+The strict response selects only supplied cells with fixed advisory reason enums;
+free-text numeric claims and unsupported candidates are rejected independently in
+Python and Nest. SDK retries remain disabled. See
+`docs/features/ctms-415-demand-insight-contract.md` for the public Host API, privacy
+release policy, durable worker lifecycle, configuration and test limitations.
