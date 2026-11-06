@@ -5,6 +5,7 @@ export default defineConfig({
 	testMatch: [
 		"ctms-79-t02-receive-real-time-sos-alerts.spec.ts",
 		"ctms-78-t02-authenticated-websocket.spec.ts",
+		"ctms-63-t02-behind-schedule-warning.spec.ts",
 	],
 	workers: 1,
 	fullyParallel: false,

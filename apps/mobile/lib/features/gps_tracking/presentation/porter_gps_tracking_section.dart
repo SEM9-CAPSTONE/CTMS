@@ -9,12 +9,16 @@ import '../../incidents/data/incidents_api.dart';
 import '../../incidents/domain/trip_incident.dart';
 import '../../route_deviation/presentation/route_deviation_panel.dart';
 import 'gps_tracking_panel.dart';
+import '../../schedule_progress/presentation/schedule_progress_panels.dart';
 
 /// Porter's assigned Trips currently `ongoing` (`GET /trips/assigned`).
-final porterOngoingTripsProvider = FutureProvider.autoDispose<List<IncidentTrip>>((ref) async {
-  final trips = await HttpIncidentsApi(ref.watch(apiClientProvider)).assignedTrips();
-  return trips.where((trip) => trip.status == 'ongoing').toList();
-});
+final porterOngoingTripsProvider =
+    FutureProvider.autoDispose<List<IncidentTrip>>((ref) async {
+      final trips = await HttpIncidentsApi(
+        ref.watch(apiClientProvider),
+      ).assignedTrips();
+      return trips.where((trip) => trip.status == 'ongoing').toList();
+    });
 
 /// GPS breadcrumb recording and route-deviation detection for the Porter's
 /// ongoing assigned Trip.
@@ -22,10 +26,12 @@ class PorterGpsTrackingSection extends ConsumerStatefulWidget {
   const PorterGpsTrackingSection({super.key});
 
   @override
-  ConsumerState<PorterGpsTrackingSection> createState() => _PorterGpsTrackingSectionState();
+  ConsumerState<PorterGpsTrackingSection> createState() =>
+      _PorterGpsTrackingSectionState();
 }
 
-class _PorterGpsTrackingSectionState extends ConsumerState<PorterGpsTrackingSection> {
+class _PorterGpsTrackingSectionState
+    extends ConsumerState<PorterGpsTrackingSection> {
   String? _selectedTripId;
 
   @override
@@ -53,7 +59,8 @@ class _PorterGpsTrackingSectionState extends ConsumerState<PorterGpsTrackingSect
           return const CtmsAlertBanner(
             severity: CtmsAlertSeverity.info,
             title: 'Chưa có chuyến đi đang diễn ra',
-            message: 'GPS chỉ được ghi khi bạn được phân công cho một chuyến đi đang diễn ra.',
+            message:
+                'GPS chỉ được ghi khi bạn được phân công cho một chuyến đi đang diễn ra.',
           );
         }
         final selected = items.firstWhere(
@@ -67,7 +74,9 @@ class _PorterGpsTrackingSectionState extends ConsumerState<PorterGpsTrackingSect
               DropdownButtonFormField<String>(
                 key: const Key('porter-gps-trip'),
                 initialValue: selected.id,
-                decoration: const InputDecoration(labelText: 'Chuyến đi đang dẫn đoàn'),
+                decoration: const InputDecoration(
+                  labelText: 'Chuyến đi đang dẫn đoàn',
+                ),
                 items: [
                   for (final trip in items)
                     DropdownMenuItem(value: trip.id, child: Text(trip.title)),
@@ -78,7 +87,15 @@ class _PorterGpsTrackingSectionState extends ConsumerState<PorterGpsTrackingSect
             ],
             GpsTrackingPanel(key: ValueKey(selected.id), tripId: selected.id),
             const SizedBox(height: AppSpacing.md),
-            RouteDeviationPanel(key: ValueKey('route-${selected.id}'), tripId: selected.id),
+            RouteDeviationPanel(
+              key: ValueKey('route-${selected.id}'),
+              tripId: selected.id,
+            ),
+            const SizedBox(height: AppSpacing.md),
+            PorterTeamProgressPanel(
+              key: ValueKey('progress-${selected.id}'),
+              tripId: selected.id,
+            ),
           ],
         );
       },

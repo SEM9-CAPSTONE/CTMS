@@ -17,6 +17,7 @@ import '../../sync/domain/device_sync_models.dart';
 import '../../sync/presentation/device_sync_status_screen.dart';
 import '../overview/domain/camper_overview_models.dart';
 import '../../sos/presentation/sos_active_banner.dart';
+import '../../schedule_progress/presentation/schedule_progress_panels.dart';
 
 class CamperTripDetailScreen extends ConsumerStatefulWidget {
   const CamperTripDetailScreen({
@@ -38,12 +39,12 @@ class _CamperTripDetailScreenState
   static final _dateFormat = DateFormat('dd/MM/yyyy');
 
   (String, CtmsStatus) _syncBadgeInfo(DeviceSyncState state) => switch (state) {
-        DeviceSyncState.synced => ('Đã đồng bộ', CtmsStatus.success),
-        DeviceSyncState.syncing => ('Đang đồng bộ...', CtmsStatus.info),
-        DeviceSyncState.pending => ('Chờ đồng bộ', CtmsStatus.warning),
-        DeviceSyncState.failed => ('Lỗi đồng bộ', CtmsStatus.danger),
-        DeviceSyncState.idle => ('Sẵn sàng', CtmsStatus.neutral),
-      };
+    DeviceSyncState.synced => ('Đã đồng bộ', CtmsStatus.success),
+    DeviceSyncState.syncing => ('Đang đồng bộ...', CtmsStatus.info),
+    DeviceSyncState.pending => ('Chờ đồng bộ', CtmsStatus.warning),
+    DeviceSyncState.failed => ('Lỗi đồng bộ', CtmsStatus.danger),
+    DeviceSyncState.idle => ('Sẵn sàng', CtmsStatus.neutral),
+  };
 
   String _formatDateTime(DateTime? dt) {
     if (dt == null) return 'Chưa có bản ghi đồng bộ';
@@ -58,8 +59,9 @@ class _CamperTripDetailScreenState
 
   @override
   Widget build(BuildContext context) {
-    final syncController =
-        ref.watch(deviceSyncControllerProvider(widget.tripId));
+    final syncController = ref.watch(
+      deviceSyncControllerProvider(widget.tripId),
+    );
     final summary = syncController.summary;
     final (syncBadgeLabel, syncBadgeStatus) = _syncBadgeInfo(summary.state);
 
@@ -84,8 +86,7 @@ class _CamperTripDetailScreenState
           onPressed: () {
             Navigator.of(context).push(
               MaterialPageRoute<void>(
-                builder: (_) =>
-                    DeviceSyncStatusScreen(tripId: widget.tripId),
+                builder: (_) => DeviceSyncStatusScreen(tripId: widget.tripId),
               ),
             );
           },
@@ -355,7 +356,6 @@ class _CamperTripDetailScreenState
 
                 const SizedBox(height: AppSpacing.lg),
 
-
                 const SizedBox(height: AppSpacing.md),
                 const Divider(height: 1, thickness: 1, color: AppColors.border),
                 const SizedBox(height: AppSpacing.sm),
@@ -418,6 +418,10 @@ class _CamperTripDetailScreenState
 
           // On-device off-route / GPS-degraded detection (CTMS-060)
           RouteDeviationPanel(tripId: widget.tripId),
+          const SizedBox(height: AppSpacing.lg),
+
+          // Lagging behind the Porter (CTMS-063)
+          CamperScheduleProgressPanel(tripId: widget.tripId),
           const SizedBox(height: AppSpacing.lg),
 
           // 3. Section: Hỗ trợ an toàn & Khẩn cấp

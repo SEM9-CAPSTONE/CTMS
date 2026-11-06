@@ -99,6 +99,7 @@ export const queryKeys = {
 			["trips", "assigned", porterId, tripId] as const,
 		hostPorterAssignments: ["trips", "porter-assignments", "host"] as const,
 		incidents: (userId: string, tripId: string) => ["trips", tripId, "incidents", userId] as const,
+		scheduleProgress: (tripId: string) => ["trips", tripId, "schedule-progress"] as const,
 		all: ["trips"] as const,
 		list: (filters?: Record<string, unknown>) => ["trips", "list", filters] as const,
 		detail: (id: string) => ["trips", "detail", id] as const,
