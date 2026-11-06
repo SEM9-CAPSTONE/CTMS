@@ -1,5 +1,9 @@
 # CTMS-010 Create and Edit Trekking Route with Safety Analysis
 
+## CTMS-052 consumer amendment — 2026-11-06
+
+Retain all Host preview behavior and BR-472–481. 052 requires a separate database-only normalized read contract with versioned provider-run availability and validity, `GOVERNMENT` versus explicitly Host-approved `FIELD_VERIFIED`, provenance and spatial match evidence. Preview `HOST_DEFINED` remains supported but is excluded from 052 default hazard eligibility. `FIELD_OBSERVATION` remains UNVERIFIED unless the separate verification/promotion tasks publish a valid decision. Preview absence, truncation and PARTIAL coverage cannot certify a complete package feed. See [upstream contracts](ctms-52-upstream-safety-contracts.md). Acceptance: preview regressions remain green; unverified/expired/Host-defined features are excluded from verified package hazards; successful empty official runs remain distinguishable from unavailable data.
+
 ## 1 Overview
 
 Epic: Trekking Route and Checkpoint Management. Actor: authenticated Host. Priority: Must Have.

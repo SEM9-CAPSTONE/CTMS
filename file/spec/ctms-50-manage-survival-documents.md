@@ -1,5 +1,9 @@
 # CTMS-050 — Manage Survival Documents
 
+## CTMS-052 dependency amendment — 2026-11-06
+
+BR-227.3 publication and exact-version OFFLINE rights remain authoritative. Publication/classification does not approve a guidance unit's applicability. Proposed **Approve Safety Guidance Applicability** owns Admin approval, taxonomy, complete guidance grouping and versioned coverage policy; see [upstream contracts](ctms-52-upstream-safety-contracts.md). 052 consumes this result and does not add a document Admin UI or second per-Trip approval. Acceptance: PUBLISHED without OFFLINE rights or guidance approval is excluded; exact-version approval with READY chunks and coverage can be consumed; stop-use/deletion prevents new consumption without editing prior package bytes.
+
 ## 1. Overview
 
 | Field | Value |

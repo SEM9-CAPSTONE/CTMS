@@ -1,5 +1,9 @@
 # CTMS-051 — Split Documents into Knowledge Chunks
 
+## CTMS-052 dependency amendment — 2026-11-06
+
+BR-228 extraction/embedding provenance remains unchanged. READY chunks are extraction output, not Admin approval or proof that one chunk is a complete procedure. Proposed **Approve Safety Guidance Applicability** groups ordered chunk IDs with exact document version/checksum, chunk set, original page/item references and complete conditions/warnings. It owns approval/applicability/coverage; 051 preserves traceability. See [upstream contracts](ctms-52-upstream-safety-contracts.md). Acceptance: wrong-version/missing-page/non-READY chunks block guidance consumption; similarity never substitutes for approval. 052 does not modify parsing/embedding.
+
 ## 1. Overview
 
 Story: CTMS-051

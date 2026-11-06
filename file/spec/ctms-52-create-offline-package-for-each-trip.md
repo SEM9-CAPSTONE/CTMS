@@ -1,5 +1,55 @@
 # CTMS-052 — Create Offline Package for Each Trip
 
+## Operational baseline amendment — 2026-11-06
+
+Authority: user-approved CTMS-52 baseline v2.0. This amendment supersedes the ambiguous source selection, sensitive-data inclusion, lifecycle and TBD technical sections below; their original BR wording is retained for history. It does not replace BR-230 obligations elsewhere. Current spec IDs are authoritative: publication is CTMS-023, not the baseline's mistaken reference to CTMS-034. No Jira changes have been performed.
+
+### Scope and trigger
+
+052 automatically generates v1 only after Trip `published`, using a durable job written atomically with publication. It snapshots Route geometry, all monitored checkpoints, required Trip waypoints, eligible hazards and complete approved guidance; validates gates; writes immutable ZIP/manifest/digests; stores versioned metadata; exposes internal reads and a trusted idempotent impact request for 119. Existing published Trips receive an idempotent migration backfill. No new Host/Admin form or manual-create public API is required.
+
+Out of scope: PDF UI/processing/embedding, RAG/chatbot, government ingestion/crawler, Camper reporting permissions, Host verification UI/API, field promotion, source-change watcher, weather engine/live broadcasts, mobile download/verification/render/GPS and offline basemap. Related specs contain dependency amendments only.
+
+### Source policy and ownership
+
+| Input | Eligibility | Upstream owner |
+| --- | --- | --- |
+| GOVERNMENT hazard | Normalized source ID/version/reference, original validFrom/validUntil, active lifecycle, source verification, spatial match and a complete available feed run | 010 / safety ingestion |
+| FIELD_VERIFIED hazard | Above provenance plus independent authorized Host decision, decision version/evidence/time and valid expiry; rejected/revoked/unverified excluded | Proposed verification + promotion tasks |
+| HOST_DEFINED / FIELD_OBSERVATION / RESOURCE / historical | Not eligible as verified package hazard; preview behavior retained | Existing Route Safety |
+| Guidance | Current PUBLISHED exact version with recorded OFFLINE rights, READY chunk set, complete steps/warnings and pages, approved applicability/taxonomy and complete coverage | 050/051 + proposed guidance approval task |
+
+Incident `resolved/closed` never implies Host verification. Official successful EMPTY means NO_ACTIVE_ALERT at checkedAt, not SAFE; unavailable/partial/stale is UNKNOWN/STALE and blocks a required source. No fetchedAt-derived renewal of provider expiry. Policy filters run before any optional retrieval/ranking. No AI similarity or PDF classification is approval. UNKNOWN context is explicit; proximity to water cannot establish river crossing. Baseline/condition/hazard coverage topics and mandatory evidence come from a versioned approved upstream policy, never guessed by the generator.
+
+### Gates and state
+
+G01 published + valid associated route; G02 complete internally consistent monitored checkpoints and required waypoints; G03 required hazard feed availability/validity; G04 OFFLINE rights + approved applicability + complete guidance coverage; G05 no personal medical/reporting data in shared payload; G06 coherent source versions revalidated before commit; G07 complete artifact, schema and hashes verified in private storage before READY.
+
+Job lifecycle: PENDING → GENERATING → READY or BLOCKED / RETRYABLE_FAILED / FAILED. Retryable technical/source-race failures use bounded attempts/backoff and fenced renewable leases; business blockers retain machine-readable reasons and await an upstream-approved retry/re-evaluation. No automatic source-impact watcher is included. An initial publication request is idempotent; 119 may request re-evaluation with a stable impact ID. Generation identity includes Trip/core/eligible-source/approval/coverage-policy fingerprints, excluding mutable collection times. Concurrent identical inputs yield at most one artifact version; differing inputs never mix. Failure cannot publish READY. READY artifacts cannot be updated/deleted in place.
+
+### Data and internal contract
+
+PostgreSQL stores durable requests, immutable READY package metadata/manifest/internal source provenance, audit and pending orphan cleanup. Version allocation serializes per Trip; stable generation key is unique per Trip. Reads take a consistent snapshot; final locked revalidation must protect source insert/update/delete as well as individual source versions. No external API calls occur inside transactions. Route's existing GPS geometry version keeps its meaning; packageVersion is a separate positive integer.
+
+Schema 1 ZIP (`application/zip`): `manifest.json`, `route.geojson`, `checkpoints.json`, `waypoints.json`, `hazards.geojson`, `guidance.json`. Manifest identifies Trip/package/schema/generatedAt, exact core/source/policy fingerprints, source freshness, guidance document/chunk/page/approval provenance, and per-payload SHA-256. Whole-ZIP SHA-256 and byte size live outside the ZIP in metadata. Stable serialization/entry ordering/timestamps support deterministic retry. Shared payload uses explicit allowlists and contains no personal medical section; internal verification audit retains necessary evidence while shared payload omits verifier/reporter personal IDs. BR-230 remains unchanged for other medical access/copies.
+
+Exported `OfflinePackagesService` methods provide initial/impact request, job status, latest/exact READY metadata and manifest, and integrity-checked internal artifact access. These are trusted service methods, not public transport; 053 owns participant authorization/download. 119 owns impact detection/publication/outdated/revoked metadata; 053/054/055/057 own client verify/activate/view/warn. Ongoing Trip keeps its activated version; no hot swap. Weather freshness and byte integrity are separate. See [implementation contracts](../../docs/features/CTMS-052-Implementation.md) and [upstream tasks](ctms-52-upstream-safety-contracts.md).
+
+Implemented schema: migration `1794200000000-CreateOfflinePackages` creates `offline_packages` (immutable READY metadata/provenance), `offline_package_jobs`, `offline_package_audit`, and `offline_package_artifact_cleanup`. Its publication trigger queues the initial request atomically and backfills existing published Trips. `getReadyMetadata` returns camelCase `ReadyPackageMetadata` without a private storage key; `getManifest` and `readArtifact` are separate trusted reads. Local storage is persisted through the Compose `offline-package-data` volume. Until core writers have a shared revision protocol, short final SHARE table locks fence core inserts/deletes/updates; the upstream port must separately fence scope revisions. The implementation report records this concurrency tradeoff and the verification limitations. On 2026-11-06 the user supplied terminal evidence of all 14 PostgreSQL integration tests passing, including migration up/down/backfill, concurrency and failure recovery, against the isolated test instance with fictional upstream inputs. This verifies the generator's isolated technical behavior; application-database deployment and real-source end-to-end readiness remain separate acceptance steps.
+
+### Acceptance amendment (BR-212/213)
+
+| AC | Valid/violation scenarios | Required evidence |
+| --- | --- | --- |
+| 01–04 | Published complete Trip generates; draft/pending or missing/cross-route required data blocks | Unit + PostgreSQL integration |
+| 05–09 | Official checked EMPTY preserved; unavailable/partial/stale blocks; explicit valid field decision accepted; resolved/unverified/rejected/revoked/Host-defined excluded | Policy + source contracts |
+| 10–11 | Approved applicable complete guidance selected; forest does not imply diving/crossing; UNKNOWN, missing coverage, wrong rights/version/READY state blocks | Policy unit |
+| 12–14 | Source change during build aborts; hash mismatch fails; vN+1 preserves vN; retries/concurrent publication create no duplicates | PostgreSQL transaction/concurrency + storage |
+| 15 | No medical data, raw reporter IDs or arbitrary Trip metadata in shared artifact; existing consent obligations retained | Privacy projection test |
+| 16 | Trigger rollback, restart/lease recovery, bounded retry, storage/commit failure, stable archive/manifest | Integration + focused regression checkpoint |
+
+Production is BLOCKED until authoritative normalized feed, approved complete guidance and approved coverage policy are implemented upstream. Test fixtures do not establish production READY. No business-critical dependency is concealed by a mock.
+
 ## 1. Overview
 
 Story: CTMS-052

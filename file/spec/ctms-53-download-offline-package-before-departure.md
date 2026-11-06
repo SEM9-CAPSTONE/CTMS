@@ -1,5 +1,9 @@
 # CTMS-053 — Download Offline Package Before Departure
 
+## CTMS-052 archive handoff — 2026-11-06
+
+Consume READY metadata (`tripId`, `packageVersion`, `schemaVersion: 1`, `sizeBytes`, `sha256`, `generatedAt`) and the manifest through an authorized downstream server boundary. The artifact is ZIP (`application/zip`) with manifest.json, route.geojson, checkpoints.json, waypoints.json, hazards.geojson and guidance.json. SHA-256 of the whole artifact is external metadata; each payload has an internal digest. 053 owns participant authorization, private byte transport/resume and mobile ZIP dependency; 052 exposes no public download or manual-create API. Shared schema 1 contains no personal medical section, without weakening BR-230 elsewhere. Activate a verified replacement before removing the old version; an ongoing Trip keeps its locked version. Acceptance: BLOCKED/FAILED cannot download as complete, wrong Trip/schema rejected, size/digest used for verification, existing consent invalidation preserved.
+
 ## 1. Overview
 
 Story: CTMS-053

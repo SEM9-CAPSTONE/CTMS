@@ -1,5 +1,9 @@
 # CTMS-119 — Publish New Offline Safety Package Version after Safety Update
 
+## CTMS-052 generator handoff amendment — 2026-11-06
+
+BR-359/427/428/429/430 remain in force. 119 owns source-change detection, impact analysis and publication/activation policy; 052 owns the reusable generator. Triggers include material government hazard changes, verified field promotion/rejection/revocation/expiry, Route/checkpoint/waypoint changes and approved knowledge/rights/coverage-policy changes. Weather polling or a changed checkedAt alone does not imply a new artifact. Use `OfflinePackagesService.requestImpact(tripId, impactId)` only after approved impact analysis; duplicate impact IDs are idempotent. Generation identity covers semantic source versions/fingerprints and policies, excluding collection timestamps. A failed gate never publishes READY. Historic vN bytes remain immutable; ongoing Trip keeps its activated version. Acceptance: repeated impact/source identity does not duplicate versions; materially changed source creates vN+1; stale/unknown required data blocks; previous version and GPS routeVersion are unchanged. See [052 implementation](../../docs/features/CTMS-052-Implementation.md).
+
 ## 1. Overview
 
 Story: CTMS-119

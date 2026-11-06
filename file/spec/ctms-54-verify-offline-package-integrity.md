@@ -1,5 +1,9 @@
 # CTMS-054 — Verify Offline Package Integrity
 
+## CTMS-052 archive handoff — 2026-11-06
+
+BR-232 uses SHA-256 over the complete ZIP, obtained from authenticated server metadata outside the artifact. Validate schemaVersion 1, Trip/package identity, exact required entries and per-payload hashes in manifest.json before activation. Reject unknown schemas, duplicate/unexpected paths, traversal paths, missing/truncated files or byte mismatch; apply extraction size limits. The manifest cannot contain the digest of its containing ZIP. Freshness of hazard/weather sources is separate from integrity; a matching hash does not establish current safety. Acceptance: valid bytes activate only for the expected Trip/version; tampered/absent/malformed content becomes `failed` and can be re-downloaded. No client decoder is implemented in 052.
+
 ## 1. Overview
 
 Story: CTMS-054

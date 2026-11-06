@@ -1,5 +1,9 @@
 # CTMS-118 — Update Authoritative Safety Data from Verified Hotspot
 
+## CTMS-052 dependency clarification — 2026-11-06
+
+This is the GPS-derived hotspot pipeline. Its `CONFIRMED PotentialSafetyHotspot` is separate from Host verification of an individual CTMS-049 incident. CTMS-118 begins with a CONFIRMED hotspot and retains all authorization/corrective-action controls; it does not confirm an Incident or automatically promote a field report. See [separate upstream tasks](ctms-52-upstream-safety-contracts.md). Acceptance: an unverified incident or a non-CONFIRMED hotspot cannot enter authoritative package hazard input through this pipeline.
+
 ## 1. Overview
 
 Story: CTMS-118

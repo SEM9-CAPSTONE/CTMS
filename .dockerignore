@@ -30,3 +30,4 @@
 !**/.env.*.example
 /uploads
 /services/api/uploads
+**/.private-offline-packages

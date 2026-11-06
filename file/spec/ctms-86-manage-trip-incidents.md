@@ -1,5 +1,9 @@
 # CTMS-086 — Manage Trip Incidents
 
+## CTMS-052 dependency amendment — 2026-11-06
+
+BR-269 and the operational lifecycle below are retained. `resolved`/`closed` describes handling, never Host verification of a hazard. A separate proposed **Host Verify Field Hazard Report** task owns `hazardVerificationDecision`, versioned decision/evidence, authorized verifier, rejection/revocation and audit. A separate **Promote Verified Field Report to Safety Source** task publishes eligible features. See [upstream contracts](ctms-52-upstream-safety-contracts.md). No new verification API/UI is implemented in 052 or implicitly added to this story. Acceptance: lifecycle operations retain their behavior, while resolved/closed without a decision, rejected and revoked reports cannot supply verified package hazards.
+
 ## 1. Overview
 
 Story: CTMS-086
