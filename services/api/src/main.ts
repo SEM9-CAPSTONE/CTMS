@@ -9,7 +9,7 @@ import { UPLOAD_PUBLIC_PREFIX, getUploadRoot } from "./shared/uploads/upload-pat
 async function bootstrap() {
 	const app = await NestFactory.create<NestExpressApplication>(AppModule);
 	app.setGlobalPrefix("api");
-	app.enableCors();
+	app.enableCors({ exposedHeaders: ["Retry-After"] });
 	app.useStaticAssets(getUploadRoot(), { prefix: UPLOAD_PUBLIC_PREFIX });
 
 	app.useGlobalPipes(

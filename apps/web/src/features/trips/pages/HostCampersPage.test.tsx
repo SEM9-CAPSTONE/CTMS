@@ -105,6 +105,12 @@ describe("HostCampersPage", () => {
 		});
 	});
 
+	it("uses the caller-provided accessible back label and callback", () => {
+		const back = vi.fn();
+		render(<HostCampersPage onBackHome={back} backLabel="Quay về Nhu cầu đặt chỗ" />);
+		fireEvent.click(screen.getByRole("button", { name: "Quay về Nhu cầu đặt chỗ" }));
+		expect(back).toHaveBeenCalledTimes(1);
+	});
 	it("renders loading state when trips are loading", () => {
 		vi.mocked(useMyTrips).mockReturnValue({
 			trips: [],

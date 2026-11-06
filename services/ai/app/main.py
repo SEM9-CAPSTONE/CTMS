@@ -126,7 +126,7 @@ def get_review_analysis_service() -> ReviewAnalysisService:
 
 @lru_cache
 def get_demand_insight_service() -> DemandInsightService:
-    return DemandInsightService(build_analysis_client())
+    return DemandInsightService(build_analysis_client().with_options(timeout=40.0))
 
 
 @app.post("/demand-insight", response_model=DemandResponse, dependencies=[Depends(require_review_token)])

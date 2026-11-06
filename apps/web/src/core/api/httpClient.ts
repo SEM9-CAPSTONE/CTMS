@@ -15,12 +15,14 @@ interface InternalRequestOptions extends RequestOptions {
 export class HttpError extends Error {
 	readonly status: number;
 	readonly errorData: unknown;
+	readonly headers: Headers;
 
-	constructor(message: string, status: number, errorData: unknown) {
+	constructor(message: string, status: number, errorData: unknown, headers = new Headers()) {
 		super(message);
 		this.name = "HttpError";
 		this.status = status;
 		this.errorData = errorData;
+		this.headers = headers;
 	}
 }
 
@@ -98,7 +100,7 @@ class HttpClient {
 					})
 					.join("; ");
 			}
-			throw new HttpError(message, response.status, errorData);
+			throw new HttpError(message, response.status, errorData, response.headers);
 		}
 
 		// A 204, or any 2xx sent with no body at all (e.g. a NestJS controller

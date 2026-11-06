@@ -1,4 +1,8 @@
 export const API_ENDPOINTS = {
+	DEMAND_INSIGHTS: {
+		PERIODS: "/host/demand-insights",
+		REPORT: (month: string) => `/host/demand-insights/${month}`,
+	},
 	REVIEW_ANALYSIS: {
 		TRIPS: "/review-analysis/trips",
 		INSIGHTS: (id: string) => `/trips/${id}/review-analyses`,

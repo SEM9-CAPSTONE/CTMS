@@ -20,6 +20,11 @@ const ReviewAnalysisPage = lazy(() =>
 		default: module.ReviewAnalysisPage,
 	}))
 );
+const DemandInsightsPage = lazy(() =>
+	import("../features/demand-insights/DemandInsightsPage").then((module) => ({
+		default: module.DemandInsightsPage,
+	}))
+);
 
 const AdminAuditLogsPage = lazy(() =>
 	import("../features/admin-audit-logs/pages/AdminAuditLogsPage").then((module) => ({
@@ -478,6 +483,19 @@ function AppRouteContent() {
 		);
 	}
 
+	if (currentPath === "/host/demand-insights") {
+		return (
+			<AppRoleGuard
+				allowedRoles={["host"]}
+				currentRoles={currentRoles}
+				onNavigateHome={() => navigateTo(RoutePath.HOME)}
+			>
+				<HostLayout allowMobile onLogout={handleLogout}>
+					<DemandInsightsPage actor={storedUser?.id ?? ""} />
+				</HostLayout>
+			</AppRoleGuard>
+		);
+	}
 	if (currentPath === "/host/review-analysis" || currentPath === "/admin/review-analysis") {
 		const admin = currentPath.startsWith("/admin/");
 		const content = (
@@ -877,7 +895,18 @@ function AppRouteContent() {
 						<HostCampersPage
 							initialTripId={navigationContext.get("tripId")}
 							initialStatus={navigationContext.get("status")}
-							onBackHome={() => navigateTo(RoutePath.DASHBOARD)}
+							backLabel={
+								navigationContext.get("from") === "demand-insights"
+									? "Quay về Nhu cầu đặt chỗ"
+									: undefined
+							}
+							onBackHome={() =>
+								navigateTo(
+									navigationContext.get("from") === "demand-insights"
+										? "/host/demand-insights"
+										: RoutePath.DASHBOARD
+								)
+							}
 							onNavigateToTripDetail={(tripId) => navigateTo(`/trips/${tripId}`)}
 							onCreateTrip={() => navigateTo(RoutePath.HOST_CREATE_TRIP)}
 						/>
