@@ -6,6 +6,7 @@ import {
 	IsInt,
 	IsNumber,
 	IsOptional,
+	IsUUID,
 	Max,
 	Min,
 	ValidateNested,
@@ -27,6 +28,14 @@ export class SosLocationInputDto {
 }
 
 export class CreateSosDto {
+	@ApiPropertyOptional({
+		description: "Client-generated stable UUID for offline idempotency (CTMS-076, BR-244)",
+		example: "b59a607e-72c0-48e6-a07e-f51950c4bb21",
+	})
+	@IsOptional()
+	@IsUUID()
+	id?: string;
+
 	@ApiProperty({
 		enum: EmergencyType,
 		description: "Category of emergency",

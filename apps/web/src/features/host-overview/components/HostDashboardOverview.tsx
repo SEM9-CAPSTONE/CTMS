@@ -48,6 +48,7 @@ export function HostDashboardOverview({
 			</div>
 			<EmergencyAlertBanner
 				alerts={data.sos.data?.items}
+				trips={data.activeTrips.data?.items}
 				onNavigateToSosCenter={() => {
 					window.history.pushState({}, "", RoutePath.HOST_SOS);
 					window.dispatchEvent(new PopStateEvent("popstate"));

@@ -9,6 +9,8 @@ import type { EmergencyType, SosStatus } from "../types";
 export interface SosItemSummary {
 	id: string;
 	tripId: string;
+	tripTitle?: string | null;
+	senderName?: string | null;
 	status: SosStatus;
 	emergencyType: EmergencyType;
 	eventTime?: string;
@@ -169,6 +171,18 @@ export function SosResolutionModal({
 		<Modal isOpen={isOpen} onClose={onClose} title="Xử lý yêu cầu cứu trợ SOS" size="md">
 			<div className="space-y-4 text-[#10221b]">
 				<div className="rounded-xl bg-[#f4f7f4] p-3 text-sm space-y-1">
+					{sos.tripTitle && (
+						<p>
+							<span className="font-medium text-[#65756a]">Chuyến đi: </span>
+							<span className="font-semibold text-[#10221b]">{sos.tripTitle}</span>
+						</p>
+					)}
+					{sos.senderName && (
+						<p>
+							<span className="font-medium text-[#65756a]">Người gửi: </span>
+							<span className="font-semibold text-[#10221b]">{sos.senderName}</span>
+						</p>
+					)}
 					<p>
 						<span className="font-medium text-[#65756a]">Tình trạng: </span>
 						<span className="font-semibold text-red-700">

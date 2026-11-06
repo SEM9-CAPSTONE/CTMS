@@ -1,7 +1,7 @@
 import { ArrowRight, ShieldAlert } from "lucide-react";
 import { useState } from "react";
 import { RoutePath } from "../../../routes/routes.config";
-import type { OverviewSos } from "../../host-overview/types";
+import type { OverviewSos, OverviewTrip } from "../../host-overview/types";
 import { SosResolutionModal } from "./SosResolutionModal";
 
 export const EMERGENCY_LABELS: Record<string, string> = {
@@ -14,12 +14,14 @@ export const EMERGENCY_LABELS: Record<string, string> = {
 
 export interface EmergencyAlertBannerProps {
 	alerts?: OverviewSos[];
+	trips?: OverviewTrip[];
 	onNavigateToSosCenter?: () => void;
 	onUpdated?: () => void;
 }
 
 export function EmergencyAlertBanner({
 	alerts = [],
+	trips = [],
 	onNavigateToSosCenter,
 	onUpdated,
 }: EmergencyAlertBannerProps) {
@@ -34,6 +36,9 @@ export function EmergencyAlertBanner({
 
 	const latest = items[0];
 	const emergencyLabel = EMERGENCY_LABELS[latest.emergencyType] || "Yêu cầu cứu trợ";
+	const trip = trips.find((t) => t.id === latest.tripId);
+	const tripTitle = latest.tripTitle || trip?.title;
+	const senderName = latest.senderName;
 
 	const handleOpenSosCenter = () => {
 		if (onNavigateToSosCenter) {
@@ -67,8 +72,16 @@ export function EmergencyAlertBanner({
 							</div>
 							<p className="mt-1 text-xs text-red-800 sm:text-sm">
 								<span className="font-semibold text-red-900">{emergencyLabel}</span>
+								{senderName && (
+									<>
+										{" · "}
+										<span className="font-medium text-red-950">{senderName}</span>
+									</>
+								)}
 								{" · "}
-								<span className="text-red-700">Mã chuyến: {latest.tripId.slice(0, 8)}</span>
+								<span className="text-red-700">
+									{tripTitle ? tripTitle : `Mã chuyến: ${latest.tripId.slice(0, 8)}`}
+								</span>
 							</p>
 						</div>
 					</div>
@@ -101,6 +114,10 @@ export function EmergencyAlertBanner({
 						? {
 								id: activeSosToHandle.id,
 								tripId: activeSosToHandle.tripId,
+								tripTitle:
+									activeSosToHandle.tripTitle ||
+									trips.find((t) => t.id === activeSosToHandle.tripId)?.title,
+								senderName: activeSosToHandle.senderName,
 								status: activeSosToHandle.status,
 								emergencyType: activeSosToHandle.emergencyType,
 								eventTime: activeSosToHandle.eventTime,

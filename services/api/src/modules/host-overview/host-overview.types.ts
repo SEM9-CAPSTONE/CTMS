@@ -59,6 +59,8 @@ export interface OverviewPorter {
 export interface OverviewSos {
 	id: string;
 	tripId: string;
+	tripTitle?: string | null;
+	senderName?: string | null;
 	status: SosStatus;
 	emergencyType: EmergencyType;
 	eventTime: string;

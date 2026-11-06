@@ -54,6 +54,8 @@ export interface OverviewPorter {
 export interface OverviewSos {
 	id: string;
 	tripId: string;
+	tripTitle?: string | null;
+	senderName?: string | null;
 	status: "active" | "acknowledged" | "cancelled" | "closed";
 	emergencyType: "medical" | "injury" | "lost" | "natural_hazard" | "other";
 	eventTime: string;

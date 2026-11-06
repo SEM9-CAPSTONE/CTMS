@@ -21,6 +21,10 @@ import '../../route_deviation/application/safety_event_sync.dart';
 import '../../route_deviation/data/route_deviation_api.dart';
 import '../../route_deviation/data/route_deviation_store.dart';
 import '../../route_deviation/domain/route_deviation_models.dart';
+import '../../sos/application/sos_sync.dart';
+import '../../sos/data/sos_api.dart';
+import '../../sos/data/sos_store.dart';
+import '../../sos/domain/sos_alert.dart';
 import '../data/offline_medical_store.dart';
 import 'connectivity_source.dart';
 
@@ -34,6 +38,8 @@ class ReconnectionSyncCoordinator extends ChangeNotifier {
     required this.connectivitySource,
     required this.incidentStore,
     required this.incidentsApi,
+    this.sosStore,
+    this.sosApi,
     this.gpsStore,
     this.gpsApi,
     this.safetyEventStore,
@@ -52,6 +58,8 @@ class ReconnectionSyncCoordinator extends ChangeNotifier {
   final ConnectivitySource connectivitySource;
   final IncidentStore incidentStore;
   final IncidentsApi incidentsApi;
+  final SosStore? sosStore;
+  final SosApi? sosApi;
   final GpsLogStore? gpsStore;
   final GpsTrackingApi? gpsApi;
   final RouteDeviationStore? safetyEventStore;
@@ -156,8 +164,12 @@ class ReconnectionSyncCoordinator extends ChangeNotifier {
     }
   }
 
-  /// Synchronizes all pending data across all active trips (GPS logs, safety events, incidents).
-  /// Runs asynchronously in background without blocking normal UI interaction (PB AC-6).
+  /// Synchronizes all pending data across all active trips.
+  /// Enforces strict deterministic priority order per BR-257, PB AC-4, PB AC-5:
+  /// 1. Consent check & purge (BR-230)
+  /// 2. PRIORITY 1: SOS Alerts (Emergency / Highest Priority)
+  /// 3. PRIORITY 2: Incidents & Hazard Events
+  /// 4. PRIORITY 3: Ordinary GPS Telemetry Logs
   Future<void> synchronizeAll({bool force = false}) async {
     if (_isSyncing || _disposed) return;
     _isSyncing = true;
@@ -174,9 +186,39 @@ class ReconnectionSyncCoordinator extends ChangeNotifier {
       // 1. Consent check & purge (BR-230)
       await _enforceConsentPolicy();
 
-      // 2. Synchronize incidents
+      final tripIds = <String>{};
+
+      // 2. PRIORITY 1: Synchronize SOS Alerts (PB AC-4, PB AC-5, BR-257 - Highest priority)
+      if (sosStore != null && sosApi != null) {
+        final sosAlerts = await sosStore!.readAll();
+        for (final alert in sosAlerts) {
+          tripIds.add(alert.tripId);
+          if (!force && alert.syncState == SosSyncState.synced) {
+            continue;
+          }
+
+          try {
+            final updated = await synchronizeSosAlert(
+              alert,
+              sosApi!,
+              _clock(),
+            );
+            await sosStore!.put(updated);
+            if (updated.error != null || updated.syncState == SosSyncState.failed) {
+              hasErrors = true;
+              latestError = updated.error;
+            }
+          } catch (e) {
+            hasErrors = true;
+            latestError = e.toString();
+          }
+        }
+      }
+
+      // 3. PRIORITY 2: Synchronize incidents & safety hazard events (BR-257)
       final incidents = await incidentStore.read();
       for (final incident in incidents) {
+        tripIds.add(incident.tripId);
         if (!force &&
             incident.syncState == IncidentSyncState.synced &&
             incident.mediaState == IncidentMediaState.none) {
@@ -202,11 +244,27 @@ class ReconnectionSyncCoordinator extends ChangeNotifier {
         }
       }
 
-      // Collect unique trip IDs from incidents
-      final tripIds = incidents.map((i) => i.tripId).toSet();
-
-      // 3. Synchronize GPS logs and Route Deviation events per trip
+      // 4. PRIORITY 3: Synchronize GPS logs and Route Deviation events per trip (BR-257)
       for (final tripId in tripIds) {
+        if (safetyEventStore != null && safetyEventApi != null) {
+          try {
+            final updatedRecord = await synchronizeSafetyEvents(
+              tripId: tripId,
+              store: safetyEventStore!,
+              api: safetyEventApi!,
+              now: _clock(),
+            );
+            if (updatedRecord.events.any((e) => e.error != null || e.syncState == SafetyEventSyncState.failed)) {
+              hasErrors = true;
+              final failed = updatedRecord.events.firstWhere((e) => e.error != null || e.syncState == SafetyEventSyncState.failed);
+              latestError = failed.error ?? failed.rejectionReason;
+            }
+          } catch (e) {
+            hasErrors = true;
+            latestError = e.toString();
+          }
+        }
+
         if (gpsStore != null && gpsApi != null) {
           try {
             if (force) {
@@ -229,25 +287,6 @@ class ReconnectionSyncCoordinator extends ChangeNotifier {
             if (updatedLogs.any((l) => l.error != null || l.syncState == GpsLogSyncState.failed)) {
               hasErrors = true;
               final failed = updatedLogs.firstWhere((l) => l.error != null || l.syncState == GpsLogSyncState.failed);
-              latestError = failed.error ?? failed.rejectionReason;
-            }
-          } catch (e) {
-            hasErrors = true;
-            latestError = e.toString();
-          }
-        }
-
-        if (safetyEventStore != null && safetyEventApi != null) {
-          try {
-            final updatedRecord = await synchronizeSafetyEvents(
-              tripId: tripId,
-              store: safetyEventStore!,
-              api: safetyEventApi!,
-              now: _clock(),
-            );
-            if (updatedRecord.events.any((e) => e.error != null || e.syncState == SafetyEventSyncState.failed)) {
-              hasErrors = true;
-              final failed = updatedRecord.events.firstWhere((e) => e.error != null || e.syncState == SafetyEventSyncState.failed);
               latestError = failed.error ?? failed.rejectionReason;
             }
           } catch (e) {
@@ -290,7 +329,19 @@ class ReconnectionSyncCoordinator extends ChangeNotifier {
 
       await _enforceConsentPolicy();
 
-      // Incidents for this trip
+      // 1. SOS alerts for this trip (BR-257 - Priority 1)
+      if (sosStore != null && sosApi != null) {
+        final sosAlerts = await sosStore!.read(tripId);
+        for (final alert in sosAlerts) {
+          if (!force && alert.syncState == SosSyncState.synced) {
+            continue;
+          }
+          final updated = await synchronizeSosAlert(alert, sosApi!, _clock());
+          await sosStore!.put(updated);
+        }
+      }
+
+      // 2. Incidents for this trip
       final allIncidents = await incidentStore.read();
       final tripIncidents = allIncidents.where((i) => i.tripId == tripId).toList();
       for (final incident in tripIncidents) {
@@ -307,6 +358,7 @@ class ReconnectionSyncCoordinator extends ChangeNotifier {
         await incidentStore.put(updated);
       }
 
+      // 3. Telemetry and route deviation events
       if (gpsStore != null && gpsApi != null) {
         if (force) {
           await gpsStore!.update(
@@ -361,6 +413,8 @@ final reconnectionSyncCoordinatorProvider = Provider<ReconnectionSyncCoordinator
   final connectivitySource = ref.watch(connectivitySourceProvider);
   final store = IncidentStore.create(userId);
   final incidentsApi = HttpIncidentsApi(ref.watch(apiClientProvider));
+  final sosStore = ref.watch(sosStoreProvider);
+  final sosApi = ref.watch(sosApiProvider);
   final gpsStore = ref.watch(gpsLogStoreProvider);
   final gpsApi = ref.watch(gpsTrackingApiProvider);
   final safetyEventStore = ref.watch(routeDeviationStoreProvider);
@@ -372,6 +426,8 @@ final reconnectionSyncCoordinatorProvider = Provider<ReconnectionSyncCoordinator
     connectivitySource: connectivitySource,
     incidentStore: store,
     incidentsApi: incidentsApi,
+    sosStore: sosStore,
+    sosApi: sosApi,
     gpsStore: gpsStore,
     gpsApi: gpsApi,
     safetyEventStore: safetyEventStore,
