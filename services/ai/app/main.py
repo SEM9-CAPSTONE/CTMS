@@ -12,6 +12,7 @@ from app.review_analysis_service import (
     ReviewAnalysisRequest, ReviewAnalysisResponse, ReviewAnalysisService,
     InvalidReviewOutput, ReviewProviderRefusal,
 )
+from app.demand_insight_service import DemandRequest, DemandResponse, DemandInsightService
 
 app = FastAPI(
 	title="CTMS AI Service",
@@ -107,8 +108,7 @@ def require_review_token(x_ctms_ai_token: str | None = Header(default=None)) -> 
         raise HTTPException(status_code=401, detail={"code": "unauthorized"})
 
 
-@lru_cache
-def get_review_analysis_service() -> ReviewAnalysisService:
+def build_analysis_client() -> OpenAI:
     provider = os.environ.get("REVIEW_ANALYSIS_PROVIDER", "openai")
     if provider not in ("openai", "gemini"):
         raise HTTPException(status_code=503, detail={"code": "provider_not_configured"})
@@ -116,7 +116,35 @@ def get_review_analysis_service() -> ReviewAnalysisService:
     if not key:
         raise HTTPException(status_code=503, detail={"code": "provider_not_configured"})
     options = {"base_url": "https://generativelanguage.googleapis.com/v1beta/openai/"} if provider == "gemini" else {}
-    return ReviewAnalysisService(OpenAI(api_key=key, timeout=12.0, max_retries=0, **options))
+    return OpenAI(api_key=key, timeout=12.0, max_retries=0, **options)
+
+
+@lru_cache
+def get_review_analysis_service() -> ReviewAnalysisService:
+    return ReviewAnalysisService(build_analysis_client())
+
+
+@lru_cache
+def get_demand_insight_service() -> DemandInsightService:
+    return DemandInsightService(build_analysis_client())
+
+
+@app.post("/demand-insight", response_model=DemandResponse, dependencies=[Depends(require_review_token)])
+def demand_insight(payload: DemandRequest, service: DemandInsightService = Depends(get_demand_insight_service)) -> DemandResponse:
+    try:
+        return service.generate(payload)
+    except ReviewProviderRefusal:
+        raise HTTPException(status_code=422, detail={"code": "provider_refusal"}) from None
+    except InvalidReviewOutput:
+        raise HTTPException(status_code=422, detail={"code": "invalid_output"}) from None
+    except (APITimeoutError, APIConnectionError):
+        raise HTTPException(status_code=504, detail={"code": "provider_transport"}) from None
+    except APIStatusError as error:
+        terminal = {"credit_balance_exhausted", "insufficient_quota", "organization_spend_limit_exceeded", "project_spend_limit_exceeded", "organization_usage_limit_exceeded"}
+        code = error.code if isinstance(error.code, str) and error.code in terminal else "insufficient_quota" if error.type == "insufficient_quota" else "provider_failure"
+        raise HTTPException(status_code=error.status_code if 400 <= error.status_code < 500 else 502, detail={"code": code}) from None
+    except Exception:
+        raise HTTPException(status_code=502, detail={"code": "provider_failure"}) from None
 
 
 @app.post("/review-analysis", response_model=ReviewAnalysisResponse, dependencies=[Depends(require_review_token)])

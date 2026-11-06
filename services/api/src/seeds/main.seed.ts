@@ -4894,7 +4894,97 @@ export async function seedReviewAnalysisScenarios(
 	);
 }
 
+/** Additive closed-month demand sources; never seeds AI results or rewrites existing records. */
+export async function seedDemandInsightScenarios(ds = dataSource): Promise<void> {
+	const database = new URL(
+		process.env.DATABASE_URL ?? "postgresql://ctms:ctms@localhost:5432/ctms"
+	);
+	if (
+		process.env.NODE_ENV === "production" ||
+		!["localhost", "127.0.0.1", "postgres"].includes(database.hostname) ||
+		!["/ctms", "/ctms_test"].includes(database.pathname)
+	)
+		throw new Error("Demand seed requires a local development/test database");
+	if (!ds.isInitialized) await ds.initialize();
+	const now = new Date(Date.now() + 7 * 3600000);
+	const month = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 15))
+		.toISOString()
+		.slice(0, 7);
+	const suffix = (n: number) => `${month.replace("-", "")}${String(n).padStart(6, "0")}`;
+	const hostId = (n: number) => `d4150000-0000-4000-8100-${String(n).padStart(12, "0")}`;
+	const camperId = (n: number) => `d4150000-0000-4000-8200-${String(n).padStart(12, "0")}`;
+	const passwordHash = await hash(randomBytes(32).toString("hex"), BCRYPT_COST_FACTOR);
+	await ds.transaction(async (m) => {
+		for (let n = 1; n <= 15; n++) {
+			const host = n <= 3;
+			const id = host ? hostId(n) : camperId(n - 3);
+			const role = host ? "host" : "camper";
+			await m.query(
+				"INSERT INTO users(id,email,password_hash,role,status) VALUES($1,$2,$3,$4,'active') ON CONFLICT(id) DO NOTHING",
+				[id, `demand-${role}-${host ? n : n - 3}@example.test`, passwordHash, role]
+			);
+			await m.query("INSERT INTO user_roles(user_id,role) VALUES($1,$2) ON CONFLICT DO NOTHING", [
+				id,
+				role,
+			]);
+		}
+		for (let kind = 0; kind < 2; kind++) {
+			for (let h = 1; h <= 3; h++) {
+				const index = kind * 3 + h;
+				const route = `d4150000-0000-4000-8300-${suffix(index)}`;
+				const trip = `d4150000-0000-4000-8400-${suffix(index)}`;
+				await m.query(
+					"INSERT INTO trekking_routes(id,host_id,name,route_geom,length_meters,difficulty,expected_duration_minutes,status) VALUES($1,$2,$3,ST_GeogFromText('LINESTRING(108.22 16.04,108.25 16.07)'),3000,$4,180,'active') ON CONFLICT(id) DO NOTHING",
+					[
+						route,
+						hostId(h),
+						kind ? "Hành trình khám phá thiên nhiên" : "Tuyến dã ngoại thư giãn",
+						kind ? "moderate" : "easy",
+					]
+				);
+				await m.query(
+					"INSERT INTO trips(id,host_id,route_id,title,trip_type,duration_nights,starts_at,ends_at,meeting_point,booking_deadline,capacity_min,capacity_max,seats_taken,price_per_person,status) VALUES($1,$2,$3,$4,$5,$6,$7,$8,ST_GeogFromText('POINT(108.22 16.04)'),$9,1,40,0,0,'completed') ON CONFLICT(id) DO NOTHING",
+					[
+						trip,
+						hostId(h),
+						route,
+						kind ? "Cắm trại giữa thiên nhiên" : "Dã ngoại cuối tuần",
+						kind ? "overnight" : "day_trip",
+						kind,
+						`${month}-15T01:00:00Z`,
+						`${month}-${kind ? "16" : "15"}T08:00:00Z`,
+						`${month}-10T00:00:00Z`,
+					]
+				);
+				for (let c = h; c <= 12; c += 3) {
+					await m.query(
+						"INSERT INTO bookings(id,trip_id,user_id,num_people,status,payment_status,created_at,completed_at) VALUES($1,$2,$3,1,'completed','not_required',$4,$5) ON CONFLICT(id) DO NOTHING",
+						[
+							`d4150000-0000-4000-8500-${suffix(kind * 12 + c)}`,
+							trip,
+							camperId(c),
+							`${month}-05T00:00:00Z`,
+							`${month}-17T00:00:00Z`,
+						]
+					);
+				}
+			}
+		}
+	});
+	console.log(
+		`[seed:demand] Ensured synthetic Booking sources for ${month}: two taxonomy cells, twelve distinct bookers and three Hosts per cell. No AI report was seeded.`
+	);
+}
+
 export async function runMasterSeed(): Promise<void> {
+	if (process.argv.includes("--demand-insights-only")) {
+		try {
+			await seedDemandInsightScenarios(dataSource);
+		} finally {
+			if (dataSource.isInitialized) await dataSource.destroy();
+		}
+		return;
+	}
 	if (
 		process.argv.includes("--review-analysis-only") ||
 		process.argv.includes("--review-analysis-vietnamese-only") ||
