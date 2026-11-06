@@ -30,6 +30,15 @@ interface DemandResponse {
 @Controller("host/demand-insights")
 export class DemandInsightsController {
 	constructor(private readonly service: DemandInsightsService) {}
+	@Get()
+	@ApiOperation({ summary: "List closed reporting periods and server-owned creation availability" })
+	periods(
+		@Req() req: { user: AuthenticatedUser },
+		@Res({ passthrough: true }) response: DemandResponse
+	) {
+		response.setHeader("Cache-Control", "no-store");
+		return this.service.periods(req.user.userId);
+	}
 	@Post(":month")
 	@ApiOperation({ summary: "Request or reuse a shared closed-month booking demand report" })
 	async create(

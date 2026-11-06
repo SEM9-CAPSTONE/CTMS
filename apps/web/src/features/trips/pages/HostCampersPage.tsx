@@ -24,6 +24,7 @@ export interface HostCampersPageProps {
 	initialTripId?: string | null;
 	initialStatus?: string | null;
 	onBackHome?: () => void;
+	backLabel?: string;
 	onNavigateToTripDetail?: (tripId: string) => void;
 	onCreateTrip?: () => void;
 }
@@ -56,6 +57,7 @@ export function HostCampersPage({
 	initialTripId,
 	initialStatus,
 	onBackHome,
+	backLabel = "Quay về Host Dashboard",
 	onNavigateToTripDetail,
 	onCreateTrip,
 }: HostCampersPageProps) {
@@ -157,8 +159,8 @@ export function HostCampersPage({
 					{onBackHome && (
 						<button
 							type="button"
-							aria-label="Quay về Host Dashboard"
-							title="Quay về Host Dashboard"
+							aria-label={backLabel}
+							title={backLabel}
 							onClick={onBackHome}
 							className="rounded-xl border border-[#d8e2da] p-2.5 text-[#164027] transition hover:bg-[#f6f9f6]"
 						>

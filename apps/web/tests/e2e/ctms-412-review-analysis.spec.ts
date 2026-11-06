@@ -134,7 +134,7 @@ test("mock API: Admin route loads and small screens keep the controls accessible
 }) => {
 	await page.setViewportSize({ width: 390, height: 844 });
 	await mockUI(page, "admin");
-	await expect(page.getByRole("heading", { name: "Phân tích đánh giá với AI" })).toBeVisible();
+	await expect(page.getByRole("heading", { name: "Phân tích đánh giá" })).toBeVisible();
 	await expect(page.getByRole("combobox")).toBeVisible();
 	expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
 		true

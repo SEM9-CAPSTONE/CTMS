@@ -67,8 +67,8 @@ export class DemandInsightsProvider {
 						prompt_version: config.promptVersion,
 					}),
 					signal: signal
-						? AbortSignal.any([signal, AbortSignal.timeout(15000)])
-						: AbortSignal.timeout(15000),
+						? AbortSignal.any([signal, AbortSignal.timeout(45000)])
+						: AbortSignal.timeout(45000),
 				}
 			);
 			if (!response.ok) {
@@ -86,7 +86,11 @@ export class DemandInsightsProvider {
 					"organization_usage_limit_exceeded",
 				].includes(String(code));
 				throw new AnalysisProviderError(
-					terminal ? String(code) : "provider_unavailable",
+					terminal
+						? String(code)
+						: response.status >= 500 || response.status === 429
+							? "provider_unavailable"
+							: "provider_rejected",
 					!terminal && (response.status >= 500 || response.status === 429)
 				);
 			}

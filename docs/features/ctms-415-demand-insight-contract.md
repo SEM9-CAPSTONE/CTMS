@@ -1,5 +1,9 @@
 # CTMS-415 — Booking demand insights: contract and decisions
 
+## CTMS-416 additive contract update (2026-11-06)
+
+The contributor subsequently approved a server-owned period list (`GET /api/host/demand-insights`) and one explicit retry round for transiently failed reports. GET report adds `canRetry`. Repeated POST can return 202 for an eligible failed report after cooldown, reusing the same frozen source/release/version; a persisted `manual_retries` counter allows only one extra round of up to three attempts. Permanent errors, changed source/config, exhausted allowance and published results remain terminal. No published report is regenerated. Retry-After is exposed to browser clients. See [the final CTMS-416 contract](ctms-416-demand-insight-ui.md) for exact rules, migration and final UI behavior; these additions supersede the original no-client-retry wording below.
+
 ## Approval and boundaries
 
 Story CTMS-297 / spec CTMS-109, logic subtask CTMS-415; UI belongs to CTMS-416. Based on develop ab60ccd2. The requesting project contributor approved Booking-first data and initial configurable defaults of ten distinct bookers and three distinct Hosts in this chat on 2026-11-06 (Asia/Ho_Chi_Minh). This records contributor approval, not an independently verified product-owner sign-off; product-owner confirmation remains recommended. A configurable 75% maximum Host contribution is the implementation proposal for the approved dominance control. These settings are release policy, never client parameters.
