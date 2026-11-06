@@ -45,3 +45,10 @@ Official compatibility guide: https://aistudio.google.com/docs/openai
 A live synthetic-comment smoke test succeeded with `gemini-3.1-flash-lite`,
 returning valid mixed sentiment, taxonomy topics, summary and token usage.
 This verifies the provider edge, not the complete API/DB batch workflow or UI.
+
+## Knowledge ingestion (CTMS-051)
+
+The dedicated ingestion worker runs `app.knowledge_api:app` on port 8001 with
+`requirements-ingestion.txt`, separate from the existing AI service. See
+[CTMS-051 implementation](../../docs/features/CTMS-051-Implementation.md) for setup,
+quality gates, version isolation and offline Recall@5 evaluation.

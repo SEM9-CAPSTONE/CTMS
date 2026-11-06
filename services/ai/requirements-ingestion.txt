@@ -1,0 +1,22 @@
+# Isolated from the existing weather/review service dependency set.
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+docling==2.148.0
+docling-core[chunking]==2.106.0
+docling-ibm-models==4.0.4
+docling-parse==7.24.2
+sentence-transformers==5.1.2
+transformers==4.57.1
+tokenizers==0.22.2
+huggingface-hub==0.36.2
+semchunk==3.2.5
+pandas==3.1.1
+pydantic==2.14.3
+lxml==6.0.2
+torch==2.8.0
+torchvision==0.23.0
+pypdf==5.9.0
+
+# Tests
+pytest==8.3.4
+httpx==0.28.1
