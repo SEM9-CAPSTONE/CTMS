@@ -4,6 +4,7 @@ import { DatabaseModule } from "../shared/database/database.module";
 import { AuthModule } from "./auth/auth.module";
 import { BookingsModule } from "./bookings/bookings.module";
 import { ContentReportsModule } from "./content-reports/content-reports.module";
+import { DemandInsightsModule } from "./demand-insights/demand-insights.module";
 import { DeviceSyncModule } from "./device-sync/device-sync.module";
 import { EquipmentCatalogModule } from "./equipment-catalog/equipment-catalog.module";
 import { GpsTrackingModule } from "./gps-tracking/gps-tracking.module";
@@ -40,6 +41,7 @@ import { WeatherModule } from "./weather/weather.module";
 		BookingsModule,
 		ContentReportsModule,
 		DeviceSyncModule,
+		DemandInsightsModule,
 		EquipmentCatalogModule,
 		GpsTrackingModule,
 		HostOverviewModule,
