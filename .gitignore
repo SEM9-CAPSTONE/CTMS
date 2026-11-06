@@ -31,6 +31,7 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .venv/
+.venv-ingestion/
 venv/
 
 docker-compose.override.yml
