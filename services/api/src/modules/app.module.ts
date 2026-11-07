@@ -13,6 +13,7 @@ import { HostOverviewModule } from "./host-overview/host-overview.module";
 import { HostTripMapModule } from "./host-trip-map/host-trip-map.module";
 import { IncidentsModule } from "./incidents/incidents.module";
 import { KnowledgeChunksModule } from "./knowledge-chunks/knowledge-chunks.module";
+import { MemberLocationsModule } from "./member-locations/member-locations.module";
 import { OfflinePackagesModule } from "./offline-packages/offline-packages.module";
 import { OverbookingEvaluationModule } from "./overbooking-evaluation/overbooking-evaluation.module";
 import { PorterLevelsModule } from "./porter-levels/porter-levels.module";
@@ -55,6 +56,7 @@ import { WeatherModule } from "./weather/weather.module";
 		RouteSafetyModule,
 		SafetyEventsModule,
 		ScheduleProgressModule,
+		MemberLocationsModule,
 		SosModule,
 		OverbookingEvaluationModule,
 		SyncEvaluationModule,
