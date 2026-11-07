@@ -1,4 +1,10 @@
+import { RoutePath } from "../../routes/routes.config";
 import type { Difficulty, TripType } from "./types";
+
+export const demandDestinations = {
+	mine: `${RoutePath.HOST_CAMPERS}?from=demand-insights`,
+	explore: RoutePath.TRIPS,
+} as const;
 export const tripLabels: Record<TripType, string> = {
 	day_trip: "Trong ngày",
 	overnight: "Qua đêm",
@@ -15,6 +21,8 @@ export const reasonLabels = {
 	advisory_not_forecast:
 		"Bạn có thể tham khảo loại chuyến này khi lên kế hoạch. Gợi ý không đảm bảo sẽ có người đặt trong tương lai.",
 };
+export const CAPACITY_OBSERVED_NOTE =
+	"Quy mô chuyến tối đa ghi nhận khi đặt chỗ (không phải số chỗ tối ưu)";
 export const panelClass = "rounded-2xl border border-[#dfe8df] bg-white p-5";
 export const buttonClass =
 	"inline-flex items-center justify-center gap-2 rounded-xl bg-[#164027] px-4 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#164027]";

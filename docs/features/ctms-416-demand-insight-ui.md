@@ -88,3 +88,24 @@ python -m pytest app/test_demand_insight.py app/test_main.py app/test_review_ana
 ```
 
 Integration uses guarded local ctms_test and a fake provider. The dedicated E2E config needs localhost API and an existing local Host plus the persisted August report; its live case does not submit an AI generation request. Video evidence separately captures real generation. Generated logs and Playwright output stay in the OS temporary directory; artifacts/evidence are not staged or committed.
+
+
+## Grounded planning UI extension — 2026-11-07
+
+Based on merged CTMS-415 PR #824 / 441730d8 (local base 54f5260f). This extension is Host web presentation only; it does not modify the API, schema, authorization or Trip/Route business rules. The planning API contract is documented in ctms-415-demand-planning-contract.md.
+
+- A separate action is available only after a monthly report succeeds and planning GET returns not_requested. The action does not run automatically with report generation. All other planning states, including failed, have no manual job-retry action.
+- Actor/month-scoped TanStack Query keys and no-store service requests read the authoritative planning state. POST sends an empty object; 202 active and 200 terminal responses are reconciled via GET. A synchronous submission guard prevents double clicks; cooldown is enforced before another POST.
+- Pending/running poll at five seconds with bounded exponential backoff on transient errors. Polling stops at terminal states, permanent authorization/validation errors, hidden tabs and unmount; visible tabs/remounts recover by GET without recreating work. There is no artificial 150-second cutoff or numeric progress estimate. Loading is indeterminate because the API supplies no completion percentage.
+- 429 prefers Retry-After over JSON fallback and retains its countdown across month navigation/remounts in the same application session. 422/401/403 messages are safe Vietnamese text; provider detail is never rendered. Creation errors are shown for the submitted month only.
+- Planning cards separate observed interval evidence from server-authored general advice. Null evidence is omitted; price is per person, capacity is the offered maximum at Booking time (not an optimum), and area is a Host-confirmed catalog value. No generated HTML/markdown, source identity, model/prompt/hash or automatic Trip action is displayed.
+- Withheld/unavailable/failed branches never render residual recommendations. Existing monthly advisory tips are suppressed when detailed planning succeeds. Next-step cards retain their existing two routes and support normal modifier-key link behavior.
+- The user's 104.87-second recording predates the review correction: numeric progress visible there has been replaced by an indeterminate spinner in the final code. The uploaded copy only moves MP4 metadata for streaming; content/audio are unchanged.
+
+### Extension verification
+
+- Existing/new presentation tests: 36 passed in 3 files. Direct planning-hook tests: 16 passed, covering visibility, unmount, remount, polling beyond 150 seconds, completion, bounded backoff, duplicate submit, active/terminal POST reconciliation, terminal-state guards, permanent HTTP errors and global planning cooldown.
+- Dedicated Playwright: 15 passed in 46.3 seconds, comprising 13 mocked HTTP cases and 2 real local API/database read cases. The new planning case reads existing July output, verifies evidence presentation and reload, and asserts no planning POST. It does not claim a new Gemini generation call.
+- TypeScript project build and Vite production build passed (12.25 seconds for Vite, bundle-size warning retained). Complete web ESLint passed with 0 errors / 12 existing warnings. Changed-file Biome passed.
+- Complete web regression passed: 245 files / 1,630 tests in 710.44 seconds. No backend code changed; backend-wide tests were not rerun for this UI-only extension. Previously reproduced backend baseline failures are referenced from the CTMS-415 contract, not claimed as freshly reproduced on this UI branch. Aggregate pnpm lint:all/build:all/test:all and remote CI are not claimed as passed.
+- Playwright was run against an already-running dedicated Vite server using a temporary configuration outside Git to avoid the previously observed Windows managed-server teardown hang. Application/test assertions were not disabled; no mock preview page or evidence media is committed.

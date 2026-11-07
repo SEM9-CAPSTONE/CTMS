@@ -4,6 +4,8 @@ import { HttpError } from "../../core/api/httpClient";
 import { DemandResults } from "./DemandResults";
 import { buttonClass, formatDate, monthLabel, panelClass } from "./constants";
 import { demandError, useDemandInsights } from "./useDemandInsights";
+import { planningError, useDemandPlanning } from "./useDemandPlanning";
+
 export function DemandInsightsPage({ actor }: { actor: string }) {
 	const [selected, setSelected] = useState("");
 	const state = useDemandInsights(actor, selected);
@@ -12,7 +14,10 @@ export function DemandInsightsPage({ actor }: { actor: string }) {
 	const error = state.report.error;
 	const missing = error instanceof HttpError && error.status === 404;
 	const report = state.report.isError ? undefined : state.report.data;
-	const refreshing = state.report.isFetching || state.periods.isFetching;
+	const isReportSucceeded = report?.status === "succeeded";
+	const planning = useDemandPlanning(actor, month, isReportSucceeded);
+	const refreshing =
+		state.report.isFetching || state.periods.isFetching || planning.planning.isFetching;
 	return (
 		<div className="min-h-screen bg-[#f4f7f2] text-[#10221b]">
 			<header className="sticky top-[65px] z-20 border-b lg:top-0 border-[#dfe8df] bg-white">
@@ -67,10 +72,13 @@ export function DemandInsightsPage({ actor }: { actor: string }) {
 							aria-label="Làm mới báo cáo"
 							title="Làm mới báo cáo"
 							aria-busy={refreshing}
-							disabled={refreshing || state.create.isPending}
+							disabled={refreshing || state.create.isPending || planning.isSubmitting}
 							onClick={() => {
 								void state.periods.refetch();
-								if (month) void state.report.refetch();
+								if (month) {
+									void state.report.refetch();
+									if (isReportSucceeded) void planning.refetch();
+								}
 							}}
 						>
 							<RefreshCw
@@ -88,6 +96,11 @@ export function DemandInsightsPage({ actor }: { actor: string }) {
 									state.create.isPending ||
 									state.waitSeconds > 0
 								}
+								aria-disabled={
+									(!report?.canRetry && !period?.canCreate) ||
+									state.create.isPending ||
+									state.waitSeconds > 0
+								}
 								onClick={state.submit}
 							>
 								<Sparkles className="size-4" />
@@ -96,6 +109,18 @@ export function DemandInsightsPage({ actor }: { actor: string }) {
 									: report?.canRetry
 										? "Thử lại báo cáo"
 										: "Tạo báo cáo"}
+							</button>
+						)}
+						{isReportSucceeded && (planning.isAvailable || planning.isSubmitting) && (
+							<button
+								type="button"
+								className={`${buttonClass} w-full sm:w-auto`}
+								disabled={planning.isSubmitting || planning.waitSeconds > 0}
+								aria-disabled={planning.isSubmitting || planning.waitSeconds > 0}
+								onClick={planning.submit}
+							>
+								<Sparkles className="size-4" />
+								{planning.isSubmitting ? "Đang gửi…" : "Gợi ý tổ chức chuyến"}
 							</button>
 						)}
 					</div>
@@ -109,9 +134,21 @@ export function DemandInsightsPage({ actor }: { actor: string }) {
 							{demandError(state.create.error)}
 						</p>
 					)}
+				{planning.create.isError &&
+					planning.create.variables === month &&
+					!(planning.create.error instanceof HttpError && planning.create.error.status === 429) && (
+						<p role="alert" className={`${panelClass} text-sm text-[#526357]`}>
+							{planningError(planning.create.error)}
+						</p>
+					)}
 				{state.waitSeconds > 0 && (
-					<output className="block text-sm text-amber-900">
+					<output className="block text-sm text-amber-900" aria-live="polite">
 						Vui lòng đợi {state.waitSeconds} giây rồi thử lại.
+					</output>
+				)}
+				{planning.waitSeconds > 0 && state.waitSeconds === 0 && (
+					<output className="block text-sm text-amber-900" aria-live="polite">
+						Vui lòng đợi {planning.waitSeconds} giây rồi thử lại.
 					</output>
 				)}
 				{(state.periods.isPending || (month && state.report.isPending)) && (
@@ -131,7 +168,17 @@ export function DemandInsightsPage({ actor }: { actor: string }) {
 						{demandError(error)}
 					</section>
 				)}
-				{report && <DemandResults report={report} />}
+				{report && (
+					<DemandResults
+						report={report}
+						planning={{
+							data: planning.data,
+							status: planning.status,
+							isLoading: planning.planning.isPending,
+							error: planning.planning.error,
+						}}
+					/>
+				)}
 			</div>
 		</div>
 	);
