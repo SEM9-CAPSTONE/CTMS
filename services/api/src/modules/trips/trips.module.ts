@@ -5,6 +5,7 @@ import { RolesGuard } from "../auth/guards/roles.guard";
 import { PorterProfile } from "../profiles/entities/porter-profile.entity";
 import { RealtimeModule } from "../realtime/realtime.module";
 import { UploadsModule } from "../uploads/uploads.module";
+import { WeatherModule } from "../weather/weather.module";
 import { TripFormDraftsController } from "./controllers/trip-form-drafts.controller";
 import { TripImagesController } from "./controllers/trip-images.controller";
 import { TripsController } from "./controllers/trips.controller";
@@ -32,7 +33,7 @@ import { TripStatusScheduleWorker } from "./services/trip-status-schedule.worker
 import { TripsService } from "./services/trips.service";
 
 @Module({
-	imports: [RealtimeModule, UploadsModule],
+	imports: [RealtimeModule, UploadsModule, WeatherModule],
 	controllers: [TripsController, TripImagesController, TripFormDraftsController],
 	providers: [
 		TripFormDraftsService,

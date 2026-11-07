@@ -92,30 +92,12 @@ test.describe("CTMS-26-T02 View Risk Level before Trekking Registration", () => 
 
 		await page.goto(`/trips/${TRIP_ID}`);
 
-		const riskPanel = page.getByTestId("registration-risk-panel");
-		await expect(riskPanel).toBeVisible();
-		await expect(riskPanel).toContainText("Thời tiết chú ý");
-		await expect(riskPanel).toContainText("Lượng mưa");
-		await expect(riskPanel).toContainText("Nên mang áo mưa");
-		await expect(riskPanel).toContainText("Mang áo mưa");
-
-		const bookingAction = page.getByRole("button", { name: "Đăng nhập để đặt chỗ" });
-		await expect(bookingAction).toBeVisible();
-		await expect(
-			page.locator(
-				'[data-testid="registration-risk-panel"], button:has-text("Đăng nhập để đặt chỗ")'
-			)
-		).toHaveCount(2);
-		const riskComesFirst = await page.evaluate(() => {
-			const risk = document.querySelector('[data-testid="registration-risk-panel"]');
-			const booking = Array.from(document.querySelectorAll("button")).find((button) =>
-				button.textContent?.includes("Đăng nhập để đặt chỗ")
-			);
-			return Boolean(
-				risk && booking && risk.compareDocumentPosition(booking) & Node.DOCUMENT_POSITION_FOLLOWING
-			);
-		});
-		expect(riskComesFirst).toBe(true);
+		// Policy: travellers only see the forecast for the Trip's own dates; the Route's current weather
+		// is no longer shown on the Trip page, and signed-out visitors (no forecast access) see none.
+		await expect(page.getByRole("button", { name: "Đăng nhập để đặt chỗ" })).toBeVisible();
+		await expect(page.getByTestId("registration-risk-panel")).toHaveCount(0);
+		await expect(page.getByTestId("trip-hero-weather")).toHaveCount(0);
+		await expect(page.getByText("Thời tiết chú ý")).toHaveCount(0);
 	});
 
 	test("does not fabricate a safe risk level when no assessment exists", async ({ page }) => {
@@ -132,11 +114,9 @@ test.describe("CTMS-26-T02 View Risk Level before Trekking Registration", () => 
 
 		await page.goto(`/trips/${TRIP_ID}`);
 
-		const unavailableNotice = page.getByTestId("registration-risk-unavailable");
-		await expect(unavailableNotice).toBeVisible();
-		await expect(unavailableNotice).toContainText("Chưa có đánh giá rủi ro thời tiết");
-		await expect(unavailableNotice).toContainText("không được xem là mức an toàn mặc định");
+		await expect(page.getByTestId("registration-risk-unavailable")).toHaveCount(0);
 		await expect(page.getByTestId("registration-risk-panel")).toHaveCount(0);
+		await expect(page.getByText(/Thời tiết bình thường|Thời tiết an toàn/)).toHaveCount(0);
 		await expect(page.getByRole("button", { name: "Đăng nhập để đặt chỗ" })).toBeVisible();
 	});
 });

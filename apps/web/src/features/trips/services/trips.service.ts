@@ -90,6 +90,9 @@ export const tripsService = {
 		httpClient.get<TripWeatherForecast | null>(
 			API_ENDPOINTS.TRIPS.WEATHER_FORECAST_SUBMITTED(tripId)
 		),
+	/** Forecast for the Trip's own dates for travellers (Camper/Porter), never today's weather. */
+	getTripDatesWeatherForecast: (tripId: string): Promise<TripWeatherForecast> =>
+		httpClient.get<TripWeatherForecast>(API_ENDPOINTS.TRIPS.WEATHER_FORECAST_TRIP_DATES(tripId)),
 	generateWeatherAdvice: (tripId: string): Promise<TripWeatherForecast> =>
 		httpClient.post<TripWeatherForecast>(API_ENDPOINTS.TRIPS.WEATHER_FORECAST_ADVICE(tripId)),
 

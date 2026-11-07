@@ -10,6 +10,7 @@ import { EquipmentCatalogStatus } from "../src/modules/equipment-catalog/equipme
 import { TrekkingRouteStatus } from "../src/modules/trekking-routes/entities/trekking-route.entity";
 import { TripStatus } from "../src/modules/trips/entities/trip.entity";
 import { UserRole, UserStatus } from "../src/modules/users/entities/user.entity";
+import { WEATHER_PROVIDER } from "../src/modules/weather/providers/weather-provider.interface";
 import { validationExceptionFactory } from "../src/shared/pipes/validation-exception-factory";
 import { assertSafeTestDatabase } from "./support/assert-safe-test-database";
 
@@ -17,6 +18,36 @@ interface Account {
 	id: string;
 	accessToken: string;
 }
+
+type ForecastMode = "calm" | "rain" | "storm" | "down";
+let forecastMode: ForecastMode = "calm";
+/** Deterministic stand-in for Open-Meteo: hourly readings over the requested Trip window. */
+const weatherProviderStub = {
+	fetchCurrent: jest.fn(),
+	fetchHourlyForecast: jest.fn(async (_lat: number, _lng: number, from: Date, to: Date) => {
+		if (forecastMode === "down") throw new Error("provider down");
+		const hours = [];
+		for (
+			let t = Math.floor(from.getTime() / 3_600_000) * 3_600_000;
+			t <= to.getTime();
+			t += 3_600_000
+		) {
+			hours.push({
+				time: new Date(t),
+				rainfallMm: forecastMode === "storm" ? 80 : forecastMode === "rain" ? 20 : 0,
+				windKph: forecastMode === "storm" ? 90 : forecastMode === "rain" ? 50 : 5,
+				temperatureC: 24,
+				visibilityM: forecastMode === "rain" ? 3000 : 20000,
+				thunderstorm: forecastMode === "storm",
+				providerWeatherCode: forecastMode === "storm" ? 95 : 1,
+			});
+		}
+		return { hours, raw: {} };
+	}),
+};
+/** ISO time `days` from now, so the Trip falls inside the 15-day forecast horizon. */
+const inDays = (days: number, hours = 0) =>
+	new Date(Date.now() + days * 86_400_000 + hours * 3_600_000).toISOString();
 
 interface Fixture {
 	host: Account;
@@ -46,7 +77,10 @@ describe("Booking packing list (integration, real Postgres)", () => {
 
 	beforeAll(async () => {
 		jest.setTimeout(60000);
-		const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+		const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+			.overrideProvider(WEATHER_PROVIDER)
+			.useValue(weatherProviderStub)
+			.compile();
 		app = moduleRef.createNestApplication();
 		app.setGlobalPrefix("api");
 		app.useGlobalPipes(
@@ -152,6 +186,8 @@ describe("Booking packing list (integration, real Postgres)", () => {
 			tripType?: "day_trip" | "overnight";
 			durationNights?: number;
 			weatherRiskLevel?: "green" | "yellow";
+			/** Start the Trip this many days from now (inside the forecast horizon) instead of 2035. */
+			startsInDays?: number;
 		} = {}
 	): Promise<Fixture> {
 		const host = await createAccount(UserRole.HOST);
@@ -167,7 +203,12 @@ describe("Booking packing list (integration, real Postgres)", () => {
 		const difficulty = options.difficulty ?? "moderate";
 		const tripType = options.tripType ?? "day_trip";
 		const durationNights = options.durationNights ?? 0;
-		const endsAt = durationNights > 0 ? "2035-10-12T10:00:00Z" : "2035-10-11T10:00:00Z";
+		const startsAt = options.startsInDays ? inDays(options.startsInDays) : "2035-10-10T01:00:00Z";
+		const deadline = options.startsInDays
+			? inDays(options.startsInDays - 1)
+			: "2035-10-09T01:00:00Z";
+		let endsAt = durationNights > 0 ? "2035-10-12T10:00:00Z" : "2035-10-11T10:00:00Z";
+		if (options.startsInDays) endsAt = inDays(options.startsInDays + durationNights, 9);
 		await dataSource.query(
 			`INSERT INTO "trekking_routes" (
 				"id", "host_id", "name", "route_geom", "length_meters", "difficulty",
@@ -186,9 +227,9 @@ describe("Booking packing list (integration, real Postgres)", () => {
 				"capacity_max", "seats_taken", "price_per_person", "cancellation_policy", "status"
 			) VALUES (
 				$1, $2, $3, 'Packing list integration Trip', $4, $5,
-				'2035-10-10T01:00:00Z', $6,
+				$9, $6,
 				ST_SetSRID(ST_MakePoint(108.22, 16.04), 4326)::geography,
-				'2035-10-09T01:00:00Z', 1, 5, 0, '500000.00', $7, $8
+				$10, 1, 5, 0, '500000.00', $7, $8
 			)`,
 			[
 				tripId,
@@ -199,6 +240,8 @@ describe("Booking packing list (integration, real Postgres)", () => {
 				endsAt,
 				{ refundHours: 48 },
 				TripStatus.PUBLISHED,
+				startsAt,
+				deadline,
 			]
 		);
 		await dataSource.query(
@@ -275,12 +318,16 @@ describe("Booking packing list (integration, real Postgres)", () => {
 		return token ? req.set("Authorization", `Bearer ${token}`) : req;
 	}
 
-	it("computes a full packing list for an overnight, hard, non-green-weather trip with rented equipment and health consent", async () => {
+	it("computes a full packing list for an overnight, hard, rainy-forecast trip with rented equipment and health consent", async () => {
+		// Today's Route weather is Green, but the forecast for the Trip's own dates is rainy (Yellow):
+		// the packing list must follow the Trip dates.
+		forecastMode = "rain";
 		const { camper, tripId, equipmentId } = await createFixture({
 			difficulty: "hard",
 			tripType: "overnight",
 			durationNights: 2,
-			weatherRiskLevel: "yellow",
+			weatherRiskLevel: "green",
+			startsInDays: 3,
 		});
 		const bookingId = await createBooking(camper, tripId, 3);
 		await request(app.getHttpServer())
@@ -304,6 +351,7 @@ describe("Booking packing list (integration, real Postgres)", () => {
 				difficulty: "hard",
 				memberCount: 1,
 				weatherRiskLevel: "yellow",
+				weatherSource: "trip_forecast",
 			},
 		});
 		const items: Array<{ id: string; required: boolean; alreadyCovered: boolean }> =
@@ -316,6 +364,7 @@ describe("Booking packing list (integration, real Postgres)", () => {
 		expect(byId("sleeping-bag")).toMatchObject({ required: true, alreadyCovered: false });
 		expect(byId("allergy-medication")).toMatchObject({ required: true });
 		expect(items.some((packingItem) => packingItem.id.startsWith("rented-"))).toBe(true);
+		forecastMode = "calm";
 	});
 
 	it("omits health items when no health profile/consent exists", async () => {
@@ -387,7 +436,7 @@ describe("Booking packing list (integration, real Postgres)", () => {
 	});
 
 	it("stores generated_from with the authoritative inputs and returns its generation id", async () => {
-		const { camper, tripId, routeId } = await createFixture({
+		const { camper, tripId } = await createFixture({
 			difficulty: "hard",
 			tripType: "overnight",
 			durationNights: 2,
@@ -404,10 +453,9 @@ describe("Booking packing list (integration, real Postgres)", () => {
 		expect(rows).toHaveLength(1);
 		expect(response.body.generationId).toBe(rows[0].id);
 		expect(rows[0].fingerprint).toMatch(/^[0-9a-f]{64}$/);
-		const [assessment] = await dataSource.query(
-			'SELECT "id" FROM "weather_risk_assessments" WHERE "route_id" = $1',
-			[routeId]
-		);
+		// The 2035 Trip is beyond the forecast horizon: no trip-date weather, and today's Route
+		// assessment is not used in its place.
+		expect(response.body.context.weatherSource).toBeNull();
 		expect(rows[0].generatedFrom).toEqual({
 			rulesVersion: "packing-list-rules-v1",
 			tripId,
@@ -415,7 +463,7 @@ describe("Booking packing list (integration, real Postgres)", () => {
 			tripType: "overnight",
 			difficulty: "hard",
 			memberCount: 1,
-			weatherAssessment: { id: assessment.id, riskLevel: "green" },
+			weatherAssessment: null,
 			rentedEquipment: [],
 			healthProfile: { considered: false, updatedAt: null },
 		});

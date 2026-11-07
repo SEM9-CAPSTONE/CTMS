@@ -13,8 +13,8 @@ export interface TripWeatherForecastCardProps {
 	onRefresh?: () => void;
 	/** Retries loading after an error (both views). */
 	onRetry?: () => void;
-	/** Admin view shows the forecast attached at submission. */
-	variant?: "host" | "admin";
+	/** Admin view shows the forecast attached at submission; traveller is the Camper's view of the trip dates. */
+	variant?: "host" | "admin" | "traveller";
 	children?: ReactNode;
 }
 
@@ -45,21 +45,33 @@ export function TripWeatherForecastCard({
 			? `Dự báo mới phủ tới ${formatWeatherDateTime(forecast.forecastTo)}; phần còn lại của chuyến đi chưa có dữ liệu dự báo.`
 			: undefined;
 
-	const emptyMessage = outOfRange
-		? `Ngày trekking nằm ngoài phạm vi dự báo ${forecast?.horizonDays ?? 15} ngày nên chưa có dự báo. ${
-				variant === "admin"
-					? "Admin cân nhắc khi duyệt."
-					: "Bạn vẫn có thể gửi duyệt; Admin sẽ cân nhắc."
-			}`
-		: variant === "admin"
-			? "Host gửi duyệt khi chưa có dự báo thời tiết (dịch vụ thời tiết không khả dụng)."
-			: "Chưa có dự báo thời tiết cho chuyến đi.";
+	const horizonDays = forecast?.horizonDays ?? 15;
+	let emptyMessage: string;
+	if (variant === "traveller") {
+		emptyMessage = outOfRange
+			? `Ngày đi còn xa hơn ${horizonDays} ngày nên chưa có dự báo. Dự báo sẽ có khi gần ngày khởi hành; hệ thống không dùng thời tiết hôm nay để thay thế.`
+			: "Chưa có dự báo thời tiết cho ngày đi.";
+	} else if (outOfRange) {
+		emptyMessage = `Ngày trekking nằm ngoài phạm vi dự báo ${horizonDays} ngày nên chưa có dự báo. ${
+			variant === "admin"
+				? "Admin cân nhắc khi duyệt."
+				: "Bạn vẫn có thể gửi duyệt; Admin sẽ cân nhắc."
+		}`;
+	} else {
+		emptyMessage =
+			variant === "admin"
+				? "Host gửi duyệt khi chưa có dự báo thời tiết (dịch vụ thời tiết không khả dụng)."
+				: "Chưa có dự báo thời tiết cho chuyến đi.";
+	}
+	const titles = {
+		host: "Dự báo thời tiết ngày trekking",
+		admin: "Dự báo thời tiết lúc gửi duyệt",
+		traveller: "Dự báo thời tiết ngày đi",
+	} as const;
 
 	return (
 		<WeatherRiskCard
-			title={
-				variant === "admin" ? "Dự báo thời tiết lúc gửi duyệt" : "Dự báo thời tiết ngày trekking"
-			}
+			title={titles[variant]}
 			subtitle={
 				forecast
 					? `Dự báo cho lịch trình ${scheduleText}, lấy giờ xấu nhất của từng tiêu chí.`
@@ -87,6 +99,7 @@ export function TripWeatherForecastCard({
 			advice={
 				forecast?.advice ? { text: forecast.advice.text, actions: forecast.advice.actions } : null
 			}
+			showAdvice={variant !== "traveller" || Boolean(forecast?.advice)}
 			isAdviceLoading={isAdviceLoading}
 			adviceError={adviceError}
 			onRefresh={onRefresh}

@@ -130,6 +130,7 @@ export const API_ENDPOINTS = {
 		SUBMIT_FOR_APPROVAL: (tripId: string) => `/trips/${tripId}/submit`,
 		WEATHER_FORECAST: (tripId: string) => `/trips/${tripId}/weather-forecast`,
 		WEATHER_FORECAST_LATEST: (tripId: string) => `/trips/${tripId}/weather-forecast/latest`,
+		WEATHER_FORECAST_TRIP_DATES: (tripId: string) => `/trips/${tripId}/weather-forecast/trip-dates`,
 		WEATHER_FORECAST_SUBMITTED: (tripId: string) => `/trips/${tripId}/weather-forecast/submitted`,
 		WEATHER_FORECAST_ADVICE: (tripId: string) => `/trips/${tripId}/weather-forecast/advice`,
 		MEMBERS: (tripId: string) => `/trips/${tripId}/members`,

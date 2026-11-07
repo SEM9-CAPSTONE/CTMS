@@ -109,8 +109,19 @@ export class TripSummaryResponseDto {
 	@ApiPropertyOptional({ enum: TrekkingRouteDifficulty, nullable: true })
 	difficulty!: TrekkingRouteDifficulty | null;
 
-	@ApiPropertyOptional({ enum: RiskLevel, nullable: true })
+	@ApiPropertyOptional({
+		enum: RiskLevel,
+		nullable: true,
+		description: "Risk of the forecast for the Trip's own dates; null when no such forecast exists",
+	})
 	weatherRiskLevel!: RiskLevel | null;
+
+	@ApiPropertyOptional({
+		enum: ["available", "out_of_range", "unavailable"],
+		description:
+			"available = forecast for the Trip dates; out_of_range = beyond the 15-day horizon; unavailable = could not be obtained",
+	})
+	weatherForecastStatus?: "available" | "out_of_range" | "unavailable";
 
 	@ApiProperty()
 	isBookable!: boolean;

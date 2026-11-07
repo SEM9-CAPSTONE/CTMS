@@ -37,10 +37,12 @@ export class RegistrationEligibilityResponseDto {
 
 	@ApiProperty({
 		enum: RiskLevel,
-		description: "Composite risk level of the route",
+		nullable: true,
+		description:
+			"Composite risk level (route assessment, or the forecast for the Trip dates); null when the Trip is beyond the forecast horizon",
 		example: "red",
 	})
-	riskLevel!: RiskLevel;
+	riskLevel!: RiskLevel | null;
 
 	@ApiProperty({
 		description: "Assessment timestamp (BR-073)",
@@ -48,8 +50,8 @@ export class RegistrationEligibilityResponseDto {
 	})
 	assessmentTime!: Date;
 
-	@ApiProperty({ description: "Composite risk score", example: 1.4 })
-	compositeScore!: number;
+	@ApiProperty({ description: "Composite risk score", example: 1.4, nullable: true, type: Number })
+	compositeScore!: number | null;
 
 	@ApiProperty({
 		type: [RegistrationBlockedReasonDto],

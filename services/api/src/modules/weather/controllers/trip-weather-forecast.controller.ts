@@ -25,7 +25,7 @@ interface AuthenticatedRequest {
 
 const TRIP_ID_PIPE = new ParseUUIDPipe({ errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY });
 
-/** Weather forecast over a Trip's own schedule (owning Host or Admin). */
+/** Weather forecast over a Trip's own schedule (owning Host or Admin; `trip-dates` for travellers). */
 @ApiTags("weather")
 @ApiBearerAuth()
 @Controller("trips/:tripId/weather-forecast")
@@ -50,6 +50,23 @@ export class TripWeatherForecastController {
 		@Param("tripId", TRIP_ID_PIPE) tripId: string
 	): Promise<TripWeatherForecastResponseDto> {
 		return this.forecastService.forecastForTrip(req.user, tripId);
+	}
+
+	@Get("trip-dates")
+	@Roles(UserRole.CAMPER, UserRole.PORTER, UserRole.HOST, UserRole.ADMIN)
+	@ApiOperation({
+		summary:
+			"Forecast for a published/ongoing Trip's own dates, for travellers (never today's weather)",
+	})
+	@ApiResponse({ status: 200, type: TripWeatherForecastResponseDto })
+	@ApiResponse({ status: 404, description: "Trip not found or not published/ongoing" })
+	@ApiResponse({ status: 409, description: "Trip ended or no active weather risk rule" })
+	@ApiResponse({ status: 422, description: "Trip has no Route or schedule" })
+	@ApiResponse({ status: 503, description: "Weather provider unavailable after retries" })
+	forecastForTravellers(
+		@Param("tripId", TRIP_ID_PIPE) tripId: string
+	): Promise<TripWeatherForecastResponseDto> {
+		return this.forecastService.forecastForTravellers(tripId);
 	}
 
 	@Get("latest")

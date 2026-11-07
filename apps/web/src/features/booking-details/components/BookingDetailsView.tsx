@@ -1,5 +1,6 @@
 import { CalendarDays, CreditCard, FileText, MapPin, ReceiptText } from "lucide-react";
 import { DeviceSyncStatusCard } from "../../device-sync";
+import { TripDatesWeatherCard } from "../../trips/components/TripDatesWeatherCard";
 import type { BookingDetails } from "../types";
 import {
 	formatBookingDateTime,
@@ -189,6 +190,15 @@ export function BookingDetailsView({
 						)}
 					</section>
 				</div>
+
+				{/* Forecast for the booked Trip's own dates while the Trip is still ahead or running */}
+				{(booking.status === "confirmed" || booking.status === "pending_payment") &&
+					booking.tripEndsAtSnapshot &&
+					new Date(booking.tripEndsAtSnapshot).getTime() > Date.now() && (
+						<div className="mt-6">
+							<TripDatesWeatherCard tripId={booking.tripId} />
+						</div>
+					)}
 
 				{/* Device Synchronization Status (CTMS-067) */}
 				<div className="mt-6">

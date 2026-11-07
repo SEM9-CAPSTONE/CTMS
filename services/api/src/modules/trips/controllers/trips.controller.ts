@@ -107,8 +107,11 @@ export class TripsController {
 	@ApiResponse({ status: 200, type: PaginatedTripsResponseDto })
 	@ApiResponse({ status: 401, description: "Authentication required" })
 	@ApiResponse({ status: 422, description: "Invalid search query parameters" })
-	search(@Query() query: SearchTripsQueryDto): Promise<PaginatedTripsResponseDto> {
-		return this.tripsService.search(query);
+	search(
+		@Query() query: SearchTripsQueryDto,
+		@Req() request: AuthenticatedRequest
+	): Promise<PaginatedTripsResponseDto> {
+		return this.tripsService.search(query, request.user.userId);
 	}
 
 	@Get("pending-review")

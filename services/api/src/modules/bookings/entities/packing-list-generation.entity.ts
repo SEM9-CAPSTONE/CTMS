@@ -10,6 +10,8 @@ export interface PackingListGeneratedFrom {
 	difficulty: string | null;
 	memberCount: number;
 	weatherAssessment: { id: string; riskLevel: RiskLevel } | null;
+	/** Forecast for the Trip's own dates that drove the weather items, when one was available. */
+	weatherForecast?: { id: string; riskLevel: RiskLevel };
 	rentedEquipment: Array<{ equipmentCatalogItemId: string; quantity: number }>;
 	healthProfile: { considered: boolean; updatedAt: string | null };
 }

@@ -39,6 +39,8 @@ export interface WeatherRiskCardProps {
 	/** Non-blocking note under the header (e.g. partial coverage). */
 	notice?: ReactNode;
 	advice?: WeatherRiskCardAdvice | null;
+	/** Hide the AI advice block (e.g. travellers, who cannot request advice). Defaults to shown. */
+	showAdvice?: boolean;
 	isAdviceLoading?: boolean;
 	adviceError?: string | null;
 	onRefresh?: () => void;
@@ -76,6 +78,7 @@ export function WeatherRiskCard({
 	emptyMessage,
 	notice,
 	advice,
+	showAdvice = true,
 	isAdviceLoading = false,
 	adviceError,
 	onRefresh,
@@ -208,31 +211,33 @@ export function WeatherRiskCard({
 									))}
 								</div>
 
-								<div className="rounded-xl border border-[#e0ebe0] bg-[#fbfdfb] p-4">
-									<p className="flex items-center gap-2 text-sm font-extrabold">
-										<Lightbulb className="size-4 text-amber-500" /> Lời khuyên (AI)
-									</p>
-									{isAdviceLoading ? (
-										<p className="mt-2 flex items-center gap-2 text-xs font-bold text-[#667a6d]">
-											<Loader2 className="size-3.5 animate-spin" /> Đang tạo lời khuyên...
+								{showAdvice && (
+									<div className="rounded-xl border border-[#e0ebe0] bg-[#fbfdfb] p-4">
+										<p className="flex items-center gap-2 text-sm font-extrabold">
+											<Lightbulb className="size-4 text-amber-500" /> Lời khuyên (AI)
 										</p>
-									) : advice ? (
-										<div className="mt-2 space-y-2 text-sm text-[#2b4135]">
-											<p>{advice.text}</p>
-											{advice.actions.length > 0 && (
-												<ul className="list-disc space-y-1 pl-5 text-xs">
-													{advice.actions.map((action) => (
-														<li key={action}>{action}</li>
-													))}
-												</ul>
-											)}
-										</div>
-									) : (
-										<p className="mt-2 text-xs font-medium text-[#667a6d]">
-											{adviceError ?? "Chưa có lời khuyên cho kết quả này."}
-										</p>
-									)}
-								</div>
+										{isAdviceLoading ? (
+											<p className="mt-2 flex items-center gap-2 text-xs font-bold text-[#667a6d]">
+												<Loader2 className="size-3.5 animate-spin" /> Đang tạo lời khuyên...
+											</p>
+										) : advice ? (
+											<div className="mt-2 space-y-2 text-sm text-[#2b4135]">
+												<p>{advice.text}</p>
+												{advice.actions.length > 0 && (
+													<ul className="list-disc space-y-1 pl-5 text-xs">
+														{advice.actions.map((action) => (
+															<li key={action}>{action}</li>
+														))}
+													</ul>
+												)}
+											</div>
+										) : (
+											<p className="mt-2 text-xs font-medium text-[#667a6d]">
+												{adviceError ?? "Chưa có lời khuyên cho kết quả này."}
+											</p>
+										)}
+									</div>
+								)}
 							</>
 						) : (
 							<p className="text-sm font-bold text-[#667a6d]">
