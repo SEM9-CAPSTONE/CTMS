@@ -6,6 +6,7 @@ import { BookingsModule } from "./bookings/bookings.module";
 import { ContentReportsModule } from "./content-reports/content-reports.module";
 import { DemandInsightsModule } from "./demand-insights/demand-insights.module";
 import { DeviceSyncModule } from "./device-sync/device-sync.module";
+import { EmergencyBroadcastsModule } from "./emergency-broadcasts/emergency-broadcasts.module";
 import { EquipmentCatalogModule } from "./equipment-catalog/equipment-catalog.module";
 import { GpsTrackingModule } from "./gps-tracking/gps-tracking.module";
 import { HealthController } from "./health/health.controller";
@@ -45,6 +46,7 @@ import { WeatherModule } from "./weather/weather.module";
 		ContentReportsModule,
 		DeviceSyncModule,
 		DemandInsightsModule,
+		EmergencyBroadcastsModule,
 		EquipmentCatalogModule,
 		GpsTrackingModule,
 		HostOverviewModule,
