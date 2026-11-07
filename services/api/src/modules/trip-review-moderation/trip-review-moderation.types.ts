@@ -57,3 +57,52 @@ export interface PiiMaskResult {
 	maskedText: string;
 	piiFlags: DetectedPiiFlag[];
 }
+
+export type ModerationStatus = "visible" | "hidden";
+
+export type ImageStorageState =
+	| "live"
+	| "quarantine_pending"
+	| "quarantined"
+	| "restore_pending"
+	| "quarantine_failed"
+	| "restore_failed";
+
+export type HostModerationDecision = "keep" | "hide" | "restore";
+
+export interface HostModerationDecisionRecord {
+	id: string;
+	reviewId: string;
+	revision: number;
+	hostId: string;
+	decision: HostModerationDecision;
+	reason: ModerationFlagType | null;
+	note: string | null;
+	createdAt: Date;
+}
+
+export interface ModerationQueueItem {
+	reviewId: string;
+	tripId: string;
+	tripTitle: string;
+	reviewerId: string;
+	rating: number;
+	comment: string | null;
+	images: string[];
+	sourceRevision: number;
+	createdAt: Date;
+	moderationStatus: ModerationStatus;
+	imageStorageState: ImageStorageState;
+	hiddenReason: ModerationFlagType | null;
+	activeFlags: Array<{
+		id: string;
+		flagType: ModerationFlagType;
+		channel: "text" | "image";
+		detectionSource: DetectionSource;
+		confidence: number | null;
+		evidence: string;
+		quote: string | null;
+		targetImageIndex: number | null;
+		createdAt: Date;
+	}>;
+}

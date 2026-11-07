@@ -1,4 +1,9 @@
-import { ApiProperty } from "@nestjs/swagger";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import type {
+	ImageStorageState,
+	ModerationFlagType,
+	ModerationStatus,
+} from "../../trip-review-moderation/trip-review-moderation.types";
 import {
 	REVIEW_COMMENT_MAX_LENGTH,
 	ReviewIneligibleReason,
@@ -25,6 +30,20 @@ export class TripReviewResponseDto implements TripReviewRecord {
 	@ApiProperty({ minimum: 1 }) revision!: number;
 	@ApiProperty({ type: String, format: "date-time" }) createdAt!: Date;
 	@ApiProperty({ type: String, format: "date-time" }) updatedAt!: Date;
+	@ApiPropertyOptional({ enum: ["visible", "hidden"] }) moderationStatus?: ModerationStatus;
+	@ApiPropertyOptional({ nullable: true }) hiddenReason?: ModerationFlagType | null;
+	@ApiPropertyOptional({
+		enum: [
+			"live",
+			"quarantine_pending",
+			"quarantined",
+			"restore_pending",
+			"quarantine_failed",
+			"restore_failed",
+		],
+	})
+	imageStorageState?: ImageStorageState;
+	@ApiPropertyOptional({ nullable: true }) moderationNotice?: string | null;
 }
 
 export class TripReviewContextResponseDto {

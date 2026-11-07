@@ -21,6 +21,7 @@ import {
 	type ReviewParticipation,
 	ReviewTarget,
 	type TripReviewRecord,
+	formatCamperHiddenNotice,
 } from "./trip-reviews.types";
 
 @Injectable()
@@ -46,12 +47,17 @@ export class TripReviewsService {
 				completedAt: participation.completedAt,
 				serverTime: now,
 				...reviewEligibility(participation, now),
-				reviews: (await this.reviews.listOwn(manager, userId, bookingId)).map((review) => ({
-					...review,
-					images: review.images ?? [],
-					editExpiresAt: new Date(review.createdAt.getTime() + REVIEW_EDIT_WINDOW_MS),
-					canEdit: this.canEdit(participation, review, now),
-				})),
+				reviews: (await this.reviews.listOwn(manager, userId, bookingId)).map((review) => {
+					const isHidden = review.moderationStatus === "hidden";
+					const moderationNotice = isHidden ? formatCamperHiddenNotice(review.hiddenReason) : null;
+					return {
+						...review,
+						images: review.images ?? [],
+						editExpiresAt: new Date(review.createdAt.getTime() + REVIEW_EDIT_WINDOW_MS),
+						canEdit: this.canEdit(participation, review, now),
+						moderationNotice,
+					};
+				}),
 			};
 		});
 	}
