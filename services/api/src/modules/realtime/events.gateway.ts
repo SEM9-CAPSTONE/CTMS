@@ -13,6 +13,7 @@ import {
 import type { Server, Socket } from "socket.io";
 import type { JwtPayload } from "../auth/jwt.strategy";
 import { BookingMemberStatus } from "../bookings/booking-member-status.enum";
+import type { EmergencyBroadcastPayload } from "../emergency-broadcasts/emergency-broadcasts.types";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI
 import { GpsParticipationSource } from "../gps-tracking/gps-participation.source";
 import { UserRole, UserStatus } from "../users/entities/user.entity";
@@ -327,6 +328,16 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 	 * CTMS-074 / CTMS-079, BR-260: deliver a newly persisted SOS only to the authorized Host of its Trip.
 	 * Receipt is not acknowledgement — acknowledgement stays an explicit CTMS-080 action.
 	 */
+	/**
+	 * CTMS-081, BR-262: deliver a persisted emergency broadcast to the private room of each frozen
+	 * recipient (and the Host's other sessions). Trip rooms are not used because a recipient who has not
+	 * opened the Trip screen has not subscribed to them.
+	 */
+	emitEmergencyBroadcast(userIds: string[], payload: EmergencyBroadcastPayload) {
+		if (userIds.length === 0) return;
+		this.server?.to([...new Set(userIds)].map(userRoom)).emit("emergency.broadcast", payload);
+	}
+
 	emitSosCreated(hostId: string, payload: SosCreatedPayload) {
 		this.server?.to(userRoom(hostId)).emit("sos.created", payload);
 	}
