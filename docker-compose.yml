@@ -139,10 +139,10 @@ services:
     build:
       context: .
       dockerfile: infra/docker/web.Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:3000/api}
+        VITE_MAPTILER_API_KEY: ${VITE_MAPTILER_API_KEY:-}
     container_name: ctms-web
-    environment:
-      VITE_API_BASE_URL: http://localhost:3000/api
-      VITE_WS_URL: ws://localhost:3000
     ports:
       - "5173:80"
     depends_on:
