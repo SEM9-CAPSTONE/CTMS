@@ -34,6 +34,9 @@ jobs:
         with:
           context: .
           file: infra/docker/web.Dockerfile
+          build-args: |
+            VITE_API_BASE_URL=https://ditrek.io.vn/api
+            VITE_MAPTILER_API_KEY=${{ vars.VITE_MAPTILER_API_KEY }}
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/ctms-web:latest
 
