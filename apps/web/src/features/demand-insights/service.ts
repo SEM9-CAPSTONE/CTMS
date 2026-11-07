@@ -1,5 +1,11 @@
 import { API_ENDPOINTS, httpClient } from "../../core/api";
-import type { DemandPeriod, DemandReport, DemandStatus } from "./types";
+import type {
+	CreatePlanningResponse,
+	DemandPeriod,
+	DemandPlanningReport,
+	DemandReport,
+	DemandStatus,
+} from "./types";
 export const demandService = {
 	periods: (signal?: AbortSignal) =>
 		httpClient.get<{ periods: DemandPeriod[] }>(API_ENDPOINTS.DEMAND_INSIGHTS.PERIODS, undefined, {
@@ -16,4 +22,11 @@ export const demandService = {
 			API_ENDPOINTS.DEMAND_INSIGHTS.REPORT(month),
 			{}
 		),
+	planning: (month: string, signal?: AbortSignal) =>
+		httpClient.get<DemandPlanningReport>(API_ENDPOINTS.DEMAND_INSIGHTS.PLANNING(month), undefined, {
+			signal,
+			cache: "no-store",
+		}),
+	createPlanning: (month: string) =>
+		httpClient.post<CreatePlanningResponse>(API_ENDPOINTS.DEMAND_INSIGHTS.PLANNING(month), {}),
 };

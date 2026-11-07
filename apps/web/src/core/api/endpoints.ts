@@ -2,6 +2,7 @@ export const API_ENDPOINTS = {
 	DEMAND_INSIGHTS: {
 		PERIODS: "/host/demand-insights",
 		REPORT: (month: string) => `/host/demand-insights/${month}`,
+		PLANNING: (month: string) => `/host/demand-insights/${month}/planning-suggestions`,
 	},
 	REVIEW_ANALYSIS: {
 		TRIPS: "/review-analysis/trips",

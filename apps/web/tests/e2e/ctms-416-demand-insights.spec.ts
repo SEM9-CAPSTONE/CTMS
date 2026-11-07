@@ -1,5 +1,10 @@
 import { type Page, expect, test } from "@playwright/test";
-import type { DemandReport, DemandStatus } from "../../src/features/demand-insights/types";
+import type {
+	DemandPlanningReport,
+	DemandPlanningStatus,
+	DemandReport,
+	DemandStatus,
+} from "../../src/features/demand-insights/types";
 const month = "2026-08";
 const report: DemandReport = {
 	month,
@@ -68,6 +73,8 @@ async function mockUI(
 			if (status === "forbidden") return send({ message: "private provider detail" }, 403);
 			return send({ ...report, status, canRetry: status === "failed" });
 		}
+		if (path.endsWith("/planning-suggestions"))
+			return send({ status: "unavailable", recommendations: [] });
 		if (path.includes("/sos")) return send({ items: [], total: 0 });
 		if (path === "/api/booking-cancellation-notices") return send([]);
 		return send({
@@ -194,4 +201,177 @@ test("live API/database: stored AI report survives reload, hides identities and 
 	await page.getByRole("link", { name: "Khám phá chuyến đi", exact: true }).last().click();
 	await expect(page).toHaveURL(/\/trips$/);
 	await expect(page.getByRole("heading", { name: /404|không có quyền/i })).toHaveCount(0);
+});
+
+const planningFixture: DemandPlanningReport = {
+	status: "succeeded",
+	reportVersion: "synthetic-report",
+	dataPeriod: month,
+	generatedAt: "2026-11-07T06:51:55Z",
+	stale: false,
+	errorCode: null,
+	recommendations: [
+		{
+			candidateId: "c1",
+			tripType: "day_trip",
+			difficulty: "easy",
+			bookerBand: { min: 10, max: 19 },
+			priceBand: "under_500k",
+			capacityBand: "11_to_20",
+			durationBand: "day",
+			area: {
+				code: "demo-lowland",
+				label: "Vùng đồng bằng mẫu",
+				provenance: "host_confirmed_catalog",
+			},
+			priceRangeLabel: "Dưới 500.000 VND/người",
+			capacityRangeLabel: "11–20 chỗ",
+			durationLabel: "Trong ngày",
+			evidenceBasis: "observed_bookings",
+			capacityMeaning: "offered_at_booking",
+			generalAdvice: [
+				{ code: "balanced_pace", text: "Bố trí nhịp hoạt động và thời gian nghỉ phù hợp." },
+			],
+			disclaimer: "Thống kê mô tả, không đảm bảo số người tham gia.",
+		},
+	],
+};
+async function mockPlanning(page: Page, initial: DemandPlanningStatus, postCode = 202) {
+	await mockUI(page);
+	let status = initial;
+	let posts = 0;
+	let gets = 0;
+	await page.route(`**/api/host/demand-insights/${month}/planning-suggestions`, async (route) => {
+		const send = (body: unknown, code = 200, headers: Record<string, string> = {}) =>
+			route.fulfill({
+				status: code,
+				contentType: "application/json",
+				body: JSON.stringify(body),
+				headers: { "Access-Control-Expose-Headers": "Retry-After", ...headers },
+			});
+		if (route.request().method() === "POST") {
+			posts++;
+			if (postCode === 429) return send({ retryAfterSeconds: 99 }, 429, { "Retry-After": "30" });
+			if (postCode === 422)
+				return send({ code: "context_stale", message: "private provider detail" }, 422);
+			status = postCode === 200 ? "succeeded" : "running";
+			return send({ status, reused: postCode === 200 }, postCode);
+		}
+		gets++;
+		return send({ ...planningFixture, status });
+	});
+	await page.reload();
+	return {
+		setStatus: (next: DemandPlanningStatus) => {
+			status = next;
+		},
+		posts: () => posts,
+		gets: () => gets,
+	};
+}
+test("planning mock HTTP: explicit 202 request survives reload and clears active polling on completion", async ({
+	page,
+}) => {
+	const state = await mockPlanning(page, "not_requested");
+	await page.getByRole("button", { name: "Gợi ý tổ chức chuyến", exact: true }).click();
+	await expect(
+		page.getByRole("heading", { name: "Đang tạo gợi ý tổ chức chuyến. Trang sẽ tự cập nhật." })
+	).toBeVisible();
+	await expect(page.getByText(/^[0-9]+%$/)).toHaveCount(0);
+	expect(state.posts()).toBe(1);
+	await page.reload();
+	await expect(
+		page.getByRole("heading", { name: "Đang tạo gợi ý tổ chức chuyến. Trang sẽ tự cập nhật." })
+	).toBeVisible();
+	state.setStatus("succeeded");
+	await expect(page.getByText("Dưới 500.000 VND/người", { exact: true })).toBeVisible({
+		timeout: 12000,
+	});
+	await expect(
+		page.getByRole("heading", { name: "Dữ liệu đã ghi nhận", exact: true })
+	).toBeVisible();
+	const gets = state.gets();
+	await page.waitForTimeout(5500);
+	expect(state.gets()).toBe(gets);
+	expect(state.posts()).toBe(1);
+});
+test("planning mock HTTP: terminal 200 result is reconciled without a retry button", async ({
+	page,
+}) => {
+	const state = await mockPlanning(page, "not_requested", 200);
+	await page.getByRole("button", { name: "Gợi ý tổ chức chuyến", exact: true }).click();
+	await expect(page.getByText("Dưới 500.000 VND/người", { exact: true })).toBeVisible();
+	await expect(page.getByRole("button", { name: "Gợi ý tổ chức chuyến", exact: true })).toHaveCount(
+		0
+	);
+	expect(state.posts()).toBe(1);
+});
+for (const status of ["unavailable", "withheld", "failed"] as const)
+	test(`planning mock HTTP: ${status} hides residual suggestions and cannot create`, async ({
+		page,
+	}) => {
+		await mockPlanning(page, status);
+		await expect(
+			page.getByRole("button", { name: "Gợi ý tổ chức chuyến", exact: true })
+		).toHaveCount(0);
+		await expect(page.getByText("Dưới 500.000 VND/người", { exact: true })).toHaveCount(0);
+		if (status === "unavailable")
+			await expect(
+				page.getByText("Chưa hỗ trợ gợi ý tổ chức chuyến cho kỳ báo cáo này.")
+			).toBeVisible();
+		if (status === "withheld")
+			await expect(
+				page.getByText("Gợi ý tổ chức chuyến không còn được hiển thị để bảo vệ thông tin.")
+			).toBeVisible();
+		if (status === "failed")
+			await expect(
+				page.getByText("Chưa thể tạo gợi ý tổ chức chuyến cho tháng này.")
+			).toBeVisible();
+	});
+test("planning mock HTTP: 429 respects header and 422 surfaces a safe actionable message", async ({
+	page,
+}) => {
+	await mockPlanning(page, "not_requested", 429);
+	await page.getByRole("button", { name: "Gợi ý tổ chức chuyến", exact: true }).click();
+	await expect(page.getByText(/Vui lòng đợi (2[0-9]|30) giây rồi thử lại/)).toBeVisible();
+	await expect(
+		page.getByRole("button", { name: "Gợi ý tổ chức chuyến", exact: true })
+	).toBeDisabled();
+});
+test("planning mock HTTP: 422 displays the safe error and never provider details", async ({
+	page,
+}) => {
+	await mockPlanning(page, "not_requested", 422);
+	await page.getByRole("button", { name: "Gợi ý tổ chức chuyến", exact: true }).click();
+	await expect(page.getByRole("alert")).toContainText(
+		"Dữ liệu kỳ này đã thay đổi, không thể tạo gợi ý mới."
+	);
+	await expect(page.getByText("private provider detail")).toHaveCount(0);
+});
+test("live API/database: persisted July planning evidence loads and survives reload without POST", async ({
+	page,
+}) => {
+	let planningPosts = 0;
+	page.on("request", (req) => {
+		if (req.method() === "POST" && req.url().endsWith("/planning-suggestions")) planningPosts++;
+	});
+	await page.goto("/login");
+	await page.locator("input").nth(0).fill("host@ctms.local");
+	await page.locator("input").nth(1).fill("Host@123");
+	await page.getByRole("button", { name: "Đăng nhập", exact: true }).click();
+	await page.waitForURL("**/dashboard");
+	await page.goto("/host/demand-insights");
+	await page.getByRole("combobox", { name: "Tháng", exact: true }).selectOption("2026-07");
+	await expect(page.getByText("Dưới 500.000 VND/người", { exact: true })).toBeVisible();
+	await expect(page.getByText("Vùng đồng bằng mẫu", { exact: true })).toBeVisible();
+	await expect(page.getByRole("heading", { name: "Dữ liệu đã ghi nhận", exact: true })).toHaveCount(
+		2
+	);
+	await expect(page.getByRole("button", { name: "Gợi ý tổ chức chuyến", exact: true })).toHaveCount(
+		0
+	);
+	await page.reload();
+	await page.getByRole("combobox", { name: "Tháng", exact: true }).selectOption("2026-07");
+	await expect(page.getByText("Dưới 500.000 VND/người", { exact: true })).toBeVisible();
+	expect(planningPosts).toBe(0);
 });

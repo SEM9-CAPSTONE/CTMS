@@ -5,7 +5,13 @@ import { DemandInsightsPage } from "./DemandInsightsPage";
 import { demandService } from "./service";
 
 vi.mock("./service", () => ({
-	demandService: { periods: vi.fn(), report: vi.fn(), create: vi.fn() },
+	demandService: {
+		periods: vi.fn(),
+		report: vi.fn(),
+		create: vi.fn(),
+		planning: vi.fn(),
+		createPlanning: vi.fn(),
+	},
 }));
 const edge = vi.mocked(demandService);
 beforeEach(() => {
@@ -17,6 +23,16 @@ beforeEach(() => {
 		],
 	});
 	edge.report.mockRejectedValue(new HttpError("missing", 404, {}));
+	edge.planning.mockResolvedValue({
+		status: "unavailable",
+		reportVersion: "report",
+		dataPeriod: "2026-10",
+		generatedAt: null,
+		stale: false,
+		recommendations: [],
+		errorCode: null,
+	});
+	edge.createPlanning.mockResolvedValue({ status: "pending", reused: false });
 });
 afterEach(() => {
 	cleanup();
@@ -152,5 +168,119 @@ describe("CTMS-416 presentation", () => {
 		expect(await screen.findByText("Vui lòng đợi 30 giây rồi thử lại.")).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "Tạo báo cáo" })).toBeDisabled();
 		expect(edge.create).toHaveBeenCalledTimes(1);
+	});
+
+	it("shows 'Gợi ý tổ chức chuyến' button when report is succeeded and planning is not_requested", async () => {
+		edge.report.mockResolvedValue({
+			month: "2026-10",
+			version: "report-1",
+			generatedAt: "2026-11-06T15:30:00Z",
+			dataWindow: { start: "", end: "" },
+			status: "succeeded",
+			stale: false,
+			cells: [{ tripType: "day_trip", difficulty: "moderate", bookerBand: { min: 20, max: 29 } }],
+			suggestions: [],
+			errorCode: null,
+		});
+		edge.planning.mockResolvedValue({
+			status: "not_requested",
+			reportVersion: "report-1",
+			dataPeriod: "2026-10",
+			generatedAt: null,
+			stale: false,
+			recommendations: [],
+			errorCode: null,
+		});
+		render(<DemandInsightsPage actor="host" />);
+		const planBtn = await screen.findByRole("button", { name: "Gợi ý tổ chức chuyến" });
+		expect(planBtn).toBeEnabled();
+		expect(
+			screen.getByText(/Bạn có thể xem thêm gợi ý chi tiết về khoảng giá/)
+		).toBeInTheDocument();
+	});
+
+	it("disables 'Gợi ý tổ chức chuyến' immediately while submitting and guards against double-click", async () => {
+		edge.report.mockResolvedValue({
+			month: "2026-10",
+			version: "report-1",
+			generatedAt: "2026-11-06T15:30:00Z",
+			dataWindow: { start: "", end: "" },
+			status: "succeeded",
+			stale: false,
+			cells: [{ tripType: "day_trip", difficulty: "moderate", bookerBand: { min: 20, max: 29 } }],
+			suggestions: [],
+			errorCode: null,
+		});
+		edge.planning.mockResolvedValue({
+			status: "not_requested",
+			reportVersion: "report-1",
+			dataPeriod: "2026-10",
+			generatedAt: null,
+			stale: false,
+			recommendations: [],
+			errorCode: null,
+		});
+		edge.createPlanning.mockImplementation(() => new Promise(() => {}));
+		render(<DemandInsightsPage actor="host" />);
+		const planBtn = await screen.findByRole("button", { name: "Gợi ý tổ chức chuyến" });
+		fireEvent.click(planBtn);
+		fireEvent.click(planBtn);
+		await waitFor(() => expect(edge.createPlanning).toHaveBeenCalledTimes(1));
+		expect(screen.getByRole("button", { name: "Đang gửi…" })).toBeDisabled();
+	});
+
+	it("honors 429 body fallback when Retry-After header is missing on planning", async () => {
+		edge.report.mockResolvedValue({
+			month: "2026-10",
+			version: "report-1",
+			generatedAt: "2026-11-06T15:30:00Z",
+			dataWindow: { start: "", end: "" },
+			status: "succeeded",
+			stale: false,
+			cells: [{ tripType: "day_trip", difficulty: "moderate", bookerBand: { min: 20, max: 29 } }],
+			suggestions: [],
+			errorCode: null,
+		});
+		edge.planning.mockResolvedValue({
+			status: "not_requested",
+			reportVersion: "report-1",
+			dataPeriod: "2026-10",
+			generatedAt: null,
+			stale: false,
+			recommendations: [],
+			errorCode: null,
+		});
+		edge.createPlanning.mockRejectedValue(new HttpError("rate", 429, { retryAfterSeconds: 45 }));
+		render(<DemandInsightsPage actor="host" />);
+		const planBtn = await screen.findByRole("button", { name: "Gợi ý tổ chức chuyến" });
+		fireEvent.click(planBtn);
+		expect(await screen.findByText("Vui lòng đợi 45 giây rồi thử lại.")).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Gợi ý tổ chức chuyến" })).toBeDisabled();
+	});
+
+	it("does not offer planning button when planning is unavailable or withheld", async () => {
+		edge.report.mockResolvedValue({
+			month: "2026-10",
+			version: "report-1",
+			generatedAt: "2026-11-06T15:30:00Z",
+			dataWindow: { start: "", end: "" },
+			status: "succeeded",
+			stale: false,
+			cells: [{ tripType: "day_trip", difficulty: "moderate", bookerBand: { min: 20, max: 29 } }],
+			suggestions: [],
+			errorCode: null,
+		});
+		edge.planning.mockResolvedValue({
+			status: "unavailable",
+			reportVersion: "report-1",
+			dataPeriod: "2026-10",
+			generatedAt: null,
+			stale: false,
+			recommendations: [],
+			errorCode: null,
+		});
+		render(<DemandInsightsPage actor="host" />);
+		await screen.findByText("Chưa hỗ trợ gợi ý tổ chức chuyến cho kỳ báo cáo này.");
+		expect(screen.queryByRole("button", { name: "Gợi ý tổ chức chuyến" })).not.toBeInTheDocument();
 	});
 });

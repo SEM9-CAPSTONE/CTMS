@@ -1,8 +1,28 @@
+import { Loader2 } from "lucide-react";
 import { DemandNextSteps } from "./DemandNextSteps";
+import { DemandPlanningSection } from "./DemandPlanningSection";
 import { DemandSuggestions } from "./DemandSuggestions";
-import { difficultyLabels, monthLabel, panelClass, reportStamp, tripLabels } from "./constants";
-import type { DemandReport } from "./types";
-export function DemandResults({ report }: { report: DemandReport }) {
+import {
+	activeStatus,
+	difficultyLabels,
+	monthLabel,
+	panelClass,
+	reportStamp,
+	tripLabels,
+} from "./constants";
+import type { DemandPlanningReport, DemandPlanningStatus, DemandReport } from "./types";
+
+interface DemandResultsProps {
+	report: DemandReport;
+	planning?: {
+		data?: DemandPlanningReport;
+		status?: DemandPlanningStatus;
+		isLoading?: boolean;
+		error?: unknown;
+	};
+}
+
+export function DemandResults({ report, planning }: DemandResultsProps) {
 	const messages = {
 		pending: ["Đang tạo báo cáo. Trang sẽ tự cập nhật.", ""],
 		running: ["Đang tạo báo cáo. Trang sẽ tự cập nhật.", ""],
@@ -57,9 +77,23 @@ export function DemandResults({ report }: { report: DemandReport }) {
 					<p className="mx-auto mt-2 max-w-xl text-sm text-[#526357]">
 						{messages[report.status][1]}
 					</p>
+					{activeStatus(report.status) && (
+						<Loader2
+							className="mx-auto mt-4 size-5 animate-spin text-[#164027]"
+							aria-hidden="true"
+						/>
+					)}
 				</section>
 			)}
-			<DemandSuggestions report={report} />
+			{planning?.status !== "succeeded" && <DemandSuggestions report={report} />}
+			{report.status === "succeeded" && planning && (
+				<DemandPlanningSection
+					data={planning.data}
+					status={planning.status}
+					isLoading={planning.isLoading}
+					error={planning.error}
+				/>
+			)}
 			{(report.status === "succeeded" ||
 				report.status === "insufficient_data" ||
 				report.status === "withheld") && (
