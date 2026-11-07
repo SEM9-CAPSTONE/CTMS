@@ -4919,6 +4919,7 @@ export async function seedDemandInsightScenarios(ds = dataSource): Promise<void>
 	}
 	const alternative = process.argv.includes("--demand-alternative");
 	const varied = process.argv.includes("--demand-varied");
+	const planning = process.argv.includes("--demand-planning");
 	const bookersPerGroup = varied ? [24, 36] : [12, 12];
 	if ((alternative || varied) && month === defaultMonth) {
 		throw new Error(
@@ -4930,12 +4931,22 @@ export async function seedDemandInsightScenarios(ds = dataSource): Promise<void>
 	const camperId = (n: number) => `d4150000-0000-4000-8200-${String(n).padStart(12, "0")}`;
 	const passwordHash = await hash(randomBytes(32).toString("hex"), BCRYPT_COST_FACTOR);
 	await ds.transaction(async (m) => {
-		if (varied) {
+		if (varied || planning) {
 			const reports: { id: string }[] = await m.query(
 				"SELECT id FROM demand_insight_reports WHERE month=$1",
 				[month]
 			);
 			if (reports.length) throw new Error("Refusing to change sources for an existing report");
+		}
+		if (planning) {
+			const existing: { id: string }[] = await m.query(
+				"SELECT id FROM trips WHERE id::text LIKE $1 LIMIT 1",
+				[`d4150000-0000-4000-8400-${month.replace("-", "")}%`]
+			);
+			if (existing.length) throw new Error("Planning fixture requires a fresh scenario month");
+			await m.query(
+				"INSERT INTO demand_areas(code,label) VALUES('demo-lowland','Vùng đồng bằng mẫu'),('demo-highland','Vùng cao mẫu') ON CONFLICT(code) DO NOTHING"
+			);
 		}
 		for (let n = 1; n <= 3 + Math.max(...bookersPerGroup); n++) {
 			const host = n <= 3;
@@ -4965,7 +4976,7 @@ export async function seedDemandInsightScenarios(ds = dataSource): Promise<void>
 					]
 				);
 				await m.query(
-					"INSERT INTO trips(id,host_id,route_id,title,trip_type,duration_nights,starts_at,ends_at,meeting_point,booking_deadline,capacity_min,capacity_max,seats_taken,price_per_person,status) VALUES($1,$2,$3,$4,$5,$6,$7,$8,ST_GeogFromText('POINT(108.22 16.04)'),$9,1,40,0,0,'completed') ON CONFLICT(id) DO NOTHING",
+					"INSERT INTO trips(id,host_id,route_id,title,trip_type,duration_nights,starts_at,ends_at,meeting_point,booking_deadline,capacity_min,capacity_max,seats_taken,price_per_person,status) VALUES($1,$2,$3,$4,$5,$6,$7,$8,ST_GeogFromText('POINT(108.22 16.04)'),$9,1,$10,0,$11,'completed') ON CONFLICT(id) DO NOTHING",
 					[
 						trip,
 						hostId(h),
@@ -4976,19 +4987,44 @@ export async function seedDemandInsightScenarios(ds = dataSource): Promise<void>
 						`${month}-15T01:00:00Z`,
 						`${month}-${kind ? "16" : "15"}T08:00:00Z`,
 						`${month}-10T00:00:00Z`,
+						planning && !kind ? 20 : 40,
+						planning ? (kind ? 1200000 : 400000) : 0,
 					]
 				);
+				if (planning) {
+					await m.query("INSERT INTO trip_demand_contexts(trip_id,area_code) VALUES($1,$2)", [
+						trip,
+						kind ? "demo-highland" : "demo-lowland",
+					]);
+				}
 				for (let c = h; c <= bookersPerGroup[kind]; c += 3) {
 					await m.query(
-						"INSERT INTO bookings(id,trip_id,user_id,num_people,status,payment_status,created_at,completed_at) VALUES($1,$2,$3,1,'completed','not_required',$4,$5) ON CONFLICT(id) DO NOTHING",
+						"INSERT INTO bookings(id,trip_id,user_id,num_people,status,payment_status,created_at,completed_at,base_price,total_amount) VALUES($1,$2,$3,1,'completed',$6,$4,$5,$7,$7) ON CONFLICT(id) DO NOTHING",
 						[
 							`d4150000-0000-4000-8500-${suffix(kind * (varied ? 100 : 12) + c)}`,
 							trip,
 							camperId(c),
 							`${month}-05T00:00:00Z`,
 							`${month}-17T00:00:00Z`,
+							planning ? "paid" : "not_required",
+							planning ? (kind ? 1200000 : 400000) : 0,
 						]
 					);
+					if (planning) {
+						// Explicit synthetic historical fixture, never inferred from real legacy Bookings.
+						await m.query(
+							"INSERT INTO booking_demand_snapshots(booking_id,trip_type,difficulty,price_band,capacity_band,duration_band,area_code) VALUES($1,$2,$3,$4,$5,$6,$7)",
+							[
+								`d4150000-0000-4000-8500-${suffix(kind * (varied ? 100 : 12) + c)}`,
+								kind ? "overnight" : "day_trip",
+								alternative ? (kind ? "hard" : "moderate") : kind ? "moderate" : "easy",
+								kind ? "1m_plus" : "under_500k",
+								kind ? "21_to_40" : "11_to_20",
+								kind ? "one_night" : "day",
+								kind ? "demo-highland" : "demo-lowland",
+							]
+						);
+					}
 				}
 			}
 		}

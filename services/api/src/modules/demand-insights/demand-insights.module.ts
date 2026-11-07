@@ -6,9 +6,18 @@ import { DemandInsightsProvider } from "./demand-insights.provider";
 import { DemandInsightsRepository } from "./demand-insights.repository";
 import { DemandInsightsService } from "./demand-insights.service";
 import { DemandInsightsWorker } from "./demand-insights.worker";
+import { PlanningCatalog } from "./planning/planning.catalog";
+import { PlanningController } from "./planning/planning.controller";
+import { PlanningProvider } from "./planning/planning.provider";
+import { PlanningService } from "./planning/planning.service";
+import { PlanningWorker } from "./planning/planning.worker";
 @Module({
-	controllers: [DemandInsightsController],
+	controllers: [PlanningController, DemandInsightsController],
 	providers: [
+		PlanningCatalog,
+		PlanningProvider,
+		PlanningService,
+		PlanningWorker,
 		DemandInsightsProvider,
 		DemandInsightsRepository,
 		DemandInsightsService,

@@ -1,3 +1,4 @@
+from app.demand_planning_service import DemandPlanningService, PlanningRequest, PlanningResponse
 import hmac
 import os
 from functools import lru_cache
@@ -127,6 +128,29 @@ def get_review_analysis_service() -> ReviewAnalysisService:
 @lru_cache
 def get_demand_insight_service() -> DemandInsightService:
     return DemandInsightService(build_analysis_client().with_options(timeout=40.0))
+
+
+@lru_cache
+def get_demand_planning_service() -> DemandPlanningService:
+    return DemandPlanningService(build_analysis_client().with_options(timeout=40.0))
+
+
+@app.post("/demand-planning", response_model=PlanningResponse, dependencies=[Depends(require_review_token)])
+def demand_planning(payload: PlanningRequest, service: DemandPlanningService = Depends(get_demand_planning_service)) -> PlanningResponse:
+    try:
+        return service.generate(payload)
+    except ReviewProviderRefusal:
+        raise HTTPException(status_code=422, detail={"code": "provider_refusal"}) from None
+    except InvalidReviewOutput:
+        raise HTTPException(status_code=422, detail={"code": "invalid_output"}) from None
+    except (APITimeoutError, APIConnectionError):
+        raise HTTPException(status_code=504, detail={"code": "provider_transport"}) from None
+    except APIStatusError as error:
+        terminal = {"credit_balance_exhausted", "insufficient_quota", "organization_spend_limit_exceeded", "project_spend_limit_exceeded", "organization_usage_limit_exceeded"}
+        code = error.code if isinstance(error.code, str) and error.code in terminal else "insufficient_quota" if error.type == "insufficient_quota" else "provider_failure"
+        raise HTTPException(status_code=error.status_code if 400 <= error.status_code < 500 else 502, detail={"code": code}) from None
+    except Exception:
+        raise HTTPException(status_code=502, detail={"code": "provider_failure"}) from None
 
 
 @app.post("/demand-insight", response_model=DemandResponse, dependencies=[Depends(require_review_token)])
