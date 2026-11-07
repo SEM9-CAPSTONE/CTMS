@@ -61,11 +61,25 @@ Review exists.
 | BR-304 | AI-derived sentiment or topics must not replace the Camper's numeric rating when calculating reputation. Aggregate rating and AI insight are separate outputs.                                        |
 | BR-305 | When the analysis model changes, the system may re-analyze existing reviews. The raw review, metadata, and model version for each analysis result must be preserved for traceability.                 |
 | BR-306 | A reported review must be handled through the moderation policy. Review history and audit records must not be hard-deleted during content handling.                                                   |
+| BR-471 | Automated AI pipeline scans review text and attached images across four independent channels (text, image, aspects, and incidents) for every review revision satisfying `MODERATION_SCAN_ELIGIBLE`. Each channel status is recorded independently. AI only flags potential issues and extracts structured signals; it does NOT make conclusive judgments or certifications. Review revisions with empty text and no images have applicable channels set to `not_applicable`. |
+| BR-472 | When a Camper edits a review within the 24-hour edit window, all active moderation flags on older revisions are automatically updated to `superseded` in the same database transaction, and an enqueue event for the new revision is generated if `MODERATION_SCAN_ELIGIBLE` is satisfied. |
+| BR-473 | A Host may hide a review if and only if three conditions are simultaneously met: (1) Host is the verified organizer of the Trip associated with the review; (2) the review currently has at least one active AI moderation flag; and (3) the decision targets the current review revision. The hiding reason must belong to the approved taxonomy and match an active flag type. Host must view the evidence before deciding. Legitimate criticism or negative feedback is NOT a valid reason to hide. Hiding transitions the review to `moderation_status = 'hidden'`, initiates local file quarantine for attached images, and creates an immutable audit record. Requests violating any condition must be rejected (403, 422, or 409). Concurrent moderation decisions on the same review must be locked and serialized. |
+| BR-474 | A Host may decide to Keep (`keep`) a review with active AI flags if the Host organized the associated Trip and the decision targets the current revision. Keeping resolves all active flags on that revision (`lifecycle_status = 'resolved'`) and locks the revision from generating new active flags upon re-scan. The Keep action is an internal moderation resolution and must NOT be displayed publicly as a certification or seal of safety/quality. |
+| BR-475 | A Host may restore a previously hidden review or maintain its hidden state (`keep_hidden`) targeting the current revision. Restoring transitions the review to `moderation_status = 'visible'`, marks image storage for restoration (`restore_pending`), and resolves active flags. If the review has an associated report with status `actioned` (handled by Admin), the Host restore decision is recorded but `moderation_status` remains `hidden` (`adminActionedOverride = true`) to preserve Admin authority. Decisions with mismatched `expectedRevision` must be rejected with 409 Conflict. Restoring a review that is not hidden is rejected. |
+| BR-476 | Hidden reviews (`moderation_status = 'hidden'`) are excluded from public review listings, public average ratings, and public review count calculations in future public review endpoints; the count of hidden reviews is exposed transparently (`hiddenReviewsCount`). A Camper's own private review count is never decremented when their review is hidden. Hiding a review on a Trip does not hide the Host review from the same Booking, and vice versa. Layer 3 dashboards include only `target = 'trip'` reviews with `moderation_status = 'visible'`. Safety aggregates enforce `COUNT(DISTINCT review_id)` with sample size thresholds (5 for Trips, 10 for Route safety). |
 
 ## 6. State & Lifecycle
 
 Raw review
-→ AI analysis
+→ AI moderation scan (text, image, aspects, incidents)
+   ├─ Không có cờ hiện hành: hiển thị bình thường, dữ liệu aspect/incident tham gia dashboards
+   ├─ Có cờ vi phạm: hiển thị trong hàng đợi kiểm duyệt của Host
+   │    ├─ Host Giữ lại (Keep): cờ được giải quyết (`resolved`), review duy trì hiển thị
+   │    ├─ Host Ẩn (Hide): review chuyển thành `hidden`, ảnh cách ly vào `uploads/quarantine/`
+   │    │    ├─ Camper sửa bài: cấp revision mới, quét lại độc lập, cờ cũ thành `superseded`
+   │    │    ├─ Host Khôi phục (Restore): review hiển thị lại (trừ khi Admin đã actioned)
+   │    │    └─ Host Duy trì ẩn (Keep Hidden): duy trì trạng thái ẩn
+→ AI trip review batch analysis (CTMS-411 base)
 → derived analysis version
 → optional later re-analysis
 → new derived version/context.
@@ -123,6 +137,18 @@ See section 13 and `docs/features/ctms-411-trip-review-ai-analysis.md` for the a
 | BR-303 | AI output                     | Raw review unchanged   | Integrity     |
 | BR-304 | Sentiment differs from rating | Rating unchanged       | Business Rule |
 | BR-305 | Model update                  | Re-analysis traceable  | Audit         |
+| BR-471 | Multimodal scan across 4 channels | Runs, items, flags, sentiments, signals created | Unit / Integration |
+| BR-471 | Revision with blank text and no images | Applicable channels marked not_applicable | Boundary |
+| BR-472 | Review edit in 24h window     | Old active flags marked superseded, new revision queued | Concurrency |
+| BR-473 | Host hides review with active flag & ownership | Review hidden, images quarantined, audit logged | Integration |
+| BR-473 | Host hides without active AI flag | 422 Unprocessable Entity rejected | Validation |
+| BR-473 | Host hides review on another Host's trip | 403 Forbidden rejected | Security |
+| BR-473 | Concurrent decisions on same review | Row locked with FOR UPDATE, stale revision 409 Conflict | Concurrency |
+| BR-474 | Host keeps review with active flag | Flags resolved, review remains visible, no certification | Functional |
+| BR-475 | Host restores hidden review   | Review restored, images restore_pending | Functional |
+| BR-475 | Host restores review with actioned Admin report | Review remains hidden, adminActionedOverride = true | Authorization |
+| BR-476 | Trip analytics overview       | Aggregates aspect sentiments with sample threshold 5 | Analytics |
+| BR-476 | Route safety overview         | Aggregates incident signals with threshold 10, distinct count | Analytics |
 
 ## 12. Open Decisions
 
@@ -216,4 +242,15 @@ This verifies the provider edge, not the complete API/DB batch workflow or UI.
 ### 14.2 Schema Additions
 - Migrations `1794500000000` & `1794500000001`: `trip_review_moderation_runs`, `trip_review_moderation_image_items`, `trip_review_moderation_flags`, `trip_review_aspect_sentiments`, `trip_review_incident_signals`, `trip_review_moderation_outbox`, `trip_review_moderation_decisions`.
 - Review state columns: `moderation_status` (`visible`, `hidden`), `image_storage_state` (`active`, `quarantine_pending`, `quarantined`, `restore_pending`, `quarantine_failed`).
+
+### 14.3 Verified Local Test Results
+- **Unit Tests**: 55 passed (`trip-review-` moderation, outbox, worker, pii-masker, host service, storage service, analytics service).
+- **PostgreSQL Integration Tests**: 54 passed across 4 test suites:
+  - `trip-reviews.integration-spec.ts`: 26 passed
+  - `trip-review-moderation.integration-spec.ts`: 11 passed
+  - `trip-review-moderation-host.integration-spec.ts`: 12 passed
+  - `trip-review-analytics-host.integration-spec.ts`: 5 passed
+- **Regression Tests**: `review-analysis.integration-spec.ts` 29/29 passed.
+- **Build & Quality**: `pnpm --filter @ctms/api build` passed with Exit code 0, Biome lint clean (0 errors), strict Zero `any` adhered across all new code.
+
 
