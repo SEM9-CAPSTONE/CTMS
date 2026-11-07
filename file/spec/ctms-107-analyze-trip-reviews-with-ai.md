@@ -202,3 +202,18 @@ Official compatibility guide: https://aistudio.google.com/docs/openai
 A live synthetic-comment smoke test succeeded with `gemini-3.1-flash-lite`,
 returning valid mixed sentiment, taxonomy topics, summary and token usage.
 This verifies the provider edge, not the complete API/DB batch workflow or UI.
+
+## 14. Backend Update — CTMS-411 (2026-11-07): Review Intelligence, Moderation Pipeline & Analytics Dashboards
+
+### 14.1 New Endpoints
+- `POST /review-moderation-scan` (Python AI Service): Multimodal AI review moderation and signal extraction.
+- `GET /api/host/trip-reviews/moderation-queue`: Host review moderation queue for owned trips.
+- `POST /api/host/trip-reviews/:reviewId/decisions`: Host decisions (`keep`, `hide`, `restore`, `keep_hidden`) with concurrency locking (`FOR UPDATE OF r`) and revision fencing.
+- `GET /api/host/trip-reviews/:reviewId/quarantined-images/:imageIndex`: Stream quarantined evidence with audit log.
+- `GET /api/host/review-analytics/trips-overview`: Host trip experience analytics & aspect sentiments (threshold: 5).
+- `GET /api/host/review-analytics/routes-safety-overview`: Host route safety analytics & incident signals (threshold: 10, distinct count).
+
+### 14.2 Schema Additions
+- Migrations `1794500000000` & `1794500000001`: `trip_review_moderation_runs`, `trip_review_moderation_image_items`, `trip_review_moderation_flags`, `trip_review_aspect_sentiments`, `trip_review_incident_signals`, `trip_review_moderation_outbox`, `trip_review_moderation_decisions`.
+- Review state columns: `moderation_status` (`visible`, `hidden`), `image_storage_state` (`active`, `quarantine_pending`, `quarantined`, `restore_pending`, `quarantine_failed`).
+

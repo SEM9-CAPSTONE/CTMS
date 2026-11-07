@@ -79,3 +79,21 @@ Official compatibility guide: https://aistudio.google.com/docs/openai
 A live synthetic-comment smoke test succeeded with `gemini-3.1-flash-lite`,
 returning valid mixed sentiment, taxonomy topics, summary and token usage.
 This verifies the provider edge, not the complete API/DB batch workflow or UI.
+
+## CTMS-411 Backend Update — 2026-11-07 (Review Intelligence, Moderation & Analytics)
+
+### Scope of Update
+Expands the AI review analysis capabilities with:
+1. Multimodal review moderation scan pipeline (`POST /review-moderation-scan`) across 4 channels (text flags, visual checks, aspect sentiments, incident signals) with transactional outbox (`trip_review_moderation_outbox`).
+2. Host review moderation queue and decision workflow (`POST /api/host/trip-reviews/:reviewId/decisions`) supporting `keep`, `hide`, `restore`, `keep_hidden` with pessimistic locking, revision fencing, and physical image quarantine (`uploads/quarantine/`).
+3. Host Review Intelligence & Safety Analytics Dashboards:
+   - `GET /api/host/review-analytics/trips-overview`: Aspect sentiments (safety, guide support, equipment, value) with minimum sample threshold 5.
+   - `GET /api/host/review-analytics/routes-safety-overview`: Incident signals (`fall_slip`, `injury`, `lost_path`, `weather_hazard`, `other`) with minimum sample threshold 10 and invariant `COUNT(DISTINCT review_id)`.
+
+### Verified Local Results (2026-11-07)
+- 55 unit tests passed across moderation, outbox worker, PII masker, storage service, host service, and analytics.
+- 54 integration tests passed across all 4 PostgreSQL test suites (`trip-reviews`, `trip-review-moderation`, `trip-review-moderation-host`, `trip-review-analytics-host`).
+- Regression `review-analysis.integration-spec.ts`: 29/29 tests passed.
+- Strict Type Safety: Zero `any` usage.
+- Clean build: `pnpm --filter @ctms/api build` passed (Exit code 0).
+
