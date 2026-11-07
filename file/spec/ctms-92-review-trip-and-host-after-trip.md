@@ -93,7 +93,7 @@ for Camper creation. Owner editing remains available until the initial review `c
 | BR-472     | When a Camper edits a review within the 24-hour edit window, all active moderation flags on older revisions are automatically updated to `superseded` in the same database transaction, and an enqueue event for the new revision is generated if `MODERATION_SCAN_ELIGIBLE` is satisfied. |
 | BR-473     | A Host may hide a review if and only if three conditions are simultaneously met: (1) Host is the verified organizer of the Trip associated with the review; (2) the review currently has at least one active AI moderation flag; and (3) the decision targets the current review revision. The hiding reason must belong to the approved taxonomy and match an active flag type. Host must view the evidence before deciding. Legitimate criticism or negative feedback is NOT a valid reason to hide. Hiding transitions the review to `moderation_status = 'hidden'`, initiates local file quarantine for attached images, and creates an immutable audit record. Requests violating any condition must be rejected (403, 422, or 409). Concurrent moderation decisions on the same review must be locked and serialized. |
 | BR-474     | A Host may decide to Keep (`keep`) a review with active AI flags if the Host organized the associated Trip and the decision targets the current revision. Keeping resolves all active flags on that revision (`lifecycle_status = 'resolved'`) and locks the revision from generating new active flags upon re-scan. The Keep action is an internal moderation resolution and must NOT be displayed publicly as a certification or seal of safety/quality. |
-| BR-475     | A Host may restore a previously hidden review or maintain its hidden state (`keep_hidden`) targeting the current revision. Restoring transitions the review to `moderation_status = 'visible'`, marks image storage for restoration (`restore_pending`), and resolves active flags. Decisions with mismatched `expectedRevision` must be rejected with 409 Conflict. Restoring a review that is not hidden is rejected. |
+| BR-475     | A Host may restore a previously hidden review or maintain its hidden state (`keep_hidden`) targeting the current revision. Restoring transitions the review to `moderation_status = 'visible'`, marks image storage for restoration (`restore_pending`), and resolves active flags. If the review has an associated report with status `actioned` (handled by Admin), the Host restore decision is recorded but `moderation_status` remains `hidden` (`adminActionedOverride = true`) to preserve Admin authority. Decisions with mismatched `expectedRevision` must be rejected with 409 Conflict. Restoring a review that is not hidden is rejected. |
 | BR-476     | Hidden reviews (`moderation_status = 'hidden'`) are excluded from public review listings, public average ratings, and public review count calculations in future public review endpoints; the count of hidden reviews is exposed transparently (`hiddenReviewsCount`). A Camper's own private review count is never decremented when their review is hidden. Hiding a review on a Trip does not hide the Host review from the same Booking, and vice versa. |
 
 ## 6. State & Lifecycle
@@ -242,3 +242,39 @@ Approved contract: `docs/features/ctms-387-review-intelligence-moderation-contra
 - Safety signals from reviews do NOT constitute Potential Safety Hotspots (CTMS-116/117), do NOT create hotspot candidates, and do NOT use the "hotspot" terminology.
 - Layer 2 Image Quarantine: When a Camper edits a review that is currently `hidden`, newly uploaded images go straight to quarantine (`image_storage_state = 'quarantine_pending'` -> `'quarantined'`). Images of prior revisions are preserved in storage/quarantine for audit. A reconciliation background worker handles stuck/failed quarantine states. Action `keep_hidden` (Duy trì ẩn) is available for already hidden reviews.
 - Target Isolation: Reviews with `target = 'host'` are scanned by AI moderation, but are strictly excluded from both analytical dashboards (only `target = 'trip'` participates).
+
+## 15. Implementation & API Endpoints — CTMS-387 Layers 1, 2 & 3
+
+### 15.1 API Endpoints Summary
+
+| Layer | Method | Path | Auth / Roles | Purpose |
+| --- | --- | --- | --- | --- |
+| 1 | `POST` | `/review-moderation-scan` (Python AI Service) | Internal API / Service Key | Multimodal AI scan: moderation flags, visual checks, aspect sentiments, incident signals |
+| 2 | `GET` | `/api/host/trip-reviews/moderation-queue` | JWT, Host role | Paginated queue of reviews with active flags or hidden status for owned trips |
+| 2 | `POST` | `/api/host/trip-reviews/:reviewId/decisions` | JWT, Host role | Host moderation decisions: `keep`, `hide`, `restore`, `keep_hidden` with concurrency lock |
+| 2 | `GET` | `/api/host/trip-reviews/:reviewId/quarantined-images/:imageIndex` | JWT, Host role | Stream quarantined evidence image for Host inspection with immutable audit log |
+| 3 | `GET` | `/api/host/review-analytics/trips-overview` | JWT, Host role | Host trip experience intelligence & aspect sentiments (threshold: 5) |
+| 3 | `GET` | `/api/host/review-analytics/routes-safety-overview` | JWT, Host role | Host route safety analytics & incident signals (threshold: 10, distinct count) |
+
+### 15.2 Database Migrations & Schemas
+
+- **Migration 1 (`1794500000000-CreateTripReviewModerationPipeline.ts`)**:
+  - `trip_review_moderation_runs`: Scan execution runs, statuses, provider metadata, raw outputs.
+  - `trip_review_moderation_image_items`: Per-image analysis status, mime types, hashes.
+  - `trip_review_moderation_flags`: Granular moderation flags with lifecycle (`active`, `superseded`, `resolved`).
+  - `trip_review_aspect_sentiments`: Sentiment extraction across safety, guide support, equipment, value.
+  - `trip_review_incident_signals`: Incident occurrences (`fall_slip`, `injury`, `lost_path`, `weather_hazard`, `other`).
+  - `trip_review_moderation_outbox`: Transactional outbox for guaranteed asynchronous scanning dispatch.
+- **Migration 2 (`1794500000001-CreateTripReviewModerationDecisionsAndStatus.ts`)**:
+  - Added `moderation_status` (`visible`, `hidden`) and `image_storage_state` (`active`, `quarantine_pending`, `quarantined`, `restore_pending`, `quarantine_failed`) to `trip_reviews`.
+  - `trip_review_moderation_decisions`: Immutable audit trail of Host actions (`keep`, `hide`, `restore`, `keep_hidden`) with reasons, notes, and revision stamps.
+
+### 15.3 Core Invariants & Safety Guarantees
+
+1. **Transactional Outbox & Atomicity**: Review creation and updates atomically write to `trip_review_moderation_outbox` in the same DB transaction. Worker uses `FOR UPDATE SKIP LOCKED` with heartbeat leases.
+2. **PII Masking**: Emails, Vietnamese phone numbers (+84/09x), URLs, and citizen IDs are masked with placeholders prior to invoking external LLM providers.
+3. **Revision Fencing**: Edits supersede older flags atomically. Worker checks whether current DB revision still matches the outbox job revision; obsolete runs are saved with flags marked `superseded`.
+4. **Concurrency Control**: Moderation decisions lock the target review with `SELECT ... FOR UPDATE OF r` and verify `expectedRevision`.
+5. **Physical File Quarantine**: Hiding a review isolates image files to `uploads/quarantine/`, preventing direct public access while retaining inspection access for authorized Hosts.
+6. **Admin Override Precedence**: If a review has an associated `content_reports` record with status `actioned`, a Host `restore` action logs the decision but preserves `moderation_status = 'hidden'` with `adminActionedOverride: true`.
+7. **Strict Analytics Filtering**: Layer 3 dashboards include only `target = 'trip'` reviews with `moderation_status = 'visible'`. Safety aggregates enforce `COUNT(DISTINCT review_id)`.
