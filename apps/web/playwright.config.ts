@@ -13,6 +13,7 @@ export default defineConfig({
 		"**/ctms-79-t02-receive-real-time-sos-alerts.spec.ts",
 		"**/ctms-78-t02-authenticated-websocket.spec.ts",
 		"**/ctms-63-t02-behind-schedule-warning.spec.ts",
+		"**/ctms-66-t02-member-last-locations.spec.ts",
 		"**/route-code-splitting.spec.ts",
 	],
 	fullyParallel: false,

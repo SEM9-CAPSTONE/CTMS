@@ -189,3 +189,98 @@ Registered, removed and no-show members are excluded, and so are members of canc
 - [x] Task-specific unit tests added/updated.
 - [x] Task-specific unit tests passed.
 - [x] Applicable backend/integration tests passed.
+
+## 15. Implementation Record — CTMS-066-T02 (Jira CTMS-330), Host web + Porter mobile UI
+
+Both clients consume `GET /api/trips/:tripId/member-locations` (§13). They refresh every 60 s and offer a manual "Làm mới" button. Every location, timestamp and safety flag comes from the server. Neither client merges its own device buffer into the list (AC-4).
+
+**Shared presentation rules**
+
+- A fixed line states that this is the latest location the server received, not a live position: "Vị trí server đã nhận gần nhất, không phải vị trí trực tiếp".
+- **Freshness badge:**
+  - "Mới" (success);
+  - "Cũ" (warning);
+  - "Chưa có dữ liệu" (neutral).
+
+  It is recomputed on the client every 15 s from `lastSeenAt` and the server's `freshnessMaxAgeSeconds`. A position that was fresh when fetched therefore turns stale as time passes, even if refreshes fail. A future-dated capture is never shown as fresh.
+- **Per member:**
+  - name and role, with "Đã rời đoàn" when `memberStatus = left`;
+  - "Ghi lúc HH:mm (x phút trước)" from `lastSeenAt`;
+  - coordinates with accuracy;
+  - "Checkpoint gần nhất: … · HH:mm";
+  - "Đồng bộ gần nhất: HH:mm" from `lastSyncedAt`;
+  - flags: "Lệch tuyến" (latest route transition is OFF_ROUTE), "GPS yếu" (latest GPS transition is GPS_DEGRADED), and "Chậm hơn đoàn / Chậm nghiêm trọng · n phút" (CTMS-063 evaluation, same labels as CTMS-320).
+- A member who never synchronized shows "Server chưa nhận được vị trí nào của thành viên này."
+- **Order:** members with a safety warning first, then stale, then no data, then fresh. Ties are broken by name.
+- **States:**
+  - loading;
+  - empty;
+  - restricted, for 403/404: "không có quyền xem";
+  - Trip not ongoing, for 409;
+  - first-load error, with retry;
+  - failed refresh: the last data is kept and labelled "đang hiển thị dữ liệu lúc HH:mm".
+
+**Web Host (`apps/web/src/features/member-locations`)**
+
+- `MemberLastLocationsCard` ("Vị trí đồng bộ gần nhất") sits in the "Điểm danh & Hoàn tất" tab of Trip detail, below the CTMS-063 progress card, while the Trip is `ongoing`.
+- It reuses `StatusBadge`, `Button` and the CTMS-320 card layout.
+
+**Mobile Porter (`apps/mobile/lib/features/member_locations`)**
+
+- `PorterMemberLocationsPanel` ("Vị trí thành viên") sits in `PorterGpsTrackingSection`, below `PorterTeamProgressPanel`, for the selected Trip.
+- `MemberLocationsController` follows the CTMS-320 controller pattern and also keeps the HTTP status of the last failure.
+- It reuses `CtmsSectionCard`, `CtmsStatusBadge`, `CtmsAlertBanner` and `CtmsButton`.
+
+**Judgment calls** (approved with the plan):
+
+- The view is a list only. The shared `RouteCheckpointMap` was not changed to draw member markers.
+- The Host view is on web and the Porter view is on mobile, as in CTMS-320.
+
+**E2E harness:** `tests/e2e/ctms-66-t02-member-last-locations.spec.ts` was added to `playwright.sos-realtime.config.ts` and excluded from the default config.
+
+## 16. Test Evidence — CTMS-066-T02
+
+- **Vitest** (`MemberLastLocationsCard.test.tsx`), 10 tests:
+  - loading, with the "not live" statement;
+  - ordering, freshness badges, last seen and relative time, coordinates, checkpoint, OFF_ROUTE and BEHIND flags, no-data text;
+  - a future capture is stale, and "Đã rời đoàn" is shown;
+  - a fresh position turns stale as the clock moves, without a refetch;
+  - empty state;
+  - 403, 404, 409 and 500 messages;
+  - a failed refresh keeps the last data.
+
+  Full web suite: 1611/1611 passed.
+- **Flutter widget tests** (`porter_member_locations_panel_test.dart`), 9 tests, covering the same scenarios plus restricted, 409, and error-then-retry. `flutter analyze` reports no issues in the changed folders.
+
+  Full `flutter test`: the only failure is `widget_test.dart › porter overview renders dashboard UI`, which is pre-existing on `develop`.
+- **E2E (real API + PostGIS)**, `test:e2e:sos-realtime`: the new CTMS-066 test passed. The Host sees, in order:
+  - "An Lệch Tuyến": Mới, Lệch tuyến, `16.04000, 108.20000 · ±8 m`, checkpoint Đèo Gió;
+  - "Porter Cũ": Cũ, 15 phút trước;
+  - "Bình Chưa Đồng Bộ": Chưa có dữ liệu.
+
+  In the same run, `ctms-79-t02 … other Host gets nothing` failed. It also fails on `develop` with this task stashed: CTMS-76 (`9f7a9e6`) changed the SOS banner to show the Trip title instead of "Mã chuyến: …", and that E2E assertion was not updated.
+- **Screenshots:**
+  - `host-member-last-locations.png` (Playwright, running app);
+  - `porter-member-locations.png` (the real widget at 412 dp, rendered by a temporary test that was deleted afterwards; no Android emulator is available on this machine).
+- **Gates:**
+  - `pnpm lint:all`: 0 errors (12 pre-existing warnings, none in changed files).
+  - `pnpm build:all`: passed.
+  - `pnpm test:all`:
+    - API 2080/2082; the 2 `offline-packages` failures are pre-existing on `develop`;
+    - web 1611/1611.
+  - Default Playwright regression: 47 passed, 37 failed, 32 did not run. Compared with the CTMS-320 run, the only additional failure is `ctms-416-demand-insights.spec.ts › live API/database …`, a spec added on `develop` after that run; it fails identically on `develop` with this task stashed. No failure touches Trip detail, member locations or the Porter GPS section.
+
+### UI Subtask DoD
+
+- [x] UI implementation completed.
+- [x] Applicable client-side behavior implemented.
+- [x] Task-specific unit/component tests passed.
+- [x] Backend integration completed.
+- [x] Task-specific E2E tests passed.
+- [x] All Story Acceptance Criteria verified (AC-1 location, AC-2 last_seen_at, AC-3 flags, AC-4 server-confirmed only, AC-5 restricted state).
+- [x] Unit regression tests passed (except the pre-existing `develop` failures listed above).
+- [x] E2E regression tests passed (see the regression result above).
+- [x] lint:all passed.
+- [x] build:all passed.
+- [x] test:all passed (except the pre-existing `develop` failures listed above).
+- [ ] Required CI checks passed — runs on the PR.

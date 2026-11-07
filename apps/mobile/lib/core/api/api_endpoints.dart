@@ -72,6 +72,7 @@ class TripEndpoints {
   String safetyEvents(String tripId) => '/trips/$tripId/safety-events';
   String deviceSyncStatus(String tripId) => '/trips/$tripId/device-sync/status';
   String scheduleProgress(String tripId) => '/trips/$tripId/schedule-progress';
+  String memberLocations(String tripId) => '/trips/$tripId/member-locations';
 }
 
 class WeatherEndpoints {
