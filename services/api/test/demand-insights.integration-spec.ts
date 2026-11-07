@@ -11,6 +11,9 @@ import {
 	DemandInsightsProvider,
 } from "../src/modules/demand-insights/demand-insights.provider";
 import { DemandInsightsService } from "../src/modules/demand-insights/demand-insights.service";
+import type { PlanningChoice } from "../src/modules/demand-insights/planning/planning.policy";
+import { PlanningProvider } from "../src/modules/demand-insights/planning/planning.provider";
+import { PlanningService } from "../src/modules/demand-insights/planning/planning.service";
 import { AnalysisProviderError } from "../src/modules/review-analysis/review-analysis.types";
 import { User, UserRole, UserStatus } from "../src/modules/users/entities/user.entity";
 import { validationExceptionFactory } from "../src/shared/pipes/validation-exception-factory";
@@ -21,6 +24,8 @@ describe("CTMS-415 shared Booking demand (real PostgreSQL, fake provider edge)",
 	let db: DataSource;
 	let jwt: JwtService;
 	let service: DemandInsightsService;
+	let planning: PlanningService;
+	const areaCode = `test-${randomUUID().replaceAll("-", "").slice(0, 20)}`;
 	const hosts: User[] = [];
 	const campers: User[] = [];
 	const tripIds: string[] = [];
@@ -45,6 +50,11 @@ describe("CTMS-415 shared Booking demand (real PostgreSQL, fake provider edge)",
 	};
 	let config = { ...initial };
 	const provider = { configuration: () => ({ ...config }), generate: jest.fn() };
+	const planningProvider = {
+		configuration: () => ({ ...config, promptVersion: "planning-v1" as const }),
+		generate: jest.fn(),
+	};
+	const planningOutput: PlanningChoice[] = [{ candidateId: "c1", focusCodes: ["balanced_pace"] }];
 	const output: DemandSuggestion[] = [
 		{ tripType: "day_trip", difficulty: "easy", reason: "observed_booking_interest" },
 	];
@@ -72,6 +82,8 @@ describe("CTMS-415 shared Booking demand (real PostgreSQL, fake provider edge)",
 	}
 	beforeAll(async () => {
 		const module = await Test.createTestingModule({ imports: [AppModule] })
+			.overrideProvider(PlanningProvider)
+			.useValue(planningProvider)
 			.overrideProvider(DemandInsightsProvider)
 			.useValue(provider)
 			.compile();
@@ -89,6 +101,7 @@ describe("CTMS-415 shared Booking demand (real PostgreSQL, fake provider edge)",
 		db = module.get(DataSource);
 		jwt = module.get(JwtService);
 		service = module.get(DemandInsightsService);
+		planning = module.get(PlanningService);
 		await assertSafeTestDatabase(db);
 		const existing = await db.query(
 			"SELECT id FROM demand_insight_reports WHERE month=ANY($1::text[])",
@@ -114,10 +127,15 @@ describe("CTMS-415 shared Booking demand (real PostgreSQL, fake provider edge)",
 			);
 		}
 		for (let i = 0; i < 10; i++) campers.push(await account(UserRole.CAMPER));
+		await db.query("INSERT INTO demand_areas(code,label) VALUES($1,'Khu vực thử nghiệm')", [
+			areaCode,
+		]);
 	}, 60000);
 	beforeEach(async () => {
 		config = { ...initial };
 		provider.generate.mockReset().mockResolvedValue(output);
+		planningProvider.generate.mockReset().mockResolvedValue(planningOutput);
+		await db.query("UPDATE demand_planning_control SET last_created_at=NULL WHERE id=1");
 		await db.query("UPDATE demand_insight_control SET last_created_at=NULL WHERE id=1");
 		for (let i = 0; i < 10; i++) {
 			const id = randomUUID();
@@ -141,17 +159,329 @@ describe("CTMS-415 shared Booking demand (real PostgreSQL, fake provider edge)",
 		await db.query("UPDATE users SET status='active' WHERE id=ANY($1::uuid[])", [
 			[...hosts, ...campers].map((u) => u.id),
 		]);
-		await db.query("UPDATE trips SET status='published' WHERE id=ANY($1::uuid[])", [tripIds]);
+		await db.query(
+			"UPDATE trips SET status='published',trip_type='day_trip',duration_nights=0,capacity_max=100,price_per_person=0 WHERE id=ANY($1::uuid[])",
+			[tripIds]
+		);
+		await db.query("DELETE FROM trip_demand_contexts WHERE trip_id=ANY($1::uuid[])", [tripIds]);
+		await db.query("UPDATE demand_areas SET active=true WHERE code=$1", [areaCode]);
 	});
 	afterAll(async () => {
 		if (db) {
 			await db.query("DELETE FROM trips WHERE id=ANY($1::uuid[])", [tripIds]);
 			await db.query("DELETE FROM trekking_routes WHERE id=ANY($1::uuid[])", [routeIds]);
+			await db.query("DELETE FROM demand_areas WHERE code=$1", [areaCode]);
 			await db.query("DELETE FROM users WHERE id=ANY($1::uuid[])", [
 				[...hosts, ...campers].map((u) => u.id),
 			]);
 		}
 		if (app) await app.close();
+	});
+	const planningPath = () => `/api/host/demand-insights/${month}/planning-suggestions`;
+	const requestPlanning = (actor = hosts[0]) =>
+		request(app.getHttpServer()).post(planningPath()).set("Authorization", token(actor)).send({});
+	const readPlanning = (actor = hosts[0]) =>
+		request(app.getHttpServer()).get(planningPath()).set("Authorization", token(actor));
+	async function enrichFixture() {
+		await db.query(
+			"INSERT INTO booking_demand_snapshots(booking_id,trip_type,difficulty,price_band,capacity_band,duration_band,area_code) SELECT b.id,t.trip_type,r.difficulty,'under_500k','11_to_20','day',$2 FROM bookings b JOIN trips t ON t.id=b.trip_id JOIN trekking_routes r ON r.id=t.route_id WHERE b.id=ANY($1::uuid[])",
+			[bookingIds, areaCode]
+		);
+	}
+	async function currentBooking(
+		price: number,
+		capacity: number | null,
+		nights: number,
+		baseKnown = true
+	) {
+		await db.query(
+			"UPDATE trips SET price_per_person=$2,capacity_max=$3,duration_nights=$4,trip_type=CASE WHEN $4=0 THEN 'day_trip'::trip_type ELSE 'overnight'::trip_type END WHERE id=$1",
+			[tripIds[0], price, capacity, nights]
+		);
+		const id = randomUUID();
+		bookingIds.push(id);
+		await db.query(
+			"INSERT INTO bookings(id,trip_id,user_id,num_people,status,payment_status,base_price) VALUES($1,$2,$3,2,'confirmed','not_required',$4)",
+			[id, tripIds[0], campers[0].id, baseKnown ? price * 2 : null]
+		);
+		const [snapshot] = await db.query(
+			"SELECT * FROM booking_demand_snapshots WHERE booking_id=$1",
+			[id]
+		);
+		return snapshot;
+	}
+	it("authorizes catalog and planning operations and confirms only an owned Trip with an active area", async () => {
+		await request(app.getHttpServer()).get("/api/host/demand-insights/areas").expect(401);
+		await request(app.getHttpServer()).post(planningPath()).send({}).expect(401);
+		await request(app.getHttpServer()).get(planningPath()).expect(401);
+		await requestPlanning(campers[0]).expect(403);
+		await readPlanning(campers[0]).expect(403);
+		await request(app.getHttpServer())
+			.post(planningPath())
+			.set("Authorization", token())
+			.send({ price: 1 })
+			.expect(422);
+		const areas = await request(app.getHttpServer())
+			.get("/api/host/demand-insights/areas")
+			.set("Authorization", token())
+			.expect(200);
+		expect(areas.body.areas).toContainEqual({ code: areaCode, label: "Khu vực thử nghiệm" });
+		const confirm = (tripId: string, area: string) =>
+			request(app.getHttpServer())
+				.put("/api/host/demand-insights/trip-context")
+				.set("Authorization", token())
+				.send({ tripId, areaCode: area });
+		await confirm(tripIds[1], areaCode).expect(404);
+		await confirm(tripIds[0], "unknown-area").expect(422);
+		await confirm(tripIds[0], areaCode).expect(200);
+		const snapshot = await currentBooking(499999, 20, 0);
+		expect(snapshot.area_code).toBe(areaCode);
+		await db.query("UPDATE demand_areas SET active=false WHERE code=$1", [areaCode]);
+		await confirm(tripIds[0], areaCode).expect(422);
+	});
+	it.each([
+		[0, "free"],
+		[499999, "under_500k"],
+		[500000, "500k_to_1m"],
+		[999999, "500k_to_1m"],
+		[1000000, "1m_plus"],
+	])(
+		"captures authoritative price boundary %s without using a party's total price as unit price",
+		async (price, band) => {
+			const snapshot = await currentBooking(Number(price), 20, 0);
+			expect(snapshot.price_band).toBe(band);
+		}
+	);
+	it.each([
+		[10, "1_to_10"],
+		[11, "11_to_20"],
+		[20, "11_to_20"],
+		[21, "21_to_40"],
+		[40, "21_to_40"],
+		[41, "41_plus"],
+		[null, null],
+	])("captures offered capacity %s, not the two-person party size", async (capacity, band) => {
+		const snapshot = await currentBooking(0, capacity === null ? null : Number(capacity), 0);
+		expect(snapshot.capacity_band).toBe(band);
+	});
+	it.each([
+		[0, "day"],
+		[1, "one_night"],
+		[2, "two_plus_nights"],
+	])("captures duration %s from the authoritative Trip field", async (nights, band) => {
+		expect((await currentBooking(0, 20, Number(nights))).duration_band).toBe(band);
+	});
+	it("leaves legacy/backdated Booking evidence unknown and never rewrites a captured snapshot", async () => {
+		const legacy = await db.query(
+			"SELECT booking_id FROM booking_demand_snapshots WHERE booking_id=ANY($1::uuid[])",
+			[bookingIds]
+		);
+		expect(legacy).toHaveLength(0);
+		const snapshot = await currentBooking(500000, 20, 0);
+		await db.query("UPDATE trips SET price_per_person=1500000,capacity_max=40 WHERE id=$1", [
+			tripIds[0],
+		]);
+		const [persisted] = await db.query(
+			"SELECT price_band,capacity_band FROM booking_demand_snapshots WHERE booking_id=$1",
+			[snapshot.booking_id]
+		);
+		expect(persisted).toEqual({ price_band: "500k_to_1m", capacity_band: "11_to_20" });
+		await expect(
+			db.query("UPDATE booking_demand_snapshots SET price_band='free' WHERE booking_id=$1", [
+				snapshot.booking_id,
+			])
+		).rejects.toThrow("immutable");
+		expect((await currentBooking(500000, 20, 0, false)).price_band).toBeNull();
+	});
+	it("freezes enriched whole cohorts and exposes one shared grounded result without source identities", async () => {
+		await enrichFixture();
+		await create().expect(202);
+		await service.processOne();
+		expect((await readPlanning().expect(200)).body.status).toBe("not_requested");
+		const requests = await Promise.all([requestPlanning(), requestPlanning(hosts[1])]);
+		expect(requests.every((r) => r.status === 202)).toBe(true);
+		expect(await planning.processOne()).toBe(true);
+		expect(planningProvider.generate).toHaveBeenCalledTimes(1);
+		const result = await readPlanning().expect(200);
+		expect(result.body.status).toBe("succeeded");
+		expect(result.body.stale).toBe(false);
+		expect(result.body.recommendations[0]).toMatchObject({
+			priceBand: "under_500k",
+			priceRangeLabel: "Dưới 500.000 VND/người",
+			capacityBand: "11_to_20",
+			area: { code: areaCode },
+			capacityMeaning: "offered_at_booking",
+		});
+		for (const privateId of [
+			...bookingIds,
+			...tripIds,
+			...hosts.map((h) => h.id),
+			...campers.map((c) => c.id),
+		])
+			expect(result.text).not.toContain(privateId);
+		expect((await readPlanning(hosts[1]).expect(200)).body).toEqual(result.body);
+		await requestPlanning().expect(200);
+		expect(planningProvider.generate).toHaveBeenCalledTimes(1);
+	});
+	it("rejects planning for unfinished or legacy reports without backfilling context", async () => {
+		await create().expect(202);
+		await requestPlanning().expect(422);
+		await service.processOne();
+		await db.query(
+			"DELETE FROM demand_planning_contexts WHERE report_id IN(SELECT id FROM demand_insight_reports WHERE month=$1)",
+			[month]
+		);
+		expect((await readPlanning().expect(200)).body.status).toBe("unavailable");
+		await requestPlanning().expect(422);
+		expect(planningProvider.generate).not.toHaveBeenCalled();
+	});
+	it("hides completed planning after a source change or revoked catalog area", async () => {
+		await enrichFixture();
+		await create().expect(202);
+		await service.processOne();
+		await requestPlanning().expect(202);
+		await planning.processOne();
+		await db.query("UPDATE demand_areas SET active=false WHERE code=$1", [areaCode]);
+		let result = await readPlanning().expect(200);
+		expect(result.body.status).toBe("withheld");
+		expect(result.body.recommendations).toEqual([]);
+		await db.query("UPDATE demand_areas SET active=true WHERE code=$1", [areaCode]);
+		await db.query("UPDATE bookings SET status='cancelled' WHERE id=$1", [bookingIds[0]]);
+		result = await readPlanning().expect(200);
+		expect(result.body.recommendations).toEqual([]);
+		await requestPlanning().expect(422);
+	});
+	it("fences a late planning worker after takeover and rejects expiry without takeover", async () => {
+		await create().expect(202);
+		await service.processOne();
+		await requestPlanning().expect(202);
+		const a = await planning.claim();
+		if (!a) throw new Error("No claim");
+		expect(await planning.heartbeat(a)).toBe(true);
+		await db.query(
+			"UPDATE demand_planning_jobs SET lease_until=clock_timestamp()-interval '1 second' WHERE id=$1",
+			[a.id]
+		);
+		expect(await planning.finish(a, planningOutput)).toBe(false);
+		const b = await planning.claim();
+		if (!b) throw new Error("No takeover");
+		expect(await planning.heartbeat(a)).toBe(false);
+		expect(await planning.finish(a, planningOutput)).toBe(false);
+		expect(await planning.finish(b, planningOutput)).toBe(true);
+	});
+	it("caps transient planning attempts, sanitizes failures and never regenerates a terminal job", async () => {
+		await create().expect(202);
+		await service.processOne();
+		await requestPlanning().expect(202);
+		planningProvider.generate.mockRejectedValue(
+			new AnalysisProviderError("provider_transport", true)
+		);
+		for (let i = 0; i < 3; i++) {
+			await planning.processOne();
+			await db.query(
+				"UPDATE demand_planning_jobs SET next_attempt_at=clock_timestamp()-interval '1 second'"
+			);
+		}
+		expect(await planning.processOne()).toBe(false);
+		expect(planningProvider.generate).toHaveBeenCalledTimes(3);
+		const result = await readPlanning().expect(200);
+		expect(result.body.status).toBe("failed");
+		expect(result.body.errorCode).toBe("analysis_unavailable");
+		expect(result.text).not.toContain("provider_transport");
+		await requestPlanning().expect(200);
+	});
+	it("withholds persisted planning after config changes without another provider call", async () => {
+		await create().expect(202);
+		await service.processOne();
+		await requestPlanning().expect(202);
+		await planning.processOne();
+		expect((await readPlanning().expect(200)).body.status).toBe("succeeded");
+		config.configVersion = "planning-config-changed";
+		const result = (await readPlanning().expect(200)).body;
+		expect(result.status).toBe("withheld");
+		expect(result.stale).toBe(true);
+		expect(result.recommendations).toEqual([]);
+		await requestPlanning().expect(422);
+		expect(planningProvider.generate).toHaveBeenCalledTimes(1);
+	});
+	it("persists planning cooldown across two reports and permits reading/reusing the first", async () => {
+		await create().expect(202);
+		await service.processOne();
+		await db.query("UPDATE demand_insight_control SET last_created_at=NULL WHERE id=1");
+		await db.query("UPDATE bookings SET created_at=$2 WHERE id=ANY($1::uuid[])", [
+			bookingIds,
+			`${otherMonth}-15T00:00:00Z`,
+		]);
+		await create(hosts[0], otherMonth).expect(202);
+		await service.processOne();
+		const path = `/api/host/demand-insights/${otherMonth}/planning-suggestions`;
+		await request(app.getHttpServer())
+			.post(path)
+			.set("Authorization", token())
+			.send({})
+			.expect(202);
+		await request(app.getHttpServer())
+			.post(path)
+			.set("Authorization", token(hosts[1]))
+			.send({})
+			.expect(202);
+		await db.query("UPDATE bookings SET created_at=$2 WHERE id=ANY($1::uuid[])", [
+			bookingIds,
+			`${month}-15T00:00:00Z`,
+		]);
+		// The original fingerprint uses Booking identities/taxonomy, not row timestamps.
+		const limited = await requestPlanning().expect(429);
+		expect(Number(limited.headers["retry-after"])).toBeGreaterThan(0);
+		await request(app.getHttpServer())
+			.post(path)
+			.set("Authorization", token(hosts[1]))
+			.send({})
+			.expect(422);
+		const jobs: { count: number }[] = await db.query(
+			"SELECT count(*)::int AS count FROM demand_planning_jobs"
+		);
+		expect(jobs[0].count).toBe(1);
+	});
+	it("rejects invented planning output even when its source remains unchanged", async () => {
+		await create().expect(202);
+		await service.processOne();
+		await requestPlanning().expect(202);
+		planningProvider.generate.mockResolvedValue([
+			{ candidateId: "c1", focusCodes: ["balanced_pace"], price: 100 },
+		]);
+		await planning.processOne();
+		const result = (await readPlanning().expect(200)).body;
+		expect(result.status).toBe("failed");
+		expect(result.stale).toBe(false);
+		expect(result.recommendations).toEqual([]);
+		expect(await planning.processOne()).toBe(false);
+		expect(planningProvider.generate).toHaveBeenCalledTimes(1);
+	});
+	it("terminates an abandoned third planning attempt without another provider call", async () => {
+		await create().expect(202);
+		await service.processOne();
+		await requestPlanning().expect(202);
+		const job = await planning.claim();
+		if (!job) throw new Error("No planning claim");
+		await db.query(
+			"UPDATE demand_planning_jobs SET attempts=3,lease_until=clock_timestamp()-interval '1 second' WHERE id=$1",
+			[job.id]
+		);
+		expect(await planning.claim()).toBeNull();
+		expect(await planning.finish(job, planningOutput)).toBe(false);
+		expect((await readPlanning().expect(200)).body.status).toBe("failed");
+		expect(planningProvider.generate).not.toHaveBeenCalled();
+	});
+	it("rejects an invented planning price and ignores a source change during provider work", async () => {
+		await create().expect(202);
+		await service.processOne();
+		await requestPlanning().expect(202);
+		planningProvider.generate.mockImplementation(async () => {
+			await db.query("UPDATE bookings SET status='cancelled' WHERE id=$1", [bookingIds[0]]);
+			return [{ candidateId: "c1", focusCodes: ["balanced_pace"], price: 100 }];
+		});
+		await planning.processOne();
+		expect((await readPlanning().expect(200)).body.recommendations).toEqual([]);
 	});
 	it("authorizes Hosts, rejects Campers and rejects client overrides/invalid months", async () => {
 		await create(campers[0]).expect(403);

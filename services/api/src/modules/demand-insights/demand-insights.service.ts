@@ -17,6 +17,7 @@ import {
 import { type DemandConfiguration, DemandInsightsProvider } from "./demand-insights.provider";
 // biome-ignore lint/style/useImportType: Nest injection
 import { DemandInsightsRepository } from "./demand-insights.repository";
+import { freezePlanningContext } from "./planning/planning.context";
 interface Report {
 	id: string;
 	month: string;
@@ -133,6 +134,7 @@ export class DemandInsightsService {
 					release.cells.length ? "pending" : "insufficient_data",
 				]
 			);
+			await freezePlanningContext(m, report.id, release, rows);
 			return { version: report.id, month, status: report.status, reused: false };
 		});
 	}

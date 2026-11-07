@@ -122,3 +122,19 @@ TBD — Technical Design.
 ## 12. Open Decisions
 
 Minimum cohort value is configuration-driven; this spec does not invent a numeric threshold.
+
+
+## 13. Approved descriptive planning extension — 2026-11-07
+
+The requesting contributor approved additional BE planning support on CTMS-415 after PR #822. This is contributor approval, not an independently verified product-owner decision. Original privacy/authorization/normal Trip rules remain authoritative.
+
+- After a monthly report succeeds, Host may explicitly request a separate persisted AI planning result. Generating the monthly report does not implicitly invoke this additional AI operation.
+- Permitted evidence expands to booking-time price bands (VND per person, excluding equipment), Trip capacity bands at booking time (not party size or an optimal capacity), duration bands and an explicitly Host-confirmed catalog area. No destination is inferred from titles, meeting points or raw GPS.
+- Capture prospective immutable analytic snapshots at Booking insertion only. Do not backfill legacy Bookings from mutable current Trips. Existing historical values remain missing unless authoritative contemporaneous evidence exists.
+- For this first extension, enrich only whole released type/difficulty cohorts: a dimension is exposed only if all source rows in that cohort have the same known approved band/code. Missing or heterogeneous dimensions are omitted; do not select a majority, publish child counts, combine independent marginals or narrow the original cohort. The existing distinct-booker/Host/dominance gates and ten-wide intervals remain in force. This is conservative whole-cohort coarsening, not a general multi-dimensional analytics cube.
+- Freeze eligible planning candidates atomically with the first monthly report. Existing published reports receive no new planning context or replacement release. Historical/legacy reports return planning_unavailable rather than fabricating missing evidence.
+- AI selects only supplied candidate IDs and approved organization-focus codes. Labels, intervals and factual explanations are resolved by the server from frozen input; no generated prices, locations, capacities, identities, numbers, unsupported combinations or free-form commercial forecasts are accepted. General organizational advice must be identified as general advice, distinct from observed facts.
+- Results are advisory descriptive associations. Neither more bookings nor a particular capacity/price is asserted to cause higher demand. Exposure/conversion measurement and causal evaluation are separate future work, requiring an approved data-collection/evaluation design.
+- No automatic Trip creation, publication, repricing or inventory mutation. The extra operation has active-Host authorization, persisted deduplication, cooldown, worker leases/fencing, bounded retries, provider/prompt/model traceability and safe public errors.
+
+See `docs/features/ctms-415-demand-planning-contract.md` for the API, migration, release and lifecycle decisions. UI integration remains a subsequent task.
