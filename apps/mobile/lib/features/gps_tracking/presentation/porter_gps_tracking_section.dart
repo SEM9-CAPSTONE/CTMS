@@ -9,6 +9,7 @@ import '../../incidents/data/incidents_api.dart';
 import '../../incidents/domain/trip_incident.dart';
 import '../../route_deviation/presentation/route_deviation_panel.dart';
 import 'gps_tracking_panel.dart';
+import '../../member_locations/presentation/porter_member_locations_panel.dart';
 import '../../schedule_progress/presentation/schedule_progress_panels.dart';
 
 /// Porter's assigned Trips currently `ongoing` (`GET /trips/assigned`).
@@ -94,6 +95,11 @@ class _PorterGpsTrackingSectionState
             const SizedBox(height: AppSpacing.md),
             PorterTeamProgressPanel(
               key: ValueKey('progress-${selected.id}'),
+              tripId: selected.id,
+            ),
+            const SizedBox(height: AppSpacing.md),
+            PorterMemberLocationsPanel(
+              key: ValueKey('locations-${selected.id}'),
               tripId: selected.id,
             ),
           ],
