@@ -100,7 +100,7 @@ Based on merged CTMS-415 PR #824 / 441730d8 (local base 54f5260f). This extensio
 - 429 prefers Retry-After over JSON fallback and retains its countdown across month navigation/remounts in the same application session. 422/401/403 messages are safe Vietnamese text; provider detail is never rendered. Creation errors are shown for the submitted month only.
 - Planning cards separate observed interval evidence from server-authored general advice. Null evidence is omitted; price is per person, capacity is the offered maximum at Booking time (not an optimum), and area is a Host-confirmed catalog value. No generated HTML/markdown, source identity, model/prompt/hash or automatic Trip action is displayed.
 - Withheld/unavailable/failed branches never render residual recommendations. Existing monthly advisory tips are suppressed when detailed planning succeeds. Next-step cards retain their existing two routes and support normal modifier-key link behavior.
-- The user's 104.87-second recording predates the review correction: numeric progress visible there has been replaced by an indeterminate spinner in the final code. The uploaded copy only moves MP4 metadata for streaming; content/audio are unchanged.
+- The user's 104.87-second recording predates the review correction: numeric progress visible there has been replaced by an indeterminate spinner in the final code. GitHub rejected the approximately 19.8 MB streaming copy under its 10 MB video limit. A compressed approximately 4.1 MB copy retains the full recording duration/content; the original file is unchanged.
 
 ### Extension verification
 
