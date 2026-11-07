@@ -5,6 +5,8 @@ import type { ReviewParticipation, TripReviewRecord } from "./trip-reviews.types
 const REVIEW_COLUMNS = `id, booking_id AS "bookingId", member_id AS "memberId",
 	reviewer_id AS "reviewerId", trip_id AS "tripId", host_id AS "hostId", target,
 	target_id AS "targetId", rating, comment, images, revision,
+	moderation_status AS "moderationStatus", hidden_reason AS "hiddenReason",
+	image_storage_state AS "imageStorageState",
 	created_at AS "createdAt", updated_at AS "updatedAt"`;
 
 @Injectable()

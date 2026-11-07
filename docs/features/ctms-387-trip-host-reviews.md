@@ -49,3 +49,48 @@ Focused policy/DTO unit tests cover the original 24-hour boundary and rating/com
 - [x] Applicable backend/integration tests passed.
 - [x] Full workspace unit/component test scopes passed (API and web; wrapper-command distinction described above).
 - [ ] Required remote CI checks passed (not run).
+
+## CTMS-387 Extension — Layers 1, 2 & 3 (Review Intelligence, Host Moderation & Analytics)
+
+### Storage & Schema (Migrations 1794500000000 & 1794500000001)
+
+| Table | Layer | Purpose |
+| --- | --- | --- |
+| `trip_review_moderation_runs` | 1 | Record AI execution runs, provider metadata, raw results |
+| `trip_review_moderation_image_items` | 1 | Per-image visual moderation status and SHA-256 hash |
+| `trip_review_moderation_flags` | 1 | Fine-grained AI flags with lifecycle (`active`, `superseded`, `resolved`) |
+| `trip_review_aspect_sentiments` | 1 | Aspect sentiment signals (safety, guide support, equipment, value) |
+| `trip_review_incident_signals` | 1 | Route incident signals (fall/slip, injury, lost path, weather hazard, other) |
+| `trip_review_moderation_outbox` | 1 | Transactional outbox for guaranteed async scanning dispatch |
+| `trip_review_moderation_decisions` | 2 | Immutable Host moderation decisions (`keep`, `hide`, `restore`, `keep_hidden`) |
+
+### Verified local results — 2026-11-07 (Layers 1, 2 & 3)
+
+- **Layer 1 (AI Pipeline, Outbox Worker, PII Masker, Revision Fencing)**:
+  - Unit tests: `trip-review-moderation-outbox.service.spec.ts` (7 tests), `trip-review-moderation.worker.spec.ts` (14 tests), `trip-review-moderation-pii-masker.spec.ts` (8 tests), `trip-reviews.service.spec.ts` (16 tests) — all passed.
+  - Python tests: `test_review_moderation_scan.py` (10 tests) — all passed.
+  - Integration tests: `trip-review-moderation.integration-spec.ts` (11 tests) — all passed.
+- **Layer 2 (Host Moderation Queue, Decisions, Quarantine & Admin Precedence)**:
+  - Unit tests: `trip-review-moderation-host.service.spec.ts` (16 tests), `trip-review-image-storage.service.spec.ts` (6 tests) — all passed.
+  - Integration tests: `trip-review-moderation-host.integration-spec.ts` (12 tests) — all passed.
+- **Layer 3 (Host Review Intelligence & Analytics Dashboards)**:
+  - Unit tests: `trip-review-analytics-host.service.spec.ts` (4 tests) — all passed.
+  - Integration tests: `trip-review-analytics-host.integration-spec.ts` (5 tests) — all passed.
+- **Full Test Suite & Build Verification**:
+  - Base `trip-reviews.integration-spec.ts`: 26 tests passed.
+  - Total `trip-review` unit tests: 55/55 passed.
+  - Total `trip-review` integration tests: 54/54 passed across 4 test suites.
+  - Regression `review-analysis.integration-spec.ts`: 29/29 passed.
+  - `pnpm --filter @ctms/api build`: Exit code 0 (clean build).
+  - Biome linter check: 0 errors.
+  - TypeScript: strict adherence to Zero `any`.
+
+### Extension Subtask DoD (Layers 1, 2, 3)
+
+- [x] Layer 1 schema & AI moderation pipeline implemented and committed (`8e34bfd8`).
+- [x] Layer 2 Host moderation queue, decisions, quarantine & admin override implemented and committed (`0b5fb026`).
+- [x] Layer 3 review intelligence & analytics dashboards implemented and committed (`859225a2`).
+- [x] Concurrency locking (`FOR UPDATE OF r`, `expectedRevision`) and revision fencing verified.
+- [x] Zero `any` throughout all TypeScript code.
+- [x] Clean build and lint check.
+

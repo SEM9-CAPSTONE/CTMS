@@ -13,6 +13,10 @@ from app.review_analysis_service import (
     ReviewAnalysisRequest, ReviewAnalysisResponse, ReviewAnalysisService,
     InvalidReviewOutput, ReviewProviderRefusal,
 )
+from app.review_moderation_service import (
+    ReviewModerationRequest, ReviewModerationResponse, ReviewModerationService,
+    InvalidModerationOutput, ModerationProviderRefusal,
+)
 from app.demand_insight_service import DemandRequest, DemandResponse, DemandInsightService
 
 app = FastAPI(
@@ -135,6 +139,11 @@ def get_demand_planning_service() -> DemandPlanningService:
     return DemandPlanningService(build_analysis_client().with_options(timeout=40.0))
 
 
+@lru_cache
+def get_review_moderation_service() -> ReviewModerationService:
+    return ReviewModerationService(build_analysis_client().with_options(timeout=20.0))
+
+
 @app.post("/demand-planning", response_model=PlanningResponse, dependencies=[Depends(require_review_token)])
 def demand_planning(payload: PlanningRequest, service: DemandPlanningService = Depends(get_demand_planning_service)) -> PlanningResponse:
     try:
@@ -192,4 +201,27 @@ def analyze_review(payload: ReviewAnalysisRequest, service: ReviewAnalysisServic
         raise HTTPException(status_code=status if status == 429 or 400 <= status < 500 else 502, detail={"code": "provider_failure"}) from None
     except Exception:
         # Never expose provider bodies, prompts or review contents to logs/HTTP errors.
+        raise HTTPException(status_code=502, detail={"code": "provider_failure"}) from None
+
+
+@app.post("/review-moderation-scan", response_model=ReviewModerationResponse, dependencies=[Depends(require_review_token)])
+def scan_review_moderation(payload: ReviewModerationRequest, service: ReviewModerationService = Depends(get_review_moderation_service)) -> ReviewModerationResponse:
+    try:
+        return service.generate(payload)
+    except ModerationProviderRefusal:
+        raise HTTPException(status_code=422, detail={"code": "provider_refusal"}) from None
+    except InvalidModerationOutput:
+        raise HTTPException(status_code=422, detail={"code": "invalid_output"}) from None
+    except (APITimeoutError, APIConnectionError):
+        raise HTTPException(status_code=504, detail={"code": "provider_transport"}) from None
+    except APIStatusError as error:
+        status = error.status_code
+        billing_codes = {"credit_balance_exhausted", "insufficient_quota", "organization_spend_limit_exceeded", "project_spend_limit_exceeded", "organization_usage_limit_exceeded"}
+        code = error.code if isinstance(error.code, str) and error.code in billing_codes else None
+        if code is None and error.type == "insufficient_quota":
+            code = "insufficient_quota"
+        if code:
+            raise HTTPException(status_code=429, detail={"code": code}) from None
+        raise HTTPException(status_code=status if status == 429 or 400 <= status < 500 else 502, detail={"code": "provider_failure"}) from None
+    except Exception:
         raise HTTPException(status_code=502, detail={"code": "provider_failure"}) from None
