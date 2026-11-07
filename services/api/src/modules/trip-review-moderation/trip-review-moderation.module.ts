@@ -1,5 +1,7 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
+import { TripReviewAnalyticsHostController } from "./trip-review-analytics-host.controller";
+import { TripReviewAnalyticsHostService } from "./trip-review-analytics-host.service";
 import { TripReviewImageStorageService } from "./trip-review-image-storage.service";
 import { TripReviewModerationHostController } from "./trip-review-moderation-host.controller";
 import { TripReviewModerationHostService } from "./trip-review-moderation-host.service";
@@ -9,10 +11,11 @@ import { TripReviewModerationWorker } from "./trip-review-moderation.worker";
 
 @Module({
 	imports: [ConfigModule],
-	controllers: [TripReviewModerationHostController],
+	controllers: [TripReviewModerationHostController, TripReviewAnalyticsHostController],
 	providers: [
 		TripReviewImageStorageService,
 		TripReviewModerationHostService,
+		TripReviewAnalyticsHostService,
 		TripReviewModerationOutboxService,
 		TripReviewModerationProvider,
 		TripReviewModerationWorker,
@@ -20,6 +23,7 @@ import { TripReviewModerationWorker } from "./trip-review-moderation.worker";
 	exports: [
 		TripReviewImageStorageService,
 		TripReviewModerationHostService,
+		TripReviewAnalyticsHostService,
 		TripReviewModerationOutboxService,
 		TripReviewModerationProvider,
 		TripReviewModerationWorker,
