@@ -1,0 +1,9 @@
+export const MODERATION_DEFAULT_PROVIDER = "gemini";
+export const MODERATION_DEFAULT_MODEL = "gemini-3.1-flash-lite";
+export const MODERATION_DEFAULT_CONFIG_VERSION = "gemini-v1";
+export const MODERATION_DEFAULT_PROMPT_VERSION = "v1";
+
+export const MODERATION_LEASE_DURATION_MS = 60_000;
+export const MODERATION_HEARTBEAT_INTERVAL_MS = 20_000;
+export const MODERATION_LOCK_TIMEOUT_MS = 5_000;
+export const MODERATION_MAX_ATTEMPTS = 3;

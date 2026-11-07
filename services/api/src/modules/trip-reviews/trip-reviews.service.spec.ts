@@ -2,6 +2,7 @@ import { ConflictException, ForbiddenException, NotFoundException } from "@nestj
 import type { DataSource, EntityManager } from "typeorm";
 import { BookingMemberStatus } from "../bookings/booking-member-status.enum";
 import { BookingStatus } from "../profiles/entities/booking.entity";
+import type { TripReviewModerationOutboxService } from "../trip-review-moderation/trip-review-moderation-outbox.service";
 import type { TripReviewsRepository } from "./trip-reviews.repository";
 import { TripReviewsService } from "./trip-reviews.service";
 import {
@@ -66,7 +67,15 @@ describe("TripReviewsService", () => {
 		const source = {
 			transaction: (fn: (em: EntityManager) => Promise<unknown>) => fn(manager),
 		} as unknown as DataSource;
-		service = new TripReviewsService(source, repository as unknown as TripReviewsRepository);
+		const mockModerationOutbox = {
+			onReviewCreated: jest.fn().mockResolvedValue(undefined),
+			onReviewUpdated: jest.fn().mockResolvedValue(undefined),
+		} as unknown as TripReviewModerationOutboxService;
+		service = new TripReviewsService(
+			source,
+			repository as unknown as TripReviewsRepository,
+			mockModerationOutbox
+		);
 	});
 	describe("context", () => {
 		it("reports current eligibility and keeps existing own reviews after expiry", async () => {

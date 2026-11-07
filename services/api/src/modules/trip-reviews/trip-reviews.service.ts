@@ -9,6 +9,8 @@ import {
 // biome-ignore lint/style/useImportType: Nest runtime injection metadata
 import { DataSource, type EntityManager } from "typeorm";
 import { AuditLog } from "../auth/entities/audit-log.entity";
+// biome-ignore lint/style/useImportType: Nest runtime injection metadata
+import { TripReviewModerationOutboxService } from "../trip-review-moderation/trip-review-moderation-outbox.service";
 import type { TripReviewContextResponseDto } from "./dto/trip-review-response.dto";
 import type { CreateTripReviewDto, UpdateTripReviewDto } from "./dto/trip-review.dto";
 import { reviewEligibility } from "./trip-reviews.policy";
@@ -25,7 +27,8 @@ import {
 export class TripReviewsService {
 	constructor(
 		private readonly dataSource: DataSource,
-		private readonly reviews: TripReviewsRepository
+		private readonly reviews: TripReviewsRepository,
+		private readonly moderationOutbox: TripReviewModerationOutboxService
 	) {}
 
 	summary(userId: string) {
@@ -78,6 +81,7 @@ export class TripReviewsService {
 			if (!(await this.reviews.insert(manager, review)))
 				throw new ConflictException("A review already exists for this participation and target");
 			await this.reviews.recordRevision(manager, review);
+			await this.moderationOutbox.onReviewCreated(manager, review);
 			await this.audit(manager, userId, review, null);
 			return review;
 		});
@@ -109,6 +113,7 @@ export class TripReviewsService {
 			};
 			await this.reviews.update(manager, updated);
 			await this.reviews.recordRevision(manager, updated);
+			await this.moderationOutbox.onReviewUpdated(manager, updated);
 			await this.audit(manager, userId, updated, current.revision);
 			return updated;
 		});
