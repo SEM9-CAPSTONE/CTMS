@@ -83,6 +83,17 @@ describe("GpsTrackingService", () => {
 				samplingIntervalSeconds: 10,
 				loggingIntervalSeconds: 30,
 				configVersion: "v3",
+				startsAt: TRIP_START.toISOString(),
+				endsAt: TRIP_END.toISOString(),
+			});
+		});
+
+		it("allows tracking even when now > endsAt as long as trip is still ongoing (late return)", async () => {
+			const afterTripEnd = new Date("2026-10-12T10:00:00.000Z");
+			const context = await service.getTrackingContext(USER_ID, TRIP_ID, afterTripEnd);
+			expect(context).toMatchObject({
+				eligible: true,
+				participantRole: GpsParticipantRole.CAMPER,
 			});
 		});
 
@@ -231,11 +242,33 @@ describe("GpsTrackingService", () => {
 			expect(response.results[0].reason).toBe(GpsLogRejectionReason.PARTICIPATION_NOT_ELIGIBLE);
 		});
 
-		it.each([
-			["before the Trip starts", "2026-10-12T00:59:59.000Z"],
-			["after the Trip ends", "2026-10-12T09:00:01.000Z"],
-		])("rejects a log captured %s", async (_label, eventTime) => {
-			const response = await service.ingestLogs(USER_ID, TRIP_ID, { logs: [log({ eventTime })] });
+		it("rejects a log captured before the Trip starts", async () => {
+			const response = await service.ingestLogs(USER_ID, TRIP_ID, {
+				logs: [log({ eventTime: "2026-10-12T00:59:59.000Z" })],
+			});
+
+			expect(response.results[0].reason).toBe(
+				GpsLogRejectionReason.EVENT_TIME_OUTSIDE_PARTICIPATION
+			);
+		});
+
+		it("accepts a log captured after scheduled endsAt while Trip is still ongoing (late return)", async () => {
+			const response = await service.ingestLogs(USER_ID, TRIP_ID, {
+				logs: [log({ eventTime: "2026-10-12T09:00:01.000Z" })],
+			});
+
+			expect(response.results[0].status).toBe(GpsLogIngestStatus.ACCEPTED);
+		});
+
+		it("rejects a log captured after the Trip has completed", async () => {
+			participation.findTrip.mockResolvedValue({
+				...trip(TripStatus.COMPLETED),
+				updatedAt: TRIP_END,
+			});
+
+			const response = await service.ingestLogs(USER_ID, TRIP_ID, {
+				logs: [log({ eventTime: "2026-10-12T09:00:01.000Z" })],
+			});
 
 			expect(response.results[0].reason).toBe(
 				GpsLogRejectionReason.EVENT_TIME_OUTSIDE_PARTICIPATION

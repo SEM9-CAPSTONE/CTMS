@@ -103,7 +103,7 @@ class CamperOverviewTripCard extends StatelessWidget {
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
-                          'Đồng bộ ngoại tuyến (15 GPS, 1 sự cố)',
+                          'Sẵn sàng ghi GPS & đồng bộ ngoại tuyến',
                           style: AppTypography.caption.copyWith(
                             color: AppColors.brandPrimary,
                             fontWeight: FontWeight.w600,

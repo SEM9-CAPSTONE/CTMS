@@ -12,6 +12,7 @@ export interface TrackedTrip {
 	status: TripStatus;
 	startsAt: Date;
 	endsAt: Date;
+	updatedAt?: Date;
 }
 
 export interface CamperParticipation {
@@ -36,7 +37,7 @@ export class GpsParticipationSource {
 
 	async findTrip(tripId: string): Promise<TrackedTrip | null> {
 		const rows = (await this.dataSource.query(
-			`SELECT "id", "host_id" AS "hostId", "status", "starts_at" AS "startsAt", "ends_at" AS "endsAt"
+			`SELECT "id", "host_id" AS "hostId", "status", "starts_at" AS "startsAt", "ends_at" AS "endsAt", "updated_at" AS "updatedAt"
 			 FROM "trips" WHERE "id" = $1`,
 			[tripId]
 		)) as TrackedTrip[];
