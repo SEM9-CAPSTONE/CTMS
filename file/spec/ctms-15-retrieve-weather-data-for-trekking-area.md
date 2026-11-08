@@ -312,3 +312,47 @@ API only; the UI belongs to CTMS-97. Implements §4 of `docs/features/weather-tr
     - An `e2e-%` user was left in `ctms_test` because `FK_audit_logs_actor_id` blocked its cleanup. It made the `auth.*` suites fail with 409. After removing it, `auth.login`, `auth.refresh` and `auth.resend-otp` passed 24/24 and shard 6 passed 98/98.
   - New tests: `trip-weather-monitoring` integration 4/4, monitoring unit 27/27.
   - Default E2E: 54 passed / 38 failed / 32 did not run, the same as the baseline.
+
+## 19. Implementation Record — CTMS-015-T02 (Jira CTMS-97): weather change notices and forecast history (UI)
+
+- **Scope:** web only (`apps/web`). It uses the CTMS-93 Task 2 API with no backend change. Mobile is not in this task.
+- **API wiring:**
+  - `core/api/endpoints.ts`: `TRIPS.WEATHER_FORECAST_HISTORY`, `WEATHER.CHANGE_NOTICES`, `WEATHER.READ_CHANGE_NOTICE`.
+  - `core/api/queryKeys.ts`: `trips.tripWeatherHistory(tripId)`, `weather.changeNotices(userId)`.
+  - `TripWeatherForecast.checkedAt` (optional) and `tripsService.getTripWeatherHistory`.
+- **Weather inbox** (`features/weather`):
+  - `services/weather-change-notices.service.ts`: list and mark read.
+  - `hooks/useWeatherChangeNotices.ts`:
+    - polls every 60 s, only with a signed-in session;
+    - on the `trip.weather.changed` socket event, reloads the inbox at once and refreshes that Trip's forecast and history queries;
+    - the unread count comes from the server.
+  - `components/WeatherChangeNotices.tsx`:
+    - copies the look of the booking cancellation inbox (same button, badge and `<dialog>`), so the UI stays consistent;
+    - each notice shows the Trip link, the server's message and the old → new level badges;
+    - worsened notices use an amber background, improved ones green;
+    - unread notices have "Đánh dấu đã đọc".
+  - Placement:
+    - Host: in `role-landing/Sidebar`, next to the cancellation bell;
+    - Camper: in `camper-profile/CamperSidebar`, beside the logo;
+    - Admin gets no weather notices (policy §4).
+- **Forecast history** (`features/trips`):
+  - `hooks/useTripWeatherHistory.ts` and `components/TripWeatherHistory.tsx`: a collapsible "Lịch sử thay đổi dự báo" that loads only when opened.
+  - Each row shows the time, level badge (or "Chưa có dự báo" when out of range), composite score, and "Kiểm tra lần cuối" when the monitor re-confirmed the row later.
+  - `TripDatesWeatherCard` renders it under the forecast on the Trip page and the Booking page.
+  - `TripWeatherForecastCard` (traveller view) adds "Kiểm tra lần cuối: …" from `checkedAt`.
+
+## 20. Test Evidence — CTMS-97
+
+- **Vitest:**
+  - `WeatherChangeNotices.test.tsx` (6): list with message, levels, link and worsened highlight; mark read with the server count; mark-read error; retry then empty state; `trip.weather.changed` reloads at once; idle without a session (no request, no socket).
+  - `TripWeatherHistory.test.tsx` (3): loads only when opened, newest first, out-of-range row, last-checked hint; empty; retry.
+  - `TripDatesWeatherCard.test.tsx` (+1): last-checked line and history section.
+- **Playwright** (`tests/e2e/ctms-97-weather-change-notices.spec.ts`, mocked backend, 2 tests):
+  - Host reads a level change from the inbox and marks it read (PATCH sent once, count 0).
+  - Camper sees the inbox; the Trip page shows "Kiểm tra lần cuối", and the history loads only on open with 2 rows.
+- **Gates:**
+  - `pnpm lint:all`: 0 errors (12 warnings, all pre-existing).
+  - `pnpm build:all`: passed.
+  - Web Vitest: 254 files, 1695/1695 passed.
+  - API unit (in `pnpm test:all`): 2202/2204. The 2 failures are the known `package-readiness.spec.ts` ones; the API was not changed.
+  - Default E2E: 56 passed / 38 failed / 32 did not run. That is the baseline (54 / 38 / 32) plus the 2 new CTMS-97 tests; the failed set is unchanged.

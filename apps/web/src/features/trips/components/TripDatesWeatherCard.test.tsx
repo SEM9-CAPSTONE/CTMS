@@ -67,6 +67,14 @@ describe("TripDatesWeatherCard", () => {
 		expect(await screen.findByText(/Dự báo cho lịch trình/)).toBeInTheDocument();
 	});
 
+	it("shows when the monitor last checked the forecast and offers its change history", async () => {
+		renderCard(vi.fn().mockResolvedValue(forecast({ checkedAt: "2026-11-08T05:00:00.000Z" })));
+		expect(await screen.findByTestId("trip-forecast-checked-at")).toHaveTextContent(
+			"Kiểm tra lần cuối:"
+		);
+		expect(screen.getByTestId("trip-weather-history")).toHaveTextContent("Lịch sử thay đổi dự báo");
+	});
+
 	it("explains that a far-away Trip has no forecast yet instead of showing today's weather", async () => {
 		renderCard(
 			vi.fn().mockResolvedValue(

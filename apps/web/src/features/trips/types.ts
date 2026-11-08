@@ -145,6 +145,8 @@ export interface TripWeatherForecast {
 	advice: { text: string; actions: string[]; generatedAt: string } | null;
 	horizonDays: number;
 	createdAt: string;
+	/** Last time the monitor confirmed this forecast (CTMS-93); older payloads may omit it. */
+	checkedAt?: string;
 }
 
 export interface SubmitTripInput {
