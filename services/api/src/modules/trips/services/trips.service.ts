@@ -77,6 +77,16 @@ const tripDateFormatter = new Intl.DateTimeFormat("en-CA", {
 	day: "2-digit",
 });
 
+/** Lets the weather decision flow (policy §5) reuse the Host reschedule/cancel transactions. */
+export interface TripScheduleChangeOptions {
+	/** Skip the owner check: the caller already authorized an Admin acting for the Host. */
+	actingAsAdmin?: boolean;
+	/** Overrides the audit reason of the reschedule entry. */
+	auditReason?: string;
+	/** Runs inside the same transaction after the change, e.g. to record the decision. */
+	withinTransaction?: (manager: EntityManager, updated: TripResponseDto) => Promise<void>;
+}
+
 @Injectable()
 export class TripsService {
 	constructor(
@@ -1066,7 +1076,8 @@ export class TripsService {
 		hostId: string,
 		tripId: string,
 		dto: RescheduleTripDto,
-		rescheduledAt = new Date()
+		rescheduledAt = new Date(),
+		options: TripScheduleChangeOptions = {}
 	): Promise<TripResponseDto> {
 		return this.dataSource.transaction(async (manager: EntityManager) => {
 			const repository = manager.withRepository(this.tripsRepository);
@@ -1075,7 +1086,7 @@ export class TripsService {
 			if (!locked) {
 				throw new NotFoundException("Trip not found");
 			}
-			if (locked.hostId !== hostId) {
+			if (!options.actingAsAdmin && locked.hostId !== hostId) {
 				throw new ForbiddenException("Only the owning Host can reschedule this Trip");
 			}
 			if (locked.status !== TripStatus.PUBLISHED) {
@@ -1112,14 +1123,20 @@ export class TripsService {
 					reconfirmationDeadline,
 					commitmentSummary,
 				},
-				reason: "host_reschedule_trip",
+				reason: options.auditReason ?? "host_reschedule_trip",
 			});
+			await options.withinTransaction?.(manager, updated);
 
 			return updated;
 		});
 	}
 
-	async cancel(hostId: string, tripId: string, dto: CancelTripDto): Promise<TripResponseDto> {
+	async cancel(
+		hostId: string,
+		tripId: string,
+		dto: CancelTripDto,
+		options: TripScheduleChangeOptions = {}
+	): Promise<TripResponseDto> {
 		const cancelledAt = new Date();
 		return this.dataSource.transaction(async (manager: EntityManager) => {
 			const repository = manager.withRepository(this.tripsRepository);
@@ -1128,7 +1145,7 @@ export class TripsService {
 			if (!locked) {
 				throw new NotFoundException("Trip not found");
 			}
-			if (locked.hostId !== hostId) {
+			if (!options.actingAsAdmin && locked.hostId !== hostId) {
 				throw new ForbiddenException("Only the owning Host can cancel this Trip");
 			}
 			if (locked.status === TripStatus.COMPLETED) {
@@ -1160,6 +1177,7 @@ export class TripsService {
 				},
 				reason: dto.reason,
 			});
+			await options.withinTransaction?.(manager, updated);
 
 			return updated;
 		});
@@ -1198,6 +1216,9 @@ export class TripsService {
 		}
 		if (locked.status !== TripStatus.PUBLISHED) {
 			throw new ConflictException("Trip is not available for booking");
+		}
+		if (locked.weatherPausedAt) {
+			throw new ConflictException("Trip is paused by an Admin because of the weather");
 		}
 
 		const now = new Date();

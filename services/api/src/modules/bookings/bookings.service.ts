@@ -1045,6 +1045,9 @@ export class BookingsService {
 		if (trip.status !== TripStatus.PUBLISHED) {
 			throw new ConflictException("Trip is not available for booking");
 		}
+		if (trip.weatherPausedAt) {
+			throw new ConflictException("Trip is paused by an Admin because of the weather");
+		}
 		const now = new Date();
 		if (trip.bookingDeadline <= now) throw new ConflictException("Booking deadline has passed");
 		if (trip.startsAt <= now) throw new ConflictException("Trip has already started");
