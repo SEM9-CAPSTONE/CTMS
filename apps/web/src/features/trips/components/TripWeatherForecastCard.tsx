@@ -1,7 +1,14 @@
 import type { ReactNode } from "react";
+import { StatusBadge, type StatusBadgeTone } from "../../../shared/components/StatusBadge";
 import { WeatherRiskCard } from "../../weather/components/WeatherRiskCard";
 import { formatWeatherDateTime, toCriterionViews } from "../../weather/utils/weather-risk";
 import type { TripWeatherForecast } from "../types";
+import {
+	FAR_RED_FORECAST_WARNING,
+	type TripForecastReliability,
+	isFarRedForecast,
+	tripForecastReliability,
+} from "../utils/trip-forecast-reliability";
 
 export interface TripWeatherForecastCardProps {
 	forecast: TripWeatherForecast | null;
@@ -16,6 +23,42 @@ export interface TripWeatherForecastCardProps {
 	/** Admin view shows the forecast attached at submission; traveller is the Camper's view of the trip dates. */
 	variant?: "host" | "admin" | "traveller";
 	children?: ReactNode;
+	/** Clock for the reliability label; injectable for tests. */
+	now?: () => Date;
+}
+
+const RELIABILITY_TONES: Record<TripForecastReliability, StatusBadgeTone> = {
+	low: "neutral",
+	medium: "info",
+	high: "success",
+};
+
+/**
+ * Traveller-only context: how reliable the forecast is for the time left before departure, and
+ * the "may change, the Host decides" warning for a Red forecast that is still far away.
+ */
+function TravellerForecastContext({ forecast, now }: { forecast: TripWeatherForecast; now: Date }) {
+	const reliability = tripForecastReliability(forecast.tripStartsAt, now);
+	return (
+		<div className="space-y-2">
+			<div
+				data-testid="trip-forecast-reliability"
+				data-level={reliability.level}
+				className="flex flex-wrap items-center gap-2 text-xs text-[#4f6356]"
+			>
+				<StatusBadge tone={RELIABILITY_TONES[reliability.level]}>{reliability.label}</StatusBadge>
+				<span>{reliability.description}</span>
+			</div>
+			{isFarRedForecast(forecast, now) && (
+				<p
+					data-testid="trip-forecast-far-red-warning"
+					className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900"
+				>
+					{FAR_RED_FORECAST_WARNING}
+				</p>
+			)}
+		</div>
+	);
 }
 
 function hourHint(at: string | null | undefined): string | undefined {
@@ -33,6 +76,7 @@ export function TripWeatherForecastCard({
 	onRetry,
 	variant = "host",
 	children,
+	now = () => new Date(),
 }: TripWeatherForecastCardProps) {
 	const worst = forecast?.worstReading ?? null;
 	const outOfRange = forecast?.status === "out_of_range";
@@ -106,6 +150,9 @@ export function TripWeatherForecastCard({
 			refreshLabel="Dự báo lại"
 			testId="trip-weather-forecast-card"
 		>
+			{variant === "traveller" && forecast?.status === "available" && (
+				<TravellerForecastContext forecast={forecast} now={now()} />
+			)}
 			{children}
 		</WeatherRiskCard>
 	);

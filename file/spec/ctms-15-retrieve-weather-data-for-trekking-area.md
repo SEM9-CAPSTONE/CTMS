@@ -195,3 +195,32 @@ Exact provider, freshness duration and provider-specific response mapping are no
 - [x] Tests added or updated; regression compared with the baseline.
 - [x] Policy for later tasks documented in `docs/features/weather-trip-date-decision-policy.md`.
 - [ ] Mobile Camper weather (separate task).
+
+## 15. Implementation Record — CTMS-93 follow-up: forecast reliability and far-Red warning
+
+Web only; no API change. Implements policy §2 and §3 of `docs/features/weather-trip-date-decision-policy.md`. Only the newest forecast is used.
+
+- **Logic:** `apps/web/src/features/trips/utils/trip-forecast-reliability.ts`.
+  - `tripForecastReliability(tripStartsAt)` maps the time left before departure to a reliability level:
+
+    | Time left | Level | Label |
+    | --- | --- | --- |
+    | More than 7 days | low | "Dự báo xa, có thể thay đổi" |
+    | 4–7 days | medium | "Cảnh báo sớm" |
+    | 3 days or less, or the Trip has started | high | "Độ tin cậy cao" |
+
+  - `isFarRedForecast` is true for an available Red forecast while departure is more than 3 days away. It uses the same window as the API booking gate (`TRIP_FORECAST_BLOCKING_WINDOW_MS`): in that case booking is allowed, not blocked.
+- **Traveller forecast card** (`TripWeatherForecastCard`, `traveller` variant; Trip detail and Booking detail):
+  - shows the reliability badge with a one-line explanation;
+  - for a far Red forecast, adds the warning "Dự báo xấu, có thể thay đổi. Host sẽ quyết định trước ngày đi."
+  - Host/Admin variants and `out_of_range` forecasts are unchanged.
+- **Trip detail booking column:** the same warning appears next to the booking panel for a far Red forecast. It is not shown to the managing Host, and not within 3 days, where booking is blocked by the API.
+
+## 16. Test Evidence — CTMS-93 follow-up
+
+- **Unit:**
+  - `trip-forecast-reliability.test.ts`: tier boundaries at 15/8/7/4/3/0.5/−0.1 days; just over 3 days counts as medium; far-Red only for an available Red forecast more than 3 days out.
+  - `TripWeatherForecastCard.test.tsx`: traveller labels per tier; far-Red warning shown at 6 days, hidden at 2 days; nothing for Host/Admin or `out_of_range`.
+  - `TripDetailView.test.tsx`: booking warning at 5 days, not at 2 days, not for the managing Host.
+- **Gates:** `lint:all` 0 errors (12 existing warnings); `build:all` passed; web Vitest 1685/1685 (252 files, on develop with CTMS-362).
+- **Screenshots:** none; the user chose to skip them for this follow-up. Evidence is the test results.

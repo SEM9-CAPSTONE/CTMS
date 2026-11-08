@@ -42,6 +42,56 @@ const available: TripWeatherForecast = {
 	createdAt: "2026-10-18T01:00:00.000Z",
 };
 
+describe("TripWeatherForecastCard traveller reliability", () => {
+	const startsAt = new Date(available.tripStartsAt).getTime();
+	const daysBefore = (days: number) => () => new Date(startsAt - days * 86_400_000);
+	const renderTraveller = (forecast: TripWeatherForecast, now: () => Date) =>
+		render(
+			<TripWeatherForecastCard
+				variant="traveller"
+				forecast={forecast}
+				isLoading={false}
+				error={null}
+				now={now}
+			/>
+		);
+
+	it.each([
+		[10, "low", "Dự báo xa, có thể thay đổi"],
+		[5, "medium", "Cảnh báo sớm"],
+		[2, "high", "Độ tin cậy cao"],
+	] as const)("%s days before departure shows the %s reliability label", (days, level, label) => {
+		renderTraveller(available, daysBefore(days));
+		const row = screen.getByTestId("trip-forecast-reliability");
+		expect(row).toHaveAttribute("data-level", level);
+		expect(row).toHaveTextContent(label);
+	});
+
+	it("warns that a far Red forecast may change and the Host decides; not within 3 days", () => {
+		const red = { ...available, riskLevel: "red" as const };
+		const { unmount } = renderTraveller(red, daysBefore(6));
+		expect(screen.getByTestId("trip-forecast-far-red-warning")).toHaveTextContent(
+			"Dự báo xấu, có thể thay đổi. Host sẽ quyết định trước ngày đi."
+		);
+		unmount();
+		renderTraveller(red, daysBefore(2));
+		expect(screen.queryByTestId("trip-forecast-far-red-warning")).not.toBeInTheDocument();
+	});
+
+	it("shows no reliability label to Host/Admin or when there is no forecast yet", () => {
+		const { unmount } = render(
+			<TripWeatherForecastCard forecast={available} isLoading={false} error={null} />
+		);
+		expect(screen.queryByTestId("trip-forecast-reliability")).not.toBeInTheDocument();
+		unmount();
+		renderTraveller(
+			{ ...available, status: "out_of_range", riskLevel: null, worstReading: null },
+			daysBefore(20)
+		);
+		expect(screen.queryByTestId("trip-forecast-reliability")).not.toBeInTheDocument();
+	});
+});
+
 describe("TripWeatherForecastCard", () => {
 	it("shows the forecast for the trekking days with the worst hour of each criterion", () => {
 		render(<TripWeatherForecastCard forecast={available} isLoading={false} error={null} />);
