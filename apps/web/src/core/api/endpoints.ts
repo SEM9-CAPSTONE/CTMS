@@ -12,6 +12,16 @@ export const API_ENDPOINTS = {
 		SOURCE: (trip: string, review: string, revision: number) =>
 			`/trips/${trip}/review-analyses/${review}/source/${revision}`,
 	},
+	HOST_REVIEW_MODERATION: {
+		QUEUE: "/host/trip-reviews/moderation-queue",
+		DECISION: (reviewId: string) => `/host/trip-reviews/${reviewId}/decisions`,
+		QUARANTINED_IMAGE: (reviewId: string, imageIndex: number) =>
+			`/host/trip-reviews/${reviewId}/quarantined-images/${imageIndex}`,
+	},
+	HOST_REVIEW_ANALYTICS: {
+		TRIPS_OVERVIEW: "/host/review-analytics/trips-overview",
+		ROUTES_SAFETY_OVERVIEW: "/host/review-analytics/routes-safety-overview",
+	},
 	SURVIVAL_DOCUMENTS: {
 		ROOT: "/admin/survival-documents",
 		IMPORT_URL: "/admin/survival-documents/import-url",

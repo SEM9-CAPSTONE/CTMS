@@ -104,7 +104,10 @@ test("mock API: 202 polls to completion, stops, and restores persisted batch aft
 	page,
 }) => {
 	const state = await mockUI(page);
-	await page.getByRole("button", { name: "Phân tích đánh giá", exact: true }).click();
+	await page
+		.getByLabel("Chọn chuyến đi và phân tích")
+		.getByRole("button", { name: "Phân tích đánh giá", exact: true })
+		.click();
 	await expect(page.getByRole("heading", { name: "Đang xử lý lượt phân tích" })).toBeVisible();
 	await expect(page.getByRole("heading", { name: "Lượt phân tích gần nhất" })).toBeVisible({
 		timeout: 10000,
@@ -119,7 +122,10 @@ test("mock API: 202 polls to completion, stops, and restores persisted batch aft
 });
 test("mock API: 429 shows countdown and disables repeat submission", async ({ page }) => {
 	const state = await mockUI(page, "host", "limited");
-	await page.getByRole("button", { name: "Phân tích đánh giá", exact: true }).click();
+	await page
+		.getByLabel("Chọn chuyến đi và phân tích")
+		.getByRole("button", { name: "Phân tích đánh giá", exact: true })
+		.click();
 	await expect(page.getByRole("button", { name: /Chờ [1-8] giây/ })).toBeDisabled();
 	expect(state.posts()).toBe(1);
 });
@@ -154,11 +160,9 @@ test("live API/database: Host reads stored Gemini analysis and source after relo
 	await expect(
 		page.getByRole("heading", { name: /32\s*\/\s*32 đánh giá đủ điều kiện/ })
 	).toBeVisible({ timeout: 15000 });
-	await page.getByRole("button", { name: "Xem chi tiết", exact: true }).first().click();
-	await page
-		.getByRole("button", { name: /Xem đánh giá gốc/ })
-		.first()
-		.click();
+	const firstCard = page.getByRole("article").filter({ hasText: "Nhận xét 1" });
+	await firstCard.getByRole("button", { name: "Xem chi tiết", exact: true }).click();
+	await firstCard.getByRole("button", { name: /Xem đánh giá gốc/ }).click();
 	await expect(page.getByText(/Đánh giá của người tham gia/)).toBeVisible();
 	await page.reload();
 	await expect(

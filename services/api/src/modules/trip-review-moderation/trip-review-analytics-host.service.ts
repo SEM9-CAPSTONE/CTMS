@@ -30,6 +30,8 @@ import type {
 interface TripRow {
 	tripId: string;
 	tripTitle: string;
+	routeId?: string;
+	routeName?: string;
 }
 
 interface RouteRow {
@@ -105,8 +107,9 @@ export class TripReviewAnalyticsHostService {
 		const offsetPlaceholder = `$${params.length + 2}`;
 
 		const trips: TripRow[] = await this.dataSource.query(
-			`SELECT t.id AS "tripId", t.title AS "tripTitle"
+			`SELECT t.id AS "tripId", t.title AS "tripTitle", t.route_id AS "routeId", tr.name AS "routeName"
 			 FROM trips t
+			 LEFT JOIN trekking_routes tr ON tr.id = t.route_id
 			 WHERE t.host_id = $1 ${tripFilter}
 			 ORDER BY t.created_at DESC, t.id ASC
 			 LIMIT ${limitPlaceholder} OFFSET ${offsetPlaceholder}`,
@@ -237,6 +240,8 @@ export class TripReviewAnalyticsHostService {
 			return {
 				tripId: trip.tripId,
 				tripTitle: trip.tripTitle,
+				routeId: trip.routeId,
+				routeName: trip.routeName,
 				totalReviews,
 				analyzedReviewsCount,
 				coverageRate,

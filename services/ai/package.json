@@ -1,0 +1,9 @@
+{
+	"name": "@ctms/ai",
+	"version": "0.1.0",
+	"private": true,
+	"scripts": {
+		"dev": "python -m uvicorn app.main:app --port 8000 --reload",
+		"test": "python -m pytest app/test_review_analysis_service.py app/test_review_moderation_service.py -q"
+	}
+}

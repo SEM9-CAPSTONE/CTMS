@@ -101,7 +101,9 @@ export class TripReviewImageStorageService {
 	getQuarantinedPath(url: string): string | null {
 		const filename = this.extractFilename(url);
 		if (!filename) return null;
-		const path = join(this.quarantineDirectory, filename);
-		return existsSync(path) ? path : null;
+		const quarantinedPath = join(this.quarantineDirectory, filename);
+		if (existsSync(quarantinedPath)) return quarantinedPath;
+		const livePath = join(this.liveDirectory, filename);
+		return existsSync(livePath) ? livePath : null;
 	}
 }

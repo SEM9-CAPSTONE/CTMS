@@ -15,6 +15,19 @@ export const queryKeys = {
 		source: (actor: string, trip: string, review: string, revision: number) =>
 			["review-analysis", actor, trip, "source", review, revision] as const,
 	},
+	reviewModeration: {
+		all: ["review-moderation"] as const,
+		queue: (actor: string, status: string, tripId?: string, page = 1) =>
+			["review-moderation", actor, "queue", status, tripId ?? "all", page] as const,
+		pendingBadge: (actor: string) => ["review-moderation", actor, "pending-badge"] as const,
+	},
+	reviewAnalytics: {
+		all: ["review-analytics"] as const,
+		tripsOverview: (actor: string, page = 1, tripId?: string) =>
+			["review-analytics", actor, "trips-overview", tripId ?? "all", page] as const,
+		routesSafetyOverview: (actor: string, page = 1, routeId?: string) =>
+			["review-analytics", actor, "routes-safety", routeId ?? "all", page] as const,
+	},
 	survivalDocuments: {
 		all: ["survival-documents"] as const,
 		lists: ["survival-documents", "list"] as const,

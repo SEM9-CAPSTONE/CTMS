@@ -13,6 +13,8 @@
  * 9. Content Moderation Reports
  */
 import { createHash, randomBytes } from "node:crypto";
+import { copyFileSync, existsSync, mkdirSync } from "node:fs";
+import { join } from "node:path";
 import { hash } from "bcrypt";
 import type { DataSource } from "typeorm";
 import {
@@ -4824,10 +4826,16 @@ export async function seedReviewAnalysisScenarios(
 			"SELECT id FROM users WHERE email='host@ctms.local' AND status='active'"
 		);
 		if (!host) throw new Error("Existing active demo Host required");
-		const [route]: { id: string }[] = await manager.query(
-			"SELECT id FROM trekking_routes WHERE host_id=$1 ORDER BY created_at LIMIT 1",
+		let [route]: { id: string }[] = await manager.query(
+			"SELECT id FROM trekking_routes WHERE host_id=$1 AND name LIKE '%Sơn Trà%' ORDER BY created_at LIMIT 1",
 			[host.id]
 		);
+		if (!route) {
+			[route] = await manager.query(
+				"SELECT id FROM trekking_routes WHERE host_id=$1 ORDER BY created_at LIMIT 1",
+				[host.id]
+			);
+		}
 		if (!route) throw new Error("Existing demo Host Route required");
 		const tripId = `d4120000-0000-4000-8004-${String(demoNumber).padStart(12, "0")}`;
 		const title =
@@ -4836,26 +4844,73 @@ export async function seedReviewAnalysisScenarios(
 				: "Khám phá Sơn Trà – Bình minh trên biển";
 		await manager.query(
 			`INSERT INTO trips(id,host_id,route_id,title,description,trip_type,duration_nights,starts_at,ends_at,meeting_point,booking_deadline,capacity_min,capacity_max,seats_taken,price_per_person,status)
-   VALUES($1,$2,$3,$4,'Chuyến đi mẫu phục vụ kiểm thử phân tích đánh giá, gồm 32 nhận xét tiếng Việt.','day_trip',0,now()-interval '4 days',now()-interval '3 days',ST_GeogFromText('POINT(108.22 16.04)'),now()-interval '5 days',1,40,32,0,'completed') ON CONFLICT(id) DO NOTHING`,
+   VALUES($1,$2,$3,$4,'Chuyến đi mẫu phục vụ kiểm thử phân tích đánh giá, gồm 32 nhận xét tiếng Việt.','day_trip',0,now()-interval '4 days',now()-interval '3 days',ST_GeogFromText('POINT(108.22 16.04)'),now()-interval '5 days',1,40,32,0,'completed')
+   ON CONFLICT(id) DO UPDATE SET route_id = EXCLUDED.route_id, title = EXCLUDED.title`,
 			[tripId, host.id, route.id, title]
 		);
+
+		await manager.query(
+			"INSERT INTO trip_review_analysis_slots (id) VALUES (1), (2) ON CONFLICT (id) DO NOTHING"
+		);
+
+		const batchId = `d4120000-0000-4000-8006-${String(demoNumber).padStart(12, "0")}`;
+		await manager.query(
+			`INSERT INTO trip_review_analysis_batches(
+				id, trip_id, requester_id, provider, model, config_version, prompt_version, status, created_at, completed_at
+			) VALUES (
+				$1, $2, $3, 'gemini', 'gemini-3.1-flash-lite', 'gemini-v1', 'v1', 'succeeded', now() - interval '2 days', now() - interval '2 days'
+			) ON CONFLICT (id) DO NOTHING`,
+			[batchId, tripId, host.id]
+		);
+
 		for (let index = 0; index < 32; index++) {
 			const suffix = String(index + 1 + (demoNumber - 1) * 100).padStart(12, "0");
 			const userId = `d4120000-0000-4000-8000-${suffix}`;
 			const bookingId = `d4120000-0000-4000-8001-${suffix}`;
 			const memberId = `d4120000-0000-4000-8002-${suffix}`;
 			const reviewId = `d4120000-0000-4000-8003-${suffix}`;
-			const [rating, comment] = comments[index % comments.length];
+			const isQuarantinedDemo =
+				(demoNumber === 1 && index === 9) || (demoNumber === 2 && index === 9);
+			const isFlaggedHarassment =
+				(demoNumber === 1 && index === 7) || (demoNumber === 2 && index === 7);
+			const isFlaggedProfanity =
+				(demoNumber === 1 && index === 8) || (demoNumber === 2 && index === 8);
+			const isHiddenDemo = demoNumber === 1 && index === 10;
+			const isResolvedDemo = demoNumber === 1 && index === 11;
+
+			let [rating, comment] = comments[index % comments.length];
+			if (isFlaggedHarassment) {
+				rating = 1;
+				comment =
+					demoNumber === 1
+						? "Porter béo ục ịch, đi chậm như rùa bò làm hỏng cả chuyến đi. Nhìn người vừa lùn vừa xấu vừa bẩn bựa không chịu nổi, ban tổ chức đuổi ngay thằng này đi!"
+						: "Con bé hướng dẫn viên mặt mụn xấu xí, người thì gầy gò thô kệch nhìn phát tởm, nói chuyện thì vô duyên không có não.";
+			} else if (isFlaggedProfanity) {
+				rating = 1;
+				comment =
+					demoNumber === 1
+						? "Chuyến đi như cái đ** c**, lũ làm ăn thất đức lừa đảo vcl, đồ ăn như cho chó ăn, đ* mẹ làm ăn tắc trách thế này mà cũng mở tour à!"
+						: "Dịch vụ rác rưởi vcl, đcm tụi bay lừa tiền khách à? Đ*o bao giờ quay lại cái tour hãm tài này nữa.";
+			} else if (isHiddenDemo) {
+				rating = 1;
+				comment = "Hướng dẫn viên ngu như bò, bọn lừa đảo đ** có tâm, cút mẹ chúng mày đi.";
+			} else if (isResolvedDemo) {
+				comment = "Tour bán phá giá, liên hệ Zalo 0905123456 mua vé giá rẻ giảm 50% ngay hôm nay.";
+			}
+
 			if (refreshVietnamese) {
 				await manager.query(
 					`WITH changed AS (
-                  UPDATE trip_reviews SET comment=$2,revision=revision+1,updated_at=clock_timestamp()
-                  WHERE id=$1 AND trip_id=$3 AND comment IS DISTINCT FROM $2 RETURNING *)
+                  UPDATE trip_reviews SET comment=$2, rating=$4, created_at=now() - (($5 || ' days')::interval), revision=revision+1, updated_at=clock_timestamp()
+                  WHERE id=$1 AND trip_id=$3 AND (comment IS DISTINCT FROM $2 OR rating IS DISTINCT FROM $4 OR created_at IS NULL) RETURNING *)
                   INSERT INTO trip_review_revisions(review_id,revision,rating,comment,recorded_at)
                   SELECT id,revision,rating,comment,updated_at FROM changed`,
-					[reviewId, comment, tripId]
+					[reviewId, comment, tripId, rating, Math.max(1, 32 - index)]
 				);
-				continue;
+				await manager.query(
+					`UPDATE trip_reviews SET created_at=now() - (($2 || ' days')::interval) WHERE id=$1`,
+					[reviewId, Math.max(1, 32 - index)]
+				);
 			}
 
 			await manager.query(
@@ -4883,11 +4938,296 @@ export async function seedReviewAnalysisScenarios(
 			);
 			await manager.query(
 				`WITH inserted AS (INSERT INTO trip_reviews(id,booking_id,member_id,reviewer_id,trip_id,host_id,target,target_id,rating,comment,created_at,updated_at)
-    SELECT $1,$2,$3,$4,id,$6,'trip',id,$7,$8,ends_at+interval '2 hours',ends_at+interval '2 hours' FROM trips WHERE id=$5 ON CONFLICT DO NOTHING RETURNING *)
+    SELECT $1,$2,$3,$4,id,$6,'trip',id,$7,$8,ends_at - ((32 - $9) || ' days')::interval + (($9 * 3) || ' hours')::interval, ends_at - ((32 - $9) || ' days')::interval + (($9 * 3) || ' hours')::interval FROM trips WHERE id=$5 ON CONFLICT DO NOTHING RETURNING *)
     INSERT INTO trip_review_revisions(review_id,revision,rating,comment,recorded_at) SELECT id,revision,rating,comment,updated_at FROM inserted`,
-				[reviewId, bookingId, memberId, userId, tripId, host.id, rating, comment]
+				[reviewId, bookingId, memberId, userId, tripId, host.id, rating, comment, index + 1]
 			);
+
+			// CTMS-412: Seed completed moderation run, aspect sentiments, incident signals, and moderation flags
+			const runId = `d4120000-0000-4000-8005-${suffix}`;
+
+			await manager.query(
+				`INSERT INTO trip_review_moderation_runs(
+					id, review_id, source_revision, provider, model, config_version, prompt_version,
+					text_scan_status, image_scan_status, aspects_status, incidents_status,
+					attempts, created_at, completed_at
+				) VALUES (
+					$1, $2, 1, 'gemini', 'gemini-1.5-flash', 'v1.0', 'v1.0',
+					'completed', $3, 'completed', 'completed',
+					1, now() - interval '2 days', now() - interval '2 days'
+				) ON CONFLICT (id) DO UPDATE SET aspects_status = 'completed', incidents_status = 'completed'`,
+				[runId, reviewId, isQuarantinedDemo ? "completed" : "not_applicable"]
+			);
+
+			// Seed 4 aspect sentiments per review
+			const safetySentiment = index < 25 ? "positive" : index < 29 ? "neutral" : "negative";
+			const guideSentiment = index < 27 ? "positive" : index < 30 ? "neutral" : "negative";
+			const equipSentiment = index < 21 ? "positive" : index < 28 ? "neutral" : "negative";
+			const valueSentiment = index < 23 ? "positive" : index < 29 ? "neutral" : "negative";
+
+			await manager.query(
+				`INSERT INTO trip_review_aspect_sentiments(run_id, review_id, source_revision, aspect, sentiment, confidence, quote)
+				 VALUES 
+				 ($1, $2, 1, 'safety', $3, 0.95, 'Hướng dẫn an toàn rất chu đáo và chi tiết.'),
+				 ($1, $2, 1, 'guide_support', $4, 0.96, 'Hướng dẫn viên nhiệt tình, hỗ trợ chu đáo suốt chuyến đi.'),
+				 ($1, $2, 1, 'equipment', $5, 0.90, 'Trang thiết bị trekking và bộ sơ cứu được chuẩn bị tốt.'),
+				 ($1, $2, 1, 'value', $6, 0.92, 'Trải nghiệm rất xứng đáng với chi phí bỏ ra.')
+				 ON CONFLICT (run_id, aspect) DO UPDATE SET sentiment = EXCLUDED.sentiment`,
+				[runId, reviewId, safetySentiment, guideSentiment, equipSentiment, valueSentiment]
+			);
+
+			// Seed completed batch analysis item for CTMS-107
+			const itemId = `d4120000-0000-4000-8007-${suffix}`;
+			const itemSentiment =
+				rating >= 4
+					? "positive"
+					: rating === 3
+						? index % 2 === 0
+							? "neutral"
+							: "mixed"
+						: "negative";
+			const itemTopics =
+				rating >= 4
+					? ["scenery", "itinerary", "organization"]
+					: rating === 3
+						? ["facilities", "scenery"]
+						: ["organization", "communication"];
+			const positiveSummaries = [
+				"Cảnh quan Sơn Trà tuyệt đẹp, công tác tổ chức chu đáo và thời gian nghỉ ngắm cảnh hợp lý.",
+				"Hướng dẫn viên tận tình, phổ biến an toàn rõ ràng và hỗ trợ đoàn nhiệt tình suốt chặng đi.",
+				"Lịch trình đi bộ ven biển đón bình minh rất đáng nhớ, các điểm dừng chân bố trí hợp lý.",
+				"Trang thiết bị bảo hộ và gậy trekking đầy đủ, chất lượng dịch vụ rất xứng đáng với chi phí.",
+				"Không khí trong lành, nhóm đi hòa đồng vui vẻ và khâu hậu cần chuẩn bị chu đáo.",
+				"Đoàn được hướng dẫn kỹ các quy tắc bảo vệ môi trường và giữ an toàn trên dốc đá.",
+				"Trải nghiệm trekking bình minh tuyệt vời, thời gian chụp ảnh và nghỉ ngơi rất thoải mái.",
+			];
+			const neutralOrMixedSummaries = [
+				"Phong cảnh đẹp nhưng tiện nghi vệ sinh ở điểm dừng chân buổi trưa cần được cải thiện.",
+				"Giá tour hợp lý và đồ ăn vừa đủ, tuy nhiên tốc độ di chuyển chặng đầu hơi vội.",
+				"Chuyến đi diễn ra đúng mô tả, dịch vụ ổn định nhưng chưa có nhiều hoạt động trải nghiệm đặc sắc.",
+				"Cung đường đẹp và không khí thoáng đãng, tuy nhiên thông tin tập trung cần phản hồi nhanh hơn.",
+			];
+			const negativeSummaries = [
+				"Thông báo đổi điểm tập trung sát giờ gây lúng túng cho khách, khâu tổ chức cần cải thiện.",
+				"Lịch trình di chuyển khá gấp, ít thời gian nghỉ ngơi và thông tin trước chuyến đi chưa rõ ràng.",
+				"Phát sinh chi phí phụ chưa được giải thích cặn kẽ trước khi khởi hành, cần minh bạch hơn.",
+				"Hướng dẫn viên thiếu lắng nghe ý kiến thành viên trong đoàn, cần chấn chỉnh thái độ phục vụ.",
+			];
+
+			const itemSummary =
+				rating >= 4
+					? positiveSummaries[index % positiveSummaries.length]
+					: rating === 3
+						? neutralOrMixedSummaries[index % neutralOrMixedSummaries.length]
+						: negativeSummaries[index % negativeSummaries.length];
+
+			if (!isHiddenDemo) {
+				await manager.query(
+					`INSERT INTO trip_review_analysis_items(
+						id, review_id, source_revision, provider, model, config_version, prompt_version,
+						status, attempts, sentiment, topics, summary, confidence, actual_model, created_at, updated_at
+					) VALUES (
+						$1, $2, 1, 'gemini', 'gemini-3.1-flash-lite', 'gemini-v1', 'v1',
+						'succeeded', 1, $3, $4::jsonb, $5, 0.94, 'gemini-3.1-flash-lite', now() - (($6 || ' days')::interval), now() - (($6 || ' days')::interval)
+					) ON CONFLICT (review_id, source_revision, provider, model, config_version, prompt_version) DO UPDATE
+					SET status='succeeded', sentiment=EXCLUDED.sentiment, topics=EXCLUDED.topics, summary=EXCLUDED.summary, created_at=EXCLUDED.created_at, updated_at=EXCLUDED.updated_at`,
+					[
+						itemId,
+						reviewId,
+						itemSentiment,
+						JSON.stringify(itemTopics),
+						itemSummary,
+						Math.max(1, 32 - index),
+					]
+				);
+
+				await manager.query(
+					`INSERT INTO trip_review_analysis_batch_items(batch_id, item_id, start_attempt, end_attempt, terminal_status)
+					 VALUES ($1, $2, 0, 1, 'succeeded')
+					 ON CONFLICT (batch_id, item_id) DO NOTHING`,
+					[batchId, itemId]
+				);
+			}
+
+			if (demoNumber === 1) {
+				if (index === 0) {
+					await manager.query(
+						`INSERT INTO trip_review_incident_signals(run_id, review_id, source_revision, incident_type, occurred, severity, quote)
+						 VALUES ($1, $2, 1, 'fall_slip', 'yes', 'minor', 'Đoạn dốc gần đỉnh Bàn Cờ có rêu trơn, tôi bị trượt ngã nhẹ nhưng không bị thương.')
+						 ON CONFLICT (run_id, incident_type, md5(quote)) DO NOTHING`,
+						[runId, reviewId]
+					);
+				} else if (index === 1) {
+					await manager.query(
+						`INSERT INTO trip_review_incident_signals(run_id, review_id, source_revision, incident_type, occurred, severity, quote)
+						 VALUES ($1, $2, 1, 'fall_slip', 'warning', 'minor', 'Lối đi dốc nhiều lá khô trơn trượt, mọi người nên mang giày có gai bám.')
+						 ON CONFLICT (run_id, incident_type, md5(quote)) DO NOTHING`,
+						[runId, reviewId]
+					);
+				} else if (index === 2) {
+					await manager.query(
+						`INSERT INTO trip_review_incident_signals(run_id, review_id, source_revision, incident_type, occurred, severity, quote)
+						 VALUES ($1, $2, 1, 'weather_hazard', 'warning', 'moderate', 'Gió trên sườn biển khá giật và sương mù dày vào sáng sớm.')
+						 ON CONFLICT (run_id, incident_type, md5(quote)) DO NOTHING`,
+						[runId, reviewId]
+					);
+				} else if (index === 3) {
+					await manager.query(
+						`INSERT INTO trip_review_incident_signals(run_id, review_id, source_revision, incident_type, occurred, severity, quote)
+						 VALUES ($1, $2, 1, 'lost_path', 'warning', 'minor', 'Đoạn rẽ vào cây đa ngàn năm có vài nhánh đường mòn dễ nhầm.')
+						 ON CONFLICT (run_id, incident_type, md5(quote)) DO NOTHING`,
+						[runId, reviewId]
+					);
+				} else if (index === 4) {
+					await manager.query(
+						`INSERT INTO trip_review_incident_signals(run_id, review_id, source_revision, incident_type, occurred, severity, quote)
+						 VALUES ($1, $2, 1, 'other', 'unknown', 'unknown', 'Có biển cảnh báo khỉ hoang có thể giật đồ ăn của du khách.')
+						 ON CONFLICT (run_id, incident_type, md5(quote)) DO NOTHING`,
+						[runId, reviewId]
+					);
+				} else if (index === 5) {
+					await manager.query(
+						`INSERT INTO trip_review_incident_signals(run_id, review_id, source_revision, incident_type, occurred, severity, quote)
+						 VALUES ($1, $2, 1, 'fall_slip', 'yes', 'minor', 'Một bạn trong đoàn bị trượt chân ở đoạn dốc đá ven biển.')
+						 ON CONFLICT (run_id, incident_type, md5(quote)) DO NOTHING`,
+						[runId, reviewId]
+					);
+				} else if (index === 6) {
+					await manager.query(
+						`INSERT INTO trip_review_incident_signals(run_id, review_id, source_revision, incident_type, occurred, severity, quote)
+						 VALUES ($1, $2, 1, 'injury', 'yes', 'minor', 'Tôi bị cành cây quẹt xước nhẹ ở bắp chân khi băng qua bụi rậm.')
+						 ON CONFLICT (run_id, incident_type, md5(quote)) DO NOTHING`,
+						[runId, reviewId]
+					);
+				}
+			}
+
+			if (isFlaggedHarassment) {
+				const comment =
+					demoNumber === 1
+						? "Porter béo ục ịch, đi chậm như rùa bò làm hỏng cả chuyến đi. Nhìn người vừa lùn vừa xấu vừa bẩn bựa không chịu nổi, ban tổ chức đuổi ngay thằng này đi!"
+						: "Con bé hướng dẫn viên mặt mụn xấu xí, người thì gầy gò thô kệch nhìn phát tởm, nói chuyện thì vô duyên không có não.";
+				const quote =
+					demoNumber === 1
+						? "Porter béo ục ịch, đi chậm như rùa bò... vừa xấu vừa bẩn bựa"
+						: "hướng dẫn viên mặt mụn xấu xí, người thì gầy gò thô kệch nhìn phát tởm";
+				const evidence =
+					"Miệt thị ngoại hình (body shaming), xúc phạm nhân phẩm porter và quấy rối cá nhân";
+
+				await manager.query("UPDATE trip_reviews SET rating=1, comment=$1 WHERE id=$2", [
+					comment,
+					reviewId,
+				]);
+				await manager.query(
+					`INSERT INTO trip_review_moderation_flags(run_id, review_id, source_revision, channel, flag_type, detection_source, confidence, evidence, quote, lifecycle_status)
+					 VALUES ($1, $2, 1, 'text', 'harassment', 'model', 0.98, $3, $4, 'active')
+					 ON CONFLICT (run_id, channel, flag_type, COALESCE(target_image_index, -1))
+					 DO UPDATE SET evidence=EXCLUDED.evidence, quote=EXCLUDED.quote, confidence=EXCLUDED.confidence, lifecycle_status='active'`,
+					[runId, reviewId, evidence, quote]
+				);
+			} else if (isFlaggedProfanity) {
+				const comment =
+					demoNumber === 1
+						? "Chuyến đi như cái đ** c**, lũ làm ăn thất đức lừa đảo vcl, đồ ăn như cho chó ăn, đ* mẹ làm ăn tắc trách thế này mà cũng mở tour à!"
+						: "Dịch vụ rác rưởi vcl, đcm tụi bay lừa tiền khách à? Đ*o bao giờ quay lại cái tour hãm tài này nữa.";
+				const quote =
+					demoNumber === 1
+						? "Chuyến đi như cái đ** c**... đ* mẹ làm ăn tắc trách"
+						: "Dịch vụ rác rưởi vcl, đcm tụi bay lừa tiền... Đ*o bao giờ";
+				const evidence = "Sử dụng từ ngữ thô tục tục tĩu, chửi thề nặng nề và lăng mạ xúc phạm";
+
+				await manager.query("UPDATE trip_reviews SET rating=1, comment=$1 WHERE id=$2", [
+					comment,
+					reviewId,
+				]);
+				await manager.query(
+					`INSERT INTO trip_review_moderation_flags(run_id, review_id, source_revision, channel, flag_type, detection_source, confidence, evidence, quote, lifecycle_status)
+					 VALUES ($1, $2, 1, 'text', 'profanity_or_insult', 'model', 0.99, $3, $4, 'active')
+					 ON CONFLICT (run_id, channel, flag_type, COALESCE(target_image_index, -1))
+					 DO UPDATE SET evidence=EXCLUDED.evidence, quote=EXCLUDED.quote, confidence=EXCLUDED.confidence, lifecycle_status='active'`,
+					[runId, reviewId, evidence, quote]
+				);
+			} else if (isQuarantinedDemo) {
+				const demoImgName = "img-1793798391368-gxi9wqgt.jpg";
+				const liveImgPath = join(__dirname, "..", "..", "uploads", "trip-reviews", demoImgName);
+				const quarantineDirPath = join(
+					__dirname,
+					"..",
+					"..",
+					"uploads",
+					"quarantine",
+					"trip-reviews"
+				);
+				const quarantineImgPath = join(quarantineDirPath, demoImgName);
+				try {
+					mkdirSync(quarantineDirPath, { recursive: true });
+					if (existsSync(liveImgPath) && !existsSync(quarantineImgPath)) {
+						copyFileSync(liveImgPath, quarantineImgPath);
+					} else if (existsSync(quarantineImgPath) && !existsSync(liveImgPath)) {
+						copyFileSync(quarantineImgPath, liveImgPath);
+					}
+				} catch {
+					// Directory/file copy error gracefully tolerated in seed
+				}
+
+				await manager.query(
+					`UPDATE trip_reviews SET images='["/uploads/trip-reviews/img-1793798391368-gxi9wqgt.jpg"]'::jsonb, image_storage_state='quarantined' WHERE id=$1`,
+					[reviewId]
+				);
+				await manager.query(
+					`INSERT INTO trip_review_moderation_image_items(run_id, review_id, source_revision, image_index, storage_key, scan_status, has_violation, flag_type, confidence, evidence)
+					 VALUES ($1, $2, 1, 0, 'img-1793798391368-gxi9wqgt.jpg', 'completed', true, 'inappropriate_image', 0.95, 'Hình ảnh chứa nội dung nhạy cảm')
+					 ON CONFLICT (run_id, image_index) DO NOTHING`,
+					[runId, reviewId]
+				);
+				await manager.query(
+					`INSERT INTO trip_review_moderation_flags(run_id, review_id, source_revision, channel, target_image_index, flag_type, detection_source, confidence, evidence, lifecycle_status)
+					 VALUES ($1, $2, 1, 'image', 0, 'inappropriate_image', 'model', 0.95, 'Hình ảnh chứa nội dung nhạy cảm vi phạm tiêu chuẩn cộng đồng', 'active')
+					 ON CONFLICT (run_id, channel, flag_type, COALESCE(target_image_index, -1)) DO NOTHING`,
+					[runId, reviewId]
+				);
+			} else if (isHiddenDemo) {
+				await manager.query(
+					`UPDATE trip_reviews SET rating=1, comment='Hướng dẫn viên ngu như bò, bọn lừa đảo đ** có tâm, cút mẹ chúng mày đi.', moderation_status='hidden', hidden_reason='profanity_or_insult', hidden_at=now() - interval '1 day', hidden_by=$2 WHERE id=$1`,
+					[reviewId, host.id]
+				);
+				await manager.query(
+					`INSERT INTO trip_review_moderation_flags(run_id, review_id, source_revision, channel, flag_type, detection_source, confidence, evidence, quote, lifecycle_status, resolved_at, resolved_by)
+					 VALUES ($1, $2, 1, 'text', 'profanity_or_insult', 'model', 0.99, 'Chửi thề thô tục lăng mạ nhân viên', 'Hướng dẫn viên ngu như bò, bọn lừa đảo đ** có tâm', 'resolved', now() - interval '1 day', $3)
+					 ON CONFLICT (run_id, channel, flag_type, COALESCE(target_image_index, -1))
+					 DO UPDATE SET evidence=EXCLUDED.evidence, quote=EXCLUDED.quote, confidence=EXCLUDED.confidence`,
+					[runId, reviewId, host.id]
+				);
+			} else if (isResolvedDemo) {
+				await manager.query(
+					`UPDATE trip_reviews SET comment='Tour bán phá giá, liên hệ Zalo 0905123456 mua vé giá rẻ giảm 50% ngay hôm nay.' WHERE id=$1`,
+					[reviewId]
+				);
+				await manager.query(
+					`INSERT INTO trip_review_moderation_flags(run_id, review_id, source_revision, channel, flag_type, detection_source, confidence, evidence, quote, lifecycle_status, resolved_at, resolved_by)
+					 VALUES ($1, $2, 1, 'text', 'spam_or_irrelevant', 'model', 0.95, 'Quảng cáo sản phẩm và lôi kéo liên hệ ngoài nền tảng', 'liên hệ Zalo 0905123456 mua vé giá rẻ', 'resolved', now() - interval '1 day', $3)
+					 ON CONFLICT (run_id, channel, flag_type, COALESCE(target_image_index, -1))
+					 DO UPDATE SET evidence=EXCLUDED.evidence, quote=EXCLUDED.quote, confidence=EXCLUDED.confidence`,
+					[runId, reviewId, host.id]
+				);
+			}
 		}
+
+		// Simulate 2 reviews edited by campers to demonstrate stale analysis and re-analysis flow
+		const suffixA = String(31 + (demoNumber - 1) * 100).padStart(12, "0");
+		const suffixB = String(32 + (demoNumber - 1) * 100).padStart(12, "0");
+		const staleReviewA = `d4120000-0000-4000-8003-${suffixA}`;
+		const staleReviewB = `d4120000-0000-4000-8003-${suffixB}`;
+		await manager.query(
+			`UPDATE trip_reviews SET revision=2, comment = comment || ' (Cập nhật sau chuyến đi)', updated_at=now() - interval '1 hour' WHERE id IN ($1, $2)`,
+			[staleReviewA, staleReviewB]
+		);
+		await manager.query(
+			`INSERT INTO trip_review_revisions(review_id, revision, rating, comment, recorded_at)
+			 SELECT id, revision, rating, comment, updated_at FROM trip_reviews WHERE id IN ($1, $2)
+			 ON CONFLICT DO NOTHING`,
+			[staleReviewA, staleReviewB]
+		);
 	});
 	console.log(
 		"[seed:review-analysis] Ensured Vietnamese demo source reviews; AI history preserved."
@@ -5175,10 +5515,18 @@ export async function runMasterSeed(): Promise<void> {
 		console.log("✅ Step 10 completed.\n");
 		// Step 11: Trip Incident Management Scenarios (CTMS-086)
 		console.log("--------------------------------------------------------------------------");
-		console.log("👉 [11/11] Seeding Trip Incident Management Scenarios (CTMS-086)...");
+		console.log("👉 [11/12] Seeding Trip Incident Management Scenarios (CTMS-086)...");
 		console.log("--------------------------------------------------------------------------");
 		const incidentScenarios = await seedManageTripIncidents();
 		console.log("✅ Step 11 completed.\n");
+
+		// Step 12: Trip Review Moderation & AI Analytics (CTMS-412)
+		console.log("--------------------------------------------------------------------------");
+		console.log("👉 [12/12] Seeding Trip Review Moderation & AI Analytics (CTMS-412)...");
+		console.log("--------------------------------------------------------------------------");
+		await seedReviewAnalysisScenarios(dataSource, false, 1);
+		await seedReviewAnalysisScenarios(dataSource, false, 2);
+		console.log("✅ Step 12 completed.\n");
 
 		const elapsedSec = ((Date.now() - startTime) / 1000).toFixed(2);
 
