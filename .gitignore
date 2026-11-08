@@ -7,6 +7,7 @@ build/
 web-build/
 coverage/
 test-results/
+/services/.test-cache/
 playwright-report/
 *.tsbuildinfo
 .env
