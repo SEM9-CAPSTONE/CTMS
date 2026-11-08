@@ -11,6 +11,7 @@ import '../../../core/widgets/ctms_scaffold.dart';
 import '../../../core/widgets/ctms_status_badge.dart';
 import '../application/device_sync_controller.dart';
 import '../domain/device_sync_models.dart';
+import '../../offline_packages/presentation/offline_package_screen.dart';
 
 class DeviceSyncStatusScreen extends ConsumerStatefulWidget {
   const DeviceSyncStatusScreen({
@@ -159,6 +160,8 @@ class _DeviceSyncStatusScreenState
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            OfflinePackagePanel(tripId: widget.tripId),
+            const SizedBox(height: AppSpacing.lg),
             // Section Title: Trạng thái truyền dữ liệu (Protected from overflow)
             Row(
               children: [

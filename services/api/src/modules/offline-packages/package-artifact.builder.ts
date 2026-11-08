@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { type UnzipFileInfo, type Zippable, unzipSync, zipSync } from "fflate";
 import {
 	type ApprovedGuidanceUnit,
+	type HazardFeed,
 	MAX_PACKAGE_BYTES,
 	type NormalizedPackageHazard,
 	PACKAGE_POLICY_VERSION,
@@ -22,6 +23,18 @@ const PAYLOAD_PATHS = [
 	"waypoints.json",
 ] as const;
 
+/** Optional feed limitations must survive packaging even when they do not block generation. */
+function hasCurrentFeedEvidence(feed: HazardFeed, now: number): boolean {
+	if (!["AVAILABLE", "EMPTY"].includes(feed.status) || !feed.sourceVersion || !feed.sourceReference)
+		return false;
+	const checkedAt = Date.parse(feed.checkedAt);
+	if (!Number.isFinite(checkedAt) || checkedAt > now) return false;
+	// The upstream policy permits a successfully checked EMPTY run without a provider expiry.
+	if (feed.validUntil === null) return feed.status === "EMPTY";
+	const validUntil = Date.parse(feed.validUntil);
+	return Number.isFinite(validUntil) && validUntil > now;
+}
+
 @Injectable()
 export class PackageArtifactBuilder {
 	build(
@@ -29,7 +42,8 @@ export class PackageArtifactBuilder {
 		context: TripSafetyContext,
 		hazards: NormalizedPackageHazard[],
 		guidance: ApprovedGuidanceUnit[],
-		generatedAt: string
+		generatedAt: string,
+		evaluatedAt = Date.now()
 	): { bytes: Buffer; manifest: PackageManifest; sha256: string } {
 		const { core, safety } = snapshot;
 		if (!safety.policy) throw new PackageFailure([PackageReason.GUIDANCE_POLICY_UNAVAILABLE]);
@@ -143,7 +157,7 @@ export class PackageArtifactBuilder {
 				status: feed.status,
 				checkedAt: feed.checkedAt,
 				validUntil: feed.validUntil,
-				outcome: ["AVAILABLE", "EMPTY"].includes(feed.status)
+				outcome: hasCurrentFeedEvidence(feed, evaluatedAt)
 					? hazards.some((hazard) => hazard.sourceId === feed.sourceId)
 						? "ACTIVE_ALERTS"
 						: "NO_ACTIVE_ALERT"

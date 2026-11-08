@@ -16,10 +16,79 @@ import {
 	TripSafetyContextResolver,
 	canonical,
 	digest,
+	generationKey,
 	sourceFingerprint,
 } from "./package-policy";
 
 describe("CTMS-052 final review: optional source freshness", () => {
+	it("does not reuse generation identity from before the freshness correction", () => {
+		const legacy = digest(
+			canonical({ coreFingerprint: "core", sources: "sources", policy: "ctms052-v1" })
+		);
+		expect(generationKey("core", "sources")).not.toBe(legacy);
+	});
+	it.each([
+		{
+			status: "EMPTY",
+			validUntil: null,
+			checkedAt: "2026-11-06T10:00:00Z",
+			outcome: "NO_ACTIVE_ALERT",
+		},
+		{
+			status: "EMPTY",
+			validUntil: "2026-11-07T00:00:00Z",
+			checkedAt: "2026-11-06T10:00:00Z",
+			outcome: "NO_ACTIVE_ALERT",
+		},
+		{
+			status: "AVAILABLE",
+			validUntil: "2026-11-07T00:00:00Z",
+			checkedAt: "2026-11-06T10:00:00Z",
+			outcome: "NO_ACTIVE_ALERT",
+		},
+		{
+			status: "AVAILABLE",
+			validUntil: null,
+			checkedAt: "2026-11-06T10:00:00Z",
+			outcome: "UNKNOWN",
+		},
+		{
+			status: "EMPTY",
+			validUntil: "invalid",
+			checkedAt: "2026-11-06T10:00:00Z",
+			outcome: "UNKNOWN",
+		},
+		{
+			status: "EMPTY",
+			validUntil: "2099-01-01T00:00:00Z",
+			checkedAt: "2099-01-01T00:00:00Z",
+			outcome: "UNKNOWN",
+		},
+	] as const)("preserves optional source evidence: %j", ({ outcome, ...feed }) => {
+		const core = fictionalPackageCore();
+		const safety = fictionalPackageSafety();
+		safety.feeds.push({ ...safety.feeds[0], ...feed, sourceId: "optional-source" });
+		const context = new TripSafetyContextResolver().resolve(core, safety);
+		const artifact = new PackageArtifactBuilder().build(
+			{
+				core,
+				safety,
+				coreFingerprint: digest(canonical(core)),
+				sourceFingerprint: sourceFingerprint(safety),
+				nextVersion: 1,
+			},
+			context,
+			[],
+			safety.guidance,
+			// A delayed/retried job must evaluate freshness now, not renew it from an old job timestamp.
+			"2026-01-01T00:00:00Z",
+			Date.parse("2026-11-06T12:00:00Z")
+		);
+		expect(
+			artifact.manifest.hazardSourceSummary.find((source) => source.sourceId === "optional-source")
+				?.outcome
+		).toBe(outcome);
+	});
 	it.each(["AVAILABLE", "EMPTY"] as const)(
 		"keeps an expired optional %s source UNKNOWN instead of reporting NO_ACTIVE_ALERT",
 		(status) => {
