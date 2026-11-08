@@ -9,6 +9,7 @@ const tripDatesWeather = vi.hoisted(() => ({
 		data: { status: "available", riskLevel: "yellow" } as {
 			status: "available" | "out_of_range";
 			riskLevel: "green" | "yellow" | "red" | null;
+			tripStartsAt?: string;
 		} | null,
 		isPending: false,
 		isError: false,
@@ -540,6 +541,42 @@ describe("TripDetailView", () => {
 		expect(screen.getByTestId("trip-dates-weather-card")).toBeInTheDocument();
 		expect(screen.queryByTestId("registration-risk-panel")).not.toBeInTheDocument();
 		expect(screen.queryByTestId("registration-risk-unavailable")).not.toBeInTheDocument();
+		tripDatesWeather.query = {
+			data: { status: "available", riskLevel: "yellow" },
+			isPending: false,
+			isError: false,
+		};
+	});
+
+	it("warns next to booking when a Red forecast is still more than 3 days away, not when near", () => {
+		const inDays = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString();
+		tripDatesWeather.query = {
+			data: { status: "available", riskLevel: "red", tripStartsAt: inDays(5) },
+			isPending: false,
+			isError: false,
+		};
+		const { unmount } = render(<TripDetailView trip={mockTripDetails} />);
+		expect(screen.getByTestId("booking-far-red-forecast-warning")).toHaveTextContent(
+			"Dự báo xấu, có thể thay đổi. Host sẽ quyết định trước ngày đi."
+		);
+		unmount();
+
+		tripDatesWeather.query = {
+			data: { status: "available", riskLevel: "red", tripStartsAt: inDays(2) },
+			isPending: false,
+			isError: false,
+		};
+		const near = render(<TripDetailView trip={mockTripDetails} />);
+		expect(screen.queryByTestId("booking-far-red-forecast-warning")).not.toBeInTheDocument();
+		near.unmount();
+
+		tripDatesWeather.query = {
+			data: { status: "available", riskLevel: "red", tripStartsAt: inDays(5) },
+			isPending: false,
+			isError: false,
+		};
+		render(<TripDetailView trip={mockTripDetails} canManageTrip />);
+		expect(screen.queryByTestId("booking-far-red-forecast-warning")).not.toBeInTheDocument();
 		tripDatesWeather.query = {
 			data: { status: "available", riskLevel: "yellow" },
 			isPending: false,
