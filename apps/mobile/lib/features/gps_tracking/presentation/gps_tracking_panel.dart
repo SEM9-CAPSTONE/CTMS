@@ -18,7 +18,8 @@ import '../domain/gps_tracking_models.dart';
 const gpsStaleAfter = Duration(seconds: 30);
 
 const _ineligibleReasons = {
-  'TRIP_NOT_ONGOING': 'Chuyến đi chưa diễn ra hoặc đã kết thúc.',
+  'TRIP_NOT_ONGOING':
+      'Chuyến đi chưa diễn ra hoặc đã kết thúc. Ứng dụng tự động dừng ghi GPS để bảo vệ quyền riêng tư và tiết kiệm pin.',
   'CAMPER_NOT_JOINED': 'Bạn chưa check-in tham gia chuyến đi.',
   'PORTER_NOT_ASSIGNED': 'Bạn chưa được phân công cho chuyến đi này.',
 };
@@ -143,15 +144,36 @@ class _GpsTrackingPanelState extends ConsumerState<GpsTrackingPanel> {
           else
             ...shown.map((log) => _LogTile(log: log)),
           const SizedBox(height: AppSpacing.md),
-          CtmsButton(
-            key: const Key('gps-sync-now'),
-            label: 'Đồng bộ ngay',
-            icon: Icons.cloud_upload_outlined,
-            variant: CtmsButtonVariant.primary,
-            isLoading: controller.syncing,
-            onPressed: controller.pendingCount == 0 || controller.syncing
-                ? null
-                : () => unawaited(controller.syncNow(force: true)),
+          Row(
+            children: [
+              Expanded(
+                child: CtmsButton(
+                  key: const Key('gps-sample-now'),
+                  label: 'Lấy vị trí ngay',
+                  icon: Icons.my_location_rounded,
+                  variant: CtmsButtonVariant.secondary,
+                  onPressed: controller.status == GpsTrackingStatus.active
+                      ? () async {
+                          await controller.sampleNow();
+                          await controller.logBoundary();
+                        }
+                      : null,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: CtmsButton(
+                  key: const Key('gps-sync-now'),
+                  label: 'Đồng bộ ngay',
+                  icon: Icons.cloud_upload_outlined,
+                  variant: CtmsButtonVariant.primary,
+                  isLoading: controller.syncing,
+                  onPressed: controller.pendingCount == 0 || controller.syncing
+                      ? null
+                      : () => unawaited(controller.syncNow(force: true)),
+                ),
+              ),
+            ],
           ),
         ],
       ),

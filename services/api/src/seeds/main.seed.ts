@@ -23,6 +23,7 @@ import dataSource from "../shared/database/data-source";
 
 const BCRYPT_COST_FACTOR = 10;
 export const DEMO_SYNC_TRIP_ID = "a1736fee-62be-4991-9478-a62288e9b80a";
+export const DEMO_OFFLINE_BUFFER_TRIP_ID = "c3958000-0064-4064-8064-000000000064";
 
 // ==========================================================================
 // PORTER SEED FIXTURES & DATA DEFINITIONS
@@ -4105,22 +4106,25 @@ export async function seedDeviceSyncTelemetry(ds = dataSource): Promise<void> {
 	const camperId = camperRows[0].id;
 	const porterId = porterRows[0].id;
 
-	// 2. Ensure Trip exists with ID DEMO_SYNC_TRIP_ID
+	// 2. Resolve Host and Route to attach demo trips
+	const referenceTrips = (await ds.query(
+		'SELECT "host_id", "route_id" FROM "trips" LIMIT 1'
+	)) as Array<{ host_id: string; route_id: string }>;
+
+	if (referenceTrips.length === 0) {
+		console.warn("[seed:device-sync] No trips found to attach device sync.");
+		return;
+	}
+	const defaultHostId = referenceTrips[0].host_id;
+	const defaultRouteId = referenceTrips[0].route_id;
+
+	// 3. Ensure Completed Trip exists with ID DEMO_SYNC_TRIP_ID
 	const tripRows = (await ds.query(
 		'SELECT "id", "host_id", "route_id" FROM "trips" WHERE "id" = $1',
 		[DEMO_SYNC_TRIP_ID]
 	)) as Array<{ id: string; host_id: string; route_id: string }>;
 
 	if (tripRows.length === 0) {
-		const fallbackTrip = (await ds.query(
-			'SELECT "host_id", "route_id" FROM "trips" LIMIT 1'
-		)) as Array<{ host_id: string; route_id: string }>;
-
-		if (fallbackTrip.length === 0) {
-			console.warn("[seed:device-sync] No trips found to attach device sync.");
-			return;
-		}
-
 		const meetingPoint = { type: "Point", coordinates: [108.2022, 16.0544] };
 		await ds.query(
 			`INSERT INTO "trips" (
@@ -4136,8 +4140,8 @@ export async function seedDeviceSyncTelemetry(ds = dataSource): Promise<void> {
 			 ) ON CONFLICT ("id") DO NOTHING`,
 			[
 				DEMO_SYNC_TRIP_ID,
-				fallbackTrip[0].host_id,
-				fallbackTrip[0].route_id,
+				defaultHostId,
+				defaultRouteId,
 				JSON.stringify(meetingPoint),
 				JSON.stringify(DEFAULT_CANCELLATION_POLICY),
 			]
@@ -4257,6 +4261,106 @@ export async function seedDeviceSyncTelemetry(ds = dataSource): Promise<void> {
 
 	console.log(
 		`[seed:device-sync] ✅ Seeded 15 GPS logs & 1 safety incident for trip: ${DEMO_SYNC_TRIP_ID}`
+	);
+
+	// 7. Seed CTMS-064 Ongoing Trip for live offline buffering & safety events
+	const meetingPointOngoing = { type: "Point", coordinates: [108.26, 16.11] };
+	await ds.query(
+		`INSERT INTO "trips" (
+			"id", "host_id", "route_id", "title", "description", "trip_type", "duration_nights",
+			"starts_at", "ends_at", "meeting_point", "booking_deadline",
+			"capacity_min", "capacity_max", "price_per_person", "status", "cancellation_policy"
+		 ) VALUES (
+			$1, $2, $3, 'Trekking Sơn Trà - Đang Diễn Ra (CTMS-064 Offline Buffer Demo)',
+			'Chuyến đi đang diễn ra phục vụ kiểm thử Offline Buffer GPS & Cảnh báo an toàn ngoại tuyến', 'day_trip', 0,
+			now() - interval '2 hours', now() + interval '7 days',
+			ST_SetSRID(ST_GeomFromGeoJSON($4), 4326)::geography, now() - interval '1 day',
+			1, 10, '850000.00', 'ongoing',
+			$5::jsonb
+		 ) ON CONFLICT ("id") DO UPDATE SET
+			"status" = 'ongoing',
+			"starts_at" = now() - interval '2 hours',
+			"ends_at" = now() + interval '7 days'`,
+		[
+			DEMO_OFFLINE_BUFFER_TRIP_ID,
+			defaultHostId,
+			defaultRouteId,
+			JSON.stringify(meetingPointOngoing),
+			JSON.stringify(DEFAULT_CANCELLATION_POLICY),
+		]
+	);
+
+	// Ensure Porter is assigned to ongoing trip
+	await ds.query(
+		`INSERT INTO "trip_porters" ("trip_id", "porter_id", "status")
+		 VALUES ($1, $2, 'assigned')
+		 ON CONFLICT ("trip_id", "porter_id") DO UPDATE SET "status" = 'assigned'`,
+		[DEMO_OFFLINE_BUFFER_TRIP_ID, porterId]
+	);
+
+	// Ensure Camper booking exists and is joined
+	const ongoingBookingRows = (await ds.query(
+		'SELECT "id" FROM "bookings" WHERE "trip_id" = $1 AND "user_id" = $2 LIMIT 1',
+		[DEMO_OFFLINE_BUFFER_TRIP_ID, camperId]
+	)) as Array<{ id: string }>;
+
+	let ongoingBookingId = ongoingBookingRows[0]?.id;
+	if (!ongoingBookingId) {
+		const newOngoingBooking = (await ds.query(
+			`INSERT INTO "bookings" (
+				"trip_id", "user_id", "num_people", "status", "payment_status",
+				"trip_starts_at_snapshot", "trip_ends_at_snapshot", "base_price", "total_amount",
+				"cancellation_policy_snapshot"
+			 )
+			 SELECT "id", $2, 1, 'confirmed', 'paid', "starts_at", "ends_at", '850000.00', '850000.00',
+			        "cancellation_policy"
+			 FROM "trips" WHERE "id" = $1
+			 RETURNING "id"`,
+			[DEMO_OFFLINE_BUFFER_TRIP_ID, camperId]
+		)) as Array<{ id: string }>;
+		ongoingBookingId = newOngoingBooking[0].id;
+	}
+
+	await ds.query(
+		`INSERT INTO "booking_members" ("booking_id", "user_id", "is_primary", "member_status", "checked_in_at")
+		 VALUES ($1, $2, true, 'joined', now() - interval '2 hours')
+		 ON CONFLICT DO NOTHING`,
+		[ongoingBookingId, camperId]
+	);
+	await ds.query(
+		`UPDATE "booking_members"
+		 SET "member_status" = 'joined', "checked_in_at" = now() - interval '2 hours'
+		 WHERE "booking_id" = $1 AND "user_id" = $2`,
+		[ongoingBookingId, camperId]
+	);
+
+	// Seed 5 initial server-confirmed GPS logs for camper
+	await ds.query('DELETE FROM "gps_logs" WHERE "trip_id" = $1', [DEMO_OFFLINE_BUFFER_TRIP_ID]);
+	await ds.query(
+		`INSERT INTO "gps_logs" (
+			"id", "trip_id", "user_id", "participant_role", "event_time", 
+			"location", "accuracy_meters", "altitude_meters", "battery_level", 
+			"package_version", "config_version", "received_at"
+		 )
+		 SELECT 
+			gen_random_uuid(),
+			$1,
+			$2,
+			'camper',
+			now() - (5 - s.i) * interval '2 minutes',
+			ST_SetSRID(ST_MakePoint(108.260 + s.i * 0.0005, 16.110 + s.i * 0.0005), 4326)::geography,
+			5.0,
+			150.0 + s.i * 10.0,
+			95 - s.i,
+			'pkg-v3',
+			'v3',
+			now() - (5 - s.i) * interval '2 minutes'
+		 FROM generate_series(1, 5) AS s(i);`,
+		[DEMO_OFFLINE_BUFFER_TRIP_ID, camperId]
+	);
+
+	console.log(
+		`[seed:device-sync] ✅ Seeded CTMS-064 Ongoing trip for live offline buffer test: ${DEMO_OFFLINE_BUFFER_TRIP_ID}`
 	);
 }
 
@@ -5261,11 +5365,20 @@ export async function runMasterSeed(): Promise<void> {
 		console.log(
 			"   👉 Camper (camper@ctms.local): Vietcombank 1012345678 (mặc định), Techcombank 19034567890123"
 		);
-		console.log("\n9. Đồng bộ thiết bị ngoại tuyến (CTMS-067 Offline Device Telemetry & GPS):");
-		console.log("   👉 Trip ID: a1736fee-62be-4991-9478-a62288e9b80a");
-		console.log("   👉 Camper (camper@ctms.local): 15 GPS logs đã xác nhận, 1 sự cố an toàn");
-		console.log("   👉 Porter (porter@ctms.local): Đã phân công (assigned), 15 GPS logs");
-		console.log("   👉 Web: http://localhost:5173/trips/a1736fee-62be-4991-9478-a62288e9b80a");
+		console.log(
+			"\n9. Đồng bộ thiết bị ngoại tuyến (CTMS-067 & CTMS-064 Offline Device Telemetry & Buffer):"
+		);
+		console.log("   👉 Completed Trip ID (CTMS-067 Sync): a1736fee-62be-4991-9478-a62288e9b80a");
+		console.log(
+			"   👉 Ongoing Trip ID (CTMS-064 Live Offline Buffer): c3958000-0064-4064-8064-000000000064"
+		);
+		console.log(
+			"   👉 Camper (camper@ctms.local): Trạng thái JOINED, sẵn sàng kích hoạt live GPS tracking & local buffer"
+		);
+		console.log(
+			"   👉 Porter (porter@ctms.local): Đã phân công (ASSIGNED), đủ điều kiện theo dõi tracking"
+		);
+		console.log("   👉 Web: http://localhost:5173/trips/c3958000-0064-4064-8064-000000000064");
 		console.log("   👉 Mobile: http://localhost:50565/#/camper/overview");
 		console.log("\n10. Báo cáo & Kiểm duyệt nội dung (Content Moderation Reports):");
 		console.log("   👉 Admin: http://localhost:5173/admin/content-reports");

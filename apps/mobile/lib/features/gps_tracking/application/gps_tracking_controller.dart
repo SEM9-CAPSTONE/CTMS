@@ -109,6 +109,12 @@ class GpsTrackingController extends ChangeNotifier {
     await _applyPermission(await location.checkPermission());
   }
 
+  bool _isEligibleAt(DateTime now) {
+    final current = context;
+    if (current == null || !current.eligible) return false;
+    return true;
+  }
+
   Future<void> requestPermission() async {
     await _applyPermission(await location.requestPermission());
   }
@@ -165,6 +171,12 @@ class GpsTrackingController extends ChangeNotifier {
   /// shown as stale; a revoked permission stops tracking (BR-237).
   Future<void> sampleNow() async {
     if (status != GpsTrackingStatus.active || _sampling) return;
+    if (!_isEligibleAt(_clock())) {
+      _stopTimers();
+      status = GpsTrackingStatus.notEligible;
+      _changed();
+      return;
+    }
     _sampling = true;
     try {
       lastSample = await location.currentSample(timeLimit: gpsSampleTimeLimit);
@@ -188,6 +200,12 @@ class GpsTrackingController extends ChangeNotifier {
     final current = context;
     if (status != GpsTrackingStatus.active || current == null) return;
     final boundary = _clock();
+    if (!_isEligibleAt(boundary)) {
+      _stopTimers();
+      status = GpsTrackingStatus.notEligible;
+      _changed();
+      return;
+    }
     final sample = selectBoundarySample(
       latest: lastSample,
       previousBoundary: lastBoundaryAt,
@@ -228,6 +246,17 @@ class GpsTrackingController extends ChangeNotifier {
         );
       }
       logs = await synchronizeGpsLogs(tripId: tripId, store: store, api: api, now: _clock());
+      final hasTerminalRejection = logs.any(
+        (l) =>
+            l.rejectionReason == 'EVENT_TIME_OUTSIDE_PARTICIPATION' ||
+            l.rejectionReason == 'TRIP_NOT_TRACKABLE' ||
+            l.rejectionReason == 'PARTICIPATION_NOT_ELIGIBLE',
+      );
+      if (hasTerminalRejection) {
+        _stopTimers();
+        status = GpsTrackingStatus.notEligible;
+        unawaited(refreshEligibility());
+      }
     } finally {
       syncing = false;
       _changed();
@@ -254,7 +283,7 @@ final gpsLocationSourceProvider = Provider<GpsLocationSource>(
 /// device sync screen so their writes are serialized.
 final gpsLogStoreProvider = Provider<GpsLogStore>((ref) {
   final user = ref.watch(authControllerProvider).valueOrNull;
-  return FileGpsLogStore(user?.id ?? 'anonymous');
+  return GpsLogStore.create(user?.id ?? 'anonymous');
 });
 
 final gpsTrackingControllerProvider = ChangeNotifierProvider.autoDispose

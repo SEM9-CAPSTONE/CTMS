@@ -235,7 +235,7 @@ No API change. The UI uses the CTMS-361 contract: `POST`/`GET /api/trips/:tripId
 
 - The app has no socket client, so `EmergencyBroadcastsController` polls `GET` every 15 s (same cadence as the CTMS-076 incident list). It also refreshes when the app resumes and when connectivity returns. A failed refresh keeps the last list and says so.
 - `EmergencyBroadcastsPanel` is inserted:
-  - at the top of the Camper Trip safety panels (`camper_trip_detail_screen`);
+  - at the top of the Camper Trip "Tổng quan" tab, under the SOS banner (`camper_trip_detail_screen`);
   - above the GPS panel in `porter_gps_tracking_section`.
 - The panel is empty until an alert exists. The newest unacknowledged alert is shown as an emergency `CtmsAlertBanner`. "Đã xem" stores the acknowledged IDs per Trip in secure storage, on the device only. Older alerts are listed below.
 
@@ -271,7 +271,7 @@ No API change. The UI uses the CTMS-361 contract: `POST`/`GET /api/trips/:tripId
   - Web `vitest`: 1670/1670 (251 files).
   - Mobile:
     - `flutter analyze`: 6 issues, all pre-existing and in untouched files (sos, porter_incidents, ctms_section_card).
-    - `flutter test`: 249 passed, 1 failed. The failure is the known `widget_test.dart › porter overview renders dashboard UI`.
+    - `flutter test` (after merging develop with CTMS-64): 259 passed, 1 failed. The failure is the known `widget_test.dart › porter overview renders dashboard UI`.
   - `playwright.sos-realtime.config.ts`: 8 passed, 1 failed. The new spec passed. The failure is the known `ctms-79-t02` banner copy changed by CTMS-76.
   - Default Playwright: 54 passed / 38 failed / 32 did not run, identical to the baseline. The new real-backend spec is added to the default config's `testIgnore`, like the other realtime specs.
   - No API change.

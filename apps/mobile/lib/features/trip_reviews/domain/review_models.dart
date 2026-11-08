@@ -82,6 +82,11 @@ class ReviewBooking {
     required this.status,
     required this.createdAt,
     this.startsAt,
+    this.tripId,
+    this.numPeople,
+    this.paymentStatus,
+    this.totalAmount,
+    this.endsAt,
   });
   final String id;
   final String title;
@@ -89,6 +94,12 @@ class ReviewBooking {
   final String? status;
   final DateTime createdAt;
   final DateTime? startsAt;
+  final String? tripId;
+  final int? numPeople;
+  final String? paymentStatus;
+  final String? totalAmount;
+  final DateTime? endsAt;
+
   factory ReviewBooking.fromJson(Map<String, Object?> json) {
     final presentation = json['tripPresentation'] as Map?;
     return ReviewBooking(
@@ -100,6 +111,13 @@ class ReviewBooking {
       startsAt: json['tripStartsAtSnapshot'] == null
           ? null
           : DateTime.parse(json['tripStartsAtSnapshot'] as String),
+      tripId: json['tripId'] as String?,
+      numPeople: json['numPeople'] as int?,
+      paymentStatus: json['paymentStatus'] as String?,
+      totalAmount: json['totalAmount'] as String?,
+      endsAt: json['tripEndsAtSnapshot'] == null
+          ? null
+          : DateTime.parse(json['tripEndsAtSnapshot'] as String),
     );
   }
 }

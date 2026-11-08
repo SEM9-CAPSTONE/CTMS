@@ -62,7 +62,8 @@ export async function resolveTripParticipant(
 /** BR-237 live check: may the caller track on this Trip right now? */
 export function liveIneligibilityReason(
 	trip: TrackedTrip,
-	participant: Participant
+	participant: Participant,
+	_now?: Date
 ): GpsTrackingIneligibleReason | null {
 	if (trip.status !== TripStatus.ONGOING) {
 		return GpsTrackingIneligibleReason.TRIP_NOT_ONGOING;
@@ -77,8 +78,9 @@ export function liveIneligibilityReason(
 
 /**
  * A late-synchronized record is accepted only if it was captured while the caller
- * was actually taking part in the Trip: within the scheduled Trip window and,
- * for a Camper, after check-in and before leaving.
+ * was actually taking part in the Trip: starting from Trip startsAt (or camper check-in),
+ * up until the Trip was completed/ended by host/porter (or camper left), without rejecting
+ * late returns when the trip is still ongoing.
  */
 export function participationRejection(
 	trip: TrackedTrip,
@@ -90,7 +92,10 @@ export function participationRejection(
 	}
 
 	let windowStart = trip.startsAt.getTime();
-	let windowEnd = trip.endsAt.getTime();
+	let windowEnd =
+		trip.status === TripStatus.COMPLETED
+			? (trip.updatedAt?.getTime() ?? trip.endsAt.getTime())
+			: Number.POSITIVE_INFINITY;
 	if (participant.role === GpsParticipantRole.CAMPER) {
 		const { memberStatus, checkedInAt, leftAt } = participant.camper;
 		if (!PARTICIPATED_MEMBER_STATUSES.has(memberStatus)) {

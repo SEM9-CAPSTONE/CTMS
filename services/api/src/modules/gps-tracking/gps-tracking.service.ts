@@ -33,9 +33,13 @@ export class GpsTrackingService {
 	) {}
 
 	/** BR-237 live check: may the caller record breadcrumbs for this Trip right now? */
-	async getTrackingContext(userId: string, tripId: string): Promise<GpsTrackingContextResponseDto> {
+	async getTrackingContext(
+		userId: string,
+		tripId: string,
+		now?: Date
+	): Promise<GpsTrackingContextResponseDto> {
 		const { trip, participant } = await resolveTripParticipant(this.participation, userId, tripId);
-		const reason = liveIneligibilityReason(trip, participant);
+		const reason = liveIneligibilityReason(trip, participant, now);
 		return {
 			tripId,
 			eligible: reason === null,
@@ -44,6 +48,8 @@ export class GpsTrackingService {
 			samplingIntervalSeconds: GPS_SAMPLING_INTERVAL_SECONDS,
 			loggingIntervalSeconds: GPS_LOGGING_INTERVAL_SECONDS,
 			configVersion: GPS_TRACKING_CONFIG_VERSION,
+			startsAt: trip.startsAt.toISOString(),
+			endsAt: trip.endsAt.toISOString(),
 		};
 	}
 
