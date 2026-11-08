@@ -405,13 +405,21 @@ describe("CTMS-313 automatic checkpoint arrivals (real PostgreSQL)", () => {
 		}
 	});
 
-	it("returns terminal checkpoint_not_found (retryable: false) on Postgres foreign key violation", async () => {
-		const input = event({ id: randomUUID(), checkpointId: otherCheckpointId });
+	it("isolates non-retryable database errors on individual records, returning terminal processing_error (retryable: false) while other batch records commit", async () => {
+		await db.query("DELETE FROM automatic_checkpoint_visits WHERE trip_id=$1 AND user_id=$2", [
+			tripId,
+			userId,
+		]);
+
+		const valid1 = event({ id: randomUUID(), checkpointId });
+		const failRecord = event({ id: randomUUID(), checkpointId: otherCheckpointId });
+		const valid2 = event({ id: randomUUID(), checkpointId });
+
 		const originalInsert = repository.insertVisit.bind(repository);
 		const spy = jest
 			.spyOn(repository, "insertVisit")
 			.mockImplementation(async (mgr, ev, tId, uId, fp) => {
-				if (ev.id === input.id) {
+				if (ev.id === failRecord.id) {
 					const fkError = new Error("foreign key constraint violation") as Error & { code: string };
 					fkError.code = "23503";
 					throw fkError;
@@ -420,12 +428,26 @@ describe("CTMS-313 automatic checkpoint arrivals (real PostgreSQL)", () => {
 			});
 
 		try {
-			const response = await post([input]).expect(200);
-			expect(response.body.results[0]).toMatchObject({
-				status: "rejected",
-				reason: "checkpoint_not_found",
-				retryable: false,
-			});
+			const response = await post([valid1, failRecord, valid2]).expect(200);
+			expect(
+				response.body.results.map(
+					(r: { status: string; reason: string | null; retryable: boolean }) => [
+						r.status,
+						r.reason,
+						r.retryable,
+					]
+				)
+			).toEqual([
+				["accepted", null, false],
+				["rejected", "processing_error", false],
+				["duplicate", null, false],
+			]);
+
+			const saved = await db.query(
+				"SELECT id FROM automatic_checkpoint_visits WHERE id = ANY($1::uuid[])",
+				[[valid1.id, failRecord.id]]
+			);
+			expect(saved.map((s: { id: string }) => s.id)).toEqual([valid1.id]);
 		} finally {
 			spy.mockRestore();
 		}
@@ -440,50 +462,29 @@ describe("CTMS-313 automatic checkpoint arrivals (real PostgreSQL)", () => {
 		const failRecord = event({ id: randomUUID(), checkpointId });
 		const validRecord = event({ id: randomUUID(), checkpointId: otherCheckpointId });
 
-		const originalInsert = repository.insertVisit.bind(repository);
+		const originalAudit = repository.insertAuditLog.bind(repository);
 		const spy = jest
-			.spyOn(repository, "insertVisit")
-			.mockImplementation(async (mgr, ev, tId, uId, fp) => {
+			.spyOn(repository, "insertAuditLog")
+			.mockImplementation(async (mgr, uId, ev, tId) => {
 				if (ev.id === failRecord.id) {
-					const sample = ev.samples[ev.samples.length - 1];
-					await mgr.query(
-						`INSERT INTO automatic_checkpoint_visits
-						 (id, trip_id, user_id, checkpoint_id, route_id, route_version, package_id,
-						 package_version, event_time, location, samples, detected_offline, fingerprint)
-						 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,
-						 ST_SetSRID(ST_MakePoint($10,$11),4326)::geography,$12::jsonb,$13,$14)`,
-						[
-							ev.id,
-							tId,
-							uId,
-							ev.checkpointId,
-							ev.routeId,
-							ev.routeVersion,
-							ev.packageId,
-							ev.packageVersion,
-							sample.eventTime,
-							sample.longitude,
-							sample.latitude,
-							JSON.stringify(ev.samples),
-							ev.detectedOffline,
-							fp,
-						]
-					);
 					throw new Error("simulated audit insert failure");
 				}
-				return originalInsert(mgr, ev, tId, uId, fp);
+				return originalAudit(mgr, uId, ev, tId);
 			});
 
 		try {
 			const response = await post([failRecord, validRecord]).expect(200);
 			expect(
-				response.body.results.map((r: { status: string; retryable: boolean }) => [
-					r.status,
-					r.retryable,
-				])
+				response.body.results.map(
+					(r: { status: string; reason: string | null; retryable: boolean }) => [
+						r.status,
+						r.reason,
+						r.retryable,
+					]
+				)
 			).toEqual([
-				["rejected", true],
-				["accepted", false],
+				["rejected", "processing_error", false],
+				["accepted", null, false],
 			]);
 
 			const visits = await db.query(
@@ -616,7 +617,7 @@ describe("CTMS-313 automatic checkpoint arrivals (real PostgreSQL)", () => {
 			[DEMO_OFFLINE_BUFFER_TRIP_ID]
 		);
 		expect(demoContext).toHaveLength(1);
-		expect(demoContext[0].context_source).toBe("authoritative");
+		expect(demoContext[0].context_source).toBe("demo");
 
 		await db.query("DELETE FROM checkpoint_arrival_contexts WHERE trip_id = $1", [
 			DEMO_OFFLINE_BUFFER_TRIP_ID,

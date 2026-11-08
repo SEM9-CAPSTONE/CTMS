@@ -130,8 +130,9 @@ It returns per-record accepted/duplicate/rejected acknowledgements. The package
 publisher must register the immutable checkpoint context through the internal
 integration seam first; absent context is rejected, not inferred from client input.
 Records rejected with `retryable: true` (`processing_error`) must use exponential backoff
-(5s..60s) up to 5 attempts on Mobile (CTMS-314); terminal rejections (`retryable: false`)
-must be evicted immediately.
+(5s..60s) up to 5 attempts on Mobile (CTMS-314); upon exhausting 5 attempts, records must be
+retained in local offline storage for future retries and NOT discarded. Terminal rejections
+(`retryable: false`) must be evicted immediately.
 On-device detection, local persistence, and the general synchronization engine
 remain in their respective client/dependency scopes.
 

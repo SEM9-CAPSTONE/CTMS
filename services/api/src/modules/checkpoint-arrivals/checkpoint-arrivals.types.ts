@@ -10,7 +10,7 @@ export interface CheckpointArrivalContext {
 	packageId: string;
 	packageVersion: string;
 	checkpoints: Array<{ id: string; latitude: number; longitude: number }>;
-	contextSource?: "authoritative" | "fallback";
+	contextSource?: "authoritative" | "fallback" | "demo";
 }
 
 export enum CheckpointArrivalSyncStatus {
@@ -22,7 +22,6 @@ export enum CheckpointArrivalSyncStatus {
 export enum CheckpointArrivalRejection {
 	CONTEXT_MISMATCH = "context_mismatch",
 	CHECKPOINT_NOT_IN_PACKAGE = "checkpoint_not_in_package",
-	CHECKPOINT_NOT_FOUND = "checkpoint_not_found",
 	THRESHOLD_NOT_MET = "threshold_not_met",
 	INVALID_SAMPLE_SEQUENCE = "invalid_sample_sequence",
 	ID_CONFLICT = "id_conflict",

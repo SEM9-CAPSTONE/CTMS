@@ -7,7 +7,7 @@ import {
 } from "@nestjs/common";
 // biome-ignore lint/style/useImportType: NestJS injection metadata
 import { ConfigService } from "@nestjs/config";
-import type { EntityManager } from "typeorm";
+import { type EntityManager, QueryFailedError } from "typeorm";
 import { BookingMemberStatus } from "../bookings/booking-member-status.enum";
 import { type Participant, participationRejection } from "../gps-tracking/gps-participant";
 import type { TrackedTrip } from "../gps-tracking/gps-participation.source";
@@ -22,6 +22,43 @@ import {
 	type CheckpointArrivalResult,
 	CheckpointArrivalSyncStatus,
 } from "./checkpoint-arrivals.types";
+
+function extractPostgresErrorCode(error: unknown): string | null {
+	if (error instanceof QueryFailedError) {
+		const driver = error.driverError as { code?: string } | undefined;
+		return driver?.code ?? null;
+	}
+	if (typeof error === "object" && error !== null && "code" in error) {
+		const code = (error as { code?: unknown }).code;
+		return typeof code === "string" ? code : null;
+	}
+	return null;
+}
+
+function extractErrorMessage(error: unknown): string {
+	if (error instanceof Error) {
+		return error.message;
+	}
+	return "unknown error";
+}
+
+function isRetryableDatabaseError(error: unknown): boolean {
+	const code = extractPostgresErrorCode(error);
+	if (code) {
+		// 40001: serialization_failure
+		// 40P01: deadlock_detected
+		// 53300: too_many_connections
+		if (code === "40001" || code === "40P01" || code === "53300") {
+			return true;
+		}
+		// 08xxx: connection_exception (08000, 08003, 08006, 08001, 08004, 08007, 08P01)
+		if (code.startsWith("08")) {
+			return true;
+		}
+	}
+	const message = extractErrorMessage(error);
+	return /timeout|deadlock/i.test(message);
+}
 
 @Injectable()
 export class CheckpointArrivalsService {
@@ -235,17 +272,18 @@ export class CheckpointArrivalsService {
 					await manager.query(`RELEASE SAVEPOINT ${savepointName}`);
 				} catch (recordError: unknown) {
 					await manager.query(`ROLLBACK TO SAVEPOINT ${savepointName}`);
-					const err = recordError as { code?: string; message?: string };
-					if (err?.code === "23503") {
+					const retryable = isRetryableDatabaseError(recordError);
+					const errMsg = extractErrorMessage(recordError);
+					if (retryable) {
 						this.logger.warn(
-							`Checkpoint arrival ${event.id} on trip ${tripId} rejected: foreign key missing (23503)`
-						);
-						results.push(reject(CheckpointArrivalRejection.CHECKPOINT_NOT_FOUND, false));
-					} else {
-						this.logger.error(
-							`Checkpoint arrival ${event.id} on trip ${tripId} failed with unexpected error: ${err?.message ?? "unknown error"}`
+							`Checkpoint arrival ${event.id} on trip ${tripId} failed with transient error: ${errMsg}`
 						);
 						results.push(reject(CheckpointArrivalRejection.PROCESSING_ERROR, true));
+					} else {
+						this.logger.error(
+							`Checkpoint arrival ${event.id} on trip ${tripId} failed with non-retryable error: ${errMsg}`
+						);
+						results.push(reject(CheckpointArrivalRejection.PROCESSING_ERROR, false));
 					}
 				}
 			}

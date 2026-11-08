@@ -300,6 +300,17 @@ export class CheckpointArrivalsRepository {
 		)) as StoredAutomaticVisit[];
 		const visit = rows[0];
 		if (!visit) return null;
+		await this.insertAuditLog(manager, userId, event, tripId);
+		return visit;
+	}
+
+	async insertAuditLog(
+		manager: EntityManager,
+		userId: string,
+		event: CheckpointArrivalInputDto,
+		tripId: string
+	): Promise<void> {
+		const sample = event.samples[event.samples.length - 1];
 		await manager.query(
 			`INSERT INTO audit_logs (actor_id, action, target_type, target_id, after, reason)
 			 VALUES ($1, 'checkpoint_arrival.received', 'automatic_checkpoint_visit', $2, $3::jsonb,
@@ -318,6 +329,5 @@ export class CheckpointArrivalsRepository {
 				}),
 			]
 		);
-		return visit;
 	}
 }

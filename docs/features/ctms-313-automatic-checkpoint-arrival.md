@@ -71,8 +71,7 @@ Each response item contains `id`, `clientId` (for client queue clearance), `stat
 
 ### Rejection Codes & Semantics:
 - `context_mismatch`: Route or package ID/version does not match active snapshot.
-- `checkpoint_not_in_package`: Target checkpoint ID is not present in the package manifest.
-- `checkpoint_not_found`: Checkpoint entity missing or foreign key constraint violation (terminal, `retryable: false`).
+- `checkpoint_not_in_package`: Target checkpoint ID is not present in the package manifest (validated against package snapshot prior to DB access).
 - `threshold_not_met`: GPS accuracy > 20m, or distance to checkpoint > 20.000m (Haversine R=6,371,000m).
 - `invalid_sample_sequence`: Sample count != 3, interval < 1s or > 180s, total span > 600s, decreasing/equal timestamps, or unparseable/NaN timestamps.
 - `id_conflict`: Reused UUID with changed payload, UUID owned by another user/trip, or concurrent race.
@@ -81,20 +80,20 @@ Each response item contains `id`, `clientId` (for client queue clearance), `stat
 - `trip_not_trackable`: Trip is published or cancelled.
 - `participation_not_eligible`: Camper not joined or Porter not assigned.
 - `event_time_outside_participation`: Sample eventTime occurred before check-in or after trip completion.
-- `processing_error`: Transient database or query failure (deadlock, connection timeout); client keeps record in offline queue (`retryable: true`).
+- `processing_error`: Database or query execution failure. May be transient (`retryable: true`) or terminal (`retryable: false`).
 
 ### Mobile Retry & Backoff Contract (CTMS-314 Guidelines):
 For records rejected with `retryable: true` (`processing_error`):
 - Mobile client must NOT retry immediately in a tight loop.
 - Client MUST employ exponential backoff with jitter (initial delay 5s, doubling up to max 60s).
-- Maximum retry attempts: **5 attempts**.
-- If maximum attempts are exhausted, the record must be paused/marked for manual retry or deferred until manual Porter confirmation (CTMS-056) to prevent queue starvation and battery drain.
-- Records with `retryable: false` (`checkpoint_not_found`, `threshold_not_met`, `id_conflict`, etc.) are terminal rejections and MUST be pruned from the local synchronization queue immediately.
+- Maximum retry budget: **5 attempts** during the active sync window.
+- **Queue retention policy**: If all 5 retry attempts are exhausted without success, Mobile MUST retain the record in local offline SQLite storage (do NOT delete/prune). The queue will resume retry on the next app launch or upon subsequent network connectivity recovery.
+- Records with `retryable: false` (terminal rejections such as `threshold_not_met`, `id_conflict`, terminal `processing_error`, etc.) MUST be pruned from the local synchronization queue immediately.
 
 ### Batch Isolation & Database Savepoints:
 Each event in a batch is isolated within its own database `SAVEPOINT`. If an individual record encounters an error:
-- Foreign key violation (`23503`): Rolled back to savepoint and rejected as terminal `checkpoint_not_found` (`retryable: false`).
-- Transient DB or unexpected query failure: Rolled back to savepoint, error logged without GPS coordinates, and rejected as `processing_error` with `retryable: true`, directing Mobile to keep the event in the offline queue for subsequent retry.
+- Transient DB errors (`40001` serialization failure, `40P01` deadlock, `53300` too many connections, `08xxx` connection exception, or query timeout): Rolled back to savepoint, logged with warning (no GPS coordinates), and rejected as `processing_error` with `retryable: true`.
+- Terminal non-retryable DB errors (foreign key constraint `23503`, check constraint `23514`, invalid text/data representation, etc.): Rolled back to savepoint, logged with error level (no GPS coordinates), and rejected as `processing_error` with `retryable: false`.
 - Visit and audit rollback: If the audit log insert fails, the visit row within that record's savepoint is rolled back cleanly.
 The outer transaction commits all valid `accepted` and `duplicate` records cleanly, preventing data loss in mobile offline synchronization queues.
 
@@ -115,6 +114,10 @@ In development and test environments, when an authoritative package is not yet p
   to degrade beyond 20m, discarding samples.
 - **Backup seam**: Porter manual checkpoint confirmation (CTMS-056) remains the official
   operational fallback. Field detection rates should be benchmarked during trials.
+- **Account deletion constraint (`ON DELETE RESTRICT`)**: `automatic_checkpoint_visits.user_id`
+  enforces `ON DELETE RESTRICT` against `users(id)` to protect historical safety audit logs.
+  If a user account deletion / GDPR erasure feature is implemented, an explicit anonymization
+  or soft-deletion strategy must be defined to handle past automatic visit records.
 
 ## Persistence, identity, and concurrency
 

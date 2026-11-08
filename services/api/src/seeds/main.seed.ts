@@ -4387,7 +4387,7 @@ export async function seedCheckpointArrivalContexts(ds: DataSource = dataSource)
 
 		await ds.query(
 			`INSERT INTO checkpoint_arrival_contexts (trip_id, route_id, route_version, package_id, package_version, checkpoints, context_source)
-			 VALUES ($1, $2, $3, $4, 'v1-demo', $5::jsonb, 'authoritative')
+			 VALUES ($1, $2, $3, $4, 'v1-demo', $5::jsonb, 'demo')
 			 ON CONFLICT (trip_id) DO UPDATE SET
 				route_id = EXCLUDED.route_id,
 				route_version = EXCLUDED.route_version,
