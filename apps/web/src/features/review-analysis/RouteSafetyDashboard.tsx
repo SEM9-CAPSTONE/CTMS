@@ -368,7 +368,7 @@ export function RouteSafetyDashboard({
 															<ul className="space-y-1.5">
 																{signal.sampleQuotes.map((q, idx) => (
 																	<li
-																		key={`${signal.type}-${idx}-${q.slice(0, 15)}`}
+																		key={`${signal.category}-${idx}-${q.slice(0, 15)}`}
 																		className="flex items-start gap-2 rounded-md bg-white p-2 italic text-[#10221b] shadow-2xs"
 																	>
 																		<span className="text-[#8a9d7a]">&ldquo;</span>
