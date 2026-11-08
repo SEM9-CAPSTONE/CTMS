@@ -1,6 +1,7 @@
 import { LayoutDashboard, MapPin, Shield, Tent, UserCheck } from "lucide-react";
 import { HomeLink } from "../../../shared/components/HomeLink";
 import { LogoutActions } from "../../auth/components/LogoutActions";
+import { WeatherChangeNotices } from "../../weather/components/WeatherChangeNotices";
 import type { CamperProfileData } from "../types";
 interface CamperSidebarProps {
 	profile: CamperProfileData | null;
@@ -38,22 +39,25 @@ export function CamperSidebar({
 			className={`sticky top-0 flex h-screen w-64 shrink-0 flex-col justify-between border-r border-[#dfe8df] bg-white p-5 shadow-sm ${className}`}
 		>
 			<div className="flex flex-col gap-6">
-				<HomeLink className="flex items-center gap-3 px-2 pt-1">
-					<img
-						src="/ctms_logo.png"
-						alt="CTMS Logo"
-						className="h-10 w-auto shrink-0 object-contain"
-					/>
-					<div>
-						<div className="flex items-center gap-1.5">
-							<span className="text-lg font-extrabold tracking-tight text-[#164027]">CTMS</span>
-							<span className="rounded-md bg-[#eef7f0] px-1.5 py-0.5 text-[10px] font-bold uppercase text-[#164027]">
-								Camper
-							</span>
+				<div className="flex items-center justify-between gap-2">
+					<HomeLink className="flex items-center gap-3 px-2 pt-1">
+						<img
+							src="/ctms_logo.png"
+							alt="CTMS Logo"
+							className="h-10 w-auto shrink-0 object-contain"
+						/>
+						<div>
+							<div className="flex items-center gap-1.5">
+								<span className="text-lg font-extrabold tracking-tight text-[#164027]">CTMS</span>
+								<span className="rounded-md bg-[#eef7f0] px-1.5 py-0.5 text-[10px] font-bold uppercase text-[#164027]">
+									Camper
+								</span>
+							</div>
+							<p className="text-[11px] font-semibold text-[#667a6d]">Hệ thống thám hiểm</p>
 						</div>
-						<p className="text-[11px] font-semibold text-[#667a6d]">Hệ thống thám hiểm</p>
-					</div>
-				</HomeLink>
+					</HomeLink>
+					<WeatherChangeNotices />
+				</div>
 
 				<nav className="flex flex-col gap-1.5 pt-2" aria-label="Camper Hub">
 					<p className="px-3 text-[11px] font-extrabold uppercase tracking-wider text-[#88998d]">

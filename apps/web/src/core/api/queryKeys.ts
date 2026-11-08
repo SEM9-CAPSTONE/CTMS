@@ -123,6 +123,8 @@ export const queryKeys = {
 		emergencyBroadcasts: (tripId: string) => ["trips", tripId, "emergency-broadcasts"] as const,
 		tripDatesWeather: (tripId: string) =>
 			["trips", tripId, "weather-forecast", "trip-dates"] as const,
+		tripWeatherHistory: (tripId: string) =>
+			["trips", tripId, "weather-forecast", "history"] as const,
 		all: ["trips"] as const,
 		list: (filters?: Record<string, unknown>) => ["trips", "list", filters] as const,
 		detail: (id: string) => ["trips", "detail", id] as const,
@@ -132,6 +134,7 @@ export const queryKeys = {
 		risk: (routeId?: string) => ["weather", "risk", { routeId }] as const,
 		rules: ["weather", "rules"] as const,
 		activeRule: ["weather", "rules", "active"] as const,
+		changeNotices: (userId: string) => ["weather", "change-notices", userId] as const,
 	},
 	ai: {
 		conversations: ["ai", "conversations"] as const,

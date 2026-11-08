@@ -144,6 +144,7 @@ export const API_ENDPOINTS = {
 		WEATHER_FORECAST_TRIP_DATES: (tripId: string) => `/trips/${tripId}/weather-forecast/trip-dates`,
 		WEATHER_FORECAST_SUBMITTED: (tripId: string) => `/trips/${tripId}/weather-forecast/submitted`,
 		WEATHER_FORECAST_ADVICE: (tripId: string) => `/trips/${tripId}/weather-forecast/advice`,
+		WEATHER_FORECAST_HISTORY: (tripId: string) => `/trips/${tripId}/weather-forecast/history`,
 		MEMBERS: (tripId: string) => `/trips/${tripId}/members`,
 		BOOKINGS: (tripId: string) => `/trips/${tripId}/bookings`,
 		MEMBER_STATUS: (tripId: string, bookingId: string, memberId: string) =>
@@ -167,6 +168,8 @@ export const API_ENDPOINTS = {
 		RULES_BY_ID: (id: string) => `/weather/rules/${id}`,
 		RULES_CREATE: "/weather/rules",
 		RULES_ACTIVATE: (id: string) => `/weather/rules/${id}/activate`,
+		CHANGE_NOTICES: "/me/weather-notices",
+		READ_CHANGE_NOTICE: (noticeId: string) => `/me/weather-notices/${noticeId}/read`,
 	},
 	AI: {
 		CONVERSATIONS: "/ai/conversations",

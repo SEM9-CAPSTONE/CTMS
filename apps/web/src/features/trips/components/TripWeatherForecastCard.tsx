@@ -49,6 +49,11 @@ function TravellerForecastContext({ forecast, now }: { forecast: TripWeatherFore
 				<StatusBadge tone={RELIABILITY_TONES[reliability.level]}>{reliability.label}</StatusBadge>
 				<span>{reliability.description}</span>
 			</div>
+			{forecast.checkedAt && (
+				<p data-testid="trip-forecast-checked-at" className="text-xs text-[#4f6356]">
+					Kiểm tra lần cuối: {formatWeatherDateTime(forecast.checkedAt)}
+				</p>
+			)}
 			{isFarRedForecast(forecast, now) && (
 				<p
 					data-testid="trip-forecast-far-red-warning"
