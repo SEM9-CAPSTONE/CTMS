@@ -4364,6 +4364,48 @@ export async function seedDeviceSyncTelemetry(ds = dataSource): Promise<void> {
 	console.log(
 		`[seed:device-sync] ✅ Seeded CTMS-064 Ongoing trip for live offline buffer test: ${DEMO_OFFLINE_BUFFER_TRIP_ID}`
 	);
+
+	// 8. Seed CTMS-061 / CTMS-313 Automatic Checkpoint Arrival Context for Mobile testing
+	await seedCheckpointArrivalContexts(ds);
+}
+
+export async function seedCheckpointArrivalContexts(ds: DataSource = dataSource): Promise<void> {
+	const tripRows = await ds.query("SELECT route_id FROM trips WHERE id = $1", [
+		DEMO_OFFLINE_BUFFER_TRIP_ID,
+	]);
+	const routeId = tripRows[0]?.route_id;
+	if (!routeId) return;
+
+	const checkpointRows: Array<{ id: string; latitude: number; longitude: number }> = await ds.query(
+		`SELECT cp.id, ST_Y(cp.location::geometry) AS latitude, ST_X(cp.location::geometry) AS longitude
+		 FROM checkpoints cp WHERE cp.route_id = $1`,
+		[routeId]
+	);
+
+	if (checkpointRows.length > 0) {
+		const routeVer = "v1";
+
+		await ds.query(
+			`INSERT INTO checkpoint_arrival_contexts (trip_id, route_id, route_version, package_id, package_version, checkpoints, context_source)
+			 VALUES ($1, $2, $3, $4, 'v1-demo', $5::jsonb, 'demo')
+			 ON CONFLICT (trip_id) DO UPDATE SET
+				route_id = EXCLUDED.route_id,
+				route_version = EXCLUDED.route_version,
+				checkpoints = EXCLUDED.checkpoints,
+				context_source = EXCLUDED.context_source`,
+			[
+				DEMO_OFFLINE_BUFFER_TRIP_ID,
+				routeId,
+				routeVer,
+				DEMO_OFFLINE_BUFFER_TRIP_ID,
+				JSON.stringify(checkpointRows),
+			]
+		);
+
+		console.log(
+			`[seed:checkpoint-arrivals] ✅ Seeded CTMS-061 Checkpoint arrival context for demo trip: ${DEMO_OFFLINE_BUFFER_TRIP_ID}`
+		);
+	}
 }
 
 // ==========================================================================
