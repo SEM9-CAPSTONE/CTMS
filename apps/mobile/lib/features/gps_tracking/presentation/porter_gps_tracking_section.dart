@@ -9,6 +9,7 @@ import '../../incidents/data/incidents_api.dart';
 import '../../incidents/domain/trip_incident.dart';
 import '../../route_deviation/presentation/route_deviation_panel.dart';
 import 'gps_tracking_panel.dart';
+import '../../emergency_broadcasts/presentation/emergency_broadcasts_panel.dart';
 import '../../member_locations/presentation/porter_member_locations_panel.dart';
 import '../../schedule_progress/presentation/schedule_progress_panels.dart';
 
@@ -86,6 +87,10 @@ class _PorterGpsTrackingSectionState
               ),
               const SizedBox(height: AppSpacing.md),
             ],
+            EmergencyBroadcastsPanel(
+              key: ValueKey('emergency-${selected.id}'),
+              tripId: selected.id,
+            ),
             GpsTrackingPanel(key: ValueKey(selected.id), tripId: selected.id),
             const SizedBox(height: AppSpacing.md),
             RouteDeviationPanel(

@@ -107,6 +107,7 @@ export const queryKeys = {
 		incidents: (userId: string, tripId: string) => ["trips", tripId, "incidents", userId] as const,
 		scheduleProgress: (tripId: string) => ["trips", tripId, "schedule-progress"] as const,
 		memberLocations: (tripId: string) => ["trips", tripId, "member-locations"] as const,
+		emergencyBroadcasts: (tripId: string) => ["trips", tripId, "emergency-broadcasts"] as const,
 		tripDatesWeather: (tripId: string) =>
 			["trips", tripId, "weather-forecast", "trip-dates"] as const,
 		all: ["trips"] as const,

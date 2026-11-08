@@ -208,3 +208,78 @@ New module `services/api/src/modules/emergency-broadcasts` and migration `179450
 - [x] Task-specific unit tests added/updated.
 - [x] Task-specific unit tests passed.
 - [x] Applicable backend/integration tests passed.
+
+## 15. Implementation Record — CTMS-081-T02 (Jira CTMS-362), UI
+
+No API change. The UI uses the CTMS-361 contract: `POST`/`GET /api/trips/:tripId/emergency-broadcasts` and the `emergency.broadcast` socket event.
+
+**Web: Host sends** (`apps/web/src/features/emergency-broadcasts`)
+
+- `HostEmergencyBroadcastCard` sits in the existing **"Sự cố chuyến đi"** tab of the Host Trip page, above the incident list. It is shown only to the managing Host and only for `published`/`ongoing` Trips. No new tab and no layout change.
+- **Form:** alert type (six values, Vietnamese labels) and content (required, trimmed, 1–1000 characters, live counter). There is no area or recipient picker (PB AC-6).
+- **Confirmation:** sending asks for confirmation through the shared `ConfirmModal`.
+- **One client UUID per draft:** a retry after a failure resends the same ID, so the API returns the stored broadcast instead of creating a second one (Story AC5). A new ID is taken after a confirmed success or when the Host asks for a new draft after `BROADCAST_ID_CONFLICT`.
+- **Errors:** 404/403 (not the Host's Trip), 409 `TRIP_NOT_BROADCASTABLE`, 409 `BROADCAST_ID_CONFLICT`, 422 and network failures each get a Vietnamese message.
+- **History:** type, content, time and recipient count. It refreshes on `emergency.broadcast` for the same Trip (the Host's other sessions) and every 60 s as a fallback.
+
+**Web: Camper/Porter receive**
+
+- `useEmergencyBroadcastListener` runs in `AppRouteContent` for signed-in users with the Camper or Porter role. Each alert goes into an in-page inbox, deduplicated by `eventId` (a redelivered alert is never shown again, even after it was read). The sender's own echo is ignored.
+- `EmergencyBroadcastAlerts`, rendered at the app root, shows each alert as a fixed red `role="alert"` banner with type, Trip title, time and content, until the viewer taps "Đã đọc".
+- `ReceivedEmergencyBroadcastsCard` recovers alerts missed while offline through `GET` (newest highlighted). It renders nothing when the list is empty. It appears on:
+  - Booking detail, for `confirmed` bookings;
+  - the Camper Trip page when it shows a confirmed booking;
+  - the Porter assigned-Trip detail, above the tabs.
+
+**Mobile: Camper/Porter** (`apps/mobile/lib/features/emergency_broadcasts`)
+
+- The app has no socket client, so `EmergencyBroadcastsController` polls `GET` every 15 s (same cadence as the CTMS-076 incident list). It also refreshes when the app resumes and when connectivity returns. A failed refresh keeps the last list and says so.
+- `EmergencyBroadcastsPanel` is inserted:
+  - at the top of the Camper Trip "Tổng quan" tab, under the SOS banner (`camper_trip_detail_screen`);
+  - above the GPS panel in `porter_gps_tracking_section`.
+- The panel is empty until an alert exists. The newest unacknowledged alert is shown as an emergency `CtmsAlertBanner`. "Đã xem" stores the acknowledged IDs per Trip in secure storage, on the device only. Older alerts are listed below.
+
+**Decisions**
+
+- "Đã đọc/Đã xem" is local only. The API has no read receipt, so the Host is not told who read an alert.
+- On web, opening `/trips/:id` directly does not restore the Camper's booking (existing behaviour), so the recovery card is guaranteed on Booking detail.
+
+## 16. Test Evidence — CTMS-081-T02
+
+- **Web unit** (Vitest, 21 tests):
+  - `HostEmergencyBroadcastCard.test.tsx` (12):
+    - history with recipient count;
+    - required type and content;
+    - more than 1000 characters blocked;
+    - confirm-before-send with trimmed content;
+    - same ID resent after a network failure;
+    - new ID after success and after "Tạo bản nháp mới";
+    - 409/409/404/422 messages;
+    - socket refresh for the same Trip only.
+  - `EmergencyBroadcastAlerts.test.tsx` (5): banner content, dedupe after read, newest first, own echo ignored, no socket when disabled.
+  - `ReceivedEmergencyBroadcastsCard.test.tsx` (4): offline recovery, empty or error renders nothing, live socket refresh, disabled fetches nothing.
+- **Mobile** (`emergency_broadcasts_panel_test.dart`, 6): empty renders nothing; newest unseen highlighted plus older list; "Đã xem" persists across remount; failed refresh keeps data; polling interval; refresh on reconnect only.
+- **E2E, real API + DB + socket.io** (`ctms-81-t02-broadcast-emergency-alert.spec.ts` in `playwright.sos-realtime.config.ts`):
+  - validation, then confirm, then send from the Host Trip page; "Đã phát cảnh báo tới 1 người"; history row;
+  - the joined Camper's banner appears within 5 s with type, Trip and content, and "Đã đọc" removes it;
+  - the alert is still on the Camper's Booking detail;
+  - an unrelated Camper gets no banner;
+  - DB row `severe_weather` / content / `recipient_count = 1`.
+  - Screenshots: Host form, Host history, Camper banner, Camper recovery card.
+- **Gates:**
+  - `lint:all`: 0 errors (12 warnings, all pre-existing). `build:all`: passed.
+  - Web `vitest`: 1670/1670 (251 files).
+  - Mobile:
+    - `flutter analyze`: 6 issues, all pre-existing and in untouched files (sos, porter_incidents, ctms_section_card).
+    - `flutter test` (after merging develop with CTMS-64): 259 passed, 1 failed. The failure is the known `widget_test.dart › porter overview renders dashboard UI`.
+  - `playwright.sos-realtime.config.ts`: 8 passed, 1 failed. The new spec passed. The failure is the known `ctms-79-t02` banner copy changed by CTMS-76.
+  - Default Playwright: 54 passed / 38 failed / 32 did not run, identical to the baseline. The new real-backend spec is added to the default config's `testIgnore`, like the other realtime specs.
+  - No API change.
+
+### UI Subtask DoD
+
+- [x] Host broadcast UI (type, content, confirmation, idempotent retry, errors, history).
+- [x] Eligible Camper and Porter receive alerts (web realtime banner and recovery card; mobile panel).
+- [x] Unrelated users receive nothing (server-scoped; E2E verified).
+- [x] No area targeting in the UI (PB AC-6).
+- [x] Tests added and passing; regression compared with baseline.

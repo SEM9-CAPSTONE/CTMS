@@ -10,6 +10,10 @@ import { authService } from "../features/auth/services/auth.service";
 import { getGrantedRoles } from "../features/auth/utils/permissions";
 import { getRefreshToken, getStoredAuthUser } from "../features/auth/utils/tokenStorage";
 import type { BookingDetails } from "../features/booking-details/types";
+import {
+	EmergencyBroadcastAlerts,
+	useEmergencyBroadcastListener,
+} from "../features/emergency-broadcasts";
 import { PageSkeleton } from "../shared/components/PageSkeleton";
 import { AppRoleGuard } from "./AppRoleGuard";
 import { getAuthenticatedHomePath, getGuestOnlyRedirectPath } from "./authRedirect";
@@ -236,9 +240,12 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3
 
 export function AppRoutes() {
 	return (
-		<Suspense fallback={<PageSkeleton />}>
-			<AppRouteContent />
-		</Suspense>
+		<>
+			<Suspense fallback={<PageSkeleton />}>
+				<AppRouteContent />
+			</Suspense>
+			<EmergencyBroadcastAlerts />
+		</>
 	);
 }
 
@@ -315,6 +322,11 @@ function AppRouteContent() {
 		handleLogout(false).catch(() => clearAuthSessionAndRedirect());
 	});
 	const isCheckingSession = useSessionCheck(storedUser !== null);
+	// CTMS-081-T02: Campers and Porters get the Host's emergency alerts on any page.
+	useEmergencyBroadcastListener(
+		storedUser !== null && (currentRoles.includes("camper") || currentRoles.includes("porter")),
+		storedUser?.id ?? null
+	);
 	const isPorterOnly =
 		currentRoles.includes("porter") && currentRoles.every((role) => role === "porter");
 	// Porter features stay locked until an Admin approves the guide certificate documents.

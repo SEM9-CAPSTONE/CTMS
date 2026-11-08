@@ -2,6 +2,7 @@ import { AlertCircle, ArrowLeft, CalendarDays, Loader2, MapPin, RefreshCw } from
 import { Suspense, lazy, useState } from "react";
 import { Button } from "../../../shared/components/Button";
 import { DeviceSyncStatusCard } from "../../device-sync";
+import { ReceivedEmergencyBroadcastsCard } from "../../emergency-broadcasts";
 import type { RouteCheckpoint } from "../../trekking-routes/types";
 import { TripIncidentsPanel } from "../../trip-incidents";
 import { CheckpointProgressCard } from "../../trips/components/CheckpointProgressCard";
@@ -371,6 +372,10 @@ export function PorterAssignedTripDetailView({
 							</p>
 						</div>
 						<MeetingPointSummary trip={trip} />
+					</div>
+
+					<div className="mt-5">
+						<ReceivedEmergencyBroadcastsCard key={trip.tripId} tripId={trip.tripId} />
 					</div>
 
 					<div
