@@ -12,6 +12,11 @@ import type { BookingDetails } from "../../booking-details/types";
 import { bookingEquipmentService } from "../../booking-equipment/services/booking-equipment.service";
 import { TripMemberRoster } from "../../booking-members/components/TripMemberRoster";
 import { DeviceSyncStatusCard } from "../../device-sync";
+import {
+	HostEmergencyBroadcastCard,
+	ReceivedEmergencyBroadcastsCard,
+	isBroadcastableTripStatus,
+} from "../../emergency-broadcasts";
 import { MemberLastLocationsCard } from "../../member-locations/components/MemberLastLocationsCard";
 import { TeamScheduleProgressCard } from "../../schedule-progress/components/TeamScheduleProgressCard";
 import { HostTripSettlementCard } from "../../settlements/components/HostTripSettlementCard";
@@ -468,6 +473,11 @@ export function TripDetailPage({
 										onEditTrip: onEditTrip ? () => onEditTrip(trip.id) : undefined,
 									}}
 								/>
+								{displayedBooking?.status === "confirmed" && !canManageThisTrip && (
+									<div className="mt-6">
+										<ReceivedEmergencyBroadcastsCard tripId={trip.id} />
+									</div>
+								)}
 								{displayedBooking && displayedBooking.status !== "cancelled" && (
 									<div className="mt-6">
 										<DeviceSyncStatusCard tripId={trip.id} />
@@ -483,7 +493,10 @@ export function TripDetailPage({
 								</div>
 							)}
 							{isRosterVisible && (
-								<div hidden={activeTab !== "incidents"}>
+								<div hidden={activeTab !== "incidents"} className="space-y-6">
+									{canManageThisTrip && isBroadcastableTripStatus(trip.status) && (
+										<HostEmergencyBroadcastCard tripId={trip.id} />
+									)}
 									<div className="rounded-3xl border border-[#dfe8df] bg-white p-6 shadow-sm">
 										<TripIncidentsPanel
 											tripId={trip.id}

@@ -15,6 +15,19 @@ export const queryKeys = {
 		source: (actor: string, trip: string, review: string, revision: number) =>
 			["review-analysis", actor, trip, "source", review, revision] as const,
 	},
+	reviewModeration: {
+		all: ["review-moderation"] as const,
+		queue: (actor: string, status: string, tripId?: string, page = 1) =>
+			["review-moderation", actor, "queue", status, tripId ?? "all", page] as const,
+		pendingBadge: (actor: string) => ["review-moderation", actor, "pending-badge"] as const,
+	},
+	reviewAnalytics: {
+		all: ["review-analytics"] as const,
+		tripsOverview: (actor: string, page = 1, tripId?: string) =>
+			["review-analytics", actor, "trips-overview", tripId ?? "all", page] as const,
+		routesSafetyOverview: (actor: string, page = 1, routeId?: string) =>
+			["review-analytics", actor, "routes-safety", routeId ?? "all", page] as const,
+	},
 	survivalDocuments: {
 		all: ["survival-documents"] as const,
 		lists: ["survival-documents", "list"] as const,
@@ -107,8 +120,11 @@ export const queryKeys = {
 		incidents: (userId: string, tripId: string) => ["trips", tripId, "incidents", userId] as const,
 		scheduleProgress: (tripId: string) => ["trips", tripId, "schedule-progress"] as const,
 		memberLocations: (tripId: string) => ["trips", tripId, "member-locations"] as const,
+		emergencyBroadcasts: (tripId: string) => ["trips", tripId, "emergency-broadcasts"] as const,
 		tripDatesWeather: (tripId: string) =>
 			["trips", tripId, "weather-forecast", "trip-dates"] as const,
+		tripWeatherHistory: (tripId: string) =>
+			["trips", tripId, "weather-forecast", "history"] as const,
 		all: ["trips"] as const,
 		list: (filters?: Record<string, unknown>) => ["trips", "list", filters] as const,
 		detail: (id: string) => ["trips", "detail", id] as const,
@@ -118,6 +134,7 @@ export const queryKeys = {
 		risk: (routeId?: string) => ["weather", "risk", { routeId }] as const,
 		rules: ["weather", "rules"] as const,
 		activeRule: ["weather", "rules", "active"] as const,
+		changeNotices: (userId: string) => ["weather", "change-notices", userId] as const,
 	},
 	ai: {
 		conversations: ["ai", "conversations"] as const,

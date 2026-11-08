@@ -26,6 +26,7 @@ import type { InitializeBookingMembersResponse } from "../../booking-members/typ
 import { PackingListModal } from "../../packing-list/components/PackingListModal";
 import { useTripDatesWeatherForecast } from "../hooks/useTripDatesWeatherForecast";
 import { type BookTripResponse, type TripDetails, formatTripStatus } from "../types";
+import { FAR_RED_FORECAST_WARNING, isFarRedForecast } from "../utils/trip-forecast-reliability";
 import { type BookingAccess, BookingPanel } from "./BookingPanel";
 import { HostTripOperationsPanel } from "./HostTripOperationsPanel";
 import type { SelectedEquipmentItem } from "./RentableEquipmentModal";
@@ -616,6 +617,16 @@ export function TripDetailView({
 							status={trip.status}
 							cancellationReason={trip.cancellationReason}
 						/>
+
+						{/* Red forecast still more than 3 days out: booking stays open with this warning */}
+						{!canManageTrip && isFarRedForecast(tripDatesWeather.data) && (
+							<p
+								data-testid="booking-far-red-forecast-warning"
+								className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-900"
+							>
+								{FAR_RED_FORECAST_WARNING}
+							</p>
+						)}
 
 						<div className="rounded-3xl border border-[#dfe8df] bg-white p-5 shadow-sm">
 							<div className="flex items-baseline justify-between gap-2">

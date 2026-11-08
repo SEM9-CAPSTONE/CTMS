@@ -12,6 +12,16 @@ export const API_ENDPOINTS = {
 		SOURCE: (trip: string, review: string, revision: number) =>
 			`/trips/${trip}/review-analyses/${review}/source/${revision}`,
 	},
+	HOST_REVIEW_MODERATION: {
+		QUEUE: "/host/trip-reviews/moderation-queue",
+		DECISION: (reviewId: string) => `/host/trip-reviews/${reviewId}/decisions`,
+		QUARANTINED_IMAGE: (reviewId: string, imageIndex: number) =>
+			`/host/trip-reviews/${reviewId}/quarantined-images/${imageIndex}`,
+	},
+	HOST_REVIEW_ANALYTICS: {
+		TRIPS_OVERVIEW: "/host/review-analytics/trips-overview",
+		ROUTES_SAFETY_OVERVIEW: "/host/review-analytics/routes-safety-overview",
+	},
 	SURVIVAL_DOCUMENTS: {
 		ROOT: "/admin/survival-documents",
 		IMPORT_URL: "/admin/survival-documents/import-url",
@@ -97,6 +107,7 @@ export const API_ENDPOINTS = {
 		BOOKED_ROUTE_MAP: (tripId: string) => `/trips/${tripId}/route-map`,
 		SCHEDULE_PROGRESS: (tripId: string) => `/trips/${tripId}/schedule-progress`,
 		MEMBER_LOCATIONS: (tripId: string) => `/trips/${tripId}/member-locations`,
+		EMERGENCY_BROADCASTS: (tripId: string) => `/trips/${tripId}/emergency-broadcasts`,
 		GET_ALL: "/trips",
 		GET_MINE: "/trips/mine",
 		GET_PORTER_CANDIDATES: "/trips/porter-candidates",
@@ -133,6 +144,7 @@ export const API_ENDPOINTS = {
 		WEATHER_FORECAST_TRIP_DATES: (tripId: string) => `/trips/${tripId}/weather-forecast/trip-dates`,
 		WEATHER_FORECAST_SUBMITTED: (tripId: string) => `/trips/${tripId}/weather-forecast/submitted`,
 		WEATHER_FORECAST_ADVICE: (tripId: string) => `/trips/${tripId}/weather-forecast/advice`,
+		WEATHER_FORECAST_HISTORY: (tripId: string) => `/trips/${tripId}/weather-forecast/history`,
 		MEMBERS: (tripId: string) => `/trips/${tripId}/members`,
 		BOOKINGS: (tripId: string) => `/trips/${tripId}/bookings`,
 		MEMBER_STATUS: (tripId: string, bookingId: string, memberId: string) =>
@@ -156,6 +168,8 @@ export const API_ENDPOINTS = {
 		RULES_BY_ID: (id: string) => `/weather/rules/${id}`,
 		RULES_CREATE: "/weather/rules",
 		RULES_ACTIVATE: (id: string) => `/weather/rules/${id}/activate`,
+		CHANGE_NOTICES: "/me/weather-notices",
+		READ_CHANGE_NOTICE: (noticeId: string) => `/me/weather-notices/${noticeId}/read`,
 	},
 	AI: {
 		CONVERSATIONS: "/ai/conversations",

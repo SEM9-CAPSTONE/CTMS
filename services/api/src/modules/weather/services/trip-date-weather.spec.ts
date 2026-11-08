@@ -67,6 +67,8 @@ function buildForecastService(tripOverrides: Record<string, unknown> = {}) {
 	const forecastsRepository = {
 		findTripForForecast: jest.fn().mockResolvedValue(trip),
 		findLatestForTrip: jest.fn().mockResolvedValue(null),
+		findLatestAvailableForTrip: jest.fn().mockResolvedValue(null),
+		touchCheckedAt: jest.fn().mockImplementation(async (row, checkedAt) => ({ ...row, checkedAt })),
 		create: jest.fn().mockImplementation((value) => value),
 		save: jest
 			.fn()

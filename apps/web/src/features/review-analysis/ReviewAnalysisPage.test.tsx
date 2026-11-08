@@ -13,6 +13,11 @@ vi.mock("./service", () => ({
 		batch: vi.fn(),
 		create: vi.fn(),
 		source: vi.fn(),
+		moderationQueue: vi.fn(),
+		tripFeedbackOverview: vi.fn(),
+		routeSafetyOverview: vi.fn(),
+		recordDecision: vi.fn(),
+		getQuarantinedImageBlob: vi.fn(),
 	},
 }));
 const edge = vi.mocked(analysisService);
@@ -33,6 +38,28 @@ beforeEach(() => {
 		rating: 4,
 		comment: "Đánh giá gốc",
 		createdAt: "2026-11-05T00:00:00Z",
+	});
+	edge.tripFeedbackOverview.mockResolvedValue({
+		items: [],
+		total: 0,
+		page: 1,
+		limit: 6,
+		sampleThreshold: 5,
+	});
+	edge.routeSafetyOverview.mockResolvedValue({
+		items: [],
+		total: 0,
+		page: 1,
+		limit: 5,
+		sampleThreshold: 10,
+		categoryCountsCannotBeSummed: true,
+		notSafetyHotspots: true,
+	});
+	edge.moderationQueue.mockResolvedValue({
+		items: [],
+		total: 0,
+		page: 1,
+		limit: 10,
 	});
 });
 afterEach(() => {

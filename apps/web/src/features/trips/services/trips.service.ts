@@ -93,6 +93,9 @@ export const tripsService = {
 	/** Forecast for the Trip's own dates for travellers (Camper/Porter), never today's weather. */
 	getTripDatesWeatherForecast: (tripId: string): Promise<TripWeatherForecast> =>
 		httpClient.get<TripWeatherForecast>(API_ENDPOINTS.TRIPS.WEATHER_FORECAST_TRIP_DATES(tripId)),
+	/** How the Trip-date forecast changed over time, newest first (CTMS-93 monitoring). */
+	getTripWeatherHistory: (tripId: string): Promise<TripWeatherForecast[]> =>
+		httpClient.get<TripWeatherForecast[]>(API_ENDPOINTS.TRIPS.WEATHER_FORECAST_HISTORY(tripId)),
 	generateWeatherAdvice: (tripId: string): Promise<TripWeatherForecast> =>
 		httpClient.post<TripWeatherForecast>(API_ENDPOINTS.TRIPS.WEATHER_FORECAST_ADVICE(tripId)),
 

@@ -2,6 +2,17 @@ from app.demand_planning_service import DemandPlanningService, PlanningRequest, 
 import hmac
 import os
 from functools import lru_cache
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables from root .env and services/ai/.env
+_root_env = Path(__file__).resolve().parent.parent.parent.parent / ".env"
+_local_env = Path(__file__).resolve().parent.parent / ".env"
+if _root_env.exists():
+    load_dotenv(_root_env)
+if _local_env.exists():
+    load_dotenv(_local_env)
+load_dotenv()
 
 from fastapi import Depends, FastAPI, HTTPException, Header
 from openai import OpenAI, APIStatusError, APITimeoutError, APIConnectionError

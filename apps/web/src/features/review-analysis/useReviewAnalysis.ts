@@ -95,8 +95,9 @@ export function useReviewAnalysis(
 		const key = `${tripId}:${value.batch.id}:${value.batch.status}`;
 		if (refreshed.current === key) return;
 		refreshed.current = key;
-		void client.invalidateQueries({ queryKey: ["review-analysis", actor, tripId, "insights"] });
-	}, [batch.data, client, actor, tripId]);
+		void client.invalidateQueries({ queryKey: ["review-analysis"] });
+		void client.invalidateQueries({ queryKey: ["review-analytics"] });
+	}, [batch.data, client, tripId]);
 	const create = useMutation({
 		onSettled: () => {
 			submitting.current = false;

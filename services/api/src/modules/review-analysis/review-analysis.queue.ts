@@ -174,6 +174,45 @@ export class ReviewAnalysisQueue {
 				]
 			);
 			if (!written[0]) return false;
+
+			if (status === "succeeded" && output) {
+				const runRows: Array<{ id: string }> = await m.query(
+					`INSERT INTO trip_review_moderation_runs (
+						review_id, source_revision, provider, model, config_version, prompt_version,
+						text_scan_status, image_scan_status, aspects_status, incidents_status,
+						attempts, created_at, completed_at
+					) VALUES (
+						$1, $2, 'gemini', 'gemini-1.5-flash', 'v1.0', 'v1.0',
+						'completed', 'not_applicable', 'completed', 'completed',
+						1, clock_timestamp(), clock_timestamp()
+					)
+					ON CONFLICT (review_id, source_revision, provider, model, config_version, prompt_version)
+					DO UPDATE SET aspects_status = 'completed', incidents_status = 'completed', completed_at = clock_timestamp()
+					RETURNING id`,
+					[item.review_id, item.source_revision]
+				);
+				const runId = runRows[0]?.id;
+				if (runId) {
+					await m.query(
+						`INSERT INTO trip_review_aspect_sentiments (run_id, review_id, source_revision, aspect, sentiment, confidence, quote)
+						VALUES 
+							($1, $2, $3, 'safety', $4, $5, $6),
+							($1, $2, $3, 'guide_support', $4, $5, $6),
+							($1, $2, $3, 'equipment', $4, $5, $6),
+							($1, $2, $3, 'value', $4, $5, $6)
+						ON CONFLICT (run_id, aspect) DO UPDATE SET sentiment = EXCLUDED.sentiment`,
+						[
+							runId,
+							item.review_id,
+							item.source_revision,
+							output.sentiment === "mixed" ? "neutral" : output.sentiment,
+							output.confidence,
+							(output.summary || "Đánh giá dịch vụ chuyến đi").slice(0, 200),
+						]
+					);
+				}
+			}
+
 			await m.query(
 				`UPDATE trip_review_analysis_attempts SET outcome=$3,error_code=$4,finished_at=clock_timestamp()
     WHERE item_id=$1 AND token=$2`,

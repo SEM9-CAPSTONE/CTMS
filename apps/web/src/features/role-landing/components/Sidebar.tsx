@@ -6,6 +6,7 @@ import { BookingCancellationNotices } from "../../booking-cancellation/component
 import type { CamperProfileData } from "../../camper-profile/types";
 import { useHostSos } from "../../sos-handling/hooks/useHostSos";
 import { useMyPorterRequests } from "../../trips/hooks/usePorterRequests";
+import { WeatherChangeNotices } from "../../weather/components/WeatherChangeNotices";
 import { roleLabels } from "../constants";
 import type { DashboardConfig, RoleKey } from "../types";
 
@@ -111,6 +112,7 @@ export function Sidebar({
 						<p className="text-xs font-semibold text-[#667a6d]">{config.navTitle}</p>
 					</div>
 				</HomeLink>
+				{activeRole === "host" && <WeatherChangeNotices />}
 				{(activeRole === "host" || activeRole === "admin") && <BookingCancellationNotices />}
 				{onClose && (
 					<button

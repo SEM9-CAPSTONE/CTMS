@@ -1,5 +1,6 @@
 import { CalendarDays, CreditCard, FileText, MapPin, ReceiptText } from "lucide-react";
 import { DeviceSyncStatusCard } from "../../device-sync";
+import { ReceivedEmergencyBroadcastsCard } from "../../emergency-broadcasts";
 import { TripDatesWeatherCard } from "../../trips/components/TripDatesWeatherCard";
 import type { BookingDetails } from "../types";
 import {
@@ -199,6 +200,13 @@ export function BookingDetailsView({
 							<TripDatesWeatherCard tripId={booking.tripId} />
 						</div>
 					)}
+
+				{/* Emergency alerts the Host broadcast to this Trip (CTMS-081) */}
+				{booking.status === "confirmed" && (
+					<div className="mt-6">
+						<ReceivedEmergencyBroadcastsCard tripId={booking.tripId} />
+					</div>
+				)}
 
 				{/* Device Synchronization Status (CTMS-067) */}
 				<div className="mt-6">
