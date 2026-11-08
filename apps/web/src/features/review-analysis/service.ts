@@ -2,10 +2,15 @@ import { API_ENDPOINTS, httpClient } from "../../core/api";
 import { ANALYSIS_PAGE_SIZE } from "./constants";
 import type {
 	BatchResponse,
+	CreateModerationDecisionDto,
 	CreateResponse,
 	InsightResponse,
+	ModerationDecisionResponse,
+	ModerationQueueResponse,
+	RouteSafetyOverviewResponse,
 	SentimentFilter,
 	SourceReview,
+	TripFeedbackOverviewResponse,
 	TripList,
 } from "./types";
 export const analysisService = {
@@ -27,6 +32,42 @@ export const analysisService = {
 		httpClient.get<SourceReview>(
 			API_ENDPOINTS.REVIEW_ANALYSIS.SOURCE(trip, review, revision),
 			undefined,
+			{ signal }
+		),
+	moderationQueue: (
+		params: { status?: string; tripId?: string; page?: number; limit?: number },
+		signal?: AbortSignal
+	) =>
+		httpClient.get<ModerationQueueResponse>(API_ENDPOINTS.HOST_REVIEW_MODERATION.QUEUE, params, {
+			signal,
+		}),
+	recordDecision: (reviewId: string, body: CreateModerationDecisionDto) =>
+		httpClient.post<ModerationDecisionResponse>(
+			API_ENDPOINTS.HOST_REVIEW_MODERATION.DECISION(reviewId),
+			body
+		),
+	getQuarantinedImageBlob: (reviewId: string, imageIndex: number, signal?: AbortSignal) =>
+		httpClient.get<Blob>(
+			API_ENDPOINTS.HOST_REVIEW_MODERATION.QUARANTINED_IMAGE(reviewId, imageIndex),
+			undefined,
+			{ responseType: "blob", signal }
+		),
+	tripFeedbackOverview: (
+		params: { tripId?: string; page?: number; limit?: number },
+		signal?: AbortSignal
+	) =>
+		httpClient.get<TripFeedbackOverviewResponse>(
+			API_ENDPOINTS.HOST_REVIEW_ANALYTICS.TRIPS_OVERVIEW,
+			params,
+			{ signal }
+		),
+	routeSafetyOverview: (
+		params: { routeId?: string; page?: number; limit?: number },
+		signal?: AbortSignal
+	) =>
+		httpClient.get<RouteSafetyOverviewResponse>(
+			API_ENDPOINTS.HOST_REVIEW_ANALYTICS.ROUTES_SAFETY_OVERVIEW,
+			params,
 			{ signal }
 		),
 };

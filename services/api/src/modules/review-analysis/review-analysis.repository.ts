@@ -115,7 +115,7 @@ export class ReviewAnalysisRepository {
 		config: AnalysisConfig
 	): Promise<CoverageRow[]> {
 		return m.query(
-			`SELECT r.id AS "reviewId",r.revision AS "sourceRevision", ${ELIGIBLE} AS eligible,
+			`SELECT r.id AS "reviewId",r.revision AS "sourceRevision", r.rating, r.created_at AS "createdAt", ${ELIGIBLE} AS eligible,
    ${BASE_ELIGIBLE} AS "participationEligible", ${BLOCKED} AS blocked, ${SUPPRESSED} AS suppressed,
    i.id AS "analysisId",i.status,i.sentiment,i.topics,i.summary,i.confidence,i.actual_model AS "actualModel",
    i.updated_at AS "analyzedAt", EXISTS(SELECT 1 FROM trip_review_analysis_items old WHERE old.review_id=r.id AND old.status='succeeded') AS "hasHistory",

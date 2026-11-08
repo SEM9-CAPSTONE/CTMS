@@ -91,6 +91,8 @@ export const PROMPT_VERSION = "v1";
 export interface CoverageRow {
 	reviewId: string;
 	sourceRevision: number;
+	rating?: number | null;
+	createdAt?: Date | null;
 	eligible: boolean;
 	participationEligible: boolean;
 	blocked: boolean;

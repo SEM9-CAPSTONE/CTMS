@@ -47,8 +47,18 @@ export class ReviewAnalysisService {
 				`SELECT count(*)::int AS total FROM trips t ${filter}`,
 				[actorId]
 			);
-			const items: { id: string; title: string; status: string }[] = await m.query(
-				`SELECT t.id,t.title,t.status FROM trips t ${filter} ORDER BY t.updated_at DESC,t.id LIMIT $2 OFFSET $3`,
+			const items: {
+				id: string;
+				title: string;
+				status: string;
+				routeId?: string;
+				routeName?: string;
+			}[] = await m.query(
+				`SELECT t.id, t.title, t.status, t.route_id AS "routeId", tr.name AS "routeName"
+				 FROM trips t
+				 LEFT JOIN trekking_routes tr ON tr.id = t.route_id
+				 ${filter}
+				 ORDER BY t.updated_at DESC, t.id LIMIT $2 OFFSET $3`,
 				[actorId, page.limit, (page.page - 1) * page.limit]
 			);
 			return {
@@ -306,11 +316,13 @@ export class ReviewAnalysisService {
 					id: row.analysisId,
 					reviewId: row.reviewId,
 					sourceRevision: row.sourceRevision,
+					rating: row.rating ?? undefined,
 					sentiment: row.sentiment,
 					topics: row.topics,
 					summary: row.summary,
 					confidence: row.confidence,
 					actualModel: row.actualModel,
+					createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : undefined,
 					analyzedAt: row.analyzedAt,
 				})),
 				pagination: {

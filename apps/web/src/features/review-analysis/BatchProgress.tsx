@@ -1,19 +1,22 @@
+import { Loader2 } from "lucide-react";
 import { freshnessLabels, isActive, itemLabels, panelClass } from "./constants";
 import type { BatchResponse } from "./types";
 export function BatchProgress({ data }: { data: BatchResponse }) {
 	const done = data.progress.total - data.progress.pending - data.progress.running;
+	const active = isActive(data.batch.status);
 	return (
 		<section className={panelClass} aria-labelledby="batch-title">
 			<div className="flex flex-wrap justify-between gap-2">
-				<h2 id="batch-title" className="font-semibold">
-					{isActive(data.batch.status) ? "Đang xử lý lượt phân tích" : "Lượt phân tích gần nhất"}
+				<h2 id="batch-title" className="flex items-center gap-2 font-semibold">
+					{active && <Loader2 className="size-4 animate-spin text-[#164027]" />}
+					<span>{active ? "Đang xử lý lượt phân tích" : "Lượt phân tích gần nhất"}</span>
 				</h2>
 				<output className="text-sm text-[#66756d]">
 					{done}/{data.progress.total} đã xử lý
 				</output>
 			</div>
 			<progress
-				className="mt-3 h-2 w-full overflow-hidden rounded-full border-0 bg-[#edf1e9] [&::-webkit-progress-bar]:bg-[#edf1e9] [&::-webkit-progress-value]:bg-[#527a3c] [&::-moz-progress-bar]:bg-[#527a3c]"
+				className={`mt-3 h-2 w-full overflow-hidden rounded-full border-0 bg-[#edf1e9] [&::-webkit-progress-bar]:bg-[#edf1e9] [&::-webkit-progress-value]:bg-[#527a3c] [&::-moz-progress-bar]:bg-[#527a3c] ${active ? "animate-pulse" : ""}`}
 				max={Math.max(1, data.progress.total)}
 				value={done}
 				aria-label="Tiến độ lượt phân tích"
@@ -28,7 +31,7 @@ export function BatchProgress({ data }: { data: BatchResponse }) {
 					Lượt phân tích hoàn thành một phần. Kết quả thành công vẫn được giữ lại.
 				</p>
 			)}
-			<details className="mt-4 text-sm">
+			<details className="mt-4 text-sm" open={active}>
 				<summary className="cursor-pointer font-medium text-[#164027]">
 					Xem trạng thái từng nhận xét
 				</summary>
@@ -39,7 +42,12 @@ export function BatchProgress({ data }: { data: BatchResponse }) {
 								<span>
 									Nhận xét {index + 1} · phiên bản {item.sourceRevision}
 								</span>
-								<span className="font-medium">{itemLabels[item.status]}</span>
+								<span className="inline-flex items-center gap-1.5 font-medium">
+									{(item.status === "pending" || item.status === "running") && (
+										<Loader2 className="size-3.5 animate-spin text-[#164027]" />
+									)}
+									<span>{itemLabels[item.status]}</span>
+								</span>
 							</div>
 							{item.freshnessReason && (
 								<p className="mt-1 text-xs text-amber-800">

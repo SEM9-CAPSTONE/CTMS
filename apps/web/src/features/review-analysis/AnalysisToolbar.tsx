@@ -1,4 +1,4 @@
-import { RefreshCw, Sparkles } from "lucide-react";
+import { Loader2, RefreshCw, Sparkles } from "lucide-react";
 import { buttonClass } from "./constants";
 import type { TripList } from "./types";
 interface Props {
@@ -93,7 +93,11 @@ export function AnalysisToolbar(props: Props) {
 						disabled={!props.canCreate}
 						onClick={props.onCreate}
 					>
-						<Sparkles className="size-4" />
+						{props.busy || props.running ? (
+							<Loader2 className="size-4 animate-spin text-white" />
+						) : (
+							<Sparkles className="size-4" />
+						)}
 						{label}
 					</button>
 				</div>

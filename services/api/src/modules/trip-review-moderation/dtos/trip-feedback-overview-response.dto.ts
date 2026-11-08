@@ -1,4 +1,4 @@
-import { ApiProperty } from "@nestjs/swagger";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import type { AspectType } from "../trip-review-moderation.types";
 
 export class AspectSentimentSummaryDto {
@@ -25,6 +25,12 @@ export class TripFeedbackItemDto {
 
 	@ApiProperty()
 	tripTitle!: string;
+
+	@ApiPropertyOptional({ format: "uuid" })
+	routeId?: string;
+
+	@ApiPropertyOptional()
+	routeName?: string;
 
 	@ApiProperty({
 		description: "Total eligible reviews (target = 'trip' and moderation_status = 'visible')",
