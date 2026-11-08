@@ -33,10 +33,13 @@ import { Trip, TripStatus } from "../trips/entities/trip.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { type LockedTripForBooking, TripsRepository } from "../trips/repositories/trips.repository";
 import { User, UserStatus } from "../users/entities/user.entity";
+import { TripWeatherForecastStatus } from "../weather/entities/trip-weather-forecast.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { WeatherRiskRepository } from "../weather/repositories/weather-risk.repository";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { RouteRegistrationRiskService } from "../weather/services/route-registration-risk.service";
+// biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
+import { TripWeatherForecastService } from "../weather/services/trip-weather-forecast.service";
 import { BookingItemType } from "./booking-item-type.enum";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { BookingItemsRepository } from "./booking-items.repository";
@@ -104,7 +107,11 @@ export class BookingsService {
 		private readonly weatherRiskRepository: WeatherRiskRepository,
 		private readonly healthProfileRepository: HealthProfileRepository,
 		@Optional() @Inject(PaymentsService) private readonly paymentsService?: PaymentsService,
-		@Optional() @Inject(EventsGateway) private readonly eventsGateway?: EventsGateway
+		@Optional() @Inject(EventsGateway) private readonly eventsGateway?: EventsGateway,
+		/** Forecast for the Trip's own dates; optional so existing unit fixtures keep the Route rule. */
+		@Optional()
+		@Inject(TripWeatherForecastService)
+		private readonly tripWeatherForecasts?: TripWeatherForecastService
 	) {}
 
 	async listForOwner(actorId: string): Promise<BookingListItemResponseDto[]> {
@@ -210,9 +217,23 @@ export class BookingsService {
 			select: { id: true, difficulty: true },
 		});
 
-		const assessment = await this.weatherRiskRepository.findLatestAssessmentForRoute(
-			details.tripPresentation.routeId
-		);
+		// The packing list follows the weather of the Trip's own dates. Today's Route weather is only
+		// used when the trip-date forecast service is not wired (unit fixtures).
+		const tripForecast = this.tripWeatherForecasts
+			? await this.tripWeatherForecasts.tryEnsureTripForecast(details.tripId)
+			: null;
+		const forecastWeather =
+			tripForecast?.status === TripWeatherForecastStatus.AVAILABLE && tripForecast.riskLevel
+				? tripForecast
+				: null;
+		const assessment = this.tripWeatherForecasts
+			? null
+			: await this.weatherRiskRepository.findLatestAssessmentForRoute(
+					details.tripPresentation.routeId
+				);
+		let weatherSource: "trip_forecast" | "route_assessment" | null = null;
+		if (forecastWeather) weatherSource = "trip_forecast";
+		else if (assessment) weatherSource = "route_assessment";
 
 		const rentedEquipmentIds = [
 			...new Set(
@@ -249,8 +270,8 @@ export class BookingsService {
 			tripType,
 			difficulty: route?.difficulty ?? null,
 			memberCount: Math.max(details.members.length, 1),
-			weatherRiskLevel: assessment?.riskLevel ?? null,
-			weatherCriteria: assessment?.criteriaScores ?? null,
+			weatherRiskLevel: forecastWeather?.riskLevel ?? assessment?.riskLevel ?? null,
+			weatherCriteria: forecastWeather?.criteriaScores ?? assessment?.criteriaScores ?? null,
 		};
 
 		const healthConsidered = Boolean(healthProfile?.isConsentGranted);
@@ -262,6 +283,9 @@ export class BookingsService {
 			difficulty: context.difficulty,
 			memberCount: context.memberCount,
 			weatherAssessment: assessment ? { id: assessment.id, riskLevel: assessment.riskLevel } : null,
+			...(forecastWeather?.riskLevel
+				? { weatherForecast: { id: forecastWeather.id, riskLevel: forecastWeather.riskLevel } }
+				: {}),
 			rentedEquipment: details.equipmentItems
 				.map((equipmentItem) => ({
 					equipmentCatalogItemId: equipmentItem.equipmentCatalogItemId,
@@ -285,7 +309,7 @@ export class BookingsService {
 			tripId: details.tripId,
 			generationId: generation.id,
 			generatedAt: generation.createdAt,
-			context,
+			context: { ...context, weatherSource },
 			items: buildPackingListItems(context, rentedEquipment, health),
 		};
 	}
@@ -500,6 +524,9 @@ export class BookingsService {
 	): Promise<BookingResponseDto> {
 		const normalizedKey = this.validateIdempotencyKey(idempotencyKey);
 		const requestFingerprint = this.fingerprint(dto);
+		// Refresh the forecast for the Trip's own dates before the transaction (network call outside the
+		// lock); the weather check below reads it. Never throws.
+		await this.tripWeatherForecasts?.tryEnsureTripForecast(dto.tripId);
 
 		let committedTrip: { id: string; seatsTaken: number; capacityMax: number | null } | null = null;
 		const result = await this.dataSource.transaction(async (manager: EntityManager) => {
@@ -517,7 +544,13 @@ export class BookingsService {
 			const tripRepository = manager.withRepository(this.tripsRepository);
 			const trip = await tripRepository.findByIdForBooking(dto.tripId);
 			this.assertTripEligible(trip, dto.numPeople);
-			await this.weatherRiskService.assertBookingWeatherAllowed(trip.routeId, manager);
+			await this.weatherRiskService.assertBookingWeatherAllowed(
+				trip.routeId,
+				manager,
+				this.tripWeatherForecasts
+					? { id: trip.id, startsAt: trip.startsAt, endsAt: trip.endsAt }
+					: undefined
+			);
 
 			const basePrice = this.calculateBasePrice(trip.pricePerPerson, dto.numPeople);
 			const isFree = basePrice === "0.00";

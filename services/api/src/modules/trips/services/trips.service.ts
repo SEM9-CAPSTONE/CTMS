@@ -1,6 +1,7 @@
 import {
 	ConflictException,
 	ForbiddenException,
+	Inject,
 	Injectable,
 	NotFoundException,
 	Optional,
@@ -15,7 +16,10 @@ import { DEFAULT_CANCELLATION_POLICY } from "../../bookings/cancellation-policy"
 import { EventsGateway } from "../../realtime/events.gateway";
 import { TrekkingRouteStatus } from "../../trekking-routes/entities/trekking-route.entity";
 import { UserRole } from "../../users/entities/user.entity";
+import { TripWeatherForecastStatus } from "../../weather/entities/trip-weather-forecast.entity";
 import { RiskLevel } from "../../weather/entities/weather-risk-assessment.entity";
+// biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
+import { TripWeatherForecastService } from "../../weather/services/trip-weather-forecast.service";
 import type {
 	ConfigureTripWaypointsDto,
 	CreateTripDto,
@@ -80,10 +84,14 @@ export class TripsService {
 		private readonly dataSource: DataSource,
 		@Optional() private readonly eventsGateway?: EventsGateway,
 		@Optional() private readonly checkpointVisitsRepository?: CheckpointVisitsRepository,
-		@Optional() private readonly tripImages?: TripImagesService
+		@Optional() private readonly tripImages?: TripImagesService,
+		/** Forecast for each Trip's own dates on the search list; optional for unit fixtures. */
+		@Optional()
+		@Inject(TripWeatherForecastService)
+		private readonly tripWeatherForecasts?: TripWeatherForecastService
 	) {}
 
-	async search(query: SearchTripsQueryDto): Promise<PaginatedTripsResponseDto> {
+	async search(query: SearchTripsQueryDto, viewerId?: string): Promise<PaginatedTripsResponseDto> {
 		this.assertSearchTripsQuery(query);
 
 		const startDate = query.startDate ? new Date(query.startDate) : undefined;
@@ -107,7 +115,7 @@ export class TripsService {
 		const totalPages = Math.ceil(total / query.limit);
 
 		return {
-			items,
+			items: await this.withTripDateWeather(items, viewerId),
 			pagination: {
 				page: query.page,
 				limit: query.limit,
@@ -115,6 +123,30 @@ export class TripsService {
 				totalPages,
 			},
 		};
+	}
+
+	/**
+	 * The list badge reflects the forecast for each Trip's own dates (a Trip on 10/11 shows the 10/11
+	 * forecast), never the Route's current weather. Forecasts are reused for 10 minutes server-side;
+	 * a Trip with no obtainable forecast shows none.
+	 */
+	private async withTripDateWeather<T extends { id: string; weatherRiskLevel: unknown }>(
+		items: T[],
+		viewerId: string | undefined
+	): Promise<T[]> {
+		const forecasts = this.tripWeatherForecasts;
+		if (!forecasts || !viewerId) return items;
+		return Promise.all(
+			items.map(async (item) => {
+				const forecast = await forecasts.tryEnsureTripForecast(item.id);
+				return {
+					...item,
+					weatherRiskLevel:
+						forecast?.status === TripWeatherForecastStatus.AVAILABLE ? forecast.riskLevel : null,
+					weatherForecastStatus: forecast?.status ?? "unavailable",
+				};
+			})
+		);
 	}
 
 	async getTripDetails(actor: AuthenticatedUser, tripId: string): Promise<TripResponseDto> {

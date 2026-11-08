@@ -76,7 +76,7 @@ describe("TripsController", () => {
 	});
 
 	describe("search", () => {
-		it("delegates to TripsService.search with query", async () => {
+		it("delegates to TripsService.search with query and the viewer", async () => {
 			const mockResult: PaginatedTripsResponseDto = {
 				items: [],
 				pagination: { page: 1, limit: 20, total: 0, totalPages: 0 },
@@ -84,9 +84,11 @@ describe("TripsController", () => {
 			tripsService.search.mockResolvedValue(mockResult);
 
 			const query: SearchTripsQueryDto = { page: 1, limit: 20 };
-			const result = await controller.search(query);
+			const result = await controller.search(query, {
+				user: { userId: "camper-1" },
+			} as Parameters<typeof controller.search>[1]);
 
-			expect(tripsService.search).toHaveBeenCalledWith(query);
+			expect(tripsService.search).toHaveBeenCalledWith(query, "camper-1");
 			expect(result).toBe(mockResult);
 		});
 	});

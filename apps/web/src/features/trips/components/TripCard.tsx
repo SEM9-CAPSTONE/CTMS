@@ -121,9 +121,21 @@ export function getWeatherRiskBadge(risk: RiskLevel | null): {
 	}
 }
 
+/** Badge text for the forecast of the Trip's own dates; never today's weather. */
+export function tripDatesWeatherLabel(
+	status: TripSummary["weatherForecastStatus"],
+	riskLabel: string
+): string {
+	if (status === "available") return `Ngày đi: ${riskLabel}`;
+	if (status === "out_of_range") return "Chưa có dự báo ngày đi (còn xa)";
+	if (status === "unavailable") return "Chưa có dự báo ngày đi";
+	return riskLabel;
+}
+
 export function TripCard({ trip, onSelect }: TripCardProps) {
 	const difficulty = getDifficultyBadge(trip.difficulty);
 	const weather = getWeatherRiskBadge(trip.weatherRiskLevel);
+	const weatherLabel = tripDatesWeatherLabel(trip.weatherForecastStatus, weather.label);
 	const isSoldOut = trip.remainingSeats === 0 || !trip.isBookable;
 
 	return (
@@ -200,7 +212,9 @@ export function TripCard({ trip, onSelect }: TripCardProps) {
 					{/* Weather status indicator */}
 					<div className="mt-2 flex items-center gap-1.5 text-[11px] font-medium">
 						<span className={`size-2 rounded-full ${weather.dotColor}`} />
-						<span className={weather.textColor}>{weather.label}</span>
+						<span className={weather.textColor} data-testid="trip-card-weather">
+							{weatherLabel}
+						</span>
 					</div>
 				</div>
 

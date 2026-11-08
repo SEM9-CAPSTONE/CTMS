@@ -258,7 +258,9 @@ export interface TripSummary {
 	pricePerPerson: number;
 	status: TripStatus;
 	difficulty: TrekkingRouteDifficulty | null;
+	/** Risk of the forecast for the Trip's own dates (search list); null when there is none. */
 	weatherRiskLevel: RiskLevel | null;
+	weatherForecastStatus?: "available" | "out_of_range" | "unavailable";
 	isBookable: boolean;
 	createdAt: string;
 	updatedAt: string;

@@ -25,13 +25,17 @@ function contextSummary(
 	tripType: "day_trip" | "overnight",
 	durationNights: number,
 	difficulty: PackingListDifficulty | null,
-	weatherRiskLevel: PackingListWeatherRiskLevel | null
+	weatherRiskLevel: PackingListWeatherRiskLevel | null,
+	weatherSource: "trip_forecast" | "route_assessment" | null = null
 ): string[] {
 	const chips: string[] = [
 		tripType === "overnight" ? `Qua đêm (${durationNights} đêm)` : "Trong ngày",
 	];
 	if (difficulty) chips.push(`Độ khó: ${DIFFICULTY_LABEL[difficulty]}`);
-	if (weatherRiskLevel) chips.push(`Thời tiết: ${WEATHER_RISK_LABEL[weatherRiskLevel]}`);
+	if (weatherRiskLevel) {
+		const label = weatherSource === "trip_forecast" ? "Thời tiết ngày đi" : "Thời tiết";
+		chips.push(`${label}: ${WEATHER_RISK_LABEL[weatherRiskLevel]}`);
+	}
 	return chips;
 }
 
@@ -113,7 +117,8 @@ export function PackingListPanel({
 							packingList.context.tripType,
 							packingList.context.durationNights,
 							packingList.context.difficulty,
-							packingList.context.weatherRiskLevel
+							packingList.context.weatherRiskLevel,
+							packingList.context.weatherSource ?? null
 						).map((chip) => (
 							<span
 								key={chip}

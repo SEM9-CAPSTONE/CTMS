@@ -9,6 +9,7 @@ import { AppModule } from "../src/modules/app.module";
 import { TrekkingRouteStatus } from "../src/modules/trekking-routes/entities/trekking-route.entity";
 import { TripStatus } from "../src/modules/trips/entities/trip.entity";
 import { UserRole, UserStatus } from "../src/modules/users/entities/user.entity";
+import { WEATHER_PROVIDER } from "../src/modules/weather/providers/weather-provider.interface";
 import { validationExceptionFactory } from "../src/shared/pipes/validation-exception-factory";
 import { assertSafeTestDatabase } from "./support/assert-safe-test-database";
 
@@ -16,6 +17,36 @@ interface Account {
 	id: string;
 	accessToken: string;
 }
+
+type ForecastMode = "calm" | "rain" | "storm" | "down";
+let forecastMode: ForecastMode = "calm";
+/** Deterministic stand-in for Open-Meteo: hourly readings over the requested Trip window. */
+const weatherProviderStub = {
+	fetchCurrent: jest.fn(),
+	fetchHourlyForecast: jest.fn(async (_lat: number, _lng: number, from: Date, to: Date) => {
+		if (forecastMode === "down") throw new Error("provider down");
+		const hours = [];
+		for (
+			let t = Math.floor(from.getTime() / 3_600_000) * 3_600_000;
+			t <= to.getTime();
+			t += 3_600_000
+		) {
+			hours.push({
+				time: new Date(t),
+				rainfallMm: forecastMode === "storm" ? 80 : forecastMode === "rain" ? 20 : 0,
+				windKph: forecastMode === "storm" ? 90 : forecastMode === "rain" ? 50 : 5,
+				temperatureC: 24,
+				visibilityM: forecastMode === "rain" ? 3000 : 20000,
+				thunderstorm: forecastMode === "storm",
+				providerWeatherCode: forecastMode === "storm" ? 95 : 1,
+			});
+		}
+		return { hours, raw: {} };
+	}),
+};
+/** ISO time `days` from now, so the Trip falls inside the 15-day forecast horizon. */
+const inDays = (days: number, hours = 0) =>
+	new Date(Date.now() + days * 86_400_000 + hours * 3_600_000).toISOString();
 
 interface BookingFixture {
 	camper: Account;
@@ -34,7 +65,10 @@ describe("POST /api/bookings (integration, real Postgres)", () => {
 
 	beforeAll(async () => {
 		jest.setTimeout(60000);
-		const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+		const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+			.overrideProvider(WEATHER_PROVIDER)
+			.useValue(weatherProviderStub)
+			.compile();
 		app = moduleRef.createNestApplication();
 		app.setGlobalPrefix("api");
 		app.useGlobalPipes(
@@ -104,8 +138,15 @@ describe("POST /api/bookings (integration, real Postgres)", () => {
 			pricePerPerson?: string;
 			capacityMax?: number;
 			riskLevel?: "green" | "yellow" | "red";
+			/** Start the Trip this many days from now (inside the forecast horizon) instead of 2035. */
+			startsInDays?: number;
 		} = {}
 	): Promise<BookingFixture> {
+		const startsAt = options.startsInDays ? inDays(options.startsInDays) : "2035-10-10T01:00:00Z";
+		const endsAt = options.startsInDays ? inDays(options.startsInDays, 9) : "2035-10-10T10:00:00Z";
+		const deadline = options.startsInDays
+			? inDays(options.startsInDays - 1)
+			: "2035-10-09T01:00:00Z";
 		const host = await createAccount(UserRole.HOST);
 		const camper = await createAccount(UserRole.CAMPER);
 		const routeId = randomUUID();
@@ -134,9 +175,9 @@ describe("POST /api/bookings (integration, real Postgres)", () => {
 				"capacity_max", "seats_taken", "price_per_person", "cancellation_policy", "status"
 			) VALUES (
 				$1, $2, $3, 'Booking integration Trip', 'day_trip', 0,
-				'2035-10-10T01:00:00Z', '2035-10-10T10:00:00Z',
+				$8, $9,
 				ST_SetSRID(ST_MakePoint(108.22, 16.04), 4326)::geography,
-				'2035-10-09T01:00:00Z', 1, $4, 0, $5, $6, $7
+				$10, 1, $4, 0, $5, $6, $7
 			)`,
 			[
 				tripId,
@@ -146,6 +187,9 @@ describe("POST /api/bookings (integration, real Postgres)", () => {
 				options.pricePerPerson ?? "500000.00",
 				{ refundHours: 48 },
 				TripStatus.PUBLISHED,
+				startsAt,
+				endsAt,
+				deadline,
 			]
 		);
 		await dataSource.query(
@@ -338,8 +382,51 @@ describe("POST /api/bookings (integration, real Postgres)", () => {
 		expect(rows[0].seats_taken).toBe(1);
 	});
 
-	it("rejects Red Weather Risk without Booking, seats, or success audit", async () => {
+	it("rejects a Red forecast for the Trip dates without Booking or seats, even when today's Route risk is Green", async () => {
+		forecastMode = "storm";
+		const { camper, tripId } = await createFixture({ riskLevel: "green", startsInDays: 2 });
+		const response = await request(app.getHttpServer())
+			.post("/api/bookings")
+			.set("Authorization", `Bearer ${camper.accessToken}`)
+			.set("Idempotency-Key", randomUUID())
+			.send({ tripId, numPeople: 1 })
+			.expect(409);
+		expect(response.body.message).toMatch(/dự báo thời tiết trong ngày diễn ra chuyến đi/);
+		const bookings = await dataSource.query('SELECT "id" FROM "bookings" WHERE "trip_id" = $1', [
+			tripId,
+		]);
+		const trips = await dataSource.query('SELECT "seats_taken" FROM "trips" WHERE "id" = $1', [
+			tripId,
+		]);
+		expect(bookings).toHaveLength(0);
+		expect(trips[0].seats_taken).toBe(0);
+		forecastMode = "calm";
+	});
+
+	it("allows a Green forecast for the Trip dates even when today's Route risk is Red", async () => {
+		forecastMode = "calm";
+		const { camper, tripId } = await createFixture({ riskLevel: "red", startsInDays: 3 });
+		await request(app.getHttpServer())
+			.post("/api/bookings")
+			.set("Authorization", `Bearer ${camper.accessToken}`)
+			.set("Idempotency-Key", randomUUID())
+			.send({ tripId, numPeople: 1 })
+			.expect(201);
+	});
+
+	it("does not block a Trip beyond the forecast horizon on today's Red Route risk", async () => {
 		const { camper, tripId } = await createFixture({ riskLevel: "red" });
+		await request(app.getHttpServer())
+			.post("/api/bookings")
+			.set("Authorization", `Bearer ${camper.accessToken}`)
+			.set("Idempotency-Key", randomUUID())
+			.send({ tripId, numPeople: 1 })
+			.expect(201);
+	});
+
+	it("falls back to the Red Route risk when no trip-date forecast can be obtained, without Booking or seats", async () => {
+		forecastMode = "down";
+		const { camper, tripId } = await createFixture({ riskLevel: "red", startsInDays: 3 });
 		await request(app.getHttpServer())
 			.post("/api/bookings")
 			.set("Authorization", `Bearer ${camper.accessToken}`)
@@ -354,10 +441,12 @@ describe("POST /api/bookings (integration, real Postgres)", () => {
 		]);
 		expect(bookings).toHaveLength(0);
 		expect(trips[0].seats_taken).toBe(0);
+		forecastMode = "calm";
 	});
 
-	it("rejects a missing Weather Risk without Booking or seats", async () => {
-		const { camper, tripId } = await createFixture();
+	it("rejects a missing Weather Risk without Booking or seats when no trip-date forecast can be obtained", async () => {
+		forecastMode = "down";
+		const { camper, tripId } = await createFixture({ startsInDays: 3 });
 		await dataSource.query(
 			'DELETE FROM "weather_risk_assessments" WHERE "route_id" = (SELECT "route_id" FROM "trips" WHERE "id" = $1)',
 			[tripId]
@@ -378,6 +467,7 @@ describe("POST /api/bookings (integration, real Postgres)", () => {
 		]);
 		expect(bookings).toHaveLength(0);
 		expect(trips[0].seats_taken).toBe(0);
+		forecastMode = "calm";
 	});
 
 	it("rolls back Booking and seats when transactional audit persistence fails", async () => {

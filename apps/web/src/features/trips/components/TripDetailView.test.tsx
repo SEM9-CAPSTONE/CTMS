@@ -3,6 +3,26 @@ import { describe, expect, it, vi } from "vitest";
 import type { TripDetails } from "../types";
 import { TripDetailView } from "./TripDetailView";
 
+/** Weather on the Trip page is the forecast for the Trip's own dates (one shared query). */
+const tripDatesWeather = vi.hoisted(() => ({
+	query: {
+		data: { status: "available", riskLevel: "yellow" } as {
+			status: "available" | "out_of_range";
+			riskLevel: "green" | "yellow" | "red" | null;
+		} | null,
+		isPending: false,
+		isError: false,
+	},
+}));
+vi.mock("../hooks/useTripDatesWeatherForecast", () => ({
+	useTripDatesWeatherForecast: vi.fn(() => tripDatesWeather.query),
+	tripDatesWeatherErrorMessage: () => "Không tải được dự báo thời tiết.",
+}));
+vi.mock("./TripDatesWeatherCard", () => ({
+	TripDatesWeatherCard: ({ enabled }: { enabled?: boolean }) =>
+		enabled ? <div data-testid="trip-dates-weather-card" /> : null,
+}));
+
 vi.mock("./TripImageGallery", () => ({
 	TripImageGallery: ({ onImagesChange }: { onImagesChange: (urls: string[]) => void }) => (
 		<button
@@ -212,7 +232,7 @@ describe("TripDetailView", () => {
 
 		expect(screen.getByText("Chinh Phục Đỉnh Núi Bidoup Trail")).toBeInTheDocument();
 		expect(screen.getByText("Mô tả chi tiết chuyến đi Bidoup")).toBeInTheDocument();
-		expect(screen.getAllByText("Thời tiết chú ý")[0]).toBeInTheDocument();
+		expect(screen.getByTestId("trip-hero-weather")).toHaveTextContent("Ngày đi: Thời tiết chú ý");
 		expect(screen.getByText("Còn 4 chỗ")).toBeInTheDocument();
 		expect(screen.getByText("Hủy trước 48h hoàn tiền 100%")).toBeInTheDocument();
 
@@ -506,64 +526,47 @@ describe("TripDetailView", () => {
 		expect(onConflictDismiss).toHaveBeenCalledTimes(1);
 	});
 
-	it("renders safety warning for red weather risk level", () => {
-		const registrationRisk = mockTripDetails.registrationRisk;
-		if (!registrationRisk || registrationRisk.status !== "available") {
-			throw new Error("Expected available registration risk fixture");
-		}
-
-		const redRiskTrip: TripDetails = {
-			...mockTripDetails,
-			weatherRiskLevel: "red",
-			registrationRisk: {
-				...registrationRisk,
-				level: "red",
-				factors: [
-					{
-						key: "thunderstorm",
-						label: "Thunderstorm",
-						value: true,
-						level: "red",
-						weight: 0.15,
-						score: 2,
-					},
-				],
-			},
+	it("shows the Trip-date forecast instead of the Route's current weather", () => {
+		tripDatesWeather.query = {
+			data: { status: "available", riskLevel: "red" },
+			isPending: false,
+			isError: false,
 		};
+		render(<TripDetailView trip={mockTripDetails} />);
 
-		render(<TripDetailView trip={redRiskTrip} />);
-
-		expect(screen.getByTestId("registration-risk-panel")).toBeInTheDocument();
-		expect(screen.getAllByText("Cảnh báo rủi ro cao")[0]).toBeInTheDocument();
-		expect(screen.getByText("Dông sét")).toBeInTheDocument();
+		expect(screen.getByTestId("trip-hero-weather")).toHaveTextContent(
+			"Ngày đi: Cảnh báo rủi ro cao"
+		);
+		expect(screen.getByTestId("trip-dates-weather-card")).toBeInTheDocument();
+		expect(screen.queryByTestId("registration-risk-panel")).not.toBeInTheDocument();
+		expect(screen.queryByTestId("registration-risk-unavailable")).not.toBeInTheDocument();
+		tripDatesWeather.query = {
+			data: { status: "available", riskLevel: "yellow" },
+			isPending: false,
+			isError: false,
+		};
 	});
 
-	it("renders an unavailable risk state without presenting a fabricated safe result", () => {
-		render(
-			<TripDetailView
-				trip={{
-					...mockTripDetails,
-					weatherRiskLevel: null,
-					registrationRisk: {
-						status: "unavailable",
-						assessmentId: null,
-						level: null,
-						assessedAt: null,
-						ruleVersionId: null,
-						factors: [],
-						advice: null,
-						recommendations: [],
-					},
-				}}
-			/>
+	it("says there is no forecast yet for a far-away Trip and hides weather from signed-out visitors", () => {
+		tripDatesWeather.query = {
+			data: { status: "out_of_range", riskLevel: null },
+			isPending: false,
+			isError: false,
+		};
+		const { unmount } = render(<TripDetailView trip={mockTripDetails} />);
+		expect(screen.getByTestId("trip-hero-weather")).toHaveTextContent(
+			"Chưa có dự báo ngày đi (còn xa)"
 		);
+		unmount();
 
-		expect(screen.getByTestId("registration-risk-unavailable")).toHaveTextContent(
-			"Chưa có đánh giá rủi ro thời tiết"
-		);
-		expect(screen.getByTestId("registration-risk-unavailable")).toHaveTextContent(
-			"không được xem là mức an toàn mặc định"
-		);
+		render(<TripDetailView trip={mockTripDetails} bookingAccess="anonymous" />);
+		expect(screen.queryByTestId("trip-hero-weather")).not.toBeInTheDocument();
+		expect(screen.queryByTestId("trip-dates-weather-card")).not.toBeInTheDocument();
+		tripDatesWeather.query = {
+			data: { status: "available", riskLevel: "yellow" },
+			isPending: false,
+			isError: false,
+		};
 	});
 
 	it("renders gallery controls and switches images when multiple images exist", () => {

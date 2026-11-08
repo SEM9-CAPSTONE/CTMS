@@ -40,6 +40,8 @@ import { WeatherRiskRepository } from "../repositories/weather-risk.repository";
 import { scoreTemperature, scoreWeatherReading } from "./weather-risk-scoring";
 
 const FORECASTABLE_TRIP_STATUSES = new Set(["draft", "pending_approval", "published"]);
+/** Trips travellers can see and book or be on; ongoing Trips are forecast from the current hour. */
+const TRAVELLER_VISIBLE_TRIP_STATUSES = new Set(["published", "ongoing"]);
 const MAX_ATTEMPTS = 3;
 const BACKOFF_MS = [500, 1000];
 const HOUR_MS = 60 * 60 * 1000;
@@ -69,6 +71,56 @@ export class TripWeatherForecastService {
 				"Weather can only be forecast for draft, pending or published Trips"
 			);
 		}
+		const forecast = await this.computeForecast(trip, actor.userId, now);
+		return toTripWeatherForecastResponse(forecast, WEATHER_FORECAST_HORIZON_DAYS);
+	}
+
+	/**
+	 * Forecast for the Trip's own dates as shown to travellers (Campers, Porters) before and after
+	 * booking: a Trip on 10/11 is judged by the 10/11 forecast, never by today's weather.
+	 * Unpublished Trips are indistinguishable from absent ones. Forecasts a traveller triggers are
+	 * recorded under the Trip's Host, so they never pin a Camper or Porter account in place.
+	 */
+	async forecastForTravellers(
+		tripId: string,
+		now: Date = new Date()
+	): Promise<TripWeatherForecastResponseDto> {
+		const trip = await this.forecastsRepository.findTripForForecast(tripId);
+		if (!trip || !TRAVELLER_VISIBLE_TRIP_STATUSES.has(trip.status)) {
+			throw new NotFoundException("Trip not found");
+		}
+		const forecast = await this.computeForecast(trip, trip.hostId, now);
+		return toTripWeatherForecastResponse(forecast, WEATHER_FORECAST_HORIZON_DAYS);
+	}
+
+	/**
+	 * Best-effort fresh forecast for the Trip's dates, used before booking and for the packing list.
+	 * Never throws: null means no trip-date forecast could be obtained (provider down, no rule, no
+	 * Route); callers then decide their own fallback. Recorded under the Trip's Host, like
+	 * forecastForTravellers.
+	 */
+	async tryEnsureTripForecast(
+		tripId: string,
+		now: Date = new Date()
+	): Promise<TripWeatherForecast | null> {
+		try {
+			const trip = await this.forecastsRepository.findTripForForecast(tripId);
+			if (!trip || !TRAVELLER_VISIBLE_TRIP_STATUSES.has(trip.status)) return null;
+			return await this.computeForecast(trip, trip.hostId, now);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			this.logger.warn(`No trip-date forecast for trip ${tripId}: ${message}`);
+			return null;
+		}
+	}
+
+	/** Shared computation: reuse a recent forecast for the same schedule, otherwise fetch and score. */
+	private async computeForecast(
+		trip: TripForWeatherForecast,
+		actorId: string,
+		now: Date
+	): Promise<TripWeatherForecast> {
+		const tripId = trip.id;
 		if (!trip.routeId || !trip.centroid || !trip.startsAt || !trip.endsAt) {
 			throw new UnprocessableEntityException("Trip Route and schedule are required for a forecast");
 		}
@@ -87,21 +139,20 @@ export class TripWeatherForecastService {
 
 		const latest = await this.forecastsRepository.findLatestForTrip(tripId);
 		if (latest && this.isReusable(latest, startsAt, endsAt, activeRule, now)) {
-			return toTripWeatherForecastResponse(latest, WEATHER_FORECAST_HORIZON_DAYS);
+			return latest;
 		}
 
 		if (outOfRange || !activeRule) {
-			const saved = await this.forecastsRepository.save(
+			return this.forecastsRepository.save(
 				this.forecastsRepository.create({
 					tripId,
 					routeId: trip.routeId,
 					status: TripWeatherForecastStatus.OUT_OF_RANGE,
 					tripStartsAt: startsAt,
 					tripEndsAt: endsAt,
-					createdBy: actor.userId,
+					createdBy: actorId,
 				})
 			);
-			return toTripWeatherForecastResponse(saved, WEATHER_FORECAST_HORIZON_DAYS);
 		}
 
 		const from = new Date(Math.max(startsAt.getTime(), floorToHour(now).getTime()));
@@ -130,7 +181,7 @@ export class TripWeatherForecastService {
 			activeRule
 		);
 
-		const saved = await this.forecastsRepository.save(
+		return this.forecastsRepository.save(
 			this.forecastsRepository.create({
 				tripId,
 				routeId: trip.routeId,
@@ -145,10 +196,9 @@ export class TripWeatherForecastService {
 				compositeScore: scored.compositeScore,
 				criteriaScores: scored.criteriaScores,
 				providerResponse: forecast.raw,
-				createdBy: actor.userId,
+				createdBy: actorId,
 			})
 		);
-		return toTripWeatherForecastResponse(saved, WEATHER_FORECAST_HORIZON_DAYS);
 	}
 
 	async getLatest(

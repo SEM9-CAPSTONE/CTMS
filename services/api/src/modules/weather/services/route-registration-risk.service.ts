@@ -16,6 +16,10 @@ import type {
 	RegistrationEligibilityResponseDto,
 } from "../dto/registration-eligibility-response.dto";
 import {
+	TripWeatherForecast,
+	TripWeatherForecastStatus,
+} from "../entities/trip-weather-forecast.entity";
+import {
 	RiskLevel,
 	type WeatherCriteriaScoresDetail,
 	WeatherRiskAssessment,
@@ -24,6 +28,22 @@ import {
 import { WeatherRiskRepository } from "../repositories/weather-risk.repository";
 // biome-ignore lint/style/useImportType: NestJS constructor injection requires value imports
 import { WeatherSnapshotsRepository } from "../repositories/weather-snapshots.repository";
+
+/** Trip schedule used to pick the forecast that covers the booked dates. */
+export interface BookingTripSchedule {
+	id: string;
+	startsAt: Date;
+	endsAt: Date;
+}
+
+/** A trip-date forecast older than this no longer decides a booking; the Route rule applies instead. */
+export const TRIP_FORECAST_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * A Red trip-date forecast blocks new bookings only this close to departure (policy §3): further out
+ * the forecast is not reliable enough, so the booking is allowed with a warning shown in the UI.
+ */
+export const TRIP_FORECAST_BLOCKING_WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
 
 @Injectable()
 export class RouteRegistrationRiskService {
@@ -154,8 +174,14 @@ export class RouteRegistrationRiskService {
 
 	async assertBookingWeatherAllowed(
 		routeId: string,
-		manager: EntityManager
+		manager: EntityManager,
+		trip?: BookingTripSchedule,
+		now: Date = new Date()
 	): Promise<RegistrationEligibilityResponseDto> {
+		if (trip) {
+			const decision = await this.tripDateWeatherDecision(routeId, manager, trip, now);
+			if (decision) return decision;
+		}
 		const latestAssessment = await manager.getRepository(WeatherRiskAssessment).findOne({
 			where: { routeId },
 			order: { createdAt: "DESC" },
@@ -181,6 +207,68 @@ export class RouteRegistrationRiskService {
 			);
 		}
 
+		return eligibility;
+	}
+
+	/**
+	 * The booking is judged by the forecast for the Trip's own dates (e.g. a Trip on 10/11 by the 10/11
+	 * forecast), not by the Route's current weather. Uses the latest stored forecast for the same
+	 * schedule, made within TRIP_FORECAST_MAX_AGE_MS. Returns null when no such forecast exists, so the
+	 * caller falls back to the Route assessment rule.
+	 */
+	private async tripDateWeatherDecision(
+		routeId: string,
+		manager: EntityManager,
+		trip: BookingTripSchedule,
+		now: Date
+	): Promise<RegistrationEligibilityResponseDto | null> {
+		const forecast = await manager.getRepository(TripWeatherForecast).findOne({
+			where: { tripId: trip.id },
+			order: { createdAt: "DESC", id: "DESC" },
+		});
+		if (
+			!forecast ||
+			forecast.tripStartsAt.getTime() !== trip.startsAt.getTime() ||
+			forecast.tripEndsAt.getTime() !== trip.endsAt.getTime() ||
+			now.getTime() - forecast.createdAt.getTime() > TRIP_FORECAST_MAX_AGE_MS
+		) {
+			return null;
+		}
+		if (forecast.status === TripWeatherForecastStatus.OUT_OF_RANGE) {
+			// The Trip is beyond the provider horizon: there is no forecast for its dates yet, and today's
+			// weather says nothing about them, so the booking is not blocked on weather.
+			return {
+				allowed: true,
+				routeId,
+				riskLevel: null,
+				assessmentTime: forecast.createdAt,
+				compositeScore: null,
+				reasons: [],
+			};
+		}
+		if (!forecast.riskLevel || forecast.compositeScore === null) return null;
+		const eligibility: RegistrationEligibilityResponseDto = {
+			allowed: forecast.riskLevel !== RiskLevel.RED,
+			routeId,
+			riskLevel: forecast.riskLevel,
+			assessmentTime: forecast.createdAt,
+			compositeScore: forecast.compositeScore,
+			reasons: [],
+		};
+		const withinBlockingWindow =
+			trip.startsAt.getTime() - now.getTime() <= TRIP_FORECAST_BLOCKING_WINDOW_MS;
+		if (!eligibility.allowed && !withinBlockingWindow) {
+			// Red but more than 3 days out: low reliability, allow and let the Host decide later.
+			return { ...eligibility, allowed: true };
+		}
+		if (!eligibility.allowed) {
+			if (forecast.criteriaScores) {
+				this.extractFailingCriteriaReasons(forecast.criteriaScores, eligibility.reasons);
+			}
+			throw new ConflictException(
+				"Không thể đặt chỗ do dự báo thời tiết trong ngày diễn ra chuyến đi ở mức BÁO ĐỘNG ĐỎ (RED)"
+			);
+		}
 		return eligibility;
 	}
 

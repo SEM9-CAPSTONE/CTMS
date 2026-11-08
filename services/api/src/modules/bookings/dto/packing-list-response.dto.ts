@@ -18,6 +18,14 @@ export class PackingListContextDto {
 
 	@ApiPropertyOptional({ enum: RiskLevel, nullable: true })
 	weatherRiskLevel!: RiskLevel | null;
+
+	@ApiPropertyOptional({
+		enum: ["trip_forecast", "route_assessment"],
+		nullable: true,
+		description:
+			"Where weatherRiskLevel comes from: the forecast for the Trip's own dates, or (legacy) the Route's latest assessment",
+	})
+	weatherSource?: "trip_forecast" | "route_assessment" | null;
 }
 
 export class PackingListResponseDto {

@@ -21,6 +21,8 @@ export interface PackingListContext {
 	difficulty: PackingListDifficulty | null;
 	memberCount: number;
 	weatherRiskLevel: PackingListWeatherRiskLevel | null;
+	/** `trip_forecast` = forecast for the Trip's own dates; absent on older API responses. */
+	weatherSource?: "trip_forecast" | "route_assessment" | null;
 }
 
 export interface PackingListResponse {
