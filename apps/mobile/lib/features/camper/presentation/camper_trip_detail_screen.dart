@@ -11,6 +11,7 @@ import '../../../core/widgets/ctms_button.dart';
 import '../../../core/widgets/ctms_scaffold.dart';
 import '../../../core/widgets/ctms_status_badge.dart';
 import '../../gps_tracking/presentation/gps_tracking_panel.dart';
+import '../../offline_packages/presentation/offline_package_screen.dart';
 import '../../route_deviation/presentation/route_deviation_panel.dart';
 import '../../sync/application/device_sync_controller.dart';
 import '../../sync/domain/device_sync_models.dart';
@@ -193,6 +194,8 @@ class _CamperTripDetailScreenState
               ),
               children: [
                 SosActiveBanner(tripId: effectiveTripId),
+                OfflinePackagePanel(tripId: effectiveTripId),
+                const SizedBox(height: AppSpacing.lg),
                 // Trip Header Card
                 Container(
                   margin: const EdgeInsets.only(bottom: AppSpacing.lg),

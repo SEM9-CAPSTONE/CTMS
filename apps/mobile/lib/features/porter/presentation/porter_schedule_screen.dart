@@ -10,6 +10,7 @@ import '../../../core/widgets/ctms_filter_chip_row.dart';
 import '../../../core/widgets/ctms_scaffold.dart';
 import '../../../core/widgets/ctms_status_badge.dart';
 import '../../sync/presentation/device_sync_status_screen.dart';
+import '../../offline_packages/presentation/offline_package_screen.dart';
 
 class _PorterShift {
   const _PorterShift({
@@ -391,6 +392,14 @@ class _ShiftCard extends StatelessWidget {
             spacing: AppSpacing.sm,
             runSpacing: AppSpacing.sm,
             children: [
+              if (shift.tripId != null)
+                OutlinedButton.icon(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(builder: (_) => OfflinePackageScreen(tripId: shift.tripId!)),
+                  ),
+                  icon: const Icon(Icons.download_outlined, size: 16),
+                  label: const Text('Dữ liệu ngoại tuyến'),
+                ),
               if (shift.status == 'Đang diễn ra')
                 OutlinedButton.icon(
                   onPressed: () => context.push('/porter/incidents'),
