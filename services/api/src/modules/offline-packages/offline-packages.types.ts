@@ -7,7 +7,7 @@ import type { WaypointType } from "../trips/entities/trip-waypoint.entity";
 import type { GeoPoint, TripStatus, TripType } from "../trips/entities/trip.entity";
 
 export const PACKAGE_SCHEMA_VERSION = 1;
-export const PACKAGE_POLICY_VERSION = "ctms052-v1";
+export const PACKAGE_POLICY_VERSION = "ctms052-v2";
 export const MAX_PACKAGE_BYTES = 20 * 1024 * 1024;
 export const MAX_ITEMS = 10_000;
 export const MAX_ATTEMPTS = 3;

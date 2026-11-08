@@ -56,6 +56,11 @@ class TrekkingEndpoints {
 class TripEndpoints {
   const TripEndpoints();
 
+  String offlinePackage(String tripId, {int? version}) =>
+      '/trips/$tripId/offline-packages/${version ?? 'latest'}';
+  String offlinePackageDownload(String tripId, int version) =>
+      '/trips/$tripId/offline-packages/$version/download';
+
   String get assigned => '/trips/assigned';
   String incidents(String tripId) => '/trips/$tripId/incidents';
   String incidentMedia(String tripId, String id) =>
