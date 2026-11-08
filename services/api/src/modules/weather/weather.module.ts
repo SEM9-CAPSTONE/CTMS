@@ -2,8 +2,10 @@ import { Module } from "@nestjs/common";
 import { DataSource } from "typeorm";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
+import { RealtimeModule } from "../realtime/realtime.module";
 import { RouteRegistrationRiskController } from "./controllers/route-registration-risk.controller";
 import { TripWeatherForecastController } from "./controllers/trip-weather-forecast.controller";
+import { WeatherChangeNoticesController } from "./controllers/weather-change-notices.controller";
 import { WeatherRiskRulesController } from "./controllers/weather-risk-rules.controller";
 import { WeatherController } from "./controllers/weather.controller";
 import { TripWeatherForecast } from "./entities/trip-weather-forecast.entity";
@@ -14,23 +16,30 @@ import { HttpWeatherAdviceProvider } from "./providers/http-weather-advice.provi
 import { OpenMeteoWeatherProvider } from "./providers/open-meteo-weather.provider";
 import { WEATHER_ADVICE_PROVIDER } from "./providers/weather-advice-provider.interface";
 import { WEATHER_PROVIDER } from "./providers/weather-provider.interface";
+import { TripWeatherChangeNoticesRepository } from "./repositories/trip-weather-change-notices.repository";
 import { TripWeatherForecastsRepository } from "./repositories/trip-weather-forecasts.repository";
 import { WeatherAdviceRepository } from "./repositories/weather-advice.repository";
 import { WeatherRiskRepository } from "./repositories/weather-risk.repository";
 import { WeatherSnapshotsRepository } from "./repositories/weather-snapshots.repository";
 import { RouteRegistrationRiskService } from "./services/route-registration-risk.service";
+import { TripWeatherChangeNotifier } from "./services/trip-weather-change-notifier.service";
 import { TripWeatherForecastService } from "./services/trip-weather-forecast.service";
+import { TripWeatherMonitorService } from "./services/trip-weather-monitor.service";
+import { TripWeatherMonitorWorker } from "./services/trip-weather-monitor.worker";
 import { WeatherAdviceService } from "./services/weather-advice.service";
 import { WeatherRiskRulesService } from "./services/weather-risk-rules.service";
 import { WeatherRiskService } from "./services/weather-risk.service";
 import { WeatherService } from "./services/weather.service";
 
 @Module({
+	// CTMS-93: level-change notices are pushed to each recipient's private socket room.
+	imports: [RealtimeModule],
 	controllers: [
 		WeatherController,
 		RouteRegistrationRiskController,
 		WeatherRiskRulesController,
 		TripWeatherForecastController,
+		WeatherChangeNoticesController,
 	],
 	providers: [
 		WeatherService,
@@ -38,6 +47,10 @@ import { WeatherService } from "./services/weather.service";
 		WeatherAdviceService,
 		WeatherRiskRulesService,
 		TripWeatherForecastService,
+		TripWeatherChangeNoticesRepository,
+		TripWeatherChangeNotifier,
+		TripWeatherMonitorService,
+		TripWeatherMonitorWorker,
 		{
 			provide: RouteRegistrationRiskService,
 			useFactory: (

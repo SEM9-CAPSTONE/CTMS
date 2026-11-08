@@ -224,3 +224,91 @@ Web only; no API change. Implements policy §2 and §3 of `docs/features/weather
   - `TripDetailView.test.tsx`: booking warning at 5 days, not at 2 days, not for the managing Host.
 - **Gates:** `lint:all` 0 errors (12 existing warnings); `build:all` passed; web Vitest 1685/1685 (252 files, on develop with CTMS-362).
 - **Screenshots:** none; the user chose to skip them for this follow-up. Evidence is the test results.
+
+## 17. Implementation Record — CTMS-93 Task 2: monitoring the Trip-date forecast (Logic)
+
+API only; the UI belongs to CTMS-97. Implements §4 of `docs/features/weather-trip-date-decision-policy.md`.
+
+**Migration `1794600000000-AddTripWeatherMonitoring`**
+
+- `trip_weather_forecasts.checked_at` (NOT NULL, default now; backfilled from `created_at`).
+- New table `trip_weather_change_notices`:
+  - columns: recipient, Trip, forecast row, Trip title and start, previous and new `weather_risk_level`, `read_at`;
+  - `UNIQUE (forecast_id, recipient_id)`; FKs cascade with the user, the Trip and the forecast;
+  - inbox index `(recipient_id, created_at DESC)`.
+
+**History only on change** (`TripWeatherForecastService.computeForecast`)
+
+- **Same result, only `checked_at` moves.** A re-check with the same schedule, rule, risk level and worst-hour values (rain, wind, temperature, visibility, thunderstorm) updates `checked_at` and adds no row. The same applies to a still out-of-range result.
+- **Any difference stores a new row.**
+- **Reuse window:** the 10-minute window is measured from `checked_at`.
+- **Raw provider data:** `provider_response` is kept only while the Trip is `draft`/`pending_approval`, i.e. for the forecast the Host can attach to the approval request. Monitoring and traveller checks store `null`.
+
+**Level-change notices** (`TripWeatherChangeNotifier`)
+
+- **Trigger:** called after every new forecast row, whatever triggered it (job, traveller page, Host). It acts only when the new level differs from the level of the newest earlier forecast that had one. The first level ever, or a change of numbers within a level, notifies nobody.
+- **Recipients:**
+  - the Host;
+  - the booker, on `confirmed`/`pending_payment` bookings;
+  - members with an active linked account in `registered`/`joined`, on those bookings.
+  - Admins are not notified here; that belongs to Task 3.
+- **Dedupe:** inserts use `ON CONFLICT DO NOTHING`. Socket `trip.weather.changed` goes only to the user rooms of notices actually created, with `eventId` = forecast id. A retried run notifies nobody twice.
+- **Wording:**
+  - worse: "Cảnh báo sớm: dự báo ngày dd/MM xấu đi (Xanh → Đỏ), đang theo dõi.";
+  - better: "Dự báo ngày dd/MM đã cải thiện (Đỏ → Xanh)."
+- **Failure isolation:** a notification failure is logged and never breaks the forecast.
+
+**Monitoring job** (`TripWeatherMonitorService` + `TripWeatherMonitorWorker`)
+
+- **Configuration:**
+  - enabled by `TRIP_WEATHER_MONITOR_WORKER_ENABLED=true`, `false` in integration tests;
+  - interval `TRIP_WEATHER_MONITOR_INTERVAL_MS`, default 15 min;
+  - batch size `TRIP_WEATHER_MONITOR_BATCH_SIZE`, default 50.
+- **Due Trips:** `published`/`ongoing`, with a Route, not ended, starting within the 15-day horizon, and whose newest forecast was confirmed more than 24 h ago. The threshold is 6 h when departure is 3 days away or less, or the Trip is running. Never-forecast Trips come first.
+- **Processing:** Trips are re-forecast one at a time through `tryEnsureTripForecast`, so a provider failure skips that Trip only.
+- **Retention:** once a day, Trips that ended more than 30 days ago lose their forecast history, except the forecast attached at submission (`trips.submitted_weather_forecast_id`). The decision-point forecasts are kept by Task 3.
+
+**New endpoints**
+
+- `GET /api/trips/:tripId/weather-forecast/history`: one row per change, newest first, with `checkedAt`; at most 50 rows.
+  - Admin: any Trip. Host: own Trips. Camper/Porter: `published`/`ongoing` Trips. Otherwise 404.
+- `GET /api/me/weather-notices`: `{ items, unreadCount }`. Each item includes `worsened` and a ready `message`.
+- `PATCH /api/me/weather-notices/:id/read`: idempotent; 404 when the notice is not the caller's.
+- `TripWeatherForecastResponseDto` gains `checkedAt`.
+
+## 18. Test Evidence — CTMS-93 Task 2
+
+- **Unit** (`trip-weather-monitoring.spec.ts`, 27 tests):
+  - an unchanged re-check only touches `checked_at`;
+  - 10-minute reuse measured from `checked_at`;
+  - changed numbers at the same level store a row;
+  - a level change passes the previous level to the notifier, and the first level passes `null`;
+  - an out-of-range result is confirmed, not duplicated;
+  - raw data is dropped for published Trips and kept for draft/pending ones;
+  - history access for admin, Host, Camper and Porter, and 404 for others;
+  - notifier: no-op without a change, recipients, push only for created notices, no push on retry, never throws;
+  - wording for both directions;
+  - monitor cadence constants, sequential processing and failure count, 30-day trim cutoff;
+  - worker: idle unless enabled, daily trim, survives a failed tick.
+- **Integration** (`test/trip-weather-monitoring.integration-spec.ts`, real PostgreSQL, provider stub, 4 tests):
+  - **job on a published Trip 5 days out:**
+    - the first run stores a green row with no raw data;
+    - one hour later nothing changes;
+    - 25 h later still one row, with `checked_at` moved;
+    - turning Red adds a row and creates notices plus a socket push for the Host, the confirmed Camper and the awaiting-payment Camper only (not the cancelled Camper, a stranger or the Admin);
+    - a retried run adds no notice;
+    - inbox and read flow, with 404 for another user;
+    - history newest first;
+  - a Trip 2 days out is not re-checked after 5 h but is after 6 h;
+  - Campers get 404 on a draft Trip's history;
+  - retention keeps only the submitted forecast of a Trip that ended 40 days ago.
+- **Gates:**
+  - `pnpm lint:all`: 0 errors (12 warnings, all pre-existing).
+  - `pnpm build:all`: passed.
+  - API unit: 2202/2204. The 2 failures are the known `package-readiness.spec.ts` ones.
+  - Integration, 8 shards with `--runInBand`: only known failures remain.
+    - The 28 baseline failures: sync-evaluation 4, overbooking-evaluation 4, trekking-route-checkpoints 2, incidents.report 1, trip-reviews 1, review-analysis 16.
+    - `gps-tracking` 1: the response now includes `startsAt`/`endsAt` (CTMS-64 on develop), but the test was not updated. No GPS code changed on this branch.
+    - An `e2e-%` user was left in `ctms_test` because `FK_audit_logs_actor_id` blocked its cleanup. It made the `auth.*` suites fail with 409. After removing it, `auth.login`, `auth.refresh` and `auth.resend-otp` passed 24/24 and shard 6 passed 98/98.
+  - New tests: `trip-weather-monitoring` integration 4/4, monitoring unit 27/27.
+  - Default E2E: 54 passed / 38 failed / 32 did not run, the same as the baseline.

@@ -5,6 +5,7 @@ import {
 	Injectable,
 	Logger,
 	NotFoundException,
+	Optional,
 	ServiceUnavailableException,
 	UnprocessableEntityException,
 } from "@nestjs/common";
@@ -37,6 +38,8 @@ import {
 } from "../repositories/trip-weather-forecasts.repository";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { WeatherRiskRepository } from "../repositories/weather-risk.repository";
+// biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
+import { TripWeatherChangeNotifier } from "./trip-weather-change-notifier.service";
 import { scoreTemperature, scoreWeatherReading } from "./weather-risk-scoring";
 
 const FORECASTABLE_TRIP_STATUSES = new Set(["draft", "pending_approval", "published"]);
@@ -47,6 +50,21 @@ const BACKOFF_MS = [500, 1000];
 const HOUR_MS = 60 * 60 * 1000;
 /** Repeated requests within this window reuse the stored forecast instead of calling the provider. */
 const REUSE_WINDOW_MS = 10 * 60 * 1000;
+/** Newest history rows returned to clients. */
+const HISTORY_LIMIT = 50;
+/**
+ * Raw provider responses are only kept while the Trip can still be submitted for approval, i.e. for
+ * the forecast the Host may attach to the request (policy §4). Later checks keep the scored result.
+ */
+const RAW_RESPONSE_TRIP_STATUSES = new Set(["draft", "pending_approval"]);
+/** Worst-hour values compared to decide whether a re-check changed the result. */
+const WORST_READING_KEYS = [
+	"rainfallMm",
+	"windKph",
+	"temperatureC",
+	"visibilityM",
+	"thunderstorm",
+] as const;
 
 @Injectable()
 export class TripWeatherForecastService {
@@ -56,7 +74,8 @@ export class TripWeatherForecastService {
 		private readonly forecastsRepository: TripWeatherForecastsRepository,
 		private readonly weatherRiskRepository: WeatherRiskRepository,
 		@Inject(WEATHER_PROVIDER) private readonly weatherProvider: WeatherProvider,
-		@Inject(WEATHER_ADVICE_PROVIDER) private readonly adviceProvider: WeatherAdviceProvider
+		@Inject(WEATHER_ADVICE_PROVIDER) private readonly adviceProvider: WeatherAdviceProvider,
+		@Optional() private readonly changeNotifier?: TripWeatherChangeNotifier
 	) {}
 
 	/** Forecasts the weather over the Trip's own schedule and scores its worst hours. */
@@ -139,7 +158,11 @@ export class TripWeatherForecastService {
 
 		const latest = await this.forecastsRepository.findLatestForTrip(tripId);
 		if (latest && this.isReusable(latest, startsAt, endsAt, activeRule, now)) {
-			return latest;
+			// An out-of-range result stays valid until the Trip enters the horizon; confirm it so the
+			// monitoring job does not pick the Trip again on every run.
+			return latest.status === TripWeatherForecastStatus.OUT_OF_RANGE
+				? this.forecastsRepository.touchCheckedAt(latest, now)
+				: latest;
 		}
 
 		if (outOfRange || !activeRule) {
@@ -151,6 +174,7 @@ export class TripWeatherForecastService {
 					tripStartsAt: startsAt,
 					tripEndsAt: endsAt,
 					createdBy: actorId,
+					checkedAt: now,
 				})
 			);
 		}
@@ -181,7 +205,17 @@ export class TripWeatherForecastService {
 			activeRule
 		);
 
-		return this.forecastsRepository.save(
+		// History only on change (policy §4): the same level and worst-hour values for the same
+		// schedule and rule just confirm the stored row again.
+		if (
+			latest &&
+			this.isSameResult(latest, startsAt, endsAt, activeRule.id, scored.riskLevel, worst)
+		) {
+			return this.forecastsRepository.touchCheckedAt(latest, now);
+		}
+
+		const previous = await this.forecastsRepository.findLatestAvailableForTrip(tripId);
+		const saved = await this.forecastsRepository.save(
 			this.forecastsRepository.create({
 				tripId,
 				routeId: trip.routeId,
@@ -195,10 +229,35 @@ export class TripWeatherForecastService {
 				riskLevel: scored.riskLevel,
 				compositeScore: scored.compositeScore,
 				criteriaScores: scored.criteriaScores,
-				providerResponse: forecast.raw,
+				providerResponse: RAW_RESPONSE_TRIP_STATUSES.has(trip.status) ? forecast.raw : null,
 				createdBy: actorId,
+				checkedAt: now,
 			})
 		);
+		await this.changeNotifier?.notifyIfLevelChanged(saved, previous?.riskLevel ?? null);
+		return saved;
+	}
+
+	private isSameResult(
+		latest: TripWeatherForecast,
+		startsAt: Date,
+		endsAt: Date,
+		ruleId: string,
+		riskLevel: TripWeatherForecast["riskLevel"],
+		worst: TripWeatherWorstReading
+	): boolean {
+		if (
+			latest.status !== TripWeatherForecastStatus.AVAILABLE ||
+			latest.tripStartsAt.getTime() !== startsAt.getTime() ||
+			latest.tripEndsAt.getTime() !== endsAt.getTime() ||
+			latest.ruleVersionId !== ruleId ||
+			latest.riskLevel !== riskLevel ||
+			!latest.worstReading
+		) {
+			return false;
+		}
+		const stored = latest.worstReading;
+		return WORST_READING_KEYS.every((key) => stored[key] === worst[key]);
 	}
 
 	async getLatest(
@@ -208,6 +267,29 @@ export class TripWeatherForecastService {
 		await this.loadAuthorizedTrip(actor, tripId);
 		const latest = await this.forecastsRepository.findLatestForTrip(tripId);
 		return latest ? toTripWeatherForecastResponse(latest, WEATHER_FORECAST_HORIZON_DAYS) : null;
+	}
+
+	/**
+	 * How the forecast for the Trip's dates changed over time, newest first (policy §4). One row per
+	 * change; `checkedAt` tells when an unchanged result was last confirmed.
+	 * Admin: any Trip. Host: own Trips. Camper/Porter: published or ongoing Trips (the same scope as
+	 * the trip-dates forecast). Anything else is indistinguishable from an absent Trip.
+	 */
+	async getHistory(
+		actor: AuthenticatedUser,
+		tripId: string
+	): Promise<TripWeatherForecastResponseDto[]> {
+		const trip = await this.forecastsRepository.findTripForForecast(tripId);
+		const roles = actor.roles;
+		const allowed =
+			trip !== null &&
+			(roles.includes(UserRole.ADMIN) ||
+				trip.hostId === actor.userId ||
+				((roles.includes(UserRole.CAMPER) || roles.includes(UserRole.PORTER)) &&
+					TRAVELLER_VISIBLE_TRIP_STATUSES.has(trip.status)));
+		if (!allowed) throw new NotFoundException("Trip not found");
+		const rows = await this.forecastsRepository.findHistory(tripId, HISTORY_LIMIT);
+		return rows.map((row) => toTripWeatherForecastResponse(row, WEATHER_FORECAST_HORIZON_DAYS));
 	}
 
 	/** The forecast that was attached to the Trip when it was submitted for approval. */
@@ -301,7 +383,7 @@ export class TripWeatherForecastService {
 		return (
 			activeRule !== null &&
 			latest.ruleVersionId === activeRule.id &&
-			now.getTime() - latest.createdAt.getTime() < REUSE_WINDOW_MS
+			now.getTime() - (latest.checkedAt ?? latest.createdAt).getTime() < REUSE_WINDOW_MS
 		);
 	}
 

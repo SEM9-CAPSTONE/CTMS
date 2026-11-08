@@ -67,6 +67,11 @@ export class TripWeatherForecastResponseDto {
 
 	@ApiProperty()
 	createdAt!: Date;
+
+	@ApiProperty({
+		description: "When this result was last confirmed; an unchanged re-check only moves this",
+	})
+	checkedAt!: Date;
 }
 
 export function toTripWeatherForecastResponse(
@@ -102,6 +107,7 @@ export function toTripWeatherForecastResponse(
 				: null,
 		horizonDays,
 		createdAt: forecast.createdAt,
+		checkedAt: forecast.checkedAt ?? forecast.createdAt,
 	};
 }
 
