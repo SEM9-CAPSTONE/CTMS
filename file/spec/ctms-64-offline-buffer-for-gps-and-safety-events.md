@@ -112,3 +112,41 @@ Local database contract: TBD — Technical Design.
 ## 12. Open Decisions
 
 Local database technology and retention/storage limits belong to Technical Design unless separately fixed.
+
+## 13. Implementation Record
+
+CTMS-064 (Jira CTMS-64) — Offline Buffer for GPS and Safety Events.
+
+- **Local Storage Architecture (BR-242, PB AC-1, PB AC-2):**
+  - Implemented atomic file-based persistence stores in Mobile (`apps/mobile/lib/features/`):
+    - `GpsLogStore` (`FileGpsLogStore`): Stores breadcrumb GPS records per trip in isolated user storage (`gps-logs/<account>/<tripId>.json`). Atomically flushes to temporary files before renaming to eliminate partial-write or crash hazards.
+    - `RouteDeviationStore` (`FileRouteDeviationStore`): Stores navigation state, GPS quality, and confirmed safety transitions (`route-deviation/<account>/<tripId>.json`).
+- **Restart & Crash Durability (BR-242, PB AC-3):**
+  - Both stores persist pending records in private application support storage.
+  - When the app is terminated, crashes, or the device restarts, newly instantiated stores reload existing pending telemetry without loss of event UUIDs, timestamps, or coordinates.
+- **Offline Safety Processing (BR-242, PB AC-4):**
+  - `RouteDeviationController` caches the trip route geometry and configuration (`RouteDeviationContext`). When network connectivity is severed (`isOnline() == false`), the controller continuously processes GPS samples, checks distance thresholds against the local route cache, and records `OFF_ROUTE` transitions directly into the local store with `detectedOffline = true` and `syncState = pending`.
+- **Pending vs Synced Distinction (BR-226, PB AC-5):**
+  - `DeviceSyncController` strictly separates `pendingGpsCount` and `pendingSafetyCount` from `serverConfirmedGpsCount` and `serverConfirmedSafetyCount`. Unsynced records are never displayed or counted as server-confirmed.
+- **Seeding for Verification (`main.seed.ts`):**
+  - Seeded dedicated ongoing trip `DEMO_OFFLINE_BUFFER_TRIP_ID` (`c3958000-0064-4064-8064-000000000064`) with Camper (`camper@ctms.local`) in `joined` status and Porter (`porter@ctms.local`) in `assigned` status, ready for live tracking, airplane mode simulation, and offline buffer testing.
+
+## 14. Test Evidence
+
+Comprehensive automated test suite delivered at:
+`apps/mobile/test/features/sync/ctms_064_offline_buffer_test.dart`
+
+Covered scenarios (6/6 passed):
+1. **PB AC-1 (BR-242)**: GPS logs are persisted locally while offline with `pending` sync status.
+2. **PB AC-2 (BR-242)**: Safety events (`OFF_ROUTE`, `GPS_DEGRADED`) are persisted locally while offline.
+3. **PB AC-3 (BR-242)**: Pending data survives complete app close/reopen and device reboot simulation (re-instantiated from filesystem).
+4. **PB AC-4 (BR-242)**: Local safety detection computes route distance and confirms `OFF_ROUTE` offline without network dependency.
+5. **PB AC-5 (BR-226)**: Local pending counters are strictly distinguished from server-confirmed counts.
+6. **BR-213 Violation Path & Edge Cases**: Rejection of malformed / path-traversal trip IDs with `ArgumentError`, graceful handling of non-existent files.
+
+Command to run tests:
+```bash
+cd apps/mobile
+flutter test test/features/sync/ctms_064_offline_buffer_test.dart
+```
+Result: `All tests passed!` (6/6).

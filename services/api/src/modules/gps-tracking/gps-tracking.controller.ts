@@ -51,7 +51,7 @@ export class GpsTrackingController {
 		@Req() request: AuthenticatedRequest,
 		@Param("tripId", TRIP_ID_PIPE) tripId: string
 	): Promise<GpsTrackingContextResponseDto> {
-		return this.gpsTracking.getTrackingContext(request.user.userId, tripId);
+		return this.gpsTracking.getTrackingContext(request.user.userId, tripId, new Date());
 	}
 
 	@Post("gps-logs")

@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { type Zippable, unzipSync, zipSync } from "fflate";
+import { type UnzipFileInfo, type Zippable, unzipSync, zipSync } from "fflate";
 import {
 	type ApprovedGuidanceUnit,
 	MAX_PACKAGE_BYTES,
@@ -183,7 +183,7 @@ export class PackageArtifactBuilder {
 				throw new Error();
 			let expanded = 0;
 			const files = unzipSync(bytes, {
-				filter: (entry) => {
+				filter: (entry: UnzipFileInfo) => {
 					expanded += entry.originalSize;
 					if (
 						expanded > MAX_PACKAGE_BYTES ||

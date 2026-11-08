@@ -27,6 +27,12 @@ export class GpsTrackingContextResponseDto {
 
 	@ApiProperty({ example: "v3" })
 	configVersion!: string;
+
+	@ApiProperty({ type: String, format: "date-time" })
+	startsAt!: string;
+
+	@ApiProperty({ type: String, format: "date-time" })
+	endsAt!: string;
 }
 
 export class GpsLogIngestResultDto {

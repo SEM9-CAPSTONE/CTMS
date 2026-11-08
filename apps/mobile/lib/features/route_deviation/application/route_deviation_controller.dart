@@ -336,7 +336,7 @@ final routeDeviationApiProvider = Provider<RouteDeviationApi>(
 /// sync screen so their writes are serialized.
 final routeDeviationStoreProvider = Provider<RouteDeviationStore>((ref) {
   final user = ref.watch(authControllerProvider).valueOrNull;
-  return FileRouteDeviationStore(user?.id ?? 'anonymous');
+  return RouteDeviationStore.create(user?.id ?? 'anonymous');
 });
 
 final routeDeviationControllerProvider = ChangeNotifierProvider.autoDispose

@@ -124,7 +124,14 @@ class FileSosStore implements SosStore {
   Future<void> _writes = Future.value();
 
   Future<Directory> _directory() async {
-    final base = root ?? await getApplicationSupportDirectory();
+    final Directory base;
+    if (root != null) {
+      base = root!;
+    } else if (kIsWeb) {
+      base = Directory.systemTemp;
+    } else {
+      base = await getApplicationSupportDirectory();
+    }
     final account = base64Url.encode(utf8.encode(userId));
     return Directory('${base.path}/sos-alerts/$account').create(recursive: true);
   }

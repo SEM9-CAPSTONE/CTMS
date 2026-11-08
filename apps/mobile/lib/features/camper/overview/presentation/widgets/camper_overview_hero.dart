@@ -112,8 +112,15 @@ class CamperOverviewHero extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: ElevatedButton(
+                  child: ElevatedButton.icon(
                     onPressed: onExplore,
+                    icon: const Icon(Icons.explore_outlined, size: 16),
+                    label: const Text(
+                      'Khám phá tour',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.brandPrimary,
                       foregroundColor: Colors.white,
@@ -122,18 +129,19 @@ class CamperOverviewHero extends StatelessWidget {
                       elevation: 0,
                       shape: const StadiumBorder(),
                     ),
-                    child: const Text(
-                      CamperOverviewStrings.exploreCta,
-                      style: TextStyle(fontWeight: FontWeight.w700),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
                   ),
                 ),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
-                  child: OutlinedButton(
+                  child: OutlinedButton.icon(
                     onPressed: onViewTrips,
+                    icon: const Icon(Icons.hiking_outlined, size: 16),
+                    label: const Text(
+                      'Chuyến đi của tôi',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                     style: OutlinedButton.styleFrom(
                       backgroundColor: Colors.white,
                       foregroundColor: AppColors.textPrimary,
@@ -142,12 +150,6 @@ class CamperOverviewHero extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
                       elevation: 0,
                       shape: const StadiumBorder(),
-                    ),
-                    child: const Text(
-                      CamperOverviewStrings.viewTripsCta,
-                      style: TextStyle(fontWeight: FontWeight.w700),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ),

@@ -267,11 +267,16 @@ describe("SafetyEventsService", () => {
 		});
 
 		it("applies the participation window: outside the Trip or before check-in is rejected", async () => {
+			participation.findTrip.mockResolvedValue({
+				...trip(TripStatus.COMPLETED),
+				updatedAt: TRIP_END,
+			});
 			await expect(
 				ingestOne(offRoute({ eventTime: "2026-10-26T09:00:01.000Z" }))
 			).resolves.toMatchObject({
 				reason: SafetyEventRejectionReason.EVENT_TIME_OUTSIDE_PARTICIPATION,
 			});
+			participation.findTrip.mockResolvedValue(trip(TripStatus.ONGOING));
 			participation.findCamperParticipation.mockResolvedValue(
 				camper({ checkedInAt: new Date("2026-10-26T03:30:00.000Z") })
 			);

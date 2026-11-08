@@ -11,6 +11,8 @@ class GpsTrackingContext {
     required this.samplingIntervalSeconds,
     required this.loggingIntervalSeconds,
     required this.configVersion,
+    this.startsAt,
+    this.endsAt,
   });
 
   final String tripId;
@@ -20,6 +22,8 @@ class GpsTrackingContext {
   final int samplingIntervalSeconds;
   final int loggingIntervalSeconds;
   final String configVersion;
+  final DateTime? startsAt;
+  final DateTime? endsAt;
 
   factory GpsTrackingContext.fromJson(Map<String, Object?> json) =>
       GpsTrackingContext(
@@ -30,6 +34,12 @@ class GpsTrackingContext {
         samplingIntervalSeconds: (json['samplingIntervalSeconds'] as num).toInt(),
         loggingIntervalSeconds: (json['loggingIntervalSeconds'] as num).toInt(),
         configVersion: json['configVersion'] as String,
+        startsAt: json['startsAt'] == null
+            ? null
+            : DateTime.tryParse(json['startsAt'] as String),
+        endsAt: json['endsAt'] == null
+            ? null
+            : DateTime.tryParse(json['endsAt'] as String),
       );
 }
 
