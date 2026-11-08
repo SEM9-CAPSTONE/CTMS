@@ -338,6 +338,23 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 		this.server?.to([...new Set(userIds)].map(userRoom)).emit("emergency.broadcast", payload);
 	}
 
+	/** CTMS-93: a Trip's forecast risk level changed; only to the Host and booked Campers. */
+	emitTripWeatherChanged(
+		userIds: string[],
+		payload: {
+			eventId: string;
+			tripId: string;
+			tripTitle: string;
+			tripStartsAt: string;
+			previousRiskLevel: string;
+			riskLevel: string;
+			createdAt: string;
+		}
+	) {
+		if (userIds.length === 0) return;
+		this.server?.to([...new Set(userIds)].map(userRoom)).emit("trip.weather.changed", payload);
+	}
+
 	emitSosCreated(hostId: string, payload: SosCreatedPayload) {
 		this.server?.to(userRoom(hostId)).emit("sos.created", payload);
 	}

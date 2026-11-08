@@ -88,6 +88,10 @@ export class TripWeatherForecast {
 	@Column({ name: "created_by", type: "uuid" })
 	createdBy!: string;
 
+	/** When this result was last confirmed; an unchanged re-check only moves this (CTMS-93 monitoring). */
+	@Column({ name: "checked_at", type: "timestamptz", default: () => "now()" })
+	checkedAt!: Date;
+
 	@CreateDateColumn({ name: "created_at", type: "timestamptz" })
 	createdAt!: Date;
 }

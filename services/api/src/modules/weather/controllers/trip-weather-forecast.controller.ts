@@ -69,6 +69,21 @@ export class TripWeatherForecastController {
 		return this.forecastService.forecastForTravellers(tripId);
 	}
 
+	@Get("history")
+	@Roles(UserRole.CAMPER, UserRole.PORTER, UserRole.HOST, UserRole.ADMIN)
+	@ApiOperation({
+		summary:
+			"How the forecast for the Trip's dates changed over time (one row per change, newest first)",
+	})
+	@ApiResponse({ status: 200, type: [TripWeatherForecastResponseDto] })
+	@ApiResponse({ status: 404, description: "Trip not found or outside the caller's scope" })
+	history(
+		@Req() req: AuthenticatedRequest,
+		@Param("tripId", TRIP_ID_PIPE) tripId: string
+	): Promise<TripWeatherForecastResponseDto[]> {
+		return this.forecastService.getHistory(req.user, tripId);
+	}
+
 	@Get("latest")
 	@ApiOperation({ summary: "Get the most recent forecast stored for the Trip" })
 	@ApiResponse({ status: 200, type: TripWeatherForecastResponseDto })
