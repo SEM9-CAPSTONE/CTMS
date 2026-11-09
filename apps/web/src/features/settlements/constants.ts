@@ -24,6 +24,14 @@ export const TRANSACTION_TYPE_LABELS: Record<
 		label: "Hoàn lại số dư rút tiền bị từ chối",
 		tone: "blue",
 	},
+	penalty_debit: {
+		label: "Trừ phạt thời tiết",
+		tone: "rose",
+	},
+	penalty_refund: {
+		label: "Hoàn phạt thời tiết đã miễn",
+		tone: "green",
+	},
 };
 
 export const SETTLEMENT_QUERY_CONFIG = {

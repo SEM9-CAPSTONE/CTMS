@@ -70,6 +70,11 @@ const AdminWeatherInterventionsPage = lazy(() =>
 		default: module.AdminWeatherInterventionsPage,
 	}))
 );
+const AdminWeatherPenaltiesPage = lazy(() =>
+	import("../features/weather-penalties/pages/AdminWeatherPenaltiesPage").then((module) => ({
+		default: module.AdminWeatherPenaltiesPage,
+	}))
+);
 const AdminWeatherRulesPage = lazy(() =>
 	import("../features/admin-weather-rules/pages/AdminWeatherRulesPage").then((module) => ({
 		default: module.AdminWeatherRulesPage,
@@ -1135,6 +1140,17 @@ function AppRouteContent() {
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
 					<AdminWeatherInterventionsPage onLogout={handleLogout} />
+				</AppRoleGuard>
+			);
+		case RoutePath.ADMIN_WEATHER_PENALTIES:
+			return (
+				<AppRoleGuard
+					allowedRoles={["admin"]}
+					currentRoles={currentRoles}
+					fallback={unauthorizedFallback}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<AdminWeatherPenaltiesPage onLogout={handleLogout} />
 				</AppRoleGuard>
 			);
 

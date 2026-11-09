@@ -38,6 +38,7 @@ export enum RoutePath {
 	ADMIN_TRIPS = "/admin/trips",
 	ADMIN_WEATHER_RULES = "/admin/weather-rules",
 	ADMIN_WEATHER_INTERVENTIONS = "/admin/weather-interventions",
+	ADMIN_WEATHER_PENALTIES = "/admin/weather-penalties",
 	ADMIN_REFUNDS = "/admin/refunds",
 	ADMIN_SETTLEMENTS = "/admin/settlements",
 	UNAUTHORIZED = "/unauthorized",

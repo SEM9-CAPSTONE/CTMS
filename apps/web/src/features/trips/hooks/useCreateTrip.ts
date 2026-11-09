@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { HttpError } from "../../../core/api";
+import { hostingBlockedMessage } from "../../weather-penalties/utils/weather-penalty-labels";
 import { tripsService } from "../services/trips.service";
 import { tripImageText } from "../trip-image-text";
 import { MAX_TRIP_IMAGES, isValidTripImage } from "../trip-images.constants";
@@ -76,7 +77,11 @@ export function mapCreateTripError(error: unknown): CreateTripError {
 
 	return {
 		status: error.status,
-		message: detail || byStatus[error.status] || "Không thể tạo trip. Vui lòng thử lại.",
+		message:
+			hostingBlockedMessage(error) ||
+			detail ||
+			byStatus[error.status] ||
+			"Không thể tạo trip. Vui lòng thử lại.",
 		canRetry: error.status === 409 || error.status >= 500,
 		fieldErrors: extractFieldErrors(error.errorData),
 	};

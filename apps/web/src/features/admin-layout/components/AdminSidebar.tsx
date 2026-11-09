@@ -10,6 +10,7 @@ import {
 	MessageSquareText,
 	ReceiptText,
 	Route,
+	Scale,
 	ShieldAlert,
 	Users,
 	X,
@@ -32,6 +33,7 @@ export type AdminNavigationItem =
 	| "trip-review"
 	| "weather-rules"
 	| "weather-interventions"
+	| "weather-penalties"
 	| "refunds"
 	| "settlements";
 
@@ -68,6 +70,7 @@ const navigationItems = [
 		icon: CloudLightning,
 		available: true,
 	},
+	{ key: "weather-penalties", label: "Phạt thời tiết", icon: Scale, available: true },
 	{ key: "audit-logs", label: "Nhật ký hệ thống", icon: FileClock, available: true },
 	{ key: "content-reports", label: "Báo cáo nội dung", icon: Flag, available: true },
 ] as const;
@@ -155,6 +158,9 @@ export function AdminSidebar({
 									window.dispatchEvent(new PopStateEvent("popstate"));
 								} else if (item.key === "weather-interventions") {
 									window.history.pushState({}, "", "/admin/weather-interventions");
+									window.dispatchEvent(new PopStateEvent("popstate"));
+								} else if (item.key === "weather-penalties") {
+									window.history.pushState({}, "", "/admin/weather-penalties");
 									window.dispatchEvent(new PopStateEvent("popstate"));
 								} else if (item.key === "settlements") {
 									window.history.pushState({}, "", "/admin/settlements");
