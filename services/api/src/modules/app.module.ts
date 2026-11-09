@@ -3,6 +3,7 @@ import { ConfigModule } from "@nestjs/config";
 import { DatabaseModule } from "../shared/database/database.module";
 import { AuthModule } from "./auth/auth.module";
 import { BookingsModule } from "./bookings/bookings.module";
+import { CheckpointArrivalsModule } from "./checkpoint-arrivals/checkpoint-arrivals.module";
 import { ContentReportsModule } from "./content-reports/content-reports.module";
 import { DemandInsightsModule } from "./demand-insights/demand-insights.module";
 import { DeviceSyncModule } from "./device-sync/device-sync.module";
@@ -15,6 +16,7 @@ import { HostTripMapModule } from "./host-trip-map/host-trip-map.module";
 import { IncidentsModule } from "./incidents/incidents.module";
 import { KnowledgeChunksModule } from "./knowledge-chunks/knowledge-chunks.module";
 import { MemberLocationsModule } from "./member-locations/member-locations.module";
+import { OfflinePackageDownloadModule } from "./offline-package-download/offline-package-download.module";
 import { OfflinePackagesModule } from "./offline-packages/offline-packages.module";
 import { OverbookingEvaluationModule } from "./overbooking-evaluation/overbooking-evaluation.module";
 import { PorterLevelsModule } from "./porter-levels/porter-levels.module";
@@ -44,6 +46,7 @@ import { WeatherModule } from "./weather/weather.module";
 		DatabaseModule,
 		AuthModule,
 		BookingsModule,
+		CheckpointArrivalsModule,
 		ContentReportsModule,
 		DeviceSyncModule,
 		DemandInsightsModule,
@@ -74,6 +77,7 @@ import { WeatherModule } from "./weather/weather.module";
 		SurvivalDocumentsModule,
 		KnowledgeChunksModule,
 		OfflinePackagesModule,
+		OfflinePackageDownloadModule,
 	],
 	controllers: [HealthController],
 })

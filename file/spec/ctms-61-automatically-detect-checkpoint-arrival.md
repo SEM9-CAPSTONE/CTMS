@@ -121,7 +121,20 @@ Invariants:
 
 Detection: local/offline.
 
-Synchronization API: TBD — Technical Design.
+Backend preparation/synchronization contract (CTMS-313 / CTMS-061-T01):
+[`docs/features/ctms-313-automatic-checkpoint-arrival.md`](../../docs/features/ctms-313-automatic-checkpoint-arrival.md).
+
+`POST /api/trips/:tripId/automatic-checkpoint-arrivals` accepts stable event IDs,
+trusted active package/Route/checkpoint identity and three confirming GPS samples.
+It returns per-record accepted/duplicate/rejected acknowledgements. The package
+publisher must register the immutable checkpoint context through the internal
+integration seam first; absent context is rejected, not inferred from client input.
+Records rejected with `retryable: true` (`processing_error`) must use exponential backoff
+(5s..60s) up to 5 attempts on Mobile (CTMS-314); upon exhausting 5 attempts, records must be
+retained in local offline storage for future retries and NOT discarded. Terminal rejections
+(`retryable: false`) must be evicted immediately.
+On-device detection, local persistence, and the general synchronization engine
+remain in their respective client/dependency scopes.
 
 ## 10. Error & Edge Cases
 

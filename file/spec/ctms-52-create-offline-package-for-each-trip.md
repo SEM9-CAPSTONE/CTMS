@@ -1,6 +1,10 @@
 # CTMS-052 — Create Offline Package for Each Trip
 
-## Operational baseline amendment — 2026-11-06
+## Download-boundary regression correction - 2026-11-08
+
+The CTMS-053 regression checkpoint fixes optional-feed manifest outcomes: expired or invalid validity, future/invalid checked time, missing source provenance, and unavailable/partial/stale status must remain `UNKNOWN`, including when no selected hazards exist. `NO_ACTIVE_ALERT` requires a current successfully checked EMPTY/AVAILABLE run; EMPTY with no provider expiry retains the existing policy. Freshness is evaluated at build time, not an old durable job's creation timestamp. Generator policy version becomes `ctms052-v2`, so an authorized future regeneration cannot reuse the old v1 generation identity. No stored READY artifact is rewritten and no regeneration is triggered here. Required-source blocking policy is unchanged. Existing optional-expiry regressions and additional current/invalid/future-feed tests provide isolated evidence; source freshness remains separate from ZIP checksum validity.
+
+## Operational baseline amendment - 2026-11-06
 
 Authority: user-approved CTMS-52 baseline v2.0. This amendment supersedes the ambiguous source selection, sensitive-data inclusion, lifecycle and TBD technical sections below; their original BR wording is retained for history. It does not replace BR-230 obligations elsewhere. Current spec IDs are authoritative: publication is CTMS-023, not the baseline's mistaken reference to CTMS-034. No Jira changes have been performed.
 

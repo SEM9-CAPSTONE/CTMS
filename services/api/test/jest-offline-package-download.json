@@ -1,0 +1,8 @@
+{
+	"moduleFileExtensions": ["js", "json", "ts"],
+	"rootDir": "..",
+	"testEnvironment": "node",
+	"testRegex": "offline-package-download\\.e2e-spec\\.ts$",
+	"testTimeout": 10000,
+	"transform": { "^.+\\.(t|j)s$": "ts-jest" }
+}
