@@ -375,6 +375,40 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 			.emit("trip.weather.decision_required", payload);
 	}
 
+	/** Weather penalty (policy §6): the Host was penalised because an Admin had to decide. */
+	emitHostWeatherPenaltyCreated(
+		hostId: string,
+		payload: {
+			penaltyId: string;
+			tripId: string;
+			tripTitle: string;
+			violationNumber: number;
+			amount: string;
+			hostingBlockedUntil: string | null;
+			waiverDeadline: string;
+		}
+	) {
+		this.server?.to(userRoom(hostId)).emit("host.weather_penalty.created", payload);
+	}
+
+	/** Weather penalty (policy §6): a Host asked for a force-majeure waiver. */
+	emitWeatherPenaltyWaiverRequested(
+		adminIds: string[],
+		payload: {
+			penaltyId: string;
+			tripId: string;
+			tripTitle: string;
+			hostId: string;
+			hostName: string | null;
+			reviewDueAt: string | null;
+		}
+	) {
+		if (adminIds.length === 0) return;
+		this.server
+			?.to([...new Set(adminIds)].map(userRoom))
+			.emit("weather_penalty.waiver_requested", payload);
+	}
+
 	emitSosCreated(hostId: string, payload: SosCreatedPayload) {
 		this.server?.to(userRoom(hostId)).emit("sos.created", payload);
 	}

@@ -16,6 +16,10 @@ import { TripsRepository } from "../repositories/trips.repository";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { TripsService } from "../services/trips.service";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
+import { HostWeatherPenaltiesService } from "./host-weather-penalties.service";
+import type { HostWeatherPenaltyDto } from "./host-weather-penalty.dto";
+import { isPenaltyDue } from "./host-weather-penalty.policy";
+// biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { TripWeatherDecisionAlertsService } from "./trip-weather-decision-alerts.service";
 import {
 	type AdminWeatherDecisionDto,
@@ -66,7 +70,8 @@ export class TripWeatherDecisionService {
 		private readonly decisions: TripWeatherDecisionsRepository,
 		private readonly tripsService: TripsService,
 		private readonly tripsRepository: TripsRepository,
-		private readonly alerts: TripWeatherDecisionAlertsService
+		private readonly alerts: TripWeatherDecisionAlertsService,
+		private readonly penalties: HostWeatherPenaltiesService
 	) {}
 
 	async decideAsHost(
@@ -126,7 +131,40 @@ export class TripWeatherDecisionService {
 			safetyPlan: null,
 			late: false,
 		});
-		return this.apply(context, adminId, dto, record, true);
+		// Policy §6: the first Admin decision at or after T-24h without an on-time Host answer
+		// penalises the Host. The booking value is read before a cancel / reschedule changes it.
+		const schedule = await this.decisions.findDecisionsForSchedule(tripId, context.trip.startsAt);
+		const penaltyDue = isPenaltyDue({
+			startsAt: context.trip.startsAt,
+			now,
+			adminAlreadyDecided: schedule.some((decision) => decision.deciderRole === "admin"),
+			hostAnsweredOnTime: schedule.some(
+				(decision) => decision.deciderRole === "host" && !decision.late
+			),
+		});
+		const bookingValue = penaltyDue ? await this.penalties.paidBookingValue(tripId) : null;
+		let penalty: HostWeatherPenaltyDto | null = null;
+		const recordWithPenalty = async (manager: EntityManager) => {
+			const saved = await record(manager);
+			if (bookingValue !== null) {
+				penalty = await this.penalties.createInTransaction(manager, {
+					trip: {
+						id: tripId,
+						hostId: context.trip.hostId,
+						title: context.trip.title,
+						startsAt: context.trip.startsAt,
+					},
+					decisionId: saved.id,
+					adminId,
+					bookingValue,
+					now,
+				});
+			}
+			return saved;
+		};
+		const saved = await this.apply(context, adminId, dto, recordWithPenalty, true);
+		if (penalty) this.penalties.notifyCreated(penalty);
+		return saved;
 	}
 
 	async getDecisionLog(

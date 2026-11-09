@@ -188,6 +188,7 @@ describe("TripsService", () => {
 		cancelTripWithCommitments: jest.Mock;
 		findPendingReviewReminderCandidates: jest.Mock;
 		findExpiredPendingReviewCandidates: jest.Mock;
+		findHostingPenalties: jest.Mock;
 	};
 	let auditRepository: { save: jest.Mock };
 	let dataSource: { transaction: jest.Mock };
@@ -257,6 +258,7 @@ describe("TripsService", () => {
 			}),
 			findPendingReviewReminderCandidates: jest.fn().mockResolvedValue([]),
 			findExpiredPendingReviewCandidates: jest.fn().mockResolvedValue([]),
+			findHostingPenalties: jest.fn().mockResolvedValue([]),
 		};
 		auditRepository = { save: jest.fn().mockResolvedValue({}) };
 		dataSource = {
@@ -439,6 +441,17 @@ describe("TripsService", () => {
 		dto.waypoints = dto.waypoints.filter((waypoint) => waypoint.type !== WaypointType.FINISH);
 
 		await expect(service.create(HOST_ID, dto)).rejects.toMatchObject({ status: 422 });
+		expect(tripsRepository.createDraft).not.toHaveBeenCalled();
+	});
+
+	it("refuses to create or submit a Trip while a weather penalty blocks the Host (policy §6)", async () => {
+		tripsRepository.findHostingPenalties.mockResolvedValue([
+			{ createdAt: new Date(), hostingBlockedUntil: new Date(Date.now() + 86_400_000) },
+		]);
+		await expect(service.create(HOST_ID, createTripDto())).rejects.toBeInstanceOf(
+			ForbiddenException
+		);
+		expect(tripsRepository.findHostingPenalties).toHaveBeenCalledWith(HOST_ID);
 		expect(tripsRepository.createDraft).not.toHaveBeenCalled();
 	});
 

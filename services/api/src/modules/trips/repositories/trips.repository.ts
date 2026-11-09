@@ -599,6 +599,22 @@ const ADMIN_TRIP_SELECT = buildTripSelect(
 
 @Injectable()
 export class TripsRepository extends Repository<Trip> {
+	/** Applied weather penalties of a Host that can still restrict hosting (policy §6). */
+	async findHostingPenalties(
+		hostId: string
+	): Promise<Array<{ createdAt: Date; hostingBlockedUntil: Date | null }>> {
+		const rows = (await this.query(
+			`SELECT "created_at" AS "createdAt", "hosting_blocked_until" AS "hostingBlockedUntil"
+			 FROM "host_weather_penalties" WHERE "host_id" = $1 AND "status" = 'applied'
+			 ORDER BY "created_at" DESC LIMIT 50`,
+			[hostId]
+		)) as Array<{ createdAt: Date | string; hostingBlockedUntil: Date | string | null }>;
+		return rows.map((row) => ({
+			createdAt: new Date(row.createdAt),
+			hostingBlockedUntil: row.hostingBlockedUntil ? new Date(row.hostingBlockedUntil) : null,
+		}));
+	}
+
 	async findRouteDependencyForUpdate(routeId: string): Promise<TripRouteDependency | null> {
 		const rows = (await this.query(
 			`

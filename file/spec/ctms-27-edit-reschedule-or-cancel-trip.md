@@ -535,3 +535,62 @@ Policy: `docs/features/weather-trip-date-decision-policy.md` §5 (updated in thi
   - `build:all`: passed.
   - Web `test:all`: 257 files, 1720/1720 tests passed.
   - Default Playwright E2E: 59 passed / 38 failed / 32 did not run. Baseline was 56 / 38 / 32; the 3 new CTMS-60 tests pass and the 38 failures are the same known real-backend and map failures.
+
+## 17. Implementation Record — Host weather penalty (Logic, Jira CTMS-94)
+
+Policy: `docs/features/weather-trip-date-decision-policy.md` §6 and §7. The leader agreed to reuse the Done key CTMS-94 for this task.
+
+- **Migration `1794800000000-AddHostWeatherPenalties`:** table `host_weather_penalties`, one row per (Trip, schedule) (`UQ_host_weather_penalties_schedule`). Each row stores:
+  - violation number, paid booking value, rate, cap, amount, deducted amount;
+  - status `applied` / `waived` and the tier-2 `hosting_blocked_until`;
+  - the waiver request (reason, evidence URLs, deadline, review due date) and the Admin review (decision, reviewer, note).
+- **Rules (`host-weather-penalty.policy.ts`, all numbers in one place):**
+  - tiers 5% / 10% / 15% with caps 2M / 5M / 10M đ; violation 3+ uses the last tier;
+  - violations counted over 90 days, waived ones excluded;
+  - the amount is computed in integer minor units, like the settlement.
+- **When a penalty is created:** in the same transaction as the **first** Admin decision for the current schedule, only when the decision is at or after T-24h and the Host has no on-time decision (no answer, or only a late one). The paid booking value (`payment_status = 'paid'`, booking still confirmed / pending reconfirmation / completed) is read before a cancel or reschedule changes the bookings. A Postgres advisory lock per Host keeps violation numbers unique. The Host gets the socket event `host.weather_penalty.created`.
+- **Hosting restriction:** `TripsService.create` and `submitForApproval` return 403 with `blockedUntil` while:
+  - a tier-2 block (14 days) is running, or
+  - 3 or more applied penalties fall in the last 90 days (tier 3, see PD-2).
+- **Settlement (CTMS-112):**
+  - `settleTrip` still stores the 95% snapshot and credits the wallet as before;
+  - right after, `deductOutstandingWeatherPenalties` takes outstanding penalties from the balance, oldest first, writing one `penalty_debit` ledger row each;
+  - what does not fit stays as debt (`outstandingAmount`) for the next settlement. A Trip the Admin cancelled has no settlement, so its penalty is taken from the Host's next ones.
+- **Waiver:**
+  - `POST /host/weather-penalties/:id/waiver-request` (Host, once, until 72 h after T-24h, reason and 1–5 evidence URLs from `POST /uploads/document`); Admins get `weather_penalty.waiver_requested`;
+  - `POST /admin/weather-penalties/:id/waiver-review` (`approve`, mandatory `note`):
+    - approve: status `waived`, not counted any more, block lifted, the deducted amount goes back to the wallet as `penalty_refund`;
+    - reject: the penalty stays, with the note;
+  - `reviewDueAt` = 5 working days after the request (display only).
+- **Read APIs:**
+  - `GET /me/weather-penalties` (Host): items, `outstandingTotal`, `hostingBlockedUntil`, `suspended`;
+  - `GET /admin/weather-penalties?status=applied|waived|waiver_pending` and `GET /admin/weather-penalties/:id`.
+- **Audit:** `host.weather_penalty_created`, `host.weather_penalty_waiver_requested`, `host.weather_penalty_waiver_reviewed`; the settlement audit adds `weatherPenaltyDeducted`.
+- **Camper refunds are unchanged** and never depend on a waiver.
+
+### Pending Decisions (for the leader)
+- **PD-1:** A late Host decision with no Admin intervention is **not** penalised (only flagged `late`), reading §6 "Admin phải can thiệp" literally.
+- **PD-2:** Tier 3 "đình chỉ Host" = cannot create or submit Trips while 3+ applied penalties fall in 90 days. The account is not locked automatically; the Admin can use the existing account lock.
+- **PD-3:** "Trừ điểm uy tín Host" is not implemented: the system has no Host reputation score yet.
+- **PD-4:** The §6 numbers are still marked "đề xuất" (§8); they live only in `host-weather-penalty.policy.ts`.
+- **PD-5:** Waiving a penalty does not renumber penalties created after it.
+
+## 18. Test Evidence — CTMS-94
+
+- **Unit:**
+  - `host-weather-penalty.policy.spec.ts` (6): tiers and caps, minor-unit amount, 14-day block, 90-day suspension and when it lifts, when a penalty is due, waiver deadline and 5 working days;
+  - `trip-weather-decision.spec.ts` (+2): penalty on the first late Admin decision with the booking value read first; none before T-24h, after an on-time Keep, or on a second Admin decision;
+  - `trips.service.spec.ts` (+1): create refused with 403 while blocked;
+  - `settlements.service.spec.ts`: unchanged cases still pass with the deduction step.
+- **Integration** (`test/host-weather-penalties.integration-spec.ts`, real Postgres, 5):
+  - no answer → 5% of 50M capped at 2M, audit row and socket event; pause → resume penalises once;
+  - no penalty before T-24h or after an on-time Host Keep;
+  - 2nd violation → 10% and 14-day block, `submitForApproval` 403; waiver approved → waived, block lifted, not counted (next one is violation 2); late waiver 409, other Host 404;
+  - real `settleTrip`: 570,000đ net fully taken by a 1,000,000đ penalty, 430,000đ debt left, ledger rows; waiver approved → 570,000đ back in the wallet;
+  - rejected waiver stays applied with the note.
+- **Gates:**
+  - API `lint` (eslint): passed; `build`: passed.
+  - API unit (`jest`): 189 suites, 2303/2303 tests passed.
+  - API integration (8 shards, `--runInBand --forceExit`): 781 passed, 29 failed. All 29 are the known failures already on develop: sync-evaluation 4, overbooking-evaluation 4, trekking-route-checkpoints 2, incidents.report 1, trip-reviews 1, review-analysis 16, gps-tracking 1.
+  - Shards 1 and 2 crashed Jest on this machine, so their 20 suites were run one by one: all pass except sync-evaluation (known). In shard 8, trip-weather-monitoring failed only in its cleanup (a leftover forecast still used its weather rule); run alone it passes 4/4.
+  - New suite `host-weather-penalties.integration-spec.ts`: 5/5; `trip-weather-decisions.integration-spec.ts`: 5/5.
