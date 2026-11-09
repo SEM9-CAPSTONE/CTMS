@@ -3,6 +3,7 @@ import { useState } from "react";
 import { BankAccountList } from "../../bank-accounts";
 import { formatBookingMoney } from "../../booking-details/utils/booking-details-formatters";
 import { useCurrentUserProfile } from "../../camper-profile/hooks/useCurrentUserProfile";
+import { HostWeatherPenaltiesCard } from "../../weather-penalties/components/HostWeatherPenaltiesCard";
 import { HostPayoutModal } from "../components/HostPayoutModal";
 import { HostWalletTransactionsTable } from "../components/HostWalletTransactionsTable";
 import { useHostWallet, useRequestHostPayout } from "../hooks/useSettlements";
@@ -200,6 +201,9 @@ export function HostWalletPage({ onBackHome }: HostWalletPageProps) {
 								</div>
 							</div>
 						</div>
+
+						{/* Weather penalties (policy §6), hidden when the Host has none */}
+						<HostWeatherPenaltiesCard />
 
 						{/* Bank Accounts Management */}
 						<BankAccountList

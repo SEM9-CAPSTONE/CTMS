@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { HttpError } from "../../../core/api";
+import { hostingBlockedMessage } from "../../weather-penalties/utils/weather-penalty-labels";
 import { tripsService } from "../services/trips.service";
 import type { CreateTripWaypointInput, SubmitTripInput, Trip } from "../types";
 
@@ -82,6 +83,7 @@ export function mapConfigureTripWaypointsError(error: unknown): ConfigureTripWay
 	return {
 		status: error.status,
 		message:
+			hostingBlockedMessage(error) ||
 			weatherMessage ||
 			detail ||
 			byStatus[error.status] ||

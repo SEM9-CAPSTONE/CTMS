@@ -59,4 +59,44 @@ export class UploadsController {
 	): Promise<UploadImageResponseDto> {
 		return this.uploadsService.uploadImage(file, folder);
 	}
+
+	@Post("document")
+	@UseInterceptors(
+		FileInterceptor("file", {
+			limits: { fileSize: 5 * 1024 * 1024 },
+			storage: memoryStorage(),
+		})
+	)
+	@ApiOperation({
+		summary: "Tải lên tài liệu bằng chứng (ảnh JPG/PNG/WEBP hoặc PDF), ví dụ hồ sơ xin miễn phạt",
+	})
+	@ApiConsumes("multipart/form-data")
+	@ApiQuery({
+		name: "folder",
+		required: false,
+		description: "Tên thư mục lưu trữ (mặc định: ctms)",
+		example: "weather-penalty-waivers",
+	})
+	@ApiBody({
+		schema: {
+			type: "object",
+			properties: {
+				file: { type: "string", format: "binary" },
+			},
+			required: ["file"],
+		},
+	})
+	@ApiResponse({
+		status: 201,
+		description: "Tải tài liệu lên thành công",
+		type: UploadImageResponseDto,
+	})
+	@ApiResponse({ status: 400, description: "File không hợp lệ hoặc vượt quá dung lượng cho phép" })
+	@ApiResponse({ status: 401, description: "Yêu cầu đăng nhập" })
+	uploadDocument(
+		@UploadedFile() file?: Express.Multer.File,
+		@Query("folder") folder?: string
+	): Promise<UploadImageResponseDto> {
+		return this.uploadsService.uploadDocument(file, folder);
+	}
 }

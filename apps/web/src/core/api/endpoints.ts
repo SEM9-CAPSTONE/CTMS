@@ -178,6 +178,13 @@ export const API_ENDPOINTS = {
 		ADMIN_INTERVENTIONS: "/admin/weather-interventions",
 		RESCHEDULE_RESPONSE: (bookingId: string) =>
 			`/bookings/${bookingId}/weather-reschedule-response`,
+		MY_PENALTIES: "/me/weather-penalties",
+		PENALTY_WAIVER_REQUEST: (penaltyId: string) =>
+			`/host/weather-penalties/${penaltyId}/waiver-request`,
+		ADMIN_PENALTIES: "/admin/weather-penalties",
+		ADMIN_PENALTY: (penaltyId: string) => `/admin/weather-penalties/${penaltyId}`,
+		ADMIN_PENALTY_REVIEW: (penaltyId: string) =>
+			`/admin/weather-penalties/${penaltyId}/waiver-review`,
 	},
 	AI: {
 		CONVERSATIONS: "/ai/conversations",
@@ -268,6 +275,7 @@ export const API_ENDPOINTS = {
 	},
 	UPLOADS: {
 		IMAGE: "/uploads/image",
+		DOCUMENT: "/uploads/document",
 	},
 	DEVICE_SYNC: {
 		STATUS: (tripId: string) => `/trips/${tripId}/device-sync/status`,

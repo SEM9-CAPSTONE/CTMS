@@ -594,3 +594,38 @@ Policy: `docs/features/weather-trip-date-decision-policy.md` §6 and §7. The le
   - API integration (8 shards, `--runInBand --forceExit`): 781 passed, 29 failed. All 29 are the known failures already on develop: sync-evaluation 4, overbooking-evaluation 4, trekking-route-checkpoints 2, incidents.report 1, trip-reviews 1, review-analysis 16, gps-tracking 1.
   - Shards 1 and 2 crashed Jest on this machine, so their 20 suites were run one by one: all pass except sync-evaluation (known). In shard 8, trip-weather-monitoring failed only in its cleanup (a leftover forecast still used its weather rule); run alone it passes 4/4.
   - New suite `host-weather-penalties.integration-spec.ts`: 5/5; `trip-weather-decisions.integration-spec.ts`: 5/5.
+
+## 19. Implementation Record — Host weather penalty (UI, Jira CTMS-102)
+
+UI of §17 (CTMS-94 API). The leader agreed to reuse the Done key CTMS-102 for this task.
+
+- **API gap filled (minimal):** `POST /uploads/document` (JWT, image JPG/PNG/WEBP or PDF, 5 MB) in `uploads.controller.ts`, calling the existing `UploadsService.uploadDocument`. Before this only `/uploads/image` was public, so a Host could not attach a PDF as waiver evidence. Unit test `uploads.controller.spec.ts`.
+- **New web feature `apps/web/src/features/weather-penalties/`:** types, service, hooks (React Query and realtime), labels and error mapping, components, Admin page.
+- **Host (Ví Host page, `/host/wallet`):** `HostWeatherPenaltiesCard`, placed between the balance card and the bank accounts.
+  - **Hidden when the Host has no penalty**, so the page is unchanged for everyone else.
+  - Shows the debt still to deduct, a red banner while hosting is blocked or suspended, and each penalty: Trip, violation number, booking value, rate and cap, amount and deducted amount, debt, and status (Đang áp dụng / Chờ duyệt miễn / Bị từ chối miễn / Đã miễn) with the Admin's note.
+  - The "Xin miễn phạt" button appears only while the waiver is still allowed (applied, not yet asked, before the deadline). It opens `WeatherPenaltyWaiverModal`:
+    - reason (required);
+    - 1–5 evidence files (JPG / PNG / WEBP / PDF, 5 MB each, checked before upload, uploaded one by one to `/uploads/document?folder=weather-penalty-waivers`, removable);
+    - confirm dialog;
+    - server 409s shown in Vietnamese.
+  - `host.weather_penalty.created` reloads the card and shows a toast.
+- **Wallet history:** labels for `penalty_debit` ("Trừ phạt thời tiết") and `penalty_refund` ("Hoàn phạt thời tiết đã miễn") in `settlements/constants.ts`.
+- **Admin page `/admin/weather-penalties`:** sidebar item "Phạt thời tiết" under "Can thiệp thời tiết".
+  - Filter tabs: Chờ duyệt miễn (default) / Đang áp dụng / Đã miễn / Tất cả.
+  - Each row shows Host, violation, amount, debt, status, review due date, and "Quá hạn xem xét" after the 5 working days.
+  - `AdminWeatherPenaltyDialog` shows the whole penalty, the Host's reason and evidence links, and the Duyệt miễn / Từ chối form (note required, confirm dialog; approving warns that the deducted amount goes back to the Host wallet).
+  - `weather_penalty.waiver_requested` reloads the list.
+- **Blocked Host on Trip create / submit:** `mapCreateTripError` and `mapConfigureTripWaypointsError` turn the 403 with `blockedUntil` into "Bạn đang bị khoá tạo Trip do phạt thời tiết đến dd/mm/yyyy" (or the suspension text). Other errors are unchanged.
+
+## 20. Test Evidence — CTMS-102
+
+- **Vitest:**
+  - `WeatherPenaltyComponents.test.tsx` (7): card hidden without penalties; debt, block banner and statuses; no waiver button after the deadline or once asked, and the suspension text; waiver flow (reason and file checks, upload, payload after confirm); Vietnamese 409 for a closed window; `host.weather_penalty.created` reload; `hostingBlockedMessage` for block, suspension and other errors.
+  - `AdminWeatherPenaltiesPage.test.tsx` (4): pending waivers first and filter switching; overdue flag; approve with evidence link, mandatory note and refund warning; reject, and no form when the Host has not asked.
+- **API unit:** `uploads.controller.spec.ts` (1).
+- **Playwright** (`tests/e2e/ctms-102-weather-penalty-ui.spec.ts`, mocked backend, 2 tests):
+  - Host sees the penalty and the `penalty_debit` row on the wallet, asks for a waiver with a PDF;
+  - Admin approves a waiver from the list.
+- **Screenshots:** Host penalty card, waiver modal, Admin list, Admin review dialog.
+- **Gates:** API `lint` / `build` pass; API unit 190 suites / 2305 tests pass; web `lint:all` 0 errors (12 warnings, none in CTMS-102 files); `build:all` pass (a first run caught 2 test-only mock typing errors, fixed with `vi.mocked`); web Vitest 259 files / 1731 tests pass; `test:all` stops at `@ctms/ai` because this machine has no `pytest` (unrelated to this change). Integration shards 1–8: only the 29 known baseline failures (sync-evaluation 4, overbooking-evaluation 4, trekking-route-checkpoints 2, incidents.report 1, trip-reviews 1, review-analysis 16, gps-tracking 1). Default Playwright E2E: 61 passed / 38 failed / 32 did not run, i.e. baseline 59 / 38 / 32 plus the 2 new `ctms-102-weather-penalty-ui.spec.ts` tests passing.
