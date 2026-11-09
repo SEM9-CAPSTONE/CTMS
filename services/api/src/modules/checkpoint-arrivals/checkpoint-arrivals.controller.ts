@@ -1,6 +1,7 @@
 import {
 	Body,
 	Controller,
+	Get,
 	HttpCode,
 	HttpStatus,
 	Param,
@@ -31,6 +32,22 @@ import type { CheckpointArrivalResult } from "./checkpoint-arrivals.types";
 @Roles(UserRole.CAMPER, UserRole.PORTER)
 export class CheckpointArrivalsController {
 	constructor(private readonly arrivals: CheckpointArrivalsService) {}
+
+	@Get("context")
+	@ApiOperation({
+		summary: "Retrieve pinned checkpoint context for trip",
+	})
+	@ApiResponse({
+		status: 200,
+		description: "Active checkpoint context for offline detection",
+	})
+	@ApiResponse({ status: 404, description: "Context not found" })
+	getContext(
+		@Param("tripId", new ParseUUIDPipe({ errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY }))
+		tripId: string
+	) {
+		return this.arrivals.getContext(tripId);
+	}
 
 	@Post()
 	@HttpCode(HttpStatus.OK)

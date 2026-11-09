@@ -15,7 +15,9 @@
 			"**/test-results/**",
 			"**/playwright-report/**",
 			"**/.next/**",
-			"**/pnpm-lock.yaml"
+			"**/pnpm-lock.yaml",
+			"**/.dart_tool/**",
+			"**/artifacts/**"
 		]
 	},
 	"formatter": {

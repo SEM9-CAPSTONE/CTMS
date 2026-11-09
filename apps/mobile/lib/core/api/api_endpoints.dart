@@ -80,6 +80,10 @@ class TripEndpoints {
   String memberLocations(String tripId) => '/trips/$tripId/member-locations';
   String emergencyBroadcasts(String tripId) =>
       '/trips/$tripId/emergency-broadcasts';
+  String checkpointArrivals(String tripId) =>
+      '/trips/$tripId/automatic-checkpoint-arrivals';
+  String checkpointArrivalContext(String tripId) =>
+      '/trips/$tripId/automatic-checkpoint-arrivals/context';
 }
 
 class WeatherEndpoints {

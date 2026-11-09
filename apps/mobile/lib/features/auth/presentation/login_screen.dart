@@ -290,8 +290,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   const SizedBox(height: AppSpacing.xl),
 
                   // 8. Bottom Register Text Link
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       Text(
                         LoginStrings.noAccountYet,

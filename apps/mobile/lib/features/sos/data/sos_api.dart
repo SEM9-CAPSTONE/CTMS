@@ -78,13 +78,13 @@ class HttpSosApi implements SosApi {
     DateTime? eventTime,
   }) async {
     final body = <String, dynamic>{
-      if (id != null) 'id': id,
+      'id': ?id,
       'emergencyType': emergencyType,
       'eventTime': (eventTime ?? DateTime.now()).toUtc().toIso8601String(),
-      if (notes != null) 'notes': notes,
+      'notes': ?notes,
       if (latitude != null && longitude != null)
         'location': {'latitude': latitude, 'longitude': longitude},
-      if (batteryLevel != null) 'batteryLevel': batteryLevel,
+      'batteryLevel': ?batteryLevel,
     };
 
     final response = await client.post<dynamic>(

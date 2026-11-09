@@ -7,6 +7,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/api/api_client.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../camper/profile/data/camper_health_profile_repository.dart';
+import '../../checkpoint_arrivals/application/checkpoint_arrival_controller.dart';
+import '../../checkpoint_arrivals/application/checkpoint_arrival_sync.dart';
+import '../../checkpoint_arrivals/data/checkpoint_arrival_api.dart';
+import '../../checkpoint_arrivals/data/checkpoint_arrival_store.dart';
+import '../../checkpoint_arrivals/domain/checkpoint_arrival_models.dart';
 import '../../gps_tracking/application/gps_log_sync.dart';
 import '../../gps_tracking/application/gps_tracking_controller.dart';
 import '../../gps_tracking/data/gps_log_store.dart';
@@ -44,6 +49,8 @@ class ReconnectionSyncCoordinator extends ChangeNotifier {
     this.gpsApi,
     this.safetyEventStore,
     this.safetyEventApi,
+    this.checkpointStore,
+    this.checkpointApi,
     this.medicalStore,
     this.healthProfileRepository,
     DateTime Function()? clock,
@@ -64,6 +71,8 @@ class ReconnectionSyncCoordinator extends ChangeNotifier {
   final GpsTrackingApi? gpsApi;
   final RouteDeviationStore? safetyEventStore;
   final RouteDeviationApi? safetyEventApi;
+  final CheckpointArrivalStore? checkpointStore;
+  final CheckpointArrivalApi? checkpointApi;
   final OfflineMedicalStore? medicalStore;
   final CamperHealthProfileRepository? healthProfileRepository;
   final DateTime Function() _clock;
@@ -265,6 +274,41 @@ class ReconnectionSyncCoordinator extends ChangeNotifier {
           }
         }
 
+        if (checkpointStore != null && checkpointApi != null) {
+          try {
+            if (force) {
+              await checkpointStore!.update(
+                tripId,
+                (current) => current.copyWith(
+                  arrivals: [
+                    for (final a in current.arrivals)
+                      a.syncState == CheckpointSyncState.paused
+                          ? a.resetForRetry()
+                          : a,
+                  ],
+                ),
+              );
+            }
+            final updatedArrivals = await synchronizeCheckpointArrivals(
+              tripId: tripId,
+              store: checkpointStore!,
+              api: checkpointApi!,
+              now: _clock(),
+              isOnline: _isOnline,
+            );
+            if (updatedArrivals.failedCount > 0) {
+              hasErrors = true;
+              final failed = updatedArrivals.arrivals.firstWhere(
+                (a) => a.syncState == CheckpointSyncState.failed || a.lastError != null,
+              );
+              latestError = failed.lastError ?? failed.rejectionReason?.wireValue;
+            }
+          } catch (e) {
+            hasErrors = true;
+            latestError = e.toString();
+          }
+        }
+
         if (gpsStore != null && gpsApi != null) {
           try {
             if (force) {
@@ -388,6 +432,29 @@ class ReconnectionSyncCoordinator extends ChangeNotifier {
         );
       }
 
+      if (checkpointStore != null && checkpointApi != null) {
+        if (force) {
+          await checkpointStore!.update(
+            tripId,
+            (current) => current.copyWith(
+              arrivals: [
+                for (final a in current.arrivals)
+                  a.syncState == CheckpointSyncState.paused
+                      ? a.resetForRetry()
+                      : a,
+              ],
+            ),
+          );
+        }
+        await synchronizeCheckpointArrivals(
+          tripId: tripId,
+          store: checkpointStore!,
+          api: checkpointApi!,
+          now: _clock(),
+          isOnline: _isOnline,
+        );
+      }
+
       _lastSyncAt = _clock();
       _lastError = null;
     } catch (e) {
@@ -419,6 +486,8 @@ final reconnectionSyncCoordinatorProvider = Provider<ReconnectionSyncCoordinator
   final gpsApi = ref.watch(gpsTrackingApiProvider);
   final safetyEventStore = ref.watch(routeDeviationStoreProvider);
   final safetyEventApi = ref.watch(routeDeviationApiProvider);
+  final checkpointStore = ref.watch(checkpointArrivalStoreProvider);
+  final checkpointApi = ref.watch(checkpointArrivalApiProvider);
   final medicalStore = ref.watch(offlineMedicalStoreProvider);
   final healthRepo = ref.watch(camperHealthProfileRepositoryProvider);
 
@@ -432,6 +501,8 @@ final reconnectionSyncCoordinatorProvider = Provider<ReconnectionSyncCoordinator
     gpsApi: gpsApi,
     safetyEventStore: safetyEventStore,
     safetyEventApi: safetyEventApi,
+    checkpointStore: checkpointStore,
+    checkpointApi: checkpointApi,
     medicalStore: medicalStore,
     healthProfileRepository: healthRepo,
   );

@@ -3,6 +3,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/api/api_client.dart';
 import '../../auth/application/auth_controller.dart';
+import '../../checkpoint_arrivals/application/checkpoint_arrival_controller.dart';
+import '../../checkpoint_arrivals/data/checkpoint_arrival_store.dart';
+import '../../checkpoint_arrivals/domain/checkpoint_arrival_models.dart';
 import '../../gps_tracking/application/gps_log_sync.dart';
 import '../../gps_tracking/application/gps_tracking_controller.dart';
 import '../../gps_tracking/data/gps_log_store.dart';
@@ -34,6 +37,7 @@ class DeviceSyncController extends ChangeNotifier {
     this.gpsApi,
     this.safetyEventStore,
     this.safetyEventApi,
+    this.checkpointStore,
     this.coordinator,
   }) {
     coordinator?.addListener(_onCoordinatorUpdate);
@@ -53,6 +57,9 @@ class DeviceSyncController extends ChangeNotifier {
   /// Local route-deviation safety events (CTMS-060); null keeps them out of the counts.
   final RouteDeviationStore? safetyEventStore;
   final RouteDeviationApi? safetyEventApi;
+
+  /// Local automatic checkpoint arrivals (CTMS-061).
+  final CheckpointArrivalStore? checkpointStore;
 
   /// App-level reconnection sync coordinator (CTMS-065).
   final ReconnectionSyncCoordinator? coordinator;
@@ -143,6 +150,17 @@ class DeviceSyncController extends ChangeNotifier {
       final eventErr =
           safetyEvents.where((event) => event.error != null).map((event) => event.error).firstOrNull;
 
+      // 1e. Read local automatic checkpoint arrivals (CTMS-061)
+      final checkpointArrivals = checkpointStore == null
+          ? const <LocalCheckpointArrival>[]
+          : (await checkpointStore!.read(tripId)).arrivals;
+      final pendingCheckpoints =
+          checkpointArrivals.where((a) => a.syncState == CheckpointSyncState.pending).length;
+      final failedCheckpoints =
+          checkpointArrivals.where((a) => a.syncState == CheckpointSyncState.failed).length;
+      final checkpointErr =
+          checkpointArrivals.where((a) => a.lastError != null).map((a) => a.lastError).firstOrNull;
+
       // 2. Read server-confirmed telemetry
       Map<String, Object?>? serverData;
       String? serverErr;
@@ -165,12 +183,13 @@ class DeviceSyncController extends ChangeNotifier {
           (serverData?['configVersion'] as String?) ?? 'v3';
 
       DeviceSyncState state = DeviceSyncState.idle;
-      final pendingTotal = pendingSafety + pendingEvents + pendingGps;
+      final pendingTotal = pendingSafety + pendingEvents + pendingGps + pendingCheckpoints;
       if (coordinator?.isSyncing == true) {
         state = DeviceSyncState.syncing;
       } else if (failedSafety > 0 ||
           failedEvents > 0 ||
           failedGps > 0 ||
+          failedCheckpoints > 0 ||
           serverErr != null) {
         state = DeviceSyncState.failed;
       } else if (pendingTotal > 0) {
@@ -181,11 +200,11 @@ class DeviceSyncController extends ChangeNotifier {
 
       summary = DeviceSyncSummary(
         pendingGpsCount: pendingGps,
-        pendingSafetyCount: pendingSafety + pendingEvents,
+        pendingSafetyCount: pendingSafety + pendingEvents + pendingCheckpoints,
         serverConfirmedGpsCount: serverGps,
         serverConfirmedSafetyCount: serverSafety,
         lastSyncAt: lastReceivedAt ?? coordinator?.lastSyncAt,
-        lastError: serverErr ?? lastErr ?? sosErr ?? eventErr ?? gpsErr ?? coordinator?.lastError,
+        lastError: serverErr ?? lastErr ?? sosErr ?? eventErr ?? checkpointErr ?? gpsErr ?? coordinator?.lastError,
         packageVersion: pkgVersion,
         configVersion: cfgVersion,
         state: state,
@@ -292,6 +311,7 @@ final deviceSyncControllerProvider = ChangeNotifierProvider.autoDispose
     gpsApi: ref.watch(gpsTrackingApiProvider),
     safetyEventStore: ref.watch(routeDeviationStoreProvider),
     safetyEventApi: ref.watch(routeDeviationApiProvider),
+    checkpointStore: ref.watch(checkpointArrivalStoreProvider),
     coordinator: coordinator,
   );
 });
