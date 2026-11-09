@@ -117,6 +117,12 @@ export class BookingDetailsResponseDto {
 	@ApiPropertyOptional({ type: String, format: "date-time", nullable: true })
 	completedAt!: Date | null;
 
+	@ApiProperty({
+		description:
+			"True while the Booking waits for reconfirmation after a reschedule decided for weather; only then may the Camper decline with a full refund (POST /bookings/:bookingId/weather-reschedule-response).",
+	})
+	weatherReschedulePending!: boolean;
+
 	@ApiPropertyOptional({ type: BookingTripPresentationDto, nullable: true })
 	tripPresentation!: BookingTripPresentationDto | null;
 
