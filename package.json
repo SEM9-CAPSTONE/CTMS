@@ -5,7 +5,7 @@
 	"description": "Camping Site and Trekking Management System monorepo",
 	"packageManager": "pnpm@9.15.0",
 	"scripts": {
-		"dev:quick": "pnpm dev:infra && docker compose stop api web ai && pnpm --parallel --filter @ctms/api --filter @ctms/web --filter @ctms/ai dev",
+		"dev:quick": "pnpm dev:infra && docker compose stop api web && docker compose up -d --build --wait ai && pnpm --parallel --filter @ctms/api --filter @ctms/web dev",
 		"dev:docker": "node scripts/ensure-docker.js",
 		"dev:infra": "pnpm dev:docker && docker compose up -d --wait postgres redis adminer",
 		"dev:local:all": "pnpm --parallel --filter @ctms/api --filter @ctms/web --filter @ctms/ai dev",

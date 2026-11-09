@@ -28,17 +28,15 @@ Member cần cài các công cụ sau:
 - Node.js `>= 20`
 - pnpm `>= 9`
 - Docker Desktop
-- Python `>= 3.12`
-- uv cho Python environment
+- Python 3.12 và uv khi phát triển AI trực tiếp trên máy
 
-Kiểm tra nhanh:
+Kiểm tra công cụ cho `dev:quick`.
 
-````bash
+```bash
 node --version
 pnpm --version
 docker --version
-python --version
-uv --version
+```
 
 ### 2. Setup lần đầu
 
@@ -46,7 +44,7 @@ Chạy từ root project:
 
 ```bash
 pnpm install
-````
+```
 
 ### 3. Chạy database và cache
 
@@ -72,16 +70,16 @@ Lệnh thường dùng nhất khi dev backend + frontend:
 pnpm dev:quick
 ```
 
-Lệnh này bật PostgreSQL, Redis và Adminer, dừng API và Web trong Docker nếu đang chạy để tránh trùng cổng với bản local, rồi chạy cùng lúc:
+Lệnh này bật PostgreSQL, Redis và Adminer, dừng container API và Web để giải phóng cổng, rồi build và chờ AI phản hồi tại `/health`. AI chạy bằng Python 3.12 trong Docker. Sau đó NestJS API và React Web Dashboard chạy local với hot reload.
 
-- NestJS API
-- ReactJS Web Dashboard
+Đặt cấu hình dùng chung của API và AI trong `.env` ở thư mục gốc. API local kết nối tới AI qua `AI_SERVICE_URL=http://localhost:8000`.
 
 Các URL kiểm tra:
 
 ```text
 Web: http://localhost:5173
 API Health: http://localhost:3000/api/health
+AI Health: http://localhost:8000/health
 Swagger: http://localhost:3000/api/docs
 Adminer: http://localhost:8081
 ```
@@ -120,11 +118,12 @@ Chạy Mobile:
 pnpm dev:mobile
 ```
 
-Chạy AI service:
+Khi cần hot reload cho AI, dừng container AI rồi chạy service trực tiếp trên máy.
 
 ```bash
+docker compose stop ai
 cd services/ai
-uv venv
+uv venv --python 3.12
 .\.venv\Scripts\activate
 uv pip install -r requirements.txt
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
@@ -146,7 +145,7 @@ Khi dev bình thường, nên chạy:
 pnpm dev:quick
 ```
 
-Tức là PostgreSQL, Redis và Adminer chạy bằng Docker, còn API và Web chạy local để hot reload nhanh hơn. Ctrl+C dừng API/Web local; các container hạ tầng vẫn chạy. Dừng chúng bằng `docker compose stop postgres redis adminer` khi không cần nữa.
+PostgreSQL, Redis, Adminer và AI chạy bằng Docker. Ctrl+C dừng API và Web local. Dừng các container bằng `docker compose stop postgres redis adminer ai` khi không cần nữa.
 
 Chỉ chạy full Docker khi muốn kiểm tra gần giống môi trường deploy:
 
@@ -233,7 +232,7 @@ pnpm test:all
 
 Ý nghĩa:
 
-- `pnpm dev:quick`: tự bật PostgreSQL, Redis, Adminer rồi chạy API và Web local ở chế độ watch; dừng các container ứng dụng trước khi chạy.
+- `pnpm dev:quick` bật hạ tầng và AI trong Docker rồi chạy API và Web local ở chế độ watch.
 - `pnpm dev:infra`: bật PostgreSQL, Redis, Adminer và chờ sẵn sàng.
 - `pnpm dev:api`: build và chạy API Docker, kèm PostgreSQL, Redis và Adminer.
 - `pnpm dev:api:local`: chạy NestJS API local ở chế độ watch.
