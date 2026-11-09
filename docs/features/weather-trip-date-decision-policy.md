@@ -7,7 +7,7 @@
 
 1. Trip được đánh giá theo **dự báo cho đúng ngày đi**, không theo thời tiết hôm nay. Ví dụ: Trip ngày 17/11 dùng dự báo của 17/11.
 2. Dự báo cho cùng một ngày sẽ thay đổi theo thời gian. **Bản mới nhất là bản có giá trị.**
-3. Hệ thống không tự huỷ Trip chỉ vì một dự báo ở xa. Quyết định cuối thuộc về **Host**. **Admin** giám sát và can thiệp khi Host không hành động.
+3. Hệ thống không tự huỷ Trip chỉ vì một dự báo ở xa. Quyết định cuối thuộc về **Host**. **Admin** chỉ duyệt Trip lúc mở bán (kèm dự báo Host gửi lên); sau đó Host chịu trách nhiệm vận hành. Admin **chỉ can thiệp khi còn ≤ 3 ngày** tới giờ đi (mục 5.3).
 4. Mọi quyết định đều phải ghi lại: ai quyết định, lúc nào, dựa trên bản dự báo nào, với lý do gì.
 
 ## 2. Độ tin cậy theo khoảng cách tới ngày đi
@@ -66,9 +66,20 @@ Host phải chọn một trong ba quyết định, **bắt buộc kèm lý do**:
 Nếu dự báo không còn Đỏ ở mốc T-24h thì Host không cần quyết định.
 
 ### 5.3 Admin can thiệp
-Hệ thống cảnh báo Admin khi tới T-24h dự báo vẫn **Đỏ** và rơi vào một trong hai trường hợp:
+Admin **chỉ can thiệp khi còn ≤ 3 ngày** tới giờ đi. Ngoài khoảng này, mọi quyết định thuộc về Host.
+
+Admin xem được nhật ký quyết định của từng Trip: bản dự báo lúc đó, Host đã chọn gì, lý do và phương án an toàn.
+
+Ngoài Giữ / Dời / Huỷ, Admin có quyền **tạm dừng** Trip nếu thấy nguy hiểm:
+- Trip đang tạm dừng thì **chặn đặt chỗ mới** và **không tự chuyển sang "đang diễn ra"** khi tới giờ đi.
+- Admin bắt buộc ghi lý do. Sau đó Admin **mở lại**, **dời** hoặc **huỷ** Trip.
+- Admin được mở lại Trip kể cả khi dự báo không còn Đỏ.
+
+Hệ thống cảnh báo Admin khi dự báo vẫn **Đỏ** và rơi vào một trong hai trường hợp:
 - **Host không phản hồi.** Admin được quyền **tự quyết Giữ / Dời / Huỷ** thay Host, bắt buộc ghi lý do. Hệ thống ghi lại đây là quyết định của Admin, và Host bị phạt theo mục 6.
-- **Host chọn Giữ.** Admin xem lý do và có thể **giữ nguyên** hoặc **huỷ thay Host** nếu thấy nguy hiểm.
+- **Host chọn Giữ.** Hệ thống báo Admin ngay khi Host chọn. Admin xem lý do và có thể **giữ nguyên**, **tạm dừng** hoặc **huỷ thay Host** nếu thấy nguy hiểm.
+
+Khi Admin đã quyết định cho lịch hiện tại của Trip, Host không quyết định thêm nữa. Host quyết định sau mốc T-24h vẫn được nhận nhưng được ghi là **trễ hạn** (căn cứ cho mục 6).
 
 ### 5.4 Hệ thống không tự huỷ, Admin là người quyết định cuối
 Hệ thống **không bao giờ tự huỷ hay tự dời Trip**. Nếu sau T-24h dự báo vẫn Đỏ mà chưa có quyết định, hệ thống **nhắc Admin lặp lại với mức khẩn tăng dần** cho đến khi Admin xử lý:

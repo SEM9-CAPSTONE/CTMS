@@ -194,6 +194,8 @@ export interface LockedTripForBooking {
 	endsAt: Date;
 	pricePerPerson: string;
 	cancellationPolicy: Record<string, unknown> | null;
+	/** Set while an Admin has paused the Trip for weather (policy §5.3); blocks new bookings. */
+	weatherPausedAt?: Date | null;
 }
 
 export interface SearchPublishedTripsFilter {
@@ -1495,7 +1497,8 @@ export class TripsRepository extends Repository<Trip> {
 		const dueCondition =
 			target === TripStatus.COMPLETED
 				? `"status" IN ('published', 'ongoing') AND "ends_at" <= CURRENT_TIMESTAMP`
-				: `"status" = 'published' AND "starts_at" <= CURRENT_TIMESTAMP AND "ends_at" > CURRENT_TIMESTAMP`;
+				: // A Trip paused for weather by an Admin waits for the Admin's resume/reschedule/cancel.
+					`"status" = 'published' AND "starts_at" <= CURRENT_TIMESTAMP AND "ends_at" > CURRENT_TIMESTAMP AND "weather_paused_at" IS NULL`;
 		return (await this.query(
 			`WITH due AS (
 				SELECT "id", "status"
@@ -1594,7 +1597,8 @@ export class TripsRepository extends Repository<Trip> {
 		);
 	}
 
-	private async createIdempotentRefund(
+	/** Also used by the weather reschedule decline (full refund of one booking). */
+	async createIdempotentRefund(
 		bookingId: string,
 		amount: string,
 		idempotencyKey: string
@@ -1825,7 +1829,8 @@ export class TripsRepository extends Repository<Trip> {
 				trip."starts_at" AS "startsAt",
 				trip."ends_at" AS "endsAt",
 				trip."price_per_person" AS "pricePerPerson",
-				trip."cancellation_policy" AS "cancellationPolicy"
+				trip."cancellation_policy" AS "cancellationPolicy",
+				trip."weather_paused_at" AS "weatherPausedAt"
 			FROM "trips" trip
 			INNER JOIN "trekking_routes" route ON route."id" = trip."route_id"
 			WHERE trip."id" = $1
@@ -1845,6 +1850,7 @@ export class TripsRepository extends Repository<Trip> {
 			endsAt: Date;
 			pricePerPerson: string;
 			cancellationPolicy: Record<string, unknown> | null;
+			weatherPausedAt: Date | null;
 		}>;
 
 		const row = rows[0];
@@ -1863,6 +1869,7 @@ export class TripsRepository extends Repository<Trip> {
 			endsAt: row.endsAt,
 			pricePerPerson: row.pricePerPerson,
 			cancellationPolicy: row.cancellationPolicy,
+			weatherPausedAt: row.weatherPausedAt ?? null,
 		};
 	}
 

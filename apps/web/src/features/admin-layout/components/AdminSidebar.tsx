@@ -1,6 +1,7 @@
 import {
 	BadgeCheck,
 	BookOpen,
+	CloudLightning,
 	Compass,
 	FileClock,
 	Flag,
@@ -16,6 +17,7 @@ import {
 import { HomeLink } from "../../../shared/components/HomeLink";
 import { LogoutActions } from "../../auth/components/LogoutActions";
 import { BookingCancellationNotices } from "../../booking-cancellation/components/BookingCancellationNotices";
+import { WeatherChangeNotices } from "../../weather/components/WeatherChangeNotices";
 
 export type AdminNavigationItem =
 	| "review-analysis"
@@ -29,6 +31,7 @@ export type AdminNavigationItem =
 	| "route-review"
 	| "trip-review"
 	| "weather-rules"
+	| "weather-interventions"
 	| "refunds"
 	| "settlements";
 
@@ -59,6 +62,12 @@ const navigationItems = [
 	{ key: "trip-review", label: "Duyệt trip", icon: Compass, available: true },
 	{ key: "survival-documents", label: "Tài liệu sinh tồn", icon: BookOpen, available: true },
 	{ key: "weather-rules", label: "Cấu hình rủi ro thời tiết", icon: ShieldAlert, available: true },
+	{
+		key: "weather-interventions",
+		label: "Can thiệp thời tiết",
+		icon: CloudLightning,
+		available: true,
+	},
 	{ key: "audit-logs", label: "Nhật ký hệ thống", icon: FileClock, available: true },
 	{ key: "content-reports", label: "Báo cáo nội dung", icon: Flag, available: true },
 ] as const;
@@ -86,6 +95,7 @@ export function AdminSidebar({
 						<p className="text-xs font-medium text-[#667a6d]">Không gian quản trị</p>
 					</div>
 				</HomeLink>
+				<WeatherChangeNotices includeChanges={false} includeDecisions />
 				<BookingCancellationNotices />
 				{onClose && (
 					<button
@@ -142,6 +152,9 @@ export function AdminSidebar({
 									window.dispatchEvent(new PopStateEvent("popstate"));
 								} else if (item.key === "weather-rules") {
 									window.history.pushState({}, "", "/admin/weather-rules");
+									window.dispatchEvent(new PopStateEvent("popstate"));
+								} else if (item.key === "weather-interventions") {
+									window.history.pushState({}, "", "/admin/weather-interventions");
 									window.dispatchEvent(new PopStateEvent("popstate"));
 								} else if (item.key === "settlements") {
 									window.history.pushState({}, "", "/admin/settlements");

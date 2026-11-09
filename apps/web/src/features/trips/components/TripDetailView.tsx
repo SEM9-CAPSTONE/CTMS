@@ -24,6 +24,7 @@ import type { BookingDetails } from "../../booking-details/types";
 import { InitializeBookingMembersPanel } from "../../booking-members/components/InitializeBookingMembersPanel";
 import type { InitializeBookingMembersResponse } from "../../booking-members/types";
 import { PackingListModal } from "../../packing-list/components/PackingListModal";
+import { HostWeatherDecisionCard } from "../../weather-decisions/components/HostWeatherDecisionCard";
 import { useTripDatesWeatherForecast } from "../hooks/useTripDatesWeatherForecast";
 import { type BookTripResponse, type TripDetails, formatTripStatus } from "../types";
 import { FAR_RED_FORECAST_WARNING, isFarRedForecast } from "../utils/trip-forecast-reliability";
@@ -606,6 +607,12 @@ export function TripDetailView({
 				{/* Right Column: Sticky Booking Action Card & Sidebar */}
 				<div className="relative">
 					<div className="lg:sticky lg:top-24 space-y-4">
+						{canManageTrip && trip.status === "published" && (
+							<HostWeatherDecisionCard
+								tripId={trip.id}
+								onTripChanged={() => void hostOperations?.onRefreshTrip()}
+							/>
+						)}
 						{canManageTrip && hostOperations && <HostTripOperationsPanel {...hostOperations} />}
 						{canManageTrip && hostPorterManagement}
 

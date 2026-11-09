@@ -135,6 +135,9 @@ export const queryKeys = {
 		rules: ["weather", "rules"] as const,
 		activeRule: ["weather", "rules", "active"] as const,
 		changeNotices: (userId: string) => ["weather", "change-notices", userId] as const,
+		decisionAlerts: (userId: string) => ["weather", "decision-alerts", userId] as const,
+		interventions: ["weather", "interventions"] as const,
+		decisionLog: (tripId: string) => ["weather", "decision-log", tripId] as const,
 	},
 	ai: {
 		conversations: ["ai", "conversations"] as const,

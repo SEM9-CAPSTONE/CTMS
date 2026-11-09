@@ -112,7 +112,7 @@ export function Sidebar({
 						<p className="text-xs font-semibold text-[#667a6d]">{config.navTitle}</p>
 					</div>
 				</HomeLink>
-				{activeRole === "host" && <WeatherChangeNotices />}
+				{activeRole === "host" && <WeatherChangeNotices includeDecisions />}
 				{(activeRole === "host" || activeRole === "admin") && <BookingCancellationNotices />}
 				{onClose && (
 					<button
