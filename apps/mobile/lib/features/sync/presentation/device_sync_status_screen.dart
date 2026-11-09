@@ -160,7 +160,7 @@ class _DeviceSyncStatusScreenState
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            OfflinePackagePanel(tripId: widget.tripId),
+            OfflinePackagePanel(tripId: widget.tripId, summaryOnly: true),
             const SizedBox(height: AppSpacing.lg),
             // Section Title: Trạng thái truyền dữ liệu (Protected from overflow)
             Row(

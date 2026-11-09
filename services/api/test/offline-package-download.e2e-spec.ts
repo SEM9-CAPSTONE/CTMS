@@ -56,7 +56,7 @@ describe("CTMS-053 authenticated private transport (HTTP + production JWT and ro
 		generatedAt: new Date().toISOString(),
 		contentType: "application/zip",
 	};
-	const access = { canDownload: jest.fn() };
+	const access = { downloadableTripStatus: jest.fn() };
 	const packages = { getReadyMetadata: jest.fn(), readArtifact: jest.fn() };
 	const users = { findOneWithRolesById: jest.fn(), getGrantedRoles: jest.fn() };
 	const secret = "ctms053-test-only-secret";
@@ -85,7 +85,7 @@ describe("CTMS-053 authenticated private transport (HTTP + production JWT and ro
 	});
 	beforeEach(() => {
 		jest.resetAllMocks();
-		access.canDownload.mockResolvedValue(true);
+		access.downloadableTripStatus.mockResolvedValue("published");
 		packages.getReadyMetadata.mockResolvedValue(metadata);
 		packages.readArtifact.mockResolvedValue(bytes);
 		users.findOneWithRolesById.mockResolvedValue({ id: userId, status: UserStatus.ACTIVE });
@@ -98,7 +98,7 @@ describe("CTMS-053 authenticated private transport (HTTP + production JWT and ro
 	it("requires authentication for metadata and bytes", async () => {
 		await request(app.getHttpServer()).get(`${url}/latest`).expect(401);
 		await request(app.getHttpServer()).get(`${url}/1/download`).expect(401);
-		expect(access.canDownload).not.toHaveBeenCalled();
+		expect(access.downloadableTripStatus).not.toHaveBeenCalled();
 	});
 	it("does not grant Host/Admin a participant bypass", async () => {
 		users.getGrantedRoles.mockReturnValue([UserRole.ADMIN]);
@@ -107,7 +107,7 @@ describe("CTMS-053 authenticated private transport (HTTP + production JWT and ro
 	it("accepts assigned Porter role after participation authorization", async () => {
 		users.getGrantedRoles.mockReturnValue([UserRole.PORTER]);
 		await get(`${url}/latest`).expect(200);
-		expect(access.canDownload).toHaveBeenCalledWith(tripId, userId);
+		expect(access.downloadableTripStatus).toHaveBeenCalledWith(tripId, userId);
 	});
 	it("exposes only download metadata and a strong digest ETag", async () => {
 		const response = await get(`${url}/latest`).expect(200);
@@ -119,6 +119,7 @@ describe("CTMS-053 authenticated private transport (HTTP + production JWT and ro
 			sha256,
 			sizeBytes: bytes.length,
 			generatedAt: metadata.generatedAt,
+			activationAllowed: true,
 			contentType: "application/zip",
 			etag: `"${sha256}"`,
 		});
@@ -159,13 +160,13 @@ describe("CTMS-053 authenticated private transport (HTTP + production JWT and ro
 	);
 	it("rechecks access on resume, including when requesting 416", async () => {
 		await get(`${url}/1/download`).expect(200);
-		access.canDownload.mockResolvedValue(false);
+		access.downloadableTripStatus.mockResolvedValue(null);
 		await get(`${url}/1/download`).set("Range", "bytes=5-").expect(404);
 		await get(`${url}/1/download`).set("Range", "bytes=9999-").expect(404);
 		await get(`${url}/latest`).expect(404);
 	});
 	it("denies bytes if membership is withdrawn during artifact reading", async () => {
-		access.canDownload.mockResolvedValueOnce(true).mockResolvedValue(false);
+		access.downloadableTripStatus.mockResolvedValueOnce("published").mockResolvedValue(null);
 		await get(`${url}/1/download`).expect(404);
 	});
 	it("rejects a disabled account with a previously issued JWT", async () => {
@@ -196,7 +197,7 @@ describe("CTMS-053 authenticated private transport (HTTP + production JWT and ro
 		await get(`${url}/${version}/download`).expect(422);
 	});
 	it("does not read package metadata outside the caller's Trip", async () => {
-		access.canDownload.mockResolvedValue(false);
+		access.downloadableTripStatus.mockResolvedValue(null);
 		const service = new OfflinePackageDownloadService(
 			access as unknown as OfflinePackageAccessRepository,
 			packages as unknown as OfflinePackagesService

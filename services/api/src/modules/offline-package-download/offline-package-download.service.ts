@@ -11,6 +11,7 @@ import {
 	PACKAGE_SCHEMA_VERSION,
 	PackageFailure,
 } from "../offline-packages/offline-packages.types";
+import { TripStatus } from "../trips/entities/trip.entity";
 // biome-ignore lint/style/useImportType: Nest injection metadata
 import { OfflinePackageAccessRepository } from "./offline-package-access.repository";
 import { packageByteRange } from "./package-byte-range";
@@ -25,6 +26,7 @@ export interface DownloadPackageMetadata {
 	generatedAt: string;
 	contentType: "application/zip";
 	etag: string;
+	activationAllowed: boolean;
 }
 export interface PackageDownloadResponse {
 	status: number;
@@ -38,16 +40,18 @@ export class OfflinePackageDownloadService {
 		private readonly access: OfflinePackageAccessRepository,
 		private readonly packages: OfflinePackagesService
 	) {}
-	private async authorize(userId: string, tripId: string): Promise<void> {
-		if (!(await this.access.canDownload(tripId, userId)))
+	private async authorize(userId: string, tripId: string): Promise<TripStatus> {
+		const status = await this.access.downloadableTripStatus(tripId, userId);
+		if (!status)
 			throw new NotFoundException({ code: "TRIP_NOT_ACCESSIBLE", message: "Trip not found" });
+		return status;
 	}
 	async metadata(
 		userId: string,
 		tripId: string,
 		version?: number
 	): Promise<DownloadPackageMetadata> {
-		await this.authorize(userId, tripId);
+		const tripStatus = await this.authorize(userId, tripId);
 		const row = await this.packages.getReadyMetadata(tripId, version);
 		if (!row)
 			throw new ConflictException({
@@ -80,6 +84,7 @@ export class OfflinePackageDownloadService {
 			generatedAt: row.generatedAt,
 			contentType: row.contentType,
 			etag: `"${row.sha256}"`,
+			activationAllowed: tripStatus === TripStatus.PUBLISHED,
 		};
 	}
 	async download(

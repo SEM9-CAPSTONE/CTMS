@@ -5,63 +5,195 @@ import 'package:mobile/features/offline_packages/application/package_download_co
 import 'package:mobile/features/offline_packages/domain/offline_package.dart';
 import 'package:mobile/features/offline_packages/presentation/offline_package_screen.dart';
 
+import 'package_integrity_fixture.dart';
+
+class _Controller extends PackageDownloadController {
+  _Controller() : super(testTripId, () => throw StateError('Widget test'));
+  int starts = 0;
+  int pauses = 0;
+  int loads = 0;
+
+  @override
+  Future<void> start() async => starts++;
+
+  @override
+  void pause() => pauses++;
+
+  @override
+  Future<void> load() async => loads++;
+}
+
 void main() {
-  final package = OfflinePackage(
-    id: 'a1736fee-62be-4991-9478-a62288e9b80b',
-    tripId: 'a1736fee-62be-4991-9478-a62288e9b80a',
-    packageVersion: 2,
-    sha256: List.filled(64, 'a').join(),
-    sizeBytes: 10 * 1024 * 1024,
-    generatedAt: DateTime.utc(2026, 11, 8),
-  );
-  Future<void> render(
-    WidgetTester tester,
-    PackageDownloadStatus status,
-    int bytes,
-  ) async {
-    final controller =
-        PackageDownloadController(
-            package.tripId,
-            () => throw StateError('No network in view test'),
-          )
-          ..loading = false
-          ..package = package
-          ..local = LocalPackageDownload(package, status, bytes);
+  final package = zipMetadata(packageZip(), version: 2);
+  final previous = zipMetadata(packageZip());
+  const ready = 'Sẵn sàng sử dụng ngoại tuyến';
+  const finalizing = 'Đang hoàn tất dữ liệu…';
+  late _Controller controller;
+
+  setUp(() {
+    controller = _Controller()
+      ..loading = false
+      ..package = package;
+  });
+
+  Future<void> render(WidgetTester tester, {bool summaryOnly = false}) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           packageDownloadControllerProvider(
-            package.tripId,
+            testTripId,
           ).overrideWith((ref) => controller),
         ],
         child: MaterialApp(
-          home: Scaffold(body: OfflinePackagePanel(tripId: package.tripId)),
+          home: Scaffold(
+            body: OfflinePackagePanel(
+              tripId: testTripId,
+              summaryOnly: summaryOnly,
+            ),
+          ),
         ),
       ),
     );
+    expect(
+      find.textContaining(RegExp('Verify|SHA-256|manifest|Phiên bản')),
+      findsNothing,
+    );
+    expect(find.text('Xem dữ liệu'), findsNothing);
   }
 
+  testWidgets('new package has a single download action and no progress bar', (
+    tester,
+  ) async {
+    await render(tester);
+    expect(find.byType(FilledButton), findsOneWidget);
+    expect(find.byType(LinearProgressIndicator), findsNothing);
+    await tester.tap(find.text('Tải xuống'));
+    expect(controller.starts, 1);
+  });
+
+  testWidgets('downloading shows accessible progress and a pause action', (
+    tester,
+  ) async {
+    controller
+      ..downloading = true
+      ..local = LocalPackageDownload(
+        package,
+        PackageDownloadStatus.downloading,
+        package.sizeBytes ~/ 2,
+      );
+    await render(tester);
+    expect(find.textContaining('Đang tải · '), findsOneWidget);
+    final indicator = tester.widget<LinearProgressIndicator>(
+      find.byType(LinearProgressIndicator),
+    );
+    expect(indicator.semanticsLabel, 'Tiến độ tải dữ liệu ngoại tuyến');
+    expect(indicator.value, closeTo(.5, .01));
+    expect(find.byType(FilledButton), findsOneWidget);
+    await tester.tap(find.text('Tạm dừng'));
+    expect(controller.pauses, 1);
+  });
+
+  testWidgets('interruption shows progress and only resume', (tester) async {
+    controller.local = LocalPackageDownload(
+      package,
+      PackageDownloadStatus.interrupted,
+      package.sizeBytes ~/ 2,
+    );
+    await render(tester);
+    expect(find.textContaining('Đã tải '), findsOneWidget);
+    expect(find.byType(LinearProgressIndicator), findsOneWidget);
+    expect(find.byType(FilledButton), findsOneWidget);
+    await tester.tap(find.text('Tiếp tục tải'));
+    expect(controller.starts, 1);
+  });
+
+  for (final status in [
+    PackageVerificationStatus.pending,
+    PackageVerificationStatus.verifying,
+  ]) {
+    testWidgets(
+      'completed transfer during $status cannot show ready or an action',
+      (tester) async {
+        controller
+          ..local = LocalPackageDownload(
+            package,
+            PackageDownloadStatus.downloaded,
+            package.sizeBytes,
+          )
+          ..verification = status;
+        await render(tester);
+        expect(find.text(finalizing), findsOneWidget);
+        expect(find.text(ready), findsNothing);
+        expect(find.byType(LinearProgressIndicator), findsNothing);
+        expect(find.byType(FilledButton), findsNothing);
+      },
+    );
+  }
+
+  testWidgets('verified and active is ready without progress or actions', (
+    tester,
+  ) async {
+    controller
+      ..verification = PackageVerificationStatus.verified
+      ..active = package;
+    await render(tester);
+    expect(find.text(ready), findsOneWidget);
+    expect(find.byType(LinearProgressIndicator), findsNothing);
+    expect(find.byType(FilledButton), findsNothing);
+  });
+
+  testWidgets('verified without an active version cannot show ready', (
+    tester,
+  ) async {
+    controller.verification = PackageVerificationStatus.verified;
+    await render(tester);
+    expect(find.text(ready), findsNothing);
+    expect(find.byType(FilledButton), findsNothing);
+  });
+
   testWidgets(
-    'shows version, size, byte progress and resume after interruption',
+    'failed replacement has one retry and mentions the active fallback',
     (tester) async {
-      await render(tester, PackageDownloadStatus.interrupted, 5 * 1024 * 1024);
-      expect(find.text('Phiên bản 2 · 10.00 MB'), findsOneWidget);
-      expect(find.text('5.00 MB / 10.00 MB · 50%'), findsOneWidget);
-      expect(find.text('Tiếp tục tải'), findsOneWidget);
-    },
-  );
-  testWidgets(
-    'completed transport is explicitly unverified with no offline-use action',
-    (tester) async {
-      await render(tester, PackageDownloadStatus.downloaded, package.sizeBytes);
-      expect(find.text('Đã tải xuống · Chưa xác minh'), findsOneWidget);
-      expect(find.text('Tải về thiết bị'), findsNothing);
+      controller
+        ..verification = PackageVerificationStatus.failed
+        ..active = previous;
+      await render(tester);
       expect(
-        find.text(
-          'Gói dữ liệu cần được xác minh trước khi sử dụng ngoại tuyến.',
-        ),
+        find.text('Không thể hoàn tất dữ liệu ngoại tuyến'),
         findsOneWidget,
       );
+      expect(find.text('Bản trước vẫn dùng được ngoại tuyến.'), findsOneWidget);
+      expect(find.byType(LinearProgressIndicator), findsNothing);
+      expect(find.byType(FilledButton), findsOneWidget);
+      await tester.tap(find.text('Tải lại'));
+      expect(controller.starts, 1);
     },
   );
+
+  testWidgets('unavailable metadata can be refreshed from a single action', (
+    tester,
+  ) async {
+    controller.package = null;
+    await render(tester);
+    expect(find.text('Chưa có dữ liệu ngoại tuyến'), findsOneWidget);
+    expect(find.byType(FilledButton), findsOneWidget);
+    await tester.tap(find.text('Thử lại'));
+    expect(controller.loads, 1);
+  });
+
+  testWidgets('sync summary shows status without download controls', (
+    tester,
+  ) async {
+    controller
+      ..downloading = true
+      ..local = LocalPackageDownload(
+        package,
+        PackageDownloadStatus.downloading,
+        20,
+      );
+    await render(tester, summaryOnly: true);
+    expect(find.textContaining('Đang tải · '), findsOneWidget);
+    expect(find.byType(FilledButton), findsNothing);
+    expect(find.byType(LinearProgressIndicator), findsNothing);
+  });
 }

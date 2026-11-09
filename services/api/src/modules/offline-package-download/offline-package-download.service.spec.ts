@@ -26,12 +26,12 @@ describe("CTMS-053 range and private download policy", () => {
 		generatedAt: new Date().toISOString(),
 		contentType: "application/zip",
 	};
-	const access = { canDownload: jest.fn() };
+	const access = { downloadableTripStatus: jest.fn() };
 	const packages = { getReadyMetadata: jest.fn(), readArtifact: jest.fn() };
 	let service: OfflinePackageDownloadService;
 	beforeEach(() => {
 		jest.resetAllMocks();
-		access.canDownload.mockResolvedValue(true);
+		access.downloadableTripStatus.mockResolvedValue("published");
 		packages.getReadyMetadata.mockResolvedValue(metadata);
 		packages.readArtifact.mockResolvedValue(bytes);
 		service = new OfflinePackageDownloadService(
@@ -55,7 +55,7 @@ describe("CTMS-053 range and private download policy", () => {
 		["bytes=9007199254740992-", null],
 	])("parses %s", (header, expected) => expect(packageByteRange(header, 10)).toEqual(expected));
 	it("rejects an outsider before reading private metadata", async () => {
-		access.canDownload.mockResolvedValue(false);
+		access.downloadableTripStatus.mockResolvedValue(null);
 		await expect(service.metadata(userId, tripId)).rejects.toBeInstanceOf(NotFoundException);
 		expect(packages.getReadyMetadata).not.toHaveBeenCalled();
 	});
@@ -63,7 +63,13 @@ describe("CTMS-053 range and private download policy", () => {
 		const result = await service.metadata(userId, tripId);
 		expect(result.etag).toBe(`"${sha256}"`);
 		expect(result.sizeBytes).toBe(bytes.length);
+		expect(result.activationAllowed).toBe(true);
 		expect(result).not.toHaveProperty("generationKey");
+	});
+	it("allows ongoing Trip transfer without allowing activation", async () => {
+		access.downloadableTripStatus.mockResolvedValue("ongoing");
+		expect((await service.metadata(userId, tripId)).activationAllowed).toBe(false);
+		expect((await service.download(userId, tripId, 1, "bytes=4-")).status).toBe(206);
 	});
 	it("rejects generation states that have no READY artifact", async () => {
 		packages.getReadyMetadata.mockResolvedValue(null);
@@ -114,7 +120,7 @@ describe("CTMS-053 range and private download policy", () => {
 	});
 	it("re-authorizes every resume and 416 request", async () => {
 		await service.download(userId, tripId, 1);
-		access.canDownload.mockResolvedValue(false);
+		access.downloadableTripStatus.mockResolvedValue(null);
 		await expect(service.download(userId, tripId, 1, "bytes=4-")).rejects.toBeInstanceOf(
 			NotFoundException
 		);
@@ -123,7 +129,7 @@ describe("CTMS-053 range and private download policy", () => {
 		);
 	});
 	it("rejects access withdrawn during private file read", async () => {
-		access.canDownload.mockResolvedValueOnce(true).mockResolvedValue(false);
+		access.downloadableTripStatus.mockResolvedValueOnce("published").mockResolvedValue(null);
 		await expect(service.download(userId, tripId, 1)).rejects.toBeInstanceOf(NotFoundException);
 	});
 	it("never treats storage corruption as valid download bytes", async () => {

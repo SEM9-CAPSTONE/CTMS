@@ -1,6 +1,8 @@
 enum PackageDownloadStatus { interrupted, downloading, downloaded }
 
-/// A transfer result only. Verification and activation belong to CTMS-054.
+enum PackageVerificationStatus { pending, verifying, verified, failed }
+
+/// Pinned metadata from the authorized download endpoint.
 class OfflinePackage {
   const OfflinePackage({
     required this.id,
@@ -9,6 +11,7 @@ class OfflinePackage {
     required this.sha256,
     required this.sizeBytes,
     required this.generatedAt,
+    this.activationAllowed,
   });
 
   final String id;
@@ -17,9 +20,14 @@ class OfflinePackage {
   final String sha256;
   final int sizeBytes;
   final DateTime generatedAt;
+  final bool? activationAllowed;
   static const maxBytes = 20 * 1024 * 1024;
   String get etag => '"$sha256"';
   String get key => '$tripId-v$packageVersion-$id-$sha256';
+  static final _uuid = RegExp(
+    r'^[a-fA-F0-9]{8}-(?:[a-fA-F0-9]{4}-){3}[a-fA-F0-9]{12}$',
+  );
+  static bool isTripId(String value) => _uuid.hasMatch(value);
 
   factory OfflinePackage.fromJson(Map<String, Object?> json) {
     final id = json['id'];
@@ -28,13 +36,10 @@ class OfflinePackage {
     final sha = json['sha256'];
     final size = json['sizeBytes'];
     final generated = DateTime.tryParse(json['generatedAt'].toString());
-    final uuid = RegExp(
-      r'^[a-fA-F0-9]{8}-(?:[a-fA-F0-9]{4}-){3}[a-fA-F0-9]{12}$',
-    );
     if (id is! String ||
-        !uuid.hasMatch(id) ||
+        !_uuid.hasMatch(id) ||
         tripId is! String ||
-        !uuid.hasMatch(tripId) ||
+        !isTripId(tripId) ||
         version is! int ||
         version < 1 ||
         version > 2147483647 ||
@@ -55,6 +60,9 @@ class OfflinePackage {
       sha256: sha,
       sizeBytes: size,
       generatedAt: generated,
+      activationAllowed: json['activationAllowed'] is bool
+          ? json['activationAllowed'] as bool
+          : null,
     );
   }
 
@@ -67,6 +75,7 @@ class OfflinePackage {
     'sizeBytes': sizeBytes,
     'generatedAt': generatedAt.toIso8601String(),
     'contentType': 'application/zip',
+    if (activationAllowed != null) 'activationAllowed': activationAllowed,
   };
 
   bool sameArtifact(OfflinePackage other) =>
