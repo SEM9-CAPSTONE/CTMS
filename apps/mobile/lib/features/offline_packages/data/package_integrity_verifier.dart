@@ -30,7 +30,7 @@ class PackageIntegrityVerifier {
         crypto.sha256.convert(bytes).toString() != package.sha256) {
       throw const FormatException('Package size or SHA-256 mismatch');
     }
-    final files = _StoredPackageZip(bytes).read();
+    final files = StoredPackageZip(bytes).read();
     final manifest = jsonDecode(utf8.decode(files.remove('manifest.json')!));
     if (manifest is! Map<String, dynamic> ||
         manifest['schemaVersion'] is! int ||
@@ -60,8 +60,8 @@ class PackageIntegrityVerifier {
 /// Schema 1 from CTMS-052 is an ordinary single-disk ZIP with stored entries
 /// (fflate level 0). Restrict the reader to that format: no decompression,
 /// ZIP64, descriptors, extra fields, encryption or extraction to disk.
-class _StoredPackageZip {
-  _StoredPackageZip(this.bytes) : fields = ByteData.sublistView(bytes);
+class StoredPackageZip {
+  StoredPackageZip(this.bytes) : fields = ByteData.sublistView(bytes);
 
   final Uint8List bytes;
   final ByteData fields;

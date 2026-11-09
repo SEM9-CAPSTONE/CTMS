@@ -116,6 +116,29 @@ class PackageIntegrityService {
         return await store.accessDenied(tripId) ? null : bytes;
       });
 
+  /// Opens the current active package for [tripId] and returns its verified byte
+  /// snapshot alongside the package metadata.
+  Future<({OfflinePackage package, Uint8List bytes})?> openActivePackage(
+    String tripId, {
+    CancelToken? cancel,
+  }) =>
+      store.withIntegrityLock(tripId, () async {
+        if (await store.accessDenied(tripId)) return null;
+        final active = await store.active(tripId);
+        if (active == null || !await _isVerified(active)) {
+          return null;
+        }
+        final (valid, bytes) = await _validate(
+          active,
+          () => cancel != null ? _checkCancelled(cancel) : null,
+          includeBytes: true,
+        );
+        if (!valid || bytes == null || await store.accessDenied(tripId)) {
+          return null;
+        }
+        return (package: active, bytes: bytes);
+      });
+
   Future<bool> _isVerified(OfflinePackage package) async =>
       await store.verification(package) == PackageVerificationStatus.verified;
 
