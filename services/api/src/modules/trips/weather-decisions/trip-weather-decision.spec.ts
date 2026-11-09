@@ -7,6 +7,7 @@ import {
 import type { DataSource, EntityManager } from "typeorm";
 import type { TripsRepository } from "../repositories/trips.repository";
 import type { TripsService } from "../services/trips.service";
+import type { HostWeatherPenaltiesService } from "./host-weather-penalties.service";
 import type { TripWeatherDecisionAlertsService } from "./trip-weather-decision-alerts.service";
 import { TripWeatherDecisionAlertsService as AlertsService } from "./trip-weather-decision-alerts.service";
 import {
@@ -120,6 +121,11 @@ function setup(options: { trip?: WeatherDecisionTrip | null; risk?: "green" | "r
 		),
 	};
 	const alerts = { send: jest.fn().mockResolvedValue([]) };
+	const penalties = {
+		paidBookingValue: jest.fn().mockResolvedValue("12000000.00"),
+		createInTransaction: jest.fn().mockResolvedValue({ id: "p-1", hostId: "host-1" }),
+		notifyCreated: jest.fn(),
+	};
 	const dataSource = {
 		transaction: jest.fn(async (work: (m: EntityManager) => unknown) => work(manager)),
 	};
@@ -128,9 +134,10 @@ function setup(options: { trip?: WeatherDecisionTrip | null; risk?: "green" | "r
 		decisions as unknown as TripWeatherDecisionsRepository,
 		tripsService as unknown as TripsService,
 		{} as TripsRepository,
-		alerts as unknown as TripWeatherDecisionAlertsService
+		alerts as unknown as TripWeatherDecisionAlertsService,
+		penalties as unknown as HostWeatherPenaltiesService
 	);
-	return { service, decisions, tripsService, alerts };
+	return { service, decisions, tripsService, alerts, penalties };
 }
 
 describe("TripWeatherDecisionService", () => {
@@ -263,6 +270,59 @@ describe("TripWeatherDecisionService", () => {
 		);
 		expect(cancel.tripsService.cancel.mock.calls[0][3]).toMatchObject({ actingAsAdmin: true });
 		expect(cancel.decisions.setPause).toHaveBeenCalledWith(expect.anything(), "trip-1", null, null);
+	});
+
+	it("penalises the Host on the first Admin decision after T-24h without an on-time Host answer (policy §6)", async () => {
+		const late = setup({ trip: trip({ startsAt: at(10) }) });
+		late.decisions.findDecisionsForSchedule.mockResolvedValue([
+			{ deciderRole: "host", decision: "keep", late: true },
+		]);
+		await late.service.decideAsAdmin(
+			"admin-1",
+			"trip-1",
+			{ decision: "cancel", reason: "Lũ" },
+			NOW
+		);
+		expect(late.penalties.paidBookingValue).toHaveBeenCalledWith("trip-1");
+		expect(late.penalties.createInTransaction).toHaveBeenCalledWith(
+			expect.anything(),
+			expect.objectContaining({
+				decisionId: "d-1",
+				adminId: "admin-1",
+				bookingValue: "12000000.00",
+			})
+		);
+		expect(late.penalties.notifyCreated).toHaveBeenCalledWith({ id: "p-1", hostId: "host-1" });
+	});
+
+	it("does not penalise before T-24h, after an on-time Host Keep, or on a second Admin decision", async () => {
+		const early = setup({ trip: trip({ startsAt: at(30) }) });
+		await early.service.decideAsAdmin(
+			"admin-1",
+			"trip-1",
+			{ decision: "pause", reason: "Lũ" },
+			NOW
+		);
+		expect(early.penalties.createInTransaction).not.toHaveBeenCalled();
+
+		const kept = setup({ trip: trip({ startsAt: at(10) }) });
+		kept.decisions.findDecisionsForSchedule.mockResolvedValue([
+			{ deciderRole: "host", decision: "keep", late: false },
+		]);
+		await kept.service.decideAsAdmin("admin-1", "trip-1", { decision: "pause", reason: "Lũ" }, NOW);
+		expect(kept.penalties.createInTransaction).not.toHaveBeenCalled();
+
+		const again = setup({ trip: trip({ startsAt: at(10), weatherPausedAt: NOW }) });
+		again.decisions.findDecisionsForSchedule.mockResolvedValue([
+			{ deciderRole: "admin", decision: "pause", late: false },
+		]);
+		await again.service.decideAsAdmin(
+			"admin-1",
+			"trip-1",
+			{ decision: "resume", reason: "Ổn" },
+			NOW
+		);
+		expect(again.penalties.paidBookingValue).not.toHaveBeenCalled();
 	});
 
 	it("refuses an Admin pause on a Trip already paused or more than 3 days away", async () => {

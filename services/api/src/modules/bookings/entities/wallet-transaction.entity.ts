@@ -15,6 +15,10 @@ export enum WalletTransactionType {
 	SETTLEMENT_CREDIT = "settlement_credit",
 	PAYOUT_DEBIT = "payout_debit",
 	PAYOUT_REFUND = "payout_refund",
+	/** Weather penalty (policy §6) deducted after a settlement credit. */
+	PENALTY_DEBIT = "penalty_debit",
+	/** A waived weather penalty given back to the Host. */
+	PENALTY_REFUND = "penalty_refund",
 }
 
 /**

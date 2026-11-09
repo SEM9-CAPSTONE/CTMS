@@ -152,6 +152,8 @@ describe("SettlementsService (CTMS-112 / CTMS-300 / CTMS-421)", () => {
 				return auditRepo;
 			}),
 			withRepository: jest.fn((repo) => repo),
+			// Weather penalty deduction (policy §6): no outstanding penalty in these cases.
+			query: jest.fn().mockResolvedValue([]),
 		} as unknown as EntityManager;
 
 		dataSource = {
