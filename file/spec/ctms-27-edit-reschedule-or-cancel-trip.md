@@ -413,3 +413,184 @@ Behavior:
 ## 12. Open Decisions
 
 None.
+
+## 13. Implementation Record — Weather decision near departure (Logic, Jira CTMS-98)
+
+Policy: `docs/features/weather-trip-date-decision-policy.md` §5 (updated in this task: the Admin intervenes only within 3 days of departure and may pause a Trip). API only; the UI is a separate task. Host penalties (§6) are a later task, which can use the `late` flag stored here.
+
+- **Migration `1794700000000-AddTripWeatherDecisions`:**
+  - `trips.weather_paused_at` and `weather_pause_reason`;
+  - `trip_weather_decisions`: append-only log with the forecast relied on (id and risk level), decider and role, decision (`keep`, `reschedule`, `cancel`, `pause`, `resume`), mandatory reason, safety plan (required for a Host keep), `late`, and the schedule (`trip_starts_at`) it applies to;
+  - `trip_weather_decision_alerts`: `UNIQUE (trip_id, trip_starts_at, recipient_id, milestone)`, so each reminder is sent once per schedule and a reschedule starts the milestones again.
+- **Rules** (`trips/weather-decisions/trip-weather-decision.policy.ts`):
+  - decision window: the last 72 h before departure; a Host decision at ≤ T-24h is `late`;
+  - reminders while the newest forecast is Red:
+    - T-48h: remind the Host;
+    - Host keeps: tell the Admins at once;
+    - no Host answer: tell the Admins at T-24h, T-12h ("urgent") and T-6h ("critical"), sending only the most urgent milestone reached;
+  - reminders stop after a Host cancel or reschedule, or once an Admin acted for the schedule.
+- **Host — `POST /trips/:tripId/weather-decision`:** only the owning Host, on a `published` Trip within 3 days, with a Red newest forecast, and only while no Admin has decided.
+  - `cancel` reuses `TripsService.cancel`, which refunds 100% and adds no platform fee.
+  - `reschedule` reuses `TripsService.reschedule` with the audit reason `weather_reschedule`.
+  - Both record the decision in the same transaction (new `TripScheduleChangeOptions.withinTransaction`).
+- **Admin — `POST /admin/trips/:tripId/weather-decision`:** within 3 days.
+  - `keep`, `reschedule`, `cancel` and `pause` need a Red forecast; `resume` does not.
+  - `pause` sets `weather_paused_at`. A paused Trip:
+    - refuses new bookings (`BookingsService.assertTripEligible` and `TripsService.reserveSeats`);
+    - is not moved to `ongoing` by the status schedule.
+  - Any other Admin decision lifts the pause.
+  - Cancel and reschedule pass `actingAsAdmin`, skipping the owner check.
+- **Reads:**
+  - `GET /trips/:tripId/weather-decisions`: decision log and pause state, for the owning Host or an Admin;
+  - `GET /admin/weather-interventions`: Trips needing an Admin now (`no_response` / `host_kept`), most urgent first;
+  - `GET /me/weather-decision-alerts` and `PATCH /me/weather-decision-alerts/:id/read`.
+- **Realtime:** `trip.weather.decision_required` to each recipient's user room. Email is not part of this task.
+- **Camper — `POST /bookings/:bookingId/weather-reschedule-response` `{ accept }`:**
+  - only for the caller's `pending_reconfirmation` booking, when the Trip's latest reschedule audit is `weather_reschedule`;
+  - `accept` sets the booking back to `confirmed`;
+  - `decline` cancels the booking and its active equipment rentals, creates a 100% refund obligation and recomputes seats.
+  - The general reconfirmation flow (CTMS-160) is not touched.
+- **Worker `TripWeatherDecisionWorker`:** enabled by `TRIP_WEATHER_DECISION_WORKER_ENABLED`, interval `TRIP_WEATHER_DECISION_INTERVAL_MS` (default 15 min); integration tests turn it off.
+- **Retention:** the CTMS-93 history trim keeps forecasts referenced by a decision or a reminder.
+- **Small changes to existing code:**
+  - `TripsRepository.createIdempotentRefund` is now public, for the decline refund;
+  - `LockedTripForBooking` gets an optional `weatherPausedAt`.
+
+## 14. Test Evidence — Weather decision near departure
+
+- **Unit** (`trip-weather-decision.spec.ts`, 19 tests):
+  - window and late flag;
+  - milestones at T-48h / T-24h / T-12h / T-6h, Host keep, stop conditions;
+  - urgency and wording;
+  - Host keep, cancel, reschedule and refusals;
+  - Admin pause, resume and cancel;
+  - access to the log;
+  - intervention ordering;
+  - alert fan-out and failure isolation;
+  - worker.
+- **Integration** (`test/trip-weather-decisions.integration-spec.ts`, real PostgreSQL, 5 tests):
+  - Host keep → Admin reminder and socket push → listed in the interventions → Admin cancel → Trip cancelled with a 500 000đ refund, and the log shows both decisions;
+  - no Host answer → T-48h Host reminder and T-24h Admin reminder, sent once, then T-12h "urgent"; read flow with 404 for another user; a late Host cancel is flagged `late`;
+  - refusals: outside 3 days, Green forecast, another Host, an invalid decision;
+  - Admin pause blocks `reserveSeats` and further Host decisions; resume after the forecast turned Green re-opens booking;
+  - weather reschedule: accept → `confirmed`; decline → `cancelled` with a 100% refund; an ordinary reschedule cannot use the decline.
+- **Gates:**
+  - `pnpm lint:all`: 0 errors (12 warnings, all pre-existing).
+  - `pnpm build:all`: passed.
+  - API unit: 2221/2223. The 2 failures are the known `package-readiness.spec.ts` ones.
+  - Integration, 8 shards with `--runInBand`: only failures that already exist on develop.
+    - The 28 baseline failures: sync-evaluation 4, overbooking-evaluation 4, trekking-route-checkpoints 2, incidents.report 1, trip-reviews 1, review-analysis 16.
+    - `gps-tracking` 1: stale test after CTMS-64.
+    - Shard 4 crashed Jest on the first run (known on this machine); rerun alone it gave 136/137 with only `trip-reviews` failing.
+  - Related suites (bookings.create, bookings.cancel, trips.auto-cancel, trips.status-schedule, trip-weather-monitoring): all passed.
+  - Default E2E: 56 passed / 38 failed / 32 did not run, the same as the baseline.
+
+## 15. Implementation Record — Weather decision near departure (UI, Jira CTMS-60)
+
+- **Scope:** web only (`apps/web`), on top of the CTMS-98 API; no API change, no mobile. It reuses the existing cards, buttons, `ConfirmModal`, `Modal`, `StatusBadge` and the admin layout.
+- **API wiring:**
+  - `core/api/endpoints.ts`: Trip decision, decision log and Admin decision endpoints; reminders, interventions and the Camper reschedule answer.
+  - `core/api/queryKeys.ts`: `weather.decisionAlerts`, `weather.interventions`, `weather.decisionLog`.
+- **New feature `features/weather-decisions`:**
+  - `types.ts` and `services/weather-decisions.service.ts`.
+  - `hooks/useWeatherDecisions.ts`:
+    - log, mutation (refreshes the log, the intervention list and the reminders) and interventions;
+    - reminders poll every 60 s, and `trip.weather.decision_required` refreshes the reminders, the interventions and that Trip's log;
+    - Camper reschedule answer.
+  - `utils/weather-decision-labels.ts`: decision and urgency labels, the T-24h check, and Vietnamese messages for each CTMS-98 refusal (outside 3 days, not Red, Admin already decided, pause state, not a weather reschedule…).
+  - `components/WeatherDecisionForm.tsx`: Keep / Reschedule / Cancel (plus Admin Pause / Resume).
+    - Validation: mandatory reason; safety plan for a Host keep; new dates at least 24 h ahead with the end after the start.
+    - A confirm dialog states the consequence.
+  - `components/WeatherDecisionLog.tsx`: decider, decision, risk level, late flag, reason and safety plan.
+  - `components/HostWeatherDecisionCard.tsx`, on the Trip detail page above "Vận hành chuyến đi", for the owning Host of a published Trip:
+    - shown only when the Trip is within 3 days and the latest forecast is Red, or when it already has decisions;
+    - warns after T-24h that the decision is recorded as late;
+    - shows the Admin pause, and locks the form once an Admin acted;
+    - reloads the Trip after a cancel or reschedule.
+  - `pages/AdminWeatherInterventionsPage.tsx`, at `/admin/weather-interventions`, new "Can thiệp thời tiết" item in `AdminSidebar`:
+    - list sorted by the server, with urgency badge, reason and pause state;
+    - `components/AdminWeatherDecisionDialog.tsx` shows the Host's keep reason and safety plan, the decision form (Resume first when paused) and the log.
+  - `components/WeatherRescheduleResponseCard.tsx`, on the Booking detail page while the booking is `pending_reconfirmation`:
+    - shows the new dates and "Giữ chỗ ở lịch mới" / "Huỷ và hoàn 100%";
+    - the server's 409 for an ordinary reschedule is explained in Vietnamese.
+    - The booking API does not say whether a reschedule was for weather, so the card is shown for every pending reconfirmation. Hiding it for ordinary reschedules needs an API field (separate task).
+- **Weather inbox (`WeatherChangeNotices`):**
+  - new `includeChanges` / `includeDecisions` options;
+  - Hosts see "Cần quyết định" reminders above "Thay đổi dự báo", and the unread count adds both;
+  - Admins get the bell in `AdminSidebar` with reminders only, linking to the intervention page;
+  - Campers are unchanged.
+
+## 16. Test Evidence — CTMS-60
+
+- **Vitest:**
+  - `WeatherDecisionComponents.test.tsx` (9): Host card hidden when not Red; keep validation and payload; cancel after T-24h with the late warning and a Trip reload; reschedule date checks; Vietnamese 409; locked after an Admin pause with the log; Camper keep, decline and the not-weather 409.
+  - `AdminWeatherInterventionsPage.test.tsx` (4): list with urgency, reason and pause; empty state; pause with a reason refreshes the list; Resume first for a paused Trip with the Host's keep reason.
+  - `WeatherChangeNotices.test.tsx` (+3): Host sees both sections and counts both; Admin reminders only, linking to the intervention page and marked read; `trip.weather.decision_required` reloads them.
+- **Playwright** (`tests/e2e/ctms-60-weather-decision-ui.spec.ts`, mocked backend, 3 tests):
+  - Host keeps a Red Trip with a reason and a safety plan;
+  - Admin pauses from the intervention list, then resumes;
+  - Camper declines a weather reschedule.
+- **Gates:**
+  - `lint:all`: 0 errors (12 pre-existing warnings in files not touched by this task).
+  - `build:all`: passed.
+  - Web `test:all`: 257 files, 1720/1720 tests passed.
+  - Default Playwright E2E: 59 passed / 38 failed / 32 did not run. Baseline was 56 / 38 / 32; the 3 new CTMS-60 tests pass and the 38 failures are the same known real-backend and map failures.
+
+## 17. Implementation Record — Host weather penalty (Logic, Jira CTMS-94)
+
+Policy: `docs/features/weather-trip-date-decision-policy.md` §6 and §7. The leader agreed to reuse the Done key CTMS-94 for this task.
+
+- **Migration `1794800000000-AddHostWeatherPenalties`:** table `host_weather_penalties`, one row per (Trip, schedule) (`UQ_host_weather_penalties_schedule`). Each row stores:
+  - violation number, paid booking value, rate, cap, amount, deducted amount;
+  - status `applied` / `waived` and the tier-2 `hosting_blocked_until`;
+  - the waiver request (reason, evidence URLs, deadline, review due date) and the Admin review (decision, reviewer, note).
+- **Rules (`host-weather-penalty.policy.ts`, all numbers in one place):**
+  - tiers 5% / 10% / 15% with caps 2M / 5M / 10M đ; violation 3+ uses the last tier;
+  - violations counted over 90 days, waived ones excluded;
+  - the amount is computed in integer minor units, like the settlement.
+- **When a penalty is created:** in the same transaction as the **first** Admin decision for the current schedule, only when the decision is at or after T-24h and the Host has no on-time decision (no answer, or only a late one). The paid booking value (`payment_status = 'paid'`, booking still confirmed / pending reconfirmation / completed) is read before a cancel or reschedule changes the bookings. A Postgres advisory lock per Host keeps violation numbers unique. The Host gets the socket event `host.weather_penalty.created`.
+- **Hosting restriction:** `TripsService.create` and `submitForApproval` return 403 with `blockedUntil` while:
+  - a tier-2 block (14 days) is running, or
+  - 3 or more applied penalties fall in the last 90 days (tier 3, see PD-2).
+- **Settlement (CTMS-112):**
+  - `settleTrip` still stores the 95% snapshot and credits the wallet as before;
+  - right after, `deductOutstandingWeatherPenalties` takes outstanding penalties from the balance, oldest first, writing one `penalty_debit` ledger row each;
+  - what does not fit stays as debt (`outstandingAmount`) for the next settlement. A Trip the Admin cancelled has no settlement, so its penalty is taken from the Host's next ones.
+- **Waiver:**
+  - `POST /host/weather-penalties/:id/waiver-request` (Host, once, until 72 h after T-24h, reason and 1–5 evidence URLs from `POST /uploads/document`); Admins get `weather_penalty.waiver_requested`;
+  - `POST /admin/weather-penalties/:id/waiver-review` (`approve`, mandatory `note`):
+    - approve: status `waived`, not counted any more, block lifted, the deducted amount goes back to the wallet as `penalty_refund`;
+    - reject: the penalty stays, with the note;
+  - `reviewDueAt` = 5 working days after the request (display only).
+- **Read APIs:**
+  - `GET /me/weather-penalties` (Host): items, `outstandingTotal`, `hostingBlockedUntil`, `suspended`;
+  - `GET /admin/weather-penalties?status=applied|waived|waiver_pending` and `GET /admin/weather-penalties/:id`.
+- **Audit:** `host.weather_penalty_created`, `host.weather_penalty_waiver_requested`, `host.weather_penalty_waiver_reviewed`; the settlement audit adds `weatherPenaltyDeducted`.
+- **Camper refunds are unchanged** and never depend on a waiver.
+
+### Pending Decisions (for the leader)
+- **PD-1:** A late Host decision with no Admin intervention is **not** penalised (only flagged `late`), reading §6 "Admin phải can thiệp" literally.
+- **PD-2:** Tier 3 "đình chỉ Host" = cannot create or submit Trips while 3+ applied penalties fall in 90 days. The account is not locked automatically; the Admin can use the existing account lock.
+- **PD-3:** "Trừ điểm uy tín Host" is not implemented: the system has no Host reputation score yet.
+- **PD-4:** The §6 numbers are still marked "đề xuất" (§8); they live only in `host-weather-penalty.policy.ts`.
+- **PD-5:** Waiving a penalty does not renumber penalties created after it.
+
+## 18. Test Evidence — CTMS-94
+
+- **Unit:**
+  - `host-weather-penalty.policy.spec.ts` (6): tiers and caps, minor-unit amount, 14-day block, 90-day suspension and when it lifts, when a penalty is due, waiver deadline and 5 working days;
+  - `trip-weather-decision.spec.ts` (+2): penalty on the first late Admin decision with the booking value read first; none before T-24h, after an on-time Keep, or on a second Admin decision;
+  - `trips.service.spec.ts` (+1): create refused with 403 while blocked;
+  - `settlements.service.spec.ts`: unchanged cases still pass with the deduction step.
+- **Integration** (`test/host-weather-penalties.integration-spec.ts`, real Postgres, 5):
+  - no answer → 5% of 50M capped at 2M, audit row and socket event; pause → resume penalises once;
+  - no penalty before T-24h or after an on-time Host Keep;
+  - 2nd violation → 10% and 14-day block, `submitForApproval` 403; waiver approved → waived, block lifted, not counted (next one is violation 2); late waiver 409, other Host 404;
+  - real `settleTrip`: 570,000đ net fully taken by a 1,000,000đ penalty, 430,000đ debt left, ledger rows; waiver approved → 570,000đ back in the wallet;
+  - rejected waiver stays applied with the note.
+- **Gates:**
+  - API `lint` (eslint): passed; `build`: passed.
+  - API unit (`jest`): 189 suites, 2303/2303 tests passed.
+  - API integration (8 shards, `--runInBand --forceExit`): 781 passed, 29 failed. All 29 are the known failures already on develop: sync-evaluation 4, overbooking-evaluation 4, trekking-route-checkpoints 2, incidents.report 1, trip-reviews 1, review-analysis 16, gps-tracking 1.
+  - Shards 1 and 2 crashed Jest on this machine, so their 20 suites were run one by one: all pass except sync-evaluation (known). In shard 8, trip-weather-monitoring failed only in its cleanup (a leftover forecast still used its weather rule); run alone it passes 4/4.
+  - New suite `host-weather-penalties.integration-spec.ts`: 5/5; `trip-weather-decisions.integration-spec.ts`: 5/5.

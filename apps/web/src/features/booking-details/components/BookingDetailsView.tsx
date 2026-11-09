@@ -2,6 +2,7 @@ import { CalendarDays, CreditCard, FileText, MapPin, ReceiptText } from "lucide-
 import { DeviceSyncStatusCard } from "../../device-sync";
 import { ReceivedEmergencyBroadcastsCard } from "../../emergency-broadcasts";
 import { TripDatesWeatherCard } from "../../trips/components/TripDatesWeatherCard";
+import { WeatherRescheduleResponseCard } from "../../weather-decisions/components/WeatherRescheduleResponseCard";
 import type { BookingDetails } from "../types";
 import {
 	formatBookingDateTime,
@@ -27,11 +28,14 @@ export function BookingDetailsView({
 	onBack,
 	backLabel = "Quay lại đơn đặt chỗ",
 	cancellationPanel,
+	onBookingChanged,
 }: {
 	booking: BookingDetails;
 	onBack: () => void;
 	backLabel?: string;
 	cancellationPanel?: React.ReactNode;
+	/** Reloads the booking after the Camper answered a reschedule (CTMS-60). */
+	onBookingChanged?: () => void;
 }) {
 	const policyRules = formatCancellationPolicyRules(booking.cancellationPolicySnapshot);
 
@@ -191,6 +195,18 @@ export function BookingDetailsView({
 						)}
 					</section>
 				</div>
+
+				{/* Trip rescheduled: keep the new date or, for a weather reschedule, cancel with a full refund */}
+				{booking.status === "pending_reconfirmation" && (
+					<div className="mt-6">
+						<WeatherRescheduleResponseCard
+							bookingId={booking.id}
+							newStartsAt={booking.tripStartsAtSnapshot}
+							newEndsAt={booking.tripEndsAtSnapshot}
+							onAnswered={onBookingChanged}
+						/>
+					</div>
+				)}
 
 				{/* Forecast for the booked Trip's own dates while the Trip is still ahead or running */}
 				{(booking.status === "confirmed" || booking.status === "pending_payment") &&

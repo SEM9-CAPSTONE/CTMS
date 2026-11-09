@@ -284,7 +284,7 @@ class _CheckpointArrivalPanelState
                                       item.qualifyingSamplesCount > 0) ...[
                                     const SizedBox(width: AppSpacing.xs),
                                     Text(
-                                      '(${item.qualifyingSamplesCount}/3 mẫu)',
+                                      '(Đang xác nhận ${item.qualifyingSamplesCount}/3)',
                                       style: AppTypography.caption.copyWith(
                                         color: AppColors.statusSuccess,
                                         fontWeight: FontWeight.w600,
@@ -341,3 +341,4 @@ class _CheckpointArrivalPanelState
     );
   }
 }
+

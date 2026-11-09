@@ -81,7 +81,12 @@ Downloaded
 
 ## 9. API / Integration Contract
 
-TBD — Technical Design.
+- CTMS-223 verifies the account-scoped ZIP automatically after a complete transfer and on local recovery. The client uses the exact artifact metadata pinned by CTMS-053.
+- Schema 1 uses the stored ZIP entries emitted by CTMS-052. The verifier checks the whole ZIP size and SHA-256, ZIP entry names and CRC, manifest identity, and exact payload paths, sizes and SHA-256 values. It runs off the UI isolate and bounds the archive read to 20 MiB plus one byte.
+- An active reference is separate from both the transfer journal and the verification result. A replacement requires a matching, freshly authorized metadata response with `activationAllowed: true`. An ongoing Trip retains its active reference. The previous ZIP is retained.
+- CTMS-055 reads via the account-scoped `PackageDownloadController.openActive(packageVersion)` boundary. It returns only the checked snapshot of the selected Trip's active version. Known access denial blocks activation and reads. Failed verification also blocks reads.
+
+See [CTMS-223 business flow and local records](../../docs/features/CTMS-223-Business-Flow.md).
 
 ## 10. Error & Edge Cases
 

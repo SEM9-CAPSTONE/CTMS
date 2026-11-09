@@ -355,6 +355,60 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 		this.server?.to([...new Set(userIds)].map(userRoom)).emit("trip.weather.changed", payload);
 	}
 
+	/** Weather decision near departure (policy §5): a reminder for the Host or an Admin. */
+	emitTripWeatherDecisionRequired(
+		userIds: string[],
+		payload: {
+			alertId: string;
+			tripId: string;
+			tripTitle: string;
+			tripStartsAt: string;
+			milestone: string;
+			urgency: string;
+			message: string;
+			createdAt: string;
+		}
+	) {
+		if (userIds.length === 0) return;
+		this.server
+			?.to([...new Set(userIds)].map(userRoom))
+			.emit("trip.weather.decision_required", payload);
+	}
+
+	/** Weather penalty (policy §6): the Host was penalised because an Admin had to decide. */
+	emitHostWeatherPenaltyCreated(
+		hostId: string,
+		payload: {
+			penaltyId: string;
+			tripId: string;
+			tripTitle: string;
+			violationNumber: number;
+			amount: string;
+			hostingBlockedUntil: string | null;
+			waiverDeadline: string;
+		}
+	) {
+		this.server?.to(userRoom(hostId)).emit("host.weather_penalty.created", payload);
+	}
+
+	/** Weather penalty (policy §6): a Host asked for a force-majeure waiver. */
+	emitWeatherPenaltyWaiverRequested(
+		adminIds: string[],
+		payload: {
+			penaltyId: string;
+			tripId: string;
+			tripTitle: string;
+			hostId: string;
+			hostName: string | null;
+			reviewDueAt: string | null;
+		}
+	) {
+		if (adminIds.length === 0) return;
+		this.server
+			?.to([...new Set(adminIds)].map(userRoom))
+			.emit("weather_penalty.waiver_requested", payload);
+	}
+
 	emitSosCreated(hostId: string, payload: SosCreatedPayload) {
 		this.server?.to(userRoom(hostId)).emit("sos.created", payload);
 	}

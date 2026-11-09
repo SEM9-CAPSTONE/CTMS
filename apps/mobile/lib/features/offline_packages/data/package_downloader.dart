@@ -45,20 +45,31 @@ class PackageDownloader {
   }
 
   Future<LocalPackageDownload> _transfer(
-    OfflinePackage package,
+    OfflinePackage requested,
     CancelToken cancel,
     void Function(LocalPackageDownload) onProgress,
   ) async {
     // Re-authorize the exact immutable version, including after an app restart.
-    final current = await api.metadata(
-      package.tripId,
-      version: package.packageVersion,
+    final package = await api.metadata(
+      requested.tripId,
+      version: requested.packageVersion,
     );
-    if (!package.sameArtifact(current)) {
+    if (!requested.sameArtifact(package)) {
       throw const FormatException(
         'Phiên bản gói dữ liệu đã thay đổi. Hãy tải lại thông tin.',
       );
     }
+    _checkCancelled(cancel);
+    await store.withIntegrityLock(package.tripId, () async {
+      _checkCancelled(cancel);
+      final active = await store.active(package.tripId);
+      if (active != null &&
+          active.key == package.key &&
+          !active.sameArtifact(package)) {
+        throw const FormatException('Thông tin gói dữ liệu đã thay đổi.');
+      }
+      await store.resetFailed(package);
+    });
     var recovered = (await store.recover(package))!;
     if (recovered.status == PackageDownloadStatus.downloaded) return recovered;
     var offset = recovered.downloadedBytes;
@@ -153,6 +164,7 @@ class PackageDownloader {
         );
       }
       await _checkStorage(0);
+      _checkCancelled(cancel);
       await store.complete(package);
       recovered = LocalPackageDownload(
         package,

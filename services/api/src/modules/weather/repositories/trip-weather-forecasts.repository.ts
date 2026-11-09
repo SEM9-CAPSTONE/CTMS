@@ -127,6 +127,12 @@ export class TripWeatherForecastsRepository extends Repository<TripWeatherForeca
 			 WHERE f."trip_id" = trip."id"
 			   AND trip."ends_at" < $1
 			   AND f."id" IS DISTINCT FROM trip."submitted_weather_forecast_id"
+			   AND NOT EXISTS (
+			     SELECT 1 FROM "trip_weather_decisions" decision WHERE decision."forecast_id" = f."id"
+			   )
+			   AND NOT EXISTS (
+			     SELECT 1 FROM "trip_weather_decision_alerts" alert WHERE alert."forecast_id" = f."id"
+			   )
 			 RETURNING f."id"`,
 			[endedBefore]
 		)) as unknown[];

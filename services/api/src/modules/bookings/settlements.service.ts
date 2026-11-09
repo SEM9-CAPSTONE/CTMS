@@ -11,6 +11,7 @@ import { AuditLog } from "../auth/entities/audit-log.entity";
 import { ContentReport } from "../content-reports/entities/content-report.entity";
 import { validateAccountHolderNameMatch } from "../profiles/utils/vietnamese-name.util";
 import { Trip, TripStatus } from "../trips/entities/trip.entity";
+import { deductOutstandingWeatherPenalties } from "../trips/weather-decisions/host-weather-penalty.ledger";
 import { User } from "../users/entities/user.entity";
 import { minorToMoney, moneyToMinor } from "./cancellation-policy";
 import type { AdminSettlementQueryDto } from "./dto/admin-settlement-query.dto";
@@ -272,6 +273,17 @@ export class SettlementsService {
 				})
 			);
 
+			// 6b. Weather penalties (policy §6) are taken from the credited balance, oldest first;
+			// what does not fit stays as the Host's debt for the next settlement.
+			const penaltyDeduction = await deductOutstandingWeatherPenalties(manager, {
+				hostId: trip.hostId,
+				walletId: wallet.id,
+				balance: walletBalanceAfter,
+				tripId: trip.id,
+			});
+			const finalBalance = penaltyDeduction.balanceAfter;
+			wallet.balance = finalBalance;
+
 			// 7. Record Audit Log (BR-347)
 			await manager.getRepository(AuditLog).save({
 				actorId: actorId || null,
@@ -287,7 +299,8 @@ export class SettlementsService {
 					netAmount,
 					commissionRate: PLATFORM_COMMISSION_RATE,
 					hostId: trip.hostId,
-					walletBalanceAfter,
+					walletBalanceAfter: finalBalance,
+					weatherPenaltyDeducted: penaltyDeduction.deductedTotal,
 				},
 				reason: "Trip revenue settled and 95% net credited to Host Wallet",
 			});
@@ -305,7 +318,7 @@ export class SettlementsService {
 				platformFee: settlement.platformFee,
 				netAmount: settlement.netAmount,
 				settledAt: settlement.settledAt,
-				walletBalanceAfter,
+				walletBalanceAfter: finalBalance,
 			};
 		});
 	}

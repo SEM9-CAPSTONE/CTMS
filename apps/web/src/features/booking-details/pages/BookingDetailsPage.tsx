@@ -113,6 +113,7 @@ function BookingDetailsContent({
 			booking={displayedBooking}
 			onBack={onBack}
 			backLabel={backLabel}
+			onBookingChanged={() => void reload()}
 			cancellationPanel={
 				<div className="mt-6 space-y-3">
 					<BookingCancellationPanel

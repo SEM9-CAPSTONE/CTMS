@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -13,6 +14,129 @@ class PackageDownloadStore {
       File('${root.path}/${package.key}.zip');
   File _journal(OfflinePackage package) =>
       File('${root.path}/${package.key}.json');
+  File _verification(OfflinePackage package) =>
+      File('${root.path}/${package.key}-${package.sizeBytes}.integrity');
+  File _active(String tripId) => File('${root.path}/$tripId.active');
+  File _denial(String tripId) => File('${root.path}/$tripId.access-denied');
+  static final _integrityOperations = <String, Future<void>>{};
+
+  Future<T> withIntegrityLock<T>(
+    String tripId,
+    Future<T> Function() operation,
+  ) async {
+    final key = '${root.absolute.path}/$tripId';
+    final previous = _integrityOperations[key];
+    final finished = Completer<void>();
+    _integrityOperations[key] = finished.future;
+    try {
+      await previous;
+      return await operation();
+    } finally {
+      if (_integrityOperations[key] == finished.future) {
+        _integrityOperations.remove(key);
+      }
+      finished.complete();
+    }
+  }
+
+  Future<Map<String, Object?>?> _readRecord(File file) async {
+    try {
+      if (!await file.exists()) return null;
+      final json = jsonDecode(await file.readAsString());
+      return json is Map<String, Object?> ? json : null;
+    } on FormatException {
+      return null;
+    }
+  }
+
+  OfflinePackage? _recordPackage(Map<String, Object?>? record) {
+    final json = record?['package'];
+    if (json is! Map<String, Object?>) return null;
+    try {
+      return OfflinePackage.fromJson(json);
+    } on FormatException {
+      return null;
+    }
+  }
+
+  Future<PackageVerificationStatus> verification(OfflinePackage package) async {
+    final record = await _readRecord(_verification(package));
+    if (_recordPackage(record)?.sameArtifact(package) != true) {
+      return PackageVerificationStatus.pending;
+    }
+    return switch (record?['status']) {
+      'verified' => PackageVerificationStatus.verified,
+      'failed' => PackageVerificationStatus.failed,
+      _ => PackageVerificationStatus.pending,
+    };
+  }
+
+  Future<OfflinePackage?> active(String tripId) async {
+    // Trip IDs also name local files. Ignore invalid navigation input.
+    if (!OfflinePackage.isTripId(tripId)) return null;
+    final package = _recordPackage(await _readRecord(_active(tripId)));
+    return package?.tripId == tripId ? package : null;
+  }
+
+  Future<bool> accessDenied(String tripId) async =>
+      OfflinePackage.isTripId(tripId) && await _denial(tripId).exists();
+
+  Future<void> setAccessDenied(String tripId, bool denied) async {
+    if (!OfflinePackage.isTripId(tripId)) return;
+    final marker = _denial(tripId);
+    if (denied) {
+      await root.create(recursive: true);
+      await marker.create();
+    } else if (await marker.exists()) {
+      await marker.delete();
+    }
+  }
+
+  Future<void> saveVerification(
+    OfflinePackage package,
+    PackageVerificationStatus status,
+    void Function() checkCancelled,
+  ) => _writeIntegrityRecord(_verification(package), {
+    'package': package.toJson(),
+    'status': status.name,
+  }, checkCancelled);
+
+  Future<void> saveActive(
+    OfflinePackage package,
+    void Function() checkCancelled,
+  ) => _writeIntegrityRecord(_active(package.tripId), {
+    'package': package.toJson(),
+  }, checkCancelled);
+
+  Future<void> _writeIntegrityRecord(
+    File target,
+    Map<String, Object?> record,
+    void Function() checkCancelled,
+  ) async {
+    await root.create(recursive: true);
+    final temporary = File('${target.path}.tmp');
+    await temporary.writeAsString(jsonEncode(record), flush: true);
+    // No asynchronous gap between the cancellation check and publication.
+    checkCancelled();
+    temporary.renameSync(target.path);
+  }
+
+  Future<bool> hasCompletedTransfer(OfflinePackage package) async =>
+      await archive(package).exists() ||
+      (await _readRecord(_journal(package)))?['status'] == 'downloaded';
+
+  Future<void> resetFailed(OfflinePackage package) async {
+    if (await verification(package) != PackageVerificationStatus.failed) return;
+    for (final file in [archive(package), partial(package)]) {
+      if (await file.exists()) await file.delete();
+    }
+    // Leave the failure receipt until the old bytes and completion marker
+    // are gone. A crash anywhere before then safely retries the reset.
+    await save(
+      LocalPackageDownload(package, PackageDownloadStatus.interrupted, 0),
+    );
+    await _verification(package).delete();
+  }
 
   Future<void> save(LocalPackageDownload download) async {
     await root.create(recursive: true);
