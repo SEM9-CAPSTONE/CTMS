@@ -16,11 +16,17 @@ export const WEATHER_CHANGE_NOTICE_POLL_MS = 60_000;
  * reloads the list at once and refreshes that Trip's forecast and history if they are on screen.
  */
 export function useWeatherChangeNotices(
-	options: { connection?: RealtimeConnection; service?: typeof weatherChangeNoticesService } = {}
+	options: {
+		connection?: RealtimeConnection;
+		service?: typeof weatherChangeNoticesService;
+		/** false for Admins, who get only decision reminders (CTMS-60). */
+		enabled?: boolean;
+	} = {}
 ) {
 	const { connection, service = weatherChangeNoticesService } = options;
 	const userId = getStoredAuthUser()?.id ?? "";
-	const enabled = Boolean(userId && localStorage.getItem("accessToken"));
+	const enabled =
+		(options.enabled ?? true) && Boolean(userId && localStorage.getItem("accessToken"));
 	const client = useQueryClient();
 	const key = queryKeys.weather.changeNotices(userId);
 	const query = useQuery({

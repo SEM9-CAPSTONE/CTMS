@@ -145,6 +145,9 @@ export const API_ENDPOINTS = {
 		WEATHER_FORECAST_SUBMITTED: (tripId: string) => `/trips/${tripId}/weather-forecast/submitted`,
 		WEATHER_FORECAST_ADVICE: (tripId: string) => `/trips/${tripId}/weather-forecast/advice`,
 		WEATHER_FORECAST_HISTORY: (tripId: string) => `/trips/${tripId}/weather-forecast/history`,
+		WEATHER_DECISION: (tripId: string) => `/trips/${tripId}/weather-decision`,
+		WEATHER_DECISIONS: (tripId: string) => `/trips/${tripId}/weather-decisions`,
+		ADMIN_WEATHER_DECISION: (tripId: string) => `/admin/trips/${tripId}/weather-decision`,
 		MEMBERS: (tripId: string) => `/trips/${tripId}/members`,
 		BOOKINGS: (tripId: string) => `/trips/${tripId}/bookings`,
 		MEMBER_STATUS: (tripId: string, bookingId: string, memberId: string) =>
@@ -170,6 +173,11 @@ export const API_ENDPOINTS = {
 		RULES_ACTIVATE: (id: string) => `/weather/rules/${id}/activate`,
 		CHANGE_NOTICES: "/me/weather-notices",
 		READ_CHANGE_NOTICE: (noticeId: string) => `/me/weather-notices/${noticeId}/read`,
+		DECISION_ALERTS: "/me/weather-decision-alerts",
+		READ_DECISION_ALERT: (alertId: string) => `/me/weather-decision-alerts/${alertId}/read`,
+		ADMIN_INTERVENTIONS: "/admin/weather-interventions",
+		RESCHEDULE_RESPONSE: (bookingId: string) =>
+			`/bookings/${bookingId}/weather-reschedule-response`,
 	},
 	AI: {
 		CONVERSATIONS: "/ai/conversations",
