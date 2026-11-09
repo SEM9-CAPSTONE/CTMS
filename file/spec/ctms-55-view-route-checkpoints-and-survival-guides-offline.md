@@ -80,7 +80,7 @@ Valid local package
 
 No online API is required for core offline rendering.
 
-Package schema: TBD — Technical Design.
+CTMS-223 supplies the schema 1 ZIP through `PackageDownloadController.openActive(packageVersion)` for the current account and Trip. The returned bytes are the locally verified snapshot. A caller must select the active version and handle an unavailable result.
 
 ## 10. Error & Edge Cases
 

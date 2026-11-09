@@ -53,49 +53,49 @@ describe("CTMS-053 actual PostgreSQL participant authorization", () => {
 		await db.query("INSERT INTO trip_porters VALUES($1,$2,'assigned')", [tripId, porter]);
 	});
 	it("allows a registered member on a confirmed booking and an assigned Porter", async () => {
-		expect(await access.canDownload(tripId, camper)).toBe(true);
-		expect(await access.canDownload(tripId, porter)).toBe(true);
+		expect(await access.downloadableTripStatus(tripId, camper)).toBe("published");
+		expect(await access.downloadableTripStatus(tripId, porter)).toBe("published");
 	});
 	it("allows a joined member to recover bytes during an ongoing Trip", async () => {
 		await db.query("UPDATE trips SET status='ongoing' WHERE id=$1", [tripId]);
 		await db.query("UPDATE booking_members SET member_status='joined'");
-		expect(await access.canDownload(tripId, camper)).toBe(true);
+		expect(await access.downloadableTripStatus(tripId, camper)).toBe("ongoing");
 	});
 	it("does not infer participation from booking ownership or another Trip", async () => {
-		expect(await access.canDownload(tripId, owner)).toBe(false);
-		expect(await access.canDownload(otherTripId, camper)).toBe(false);
-		expect(await access.canDownload(otherTripId, porter)).toBe(false);
-		expect(await access.canDownload(randomUUID(), camper)).toBe(false);
+		expect(await access.downloadableTripStatus(tripId, owner)).toBeNull();
+		expect(await access.downloadableTripStatus(otherTripId, camper)).toBeNull();
+		expect(await access.downloadableTripStatus(otherTripId, porter)).toBeNull();
+		expect(await access.downloadableTripStatus(randomUUID(), camper)).toBeNull();
 	});
 	it.each(["removed", "no_show", "left"])("denies %s membership", async (status) => {
 		await db.query("UPDATE booking_members SET member_status=$1", [status]);
-		expect(await access.canDownload(tripId, camper)).toBe(false);
+		expect(await access.downloadableTripStatus(tripId, camper)).toBeNull();
 	});
 	it.each(["pending_payment", "pending_reconfirmation", "cancelled", "expired", "completed"])(
 		"denies %s booking",
 		async (status) => {
 			await db.query("UPDATE bookings SET status=$1", [status]);
-			expect(await access.canDownload(tripId, camper)).toBe(false);
+			expect(await access.downloadableTripStatus(tripId, camper)).toBeNull();
 		}
 	);
 	it.each(["unassigned", "pending_reconfirmation"])(
 		"denies %s Porter assignment",
 		async (status) => {
 			await db.query("UPDATE trip_porters SET status=$1", [status]);
-			expect(await access.canDownload(tripId, porter)).toBe(false);
+			expect(await access.downloadableTripStatus(tripId, porter)).toBeNull();
 		}
 	);
 	it.each(["draft", "pending_approval", "completed", "cancelled", "rejected"])(
 		"denies %s Trip",
 		async (status) => {
 			await db.query("UPDATE trips SET status=$1 WHERE id=$2", [status, tripId]);
-			expect(await access.canDownload(tripId, camper)).toBe(false);
-			expect(await access.canDownload(tripId, porter)).toBe(false);
+			expect(await access.downloadableTripStatus(tripId, camper)).toBeNull();
+			expect(await access.downloadableTripStatus(tripId, porter)).toBeNull();
 		}
 	);
 	it("observes membership revocation on the next resume without cached authorization", async () => {
-		expect(await access.canDownload(tripId, camper)).toBe(true);
+		expect(await access.downloadableTripStatus(tripId, camper)).toBe("published");
 		await db.query("UPDATE booking_members SET left_at=clock_timestamp()");
-		expect(await access.canDownload(tripId, camper)).toBe(false);
+		expect(await access.downloadableTripStatus(tripId, camper)).toBeNull();
 	});
 });
