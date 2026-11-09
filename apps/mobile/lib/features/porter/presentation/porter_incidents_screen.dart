@@ -48,7 +48,7 @@ class _PorterIncidentsScreenState extends ConsumerState<PorterIncidentsScreen> {
       );
     }
 
-    final currentFilter = _selectedIncidentFilter ?? 'Tất cả';
+    final currentFilter = _selectedIncidentFilter;
 
     final trips = [...controller.trips];
     for (final record in controller.records) {
