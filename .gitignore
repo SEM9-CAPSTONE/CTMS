@@ -58,3 +58,9 @@ override.tf.json
 .terraformrc
 terraform.rc
 
+
+# Generated private offline map data
+*.mbtiles
+.private-offline-basemaps/
+.private-offline-basemap-work/
+artifacts/osm-offline/

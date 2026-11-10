@@ -179,3 +179,15 @@ The partial-download protocol and storage margin are fixed by section 9. Free-sp
 Test sources: `apps/mobile/test/features/offline_packages/`, `services/api/src/modules/offline-package-download/offline-package-download.service.spec.ts`, `services/api/test/offline-package-download.e2e-spec.ts`, and `services/api/test/offline-package-access.integration-spec.ts`. Tests with fake transport/upstream data establish isolated behavior only; record runtime/environment blockers separately from passing tests.
 
 User local verification on 2026-11-08: HTTP transport/JWT suite **38/38 PASS**, Flutter transfer/retry/widget suite **29/29 PASS**, and PostgreSQL authorization suite **19/19 PASS** on a fresh, separate test container. PostgreSQL tests use fixture tables and the production access repository; the HTTP suite mocks participation and upstream artifacts. Native Android/iOS storage and lifecycle acceptance and the complete upstream package pipeline still require verification. The original PostgreSQL server's catalog/index error remains unresolved; see `docs/features/CTMS-053-Implementation.md` for the evidence and environment boundaries.
+
+## 2026-11-10 — Basemap sidecar extension
+
+A complete offline map preparation downloads both the verified core ZIP and the
+MBTiles file bound to that exact package version. Core-only readiness must not be
+reported as full map readiness. Raster may be pending or failed independently;
+the user may retry downloading it without replacing a valid core. Authorization
+is checked separately for metadata and each artifact download. Raster metadata
+contains package identity, byte size, SHA-256, bounds, zoom and attribution. The
+client verifies the file before local activation and retains the vector fallback
+when raster is unavailable. No Internet is required to render validated local
+artifacts. This is an extension beyond the original ZIP-only download contract.
