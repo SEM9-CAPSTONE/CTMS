@@ -76,6 +76,12 @@ class OfflinePackagePanel extends ConsumerWidget {
                   verification == PackageVerificationStatus.verified) =>
         ('Sẵn sàng sử dụng ngoại tuyến', null, null, null),
       _ when controller.loading => ('Đang tải thông tin…', null, null, null),
+      _ when package == null && controller.error != null => (
+        controller.error!,
+        'Thử lại',
+        controller.load,
+        null,
+      ),
       _ when package == null => (
         'Chưa có dữ liệu ngoại tuyến',
         'Thử lại',

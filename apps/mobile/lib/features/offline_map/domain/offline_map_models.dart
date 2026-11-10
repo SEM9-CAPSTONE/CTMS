@@ -21,6 +21,7 @@ const int kMaxPayloadSizeBytes = 5 * 1024 * 1024; // 5 MB
 
 /// Trạng thái gói dữ liệu ngoại tuyến của chuyến đi.
 enum OfflineMapPackageStatus {
+  unsupportedPlatform,
   loading,
   ready,
   packageMissing,

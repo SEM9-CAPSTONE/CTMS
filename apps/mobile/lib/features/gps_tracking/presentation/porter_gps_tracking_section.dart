@@ -11,6 +11,7 @@ import '../../route_deviation/presentation/route_deviation_panel.dart';
 import 'gps_tracking_panel.dart';
 import '../../emergency_broadcasts/presentation/emergency_broadcasts_panel.dart';
 import '../../member_locations/presentation/porter_member_locations_panel.dart';
+import '../../offline_map/presentation/offline_map_panel.dart';
 import '../../schedule_progress/presentation/schedule_progress_panels.dart';
 
 /// Porter's assigned Trips currently `ongoing` (`GET /trips/assigned`).
@@ -91,6 +92,11 @@ class _PorterGpsTrackingSectionState
               key: ValueKey('emergency-${selected.id}'),
               tripId: selected.id,
             ),
+            OfflineMapPanel(
+              key: ValueKey('map-${selected.id}'),
+              tripId: selected.id,
+            ),
+            const SizedBox(height: AppSpacing.md),
             GpsTrackingPanel(key: ValueKey(selected.id), tripId: selected.id),
             const SizedBox(height: AppSpacing.md),
             RouteDeviationPanel(
