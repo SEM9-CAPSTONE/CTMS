@@ -38,6 +38,8 @@ class BookingEndpoints {
   String complete(String id) => '/bookings/$id/complete';
   String reviewContext(String id) => '/bookings/$id/reviews/context';
   String reviews(String id) => '/bookings/$id/reviews';
+  String weatherRescheduleResponse(String id) =>
+      '/bookings/$id/weather-reschedule-response';
   String review(String id) => '/trip-reviews/$id';
   String completeTripBookings(String tripId) =>
       '/bookings/trip/$tripId/complete-all';
@@ -91,6 +93,11 @@ class WeatherEndpoints {
 
   String get riskAssessment => '/weather/risk-assessment';
   String get snapshot => '/weather/snapshots';
+  String tripDatesForecast(String tripId) =>
+      '/trips/$tripId/weather-forecast/trip-dates';
+  String get changeNotices => '/me/weather-notices';
+  String readChangeNotice(String noticeId) =>
+      '/me/weather-notices/$noticeId/read';
 }
 
 class AiEndpoints {
