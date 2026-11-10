@@ -102,6 +102,10 @@ export class CheckpointArrivalsRepository {
 		});
 	}
 
+	async findContextDirect(tripId: string): Promise<CheckpointArrivalContext | null> {
+		return this.findContext(this.dataSource.manager, tripId);
+	}
+
 	async findContext(
 		manager: EntityManager,
 		tripId: string

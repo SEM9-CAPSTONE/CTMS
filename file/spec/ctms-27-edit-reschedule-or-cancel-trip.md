@@ -535,3 +535,136 @@ Policy: `docs/features/weather-trip-date-decision-policy.md` §5 (updated in thi
   - `build:all`: passed.
   - Web `test:all`: 257 files, 1720/1720 tests passed.
   - Default Playwright E2E: 59 passed / 38 failed / 32 did not run. Baseline was 56 / 38 / 32; the 3 new CTMS-60 tests pass and the 38 failures are the same known real-backend and map failures.
+
+## 17. Implementation Record — Host weather penalty (Logic, Jira CTMS-94)
+
+Policy: `docs/features/weather-trip-date-decision-policy.md` §6 and §7. The leader agreed to reuse the Done key CTMS-94 for this task.
+
+- **Migration `1794800000000-AddHostWeatherPenalties`:** table `host_weather_penalties`, one row per (Trip, schedule) (`UQ_host_weather_penalties_schedule`). Each row stores:
+  - violation number, paid booking value, rate, cap, amount, deducted amount;
+  - status `applied` / `waived` and the tier-2 `hosting_blocked_until`;
+  - the waiver request (reason, evidence URLs, deadline, review due date) and the Admin review (decision, reviewer, note).
+- **Rules (`host-weather-penalty.policy.ts`, all numbers in one place):**
+  - tiers 5% / 10% / 15% with caps 2M / 5M / 10M đ; violation 3+ uses the last tier;
+  - violations counted over 90 days, waived ones excluded;
+  - the amount is computed in integer minor units, like the settlement.
+- **When a penalty is created:** in the same transaction as the **first** Admin decision for the current schedule, only when the decision is at or after T-24h and the Host has no on-time decision (no answer, or only a late one). The paid booking value (`payment_status = 'paid'`, booking still confirmed / pending reconfirmation / completed) is read before a cancel or reschedule changes the bookings. A Postgres advisory lock per Host keeps violation numbers unique. The Host gets the socket event `host.weather_penalty.created`.
+- **Hosting restriction:** `TripsService.create` and `submitForApproval` return 403 with `blockedUntil` while:
+  - a tier-2 block (14 days) is running, or
+  - 3 or more applied penalties fall in the last 90 days (tier 3, see PD-2).
+- **Settlement (CTMS-112):**
+  - `settleTrip` still stores the 95% snapshot and credits the wallet as before;
+  - right after, `deductOutstandingWeatherPenalties` takes outstanding penalties from the balance, oldest first, writing one `penalty_debit` ledger row each;
+  - what does not fit stays as debt (`outstandingAmount`) for the next settlement. A Trip the Admin cancelled has no settlement, so its penalty is taken from the Host's next ones.
+- **Waiver:**
+  - `POST /host/weather-penalties/:id/waiver-request` (Host, once, until 72 h after T-24h, reason and 1–5 evidence URLs from `POST /uploads/document`); Admins get `weather_penalty.waiver_requested`;
+  - `POST /admin/weather-penalties/:id/waiver-review` (`approve`, mandatory `note`):
+    - approve: status `waived`, not counted any more, block lifted, the deducted amount goes back to the wallet as `penalty_refund`;
+    - reject: the penalty stays, with the note;
+  - `reviewDueAt` = 5 working days after the request (display only).
+- **Read APIs:**
+  - `GET /me/weather-penalties` (Host): items, `outstandingTotal`, `hostingBlockedUntil`, `suspended`;
+  - `GET /admin/weather-penalties?status=applied|waived|waiver_pending` and `GET /admin/weather-penalties/:id`.
+- **Audit:** `host.weather_penalty_created`, `host.weather_penalty_waiver_requested`, `host.weather_penalty_waiver_reviewed`; the settlement audit adds `weatherPenaltyDeducted`.
+- **Camper refunds are unchanged** and never depend on a waiver.
+
+### Pending Decisions (for the leader)
+- **PD-1:** A late Host decision with no Admin intervention is **not** penalised (only flagged `late`), reading §6 "Admin phải can thiệp" literally.
+- **PD-2:** Tier 3 "đình chỉ Host" = cannot create or submit Trips while 3+ applied penalties fall in 90 days. The account is not locked automatically; the Admin can use the existing account lock.
+- **PD-3:** "Trừ điểm uy tín Host" is not implemented: the system has no Host reputation score yet.
+- **PD-4:** The §6 numbers are still marked "đề xuất" (§8); they live only in `host-weather-penalty.policy.ts`.
+- **PD-5:** Waiving a penalty does not renumber penalties created after it.
+
+## 18. Test Evidence — CTMS-94
+
+- **Unit:**
+  - `host-weather-penalty.policy.spec.ts` (6): tiers and caps, minor-unit amount, 14-day block, 90-day suspension and when it lifts, when a penalty is due, waiver deadline and 5 working days;
+  - `trip-weather-decision.spec.ts` (+2): penalty on the first late Admin decision with the booking value read first; none before T-24h, after an on-time Keep, or on a second Admin decision;
+  - `trips.service.spec.ts` (+1): create refused with 403 while blocked;
+  - `settlements.service.spec.ts`: unchanged cases still pass with the deduction step.
+- **Integration** (`test/host-weather-penalties.integration-spec.ts`, real Postgres, 5):
+  - no answer → 5% of 50M capped at 2M, audit row and socket event; pause → resume penalises once;
+  - no penalty before T-24h or after an on-time Host Keep;
+  - 2nd violation → 10% and 14-day block, `submitForApproval` 403; waiver approved → waived, block lifted, not counted (next one is violation 2); late waiver 409, other Host 404;
+  - real `settleTrip`: 570,000đ net fully taken by a 1,000,000đ penalty, 430,000đ debt left, ledger rows; waiver approved → 570,000đ back in the wallet;
+  - rejected waiver stays applied with the note.
+- **Gates:**
+  - API `lint` (eslint): passed; `build`: passed.
+  - API unit (`jest`): 189 suites, 2303/2303 tests passed.
+  - API integration (8 shards, `--runInBand --forceExit`): 781 passed, 29 failed. All 29 are the known failures already on develop: sync-evaluation 4, overbooking-evaluation 4, trekking-route-checkpoints 2, incidents.report 1, trip-reviews 1, review-analysis 16, gps-tracking 1.
+  - Shards 1 and 2 crashed Jest on this machine, so their 20 suites were run one by one: all pass except sync-evaluation (known). In shard 8, trip-weather-monitoring failed only in its cleanup (a leftover forecast still used its weather rule); run alone it passes 4/4.
+  - New suite `host-weather-penalties.integration-spec.ts`: 5/5; `trip-weather-decisions.integration-spec.ts`: 5/5.
+
+## 19. Implementation Record — Host weather penalty (UI, Jira CTMS-102)
+
+UI of §17 (CTMS-94 API). The leader agreed to reuse the Done key CTMS-102 for this task.
+
+- **API gap filled (minimal):** `POST /uploads/document` (JWT, image JPG/PNG/WEBP or PDF, 5 MB) in `uploads.controller.ts`, calling the existing `UploadsService.uploadDocument`. Before this only `/uploads/image` was public, so a Host could not attach a PDF as waiver evidence. Unit test `uploads.controller.spec.ts`.
+- **New web feature `apps/web/src/features/weather-penalties/`:** types, service, hooks (React Query and realtime), labels and error mapping, components, Admin page.
+- **Host (Ví Host page, `/host/wallet`):** `HostWeatherPenaltiesCard`, placed between the balance card and the bank accounts.
+  - **Hidden when the Host has no penalty**, so the page is unchanged for everyone else.
+  - Shows the debt still to deduct, a red banner while hosting is blocked or suspended, and each penalty: Trip, violation number, booking value, rate and cap, amount and deducted amount, debt, and status (Đang áp dụng / Chờ duyệt miễn / Bị từ chối miễn / Đã miễn) with the Admin's note.
+  - The "Xin miễn phạt" button appears only while the waiver is still allowed (applied, not yet asked, before the deadline). It opens `WeatherPenaltyWaiverModal`:
+    - reason (required);
+    - 1–5 evidence files (JPG / PNG / WEBP / PDF, 5 MB each, checked before upload, uploaded one by one to `/uploads/document?folder=weather-penalty-waivers`, removable);
+    - confirm dialog;
+    - server 409s shown in Vietnamese.
+  - `host.weather_penalty.created` reloads the card and shows a toast.
+- **Wallet history:** labels for `penalty_debit` ("Trừ phạt thời tiết") and `penalty_refund` ("Hoàn phạt thời tiết đã miễn") in `settlements/constants.ts`.
+- **Admin page `/admin/weather-penalties`:** sidebar item "Phạt thời tiết" under "Can thiệp thời tiết".
+  - Filter tabs: Chờ duyệt miễn (default) / Đang áp dụng / Đã miễn / Tất cả.
+  - Each row shows Host, violation, amount, debt, status, review due date, and "Quá hạn xem xét" after the 5 working days.
+  - `AdminWeatherPenaltyDialog` shows the whole penalty, the Host's reason and evidence links, and the Duyệt miễn / Từ chối form (note required, confirm dialog; approving warns that the deducted amount goes back to the Host wallet).
+  - `weather_penalty.waiver_requested` reloads the list.
+- **Blocked Host on Trip create / submit:** `mapCreateTripError` and `mapConfigureTripWaypointsError` turn the 403 with `blockedUntil` into "Bạn đang bị khoá tạo Trip do phạt thời tiết đến dd/mm/yyyy" (or the suspension text). Other errors are unchanged.
+
+## 20. Test Evidence — CTMS-102
+
+- **Vitest:**
+  - `WeatherPenaltyComponents.test.tsx` (7): card hidden without penalties; debt, block banner and statuses; no waiver button after the deadline or once asked, and the suspension text; waiver flow (reason and file checks, upload, payload after confirm); Vietnamese 409 for a closed window; `host.weather_penalty.created` reload; `hostingBlockedMessage` for block, suspension and other errors.
+  - `AdminWeatherPenaltiesPage.test.tsx` (4): pending waivers first and filter switching; overdue flag; approve with evidence link, mandatory note and refund warning; reject, and no form when the Host has not asked.
+- **API unit:** `uploads.controller.spec.ts` (1).
+- **Playwright** (`tests/e2e/ctms-102-weather-penalty-ui.spec.ts`, mocked backend, 2 tests):
+  - Host sees the penalty and the `penalty_debit` row on the wallet, asks for a waiver with a PDF;
+  - Admin approves a waiver from the list.
+- **Screenshots:** Host penalty card, waiver modal, Admin list, Admin review dialog.
+- **Gates:** API `lint` / `build` pass; API unit 190 suites / 2305 tests pass; web `lint:all` 0 errors (12 warnings, none in CTMS-102 files); `build:all` pass (a first run caught 2 test-only mock typing errors, fixed with `vi.mocked`); web Vitest 259 files / 1731 tests pass; `test:all` stops at `@ctms/ai` because this machine has no `pytest` (unrelated to this change). Integration shards 1–8: only the 29 known baseline failures (sync-evaluation 4, overbooking-evaluation 4, trekking-route-checkpoints 2, incidents.report 1, trip-reviews 1, review-analysis 16, gps-tracking 1). Default Playwright E2E: 61 passed / 38 failed / 32 did not run, i.e. baseline 59 / 38 / 32 plus the 2 new `ctms-102-weather-penalty-ui.spec.ts` tests passing.
+
+## 21. Implementation Record — Weather reschedule marker on the Booking (API, Jira CTMS-58)
+
+- **Problem:** the CTMS-60 Camper card ("Giữ chỗ ở lịch mới" / "Huỷ và hoàn 100%") was shown for every `pending_reconfirmation` Booking, because the Booking API did not say whether the reschedule was for weather. After an ordinary Host reschedule the decline button only returned a 409.
+- **API:** `GET /bookings/:bookingId` (and `POST /bookings/:bookingId/sync-payment`, which uses the same query) now returns `weatherReschedulePending: boolean`.
+  - `true` only when the Booking is `pending_reconfirmation` **and** the Trip's latest `trip.rescheduled` audit log has the reason `weather_reschedule`;
+  - this is the same rule as `TripWeatherDecisionsRepository.lastRescheduleWasForWeather`, which guards `POST /bookings/:bookingId/weather-reschedule-response`, so the flag is `true` exactly when that endpoint accepts the answer;
+  - computed in `BookingsRepository.findDetailsByIdForOwner` with a subquery on `audit_logs` (indexed on `target_type`, `target_id`); no migration, no new table.
+- **Web:** `BookingDetails.weatherReschedulePending?` added; `BookingDetailsView` shows `WeatherRescheduleResponseCard` only when the flag is `true`. The card itself and the general reconfirmation flow (CTMS-160) are unchanged.
+- **Out of scope:** the Booking list endpoint and the mobile app; CTMS-62 (Camper mobile weather) reads the flag from the Booking detail.
+
+## 22. Test Evidence — CTMS-58
+
+- **API unit:** `bookings.repository.spec.ts` checks the detail SQL selects `weatherReschedulePending` with the status, reason, action and latest-row conditions.
+- **Integration** (`test/trip-weather-decisions.integration-spec.ts`, weather reschedule case): flag `false` before the decision, `true` for both Campers after the Host's weather reschedule, `false` after accept and after decline, and `false` after an ordinary Host reschedule.
+- **Web unit:** `BookingDetailsView.test.tsx` — card shown when the flag is `true`, hidden when `false` or missing.
+- **Playwright:** the CTMS-60 Camper mock now returns `weatherReschedulePending: true`.
+- **Gates:** `lint:all` 0 errors (12 existing warnings, none in CTMS-58 files); `build:all` pass; web Vitest 259 files / 1732 tests pass; API unit 190 suites / 2305 tests pass (`test:all` is run per package because this machine has no `pytest` for `@ctms/ai`). Integration shards 1–8: only the 29 known baseline failures (sync-evaluation 4, overbooking-evaluation 4, trekking-route-checkpoints 2, incidents.report 1, trip-reviews 1, review-analysis 16, gps-tracking 1); shards 2 and 4 crashed Jest, so their suites were run one by one (`trip-weather-decisions` 5/5, `bookings.detail` pass; `demand-insights` failed once after the crash and passed 52/52 on rerun; `trip-weather-monitoring` 4/4 alone). Default Playwright E2E: 61 passed / 38 failed / 32 did not run, same as the baseline; the 3 CTMS-60 tests pass.
+
+## 23. Implementation Record — Weather for the Camper on mobile (UI, Jira CTMS-62)
+
+- **Problem:** the Camper Trip screen on mobile showed a hard-coded "An toàn" in the "THỜI TIẾT" box and had no forecast, no risk-change notices and no way to answer a weather reschedule.
+- **New feature `apps/mobile/lib/features/trip_weather/`** (same structure as `emergency_broadcasts`):
+  - `data/trip_weather_api.dart`: models and `HttpTripWeatherApi` for the existing endpoints `GET /trips/:tripId/weather-forecast/trip-dates`, `GET /me/weather-notices`, `PATCH /me/weather-notices/:id/read`, `GET /bookings/:bookingId` (`weatherReschedulePending`, CTMS-58) and `POST /bookings/:bookingId/weather-reschedule-response`.
+  - `application/trip_weather_controller.dart`: `ChangeNotifier` per (Trip, Booking); refreshes every 60 s and when the app returns to the foreground (no socket on mobile); a failed refresh keeps the last data; notices filtered to the Trip, newest first; optimistic mark-as-read; the reschedule answer is sent once and reloads the Booking.
+  - `presentation/trip_weather_labels.dart`: risk labels, reliability (policy §2) and error messages with the same Vietnamese wording as the web.
+  - `presentation/trip_weather_panel.dart`: "Dự báo thời tiết ngày đi" card — risk badge, schedule, reliability and "Kiểm tra lần cuối", partial-coverage warning, worst readings, advice and actions; out-of-range and error states with "Thử lại"; "Thay đổi dự báo" list with an unread dot, tap to mark read.
+  - `presentation/weather_reschedule_response_card.dart`: shown only when the Booking is `pending_reconfirmation` and `weatherReschedulePending` is true; "Giữ chỗ ở lịch mới" / "Huỷ và hoàn 100%" with a confirmation dialog, buttons disabled while sending, Vietnamese server refusals, success banner afterwards.
+- **Existing code (small insertions only):**
+  - `camper_trip_detail_screen.dart`: the two widgets under `EmergencyBroadcastsPanel` in "Tổng quan"; the "THỜI TIẾT" box value comes from the loaded forecast (An toàn / Cảnh báo / Nguy hiểm / Chưa có dự báo), falling back to the previous value while loading. Layout unchanged.
+  - `api_endpoints.dart`: the endpoints above.
+- **Out of scope:** the general Camper overview weather card (team screen, mock data), the Porter app, a mobile socket.
+
+## 24. Test Evidence — CTMS-62
+
+- **Flutter widget tests** (`test/features/trip_weather/trip_weather_test.dart`, 9): Red forecast with readings, advice, reliability, partial coverage and the highlight value; out-of-range explanation; 503 message and retry; notices filtered to the Trip and mark-as-read; reschedule card hidden for an ordinary reschedule and without a Booking; keep after confirmation; backing out of the decline; Vietnamese 409 for a decline.
+- **Existing test:** `review_bookings_tab_test.dart` (opens the Trip screen) still passes; the panel shows a static loading text instead of a spinner so `pumpAndSettle` settles.
+- **Screenshots** (rendered from widget tests, no emulator on this machine): Red forecast + reschedule answer + notices; after keeping the new date; Trip beyond 15 days. The test renderer cannot draw the label of the red `CtmsButton` (its text style has no font family), so "Huỷ và hoàn 100%" shows as boxes in the PNG only.
+- **Gates:** `flutter analyze`: no issues (a first run flagged 1 info in a CTMS-62 file, fixed); `flutter test`: 416 tests pass, including the 9 new ones; `lint:all` 0 errors (12 existing warnings); `build:all` pass; web Vitest 259 files / 1732 tests pass; API unit 190 suites / 2305 tests pass. Integration and web Playwright were not rerun: this task changes no API or web code (agreed in the plan).

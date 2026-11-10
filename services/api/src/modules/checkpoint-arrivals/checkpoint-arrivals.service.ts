@@ -75,6 +75,14 @@ export class CheckpointArrivalsService {
 		}
 	}
 
+	async getContext(tripId: string) {
+		const context = await this.repository.findContextDirect(tripId);
+		if (!context) {
+			throw new NotFoundException("Active package checkpoint context is not available");
+		}
+		return context;
+	}
+
 	async synchronize(
 		userId: string,
 		tripId: string,

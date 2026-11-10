@@ -521,8 +521,8 @@ void main() {
 
     expect(find.byType(NavigationBar), findsOneWidget);
     expect(find.textContaining('Anh Minh'), findsOneWidget);
-    expect(find.text('CA HÔM NAY'), findsOneWidget);
-    expect(find.text('ĐOÀN PHỤ TRÁCH'), findsOneWidget);
+    expect(find.text('Lịch ca'), findsOneWidget);
+    expect(find.text('Báo cáo'), findsOneWidget);
     final scrollable = find.byType(Scrollable).first;
     await tester.scrollUntilVisible(
       find.text('Tuyến đang vận hành'),

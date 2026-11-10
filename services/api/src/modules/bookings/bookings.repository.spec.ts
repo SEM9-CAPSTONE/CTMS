@@ -111,6 +111,12 @@ describe("BookingsRepository", () => {
 		expect(sql).toContain("LEFT JOIN LATERAL");
 		expect(sql).toContain('bi."unit_price"::text');
 		expect(sql).toContain('bi."total_price"::text');
+		// CTMS-58: same rule as TripWeatherDecisionsRepository.lastRescheduleWasForWeather
+		expect(sql).toContain('AS "weatherReschedulePending"');
+		expect(sql).toContain("b.\"status\" = 'pending_reconfirmation'");
+		expect(sql).toContain("al.\"reason\" = 'weather_reschedule'");
+		expect(sql).toContain("al.\"action\" = 'trip.rescheduled'");
+		expect(sql).toContain('ORDER BY al."created_at" DESC LIMIT 1');
 		expect(sql).toContain('b."id" = $1 AND b."user_id" = $2');
 		expect(parameters).toEqual(["booking-1", "owner-1"]);
 	});

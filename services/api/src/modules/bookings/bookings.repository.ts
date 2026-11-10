@@ -103,6 +103,12 @@ export class BookingsRepository extends Repository<Booking> {
 				b."cancellation_policy_snapshot" AS "cancellationPolicySnapshot",
 				b."created_at" AS "createdAt",
 				b."completed_at" AS "completedAt",
+				(b."status" = 'pending_reconfirmation' AND COALESCE((
+					SELECT al."reason" = 'weather_reschedule' FROM "audit_logs" al
+					WHERE al."target_type" = 'trip' AND al."target_id" = b."trip_id"
+						AND al."action" = 'trip.rescheduled'
+					ORDER BY al."created_at" DESC LIMIT 1
+				), FALSE)) AS "weatherReschedulePending",
 				CASE
 					WHEN t."id" IS NULL OR r."id" IS NULL
 						OR btrim(t."title") = '' OR btrim(r."name") = '' THEN NULL

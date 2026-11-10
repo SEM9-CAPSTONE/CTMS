@@ -50,6 +50,7 @@ import type {
 } from "../repositories/trips.repository";
 // biome-ignore lint/style/useImportType: Nest constructor injection requires runtime metadata
 import { TripsRepository } from "../repositories/trips.repository";
+import { hostingRestriction } from "../weather-decisions/host-weather-penalty.policy";
 // biome-ignore lint/style/useImportType: Nest injection
 import { TripImagesService } from "./trip-images.service";
 
@@ -274,6 +275,7 @@ export class TripsService {
 
 		return this.dataSource.transaction(async (manager: EntityManager) => {
 			const repository = manager.withRepository(this.tripsRepository);
+			await this.assertHostCanHost(repository, hostId);
 			const route = await repository.findRouteDependencyForUpdate(dto.routeId);
 
 			if (!route) {
@@ -650,6 +652,7 @@ export class TripsService {
 			if (lockedTrip.hostId !== hostId) {
 				throw new ForbiddenException("Only the owning Host can submit this Trip");
 			}
+			await this.assertHostCanHost(repository, hostId);
 			if (lockedTrip.status === TripStatus.PENDING_APPROVAL) {
 				return { trip: lockedTrip.trip, submitted: false };
 			}
@@ -1400,6 +1403,23 @@ export class TripsService {
 			return;
 		}
 		throw new ConflictException("Only draft Trips can be configured and submitted for approval");
+	}
+
+	/** Weather penalty tier 2 / 3 (policy §6): the Host cannot create or submit Trips for now. */
+	private async assertHostCanHost(repository: TripsRepository, hostId: string): Promise<void> {
+		const restriction = hostingRestriction(
+			await repository.findHostingPenalties(hostId),
+			new Date()
+		);
+		if (!restriction.blockedUntil) return;
+		throw new ForbiddenException({
+			statusCode: 403,
+			error: "Forbidden",
+			message: restriction.suspended
+				? "Host is suspended from hosting because of repeated weather penalties"
+				: "Host cannot create Trips until the weather penalty block ends",
+			blockedUntil: restriction.blockedUntil.toISOString(),
+		});
 	}
 
 	private validationException(message: FieldValidationError[]): UnprocessableEntityException {

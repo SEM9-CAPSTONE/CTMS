@@ -54,6 +54,8 @@ export interface BookingDetails {
 	cancellationPolicySnapshot: Record<string, unknown> | null;
 	createdAt: string;
 	completedAt?: string | null;
+	/** CTMS-58: waiting for reconfirmation after a weather reschedule; the Camper may decline with a full refund. */
+	weatherReschedulePending?: boolean;
 	tripPresentation: BookingTripPresentation | null;
 	members: BookingDetailsMember[];
 	equipmentItems: BookingEquipmentItemDetails[];

@@ -13,6 +13,7 @@ import '../../../core/widgets/ctms_status_badge.dart';
 import '../../emergency_broadcasts/presentation/emergency_broadcasts_panel.dart';
 import '../../gps_tracking/presentation/gps_tracking_panel.dart';
 import '../../offline_packages/presentation/offline_package_screen.dart';
+import '../../checkpoint_arrivals/presentation/checkpoint_arrival_panel.dart';
 import '../../route_deviation/presentation/route_deviation_panel.dart';
 import '../../sync/application/device_sync_controller.dart';
 import '../../sync/domain/device_sync_models.dart';
@@ -21,6 +22,9 @@ import '../overview/domain/camper_overview_models.dart';
 import '../../sos/presentation/sos_active_banner.dart';
 import '../../schedule_progress/presentation/schedule_progress_panels.dart';
 import '../../sos/presentation/trigger_sos_dialog.dart';
+import '../../trip_weather/application/trip_weather_controller.dart';
+import '../../trip_weather/presentation/trip_weather_panel.dart';
+import '../../trip_weather/presentation/weather_reschedule_response_card.dart';
 import '../../trip_reviews/domain/review_models.dart';
 import '../../trip_reviews/presentation/trip_reviews_screen.dart';
 
@@ -148,7 +152,16 @@ class _CamperTripDetailScreenState
     final memberText = '${widget.booking?.numPeople ?? widget.trip?.memberCount ?? 8} người';
     final difficultyText = widget.trip?.difficulty ?? 'Trung bình';
     final porterText = widget.booking?.hostName ?? widget.trip?.porterName ?? 'Nguyễn Minh Sơn';
-    final weatherRiskText = widget.trip?.weatherRiskLabel ?? 'An toàn';
+    // CTMS-62: real risk level of the forecast for the Trip's dates once it is loaded
+    final weatherRiskText = tripWeatherHighlightValue(
+      ref.watch(
+        tripWeatherControllerProvider((
+          tripId: effectiveTripId,
+          bookingId: widget.booking?.id,
+        )),
+      ),
+      widget.trip?.weatherRiskLabel ?? 'An toàn',
+    );
 
     return CtmsScaffold(
         title: 'Chi tiết chuyến đi',
@@ -202,6 +215,15 @@ class _CamperTripDetailScreenState
                 const SizedBox(height: AppSpacing.lg),
                 // Emergency alerts broadcast by the Host (CTMS-081); empty until one arrives
                 EmergencyBroadcastsPanel(tripId: effectiveTripId),
+                // Weather for the Trip's own dates (CTMS-62): reschedule answer, then the forecast
+                WeatherRescheduleResponseCard(
+                  tripId: effectiveTripId,
+                  bookingId: widget.booking?.id,
+                ),
+                TripWeatherPanel(
+                  tripId: effectiveTripId,
+                  bookingId: widget.booking?.id,
+                ),
                 // Trip Header Card
                 Container(
                   margin: const EdgeInsets.only(bottom: AppSpacing.lg),
@@ -534,6 +556,8 @@ class _CamperTripDetailScreenState
                 GpsTrackingPanel(tripId: effectiveTripId),
                 const SizedBox(height: AppSpacing.lg),
                 RouteDeviationPanel(tripId: effectiveTripId),
+                const SizedBox(height: AppSpacing.lg),
+                CheckpointArrivalPanel(tripId: effectiveTripId),
                 const SizedBox(height: AppSpacing.lg),
                 CamperScheduleProgressPanel(tripId: effectiveTripId),
               ],

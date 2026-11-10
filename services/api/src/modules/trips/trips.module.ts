@@ -31,6 +31,8 @@ import { TripRouteMapService } from "./services/trip-route-map.service";
 import { TripStatusScheduleService } from "./services/trip-status-schedule.service";
 import { TripStatusScheduleWorker } from "./services/trip-status-schedule.worker";
 import { TripsService } from "./services/trips.service";
+import { HostWeatherPenaltiesController } from "./weather-decisions/host-weather-penalties.controller";
+import { HostWeatherPenaltiesService } from "./weather-decisions/host-weather-penalties.service";
 import { TripWeatherDecisionAlertsService } from "./weather-decisions/trip-weather-decision-alerts.service";
 import { TripWeatherDecisionService } from "./weather-decisions/trip-weather-decision.service";
 import { TripWeatherDecisionWorker } from "./weather-decisions/trip-weather-decision.worker";
@@ -44,6 +46,7 @@ import { TripWeatherDecisionsRepository } from "./weather-decisions/trip-weather
 		TripImagesController,
 		TripFormDraftsController,
 		TripWeatherDecisionsController,
+		HostWeatherPenaltiesController,
 	],
 	providers: [
 		TripFormDraftsService,
@@ -55,6 +58,7 @@ import { TripWeatherDecisionsRepository } from "./weather-decisions/trip-weather
 		TripWeatherDecisionAlertsService,
 		TripWeatherDecisionService,
 		TripWeatherDecisionWorker,
+		HostWeatherPenaltiesService,
 		AvailablePortersService,
 		PorterRequestsService,
 		PorterRequestExpiryWorker,

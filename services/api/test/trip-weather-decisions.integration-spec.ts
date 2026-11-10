@@ -439,6 +439,15 @@ describe("Trip weather decisions near departure (integration, real Postgres)", (
 		const keepBooking = await bookPaid(keeper, tripId);
 		const declineBooking = await bookPaid(decliner, tripId);
 		const newWindow = dayTripWindow(10);
+		// CTMS-58: the Booking detail says when the Camper may answer a weather reschedule.
+		const weatherPending = async (account: { accessToken: string }, bookingId: string) =>
+			(
+				await api()
+					.get(`/api/bookings/${bookingId}`)
+					.set("Authorization", `Bearer ${account.accessToken}`)
+					.expect(200)
+			).body.weatherReschedulePending;
+		expect(await weatherPending(keeper, keepBooking)).toBe(false);
 
 		await api()
 			.post(`/api/trips/${tripId}/weather-decision`)
@@ -446,6 +455,8 @@ describe("Trip weather decisions near departure (integration, real Postgres)", (
 			.send({ decision: "reschedule", reason: "Bão", ...newWindow })
 			.expect(201);
 		expect(new Date((await tripRow(tripId)).startsAt).toISOString()).toBe(newWindow.startsAt);
+		expect(await weatherPending(keeper, keepBooking)).toBe(true);
+		expect(await weatherPending(decliner, declineBooking)).toBe(true);
 
 		await api()
 			.post(`/api/bookings/${keepBooking}/weather-reschedule-response`)
@@ -462,6 +473,7 @@ describe("Trip weather decisions near departure (integration, real Postgres)", (
 			status: "confirmed",
 			refundsCreated: 0,
 		});
+		expect(await weatherPending(keeper, keepBooking)).toBe(false);
 
 		const declined = await api()
 			.post(`/api/bookings/${declineBooking}/weather-reschedule-response`)
@@ -474,6 +486,7 @@ describe("Trip weather decisions near departure (integration, real Postgres)", (
 			refundsCreated: 1,
 		});
 		expect(await refunds(declineBooking)).toEqual([{ amount: "500000.00", status: "pending" }]);
+		expect(await weatherPending(decliner, declineBooking)).toBe(false);
 		await api()
 			.post(`/api/bookings/${declineBooking}/weather-reschedule-response`)
 			.set("Authorization", `Bearer ${decliner.accessToken}`)
@@ -484,6 +497,7 @@ describe("Trip weather decisions near departure (integration, real Postgres)", (
 		const ordinaryTrip = await createTrip(host, new Date(Date.now() + 6 * DAY_MS), null);
 		const ordinaryBooking = await bookPaid(keeper, ordinaryTrip);
 		await tripsService.reschedule(host.id, ordinaryTrip, dayTripWindow(12));
+		expect(await weatherPending(keeper, ordinaryBooking)).toBe(false);
 		await api()
 			.post(`/api/bookings/${ordinaryBooking}/weather-reschedule-response`)
 			.set("Authorization", `Bearer ${keeper.accessToken}`)
