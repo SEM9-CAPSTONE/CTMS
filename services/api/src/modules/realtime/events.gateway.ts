@@ -19,6 +19,14 @@ import { GpsParticipationSource } from "../gps-tracking/gps-participation.source
 import { UserRole, UserStatus } from "../users/entities/user.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI
 import { UsersRepository } from "../users/users.repository";
+import type { RealtimeAudience } from "./realtime-events.repository";
+import type {
+	RealtimeEventMeta,
+	ReconnectPolicy,
+	RecoveredRealtimeEvent,
+} from "./realtime-events.service";
+// biome-ignore lint/style/useImportType: constructor-injected by NestJS DI
+import { RealtimeEventsService } from "./realtime-events.service";
 
 /** CTMS-078, BR-259: private room an authenticated socket joins; only its own user is ever joined. */
 export function userRoom(userId: string): string {
@@ -51,6 +59,35 @@ export enum TripRoomError {
 }
 
 export type TripRoomAck = { ok: true; room: string } | { ok: false; error: TripRoomError };
+
+export enum RealtimeResumeError {
+	NOT_AUTHENTICATED = "NOT_AUTHENTICATED",
+	INVALID_CURSOR = "INVALID_CURSOR",
+}
+
+/** CTMS-082: answer to `realtime.resume`; only events the caller may receive now are returned. */
+export type RealtimeResumeAck =
+	| {
+			ok: true;
+			events: RecoveredRealtimeEvent[];
+			latestSequence: number;
+			truncated: boolean;
+	  }
+	| { ok: false; error: RealtimeResumeError };
+
+/** CTMS-082 data in the `connected` handshake event. */
+export interface ConnectedRecoveryContext {
+	/** Cursor to send back in `realtime.resume` after a reconnect; null for anonymous sockets. */
+	latestSequence: number | null;
+	reconnect: ReconnectPolicy;
+}
+
+/** `connected` handshake event sent to every socket. */
+export interface ConnectedPayload extends ConnectedRecoveryContext {
+	message: string;
+	authenticated: boolean;
+	rooms?: string[];
+}
 
 /** CTMS-079: SOS event identity — `eventId` is stable per persisted SOS so clients can dedupe. */
 export interface SosCreatedPayload {
@@ -103,8 +140,12 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 	constructor(
 		private readonly jwtService: JwtService,
 		private readonly usersRepository: UsersRepository,
-		private readonly participation: GpsParticipationSource
+		private readonly participation: GpsParticipationSource,
+		private readonly realtimeEvents: RealtimeEventsService
 	) {}
+
+	/** Live publishes still storing their event; awaited by tests and on shutdown. */
+	private readonly publishing = new Set<Promise<void>>();
 
 	/**
 	 * CTMS-078, BR-259/BR-170/BR-171: a socket that presents an access token is authenticated against
@@ -118,7 +159,9 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 			client.emit("connected", {
 				message: "Connected to CTMS real-time gateway",
 				authenticated: false,
-			});
+				latestSequence: null,
+				reconnect: this.realtimeEvents.reconnectPolicy(),
+			} satisfies ConnectedPayload);
 			return;
 		}
 
@@ -148,7 +191,9 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 				message: "Connected to CTMS real-time gateway",
 				authenticated: true,
 				rooms,
-			});
+				latestSequence: await this.safeLatestSequence(),
+				reconnect: this.realtimeEvents.reconnectPolicy(),
+			} satisfies ConnectedPayload);
 		} catch {
 			this.rejectSocket(client);
 		}
@@ -160,11 +205,57 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 		this.sessions.delete(client.id);
 	}
 
-	onModuleDestroy() {
+	async onModuleDestroy() {
 		for (const session of this.sessions.values()) {
 			if (session.expiryTimer) clearTimeout(session.expiryTimer);
 		}
 		this.sessions.clear();
+		await this.flushPublished();
+	}
+
+	/** Resolves once every live event published so far has been stored and sent. */
+	async flushPublished(): Promise<void> {
+		while (this.publishing.size > 0) {
+			await Promise.allSettled([...this.publishing]);
+		}
+	}
+
+	/**
+	 * CTMS-082, BR-263/BR-259: after a reconnect the client sends the last cursor it saw and gets the
+	 * protected events it missed. Only the authenticated socket of an active account may ask, and
+	 * the audience is checked again now: the user's own events, its current database roles and the
+	 * Trips it currently belongs to. Previous room membership proves nothing.
+	 */
+	@SubscribeMessage("realtime.resume")
+	async resume(
+		@ConnectedSocket() client: Socket,
+		@MessageBody() body: { afterSequence?: unknown } | undefined
+	): Promise<RealtimeResumeAck> {
+		const session = this.sessions.get(client.id);
+		if (!session) return { ok: false, error: RealtimeResumeError.NOT_AUTHENTICATED };
+		const afterSequence = body?.afterSequence;
+		if (
+			typeof afterSequence !== "number" ||
+			!Number.isSafeInteger(afterSequence) ||
+			afterSequence < 0
+		) {
+			return { ok: false, error: RealtimeResumeError.INVALID_CURSOR };
+		}
+
+		const user = await this.usersRepository.findOneWithRolesById(session.userId);
+		if (!user || user.status !== UserStatus.ACTIVE) {
+			this.rejectSocket(client);
+			return { ok: false, error: RealtimeResumeError.NOT_AUTHENTICATED };
+		}
+		const roles = this.usersRepository.getGrantedRoles(user);
+		const recovery = await this.realtimeEvents.recover({
+			afterSequence,
+			userId: user.id,
+			roles,
+			isTripMember: async (tripId) => (await this.tripRoomRejection(user.id, tripId)) === null,
+		});
+		if (client.disconnected) return { ok: false, error: RealtimeResumeError.NOT_AUTHENTICATED };
+		return { ok: true, ...recovery };
 	}
 
 	/**
@@ -222,6 +313,51 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 		return TripRoomError.NOT_TRIP_MEMBER;
 	}
 
+	private async safeLatestSequence(): Promise<number | null> {
+		try {
+			return await this.realtimeEvents.latestSequence();
+		} catch {
+			return null;
+		}
+	}
+
+	/**
+	 * CTMS-082: store the protected event (identity + cursor + frozen audience), then send it live
+	 * with `meta` as the second argument. The payload is unchanged, so existing listeners keep
+	 * working; clients dedupe live and recovered copies by `meta.eventId`.
+	 */
+	private publish(
+		name: string,
+		payload: object,
+		audience: Partial<RealtimeAudience>,
+		eventId?: string
+	): void {
+		const full: RealtimeAudience = {
+			userIds: [...new Set(audience.userIds ?? [])],
+			roles: [...new Set(audience.roles ?? [])],
+			tripId: audience.tripId ?? null,
+		};
+		const rooms = [
+			...(full.tripId ? [tripRoom(full.tripId)] : []),
+			...full.userIds.map(userRoom),
+			...full.roles.map((role) => roleRoom(role as UserRole)),
+		];
+		if (rooms.length === 0) return;
+		const task: Promise<void> = this.realtimeEvents
+			.record(name, payload, full, eventId)
+			.then((meta: RealtimeEventMeta) => {
+				this.server?.to(rooms).emit(name, payload, meta);
+			})
+			.catch((error: unknown) => {
+				const message = error instanceof Error ? error.message : String(error);
+				this.logger.error(`Real-time event ${name} not delivered: ${message}`);
+			})
+			.finally(() => {
+				this.publishing.delete(task);
+			});
+		this.publishing.add(task);
+	}
+
 	private rejectSocket(client: Socket) {
 		client.emit("auth.error", { message: SOCKET_AUTH_FAILED_MESSAGE });
 		client.disconnect(true);
@@ -234,7 +370,7 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 		hostId: string;
 		updatedAt: string;
 	}) {
-		this.server?.to(roleRoom(UserRole.ADMIN)).emit("trip.review.updated", payload);
+		this.publish("trip.review.updated", payload, { roles: [UserRole.ADMIN] });
 	}
 
 	emitTripReviewRequested(payload: {
@@ -244,7 +380,7 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 		submittedAt: string;
 		deadlineAt: string;
 	}) {
-		this.server?.to(roleRoom(UserRole.ADMIN)).emit("trip.review.requested", payload);
+		this.publish("trip.review.requested", payload, { roles: [UserRole.ADMIN] });
 	}
 
 	emitTripReviewReminder(payload: {
@@ -254,7 +390,7 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 		submittedAt: string;
 		deadlineAt: string;
 	}) {
-		this.server?.to(roleRoom(UserRole.ADMIN)).emit("trip.review.reminder", payload);
+		this.publish("trip.review.reminder", payload, { roles: [UserRole.ADMIN] });
 	}
 
 	emitTripReviewAutoRejected(payload: {
@@ -264,9 +400,10 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 		rejectedAt: string;
 		reason: string;
 	}) {
-		this.server
-			?.to([userRoom(payload.hostId), roleRoom(UserRole.ADMIN)])
-			.emit("trip.review.auto_rejected", payload);
+		this.publish("trip.review.auto_rejected", payload, {
+			userIds: [payload.hostId],
+			roles: [UserRole.ADMIN],
+		});
 	}
 
 	emitPorterRequestCreated(payload: {
@@ -277,9 +414,9 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 		requestedRole: string;
 		expiresAt: string;
 	}) {
-		this.server
-			?.to([userRoom(payload.porterId), userRoom(payload.requestedBy)])
-			.emit("porter.request.created", payload);
+		this.publish("porter.request.created", payload, {
+			userIds: [payload.porterId, payload.requestedBy],
+		});
 	}
 
 	emitPorterRequestStateChanged(payload: {
@@ -290,9 +427,9 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 		status: string;
 		respondedAt: string | null;
 	}) {
-		this.server
-			?.to([userRoom(payload.porterId), userRoom(payload.requestedBy)])
-			.emit("porter.request.state_changed", payload);
+		this.publish("porter.request.state_changed", payload, {
+			userIds: [payload.porterId, payload.requestedBy],
+		});
 	}
 
 	/** CTMS-049: classification only; description and coordinates stay behind the authorized API. */
@@ -305,9 +442,10 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 		severity: string;
 		occurredAt: string;
 	}) {
-		this.server
-			?.to([tripRoom(payload.tripId), userRoom(payload.hostId)])
-			.emit("trip.incident.reported", payload);
+		this.publish("trip.incident.reported", payload, {
+			tripId: payload.tripId,
+			userIds: [payload.hostId],
+		});
 	}
 
 	/** CTMS-086: Broadcast incident handling state changes and assignments to the Host and team. */
@@ -319,9 +457,9 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 		assignedTo: string | null;
 		updatedAt: string;
 	}) {
-		const rooms = [tripRoom(payload.tripId), userRoom(payload.hostId)];
-		if (payload.assignedTo) rooms.push(userRoom(payload.assignedTo));
-		this.server?.to(rooms).emit("trip.incident.updated", payload);
+		const userIds = [payload.hostId];
+		if (payload.assignedTo) userIds.push(payload.assignedTo);
+		this.publish("trip.incident.updated", payload, { tripId: payload.tripId, userIds });
 	}
 
 	/**
@@ -335,7 +473,7 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 	 */
 	emitEmergencyBroadcast(userIds: string[], payload: EmergencyBroadcastPayload) {
 		if (userIds.length === 0) return;
-		this.server?.to([...new Set(userIds)].map(userRoom)).emit("emergency.broadcast", payload);
+		this.publish("emergency.broadcast", payload, { userIds }, payload.eventId);
 	}
 
 	/** CTMS-93: a Trip's forecast risk level changed; only to the Host and booked Campers. */
@@ -352,7 +490,7 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 		}
 	) {
 		if (userIds.length === 0) return;
-		this.server?.to([...new Set(userIds)].map(userRoom)).emit("trip.weather.changed", payload);
+		this.publish("trip.weather.changed", payload, { userIds }, payload.eventId);
 	}
 
 	/** Weather decision near departure (policy §5): a reminder for the Host or an Admin. */
@@ -370,9 +508,7 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 		}
 	) {
 		if (userIds.length === 0) return;
-		this.server
-			?.to([...new Set(userIds)].map(userRoom))
-			.emit("trip.weather.decision_required", payload);
+		this.publish("trip.weather.decision_required", payload, { userIds });
 	}
 
 	/** Weather penalty (policy §6): the Host was penalised because an Admin had to decide. */
@@ -388,7 +524,7 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 			waiverDeadline: string;
 		}
 	) {
-		this.server?.to(userRoom(hostId)).emit("host.weather_penalty.created", payload);
+		this.publish("host.weather_penalty.created", payload, { userIds: [hostId] });
 	}
 
 	/** Weather penalty (policy §6): a Host asked for a force-majeure waiver. */
@@ -404,20 +540,16 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 		}
 	) {
 		if (adminIds.length === 0) return;
-		this.server
-			?.to([...new Set(adminIds)].map(userRoom))
-			.emit("weather_penalty.waiver_requested", payload);
+		this.publish("weather_penalty.waiver_requested", payload, { userIds: adminIds });
 	}
 
 	emitSosCreated(hostId: string, payload: SosCreatedPayload) {
-		this.server?.to(userRoom(hostId)).emit("sos.created", payload);
+		this.publish("sos.created", payload, { userIds: [hostId] }, payload.eventId);
 	}
 
 	/** CTMS-077 / CTMS-080: SOS state transition, routed only to the Trip Host and the SOS sender. */
 	emitSosStateChanged(hostId: string, payload: SosStateChangedPayload) {
-		this.server
-			?.to([userRoom(hostId), userRoom(payload.senderId)])
-			.emit("sos.state_changed", payload);
+		this.publish("sos.state_changed", payload, { userIds: [hostId, payload.senderId] });
 	}
 
 	/**
