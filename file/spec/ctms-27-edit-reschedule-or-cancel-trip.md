@@ -647,3 +647,24 @@ UI of §17 (CTMS-94 API). The leader agreed to reuse the Done key CTMS-102 for t
 - **Web unit:** `BookingDetailsView.test.tsx` — card shown when the flag is `true`, hidden when `false` or missing.
 - **Playwright:** the CTMS-60 Camper mock now returns `weatherReschedulePending: true`.
 - **Gates:** `lint:all` 0 errors (12 existing warnings, none in CTMS-58 files); `build:all` pass; web Vitest 259 files / 1732 tests pass; API unit 190 suites / 2305 tests pass (`test:all` is run per package because this machine has no `pytest` for `@ctms/ai`). Integration shards 1–8: only the 29 known baseline failures (sync-evaluation 4, overbooking-evaluation 4, trekking-route-checkpoints 2, incidents.report 1, trip-reviews 1, review-analysis 16, gps-tracking 1); shards 2 and 4 crashed Jest, so their suites were run one by one (`trip-weather-decisions` 5/5, `bookings.detail` pass; `demand-insights` failed once after the crash and passed 52/52 on rerun; `trip-weather-monitoring` 4/4 alone). Default Playwright E2E: 61 passed / 38 failed / 32 did not run, same as the baseline; the 3 CTMS-60 tests pass.
+
+## 23. Implementation Record — Weather for the Camper on mobile (UI, Jira CTMS-62)
+
+- **Problem:** the Camper Trip screen on mobile showed a hard-coded "An toàn" in the "THỜI TIẾT" box and had no forecast, no risk-change notices and no way to answer a weather reschedule.
+- **New feature `apps/mobile/lib/features/trip_weather/`** (same structure as `emergency_broadcasts`):
+  - `data/trip_weather_api.dart`: models and `HttpTripWeatherApi` for the existing endpoints `GET /trips/:tripId/weather-forecast/trip-dates`, `GET /me/weather-notices`, `PATCH /me/weather-notices/:id/read`, `GET /bookings/:bookingId` (`weatherReschedulePending`, CTMS-58) and `POST /bookings/:bookingId/weather-reschedule-response`.
+  - `application/trip_weather_controller.dart`: `ChangeNotifier` per (Trip, Booking); refreshes every 60 s and when the app returns to the foreground (no socket on mobile); a failed refresh keeps the last data; notices filtered to the Trip, newest first; optimistic mark-as-read; the reschedule answer is sent once and reloads the Booking.
+  - `presentation/trip_weather_labels.dart`: risk labels, reliability (policy §2) and error messages with the same Vietnamese wording as the web.
+  - `presentation/trip_weather_panel.dart`: "Dự báo thời tiết ngày đi" card — risk badge, schedule, reliability and "Kiểm tra lần cuối", partial-coverage warning, worst readings, advice and actions; out-of-range and error states with "Thử lại"; "Thay đổi dự báo" list with an unread dot, tap to mark read.
+  - `presentation/weather_reschedule_response_card.dart`: shown only when the Booking is `pending_reconfirmation` and `weatherReschedulePending` is true; "Giữ chỗ ở lịch mới" / "Huỷ và hoàn 100%" with a confirmation dialog, buttons disabled while sending, Vietnamese server refusals, success banner afterwards.
+- **Existing code (small insertions only):**
+  - `camper_trip_detail_screen.dart`: the two widgets under `EmergencyBroadcastsPanel` in "Tổng quan"; the "THỜI TIẾT" box value comes from the loaded forecast (An toàn / Cảnh báo / Nguy hiểm / Chưa có dự báo), falling back to the previous value while loading. Layout unchanged.
+  - `api_endpoints.dart`: the endpoints above.
+- **Out of scope:** the general Camper overview weather card (team screen, mock data), the Porter app, a mobile socket.
+
+## 24. Test Evidence — CTMS-62
+
+- **Flutter widget tests** (`test/features/trip_weather/trip_weather_test.dart`, 9): Red forecast with readings, advice, reliability, partial coverage and the highlight value; out-of-range explanation; 503 message and retry; notices filtered to the Trip and mark-as-read; reschedule card hidden for an ordinary reschedule and without a Booking; keep after confirmation; backing out of the decline; Vietnamese 409 for a decline.
+- **Existing test:** `review_bookings_tab_test.dart` (opens the Trip screen) still passes; the panel shows a static loading text instead of a spinner so `pumpAndSettle` settles.
+- **Screenshots** (rendered from widget tests, no emulator on this machine): Red forecast + reschedule answer + notices; after keeping the new date; Trip beyond 15 days. The test renderer cannot draw the label of the red `CtmsButton` (its text style has no font family), so "Huỷ và hoàn 100%" shows as boxes in the PNG only.
+- **Gates:** `flutter analyze`: no issues (a first run flagged 1 info in a CTMS-62 file, fixed); `flutter test`: 416 tests pass, including the 9 new ones; `lint:all` 0 errors (12 existing warnings); `build:all` pass; web Vitest 259 files / 1732 tests pass; API unit 190 suites / 2305 tests pass. Integration and web Playwright were not rerun: this task changes no API or web code (agreed in the plan).
