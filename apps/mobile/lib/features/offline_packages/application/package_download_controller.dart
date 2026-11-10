@@ -20,27 +20,36 @@ import '../data/package_integrity_service.dart';
 import '../data/package_storage_capacity.dart';
 import '../domain/offline_package.dart';
 
+final offlinePackageAccountProvider = Provider<String?>((ref) {
+  return ref.watch(
+    authControllerProvider.select(
+      (state) => state.isLoading ? null : state.asData?.value?.id,
+    ),
+  );
+});
+
+final packageDownloadStoreProvider =
+    FutureProvider.autoDispose<PackageDownloadStore?>((ref) async {
+      final userId = ref.watch(offlinePackageAccountProvider);
+      if (userId == null) return null;
+      final directory = await getApplicationSupportDirectory();
+      return PackageDownloadStore(
+        Directory('${directory.path}/offline-packages/$userId'),
+      );
+    });
+
 final packageDownloaderProvider = FutureProvider.autoDispose<PackageDownloader>(
   (ref) async {
-    final userId = ref.watch(authControllerProvider).valueOrNull?.id;
-    if (userId == null) throw StateError('Vui lòng đăng nhập lại.');
     final api = DioPackageDownloadApi(ref.watch(apiClientProvider));
-    final directory = await getApplicationSupportDirectory();
-    return PackageDownloader(
-      api,
-      PackageDownloadStore(
-        Directory('${directory.path}/offline-packages/$userId'),
-      ),
-      DevicePackageStorageCapacity(),
-    );
+    final store = await ref.watch(packageDownloadStoreProvider.future);
+    if (store == null) throw StateError('Vui lòng đăng nhập lại.');
+    return PackageDownloader(api, store, DevicePackageStorageCapacity());
   },
 );
 
 final packageDownloadControllerProvider = ChangeNotifierProvider.autoDispose
     .family<PackageDownloadController, String>((ref, tripId) {
-      ref.watch(
-        authControllerProvider.select((state) => state.valueOrNull?.id),
-      );
+      ref.watch(offlinePackageAccountProvider);
       final downloader = ref.watch(packageDownloaderProvider.future);
       final controller = PackageDownloadController(tripId, () => downloader);
       final connectivity = Connectivity().onConnectivityChanged.listen((
@@ -66,6 +75,7 @@ class PackageDownloadController extends ChangeNotifier {
   bool _accessDenied = false;
   bool _resumeWhenOnline = false;
   bool _reloadWhenOnline = false;
+  String? _tripTitle;
   CancelToken? _cancel;
   OfflinePackage? package;
   LocalPackageDownload? local;
@@ -156,7 +166,7 @@ class PackageDownloadController extends ChangeNotifier {
     }
   }
 
-  Future<void> start() async {
+  Future<void> start({String? tripTitle}) async {
     final target = package;
     if (_disposed ||
         _cancel != null ||
@@ -164,6 +174,9 @@ class PackageDownloadController extends ChangeNotifier {
         _accessDenied ||
         target == null) {
       return;
+    }
+    if (tripTitle != null && tripTitle.trim().isNotEmpty) {
+      _tripTitle = tripTitle.trim();
     }
     downloading = true;
     storageBlocked = false;
@@ -237,6 +250,7 @@ class PackageDownloadController extends ChangeNotifier {
       ) = await PackageIntegrityService(downloader.store).finalize(
         candidate,
         cancel,
+        tripTitle: _tripTitle,
         authorizeReplacement: online && candidate.activationAllowed == true
             ? () => _authorizeReplacement(downloader, candidate, cancel)
             : null,

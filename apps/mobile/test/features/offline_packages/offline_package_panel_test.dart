@@ -14,7 +14,7 @@ class _Controller extends PackageDownloadController {
   int loads = 0;
 
   @override
-  Future<void> start() async => starts++;
+  Future<void> start({String? tripTitle}) async => starts++;
 
   @override
   void pause() => pauses++;
