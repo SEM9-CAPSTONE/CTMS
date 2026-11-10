@@ -106,6 +106,32 @@ describe("BookingDetailsView", () => {
 		expect(screen.getByText(label, { exact: false })).toBeVisible();
 	});
 
+	it("offers the weather reschedule answer only when the API flags a weather reschedule (CTMS-58)", () => {
+		const { rerender } = render(
+			<BookingDetailsView
+				booking={{ ...booking, status: "pending_reconfirmation", weatherReschedulePending: true }}
+				onBack={() => {}}
+			/>
+		);
+		expect(screen.getByTestId("weather-reschedule-response-card")).toBeVisible();
+
+		rerender(
+			<BookingDetailsView
+				booking={{ ...booking, status: "pending_reconfirmation", weatherReschedulePending: false }}
+				onBack={() => {}}
+			/>
+		);
+		expect(screen.queryByTestId("weather-reschedule-response-card")).not.toBeInTheDocument();
+
+		rerender(
+			<BookingDetailsView
+				booking={{ ...booking, status: "pending_reconfirmation" }}
+				onBack={() => {}}
+			/>
+		);
+		expect(screen.queryByTestId("weather-reschedule-response-card")).not.toBeInTheDocument();
+	});
+
 	it("keeps a past pending hold authoritative", () => {
 		render(<BookingDetailsView booking={booking} onBack={() => {}} />);
 		expect(screen.getByText("Chờ thanh toán", { exact: false })).toBeVisible();

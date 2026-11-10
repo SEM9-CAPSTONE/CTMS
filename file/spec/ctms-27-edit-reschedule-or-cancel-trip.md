@@ -629,3 +629,21 @@ UI of §17 (CTMS-94 API). The leader agreed to reuse the Done key CTMS-102 for t
   - Admin approves a waiver from the list.
 - **Screenshots:** Host penalty card, waiver modal, Admin list, Admin review dialog.
 - **Gates:** API `lint` / `build` pass; API unit 190 suites / 2305 tests pass; web `lint:all` 0 errors (12 warnings, none in CTMS-102 files); `build:all` pass (a first run caught 2 test-only mock typing errors, fixed with `vi.mocked`); web Vitest 259 files / 1731 tests pass; `test:all` stops at `@ctms/ai` because this machine has no `pytest` (unrelated to this change). Integration shards 1–8: only the 29 known baseline failures (sync-evaluation 4, overbooking-evaluation 4, trekking-route-checkpoints 2, incidents.report 1, trip-reviews 1, review-analysis 16, gps-tracking 1). Default Playwright E2E: 61 passed / 38 failed / 32 did not run, i.e. baseline 59 / 38 / 32 plus the 2 new `ctms-102-weather-penalty-ui.spec.ts` tests passing.
+
+## 21. Implementation Record — Weather reschedule marker on the Booking (API, Jira CTMS-58)
+
+- **Problem:** the CTMS-60 Camper card ("Giữ chỗ ở lịch mới" / "Huỷ và hoàn 100%") was shown for every `pending_reconfirmation` Booking, because the Booking API did not say whether the reschedule was for weather. After an ordinary Host reschedule the decline button only returned a 409.
+- **API:** `GET /bookings/:bookingId` (and `POST /bookings/:bookingId/sync-payment`, which uses the same query) now returns `weatherReschedulePending: boolean`.
+  - `true` only when the Booking is `pending_reconfirmation` **and** the Trip's latest `trip.rescheduled` audit log has the reason `weather_reschedule`;
+  - this is the same rule as `TripWeatherDecisionsRepository.lastRescheduleWasForWeather`, which guards `POST /bookings/:bookingId/weather-reschedule-response`, so the flag is `true` exactly when that endpoint accepts the answer;
+  - computed in `BookingsRepository.findDetailsByIdForOwner` with a subquery on `audit_logs` (indexed on `target_type`, `target_id`); no migration, no new table.
+- **Web:** `BookingDetails.weatherReschedulePending?` added; `BookingDetailsView` shows `WeatherRescheduleResponseCard` only when the flag is `true`. The card itself and the general reconfirmation flow (CTMS-160) are unchanged.
+- **Out of scope:** the Booking list endpoint and the mobile app; CTMS-62 (Camper mobile weather) reads the flag from the Booking detail.
+
+## 22. Test Evidence — CTMS-58
+
+- **API unit:** `bookings.repository.spec.ts` checks the detail SQL selects `weatherReschedulePending` with the status, reason, action and latest-row conditions.
+- **Integration** (`test/trip-weather-decisions.integration-spec.ts`, weather reschedule case): flag `false` before the decision, `true` for both Campers after the Host's weather reschedule, `false` after accept and after decline, and `false` after an ordinary Host reschedule.
+- **Web unit:** `BookingDetailsView.test.tsx` — card shown when the flag is `true`, hidden when `false` or missing.
+- **Playwright:** the CTMS-60 Camper mock now returns `weatherReschedulePending: true`.
+- **Gates:** `lint:all` 0 errors (12 existing warnings, none in CTMS-58 files); `build:all` pass; web Vitest 259 files / 1732 tests pass; API unit 190 suites / 2305 tests pass (`test:all` is run per package because this machine has no `pytest` for `@ctms/ai`). Integration shards 1–8: only the 29 known baseline failures (sync-evaluation 4, overbooking-evaluation 4, trekking-route-checkpoints 2, incidents.report 1, trip-reviews 1, review-analysis 16, gps-tracking 1); shards 2 and 4 crashed Jest, so their suites were run one by one (`trip-weather-decisions` 5/5, `bookings.detail` pass; `demand-insights` failed once after the crash and passed 52/52 on rerun; `trip-weather-monitoring` 4/4 alone). Default Playwright E2E: 61 passed / 38 failed / 32 did not run, same as the baseline; the 3 CTMS-60 tests pass.

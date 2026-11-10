@@ -196,17 +196,18 @@ export function BookingDetailsView({
 					</section>
 				</div>
 
-				{/* Trip rescheduled: keep the new date or, for a weather reschedule, cancel with a full refund */}
-				{booking.status === "pending_reconfirmation" && (
-					<div className="mt-6">
-						<WeatherRescheduleResponseCard
-							bookingId={booking.id}
-							newStartsAt={booking.tripStartsAtSnapshot}
-							newEndsAt={booking.tripEndsAtSnapshot}
-							onAnswered={onBookingChanged}
-						/>
-					</div>
-				)}
+				{/* Weather reschedule (CTMS-58 flag): keep the new date or cancel with a full refund */}
+				{booking.status === "pending_reconfirmation" &&
+					booking.weatherReschedulePending === true && (
+						<div className="mt-6">
+							<WeatherRescheduleResponseCard
+								bookingId={booking.id}
+								newStartsAt={booking.tripStartsAtSnapshot}
+								newEndsAt={booking.tripEndsAtSnapshot}
+								onAnswered={onBookingChanged}
+							/>
+						</div>
+					)}
 
 				{/* Forecast for the booked Trip's own dates while the Trip is still ahead or running */}
 				{(booking.status === "confirmed" || booking.status === "pending_payment") &&
