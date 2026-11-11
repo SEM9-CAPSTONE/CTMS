@@ -553,7 +553,11 @@ class _CamperTripDetailScreenState
                 vertical: AppSpacing.lg,
               ),
               children: [
-                OfflineMapPanel(tripId: effectiveTripId, integrateArrivals: true),
+                OfflineMapPanel(
+                  tripId: effectiveTripId,
+                  tripTitle: widget.booking?.title ?? widget.trip?.name,
+                  integrateArrivals: true,
+                ),
                 const SizedBox(height: AppSpacing.lg),
                 GpsTrackingPanel(tripId: effectiveTripId),
                 const SizedBox(height: AppSpacing.lg),

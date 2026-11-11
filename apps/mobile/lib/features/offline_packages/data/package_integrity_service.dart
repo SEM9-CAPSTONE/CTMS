@@ -150,10 +150,12 @@ class PackageIntegrityService {
         if (active == null || !await _isVerified(active)) {
           return null;
         }
-        final (valid, bytes) = await _validate(
+        final (valid, bytes) = await _validateWith(
           active,
-          () => cancel != null ? _checkCancelled(cancel) : null,
-          includeBytes: true,
+          () {
+            if (cancel != null) _checkCancelled(cancel);
+          },
+          (package, path) => verifier.verify(package, path, includeBytes: true),
         );
         if (!valid || bytes == null || await store.accessDenied(tripId)) {
           return null;

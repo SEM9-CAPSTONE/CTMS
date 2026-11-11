@@ -109,6 +109,7 @@ class _PorterGpsTrackingSectionState
             OfflineMapPanel(
               key: ValueKey('map-${selected.id}'),
               tripId: selected.id,
+              tripTitle: selected.title,
             ),
             const SizedBox(height: AppSpacing.md),
             if (isOngoing) ...[
