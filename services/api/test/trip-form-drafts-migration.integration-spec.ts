@@ -27,8 +27,9 @@ describe("Trip form draft schema repair", () => {
 	}, 30_000);
 
 	afterEach(async () => {
-		await runner.query("DROP TABLE IF EXISTS trip_form_draft_images");
-		await runner.query("DROP TABLE IF EXISTS trip_form_drafts");
+		// A missing local table must never resolve through search_path to public.
+		await runner.query(`DROP TABLE IF EXISTS "${schema}".trip_form_draft_images`);
+		await runner.query(`DROP TABLE IF EXISTS "${schema}".trip_form_drafts`);
 	});
 	afterAll(async () => {
 		if (runner) await runner.release();
