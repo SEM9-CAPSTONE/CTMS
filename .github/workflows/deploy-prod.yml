@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - develop
   workflow_dispatch:
 
 permissions:
@@ -16,7 +15,7 @@ concurrency:
 
 jobs:
   verify:
-    if: ${{ vars.ENABLE_DEPLOY_PROD == 'true' && github.ref_type == 'branch' && github.ref_name == (vars.CTMS_PRODUCTION_BRANCH || 'main') }}
+    if: ${{ vars.ENABLE_DEPLOY_PROD == 'true' && github.ref == 'refs/heads/main' }}
     uses: ./.github/workflows/ci.yml
 
   docker:
@@ -115,6 +114,7 @@ jobs:
             docker-compose.yml docker-compose.prod.yml docker-compose.registry.yml \
             infra/nginx/production.conf infra/nginx/snippets scripts/deploy-production.sh
 
+          ssh -F "$ssh_dir/config" ctms-vps 'install -d -m 700 -- "$HOME/.ctms-ci"'
           scp -F "$ssh_dir/config" "$ssh_dir/release.tar" "ctms-vps:.ctms-ci/${release_id}.tar"
           ssh -F "$ssh_dir/config" ctms-vps bash -s -- "$GITHUB_SHA" "$DOCKERHUB_USERNAME" "$release_id" \
             < scripts/deploy-vps-release.sh
