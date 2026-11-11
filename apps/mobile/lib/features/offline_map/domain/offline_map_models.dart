@@ -254,6 +254,7 @@ class OfflineMapContext {
     required this.packageId,
     required this.route,
     required this.checkpoints,
+    this.packageSha256,
   });
 
   final String tripId;
@@ -261,6 +262,7 @@ class OfflineMapContext {
   final String packageId;
   final OfflineRouteGeometry route;
   final List<OfflineMapCheckpoint> checkpoints;
+  final String? packageSha256;
 }
 
 /// Trạng thái định vị GPS hiện tại trên bản đồ.

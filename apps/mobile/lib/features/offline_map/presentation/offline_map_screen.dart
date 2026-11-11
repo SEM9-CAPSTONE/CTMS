@@ -11,6 +11,9 @@ import '../application/offline_map_controller.dart';
 import '../domain/offline_map_models.dart';
 import 'widgets/offline_map_canvas.dart';
 import 'widgets/offline_map_checkpoint_list.dart';
+import '../../route_recovery/application/recovery_controller.dart';
+import '../../route_recovery/presentation/recovery_card.dart';
+import '../../route_recovery/domain/recovery_state.dart';
 
 /// Full-screen navigation map view for on-trail orientation.
 /// Reuses the existing [OfflineMapController] via [offlineMapControllerProvider].
@@ -20,10 +23,12 @@ class OfflineMapScreen extends ConsumerStatefulWidget {
     required this.tripId,
     this.clock,
     this.integrateArrivals = false,
+    this.enableRecovery = false,
   });
 
   final String tripId;
   final bool integrateArrivals;
+  final bool enableRecovery;
   final DateTime Function()? clock;
 
   @override
@@ -37,6 +42,9 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
   Widget build(BuildContext context) {
     final controller = ref.watch(offlineMapControllerProvider(widget.tripId));
     final state = controller.state;
+    final recovery = widget.enableRecovery && state.hasUsableMap
+        ? ref.watch(recoveryControllerProvider(widget.tripId)).view
+        : null;
     final now = (widget.clock ?? DateTime.now)();
     final isStale = state.location.isStale(now);
 
@@ -81,6 +89,7 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
                   ? LayoutBuilder(
                       builder: (context, constraints) {
                         return OfflineMapCanvas(
+                          recoveryNotice: recovery == null ? null : recoveryMapNotice(recovery.display),
                           mbtilesPath: controller.basemapPath ?? '',
                           key: _canvasKey,
                           route: state.context!.route,
@@ -89,6 +98,9 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
                           clock: widget.clock,
                           height: constraints.maxHeight,
                           interactive: true,
+                          recoveryTarget: recovery?.guides == true
+                              ? recovery!.target
+                              : null,
                         );
                       },
                     )
@@ -109,48 +121,68 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
               ),
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(AppSpacing.md),
-                child: widget.integrateArrivals
-                    ? CheckpointArrivalPanel(
-                        showDistances:
-                            state.location.status == OfflineMapGpsStatus.ready,
-                        distanceNote: isStale
-                            ? 'Mẫu GPS cũ'
-                            : state.location.quality == GpsSignalQuality.poor
-                            ? 'GPS độ chính xác thấp'
-                            : null,
-                        showReachedDialog: false,
+                child: Column(
+                  children: [
+                    if (widget.enableRecovery) ...[
+                      RecoveryCard(
                         tripId: widget.tripId,
-                        onSelectCheckpoint: (selected) {
-                          final matches = state.context!.checkpoints.where(
-                            (cp) => cp.id == selected.id,
-                          );
-                          final renderBox =
+                        onFocus: () {
+                          final box =
                               _canvasKey.currentContext?.findRenderObject()
                                   as RenderBox?;
-                          if (matches.isNotEmpty && renderBox != null) {
-                            _canvasKey.currentState?.focusOnCheckpoint(
-                              matches.first,
-                              renderBox.size,
-                            );
-                          }
-                        },
-                      )
-                    : OfflineMapCheckpointList(
-                        checkpoints: state.context!.checkpoints,
-                        currentLocation: state.location,
-                        isStale: isStale,
-                        onSelectCheckpoint: (cp) {
-                          final renderBox =
-                              _canvasKey.currentContext?.findRenderObject()
-                                  as RenderBox?;
-                          if (renderBox != null) {
-                            _canvasKey.currentState?.focusOnCheckpoint(
-                              cp,
-                              renderBox.size,
-                            );
+                          if (box != null) {
+                            _canvasKey.currentState?.focusOnRecovery(box.size);
                           }
                         },
                       ),
+                      const SizedBox(height: AppSpacing.md),
+                    ],
+                    widget.integrateArrivals
+                        ? CheckpointArrivalPanel(
+                            showDistances:
+                                state.location.status ==
+                                OfflineMapGpsStatus.ready,
+                            distanceNote: isStale
+                                ? 'Mẫu GPS cũ'
+                                : state.location.quality ==
+                                      GpsSignalQuality.poor
+                                ? 'GPS độ chính xác thấp'
+                                : null,
+                            showReachedDialog: false,
+                            tripId: widget.tripId,
+                            onSelectCheckpoint: (selected) {
+                              final matches = state.context!.checkpoints.where(
+                                (cp) => cp.id == selected.id,
+                              );
+                              final renderBox =
+                                  _canvasKey.currentContext?.findRenderObject()
+                                      as RenderBox?;
+                              if (matches.isNotEmpty && renderBox != null) {
+                                _canvasKey.currentState?.focusOnCheckpoint(
+                                  matches.first,
+                                  renderBox.size,
+                                );
+                              }
+                            },
+                          )
+                        : OfflineMapCheckpointList(
+                            checkpoints: state.context!.checkpoints,
+                            currentLocation: state.location,
+                            isStale: isStale,
+                            onSelectCheckpoint: (cp) {
+                              final renderBox =
+                                  _canvasKey.currentContext?.findRenderObject()
+                                      as RenderBox?;
+                              if (renderBox != null) {
+                                _canvasKey.currentState?.focusOnCheckpoint(
+                                  cp,
+                                  renderBox.size,
+                                );
+                              }
+                            },
+                          ),
+                  ],
+                ),
               ),
             ),
         ],

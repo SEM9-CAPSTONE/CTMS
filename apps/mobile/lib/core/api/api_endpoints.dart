@@ -78,6 +78,9 @@ class TripEndpoints {
       '/trips/$tripId/gps-tracking/context';
   String routeDeviationContext(String tripId) =>
       '/trips/$tripId/route-deviation/context';
+
+  String routeRecoveryContext(String tripId) =>
+      '/trips/$tripId/route-recovery/context';
   String safetyEvents(String tripId) => '/trips/$tripId/safety-events';
   String deviceSyncStatus(String tripId) => '/trips/$tripId/device-sync/status';
   String scheduleProgress(String tripId) => '/trips/$tripId/schedule-progress';

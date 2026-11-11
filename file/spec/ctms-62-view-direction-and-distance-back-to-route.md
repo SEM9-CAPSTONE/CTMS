@@ -130,3 +130,10 @@ distance and bearing calculation and UI integration are delivered by CTMS-316.
 ## 12. Open Decisions
 
 Exact direction presentation—bearing, arrow, compass UI—is Technical Design/UI.
+
+CTMS-316 uses the [client decision table](../../docs/features/CTMS-316-Route-Recovery-UI.md).
+STALE contexts withhold guidance. Network/timeout fallback is allowed only for an
+exact previously AVAILABLE, still locally verified package, with an explicit
+unverified-again label and observation time. HTTP 401/403/404 and server errors do
+not grant fallback. GPS usability reuses accuracy <=20 m, age <=30 s and future
+skew <=5 s; this presentation gate does not alter CTMS-060 navigation transitions.
