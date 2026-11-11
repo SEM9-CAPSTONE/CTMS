@@ -1,4 +1,4 @@
-import { Logger, type OnModuleDestroy } from "@nestjs/common";
+import { Logger, type OnModuleDestroy, Optional } from "@nestjs/common";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI
 import { JwtService } from "@nestjs/jwt";
 import {
@@ -16,6 +16,8 @@ import { BookingMemberStatus } from "../bookings/booking-member-status.enum";
 import type { EmergencyBroadcastPayload } from "../emergency-broadcasts/emergency-broadcasts.types";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI
 import { GpsParticipationSource } from "../gps-tracking/gps-participation.source";
+// biome-ignore lint/style/useImportType: constructor-injected by NestJS DI
+import { PushNotificationsService } from "../push-notifications/push-notifications.service";
 import { UserRole, UserStatus } from "../users/entities/user.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI
 import { UsersRepository } from "../users/users.repository";
@@ -102,6 +104,16 @@ export interface SosCreatedPayload {
 	persistedAt: string;
 }
 
+/** CTMS-090: `booking.updated`, the Booking owner's view of a state change. */
+export interface BookingUpdatedPayload {
+	eventId: string;
+	bookingId: string;
+	tripId: string;
+	tripTitle: string;
+	status: "confirmed" | "cancelled" | "expired" | "pending_reconfirmation";
+	updatedAt: string;
+}
+
 export interface SosStateChangedPayload {
 	sosId: string;
 	tripId: string;
@@ -141,7 +153,9 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 		private readonly jwtService: JwtService,
 		private readonly usersRepository: UsersRepository,
 		private readonly participation: GpsParticipationSource,
-		private readonly realtimeEvents: RealtimeEventsService
+		private readonly realtimeEvents: RealtimeEventsService,
+		// CTMS-090: committed events also become background pushes for their addressed users.
+		@Optional() private readonly pushes?: PushNotificationsService
 	) {}
 
 	/** Live publishes still storing their event; awaited by tests and on shutdown. */
@@ -345,8 +359,10 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 		if (rooms.length === 0) return;
 		const task: Promise<void> = this.realtimeEvents
 			.record(name, payload, full, eventId)
-			.then((meta: RealtimeEventMeta) => {
+			.then(async (meta: RealtimeEventMeta) => {
 				this.server?.to(rooms).emit(name, payload, meta);
+				// Same identity as the live copy, so a re-published event is never pushed twice.
+				await this.pushes?.enqueueForEvent(name, payload, full.userIds, meta.eventId);
 			})
 			.catch((error: unknown) => {
 				const message = error instanceof Error ? error.message : String(error);
@@ -541,6 +557,14 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 	) {
 		if (adminIds.length === 0) return;
 		this.publish("weather_penalty.waiver_requested", payload, { userIds: adminIds });
+	}
+
+	/**
+	 * CTMS-090: a Booking changed state after its transaction committed; sent to the Booking owner
+	 * (live and as a background push).
+	 */
+	emitBookingUpdated(userId: string, payload: BookingUpdatedPayload) {
+		this.publish("booking.updated", payload, { userIds: [userId] }, payload.eventId);
 	}
 
 	emitSosCreated(hostId: string, payload: SosCreatedPayload) {

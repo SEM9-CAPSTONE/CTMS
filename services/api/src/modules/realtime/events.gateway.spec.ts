@@ -2,6 +2,7 @@ import type { JwtService } from "@nestjs/jwt";
 import type { Server, Socket } from "socket.io";
 import { BookingMemberStatus } from "../bookings/booking-member-status.enum";
 import type { GpsParticipationSource } from "../gps-tracking/gps-participation.source";
+import type { PushNotificationsService } from "../push-notifications/push-notifications.service";
 import { TripStatus } from "../trips/entities/trip.entity";
 import { UserRole, UserStatus } from "../users/entities/user.entity";
 import type { UsersRepository } from "../users/users.repository";
@@ -730,6 +731,46 @@ describe("EventsGateway (CTMS-078/CTMS-079, BR-259/BR-260)", () => {
 			expect(socket.emit).toHaveBeenCalledWith("auth.error", expect.any(Object));
 			expect(socket.disconnect).toHaveBeenCalledWith(true);
 			expect(realtimeEvents.recover).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("background push (CTMS-090)", () => {
+		it("queues the push of a committed event with the live event id, after the live send", async () => {
+			const pushes = { enqueueForEvent: jest.fn().mockResolvedValue(1) };
+			const withPush = new EventsGateway(
+				jwtService as unknown as JwtService,
+				usersRepository as unknown as UsersRepository,
+				participation as unknown as GpsParticipationSource,
+				realtimeEvents as unknown as RealtimeEventsService,
+				pushes as unknown as PushNotificationsService
+			);
+			withPush.server = server as unknown as Server;
+			withPush.emitBookingUpdated(USER_ID, {
+				eventId: "booking-event-1",
+				bookingId: "b-1",
+				tripId: TRIP_ID,
+				tripTitle: "T",
+				status: "confirmed",
+				updatedAt: "u",
+			});
+			await withPush.flushPublished();
+
+			expect(server.to).toHaveBeenCalledWith([userRoom(USER_ID)]);
+			expect(roomEmit).toHaveBeenCalledWith(
+				"booking.updated",
+				expect.objectContaining({ bookingId: "b-1" }),
+				expect.objectContaining({ eventId: "booking-event-1" })
+			);
+			expect(pushes.enqueueForEvent).toHaveBeenCalledWith(
+				"booking.updated",
+				expect.objectContaining({ status: "confirmed" }),
+				[USER_ID],
+				"booking-event-1"
+			);
+			expect(roomEmit.mock.invocationCallOrder[0]).toBeLessThan(
+				pushes.enqueueForEvent.mock.invocationCallOrder[0]
+			);
+			await withPush.onModuleDestroy();
 		});
 	});
 });

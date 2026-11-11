@@ -18,6 +18,8 @@ import {
 	BookingPaymentStatus,
 	BookingStatus,
 } from "../profiles/entities/booking.entity";
+import { publishBookingUpdates } from "../realtime/booking-updates";
+import { EventsGateway } from "../realtime/events.gateway";
 import { Trip } from "../trips/entities/trip.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { BookingsRepository } from "./bookings.repository";
@@ -78,7 +80,8 @@ export class PaymentsService {
 		private readonly paymentsRepository: PaymentsRepository,
 		private readonly bookingsRepository: BookingsRepository,
 		private readonly dataSource: DataSource,
-		@Optional() @Inject(PayOSService) private readonly payosService?: PayOSService
+		@Optional() @Inject(PayOSService) private readonly payosService?: PayOSService,
+		@Optional() @Inject(EventsGateway) private readonly eventsGateway?: EventsGateway
 	) {}
 
 	/**
@@ -268,6 +271,10 @@ export class PaymentsService {
 	 */
 	async handlePayOSWebhook(data: WebhookData): Promise<void> {
 		const orderCodeStr = String(data.orderCode);
+		let confirmed: {
+			trip: { id: string; title: string };
+			booking: { id: string; userId: string };
+		} | null = null;
 		await this.dataSource.transaction(async (manager: EntityManager) => {
 			const paymentLookup = await manager.getRepository(Payment).findOne({
 				where: { providerReference: orderCodeStr },
@@ -329,6 +336,12 @@ export class PaymentsService {
 					booking.status !== BookingStatus.CANCELLED &&
 					booking.status !== BookingStatus.EXPIRED
 				) {
+					if (booking.status !== BookingStatus.CONFIRMED) {
+						confirmed = {
+							trip: { id: trip.id, title: trip.title },
+							booking: { id: booking.id, userId: booking.userId },
+						};
+					}
 					booking.status = BookingStatus.CONFIRMED;
 				}
 				booking.paymentStatus = BookingPaymentStatus.PAID;
@@ -396,6 +409,14 @@ export class PaymentsService {
 				);
 			}
 		});
+		// CTMS-090: after commit only; a repeated callback yields the same event id.
+		const change = confirmed as {
+			trip: { id: string; title: string };
+			booking: { id: string; userId: string };
+		} | null;
+		if (change) {
+			publishBookingUpdates(this.eventsGateway, "confirmed", change.trip, [change.booking]);
+		}
 	}
 
 	/**
