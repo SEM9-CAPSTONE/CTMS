@@ -46,6 +46,25 @@ class OfflinePackagePanel extends ConsumerWidget {
     final transferred = local?.status == PackageDownloadStatus.downloaded;
 
     final (message, label, action, transferProgress) = switch (verification) {
+      _ when controller.downloadingBasemap => (
+        'Đang tải nền bản đồ · ${(controller.basemapProgress * 100).floor()}%',
+        'Tạm dừng',
+        controller.pause,
+        controller.basemapProgress,
+      ),
+      _
+          when active != null &&
+              verification != PackageVerificationStatus.failed &&
+              !controller.loading &&
+              !controller.downloading &&
+              !controller.readyForOffline =>
+        (
+          controller.basemapError ??
+              'Dữ liệu chuyến đi đã có. Chưa tải nền bản đồ.',
+          'Tải nền bản đồ',
+          controller.start,
+          null,
+        ),
       PackageVerificationStatus.verifying => (
         'Đang hoàn tất dữ liệu…',
         null,
@@ -68,7 +87,8 @@ class OfflinePackagePanel extends ConsumerWidget {
         progress,
       ),
       _
-          when active != null &&
+          when controller.readyForOffline &&
+              active != null &&
               (controller.loading ||
                   package == null ||
                   active.sameArtifact(package) ||
@@ -125,7 +145,7 @@ class OfflinePackagePanel extends ConsumerWidget {
             LinearProgressIndicator(
               value: transferProgress,
               semanticsLabel: 'Tiến độ tải dữ liệu ngoại tuyến',
-              semanticsValue: percentage,
+              semanticsValue: '${(transferProgress * 100).floor()}%',
             ),
           ],
           if (!summaryOnly && controller.storageBlocked) ...[

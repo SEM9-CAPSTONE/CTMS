@@ -6,6 +6,7 @@ import { PassportModule } from "@nestjs/passport";
 import { Test } from "@nestjs/testing";
 import request from "supertest";
 import { JwtStrategy } from "../src/modules/auth/jwt.strategy";
+import { OfflineBasemapService } from "../src/modules/offline-package-download/offline-basemap.service";
 import { OfflinePackageAccessRepository } from "../src/modules/offline-package-download/offline-package-access.repository";
 import { OfflinePackageDownloadController } from "../src/modules/offline-package-download/offline-package-download.controller";
 import { OfflinePackageDownloadService } from "../src/modules/offline-package-download/offline-package-download.service";
@@ -70,6 +71,7 @@ describe("CTMS-053 authenticated private transport (HTTP + production JWT and ro
 			controllers: [OfflinePackageDownloadController],
 			providers: [
 				OfflinePackageDownloadService,
+				{ provide: OfflineBasemapService, useValue: {} },
 				JwtStrategy,
 				{ provide: ConfigService, useValue: { get: () => secret } },
 				{ provide: UsersRepository, useValue: users },

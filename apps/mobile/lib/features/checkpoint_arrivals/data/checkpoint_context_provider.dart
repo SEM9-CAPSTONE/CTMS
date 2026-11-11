@@ -159,7 +159,7 @@ class HttpCheckpointContextProvider implements CheckpointContextProvider {
   HttpCheckpointContextProvider({
     required this.client,
     CheckpointContextProvider? cache,
-    this.allowDevFallback = kDebugMode,
+    this.allowDevFallback = false,
   }) : cache = cache ?? FileCheckpointContextCache();
 
   final ApiClient client;

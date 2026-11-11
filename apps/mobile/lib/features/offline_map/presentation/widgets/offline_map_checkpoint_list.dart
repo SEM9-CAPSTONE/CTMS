@@ -39,7 +39,8 @@ class OfflineMapCheckpointList extends StatelessWidget {
     }
 
     final sample = currentLocation?.sample;
-    final hasFix = sample != null && currentLocation?.status == OfflineMapGpsStatus.ready;
+    final hasFix =
+        sample != null && currentLocation?.status == OfflineMapGpsStatus.ready;
     final isPoor = currentLocation?.quality == GpsSignalQuality.poor;
 
     return Column(
@@ -80,15 +81,23 @@ class OfflineMapCheckpointList extends StatelessWidget {
                     ),
                   )
                 : null;
-            final isArrived = distMeters != null && distMeters <= checkpoints[i].radiusMeters;
+            final isArrived =
+                !isStale &&
+                !isPoor &&
+                distMeters != null &&
+                distMeters <= checkpoints[i].radiusMeters;
             return _CheckpointItemCard(
               order: i + 1,
               checkpoint: checkpoints[i],
-              distanceText: distMeters != null ? _formatDistance(distMeters) : null,
+              distanceText: distMeters != null
+                  ? _formatDistance(distMeters)
+                  : null,
               isArrived: isArrived,
               isStale: isStale,
               isPoor: isPoor,
-              onTap: onSelectCheckpoint != null ? () => onSelectCheckpoint!(checkpoints[i]) : null,
+              onTap: onSelectCheckpoint != null
+                  ? () => onSelectCheckpoint!(checkpoints[i])
+                  : null,
             );
           }(),
           if (i < checkpoints.length - 1) const SizedBox(height: AppSpacing.xs),
@@ -118,7 +127,10 @@ class _CheckpointItemCard extends StatelessWidget {
   final VoidCallback? onTap;
 
   static String _cleanName(String name) {
-    return name.replaceAllMapped(RegExp(r'\((\d+)\s*m\)'), (m) => '(độ cao ↑${m[1]} m)');
+    return name.replaceAllMapped(
+      RegExp(r'\((\d+)\s*m\)'),
+      (m) => '(độ cao ↑${m[1]} m)',
+    );
   }
 
   @override
@@ -142,7 +154,9 @@ class _CheckpointItemCard extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 12,
-                backgroundColor: isArrived ? const Color(0xFF2E7D32) : AppColors.brandLight,
+                backgroundColor: isArrived
+                    ? const Color(0xFF2E7D32)
+                    : AppColors.brandLight,
                 child: isArrived
                     ? const Icon(Icons.check, size: 14, color: Colors.white)
                     : Text(
@@ -162,7 +176,9 @@ class _CheckpointItemCard extends StatelessWidget {
                     Text(
                       _cleanName(checkpoint.name),
                       style: AppTypography.bodyStrong.copyWith(
-                        color: isArrived ? const Color(0xFF1B5E20) : AppColors.textPrimary,
+                        color: isArrived
+                            ? const Color(0xFF1B5E20)
+                            : AppColors.textPrimary,
                         fontSize: 13,
                       ),
                     ),
@@ -173,7 +189,8 @@ class _CheckpointItemCard extends StatelessWidget {
                         fontSize: 11,
                       ),
                     ),
-                    if (checkpoint.instructions != null && checkpoint.instructions!.isNotEmpty) ...[
+                    if (checkpoint.instructions != null &&
+                        checkpoint.instructions!.isNotEmpty) ...[
                       const SizedBox(height: 2),
                       Text(
                         checkpoint.instructions!,
@@ -195,7 +212,7 @@ class _CheckpointItemCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     const Text(
-                      'ĐÃ TỚI',
+                      'Trong vùng trạm',
                       style: TextStyle(
                         color: Color(0xFF2E7D32),
                         fontWeight: FontWeight.w900,
@@ -218,7 +235,9 @@ class _CheckpointItemCard extends StatelessWidget {
                     Text(
                       'Cách ~$distanceText',
                       style: AppTypography.caption.copyWith(
-                        color: isStale ? AppColors.textMuted : AppColors.brandPrimary,
+                        color: isStale
+                            ? AppColors.textMuted
+                            : AppColors.brandPrimary,
                         fontWeight: FontWeight.w800,
                         fontSize: 11.5,
                       ),
@@ -258,4 +277,3 @@ class _CheckpointItemCard extends StatelessWidget {
     );
   }
 }
-

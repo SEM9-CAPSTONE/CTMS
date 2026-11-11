@@ -7,6 +7,7 @@ import '../../../core/widgets/ctms_alert_banner.dart';
 import '../../../core/widgets/ctms_button.dart';
 import '../../../core/widgets/ctms_section_card.dart';
 import '../../../core/widgets/ctms_status_badge.dart';
+import '../../../features/checkpoint_arrivals/presentation/checkpoint_arrival_panel.dart';
 import '../application/offline_map_controller.dart';
 import '../domain/offline_map_models.dart';
 import 'offline_map_screen.dart';
@@ -20,9 +21,11 @@ class OfflineMapPanel extends ConsumerStatefulWidget {
     super.key,
     required this.tripId,
     this.clock,
+    this.integrateArrivals = false,
   });
 
   final String tripId;
+  final bool integrateArrivals;
   final DateTime Function()? clock;
 
   @override
@@ -49,8 +52,7 @@ class _OfflineMapPanelState extends ConsumerState<OfflineMapPanel>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      final controller =
-          ref.read(offlineMapControllerProvider(widget.tripId));
+      final controller = ref.read(offlineMapControllerProvider(widget.tripId));
       controller.reloadPackage();
       controller.refreshLocation();
     }
@@ -62,6 +64,7 @@ class _OfflineMapPanelState extends ConsumerState<OfflineMapPanel>
         builder: (_) => OfflineMapScreen(
           tripId: widget.tripId,
           clock: widget.clock,
+          integrateArrivals: widget.integrateArrivals,
         ),
       ),
     );
@@ -77,7 +80,8 @@ class _OfflineMapPanelState extends ConsumerState<OfflineMapPanel>
         return const CtmsAlertBanner(
           severity: CtmsAlertSeverity.info,
           title: 'Bản đồ ngoại tuyến chưa hỗ trợ trên Web',
-          message: 'Vui lòng dùng ứng dụng Android/iOS để tải và mở gói bản đồ ngoại tuyến.',
+          message:
+              'Vui lòng dùng ứng dụng Android/iOS để tải và mở gói bản đồ ngoại tuyến.',
         );
       case OfflineMapPackageStatus.loading:
         return const Padding(
@@ -122,7 +126,8 @@ class _OfflineMapPanelState extends ConsumerState<OfflineMapPanel>
         return CtmsAlertBanner(
           severity: CtmsAlertSeverity.danger,
           title: 'Gói dữ liệu không hợp lệ',
-          message: state.errorMessage ??
+          message:
+              state.errorMessage ??
               'Dữ liệu bản đồ bị lỗi hoặc sai định dạng. Vui lòng tải lại gói.',
           actions: [
             CtmsButton(
@@ -137,7 +142,8 @@ class _OfflineMapPanelState extends ConsumerState<OfflineMapPanel>
         return CtmsAlertBanner(
           severity: CtmsAlertSeverity.danger,
           title: 'Không có quyền truy cập',
-          message: state.errorMessage ??
+          message:
+              state.errorMessage ??
               'Bạn không có quyền truy cập gói dữ liệu của chuyến đi này.',
         );
 
@@ -238,6 +244,7 @@ class _OfflineMapPanelState extends ConsumerState<OfflineMapPanel>
             if (statusNotice is SizedBox && gpsNotice == null)
               const SizedBox(height: 0),
             OfflineMapCanvas(
+              mbtilesPath: controller.basemapPath ?? '',
               key: _canvasKey,
               route: state.context!.route,
               checkpoints: state.context!.checkpoints,
@@ -248,6 +255,13 @@ class _OfflineMapPanelState extends ConsumerState<OfflineMapPanel>
             const SizedBox(height: AppSpacing.md),
 
             // 4. Action button to open full-screen map
+            if (controller.basemapPath == null)
+              const Padding(
+                padding: EdgeInsets.only(bottom: AppSpacing.sm),
+                child: Text(
+                  'Chưa có nền bản đồ đã xác thực. Đang hiển thị sơ đồ dự phòng.',
+                ),
+              ),
             OutlinedButton(
               key: const Key('offline-map-open-fullscreen'),
               onPressed: () => _openFullScreen(state),
@@ -258,7 +272,12 @@ class _OfflineMapPanelState extends ConsumerState<OfflineMapPanel>
                   children: [
                     Icon(Icons.fullscreen_outlined),
                     SizedBox(width: AppSpacing.sm),
-                    Flexible(child: Text('Xem bản đồ toàn màn hình', textAlign: TextAlign.center)),
+                    Flexible(
+                      child: Text(
+                        'Xem bản đồ toàn màn hình',
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -266,17 +285,57 @@ class _OfflineMapPanelState extends ConsumerState<OfflineMapPanel>
             const SizedBox(height: AppSpacing.lg),
 
             // 5. Checkpoint list with distances
-            OfflineMapCheckpointList(
-              checkpoints: state.context!.checkpoints,
-              currentLocation: state.location,
-              isStale: isStale,
-              onSelectCheckpoint: (cp) {
-                final renderBox = _canvasKey.currentContext?.findRenderObject() as RenderBox?;
-                if (renderBox != null) {
-                  _canvasKey.currentState?.focusOnCheckpoint(cp, renderBox.size);
-                }
-              },
-            ),
+            widget.integrateArrivals
+                ? CheckpointArrivalPanel(
+                    showDistances:
+                        state.location.status == OfflineMapGpsStatus.ready,
+                    distanceNote: isStale
+                        ? 'Mẫu GPS cũ'
+                        : state.location.quality == GpsSignalQuality.poor
+                        ? 'GPS độ chính xác thấp'
+                        : null,
+                    tripId: widget.tripId,
+                    onSelectCheckpoint: (selected) {
+                      final matches = state.context!.checkpoints.where(
+                        (cp) => cp.id == selected.id,
+                      );
+                      final renderBox =
+                          _canvasKey.currentContext?.findRenderObject()
+                              as RenderBox?;
+                      if (matches.isNotEmpty && renderBox != null) {
+                        _canvasKey.currentState?.focusOnCheckpoint(
+                          matches.first,
+                          renderBox.size,
+                        );
+                        Scrollable.ensureVisible(
+                          _canvasKey.currentContext!,
+                          duration: const Duration(milliseconds: 300),
+                          alignment: 0.1,
+                        );
+                      }
+                    },
+                  )
+                : OfflineMapCheckpointList(
+                    checkpoints: state.context!.checkpoints,
+                    currentLocation: state.location,
+                    isStale: isStale,
+                    onSelectCheckpoint: (cp) {
+                      final renderBox =
+                          _canvasKey.currentContext?.findRenderObject()
+                              as RenderBox?;
+                      if (renderBox != null) {
+                        _canvasKey.currentState?.focusOnCheckpoint(
+                          cp,
+                          renderBox.size,
+                        );
+                        Scrollable.ensureVisible(
+                          _canvasKey.currentContext!,
+                          duration: const Duration(milliseconds: 300),
+                          alignment: 0.1,
+                        );
+                      }
+                    },
+                  ),
           ],
         ],
       ),

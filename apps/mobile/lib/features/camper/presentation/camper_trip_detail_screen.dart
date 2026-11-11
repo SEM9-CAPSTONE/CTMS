@@ -14,7 +14,6 @@ import '../../emergency_broadcasts/presentation/emergency_broadcasts_panel.dart'
 import '../../gps_tracking/presentation/gps_tracking_panel.dart';
 import '../../offline_map/presentation/offline_map_panel.dart';
 import '../../offline_packages/presentation/offline_package_screen.dart';
-import '../../checkpoint_arrivals/presentation/checkpoint_arrival_panel.dart';
 import '../../route_deviation/presentation/route_deviation_panel.dart';
 import '../../sync/application/device_sync_controller.dart';
 import '../../sync/domain/device_sync_models.dart';
@@ -530,13 +529,11 @@ class _CamperTripDetailScreenState
                 vertical: AppSpacing.lg,
               ),
               children: [
-                OfflineMapPanel(tripId: effectiveTripId),
+                OfflineMapPanel(tripId: effectiveTripId, integrateArrivals: true),
                 const SizedBox(height: AppSpacing.lg),
                 GpsTrackingPanel(tripId: effectiveTripId),
                 const SizedBox(height: AppSpacing.lg),
                 RouteDeviationPanel(tripId: effectiveTripId),
-                const SizedBox(height: AppSpacing.lg),
-                CheckpointArrivalPanel(tripId: effectiveTripId),
                 const SizedBox(height: AppSpacing.lg),
                 CamperScheduleProgressPanel(tripId: effectiveTripId),
               ],

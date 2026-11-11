@@ -6,6 +6,7 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/ctms_alert_banner.dart';
 import '../../../core/widgets/ctms_button.dart';
 import '../../../core/widgets/ctms_scaffold.dart';
+import '../../../features/checkpoint_arrivals/presentation/checkpoint_arrival_panel.dart';
 import '../application/offline_map_controller.dart';
 import '../domain/offline_map_models.dart';
 import 'widgets/offline_map_canvas.dart';
@@ -18,9 +19,11 @@ class OfflineMapScreen extends ConsumerStatefulWidget {
     super.key,
     required this.tripId,
     this.clock,
+    this.integrateArrivals = false,
   });
 
   final String tripId;
+  final bool integrateArrivals;
   final DateTime Function()? clock;
 
   @override
@@ -41,7 +44,9 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
         ? 'Gói bản đồ v${state.context!.packageVersion} · ${state.context!.checkpoints.length} trạm kiểm tra'
         : 'Bản đồ ngoại tuyến';
 
-    final gpsNotice = state.hasUsableMap ? _buildGpsBanner(context, controller, state) : null;
+    final gpsNotice = state.hasUsableMap
+        ? _buildGpsBanner(context, controller, state)
+        : null;
 
     return CtmsScaffold(
       title: 'Bản đồ ngoại tuyến',
@@ -76,6 +81,7 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
                   ? LayoutBuilder(
                       builder: (context, constraints) {
                         return OfflineMapCanvas(
+                          mbtilesPath: controller.basemapPath ?? '',
                           key: _canvasKey,
                           route: state.context!.route,
                           checkpoints: state.context!.checkpoints,
@@ -86,10 +92,7 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
                         );
                       },
                     )
-                  : const OfflineMapCanvas(
-                      route: null,
-                      interactive: false,
-                    ),
+                  : const OfflineMapCanvas(route: null, interactive: false),
             ),
           ),
 
@@ -106,17 +109,48 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
               ),
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(AppSpacing.md),
-                child: OfflineMapCheckpointList(
-                  checkpoints: state.context!.checkpoints,
-                  currentLocation: state.location,
-                  isStale: isStale,
-                  onSelectCheckpoint: (cp) {
-                    final renderBox = _canvasKey.currentContext?.findRenderObject() as RenderBox?;
-                    if (renderBox != null) {
-                      _canvasKey.currentState?.focusOnCheckpoint(cp, renderBox.size);
-                    }
-                  },
-                ),
+                child: widget.integrateArrivals
+                    ? CheckpointArrivalPanel(
+                        showDistances:
+                            state.location.status == OfflineMapGpsStatus.ready,
+                        distanceNote: isStale
+                            ? 'Mẫu GPS cũ'
+                            : state.location.quality == GpsSignalQuality.poor
+                            ? 'GPS độ chính xác thấp'
+                            : null,
+                        showReachedDialog: false,
+                        tripId: widget.tripId,
+                        onSelectCheckpoint: (selected) {
+                          final matches = state.context!.checkpoints.where(
+                            (cp) => cp.id == selected.id,
+                          );
+                          final renderBox =
+                              _canvasKey.currentContext?.findRenderObject()
+                                  as RenderBox?;
+                          if (matches.isNotEmpty && renderBox != null) {
+                            _canvasKey.currentState?.focusOnCheckpoint(
+                              matches.first,
+                              renderBox.size,
+                            );
+                          }
+                        },
+                      )
+                    : OfflineMapCheckpointList(
+                        checkpoints: state.context!.checkpoints,
+                        currentLocation: state.location,
+                        isStale: isStale,
+                        onSelectCheckpoint: (cp) {
+                          final renderBox =
+                              _canvasKey.currentContext?.findRenderObject()
+                                  as RenderBox?;
+                          if (renderBox != null) {
+                            _canvasKey.currentState?.focusOnCheckpoint(
+                              cp,
+                              renderBox.size,
+                            );
+                          }
+                        },
+                      ),
               ),
             ),
         ],
@@ -134,7 +168,8 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
         return const CtmsAlertBanner(
           severity: CtmsAlertSeverity.info,
           title: 'Bản đồ ngoại tuyến chưa hỗ trợ trên Web',
-          message: 'Vui lòng dùng ứng dụng Android/iOS để tải và mở gói bản đồ ngoại tuyến.',
+          message:
+              'Vui lòng dùng ứng dụng Android/iOS để tải và mở gói bản đồ ngoại tuyến.',
         );
       case OfflineMapPackageStatus.loading:
         return const Center(

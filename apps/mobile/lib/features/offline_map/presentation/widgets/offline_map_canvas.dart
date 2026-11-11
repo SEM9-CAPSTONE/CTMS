@@ -1,13 +1,19 @@
+import 'dart:io';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart' as ll;
+import 'package:sqflite/sqflite.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../gps_tracking/domain/gps_tracking_models.dart';
+import '../../data/offline_mbtiles_provider.dart';
 import '../../domain/offline_map_models.dart';
 
 /// Coordinate projection helper from geographic coordinates (lat, lon) to 2D canvas pixels.
@@ -99,10 +105,12 @@ class OfflineMapViewport {
     final baseX = (canvasSize.width / 2.0) + xGeo * baseScale;
     final baseY = (canvasSize.height / 2.0) + yGeo * baseScale;
 
-    final screenX = (canvasSize.width / 2.0) +
+    final screenX =
+        (canvasSize.width / 2.0) +
         panOffset.dx +
         (baseX - canvasSize.width / 2.0) * zoomScale;
-    final screenY = (canvasSize.height / 2.0) +
+    final screenY =
+        (canvasSize.height / 2.0) +
         panOffset.dy +
         (baseY - canvasSize.height / 2.0) * zoomScale;
 
@@ -128,6 +136,7 @@ class OfflineMapCanvas extends StatefulWidget {
     this.height = 280.0,
     this.interactive = true,
     this.onSelectCheckpoint,
+    this.mbtilesPath,
   });
 
   final OfflineRouteGeometry? route;
@@ -137,6 +146,7 @@ class OfflineMapCanvas extends StatefulWidget {
   final double height;
   final bool interactive;
   final ValueChanged<OfflineMapCheckpoint>? onSelectCheckpoint;
+  final String? mbtilesPath;
 
   @override
   State<OfflineMapCanvas> createState() => OfflineMapCanvasState();
@@ -151,6 +161,12 @@ class OfflineMapCanvasState extends State<OfflineMapCanvas>
   bool _hasInitialFramed = false;
   AnimationController? _pulseController;
   Animation<double>? _pulseAnimation;
+  Database? _mbtilesDb;
+  double _tileMinZoom = 12;
+  double _tileMaxZoom = 16;
+  LatLngBounds? _tileBounds;
+  int _tileLoadGeneration = 0;
+  MapController? _mapController;
 
   @visibleForTesting
   double get zoomScale => _zoomScale;
@@ -177,6 +193,70 @@ class OfflineMapCanvasState extends State<OfflineMapCanvas>
     );
 
     _scheduleInitialFramingIfNeeded();
+    _initMbTiles();
+  }
+
+  void _initMbTiles() async {
+    final generation = ++_tileLoadGeneration;
+    final path = widget.mbtilesPath ?? '';
+    if (kIsWeb || path.isEmpty) return;
+    try {
+      final file = File(path);
+      if (await file.exists()) {
+        final db = await openDatabase(
+          path,
+          readOnly: true,
+          singleInstance: false,
+        );
+        final metadata = await db.rawQuery('SELECT name, value FROM metadata');
+        final values = {
+          for (final row in metadata)
+            row['name'].toString(): row['value'].toString(),
+        };
+        final bounds = values['bounds']
+            ?.split(',')
+            .map(double.tryParse)
+            .toList();
+        final route = widget.route;
+        final covered =
+            bounds != null &&
+            bounds.length == 4 &&
+            bounds.every((v) => v != null) &&
+            route != null &&
+            route.points.every(
+              (p) =>
+                  p.longitude >= bounds[0]! &&
+                  p.latitude >= bounds[1]! &&
+                  p.longitude <= bounds[2]! &&
+                  p.latitude <= bounds[3]!,
+            );
+        final minZoom = int.tryParse(values['minzoom'] ?? '');
+        final maxZoom = int.tryParse(values['maxzoom'] ?? '');
+        if (!covered ||
+            values['format'] != 'png' ||
+            minZoom == null ||
+            maxZoom == null ||
+            minZoom < 0 ||
+            maxZoom < minZoom ||
+            maxZoom > 20) {
+          await db.close();
+          return;
+        }
+        if (mounted && generation == _tileLoadGeneration) {
+          setState(() {
+            _mbtilesDb = db;
+            _tileMinZoom = minZoom.toDouble();
+            _tileMaxZoom = maxZoom.toDouble();
+            _tileBounds = LatLngBounds(
+              ll.LatLng(bounds[1]!, bounds[0]!),
+              ll.LatLng(bounds[3]!, bounds[2]!),
+            );
+          });
+        } else {
+          await db.close();
+        }
+      }
+    } catch (_) {}
   }
 
   void _scheduleInitialFramingIfNeeded() {
@@ -194,7 +274,11 @@ class OfflineMapCanvasState extends State<OfflineMapCanvas>
     }
   }
 
-  void _syncPulseAnimation({required bool hasFix, required bool isStale, required bool disableAnimations}) {
+  void _syncPulseAnimation({
+    required bool hasFix,
+    required bool isStale,
+    required bool disableAnimations,
+  }) {
     final shouldPulse = hasFix && !isStale && !disableAnimations;
     if (shouldPulse) {
       if (!_pulseController!.isAnimating) {
@@ -211,6 +295,12 @@ class OfflineMapCanvasState extends State<OfflineMapCanvas>
   @override
   void didUpdateWidget(covariant OfflineMapCanvas oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.mbtilesPath != widget.mbtilesPath ||
+        oldWidget.route != widget.route) {
+      _mbtilesDb?.close();
+      _mbtilesDb = null;
+      _initMbTiles();
+    }
     // Lần đầu có GPS: Căn khung bao gồm cả vị trí người dùng và trạm kế tiếp
     if (!_hasInitialFramed &&
         widget.location.sample != null &&
@@ -239,12 +329,28 @@ class OfflineMapCanvasState extends State<OfflineMapCanvas>
 
   @override
   void dispose() {
+    _tileLoadGeneration++;
+    _mbtilesDb?.close();
+    _mapController?.dispose();
     _pulseController?.dispose();
     super.dispose();
   }
 
   /// Reset view to show the entire route.
   void fitRoute() {
+    if (_mbtilesDb != null && _mapController != null && widget.route != null) {
+      final points = widget.route!.points
+          .map((p) => ll.LatLng(p.latitude, p.longitude))
+          .toList();
+      _mapController!.fitCamera(
+        CameraFit.bounds(
+          bounds: LatLngBounds.fromPoints(points),
+          padding: const EdgeInsets.all(32),
+        ),
+      );
+      setState(() => _autoFollowGps = false);
+      return;
+    }
     setState(() {
       _autoFollowGps = false;
       _panOffset = Offset.zero;
@@ -257,6 +363,11 @@ class OfflineMapCanvasState extends State<OfflineMapCanvas>
     final sample = widget.location.sample;
     final route = widget.route;
     if (sample == null || route == null) return false;
+    if (_mbtilesDb != null) {
+      _flutterMapRecenter();
+      setState(() => _autoFollowGps = true);
+      return true;
+    }
 
     final viewport = OfflineMapViewport.fromRoute(
       route: route,
@@ -287,7 +398,9 @@ class OfflineMapCanvasState extends State<OfflineMapCanvas>
     if (sample == null || route == null || canvasSize.width <= 0) return false;
 
     final info = _findNextCheckpoint(sample);
-    final targetCp = info?.checkpoint ?? (widget.checkpoints.isNotEmpty ? widget.checkpoints.first : null);
+    final targetCp =
+        info?.checkpoint ??
+        (widget.checkpoints.isNotEmpty ? widget.checkpoints.first : null);
 
     final viewport = OfflineMapViewport.fromRoute(
       route: route,
@@ -303,9 +416,24 @@ class OfflineMapCanvasState extends State<OfflineMapCanvas>
       final midLat = (minLat + maxLat) / 2.0;
       final midLon = (minLon + maxLon) / 2.0;
 
-      final baseMid = viewport.geoToScreen(midLat, midLon, panOffset: Offset.zero, zoomScale: 1.0);
-      final p1 = viewport.geoToScreen(minLat, minLon, panOffset: Offset.zero, zoomScale: 1.0);
-      final p2 = viewport.geoToScreen(maxLat, maxLon, panOffset: Offset.zero, zoomScale: 1.0);
+      final baseMid = viewport.geoToScreen(
+        midLat,
+        midLon,
+        panOffset: Offset.zero,
+        zoomScale: 1.0,
+      );
+      final p1 = viewport.geoToScreen(
+        minLat,
+        minLon,
+        panOffset: Offset.zero,
+        zoomScale: 1.0,
+      );
+      final p2 = viewport.geoToScreen(
+        maxLat,
+        maxLon,
+        panOffset: Offset.zero,
+        zoomScale: 1.0,
+      );
 
       final spanX = (p1.dx - p2.dx).abs();
       final spanY = (p1.dy - p2.dy).abs();
@@ -341,6 +469,19 @@ class OfflineMapCanvasState extends State<OfflineMapCanvas>
     final route = widget.route;
     if (route == null) return;
 
+    if (_mbtilesDb != null && _mapController != null) {
+      setState(() => _autoFollowGps = false);
+      _mapController!.move(
+        ll.LatLng(cp.latitude, cp.longitude),
+        max(
+          _mapController!.camera.zoom,
+          15.0,
+        ).clamp(_tileMinZoom, _tileMaxZoom),
+      );
+      widget.onSelectCheckpoint?.call(cp);
+      return;
+    }
+
     final viewport = OfflineMapViewport.fromRoute(
       route: route,
       size: canvasSize,
@@ -364,15 +505,36 @@ class OfflineMapCanvasState extends State<OfflineMapCanvas>
   }
 
   void zoomIn() {
+    if (_mbtilesDb != null) {
+      _flutterMapZoom(1);
+      return;
+    }
     setState(() {
       _zoomScale = (_zoomScale * 1.35).clamp(0.6, 6.0);
     });
   }
 
   void zoomOut() {
+    if (_mbtilesDb != null) {
+      _flutterMapZoom(-1);
+      return;
+    }
     setState(() {
       _zoomScale = (_zoomScale / 1.35).clamp(0.6, 6.0);
     });
+  }
+
+  void _flutterMapZoom(double delta) {
+    if (_mapController == null) return;
+    final curZoom = _mapController!.camera.zoom;
+    final newZoom = (curZoom + delta).clamp(_tileMinZoom, _tileMaxZoom);
+    _mapController!.move(_mapController!.camera.center, newZoom);
+  }
+
+  void _flutterMapRecenter() {
+    if (_mapController == null || widget.location.sample == null) return;
+    final sample = widget.location.sample!;
+    _mapController!.move(ll.LatLng(sample.latitude, sample.longitude), 15.0);
   }
 
   void _handleCanvasTap(Offset localPosition, Size canvasSize) {
@@ -426,10 +588,12 @@ class OfflineMapCanvasState extends State<OfflineMapCanvas>
       // Nếu còn trạm tiếp theo dọc tuyến
       if (arrivedIndex + 1 < widget.checkpoints.length) {
         final nextCp = widget.checkpoints[arrivedIndex + 1];
-        final distToNext = currentPos.distanceTo(OfflineRoutePoint(
-          latitude: nextCp.latitude,
-          longitude: nextCp.longitude,
-        ));
+        final distToNext = currentPos.distanceTo(
+          OfflineRoutePoint(
+            latitude: nextCp.latitude,
+            longitude: nextCp.longitude,
+          ),
+        );
         return NextCheckpointInfo(
           checkpoint: nextCp,
           distanceMeters: distToNext,
@@ -528,9 +692,11 @@ class OfflineMapCanvasState extends State<OfflineMapCanvas>
 
   @override
   Widget build(BuildContext context) {
-    final disableAnimations = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final disableAnimations =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
     final isStale = widget.location.isStale(_now);
-    final hasFix = widget.location.sample != null &&
+    final hasFix =
+        widget.location.sample != null &&
         widget.location.status == OfflineMapGpsStatus.ready;
 
     _syncPulseAnimation(
@@ -541,13 +707,12 @@ class OfflineMapCanvasState extends State<OfflineMapCanvas>
 
     return Semantics(
       label: _buildSemanticsLabel(isStale),
-      hint: widget.interactive ? 'Kéo để di chuyển bản đồ, bấm nút điều khiển để thu phóng' : null,
+      hint: widget.interactive
+          ? 'Kéo để di chuyển bản đồ, bấm nút điều khiển để thu phóng'
+          : null,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final canvasSize = Size(
-            constraints.maxWidth,
-            widget.height,
-          );
+          final canvasSize = Size(constraints.maxWidth, widget.height);
 
           final viewport = widget.route != null
               ? OfflineMapViewport.fromRoute(
@@ -556,13 +721,17 @@ class OfflineMapCanvasState extends State<OfflineMapCanvas>
                 )
               : null;
 
-          final nextCheckpoint = hasFix ? _findNextCheckpoint(widget.location.sample) : null;
+          final nextCheckpoint = hasFix
+              ? _findNextCheckpoint(widget.location.sample)
+              : null;
 
           return Container(
             height: widget.height,
             width: double.infinity,
             decoration: BoxDecoration(
-              color: const Color(0xFFF7F8F4), // Clean neutral outdoor survey paper
+              color: const Color(
+                0xFFF7F8F4,
+              ), // Clean neutral outdoor survey paper
               borderRadius: AppRadius.cardBorderRadius,
               border: Border.all(color: const Color(0xFFD6DEC7), width: 1.0),
               boxShadow: AppColors.cardShadowSm,
@@ -570,8 +739,177 @@ class OfflineMapCanvasState extends State<OfflineMapCanvas>
             clipBehavior: Clip.antiAlias,
             child: Stack(
               children: [
-                // 1. Static Route & Neutral Survey Grid layer (Background)
-                if (viewport != null)
+                // Mode A: Real Offline MBTiles Basemap (when son_tra.mbtiles is available)
+                if (_mbtilesDb != null && viewport != null)
+                  Positioned.fill(
+                    child: FlutterMap(
+                      mapController: _mapController ??= MapController(),
+                      options: MapOptions(
+                        initialCenter: ll.LatLng(
+                          viewport.centerLat,
+                          viewport.centerLon,
+                        ),
+                        initialZoom: 13.8.clamp(_tileMinZoom, _tileMaxZoom),
+                        minZoom: _tileMinZoom,
+                        maxZoom: _tileMaxZoom,
+                        cameraConstraint: CameraConstraint.contain(
+                          bounds: _tileBounds!,
+                        ),
+                        interactionOptions: InteractionOptions(
+                          flags: widget.interactive
+                              ? InteractiveFlag.all & ~InteractiveFlag.rotate
+                              : InteractiveFlag.none,
+                        ),
+                      ),
+                      children: [
+                        TileLayer(
+                          minZoom: _tileMinZoom,
+                          maxZoom: _tileMaxZoom,
+                          tileProvider: MbTilesTileProvider(
+                            database: _mbtilesDb!,
+                          ),
+                        ),
+                        PolylineLayer(
+                          polylines: [
+                            Polyline(
+                              points: widget.route!.points
+                                  .map(
+                                    (p) => ll.LatLng(p.latitude, p.longitude),
+                                  )
+                                  .toList(),
+                              strokeWidth: 4.5,
+                              color: const Color(0xFF1B5E20),
+                            ),
+                          ],
+                        ),
+                        CircleLayer(
+                          circles: [
+                            for (final cp in widget.checkpoints)
+                              CircleMarker(
+                                point: ll.LatLng(cp.latitude, cp.longitude),
+                                radius: cp.radiusMeters,
+                                useRadiusInMeter: true,
+                                color: const Color(0x302E7D32),
+                                borderColor: const Color(0xFF2E7D32),
+                                borderStrokeWidth: 1.5,
+                              ),
+                            if (hasFix)
+                              CircleMarker(
+                                point: ll.LatLng(
+                                  widget.location.sample!.latitude,
+                                  widget.location.sample!.longitude,
+                                ),
+                                radius: widget.location.sample!.accuracyMeters,
+                                useRadiusInMeter: true,
+                                color: const Color(0x2800875A),
+                                borderColor: const Color(0xFF00875A),
+                                borderStrokeWidth: 1.2,
+                              ),
+                          ],
+                        ),
+                        MarkerLayer(
+                          markers: [
+                            for (int i = 0; i < widget.checkpoints.length; i++)
+                              Marker(
+                                point: ll.LatLng(
+                                  widget.checkpoints[i].latitude,
+                                  widget.checkpoints[i].longitude,
+                                ),
+                                width: 26,
+                                height: 26,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: i == 0
+                                        ? const Color(0xFF2E7D32)
+                                        : (i == widget.checkpoints.length - 1
+                                              ? const Color(0xFFC62828)
+                                              : const Color(0xFFEF6C00)),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: Colors.white,
+                                      width: 2.0,
+                                    ),
+                                    boxShadow: const [
+                                      BoxShadow(
+                                        color: Color(0x33000000),
+                                        blurRadius: 3,
+                                        offset: Offset(0, 1.5),
+                                      ),
+                                    ],
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: Text(
+                                    '${i + 1}',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            if (hasFix)
+                              Marker(
+                                point: ll.LatLng(
+                                  widget.location.sample!.latitude,
+                                  widget.location.sample!.longitude,
+                                ),
+                                width: 24,
+                                height: 24,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: isStale
+                                        ? AppColors.statusNeutral
+                                        : AppColors.brandPrimary,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: Colors.white,
+                                      width: 2.5,
+                                    ),
+                                    boxShadow: const [
+                                      BoxShadow(
+                                        color: Color(0x40000000),
+                                        blurRadius: 4,
+                                        offset: Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        Align(
+                          alignment: Alignment.bottomCenter,
+                          child: Padding(
+                            padding: EdgeInsets.only(bottom: 2.0),
+                            child: GestureDetector(
+                              onTap: () => showDialog<void>(
+                                context: context,
+                                builder: (context) => const AlertDialog(
+                                  title: Text('Nguồn dữ liệu bản đồ'),
+                                  content: SelectableText(
+                                    '© OpenStreetMap contributors\nDữ liệu theo giấy phép ODbL.\nhttps://www.openstreetmap.org/copyright\n\nBản thử raster tự dựng; không có DEM hoặc đường đồng mức. Độ phủ đường mòn phụ thuộc dữ liệu OSM.',
+                                  ),
+                                ),
+                              ),
+                              child: const Text(
+                                '© OpenStreetMap contributors · ODbL ⓘ',
+                                style: TextStyle(
+                                  fontSize: 8.0,
+                                  color: Color(0x99000000),
+                                  backgroundColor: Color(0xCCFFFFFF),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                // Mode B: Fallback Neutral Vector Canvas (when no MBTiles is available)
+                if (_mbtilesDb == null && viewport != null) ...[
+                  // 1. Static Route & Neutral Survey Grid layer (Background)
                   RepaintBoundary(
                     child: CustomPaint(
                       size: canvasSize,
@@ -585,8 +923,7 @@ class OfflineMapCanvasState extends State<OfflineMapCanvas>
                     ),
                   ),
 
-                // 2. Dynamic Foreground layer (GPS marker & Checkpoint pins)
-                if (viewport != null)
+                  // 2. Dynamic Foreground layer (GPS marker & Checkpoint pins)
                   AnimatedBuilder(
                     animation: _pulseAnimation!,
                     builder: (context, _) {
@@ -597,7 +934,9 @@ class OfflineMapCanvasState extends State<OfflineMapCanvas>
                           checkpoints: widget.checkpoints,
                           location: widget.location,
                           isStale: isStale,
-                          pulseValue: disableAnimations ? 0.0 : _pulseAnimation!.value,
+                          pulseValue: disableAnimations
+                              ? 0.0
+                              : _pulseAnimation!.value,
                           panOffset: _panOffset,
                           zoomScale: _zoomScale,
                         ),
@@ -605,40 +944,48 @@ class OfflineMapCanvasState extends State<OfflineMapCanvas>
                     },
                   ),
 
-                // 3. Gesture detector & Pointer listener for Pan, Pinch-Zoom, Mouse Scroll, Double-Tap, and Pin Tap
-                if (widget.interactive && viewport != null)
-                  Positioned.fill(
-                    child: Listener(
-                      onPointerSignal: (pointerSignal) {
-                        if (pointerSignal is PointerScrollEvent) {
-                          if (pointerSignal.scrollDelta.dy < 0) {
-                            zoomIn();
-                          } else if (pointerSignal.scrollDelta.dy > 0) {
-                            zoomOut();
-                          }
-                        }
-                      },
-                      child: GestureDetector(
-                        key: const Key('offline-map-gesture-area'),
-                        behavior: HitTestBehavior.opaque,
-                        onScaleStart: (details) {
-                          _baseScaleOnGesture = _zoomScale;
-                        },
-                        onScaleUpdate: (details) {
-                          setState(() {
-                            _autoFollowGps = false; // Disable auto-follow when user manually drags or pinches
-                            _panOffset += details.focalPointDelta;
-                            if (details.scale != 1.0) {
-                              _zoomScale = (_baseScaleOnGesture * details.scale).clamp(0.6, 6.0);
+                  // 3. Gesture detector & Pointer listener
+                  if (widget.interactive)
+                    Positioned.fill(
+                      child: Listener(
+                        onPointerSignal: (pointerSignal) {
+                          if (pointerSignal is PointerScrollEvent) {
+                            if (pointerSignal.scrollDelta.dy < 0) {
+                              zoomIn();
+                            } else if (pointerSignal.scrollDelta.dy > 0) {
+                              zoomOut();
                             }
-                          });
+                          }
                         },
-                        onDoubleTapDown: (_) => zoomIn(),
-                        onDoubleTap: zoomIn,
-                        onTapUp: (details) => _handleCanvasTap(details.localPosition, canvasSize),
+                        child: GestureDetector(
+                          key: const Key('offline-map-gesture-area'),
+                          behavior: HitTestBehavior.opaque,
+                          onScaleStart: (details) {
+                            _baseScaleOnGesture = _zoomScale;
+                          },
+                          onScaleUpdate: (details) {
+                            setState(() {
+                              _autoFollowGps = false;
+                              _panOffset += details.focalPointDelta;
+                              if (details.scale != 1.0) {
+                                _zoomScale =
+                                    (_baseScaleOnGesture * details.scale).clamp(
+                                      0.6,
+                                      6.0,
+                                    );
+                              }
+                            });
+                          },
+                          onDoubleTapDown: (_) => zoomIn(),
+                          onDoubleTap: zoomIn,
+                          onTapUp: (details) => _handleCanvasTap(
+                            details.localPosition,
+                            canvasSize,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
+                ],
 
                 // Empty state if route is null
                 if (viewport == null)
@@ -646,7 +993,11 @@ class OfflineMapCanvasState extends State<OfflineMapCanvas>
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.terrain_outlined, size: 44, color: AppColors.textMuted),
+                        Icon(
+                          Icons.terrain_outlined,
+                          size: 44,
+                          color: AppColors.textMuted,
+                        ),
                         SizedBox(height: AppSpacing.xs),
                         Text(
                           'Chưa có dữ liệu tuyến đường',
@@ -678,13 +1029,16 @@ class OfflineMapCanvasState extends State<OfflineMapCanvas>
                       alignment: Alignment.topCenter,
                       child: _NextCheckpointHud(
                         info: nextCheckpoint,
-                        onTap: () => focusOnCheckpoint(nextCheckpoint.checkpoint, canvasSize),
+                        onTap: () => focusOnCheckpoint(
+                          nextCheckpoint.checkpoint,
+                          canvasSize,
+                        ),
                       ),
                     ),
                   ),
 
-                // 6. Transparent Map Schematic Disclaimer tag (Top/Center if no GPS)
-                if (viewport != null && !hasFix)
+                // Missing GPS does not imply that the offline basemap is missing.
+                if (viewport != null && !hasFix && _mbtilesDb == null)
                   Positioned(
                     top: AppSpacing.sm,
                     left: 56,
@@ -692,14 +1046,20 @@ class OfflineMapCanvasState extends State<OfflineMapCanvas>
                     child: Align(
                       alignment: Alignment.topCenter,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.white.withValues(alpha: 0.88),
                           borderRadius: BorderRadius.circular(4.0),
-                          border: Border.all(color: const Color(0xFFD0D8C4), width: 0.8),
+                          border: Border.all(
+                            color: const Color(0xFFD0D8C4),
+                            width: 0.8,
+                          ),
                         ),
                         child: const Text(
-                          'Sơ đồ tuyến đường & trạm kiểm tra (Chưa tải dữ liệu địa hình)',
+                          'Sơ đồ tuyến đường & trạm kiểm tra (Chưa có nền bản đồ)',
                           style: TextStyle(
                             fontSize: 9.0,
                             fontWeight: FontWeight.w600,
@@ -729,14 +1089,11 @@ class OfflineMapCanvasState extends State<OfflineMapCanvas>
                   ),
 
                 // 8. Metric Dynamic Scale Bar in bottom-right
-                if (viewport != null)
+                if (viewport != null && _mbtilesDb == null)
                   Positioned(
                     bottom: AppSpacing.sm,
                     right: AppSpacing.sm,
-                    child: _ScaleBar(
-                      viewport: viewport,
-                      zoomScale: _zoomScale,
-                    ),
+                    child: _ScaleBar(viewport: viewport, zoomScale: _zoomScale),
                   ),
 
                 // 9. GPS Signal Quality badge in bottom-left
@@ -785,7 +1142,10 @@ class _OfflineRoutePainter extends CustomPainter {
 
   void _paintNeutralSurveyBackground(Canvas canvas, Size size) {
     // 1. Soft neutral outdoor survey base
-    canvas.drawRect(Offset.zero & size, Paint()..color = const Color(0xFFF7F8F4));
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()..color = const Color(0xFFF7F8F4),
+    );
 
     // 2. Cartographic survey grid with fine coordinate crosshairs
     final gridLinePaint = Paint()
@@ -812,8 +1172,16 @@ class _OfflineRoutePainter extends CustomPainter {
     // Draw survey crosshairs '+' at grid intersections
     for (double x = spacing; x < size.width; x += spacing) {
       for (double y = spacing; y < size.height; y += spacing) {
-        canvas.drawLine(Offset(x - tickLen, y), Offset(x + tickLen, y), crosshairPaint);
-        canvas.drawLine(Offset(x, y - tickLen), Offset(x, y + tickLen), crosshairPaint);
+        canvas.drawLine(
+          Offset(x - tickLen, y),
+          Offset(x + tickLen, y),
+          crosshairPaint,
+        );
+        canvas.drawLine(
+          Offset(x, y - tickLen),
+          Offset(x, y + tickLen),
+          crosshairPaint,
+        );
       }
     }
   }
@@ -823,12 +1191,14 @@ class _OfflineRoutePainter extends CustomPainter {
     if (points.length < 2) return;
 
     final screenPoints = points
-        .map((p) => viewport.geoToScreen(
-              p.latitude,
-              p.longitude,
-              panOffset: panOffset,
-              zoomScale: zoomScale,
-            ))
+        .map(
+          (p) => viewport.geoToScreen(
+            p.latitude,
+            p.longitude,
+            panOffset: panOffset,
+            zoomScale: zoomScale,
+          ),
+        )
         .toList();
 
     final path = Path();
@@ -910,7 +1280,11 @@ class _OfflineRoutePainter extends CustomPainter {
     }
   }
 
-  void _paintDirectionChevrons(Canvas canvas, List<Offset> points, Color color) {
+  void _paintDirectionChevrons(
+    Canvas canvas,
+    List<Offset> points,
+    Color color,
+  ) {
     final chevronCasing = Paint()
       ..color = Colors.white
       ..strokeWidth = 3.2
@@ -1056,7 +1430,9 @@ class _OfflineMarkerPainter extends CustomPainter {
       final typeLower = cp.type.toLowerCase();
       if (i == 0 || typeLower.contains('start')) {
         pinColor = const Color(0xFF2E7D32); // Forest Green for Start
-      } else if (i == checkpoints.length - 1 || typeLower.contains('end') || typeLower.contains('summit')) {
+      } else if (i == checkpoints.length - 1 ||
+          typeLower.contains('end') ||
+          typeLower.contains('summit')) {
         pinColor = const Color(0xFFC62828); // Summit Crimson for Finish
       } else if (typeLower.contains('rest') || typeLower.contains('camp')) {
         pinColor = const Color(0xFFE65100); // Amber for Rest stop
@@ -1069,7 +1445,11 @@ class _OfflineMarkerPainter extends CustomPainter {
       final shadowPaint = Paint()
         ..color = const Color(0x33000000)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.0);
-      canvas.drawCircle(Offset(pos.dx, pos.dy + 1.2), pinRadius + 1.0, shadowPaint);
+      canvas.drawCircle(
+        Offset(pos.dx, pos.dy + 1.2),
+        pinRadius + 1.0,
+        shadowPaint,
+      );
 
       // White halo
       canvas.drawCircle(pos, pinRadius + 1.5, Paint()..color = Colors.white);
@@ -1115,7 +1495,10 @@ class _OfflineMarkerPainter extends CustomPainter {
         pillW,
         pillH,
       );
-      final pillRRect = RRect.fromRectAndRadius(pillRect, const Radius.circular(4.0));
+      final pillRRect = RRect.fromRectAndRadius(
+        pillRect,
+        const Radius.circular(4.0),
+      );
 
       // Pill shadow, fill and border
       canvas.drawRRect(
@@ -1198,17 +1581,9 @@ class _OfflineMarkerPainter extends CustomPainter {
     // 4. Center GPS dot (Fixed size in screen pixels)
     const dotRadius = 5.5;
     // White ring
-    canvas.drawCircle(
-      pos,
-      dotRadius + 2.0,
-      Paint()..color = Colors.white,
-    );
+    canvas.drawCircle(pos, dotRadius + 2.0, Paint()..color = Colors.white);
     // Colored center
-    canvas.drawCircle(
-      pos,
-      dotRadius,
-      Paint()..color = accuracyColor,
-    );
+    canvas.drawCircle(pos, dotRadius, Paint()..color = accuracyColor);
   }
 
   @override
@@ -1283,10 +1658,7 @@ class NextCheckpointInfo {
 
 /// Floating HUD card indicating the next upcoming checkpoint on trail with live distance.
 class _NextCheckpointHud extends StatelessWidget {
-  const _NextCheckpointHud({
-    required this.info,
-    required this.onTap,
-  });
+  const _NextCheckpointHud({required this.info, required this.onTap});
 
   final NextCheckpointInfo info;
   final VoidCallback onTap;
@@ -1304,9 +1676,12 @@ class _NextCheckpointHud extends StatelessWidget {
         : '${(dist / 1000.0).toStringAsFixed(1)} km';
 
     final isArrived = info.isArrived;
-    final arrivedName = info.arrivedCheckpoint != null ? _shortName(info.arrivedCheckpoint!.name) : '';
+    final arrivedName = info.arrivedCheckpoint != null
+        ? _shortName(info.arrivedCheckpoint!.name)
+        : '';
     final nextName = _shortName(info.checkpoint.name);
-    final isFinalDestination = isArrived && info.checkpoint == info.arrivedCheckpoint;
+    final isFinalDestination =
+        isArrived && info.checkpoint == info.arrivedCheckpoint;
 
     final IconData iconData;
     final Color iconColor;
@@ -1316,12 +1691,12 @@ class _NextCheckpointHud extends StatelessWidget {
     if (isFinalDestination) {
       iconData = Icons.flag_circle;
       iconColor = AppColors.brandPrimary;
-      titleText = 'Đã tới đích: $arrivedName';
+      titleText = 'Gần điểm cuối: $arrivedName';
       subtitleText = null;
     } else if (isArrived) {
       iconData = Icons.check_circle;
       iconColor = const Color(0xFF2E7D32);
-      titleText = 'Đã tới $arrivedName';
+      titleText = 'Trong vùng: $arrivedName';
       subtitleText = ' · Kế tiếp: $nextName (~$distStr)';
     } else {
       iconData = Icons.near_me;
@@ -1338,7 +1713,9 @@ class _NextCheckpointHud extends StatelessWidget {
           color: Colors.white.withValues(alpha: 0.95),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isArrived ? const Color(0xFF81C784) : const Color(0xFFBACAA3),
+            color: isArrived
+                ? const Color(0xFF81C784)
+                : const Color(0xFFBACAA3),
             width: 1.0,
           ),
           boxShadow: AppColors.cardShadowSm,
@@ -1357,7 +1734,9 @@ class _NextCheckpointHud extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 10.5,
                         fontWeight: FontWeight.w700,
-                        color: isArrived ? const Color(0xFF1B5E20) : AppColors.textPrimary,
+                        color: isArrived
+                            ? const Color(0xFF1B5E20)
+                            : AppColors.textPrimary,
                       ),
                     ),
                     if (subtitleText != null)
@@ -1384,10 +1763,7 @@ class _NextCheckpointHud extends StatelessWidget {
 
 /// Dynamic metric scale bar in bottom-right corner.
 class _ScaleBar extends StatelessWidget {
-  const _ScaleBar({
-    required this.viewport,
-    required this.zoomScale,
-  });
+  const _ScaleBar({required this.viewport, required this.zoomScale});
 
   final OfflineMapViewport viewport;
   final double zoomScale;
@@ -1443,10 +1819,7 @@ class _ScaleBar extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 2),
-          CustomPaint(
-            size: Size(bestWidth, 5),
-            painter: _ScaleBarPainter(),
-          ),
+          CustomPaint(size: Size(bestWidth, 5), painter: _ScaleBarPainter()),
         ],
       ),
     );
@@ -1461,9 +1834,17 @@ class _ScaleBarPainter extends CustomPainter {
       ..strokeWidth = 1.3
       ..style = PaintingStyle.stroke;
 
-    canvas.drawLine(Offset(0, size.height / 2), Offset(size.width, size.height / 2), paint);
+    canvas.drawLine(
+      Offset(0, size.height / 2),
+      Offset(size.width, size.height / 2),
+      paint,
+    );
     canvas.drawLine(Offset(0, 0), Offset(0, size.height), paint);
-    canvas.drawLine(Offset(size.width, 0), Offset(size.width, size.height), paint);
+    canvas.drawLine(
+      Offset(size.width, 0),
+      Offset(size.width, size.height),
+      paint,
+    );
   }
 
   @override
@@ -1529,7 +1910,9 @@ class _MapControlsOverlay extends StatelessWidget {
                 : 'Chưa có tín hiệu GPS',
             onPressed: canRecenter ? onRecenter : null,
             iconColor: canRecenter
-                ? (isAutoFollow ? AppColors.brandPrimary : AppColors.brandSecondary)
+                ? (isAutoFollow
+                      ? AppColors.brandPrimary
+                      : AppColors.brandSecondary)
                 : AppColors.textMuted,
           ),
         ],
@@ -1565,7 +1948,9 @@ class _ControlButton extends StatelessWidget {
           child: Icon(
             icon,
             size: 18,
-            color: onPressed == null ? AppColors.textMuted.withValues(alpha: 0.4) : (iconColor ?? AppColors.textPrimary),
+            color: onPressed == null
+                ? AppColors.textMuted.withValues(alpha: 0.4)
+                : (iconColor ?? AppColors.textPrimary),
           ),
         ),
       ),
@@ -1589,23 +1974,23 @@ class _GpsAccuracyBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final (label, icon, color, bg) = switch ((isStale, quality)) {
       (true, _) => (
-          'Mẫu cũ (>30s) · ±${accuracyMeters.toStringAsFixed(1)} m',
-          Icons.history_toggle_off,
-          AppColors.statusNeutral,
-          AppColors.statusNeutralBg,
-        ),
+        'Mẫu cũ (>30s) · ±${accuracyMeters.toStringAsFixed(1)} m',
+        Icons.history_toggle_off,
+        AppColors.statusNeutral,
+        AppColors.statusNeutralBg,
+      ),
       (false, GpsSignalQuality.good) => (
-          'GPS ±${accuracyMeters.toStringAsFixed(1)} m (Tốt)',
-          Icons.gps_fixed,
-          AppColors.statusSuccess,
-          AppColors.statusSuccessBg,
-        ),
+        'GPS ±${accuracyMeters.toStringAsFixed(1)} m (Tốt)',
+        Icons.gps_fixed,
+        AppColors.statusSuccess,
+        AppColors.statusSuccessBg,
+      ),
       (false, _) => (
-          'GPS ±${accuracyMeters.toStringAsFixed(1)} m (Sai số > 20m)',
-          Icons.gps_not_fixed,
-          AppColors.statusWarning,
-          AppColors.statusWarningBg,
-        ),
+        'GPS ±${accuracyMeters.toStringAsFixed(1)} m (Sai số > 20m)',
+        Icons.gps_not_fixed,
+        AppColors.statusWarning,
+        AppColors.statusWarningBg,
+      ),
     };
 
     return Container(
