@@ -64,3 +64,6 @@ terraform.rc
 .private-offline-basemaps/
 .private-offline-basemap-work/
 artifacts/osm-offline/
+
+# CTMS-316 local verification evidence and tooling
+/artifacts/ctms316-*

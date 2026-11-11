@@ -557,6 +557,7 @@ class _CamperTripDetailScreenState
                   tripId: effectiveTripId,
                   tripTitle: widget.booking?.title ?? widget.trip?.name,
                   integrateArrivals: true,
+                  enableRecovery: true,
                 ),
                 const SizedBox(height: AppSpacing.lg),
                 GpsTrackingPanel(tripId: effectiveTripId),

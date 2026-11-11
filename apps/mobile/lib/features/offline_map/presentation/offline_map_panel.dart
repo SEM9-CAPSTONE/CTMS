@@ -15,6 +15,9 @@ import '../domain/offline_map_models.dart';
 import 'offline_map_screen.dart';
 import 'widgets/offline_map_canvas.dart';
 import 'widgets/offline_map_checkpoint_list.dart';
+import '../../route_recovery/application/recovery_controller.dart';
+import '../../route_recovery/presentation/recovery_card.dart';
+import '../../route_recovery/domain/recovery_state.dart';
 
 /// Card section displaying the verified offline map with route, checkpoints,
 /// and live GPS position for a specific trip.
@@ -25,11 +28,13 @@ class OfflineMapPanel extends ConsumerStatefulWidget {
     this.tripTitle,
     this.clock,
     this.integrateArrivals = false,
+    this.enableRecovery = false,
   });
 
   final String tripId;
   final String? tripTitle;
   final bool integrateArrivals;
+  final bool enableRecovery;
   final DateTime Function()? clock;
 
   @override
@@ -69,6 +74,7 @@ class _OfflineMapPanelState extends ConsumerState<OfflineMapPanel>
           tripId: widget.tripId,
           clock: widget.clock,
           integrateArrivals: widget.integrateArrivals,
+          enableRecovery: widget.enableRecovery,
         ),
       ),
     );
@@ -250,6 +256,9 @@ class _OfflineMapPanelState extends ConsumerState<OfflineMapPanel>
   Widget build(BuildContext context) {
     final controller = ref.watch(offlineMapControllerProvider(widget.tripId));
     final state = controller.state;
+    final recovery = widget.enableRecovery && state.hasUsableMap
+        ? ref.watch(recoveryControllerProvider(widget.tripId)).view
+        : null;
     final now = _now;
     final isStale = state.location.isStale(now);
 
@@ -284,6 +293,7 @@ class _OfflineMapPanelState extends ConsumerState<OfflineMapPanel>
             if (statusNotice is SizedBox && gpsNotice == null)
               const SizedBox(height: 0),
             OfflineMapCanvas(
+              recoveryNotice: recovery == null ? null : recoveryMapNotice(recovery.display),
               mbtilesPath: controller.basemapPath ?? '',
               key: _canvasKey,
               route: state.context!.route,
@@ -291,8 +301,30 @@ class _OfflineMapPanelState extends ConsumerState<OfflineMapPanel>
               location: state.location,
               clock: widget.clock,
               height: 250.0,
+              recoveryTarget: recovery?.guides == true
+                  ? recovery!.target
+                  : null,
             ),
             const SizedBox(height: AppSpacing.md),
+            if (widget.enableRecovery) ...[
+              RecoveryCard(
+                tripId: widget.tripId,
+                onFocus: () {
+                  final box =
+                      _canvasKey.currentContext?.findRenderObject()
+                          as RenderBox?;
+                  if (box != null) {
+                    _canvasKey.currentState?.focusOnRecovery(box.size);
+                    Scrollable.ensureVisible(
+                      _canvasKey.currentContext!,
+                      alignment: 0.1,
+                      duration: const Duration(milliseconds: 300),
+                    );
+                  }
+                },
+              ),
+              const SizedBox(height: AppSpacing.md),
+            ],
 
             // 4. Action button to open full-screen map
             if (controller.basemapPath == null)
