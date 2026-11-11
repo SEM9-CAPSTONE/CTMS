@@ -1,0 +1,1742 @@
+import { ConflictException, ForbiddenException, NotFoundException } from "@nestjs/common";
+import type { AuthenticatedUser } from "../../auth/jwt.strategy";
+import type { EventsGateway } from "../../realtime/events.gateway";
+import {
+	TrekkingRouteDifficulty,
+	TrekkingRouteStatus,
+} from "../../trekking-routes/entities/trekking-route.entity";
+import { UserRole, UserStatus } from "../../users/entities/user.entity";
+import { RiskLevel } from "../../weather/entities/weather-risk-assessment.entity";
+import { TripReviewOutcome } from "../dto/list-trip-reviews-query.dto";
+import { ReviewTripAction } from "../dto/review-trip.dto";
+import type { SearchTripsQueryDto } from "../dto/search-trips-query.dto";
+import { WaypointType } from "../entities/trip-waypoint.entity";
+import { TripStatus, TripType } from "../entities/trip.entity";
+import type { TripsRepository } from "../repositories/trips.repository";
+import type { TripImagesService } from "./trip-images.service";
+import { TripsService } from "./trips.service";
+
+const HOST_ID = "11111111-1111-4111-8111-111111111111";
+const ROUTE_ID = "22222222-2222-4222-8222-222222222222";
+const TRIP_ID = "33333333-3333-4333-8333-333333333333";
+const CHECKPOINT_ID = "44444444-4444-4444-8444-444444444444";
+const OTHER_HOST_ID = "55555555-5555-4555-8555-555555555555";
+const PORTER_ID = "66666666-6666-4666-8666-666666666666";
+const ADMIN_ID = "88888888-8888-4888-8888-888888888888";
+const REVIEWED_UPDATED_AT = "2026-09-15T00:00:00.000Z";
+
+const CAMPER_ACTOR: AuthenticatedUser = {
+	userId: "88888888-8888-4888-8888-888888888888",
+	roles: [UserRole.CAMPER],
+	status: UserStatus.ACTIVE,
+};
+
+const HOST_ACTOR: AuthenticatedUser = {
+	userId: HOST_ID,
+	roles: [UserRole.HOST],
+	status: UserStatus.ACTIVE,
+};
+
+const ADMIN_ACTOR: AuthenticatedUser = {
+	userId: "99999999-9999-4999-8999-999999999999",
+	roles: [UserRole.ADMIN],
+	status: UserStatus.ACTIVE,
+};
+
+function createTripDto() {
+	return {
+		routeId: ROUTE_ID,
+		title: "Langbiang sunrise trek",
+		description: "A guided route",
+		coverImageUrl: "https://example.com/cover.jpg",
+		itinerary: { days: 1 },
+		includes: { meals: true },
+		excludes: { insurance: true },
+		tripType: TripType.DAY_TRIP,
+		startsAt: "2026-09-20T01:00:00.000Z",
+		endsAt: "2026-09-20T10:00:00.000Z",
+		meetingPoint: { type: "Point" as const, coordinates: [108.441, 11.941] as [number, number] },
+		meetingAt: "2026-09-20T00:30:00.000Z",
+		bookingDeadline: "2026-09-19T12:00:00.000Z",
+		capacityMin: 2,
+		capacityMax: 12,
+		pricePerPerson: 100000,
+		cancellationPolicy: { refundWindowHours: 48 },
+		waypoints: [
+			{
+				checkpointId: CHECKPOINT_ID,
+				type: WaypointType.START,
+				name: "Trailhead",
+				location: { type: "Point" as const, coordinates: [108.441, 11.941] as [number, number] },
+				plannedAt: "2026-09-20T01:00:00.000Z",
+				metadata: { note: "briefing" },
+			},
+			{
+				type: WaypointType.FINISH,
+				name: "Summit exit",
+				location: { type: "Point" as const, coordinates: [108.449, 11.946] as [number, number] },
+				plannedAt: "2026-09-20T10:00:00.000Z",
+			},
+		],
+	};
+}
+
+function createdTrip() {
+	return {
+		id: TRIP_ID,
+		hostId: HOST_ID,
+		routeId: ROUTE_ID,
+		title: "Langbiang sunrise trek",
+		description: "A guided route",
+		coverImageUrl: "https://example.com/cover.jpg",
+		itinerary: { days: 1 },
+		includes: { meals: true },
+		excludes: { insurance: true },
+		tripType: TripType.DAY_TRIP,
+		durationNights: 0,
+		startsAt: new Date("2026-09-20T01:00:00.000Z"),
+		endsAt: new Date("2026-09-20T10:00:00.000Z"),
+		meetingPoint: { type: "Point" as const, coordinates: [108.441, 11.941] as [number, number] },
+		meetingAt: new Date("2026-09-20T00:30:00.000Z"),
+		bookingDeadline: new Date("2026-09-19T12:00:00.000Z"),
+		capacityMin: 2,
+		capacityMax: 12,
+		seatsTaken: 0,
+		pricePerPerson: 100000,
+		cancellationPolicy: { refundWindowHours: 48 },
+		status: TripStatus.DRAFT,
+		registrationRisk: {
+			status: "unavailable" as const,
+			assessmentId: null,
+			level: null,
+			assessedAt: null,
+			ruleVersionId: null,
+			factors: [],
+			advice: null,
+			recommendations: [],
+		},
+		createdAt: new Date("2026-09-15T00:00:00.000Z"),
+		updatedAt: new Date("2026-09-15T00:00:00.000Z"),
+		waypoints: [],
+	};
+}
+
+function configuredTrip() {
+	return {
+		...createdTrip(),
+		status: TripStatus.PENDING_APPROVAL,
+		waypoints: [
+			{
+				id: "66666666-6666-4666-8666-666666666666",
+				tripId: TRIP_ID,
+				checkpointId: CHECKPOINT_ID,
+				type: WaypointType.START,
+				name: "Trailhead",
+				location: { type: "Point" as const, coordinates: [108.441, 11.941] as [number, number] },
+				dayNumber: 1,
+				sequenceOrder: 1,
+				plannedAt: new Date("2026-09-20T01:00:00.000Z"),
+				durationMinutes: null,
+				metadata: { note: "briefing" },
+			},
+			{
+				id: "77777777-7777-4777-8777-777777777777",
+				tripId: TRIP_ID,
+				checkpointId: null,
+				type: WaypointType.FINISH,
+				name: "Summit exit",
+				location: { type: "Point" as const, coordinates: [108.449, 11.946] as [number, number] },
+				dayNumber: 1,
+				sequenceOrder: 2,
+				plannedAt: new Date("2026-09-20T10:00:00.000Z"),
+				durationMinutes: null,
+				metadata: null,
+			},
+		],
+	};
+}
+
+describe("TripsService", () => {
+	const gateway = {
+		emitTripReviewUpdated: jest.fn(),
+		emitTripReviewRequested: jest.fn(),
+		emitTripReviewReminder: jest.fn(),
+		emitTripReviewAutoRejected: jest.fn(),
+	};
+	let tripsRepository: {
+		createDraft: jest.Mock;
+		updateDraft: jest.Mock;
+		saveDraftWaypoints: jest.Mock;
+		findByIdForWaypointConfiguration: jest.Mock;
+		findInvalidWaypointCheckpointIds: jest.Mock;
+		findRouteDependencyForUpdate: jest.Mock;
+		replaceWaypointsAndSubmitForApproval: jest.Mock;
+		findByIdForReview: jest.Mock;
+		findRouteStatus: jest.Mock;
+		updateStatus: jest.Mock;
+		findById: jest.Mock;
+		findTripsByHost: jest.Mock;
+		findAssignedTripsByPorter: jest.Mock;
+		searchPublishedTrips: jest.Mock;
+		findPendingReview: jest.Mock;
+		findAdminReviews: jest.Mock;
+		findByIdForBooking: jest.Mock;
+		adjustSeatsTaken: jest.Mock;
+		recomputeSeatsTaken: jest.Mock;
+		findByIdForScheduleChange: jest.Mock;
+		reschedulePublishedTrip: jest.Mock;
+		cancelTripWithCommitments: jest.Mock;
+		findPendingReviewReminderCandidates: jest.Mock;
+		findExpiredPendingReviewCandidates: jest.Mock;
+		findHostingPenalties: jest.Mock;
+	};
+	let auditRepository: { save: jest.Mock };
+	let dataSource: { transaction: jest.Mock };
+	let service: TripsService;
+
+	beforeEach(() => {
+		tripsRepository = {
+			createDraft: jest.fn().mockResolvedValue(createdTrip()),
+			updateDraft: jest.fn().mockResolvedValue(createdTrip()),
+			saveDraftWaypoints: jest.fn().mockResolvedValue(createdTrip()),
+			findByIdForWaypointConfiguration: jest.fn().mockResolvedValue({
+				trip: createdTrip(),
+				hostId: HOST_ID,
+				routeId: ROUTE_ID,
+				status: TripStatus.DRAFT,
+			}),
+			findInvalidWaypointCheckpointIds: jest.fn().mockResolvedValue([]),
+			findRouteDependencyForUpdate: jest.fn().mockResolvedValue({
+				id: ROUTE_ID,
+				hostId: HOST_ID,
+				status: TrekkingRouteStatus.ACTIVE,
+			}),
+			replaceWaypointsAndSubmitForApproval: jest.fn().mockResolvedValue(configuredTrip()),
+			findByIdForReview: jest.fn().mockResolvedValue({
+				trip: configuredTrip(),
+				routeId: ROUTE_ID,
+				status: TripStatus.PENDING_APPROVAL,
+			}),
+			findRouteStatus: jest.fn().mockResolvedValue(TrekkingRouteStatus.ACTIVE),
+			updateStatus: jest
+				.fn()
+				.mockImplementation((_tripId: string, status: TripStatus) =>
+					Promise.resolve({ ...configuredTrip(), status })
+				),
+			findById: jest.fn().mockResolvedValue(createdTrip()),
+			findTripsByHost: jest.fn().mockResolvedValue([]),
+			findAssignedTripsByPorter: jest.fn().mockResolvedValue([]),
+			searchPublishedTrips: jest.fn().mockResolvedValue({ items: [], total: 0 }),
+			findPendingReview: jest.fn().mockResolvedValue([configuredTrip()]),
+			findAdminReviews: jest.fn().mockResolvedValue({ items: [configuredTrip()], total: 21 }),
+			findByIdForBooking: jest.fn().mockResolvedValue(null),
+			adjustSeatsTaken: jest.fn().mockResolvedValue(undefined),
+			recomputeSeatsTaken: jest.fn().mockResolvedValue(undefined),
+			findByIdForScheduleChange: jest.fn().mockResolvedValue({
+				trip: { ...createdTrip(), status: TripStatus.PUBLISHED },
+				hostId: HOST_ID,
+				routeId: ROUTE_ID,
+				status: TripStatus.PUBLISHED,
+				startsAt: new Date("2026-09-20T01:00:00.000Z"),
+				endsAt: new Date("2026-09-20T10:00:00.000Z"),
+				meetingAt: new Date("2026-09-20T00:30:00.000Z"),
+				tripType: TripType.DAY_TRIP,
+				durationNights: 0,
+			}),
+			reschedulePublishedTrip: jest.fn().mockResolvedValue({
+				bookingsPendingReconfirmation: 2,
+				portersPendingReconfirmation: 1,
+				equipmentReservationsMoved: 1,
+				equipmentReservationsCancelled: 0,
+				equipmentRefundsCreated: 0,
+			}),
+			cancelTripWithCommitments: jest.fn().mockResolvedValue({
+				bookingsCancelled: 2,
+				portersUnassigned: 1,
+				equipmentReservationsCancelled: 1,
+				bookingRefundsCreated: 1,
+			}),
+			findPendingReviewReminderCandidates: jest.fn().mockResolvedValue([]),
+			findExpiredPendingReviewCandidates: jest.fn().mockResolvedValue([]),
+			findHostingPenalties: jest.fn().mockResolvedValue([]),
+		};
+		auditRepository = { save: jest.fn().mockResolvedValue({}) };
+		dataSource = {
+			transaction: jest.fn(async (callback: (manager: unknown) => unknown) =>
+				callback({
+					getRepository: jest.fn().mockReturnValue(auditRepository),
+					withRepository: jest.fn().mockReturnValue(tripsRepository),
+				})
+			),
+		};
+		service = new TripsService(
+			tripsRepository as unknown as TripsRepository,
+			dataSource as never,
+			gateway as unknown as EventsGateway
+		);
+	});
+
+	it("creates a draft Trip for the authenticated owning Host and audits the create action", async () => {
+		const trip = await service.create(HOST_ID, createTripDto());
+
+		expect(tripsRepository.findRouteDependencyForUpdate).toHaveBeenCalledWith(ROUTE_ID);
+		expect(tripsRepository.findInvalidWaypointCheckpointIds).toHaveBeenCalledWith(ROUTE_ID, [
+			CHECKPOINT_ID,
+		]);
+		expect(tripsRepository.createDraft).toHaveBeenCalledWith(
+			expect.objectContaining({
+				hostId: HOST_ID,
+				routeId: ROUTE_ID,
+				durationNights: 0,
+				waypoints: expect.arrayContaining([
+					expect.objectContaining({ type: WaypointType.START, checkpointId: CHECKPOINT_ID }),
+					expect.objectContaining({ type: WaypointType.FINISH, checkpointId: null }),
+				]),
+			})
+		);
+		expect(trip.status).toBe(TripStatus.DRAFT);
+		expect(trip.seatsTaken).toBe(0);
+		expect(auditRepository.save).toHaveBeenCalledWith(
+			expect.objectContaining({
+				actorId: HOST_ID,
+				action: "trip.created",
+				targetType: "trip",
+				targetId: TRIP_ID,
+				before: null,
+				reason: "host_create_trip",
+				after: expect.objectContaining({
+					routeId: ROUTE_ID,
+					status: TripStatus.DRAFT,
+					seatsTaken: 0,
+					waypointCount: 0,
+				}),
+			})
+		);
+	});
+
+	it("derives durationNights for overnight Trips from the schedule", async () => {
+		await service.create(HOST_ID, {
+			...createTripDto(),
+			tripType: TripType.OVERNIGHT,
+			startsAt: "2026-09-20T12:00:00.000Z",
+			endsAt: "2026-09-22T10:00:00.000Z",
+			waypoints: [
+				{ ...createTripDto().waypoints[0], plannedAt: "2026-09-20T12:00:00.000Z" },
+				{ ...createTripDto().waypoints[1], plannedAt: "2026-09-22T10:00:00.000Z" },
+			],
+		});
+
+		expect(tripsRepository.createDraft).toHaveBeenCalledWith(
+			expect.objectContaining({ durationNights: 2 })
+		);
+	});
+
+	it("allows a free Trip when pricePerPerson is zero", async () => {
+		await service.create(HOST_ID, { ...createTripDto(), pricePerPerson: 0 });
+
+		expect(tripsRepository.createDraft).toHaveBeenCalledWith(
+			expect.objectContaining({ pricePerPerson: 0 })
+		);
+	});
+
+	it("allows capacityMax to be null for an unlimited Trip", async () => {
+		await service.create(HOST_ID, { ...createTripDto(), capacityMax: null });
+
+		expect(tripsRepository.createDraft).toHaveBeenCalledWith(
+			expect.objectContaining({ capacityMax: null })
+		);
+	});
+
+	it("returns 404 when the referenced Route does not exist", async () => {
+		tripsRepository.findRouteDependencyForUpdate.mockResolvedValue(null);
+
+		await expect(service.create(HOST_ID, createTripDto())).rejects.toBeInstanceOf(
+			NotFoundException
+		);
+		expect(tripsRepository.createDraft).not.toHaveBeenCalled();
+		expect(auditRepository.save).not.toHaveBeenCalled();
+	});
+
+	it("returns 403 when the Route belongs to another Host", async () => {
+		tripsRepository.findRouteDependencyForUpdate.mockResolvedValue({
+			id: ROUTE_ID,
+			hostId: OTHER_HOST_ID,
+			status: TrekkingRouteStatus.ACTIVE,
+		});
+
+		await expect(service.create(HOST_ID, createTripDto())).rejects.toBeInstanceOf(
+			ForbiddenException
+		);
+		expect(tripsRepository.createDraft).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		TrekkingRouteStatus.DRAFT,
+		TrekkingRouteStatus.PENDING_APPROVAL,
+		TrekkingRouteStatus.CLOSED,
+	])("returns 409 when the Route status is %s", async (status) => {
+		tripsRepository.findRouteDependencyForUpdate.mockResolvedValue({
+			id: ROUTE_ID,
+			hostId: HOST_ID,
+			status,
+		});
+
+		await expect(service.create(HOST_ID, createTripDto())).rejects.toBeInstanceOf(
+			ConflictException
+		);
+		expect(tripsRepository.createDraft).not.toHaveBeenCalled();
+	});
+
+	it("returns 422 when a waypoint references a checkpoint outside the selected Route", async () => {
+		tripsRepository.findInvalidWaypointCheckpointIds.mockResolvedValue([CHECKPOINT_ID]);
+
+		await expect(service.create(HOST_ID, createTripDto())).rejects.toMatchObject({ status: 422 });
+		expect(tripsRepository.createDraft).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		{
+			name: "startsAt is not before endsAt",
+			patch: {
+				startsAt: "2026-09-20T10:00:00.000Z",
+				endsAt: "2026-09-20T10:00:00.000Z",
+			},
+		},
+		{
+			name: "bookingDeadline is not before startsAt",
+			patch: { bookingDeadline: "2026-09-20T01:00:00.000Z" },
+		},
+		{
+			name: "meetingAt is after startsAt",
+			patch: { meetingAt: "2026-09-20T01:01:00.000Z" },
+		},
+		{
+			name: "day_trip spans multiple dates",
+			patch: {
+				endsAt: "2026-09-21T10:00:00.000Z",
+			},
+		},
+		{
+			name: "capacityMin is greater than capacityMax",
+			patch: { capacityMin: 13 },
+		},
+	])("returns 422 when $name", async ({ patch }) => {
+		await expect(service.create(HOST_ID, { ...createTripDto(), ...patch })).rejects.toMatchObject({
+			status: 422,
+		});
+		expect(tripsRepository.findRouteDependencyForUpdate).not.toHaveBeenCalled();
+		expect(tripsRepository.createDraft).not.toHaveBeenCalled();
+	});
+
+	it("returns 422 when waypoint plannedAt is duplicated", async () => {
+		const dto = createTripDto();
+		dto.waypoints[1].plannedAt = dto.waypoints[0].plannedAt;
+
+		await expect(service.create(HOST_ID, dto)).rejects.toMatchObject({ status: 422 });
+		expect(tripsRepository.createDraft).not.toHaveBeenCalled();
+	});
+
+	it("returns 422 when start or finish waypoints are missing", async () => {
+		const dto = createTripDto();
+		dto.waypoints = dto.waypoints.filter((waypoint) => waypoint.type !== WaypointType.FINISH);
+
+		await expect(service.create(HOST_ID, dto)).rejects.toMatchObject({ status: 422 });
+		expect(tripsRepository.createDraft).not.toHaveBeenCalled();
+	});
+
+	it("refuses to create or submit a Trip while a weather penalty blocks the Host (policy §6)", async () => {
+		tripsRepository.findHostingPenalties.mockResolvedValue([
+			{ createdAt: new Date(), hostingBlockedUntil: new Date(Date.now() + 86_400_000) },
+		]);
+		await expect(service.create(HOST_ID, createTripDto())).rejects.toBeInstanceOf(
+			ForbiddenException
+		);
+		expect(tripsRepository.findHostingPenalties).toHaveBeenCalledWith(HOST_ID);
+		expect(tripsRepository.createDraft).not.toHaveBeenCalled();
+	});
+
+	it("propagates audit failure so the transaction can roll back Trip creation", async () => {
+		auditRepository.save.mockRejectedValue(new Error("audit unavailable"));
+
+		await expect(service.create(HOST_ID, createTripDto())).rejects.toThrow("audit unavailable");
+		expect(tripsRepository.createDraft).toHaveBeenCalledTimes(1);
+	});
+
+	describe("updateDraft", () => {
+		it("edits an owned draft Trip and keeps it in draft", async () => {
+			const result = await service.updateDraft(HOST_ID, TRIP_ID, createTripDto());
+
+			expect(tripsRepository.findByIdForWaypointConfiguration).toHaveBeenCalledWith(TRIP_ID);
+			expect(tripsRepository.updateDraft).toHaveBeenCalledWith(
+				TRIP_ID,
+				expect.objectContaining({
+					hostId: HOST_ID,
+					routeId: ROUTE_ID,
+					startsAt: new Date("2026-09-20T01:00:00.000Z"),
+					endsAt: new Date("2026-09-20T10:00:00.000Z"),
+				})
+			);
+			expect(result.status).toBe(TripStatus.DRAFT);
+			expect(auditRepository.save).toHaveBeenCalledWith(
+				expect.objectContaining({
+					actorId: HOST_ID,
+					action: "trip.updated",
+					targetType: "trip",
+					targetId: TRIP_ID,
+					reason: "host_update_trip_draft",
+				})
+			);
+		});
+
+		it("rejects direct pending Trip writes before Finish Update", async () => {
+			const pending = configuredTrip();
+			tripsRepository.findByIdForWaypointConfiguration.mockResolvedValue({
+				trip: pending,
+				hostId: HOST_ID,
+				routeId: ROUTE_ID,
+				status: TripStatus.PENDING_APPROVAL,
+			});
+			await expect(service.updateDraft(HOST_ID, TRIP_ID, createTripDto())).rejects.toBeInstanceOf(
+				ConflictException
+			);
+			expect(tripsRepository.updateDraft).not.toHaveBeenCalled();
+			expect(auditRepository.save).not.toHaveBeenCalled();
+		});
+
+		it("rejects published Trip editing so schedule changes must use reschedule", async () => {
+			tripsRepository.findByIdForWaypointConfiguration.mockResolvedValue({
+				trip: { ...createdTrip(), status: TripStatus.PUBLISHED },
+				hostId: HOST_ID,
+				routeId: ROUTE_ID,
+				status: TripStatus.PUBLISHED,
+			});
+
+			await expect(service.updateDraft(HOST_ID, TRIP_ID, createTripDto())).rejects.toBeInstanceOf(
+				ConflictException
+			);
+			expect(tripsRepository.updateDraft).not.toHaveBeenCalled();
+			expect(auditRepository.save).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("finalizing a pending Trip update", () => {
+		const images = {
+			preparePendingUpdate: jest.fn(),
+			applyPendingUpdate: jest.fn(),
+			releasePendingUploads: jest.fn(),
+			list: jest.fn(),
+		};
+		beforeEach(() => {
+			jest.clearAllMocks();
+			images.preparePendingUpdate.mockResolvedValue([]);
+			images.applyPendingUpdate.mockResolvedValue(undefined);
+			images.releasePendingUploads.mockResolvedValue(undefined);
+			images.list.mockResolvedValue([]);
+			service = new TripsService(
+				tripsRepository as unknown as TripsRepository,
+				dataSource as never,
+				gateway as unknown as EventsGateway,
+				undefined,
+				images as unknown as TripImagesService
+			);
+		});
+		it("commits information and images before notifying Admin once", async () => {
+			const pending = configuredTrip();
+			tripsRepository.findByIdForWaypointConfiguration.mockResolvedValue({
+				trip: pending,
+				hostId: HOST_ID,
+				routeId: ROUTE_ID,
+				status: TripStatus.PENDING_APPROVAL,
+			});
+			const updated = { ...pending, updatedAt: new Date("2026-09-15T02:00:00.000Z") };
+			tripsRepository.updateDraft.mockResolvedValue(updated);
+			tripsRepository.findById.mockResolvedValue(updated);
+			const result = await service.finalizePendingUpdate(
+				HOST_ID,
+				TRIP_ID,
+				{
+					...createTripDto(),
+					expectedUpdatedAt: new Date(pending.updatedAt).toISOString(),
+					retainedImageIds: [],
+				},
+				[]
+			);
+			expect(result.status).toBe(TripStatus.PENDING_APPROVAL);
+			expect(images.applyPendingUpdate).toHaveBeenCalledTimes(1);
+			expect(gateway.emitTripReviewUpdated).toHaveBeenCalledTimes(1);
+			expect(gateway.emitTripReviewUpdated.mock.invocationCallOrder[0]).toBeGreaterThan(
+				images.applyPendingUpdate.mock.invocationCallOrder[0]
+			);
+			expect(gateway.emitTripReviewRequested).not.toHaveBeenCalled();
+		});
+		it("rejects a stale edit without saving fields, images, or notifying Admin", async () => {
+			const pending = configuredTrip();
+			tripsRepository.findByIdForWaypointConfiguration.mockResolvedValue({
+				trip: pending,
+				hostId: HOST_ID,
+				routeId: ROUTE_ID,
+				status: TripStatus.PENDING_APPROVAL,
+			});
+			await expect(
+				service.finalizePendingUpdate(
+					HOST_ID,
+					TRIP_ID,
+					{
+						...createTripDto(),
+						expectedUpdatedAt: "2000-01-01T00:00:00.000Z",
+						retainedImageIds: [],
+					},
+					[]
+				)
+			).rejects.toBeInstanceOf(ConflictException);
+			expect(tripsRepository.updateDraft).not.toHaveBeenCalled();
+			expect(images.applyPendingUpdate).not.toHaveBeenCalled();
+			expect(gateway.emitTripReviewUpdated).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("pending itinerary updates", () => {
+		it("rejects individual pending waypoint writes before Finish Update", async () => {
+			const pending = configuredTrip();
+			tripsRepository.findByIdForWaypointConfiguration.mockResolvedValue({
+				trip: pending,
+				hostId: HOST_ID,
+				routeId: ROUTE_ID,
+				status: TripStatus.PENDING_APPROVAL,
+			});
+			await expect(
+				service.updateWaypoint(
+					HOST_ID,
+					TRIP_ID,
+					pending.waypoints[0].id,
+					createTripDto().waypoints[0]
+				)
+			).rejects.toBeInstanceOf(ConflictException);
+			expect(tripsRepository.saveDraftWaypoints).not.toHaveBeenCalled();
+			expect(auditRepository.save).not.toHaveBeenCalled();
+		});
+
+		it("rejects itinerary updates after the Trip is published", async () => {
+			const published = { ...configuredTrip(), status: TripStatus.PUBLISHED };
+			tripsRepository.findByIdForWaypointConfiguration.mockResolvedValue({
+				trip: published,
+				hostId: HOST_ID,
+				routeId: ROUTE_ID,
+				status: TripStatus.PUBLISHED,
+			});
+			await expect(
+				service.updateWaypoint(
+					HOST_ID,
+					TRIP_ID,
+					published.waypoints[0].id,
+					createTripDto().waypoints[0]
+				)
+			).rejects.toBeInstanceOf(ConflictException);
+			expect(tripsRepository.saveDraftWaypoints).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("configureWaypoints", () => {
+		it("rejects reversed route times instead of silently sorting them by time", async () => {
+			const dto = createTripDto();
+			const middle = (order: string, time: string) => ({
+				type: WaypointType.REST,
+				name: "",
+				location: { type: "Point" as const, coordinates: [108.445, 11.944] as [number, number] },
+				plannedAt: time,
+				metadata: { routeOrder: order },
+			});
+			await expect(
+				service.configureWaypoints(HOST_ID, TRIP_ID, {
+					waypoints: [
+						dto.waypoints[0],
+						middle("0.3", "2026-09-20T05:00:00.000Z"),
+						middle("0.6", "2026-09-20T04:00:00.000Z"),
+						dto.waypoints[1],
+					],
+				})
+			).rejects.toMatchObject({ status: 422 });
+			expect(tripsRepository.replaceWaypointsAndSubmitForApproval).not.toHaveBeenCalled();
+		});
+
+		it("replaces draft Trip waypoints, submits the Trip for approval, and audits the change", async () => {
+			const result = await service.configureWaypoints(HOST_ID, TRIP_ID, {
+				waypoints: createTripDto().waypoints,
+			});
+
+			expect(tripsRepository.findByIdForWaypointConfiguration).toHaveBeenCalledWith(TRIP_ID);
+			expect(tripsRepository.findInvalidWaypointCheckpointIds).toHaveBeenCalledWith(ROUTE_ID, [
+				CHECKPOINT_ID,
+			]);
+			expect(tripsRepository.replaceWaypointsAndSubmitForApproval).toHaveBeenCalledWith(
+				TRIP_ID,
+				expect.arrayContaining([
+					expect.objectContaining({ type: WaypointType.START, checkpointId: CHECKPOINT_ID }),
+					expect.objectContaining({ type: WaypointType.FINISH, checkpointId: null }),
+				])
+			);
+			expect(result.status).toBe(TripStatus.PENDING_APPROVAL);
+			expect(auditRepository.save).toHaveBeenCalledWith(
+				expect.objectContaining({
+					actorId: HOST_ID,
+					action: "trip_waypoints.configured",
+					targetType: "trip",
+					targetId: TRIP_ID,
+					reason: "host_configure_trip_waypoints",
+					before: expect.objectContaining({ status: TripStatus.DRAFT }),
+					after: expect.objectContaining({ status: TripStatus.PENDING_APPROVAL }),
+				})
+			);
+		});
+
+		it("returns 404 when the Trip does not exist", async () => {
+			tripsRepository.findByIdForWaypointConfiguration.mockResolvedValue(null);
+
+			await expect(
+				service.configureWaypoints(HOST_ID, TRIP_ID, { waypoints: createTripDto().waypoints })
+			).rejects.toBeInstanceOf(NotFoundException);
+			expect(tripsRepository.replaceWaypointsAndSubmitForApproval).not.toHaveBeenCalled();
+		});
+
+		it("returns 403 when the Trip belongs to another Host", async () => {
+			tripsRepository.findByIdForWaypointConfiguration.mockResolvedValue({
+				trip: createdTrip(),
+				hostId: OTHER_HOST_ID,
+				routeId: ROUTE_ID,
+				status: TripStatus.DRAFT,
+			});
+
+			await expect(
+				service.configureWaypoints(HOST_ID, TRIP_ID, { waypoints: createTripDto().waypoints })
+			).rejects.toBeInstanceOf(ForbiddenException);
+			expect(tripsRepository.replaceWaypointsAndSubmitForApproval).not.toHaveBeenCalled();
+		});
+
+		it("returns the existing pending Trip for an identical retry without writing again", async () => {
+			const pendingTrip = configuredTrip();
+			tripsRepository.findByIdForWaypointConfiguration.mockResolvedValue({
+				trip: pendingTrip,
+				hostId: HOST_ID,
+				routeId: ROUTE_ID,
+				status: TripStatus.PENDING_APPROVAL,
+			});
+
+			const result = await service.configureWaypoints(HOST_ID, TRIP_ID, {
+				waypoints: createTripDto().waypoints,
+			});
+
+			expect(result).toBe(pendingTrip);
+			expect(tripsRepository.replaceWaypointsAndSubmitForApproval).not.toHaveBeenCalled();
+			expect(auditRepository.save).not.toHaveBeenCalled();
+		});
+
+		it("returns 409 when a non-draft Trip is submitted with different waypoints", async () => {
+			tripsRepository.findByIdForWaypointConfiguration.mockResolvedValue({
+				trip: { ...createdTrip(), status: TripStatus.PUBLISHED },
+				hostId: HOST_ID,
+				routeId: ROUTE_ID,
+				status: TripStatus.PUBLISHED,
+			});
+
+			await expect(
+				service.configureWaypoints(HOST_ID, TRIP_ID, { waypoints: createTripDto().waypoints })
+			).rejects.toBeInstanceOf(ConflictException);
+			expect(tripsRepository.replaceWaypointsAndSubmitForApproval).not.toHaveBeenCalled();
+		});
+
+		it("returns 422 when a day Trip includes an overnight waypoint", async () => {
+			const dto = createTripDto();
+			dto.waypoints.splice(1, 0, {
+				type: WaypointType.OVERNIGHT,
+				name: "Camp",
+				location: { type: "Point" as const, coordinates: [108.445, 11.943] as [number, number] },
+				plannedAt: "2026-09-20T05:00:00.000Z",
+			});
+
+			await expect(
+				service.configureWaypoints(HOST_ID, TRIP_ID, { waypoints: dto.waypoints })
+			).rejects.toMatchObject({
+				status: 422,
+			});
+			expect(tripsRepository.replaceWaypointsAndSubmitForApproval).not.toHaveBeenCalled();
+		});
+
+		describe("multi-day Trips", () => {
+			const point = { type: "Point" as const, coordinates: [108.445, 11.943] as [number, number] };
+			const overnightStop = (plannedAt: string) => ({
+				type: WaypointType.OVERNIGHT,
+				name: "Camp",
+				location: point,
+				plannedAt,
+			});
+			const restStop = (plannedAt: string) => ({
+				type: WaypointType.REST,
+				name: "Rest",
+				location: point,
+				plannedAt,
+			});
+			const multiDayWaypoints = (middle: ReturnType<typeof createTripDto>["waypoints"]) => [
+				{
+					type: WaypointType.START,
+					name: "Trailhead",
+					location: point,
+					plannedAt: "2026-09-20T01:00:00.000Z",
+				},
+				...middle,
+				{
+					type: WaypointType.FINISH,
+					name: "Summit exit",
+					location: point,
+					plannedAt: "2026-09-22T10:00:00.000Z",
+				},
+			];
+
+			beforeEach(() => {
+				tripsRepository.findByIdForWaypointConfiguration.mockResolvedValue({
+					trip: {
+						...createdTrip(),
+						tripType: TripType.OVERNIGHT,
+						durationNights: 2,
+						endsAt: new Date("2026-09-22T10:00:00.000Z"),
+					},
+					hostId: HOST_ID,
+					routeId: ROUTE_ID,
+					status: TripStatus.DRAFT,
+				});
+			});
+
+			it("returns 422 when no overnight waypoint is included", async () => {
+				const waypoints = multiDayWaypoints([restStop("2026-09-20T05:00:00.000Z")]);
+
+				await expect(
+					service.configureWaypoints(HOST_ID, TRIP_ID, { waypoints })
+				).rejects.toMatchObject({ status: 422 });
+				expect(tripsRepository.replaceWaypointsAndSubmitForApproval).not.toHaveBeenCalled();
+			});
+
+			it("accepts a single overnight waypoint even when the Trip spans several nights", async () => {
+				const waypoints = multiDayWaypoints([overnightStop("2026-09-20T12:00:00.000Z")]);
+
+				await service.configureWaypoints(HOST_ID, TRIP_ID, { waypoints });
+
+				expect(tripsRepository.replaceWaypointsAndSubmitForApproval).toHaveBeenCalled();
+			});
+
+			it("accepts more overnight waypoints than nights alongside other rest stops", async () => {
+				const waypoints = multiDayWaypoints([
+					restStop("2026-09-20T05:00:00.000Z"),
+					overnightStop("2026-09-20T12:00:00.000Z"),
+					overnightStop("2026-09-21T03:00:00.000Z"),
+					overnightStop("2026-09-21T12:00:00.000Z"),
+				]);
+
+				await service.configureWaypoints(HOST_ID, TRIP_ID, { waypoints });
+
+				expect(tripsRepository.replaceWaypointsAndSubmitForApproval).toHaveBeenCalled();
+			});
+		});
+
+		it("returns 422 when a waypoint references a checkpoint outside the Trip route", async () => {
+			tripsRepository.findInvalidWaypointCheckpointIds.mockResolvedValue([CHECKPOINT_ID]);
+
+			await expect(
+				service.configureWaypoints(HOST_ID, TRIP_ID, { waypoints: createTripDto().waypoints })
+			).rejects.toMatchObject({ status: 422 });
+			expect(tripsRepository.replaceWaypointsAndSubmitForApproval).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("listPendingReview", () => {
+		it("returns the requested review outcome with accurate pagination", async () => {
+			const result = await service.listAdminReviews({
+				reviewOutcome: TripReviewOutcome.AUTO_REJECTED,
+				page: 2,
+				limit: 20,
+			});
+
+			expect(tripsRepository.findAdminReviews).toHaveBeenCalledWith(
+				TripReviewOutcome.AUTO_REJECTED,
+				2,
+				20
+			);
+			expect(result).toEqual({
+				items: [configuredTrip()],
+				pagination: { page: 2, limit: 20, total: 21, totalPages: 2 },
+			});
+		});
+
+		it("returns Trips pending Admin approval from the repository", async () => {
+			const result = await service.listPendingReview();
+
+			expect(tripsRepository.findPendingReview).toHaveBeenCalledWith();
+			expect(result).toEqual([configuredTrip()]);
+		});
+	});
+
+	describe("review", () => {
+		it("approves a pending Trip, publishes it, and audits with no reason", async () => {
+			const result = await service.review(ADMIN_ID, TRIP_ID, {
+				action: ReviewTripAction.APPROVE,
+				reviewedUpdatedAt: REVIEWED_UPDATED_AT,
+			});
+
+			expect(tripsRepository.findByIdForReview).toHaveBeenCalledWith(TRIP_ID);
+			expect(tripsRepository.findRouteStatus).toHaveBeenCalledWith(ROUTE_ID);
+			expect(tripsRepository.updateStatus).toHaveBeenCalledWith(TRIP_ID, TripStatus.PUBLISHED);
+			expect(result.status).toBe(TripStatus.PUBLISHED);
+			expect(auditRepository.save).toHaveBeenCalledWith(
+				expect.objectContaining({
+					actorId: ADMIN_ID,
+					action: "trip.approved",
+					targetType: "trip",
+					targetId: TRIP_ID,
+					before: { status: TripStatus.PENDING_APPROVAL },
+					after: { status: TripStatus.PUBLISHED },
+					reason: null,
+				})
+			);
+		});
+
+		it("declines a pending Trip back to draft, requiring and recording the reason", async () => {
+			const result = await service.review(ADMIN_ID, TRIP_ID, {
+				action: ReviewTripAction.DECLINE,
+				reviewedUpdatedAt: REVIEWED_UPDATED_AT,
+				reason: "Itinerary missing lunch stop",
+			});
+
+			expect(tripsRepository.findRouteStatus).not.toHaveBeenCalled();
+			expect(tripsRepository.updateStatus).toHaveBeenCalledWith(TRIP_ID, TripStatus.DRAFT);
+			expect(result.status).toBe(TripStatus.DRAFT);
+			expect(auditRepository.save).toHaveBeenCalledWith(
+				expect.objectContaining({
+					actorId: ADMIN_ID,
+					action: "trip.declined",
+					targetType: "trip",
+					targetId: TRIP_ID,
+					before: { status: TripStatus.PENDING_APPROVAL },
+					after: { status: TripStatus.DRAFT },
+					reason: "Itinerary missing lunch stop",
+				})
+			);
+		});
+
+		it("returns 404 when the Trip does not exist", async () => {
+			tripsRepository.findByIdForReview.mockResolvedValue(null);
+
+			await expect(
+				service.review(ADMIN_ID, TRIP_ID, {
+					action: ReviewTripAction.APPROVE,
+					reviewedUpdatedAt: REVIEWED_UPDATED_AT,
+				})
+			).rejects.toBeInstanceOf(NotFoundException);
+			expect(tripsRepository.updateStatus).not.toHaveBeenCalled();
+		});
+
+		it("returns 409 when Admin submits a decision for a stale pending Trip version", async () => {
+			tripsRepository.findByIdForReview.mockResolvedValue({
+				trip: {
+					...configuredTrip(),
+					updatedAt: new Date("2026-09-15T01:00:00.000Z"),
+				},
+				routeId: ROUTE_ID,
+				status: TripStatus.PENDING_APPROVAL,
+			});
+
+			await expect(
+				service.review(ADMIN_ID, TRIP_ID, {
+					action: ReviewTripAction.APPROVE,
+					reviewedUpdatedAt: REVIEWED_UPDATED_AT,
+				})
+			).rejects.toBeInstanceOf(ConflictException);
+			expect(tripsRepository.updateStatus).not.toHaveBeenCalled();
+			expect(auditRepository.save).not.toHaveBeenCalled();
+		});
+
+		it.each([TripStatus.DRAFT, TripStatus.PUBLISHED, TripStatus.CANCELLED])(
+			"returns 409 when the Trip status is %s (not pending_approval)",
+			async (status) => {
+				tripsRepository.findByIdForReview.mockResolvedValue({
+					trip: { ...configuredTrip(), status },
+					routeId: ROUTE_ID,
+					status,
+				});
+
+				await expect(
+					service.review(ADMIN_ID, TRIP_ID, {
+						action: ReviewTripAction.APPROVE,
+						reviewedUpdatedAt: REVIEWED_UPDATED_AT,
+					})
+				).rejects.toBeInstanceOf(ConflictException);
+				expect(tripsRepository.updateStatus).not.toHaveBeenCalled();
+			}
+		);
+
+		it("returns 422 and does not publish when the Trip's Route is no longer active", async () => {
+			tripsRepository.findRouteStatus.mockResolvedValue(TrekkingRouteStatus.CLOSED);
+
+			await expect(
+				service.review(ADMIN_ID, TRIP_ID, {
+					action: ReviewTripAction.APPROVE,
+					reviewedUpdatedAt: REVIEWED_UPDATED_AT,
+				})
+			).rejects.toMatchObject({ status: 422 });
+			expect(tripsRepository.updateStatus).not.toHaveBeenCalled();
+			expect(auditRepository.save).not.toHaveBeenCalled();
+		});
+
+		it("retrying an already-reviewed Trip returns 409 instead of double-processing (idempotency)", async () => {
+			tripsRepository.findByIdForReview.mockResolvedValue({
+				trip: { ...configuredTrip(), status: TripStatus.PUBLISHED },
+				routeId: ROUTE_ID,
+				status: TripStatus.PUBLISHED,
+			});
+
+			await expect(
+				service.review(ADMIN_ID, TRIP_ID, {
+					action: ReviewTripAction.APPROVE,
+					reviewedUpdatedAt: REVIEWED_UPDATED_AT,
+				})
+			).rejects.toBeInstanceOf(ConflictException);
+			expect(tripsRepository.updateStatus).not.toHaveBeenCalled();
+			expect(auditRepository.save).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("processPendingReviewDeadlines", () => {
+		it("sends one reminder for Trips close to the 24-hour review deadline", async () => {
+			const submittedAt = new Date("2026-09-15T00:00:00.000Z");
+			tripsRepository.findPendingReviewReminderCandidates.mockResolvedValue([
+				{
+					id: TRIP_ID,
+					hostId: HOST_ID,
+					title: "Langbiang sunrise trek",
+					updatedAt: submittedAt,
+				},
+			]);
+
+			const result = await service.processPendingReviewDeadlines(
+				new Date("2026-09-15T23:05:00.000Z")
+			);
+
+			expect(result).toEqual({ reminded: 1, rejected: 0 });
+			expect(tripsRepository.findPendingReviewReminderCandidates).toHaveBeenCalledWith(
+				new Date("2026-09-15T00:05:00.000Z"),
+				new Date("2026-09-14T23:05:00.000Z")
+			);
+			expect(auditRepository.save).toHaveBeenCalledWith(
+				expect.objectContaining({
+					actorId: null,
+					action: "trip.review.reminder_sent",
+					targetType: "trip",
+					targetId: TRIP_ID,
+					reason: "admin_review_deadline_reminder",
+					after: expect.objectContaining({
+						status: TripStatus.PENDING_APPROVAL,
+						deadlineAt: "2026-09-16T00:00:00.000Z",
+					}),
+				})
+			);
+		});
+
+		it("automatically rejects pending Trips after 24 hours without approval", async () => {
+			tripsRepository.findExpiredPendingReviewCandidates.mockResolvedValue([
+				{
+					id: TRIP_ID,
+					hostId: HOST_ID,
+					title: "Langbiang sunrise trek",
+					updatedAt: new Date("2026-09-15T00:00:00.000Z"),
+				},
+			]);
+			tripsRepository.updateStatus.mockResolvedValue({
+				...configuredTrip(),
+				status: TripStatus.REJECTED,
+			});
+
+			const result = await service.processPendingReviewDeadlines(
+				new Date("2026-09-16T00:01:00.000Z")
+			);
+
+			expect(result).toEqual({ reminded: 0, rejected: 1 });
+			expect(tripsRepository.findByIdForReview).toHaveBeenCalledWith(TRIP_ID);
+			expect(tripsRepository.updateStatus).toHaveBeenCalledWith(TRIP_ID, TripStatus.REJECTED);
+			expect(auditRepository.save).toHaveBeenCalledWith(
+				expect.objectContaining({
+					actorId: null,
+					action: "trip.auto_rejected",
+					targetType: "trip",
+					targetId: TRIP_ID,
+					before: { status: TripStatus.PENDING_APPROVAL },
+					after: expect.objectContaining({ status: TripStatus.REJECTED }),
+					reason: "Trip was automatically rejected because it was not approved within 24 hours.",
+				})
+			);
+		});
+	});
+
+	describe("search", () => {
+		it("returns paginated search results for published trips", async () => {
+			const mockSummary = {
+				id: TRIP_ID,
+				title: "Langbiang sunrise trek",
+				description: "A guided route",
+				coverImageUrl: "https://example.com/cover.jpg",
+				tripType: TripType.DAY_TRIP,
+				durationNights: 0,
+				startsAt: new Date("2026-09-20T01:00:00.000Z"),
+				endsAt: new Date("2026-09-20T10:00:00.000Z"),
+				meetingPoint: { type: "Point", coordinates: [108.441, 11.941] },
+				meetingAt: new Date("2026-09-20T00:30:00.000Z"),
+				bookingDeadline: new Date("2026-09-19T12:00:00.000Z"),
+				capacityMin: 2,
+				capacityMax: 12,
+				seatsTaken: 2,
+				remainingSeats: 10,
+				pricePerPerson: 100000,
+				status: TripStatus.PUBLISHED,
+				difficulty: TrekkingRouteDifficulty.MODERATE,
+				weatherRiskLevel: RiskLevel.GREEN,
+				isBookable: true,
+				createdAt: new Date("2026-09-15T00:00:00.000Z"),
+				updatedAt: new Date("2026-09-15T00:00:00.000Z"),
+			};
+			tripsRepository.searchPublishedTrips.mockResolvedValue({
+				items: [mockSummary],
+				total: 1,
+			});
+
+			const query: SearchTripsQueryDto = {
+				page: 1,
+				limit: 10,
+			};
+			const result = await service.search(query);
+
+			expect(tripsRepository.searchPublishedTrips).toHaveBeenCalledWith({
+				search: undefined,
+				tripType: undefined,
+				difficulty: undefined,
+				startDate: undefined,
+				endDate: undefined,
+				minPrice: undefined,
+				maxPrice: undefined,
+				routeId: undefined,
+				province: undefined,
+				city: undefined,
+				page: 1,
+				limit: 10,
+			});
+			expect(result.items).toHaveLength(1);
+			expect(result.items[0]).toEqual(mockSummary);
+			expect(result.pagination).toEqual({
+				page: 1,
+				limit: 10,
+				total: 1,
+				totalPages: 1,
+			});
+		});
+
+		it("passes filter parameters to the repository", async () => {
+			tripsRepository.searchPublishedTrips.mockResolvedValue({
+				items: [],
+				total: 0,
+			});
+
+			const query: SearchTripsQueryDto = {
+				search: "sunrise",
+				tripType: TripType.DAY_TRIP,
+				difficulty: TrekkingRouteDifficulty.MODERATE,
+				startDate: "2026-09-20T00:00:00.000Z",
+				endDate: "2026-09-25T00:00:00.000Z",
+				minPrice: 50000,
+				maxPrice: 200000,
+				routeId: ROUTE_ID,
+				province: "Lam Dong",
+				city: "Da Lat",
+				page: 2,
+				limit: 5,
+			};
+
+			const result = await service.search(query);
+
+			expect(tripsRepository.searchPublishedTrips).toHaveBeenCalledWith({
+				search: "sunrise",
+				tripType: TripType.DAY_TRIP,
+				difficulty: TrekkingRouteDifficulty.MODERATE,
+				startDate: new Date("2026-09-20T00:00:00.000Z"),
+				endDate: new Date("2026-09-25T00:00:00.000Z"),
+				minPrice: 50000,
+				maxPrice: 200000,
+				routeId: ROUTE_ID,
+				province: "Lam Dong",
+				city: "Da Lat",
+				page: 2,
+				limit: 5,
+			});
+			expect(result.pagination.totalPages).toBe(0);
+		});
+
+		it("returns 422 when startDate is after endDate", async () => {
+			const query: SearchTripsQueryDto = {
+				startDate: "2026-09-25T00:00:00.000Z",
+				endDate: "2026-09-20T00:00:00.000Z",
+				page: 1,
+				limit: 10,
+			};
+
+			await expect(service.search(query)).rejects.toMatchObject({
+				status: 422,
+			});
+			expect(tripsRepository.searchPublishedTrips).not.toHaveBeenCalled();
+		});
+
+		it("returns 422 when minPrice is greater than maxPrice", async () => {
+			const query: SearchTripsQueryDto = {
+				minPrice: 300000,
+				maxPrice: 100000,
+				page: 1,
+				limit: 10,
+			};
+
+			await expect(service.search(query)).rejects.toMatchObject({
+				status: 422,
+			});
+			expect(tripsRepository.searchPublishedTrips).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("reschedule", () => {
+		const RESCHEDULED_AT = new Date("2026-09-18T00:00:00.000Z");
+
+		beforeEach(() => {
+			tripsRepository.findById.mockResolvedValue({
+				...createdTrip(),
+				status: TripStatus.PUBLISHED,
+				startsAt: new Date("2026-09-20T02:00:00.000Z"),
+				endsAt: new Date("2026-09-20T11:00:00.000Z"),
+			});
+		});
+
+		it("reschedules only the schedule fields, moves commitments to reconfirmation, and audits the outcome", async () => {
+			const result = await service.reschedule(
+				HOST_ID,
+				TRIP_ID,
+				{
+					startsAt: "2026-09-20T02:00:00.000Z",
+					endsAt: "2026-09-20T11:00:00.000Z",
+				},
+				RESCHEDULED_AT
+			);
+
+			expect(tripsRepository.findByIdForScheduleChange).toHaveBeenCalledWith(TRIP_ID);
+			expect(tripsRepository.reschedulePublishedTrip).toHaveBeenCalledWith(
+				TRIP_ID,
+				new Date("2026-09-20T02:00:00.000Z"),
+				new Date("2026-09-20T11:00:00.000Z"),
+				RESCHEDULED_AT,
+				new Date("2026-09-19T02:00:00.000Z")
+			);
+			expect(result.status).toBe(TripStatus.PUBLISHED);
+			expect(auditRepository.save).toHaveBeenCalledWith(
+				expect.objectContaining({
+					actorId: HOST_ID,
+					action: "trip.rescheduled",
+					targetType: "trip",
+					targetId: TRIP_ID,
+					reason: "host_reschedule_trip",
+					after: expect.objectContaining({
+						rescheduledAt: RESCHEDULED_AT,
+						reconfirmationDeadline: new Date("2026-09-19T02:00:00.000Z"),
+						commitmentSummary: expect.objectContaining({
+							bookingsPendingReconfirmation: 2,
+							portersPendingReconfirmation: 1,
+						}),
+					}),
+				})
+			);
+		});
+
+		it("rejects non-owning Hosts before mutating commitments", async () => {
+			tripsRepository.findByIdForScheduleChange.mockResolvedValue({
+				trip: { ...createdTrip(), status: TripStatus.PUBLISHED },
+				hostId: OTHER_HOST_ID,
+				routeId: ROUTE_ID,
+				status: TripStatus.PUBLISHED,
+				startsAt: new Date("2026-09-20T01:00:00.000Z"),
+				endsAt: new Date("2026-09-20T10:00:00.000Z"),
+				meetingAt: null,
+				tripType: TripType.DAY_TRIP,
+				durationNights: 0,
+			});
+
+			await expect(
+				service.reschedule(
+					HOST_ID,
+					TRIP_ID,
+					{ startsAt: "2026-09-20T02:00:00.000Z" },
+					RESCHEDULED_AT
+				)
+			).rejects.toBeInstanceOf(ForbiddenException);
+			expect(tripsRepository.reschedulePublishedTrip).not.toHaveBeenCalled();
+		});
+
+		it("rejects the exact 24-hour boundary", async () => {
+			await expect(
+				service.reschedule(
+					HOST_ID,
+					TRIP_ID,
+					{ startsAt: "2026-09-19T00:00:00.000Z" },
+					RESCHEDULED_AT
+				)
+			).rejects.toMatchObject({ status: 422 });
+			expect(tripsRepository.reschedulePublishedTrip).not.toHaveBeenCalled();
+		});
+
+		it("rejects non-published Trips", async () => {
+			tripsRepository.findByIdForScheduleChange.mockResolvedValue({
+				trip: createdTrip(),
+				hostId: HOST_ID,
+				routeId: ROUTE_ID,
+				status: TripStatus.DRAFT,
+				startsAt: new Date("2026-09-20T01:00:00.000Z"),
+				endsAt: new Date("2026-09-20T10:00:00.000Z"),
+				meetingAt: null,
+				tripType: TripType.DAY_TRIP,
+				durationNights: 0,
+			});
+
+			await expect(
+				service.reschedule(
+					HOST_ID,
+					TRIP_ID,
+					{ startsAt: "2026-09-20T02:00:00.000Z" },
+					RESCHEDULED_AT
+				)
+			).rejects.toBeInstanceOf(ConflictException);
+			expect(tripsRepository.reschedulePublishedTrip).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("cancel", () => {
+		beforeEach(() => {
+			tripsRepository.findById.mockResolvedValue({
+				...createdTrip(),
+				status: TripStatus.CANCELLED,
+			});
+		});
+
+		it("cancels an owned not-completed Trip, releases commitments, and audits the reason", async () => {
+			const result = await service.cancel(HOST_ID, TRIP_ID, { reason: "Storm warning" });
+
+			expect(tripsRepository.cancelTripWithCommitments).toHaveBeenCalledWith(
+				TRIP_ID,
+				expect.any(Date),
+				"Storm warning"
+			);
+			expect(result.status).toBe(TripStatus.CANCELLED);
+			expect(auditRepository.save).toHaveBeenCalledWith(
+				expect.objectContaining({
+					actorId: HOST_ID,
+					action: "trip.cancelled",
+					targetType: "trip",
+					targetId: TRIP_ID,
+					reason: "Storm warning",
+					after: expect.objectContaining({
+						commitmentSummary: expect.objectContaining({
+							bookingsCancelled: 2,
+							bookingRefundsCreated: 1,
+						}),
+					}),
+				})
+			);
+		});
+
+		it("rejects completed Trips", async () => {
+			tripsRepository.findByIdForScheduleChange.mockResolvedValue({
+				trip: { ...createdTrip(), status: TripStatus.COMPLETED },
+				hostId: HOST_ID,
+				routeId: ROUTE_ID,
+				status: TripStatus.COMPLETED,
+				startsAt: new Date("2026-09-20T01:00:00.000Z"),
+				endsAt: new Date("2026-09-20T10:00:00.000Z"),
+				meetingAt: null,
+				tripType: TripType.DAY_TRIP,
+				durationNights: 0,
+			});
+
+			await expect(service.cancel(HOST_ID, TRIP_ID, { reason: "Too late" })).rejects.toBeInstanceOf(
+				ConflictException
+			);
+			expect(tripsRepository.cancelTripWithCommitments).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("getTripDetails", () => {
+		it("returns published Trip details for a Camper and redacts routeId (BR-077, BR-214)", async () => {
+			const publishedTrip = {
+				...createdTrip(),
+				status: TripStatus.PUBLISHED,
+				difficulty: TrekkingRouteDifficulty.MODERATE,
+				weatherRiskLevel: RiskLevel.GREEN,
+				registrationRisk: {
+					status: "available" as const,
+					assessmentId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+					level: RiskLevel.GREEN,
+					assessedAt: new Date("2026-09-15T03:00:00.000Z"),
+					ruleVersionId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+					factors: [
+						{
+							key: "rainfall",
+							label: "Rainfall",
+							value: 4,
+							level: RiskLevel.GREEN,
+							weight: 0.3,
+							score: 0,
+						},
+					],
+					advice: "Conditions are suitable for registration.",
+					recommendations: ["Carry rain gear"],
+				},
+				remainingSeats: 12,
+				isBookable: true,
+			};
+			tripsRepository.findById.mockResolvedValue(publishedTrip);
+
+			const result = await service.getTripDetails(CAMPER_ACTOR, TRIP_ID);
+
+			expect(tripsRepository.findById).toHaveBeenCalledWith(TRIP_ID);
+			expect(result.id).toBe(TRIP_ID);
+			expect(result.status).toBe(TripStatus.PUBLISHED);
+			expect(result.difficulty).toBe(TrekkingRouteDifficulty.MODERATE);
+			expect(result.weatherRiskLevel).toBe(RiskLevel.GREEN);
+			expect(result.registrationRisk).toMatchObject({
+				status: "available",
+				level: RiskLevel.GREEN,
+				assessmentId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+			});
+			expect(result.registrationRisk.factors).toHaveLength(1);
+			expect(result.isBookable).toBe(true);
+			expect(result.routeId).toBeUndefined();
+		});
+
+		it("returns an explicit unavailable risk state instead of fabricating a safe level", async () => {
+			const publishedTrip = {
+				...createdTrip(),
+				status: TripStatus.PUBLISHED,
+				weatherRiskLevel: null,
+				remainingSeats: 12,
+				isBookable: true,
+			};
+			tripsRepository.findById.mockResolvedValue(publishedTrip);
+
+			const result = await service.getTripDetails(CAMPER_ACTOR, TRIP_ID);
+
+			expect(result.weatherRiskLevel).toBeNull();
+			expect(result.registrationRisk).toEqual({
+				status: "unavailable",
+				assessmentId: null,
+				level: null,
+				assessedAt: null,
+				ruleVersionId: null,
+				factors: [],
+				advice: null,
+				recommendations: [],
+			});
+			expect(result.routeId).toBeUndefined();
+		});
+
+		it.each([TripStatus.ONGOING, TripStatus.COMPLETED])(
+			"keeps a %s Trip viewable for Campers once the schedule has advanced",
+			async (status) => {
+				tripsRepository.findById.mockResolvedValue({ ...createdTrip(), status });
+				const result = await service.getTripDetails(CAMPER_ACTOR, TRIP_ID);
+				expect(result.status).toBe(status);
+				expect(result.routeId).toBeUndefined();
+			}
+		);
+
+		it("returns published Trip details with routeId retained for the owning Host", async () => {
+			const publishedTrip = {
+				...createdTrip(),
+				status: TripStatus.PUBLISHED,
+				difficulty: TrekkingRouteDifficulty.MODERATE,
+				weatherRiskLevel: RiskLevel.GREEN,
+				remainingSeats: 12,
+				isBookable: true,
+			};
+			tripsRepository.findById.mockResolvedValue(publishedTrip);
+
+			const result = await service.getTripDetails(HOST_ACTOR, TRIP_ID);
+
+			expect(result.routeId).toBe(ROUTE_ID);
+		});
+
+		it("returns published Trip details with routeId retained for an Admin", async () => {
+			const publishedTrip = {
+				...createdTrip(),
+				status: TripStatus.PUBLISHED,
+				difficulty: TrekkingRouteDifficulty.MODERATE,
+				weatherRiskLevel: RiskLevel.GREEN,
+				remainingSeats: 12,
+				isBookable: true,
+			};
+			tripsRepository.findById.mockResolvedValue(publishedTrip);
+
+			const result = await service.getTripDetails(ADMIN_ACTOR, TRIP_ID);
+
+			expect(result.routeId).toBe(ROUTE_ID);
+		});
+
+		it("returns 404 when Camper attempts to view a draft Trip (BR-073, BR-075, BR-202)", async () => {
+			const draftTrip = {
+				...createdTrip(),
+				status: TripStatus.DRAFT,
+			};
+			tripsRepository.findById.mockResolvedValue(draftTrip);
+
+			await expect(service.getTripDetails(CAMPER_ACTOR, TRIP_ID)).rejects.toBeInstanceOf(
+				NotFoundException
+			);
+		});
+
+		it("returns 404 when Camper attempts to view a cancelled Trip (BR-073, BR-075)", async () => {
+			const cancelledTrip = {
+				...createdTrip(),
+				status: TripStatus.CANCELLED,
+			};
+			tripsRepository.findById.mockResolvedValue(cancelledTrip);
+
+			await expect(service.getTripDetails(CAMPER_ACTOR, TRIP_ID)).rejects.toBeInstanceOf(
+				NotFoundException
+			);
+		});
+
+		it("allows owning Host to view their own draft Trip", async () => {
+			const draftTrip = {
+				...createdTrip(),
+				status: TripStatus.DRAFT,
+			};
+			tripsRepository.findById.mockResolvedValue(draftTrip);
+
+			const result = await service.getTripDetails(HOST_ACTOR, TRIP_ID);
+
+			expect(result.id).toBe(TRIP_ID);
+			expect(result.status).toBe(TripStatus.DRAFT);
+			expect(result.routeId).toBe(ROUTE_ID);
+		});
+
+		it("allows Admin to view any draft Trip", async () => {
+			const draftTrip = {
+				...createdTrip(),
+				status: TripStatus.DRAFT,
+			};
+			tripsRepository.findById.mockResolvedValue(draftTrip);
+
+			const result = await service.getTripDetails(ADMIN_ACTOR, TRIP_ID);
+
+			expect(result.id).toBe(TRIP_ID);
+			expect(result.status).toBe(TripStatus.DRAFT);
+			expect(result.routeId).toBe(ROUTE_ID);
+		});
+
+		it("returns 404 when Trip does not exist in database", async () => {
+			tripsRepository.findById.mockResolvedValue(null);
+
+			await expect(service.getTripDetails(CAMPER_ACTOR, TRIP_ID)).rejects.toBeInstanceOf(
+				NotFoundException
+			);
+		});
+	});
+
+	describe("getMyTrips", () => {
+		it("returns list of trips owned by the host from repository", async () => {
+			const myTrips = [createdTrip()];
+			tripsRepository.findTripsByHost.mockResolvedValue(myTrips);
+
+			const result = await service.getMyTrips(HOST_ID);
+
+			expect(tripsRepository.findTripsByHost).toHaveBeenCalledWith(HOST_ID);
+			expect(result).toBe(myTrips);
+		});
+	});
+
+	describe("getAssignedTrips", () => {
+		it("returns only the repository projection for the authenticated Porter", async () => {
+			const assignedTrips = [
+				{
+					tripId: TRIP_ID,
+					title: "Assigned Trip",
+					status: TripStatus.PUBLISHED,
+					startsAt: new Date("2035-01-10T08:00:00.000Z"),
+					endsAt: new Date("2035-01-10T16:00:00.000Z"),
+				},
+			];
+			tripsRepository.findAssignedTripsByPorter.mockResolvedValue(assignedTrips);
+
+			await expect(service.getAssignedTrips(PORTER_ID)).resolves.toBe(assignedTrips);
+			expect(tripsRepository.findAssignedTripsByPorter).toHaveBeenCalledWith(PORTER_ID);
+		});
+	});
+
+	// ─────────────────────────────────────────────────────────────────────────
+	// CTMS-024 – Prevent Trip Overbooking
+	// BR-067, BR-068, BR-069, BR-070, BR-071, BR-072
+	// ─────────────────────────────────────────────────────────────────────────
+
+	describe("reserveSeats", () => {
+		const FUTURE_DEADLINE = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+		function lockedTrip(overrides: Partial<ReturnType<typeof defaultLockedTrip>> = {}) {
+			return defaultLockedTrip(overrides);
+		}
+
+		function defaultLockedTrip(
+			overrides: Partial<{
+				id: string;
+				capacityMin: number;
+				capacityMax: number | null;
+				seatsTaken: number;
+				status: string;
+				bookingDeadline: Date;
+			}> = {}
+		) {
+			return {
+				id: TRIP_ID,
+				capacityMin: 2,
+				capacityMax: 12,
+				seatsTaken: 5,
+				status: "published",
+				bookingDeadline: FUTURE_DEADLINE,
+				...overrides,
+			};
+		}
+
+		beforeEach(() => {
+			tripsRepository.findByIdForBooking.mockResolvedValue(lockedTrip());
+			tripsRepository.adjustSeatsTaken.mockResolvedValue(undefined);
+			tripsRepository.recomputeSeatsTaken.mockResolvedValue(undefined);
+		});
+
+		it("reserves seats for a published trip within capacity and returns the locked snapshot (BR-071, BR-068)", async () => {
+			const snapshot = await service.reserveSeats(TRIP_ID, 3, {
+				withRepository: jest.fn().mockReturnValue(tripsRepository),
+			} as never);
+
+			expect(tripsRepository.findByIdForBooking).toHaveBeenCalledWith(TRIP_ID);
+			expect(tripsRepository.adjustSeatsTaken).toHaveBeenCalledWith(TRIP_ID, 3);
+			expect(snapshot.id).toBe(TRIP_ID);
+			expect(snapshot.seatsTaken).toBe(5); // original snapshot, not updated value
+		});
+
+		it("returns 404 when the trip does not exist (BR-175)", async () => {
+			tripsRepository.findByIdForBooking.mockResolvedValue(null);
+
+			await expect(
+				service.reserveSeats(TRIP_ID, 2, {
+					withRepository: jest.fn().mockReturnValue(tripsRepository),
+				} as never)
+			).rejects.toBeInstanceOf(NotFoundException);
+			expect(tripsRepository.adjustSeatsTaken).not.toHaveBeenCalled();
+		});
+
+		it("returns 409 when the trip is not published (BR-069)", async () => {
+			tripsRepository.findByIdForBooking.mockResolvedValue(lockedTrip({ status: "draft" }));
+
+			await expect(
+				service.reserveSeats(TRIP_ID, 2, {
+					withRepository: jest.fn().mockReturnValue(tripsRepository),
+				} as never)
+			).rejects.toBeInstanceOf(ConflictException);
+			expect(tripsRepository.adjustSeatsTaken).not.toHaveBeenCalled();
+		});
+
+		it.each(["cancelled", "completed", "ongoing", "pending_approval"])(
+			"returns 409 when the trip status is %s (BR-069)",
+			async (status) => {
+				tripsRepository.findByIdForBooking.mockResolvedValue(lockedTrip({ status }));
+
+				await expect(
+					service.reserveSeats(TRIP_ID, 1, {
+						withRepository: jest.fn().mockReturnValue(tripsRepository),
+					} as never)
+				).rejects.toBeInstanceOf(ConflictException);
+				expect(tripsRepository.adjustSeatsTaken).not.toHaveBeenCalled();
+			}
+		);
+
+		it("returns 409 when the booking deadline has passed (BR-069)", async () => {
+			const pastDeadline = new Date(Date.now() - 1000);
+			tripsRepository.findByIdForBooking.mockResolvedValue(
+				lockedTrip({ bookingDeadline: pastDeadline })
+			);
+
+			await expect(
+				service.reserveSeats(TRIP_ID, 2, {
+					withRepository: jest.fn().mockReturnValue(tripsRepository),
+				} as never)
+			).rejects.toBeInstanceOf(ConflictException);
+			expect(tripsRepository.adjustSeatsTaken).not.toHaveBeenCalled();
+		});
+
+		it("returns 409 when requested seats would exceed capacity_max (BR-071)", async () => {
+			// seatsTaken=10, capacityMax=12 → only 2 remaining; requesting 3 overbooks
+			tripsRepository.findByIdForBooking.mockResolvedValue(
+				lockedTrip({ seatsTaken: 10, capacityMax: 12 })
+			);
+
+			await expect(
+				service.reserveSeats(TRIP_ID, 3, {
+					withRepository: jest.fn().mockReturnValue(tripsRepository),
+				} as never)
+			).rejects.toBeInstanceOf(ConflictException);
+			expect(tripsRepository.adjustSeatsTaken).not.toHaveBeenCalled();
+		});
+
+		it("allows booking the exact remaining seats without conflict (BR-071 boundary)", async () => {
+			// seatsTaken=10, capacityMax=12 → requesting exactly 2 is allowed
+			tripsRepository.findByIdForBooking.mockResolvedValue(
+				lockedTrip({ seatsTaken: 10, capacityMax: 12 })
+			);
+
+			await service.reserveSeats(TRIP_ID, 2, {
+				withRepository: jest.fn().mockReturnValue(tripsRepository),
+			} as never);
+
+			expect(tripsRepository.adjustSeatsTaken).toHaveBeenCalledWith(TRIP_ID, 2);
+		});
+
+		it("allows any group size when capacity_max is null (unlimited trip, BR-071)", async () => {
+			tripsRepository.findByIdForBooking.mockResolvedValue(
+				lockedTrip({ capacityMax: null, seatsTaken: 999 })
+			);
+
+			await service.reserveSeats(TRIP_ID, 50, {
+				withRepository: jest.fn().mockReturnValue(tripsRepository),
+			} as never);
+
+			expect(tripsRepository.adjustSeatsTaken).toHaveBeenCalledWith(TRIP_ID, 50);
+		});
+	});
+
+	describe("releaseSeats", () => {
+		beforeEach(() => {
+			tripsRepository.recomputeSeatsTaken.mockResolvedValue(undefined);
+		});
+
+		it("reconciles seats_taken from bookings table on release (BR-067, BR-069, BR-070)", async () => {
+			await service.releaseSeats(TRIP_ID, {
+				withRepository: jest.fn().mockReturnValue(tripsRepository),
+			} as never);
+
+			expect(tripsRepository.recomputeSeatsTaken).toHaveBeenCalledWith(TRIP_ID);
+		});
+
+		it("propagates repository errors so the caller's transaction can roll back (BR-072, BR-177)", async () => {
+			tripsRepository.recomputeSeatsTaken.mockRejectedValue(new Error("db unavailable"));
+
+			await expect(
+				service.releaseSeats(TRIP_ID, {
+					withRepository: jest.fn().mockReturnValue(tripsRepository),
+				} as never)
+			).rejects.toThrow("db unavailable");
+		});
+	});
+});

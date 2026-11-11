@@ -1,0 +1,173 @@
+<mxfile host="65bd71144e">
+    <diagram id="configure-trip-waypoints" name="Configure Trip Waypoints Sequence Diagram">
+        <mxGraphModel dx="942" dy="448" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1380" pageHeight="1450" background="#ffffff" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="alt_frame_9" value="alt" style="shape=umlFrame;whiteSpace=wrap;html=1;strokeColor=#000000;fillColor=none;fontColor=#000000;width=45;height=25;" parent="1" vertex="1">
+                    <mxGeometry x="130" y="430" width="1180" height="330" as="geometry"/>
+                </mxCell>
+                <mxCell id="alt_c1_9" value="[Trip Is in Draft &amp; Waypoints Chronological]" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11;fontStyle=1;fontColor=#000000;" parent="1" vertex="1">
+                    <mxGeometry x="180" y="430" width="400" height="25" as="geometry"/>
+                </mxCell>
+                <mxCell id="alt_div_9" value="" style="shape=line;strokeColor=#000000;dashed=1;labelBackgroundColor=none;fillColor=none;" parent="1" vertex="1">
+                    <mxGeometry x="130" y="630" width="1180" height="10" as="geometry"/>
+                </mxCell>
+                <mxCell id="alt_c2_9" value="[Trip Not in Draft or Invalid Times]" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11;fontStyle=1;fontColor=#000000;" parent="1" vertex="1">
+                    <mxGeometry x="180" y="635" width="400" height="25" as="geometry"/>
+                </mxCell>
+                <mxCell id="title" value="Configure Trip Waypoints" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=18;fontStyle=1;fontColor=#000000;" parent="1" vertex="1">
+                    <mxGeometry x="275" y="15" width="800" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="actor" value="Host" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontSize=12;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="65" y="65" width="30" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="ll_actor" value="" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;strokeColor=#000000;fillColor=none;strokeWidth=1;dashed=1;" parent="1" vertex="1">
+                    <mxGeometry x="80" y="150" width="1" height="950" as="geometry"/>
+                </mxCell>
+                <mxCell id="ll_boundary" value="Trip Waypoints Editor Screen" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="200" y="75" width="150" height="1025" as="geometry"/>
+                </mxCell>
+                <mxCell id="act_boundary" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_boundary" vertex="1">
+                    <mxGeometry x="70" y="85" width="10" height="920" as="geometry"/>
+                </mxCell>
+                <mxCell id="ll_controller" value="Trip Waypoints Controller" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="430" y="75" width="150" height="1025" as="geometry"/>
+                </mxCell>
+                <mxCell id="act_controller" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_controller" vertex="1">
+                    <mxGeometry x="70" y="115" width="10" height="870" as="geometry"/>
+                </mxCell>
+                <mxCell id="ll_service" value="Trip Waypoints Service" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="660" y="75" width="150" height="1025" as="geometry"/>
+                </mxCell>
+                <mxCell id="act_service" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_service" vertex="1">
+                    <mxGeometry x="70" y="145" width="10" height="820" as="geometry"/>
+                </mxCell>
+                <mxCell id="ll_model" value="Trip Waypoint Model" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="890" y="75" width="150" height="1025" as="geometry"/>
+                </mxCell>
+                <mxCell id="act_model" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_model" vertex="1">
+                    <mxGeometry x="70" y="175" width="10" height="770" as="geometry"/>
+                </mxCell>
+                <mxCell id="ll_db" value="PostgreSQL Database" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="1120" y="75" width="160" height="1025" as="geometry"/>
+                </mxCell>
+                <mxCell id="act_db" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_db" vertex="1">
+                    <mxGeometry x="75" y="205" width="10" height="720" as="geometry"/>
+                </mxCell>
+                <mxCell id="msg_1" value="1. Add Waypoints (Order, Title, Planned Time, Waypoint Type)" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="80" y="160" as="sourcePoint"/>
+                        <mxPoint x="275" y="160" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg_2" value="2. Send Configure Waypoints Request" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="275" y="195" as="sourcePoint"/>
+                        <mxPoint x="505" y="195" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg_3" value="3. Validate Sequential Order and Waypoint Types" style="html=1;align=left;spacingLeft=5;verticalAlign=middle;rounded=0;edgeStyle=orthogonalEdgeStyle;endArrow=classic;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="505" y="230" as="sourcePoint"/>
+                        <mxPoint x="505" y="260" as="targetPoint"/>
+                        <Array as="points">
+                            <mxPoint x="540" y="230"/>
+                            <mxPoint x="540" y="260"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg_4" value="4. Save Trip Waypoints Sequence" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="505" y="275" as="sourcePoint"/>
+                        <mxPoint x="735" y="275" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg_5" value="5. Verify Trip Belongs to Host and Is in Draft" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="735" y="310" as="sourcePoint"/>
+                        <mxPoint x="965" y="310" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg_6" value="6. Query Trips Table by Trip ID" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="965" y="345" as="sourcePoint"/>
+                        <mxPoint x="1200" y="345" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg_7" value="7. Return Trip Record (Status = draft, host_id = actor)" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="1200" y="380" as="sourcePoint"/>
+                        <mxPoint x="965" y="380" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg_8" value="8. Return Trip Ownership Confirmed" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="965" y="415" as="sourcePoint"/>
+                        <mxPoint x="735" y="415" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg_9" value="9. Replace Trip Waypoints in Transaction" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="735" y="470" as="sourcePoint"/>
+                        <mxPoint x="965" y="470" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg_10" value="10. Delete Old Waypoints &amp; Insert Ordered Waypoints" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="965" y="505" as="sourcePoint"/>
+                        <mxPoint x="1200" y="505" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg_11" value="11. Confirm Waypoints Persisted" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="1200" y="540" as="sourcePoint"/>
+                        <mxPoint x="965" y="540" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg_12" value="12. Return Ordered Waypoint List" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="965" y="575" as="sourcePoint"/>
+                        <mxPoint x="735" y="575" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg_13" value="13. Return Configured Waypoints DTO" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="735" y="610" as="sourcePoint"/>
+                        <mxPoint x="505" y="610" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg_14" value="14. Return HTTP 200 OK Response" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="505" y="645" as="sourcePoint"/>
+                        <mxPoint x="275" y="645" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg_15" value="15. Display Waypoints Saved &amp; Ready for Approval Submission" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="275" y="680" as="sourcePoint"/>
+                        <mxPoint x="80" y="680" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg_16" value="16. Throw Conflict Exception" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="735" y="745" as="sourcePoint"/>
+                        <mxPoint x="505" y="745" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg_17" value="17. Return HTTP 409 Conflict Response" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="505" y="780" as="sourcePoint"/>
+                        <mxPoint x="275" y="780" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg_18" value="18. Show Error: Waypoints Cannot Be Altered After Publication" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="275" y="815" as="sourcePoint"/>
+                        <mxPoint x="80" y="815" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

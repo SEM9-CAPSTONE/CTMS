@@ -1,0 +1,214 @@
+import { API_ENDPOINTS, httpClient } from "../../../core/api";
+import type {
+	AdminTripReviewsQuery,
+	AvailablePortersQuery,
+	AvailablePortersResponse,
+	BookTripInput,
+	BookTripResponse,
+	BookedTripRouteMap,
+	CancelTripInput,
+	ConfigureTripWaypointsInput,
+	ConfirmCheckpointArrivalPayload,
+	CreatePorterRequestInput,
+	CreateTripInput,
+	CreateTripWaypointInput,
+	HostPorterAssignmentTrip,
+	PaginatedAdminTripReviews,
+	PaginatedTrips,
+	PorterAssignedTrip,
+	PorterRequest,
+	PorterTripOperations,
+	RescheduleTripInput,
+	ReviewTripInput,
+	SearchTripsQuery,
+	SubmitTripInput,
+	SyncCheckpointArrivalsPayload,
+	Trip,
+	TripBookingsResponse,
+	TripDetails,
+	TripOperationalProgress,
+	TripWeatherForecast,
+} from "../types";
+
+export interface TripImage {
+	id: string;
+	url: string;
+	sortOrder: number;
+}
+export const tripsService = {
+	getImages: (tripId: string): Promise<TripImage[]> =>
+		httpClient.get(API_ENDPOINTS.TRIPS.IMAGES(tripId)),
+	addImage: (tripId: string, file: File): Promise<TripImage[]> => {
+		const form = new FormData();
+		form.append("file", file);
+		return httpClient.post(API_ENDPOINTS.TRIPS.IMAGES(tripId), form);
+	},
+	removeImage: (
+		tripId: string,
+		imageId: string
+	): Promise<{ images: TripImage[]; storageCleanup: "queued" }> =>
+		httpClient.delete(API_ENDPOINTS.TRIPS.IMAGE(tripId, imageId)),
+
+	getBookedRouteMap: (tripId: string): Promise<BookedTripRouteMap> =>
+		httpClient.get<BookedTripRouteMap>(API_ENDPOINTS.TRIPS.BOOKED_ROUTE_MAP(tripId)),
+	create: (input: CreateTripInput): Promise<Trip> =>
+		httpClient.post<Trip>(API_ENDPOINTS.TRIPS.CREATE, input),
+	finalizePendingUpdate: (
+		tripId: string,
+		payload: CreateTripInput & { expectedUpdatedAt: string; retainedImageIds: string[] },
+		images: File[]
+	): Promise<Trip & { images: TripImage[] }> => {
+		const body = new FormData();
+		body.append("payload", JSON.stringify(payload));
+		for (const image of images) body.append("images", image);
+		return httpClient.patch<Trip & { images: TripImage[] }>(
+			`/trips/${tripId}/pending-update`,
+			body
+		);
+	},
+	updateDraft: (tripId: string, input: CreateTripInput): Promise<Trip> =>
+		httpClient.patch<Trip>(API_ENDPOINTS.TRIPS.UPDATE(tripId), input),
+	configureWaypoints: (tripId: string, input: ConfigureTripWaypointsInput): Promise<Trip> =>
+		httpClient.patch<Trip>(API_ENDPOINTS.TRIPS.CONFIGURE_WAYPOINTS(tripId), input),
+	createWaypoint: (tripId: string, input: CreateTripWaypointInput): Promise<Trip> =>
+		httpClient.post<Trip>(API_ENDPOINTS.TRIPS.WAYPOINTS(tripId), input),
+	updateWaypoint: (
+		tripId: string,
+		waypointId: string,
+		input: CreateTripWaypointInput
+	): Promise<Trip> => httpClient.put<Trip>(API_ENDPOINTS.TRIPS.WAYPOINT(tripId, waypointId), input),
+	deleteWaypoint: (tripId: string, waypointId: string): Promise<Trip> =>
+		httpClient.delete<Trip>(API_ENDPOINTS.TRIPS.WAYPOINT(tripId, waypointId)),
+	submitForApproval: (tripId: string, input: SubmitTripInput = {}): Promise<Trip> =>
+		httpClient.post<Trip>(API_ENDPOINTS.TRIPS.SUBMIT_FOR_APPROVAL(tripId), input),
+
+	forecastWeather: (tripId: string): Promise<TripWeatherForecast> =>
+		httpClient.post<TripWeatherForecast>(API_ENDPOINTS.TRIPS.WEATHER_FORECAST(tripId)),
+	getLatestWeatherForecast: (tripId: string): Promise<TripWeatherForecast | null> =>
+		httpClient.get<TripWeatherForecast | null>(API_ENDPOINTS.TRIPS.WEATHER_FORECAST_LATEST(tripId)),
+	getSubmittedWeatherForecast: (tripId: string): Promise<TripWeatherForecast | null> =>
+		httpClient.get<TripWeatherForecast | null>(
+			API_ENDPOINTS.TRIPS.WEATHER_FORECAST_SUBMITTED(tripId)
+		),
+	/** Forecast for the Trip's own dates for travellers (Camper/Porter), never today's weather. */
+	getTripDatesWeatherForecast: (tripId: string): Promise<TripWeatherForecast> =>
+		httpClient.get<TripWeatherForecast>(API_ENDPOINTS.TRIPS.WEATHER_FORECAST_TRIP_DATES(tripId)),
+	/** How the Trip-date forecast changed over time, newest first (CTMS-93 monitoring). */
+	getTripWeatherHistory: (tripId: string): Promise<TripWeatherForecast[]> =>
+		httpClient.get<TripWeatherForecast[]>(API_ENDPOINTS.TRIPS.WEATHER_FORECAST_HISTORY(tripId)),
+	generateWeatherAdvice: (tripId: string): Promise<TripWeatherForecast> =>
+		httpClient.post<TripWeatherForecast>(API_ENDPOINTS.TRIPS.WEATHER_FORECAST_ADVICE(tripId)),
+
+	listPendingReview: (): Promise<Trip[]> =>
+		httpClient.get<Trip[]>(API_ENDPOINTS.TRIPS.PENDING_REVIEW),
+	listAdminReviews: (query: AdminTripReviewsQuery): Promise<PaginatedAdminTripReviews> =>
+		httpClient.get<PaginatedAdminTripReviews>(API_ENDPOINTS.TRIPS.ADMIN_REVIEWS, {
+			reviewOutcome: query.reviewOutcome,
+			page: query.page,
+			limit: query.limit,
+		}),
+
+	review: (tripId: string, input: ReviewTripInput): Promise<Trip> =>
+		httpClient.patch<Trip>(API_ENDPOINTS.TRIPS.REVIEW(tripId), input),
+
+	reschedule: (tripId: string, input: RescheduleTripInput): Promise<TripDetails> =>
+		httpClient.patch<TripDetails>(API_ENDPOINTS.TRIPS.RESCHEDULE(tripId), input),
+
+	cancel: (tripId: string, input: CancelTripInput): Promise<TripDetails> =>
+		httpClient.patch<TripDetails>(API_ENDPOINTS.TRIPS.CANCEL(tripId), input),
+
+	search: (query?: SearchTripsQuery): Promise<PaginatedTrips> =>
+		httpClient.get<PaginatedTrips>(
+			API_ENDPOINTS.TRIPS.GET_ALL,
+			query as Record<string, string | number | boolean | undefined> | undefined
+		),
+
+	getById: (tripId: string): Promise<TripDetails> =>
+		httpClient.get<TripDetails>(API_ENDPOINTS.TRIPS.GET_BY_ID(tripId)),
+
+	getAvailablePorters: (
+		tripId: string,
+		query: AvailablePortersQuery
+	): Promise<AvailablePortersResponse> =>
+		httpClient.get<AvailablePortersResponse>(API_ENDPOINTS.TRIPS.AVAILABLE_PORTERS(tripId), {
+			role: query.role,
+			minExperienceYears: query.minExperienceYears,
+			page: query.page,
+			limit: query.limit,
+		}),
+
+	createPorterRequest: (tripId: string, input: CreatePorterRequestInput): Promise<PorterRequest> =>
+		httpClient.post<PorterRequest>(API_ENDPOINTS.TRIPS.PORTER_REQUESTS(tripId), input),
+
+	listPorterRequests: (tripId: string): Promise<PorterRequest[]> =>
+		httpClient.get<PorterRequest[]>(API_ENDPOINTS.TRIPS.PORTER_REQUESTS(tripId)),
+
+	getPendingPorterRequest: async (
+		tripId: string,
+		porterId: string
+	): Promise<PorterRequest | null> => {
+		const request = await httpClient.get<PorterRequest | null>(
+			API_ENDPOINTS.TRIPS.PENDING_PORTER_REQUEST(tripId),
+			{ porterId }
+		);
+		return request ?? null;
+	},
+
+	getMyPorterRequests: (): Promise<PorterRequest[]> =>
+		httpClient.get<PorterRequest[]>(API_ENDPOINTS.TRIPS.MY_PORTER_REQUESTS),
+
+	getHostPorterRequests: (): Promise<PorterRequest[]> =>
+		httpClient.get<PorterRequest[]>(API_ENDPOINTS.TRIPS.HOST_PORTER_REQUESTS),
+
+	acceptPorterRequest: (requestId: string): Promise<PorterRequest> =>
+		httpClient.patch<PorterRequest>(API_ENDPOINTS.TRIPS.ACCEPT_PORTER_REQUEST(requestId), {}),
+
+	declinePorterRequest: (requestId: string): Promise<PorterRequest> =>
+		httpClient.patch<PorterRequest>(API_ENDPOINTS.TRIPS.DECLINE_PORTER_REQUEST(requestId), {}),
+
+	cancelPorterRequest: (tripId: string, requestId: string): Promise<PorterRequest> =>
+		httpClient.patch<PorterRequest>(
+			API_ENDPOINTS.TRIPS.CANCEL_PORTER_REQUEST(tripId, requestId),
+			{}
+		),
+
+	getMyTrips: (): Promise<TripDetails[]> =>
+		httpClient.get<TripDetails[]>(API_ENDPOINTS.TRIPS.GET_MINE),
+
+	getPorterCandidateTrips: (): Promise<TripDetails[]> =>
+		httpClient.get<TripDetails[]>(API_ENDPOINTS.TRIPS.GET_PORTER_CANDIDATES),
+
+	getHostPorterAssignments: (): Promise<HostPorterAssignmentTrip[]> =>
+		httpClient.get<HostPorterAssignmentTrip[]>(API_ENDPOINTS.TRIPS.GET_PORTER_ASSIGNMENTS),
+
+	getAssignedTrips: (): Promise<PorterAssignedTrip[]> =>
+		httpClient.get<PorterAssignedTrip[]>(API_ENDPOINTS.TRIPS.GET_ASSIGNED),
+	getAssignedTripOperations: (tripId: string): Promise<PorterTripOperations> =>
+		httpClient.get<PorterTripOperations>(API_ENDPOINTS.TRIPS.ASSIGNED_OPERATIONS(tripId)),
+
+	book: (input: BookTripInput, idempotencyKey: string): Promise<BookTripResponse> =>
+		httpClient.post<BookTripResponse>(API_ENDPOINTS.BOOKINGS.CREATE, input, {
+			headers: { "Idempotency-Key": idempotencyKey },
+		}),
+
+	getTripBookings: (tripId: string): Promise<TripBookingsResponse> =>
+		httpClient.get<TripBookingsResponse>(API_ENDPOINTS.TRIPS.BOOKINGS(tripId)),
+	confirmCheckpointArrival: (
+		tripId: string,
+		checkpointId: string,
+		payload: ConfirmCheckpointArrivalPayload
+	): Promise<TripOperationalProgress> =>
+		httpClient.post<TripOperationalProgress>(
+			API_ENDPOINTS.TRIPS.CHECKPOINT_ARRIVAL(tripId, checkpointId),
+			payload
+		),
+
+	syncCheckpointArrivals: (
+		tripId: string,
+		payload: SyncCheckpointArrivalsPayload
+	): Promise<TripOperationalProgress> =>
+		httpClient.post<TripOperationalProgress>(API_ENDPOINTS.TRIPS.CHECKPOINTS_SYNC(tripId), payload),
+
+	getProgress: (tripId: string): Promise<TripOperationalProgress> =>
+		httpClient.get<TripOperationalProgress>(API_ENDPOINTS.TRIPS.PROGRESS(tripId)),
+};

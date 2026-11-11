@@ -1,0 +1,350 @@
+import { Clock, Send, Users, X } from "lucide-react";
+import { RoutePath } from "../../../routes/routes.config";
+import { HomeLink } from "../../../shared/components/HomeLink";
+import { LogoutActions } from "../../auth/components/LogoutActions";
+import { BookingCancellationNotices } from "../../booking-cancellation/components/BookingCancellationNotices";
+import type { CamperProfileData } from "../../camper-profile/types";
+import { useHostSos } from "../../sos-handling/hooks/useHostSos";
+import { useMyPorterRequests } from "../../trips/hooks/usePorterRequests";
+import { WeatherChangeNotices } from "../../weather/components/WeatherChangeNotices";
+import { roleLabels } from "../constants";
+import type { DashboardConfig, RoleKey } from "../types";
+
+export interface SidebarProps {
+	config: DashboardConfig;
+	grantedRoles: RoleKey[];
+	activeRole: RoleKey;
+	onRoleChange: (role: RoleKey) => void;
+	onClose?: () => void;
+	profile: CamperProfileData | null;
+	onOpenProfile?: () => void;
+	onNavigateToTrips?: () => void;
+	onLogout?: (allDevices: boolean) => Promise<void>;
+}
+
+export function Sidebar({
+	config,
+	grantedRoles,
+	activeRole,
+	onRoleChange,
+	onClose,
+	profile,
+	onOpenProfile,
+	onNavigateToTrips,
+	onLogout,
+}: SidebarProps) {
+	let pendingPorterRequestCount = 0;
+	try {
+		// eslint-disable-next-line react-hooks/rules-of-hooks
+		const porterRequestsQuery = useMyPorterRequests(activeRole === "porter");
+		pendingPorterRequestCount =
+			porterRequestsQuery.data?.filter((request) => request.status === "pending").length ?? 0;
+	} catch {
+		pendingPorterRequestCount = 0;
+	}
+	let activeSosCount = 0;
+	try {
+		// eslint-disable-next-line react-hooks/rules-of-hooks
+		const hostSosQuery = useHostSos(
+			activeRole === "host" ? { status: "active", limit: 10 } : undefined
+		);
+		activeSosCount = hostSosQuery.data?.total ?? hostSosQuery.data?.items?.length ?? 0;
+	} catch {
+		activeSosCount = 0;
+	}
+	const navigate = (path: string) => {
+		window.history.pushState({ ...window.history.state, activeRole }, "", path);
+		window.dispatchEvent(new PopStateEvent("popstate"));
+	};
+	const canOpenProfile = activeRole === "porter" || Boolean(onOpenProfile);
+	const openProfile = () => {
+		if (activeRole === "porter") {
+			navigate(RoutePath.PORTER_PROFILE);
+			onClose?.();
+			return;
+		}
+		onOpenProfile?.();
+		onClose?.();
+	};
+	const porterView =
+		typeof window === "undefined"
+			? "find"
+			: (new URLSearchParams(window.location.search).get("view") ?? "find");
+	const currentPath = typeof window === "undefined" ? "" : window.location.pathname;
+	const currentSearch =
+		typeof window === "undefined"
+			? new URLSearchParams()
+			: new URLSearchParams(window.location.search);
+	const isPorterCheckInSelection =
+		currentPath === RoutePath.PORTER_ASSIGNMENTS && currentSearch.get("view") === "checkins";
+	const isPorterCheckInRoster =
+		currentPath.startsWith("/trips/") &&
+		currentSearch.get("view") === "roster" &&
+		currentSearch.get("from") === "porter-checkins";
+	const hostPorterItems = [
+		{ key: "find", label: "Tìm người hỗ trợ", icon: Send },
+		{ key: "requests", label: "Yêu cầu đã gửi", icon: Clock },
+		{ key: "assigned", label: "Người hỗ trợ đã phân công", icon: Users },
+	] as const;
+
+	return (
+		<aside className="flex h-full min-h-0 w-72 flex-col border-r border-[#dfe8df] bg-white">
+			<div className="flex shrink-0 items-center gap-3 border-b border-[#e7eee7] px-5 py-5">
+				<HomeLink className="flex min-w-0 flex-1 items-center gap-3">
+					<img
+						src="/ctms_logo.png"
+						alt="CTMS Logo"
+						className="h-10 w-auto shrink-0 object-contain"
+					/>
+					<div className="min-w-0 flex-1">
+						<div className="flex items-center gap-1.5">
+							<span className="text-base font-bold text-[#164027]">CTMS</span>
+							<span
+								className="rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase"
+								style={{
+									backgroundColor: `${config.accent}15`,
+									color: config.accent,
+								}}
+							>
+								{roleLabels[activeRole]}
+							</span>
+						</div>
+						<p className="text-xs font-semibold text-[#667a6d]">{config.navTitle}</p>
+					</div>
+				</HomeLink>
+				{activeRole === "host" && <WeatherChangeNotices includeDecisions />}
+				{(activeRole === "host" || activeRole === "admin") && <BookingCancellationNotices />}
+				{onClose && (
+					<button
+						type="button"
+						onClick={onClose}
+						aria-label="Đóng menu"
+						className="rounded-lg p-2 text-[#667a6d] hover:bg-[#f1f5f0] lg:hidden"
+					>
+						<X className="size-5" />
+					</button>
+				)}
+			</div>
+
+			{grantedRoles.length > 1 && (
+				<div className="border-b border-[#e7eee7] px-4 py-4">
+					<p className="px-2 text-[10px] font-semibold uppercase tracking-wider text-[#8fa096]">
+						Vai trò hiện tại
+					</p>
+					<div className="mt-2 grid grid-cols-2 gap-1.5">
+						{grantedRoles.map((role) => {
+							const isCurrent = role === activeRole;
+							return (
+								<button
+									key={role}
+									type="button"
+									onClick={() => onRoleChange(role)}
+									className={`rounded-xl px-2.5 py-2 text-xs font-bold transition-all ${
+										isCurrent
+											? "bg-[#164027] text-white shadow-sm"
+											: "bg-[#f8faf7] text-[#55685a] hover:bg-[#eef2ed]"
+									}`}
+								>
+									{roleLabels[role]}
+								</button>
+							);
+						})}
+					</div>
+				</div>
+			)}
+
+			<div className="flex-1 overflow-y-auto px-4 py-4">
+				<nav className="space-y-1" aria-label="Dashboard navigation">
+					<p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-wider text-[#8fa096]">
+						Menu chính
+					</p>
+					{config.navItems.map((item) => {
+						const Icon = item.icon;
+						const isPathTrips =
+							typeof window !== "undefined" && window.location.pathname.startsWith("/trips");
+						const isPathDashboard =
+							typeof window !== "undefined" &&
+							(window.location.pathname === "/dashboard" || window.location.pathname === "/");
+						const isPathEquipment =
+							typeof window !== "undefined" &&
+							window.location.pathname.startsWith("/host/equipment-catalog");
+						const isPathWallet =
+							typeof window !== "undefined" && window.location.pathname.startsWith("/host/wallet");
+						const isPathSos =
+							typeof window !== "undefined" &&
+							window.location.pathname.startsWith(RoutePath.HOST_SOS);
+						const isPathPorter =
+							typeof window !== "undefined" && window.location.pathname.startsWith("/host/porter");
+						const isPathCampers =
+							typeof window !== "undefined" &&
+							window.location.pathname.startsWith(RoutePath.HOST_CAMPERS);
+						const isPathPorterRequests =
+							typeof window !== "undefined" &&
+							window.location.pathname.startsWith("/porter/requests");
+						const isPathPorterAssignments =
+							currentPath === RoutePath.PORTER_ASSIGNMENTS ||
+							currentPath.startsWith(`${RoutePath.PORTER_ASSIGNMENTS}/`);
+						const isPathPorterProfile = currentPath === RoutePath.PORTER_PROFILE;
+						const isActive =
+							(item.key === "demand-insights" && currentPath === "/host/demand-insights") ||
+							(item.key === "explore" && isPathTrips) ||
+							(item.key === "review-analysis" && currentPath === "/host/review-analysis") ||
+							(item.key === "overview" && isPathDashboard) ||
+							(item.key === "sos" && isPathSos) ||
+							(item.key === "equipment" && isPathEquipment) ||
+							(item.key === "wallet" && isPathWallet) ||
+							(item.key === "porters" && isPathPorter) ||
+							(item.key === "campers" && isPathCampers) ||
+							(item.key === "requests" && isPathPorterRequests) ||
+							(item.key === "assignments" &&
+								activeRole === "porter" &&
+								isPathPorterAssignments &&
+								!isPorterCheckInSelection) ||
+							(item.key === "checkins" &&
+								activeRole === "porter" &&
+								(isPorterCheckInSelection || isPorterCheckInRoster)) ||
+							(item.key === "profile" && activeRole === "porter" && isPathPorterProfile);
+
+						return (
+							<div key={item.key}>
+								<button
+									type="button"
+									disabled={item.disabled}
+									aria-current={isActive ? "page" : undefined}
+									onClick={() => {
+										if (item.key === "demand-insights") {
+											navigate("/host/demand-insights");
+											onClose?.();
+										} else if (item.key === "review-analysis") {
+											navigate("/host/review-analysis");
+											onClose?.();
+										} else if (item.key === "overview") {
+											navigate("/dashboard");
+										} else if (item.key === "sos") {
+											navigate(RoutePath.HOST_SOS);
+											onClose?.();
+										} else if (item.key === "trips") {
+											if (activeRole === "host") {
+												const element = document.getElementById("host-active-trips");
+												if (element) {
+													element.scrollIntoView({ behavior: "smooth" });
+													return;
+												}
+											}
+											navigate("/dashboard");
+										} else if (item.key === "explore") {
+											if (onNavigateToTrips) {
+												onNavigateToTrips();
+											} else {
+												navigate("/trips");
+											}
+										} else if (item.key === "equipment") {
+											navigate("/host/equipment-catalog");
+										} else if (item.key === "wallet") {
+											navigate("/host/wallet");
+										} else if (item.key === "porters") {
+											navigate("/host/porter?view=find");
+										} else if (item.key === "campers") {
+											navigate(RoutePath.HOST_CAMPERS);
+											onClose?.();
+										} else if (item.key === "requests") {
+											navigate("/porter/requests");
+										} else if (item.key === "assignments" && activeRole === "porter") {
+											navigate(RoutePath.PORTER_ASSIGNMENTS);
+											onClose?.();
+										} else if (item.key === "checkins" && activeRole === "porter") {
+											navigate(`${RoutePath.PORTER_ASSIGNMENTS}?view=checkins`);
+											onClose?.();
+										} else if (item.key === "profile") {
+											openProfile();
+										}
+									}}
+									className={`flex w-full items-center justify-between rounded-xl px-3.5 py-3 text-sm font-bold transition-all ${
+										item.disabled
+											? "cursor-not-allowed text-[#9aaba0] opacity-60 hover:bg-transparent"
+											: isActive
+												? "bg-[#164027] text-white shadow-sm shadow-[#164027]/20"
+												: "text-[#55685a] hover:bg-[#f8faf7] hover:text-[#164027]"
+									} disabled:cursor-not-allowed`}
+								>
+									<div className="flex items-center gap-3.5">
+										<Icon
+											className={`size-5 shrink-0 ${isActive ? "text-white" : "text-[#55685a]"}`}
+										/>
+										<span>{item.label}</span>
+									</div>
+									{item.key === "sos" && activeRole === "host" && activeSosCount > 0 ? (
+										<span
+											aria-label={`${activeSosCount} yêu cầu cứu trợ khẩn cấp`}
+											className="min-w-5 rounded-full bg-red-600 px-1.5 py-0.5 text-center text-[10px] font-bold text-white animate-pulse"
+										>
+											{activeSosCount}
+										</span>
+									) : item.key === "requests" &&
+										activeRole === "porter" &&
+										pendingPorterRequestCount > 0 ? (
+										<span
+											aria-label={`${pendingPorterRequestCount} yêu cầu đang chờ`}
+											className="min-w-5 rounded-full bg-rose-600 px-1.5 py-0.5 text-center text-[10px] font-bold text-white"
+										>
+											{pendingPorterRequestCount}
+										</span>
+									) : item.badge ? (
+										<span className="rounded-md bg-[#edf2ee] px-1.5 py-0.5 text-[10px] font-semibold text-[#627769]">
+											{item.badge}
+										</span>
+									) : null}
+								</button>
+								{activeRole === "host" && item.key === "porters" && isPathPorter && (
+									<div className="ml-5 mt-1 space-y-1 border-l border-[#dfe8df] pl-3">
+										{hostPorterItems.map((subItem) => {
+											const SubIcon = subItem.icon;
+											const isSubActive = porterView === subItem.key;
+											return (
+												<button
+													key={subItem.key}
+													type="button"
+													onClick={() => navigate(`/host/porter?view=${subItem.key}`)}
+													className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-xs font-bold transition ${
+														isSubActive
+															? "bg-[#edf5ee] text-[#164027]"
+															: "text-[#667a6d] hover:bg-[#f8faf7] hover:text-[#164027]"
+													}`}
+												>
+													<SubIcon className="size-4 shrink-0" />
+													<span>{subItem.label}</span>
+												</button>
+											);
+										})}
+									</div>
+								)}
+							</div>
+						);
+					})}
+				</nav>
+			</div>
+
+			<div className="mt-auto shrink-0 border-t border-[#e7eee7] p-4">
+				{profile && (
+					<button
+						type="button"
+						disabled={!canOpenProfile}
+						className="mb-3 flex w-full items-center gap-3 rounded-2xl border border-[#e0ebe0] bg-[#f8faf8] p-3 text-left transition-colors hover:bg-[#f2f7f2] disabled:cursor-default disabled:hover:bg-[#f8faf8]"
+						onClick={openProfile}
+					>
+						<img
+							src={profile.avatarUrl}
+							alt={profile.fullName}
+							className="size-10 rounded-full object-cover ring-2 ring-[#164027]/20"
+						/>
+						<div className="min-w-0 flex-1">
+							<p className="truncate text-sm font-semibold text-[#10221b]">{profile.fullName}</p>
+							<p className="truncate text-[11px] font-semibold text-[#667a6d]">{profile.email}</p>
+						</div>
+					</button>
+				)}
+				{onLogout && <LogoutActions onLogout={onLogout} />}
+			</div>
+		</aside>
+	);
+}

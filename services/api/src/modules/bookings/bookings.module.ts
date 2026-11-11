@@ -1,0 +1,113 @@
+import { Module } from "@nestjs/common";
+import { DataSource } from "typeorm";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../auth/guards/roles.guard";
+import { EquipmentCatalogModule } from "../equipment-catalog/equipment-catalog.module";
+import { Booking } from "../profiles/entities/booking.entity";
+import { ProfilesModule } from "../profiles/profiles.module";
+import { RealtimeModule } from "../realtime/realtime.module";
+import { TripsModule } from "../trips/trips.module";
+import { WeatherModule } from "../weather/weather.module";
+import { BookingCancellationNoticesController } from "./booking-cancellation-notices.controller";
+import { BookingCancellationNoticesService } from "./booking-cancellation-notices.service";
+import { BookingCancellationController } from "./booking-cancellation.controller";
+import { BookingCancellationService } from "./booking-cancellation.service";
+import { BookingCompletionService } from "./booking-completion.service";
+import { BookingExpiryService } from "./booking-expiry.service";
+import { BookingExpiryWorker } from "./booking-expiry.worker";
+import { BookingItemsRepository } from "./booking-items.repository";
+import { BookingMemberStatusController } from "./booking-member-status.controller";
+import { BookingMemberStatusService } from "./booking-member-status.service";
+import { BookingMembersRepository } from "./booking-members.repository";
+import { BookingsController } from "./bookings.controller";
+import { BookingsRepository } from "./bookings.repository";
+import { BookingsService } from "./bookings.service";
+import { BookingItem } from "./entities/booking-item.entity";
+import { BookingMember } from "./entities/booking-member.entity";
+import { EquipmentReservation } from "./entities/equipment-reservation.entity";
+import { Payment } from "./entities/payment.entity";
+import { EquipmentReservationsRepository } from "./equipment-reservations.repository";
+import { PaymentWebhookController } from "./payment-webhook.controller";
+import { PaymentsRepository } from "./payments.repository";
+import { PaymentsService } from "./payments.service";
+import { PayOSService } from "./payos.service";
+import { RefundsController } from "./refunds.controller";
+import { RefundsService } from "./refunds.service";
+import { SettlementsController } from "./settlements.controller";
+import { SettlementsService } from "./settlements.service";
+import { TripBookingsController } from "./trip-bookings.controller";
+import { TripBookingsService } from "./trip-bookings.service";
+import { TripRosterController } from "./trip-roster.controller";
+import { TripRosterService } from "./trip-roster.service";
+
+@Module({
+	imports: [TripsModule, WeatherModule, EquipmentCatalogModule, ProfilesModule, RealtimeModule],
+	controllers: [
+		BookingCancellationNoticesController,
+		BookingsController,
+		PaymentWebhookController,
+		BookingCancellationController,
+		RefundsController,
+		SettlementsController,
+		BookingMemberStatusController,
+		TripRosterController,
+		TripBookingsController,
+	],
+	providers: [
+		BookingCancellationNoticesService,
+		BookingsService,
+		BookingCancellationService,
+		BookingCompletionService,
+		BookingMemberStatusService,
+		TripRosterService,
+		TripBookingsService,
+		BookingExpiryService,
+		BookingExpiryWorker,
+		PaymentsService,
+		PayOSService,
+		RefundsService,
+		SettlementsService,
+		JwtAuthGuard,
+		RolesGuard,
+		{
+			provide: BookingsRepository,
+			useFactory: (dataSource: DataSource) =>
+				new BookingsRepository(Booking, dataSource.createEntityManager()),
+			inject: [DataSource],
+		},
+		{
+			provide: BookingItemsRepository,
+			useFactory: (dataSource: DataSource) =>
+				new BookingItemsRepository(BookingItem, dataSource.createEntityManager()),
+			inject: [DataSource],
+		},
+		{
+			provide: BookingMembersRepository,
+			useFactory: (dataSource: DataSource) =>
+				new BookingMembersRepository(BookingMember, dataSource.createEntityManager()),
+			inject: [DataSource],
+		},
+		{
+			provide: EquipmentReservationsRepository,
+			useFactory: (dataSource: DataSource) =>
+				new EquipmentReservationsRepository(EquipmentReservation, dataSource.createEntityManager()),
+			inject: [DataSource],
+		},
+		{
+			provide: PaymentsRepository,
+			useFactory: (dataSource: DataSource) =>
+				new PaymentsRepository(Payment, dataSource.createEntityManager()),
+			inject: [DataSource],
+		},
+	],
+	exports: [
+		BookingsService,
+		BookingCompletionService,
+		PaymentsService,
+		PayOSService,
+		RefundsService,
+		SettlementsService,
+		TripBookingsService,
+	],
+})
+export class BookingsModule {}

@@ -1,20 +1,42 @@
 {
-  "name": "ctms",
-  "version": "0.1.0",
-  "private": true,
-  "description": "Camping Site and Trekking Management System monorepo",
-  "packageManager": "pnpm@9.15.0",
-  "scripts": {
-    "dev:quick": "pnpm --parallel --filter @ctms/api --filter @ctms/web dev",
-    "dev:web": "pnpm --filter @ctms/web dev",
-    "dev:mobile": "pnpm --filter @ctms/mobile start",
-    "dev:api": "pnpm --filter @ctms/api start:dev",
-    "lint:all": "pnpm -r --if-present lint",
-    "build:all": "pnpm -r --if-present build",
-    "test:all": "pnpm -r --if-present test"
-  },
-  "engines": {
-    "node": ">=20.0.0",
-    "pnpm": ">=9.0.0"
-  }
+	"name": "ctms",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Camping Site and Trekking Management System monorepo",
+	"packageManager": "pnpm@9.15.0",
+	"scripts": {
+		"dev:quick": "pnpm dev:infra && docker compose stop api web && docker compose up -d --build --wait ai && pnpm --parallel --filter @ctms/api --filter @ctms/web dev",
+		"dev:docker": "node scripts/ensure-docker.js",
+		"dev:infra": "pnpm dev:docker && docker compose up -d --wait postgres redis adminer",
+		"dev:local:all": "pnpm --parallel --filter @ctms/api --filter @ctms/web --filter @ctms/ai dev",
+		"dev:web": "pnpm dev:docker && docker compose up -d --build --wait web adminer",
+		"dev:web:local": "pnpm --filter @ctms/web dev",
+		"dev:mobile": "cd apps/mobile && flutter run",
+		"dev:api": "pnpm dev:docker && docker compose up -d --build --wait api adminer",
+		"dev:api:local": "pnpm --filter @ctms/api start:dev",
+		"dev:ai:local": "pnpm --filter @ctms/ai dev",
+		"seed": "pnpm --filter @ctms/api seed",
+		"seed:all": "pnpm --filter @ctms/api seed:all",
+		"seed:fresh": "pnpm --filter @ctms/api seed:fresh",
+		"lint": "biome check .",
+		"lint:fix": "biome check --write .",
+		"format": "biome format --write .",
+		"lint:all": "pnpm -r --if-present lint",
+		"build:all": "pnpm -r --if-present build",
+		"test:all": "pnpm -r --if-present test",
+		"validate-branch": "node scripts/validate-branch-name.js",
+		"prepare": "husky"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^1.9.4",
+		"husky": "^9.1.7",
+		"lint-staged": "^15.2.11"
+	},
+	"lint-staged": {
+		"*.{js,ts,jsx,tsx,json}": ["biome check --write --no-errors-on-unmatched"]
+	},
+	"engines": {
+		"node": ">=20.0.0",
+		"pnpm": ">=9.0.0"
+	}
 }

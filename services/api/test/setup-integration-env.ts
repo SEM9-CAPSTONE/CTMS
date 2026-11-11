@@ -1,0 +1,25 @@
+const DEFAULT_TEST_DATABASE_URL = "postgresql://ctms:ctms@127.0.0.1:5432/ctms_test";
+
+const databaseUrl = process.env.TEST_DATABASE_URL ?? DEFAULT_TEST_DATABASE_URL;
+const databaseName = new URL(databaseUrl).pathname.replace(/^\//, "");
+
+if (!databaseName.endsWith("_test")) {
+	throw new Error(
+		`Refusing to run integration tests against database "${databaseName}". Use a database name ending with "_test".`
+	);
+}
+
+process.env.NODE_ENV = "test";
+process.env.TRIP_STATUS_WORKER_ENABLED = "false";
+process.env.TRIP_WEATHER_MONITOR_WORKER_ENABLED = "false";
+process.env.TRIP_WEATHER_DECISION_WORKER_ENABLED = "false";
+process.env.REALTIME_EVENT_PRUNE_WORKER_ENABLED = "false";
+process.env.PUSH_DELIVERY_WORKER_ENABLED = "false";
+process.env.DATABASE_URL = databaseUrl;
+process.env.JWT_SECRET = process.env.JWT_SECRET ?? "integration-test-secret";
+process.env.JWT_ACCESS_TOKEN_TTL = process.env.JWT_ACCESS_TOKEN_TTL ?? "15m";
+process.env.JWT_REFRESH_TOKEN_TTL = process.env.JWT_REFRESH_TOKEN_TTL ?? "7d";
+process.env.OTP_TTL_MINUTES = process.env.OTP_TTL_MINUTES ?? "10";
+process.env.OTP_RESEND_MAX_ATTEMPTS = "4";
+process.env.OTP_VERIFY_MAX_ATTEMPTS = "4";
+process.env.OTP_RESEND_WINDOW_MINUTES = process.env.OTP_RESEND_WINDOW_MINUTES ?? "1440";

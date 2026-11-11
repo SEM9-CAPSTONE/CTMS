@@ -1,0 +1,53 @@
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import type { EquipmentCatalogItem } from "../types";
+import { EquipmentCatalogList } from "./EquipmentCatalogList";
+
+const items: EquipmentCatalogItem[] = [
+	{
+		id: "item-1",
+		hostId: "host-1",
+		name: "4-person tent",
+		category: "shelter",
+		quantityTotal: 10,
+		rentalPricePerDay: 50000,
+		status: "active",
+		maintenanceSchedule: "Check zippers monthly",
+		createdAt: "2026-09-01T00:00:00.000Z",
+		updatedAt: "2026-09-01T00:00:00.000Z",
+	},
+];
+
+describe("EquipmentCatalogList", () => {
+	it("renders each item's fields and status badge", () => {
+		render(<EquipmentCatalogList items={items} onEdit={vi.fn()} />);
+
+		expect(screen.getByText("4-person tent")).toBeInTheDocument();
+		expect(screen.getByText("Lều bạt")).toBeInTheDocument();
+		expect(screen.getByText("Đang hoạt động")).toBeInTheDocument();
+		const row = screen.getByTestId("equipment-catalog-item-item-1");
+		expect(row).toHaveTextContent("10");
+		expect(row).toHaveTextContent(/50\.000\s*₫/);
+		expect(screen.getByText("Check zippers monthly", { exact: false })).toBeInTheDocument();
+	});
+
+	it("renders as a table built on the shared DataTable", () => {
+		render(<EquipmentCatalogList items={items} onEdit={vi.fn()} />);
+
+		const table = screen.getByRole("table", { name: "Danh sách thiết bị trong kho" });
+		expect(
+			within(table)
+				.getAllByRole("columnheader")
+				.map((th) => th.textContent)
+		).toEqual(["Thiết bị", "Số lượng", "Giá thuê/ngày", "Trạng thái", "Thao tác"]);
+	});
+
+	it("calls onEdit with the clicked item", () => {
+		const onEdit = vi.fn();
+		render(<EquipmentCatalogList items={items} onEdit={onEdit} />);
+
+		fireEvent.click(screen.getByRole("button", { name: "Sửa" }));
+
+		expect(onEdit).toHaveBeenCalledWith(items[0]);
+	});
+});

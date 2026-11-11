@@ -1,0 +1,285 @@
+import type { CreateCheckpointDto } from "../dto/create-checkpoint.dto";
+import { CheckpointType } from "../entities/checkpoint.entity";
+import { TrekkingRouteDifficulty, TrekkingRouteStatus } from "../entities/trekking-route.entity";
+import type { CheckpointsRepository } from "../repositories/checkpoints.repository";
+import { CheckpointsService } from "./checkpoints.service";
+
+const HOST_ID = "11111111-1111-4111-8111-111111111111";
+const OTHER_HOST_ID = "22222222-2222-4222-8222-222222222222";
+const ROUTE_ID = "44444444-4444-4444-8444-444444444444";
+const CHECKPOINT_ID = "55555555-5555-4555-8555-555555555555";
+
+const dto: CreateCheckpointDto = {
+	name: "Ridge rest",
+	location: { type: "Point", coordinates: [108.46, 11.94] },
+	radiusMeters: 20,
+	type: CheckpointType.WATER,
+	expectedArrivalOffset: 45,
+	instructions: "Rest and check water.",
+	nearbyWaterOrShelter: true,
+};
+
+const checkpoint = {
+	id: CHECKPOINT_ID,
+	routeId: ROUTE_ID,
+	...dto,
+	routePosition: 0.4,
+	createdAt: new Date("2026-08-25T00:00:00.000Z"),
+	updatedAt: new Date("2026-08-25T00:00:00.000Z"),
+};
+
+function route(hostId = HOST_ID, status = TrekkingRouteStatus.DRAFT) {
+	return {
+		id: ROUTE_ID,
+		hostId,
+		name: "Pine trail",
+		description: null,
+		routeGeom: {
+			type: "LineString" as const,
+			coordinates: [
+				[108.45, 11.94],
+				[108.47, 11.94],
+			] as Array<[number, number]>,
+		},
+		lengthMeters: 2100,
+		difficulty: TrekkingRouteDifficulty.MODERATE,
+		expectedDurationMinutes: 120,
+		status,
+		createdAt: new Date(),
+		updatedAt: new Date(),
+	};
+}
+
+describe("CheckpointsService", () => {
+	let routeQuery: {
+		innerJoinAndSelect: jest.Mock;
+		where: jest.Mock;
+		setLock: jest.Mock;
+		getOne: jest.Mock;
+	};
+	let routeRepository: { findOne: jest.Mock; createQueryBuilder: jest.Mock };
+	let checkpointRepository: {
+		findByRoute: jest.Mock;
+		createForRoute: jest.Mock;
+		findOneForUpdate: jest.Mock;
+		updateForRoute: jest.Mock;
+	};
+	let auditRepository: { save: jest.Mock };
+	let manager: { getRepository: jest.Mock; withRepository: jest.Mock };
+	let dataSource: { getRepository: jest.Mock; transaction: jest.Mock };
+	let service: CheckpointsService;
+
+	beforeEach(() => {
+		routeQuery = {
+			innerJoinAndSelect: jest.fn(),
+			where: jest.fn(),
+			setLock: jest.fn(),
+			getOne: jest.fn().mockResolvedValue(route()),
+		};
+		routeQuery.innerJoinAndSelect.mockReturnValue(routeQuery);
+		routeQuery.where.mockReturnValue(routeQuery);
+		routeQuery.setLock.mockReturnValue(routeQuery);
+		routeRepository = {
+			findOne: jest.fn().mockResolvedValue(route()),
+			createQueryBuilder: jest.fn().mockReturnValue(routeQuery),
+		};
+		checkpointRepository = {
+			findByRoute: jest.fn().mockResolvedValue([checkpoint]),
+			createForRoute: jest.fn().mockResolvedValue(checkpoint),
+			findOneForUpdate: jest.fn().mockResolvedValue(checkpoint),
+			updateForRoute: jest.fn().mockResolvedValue({
+				...checkpoint,
+				name: "Updated ridge rest",
+				type: CheckpointType.WATER,
+			}),
+		};
+		auditRepository = { save: jest.fn().mockResolvedValue({}) };
+		manager = {
+			getRepository: jest.fn((entity: { name?: string }) =>
+				entity.name === "TrekkingRoute" ? routeRepository : auditRepository
+			),
+			withRepository: jest.fn().mockReturnValue(checkpointRepository),
+		};
+		dataSource = {
+			getRepository: jest.fn().mockReturnValue(routeRepository),
+			transaction: jest.fn(async (callback: (value: typeof manager) => unknown) =>
+				callback(manager)
+			),
+		};
+		service = new CheckpointsService(
+			checkpointRepository as unknown as CheckpointsRepository,
+			dataSource as never
+		);
+	});
+
+	it("lists checkpoints only after verifying route ownership", async () => {
+		await expect(service.list(HOST_ID, ROUTE_ID)).resolves.toEqual([checkpoint]);
+		expect(routeRepository.findOne).toHaveBeenCalledWith({
+			where: { id: ROUTE_ID },
+		});
+		expect(checkpointRepository.findByRoute).toHaveBeenCalledWith(ROUTE_ID);
+	});
+
+	it("returns 404 for a missing route and 403 for another Host's route", async () => {
+		routeRepository.findOne.mockResolvedValueOnce(null);
+		await expect(service.list(HOST_ID, ROUTE_ID)).rejects.toMatchObject({ status: 404 });
+		routeRepository.findOne.mockResolvedValueOnce(route(OTHER_HOST_ID));
+		await expect(service.list(HOST_ID, ROUTE_ID)).rejects.toMatchObject({ status: 403 });
+		expect(checkpointRepository.findByRoute).not.toHaveBeenCalled();
+	});
+
+	it("enforces 20 m even for direct service calls bypassing DTO validation", async () => {
+		await service.create(HOST_ID, ROUTE_ID, { ...dto, radiusMeters: 500 });
+		expect(checkpointRepository.createForRoute).toHaveBeenCalledWith(
+			expect.objectContaining({ radiusMeters: 20 })
+		);
+		await service.update(HOST_ID, ROUTE_ID, CHECKPOINT_ID, { ...dto, radiusMeters: 30 });
+		expect(checkpointRepository.updateForRoute).toHaveBeenCalledWith(
+			expect.objectContaining({ radiusMeters: 20 })
+		);
+	});
+
+	it("locks the route, creates the checkpoint, and writes the exact audit in one transaction", async () => {
+		await expect(service.create(HOST_ID, ROUTE_ID, dto)).resolves.toEqual(checkpoint);
+		expect(routeRepository.createQueryBuilder).toHaveBeenCalledWith("route");
+		expect(routeQuery.where).toHaveBeenCalledWith("route.id = :routeId", { routeId: ROUTE_ID });
+		expect(routeQuery.where).toHaveBeenCalledWith("route.id = :routeId", { routeId: ROUTE_ID });
+		expect(routeQuery.setLock).toHaveBeenCalledWith("pessimistic_write");
+		expect(checkpointRepository.createForRoute).toHaveBeenCalledWith({ routeId: ROUTE_ID, ...dto });
+		expect(auditRepository.save).toHaveBeenCalledWith({
+			actorId: HOST_ID,
+			action: "trekking_route_checkpoint.created",
+			targetType: "trekking_route_checkpoint",
+			targetId: CHECKPOINT_ID,
+			before: null,
+			after: expect.objectContaining({
+				id: CHECKPOINT_ID,
+				routeId: ROUTE_ID,
+				location: dto.location,
+				routePosition: 0.4,
+			}),
+			reason: "host_create_trekking_route_checkpoint",
+		});
+	});
+
+	it("returns 404 for a missing route and 403 for another Host's route before create writes", async () => {
+		routeQuery.getOne.mockResolvedValueOnce(null);
+		await expect(service.create(HOST_ID, ROUTE_ID, dto)).rejects.toMatchObject({ status: 404 });
+
+		routeQuery.getOne.mockResolvedValueOnce(route(OTHER_HOST_ID));
+		await expect(service.create(HOST_ID, ROUTE_ID, dto)).rejects.toMatchObject({ status: 403 });
+		expect(checkpointRepository.createForRoute).not.toHaveBeenCalled();
+		expect(auditRepository.save).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		TrekkingRouteStatus.PENDING_APPROVAL,
+		TrekkingRouteStatus.ACTIVE,
+		TrekkingRouteStatus.CLOSED,
+	])("rejects a %s route with 409 before checkpoint or audit writes", async (status) => {
+		routeQuery.getOne.mockResolvedValue(route(HOST_ID, status));
+		await expect(service.create(HOST_ID, ROUTE_ID, dto)).rejects.toMatchObject({ status: 409 });
+		expect(checkpointRepository.createForRoute).not.toHaveBeenCalled();
+		expect(auditRepository.save).not.toHaveBeenCalled();
+	});
+
+	it("accepts an offset equal to the parent route duration", async () => {
+		await expect(
+			service.create(HOST_ID, ROUTE_ID, { ...dto, expectedArrivalOffset: 120 })
+		).resolves.toEqual(checkpoint);
+		expect(checkpointRepository.createForRoute).toHaveBeenCalledWith({
+			routeId: ROUTE_ID,
+			...dto,
+			expectedArrivalOffset: 120,
+		});
+	});
+
+	it("rejects an offset beyond the parent duration with 422", async () => {
+		await expect(
+			service.create(HOST_ID, ROUTE_ID, { ...dto, expectedArrivalOffset: 121 })
+		).rejects.toMatchObject({ status: 422 });
+		expect(checkpointRepository.createForRoute).not.toHaveBeenCalled();
+	});
+
+	it("propagates audit failures so the surrounding transaction can roll back", async () => {
+		auditRepository.save.mockRejectedValue(new Error("audit unavailable"));
+		await expect(service.create(HOST_ID, ROUTE_ID, dto)).rejects.toThrow("audit unavailable");
+		expect(checkpointRepository.createForRoute).toHaveBeenCalledTimes(1);
+	});
+
+	it("locks and updates the owned draft checkpoint with before/after audit snapshots", async () => {
+		const updateDto = {
+			...dto,
+			name: "Updated ridge rest",
+			type: CheckpointType.WATER,
+			location: { type: "Point" as const, coordinates: [108.465, 11.94] as [number, number] },
+		};
+		const updated = await service.update(HOST_ID, ROUTE_ID, CHECKPOINT_ID, updateDto);
+
+		expect(routeQuery.setLock).toHaveBeenCalledWith("pessimistic_write");
+		expect(checkpointRepository.findOneForUpdate).toHaveBeenCalledWith(ROUTE_ID, CHECKPOINT_ID);
+		expect(checkpointRepository.updateForRoute).toHaveBeenCalledWith({
+			routeId: ROUTE_ID,
+			checkpointId: CHECKPOINT_ID,
+			...updateDto,
+		});
+		expect(auditRepository.save).toHaveBeenCalledWith({
+			actorId: HOST_ID,
+			action: "trekking_route_checkpoint.updated",
+			targetType: "trekking_route_checkpoint",
+			targetId: CHECKPOINT_ID,
+			before: expect.objectContaining({ name: "Ridge rest", type: CheckpointType.WATER }),
+			after: expect.objectContaining({
+				name: "Updated ridge rest",
+				type: CheckpointType.WATER,
+			}),
+			reason: "host_update_trekking_route_checkpoint",
+		});
+		expect(updated).toEqual(expect.objectContaining({ name: "Updated ridge rest" }));
+	});
+
+	it("rejects a missing or foreign route before looking up the checkpoint for update", async () => {
+		routeQuery.getOne.mockResolvedValueOnce(null);
+		await expect(service.update(HOST_ID, ROUTE_ID, CHECKPOINT_ID, dto)).rejects.toMatchObject({
+			status: 404,
+		});
+
+		routeQuery.getOne.mockResolvedValueOnce(route(OTHER_HOST_ID));
+		await expect(service.update(HOST_ID, ROUTE_ID, CHECKPOINT_ID, dto)).rejects.toMatchObject({
+			status: 403,
+		});
+		expect(checkpointRepository.findOneForUpdate).not.toHaveBeenCalled();
+	});
+
+	it("rejects a missing checkpoint without writing update or audit", async () => {
+		checkpointRepository.findOneForUpdate.mockResolvedValueOnce(null);
+		await expect(service.update(HOST_ID, ROUTE_ID, CHECKPOINT_ID, dto)).rejects.toMatchObject({
+			status: 404,
+		});
+		expect(checkpointRepository.updateForRoute).not.toHaveBeenCalled();
+		expect(auditRepository.save).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		TrekkingRouteStatus.PENDING_APPROVAL,
+		TrekkingRouteStatus.ACTIVE,
+		TrekkingRouteStatus.CLOSED,
+	])("rejects checkpoint update for a %s route", async (status) => {
+		routeQuery.getOne.mockResolvedValue(route(HOST_ID, status));
+		await expect(service.update(HOST_ID, ROUTE_ID, CHECKPOINT_ID, dto)).rejects.toMatchObject({
+			status: 409,
+		});
+		expect(checkpointRepository.findOneForUpdate).not.toHaveBeenCalled();
+		expect(checkpointRepository.updateForRoute).not.toHaveBeenCalled();
+	});
+
+	it("rejects an updated offset beyond the parent duration", async () => {
+		await expect(
+			service.update(HOST_ID, ROUTE_ID, CHECKPOINT_ID, {
+				...dto,
+				expectedArrivalOffset: 121,
+			})
+		).rejects.toMatchObject({ status: 422 });
+		expect(checkpointRepository.updateForRoute).not.toHaveBeenCalled();
+	});
+});

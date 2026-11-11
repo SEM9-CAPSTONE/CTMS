@@ -1,0 +1,168 @@
+import { AlertCircle, Compass, RefreshCw } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Pagination, toast } from "../../../shared/components";
+import {
+	type AdminReviewFilterOption,
+	AdminReviewFilters,
+} from "../../../shared/components/AdminReviewFilters";
+import { RealtimeConnectionStatus } from "../../../shared/components/RealtimeConnectionStatus";
+import { AdminLayout } from "../../admin-layout/components/AdminLayout";
+import { AdminTripReviewContent } from "../components/AdminTripReviewContent";
+import { TripReviewDecisionDialog } from "../components/TripReviewDecisionDialog";
+import { useAdminTripReviews, useReviewTrip } from "../hooks/useAdminTripReviews";
+import { useAdminTripReviewNotifications } from "../hooks/useTripReviewNotifications";
+import type { ReviewTripFormValues } from "../schema/review-trip.schema";
+import type { TripReviewOutcomeFilter } from "../types";
+
+const REVIEW_FILTERS: Array<AdminReviewFilterOption<TripReviewOutcomeFilter>> = [
+	{ value: "pending", label: "Chờ duyệt" },
+	{ value: "approved", label: "Đã phê duyệt" },
+	{ value: "returned_for_revision", label: "Trả về chỉnh sửa" },
+	{ value: "auto_rejected", label: "Tự động từ chối" },
+	{ value: "all", label: "Tất cả" },
+];
+
+export interface AdminTripsPageProps {
+	onLogout?: (allDevices: boolean) => Promise<void>;
+}
+
+export function AdminTripsPage({ onLogout }: AdminTripsPageProps) {
+	const [reviewOutcome, setReviewOutcome] = useState<TripReviewOutcomeFilter>("pending");
+	const [page, setPage] = useState(1);
+	const list = useAdminTripReviews(reviewOutcome, page);
+	const review = useReviewTrip();
+	const [selectedId, setSelectedId] = useState<string>();
+	const [dialogOpen, setDialogOpen] = useState(false);
+	const [dialogVersion, setDialogVersion] = useState<string | null>(null);
+
+	const refreshInBackground = useCallback(() => {
+		void list.reload(true);
+	}, [list.reload]);
+	const realtimeState = useAdminTripReviewNotifications({ onChanged: refreshInBackground });
+
+	useEffect(() => {
+		setSelectedId((current) =>
+			current && list.items.some((trip) => trip.id === current) ? current : list.items[0]?.id
+		);
+	}, [list.items]);
+
+	const selected = useMemo(
+		() => list.items.find((trip) => trip.id === selectedId) ?? null,
+		[list.items, selectedId]
+	);
+
+	useEffect(() => {
+		if (dialogOpen && dialogVersion && selected?.updatedAt !== dialogVersion) {
+			setDialogOpen(false);
+			setDialogVersion(null);
+			review.clearError();
+			toast.info("Trip đã được cập nhật. Vui lòng kiểm tra phiên bản mới trước khi xét duyệt.");
+		}
+	}, [dialogOpen, dialogVersion, selected?.updatedAt, review.clearError]);
+
+	const confirm = async (values: ReviewTripFormValues) => {
+		if (!selected || list.isLoading || list.isRefreshing) return;
+		if (!dialogVersion || dialogVersion !== selected.updatedAt) {
+			setDialogOpen(false);
+			return;
+		}
+		const result = await review.submit(selected.id, {
+			action: values.action,
+			reviewedUpdatedAt: dialogVersion,
+			reason: values.action === "approve" ? undefined : values.reason,
+		});
+		if (!result) return;
+		const messages = {
+			approve: `Đã đồng ý và xuất bản trip “${selected.title}”.`,
+			decline: `Đã từ chối trip “${selected.title}”. Trip được trả về bản nháp.`,
+		};
+		toast.success(messages[values.action], "Xét duyệt hoàn tất");
+		setDialogOpen(false);
+		await list.reload();
+	};
+
+	return (
+		<AdminLayout activeItem="trip-review" onLogout={onLogout}>
+			<main className="mx-auto max-w-7xl space-y-5 px-4 py-6 sm:px-6 lg:px-8">
+				<header>
+					<h1 className="flex items-center gap-3 text-2xl font-extrabold">
+						<Compass className="size-7 text-[#164027]" />
+						Phê duyệt trip
+					</h1>
+					<p className="mt-1 text-sm text-[#667a6d]">
+						Kiểm tra lịch trình, sức chứa và điểm dừng trước khi công bố chuyến đi cho Camper.
+					</p>
+					<div className="mt-2">
+						<RealtimeConnectionStatus state={realtimeState} testId="trip-review-realtime-status" />
+					</div>
+					<AdminReviewFilters
+						value={reviewOutcome}
+						options={REVIEW_FILTERS}
+						onChange={(value) => {
+							setReviewOutcome(value);
+							setPage(1);
+							review.clearError();
+						}}
+					/>
+				</header>
+
+				{list.error && (
+					<div
+						role="alert"
+						className="flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700"
+					>
+						<span className="flex items-center gap-2">
+							<AlertCircle className="size-5" />
+							{list.error}
+						</span>
+						<button
+							type="button"
+							onClick={() => void list.reload()}
+							className="rounded-lg bg-red-700 px-3 py-2 text-white"
+						>
+							<RefreshCw className="mr-1 inline size-4" />
+							Tải lại
+						</button>
+					</div>
+				)}
+				{!list.error && (
+					<>
+						<AdminTripReviewContent
+							isLoading={list.isLoading}
+							items={list.items}
+							selected={selected}
+							onSelect={(trip) => {
+								setSelectedId(trip.id);
+								review.clearError();
+							}}
+							onReview={() => {
+								review.clearError();
+								setDialogVersion(selected?.updatedAt ?? null);
+								setDialogOpen(true);
+							}}
+						/>
+						{!list.isLoading && (
+							<Pagination
+								currentPage={list.pagination.page}
+								totalPages={list.pagination.totalPages}
+								totalItems={list.pagination.total}
+								itemsPerPage={list.pagination.limit}
+								onPageChange={setPage}
+							/>
+						)}
+					</>
+				)}
+			</main>
+			<TripReviewDecisionDialog
+				open={dialogOpen}
+				trip={selected}
+				isSubmitting={review.isSubmitting || list.isLoading || list.isRefreshing}
+				error={review.error}
+				onClose={() => {
+					if (!review.isSubmitting) setDialogOpen(false);
+				}}
+				onConfirm={confirm}
+			/>
+		</AdminLayout>
+	);
+}

@@ -1,0 +1,143 @@
+import { API_ENDPOINTS, HttpError, httpClient } from "../../../core/api";
+import type {
+	ForgotPasswordApiPayload,
+	ForgotPasswordApiResponse,
+	LoginApiPayload,
+	LoginApiResponse,
+	LogoutApiPayload,
+	LogoutApiResponse,
+	RegisterApiPayload,
+	RegisterApiResponse,
+	ResetPasswordApiPayload,
+	ResetPasswordApiResponse,
+	SendOtpApiPayload,
+	SendOtpApiResponse,
+	VerifyOtpApiPayload,
+	VerifyOtpApiResponse,
+} from "../types";
+
+function logAuthCall(label: string, meta: Record<string, unknown>) {
+	console.log(`[auth] ${label}`, meta);
+}
+
+export const authService = {
+	login: async (payload: LoginApiPayload): Promise<LoginApiResponse> => {
+		return httpClient.post<LoginApiResponse>(API_ENDPOINTS.AUTH.LOGIN, payload);
+	},
+
+	loginWithGoogle: async (): Promise<{ success: boolean }> => {
+		return Promise.resolve({ success: true });
+	},
+
+	register: async (payload: RegisterApiPayload): Promise<RegisterApiResponse> => {
+		return httpClient.post<RegisterApiResponse>(API_ENDPOINTS.AUTH.REGISTER, payload);
+	},
+
+	verifyOtp: async (payload: VerifyOtpApiPayload): Promise<VerifyOtpApiResponse> => {
+		// Log only userId, never `payload.code`.
+		logAuthCall("POST /auth/verify request", { userId: payload.userId });
+		try {
+			const result = await httpClient.post<VerifyOtpApiResponse>(
+				API_ENDPOINTS.AUTH.VERIFY,
+				payload
+			);
+			logAuthCall("POST /auth/verify response", { status: 200 });
+			return result;
+		} catch (error) {
+			logAuthCall("POST /auth/verify response", {
+				status: error instanceof HttpError ? error.status : "network-error",
+			});
+			throw error;
+		}
+	},
+
+	/** First OTP send — distinct route from resendOtp for REST clarity, same
+	 * body shape (see services/api's SendOtpDto docstring for why). */
+	sendOtp: async (payload: SendOtpApiPayload): Promise<SendOtpApiResponse> => {
+		logAuthCall("POST /auth/send-otp request", {
+			userId: payload.userId,
+			channel: payload.channel,
+		});
+		try {
+			const result = await httpClient.post<SendOtpApiResponse>(
+				API_ENDPOINTS.AUTH.SEND_OTP,
+				payload
+			);
+			logAuthCall("POST /auth/send-otp response", { status: 200 });
+			return result;
+		} catch (error) {
+			logAuthCall("POST /auth/send-otp response", {
+				status: error instanceof HttpError ? error.status : "network-error",
+			});
+			throw error;
+		}
+	},
+
+	resendOtp: async (payload: SendOtpApiPayload): Promise<SendOtpApiResponse> => {
+		logAuthCall("POST /auth/resend request", {
+			userId: payload.userId,
+			channel: payload.channel,
+		});
+		try {
+			const result = await httpClient.post<SendOtpApiResponse>(API_ENDPOINTS.AUTH.RESEND, payload);
+			logAuthCall("POST /auth/resend response", { status: 200 });
+			return result;
+		} catch (error) {
+			logAuthCall("POST /auth/resend response", {
+				status: error instanceof HttpError ? error.status : "network-error",
+			});
+			throw error;
+		}
+	},
+
+	forgotPassword: async (payload: ForgotPasswordApiPayload): Promise<ForgotPasswordApiResponse> => {
+		logAuthCall("POST /auth/forgot-password request", {
+			identifier: payload.identifier,
+			channel: payload.channel,
+		});
+		try {
+			const result = await httpClient.post<ForgotPasswordApiResponse>(
+				API_ENDPOINTS.AUTH.FORGOT_PASSWORD,
+				payload
+			);
+			logAuthCall("POST /auth/forgot-password response", { status: 200 });
+			return result;
+		} catch (error) {
+			logAuthCall("POST /auth/forgot-password response", {
+				status: error instanceof HttpError ? error.status : "network-error",
+			});
+			throw error;
+		}
+	},
+
+	resetPassword: async (payload: ResetPasswordApiPayload): Promise<ResetPasswordApiResponse> => {
+		logAuthCall("POST /auth/reset-password request", {
+			identifier: payload.identifier,
+		});
+		try {
+			const result = await httpClient.post<ResetPasswordApiResponse>(
+				API_ENDPOINTS.AUTH.RESET_PASSWORD,
+				payload
+			);
+			logAuthCall("POST /auth/reset-password response", { status: 200 });
+			return result;
+		} catch (error) {
+			logAuthCall("POST /auth/reset-password response", {
+				status: error instanceof HttpError ? error.status : "network-error",
+			});
+			throw error;
+		}
+	},
+
+	/**
+	 * Confirms the stored session is still usable. httpClient refreshes an expired
+	 * access token on 401 and clears the session itself when the refresh fails.
+	 */
+	validateSession: async (): Promise<void> => {
+		await httpClient.get<unknown>(API_ENDPOINTS.PROFILE.ME);
+	},
+
+	logout: async (payload: LogoutApiPayload): Promise<LogoutApiResponse> => {
+		return httpClient.post<LogoutApiResponse>(API_ENDPOINTS.AUTH.LOGOUT, payload);
+	},
+};

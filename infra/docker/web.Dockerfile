@@ -3,11 +3,14 @@ WORKDIR /app
 RUN corepack enable
 COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml ./
 COPY apps/web/package.json apps/web/package.json
-COPY apps/mobile/package.json apps/mobile/package.json
 COPY services/api/package.json services/api/package.json
 RUN pnpm install --no-frozen-lockfile
 
 FROM deps AS build
+ARG VITE_API_BASE_URL=http://localhost:3000/api
+ARG VITE_MAPTILER_API_KEY=
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+ENV VITE_MAPTILER_API_KEY=$VITE_MAPTILER_API_KEY
 COPY tsconfig.base.json ./
 COPY apps/web apps/web
 RUN pnpm --filter @ctms/web build

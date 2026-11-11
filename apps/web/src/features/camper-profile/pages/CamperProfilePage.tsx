@@ -1,0 +1,273 @@
+import { AlertCircle, CheckCircle2 } from "lucide-react";
+import { useState } from "react";
+import { Collapse } from "../../../shared/components/Collapse";
+import { BankAccountList } from "../../bank-accounts";
+import { HealthProfileContainer } from "../../health-profile/routes";
+import { AvatarProfileCard } from "../components/AvatarProfileCard";
+import { CamperHeader } from "../components/CamperHeader";
+import { CamperSidebar } from "../components/CamperSidebar";
+import { EmergencyContactsForm } from "../components/EmergencyContactsForm";
+import { ExperienceSkillsForm } from "../components/ExperienceSkillsForm";
+import { PersonalProfileForm } from "../components/PersonalProfileForm";
+import { ProfileCompletionCard } from "../components/ProfileCompletionCard";
+import { SettingsSubNav } from "../components/SettingsSubNav";
+import { UnsavedChangesBar } from "../components/UnsavedChangesBar";
+import { SettingsTabEnum } from "../enums/settings-tab.enum";
+import { useCamperProfile } from "../hooks/useCamperProfile";
+import type { CamperProfileData } from "../types";
+
+interface CamperProfilePageProps {
+	onBackHome?: () => void;
+	onNavigateDashboard?: () => void;
+	onNavigateToTrips?: () => void;
+	onNavigateToBookings?: () => void;
+	onLogout?: (allDevices: boolean) => Promise<void>;
+}
+
+export function CamperProfilePage({
+	onBackHome,
+	onNavigateDashboard,
+	onNavigateToTrips,
+	onNavigateToBookings,
+	onLogout,
+}: CamperProfilePageProps) {
+	const [activeTab, setActiveTab] = useState<SettingsTabEnum>(() => {
+		const params = new URLSearchParams(window.location.search);
+		const tabParam = params.get("tab");
+		if (
+			tabParam === "bank_accounts" ||
+			tabParam === "bank-accounts" ||
+			tabParam === SettingsTabEnum.BANK_ACCOUNTS
+		) {
+			return SettingsTabEnum.BANK_ACCOUNTS;
+		}
+		return SettingsTabEnum.PERSONAL_PROFILE;
+	});
+	const [activeNav, setActiveNav] = useState<string>("profile");
+	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
+	const {
+		profile,
+		isLoading,
+		isSaving,
+		isProfileEditable,
+		saveSuccessMessage,
+		errorMessage,
+		form,
+		isFormDirty,
+		handleResetForm,
+		handleAvatarChange,
+		handleSubmit,
+	} = useCamperProfile();
+	const isEditingDisabled = isSaving || !isProfileEditable;
+
+	const watchedPhone = form.watch("phone");
+	const watchedEmergencyContacts = form.watch("emergencyContacts");
+	const watchedFullName = form.watch("fullName");
+	const watchedDateOfBirth = form.watch("dateOfBirth");
+	const watchedGender = form.watch("gender");
+	const watchedAddress = form.watch("address");
+
+	const activeEmergencyContacts = Array.isArray(watchedEmergencyContacts)
+		? watchedEmergencyContacts.map((c, idx) => ({
+				id: c.id || `contact-${idx}`,
+				name: c.name,
+				relationship: c.relationship,
+				phone: c.phone,
+				email: c.email || null,
+			}))
+		: profile?.emergencyContacts || [];
+
+	const activePhone = typeof watchedPhone === "string" ? watchedPhone : profile?.phone || "";
+
+	const activeCompletionPercentage = (() => {
+		if (!profile) return 0;
+		const fullName = typeof watchedFullName === "string" ? watchedFullName : profile.fullName;
+		const dob = typeof watchedDateOfBirth === "string" ? watchedDateOfBirth : profile.dateOfBirth;
+		const gender = watchedGender ?? profile.gender;
+		const addr = typeof watchedAddress === "string" ? watchedAddress : profile.address;
+
+		const required = [
+			Boolean(fullName?.trim()),
+			Boolean(activePhone?.trim()),
+			Boolean(dob?.trim()),
+			Boolean(gender),
+			Boolean(addr?.trim()),
+			activeEmergencyContacts.length > 0,
+		];
+		return Math.round((required.filter(Boolean).length / required.length) * 100);
+	})();
+
+	const activeProfile: CamperProfileData | null = profile
+		? {
+				...profile,
+				phone: activePhone,
+				emergencyContacts: activeEmergencyContacts,
+				emergencyContactAdded: activeEmergencyContacts.length > 0,
+				completionPercentage: activeCompletionPercentage,
+			}
+		: null;
+
+	if (isLoading) {
+		return (
+			<div className="flex h-screen w-full items-center justify-center bg-[#f4f7f2]">
+				<div className="flex flex-col items-center gap-3">
+					<div className="size-10 animate-spin rounded-full border-4 border-[#164027] border-t-transparent" />
+					<p className="text-xs font-bold text-[#164027]">Đang tải hồ sơ Camper...</p>
+				</div>
+			</div>
+		);
+	}
+
+	return (
+		<div className="flex min-h-screen w-full bg-[#f4f7f2] font-sans antialiased text-[#10221b]">
+			{/* Left Navigation Sidebar */}
+			<Collapse
+				isCollapsed={isSidebarCollapsed}
+				onToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+				widthClass="w-64"
+			>
+				<CamperSidebar
+					profile={profile}
+					activeNav={activeNav}
+					onLogout={onLogout}
+					onNavigate={(navKey) => {
+						if (navKey === "overview") {
+							if (onNavigateDashboard) {
+								onNavigateDashboard();
+							} else {
+								window.history.pushState({}, "", "/dashboard");
+								window.dispatchEvent(new PopStateEvent("popstate"));
+							}
+							return;
+						}
+						if (navKey === "trips" || navKey === "explore") {
+							if (onNavigateToTrips) {
+								onNavigateToTrips();
+							} else {
+								window.history.pushState({}, "", "/trips");
+								window.dispatchEvent(new PopStateEvent("popstate"));
+							}
+							return;
+						}
+						if (navKey === "bookings") {
+							if (onNavigateToBookings) {
+								onNavigateToBookings();
+							} else {
+								window.history.pushState({}, "", "/bookings");
+								window.dispatchEvent(new PopStateEvent("popstate"));
+							}
+							return;
+						}
+						setActiveNav(navKey);
+					}}
+					className="h-full w-full"
+				/>
+			</Collapse>
+
+			{/* Main Content Area */}
+			<div className="flex flex-1 flex-col min-w-0">
+				{/* Top Header */}
+				<CamperHeader profile={profile} onBackHome={onBackHome} />
+
+				{/* Success Toast */}
+				{saveSuccessMessage && (
+					<div className="mx-8 mt-4 flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-xs font-bold text-emerald-900 shadow-sm animate-in fade-in">
+						<CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+						<span>{saveSuccessMessage}</span>
+					</div>
+				)}
+
+				{errorMessage && (
+					<div className="mx-8 mt-4 flex items-center gap-2 rounded-2xl border border-red-200 bg-red-50 p-4 text-xs font-bold text-red-900 shadow-sm">
+						<AlertCircle size={16} className="shrink-0 text-red-600" />
+						<span>{errorMessage}</span>
+					</div>
+				)}
+
+				{/* Page Content Container */}
+				<main className="flex-1 p-6 sm:p-8">
+					<div className="mx-auto flex max-w-7xl flex-col gap-6">
+						{/* User Avatar & Info Header Card */}
+						{profile && <AvatarProfileCard profile={profile} onAvatarChange={handleAvatarChange} />}
+
+						{/* Profile Completion & Safety Bar (Thanh dài dưới Avatar Card) */}
+						{activeProfile && (
+							<ProfileCompletionCard
+								profile={activeProfile}
+								onSelectTab={(tab) => setActiveTab(tab)}
+							/>
+						)}
+
+						{/* Main Settings Grid */}
+						<div className="flex flex-col md:flex-row items-start gap-6">
+							{/* Left Settings Sub-Nav */}
+							<div className="flex w-full md:w-64 shrink-0 flex-col gap-4">
+								<SettingsSubNav activeTab={activeTab} onTabChange={(tab) => setActiveTab(tab)} />
+							</div>
+
+							{/* Center Main Form Panels (Expands across full remaining width) */}
+							<div className="flex-1 flex flex-col gap-6 w-full min-w-0">
+								{activeTab === SettingsTabEnum.PERSONAL_PROFILE && (
+									<form onSubmit={handleSubmit} className="flex flex-col gap-6">
+										<PersonalProfileForm form={form} isDisabled={isEditingDisabled} />
+										<ExperienceSkillsForm form={form} />
+									</form>
+								)}
+
+								{activeTab === SettingsTabEnum.EMERGENCY_INFO && (
+									<form onSubmit={handleSubmit} className="flex flex-col gap-6">
+										<EmergencyContactsForm
+											form={form}
+											isSaving={isSaving}
+											isDisabled={isEditingDisabled}
+										/>
+									</form>
+								)}
+
+								{activeTab === SettingsTabEnum.HEALTH_FITNESS && <HealthProfileContainer />}
+
+								{activeTab === SettingsTabEnum.BANK_ACCOUNTS && (
+									<BankAccountList
+										userFullName={profile?.fullName}
+										title="Tài khoản ngân hàng của bạn"
+										description="Quản lý tài khoản ngân hàng để nhận tiền hoàn khi có chuyến đi bị hủy hoặc phát sinh khiếu nại."
+									/>
+								)}
+
+								{activeTab !== SettingsTabEnum.PERSONAL_PROFILE &&
+									activeTab !== SettingsTabEnum.EMERGENCY_INFO &&
+									activeTab !== SettingsTabEnum.HEALTH_FITNESS &&
+									activeTab !== SettingsTabEnum.BANK_ACCOUNTS && (
+										<div className="flex flex-col items-center justify-center rounded-2xl border border-[#e0ebe0] bg-white p-12 text-center shadow-sm">
+											<div className="flex items-center justify-center rounded-2xl bg-[#eef7f0] p-2.5 mb-3">
+												<img
+													src="/ctms_logo.png"
+													alt="CTMS Logo"
+													className="h-10 w-auto object-contain"
+												/>
+											</div>
+											<h3 className="font-extrabold text-base text-[#164027]">
+												Mục cài đặt đang phát triển
+											</h3>
+											<p className="mt-1 text-xs font-medium text-[#627769] max-w-md">
+												Tính năng đang được chuẩn bị để mang lại trải nghiệm quản lý an toàn và tối
+												ưu nhất cho Camper.
+											</p>
+										</div>
+									)}
+							</div>
+						</div>
+
+						<UnsavedChangesBar
+							isVisible={isFormDirty && isProfileEditable}
+							isSaving={isSaving}
+							onSave={handleSubmit}
+							onReset={handleResetForm}
+						/>
+					</div>
+				</main>
+			</div>
+		</div>
+	);
+}

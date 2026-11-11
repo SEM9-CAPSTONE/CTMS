@@ -1,9 +1,19 @@
-import react from '@vitejs/plugin-react';
-import { defineConfig } from 'vite';
+import tailwindcss from "@tailwindcss/vite";
+import react from "@vitejs/plugin-react";
+import { defineConfig } from "vite";
 
 export default defineConfig({
-  plugins: [react()],
-  server: {
-    port: 5173,
-  },
+	plugins: [react(), tailwindcss()],
+	optimizeDeps: {
+		exclude: ["maplibre-gl"],
+	},
+	server: {
+		port: 5173,
+		proxy: {
+			"/uploads": {
+				target: "http://localhost:3000",
+				changeOrigin: true,
+			},
+		},
+	},
 });

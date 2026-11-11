@@ -1,0 +1,116 @@
+import type { BookingMemberStatus, BookingPaymentStatus, BookingStatus } from "../types";
+
+const currencyFormatter = new Intl.NumberFormat("vi-VN", {
+	style: "currency",
+	currency: "VND",
+	maximumFractionDigits: 0,
+});
+
+export function formatBookingMoney(value: string | null): string {
+	if (value === null) return "Chưa cập nhật";
+	if (!/^\d+(\.\d{1,2})?$/.test(value)) return value;
+	const amount = Number(value);
+	return Number.isFinite(amount) ? currencyFormatter.format(amount) : value;
+}
+
+export function formatBookingDateTime(value: string | null): string {
+	if (!value) return "Chưa cập nhật";
+	const date = new Date(value);
+	if (Number.isNaN(date.getTime())) return value;
+	return date.toLocaleString("vi-VN", {
+		day: "2-digit",
+		month: "2-digit",
+		year: "numeric",
+		hour: "2-digit",
+		minute: "2-digit",
+	});
+}
+
+const bookingStatusLabels: Record<BookingStatus, string> = {
+	pending_payment: "Chờ thanh toán",
+	pending_reconfirmation: "Chờ xác nhận lại",
+	confirmed: "Đã xác nhận",
+	cancelled: "Đã hủy",
+	expired: "Đã hết hạn",
+	completed: "Đã hoàn thành",
+};
+
+const paymentStatusLabels: Record<BookingPaymentStatus, string> = {
+	not_required: "Không yêu cầu thanh toán",
+	unpaid: "Chưa thanh toán",
+	paid: "Đã thanh toán",
+};
+
+const memberStatusLabels: Record<BookingMemberStatus, string> = {
+	registered: "Đã đăng ký",
+	removed: "Đã xóa",
+	joined: "Đã tham gia",
+	no_show: "Không tham gia",
+	left: "Đã rời chuyến",
+};
+
+export function formatBookingStatus(value: BookingStatus | null): string {
+	return value ? bookingStatusLabels[value] : "Chưa cập nhật";
+}
+
+export function formatPaymentStatus(value: BookingPaymentStatus | null): string {
+	return value ? paymentStatusLabels[value] : "Chưa cập nhật";
+}
+
+export function formatMemberStatus(value: BookingMemberStatus): string {
+	return memberStatusLabels[value];
+}
+
+interface CancellationPolicyRuleV1 {
+	minHoursBeforeTrip: number;
+	refundPercent: number;
+}
+
+function isCancellationPolicyRuleV1(value: unknown): value is CancellationPolicyRuleV1 {
+	if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+	const rule = value as Record<string, unknown>;
+	return (
+		typeof rule.minHoursBeforeTrip === "number" &&
+		Number.isFinite(rule.minHoursBeforeTrip) &&
+		rule.minHoursBeforeTrip >= 0 &&
+		typeof rule.refundPercent === "number" &&
+		Number.isFinite(rule.refundPercent) &&
+		rule.refundPercent >= 0 &&
+		rule.refundPercent <= 100
+	);
+}
+
+/** Formats persisted policy data (structured V1 rules or text policy) for display only; it does not evaluate cancellation eligibility. */
+export function formatCancellationPolicyRules(snapshot: unknown): string[] | null {
+	if (typeof snapshot === "string" && snapshot.trim()) {
+		return [snapshot.trim()];
+	}
+
+	if (typeof snapshot !== "object" || snapshot === null || Array.isArray(snapshot)) return null;
+	const policy = snapshot as Record<string, unknown>;
+
+	if (
+		policy.version === 1 &&
+		Array.isArray(policy.rules) &&
+		policy.rules.length > 0 &&
+		policy.rules.every(isCancellationPolicyRuleV1)
+	) {
+		return policy.rules.map((rule) => {
+			const timing =
+				rule.minHoursBeforeTrip === 0
+					? "Hủy trước giờ khởi hành"
+					: `Hủy trước ít nhất ${rule.minHoursBeforeTrip.toLocaleString("vi-VN")} giờ`;
+			return `${timing}: hoàn ${rule.refundPercent.toLocaleString("vi-VN")}% phần tiền đủ điều kiện.`;
+		});
+	}
+
+	if (typeof policy.policy === "string" && policy.policy.trim()) {
+		return [policy.policy.trim()];
+	}
+
+	if (typeof policy.description === "string" && policy.description.trim()) {
+		return [policy.description.trim()];
+	}
+
+	return null;
+}

@@ -1,0 +1,341 @@
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { useState } from "react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { AppRoutes } from "./AppRoutes";
+
+vi.mock("../features/auth/hooks/useSessionCheck", () => ({ useSessionCheck: () => false }));
+
+async function renderLazy(...args: Parameters<typeof render>) {
+	const result = render(...args);
+	await waitForPage();
+	return result;
+}
+
+async function waitForPage() {
+	await waitFor(() => {
+		expect(document.querySelector('[aria-busy="true"]')).toBeNull();
+	});
+}
+
+vi.mock("../features/trekking-routes/pages/CreateTrekkingRoutePage", () => ({
+	CreateTrekkingRoutePage: () => <div>Create Trekking Route Page</div>,
+}));
+vi.mock("../features/trekking-routes/pages/TrekkingRoutesPage", () => ({
+	TrekkingRoutesPage: () => <div>Trekking Routes Page</div>,
+}));
+vi.mock("../features/trips/pages/HostCampersPage", () => ({
+	HostCampersPage: ({
+		initialTripId,
+		onNavigateToTripDetail,
+	}: {
+		initialTripId?: string | null;
+		onNavigateToTripDetail?: (id: string) => void;
+	}) => (
+		<div>
+			<h1>Người tham gia & đặt chỗ</h1>
+			<p>Trip: {initialTripId ?? "none"}</p>
+			{onNavigateToTripDetail && (
+				<button type="button" onClick={() => onNavigateToTripDetail("trip-detail-123")}>
+					Xem chi tiết
+				</button>
+			)}
+		</div>
+	),
+}));
+
+vi.mock("../features/trips/hooks/usePorterRequests", () => ({
+	useMyPorterRequests: vi.fn(() => ({ data: [] })),
+}));
+
+vi.mock("../features/trips/pages/SearchTripsPage", () => ({
+	SearchTripsPage: ({
+		onBackHome,
+		onNavigateToTripDetail,
+	}: {
+		onBackHome?: () => void;
+		onNavigateToTripDetail: (tripId: string) => void;
+	}) => (
+		<div>
+			<h1>Khám phá chuyến đi</h1>
+			<button type="button" onClick={() => onNavigateToTripDetail("trip-123")}>
+				Chi tiết
+			</button>
+			{onBackHome && (
+				<button type="button" onClick={onBackHome}>
+					Trang chủ
+				</button>
+			)}
+		</div>
+	),
+}));
+
+vi.mock("../features/trips/pages/TripDetailPage", () => ({
+	TripDetailPage: ({
+		tripId,
+		onBackToList,
+		backLabel,
+		onBackHome,
+		bookingAccess,
+		showOperationalRoster,
+		onViewBookingDetails,
+	}: {
+		tripId: string;
+		onBackToList: () => void;
+		backLabel?: string;
+		onBackHome?: () => void;
+		bookingAccess?: string;
+		showOperationalRoster?: boolean;
+		onViewBookingDetails: (bookingId: string) => void;
+	}) => {
+		const [flowIsActive] = useState(true);
+		return (
+			<div>
+				<h1>Chi tiết chuyến đi</h1>
+				<p>Mã chuyến: {tripId}</p>
+				<p>Quyền đặt chỗ: {bookingAccess}</p>
+				<p data-testid="operational-roster-context">
+					{showOperationalRoster ? "operational" : "public"}
+				</p>
+				{showOperationalRoster && <section aria-label="Danh sách thành viên chuyến đi" />}
+				{flowIsActive && <p>Existing booking flow</p>}
+				<button type="button" onClick={onBackToList}>
+					{backLabel ?? "Quay lại danh sách chuyến đi"}
+				</button>
+				<button type="button" onClick={() => onViewBookingDetails("booking-from-trip")}>
+					Open booking from trip
+				</button>
+				{onBackHome && (
+					<button type="button" onClick={onBackHome}>
+						Trang chủ
+					</button>
+				)}
+			</div>
+		);
+	},
+}));
+
+vi.mock("../features/booking-members/pages/TripRosterPage", () => ({
+	TripRosterPage: ({ tripId, onBack }: { tripId: string; onBack: () => void }) => (
+		<div>
+			<h1>Điểm danh chuyến đi</h1>
+			<p>{tripId}</p>
+			<button type="button" onClick={onBack}>
+				Back to dashboard
+			</button>
+		</div>
+	),
+}));
+
+vi.mock("../features/booking-details/pages/BookingDetailsPage", () => ({
+	BookingDetailsPage: ({
+		bookingId,
+		onBack,
+		backLabel,
+	}: {
+		bookingId: string;
+		onBack: () => void;
+		backLabel?: string;
+	}) => (
+		<>
+			<h1>Booking detail {bookingId}</h1>
+			<button type="button" onClick={onBack}>
+				{backLabel}
+			</button>
+		</>
+	),
+}));
+
+vi.mock("../features/booking-list/pages/BookingListPage", () => ({
+	BookingListPage: ({ onViewDetails }: { onViewDetails: (bookingId: string) => void }) => (
+		<>
+			<h1>Booking list</h1>
+			<button type="button" onClick={() => onViewDetails("booking-456")}>
+				Open booking
+			</button>
+		</>
+	),
+}));
+
+describe("AppRoutes trip discovery and detail routing", () => {
+	beforeEach(() => {
+		localStorage.clear();
+		vi.clearAllMocks();
+		window.history.replaceState({}, "", "/trips");
+	});
+
+	it("renders SearchTripsPage when path is /trips", async () => {
+		await renderLazy(<AppRoutes />);
+
+		expect(screen.getByText("Khám phá chuyến đi")).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Chi tiết" })).toBeInTheDocument();
+	});
+
+	it("navigates to TripDetailPage when a trip is selected and back", async () => {
+		await renderLazy(<AppRoutes />);
+
+		expect(screen.getByText("Khám phá chuyến đi")).toBeInTheDocument();
+
+		const detailBtn = screen.getByRole("button", { name: "Chi tiết" });
+		await userEvent.click(detailBtn);
+		await waitForPage();
+
+		expect(window.location.pathname).toBe("/trips/trip-123");
+		expect(screen.getByText("Chi tiết chuyến đi")).toBeInTheDocument();
+		expect(screen.getByText("Mã chuyến: trip-123")).toBeInTheDocument();
+
+		const backBtn = screen.getByRole("button", { name: "Quay lại danh sách chuyến đi" });
+		await userEvent.click(backBtn);
+		await waitForPage();
+
+		expect(window.location.pathname).toBe("/trips");
+		expect(screen.getByText("Khám phá chuyến đi")).toBeInTheDocument();
+	});
+
+	it("renders TripDetailPage directly when path has /trips/:id", async () => {
+		window.history.replaceState({}, "", "/trips/trip-123");
+		await renderLazy(<AppRoutes />);
+
+		expect(screen.getByText("Chi tiết chuyến đi")).toBeInTheDocument();
+		expect(screen.getByText("Mã chuyến: trip-123")).toBeInTheDocument();
+		expect(screen.getByText("Quyền đặt chỗ: anonymous")).toBeInTheDocument();
+	});
+
+	it("passes Camper booking access for a signed-in Camper", async () => {
+		localStorage.setItem(
+			"authUser",
+			JSON.stringify({
+				id: "camper-1",
+				email: "camper@example.com",
+				phone: null,
+				role: "camper",
+				roles: ["camper"],
+				status: "active",
+				createdAt: "2026-01-01T00:00:00.000Z",
+			})
+		);
+		window.history.replaceState({}, "", "/trips/trip-123");
+		await renderLazy(<AppRoutes />);
+
+		expect(screen.getByText("Quyền đặt chỗ: camper")).toBeInTheDocument();
+	});
+
+	it("returns Host trip details opened from the dashboard to the dashboard", async () => {
+		localStorage.setItem(
+			"authUser",
+			JSON.stringify({
+				id: "host-1",
+				email: "host@example.com",
+				phone: null,
+				role: "host",
+				roles: ["host"],
+				status: "active",
+				createdAt: "2026-01-01T00:00:00.000Z",
+			})
+		);
+		window.history.replaceState({}, "", "/trips/trip-123?from=host-dashboard");
+		await renderLazy(<AppRoutes />);
+
+		expect(screen.getByRole("button", { name: "Quay về tổng quan vận hành" })).toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "Trang chủ" })).not.toBeInTheDocument();
+		await userEvent.click(screen.getByRole("button", { name: "Quay về tổng quan vận hành" }));
+		await waitForPage();
+		expect(window.location.pathname).toBe("/dashboard");
+	});
+
+	it("keeps the trip list as the back destination for Host trip details opened from trip discovery", async () => {
+		localStorage.setItem(
+			"authUser",
+			JSON.stringify({
+				id: "host-1",
+				email: "host@example.com",
+				phone: null,
+				role: "host",
+				roles: ["host"],
+				status: "active",
+				createdAt: "2026-01-01T00:00:00.000Z",
+			})
+		);
+		window.history.replaceState({}, "", "/trips/trip-123");
+		await renderLazy(<AppRoutes />);
+
+		expect(
+			screen.getByRole("button", { name: "Quay lại danh sách chuyến đi" })
+		).toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "Trang chủ" })).not.toBeInTheDocument();
+		await userEvent.click(screen.getByRole("button", { name: "Quay lại danh sách chuyến đi" }));
+		await waitForPage();
+		expect(window.location.pathname).toBe("/trips");
+	});
+});
+
+describe("AppRoutes operational roster routing", () => {
+	beforeEach(() => {
+		localStorage.clear();
+		vi.clearAllMocks();
+	});
+
+	it("shows the roster section in an owning Host Trip context", async () => {
+		localStorage.setItem(
+			"authUser",
+			JSON.stringify({
+				id: "host-1",
+				email: "host@example.com",
+				phone: null,
+				role: "host",
+				roles: ["host"],
+				status: "active",
+				createdAt: "2026-01-01T00:00:00.000Z",
+			})
+		);
+		window.history.replaceState({}, "", "/trips/trip-123");
+		await renderLazy(<AppRoutes />);
+
+		expect(
+			screen.getByRole("region", { name: "Danh sách thành viên chuyến đi" })
+		).toBeInTheDocument();
+	});
+
+	it("renders the dedicated operational roster route for a Porter", async () => {
+		localStorage.setItem(
+			"authUser",
+			JSON.stringify({
+				id: "porter-1",
+				email: "porter@example.com",
+				phone: null,
+				role: "porter",
+				roles: ["porter"],
+				status: "active",
+				createdAt: "2026-01-01T00:00:00.000Z",
+			})
+		);
+		window.history.replaceState({}, "", "/trips/trip-123?view=roster");
+		await renderLazy(<AppRoutes />);
+
+		expect(screen.getByRole("heading", { name: "Điểm danh chuyến đi" })).toBeInTheDocument();
+	});
+
+	it("renders HostCampersPage when path is /host/campers for a host", async () => {
+		localStorage.setItem(
+			"authUser",
+			JSON.stringify({
+				id: "host-1",
+				email: "host@example.com",
+				phone: null,
+				role: "host",
+				roles: ["host"],
+				status: "active",
+				createdAt: "2026-01-01T00:00:00.000Z",
+			})
+		);
+		window.history.replaceState({}, "", "/host/campers?tripId=trip-abc");
+		await renderLazy(<AppRoutes />);
+
+		expect(screen.getByRole("heading", { name: "Người tham gia & đặt chỗ" })).toBeInTheDocument();
+		expect(screen.getByText("Trip: trip-abc")).toBeInTheDocument();
+
+		await userEvent.click(screen.getByRole("button", { name: "Xem chi tiết" }));
+		await waitForPage();
+		expect(window.location.pathname).toBe("/trips/trip-detail-123");
+	});
+});

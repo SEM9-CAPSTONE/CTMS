@@ -1,116 +1,216 @@
-# Hướng Dẫn Git Workflow Chuẩn Dự Án
+# Git, Commit, PR, and Jira Workflow
 
-## 1. Cấu Hình Tối Ưu Ban Đầu
+This guide is the source of truth for creating branches, writing commits, linking work to Jira, and opening pull requests for CTMS.
 
-Chỉ cần chạy một lần trên máy cá nhân:
+## 1. One-Time Git Setup
+
+Run once on your machine:
 
 ```bash
 git config --global pull.ff only
 git config --global push.default current
 ```
 
-Nếu làm việc với nhánh `develop`, thiết lập upstream:
+If you work from `develop`, make sure it tracks the remote branch:
 
 ```bash
 git checkout develop
 git branch --set-upstream-to=origin/develop develop
 ```
 
-## 2. Quy Trình Làm Việc Hằng Ngày (Daily Workflow)
+## 2. Jira Key Rule
 
-Khi được giao một task/issue mới (ví dụ: làm tính năng có mã Issue `#123`):
+Every branch, commit, and pull request that implements or changes a Jira story/task must include the Jira key.
 
-### Bước 1: Cập nhật `develop` local mới nhất
+Valid examples:
 
-Trước khi bắt đầu code tính năng mới, hãy lấy code mới nhất từ dự án:
+```text
+CTMS-01
+CTMS-43
+CTMS-126
+```
+
+Use the story key when the work covers a story. Use the task key only when the task exists in Jira and is the direct implementation unit.
+
+## 3. Branch Naming
+
+Create branches from an updated `develop` branch:
 
 ```bash
 git checkout develop
 git pull
+git checkout -b feat/CTMS-01-register-account
 ```
 
-### Bước 2: Tạo nhánh phụ cho tính năng
+Allowed branch prefixes:
 
-Tạo một nhánh con tách ra từ nhánh `develop` sạch:
+```text
+feat/
+feature/
+fix/
+bugfix/
+hotfix/
+refactor/
+chore/
+docs/
+test/
+release/
+```
+
+Required format for Jira-backed work:
+
+```text
+<type>/<JIRA-KEY>-<short-kebab-description>
+```
+
+Examples:
+
+```text
+feat/CTMS-01-register-account
+fix/CTMS-43-payment-idempotency
+refactor/CTMS-06-role-guards
+docs/CTMS-01-jira-planning-specs
+test/CTMS-35-overcapacity-rollback
+```
+
+Release branches may use:
+
+```text
+release/1.0.0
+release/sprint-1-demo
+```
+
+## 4. Commit Message Standard
+
+Use Conventional Commits and include the Jira key in the scope:
+
+```text
+<type>(<JIRA-KEY>): <short imperative summary>
+```
+
+Examples:
+
+```text
+feat(CTMS-01): implement account registration
+fix(CTMS-43): prevent duplicate payment capture
+refactor(CTMS-06): centralize role guard checks
+docs(CTMS-01): update Jira planning specs
+test(CTMS-35): cover overcapacity transaction rollback
+```
+
+Allowed commit types:
+
+```text
+feat
+fix
+refactor
+docs
+test
+chore
+build
+ci
+perf
+style
+revert
+```
+
+For commits that span multiple Jira stories, prefer separate commits. If one commit must cover multiple keys, put the primary key in the scope and list the other keys in the body:
+
+```text
+docs(CTMS-01): update sprint planning references
+
+Related Jira: CTMS-02, CTMS-03, CTMS-04
+```
+
+## 5. Linking Commits and PRs to Jira
+
+Add a Jira reference in the commit body or PR description:
+
+```text
+Jira: https://thuha140105.atlassian.net/browse/CTMS-01
+```
+
+For multiple issues:
+
+```text
+Jira:
+- https://thuha140105.atlassian.net/browse/CTMS-01
+- https://thuha140105.atlassian.net/browse/CTMS-02
+```
+
+If the team uses Jira development panel automation, keeping the key in the branch, commit, and PR title helps Jira auto-link the work.
+
+## 6. Pull Request Standard
+
+PR title format:
+
+```text
+[CTMS-01] Register with email or phone number
+```
+
+PR description must include:
+
+- Jira key and Jira URL.
+- Summary of changes.
+- Type of change.
+- Scope.
+- Test evidence or a clear reason tests were not run.
+
+Before requesting review, run the relevant checks:
 
 ```bash
-# Đặt tên nhánh theo cấu trúc: [loại-nhánh]/[issue-id]-[mô-tả-ngắn]
-git checkout -b feature/123-them-thong-bao
+pnpm lint:all
+pnpm build:all
+pnpm test:all
 ```
 
-*Các loại nhánh phổ biến:* `feature/` (tính năng mới), `bugfix/` (sửa lỗi), `refactor/` (tái cấu trúc code), `hotfix/` (sửa lỗi gấp trên sản xuất).
+For documentation-only changes, full build/test may be skipped, but the changed files should still be reviewed for links, formatting, and CSV parseability when applicable.
 
-### Bước 3: Code và Commit
+## 7. Push and Open PR
 
-Thực hiện code trên nhánh phụ. Khi commit, áp dụng chuẩn **Conventional Commits**:
-
-```bash
-git add .
-git commit -m "feat: thêm tính năng gửi thông báo đơn hàng cho shipper
-
-- Tích hợp socket để gửi real-time notification
-- Cập nhật database lưu trạng thái đã đọc
-- Closes #123"
-```
-
-*Tiêu chuẩn viết Commit:*
-
-- `feat:` Tính năng mới.
-- `fix:` Sửa lỗi.
-- `refactor:` Tái cấu trúc code nhưng không đổi tính năng.
-- `docs:` Cập nhật tài liệu.
-
-### Bước 4: Đẩy nhánh phụ lên remote
+Push the current branch:
 
 ```bash
 git push
 ```
 
-Do đã cấu hình `push.default current` ở mục 1, nhánh mới sẽ tự động tạo và đẩy lên GitHub.
+Then open a PR into `develop`.
 
-### Bước 5: Tạo Pull Request (PR) & Gộp nhánh
+## 8. Common Cases
 
-1. Lên GitHub, mở Pull Request từ nhánh phụ của bạn vào nhánh `develop`.
-2. Chờ phê duyệt (approve) từ các thành viên khác.
-3. Nhấn **Merge Pull Request** trên giao diện web GitHub.
-4. Xóa nhánh phụ trên GitHub sau khi đã merge thành công.
-
----
-
-## 3. Cách Xử Lý Các Tình Huống Thường Gặp
-
-### A. Đồng bộ nhánh chính local bị lệch (Khi pull báo lỗi không thể fast-forward)
-
-Nếu bạn lỡ commit trực tiếp trên `develop` local làm nó bị lệch với trên GitHub, khi gõ `git pull` sẽ bị lỗi. Cách đưa `develop` local khớp hoàn toàn lại với GitHub:
+### Documentation-only Jira planning update
 
 ```bash
 git checkout develop
-git reset --hard origin/develop
+git pull
+git checkout -b docs/CTMS-01-jira-planning-specs
+git add docs/planning file/spec
+git commit -m "docs(CTMS-01): update Jira planning specs"
+git push
 ```
 
-> [!CAUTION]
-> Lệnh `git reset --hard` sẽ xóa sạch các file chưa commit và các commit local chưa push trên nhánh đó. Hãy chắc chắn bạn đã sao lưu hoặc cất giữ code cẩn thận trước khi chạy.
+Use this PR title:
 
-### B. Cất tạm thời các thay đổi chưa hoàn thành để chuyển nhánh (Stash)
+```text
+[CTMS-01] Update Jira planning specs
+```
 
-Nếu bạn đang code dở dang trên nhánh `feature/A` nhưng cần quay sang nhánh `develop` gấp để kiểm tra lỗi:
+### Fix linked to a Jira story
 
 ```bash
-# Cất code dở dang vào kho tạm
-git stash
-
-# Chuyển nhánh thoải mái
-git checkout develop
-
-# Sau khi xong việc, quay lại nhánh cũ và lấy code ra tiếp tục làm
-git checkout feature/A
-git stash pop
+git checkout -b fix/CTMS-43-payment-idempotency
+git add .
+git commit -m "fix(CTMS-43): prevent duplicate payment capture"
+git push
 ```
 
-### C. Khôi phục (Hủy bỏ) file đã chỉnh sửa chưa commit
+### Work without Jira
 
-Nếu bạn chỉnh sửa file lỗi và muốn đưa file đó trở lại trạng thái ban đầu:
+Avoid this for product work. If a change has no Jira item, use a clear non-product branch only when appropriate:
 
-```bash
-git restore duong/dan/toi/file.ts
+```text
+chore/no-jira-update-tooling
+docs/no-jira-readme-cleanup
 ```
+
+If the branch validator rejects a no-Jira branch, create or assign a Jira task first.

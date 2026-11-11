@@ -1,0 +1,201 @@
+<mxfile host="65bd71144e">
+    <diagram id="handle-content-reports" name="Handle Content Reports Sequence Diagram">
+        <mxGraphModel dx="942" dy="448" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="1060" background="#ffffff" math="0" shadow="0">
+            <root>
+                <mxCell id="0" />
+                <mxCell id="1" parent="0" />
+                <mxCell id="title" value="Handle Content Reports" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=18;fontStyle=1;fontColor=#000000;" parent="1" vertex="1">
+                    <mxGeometry x="275" y="15" width="800" height="30" as="geometry" />
+                </mxCell>
+                <mxCell id="actor" value="Admin" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontSize=12;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="65" y="65" width="30" height="60" as="geometry" />
+                </mxCell>
+                <mxCell id="ll_actor" value="" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;strokeColor=#000000;fillColor=none;strokeWidth=1;dashed=1;" parent="1" vertex="1">
+                    <mxGeometry x="80" y="150" width="1" height="820" as="geometry" />
+                </mxCell>
+                <mxCell id="ll_boundary" value="Content Reports Screen" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="200" y="75" width="150" height="900" as="geometry" />
+                </mxCell>
+                <mxCell id="act_boundary" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_boundary" vertex="1">
+                    <mxGeometry x="70" y="80" width="10" height="770" as="geometry" />
+                </mxCell>
+                <mxCell id="ll_controller" value="Content Reports Controller" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="430" y="75" width="150" height="900" as="geometry" />
+                </mxCell>
+                <mxCell id="act_controller" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_controller" vertex="1">
+                    <mxGeometry x="70" y="80" width="10" height="770" as="geometry" />
+                </mxCell>
+                <mxCell id="ll_service" value="Content Reports Service" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="660" y="75" width="150" height="900" as="geometry" />
+                </mxCell>
+                <mxCell id="act_service" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_service" vertex="1">
+                    <mxGeometry x="70" y="80" width="10" height="770" as="geometry" />
+                </mxCell>
+                <mxCell id="ll_model" value="Content Reports Model" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="890" y="75" width="150" height="900" as="geometry" />
+                </mxCell>
+                <mxCell id="act_model" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_model" vertex="1">
+                    <mxGeometry x="70" y="80" width="10" height="770" as="geometry" />
+                </mxCell>
+                <mxCell id="ll_db" value="PostgreSQL Database" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="1120" y="75" width="150" height="900" as="geometry" />
+                </mxCell>
+                <mxCell id="act_db" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;fillColor=#ffffff;strokeColor=#000000;" parent="ll_db" vertex="1">
+                    <mxGeometry x="70" y="80" width="10" height="770" as="geometry" />
+                </mxCell>
+                <mxCell id="msg1" value="1. Review Flagged Content And Submit Decision" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="80" y="160" as="sourcePoint" />
+                        <mxPoint x="270" y="160" as="targetPoint" />
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg2" value="2. Send Resolve Content Report Request" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="270" y="190" as="sourcePoint" />
+                        <mxPoint x="500" y="190" as="targetPoint" />
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg3" value="3. Validate Resolution Status DTO" style="html=1;align=left;spacingLeft=5;verticalAlign=middle;rounded=0;edgeStyle=orthogonalEdgeStyle;endArrow=classic;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="500" y="220" as="sourcePoint" />
+                        <mxPoint x="510" y="240" as="targetPoint" />
+                        <Array as="points">
+                            <mxPoint x="540" y="220" />
+                            <mxPoint x="540" y="240" />
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg4" value="4. Resolve Content Report" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="500" y="250" as="sourcePoint" />
+                        <mxPoint x="730" y="250" as="targetPoint" />
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg5" value="5. Find Report By Id" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="730" y="280" as="sourcePoint" />
+                        <mxPoint x="960" y="280" as="targetPoint" />
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg6" value="6. Query Content Reports Table" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="960" y="310" as="sourcePoint" />
+                        <mxPoint x="1190" y="310" as="targetPoint" />
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg7" value="7. Return Report Record" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="1190" y="340" as="sourcePoint" />
+                        <mxPoint x="960" y="340" as="targetPoint" />
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg8" value="8. Return Content Report" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="960" y="370" as="sourcePoint" />
+                        <mxPoint x="730" y="370" as="targetPoint" />
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg9" value="9. Verify Status Is Pending Review" style="html=1;align=left;spacingLeft=5;verticalAlign=middle;rounded=0;edgeStyle=orthogonalEdgeStyle;endArrow=classic;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="730" y="400" as="sourcePoint" />
+                        <mxPoint x="740" y="420" as="targetPoint" />
+                        <Array as="points">
+                            <mxPoint x="770" y="400" />
+                            <mxPoint x="770" y="420" />
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg10" value="10. Update Report Status And Resolution Note" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="730" y="430" as="sourcePoint" />
+                        <mxPoint x="960" y="430" as="targetPoint" />
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg11" value="11. Update Content Reports Set Status Resolved" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="960" y="460" as="sourcePoint" />
+                        <mxPoint x="1190" y="460" as="targetPoint" />
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg12" value="12. Confirm Report Resolution Persisted" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="1190" y="490" as="sourcePoint" />
+                        <mxPoint x="960" y="490" as="targetPoint" />
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg13" value="13. Return Resolved Report" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="960" y="520" as="sourcePoint" />
+                        <mxPoint x="730" y="520" as="targetPoint" />
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg14" value="14. Write Moderation Audit Log" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="730" y="550" as="sourcePoint" />
+                        <mxPoint x="960" y="550" as="targetPoint" />
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg15" value="15. Insert Audit Logs Table" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="960" y="580" as="sourcePoint" />
+                        <mxPoint x="1190" y="580" as="targetPoint" />
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg16" value="16. Confirm Audit Log Insert" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="1190" y="610" as="sourcePoint" />
+                        <mxPoint x="960" y="610" as="targetPoint" />
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg17" value="17. Return Resolution Data" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="730" y="640" as="sourcePoint" />
+                        <mxPoint x="500" y="640" as="targetPoint" />
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg18" value="18. Return 200 OK Response" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="500" y="670" as="sourcePoint" />
+                        <mxPoint x="270" y="670" as="targetPoint" />
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg19" value="19. Display Report Resolved Success" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="270" y="700" as="sourcePoint" />
+                        <mxPoint x="80" y="700" as="targetPoint" />
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg20" value="20.1. Throw Report Already Closed Exception" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="730" y="730" as="sourcePoint" />
+                        <mxPoint x="500" y="730" as="targetPoint" />
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg21" value="21.1. Return 409 Conflict" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="500" y="760" as="sourcePoint" />
+                        <mxPoint x="270" y="760" as="targetPoint" />
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="msg22" value="22.1. Show Report Closed Or Handled Alert" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=none;rounded=0;strokeColor=#000000;fontColor=#000000;fillColor=none;labelBackgroundColor=#ffffff;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="270" y="790" as="sourcePoint" />
+                        <mxPoint x="80" y="790" as="targetPoint" />
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="alt_frame_1" value="alt" style="shape=umlFrame;whiteSpace=wrap;html=1;strokeColor=#000000;fillColor=none;fontColor=#000000;width=45;height=25;" parent="1" vertex="1">
+                    <mxGeometry x="60" y="440" width="1250" height="300" as="geometry" />
+                </mxCell>
+                <mxCell id="cond_succ_1" value="[Report Status Is Pending Review]" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11;fontStyle=1;fontColor=#000000;" parent="1" vertex="1">
+                    <mxGeometry x="115" y="442" width="400" height="20" as="geometry" />
+                </mxCell>
+                <mxCell id="alt_divider_1" value="" style="line;strokeWidth=1;dashed=1;labelBackgroundColor=none;strokeColor=#000000;fontColor=#000000;fillColor=none;" parent="1" vertex="1">
+                    <mxGeometry x="60" y="625" width="1250" height="10" as="geometry" />
+                </mxCell>
+                <mxCell id="cond_fail_1" value="[Report Already Resolved Or Invalid Status]" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11;fontStyle=1;fontColor=#000000;" parent="1" vertex="1">
+                    <mxGeometry x="65" y="633" width="400" height="20" as="geometry" />
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

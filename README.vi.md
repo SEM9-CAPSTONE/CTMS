@@ -1,44 +1,117 @@
 # CTMS - Camping Site and Trekking Management System
 
-## Description
+[English version](README.md)
 
-CTMS (Camping Site and Trekking Management System) là hệ thống quản lý điểm cắm trại và trekking tích hợp Trợ lý Sinh tồn AI. Dự án hướng tới việc xây dựng một hệ sinh thái đồng bộ gồm ứng dụng di động cho camper/porter và web dashboard cho host nhằm hỗ trợ quản lý đặt chỗ, vận hành logistics, theo dõi trekking và điều phối an toàn trong các môi trường ngoài trời có rủi ro cao.
+## Mô tả
 
-Hệ thống tập trung vào các bài toán chính như chống overbooking bằng cơ chế khóa slot thời gian thực, quản lý tài nguyên cắm trại, theo dõi GPS khi mất kết nối, cảnh báo lệch tuyến offline, đánh giá rủi ro thời tiết bằng thuật toán rule-based và cung cấp hướng dẫn sinh tồn/first-aid thông qua AI Survival Assistant có khả năng tiền tải dữ liệu để sử dụng ngoại tuyến.
+CTMS (Camping Site and Trekking Management System) là nền tảng vận hành campsite và trekking theo hướng safety-first, gồm ứng dụng mobile cho Camper/Porter, dashboard web cho Host/Admin và AI Survival Assistant phục vụ an toàn ngoài trời.
 
-## Purpose
+Baseline sản phẩm hiện tại là **Product Backlog v3.1**. Camper tìm kiếm và đặt published Trip. Host/Admin quản lý Campsite, Route nội bộ, checkpoint, hazard area, Trip, booking, equipment, porter, weather risk, offline safety package, realtime safety tracking, financial settlement, audit, report và safety analytics.
 
-Mục tiêu của dự án là tạo ra một nền tảng phần mềm đa nền tảng giúp campsite host vận hành hiệu quả hơn và giúp trekker/camper an toàn hơn khi tham gia hoạt động ở khu vực hoang dã hoặc nơi kết nối mạng không ổn định.
+## Domain Baseline v3.1
 
-Cụ thể, CTMS hướng đến:
+Chuỗi vận hành chính:
 
-- Cung cấp quy trình đặt chỗ trực quan, hạn chế xung đột booking và ngăn đặt trùng slot bằng Redis lock và kiểm tra toàn vẹn dữ liệu.
-- Hỗ trợ host quản lý layout khu cắm trại, inventory, trekking checkpoints, porter assignment và trạng thái check-in/check-out.
-- Cung cấp ứng dụng mobile offline-first cho camper/porter với bản đồ tải trước, GPS tracking, cảnh báo lệch tuyến và cơ chế buffer/sync dữ liệu.
-- Xây dựng AI Survival Assistant sử dụng survival knowledge base, RAG/LLM và dữ liệu tiền tải để hỗ trợ tra cứu hướng dẫn sinh tồn khi không có mạng.
-- Đánh giá rủi ro tuyến đường dựa trên các yếu tố thời tiết như mưa, gió, nhiệt độ, tầm nhìn và sinh cảnh báo an toàn dễ hiểu cho người dùng.
-- Đảm bảo cảnh báo khẩn cấp thời gian thực qua WebSocket với độ trễ thấp cho các thiết bị đang kết nối.
+```text
+Campsite / Operating Area
+  -> Route
+  -> Trip
+  -> Booking
+  -> Booking Member
+```
 
-## Expected Core Features
+Chuỗi safety và offline:
 
-- User Authentication & Role-Based Access Control cho các vai trò Camper, Host và Porter.
-- Real-time booking và anti-overbooking slot lock.
-- Local navigation và GPS deviation alerting.
-- Offline survival pre-cache package.
-- Asynchronous trekker tracking với cơ chế buffer & sync.
-- Rule-based weather risk assessment kết hợp LLM advisories.
-- WebSocket emergency broadcasts.
-- Host logistics và trail management dashboard.
-- QR check-in/check-out verification.
+```text
+Route + Checkpoints + Hazards + Survival Content
+  -> Offline Safety Package
+  -> Trip Safety Session
+  -> GPS Logs / Safety Events / SOS / Incidents
+  -> Sync + Realtime Monitoring
+  -> Safety Analytics / Hotspot Review / Package Versioning
+```
 
-## Proposed Tech Stack
+Chuỗi tài chính:
 
-- Frontend web: ReactJS
-- Mobile: React Native hoặc Flutter
-- Backend: NodeJS, Express
-- Database: PostgreSQL, Redis
-- Real-time communication: WebSocket hoặc Socket.io
-- AI/NLP: Python, LLM, RAG, prompt engineering
-- Maps: Leaflet hoặc Mapbox
+```text
+Booking Payment
+  -> Held Funds
+  -> Refund / Complaint Window
+  -> Settlement
+  -> Platform Fee
+  -> Host Payout
+  -> Reconciliation / Adjustment
+```
+
+Chuỗi AI:
+
+```text
+Curated Survival Documents
+  -> Knowledge Chunks
+  -> RAG Retrieval
+  -> AI Answer / Sources / Feedback / Moderation
+```
+
+Trekking Route là tài nguyên geospatial và safety nội bộ có thể tái sử dụng. Camper không browse hoặc book Route trực tiếp. Camper discover và book published Trip.
+
+## Nguyên tắc active v3.1
+
+- Product Backlog v3.1 là nguồn scope chính cho story; behavior chi tiết nằm trong `file/spec`.
+- Business Rules phải được hiện thực thành validation, authorization, state, transaction, audit, notification và test behavior có thể thực thi.
+- Trip là đơn vị public booking; Route là tài nguyên vận hành nội bộ.
+- Trip capacity được kiểm soát transactionally ở cấp Trip.
+- Porter Assignment là nguồn authoritative cho lịch Porter và phải chống work-range conflict/concurrent commit.
+- Offline Safety Package có version và lưu đủ context để diễn giải GPS/safety history.
+- Ongoing Trip không hot-update active Offline Safety Package trong v3.1.
+- AI/RAG chỉ mang tính advisory và không được override hard rule, authoritative state, payment state, safety state hoặc authorization.
+- Booking payment, refund, held funds, settlement, platform fee, payout và reconciliation phải dựa trên ledger và audit được.
+- Safety analytics có thể đề xuất hotspot, nhưng chỉ hotspot đã review/confirm mới được dùng để thay đổi authoritative safety data.
+
+## Mục tiêu
+
+CTMS giúp đơn vị vận hành outdoor publish trekking experience an toàn, đồng thời cho Camper một luồng booking và chuẩn bị safety rõ ràng. Hệ thống tập trung vào:
+
+- Quản lý Campsite, Route, Trip, Booking, Booking Member và Porter theo phân quyền.
+- Route checkpoint, hazard area và versioned offline safety package.
+- Lập kế hoạch Trip bằng waypoint, kiểm soát capacity, phê duyệt, publish, hủy và revalidate Trip.
+- Booking, payment, refund, settlement, payout, reconciliation, member check-in, equipment và logistics.
+- Weather risk dựa trên weather factors và configurable rules.
+- Offline navigation, GPS tracking, route deviation detection, checkpoint detection, sync batches, SOS/incident handling và realtime monitoring.
+- AI Survival Assistant, RAG source visibility, feedback, unsafe report handling và advisory analytics.
+- Safety evaluation, reporting, route deviation analytics, hotspot review và publishing offline package version mới.
+
+## Cấu trúc dự án
+
+```text
+ctms/
+├── apps/
+│   ├── web/                     # Web dashboard React + Vite + TypeScript
+│   └── mobile/                  # Mobile app Flutter cho Camper và Porter
+├── services/
+│   ├── api/                     # Backend API NestJS
+│   └── ai/                      # Dịch vụ AI/RAG Python
+├── docs/                        # Tài liệu architecture, planning, design
+├── file/spec/                   # Active CTMS story specs theo PB v3.1
+├── file/spec/archived/          # Specs đã retired, giữ lại để tra lịch sử
+├── scripts/                     # Automation scripts
+└── package.json                 # Root scripts và dependencies
+```
+
+## Tech Stack
+
+- Web Frontend: React, Vite, TypeScript, Tailwind CSS, Lucide Icons, Leaflet, Socket.io client
+- Mobile: Flutter, Riverpod, go_router, Dio, Freezed/json_serializable, flutter_secure_storage, intl
+- Backend: NestJS, TypeScript
+- Database: PostgreSQL/PostGIS
+- Cache/session support: Redis khi phù hợp, nhưng không là authoritative ledger cho booking, funds hoặc safety
+- Real-time Communication: Socket.io qua NestJS WebSocket Gateway
+- AI/RAG: Python, FastAPI, LLM, retrieval-augmented generation, safety guardrails
+- Maps and Navigation: Leaflet / Mapbox-compatible map stack
 - Deployment: AWS EC2, Docker, Nginx, GitHub Actions
-- API documentation/testing: Swagger/OpenAPI, Postman
+- API Documentation and Testing: Swagger/OpenAPI, Postman
+
+## Tài liệu
+
+- `docs/ARCHITECTURE.md`: baseline architecture cho PB v3.1.
+- `docs/design/`: design system và Figma inventory.
+- `file/spec/`: active story specs, map theo PB v3.1 và Business Rules đã materialize.

@@ -28,17 +28,15 @@ Member cần cài các công cụ sau:
 - Node.js `>= 20`
 - pnpm `>= 9`
 - Docker Desktop
-- Python `>= 3.12`
-- uv cho Python environment
+- Python 3.12 và uv khi phát triển AI trực tiếp trên máy
 
-Kiểm tra nhanh:
+Kiểm tra công cụ cho `dev:quick`.
 
-````bash
+```bash
 node --version
 pnpm --version
 docker --version
-python --version
-uv --version
+```
 
 ### 2. Setup lần đầu
 
@@ -46,14 +44,14 @@ Chạy từ root project:
 
 ```bash
 pnpm install
-````
+```
 
 ### 3. Chạy database và cache
 
 Backend sẽ cần PostgreSQL và Redis khi bắt đầu làm các chức năng thật như authentication, booking, slot lock, tracking hoặc cache.
 
 ```bash
-docker compose up -d postgres redis
+pnpm dev:infra
 ```
 
 Kiểm tra container:
@@ -62,7 +60,7 @@ Kiểm tra container:
 docker compose ps
 ```
 
-Nếu `postgres` và `redis` đang chạy hoặc healthy thì không cần chạy lại Docker ở mỗi lần dev. Các lần sau thường chỉ cần chạy app bằng pnpm.
+`pnpm dev:infra` tự kiểm tra Docker Engine, khởi động Docker Desktop nếu cần, chờ tối đa 120 giây để Engine sẵn sàng, rồi bật PostgreSQL, Redis và Adminer và chờ database/cache healthy. Máy cần cài Docker Desktop có hỗ trợ lệnh `docker desktop start`. `pnpm dev:quick` tự gọi bước này nên không cần mở ứng dụng trước hay chạy riêng lệnh hạ tầng. `pnpm dev:api` và `pnpm dev:web` cũng tự kiểm tra và khởi động Docker trước khi build.
 
 ### 4. Chạy API và Web nhanh
 
@@ -72,32 +70,47 @@ Lệnh thường dùng nhất khi dev backend + frontend:
 pnpm dev:quick
 ```
 
-Lệnh này chạy cùng lúc:
+Lệnh này bật PostgreSQL, Redis và Adminer, dừng container API và Web để giải phóng cổng, rồi build và chờ AI phản hồi tại `/health`. AI chạy bằng Python 3.12 trong Docker. Sau đó NestJS API và React Web Dashboard chạy local với hot reload.
 
-- NestJS API
-- ReactJS Web Dashboard
+Đặt cấu hình dùng chung của API và AI trong `.env` ở thư mục gốc. API local kết nối tới AI qua `AI_SERVICE_URL=http://localhost:8000`.
 
 Các URL kiểm tra:
 
 ```text
 Web: http://localhost:5173
 API Health: http://localhost:3000/api/health
+AI Health: http://localhost:8000/health
 Swagger: http://localhost:3000/api/docs
+Adminer: http://localhost:8081
 ```
 
 ### 5. Chạy từng phần riêng
 
-Chạy API:
+Build và chạy API bằng `infra/docker/api.Dockerfile`, kèm PostgreSQL, Redis và Adminer:
 
 ```bash
 pnpm dev:api
 ```
 
-Chạy Web:
+Lệnh này chạy container ở nền. Xem log bằng `docker compose logs -f api`; sau khi sửa code, chạy lại `pnpm dev:api` để build lại. Dừng API local bằng Ctrl+C trước khi chuyển sang API Docker để tránh trùng cổng 3000.
+
+Nếu chỉ muốn chạy API local ở chế độ watch:
+
+```bash
+pnpm dev:infra
+docker compose stop api
+pnpm dev:api:local
+```
+
+Build và chạy Web bằng `infra/docker/web.Dockerfile`, kèm API, PostgreSQL, Redis và Adminer:
 
 ```bash
 pnpm dev:web
 ```
+
+Web Docker: http://localhost:5173. Lệnh chạy ở nền; sau khi sửa code, chạy lại `pnpm dev:web` để build lại. Dừng API/Web local bằng Ctrl+C trước khi chuyển sang Docker để tránh trùng cổng 3000 và 5173.
+
+Chạy riêng Web local ở chế độ hot reload bằng `pnpm dev:web:local` (dừng container Web bằng `docker compose stop web` trước nếu đang chạy).
 
 Chạy Mobile:
 
@@ -105,11 +118,12 @@ Chạy Mobile:
 pnpm dev:mobile
 ```
 
-Chạy AI service:
+Khi cần hot reload cho AI, dừng container AI rồi chạy service trực tiếp trên máy.
 
 ```bash
+docker compose stop ai
 cd services/ai
-uv venv
+uv venv --python 3.12
 .\.venv\Scripts\activate
 uv pip install -r requirements.txt
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
@@ -128,11 +142,10 @@ Không phải lúc nào cũng cần chạy toàn bộ Docker.
 Khi dev bình thường, nên chạy:
 
 ```bash
-docker compose up -d postgres redis
 pnpm dev:quick
 ```
 
-Tức là PostgreSQL và Redis chạy bằng Docker, còn API và Web chạy local để hot reload nhanh hơn.
+PostgreSQL, Redis, Adminer và AI chạy bằng Docker. Ctrl+C dừng API và Web local. Dừng các container bằng `docker compose stop postgres redis adminer ai` khi không cần nữa.
 
 Chỉ chạy full Docker khi muốn kiểm tra gần giống môi trường deploy:
 
@@ -154,6 +167,7 @@ URL khi chạy full Docker:
 ```text
 Web qua container: http://localhost:5173
 Nginx gateway: http://localhost:8080
+Adminer: http://localhost:8081
 API: http://localhost:3000/api/health
 AI: http://localhost:8000/health
 ```
@@ -218,10 +232,13 @@ pnpm test:all
 
 Ý nghĩa:
 
-- `pnpm dev:quick`: chạy nhanh API và Web cùng lúc.
-- `pnpm dev:api`: chạy NestJS API ở chế độ watch.
-- `pnpm dev:web`: chạy React web dashboard.
-- `pnpm dev:mobile`: chạy Expo mobile app.
+- `pnpm dev:quick` bật hạ tầng và AI trong Docker rồi chạy API và Web local ở chế độ watch.
+- `pnpm dev:infra`: bật PostgreSQL, Redis, Adminer và chờ sẵn sàng.
+- `pnpm dev:api`: build và chạy API Docker, kèm PostgreSQL, Redis và Adminer.
+- `pnpm dev:api:local`: chạy NestJS API local ở chế độ watch.
+- `pnpm dev:web`: build và chạy Web Docker, kèm API, PostgreSQL, Redis và Adminer.
+- `pnpm dev:web:local`: chạy React web dashboard local có hot reload.
+- `pnpm dev:mobile`: chạy Flutter mobile app (tương đương `cd apps/mobile && flutter run`).
 - `pnpm lint:all`: chạy lint cho các workspace có script `lint`.
 - `pnpm build:all`: build các workspace có script `build`.
 - `pnpm test:all`: chạy test cho các workspace có script `test`.
@@ -248,23 +265,27 @@ pnpm --filter @ctms/web lint
 
 ## apps/mobile
 
-React Native mobile app dùng Expo, dành cho camper và porter.
+Flutter mobile app dành cho camper và porter — 1 codebase, điều hướng theo role sau đăng nhập (xem `lib/core/router/app_router.dart`). Không thuộc pnpm workspace (không có `package.json`), quản lý dependency qua `pubspec.yaml`.
+
+Kiến trúc: Riverpod (state/DI) + Clean Architecture theo feature (`domain/` thuần Dart, `data/` gọi API, `application/` chứa Riverpod controller, `presentation/` chứa UI).
 
 Các phần sẽ làm việc chính:
 
-- `apps/mobile/App.tsx`: entry UI hiện tại của mobile app.
-- `apps/mobile/app.json`: cấu hình Expo.
-- `apps/mobile/tsconfig.json`: cấu hình TypeScript cho mobile.
+- `apps/mobile/lib/main.dart`, `lib/app.dart`: entry point, wiring theme + router.
+- `apps/mobile/lib/core/`: hạ tầng dùng chung (api client, router, theme, storage, env).
+- `apps/mobile/lib/features/auth/`: đăng nhập + khôi phục phiên (đăng ký 3 bước theo role còn là placeholder, để sprint sau).
+- `apps/mobile/lib/features/camper/`, `apps/mobile/lib/features/porter/`: shell điều hướng theo role (bottom navigation), các tab tính năng còn là "Sắp ra mắt" chờ đúng sprint.
+- `apps/mobile/pubspec.yaml`: khai báo dependency (flutter_riverpod, go_router, dio, freezed, flutter_secure_storage...).
 
 Scripts:
 
 ```bash
-pnpm --filter @ctms/mobile start
-pnpm --filter @ctms/mobile android
-pnpm --filter @ctms/mobile ios
-pnpm --filter @ctms/mobile web
-pnpm --filter @ctms/mobile build
-pnpm --filter @ctms/mobile lint
+cd apps/mobile
+flutter pub get
+flutter run
+flutter analyze
+flutter test
+flutter pub run build_runner build --delete-conflicting-outputs   # sau khi sửa model dùng freezed/json_serializable
 ```
 
 ## services/api

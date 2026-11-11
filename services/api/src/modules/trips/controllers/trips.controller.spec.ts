@@ -1,0 +1,382 @@
+import { ROLES_KEY } from "../../auth/decorators/roles.decorator";
+import type { AuthenticatedUser } from "../../auth/jwt.strategy";
+import { UserRole, UserStatus } from "../../users/entities/user.entity";
+import {
+	type AvailablePortersQueryDto,
+	IntendedPorterRole,
+} from "../dto/available-porters-query.dto";
+import type { CreatePorterRequestDto } from "../dto/create-porter-request.dto";
+import type { ConfigureTripWaypointsDto, CreateTripDto } from "../dto/create-trip.dto";
+import { TripReviewOutcome } from "../dto/list-trip-reviews-query.dto";
+import { ReviewTripAction, type ReviewTripDto } from "../dto/review-trip.dto";
+import type { SearchTripsQueryDto } from "../dto/search-trips-query.dto";
+import type { PaginatedTripsResponseDto, TripResponseDto } from "../dto/trip-response.dto";
+import { PorterRequestStatus } from "../entities/porter-request.entity";
+import { TripStatus, TripType } from "../entities/trip.entity";
+import type { AvailablePortersService } from "../services/available-porters.service";
+import type { PorterRequestsService } from "../services/porter-requests.service";
+import type { TripRouteMapService } from "../services/trip-route-map.service";
+import type { TripsService } from "../services/trips.service";
+import { TripsController } from "./trips.controller";
+
+const TRIP_ID = "33333333-3333-4333-8333-333333333333";
+const USER_ID = "88888888-8888-4888-8888-888888888888";
+
+const MOCK_USER: AuthenticatedUser = {
+	userId: USER_ID,
+	roles: [UserRole.CAMPER],
+	status: UserStatus.ACTIVE,
+};
+
+describe("TripsController", () => {
+	let tripsService: {
+		search: jest.Mock;
+		getTripDetails: jest.Mock;
+		create: jest.Mock;
+		updateDraft: jest.Mock;
+		configureWaypoints: jest.Mock;
+		listPendingReview: jest.Mock;
+		listAdminReviews: jest.Mock;
+		review: jest.Mock;
+	};
+	let availablePortersService: { search: jest.Mock };
+	let porterRequestsService: { create: jest.Mock; findPending: jest.Mock };
+	let checkpointVisitsService: {
+		confirmCheckpointArrival: jest.Mock;
+		syncCheckpointArrivals: jest.Mock;
+		getTripOperationalProgress: jest.Mock;
+	};
+	let controller: TripsController;
+
+	beforeEach(() => {
+		tripsService = {
+			search: jest.fn(),
+			getTripDetails: jest.fn(),
+			create: jest.fn(),
+			updateDraft: jest.fn(),
+			configureWaypoints: jest.fn(),
+			listPendingReview: jest.fn(),
+			listAdminReviews: jest.fn(),
+			review: jest.fn(),
+		};
+		availablePortersService = { search: jest.fn() };
+		porterRequestsService = { create: jest.fn(), findPending: jest.fn() };
+		checkpointVisitsService = {
+			confirmCheckpointArrival: jest.fn(),
+			syncCheckpointArrivals: jest.fn(),
+			getTripOperationalProgress: jest.fn(),
+		};
+		controller = new TripsController(
+			tripsService as unknown as TripsService,
+			availablePortersService as unknown as AvailablePortersService,
+			porterRequestsService as unknown as PorterRequestsService,
+			{ getBookedTripMap: jest.fn() } as unknown as TripRouteMapService,
+			checkpointVisitsService as unknown as CheckpointVisitsService
+		);
+	});
+
+	describe("search", () => {
+		it("delegates to TripsService.search with query and the viewer", async () => {
+			const mockResult: PaginatedTripsResponseDto = {
+				items: [],
+				pagination: { page: 1, limit: 20, total: 0, totalPages: 0 },
+			};
+			tripsService.search.mockResolvedValue(mockResult);
+
+			const query: SearchTripsQueryDto = { page: 1, limit: 20 };
+			const result = await controller.search(query, {
+				user: { userId: "camper-1" },
+			} as Parameters<typeof controller.search>[1]);
+
+			expect(tripsService.search).toHaveBeenCalledWith(query, "camper-1");
+			expect(result).toBe(mockResult);
+		});
+	});
+
+	describe("getAvailablePorters", () => {
+		it("delegates the owning Host, Trip, and filters to AvailablePortersService", async () => {
+			const query: AvailablePortersQueryDto = {
+				role: IntendedPorterRole.SUPPORT,
+				page: 1,
+				limit: 20,
+			};
+			const response = {
+				items: [],
+				pagination: { page: 1, limit: 20, total: 0, totalPages: 0 },
+			};
+			availablePortersService.search.mockResolvedValue(response);
+
+			const result = await controller.getAvailablePorters(
+				{ user: MOCK_USER },
+				{ tripId: TRIP_ID },
+				query
+			);
+
+			expect(availablePortersService.search).toHaveBeenCalledWith(USER_ID, TRIP_ID, query);
+			expect(result).toBe(response);
+		});
+	});
+
+	describe("createPorterRequest", () => {
+		it("delegates the owning Host, Trip, Porter, role, and note to PorterRequestsService", async () => {
+			const dto: CreatePorterRequestDto = {
+				porterId: "55555555-5555-4555-8555-555555555555",
+				requestedRole: IntendedPorterRole.LEAD,
+				note: "Lead river crossing",
+			};
+			const response = {
+				id: "99999999-9999-4999-8999-999999999999",
+				tripId: TRIP_ID,
+				porterId: dto.porterId,
+				requestedBy: USER_ID,
+				requestedRole: dto.requestedRole,
+				note: dto.note,
+				status: PorterRequestStatus.PENDING,
+				expiresAt: new Date("2035-01-09T00:00:00.000Z"),
+				respondedAt: null,
+				createdAt: new Date("2035-01-01T00:00:00.000Z"),
+				updatedAt: new Date("2035-01-01T00:00:00.000Z"),
+			};
+			porterRequestsService.create.mockResolvedValue(response);
+
+			const result = await controller.createPorterRequest(
+				{ user: MOCK_USER },
+				{ tripId: TRIP_ID },
+				dto
+			);
+
+			expect(porterRequestsService.create).toHaveBeenCalledWith(USER_ID, TRIP_ID, dto);
+			expect(result).toBe(response);
+		});
+	});
+
+	describe("getPendingPorterRequest", () => {
+		it("delegates the owning Host, Trip, and Porter to PorterRequestsService", async () => {
+			const porterId = "55555555-5555-4555-8555-555555555555";
+			const response = {
+				id: "99999999-9999-4999-8999-999999999999",
+				tripId: TRIP_ID,
+				porterId,
+				requestedBy: USER_ID,
+				requestedRole: IntendedPorterRole.SUPPORT,
+				note: null,
+				status: PorterRequestStatus.PENDING,
+				expiresAt: new Date("2035-01-09T00:00:00.000Z"),
+				respondedAt: null,
+				createdAt: new Date("2035-01-01T00:00:00.000Z"),
+				updatedAt: new Date("2035-01-01T00:00:00.000Z"),
+			};
+			porterRequestsService.findPending.mockResolvedValue(response);
+
+			const result = await controller.getPendingPorterRequest(
+				{ user: MOCK_USER },
+				{ tripId: TRIP_ID },
+				{ porterId }
+			);
+
+			expect(porterRequestsService.findPending).toHaveBeenCalledWith(USER_ID, TRIP_ID, porterId);
+			expect(result).toBe(response);
+		});
+	});
+
+	describe("getTripDetails", () => {
+		it("delegates to TripsService.getTripDetails with user and tripId", async () => {
+			const mockTrip: Partial<TripResponseDto> = {
+				id: TRIP_ID,
+				title: "Mountain Trek",
+				status: TripStatus.PUBLISHED,
+				isBookable: true,
+			};
+			tripsService.getTripDetails.mockResolvedValue(mockTrip as TripResponseDto);
+
+			const result = await controller.getTripDetails({ user: MOCK_USER }, { tripId: TRIP_ID });
+
+			expect(tripsService.getTripDetails).toHaveBeenCalledWith(MOCK_USER, TRIP_ID);
+			expect(result).toBe(mockTrip);
+		});
+	});
+
+	describe("create", () => {
+		it("delegates to TripsService.create with hostId and dto", async () => {
+			const dto: CreateTripDto = {
+				routeId: "22222222-2222-4222-8222-222222222222",
+				title: "Trip Title",
+				tripType: TripType.DAY_TRIP,
+				startsAt: "2026-09-20T01:00:00.000Z",
+				endsAt: "2026-09-20T10:00:00.000Z",
+				meetingPoint: { type: "Point", coordinates: [108.44, 11.94] },
+				bookingDeadline: "2026-09-19T12:00:00.000Z",
+				capacityMin: 2,
+				pricePerPerson: 100000,
+				waypoints: [],
+			};
+			const mockCreated: Partial<TripResponseDto> = { id: TRIP_ID, title: "Trip Title" };
+			tripsService.create.mockResolvedValue(mockCreated as TripResponseDto);
+
+			const result = await controller.create({ user: MOCK_USER }, dto);
+
+			expect(tripsService.create).toHaveBeenCalledWith(USER_ID, dto);
+			expect(result).toBe(mockCreated);
+		});
+	});
+
+	describe("configureWaypoints", () => {
+		it("delegates to TripsService.configureWaypoints with hostId, tripId, and dto", async () => {
+			const dto: ConfigureTripWaypointsDto = { waypoints: [] };
+			const mockConfigured: Partial<TripResponseDto> = {
+				id: TRIP_ID,
+				status: TripStatus.PENDING_APPROVAL,
+			};
+			tripsService.configureWaypoints.mockResolvedValue(mockConfigured as TripResponseDto);
+
+			const result = await controller.configureWaypoints(
+				{ user: MOCK_USER },
+				{ tripId: TRIP_ID },
+				dto
+			);
+
+			expect(tripsService.configureWaypoints).toHaveBeenCalledWith(USER_ID, TRIP_ID, dto);
+			expect(result).toBe(mockConfigured);
+		});
+	});
+
+	describe("updateDraft", () => {
+		it("delegates to TripsService.updateDraft with hostId, tripId, and dto", async () => {
+			const dto: CreateTripDto = {
+				routeId: "22222222-2222-4222-8222-222222222222",
+				title: "Updated Trip",
+				tripType: TripType.DAY_TRIP,
+				startsAt: "2026-09-20T01:00:00.000Z",
+				endsAt: "2026-09-20T10:00:00.000Z",
+				meetingPoint: { type: "Point", coordinates: [108.44, 11.94] },
+				bookingDeadline: "2026-09-19T12:00:00.000Z",
+				capacityMin: 2,
+				pricePerPerson: 100000,
+				waypoints: [],
+			};
+			const mockUpdated: Partial<TripResponseDto> = { id: TRIP_ID, title: "Updated Trip" };
+			tripsService.updateDraft.mockResolvedValue(mockUpdated as TripResponseDto);
+
+			const result = await controller.updateDraft({ user: MOCK_USER }, { tripId: TRIP_ID }, dto);
+
+			expect(tripsService.updateDraft).toHaveBeenCalledWith(USER_ID, TRIP_ID, dto);
+			expect(result).toBe(mockUpdated);
+		});
+	});
+
+	describe("listPendingReview", () => {
+		it("delegates to TripsService.listPendingReview with no arguments", async () => {
+			const mockPending: Array<Partial<TripResponseDto>> = [
+				{ id: TRIP_ID, status: TripStatus.PENDING_APPROVAL },
+			];
+			tripsService.listPendingReview.mockResolvedValue(mockPending);
+
+			const result = await controller.listPendingReview();
+
+			expect(tripsService.listPendingReview).toHaveBeenCalledWith();
+			expect(result).toBe(mockPending);
+		});
+	});
+
+	describe("listAdminReviews", () => {
+		it("delegates validated filters and remains Admin-only", async () => {
+			const query = { reviewOutcome: TripReviewOutcome.AUTO_REJECTED, page: 2, limit: 10 };
+			tripsService.listAdminReviews.mockResolvedValue({
+				items: [],
+				pagination: { page: 2, limit: 10, total: 0, totalPages: 0 },
+			});
+
+			await controller.listAdminReviews(query);
+
+			expect(tripsService.listAdminReviews).toHaveBeenCalledWith(query);
+			expect(Reflect.getMetadata(ROLES_KEY, TripsController.prototype.listAdminReviews)).toEqual([
+				UserRole.ADMIN,
+			]);
+		});
+	});
+
+	describe("review", () => {
+		it("delegates to TripsService.review with adminId, tripId, and dto", async () => {
+			const dto: ReviewTripDto = {
+				action: ReviewTripAction.APPROVE,
+				reviewedUpdatedAt: "2026-09-15T00:00:00.000Z",
+			};
+			const mockReviewed: Partial<TripResponseDto> = { id: TRIP_ID, status: TripStatus.PUBLISHED };
+			tripsService.review.mockResolvedValue(mockReviewed as TripResponseDto);
+
+			const result = await controller.review({ user: MOCK_USER }, { tripId: TRIP_ID }, dto);
+
+			expect(tripsService.review).toHaveBeenCalledWith(USER_ID, TRIP_ID, dto);
+			expect(result).toBe(mockReviewed);
+		});
+	});
+	describe("confirmCheckpointArrival (CTMS-056 / BR-234)", () => {
+		it("delegates to CheckpointVisitsService.confirmCheckpointArrival with porterId, tripId, checkpointId, and dto", async () => {
+			const mockProgress = {
+				tripId: TRIP_ID,
+				visitedCheckpoints: 1,
+			} as unknown as TripOperationalProgressResponseDto;
+			checkpointVisitsService.confirmCheckpointArrival.mockResolvedValue(mockProgress);
+			const dto: ConfirmCheckpointArrivalDto = { arrivedAt: "2026-10-24T12:00:00.000Z" };
+
+			const result = await controller.confirmCheckpointArrival(
+				{ user: { ...MOCK_USER, roles: [UserRole.PORTER] } },
+				{ tripId: TRIP_ID, checkpointId: "cp-1" },
+				dto
+			);
+
+			expect(checkpointVisitsService.confirmCheckpointArrival).toHaveBeenCalledWith(
+				USER_ID,
+				TRIP_ID,
+				"cp-1",
+				dto
+			);
+			expect(result).toBe(mockProgress);
+			expect(
+				Reflect.getMetadata(ROLES_KEY, TripsController.prototype.confirmCheckpointArrival)
+			).toEqual([UserRole.PORTER]);
+		});
+	});
+
+	describe("syncCheckpointArrivals (CTMS-056 / BR-234)", () => {
+		it("delegates to CheckpointVisitsService.syncCheckpointArrivals with porterId, tripId, and dto", async () => {
+			const mockProgress = {
+				tripId: TRIP_ID,
+				visitedCheckpoints: 2,
+			} as unknown as TripOperationalProgressResponseDto;
+			checkpointVisitsService.syncCheckpointArrivals.mockResolvedValue(mockProgress);
+			const dto: SyncCheckpointArrivalsDto = { arrivals: [] };
+
+			const result = await controller.syncCheckpointArrivals(
+				{ user: { ...MOCK_USER, roles: [UserRole.PORTER] } },
+				{ tripId: TRIP_ID },
+				dto
+			);
+
+			expect(checkpointVisitsService.syncCheckpointArrivals).toHaveBeenCalledWith(
+				USER_ID,
+				TRIP_ID,
+				dto
+			);
+			expect(result).toBe(mockProgress);
+			expect(
+				Reflect.getMetadata(ROLES_KEY, TripsController.prototype.syncCheckpointArrivals)
+			).toEqual([UserRole.PORTER]);
+		});
+	});
+
+	describe("getTripOperationalProgress (CTMS-056 / BR-234)", () => {
+		it("delegates to CheckpointVisitsService.getTripOperationalProgress with tripId", async () => {
+			const mockProgress = {
+				tripId: TRIP_ID,
+				totalCheckpoints: 3,
+			} as unknown as TripOperationalProgressResponseDto;
+			checkpointVisitsService.getTripOperationalProgress.mockResolvedValue(mockProgress);
+
+			const result = await controller.getTripOperationalProgress({ tripId: TRIP_ID });
+
+			expect(checkpointVisitsService.getTripOperationalProgress).toHaveBeenCalledWith(TRIP_ID);
+			expect(result).toBe(mockProgress);
+		});
+	});
+});

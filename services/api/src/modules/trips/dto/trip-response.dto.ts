@@ -1,0 +1,343 @@
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { TrekkingRouteDifficulty } from "../../trekking-routes/entities/trekking-route.entity";
+import { RiskLevel } from "../../weather/entities/weather-risk-assessment.entity";
+import type { WaypointType } from "../entities/trip-waypoint.entity";
+import type { GeoPoint, TripStatus, TripType } from "../entities/trip.entity";
+import { TripReviewOutcome } from "./list-trip-reviews-query.dto";
+
+export class TripWaypointResponseDto {
+	@ApiProperty()
+	id!: string;
+
+	@ApiProperty()
+	tripId!: string;
+
+	@ApiPropertyOptional()
+	checkpointId!: string | null;
+
+	@ApiProperty()
+	type!: WaypointType;
+
+	@ApiProperty()
+	name!: string;
+
+	@ApiProperty()
+	location!: GeoPoint;
+
+	@ApiProperty()
+	dayNumber!: number;
+
+	@ApiProperty()
+	sequenceOrder!: number;
+
+	@ApiPropertyOptional()
+	plannedAt!: Date | null;
+
+	@ApiPropertyOptional()
+	durationMinutes!: number | null;
+
+	@ApiPropertyOptional()
+	metadata!: Record<string, unknown> | null;
+}
+
+export class SubmittedWeatherForecastSummaryDto {
+	@ApiProperty({ format: "uuid" })
+	id!: string;
+
+	@ApiProperty({ enum: ["available", "out_of_range"] })
+	status!: "available" | "out_of_range";
+
+	@ApiPropertyOptional({ enum: RiskLevel, nullable: true })
+	riskLevel!: RiskLevel | null;
+
+	@ApiProperty({ description: "Host confirmed a Red forecast when submitting" })
+	riskAcknowledged!: boolean;
+}
+
+export class TripSummaryResponseDto {
+	@ApiProperty()
+	id!: string;
+
+	@ApiProperty()
+	title!: string;
+
+	@ApiPropertyOptional({ nullable: true })
+	description!: string | null;
+
+	@ApiPropertyOptional({ nullable: true })
+	coverImageUrl!: string | null;
+
+	@ApiProperty()
+	tripType!: TripType;
+
+	@ApiProperty()
+	durationNights!: number;
+
+	@ApiProperty()
+	startsAt!: Date;
+
+	@ApiProperty()
+	endsAt!: Date;
+
+	@ApiProperty()
+	meetingPoint!: GeoPoint;
+
+	@ApiPropertyOptional({ nullable: true })
+	meetingAt!: Date | null;
+
+	@ApiProperty()
+	bookingDeadline!: Date;
+
+	@ApiProperty()
+	capacityMin!: number;
+
+	@ApiPropertyOptional({ nullable: true })
+	capacityMax!: number | null;
+
+	@ApiProperty()
+	seatsTaken!: number;
+
+	@ApiPropertyOptional({ nullable: true })
+	remainingSeats!: number | null;
+
+	@ApiProperty()
+	pricePerPerson!: number;
+
+	@ApiProperty()
+	status!: TripStatus;
+
+	@ApiPropertyOptional({ enum: TrekkingRouteDifficulty, nullable: true })
+	difficulty!: TrekkingRouteDifficulty | null;
+
+	@ApiPropertyOptional({
+		enum: RiskLevel,
+		nullable: true,
+		description: "Risk of the forecast for the Trip's own dates; null when no such forecast exists",
+	})
+	weatherRiskLevel!: RiskLevel | null;
+
+	@ApiPropertyOptional({
+		enum: ["available", "out_of_range", "unavailable"],
+		description:
+			"available = forecast for the Trip dates; out_of_range = beyond the 15-day horizon; unavailable = could not be obtained",
+	})
+	weatherForecastStatus?: "available" | "out_of_range" | "unavailable";
+
+	@ApiProperty()
+	isBookable!: boolean;
+
+	@ApiProperty()
+	createdAt!: Date;
+
+	@ApiProperty()
+	updatedAt!: Date;
+}
+
+export class TripsPaginationDto {
+	@ApiProperty()
+	page!: number;
+
+	@ApiProperty()
+	limit!: number;
+
+	@ApiProperty()
+	total!: number;
+
+	@ApiProperty()
+	totalPages!: number;
+}
+
+export class PaginatedTripsResponseDto {
+	@ApiProperty({ type: [TripSummaryResponseDto] })
+	items!: TripSummaryResponseDto[];
+
+	@ApiProperty({ type: TripsPaginationDto })
+	pagination!: TripsPaginationDto;
+}
+
+export class TripHostDto {
+	@ApiProperty()
+	id!: string;
+
+	@ApiPropertyOptional({ nullable: true })
+	fullName?: string | null;
+
+	@ApiPropertyOptional({ nullable: true })
+	email?: string | null;
+
+	@ApiPropertyOptional({ nullable: true })
+	phone?: string | null;
+
+	@ApiPropertyOptional({ nullable: true })
+	bio?: string | null;
+}
+
+export class TripRegistrationRiskFactorDto {
+	@ApiProperty()
+	key!: string;
+
+	@ApiProperty()
+	label!: string;
+
+	@ApiProperty()
+	value!: number | boolean;
+
+	@ApiProperty({ enum: RiskLevel })
+	level!: RiskLevel;
+
+	@ApiProperty()
+	weight!: number;
+
+	@ApiProperty()
+	score!: number;
+}
+
+export class TripRegistrationRiskResponseDto {
+	@ApiProperty({ enum: ["available", "unavailable"] })
+	status!: "available" | "unavailable";
+
+	@ApiPropertyOptional({ nullable: true })
+	assessmentId!: string | null;
+
+	@ApiPropertyOptional({ enum: RiskLevel, nullable: true })
+	level!: RiskLevel | null;
+
+	@ApiPropertyOptional({ nullable: true })
+	assessedAt!: Date | null;
+
+	@ApiPropertyOptional({ nullable: true })
+	ruleVersionId!: string | null;
+
+	@ApiProperty({ type: [TripRegistrationRiskFactorDto] })
+	factors!: TripRegistrationRiskFactorDto[];
+
+	@ApiPropertyOptional({ nullable: true })
+	advice!: string | null;
+
+	@ApiProperty({ type: [String] })
+	recommendations!: string[];
+}
+
+export class TripResponseDto {
+	@ApiProperty()
+	id!: string;
+
+	@ApiProperty()
+	hostId!: string;
+
+	@ApiPropertyOptional({ type: TripHostDto, nullable: true })
+	host?: TripHostDto | null;
+
+	@ApiPropertyOptional({ description: "Route UUID; redacted for Camper callers" })
+	routeId?: string;
+
+	@ApiProperty()
+	title!: string;
+
+	@ApiPropertyOptional()
+	description!: string | null;
+
+	@ApiPropertyOptional()
+	coverImageUrl!: string | null;
+
+	@ApiPropertyOptional()
+	itinerary!: Record<string, unknown> | null;
+
+	@ApiPropertyOptional()
+	includes!: Record<string, unknown> | null;
+
+	@ApiPropertyOptional()
+	excludes!: Record<string, unknown> | null;
+
+	@ApiProperty()
+	tripType!: TripType;
+
+	@ApiProperty()
+	durationNights!: number;
+
+	@ApiProperty()
+	startsAt!: Date;
+
+	@ApiProperty()
+	endsAt!: Date;
+
+	@ApiProperty()
+	meetingPoint!: GeoPoint;
+
+	@ApiPropertyOptional()
+	meetingAt!: Date | null;
+
+	@ApiProperty()
+	bookingDeadline!: Date;
+
+	@ApiProperty()
+	capacityMin!: number;
+
+	@ApiPropertyOptional({ nullable: true })
+	capacityMax!: number | null;
+
+	@ApiProperty()
+	seatsTaken!: number;
+
+	@ApiPropertyOptional({ nullable: true })
+	remainingSeats!: number | null;
+
+	@ApiProperty()
+	pricePerPerson!: number;
+
+	@ApiPropertyOptional()
+	cancellationPolicy!: Record<string, unknown> | null;
+
+	@ApiProperty()
+	status!: TripStatus;
+
+	@ApiPropertyOptional({ nullable: true, description: "Set only when status is 'cancelled'" })
+	cancellationReason!: string | null;
+
+	@ApiPropertyOptional({ nullable: true, description: "Set only when status is 'cancelled'" })
+	cancelledAt!: Date | null;
+
+	@ApiPropertyOptional({ enum: TrekkingRouteDifficulty, nullable: true })
+	difficulty?: TrekkingRouteDifficulty | null;
+
+	@ApiPropertyOptional({ enum: RiskLevel, nullable: true })
+	weatherRiskLevel?: RiskLevel | null;
+
+	@ApiPropertyOptional({
+		type: () => SubmittedWeatherForecastSummaryDto,
+		nullable: true,
+		description: "Only on the Admin pending-review list: forecast attached at submission",
+	})
+	submittedWeatherForecast?: SubmittedWeatherForecastSummaryDto | null;
+
+	@ApiProperty({ type: TripRegistrationRiskResponseDto })
+	registrationRisk!: TripRegistrationRiskResponseDto;
+
+	@ApiProperty()
+	isBookable!: boolean;
+
+	@ApiProperty()
+	createdAt!: Date;
+
+	@ApiProperty()
+	updatedAt!: Date;
+
+	@ApiProperty({ type: TripWaypointResponseDto, isArray: true })
+	waypoints!: TripWaypointResponseDto[];
+}
+
+export class AdminTripReviewResponseDto extends TripResponseDto {
+	@ApiProperty({ enum: TripReviewOutcome })
+	reviewOutcome!: Exclude<TripReviewOutcome, TripReviewOutcome.ALL>;
+
+	@ApiPropertyOptional({ nullable: true })
+	reviewedAt!: Date | null;
+}
+
+export class PaginatedTripReviewsResponseDto {
+	@ApiProperty({ type: [AdminTripReviewResponseDto] })
+	items!: AdminTripReviewResponseDto[];
+
+	@ApiProperty({ type: TripsPaginationDto })
+	pagination!: TripsPaginationDto;
+}

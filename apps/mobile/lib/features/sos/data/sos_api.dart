@@ -1,0 +1,100 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../core/api/api_client.dart';
+import '../../../core/api/api_endpoints.dart';
+import '../domain/sos_alert.dart';
+
+abstract interface class SosApi {
+  Future<List<SosAlert>> list(String tripId);
+  Future<SosAlert> cancel(String tripId, String sosId, String reason);
+  Future<SosAlert> acknowledge(String tripId, String sosId);
+  Future<SosAlert> close(String tripId, String sosId, String resolutionNote);
+  Future<SosAlert> create(
+    String tripId, {
+    String? id,
+    required String emergencyType,
+    String? notes,
+    double? latitude,
+    double? longitude,
+    int? batteryLevel,
+    DateTime? eventTime,
+  });
+}
+
+class HttpSosApi implements SosApi {
+  const HttpSosApi(this.client);
+
+  final ApiClient client;
+
+  @override
+  Future<List<SosAlert>> list(String tripId) async {
+    final response = await client.get<dynamic>(
+      ApiEndpoints.sos.tripSos(tripId),
+    );
+    final data = response.data;
+    if (data is List) {
+      return data
+          .map((item) => SosAlert.fromJson(Map<String, dynamic>.from(item as Map)))
+          .toList();
+    }
+    return [];
+  }
+
+  @override
+  Future<SosAlert> cancel(String tripId, String sosId, String reason) async {
+    final response = await client.patch<dynamic>(
+      ApiEndpoints.sos.cancel(tripId, sosId),
+      data: {'reason': reason},
+    );
+    return SosAlert.fromJson(Map<String, dynamic>.from(response.data as Map));
+  }
+
+  @override
+  Future<SosAlert> acknowledge(String tripId, String sosId) async {
+    final response = await client.patch<dynamic>(
+      ApiEndpoints.sos.acknowledge(tripId, sosId),
+    );
+    return SosAlert.fromJson(Map<String, dynamic>.from(response.data as Map));
+  }
+
+  @override
+  Future<SosAlert> close(String tripId, String sosId, String resolutionNote) async {
+    final response = await client.patch<dynamic>(
+      ApiEndpoints.sos.close(tripId, sosId),
+      data: {'resolutionNote': resolutionNote},
+    );
+    return SosAlert.fromJson(Map<String, dynamic>.from(response.data as Map));
+  }
+
+  @override
+  Future<SosAlert> create(
+    String tripId, {
+    String? id,
+    required String emergencyType,
+    String? notes,
+    double? latitude,
+    double? longitude,
+    int? batteryLevel,
+    DateTime? eventTime,
+  }) async {
+    final body = <String, dynamic>{
+      'id': ?id,
+      'emergencyType': emergencyType,
+      'eventTime': (eventTime ?? DateTime.now()).toUtc().toIso8601String(),
+      'notes': ?notes,
+      if (latitude != null && longitude != null)
+        'location': {'latitude': latitude, 'longitude': longitude},
+      'batteryLevel': ?batteryLevel,
+    };
+
+    final response = await client.post<dynamic>(
+      ApiEndpoints.sos.tripSos(tripId),
+      data: body,
+    );
+    return SosAlert.fromJson(Map<String, dynamic>.from(response.data as Map));
+  }
+}
+
+final sosApiProvider = Provider<SosApi>((ref) {
+  return HttpSosApi(ref.watch(apiClientProvider));
+});

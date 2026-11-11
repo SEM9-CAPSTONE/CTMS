@@ -1,0 +1,50 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import { HttpError } from "../../../core/api";
+import { trekkingRoutesService } from "../services/trekking-routes.service";
+import type { RouteDangerZone } from "../types";
+
+export function dangerZoneListError(error: unknown): string {
+	if (error instanceof HttpError) {
+		if (error.status === 401) return "Phiên đăng nhập đã hết hạn.";
+		if (error.status === 403) return "Bạn không có quyền xem khu vực nguy hiểm của tuyến này.";
+		if (error.status === 404) return "Không tìm thấy tuyến trekking đã chọn.";
+	}
+	return "Không thể tải danh sách khu vực nguy hiểm. Vui lòng thử lại.";
+}
+
+export function useRouteDangerZones(routeId?: string) {
+	const [items, setItems] = useState<RouteDangerZone[]>([]);
+	const [isLoading, setIsLoading] = useState(false);
+	const [error, setError] = useState("");
+	const sequence = useRef(0);
+
+	const load = useCallback(async () => {
+		const current = ++sequence.current;
+		if (!routeId) {
+			setItems([]);
+			setError("");
+			setIsLoading(false);
+			return;
+		}
+		setItems([]);
+		setError("");
+		setIsLoading(true);
+		try {
+			const zones = await trekkingRoutesService.listRouteDangerZones(routeId);
+			if (current === sequence.current) setItems(zones);
+		} catch (requestError) {
+			if (current === sequence.current) setError(dangerZoneListError(requestError));
+		} finally {
+			if (current === sequence.current) setIsLoading(false);
+		}
+	}, [routeId]);
+
+	useEffect(() => {
+		void load();
+		return () => {
+			sequence.current += 1;
+		};
+	}, [load]);
+
+	return { items, isLoading, error, reload: load };
+}

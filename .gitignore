@@ -1,40 +1,69 @@
-# Dependencies
 node_modules/
 .pnpm-store/
-
-# Build outputs
 dist/
 build/
 .next/
 .expo/
 web-build/
 coverage/
-
-# Environment files
+test-results/
+/services/.test-cache/
+playwright-report/
+*.tsbuildinfo
 .env
 .env.*
 !.env.example
 !.env.*.example
-
-# Logs
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
-
-# OS / editor
+/uploads/
+services/api/uploads/
+services/api/.private-porter-level-evidence/
+.private-survival-documents/
+.private-offline-packages/
 .DS_Store
 Thumbs.db
 .idea/
 .vscode/
 
-# Python
 __pycache__/
 *.py[cod]
 .pytest_cache/
 .venv/
+.venv-ingestion/
+.python/
 venv/
 
-# Docker
 docker-compose.override.yml
+
+.gemini/brain
+
+*.tsbuildinfo
+
+# Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+*.tfvars
+!*.tfvars.example
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+
+# Generated private offline map data
+*.mbtiles
+.private-offline-basemaps/
+.private-offline-basemap-work/
+artifacts/osm-offline/
+
+# CTMS-316 local verification evidence and tooling
+/artifacts/ctms316-*

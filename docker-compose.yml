@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgis/postgis:16-3.4-alpine
     container_name: ctms-postgres
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-ctms}
@@ -29,6 +29,15 @@ services:
       timeout: 5s
       retries: 5
 
+  adminer:
+    image: adminer:latest
+    container_name: ctms-adminer
+    ports:
+      - "8081:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   api:
     build:
       context: .
@@ -38,10 +47,63 @@ services:
       API_PORT: 3000
       DATABASE_URL: postgresql://ctms:ctms@postgres:5432/ctms
       REDIS_URL: redis://redis:6379
+      MAPTILER_API_KEY: ${MAPTILER_API_KEY:-}
+      ROUTE_TERRAIN_ROAD_ENABLED: ${ROUTE_TERRAIN_ROAD_ENABLED:-true}
       AI_SERVICE_URL: http://ai:8000
+      KNOWLEDGE_SERVICE_URL: http://ingestion:8001
+      KNOWLEDGE_SERVICE_TOKEN: ${KNOWLEDGE_SERVICE_TOKEN:-}
+      KNOWLEDGE_WORKER_ENABLED: ${KNOWLEDGE_WORKER_ENABLED:-true}
+      SURVIVAL_DOCUMENT_STORAGE_ROOT: /var/lib/ctms/survival-documents
+      SURVIVAL_DOCUMENT_MAX_BYTES: ${SURVIVAL_DOCUMENT_MAX_BYTES:-10485760}
+      OFFLINE_PACKAGE_STORAGE_ROOT: /var/lib/ctms/offline-packages
+      OFFLINE_BASEMAP_STORAGE_ROOT: /var/lib/ctms/offline-basemaps
+      OFFLINE_PACKAGE_WORKER_ENABLED: ${OFFLINE_PACKAGE_WORKER_ENABLED:-true}
+      AI_REVIEW_SERVICE_TOKEN: ${AI_REVIEW_SERVICE_TOKEN:-}
+      REVIEW_ANALYSIS_MODEL: ${REVIEW_ANALYSIS_MODEL:-gpt-4o-mini}
+      REVIEW_ANALYSIS_PROVIDER: ${REVIEW_ANALYSIS_PROVIDER:-openai}
+      REVIEW_ANALYSIS_CONFIG_VERSION: ${REVIEW_ANALYSIS_CONFIG_VERSION:-v1}
+      REVIEW_ANALYSIS_WORKER_ENABLED: ${REVIEW_ANALYSIS_WORKER_ENABLED:-true}
+      DEMAND_MIN_BOOKERS: ${DEMAND_MIN_BOOKERS:-10}
+      DEMAND_MIN_DAYS_AFTER_CLOSE: ${DEMAND_MIN_DAYS_AFTER_CLOSE:-3}
+      DEMAND_MIN_HOSTS: ${DEMAND_MIN_HOSTS:-3}
+      DEMAND_MAX_HOST_SHARE: ${DEMAND_MAX_HOST_SHARE:-0.75}
+      DEMAND_CONFIG_VERSION: ${DEMAND_CONFIG_VERSION:-v1}
+      DEMAND_WORKER_ENABLED: ${DEMAND_WORKER_ENABLED:-true}
       JWT_SECRET: ${JWT_SECRET:-change-me}
+      OTP_TTL_MINUTES: ${OTP_TTL_MINUTES:-10}
+      OTP_RESEND_MAX_ATTEMPTS: ${OTP_RESEND_MAX_ATTEMPTS:-5}
+      OTP_RESEND_WINDOW_MINUTES: ${OTP_RESEND_WINDOW_MINUTES:-1440}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_FROM_NUMBER: ${TWILIO_FROM_NUMBER:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
+      JWT_ACCESS_TOKEN_TTL: ${JWT_ACCESS_TOKEN_TTL:-15m}
+      JWT_REFRESH_TOKEN_TTL: ${JWT_REFRESH_TOKEN_TTL:-7d}
+      ROUTE_SAFETY_APPROVED_SOURCES: ${ROUTE_SAFETY_APPROVED_SOURCES:-}
+      ROUTE_SAFETY_PROXIMITY_METERS: ${ROUTE_SAFETY_PROXIMITY_METERS:-300}
+      ROUTE_SAFETY_CURRENT_AGE_MINUTES: ${ROUTE_SAFETY_CURRENT_AGE_MINUTES:-360}
+      ROUTE_SAFETY_INCIDENT_AGE_MINUTES: ${ROUTE_SAFETY_INCIDENT_AGE_MINUTES:-1440}
+      ROUTE_SAFETY_LIVE_ENABLED: ${ROUTE_SAFETY_LIVE_ENABLED:-true}
+      ROUTE_SAFETY_LIVE_TIMEOUT_MS: ${ROUTE_SAFETY_LIVE_TIMEOUT_MS:-12000}
+      ROUTE_SAFETY_NCHMF_BASE_URL: ${ROUTE_SAFETY_NCHMF_BASE_URL:-https://luquetsatlo.nchmf.gov.vn}
+      ROUTE_SAFETY_NCHMF_BOUNDARIES_URL: ${ROUTE_SAFETY_NCHMF_BOUNDARIES_URL:-https://geosllq.vndss.com/geoserversllq/ows}
+      ROUTE_SAFETY_VNDMS_ENABLED: ${ROUTE_SAFETY_VNDMS_ENABLED:-true}
+      ROUTE_SAFETY_VNDMS_BASE_URL: ${ROUTE_SAFETY_VNDMS_BASE_URL:-https://vndms.gov.vn}
+      ROUTE_SAFETY_WATER_ENABLED: ${ROUTE_SAFETY_WATER_ENABLED:-true}
+      ROUTE_SAFETY_OVERPASS_URL: ${ROUTE_SAFETY_OVERPASS_URL:-https://overpass.private.coffee/api/interpreter}
+      ROUTE_SAFETY_OSM_MAP_URL: ${ROUTE_SAFETY_OSM_MAP_URL:-https://api.openstreetmap.org/api/0.6/map.json}
+      ROUTE_SAFETY_CONTEXT_TIMEOUT_MS: ${ROUTE_SAFETY_CONTEXT_TIMEOUT_MS:-20000}
     ports:
       - "3000:3000"
+    volumes:
+      - survival-document-data:/var/lib/ctms/survival-documents
+      - offline-package-data:/var/lib/ctms/offline-packages
+      - offline-basemap-data:/var/lib/ctms/offline-basemaps
     depends_on:
       postgres:
         condition: service_healthy
@@ -56,17 +118,39 @@ services:
     environment:
       AI_SERVICE_PORT: 8000
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      REVIEW_ANALYSIS_PROVIDER: ${REVIEW_ANALYSIS_PROVIDER:-openai}
+      AI_REVIEW_SERVICE_TOKEN: ${AI_REVIEW_SERVICE_TOKEN:-}
     ports:
       - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/health', timeout=2).close()"]
+      interval: 5s
+      timeout: 3s
+      retries: 6
+      start_period: 10s
+
+  ingestion:
+    build:
+      context: .
+      dockerfile: infra/docker/ingestion.Dockerfile
+    container_name: ctms-ingestion
+    environment:
+      KNOWLEDGE_SERVICE_TOKEN: ${KNOWLEDGE_SERVICE_TOKEN:-}
+      HF_HOME: /var/cache/ctms-models
+    volumes:
+      - knowledge-model-cache:/var/cache/ctms-models
+    ports:
+      - "127.0.0.1:8001:8001"
 
   web:
     build:
       context: .
       dockerfile: infra/docker/web.Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:3000/api}
+        VITE_MAPTILER_API_KEY: ${VITE_MAPTILER_API_KEY:-}
     container_name: ctms-web
-    environment:
-      VITE_API_BASE_URL: http://localhost:3000/api
-      VITE_WS_URL: ws://localhost:3000
     ports:
       - "5173:80"
     depends_on:
@@ -87,3 +171,7 @@ services:
 volumes:
   postgres-data:
   redis-data:
+  survival-document-data:
+  offline-package-data:
+  offline-basemap-data:
+  knowledge-model-cache:
