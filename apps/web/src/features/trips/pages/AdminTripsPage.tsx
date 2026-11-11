@@ -93,10 +93,7 @@ export function AdminTripsPage({ onLogout }: AdminTripsPageProps) {
 						Kiểm tra lịch trình, sức chứa và điểm dừng trước khi công bố chuyến đi cho Camper.
 					</p>
 					<div className="mt-2">
-						<RealtimeConnectionStatus
-							state={realtimeState === "idle" ? "connecting" : realtimeState}
-							testId="trip-review-realtime-status"
-						/>
+						<RealtimeConnectionStatus state={realtimeState} testId="trip-review-realtime-status" />
 					</div>
 					<AdminReviewFilters
 						value={reviewOutcome}

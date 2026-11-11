@@ -5,7 +5,10 @@ import {
 	useRealtimeEvent,
 	useTripRoom,
 } from "../../../core/realtime/useRealtime";
-import type { RealtimeDisplayState } from "../../../shared/components/RealtimeConnectionStatus";
+import {
+	type RealtimeDisplayState,
+	realtimeDisplayState,
+} from "../../../shared/components/RealtimeConnectionStatus";
 
 interface TripIncidentEvent {
 	tripId: string;
@@ -42,7 +45,7 @@ export function useTripIncidentsRealtime(
 	if (snapshot.state !== "connected") {
 		return snapshot.state === "idle" ? "connecting" : snapshot.state;
 	}
-	if (room === "joined") return "connected";
+	if (room === "joined") return realtimeDisplayState(snapshot);
 	if (room === "refused") return "unauthorized";
 	return "connecting";
 }
