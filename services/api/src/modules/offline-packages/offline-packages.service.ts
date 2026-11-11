@@ -34,6 +34,7 @@ import {
 	generationKey,
 	sourceFingerprint,
 } from "./package-policy";
+import { readVerifiedPackageRoute } from "./package-route.reader";
 
 @Injectable()
 export class OfflinePackagesService {
@@ -82,6 +83,14 @@ export class OfflinePackagesService {
 	async readArtifact(tripId: string, version: number): Promise<Buffer | null> {
 		const metadata = await this.jobs.ready(tripId, version);
 		if (!metadata) return null;
+		return this.readSnapshotArtifact(metadata);
+	}
+	/** Trusted caller supplies metadata read in its transaction; never reselect a newer version. */
+	async readSnapshotRoute(metadata: PackageMetadata) {
+		return readVerifiedPackageRoute(await this.readSnapshotArtifact(metadata), metadata);
+	}
+
+	private async readSnapshotArtifact(metadata: PackageMetadata): Promise<Buffer> {
 		const bytes = await this.storage.read(
 			metadata.artifact_key,
 			metadata.sha256,
