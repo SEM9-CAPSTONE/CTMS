@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/lifecycle/session_hooks.dart';
 import '../data/auth_repository.dart';
 import '../domain/auth_user.dart';
 
@@ -39,6 +40,14 @@ class AuthController extends AsyncNotifier<AuthUser?> {
     if (_isLoggingOut) return;
 
     _isLoggingOut = true;
+
+    // CTMS-090: device clean-up that needs the still-valid session. Bounded and never blocks or
+    // fails the sign-out itself.
+    try {
+      await ref
+          .read(sessionEndingHookProvider)()
+          .timeout(const Duration(seconds: 5));
+    } catch (_) {}
 
     try {
       await ref.read(authRepositoryProvider).logout(

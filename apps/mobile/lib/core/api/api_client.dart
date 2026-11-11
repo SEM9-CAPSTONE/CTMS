@@ -137,7 +137,8 @@ class ApiClient {
   Future<Response<T>> patch<T>(String path, {Object? data}) =>
       _guard(() => dio.patch<T>(path, data: data));
 
-  Future<Response<T>> delete<T>(String path) => _guard(() => dio.delete<T>(path));
+  Future<Response<T>> delete<T>(String path, {Object? data}) =>
+      _guard(() => dio.delete<T>(path, data: data));
 
   Future<Response<T>> _guard<T>(Future<Response<T>> Function() request) async {
     try {
