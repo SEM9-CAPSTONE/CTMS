@@ -14,7 +14,8 @@ const HOST_OVERVIEW_KEY = ["host-overview"] as const;
 
 /**
  * CTMS-079 / CTMS-078: `live` only once the server has authenticated the shared socket (BR-259);
- * `recovered` right after a reconnect, when lists have been reloaded to pick up missed SOS.
+ * `recovered` right after a reconnect, when lists have been reloaded to pick up missed SOS;
+ * `recovery_failed` (CTMS-082-T02) when missed events could not all be replayed.
  */
 export type SosRealtimeState =
 	| "connecting"
@@ -22,7 +23,8 @@ export type SosRealtimeState =
 	| "reconnecting"
 	| "disconnected"
 	| "auth_rejected"
-	| "recovered";
+	| "recovered"
+	| "recovery_failed";
 
 /** `sos.created` payload from CTMS-079-T01 (spec Section 9). */
 export interface SosCreatedEvent {
@@ -126,6 +128,7 @@ export function useHostSosRealtime({
 
 	switch (snapshot.state) {
 		case "connected":
+			if (snapshot.recovery === "failed") return "recovery_failed";
 			return recovered ? "recovered" : "live";
 		case "reconnecting":
 		case "disconnected":

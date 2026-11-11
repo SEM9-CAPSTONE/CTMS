@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/widgets/ctms_scaffold.dart';
+import '../../offline_packages/presentation/saved_offline_packages_screen.dart';
 import '../../trip_reviews/presentation/review_bookings_tab.dart';
 
 class CamperTripsScreen extends StatelessWidget {
@@ -11,6 +12,7 @@ class CamperTripsScreen extends StatelessWidget {
     child: CtmsScaffold(
       title: 'Chuyến đi',
       subtitle: 'Quản lý chuyến đi và đơn đặt chỗ của bạn',
+      actions: const [SavedOfflinePackagesButton()],
       bottom: const TabBar(
         isScrollable: false,
         tabAlignment: TabAlignment.fill,

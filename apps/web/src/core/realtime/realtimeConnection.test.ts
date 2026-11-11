@@ -290,3 +290,187 @@ describe("realtimeConnection (CTMS-078-T02)", () => {
 		expect(handler).toHaveBeenCalledWith({ sosId: "s1" });
 	});
 });
+
+describe("automatic reconnect and missed-event recovery (CTMS-082-T02, BR-263)", () => {
+	const meta = (eventId: string, sequence: number) => ({
+		eventId,
+		sequence,
+		emittedAt: "2026-11-11T00:00:00.000Z",
+	});
+
+	it("applies the server's bounded backoff to socket.io", () => {
+		const { connection, latest } = createFakeConnection();
+		connection.acquire();
+		latest().serverEmit("connected", {
+			authenticated: true,
+			latestSequence: 3,
+			reconnect: { initialDelayMs: 2000, maxDelayMs: 20000, multiplier: 2, jitterRatio: 0.1 },
+		});
+
+		expect(latest().io.reconnectionDelay).toHaveBeenCalledWith(2000);
+		expect(latest().io.reconnectionDelayMax).toHaveBeenCalledWith(20000);
+		expect(latest().io.randomizationFactor).toHaveBeenCalledWith(0.1);
+	});
+
+	it("ignores an invalid policy and never sets a cap below the first delay", () => {
+		const { connection, latest } = createFakeConnection();
+		connection.acquire();
+		latest().serverEmit("connected", {
+			authenticated: true,
+			reconnect: { initialDelayMs: 5000, maxDelayMs: 1000, jitterRatio: 4 },
+		});
+
+		expect(latest().io.reconnectionDelayMax).toHaveBeenCalledWith(5000);
+		expect(latest().io.randomizationFactor).not.toHaveBeenCalled();
+	});
+
+	it("does not ask for missed events on the first connection", async () => {
+		const { connection, latest } = createFakeConnection();
+		connection.acquire();
+		latest().serverEmit("connected", { authenticated: true, latestSequence: 10 });
+		await flush();
+
+		expect(latest().emitted.map((frame) => frame.event)).not.toContain("realtime.resume");
+		expect(connection.getSnapshot().recovery).toBe("idle");
+	});
+
+	it("resumes from the last cursor it saw and replays missed events in order with their meta", async () => {
+		const { connection, latest } = createFakeConnection();
+		connection.acquire();
+		const handler = vi.fn();
+		connection.on("trip.incident.reported", handler);
+		latest().serverEmit("connected", { authenticated: true, latestSequence: 10 });
+		latest().serverEmit("trip.incident.reported", { incidentId: "live" }, meta("e-12", 12));
+		latest().resumeAck = async () => ({
+			ok: true,
+			events: [
+				{ event: "trip.incident.reported", payload: { incidentId: "b" }, meta: meta("e-15", 15) },
+				{ event: "trip.incident.reported", payload: { incidentId: "a" }, meta: meta("e-14", 14) },
+			],
+			latestSequence: 16,
+			truncated: false,
+		});
+
+		latest().serverEmit("disconnect", "transport close");
+		latest().serverEmit("connected", { authenticated: true, latestSequence: 16 });
+		expect(connection.getSnapshot().recovery).toBe("recovering");
+		await flush();
+
+		expect(latest().emitted).toContainEqual({
+			event: "realtime.resume",
+			payload: { afterSequence: 12 },
+		});
+		expect(handler.mock.calls.map(([payload]) => payload.incidentId)).toEqual(["live", "a", "b"]);
+		expect(handler).toHaveBeenLastCalledWith({ incidentId: "b" }, meta("e-15", 15));
+		expect(connection.getSnapshot()).toMatchObject({ state: "connected", recovery: "recovered" });
+
+		// The next reconnect starts after everything already delivered.
+		latest().serverEmit("disconnect", "transport close");
+		latest().serverEmit("connected", { authenticated: true, latestSequence: 16 });
+		await flush();
+		expect(latest().emitted.at(-1)).toEqual({
+			event: "realtime.resume",
+			payload: { afterSequence: 16 },
+		});
+	});
+
+	it("delivers an event once when it arrives both live and recovered", async () => {
+		const { connection, latest } = createFakeConnection();
+		connection.acquire();
+		const handler = vi.fn();
+		connection.on("emergency.broadcast", handler);
+		latest().serverEmit("connected", { authenticated: true, latestSequence: 1 });
+		latest().serverEmit("disconnect", "transport close");
+		latest().resumeAck = async () => ({
+			ok: true,
+			events: [{ event: "emergency.broadcast", payload: { content: "x" }, meta: meta("same", 2) }],
+			latestSequence: 2,
+			truncated: false,
+		});
+		latest().serverEmit("connected", { authenticated: true, latestSequence: 2 });
+		// The live copy reaches the new socket before the resume ack.
+		latest().serverEmit("emergency.broadcast", { content: "x" }, meta("same", 2));
+		await flush();
+		latest().serverEmit("emergency.broadcast", { content: "x" }, meta("same", 2));
+
+		expect(handler).toHaveBeenCalledTimes(1);
+	});
+
+	it.each([
+		[
+			"the server flags the recovery as truncated",
+			async () => ({ ok: true, events: [], latestSequence: 99, truncated: true }),
+		],
+		["the server refuses the resume", async () => ({ ok: false, error: "NOT_AUTHENTICATED" })],
+		["the resume ack never arrives", () => Promise.reject(new Error("timeout"))],
+	])("reports recovery failed when %s, while the epoch still reloads lists", async (_case, ack) => {
+		const { connection, latest } = createFakeConnection();
+		connection.acquire();
+		latest().serverEmit("connected", { authenticated: true, latestSequence: 5 });
+		latest().serverEmit("disconnect", "transport close");
+		latest().resumeAck = ack;
+		latest().serverEmit("connected", { authenticated: true, latestSequence: 99 });
+		await flush();
+
+		expect(connection.getSnapshot()).toMatchObject({
+			state: "connected",
+			epoch: 2,
+			recovery: "failed",
+		});
+	});
+
+	it("reports recovery failed when there was no cursor to resume from", () => {
+		const { connection, latest } = createFakeConnection();
+		connection.acquire();
+		latest().serverEmit("connected", { authenticated: true, latestSequence: null });
+		latest().serverEmit("disconnect", "transport close");
+		latest().serverEmit("connected", { authenticated: true, latestSequence: 4 });
+
+		expect(connection.getSnapshot().recovery).toBe("failed");
+		expect(latest().emitted.map((frame) => frame.event)).not.toContain("realtime.resume");
+	});
+
+	it("still re-requests Trip rooms on reconnect and clears the recovery state when offline", async () => {
+		const { connection, latest } = createFakeConnection();
+		connection.acquire();
+		connection.subscribeTrip(TRIP_ID);
+		latest().serverEmit("connected", { authenticated: true, latestSequence: 1 });
+		await flush();
+		latest().serverEmit("disconnect", "transport close");
+		expect(connection.getSnapshot()).toMatchObject({ state: "reconnecting", recovery: "idle" });
+
+		latest().serverEmit("connected", { authenticated: true, latestSequence: 1 });
+		await flush();
+		const frames = latest().emitted.map((frame) => frame.event);
+		expect(frames.filter((event) => event === "trip.subscribe")).toHaveLength(2);
+		expect(frames).toContain("realtime.resume");
+		expect(connection.getSnapshot().tripRooms[TRIP_ID]).toBe("joined");
+	});
+
+	it("ignores a late resume ack from a socket that was closed", async () => {
+		const { connection, latest } = createFakeConnection();
+		const release = connection.acquire();
+		const handler = vi.fn();
+		connection.on("sos.created", handler);
+		latest().serverEmit("connected", { authenticated: true, latestSequence: 1 });
+		latest().serverEmit("disconnect", "transport close");
+		let answer: (value: unknown) => void = () => {};
+		latest().resumeAck = () =>
+			new Promise((resolve) => {
+				answer = resolve;
+			});
+		latest().serverEmit("connected", { authenticated: true, latestSequence: 2 });
+		release();
+		vi.runAllTimers();
+		answer({
+			ok: true,
+			events: [{ event: "sos.created", payload: { sosId: "s" }, meta: meta("late", 2) }],
+			latestSequence: 2,
+			truncated: false,
+		});
+		await flush();
+
+		expect(handler).not.toHaveBeenCalled();
+		expect(connection.getSnapshot().state).toBe("idle");
+	});
+});

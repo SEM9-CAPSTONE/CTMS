@@ -5,7 +5,7 @@ project_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$project_root"
 env_file="${CTMS_ENV_FILE:-$project_root/.env.production}"
 action="${1:-help}"
-if [[ $# -gt 0 ]]; then shift; fi
+compose_files=(-f docker-compose.yml -f docker-compose.prod.yml)
 
 usage() {
   cat <<'USAGE'
@@ -13,6 +13,7 @@ Usage: bash scripts/deploy-production.sh <command>
 
   build           Build CTMS images only (uses shared VPS CPU/RAM).
   deploy          Start/update CTMS using already-built images; never build implicitly.
+  release         Pull and deploy registry images for CTMS_IMAGE_NAMESPACE and CTMS_IMAGE_TAG.
   config          Validate production Compose configuration without secrets output.
 
 Shared VPS mode: Compose project ditrek-prod, private containers/network/volumes.
@@ -31,6 +32,7 @@ case "$action" in
     exit 1
     ;;
   build|deploy|config) ;;
+  release) compose_files+=(-f docker-compose.registry.yml) ;;
   *) usage >&2; exit 1 ;;
 esac
 
@@ -41,7 +43,7 @@ fi
 
 compose() {
   docker compose -p ditrek-prod --env-file "$env_file" \
-    -f docker-compose.yml -f docker-compose.prod.yml "$@"
+    "${compose_files[@]}" "$@"
 }
 
 compose config --quiet
@@ -63,6 +65,11 @@ case "$action" in
     compose build
     ;;
   deploy)
+    start_production
+    ;;
+  release)
+    compose pull --policy missing postgres redis nginx
+    compose pull --policy always api web ai ingestion
     start_production
     ;;
 esac

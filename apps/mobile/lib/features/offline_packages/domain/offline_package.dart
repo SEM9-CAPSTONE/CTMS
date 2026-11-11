@@ -2,6 +2,8 @@ enum PackageDownloadStatus { interrupted, downloading, downloaded }
 
 enum PackageVerificationStatus { pending, verifying, verified, failed }
 
+typedef SavedOfflinePackage = ({OfflinePackage package, String? tripTitle});
+
 /// Pinned metadata from the authorized download endpoint.
 class OfflinePackage {
   const OfflinePackage({

@@ -19,6 +19,7 @@ class PackageIntegrityService {
     OfflinePackage package,
     CancelToken cancel, {
     Future<OfflinePackage?> Function()? authorizeReplacement,
+    String? tripTitle,
   }) async {
     void checkCancelled() => _checkCancelled(cancel);
     final tripId = package.tripId;
@@ -49,7 +50,9 @@ class PackageIntegrityService {
       }
       final firstActivation =
           active == null && package.activationAllowed != false;
-      if (firstActivation) await store.saveActive(package, checkCancelled);
+      if (firstActivation) {
+        await store.saveActive(package, checkCancelled, tripTitle: tripTitle);
+      }
       return (PackageVerificationStatus.verified, firstActivation);
     });
     if (result.$1 != PackageVerificationStatus.verified ||
@@ -84,7 +87,7 @@ class PackageIntegrityService {
       }
       final (valid, _) = await _validate(package, checkCancelled);
       if (!valid) return (PackageVerificationStatus.failed, false);
-      await store.saveActive(package, checkCancelled);
+      await store.saveActive(package, checkCancelled, tripTitle: tripTitle);
       return (PackageVerificationStatus.verified, true);
     });
   }
@@ -103,18 +106,37 @@ class PackageIntegrityService {
 
   /// CTMS-224 boundary. Returns the checked byte snapshot, so a later file
   /// change cannot substitute a different ZIP between verification and use.
-  Future<Uint8List?> openActive(String tripId, int version) =>
-      store.withIntegrityLock(tripId, () async {
-        if (await store.accessDenied(tripId)) return null;
-        final active = await store.active(tripId);
-        if (active == null ||
-            active.packageVersion != version ||
-            !await _isVerified(active)) {
-          return null;
-        }
-        final (_, bytes) = await _validate(active, () {}, includeBytes: true);
-        return await store.accessDenied(tripId) ? null : bytes;
-      });
+  Future<Uint8List?> openActive(String tripId, int version) => _readActive(
+    tripId,
+    version,
+    (package, path) => verifier.verify(package, path, includeBytes: true),
+  );
+
+  Future<T?> readActive<T>(
+    String tripId,
+    int version,
+    T Function(Map<String, Uint8List>) decode,
+  ) => _readActive(
+    tripId,
+    version,
+    (package, path) => verifier.read(package, path, decode),
+  );
+
+  Future<T?> _readActive<T>(
+    String tripId,
+    int version,
+    Future<T?> Function(OfflinePackage, String) read,
+  ) => store.withIntegrityLock(tripId, () async {
+    if (await store.accessDenied(tripId)) return null;
+    final active = await store.active(tripId);
+    if (active == null ||
+        active.packageVersion != version ||
+        !await _isVerified(active)) {
+      return null;
+    }
+    final (_, snapshot) = await _validateWith(active, () {}, read);
+    return await store.accessDenied(tripId) ? null : snapshot;
+  });
 
   /// Opens the current active package for [tripId] and returns its verified byte
   /// snapshot alongside the package metadata.
@@ -128,10 +150,12 @@ class PackageIntegrityService {
         if (active == null || !await _isVerified(active)) {
           return null;
         }
-        final (valid, bytes) = await _validate(
+        final (valid, bytes) = await _validateWith(
           active,
-          () => cancel != null ? _checkCancelled(cancel) : null,
-          includeBytes: true,
+          () {
+            if (cancel != null) _checkCancelled(cancel);
+          },
+          (package, path) => verifier.verify(package, path, includeBytes: true),
         );
         if (!valid || bytes == null || await store.accessDenied(tripId)) {
           return null;
@@ -149,18 +173,19 @@ class PackageIntegrityService {
 
   Future<(bool, Uint8List?)> _validate(
     OfflinePackage package,
-    void Function() checkCancelled, {
-    bool includeBytes = false,
-  }) async {
+    void Function() checkCancelled,
+  ) => _validateWith(package, checkCancelled, verifier.verify);
+
+  Future<(bool, T?)> _validateWith<T>(
+    OfflinePackage package,
+    void Function() checkCancelled,
+    Future<T?> Function(OfflinePackage, String) read,
+  ) async {
     checkCancelled();
     try {
-      final bytes = await verifier.verify(
-        package,
-        store.archive(package).path,
-        includeBytes: includeBytes,
-      );
+      final snapshot = await read(package, store.archive(package).path);
       checkCancelled();
-      return (true, bytes);
+      return (true, snapshot);
     } on Exception catch (failure) {
       if (failure is! FormatException && failure is! FileSystemException) {
         rethrow;

@@ -40,6 +40,8 @@ Uint8List packageZip({
   int method = 0,
   int flags = 0,
   int? declaredSize,
+  Map<String, Object?> payloads = const {},
+  Map<String, Object?> manifestFields = const {},
 }) {
   final files = {
     'route.geojson': '{"type":"Feature"}',
@@ -47,11 +49,13 @@ Uint8List packageZip({
     'waypoints.json': '[]',
     'hazards.geojson': '{"type":"FeatureCollection","features":[]}',
     'guidance.json': '[]',
+    for (final entry in payloads.entries) entry.key: jsonEncode(entry.value),
   };
   final manifest = {
     'schemaVersion': schema,
     'tripId': tripId,
     'packageVersion': version,
+    ...manifestFields,
     'files': [
       for (final (index, file) in files.entries.indexed)
         {
@@ -64,7 +68,8 @@ Uint8List packageZip({
               )
               .toString(),
           'sizeBytes':
-              file.value.length + (badPayloadSize && index == 0 ? 1 : 0),
+              utf8.encode(file.value).length +
+              (badPayloadSize && index == 0 ? 1 : 0),
         },
     ],
   };

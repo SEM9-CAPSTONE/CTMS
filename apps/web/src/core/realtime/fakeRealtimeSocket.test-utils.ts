@@ -20,11 +20,21 @@ export class FakeRealtimeSocket {
 		ok: true,
 		room: `trip:${tripId}`,
 	});
+	/** Ack returned for `realtime.resume` (CTMS-082); replace per test. */
+	resumeAck: (payload: { afterSequence: number }) => Promise<unknown> = async () => ({
+		ok: true,
+		events: [],
+		latestSequence: 0,
+		truncated: false,
+	});
 
 	readonly io = {
 		on: (event: string, handler: Handler) => {
 			this.managerHandlers.set(event, [...(this.managerHandlers.get(event) ?? []), handler]);
 		},
+		reconnectionDelay: vi.fn(),
+		reconnectionDelayMax: vi.fn(),
+		randomizationFactor: vi.fn(),
 	};
 
 	constructor(readonly getToken: () => string | null) {}
@@ -46,17 +56,24 @@ export class FakeRealtimeSocket {
 
 	timeout() {
 		return {
-			emitWithAck: (event: string, payload: { tripId: string }) => {
+			emitWithAck: (event: string, payload: unknown) => {
 				this.emitted.push({ event, payload });
-				return this.tripAck(payload);
+				if (event === "realtime.resume") {
+					return this.resumeAck(payload as { afterSequence: number });
+				}
+				return this.tripAck(payload as { tripId: string });
 			},
 		};
 	}
 
-	/** Simulates a frame from the server (gateway events and application events alike). */
-	serverEmit(event: string, payload?: unknown) {
-		for (const handler of this.handlers.get(event) ?? []) handler(payload);
-		for (const handler of this.anyHandlers) handler(event, payload);
+	/**
+	 * Simulates a frame from the server (gateway events and application events alike); protected
+	 * events carry `meta` as their second argument since CTMS-082.
+	 */
+	serverEmit(event: string, payload?: unknown, meta?: unknown) {
+		const args = meta === undefined ? [payload] : [payload, meta];
+		for (const handler of this.handlers.get(event) ?? []) handler(...args);
+		for (const handler of this.anyHandlers) handler(event, ...args);
 	}
 
 	managerEmit(event: string) {

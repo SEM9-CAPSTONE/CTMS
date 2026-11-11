@@ -208,7 +208,10 @@ class _CamperTripDetailScreenState
               ),
               children: [
                 SosActiveBanner(tripId: effectiveTripId),
-                OfflinePackagePanel(tripId: effectiveTripId),
+                OfflinePackagePanel(
+                  tripId: effectiveTripId,
+                  tripTitle: widget.booking?.title ?? widget.trip?.name,
+                ),
                 const SizedBox(height: AppSpacing.lg),
                 // Emergency alerts broadcast by the Host (CTMS-081); empty until one arrives
                 EmergencyBroadcastsPanel(tripId: effectiveTripId),
@@ -550,7 +553,12 @@ class _CamperTripDetailScreenState
                 vertical: AppSpacing.lg,
               ),
               children: [
-                OfflineMapPanel(tripId: effectiveTripId, integrateArrivals: true, enableRecovery: true),
+                OfflineMapPanel(
+                  tripId: effectiveTripId,
+                  tripTitle: widget.booking?.title ?? widget.trip?.name,
+                  integrateArrivals: true,
+                  enableRecovery: true,
+                ),
                 const SizedBox(height: AppSpacing.lg),
                 GpsTrackingPanel(tripId: effectiveTripId),
                 const SizedBox(height: AppSpacing.lg),
