@@ -46,6 +46,25 @@ class OfflinePackagePanel extends ConsumerWidget {
     final transferred = local?.status == PackageDownloadStatus.downloaded;
 
     final (message, label, action, transferProgress) = switch (verification) {
+      _ when controller.downloadingBasemap => (
+        'Đang tải nền bản đồ · ${(controller.basemapProgress * 100).floor()}%',
+        'Tạm dừng',
+        controller.pause,
+        controller.basemapProgress,
+      ),
+      _
+          when active != null &&
+              verification != PackageVerificationStatus.failed &&
+              !controller.loading &&
+              !controller.downloading &&
+              !controller.readyForOffline =>
+        (
+          controller.basemapError ??
+              'Dữ liệu chuyến đi đã có. Chưa tải nền bản đồ.',
+          'Tải nền bản đồ',
+          controller.start,
+          null,
+        ),
       PackageVerificationStatus.verifying => (
         'Đang hoàn tất dữ liệu…',
         null,
@@ -68,7 +87,8 @@ class OfflinePackagePanel extends ConsumerWidget {
         progress,
       ),
       _
-          when active != null &&
+          when controller.readyForOffline &&
+              active != null &&
               (controller.loading ||
                   package == null ||
                   active.sameArtifact(package) ||
@@ -76,6 +96,12 @@ class OfflinePackagePanel extends ConsumerWidget {
                   verification == PackageVerificationStatus.verified) =>
         ('Sẵn sàng sử dụng ngoại tuyến', null, null, null),
       _ when controller.loading => ('Đang tải thông tin…', null, null, null),
+      _ when package == null && controller.error != null => (
+        controller.error!,
+        'Thử lại',
+        controller.load,
+        null,
+      ),
       _ when package == null => (
         'Chưa có dữ liệu ngoại tuyến',
         'Thử lại',
@@ -83,9 +109,11 @@ class OfflinePackagePanel extends ConsumerWidget {
         null,
       ),
       PackageVerificationStatus.verified => (
-        'Chưa có dữ liệu ngoại tuyến',
-        null,
-        null,
+        package.activationAllowed == false
+            ? 'Gói đã tải nhưng chưa được kích hoạt. Chuyến đi đã bắt đầu nên không thể kích hoạt gói mới. Vui lòng liên hệ ban tổ chức.'
+            : 'Gói đã tải nhưng chưa được kích hoạt. Vui lòng kiểm tra lại.',
+        'Kiểm tra lại',
+        controller.load,
         null,
       ),
       _ when progress > 0 => (
@@ -119,7 +147,7 @@ class OfflinePackagePanel extends ConsumerWidget {
             LinearProgressIndicator(
               value: transferProgress,
               semanticsLabel: 'Tiến độ tải dữ liệu ngoại tuyến',
-              semanticsValue: percentage,
+              semanticsValue: '${(transferProgress * 100).floor()}%',
             ),
           ],
           if (!summaryOnly && controller.storageBlocked) ...[

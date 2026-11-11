@@ -176,3 +176,21 @@ TBD — Technical Design.
 ## 12. Open Decisions
 
 Physical package format, compression and storage mechanism belong to Technical Design.
+
+## 2026-11-10 — Automatic core and raster preparation (CTMS-307 integration)
+
+Publication already inserts the initial durable job via the database trigger in
+`1794200000000-CreateOfflinePackages`; this is atomic with the Trip transaction.
+Core READY still requires authoritative approved safety inputs. The current
+`UnavailableOfflineSafetySources` adapter blocks production generation; fixture
+packages do not prove that this upstream integration is implemented.
+
+Each newly committed immutable core package now enqueues one independent raster
+job. The migration backfills existing packages. The dedicated worker derives the
+region from the verified package route, renders raw OSM ways into MBTiles and
+binds a verified content-addressed artifact to the exact package identity. Core
+readiness and raster readiness are separate states. Raster errors do not mutate
+the core package; attempts are persisted and capped at three. Existing package
+files and ongoing-trip activated versions are not overwritten.
+
+Operational contract and limitations: [CTMS-307 backend integration](../../docs/features/CTMS-307-Offline-Basemap-Backend.md).

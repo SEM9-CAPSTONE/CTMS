@@ -10,39 +10,55 @@ import '../../gps_tracking/application/gps_location_source.dart';
 import '../../gps_tracking/application/gps_tracking_controller.dart';
 import '../../offline_packages/data/package_download_store.dart';
 import '../../offline_packages/data/package_integrity_service.dart';
+import '../../offline_packages/data/offline_basemap_store.dart';
 import '../data/offline_map_package_reader.dart';
 import '../domain/offline_map_models.dart';
 
 /// Provider cung cấp bộ đọc gói bản đồ ngoại tuyến đã xác thực.
 final offlineMapPackageReaderProvider =
     FutureProvider.autoDispose<OfflineMapPackageReader>((ref) async {
-  final userId = ref.watch(authControllerProvider).valueOrNull?.id;
-  if (userId == null) {
-    throw StateError('Người dùng chưa đăng nhập.');
-  }
-  final directory = await getApplicationSupportDirectory();
-  final store = PackageDownloadStore(
-    Directory('${directory.path}/offline-packages/$userId'),
-  );
-  final integrity = PackageIntegrityService(store);
-  return DefaultOfflineMapPackageReader(store: store, integrity: integrity);
-});
+      if (kIsWeb) {
+        throw UnsupportedError('Offline packages require device file storage.');
+      }
+      final userId = ref.watch(authControllerProvider).valueOrNull?.id;
+      if (userId == null) {
+        throw StateError('Người dùng chưa đăng nhập.');
+      }
+      final directory = await getApplicationSupportDirectory();
+      final store = PackageDownloadStore(
+        Directory('${directory.path}/offline-packages/$userId'),
+      );
+      final integrity = PackageIntegrityService(store);
+      return DefaultOfflineMapPackageReader(store: store, integrity: integrity);
+    });
 
 /// Provider quản lý toàn bộ logic ngữ cảnh bản đồ và vị trí GPS offline cho chuyến đi.
 final offlineMapControllerProvider = ChangeNotifierProvider.autoDispose
     .family<OfflineMapController, String>((ref, tripId) {
-  final gps = ref.watch(gpsTrackingControllerProvider(tripId).notifier);
-  final locationSource = ref.watch(gpsLocationSourceProvider);
+      final gps = ref.watch(gpsTrackingControllerProvider(tripId).notifier);
+      final locationSource = ref.watch(gpsLocationSourceProvider);
 
-  final controller = OfflineMapController(
-    tripId: tripId,
-    packageReaderFuture: () => ref.read(offlineMapPackageReaderProvider.future),
-    gps: gps,
-    locationSource: locationSource,
-  );
-  ref.onDispose(controller.dispose);
-  return controller;
-});
+      final controller = OfflineMapController(
+        tripId: tripId,
+        packageReaderFuture: () =>
+            ref.read(offlineMapPackageReaderProvider.future),
+        gps: gps,
+        locationSource: locationSource,
+        basemapPathFor: (context) async {
+          final store = await ref.read(offlineBasemapStoreProvider.future);
+          final active = await store.coreStore.active(tripId);
+          if (active == null ||
+              active.id != context.packageId ||
+              active.packageVersion.toString() !=
+                  context.packageVersion.toString()) {
+            return null;
+          }
+          return store.verifiedPath(active);
+        },
+      );
+      ref.onDispose(controller.dispose);
+      return controller;
+    });
 
 /// Quản lý logic ngữ cảnh bản đồ offline và vị trí GPS thật cho một chuyến đi (CTMS-307).
 ///
@@ -58,11 +74,12 @@ class OfflineMapController extends ChangeNotifier {
     Future<OfflineMapPackageReader> Function()? packageReaderFuture,
     this.gps,
     this.locationSource,
+    this.basemapPathFor,
     DateTime Function()? clock,
     this.autoStart = true,
-  })  : _packageReader = packageReader,
-        _packageReaderFuture = packageReaderFuture,
-        _clock = clock ?? DateTime.now {
+  }) : _packageReader = packageReader,
+       _packageReaderFuture = packageReaderFuture,
+       _clock = clock ?? DateTime.now {
     _state = OfflineMapState(tripId: tripId);
     gps?.addListener(_onGpsChanged);
     if (autoStart) {
@@ -75,6 +92,8 @@ class OfflineMapController extends ChangeNotifier {
   final Future<OfflineMapPackageReader> Function()? _packageReaderFuture;
   final GpsTrackingController? gps;
   final GpsLocationSource? locationSource;
+  final Future<String?> Function(OfflineMapContext)? basemapPathFor;
+  String? basemapPath;
   final DateTime Function() _clock;
   final bool autoStart;
 
@@ -101,63 +120,123 @@ class OfflineMapController extends ChangeNotifier {
 
   /// Khởi tạo: đọc active package từ disk và thiết lập trạng thái định vị ban đầu.
   Future<void> start() async {
-    await reloadPackage();
-    _startStaleTicker();
-    if (gps != null) {
-      _onGpsChanged();
-    } else if (locationSource != null) {
-      await refreshLocation();
+    try {
+      await reloadPackage();
+      if (_disposed) return;
+      _startStaleTicker();
+      if (gps != null) {
+        _onGpsChanged();
+      } else if (locationSource != null) {
+        await refreshLocation();
+      }
+    } catch (e) {
+      if (_disposed) return;
+      // Tránh để UI bị kẹt ở trạng thái loading nếu có ngoại lệ bất ngờ xảy ra
+      if (_state.packageStatus == OfflineMapPackageStatus.loading) {
+        _emit(
+          _state.copyWith(
+            packageStatus: OfflineMapPackageStatus.packageInvalid,
+            clearContext: true,
+            errorMessage: 'Lỗi khởi chạy bản đồ: $e',
+          ),
+        );
+      }
     }
   }
 
+  DateTime _lastReloadPackageAt = DateTime.fromMillisecondsSinceEpoch(0);
+
   /// Tải lại gói dữ liệu ngoại tuyến active cho chuyến đi.
-  Future<void> reloadPackage() async {
-    _emit(_state.copyWith(
-      packageStatus: OfflineMapPackageStatus.loading,
-      clearError: true,
-    ));
+  /// Debounce 2 giây để tránh đọc đĩa trùng lặp khi nhiều màn hình cùng gọi reload (ví dụ panel + full-screen screen cùng nhận resume).
+  Future<void> reloadPackage({bool force = false}) async {
+    if (_disposed) return;
+    final currentTime = _clock();
+    if (!force &&
+        currentTime.difference(_lastReloadPackageAt) <
+            const Duration(seconds: 2)) {
+      return;
+    }
+    _lastReloadPackageAt = currentTime;
+    basemapPath = null;
+
+    _emit(
+      _state.copyWith(
+        packageStatus: OfflineMapPackageStatus.loading,
+        clearError: true,
+      ),
+    );
 
     try {
       final reader = _packageReader ?? (await _packageReaderFuture?.call());
+      if (_disposed) return;
       if (reader == null) {
-        _emit(_state.copyWith(
-          packageStatus: OfflineMapPackageStatus.packageMissing,
-          errorMessage: 'Chưa khởi tạo được bộ đọc gói ngoại tuyến.',
-        ));
+        _emit(
+          _state.copyWith(
+            packageStatus: OfflineMapPackageStatus.packageMissing,
+            errorMessage: 'Chưa khởi tạo được bộ đọc gói ngoại tuyến.',
+          ),
+        );
         return;
       }
 
       final context = await reader.readActivePackage(tripId);
+      if (_disposed) return;
       if (context == null) {
-        _emit(_state.copyWith(
-          packageStatus: OfflineMapPackageStatus.packageMissing,
-          clearContext: true,
-        ));
+        _emit(
+          _state.copyWith(
+            packageStatus: OfflineMapPackageStatus.packageMissing,
+            clearContext: true,
+          ),
+        );
       } else {
-        _emit(_state.copyWith(
-          packageStatus: OfflineMapPackageStatus.ready,
-          context: context,
-          clearError: true,
-        ));
+        try {
+          basemapPath = await basemapPathFor?.call(context);
+        } catch (_) {
+          basemapPath = null;
+        }
+        if (_disposed) return;
+        _emit(
+          _state.copyWith(
+            packageStatus: OfflineMapPackageStatus.ready,
+            context: context,
+            clearError: true,
+          ),
+        );
       }
+    } on UnsupportedError {
+      _emit(
+        _state.copyWith(
+          packageStatus: OfflineMapPackageStatus.unsupportedPlatform,
+          clearContext: true,
+          errorMessage:
+              'Gói bản đồ ngoại tuyến hiện chỉ hỗ trợ ứng dụng trên thiết bị Android/iOS.',
+        ),
+      );
     } on OfflineMapAccessDeniedException catch (e) {
-      _emit(_state.copyWith(
-        packageStatus: OfflineMapPackageStatus.accessDenied,
-        clearContext: true,
-        errorMessage: e.message,
-      ));
+      basemapPath = null;
+      _emit(
+        _state.copyWith(
+          packageStatus: OfflineMapPackageStatus.accessDenied,
+          clearContext: true,
+          errorMessage: e.message,
+        ),
+      );
     } on OfflineMapPackageInvalidException catch (e) {
-      _emit(_state.copyWith(
-        packageStatus: OfflineMapPackageStatus.packageInvalid,
-        clearContext: true,
-        errorMessage: e.message,
-      ));
+      _emit(
+        _state.copyWith(
+          packageStatus: OfflineMapPackageStatus.packageInvalid,
+          clearContext: true,
+          errorMessage: e.message,
+        ),
+      );
     } catch (e) {
-      _emit(_state.copyWith(
-        packageStatus: OfflineMapPackageStatus.packageInvalid,
-        clearContext: true,
-        errorMessage: 'Lỗi không xác định khi đọc gói: $e',
-      ));
+      _emit(
+        _state.copyWith(
+          packageStatus: OfflineMapPackageStatus.packageInvalid,
+          clearContext: true,
+          errorMessage: 'Lỗi không xác định khi đọc gói: $e',
+        ),
+      );
     }
   }
 
@@ -183,49 +262,60 @@ class OfflineMapController extends ChangeNotifier {
     final gpsStatus = gps!.status;
     switch (gpsStatus) {
       case GpsTrackingStatus.permissionDenied:
-        _emit(_state.copyWith(
-          location: const OfflineMapLocationState(
-            status: OfflineMapGpsStatus.permissionDenied,
-            errorMessage: 'Chưa cấp quyền truy cập vị trí.',
+        _emit(
+          _state.copyWith(
+            location: const OfflineMapLocationState(
+              status: OfflineMapGpsStatus.permissionDenied,
+              errorMessage: 'Chưa cấp quyền truy cập vị trí.',
+            ),
           ),
-        ));
+        );
         return;
 
       case GpsTrackingStatus.permissionDeniedForever:
-        _emit(_state.copyWith(
-          location: const OfflineMapLocationState(
-            status: OfflineMapGpsStatus.permissionDeniedForever,
-            errorMessage: 'Quyền vị trí đã bị từ chối vĩnh viễn trong cài đặt.',
+        _emit(
+          _state.copyWith(
+            location: const OfflineMapLocationState(
+              status: OfflineMapGpsStatus.permissionDeniedForever,
+              errorMessage:
+                  'Quyền vị trí đã bị từ chối vĩnh viễn trong cài đặt.',
+            ),
           ),
-        ));
+        );
         return;
 
       case GpsTrackingStatus.serviceDisabled:
-        _emit(_state.copyWith(
-          location: const OfflineMapLocationState(
-            status: OfflineMapGpsStatus.serviceDisabled,
-            errorMessage: 'Dịch vụ định vị GPS trên thiết bị đang tắt.',
+        _emit(
+          _state.copyWith(
+            location: const OfflineMapLocationState(
+              status: OfflineMapGpsStatus.serviceDisabled,
+              errorMessage: 'Dịch vụ định vị GPS trên thiết bị đang tắt.',
+            ),
           ),
-        ));
+        );
         return;
 
       case GpsTrackingStatus.unavailable:
       case GpsTrackingStatus.notEligible:
-        _emit(_state.copyWith(
-          location: const OfflineMapLocationState(
-            status: OfflineMapGpsStatus.unavailable,
-            errorMessage: 'Tính năng theo dõi vị trí hiện không khả dụng.',
+        _emit(
+          _state.copyWith(
+            location: const OfflineMapLocationState(
+              status: OfflineMapGpsStatus.unavailable,
+              errorMessage: 'Tính năng theo dõi vị trí hiện không khả dụng.',
+            ),
           ),
-        ));
+        );
         return;
 
       case GpsTrackingStatus.checking:
         if (_state.location.sample == null) {
-          _emit(_state.copyWith(
-            location: const OfflineMapLocationState(
-              status: OfflineMapGpsStatus.checking,
+          _emit(
+            _state.copyWith(
+              location: const OfflineMapLocationState(
+                status: OfflineMapGpsStatus.checking,
+              ),
             ),
-          ));
+          );
         }
         break;
 
@@ -236,88 +326,128 @@ class OfflineMapController extends ChangeNotifier {
     final sample = gps!.lastSample;
     if (sample != null && sample.capturedAt != _lastSampleCapturedAt) {
       _lastSampleCapturedAt = sample.capturedAt;
-      _emit(_state.copyWith(
-        location: OfflineMapLocationState(
-          sample: sample,
-          status: OfflineMapGpsStatus.ready,
+      _emit(
+        _state.copyWith(
+          location: OfflineMapLocationState(
+            sample: sample,
+            status: OfflineMapGpsStatus.ready,
+          ),
         ),
-      ));
+      );
     }
   }
 
+  DateTime _lastRefreshLocationAt = DateTime.fromMillisecondsSinceEpoch(0);
+  bool _isRefreshingLocation = false;
+
   /// Lấy mẫu vị trí đơn lẻ qua [locationSource] khi không có [GpsTrackingController] đang chạy.
-  Future<void> refreshLocation() async {
-    // Nếu GPS tracking đang hoạt động thì giao toàn quyền cho luồng chính, không gọi song song
-    if (gps != null && gps!.isTracking) {
-      await gps!.sampleNow();
+  /// Debounce 2 giây và cờ [_isRefreshingLocation] để tránh đo GPS trùng lặp
+  /// khi nhiều widget (Panel + Screen) cùng nhận sự kiện resume.
+  Future<void> refreshLocation({bool force = false}) async {
+    if (_disposed) return;
+    final currentTime = _clock();
+    if (!force &&
+        currentTime.difference(_lastRefreshLocationAt) <
+            const Duration(seconds: 2)) {
       return;
     }
-
-    if (locationSource == null) return;
-
-    final permission = await locationSource!.checkPermission();
-    switch (permission) {
-      case GpsPermissionState.denied:
-        _emit(_state.copyWith(
-          location: const OfflineMapLocationState(
-            status: OfflineMapGpsStatus.permissionDenied,
-            errorMessage: 'Chưa cấp quyền truy cập vị trí.',
-          ),
-        ));
-        return;
-
-      case GpsPermissionState.deniedForever:
-        _emit(_state.copyWith(
-          location: const OfflineMapLocationState(
-            status: OfflineMapGpsStatus.permissionDeniedForever,
-            errorMessage: 'Quyền vị trí bị từ chối vĩnh viễn.',
-          ),
-        ));
-        return;
-
-      case GpsPermissionState.serviceDisabled:
-        _emit(_state.copyWith(
-          location: const OfflineMapLocationState(
-            status: OfflineMapGpsStatus.serviceDisabled,
-            errorMessage: 'Dịch vụ GPS trên thiết bị đang tắt.',
-          ),
-        ));
-        return;
-
-      case GpsPermissionState.granted:
-        break;
-    }
+    if (_isRefreshingLocation) return;
+    _isRefreshingLocation = true;
+    _lastRefreshLocationAt = currentTime;
 
     try {
-      final sample = await locationSource!.currentSample(
-        timeLimit: const Duration(seconds: 8),
-      );
-      _lastSampleCapturedAt = sample.capturedAt;
-      _emit(_state.copyWith(
-        location: OfflineMapLocationState(
-          sample: sample,
-          status: OfflineMapGpsStatus.ready,
-        ),
-      ));
-    } catch (_) {
-      // Khi mất fix hoặc timeout: không tạo tọa độ giả
-      if (_state.location.sample == null) {
-        _emit(_state.copyWith(
-          location: const OfflineMapLocationState(
-            status: OfflineMapGpsStatus.unavailable,
-            errorMessage: 'Chưa nhận được tín hiệu định vị vệ tinh.',
-          ),
-        ));
+      // Nếu GPS tracking đang hoạt động thì giao toàn quyền cho luồng chính, không gọi song song
+      if (gps != null && gps!.isTracking) {
+        await gps!.sampleNow();
+        return;
       }
+
+      if (locationSource == null) return;
+
+      final permission = await locationSource!.checkPermission();
+      if (_disposed) return;
+      switch (permission) {
+        case GpsPermissionState.denied:
+          _emit(
+            _state.copyWith(
+              location: const OfflineMapLocationState(
+                status: OfflineMapGpsStatus.permissionDenied,
+                errorMessage: 'Chưa cấp quyền truy cập vị trí.',
+              ),
+            ),
+          );
+          return;
+
+        case GpsPermissionState.deniedForever:
+          _emit(
+            _state.copyWith(
+              location: const OfflineMapLocationState(
+                status: OfflineMapGpsStatus.permissionDeniedForever,
+                errorMessage: 'Quyền vị trí bị từ chối vĩnh viễn.',
+              ),
+            ),
+          );
+          return;
+
+        case GpsPermissionState.serviceDisabled:
+          _emit(
+            _state.copyWith(
+              location: const OfflineMapLocationState(
+                status: OfflineMapGpsStatus.serviceDisabled,
+                errorMessage: 'Dịch vụ GPS trên thiết bị đang tắt.',
+              ),
+            ),
+          );
+          return;
+
+        case GpsPermissionState.granted:
+          break;
+      }
+
+      try {
+        final sample = await locationSource!.currentSample(
+          timeLimit: const Duration(seconds: 8),
+        );
+        if (_disposed) return;
+        _lastSampleCapturedAt = sample.capturedAt;
+        _emit(
+          _state.copyWith(
+            location: OfflineMapLocationState(
+              sample: sample,
+              status: OfflineMapGpsStatus.ready,
+            ),
+          ),
+        );
+      } catch (_) {
+        if (_disposed) return;
+        // Khi mất fix hoặc timeout: không tạo tọa độ giả
+        if (_state.location.sample == null) {
+          _emit(
+            _state.copyWith(
+              location: const OfflineMapLocationState(
+                status: OfflineMapGpsStatus.unavailable,
+                errorMessage: 'Chưa nhận được tín hiệu định vị vệ tinh.',
+              ),
+            ),
+          );
+        }
+      }
+    } finally {
+      _isRefreshingLocation = false;
     }
   }
 
   @override
   void dispose() {
+    if (_disposed) return;
     _disposed = true;
     _staleTicker?.cancel();
     _staleTicker = null;
-    gps?.removeListener(_onGpsChanged);
+    try {
+      gps?.removeListener(_onGpsChanged);
+    } catch (_) {
+      // Phòng ngừa ngoại lệ nếu gps controller đã bị dispose trước
+    }
     super.dispose();
   }
 }

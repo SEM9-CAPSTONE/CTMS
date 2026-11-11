@@ -56,6 +56,8 @@ class TrekkingEndpoints {
 }
 
 class TripEndpoints {
+  String offlineBasemap(String tripId, int version, {bool download = false}) =>
+      '/trips/$tripId/offline-packages/$version/tiles${download ? '/download' : ''}';
   const TripEndpoints();
 
   String offlinePackage(String tripId, {int? version}) =>

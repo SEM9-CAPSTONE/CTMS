@@ -134,6 +134,8 @@ void main() {
     tester,
   ) async {
     controller
+      ..basemapReady = true
+      ..basemapPackageId = package.id
       ..verification = PackageVerificationStatus.verified
       ..active = package;
     await render(tester);
@@ -142,13 +144,41 @@ void main() {
     expect(find.byType(FilledButton), findsNothing);
   });
 
+  testWidgets('verified core without basemap cannot show offline ready', (
+    tester,
+  ) async {
+    controller
+      ..verification = PackageVerificationStatus.verified
+      ..active = package;
+    await render(tester);
+    expect(find.text(ready), findsNothing);
+    expect(find.text('Tải nền bản đồ'), findsOneWidget);
+    await tester.tap(find.text('Tải nền bản đồ'));
+    expect(controller.starts, 1);
+  });
+
+  testWidgets('basemap transfer has separate progress and pause', (
+    tester,
+  ) async {
+    controller
+      ..downloading = true
+      ..downloadingBasemap = true
+      ..basemapProgress = .4;
+    await render(tester);
+    expect(find.text('Đang tải nền bản đồ · 40%'), findsOneWidget);
+    await tester.tap(find.text('Tạm dừng'));
+    expect(controller.pauses, 1);
+  });
+
   testWidgets('verified without an active version cannot show ready', (
     tester,
   ) async {
     controller.verification = PackageVerificationStatus.verified;
     await render(tester);
     expect(find.text(ready), findsNothing);
-    expect(find.byType(FilledButton), findsNothing);
+    expect(find.textContaining('Gói đã tải nhưng chưa được kích hoạt.'), findsOneWidget);
+    await tester.tap(find.text('Kiểm tra lại'));
+    expect(controller.loads, 1);
   });
 
   testWidgets(

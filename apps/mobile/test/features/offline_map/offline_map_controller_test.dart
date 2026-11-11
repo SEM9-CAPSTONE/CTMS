@@ -115,6 +115,17 @@ void main() {
   });
 
   group('OfflineMapController - Package Loading States', () {
+    test('unsupported storage is not reported as a corrupted package', () async {
+      final controller = OfflineMapController(
+        tripId: kTestTripId,
+        packageReaderFuture: () async => throw UnsupportedError('No device storage'),
+        autoStart: false,
+      );
+      addTearDown(controller.dispose);
+      await controller.start();
+      expect(controller.state.packageStatus, OfflineMapPackageStatus.unsupportedPlatform);
+      expect(controller.state.hasUsableMap, isFalse);
+    });
     test('tải thành công package active khi offline', () async {
       reader.contextToReturn = createTestContext();
 

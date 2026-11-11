@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { OfflinePackagesModule } from "../offline-packages/offline-packages.module";
+import { OfflineBasemapService } from "./offline-basemap.service";
 import { OfflinePackageAccessRepository } from "./offline-package-access.repository";
 import { OfflinePackageDownloadController } from "./offline-package-download.controller";
 import { OfflinePackageDownloadService } from "./offline-package-download.service";
@@ -12,6 +13,7 @@ import { OfflinePackageDownloadService } from "./offline-package-download.servic
 	providers: [
 		OfflinePackageAccessRepository,
 		OfflinePackageDownloadService,
+		OfflineBasemapService,
 		JwtAuthGuard,
 		RolesGuard,
 	],

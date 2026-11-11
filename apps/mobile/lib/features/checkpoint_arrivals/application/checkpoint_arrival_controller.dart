@@ -14,16 +14,15 @@ import '../../gps_tracking/domain/gps_tracking_models.dart';
 import '../data/checkpoint_arrival_api.dart';
 import '../data/checkpoint_arrival_store.dart';
 import '../data/checkpoint_context_provider.dart';
+import '../data/package_checkpoint_context_provider.dart';
+import '../../offline_map/application/offline_map_controller.dart';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 import '../domain/checkpoint_arrival_detector.dart';
 import '../domain/checkpoint_arrival_models.dart';
 import 'checkpoint_arrival_sync.dart';
 
-enum CheckpointArrivalStatus {
-  checking,
-  active,
-  paused,
-  unavailable,
-}
+enum CheckpointArrivalStatus { checking, active, paused, unavailable }
 
 /// Phát âm thanh và rung thông báo khi Camper đến một Checkpoint (CTMS-061).
 Future<void> playCheckpointReachedAlert() async {
@@ -67,9 +66,9 @@ class CheckpointArrivalController extends ChangeNotifier {
     Future<bool> Function()? isOnline,
     Future<void> Function()? alert,
     this.autoStart = true,
-  })  : _clock = clock ?? DateTime.now,
-        _isOnline = isOnline ?? _deviceIsOnline,
-        _alert = alert ?? playCheckpointReachedAlert {
+  }) : _clock = clock ?? DateTime.now,
+       _isOnline = isOnline ?? _deviceIsOnline,
+       _alert = alert ?? playCheckpointReachedAlert {
     gps.addListener(_onGpsChanged);
     if (autoStart) {
       unawaited(start());
@@ -111,22 +110,24 @@ class CheckpointArrivalController extends ChangeNotifier {
 
   int get reachedCount => record.arrivals.length;
   int get totalCount => context?.checkpoints.length ?? 0;
-  int get pendingCount =>
-      record.arrivals.where((a) => a.syncState == CheckpointSyncState.pending).length;
-  int get syncedCount =>
-      record.arrivals.where((a) => a.syncState == CheckpointSyncState.synced).length;
-  int get pausedCount =>
-      record.arrivals.where((a) => a.syncState == CheckpointSyncState.paused).length;
-  int get failedCount =>
-      record.arrivals.where((a) => a.syncState == CheckpointSyncState.failed).length;
+  int get pendingCount => record.arrivals
+      .where((a) => a.syncState == CheckpointSyncState.pending)
+      .length;
+  int get syncedCount => record.arrivals
+      .where((a) => a.syncState == CheckpointSyncState.synced)
+      .length;
+  int get pausedCount => record.arrivals
+      .where((a) => a.syncState == CheckpointSyncState.paused)
+      .length;
+  int get failedCount => record.arrivals
+      .where((a) => a.syncState == CheckpointSyncState.failed)
+      .length;
 
   List<CheckpointUiItem> get uiItems {
     final currentContext = context;
     if (currentContext == null) return const [];
 
-    final arrivalsByCpId = {
-      for (final a in record.arrivals) a.checkpointId: a,
-    };
+    final arrivalsByCpId = {for (final a in record.arrivals) a.checkpointId: a};
 
     final currentGps = gps.lastSample;
 
@@ -176,6 +177,7 @@ class CheckpointArrivalController extends ChangeNotifier {
       context = await contextProvider.getContext(tripId);
       error = null;
     } catch (e) {
+      context = null;
       error = 'Không thể tải dữ liệu điểm kiểm tra: $e';
     }
 
@@ -235,8 +237,9 @@ class CheckpointArrivalController extends ChangeNotifier {
 
       for (final item in newlyReached) {
         // Kiểm tra xem đã ghi nhận trước đó chưa
-        final alreadyRecorded =
-            record.arrivals.any((a) => a.checkpointId == item.checkpoint.id);
+        final alreadyRecorded = record.arrivals.any(
+          (a) => a.checkpointId == item.checkpoint.id,
+        );
         if (alreadyRecorded) continue;
 
         final arrival = LocalCheckpointArrival(
@@ -259,9 +262,8 @@ class CheckpointArrivalController extends ChangeNotifier {
         // 1. Lưu ngay vào bộ nhớ cục bộ nguyên tử
         record = await store.update(
           tripId,
-          (current) => current.copyWith(
-            arrivals: [...current.arrivals, arrival],
-          ),
+          (current) =>
+              current.copyWith(arrivals: [...current.arrivals, arrival]),
         );
 
         // 2. Kích hoạt báo động rung và chuông
@@ -339,7 +341,8 @@ class CheckpointArrivalController extends ChangeNotifier {
                         a.syncState == CheckpointSyncState.failed)
                     ? a.resetForRetry().copyWith(
                         routeId: currentCtx?.routeId ?? a.routeId,
-                        routeVersion: currentCtx?.routeVersion ?? a.routeVersion,
+                        routeVersion:
+                            currentCtx?.routeVersion ?? a.routeVersion,
                         packageId: currentCtx?.packageId ?? a.packageId,
                         packageVersion:
                             currentCtx?.packageVersion ?? a.packageVersion,
@@ -410,10 +413,42 @@ class CheckpointArrivalController extends ChangeNotifier {
 }
 
 final checkpointContextProvider = Provider<CheckpointContextProvider>((ref) {
-  return HttpCheckpointContextProvider(
+  final userId = ref.watch(authControllerProvider).valueOrNull?.id;
+  return PackageCheckpointContextProvider(
     client: ref.watch(apiClientProvider),
+    reader: () => ref.read(offlineMapPackageReaderProvider.future),
+    cache: _AccountCheckpointCache(userId ?? 'anonymous'),
   );
 });
+
+class _AccountCheckpointCache implements CheckpointContextProvider {
+  _AccountCheckpointCache(this.userId);
+  final String userId;
+  Future<FileCheckpointContextCache>
+  _cache() async => FileCheckpointContextCache(
+    root: Directory(
+      '${(await getApplicationSupportDirectory()).path}/checkpoint-cache/$userId',
+    ),
+  );
+  @override
+  Future<void> cacheContext(CheckpointArrivalContext context) async =>
+      (await _cache()).cacheContext(context);
+  @override
+  Future<CheckpointArrivalContext?> getContext(String tripId) async =>
+      (await _cache()).getContext(tripId);
+  @override
+  Future<CheckpointArrivalContext?> getCachedContext(
+    String tripId, {
+    String? routeVersion,
+    String? packageId,
+    String? packageVersion,
+  }) async => (await _cache()).getCachedContext(
+    tripId,
+    routeVersion: routeVersion,
+    packageId: packageId,
+    packageVersion: packageVersion,
+  );
+}
 
 final checkpointArrivalApiProvider = Provider<CheckpointArrivalApi>((ref) {
   return CheckpointArrivalApi(ref.watch(apiClientProvider));
@@ -426,11 +461,11 @@ final checkpointArrivalStoreProvider = Provider<CheckpointArrivalStore>((ref) {
 
 final checkpointArrivalControllerProvider = ChangeNotifierProvider.autoDispose
     .family<CheckpointArrivalController, String>((ref, tripId) {
-  return CheckpointArrivalController(
-    tripId: tripId,
-    gps: ref.watch(gpsTrackingControllerProvider(tripId).notifier),
-    api: ref.watch(checkpointArrivalApiProvider),
-    store: ref.watch(checkpointArrivalStoreProvider),
-    contextProvider: ref.watch(checkpointContextProvider),
-  );
-});
+      return CheckpointArrivalController(
+        tripId: tripId,
+        gps: ref.watch(gpsTrackingControllerProvider(tripId).notifier),
+        api: ref.watch(checkpointArrivalApiProvider),
+        store: ref.watch(checkpointArrivalStoreProvider),
+        contextProvider: ref.watch(checkpointContextProvider),
+      );
+    });

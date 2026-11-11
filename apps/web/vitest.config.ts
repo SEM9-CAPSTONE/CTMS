@@ -4,6 +4,9 @@ import { configDefaults, defineConfig } from "vitest/config";
 export default defineConfig({
 	plugins: [react()],
 	test: {
+		// Match the Windows pool used by the verified local validation run.
+		pool: process.platform === "win32" ? "threads" : "forks",
+		reporters: process.platform === "win32" ? ["verbose"] : ["default"],
 		environment: "jsdom",
 		setupFiles: ["./vitest.setup.ts"],
 		// Playwright E2E specs (tests/e2e/*.spec.ts, added in Bước 6.4) use a
