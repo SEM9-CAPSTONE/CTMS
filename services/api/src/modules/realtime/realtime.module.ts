@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { JwtModule } from "@nestjs/jwt";
 import { GpsTrackingModule } from "../gps-tracking/gps-tracking.module";
+import { PushNotificationsModule } from "../push-notifications/push-notifications.module";
 import { UsersModule } from "../users/users.module";
 import { EventsGateway } from "./events.gateway";
 import { RealtimeEventPruneWorker } from "./realtime-event-prune.worker";
@@ -13,6 +14,8 @@ import { RealtimeEventsService } from "./realtime-events.service";
 		UsersModule,
 		// CTMS-078: server-owned Trip relationships authorize Trip room membership.
 		GpsTrackingModule,
+		// CTMS-090: protected events also queue background pushes.
+		PushNotificationsModule,
 		// CTMS-079, BR-259: verify socket access tokens with the same secret as the HTTP JwtStrategy.
 		JwtModule.registerAsync({
 			imports: [ConfigModule],

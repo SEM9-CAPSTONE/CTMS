@@ -14,6 +14,7 @@ process.env.TRIP_STATUS_WORKER_ENABLED = "false";
 process.env.TRIP_WEATHER_MONITOR_WORKER_ENABLED = "false";
 process.env.TRIP_WEATHER_DECISION_WORKER_ENABLED = "false";
 process.env.REALTIME_EVENT_PRUNE_WORKER_ENABLED = "false";
+process.env.PUSH_DELIVERY_WORKER_ENABLED = "false";
 process.env.DATABASE_URL = databaseUrl;
 process.env.JWT_SECRET = process.env.JWT_SECRET ?? "integration-test-secret";
 process.env.JWT_ACCESS_TOKEN_TTL = process.env.JWT_ACCESS_TOKEN_TTL ?? "15m";

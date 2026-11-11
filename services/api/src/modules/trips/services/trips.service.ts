@@ -12,6 +12,7 @@ import { DataSource, type EntityManager } from "typeorm";
 import { AuditLog } from "../../auth/entities/audit-log.entity";
 import type { AuthenticatedUser } from "../../auth/jwt.strategy";
 import { DEFAULT_CANCELLATION_POLICY } from "../../bookings/cancellation-policy";
+import { publishBookingUpdates } from "../../realtime/booking-updates";
 // biome-ignore lint/style/useImportType: Nest constructor injection requires runtime metadata
 import { EventsGateway } from "../../realtime/events.gateway";
 import { TrekkingRouteStatus } from "../../trekking-routes/entities/trekking-route.entity";
@@ -1082,7 +1083,7 @@ export class TripsService {
 		rescheduledAt = new Date(),
 		options: TripScheduleChangeOptions = {}
 	): Promise<TripResponseDto> {
-		return this.dataSource.transaction(async (manager: EntityManager) => {
+		const rescheduled = await this.dataSource.transaction(async (manager: EntityManager) => {
 			const repository = manager.withRepository(this.tripsRepository);
 			const locked = await repository.findByIdForScheduleChange(tripId);
 
@@ -1132,6 +1133,8 @@ export class TripsService {
 
 			return updated;
 		});
+		await this.publishRescheduledBookings(rescheduled, rescheduledAt);
+		return rescheduled;
 	}
 
 	async cancel(
@@ -1141,7 +1144,8 @@ export class TripsService {
 		options: TripScheduleChangeOptions = {}
 	): Promise<TripResponseDto> {
 		const cancelledAt = new Date();
-		return this.dataSource.transaction(async (manager: EntityManager) => {
+		let cancelledBookings: Array<{ id: string; userId: string }> = [];
+		const cancelled = await this.dataSource.transaction(async (manager: EntityManager) => {
 			const repository = manager.withRepository(this.tripsRepository);
 			const locked = await repository.findByIdForScheduleChange(tripId);
 
@@ -1164,6 +1168,7 @@ export class TripsService {
 				cancelledAt,
 				dto.reason
 			);
+			cancelledBookings = commitmentSummary.cancelledBookings ?? [];
 			const updated = await repository.findById(tripId);
 			if (!updated) throw new Error("Failed to load cancelled Trip");
 
@@ -1184,6 +1189,13 @@ export class TripsService {
 
 			return updated;
 		});
+		publishBookingUpdates(
+			this.eventsGateway,
+			"cancelled",
+			{ id: cancelled.id, title: cancelled.title },
+			cancelledBookings
+		);
+		return cancelled;
 	}
 
 	/**
@@ -1537,6 +1549,35 @@ export class TripsService {
 		return new Date(
 			new Date(reviewedUpdatedAt).getTime() + TWENTY_FOUR_HOURS_IN_MILLISECONDS
 		).toISOString();
+	}
+
+	/**
+	 * CTMS-090: after the reschedule committed, tell the owners of the Bookings it sent back to
+	 * reconfirmation (they now carry the new schedule snapshot). Read outside the transaction so a
+	 * notification problem can never undo the reschedule (BR-194).
+	 */
+	private async publishRescheduledBookings(
+		trip: TripResponseDto,
+		rescheduledAt: Date
+	): Promise<void> {
+		if (!this.eventsGateway) return;
+		try {
+			const moved = (await this.dataSource.query(
+				`SELECT "id", "user_id" AS "userId" FROM "bookings"
+				 WHERE "trip_id" = $1 AND "status" = 'pending_reconfirmation'
+				   AND "trip_starts_at_snapshot" = $2`,
+				[trip.id, new Date(trip.startsAt)]
+			)) as Array<{ id: string; userId: string }>;
+			publishBookingUpdates(
+				this.eventsGateway,
+				"pending_reconfirmation",
+				{ id: trip.id, title: trip.title },
+				moved,
+				rescheduledAt.toISOString()
+			);
+		} catch {
+			// Notification side effects never affect the committed reschedule (BR-194).
+		}
 	}
 
 	private emitTripReviewUpdated(trip: TripResponseDto): void {

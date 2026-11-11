@@ -1,7 +1,10 @@
 import { Injectable, Logger } from "@nestjs/common";
+import { Inject, Optional } from "@nestjs/common";
 // biome-ignore lint/style/useImportType: NestJS constructor injection requires runtime metadata
 import { DataSource, type EntityManager } from "typeorm";
 import { AuditLog } from "../../auth/entities/audit-log.entity";
+import { publishBookingUpdates } from "../../realtime/booking-updates";
+import { EventsGateway } from "../../realtime/events.gateway";
 import {
 	TripAutoCancelOutboxEvent,
 	TripAutoCancelOutboxEventType,
@@ -42,7 +45,8 @@ export class TripAutoCancelService {
 
 	constructor(
 		private readonly dataSource: DataSource,
-		private readonly tripsRepository: TripsRepository
+		private readonly tripsRepository: TripsRepository,
+		@Optional() @Inject(EventsGateway) private readonly eventsGateway?: EventsGateway
 	) {}
 
 	async autoCancelDueTrips(batchSize: number): Promise<void> {
@@ -58,7 +62,8 @@ export class TripAutoCancelService {
 	}
 
 	async evaluateTrip(tripId: string, evaluatedAtOverride?: Date): Promise<TripAutoCancelResult> {
-		return this.dataSource.transaction(async (manager: EntityManager) => {
+		let cancelledBookings: Array<{ id: string; userId: string }> = [];
+		const result = await this.dataSource.transaction(async (manager: EntityManager) => {
 			const evaluatedAt = evaluatedAtOverride ?? (await this.captureDatabaseTime(manager));
 			const trips = manager.withRepository(this.tripsRepository);
 
@@ -86,6 +91,7 @@ export class TripAutoCancelService {
 				AUTO_CANCEL_REASON,
 				{ refundIdempotencyPrefix: REFUND_IDEMPOTENCY_PREFIX }
 			);
+			cancelledBookings = commitmentSummary.cancelledBookings ?? [];
 
 			await manager.getRepository(AuditLog).save({
 				actorId: null,
@@ -128,6 +134,31 @@ export class TripAutoCancelService {
 
 			return TripAutoCancelResult.CANCELLED;
 		});
+		if (result === TripAutoCancelResult.CANCELLED && cancelledBookings.length > 0) {
+			await this.publishCancelledBookings(tripId, cancelledBookings);
+		}
+		return result;
+	}
+
+	/** CTMS-090: after commit, each Booking owner learns the Trip was cancelled (never throws). */
+	private async publishCancelledBookings(
+		tripId: string,
+		bookings: Array<{ id: string; userId: string }>
+	): Promise<void> {
+		if (!this.eventsGateway) return;
+		try {
+			const rows = (await this.dataSource.query(`SELECT "title" FROM "trips" WHERE "id" = $1`, [
+				tripId,
+			])) as Array<{ title: string }>;
+			publishBookingUpdates(
+				this.eventsGateway,
+				"cancelled",
+				{ id: tripId, title: rows[0]?.title ?? "Chuyến đi" },
+				bookings
+			);
+		} catch {
+			// Notification side effects never affect the committed cancellation (BR-194).
+		}
 	}
 
 	private async captureDatabaseTime(manager: EntityManager): Promise<Date> {
