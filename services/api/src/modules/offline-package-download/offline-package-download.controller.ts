@@ -19,6 +19,8 @@ import { RolesGuard } from "../auth/guards/roles.guard";
 import type { AuthenticatedUser } from "../auth/jwt.strategy";
 import { UserRole } from "../users/entities/user.entity";
 // biome-ignore lint/style/useImportType: Nest injection metadata
+import { OfflineBasemapService } from "./offline-basemap.service";
+// biome-ignore lint/style/useImportType: Nest injection metadata
 import { OfflinePackageDownloadService } from "./offline-package-download.service";
 
 const ID_PIPE = new ParseUUIDPipe({ errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY });
@@ -37,7 +39,34 @@ interface DownloadHttpResponse {
 @ApiResponse({ status: 404, description: "Trip absent or participation revoked" })
 @ApiResponse({ status: 409, description: "Package not READY or unsupported" })
 export class OfflinePackageDownloadController {
-	constructor(private readonly downloads: OfflinePackageDownloadService) {}
+	constructor(
+		private readonly downloads: OfflinePackageDownloadService,
+		private readonly basemaps: OfflineBasemapService
+	) {}
+
+	@Get(":version/tiles")
+	@Header("Cache-Control", "private, no-store")
+	@ApiOperation({ summary: "Get immutable basemap bound to this package version" })
+	tiles(
+		@Req() request: { user: AuthenticatedUser },
+		@Param("tripId", ID_PIPE) tripId: string,
+		@Param("version", VERSION_PIPE) version: number
+	) {
+		this.validateVersion(version);
+		return this.basemaps.metadata(request.user.userId, tripId, version);
+	}
+
+	@Get(":version/tiles/download")
+	@Header("Cache-Control", "private, no-store, no-transform")
+	@ApiOperation({ summary: "Stream authorized MBTiles; checksum is provided by tiles metadata" })
+	tileBytes(
+		@Req() request: { user: AuthenticatedUser },
+		@Param("tripId", ID_PIPE) tripId: string,
+		@Param("version", VERSION_PIPE) version: number
+	) {
+		this.validateVersion(version);
+		return this.basemaps.download(request.user.userId, tripId, version);
+	}
 
 	@Get("latest")
 	@Header("Cache-Control", "private, no-store")

@@ -11,15 +11,20 @@ import '../../route_deviation/presentation/route_deviation_panel.dart';
 import 'gps_tracking_panel.dart';
 import '../../emergency_broadcasts/presentation/emergency_broadcasts_panel.dart';
 import '../../member_locations/presentation/porter_member_locations_panel.dart';
+import '../../offline_map/presentation/offline_map_panel.dart';
 import '../../schedule_progress/presentation/schedule_progress_panels.dart';
 
-/// Porter's assigned Trips currently `ongoing` (`GET /trips/assigned`).
+/// Porter's assigned Trips for preparation and tracking (`GET /trips/assigned`).
 final porterOngoingTripsProvider =
     FutureProvider.autoDispose<List<IncidentTrip>>((ref) async {
       final trips = await HttpIncidentsApi(
         ref.watch(apiClientProvider),
       ).assignedTrips();
-      return trips.where((trip) => trip.status == 'ongoing').toList();
+      return trips
+          .where((trip) =>
+              trip.status == 'ongoing' ||
+              trip.status == 'published')
+          .toList();
     });
 
 /// GPS breadcrumb recording and route-deviation detection for the Porter's
@@ -60,7 +65,7 @@ class _PorterGpsTrackingSectionState
         if (items.isEmpty) {
           return const CtmsAlertBanner(
             severity: CtmsAlertSeverity.info,
-            title: 'Chưa có chuyến đi đang diễn ra',
+            title: 'Chưa có chuyến đi được phân công',
             message:
                 'GPS chỉ được ghi khi bạn được phân công cho một chuyến đi đang diễn ra.',
           );
@@ -69,44 +74,68 @@ class _PorterGpsTrackingSectionState
           (trip) => trip.id == _selectedTripId,
           orElse: () => items.first,
         );
+        final isOngoing = selected.status == 'ongoing';
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (items.length > 1) ...[
               DropdownButtonFormField<String>(
                 key: const Key('porter-gps-trip'),
+                isExpanded: true,
                 initialValue: selected.id,
                 decoration: const InputDecoration(
-                  labelText: 'Chuyến đi đang dẫn đoàn',
+                  labelText: 'Chuyến đi được phân công',
                 ),
                 items: [
                   for (final trip in items)
-                    DropdownMenuItem(value: trip.id, child: Text(trip.title)),
+                    DropdownMenuItem(
+                      value: trip.id,
+                      child: Text(trip.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                    ),
                 ],
                 onChanged: (value) => setState(() => _selectedTripId = value),
               ),
               const SizedBox(height: AppSpacing.md),
             ],
-            EmergencyBroadcastsPanel(
-              key: ValueKey('emergency-${selected.id}'),
-              tripId: selected.id,
-            ),
-            GpsTrackingPanel(key: ValueKey(selected.id), tripId: selected.id),
-            const SizedBox(height: AppSpacing.md),
-            RouteDeviationPanel(
-              key: ValueKey('route-${selected.id}'),
-              tripId: selected.id,
-            ),
-            const SizedBox(height: AppSpacing.md),
-            PorterTeamProgressPanel(
-              key: ValueKey('progress-${selected.id}'),
+            if (items.length == 1) ...[
+              Text(selected.title, style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: AppSpacing.md),
+            ],
+            if (isOngoing)
+              EmergencyBroadcastsPanel(
+                key: ValueKey('emergency-${selected.id}'),
+                tripId: selected.id,
+              ),
+            OfflineMapPanel(
+              key: ValueKey('map-${selected.id}'),
               tripId: selected.id,
             ),
             const SizedBox(height: AppSpacing.md),
-            PorterMemberLocationsPanel(
-              key: ValueKey('locations-${selected.id}'),
-              tripId: selected.id,
-            ),
+            if (isOngoing) ...[
+              GpsTrackingPanel(key: ValueKey(selected.id), tripId: selected.id),
+              const SizedBox(height: AppSpacing.md),
+              RouteDeviationPanel(
+                key: ValueKey('route-${selected.id}'),
+                tripId: selected.id,
+              ),
+              const SizedBox(height: AppSpacing.md),
+              PorterTeamProgressPanel(
+                key: ValueKey('progress-${selected.id}'),
+                tripId: selected.id,
+              ),
+              const SizedBox(height: AppSpacing.md),
+              PorterMemberLocationsPanel(
+                key: ValueKey('locations-${selected.id}'),
+                tripId: selected.id,
+              ),
+            ] else ...[
+              const CtmsAlertBanner(
+                severity: CtmsAlertSeverity.info,
+                title: 'Chuyến đi chưa bắt đầu',
+                message:
+                    'Chuyến đi này chưa đến thời gian diễn ra. Bạn có thể tải trước gói bản đồ ngoại tuyến để chuẩn bị lộ trình. Tính năng ghi GPS và điều phối sẽ tự động sẵn sàng khi chuyến đi chuyển sang trạng thái đang diễn ra.',
+              ),
+            ],
           ],
         );
       },

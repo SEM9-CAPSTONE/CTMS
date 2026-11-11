@@ -4,9 +4,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/api_client.dart';
+import '../../../core/api/api_exception.dart';
 import '../../auth/application/auth_controller.dart';
 import '../data/gps_log_store.dart';
 import '../data/gps_tracking_api.dart';
+import '../data/cached_gps_tracking_api.dart';
 import '../domain/gps_tracking_models.dart';
 import 'gps_location_source.dart';
 import 'gps_log_sync.dart';
@@ -68,9 +70,12 @@ class GpsTrackingController extends ChangeNotifier {
   bool _disposed = false;
   bool _sampling = false;
 
-  int get pendingCount => logs.where((log) => log.syncState == GpsLogSyncState.pending).length;
-  int get syncedCount => logs.where((log) => log.syncState == GpsLogSyncState.synced).length;
-  int get failedCount => logs.where((log) => log.syncState == GpsLogSyncState.failed).length;
+  int get pendingCount =>
+      logs.where((log) => log.syncState == GpsLogSyncState.pending).length;
+  int get syncedCount =>
+      logs.where((log) => log.syncState == GpsLogSyncState.synced).length;
+  int get failedCount =>
+      logs.where((log) => log.syncState == GpsLogSyncState.failed).length;
   bool get isTracking => _sampleTimer != null;
 
   void _changed() {
@@ -88,7 +93,12 @@ class GpsTrackingController extends ChangeNotifier {
     try {
       context = await api.context(tripId);
       error = null;
-    } catch (_) {
+    } catch (failure) {
+      final offline =
+          failure is ApiException &&
+          (failure.kind == ApiExceptionKind.network ||
+              failure.kind == ApiExceptionKind.timeout);
+      if (!offline) context = null;
       // Offline: keep the last known decision; a new session stays unavailable
       // until the server confirms eligibility.
       if (context == null) {
@@ -112,7 +122,8 @@ class GpsTrackingController extends ChangeNotifier {
   bool _isEligibleAt(DateTime now) {
     final current = context;
     if (current == null || !current.eligible) return false;
-    return true;
+    return (current.startsAt == null || !now.isBefore(current.startsAt!)) &&
+        (current.endsAt == null || now.isBefore(current.endsAt!));
   }
 
   Future<void> requestPermission() async {
@@ -240,12 +251,20 @@ class GpsTrackingController extends ChangeNotifier {
           (current) => [
             for (final log in current)
               log.syncState == GpsLogSyncState.pending
-                  ? log.delivery(syncState: GpsLogSyncState.pending, attempts: log.attempts)
+                  ? log.delivery(
+                      syncState: GpsLogSyncState.pending,
+                      attempts: log.attempts,
+                    )
                   : log,
           ],
         );
       }
-      logs = await synchronizeGpsLogs(tripId: tripId, store: store, api: api, now: _clock());
+      logs = await synchronizeGpsLogs(
+        tripId: tripId,
+        store: store,
+        api: api,
+        now: _clock(),
+      );
       final hasTerminalRejection = logs.any(
         (l) =>
             l.rejectionReason == 'EVENT_TIME_OUTSIDE_PARTICIPATION' ||
@@ -272,7 +291,10 @@ class GpsTrackingController extends ChangeNotifier {
 }
 
 final gpsTrackingApiProvider = Provider<GpsTrackingApi>(
-  (ref) => HttpGpsTrackingApi(ref.watch(apiClientProvider)),
+  (ref) => CachedGpsTrackingApi(
+    HttpGpsTrackingApi(ref.watch(apiClientProvider)),
+    ref.watch(authControllerProvider).valueOrNull?.id ?? 'anonymous',
+  ),
 );
 
 final gpsLocationSourceProvider = Provider<GpsLocationSource>(

@@ -52,8 +52,7 @@ class _MockContextProvider implements CheckpointContextProvider {
     String? routeVersion,
     String? packageId,
     String? packageVersion,
-  }) async =>
-      context;
+  }) async => context;
 }
 
 class _MockApi implements CheckpointArrivalApi {
@@ -112,17 +111,23 @@ void main() {
   Future<void> pumpPanel(
     WidgetTester tester, {
     required CheckpointArrivalController controller,
+    ValueChanged<RouteCheckpoint>? onSelectCheckpoint,
   }) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          checkpointArrivalControllerProvider(tripId).overrideWith((_) => controller),
+          checkpointArrivalControllerProvider(
+            tripId,
+          ).overrideWith((_) => controller),
         ],
         child: MaterialApp(
           theme: AppTheme.light(),
-          home: const Scaffold(
+          home: Scaffold(
             body: SingleChildScrollView(
-              child: CheckpointArrivalPanel(tripId: tripId),
+              child: CheckpointArrivalPanel(
+                tripId: tripId,
+                onSelectCheckpoint: onSelectCheckpoint,
+              ),
             ),
           ),
         ),
@@ -131,7 +136,9 @@ void main() {
     await tester.pump();
   }
 
-  testWidgets('renders placeholder when checkpoint context is null', (tester) async {
+  testWidgets('renders placeholder when checkpoint context is null', (
+    tester,
+  ) async {
     final gps = GpsTrackingController(
       tripId: tripId,
       location: FakeLocationSource(),
@@ -156,83 +163,111 @@ void main() {
     await pumpPanel(tester, controller: controller);
 
     expect(find.text('Điểm kiểm tra tự động'), findsOneWidget);
-    expect(find.text('Chưa phát hiện được vì chưa có dữ liệu điểm kiểm tra'), findsOneWidget);
+    expect(
+      find.text('Chưa phát hiện được vì chưa có dữ liệu điểm kiểm tra'),
+      findsOneWidget,
+    );
   });
 
-  testWidgets('renders checkpoints list, summary row, and distances when context is available', (tester) async {
-    final gps = GpsTrackingController(
-      tripId: tripId,
-      location: FakeLocationSource(),
-      store: MemoryGpsLogStore(),
-      api: FakeGpsTrackingApi(),
-      autoStart: false,
-    );
-    final controller = CheckpointArrivalController(
-      tripId: tripId,
-      gps: gps,
-      api: _MockApi(),
-      store: _MockStore(),
-      contextProvider: _MockContextProvider(sampleContext),
-      isOnline: () async => false,
-      alert: () async {},
-      autoStart: false,
-    );
-    await tester.runAsync(() async {
-      await controller.start();
-    });
+  testWidgets(
+    'renders checkpoints list, summary row, and distances when context is available',
+    (tester) async {
+      final gps = GpsTrackingController(
+        tripId: tripId,
+        location: FakeLocationSource(),
+        store: MemoryGpsLogStore(),
+        api: FakeGpsTrackingApi(),
+        autoStart: false,
+      );
+      final controller = CheckpointArrivalController(
+        tripId: tripId,
+        gps: gps,
+        api: _MockApi(),
+        store: _MockStore(),
+        contextProvider: _MockContextProvider(sampleContext),
+        isOnline: () async => false,
+        alert: () async {},
+        autoStart: false,
+      );
+      await tester.runAsync(() async {
+        await controller.start();
+      });
 
-    await pumpPanel(tester, controller: controller);
+      await pumpPanel(tester, controller: controller);
 
-    expect(find.text('Điểm kiểm tra tự động'), findsOneWidget);
-    expect(find.text('Đã ghi nhận: 0/2 trạm'), findsOneWidget);
-    expect(find.text('Trạm kiểm lâm số 1'), findsOneWidget);
-    expect(find.text('Đỉnh Lang Biang'), findsOneWidget);
-    expect(find.text('Đồng bộ ngay'), findsOneWidget);
-  });
+      expect(find.text('Điểm kiểm tra tự động'), findsOneWidget);
+      expect(find.text('Đã ghi nhận: 0/2 trạm'), findsOneWidget);
+      expect(find.text('Trạm kiểm lâm số 1'), findsOneWidget);
+      expect(find.text('Đỉnh Lang Biang'), findsOneWidget);
+      expect(find.text('Đồng bộ ngay'), findsOneWidget);
+      RouteCheckpoint? selected;
+      await pumpPanel(
+        tester,
+        controller: controller,
+        onSelectCheckpoint: (cp) => selected = cp,
+      );
+      await tester.tap(find.text('Trạm kiểm lâm số 1'));
+      expect(selected?.id, 'cp-01');
+      expect(controller.reachedCount, 0);
+    },
+  );
 
-  testWidgets('triggers reached dialog and shows updated count when checkpoint is reached', (tester) async {
-    final gps = GpsTrackingController(
-      tripId: tripId,
-      location: FakeLocationSource(),
-      store: MemoryGpsLogStore(),
-      api: FakeGpsTrackingApi(),
-      autoStart: false,
-    );
-    final controller = CheckpointArrivalController(
-      tripId: tripId,
-      gps: gps,
-      api: _MockApi(),
-      store: _MockStore(),
-      contextProvider: _MockContextProvider(sampleContext),
-      isOnline: () async => false,
-      alert: () async {},
-      autoStart: false,
-    );
-    await tester.runAsync(() async {
-      await controller.start();
-    });
+  testWidgets(
+    'triggers reached dialog and shows updated count when checkpoint is reached',
+    (tester) async {
+      final gps = GpsTrackingController(
+        tripId: tripId,
+        location: FakeLocationSource(),
+        store: MemoryGpsLogStore(),
+        api: FakeGpsTrackingApi(),
+        autoStart: false,
+      );
+      final controller = CheckpointArrivalController(
+        tripId: tripId,
+        gps: gps,
+        api: _MockApi(),
+        store: _MockStore(),
+        contextProvider: _MockContextProvider(sampleContext),
+        isOnline: () async => false,
+        alert: () async {},
+        autoStart: false,
+      );
+      await tester.runAsync(() async {
+        await controller.start();
+      });
 
-    await pumpPanel(tester, controller: controller);
+      await pumpPanel(tester, controller: controller);
 
-    // Trigger reached dialog
-    controller.activeReachedDialog = sampleContext.checkpoints.first;
-    controller.notifyListeners();
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 300));
+      // Trigger reached dialog
+      controller.activeReachedDialog = sampleContext.checkpoints.first;
+      controller.notifyListeners();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
 
-    expect(find.byKey(const Key('checkpoint-reached-dialog')), findsOneWidget);
-    expect(find.text('Đã đến điểm kiểm tra!'), findsOneWidget);
-    expect(find.text('Trạm kiểm lâm số 1'), findsNWidgets(2)); // in list and dialog
+      expect(
+        find.byKey(const Key('checkpoint-reached-dialog')),
+        findsOneWidget,
+      );
+      expect(find.text('Đã đến điểm kiểm tra!'), findsOneWidget);
+      expect(
+        find.text('Trạm kiểm lâm số 1'),
+        findsNWidgets(2),
+      ); // in list and dialog
 
-    // Tap dismiss
-    await tester.tap(find.byKey(const Key('checkpoint-reached-dialog-dismiss')));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 300));
+      // Tap dismiss
+      await tester.tap(
+        find.byKey(const Key('checkpoint-reached-dialog-dismiss')),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
 
-    expect(find.byKey(const Key('checkpoint-reached-dialog')), findsNothing);
-  });
+      expect(find.byKey(const Key('checkpoint-reached-dialog')), findsNothing);
+    },
+  );
 
-  testWidgets('tapping manual sync button triggers controller manualSync', (tester) async {
+  testWidgets('tapping manual sync button triggers controller manualSync', (
+    tester,
+  ) async {
     final mockApi = _MockApi();
     final gps = GpsTrackingController(
       tripId: tripId,
