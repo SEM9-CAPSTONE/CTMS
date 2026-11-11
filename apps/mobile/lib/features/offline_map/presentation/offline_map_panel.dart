@@ -8,6 +8,7 @@ import '../../../core/widgets/ctms_button.dart';
 import '../../../core/widgets/ctms_section_card.dart';
 import '../../../core/widgets/ctms_status_badge.dart';
 import '../../../features/checkpoint_arrivals/presentation/checkpoint_arrival_panel.dart';
+import '../../offline_packages/application/package_download_controller.dart';
 import '../../offline_packages/presentation/offline_package_screen.dart';
 import '../application/offline_map_controller.dart';
 import '../domain/offline_map_models.dart';
@@ -21,11 +22,13 @@ class OfflineMapPanel extends ConsumerStatefulWidget {
   const OfflineMapPanel({
     super.key,
     required this.tripId,
+    this.tripTitle,
     this.clock,
     this.integrateArrivals = false,
   });
 
   final String tripId;
+  final String? tripTitle;
   final bool integrateArrivals;
   final DateTime Function()? clock;
 
@@ -69,6 +72,28 @@ class _OfflineMapPanelState extends ConsumerState<OfflineMapPanel>
         ),
       ),
     );
+  }
+
+  Future<void> _openPackageScreen(OfflineMapController controller) async {
+    final accountId = ref.read(offlinePackageAccountProvider);
+    if (accountId == null) return;
+    final tripId = widget.tripId;
+    final tripTitle = widget.tripTitle ?? tripId;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => OfflinePackageScreen(
+          tripId: tripId,
+          accountId: accountId,
+          tripTitle: tripTitle,
+        ),
+      ),
+    );
+    if (!mounted ||
+        widget.tripId != tripId ||
+        ref.read(offlinePackageAccountProvider) != accountId) {
+      return;
+    }
+    await controller.reloadPackage(force: true);
   }
 
   Widget _buildPackageStatusNotice(
@@ -120,15 +145,7 @@ class _OfflineMapPanelState extends ConsumerState<OfflineMapPanel>
               label: 'Tải gói ngoại tuyến',
               icon: Icons.download_outlined,
               variant: CtmsButtonVariant.primary,
-              onPressed: () async {
-                await Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => OfflinePackageScreen(tripId: widget.tripId),
-                  ),
-                );
-                if (!mounted) return;
-                await controller.reloadPackage(force: true);
-              },
+              onPressed: () => _openPackageScreen(controller),
             ),
             CtmsButton(
               label: 'Kiểm tra lại',
@@ -151,15 +168,7 @@ class _OfflineMapPanelState extends ConsumerState<OfflineMapPanel>
               label: 'Tải lại gói ngoại tuyến',
               icon: Icons.refresh_rounded,
               variant: CtmsButtonVariant.primary,
-              onPressed: () async {
-                await Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => OfflinePackageScreen(tripId: widget.tripId),
-                  ),
-                );
-                if (!mounted) return;
-                await controller.reloadPackage(force: true);
-              },
+              onPressed: () => _openPackageScreen(controller),
             ),
             CtmsButton(
               label: 'Thử lại',
