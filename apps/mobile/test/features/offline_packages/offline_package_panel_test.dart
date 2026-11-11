@@ -176,7 +176,9 @@ void main() {
     controller.verification = PackageVerificationStatus.verified;
     await render(tester);
     expect(find.text(ready), findsNothing);
-    expect(find.byType(FilledButton), findsNothing);
+    expect(find.textContaining('Gói đã tải nhưng chưa được kích hoạt.'), findsOneWidget);
+    await tester.tap(find.text('Kiểm tra lại'));
+    expect(controller.loads, 1);
   });
 
   testWidgets(

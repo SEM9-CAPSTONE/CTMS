@@ -109,9 +109,11 @@ class OfflinePackagePanel extends ConsumerWidget {
         null,
       ),
       PackageVerificationStatus.verified => (
-        'Chưa có dữ liệu ngoại tuyến',
-        null,
-        null,
+        package.activationAllowed == false
+            ? 'Gói đã tải nhưng chưa được kích hoạt. Chuyến đi đã bắt đầu nên không thể kích hoạt gói mới. Vui lòng liên hệ ban tổ chức.'
+            : 'Gói đã tải nhưng chưa được kích hoạt. Vui lòng kiểm tra lại.',
+        'Kiểm tra lại',
+        controller.load,
         null,
       ),
       _ when progress > 0 => (

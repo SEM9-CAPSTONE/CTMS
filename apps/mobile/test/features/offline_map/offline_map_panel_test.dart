@@ -194,6 +194,7 @@ void main() {
 
       expect(find.text('Chưa có gói dữ liệu ngoại tuyến'), findsOneWidget);
       expect(find.text('Kiểm tra lại'), findsOneWidget);
+      expect(find.byKey(const Key('offline-map-download-package-btn')), findsOneWidget);
       expect(find.byKey(const Key('offline-map-open-fullscreen')), findsNothing);
 
       // Tap 'Kiểm tra lại'

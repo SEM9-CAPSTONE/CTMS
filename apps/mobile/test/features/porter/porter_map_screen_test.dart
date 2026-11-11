@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/features/gps_tracking/application/gps_tracking_controller.dart';
+import 'package:mobile/features/gps_tracking/presentation/gps_tracking_panel.dart';
 import 'package:mobile/features/gps_tracking/presentation/porter_gps_tracking_section.dart';
 import 'package:mobile/features/incidents/domain/trip_incident.dart';
 import 'package:mobile/features/member_locations/application/member_locations_controller.dart';
@@ -85,17 +86,17 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.text('Chưa có chuyến đi đang diễn ra'), findsOneWidget);
+    expect(find.text('Chưa có chuyến đi được phân công'), findsOneWidget);
     expect(find.byType(OfflineMapPanel), findsNothing);
 
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('renders OfflineMapPanel when porter has one ongoing trip', (tester) async {
+  testWidgets('published assigned trip offers map preparation without GPS recording', (tester) async {
     const trip = IncidentTrip(
       id: kTrip1,
       title: 'Trekking Tà Năng 01',
-      status: 'ongoing',
+      status: 'published',
     );
 
     await tester.pumpWidget(
@@ -105,9 +106,23 @@ void main() {
     await tester.pump();
 
     expect(find.byType(OfflineMapPanel), findsOneWidget);
+    expect(find.text('Chuyến đi chưa bắt đầu'), findsOneWidget);
+    expect(find.byType(GpsTrackingPanel), findsNothing);
     expect(find.text('Bản đồ ngoại tuyến'), findsOneWidget);
     expect(find.byKey(const Key('porter-gps-trip')), findsNothing);
 
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('ongoing assigned trip retains GPS recording panel', (tester) async {
+    await tester.pumpWidget(buildApp(trips: const [
+      IncidentTrip(id: kTrip1, title: 'Active trip', status: 'ongoing'),
+    ]));
+    await tester.pump();
+    await tester.pump();
+    expect(find.byType(OfflineMapPanel), findsOneWidget);
+    expect(find.byType(GpsTrackingPanel), findsOneWidget);
+    expect(find.text('Chuyến đi chưa bắt đầu'), findsNothing);
     await tester.pumpWidget(const SizedBox());
   });
 

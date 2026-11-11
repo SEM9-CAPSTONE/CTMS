@@ -8,6 +8,7 @@ import '../../../core/widgets/ctms_button.dart';
 import '../../../core/widgets/ctms_section_card.dart';
 import '../../../core/widgets/ctms_status_badge.dart';
 import '../../../features/checkpoint_arrivals/presentation/checkpoint_arrival_panel.dart';
+import '../../offline_packages/presentation/offline_package_screen.dart';
 import '../application/offline_map_controller.dart';
 import '../domain/offline_map_models.dart';
 import 'offline_map_screen.dart';
@@ -115,6 +116,21 @@ class _OfflineMapPanelState extends ConsumerState<OfflineMapPanel>
               'Vui lòng tải gói bản đồ của chuyến đi trước khi xuất phát để sử dụng ngoại tuyến.',
           actions: [
             CtmsButton(
+              key: const Key('offline-map-download-package-btn'),
+              label: 'Tải gói ngoại tuyến',
+              icon: Icons.download_outlined,
+              variant: CtmsButtonVariant.primary,
+              onPressed: () async {
+                await Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => OfflinePackageScreen(tripId: widget.tripId),
+                  ),
+                );
+                if (!mounted) return;
+                await controller.reloadPackage(force: true);
+              },
+            ),
+            CtmsButton(
               label: 'Kiểm tra lại',
               variant: CtmsButtonVariant.soft,
               onPressed: () => controller.reloadPackage(force: true),
@@ -130,6 +146,21 @@ class _OfflineMapPanelState extends ConsumerState<OfflineMapPanel>
               state.errorMessage ??
               'Dữ liệu bản đồ bị lỗi hoặc sai định dạng. Vui lòng tải lại gói.',
           actions: [
+            CtmsButton(
+              key: const Key('offline-map-redownload-package-btn'),
+              label: 'Tải lại gói ngoại tuyến',
+              icon: Icons.refresh_rounded,
+              variant: CtmsButtonVariant.primary,
+              onPressed: () async {
+                await Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => OfflinePackageScreen(tripId: widget.tripId),
+                  ),
+                );
+                if (!mounted) return;
+                await controller.reloadPackage(force: true);
+              },
+            ),
             CtmsButton(
               label: 'Thử lại',
               variant: CtmsButtonVariant.soft,
