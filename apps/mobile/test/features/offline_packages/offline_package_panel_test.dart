@@ -14,7 +14,7 @@ class _Controller extends PackageDownloadController {
   int loads = 0;
 
   @override
-  Future<void> start() async => starts++;
+  Future<void> start({String? tripTitle}) async => starts++;
 
   @override
   void pause() => pauses++;
@@ -40,6 +40,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          offlinePackageAccountProvider.overrideWithValue('test-account'),
           packageDownloadControllerProvider(
             testTripId,
           ).overrideWith((ref) => controller),
@@ -58,7 +59,6 @@ void main() {
       find.textContaining(RegExp('Verify|SHA-256|manifest|Phiên bản')),
       findsNothing,
     );
-    expect(find.text('Xem dữ liệu'), findsNothing);
   }
 
   testWidgets('new package has a single download action and no progress bar', (
@@ -130,9 +130,7 @@ void main() {
     );
   }
 
-  testWidgets('verified and active is ready without progress or actions', (
-    tester,
-  ) async {
+  testWidgets('verified and active offers the offline viewer', (tester) async {
     controller
       ..basemapReady = true
       ..basemapPackageId = package.id
@@ -142,6 +140,7 @@ void main() {
     expect(find.text(ready), findsOneWidget);
     expect(find.byType(LinearProgressIndicator), findsNothing);
     expect(find.byType(FilledButton), findsNothing);
+    expect(find.text('Xem dữ liệu'), findsOneWidget);
   });
 
   testWidgets('verified core without basemap cannot show offline ready', (
@@ -176,7 +175,12 @@ void main() {
     controller.verification = PackageVerificationStatus.verified;
     await render(tester);
     expect(find.text(ready), findsNothing);
-    expect(find.textContaining('Gói đã tải nhưng chưa được kích hoạt.'), findsOneWidget);
+    expect(find.byType(FilledButton), findsOneWidget);
+    expect(find.text('Xem dữ liệu'), findsNothing);
+    expect(
+      find.textContaining('Gói đã tải nhưng chưa được kích hoạt.'),
+      findsOneWidget,
+    );
     await tester.tap(find.text('Kiểm tra lại'));
     expect(controller.loads, 1);
   });
@@ -195,6 +199,7 @@ void main() {
       expect(find.text('Bản trước vẫn dùng được ngoại tuyến.'), findsOneWidget);
       expect(find.byType(LinearProgressIndicator), findsNothing);
       expect(find.byType(FilledButton), findsOneWidget);
+      expect(find.text('Xem dữ liệu'), findsOneWidget);
       await tester.tap(find.text('Tải lại'));
       expect(controller.starts, 1);
     },
@@ -225,5 +230,6 @@ void main() {
     expect(find.textContaining('Đang tải · '), findsOneWidget);
     expect(find.byType(FilledButton), findsNothing);
     expect(find.byType(LinearProgressIndicator), findsNothing);
+    expect(find.text('Xem dữ liệu'), findsNothing);
   });
 }

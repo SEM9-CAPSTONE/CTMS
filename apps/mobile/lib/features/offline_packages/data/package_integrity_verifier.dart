@@ -15,6 +15,23 @@ class PackageIntegrityVerifier {
     String path, {
     bool includeBytes = false,
   }) => Isolate.run(() {
+    final (bytes, _) = _verify(package, path);
+    return includeBytes ? bytes.asUnmodifiableView() : null;
+  });
+
+  Future<T> read<T>(
+    OfflinePackage package,
+    String path,
+    T Function(Map<String, Uint8List>) decode,
+  ) => Isolate.run(() {
+    final (_, files) = _verify(package, path);
+    return decode(files);
+  });
+
+  static (Uint8List, Map<String, Uint8List>) _verify(
+    OfflinePackage package,
+    String path,
+  ) {
     if (package.sizeBytes <= 0 || package.sizeBytes > OfflinePackage.maxBytes) {
       throw const FormatException('Invalid package size');
     }
@@ -31,7 +48,7 @@ class PackageIntegrityVerifier {
       throw const FormatException('Package size or SHA-256 mismatch');
     }
     final files = StoredPackageZip(bytes).read();
-    final manifest = jsonDecode(utf8.decode(files.remove('manifest.json')!));
+    final manifest = jsonDecode(utf8.decode(files['manifest.json']!));
     if (manifest is! Map<String, dynamic> ||
         manifest['schemaVersion'] is! int ||
         manifest['schemaVersion'] != 1 ||
@@ -41,11 +58,14 @@ class PackageIntegrityVerifier {
       throw const FormatException('Package manifest identity mismatch');
     }
     final entries = manifest['files'];
-    if (entries is! List || entries.length != files.length) {
+    final remaining = files.keys.toSet()..remove('manifest.json');
+    if (entries is! List || entries.length != remaining.length) {
       throw const FormatException('Invalid package manifest file list');
     }
     for (final entry in entries) {
-      final contents = entry is Map ? files.remove(entry['path']) : null;
+      final contents = entry is Map && remaining.remove(entry['path'])
+          ? files[entry['path']]
+          : null;
       if (contents == null ||
           entry['sizeBytes'] is! int ||
           entry['sizeBytes'] != contents.length ||
@@ -53,8 +73,8 @@ class PackageIntegrityVerifier {
         throw const FormatException('Package payload does not match manifest');
       }
     }
-    return includeBytes ? bytes.asUnmodifiableView() : null;
-  });
+    return (bytes, files);
+  }
 }
 
 /// Schema 1 from CTMS-052 is an ordinary single-disk ZIP with stored entries
