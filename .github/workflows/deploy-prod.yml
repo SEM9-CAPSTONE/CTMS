@@ -4,46 +4,121 @@ on:
   push:
     branches:
       - main
+      - develop
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ctms-production-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
+  verify:
+    if: ${{ vars.ENABLE_DEPLOY_PROD == 'true' && github.ref_type == 'branch' && github.ref_name == (vars.CTMS_PRODUCTION_BRANCH || 'main') }}
+    uses: ./.github/workflows/ci.yml
+
   docker:
-    name: Build Production Images
+    name: Build Production Image (${{ matrix.service }})
+    needs: verify
     runs-on: ubuntu-latest
-    if: ${{ vars.ENABLE_DEPLOY_PROD == 'true' }}
+    strategy:
+      matrix:
+        service: [api, web, ai, ingestion]
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
 
       - name: Login to Docker Hub
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push API image
-        uses: docker/build-push-action@v6
+      - name: Build and push image
+        uses: docker/build-push-action@v7
         with:
           context: .
-          file: infra/docker/api.Dockerfile
+          file: infra/docker/${{ matrix.service }}.Dockerfile
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/ctms-api:latest
-
-      - name: Build and push Web image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: infra/docker/web.Dockerfile
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/ctms-${{ matrix.service }}:${{ github.sha }}
           build-args: |
-            VITE_API_BASE_URL=https://ditrek.io.vn/api
-            VITE_MAPTILER_API_KEY=${{ vars.VITE_MAPTILER_API_KEY }}
-          push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/ctms-web:latest
+            ${{ matrix.service == 'web' && 'VITE_API_BASE_URL=https://ditrek.io.vn/api' || '' }}
+            ${{ matrix.service == 'web' && format('VITE_MAPTILER_API_KEY={0}', vars.VITE_MAPTILER_API_KEY) || '' }}
+          cache-from: type=gha,scope=ctms-prod-${{ matrix.service }}
+          cache-to: type=gha,scope=ctms-prod-${{ matrix.service }},mode=min,ignore-error=true
 
-      - name: Build and push AI image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: infra/docker/ai.Dockerfile
-          push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/ctms-ai:latest
+  deploy:
+    name: Deploy to VPS
+    needs: docker
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment:
+      name: production
+      url: https://ditrek.io.vn
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Deploy release and check public endpoints
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_SSH_PORT: ${{ vars.VPS_SSH_PORT || '22' }}
+          VPS_SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          VPS_SSH_KNOWN_HOSTS: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+        shell: bash
+        run: |
+          branch_head=$(git ls-remote --exit-code origin "$GITHUB_REF" | cut -f1)
+          if [[ "$branch_head" != "$GITHUB_SHA" ]]; then
+            echo "Skipping ${GITHUB_SHA}; ${GITHUB_REF_NAME} has advanced to ${branch_head}."
+            exit 0
+          fi
+
+          : "${VPS_SSH_PRIVATE_KEY:?Set VPS_SSH_PRIVATE_KEY}" "${VPS_SSH_KNOWN_HOSTS:?Set VPS_SSH_KNOWN_HOSTS}"
+          if ! [[ "$VPS_HOST" =~ ^[A-Za-z0-9][A-Za-z0-9.:-]*$ && "$VPS_USER" =~ ^[a-z_][a-z0-9_-]*$ && "$VPS_SSH_PORT" =~ ^[0-9]{1,5}$ && "$DOCKERHUB_USERNAME" =~ ^[a-z0-9][a-z0-9_-]*$ ]]; then
+            echo 'Check VPS_HOST, VPS_USER, VPS_SSH_PORT and DOCKERHUB_USERNAME.' >&2
+            exit 1
+          fi
+
+          ssh_dir=$(mktemp -d)
+          trap 'rm -rf -- "$ssh_dir"' EXIT
+          umask 077
+          printf '%s\n' "$VPS_SSH_PRIVATE_KEY" > "$ssh_dir/key"
+          printf '%s\n' "$VPS_SSH_KNOWN_HOSTS" > "$ssh_dir/known_hosts"
+          cat > "$ssh_dir/config" <<EOF
+          Host ctms-vps
+            HostName $VPS_HOST
+            User $VPS_USER
+            Port $VPS_SSH_PORT
+            IdentityFile $ssh_dir/key
+            UserKnownHostsFile $ssh_dir/known_hosts
+            GlobalKnownHostsFile /dev/null
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+            BatchMode yes
+            ConnectTimeout 15
+            ServerAliveInterval 15
+            ServerAliveCountMax 4
+          EOF
+
+          release_id="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          git archive --format=tar --output="$ssh_dir/release.tar" "$GITHUB_SHA" -- \
+            docker-compose.yml docker-compose.prod.yml docker-compose.registry.yml \
+            infra/nginx/production.conf infra/nginx/snippets scripts/deploy-production.sh
+
+          scp -F "$ssh_dir/config" "$ssh_dir/release.tar" "ctms-vps:.ctms-ci/${release_id}.tar"
+          ssh -F "$ssh_dir/config" ctms-vps bash -s -- "$GITHUB_SHA" "$DOCKERHUB_USERNAME" "$release_id" \
+            < scripts/deploy-vps-release.sh
+
+          for endpoint in https://ditrek.io.vn/ https://ditrek.io.vn/api/health; do
+            curl --fail --silent --show-error --location --retry 4 --retry-all-errors --max-time 15 --output /dev/null "$endpoint"
+          done
