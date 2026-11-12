@@ -36,6 +36,7 @@ import { TripReviewsModule } from "./trip-reviews/trip-reviews.module";
 import { TripsModule } from "./trips/trips.module";
 import { UploadsModule } from "./uploads/uploads.module";
 import { UsersModule } from "./users/users.module";
+import { WeatherRiskEvaluationModule } from "./weather-risk-evaluation/weather-risk-evaluation.module";
 import { WeatherModule } from "./weather/weather.module";
 
 @Module({
@@ -66,6 +67,7 @@ import { WeatherModule } from "./weather/weather.module";
 		MemberLocationsModule,
 		SosModule,
 		OverbookingEvaluationModule,
+		WeatherRiskEvaluationModule,
 		PerformanceReportsModule,
 		SyncEvaluationModule,
 		UsersModule,
