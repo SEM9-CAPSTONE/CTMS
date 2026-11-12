@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { afterEach, expect, it, vi } from "vitest";
 import type { weatherDecisionsService } from "../services/weather-decisions.service";
 import type { TripWeatherDecisionLog, WeatherIntervention } from "../types";
-import { AdminWeatherInterventionsPage } from "./AdminWeatherInterventionsPage";
+import { WeatherInterventionsPanel } from "./WeatherInterventionsPanel";
 
 const HOUR = 60 * 60 * 1000;
 
@@ -61,28 +61,30 @@ it("lists the Trips that need an Admin with urgency and why", async () => {
 			weatherPausedAt: new Date().toISOString(),
 		}),
 	]);
-	render(<AdminWeatherInterventionsPage service={api} />);
+	render(<WeatherInterventionsPanel service={api} />);
 	const rows = await screen.findAllByTestId("weather-intervention-row");
 	expect(rows).toHaveLength(2);
 	expect(rows[0]).toHaveTextContent("Tà Năng – Phan Dũng");
-	expect(rows[0]).toHaveTextContent("Host chưa phản hồi");
+	expect(rows[0]).toHaveTextContent("Host chưa trả lời");
 	expect(rows[0]).toHaveTextContent("Khẩn cấp");
-	expect(rows[1]).toHaveTextContent("Host chọn Giữ");
+	expect(rows[1]).toHaveTextContent("Host muốn giữ chuyến");
 	expect(rows[1]).toHaveTextContent("Đang tạm dừng");
 });
 
 it("shows the empty state", async () => {
-	render(<AdminWeatherInterventionsPage service={service([])} />);
-	expect(await screen.findByText("Hiện không có Trip nào cần Admin can thiệp.")).toBeVisible();
+	render(<WeatherInterventionsPanel service={service([])} />);
+	expect(await screen.findByText("Chưa có Trip nào cần bạn xử lý.")).toBeVisible();
 });
 
 it("opens a Trip and pauses it with a reason", async () => {
 	const api = service([intervention()]);
-	render(<AdminWeatherInterventionsPage service={api} />);
+	render(<WeatherInterventionsPanel service={api} />);
 	fireEvent.click(await screen.findByTestId("weather-intervention-row"));
 	const dialog = await screen.findByTestId("admin-weather-decision-dialog");
 	expect(
-		within(dialog).getByText("Host chưa phản hồi trước mốc 24 giờ trước giờ đi.")
+		within(dialog).getByText(
+			"Đã quá 24 tiếng trước giờ đi mà Host chưa trả lời. Bạn cần quyết định thay Host."
+		)
 	).toBeVisible();
 	fireEvent.click(within(dialog).getByRole("button", { name: "Tạm dừng" }));
 	fireEvent.change(within(dialog).getByLabelText("Lý do (bắt buộc)"), {
@@ -114,10 +116,10 @@ it("offers resume first for a paused Trip and shows the Host's keep reason", asy
 		],
 		log({ weatherPausedAt: pausedAt, weatherPauseReason: "Chờ" })
 	);
-	render(<AdminWeatherInterventionsPage service={api} />);
+	render(<WeatherInterventionsPanel service={api} />);
 	fireEvent.click(await screen.findByTestId("weather-intervention-row"));
 	const dialog = await screen.findByTestId("admin-weather-decision-dialog");
-	expect(within(dialog).getByText("Phương án an toàn: Quay đầu trước 14h")).toBeVisible();
+	expect(within(dialog).getByText("Cách đảm bảo an toàn: Quay đầu trước 14h")).toBeVisible();
 	const pressed = within(dialog).getByRole("button", { name: "Mở lại" });
 	expect(pressed).toHaveAttribute("aria-pressed", "true");
 	expect(within(dialog).queryByRole("button", { name: "Tạm dừng" })).not.toBeInTheDocument();
