@@ -319,7 +319,15 @@ src/features/<feature-name>/
 
 ## 6. Git & Workflow
 
-- Branch naming validated by `validate-branch-name`.
-- Commit messages follow Conventional Commits (enforced by `commitlint`).
-- Lint-staged runs Biome on pre-commit.
+- **Branch Naming**: Branch naming validated by `validate-branch-name` (e.g., `feat/<JIRA-KEY>-<description>`).
+- **Commit Messages**: Follow Conventional Commits with Jira scope (enforced by `commitlint`, e.g., `feat(CTMS-101): ...`).
+- **Pre-commit Linter**: Lint-staged runs Biome on pre-commit. Ensure no lint errors before committing.
+- **Git Author & Account**: Always ensure author and active GitHub CLI account is `dklinh05` (`dklinh05@gmail.com`).
+- **Terraform Exclusion**: TUYỆT ĐỐI KHÔNG commit hoặc push các thư mục/tập tin hạ tầng `infra/terraform/` lên git trừ khi được yêu cầu rõ ràng.
+- **Pull Request Creation & Screenshot Evidence Protocol**:
+  - Chụp ảnh giao diện thực tế kiểm thử bằng headless browser (Playwright) và lưu tạm thời **bên ngoài thư mục source code** của dự án.
+  - **TUYỆT ĐỐI KHÔNG** upload ảnh bằng chứng PR lên Cloudinary của dự án (Cloudinary chỉ dành riêng cho runtime media của hệ thống: tour, campsite, avatar, reviews).
+  - Cung cấp ảnh chụp để kéo thả trực tiếp vào ô soạn thảo Pull Request trên giao diện Web của GitHub (để GitHub tự upload lên CDN `user-attachments` miễn phí).
+  - **Dọn dẹp file tạm**: Ngay sau khi ảnh đã được gắn vào PR, BẮT BUỘC xóa ngay lập tức file ảnh tạm trên máy cục bộ để không rác bộ nhớ.
+  - Sau khi tạo PR, giải quyết merge conflict với `develop` nếu có, rồi merge vào nhánh `develop`.
 
