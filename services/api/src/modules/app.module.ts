@@ -28,6 +28,7 @@ import { ReviewAnalysisModule } from "./review-analysis/review-analysis.module";
 import { RouteDeviationAnalysisModule } from "./route-deviation-analysis/route-deviation-analysis.module";
 import { RouteSafetyModule } from "./route-safety/route-safety.module";
 import { SafetyEventsModule } from "./safety-events/safety-events.module";
+import { SafetyHotspotsModule } from "./safety-hotspots/safety-hotspots.module";
 import { ScheduleProgressModule } from "./schedule-progress/schedule-progress.module";
 import { SosModule } from "./sos/sos.module";
 import { SurvivalDocumentsModule } from "./survival-documents/survival-documents.module";
@@ -72,6 +73,7 @@ import { WeatherModule } from "./weather/weather.module";
 		WeatherRiskEvaluationModule,
 		RealtimeEvaluationModule,
 		RouteDeviationAnalysisModule,
+		SafetyHotspotsModule,
 		PerformanceReportsModule,
 		SyncEvaluationModule,
 		UsersModule,
