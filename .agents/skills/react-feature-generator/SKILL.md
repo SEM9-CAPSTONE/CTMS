@@ -178,14 +178,24 @@ export function useCreateFeature() {
 
 Rules:
 - Each component: small, single responsibility, < 150 lines
+- **BẮT BUỘC ÁP DỤNG CHUẨN IMPECCABLE (Mandatory Impeccable Design Standard)**:
+  - **Zero AI Slop & Container Discipline**: Cấm lồng Card trong Card vô nghĩa (`<Card><Card>...`). Nếu phân vùng trong card/section, dùng khoảng cách (`gap-4` / `space-y-4`) hoặc divider mỏng (`border-b border-border/40`). Cấm gradient màu mè hoặc bóng đổ nặng (`shadow-lg`). Chỉ dùng `shadow-xs` hoặc `shadow-sm`.
+  - **Zero Decorative Icon Clutter**: TUYỆT ĐỐI KHÔNG chèn icon trang trí bên cạnh nhãn trên thẻ chỉ số (metric cards như icon lịch, la bàn, %, tam giác cảnh báo). Giữ thẻ chỉ số sạch sẽ, typography-driven (nhãn gọn, số to, không icon thừa nhìn "nhựa").
+  - **Phân cấp Typography 3 tầng chuẩn**:
+    - *Label*: `text-xs font-medium text-muted-foreground uppercase tracking-wider`
+    - *Metric Value*: `text-2xl` hoặc `text-3xl font-bold tracking-tight text-foreground`
+    - *Context / Meta*: `text-xs text-muted-foreground/80`
+  - **Thang khoảng cách nhịp 4px**: Dùng `gap-2`, `gap-3`, `gap-4`, `gap-6`, `p-4`, `p-6`. Không dùng padding lệch hoặc lộn xộn.
+  - **Tokens & Màu chuẩn Camping**: Dùng semantic tokens (`bg-background`, `bg-card`, `border-border`, `text-foreground`, `text-muted-foreground`) và màu nhận diện `#164027`.
+  - **Đơn nhất thông tin tổng**: Chỉ hiển thị tổng tiền/số lượng ở 1 nơi duy nhất trong 1 màn/modal (ưu tiên footer bar).
+  - **UX Copywriting 100% thuần Việt**: Không chèn tiếng Anh đan xen hoặc trong ngoặc đơn (`(User ID)`, `(Audit History)`).
 - **Mandatory Shared Component Reuse**: Always reuse existing system components from `@/shared/components` (`DataTable`, `Pagination`, `Card`, `StatusBadge`, `Button`, `PageSkeleton`, `Modal`, `ConfirmModal`, `Collapse`). NEVER write raw HTML `<table>`, custom card `<div>`, raw `<button>`, or ad-hoc status spans when shared components exist.
 - **Component Creation Rule**: If a reusable UI pattern is needed and not yet available in `@/shared/components`, create it in `apps/web/src/shared/components/`, export it from `index.ts`, and add tests.
 - Use `cn()` for class merging
 - Use `useTranslation()` for all text
 - Props typed with explicit interfaces
 - No business logic — delegate to hooks
-- **Minimalist UI & No Redundant Descriptions / Decorative Icons**:
-  - **TUYỆT ĐỐI KHÔNG** chèn icon trang trí bên cạnh nhãn trên thẻ chỉ số (metric cards như icon lịch, la bàn, %, tam giác cảnh báo). Giữ thẻ chỉ số sạch sẽ, typography-driven (nhãn gọn, số to, không icon thừa nhìn "nhựa").
+- **Minimalist Headers & No Redundant Descriptions**:
   - **TUYỆT ĐỐI KHÔNG** thêm các dòng text mô tả phụ/nhỏ (như `<p className="text-xs text-gray-500">...</p>`) dưới tiêu đề section/bảng/thẻ hay tiêu đề modal.
   - Giữ header gãy gọn, chỉ render `<h3>` hoặc `<h4>` mà không đính kèm dòng giải thích hiển nhiên làm loãng giao diện.
 
@@ -195,7 +205,8 @@ The page component:
 - Composes feature components
 - Calls feature hooks
 - Handles layout and page-level concerns
-- **Minimalist Page Header**:
+- **Impeccable Page Layout**:
+  - Tuân thủ nhịp thở khoảng cách giữa các khối (`space-y-6`).
   - **TUYỆT ĐỐI KHÔNG** chèn dòng mô tả nhỏ dưới tiêu đề trang `<h1>` (ví dụ: cấm các dòng subtitle dạng "Theo dõi...", "Quản lý...", "Xem danh sách...").
   - Tiêu đề trang đứng độc lập, xúc tích, gãy gọn để tiết kiệm không gian.
 
@@ -229,3 +240,12 @@ Before completing, verify:
 - [ ] No hardcoded strings/numbers
 - [ ] Forms use react-hook-form + Zod
 - [ ] **Minimalist Headers**: TUYỆT ĐỐI KHÔNG có các dòng mô tả nhỏ/phụ (subtitles/descriptions) dưới tiêu đề trang (`<h1>`), tiêu đề bảng/mục (`<h3>`), hay tiêu đề modal.
+- [ ] **Impeccable UI Compliance**:
+  - [ ] Không có `<Card>` lồng trong `<Card>`.
+  - [ ] Không gắn icon trang trí cạnh nhãn metric cards.
+  - [ ] Phân cấp typography chuẩn 3 tầng (label nhỏ, số to đậm, ngữ cảnh phụ).
+  - [ ] Khoảng cách đồng nhất theo thang 4px (`gap-3`, `gap-4`, `p-4`, `p-6`).
+  - [ ] Không gradient rực rỡ, chỉ dùng semantic tokens và màu camping `#164027`.
+  - [ ] Tái sử dụng component dùng chung từ `@/shared/components`.
+  - [ ] 100% tiếng Việt tự nhiên, không chèn tiếng Anh trong ngoặc đơn.
+  - [ ] Chỉ hiển thị thông tin tổng tiền/số lượng tại 1 vị trí duy nhất.
