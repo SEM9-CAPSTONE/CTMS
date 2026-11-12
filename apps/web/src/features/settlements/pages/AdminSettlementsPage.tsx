@@ -3,15 +3,24 @@ import {
 	ChevronLeft,
 	ChevronRight,
 	Landmark,
+	ReceiptText,
 	RefreshCw,
 	RotateCcw,
 	Search,
 	Wallet,
 } from "lucide-react";
 import type { FormEvent } from "react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Card } from "../../../shared/components";
 import { AdminLayout } from "../../admin-layout/components/AdminLayout";
+import { AdminRefundsTable } from "../../admin-refunds/components/AdminRefundsTable";
+import { ConfirmTransferModal } from "../../admin-refunds/components/ConfirmTransferModal";
+import { RefundDetailsModal } from "../../admin-refunds/components/RefundDetailsModal";
+import { RejectRefundModal } from "../../admin-refunds/components/RejectRefundModal";
+import { ADMIN_REFUND_STATUS_TABS } from "../../admin-refunds/constants";
+import { useAdminRefunds } from "../../admin-refunds/hooks/useAdminRefunds";
+import type { AdminRefundFilter, AdminRefundItem } from "../../admin-refunds/types";
+import type { PaymentStatus } from "../../booking-refund/types";
 import { AdminPayoutDetailModal } from "../components/AdminPayoutDetailModal";
 import { AdminPayoutsTable } from "../components/AdminPayoutsTable";
 import { AdminSettlementsTable } from "../components/AdminSettlementsTable";
@@ -28,12 +37,27 @@ import {
 } from "../hooks/useSettlements";
 import type { AdminPayoutItem, TripSettlementEvaluation } from "../types";
 
+export type AdminSettlementTab = "settlements" | "payouts" | "refunds";
+
 export interface AdminSettlementsPageProps {
 	onLogout?: (allDevices: boolean) => Promise<void>;
+	initialTab?: AdminSettlementTab;
 }
 
-export function AdminSettlementsPage({ onLogout }: AdminSettlementsPageProps) {
-	const [activeMainTab, setActiveMainTab] = useState<"settlements" | "payouts">("settlements");
+export function AdminSettlementsPage({ onLogout, initialTab }: AdminSettlementsPageProps) {
+	const getInitialTab = (): AdminSettlementTab => {
+		if (initialTab) return initialTab;
+		if (typeof window !== "undefined") {
+			const searchParams = new URLSearchParams(window.location.search);
+			const tab = searchParams.get("tab");
+			if (tab === "refunds" || tab === "payouts" || tab === "settlements") {
+				return tab;
+			}
+		}
+		return "settlements";
+	};
+
+	const [activeMainTab, setActiveMainTab] = useState<AdminSettlementTab>(getInitialTab);
 	const [statusFilter, setStatusFilter] = useState<string>("all");
 	const [searchInput, setSearchInput] = useState("");
 	const [appliedSearch, setAppliedSearch] = useState("");
@@ -45,6 +69,17 @@ export function AdminSettlementsPage({ onLogout }: AdminSettlementsPageProps) {
 	const [rejectPayoutModalItem, setRejectPayoutModalItem] = useState<AdminPayoutItem | null>(null);
 	const [detailTripItem, setDetailTripItem] = useState<TripSettlementEvaluation | null>(null);
 	const [detailPayoutItem, setDetailPayoutItem] = useState<AdminPayoutItem | null>(null);
+
+	const [selectedRefundForDetail, setSelectedRefundForDetail] = useState<AdminRefundItem | null>(
+		null
+	);
+	const [selectedRefundForConfirm, setSelectedRefundForConfirm] = useState<AdminRefundItem | null>(
+		null
+	);
+	const [selectedRefundForReject, setSelectedRefundForReject] = useState<AdminRefundItem | null>(
+		null
+	);
+
 	const [notification, setNotification] = useState<string | null>(null);
 
 	const {
@@ -52,12 +87,15 @@ export function AdminSettlementsPage({ onLogout }: AdminSettlementsPageProps) {
 		isLoading: isSettlementsLoading,
 		refetch: refetchSettlements,
 		isFetching: isSettlementsFetching,
-	} = useAdminSettlements({
-		status: statusFilter,
-		search: appliedSearch,
-		page,
-		limit: 15,
-	});
+	} = useAdminSettlements(
+		{
+			status: statusFilter,
+			search: appliedSearch,
+			page,
+			limit: 15,
+		},
+		activeMainTab === "settlements"
+	);
 
 	const settleMutation = useSettleTrip();
 
@@ -66,15 +104,40 @@ export function AdminSettlementsPage({ onLogout }: AdminSettlementsPageProps) {
 		isLoading: isPayoutsLoading,
 		refetch: refetchPayouts,
 		isFetching: isPayoutsFetching,
-	} = useAdminPayouts({
-		status: statusFilter === "all" ? undefined : statusFilter,
-		search: appliedSearch,
-		page,
-		limit: 15,
-	});
+	} = useAdminPayouts(
+		{
+			status: statusFilter === "all" ? undefined : statusFilter,
+			search: appliedSearch,
+			page,
+			limit: 15,
+		},
+		activeMainTab === "payouts"
+	);
 
 	const confirmPayoutMutation = useConfirmPayout();
 	const rejectPayoutMutation = useRejectPayout();
+
+	const refundFilter = useMemo<AdminRefundFilter>(
+		() => ({
+			page,
+			limit: 15,
+			status: statusFilter === "all" ? undefined : (statusFilter as PaymentStatus),
+			search: appliedSearch.trim() || undefined,
+		}),
+		[page, statusFilter, appliedSearch]
+	);
+
+	const {
+		refundsData,
+		isLoading: isRefundsLoading,
+		isError: isRefundsError,
+		error: refundsError,
+		refetch: refetchRefunds,
+		confirmTransfer: confirmRefundTransfer,
+		isConfirming: isConfirmingRefund,
+		rejectRefund: rejectRefundTransfer,
+		isRejecting: isRejectingRefund,
+	} = useAdminRefunds(refundFilter, activeMainTab === "refunds");
 
 	const handleSearchSubmit = (e: FormEvent) => {
 		e.preventDefault();
@@ -87,6 +150,23 @@ export function AdminSettlementsPage({ onLogout }: AdminSettlementsPageProps) {
 		setAppliedSearch("");
 		setStatusFilter("all");
 		setPage(1);
+	};
+
+	const handleTabChange = (tab: AdminSettlementTab) => {
+		setActiveMainTab(tab);
+		setSearchInput("");
+		setAppliedSearch("");
+		setStatusFilter("all");
+		setPage(1);
+		if (typeof window !== "undefined") {
+			const url = new URL(window.location.href);
+			if (tab === "settlements") {
+				url.searchParams.delete("tab");
+			} else {
+				url.searchParams.set("tab", tab);
+			}
+			window.history.replaceState({}, "", url.pathname + url.search);
+		}
 	};
 
 	const handleSettleTrip = async (tripId: string) => {
@@ -135,15 +215,71 @@ export function AdminSettlementsPage({ onLogout }: AdminSettlementsPageProps) {
 		}
 	};
 
-	const isRefreshing = isSettlementsFetching || isPayoutsFetching;
+	const handleConfirmRefund = async (obligationId: string, note?: string) => {
+		try {
+			await confirmRefundTransfer({
+				obligationId,
+				payload: {
+					transactionRef: `MANUAL-${Date.now()}`,
+					note,
+				},
+			});
+			setSelectedRefundForConfirm(null);
+			setNotification(
+				`Đã xác nhận chuyển tiền thành công cho yêu cầu #${obligationId.slice(0, 8)}`
+			);
+			void refetchRefunds();
+		} catch (err) {
+			setNotification(err instanceof Error ? err.message : "Xác nhận chuyển tiền thất bại.");
+			throw err;
+		}
+	};
+
+	const handleRejectRefund = async (obligationId: string, rejectionReason: string) => {
+		try {
+			await rejectRefundTransfer({
+				obligationId,
+				payload: { rejectionReason },
+			});
+			setSelectedRefundForReject(null);
+			setNotification(`Đã từ chối yêu cầu hoàn tiền #${obligationId.slice(0, 8)}`);
+			void refetchRefunds();
+		} catch (err) {
+			setNotification(err instanceof Error ? err.message : "Từ chối hoàn tiền thất bại.");
+			throw err;
+		}
+	};
+
+	const isRefreshing =
+		activeMainTab === "settlements"
+			? isSettlementsFetching
+			: activeMainTab === "payouts"
+				? isPayoutsFetching
+				: isRefundsLoading;
+
+	const handleRefresh = () => {
+		if (activeMainTab === "settlements") {
+			void refetchSettlements();
+		} else if (activeMainTab === "payouts") {
+			void refetchPayouts();
+		} else {
+			void refetchRefunds();
+		}
+	};
+
 	const currentTotal =
 		activeMainTab === "settlements"
 			? (settlementsData?.total ?? settlementsData?.items.length ?? 0)
-			: (payoutsData?.total ?? payoutsData?.items.length ?? 0);
+			: activeMainTab === "payouts"
+				? (payoutsData?.total ?? payoutsData?.items.length ?? 0)
+				: (refundsData?.total ?? refundsData?.items.length ?? 0);
+
 	const currentTotalPages =
 		activeMainTab === "settlements"
 			? (settlementsData?.totalPages ?? 1)
-			: (payoutsData?.totalPages ?? 1);
+			: activeMainTab === "payouts"
+				? (payoutsData?.totalPages ?? 1)
+				: (refundsData?.totalPages ?? 1);
 
 	return (
 		<AdminLayout activeItem="settlements" onLogout={onLogout}>
@@ -152,20 +288,17 @@ export function AdminSettlementsPage({ onLogout }: AdminSettlementsPageProps) {
 				<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 					<div>
 						<h1 className="flex items-center gap-3 text-2xl font-extrabold text-[#10221b]">
-							<Landmark className="size-7 text-[#164027]" /> Quyết toán & Ví Host
+							<Landmark className="size-7 text-[#164027]" /> Quản lý tài chính
 						</h1>
 						<p className="mt-1 text-sm text-[#667a6d]">
-							Đối soát quyết toán chuyến đi hoàn thành (khấu trừ 5% phí sàn) và phê duyệt chuyển
-							khoản rút tiền cho Host.
+							Đối soát hoàn tiền cho Camper, quyết toán chuyến đi hoàn thành (khấu trừ 5% phí sàn)
+							và phê duyệt chuyển khoản rút tiền cho Host.
 						</p>
 					</div>
 
 					<button
 						type="button"
-						onClick={() => {
-							if (activeMainTab === "settlements") void refetchSettlements();
-							else void refetchPayouts();
-						}}
+						onClick={handleRefresh}
 						disabled={isRefreshing}
 						className="inline-flex items-center gap-2 rounded-xl border border-[#dfe8df] bg-white px-3.5 py-2 text-xs font-bold text-[#55685a] shadow-xs hover:bg-[#f6f9f6] hover:text-[#164027] disabled:opacity-50"
 					>
@@ -193,14 +326,28 @@ export function AdminSettlementsPage({ onLogout }: AdminSettlementsPageProps) {
 					</output>
 				)}
 
-				{/* Section Tabs (Quyết toán chuyến đi vs Yêu cầu rút tiền) */}
+				{/* Error Banner for refunds */}
+				{activeMainTab === "refunds" && isRefundsError && (
+					<div
+						role="alert"
+						className="flex items-center justify-between rounded-xl border border-rose-200 bg-rose-50 p-4 text-xs font-bold text-rose-900"
+					>
+						<span>{refundsError?.message || "Không thể tải danh sách yêu cầu hoàn tiền."}</span>
+						<button
+							type="button"
+							onClick={() => void refetchRefunds()}
+							className="rounded-lg bg-rose-700 px-3 py-1.5 font-bold text-white hover:bg-rose-800"
+						>
+							Thử lại
+						</button>
+					</div>
+				)}
+
+				{/* Section Tabs (Quyết toán chuyến đi, Yêu cầu rút tiền Ví Host, Hoàn tiền Camper) */}
 				<div className="flex border-b border-[#dfe8df]">
 					<button
 						type="button"
-						onClick={() => {
-							setActiveMainTab("settlements");
-							handleResetFilters();
-						}}
+						onClick={() => handleTabChange("settlements")}
 						className={`inline-flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-bold transition ${
 							activeMainTab === "settlements"
 								? "border-[#164027] text-[#164027]"
@@ -213,10 +360,7 @@ export function AdminSettlementsPage({ onLogout }: AdminSettlementsPageProps) {
 
 					<button
 						type="button"
-						onClick={() => {
-							setActiveMainTab("payouts");
-							handleResetFilters();
-						}}
+						onClick={() => handleTabChange("payouts")}
 						className={`inline-flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-bold transition ${
 							activeMainTab === "payouts"
 								? "border-[#164027] text-[#164027]"
@@ -226,9 +370,22 @@ export function AdminSettlementsPage({ onLogout }: AdminSettlementsPageProps) {
 						<Wallet className="size-4" />
 						<span>Yêu cầu rút tiền Ví Host</span>
 					</button>
+
+					<button
+						type="button"
+						onClick={() => handleTabChange("refunds")}
+						className={`inline-flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-bold transition ${
+							activeMainTab === "refunds"
+								? "border-[#164027] text-[#164027]"
+								: "border-transparent text-[#667a6d] hover:text-[#10221b]"
+						}`}
+					>
+						<ReceiptText className="size-4" />
+						<span>Hoàn tiền Camper</span>
+					</button>
 				</div>
 
-				{/* Unified Card Container (Matching AdminUserAccountsPage) */}
+				{/* Unified Card Container */}
 				<Card className="overflow-hidden p-0 border border-[#dfe8df] bg-white rounded-2xl shadow-sm">
 					{/* Integrated Filter Toolbar */}
 					<form
@@ -244,7 +401,9 @@ export function AdminSettlementsPage({ onLogout }: AdminSettlementsPageProps) {
 								placeholder={
 									activeMainTab === "settlements"
 										? "Tên chuyến đi, mã chuyến hoặc tên Host..."
-										: "Tên Host, số tài khoản, tên ngân hàng..."
+										: activeMainTab === "payouts"
+											? "Tên Host, số tài khoản, tên ngân hàng..."
+											: "Tên Camper, email, mã đơn..."
 								}
 								className="w-full bg-transparent text-sm outline-none"
 								maxLength={100}
@@ -262,12 +421,14 @@ export function AdminSettlementsPage({ onLogout }: AdminSettlementsPageProps) {
 						>
 							{(activeMainTab === "settlements"
 								? SETTLEMENT_STATUS_TABS
-								: [
-										{ key: "all", label: "Tất cả trạng thái" },
-										{ key: "pending", label: "Chờ chuyển khoản" },
-										{ key: "succeeded", label: "Đã chuyển tiền" },
-										{ key: "failed", label: "Đã từ chối" },
-									]
+								: activeMainTab === "payouts"
+									? [
+											{ key: "all", label: "Tất cả trạng thái" },
+											{ key: "pending", label: "Chờ chuyển khoản" },
+											{ key: "succeeded", label: "Đã chuyển tiền" },
+											{ key: "failed", label: "Đã từ chối" },
+										]
+									: ADMIN_REFUND_STATUS_TABS
 							).map((opt) => (
 								<option key={opt.key} value={opt.key}>
 									{opt.label}
@@ -294,7 +455,7 @@ export function AdminSettlementsPage({ onLogout }: AdminSettlementsPageProps) {
 					</form>
 
 					{/* Table Content */}
-					{activeMainTab === "settlements" ? (
+					{activeMainTab === "settlements" && (
 						<AdminSettlementsTable
 							items={settlementsData?.items || []}
 							isLoading={isSettlementsLoading}
@@ -302,7 +463,9 @@ export function AdminSettlementsPage({ onLogout }: AdminSettlementsPageProps) {
 							onSettle={handleSettleTrip}
 							onViewTrip={setDetailTripItem}
 						/>
-					) : (
+					)}
+
+					{activeMainTab === "payouts" && (
 						<AdminPayoutsTable
 							items={payoutsData?.items || []}
 							isLoading={isPayoutsLoading}
@@ -312,11 +475,25 @@ export function AdminSettlementsPage({ onLogout }: AdminSettlementsPageProps) {
 						/>
 					)}
 
+					{activeMainTab === "refunds" && (
+						<AdminRefundsTable
+							refunds={refundsData?.items || []}
+							isLoading={isRefundsLoading}
+							onOpenConfirm={(item) => setSelectedRefundForConfirm(item)}
+							onOpenReject={(item) => setSelectedRefundForReject(item)}
+							onOpenDetail={(item) => setSelectedRefundForDetail(item)}
+						/>
+					)}
+
 					{/* Integrated Pagination Bar */}
 					<div className="flex flex-col gap-3 border-t border-[#e0ebe0] px-4 py-3 text-sm text-[#54655a] sm:flex-row sm:items-center sm:justify-between bg-white">
 						<p>
 							Tổng cộng <strong className="text-[#10221b]">{currentTotal}</strong>{" "}
-							{activeMainTab === "settlements" ? "chuyến đi" : "yêu cầu rút tiền"}
+							{activeMainTab === "settlements"
+								? "chuyến đi"
+								: activeMainTab === "payouts"
+									? "yêu cầu rút tiền"
+									: "yêu cầu hoàn tiền"}
 						</p>
 						<div className="flex items-center gap-3">
 							<button
@@ -383,6 +560,37 @@ export function AdminSettlementsPage({ onLogout }: AdminSettlementsPageProps) {
 					setDetailPayoutItem(null);
 					setRejectPayoutModalItem(payout);
 				}}
+			/>
+
+			{/* Camper Refund Modals */}
+			<RefundDetailsModal
+				refund={selectedRefundForDetail}
+				open={Boolean(selectedRefundForDetail)}
+				onClose={() => setSelectedRefundForDetail(null)}
+				onOpenConfirm={(item) => {
+					setSelectedRefundForDetail(null);
+					setSelectedRefundForConfirm(item);
+				}}
+				onOpenReject={(item) => {
+					setSelectedRefundForDetail(null);
+					setSelectedRefundForReject(item);
+				}}
+			/>
+
+			<ConfirmTransferModal
+				refund={selectedRefundForConfirm}
+				open={Boolean(selectedRefundForConfirm)}
+				isSubmitting={isConfirmingRefund}
+				onClose={() => setSelectedRefundForConfirm(null)}
+				onConfirm={handleConfirmRefund}
+			/>
+
+			<RejectRefundModal
+				refund={selectedRefundForReject}
+				open={Boolean(selectedRefundForReject)}
+				isSubmitting={isRejectingRefund}
+				onClose={() => setSelectedRefundForReject(null)}
+				onReject={handleRejectRefund}
 			/>
 		</AdminLayout>
 	);

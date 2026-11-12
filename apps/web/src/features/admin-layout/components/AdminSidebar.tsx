@@ -1,21 +1,19 @@
 import {
 	BadgeCheck,
+	BarChart3,
 	BookOpen,
 	CloudLightning,
 	Compass,
 	FileClock,
 	Flag,
 	Landmark,
-	LayoutDashboard,
 	MessageSquareText,
-	ReceiptText,
 	Route,
 	Scale,
 	ShieldAlert,
 	Users,
 	X,
 } from "lucide-react";
-import { HomeLink } from "../../../shared/components/HomeLink";
 import { LogoutActions } from "../../auth/components/LogoutActions";
 import { BookingCancellationNotices } from "../../booking-cancellation/components/BookingCancellationNotices";
 import { WeatherChangeNotices } from "../../weather/components/WeatherChangeNotices";
@@ -23,7 +21,6 @@ import { WeatherChangeNotices } from "../../weather/components/WeatherChangeNoti
 export type AdminNavigationItem =
 	| "review-analysis"
 	| "survival-documents"
-	| "dashboard"
 	| "user-accounts"
 	| "porter-verifications"
 	| "porter-levels"
@@ -35,7 +32,8 @@ export type AdminNavigationItem =
 	| "weather-interventions"
 	| "weather-penalties"
 	| "refunds"
-	| "settlements";
+	| "settlements"
+	| "performance-reports";
 
 import type { CamperProfileData } from "../../camper-profile/types";
 
@@ -54,12 +52,16 @@ const navigationItems = [
 		icon: MessageSquareText,
 		available: true,
 	},
-	{ key: "dashboard", label: "Bảng điều khiển", icon: LayoutDashboard, available: false },
+	{
+		key: "performance-reports",
+		label: "Báo cáo hiệu suất",
+		icon: BarChart3,
+		available: true,
+	},
 	{ key: "user-accounts", label: "Tài khoản người dùng", icon: Users, available: true },
 	{ key: "porter-verifications", label: "Duyệt hồ sơ Porter", icon: BadgeCheck, available: true },
 	{ key: "porter-levels", label: "Cấp độ Porter", icon: BadgeCheck, available: true },
-	{ key: "settlements", label: "Quyết toán & Ví Host", icon: Landmark, available: true },
-	{ key: "refunds", label: "Quản lý hoàn tiền", icon: ReceiptText, available: true },
+	{ key: "settlements", label: "Quản lý tài chính", icon: Landmark, available: true },
 	{ key: "route-review", label: "Duyệt tuyến trekking", icon: Route, available: true },
 	{ key: "trip-review", label: "Duyệt trip", icon: Compass, available: true },
 	{ key: "survival-documents", label: "Tài liệu sinh tồn", icon: BookOpen, available: true },
@@ -87,7 +89,19 @@ export function AdminSidebar({
 			className={`flex h-full min-h-0 w-72 flex-col border-r border-[#dfe8df] bg-white ${className}`}
 		>
 			<div className="flex shrink-0 items-center gap-3 border-b border-[#e7eee7] px-5 py-5">
-				<HomeLink className="flex min-w-0 flex-1 items-center gap-3">
+				<a
+					href="/admin/reports/performance"
+					onClick={(e) => {
+						const isModifiedClick =
+							e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey;
+						if (isModifiedClick) return;
+						e.preventDefault();
+						window.history.pushState({}, "", "/admin/reports/performance");
+						window.dispatchEvent(new PopStateEvent("popstate"));
+					}}
+					aria-label="Về trang Báo cáo hiệu suất"
+					className="flex min-w-0 flex-1 items-center gap-3 text-left rounded-xl transition hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#164027]/30"
+				>
 					<img
 						src="/ctms_logo.png"
 						alt="CTMS Logo"
@@ -97,7 +111,7 @@ export function AdminSidebar({
 						<p className="truncate text-base font-extrabold text-[#10221b]">Quản trị CTMS</p>
 						<p className="text-xs font-medium text-[#667a6d]">Không gian quản trị</p>
 					</div>
-				</HomeLink>
+				</a>
 				<WeatherChangeNotices includeChanges={false} includeDecisions />
 				<BookingCancellationNotices />
 				{onClose && (
@@ -118,7 +132,8 @@ export function AdminSidebar({
 			>
 				{navigationItems.map((item) => {
 					const Icon = item.icon;
-					const isActive = activeItem === item.key;
+					const isActive =
+						activeItem === item.key || (item.key === "settlements" && activeItem === "refunds");
 
 					return (
 						<button
@@ -165,8 +180,8 @@ export function AdminSidebar({
 								} else if (item.key === "settlements") {
 									window.history.pushState({}, "", "/admin/settlements");
 									window.dispatchEvent(new PopStateEvent("popstate"));
-								} else if (item.key === "refunds") {
-									window.history.pushState({}, "", "/admin/refunds");
+								} else if (item.key === "performance-reports") {
+									window.history.pushState({}, "", "/admin/reports/performance");
 									window.dispatchEvent(new PopStateEvent("popstate"));
 								}
 							}}

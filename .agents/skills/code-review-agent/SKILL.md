@@ -98,6 +98,8 @@ Report format:
 - [ ] No direct modification of Shadcn source
 - [ ] `size-*` used instead of `w-* h-*` when equal
 - [ ] Forms use react-hook-form + Zod
+- [ ] **Reusing Shared System Components**: BẮT BUỘC tái sử dụng các component chuẩn từ `shared/components` (`DataTable`, `Pagination`, `Card`, `StatusBadge`, `Button`, `PageSkeleton`, `Modal`, v.v.). Nghiêm cấm tự viết raw HTML `<table>`, tự bọc custom card `<div>`, tự style button chay hoặc tự làm spinner khi component hệ thống đã có sẵn. Nếu chưa có component dùng chung mà giao diện cần tái sử dụng nhiều lần, PHẢI tạo mới trong `shared/components`.
+- [ ] **Minimalist Headers & No Decorative Icon Clutter**: TUYỆT ĐỐI KHÔNG có các dòng mô tả nhỏ/phụ (subtitles/descriptions) dưới tiêu đề trang, tiêu đề bảng hoặc modal. TUYỆT ĐỐI KHÔNG gắn icon trang trí cạnh nhãn trên metric cards (như icon lịch, la bàn, %, tam giác cảnh báo trên từng thẻ số liệu làm giao diện bị rối và "nhựa"). Thẻ chỉ số phải giữ typography tinh gọn, số lớn nổi bật.
 
 ### Phase 6 — NestJS Best Practices (Backend Only)
 

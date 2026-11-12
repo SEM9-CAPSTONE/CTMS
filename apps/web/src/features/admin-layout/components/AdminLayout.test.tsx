@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { AdminLayout } from "./AdminLayout";
 
@@ -52,5 +52,19 @@ describe("AdminLayout & AdminSidebar Profile Display", () => {
 		);
 		expect(screen.getAllByText("admin@ctms.local").length).toBeGreaterThan(0);
 		expect(screen.getAllByText("Admin").length).toBeGreaterThan(0);
+	});
+
+	it("directs to /admin/reports/performance when clicking Quản trị CTMS branding", async () => {
+		render(
+			<AdminLayout activeItem="user-accounts">
+				<div>Admin Content</div>
+			</AdminLayout>
+		);
+
+		const brandLink = screen.getByRole("link", { name: "Về trang Báo cáo hiệu suất" });
+		expect(brandLink).toHaveAttribute("href", "/admin/reports/performance");
+
+		fireEvent.click(brandLink);
+		expect(window.location.pathname).toBe("/admin/reports/performance");
 	});
 });

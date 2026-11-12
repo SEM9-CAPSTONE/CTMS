@@ -21,6 +21,7 @@
 		"seed:dev-admin": "ts-node src/seeds/main.seed.ts --fresh",
 		"seed:dev-trips": "ts-node src/seeds/main.seed.ts --fresh",
 		"seed:settlements": "ts-node src/seeds/main.seed.ts --fresh",
+		"seed:performance-reports": "ts-node src/seeds/main.seed.ts --performance-reports-only",
 		"seed:bank-accounts": "ts-node -e \"import { seedUserBankAccounts } from './src/seeds/main.seed'; seedUserBankAccounts().then(() => process.exit(0));\"",
 		"seed:group-bookings": "ts-node -e \"import { seedHostGroupBookingsWithEquipment } from './src/seeds/main.seed'; seedHostGroupBookingsWithEquipment().then(() => process.exit(0));\""
 	},
