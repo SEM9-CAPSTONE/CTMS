@@ -18,31 +18,46 @@ import '../data/package_download_store.dart';
 import '../data/package_downloader.dart';
 import '../data/package_integrity_service.dart';
 import '../data/package_storage_capacity.dart';
+import '../data/offline_basemap_store.dart';
 import '../domain/offline_package.dart';
+
+final offlinePackageAccountProvider = Provider<String?>((ref) {
+  return ref.watch(
+    authControllerProvider.select(
+      (state) => state.isLoading ? null : state.asData?.value?.id,
+    ),
+  );
+});
+
+final packageDownloadStoreProvider =
+    FutureProvider.autoDispose<PackageDownloadStore?>((ref) async {
+      final userId = ref.watch(offlinePackageAccountProvider);
+      if (userId == null) return null;
+      final directory = await getApplicationSupportDirectory();
+      return PackageDownloadStore(
+        Directory('${directory.path}/offline-packages/$userId'),
+      );
+    });
 
 final packageDownloaderProvider = FutureProvider.autoDispose<PackageDownloader>(
   (ref) async {
-    final userId = ref.watch(authControllerProvider).valueOrNull?.id;
-    if (userId == null) throw StateError('Vui lòng đăng nhập lại.');
     final api = DioPackageDownloadApi(ref.watch(apiClientProvider));
-    final directory = await getApplicationSupportDirectory();
-    return PackageDownloader(
-      api,
-      PackageDownloadStore(
-        Directory('${directory.path}/offline-packages/$userId'),
-      ),
-      DevicePackageStorageCapacity(),
-    );
+    final store = await ref.watch(packageDownloadStoreProvider.future);
+    if (store == null) throw StateError('Vui lòng đăng nhập lại.');
+    return PackageDownloader(api, store, DevicePackageStorageCapacity());
   },
 );
 
 final packageDownloadControllerProvider = ChangeNotifierProvider.autoDispose
     .family<PackageDownloadController, String>((ref, tripId) {
-      ref.watch(
-        authControllerProvider.select((state) => state.valueOrNull?.id),
-      );
+      ref.watch(offlinePackageAccountProvider);
       final downloader = ref.watch(packageDownloaderProvider.future);
-      final controller = PackageDownloadController(tripId, () => downloader);
+      final basemaps = ref.watch(offlineBasemapStoreProvider.future);
+      final controller = PackageDownloadController(
+        tripId,
+        () => downloader,
+        basemaps: () => basemaps,
+      );
       final connectivity = Connectivity().onConnectivityChanged.listen((
         results,
       ) {
@@ -56,7 +71,21 @@ final packageDownloadControllerProvider = ChangeNotifierProvider.autoDispose
     });
 
 class PackageDownloadController extends ChangeNotifier {
-  PackageDownloadController(this.tripId, this._downloader);
+  PackageDownloadController(
+    this.tripId,
+    this._downloader, {
+    Future<OfflineBasemapStore> Function()? basemaps,
+  }) : _basemaps = basemaps;
+  final Future<OfflineBasemapStore> Function()? _basemaps;
+  bool basemapReady = false;
+  bool downloadingBasemap = false;
+  double basemapProgress = 0;
+  String? basemapError;
+  String? basemapPackageId;
+  bool get readyForOffline =>
+      active != null &&
+      basemapReady &&
+      basemapPackageId == active!.id;
   final String tripId;
   final Future<PackageDownloader> Function() _downloader;
   bool loading = true;
@@ -66,6 +95,7 @@ class PackageDownloadController extends ChangeNotifier {
   bool _accessDenied = false;
   bool _resumeWhenOnline = false;
   bool _reloadWhenOnline = false;
+  String? _tripTitle;
   CancelToken? _cancel;
   OfflinePackage? package;
   LocalPackageDownload? local;
@@ -127,6 +157,15 @@ class PackageDownloadController extends ChangeNotifier {
     } catch (failure) {
       if (!cancel.isCancelled) error = downloadErrorMessage(failure);
     } finally {
+      if (!cancel.isCancelled && active != null && _basemaps != null) {
+        try {
+          basemapReady =
+              await (await _basemaps()).verifiedPath(active!) != null;
+          basemapPackageId = basemapReady ? active!.id : null;
+        } catch (_) {
+          basemapReady = false;
+        }
+      }
       loading = false;
       _cancel = null;
       _emit();
@@ -156,14 +195,19 @@ class PackageDownloadController extends ChangeNotifier {
     }
   }
 
-  Future<void> start() async {
-    final target = package;
+  Future<void> start({String? tripTitle}) async {
+    final target = package?.activationAllowed == false && active != null
+        ? active
+        : package;
     if (_disposed ||
         _cancel != null ||
         loading ||
         _accessDenied ||
         target == null) {
       return;
+    }
+    if (tripTitle != null && tripTitle.trim().isNotEmpty) {
+      _tripTitle = tripTitle.trim();
     }
     downloading = true;
     storageBlocked = false;
@@ -177,6 +221,12 @@ class PackageDownloadController extends ChangeNotifier {
     try {
       downloader = await _downloader();
       if (cancel.isCancelled) return;
+      if (active?.sameArtifact(target) == true &&
+          verification != PackageVerificationStatus.failed) {
+        verification = PackageVerificationStatus.verified;
+        await _downloadBasemap(target, cancel);
+        return;
+      }
       local = await downloader.download(target, cancel, (progress) {
         if (cancel.isCancelled) return;
         local = progress;
@@ -187,6 +237,9 @@ class PackageDownloadController extends ChangeNotifier {
       downloading = false;
       if (!cancel.isCancelled) {
         await _finalize(downloader, pinned, cancel, online: true);
+        if (active?.sameArtifact(pinned) == true && !cancel.isCancelled) {
+          await _downloadBasemap(pinned, cancel);
+        }
       }
     } catch (failure) {
       storageBlocked =
@@ -217,8 +270,51 @@ class PackageDownloadController extends ChangeNotifier {
       }
     } finally {
       downloading = false;
+      downloadingBasemap = false;
       _cancel = null;
       _emit();
+    }
+  }
+
+  Future<void> _downloadBasemap(
+    OfflinePackage target,
+    CancelToken cancel,
+  ) async {
+    if (_basemaps == null) return;
+    downloading = true;
+    downloadingBasemap = true;
+    basemapError = null;
+    basemapReady = false;
+    basemapProgress = 0;
+    _emit();
+    try {
+      final store = await _basemaps();
+      await store.download(target, cancel, (value) {
+        basemapProgress = value;
+        _emit();
+      });
+      if (cancel.isCancelled || _disposed) return;
+      basemapReady = await store.verifiedPath(target) != null;
+      basemapPackageId = basemapReady ? target.id : null;
+      if (!basemapReady) {
+        throw const FormatException('Nền bản đồ chưa được xác thực.');
+      }
+    } catch (e) {
+      if (cancel.isCancelled) {
+        basemapError = 'Đã tạm dừng tải nền bản đồ.';
+        return;
+      }
+      final code = _downloadStatus(e);
+      _resumeWhenOnline = isPackageDownloadNetworkFailure(e);
+      basemapError = code == 409
+          ? 'Nền bản đồ của chuyến đi chưa sẵn sàng. Vui lòng thử lại sau.'
+          : e is FormatException
+          ? e.message
+          : e is PackageStorageException
+          ? e.message
+          : 'Không tải được nền bản đồ. Kiểm tra kết nối rồi thử lại.';
+      // Reuse the core denial flow so the map reader fails closed as well.
+      if (_deniesAccess(e)) rethrow;
     }
   }
 
@@ -237,6 +333,7 @@ class PackageDownloadController extends ChangeNotifier {
       ) = await PackageIntegrityService(downloader.store).finalize(
         candidate,
         cancel,
+        tripTitle: _tripTitle,
         authorizeReplacement: online && candidate.activationAllowed == true
             ? () => _authorizeReplacement(downloader, candidate, cancel)
             : null,
@@ -281,6 +378,15 @@ class PackageDownloadController extends ChangeNotifier {
   ) async {
     error = downloadErrorMessage(failure);
     if (_deniesAccess(failure)) {
+      basemapReady = false;
+      basemapPackageId = null;
+      if (_basemaps != null) {
+        try {
+          await (await _basemaps()).purge(tripId);
+        } catch (_) {
+          /* Core denial remains authoritative. */
+        }
+      }
       _accessDenied = true;
       active = null;
       package = null;

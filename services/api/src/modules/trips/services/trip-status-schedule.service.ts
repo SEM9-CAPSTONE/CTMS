@@ -1,6 +1,8 @@
 import { Injectable, Logger } from "@nestjs/common";
 // biome-ignore lint/style/useImportType: NestJS constructor injection requires runtime metadata
 import { ConfigService } from "@nestjs/config";
+// biome-ignore lint/style/useImportType: Nest injection metadata
+import { PackageActivationService } from "../../offline-packages/package-activation.service";
 import { TripStatus } from "../entities/trip.entity";
 // biome-ignore lint/style/useImportType: NestJS constructor injection requires runtime metadata
 import { TripsRepository } from "../repositories/trips.repository";
@@ -20,7 +22,8 @@ export class TripStatusScheduleService {
 
 	constructor(
 		private readonly tripsRepository: TripsRepository,
-		private readonly configService: ConfigService
+		private readonly configService: ConfigService,
+		private readonly packagePolicy: PackageActivationService
 	) {}
 
 	async advanceDueTrips(batchSize: number): Promise<TripStatusAdvanceResult> {
@@ -36,7 +39,13 @@ export class TripStatusScheduleService {
 		const started = await this.tripsRepository.advanceTripStatusesByTime(
 			TripStatus.ONGOING,
 			batchSize,
-			awaitParticipationEvaluation
+			awaitParticipationEvaluation,
+			this.configService
+				.get<string>("OFFLINE_PACKAGE_DEPARTURE_GATE_ENABLED")
+				?.trim()
+				.toLowerCase() === "true"
+				? (manager, tripId) => this.packagePolicy.assertDepartureReady(manager, tripId)
+				: undefined
 		);
 		if (started.length > 0 || completed.length > 0)
 			this.logger.log(

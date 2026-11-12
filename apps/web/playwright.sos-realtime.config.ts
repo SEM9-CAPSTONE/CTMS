@@ -8,6 +8,7 @@ export default defineConfig({
 		"ctms-63-t02-behind-schedule-warning.spec.ts",
 		"ctms-66-t02-member-last-locations.spec.ts",
 		"ctms-81-t02-broadcast-emergency-alert.spec.ts",
+		"ctms-82-t02-reconnect-websocket.spec.ts",
 	],
 	workers: 1,
 	fullyParallel: false,

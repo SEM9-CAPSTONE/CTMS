@@ -238,6 +238,10 @@ describe("GPS breadcrumb tracking (integration, real Postgres)", () => {
 	describe("GET /trips/:tripId/gps-tracking/context (BR-237 / BR-368 / BR-396)", () => {
 		it("lets a joined Camper track an ongoing Trip with the fixed 10s/30s V3 intervals", async () => {
 			const response = await getContext(joinedCamper, ongoingTripId).expect(200);
+			const [trip]: { starts_at: Date; ends_at: Date }[] = await dataSource.query(
+				"SELECT starts_at,ends_at FROM trips WHERE id=$1",
+				[ongoingTripId]
+			);
 
 			expect(response.body).toEqual({
 				tripId: ongoingTripId,
@@ -247,6 +251,8 @@ describe("GPS breadcrumb tracking (integration, real Postgres)", () => {
 				samplingIntervalSeconds: 10,
 				loggingIntervalSeconds: 30,
 				configVersion: "v3",
+				startsAt: trip.starts_at.toISOString(),
+				endsAt: trip.ends_at.toISOString(),
 			});
 		});
 

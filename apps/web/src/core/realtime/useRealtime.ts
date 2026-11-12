@@ -1,12 +1,19 @@
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import {
 	type RealtimeConnection,
+	type RealtimeEventMeta,
 	type RealtimeSnapshot,
 	type TripRoomStatus,
 	realtimeConnection,
 } from "./realtimeConnection";
 
-const DISABLED_SNAPSHOT: RealtimeSnapshot = { state: "idle", rooms: [], epoch: 0, tripRooms: {} };
+const DISABLED_SNAPSHOT: RealtimeSnapshot = {
+	state: "idle",
+	rooms: [],
+	epoch: 0,
+	tripRooms: {},
+	recovery: "idle",
+};
 
 /** CTMS-078-T02: holds the shared authenticated socket open while mounted and enabled. */
 export function useRealtimeConnection(
@@ -18,10 +25,13 @@ export function useRealtimeConnection(
 	return enabled ? snapshot : DISABLED_SNAPSHOT;
 }
 
-/** Runs the latest handler for a server event on the shared socket while enabled. */
+/**
+ * Runs the latest handler for a server event on the shared socket while enabled. Live and
+ * recovered copies of the same event reach it once (CTMS-082-T02); `meta` carries its identity.
+ */
 export function useRealtimeEvent<T>(
 	event: string,
-	handler: (payload: T) => void,
+	handler: (payload: T, meta?: RealtimeEventMeta) => void,
 	enabled = true,
 	connection: RealtimeConnection = realtimeConnection
 ): void {
@@ -31,7 +41,7 @@ export function useRealtimeEvent<T>(
 	}, [handler]);
 	useEffect(() => {
 		if (!enabled) return;
-		return connection.on(event, (payload) => handlerRef.current(payload as T));
+		return connection.on(event, (payload, meta) => handlerRef.current(payload as T, meta));
 	}, [event, enabled, connection]);
 }
 

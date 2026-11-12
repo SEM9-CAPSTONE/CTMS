@@ -37,6 +37,7 @@ OfflineMapContext _parsePackagePayloads({
   required int packageVersion,
   required String routeRaw,
   required String checkpointsRaw,
+  required String packageSha256,
 }) {
   final Object? routeJson;
   final Object? checkpointsJson;
@@ -84,6 +85,7 @@ OfflineMapContext _parsePackagePayloads({
     packageId: packageId,
     route: route,
     checkpoints: List.unmodifiable(checkpoints),
+    packageSha256: packageSha256,
   );
 }
 
@@ -163,6 +165,7 @@ class DefaultOfflineMapPackageReader implements OfflineMapPackageReader {
           packageVersion: opened.package.packageVersion,
           routeRaw: routeRaw,
           checkpointsRaw: checkpointsRaw,
+          packageSha256: opened.package.sha256,
         ));
   }
 }

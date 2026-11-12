@@ -1,10 +1,11 @@
 import { type MutableRefObject, useEffect, useRef } from "react";
-import type {
-	RealtimeConnection,
-	RealtimeConnectionState,
-} from "../../../core/realtime/realtimeConnection";
+import type { RealtimeConnection } from "../../../core/realtime/realtimeConnection";
 import { useRealtimeConnection, useRealtimeEvent } from "../../../core/realtime/useRealtime";
 import { toast } from "../../../shared/components";
+import {
+	type RealtimeDisplayState,
+	realtimeDisplayState,
+} from "../../../shared/components/RealtimeConnectionStatus";
 
 interface TripReviewEvent {
 	tripId: string;
@@ -29,7 +30,7 @@ interface UseTripReviewNotificationOptions {
 function useReviewChannel(
 	onChanged: (() => void) | undefined,
 	connection: RealtimeConnection | undefined
-): { changedRef: MutableRefObject<(() => void) | undefined>; state: RealtimeConnectionState } {
+): { changedRef: MutableRefObject<(() => void) | undefined>; state: RealtimeDisplayState } {
 	const changedRef = useRef(onChanged);
 	useEffect(() => {
 		changedRef.current = onChanged;
@@ -38,14 +39,14 @@ function useReviewChannel(
 	useEffect(() => {
 		if (snapshot.state === "connected") changedRef.current?.();
 	}, [snapshot.state]);
-	return { changedRef, state: snapshot.state };
+	return { changedRef, state: realtimeDisplayState(snapshot) };
 }
 
 /** CTMS-023 review queue events, delivered only to `role:admin` sockets since CTMS-078. */
 export function useAdminTripReviewNotifications({
 	onChanged,
 	connection,
-}: UseTripReviewNotificationOptions = {}): RealtimeConnectionState {
+}: UseTripReviewNotificationOptions = {}): RealtimeDisplayState {
 	const { changedRef, state } = useReviewChannel(onChanged, connection);
 	useRealtimeEvent<TripReviewEvent>(
 		"trip.review.updated",
@@ -81,7 +82,7 @@ export function useAdminTripReviewNotifications({
 export function useHostTripReviewNotifications({
 	onChanged,
 	connection,
-}: UseTripReviewNotificationOptions = {}): RealtimeConnectionState {
+}: UseTripReviewNotificationOptions = {}): RealtimeDisplayState {
 	const { changedRef, state } = useReviewChannel(onChanged, connection);
 	useRealtimeEvent<TripReviewEvent>(
 		"trip.review.auto_rejected",

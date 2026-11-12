@@ -14,7 +14,7 @@ class _Controller extends PackageDownloadController {
   int loads = 0;
 
   @override
-  Future<void> start() async => starts++;
+  Future<void> start({String? tripTitle}) async => starts++;
 
   @override
   void pause() => pauses++;
@@ -40,6 +40,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          offlinePackageAccountProvider.overrideWithValue('test-account'),
           packageDownloadControllerProvider(
             testTripId,
           ).overrideWith((ref) => controller),
@@ -58,7 +59,6 @@ void main() {
       find.textContaining(RegExp('Verify|SHA-256|manifest|Phiên bản')),
       findsNothing,
     );
-    expect(find.text('Xem dữ liệu'), findsNothing);
   }
 
   testWidgets('new package has a single download action and no progress bar', (
@@ -130,16 +130,43 @@ void main() {
     );
   }
 
-  testWidgets('verified and active is ready without progress or actions', (
-    tester,
-  ) async {
+  testWidgets('verified and active offers the offline viewer', (tester) async {
     controller
+      ..basemapReady = true
+      ..basemapPackageId = package.id
       ..verification = PackageVerificationStatus.verified
       ..active = package;
     await render(tester);
     expect(find.text(ready), findsOneWidget);
     expect(find.byType(LinearProgressIndicator), findsNothing);
     expect(find.byType(FilledButton), findsNothing);
+    expect(find.text('Xem dữ liệu'), findsOneWidget);
+  });
+
+  testWidgets('verified core without basemap cannot show offline ready', (
+    tester,
+  ) async {
+    controller
+      ..verification = PackageVerificationStatus.verified
+      ..active = package;
+    await render(tester);
+    expect(find.text(ready), findsNothing);
+    expect(find.text('Tải nền bản đồ'), findsOneWidget);
+    await tester.tap(find.text('Tải nền bản đồ'));
+    expect(controller.starts, 1);
+  });
+
+  testWidgets('basemap transfer has separate progress and pause', (
+    tester,
+  ) async {
+    controller
+      ..downloading = true
+      ..downloadingBasemap = true
+      ..basemapProgress = .4;
+    await render(tester);
+    expect(find.text('Đang tải nền bản đồ · 40%'), findsOneWidget);
+    await tester.tap(find.text('Tạm dừng'));
+    expect(controller.pauses, 1);
   });
 
   testWidgets('verified without an active version cannot show ready', (
@@ -148,7 +175,14 @@ void main() {
     controller.verification = PackageVerificationStatus.verified;
     await render(tester);
     expect(find.text(ready), findsNothing);
-    expect(find.byType(FilledButton), findsNothing);
+    expect(find.byType(FilledButton), findsOneWidget);
+    expect(find.text('Xem dữ liệu'), findsNothing);
+    expect(
+      find.textContaining('Gói đã tải nhưng chưa được kích hoạt.'),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Kiểm tra lại'));
+    expect(controller.loads, 1);
   });
 
   testWidgets(
@@ -165,6 +199,7 @@ void main() {
       expect(find.text('Bản trước vẫn dùng được ngoại tuyến.'), findsOneWidget);
       expect(find.byType(LinearProgressIndicator), findsNothing);
       expect(find.byType(FilledButton), findsOneWidget);
+      expect(find.text('Xem dữ liệu'), findsOneWidget);
       await tester.tap(find.text('Tải lại'));
       expect(controller.starts, 1);
     },
@@ -195,5 +230,6 @@ void main() {
     expect(find.textContaining('Đang tải · '), findsOneWidget);
     expect(find.byType(FilledButton), findsNothing);
     expect(find.byType(LinearProgressIndicator), findsNothing);
+    expect(find.text('Xem dữ liệu'), findsNothing);
   });
 }

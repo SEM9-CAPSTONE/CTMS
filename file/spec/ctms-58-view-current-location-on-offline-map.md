@@ -105,3 +105,16 @@ Device-location integration: Technical Design.
 ## 12. Open Decisions
 
 Map SDK/cache implementation belongs to Technical Design.
+
+## 2026-11-10 — Per-package raster integration
+
+The base layer is an optional independently validated local MBTiles sidecar bound
+to the active core package UUID/version. Route and checkpoint geometry always
+comes from that same core, and GPS comes from device measurements. Basemap
+publication must not rewrite automatic checkpoint visit history. Without a valid
+sidecar, render the existing vector fallback and explain that the base layer has
+not been downloaded. Never substitute a tile containing provider/key errors.
+
+The backend prepares raster asynchronously after core publication; opening a map
+is not a generation trigger. Both map readiness and the absence of approved
+upstream safety inputs are described in the [backend integration contract](../../docs/features/CTMS-307-Offline-Basemap-Backend.md).

@@ -4,6 +4,7 @@ import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
 import { DataSource, type EntityManager } from "typeorm";
 import { AuditLog } from "../auth/entities/audit-log.entity";
 import { BookingPaymentStatus, BookingStatus } from "../profiles/entities/booking.entity";
+import { publishBookingUpdates } from "../realtime/booking-updates";
 import { EventsGateway } from "../realtime/events.gateway";
 import { Trip } from "../trips/entities/trip.entity";
 // biome-ignore lint/style/useImportType: NestJS constructor injection requires runtime metadata
@@ -59,6 +60,10 @@ export class BookingExpiryService {
 			seatsTaken: number;
 			capacityMax: number | null;
 			numPeople: number;
+		} | null = null;
+		let expired: {
+			trip: { id: string; title: string };
+			booking: { id: string; userId: string };
 		} | null = null;
 		const result = await this.dataSource.transaction(async (manager: EntityManager) => {
 			const evaluatedAt = evaluatedAtOverride ?? (await this.captureDatabaseTime(manager));
@@ -128,6 +133,10 @@ export class BookingExpiryService {
 
 			booking.status = BookingStatus.EXPIRED;
 			await bookings.save(booking);
+			expired = {
+				trip: { id: trip.id, title: trip.title },
+				booking: { id: booking.id, userId: booking.userId },
+			};
 			await manager.withRepository(this.tripsRepository).adjustSeatsTaken(trip.id, -numPeople);
 			committedTrip = {
 				id: trip.id,
@@ -184,6 +193,16 @@ export class BookingExpiryService {
 			return BookingExpiryResult.EXPIRED;
 		});
 
+		const expiredBooking = expired as {
+			trip: { id: string; title: string };
+			booking: { id: string; userId: string };
+		} | null;
+		if (result === BookingExpiryResult.EXPIRED && expiredBooking) {
+			// CTMS-090: the owner learns the unpaid hold expired (after commit).
+			publishBookingUpdates(this.eventsGateway, "expired", expiredBooking.trip, [
+				expiredBooking.booking,
+			]);
+		}
 		if (result === BookingExpiryResult.EXPIRED && committedTrip) {
 			const target = committedTrip as {
 				id: string;

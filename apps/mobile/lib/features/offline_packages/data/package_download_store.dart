@@ -19,12 +19,15 @@ class PackageDownloadStore {
   File _active(String tripId) => File('${root.path}/$tripId.active');
   File _denial(String tripId) => File('${root.path}/$tripId.access-denied');
   static final _integrityOperations = <String, Future<void>>{};
+  static final _deniedTrips = <String>{};
+
+  String _tripKey(String tripId) => '${root.absolute.path}/$tripId';
 
   Future<T> withIntegrityLock<T>(
     String tripId,
     Future<T> Function() operation,
   ) async {
-    final key = '${root.absolute.path}/$tripId';
+    final key = _tripKey(tripId);
     final previous = _integrityOperations[key];
     final finished = Completer<void>();
     _integrityOperations[key] = finished.future;
@@ -71,24 +74,59 @@ class PackageDownloadStore {
     };
   }
 
-  Future<OfflinePackage?> active(String tripId) async {
+  Future<OfflinePackage?> active(String tripId) async =>
+      (await _activeEntry(tripId))?.package;
+
+  Future<SavedOfflinePackage?> _activeEntry(String tripId) async {
     // Trip IDs also name local files. Ignore invalid navigation input.
     if (!OfflinePackage.isTripId(tripId)) return null;
-    final package = _recordPackage(await _readRecord(_active(tripId)));
-    return package?.tripId == tripId ? package : null;
+    final record = await _readRecord(_active(tripId));
+    final package = _recordPackage(record);
+    if (package == null || package.tripId != tripId) return null;
+    final title = record?['tripTitle'];
+    return (package: package, tripTitle: title is String ? title : null);
+  }
+
+  Future<List<SavedOfflinePackage>> activePackages() async {
+    if (!await root.exists()) return [];
+    final packages = <SavedOfflinePackage>[];
+    await for (final entry in root.list(followLinks: false)) {
+      if (entry is! File) continue;
+      final name = entry.uri.pathSegments.last;
+      if (!name.endsWith('.active')) continue;
+      final tripId = name.substring(0, name.length - '.active'.length);
+      final active = await _activeEntry(tripId);
+      if (active != null &&
+          await verification(active.package) ==
+              PackageVerificationStatus.verified &&
+          !await accessDenied(tripId)) {
+        packages.add(active);
+      }
+    }
+    packages.sort(
+      (a, b) => b.package.generatedAt.compareTo(a.package.generatedAt),
+    );
+    return packages;
   }
 
   Future<bool> accessDenied(String tripId) async =>
-      OfflinePackage.isTripId(tripId) && await _denial(tripId).exists();
+      OfflinePackage.isTripId(tripId) &&
+      (_deniedTrips.contains(_tripKey(tripId)) ||
+          await _denial(tripId).exists());
 
   Future<void> setAccessDenied(String tripId, bool denied) async {
     if (!OfflinePackage.isTripId(tripId)) return;
     final marker = _denial(tripId);
+    final key = _tripKey(tripId);
     if (denied) {
+      // The download controller and offline viewer both fail closed even if
+      // the denial marker cannot be written to disk.
+      _deniedTrips.add(key);
       await root.create(recursive: true);
       await marker.create();
-    } else if (await marker.exists()) {
-      await marker.delete();
+    } else {
+      if (await marker.exists()) await marker.delete();
+      _deniedTrips.remove(key);
     }
   }
 
@@ -103,10 +141,15 @@ class PackageDownloadStore {
 
   Future<void> saveActive(
     OfflinePackage package,
-    void Function() checkCancelled,
-  ) => _writeIntegrityRecord(_active(package.tripId), {
-    'package': package.toJson(),
-  }, checkCancelled);
+    void Function() checkCancelled, {
+    String? tripTitle,
+  }) async {
+    final title = tripTitle ?? (await _activeEntry(package.tripId))?.tripTitle;
+    await _writeIntegrityRecord(_active(package.tripId), {
+      'package': package.toJson(),
+      'tripTitle': ?title,
+    }, checkCancelled);
+  }
 
   Future<void> _writeIntegrityRecord(
     File target,

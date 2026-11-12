@@ -56,6 +56,7 @@ services:
       SURVIVAL_DOCUMENT_STORAGE_ROOT: /var/lib/ctms/survival-documents
       SURVIVAL_DOCUMENT_MAX_BYTES: ${SURVIVAL_DOCUMENT_MAX_BYTES:-10485760}
       OFFLINE_PACKAGE_STORAGE_ROOT: /var/lib/ctms/offline-packages
+      OFFLINE_BASEMAP_STORAGE_ROOT: /var/lib/ctms/offline-basemaps
       OFFLINE_PACKAGE_WORKER_ENABLED: ${OFFLINE_PACKAGE_WORKER_ENABLED:-true}
       AI_REVIEW_SERVICE_TOKEN: ${AI_REVIEW_SERVICE_TOKEN:-}
       REVIEW_ANALYSIS_MODEL: ${REVIEW_ANALYSIS_MODEL:-gpt-4o-mini}
@@ -102,6 +103,7 @@ services:
     volumes:
       - survival-document-data:/var/lib/ctms/survival-documents
       - offline-package-data:/var/lib/ctms/offline-packages
+      - offline-basemap-data:/var/lib/ctms/offline-basemaps
     depends_on:
       postgres:
         condition: service_healthy
@@ -171,4 +173,5 @@ volumes:
   redis-data:
   survival-document-data:
   offline-package-data:
+  offline-basemap-data:
   knowledge-model-cache:

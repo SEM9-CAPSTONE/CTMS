@@ -12,6 +12,7 @@ const DISPLAY_STATE: Record<SosRealtimeState, RealtimeDisplayState> = {
 	disconnected: "disconnected",
 	auth_rejected: "auth_rejected",
 	recovered: "recovered",
+	recovery_failed: "recovery_failed",
 };
 
 const SOS_LABELS: Partial<Record<RealtimeDisplayState, string>> = {
@@ -19,6 +20,8 @@ const SOS_LABELS: Partial<Record<RealtimeDisplayState, string>> = {
 	connected: "Đang nhận cảnh báo SOS theo thời gian thực",
 	disconnected: "Mất kết nối thời gian thực — đang thử lại, danh sách vẫn tự cập nhật định kỳ",
 	recovered: "Đã kết nối lại — đã tải lại các SOS có thể bị lỡ",
+	recovery_failed:
+		"Đã kết nối lại nhưng không lấy lại được hết cảnh báo bị lỡ — danh sách SOS đã được tải lại",
 };
 
 /** CTMS-079-T02 / CTMS-078-T02: tells the Host whether SOS arrive in real time or only by refresh. */

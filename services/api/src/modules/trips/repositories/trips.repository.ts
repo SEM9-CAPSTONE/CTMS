@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { Repository } from "typeorm";
+import { type EntityManager, Repository } from "typeorm";
 import {
 	type TrekkingRouteDifficulty,
 	TrekkingRouteStatus,
@@ -1499,7 +1499,8 @@ export class TripsRepository extends Repository<Trip> {
 	}
 
 	/**
-	 * Moves Trips along their time-based lifecycle in one atomic statement per phase:
+	 * Moves Trips along their time-based lifecycle in one atomic statement per phase
+	 * on the legacy path, or one transaction with a departure gate when opted in:
 	 * `published` -> `ongoing` once `starts_at` is reached, and `published`/`ongoing` ->
 	 * `completed` once `ends_at` is reached. Each transition writes a system audit log.
 	 * When `awaitParticipationEvaluation` is true, `published` Trips the auto-cancel worker
@@ -1508,8 +1509,44 @@ export class TripsRepository extends Repository<Trip> {
 	async advanceTripStatusesByTime(
 		target: TripStatus.ONGOING | TripStatus.COMPLETED,
 		limit: number,
-		awaitParticipationEvaluation: boolean
+		awaitParticipationEvaluation: boolean,
+		departureGate?: (
+			manager: EntityManager,
+			tripId: string
+		) => Promise<{ ready: boolean; reasonCode: string }>
 	): Promise<Array<{ id: string; previousStatus: TripStatus }>> {
+		if (target === TripStatus.ONGOING && departureGate) {
+			return this.manager.transaction(async (manager) => {
+				const moved: Array<{ id: string; previousStatus: TripStatus }> = [];
+				const inspected: string[] = [];
+				// A blocked prefix must not starve later due Trips; limit counts transitions.
+				while (moved.length < limit) {
+					const due: Array<{ id: string; previousStatus: TripStatus }> = await manager.query(
+						`SELECT id,status AS "previousStatus" FROM trips
+      WHERE status='published' AND starts_at<=CURRENT_TIMESTAMP AND ends_at>CURRENT_TIMESTAMP AND weather_paused_at IS NULL
+      AND (NOT $2::boolean OR participation_evaluated_at IS NOT NULL) AND NOT(id=ANY($3::uuid[]))
+      ORDER BY starts_at,id LIMIT $1 FOR UPDATE SKIP LOCKED`,
+						[limit - moved.length, awaitParticipationEvaluation, inspected]
+					);
+					if (!due.length) break;
+					for (const trip of due) {
+						inspected.push(trip.id);
+						if (!(await departureGate(manager, trip.id)).ready) continue;
+						await manager.query(
+							"UPDATE trips SET status='ongoing',updated_at=CURRENT_TIMESTAMP WHERE id=$1",
+							[trip.id]
+						);
+						await manager.query(
+							`INSERT INTO audit_logs(actor_id,action,target_type,target_id,"before","after",reason)
+      VALUES(NULL,'trip.status_advanced','trip',$1,jsonb_build_object('status','published'),jsonb_build_object('status','ongoing'),'schedule_reached')`,
+							[trip.id]
+						);
+						moved.push(trip);
+					}
+				}
+				return moved;
+			});
+		}
 		const dueCondition =
 			target === TripStatus.COMPLETED
 				? `"status" IN ('published', 'ongoing') AND "ends_at" <= CURRENT_TIMESTAMP`

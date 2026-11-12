@@ -17,9 +17,20 @@ import 'widgets/checkpoint_reached_dialog.dart';
 
 /// Panel hiển thị tiến độ và trạng thái phát hiện tự động điểm kiểm tra (CTMS-061).
 class CheckpointArrivalPanel extends ConsumerStatefulWidget {
-  const CheckpointArrivalPanel({super.key, required this.tripId});
+  const CheckpointArrivalPanel({
+    super.key,
+    required this.tripId,
+    this.onSelectCheckpoint,
+    this.showReachedDialog = true,
+    this.distanceNote,
+    this.showDistances = true,
+  });
 
   final String tripId;
+  final bool showReachedDialog;
+  final bool showDistances;
+  final String? distanceNote;
+  final ValueChanged<RouteCheckpoint>? onSelectCheckpoint;
 
   @override
   ConsumerState<CheckpointArrivalPanel> createState() =>
@@ -34,7 +45,9 @@ class _CheckpointArrivalPanelState
     final reached = controller.activeReachedDialog;
     if (reached == null) {
       if (_dialogShownForId != null &&
-          !controller.record.arrivals.any((a) => a.checkpointId == _dialogShownForId)) {
+          !controller.record.arrivals.any(
+            (a) => a.checkpointId == _dialogShownForId,
+          )) {
         _dialogShownForId = null;
       }
       return;
@@ -63,19 +76,13 @@ class _CheckpointArrivalPanelState
 
   (String, CtmsStatus) _statusBadge(CheckpointArrivalController controller) =>
       switch (controller.status) {
-        CheckpointArrivalStatus.checking => (
-            'Đang tải...',
-            CtmsStatus.neutral
-          ),
-        CheckpointArrivalStatus.active => (
-            'Đang theo dõi',
-            CtmsStatus.success
-          ),
+        CheckpointArrivalStatus.checking => ('Đang tải...', CtmsStatus.neutral),
+        CheckpointArrivalStatus.active => ('Đang theo dõi', CtmsStatus.success),
         CheckpointArrivalStatus.paused => ('Tạm dừng', CtmsStatus.warning),
         CheckpointArrivalStatus.unavailable => (
-            'Chưa có dữ liệu',
-            CtmsStatus.neutral
-          ),
+          'Chưa có dữ liệu',
+          CtmsStatus.neutral,
+        ),
       };
 
   (String, CtmsStatus) _itemBadge(CheckpointUiItem item) {
@@ -84,10 +91,7 @@ class _CheckpointArrivalPanelState
     }
     return switch (item.syncState) {
       CheckpointSyncState.synced => ('Đã đồng bộ', CtmsStatus.success),
-      CheckpointSyncState.pending => (
-          'Đã đến (Ngoại tuyến)',
-          CtmsStatus.info
-        ),
+      CheckpointSyncState.pending => ('Đã đến (Ngoại tuyến)', CtmsStatus.info),
       CheckpointSyncState.paused => ('Tạm dừng đồng bộ', CtmsStatus.warning),
       CheckpointSyncState.failed => ('Lỗi đồng bộ', CtmsStatus.danger),
       null => ('Đã đến', CtmsStatus.success),
@@ -105,9 +109,10 @@ class _CheckpointArrivalPanelState
 
   @override
   Widget build(BuildContext context) {
-    final controller =
-        ref.watch(checkpointArrivalControllerProvider(widget.tripId));
-    _maybeShowReachedDialog(controller);
+    final controller = ref.watch(
+      checkpointArrivalControllerProvider(widget.tripId),
+    );
+    if (widget.showReachedDialog) _maybeShowReachedDialog(controller);
 
     final (statusLabel, statusColor) = _statusBadge(controller);
     final items = controller.uiItems;
@@ -190,7 +195,9 @@ class _CheckpointArrivalPanelState
 
             // Tiêu đề lộ trình điểm kiểm tra
             Text(
-              'Lộ trình điểm kiểm tra',
+              widget.onSelectCheckpoint == null
+                  ? 'Lộ trình điểm kiểm tra'
+                  : 'Chọn trạm để xem trên bản đồ · Khoảng cách đường chim bay',
               style: AppTypography.caption.copyWith(
                 fontWeight: FontWeight.w700,
                 color: Colors.black87,
@@ -209,101 +216,104 @@ class _CheckpointArrivalPanelState
                 final item = items[index];
                 final (badgeLabel, badgeStatus) = _itemBadge(item);
 
-                return Padding(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: AppSpacing.sm,
-                    horizontal: AppSpacing.xs,
-                  ),
-                  child: Row(
+                return InkWell(
+                  onTap: widget.onSelectCheckpoint == null
+                      ? null
+                      : () => widget.onSelectCheckpoint!(item.checkpoint),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: AppSpacing.sm,
+                      horizontal: AppSpacing.xs,
+                    ),
+                    child: Row(
                       children: [
                         // Vòng tròn đánh số thứ tự
-                      Container(
-                        width: 28,
-                        height: 28,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: item.isReached
-                              ? AppColors.statusSuccessBg
-                              : AppColors.statusNeutralBg,
-                          shape: BoxShape.circle,
-                          border: Border.all(
+                        Container(
+                          width: 28,
+                          height: 28,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
                             color: item.isReached
-                                ? AppColors.statusSuccessBorder
-                                : AppColors.statusNeutralBorder,
-                          ),
-                        ),
-                        child: Text(
-                          '${index + 1}',
-                          style: AppTypography.caption.copyWith(
-                            color: item.isReached
-                                ? AppColors.statusSuccess
-                                : AppColors.statusNeutral,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: AppSpacing.md),
-
-                      // Tên trạm và cự ly / thời gian
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              item.checkpoint.name.isNotEmpty
-                                  ? item.checkpoint.name
-                                  : 'Trạm kiểm tra #${index + 1}',
-                              style: AppTypography.bodyStrong.copyWith(
-                                color: Colors.black,
-                              ),
+                                ? AppColors.statusSuccessBg
+                                : AppColors.statusNeutralBg,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: item.isReached
+                                  ? AppColors.statusSuccessBorder
+                                  : AppColors.statusNeutralBorder,
                             ),
-                            if (item.isReached && item.confirmedAt != null)
+                          ),
+                          child: Text(
+                            '${index + 1}',
+                            style: AppTypography.caption.copyWith(
+                              color: item.isReached
+                                  ? AppColors.statusSuccess
+                                  : AppColors.statusNeutral,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.md),
+
+                        // Tên trạm và cự ly / thời gian
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
                               Text(
-                                'Đã đến lúc: ${_formatTime(item.confirmedAt)}',
-                                style: AppTypography.caption.copyWith(
-                                  color: AppColors.statusNeutral,
+                                item.checkpoint.name.isNotEmpty
+                                    ? item.checkpoint.name
+                                    : 'Trạm kiểm tra #${index + 1}',
+                                style: AppTypography.bodyStrong.copyWith(
+                                  color: Colors.black,
                                 ),
-                              )
-                            else if (item.lastDistanceMeters != null)
-                              Wrap(
-                                crossAxisAlignment: WrapCrossAlignment.center,
-                                children: [
-                                  Text(
-                                    'Cách: ${item.lastDistanceMeters!.round()} m',
-                                    style: AppTypography.caption.copyWith(
-                                      color: item.lastDistanceMeters! <= 20.0
-                                          ? AppColors.statusSuccess
-                                          : AppColors.statusNeutral,
-                                      fontWeight:
-                                          item.lastDistanceMeters! <= 20.0
-                                              ? FontWeight.w700
-                                              : FontWeight.normal,
-                                    ),
+                              ),
+                              if (item.isReached && item.confirmedAt != null)
+                                Text(
+                                  'Đã đến lúc: ${_formatTime(item.confirmedAt)}',
+                                  style: AppTypography.caption.copyWith(
+                                    color: AppColors.statusNeutral,
                                   ),
-                                  if (item.lastDistanceMeters! <= 20.0 &&
-                                      item.qualifyingSamplesCount > 0) ...[
-                                    const SizedBox(width: AppSpacing.xs),
+                                )
+                              else if (widget.showDistances &&
+                                  item.lastDistanceMeters != null)
+                                Wrap(
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  children: [
                                     Text(
-                                      '(Đang xác nhận ${item.qualifyingSamplesCount}/3)',
+                                      'Cách: ${item.lastDistanceMeters!.round()} m${widget.distanceNote == null ? '' : ' · ${widget.distanceNote}'}',
                                       style: AppTypography.caption.copyWith(
-                                        color: AppColors.statusSuccess,
-                                        fontWeight: FontWeight.w600,
+                                        color: item.lastDistanceMeters! <= 20.0
+                                            ? AppColors.statusSuccess
+                                            : AppColors.statusNeutral,
+                                        fontWeight:
+                                            item.lastDistanceMeters! <= 20.0
+                                            ? FontWeight.w700
+                                            : FontWeight.normal,
                                       ),
                                     ),
+                                    if (item.lastDistanceMeters! <= 20.0 &&
+                                        item.qualifyingSamplesCount > 0) ...[
+                                      const SizedBox(width: AppSpacing.xs),
+                                      Text(
+                                        '(Đang xác nhận ${item.qualifyingSamplesCount}/3)',
+                                        style: AppTypography.caption.copyWith(
+                                          color: AppColors.statusSuccess,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
                                   ],
-                                ],
-                              ),
-                          ],
+                                ),
+                            ],
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: AppSpacing.sm),
+                        const SizedBox(width: AppSpacing.sm),
 
-                      // Badge trạng thái từng trạm
-                      CtmsStatusBadge(
-                        label: badgeLabel,
-                        status: badgeStatus,
-                      ),
-                    ],
+                        // Badge trạng thái từng trạm
+                        CtmsStatusBadge(label: badgeLabel, status: badgeStatus),
+                      ],
+                    ),
                   ),
                 );
               },
@@ -341,4 +351,3 @@ class _CheckpointArrivalPanelState
     );
   }
 }
-

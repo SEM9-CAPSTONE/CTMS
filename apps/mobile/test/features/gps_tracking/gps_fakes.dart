@@ -99,6 +99,6 @@ class FakeLocationSource implements GpsLocationSource {
   }
 }
 
-ApiException offline() => ApiException('Không thể kết nối máy chủ.');
+ApiException offline() => ApiException('Không thể kết nối máy chủ.', kind: ApiExceptionKind.network);
 
 ApiException httpError(int status) => ApiException('Lỗi máy chủ', statusCode: status);

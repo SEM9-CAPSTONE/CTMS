@@ -93,7 +93,20 @@ Actual OFF_ROUTE→ON_ROUTE transition remains governed by CTMS-060.
 
 Core calculation: local.
 
-TBD — Technical Design.
+CTMS-315 provides the read-only online validation contract at
+`GET /api/trips/:tripId/route-recovery/context?packageId=<uuid>&packageVersion=<integer>`.
+It validates the exact client-selected package against one read-only DB snapshot.
+AVAILABLE/STALE may include only verified package geometry; UNAVAILABLE/MISMATCH
+withhold geometry. It does not determine which package is active on a device,
+activate a package or change Trip/Route state. Existing route-deviation API behavior
+is unchanged. See [CTMS-315 implementation contract](../../docs/features/CTMS-315-Route-Recovery-Context.md)
+for reason codes, authorization, snapshot guarantees and the CTMS-316 handoff.
+
+Client calculation conventions: WGS84/EPSG:4326 `[longitude, latitude]`, original
+LineString order, horizontal distance in metres, absolute bearing clockwise from
+true north normalized to `[0,360)`. GPS validity and the OFF_ROUTE/ON_ROUTE state
+remain governed by the existing GPS/deviation rules. On-device return-point,
+distance and bearing calculation and UI integration are delivered by CTMS-316.
 
 ## 10. Error & Edge Cases
 
@@ -117,3 +130,10 @@ TBD — Technical Design.
 ## 12. Open Decisions
 
 Exact direction presentation—bearing, arrow, compass UI—is Technical Design/UI.
+
+CTMS-316 uses the [client decision table](../../docs/features/CTMS-316-Route-Recovery-UI.md).
+STALE contexts withhold guidance. Network/timeout fallback is allowed only for an
+exact previously AVAILABLE, still locally verified package, with an explicit
+unverified-again label and observation time. HTTP 401/403/404 and server errors do
+not grant fallback. GPS usability reuses accuracy <=20 m, age <=30 s and future
+skew <=5 s; this presentation gate does not alter CTMS-060 navigation transitions.

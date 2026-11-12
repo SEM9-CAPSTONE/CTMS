@@ -23,6 +23,26 @@ import {
 } from "../modules/bookings/cancellation-policy";
 import dataSource from "../shared/database/data-source";
 
+import { randomUUID } from "node:crypto";
+import { CheckpointArrivalsRepository } from "../modules/checkpoint-arrivals/checkpoint-arrivals.repository";
+import type {
+	PackageCore,
+	PackageMetadata,
+	PackageSafetyInputs,
+} from "../modules/offline-packages/offline-packages.types";
+import { PackageArtifactBuilder } from "../modules/offline-packages/package-artifact.builder";
+import { LocalPackageArtifactStorage } from "../modules/offline-packages/package-artifact.storage";
+import {
+	TripSafetyContextResolver,
+	canonical,
+	digest,
+	sourceFingerprint,
+} from "../modules/offline-packages/package-policy";
+import { readVerifiedPackageRoute } from "../modules/offline-packages/package-route.reader";
+import { CheckpointType } from "../modules/trekking-routes/entities/checkpoint.entity";
+import { WaypointType } from "../modules/trips/entities/trip-waypoint.entity";
+import { TripStatus, TripType } from "../modules/trips/entities/trip.entity";
+
 const BCRYPT_COST_FACTOR = 10;
 export const DEMO_SYNC_TRIP_ID = "a1736fee-62be-4991-9478-a62288e9b80a";
 export const DEMO_OFFLINE_BUFFER_TRIP_ID = "c3958000-0064-4064-8064-000000000064";
@@ -6030,11 +6050,305 @@ export async function seedPerformanceReportsScenarios(ds: DataSource = dataSourc
 		`[seed:performance-reports] ✅ Seeded ${tripConfigs.length} demo trips with ${totalBookingsCreated} bookings & settlements across 18 dates.`
 	);
 }
+function recoveryDemoCore(): PackageCore {
+	return {
+		tripId: "trip",
+		routeId: "route",
+		status: TripStatus.PUBLISHED,
+		tripType: TripType.DAY_TRIP,
+		startsAt: "2026-12-01T01:00:00.000Z",
+		endsAt: "2026-12-01T10:00:00.000Z",
+		geometry: {
+			type: "LineString",
+			coordinates: [
+				[108, 16],
+				[108.01, 16.01],
+			],
+		},
+		checkpoints: [
+			{
+				id: "checkpoint",
+				routeId: "route",
+				name: "Fictional checkpoint",
+				type: CheckpointType.REST,
+				location: { type: "Point", coordinates: [108, 16] },
+				radiusMeters: 30,
+				expectedArrivalOffset: 10,
+				instructions: "Fictional instructions",
+				routePosition: 0.5,
+			},
+		],
+		waypoints: [WaypointType.START, WaypointType.FINISH].map((type, index) => ({
+			id: `waypoint-${index}`,
+			checkpointId: null,
+			type,
+			name: "Fictional waypoint",
+			location: { type: "Point", coordinates: [108 + index * 0.01, 16 + index * 0.01] },
+			dayNumber: 1,
+			sequenceOrder: index,
+			plannedAt: index ? "2026-12-01T10:00:00.000Z" : "2026-12-01T01:00:00.000Z",
+			durationMinutes: 0,
+		})),
+	};
+}
+
+/** Opt-in additive UI demo. Never resets accounts or calls the destructive master seed. */
+export async function seedRouteRecoveryDemo(db: DataSource): Promise<void> {
+	if (process.env.NODE_ENV === "production")
+		throw new Error("Demo seed is forbidden in production");
+	if (
+		process.argv.includes("--fresh") ||
+		process.argv.includes("--clean") ||
+		process.env.SEED_FRESH === "true"
+	)
+		throw new Error("Recovery demo must not run with destructive seed flags");
+	if (!db.isInitialized) await db.initialize();
+	const tripId = "316de000-0000-4000-8000-000000000001";
+	const rows: Array<{ id: string; title: string; host_id: string; route_id: string }> =
+		await db.query("SELECT id,title,host_id,route_id FROM trips WHERE id=$1", [tripId]);
+	if (rows.length) {
+		if (!rows[0].title.startsWith("[DEMO CTMS-316]"))
+			throw new Error("Demo identity collision; refusing to modify existing Trip");
+		const [metadata] = (await db.query(
+			"SELECT * FROM offline_packages WHERE trip_id=$1 ORDER BY package_version DESC LIMIT 1",
+			[tripId]
+		)) as PackageMetadata[];
+		if (!metadata) throw new Error("Demo package missing; refusing to replace existing data");
+		const bytes = await new LocalPackageArtifactStorage().read(
+			metadata.artifact_key,
+			metadata.sha256,
+			Number(metadata.size_bytes)
+		);
+		readVerifiedPackageRoute(bytes, metadata);
+		const checkpoints = await db.query(
+			"SELECT id,ST_Y(location::geometry) AS latitude,ST_X(location::geometry) AS longitude FROM checkpoints WHERE route_id=$1 ORDER BY route_position",
+			[rows[0].route_id]
+		);
+		await new CheckpointArrivalsRepository(db).registerActivePackage({
+			tripId,
+			routeId: rows[0].route_id,
+			routeVersion: metadata.manifest.route?.fingerprint ?? "",
+			packageId: metadata.id,
+			packageVersion: String(metadata.package_version),
+			checkpoints,
+		});
+		if (
+			process.argv.includes("--route-recovery-start") ||
+			process.argv.includes("--route-recovery-prepare")
+		) {
+			const start = process.argv.includes("--route-recovery-start");
+			await db.query(
+				"UPDATE trips SET status=$2::trip_status,starts_at=now()+make_interval(mins=>$3),ends_at=now()+interval '7 days',booking_deadline=now()-interval '1 day',updated_at=now() WHERE id=$1",
+				[tripId, start ? "ongoing" : "published", start ? -1 : 60]
+			);
+		}
+		console.log(
+			"[seed:recovery] Demo already exists; accounts, package and visits retained",
+			tripId
+		);
+		return;
+	}
+	if (process.argv.includes("--route-recovery-start"))
+		throw new Error("Create and download the demo package before starting the Trip");
+	const [camperRow] = (await db.query(
+		"SELECT id FROM users WHERE email=$1 AND role='camper' AND status='active'",
+		[process.env.RECOVERY_DEMO_CAMPER_EMAIL ?? "camper@ctms.local"]
+	)) as Array<{ id: string }>;
+	const [hostRow] = (await db.query(
+		"SELECT id FROM users WHERE email=$1 AND role='host' AND status='active'",
+		[process.env.RECOVERY_DEMO_HOST_EMAIL ?? "host@ctms.local"]
+	)) as Array<{ id: string }>;
+	if (!camperRow || !hostRow)
+		throw new Error("Existing active Camper and Host required; no accounts will be created");
+	const camper = camperRow.id;
+	const host = hostRow.id;
+	const booking = randomUUID();
+	const core = recoveryDemoCore();
+	core.tripId = "316de000-0000-4000-8000-000000000001";
+	core.routeId = "316de000-0000-4000-8000-000000000002";
+	core.startsAt = new Date(Date.now() + 3600000).toISOString();
+	core.endsAt = new Date(Date.now() + 7 * 86400000).toISOString();
+	core.geometry = {
+		type: "LineString",
+		coordinates: [
+			[108.2754, 16.1002],
+			[108.277, 16.101],
+			[108.278, 16.1025],
+			[108.28, 16.103],
+			[108.282, 16.102],
+			[108.284, 16.1038],
+		],
+	};
+	core.checkpoints = [0, 2, 5].map((index, order) => ({
+		id: randomUUID(),
+		routeId: core.routeId,
+		name: `[TEST] Trạm ${order + 1}`,
+		type:
+			order === 0
+				? CheckpointType.START
+				: order === 2
+					? CheckpointType.FINISH
+					: CheckpointType.REST,
+		location: { type: "Point" as const, coordinates: core.geometry.coordinates[index] },
+		radiusMeters: 30,
+		expectedArrivalOffset: order * 30,
+		instructions: "Test fixture only; not real navigation data.",
+		routePosition: order / 2,
+	}));
+	core.waypoints = core.waypoints.map((w, index) => ({
+		...w,
+		id: randomUUID(),
+		location: { type: "Point", coordinates: core.geometry.coordinates[index === 0 ? 0 : 5] },
+		plannedAt: index === 0 ? core.startsAt : core.endsAt,
+	}));
+	const safety: PackageSafetyInputs = {
+		revision: "demo-only-no-safety-advice",
+		blockers: [],
+		conditionEvidence: [],
+		feeds: [],
+		hazards: [],
+		guidance: [],
+		policy: {
+			version: "DEMO-NOT-APPROVED",
+			approvalId: "DEMO-NOT-FOR-NAVIGATION",
+			requiredGovernmentSources: [],
+			baselineTopics: [],
+			conditionTopics: [],
+			hazardTopics: [],
+			requiredConditions: [],
+			requireCheckpoints: true,
+			requiredWaypointTypes: [WaypointType.START, WaypointType.FINISH],
+		},
+	};
+	const builder = new PackageArtifactBuilder();
+	const artifact = builder.build(
+		{
+			core,
+			safety,
+			nextVersion: 1,
+			coreFingerprint: digest(canonical(core)),
+			sourceFingerprint: sourceFingerprint(safety),
+		},
+		new TripSafetyContextResolver().resolve(core, safety),
+		[],
+		safety.guidance,
+		new Date().toISOString()
+	);
+	const packageId = randomUUID();
+	const metadata: PackageMetadata = {
+		id: packageId,
+		trip_id: core.tripId,
+		package_version: 1,
+		generation_key: artifact.sha256,
+		schema_version: 1,
+		manifest: artifact.manifest,
+		sha256: artifact.sha256,
+		size_bytes: artifact.bytes.length,
+		artifact_key: `${artifact.sha256}.zip`,
+		generated_at: new Date(artifact.manifest.generatedAt),
+	};
+	builder.verify(artifact.bytes, metadata.manifest);
+	readVerifiedPackageRoute(artifact.bytes, metadata);
+	const storage = new LocalPackageArtifactStorage();
+	await storage.put(metadata.artifact_key, artifact.bytes);
+
+	await db.transaction(async (manager) => {
+		await manager.query(
+			`INSERT INTO trekking_routes(id,host_id,name,description,route_geom,length_meters,difficulty,expected_duration_minutes,status)
+        VALUES($1,$2,'[DEMO CTMS-316] Sơn Trà','Fictional test route; not for real navigation',ST_GeomFromGeoJSON($3)::geography,1500,'easy',120,'active')`,
+			[core.routeId, host, JSON.stringify(core.geometry)]
+		);
+		await manager.query(
+			`INSERT INTO trips(id,host_id,route_id,title,description,trip_type,duration_nights,starts_at,ends_at,meeting_point,booking_deadline,capacity_min,capacity_max,price_per_person,status)
+        VALUES($1,$2,$3,'[DEMO CTMS-316] Sơn Trà - Quay lại tuyến','Synthetic UI demo; no safety guidance or live hazard sources; not for real navigation','day_trip',0,$4,$5,ST_GeomFromGeoJSON($6)::geography,($4::timestamptz - interval '1 day'),1,10,0,'published')`,
+			[
+				core.tripId,
+				host,
+				core.routeId,
+				core.startsAt,
+				core.endsAt,
+				JSON.stringify({ type: "Point", coordinates: core.geometry.coordinates[0] }),
+			]
+		);
+		for (const cp of core.checkpoints)
+			await manager.query(
+				`INSERT INTO checkpoints(id,route_id,name,location,radius_m,type,expected_arrival_offset,instructions,nearby_water_or_shelter,route_position)
+        VALUES($1,$2,$3,ST_GeomFromGeoJSON($4)::geography,$5,$6,$7,$8,false,$9)`,
+				[
+					cp.id,
+					cp.routeId,
+					cp.name,
+					JSON.stringify(cp.location),
+					cp.radiusMeters,
+					cp.type,
+					cp.expectedArrivalOffset,
+					cp.instructions,
+					cp.routePosition,
+				]
+			);
+		await manager.query(
+			`INSERT INTO bookings(id,trip_id,user_id,num_people,status,payment_status,trip_starts_at_snapshot,trip_ends_at_snapshot,base_price,total_amount)
+        VALUES($1,$2,$3,1,'confirmed','paid',$4,$5,0,0)`,
+			[booking, core.tripId, camper, core.startsAt, core.endsAt]
+		);
+		await manager.query(
+			`INSERT INTO booking_members(booking_id,user_id,is_primary,member_status,checked_in_at) VALUES($1,$2,true,'joined',$3)`,
+			[booking, camper, new Date()]
+		);
+		await manager.query(
+			`INSERT INTO offline_packages(id,trip_id,package_version,generation_key,schema_version,manifest,provenance,sha256,size_bytes,artifact_key,generated_at)
+        VALUES($1,$2,1,$3,1,$4,$5,$6,$7,$8,$9)`,
+			[
+				packageId,
+				core.tripId,
+				metadata.generation_key,
+				metadata.manifest,
+				{ testFixture: true, source: "DEMO ONLY; builder-generated; not approved safety pipeline" },
+				artifact.sha256,
+				artifact.bytes.length,
+				metadata.artifact_key,
+				metadata.generated_at,
+			]
+		);
+	});
+	await new CheckpointArrivalsRepository(db).registerActivePackage({
+		tripId: core.tripId,
+		routeId: core.routeId,
+		routeVersion: artifact.manifest.route.fingerprint,
+		packageId,
+		packageVersion: "1",
+		checkpoints: core.checkpoints.map((cp) => ({
+			id: cp.id,
+			latitude: cp.location.coordinates[1],
+			longitude: cp.location.coordinates[0],
+		})),
+	});
+
+	console.log(
+		"[seed:recovery] Created DEMO package; no safety guidance. Download before starting Trip:",
+		tripId
+	);
+	console.log(
+		"[seed:recovery] Generate the basemap with the existing offline basemap worker after requesting the package metadata."
+	);
+}
 
 export async function runMasterSeed(): Promise<void> {
 	if (process.argv.includes("--performance-reports-only")) {
 		try {
 			await seedPerformanceReportsScenarios(dataSource);
+		} finally {
+			if (dataSource.isInitialized) await dataSource.destroy();
+		}
+		return;
+	}
+	if (
+		process.argv.some((arg) =>
+			["--route-recovery-only", "--route-recovery-start", "--route-recovery-prepare"].includes(arg)
+		)
+	) {
+		try {
+			await seedRouteRecoveryDemo(dataSource);
 		} finally {
 			if (dataSource.isInitialized) await dataSource.destroy();
 		}

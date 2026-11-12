@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
@@ -10,7 +11,9 @@ import '../../../core/widgets/ctms_filter_chip_row.dart';
 import '../../../core/widgets/ctms_scaffold.dart';
 import '../../../core/widgets/ctms_status_badge.dart';
 import '../../sync/presentation/device_sync_status_screen.dart';
-import '../../offline_packages/presentation/offline_package_screen.dart';
+import '../../offline_packages/application/package_download_controller.dart';
+import '../../offline_packages/presentation/saved_offline_packages_screen.dart';
+import 'porter_offline_trips_screen.dart';
 
 class _PorterShift {
   const _PorterShift({
@@ -40,14 +43,14 @@ class _PorterShift {
   final String? tripId;
 }
 
-class PorterScheduleScreen extends StatefulWidget {
+class PorterScheduleScreen extends ConsumerStatefulWidget {
   const PorterScheduleScreen({super.key});
 
   @override
-  State<PorterScheduleScreen> createState() => _PorterScheduleScreenState();
+  ConsumerState<PorterScheduleScreen> createState() => _PorterScheduleScreenState();
 }
 
-class _PorterScheduleScreenState extends State<PorterScheduleScreen> {
+class _PorterScheduleScreenState extends ConsumerState<PorterScheduleScreen> {
   static const _filterOptions = [
     'Tất cả',
     'Đang diễn ra',
@@ -161,6 +164,7 @@ class _PorterScheduleScreenState extends State<PorterScheduleScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final accountId = ref.watch(offlinePackageAccountProvider);
     final filteredShifts = _selectedFilter == 'Tất cả'
         ? _shifts
         : _shifts.where((s) => s.status == _selectedFilter).toList();
@@ -172,6 +176,7 @@ class _PorterScheduleScreenState extends State<PorterScheduleScreen> {
       title: 'Lịch phân công',
       subtitle: 'Theo dõi và xác nhận các ca trekking được giao cho bạn',
       actions: [
+        const SavedOfflinePackagesButton(),
         IconButton(
           tooltip: 'Báo cáo sự cố',
           icon: const Icon(Icons.report_problem_outlined),
@@ -181,6 +186,18 @@ class _PorterScheduleScreenState extends State<PorterScheduleScreen> {
       body: ListView(
         padding: const EdgeInsets.all(AppSpacing.xxl),
         children: [
+          if (accountId != null) ...[
+            OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => PorterOfflineTripsScreen(accountId: accountId),
+                ),
+              ),
+              icon: const Icon(Icons.download_outlined),
+              label: const Text('Tải dữ liệu chuyến đi'),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+          ],
           // Filter Chips Row
           CtmsFilterChipRow(
             options: _filterOptions,
@@ -392,14 +409,6 @@ class _ShiftCard extends StatelessWidget {
             spacing: AppSpacing.sm,
             runSpacing: AppSpacing.sm,
             children: [
-              if (shift.tripId != null)
-                OutlinedButton.icon(
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(builder: (_) => OfflinePackageScreen(tripId: shift.tripId!)),
-                  ),
-                  icon: const Icon(Icons.download_outlined, size: 16),
-                  label: const Text('Dữ liệu ngoại tuyến'),
-                ),
               if (shift.status == 'Đang diễn ra')
                 OutlinedButton.icon(
                   onPressed: () => context.push('/porter/incidents'),
