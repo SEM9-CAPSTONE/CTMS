@@ -52,6 +52,8 @@ const HOUR_MS = 60 * 60 * 1000;
 const REUSE_WINDOW_MS = 10 * 60 * 1000;
 /** Newest history rows returned to clients. */
 const HISTORY_LIMIT = 50;
+/** Owning Host and Admin responses carry the AI opinion; traveller responses never do. */
+const HOST_ADMIN_VIEW = { includeAiReview: true } as const;
 /**
  * Raw provider responses are only kept while the Trip can still be submitted for approval, i.e. for
  * the forecast the Host may attach to the request (policy §4). Later checks keep the scored result.
@@ -91,7 +93,7 @@ export class TripWeatherForecastService {
 			);
 		}
 		const forecast = await this.computeForecast(trip, actor.userId, now);
-		return toTripWeatherForecastResponse(forecast, WEATHER_FORECAST_HORIZON_DAYS);
+		return toTripWeatherForecastResponse(forecast, WEATHER_FORECAST_HORIZON_DAYS, HOST_ADMIN_VIEW);
 	}
 
 	/**
@@ -266,7 +268,9 @@ export class TripWeatherForecastService {
 	): Promise<TripWeatherForecastResponseDto | null> {
 		await this.loadAuthorizedTrip(actor, tripId);
 		const latest = await this.forecastsRepository.findLatestForTrip(tripId);
-		return latest ? toTripWeatherForecastResponse(latest, WEATHER_FORECAST_HORIZON_DAYS) : null;
+		return latest
+			? toTripWeatherForecastResponse(latest, WEATHER_FORECAST_HORIZON_DAYS, HOST_ADMIN_VIEW)
+			: null;
 	}
 
 	/**
@@ -289,7 +293,13 @@ export class TripWeatherForecastService {
 					TRAVELLER_VISIBLE_TRIP_STATUSES.has(trip.status)));
 		if (!allowed) throw new NotFoundException("Trip not found");
 		const rows = await this.forecastsRepository.findHistory(tripId, HISTORY_LIMIT);
-		return rows.map((row) => toTripWeatherForecastResponse(row, WEATHER_FORECAST_HORIZON_DAYS));
+		// The AI opinion is an internal review aid; travellers only see the official level.
+		const view = {
+			includeAiReview: roles.includes(UserRole.ADMIN) || trip.hostId === actor.userId,
+		};
+		return rows.map((row) =>
+			toTripWeatherForecastResponse(row, WEATHER_FORECAST_HORIZON_DAYS, view)
+		);
 	}
 
 	/** The forecast that was attached to the Trip when it was submitted for approval. */
@@ -303,7 +313,9 @@ export class TripWeatherForecastService {
 			tripId,
 			trip.submittedWeatherForecastId
 		);
-		return forecast ? toTripWeatherForecastResponse(forecast, WEATHER_FORECAST_HORIZON_DAYS) : null;
+		return forecast
+			? toTripWeatherForecastResponse(forecast, WEATHER_FORECAST_HORIZON_DAYS, HOST_ADMIN_VIEW)
+			: null;
 	}
 
 	/** Explains the latest available forecast with the LLM; idempotent per forecast. */
@@ -323,7 +335,7 @@ export class TripWeatherForecastService {
 			throw new ConflictException("No weather forecast to explain for this Trip yet.");
 		}
 		if (latest.adviceText) {
-			return toTripWeatherForecastResponse(latest, WEATHER_FORECAST_HORIZON_DAYS);
+			return toTripWeatherForecastResponse(latest, WEATHER_FORECAST_HORIZON_DAYS, HOST_ADMIN_VIEW);
 		}
 
 		const criteria = latest.criteriaScores;
@@ -353,7 +365,11 @@ export class TripWeatherForecastService {
 			result.adviceText,
 			result.actions
 		);
-		return toTripWeatherForecastResponse(updated ?? latest, WEATHER_FORECAST_HORIZON_DAYS);
+		return toTripWeatherForecastResponse(
+			updated ?? latest,
+			WEATHER_FORECAST_HORIZON_DAYS,
+			HOST_ADMIN_VIEW
+		);
 	}
 
 	private async loadAuthorizedTrip(

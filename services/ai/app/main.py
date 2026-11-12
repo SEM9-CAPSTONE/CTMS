@@ -29,6 +29,9 @@ from app.review_moderation_service import (
     InvalidModerationOutput, ModerationProviderRefusal,
 )
 from app.demand_insight_service import DemandRequest, DemandResponse, DemandInsightService
+from app.weather_risk_review_service import (
+    InvalidWeatherReviewOutput, WeatherRiskReviewRequest, WeatherRiskReviewResponse, WeatherRiskReviewService,
+)
 
 app = FastAPI(
 	title="CTMS AI Service",
@@ -233,6 +236,27 @@ def scan_review_moderation(payload: ReviewModerationRequest, service: ReviewMode
             code = "insufficient_quota"
         if code:
             raise HTTPException(status_code=429, detail={"code": code}) from None
+        raise HTTPException(status_code=status if status == 429 or 400 <= status < 500 else 502, detail={"code": "provider_failure"}) from None
+    except Exception:
+        raise HTTPException(status_code=502, detail={"code": "provider_failure"}) from None
+
+
+@lru_cache
+def get_weather_risk_review_service() -> WeatherRiskReviewService:
+    return WeatherRiskReviewService(build_analysis_client())
+
+
+@app.post("/weather-risk-review", response_model=WeatherRiskReviewResponse, dependencies=[Depends(require_review_token)])
+def review_weather_risk(payload: WeatherRiskReviewRequest, service: WeatherRiskReviewService = Depends(get_weather_risk_review_service)) -> WeatherRiskReviewResponse:
+    """Independent AI opinion on a Trip forecast; the rule-based level stays the official one."""
+    try:
+        return service.review(payload)
+    except InvalidWeatherReviewOutput:
+        raise HTTPException(status_code=422, detail={"code": "invalid_output"}) from None
+    except (APITimeoutError, APIConnectionError):
+        raise HTTPException(status_code=504, detail={"code": "provider_transport"}) from None
+    except APIStatusError as error:
+        status = error.status_code
         raise HTTPException(status_code=status if status == 429 or 400 <= status < 500 else 502, detail={"code": "provider_failure"}) from None
     except Exception:
         raise HTTPException(status_code=502, detail={"code": "provider_failure"}) from None

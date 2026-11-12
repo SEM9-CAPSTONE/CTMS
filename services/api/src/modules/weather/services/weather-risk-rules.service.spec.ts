@@ -79,7 +79,10 @@ describe("WeatherRiskRulesService", () => {
 			expect(result).toHaveLength(2);
 			expect(result[0]?.version).toBe(2);
 			expect(result[1]?.version).toBe(1);
-			expect(mockRepository.find).toHaveBeenCalledWith({ order: { version: "DESC" } });
+			expect(mockRepository.find).toHaveBeenCalledWith({
+				order: { version: "DESC" },
+				relations: { creator: true },
+			});
 		});
 	});
 
@@ -101,6 +104,7 @@ describe("WeatherRiskRulesService", () => {
 			expect(mockRepository.findOne).toHaveBeenCalledWith({
 				where: { isActive: true },
 				order: { version: "DESC" },
+				relations: { creator: true },
 			});
 		});
 
@@ -177,6 +181,51 @@ describe("WeatherRiskRulesService", () => {
 			await expect(service.createRule(mockAdminUser, invalidTempDto)).rejects.toThrow(
 				BadRequestException
 			);
+		});
+
+		it.each([
+			["a 1 mm/h Red rainfall threshold", { rainfallYellowThreshold: 1, rainfallRedThreshold: 2 }],
+			["a 300 km/h Red wind threshold", { windRedThreshold: 300 }],
+			["a 20 m Red visibility threshold", { visibilityRedThreshold: 20 }],
+			["a 60 °C high Red temperature", { tempHighRed: 60 }],
+			["thunderstorms that raise nothing", { thunderstormYellow: false, thunderstormRed: false }],
+			[
+				"a single criterion weighing 0.7",
+				{
+					rainfallWeight: 0.7,
+					windWeight: 0.1,
+					temperatureWeight: 0.1,
+					visibilityWeight: 0.05,
+					thunderstormWeight: 0.05,
+				},
+			],
+		])("rejects %s (sensible bounds)", async (_label, override) => {
+			await expect(
+				service.createRule(mockAdminUser, { ...validRuleDto, ...override })
+			).rejects.toThrow(BadRequestException);
+			expect(mockRepository.save).not.toHaveBeenCalled();
+		});
+
+		it("names every out-of-bounds field in one message", async () => {
+			await expect(
+				service.createRule(mockAdminUser, {
+					...validRuleDto,
+					rainfallYellowThreshold: 0.5,
+					rainfallRedThreshold: 2,
+				})
+			).rejects.toThrow(
+				"rainfallYellowThreshold must be between 1 and 150 mm/h; rainfallRedThreshold must be between 5 and 200 mm/h"
+			);
+		});
+	});
+
+	describe("rule history", () => {
+		it("returns the creator name of each version", async () => {
+			mockRepository.find.mockResolvedValue([
+				{ ...validRuleDto, id: "r1", version: 1, creator: { fullName: "Admin Một" } },
+			]);
+			const [rule] = await service.findAll();
+			expect(rule?.createdByName).toBe("Admin Một");
 		});
 	});
 

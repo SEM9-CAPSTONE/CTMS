@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { weatherAiReviewService } from "../../weather-ai-review/services/weather-ai-review.service";
 import type { weatherDecisionsService } from "../../weather-decisions/services/weather-decisions.service";
 import type { weatherPenaltiesService } from "../../weather-penalties/services/weather-penalties.service";
 import { AdminWeatherManagementPage, adminWeatherTabUrl } from "./AdminWeatherManagementPage";
@@ -42,6 +43,31 @@ function penalties(pending: number) {
 	} as unknown as typeof weatherPenaltiesService;
 }
 
+function aiReview(count: number) {
+	return {
+		listMismatches: vi.fn().mockResolvedValue(
+			Array.from({ length: count }, (_, index) => ({
+				forecastId: `f-${index}`,
+				tripId: `trip-${index}`,
+				tripTitle: `Trip lệch ${index}`,
+				tripStatus: "published",
+				tripStartsAt: "2030-01-10T01:00:00.000Z",
+				hostId: "host-1",
+				hostName: "Host Demo",
+				riskLevel: "red",
+				aiRiskLevel: "green",
+				aiReason: "Mưa ngắn.",
+				aiConfidence: 0.7,
+				aiReviewedAt: "2030-01-08T01:00:00.000Z",
+				gap: 2,
+				worstReading: null,
+				ruleVersion: 1,
+			}))
+		),
+		acknowledge: vi.fn(),
+	} as unknown as typeof weatherAiReviewService;
+}
+
 function visit(path: string) {
 	window.history.replaceState({}, "", path);
 }
@@ -59,7 +85,11 @@ afterEach(() => {
 describe("AdminWeatherManagementPage", () => {
 	it("is one Admin menu entry with the decisions tab first and pending counts on both tabs", async () => {
 		render(
-			<AdminWeatherManagementPage decisionsService={decisions(2)} penaltiesService={penalties(3)} />
+			<AdminWeatherManagementPage
+				decisionsService={decisions(2)}
+				penaltiesService={penalties(3)}
+				aiReviewService={aiReview(0)}
+			/>
 		);
 		expect(screen.getByTestId("admin-layout")).toHaveAttribute("data-active", "weather-management");
 		expect(screen.getByRole("heading", { name: /Quản lý thời tiết/ })).toBeVisible();
@@ -71,7 +101,11 @@ describe("AdminWeatherManagementPage", () => {
 
 	it("switches to the Host penalties tab and keeps it in the address", async () => {
 		render(
-			<AdminWeatherManagementPage decisionsService={decisions(0)} penaltiesService={penalties(0)} />
+			<AdminWeatherManagementPage
+				decisionsService={decisions(0)}
+				penaltiesService={penalties(0)}
+				aiReviewService={aiReview(0)}
+			/>
 		);
 		fireEvent.click(screen.getByRole("tab", { name: /Phạt Host/ }));
 		expect(await screen.findByTestId("weather-penalties-panel")).toBeVisible();
@@ -85,7 +119,11 @@ describe("AdminWeatherManagementPage", () => {
 	it("reopens the tab from the address after a reload", async () => {
 		visit("/admin/weather?tab=penalties");
 		render(
-			<AdminWeatherManagementPage decisionsService={decisions(0)} penaltiesService={penalties(0)} />
+			<AdminWeatherManagementPage
+				decisionsService={decisions(0)}
+				penaltiesService={penalties(0)}
+				aiReviewService={aiReview(0)}
+			/>
 		);
 		expect(screen.getByRole("tab", { name: /Phạt Host/ })).toHaveAttribute("aria-selected", "true");
 		expect(await screen.findByTestId("weather-penalties-panel")).toBeVisible();
@@ -101,9 +139,25 @@ describe("AdminWeatherManagementPage", () => {
 				initialTab={initialTab}
 				decisionsService={decisions(0)}
 				penaltiesService={penalties(0)}
+				aiReviewService={aiReview(0)}
 			/>
 		);
 		await waitFor(() => expect(window.location.pathname + window.location.search).toBe(newUrl));
 		expect(adminWeatherTabUrl(initialTab)).toBe(newUrl);
+	});
+
+	it("lists threshold/AI disagreements in a third tab with its own count and address", async () => {
+		render(
+			<AdminWeatherManagementPage
+				decisionsService={decisions(0)}
+				penaltiesService={penalties(0)}
+				aiReviewService={aiReview(2)}
+			/>
+		);
+		expect(await screen.findByTestId("admin-weather-count-ai-review")).toHaveTextContent("2");
+		fireEvent.click(screen.getByRole("tab", { name: /Cần xem lại ngưỡng/ }));
+		expect(await screen.findByTestId("weather-ai-mismatch-panel")).toBeVisible();
+		expect(window.location.pathname + window.location.search).toBe("/admin/weather?tab=ai-review");
+		expect(adminWeatherTabUrl("ai-review")).toBe("/admin/weather?tab=ai-review");
 	});
 });
