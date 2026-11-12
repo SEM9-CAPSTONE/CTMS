@@ -86,7 +86,20 @@ V3 package policy:
 
 ## 9. API / Integration Contract
 
-TBD — Technical Design.
+CTMS-305 contract: `docs/features/CTMS-305-Package-Freshness-Contract.md`.
+
+Integrity, publication/newer-version availability and authoritative source freshness
+are independent axes. `newerAvailable` does not imply `replaceAllowed`. Server UTC
+`checkedAt` becomes client `lastCheckedAt` offline; no new online claim is made.
+
+The existing scheduled lifecycle is retained. With the opt-in departure feature
+flag enabled and an explicit CTMS-119 package requirement, one assigned Porter's
+confirmed installation must report the required active package/hash. The worker
+checks and locks it atomically with the scheduled ongoing transition. This does not
+require evidence from every member/device. Device verification is client-reported,
+not server attestation. Legacy Trips without requirements retain their old behavior.
+Freshness/source-expiry evaluation remains owned by CTMS-119 and is unknown until
+that integration supplies evidence. Unknown required freshness fails closed.
 
 ## 10. Error & Edge Cases
 
