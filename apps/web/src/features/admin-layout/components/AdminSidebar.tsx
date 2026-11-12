@@ -10,7 +10,6 @@ import {
 	MessageSquareText,
 	ReceiptText,
 	Route,
-	Scale,
 	ShieldAlert,
 	Users,
 	X,
@@ -32,8 +31,7 @@ export type AdminNavigationItem =
 	| "route-review"
 	| "trip-review"
 	| "weather-rules"
-	| "weather-interventions"
-	| "weather-penalties"
+	| "weather-management"
 	| "refunds"
 	| "settlements";
 
@@ -65,12 +63,11 @@ const navigationItems = [
 	{ key: "survival-documents", label: "Tài liệu sinh tồn", icon: BookOpen, available: true },
 	{ key: "weather-rules", label: "Cấu hình rủi ro thời tiết", icon: ShieldAlert, available: true },
 	{
-		key: "weather-interventions",
-		label: "Can thiệp thời tiết",
+		key: "weather-management",
+		label: "Quản lý thời tiết",
 		icon: CloudLightning,
 		available: true,
 	},
-	{ key: "weather-penalties", label: "Phạt thời tiết", icon: Scale, available: true },
 	{ key: "audit-logs", label: "Nhật ký hệ thống", icon: FileClock, available: true },
 	{ key: "content-reports", label: "Báo cáo nội dung", icon: Flag, available: true },
 ] as const;
@@ -156,11 +153,8 @@ export function AdminSidebar({
 								} else if (item.key === "weather-rules") {
 									window.history.pushState({}, "", "/admin/weather-rules");
 									window.dispatchEvent(new PopStateEvent("popstate"));
-								} else if (item.key === "weather-interventions") {
-									window.history.pushState({}, "", "/admin/weather-interventions");
-									window.dispatchEvent(new PopStateEvent("popstate"));
-								} else if (item.key === "weather-penalties") {
-									window.history.pushState({}, "", "/admin/weather-penalties");
+								} else if (item.key === "weather-management") {
+									window.history.pushState({}, "", "/admin/weather");
 									window.dispatchEvent(new PopStateEvent("popstate"));
 								} else if (item.key === "settlements") {
 									window.history.pushState({}, "", "/admin/settlements");

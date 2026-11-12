@@ -37,6 +37,8 @@ export enum RoutePath {
 	ADMIN_TREKKING_ROUTES = "/admin/trekking-routes",
 	ADMIN_TRIPS = "/admin/trips",
 	ADMIN_WEATHER_RULES = "/admin/weather-rules",
+	ADMIN_WEATHER = "/admin/weather",
+	/** Old addresses, kept so existing links open the matching tab of ADMIN_WEATHER. */
 	ADMIN_WEATHER_INTERVENTIONS = "/admin/weather-interventions",
 	ADMIN_WEATHER_PENALTIES = "/admin/weather-penalties",
 	ADMIN_REFUNDS = "/admin/refunds",

@@ -41,7 +41,7 @@ export function AdminWeatherPenaltyDialog({
 
 	function ask(approve: boolean) {
 		if (!note.trim()) {
-			setError("Vui lòng nhập ghi chú (lý do duyệt hoặc từ chối).");
+			setError("Hãy ghi lý do bạn duyệt hoặc từ chối.");
 			return;
 		}
 		setError(null);
@@ -69,7 +69,7 @@ export function AdminWeatherPenaltyDialog({
 			onClose={onClose}
 			title={penalty.tripTitle}
 			icon={<Scale className="size-5" />}
-			description={`Host: ${penalty.hostName ?? penalty.hostId} · Vi phạm lần ${penalty.violationNumber}`}
+			description={`Host ${penalty.hostName ?? penalty.hostId} · Vi phạm lần ${penalty.violationNumber}`}
 			size="xl"
 			isCloseDisabled={review.isPending}
 			closeLabel="Đóng"
@@ -79,7 +79,7 @@ export function AdminWeatherPenaltyDialog({
 					<StatusBadge tone={WEATHER_PENALTY_STATUS_TONES[status]}>
 						{WEATHER_PENALTY_STATUS_LABELS[status]}
 					</StatusBadge>
-					{isReviewOverdue(penalty) && <StatusBadge tone="danger">Quá hạn xem xét</StatusBadge>}
+					{isReviewOverdue(penalty) && <StatusBadge tone="danger">Quá hạn xem</StatusBadge>}
 				</div>
 				<dl className="grid grid-cols-2 gap-3 rounded-2xl border border-[#edf3ed] bg-[#fbfdfb] p-4 text-xs sm:grid-cols-3">
 					<div>
@@ -87,13 +87,13 @@ export function AdminWeatherPenaltyDialog({
 						<dd className="font-bold">{formatPenaltyDateTime(penalty.tripStartsAt)}</dd>
 					</div>
 					<div>
-						<dt className="text-[#7d8d83]">Giá trị booking</dt>
+						<dt className="text-[#7d8d83]">Tiền Camper đã trả</dt>
 						<dd className="font-bold">{formatBookingMoney(penalty.bookingValue)}</dd>
 					</div>
 					<div>
 						<dt className="text-[#7d8d83]">Mức phạt</dt>
 						<dd className="font-bold">
-							{penalty.ratePercent}% (tối đa {formatBookingMoney(penalty.capAmount)})
+							{penalty.ratePercent}%, không quá {formatBookingMoney(penalty.capAmount)}
 						</dd>
 					</div>
 					<div>
@@ -101,11 +101,11 @@ export function AdminWeatherPenaltyDialog({
 						<dd className="font-bold">{formatBookingMoney(penalty.amount)}</dd>
 					</div>
 					<div>
-						<dt className="text-[#7d8d83]">Đã trừ vào quyết toán</dt>
+						<dt className="text-[#7d8d83]">Đã trừ vào tiền quyết toán</dt>
 						<dd className="font-bold">{formatBookingMoney(penalty.deductedAmount)}</dd>
 					</div>
 					<div>
-						<dt className="text-[#7d8d83]">Khoá tạo Trip đến</dt>
+						<dt className="text-[#7d8d83]">Không được tạo Trip đến</dt>
 						<dd className="font-bold">
 							{penalty.hostingBlockedUntil
 								? formatPenaltyDate(penalty.hostingBlockedUntil)
@@ -115,13 +115,13 @@ export function AdminWeatherPenaltyDialog({
 				</dl>
 
 				<div className="rounded-2xl border border-[#edf3ed] p-4 text-xs">
-					<p className="font-extrabold">Yêu cầu miễn phạt của Host</p>
+					<p className="font-extrabold">Host xin miễn phạt</p>
 					{penalty.waiver.requestedAt ? (
 						<>
 							<p className="mt-1 text-[#667a6d]">
 								Gửi lúc {formatPenaltyDateTime(penalty.waiver.requestedAt)}
 								{penalty.waiver.reviewDueAt
-									? ` · Hạn xem xét ${formatPenaltyDate(penalty.waiver.reviewDueAt)}`
+									? ` · Cần xem trước ${formatPenaltyDate(penalty.waiver.reviewDueAt)}`
 									: ""}
 							</p>
 							<p className="mt-2 whitespace-pre-wrap">{penalty.waiver.reason}</p>
@@ -143,7 +143,8 @@ export function AdminWeatherPenaltyDialog({
 						</>
 					) : (
 						<p className="mt-1 text-[#667a6d]">
-							Host chưa gửi yêu cầu. Hạn gửi đến {formatPenaltyDateTime(penalty.waiverDeadline)}.
+							Host chưa xin miễn phạt. Host được gửi đến{" "}
+							{formatPenaltyDateTime(penalty.waiverDeadline)}.
 						</p>
 					)}
 					{penalty.waiver.decision && (
@@ -161,7 +162,7 @@ export function AdminWeatherPenaltyDialog({
 				{canReview && (
 					<div className="space-y-3 rounded-2xl border border-[#dfe8df] p-4">
 						<label htmlFor={noteId} className="text-xs font-extrabold">
-							Ghi chú của Admin (bắt buộc)
+							Lý do của bạn (bắt buộc)
 						</label>
 						<textarea
 							id={noteId}
@@ -204,11 +205,11 @@ export function AdminWeatherPenaltyDialog({
 				isOpen={pending !== null}
 				onClose={() => setPending(null)}
 				onConfirm={submit}
-				title={pending ? "Duyệt miễn phạt?" : "Từ chối miễn phạt?"}
+				title={pending ? "Miễn phạt cho Host?" : "Không miễn phạt?"}
 				description={
 					pending
-						? `Khoản phạt sẽ không còn tính là vi phạm, khoá tạo Trip (nếu có) được mở và ${formatBookingMoney(penalty.deductedAmount)} đã trừ sẽ được hoàn vào ví Host.`
-						: "Khoản phạt giữ nguyên và Host thấy ghi chú của bạn."
+						? `Lần vi phạm này sẽ được bỏ, Host tạo Trip lại được (nếu đang bị khoá) và nhận lại ${formatBookingMoney(penalty.deductedAmount)} đã bị trừ.`
+						: "Khoản phạt vẫn giữ nguyên. Host sẽ thấy lý do bạn ghi."
 				}
 				confirmText="Xác nhận"
 				cancelText="Quay lại"

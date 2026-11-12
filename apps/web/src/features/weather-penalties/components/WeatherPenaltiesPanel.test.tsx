@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { afterEach, expect, it, vi } from "vitest";
 import type { weatherPenaltiesService } from "../services/weather-penalties.service";
 import type { WeatherPenalty } from "../types";
-import { AdminWeatherPenaltiesPage } from "./AdminWeatherPenaltiesPage";
+import { WeatherPenaltiesPanel } from "./WeatherPenaltiesPanel";
 
 function penalty(overrides: Partial<WeatherPenalty> = {}): WeatherPenalty {
 	return {
@@ -62,16 +62,16 @@ afterEach(() => vi.restoreAllMocks());
 
 it("lists the waiver requests waiting first and switches filters", async () => {
 	const api = service([penalty()]);
-	render(<AdminWeatherPenaltiesPage service={api} />);
+	render(<WeatherPenaltiesPanel service={api} />);
 	const row = await screen.findByTestId("weather-penalty-row");
 	expect(row).toHaveTextContent("Host Host A");
 	expect(row).toHaveTextContent("Chờ duyệt miễn");
-	expect(row).toHaveTextContent("Hạn xem xét 17/01/2099");
+	expect(row).toHaveTextContent("Cần xem trước 17/01/2099");
 	expect(api.listForAdmin).toHaveBeenCalledWith("waiver_pending");
 
 	vi.mocked(api.listForAdmin).mockResolvedValue([]);
 	fireEvent.click(screen.getByRole("tab", { name: "Đã miễn" }));
-	expect(await screen.findByText("Chưa có khoản phạt nào được miễn.")).toBeVisible();
+	expect(await screen.findByText("Chưa miễn khoản phạt nào.")).toBeVisible();
 	expect(api.listForAdmin).toHaveBeenCalledWith("waived");
 	fireEvent.click(screen.getByRole("tab", { name: "Tất cả" }));
 	await waitFor(() => expect(api.listForAdmin).toHaveBeenCalledWith("all"));
@@ -81,13 +81,13 @@ it("flags a waiver request past its 5 working days", async () => {
 	const api = service([
 		penalty({ waiver: { ...penalty().waiver, reviewDueAt: "2020-01-01T00:00:00.000Z" } }),
 	]);
-	render(<AdminWeatherPenaltiesPage service={api} />);
-	expect(await screen.findByTestId("weather-penalty-row")).toHaveTextContent("Quá hạn xem xét");
+	render(<WeatherPenaltiesPanel service={api} />);
+	expect(await screen.findByTestId("weather-penalty-row")).toHaveTextContent("Quá hạn xem");
 });
 
 it("shows the evidence and approves the waiver with a mandatory note", async () => {
 	const api = service([penalty()]);
-	render(<AdminWeatherPenaltiesPage service={api} />);
+	render(<WeatherPenaltiesPanel service={api} />);
 	fireEvent.click(await screen.findByTestId("weather-penalty-row"));
 	const dialog = await screen.findByTestId("admin-weather-penalty-dialog");
 	expect(within(dialog).getByText("Host nhập viện cấp cứu")).toBeVisible();
@@ -96,8 +96,8 @@ it("shows the evidence and approves the waiver with a mandatory note", async () 
 		"https://cdn.example/weather-penalty-waivers/giay-vien.pdf"
 	);
 	fireEvent.click(within(dialog).getByRole("button", { name: "Duyệt miễn phạt" }));
-	expect(within(dialog).getByRole("alert")).toHaveTextContent("Vui lòng nhập ghi chú");
-	fireEvent.change(within(dialog).getByLabelText("Ghi chú của Admin (bắt buộc)"), {
+	expect(within(dialog).getByRole("alert")).toHaveTextContent("Hãy ghi lý do");
+	fireEvent.change(within(dialog).getByLabelText("Lý do của bạn (bắt buộc)"), {
 		target: { value: "Giấy viện hợp lệ" },
 	});
 	fireEvent.click(within(dialog).getByRole("button", { name: "Duyệt miễn phạt" }));
@@ -130,17 +130,17 @@ it("rejects a waiver and has no review form when the Host has not asked", async 
 			},
 		}),
 	]);
-	render(<AdminWeatherPenaltiesPage service={api} />);
+	render(<WeatherPenaltiesPanel service={api} />);
 	const rows = await screen.findAllByTestId("weather-penalty-row");
 	fireEvent.click(rows[1]);
 	let dialog = await screen.findByTestId("admin-weather-penalty-dialog");
-	expect(within(dialog).getByText(/Host chưa gửi yêu cầu/)).toBeVisible();
+	expect(within(dialog).getByText(/Host chưa xin miễn phạt/)).toBeVisible();
 	expect(within(dialog).queryByRole("button", { name: "Từ chối" })).not.toBeInTheDocument();
 	fireEvent.click(screen.getByRole("button", { name: "Đóng" }));
 
 	fireEvent.click(rows[0]);
 	dialog = await screen.findByTestId("admin-weather-penalty-dialog");
-	fireEvent.change(within(dialog).getByLabelText("Ghi chú của Admin (bắt buộc)"), {
+	fireEvent.change(within(dialog).getByLabelText("Lý do của bạn (bắt buộc)"), {
 		target: { value: "Thiếu bằng chứng" },
 	});
 	fireEvent.click(within(dialog).getByRole("button", { name: "Từ chối" }));

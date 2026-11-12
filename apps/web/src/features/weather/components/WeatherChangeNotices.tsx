@@ -46,8 +46,7 @@ export function WeatherChangeNotices({
 	const items = query.data?.items;
 	const alertItems = alerts.query.data?.items;
 	// Admins handle reminders from the intervention page; Hosts from the Trip page.
-	const alertHref = (tripId: string) =>
-		includeChanges ? `/trips/${tripId}` : "/admin/weather-interventions";
+	const alertHref = (tripId: string) => (includeChanges ? `/trips/${tripId}` : "/admin/weather");
 	return (
 		<>
 			<button

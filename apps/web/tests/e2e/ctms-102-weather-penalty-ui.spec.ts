@@ -212,7 +212,7 @@ test("Admin approves a waiver request from the penalty list", async ({ page }, t
 		});
 	});
 
-	await page.goto("/admin/weather-penalties");
+	await page.goto("/admin/weather?tab=penalties");
 	const row = page.getByTestId("weather-penalty-row");
 	await expect(row).toContainText("Chờ duyệt miễn");
 	await expect(row).toContainText("Nguyễn Văn Host");
@@ -221,7 +221,7 @@ test("Admin approves a waiver request from the penalty list", async ({ page }, t
 	await row.click();
 	const dialog = page.getByTestId("admin-weather-penalty-dialog");
 	await expect(dialog.getByRole("link", { name: "giay-vien.pdf" })).toBeVisible();
-	await dialog.getByLabel("Ghi chú của Admin (bắt buộc)").fill("Giấy viện hợp lệ");
+	await dialog.getByLabel("Lý do của bạn (bắt buộc)").fill("Giấy viện hợp lệ");
 	await page.screenshot({ path: testInfo.outputPath("admin-weather-penalty-review.png") });
 	await dialog.getByRole("button", { name: "Duyệt miễn phạt" }).click();
 	await page.getByTestId("confirm-modal").getByRole("button", { name: "Xác nhận" }).click();
