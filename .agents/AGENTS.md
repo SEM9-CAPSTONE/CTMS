@@ -162,6 +162,9 @@ const { t } = useTranslation("featureName");
 
 ### 3.7 Styling & UI
 
+- **MANDATORY IMPECCABLE STANDARDS ON ALL NEW UI / SCREENS (Bắt buộc 100% khi sinh Màn hình & UI mới)**:
+  - Khi sinh bất kỳ màn hình, trang (`Page`), dialog, modal, drawer, filter bar, bảng dữ liệu (`DataTable`), hoặc component UI mới nào, BẮT BUỘC PHẢI áp dụng 100% chuẩn Impeccable ngay từ đầu (Default by Design, tuyệt đối không code cẩu thả/AI slop rồi chờ người dùng nhắc refactor sau).
+  - Không lồng Card trong Card. Không chèn icon trang trí cạnh nhãn số liệu. Phân cấp 3 tầng typography chuẩn (Label nhỏ + Số lớn + Chú thích ngắn). Khoảng cách nhịp 4px (`gap-3`, `gap-4`, `p-4`, `p-6`). Không gradient lòe loẹt. Dùng semantic tokens và bảng màu camping `#164027`. 100% tiếng Việt tự nhiên.
 - Use Shadcn UI components first (Button, Dialog, Sheet, Tooltip, Select, etc.).
 - NEVER modify Shadcn source in `src/shadcn/`. Create wrapper components instead.
 - Always use `cn()` (from `clsx` + `tailwind-merge`) to merge classes.
@@ -174,6 +177,28 @@ const { t } = useTranslation("featureName");
 - **No Redundant UI & Single Total Display**: Trong cùng 1 modal/panel, CHỈ hiển thị thông tin tổng tiền / số lượng ở 1 vị trí duy nhất (ưu tiên tại footer action bar). TUYỆT ĐỐI KHÔNG render lặp lại 2 hộp tổng tiền trong cùng UI; KHÔNG thêm các câu miêu tả giải thích hiển nhiên làm loãng giao diện.
 - **Data Table, Filter & Detail Pop-up Pattern**: Các danh sách quản lý (sự cố, đơn hàng, nhật ký) phải dùng `DataTable` kết hợp `Pagination` và thanh lọc (`FilterBar`) với pill tabs & search input. Thông tin trên từng dòng phải ngắn gọn; chi tiết phức tạp được xem qua pop-up (`DetailModal`) khi bấm icon `Eye`. Nút hành động xử lý nghiệp vụ chính (như *"Xử lý sự cố"*) đặt bên trong pop-up chi tiết để giữ bảng thông thoáng.
 - **UX Copywriting & Language Rule**: Giao diện người dùng phải ngắn gọn, súc tích, trực diện. Tuyệt đối KHÔNG chèn tiếng Anh (cả trong ngoặc đơn như `(Audit History)`, `(User ID)` lẫn đan xen); KHÔNG dịch thô / dịch máy móc từ tiếng Anh; sử dụng từ ngữ tự nhiên, thuần Việt (ví dụ: dùng `"Ghi chú"` thay vì *"Ghi chú xử lý / Biên bản hành động"*, dùng `"Lịch sử"` thay vì *"Lịch sử xử lý sự cố (Audit History)"*).
+- **Impeccable Visual Hygiene (Anti-AI Slop & Container Discipline)**:
+  - Cấm lồng Card trong Card vô nghĩa (Nested Card Abuse). Nếu nội dung đã nằm trong `Card` hoặc section container lớn, phân tách các khối bằng khoảng trống (`space-y-4` / `gap-4`) hoặc divider thanh mảnh (`border-b border-border/40`). Tuyệt đối không bọc thêm một thẻ Card có viền dày và shadow bên trong.
+  - Cấm sử dụng bóng đổ nặng (`shadow-lg`, `shadow-xl`) hoặc viền đậm nổi gân cộm mắt. Chỉ dùng `shadow-xs` hoặc `shadow-sm` cho elevation tinh tế. Nền card và background chuyển tiếp êm dịu (`bg-card` trên `bg-background`).
+  - Loại bỏ các khối background rực rỡ hoặc gradient tùy tiện (`bg-gradient-to-r from-blue-500...`). Mọi gradient trang trí nếu có phải rất nhẹ và đồng nhất với palette camping xanh rêu (`#164027`).
+- **Impeccable Typographic & Spatial Rhythm**:
+  - Tỷ lệ khoảng cách (Spacing rhythm) tuân thủ nghiêm ngặt thang 4px: `p-4`, `p-6`, `gap-3`, `gap-4`, `gap-6`. Không dùng padding lệch hoặc lộn xộn.
+  - Phân cấp Typography rõ rệt:
+    - *Metric Values / Headline*: `text-2xl` hoặc `text-3xl font-bold tracking-tight text-foreground`.
+    - *Section Title*: `text-lg font-semibold text-foreground`.
+    - *Label / Metric Title*: `text-xs font-medium text-muted-foreground tracking-wide`.
+    - *Supporting Meta*: `text-xs text-muted-foreground/80`.
+  - Không để các khối text dày đặc không có nhịp thở; dùng line-height chuẩn (`leading-relaxed` cho đoạn văn, `leading-tight` cho con số lớn).
+- **Impeccable Micro-interactions & Affordance**:
+  - Mọi thành phần tương tác (interactive elements) PHẢI có visual affordance rõ rệt: hover state nhẹ (`hover:bg-muted/50`, `transition-colors duration-150`), active state, cursor pointer.
+  - Nút bấm và hành động nguy hiểm (Xóa, Hủy, Từ chối) phải có xác nhận rõ qua `ConfirmModal`.
+  - Empty state & Loading state: Không để khoảng trống vô hồn. Empty state phải có thông điệp hướng dẫn cụ thể kèm hành động tiếp theo nếu có; Loading state phải dùng `PageSkeleton` hoặc skeleton layout tương đồng cấu trúc trang thực tế.
+- **Impeccable Directing Directives**:
+  - Hỗ trợ các chỉ thị tinh chỉnh UI:
+    - `distill` / `quieter`: Lọc bỏ viền thừa, card lồng card, icon rác, giảm độ tương phản của nền để mắt nghỉ ngơi.
+    - `polish`: Đánh bóng từng viền border (1px mờ), căn chỉnh padding pixel-perfect, thêm hover affordance mượt mà.
+    - `audit` / `critique`: Rà soát toàn bộ độ tương phản WCAG, độ nhất quán tokens, khoảng cách, font size, và tính thuần Việt của giao diện.
+    - `bolder`: Tăng cường lực nhấn thị giác cho các số liệu KPIs và nút hành động chính.
 
 ### 3.8 Form Handling
 
@@ -324,6 +349,10 @@ src/features/<feature-name>/
 - **Pre-commit Linter**: Lint-staged runs Biome on pre-commit. Ensure no lint errors before committing.
 - **Git Author & Account**: Always ensure author and active GitHub CLI account is `dklinh05` (`dklinh05@gmail.com`).
 - **Terraform Exclusion**: TUYỆT ĐỐI KHÔNG commit hoặc push các thư mục/tập tin hạ tầng `infra/terraform/` lên git trừ khi được yêu cầu rõ ràng.
+- **Conflict Resolution Principle (Không Xóa Logic Đồng Đội)**:
+  - Khi resolve merge conflict (đặc biệt khi kéo/merge `origin/develop` vào nhánh tính năng), **TUYỆT ĐỐI KHÔNG tự ý xóa (remove) logic/code của người khác**.
+  - Nếu logic không chồng chéo hoặc mâu thuẫn trực tiếp lên nhau (ví dụ: cùng thêm hàm seed mới, cùng thêm route, cùng import module, cùng thêm DTO/type), **BẮT BUỘC ưu tiên giữ cả hai** (hợp nhất đầy đủ cả logic của đồng đội lẫn logic mới của mình).
+  - Chỉ thay đổi code của người khác khi có mâu thuẫn không thể dung hòa về mặt kiến trúc, và bắt buộc chạy lại toàn bộ test suite để đảm bảo không làm hỏng tính năng của người khác.
 - **Pull Request Creation & Screenshot Evidence Protocol**:
   - Chụp ảnh giao diện thực tế kiểm thử bằng headless browser (Playwright) và lưu tạm thời **bên ngoài thư mục source code** của dự án.
   - **TUYỆT ĐỐI KHÔNG** upload ảnh bằng chứng PR lên Cloudinary của dự án (Cloudinary chỉ dành riêng cho runtime media của hệ thống: tour, campsite, avatar, reviews).
