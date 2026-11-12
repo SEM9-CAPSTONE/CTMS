@@ -69,6 +69,11 @@ it("lists the Trips that need an Admin with urgency and why", async () => {
 	expect(rows[0]).toHaveTextContent("Khẩn cấp");
 	expect(rows[1]).toHaveTextContent("Host muốn giữ chuyến");
 	expect(rows[1]).toHaveTextContent("Đang tạm dừng");
+	// Only an unanswered Trip is cancelled by the system at T-6h; a Host keep is respected.
+	expect(within(rows[0]).getByTestId("weather-intervention-auto-cancel")).toHaveTextContent(
+		"hệ thống sẽ tự huỷ Trip lúc"
+	);
+	expect(within(rows[1]).queryByTestId("weather-intervention-auto-cancel")).not.toBeInTheDocument();
 });
 
 it("shows the empty state", async () => {

@@ -1,7 +1,12 @@
 import { CloudLightning, PauseCircle } from "lucide-react";
 import { useWeatherDecisionLog } from "../hooks/useWeatherDecisions";
 import type { weatherDecisionsService } from "../services/weather-decisions.service";
-import { isPastHostDeadline, weatherDecisionErrorMessage } from "../utils/weather-decision-labels";
+import {
+	hasFinalWeatherDecision,
+	isPastHostDeadline,
+	weatherAutoCancelNotice,
+	weatherDecisionErrorMessage,
+} from "../utils/weather-decision-labels";
 import { WeatherDecisionForm } from "./WeatherDecisionForm";
 import { WeatherDecisionLog } from "./WeatherDecisionLog";
 
@@ -43,6 +48,7 @@ export function HostWeatherDecisionCard({
 		(entry) => entry.deciderRole === "admin" && entry.tripStartsAt === log.startsAt
 	);
 	const late = isPastHostDeadline(log.startsAt, now());
+	const autoCancelPending = canDecide && !hasFinalWeatherDecision(log.decisions, log.startsAt);
 
 	return (
 		<section
@@ -71,6 +77,14 @@ export function HostWeatherDecisionCard({
 			)}
 
 			<div className="mt-4 space-y-4">
+				{autoCancelPending && (
+					<p
+						data-testid="weather-auto-cancel-notice"
+						className="rounded-2xl border border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-900"
+					>
+						{weatherAutoCancelNotice(log.startsAt)}
+					</p>
+				)}
 				{canDecide && adminActed && (
 					<p className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
 						Admin đã xử lý Trip này nên Host không quyết định thêm.
