@@ -70,11 +70,6 @@ const AdminWeatherManagementPage = lazy(() =>
 		default: module.AdminWeatherManagementPage,
 	}))
 );
-const AdminWeatherRulesPage = lazy(() =>
-	import("../features/admin-weather-rules/pages/AdminWeatherRulesPage").then((module) => ({
-		default: module.AdminWeatherRulesPage,
-	}))
-);
 const ForgotPasswordPage = lazy(() =>
 	import("../features/auth/pages/ForgotPasswordPage").then((module) => ({
 		default: module.ForgotPasswordPage,
@@ -1132,7 +1127,7 @@ function AppRouteContent() {
 					fallback={unauthorizedFallback}
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
-					<AdminWeatherRulesPage onLogout={handleLogout} />
+					<AdminWeatherManagementPage onLogout={handleLogout} initialTab="rules" />
 				</AppRoleGuard>
 			);
 

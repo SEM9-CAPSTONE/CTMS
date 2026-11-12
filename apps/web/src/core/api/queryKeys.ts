@@ -137,6 +137,7 @@ export const queryKeys = {
 		changeNotices: (userId: string) => ["weather", "change-notices", userId] as const,
 		decisionAlerts: (userId: string) => ["weather", "decision-alerts", userId] as const,
 		interventions: ["weather", "interventions"] as const,
+		aiMismatches: ["weather", "ai-mismatches"] as const,
 		decisionLog: (tripId: string) => ["weather", "decision-log", tripId] as const,
 		myPenalties: (userId: string) => ["weather", "penalties", "mine", userId] as const,
 		adminPenalties: (filter: string) => ["weather", "penalties", "admin", filter] as const,

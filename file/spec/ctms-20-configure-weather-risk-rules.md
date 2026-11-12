@@ -149,3 +149,33 @@ TBD — Technical Design.
 BR-051–053 currently contain partially generated wording.
 
 The precise validation formula for weights, numeric threshold boundaries, version format and whether exactly one global rule or one rule per scope may be active must come from the approved Business Rules/Data Dictionary rather than being inferred.
+
+## 13. Sensible Bounds and Rule History (hybrid risk, 2026-11-13)
+
+No Jira key (leader-requested adjustment, see ctms-19 §16). These bounds stop obviously wrong settings that would wrongly block bookings and penalise Hosts. They are proposed values; the leader may adjust them.
+
+| Field | Allowed range |
+| --- | --- |
+| Rainfall Yellow / Red | 1–150 / 5–200 mm/h |
+| Wind Yellow / Red | 10–100 / 30–150 km/h |
+| Temperature low Red / low Yellow | −20–10 / −10–20 °C |
+| Temperature high Yellow / high Red | 25–45 / 30–50 °C |
+| Visibility Yellow / Red | 500–20 000 / 100–5 000 m |
+| Green / Yellow max score | 0.1–1.5 / 0.5–2 |
+| Each criterion weight | at most 0.6 |
+| Thunderstorm | must raise at least Yellow |
+
+- API: `weather-risk-rule-limits.ts`, checked in `WeatherRiskRulesService.createRule` after the existing ordering checks; every out-of-bounds field is named in one 400 message and nothing is saved.
+- Web: the same bounds in `admin-weather-rules/utils/rule-limits.ts`, enforced by `weatherRuleSchema` (errors appear in the dialog's existing error summary; layout unchanged).
+- History: every change already creates a new immutable version with `created_by`. The API now returns `createdByName` and the versions table shows a "Người tạo" column.
+- Tests: `weather-risk-rules.service.spec.ts` (bounds and creator name), integration case in `trip-weather-ai-review.integration-spec.ts`, schema cases in `WeatherAiReview.test.tsx`.
+
+### One Admin menu for weather (2026-11-12)
+
+Leader asked for everything about weather under one Admin entry.
+
+- The sidebar no longer has "Cấu hình rủi ro thời tiết". The rules moved into a fourth tab "Cấu hình ngưỡng" of Admin › Quản lý thời tiết (`/admin/weather?tab=rules`), next to "Cần xử lý", "Phạt Host" and "Cần xem lại ngưỡng".
+- `AdminWeatherRulesPage` became `components/WeatherRulesPanel` with the same cards, table, dialogs and test ids; only the page frame and title were dropped.
+- The old address `/admin/weather-rules` still works and opens the new tab.
+- "Xem ngưỡng" in "Cần xem lại ngưỡng" now switches to the rules tab instead of leaving the page.
+- Tests: `WeatherRulesPanel.test.tsx` (moved), new cases in `AdminWeatherManagementPage.test.tsx` (old link, tab switch). Affected web tests 90/90; weather E2E (ctms-60, ctms-97, ctms-102) 7/7; `lint:all` 0 errors; web build passes.

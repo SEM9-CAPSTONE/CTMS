@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "../../../shared/components";
 import { weatherRulesService } from "../services/weather-rules.service";
 import type { WeatherRiskRuleItem } from "../types";
-import { AdminWeatherRulesPage } from "./AdminWeatherRulesPage";
+import { WeatherRulesPanel } from "./WeatherRulesPanel";
 
 vi.mock("../services/weather-rules.service", () => ({
 	weatherRulesService: {
@@ -15,7 +15,7 @@ vi.mock("../services/weather-rules.service", () => ({
 	},
 }));
 
-describe("AdminWeatherRulesPage Component", () => {
+describe("WeatherRulesPanel", () => {
 	const mockActiveRule: WeatherRiskRuleItem = {
 		id: "rule-active-1",
 		version: 2,
@@ -61,7 +61,7 @@ describe("AdminWeatherRulesPage Component", () => {
 	function renderComponent() {
 		return render(
 			<ToastProvider>
-				<AdminWeatherRulesPage />
+				<WeatherRulesPanel />
 			</ToastProvider>
 		);
 	}

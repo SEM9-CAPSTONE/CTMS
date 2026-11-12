@@ -9,7 +9,6 @@ import {
 	Landmark,
 	MessageSquareText,
 	Route,
-	ShieldAlert,
 	Users,
 	X,
 } from "lucide-react";
@@ -27,7 +26,6 @@ export type AdminNavigationItem =
 	| "content-reports"
 	| "route-review"
 	| "trip-review"
-	| "weather-rules"
 	| "weather-management"
 	| "refunds"
 	| "settlements"
@@ -63,7 +61,6 @@ const navigationItems = [
 	{ key: "route-review", label: "Duyệt tuyến trekking", icon: Route, available: true },
 	{ key: "trip-review", label: "Duyệt trip", icon: Compass, available: true },
 	{ key: "survival-documents", label: "Tài liệu sinh tồn", icon: BookOpen, available: true },
-	{ key: "weather-rules", label: "Cấu hình rủi ro thời tiết", icon: ShieldAlert, available: true },
 	{
 		key: "weather-management",
 		label: "Quản lý thời tiết",
@@ -164,9 +161,6 @@ export function AdminSidebar({
 									window.dispatchEvent(new PopStateEvent("popstate"));
 								} else if (item.key === "trip-review") {
 									window.history.pushState({}, "", "/admin/trips");
-									window.dispatchEvent(new PopStateEvent("popstate"));
-								} else if (item.key === "weather-rules") {
-									window.history.pushState({}, "", "/admin/weather-rules");
 									window.dispatchEvent(new PopStateEvent("popstate"));
 								} else if (item.key === "weather-management") {
 									window.history.pushState({}, "", "/admin/weather");

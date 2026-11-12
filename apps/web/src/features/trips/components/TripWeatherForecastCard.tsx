@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { StatusBadge, type StatusBadgeTone } from "../../../shared/components/StatusBadge";
+import { AiRiskOpinionNote } from "../../weather-ai-review/components/AiRiskOpinionNote";
 import { WeatherRiskCard } from "../../weather/components/WeatherRiskCard";
 import { formatWeatherDateTime, toCriterionViews } from "../../weather/utils/weather-risk";
 import type { TripWeatherForecast } from "../types";
@@ -157,6 +158,9 @@ export function TripWeatherForecastCard({
 		>
 			{variant === "traveller" && forecast?.status === "available" && (
 				<TravellerForecastContext forecast={forecast} now={now()} />
+			)}
+			{variant !== "traveller" && forecast?.aiReview && (
+				<AiRiskOpinionNote review={forecast.aiReview} />
 			)}
 			{children}
 		</WeatherRiskCard>

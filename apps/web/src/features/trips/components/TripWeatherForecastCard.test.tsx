@@ -132,6 +132,36 @@ describe("TripWeatherForecastCard", () => {
 		);
 		expect(screen.getByText(/Dự báo mới phủ tới/)).toBeInTheDocument();
 	});
+
+	it("shows the AI opinion to the Host and Admin but never to travellers", () => {
+		const reviewed: TripWeatherForecast = {
+			...available,
+			aiReview: {
+				level: "red",
+				reason: "Gió giật mạnh trên đỉnh.",
+				confidence: 0.8,
+				reviewedAt: "2026-10-19T00:00:00.000Z",
+				matchesRule: false,
+				acknowledgedAt: null,
+			},
+		};
+		const { unmount } = render(
+			<TripWeatherForecastCard forecast={reviewed} isLoading={false} error={null} variant="admin" />
+		);
+		expect(screen.getByTestId("trip-forecast-ai-opinion")).toHaveTextContent(
+			"Gió giật mạnh trên đỉnh."
+		);
+		unmount();
+		render(
+			<TripWeatherForecastCard
+				forecast={reviewed}
+				isLoading={false}
+				error={null}
+				variant="traveller"
+			/>
+		);
+		expect(screen.queryByTestId("trip-forecast-ai-opinion")).not.toBeInTheDocument();
+	});
 });
 
 describe("WeatherSubmissionNotice", () => {

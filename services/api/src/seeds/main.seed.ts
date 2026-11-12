@@ -6879,9 +6879,11 @@ export async function seedWeatherOperationsDemo(): Promise<void> {
 	const addForecast = async (
 		trip: { id: string; startsAt: Date; endsAt: Date },
 		risk: DemoRisk,
-		createdHoursAgo: number
+		createdHoursAgo: number,
+		readingsOverride?: Partial<(typeof DEMO_READINGS)[DemoRisk]>
 	): Promise<string> => {
 		const createdAt = at(-createdHoursAgo);
+		const readings = { ...DEMO_READINGS[risk], ...readingsOverride };
 		const advice = DEMO_ADVICE[risk];
 		const rows: Array<{ id: string }> = await dataSource.query(
 			`INSERT INTO "trip_weather_forecasts" (
@@ -6898,12 +6900,16 @@ export async function seedWeatherOperationsDemo(): Promise<void> {
 				trip.startsAt,
 				trip.endsAt,
 				JSON.stringify({
-					...DEMO_READINGS[risk],
+					...readings,
+					hoursCovered: Math.max(
+						1,
+						Math.round((trip.endsAt.getTime() - trip.startsAt.getTime()) / 3_600_000)
+					),
 					rainfallAt: trip.startsAt.toISOString(),
 					windAt: trip.startsAt.toISOString(),
 					temperatureAt: trip.startsAt.toISOString(),
 					visibilityAt: trip.startsAt.toISOString(),
-					thunderstormAt: DEMO_READINGS[risk].thunderstorm ? trip.startsAt.toISOString() : null,
+					thunderstormAt: readings.thunderstorm ? trip.startsAt.toISOString() : null,
 				}),
 				ruleId,
 				risk,
@@ -6917,6 +6923,23 @@ export async function seedWeatherOperationsDemo(): Promise<void> {
 			]
 		);
 		return rows[0].id;
+	};
+
+	/** Hybrid risk: the AI's own opinion on a stored forecast (the official level is untouched). */
+	const addAiReview = async (
+		forecastId: string,
+		level: DemoRisk,
+		reason: string,
+		confidence: number,
+		reviewedHoursAgo: number
+	) => {
+		await dataSource.query(
+			`UPDATE "trip_weather_forecasts"
+			 SET "ai_risk_level" = $2, "ai_reason" = $3, "ai_confidence" = $4,
+			     "ai_model" = 'gpt-4o-mini (demo)', "ai_reviewed_at" = $5, "ai_review_attempts" = 1
+			 WHERE "id" = $1`,
+			[forecastId, level, reason, confidence, at(-reviewedHoursAgo)]
+		);
 	};
 
 	const addNotice = async (
@@ -7076,6 +7099,13 @@ export async function seedWeatherOperationsDemo(): Promise<void> {
 	await addNotice(camperId, storm, stormRed, "yellow", "red", 30);
 	await addAlert(hostId, storm, stormRed, "host_t48", "normal", 28);
 	await addAlert(adminId, storm, stormRed, "admin_t24", "normal", 4);
+	await addAiReview(
+		stormRed,
+		"red",
+		"Dông sét kèm gió 78 km/h và mưa 68 mm/h, tầm nhìn dưới 1 km: không nên khởi hành.",
+		0.93,
+		29
+	);
 
 	// 4. Red, 50 h ahead, Host keeps the Trip: Admin "Cần xử lý" (Host muốn giữ chuyến).
 	const windy = await createTrip({
@@ -7139,6 +7169,48 @@ export async function seedWeatherOperationsDemo(): Promise<void> {
 		`INSERT INTO "audit_logs" ("actor_id", "action", "target_type", "target_id", "before", "after", "reason", "created_at")
 		 VALUES ($1, 'trip.rescheduled', 'trip', $2, NULL, NULL, 'weather_reschedule', $3)`,
 		[hostId, moved.id, at(-5)]
+	);
+
+	// 7. Hybrid risk (thresholds vs AI): Admin › Quản lý thời tiết › "Cần xem lại ngưỡng".
+	// Thresholds say Green (wind and visibility only reach Yellow), the AI says Red.
+	const gusty = await createTrip({
+		title: "[Demo thời tiết] Lang Biang gió giật (ngưỡng và AI lệch)",
+		host: hostId,
+		startsInHours: 72,
+	});
+	const gustyGreen = await addForecast(gusty, "green", 4, {
+		rainfallMm: 3,
+		windKph: 65,
+		temperatureC: 9,
+		visibilityM: 1500,
+		thunderstorm: false,
+	});
+	await addAiReview(
+		gustyGreen,
+		"red",
+		"Gió 65 km/h trên đỉnh trống, trời lạnh 9°C và tầm nhìn chỉ 1,5 km dễ gây lạc đường và hạ thân nhiệt.",
+		0.78,
+		3
+	);
+	// Thresholds say Yellow (one heavy-rain hour), the AI says Green.
+	const shower = await createTrip({
+		title: "[Demo thời tiết] Mỹ Sơn mưa rào ngắn (ngưỡng và AI lệch)",
+		host: hostId,
+		startsInHours: 60,
+	});
+	const showerYellow = await addForecast(shower, "yellow", 5, {
+		rainfallMm: 52,
+		windKph: 12,
+		temperatureC: 27,
+		visibilityM: 9000,
+		thunderstorm: false,
+	});
+	await addAiReview(
+		showerYellow,
+		"green",
+		"Chỉ có một cơn mưa rào khoảng 1 giờ, gió nhẹ, không dông và tầm nhìn tốt; đi bình thường, mang áo mưa.",
+		0.7,
+		4
 	);
 
 	// --- Host weather penalties (policy §6) ----------------------------------------------------
@@ -7403,7 +7475,9 @@ export async function seedWeatherOperationsDemo(): Promise<void> {
 	});
 
 	console.log("[seed:weather-demo] Weather and penalty demo ready:");
-	console.log("  - Admin › Quản lý thời tiết: 2 Trip cần xử lý, 2 yêu cầu miễn phạt (1 quá hạn)");
+	console.log(
+		"  - Admin › Quản lý thời tiết: 2 Trip cần xử lý, 2 yêu cầu miễn phạt (1 quá hạn), 2 Trip cần xem lại ngưỡng"
+	);
 	console.log(
 		"  - host@ctms.local: thẻ quyết định thời tiết, chuông thông báo, ví có phạt/hoàn phạt"
 	);
