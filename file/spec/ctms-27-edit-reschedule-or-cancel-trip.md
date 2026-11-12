@@ -668,3 +668,30 @@ UI of §17 (CTMS-94 API). The leader agreed to reuse the Done key CTMS-102 for t
 - **Existing test:** `review_bookings_tab_test.dart` (opens the Trip screen) still passes; the panel shows a static loading text instead of a spinner so `pumpAndSettle` settles.
 - **Screenshots** (rendered from widget tests, no emulator on this machine): Red forecast + reschedule answer + notices; after keeping the new date; Trip beyond 15 days. The test renderer cannot draw the label of the red `CtmsButton` (its text style has no font family), so "Huỷ và hoàn 100%" shows as boxes in the PNG only.
 - **Gates:** `flutter analyze`: no issues (a first run flagged 1 info in a CTMS-62 file, fixed); `flutter test`: 416 tests pass, including the 9 new ones; `lint:all` 0 errors (12 existing warnings); `build:all` pass; web Vitest 259 files / 1732 tests pass; API unit 190 suites / 2305 tests pass. Integration and web Playwright were not rerun: this task changes no API or web code (agreed in the plan).
+
+## 25. Implementation Record — Weather auto-cancel at T-6h (leader decision, no Jira key)
+
+Leader decision 2026-11-12, replacing "the system never cancels" in docs/features/weather-trip-date-decision-policy.md §5.4.
+
+**Rule.** The system cancels a Trip when all hold: status `published`; ≤ 6 h to departure and not started; newest forecast is Red by the thresholds (the AI opinion never counts); nobody recorded `keep`, `reschedule`, `cancel` or `resume` for the current schedule. A Trip that is only paused is still cancelled.
+
+**Effects.**
+- Cancel goes through `TripsService.cancel` (same path as a Host cancel), so every paid booking gets a pending 100% refund in the Admin refund queue; nothing is paid out automatically.
+- Decision row with `decider_role = 'system'`, `decided_by` NULL, reason "Hệ thống tự huỷ: …"; the `trip.cancelled` audit entry has `actor_id` NULL.
+- Host penalty with the same `isPenaltyDue` rule as a first Admin decision after T-24h; a schedule already penalised by an Admin action (e.g. pause) is not penalised again (unique per Trip and schedule).
+- `auto_cancelled` notice to the Host and every active Admin (critical).
+- Every condition is re-checked after the Trip row is locked; a Host/Admin decision that landed meanwhile wins and the cancel is rolled back.
+
+**Code.**
+- Migration `1795300000000-AllowSystemWeatherAutoCancel`: `decider_role` may be `system` (only with `decided_by` NULL and `decision = 'cancel'`); alert milestone `auto_cancelled`.
+- `trip-weather-decision.policy.ts`: `WEATHER_AUTO_CANCEL_MS`, `isAutoCancelDue`, `weatherAutoCancelAt`, message. Repository `findAutoCancelCandidateIds`. Service `autoCancelDueTrips` / `autoCancel`. `TripScheduleChangeOptions.auditActorId` (null for the system).
+- `TripWeatherDecisionWorker` runs the auto-cancel before the reminders on each pass; `TRIP_WEATHER_AUTO_CANCEL_ENABLED=false` turns it off (on by default). The worker itself still needs `TRIP_WEATHER_DECISION_WORKER_ENABLED=true`.
+- Web: "Hệ thống" in the decision log; the Host decision card and the Admin "Cần xử lý" row (Host did not answer) show when the system will cancel. Layout unchanged.
+
+## 26. Test Evidence — Weather auto-cancel
+
+- Unit: `trip-weather-auto-cancel.spec.ts` (policy, service, notice recipients, worker order and switch); worker cases in `trip-weather-decision.spec.ts` updated. API jest 204 suites, 2473 tests passed.
+- Integration: `trip-weather-auto-cancel.integration-spec.ts` (3) with `trip-weather-decisions` and `host-weather-penalties`: 13 passed.
+- Web vitest (weather-decisions, admin-weather, TripWeather cards): 6 files, 42 tests passed.
+- Weather E2E (ctms-60, ctms-97, ctms-102): 7 passed. `lint:all` 0 errors; `build:all` passes.
+- Screenshots on the real app: Admin "Cần xử lý" row and Host decision card with the auto-cancel time.

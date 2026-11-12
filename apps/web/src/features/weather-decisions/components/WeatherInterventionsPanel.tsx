@@ -7,6 +7,7 @@ import type { WeatherIntervention } from "../types";
 import {
 	WEATHER_URGENCY_LABELS,
 	WEATHER_URGENCY_TONES,
+	weatherAutoCancelNotice,
 	weatherDecisionErrorMessage,
 } from "../utils/weather-decision-labels";
 import { AdminWeatherDecisionDialog } from "./AdminWeatherDecisionDialog";
@@ -74,6 +75,14 @@ export function WeatherInterventionsPanel({ service }: WeatherInterventionsPanel
 										Khởi hành {new Date(item.startsAt).toLocaleString("vi-VN")} ·{" "}
 										{item.reason === "host_kept" ? "Host muốn giữ chuyến" : "Host chưa trả lời"}
 									</p>
+									{item.reason === "no_response" && (
+										<p
+											data-testid="weather-intervention-auto-cancel"
+											className="mt-1 text-xs font-semibold text-rose-800"
+										>
+											{weatherAutoCancelNotice(item.startsAt)}
+										</p>
+									)}
 								</div>
 								<div className="flex flex-wrap gap-2">
 									{item.weatherPausedAt && <StatusBadge tone="warning">Đang tạm dừng</StatusBadge>}
