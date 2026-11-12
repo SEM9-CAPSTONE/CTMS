@@ -1,6 +1,7 @@
 import { CloudLightning } from "lucide-react";
 import { useEffect, useState } from "react";
 import { AdminLayout } from "../../admin-layout/components/AdminLayout";
+import { WeatherRulesPanel } from "../../admin-weather-rules/components/WeatherRulesPanel";
 import { WeatherAiMismatchPanel } from "../../weather-ai-review/components/WeatherAiMismatchPanel";
 import { useWeatherAiMismatches } from "../../weather-ai-review/hooks/useWeatherAiReview";
 import type { weatherAiReviewService } from "../../weather-ai-review/services/weather-ai-review.service";
@@ -11,7 +12,7 @@ import { WeatherPenaltiesPanel } from "../../weather-penalties/components/Weathe
 import { useAdminWeatherPenalties } from "../../weather-penalties/hooks/useWeatherPenalties";
 import type { weatherPenaltiesService } from "../../weather-penalties/services/weather-penalties.service";
 
-export type AdminWeatherTab = "interventions" | "penalties" | "ai-review";
+export type AdminWeatherTab = "interventions" | "penalties" | "ai-review" | "rules";
 
 export const ADMIN_WEATHER_PATH = "/admin/weather";
 
@@ -19,6 +20,7 @@ const TABS: Array<{ key: AdminWeatherTab; label: string }> = [
 	{ key: "interventions", label: "Cần xử lý" },
 	{ key: "penalties", label: "Phạt Host" },
 	{ key: "ai-review", label: "Cần xem lại ngưỡng" },
+	{ key: "rules", label: "Cấu hình ngưỡng" },
 ];
 
 const TAB_KEYS = new Set<string>(TABS.map((option) => option.key));
@@ -35,7 +37,8 @@ function tabFromLocation(fallback: AdminWeatherTab): AdminWeatherTab {
 
 export interface AdminWeatherManagementPageProps {
 	onLogout?: (allDevices: boolean) => Promise<void>;
-	/** Tab opened by an old link (`/admin/weather-interventions`, `/admin/weather-penalties`). */
+	/** Tab opened by an old link (`/admin/weather-interventions`, `/admin/weather-penalties`,
+	 * `/admin/weather-rules`). */
 	initialTab?: AdminWeatherTab;
 	decisionsService?: typeof weatherDecisionsService;
 	penaltiesService?: typeof weatherPenaltiesService;
@@ -43,8 +46,9 @@ export interface AdminWeatherManagementPageProps {
 }
 
 /**
- * Admin › Quản lý thời tiết: Red Trips that need a decision and Host weather penalties, in two
- * tabs. Each tab shows how many items wait for the Admin.
+ * Admin › Quản lý thời tiết: everything about weather in one place. Red Trips that need a
+ * decision, Host weather penalties, threshold/AI disagreements and the risk rules, as tabs; the
+ * first three show how many items wait for the Admin.
  */
 export function AdminWeatherManagementPage({
 	onLogout,
@@ -61,6 +65,7 @@ export function AdminWeatherManagementPage({
 		interventions: interventions.data?.length,
 		penalties: pendingWaivers.data?.length,
 		"ai-review": aiMismatches.data?.length,
+		rules: undefined,
 	};
 
 	// Old links land here too; keep one address per tab so reloads and bookmarks reopen it.
@@ -79,8 +84,8 @@ export function AdminWeatherManagementPage({
 						<CloudLightning className="size-7 text-[#164027]" /> Quản lý thời tiết
 					</h1>
 					<p className="mt-1 text-sm text-[#667a6d]">
-						Xử lý các Trip sắp đi gặp thời tiết xấu, xem các khoản phạt Host và những chỗ ngưỡng
-						khác với đánh giá của AI.
+						Xử lý các Trip sắp đi gặp thời tiết xấu, xem các khoản phạt Host, những chỗ ngưỡng khác
+						với đánh giá của AI và cấu hình ngưỡng rủi ro.
 					</p>
 				</div>
 
@@ -125,7 +130,10 @@ export function AdminWeatherManagementPage({
 				>
 					{tab === "interventions" && <WeatherInterventionsPanel service={decisionsService} />}
 					{tab === "penalties" && <WeatherPenaltiesPanel service={penaltiesService} />}
-					{tab === "ai-review" && <WeatherAiMismatchPanel service={aiReviewService} />}
+					{tab === "ai-review" && (
+						<WeatherAiMismatchPanel service={aiReviewService} onViewRules={() => setTab("rules")} />
+					)}
+					{tab === "rules" && <WeatherRulesPanel />}
 				</div>
 			</div>
 		</AdminLayout>

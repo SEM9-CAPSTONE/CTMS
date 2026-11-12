@@ -1,16 +1,12 @@
-import { AlertCircle, Plus, RefreshCw, ShieldAlert } from "lucide-react";
+import { AlertCircle, Plus, RefreshCw } from "lucide-react";
 import { Card, ConfirmModal } from "../../../shared/components";
-import { AdminLayout } from "../../admin-layout/components/AdminLayout";
-import { ActiveRuleCard } from "../components/ActiveRuleCard";
-import { CreateRuleDialog } from "../components/CreateRuleDialog";
-import { RuleVersionsTable } from "../components/RuleVersionsTable";
 import { useAdminWeatherRules } from "../hooks/useAdminWeatherRules";
+import { ActiveRuleCard } from "./ActiveRuleCard";
+import { CreateRuleDialog } from "./CreateRuleDialog";
+import { RuleVersionsTable } from "./RuleVersionsTable";
 
-export interface AdminWeatherRulesPageProps {
-	onLogout?: (allDevices: boolean) => Promise<void>;
-}
-
-export function AdminWeatherRulesPage({ onLogout }: AdminWeatherRulesPageProps) {
+/** Admin › Quản lý thời tiết › Cấu hình ngưỡng: the active rule, its history and new versions. */
+export function WeatherRulesPanel() {
 	const {
 		rules,
 		activeRule,
@@ -28,15 +24,14 @@ export function AdminWeatherRulesPage({ onLogout }: AdminWeatherRulesPageProps) 
 	} = useAdminWeatherRules();
 
 	return (
-		<AdminLayout activeItem="weather-rules" onLogout={onLogout}>
-			<div className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
-				{/* Page Header */}
+		<section data-testid="weather-rules-panel">
+			<div className="space-y-6">
+				{/* Toolbar */}
 				<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-					<div>
-						<h1 className="flex items-center gap-3 text-2xl font-extrabold text-[#10221b]">
-							<ShieldAlert className="size-7 text-[#164027]" /> Cấu hình rủi ro thời tiết
-						</h1>
-					</div>
+					<p className="text-sm text-[#667a6d]">
+						Mức Xanh/Vàng/Đỏ của mọi Trip được tính theo bộ quy tắc đang áp dụng. Mỗi lần thay đổi
+						tạo một phiên bản mới, các phiên bản cũ vẫn được giữ lại.
+					</p>
 
 					<button
 						type="button"
@@ -132,6 +127,6 @@ export function AdminWeatherRulesPage({ onLogout }: AdminWeatherRulesPageProps) 
 					</span>
 				}
 			/>
-		</AdminLayout>
+		</section>
 	);
 }

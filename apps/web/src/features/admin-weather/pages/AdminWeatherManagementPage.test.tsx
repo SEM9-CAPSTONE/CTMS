@@ -13,6 +13,11 @@ vi.mock("../../admin-layout/components/AdminLayout", () => ({
 	),
 }));
 
+// The rules tab has its own tests (WeatherRulesPanel.test.tsx); here only the tab wiring matters.
+vi.mock("../../admin-weather-rules/components/WeatherRulesPanel", () => ({
+	WeatherRulesPanel: () => <div data-testid="weather-rules-panel" />,
+}));
+
 function decisions(count: number) {
 	return {
 		listInterventions: vi.fn().mockResolvedValue(
@@ -132,6 +137,7 @@ describe("AdminWeatherManagementPage", () => {
 	it.each([
 		["/admin/weather-interventions", "interventions" as const, "/admin/weather"],
 		["/admin/weather-penalties", "penalties" as const, "/admin/weather?tab=penalties"],
+		["/admin/weather-rules", "rules" as const, "/admin/weather?tab=rules"],
 	])("moves the old link %s to the matching tab", async (oldPath, initialTab, newUrl) => {
 		visit(oldPath);
 		render(
@@ -159,5 +165,27 @@ describe("AdminWeatherManagementPage", () => {
 		expect(await screen.findByTestId("weather-ai-mismatch-panel")).toBeVisible();
 		expect(window.location.pathname + window.location.search).toBe("/admin/weather?tab=ai-review");
 		expect(adminWeatherTabUrl("ai-review")).toBe("/admin/weather?tab=ai-review");
+	});
+
+	it("keeps the risk rules in a fourth tab and opens it from the disagreement list", async () => {
+		visit("/admin/weather?tab=ai-review");
+		render(
+			<AdminWeatherManagementPage
+				decisionsService={decisions(0)}
+				penaltiesService={penalties(0)}
+				aiReviewService={aiReview(1)}
+			/>
+		);
+		await screen.findByTestId("weather-ai-mismatch-row");
+		fireEvent.click(screen.getByRole("button", { name: /Xem ngưỡng/ }));
+		expect(screen.getByRole("tab", { name: /Cấu hình ngưỡng/ })).toHaveAttribute(
+			"aria-selected",
+			"true"
+		);
+		expect(await screen.findByTestId("weather-rules-panel")).toBeInTheDocument();
+		expect(screen.queryByTestId("admin-weather-count-rules")).not.toBeInTheDocument();
+		await waitFor(() =>
+			expect(window.location.pathname + window.location.search).toBe("/admin/weather?tab=rules")
+		);
 	});
 });

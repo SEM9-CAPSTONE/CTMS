@@ -58,7 +58,8 @@ function service(items: WeatherAiMismatch[]) {
 
 describe("WeatherAiMismatchPanel", () => {
 	it("shows both levels, the AI reason, the worst readings and what it suggests", async () => {
-		render(<WeatherAiMismatchPanel service={service([mismatch()])} />);
+		const onViewRules = vi.fn();
+		render(<WeatherAiMismatchPanel service={service([mismatch()])} onViewRules={onViewRules} />);
 		const row = await screen.findByTestId("weather-ai-mismatch-row");
 		expect(within(row).getByText("Bà Nà mưa lớn")).toBeVisible();
 		expect(within(row).getByText("Theo ngưỡng: Đỏ")).toBeVisible();
@@ -68,10 +69,8 @@ describe("WeatherAiMismatchPanel", () => {
 		expect(within(row).getByText(/Mưa 62 mm\/h · Gió 18.4 km\/h/)).toBeVisible();
 		expect(within(row).getByText(/quá chặt/)).toBeVisible();
 		expect(within(row).getByText(/Ngưỡng v3/)).toBeVisible();
-		expect(screen.getByRole("link", { name: /Xem ngưỡng/ })).toHaveAttribute(
-			"href",
-			"/admin/weather-rules"
-		);
+		fireEvent.click(screen.getByRole("button", { name: /Xem ngưỡng/ }));
+		expect(onViewRules).toHaveBeenCalledTimes(1);
 	});
 
 	it("marks a disagreement as seen and reloads the list", async () => {

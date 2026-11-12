@@ -14,17 +14,17 @@ import {
 	weatherAiReviewErrorMessage,
 } from "../utils/weather-ai-review-labels";
 
-export const ADMIN_WEATHER_RULES_PATH = "/admin/weather-rules";
-
 export interface WeatherAiMismatchPanelProps {
 	service?: typeof weatherAiReviewService;
+	/** Opens the "Cấu hình ngưỡng" tab next to this one; the button is hidden without it. */
+	onViewRules?: () => void;
 }
 
 /**
  * "Cần xem lại ngưỡng" tab of Admin › Quản lý thời tiết. The official level still comes from the
  * thresholds; this list only shows Trips where the AI, reading the same forecast, disagrees.
  */
-export function WeatherAiMismatchPanel({ service }: WeatherAiMismatchPanelProps) {
+export function WeatherAiMismatchPanel({ service, onViewRules }: WeatherAiMismatchPanelProps) {
 	const query = useWeatherAiMismatches(true, service);
 	const acknowledge = useAcknowledgeWeatherAiMismatch(service);
 	const [error, setError] = useState<string | null>(null);
@@ -47,12 +47,15 @@ export function WeatherAiMismatchPanel({ service }: WeatherAiMismatchPanelProps)
 					các Trip dưới đây là nơi hai bên khác nhau, nên xem lại ngưỡng có hợp lý không.
 				</p>
 				<div className="flex shrink-0 gap-2">
-					<a
-						href={ADMIN_WEATHER_RULES_PATH}
-						className="inline-flex items-center gap-2 rounded-xl border border-[#dfe8df] bg-white px-4 py-2.5 text-sm font-bold text-[#164027] hover:bg-[#f1f5f0]"
-					>
-						<SlidersHorizontal className="size-4" /> Xem ngưỡng
-					</a>
+					{onViewRules && (
+						<button
+							type="button"
+							onClick={onViewRules}
+							className="inline-flex items-center gap-2 rounded-xl border border-[#dfe8df] bg-white px-4 py-2.5 text-sm font-bold text-[#164027] hover:bg-[#f1f5f0]"
+						>
+							<SlidersHorizontal className="size-4" /> Xem ngưỡng
+						</button>
+					)}
 					<button
 						type="button"
 						onClick={() => void query.refetch()}
