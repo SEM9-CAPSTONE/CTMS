@@ -158,9 +158,9 @@ describe("weather rule sensible bounds", () => {
 	it.each([
 		[
 			{ rainfallYellowThreshold: 1, rainfallRedThreshold: 2 },
-			"Lượng mưa Mức Đỏ phải từ 5 đến 200 mm/h",
+			"Lượng mưa Mức Đỏ phải từ 10 đến 100 mm/h",
 		],
-		[{ windRedThreshold: 300 }, "Tốc độ gió Mức Đỏ phải từ 30 đến 150 km/h"],
+		[{ windRedThreshold: 300 }, "Tốc độ gió Mức Đỏ phải từ 40 đến 120 km/h"],
 		[
 			{ thunderstormYellow: false, thunderstormRed: false },
 			"Dông sét phải được tính ít nhất ở Mức Vàng",

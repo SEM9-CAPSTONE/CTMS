@@ -11,16 +11,16 @@ export interface NumericRuleLimit {
 }
 
 export const WEATHER_RULE_LIMITS = {
-	rainfallYellowThreshold: { min: 1, max: 150, unit: "mm/h" },
-	rainfallRedThreshold: { min: 5, max: 200, unit: "mm/h" },
-	windYellowThreshold: { min: 10, max: 100, unit: "km/h" },
-	windRedThreshold: { min: 30, max: 150, unit: "km/h" },
+	rainfallYellowThreshold: { min: 2, max: 50, unit: "mm/h" },
+	rainfallRedThreshold: { min: 10, max: 100, unit: "mm/h" },
+	windYellowThreshold: { min: 20, max: 70, unit: "km/h" },
+	windRedThreshold: { min: 40, max: 120, unit: "km/h" },
 	tempLowRed: { min: -20, max: 10, unit: "°C" },
 	tempLowYellow: { min: -10, max: 20, unit: "°C" },
 	tempHighYellow: { min: 25, max: 45, unit: "°C" },
 	tempHighRed: { min: 30, max: 50, unit: "°C" },
-	visibilityYellowThreshold: { min: 500, max: 20000, unit: "m" },
-	visibilityRedThreshold: { min: 100, max: 5000, unit: "m" },
+	visibilityYellowThreshold: { min: 1000, max: 10000, unit: "m" },
+	visibilityRedThreshold: { min: 100, max: 2000, unit: "m" },
 	greenMaxScore: { min: 0.1, max: 1.5, unit: "" },
 	yellowMaxScore: { min: 0.5, max: 2, unit: "" },
 } as const satisfies Record<string, NumericRuleLimit>;
