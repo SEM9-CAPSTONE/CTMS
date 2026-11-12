@@ -188,6 +188,8 @@ describe("WeatherRiskRulesService", () => {
 			["a 300 km/h Red wind threshold", { windRedThreshold: 300 }],
 			["a 20 m Red visibility threshold", { visibilityRedThreshold: 20 }],
 			["a 60 °C high Red temperature", { tempHighRed: 60 }],
+			["Red rain only from 150 mm/h, which never happens", { rainfallRedThreshold: 150 }],
+			["Red visibility already at 3 km", { visibilityRedThreshold: 3000 }],
 			["thunderstorms that raise nothing", { thunderstormYellow: false, thunderstormRed: false }],
 			[
 				"a single criterion weighing 0.7",
@@ -214,7 +216,7 @@ describe("WeatherRiskRulesService", () => {
 					rainfallRedThreshold: 2,
 				})
 			).rejects.toThrow(
-				"rainfallYellowThreshold must be between 1 and 150 mm/h; rainfallRedThreshold must be between 5 and 200 mm/h"
+				"rainfallYellowThreshold must be between 2 and 50 mm/h; rainfallRedThreshold must be between 10 and 100 mm/h"
 			);
 		});
 	});

@@ -347,7 +347,7 @@ describe("Hybrid weather risk AI review (integration, real Postgres)", () => {
 			})
 			.expect(400);
 		expect(JSON.stringify(response.body)).toContain(
-			"rainfallRedThreshold must be between 5 and 200"
+			"rainfallRedThreshold must be between 10 and 100"
 		);
 		const [{ count: after }] = await dataSource.query(
 			`SELECT count(*)::int AS "count" FROM "weather_risk_rules"`

@@ -156,11 +156,11 @@ No Jira key (leader-requested adjustment, see ctms-19 §16). These bounds stop o
 
 | Field | Allowed range |
 | --- | --- |
-| Rainfall Yellow / Red | 1–150 / 5–200 mm/h |
-| Wind Yellow / Red | 10–100 / 30–150 km/h |
+| Rainfall Yellow / Red | 2–50 / 10–100 mm/h |
+| Wind Yellow / Red | 20–70 / 40–120 km/h |
 | Temperature low Red / low Yellow | −20–10 / −10–20 °C |
 | Temperature high Yellow / high Red | 25–45 / 30–50 °C |
-| Visibility Yellow / Red | 500–20 000 / 100–5 000 m |
+| Visibility Yellow / Red | 1 000–10 000 / 100–2 000 m |
 | Green / Yellow max score | 0.1–1.5 / 0.5–2 |
 | Each criterion weight | at most 0.6 |
 | Thunderstorm | must raise at least Yellow |
@@ -179,3 +179,11 @@ Leader asked for everything about weather under one Admin entry.
 - The old address `/admin/weather-rules` still works and opens the new tab.
 - "Xem ngưỡng" in "Cần xem lại ngưỡng" now switches to the rules tab instead of leaving the page.
 - Tests: `WeatherRulesPanel.test.tsx` (moved), new cases in `AdminWeatherManagementPage.test.tsx` (old link, tab switch). Affected web tests 90/90; weather E2E (ctms-60, ctms-97, ctms-102) 7/7; `lint:all` 0 errors; web build passes.
+
+### Bounds tuned (leader approval, 2026-11-12)
+
+The first bounds were too wide: a Red rain threshold of 200 mm/h or a Red visibility of 5 km would let a rule that never or always turns Red. They now follow common hourly scales: rain above about 50 mm/h is already violent, wind from about 62 km/h is gale force, fog cuts visibility below 1 km.
+
+- Rainfall Yellow 2–50, Red 10–100 mm/h; wind Yellow 20–70, Red 40–120 km/h; visibility Yellow 1 000–10 000, Red 100–2 000 m. Temperature, weights and score caps unchanged.
+- The default rule (10/50 mm/h, 40/70 km/h, 5 000/1 000 m) stays inside the bounds. Bounds only apply when a new version is created; existing versions are not changed.
+- Same values in `weather-risk-rule-limits.ts` (API) and `rule-limits.ts` (web). Tests: `weather-risk-rules.service.spec.ts` (new cases: Red rain 150 mm/h, Red visibility 3 km), `WeatherAiReview.test.tsx`, `trip-weather-ai-review.integration-spec.ts`.
