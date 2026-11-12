@@ -19,6 +19,7 @@ import { MemberLocationsModule } from "./member-locations/member-locations.modul
 import { OfflinePackageDownloadModule } from "./offline-package-download/offline-package-download.module";
 import { OfflinePackagesModule } from "./offline-packages/offline-packages.module";
 import { OverbookingEvaluationModule } from "./overbooking-evaluation/overbooking-evaluation.module";
+import { PerformanceReportsModule } from "./performance-reports/performance-reports.module";
 import { PorterLevelsModule } from "./porter-levels/porter-levels.module";
 import { ProfilesModule } from "./profiles/profiles.module";
 import { RealtimeModule } from "./realtime/realtime.module";
@@ -65,6 +66,7 @@ import { WeatherModule } from "./weather/weather.module";
 		MemberLocationsModule,
 		SosModule,
 		OverbookingEvaluationModule,
+		PerformanceReportsModule,
 		SyncEvaluationModule,
 		UsersModule,
 		TrekkingRoutesModule,

@@ -280,4 +280,7 @@ export const API_ENDPOINTS = {
 	DEVICE_SYNC: {
 		STATUS: (tripId: string) => `/trips/${tripId}/device-sync/status`,
 	},
+	REPORTS: {
+		PERFORMANCE: "/reports/performance",
+	},
 } as const;

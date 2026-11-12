@@ -179,4 +179,9 @@ export const queryKeys = {
 	deviceSync: {
 		status: (tripId: string) => ["device-sync", "status", tripId] as const,
 	},
+	performanceReports: {
+		all: ["performance-reports"] as const,
+		report: (filters?: Record<string, unknown>) =>
+			["performance-reports", "report", filters] as const,
+	},
 };

@@ -171,6 +171,16 @@ const AdminSettlementsPage = lazy(() =>
 		default: module.AdminSettlementsPage,
 	}))
 );
+const AdminPerformanceReportsPage = lazy(() =>
+	import("../features/performance-reports/pages/AdminPerformanceReportsPage").then((module) => ({
+		default: module.AdminPerformanceReportsPage,
+	}))
+);
+const HostPerformanceReportsPage = lazy(() =>
+	import("../features/performance-reports/pages/PerformanceReportsPage").then((module) => ({
+		default: module.PerformanceReportsPage,
+	}))
+);
 const HostWalletPage = lazy(() =>
 	import("../features/settlements/pages/HostWalletPage").then((module) => ({
 		default: module.HostWalletPage,
@@ -1175,6 +1185,30 @@ function AppRouteContent() {
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
 					<AdminSettlementsPage onLogout={handleLogout} />
+				</AppRoleGuard>
+			);
+
+		case RoutePath.ADMIN_PERFORMANCE_REPORTS:
+			return (
+				<AppRoleGuard
+					allowedRoles={["admin"]}
+					currentRoles={currentRoles}
+					fallback={unauthorizedFallback}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<AdminPerformanceReportsPage onLogout={handleLogout} />
+				</AppRoleGuard>
+			);
+
+		case RoutePath.HOST_PERFORMANCE_REPORTS:
+			return (
+				<AppRoleGuard
+					allowedRoles={["host"]}
+					currentRoles={currentRoles}
+					fallback={unauthorizedFallback}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<HostPerformanceReportsPage />
 				</AppRoleGuard>
 			);
 

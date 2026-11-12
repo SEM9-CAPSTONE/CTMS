@@ -178,11 +178,16 @@ export function useCreateFeature() {
 
 Rules:
 - Each component: small, single responsibility, < 150 lines
-- Use Shadcn UI components first
+- **Mandatory Shared Component Reuse**: Always reuse existing system components from `@/shared/components` (`DataTable`, `Pagination`, `Card`, `StatusBadge`, `Button`, `PageSkeleton`, `Modal`, `ConfirmModal`, `Collapse`). NEVER write raw HTML `<table>`, custom card `<div>`, raw `<button>`, or ad-hoc status spans when shared components exist.
+- **Component Creation Rule**: If a reusable UI pattern is needed and not yet available in `@/shared/components`, create it in `apps/web/src/shared/components/`, export it from `index.ts`, and add tests.
 - Use `cn()` for class merging
 - Use `useTranslation()` for all text
 - Props typed with explicit interfaces
 - No business logic — delegate to hooks
+- **Minimalist UI & No Redundant Descriptions / Decorative Icons**:
+  - **TUYỆT ĐỐI KHÔNG** chèn icon trang trí bên cạnh nhãn trên thẻ chỉ số (metric cards như icon lịch, la bàn, %, tam giác cảnh báo). Giữ thẻ chỉ số sạch sẽ, typography-driven (nhãn gọn, số to, không icon thừa nhìn "nhựa").
+  - **TUYỆT ĐỐI KHÔNG** thêm các dòng text mô tả phụ/nhỏ (như `<p className="text-xs text-gray-500">...</p>`) dưới tiêu đề section/bảng/thẻ hay tiêu đề modal.
+  - Giữ header gãy gọn, chỉ render `<h3>` hoặc `<h4>` mà không đính kèm dòng giải thích hiển nhiên làm loãng giao diện.
 
 ### Step 9 — Generate Page (`pages/`)
 
@@ -190,6 +195,9 @@ The page component:
 - Composes feature components
 - Calls feature hooks
 - Handles layout and page-level concerns
+- **Minimalist Page Header**:
+  - **TUYỆT ĐỐI KHÔNG** chèn dòng mô tả nhỏ dưới tiêu đề trang `<h1>` (ví dụ: cấm các dòng subtitle dạng "Theo dõi...", "Quản lý...", "Xem danh sách...").
+  - Tiêu đề trang đứng độc lập, xúc tích, gãy gọn để tiết kiệm không gian.
 
 ### Step 10 — Generate i18n Files
 
@@ -220,3 +228,4 @@ Before completing, verify:
 - [ ] `import type` used for type imports
 - [ ] No hardcoded strings/numbers
 - [ ] Forms use react-hook-form + Zod
+- [ ] **Minimalist Headers**: TUYỆT ĐỐI KHÔNG có các dòng mô tả nhỏ/phụ (subtitles/descriptions) dưới tiêu đề trang (`<h1>`), tiêu đề bảng/mục (`<h3>`), hay tiêu đề modal.

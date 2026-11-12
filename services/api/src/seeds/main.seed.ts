@@ -5540,6 +5540,516 @@ export async function seedDemandInsightScenarios(ds = dataSource): Promise<void>
 	);
 }
 
+export const SEED_PERF_TRIP_TITLES = [
+	"Trekking Tà Năng - Phan Dũng (Lâm Đồng)",
+	"Chinh phục đỉnh Fansipan 3N2Đ Chạm Đỉnh Mây (Lào Cai)",
+	"Cung đường săn mây Tà Xùa (Sơn La)",
+	"Khám phá Rừng Tràm Trà Sư (An Giang)",
+	"Thám hiểm Thác Bản Giốc & Pác Bó (Cao Bằng)",
+	"Chinh phục đỉnh Bidoup Núi Bà (Lâm Đồng)",
+	"Bạch Mộc Lương Tử Expedition (Lai Châu)",
+	"Săn mây Y Tý - Bát Xát (Lào Cai)",
+	"Trekking Mù Cang Chải mùa vàng (Yên Bái)",
+	"Khám phá VQG Cát Tiên (Đồng Nai)",
+];
+
+/**
+ * CTMS-101: Seed realistic performance reporting scenarios
+ * (trips, bookings, settlements across multiple hosts & provinces).
+ */
+export async function seedPerformanceReportsScenarios(ds: DataSource = dataSource): Promise<void> {
+	if (!ds.isInitialized) {
+		await ds.initialize();
+	}
+	console.log("[seed:performance-reports] Seeding CTMS-101 demo data...");
+
+	// 1. Get host accounts: host@ctms.local and ensure a second host for cross-host testing
+	const host1Rows = await ds.query('SELECT id FROM "users" WHERE email = $1 LIMIT 1', [
+		"host@ctms.local",
+	]);
+	if (host1Rows.length === 0) {
+		await seedDevHostAndRoute();
+	}
+	const host1Id = (
+		await ds.query('SELECT id FROM "users" WHERE email = $1 LIMIT 1', ["host@ctms.local"])
+	)[0].id;
+
+	// Ensure Host 2
+	let host2Rows = await ds.query('SELECT id FROM "users" WHERE email = $1 LIMIT 1', [
+		"host2@ctms.local",
+	]);
+	if (host2Rows.length === 0) {
+		const host2Password = await hash("Host2@123", 10);
+		host2Rows = await ds.query(
+			`INSERT INTO "users" (email, phone, password_hash, role, status, full_name)
+			 VALUES ('host2@ctms.local', '0900000101', $1, 'host', 'active', 'Host Tây Bắc Trek') RETURNING id`,
+			[host2Password]
+		);
+		await ds.query(
+			'INSERT INTO "user_roles" (user_id, role) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+			[host2Rows[0].id, "host"]
+		);
+	}
+	const host2Id = host2Rows[0].id;
+
+	// Ensure Campers
+	const camperRows = await ds.query(
+		`SELECT id FROM "users" WHERE role = 'camper' OR email LIKE '%camper%' ORDER BY id LIMIT 10`
+	);
+	const camperIds: string[] =
+		camperRows.length > 0 ? camperRows.map((r: { id: string }) => r.id) : [host1Id];
+
+	// 2. Ensure Routes
+	let route1Rows = await ds.query('SELECT id FROM "trekking_routes" WHERE name = $1 LIMIT 1', [
+		"Cung đường Tà Năng - Phan Dũng",
+	]);
+	if (route1Rows.length === 0) {
+		route1Rows = await ds.query(
+			`INSERT INTO "trekking_routes" (host_id, name, description, route_geom, length_meters, difficulty, expected_duration_minutes, status)
+			 VALUES ($1, 'Cung đường Tà Năng - Phan Dũng', 'Cung trekking đẹp nhất miền Nam tại Lâm Đồng', ST_GeogFromText('SRID=4326;LINESTRING(108.45 11.94, 108.47 11.95)'), 18000, 'moderate', 360, 'active')
+			 RETURNING id`,
+			[host1Id]
+		);
+	}
+	const route1Id = route1Rows[0].id;
+
+	let route2Rows = await ds.query('SELECT id FROM "trekking_routes" WHERE name = $1 LIMIT 1', [
+		"Cung đường Fansipan Trạm Tôn",
+	]);
+	if (route2Rows.length === 0) {
+		route2Rows = await ds.query(
+			`INSERT INTO "trekking_routes" (host_id, name, description, route_geom, length_meters, difficulty, expected_duration_minutes, status)
+			 VALUES ($1, 'Cung đường Fansipan Trạm Tôn', 'Chinh phục Nóc nhà Đông Dương tại Sa Pa, Lào Cai', ST_GeogFromText('SRID=4326;LINESTRING(103.78 22.33, 103.77 22.30)'), 12000, 'hard', 480, 'active')
+			 RETURNING id`,
+			[host2Id]
+		);
+	}
+	const route2Id = route2Rows[0].id;
+
+	// 3. Clean up previously seeded CTMS-101 trips & bookings & settlements for idempotency
+	const oldTrips = await ds.query('SELECT id FROM "trips" WHERE title = ANY($1)', [
+		SEED_PERF_TRIP_TITLES,
+	]);
+	if (oldTrips.length > 0) {
+		const oldIds = oldTrips.map((t: { id: string }) => t.id);
+		await ds.query('DELETE FROM "settlements" WHERE trip_id = ANY($1)', [oldIds]);
+		await ds.query('DELETE FROM "bookings" WHERE trip_id = ANY($1)', [oldIds]);
+		await ds.query('DELETE FROM "trips" WHERE id = ANY($1)', [oldIds]);
+	}
+
+	// 4. Stagger AI review analysis demo bookings (older than 30 days) to prevent 64 zero-dollar bookings spike on a single day
+	await ds.query(`
+		UPDATE trips 
+		SET created_at = now() - interval '45 days' 
+		WHERE id::text LIKE 'd4120000-0000-4000-8004-%' AND created_at > now() - interval '30 days'
+	`);
+	await ds.query(`
+		UPDATE bookings 
+		SET created_at = now() - interval '40 days' 
+		WHERE trip_id::text LIKE 'd4120000-0000-4000-8004-%' AND created_at > now() - interval '30 days'
+	`);
+
+	const meetingPoint = JSON.stringify({ type: "Point", coordinates: [108.2022, 16.0544] });
+
+	interface SeedBookingItem {
+		daysAgo: number;
+		numPeople: number;
+		status: "completed" | "confirmed" | "cancelled" | "pending_payment";
+		paymentStatus: "paid" | "unpaid";
+	}
+
+	interface SeedTripConfig {
+		hostId: string;
+		routeId: string;
+		title: string;
+		description: string;
+		tripType: string;
+		durationNights: number;
+		createdDaysAgo: number;
+		startsDaysAgo: number;
+		endsDaysAgo: number;
+		deadlineDaysAgo: number;
+		capacityMin: number;
+		capacityMax: number;
+		seatsTaken: number;
+		pricePerPerson: number;
+		status: "completed" | "ongoing" | "published";
+		settlement?: {
+			settledDaysAgo: number;
+			base: number;
+			fee: number;
+			net: number;
+		};
+		bookings: SeedBookingItem[];
+	}
+
+	const tripConfigs: SeedTripConfig[] = [
+		// Trip 1 (Host 1, Lâm Đồng)
+		{
+			hostId: host1Id,
+			routeId: route1Id,
+			title: "Trekking Tà Năng - Phan Dũng (Lâm Đồng)",
+			description:
+				"Chuyến trekking xuyên rừng thông Lâm Đồng, ngắm bình minh trên đồi cỏ đại ngàn.",
+			tripType: "overnight",
+			durationNights: 2,
+			createdDaysAgo: 28,
+			startsDaysAgo: 14,
+			endsDaysAgo: 12,
+			deadlineDaysAgo: 16,
+			capacityMin: 5,
+			capacityMax: 20,
+			seatsTaken: 16,
+			pricePerPerson: 2000000,
+			status: "completed",
+			settlement: {
+				settledDaysAgo: 10,
+				base: 32000000,
+				fee: 1600000,
+				net: 30400000,
+			},
+			bookings: [
+				{ daysAgo: 28, numPeople: 3, status: "completed", paymentStatus: "paid" },
+				{ daysAgo: 28, numPeople: 2, status: "completed", paymentStatus: "paid" },
+				{ daysAgo: 26, numPeople: 3, status: "completed", paymentStatus: "paid" },
+				{ daysAgo: 26, numPeople: 2, status: "completed", paymentStatus: "paid" },
+				{ daysAgo: 25, numPeople: 4, status: "completed", paymentStatus: "paid" },
+				{ daysAgo: 25, numPeople: 2, status: "cancelled", paymentStatus: "unpaid" },
+				{ daysAgo: 23, numPeople: 2, status: "completed", paymentStatus: "paid" },
+			],
+		},
+		// Trip 2 (Host 2, Lào Cai)
+		{
+			hostId: host2Id,
+			routeId: route2Id,
+			title: "Chinh phục đỉnh Fansipan 3N2Đ Chạm Đỉnh Mây (Lào Cai)",
+			description: "Chinh phục Nóc nhà Đông Dương 3.143m ngắm trọn biển mây Tây Bắc.",
+			tripType: "overnight",
+			durationNights: 2,
+			createdDaysAgo: 25,
+			startsDaysAgo: 10,
+			endsDaysAgo: 8,
+			deadlineDaysAgo: 12,
+			capacityMin: 5,
+			capacityMax: 25,
+			seatsTaken: 20,
+			pricePerPerson: 2500000,
+			status: "completed",
+			settlement: {
+				settledDaysAgo: 7,
+				base: 50000000,
+				fee: 2500000,
+				net: 47500000,
+			},
+			bookings: [
+				{ daysAgo: 25, numPeople: 3, status: "completed", paymentStatus: "paid" },
+				{ daysAgo: 25, numPeople: 3, status: "completed", paymentStatus: "paid" },
+				{ daysAgo: 23, numPeople: 3, status: "completed", paymentStatus: "paid" },
+				{ daysAgo: 23, numPeople: 3, status: "completed", paymentStatus: "paid" },
+				{ daysAgo: 23, numPeople: 2, status: "completed", paymentStatus: "paid" },
+				{ daysAgo: 22, numPeople: 4, status: "completed", paymentStatus: "paid" },
+				{ daysAgo: 22, numPeople: 2, status: "cancelled", paymentStatus: "unpaid" },
+				{ daysAgo: 20, numPeople: 2, status: "completed", paymentStatus: "paid" },
+			],
+		},
+		// Trip 3 (Host 2, Sơn La)
+		{
+			hostId: host2Id,
+			routeId: route2Id,
+			title: "Cung đường săn mây Tà Xùa (Sơn La)",
+			description: "Check-in Sống lưng khủng long Háng Đồng và biển mây bồng bềnh nguyên sơ.",
+			tripType: "overnight",
+			durationNights: 2,
+			createdDaysAgo: 22,
+			startsDaysAgo: 8,
+			endsDaysAgo: 6,
+			deadlineDaysAgo: 10,
+			capacityMin: 4,
+			capacityMax: 16,
+			seatsTaken: 13,
+			pricePerPerson: 1800000,
+			status: "completed",
+			settlement: {
+				settledDaysAgo: 5,
+				base: 23400000,
+				fee: 1170000,
+				net: 22230000,
+			},
+			bookings: [
+				{ daysAgo: 22, numPeople: 3, status: "completed", paymentStatus: "paid" },
+				{ daysAgo: 22, numPeople: 2, status: "completed", paymentStatus: "paid" },
+				{ daysAgo: 20, numPeople: 3, status: "completed", paymentStatus: "paid" },
+				{ daysAgo: 20, numPeople: 3, status: "completed", paymentStatus: "paid" },
+				{ daysAgo: 19, numPeople: 2, status: "completed", paymentStatus: "paid" },
+			],
+		},
+		// Trip 4 (Host 1, An Giang)
+		{
+			hostId: host1Id,
+			routeId: route1Id,
+			title: "Khám phá Rừng Tràm Trà Sư (An Giang)",
+			description: "Xuôi thuyền tắc ráng xuyên qua thảm bèo xanh mướt miền Tây sông nước.",
+			tripType: "day_trip",
+			durationNights: 0,
+			createdDaysAgo: 19,
+			startsDaysAgo: 6,
+			endsDaysAgo: 4,
+			deadlineDaysAgo: 8,
+			capacityMin: 5,
+			capacityMax: 20,
+			seatsTaken: 15,
+			pricePerPerson: 1500000,
+			status: "completed",
+			settlement: {
+				settledDaysAgo: 3,
+				base: 22500000,
+				fee: 1125000,
+				net: 21375000,
+			},
+			bookings: [
+				{ daysAgo: 19, numPeople: 3, status: "completed", paymentStatus: "paid" },
+				{ daysAgo: 19, numPeople: 2, status: "completed", paymentStatus: "paid" },
+				{ daysAgo: 17, numPeople: 5, status: "completed", paymentStatus: "paid" },
+				{ daysAgo: 17, numPeople: 1, status: "cancelled", paymentStatus: "unpaid" },
+				{ daysAgo: 16, numPeople: 3, status: "completed", paymentStatus: "paid" },
+				{ daysAgo: 16, numPeople: 2, status: "completed", paymentStatus: "paid" },
+			],
+		},
+		// Trip 5 (Host 2, Cao Bằng)
+		{
+			hostId: host2Id,
+			routeId: route2Id,
+			title: "Thám hiểm Thác Bản Giốc & Pác Bó (Cao Bằng)",
+			description:
+				"Chiêm ngưỡng thác nước tự nhiên đẹp nhất Việt Nam và dòng suối Lê-nin xanh ngọc.",
+			tripType: "overnight",
+			durationNights: 2,
+			createdDaysAgo: 16,
+			startsDaysAgo: 4,
+			endsDaysAgo: 2,
+			deadlineDaysAgo: 6,
+			capacityMin: 4,
+			capacityMax: 18,
+			seatsTaken: 14,
+			pricePerPerson: 2200000,
+			status: "completed",
+			settlement: {
+				settledDaysAgo: 1,
+				base: 30800000,
+				fee: 1540000,
+				net: 29260000,
+			},
+			bookings: [
+				{ daysAgo: 16, numPeople: 3, status: "completed", paymentStatus: "paid" },
+				{ daysAgo: 16, numPeople: 3, status: "completed", paymentStatus: "paid" },
+				{ daysAgo: 14, numPeople: 3, status: "completed", paymentStatus: "paid" },
+				{ daysAgo: 14, numPeople: 3, status: "completed", paymentStatus: "paid" },
+				{ daysAgo: 12, numPeople: 2, status: "completed", paymentStatus: "paid" },
+			],
+		},
+		// Trip 6 (Host 1, Lâm Đồng)
+		{
+			hostId: host1Id,
+			routeId: route1Id,
+			title: "Chinh phục đỉnh Bidoup Núi Bà (Lâm Đồng)",
+			description: "Khám phá nóc nhà tỉnh Lâm Đồng giữa sương mây đại ngàn.",
+			tripType: "overnight",
+			durationNights: 2,
+			createdDaysAgo: 12,
+			startsDaysAgo: 1,
+			endsDaysAgo: -1,
+			deadlineDaysAgo: 3,
+			capacityMin: 5,
+			capacityMax: 18,
+			seatsTaken: 14,
+			pricePerPerson: 2400000,
+			status: "ongoing",
+			bookings: [
+				{ daysAgo: 12, numPeople: 3, status: "confirmed", paymentStatus: "paid" },
+				{ daysAgo: 12, numPeople: 2, status: "confirmed", paymentStatus: "paid" },
+				{ daysAgo: 10, numPeople: 5, status: "confirmed", paymentStatus: "paid" },
+				{ daysAgo: 10, numPeople: 2, status: "cancelled", paymentStatus: "unpaid" },
+				{ daysAgo: 9, numPeople: 2, status: "confirmed", paymentStatus: "paid" },
+				{ daysAgo: 9, numPeople: 2, status: "confirmed", paymentStatus: "paid" },
+			],
+		},
+		// Trip 7 (Host 2, Lai Châu)
+		{
+			hostId: host2Id,
+			routeId: route2Id,
+			title: "Bạch Mộc Lương Tử Expedition (Lai Châu)",
+			description: "Kỳ vĩ đồi Muối và biển mây ngút ngàn trên độ cao 3.046m.",
+			tripType: "overnight",
+			durationNights: 2,
+			createdDaysAgo: 9,
+			startsDaysAgo: 0,
+			endsDaysAgo: -2,
+			deadlineDaysAgo: 2,
+			capacityMin: 4,
+			capacityMax: 15,
+			seatsTaken: 12,
+			pricePerPerson: 2800000,
+			status: "ongoing",
+			bookings: [
+				{ daysAgo: 9, numPeople: 3, status: "confirmed", paymentStatus: "paid" },
+				{ daysAgo: 9, numPeople: 2, status: "confirmed", paymentStatus: "paid" },
+				{ daysAgo: 7, numPeople: 4, status: "confirmed", paymentStatus: "paid" },
+				{ daysAgo: 7, numPeople: 3, status: "confirmed", paymentStatus: "paid" },
+			],
+		},
+		// Trip 8 (Host 2, Lào Cai)
+		{
+			hostId: host2Id,
+			routeId: route2Id,
+			title: "Săn mây Y Tý - Bát Xát (Lào Cai)",
+			description: "Cung đường ruộng bậc thang và biển mây ngút ngàn Lào Cai.",
+			tripType: "overnight",
+			durationNights: 2,
+			createdDaysAgo: 7,
+			startsDaysAgo: -5,
+			endsDaysAgo: -7,
+			deadlineDaysAgo: -3,
+			capacityMin: 4,
+			capacityMax: 16,
+			seatsTaken: 10,
+			pricePerPerson: 2000000,
+			status: "published",
+			bookings: [
+				{ daysAgo: 7, numPeople: 3, status: "confirmed", paymentStatus: "paid" },
+				{ daysAgo: 7, numPeople: 2, status: "confirmed", paymentStatus: "paid" },
+				{ daysAgo: 5, numPeople: 3, status: "confirmed", paymentStatus: "paid" },
+				{ daysAgo: 5, numPeople: 1, status: "cancelled", paymentStatus: "unpaid" },
+				{ daysAgo: 4, numPeople: 2, status: "confirmed", paymentStatus: "paid" },
+			],
+		},
+		// Trip 9 (Host 2, Yên Bái)
+		{
+			hostId: host2Id,
+			routeId: route2Id,
+			title: "Trekking Mù Cang Chải mùa vàng (Yên Bái)",
+			description: "Ngắm những triền ruộng bậc thang La Pán Tẩn rực rỡ sắc vàng Tây Bắc.",
+			tripType: "overnight",
+			durationNights: 2,
+			createdDaysAgo: 4,
+			startsDaysAgo: -8,
+			endsDaysAgo: -10,
+			deadlineDaysAgo: -5,
+			capacityMin: 5,
+			capacityMax: 20,
+			seatsTaken: 12,
+			pricePerPerson: 1900000,
+			status: "published",
+			bookings: [
+				{ daysAgo: 4, numPeople: 3, status: "confirmed", paymentStatus: "paid" },
+				{ daysAgo: 4, numPeople: 2, status: "confirmed", paymentStatus: "paid" },
+				{ daysAgo: 2, numPeople: 4, status: "confirmed", paymentStatus: "paid" },
+				{ daysAgo: 2, numPeople: 3, status: "pending_payment", paymentStatus: "unpaid" },
+			],
+		},
+		// Trip 10 (Host 1, Đồng Nai)
+		{
+			hostId: host1Id,
+			routeId: route1Id,
+			title: "Khám phá VQG Cát Tiên (Đồng Nai)",
+			description: "Đi bộ xuyên rừng già nguyên sinh, ngắm Bàu Sấu và thú ăn đêm hoang dã.",
+			tripType: "day_trip",
+			durationNights: 0,
+			createdDaysAgo: 2,
+			startsDaysAgo: -12,
+			endsDaysAgo: -13,
+			deadlineDaysAgo: -8,
+			capacityMin: 4,
+			capacityMax: 15,
+			seatsTaken: 8,
+			pricePerPerson: 1600000,
+			status: "published",
+			bookings: [
+				{ daysAgo: 2, numPeople: 3, status: "confirmed", paymentStatus: "paid" },
+				{ daysAgo: 2, numPeople: 2, status: "confirmed", paymentStatus: "paid" },
+				{ daysAgo: 1, numPeople: 2, status: "confirmed", paymentStatus: "paid" },
+				{ daysAgo: 1, numPeople: 1, status: "pending_payment", paymentStatus: "unpaid" },
+			],
+		},
+	];
+
+	let camperIndex = 0;
+	let totalBookingsCreated = 0;
+
+	for (const config of tripConfigs) {
+		const tripRes = await ds.query(
+			`INSERT INTO "trips" (
+				host_id, route_id, title, description, trip_type, duration_nights,
+				starts_at, ends_at, meeting_point, booking_deadline, capacity_min, capacity_max,
+				seats_taken, price_per_person, status, created_at
+			) VALUES (
+				$1, $2, $3, $4, $5, $6,
+				now() - ($7 || ' days')::interval, now() - ($8 || ' days')::interval,
+				ST_SetSRID(ST_GeomFromGeoJSON($9), 4326)::geography, now() - ($10 || ' days')::interval,
+				$11, $12, $13, $14, $15, now() - ($16 || ' days')::interval
+			) RETURNING id`,
+			[
+				config.hostId,
+				config.routeId,
+				config.title,
+				config.description,
+				config.tripType,
+				config.durationNights,
+				config.startsDaysAgo,
+				config.endsDaysAgo,
+				meetingPoint,
+				config.deadlineDaysAgo,
+				config.capacityMin,
+				config.capacityMax,
+				config.seatsTaken,
+				config.pricePerPerson.toFixed(2),
+				config.status,
+				config.createdDaysAgo,
+			]
+		);
+		const tripId = tripRes[0].id;
+
+		// Insert bookings
+		for (const b of config.bookings) {
+			const camperId = camperIds[camperIndex % camperIds.length];
+			camperIndex++;
+			const totalAmount = (b.numPeople * config.pricePerPerson).toFixed(2);
+			const holdExpiry = b.status === "pending_payment" ? "now() + interval '15 minutes'" : "null";
+
+			await ds.query(
+				`INSERT INTO "bookings" (
+					trip_id, user_id, num_people, status, payment_status, total_amount, hold_expires_at, created_at
+				) VALUES (
+					$1, $2, $3, $4, $5, $6, ${holdExpiry}, now() - ($7 || ' days')::interval
+				)`,
+				[tripId, camperId, b.numPeople, b.status, b.paymentStatus, totalAmount, b.daysAgo]
+			);
+			totalBookingsCreated++;
+		}
+
+		// Insert settlement if trip completed and settled
+		if (config.settlement) {
+			await ds.query(
+				`INSERT INTO "settlements" (
+					trip_id, host_id, settlement_base, commission_rate, platform_fee, net_amount, settled_at, created_at, updated_at
+				) VALUES (
+					$1, $2, $3, '0.0500', $4, $5, now() - ($6 || ' days')::interval, now() - ($6 || ' days')::interval, now() - ($6 || ' days')::interval
+				)`,
+				[
+					tripId,
+					config.hostId,
+					config.settlement.base.toFixed(2),
+					config.settlement.fee.toFixed(2),
+					config.settlement.net.toFixed(2),
+					config.settlement.settledDaysAgo,
+				]
+			);
+		}
+	}
+
+	console.log(
+		`[seed:performance-reports] ✅ Seeded ${tripConfigs.length} demo trips with ${totalBookingsCreated} bookings & settlements across 18 dates.`
+	);
+}
 function recoveryDemoCore(): PackageCore {
 	return {
 		tripId: "trip",
@@ -5824,6 +6334,14 @@ export async function seedRouteRecoveryDemo(db: DataSource): Promise<void> {
 }
 
 export async function runMasterSeed(): Promise<void> {
+	if (process.argv.includes("--performance-reports-only")) {
+		try {
+			await seedPerformanceReportsScenarios(dataSource);
+		} finally {
+			if (dataSource.isInitialized) await dataSource.destroy();
+		}
+		return;
+	}
 	if (
 		process.argv.some((arg) =>
 			["--route-recovery-only", "--route-recovery-start", "--route-recovery-prepare"].includes(arg)
@@ -5836,7 +6354,6 @@ export async function runMasterSeed(): Promise<void> {
 		}
 		return;
 	}
-
 	if (process.argv.includes("--demand-insights-only")) {
 		try {
 			await seedDemandInsightScenarios(dataSource);
@@ -5984,11 +6501,18 @@ export async function runMasterSeed(): Promise<void> {
 
 		// Step 12: Trip Review Moderation & AI Analytics (CTMS-412)
 		console.log("--------------------------------------------------------------------------");
-		console.log("👉 [12/12] Seeding Trip Review Moderation & AI Analytics (CTMS-412)...");
+		console.log("👉 [12/13] Seeding Trip Review Moderation & AI Analytics (CTMS-412)...");
 		console.log("--------------------------------------------------------------------------");
 		await seedReviewAnalysisScenarios(dataSource, false, 1);
 		await seedReviewAnalysisScenarios(dataSource, false, 2);
 		console.log("✅ Step 12 completed.\n");
+
+		// Step 13: Performance Reports Scenarios (CTMS-101)
+		console.log("--------------------------------------------------------------------------");
+		console.log("👉 [13/13] Seeding Booking & Trip Performance Reports (CTMS-101)...");
+		console.log("--------------------------------------------------------------------------");
+		await seedPerformanceReportsScenarios(dataSource);
+		console.log("✅ Step 13 completed.\n");
 
 		const elapsedSec = ((Date.now() - startTime) / 1000).toFixed(2);
 
@@ -6119,6 +6643,15 @@ export async function runMasterSeed(): Promise<void> {
 		);
 		console.log(
 			"   👉 Alert 4 (CANCELLED): e0500000-0000-4000-8000-000000000004 -> Camper đã hủy (CTMS-077)\n"
+		);
+		console.log("\n13. Báo cáo hiệu suất hoạt động (CTMS-101 Booking & Trip Performance Reports):");
+		console.log("   👉 Admin login: admin@ctms.local / Admin@123");
+		console.log(
+			"   👉 Trang báo cáo Admin: http://localhost:5173/admin/reports/performance (Toàn hệ thống)"
+		);
+		console.log("   👉 Host login: host@ctms.local / Host@123");
+		console.log(
+			"   👉 Trang báo cáo Host: http://localhost:5173/host/reports/performance (Phạm vi chuyến của bạn)\n"
 		);
 		console.log("==========================================================================\n");
 	} catch (error) {
