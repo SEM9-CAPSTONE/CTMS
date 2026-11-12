@@ -6463,6 +6463,8 @@ export async function runMasterSeed(): Promise<void> {
 		console.log("👉 [6/9] Seeding Settlements, Host Wallets & Payout Requests...");
 		console.log("--------------------------------------------------------------------------");
 		await seedSettlementsAndPayouts();
+		// Weather decisions, notices and Host weather penalties (debits/refunds use the wallets above).
+		await seedWeatherOperationsDemo();
 		console.log("✅ Step 6 completed.\n");
 
 		// Step 7: User Bank Accounts (Host & Camper)
@@ -6663,6 +6665,754 @@ export async function runMasterSeed(): Promise<void> {
 			console.log("🔌 Database connection closed cleanly.");
 		}
 	}
+}
+
+// ==========================================================================
+// WEATHER OPERATIONS & HOST WEATHER PENALTIES DEMO (CTMS-93/97/98/60/94/102/58/62)
+// Every time is relative to the moment the seed runs, so "Trip leaves in 20 hours" stays true.
+// Demo Trips start with "[Demo thời tiết]" / "[Demo phạt]"; re-running replaces them.
+// ==========================================================================
+
+const WEATHER_DEMO_PREFIXES = ["[Demo thời tiết]%", "[Demo phạt]%"];
+
+const WEATHER_DEMO_HOSTS: SeedAccount[] = [
+	{
+		label: "host.blocked",
+		email: "host.blocked@ctms.local",
+		phone: "0900000091",
+		password: "Host@123",
+		role: "host",
+		fullName: "Host Bị Khoá Tạo Trip",
+	},
+	{
+		label: "host.suspended",
+		email: "host.suspended@ctms.local",
+		phone: "0900000092",
+		password: "Host@123",
+		role: "host",
+		fullName: "Host Bị Đình Chỉ",
+	},
+];
+
+type DemoRisk = "green" | "yellow" | "red";
+
+const DEMO_READINGS: Record<
+	DemoRisk,
+	{
+		rainfallMm: number;
+		windKph: number;
+		temperatureC: number;
+		visibilityM: number;
+		thunderstorm: boolean;
+	}
+> = {
+	green: {
+		rainfallMm: 1.2,
+		windKph: 14,
+		temperatureC: 27,
+		visibilityM: 20000,
+		thunderstorm: false,
+	},
+	yellow: { rainfallMm: 22, windKph: 46, temperatureC: 24, visibilityM: 4000, thunderstorm: false },
+	red: { rainfallMm: 68, windKph: 78, temperatureC: 21, visibilityM: 800, thunderstorm: true },
+};
+
+const DEMO_ADVICE: Record<DemoRisk, { text: string; actions: string[] }> = {
+	green: {
+		text: "Thời tiết ngày đi thuận lợi, chỉ có mưa nhỏ rải rác.",
+		actions: ["Mang áo mưa mỏng", "Uống đủ nước, đội mũ chống nắng"],
+	},
+	yellow: {
+		text: "Có mưa vừa và gió khá mạnh trên đỉnh, đường có thể trơn.",
+		actions: ["Mang giày chống trượt", "Theo dõi thông báo của Host trước giờ đi"],
+	},
+	red: {
+		text: "Mưa lớn, gió mạnh và có dông sét: đi trong điều kiện này rất nguy hiểm.",
+		actions: ["Cân nhắc dời hoặc huỷ chuyến", "Không lên đỉnh khi có dông sét"],
+	},
+};
+
+function demoCriteria(risk: DemoRisk) {
+	const r = DEMO_READINGS[risk];
+	const level = (red: boolean, yellow: boolean): DemoRisk =>
+		red ? "red" : yellow ? "yellow" : "green";
+	const score = (l: DemoRisk) => (l === "red" ? 2 : l === "yellow" ? 1 : 0);
+	const rainfall = level(r.rainfallMm >= 50, r.rainfallMm >= 10);
+	const wind = level(r.windKph >= 70, r.windKph >= 40);
+	const temperature: DemoRisk = "green";
+	const visibility = level(r.visibilityM <= 1000, r.visibilityM <= 5000);
+	const thunderstorm: DemoRisk = r.thunderstorm ? "red" : "green";
+	return {
+		rainfall: { value: r.rainfallMm, level: rainfall, weight: 0.3, score: score(rainfall) },
+		wind: { value: r.windKph, level: wind, weight: 0.25, score: score(wind) },
+		temperature: { value: r.temperatureC, level: temperature, weight: 0.15, score: 0 },
+		visibility: { value: r.visibilityM, level: visibility, weight: 0.15, score: score(visibility) },
+		thunderstorm: {
+			value: r.thunderstorm,
+			level: thunderstorm,
+			weight: 0.15,
+			score: score(thunderstorm),
+		},
+	};
+}
+
+const DEMO_COMPOSITE: Record<DemoRisk, number> = { green: 0.15, yellow: 0.95, red: 1.7 };
+
+async function removeWeatherDemoData(): Promise<void> {
+	const tripRows: Array<{ id: string }> = await dataSource.query(
+		`SELECT "id" FROM "trips" WHERE "title" LIKE ANY($1::text[])`,
+		[WEATHER_DEMO_PREFIXES]
+	);
+	const tripIds = tripRows.map((row) => row.id);
+	if (tripIds.length === 0) return;
+	const bookingIds = `SELECT "id" FROM "bookings" WHERE "trip_id" = ANY($1)`;
+	await dataSource.query(`DELETE FROM "payments" WHERE "booking_id" IN (${bookingIds})`, [tripIds]);
+	await dataSource.query(`DELETE FROM "booking_members" WHERE "booking_id" IN (${bookingIds})`, [
+		tripIds,
+	]);
+	await dataSource.query(`DELETE FROM "bookings" WHERE "trip_id" = ANY($1)`, [tripIds]);
+	await dataSource.query(`DELETE FROM "wallet_transactions" WHERE "trip_id" = ANY($1)`, [tripIds]);
+	await dataSource.query(`DELETE FROM "host_weather_penalties" WHERE "trip_id" = ANY($1)`, [
+		tripIds,
+	]);
+	await dataSource.query(`DELETE FROM "trip_weather_decision_alerts" WHERE "trip_id" = ANY($1)`, [
+		tripIds,
+	]);
+	await dataSource.query(`DELETE FROM "trip_weather_decisions" WHERE "trip_id" = ANY($1)`, [
+		tripIds,
+	]);
+	await dataSource.query(`DELETE FROM "trip_weather_change_notices" WHERE "trip_id" = ANY($1)`, [
+		tripIds,
+	]);
+	await dataSource.query(`DELETE FROM "trip_weather_forecasts" WHERE "trip_id" = ANY($1)`, [
+		tripIds,
+	]);
+	await dataSource.query(
+		`DELETE FROM "audit_logs" WHERE "target_type" = 'trip' AND "target_id" = ANY($1)`,
+		[tripIds]
+	);
+	await dataSource.query(`DELETE FROM "trips" WHERE "id" = ANY($1)`, [tripIds]);
+}
+
+/**
+ * Seeds one scenario per weather / penalty screen so each can be tested right after `pnpm seed`:
+ * forecasts for the Trip dates, change notices, near-departure decisions and reminders, Admin
+ * interventions and pause, a weather reschedule waiting for the Camper, and Host penalties in
+ * every state (with wallet debits/refunds). Accounts: admin/host/camper@ctms.local plus
+ * host.blocked@ / host.suspended@ctms.local (password Host@123).
+ */
+export async function seedWeatherOperationsDemo(): Promise<void> {
+	if (process.env.NODE_ENV === "production") {
+		throw new Error("[seed:weather-demo] Refusing to run with NODE_ENV=production.");
+	}
+	if (!dataSource.isInitialized) await dataSource.initialize();
+	console.log("[seed:weather-demo] Seeding weather decisions, notices and Host penalties...");
+
+	for (const account of WEATHER_DEMO_HOSTS) await seedAccount(account);
+	const userId = async (email: string): Promise<string> => {
+		const rows: Array<{ id: string }> = await dataSource.query(
+			`SELECT "id" FROM "users" WHERE "email" = $1`,
+			[email]
+		);
+		if (!rows[0]) throw new Error(`[seed:weather-demo] Missing seed account ${email}`);
+		return rows[0].id;
+	};
+	const adminId = await userId("admin@ctms.local");
+	const hostId = await userId("host@ctms.local");
+	const camperId = await userId("camper@ctms.local");
+	const blockedHostId = await userId("host.blocked@ctms.local");
+	const suspendedHostId = await userId("host.suspended@ctms.local");
+
+	const ruleRows: Array<{ id: string }> = await dataSource.query(
+		'SELECT "id" FROM "weather_risk_rules" ORDER BY "is_active" DESC, "created_at" DESC LIMIT 1'
+	);
+	if (!ruleRows[0])
+		throw new Error("[seed:weather-demo] No weather risk rule; run the weather step first");
+	const ruleId = ruleRows[0].id;
+	const routeRows: Array<{ id: string }> = await dataSource.query(
+		`SELECT "id" FROM "trekking_routes" WHERE "host_id" = $1 AND "status" = 'active' ORDER BY "created_at" LIMIT 1`,
+		[hostId]
+	);
+	if (!routeRows[0]) throw new Error("[seed:weather-demo] host@ctms.local has no active route");
+	const routeId = routeRows[0].id;
+
+	await removeWeatherDemoData();
+
+	const HOUR = 3600_000;
+	const now = Date.now();
+	const at = (hoursFromNow: number) => new Date(now + hoursFromNow * HOUR);
+
+	const createTrip = async (input: {
+		title: string;
+		host: string;
+		startsInHours: number;
+		status?: string;
+		pausedHoursAgo?: number;
+		price?: number;
+	}): Promise<{ id: string; title: string; startsAt: Date; endsAt: Date }> => {
+		const startsAt = at(input.startsInHours);
+		const endsAt = new Date(startsAt.getTime() + 9 * HOUR);
+		const rows: Array<{ id: string }> = await dataSource.query(
+			`INSERT INTO "trips" (
+				host_id, route_id, title, description, trip_type, duration_nights, starts_at, ends_at,
+				meeting_point, booking_deadline, capacity_min, capacity_max, seats_taken, price_per_person,
+				status, weather_paused_at
+			) VALUES (
+				$1, $2, $3, 'Dữ liệu mẫu để test luồng thời tiết và phạt Host.', 'day_trip', 0, $4, $5,
+				ST_GeogFromText('SRID=4326;POINT(108.2208 16.0471)'), $6, 1, 15, 0, $7, $8, $9
+			) RETURNING "id"`,
+			[
+				input.host,
+				routeId,
+				input.title,
+				startsAt,
+				endsAt,
+				new Date(startsAt.getTime() - 12 * HOUR),
+				input.price ?? 1_000_000,
+				input.status ?? "published",
+				input.pausedHoursAgo === undefined ? null : at(-input.pausedHoursAgo),
+			]
+		);
+		return { id: rows[0].id, title: input.title, startsAt, endsAt };
+	};
+
+	const addForecast = async (
+		trip: { id: string; startsAt: Date; endsAt: Date },
+		risk: DemoRisk,
+		createdHoursAgo: number
+	): Promise<string> => {
+		const createdAt = at(-createdHoursAgo);
+		const advice = DEMO_ADVICE[risk];
+		const rows: Array<{ id: string }> = await dataSource.query(
+			`INSERT INTO "trip_weather_forecasts" (
+				trip_id, route_id, status, trip_starts_at, trip_ends_at, forecast_from, forecast_to,
+				worst_reading, rule_version_id, risk_level, composite_score, criteria_scores,
+				advice_text, advice_actions, advice_generated_at, created_by, created_at, checked_at
+			) VALUES (
+				$1, $2, 'available', $3, $4, $3, $4, $5::jsonb, $6, $7, $8, $9::jsonb, $10, $11::jsonb,
+				$12, $13, $12, $14
+			) RETURNING "id"`,
+			[
+				trip.id,
+				routeId,
+				trip.startsAt,
+				trip.endsAt,
+				JSON.stringify({
+					...DEMO_READINGS[risk],
+					rainfallAt: trip.startsAt.toISOString(),
+					windAt: trip.startsAt.toISOString(),
+					temperatureAt: trip.startsAt.toISOString(),
+					visibilityAt: trip.startsAt.toISOString(),
+					thunderstormAt: DEMO_READINGS[risk].thunderstorm ? trip.startsAt.toISOString() : null,
+				}),
+				ruleId,
+				risk,
+				DEMO_COMPOSITE[risk],
+				JSON.stringify(demoCriteria(risk)),
+				advice.text,
+				JSON.stringify(advice.actions),
+				createdAt,
+				hostId,
+				at(-Math.min(createdHoursAgo, 1)),
+			]
+		);
+		return rows[0].id;
+	};
+
+	const addNotice = async (
+		recipientId: string,
+		trip: { id: string; title: string; startsAt: Date },
+		forecastId: string,
+		previous: DemoRisk,
+		risk: DemoRisk,
+		createdHoursAgo: number,
+		read = false
+	) =>
+		dataSource.query(
+			`INSERT INTO "trip_weather_change_notices" (
+				recipient_id, trip_id, forecast_id, trip_title, trip_starts_at, previous_risk_level, risk_level, read_at, created_at
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+			[
+				recipientId,
+				trip.id,
+				forecastId,
+				trip.title,
+				trip.startsAt,
+				previous,
+				risk,
+				read ? at(-createdHoursAgo + 0.5) : null,
+				at(-createdHoursAgo),
+			]
+		);
+
+	const addAlert = async (
+		recipientId: string,
+		trip: { id: string; title: string; startsAt: Date },
+		forecastId: string,
+		milestone: string,
+		urgency: string,
+		createdHoursAgo: number
+	) =>
+		dataSource.query(
+			`INSERT INTO "trip_weather_decision_alerts" (
+				recipient_id, trip_id, milestone, urgency, trip_title, trip_starts_at, forecast_id, created_at
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+			[
+				recipientId,
+				trip.id,
+				milestone,
+				urgency,
+				trip.title,
+				trip.startsAt,
+				forecastId,
+				at(-createdHoursAgo),
+			]
+		);
+
+	const addDecision = async (input: {
+		trip: { id: string; startsAt: Date };
+		forecastId: string | null;
+		by: string;
+		role: "host" | "admin";
+		decision: string;
+		reason: string;
+		safetyPlan?: string;
+		late?: boolean;
+		createdHoursAgo: number;
+	}): Promise<string> => {
+		const rows: Array<{ id: string }> = await dataSource.query(
+			`INSERT INTO "trip_weather_decisions" (
+				trip_id, forecast_id, risk_level, decided_by, decider_role, decision, reason, safety_plan, late, trip_starts_at, created_at
+			) VALUES ($1, $2, 'red', $3, $4, $5, $6, $7, $8, $9, $10) RETURNING "id"`,
+			[
+				input.trip.id,
+				input.forecastId,
+				input.by,
+				input.role,
+				input.decision,
+				input.reason,
+				input.safetyPlan ?? null,
+				input.late ?? false,
+				input.trip.startsAt,
+				at(-input.createdHoursAgo),
+			]
+		);
+		return rows[0].id;
+	};
+
+	const bookCamper = async (
+		trip: { id: string; startsAt: Date; endsAt: Date },
+		options: { status?: string; amount?: number; reconfirmBy?: Date } = {}
+	): Promise<string> => {
+		const amount = options.amount ?? 1_000_000;
+		const rows: Array<{ id: string }> = await dataSource.query(
+			`INSERT INTO "bookings" (
+				trip_id, user_id, num_people, base_price, total_amount, status, payment_status,
+				trip_starts_at_snapshot, trip_ends_at_snapshot, reconfirmation_deadline
+			) VALUES ($1, $2, 1, $3, $3, $4, 'paid', $5, $6, $7) RETURNING "id"`,
+			[
+				trip.id,
+				camperId,
+				amount,
+				options.status ?? "confirmed",
+				trip.startsAt,
+				trip.endsAt,
+				options.reconfirmBy ?? null,
+			]
+		);
+		const bookingId = rows[0].id;
+		await dataSource.query(
+			`INSERT INTO "booking_members" (booking_id, user_id, is_primary, member_status)
+			 VALUES ($1, $2, true, 'registered')`,
+			[bookingId, camperId]
+		);
+		await dataSource.query(
+			`INSERT INTO "payments" (booking_id, amount, type, status, idempotency_key, request_fingerprint)
+			 VALUES ($1, $2, 'charge', 'succeeded', $3, $4)`,
+			[bookingId, amount, `weather-demo-${bookingId}`, `weather-demo-${bookingId}`.slice(0, 64)]
+		);
+		await dataSource.query(`UPDATE "trips" SET "seats_taken" = "seats_taken" + 1 WHERE "id" = $1`, [
+			trip.id,
+		]);
+		return bookingId;
+	};
+
+	// --- Weather near departure (policy §2–§5) ---------------------------------------------
+	// 1. Green, 10 days ahead: Camper's forecast card ("Dự báo xa") and an improving notice.
+	const sunny = await createTrip({
+		title: "[Demo thời tiết] Sơn Trà ngày nắng (còn 10 ngày)",
+		host: hostId,
+		startsInHours: 240,
+	});
+	const sunnyBefore = await addForecast(sunny, "yellow", 48);
+	const sunnyNow = await addForecast(sunny, "green", 3);
+	await bookCamper(sunny);
+	await addNotice(camperId, sunny, sunnyNow, "yellow", "green", 3, true);
+	await addNotice(hostId, sunny, sunnyNow, "yellow", "green", 3, true);
+	void sunnyBefore;
+
+	// 2. Red, 40 h ahead, Host has not decided: Host decision card + T-48h reminder.
+	const rainy = await createTrip({
+		title: "[Demo thời tiết] Bà Nà mưa lớn (Host cần quyết định)",
+		host: hostId,
+		startsInHours: 40,
+	});
+	await addForecast(rainy, "yellow", 30);
+	const rainyRed = await addForecast(rainy, "red", 6);
+	await bookCamper(rainy);
+	await addNotice(hostId, rainy, rainyRed, "yellow", "red", 6);
+	await addNotice(camperId, rainy, rainyRed, "yellow", "red", 6);
+	await addAlert(hostId, rainy, rainyRed, "host_t48", "normal", 2);
+
+	// 3. Red, 20 h ahead, no Host answer: Admin "Cần xử lý" (Host chưa trả lời).
+	const storm = await createTrip({
+		title: "[Demo thời tiết] Hải Vân dông sét (Host chưa trả lời)",
+		host: hostId,
+		startsInHours: 20,
+		price: 2_000_000,
+	});
+	const stormRed = await addForecast(storm, "red", 30);
+	await bookCamper(storm, { amount: 2_000_000 });
+	await addNotice(camperId, storm, stormRed, "yellow", "red", 30);
+	await addAlert(hostId, storm, stormRed, "host_t48", "normal", 28);
+	await addAlert(adminId, storm, stormRed, "admin_t24", "normal", 4);
+
+	// 4. Red, 50 h ahead, Host keeps the Trip: Admin "Cần xử lý" (Host muốn giữ chuyến).
+	const windy = await createTrip({
+		title: "[Demo thời tiết] Ngũ Hành Sơn gió mạnh (Host muốn giữ)",
+		host: hostId,
+		startsInHours: 50,
+	});
+	const windyRed = await addForecast(windy, "red", 10);
+	await bookCamper(windy);
+	await addDecision({
+		trip: windy,
+		forecastId: windyRed,
+		by: hostId,
+		role: "host",
+		decision: "keep",
+		reason: "Đường đi chủ yếu trong rừng, tránh đỉnh trống.",
+		safetyPlan: "Đổi lộ trình xuống thấp, quay đầu trước 14h nếu gió vượt 60 km/h, mang bộ đàm.",
+		createdHoursAgo: 3,
+	});
+	await addAlert(adminId, windy, windyRed, "admin_kept", "normal", 3);
+
+	// 5. Red, 30 h ahead, paused by an Admin: locked Host card, bookings blocked.
+	const paused = await createTrip({
+		title: "[Demo thời tiết] Cù Lao Chàm (Admin tạm dừng)",
+		host: hostId,
+		startsInHours: 30,
+		pausedHoursAgo: 2,
+	});
+	const pausedRed = await addForecast(paused, "red", 8);
+	await addDecision({
+		trip: paused,
+		forecastId: pausedRed,
+		by: adminId,
+		role: "admin",
+		decision: "pause",
+		reason: "Chờ bản tin bão chiều nay rồi quyết định tiếp.",
+		createdHoursAgo: 2,
+	});
+
+	// 6. Rescheduled for weather: the Camper keeps the new date or cancels with 100% refund.
+	const moved = await createTrip({
+		title: "[Demo thời tiết] Bidoup (đã dời lịch vì mưa bão)",
+		host: hostId,
+		startsInHours: 9 * 24,
+	});
+	await addForecast(moved, "green", 5);
+	await addDecision({
+		trip: moved,
+		forecastId: null,
+		by: hostId,
+		role: "host",
+		decision: "reschedule",
+		reason: "Bão đổ bộ đúng ngày đi, dời sang tuần sau.",
+		createdHoursAgo: 5,
+	});
+	await bookCamper(moved, {
+		status: "pending_reconfirmation",
+		reconfirmBy: new Date(moved.startsAt.getTime() - 24 * HOUR),
+	});
+	await dataSource.query(
+		`INSERT INTO "audit_logs" ("actor_id", "action", "target_type", "target_id", "before", "after", "reason", "created_at")
+		 VALUES ($1, 'trip.rescheduled', 'trip', $2, NULL, NULL, 'weather_reschedule', $3)`,
+		[hostId, moved.id, at(-5)]
+	);
+
+	// --- Host weather penalties (policy §6) ----------------------------------------------------
+	const ensureWallet = async (host: string): Promise<{ id: string; balance: number }> => {
+		const rows: Array<{ id: string; balance: string }> = await dataSource.query(
+			`INSERT INTO "host_wallets" ("host_id", "balance") VALUES ($1, '0.00')
+			 ON CONFLICT ("host_id") DO UPDATE SET "updated_at" = now()
+			 RETURNING "id", "balance"`,
+			[host]
+		);
+		return { id: rows[0].id, balance: Number(rows[0].balance) };
+	};
+	const walletEntry = async (
+		wallet: { id: string; balance: number },
+		tripId: string,
+		type: "settlement_credit" | "penalty_debit" | "penalty_refund",
+		amount: number,
+		description: string,
+		createdHoursAgo: number
+	) => {
+		wallet.balance += type === "penalty_debit" ? -amount : amount;
+		await dataSource.query(
+			`INSERT INTO "wallet_transactions" (
+				wallet_id, trip_id, type, base_amount, fee_amount, net_amount, balance_after, description, created_at
+			) VALUES ($1, $2, $3, 0, 0, $4, $5, $6, $7)`,
+			[
+				wallet.id,
+				tripId,
+				type,
+				type === "penalty_debit" ? -amount : amount,
+				wallet.balance.toFixed(2),
+				description,
+				at(-createdHoursAgo),
+			]
+		);
+		await dataSource.query(
+			`UPDATE "host_wallets" SET "balance" = $2, "updated_at" = now() WHERE "id" = $1`,
+			[wallet.id, wallet.balance.toFixed(2)]
+		);
+	};
+
+	const tiers = [
+		{ rate: 500, cap: 2_000_000 },
+		{ rate: 1000, cap: 5_000_000 },
+		{ rate: 1500, cap: 10_000_000 },
+	];
+	const addPenalty = async (input: {
+		host: string;
+		title: string;
+		startedHoursAgo: number;
+		violation: 1 | 2 | 3;
+		bookingValue: number;
+		deducted: number;
+		status?: "applied" | "waived";
+		blockedDays?: number;
+		waiver?: {
+			reason: string;
+			requestedHoursAgo: number;
+			reviewDueInHours: number;
+			decision?: "approved" | "rejected";
+			note?: string;
+			reviewedHoursAgo?: number;
+		};
+	}): Promise<{ tripId: string; amount: number }> => {
+		const trip = await createTrip({
+			title: input.title,
+			host: input.host,
+			startsInHours: -input.startedHoursAgo,
+			status: "completed",
+		});
+		const decisionId = await addDecision({
+			trip,
+			forecastId: null,
+			by: adminId,
+			role: "admin",
+			decision: "keep",
+			reason: "Host không quyết định trước 24 tiếng, Admin giữ chuyến kèm điều kiện an toàn.",
+			createdHoursAgo: input.startedHoursAgo + 20,
+		});
+		const tier = tiers[input.violation - 1];
+		const amount = Math.min(Math.round((input.bookingValue * tier.rate) / 10_000), tier.cap);
+		const createdAt = at(-(input.startedHoursAgo + 20));
+		const waiver = input.waiver;
+		await dataSource.query(
+			`INSERT INTO "host_weather_penalties" (
+				trip_id, host_id, trip_title, trip_starts_at, decision_id, violation_number, booking_value,
+				rate_basis_points, cap_amount, amount, deducted_amount, status, hosting_blocked_until,
+				waiver_deadline, waiver_reason, waiver_evidence_urls, waiver_requested_at, waiver_review_due_at,
+				waiver_decision, waiver_reviewed_by, waiver_reviewed_at, waiver_review_note, created_at, updated_at
+			) VALUES (
+				$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb, $17, $18,
+				$19, $20, $21, $22, $23, now()
+			)`,
+			[
+				trip.id,
+				input.host,
+				trip.title,
+				trip.startsAt,
+				decisionId,
+				input.violation,
+				input.bookingValue,
+				tier.rate,
+				tier.cap,
+				amount,
+				input.status === "waived" ? 0 : input.deducted,
+				input.status ?? "applied",
+				input.blockedDays ? new Date(createdAt.getTime() + input.blockedDays * 24 * HOUR) : null,
+				new Date(trip.startsAt.getTime() + 48 * HOUR),
+				waiver?.reason ?? null,
+				JSON.stringify(
+					waiver
+						? ["https://res.cloudinary.com/demo/raw/upload/weather-penalty-waivers/giay-vien.pdf"]
+						: []
+				),
+				waiver ? at(-waiver.requestedHoursAgo) : null,
+				waiver ? at(waiver.reviewDueInHours) : null,
+				waiver?.decision ?? null,
+				waiver?.decision ? adminId : null,
+				waiver?.reviewedHoursAgo !== undefined ? at(-waiver.reviewedHoursAgo) : null,
+				waiver?.note ?? null,
+				createdAt,
+			]
+		);
+		return { tripId: trip.id, amount };
+	};
+
+	// host@ctms.local — one waived penalty (with refund) and one fresh penalty still open to a
+	// waiver request; never blocked, so this account can keep creating Trips.
+	const hostWallet = await ensureWallet(hostId);
+	const waivedOld = await addPenalty({
+		host: hostId,
+		title: "[Demo phạt] Hòa Bắc (đã miễn phạt)",
+		startedHoursAgo: 60 * 24,
+		violation: 1,
+		bookingValue: 8_000_000,
+		deducted: 0,
+		status: "waived",
+		waiver: {
+			reason: "Host nhập viện cấp cứu đúng ngày phải quyết định.",
+			requestedHoursAgo: 59 * 24,
+			reviewDueInHours: -54 * 24,
+			decision: "approved",
+			note: "Giấy viện hợp lệ, miễn phạt.",
+			reviewedHoursAgo: 58 * 24,
+		},
+	});
+	await walletEntry(
+		hostWallet,
+		waivedOld.tripId,
+		"penalty_debit",
+		400_000,
+		"Trừ phạt thời tiết: Hòa Bắc",
+		59 * 24 + 12
+	);
+	await walletEntry(
+		hostWallet,
+		waivedOld.tripId,
+		"penalty_refund",
+		400_000,
+		"Hoàn phạt thời tiết (đã miễn): Hòa Bắc",
+		58 * 24
+	);
+	const openPenalty = await addPenalty({
+		host: hostId,
+		title: "[Demo phạt] Sơn Trà (phạt lần 1, còn hạn xin miễn)",
+		startedHoursAgo: 10,
+		violation: 1,
+		bookingValue: 10_000_000,
+		deducted: 300_000,
+	});
+	await walletEntry(
+		hostWallet,
+		openPenalty.tripId,
+		"penalty_debit",
+		300_000,
+		"Trừ phạt thời tiết: Sơn Trà",
+		2
+	);
+
+	// host.blocked@ctms.local — 2nd violation: blocked 14 days, waiver waiting for the Admin.
+	const blockedWallet = await ensureWallet(blockedHostId);
+	await addPenalty({
+		host: blockedHostId,
+		title: "[Demo phạt] Lăng Cô (lần 1, bị từ chối miễn)",
+		startedHoursAgo: 40 * 24,
+		violation: 1,
+		bookingValue: 6_000_000,
+		deducted: 300_000,
+		waiver: {
+			reason: "Xe hỏng nên không kịp quyết định.",
+			requestedHoursAgo: 39 * 24,
+			reviewDueInHours: -34 * 24,
+			decision: "rejected",
+			note: "Không phải bất khả kháng, Host vẫn có thể báo qua ứng dụng.",
+			reviewedHoursAgo: 37 * 24,
+		},
+	});
+	const blockedPenalty = await addPenalty({
+		host: blockedHostId,
+		title: "[Demo phạt] Bạch Mã (lần 2, chờ duyệt miễn)",
+		startedHoursAgo: 3 * 24,
+		violation: 2,
+		bookingValue: 12_000_000,
+		deducted: 700_000,
+		blockedDays: 14,
+		waiver: {
+			reason: "Mất điện thoại trên núi, không nhận được nhắc nhở. Có xác nhận của công an xã.",
+			requestedHoursAgo: 20,
+			reviewDueInHours: 4 * 24,
+		},
+	});
+	// The penalty is taken from the Trip's own settlement, as settleTrip does.
+	await walletEntry(
+		blockedWallet,
+		blockedPenalty.tripId,
+		"settlement_credit",
+		2_000_000,
+		"Quyết toán doanh thu chuyến: Bạch Mã",
+		2 * 24 + 1
+	);
+	await walletEntry(
+		blockedWallet,
+		blockedPenalty.tripId,
+		"penalty_debit",
+		700_000,
+		"Trừ phạt thời tiết: Bạch Mã",
+		2 * 24
+	);
+
+	// host.suspended@ctms.local — 3 applied violations in 90 days: suspended; the last waiver is
+	// past its 5-working-day review deadline.
+	await ensureWallet(suspendedHostId);
+	await addPenalty({
+		host: suspendedHostId,
+		title: "[Demo phạt] Phú Ninh (lần 1)",
+		startedHoursAgo: 70 * 24,
+		violation: 1,
+		bookingValue: 5_000_000,
+		deducted: 250_000,
+	});
+	await addPenalty({
+		host: suspendedHostId,
+		title: "[Demo phạt] Đèo Le (lần 2)",
+		startedHoursAgo: 45 * 24,
+		violation: 2,
+		bookingValue: 7_000_000,
+		deducted: 700_000,
+		blockedDays: 14,
+	});
+	await addPenalty({
+		host: suspendedHostId,
+		title: "[Demo phạt] Núi Thần Tài (lần 3, quá hạn xem)",
+		startedHoursAgo: 12 * 24,
+		violation: 3,
+		bookingValue: 9_000_000,
+		deducted: 0,
+		waiver: {
+			reason: "Người thân mất đột ngột, có giấy báo tử.",
+			requestedHoursAgo: 10 * 24,
+			reviewDueInHours: -24,
+		},
+	});
+
+	console.log("[seed:weather-demo] Weather and penalty demo ready:");
+	console.log("  - Admin › Quản lý thời tiết: 2 Trip cần xử lý, 2 yêu cầu miễn phạt (1 quá hạn)");
+	console.log(
+		"  - host@ctms.local: thẻ quyết định thời tiết, chuông thông báo, ví có phạt/hoàn phạt"
+	);
+	console.log(
+		"  - camper@ctms.local: dự báo theo ngày đi, thông báo đổi dự báo, đơn chờ xác nhận lịch mới"
+	);
+	console.log(
+		"  - host.blocked@ctms.local / host.suspended@ctms.local (Host@123): bị khoá / đình chỉ tạo Trip"
+	);
 }
 
 if (require.main === module) {
