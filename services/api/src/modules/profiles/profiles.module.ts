@@ -19,6 +19,10 @@ import { PorterProfile } from "./entities/porter-profile.entity";
 import { PorterRouteQualification } from "./entities/porter-route-qualification.entity";
 import { PorterVerificationDocument } from "./entities/porter-verification-document.entity";
 import { PorterVerification } from "./entities/porter-verification.entity";
+import {
+	GUIDE_CARD_EXTRACTION_PROVIDER,
+	HttpGuideCardExtractionProvider,
+} from "./providers/guide-card-extraction.provider";
 import { EmergencyContactsRepository } from "./repositories/emergency-contacts.repository";
 import { HealthProfileRepository } from "./repositories/health-profile.repository";
 import { PorterProfilesRepository } from "./repositories/porter-profiles.repository";
@@ -51,6 +55,7 @@ import { UserBankAccountsService } from "./services/user-bank-accounts.service";
 		PorterRouteQualificationsService,
 		UserBankAccountsService,
 		PorterVerificationsService,
+		{ provide: GUIDE_CARD_EXTRACTION_PROVIDER, useClass: HttpGuideCardExtractionProvider },
 		JwtAuthGuard,
 		RolesGuard,
 		{

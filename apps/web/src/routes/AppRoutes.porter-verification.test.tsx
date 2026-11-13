@@ -66,6 +66,7 @@ function verification(status: "pending_documents" | "approved") {
 		reviewedAt: null,
 		rejectionReason: null,
 		version: 0,
+		guideCard: null,
 		documents: [],
 	};
 }
