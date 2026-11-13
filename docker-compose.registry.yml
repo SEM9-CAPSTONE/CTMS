@@ -4,6 +4,10 @@ services:
     build: !reset null
     image: docker.io/${CTMS_IMAGE_NAMESPACE:?Set CTMS_IMAGE_NAMESPACE}/ctms-api:${CTMS_IMAGE_TAG:?Set CTMS_IMAGE_TAG}
 
+  basemap-worker:
+    build: !reset null
+    image: docker.io/${CTMS_IMAGE_NAMESPACE:?Set CTMS_IMAGE_NAMESPACE}/ctms-api:${CTMS_IMAGE_TAG:?Set CTMS_IMAGE_TAG}
+
   web:
     build: !reset null
     image: docker.io/${CTMS_IMAGE_NAMESPACE:?Set CTMS_IMAGE_NAMESPACE}/ctms-web:${CTMS_IMAGE_TAG:?Set CTMS_IMAGE_TAG}

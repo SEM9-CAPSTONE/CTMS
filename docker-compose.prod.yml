@@ -52,6 +52,11 @@ services:
       retries: 12
       start_period: 30s
 
+  basemap-worker:
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:?Set the internal PostgreSQL URL in .env.production}
+
   ai:
     container_name: !reset null
     restart: unless-stopped
