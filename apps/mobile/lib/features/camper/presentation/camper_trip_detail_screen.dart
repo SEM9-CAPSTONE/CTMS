@@ -31,7 +31,7 @@ import '../../trip_reviews/presentation/trip_reviews_screen.dart';
 class CamperTripDetailScreen extends ConsumerStatefulWidget {
   const CamperTripDetailScreen({
     super.key,
-    this.tripId = 'a1736fee-62be-4991-9478-a62288e9b80a',
+    required this.tripId,
     this.trip,
     this.booking,
   });
@@ -71,7 +71,7 @@ class _CamperTripDetailScreenState
     super.dispose();
   }
 
-  String get effectiveTripId => widget.booking?.tripId ?? widget.tripId;
+  String get effectiveTripId => widget.tripId;
 
   (String, CtmsStatus) _syncBadgeInfo(DeviceSyncState state) => switch (state) {
     DeviceSyncState.synced => ('Đã đồng bộ', CtmsStatus.success),
