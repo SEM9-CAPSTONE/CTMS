@@ -30,16 +30,20 @@ export function useSettleTrip() {
 	});
 }
 
-export function useAdminSettlements(params?: {
-	status?: string;
-	search?: string;
-	page?: number;
-	limit?: number;
-}) {
+export function useAdminSettlements(
+	params?: {
+		status?: string;
+		search?: string;
+		page?: number;
+		limit?: number;
+	},
+	enabled = true
+) {
 	return useQuery({
 		queryKey: queryKeys.settlements.adminList(params as Record<string, unknown>),
 		queryFn: () => settlementService.getAdminSettlements(params),
 		staleTime: SETTLEMENT_QUERY_CONFIG.staleTime,
+		enabled,
 	});
 }
 
@@ -65,16 +69,20 @@ export function useRequestHostPayout() {
 	});
 }
 
-export function useAdminPayouts(params?: {
-	status?: string;
-	search?: string;
-	page?: number;
-	limit?: number;
-}) {
+export function useAdminPayouts(
+	params?: {
+		status?: string;
+		search?: string;
+		page?: number;
+		limit?: number;
+	},
+	enabled = true
+) {
 	return useQuery({
 		queryKey: queryKeys.settlements.adminPayouts(params as Record<string, unknown>),
 		queryFn: () => settlementService.getAdminPayouts(params),
 		staleTime: SETTLEMENT_QUERY_CONFIG.staleTime,
+		enabled,
 	});
 }
 

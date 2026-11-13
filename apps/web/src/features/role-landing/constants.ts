@@ -47,7 +47,7 @@ export const roleLabels: Record<RoleKey, string> = {
 	admin: "Quản trị viên",
 };
 
-export const dashboards: Record<RoleKey, DashboardConfig> = {
+export const dashboards: Record<DashboardConfig["role"], DashboardConfig> = {
 	camper: {
 		role: "camper",
 		figmaName: "",
@@ -56,7 +56,6 @@ export const dashboards: Record<RoleKey, DashboardConfig> = {
 		subtitle: "Theo dõi chuyến đi, sức khỏe, cảnh báo và các tác vụ cá nhân trước khi khởi hành.",
 		accent: "#164027",
 		soft: "#eef7f0",
-		navTitle: "Camper Hub",
 		navItems: [
 			{ key: "overview", label: "Tổng quan", icon: LayoutDashboard },
 			{ key: "explore", label: "Khám phá địa điểm", icon: MapPinned },
@@ -152,7 +151,6 @@ export const dashboards: Record<RoleKey, DashboardConfig> = {
 		subtitle: "Theo dõi chuyến đi, đặt chỗ, tuyến trekking và người hỗ trợ từ dữ liệu vận hành.",
 		accent: "#1f4d34",
 		soft: "#f2f7ef",
-		navTitle: "Vận hành",
 		navItems: [
 			{ key: "overview", label: "Tổng quan vận hành", icon: LayoutDashboard },
 			{ key: "sos", label: "Cứu trợ khẩn cấp", icon: ShieldAlert },
@@ -179,7 +177,6 @@ export const dashboards: Record<RoleKey, DashboardConfig> = {
 		subtitle: "Theo dõi phân công, bản đồ tuyến, check-in và cảnh báo cần phản hồi nhanh.",
 		accent: "#246b8e",
 		soft: "#e6f2f7",
-		navTitle: "Porter Ops",
 		navItems: [
 			{ key: "overview", label: "Tổng quan", icon: LayoutDashboard },
 			{ key: "profile", label: "Hồ sơ & Năng lực", icon: User },
@@ -268,88 +265,6 @@ export const dashboards: Record<RoleKey, DashboardConfig> = {
 			{ label: "Check-in", value: "1 điểm", icon: BadgeCheck },
 			{ label: "Cập nhật tuyến", value: "Mở", icon: MapPinned },
 			{ label: "Phản hồi alert", value: "2", icon: Bell },
-		],
-	},
-	admin: {
-		role: "admin",
-		figmaName: "Admin Dashboard",
-		productLabel: "Admin",
-		title: "Trung tâm quản trị",
-		subtitle: "Tài khoản Admin dùng dashboard quản trị và quản lý người dùng.",
-		accent: "#7146a5",
-		soft: "#f0eaf8",
-		navTitle: "Administration",
-		navItems: [
-			{ key: "overview", label: "Tổng quan", icon: LayoutDashboard },
-			{ key: "users", label: "User Accounts", icon: Users },
-			{ key: "audit", label: "Audit Logs", icon: FileClock, disabled: true },
-		],
-		metrics: [
-			{
-				label: "User active",
-				value: "Seed",
-				helper: "Admin, Host, Porter",
-				tone: "purple",
-				icon: Users,
-			},
-			{
-				label: "Roles",
-				value: "4",
-				helper: "camper, host, porter, admin",
-				tone: "green",
-				icon: ShieldCheck,
-			},
-			{
-				label: "Protected views",
-				value: "On",
-				helper: "AppRoleGuard",
-				tone: "blue",
-				icon: BadgeCheck,
-			},
-			{
-				label: "403",
-				value: "Ready",
-				helper: "Unauthorized page",
-				tone: "amber",
-				icon: ShieldAlert,
-			},
-		],
-		primaryPanel: {
-			kicker: "Admin workspace",
-			title: "Quản lý tài khoản và phân quyền",
-			description: "Mở trang User Accounts để kiểm tra trạng thái, role và multi-role account.",
-			items: [
-				{ label: "Admin", value: "admin@ctms.local" },
-				{ label: "Host", value: "host@ctms.local" },
-				{ label: "Porter", value: "porter@ctms.local" },
-				{ label: "Guard", value: "roles[]" },
-			],
-		},
-		timeline: [
-			{
-				time: "Now",
-				title: "Seed accounts",
-				description: "Admin, Host và Porter active.",
-				status: "Ready",
-			},
-			{
-				time: "Next",
-				title: "Review access",
-				description: "Kiểm tra 403 cho role không hợp lệ.",
-				status: "CTMS-6",
-			},
-		],
-		alerts: [
-			{
-				title: "Admin route",
-				detail: "Dùng nút Quản lý người dùng để vào /admin/users.",
-				tone: "blue",
-			},
-		],
-		tasks: [
-			{ label: "User Accounts", value: "Mở", icon: Users },
-			{ label: "Audit", value: "Soon", icon: FileClock },
-			{ label: "Reports", value: "Soon", icon: ClipboardList },
 		],
 	},
 };

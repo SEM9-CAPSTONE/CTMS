@@ -115,7 +115,7 @@ describe("Porter Profile routing", () => {
 		window.history.replaceState({}, "", RoutePath.PORTER_PROFILE);
 		await renderLazy(<AppRoutes />);
 
-		expect(screen.getByText("Porter Ops")).toBeInTheDocument();
+		expect(screen.getByText("Người hỗ trợ CTMS")).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "Hồ sơ & Năng lực" })).toHaveAttribute(
 			"aria-current",
 			"page"

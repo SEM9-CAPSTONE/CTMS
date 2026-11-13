@@ -59,15 +59,24 @@ describe("AdminUserAccountsPage", () => {
 	});
 
 	it("renders accounts and disables self-lock", async () => {
+		const user = userEvent.setup();
 		render(<AdminUserAccountsPage />);
 
 		expect(await screen.findByText("Nguyen Camper")).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "Tài khoản người dùng" })).toHaveAttribute(
+		expect(screen.getByRole("link", { name: "Tài khoản người dùng" })).toHaveAttribute(
 			"aria-current",
 			"page"
 		);
-		expect(screen.getByRole("button", { name: "Nhật ký hệ thống" })).toBeEnabled();
-		expect(screen.getByRole("button", { name: /Báo cáo nội dung/ })).toBeEnabled();
+		await user.click(screen.getByRole("button", { name: "Hệ thống" }));
+		expect(screen.getByRole("link", { name: "Nhật ký hệ thống" })).toHaveAttribute(
+			"href",
+			"/admin/audit-logs"
+		);
+		await user.click(screen.getByRole("button", { name: /^Kiểm duyệt/ }));
+		expect(screen.getByRole("link", { name: /^Báo cáo từ người dùng/ })).toHaveAttribute(
+			"href",
+			"/admin/content-reports"
+		);
 		expect(screen.getByRole("button", { name: "Khóa CTMS Admin" })).toBeDisabled();
 		expect(screen.getByText(/Tổng cộng/)).toHaveTextContent("2");
 	});

@@ -7,6 +7,7 @@ import {
 } from "../../../shared/components/AdminReviewFilters";
 import { RealtimeConnectionStatus } from "../../../shared/components/RealtimeConnectionStatus";
 import { AdminLayout } from "../../admin-layout/components/AdminLayout";
+import { useRefreshAdminModerationCounts } from "../../admin-layout/hooks/useAdminModerationCounts";
 import { AdminTripReviewContent } from "../components/AdminTripReviewContent";
 import { TripReviewDecisionDialog } from "../components/TripReviewDecisionDialog";
 import { useAdminTripReviews, useReviewTrip } from "../hooks/useAdminTripReviews";
@@ -31,13 +32,15 @@ export function AdminTripsPage({ onLogout }: AdminTripsPageProps) {
 	const [page, setPage] = useState(1);
 	const list = useAdminTripReviews(reviewOutcome, page);
 	const review = useReviewTrip();
+	const refreshModerationCounts = useRefreshAdminModerationCounts();
 	const [selectedId, setSelectedId] = useState<string>();
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const [dialogVersion, setDialogVersion] = useState<string | null>(null);
 
 	const refreshInBackground = useCallback(() => {
 		void list.reload(true);
-	}, [list.reload]);
+		refreshModerationCounts();
+	}, [list.reload, refreshModerationCounts]);
 	const realtimeState = useAdminTripReviewNotifications({ onChanged: refreshInBackground });
 
 	useEffect(() => {
@@ -72,6 +75,7 @@ export function AdminTripsPage({ onLogout }: AdminTripsPageProps) {
 			reason: values.action === "approve" ? undefined : values.reason,
 		});
 		if (!result) return;
+		refreshModerationCounts();
 		const messages = {
 			approve: `Đã đồng ý và xuất bản trip “${selected.title}”.`,
 			decline: `Đã từ chối trip “${selected.title}”. Trip được trả về bản nháp.`,

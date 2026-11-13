@@ -7,8 +7,8 @@ const camper = { role: "camper", roles: ["camper"] };
 const admin = { role: "admin", roles: ["admin"] };
 
 describe("getAuthenticatedHomePath", () => {
-	it("sends admins to user management", () => {
-		expect(getAuthenticatedHomePath(admin)).toBe(RoutePath.ADMIN_USERS);
+	it("sends admins to performance reports", () => {
+		expect(getAuthenticatedHomePath(admin)).toBe(RoutePath.ADMIN_PERFORMANCE_REPORTS);
 	});
 
 	it.each([host, camper, { role: "porter", roles: ["porter"] }])(
@@ -31,9 +31,9 @@ describe("getGuestOnlyRedirectPath", () => {
 	});
 
 	it.each([RoutePath.HOME, RoutePath.LOGIN])(
-		"redirects a signed-in admin away from %s to user management",
+		"redirects a signed-in admin away from %s to performance reports",
 		(path) => {
-			expect(getGuestOnlyRedirectPath(path, admin)).toBe(RoutePath.ADMIN_USERS);
+			expect(getGuestOnlyRedirectPath(path, admin)).toBe(RoutePath.ADMIN_PERFORMANCE_REPORTS);
 		}
 	);
 

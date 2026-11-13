@@ -1,7 +1,7 @@
 import { StatusBadge } from "../../../shared/components/StatusBadge";
 import { WEATHER_RISK_LABELS, WEATHER_RISK_TONES } from "../../weather/utils/weather-risk";
 import type { TripWeatherDecision } from "../types";
-import { WEATHER_DECISION_LABELS } from "../utils/weather-decision-labels";
+import { WEATHER_DECIDER_LABELS, WEATHER_DECISION_LABELS } from "../utils/weather-decision-labels";
 
 /** Who decided what, when, on which forecast and why (policy §7). Newest first. */
 export function WeatherDecisionLog({ decisions }: { decisions: TripWeatherDecision[] }) {
@@ -18,7 +18,7 @@ export function WeatherDecisionLog({ decisions }: { decisions: TripWeatherDecisi
 				>
 					<div className="flex flex-wrap items-center gap-2">
 						<span className="font-extrabold">
-							{entry.deciderRole === "admin" ? "Admin" : "Host"}
+							{WEATHER_DECIDER_LABELS[entry.deciderRole]}
 							{entry.deciderName ? ` · ${entry.deciderName}` : ""}
 						</span>
 						<StatusBadge tone={entry.decision === "cancel" ? "danger" : "neutral"}>

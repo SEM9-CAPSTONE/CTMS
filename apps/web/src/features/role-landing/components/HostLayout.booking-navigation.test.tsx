@@ -74,6 +74,55 @@ describe("HostLayout Booking navigation", () => {
 		await waitFor(() => expect(camperProfileService.getProfile).toHaveBeenCalledTimes(1));
 	});
 
+	it.each(["host", "porter"] as const)("keeps the %s icon rail after remounting", (role) => {
+		storeHost();
+		window.history.replaceState({}, "", "/dashboard");
+		const { unmount } = render(<HostLayout activeRole={role}>Content</HostLayout>);
+		fireEvent.click(screen.getByRole("button", { name: "Thu gọn thanh điều hướng" }));
+		unmount();
+
+		render(<HostLayout activeRole={role}>Content</HostLayout>);
+		expect(screen.getByRole("button", { name: "Mở rộng thanh điều hướng" })).toBeVisible();
+		const overviewLabel = role === "host" ? "Tổng quan vận hành" : "Tổng quan";
+		expect(screen.getByRole("button", { name: overviewLabel })).toHaveAttribute(
+			"data-icon-only",
+			"true"
+		);
+	});
+
+	it("opens the Host Porter submenu in a flyout when collapsed", () => {
+		storeHost();
+		window.history.replaceState({}, "", "/dashboard");
+		render(<HostLayout>Content</HostLayout>);
+		fireEvent.click(screen.getByRole("button", { name: "Thu gọn thanh điều hướng" }));
+		const group = screen.getByRole("button", { name: "Người hỗ trợ" });
+		fireEvent.click(group);
+		expect(group).toHaveAttribute("aria-expanded", "true");
+		fireEvent.click(screen.getByRole("button", { name: "Yêu cầu đã gửi" }));
+		expect(window.location.pathname + window.location.search).toBe("/host/porter?view=requests");
+		expect(group).toHaveAttribute("aria-expanded", "false");
+	});
+
+	it("opens the mobile drawer with one sidebar and closes it after navigation", () => {
+		storeHost();
+		window.history.replaceState({}, "", "/dashboard");
+		render(<HostLayout allowMobile>Content</HostLayout>);
+		const menu = screen.getByRole("button", { name: "Mở menu" });
+		fireEvent.click(menu);
+		expect(menu).toHaveAttribute("aria-expanded", "true");
+		expect(screen.getByRole("dialog", { name: "Chủ chuyến" })).toHaveAttribute(
+			"aria-modal",
+			"true"
+		);
+		expect(screen.getByRole("button", { name: "Đóng menu" })).toHaveFocus();
+		expect(screen.getByText("Content").closest("[inert]")).not.toBeNull();
+		expect(screen.getAllByRole("complementary")).toHaveLength(1);
+		fireEvent.click(screen.getByRole("button", { name: "Tổng quan vận hành" }));
+		expect(menu).toHaveAttribute("aria-expanded", "false");
+		expect(screen.getByText("Content").closest("[inert]")).toBeNull();
+		expect(menu).toHaveFocus();
+	});
+
 	it("navigates the Host sidebar to Campers and Bookings management", async () => {
 		localStorage.clear();
 		storeHost();
@@ -91,8 +140,9 @@ describe("HostLayout Booking navigation", () => {
 			storeHost();
 			window.history.replaceState({}, "", path);
 			render(<HostLayout>Content</HostLayout>);
-			expect(screen.getByRole("button", { name: "Người tham gia & đặt chỗ" })).toHaveClass(
-				"bg-[#164027]"
+			expect(screen.getByRole("button", { name: "Người tham gia & đặt chỗ" })).toHaveAttribute(
+				"aria-current",
+				"page"
 			);
 		}
 	);

@@ -8,6 +8,7 @@ import {
 	RiskLevel,
 	type WeatherCriteriaScoresDetail,
 } from "../entities/weather-risk-assessment.entity";
+import { TripWeatherAiReviewDto } from "./trip-weather-ai-review.dto";
 
 export class TripWeatherAdviceDto {
 	@ApiProperty()
@@ -62,6 +63,14 @@ export class TripWeatherForecastResponseDto {
 	@ApiPropertyOptional({ type: TripWeatherAdviceDto, nullable: true })
 	advice!: TripWeatherAdviceDto | null;
 
+	@ApiPropertyOptional({
+		type: TripWeatherAiReviewDto,
+		nullable: true,
+		description:
+			"Independent AI opinion on the same readings (Host/Admin only). Informational: riskLevel stays official.",
+	})
+	aiReview!: TripWeatherAiReviewDto | null;
+
 	@ApiProperty({ description: "Forecast horizon in days used for this result" })
 	horizonDays!: number;
 
@@ -76,7 +85,8 @@ export class TripWeatherForecastResponseDto {
 
 export function toTripWeatherForecastResponse(
 	forecast: TripWeatherForecast,
-	horizonDays: number
+	horizonDays: number,
+	options: { includeAiReview?: boolean } = {}
 ): TripWeatherForecastResponseDto {
 	const coversWholeTrip =
 		forecast.status === TripWeatherForecastStatus.AVAILABLE &&
@@ -103,6 +113,17 @@ export function toTripWeatherForecastResponse(
 						text: forecast.adviceText,
 						actions: forecast.adviceActions ?? [],
 						generatedAt: forecast.adviceGeneratedAt,
+					}
+				: null,
+		aiReview:
+			options.includeAiReview && forecast.aiRiskLevel && forecast.aiReviewedAt
+				? {
+						level: forecast.aiRiskLevel,
+						reason: forecast.aiReason ?? "",
+						confidence: Number(forecast.aiConfidence ?? 0),
+						reviewedAt: forecast.aiReviewedAt,
+						matchesRule: forecast.aiRiskLevel === forecast.riskLevel,
+						acknowledgedAt: forecast.aiReviewAcknowledgedAt ?? null,
 					}
 				: null,
 		horizonDays,

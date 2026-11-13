@@ -1,4 +1,5 @@
 import {
+	Body,
 	Controller,
 	Delete,
 	Get,
@@ -7,6 +8,7 @@ import {
 	Param,
 	ParseUUIDPipe,
 	Post,
+	Put,
 	Req,
 	UploadedFile,
 	UseGuards,
@@ -27,7 +29,9 @@ import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../../auth/guards/roles.guard";
 import type { AuthenticatedUser } from "../../auth/jwt.strategy";
 import { UserRole } from "../../users/entities/user.entity";
+// biome-ignore lint/style/useImportType: @Body() parameter types need runtime metadata for validation
 import {
+	GuideCardDto,
 	PorterVerificationDocumentDto,
 	PorterVerificationResponseDto,
 } from "../dto/porter-verification-response.dto";
@@ -98,12 +102,29 @@ export class PorterVerificationController {
 		return this.porterVerificationsService.deleteDocument(request.user.userId, documentId);
 	}
 
+	@Put("card")
+	@ApiOperation({
+		summary: "Declare the tour-guide card (domestic or international; number and expiry date)",
+	})
+	@ApiResponse({ status: 200, type: PorterVerificationResponseDto })
+	@ApiResponse({
+		status: 422,
+		description: "Invalid card type, number or date, or card already expired",
+	})
+	@ApiResponse({ status: 409, description: "Documents locked" })
+	updateGuideCard(
+		@Req() request: AuthenticatedRequest,
+		@Body() dto: GuideCardDto
+	): Promise<PorterVerificationResponseDto> {
+		return this.porterVerificationsService.updateGuideCard(request.user.userId, dto);
+	}
+
 	@Post("submit")
 	@HttpCode(HttpStatus.OK)
 	@ApiOperation({ summary: "Submit uploaded documents for Admin review" })
 	@ApiResponse({ status: 200, type: PorterVerificationResponseDto })
 	@ApiResponse({ status: 409, description: "Verification is not in a submittable status" })
-	@ApiResponse({ status: 422, description: "No document uploaded" })
+	@ApiResponse({ status: 422, description: "No document, no guide card or card expired" })
 	submit(@Req() request: AuthenticatedRequest): Promise<PorterVerificationResponseDto> {
 		return this.porterVerificationsService.submit(request.user.userId);
 	}

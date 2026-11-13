@@ -1,7 +1,11 @@
 export const queryKeys = {
-	packageDeparture: {
-		status: (actor: string, trip: string) => ["package-departure", actor, trip, "status"] as const,
-		inbox: (actor: string) => ["package-departure", actor, "inbox"] as const,
+ packageDeparture: {
+  status: (actor: string, trip: string) => ["package-departure", actor, trip, "status"] as const,
+  inbox: (actor: string) => ["package-departure", actor, "inbox"] as const,
+ },
+	adminModeration: {
+		all: ["admin-moderation"] as const,
+		counts: (adminId: string) => ["admin-moderation", adminId, "counts"] as const,
 	},
 	demandInsights: {
 		periods: (actor: string) => ["demand-insights", actor, "periods"] as const,
@@ -141,6 +145,7 @@ export const queryKeys = {
 		changeNotices: (userId: string) => ["weather", "change-notices", userId] as const,
 		decisionAlerts: (userId: string) => ["weather", "decision-alerts", userId] as const,
 		interventions: ["weather", "interventions"] as const,
+		aiMismatches: ["weather", "ai-mismatches"] as const,
 		decisionLog: (tripId: string) => ["weather", "decision-log", tripId] as const,
 		myPenalties: (userId: string) => ["weather", "penalties", "mine", userId] as const,
 		adminPenalties: (filter: string) => ["weather", "penalties", "admin", filter] as const,
@@ -182,5 +187,10 @@ export const queryKeys = {
 	},
 	deviceSync: {
 		status: (tripId: string) => ["device-sync", "status", tripId] as const,
+	},
+	performanceReports: {
+		all: ["performance-reports"] as const,
+		report: (filters?: Record<string, unknown>) =>
+			["performance-reports", "report", filters] as const,
 	},
 };

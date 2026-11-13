@@ -14,6 +14,8 @@ import 'package:mobile/features/auth/data/auth_repository.dart';
 import 'package:mobile/features/auth/domain/auth_user.dart';
 import 'package:mobile/features/auth/domain/register_models.dart';
 import 'package:mobile/features/auth/domain/user_role.dart';
+import 'package:mobile/features/camper/data/camper_explore_api.dart';
+import 'package:mobile/features/camper/domain/published_trip.dart';
 import 'package:mobile/features/camper/overview/data/camper_overview_repository.dart';
 import 'package:mobile/features/camper/overview/domain/camper_overview_models.dart';
 
@@ -159,6 +161,13 @@ Future<void> _login(WidgetTester tester, AuthUser user) async {
         ),
         camperOverviewRepositoryProvider.overrideWithValue(
           _FakeCamperOverviewRepository(),
+        ),
+        exploreTripsProvider.overrideWith(
+          (ref, query) async => (
+            items: <PublishedTrip>[],
+            total: 0,
+            totalPages: 0,
+          ),
         ),
       ],
       child: const CtmsApp(),
@@ -478,7 +487,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Tìm tuyến trekking cho chuyến đi tiếp theo'), findsOneWidget);
-    expect(find.textContaining('Chuyến đi nổi bật'), findsOneWidget);
+    expect(find.text('Không tìm thấy chuyến đi nào'), findsOneWidget);
   });
 
   testWidgets('porter "Thêm" sheet opens the folded-in destinations', (

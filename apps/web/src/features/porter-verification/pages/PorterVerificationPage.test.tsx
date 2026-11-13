@@ -11,9 +11,12 @@ vi.mock("../services/porter-verification.service", () => ({
 		getMine: vi.fn(),
 		uploadDocument: vi.fn(),
 		deleteDocument: vi.fn(),
+		updateGuideCard: vi.fn(),
 		submit: vi.fn(),
 	},
 }));
+
+const card = { cardType: "noi_dia" as const, cardNumber: "123456789", expiresOn: "2099-01-01" };
 
 const document: PorterVerificationDocument = {
 	id: "doc-1",
@@ -32,6 +35,7 @@ function verification(overrides: Partial<PorterVerification> = {}): PorterVerifi
 		reviewedAt: null,
 		rejectionReason: null,
 		version: 0,
+		guideCard: null,
 		documents: [],
 		...overrides,
 	};
@@ -71,6 +75,20 @@ describe("PorterVerificationPage", () => {
 
 		expect(await screen.findByText("chung-chi.pdf")).toBeInTheDocument();
 		expect(porterVerificationService.uploadDocument).toHaveBeenCalledWith(file);
+		// The guide card must be saved before submitting.
+		expect(
+			screen.getByText("Lưu thông tin thẻ hướng dẫn viên trước khi nộp hồ sơ.")
+		).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: /Nộp hồ sơ để duyệt/ })).toBeDisabled();
+
+		vi.mocked(porterVerificationService.updateGuideCard).mockResolvedValue(
+			verification({ version: 1, guideCard: card, documents: [document] })
+		);
+		await user.type(screen.getByLabelText("Số thẻ"), "123456789");
+		fireEvent.change(screen.getByLabelText("Có giá trị đến"), { target: { value: "2099-01-01" } });
+		await user.click(screen.getByRole("button", { name: /Lưu thông tin thẻ/ }));
+		expect(porterVerificationService.updateGuideCard).toHaveBeenCalledWith(card);
+		expect(await screen.findByText("Đã lưu")).toBeInTheDocument();
 
 		await user.click(screen.getByRole("button", { name: /Nộp hồ sơ để duyệt/ }));
 		await user.click(screen.getByRole("button", { name: "Nộp hồ sơ" }));
@@ -87,6 +105,7 @@ describe("PorterVerificationPage", () => {
 				status: "rejected",
 				rejectionReason: "Ảnh bị mờ",
 				reviewedAt: "2026-10-17T12:00:00.000Z",
+				guideCard: card,
 				documents: [document],
 			})
 		);
@@ -100,6 +119,31 @@ describe("PorterVerificationPage", () => {
 		await waitFor(() => expect(screen.queryByText("chung-chi.pdf")).not.toBeInTheDocument());
 		expect(porterVerificationService.deleteDocument).toHaveBeenCalledWith("doc-1");
 		expect(screen.getByRole("button", { name: /Nộp lại hồ sơ/ })).toBeDisabled();
+	});
+
+	it("accepts only domestic or international cards with 9 digits and a future expiry", async () => {
+		const user = userEvent.setup();
+		vi.mocked(porterVerificationService.getMine).mockResolvedValue(verification());
+		renderPage();
+		await screen.findByText("Tải lên chứng chỉ dẫn đường");
+
+		const options = Array.from(
+			(screen.getByLabelText("Loại thẻ") as HTMLSelectElement).options
+		).map((option) => option.textContent);
+		expect(options).toEqual(["Nội địa", "Quốc tế"]);
+
+		await user.type(screen.getByLabelText("Số thẻ"), "12a345678");
+		expect(screen.getByLabelText("Số thẻ")).toHaveValue("12345678");
+		fireEvent.change(screen.getByLabelText("Có giá trị đến"), { target: { value: "2099-01-01" } });
+		await user.click(screen.getByRole("button", { name: /Lưu thông tin thẻ/ }));
+		expect(await screen.findByText("Số thẻ hướng dẫn viên gồm đúng 9 chữ số.")).toBeInTheDocument();
+		expect(porterVerificationService.updateGuideCard).not.toHaveBeenCalled();
+
+		await user.type(screen.getByLabelText("Số thẻ"), "9");
+		fireEvent.change(screen.getByLabelText("Có giá trị đến"), { target: { value: "2000-01-01" } });
+		await user.click(screen.getByRole("button", { name: /Lưu thông tin thẻ/ }));
+		expect(await screen.findByText("Thẻ hướng dẫn viên đã hết hạn.")).toBeInTheDocument();
+		expect(porterVerificationService.updateGuideCard).not.toHaveBeenCalled();
 	});
 
 	it("shows backend upload errors", async () => {
