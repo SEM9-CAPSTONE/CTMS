@@ -468,11 +468,18 @@ class _ReviewBookingsTabState extends ConsumerState<ReviewBookingsTab> {
                   color: Colors.white,
                   child: InkWell(
                     onTap: () {
+                      final tripId = item.tripId;
+                      if (tripId == null || tripId.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Không tìm thấy mã chuyến đi.')),
+                        );
+                        return;
+                      }
                       Navigator.of(context).push(
                         MaterialPageRoute<void>(
                           builder: (_) => CamperTripDetailScreen(
                             booking: item,
-                            tripId: item.tripId ?? 'c3958000-0064-4064-8064-000000000064',
+                            tripId: tripId,
                           ),
                         ),
                       );
