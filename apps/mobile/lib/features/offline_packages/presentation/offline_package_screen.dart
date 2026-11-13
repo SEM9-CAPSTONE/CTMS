@@ -7,6 +7,10 @@ import '../../../core/widgets/ctms_section_card.dart';
 import '../application/package_download_controller.dart';
 import '../domain/offline_package.dart';
 import 'offline_trip_screen.dart';
+import 'package_policy_details.dart';
+import 'departure_status_panel.dart';
+import '../../auth/application/auth_controller.dart';
+import '../../auth/domain/user_role.dart';
 
 class OfflinePackageScreen extends ConsumerWidget {
   const OfflinePackageScreen({
@@ -68,6 +72,24 @@ class OfflinePackagePanel extends ConsumerWidget {
     Future<void> startDownload() => controller.start(tripTitle: tripTitle);
 
     final (message, label, action, transferProgress) = switch (verification) {
+      _ when controller.awaitingActivation && !controller.downloading => (
+        'Đã tải, chờ đồng bộ',
+        'Kiểm tra lại',
+        controller.load,
+        null,
+      ),
+      _ when controller.replacementLocked && !controller.downloading => (
+        controller.activeMatchesTripLock
+            ? controller.policy?.newerAvailable == true
+                  ? 'Có bản mới, chuyến này giữ bản đã khóa'
+                  : 'Đang dùng bản đã khóa cho chuyến này'
+            : controller.policy?.lockedId != null
+            ? 'Gói trên thiết bị khác bản đã khóa cho chuyến. Không thể thay gói giữa chuyến; hãy liên hệ người hỗ trợ.'
+            : 'Chuyến này hiện không cho phép thay gói.',
+        null,
+        null,
+        null,
+      ),
       _ when controller.downloadingBasemap => (
         'Đang tải nền bản đồ · ${(controller.basemapProgress * 100).floor()}%',
         'Tạm dừng',
@@ -103,7 +125,7 @@ class OfflinePackagePanel extends ConsumerWidget {
           when transferred && controller.error == null =>
         ('Đang hoàn tất dữ liệu…', null, null, null),
       _ when controller.downloading => (
-        'Đang tải · $percentage',
+        'Đang tải · $percentage${package == null ? '' : ' · v${package.packageVersion}'}',
         'Tạm dừng',
         controller.pause,
         progress,
@@ -116,7 +138,14 @@ class OfflinePackagePanel extends ConsumerWidget {
                   active.sameArtifact(package) ||
                   package.activationAllowed == false ||
                   verification == PackageVerificationStatus.verified) =>
-        ('Sẵn sàng sử dụng ngoại tuyến', null, null, null),
+        (
+          controller.policy == null
+              ? 'Sẵn sàng sử dụng ngoại tuyến'
+              : 'Gói đã lưu trên thiết bị',
+          null,
+          null,
+          null,
+        ),
       _ when controller.loading => ('Đang tải thông tin…', null, null, null),
       _ when package == null && controller.error != null => (
         controller.error!,
@@ -151,7 +180,9 @@ class OfflinePackagePanel extends ConsumerWidget {
         null,
       ),
       _ => (
-        'Chưa tải · ${_formatSize(package.sizeBytes)}',
+        active != null && !active.sameArtifact(package)
+            ? 'Bản mới v${package.packageVersion} · ${_formatSize(package.sizeBytes)}'
+            : 'Chưa tải v${package.packageVersion} · ${_formatSize(package.sizeBytes)}',
         'Tải xuống',
         startDownload,
         null,
@@ -163,7 +194,58 @@ class OfflinePackagePanel extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Semantics(liveRegion: transferProgress == null, child: Text(message)),
+          if (!summaryOnly &&
+              ![
+                'ongoing',
+                'completed',
+                'cancelled',
+              ].contains(controller.policy?.tripStatus))
+            DepartureStatusPanel(tripId: tripId),
+          Semantics(
+            liveRegion: transferProgress == null,
+            child:
+                controller.replacementLocked &&
+                    (controller.policy?.newerAvailable == true ||
+                        !controller.activeMatchesTripLock)
+                ? Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xfffff3d6),
+                      border: Border.all(
+                        color: const Color(0xff996000),
+                        width: 1.5,
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(
+                          Icons.warning_amber_rounded,
+                          color: Color(0xff704200),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            message,
+                            style: const TextStyle(
+                              color: Color(0xff704200),
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : Text(message),
+          ),
+          if (!summaryOnly)
+            PackagePolicyDetails(
+              controller: controller,
+              isPorter:
+                  ref.watch(authControllerProvider).asData?.value?.role ==
+                  UserRole.porter,
+            ),
           if (!summaryOnly && transferProgress != null) ...[
             const SizedBox(height: AppSpacing.sm),
             LinearProgressIndicator(
@@ -180,7 +262,7 @@ class OfflinePackagePanel extends ConsumerWidget {
               verification == PackageVerificationStatus.failed &&
               active != null) ...[
             const SizedBox(height: AppSpacing.sm),
-            const Text('Bản trước vẫn dùng được ngoại tuyến.'),
+            const Text('Gói cũ vẫn dùng được.'),
           ],
           if (!summaryOnly && action != null) ...[
             const SizedBox(height: AppSpacing.md),

@@ -52,6 +52,7 @@ dependencies:
   sqflite: ^2.4.6
   path: ^1.9.1
   latlong2: ^0.10.1
+  timezone: ^0.11.2
 
 dev_dependencies:
   flutter_test:

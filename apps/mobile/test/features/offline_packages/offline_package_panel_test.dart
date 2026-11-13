@@ -4,6 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/features/offline_packages/application/package_download_controller.dart';
 import 'package:mobile/features/offline_packages/domain/offline_package.dart';
 import 'package:mobile/features/offline_packages/presentation/offline_package_screen.dart';
+import 'package:mobile/features/offline_packages/presentation/departure_status_panel.dart';
+import 'package:mobile/features/offline_packages/domain/package_policy.dart';
+import 'package:mobile/core/api/api_exception.dart';
 
 import 'package_integrity_fixture.dart';
 
@@ -36,11 +39,19 @@ void main() {
       ..package = package;
   });
 
-  Future<void> render(WidgetTester tester, {bool summaryOnly = false}) async {
+  Future<void> render(
+    WidgetTester tester, {
+    bool summaryOnly = false,
+    bool denied = false,
+  }) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           offlinePackageAccountProvider.overrideWithValue('test-account'),
+          departureStatusProvider(testTripId).overrideWith((ref) async {
+            if (denied) throw ApiException('Forbidden', statusCode: 403);
+            return {'blocked': false};
+          }),
           packageDownloadControllerProvider(
             testTripId,
           ).overrideWith((ref) => controller),
@@ -56,9 +67,21 @@ void main() {
       ),
     );
     expect(
-      find.textContaining(RegExp('Verify|SHA-256|manifest|Phiên bản')),
+      find.textContaining(RegExp('Verify|SHA-256|manifest')),
       findsNothing,
     );
+    if (!summaryOnly && (controller.active ?? controller.package) != null) {
+      final selected = controller.active ?? controller.package!;
+      expect(
+        find.textContaining(
+          RegExp(
+            '(Gói (đang sử dụng|đang lưu trên thiết bị|trên thiết bị)|Bản (cần dùng|mới nhất)): v${selected.packageVersion}',
+          ),
+        ),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Cập nhật gói:'), findsOneWidget);
+    }
   }
 
   testWidgets('new package has a single download action and no progress bar', (
@@ -196,7 +219,7 @@ void main() {
         find.text('Không thể hoàn tất dữ liệu ngoại tuyến'),
         findsOneWidget,
       );
-      expect(find.text('Bản trước vẫn dùng được ngoại tuyến.'), findsOneWidget);
+      expect(find.text('Gói cũ vẫn dùng được.'), findsOneWidget);
       expect(find.byType(LinearProgressIndicator), findsNothing);
       expect(find.byType(FilledButton), findsOneWidget);
       expect(find.text('Xem dữ liệu'), findsOneWidget);
@@ -215,6 +238,101 @@ void main() {
     await tester.tap(find.text('Thử lại'));
     expect(controller.loads, 1);
   });
+
+  testWidgets(
+    'ongoing has exactly one lock message and no replacement action',
+    (tester) async {
+      controller
+        ..active = package
+        ..verification = PackageVerificationStatus.verified
+        ..policy = PackagePolicy({
+          'tripStatus': 'ongoing',
+          'replaceAllowed': false,
+          'lockedPackageId': package.id,
+          'checkedAt': '2026-11-12T03:00:00Z',
+          'sourceFreshness': {'state': 'unknown'},
+          'publication': {'newerAvailable': true},
+        });
+      await render(tester);
+      expect(
+        find.text('Có bản mới, chuyến này giữ bản đã khóa'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('bản đã khóa'), findsOneWidget);
+      expect(find.byType(FilledButton), findsNothing);
+    },
+  );
+  testWidgets('local v1 is not labelled as locked v3 for another device', (
+    tester,
+  ) async {
+    controller
+      ..active = previous
+      ..verification = PackageVerificationStatus.verified
+      ..policy = PackagePolicy({
+        'tripStatus': 'ongoing',
+        'replaceAllowed': false,
+        'lockedPackageId': 'locked-v3',
+        'checkedAt': '2026-11-12T03:00:00Z',
+        'sourceFreshness': {'state': 'unknown'},
+        'publication': {
+          'newerAvailable': true,
+          'requiredPackageId': 'locked-v3',
+          'requiredVersion': 3,
+        },
+      });
+    await render(tester);
+    expect(
+      find.textContaining('Gói trên thiết bị khác bản đã khóa'),
+      findsOneWidget,
+    );
+    expect(find.text('Gói đang lưu trên thiết bị: v1'), findsOneWidget);
+    expect(find.text('Bản đã khóa cho chuyến: v3'), findsOneWidget);
+    expect(find.text('Có bản mới, chuyến này giữ bản đã khóa'), findsNothing);
+    expect(find.byType(FilledButton), findsNothing);
+  });
+
+  testWidgets(
+    'pending sync message is not duplicated and retains old-package explanation',
+    (tester) async {
+      controller
+        ..active = previous
+        ..awaitingActivation = true
+        ..verification = PackageVerificationStatus.verified;
+      await render(tester);
+      expect(find.text('Đã tải, chờ đồng bộ'), findsOneWidget);
+      expect(find.text('Gói cũ vẫn dùng được.'), findsOneWidget);
+    },
+  );
+  testWidgets(
+    '403 has one permission message without a stray departure-check button',
+    (tester) async {
+      controller
+        ..package = null
+        ..active = null
+        ..error = 'Bạn không còn quyền với chuyến này';
+      await render(tester, denied: true);
+      await tester.pump();
+      expect(find.text('Bạn không còn quyền với chuyến này'), findsOneWidget);
+      expect(find.text('Kiểm tra khởi hành'), findsNothing);
+      expect(find.textContaining('Bỏ qua'), findsNothing);
+    },
+  );
+
+  for (final status in ['ongoing', 'completed', 'cancelled']) {
+    testWidgets('$status hides all departure reminders', (tester) async {
+      controller.policy = PackagePolicy({
+        'tripStatus': status,
+        'replaceAllowed': false,
+        'checkedAt': '2026-11-12T03:00:00Z',
+        'sourceFreshness': {'state': 'unknown'},
+        'publication': {'newerAvailable': false},
+      });
+      await render(tester);
+      expect(find.byType(DepartureStatusPanel), findsNothing);
+      expect(find.textContaining('Thông báo khởi hành chưa đọc'), findsNothing);
+      expect(find.text('Kiểm tra khởi hành'), findsNothing);
+    });
+  }
 
   testWidgets('sync summary shows status without download controls', (
     tester,
