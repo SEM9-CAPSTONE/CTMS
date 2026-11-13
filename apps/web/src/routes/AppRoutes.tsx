@@ -66,19 +66,9 @@ const AdminUserAccountsPage = lazy(() =>
 		default: module.AdminUserAccountsPage,
 	}))
 );
-const AdminWeatherInterventionsPage = lazy(() =>
-	import("../features/weather-decisions/pages/AdminWeatherInterventionsPage").then((module) => ({
-		default: module.AdminWeatherInterventionsPage,
-	}))
-);
-const AdminWeatherPenaltiesPage = lazy(() =>
-	import("../features/weather-penalties/pages/AdminWeatherPenaltiesPage").then((module) => ({
-		default: module.AdminWeatherPenaltiesPage,
-	}))
-);
-const AdminWeatherRulesPage = lazy(() =>
-	import("../features/admin-weather-rules/pages/AdminWeatherRulesPage").then((module) => ({
-		default: module.AdminWeatherRulesPage,
+const AdminWeatherManagementPage = lazy(() =>
+	import("../features/admin-weather/pages/AdminWeatherManagementPage").then((module) => ({
+		default: module.AdminWeatherManagementPage,
 	}))
 );
 const ForgotPasswordPage = lazy(() =>
@@ -170,6 +160,16 @@ const RoleLandingPage = lazy(() =>
 const AdminSettlementsPage = lazy(() =>
 	import("../features/settlements/pages/AdminSettlementsPage").then((module) => ({
 		default: module.AdminSettlementsPage,
+	}))
+);
+const AdminPerformanceReportsPage = lazy(() =>
+	import("../features/performance-reports/pages/AdminPerformanceReportsPage").then((module) => ({
+		default: module.AdminPerformanceReportsPage,
+	}))
+);
+const HostPerformanceReportsPage = lazy(() =>
+	import("../features/performance-reports/pages/PerformanceReportsPage").then((module) => ({
+		default: module.PerformanceReportsPage,
 	}))
 );
 const HostWalletPage = lazy(() =>
@@ -1143,10 +1143,11 @@ function AppRouteContent() {
 					fallback={unauthorizedFallback}
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
-					<AdminWeatherRulesPage onLogout={handleLogout} />
+					<AdminWeatherManagementPage onLogout={handleLogout} initialTab="rules" />
 				</AppRoleGuard>
 			);
 
+		case RoutePath.ADMIN_WEATHER:
 		case RoutePath.ADMIN_WEATHER_INTERVENTIONS:
 			return (
 				<AppRoleGuard
@@ -1155,7 +1156,7 @@ function AppRouteContent() {
 					fallback={unauthorizedFallback}
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
-					<AdminWeatherInterventionsPage onLogout={handleLogout} />
+					<AdminWeatherManagementPage onLogout={handleLogout} initialTab="interventions" />
 				</AppRoleGuard>
 			);
 		case RoutePath.ADMIN_WEATHER_PENALTIES:
@@ -1166,7 +1167,7 @@ function AppRouteContent() {
 					fallback={unauthorizedFallback}
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
-					<AdminWeatherPenaltiesPage onLogout={handleLogout} />
+					<AdminWeatherManagementPage onLogout={handleLogout} initialTab="penalties" />
 				</AppRoleGuard>
 			);
 
@@ -1191,6 +1192,30 @@ function AppRouteContent() {
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
 					<AdminSettlementsPage onLogout={handleLogout} />
+				</AppRoleGuard>
+			);
+
+		case RoutePath.ADMIN_PERFORMANCE_REPORTS:
+			return (
+				<AppRoleGuard
+					allowedRoles={["admin"]}
+					currentRoles={currentRoles}
+					fallback={unauthorizedFallback}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<AdminPerformanceReportsPage onLogout={handleLogout} />
+				</AppRoleGuard>
+			);
+
+		case RoutePath.HOST_PERFORMANCE_REPORTS:
+			return (
+				<AppRoleGuard
+					allowedRoles={["host"]}
+					currentRoles={currentRoles}
+					fallback={unauthorizedFallback}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<HostPerformanceReportsPage />
 				</AppRoleGuard>
 			);
 

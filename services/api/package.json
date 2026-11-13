@@ -23,6 +23,7 @@
 		"seed:dev-admin": "ts-node src/seeds/main.seed.ts --fresh",
 		"seed:dev-trips": "ts-node src/seeds/main.seed.ts --fresh",
 		"seed:settlements": "ts-node src/seeds/main.seed.ts --fresh",
+		"seed:performance-reports": "ts-node src/seeds/main.seed.ts --performance-reports-only",
 		"seed:bank-accounts": "ts-node -e \"import { seedUserBankAccounts } from './src/seeds/main.seed'; seedUserBankAccounts().then(() => process.exit(0));\"",
 		"seed:group-bookings": "ts-node -e \"import { seedHostGroupBookingsWithEquipment } from './src/seeds/main.seed'; seedHostGroupBookingsWithEquipment().then(() => process.exit(0));\""
 	},
@@ -55,6 +56,7 @@
 		"reflect-metadata": "^0.2.2",
 		"rxjs": "^7.8.1",
 		"socket.io": "^4.8.1",
+		"socket.io-client": "^4.8.1",
 		"twilio": "^6.0.2",
 		"typeorm": "^1.1.0"
 	},
@@ -75,7 +77,6 @@
 		"@typescript-eslint/parser": "^8.18.0",
 		"eslint": "^9.17.0",
 		"jest": "^29.7.0",
-		"socket.io-client": "^4.8.1",
 		"supertest": "^7.2.2",
 		"ts-jest": "^29.2.5",
 		"ts-loader": "^9.5.1",

@@ -1,6 +1,6 @@
 import { HttpError } from "../../../core/api";
 import type { StatusBadgeTone } from "../../../shared/components/StatusBadge";
-import type { WeatherAlertUrgency, WeatherDecision } from "../types";
+import type { TripWeatherDecision, WeatherAlertUrgency, WeatherDecision } from "../types";
 
 export const WEATHER_DECISION_LABELS: Record<WeatherDecision, string> = {
 	keep: "Giữ",
@@ -27,6 +27,38 @@ export const WEATHER_HOST_DEADLINE_MS = 24 * 60 * 60 * 1000;
 
 export function isPastHostDeadline(startsAt: string, now: Date = new Date()): boolean {
 	return new Date(startsAt).getTime() - now.getTime() <= WEATHER_HOST_DEADLINE_MS;
+}
+
+export const WEATHER_DECIDER_LABELS: Record<TripWeatherDecision["deciderRole"], string> = {
+	host: "Host",
+	admin: "Admin",
+	system: "Hệ thống",
+};
+
+/** T-6h: a Red Trip nobody decided for is cancelled by the system (leader decision 2026-11-12). */
+export const WEATHER_AUTO_CANCEL_MS = 6 * 60 * 60 * 1000;
+
+const FINAL_DECISIONS: ReadonlySet<WeatherDecision> = new Set<WeatherDecision>([
+	"keep",
+	"reschedule",
+	"cancel",
+	"resume",
+]);
+
+/** True once someone kept, rescheduled, cancelled or resumed the current schedule. */
+export function hasFinalWeatherDecision(
+	decisions: TripWeatherDecision[],
+	startsAt: string
+): boolean {
+	return decisions.some(
+		(entry) => entry.tripStartsAt === startsAt && FINAL_DECISIONS.has(entry.decision)
+	);
+}
+
+/** "Nếu chưa có quyết định, hệ thống sẽ tự huỷ Trip lúc …" for the Host card and Admin list. */
+export function weatherAutoCancelNotice(startsAt: string): string {
+	const at = new Date(new Date(startsAt).getTime() - WEATHER_AUTO_CANCEL_MS);
+	return `Nếu chưa có quyết định Giữ / Dời / Huỷ, hệ thống sẽ tự huỷ Trip lúc ${at.toLocaleString("vi-VN")} (6 giờ trước giờ đi) và hoàn 100% cho Camper.`;
 }
 
 /** Server messages of the CTMS-98 API mapped to the Vietnamese shown in the UI. */

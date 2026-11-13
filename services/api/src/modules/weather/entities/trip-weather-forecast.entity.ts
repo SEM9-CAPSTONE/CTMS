@@ -85,6 +85,37 @@ export class TripWeatherForecast {
 	@Column({ name: "advice_generated_at", type: "timestamptz", nullable: true })
 	adviceGeneratedAt!: Date | null;
 
+	/** Independent AI opinion on the same raw readings; never replaces `riskLevel`. */
+	@Column({
+		name: "ai_risk_level",
+		type: "enum",
+		enum: RiskLevel,
+		enumName: "weather_risk_level",
+		nullable: true,
+	})
+	aiRiskLevel!: RiskLevel | null;
+
+	@Column({ name: "ai_reason", type: "text", nullable: true })
+	aiReason!: string | null;
+
+	@Column({ name: "ai_confidence", type: "double precision", nullable: true })
+	aiConfidence!: number | null;
+
+	@Column({ name: "ai_model", type: "varchar", length: 200, nullable: true })
+	aiModel!: string | null;
+
+	@Column({ name: "ai_reviewed_at", type: "timestamptz", nullable: true })
+	aiReviewedAt!: Date | null;
+
+	@Column({ name: "ai_review_attempts", type: "smallint", default: 0 })
+	aiReviewAttempts!: number;
+
+	@Column({ name: "ai_review_acknowledged_at", type: "timestamptz", nullable: true })
+	aiReviewAcknowledgedAt!: Date | null;
+
+	@Column({ name: "ai_review_acknowledged_by", type: "uuid", nullable: true })
+	aiReviewAcknowledgedBy!: string | null;
+
 	@Column({ name: "created_by", type: "uuid" })
 	createdBy!: string;
 

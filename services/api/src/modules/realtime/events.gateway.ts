@@ -67,6 +67,14 @@ export enum RealtimeResumeError {
 	INVALID_CURSOR = "INVALID_CURSOR",
 }
 
+/** CTMS-100: event names used only by the real-time performance evaluation; never pushed. */
+export type RealtimeEvaluationProbeEvent = "evaluation.probe.sos" | "evaluation.probe.normal";
+
+/** CTMS-100, BR-265: answer to `realtime.ack`, stamped with the server clock. */
+export type RealtimeDeliveryAck =
+	| { ok: true; acknowledgedAt: string }
+	| { ok: false; error: "NOT_AUTHENTICATED" | "INVALID_EVENT_ID" };
+
 /** CTMS-082: answer to `realtime.resume`; only events the caller may receive now are returned. */
 export type RealtimeResumeAck =
 	| {
@@ -270,6 +278,22 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 		});
 		if (client.disconnected) return { ok: false, error: RealtimeResumeError.NOT_AUTHENTICATED };
 		return { ok: true, ...recovery };
+	}
+
+	/**
+	 * CTMS-100, BR-265: an authenticated client confirms it received an event. Only the event id is
+	 * read and nothing is stored here; the caller keeps the server time as `acknowledged_at`.
+	 */
+	@SubscribeMessage("realtime.ack")
+	acknowledgeDelivery(
+		@ConnectedSocket() client: Socket,
+		@MessageBody() body: { eventId?: unknown } | undefined
+	): RealtimeDeliveryAck {
+		if (!this.sessions.has(client.id)) return { ok: false, error: "NOT_AUTHENTICATED" };
+		if (typeof body?.eventId !== "string" || !UUID_PATTERN.test(body.eventId)) {
+			return { ok: false, error: "INVALID_EVENT_ID" };
+		}
+		return { ok: true, acknowledgedAt: new Date().toISOString() };
 	}
 
 	/**
@@ -574,6 +598,18 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 	/** CTMS-077 / CTMS-080: SOS state transition, routed only to the Trip Host and the SOS sender. */
 	emitSosStateChanged(hostId: string, payload: SosStateChangedPayload) {
 		this.publish("sos.state_changed", payload, { userIds: [hostId, payload.senderId] });
+	}
+
+	/**
+	 * CTMS-100: a synthetic event for the real-time evaluation, sent through the same store-then-emit
+	 * path as every protected event (SOS included) and only to the given evaluation accounts.
+	 */
+	emitEvaluationProbe(
+		name: RealtimeEvaluationProbeEvent,
+		userIds: string[],
+		payload: { probe: true; index: number }
+	) {
+		this.publish(name, payload, { userIds });
 	}
 
 	/**

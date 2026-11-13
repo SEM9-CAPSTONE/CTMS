@@ -107,7 +107,15 @@ Historical analysis must not reinterpret data using an unrelated package version
 
 ## 9. API / Integration Contract
 
-TBD — Technical Design.
+Admin only (authorized safety/audit user; `JwtAuthGuard` + `RolesGuard`, role `admin`), see §13:
+
+| Method | Path | Result |
+| --- | --- | --- |
+| POST | `/api/admin/route-deviation-analysis/trips/:tripId/run` | 200 analysis summary (replaces this Trip's episodes for the current analysis version); 404 unknown Trip; 409 Trip not completed; 422 bad id |
+| GET | `/api/admin/route-deviation-analysis/trips/:tripId` | `{ analysis, events }`; 404 when not analysed yet |
+| GET | `/api/admin/route-deviation-events?tripId=&routeId=&authoritative=&limit=` | Episodes newest first (default 50, max 200) |
+
+Background: `RouteDeviationAnalysisWorker` when `ROUTE_DEVIATION_ANALYSIS_WORKER_ENABLED=true` (`ROUTE_DEVIATION_ANALYSIS_INTERVAL_MS`, default 10 min; `ROUTE_DEVIATION_ANALYSIS_BATCH_SIZE`, default 20).
 
 ## 10. Error & Edge Cases
 
@@ -132,3 +140,56 @@ TBD — Technical Design.
 ## 12. Open Decisions
 
 Exact episode grouping algorithm must follow the mapped historical-analysis rules/configuration; no new numeric grouping threshold is introduced here.
+
+## 13. Implementation Record — Logic (Jira CTMS-433, [CTMS-115-T01])
+
+Branch `feat/CTMS-433-route-deviation-events-logic`. Module `services/api/src/modules/route-deviation-analysis`. Decisions A and B approved 2026-11-13.
+
+**Eligible evidence (AC1, BR-352, BR-362).** Only Trips with status `completed`. Each stored `gps_logs` row is checked with the same participation rule as live uploads (`gps-participant.ts` `participationRejection`): Camper JOINED/LEFT on a confirmed or completed Booking, from check-in to the end of the Trip window (or leaving); Porter assigned in `trip_porters`. Logs outside the window or of a user with no eligible role are excluded and counted per reason on the analysis row.
+
+**Replay (decision B, AC2–AC5).** Distance to the Trip's Route is computed in PostGIS (`ST_Distance` on geography, metres; position along the Route with `ST_LineLocatePoint`). Each participant's logs are replayed in time order by the pure function `replayRouteDeviation`, a mirror of the on-device detector (CTMS-312) using the shared constants in `safety-events.constants.ts`:
+- valid sample = accuracy ≤ 20 m; an invalid sample resets both counters;
+- OFF_ROUTE after 3 consecutive valid samples strictly farther than 50 m (the 20–50 m buffer resets the counter);
+- back ON_ROUTE after 3 consecutive valid samples strictly closer than 20 m;
+- no valid sample for ≥ 120 s resets both counters without changing the state.
+
+No new numeric threshold is introduced (§12). History only keeps the 30 s logs (the 10 s samples stay on the device), so 3 consecutive samples span about 90 s in the replay; deviations shorter than that may not appear. The runtime context (10 s sampling, 30 s logging, all thresholds, config `v3`) is stored on every analysis and episode.
+
+**RouteDeviationEvent (AC6, BR-353).** Table `route_deviation_events` (migration `1795600000000`), one row per episode, never one per log:
+- context: Trip, Route, route version (md5 of the Route geometry, stable because a Route used by a Trip cannot be edited), package version, user and participant role;
+- time: `started_at` (first off-route sample), `confirmed_at` (3rd), `ended_at` (first recovery sample, or the last sample when the evidence ended off route), `recovery_confirmed_at`, `end_reason` `RECOVERED` / `EVIDENCE_ENDED`;
+- summary: sample count, valid sample count, max and average distance, start point and max-distance point (geography, GiST index for CTMS-116 clustering), start position along the Route;
+- evidence: first and last `gps_logs` ids, ids of the device's own OFF_ROUTE / ON_ROUTE_RECOVERED `safety_events` within 120 s of the episode (cross-check only);
+- versions: `analysis_version` `v1-gps-log-replay`, `config_version`, runtime context.
+
+Raw `gps_logs` and `safety_events` are only read.
+
+**Package context (decision A, BR-360, BR-363).** Package version = the version on the episode's logs, else the Trip's offline package generated before departure. None → `authoritative = false` with `PACKAGE_VERSION_MISSING`; two versions in one episode → `PACKAGE_VERSION_INCONSISTENT`. A CHECK keeps `authoritative` equal to "no context issue". Episodes are still stored, so nothing is lost when the context becomes available.
+
+**Idempotency.** `route_deviation_trip_analyses` holds one row per (Trip, analysis version) with participants, samples total/used/excluded and episode count. A run locks the Trip row (`FOR UPDATE`; the worker uses `SKIP LOCKED`) and replaces that Trip's analysis and episodes in one transaction; `UNIQUE (analysis_version, start_gps_log_id)` guards against duplicates. A new analysis version re-analyses every Trip without mixing results (BR-421 for CTMS-116).
+
+**For CTMS-116 (AC6, BR-354).** Episodes are indexed by Route, route version and start time, with a GiST index on the start point, ready for the 30-day / same-Route / spatial clustering of CTMS-116, which should use `authoritative = true` episodes only.
+
+## 14. Test Evidence — CTMS-433
+
+- Unit `route-deviation-replay.spec.ts` (10): open on 3 × > 50 m and close on 3 × < 20 m; exactly 50 m and the buffer reset; accuracy 25 m / null invalid and exactly 20 m valid; invalid sample inside an episode resets recovery; exactly 20 m does not recover; 120 s gap resets, 119 s does not; evidence ending off route; two episodes; package context (log version, offline package, missing, inconsistent). `route-deviation-analysis.worker.spec.ts` (2).
+- Integration `test/route-deviation-analysis.integration-spec.ts` (3, real PostGIS): a completed Trip with a Camper and an assigned Porter gives 2 episodes with the right start log, counts, distances, route version, device event link and package context (Camper non-authoritative, Porter with package 5 authoritative); logs before check-in excluded (3); raw logs untouched; re-run gives the same episodes without duplicates; an ongoing Trip gives 409 and is never queued; an empty completed Trip is analysed with 0 episodes and leaves the queue; 404 / 422 / filter validation; Host 403; anonymous 401.
+- GPS, safety-events, schedule-progress, member-locations, route-safety and offline-package suites pass. Failing on this machine and unrelated: `trekking-route-checkpoints` (2, pre-existing since 2026-11-03) and `route-recovery` (all tests: its own DB connection fails with "SASL: client password must be a string", an environment setting, before any code runs).
+- API jest 211 suites, 2 519 tests passed. `lint:all` 0 errors. `build:all` passes. Backend only, no UI.
+
+### DoD — CTMS-433
+
+- [x] Logic implementation completed
+- [x] Applicable business rules/invariants implemented (BR-352, BR-353, BR-360, BR-362, BR-363, BR-368)
+- [x] Task-specific unit tests added and passed
+- [x] Applicable backend/integration tests passed (unrelated failures noted above)
+- [x] Story Acceptance Criteria AC1–AC6 covered by tests
+- [x] Unit regression tests passed
+- [ ] Applicable E2E: none, backend only
+- [x] lint:all passed
+- [x] build:all passed
+- [ ] Required CI checks: after the PR is opened
+
+### Pending Decision
+
+- The mobile app does not send `packageVersion` on `gps_logs` / `safety_events` yet, so on current data almost every episode is non-authoritative (`PACKAGE_VERSION_MISSING`) unless the Trip has an offline package. Either the mobile app sends the package version, or the leader accepts the Route geometry md5 as a substitute context; then re-run the analysis (idempotent).

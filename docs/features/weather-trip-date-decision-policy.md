@@ -81,8 +81,8 @@ Hệ thống cảnh báo Admin khi dự báo vẫn **Đỏ** và rơi vào một
 
 Khi Admin đã quyết định cho lịch hiện tại của Trip, Host không quyết định thêm nữa. Host quyết định sau mốc T-24h vẫn được nhận nhưng được ghi là **trễ hạn** (căn cứ cho mục 6).
 
-### 5.4 Hệ thống không tự huỷ, Admin là người quyết định cuối
-Hệ thống **không bao giờ tự huỷ hay tự dời Trip**. Nếu sau T-24h dự báo vẫn Đỏ mà chưa có quyết định, hệ thống **nhắc Admin lặp lại với mức khẩn tăng dần** cho đến khi Admin xử lý:
+### 5.4 Admin quyết định, hệ thống tự huỷ ở T-6h nếu vẫn chưa ai quyết định
+Nếu sau T-24h dự báo vẫn Đỏ mà chưa có quyết định, hệ thống **nhắc Admin lặp lại với mức khẩn tăng dần**:
 
 | Mốc | Thông báo cho Admin |
 | --- | --- |
@@ -90,8 +90,16 @@ Hệ thống **không bao giờ tự huỷ hay tự dời Trip**. Nếu sau T-24
 | T-12h | Nhắc lại, đánh dấu **khẩn** |
 | T-6h | Nhắc lại, **khẩn cấp**, hiện ở đầu dashboard Admin cho đến khi được xử lý |
 
+**Tự huỷ ở T-6h** (leader chốt ngày 12/11/2026, thay cho quy định cũ "hệ thống không bao giờ tự huỷ"):
+- Hệ thống tự huỷ Trip khi **đủ cả bốn điều kiện**: Trip đang mở bán; còn ≤ 6 giờ tới giờ đi; dự báo mới nhất **Đỏ theo ngưỡng** (ý kiến AI không tính); chưa ai chốt **Giữ / Dời / Huỷ / Mở lại** cho lịch hiện tại. Trip chỉ đang **Tạm dừng** vẫn bị huỷ.
+- Camper được **hoàn 100%** như huỷ vì thời tiết (mục 5.2). Khoản hoàn được tạo ở trạng thái chờ trong hàng đợi hoàn tiền của Admin, hệ thống không tự chuyển tiền.
+- Host bị phạt theo mục 6 nếu chưa phản hồi trước T-24h. Lịch đã bị phạt khi Admin can thiệp (ví dụ tạm dừng) thì không bị phạt thêm.
+- Nhật ký ghi người quyết định là **"Hệ thống"**. Host và mọi Admin nhận thông báo "Trip đã bị hệ thống tự huỷ".
+- Thẻ quyết định của Host và danh sách "Cần xử lý" của Admin báo trước giờ tự huỷ.
+- Tắt được bằng biến môi trường `TRIP_WEATHER_AUTO_CANCEL_ENABLED=false`.
+
 - Thông báo gửi qua web (realtime), email và hiện trong danh sách "Cần xử lý" của Admin.
-- Khi Admin hoặc Host đã quyết định thì hệ thống ngừng nhắc.
+- Khi Admin hoặc Host đã quyết định thì hệ thống ngừng nhắc và không tự huỷ.
 - Mọi quyết định của Admin đều phải ghi lý do và được lưu lại. Host bị phạt theo mục 6, vì Admin đã phải can thiệp.
 
 ```
@@ -99,7 +107,8 @@ Dự báo Đỏ ──T-48h──► Nhắc Host ──T-24h──► Host quy�
                                             ├─ Huỷ/Dời ──► Hoàn tiền / dời lịch (không phạt)
                                             ├─ Giữ ──────► Báo Admin ──► Admin giữ nguyên / huỷ
                                             └─ Không phản hồi ──► Báo Admin (T-24h, T-12h, T-6h…)
-                                                                   └─ Admin quyết định Giữ / Dời / Huỷ + phạt Host
+                                                                   ├─ Admin quyết định Giữ / Dời / Huỷ + phạt Host
+                                                                   └─ Vẫn chưa ai quyết định ở T-6h ──► Hệ thống tự huỷ + hoàn 100% + phạt Host
 ```
 
 ## 6. Phạt Host không phản hồi

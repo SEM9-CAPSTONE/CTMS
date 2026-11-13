@@ -1,53 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { queryKeys } from "../../../core/api";
 import { RoleLandingPage } from "../../role-landing/pages/RoleLandingPage";
 import { adminModerationService } from "../services/admin-moderation.service";
 import { AdminLayout } from "./AdminLayout";
-
-vi.mock("../services/admin-moderation.service", () => ({
-	adminModerationService: { getCounts: vi.fn() },
-}));
-
-vi.mock("../../weather/components/WeatherChangeNotices", () => ({
-	WeatherChangeNotices: () => null,
-}));
-
-vi.mock("../../booking-cancellation/components/BookingCancellationNotices", () => ({
-	BookingCancellationNotices: () => null,
-}));
-
-vi.mock("../../../shared/components/HomeLink", () => ({
-	HomeLink: ({ children, className }: { children: React.ReactNode; className?: string }) => (
-		<a href="/" className={className}>
-			{children}
-		</a>
-	),
-}));
-
-vi.mock("../../auth/utils/tokenStorage", () => ({
-	getStoredAuthUser: vi.fn(() => ({
-		id: "admin-1",
-		fullName: "Quản trị viên hệ thống",
-		email: "admin@ctms.local",
-		phone: "0900000000",
-		role: "admin",
-	})),
-}));
-
-vi.mock("../../camper-profile/services/camper-profile.service", () => ({
-	camperProfileService: {
-		getProfile: vi.fn().mockResolvedValue({
-			id: "admin-1",
-			fullName: "Quản trị viên hệ thống",
-			email: "admin@ctms.local",
-			phone: "0900000000",
-			avatarUrl: "https://example.com/admin.png",
-		}),
-	},
-}));
 
 describe("AdminLayout", () => {
 	beforeEach(() => {
@@ -207,5 +165,19 @@ describe("AdminLayout", () => {
 			"true"
 		);
 		expect(screen.getByRole("link", { name: "Duyệt chuyến đi" })).toBeVisible();
+	});
+
+	it("directs to /admin/reports/performance when clicking Quản trị CTMS branding", async () => {
+		render(
+			<AdminLayout activeItem="user-accounts">
+				<div>Admin Content</div>
+			</AdminLayout>
+		);
+
+		const brandLink = screen.getByRole("link", { name: "Về trang Báo cáo hiệu suất" });
+		expect(brandLink).toHaveAttribute("href", "/admin/reports/performance");
+
+		fireEvent.click(brandLink);
+		expect(window.location.pathname).toBe("/admin/reports/performance");
 	});
 });

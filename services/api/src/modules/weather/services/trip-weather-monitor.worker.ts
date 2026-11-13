@@ -3,9 +3,12 @@ import {
 	Logger,
 	type OnApplicationBootstrap,
 	type OnApplicationShutdown,
+	Optional,
 } from "@nestjs/common";
 // biome-ignore lint/style/useImportType: NestJS constructor injection requires runtime metadata
 import { ConfigService } from "@nestjs/config";
+// biome-ignore lint/style/useImportType: NestJS constructor injection requires runtime metadata
+import { TripWeatherAiReviewService } from "./trip-weather-ai-review.service";
 // biome-ignore lint/style/useImportType: NestJS constructor injection requires runtime metadata
 import { TripWeatherMonitorService } from "./trip-weather-monitor.service";
 
@@ -18,7 +21,7 @@ interface UnrefTimer {
 }
 
 /**
- * Runs `TripWeatherMonitorService` on an interval when `TRIP_WEATHER_MONITOR_WORKER_ENABLED=true`.
+ * Runs `TripWeatherMonitorService` (then the hybrid AI review of new forecasts) on an interval when `TRIP_WEATHER_MONITOR_WORKER_ENABLED=true`.
  * Each tick only re-forecasts the Trips that are due, so a short interval does not mean frequent
  * provider calls. History trimming runs at most once a day.
  */
@@ -32,7 +35,8 @@ export class TripWeatherMonitorWorker implements OnApplicationBootstrap, OnAppli
 
 	constructor(
 		private readonly configService: ConfigService,
-		private readonly monitor: TripWeatherMonitorService
+		private readonly monitor: TripWeatherMonitorService,
+		@Optional() private readonly aiReview?: TripWeatherAiReviewService
 	) {}
 
 	onApplicationBootstrap(): void {
@@ -72,6 +76,11 @@ export class TripWeatherMonitorWorker implements OnApplicationBootstrap, OnAppli
 
 	private async tick(batchSize: number, now: Date): Promise<void> {
 		await this.monitor.checkDueTrips(batchSize, now);
+		// Hybrid risk: new forecasts get an independent AI opinion. Never blocks the monitor itself.
+		await this.aiReview?.reviewPending(now).catch((error: unknown) => {
+			const message = error instanceof Error ? error.message : "Unknown AI review error";
+			this.logger.warn(`AI weather review pass failed: ${message}`);
+		});
 		if (this.lastCleanupAt === null || now.getTime() - this.lastCleanupAt >= CLEANUP_EVERY_MS) {
 			this.lastCleanupAt = now.getTime();
 			await this.monitor.trimEndedTripHistory(now);

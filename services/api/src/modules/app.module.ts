@@ -20,12 +20,16 @@ import { MemberLocationsModule } from "./member-locations/member-locations.modul
 import { OfflinePackageDownloadModule } from "./offline-package-download/offline-package-download.module";
 import { OfflinePackagesModule } from "./offline-packages/offline-packages.module";
 import { OverbookingEvaluationModule } from "./overbooking-evaluation/overbooking-evaluation.module";
+import { PerformanceReportsModule } from "./performance-reports/performance-reports.module";
 import { PorterLevelsModule } from "./porter-levels/porter-levels.module";
 import { ProfilesModule } from "./profiles/profiles.module";
+import { RealtimeEvaluationModule } from "./realtime-evaluation/realtime-evaluation.module";
 import { RealtimeModule } from "./realtime/realtime.module";
 import { ReviewAnalysisModule } from "./review-analysis/review-analysis.module";
+import { RouteDeviationAnalysisModule } from "./route-deviation-analysis/route-deviation-analysis.module";
 import { RouteSafetyModule } from "./route-safety/route-safety.module";
 import { SafetyEventsModule } from "./safety-events/safety-events.module";
+import { SafetyHotspotsModule } from "./safety-hotspots/safety-hotspots.module";
 import { ScheduleProgressModule } from "./schedule-progress/schedule-progress.module";
 import { SosModule } from "./sos/sos.module";
 import { SurvivalDocumentsModule } from "./survival-documents/survival-documents.module";
@@ -36,6 +40,7 @@ import { TripReviewsModule } from "./trip-reviews/trip-reviews.module";
 import { TripsModule } from "./trips/trips.module";
 import { UploadsModule } from "./uploads/uploads.module";
 import { UsersModule } from "./users/users.module";
+import { WeatherRiskEvaluationModule } from "./weather-risk-evaluation/weather-risk-evaluation.module";
 import { WeatherModule } from "./weather/weather.module";
 
 @Module({
@@ -67,6 +72,11 @@ import { WeatherModule } from "./weather/weather.module";
 		MemberLocationsModule,
 		SosModule,
 		OverbookingEvaluationModule,
+		WeatherRiskEvaluationModule,
+		RealtimeEvaluationModule,
+		RouteDeviationAnalysisModule,
+		SafetyHotspotsModule,
+		PerformanceReportsModule,
 		SyncEvaluationModule,
 		UsersModule,
 		TrekkingRoutesModule,

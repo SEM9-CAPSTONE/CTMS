@@ -67,3 +67,6 @@ artifacts/osm-offline/
 
 # CTMS-316 local verification evidence and tooling
 /artifacts/ctms316-*
+
+# CTMS-305 local validation artifacts
+/artifacts/ctms305-*

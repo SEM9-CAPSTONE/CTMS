@@ -8,7 +8,8 @@ export type WeatherAlertMilestone =
 	| "admin_t24"
 	| "admin_t12"
 	| "admin_t6"
-	| "admin_kept";
+	| "admin_kept"
+	| "auto_cancelled";
 export type WeatherAlertUrgency = "normal" | "urgent" | "critical";
 
 export interface TripWeatherDecision {
@@ -18,7 +19,8 @@ export interface TripWeatherDecision {
 	riskLevel: WeatherRiskLevel | null;
 	decidedBy: string | null;
 	deciderName: string | null;
-	deciderRole: "host" | "admin";
+	/** `system`: the T-6h auto-cancel, with no person behind it (`decidedBy` is null). */
+	deciderRole: "host" | "admin" | "system";
 	decision: WeatherDecision;
 	reason: string;
 	safetyPlan: string | null;

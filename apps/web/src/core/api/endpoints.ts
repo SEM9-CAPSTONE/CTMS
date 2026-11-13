@@ -177,6 +177,9 @@ export const API_ENDPOINTS = {
 		DECISION_ALERTS: "/me/weather-decision-alerts",
 		READ_DECISION_ALERT: (alertId: string) => `/me/weather-decision-alerts/${alertId}/read`,
 		ADMIN_INTERVENTIONS: "/admin/weather-interventions",
+		ADMIN_AI_MISMATCHES: "/admin/weather/ai-mismatches",
+		ADMIN_AI_MISMATCH_ACKNOWLEDGE: (forecastId: string) =>
+			`/admin/weather/ai-mismatches/${forecastId}/acknowledge`,
 		RESCHEDULE_RESPONSE: (bookingId: string) =>
 			`/bookings/${bookingId}/weather-reschedule-response`,
 		MY_PENALTIES: "/me/weather-penalties",
@@ -280,5 +283,8 @@ export const API_ENDPOINTS = {
 	},
 	DEVICE_SYNC: {
 		STATUS: (tripId: string) => `/trips/${tripId}/device-sync/status`,
+	},
+	REPORTS: {
+		PERFORMANCE: "/reports/performance",
 	},
 } as const;

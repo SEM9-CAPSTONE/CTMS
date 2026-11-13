@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { RoutePath } from "../../../routes/routes.config";
 import { type SidebarControls, SidebarFrame } from "../../../shared/components/SidebarFrame";
 import { LogoutActions } from "../../auth/components/LogoutActions";
 import { BookingCancellationNotices } from "../../booking-cancellation/components/BookingCancellationNotices";
@@ -29,6 +30,7 @@ export function AdminSidebar({
 	return (
 		<SidebarFrame
 			title="Quản trị CTMS"
+			brandLink={{ href: RoutePath.ADMIN_PERFORMANCE_REPORTS, label: "Về trang Báo cáo hiệu suất" }}
 			collapsed={collapsed}
 			onToggle={onToggle}
 			onClose={onClose}

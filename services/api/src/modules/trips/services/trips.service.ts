@@ -87,6 +87,8 @@ export interface TripScheduleChangeOptions {
 	auditReason?: string;
 	/** Runs inside the same transaction after the change, e.g. to record the decision. */
 	withinTransaction?: (manager: EntityManager, updated: TripResponseDto) => Promise<void>;
+	/** Actor written to the cancel audit entry; `null` when the system cancels on its own. */
+	auditActorId?: string | null;
 }
 
 @Injectable()
@@ -1173,7 +1175,7 @@ export class TripsService {
 			if (!updated) throw new Error("Failed to load cancelled Trip");
 
 			await manager.getRepository(AuditLog).save({
-				actorId: hostId,
+				actorId: options.auditActorId === undefined ? hostId : options.auditActorId,
 				action: "trip.cancelled",
 				targetType: "trip",
 				targetId: tripId,

@@ -51,26 +51,26 @@ export function AdminWeatherDecisionDialog({
 					<StatusBadge tone={WEATHER_URGENCY_TONES[intervention.urgency]}>
 						{WEATHER_URGENCY_LABELS[intervention.urgency]}
 					</StatusBadge>
-					<StatusBadge tone="danger">Dự báo Đỏ</StatusBadge>
+					<StatusBadge tone="danger">Thời tiết xấu (Đỏ)</StatusBadge>
 					{paused && <StatusBadge tone="warning">Đang tạm dừng</StatusBadge>}
 				</div>
 				{intervention.reason === "host_kept" ? (
 					<div className="rounded-2xl border border-[#edf3ed] bg-[#fbfdfb] p-3 text-xs">
-						<p className="font-extrabold">Host chọn Giữ</p>
+						<p className="font-extrabold">Host muốn giữ chuyến</p>
 						<p className="mt-1 whitespace-pre-wrap">Lý do: {intervention.hostDecisionReason}</p>
 						<p className="mt-1 whitespace-pre-wrap">
-							Phương án an toàn: {intervention.hostSafetyPlan}
+							Cách đảm bảo an toàn: {intervention.hostSafetyPlan}
 						</p>
 					</div>
 				) : (
 					<p className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold text-amber-900">
-						Host chưa phản hồi trước mốc 24 giờ trước giờ đi.
+						Đã quá 24 tiếng trước giờ đi mà Host chưa trả lời. Bạn cần quyết định thay Host.
 					</p>
 				)}
 				{recorded && (
 					<output className="flex items-start gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-xs font-extrabold text-emerald-800">
 						<CheckCircle2 className="size-4 shrink-0" />
-						Đã ghi nhận quyết định: {WEATHER_DECISION_LABELS[recorded]}.
+						Đã lưu quyết định: {WEATHER_DECISION_LABELS[recorded]}.
 					</output>
 				)}
 				{!recorded || recorded === "pause" || recorded === "resume" ? (
@@ -85,9 +85,9 @@ export function AdminWeatherDecisionDialog({
 					/>
 				) : null}
 				<div>
-					<p className="mb-2 text-xs font-extrabold">Nhật ký quyết định</p>
+					<p className="mb-2 text-xs font-extrabold">Các quyết định trước đó</p>
 					{log.isError && <p className="text-xs">{weatherDecisionErrorMessage(log.error)}</p>}
-					{log.isPending && <p className="text-xs">Đang tải nhật ký...</p>}
+					{log.isPending && <p className="text-xs">Đang tải...</p>}
 					{log.data && <WeatherDecisionLog decisions={log.data.decisions} />}
 				</div>
 			</div>
