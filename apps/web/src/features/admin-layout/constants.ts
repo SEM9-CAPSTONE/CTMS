@@ -1,5 +1,6 @@
 import {
 	BadgeCheck,
+	BarChart3,
 	BookOpen,
 	CloudLightning,
 	Coins,
@@ -10,11 +11,8 @@ import {
 	LayoutDashboard,
 	type LucideIcon,
 	MessageSquareText,
-	ReceiptText,
 	Route,
-	Scale,
 	Settings,
-	ShieldAlert,
 	ShieldCheck,
 	Users,
 } from "lucide-react";
@@ -27,6 +25,11 @@ export const ADMIN_MODERATION_STALE_MS = 15_000;
 
 const items = {
 	dashboard: { label: "Tổng quan", icon: LayoutDashboard, path: RoutePath.DASHBOARD },
+	"performance-reports": {
+		label: "Báo cáo hiệu suất",
+		icon: BarChart3,
+		path: RoutePath.ADMIN_PERFORMANCE_REPORTS,
+	},
 	"trip-review": {
 		label: "Duyệt chuyến đi",
 		icon: Compass,
@@ -57,27 +60,16 @@ const items = {
 		icon: BadgeCheck,
 		path: RoutePath.ADMIN_PORTER_LEVELS,
 	},
-	settlements: { label: "Quyết toán & Ví Host", icon: Landmark, path: RoutePath.ADMIN_SETTLEMENTS },
-	refunds: { label: "Quản lý hoàn tiền", icon: ReceiptText, path: RoutePath.ADMIN_REFUNDS },
+	settlements: { label: "Quản lý tài chính", icon: Landmark, path: RoutePath.ADMIN_SETTLEMENTS },
 	"survival-documents": {
 		label: "Tài liệu sinh tồn",
 		icon: BookOpen,
 		path: RoutePath.ADMIN_SURVIVAL_DOCUMENTS,
 	},
-	"weather-rules": {
-		label: "Cấu hình rủi ro thời tiết",
-		icon: ShieldAlert,
-		path: RoutePath.ADMIN_WEATHER_RULES,
-	},
-	"weather-interventions": {
-		label: "Can thiệp thời tiết",
+	"weather-management": {
+		label: "Quản lý thời tiết",
 		icon: CloudLightning,
-		path: RoutePath.ADMIN_WEATHER_INTERVENTIONS,
-	},
-	"weather-penalties": {
-		label: "Phạt thời tiết",
-		icon: Scale,
-		path: RoutePath.ADMIN_WEATHER_PENALTIES,
+		path: RoutePath.ADMIN_WEATHER,
 	},
 	"review-analysis": {
 		label: "Phân tích đánh giá AI",
@@ -96,6 +88,7 @@ export interface AdminNavLinkConfig {
 
 export type AdminNavigationItem = keyof typeof items;
 export const ADMIN_NAV_ITEMS: Record<AdminNavigationItem, AdminNavLinkConfig> = items;
+export const ADMIN_NAV_TOP_LEVEL = ["dashboard", "performance-reports"] as const;
 
 export const ADMIN_NAV_GROUPS = [
 	{
@@ -105,19 +98,12 @@ export const ADMIN_NAV_GROUPS = [
 		items: ["trip-review", "route-review", "porter-verifications", "content-reports"],
 	},
 	{ key: "users", label: "Người dùng", icon: Users, items: ["user-accounts", "porter-levels"] },
-	{ key: "finance", label: "Tài chính", icon: Coins, items: ["settlements", "refunds"] },
+	{ key: "finance", label: "Tài chính", icon: Coins, items: ["settlements"] },
 	{
 		key: "system",
 		label: "Hệ thống",
 		icon: Settings,
-		items: [
-			"survival-documents",
-			"weather-rules",
-			"weather-interventions",
-			"weather-penalties",
-			"review-analysis",
-			"audit-logs",
-		],
+		items: ["survival-documents", "weather-management", "review-analysis", "audit-logs"],
 	},
 ] as const satisfies ReadonlyArray<{
 	key: string;

@@ -1,6 +1,6 @@
 import { ChevronDown, ChevronLeft, ChevronRight, CircleUserRound, X } from "lucide-react";
 import { type ReactNode, useId, useState } from "react";
-import { HomeLink } from "./HomeLink";
+import { HomeLink, type HomeLinkProps } from "./HomeLink";
 import { SidebarPopover } from "./SidebarPopover";
 
 export interface SidebarControls {
@@ -20,6 +20,7 @@ interface SidebarAccount {
 
 interface SidebarFrameProps extends Partial<SidebarControls> {
 	title: string;
+	brandLink?: Pick<HomeLinkProps, "href" | "label">;
 	children: ReactNode;
 	account: SidebarAccount;
 	notices?: ReactNode;
@@ -86,6 +87,7 @@ function SidebarAccountMenu({
 
 export function SidebarFrame({
 	title,
+	brandLink,
 	collapsed = false,
 	onToggle,
 	onClose,
@@ -101,7 +103,11 @@ export function SidebarFrame({
 			className={`sidebar-surface ${collapsed ? "w-[4.5rem]" : "w-72 max-w-[calc(100vw-2.5rem)]"}`}
 		>
 			<div className={`sidebar-header ${collapsed ? "justify-center px-2" : ""}`}>
-				<HomeLink className={`sidebar-brand ${collapsed ? "justify-center" : "flex-1"}`}>
+				<HomeLink
+					{...brandLink}
+					className={`sidebar-brand ${collapsed ? "justify-center" : "flex-1"}`}
+					onNavigate={onClose}
+				>
 					<img src="/ctms_logo.png" alt="" className="size-9 shrink-0 scale-150 object-contain" />
 					{!collapsed && <span className="sidebar-brand-title">{title}</span>}
 				</HomeLink>

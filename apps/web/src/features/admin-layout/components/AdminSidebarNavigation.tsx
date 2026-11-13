@@ -5,6 +5,7 @@ import { SidebarPopover } from "../../../shared/components/SidebarPopover";
 import {
 	ADMIN_NAV_GROUPS,
 	ADMIN_NAV_ITEMS,
+	ADMIN_NAV_TOP_LEVEL,
 	type AdminNavGroup,
 	type AdminNavigationItem,
 } from "../constants";
@@ -38,14 +39,21 @@ interface NavLinkProps {
 	activeItem: AdminNavigationItem;
 	counts?: AdminModerationCounts;
 	iconOnly?: boolean;
+	isChild?: boolean;
 	onNavigate?: () => void;
 }
 
-function AdminNavLink({ itemKey, activeItem, counts, iconOnly, onNavigate }: NavLinkProps) {
+function AdminNavLink({
+	itemKey,
+	activeItem,
+	counts,
+	iconOnly,
+	isChild,
+	onNavigate,
+}: NavLinkProps) {
 	const { icon: Icon, label, path, countKey } = ADMIN_NAV_ITEMS[itemKey];
 	const count = countKey ? (counts?.[countKey] ?? 0) : 0;
 	const isActive = activeItem === itemKey;
-	const isChild = itemKey !== "dashboard";
 
 	const navigate = (event: MouseEvent<HTMLAnchorElement>) => {
 		if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
@@ -102,6 +110,7 @@ export function AdminSidebarNavigation({
 				itemKey={key}
 				activeItem={activeItem}
 				counts={counts}
+				isChild
 				onNavigate={() => {
 					closeFlyout?.();
 					onNavigate?.();
@@ -112,12 +121,15 @@ export function AdminSidebarNavigation({
 	return (
 		<nav aria-label="Điều hướng quản trị" className={`sidebar-menu ${collapsed ? "px-2" : ""}`}>
 			{!collapsed && <p className="sidebar-nav-label">Menu chính</p>}
-			<AdminNavLink
-				itemKey="dashboard"
-				activeItem={activeItem}
-				iconOnly={collapsed}
-				onNavigate={onNavigate}
-			/>
+			{ADMIN_NAV_TOP_LEVEL.map((itemKey) => (
+				<AdminNavLink
+					key={itemKey}
+					itemKey={itemKey}
+					activeItem={activeItem}
+					iconOnly={collapsed}
+					onNavigate={onNavigate}
+				/>
+			))}
 			{ADMIN_NAV_GROUPS.map((group) => {
 				const Icon = group.icon;
 				const selected = activeGroup?.key === group.key;
