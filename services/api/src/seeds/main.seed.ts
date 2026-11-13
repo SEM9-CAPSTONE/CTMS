@@ -42,6 +42,7 @@ import { readVerifiedPackageRoute } from "../modules/offline-packages/package-ro
 import { CheckpointType } from "../modules/trekking-routes/entities/checkpoint.entity";
 import { WaypointType } from "../modules/trips/entities/trip-waypoint.entity";
 import { TripStatus, TripType } from "../modules/trips/entities/trip.entity";
+import { AUTO_CANCEL_WEATHER_REASON } from "../modules/trips/weather-decisions/trip-weather-decision.service";
 
 const BCRYPT_COST_FACTOR = 10;
 export const DEMO_SYNC_TRIP_ID = "a1736fee-62be-4991-9478-a62288e9b80a";
@@ -6692,6 +6693,15 @@ const WEATHER_DEMO_HOSTS: SeedAccount[] = [
 		role: "host",
 		fullName: "Host Bị Đình Chỉ",
 	},
+	{
+		// Owns the T-6h auto-cancel demos, so a live auto-cancel penalises this Host, not host@.
+		label: "host.autocancel",
+		email: "host.autocancel@ctms.local",
+		phone: "0900000093",
+		password: "Host@123",
+		role: "host",
+		fullName: "Host Demo Tự Huỷ Thời Tiết",
+	},
 ];
 
 type DemoRisk = "green" | "yellow" | "red";
@@ -6822,6 +6832,7 @@ export async function seedWeatherOperationsDemo(): Promise<void> {
 	const camperId = await userId("camper@ctms.local");
 	const blockedHostId = await userId("host.blocked@ctms.local");
 	const suspendedHostId = await userId("host.suspended@ctms.local");
+	const autoCancelHostId = await userId("host.autocancel@ctms.local");
 
 	const ruleRows: Array<{ id: string }> = await dataSource.query(
 		'SELECT "id" FROM "weather_risk_rules" ORDER BY "is_active" DESC, "created_at" DESC LIMIT 1'
@@ -7213,6 +7224,93 @@ export async function seedWeatherOperationsDemo(): Promise<void> {
 		4
 	);
 
+	// 8. T-6h auto-cancel (policy §5.4), all on host.autocancel@ctms.local.
+	// 8a. Red, 10 h ahead, Host never answered: Admin "Cần xử lý" at the urgent (T-12h) level.
+	const urgent = await createTrip({
+		title: "[Demo thời tiết] Sơn Trà Tây (còn 10 giờ, Khẩn)",
+		host: autoCancelHostId,
+		startsInHours: 10,
+	});
+	const urgentRed = await addForecast(urgent, "red", 20);
+	await bookCamper(urgent);
+	await addAlert(autoCancelHostId, urgent, urgentRed, "host_t48", "normal", 38);
+	await addAlert(adminId, urgent, urgentRed, "admin_t24", "normal", 14);
+	await addAlert(adminId, urgent, urgentRed, "admin_t12", "urgent", 2);
+
+	// 8b. Red, 6.5 h ahead, still undecided: the cards show the auto-cancel time; with
+	// TRIP_WEATHER_DECISION_WORKER_ENABLED=true the system cancels it about 30 minutes after seeding.
+	const soon = await createTrip({
+		title: "[Demo thời tiết] Bà Nà Núi Chúa (còn 6,5 giờ, sắp tự huỷ)",
+		host: autoCancelHostId,
+		startsInHours: 6.5,
+		price: 1_500_000,
+	});
+	const soonRed = await addForecast(soon, "red", 18);
+	await bookCamper(soon, { amount: 1_500_000 });
+	await addAlert(autoCancelHostId, soon, soonRed, "host_t48", "normal", 41.5);
+	await addAlert(adminId, soon, soonRed, "admin_t24", "normal", 17.5);
+	await addAlert(adminId, soon, soonRed, "admin_t12", "urgent", 5.5);
+
+	// 8c. Already cancelled by the system at T-6h: "Hệ thống" in the decision log, notices to the
+	// Host and Admin, a pending 100% refund and the Host's first penalty.
+	const autoCancelled = await createTrip({
+		title: "[Demo thời tiết] Tiên Sa (hệ thống đã tự huỷ T-6h)",
+		host: autoCancelHostId,
+		startsInHours: 3,
+		status: "cancelled",
+		price: 1_500_000,
+	});
+	const cancelledRed = await addForecast(autoCancelled, "red", 20);
+	const cancelledBooking = await bookCamper(autoCancelled, { amount: 1_500_000 });
+	await dataSource.query(
+		`UPDATE "trips" SET "cancelled_at" = $2, "cancellation_reason" = $3, "seats_taken" = 0 WHERE "id" = $1`,
+		[autoCancelled.id, at(-3), `Huỷ vì thời tiết: ${AUTO_CANCEL_WEATHER_REASON}`]
+	);
+	await dataSource.query(`UPDATE "bookings" SET "status" = 'cancelled' WHERE "id" = $1`, [
+		cancelledBooking,
+	]);
+	await dataSource.query(
+		`INSERT INTO "payments" (booking_id, amount, type, status, idempotency_key, request_fingerprint, parent_payment_id)
+		 SELECT $1, 1500000, 'refund', 'pending', $2, $3, charge."id"
+		 FROM "payments" charge WHERE charge."booking_id" = $1 AND charge."type" = 'charge' LIMIT 1`,
+		[
+			cancelledBooking,
+			`ctms-027:trip-cancel:${autoCancelled.id}:booking:${cancelledBooking}`,
+			`weather-auto-cancel-${cancelledBooking}`.slice(0, 64),
+		]
+	);
+	const systemDecision: Array<{ id: string }> = await dataSource.query(
+		`INSERT INTO "trip_weather_decisions" (
+			trip_id, forecast_id, risk_level, decided_by, decider_role, decision, reason, late, trip_starts_at, created_at
+		) VALUES ($1, $2, 'red', NULL, 'system', 'cancel', $3, false, $4, $5) RETURNING "id"`,
+		[autoCancelled.id, cancelledRed, AUTO_CANCEL_WEATHER_REASON, autoCancelled.startsAt, at(-3)]
+	);
+	await dataSource.query(
+		`INSERT INTO "audit_logs" ("actor_id", "action", "target_type", "target_id", "before", "after", "reason", "created_at")
+		 VALUES (NULL, 'trip.cancelled', 'trip', $1, NULL, NULL, $2, $3)`,
+		[autoCancelled.id, `Huỷ vì thời tiết: ${AUTO_CANCEL_WEATHER_REASON}`, at(-3)]
+	);
+	await addAlert(autoCancelHostId, autoCancelled, cancelledRed, "host_t48", "normal", 45);
+	await addAlert(adminId, autoCancelled, cancelledRed, "admin_t24", "normal", 21);
+	await addAlert(adminId, autoCancelled, cancelledRed, "admin_t12", "urgent", 9);
+	await addAlert(autoCancelHostId, autoCancelled, cancelledRed, "auto_cancelled", "critical", 3);
+	await addAlert(adminId, autoCancelled, cancelledRed, "auto_cancelled", "critical", 3);
+	await dataSource.query(
+		`INSERT INTO "host_weather_penalties" (
+			trip_id, host_id, trip_title, trip_starts_at, decision_id, violation_number, booking_value,
+			rate_basis_points, cap_amount, amount, deducted_amount, status, waiver_deadline, created_at, updated_at
+		) VALUES ($1, $2, $3, $4, $5, 1, 1500000, 500, 2000000, 75000, 0, 'applied', $6, $7, now())`,
+		[
+			autoCancelled.id,
+			autoCancelHostId,
+			autoCancelled.title,
+			autoCancelled.startsAt,
+			systemDecision[0].id,
+			new Date(autoCancelled.startsAt.getTime() + 48 * HOUR),
+			at(-3),
+		]
+	);
+
 	// --- Host weather penalties (policy §6) ----------------------------------------------------
 	const ensureWallet = async (host: string): Promise<{ id: string; balance: number }> => {
 		const rows: Array<{ id: string; balance: string }> = await dataSource.query(
@@ -7476,7 +7574,10 @@ export async function seedWeatherOperationsDemo(): Promise<void> {
 
 	console.log("[seed:weather-demo] Weather and penalty demo ready:");
 	console.log(
-		"  - Admin › Quản lý thời tiết: 2 Trip cần xử lý, 2 yêu cầu miễn phạt (1 quá hạn), 2 Trip cần xem lại ngưỡng"
+		"  - Admin › Quản lý thời tiết: 4 Trip cần xử lý (1 Khẩn, 1 sắp tự huỷ), 2 yêu cầu miễn phạt (1 quá hạn), 2 Trip cần xem lại ngưỡng"
+	);
+	console.log(
+		"  - host.autocancel@ctms.local (Host@123): Trip đã bị hệ thống tự huỷ T-6h, Trip còn 6,5 giờ sẽ tự huỷ khi bật TRIP_WEATHER_DECISION_WORKER_ENABLED"
 	);
 	console.log(
 		"  - host@ctms.local: thẻ quyết định thời tiết, chuông thông báo, ví có phạt/hoàn phạt"

@@ -695,3 +695,8 @@ Leader decision 2026-11-12, replacing "the system never cancels" in docs/feature
 - Web vitest (weather-decisions, admin-weather, TripWeather cards): 6 files, 42 tests passed.
 - Weather E2E (ctms-60, ctms-97, ctms-102): 7 passed. `lint:all` 0 errors; `build:all` passes.
 - Screenshots on the real app: Admin "Cần xử lý" row and Host decision card with the auto-cancel time.
+
+**Demo data (2026-11-13, `main.seed.ts` weather step, Host `host.autocancel@ctms.local` / `Host@123` so a live auto-cancel never penalises `host@ctms.local`):**
+- "[Demo thời tiết] Sơn Trà Tây (còn 10 giờ, Khẩn)": Red, Host never answered, Admin alerted at T-24h and T-12h (urgent).
+- "[Demo thời tiết] Bà Nà Núi Chúa (còn 6,5 giờ, sắp tự huỷ)": Red and undecided; with `TRIP_WEATHER_DECISION_WORKER_ENABLED=true` the worker cancels it about 30 minutes after seeding (pending 100% refund, penalty, notices).
+- "[Demo thời tiết] Tiên Sa (hệ thống đã tự huỷ T-6h)": already cancelled by the system: `system` decision, `trip.cancelled` audit without actor, pending refund, first penalty (5%), `auto_cancelled` notices to the Host and Admin.
