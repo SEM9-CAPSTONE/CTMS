@@ -696,7 +696,7 @@ Leader decision 2026-11-12, replacing "the system never cancels" in docs/feature
 - Weather E2E (ctms-60, ctms-97, ctms-102): 7 passed. `lint:all` 0 errors; `build:all` passes.
 - Screenshots on the real app: Admin "Cần xử lý" row and Host decision card with the auto-cancel time.
 
-**Demo data (2026-11-13, `main.seed.ts` weather step, Host `host.autocancel@ctms.local` / `Host@123` so a live auto-cancel never penalises `host@ctms.local`):**
+**Demo data (2026-11-13, `main.seed.ts` weather step, all on Host `host@ctms.local` per the leader; the cancelled demo replaces the former "[Demo phạt] Sơn Trà" open penalty so host@ keeps exactly one applied penalty and is never blocked by the seed. A live auto-cancel of the 6.5 h demo becomes host@'s 2nd violation and blocks Trip creation for 14 days, so re-seed afterwards):**
 - "[Demo thời tiết] Sơn Trà Tây (còn 10 giờ, Khẩn)": Red, Host never answered, Admin alerted at T-24h and T-12h (urgent).
 - "[Demo thời tiết] Bà Nà Núi Chúa (còn 6,5 giờ, sắp tự huỷ)": Red and undecided; with `TRIP_WEATHER_DECISION_WORKER_ENABLED=true` the worker cancels it about 30 minutes after seeding (pending 100% refund, penalty, notices).
-- "[Demo thời tiết] Tiên Sa (hệ thống đã tự huỷ T-6h)": already cancelled by the system: `system` decision, `trip.cancelled` audit without actor, pending refund, first penalty (5%), `auto_cancelled` notices to the Host and Admin.
+- "[Demo thời tiết] Tiên Sa (hệ thống đã tự huỷ T-6h)": already cancelled by the system: `system` decision, `trip.cancelled` audit without actor, pending refund, open first penalty (5%, 75,000 VND, deducted from the wallet, waiver still open), `auto_cancelled` notices to the Host and Admin.
