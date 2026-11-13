@@ -25,14 +25,15 @@ test.beforeAll(async () => {
 		Client: new (options: { connectionString: string }) => {
 			connect(): Promise<void>;
 			end(): Promise<void>;
-			query(sql: string): Promise<unknown>;
+			query(sql: string, values?: unknown[]): Promise<unknown>;
 		};
 	};
 	const db = new Client({ connectionString: database });
 	await db.connect();
 	try {
 		await db.query(
-			"UPDATE offline_package_departure_notifications SET read_at=NULL WHERE trip_id='316de000-0000-4000-8000-000000000001' AND recipient_id=(SELECT id FROM users WHERE email='host@ctms.local')"
+			"UPDATE offline_package_departure_notifications SET read_at=NULL WHERE trip_id=$1 AND recipient_id=(SELECT id FROM users WHERE email='host@ctms.local')",
+			[evidenceTrip]
 		);
 	} finally {
 		await db.end();
