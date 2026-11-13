@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { HttpError } from "../../../core/api";
 import { EDITABLE_VERIFICATION_STATUSES, PORTER_VERIFICATION_MAX_DOCUMENTS } from "../constants";
 import { porterVerificationService } from "../services/porter-verification.service";
-import type { PorterVerification } from "../types";
+import type { GuideCard, PorterVerification } from "../types";
 
 function errorMessage(error: unknown, fallback: string): string {
 	if (error instanceof HttpError) {
@@ -20,6 +20,7 @@ export function usePorterVerification() {
 	const [uploadingCount, setUploadingCount] = useState(0);
 	const [removingId, setRemovingId] = useState<string | null>(null);
 	const [isSubmitting, setIsSubmitting] = useState(false);
+	const [isSavingCard, setIsSavingCard] = useState(false);
 
 	const reload = useCallback(async () => {
 		setIsLoading(true);
@@ -79,6 +80,20 @@ export function usePorterVerification() {
 		}
 	};
 
+	const saveGuideCard = async (card: GuideCard): Promise<boolean> => {
+		setActionError(null);
+		setIsSavingCard(true);
+		try {
+			setVerification(await porterVerificationService.updateGuideCard(card));
+			return true;
+		} catch (error) {
+			setActionError(errorMessage(error, "Không lưu được thông tin thẻ. Vui lòng thử lại."));
+			return false;
+		} finally {
+			setIsSavingCard(false);
+		}
+	};
+
 	const submit = async (): Promise<boolean> => {
 		setActionError(null);
 		setIsSubmitting(true);
@@ -96,6 +111,8 @@ export function usePorterVerification() {
 	return {
 		verification,
 		documents,
+		saveGuideCard,
+		isSavingCard,
 		isLoading,
 		loadError,
 		actionError,

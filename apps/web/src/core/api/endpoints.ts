@@ -233,6 +233,7 @@ export const API_ENDPOINTS = {
 		VERIFICATION_DOCUMENTS: "/porter/verification/documents",
 		VERIFICATION_DOCUMENT: (documentId: string) => `/porter/verification/documents/${documentId}`,
 		VERIFICATION_SUBMIT: "/porter/verification/submit",
+		VERIFICATION_CARD: "/porter/verification/card",
 		ROUTE_QUALIFICATIONS: "/porter/route-qualifications",
 		ROUTE_QUALIFICATION_BY_ROUTE: (routeId: string) => `/porter/route-qualifications/${routeId}`,
 	},

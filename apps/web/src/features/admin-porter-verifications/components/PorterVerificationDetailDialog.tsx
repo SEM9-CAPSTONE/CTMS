@@ -12,6 +12,7 @@ import {
 	PORTER_VERIFICATION_STATUS_TONES,
 } from "../../porter-verification/constants";
 import type { AdminPorterVerificationDetail } from "../types";
+import { GuideCardReview } from "./GuideCardReview";
 
 const REJECTION_REASON_MAX = 500;
 
@@ -52,6 +53,12 @@ export function PorterVerificationDetailDialog({
 	const [approveOpen, setApproveOpen] = useState(false);
 	const [rejectOpen, setRejectOpen] = useState(false);
 	const [reason, setReason] = useState("");
+	// The registry confirmation belongs to one Porter at one version: opening another Porter or a
+	// reloaded detail starts unticked.
+	const detailKey = detail ? `${detail.porterId}:${detail.version}` : null;
+	const [confirmedFor, setConfirmedFor] = useState<string | null>(null);
+	const registryConfirmed = detailKey !== null && confirmedFor === detailKey;
+	const setRegistryConfirmed = (value: boolean) => setConfirmedFor(value ? detailKey : null);
 	const trimmedReason = reason.trim();
 	const canReview = detail?.status === "pending_review";
 
@@ -118,6 +125,13 @@ export function PorterVerificationDetailDialog({
 							</div>
 						)}
 
+						<GuideCardReview
+							detail={detail}
+							canConfirm={canReview}
+							registryConfirmed={registryConfirmed}
+							onRegistryConfirmedChange={setRegistryConfirmed}
+						/>
+
 						<section aria-label="Tài liệu chứng chỉ" className="space-y-2">
 							<h3 className="text-sm font-extrabold">
 								Tài liệu chứng chỉ ({detail.documents.length})
@@ -160,7 +174,16 @@ export function PorterVerificationDetailDialog({
 								>
 									<ShieldX className="mr-1.5 inline size-4" /> Từ chối
 								</Button>
-								<Button type="button" disabled={isReviewing} onClick={() => setApproveOpen(true)}>
+								<Button
+									type="button"
+									disabled={isReviewing || !registryConfirmed}
+									title={
+										registryConfirmed
+											? undefined
+											: "Tick đã đối chiếu huongdanvien.vn trước khi duyệt"
+									}
+									onClick={() => setApproveOpen(true)}
+								>
 									<BadgeCheck className="mr-1.5 inline size-4" /> Duyệt hồ sơ
 								</Button>
 							</div>

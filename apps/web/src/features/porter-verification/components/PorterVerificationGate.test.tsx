@@ -16,6 +16,7 @@ function status(value: PorterVerification["status"]): PorterVerification {
 		reviewedAt: null,
 		rejectionReason: null,
 		version: 1,
+		guideCard: null,
 		documents: [],
 	};
 }

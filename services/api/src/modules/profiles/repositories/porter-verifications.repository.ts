@@ -33,14 +33,19 @@ export interface PorterVerificationContact {
 	certifications: string[];
 }
 
+/** Today in Vietnam, as the guide card's "valid through" date is a calendar date. */
+const VIETNAM_TODAY_SQL = `(now() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date`;
+
 /**
- * SQL predicate (users aliased as `candidate`) that is true only for Porters
- * whose document verification has been approved by an Admin.
+ * SQL predicate (users aliased as `candidate`) that is true only for Porters whose document
+ * verification has been approved by an Admin and whose guide card has not expired. Porters approved
+ * before guide cards existed have no card on file and stay eligible (transition, see ctms-01 §16).
  */
 export const APPROVED_PORTER_VERIFICATION_SQL = `EXISTS (
 	SELECT 1 FROM "porter_verifications" verification
 	WHERE verification."porter_id" = candidate."id"
 	  AND verification."status" = '${PorterVerificationStatus.APPROVED}'
+	  AND (verification."guide_card_expires_on" IS NULL OR verification."guide_card_expires_on" >= ${VIETNAM_TODAY_SQL})
 )`;
 
 const PORTER_ROLE_SQL = `(
@@ -74,9 +79,16 @@ export class PorterVerificationsRepository extends Repository<PorterVerification
 		);
 	}
 
+	/** Approved and, when a guide card is on file, not expired (same rule as the SQL predicate). */
 	async isApproved(porterId: string): Promise<boolean> {
-		const verification = await this.findOneBy({ porterId });
-		return verification?.status === PorterVerificationStatus.APPROVED;
+		const rows = (await this.query(
+			`SELECT 1 FROM "porter_verifications" verification
+			 WHERE verification."porter_id" = $1
+			   AND verification."status" = '${PorterVerificationStatus.APPROVED}'
+			   AND (verification."guide_card_expires_on" IS NULL OR verification."guide_card_expires_on" >= ${VIETNAM_TODAY_SQL})`,
+			[porterId]
+		)) as unknown[];
+		return rows.length > 0;
 	}
 
 	async listForAdmin(
