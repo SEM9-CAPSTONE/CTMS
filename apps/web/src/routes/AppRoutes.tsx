@@ -14,6 +14,7 @@ import {
 	EmergencyBroadcastAlerts,
 	useEmergencyBroadcastListener,
 } from "../features/emergency-broadcasts";
+import type { RoleKey } from "../features/role-landing/types";
 import { PageSkeleton } from "../shared/components/PageSkeleton";
 import { AppRoleGuard } from "./AppRoleGuard";
 import { getAuthenticatedHomePath, getGuestOnlyRedirectPath } from "./authRedirect";
@@ -284,11 +285,11 @@ function AppRouteContent() {
 		};
 	}, []);
 
-	const navigateTo = (path: string) =>
+	const navigateTo = (path: string, state: { activeRole?: RoleKey } = {}) =>
 		guardedNavigation(() => {
 			const normalizedPath = path.startsWith("/") ? path : `/${path}`;
 			const nextLocation = new URL(normalizedPath, window.location.origin);
-			window.history.pushState({}, "", normalizedPath);
+			window.history.pushState(state, "", normalizedPath);
 			setCurrentPath(nextLocation.pathname.toLowerCase());
 			setCurrentSearch(nextLocation.search);
 		});
@@ -409,7 +410,11 @@ function AppRouteContent() {
 				fallback={camperUnauthorizedFallback}
 				onNavigateHome={() => navigateTo(RoutePath.HOME)}
 			>
-				<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
+				<HostLayout
+					activeRole="camper"
+					onLogout={handleLogout}
+					onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}
+				>
 					<BookingListPage
 						onViewDetails={(bookingId) => navigateTo(`/bookings/${bookingId}?from=bookings`)}
 					/>
@@ -518,7 +523,7 @@ function AppRouteContent() {
 			</AppRoleGuard>
 		);
 	}
-	if (currentPath === "/host/review-analysis" || currentPath === "/admin/review-analysis") {
+	if (currentPath === "/host/review-analysis" || currentPath === RoutePath.ADMIN_REVIEW_ANALYSIS) {
 		const admin = currentPath.startsWith("/admin/");
 		const content = (
 			<ReviewAnalysisPage
@@ -649,7 +654,11 @@ function AppRouteContent() {
 					fallback={camperUnauthorizedFallback}
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
-					<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
+					<HostLayout
+						activeRole={isBookingFromTrip ? "camper" : undefined}
+						onLogout={handleLogout}
+						onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}
+					>
 						{tripFlow}
 					</HostLayout>
 				</AppRoleGuard>
@@ -679,7 +688,11 @@ function AppRouteContent() {
 				fallback={camperUnauthorizedFallback}
 				onNavigateHome={() => navigateTo(RoutePath.HOME)}
 			>
-				<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
+				<HostLayout
+					activeRole="camper"
+					onLogout={handleLogout}
+					onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}
+				>
 					<BookingDetailsPage
 						bookingId={bookingId}
 						onBack={() => navigateTo(RoutePath.BOOKINGS)}
@@ -815,10 +828,13 @@ function AppRouteContent() {
 				>
 					{withPorterVerification(
 						<HostLayout
+							activeRole="porter"
 							onLogout={handleLogout}
 							onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}
 						>
-							<PorterRequestsPage onBackHome={() => navigateTo(RoutePath.DASHBOARD)} />
+							<PorterRequestsPage
+								onBackHome={() => navigateTo(RoutePath.DASHBOARD, { activeRole: "porter" })}
+							/>
 						</HostLayout>
 					)}
 				</AppRoleGuard>

@@ -232,7 +232,7 @@ describe("AppRoutes trekking route navigation", () => {
 		);
 
 		await renderRoutes();
-		await userEvent.click(screen.getByRole("button", { name: "Quản lý user" }));
+		await userEvent.click(screen.getByRole("button", { name: "Quản lý người dùng" }));
 		await waitForPage();
 
 		expect(window.location.pathname).toBe("/admin/users");

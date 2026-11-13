@@ -96,6 +96,11 @@ import { UserBankAccountsService } from "./services/user-bank-accounts.service";
 			inject: [DataSource],
 		},
 	],
-	exports: [HealthProfileRepository, PorterRouteQualificationsService, UserBankAccountsService],
+	exports: [
+		HealthProfileRepository,
+		PorterRouteQualificationsService,
+		PorterVerificationsRepository,
+		UserBankAccountsService,
+	],
 })
 export class ProfilesModule {}

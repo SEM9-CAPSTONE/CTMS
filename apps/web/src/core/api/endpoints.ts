@@ -1,4 +1,5 @@
 export const API_ENDPOINTS = {
+	ADMIN_MODERATION_COUNTS: "/admin/moderation/counts",
 	DEMAND_INSIGHTS: {
 		PERIODS: "/host/demand-insights",
 		REPORT: (month: string) => `/host/demand-insights/${month}`,
