@@ -79,6 +79,17 @@ export class PorterVerificationsRepository extends Repository<PorterVerification
 		return verification?.status === PorterVerificationStatus.APPROVED;
 	}
 
+	async countPendingReview(): Promise<number> {
+		const rows = (await this.query(
+			`SELECT COUNT(*) AS "total"
+			FROM "porter_verifications" verification
+			JOIN "users" candidate ON candidate."id" = verification."porter_id"
+			WHERE verification."status" = $1 AND ${PORTER_ROLE_SQL}`,
+			[PorterVerificationStatus.PENDING_REVIEW]
+		)) as Array<{ total: string }>;
+		return Number(rows[0]?.total ?? 0);
+	}
+
 	async listForAdmin(
 		filters: PorterVerificationListFilters
 	): Promise<{ items: PorterVerificationListRow[]; total: number }> {
