@@ -1,17 +1,17 @@
-import { Menu } from "lucide-react";
 import type React from "react";
 import { useEffect, useMemo, useState } from "react";
-import { Collapse } from "../../../shared/components/Collapse";
+import { guardedNavigation } from "../../../core/navigation-guard";
+import { RoutePath } from "../../../routes/routes.config";
 import { HomeLink } from "../../../shared/components/HomeLink";
+import { SidebarLayout } from "../../../shared/components/SidebarLayout";
 import { getGrantedRoles } from "../../auth/utils/permissions";
 import { getStoredAuthUser } from "../../auth/utils/tokenStorage";
 import { CamperSidebar } from "../../camper-profile/components/CamperSidebar";
 import { camperProfileService } from "../../camper-profile/services/camper-profile.service";
 import type { CamperProfileData } from "../../camper-profile/types";
-import { HostSosRealtimeProvider } from "../../sos-handling/components/HostSosRealtimeProvider";
 import { dashboards } from "../constants";
-import type { RoleKey } from "../types";
-import { Sidebar } from "./Sidebar";
+import type { DashboardConfig, RoleKey } from "../types";
+import { OperationalSidebarLayout } from "./OperationalSidebarLayout";
 
 function toRoleKey(role: string): RoleKey | null {
 	const lowercase = role.toLowerCase();
@@ -29,7 +29,7 @@ function toRoleKey(role: string): RoleKey | null {
 export interface HostLayoutProps {
 	allowMobile?: boolean;
 	children: React.ReactNode;
-	activeRole?: RoleKey;
+	activeRole?: DashboardConfig["role"];
 	onNavigateToTrips?: () => void;
 	onLogout?: (allDevices: boolean) => Promise<void>;
 }
@@ -41,8 +41,6 @@ export function HostLayout({
 	onLogout,
 	allowMobile = false,
 }: HostLayoutProps) {
-	const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 	const [profile, setProfile] = useState<CamperProfileData | null>(null);
 
 	const storedUser = getStoredAuthUser();
@@ -54,9 +52,11 @@ export function HostLayout({
 	}, [storedUser]);
 
 	const normalizedRoles = Array.from(new Set(grantedRoles));
-	const currentRole: RoleKey =
-		activeRole || (normalizedRoles.includes("host") ? "host" : normalizedRoles[0] || "host");
-	const config = dashboards[currentRole] || dashboards.host;
+	const inferredRole = normalizedRoles.includes("host")
+		? "host"
+		: normalizedRoles.find((role) => role !== "admin");
+	const currentRole = activeRole ?? inferredRole ?? "host";
+	const config = dashboards[currentRole];
 
 	useEffect(() => {
 		let isMounted = true;
@@ -74,13 +74,29 @@ export function HostLayout({
 	}, []);
 
 	const handleRoleChange = (role: RoleKey) => {
-		if (role === "camper") {
-			window.history.pushState({}, "", "/");
-		} else {
-			window.history.pushState({}, "", "/dashboard");
-		}
-		window.dispatchEvent(new PopStateEvent("popstate"));
+		guardedNavigation(() => {
+			const path = role === "camper" ? RoutePath.HOME : RoutePath.DASHBOARD;
+			window.history.pushState({ activeRole: role }, "", path);
+			window.dispatchEvent(new PopStateEvent("popstate"));
+		});
 	};
+
+	if (currentRole !== "camper") {
+		return (
+			<OperationalSidebarLayout
+				config={config}
+				grantedRoles={normalizedRoles}
+				activeRole={currentRole}
+				onRoleChange={handleRoleChange}
+				profile={profile}
+				onNavigateToTrips={onNavigateToTrips}
+				onLogout={onLogout}
+				allowMobile={allowMobile || currentRole === "porter"}
+			>
+				<main>{children}</main>
+			</OperationalSidebarLayout>
+		);
+	}
 
 	const handleCamperNav = (key: string) => {
 		if (key === "overview" || key === "trips") {
@@ -107,122 +123,32 @@ export function HostLayout({
 				? "explore"
 				: "overview";
 
-	const sidebarWidthClass = currentRole === "camper" ? "w-64" : "w-72";
-	const desktopOnlyRole = !allowMobile && (currentRole === "host" || currentRole === "admin");
-	const contentPaddingClass =
-		currentRole === "camper"
-			? isSidebarCollapsed
-				? "lg:pl-0"
-				: "lg:pl-64"
-			: isSidebarCollapsed
-				? "lg:pl-0"
-				: "lg:pl-72";
-
 	return (
-		<div className="min-h-screen bg-[#f4f7f2] font-sans text-[#10221b] antialiased">
-			{/* Desktop Sidebar */}
-			<div className="fixed inset-y-0 left-0 z-30 hidden lg:flex">
-				<Collapse
-					isCollapsed={isSidebarCollapsed}
-					onToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-					widthClass={sidebarWidthClass}
-				>
-					{currentRole === "camper" ? (
-						<CamperSidebar
-							profile={profile}
-							activeNav={activeCamperNav}
-							onNavigate={handleCamperNav}
-							onLogout={onLogout}
-							className="h-full w-full"
-						/>
-					) : (
-						<Sidebar
-							config={config}
-							grantedRoles={normalizedRoles}
-							activeRole={currentRole}
-							onRoleChange={handleRoleChange}
-							profile={profile}
-							onNavigateToTrips={onNavigateToTrips}
-							onLogout={onLogout}
-						/>
-					)}
-				</Collapse>
-			</div>
-
-			{/* Mobile Sidebar overlay */}
-			{mobileMenuOpen && !desktopOnlyRole && (
-				<div className="fixed inset-0 z-50 lg:hidden">
-					<button
-						type="button"
-						aria-label="Đóng menu"
-						onClick={() => setMobileMenuOpen(false)}
-						className="absolute inset-0 bg-[#10221b]/45"
-					/>
-					<div className="relative z-10 h-full shadow-2xl">
-						{currentRole === "camper" ? (
-							<CamperSidebar
-								profile={profile}
-								activeNav={activeCamperNav}
-								onLogout={onLogout}
-								onNavigate={(navKey) => {
-									handleCamperNav(navKey);
-									setMobileMenuOpen(false);
-								}}
-							/>
-						) : (
-							<Sidebar
-								config={config}
-								grantedRoles={normalizedRoles}
-								activeRole={currentRole}
-								onRoleChange={(role) => {
-									handleRoleChange(role);
-									setMobileMenuOpen(false);
-								}}
-								onClose={() => setMobileMenuOpen(false)}
-								profile={profile}
-								onNavigateToTrips={onNavigateToTrips}
-								onLogout={onLogout}
-							/>
-						)}
-					</div>
-				</div>
+		<SidebarLayout
+			title={config.productLabel}
+			storageKey="ctms:camper-sidebar-collapsed"
+			collapseMode="hide"
+			allowMobile
+			mobileBrand={
+				<HomeLink className="flex items-center gap-2.5">
+					<img src="/ctms_logo.png" alt="CTMS Logo" className="h-8 w-auto object-contain" />
+					<p className="font-bold text-brand-dark">{config.productLabel}</p>
+				</HomeLink>
+			}
+			renderSidebar={({ onClose }) => (
+				<CamperSidebar
+					profile={profile}
+					activeNav={activeCamperNav}
+					onLogout={onLogout}
+					onNavigate={(navKey) => {
+						handleCamperNav(navKey);
+						onClose?.();
+					}}
+					className="h-full w-full"
+				/>
 			)}
-
-			{/* Main Content Area */}
-			<div className={`min-h-screen transition-all duration-300 ${contentPaddingClass}`}>
-				<header
-					className={`sticky top-0 z-20 flex items-center gap-3 border-b border-[#dfe8df] bg-white/95 px-4 py-3 backdrop-blur ${desktopOnlyRole ? "hidden" : "lg:hidden"}`}
-				>
-					<button
-						type="button"
-						onClick={() => setMobileMenuOpen(true)}
-						aria-label="Mở menu"
-						className="rounded-xl border border-[#dfe8df] p-2.5 text-[#164027] transition hover:bg-[#f1f5f0]"
-					>
-						<Menu className="size-5" />
-					</button>
-					<HomeLink className="flex items-center gap-2.5">
-						<img src="/ctms_logo.png" alt="CTMS Logo" className="h-8 w-auto object-contain" />
-						<p className="font-bold text-[#10221b]">{config.productLabel}</p>
-					</HomeLink>
-				</header>
-
-				{desktopOnlyRole && (
-					<div className="flex min-h-dvh items-center justify-center bg-[#f4f7f2] p-6 text-center lg:hidden">
-						<section className="max-w-md rounded-3xl border border-[#dfe8df] bg-white p-8 shadow-sm">
-							<h1 className="text-xl font-bold text-[#164027]">Vui lòng mở CTMS trên máy tính</h1>
-							<p className="mt-2 text-sm leading-6 text-[#627769]">
-								Khu vực quản lý Host và Quản trị viên được thiết kế để sử dụng trên màn hình máy
-								tính.
-							</p>
-						</section>
-					</div>
-				)}
-
-				<HostSosRealtimeProvider enabled={currentRole === "host"}>
-					<main className={desktopOnlyRole ? "hidden lg:block" : undefined}>{children}</main>
-				</HostSosRealtimeProvider>
-			</div>
-		</div>
+		>
+			<main>{children}</main>
+		</SidebarLayout>
 	);
 }

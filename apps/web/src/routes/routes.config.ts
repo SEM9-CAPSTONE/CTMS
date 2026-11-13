@@ -30,6 +30,7 @@ export enum RoutePath {
 	PORTER_VERIFICATION = "/porter/verification",
 	PROFILE = "/profile",
 	ADMIN_USERS = "/admin/users",
+	ADMIN_REVIEW_ANALYSIS = "/admin/review-analysis",
 	ADMIN_PORTER_VERIFICATIONS = "/admin/porter-verifications",
 	ADMIN_PORTER_LEVELS = "/admin/porter-levels",
 	ADMIN_CONTENT_REPORTS = "/admin/content-reports",

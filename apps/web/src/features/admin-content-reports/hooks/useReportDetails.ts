@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "../../../shared/components";
+import { useRefreshAdminModerationCounts } from "../../admin-layout/hooks/useAdminModerationCounts";
 import { reportActions } from "../constants";
 import { contentReportsService } from "../services/content-reports.service";
 import type { ContentReport, ReportError, ReportStatus } from "../types";
 import { reportError } from "../utils/report-errors";
 
 export function useReportDetails(reloadQueue: () => Promise<void>) {
+	const refreshModerationCounts = useRefreshAdminModerationCounts();
 	const [selectedId, setSelectedId] = useState<string | null>(null);
 	const [report, setReport] = useState<ContentReport | null>(null);
 	const [loading, setLoading] = useState(false);
@@ -69,6 +71,7 @@ export function useReportDetails(reloadQueue: () => Promise<void>) {
 				expectedStatus: report.status,
 				status,
 			});
+			refreshModerationCounts();
 			if (!mounted.current) return;
 			setReport(saved);
 			const message = "Đã cập nhật trạng thái báo cáo.";
@@ -79,7 +82,10 @@ export function useReportDetails(reloadQueue: () => Promise<void>) {
 			if (!mounted.current) return;
 			const mapped = reportError(failure);
 			setActionError(mapped);
-			if (mapped.status === 409) await Promise.all([reloadQueue(), load(report.id)]);
+			if (mapped.status === 409) {
+				refreshModerationCounts();
+				await Promise.all([reloadQueue(), load(report.id)]);
+			}
 			if (mapped.status === 403 || mapped.status === 404 || mapped.status === 401) {
 				setReport(null);
 				setError(mapped);

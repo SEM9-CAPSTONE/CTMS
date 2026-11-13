@@ -6,6 +6,7 @@ import {
 	AdminReviewFilters,
 } from "../../../shared/components/AdminReviewFilters";
 import { AdminLayout } from "../../admin-layout/components/AdminLayout";
+import { useRefreshAdminModerationCounts } from "../../admin-layout/hooks/useAdminModerationCounts";
 import { AdminRouteReviewContent } from "../components/AdminRouteReviewContent";
 import { RouteReviewDecisionDialog } from "../components/RouteReviewDecisionDialog";
 import { useAdminRouteReviews, useReviewTrekkingRoute } from "../hooks/useAdminRouteReviews";
@@ -28,6 +29,7 @@ export function AdminTrekkingRoutesPage({ onLogout }: AdminTrekkingRoutesPagePro
 	const [page, setPage] = useState(1);
 	const list = useAdminRouteReviews(reviewOutcome, page);
 	const review = useReviewTrekkingRoute();
+	const refreshModerationCounts = useRefreshAdminModerationCounts();
 	const [selectedId, setSelectedId] = useState<string>();
 	const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -49,6 +51,7 @@ export function AdminTrekkingRoutesPage({ onLogout }: AdminTrekkingRoutesPagePro
 			reason: values.action === "approve" ? undefined : values.reason,
 		});
 		if (!result) return;
+		refreshModerationCounts();
 		const labels = {
 			approve: "Đã phê duyệt và kích hoạt",
 			decline: "Đã trả về bản nháp",
