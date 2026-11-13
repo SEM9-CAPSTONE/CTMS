@@ -1,4 +1,8 @@
 export const API_ENDPOINTS = {
+ PACKAGE_DEPARTURE_NOTIFICATIONS: {
+  LIST: "/offline-package-notifications",
+  READ: (id: string) => `/offline-package-notifications/${id}/read`,
+ },
 	ADMIN_MODERATION_COUNTS: "/admin/moderation/counts",
 	DEMAND_INSIGHTS: {
 		PERIODS: "/host/demand-insights",

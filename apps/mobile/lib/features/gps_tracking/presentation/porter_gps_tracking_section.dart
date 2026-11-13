@@ -12,6 +12,9 @@ import 'gps_tracking_panel.dart';
 import '../../emergency_broadcasts/presentation/emergency_broadcasts_panel.dart';
 import '../../member_locations/presentation/porter_member_locations_panel.dart';
 import '../../offline_map/presentation/offline_map_panel.dart';
+import '../../offline_packages/presentation/offline_package_screen.dart';
+import '../../offline_packages/application/package_download_controller.dart';
+import '../../offline_map/application/offline_map_controller.dart';
 import '../../schedule_progress/presentation/schedule_progress_panels.dart';
 
 /// Porter's assigned Trips for preparation and tracking (`GET /trips/assigned`).
@@ -21,9 +24,9 @@ final porterOngoingTripsProvider =
         ref.watch(apiClientProvider),
       ).assignedTrips();
       return trips
-          .where((trip) =>
-              trip.status == 'ongoing' ||
-              trip.status == 'published')
+          .where(
+            (trip) => trip.status == 'ongoing' || trip.status == 'published',
+          )
           .toList();
     });
 
@@ -75,9 +78,25 @@ class _PorterGpsTrackingSectionState
           orElse: () => items.first,
         );
         final isOngoing = selected.status == 'ongoing';
+        ref.listen(
+          packageDownloadControllerProvider(selected.id).select(
+            (value) =>
+                (value.active?.key, value.basemapReady, value.basemapPackageId),
+          ),
+          (previous, next) {
+            if (previous == next || next.$1 == null) return;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              ref
+                  .read(offlineMapControllerProvider(selected.id))
+                  .reloadPackage(force: true);
+            });
+          },
+        );
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            OfflinePackagePanel(tripId: selected.id, tripTitle: selected.title),
             if (items.length > 1) ...[
               DropdownButtonFormField<String>(
                 key: const Key('porter-gps-trip'),
@@ -90,7 +109,11 @@ class _PorterGpsTrackingSectionState
                   for (final trip in items)
                     DropdownMenuItem(
                       value: trip.id,
-                      child: Text(trip.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      child: Text(
+                        trip.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                 ],
                 onChanged: (value) => setState(() => _selectedTripId = value),
@@ -98,7 +121,10 @@ class _PorterGpsTrackingSectionState
               const SizedBox(height: AppSpacing.md),
             ],
             if (items.length == 1) ...[
-              Text(selected.title, style: Theme.of(context).textTheme.titleMedium),
+              Text(
+                selected.title,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
               const SizedBox(height: AppSpacing.md),
             ],
             if (isOngoing)

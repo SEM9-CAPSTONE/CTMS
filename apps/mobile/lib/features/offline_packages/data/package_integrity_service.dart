@@ -19,6 +19,8 @@ class PackageIntegrityService {
     OfflinePackage package,
     CancelToken cancel, {
     Future<OfflinePackage?> Function()? authorizeReplacement,
+    Future<void> Function(OfflinePackage)? acceptActivation,
+    bool allowActivation = true,
     String? tripTitle,
   }) async {
     void checkCancelled() => _checkCancelled(cancel);
@@ -48,14 +50,22 @@ class PackageIntegrityService {
       if (active?.sameArtifact(package) == true) {
         return (PackageVerificationStatus.verified, true);
       }
+      if (!allowActivation) return (PackageVerificationStatus.verified, false);
       final firstActivation =
           active == null && package.activationAllowed != false;
       if (firstActivation) {
+        await acceptActivation?.call(package);
+        checkCancelled();
+        if (acceptActivation != null) {
+          final (stillValid, _) = await _validate(package, checkCancelled);
+          if (!stillValid) return (PackageVerificationStatus.failed, false);
+        }
         await store.saveActive(package, checkCancelled, tripTitle: tripTitle);
       }
       return (PackageVerificationStatus.verified, firstActivation);
     });
-    if (result.$1 != PackageVerificationStatus.verified ||
+    if (!allowActivation ||
+        result.$1 != PackageVerificationStatus.verified ||
         result.$2 ||
         authorizeReplacement == null) {
       return result;
@@ -87,6 +97,12 @@ class PackageIntegrityService {
       }
       final (valid, _) = await _validate(package, checkCancelled);
       if (!valid) return (PackageVerificationStatus.failed, false);
+      await acceptActivation?.call(package);
+      checkCancelled();
+      if (acceptActivation != null) {
+        final (stillValid, _) = await _validate(package, checkCancelled);
+        if (!stillValid) return (PackageVerificationStatus.failed, false);
+      }
       await store.saveActive(package, checkCancelled, tripTitle: tripTitle);
       return (PackageVerificationStatus.verified, true);
     });
@@ -143,25 +159,20 @@ class PackageIntegrityService {
   Future<({OfflinePackage package, Uint8List bytes})?> openActivePackage(
     String tripId, {
     CancelToken? cancel,
-  }) =>
-      store.withIntegrityLock(tripId, () async {
-        if (await store.accessDenied(tripId)) return null;
-        final active = await store.active(tripId);
-        if (active == null || !await _isVerified(active)) {
-          return null;
-        }
-        final (valid, bytes) = await _validateWith(
-          active,
-          () {
-            if (cancel != null) _checkCancelled(cancel);
-          },
-          (package, path) => verifier.verify(package, path, includeBytes: true),
-        );
-        if (!valid || bytes == null || await store.accessDenied(tripId)) {
-          return null;
-        }
-        return (package: active, bytes: bytes);
-      });
+  }) => store.withIntegrityLock(tripId, () async {
+    if (await store.accessDenied(tripId)) return null;
+    final active = await store.active(tripId);
+    if (active == null || !await _isVerified(active)) {
+      return null;
+    }
+    final (valid, bytes) = await _validateWith(active, () {
+      if (cancel != null) _checkCancelled(cancel);
+    }, (package, path) => verifier.verify(package, path, includeBytes: true));
+    if (!valid || bytes == null || await store.accessDenied(tripId)) {
+      return null;
+    }
+    return (package: active, bytes: bytes);
+  });
 
   Future<bool> _isVerified(OfflinePackage package) async =>
       await store.verification(package) == PackageVerificationStatus.verified;

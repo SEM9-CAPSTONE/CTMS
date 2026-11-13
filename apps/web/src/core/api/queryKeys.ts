@@ -1,4 +1,8 @@
 export const queryKeys = {
+ packageDeparture: {
+  status: (actor: string, trip: string) => ["package-departure", actor, trip, "status"] as const,
+  inbox: (actor: string) => ["package-departure", actor, "inbox"] as const,
+ },
 	adminModeration: {
 		all: ["admin-moderation"] as const,
 		counts: (adminId: string) => ["admin-moderation", adminId, "counts"] as const,

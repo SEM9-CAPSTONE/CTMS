@@ -226,6 +226,21 @@ UI/evidence work and real CTMS-119 freshness are outside this Preparation + Logi
   claimed as passed by this task-specific run. Earlier task baseline failures are
   not silently converted into passing gates.
 
+### Client activation history clarification (CTMS-306 integration)
+
+There is one active package report per Trip, authenticated user and device.
+Accepting a new active package changes any previous active report on that same
+Trip/user/device to verified, preserving its prior hash, verification and activation
+timestamps. Other devices and users are not switched. Repeated reports for the same
+Trip/user/device/package upsert the unique record rather than appending duplicates.
+Thus a v1 report changing from active to verified after v3 activation is intentional
+history retention, not a failed verification or a second active package.
+
+The validation statements above describe CTMS-305 at its completion. CTMS-306
+subsequently added opt-in main-seed demo setup and applied the pending additive
+policy migration to the explicitly authorized development test environment; see
+the CTMS-306 implementation note for that later environment state.
+
 The full unit regression, related integration, typecheck, lint and build were rerun
 after the server notification follow-up. Integration coverage also includes inbox
 ownership, retry deduplication, notification rollback, concurrent workers and blocked

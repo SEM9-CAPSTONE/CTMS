@@ -18,6 +18,7 @@ import {
 	isBroadcastableTripStatus,
 } from "../../emergency-broadcasts";
 import { MemberLastLocationsCard } from "../../member-locations/components/MemberLastLocationsCard";
+import { DepartureBlockStatus } from "../../offline-package-policy/components/DepartureBlockStatus";
 import { TeamScheduleProgressCard } from "../../schedule-progress/components/TeamScheduleProgressCard";
 import { HostTripSettlementCard } from "../../settlements/components/HostTripSettlementCard";
 import { TripIncidentsPanel } from "../../trip-incidents";
@@ -257,6 +258,14 @@ export function TripDetailPage({
 
 			{/* Main Content */}
 			<main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+				{canManageThisTrip && currentUserId && (
+					<DepartureBlockStatus
+						key={`${currentUserId}-${tripId}`}
+						actor={currentUserId}
+						trip={tripId}
+						tripStatus={trip?.status}
+					/>
+				)}
 				{(isLoading || (bookingAccess === "camper" && isRestoringBooking && !temporaryBooking)) && (
 					<div
 						data-testid="trip-detail-loading"
