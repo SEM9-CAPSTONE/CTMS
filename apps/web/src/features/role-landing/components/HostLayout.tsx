@@ -8,6 +8,7 @@ import { getStoredAuthUser } from "../../auth/utils/tokenStorage";
 import { CamperSidebar } from "../../camper-profile/components/CamperSidebar";
 import { camperProfileService } from "../../camper-profile/services/camper-profile.service";
 import type { CamperProfileData } from "../../camper-profile/types";
+import { DepartureInbox } from "../../offline-package-policy/components/DepartureInbox";
 import { HostSosRealtimeProvider } from "../../sos-handling/components/HostSosRealtimeProvider";
 import { dashboards } from "../constants";
 import type { RoleKey } from "../types";
@@ -220,6 +221,9 @@ export function HostLayout({
 				)}
 
 				<HostSosRealtimeProvider enabled={currentRole === "host"}>
+					{currentRole === "host" && storedUser && grantedRoles.includes("host") && (
+						<DepartureInbox key={storedUser.id} actor={storedUser.id} />
+					)}
 					<main className={desktopOnlyRole ? "hidden lg:block" : undefined}>{children}</main>
 				</HostSosRealtimeProvider>
 			</div>

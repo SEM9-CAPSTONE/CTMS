@@ -1,4 +1,8 @@
 export const queryKeys = {
+	packageDeparture: {
+		status: (actor: string, trip: string) => ["package-departure", actor, trip, "status"] as const,
+		inbox: (actor: string) => ["package-departure", actor, "inbox"] as const,
+	},
 	demandInsights: {
 		periods: (actor: string) => ["demand-insights", actor, "periods"] as const,
 		report: (actor: string, month: string) => ["demand-insights", actor, month] as const,
