@@ -2,10 +2,10 @@
 // Usage (services/api cwd): node scripts/publish-offline-basemap.cjs TRIP_UUID VERSION FILE
 require('dotenv/config');
 const { Client } = require('pg');
-const { unzipSync } = require('fflate');
-const { readFile, mkdir, copyFile, stat } = require('node:fs/promises');
+const { readMapPoints, routeBounds, assertCoverage } = require('./offline-basemap-policy.cjs');
+const { readFile, mkdir, copyFile, stat, link, rm } = require('node:fs/promises');
 const { constants } = require('node:fs');
-const { createHash } = require('node:crypto');
+const { createHash, randomUUID } = require('node:crypto');
 const { execFileSync } = require('node:child_process');
 const { resolve } = require('node:path');
 const digest = b => createHash('sha256').update(b).digest('hex');
@@ -18,7 +18,8 @@ async function main() {
   if ((await stat(file)).size > 104857600) throw Error('Basemap exceeds 100 MiB');
   const metadata = JSON.parse(execFileSync(process.env.OFFLINE_BASEMAP_PYTHON || 'python',['-c',
     'import sqlite3,json,sys; c=sqlite3.connect("file:"+sys.argv[1]+"?mode=ro",uri=True); print(json.dumps(dict(c.execute("select name,value from metadata")))); c.close()',file],{encoding:'utf8'}));
-  if (metadata.format!=='png' || metadata.attribution!=='© OpenStreetMap contributors' ||
+  if (metadata.format!=='png' || metadata.minzoom!=='12' || metadata.maxzoom!=='16' ||
+      metadata.attribution!=='© OpenStreetMap contributors' ||
       metadata.license!=='https://www.openstreetmap.org/copyright') throw Error('Unsupported format or missing source license');
   const bounds=metadata.bounds.split(',').map(Number);
   const validation=JSON.parse(execFileSync(process.env.OFFLINE_BASEMAP_PYTHON || 'python',[resolve(__dirname,'../../../scripts/build_osm_raster.py'),
@@ -32,16 +33,21 @@ async function main() {
     const row=(await db.query('SELECT * FROM offline_packages WHERE trip_id=$1 AND package_version=$2',[trip,version])).rows[0];
     if(!row) throw Error('Core package missing');
     const archive=await readFile(resolve(process.env.OFFLINE_PACKAGE_STORAGE_ROOT || '.private-offline-packages',row.artifact_key));
-    if(digest(archive)!==row.sha256) throw Error('Core artifact hash mismatch');
-    const payloads=unzipSync(archive);
-    const route=JSON.parse(Buffer.from(payloads['route.geojson']).toString('utf8'));
-    if(!route.geometry.coordinates.every(([lon,lat])=>lon>=bounds[0] && lat>=bounds[1] && lon<=bounds[2] && lat<=bounds[3]))
-      throw Error('Basemap does not cover core route');
+    const points=readMapPoints(archive,row.sha256);
+    const required=routeBounds(points,Number(process.env.OFFLINE_BASEMAP_BUFFER_METERS || 1500));
+    assertCoverage(bounds,points);
+    assertCoverage(bounds,[[required[0],required[1]],[required[2],required[3]]]);
     const root=resolve(process.env.OFFLINE_BASEMAP_STORAGE_ROOT || '.private-offline-basemaps');
     await mkdir(root,{recursive:true});
     const dest=resolve(root,sha+'.mbtiles');
-    try { await copyFile(file,dest,constants.COPYFILE_EXCL); }
-    catch(e) { if(e.code!=='EEXIST') throw e; }
+    const staged=resolve(root,`${sha}.${randomUUID()}.partial`);
+    try {
+      await copyFile(file,staged,constants.COPYFILE_EXCL);
+      if(digest(await readFile(staged))!==sha) throw Error('Copied artifact is not intact');
+      // A hard link publishes a complete file atomically without replacing an immutable binding.
+      try { await link(staged,dest); }
+      catch(e) { if(e.code!=='EEXIST') throw e; }
+    } finally { await rm(staged,{force:true}); }
     if(digest(await readFile(dest))!==sha) throw Error('Stored artifact is not intact');
     await db.query('BEGIN');
     const tripStatus=(await db.query('SELECT status FROM trips WHERE id=$1 FOR SHARE',[trip])).rows[0]?.status;

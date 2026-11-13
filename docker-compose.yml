@@ -110,6 +110,39 @@ services:
       redis:
         condition: service_healthy
 
+  basemap-worker:
+    build:
+      context: .
+      dockerfile: infra/docker/api.Dockerfile
+    restart: unless-stopped
+    working_dir: /app/services/api
+    command: ["node", "scripts/generate-offline-basemap.cjs", "--watch"]
+    environment:
+      DATABASE_URL: postgresql://ctms:ctms@postgres:5432/ctms
+      OFFLINE_PACKAGE_STORAGE_ROOT: /var/lib/ctms/offline-packages
+      OFFLINE_BASEMAP_STORAGE_ROOT: /var/lib/ctms/offline-basemaps
+      OFFLINE_BASEMAP_WORK_ROOT: /var/lib/ctms/basemap-work
+      OFFLINE_BASEMAP_PYTHON: python3
+      OFFLINE_BASEMAP_BUFFER_METERS: ${OFFLINE_BASEMAP_BUFFER_METERS:-1500}
+      OFFLINE_BASEMAP_HEARTBEAT_FILE: /tmp/ctms-basemap-heartbeat
+    volumes:
+      - offline-package-data:/var/lib/ctms/offline-packages:ro
+      - offline-basemap-data:/var/lib/ctms/offline-basemaps
+    tmpfs:
+      - /var/lib/ctms/basemap-work:size=256m
+    mem_limit: 2g
+    cpus: 1.0
+    stop_grace_period: 11m
+    healthcheck:
+      test: ["CMD", "node", "scripts/offline-basemap-health.cjs"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   ai:
     build:
       context: .
