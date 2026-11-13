@@ -70,3 +70,6 @@ artifacts/osm-offline/
 
 # CTMS-305 local validation artifacts
 /artifacts/ctms305-*
+/artifacts/ctms306-*
+/artifacts/CTMS-306-*.pdf
+/artifacts/CTMS-306-*

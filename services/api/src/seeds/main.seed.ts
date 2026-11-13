@@ -32,6 +32,7 @@ import type {
 } from "../modules/offline-packages/offline-packages.types";
 import { PackageArtifactBuilder } from "../modules/offline-packages/package-artifact.builder";
 import { LocalPackageArtifactStorage } from "../modules/offline-packages/package-artifact.storage";
+import { PackageCoreReader } from "../modules/offline-packages/package-core.reader";
 import {
 	TripSafetyContextResolver,
 	canonical,
@@ -5583,7 +5584,201 @@ function recoveryDemoCore(): PackageCore {
 }
 
 /** Opt-in additive UI demo. Never resets accounts or calls the destructive master seed. */
-export async function seedRouteRecoveryDemo(db: DataSource): Promise<void> {
+type RecoveryDemoMode = boolean | { screenshotRun: number; departureDue?: boolean };
+function recoveryDemoTripId(mode: RecoveryDemoMode): string {
+	if (mode && (process.env.CTMS306_DEMO_SEED !== "1" || process.env.NODE_ENV === "production"))
+		throw new Error("CTMS-306 demo seed requires CTMS306_DEMO_SEED=1 outside production");
+	if (typeof mode === "object") {
+		if (!Number.isInteger(mode.screenshotRun) || mode.screenshotRun < 1 || mode.screenshotRun > 99)
+			throw new Error("Screenshot run must be an explicit integer from 1 to 99");
+		return `306de000-0000-4000-8000-${String(mode.screenshotRun * 10 + 1).padStart(12, "0")}`;
+	}
+	return mode ? "306de000-0000-4000-8000-000000000001" : "316de000-0000-4000-8000-000000000001";
+}
+/** Opt-in setup for the existing demo only; never clears shared development data. */
+export async function seedPackagePolicyDemo(
+	db: DataSource,
+	readableDemo: RecoveryDemoMode = false
+): Promise<void> {
+	if (process.env.NODE_ENV === "production") throw new Error("Demo setup forbidden in production");
+	await db.transaction(async (manager) => {
+		const tripId = recoveryDemoTripId(readableDemo);
+		const [trip] = (await manager.query("SELECT title,status FROM trips WHERE id=$1 FOR UPDATE", [
+			tripId,
+		])) as Array<{ title: string; status: string }>;
+		if (
+			!trip?.title.startsWith(readableDemo ? "[DEMO CTMS-306]" : "[DEMO CTMS-316]") ||
+			trip.status !== "published"
+		)
+			throw new Error("Requires the existing published recovery demo");
+		const [porter] = (await manager.query(
+			"SELECT id FROM users WHERE email='porter@ctms.local' AND status='active' AND role='porter'"
+		)) as Array<{ id: string }>;
+		if (!porter) throw new Error("Existing demo Porter account required");
+		const [pkg] = (await manager.query(
+			"SELECT id FROM offline_packages WHERE trip_id=$1 ORDER BY package_version DESC LIMIT 1",
+			[tripId]
+		)) as Array<{ id: string }>;
+		if (!pkg) throw new Error("Existing demo package required");
+		await manager.query(
+			"INSERT INTO trip_porters(trip_id,porter_id,status) VALUES($1,$2,'assigned') ON CONFLICT(trip_id,porter_id) DO NOTHING",
+			[tripId, porter.id]
+		);
+		await manager.query(
+			"INSERT INTO offline_package_requirements(trip_id,package_id) VALUES($1,$2) ON CONFLICT(trip_id) DO NOTHING",
+			[tripId, pkg.id]
+		);
+	});
+	console.log(
+		"[seed:package-policy] Existing demo assignment/requirement ensured; no source approval or Trip lifecycle change."
+	);
+}
+
+/** Explicitly labelled evidence fixture, not the approved safety-package pipeline. */
+export async function seedPackagePolicyVersion(
+	db: DataSource,
+	version: number,
+	required = true,
+	readableDemo: RecoveryDemoMode = false
+): Promise<void> {
+	if (process.env.NODE_ENV === "production" || ![2, 3, 4].includes(version))
+		throw new Error("Only demo evidence versions 2-4 are supported outside production");
+	await db.transaction(async (m) => {
+		const tripId = recoveryDemoTripId(readableDemo);
+		const [trip] = (await m.query("SELECT title,status FROM trips WHERE id=$1 FOR UPDATE", [
+			tripId,
+		])) as Array<{ title: string; status: string }>;
+		if (
+			!trip?.title.startsWith(readableDemo ? "[DEMO CTMS-306]" : "[DEMO CTMS-316]") ||
+			trip.status !== "published"
+		)
+			throw new Error("Requires existing published demo; does not bypass ongoing locks");
+		const [existing] = (await m.query(
+			"SELECT id FROM offline_packages WHERE trip_id=$1 AND package_version=$2",
+			[tripId, version]
+		)) as Array<{ id: string }>;
+		if (existing) {
+			console.log(`[seed:package-policy] Demo v${version} already exists; unchanged.`);
+			return;
+		}
+		const core = await new PackageCoreReader().read(m, tripId);
+		const safety: PackageSafetyInputs = {
+			revision: `demo-evidence-v${version}-no-safety-advice`,
+			blockers: [],
+			conditionEvidence: [],
+			feeds: [],
+			hazards: [],
+			guidance: [],
+			policy: {
+				version: "DEMO-NOT-APPROVED",
+				approvalId: "DEMO-NOT-FOR-NAVIGATION",
+				requiredGovernmentSources: [],
+				baselineTopics: [],
+				conditionTopics: [],
+				hazardTopics: [],
+				requiredConditions: [],
+				requireCheckpoints: true,
+				requiredWaypointTypes: [WaypointType.START, WaypointType.FINISH],
+			},
+		};
+		const builder = new PackageArtifactBuilder();
+		const artifact = builder.build(
+			{
+				core,
+				safety,
+				nextVersion: version,
+				coreFingerprint: digest(canonical(core)),
+				sourceFingerprint: sourceFingerprint(safety),
+			},
+			new TripSafetyContextResolver().resolve(core, safety),
+			[],
+			[],
+			new Date().toISOString()
+		);
+		builder.verify(artifact.bytes, artifact.manifest);
+		await new LocalPackageArtifactStorage().put(`${artifact.sha256}.zip`, artifact.bytes);
+		const id = randomUUID();
+		await m.query(
+			`INSERT INTO offline_packages(id,trip_id,package_version,generation_key,schema_version,manifest,provenance,sha256,size_bytes,artifact_key,generated_at)
+		 VALUES($1,$2,$3,$4,1,$5,$6,$4,$7,$8,$9)`,
+			[
+				id,
+				tripId,
+				version,
+				artifact.sha256,
+				artifact.manifest,
+				{ testFixture: true, source: "CTMS-306 DEMO EVIDENCE ONLY; not approved safety pipeline" },
+				artifact.bytes.length,
+				`${artifact.sha256}.zip`,
+				artifact.manifest.generatedAt,
+			]
+		);
+		if (required)
+			await m.query(
+				"UPDATE offline_package_requirements SET package_id=$2,required_at=now(),last_checked_at=NULL,last_reason_code=NULL WHERE trip_id=$1",
+				[tripId, id]
+			);
+		console.log(
+			`[seed:package-policy] Demo v${version} created (required=${required}); source freshness remains unknown.`
+		);
+	});
+}
+
+/** Manual ongoing fixture only: NOT evidence of a successful departure gate. */
+export async function seedPackagePolicyOngoing(
+	db: DataSource,
+	readableDemo: RecoveryDemoMode = false
+): Promise<void> {
+	if (process.env.NODE_ENV === "production") throw new Error("Fixture forbidden in production");
+	await db.transaction(async (m) => {
+		const tripId = recoveryDemoTripId(readableDemo);
+		const [trip] = (await m.query("SELECT title,status FROM trips WHERE id=$1 FOR UPDATE", [
+			tripId,
+		])) as Array<{ title: string; status: string }>;
+		if (
+			!trip?.title.startsWith(readableDemo ? "[DEMO CTMS-306]" : "[DEMO CTMS-316]") ||
+			!["published", "ongoing"].includes(trip.status)
+		)
+			throw new Error("Unexpected demo state");
+		const [report] = (await m.query(
+			`SELECT r.user_id,r.device_id,r.package_id FROM offline_package_device_reports r
+		 JOIN offline_packages p ON p.id=r.package_id JOIN users u ON u.id=r.user_id
+		 JOIN trip_porters tp ON tp.trip_id=r.trip_id AND tp.porter_id=r.user_id AND tp.status='assigned'
+		 WHERE r.trip_id=$1 AND p.package_version=3 AND r.status='active' AND u.email='porter@ctms.local'
+		 ORDER BY r.activated_at DESC LIMIT 1`,
+			[tripId]
+		)) as Array<{ user_id: string; device_id: string; package_id: string }>;
+		if (!report) throw new Error("Real Porter device report for active demo v3 required");
+		const newer = await m.query(
+			"SELECT id FROM offline_packages WHERE trip_id=$1 AND package_version=4",
+			[tripId]
+		);
+		if (!newer.length) throw new Error("Publish optional demo v4 first");
+		await m.query(
+			`INSERT INTO offline_package_departures(trip_id,user_id,device_id,package_id,locked_at)
+		 VALUES($1,$2,$3,$4,now()) ON CONFLICT(trip_id) DO NOTHING`,
+			[tripId, report.user_id, report.device_id, report.package_id]
+		);
+		const [lock] = (await m.query(
+			"SELECT package_id,locked_at FROM offline_package_departures WHERE trip_id=$1",
+			[tripId]
+		)) as Array<{ package_id: string; locked_at: Date | null }>;
+		if (lock.package_id !== report.package_id || !lock.locked_at)
+			throw new Error("Conflicting demo lock; not overwritten");
+		await m.query(
+			"UPDATE trips SET status='ongoing',starts_at=LEAST(starts_at,now()-interval '1 minute'),ends_at=GREATEST(ends_at,now()+interval '1 day'),updated_at=now() WHERE id=$1",
+			[tripId]
+		);
+	});
+	console.log(
+		"[seed:package-policy] MANUAL ONGOING FIXTURE: v3 locked, v4 optional; no source approval, NOT a successful departure-gate test."
+	);
+}
+
+export async function seedRouteRecoveryDemo(
+	db: DataSource,
+	readableDemo: RecoveryDemoMode = false
+): Promise<void> {
 	if (process.env.NODE_ENV === "production")
 		throw new Error("Demo seed is forbidden in production");
 	if (
@@ -5593,11 +5788,12 @@ export async function seedRouteRecoveryDemo(db: DataSource): Promise<void> {
 	)
 		throw new Error("Recovery demo must not run with destructive seed flags");
 	if (!db.isInitialized) await db.initialize();
-	const tripId = "316de000-0000-4000-8000-000000000001";
+	const tripId = recoveryDemoTripId(readableDemo);
+	const demoPrefix = readableDemo ? "[DEMO CTMS-306]" : "[DEMO CTMS-316]";
 	const rows: Array<{ id: string; title: string; host_id: string; route_id: string }> =
 		await db.query("SELECT id,title,host_id,route_id FROM trips WHERE id=$1", [tripId]);
 	if (rows.length) {
-		if (!rows[0].title.startsWith("[DEMO CTMS-316]"))
+		if (!rows[0].title.startsWith(demoPrefix))
 			throw new Error("Demo identity collision; refusing to modify existing Trip");
 		const [metadata] = (await db.query(
 			"SELECT * FROM offline_packages WHERE trip_id=$1 ORDER BY package_version DESC LIMIT 1",
@@ -5654,9 +5850,11 @@ export async function seedRouteRecoveryDemo(db: DataSource): Promise<void> {
 	const host = hostRow.id;
 	const booking = randomUUID();
 	const core = recoveryDemoCore();
-	core.tripId = "316de000-0000-4000-8000-000000000001";
-	core.routeId = "316de000-0000-4000-8000-000000000002";
-	core.startsAt = new Date(Date.now() + 3600000).toISOString();
+	core.tripId = tripId;
+	core.routeId = `${tripId.slice(0, -1)}2`;
+	core.startsAt = new Date(
+		Date.now() + (typeof readableDemo === "object" && readableDemo.departureDue ? -60000 : 3600000)
+	).toISOString();
 	core.endsAt = new Date(Date.now() + 7 * 86400000).toISOString();
 	core.geometry = {
 		type: "LineString",
@@ -5672,7 +5870,13 @@ export async function seedRouteRecoveryDemo(db: DataSource): Promise<void> {
 	core.checkpoints = [0, 2, 5].map((index, order) => ({
 		id: randomUUID(),
 		routeId: core.routeId,
-		name: `[TEST] Trạm ${order + 1}`,
+		name: readableDemo
+			? [
+					"Điểm tập trung ven biển (Mẫu)",
+					"Điểm nghỉ giữa tuyến (Mẫu)",
+					"Điểm kết thúc hành trình (Mẫu)",
+				][order]
+			: `[TEST] Trạm ${order + 1}`,
 		type:
 			order === 0
 				? CheckpointType.START
@@ -5682,7 +5886,13 @@ export async function seedRouteRecoveryDemo(db: DataSource): Promise<void> {
 		location: { type: "Point" as const, coordinates: core.geometry.coordinates[index] },
 		radiusMeters: 30,
 		expectedArrivalOffset: order * 30,
-		instructions: "Test fixture only; not real navigation data.",
+		instructions: readableDemo
+			? [
+					"Đối chiếu danh sách thành viên và thống nhất lịch trình với người hỗ trợ. Đây là điểm mẫu để thử giao diện, không dùng dẫn đường thực tế.",
+					"Điểm dừng mẫu để xem mô tả và khoảng cách. Thời gian nghỉ do người phụ trách chuyến thống nhất.",
+					"Điểm kết thúc mẫu để kiểm tra danh sách điểm dừng. Xác nhận đủ thành viên theo quy trình của chuyến.",
+				][order]
+			: "Test fixture only; not real navigation data.",
 		routePosition: order / 2,
 	}));
 	core.waypoints = core.waypoints.map((w, index) => ({
@@ -5801,6 +6011,22 @@ export async function seedRouteRecoveryDemo(db: DataSource): Promise<void> {
 			]
 		);
 	});
+	if (readableDemo) {
+		await db.transaction(async (m) => {
+			await m.query(
+				"UPDATE trips SET title='[DEMO CTMS-306] Sơn Trà - Xem dữ liệu ngoại tuyến',description='Dữ liệu mẫu thử giao diện; không dùng dẫn đường hay hướng dẫn an toàn thực tế.' WHERE id=$1",
+				[tripId]
+			);
+			await m.query(
+				"UPDATE trekking_routes SET name='[DEMO CTMS-306] Tuyến ven biển mẫu' WHERE id=$1",
+				[core.routeId]
+			);
+			await m.query(
+				"INSERT INTO trip_porters(trip_id,porter_id,status) SELECT $1,id,'assigned' FROM users WHERE email='porter@ctms.local' AND role='porter' AND status='active' ON CONFLICT(trip_id,porter_id) DO NOTHING",
+				[tripId]
+			);
+		});
+	}
 	await new CheckpointArrivalsRepository(db).registerActivePackage({
 		tripId: core.tripId,
 		routeId: core.routeId,
