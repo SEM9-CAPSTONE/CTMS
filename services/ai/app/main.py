@@ -32,6 +32,9 @@ from app.demand_insight_service import DemandRequest, DemandResponse, DemandInsi
 from app.weather_risk_review_service import (
     InvalidWeatherReviewOutput, WeatherRiskReviewRequest, WeatherRiskReviewResponse, WeatherRiskReviewService,
 )
+from app.trip_recommendation_service import (
+    TripRecommendationRequest, TripRecommendationResponse, TripRecommendationService,
+)
 from app.guide_card_extraction_service import (
     GuideCardExtractionRequest, GuideCardExtractionResponse, GuideCardExtractionService, InvalidGuideCardOutput,
 )
@@ -275,6 +278,42 @@ def extract_guide_card(payload: GuideCardExtractionRequest, service: GuideCardEx
     try:
         return service.extract(payload)
     except InvalidGuideCardOutput:
+        raise HTTPException(status_code=422, detail={"code": "invalid_output"}) from None
+    except (APITimeoutError, APIConnectionError):
+        raise HTTPException(status_code=504, detail={"code": "provider_transport"}) from None
+    except APIStatusError as error:
+        status = error.status_code
+        raise HTTPException(status_code=status if status == 429 or 400 <= status < 500 else 502, detail={"code": "provider_failure"}) from None
+    except Exception:
+        raise HTTPException(status_code=502, detail={"code": "provider_failure"}) from None
+
+
+@lru_cache
+def get_trip_recommendation_service() -> TripRecommendationService:
+    # The API waits 5 seconds and then uses its rule order, so the provider call stays below that.
+    provider = os.environ.get("TRIP_RECOMMENDATION_PROVIDER", "gemini")
+    key = os.environ.get("GEMINI_API_KEY")
+    if provider != "gemini" or not key:
+        raise HTTPException(status_code=503, detail={"code": "provider_not_configured"})
+    return TripRecommendationService(OpenAI(
+        api_key=key, base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+        timeout=4.0, max_retries=0,
+    ))
+
+
+@app.post("/trip-recommendations", response_model=TripRecommendationResponse, dependencies=[Depends(require_review_token)])
+def rank_trip_recommendations(payload: TripRecommendationRequest, service: TripRecommendationService = Depends(get_trip_recommendation_service)) -> TripRecommendationResponse:
+    """Reorders already-eligible candidates; the API re-validates codes and reasons."""
+    model = os.environ.get("TRIP_RECOMMENDATION_MODEL", "").strip() or "gemini-3.1-flash-lite"
+    if payload.model != model:
+        raise HTTPException(status_code=422, detail={"code": "invalid_model"})
+    try:
+        return service.rank(payload)
+    except HTTPException:
+        raise
+    except ReviewProviderRefusal:
+        raise HTTPException(status_code=422, detail={"code": "provider_refusal"}) from None
+    except InvalidReviewOutput:
         raise HTTPException(status_code=422, detail={"code": "invalid_output"}) from None
     except (APITimeoutError, APIConnectionError):
         raise HTTPException(status_code=504, detail={"code": "provider_transport"}) from None
