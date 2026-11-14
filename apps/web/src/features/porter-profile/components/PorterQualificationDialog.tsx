@@ -150,27 +150,24 @@ export function PorterQualificationDialog({
 						{isEditMode ? (
 							<div className="rounded-xl border border-[#d2ded2] bg-[#f4f7f2] px-3.5 py-2.5 text-sm font-bold text-[#10221b]">
 								{availableRoutes.find((r) => r.id === qualification?.routeId)?.name ||
-									qualification?.routeId}
+									"Chưa cập nhật tên tuyến"}
 							</div>
 						) : (
 							<>
-								<input
+								<select
 									id="routeId"
 									data-testid="route-id-input"
-									type="text"
-									placeholder="Nhập mã Tuyến (UUID), ví dụ: 400dc5c4-8e81-497f-92a0-6fe3249ef922..."
-									list="route-suggestions"
 									disabled={isSubmitting}
 									{...register("routeId")}
 									className="w-full rounded-xl border border-[#d2ded2] bg-white px-3.5 py-2.5 text-sm font-medium text-[#10221b] outline-none transition focus:border-[#164027] focus:ring-1 focus:ring-[#164027]"
-								/>
-								<datalist id="route-suggestions">
+								>
+									<option value="">Chọn tuyến trekking</option>
 									{filteredRoutes.map((route) => (
 										<option key={route.id} value={route.id}>
 											{route.name}
 										</option>
 									))}
-								</datalist>
+								</select>
 							</>
 						)}
 						{errors.routeId && (

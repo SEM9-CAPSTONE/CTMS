@@ -8,6 +8,13 @@ export const OUTCOME_OPTIONS = [
 
 /** Maps raw action strings to human-readable Vietnamese labels */
 export const ACTION_LABELS: Record<string, string> = {
+	"booking.refund_processed": "Tiếp nhận yêu cầu hoàn tiền",
+	"booking.refund_approved": "Duyệt yêu cầu hoàn tiền",
+	"booking.refund_confirmed": "Xác nhận chuyển tiền hoàn cho khách",
+	"booking.refund_rejected": "Từ chối yêu cầu hoàn tiền",
+	"financial.reconciliation_created": "Ghi nhận khoản hoàn hoặc thu hồi sau quyết toán",
+	"financial.reconciliation_resolved": "Ghi nhận kết quả thu hồi",
+	"financial.host_account_consolidated": "Gom dữ liệu người tổ chức về tài khoản chính",
 	"auth.register": "Đăng ký tài khoản",
 	"auth.verify_otp": "Xác thực OTP",
 	"auth.login": "Đăng nhập",
@@ -25,6 +32,9 @@ export const ACTION_LABELS: Record<string, string> = {
 
 /** Maps target type strings to human-readable Vietnamese labels */
 export const TARGET_TYPE_LABELS: Record<string, string> = {
+	payment: "Giao dịch thanh toán",
+	financial_adjustment: "Khoản hoàn sau quyết toán",
+	host_wallet: "Ví người tổ chức",
 	user: "Người dùng",
 	health_profile: "Hồ sơ sức khoẻ",
 	session: "Phiên đăng nhập",

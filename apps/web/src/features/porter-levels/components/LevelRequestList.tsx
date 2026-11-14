@@ -43,7 +43,9 @@ export function LevelRequestList({
 					<tbody>
 						{data.items.map((item) => (
 							<tr key={item.id} className="border-t border-[#dfe8df]">
-								{admin && <td className="p-2">{item.porterName ?? item.porterId}</td>}
+								{admin && (
+									<td className="p-2">{item.porterName ?? "Chưa cập nhật tên người dẫn đường"}</td>
+								)}
 								<td className="p-2">{item.routeName}</td>
 								<td className="p-2">
 									{levelName(item.currentLevel)} → {levelName(item.targetLevel)}

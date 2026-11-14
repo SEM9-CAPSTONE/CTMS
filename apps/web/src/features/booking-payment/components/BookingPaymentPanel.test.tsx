@@ -78,7 +78,7 @@ describe("BookingPaymentPanel", () => {
 			expect.any(String)
 		);
 		expect(await screen.findByRole("status")).toHaveTextContent("Thanh toán thành công!");
-		expect(screen.getByTestId("authoritative-payment-id")).toHaveTextContent("pay-12345");
+		expect(screen.queryByText("pay-12345")).not.toBeInTheDocument();
 		expect(screen.getByTestId("authoritative-payment-amount")).toHaveTextContent("1.000.000");
 		expect(screen.getByTestId("authoritative-payment-status")).toHaveTextContent("succeeded");
 		expect(screen.getByTestId("authoritative-booking-status")).toHaveTextContent("confirmed");
@@ -234,7 +234,7 @@ describe("BookingPaymentPanel", () => {
 		await userEvent.click(retryBtn);
 
 		expect(await screen.findByRole("status")).toHaveTextContent("Thanh toán thành công!");
-		expect(screen.getByTestId("authoritative-payment-id")).toHaveTextContent("pay-retry-success");
+		expect(screen.queryByText("pay-retry-success")).not.toBeInTheDocument();
 
 		paySpy.mockRestore();
 	});

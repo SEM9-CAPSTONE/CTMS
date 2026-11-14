@@ -46,7 +46,7 @@ function getHistoryActiveRole(): RoleKey | null {
 }
 
 function getDisplayName(user: StoredAuthUser): string {
-	return user.email || user.phone || user.id;
+	return user.fullName || user.email || user.phone || "Người dùng";
 }
 
 function getTimeOfDay(date = new Date()) {

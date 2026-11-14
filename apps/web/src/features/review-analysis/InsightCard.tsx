@@ -8,7 +8,7 @@ export function InsightCard({
 	item,
 	actor,
 	tripId,
-	index: _index,
+	index,
 }: { item: Insight; actor: string; tripId: string; index: number }) {
 	const [expanded, setExpanded] = useState(false);
 	const topics = expanded ? item.topics : item.topics.slice(0, 2);
@@ -18,7 +18,7 @@ export function InsightCard({
 				<div>
 					<div className="flex flex-wrap items-center gap-1.5">
 						<h3 className="text-sm font-bold tracking-tight text-[#10221b]">
-							#RV-{item.reviewId.slice(-4).toUpperCase()}
+							Đánh giá {index + 1}
 						</h3>
 						{typeof item.rating === "number" && item.rating > 0 && (
 							<span className="inline-flex items-center gap-1 rounded-md border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-950">

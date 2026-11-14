@@ -102,10 +102,7 @@ describe("useHostSosRealtime (CTMS-079-T02 on the shared CTMS-078 connection)", 
 
 		expect(invalidatedKeys()).toEqual([["sos", "host-list"], ["host-overview"]]);
 		expect(mocks.toastError).toHaveBeenCalledTimes(1);
-		expect(mocks.toastError).toHaveBeenCalledWith(
-			"Chấn thương · Mã chuyến: abcdef12",
-			"Yêu cầu cứu trợ khẩn cấp"
-		);
+		expect(mocks.toastError).toHaveBeenCalledWith("Chấn thương", "Yêu cầu cứu trợ khẩn cấp");
 	});
 
 	it("dedupes a repeated delivery of the same SOS event", () => {

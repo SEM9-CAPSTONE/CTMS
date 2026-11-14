@@ -21,7 +21,6 @@ export function BookingMemberRosterResult({
 				<CheckCircle2 className="size-5" />
 				Danh sách người tham gia đã được xác nhận
 			</div>
-			<p className="mt-1 text-xs">Mã đặt chỗ: {result.bookingId}</p>
 			<p className="mt-1 text-xs">Tổng số người tham gia: {result.members.length}</p>
 			<ul aria-label="Danh sách người tham gia đã xác nhận" className="mt-3 space-y-2">
 				{result.members.map((member) => {

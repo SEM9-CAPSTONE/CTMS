@@ -18,7 +18,7 @@ export function LevelRequestDetailView({
 	return (
 		<div className="space-y-5">
 			<div className="grid gap-2 text-sm sm:grid-cols-2">
-				<p>Porter: {request.porterName ?? request.porterId}</p>
+				<p>Porter: {request.porterName ?? "Chưa cập nhật tên người dẫn đường"}</p>
 				<p>Tuyến: {request.routeName}</p>
 				<p>Trạng thái: {REQUEST_STATUS_LABELS[request.status]}</p>
 				<p>

@@ -209,7 +209,6 @@ class _GuideTile extends StatelessWidget {
       const SizedBox(height: AppSpacing.md),
       if (guide.attribution case final attribution? when attribution.isNotEmpty)
         Text(attribution),
-      SelectableText('Phiên bản tài liệu · ${guide.documentVersionId}'),
       if (guide.sourceUrl case final url? when url.isNotEmpty)
         SelectableText(url),
       for (final ref in guide.pageRefs.toSet())

@@ -106,8 +106,8 @@ export function WeatherPenaltiesPanel({ service }: WeatherPenaltiesPanelProps) {
 									<div>
 										<p className="font-extrabold text-[#10221b]">{item.tripTitle}</p>
 										<p className="mt-1 text-xs text-[#667a6d]">
-											Host {item.hostName ?? item.hostId} · Lần {item.violationNumber} · Phạt{" "}
-											{formatBookingMoney(item.amount)} · Còn nợ{" "}
+											{item.hostName ?? "Chưa cập nhật tên người tổ chức"} · Lần{" "}
+											{item.violationNumber} · Phạt {formatBookingMoney(item.amount)} · Còn nợ{" "}
 											{formatBookingMoney(item.outstandingAmount)}
 											{item.waiver.reviewDueAt && !item.waiver.decision
 												? ` · Cần xem trước ${formatPenaltyDate(item.waiver.reviewDueAt)}`

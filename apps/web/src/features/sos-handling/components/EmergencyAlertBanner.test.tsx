@@ -54,7 +54,7 @@ describe("EmergencyAlertBanner", () => {
 			senderName: undefined,
 		};
 		render(<EmergencyAlertBanner alerts={[alertWithoutDetails]} />);
-		expect(screen.getByText("Mã chuyến: a1736fee")).toBeInTheDocument();
+		expect(screen.getByText("Chưa cập nhật tên chuyến đi")).toBeInTheDocument();
 	});
 
 	it("returns null when no active SOS is present", () => {

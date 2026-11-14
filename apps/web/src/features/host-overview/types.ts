@@ -11,6 +11,8 @@ export interface OverviewSection<T> {
 export interface OverviewBooking {
 	id: string;
 	tripId: string;
+	tripTitle?: string | null;
+	camperName?: string | null;
 	status:
 		| "pending_payment"
 		| "confirmed"
@@ -49,7 +51,12 @@ export interface OverviewRoute {
 export interface OverviewPorter {
 	id: string;
 	porterId: string;
-	assignments: { tripId: string; status: "assigned" | "pending_reconfirmation" | "unassigned" }[];
+	porterName?: string | null;
+	assignments: {
+		tripId: string;
+		tripTitle?: string | null;
+		status: "assigned" | "pending_reconfirmation" | "unassigned";
+	}[];
 }
 export interface OverviewSos {
 	id: string;

@@ -24,7 +24,7 @@ export function PorterQualificationCard({
 	disabled = false,
 }: PorterQualificationCardProps) {
 	const isVerified = Boolean(qualification.verifiedBy && qualification.verifiedAt);
-	const displayName = routeName || `Tuyến #${qualification.routeId.slice(0, 8)}`;
+	const displayName = routeName || "Chưa cập nhật tên tuyến";
 
 	const getEligibilityBadge = () => {
 		if (qualification.proficiency === "learning") {
@@ -63,9 +63,6 @@ export function PorterQualificationCard({
 						</div>
 						<div className="min-w-0">
 							<h4 className="font-extrabold text-[#10221b] truncate text-base">{displayName}</h4>
-							<p className="text-[11px] font-medium text-[#788c7e] truncate">
-								ID: {qualification.routeId}
-							</p>
 						</div>
 					</div>
 

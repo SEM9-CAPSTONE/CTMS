@@ -46,7 +46,7 @@ export function LevelDecisionForm({ context, pending, error, onDecide }: Props) 
 			})}
 		>
 			<div className="grid gap-2 text-sm sm:grid-cols-2">
-				<p>Porter: {dossier.porterName ?? dossier.porterId}</p>
+				<p>Porter: {dossier.porterName ?? "Chưa cập nhật tên người dẫn đường"}</p>
 				<p>Tuyến: {qualification.routeName}</p>
 				<p>
 					Cấp {qualification.verifiedBy ? "đã duyệt" : "tự khai"}:{" "}

@@ -167,10 +167,6 @@ export function AdminTripReviewDetails({ trip, onReview }: Props) {
 						<p className="text-xs text-[#667a6d]">Giá / người</p>
 						<strong>{formatPrice(trip.pricePerPerson)}</strong>
 					</div>
-					<div className="rounded-xl bg-[#f4f7f2] p-3">
-						<p className="text-xs text-[#667a6d]">Route ID</p>
-						<strong className="break-all">{trip.routeId}</strong>
-					</div>
 				</div>
 			</section>
 			<SubmittedTripWeather trip={trip} />
