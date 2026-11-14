@@ -50,3 +50,59 @@ jobs:
 
       - name: Validate AI service import
         run: python -m compileall services/ai/app
+
+      - name: Test survival answer provider contract
+        working-directory: services/ai
+        run: python -m pytest app/test_survival_answers.py app/test_survival_answers_policy.py -q
+
+  survival-answer-api:
+    name: Survival Answers API Tests
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    env:
+      TEST_DATABASE_URL: postgresql://ctms:ctms@127.0.0.1:55451/ctms_test
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4-alpine
+        env:
+          POSTGRES_DB: ctms_test
+          POSTGRES_USER: ctms
+          POSTGRES_PASSWORD: ctms
+        ports:
+          - 55451:5432
+        options: >-
+          --health-cmd "pg_isready -U ctms -d ctms_test"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --no-frozen-lockfile
+      - run: pnpm --filter @ctms/api exec jest --runInBand ai-answers rag knowledge-chunks
+      - run: pnpm --filter @ctms/api test:integration knowledge-chunks.integration-spec.ts survival-documents.integration-spec.ts auth.login.integration-spec.ts auth.refresh.integration-spec.ts
+      - run: pnpm --filter @ctms/api test:e2e ai-answers.e2e-spec.ts survival-documents.e2e-spec.ts
+
+  survival-answer-mobile:
+    name: Camper AI Chat Widget Tests
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.9'
+          cache: true
+      - run: flutter pub get
+      - run: flutter test --no-pub test/features/camper/survival_chat_test.dart
