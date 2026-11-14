@@ -8,6 +8,8 @@ import { JwtService } from "@nestjs/jwt";
 import { Test } from "@nestjs/testing";
 import request from "supertest";
 import { DataSource } from "typeorm";
+import { AI_PROMPT_VERSION } from "../src/modules/ai-answers/ai-answers.types";
+import { AiGenerationProvider } from "../src/modules/ai-answers/ai-generation.provider";
 import { AppModule } from "../src/modules/app.module";
 import { KnowledgeChunksProvider } from "../src/modules/knowledge-chunks/knowledge-chunks.provider";
 import { KnowledgeChunksRepository } from "../src/modules/knowledge-chunks/knowledge-chunks.repository";
@@ -44,6 +46,7 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 		embed: jest.fn(),
 		countPrefixes: jest.fn(),
 	};
+	const generationProvider = { generate: jest.fn() };
 	let root: string;
 	let auth: string;
 	let camperAuth: string;
@@ -58,6 +61,8 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 		const module = await Test.createTestingModule({ imports: [AppModule] })
 			.overrideProvider(RagEmbeddingProvider)
 			.useValue(ragProvider)
+			.overrideProvider(AiGenerationProvider)
+			.useValue(generationProvider)
 			.compile();
 		app = module.createNestApplication();
 		app.setGlobalPrefix("api");
@@ -524,12 +529,20 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 	});
 	describe("CTMS-068 RAG service boundary", () => {
 		const question = { question: "Nguồn thử nghiệm", locale: "vi" };
-		const retrieve = () => rag.retrieve({ userId: camper, roles: [UserRole.CAMPER], status: UserStatus.ACTIVE }, question);
+		const retrieve = () =>
+			rag.retrieve(
+				{ userId: camper, roles: [UserRole.CAMPER], status: UserStatus.ACTIVE },
+				question
+			);
 
 		beforeEach(() => {
-			ragProvider.embed.mockReset().mockResolvedValue(
-				Array.from({ length: configuration.embedding_dimensions }, (_, index) => Number(index === 0))
-			);
+			ragProvider.embed
+				.mockReset()
+				.mockResolvedValue(
+					Array.from({ length: configuration.embedding_dimensions }, (_, index) =>
+						Number(index === 0)
+					)
+				);
 			ragProvider.countPrefixes.mockReset().mockResolvedValue([30]);
 			const settings = new RagConfig(new ConfigService({ RAG_MIN_SCORE: "0.8" })).settings();
 			jest.spyOn(ragConfig, "settings").mockReturnValue(settings);
@@ -553,21 +566,154 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 				.expect(201);
 		}
 
+		describe("CTMS-069 generation against real PostgreSQL and RAG", () => {
+			const postAnswer = (
+				requestId: string,
+				authorization = camperAuth,
+				text = question.question
+			) =>
+				request(app.getHttpServer())
+					.post("/api/ai/answers")
+					.set("Authorization", authorization)
+					.send({ ...question, question: text, requestId });
+
+			beforeEach(async () => {
+				await db.query("DELETE FROM ai_answer_request_limits WHERE user_id=$1", [camper]);
+				generationProvider.generate.mockReset().mockImplementation(async (raw: string) => {
+					const { evidence } = JSON.parse(raw) as { evidence: Array<{ chunkId: string }> };
+					return {
+						status: "ANSWERED",
+						chunkIds: [evidence[0].chunkId],
+						provider: "openai",
+						model: "test-model",
+						promptVersion: AI_PROMPT_VERSION,
+					};
+				});
+			});
+
+			it("persists exact provenance once across concurrent POSTs and retries, and restricts source access", async () => {
+				const doc = await publish(await draft());
+				const set = await ready(doc);
+				const requestId = randomUUID();
+				const concurrent = await Promise.all([postAnswer(requestId), postAnswer(requestId)]);
+				const success = concurrent.find(({ status }) => status === 200);
+				expect(success?.body).toMatchObject({
+					status: "ANSWERED",
+					answerId: expect.any(String),
+					sources: [
+						{
+							documentVersionId: doc.versions[0].id,
+							chunkSetId: set.id,
+							sourceVersion: 1,
+							locations: [{ page: 1, itemRef: "#/texts/0" }],
+						},
+					],
+				});
+				const retry = await postAnswer(requestId).expect(200);
+				expect(retry.body).toEqual(success?.body);
+				expect(generationProvider.generate).toHaveBeenCalledTimes(1);
+				await postAnswer(requestId, camperAuth, "Một câu hỏi khác").expect(409);
+				const rows: Array<{ retrieved_evidence: unknown[] }> = await db.query(
+					"SELECT retrieved_evidence FROM ai_answers WHERE user_id=$1 AND request_id=$2",
+					[camper, requestId]
+				);
+				expect(rows).toHaveLength(1);
+				expect(rows[0].retrieved_evidence).toMatchObject([{ source: { checksum: set.checksum } }]);
+				const sources = `/api/ai/answers/${retry.body.answerId}/sources`;
+				await request(app.getHttpServer()).get(sources).set("Authorization", auth).expect(403);
+				const ownerSources = await request(app.getHttpServer())
+					.get(sources)
+					.set("Authorization", camperAuth)
+					.expect(200);
+				expect(ownerSources.body.sources).toEqual(retry.body.sources);
+				await archive(doc);
+				const withdrawn = await postAnswer(requestId).expect(200);
+				expect(withdrawn.body).toMatchObject({ status: "INSUFFICIENT_CONTEXT", sources: [] });
+				await request(app.getHttpServer())
+					.get(sources)
+					.set("Authorization", camperAuth)
+					.expect(200);
+			});
+
+			it("rejects a selection that leaves out part of a PDF item", async () => {
+				const set = await ready(await publish(await draft()));
+				await db.query("UPDATE knowledge_chunks SET embedding=$2 WHERE chunk_set_id=$1", [
+					set.id,
+					Array.from({ length: configuration.embedding_dimensions }, (_, index) =>
+						Number(index === 0)
+					),
+				]);
+				await db.query(
+					"UPDATE knowledge_chunks SET metadata=jsonb_set(metadata,'{locations,0,item_ref}',to_jsonb($2::text)) WHERE chunk_set_id=$1 AND chunk_index=1",
+					[set.id, "#/texts/0"]
+				);
+				ragProvider.countPrefixes.mockResolvedValue([20, 40]);
+				const result = await postAnswer(randomUUID()).expect(200);
+				expect(generationProvider.generate).toHaveBeenCalledTimes(1);
+				expect(result.body).toMatchObject({ status: "INSUFFICIENT_CONTEXT", sources: [] });
+			});
+
+			it.each(["supersede", "archive", "delete"])(
+				"withholds a source changed by %s during generation",
+				async (action) => {
+					const doc = await publish(await draft());
+					await ready(doc);
+					const select = generationProvider.generate.getMockImplementation();
+					generationProvider.generate.mockImplementationOnce(async (raw: string) => {
+						if (action === "supersede") await publish(await draft(doc));
+						else {
+							await archive(doc);
+							if (action === "delete") {
+								const detail = await request(app.getHttpServer())
+									.get(`${endpoint}/${doc.id}`)
+									.set("Authorization", auth)
+									.expect(200);
+								await request(app.getHttpServer())
+									.delete(`${endpoint}/${doc.id}?expectedRevision=${detail.body.revision}`)
+									.set("Authorization", auth)
+									.expect(204);
+							}
+						}
+						return select?.(raw);
+					});
+					const requestId = randomUUID();
+					const result = await postAnswer(requestId).expect(200);
+					expect(result.body).toMatchObject({
+						status: "INSUFFICIENT_CONTEXT",
+						answer: null,
+						sources: [],
+					});
+					expect(
+						await db.query("SELECT id FROM ai_answers WHERE request_id=$1", [requestId])
+					).toEqual([]);
+				}
+			);
+		});
+
 		it("serves only active READY versions with verified provenance, fencing V1 during V2 rebuild", async () => {
 			const v1 = await publish(await draft());
 			const s1 = await ready(v1);
 			const result = await retrieve();
 			expect(result).toMatchObject({
-				status: "GROUNDED", contextTokenCount: 30,
-				selectedChunks: [{ chunkIndex: 0, score: 1, locations: [{ page: 1, itemRef: "#/texts/0" }] }],
-				sources: [{ documentVersionId: v1.versions[0].id, sourceVersion: 1, checksum: s1.checksum }],
+				status: "GROUNDED",
+				contextTokenCount: 30,
+				selectedChunks: [
+					{ chunkIndex: 0, score: 1, locations: [{ page: 1, itemRef: "#/texts/0" }] },
+				],
+				sources: [
+					{ documentVersionId: v1.versions[0].id, sourceVersion: 1, checksum: s1.checksum },
+				],
 			});
 			const v2 = await publish(await draft(v1));
 			await enqueue(v2);
-			expect(await retrieve()).toMatchObject({ status: "INSUFFICIENT_CONTEXT", reason: "NO_MATCH" });
+			expect(await retrieve()).toMatchObject({
+				status: "INSUFFICIENT_CONTEXT",
+				reason: "NO_MATCH",
+			});
 			await ready(v2);
 			expect(await retrieve()).toMatchObject({
-				status: "GROUNDED", sources: [{ documentVersionId: v2.versions[0].id, sourceVersion: 2 }],
+				status: "GROUNDED",
+				sources: [{ documentVersionId: v2.versions[0].id, sourceVersion: 2 }],
 			});
 			await archive(v2);
 			expect(await retrieve()).toMatchObject({ status: "INSUFFICIENT_CONTEXT", sources: [] });
@@ -589,7 +735,10 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 				return [20, 40];
 			});
 			expect(await retrieve()).toMatchObject({
-				status: "INSUFFICIENT_CONTEXT", reason: "SOURCE_CHANGED", context: "", sources: [],
+				status: "INSUFFICIENT_CONTEXT",
+				reason: "SOURCE_CHANGED",
+				context: "",
+				sources: [],
 			});
 		});
 
@@ -600,14 +749,25 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 				"UPDATE knowledge_chunks SET metadata=jsonb_set(metadata,'{locations,0,item_ref}',to_jsonb($2::text)) WHERE chunk_set_id=$1 AND chunk_index=1",
 				[set.id, "#/texts/0"]
 			);
-			expect(await retrieve()).toMatchObject({ status: "INSUFFICIENT_CONTEXT", reason: "INCOMPLETE_EVIDENCE" });
+			expect(await retrieve()).toMatchObject({
+				status: "INSUFFICIENT_CONTEXT",
+				reason: "INCOMPLETE_EVIDENCE",
+			});
 			await db.query(
 				"UPDATE knowledge_chunks SET metadata=jsonb_set(metadata,'{locations}','[]'::jsonb) WHERE chunk_set_id=$1 AND chunk_index=0",
 				[set.id]
 			);
-			expect(await retrieve()).toMatchObject({ status: "INSUFFICIENT_CONTEXT", reason: "NO_MATCH" });
-			await db.query("DELETE FROM knowledge_chunks WHERE chunk_set_id=$1 AND chunk_index=1", [set.id]);
-			expect(await retrieve()).toMatchObject({ status: "INSUFFICIENT_CONTEXT", reason: "NO_MATCH" });
+			expect(await retrieve()).toMatchObject({
+				status: "INSUFFICIENT_CONTEXT",
+				reason: "NO_MATCH",
+			});
+			await db.query("DELETE FROM knowledge_chunks WHERE chunk_set_id=$1 AND chunk_index=1", [
+				set.id,
+			]);
+			expect(await retrieve()).toMatchObject({
+				status: "INSUFFICIENT_CONTEXT",
+				reason: "NO_MATCH",
+			});
 		});
 
 		it("fails closed when the approved-host policy is removed", async () => {
@@ -617,7 +777,8 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 			try {
 				expect(await retrieve()).toMatchObject({ status: "INSUFFICIENT_CONTEXT", sources: [] });
 			} finally {
-				if (hosts === undefined) Reflect.deleteProperty(process.env, "SURVIVAL_KNOWLEDGE_APPROVED_HOSTS");
+				if (hosts === undefined)
+					Reflect.deleteProperty(process.env, "SURVIVAL_KNOWLEDGE_APPROVED_HOSTS");
 				else process.env.SURVIVAL_KNOWLEDGE_APPROVED_HOSTS = hosts;
 			}
 		});
@@ -626,13 +787,19 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 			const first = await ready(await publish(await draft()));
 			const second = await ready(await publish(await draft()));
 			const winner = [first.id, second.id].sort()[0];
-			expect(await retrieve()).toMatchObject({ status: "GROUNDED", sources: [{ chunkSetId: winner }] });
+			expect(await retrieve()).toMatchObject({
+				status: "GROUNDED",
+				sources: [{ chunkSetId: winner }],
+			});
 			const loser = first.id === winner ? second.id : first.id;
 			await db.query(
 				"UPDATE knowledge_chunks SET embedding=ARRAY['NaN'::float8] || embedding[2:384] WHERE chunk_set_id=$1 AND chunk_index=0",
 				[winner]
 			);
-			expect(await retrieve()).toMatchObject({ status: "GROUNDED", sources: [{ chunkSetId: loser }] });
+			expect(await retrieve()).toMatchObject({
+				status: "GROUNDED",
+				sources: [{ chunkSetId: loser }],
+			});
 			await db.query(
 				"UPDATE knowledge_chunk_sets SET configuration=jsonb_set(configuration,'{embedding_revision}',to_jsonb('other'::text)) WHERE id=$1",
 				[loser]
@@ -641,37 +808,49 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 		});
 
 		const benchmark = process.env.RUN_RAG_BENCHMARK === "true" ? it : it.skip;
-		benchmark("reports synthetic latency and Node heap change for 2,000 vectors", async () => {
-			const doc = await publish(await draft());
-			await enqueue(doc);
-			const set = await claim();
-			const generated = output(set);
-			const sample = generated.chunks[0];
-			generated.chunks = Array.from({ length: 2000 }, (_, index) => ({
-				...sample,
-				chunk_index: index,
-				locations: sample.locations.map((location) => ({ ...location, item_ref: `#/texts/${index}` })),
-				content: `${sample.content} ${index}`,
-				embedding_text: `${sample.embedding_text} ${index}`,
-			}));
-			expect(await repo.finish(set, generated)).toBe(true);
-			ragProvider.countPrefixes.mockResolvedValue([20, 40, 60, 80, 100]);
-			const before = process.memoryUsage().heapUsed;
-			const durations: number[] = [];
-			for (let attempt = 0; attempt < 10; attempt++) {
-				const result = await retrieve();
-				expect(result).toMatchObject({ status: "GROUNDED", metrics: { candidateCount: 2000, selectedCount: 5 } });
-				durations.push(result.metrics.durationMs);
-			}
-			durations.sort((a, b) => a - b);
-			process.stdout.write(`${JSON.stringify({
-				fixtureChunks: 2000,
-				samples: durations.length,
-				p50Ms: durations[4],
-				p95Ms: durations[9],
-				heapDeltaBytes: process.memoryUsage().heapUsed - before,
-			})}\n`);
-		}, 30000);
+		benchmark(
+			"reports synthetic latency and Node heap change for 2,000 vectors",
+			async () => {
+				const doc = await publish(await draft());
+				await enqueue(doc);
+				const set = await claim();
+				const generated = output(set);
+				const sample = generated.chunks[0];
+				generated.chunks = Array.from({ length: 2000 }, (_, index) => ({
+					...sample,
+					chunk_index: index,
+					locations: sample.locations.map((location) => ({
+						...location,
+						item_ref: `#/texts/${index}`,
+					})),
+					content: `${sample.content} ${index}`,
+					embedding_text: `${sample.embedding_text} ${index}`,
+				}));
+				expect(await repo.finish(set, generated)).toBe(true);
+				ragProvider.countPrefixes.mockResolvedValue([20, 40, 60, 80, 100]);
+				const before = process.memoryUsage().heapUsed;
+				const durations: number[] = [];
+				for (let attempt = 0; attempt < 10; attempt++) {
+					const result = await retrieve();
+					expect(result).toMatchObject({
+						status: "GROUNDED",
+						metrics: { candidateCount: 2000, selectedCount: 5 },
+					});
+					durations.push(result.metrics.durationMs);
+				}
+				durations.sort((a, b) => a - b);
+				process.stdout.write(
+					`${JSON.stringify({
+						fixtureChunks: 2000,
+						samples: durations.length,
+						p50Ms: durations[4],
+						p95Ms: durations[9],
+						heapDeltaBytes: process.memoryUsage().heapUsed - before,
+					})}\n`
+				);
+			},
+			30000
+		);
 
 		it("treats a corpus limit as operational failure before embedding", async () => {
 			await ready(await publish(await draft()));
@@ -683,9 +862,12 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 
 		it("exposes no public RAG or chat route", async () => {
 			for (const path of ["/api/rag/retrieve", "/api/ai/chat"]) {
-				await request(app.getHttpServer()).post(path).set("Authorization", camperAuth).send(question).expect(404);
+				await request(app.getHttpServer())
+					.post(path)
+					.set("Authorization", camperAuth)
+					.send(question)
+					.expect(404);
 			}
 		});
 	});
-
 });

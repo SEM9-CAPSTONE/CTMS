@@ -6,6 +6,6 @@ import { RagRepository } from "./rag.repository";
 
 @Module({
 	providers: [RagConfig, RagEmbeddingProvider, RagRepository, RagRetrievalService],
-	exports: [RagRetrievalService],
+	exports: [RagRetrievalService, RagRepository],
 })
 export class RagModule {}

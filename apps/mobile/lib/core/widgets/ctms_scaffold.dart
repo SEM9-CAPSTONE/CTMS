@@ -36,7 +36,7 @@ class CtmsScaffold extends StatelessWidget {
   final Widget body;
   final Widget? floatingActionButton;
   final PreferredSizeWidget? bottom;
-  final bool isConnected;
+  final bool? isConnected;
   final int unreadNotifications;
   final VoidCallback? onNotificationsTap;
   final Widget? leading;
@@ -127,15 +127,16 @@ class CtmsScaffold extends StatelessWidget {
               ),
         actions: [
           ...?actions,
-          Container(
-            width: 8,
-            height: 8,
-            margin: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-            decoration: BoxDecoration(
-              color: isConnected ? AppColors.statusSuccess : AppColors.statusNeutral,
-              shape: BoxShape.circle,
+          if (isConnected != null)
+            Container(
+              width: 8,
+              height: 8,
+              margin: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+              decoration: BoxDecoration(
+                color: isConnected == true ? AppColors.statusSuccess : AppColors.statusNeutral,
+                shape: BoxShape.circle,
+              ),
             ),
-          ),
           _NotificationBell(count: unreadNotifications, onTap: onNotificationsTap),
           const SizedBox(width: AppSpacing.xs),
         ],

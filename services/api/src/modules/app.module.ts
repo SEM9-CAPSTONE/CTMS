@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { DatabaseModule } from "../shared/database/database.module";
 import { AdminModerationModule } from "./admin-moderation/admin-moderation.module";
+import { AiAnswersModule } from "./ai-answers/ai-answers.module";
 import { AuthModule } from "./auth/auth.module";
 import { BookingsModule } from "./bookings/bookings.module";
 import { CheckpointArrivalsModule } from "./checkpoint-arrivals/checkpoint-arrivals.module";
@@ -90,6 +91,7 @@ import { WeatherModule } from "./weather/weather.module";
 		SurvivalDocumentsModule,
 		KnowledgeChunksModule,
 		RagModule,
+		AiAnswersModule,
 		OfflinePackagesModule,
 		OfflinePackageDownloadModule,
 	],

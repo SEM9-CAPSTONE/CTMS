@@ -2,7 +2,11 @@ import { createHash } from "node:crypto";
 import { Injectable, ServiceUnavailableException } from "@nestjs/common";
 // biome-ignore lint/style/useImportType: Nest injection
 import { DataSource, type EntityManager } from "typeorm";
-import { chunkConfiguration, ChunkSetStatus, MAX_TOKENS } from "../knowledge-chunks/knowledge-chunks.types";
+import {
+	ChunkSetStatus,
+	MAX_TOKENS,
+	chunkConfiguration,
+} from "../knowledge-chunks/knowledge-chunks.types";
 import { isEligiblePublishedSource } from "../survival-documents/source-policy";
 import {
 	DocumentStatus,
@@ -10,12 +14,41 @@ import {
 	VERSION_SELECT,
 } from "../survival-documents/survival-documents.types";
 import type { RagSettings } from "./rag.config";
-import { MAX_BLOCK_BYTES, type RagChunk, type RagSource } from "./rag.types";
+import { MAX_BLOCK_BYTES, type RagChunk, type RagEvidenceRef, type RagSource } from "./rag.types";
 
 const MAX_PAGE_COUNT = 1000;
 const MAX_RANKED_ROWS = 128;
 const EMBEDDING = chunkConfiguration();
 const CONFIG_HASH = createHash("sha256").update(JSON.stringify(EMBEDDING)).digest("hex");
+
+export function evidenceRef(chunk: RagChunk): RagEvidenceRef {
+	const { chunkId, chunkIndex, source, locations, content, headings } = chunk;
+	return {
+		chunkId,
+		chunkIndex,
+		source,
+		locations,
+		fingerprint: createHash("sha256").update(JSON.stringify({ content, headings })).digest("hex"),
+	};
+}
+
+function sameEvidence(left: RagEvidenceRef, right: RagEvidenceRef): boolean {
+	// JSONB can reorder keys in the persisted reference.
+	return (
+		left.chunkId === right.chunkId &&
+		left.chunkIndex === right.chunkIndex &&
+		left.fingerprint === right.fingerprint &&
+		left.locations.length === right.locations.length &&
+		left.locations.every(
+			({ page, itemRef }, index) =>
+				page === right.locations[index].page && itemRef === right.locations[index].itemRef
+		) &&
+		Object.keys(left.source).length === Object.keys(right.source).length &&
+		(Object.keys(left.source) as Array<keyof RagSource>).every(
+			(key) => left.source[key] === right.source[key]
+		)
+	);
+}
 
 interface Publication extends SourceVersion {
 	chunkSetId: string;
@@ -171,46 +204,76 @@ export class RagRepository {
 		locale: string,
 		timeoutMs: number
 	): Promise<"CURRENT" | "SOURCE_CHANGED" | "INCOMPLETE_EVIDENCE"> {
-		return this.read(timeoutMs, async (manager) => {
-			const documentIds = [...new Set(chunks.map((chunk) => chunk.source.documentId))];
-			const current = await this.publications(
-				manager,
-				locale,
-				documentIds.length,
-				documentIds
+		return this.read(timeoutMs, (manager) =>
+			this.checkEvidence(manager, chunks.map(evidenceRef), locale)
+		);
+	}
+
+	/** Serializes the final consumer write with publication, withdrawal and chunk activation. */
+	async withCurrentEvidence<T>(
+		evidence: RagEvidenceRef[],
+		locale: string,
+		timeoutMs: number,
+		work: (manager: EntityManager) => Promise<T>,
+		cited: RagEvidenceRef[] = evidence
+	): Promise<T | null> {
+		if (!evidence.length) return null;
+		return this.db.transaction(async (manager) => {
+			await manager.query("SELECT set_config('statement_timeout',$1,true)", [String(timeoutMs)]);
+			const documentIds = [...new Set(evidence.map(({ source }) => source.documentId))];
+			await manager.query(
+				"SELECT id FROM survival_documents WHERE id=ANY($1::uuid[]) ORDER BY id FOR SHARE",
+				[documentIds]
 			);
-			const chunkIds = chunks.map((chunk) => chunk.chunkId);
-			const bySet = new Map(current.map((set) => [set.chunkSetId, set]));
-			const rows: Omit<CandidateRow, "score">[] = await manager.query(
-				`SELECT id,chunk_set_id,chunk_index,content,metadata
+			if ((await this.checkEvidence(manager, evidence, locale)) !== "CURRENT") return null;
+			if (
+				cited.length !== evidence.length &&
+				(await this.checkEvidence(manager, cited, locale)) !== "CURRENT"
+			)
+				return null;
+			return work(manager);
+		});
+	}
+
+	private async checkEvidence(
+		manager: EntityManager,
+		chunks: RagEvidenceRef[],
+		locale: string
+	): Promise<"CURRENT" | "SOURCE_CHANGED" | "INCOMPLETE_EVIDENCE"> {
+		const documentIds = [...new Set(chunks.map((chunk) => chunk.source.documentId))];
+		const current = await this.publications(manager, locale, documentIds.length, documentIds);
+		const chunkIds = chunks.map((chunk) => chunk.chunkId);
+		const bySet = new Map(current.map((set) => [set.chunkSetId, set]));
+		const rows: Omit<CandidateRow, "score">[] = await manager.query(
+			`SELECT id,chunk_set_id,chunk_index,content,metadata
 				FROM knowledge_chunks WHERE id=ANY($1::uuid[]) AND chunk_set_id=ANY($2::uuid[])
 					AND octet_length(content)<=$3 AND octet_length(metadata::text)<=$3`,
-				[chunkIds, [...bySet.keys()], MAX_BLOCK_BYTES]
-			);
-			const byChunk = new Map(rows.map((row) => [row.id, row]));
-			const unchanged = chunks.every((chunk) => {
-				const row = byChunk.get(chunk.chunkId);
-				const set = row && bySet.get(row.chunk_set_id);
-				if (!row || !set) return false;
-				const rechecked = asChunk({ ...row, score: chunk.score }, set, toSource(set));
-				return JSON.stringify(rechecked) === JSON.stringify(chunk);
-			});
-			if (!unchanged) return "SOURCE_CHANGED";
+			[chunkIds, [...bySet.keys()], MAX_BLOCK_BYTES]
+		);
+		const byChunk = new Map(rows.map((row) => [row.id, row]));
+		const unchanged = chunks.every((chunk) => {
+			const row = byChunk.get(chunk.chunkId);
+			const set = row && bySet.get(row.chunk_set_id);
+			if (!row || !set) return false;
+			const rechecked = asChunk({ ...row, score: 0 }, set, toSource(set));
+			return rechecked !== null && sameEvidence(evidenceRef(rechecked), chunk);
+		});
+		if (!unchanged) return "SOURCE_CHANGED";
 
-			// An upstream PDF item can span several chunks. Do not return a partial item as evidence.
-			const itemSets = new Map<string, Set<string>>();
-			for (const { source, locations } of chunks) {
-				const refs = itemSets.get(source.chunkSetId) ?? new Set<string>();
-				for (const { itemRef } of locations) refs.add(itemRef);
-				itemSets.set(source.chunkSetId, refs);
-			}
-			const sets = current.map((set) => ({
-				id: set.chunkSetId,
-				chunk_count: set.chunkCount,
-				refs: [...(itemSets.get(set.chunkSetId) ?? [])],
-			}));
-			const [check]: Array<{ valid: boolean; partial: boolean }> = await manager.query(
-				`WITH expected AS (
+		// An upstream PDF item can span several chunks. Do not return a partial item as evidence.
+		const itemSets = new Map<string, Set<string>>();
+		for (const { source, locations } of chunks) {
+			const refs = itemSets.get(source.chunkSetId) ?? new Set<string>();
+			for (const { itemRef } of locations) refs.add(itemRef);
+			itemSets.set(source.chunkSetId, refs);
+		}
+		const sets = current.map((set) => ({
+			id: set.chunkSetId,
+			chunk_count: set.chunkCount,
+			refs: [...(itemSets.get(set.chunkSetId) ?? [])],
+		}));
+		const [check]: Array<{ valid: boolean; partial: boolean }> = await manager.query(
+			`WITH expected AS (
 					SELECT * FROM jsonb_to_recordset($1::jsonb) AS s(id uuid, chunk_count int, refs jsonb)
 				), checked AS (
 					SELECT count(c.id)=s.chunk_count AND min(c.chunk_index)=0
@@ -225,14 +288,16 @@ export class RagRepository {
 					GROUP BY s.id,s.chunk_count,s.refs
 				)
 				SELECT bool_and(complete) AS valid, coalesce(bool_or(partial),false) AS partial FROM checked`,
-				[JSON.stringify(sets), chunkIds]
-			);
-			if (!check.valid) return "SOURCE_CHANGED";
-			return check.partial ? "INCOMPLETE_EVIDENCE" : "CURRENT";
-		});
+			[JSON.stringify(sets), chunkIds]
+		);
+		if (!check.valid) return "SOURCE_CHANGED";
+		return check.partial ? "INCOMPLETE_EVIDENCE" : "CURRENT";
 	}
 
-	private async read<T>(timeoutMs: number, query: (manager: EntityManager) => Promise<T>): Promise<T> {
+	private async read<T>(
+		timeoutMs: number,
+		query: (manager: EntityManager) => Promise<T>
+	): Promise<T> {
 		try {
 			return await this.db.transaction("REPEATABLE READ", async (manager) => {
 				await manager.query("SET TRANSACTION READ ONLY");
@@ -274,7 +339,14 @@ export class RagRepository {
 				AND s.quality_report->>'status'='PASSED' AND s.quality_report->'issues'='[]'::jsonb
 				AND ($5::uuid[] IS NULL OR d.id=ANY($5))
 			ORDER BY d.id LIMIT $6`,
-			[DocumentStatus.PUBLISHED, ChunkSetStatus.READY, locale, JSON.stringify(EMBEDDING), documentIds, limit]
+			[
+				DocumentStatus.PUBLISHED,
+				ChunkSetStatus.READY,
+				locale,
+				JSON.stringify(EMBEDDING),
+				documentIds,
+				limit,
+			]
 		);
 		if (!documentIds && rows.length === limit) {
 			throw new ServiceUnavailableException({ code: "RAG_CORPUS_LIMIT" });

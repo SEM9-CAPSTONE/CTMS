@@ -37,7 +37,15 @@ export interface RagChunk {
 	score: number;
 }
 
-export type InsufficientReason = "NO_MATCH" | "CONTEXT_BUDGET" | "SOURCE_CHANGED" | "INCOMPLETE_EVIDENCE";
+export type RagEvidenceRef = Pick<RagChunk, "chunkId" | "chunkIndex" | "source" | "locations"> & {
+	fingerprint: string;
+};
+
+export type InsufficientReason =
+	| "NO_MATCH"
+	| "CONTEXT_BUDGET"
+	| "SOURCE_CHANGED"
+	| "INCOMPLETE_EVIDENCE";
 export type RagResult = {
 	contextTokenCount: number;
 	retrievalConfigVersion: string;
