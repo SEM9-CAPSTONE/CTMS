@@ -11,14 +11,6 @@ import {
 	type SourceVersion,
 } from "./survival-documents.types";
 
-export function hasRecordedUseRights(version?: SourceVersion): boolean {
-	return (
-		!!version?.reviewedBy &&
-		!!version.reviewedAt &&
-		version.rights.rightsReviewStatus === RightsStatus.PERMITTED
-	);
-}
-
 const SOURCE_NOT_APPROVED =
 	"Nguồn PDF chưa được CTMS cho phép xử lý. Hãy kiểm tra URL nguồn hoặc mã SHA-256 của tệp.";
 
