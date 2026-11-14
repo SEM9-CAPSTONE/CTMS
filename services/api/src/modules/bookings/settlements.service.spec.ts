@@ -1,9 +1,16 @@
 import { BadRequestException, ConflictException } from "@nestjs/common";
 import type { DataSource, EntityManager } from "typeorm";
+import { AuditLog } from "../auth/entities/audit-log.entity";
+import { Booking } from "../profiles/entities/booking.entity";
 import { Trip, TripStatus } from "../trips/entities/trip.entity";
 import { User } from "../users/entities/user.entity";
+import {
+	FinancialAdjustment,
+	FinancialAdjustmentStatus,
+	FinancialAdjustmentType,
+} from "./entities/financial-adjustment.entity";
 import { HostWallet } from "./entities/host-wallet.entity";
-import { Payment, PaymentStatus, PaymentType } from "./entities/payment.entity";
+import { Payment, PaymentStatus, PaymentType, RefundReviewStatus } from "./entities/payment.entity";
 import { Payout, PayoutStatus } from "./entities/payout.entity";
 import { Settlement } from "./entities/settlement.entity";
 import { WalletTransaction, WalletTransactionType } from "./entities/wallet-transaction.entity";
@@ -20,6 +27,7 @@ describe("SettlementsService (CTMS-112 / CTMS-300 / CTMS-421)", () => {
 	};
 	let tripRepo: {
 		findOne: jest.Mock;
+		findOneOrFail: jest.Mock;
 		createQueryBuilder: jest.Mock;
 	};
 	let settlementRepo: {
@@ -41,6 +49,7 @@ describe("SettlementsService (CTMS-112 / CTMS-300 / CTMS-421)", () => {
 	};
 	let walletTxnRepo: {
 		find: jest.Mock;
+		findOne: jest.Mock;
 		create: jest.Mock;
 		save: jest.Mock;
 	};
@@ -52,6 +61,21 @@ describe("SettlementsService (CTMS-112 / CTMS-300 / CTMS-421)", () => {
 	};
 	let userRepo: {
 		findOne: jest.Mock;
+	};
+	let bookingRepo: {
+		findOne: jest.Mock;
+	};
+	let paymentRepo: {
+		find: jest.Mock;
+		findOne: jest.Mock;
+	};
+	let adjustmentRepo: {
+		findOne: jest.Mock;
+		findOneOrFail: jest.Mock;
+		find: jest.Mock;
+		create: jest.Mock;
+		save: jest.Mock;
+		createQueryBuilder: jest.Mock;
 	};
 
 	let trip: Trip;
@@ -90,6 +114,7 @@ describe("SettlementsService (CTMS-112 / CTMS-300 / CTMS-421)", () => {
 		};
 
 		tripRepo = {
+			findOneOrFail: jest.fn().mockImplementation(async () => trip),
 			findOne: jest.fn().mockResolvedValue(trip),
 			createQueryBuilder: jest.fn(),
 		};
@@ -123,6 +148,7 @@ describe("SettlementsService (CTMS-112 / CTMS-300 / CTMS-421)", () => {
 		};
 
 		walletTxnRepo = {
+			findOne: jest.fn().mockResolvedValue(null),
 			find: jest.fn().mockResolvedValue([]),
 			create: jest.fn().mockImplementation((val) => ({ id: "wtxn-uuid-1", ...val })),
 			save: jest.fn().mockImplementation((val) => Promise.resolve({ id: "wtxn-uuid-1", ...val })),
@@ -140,6 +166,37 @@ describe("SettlementsService (CTMS-112 / CTMS-300 / CTMS-421)", () => {
 			findOne: jest.fn().mockResolvedValue(host),
 		};
 
+		bookingRepo = {
+			findOne: jest.fn(),
+		};
+
+		paymentRepo = {
+			findOne: jest.fn().mockResolvedValue({
+				id: "refund-approved-1",
+				bookingId: "booking-uuid-1",
+				amount: "1000000.00",
+				type: PaymentType.REFUND,
+				status: PaymentStatus.PENDING,
+				reviewStatus: RefundReviewStatus.APPROVED,
+			}),
+			find: jest.fn(),
+		};
+
+		adjustmentRepo = {
+			findOneOrFail: jest
+				.fn()
+				.mockImplementation(
+					async () =>
+						adjustmentRepo.save.mock.results.at(-1)?.value ??
+						adjustmentRepo.findOne.mock.results.at(-1)?.value
+				),
+			findOne: jest.fn().mockResolvedValue(null),
+			find: jest.fn().mockResolvedValue([]),
+			create: jest.fn().mockImplementation((val) => ({ id: "adj-uuid-1", ...val })),
+			save: jest.fn().mockImplementation((val) => Promise.resolve({ id: "adj-uuid-1", ...val })),
+			createQueryBuilder: jest.fn(),
+		};
+
 		manager = {
 			getRepository: jest.fn((entity) => {
 				if (entity === Trip) return tripRepo;
@@ -148,6 +205,10 @@ describe("SettlementsService (CTMS-112 / CTMS-300 / CTMS-421)", () => {
 				if (entity === Payout) return payoutRepo;
 				if (entity === WalletTransaction) return walletTxnRepo;
 				if (entity === User) return userRepo;
+				if (entity === Booking) return bookingRepo;
+				if (entity === Payment) return paymentRepo;
+				if (entity === FinancialAdjustment) return adjustmentRepo;
+				if (entity === AuditLog) return auditRepo;
 				if (entity?.name === "ContentReport") return reportRepo;
 				return auditRepo;
 			}),
@@ -165,6 +226,10 @@ describe("SettlementsService (CTMS-112 / CTMS-300 / CTMS-421)", () => {
 				if (entity === Payout) return payoutRepo;
 				if (entity === User) return userRepo;
 				if (entity === WalletTransaction) return walletTxnRepo;
+				if (entity === Booking) return bookingRepo;
+				if (entity === Payment) return paymentRepo;
+				if (entity === FinancialAdjustment) return adjustmentRepo;
+				if (entity === AuditLog) return auditRepo;
 				return reportRepo;
 			}),
 		} as unknown as DataSource;
@@ -515,6 +580,291 @@ describe("SettlementsService (CTMS-112 / CTMS-300 / CTMS-421)", () => {
 			expect(pendingPayout.status).toBe(PayoutStatus.SUCCEEDED);
 			expect(pendingPayout.transactionRef).toBe("FT2610149999");
 			expect(pendingPayout.adminNotes).toBe("Chuyển khoản thành công qua VCB DigiBiz");
+		});
+	});
+
+	describe("Reconcile Financial Exceptions after Settlement or Payout (CTMS-114 / BR-345)", () => {
+		let booking: Booking;
+		let chargePayment: Payment;
+		let settlement: Settlement;
+
+		beforeEach(() => {
+			booking = Object.assign(new Booking(), {
+				id: "booking-uuid-1",
+				tripId: "trip-uuid-1",
+				trip,
+			});
+
+			chargePayment = Object.assign(new Payment(), {
+				id: "payment-uuid-1",
+				bookingId: "booking-uuid-1",
+				amount: "1000000.00",
+				type: PaymentType.CHARGE,
+				status: PaymentStatus.SUCCEEDED,
+			});
+
+			settlement = Object.assign(new Settlement(), {
+				id: "settlement-uuid-1",
+				tripId: "trip-uuid-1",
+				hostId: "host-uuid-1",
+				host,
+				settlementBase: "10000000.00",
+				commissionRate: "0.0500",
+				platformFee: "500000.00",
+				netAmount: "9500000.00",
+				settledAt: new Date("2030-05-12T12:00:00Z"),
+			});
+
+			bookingRepo.findOne.mockResolvedValue(booking);
+			paymentRepo.find.mockResolvedValue([chargePayment]);
+			settlementRepo.findOne.mockResolvedValue(settlement);
+			adjustmentRepo.find.mockResolvedValue([]);
+			adjustmentRepo.findOne.mockResolvedValue(null);
+			payoutRepo.findOne.mockResolvedValue(null);
+		});
+
+		it("throws ConflictException when no settlement exists for the trip", async () => {
+			settlementRepo.findOne.mockResolvedValue(null);
+
+			await expect(
+				service.reconcileFinancialException("booking-uuid-1", "admin-uuid-1", {
+					bookingId: "booking-uuid-1",
+					reason: "Medical emergency after trip end",
+				})
+			).rejects.toThrow(ConflictException);
+		});
+
+		it("creates POST_SETTLEMENT_REFUND, debits host wallet and marks resolved when wallet has balance", async () => {
+			walletRepo.findOne.mockResolvedValue(
+				Object.assign(new HostWallet(), {
+					id: "wallet-uuid-1",
+					hostId: "host-uuid-1",
+					balance: "2000000.00",
+				})
+			);
+
+			const result = await service.reconcileFinancialException("booking-uuid-1", "admin-uuid-1", {
+				bookingId: "booking-uuid-1",
+				reason: "Camper verified emergency post settlement",
+			});
+
+			expect(result.type).toBe(FinancialAdjustmentType.POST_SETTLEMENT_REFUND);
+			expect(result.status).toBe(FinancialAdjustmentStatus.RESOLVED);
+			expect(result.amount).toBe("1000000.00");
+			expect(result.settlementId).toBe("settlement-uuid-1");
+			expect(result.payoutId).toBeNull();
+
+			// Host wallet debited
+			expect(walletRepo.save).toHaveBeenCalledWith(
+				expect.objectContaining({
+					balance: "1000000.00",
+				})
+			);
+
+			// WalletTransaction posted
+			expect(walletTxnRepo.save).toHaveBeenCalledWith(
+				expect.objectContaining({
+					type: WalletTransactionType.POST_SETTLEMENT_DEBIT,
+					netAmount: "-1000000.00",
+					balanceAfter: "1000000.00",
+				})
+			);
+
+			// AuditLog written
+			expect(auditRepo.save).toHaveBeenCalledWith(
+				expect.objectContaining({
+					action: "financial.reconciliation_created",
+					targetType: "financial_adjustment",
+				})
+			);
+		});
+
+		it("creates POST_SETTLEMENT_REFUND with status pending and does not debit wallet when wallet balance is insufficient", async () => {
+			walletRepo.findOne.mockResolvedValue(
+				Object.assign(new HostWallet(), {
+					id: "wallet-uuid-1",
+					hostId: "host-uuid-1",
+					balance: "500000.00", // Less than 1,000,000
+				})
+			);
+
+			const result = await service.reconcileFinancialException("booking-uuid-1", "admin-uuid-1", {
+				bookingId: "booking-uuid-1",
+				reason: "Insufficient wallet balance case",
+			});
+
+			expect(result.type).toBe(FinancialAdjustmentType.POST_SETTLEMENT_REFUND);
+			expect(result.status).toBe(FinancialAdjustmentStatus.PENDING);
+			expect(walletRepo.save).not.toHaveBeenCalled();
+			expect(walletTxnRepo.save).toHaveBeenCalledWith(
+				expect.objectContaining({
+					type: WalletTransactionType.POST_PAYOUT_RECOVERY,
+					balanceAfter: "500000.00",
+				})
+			);
+		});
+
+		it("creates POST_PAYOUT_RECOVERY and logs debt transaction without changing wallet balance when host has succeeded payout post-settlement", async () => {
+			const succeededPayout = Object.assign(new Payout(), {
+				id: "payout-uuid-1",
+				hostId: "host-uuid-1",
+				status: PayoutStatus.SUCCEEDED,
+				createdAt: new Date("2030-05-13T12:00:00Z"), // After settlement at May 12
+			});
+			payoutRepo.findOne.mockResolvedValue(succeededPayout);
+
+			walletRepo.findOne.mockResolvedValue(
+				Object.assign(new HostWallet(), {
+					id: "wallet-uuid-1",
+					hostId: "host-uuid-1",
+					balance: "0.00",
+				})
+			);
+
+			const result = await service.reconcileFinancialException("booking-uuid-1", "admin-uuid-1", {
+				bookingId: "booking-uuid-1",
+				reason: "Host already withdrew funds post settlement",
+			});
+
+			expect(result.type).toBe(FinancialAdjustmentType.POST_PAYOUT_RECOVERY);
+			expect(result.status).toBe(FinancialAdjustmentStatus.PENDING);
+			expect(result.payoutId).toBe("payout-uuid-1");
+			expect(result.settlementId).toBe("settlement-uuid-1");
+
+			// Wallet balance NOT deducted (no negative balance per BR-345)
+			expect(walletRepo.save).not.toHaveBeenCalled();
+
+			// Recorded as recovery debt in wallet transactions
+			expect(walletTxnRepo.save).toHaveBeenCalledWith(
+				expect.objectContaining({
+					type: WalletTransactionType.POST_PAYOUT_RECOVERY,
+					netAmount: "-1000000.00",
+					balanceAfter: "0.00",
+				})
+			);
+
+			// Audit logged
+			expect(auditRepo.save).toHaveBeenCalledWith(
+				expect.objectContaining({
+					action: "financial.reconciliation_created",
+				})
+			);
+		});
+
+		it("is idempotent: returns existing adjustment on duplicate call with same key", async () => {
+			const existing = Object.assign(new FinancialAdjustment(), {
+				id: "adj-existing-1",
+				bookingId: "booking-uuid-1",
+				tripId: "trip-uuid-1",
+				trip,
+				hostId: "host-uuid-1",
+				host,
+				amount: "1000000.00",
+				reason: "Duplicate test",
+				status: FinancialAdjustmentStatus.RESOLVED,
+				createdAt: new Date(),
+				updatedAt: new Date(),
+			});
+			adjustmentRepo.findOne.mockResolvedValue(existing);
+
+			const result = await service.reconcileFinancialException("booking-uuid-1", "admin-uuid-1", {
+				bookingId: "booking-uuid-1",
+				reason: "Duplicate test",
+			});
+
+			expect(result.id).toBe("adj-existing-1");
+			expect(adjustmentRepo.save).not.toHaveBeenCalled();
+			expect(auditRepo.save).not.toHaveBeenCalled();
+		});
+
+		it("lists adjustments with filters and pagination", async () => {
+			const bookingCreatedAt = new Date("2030-05-01T05:00:00Z");
+			const mockAdjustments = [
+				Object.assign(new FinancialAdjustment(), {
+					id: "adj-1",
+					bookingId: "booking-uuid-1",
+					booking: Object.assign(booking, {
+						user: Object.assign(new User(), { fullName: "Nguyễn Văn An" }),
+						createdAt: bookingCreatedAt,
+					}),
+					settlement,
+					tripId: "trip-uuid-1",
+					trip,
+					hostId: "host-uuid-1",
+					host,
+					type: FinancialAdjustmentType.POST_SETTLEMENT_REFUND,
+					amount: "1000000.00",
+					reason: "List test",
+					status: FinancialAdjustmentStatus.PENDING,
+					createdAt: new Date(),
+					updatedAt: new Date(),
+				}),
+			];
+
+			const mockQb = {
+				leftJoinAndSelect: jest.fn().mockReturnThis(),
+				orderBy: jest.fn().mockReturnThis(),
+				andWhere: jest.fn().mockReturnThis(),
+				skip: jest.fn().mockReturnThis(),
+				take: jest.fn().mockReturnThis(),
+				getManyAndCount: jest.fn().mockResolvedValue([mockAdjustments, 1]),
+			};
+			adjustmentRepo.createQueryBuilder.mockReturnValue(mockQb);
+
+			const result = await service.listFinancialAdjustments({
+				status: "pending",
+				type: "post_settlement_refund",
+				page: 1,
+				limit: 10,
+			});
+
+			expect(result.total).toBe(1);
+			expect(result.items).toHaveLength(1);
+			expect(result.items[0].id).toBe("adj-1");
+			expect(result.items[0].camperName).toBe("Nguyễn Văn An");
+			expect(result.items[0].bookingCreatedAt).toEqual(bookingCreatedAt);
+			expect(result.items[0].settledAt).toEqual(settlement.settledAt);
+			expect(result.items[0].payoutRequestedAt).toBeNull();
+			expect(mockQb.andWhere).toHaveBeenCalledWith("adj.type = :type", {
+				type: "post_settlement_refund",
+			});
+			expect(mockQb.andWhere).toHaveBeenCalledWith("adj.status = :status", {
+				status: "pending",
+			});
+		});
+
+		it("resolves a pending financial adjustment and logs audit", async () => {
+			const pendingAdj = Object.assign(new FinancialAdjustment(), {
+				id: "adj-to-resolve",
+				bookingId: "booking-uuid-1",
+				tripId: "trip-uuid-1",
+				trip,
+				hostId: "host-uuid-1",
+				host,
+				type: FinancialAdjustmentType.POST_PAYOUT_RECOVERY,
+				amount: "1000000.00",
+				reason: "Recovery needed",
+				status: FinancialAdjustmentStatus.PENDING,
+				notes: null,
+				createdAt: new Date(),
+				updatedAt: new Date(),
+			});
+			adjustmentRepo.findOne.mockResolvedValue(pendingAdj);
+
+			const result = await service.resolveFinancialAdjustment("adj-to-resolve", "admin-uuid-1", {
+				notes: "Host transferred cash manually",
+			});
+
+			expect(result.status).toBe(FinancialAdjustmentStatus.RESOLVED);
+			expect(pendingAdj.status).toBe(FinancialAdjustmentStatus.RESOLVED);
+			expect(pendingAdj.notes).toContain("Host transferred cash manually");
+			expect(adjustmentRepo.save).toHaveBeenCalledWith(pendingAdj);
+			expect(auditRepo.save).toHaveBeenCalledWith(
+				expect.objectContaining({
+					action: "financial.reconciliation_resolved",
+					targetType: "financial_adjustment",
+				})
+			);
 		});
 	});
 });

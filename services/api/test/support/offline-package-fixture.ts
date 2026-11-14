@@ -119,6 +119,7 @@ export function fictionalPackageSafety(): PackageSafetyInputs {
 					reason: null,
 				},
 				currentPublishedVersionId: "fictional-document-version",
+				currentChunkSetId: "fictional-chunk-set",
 				chunkSet: {
 					id: "fictional-chunk-set",
 					documentVersionId: "fictional-document-version",

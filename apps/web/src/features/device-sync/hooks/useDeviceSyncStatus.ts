@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { queryKeys } from "../../../core/api";
 import { getStoredAuthUser } from "../../auth/utils/tokenStorage";
 import { tripIncidentsService } from "../../trip-incidents/services/trip-incidents.service";
@@ -9,6 +9,7 @@ import { DEVICE_SYNC_CONFIG, SYNC_STATE_LABELS } from "../constants";
 import { deviceSyncService } from "../services/device-sync.service";
 import { type GpsQueueStore, createIndexedDbGpsQueueStore } from "../storage/gps-queue.store";
 import { DeviceSyncState, type DeviceSyncSummary, type LocalGpsLogRecord } from "../types";
+import { deviceSyncErrorMessage } from "../utils/device-sync-error";
 
 export interface UseDeviceSyncStatusOptions {
 	gpsStore?: GpsQueueStore;
@@ -30,12 +31,17 @@ export function useDeviceSyncStatus(
 	const [localSafetyFailed, setLocalSafetyFailed] = useState(0);
 	const [localSafetyLastError, setLocalSafetyLastError] = useState<string | null>(null);
 
-	const gpsStore =
-		options.gpsStore ??
-		(typeof indexedDB !== "undefined" ? createIndexedDbGpsQueueStore(indexedDB) : null);
+	const gpsStore = useMemo(
+		() =>
+			options.gpsStore ??
+			(typeof indexedDB !== "undefined" ? createIndexedDbGpsQueueStore(indexedDB) : null),
+		[options.gpsStore]
+	);
 
-	const incidentStore =
-		typeof indexedDB !== "undefined" ? createIndexedDbIncidentQueueStore(indexedDB) : null;
+	const incidentStore = useMemo(
+		() => (typeof indexedDB !== "undefined" ? createIndexedDbIncidentQueueStore(indexedDB) : null),
+		[]
+	);
 
 	// Fetch authoritative server status (BR-226)
 	const {
@@ -104,7 +110,7 @@ export function useDeviceSyncStatus(
 
 	const combinedError =
 		retryError ??
-		(serverError ? (serverError as Error).message : null) ??
+		(serverError ? deviceSyncErrorMessage(serverError) : null) ??
 		gpsLastError ??
 		localSafetyLastError;
 
@@ -112,7 +118,7 @@ export function useDeviceSyncStatus(
 	let syncState: DeviceSyncSummary["syncState"] = DeviceSyncState.IDLE;
 	if (isRetrying) {
 		syncState = DeviceSyncState.SYNCING;
-	} else if (failedGpsCount > 0 || failedSafetyCount > 0) {
+	} else if (serverError || retryError || failedGpsCount > 0 || failedSafetyCount > 0) {
 		syncState =
 			pendingGpsCount > 0 || pendingSafetyCount > 0
 				? DeviceSyncState.PARTIAL_FAILURE
@@ -189,7 +195,7 @@ export function useDeviceSyncStatus(
 				queryKey: queryKeys.deviceSync.status(tripId),
 			});
 		} catch (err) {
-			setRetryError((err as Error).message ?? "Không thể kết nối máy chủ để đồng bộ.");
+			setRetryError(deviceSyncErrorMessage(err));
 		} finally {
 			setIsRetrying(false);
 		}

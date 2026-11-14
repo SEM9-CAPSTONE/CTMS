@@ -9,6 +9,7 @@ import {
 import { DataSource, type EntityManager } from "typeorm";
 import { AuditLog } from "../auth/entities/audit-log.entity";
 import { ContentReport } from "../content-reports/entities/content-report.entity";
+import { Booking } from "../profiles/entities/booking.entity";
 import { validateAccountHolderNameMatch } from "../profiles/utils/vietnamese-name.util";
 import { Trip, TripStatus } from "../trips/entities/trip.entity";
 import { deductOutstandingWeatherPenalties } from "../trips/weather-decisions/host-weather-penalty.ledger";
@@ -16,22 +17,36 @@ import { User } from "../users/entities/user.entity";
 import { minorToMoney, moneyToMinor } from "./cancellation-policy";
 import type { AdminSettlementQueryDto } from "./dto/admin-settlement-query.dto";
 import type {
+	AdjustmentQueryDto,
+	FinancialAdjustmentResponseDto,
+	ReconciliationBookingsQueryDto,
+	ResolveAdjustmentDto,
+} from "./dto/financial-adjustment.dto";
+import type {
 	ConfirmHostPayoutDto,
 	HostWalletResponseDto,
 	RejectHostPayoutDto,
 	RequestHostPayoutDto,
 } from "./dto/host-payout.dto";
+import type { ReconcileFinancialExceptionDto } from "./dto/reconcile-financial-exception.dto";
 import type {
 	SettlementResponseDto,
 	TripSettlementEvaluationDto,
 } from "./dto/trip-settlement-evaluation.dto";
+import {
+	FinancialAdjustment,
+	FinancialAdjustmentStatus,
+} from "./entities/financial-adjustment.entity";
 import { HostWallet } from "./entities/host-wallet.entity";
+import { Payment, PaymentStatus, PaymentType, RefundReviewStatus } from "./entities/payment.entity";
 import { Payout, PayoutStatus } from "./entities/payout.entity";
 import { Settlement } from "./entities/settlement.entity";
 import { WalletTransaction, WalletTransactionType } from "./entities/wallet-transaction.entity";
 // biome-ignore lint/style/useImportType: NestJS constructor injection requires runtime metadata
 import { PaymentsRepository } from "./payments.repository";
 import { evaluateSettlementBlockers } from "./refund-policy";
+
+import { recordApprovedRefundAdjustment } from "./approved-refund.ledger";
 
 const PLATFORM_COMMISSION_RATE = "0.0500";
 const HOLD_PERIOD_HOURS = 72;
@@ -686,6 +701,253 @@ export class SettlementsService {
 			page,
 			limit,
 			totalPages: Math.ceil(total / limit) || 1,
+		};
+	}
+
+	/**
+	 * CTMS-114 (CTMS-302 / BR-345).
+	 * Reconcile financial exception after Settlement or Payout.
+	 *
+	 * - If Settlement does not exist: throws ConflictException (use standard refund flow).
+	 * - If Payout has succeeded post-settlement: creates POST_PAYOUT_RECOVERY adjustment and debt ledger entry.
+	 * - If Payout has not succeeded: creates POST_SETTLEMENT_REFUND adjustment and debits host wallet if balance allows.
+	 * - Fully idempotent based on SHA-256(114:bookingId:reason:amount).
+	 */
+	async reconcileFinancialException(
+		bookingId: string,
+		adminId: string,
+		_dto: ReconcileFinancialExceptionDto
+	): Promise<FinancialAdjustmentResponseDto> {
+		return this.dataSource.transaction(async (manager: EntityManager) => {
+			const booking = await manager
+				.getRepository(Booking)
+				.findOne({ where: { id: bookingId }, relations: { trip: { host: true }, user: true } });
+			if (!booking) throw new NotFoundException("Không tìm thấy đơn đặt chỗ.");
+			await manager
+				.getRepository(Trip)
+				.findOneOrFail({ where: { id: booking.tripId }, lock: { mode: "pessimistic_write" } });
+			const refund = await manager.getRepository(Payment).findOne({
+				where: { bookingId, type: PaymentType.REFUND, reviewStatus: RefundReviewStatus.APPROVED },
+				order: { createdAt: "DESC" },
+			});
+			if (!refund)
+				throw new ConflictException(
+					"Cần có yêu cầu hoàn tiền đã được Admin duyệt. Hãy xử lý tại tab Hoàn tiền Camper."
+				);
+			const adjustment = await recordApprovedRefundAdjustment(
+				manager,
+				refund,
+				booking,
+				adminId,
+				"Khoản hoàn cho khách đã được chấp thuận."
+			);
+			if (!adjustment)
+				throw new ConflictException(
+					"Chuyến đi chưa quyết toán. Hãy xử lý tại tab Hoàn tiền Camper."
+				);
+			const result = await manager.getRepository(FinancialAdjustment).findOneOrFail({
+				where: { id: adjustment.id },
+				relations: {
+					trip: true,
+					host: true,
+					booking: { user: true },
+					settlement: true,
+					payout: true,
+				},
+			});
+			return this.mapAdjustmentToResponse(result);
+		});
+	}
+
+	/**
+	 * Lists financial adjustments with filtering and pagination.
+	 */
+	async listReconciliationBookings(query: ReconciliationBookingsQueryDto) {
+		const page = query.page ?? 1;
+		const limit = query.limit ?? 50;
+		const qb = this.dataSource
+			.getRepository(Booking)
+			.createQueryBuilder("booking")
+			.innerJoinAndSelect("booking.trip", "trip")
+			.innerJoin(Settlement, "settlement", "settlement.tripId = booking.tripId")
+			.leftJoinAndSelect("booking.user", "camper")
+			.where(
+				`EXISTS (SELECT 1 FROM payments charge WHERE charge.booking_id = booking.id
+				AND charge.type = :chargeType AND charge.status = :chargeStatus)`,
+				{
+					chargeType: PaymentType.CHARGE,
+					chargeStatus: PaymentStatus.SUCCEEDED,
+				}
+			)
+			.andWhere(
+				"NOT EXISTS (SELECT 1 FROM financial_adjustments adj WHERE adj.booking_id = booking.id)"
+			)
+			.orderBy("booking.createdAt", "DESC");
+		if (query.search?.trim()) {
+			qb.andWhere(
+				"(trip.title ILIKE :term OR camper.full_name ILIKE :term OR camper.email ILIKE :term)",
+				{
+					term: `%${query.search.trim()}%`,
+				}
+			);
+		}
+		const [bookings, total] = await qb
+			.skip((page - 1) * limit)
+			.take(limit)
+			.getManyAndCount();
+		return {
+			items: bookings.map((booking) => ({
+				id: booking.id,
+				tripTitle: booking.trip.title,
+				camperName: booking.user?.fullName || "Chưa cập nhật tên khách",
+				createdAt: booking.createdAt,
+				amount: booking.totalAmount ?? booking.basePrice ?? "0.00",
+			})),
+			total,
+			page,
+			limit,
+			totalPages: Math.ceil(total / limit) || 1,
+		};
+	}
+
+	async listFinancialAdjustments(query: AdjustmentQueryDto) {
+		const page = query.page ?? 1;
+		const limit = query.limit ?? 15;
+		const skip = (page - 1) * limit;
+
+		const qb = this.dataSource
+			.getRepository(FinancialAdjustment)
+			.createQueryBuilder("adj")
+			.leftJoinAndSelect("adj.trip", "trip")
+			.leftJoinAndSelect("adj.host", "host")
+			.leftJoinAndSelect("adj.booking", "booking")
+			.leftJoinAndSelect("booking.user", "camper")
+			.leftJoinAndSelect("adj.settlement", "settlement")
+			.leftJoinAndSelect("adj.payout", "payout")
+			.leftJoinAndSelect("adj.refundPayment", "refundPayment")
+			.orderBy("adj.createdAt", "DESC");
+
+		if (query.type && query.type !== "all") {
+			qb.andWhere("adj.type = :type", { type: query.type });
+		}
+
+		if (query.status && query.status !== "all") {
+			qb.andWhere("adj.status = :status", { status: query.status });
+		}
+
+		if (query.tripId) {
+			qb.andWhere("adj.trip_id = :tripId", { tripId: query.tripId });
+		}
+
+		if (query.bookingId) {
+			qb.andWhere("adj.booking_id = :bookingId", { bookingId: query.bookingId });
+		}
+
+		if (query.search?.trim()) {
+			const term = `%${query.search.trim().toLowerCase()}%`;
+			qb.andWhere(
+				"(LOWER(adj.reason) LIKE :term OR LOWER(trip.title) LIKE :term OR LOWER(host.full_name) LIKE :term)",
+				{ term }
+			);
+		}
+
+		const [items, total] = await qb.skip(skip).take(limit).getManyAndCount();
+
+		return {
+			items: items.map((item) => this.mapAdjustmentToResponse(item)),
+			total,
+			page,
+			limit,
+			totalPages: Math.ceil(total / limit) || 1,
+		};
+	}
+
+	/**
+	 * Admin resolves a pending financial adjustment.
+	 */
+	async resolveFinancialAdjustment(
+		id: string,
+		adminId: string,
+		dto: ResolveAdjustmentDto
+	): Promise<FinancialAdjustmentResponseDto> {
+		return this.dataSource.transaction(async (manager: EntityManager) => {
+			const adjustment = await manager.getRepository(FinancialAdjustment).findOne({
+				where: { id },
+				relations: {
+					trip: true,
+					host: true,
+					booking: { user: true },
+					settlement: true,
+					payout: true,
+					refundPayment: true,
+				},
+				lock: { mode: "pessimistic_write", tables: ["financial_adjustments"] },
+			});
+			if (!adjustment) {
+				throw new NotFoundException("Bản ghi điều chỉnh tài chính không tồn tại");
+			}
+			if (adjustment.status === FinancialAdjustmentStatus.RESOLVED) {
+				throw new ConflictException("Bản ghi điều chỉnh đã được giải quyết");
+			}
+
+			const beforeStatus = adjustment.status;
+			adjustment.status = FinancialAdjustmentStatus.RESOLVED;
+			if (dto.notes?.trim()) {
+				adjustment.notes = adjustment.notes
+					? `${adjustment.notes}\n[Giải quyết]: ${dto.notes.trim()}`
+					: dto.notes.trim();
+			}
+			await manager.getRepository(FinancialAdjustment).save(adjustment);
+
+			await manager.getRepository(AuditLog).save({
+				actorId: adminId || null,
+				action: "financial.reconciliation_resolved",
+				targetType: "financial_adjustment",
+				targetId: adjustment.id,
+				before: { status: beforeStatus },
+				after: { status: FinancialAdjustmentStatus.RESOLVED, notes: adjustment.notes },
+				reason: dto.notes?.trim() || "Admin giải quyết điều chỉnh tài chính",
+			});
+
+			return this.mapAdjustmentToResponse(adjustment);
+		});
+	}
+
+	private mapAdjustmentToResponse(
+		adj: FinancialAdjustment,
+		trip?: Trip | null,
+		host?: User | null,
+		sources?: { booking?: Booking; settlement?: Settlement; payout?: Payout | null }
+	): FinancialAdjustmentResponseDto {
+		const resolvedTrip = trip ?? adj.trip;
+		const resolvedHost = host ?? adj.host;
+		const booking = sources?.booking ?? adj.booking;
+		const settlement = sources?.settlement ?? adj.settlement;
+		const payout = sources?.payout ?? adj.payout;
+
+		return {
+			id: adj.id,
+			refundPaymentId: adj.refundPaymentId ?? null,
+			refundStatus: adj.refundPayment?.status ?? null,
+			settlementId: adj.settlementId,
+			payoutId: adj.payoutId,
+			bookingId: adj.bookingId,
+			camperName: booking?.user?.fullName || "Chưa có thông tin",
+			bookingCreatedAt: booking?.createdAt ?? null,
+			settledAt: settlement?.settledAt ?? null,
+			payoutRequestedAt: payout?.createdAt ?? null,
+			tripId: adj.tripId,
+			tripTitle: resolvedTrip?.title || "Chuyến đi",
+			hostId: adj.hostId,
+			hostName: resolvedHost?.fullName || "Host",
+			type: adj.type,
+			amount: adj.amount,
+			reason: adj.reason,
+			status: adj.status,
+			actorId: adj.actorId,
+			notes: adj.notes,
+			createdAt: adj.createdAt,
+			updatedAt: adj.updatedAt,
 		};
 	}
 }

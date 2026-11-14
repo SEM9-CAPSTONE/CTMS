@@ -124,7 +124,7 @@ test("requires cancellation reason, notifies host/admin, persists read state and
 	expect(response.status()).toBe(201);
 	const booking = (await response.json()) as { id: string };
 	await page.goto(`/bookings/${booking.id}`, { waitUntil: "domcontentloaded" });
-	await page.getByRole("button", { name: "Yêu cầu hủy đơn" }).click();
+	await page.getByRole("button", { name: "Hủy đặt chỗ", exact: true }).click();
 	const dialog = page.getByRole("dialog");
 	await dialog.getByRole("button", { name: "Xác nhận hủy", exact: true }).click();
 	await expect(dialog.getByText("Vui lòng nhập lý do hủy chuyến.")).toBeVisible();

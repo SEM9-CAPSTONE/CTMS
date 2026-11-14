@@ -62,18 +62,24 @@ export function BookingCancellationPanel({
 	if (!relevant) return null;
 	return (
 		<section
-			aria-label="Hủy đơn đặt chỗ"
+			aria-label="Hủy đặt chỗ trước chuyến đi"
 			className="rounded-2xl border border-rose-200 bg-white p-5"
 		>
-			<h2 className="font-extrabold">Hủy đơn đặt chỗ</h2>
-			<p className="mt-2 text-sm">Yêu cầu hủy sẽ được máy chủ kiểm tra theo chính sách của đơn.</p>
+			<h2 className="text-lg font-semibold">Hủy đặt chỗ trước chuyến đi</h2>
+			<p className="mt-3 text-sm text-[#667a6d]">
+				Bạn không thể tham gia chuyến đi? Hủy đặt chỗ sẽ hủy chỗ của toàn bộ người trong đơn. Khoản
+				hoàn, nếu có, được tính theo chính sách hủy.
+			</p>
+			<p className="mt-3 text-xs text-[#667a6d]">
+				Sau khi hủy thành công, bạn theo dõi khoản hoàn tại phần “Hoàn tiền sau khi hủy đặt chỗ”.
+			</p>
 			<button
 				type="button"
 				disabled={isSubmitting || isRefreshing}
 				onClick={() => setOpen(true)}
 				className="mt-3 rounded-xl border border-rose-700 px-4 py-2 font-bold text-rose-700 disabled:opacity-50"
 			>
-				Yêu cầu hủy đơn
+				Hủy đặt chỗ
 			</button>
 			<CancelBookingDialog
 				open={open}

@@ -156,6 +156,7 @@ export interface ApprovedGuidanceUnit {
 	};
 	source: SourceVersion;
 	currentPublishedVersionId: string;
+	currentChunkSetId: string;
 	chunkSet: { id: string; documentVersionId: string; sourceChecksum: string; status: string };
 	chunkIds: string[];
 	pageRefs: { chunkId: string; page: number; itemRef: string }[];
@@ -184,7 +185,12 @@ export interface PackageSafetyInputs {
 	guidance: ApprovedGuidanceUnit[];
 	blockers: PackageReason[];
 }
-/** Upstream DB-only port. lock=true must fence all scope revisions against source writers. */
+/**
+ * Upstream DB-only port. Resolve publication, set and chunks in the caller's snapshot.
+ * With lock=true, lock source document rows in ID order before reading chunk rows,
+ * and fence scope revisions and approval changes. Returned guidance is a value snapshot.
+ * Durable approvals that still resolve live chunks must restrict deletion through FKs.
+ */
 export abstract class OfflineSafetySources {
 	abstract read(
 		manager: EntityManager,

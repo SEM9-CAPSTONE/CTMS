@@ -58,7 +58,7 @@ export function AdminPayoutsTable({
 							<td className="px-3.5 py-3 text-[#10221b] whitespace-nowrap">
 								<p className="font-bold">{item.hostName}</p>
 								<p className="text-xs text-[#7d8d83]">
-									{item.hostEmail || item.hostPhone || `#${item.hostId.slice(0, 8)}`}
+									{item.hostEmail || item.hostPhone || "Chưa cập nhật liên hệ"}
 								</p>
 							</td>
 							<td className="px-3.5 py-3 text-right font-black whitespace-nowrap text-[#164027]">
@@ -93,7 +93,7 @@ export function AdminPayoutsTable({
 										type="button"
 										onClick={() => onOpenDetailModal(item)}
 										title="Xem chi tiết yêu cầu rút tiền"
-										aria-label={`Xem chi tiết yêu cầu ${item.id}`}
+										aria-label={`Xem yêu cầu rút tiền của ${item.hostName} ngày ${new Date(item.createdAt).toLocaleDateString("vi-VN")}`}
 										className="rounded-lg border border-[#dfe8df] p-1.5 text-[#52665b] hover:bg-[#edf3ed] hover:text-[#164027] hover:border-[#cbd9ce] transition"
 									>
 										<Eye className="size-3.5" />

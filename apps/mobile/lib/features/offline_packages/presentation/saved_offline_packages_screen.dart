@@ -60,9 +60,7 @@ class _SavedOfflinePackagesScreen extends ConsumerWidget {
                     itemCount: items.length,
                     itemBuilder: (context, index) {
                       final (package: package, tripTitle: title) = items[index];
-                      final tripTitle =
-                          title ??
-                          'Chuyến đi ${package.tripId.substring(0, 8)}';
+                      final tripTitle = title ?? 'Chuyến đi đã lưu';
                       return Card(
                         child: ListTile(
                           title: Text(tripTitle),

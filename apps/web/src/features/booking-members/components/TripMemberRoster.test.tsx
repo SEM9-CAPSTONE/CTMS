@@ -220,7 +220,7 @@ describe("TripMemberRoster", () => {
 	it("renders single complete button for primary member on completed trip and triggers completion", async () => {
 		setHooks(roster("joined", "confirmed", "completed"));
 		render(<TestTripMemberRoster />);
-		const singleButton = screen.getByRole("button", { name: "Hoàn tất đơn đặt chỗ booking-1" });
+		const singleButton = screen.getByRole("button", { name: "Hoàn tất đơn đặt chỗ của Nguyễn An" });
 		expect(singleButton).toBeInTheDocument();
 		fireEvent.click(singleButton);
 		expect(completeBooking).toHaveBeenCalledWith("booking-1");

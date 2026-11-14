@@ -124,9 +124,15 @@ describe("RefundsController (CTMS-035)", () => {
 		);
 
 		expect(res).toBe(mockResponse);
-		expect(refundsService.processRefund).toHaveBeenCalledWith("admin-1", "b-1", "key-1", {
-			obligationId: "ob-1",
-		});
+		expect(refundsService.processRefund).toHaveBeenCalledWith(
+			"admin-1",
+			"b-1",
+			"key-1",
+			{
+				obligationId: "ob-1",
+			},
+			{ userRoles: [] }
+		);
 	});
 
 	it("delegates getSettlementStatus to service", async () => {

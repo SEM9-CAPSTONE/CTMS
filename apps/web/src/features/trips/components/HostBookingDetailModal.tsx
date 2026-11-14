@@ -68,7 +68,7 @@ export function HostBookingDetailModal({
 
 	const handleCopyId = () => {
 		if (navigator.clipboard) {
-			void navigator.clipboard.writeText(booking.id);
+			void navigator.clipboard.writeText(`${window.location.origin}/bookings/${booking.id}`);
 			setCopiedId(true);
 			setTimeout(() => setCopiedId(false), 2000);
 		}
@@ -77,12 +77,7 @@ export function HostBookingDetailModal({
 	const canComplete = tripStatus === "completed" && booking.status === "confirmed";
 
 	return (
-		<Modal
-			isOpen={isOpen}
-			onClose={onClose}
-			title={`Chi tiết đơn #${booking.id.slice(0, 8).toUpperCase()}`}
-			size="xl"
-		>
+		<Modal isOpen={isOpen} onClose={onClose} title="Chi tiết đơn đặt chỗ" size="xl">
 			<div className="space-y-6">
 				{/* Top Status & Booking Code Banner */}
 				<div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-[#f4f7f2] p-4 border border-[#dfe8df]">
@@ -104,12 +99,11 @@ export function HostBookingDetailModal({
 					</div>
 
 					<div className="flex items-center gap-2 text-xs text-[#55685a]">
-						<span className="font-mono">{booking.id}</span>
 						<button
 							type="button"
 							onClick={handleCopyId}
 							className="inline-flex items-center gap-1 rounded-lg border border-[#cbd9cd] bg-white px-2 py-1 text-xs font-medium text-[#10221b] hover:bg-[#edf5ee]"
-							title="Sao chép toàn bộ mã đơn"
+							title="Sao chép liên kết đơn đặt chỗ"
 						>
 							{copiedId ? (
 								<>
@@ -119,7 +113,7 @@ export function HostBookingDetailModal({
 							) : (
 								<>
 									<Copy className="size-3.5" />
-									<span>Sao chép</span>
+									<span>Sao chép liên kết</span>
 								</>
 							)}
 						</button>

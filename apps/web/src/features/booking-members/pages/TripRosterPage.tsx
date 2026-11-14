@@ -19,7 +19,6 @@ export function TripRosterPage({ tripId, onBack, backLabel }: TripRosterPageProp
 				<p className="mt-2 text-sm text-[#667a6d]">
 					Danh sách và trạng thái được tải trực tiếp từ máy chủ.
 				</p>
-				<p className="mt-1 text-xs font-semibold text-[#7b8c82]">Mã chuyến đi: {tripId}</p>
 			</div>
 			<TripMemberRoster tripId={tripId} />
 		</main>

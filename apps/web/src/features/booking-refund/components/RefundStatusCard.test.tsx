@@ -55,7 +55,7 @@ describe("RefundStatusCard", () => {
 			<RefundStatusCard refundInfo={pendingInfo} onRequestRefund={vi.fn()} isSubmitting={false} />
 		);
 
-		expect(screen.getByText("Đang chờ Quản trị viên đối soát & chuyển khoản")).toBeInTheDocument();
+		expect(screen.getByText("Đang chờ chuyển tiền hoàn")).toBeInTheDocument();
 		expect(screen.getAllByTestId("refund-status-badge-pending").length).toBeGreaterThanOrEqual(1);
 		// Must not show as completed / succeeded
 		expect(screen.queryByTestId("refund-status-badge-succeeded")).not.toBeInTheDocument();
@@ -71,7 +71,7 @@ describe("RefundStatusCard", () => {
 			<RefundStatusCard refundInfo={blockedInfo} onRequestRefund={vi.fn()} isSubmitting={false} />
 		);
 
-		expect(screen.getByText("Khoản quyết toán của chuyến đi đang tạm giữ")).toBeInTheDocument();
+		expect(screen.getByText(/Yêu cầu đang được kiểm tra/)).toBeInTheDocument();
 	});
 
 	it("renders retry button for failed refund transaction", () => {
@@ -149,6 +149,39 @@ describe("RefundStatusCard", () => {
 		);
 
 		expect(screen.getByText("Toàn bộ số tiền đã thanh toán đã được hoàn tất.")).toBeInTheDocument();
+		expect(screen.queryByTestId("open-refund-request-modal")).not.toBeInTheDocument();
+	});
+	it("presents an automatic cancellation refund without asking the Camper to submit a request", () => {
+		render(
+			<RefundStatusCard
+				refundInfo={{
+					...baseInfo,
+					origin: "camper_cancellation",
+					isEligible: false,
+					remainingRefundableAmount: "0.00",
+					refunds: [
+						{
+							id: "r-cancel-1",
+							amount: "1000000.00",
+							status: "pending",
+							reviewStatus: null,
+							createdAt: "2030-05-01T10:00:00Z",
+						},
+					],
+				}}
+				bookingStatus="cancelled"
+				onRequestRefund={vi.fn()}
+				isSubmitting={false}
+			/>
+		);
+
+		expect(screen.getByText("Hoàn tiền sau khi hủy đặt chỗ")).toBeInTheDocument();
+		expect(screen.getByText("1. Hủy đặt chỗ")).toBeInTheDocument();
+		expect(screen.getByText("Đã hủy")).toBeInTheDocument();
+		expect(screen.getByText("Khoản hoàn")).toBeInTheDocument();
+		expect(screen.getByText(/Ngày tạo:/)).toBeInTheDocument();
+		expect(screen.queryByText("1. Gửi yêu cầu")).not.toBeInTheDocument();
+		expect(screen.queryByText("Yêu cầu đã gửi")).not.toBeInTheDocument();
 		expect(screen.queryByTestId("open-refund-request-modal")).not.toBeInTheDocument();
 	});
 });

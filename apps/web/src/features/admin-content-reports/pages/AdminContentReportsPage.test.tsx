@@ -30,7 +30,11 @@ function deferred<T>() {
 }
 async function openDetail() {
 	render(<AdminContentReportsPage />);
-	await userEvent.click(await screen.findByRole("button", { name: `Xem báo cáo ${report.id}` }));
+	await userEvent.click(
+		await screen.findByRole("button", {
+			name: `Xem báo cáo 1 của ${report.reporter.fullName || "người dùng"} ngày ${new Date(report.createdAt).toLocaleString("vi-VN")}`,
+		})
+	);
 	const panel = screen.getByRole("region", { name: "Chi tiết báo cáo" });
 	await within(panel).findByText(report.reason);
 	return within(panel);
@@ -61,9 +65,7 @@ describe("Content Reports Admin UI", () => {
 		const table = await screen.findByRole("table");
 		for (const value of [
 			report.reporter.fullName ?? "",
-			report.reporter.id,
 			report.targetType,
-			report.targetId,
 			report.reason,
 			"Chờ xử lý",
 		])
@@ -110,11 +112,8 @@ describe("Content Reports Admin UI", () => {
 	it("shows all authoritative detail fields and pending actions", async () => {
 		const panel = await openDetail();
 		for (const value of [
-			report.id,
-			report.reporter.id,
 			report.reporter.fullName ?? "",
 			report.targetType,
-			report.targetId,
 			report.reason,
 			"Chờ xử lý",
 			"Ngày tạo",
@@ -232,7 +231,11 @@ describe("Content Reports Admin UI", () => {
 			new HttpError("missing", 404, null)
 		);
 		render(<AdminContentReportsPage />);
-		await userEvent.click(await screen.findByRole("button", { name: `Xem báo cáo ${report.id}` }));
+		await userEvent.click(
+			await screen.findByRole("button", {
+				name: `Xem báo cáo 1 của ${report.reporter.fullName || "người dùng"} ngày ${new Date(report.createdAt).toLocaleString("vi-VN")}`,
+			})
+		);
 		expect(await screen.findByRole("alert")).toHaveTextContent("không còn tồn tại");
 		await userEvent.click(screen.getByRole("button", { name: "Thử lại" }));
 		expect(await screen.findByRole("button", { name: REPORT_ACTIONS[0].label })).toBeEnabled();
@@ -245,8 +248,16 @@ describe("Content Reports Admin UI", () => {
 			.mockReturnValueOnce(pending.promise)
 			.mockResolvedValue(newer);
 		render(<AdminContentReportsPage />);
-		await userEvent.click(await screen.findByRole("button", { name: `Xem báo cáo ${report.id}` }));
-		await userEvent.click(screen.getByRole("button", { name: `Xem báo cáo ${newer.id}` }));
+		await userEvent.click(
+			await screen.findByRole("button", {
+				name: `Xem báo cáo 1 của ${report.reporter.fullName || "người dùng"} ngày ${new Date(report.createdAt).toLocaleString("vi-VN")}`,
+			})
+		);
+		await userEvent.click(
+			screen.getByRole("button", {
+				name: `Xem báo cáo 2 của ${newer.reporter.fullName || "người dùng"} ngày ${new Date(newer.createdAt).toLocaleString("vi-VN")}`,
+			})
+		);
 		const panel = within(screen.getByRole("region", { name: "Chi tiết báo cáo" }));
 		await panel.findByText(newer.reason);
 		await act(async () => pending.resolve(report));

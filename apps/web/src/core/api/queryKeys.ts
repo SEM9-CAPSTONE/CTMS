@@ -43,6 +43,8 @@ export const queryKeys = {
 		list: (filters: unknown) => ["survival-documents", "list", filters] as const,
 		detail: (id: string | null) => ["survival-documents", "detail", id] as const,
 		file: (id: string, versionId: string) => ["survival-documents", "file", id, versionId] as const,
+		chunkSets: (id: string, versionId: string) =>
+			["survival-documents", "chunk-sets", id, versionId] as const,
 	},
 	routeSafety: {
 		terrain: (hostId: string, geometry: string, version: string) =>
@@ -176,12 +178,16 @@ export const queryKeys = {
 	},
 	settlements: {
 		all: ["settlements"] as const,
+		reconciliationBookings: (search: string) =>
+			["settlements", "reconciliationBookings", search] as const,
 		evaluation: (tripId: string) => ["settlements", "evaluation", tripId] as const,
 		adminList: (filters?: Record<string, unknown>) =>
 			["settlements", "adminList", filters] as const,
 		hostWallet: ["settlements", "hostWallet"] as const,
 		adminPayouts: (filters?: Record<string, unknown>) =>
 			["settlements", "adminPayouts", filters] as const,
+		adminAdjustments: (filters?: Record<string, unknown>) =>
+			["settlements", "adminAdjustments", filters] as const,
 	},
 	bankAccounts: {
 		all: ["bank-accounts"] as const,

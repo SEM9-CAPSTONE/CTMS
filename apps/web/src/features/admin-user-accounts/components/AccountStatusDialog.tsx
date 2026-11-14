@@ -29,7 +29,8 @@ export function AccountStatusDialog(props: AccountStatusDialogProps) {
 	if (!props.open || !props.user) return null;
 	const isLock = props.action === "lock";
 	const Icon = isLock ? Lock : Unlock;
-	const displayName = props.user.fullName || props.user.email || props.user.phone || props.user.id;
+	const displayName =
+		props.user.fullName || props.user.email || props.user.phone || "Chưa cập nhật họ tên";
 	const submit = form.handleSubmit(async (values) =>
 		props.onConfirm(values.reason?.trim() || undefined)
 	);

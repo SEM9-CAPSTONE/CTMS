@@ -91,7 +91,7 @@ export function HostTripBookingsList({
 
 	const copyBookingId = (id: string) => {
 		if (navigator.clipboard) {
-			void navigator.clipboard.writeText(id);
+			void navigator.clipboard.writeText(`${window.location.origin}/bookings/${id}`);
 			setCopiedId(id);
 			setTimeout(() => setCopiedId(null), 2000);
 		}
@@ -278,7 +278,7 @@ export function HostTripBookingsList({
 												copyBookingId(booking.id);
 											}}
 											className="inline-flex items-center gap-1 rounded-lg border border-[#dfe8df] bg-white px-2 py-1 text-[11px] font-mono text-[#55685a] hover:bg-[#f4f7f2]"
-											title="Sao chép mã đơn"
+											title="Sao chép liên kết đơn đặt chỗ"
 										>
 											{copiedId === booking.id ? (
 												<>
@@ -288,7 +288,7 @@ export function HostTripBookingsList({
 											) : (
 												<>
 													<Copy className="size-3" />
-													<span>{booking.id.slice(0, 8)}...</span>
+													<span>Sao chép liên kết</span>
 												</>
 											)}
 										</button>

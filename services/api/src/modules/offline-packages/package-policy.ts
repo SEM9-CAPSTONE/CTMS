@@ -2,12 +2,7 @@ import { createHash } from "node:crypto";
 import { Injectable } from "@nestjs/common";
 import { ChunkSetStatus } from "../knowledge-chunks/knowledge-chunks.types";
 import { isSafetyGeometry } from "../route-safety/safety-input";
-import {
-	assertRights,
-	hasRecordedUseRights,
-	validatePublicationMetadata,
-} from "../survival-documents/source-policy";
-import { DocumentStatus } from "../survival-documents/survival-documents.types";
+import { isEligiblePublishedSource } from "../survival-documents/source-policy";
 import { isCanonicalLineStringCoordinates } from "../trekking-routes/validators/line-string.validator";
 import { WaypointType } from "../trips/entities/trip-waypoint.entity";
 import { TripStatus, TripType } from "../trips/entities/trip.entity";
@@ -214,14 +209,10 @@ export class ApprovedGuidanceSelector {
 					Date.parse(unit.approval.approvedAt) > now
 				)
 					return false;
-				if (
-					unit.source.status !== DocumentStatus.PUBLISHED ||
-					unit.currentPublishedVersionId !== unit.source.id ||
-					!hasRecordedUseRights(unit.source)
-				)
-					return false;
+				if (!isEligiblePublishedSource(unit.source, unit.currentPublishedVersionId)) return false;
 				if (
 					unit.chunkSet.status !== ChunkSetStatus.READY ||
+					unit.chunkSet.id !== unit.currentChunkSetId ||
 					unit.chunkSet.documentVersionId !== unit.source.id ||
 					unit.chunkSet.sourceChecksum !== unit.source.checksum
 				)
@@ -247,13 +238,7 @@ export class ApprovedGuidanceSelector {
 					!unit.excludedConditions.every((condition) => states.get(condition) === "NOT_APPLICABLE")
 				)
 					return false;
-				try {
-					validatePublicationMetadata(unit.source.metadata);
-					assertRights(unit.source.metadata, unit.source.rights, "OFFLINE");
-					return true;
-				} catch {
-					return false;
-				}
+				return true;
 			})
 			.sort((a, b) => a.id.localeCompare(b.id, "en"));
 	}

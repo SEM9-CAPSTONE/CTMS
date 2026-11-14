@@ -8,7 +8,7 @@ export interface ConfirmTransferModalProps {
 	open: boolean;
 	isSubmitting: boolean;
 	onClose: () => void;
-	onConfirm: (obligationId: string, note?: string) => Promise<void>;
+	onConfirm: (obligationId: string, note?: string, transactionRef?: string) => Promise<void>;
 }
 
 export function ConfirmTransferModal({
@@ -20,12 +20,14 @@ export function ConfirmTransferModal({
 }: ConfirmTransferModalProps) {
 	const dialogRef = useRef<HTMLDialogElement>(null);
 	const [note, setNote] = useState("");
+	const [transactionRef, setTransactionRef] = useState("");
 	const [errorMessage, setErrorMessage] = useState("");
 
 	useEffect(() => {
 		const el = dialogRef.current;
 		if (open) {
 			setNote("");
+			setTransactionRef("");
 			setErrorMessage("");
 			if (typeof el?.showModal === "function") {
 				el.showModal();
@@ -46,8 +48,12 @@ export function ConfirmTransferModal({
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
+		if (!transactionRef.trim()) {
+			setErrorMessage("Vui lòng nhập mã giao dịch ngân hàng.");
+			return;
+		}
 		try {
-			await onConfirm(refund.id, note.trim() || undefined);
+			await onConfirm(refund.id, note.trim() || undefined, transactionRef.trim());
 			onClose();
 		} catch (err) {
 			setErrorMessage(err instanceof Error ? err.message : "Có lỗi xảy ra khi xác nhận.");
@@ -122,6 +128,23 @@ export function ConfirmTransferModal({
 			</div>
 
 			<form onSubmit={handleSubmit} className="mt-4 space-y-4">
+				<div>
+					<label
+						htmlFor="refund-transfer-reference"
+						className="block text-xs font-bold text-[#10221b]"
+					>
+						Mã giao dịch ngân hàng *
+					</label>
+					<input
+						id="refund-transfer-reference"
+						value={transactionRef}
+						onChange={(event) => setTransactionRef(event.target.value)}
+						disabled={isSubmitting}
+						maxLength={255}
+						required
+						className="mt-1 w-full rounded-xl border border-[#cbd9ce] p-2.5 text-sm"
+					/>
+				</div>
 				<div>
 					<label htmlFor="confirm-note-input" className="block text-xs font-bold text-[#10221b]">
 						Ghi chú đối soát (tùy chọn)

@@ -12,7 +12,8 @@ export function OverviewBookingRow({
 	return (
 		<div className="flex flex-wrap items-center justify-between gap-3">
 			<div>
-				<p className="text-sm font-semibold">Booking #{item.id.slice(0, 8)}</p>
+				<p className="text-sm font-semibold">{item.camperName || "Chưa cập nhật tên khách"}</p>
+				{item.tripTitle && <p className="mt-1 text-xs text-[#65756a]">{item.tripTitle}</p>}
 				<p className="mt-1 text-xs text-[#65756a]">
 					{overviewStatus(item.status)} · {overviewStatus(item.paymentStatus)}
 				</p>
@@ -35,7 +36,7 @@ export function OverviewPorterRow({
 	return (
 		<>
 			<p className="text-sm font-semibold">
-				Porter <span className="font-normal text-[#79877d]">#{item.porterId.slice(0, 8)}</span>
+				{item.porterName || "Chưa cập nhật tên người dẫn đường"}
 			</p>
 			{item.assignments.map((assignment) => (
 				<div
@@ -47,7 +48,9 @@ export function OverviewPorterRow({
 						className="text-left font-medium text-[#23583b] hover:underline"
 						onClick={() => onTrip(assignment.tripId)}
 					>
-						{tripNames.get(assignment.tripId) ?? `Trip #${assignment.tripId.slice(0, 8)}`}
+						{assignment.tripTitle ||
+							tripNames.get(assignment.tripId) ||
+							"Chưa cập nhật tên chuyến đi"}
 					</button>
 					<span className="text-[#65756a]">{overviewStatus(assignment.status)}</span>
 				</div>

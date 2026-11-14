@@ -1,26 +1,9 @@
-import { assertRights, hasRecordedUseRights } from "../survival-documents/source-policy";
-import { DocumentStatus, type SourceVersion } from "../survival-documents/survival-documents.types";
 import {
 	type ChunkOutput,
 	type ChunkSet,
 	IngestionError,
 	MAX_CHUNKS,
 } from "./knowledge-chunks.types";
-
-export function eligibleSource(version: SourceVersion, currentId: string | null): boolean {
-	if (
-		version.status !== DocumentStatus.PUBLISHED ||
-		version.id !== currentId ||
-		!hasRecordedUseRights(version)
-	)
-		return false;
-	try {
-		assertRights(version.metadata, version.rights);
-		return true;
-	} catch {
-		return false;
-	}
-}
 
 /** Treat the Python response as untrusted; never accept mismatched provenance or partial vectors. */
 export function validateChunkOutput(raw: unknown, set: ChunkSet): ChunkOutput {

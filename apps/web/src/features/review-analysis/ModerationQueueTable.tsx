@@ -146,7 +146,7 @@ export function ModerationQueueTable({
 							<option value="">Tất cả chuyến đi</option>
 							{trips.map((t) => (
 								<option key={t.id} value={t.id}>
-									{t.title || t.name || t.id}
+									{t.title || t.name || "Chưa cập nhật tên chuyến đi"}
 								</option>
 							))}
 						</select>

@@ -1,9 +1,10 @@
 import { createHash, randomUUID } from "node:crypto";
 import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 // biome-ignore lint/style/useImportType: Nest injection
-import { DataSource, type EntityManager } from "typeorm";
+import { DataSource, type EntityManager, QueryFailedError } from "typeorm";
+import { isEligiblePublishedSource, sourceContentIssue } from "../survival-documents/source-policy";
 import { type SourceVersion, VERSION_SELECT } from "../survival-documents/survival-documents.types";
-import { eligibleSource, validateChunkOutput } from "./knowledge-chunks.policy";
+import { validateChunkOutput } from "./knowledge-chunks.policy";
 import {
 	type ChunkConfiguration,
 	type ChunkOutput,
@@ -19,7 +20,7 @@ import {
 export class KnowledgeChunksRepository {
 	constructor(readonly db: DataSource) {}
 
-	private async source(
+	private async currentSource(
 		manager: EntityManager,
 		documentId: string,
 		versionId: string
@@ -29,14 +30,17 @@ export class KnowledgeChunksRepository {
 			"SELECT current_published_version_id FROM survival_documents WHERE id=$1 FOR UPDATE",
 			[documentId]
 		);
-		if (!document) return null;
+		if (document?.current_published_version_id !== versionId) return null;
 		const [version]: SourceVersion[] = await manager.query(
 			`${VERSION_SELECT} WHERE document_id=$1 AND id=$2`,
 			[documentId, versionId]
 		);
-		return version && eligibleSource(version, document.current_published_version_id)
-			? version
-			: null;
+		return version ?? null;
+	}
+
+	private async source(manager: EntityManager, documentId: string, versionId: string) {
+		const version = await this.currentSource(manager, documentId, versionId);
+		return version && isEligiblePublishedSource(version, versionId) ? version : null;
 	}
 
 	private async insert(
@@ -95,24 +99,129 @@ export class KnowledgeChunksRepository {
 				document_id: string;
 				version_id: string;
 				event_type: string;
-				payload: { regenerationNeeded?: boolean };
 			}> = await manager.query(`
-			 SELECT e.* FROM survival_document_outbox e WHERE NOT EXISTS
+			 SELECT e.id,e.document_id,e.version_id,e.event_type FROM survival_document_outbox e WHERE NOT EXISTS
 			 (SELECT 1 FROM knowledge_chunk_event_receipts r WHERE r.event_id=e.id)
 			 ORDER BY e.created_at,e.id FOR UPDATE OF e SKIP LOCKED LIMIT 20`);
+			// Other worker instances take document locks in the same order.
+			events.sort((left, right) => left.document_id.localeCompare(right.document_id));
 			for (const event of events) {
-				if (
-					event.event_type === "published_version_changed" &&
-					event.payload.regenerationNeeded === true
-				) {
+				if (event.event_type === "published_version_changed") {
 					const source = await this.source(manager, event.document_id, event.version_id);
 					if (source) await this.insert(manager, source, configuration);
 				}
-				await manager.query("INSERT INTO knowledge_chunk_event_receipts(event_id) VALUES($1)", [
-					event.id,
-				]);
+				await manager.query(
+					"INSERT INTO knowledge_chunk_event_receipts(event_id) VALUES($1) ON CONFLICT DO NOTHING",
+					[event.id]
+				);
 			}
 		});
+	}
+
+	async reconcile(configuration: ChunkConfiguration) {
+		const candidates: Array<{ id: string; version_id: string }> = await this.db.query(`
+			SELECT d.id,v.id AS version_id
+			FROM survival_documents d JOIN survival_document_versions v
+			  ON v.id=d.current_published_version_id AND v.document_id=d.id
+			WHERE v.status='PUBLISHED' AND NOT EXISTS (
+			  SELECT 1 FROM knowledge_chunk_sets s WHERE s.document_version_id=v.id
+			) ORDER BY d.id`);
+		let queued = 0;
+		const skipped: Array<{ versionId: string; reason: string }> = [];
+		for (const candidate of candidates) {
+			const outcome = await this.db.transaction(async (manager) => {
+				const source = await this.currentSource(manager, candidate.id, candidate.version_id);
+				if (!source) return "Phiên bản hiện hành đã thay đổi.";
+				if (!isEligiblePublishedSource(source, candidate.version_id))
+					return sourceContentIssue(source) ?? "Thông tin xuất bản hoặc tệp PDF không hợp lệ.";
+				const existing: Array<{ id: string }> = await manager.query(
+					"SELECT id FROM knowledge_chunk_sets WHERE document_version_id=$1 LIMIT 1",
+					[source.id]
+				);
+				if (existing.length) return "Phiên bản đã có bộ đoạn trích.";
+				await this.insert(manager, source, configuration);
+				return null;
+			});
+			if (outcome === null) queued++;
+			else skipped.push({ versionId: candidate.version_id, reason: outcome });
+		}
+		return { candidates: candidates.length, queued, skipped };
+	}
+
+	async cleanupHistory(
+		retentionDays: number
+	): Promise<{ deleted: number; retainedByDependency: number }> {
+		const candidates: Array<{ id: string; document_id: string }> = await this.db.query(
+			`
+			SELECT old.id,old.document_id
+			FROM survival_documents d
+			JOIN knowledge_chunk_publications p ON p.document_id=d.id
+			JOIN knowledge_chunk_sets replacement ON replacement.id=p.chunk_set_id
+			JOIN survival_document_versions v ON v.document_id=d.id AND v.status='SUPERSEDED'
+			JOIN knowledge_chunk_sets old ON old.document_version_id=v.id
+			WHERE replacement.document_version_id=d.current_published_version_id
+			  AND replacement.status='READY'
+			  AND replacement.completed_at<=clock_timestamp()-make_interval(days=>$1)
+			  AND old.status NOT IN ('PENDING','RUNNING')
+			ORDER BY old.document_id,old.id`,
+			[retentionDays]
+		);
+		let deleted = 0;
+		let retainedByDependency = 0;
+		for (const candidate of candidates) {
+			try {
+				deleted += await this.db.transaction(async (manager) => {
+					// Same lock as publish, activation and offline source revalidation.
+					const [document]: Array<{ current_published_version_id: string | null }> =
+						await manager.query(
+							"SELECT current_published_version_id FROM survival_documents WHERE id=$1 FOR UPDATE SKIP LOCKED",
+							[candidate.document_id]
+						);
+					if (!document?.current_published_version_id) return 0;
+					const replacement = await this.source(
+						manager,
+						candidate.document_id,
+						document.current_published_version_id
+					);
+					if (!replacement) return 0;
+					const removed: Array<{ id: string }> = await manager.query(
+						`
+						WITH removed AS (
+							DELETE FROM knowledge_chunk_sets old USING survival_document_versions v
+							WHERE old.id=$1 AND old.document_id=$2 AND old.document_version_id=v.id
+							  AND v.status='SUPERSEDED' AND old.document_version_id<>$3
+							  AND old.status NOT IN ('PENDING','RUNNING')
+							  AND NOT EXISTS (
+								SELECT 1 FROM knowledge_chunk_publications p WHERE p.chunk_set_id=old.id
+							  )
+							  AND EXISTS (
+								SELECT 1 FROM knowledge_chunk_publications p
+								JOIN knowledge_chunk_sets s ON s.id=p.chunk_set_id
+								WHERE p.document_id=$2 AND s.document_version_id=$3
+								  AND s.status='READY' AND s.checksum=$5 AND s.locale=$6 AND s.source_version=$7
+								  AND s.completed_at<=clock_timestamp()-make_interval(days=>$4)
+							  )
+							RETURNING old.id
+						) SELECT id FROM removed`,
+						[
+							candidate.id,
+							candidate.document_id,
+							replacement.id,
+							retentionDays,
+							replacement.checksum,
+							replacement.metadata.locale,
+							replacement.versionNumber,
+						]
+					);
+					return removed.length;
+				});
+			} catch (error) {
+				// A restrictive FK on the set or any cascading chunk rolls back this candidate.
+				if (!(error instanceof QueryFailedError) || error.driverError.code !== "23503") throw error;
+				retainedByDependency++;
+			}
+		}
+		return { deleted, retainedByDependency };
 	}
 
 	async claim(): Promise<ChunkSet | null> {
@@ -231,8 +340,12 @@ export class KnowledgeChunksRepository {
 		);
 		if (!versions.length) throw new NotFoundException({ code: "KNOWLEDGE_SOURCE_NOT_FOUND" });
 		return this.db.query(
-			`SELECT id,document_version_id,source_version,locale,status,attempts,error_code,quality_report,
-		 configuration,chunk_count,created_at,completed_at FROM knowledge_chunk_sets WHERE document_version_id=$1 ORDER BY created_at DESC,id`,
+			`SELECT s.id,s.document_version_id,s.source_version,s.locale,s.status,s.attempts,s.error_code,
+			 s.quality_report,s.configuration,s.chunk_count,s.created_at,s.completed_at,
+			 COALESCE(p.chunk_set_id=s.id AND d.current_published_version_id=s.document_version_id AND s.status='READY',false) AS active
+			 FROM knowledge_chunk_sets s JOIN survival_documents d ON d.id=s.document_id
+			 LEFT JOIN knowledge_chunk_publications p ON p.document_id=d.id
+			 WHERE s.document_version_id=$1 ORDER BY s.created_at DESC,s.id`,
 			[versionId]
 		);
 	}
@@ -240,23 +353,38 @@ export class KnowledgeChunksRepository {
 	/** Internal consumption boundary for CTMS-068; excludes withdrawn and superseded sources immediately. */
 	async readCurrent(documentId: string): Promise<StoredKnowledgeChunk[]> {
 		return this.db.transaction(async (manager) => {
-			await manager.query("SELECT id FROM survival_documents WHERE id=$1 FOR UPDATE", [documentId]);
-			const [publication]: Array<{ document_version_id: string; chunk_set_id: string }> =
-				await manager.query(
-					`SELECT s.document_version_id,p.chunk_set_id
+			await manager.query("SELECT id FROM survival_documents WHERE id=$1 FOR SHARE", [documentId]);
+			const [publication]: Array<{
+				document_version_id: string;
+				chunk_set_id: string;
+				source_version: number;
+				checksum: string;
+				locale: string;
+				chunk_count: number;
+			}> = await manager.query(
+				`SELECT s.document_version_id,p.chunk_set_id,s.source_version,s.checksum,s.locale,s.chunk_count
 			 FROM knowledge_chunk_publications p JOIN knowledge_chunk_sets s ON s.id=p.chunk_set_id
-			 WHERE p.document_id=$1 AND s.status='READY'`,
-					[documentId]
-				);
+			 JOIN survival_documents d ON d.id=p.document_id
+			 WHERE p.document_id=$1 AND s.status='READY' AND d.current_published_version_id=s.document_version_id`,
+				[documentId]
+			);
+			if (!publication) return [];
+			const [version]: SourceVersion[] = await manager.query(
+				`${VERSION_SELECT} WHERE document_id=$1 AND id=$2`,
+				[documentId, publication.document_version_id]
+			);
 			if (
-				!publication ||
-				!(await this.source(manager, documentId, publication.document_version_id))
+				!isEligiblePublishedSource(version, publication.document_version_id) ||
+				version.versionNumber !== publication.source_version ||
+				version.checksum !== publication.checksum ||
+				version.metadata.locale !== publication.locale
 			)
 				return [];
-			return manager.query(
-				"SELECT * FROM knowledge_chunks WHERE chunk_set_id=$1 ORDER BY chunk_index",
+			const chunks: StoredKnowledgeChunk[] = await manager.query(
+				"SELECT * FROM knowledge_chunks WHERE chunk_set_id=$1 ORDER BY chunk_index FOR SHARE",
 				[publication.chunk_set_id]
 			);
+			return chunks.length === publication.chunk_count ? chunks : [];
 		});
 	}
 }

@@ -45,6 +45,8 @@ export const HOST_OVERVIEW_SCHEMA: SchemaObject = object({
 	bookings: section({
 		id: uuid,
 		tripId: uuid,
+		tripTitle: { ...text, nullable: true },
+		camperName: { ...text, nullable: true },
 		status: { ...enumeration(Object.values(BookingStatus)), nullable: true },
 		paymentStatus: { ...enumeration(Object.values(BookingPaymentStatus)), nullable: true },
 		numPeople: { type: "integer", nullable: true },
@@ -69,9 +71,14 @@ export const HOST_OVERVIEW_SCHEMA: SchemaObject = object({
 	porters: section({
 		id: uuid,
 		porterId: uuid,
+		porterName: { ...text, nullable: true },
 		assignments: {
 			type: "array",
-			items: object({ tripId: uuid, status: enumeration(Object.values(TripPorterStatus)) }),
+			items: object({
+				tripId: uuid,
+				tripTitle: { ...text, nullable: true },
+				status: enumeration(Object.values(TripPorterStatus)),
+			}),
 		},
 	}),
 	sos: section({

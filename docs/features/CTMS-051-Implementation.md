@@ -4,7 +4,7 @@ CTMS-051 converts current eligible survival-document PDFs into ordered, traceabl
 
 ## Processing and configuration
 
-1. The NestJS worker consumes `survival_document_outbox` through its own receipts, checks the current publication and exact-version use rights, and creates one set per `(document_version_id, config_hash)`.
+1. The NestJS worker consumes `survival_document_outbox` through its own receipts, checks current publication and CTMS-050 source eligibility, and creates one set per `(document_version_id, config_hash)`.
 2. PostgreSQL `FOR UPDATE SKIP LOCKED` assigns one job with a random lease token. A 120-second lease renews every 20 seconds. Transient HTTP/transport errors retry after 30 seconds, up to three attempts. Worker restarts recover expired claims. A completion must own the current, unexpired token.
 3. `SurvivalSourceReader` supplies verified private PDF bytes and source metadata. The Python worker checks SHA-256 before parsing. The internal request has a 10-minute timeout; the API renews the lease while waiting.
 4. Docling identifies headings, paragraphs, lists and tables. `HybridChunker` splits oversized units and merges adjacent peers with the same heading/caption. Page breaks are provenance, not chunk boundaries.
@@ -38,9 +38,9 @@ These checks cannot prove that an original PDF or its parsed layout is correct. 
 | `FAILED` | Permanent technical error or exhausted attempts. Admin may retry when the cause is resolved. |
 | `OBSOLETE` | Source lost eligibility before completion. Process the newer authoritative version instead. |
 
-V2 builds independently of V1. Existing chunks never acquire another version's identity. The active pointer changes only in the successful V2 transaction; earlier sets remain historical. `readCurrent(documentId)` additionally validates the current publication and rights at consumption time, so superseded or stopped-use V1 is unavailable even while its pointer remains stored. Readers return an empty result during a replacement rebuild if the previous source has already been superseded. This follows CTMS-050's authoritative-source rule.
+V2 builds independently of V1. Existing chunks retain their exact source version. The active pointer changes only in the successful V2 transaction. `readCurrent(documentId)` checks current source eligibility, version, checksum, locale and count. Readers return an empty result while a newly published replacement is still being built.
 
-Publication without verified rights never queues ingestion. An explicit Admin request is subject to the same eligibility checks. Source archive, supersession and deletion also fence in-flight completions. Whole-document deletion cascades derived rows; the CTMS-050 audit and outbox retain their existing history.
+Eligible publication queues ingestion. Manual requests use the same policy. Archive, supersession and deletion fence in-flight completions. Whole-document deletion cascades derived rows, and CTMS-050 retains audit and outbox history. Scheduled cleanup only removes superseded derived sets after an eligible active replacement has been READY for the retention period. See the [CTMS-051 specification](../../file/spec/ctms-51-split-documents-into-knowledge-chunks.md) for retention and test backfill.
 
 ## Data dictionary
 

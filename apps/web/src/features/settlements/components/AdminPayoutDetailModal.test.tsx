@@ -27,7 +27,8 @@ describe("AdminPayoutDetailModal", () => {
 		render(<AdminPayoutDetailModal payout={mockPayout} isOpen={true} onClose={vi.fn()} />);
 
 		expect(screen.getByText("Chi tiết yêu cầu rút tiền")).toBeInTheDocument();
-		expect(screen.getByText(/Host: Host Ban Mai/i)).toBeInTheDocument();
+		expect(screen.getByText("Host Ban Mai", { exact: true })).toBeInTheDocument();
+		expect(screen.queryByText(/payout-12345678/)).not.toBeInTheDocument();
 		expect(screen.getByText("Vietcombank")).toBeInTheDocument();
 		expect(screen.getByText("0123456789")).toBeInTheDocument();
 		expect(screen.getByText("HOST BAN MAI")).toBeInTheDocument();

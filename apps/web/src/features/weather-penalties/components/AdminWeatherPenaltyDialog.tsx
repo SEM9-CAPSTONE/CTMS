@@ -69,7 +69,7 @@ export function AdminWeatherPenaltyDialog({
 			onClose={onClose}
 			title={penalty.tripTitle}
 			icon={<Scale className="size-5" />}
-			description={`Host ${penalty.hostName ?? penalty.hostId} · Vi phạm lần ${penalty.violationNumber}`}
+			description={`${penalty.hostName ?? "Chưa cập nhật tên người tổ chức"} · Vi phạm lần ${penalty.violationNumber}`}
 			size="xl"
 			isCloseDisabled={review.isPending}
 			closeLabel="Đóng"

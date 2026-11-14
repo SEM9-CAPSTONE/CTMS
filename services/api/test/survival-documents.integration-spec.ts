@@ -341,12 +341,15 @@ describe("CTMS-050 PostgreSQL integration + real guarded HTTP", () => {
 			const stale = await importVersion().expect(409);
 			expect(stale.body).toMatchObject({ code: "SOURCE_CONFLICT" });
 			const published = (await action(replacement, "publish", {})).body as SourceTestDetail;
-			expect(published.processingSyncStatus).toBe("NOT_PROCESSED");
+			expect(published.processingSyncStatus).toBe("REGENERATION_NEEDED");
 			expect(published.versions[0]).toMatchObject({
 				status: DocumentStatus.PUBLISHED,
 				rights: { internalRagUseAllowed: false, offlineRedistributionAllowed: false },
 			});
-			await expect(reader.readPublished(published.versions[0].id)).rejects.toThrow();
+			await expect(reader.readPublished(published.versions[0].id)).resolves.toMatchObject({
+				bytes: updatedBytes,
+				manifest: { reviewedBy: null, reviewedAt: null },
+			});
 			await expect(reader.readPublished(published.versions[0].id, "OFFLINE")).rejects.toThrow();
 			await expect(reader.readPublished(published.versions[0].id, "TRANSLATION")).rejects.toThrow();
 			const [event] = await db.query(
@@ -354,9 +357,46 @@ describe("CTMS-050 PostgreSQL integration + real guarded HTTP", () => {
 				[published.versions[0].id]
 			);
 			expect(event.payload).toMatchObject({
-				regenerationNeeded: false,
+				regenerationNeeded: true,
 				internalRagUseAllowed: false,
 			});
+		} finally {
+			acquisition.mockRestore();
+		}
+	});
+	it("refuses publication outside the source allowlist while preserving the draft", async () => {
+		for (const sourceUrl of [undefined, "https://unlisted.example.com/manual.pdf"]) {
+			const doc = await create({ ...fictionalMetadata, sourceUrl }, uniqueFictionalPdf());
+			const failure = await action(doc, "publish", {}, 422);
+			expect(failure.body.message).toContain("chưa được CTMS cho phép");
+			const [version] = await db.query(
+				"SELECT status FROM survival_document_versions WHERE id=$1",
+				[doc.versions[0].id]
+			);
+			expect(version.status).toBe(DocumentStatus.DRAFT);
+			expect(
+				await db.query("SELECT id FROM survival_document_outbox WHERE document_id=$1", [doc.id])
+			).toEqual([]);
+		}
+	});
+	it("checks the final PDF host instead of approving an import based on its starting URL", async () => {
+		const sourceUrl = "https://example.org/redirect.pdf";
+		const finalSourceUrl = "https://unlisted.example.com/manual.pdf";
+		const bytes = uniqueFictionalPdf();
+		const acquisition = jest.spyOn(app.get(PdfSourceService), "fromUrl").mockResolvedValue({
+			...(await validatePdf(bytes, `${randomUUID()}.pdf`)),
+			bytes,
+			finalSourceUrl,
+		});
+		try {
+			const imported = await request(app.getHttpServer())
+				.post(`${endpoint}/import-url`)
+				.set("Authorization", token("admin"))
+				.send({ sourceUrl, metadata: { ...fictionalMetadata, sourceUrl } })
+				.expect(201);
+			const doc = imported.body as SourceTestDetail;
+			expect(doc.versions[0].metadata.sourceUrl).toBe(finalSourceUrl);
+			await action(doc, "publish", {}, 422);
 		} finally {
 			acquisition.mockRestore();
 		}

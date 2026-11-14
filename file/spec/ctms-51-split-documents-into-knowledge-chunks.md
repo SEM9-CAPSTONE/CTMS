@@ -39,7 +39,7 @@ Goal: Convert authoritative survival-document versions into traceable knowledge 
 - System / ingestion process.
 - Authorized knowledge-management workflow as upstream source.
 
-Only the current `PUBLISHED` source version with verified exact-version AI-use rights may be processed according to the current CTMS-050 lifecycle. Publication without recorded processing rights does not authorize ingestion.
+Only the current `PUBLISHED` version under CTMS-050 BR-227 that meets BR-484 source eligibility may be processed. The worker evaluates the source itself, including for events created before the policy change.
 
 ## 4. Preconditions & Dependencies
 
@@ -70,6 +70,10 @@ Source update
 Existing chunks must not silently change provenance.
 
 V1 remains in history while V2 is generated separately. The active chunk-set pointer changes only after the complete V2 set is persisted. Retrieval consumers must revalidate the current eligible publication; they cannot serve superseded V1 during a V2 rebuild or after stop-use.
+
+The existing worker removes derived sets for superseded versions only after an eligible current active replacement has been READY for `KNOWLEDGE_CHUNK_RETENTION_DAYS` (default 7). Cleanup rechecks identity under the document lock, skips locked documents and leaves sets with restrictive live dependencies in place. Source files, version history and published package snapshots are retained.
+
+On a local PostgreSQL database ending in `_test`, run `pnpm --filter @ctms/api run knowledge:reconcile:test` with `TEST_DATABASE_URL` and the source list set. It considers only current published versions without any set, reports queued and skipped versions, and is safe to repeat. Use an isolated integration database for the disposable test suites.
 
 ## 7. Business Flow
 
@@ -139,7 +143,7 @@ Publication outbox events enqueue work automatically using consumer-specific rec
 | BR-228 | Concurrent enqueue/claim and lease recovery | One live claim; stale completions rejected |
 | BR-228 | Embedding/transaction failure | No partial READY set or activation |
 | BR-228 | Extraction omits critical content | Visible `NEEDS_REVIEW` report with no consumable chunks |
-| BR-228 | Archive or delete | No current consumption; retained history until whole-document deletion |
+| BR-227, BR-485 | Archive or delete the source | No current consumption. Archival retains the source version and document deletion removes it. |
 
 ## 12. Technical Design and Evaluation
 

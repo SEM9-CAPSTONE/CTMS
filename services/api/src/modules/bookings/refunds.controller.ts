@@ -21,6 +21,8 @@ import { UserRole } from "../users/entities/user.entity";
 import { AdminRefundListResponseDto } from "./dto/admin-refund-item-response.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS DTO requires runtime metadata
 import { AdminRefundListQueryDto } from "./dto/admin-refund-list-query.dto";
+// biome-ignore lint/style/useImportType: decorated NestJS DTO requires runtime metadata
+import { ApproveRefundDto } from "./dto/approve-refund.dto";
 import { BookingRefundInfoResponseDto } from "./dto/booking-refund-info-response.dto";
 // biome-ignore lint/style/useImportType: decorated NestJS DTO requires runtime metadata
 import { ConfirmManualRefundDto } from "./dto/confirm-manual-refund.dto";
@@ -113,10 +115,16 @@ export class RefundsController {
 		@Headers("idempotency-key") idempotencyKey: string | undefined,
 		@Body() dto: ProcessRefundDto
 	): Promise<ProcessRefundResponseDto> {
-		return this.refundsService.processRefund(request.user.userId, bookingId, idempotencyKey, {
-			...dto,
-			obligationId,
-		});
+		return this.refundsService.processRefund(
+			request.user.userId,
+			bookingId,
+			idempotencyKey,
+			{
+				...dto,
+				obligationId,
+			},
+			{ userRoles: request.user.roles }
+		);
 	}
 
 	@Get("trips/:tripId/settlement-status")
@@ -157,6 +165,25 @@ export class RefundsController {
 	@ApiResponse({ status: 403, description: "Admin role required" })
 	listAdminRefunds(@Query() query: AdminRefundListQueryDto): Promise<AdminRefundListResponseDto> {
 		return this.refundsService.listAdminRefunds(query);
+	}
+
+	@Post("admin/refunds/:obligationId/approve")
+	@HttpCode(HttpStatus.OK)
+	@ApiBearerAuth()
+	@UseGuards(JwtAuthGuard, RolesGuard)
+	@Roles(UserRole.ADMIN)
+	@ApiOperation({ summary: "Approve a refund request and record any post-settlement recovery" })
+	@ApiResponse({ status: 200, type: ProcessRefundResponseDto })
+	approveRefund(
+		@Req() request: { user: AuthenticatedUser },
+		@Param(
+			"obligationId",
+			new ParseUUIDPipe({ errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY })
+		)
+		obligationId: string,
+		@Body() dto: ApproveRefundDto
+	): Promise<ProcessRefundResponseDto> {
+		return this.refundsService.approveRefund(request.user.userId, obligationId, dto);
 	}
 
 	@Post("admin/refunds/:obligationId/confirm")

@@ -22,7 +22,7 @@ export class DeviceSyncService {
 	): Promise<DeviceSyncStatusResponseDto> {
 		const trip = await this.participation.findTrip(tripId);
 		if (!trip) {
-			throw new NotFoundException("Trip not found");
+			throw new NotFoundException("Không tìm thấy chuyến đi.");
 		}
 
 		const hostId = await this.repository.getTripHostId(tripId);
@@ -50,9 +50,7 @@ export class DeviceSyncService {
 		}
 
 		if (!resolvedRole) {
-			throw new ForbiddenException(
-				"You are not authorized to view synchronization status for this Trip"
-			);
+			throw new ForbiddenException("Bạn không có quyền xem trạng thái đồng bộ của chuyến đi này.");
 		}
 
 		// Fetch authoritative server-confirmed statistics (BR-226)

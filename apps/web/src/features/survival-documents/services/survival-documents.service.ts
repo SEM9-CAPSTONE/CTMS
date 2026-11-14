@@ -4,6 +4,7 @@ import type {
 	DocumentDetail,
 	DocumentListItem,
 	SourceAction,
+	SourceChunkSet,
 	SourceDecision,
 	SourceFilters,
 	SourceMetadata,
@@ -19,6 +20,10 @@ export const survivalDocumentsService = {
 			maxBytes?: number;
 		}>(endpoints.ROOT, { ...filters, search: filters.search || undefined }),
 	detail: (id: string) => httpClient.get<DocumentDetail>(endpoints.DETAIL(id)),
+	chunkSets: (id: string, versionId: string) =>
+		httpClient.get<SourceChunkSet[]>(endpoints.VERSION(id, versionId, "chunk-sets")),
+	retryChunking: (id: string, versionId: string) =>
+		httpClient.post<SourceChunkSet>(endpoints.VERSION(id, versionId, "chunk-sets")),
 	remove: (id: string, expectedRevision: number) =>
 		httpClient.delete<void>(`${endpoints.DETAIL(id)}?expectedRevision=${expectedRevision}`),
 	upload: (metadata: SourceMetadata, file: File, document?: DocumentDetail) => {

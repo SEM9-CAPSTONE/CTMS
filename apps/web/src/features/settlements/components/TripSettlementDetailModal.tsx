@@ -60,9 +60,7 @@ export function TripSettlementDetailModal({
 						<h2 id="trip-detail-modal-title" className="text-base font-extrabold text-[#10221b]">
 							Chi tiết chuyến đi
 						</h2>
-						<p className="text-xs text-[#667a6d]">
-							#{item.tripId.slice(0, 8)} • {item.tripTitle}
-						</p>
+						<p className="text-xs text-[#667a6d]">{item.tripTitle}</p>
 					</div>
 					<button
 						type="button"
@@ -88,9 +86,6 @@ export function TripSettlementDetailModal({
 						<div className="rounded-xl bg-[#f8faf7] p-2.5 border border-[#e8efe7]">
 							<span className="text-[#667a6d] text-[11px] block">Host phụ trách</span>
 							<span className="font-bold text-[#10221b] truncate block">{item.hostName}</span>
-							<span className="text-[10px] text-[#7d8d83] font-mono">
-								#{item.hostId.slice(0, 8)}
-							</span>
 						</div>
 
 						<div className="rounded-xl bg-[#f8faf7] p-2.5 border border-[#e8efe7]">

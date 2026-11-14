@@ -71,7 +71,7 @@ afterEach(() => vi.restoreAllMocks());
 
 async function openDialog() {
 	render(<BookingDetailsPage bookingId={bookingFixture.id} onBack={vi.fn()} />);
-	fireEvent.click(await screen.findByRole("button", { name: "Yêu cầu hủy đơn" }));
+	fireEvent.click(await screen.findByRole("button", { name: "Hủy đặt chỗ" }));
 	return screen.getByRole("dialog");
 }
 
@@ -88,7 +88,7 @@ it.each([
 			cancellationPolicySnapshot,
 		});
 		await openDialog();
-		expect(screen.getByText(/Chưa có báo giá hoàn tiền/)).toBeVisible();
+		expect(screen.getByText(/Số tiền hoàn chính thức sẽ hiển thị/)).toBeVisible();
 		expect(screen.queryByTestId("cancellation-refund-amount")).not.toBeInTheDocument();
 		expect(bookingCancellationService.cancel).not.toHaveBeenCalled();
 	}
@@ -109,7 +109,7 @@ it.each([
 	});
 	render(<BookingDetailsPage bookingId={bookingFixture.id} onBack={vi.fn()} />);
 	await screen.findByRole("heading", { name: "Chi tiết đơn đặt chỗ" });
-	expect(screen.queryByRole("button", { name: "Yêu cầu hủy đơn" })).not.toBeInTheDocument();
+	expect(screen.queryByRole("button", { name: "Hủy đặt chỗ" })).not.toBeInTheDocument();
 	if (status === "pending_reconfirmation")
 		expect(screen.getByText("Trạng thái: Chờ xác nhận lại")).toBeVisible();
 	if (status === "cancelled") {
@@ -129,7 +129,7 @@ it("opens, focuses, closes and preserves reason when reconsidering", async () =>
 	await userEvent.type(reason, "Changed plans");
 	fireEvent(dialog, new Event("cancel", { cancelable: true }));
 	expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-	fireEvent.click(screen.getByRole("button", { name: "Yêu cầu hủy đơn" }));
+	fireEvent.click(screen.getByRole("button", { name: "Hủy đặt chỗ" }));
 	expect(screen.getByRole("textbox")).toHaveValue("Changed plans");
 	fireEvent.click(screen.getByRole("button", { name: "Giữ đơn đặt chỗ" }));
 	expect(bookingCancellationService.cancel).not.toHaveBeenCalled();
@@ -153,7 +153,7 @@ it("confirms once, locks pending dialog, reloads details and propagates cancelle
 	render(
 		<BookingDetailsPage bookingId={bookingFixture.id} onBack={vi.fn()} onBookingLoaded={loaded} />
 	);
-	fireEvent.click(await screen.findByRole("button", { name: "Yêu cầu hủy đơn" }));
+	fireEvent.click(await screen.findByRole("button", { name: "Hủy đặt chỗ" }));
 	fireEvent.change(screen.getByRole("textbox"), { target: { value: " reason " } });
 	const confirm = screen.getByRole("button", { name: "Xác nhận hủy" });
 	fireEvent.click(confirm);
@@ -229,7 +229,7 @@ it("isolates cancellation state when navigating to a different Booking", async (
 			<BookingDetailsPage bookingId={bookingFixture.id} onBack={vi.fn()} />
 		</QueryClientProvider>
 	);
-	fireEvent.click(await screen.findByRole("button", { name: "Yêu cầu hủy đơn" }));
+	fireEvent.click(await screen.findByRole("button", { name: "Hủy đặt chỗ" }));
 	fireEvent.change(screen.getByRole("textbox"), { target: { value: "Changed plans" } });
 	fireEvent.click(screen.getByRole("button", { name: "Xác nhận hủy" }));
 	await screen.findByRole("heading", { name: "Đã xác nhận hủy đơn đặt chỗ" });
@@ -240,7 +240,7 @@ it("isolates cancellation state when navigating to a different Booking", async (
 			<BookingDetailsPage bookingId="other" onBack={vi.fn()} />
 		</QueryClientProvider>
 	);
-	await screen.findByRole("button", { name: "Yêu cầu hủy đơn" });
+	await screen.findByRole("button", { name: "Hủy đặt chỗ" });
 	expect(
 		screen.queryByRole("heading", { name: "Đã xác nhận hủy đơn đặt chỗ" })
 	).not.toBeInTheDocument();

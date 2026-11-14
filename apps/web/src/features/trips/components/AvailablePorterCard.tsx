@@ -17,7 +17,7 @@ const PROFICIENCY_LABELS = {
 
 export function AvailablePorterCard({ tripId, porter, role }: AvailablePorterCardProps) {
 	const [avatarFailed, setAvatarFailed] = useState(false);
-	const porterName = porter.displayName?.trim() || `Porter ${porter.porterId.slice(0, 8)}`;
+	const porterName = porter.displayName?.trim() || "Chưa cập nhật tên người dẫn đường";
 
 	return (
 		<article className="rounded-2xl border border-[#dfe8df] bg-white p-4 shadow-sm transition hover:border-[#b8cbbb]">

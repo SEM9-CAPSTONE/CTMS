@@ -7,12 +7,19 @@ import { SurvivalSourceReader } from "../survival-documents/survival-source-read
 import { KnowledgeChunksProvider } from "./knowledge-chunks.provider";
 // biome-ignore lint/style/useImportType: Nest injection
 import { KnowledgeChunksRepository } from "./knowledge-chunks.repository";
-import { HEARTBEAT_MS, IngestionError, POLL_MS } from "./knowledge-chunks.types";
+import {
+	CLEANUP_INTERVAL_MS,
+	DEFAULT_RETENTION_DAYS,
+	HEARTBEAT_MS,
+	IngestionError,
+	POLL_MS,
+} from "./knowledge-chunks.types";
 
 @Injectable()
 export class KnowledgeChunksWorker implements OnModuleInit, OnModuleDestroy {
 	private timer?: NodeJS.Timeout;
 	private busy = false;
+	private nextCleanupAt = 0;
 	private readonly logger = new Logger(KnowledgeChunksWorker.name);
 	constructor(
 		private readonly repository: KnowledgeChunksRepository,
@@ -37,12 +44,36 @@ export class KnowledgeChunksWorker implements OnModuleInit, OnModuleDestroy {
 		try {
 			await this.repository.consumeEvents(this.provider.configuration());
 			await this.processOne();
+			await this.cleanupWhenDue();
 		} catch {
 			this.logger.error(
 				"Knowledge ingestion failed; unfinished work will recover through durable leases"
 			);
 		} finally {
 			this.busy = false;
+		}
+	}
+	private async cleanupWhenDue(): Promise<void> {
+		if (Date.now() < this.nextCleanupAt) return;
+		this.nextCleanupAt = Date.now() + CLEANUP_INTERVAL_MS;
+		const retentionDays = Number(
+			this.config.get<string>("KNOWLEDGE_CHUNK_RETENTION_DAYS") ?? DEFAULT_RETENTION_DAYS
+		);
+		if (!Number.isSafeInteger(retentionDays) || retentionDays <= 0 || retentionDays > 36500) {
+			this.logger.error("KNOWLEDGE_CHUNK_RETENTION_DAYS must be an integer from 1 to 36500");
+			return;
+		}
+		try {
+			const result = await this.repository.cleanupHistory(retentionDays);
+			if (result.deleted || result.retainedByDependency)
+				this.logger.log(
+					`Knowledge history cleanup deleted ${result.deleted} sets and retained ${result.retainedByDependency} with dependencies`
+				);
+		} catch (error) {
+			this.logger.error(
+				"Knowledge history cleanup failed",
+				error instanceof Error ? error.stack : undefined
+			);
 		}
 	}
 	async processOne(): Promise<boolean> {
