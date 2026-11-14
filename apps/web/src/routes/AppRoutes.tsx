@@ -610,6 +610,9 @@ function AppRouteContent() {
 					navigateTo(isHostDashboardTripDetail ? RoutePath.DASHBOARD : RoutePath.TRIPS)
 				}
 				backLabel={isHostDashboardTripDetail ? "Quay về tổng quan vận hành" : undefined}
+				showRecommendationReason={
+					isTripDetailRoute && navigationContext.get("from") === "recommendation"
+				}
 				canManageTrips={currentRoles.includes("host")}
 				currentUserId={storedUser?.id ?? null}
 				bookingAccess={
@@ -873,6 +876,9 @@ function AppRouteContent() {
 				<SearchTripsPage
 					onBackHome={() => navigateTo(storedUser ? RoutePath.DASHBOARD : RoutePath.HOME)}
 					onNavigateToTripDetail={(tripId) => navigateTo(`/trips/${tripId}`)}
+					onNavigateToRecommendedTrip={(tripId) =>
+						navigateTo(`/trips/${tripId}?from=recommendation`)
+					}
 				/>
 			);
 

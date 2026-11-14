@@ -22,6 +22,7 @@ import { DepartureBlockStatus } from "../../offline-package-policy/components/De
 import { TeamScheduleProgressCard } from "../../schedule-progress/components/TeamScheduleProgressCard";
 import { HostTripSettlementCard } from "../../settlements/components/HostTripSettlementCard";
 import { TripIncidentsPanel } from "../../trip-incidents";
+import { TripRecommendationExplanation } from "../../trip-recommendations/components/TripRecommendationExplanation";
 import type { BookingAccess } from "../components/BookingPanel";
 import type { SelectedEquipmentItem } from "../components/RentableEquipmentModal";
 import { TripDetailView } from "../components/TripDetailView";
@@ -51,6 +52,8 @@ export interface TripDetailPageProps {
 	onEditTrip?: (tripId: string) => void;
 	onManagePorters?: (tripId: string) => void;
 	initialTab?: "overview" | "roster" | "incidents";
+	/** The Camper opened this Trip from their suggestions: explain why it was suggested. */
+	showRecommendationReason?: boolean;
 }
 
 function toBookTripResponse(booking: BookingDetails | null | undefined): BookTripResponse | null {
@@ -99,6 +102,7 @@ export function TripDetailPage({
 	onEditTrip,
 	onManagePorters,
 	initialTab,
+	showRecommendationReason = false,
 }: TripDetailPageProps) {
 	const [activeTab, setActiveTab] = useState<"overview" | "roster" | "incidents">(
 		initialTab ?? "overview"
@@ -406,6 +410,11 @@ export function TripDetailPage({
 												window.dispatchEvent(new PopStateEvent("popstate"));
 											}}
 										/>
+									</div>
+								)}
+								{showRecommendationReason && bookingAccess === "camper" && (
+									<div className="mb-6">
+										<TripRecommendationExplanation tripId={trip.id} />
 									</div>
 								)}
 								<TripDetailView

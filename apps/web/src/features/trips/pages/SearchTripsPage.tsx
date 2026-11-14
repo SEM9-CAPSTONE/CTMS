@@ -1,3 +1,6 @@
+import { hasAnyRole } from "../../auth/utils/permissions";
+import { getStoredAuthUser } from "../../auth/utils/tokenStorage";
+import { TripRecommendationsBanner } from "../../trip-recommendations/components/TripRecommendationsModal";
 import { TripFilterBar } from "../components/TripFilterBar";
 import { TripList } from "../components/TripList";
 import { useSearchTrips } from "../hooks/useSearchTrips";
@@ -6,6 +9,8 @@ import type { SearchTripsQuery, TrekkingRouteDifficulty, TripType } from "../typ
 export interface SearchTripsPageProps {
 	onBackHome?: () => void;
 	onNavigateToTripDetail: (tripId: string) => void;
+	/** Opens a Trip chosen from the suggestions, so its detail can explain why it was suggested. */
+	onNavigateToRecommendedTrip?: (tripId: string) => void;
 	initialFilters?: SearchTripsQuery;
 }
 
@@ -49,7 +54,11 @@ const CATEGORIES: CategoryOption[] = [
 	},
 ];
 
-export function SearchTripsPage({ onNavigateToTripDetail, initialFilters }: SearchTripsPageProps) {
+export function SearchTripsPage({
+	onNavigateToTripDetail,
+	onNavigateToRecommendedTrip,
+	initialFilters,
+}: SearchTripsPageProps) {
 	const {
 		query,
 		items,
@@ -61,6 +70,7 @@ export function SearchTripsPage({ onNavigateToTripDetail, initialFilters }: Sear
 		retry,
 		resetFilters,
 	} = useSearchTrips({ initialQuery: initialFilters });
+	const isCamper = hasAnyRole(getStoredAuthUser(), ["camper"]);
 
 	return (
 		<div className="min-h-screen bg-[#f4f7f2] font-sans text-[#10221b] antialiased">
@@ -92,6 +102,12 @@ export function SearchTripsPage({ onNavigateToTripDetail, initialFilters }: Sear
 							</div>
 						</div>
 					</section>
+
+					{isCamper && (
+						<TripRecommendationsBanner
+							onSelectTrip={onNavigateToRecommendedTrip ?? onNavigateToTripDetail}
+						/>
+					)}
 
 					{/* Khối 2: Category Quick Filter Tags */}
 					<section className="rounded-[24px] border border-[#dfe8df] bg-white p-4 shadow-sm sm:px-6 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 duration-700">
