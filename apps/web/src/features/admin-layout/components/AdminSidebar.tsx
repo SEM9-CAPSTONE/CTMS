@@ -57,7 +57,15 @@ export function AdminSidebar({
 			<AdminSidebarNavigation
 				activeItem={activeItem}
 				collapsed={collapsed}
-				counts={counts.data}
+				counts={
+					counts.data
+						? {
+								...counts.data,
+								porterVerifications:
+									counts.data.porterVerifications + (counts.data.porterLevelRequests ?? 0),
+							}
+						: undefined
+				}
 				onNavigate={onClose}
 			/>
 		</SidebarFrame>

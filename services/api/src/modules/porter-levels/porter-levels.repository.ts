@@ -62,14 +62,22 @@ export class PorterLevelsRepository {
 		return rows[0] ?? null;
 	}
 
-	async list(page: number, limit: number): Promise<{ items: LevelQualification[]; total: number }> {
+	async list(
+		page: number,
+		limit: number,
+		search = ""
+	): Promise<{ items: LevelQualification[]; total: number }> {
+		const filter = search.trim().toLocaleLowerCase();
+		const where =
+			"WHERE ($1='' OR position($1 in lower(u.full_name))>0 OR position($1 in lower(r.name))>0)";
 		const [items, count] = await Promise.all([
 			this.dataSource.query(
-				`${QUALIFICATION_SELECT} ORDER BY q.created_at, q.id LIMIT $1 OFFSET $2`,
-				[limit, (page - 1) * limit]
+				`${QUALIFICATION_SELECT} ${where} ORDER BY q.created_at,q.id LIMIT $2 OFFSET $3`,
+				[filter, limit, (page - 1) * limit]
 			) as Promise<LevelQualification[]>,
 			this.dataSource.query(
-				"SELECT count(*)::int AS total FROM porter_route_qualifications"
+				`SELECT count(*)::int AS total FROM porter_route_qualifications q JOIN users u ON u.id=q.porter_id JOIN trekking_routes r ON r.id=q.route_id ${where}`,
+				[filter]
 			) as Promise<Array<{ total: number }>>,
 		]);
 		return { items, total: count[0].total };

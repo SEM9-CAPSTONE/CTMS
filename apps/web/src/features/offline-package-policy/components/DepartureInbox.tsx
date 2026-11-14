@@ -4,26 +4,35 @@ import { departureReasonLabel, departureTime } from "../copy";
 import { useDepartureInbox } from "../hooks/useDepartureInbox";
 
 /** Server filters by recipient and current ownership; never infer ownership from a Trip ID. */
-export function DepartureInbox({ actor }: { actor: string }) {
+export function DepartureInbox({ actor, embedded = false }: { actor: string; embedded?: boolean }) {
 	const [open, setOpen] = useState(false);
 	const { inbox, read, forbidden } = useDepartureInbox(actor);
 	const items = inbox.isError ? [] : (inbox.data ?? []);
 	const unread = items.filter((item) => !item.readAt && !item.resolved).length;
 	return (
-		<section className="mx-4 my-3 rounded-2xl border border-amber-200 bg-white p-4 text-sm">
-			<button
-				type="button"
-				className="flex min-h-12 items-center gap-2 font-bold"
-				aria-expanded={open}
-				onClick={() => {
-					setOpen(!open);
-					if (!open) void inbox.refetch();
-				}}
-			>
-				<Bell className="size-5" /> Thông báo khởi hành{" "}
-				<span aria-label="Chưa đọc">({unread})</span>
-			</button>
-			{open && (
+		<section
+			className={
+				embedded
+					? "border-t border-emerald-100 pt-4 text-sm"
+					: "mx-4 my-3 rounded-2xl border border-amber-200 bg-white p-4 text-sm"
+			}
+		>
+			{embedded && <h3 className="mb-3 font-bold">Khởi hành</h3>}
+			{!embedded && (
+				<button
+					type="button"
+					className="flex min-h-12 items-center gap-2 font-bold"
+					aria-expanded={open}
+					onClick={() => {
+						setOpen(!open);
+						if (!open) void inbox.refetch();
+					}}
+				>
+					<Bell className="size-5" /> Thông báo khởi hành{" "}
+					<span aria-label="Chưa đọc">({unread})</span>
+				</button>
+			)}
+			{(embedded || open) && (
 				<div className="space-y-3">
 					<p>50 thông báo gần nhất; tự cập nhật mỗi phút và khi quay lại trang.</p>
 					<p>Đã đọc không có nghĩa là đã gỡ chặn khởi hành.</p>

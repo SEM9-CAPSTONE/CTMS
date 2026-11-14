@@ -5,7 +5,6 @@ import { type RoleBearingUser, getGrantedRoles } from "../../auth/utils/permissi
 import type { StoredAuthUser } from "../../auth/utils/tokenStorage";
 import { camperProfileService } from "../../camper-profile/services/camper-profile.service";
 import type { CamperProfileData } from "../../camper-profile/types";
-import { DepartureInbox } from "../../offline-package-policy/components/DepartureInbox";
 import { HostDashboardHeader } from "../../host-overview/components/HostDashboardHeader";
 import { HostDashboardOverview } from "../../host-overview/components/HostDashboardOverview";
 import { CamperOperationalMap } from "../components/CamperOperationalMap";
@@ -488,10 +487,7 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 				allowMobile
 				fixedViewport={activeRole === "host"}
 			>
-				{activeRole === "host" && grantedRoles.includes("host") && (
- <DepartureInbox key={user.id} actor={user.id} />
-)}
-{dashboardContent}
+				{dashboardContent}
 			</OperationalSidebarLayout>
 		);
 	}

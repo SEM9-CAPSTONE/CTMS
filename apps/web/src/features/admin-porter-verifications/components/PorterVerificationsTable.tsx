@@ -19,7 +19,7 @@ export function PorterVerificationsTable({ items, onView }: PorterVerificationsT
 	const columns: DataTableColumn<AdminPorterVerificationSummary>[] = [
 		{
 			key: "porter",
-			header: "Porter",
+			header: "người hỗ trợ",
 			render: (row) => (
 				<div className="min-w-0">
 					<p className="truncate font-bold text-[#10221b]">{row.fullName ?? "Chưa cập nhật tên"}</p>
@@ -72,7 +72,7 @@ export function PorterVerificationsTable({ items, onView }: PorterVerificationsT
 			rows={items}
 			getRowKey={(row) => row.porterId}
 			getRowTestId={(row) => `porter-verification-row-${row.porterId}`}
-			ariaLabel="Danh sách hồ sơ xác minh Porter"
+			ariaLabel="Danh sách hồ sơ xác minh người hỗ trợ"
 			minWidthClassName="min-w-[760px]"
 		/>
 	);

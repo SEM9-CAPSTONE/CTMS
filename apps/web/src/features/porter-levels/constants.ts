@@ -35,7 +35,7 @@ export function levelReviewError(error: unknown): string {
 	}
 	return error instanceof Error
 		? error.message
-		: "Không thể tải hoặc lưu cấp độ Porter. Vui lòng thử lại.";
+		: "Không thể tải hoặc lưu cấp độ người hỗ trợ. Vui lòng thử lại.";
 }
 
 export const REQUEST_STATUS_LABELS = {

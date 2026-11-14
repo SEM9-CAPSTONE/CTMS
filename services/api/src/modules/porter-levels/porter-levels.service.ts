@@ -39,8 +39,8 @@ export class PorterLevelsService {
 	policies(): Promise<LevelPolicy[]> {
 		return this.repository.policies();
 	}
-	list(page: number, limit: number) {
-		return this.repository.list(page, limit);
+	list(page: number, limit: number, search?: string) {
+		return this.repository.list(page, limit, search);
 	}
 	mine(porterId: string) {
 		return this.repository.mine(porterId);
@@ -164,13 +164,11 @@ export class PorterLevelsService {
 		const qualification = await this.repository.qualification(manager, qualificationId);
 		if (!request) {
 			await this.repository.assertNoOpenRequest(manager, qualificationId);
-			if (dto.outcome !== LevelDecisionOutcome.APPROVED)
-				throw new ConflictException({
-					code: "INVALID_DIRECT_ACTION",
-					message:
-						"Xét cấp trực tiếp chỉ dùng để nâng, hạ hoặc công nhận cấp. Từ chối qua yêu cầu của Porter.",
-				});
-			if (qualification.verifiedBy && qualification.proficiency === dto.level)
+			if (
+				dto.outcome === LevelDecisionOutcome.APPROVED &&
+				qualification.verifiedBy &&
+				qualification.proficiency === dto.level
+			)
 				throw new ConflictException({
 					code: "NO_LEVEL_CHANGE",
 					message: "Cấp này đã được xác minh, không có thay đổi.",
@@ -227,10 +225,18 @@ export class PorterLevelsService {
 		)) as Array<{ id: string }>;
 		const rank = { learning: 0, proficient: 1, expert: 2 };
 		let action = "recognize";
-		if (rank[dto.level] > rank[qualification.proficiency]) action = "upgrade";
-		if (rank[dto.level] < rank[qualification.proficiency]) action = "downgrade";
+		if (
+			dto.outcome === LevelDecisionOutcome.APPROVED &&
+			rank[dto.level] > rank[qualification.proficiency]
+		)
+			action = "upgrade";
+		if (
+			dto.outcome === LevelDecisionOutcome.APPROVED &&
+			rank[dto.level] < rank[qualification.proficiency]
+		)
+			action = "downgrade";
 		await manager.query(
-			"UPDATE porter_level_decisions SET source=$2,request_id=$3,action=$4,from_verified=$5,to_verified=true,evidence_snapshot=$6::jsonb,porter_reason=$7 WHERE id=$1",
+			"UPDATE porter_level_decisions SET source=$2,request_id=$3,action=$4,from_verified=$5,to_verified=$8,evidence_snapshot=$6::jsonb,porter_reason=$7 WHERE id=$1",
 			[
 				inserted[0].id,
 				request ? "request" : "direct",
@@ -239,10 +245,12 @@ export class PorterLevelsService {
 				Boolean(qualification.verifiedBy),
 				JSON.stringify(request?.evidence ?? []),
 				request?.porterReason ?? null,
+				dto.outcome === LevelDecisionOutcome.APPROVED || Boolean(qualification.verifiedBy),
 			]
 		);
 		await this.notifications.enqueue(manager, identity.porterId, {
-			kind: request ? "approved" : action,
+			kind:
+				dto.outcome === LevelDecisionOutcome.REJECTED ? "rejected" : request ? "approved" : action,
 			requestId: request?.id,
 			qualificationId,
 			routeId: identity.routeId,

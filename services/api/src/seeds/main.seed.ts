@@ -2720,6 +2720,179 @@ async function seedDiverseTripAndRouteStatuses(
 	}
 }
 
+/** Readable display names for the explicitly selected development fixtures only. */
+export function readableDemoTripTitle(title: string): string {
+	return title
+		.replace(/^\[(?:DEMO CTMS-306|CTMS-024|UI TEST CTMS-308)\]\s*/u, "")
+		.replace(
+			/\s*\((?:Bình thường|Khẩn cấp|Đã Hết Chỗ|Đã Hết Hạn|Sắp hết hạn|Chờ Admin|Bản nháp|Đã hủy)[^)]*\)\s*$/iu,
+			""
+		)
+		.replace(/Sơn Trà - Xem dữ liệu ngoại tuyến/u, "Sơn Trà – Hành trình ven biển")
+		.trim();
+}
+
+/** One-time opt-in cleanup; no Trip status, package, role or review outcome changes. */
+export async function tidyDemoCopyForReview(ds: DataSource = dataSource) {
+	if (process.env.NODE_ENV === "production" || process.env.CTMS138_DEMO_SEED !== "1")
+		throw new Error("Demo cleanup requires CTMS138_DEMO_SEED=1 outside production.");
+	return ds.transaction(async (manager) => {
+		const trips: Array<{ id: string; title: string }> = await manager.query(
+			`SELECT t.id,t.title FROM trips t JOIN users u ON u.id=t.host_id WHERE u.email='host@ctms.local' AND (t.title LIKE '[DEMO CTMS-306]%' OR t.title LIKE '[CTMS-024]%' OR t.title LIKE '[UI TEST CTMS-308]%') FOR UPDATE OF t`
+		);
+		for (const trip of trips)
+			await manager.query("UPDATE trips SET title=$2 WHERE id=$1 AND title=$3", [
+				trip.id,
+				readableDemoTripTitle(trip.title),
+				trip.title,
+			]);
+		const decisions: Array<{ id: string }> = await manager.query(
+			`WITH updated AS (UPDATE porter_level_decisions d SET reason=$1 FROM users u,trekking_routes r WHERE d.porter_id=u.id AND d.route_id=r.id AND u.email='porter.expert@ctms.local' AND r.name='Bán Đảo Sơn Trà Discovery' AND d.source='direct' AND d.outcome='rejected' AND d.reason=$2 RETURNING d.id) SELECT id FROM updated`,
+			[
+				"Chưa có minh chứng chứng chỉ phù hợp để công nhận cấp đề xuất.",
+				"Kiểm thử CTMS-138: chưa có minh chứng chứng chỉ phù hợp, không công nhận cấp đề xuất; giữ nguyên cấp hiện tại.",
+			]
+		);
+		return { tripsRenamed: trips.length, decisionNotesUpdated: decisions.length };
+	});
+}
+
+export const PORTER_LEVEL_DEMO_COPY = {
+	reason:
+		"Tôi đã hỗ trợ nhiều đoàn trên tuyến này và muốn đăng ký lên cấp Thành thạo. Tôi có thể bổ sung nhật ký chuyến đi và giấy tờ cần thiết.",
+	responsibilities: "Chưa cấu hình phạm vi phụ trách.",
+	additionalInfo: "Vui lòng bổ sung thông tin về các chuyến đã tham gia và minh chứng liên quan.",
+	cancelled: "Tôi xin rút yêu cầu để bổ sung hồ sơ trước khi gửi lại.",
+} as const;
+
+/** Demonstration criteria only, not production qualification standards. */
+export const PORTER_LEVEL_DEMO_CRITERIA = {
+	learning: {
+		name: "Học việc",
+		minExperienceYears: 0,
+		minTimesLed: 0,
+		requiredSkills: ["Chuẩn bị hành trang", "Đi theo đoàn"],
+		requiredCertifications: [],
+		responsibilities: "Hỗ trợ chuẩn bị và theo đoàn dưới sự hướng dẫn của người hỗ trợ phụ trách.",
+	},
+	proficient: {
+		name: "Thành thạo",
+		minExperienceYears: 2,
+		minTimesLed: 10,
+		requiredSkills: ["Định hướng trên tuyến", "Sơ cứu cơ bản"],
+		requiredCertifications: ["Sơ cứu cơ bản"],
+		responsibilities: "Hỗ trợ điều phối đoàn, kiểm tra trang bị và xử lý tình huống thông thường.",
+	},
+	expert: {
+		name: "Chuyên gia",
+		minExperienceYears: 5,
+		minTimesLed: 25,
+		requiredSkills: ["Lập kế hoạch hành trình", "Điều phối cứu hộ", "Sơ cứu cơ bản"],
+		requiredCertifications: ["Sơ cứu cơ bản", "Cứu hộ địa hình"],
+		responsibilities: "Phụ trách tuyến và phối hợp xử lý tình huống khẩn cấp.",
+	},
+} as const;
+
+/** Opt-in refresh limited to untouched demonstration policies. */
+export async function refreshPorterLevelDemoCriteria(ds: DataSource = dataSource) {
+	if (process.env.NODE_ENV === "production" || process.env.CTMS138_DEMO_SEED !== "1")
+		throw new Error("Demo refresh requires CTMS138_DEMO_SEED=1 outside production.");
+	return ds.transaction(async (manager) => {
+		let policiesUpdated = 0;
+		for (const [level, definition] of Object.entries(PORTER_LEVEL_DEMO_CRITERIA)) {
+			const rows: Array<{ level: string }> = await manager.query(
+				`WITH updated AS (UPDATE porter_level_policies SET definition=$2::jsonb,version=version+1,updated_at=now()
+    WHERE level=$1 AND version<=2 AND definition->>'responsibilities'=$3
+    AND (definition->>'minExperienceYears') IS NULL AND (definition->>'minTimesLed') IS NULL
+    AND definition->'requiredSkills'='[]'::jsonb AND definition->'requiredCertifications'='[]'::jsonb RETURNING level) SELECT level FROM updated`,
+				[level, JSON.stringify(definition), PORTER_LEVEL_DEMO_COPY.responsibilities]
+			);
+			policiesUpdated += rows.length;
+		}
+		const previousReason =
+			"Tôi muốn được xét lên cấp Thành thạo trên tuyến này. Nhờ quản trị viên xem xét hồ sơ và kinh nghiệm đã khai báo.";
+		const requests: Array<{ id: string }> = await manager.query(
+			`WITH updated AS (UPDATE porter_level_requests r SET reason=$2,submission_hash=$3,version=version+1
+   WHERE r.id IN ('c1380000-0000-4000-8000-000000000001','c1380000-0000-4000-8000-000000000002','c1380000-0000-4000-8000-000000000003')
+   AND r.reason=$1 AND r.porter_id=(SELECT id FROM users WHERE email='porter.learning@ctms.local')
+   AND NOT EXISTS(SELECT 1 FROM porter_level_decisions WHERE request_id=r.id)
+   AND NOT EXISTS(SELECT 1 FROM porter_level_request_evidence WHERE request_id=r.id) RETURNING id) SELECT id FROM updated`,
+			[
+				previousReason,
+				PORTER_LEVEL_DEMO_COPY.reason,
+				createHash("sha256").update(PORTER_LEVEL_DEMO_COPY.reason).digest("hex"),
+			]
+		);
+		return { policiesUpdated, requestsUpdated: requests.length };
+	});
+}
+
+/** Explicit non-production maintenance for untouched, deterministic demo rows only. */
+export async function refreshPorterLevelDemoCopy(ds: DataSource = dataSource) {
+	if (process.env.NODE_ENV === "production")
+		throw new Error("Demo copy refresh must not run in production.");
+	return ds.transaction(async (manager) => {
+		let requestsUpdated = 0;
+		const statuses = ["pending", "needs_info", "cancelled"] as const;
+		for (const [index, status] of statuses.entries()) {
+			const id = `c1380000-0000-4000-8000-00000000000${index + 1}`;
+			const oldReason = `[DEMO CTMS-138] Yêu cầu minh họa ${status}; người test tự tải minh chứng nếu cần.`;
+			const rows: Array<{ id: string }> = await manager.query(
+				`WITH updated AS (UPDATE porter_level_requests r
+				SET reason=$2, submission_hash=$3, version=version+1,
+				decision_reason=CASE WHEN status='needs_info' THEN $7 ELSE decision_reason END
+				WHERE r.id=$1 AND r.reason=$4 AND r.status=$5 AND r.version=$6
+				AND r.porter_id=(SELECT id FROM users WHERE email='porter.learning@ctms.local')
+				AND (SELECT count(*) FROM porter_level_request_events WHERE request_id=r.id)=$8
+				AND NOT EXISTS(SELECT 1 FROM porter_level_decisions WHERE request_id=r.id)
+				AND NOT EXISTS(SELECT 1 FROM porter_level_request_evidence WHERE request_id=r.id)
+				RETURNING r.id) SELECT id FROM updated`,
+				[
+					id,
+					PORTER_LEVEL_DEMO_COPY.reason,
+					createHash("sha256").update(PORTER_LEVEL_DEMO_COPY.reason).digest("hex"),
+					oldReason,
+					status,
+					status === "pending" ? 1 : 2,
+					PORTER_LEVEL_DEMO_COPY.additionalInfo,
+					status === "pending" ? 1 : 2,
+				]
+			);
+			if (!rows.length) continue;
+			requestsUpdated += rows.length;
+			// These are original generated demo events, not decisions or user-entered history.
+			await manager.query(
+				`UPDATE porter_level_request_events SET reason=$3::text,
+				snapshot=jsonb_set(snapshot,'{reason}',to_jsonb($3::text))
+				WHERE request_id=$1 AND action='created' AND reason=$2`,
+				[id, oldReason, PORTER_LEVEL_DEMO_COPY.reason]
+			);
+			await manager.query(
+				`UPDATE porter_level_request_events SET reason=$2,
+				snapshot=jsonb_set(snapshot,'{reason}',to_jsonb($3::text))
+				WHERE request_id=$1 AND reason LIKE '[DEMO]%'`,
+				[
+					id,
+					status === "needs_info"
+						? PORTER_LEVEL_DEMO_COPY.additionalInfo
+						: PORTER_LEVEL_DEMO_COPY.cancelled,
+					PORTER_LEVEL_DEMO_COPY.reason,
+				]
+			);
+		}
+		const policies: Array<{ level: string }> = await manager.query(
+			`WITH updated AS (UPDATE porter_level_policies
+			SET definition=jsonb_set(definition,'{responsibilities}',to_jsonb($1::text)),version=version+1
+			WHERE version=1 AND definition->>'responsibilities'=$2 RETURNING level) SELECT level FROM updated`,
+			[
+				PORTER_LEVEL_DEMO_COPY.responsibilities,
+				"[DEMO CTMS-138] Nội dung minh họa để test UI. Admin cần cấu hình tiêu chí thực tế; chưa quy định ngưỡng nghiệp vụ.",
+			]
+		);
+		return { requestsUpdated, policiesUpdated: policies.length };
+	});
+}
+
 /** Optional demo records only; never overwrite an Admin policy or reviewed qualification. */
 export async function seedPorterLevelDemo(ds: DataSource = dataSource): Promise<void> {
 	if (process.env.NODE_ENV === "production") {
@@ -2733,7 +2906,7 @@ export async function seedPorterLevelDemo(ds: DataSource = dataSource): Promise<
 		const porter = accounts.find((account) => account.email === "porter.learning@ctms.local");
 		if (!admin || !porter)
 			throw new Error("CTMS-138 demo requires existing Admin and learning Porter.");
-		for (const [level, name] of [
+		for (const [level] of [
 			["learning", "Học việc"],
 			["proficient", "Thành thạo"],
 			["expert", "Chuyên gia"],
@@ -2743,15 +2916,9 @@ export async function seedPorterLevelDemo(ds: DataSource = dataSource): Promise<
 				 VALUES($1,$2::jsonb,1,$3) ON CONFLICT(level) DO NOTHING`,
 				[
 					level,
-					JSON.stringify({
-						name,
-						minExperienceYears: null,
-						minTimesLed: null,
-						requiredSkills: [],
-						requiredCertifications: [],
-						responsibilities:
-							"[DEMO CTMS-138] Nội dung minh họa để test UI. Admin cần cấu hình tiêu chí thực tế; chưa quy định ngưỡng nghiệp vụ.",
-					}),
+					JSON.stringify(
+						PORTER_LEVEL_DEMO_CRITERIA[level as keyof typeof PORTER_LEVEL_DEMO_CRITERIA]
+					),
 					admin.id,
 				]
 			);
@@ -2791,7 +2958,7 @@ export async function seedPorterLevelDemo(ds: DataSource = dataSource): Promise<
 			if (qualification.proficiency !== "learning") continue;
 			// Stable IDs prevent reseeding a request after a tester completes or cancels it.
 			const id = `c1380000-0000-4000-8000-00000000000${index + 1}`;
-			const reason = `[DEMO CTMS-138] Yêu cầu minh họa ${status}; người test tự tải minh chứng nếu cần.`;
+			const reason = PORTER_LEVEL_DEMO_COPY.reason;
 			const inserted: Array<{ id: string }> = await manager.query(
 				`INSERT INTO porter_level_requests(id,qualification_id,porter_id,route_id,current_level,current_verified,
 				 target_level,reason,status,submission_hash)
@@ -2822,8 +2989,8 @@ export async function seedPorterLevelDemo(ds: DataSource = dataSource): Promise<
 			if (status === "pending") continue;
 			const feedback =
 				status === "needs_info"
-					? "[DEMO] Vui lòng bổ sung kinh nghiệm dẫn tuyến và minh chứng."
-					: "[DEMO] Porter rút yêu cầu mẫu.";
+					? PORTER_LEVEL_DEMO_COPY.additionalInfo
+					: PORTER_LEVEL_DEMO_COPY.cancelled;
 			await manager.query(
 				`UPDATE porter_level_requests SET status=$2::varchar,version=2,decision_reason=$3,
 				 decided_by=CASE WHEN $2::varchar='needs_info' THEN $4::uuid END,
@@ -6118,7 +6285,10 @@ export async function seedPackagePolicyDemo(
 			tripId,
 		])) as Array<{ title: string; status: string }>;
 		if (
-			!trip?.title.startsWith(readableDemo ? "[DEMO CTMS-306]" : "[DEMO CTMS-316]") ||
+			!(
+				trip?.title.startsWith(readableDemo ? "[DEMO CTMS-306]" : "[DEMO CTMS-316]") ||
+				(readableDemo && trip?.title === "Sơn Trà – Hành trình ven biển")
+			) ||
 			trip.status !== "published"
 		)
 			throw new Error("Requires the existing published recovery demo");
@@ -6160,7 +6330,10 @@ export async function seedPackagePolicyVersion(
 			tripId,
 		])) as Array<{ title: string; status: string }>;
 		if (
-			!trip?.title.startsWith(readableDemo ? "[DEMO CTMS-306]" : "[DEMO CTMS-316]") ||
+			!(
+				trip?.title.startsWith(readableDemo ? "[DEMO CTMS-306]" : "[DEMO CTMS-316]") ||
+				(readableDemo && trip?.title === "Sơn Trà – Hành trình ven biển")
+			) ||
 			trip.status !== "published"
 		)
 			throw new Error("Requires existing published demo; does not bypass ongoing locks");
@@ -6247,7 +6420,10 @@ export async function seedPackagePolicyOngoing(
 			tripId,
 		])) as Array<{ title: string; status: string }>;
 		if (
-			!trip?.title.startsWith(readableDemo ? "[DEMO CTMS-306]" : "[DEMO CTMS-316]") ||
+			!(
+				trip?.title.startsWith(readableDemo ? "[DEMO CTMS-306]" : "[DEMO CTMS-316]") ||
+				(readableDemo && trip?.title === "Sơn Trà – Hành trình ven biển")
+			) ||
 			!["published", "ongoing"].includes(trip.status)
 		)
 			throw new Error("Unexpected demo state");
@@ -6304,7 +6480,10 @@ export async function seedRouteRecoveryDemo(
 	const rows: Array<{ id: string; title: string; host_id: string; route_id: string }> =
 		await db.query("SELECT id,title,host_id,route_id FROM trips WHERE id=$1", [tripId]);
 	if (rows.length) {
-		if (!rows[0].title.startsWith(demoPrefix))
+		if (
+			!rows[0].title.startsWith(demoPrefix) &&
+			!(readableDemo && rows[0].title === "Sơn Trà – Hành trình ven biển")
+		)
 			throw new Error("Demo identity collision; refusing to modify existing Trip");
 		const [metadata] = (await db.query(
 			"SELECT * FROM offline_packages WHERE trip_id=$1 ORDER BY package_version DESC LIMIT 1",
@@ -6525,13 +6704,12 @@ export async function seedRouteRecoveryDemo(
 	if (readableDemo) {
 		await db.transaction(async (m) => {
 			await m.query(
-				"UPDATE trips SET title='[DEMO CTMS-306] Sơn Trà - Xem dữ liệu ngoại tuyến',description='Dữ liệu mẫu thử giao diện; không dùng dẫn đường hay hướng dẫn an toàn thực tế.' WHERE id=$1",
+				"UPDATE trips SET title='Sơn Trà – Hành trình ven biển',description='Dữ liệu mẫu thử giao diện; không dùng dẫn đường hay hướng dẫn an toàn thực tế.' WHERE id=$1",
 				[tripId]
 			);
-			await m.query(
-				"UPDATE trekking_routes SET name='[DEMO CTMS-306] Tuyến ven biển mẫu' WHERE id=$1",
-				[core.routeId]
-			);
+			await m.query("UPDATE trekking_routes SET name='Sơn Trà – Tuyến ven biển' WHERE id=$1", [
+				core.routeId,
+			]);
 			await m.query(
 				"INSERT INTO trip_porters(trip_id,porter_id,status) SELECT $1,id,'assigned' FROM users WHERE email='porter@ctms.local' AND role='porter' AND status='active' ON CONFLICT(trip_id,porter_id) DO NOTHING",
 				[tripId]

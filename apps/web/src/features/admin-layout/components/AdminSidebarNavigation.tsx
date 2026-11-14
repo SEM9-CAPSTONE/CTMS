@@ -53,7 +53,9 @@ function AdminNavLink({
 }: NavLinkProps) {
 	const { icon: Icon, label, path, countKey } = ADMIN_NAV_ITEMS[itemKey];
 	const count = countKey ? (counts?.[countKey] ?? 0) : 0;
-	const isActive = activeItem === itemKey;
+	const isActive =
+		activeItem === itemKey ||
+		(itemKey === "porter-verifications" && activeItem === "porter-levels");
 
 	const navigate = (event: MouseEvent<HTMLAnchorElement>) => {
 		if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
@@ -96,7 +98,9 @@ export function AdminSidebarNavigation({
 }: NavigationProps) {
 	const id = useId();
 	const activeGroup = ADMIN_NAV_GROUPS.find((group) =>
-		group.items.some((item) => item === activeItem)
+		group.items.some(
+			(item) => item === (activeItem === "porter-levels" ? "porter-verifications" : activeItem)
+		)
 	);
 	const [groupOverrides, setGroupOverrides] = useState<
 		Partial<Record<AdminNavGroup["key"], boolean>>

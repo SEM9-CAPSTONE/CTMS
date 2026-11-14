@@ -73,7 +73,7 @@ export function PorterVerificationDetailDialog({
 			<Modal
 				isOpen={open}
 				onClose={onClose}
-				title="Hồ sơ xác minh Porter"
+				title="Hồ sơ xác minh người hỗ trợ"
 				icon={<UserRound className="size-5" />}
 				description={detail ? (detail.fullName ?? detail.email ?? undefined) : undefined}
 				size="xl"
@@ -102,7 +102,7 @@ export function PorterVerificationDetailDialog({
 							)}
 						</div>
 
-						<dl className="grid grid-cols-1 gap-3 rounded-xl border border-[#e0ebe0] bg-[#f7faf6] p-4 sm:grid-cols-2">
+						<dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
 							<InfoRow label="Họ tên" value={detail.fullName ?? "—"} />
 							<InfoRow label="Email" value={detail.email ?? "—"} />
 							<InfoRow label="Số điện thoại" value={detail.phone ?? "—"} />
@@ -137,7 +137,7 @@ export function PorterVerificationDetailDialog({
 								Tài liệu chứng chỉ ({detail.documents.length})
 							</h3>
 							{detail.documents.length === 0 ? (
-								<p className="text-sm text-[#667a6d]">Porter chưa tải tài liệu nào.</p>
+								<p className="text-sm text-[#667a6d]">Người hỗ trợ chưa tải tài liệu nào.</p>
 							) : (
 								<div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
 									{detail.documents.map((document) => (
@@ -164,7 +164,7 @@ export function PorterVerificationDetailDialog({
 						)}
 
 						{canReview && (
-							<div className="flex flex-col-reverse gap-2 border-t border-[#e0ebe0] pt-4 sm:flex-row sm:justify-end">
+							<div className="sticky -bottom-5 -mx-5 flex flex-col-reverse gap-2 border-t border-border bg-white px-5 py-4 sm:flex-row sm:justify-end">
 								<Button
 									type="button"
 									variant="outline"
@@ -178,9 +178,7 @@ export function PorterVerificationDetailDialog({
 									type="button"
 									disabled={isReviewing || !registryConfirmed}
 									title={
-										registryConfirmed
-											? undefined
-											: "Tick đã đối chiếu huongdanvien.vn trước khi duyệt"
+										registryConfirmed ? undefined : "Cần xác nhận đã đối chiếu trên huongdanvien.vn"
 									}
 									onClick={() => setApproveOpen(true)}
 								>
@@ -198,8 +196,8 @@ export function PorterVerificationDetailDialog({
 				onConfirm={async () => {
 					if (await onApprove()) setApproveOpen(false);
 				}}
-				title="Duyệt hồ sơ Porter?"
-				description="Porter sẽ được phép bật trạng thái sẵn sàng và nhận yêu cầu dẫn đoàn từ Host."
+				title="Duyệt hồ sơ người hỗ trợ?"
+				description="người hỗ trợ sẽ được phép bật trạng thái sẵn sàng và nhận yêu cầu dẫn đoàn từ Host."
 				confirmText="Duyệt"
 				variant="success"
 				isLoading={isReviewing}
@@ -210,7 +208,7 @@ export function PorterVerificationDetailDialog({
 				onClose={closeReject}
 				title="Từ chối hồ sơ"
 				icon={<ShieldX className="size-5" />}
-				description="Lý do sẽ được hiển thị cho Porter để họ bổ sung và nộp lại."
+				description="Lý do sẽ được hiển thị cho người hỗ trợ để họ bổ sung và nộp lại."
 				size="md"
 				isCloseDisabled={isReviewing}
 			>

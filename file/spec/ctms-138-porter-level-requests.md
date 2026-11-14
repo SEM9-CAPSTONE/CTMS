@@ -37,7 +37,7 @@ tải lại cùng nội dung file không tính là thay đổi. Xin lại cùng 
 - Admin chỉ duyệt đúng cấp đã xin. Duyệt, từ chối, yêu cầu bổ sung và xét cấp trực tiếp luôn cần lý do.
 - Không tự xét cấp của mình, kể cả tài khoản có cả vai trò Admin và Porter.
 - Hồ sơ chứng chỉ phải approved trước khi duyệt hoặc công nhận cấp.
-- Admin xét cấp trực tiếp để nâng/hạ/công nhận mức tự khai. Cùng cấp đã xác minh là thao tác không thay đổi và bị từ chối.
+- Admin xét cấp trực tiếp để nâng/hạ/công nhận mức tự khai. Công nhận lại cùng cấp đã xác minh là thao tác không thay đổi và bị từ chối. Admin có thể chọn không công nhận ngay trong modal; quyết định rejected lưu lý do và snapshot nhưng giữ nguyên cấp, verified_by và verified_at. Vẫn kiểm tra quyền, version và dossier hash.
 - Có yêu cầu mở thì chặn xét cấp trực tiếp và sửa cấp/số lần dẫn tuyến qua luồng khai báo. Lỗi `OPEN_REQUEST_EXISTS` kèm requestId để UI dẫn tới yêu cầu.
 - Tất cả thao tác ghi dùng thứ tự khóa Route → Porter → profile/skills/verification → qualification → request.
   Khi duyệt kiểm tra lại trạng thái, cấp hiện tại, xác minh và phiên bản yêu cầu/qualification/tiêu chí/hash hồ sơ.
@@ -72,7 +72,7 @@ Prefix chung `/api`:
 | Admin | GET `/admin/porter-level-requests` và GET `.../:id` |
 | Admin | POST `.../:id/approve`, `.../:id/reject`, `.../:id/request-info` |
 | Admin | GET `/admin/porter-levels/policies`; PUT `/admin/porter-levels/policies/:level` |
-| Admin | POST `/admin/porter-levels/qualifications/:id/decisions` (xét cấp trực tiếp, outcome approved) |
+| Admin | POST `/admin/porter-levels/qualifications/:id/decisions` (xét cấp trực tiếp, outcome approved hoặc rejected) |
 | Admin | GET `.../qualifications/:id/comparison/:level`, GET `.../qualifications/:id/history` |
 | Porter | GET `/porter/level-review/qualifications`, `/policies`, `/skills`, `/history`; PUT `/skills` |
 | Porter | GET `/porter/level-notifications`, POST `.../:id/read` |

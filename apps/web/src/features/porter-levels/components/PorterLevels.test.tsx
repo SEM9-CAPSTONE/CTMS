@@ -21,7 +21,7 @@ const context: ReviewContext = {
 		porterId: "porter",
 		routeId: "route",
 		routeName: "Sơn Trà",
-		porterName: "Porter A",
+		porterName: "người hỗ trợ A",
 		proficiency: "learning",
 		timesLed: 2,
 		verifiedBy: null,
@@ -29,7 +29,7 @@ const context: ReviewContext = {
 	},
 	dossier: {
 		porterId: "porter",
-		porterName: "Porter A",
+		porterName: "người hỗ trợ A",
 		profileVersion: 1,
 		experienceYears: 2,
 		certifications: [],
@@ -67,7 +67,7 @@ function renderQuery(children: ReactNode) {
 	});
 	return render(<QueryClientProvider client={client}>{children}</QueryClientProvider>);
 }
-describe("Porter level UI", () => {
+describe("người hỗ trợ level UI", () => {
 	beforeEach(() => {
 		vi.restoreAllMocks();
 		vi.spyOn(api, "policies").mockResolvedValue([]);
@@ -82,7 +82,7 @@ describe("Porter level UI", () => {
 			.spyOn(api, "savePolicy")
 			.mockResolvedValue({ ...context.policy, level: "learning" });
 		renderQuery(<AdminPorterLevelsPage />);
-		await user.click(screen.getByRole("button", { name: "Tiêu chí cấp độ" }));
+		await user.click(screen.getByRole("link", { name: "Tiêu chí cấp độ" }));
 		expect(await screen.findByLabelText("Tên cấp")).toHaveValue("");
 		expect(screen.getByLabelText("Số năm kinh nghiệm tối thiểu")).toHaveValue(null);
 		await user.type(screen.getByLabelText("Tên cấp"), "Học việc");
@@ -103,7 +103,7 @@ describe("Porter level UI", () => {
 	it("opens the selected Route qualification and shows its comparison and history", async () => {
 		const user = userEvent.setup();
 		renderQuery(<AdminPorterLevelsPage />);
-		await user.click(screen.getByRole("button", { name: "Xét cấp trực tiếp" }));
+		await user.click(screen.getByRole("link", { name: "Xét cấp trực tiếp" }));
 		await user.click(await screen.findByRole("button", { name: "Xét cấp" }));
 		expect(await screen.findByRole("dialog")).toBeVisible();
 		expect(await screen.findByText(/Đối chiếu với Chuyên gia/)).toBeVisible();
@@ -117,8 +117,10 @@ describe("Porter level UI", () => {
 		const view = render(
 			<LevelDecisionForm context={context} pending={false} error={null} onDecide={decide} />
 		);
-		await user.type(screen.getByLabelText("Lý do xét cấp"), "Đã kiểm tra hồ sơ gốc");
-		await user.click(screen.getByRole("button", { name: "Lưu quyết định" }));
+		await user.type(screen.getByLabelText("Ghi chú xét cấp"), "Đã kiểm tra hồ sơ gốc");
+		await user.click(screen.getByRole("button", { name: "Công nhận cấp" }));
+		expect(decide).not.toHaveBeenCalled();
+		await user.click(screen.getByRole("button", { name: "Xác nhận công nhận cấp" }));
 		await waitFor(() =>
 			expect(decide).toHaveBeenCalledWith({
 				level: "expert",
@@ -137,7 +139,7 @@ describe("Porter level UI", () => {
 				onDecide={decide}
 			/>
 		);
-		expect(screen.getByLabelText("Lý do xét cấp")).toHaveValue("Đã kiểm tra hồ sơ gốc");
+		expect(screen.getByLabelText("Ghi chú xét cấp")).toHaveValue("Đã kiểm tra hồ sơ gốc");
 		expect(screen.getByRole("alert")).toHaveTextContent("đã thay đổi");
 	});
 	it("requires certificate approval for direct recognition", async () => {
@@ -153,11 +155,88 @@ describe("Porter level UI", () => {
 				onDecide={decide}
 			/>
 		);
-		expect(screen.getByRole("button", { name: "Lưu quyết định" })).toBeDisabled();
+		expect(screen.getByRole("button", { name: "Công nhận cấp" })).toBeDisabled();
 		expect(screen.queryByLabelText("Quyết định")).not.toBeInTheDocument();
 		expect(decide).not.toHaveBeenCalled();
 	});
-	it("lets Porter save declared skills with optimistic concurrency and no rank field", async () => {
+	it("does not submit a direct change when its explicit confirmation is cancelled", async () => {
+		const user = userEvent.setup();
+		const decide = vi.fn();
+		render(<LevelDecisionForm context={context} pending={false} error={null} onDecide={decide} />);
+		await user.type(screen.getByLabelText("Ghi chú xét cấp"), "Đối chiếu hồ sơ với cấp đề xuất");
+		await user.click(screen.getByRole("button", { name: "Công nhận cấp" }));
+		expect(screen.getByText(/người hỗ trợ A: Học việc → Chuyên gia/)).toBeVisible();
+		await user.click(screen.getByTestId("confirm-modal-cancel"));
+		expect(screen.queryByTestId("confirm-modal")).not.toBeInTheDocument();
+		expect(decide).not.toHaveBeenCalled();
+	});
+	it("defaults direct review to the selected người hỗ trợ's current level instead of learning", async () => {
+		const user = userEvent.setup();
+		vi.mocked(api.qualifications).mockResolvedValue({
+			items: [{ ...context.qualification, proficiency: "expert", verifiedBy: "admin" }],
+			total: 1,
+		});
+		vi.mocked(api.comparison).mockResolvedValue({
+			...context,
+			qualification: { ...context.qualification, proficiency: "expert", verifiedBy: "admin" },
+		});
+		renderQuery(<AdminPorterLevelsPage />);
+		await user.click(screen.getByRole("link", { name: "Xét cấp trực tiếp" }));
+		await user.click(await screen.findByRole("button", { name: "Xét cấp" }));
+		await waitFor(() => expect(api.comparison).toHaveBeenCalledWith("qualification", "expert"));
+		expect(await screen.findByRole("button", { name: "Đã công nhận cấp này" })).toBeVisible();
+		expect(screen.getByRole("button", { name: "Đã công nhận cấp này" })).toBeDisabled();
+	});
+	it("records non-recognition with a reason while retaining the selected qualification identity", async () => {
+		const user = userEvent.setup();
+		const decide = vi.fn().mockResolvedValue({});
+		render(
+			<LevelDecisionForm
+				context={{
+					...context,
+					qualification: { ...context.qualification, proficiency: "expert", verifiedBy: "admin" },
+					dossier: { ...context.dossier, verificationStatus: "pending_review" },
+				}}
+				pending={false}
+				error={null}
+				onDecide={decide}
+			/>
+		);
+		await user.click(screen.getByRole("radio", { name: "Không công nhận" }));
+		await user.type(
+			screen.getByLabelText("Ghi chú xét cấp"),
+			"Chưa đủ kinh nghiệm để phụ trách tuyến này"
+		);
+		await user.click(screen.getByRole("button", { name: "Lưu quyết định" }));
+		expect(decide).not.toHaveBeenCalled();
+		await user.click(screen.getByRole("button", { name: "Xác nhận không công nhận" }));
+		await waitFor(() =>
+			expect(decide).toHaveBeenCalledWith(
+				expect.objectContaining({
+					outcome: "rejected",
+					level: "expert",
+					expectedQualificationVersion: 3,
+					expectedDossierHash: context.dossierHash,
+				})
+			)
+		);
+	});
+
+	it("searches qualifications across pages using the submitted term", async () => {
+		const user = userEvent.setup();
+		renderQuery(<AdminPorterLevelsPage />);
+		await user.click(screen.getByRole("link", { name: "Xét cấp trực tiếp" }));
+		await user.type(
+			screen.getByRole("textbox", { name: "Tìm người hỗ trợ hoặc tuyến" }),
+			"Sơn Trà"
+		);
+		await user.click(screen.getByRole("button", { name: "Tìm kiếm" }));
+		await waitFor(() => expect(api.qualifications).toHaveBeenCalledWith(1, "Sơn Trà"));
+		await user.click(screen.getByRole("button", { name: "Đặt lại" }));
+		await waitFor(() => expect(api.qualifications).toHaveBeenCalledWith(1, ""));
+	});
+
+	it("lets người hỗ trợ save declared skills with optimistic concurrency and no rank field", async () => {
 		const user = userEvent.setup();
 		vi.spyOn(api, "myPolicies").mockResolvedValue([]);
 		vi.spyOn(api, "myEvidence").mockResolvedValue({ skills: [], version: 4 });

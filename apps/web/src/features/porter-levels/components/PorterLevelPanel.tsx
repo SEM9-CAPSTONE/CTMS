@@ -94,10 +94,10 @@ export function PorterLevelPanel() {
 					>
 						<h3 className="font-bold">{policy.definition.name}</h3>
 						<p>Tiêu chí phiên bản {policy.version}</p>
-						<p>Kinh nghiệm tối thiểu: {policy.definition.minExperienceYears ?? "Chưa đặt"}</p>
-						<p>Số lần dẫn tuyến: {policy.definition.minTimesLed ?? "Chưa đặt"}</p>
-						<p>Kỹ năng: {policy.definition.requiredSkills.join(", ") || "Chưa đặt"}</p>
-						<p>Chứng chỉ: {policy.definition.requiredCertifications.join(", ") || "Chưa đặt"}</p>
+						<p>Kinh nghiệm tối thiểu: {policy.definition.minExperienceYears ?? "Chưa đạt"}</p>
+						<p>Số lần dẫn tuyến: {policy.definition.minTimesLed ?? "Chưa đạt"}</p>
+						<p>Kỹ năng: {policy.definition.requiredSkills.join(", ") || "Chưa đạt"}</p>
+						<p>Chứng chỉ: {policy.definition.requiredCertifications.join(", ") || "Chưa đạt"}</p>
 						<p className="whitespace-pre-wrap">Phạm vi: {policy.definition.responsibilities}</p>
 					</article>
 				))}

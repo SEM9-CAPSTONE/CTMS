@@ -4,6 +4,7 @@ import {
 	IsDefined,
 	IsEnum,
 	IsInt,
+	IsOptional,
 	IsString,
 	IsUUID,
 	Matches,
@@ -122,6 +123,13 @@ export class DecidePorterLevelDto {
 }
 
 export class ListLevelQualificationsDto {
+	@ApiPropertyOptional({ maxLength: 100 })
+	@IsOptional()
+	@Transform(({ value }: { value: unknown }) => (typeof value === "string" ? value.trim() : value))
+	@IsString()
+	@MaxLength(100)
+	search?: string;
+
 	@ApiPropertyOptional({ default: 1 })
 	@Type(() => Number)
 	@IsInt()

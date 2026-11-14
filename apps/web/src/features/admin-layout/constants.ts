@@ -43,7 +43,7 @@ const items = {
 		countKey: "trekkingRoutes",
 	},
 	"porter-verifications": {
-		label: "Duyệt hồ sơ Porter",
+		label: "Quản lý người hỗ trợ",
 		icon: BadgeCheck,
 		path: RoutePath.ADMIN_PORTER_VERIFICATIONS,
 		countKey: "porterVerifications",
@@ -56,7 +56,7 @@ const items = {
 	},
 	"user-accounts": { label: "Tài khoản người dùng", icon: Users, path: RoutePath.ADMIN_USERS },
 	"porter-levels": {
-		label: "Cấp độ Porter",
+		label: "Cấp độ người hỗ trợ",
 		icon: BadgeCheck,
 		path: RoutePath.ADMIN_PORTER_LEVELS,
 	},
@@ -97,7 +97,7 @@ export const ADMIN_NAV_GROUPS = [
 		icon: ShieldCheck,
 		items: ["trip-review", "route-review", "porter-verifications", "content-reports"],
 	},
-	{ key: "users", label: "Người dùng", icon: Users, items: ["user-accounts", "porter-levels"] },
+	{ key: "users", label: "Người dùng", icon: Users, items: ["user-accounts"] },
 	{ key: "finance", label: "Tài chính", icon: Coins, items: ["settlements"] },
 	{
 		key: "system",

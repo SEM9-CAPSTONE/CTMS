@@ -9,7 +9,6 @@ import { getStoredAuthUser } from "../../auth/utils/tokenStorage";
 import { CamperSidebar } from "../../camper-profile/components/CamperSidebar";
 import { camperProfileService } from "../../camper-profile/services/camper-profile.service";
 import type { CamperProfileData } from "../../camper-profile/types";
-import { DepartureInbox } from "../../offline-package-policy/components/DepartureInbox";
 import { dashboards } from "../constants";
 import type { DashboardConfig, RoleKey } from "../types";
 import { OperationalSidebarLayout } from "./OperationalSidebarLayout";
@@ -94,10 +93,7 @@ export function HostLayout({
 				onLogout={onLogout}
 				allowMobile={allowMobile || currentRole === "porter"}
 			>
-				{currentRole === "host" && storedUser && grantedRoles.includes("host") && (
- <DepartureInbox key={storedUser.id} actor={storedUser.id} />
-)}
-<main>{children}</main>
+				<main>{children}</main>
 			</OperationalSidebarLayout>
 		);
 	}

@@ -20,16 +20,26 @@ export class AdminModerationService {
 	) {}
 
 	async getCounts(): Promise<AdminModerationCountsDto> {
-		const [trips, trekkingRoutes, porterVerifications, contentReports] = await Promise.all([
-			this.dataSource.getRepository(Trip).countBy({ status: TripStatus.PENDING_APPROVAL }),
-			this.dataSource
-				.getRepository(TrekkingRoute)
-				.countBy({ status: TrekkingRouteStatus.PENDING_APPROVAL }),
-			this.porterVerifications.countPendingReview(),
-			this.dataSource.getRepository(ContentReport).countBy({
-				status: In([ContentReportStatus.PENDING, ContentReportStatus.REVIEWING]),
-			}),
-		]);
-		return { trips, trekkingRoutes, porterVerifications, contentReports };
+		const [trips, trekkingRoutes, porterVerifications, contentReports, levelRequests] =
+			await Promise.all([
+				this.dataSource.getRepository(Trip).countBy({ status: TripStatus.PENDING_APPROVAL }),
+				this.dataSource
+					.getRepository(TrekkingRoute)
+					.countBy({ status: TrekkingRouteStatus.PENDING_APPROVAL }),
+				this.porterVerifications.countPendingReview(),
+				this.dataSource.getRepository(ContentReport).countBy({
+					status: In([ContentReportStatus.PENDING, ContentReportStatus.REVIEWING]),
+				}),
+				this.dataSource.query(
+					"SELECT count(*)::int AS count FROM porter_level_requests WHERE status='pending'"
+				),
+			]);
+		return {
+			trips,
+			trekkingRoutes,
+			porterVerifications,
+			contentReports,
+			porterLevelRequests: Number(levelRequests[0]?.count ?? 0),
+		};
 	}
 }

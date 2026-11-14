@@ -1,5 +1,6 @@
 import { RotateCcw, Search } from "lucide-react";
 import type { FormEvent } from "react";
+import { SelectField } from "../../../shared/components/SelectField";
 import { PORTER_VERIFICATION_STATUS_LABELS } from "../../porter-verification/constants";
 import type { PorterVerificationStatus } from "../../porter-verification/types";
 
@@ -30,7 +31,7 @@ export function PorterVerificationsFilters(props: PorterVerificationsFiltersProp
 		>
 			<label className="flex items-center gap-2 rounded-xl border border-[#dfe8df] bg-white px-3 py-2.5">
 				<Search className="size-4 text-[#788c7e]" />
-				<span className="sr-only">Tìm kiếm Porter</span>
+				<span className="sr-only">Tìm kiếm người hỗ trợ</span>
 				<input
 					value={props.search}
 					onChange={(event) => props.onSearchChange(event.target.value)}
@@ -39,23 +40,18 @@ export function PorterVerificationsFilters(props: PorterVerificationsFiltersProp
 					maxLength={100}
 				/>
 			</label>
-			<select
-				aria-label="Lọc theo trạng thái hồ sơ"
+			<SelectField
+				label="Lọc theo trạng thái hồ sơ"
 				value={props.status ?? ""}
-				onChange={(event) =>
-					props.onStatusChange(
-						(event.target.value || undefined) as PorterVerificationStatus | undefined
-					)
+				disabled={props.disabled}
+				onChange={(value) =>
+					props.onStatusChange((value || undefined) as PorterVerificationStatus | undefined)
 				}
-				className="rounded-xl border border-[#dfe8df] bg-white px-3 py-2.5 text-sm"
-			>
-				<option value="">Tất cả trạng thái</option>
-				{STATUS_OPTIONS.map(([value, label]) => (
-					<option key={value} value={value}>
-						{label}
-					</option>
-				))}
-			</select>
+				options={[
+					{ value: "", label: "Tất cả trạng thái" },
+					...STATUS_OPTIONS.map(([value, label]) => ({ value, label })),
+				]}
+			/>
 			<button
 				type="submit"
 				disabled={props.disabled}

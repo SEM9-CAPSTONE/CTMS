@@ -15,10 +15,11 @@ export const porterLevelsService = {
 	policies: () => httpClient.get<LevelPolicy[]>(API.POLICIES),
 	savePolicy: (level: PorterLevel, payload: LevelDefinition & { expectedVersion: number }) =>
 		httpClient.put<LevelPolicy>(API.POLICY(level), payload),
-	qualifications: (page: number) =>
+	qualifications: (page: number, search?: string) =>
 		httpClient.get<{ items: LevelQualification[]; total: number }>(API.QUALIFICATIONS, {
 			page,
 			limit: 20,
+			search,
 		}),
 	comparison: (id: string, level: PorterLevel) =>
 		httpClient.get<ReviewContext>(API.COMPARISON(id, level)),

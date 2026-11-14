@@ -1,8 +1,8 @@
 export const queryKeys = {
- packageDeparture: {
-  status: (actor: string, trip: string) => ["package-departure", actor, trip, "status"] as const,
-  inbox: (actor: string) => ["package-departure", actor, "inbox"] as const,
- },
+	packageDeparture: {
+		status: (actor: string, trip: string) => ["package-departure", actor, trip, "status"] as const,
+		inbox: (actor: string) => ["package-departure", actor, "inbox"] as const,
+	},
 	adminModeration: {
 		all: ["admin-moderation"] as const,
 		counts: (adminId: string) => ["admin-moderation", adminId, "counts"] as const,
@@ -67,7 +67,8 @@ export const queryKeys = {
 		notifications: (userId: string) => ["porter-levels", "notifications", userId] as const,
 		all: ["porter-levels"] as const,
 		policies: ["porter-levels", "policies"] as const,
-		qualifications: (page: number) => ["porter-levels", "qualifications", page] as const,
+		qualifications: (page: number, search = "") =>
+			["porter-levels", "qualifications", page, search] as const,
 		comparison: (id: string | null, level: string) =>
 			["porter-levels", "comparison", id, level] as const,
 		history: (id: string | null) => ["porter-levels", "history", id] as const,

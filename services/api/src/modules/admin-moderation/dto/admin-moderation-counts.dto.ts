@@ -11,5 +11,8 @@ export class AdminModerationCountsDto {
 	porterVerifications!: number;
 
 	@ApiProperty({ minimum: 0 })
+	porterLevelRequests!: number;
+
+	@ApiProperty({ minimum: 0 })
 	contentReports!: number;
 }

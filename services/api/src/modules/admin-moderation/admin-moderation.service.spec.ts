@@ -24,6 +24,7 @@ describe("AdminModerationService", () => {
 			[ContentReport, reports],
 		]);
 		const dataSource = {
+			query: jest.fn().mockResolvedValue([{ count: 3 }]),
 			getRepository: jest.fn((entity: typeof Trip | typeof TrekkingRoute | typeof ContentReport) =>
 				repositories.get(entity)
 			),
@@ -37,6 +38,7 @@ describe("AdminModerationService", () => {
 			trips: 4,
 			trekkingRoutes: 2,
 			porterVerifications: 0,
+			porterLevelRequests: 3,
 			contentReports: 1,
 		});
 		expect(trips.countBy).toHaveBeenCalledWith({ status: TripStatus.PENDING_APPROVAL });
