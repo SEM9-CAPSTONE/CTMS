@@ -116,4 +116,4 @@ See the [implementation and internal contract](../../docs/features/CTMS-068-Impl
 
 ## 12. Open Decisions
 
-Retrieval uses the current eligible CTMS-051 chunk sets and the same pinned multilingual E5 model. PostgreSQL ranks by exact cosine similarity. Configured score and exact-locale gates, lexical corroboration, deduplication and the context budget control selection. Keep complete chunks and reject incomplete source items. The server sets the relevance threshold after calibration on approved PDFs. CTMS-069 must validate the final prompt against its generation model's tokenizer.
+Retrieval uses the current eligible CTMS-051 chunk sets and the same pinned multilingual E5 model. PostgreSQL ranks by exact cosine similarity. Configured score and exact-locale gates, lexical corroboration, deduplication and the context budget control selection. Keep complete chunks and reject incomplete source items. The server sets the relevance threshold after calibration on approved PDFs.
