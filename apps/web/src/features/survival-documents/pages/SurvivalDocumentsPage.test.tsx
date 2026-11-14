@@ -100,6 +100,54 @@ beforeEach(() => {
 });
 afterEach(() => vi.restoreAllMocks());
 describe("CTMS-050 Admin source management", () => {
+	const published: DocumentDetail = {
+		...doc,
+		currentPublishedVersionId: doc.versions[0].id,
+		processingSyncStatus: "REGENERATION_NEEDED",
+		versions: [{ ...doc.versions[0], status: "PUBLISHED" }],
+	};
+	const chunkSet = { active: false, chunk_count: 0, error_code: null, quality_report: null };
+
+	it("shows a technical failure and refreshes the current active count after retry", async () => {
+		vi.mocked(service.detail).mockResolvedValue(published);
+		vi.spyOn(service, "chunkSets")
+			.mockResolvedValueOnce([{ ...chunkSet, status: "FAILED", error_code: "ingestion_transport" }])
+			.mockResolvedValue([{ ...chunkSet, status: "READY", active: true, chunk_count: 8 }]);
+		const retry = vi
+			.spyOn(service, "retryChunking")
+			.mockResolvedValue({ ...chunkSet, status: "PENDING" });
+		const panel = await detail();
+		expect(await panel.findByText("Xử lý thất bại")).toBeInTheDocument();
+		await userEvent.click(panel.getByRole("button", { name: "Thử lại xử lý" }));
+		expect(retry).toHaveBeenCalledWith(doc.id, doc.versions[0].id);
+		expect(await panel.findByText("Tri thức đã sẵn sàng · 8 đoạn trích")).toBeInTheDocument();
+	});
+
+	it("explains incomplete extraction and directs Admin to replace the PDF", async () => {
+		vi.mocked(service.detail).mockResolvedValue(published);
+		vi.spyOn(service, "chunkSets").mockResolvedValue([
+			{
+				...chunkSet,
+				status: "NEEDS_REVIEW",
+				quality_report: { issues: ["missing_critical_pdf_text"] },
+			},
+		]);
+		const panel = await detail();
+		expect(await panel.findByText(/Thiếu nội dung quan trọng/)).toBeInTheDocument();
+		expect(panel.queryByRole("button", { name: "Thử lại xử lý" })).toBeNull();
+	});
+
+	it("shows why a legacy publication is blocked by the source policy", async () => {
+		const reason = "Nguồn PDF chưa được CTMS cho phép xử lý.";
+		vi.mocked(service.detail).mockResolvedValue({
+			...published,
+			processingSyncStatus: "NOT_PROCESSED",
+			processingBlockedReason: reason,
+		});
+		vi.spyOn(service, "chunkSets").mockResolvedValue([]);
+		const panel = await detail();
+		expect(await panel.findByText(reason)).toBeInTheDocument();
+	});
 	it("shows loading until authoritative list arrives", async () => {
 		vi.mocked(service.list).mockReturnValue(new Promise(() => {}));
 		view();

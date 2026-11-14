@@ -14,6 +14,7 @@
 		"test": "jest",
 		"test:e2e": "jest --config ./test/jest-e2e.json --runInBand",
 		"test:integration": "jest --config ./test/jest-integration.json --runInBand",
+		"knowledge:reconcile:test": "ts-node src/modules/knowledge-chunks/reconcile-test-knowledge.ts",
 		"migration:run": "typeorm-ts-node-commonjs migration:run -d src/shared/database/data-source.ts",
 		"migration:revert": "typeorm-ts-node-commonjs migration:revert -d src/shared/database/data-source.ts",
 		"migration:generate": "typeorm-ts-node-commonjs migration:generate -d src/shared/database/data-source.ts",

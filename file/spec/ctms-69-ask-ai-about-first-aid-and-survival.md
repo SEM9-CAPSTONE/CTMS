@@ -97,7 +97,18 @@ No authoritative business-state transition occurs.
 
 ## 9. API / Integration Contract
 
-TBD — Technical Design.
+An active Camper submits `{ question, locale, requestId }` to `POST /api/ai/answers`.
+CTMS-068 provides the current eligible evidence. The server-side model selects complete
+excerpts and the API constructs the answer from the selected text. The API revalidates
+the retrieval snapshot and verifies that the cited excerpts preserve complete PDF items
+before storing and returning the answer.
+
+`ANSWERED` contains the answer ID and cited source snapshots. `INSUFFICIENT_CONTEXT`
+and `REFUSED` return empty sources and no answer. Operational failures use stable HTTP
+error codes. The answer owner can read recorded source metadata for 30 days through
+`GET /api/ai/answers/:answerId/sources`.
+
+See the [implementation and verification contract](../../docs/features/CTMS-069-Implementation.md).
 
 ## 10. Error & Edge Cases
 
@@ -121,4 +132,5 @@ TBD — Technical Design.
 
 ## 12. Open Decisions
 
-Exact model/provider, operational latency threshold and fallback response contract must come from Technical Design/evaluation criteria if not fixed elsewhere.
+Configure an approved OpenAI or Gemini model on the server. The production release gates,
+including online P95 of 5 seconds, are in [CTMS-098](ctms-98-evaluate-ai-survival-assistant.md).

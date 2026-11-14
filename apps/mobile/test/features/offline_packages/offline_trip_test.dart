@@ -238,7 +238,10 @@ void main() {
       await tester.tap(find.text('Giữ an toàn khi đi rừng'));
       await tester.pumpAndSettle();
       expect(find.text(_guideText), findsOneWidget);
-      expect(find.text('Phiên bản tài liệu · $_versionId'), findsOneWidget);
+      expect(find.text('Sổ tay an toàn'), findsOneWidget);
+      expect(find.text('Đơn vị xuất bản'), findsOneWidget);
+      expect(find.text('Trang 4 · 4.2'), findsOneWidget);
+      expect(find.textContaining(_versionId), findsNothing);
 
       container.read(_account.notifier).state = 'camper-2';
       await tester.pumpAndSettle();

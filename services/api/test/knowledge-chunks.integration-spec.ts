@@ -3,10 +3,13 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type INestApplication, ValidationPipe } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
 import { Test } from "@nestjs/testing";
 import request from "supertest";
 import { DataSource } from "typeorm";
+import { AI_PROMPT_VERSION } from "../src/modules/ai-answers/ai-answers.types";
+import { AiGenerationProvider } from "../src/modules/ai-answers/ai-generation.provider";
 import { AppModule } from "../src/modules/app.module";
 import { KnowledgeChunksProvider } from "../src/modules/knowledge-chunks/knowledge-chunks.provider";
 import { KnowledgeChunksRepository } from "../src/modules/knowledge-chunks/knowledge-chunks.repository";
@@ -17,6 +20,11 @@ import {
 	ChunkSetStatus,
 } from "../src/modules/knowledge-chunks/knowledge-chunks.types";
 import { KnowledgeChunksWorker } from "../src/modules/knowledge-chunks/knowledge-chunks.worker";
+import { RagEmbeddingProvider } from "../src/modules/rag/rag-embedding.provider";
+import { RagRetrievalService } from "../src/modules/rag/rag-retrieval.service";
+import { RagConfig } from "../src/modules/rag/rag.config";
+import { Classification } from "../src/modules/survival-documents/survival-documents.types";
+import { UserRole, UserStatus } from "../src/modules/users/entities/user.entity";
 import { assertSafeTestDatabase } from "./support/assert-safe-test-database";
 import {
 	type SourceTestDetail,
@@ -32,6 +40,13 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 	let configuration: ChunkConfiguration;
 	let provider: KnowledgeChunksProvider;
 	let worker: KnowledgeChunksWorker;
+	let rag: RagRetrievalService;
+	let ragConfig: RagConfig;
+	const ragProvider = {
+		embed: jest.fn(),
+		countPrefixes: jest.fn(),
+	};
+	const generationProvider = { generate: jest.fn() };
 	let root: string;
 	let auth: string;
 	let camperAuth: string;
@@ -43,7 +58,12 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 	beforeAll(async () => {
 		root = await mkdtemp(join(tmpdir(), "ctms51-"));
 		process.env.SURVIVAL_DOCUMENT_STORAGE_ROOT = root;
-		const module = await Test.createTestingModule({ imports: [AppModule] }).compile();
+		const module = await Test.createTestingModule({ imports: [AppModule] })
+			.overrideProvider(RagEmbeddingProvider)
+			.useValue(ragProvider)
+			.overrideProvider(AiGenerationProvider)
+			.useValue(generationProvider)
+			.compile();
 		app = module.createNestApplication();
 		app.setGlobalPrefix("api");
 		app.useGlobalPipes(
@@ -56,6 +76,8 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 		provider = module.get(KnowledgeChunksProvider);
 		worker = module.get(KnowledgeChunksWorker);
 		configuration = provider.configuration();
+		rag = module.get(RagRetrievalService);
+		ragConfig = module.get(RagConfig);
 		const jwt = module.get(JwtService);
 		for (const [id, role] of [
 			[admin, "admin"],
@@ -81,11 +103,14 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 		if (root) await rm(root, { recursive: true, force: true });
 		Reflect.deleteProperty(process.env, "SURVIVAL_DOCUMENT_STORAGE_ROOT");
 	});
-	async function draft(previous?: SourceTestDetail): Promise<SourceTestDetail> {
+	async function draft(
+		previous?: SourceTestDetail,
+		classification = Classification.TREKKING_SAFETY
+	): Promise<SourceTestDetail> {
 		const upload = request(app.getHttpServer())
 			.post(previous ? `${endpoint}/${previous.id}/versions` : endpoint)
 			.set("Authorization", auth)
-			.field("metadata", JSON.stringify(fictionalMetadata));
+			.field("metadata", JSON.stringify({ ...fictionalMetadata, classification }));
 		if (previous) upload.field("expectedDocumentRevision", String(previous.revision));
 		return (await upload.attach("file", uniqueFictionalPdf(), `${randomUUID()}.pdf`).expect(201))
 			.body as SourceTestDetail;
@@ -151,12 +176,12 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 			.post(chunkEndpoint(doc))
 			.set("Authorization", auth)
 			.expect(409);
-		const unverified = await publish(doc, false);
+		const unverified = await publish(await draft(undefined, Classification.FIRST_AID), false);
 		await request(app.getHttpServer())
 			.post(chunkEndpoint(unverified))
 			.set("Authorization", auth)
 			.expect(409);
-		const valid = await publish(await draft());
+		const valid = await publish(doc, false);
 		await request(app.getHttpServer())
 			.post(chunkEndpoint(valid))
 			.set("Authorization", auth)
@@ -315,8 +340,12 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 		expect(await storedStatus(set.id)).toBe(ChunkSetStatus.READY);
 	});
 	it("runs the worker through the real private-file reader and completes its exact claim", async () => {
-		const doc = await publish(await draft());
-		await enqueue(doc);
+		const doc = await publish(await draft(), false);
+		await db.query(
+			"INSERT INTO knowledge_chunk_event_receipts(event_id) SELECT id FROM survival_document_outbox WHERE document_id<>$1 ON CONFLICT DO NOTHING",
+			[doc.id]
+		);
+		await repo.consumeEvents(configuration);
 		const generate = jest.spyOn(provider, "generate").mockImplementation(async (set, bytes) => {
 			expect(bytes.subarray(0, 5).toString()).toBe("%PDF-");
 			expect(set.document_version_id).toBe(doc.versions[0].id);
@@ -357,8 +386,8 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 		).toEqual([]);
 	});
 	it("consumes publication outbox exactly once independently of other consumers", async () => {
-		const eligible = await publish(await draft());
-		const unverified = await publish(await draft(), false);
+		const eligible = await publish(await draft(), false);
+		const unverified = await publish(await draft(undefined, Classification.FIRST_AID), false);
 		// Exclude prior tests' events so this test is isolated from their retained source history.
 		await db.query(
 			"INSERT INTO knowledge_chunk_event_receipts(event_id) SELECT id FROM survival_document_outbox WHERE document_id<>ALL($1::uuid[]) ON CONFLICT DO NOTHING",
@@ -372,5 +401,473 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 		expect(
 			await db.query("SELECT id FROM survival_document_outbox WHERE document_id=$1", [eligible.id])
 		).toHaveLength(1);
+	});
+	it("reconciles only eligible current versions with missing sets across concurrent reruns", async () => {
+		const a1 = await publish(await draft(), false);
+		const a2 = await publish(await draft(a1), false);
+		const a3 = await publish(await draft(a2), false);
+		const b1 = await publish(await draft(), false);
+		const blocked = await publish(await draft(undefined, Classification.FIRST_AID), false);
+		const ids = [a3.id, b1.id, blocked.id];
+		// Earlier cases retain their sources. Make them outside this missing-set scenario.
+		await db.query(
+			`
+			INSERT INTO knowledge_chunk_sets(document_id,document_version_id,source_version,checksum,locale,configuration,config_hash,status)
+			SELECT d.id,v.id,v.version_number,v.checksum,v.metadata->>'locale','{}','fixture','FAILED'
+			FROM survival_documents d JOIN survival_document_versions v ON v.id=d.current_published_version_id
+			WHERE d.id<>ALL($1::uuid[])`,
+			[ids]
+		);
+		await db.query(
+			"INSERT INTO knowledge_chunk_event_receipts(event_id) SELECT id FROM survival_document_outbox ON CONFLICT DO NOTHING"
+		);
+		const runs = await Promise.all([repo.reconcile(configuration), repo.reconcile(configuration)]);
+		expect(runs.reduce((sum, result) => sum + result.queued, 0)).toBe(2);
+		expect(await repo.reconcile(configuration)).toEqual({
+			candidates: 1,
+			queued: 0,
+			skipped: [
+				{ versionId: blocked.versions[0].id, reason: expect.stringContaining("chuyên môn") },
+			],
+		});
+		const sets: Array<{ document_version_id: string }> = await db.query(
+			"SELECT document_version_id FROM knowledge_chunk_sets WHERE document_id=ANY($1::uuid[])",
+			[ids]
+		);
+		expect(sets.map((set) => set.document_version_id).sort()).toEqual(
+			[a3.versions[0].id, b1.versions[0].id].sort()
+		);
+	});
+	it.each([ChunkSetStatus.FAILED, ChunkSetStatus.NEEDS_REVIEW])(
+		"does not collect V1 when V2 is %s",
+		async (failure) => {
+			const v1 = await publish(await draft(), false);
+			await enqueue(v1);
+			const first = await claim();
+			await repo.finish(first, output(first));
+			const v2 = await publish(await draft(v1), false);
+			await enqueue(v2);
+			const second = await claim();
+			await repo.finish(
+				second,
+				failure === ChunkSetStatus.FAILED
+					? { error: "ingestion_transport", retryable: false }
+					: {
+							...output(second),
+							quality: {
+								status: "NEEDS_REVIEW",
+								issues: ["missing_critical_pdf_text"],
+								page_count: 1,
+							},
+							chunks: [],
+						}
+			);
+			expect(await storedStatus(second.id)).toBe(failure);
+			expect(await repo.readCurrent(v1.id)).toEqual([]);
+			expect(await repo.cleanupHistory(7)).toEqual({ deleted: 0, retainedByDependency: 0 });
+			expect(await storedStatus(first.id)).toBe(ChunkSetStatus.READY);
+		}
+	);
+	it("waits for replacement retention, document readers and restrictive approval references", async () => {
+		const v1 = await publish(await draft(), false);
+		await enqueue(v1);
+		const first = await claim();
+		await repo.finish(first, output(first));
+		const [firstChunk] = await repo.readCurrent(v1.id);
+		const v2 = await publish(await draft(v1), false);
+		await enqueue(v2);
+		const second = await claim();
+		await repo.finish(second, output(second));
+		expect(await repo.cleanupHistory(7)).toEqual({ deleted: 0, retainedByDependency: 0 });
+		await db.query(
+			"UPDATE knowledge_chunk_sets SET completed_at=now()-interval '8 days' WHERE id=$1",
+			[second.id]
+		);
+		await db.query(`CREATE TABLE ctms51_test_guidance_reference (
+			set_id uuid REFERENCES knowledge_chunk_sets(id) ON DELETE RESTRICT,
+			chunk_id uuid REFERENCES knowledge_chunks(id) ON DELETE RESTRICT
+		)`);
+		try {
+			await db.query("INSERT INTO ctms51_test_guidance_reference VALUES($1,$2)", [
+				first.id,
+				firstChunk.id,
+			]);
+			expect(await repo.cleanupHistory(7)).toEqual({ deleted: 0, retainedByDependency: 1 });
+			await db.query("UPDATE ctms51_test_guidance_reference SET set_id=NULL");
+			expect(await repo.cleanupHistory(7)).toEqual({ deleted: 0, retainedByDependency: 1 });
+			await db.query("DELETE FROM ctms51_test_guidance_reference");
+
+			const runner = db.createQueryRunner();
+			await runner.startTransaction();
+			try {
+				await runner.query("SELECT id FROM survival_documents WHERE id=$1 FOR SHARE", [v1.id]);
+				expect(await repo.cleanupHistory(7)).toEqual({ deleted: 0, retainedByDependency: 0 });
+			} finally {
+				await runner.rollbackTransaction();
+				await runner.release();
+			}
+			const [firstCleanup, secondCleanup, currentChunks] = await Promise.all([
+				repo.cleanupHistory(7),
+				repo.cleanupHistory(7),
+				repo.readCurrent(v1.id),
+			]);
+			// SKIP LOCKED can defer both attempts while retrieval holds a shared lock.
+			const afterReaders = await repo.cleanupHistory(7);
+			expect(firstCleanup.deleted + secondCleanup.deleted + afterReaders.deleted).toBe(1);
+			expect(currentChunks).toHaveLength(2);
+			for (const chunk of currentChunks) expect(chunk.chunk_set_id).toBe(second.id);
+			expect(await repo.cleanupHistory(7)).toEqual({ deleted: 0, retainedByDependency: 0 });
+			expect(
+				await db.query("SELECT id FROM knowledge_chunks WHERE chunk_set_id=$1", [first.id])
+			).toEqual([]);
+			expect(
+				await db.query("SELECT id FROM survival_document_versions WHERE id=$1", [v1.versions[0].id])
+			).toEqual([{ id: v1.versions[0].id }]);
+		} finally {
+			await db.query("DROP TABLE ctms51_test_guidance_reference");
+		}
+	});
+	describe("CTMS-068 RAG service boundary", () => {
+		const question = { question: "Nguồn thử nghiệm", locale: "vi" };
+		const retrieve = () =>
+			rag.retrieve(
+				{ userId: camper, roles: [UserRole.CAMPER], status: UserStatus.ACTIVE },
+				question
+			);
+
+		beforeEach(() => {
+			ragProvider.embed
+				.mockReset()
+				.mockResolvedValue(
+					Array.from({ length: configuration.embedding_dimensions }, (_, index) =>
+						Number(index === 0)
+					)
+				);
+			ragProvider.countPrefixes.mockReset().mockResolvedValue([30]);
+			const settings = new RagConfig(new ConfigService({ RAG_MIN_SCORE: "0.8" })).settings();
+			jest.spyOn(ragConfig, "settings").mockReturnValue(settings);
+		});
+
+		afterEach(() => jest.restoreAllMocks());
+
+		async function ready(doc: SourceTestDetail) {
+			await enqueue(doc);
+			const set = await claim();
+			expect(set.document_version_id).toBe(doc.versions[0].id);
+			expect(await repo.finish(set, output(set))).toBe(true);
+			return set;
+		}
+
+		async function archive(doc: SourceTestDetail) {
+			await request(app.getHttpServer())
+				.post(`${endpoint}/${doc.id}/versions/${doc.versions[0].id}/archive`)
+				.set("Authorization", auth)
+				.send({ expectedRevision: doc.versions[0].revision, reason: "Withdraw fictional source" })
+				.expect(201);
+		}
+
+		describe("CTMS-069 generation against real PostgreSQL and RAG", () => {
+			const postAnswer = (
+				requestId: string,
+				authorization = camperAuth,
+				text = question.question
+			) =>
+				request(app.getHttpServer())
+					.post("/api/ai/answers")
+					.set("Authorization", authorization)
+					.send({ ...question, question: text, requestId });
+
+			beforeEach(async () => {
+				await db.query("DELETE FROM ai_answer_request_limits WHERE user_id=$1", [camper]);
+				generationProvider.generate.mockReset().mockImplementation(async (raw: string) => {
+					const { evidence } = JSON.parse(raw) as { evidence: Array<{ chunkId: string }> };
+					return {
+						status: "ANSWERED",
+						chunkIds: [evidence[0].chunkId],
+						provider: "openai",
+						model: "test-model",
+						promptVersion: AI_PROMPT_VERSION,
+					};
+				});
+			});
+
+			it("persists exact provenance once across concurrent POSTs and retries, and restricts source access", async () => {
+				const doc = await publish(await draft());
+				const set = await ready(doc);
+				const requestId = randomUUID();
+				const concurrent = await Promise.all([postAnswer(requestId), postAnswer(requestId)]);
+				const success = concurrent.find(({ status }) => status === 200);
+				expect(success?.body).toMatchObject({
+					status: "ANSWERED",
+					answerId: expect.any(String),
+					sources: [
+						{
+							documentVersionId: doc.versions[0].id,
+							chunkSetId: set.id,
+							sourceVersion: 1,
+							locations: [{ page: 1, itemRef: "#/texts/0" }],
+						},
+					],
+				});
+				const retry = await postAnswer(requestId).expect(200);
+				expect(retry.body).toEqual(success?.body);
+				expect(generationProvider.generate).toHaveBeenCalledTimes(1);
+				await postAnswer(requestId, camperAuth, "Một câu hỏi khác").expect(409);
+				const rows: Array<{ retrieved_evidence: unknown[] }> = await db.query(
+					"SELECT retrieved_evidence FROM ai_answers WHERE user_id=$1 AND request_id=$2",
+					[camper, requestId]
+				);
+				expect(rows).toHaveLength(1);
+				expect(rows[0].retrieved_evidence).toMatchObject([{ source: { checksum: set.checksum } }]);
+				const sources = `/api/ai/answers/${retry.body.answerId}/sources`;
+				await request(app.getHttpServer()).get(sources).set("Authorization", auth).expect(403);
+				const ownerSources = await request(app.getHttpServer())
+					.get(sources)
+					.set("Authorization", camperAuth)
+					.expect(200);
+				expect(ownerSources.body.sources).toEqual(retry.body.sources);
+				await archive(doc);
+				const withdrawn = await postAnswer(requestId).expect(200);
+				expect(withdrawn.body).toMatchObject({ status: "INSUFFICIENT_CONTEXT", sources: [] });
+				await request(app.getHttpServer())
+					.get(sources)
+					.set("Authorization", camperAuth)
+					.expect(200);
+			});
+
+			it("rejects a selection that leaves out part of a PDF item", async () => {
+				const set = await ready(await publish(await draft()));
+				await db.query("UPDATE knowledge_chunks SET embedding=$2 WHERE chunk_set_id=$1", [
+					set.id,
+					Array.from({ length: configuration.embedding_dimensions }, (_, index) =>
+						Number(index === 0)
+					),
+				]);
+				await db.query(
+					"UPDATE knowledge_chunks SET metadata=jsonb_set(metadata,'{locations,0,item_ref}',to_jsonb($2::text)) WHERE chunk_set_id=$1 AND chunk_index=1",
+					[set.id, "#/texts/0"]
+				);
+				ragProvider.countPrefixes.mockResolvedValue([20, 40]);
+				const result = await postAnswer(randomUUID()).expect(200);
+				expect(generationProvider.generate).toHaveBeenCalledTimes(1);
+				expect(result.body).toMatchObject({ status: "INSUFFICIENT_CONTEXT", sources: [] });
+			});
+
+			it.each(["supersede", "archive", "delete"])(
+				"withholds a source changed by %s during generation",
+				async (action) => {
+					const doc = await publish(await draft());
+					await ready(doc);
+					const select = generationProvider.generate.getMockImplementation();
+					generationProvider.generate.mockImplementationOnce(async (raw: string) => {
+						if (action === "supersede") await publish(await draft(doc));
+						else {
+							await archive(doc);
+							if (action === "delete") {
+								const detail = await request(app.getHttpServer())
+									.get(`${endpoint}/${doc.id}`)
+									.set("Authorization", auth)
+									.expect(200);
+								await request(app.getHttpServer())
+									.delete(`${endpoint}/${doc.id}?expectedRevision=${detail.body.revision}`)
+									.set("Authorization", auth)
+									.expect(204);
+							}
+						}
+						return select?.(raw);
+					});
+					const requestId = randomUUID();
+					const result = await postAnswer(requestId).expect(200);
+					expect(result.body).toMatchObject({
+						status: "INSUFFICIENT_CONTEXT",
+						answer: null,
+						sources: [],
+					});
+					expect(
+						await db.query("SELECT id FROM ai_answers WHERE request_id=$1", [requestId])
+					).toEqual([]);
+				}
+			);
+		});
+
+		it("serves only active READY versions with verified provenance, fencing V1 during V2 rebuild", async () => {
+			const v1 = await publish(await draft());
+			const s1 = await ready(v1);
+			const result = await retrieve();
+			expect(result).toMatchObject({
+				status: "GROUNDED",
+				contextTokenCount: 30,
+				selectedChunks: [
+					{ chunkIndex: 0, score: 1, locations: [{ page: 1, itemRef: "#/texts/0" }] },
+				],
+				sources: [
+					{ documentVersionId: v1.versions[0].id, sourceVersion: 1, checksum: s1.checksum },
+				],
+			});
+			const v2 = await publish(await draft(v1));
+			await enqueue(v2);
+			expect(await retrieve()).toMatchObject({
+				status: "INSUFFICIENT_CONTEXT",
+				reason: "NO_MATCH",
+			});
+			await ready(v2);
+			expect(await retrieve()).toMatchObject({
+				status: "GROUNDED",
+				sources: [{ documentVersionId: v2.versions[0].id, sourceVersion: 2 }],
+			});
+			await archive(v2);
+			expect(await retrieve()).toMatchObject({ status: "INSUFFICIENT_CONTEXT", sources: [] });
+		});
+
+		it("drops the entire snapshot if one selected publication is withdrawn during tokenization", async () => {
+			const first = await publish(await draft());
+			const second = await publish(await draft());
+			await ready(first);
+			await enqueue(second);
+			const set = await claim();
+			const generated = output(set);
+			generated.chunks[0].content += " nguồn thứ hai";
+			generated.chunks[0].embedding_text += " nguồn thứ hai";
+			expect(await repo.finish(set, generated)).toBe(true);
+			ragProvider.countPrefixes.mockImplementationOnce(async (blocks: string[]) => {
+				expect(blocks).toHaveLength(2);
+				await archive(first);
+				return [20, 40];
+			});
+			expect(await retrieve()).toMatchObject({
+				status: "INSUFFICIENT_CONTEXT",
+				reason: "SOURCE_CHANGED",
+				context: "",
+				sources: [],
+			});
+		});
+
+		it("rejects partial source items, invalid locations and stale chunk counts", async () => {
+			const doc = await publish(await draft());
+			const set = await ready(doc);
+			await db.query(
+				"UPDATE knowledge_chunks SET metadata=jsonb_set(metadata,'{locations,0,item_ref}',to_jsonb($2::text)) WHERE chunk_set_id=$1 AND chunk_index=1",
+				[set.id, "#/texts/0"]
+			);
+			expect(await retrieve()).toMatchObject({
+				status: "INSUFFICIENT_CONTEXT",
+				reason: "INCOMPLETE_EVIDENCE",
+			});
+			await db.query(
+				"UPDATE knowledge_chunks SET metadata=jsonb_set(metadata,'{locations}','[]'::jsonb) WHERE chunk_set_id=$1 AND chunk_index=0",
+				[set.id]
+			);
+			expect(await retrieve()).toMatchObject({
+				status: "INSUFFICIENT_CONTEXT",
+				reason: "NO_MATCH",
+			});
+			await db.query("DELETE FROM knowledge_chunks WHERE chunk_set_id=$1 AND chunk_index=1", [
+				set.id,
+			]);
+			expect(await retrieve()).toMatchObject({
+				status: "INSUFFICIENT_CONTEXT",
+				reason: "NO_MATCH",
+			});
+		});
+
+		it("fails closed when the approved-host policy is removed", async () => {
+			await ready(await publish(await draft()));
+			const hosts = process.env.SURVIVAL_KNOWLEDGE_APPROVED_HOSTS;
+			process.env.SURVIVAL_KNOWLEDGE_APPROVED_HOSTS = "";
+			try {
+				expect(await retrieve()).toMatchObject({ status: "INSUFFICIENT_CONTEXT", sources: [] });
+			} finally {
+				if (hosts === undefined)
+					Reflect.deleteProperty(process.env, "SURVIVAL_KNOWLEDGE_APPROVED_HOSTS");
+				else process.env.SURVIVAL_KNOWLEDGE_APPROVED_HOSTS = hosts;
+			}
+		});
+
+		it("ranks deterministically and excludes malformed embeddings and incompatible sets", async () => {
+			const first = await ready(await publish(await draft()));
+			const second = await ready(await publish(await draft()));
+			const winner = [first.id, second.id].sort()[0];
+			expect(await retrieve()).toMatchObject({
+				status: "GROUNDED",
+				sources: [{ chunkSetId: winner }],
+			});
+			const loser = first.id === winner ? second.id : first.id;
+			await db.query(
+				"UPDATE knowledge_chunks SET embedding=ARRAY['NaN'::float8] || embedding[2:384] WHERE chunk_set_id=$1 AND chunk_index=0",
+				[winner]
+			);
+			expect(await retrieve()).toMatchObject({
+				status: "GROUNDED",
+				sources: [{ chunkSetId: loser }],
+			});
+			await db.query(
+				"UPDATE knowledge_chunk_sets SET configuration=jsonb_set(configuration,'{embedding_revision}',to_jsonb('other'::text)) WHERE id=$1",
+				[loser]
+			);
+			expect(await retrieve()).toMatchObject({ status: "INSUFFICIENT_CONTEXT", sources: [] });
+		});
+
+		const benchmark = process.env.RUN_RAG_BENCHMARK === "true" ? it : it.skip;
+		benchmark(
+			"reports synthetic latency and Node heap change for 2,000 vectors",
+			async () => {
+				const doc = await publish(await draft());
+				await enqueue(doc);
+				const set = await claim();
+				const generated = output(set);
+				const sample = generated.chunks[0];
+				generated.chunks = Array.from({ length: 2000 }, (_, index) => ({
+					...sample,
+					chunk_index: index,
+					locations: sample.locations.map((location) => ({
+						...location,
+						item_ref: `#/texts/${index}`,
+					})),
+					content: `${sample.content} ${index}`,
+					embedding_text: `${sample.embedding_text} ${index}`,
+				}));
+				expect(await repo.finish(set, generated)).toBe(true);
+				ragProvider.countPrefixes.mockResolvedValue([20, 40, 60, 80, 100]);
+				const before = process.memoryUsage().heapUsed;
+				const durations: number[] = [];
+				for (let attempt = 0; attempt < 10; attempt++) {
+					const result = await retrieve();
+					expect(result).toMatchObject({
+						status: "GROUNDED",
+						metrics: { candidateCount: 2000, selectedCount: 5 },
+					});
+					durations.push(result.metrics.durationMs);
+				}
+				durations.sort((a, b) => a - b);
+				process.stdout.write(
+					`${JSON.stringify({
+						fixtureChunks: 2000,
+						samples: durations.length,
+						p50Ms: durations[4],
+						p95Ms: durations[9],
+						heapDeltaBytes: process.memoryUsage().heapUsed - before,
+					})}\n`
+				);
+			},
+			30000
+		);
+
+		it("treats a corpus limit as operational failure before embedding", async () => {
+			await ready(await publish(await draft()));
+			const settings = ragConfig.settings();
+			jest.spyOn(ragConfig, "settings").mockReturnValue({ ...settings, maxCandidates: 1 });
+			await expect(retrieve()).rejects.toMatchObject({ response: { code: "RAG_CORPUS_LIMIT" } });
+			expect(ragProvider.embed).not.toHaveBeenCalled();
+		});
+
+		it("exposes no public RAG or chat route", async () => {
+			for (const path of ["/api/rag/retrieve", "/api/ai/chat"]) {
+				await request(app.getHttpServer())
+					.post(path)
+					.set("Authorization", camperAuth)
+					.send(question)
+					.expect(404);
+			}
+		});
 	});
 });

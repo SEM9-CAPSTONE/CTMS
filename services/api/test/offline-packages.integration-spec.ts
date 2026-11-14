@@ -1,8 +1,10 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { DataSource, type EntityManager } from "typeorm";
+import { CreateKnowledgeChunks1794100000000 } from "../src/migrations/1794100000000-CreateKnowledgeChunks";
 import { CreateOfflinePackages1794200000000 } from "../src/migrations/1794200000000-CreateOfflinePackages";
+import { KnowledgeChunksRepository } from "../src/modules/knowledge-chunks/knowledge-chunks.repository";
 import { OfflinePackagesRepository } from "../src/modules/offline-packages/offline-packages.repository";
 import { OfflinePackagesService } from "../src/modules/offline-packages/offline-packages.service";
 import {
@@ -153,10 +155,13 @@ describe("CTMS-052 PostgreSQL publication, fencing and immutable artifacts", () 
 		if (!job) throw new Error("Expected durable request");
 		return job;
 	}
-	async function updateSafety(change: (input: PackageSafetyInputs) => void): Promise<void> {
+	async function updateSafety(
+		change: (input: PackageSafetyInputs) => void,
+		manager = db.manager
+	): Promise<void> {
 		const input = fictionalPackageSafety();
 		change(input);
-		await db.query("UPDATE test_safety_revision SET inputs=$1::jsonb WHERE id=1", [
+		await manager.query("UPDATE test_safety_revision SET inputs=$1::jsonb WHERE id=1", [
 			JSON.stringify(input),
 		]);
 	}
@@ -261,6 +266,140 @@ describe("CTMS-052 PostgreSQL publication, fencing and immutable artifacts", () 
 		await expect(
 			db.query("DELETE FROM offline_packages WHERE trip_id=$1", [tripId])
 		).rejects.toThrow("immutable");
+	});
+	it("defers chunk cleanup during package revalidation and preserves the published ZIP after cleanup", async () => {
+		// Use the real chunk schema and cleanup against the same private DB as the package worker.
+		await db.query(`
+			CREATE TABLE survival_documents(id uuid PRIMARY KEY, current_published_version_id uuid);
+			CREATE TABLE survival_document_versions(
+				id uuid PRIMARY KEY, document_id uuid NOT NULL REFERENCES survival_documents(id),
+				version_number integer NOT NULL, revision integer DEFAULT 1, status text NOT NULL,
+				metadata jsonb NOT NULL, rights jsonb NOT NULL,
+				file_ref text NOT NULL, original_filename text DEFAULT 'fixture.pdf',
+				checksum text NOT NULL, size integer DEFAULT 100, content_type text DEFAULT 'application/pdf',
+				original_version_id uuid, created_by text DEFAULT 'fixture-admin', created_at timestamptz DEFAULT now(),
+				reviewed_by text, reviewed_at timestamptz, published_by text DEFAULT 'fixture-admin',
+				published_at timestamptz DEFAULT now(), reason text, UNIQUE(document_id,id)
+			);
+			CREATE TABLE survival_document_outbox(id uuid PRIMARY KEY);
+		`);
+		const runner = db.createQueryRunner();
+		try {
+			await new CreateKnowledgeChunks1794100000000().up(runner);
+		} finally {
+			await runner.release();
+		}
+		const documentId = randomUUID();
+		await db.query("INSERT INTO survival_documents(id) VALUES($1)", [documentId]);
+		async function activate(versionNumber: number) {
+			const versionId = randomUUID();
+			const setId = randomUUID();
+			const chunkId = randomUUID();
+			const input = fictionalPackageSafety();
+			const unit = input.guidance[0];
+			const source = { ...unit.source, id: versionId, documentId, versionNumber };
+			await db.transaction(async (manager) => {
+				await manager.query("SELECT id FROM survival_documents WHERE id=$1 FOR UPDATE", [
+					documentId,
+				]);
+				await manager.query(
+					"UPDATE survival_document_versions SET status='SUPERSEDED' WHERE document_id=$1",
+					[documentId]
+				);
+				await manager.query(
+					`
+					INSERT INTO survival_document_versions(id,document_id,version_number,status,metadata,rights,file_ref,checksum)
+					VALUES($1,$2,$3,'PUBLISHED',$4,$5,$6,$7)`,
+					[
+						versionId,
+						documentId,
+						versionNumber,
+						source.metadata,
+						source.rights,
+						source.fileRef,
+						source.checksum,
+					]
+				);
+				await manager.query(
+					`
+					INSERT INTO knowledge_chunk_sets(
+						id,document_id,document_version_id,source_version,checksum,locale,configuration,config_hash,status,chunk_count,completed_at
+					) VALUES($1,$2,$3,$4,$5,$6,'{}','fixture','READY',1,now()-interval '8 days')`,
+					[setId, documentId, versionId, versionNumber, source.checksum, source.metadata.locale]
+				);
+				await manager.query(
+					`
+					INSERT INTO knowledge_chunks(id,chunk_set_id,document_version_id,source_version,locale,chunk_index,content,embedding_text,metadata,embedding)
+					VALUES($1,$2,$3,$4,$5,0,$6,$6,'{}',ARRAY[1.0])`,
+					[chunkId, setId, versionId, versionNumber, source.metadata.locale, unit.content]
+				);
+				await manager.query(
+					"UPDATE survival_documents SET current_published_version_id=$2 WHERE id=$1",
+					[documentId, versionId]
+				);
+				await manager.query(
+					`
+					INSERT INTO knowledge_chunk_publications(document_id,chunk_set_id) VALUES($1,$2)
+					ON CONFLICT(document_id) DO UPDATE SET chunk_set_id=excluded.chunk_set_id`,
+					[documentId, setId]
+				);
+				await updateSafety((safety) => {
+					safety.revision = versionId;
+					safety.guidance[0] = {
+						...unit,
+						source,
+						currentPublishedVersionId: versionId,
+						currentChunkSetId: setId,
+						chunkSet: { ...unit.chunkSet, id: setId, documentVersionId: versionId },
+						chunkIds: [chunkId],
+						pageRefs: [{ ...unit.pageRefs[0], chunkId }],
+					};
+				}, manager);
+			});
+			return { setId, chunkId };
+		}
+		const knowledge = new KnowledgeChunksRepository(db);
+		const first = await activate(1);
+		await publish();
+		await service.generate(await claim());
+		const original = await service.readArtifact(tripId, 1);
+		const originalHash = (await service.getReadyMetadata(tripId, 1))?.sha256;
+		expect(original).toBeInstanceOf(Buffer);
+		const second = await activate(2);
+		class LockingSources extends FictionalDatabaseSources {
+			override async read(manager: EntityManager, core: PackageCore, lock: boolean) {
+				if (lock)
+					await manager.query("SELECT id FROM survival_documents WHERE id=$1 FOR SHARE", [
+						documentId,
+					]);
+				const inputs = await super.read(manager, core, lock);
+				const rows: Array<{ id: string }> = await manager.query(
+					"SELECT id FROM knowledge_chunks WHERE id=$1 AND chunk_set_id=$2",
+					[second.chunkId, second.setId]
+				);
+				expect(rows).toHaveLength(1);
+				if (lock)
+					expect(await knowledge.cleanupHistory(7)).toEqual({
+						deleted: 0,
+						retainedByDependency: 0,
+					});
+				return inputs;
+			}
+		}
+		await service.requestImpact(tripId, "new-survival-version");
+		await generator(new LockingSources()).generate(await claim());
+		expect((await service.getManifest(tripId, 2))?.guidance[0].chunkSetId).toBe(second.setId);
+		expect(await knowledge.cleanupHistory(7)).toEqual({ deleted: 1, retainedByDependency: 0 });
+		expect(await db.query("SELECT id FROM knowledge_chunks WHERE id=$1", [first.chunkId])).toEqual(
+			[]
+		);
+		const retained = await service.readArtifact(tripId, 1);
+		expect(retained).toEqual(original);
+		expect(
+			createHash("sha256")
+				.update(retained as Buffer)
+				.digest("hex")
+		).toBe(originalHash);
 	});
 	it("rejects source insert/withdrawal during artifact construction", async () => {
 		await publish();

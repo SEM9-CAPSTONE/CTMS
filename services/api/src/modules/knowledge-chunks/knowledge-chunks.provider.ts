@@ -6,24 +6,15 @@ import {
 	type ChunkConfiguration,
 	type ChunkOutput,
 	type ChunkSet,
-	EMBEDDING_MODEL,
-	EMBEDDING_REVISION,
-	INGESTION_VERSION,
+	chunkConfiguration,
 	IngestionError,
-	MAX_TOKENS,
 } from "./knowledge-chunks.types";
 
 @Injectable()
 export class KnowledgeChunksProvider {
 	constructor(private readonly config: ConfigService) {}
 	configuration(): ChunkConfiguration {
-		return {
-			pipeline_version: INGESTION_VERSION,
-			embedding_model: EMBEDDING_MODEL,
-			embedding_revision: EMBEDDING_REVISION,
-			embedding_dimensions: 384,
-			max_tokens: MAX_TOKENS,
-		};
+		return chunkConfiguration();
 	}
 	async generate(
 		set: ChunkSet,

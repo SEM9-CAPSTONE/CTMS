@@ -76,6 +76,7 @@ describe("PDF URL ingestion", () => {
 		respond(200, {}, [pdf]);
 		await expect(service.fromUrl(url)).resolves.toMatchObject({
 			originalFilename: "cẩm-nang.PDF",
+			finalSourceUrl: "https://example.org/c%E1%BA%A9m-nang.PDF",
 		});
 	});
 

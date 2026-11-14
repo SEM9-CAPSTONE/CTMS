@@ -4,6 +4,7 @@ import { SOURCE_BUTTON, STATUS_LABELS } from "../constants";
 import type { DocumentDetail, SourceAction, SourceDecision, SourceVersion } from "../types";
 import { ArchiveSourceVersionDialog } from "./ArchiveSourceVersionDialog";
 import { PrivateSourcePreview } from "./PrivateSourcePreview";
+import { SourceChunkingStatus } from "./SourceChunkingStatus";
 import { SourceDetailTabs } from "./SourceDetailTabs";
 import { SourceVersionActions } from "./SourceVersionActions";
 
@@ -40,6 +41,8 @@ export function SourceDetail({
 	const [archiveTarget, setArchiveTarget] = useState<SourceVersion | null>(null);
 	const version =
 		document.versions.find((item) => item.id === selectedVersionId) ?? document.versions[0];
+	const isCurrent =
+		version.status === "PUBLISHED" && version.id === document.currentPublishedVersionId;
 	const canPublish =
 		version.status === "DRAFT" &&
 		!document.versions.some(
@@ -66,7 +69,7 @@ export function SourceDetail({
 				size="2xl"
 			>
 				<div className="space-y-4">
-					{version.status === "PUBLISHED" && version.id === document.currentPublishedVersionId && (
+					{isCurrent && (
 						<div className="flex justify-end">
 							<button
 								type="button"
@@ -87,6 +90,16 @@ export function SourceDetail({
 							onSelectVersion={onSelectVersion}
 						/>
 					</div>
+					{isCurrent && (
+						<SourceChunkingStatus
+							key={version.id}
+							documentId={document.id}
+							versionId={version.id}
+							eligible={document.processingSyncStatus === "REGENERATION_NEEDED"}
+							blockedReason={document.processingBlockedReason}
+							busy={busy}
+						/>
+					)}
 					{error && (
 						<p role="alert" className="text-red-700">
 							{error.message}
