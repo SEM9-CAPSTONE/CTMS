@@ -151,6 +151,13 @@ export class ProfilesService {
 		if (dto.bio !== undefined) {
 			patch.bio = dto.bio;
 		}
+		if (dto.campingExperienceYears !== undefined) {
+			patch.campingExperienceYears = dto.campingExperienceYears;
+		}
+		if (dto.trekkingExperienceDetails !== undefined) {
+			// An emptied field clears the stored text.
+			patch.trekkingExperienceDetails = dto.trekkingExperienceDetails.trim() || null;
+		}
 		return patch;
 	}
 
@@ -163,6 +170,8 @@ export class ProfilesService {
 			gender: user.gender,
 			address: user.address,
 			bio: user.bio,
+			campingExperienceYears: user.campingExperienceYears ?? null,
+			trekkingExperienceDetails: user.trekkingExperienceDetails ?? null,
 			emergencyContacts: contacts.map(
 				(contact): EmergencyContactSnapshot => ({
 					name: contact.name,

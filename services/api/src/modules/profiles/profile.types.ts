@@ -8,6 +8,8 @@ export interface ProfileSnapshot extends Record<string, unknown> {
 	gender: UserGender | null;
 	address: string | null;
 	bio: string | null;
+	campingExperienceYears?: number | null;
+	trekkingExperienceDetails?: string | null;
 	emergencyContacts: EmergencyContactSnapshot[];
 }
 

@@ -6,11 +6,14 @@ import {
 	IsEmail,
 	IsEnum,
 	IsISO8601,
+	IsInt,
 	IsNotEmpty,
 	IsOptional,
 	IsString,
 	Matches,
+	Max,
 	MaxLength,
+	Min,
 	MinLength,
 	ValidateNested,
 } from "class-validator";
@@ -101,6 +104,19 @@ export class UpdateProfileDto {
 	@IsString()
 	@MaxLength(500)
 	bio?: string;
+
+	@ApiPropertyOptional({ minimum: 0, maximum: 50, description: "Số năm kinh nghiệm cắm trại" })
+	@IsOptional()
+	@IsInt()
+	@Min(0)
+	@Max(50)
+	campingExperienceYears?: number;
+
+	@ApiPropertyOptional({ maxLength: 300, description: "Cung đường, đỉnh núi đã hoàn thành" })
+	@IsOptional()
+	@IsString()
+	@MaxLength(300)
+	trekkingExperienceDetails?: string;
 
 	@ApiPropertyOptional({ type: [UpdateEmergencyContactDto] })
 	@IsOptional()

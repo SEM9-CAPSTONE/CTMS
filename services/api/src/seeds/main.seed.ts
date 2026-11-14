@@ -3026,6 +3026,34 @@ async function seedCamperHealthAndContacts(): Promise<void> {
 	);
 }
 
+/**
+ * CTMS-106. Trip preferences for the main Camper so "Gợi ý cho bạn" ranks by preferences and the
+ * booking history already seeded. Existing preferences are kept: a Camper's own choice wins.
+ */
+export async function seedCamperTripPreferences(ds: DataSource = dataSource): Promise<void> {
+	const [camper]: Array<{ id: string }> = await ds.query(
+		'SELECT "id" FROM "users" WHERE "email" = $1',
+		["camper@ctms.local"]
+	);
+	if (!camper) return;
+	await ds.query(
+		`INSERT INTO "camper_trip_preferences"
+			("user_id", "trip_types", "difficulties", "regions", "min_price", "max_price")
+		 VALUES ($1, ARRAY['overnight']::text[], ARRAY['moderate', 'hard']::text[],
+			ARRAY['ba_na_hoa_vang', 'son_tra']::text[], 500000, 2500000)
+		 ON CONFLICT ("user_id") DO NOTHING`,
+		[camper.id]
+	);
+	// Profile experience, only where the Camper has not written their own.
+	await ds.query(
+		`UPDATE "users" SET
+			"camping_experience_years" = COALESCE("camping_experience_years", 3),
+			"trekking_experience_details" = COALESCE("trekking_experience_details", $2)
+		 WHERE "id" = $1`,
+		[camper.id, "Đã trekking bán đảo Sơn Trà, đèo Hải Vân và cắm trại qua đêm ở Bà Nà hai lần."]
+	);
+}
+
 // ==========================================================================
 // [4/6] WEATHER RISK SCENARIOS (GREEN & RED ROUTES)
 // ==========================================================================
@@ -6744,6 +6772,11 @@ export async function runMasterSeed(): Promise<void> {
 		console.log("--------------------------------------------------------------------------");
 		await seedPerformanceReportsScenarios(dataSource);
 		console.log("✅ Step 13 completed.\n");
+
+		// Step 14: Camper trip preferences for personalized recommendations (CTMS-106)
+		console.log("👉 [14/14] Seeding Camper trip preferences (CTMS-106)...");
+		await seedCamperTripPreferences(dataSource);
+		console.log("✅ Step 14 completed.\n");
 
 		const elapsedSec = ((Date.now() - startTime) / 1000).toFixed(2);
 

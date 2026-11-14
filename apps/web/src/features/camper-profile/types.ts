@@ -35,6 +35,8 @@ export interface ProfileApiResponse {
 	gender: ProfileGender | null;
 	address: string | null;
 	bio: string | null;
+	campingExperienceYears?: number | null;
+	trekkingExperienceDetails?: string | null;
 	emergencyContacts: EmergencyContactData[];
 	createdAt: string;
 	updatedAt: string;
@@ -48,6 +50,8 @@ export interface UpdateProfilePayload {
 	gender?: ProfileGender;
 	address?: string;
 	bio?: string;
+	campingExperienceYears?: number;
+	trekkingExperienceDetails?: string;
 	emergencyContacts?: EmergencyContactData[];
 }
 
