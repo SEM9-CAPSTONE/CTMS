@@ -5,8 +5,8 @@ import type { MigrationInterface, QueryRunner } from "typeorm";
  * Camper profile, which the profile form already collects but never saved. Both are optional and
  * existing accounts start empty. Same limits as the profile form.
  */
-export class AddCamperExperience1796000000000 implements MigrationInterface {
-	name = "AddCamperExperience1796000000000";
+export class AddCamperExperience1796100000000 implements MigrationInterface {
+	name = "AddCamperExperience1796100000000";
 
 	public async up(queryRunner: QueryRunner): Promise<void> {
 		await queryRunner.query(`

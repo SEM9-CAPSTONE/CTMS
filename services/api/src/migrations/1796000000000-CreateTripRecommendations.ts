@@ -7,8 +7,8 @@ import type { MigrationInterface, QueryRunner } from "typeorm";
  * An AI run also keeps the validated AI order and a fingerprint of the Camper's signals, so later
  * requests with the same signals reuse that order instead of calling the AI again.
  */
-export class CreateTripRecommendations1795900000000 implements MigrationInterface {
-	name = "CreateTripRecommendations1795900000000";
+export class CreateTripRecommendations1796000000000 implements MigrationInterface {
+	name = "CreateTripRecommendations1796000000000";
 
 	public async up(queryRunner: QueryRunner): Promise<void> {
 		await queryRunner.query(`
