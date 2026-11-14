@@ -7,6 +7,8 @@ export const MAX_ATTEMPTS = 3;
 export const LEASE_SECONDS = 120;
 export const HEARTBEAT_MS = 20000;
 export const POLL_MS = 3000;
+export const CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
+export const DEFAULT_RETENTION_DAYS = 7;
 export enum ChunkSetStatus {
 	PENDING = "PENDING",
 	RUNNING = "RUNNING",
@@ -37,6 +39,7 @@ export interface ChunkSet {
 }
 export interface ChunkSetSummary {
 	id: string;
+	active: boolean;
 	document_version_id: string;
 	source_version: number;
 	locale: string;
