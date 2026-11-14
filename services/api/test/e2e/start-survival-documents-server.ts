@@ -1,4 +1,5 @@
 import setupIntegrationDatabase from "../setup-integration-database";
+import "../setup-survival-source-policy";
 
 const database = process.env.TEST_DATABASE_URL ?? "postgresql://ctms:ctms@127.0.0.1:5432/ctms_test";
 if (!new URL(database).pathname.endsWith("_test"))
