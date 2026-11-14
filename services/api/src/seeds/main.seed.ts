@@ -22,6 +22,7 @@ import {
 	parseCancellationPolicy,
 } from "../modules/bookings/cancellation-policy";
 import dataSource from "../shared/database/data-source";
+import { seedFinancialAdjustments } from "./financial-adjustments.seed";
 
 import { randomUUID } from "node:crypto";
 import { CheckpointArrivalsRepository } from "../modules/checkpoint-arrivals/checkpoint-arrivals.repository";
@@ -456,7 +457,7 @@ const SEED_ACCOUNTS: SeedAccount[] = [
 		phone: "0900000003",
 		password: "Camper@123",
 		role: "camper",
-		fullName: "Camper Nguyễn Văn An",
+		fullName: "Nguyễn Văn An",
 		dateOfBirth: "1998-10-20",
 		gender: "male",
 		address: "Số 123 Đường Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh",
@@ -3487,7 +3488,7 @@ const SEED_SETTLEMENT_USERS: SeedSettlementUser[] = [
 	{
 		email: "camper@ctms.local",
 		phone: "0900000003",
-		fullName: "Camper Nguyễn Văn An",
+		fullName: "Nguyễn Văn An",
 		role: "camper",
 		password: "Camper@123",
 		dateOfBirth: "1998-10-20",
@@ -4086,8 +4087,8 @@ export async function seedUserBankAccounts(): Promise<void> {
 		await dataSource.query(
 			`INSERT INTO "user_bank_accounts" ("user_id", "bank_name", "account_number", "account_holder_name", "is_default")
 			 VALUES 
-				($1, 'Vietcombank', '1012345678', 'CAMPER NGUYEN VAN AN', true),
-				($1, 'Techcombank', '19034567890123', 'CAMPER NGUYEN VAN AN', false)
+				($1, 'Vietcombank', '1012345678', 'NGUYEN VAN AN', true),
+				($1, 'Techcombank', '19034567890123', 'NGUYEN VAN AN', false)
 			 ON CONFLICT ("user_id", "bank_name", "account_number") 
 			 DO UPDATE SET 
 				"account_holder_name" = EXCLUDED."account_holder_name",
@@ -6463,6 +6464,7 @@ export async function runMasterSeed(): Promise<void> {
 		console.log("👉 [6/9] Seeding Settlements, Host Wallets & Payout Requests...");
 		console.log("--------------------------------------------------------------------------");
 		await seedSettlementsAndPayouts();
+		await seedFinancialAdjustments();
 		console.log("✅ Step 6 completed.\n");
 
 		// Step 7: User Bank Accounts (Host & Camper)

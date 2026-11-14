@@ -7,6 +7,7 @@ import { AUTO_CANCEL_REASON } from "../trips/services/trip-auto-cancel.service";
 import { User } from "../users/entities/user.entity";
 import type { BookingsRepository } from "./bookings.repository";
 import { DEFAULT_CANCELLATION_POLICY } from "./cancellation-policy";
+import { FinancialAdjustment } from "./entities/financial-adjustment.entity";
 import {
 	Payment,
 	PaymentStatus,
@@ -14,6 +15,7 @@ import {
 	PaymentTransactionStatus,
 	PaymentType,
 } from "./entities/payment.entity";
+import { Settlement } from "./entities/settlement.entity";
 import type { PaymentsRepository } from "./payments.repository";
 import { RefundOrigin } from "./refund-policy";
 import { RefundsService } from "./refunds.service";
@@ -53,10 +55,12 @@ describe("RefundsService (CTMS-035)", () => {
 
 	let trip: Trip;
 	let booking: Booking;
+	let settledTrip: boolean;
 	let charge: Payment;
 	const fixedNow = new Date("2030-05-01T12:00:00Z");
 
 	beforeEach(() => {
+		settledTrip = false;
 		jest.useFakeTimers().setSystemTime(fixedNow);
 
 		trip = Object.assign(new Trip(), {
@@ -150,6 +154,13 @@ describe("RefundsService (CTMS-035)", () => {
 				return repo;
 			},
 			getRepository: (entity: unknown) => {
+				if (entity === Settlement)
+					return {
+						findOne: jest
+							.fn()
+							.mockImplementation(async () => (settledTrip ? { id: "settlement-1" } : null)),
+					};
+				if (entity === FinancialAdjustment) return { find: jest.fn().mockResolvedValue([]) };
 				if (entity === Trip) return tripsRepo;
 				if (entity === AuditLog) return auditRepo;
 				if (entity === PaymentTransaction) return txnRepo;
@@ -268,7 +279,7 @@ describe("RefundsService (CTMS-035)", () => {
 				{
 					obligationId: "obligation-1",
 				},
-				{ mockProvider: true }
+				{ mockProvider: true, userRoles: ["admin"] }
 			);
 
 			expect(res.refundId).toBe("obligation-1");
@@ -679,6 +690,44 @@ describe("RefundsService (CTMS-035)", () => {
 		});
 	});
 
+	describe("Late Camper requests", () => {
+		beforeEach(() => {
+			trip.status = TripStatus.COMPLETED;
+			trip.endsAt = new Date(fixedNow.getTime() - 48 * 60 * 60 * 1000);
+			booking.status = BookingStatus.COMPLETED;
+		});
+		it("keeps the 24-hour cutoff for trips that have not been settled", async () => {
+			const info = await service.getBookingRefundInfo("camper-uuid-1", ["camper"], booking.id);
+			expect(info.isEligible).toBe(false);
+			expect(info.applicableWindow?.isExpired).toBe(true);
+		});
+		it("allows a late settled-trip request for review without approving or transferring funds", async () => {
+			settledTrip = true;
+			const info = await service.getBookingRefundInfo("camper-uuid-1", ["camper"], booking.id);
+			expect(info.isEligible).toBe(true);
+			expect(info.policySource).toBe("late_complaint_manual_review");
+			const response = await service.processRefund(
+				"camper-uuid-1",
+				booking.id,
+				"late-request-key",
+				{
+					reason: "Đề nghị đối chiếu khoản thu thừa.",
+					bankName: "Vietcombank",
+					accountNumber: "1012345678",
+					accountHolderName: "NGUYEN VAN A",
+				},
+				{ userRoles: ["camper"] }
+			);
+			expect(response.status).toBe(PaymentStatus.PENDING);
+			expect(paymentsRepo.save).toHaveBeenCalledWith(
+				expect.objectContaining({ reviewStatus: "pending_review" })
+			);
+			expect(txnRepo.save).toHaveBeenCalledWith(
+				expect.objectContaining({ rawPayload: expect.objectContaining({ lateRequest: true }) })
+			);
+		});
+	});
+
 	describe("confirmManualRefund & rejectRefund (CTMS-035)", () => {
 		it("confirms manual refund and transitions to SUCCEEDED", async () => {
 			const pendingRefund = Object.assign(new Payment(), {
@@ -787,6 +836,7 @@ describe("RefundsService (CTMS-035)", () => {
 					bankName: "Vietcombank",
 					accountNumber: "0123456789",
 					accountHolderName: "NGUYEN VAN A",
+					reason: "Khoản thu thừa đã được xác minh.",
 				}
 			);
 
