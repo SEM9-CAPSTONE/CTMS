@@ -15,7 +15,10 @@ import '../../../core/widgets/ctms_status_badge.dart';
 import '../../offline_packages/application/package_download_controller.dart';
 import '../../offline_packages/presentation/offline_package_screen.dart';
 import '../data/camper_explore_api.dart';
+import '../data/trip_recommendations_api.dart';
 import '../domain/published_trip.dart';
+import 'widgets/trip_recommendation_explanation_card.dart';
+import 'widgets/trip_recommendations_sheet.dart';
 
 enum _TripFilter {
   all('Tất cả'),
@@ -109,6 +112,20 @@ class _CamperExploreScreenState extends ConsumerState<CamperExploreScreen> {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(AppSpacing.xxl),
           children: [
+            _RecommendationBanner(
+              // Suggestions are generated only when the Camper asks for them.
+              onOpen: () => showTripRecommendationsSheet(
+                context,
+                tripCardBuilder: (trip) => _ExploreTripCard(
+                  trip: trip,
+                  fromRecommendation: true,
+                  // Back from the detail or booking flow: seats may have changed.
+                  onDetailsClosed: () =>
+                      ref.invalidate(tripRecommendationsProvider),
+                ),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.lg),
             TextField(
               controller: _searchController,
               maxLength: 100,
@@ -227,10 +244,81 @@ String _availabilityLabel(PublishedTrip trip) {
       _ => null,
     };
 
+class _RecommendationBanner extends StatelessWidget {
+  const _RecommendationBanner({required this.onOpen});
+
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.lg),
+      padding: const EdgeInsets.all(AppSpacing.cardPadding),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [AppColors.brandPrimary, AppColors.brandAccent],
+        ),
+        borderRadius: AppRadius.cardBorderRadius,
+        boxShadow: AppColors.cardShadowSm,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.auto_awesome_rounded, color: Colors.white),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Gợi ý chuyến đi dành cho bạn',
+                      style: AppTypography.h3.copyWith(color: Colors.white),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Dựa trên sở thích, thể lực và những chuyến bạn đã đi. '
+                      'Mỗi gợi ý kèm lý do vì sao phù hợp với bạn.',
+                      style: AppTypography.caption.copyWith(
+                        color: Colors.white.withValues(alpha: 0.85),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          FilledButton.icon(
+            onPressed: onOpen,
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: AppColors.brandPrimary,
+            ),
+            icon: const Icon(Icons.auto_awesome_rounded, size: 18),
+            label: const Text('Xem gợi ý'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ExploreTripCard extends StatelessWidget {
-  const _ExploreTripCard({super.key, required this.trip});
+  const _ExploreTripCard({
+    super.key,
+    required this.trip,
+    this.onDetailsClosed,
+    this.fromRecommendation = false,
+  });
 
   final PublishedTrip trip;
+  final VoidCallback? onDetailsClosed;
+
+  /// Opened from the suggestions: the detail explains why it was suggested.
+  final bool fromRecommendation;
 
   @override
   Widget build(BuildContext context) {
@@ -277,11 +365,17 @@ class _ExploreTripCard extends StatelessWidget {
               ),
               CtmsButton(
                 label: 'Xem chi tiết',
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => _PublishedTripDetails(tripId: trip.id),
-                  ),
-                ),
+                onPressed: () async {
+                  await Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => _PublishedTripDetails(
+                        tripId: trip.id,
+                        showRecommendationReason: fromRecommendation,
+                      ),
+                    ),
+                  );
+                  onDetailsClosed?.call();
+                },
               ),
             ],
           ),
@@ -292,9 +386,13 @@ class _ExploreTripCard extends StatelessWidget {
 }
 
 class _PublishedTripDetails extends ConsumerWidget {
-  const _PublishedTripDetails({required this.tripId});
+  const _PublishedTripDetails({
+    required this.tripId,
+    this.showRecommendationReason = false,
+  });
 
   final String tripId;
+  final bool showRecommendationReason;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -341,6 +439,8 @@ class _PublishedTripDetails extends ConsumerWidget {
       children: [
         Text(trip.title, style: AppTypography.h2),
         const SizedBox(height: AppSpacing.md),
+        if (showRecommendationReason)
+          TripRecommendationExplanationCard(tripId: trip.id),
         if (description != null && description.isNotEmpty) ...[
           Text(description, style: AppTypography.body),
           const SizedBox(height: AppSpacing.md),

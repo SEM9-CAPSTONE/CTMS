@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/core/api/api_client.dart';
 import 'package:mobile/core/storage/token_storage.dart';
 import 'package:mobile/core/theme/app_theme.dart';
+import 'package:mobile/features/camper/data/trip_recommendations_api.dart';
 import 'package:mobile/features/camper/presentation/camper_explore_screen.dart';
 import 'package:mobile/features/offline_packages/application/package_download_controller.dart';
 import 'package:mobile/features/offline_packages/presentation/offline_package_screen.dart';
@@ -48,6 +49,11 @@ class _ExploreHttpAdapter implements HttpClientAdapter {
           'totalPages': tripPublished ? 1 : 0,
         },
       },
+      '/api/trip-recommendations' => <String, Object?>{
+        'items': <Object?>[],
+        'generatedAt': '2026-11-14T03:00:00.000Z',
+        'mode': 'neutral',
+      },
       '/api/trips/$_tripId' => {
         ...trip,
         'description': 'Mô tả cập nhật từ API chi tiết.',
@@ -65,6 +71,9 @@ class _ExploreHttpAdapter implements HttpClientAdapter {
 
   @override
   void close({bool force = false}) {}
+
+  List<RequestOptions> get searchRequests =>
+      requests.where((r) => r.uri.path == '/api/trips').toList();
 }
 
 void main() {
@@ -82,6 +91,7 @@ void main() {
         overrides: [
           apiClientProvider.overrideWithValue(apiClient),
           offlinePackageAccountProvider.overrideWithValue('test-account'),
+          recommendationAccountProvider.overrideWithValue('test-account'),
           packageDownloadControllerProvider(_tripId).overrideWith(
             (ref) => PackageDownloadController(
               _tripId,
@@ -98,10 +108,15 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Không tìm thấy chuyến đi nào'), findsOneWidget);
-    expect(adapter.requests.single.uri.path, '/api/trips');
-    expect(adapter.requests.single.queryParameters, {'page': 1});
+    expect(adapter.searchRequests.single.uri.path, '/api/trips');
+    // Suggestions are only generated when the Camper opens them.
     expect(
-      adapter.requests.single.headers['Authorization'],
+      adapter.requests.where((r) => r.uri.path == '/api/trip-recommendations'),
+      isEmpty,
+    );
+    expect(adapter.searchRequests.single.queryParameters, {'page': 1});
+    expect(
+      adapter.searchRequests.single.headers['Authorization'],
       'Bearer camper-token',
     );
 
@@ -115,7 +130,7 @@ void main() {
     await tester.enterText(find.byType(TextField), 'trekking');
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
-    expect(adapter.requests.last.queryParameters, {
+    expect(adapter.searchRequests.last.queryParameters, {
       'page': 1,
       'search': 'trekking',
     });
