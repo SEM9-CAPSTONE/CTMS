@@ -97,8 +97,45 @@ describe("BookingRefundPanel", () => {
 	it("renders refund information card once loaded", async () => {
 		renderWithClient(<BookingRefundPanel booking={mockBooking} />);
 
-		expect(await screen.findByText("Thông tin hoàn tiền")).toBeInTheDocument();
+		expect(
+			await screen.findByRole("heading", { name: "Hoàn tiền sau chuyến đi" })
+		).toBeInTheDocument();
 		expect(screen.getByTestId("open-refund-request-modal")).toBeInTheDocument();
+	});
+
+	it("shows the after-trip request without offering cancellation", async () => {
+		renderWithClient(<BookingRefundPanel booking={mockBooking} />);
+		expect(
+			await screen.findByRole("button", { name: "Yêu cầu hoàn tiền sau chuyến đi" })
+		).toBeVisible();
+		expect(screen.queryByRole("button", { name: "Hủy đặt chỗ" })).not.toBeInTheDocument();
+		expect(screen.getByRole("list", { name: "Các bước nhận tiền hoàn" })).toBeVisible();
+	});
+
+	it("does not show a refund request alongside cancellation for an upcoming confirmed booking", async () => {
+		vi.mocked(bookingRefundService.getRefundInfo).mockResolvedValue({
+			...mockRefundInfo,
+			isEligible: false,
+		});
+		const { container } = renderWithClient(
+			<BookingRefundPanel booking={{ ...mockBooking, status: "confirmed" }} />
+		);
+		await waitFor(() => expect(container).toBeEmptyDOMElement());
+	});
+
+	it("labels cancellation refunds separately from after-trip requests", async () => {
+		vi.mocked(bookingRefundService.getRefundInfo).mockResolvedValue({
+			...mockRefundInfo,
+			origin: "camper_cancellation",
+		});
+		renderWithClient(<BookingRefundPanel booking={{ ...mockBooking, status: "cancelled" }} />);
+		expect(
+			await screen.findByRole("heading", { name: "Hoàn tiền sau khi hủy đặt chỗ" })
+		).toBeVisible();
+		expect(screen.getByRole("button", { name: "Yêu cầu nhận tiền hoàn" })).toBeVisible();
+		expect(
+			screen.queryByRole("heading", { name: "Hoàn tiền sau chuyến đi" })
+		).not.toBeInTheDocument();
 	});
 
 	it("opens modal and submits refund request, calling onReload on completion", async () => {
@@ -109,9 +146,11 @@ describe("BookingRefundPanel", () => {
 		const openBtn = await screen.findByTestId("open-refund-request-modal");
 		await user.click(openBtn);
 
-		expect(screen.getByText("Yêu cầu hoàn tiền & Khiếu nại")).toBeInTheDocument();
+		expect(
+			screen.getByRole("heading", { name: "Yêu cầu hoàn tiền sau chuyến đi" })
+		).toBeInTheDocument();
 
-		const reasonInput = screen.getByPlaceholderText(/Mô tả chi tiết lý do yêu cầu hoàn tiền/i);
+		const reasonInput = screen.getByRole("textbox");
 		await user.type(reasonInput, "Hướng dẫn viên không đến điểm hẹn");
 
 		const submitBtn = screen.getByTestId("submit-refund-button");

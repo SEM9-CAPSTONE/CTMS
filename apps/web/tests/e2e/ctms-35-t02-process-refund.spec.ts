@@ -148,9 +148,11 @@ test.describe("CTMS-35-T02 Process Refund (UI)", () => {
 		await page.goto(`/bookings/${bookingId}`);
 
 		// 1. Verify Refund Status Card presents server-authoritative details
-		await expect(page.getByRole("heading", { name: "Thông tin hoàn tiền" })).toBeVisible();
-		await expect(page.getByText("Số tiền đã thanh toán:")).toBeVisible();
-		await expect(page.getByText("Còn có thể hoàn:")).toBeVisible();
+		await expect(
+			page.getByRole("heading", { name: "Hoàn tiền sau khi hủy đặt chỗ" })
+		).toBeVisible();
+		await expect(page.getByText("Đã thanh toán", { exact: true })).toBeVisible();
+		await expect(page.getByText("Còn có thể đề nghị hoàn")).toBeVisible();
 		await expect(page.getByTestId("remaining-refundable-amount")).toContainText("500.000");
 		await expect(page.getByText("Trước thời điểm bắt đầu chuyến đi")).toBeVisible();
 
@@ -162,7 +164,7 @@ test.describe("CTMS-35-T02 Process Refund (UI)", () => {
 		const dialog = page.getByRole("dialog");
 		await expect(dialog).toBeVisible();
 		await expect(
-			page.getByRole("heading", { name: "Yêu cầu hoàn tiền & Khiếu nại" })
+			page.getByRole("heading", { name: "Nhận tiền hoàn sau khi hủy đặt chỗ" })
 		).toBeVisible();
 
 		// 3. Fill reason, beneficiary bank account details and submit
@@ -179,7 +181,7 @@ test.describe("CTMS-35-T02 Process Refund (UI)", () => {
 
 		// 4. Modal closes and pending refund record appears with beneficiary details
 		await expect(dialog).not.toBeVisible();
-		await expect(page.getByText("Lịch sử hoàn tiền")).toBeVisible();
+		await expect(page.getByText("Yêu cầu đã gửi")).toBeVisible();
 		await expect(page.getByTestId("refund-status-badge-pending").first()).toBeVisible();
 		await expect(page.getByText(/0123456789/)).toBeVisible();
 
@@ -235,20 +237,22 @@ test.describe("CTMS-35-T02 Process Refund (UI)", () => {
 		await login(page, camperEmail);
 		await page.goto(`/bookings/${bookingId}`);
 
-		await expect(page.getByRole("heading", { name: "Thông tin hoàn tiền" })).toBeVisible();
+		await expect(page.getByRole("heading", { name: "Hoàn tiền sau chuyến đi" })).toBeVisible();
 		await expect(page.getByText("Trong vòng 24 giờ kể từ khi hoàn thành chuyến đi")).toBeVisible();
 
 		const openBtn = page.getByTestId("open-refund-request-modal");
 		await openBtn.click();
 
 		const dialog = page.getByRole("dialog");
-		await dialog.getByLabel(/Lý do yêu cầu/i).fill("Dịch vụ không đúng như cam kết về lều trại");
+		await dialog
+			.getByLabel(/Vấn đề bạn gặp trong chuyến đi/i)
+			.fill("Dịch vụ không đúng như cam kết về lều trại");
 		await dialog.getByTestId("submit-refund-button").click();
 
 		await expect(dialog).not.toBeVisible();
 
 		// Verify refund record is rendered in history with pending state (awaiting admin review & transfer)
-		await expect(page.getByText("Lịch sử hoàn tiền")).toBeVisible();
+		await expect(page.getByText("Yêu cầu đã gửi")).toBeVisible();
 		await expect(page.getByTestId("refund-status-badge-pending").first()).toBeVisible();
 	});
 

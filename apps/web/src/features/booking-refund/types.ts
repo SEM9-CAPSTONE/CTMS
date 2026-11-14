@@ -10,6 +10,8 @@ export type RefundOrigin =
 	| "late_payment_after_expiry";
 
 export interface BookingRefundItem {
+	reviewStatus?: "pending_review" | "approved" | "rejected" | null;
+	lateRequest?: boolean;
 	id: string;
 	amount: string;
 	status: PaymentStatus;

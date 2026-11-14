@@ -175,11 +175,13 @@ test.describe("CTMS-36-T02 Cancel Trip Due to Insufficient Participants (UI)", (
 		// BookingRefundPanel: pending refund obligation from the auto-cancel worker is visible,
 		// already committed for the full charged amount (BR-105: a pending refund counts against
 		// the cap just like a succeeded one), so nothing remains refundable on top of it.
-		await expect(page.getByRole("heading", { name: "Thông tin hoàn tiền" })).toBeVisible();
-		await expect(page.getByText("Số tiền đã thanh toán:")).toBeVisible();
+		await expect(
+			page.getByRole("heading", { name: "Hoàn tiền do chuyến đi bị hủy" })
+		).toBeVisible();
+		await expect(page.getByText("Đã thanh toán", { exact: true })).toBeVisible();
 		await expect(page.getByTestId("remaining-refundable-amount")).toContainText("0");
 		await expect(page.getByTestId("refund-status-badge-pending").first()).toBeVisible();
-		await expect(page.getByText("Lịch sử hoàn tiền")).toBeVisible();
+		await expect(page.getByText("Yêu cầu đã gửi")).toBeVisible();
 		await expect(page.getByText("500.000").first()).toBeVisible();
 
 		// ...and attributed to the Trip's own System cancellation, not a Camper

@@ -114,7 +114,7 @@ test.describe("CTMS-33-T02 Automatically Expire Booking UI", () => {
 
 		await expect(page.getByText("Trạng thái: Đã hết hạn")).toBeVisible();
 		await expect(page.getByRole("button", { name: "Thanh toán ngay" })).toHaveCount(0);
-		await expect(page.getByRole("button", { name: "Yêu cầu hủy đơn" })).toHaveCount(0);
+		await expect(page.getByRole("button", { name: "Hủy đặt chỗ", exact: true })).toHaveCount(0);
 
 		await page.goto(`/trips/${tripId}`);
 		const expiredPanel = page.locator('[data-booking-state="expired"]');

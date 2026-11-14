@@ -86,7 +86,7 @@ test.describe("CTMS-34-T02 Cancel Booking", () => {
 		expect(response.status(), await response.text()).toBe(201);
 		const booking = (await response.json()) as { id: string };
 		await page.getByRole("button", { name: "Xem chi tiết đặt chỗ", exact: true }).click();
-		await expect(page.getByRole("button", { name: "Yêu cầu hủy đơn" })).toBeVisible();
+		await expect(page.getByRole("button", { name: "Hủy đặt chỗ", exact: true })).toBeVisible();
 		return booking.id;
 	}
 
@@ -94,7 +94,7 @@ test.describe("CTMS-34-T02 Cancel Booking", () => {
 		page,
 	}) => {
 		const bookingId = await createAndOpen(page, validTripId);
-		const action = page.getByRole("button", { name: "Yêu cầu hủy đơn" });
+		const action = page.getByRole("button", { name: "Hủy đặt chỗ", exact: true });
 		await action.click();
 		const dialog = page.getByRole("dialog");
 		await expect(dialog.getByRole("textbox")).toBeFocused();
@@ -146,8 +146,10 @@ test.describe("CTMS-34-T02 Cancel Booking", () => {
 		await page.goto(`/bookings/${bookingId}`);
 		await expect(page.getByText("Trạng thái: Đã hủy")).toBeVisible();
 		await page.reload();
-		await expect(page.getByText(/Thông tin hoàn tiền không có/)).toBeVisible();
-		await expect(page.getByRole("button", { name: "Yêu cầu hủy đơn" })).toHaveCount(0);
+		await expect(
+			page.getByText("Đơn đặt chỗ đã hủy và không còn quyền tham gia chuyến đi.")
+		).toBeVisible();
+		await expect(page.getByRole("button", { name: "Hủy đặt chỗ", exact: true })).toHaveCount(0);
 		await page.getByRole("button", { name: "Quay lại đơn đặt chỗ" }).click();
 		await expect(page.getByText("Đã hủy", { exact: true })).toBeVisible();
 		expect(patchCount).toBe(1);
@@ -157,7 +159,7 @@ test.describe("CTMS-34-T02 Cancel Booking", () => {
 		page,
 	}) => {
 		const bookingId = await createAndOpen(page, conflictTripId);
-		await page.getByRole("button", { name: "Yêu cầu hủy đơn" }).click();
+		await page.getByRole("button", { name: "Hủy đặt chỗ", exact: true }).click();
 		const dialog = page.getByRole("dialog");
 		await dialog.getByRole("textbox").fill("Please keep this reason");
 		const rejected = page.waitForResponse(
