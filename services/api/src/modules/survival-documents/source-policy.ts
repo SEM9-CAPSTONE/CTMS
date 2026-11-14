@@ -2,6 +2,7 @@ import { isIP } from "node:net";
 import { invalidSource, validateMetadata } from "./dto/source.dto";
 import {
 	Classification,
+	DocumentStatus,
 	MedicalStatus,
 	RightsStatus,
 	type SourceMetadata,
@@ -10,12 +11,33 @@ import {
 	type SourceVersion,
 } from "./survival-documents.types";
 
-export function hasRecordedUseRights(version?: SourceVersion): boolean {
-	return (
-		!!version?.reviewedBy &&
-		!!version.reviewedAt &&
-		version.rights.rightsReviewStatus === RightsStatus.PERMITTED
-	);
+const SOURCE_NOT_APPROVED =
+	"Nguồn PDF chưa được CTMS cho phép xử lý. Hãy kiểm tra URL nguồn hoặc mã SHA-256 của tệp.";
+
+export function assertApprovedSource(source: Pick<SourceVersion, "metadata" | "checksum">): void {
+	const checksums = (process.env.SURVIVAL_KNOWLEDGE_APPROVED_SHA256 ?? "")
+		.trim()
+		.toLowerCase()
+		.split(/\s*,\s*/);
+	if (/^[a-f0-9]{64}$/.test(source.checksum) && checksums.includes(source.checksum)) return;
+	const sourceUrl = source.metadata.sourceUrl;
+	if (sourceUrl) {
+		const url = new URL(sourceUrl);
+		const host = url.hostname.toLowerCase().replace(/\.$/, "");
+		const hosts = (process.env.SURVIVAL_KNOWLEDGE_APPROVED_HOSTS ?? "")
+			.trim()
+			.toLowerCase()
+			.split(/\s*,\s*/);
+		if (
+			url.protocol === "https:" &&
+			!url.username &&
+			!url.password &&
+			!url.port &&
+			hosts.includes(host)
+		)
+			return;
+	}
+	throw invalidSource(SOURCE_NOT_APPROVED);
 }
 
 export function validateSourceMetadata(metadata: SourceMetadata): void {
@@ -76,17 +98,70 @@ function isTranslation(metadata: SourceMetadata): boolean {
 	return !!metadata.originalLocale && metadata.locale !== metadata.originalLocale;
 }
 
-export function validatePublicationMetadata(metadata: SourceMetadata): void {
+export function validatePublishedSourceMetadata(metadata: SourceMetadata): void {
 	validateMetadata(metadata);
 	validateSourceMetadata(metadata);
+	if (isTranslation(metadata) && (!metadata.originalVersionId || !metadata.adaptationDisclaimer))
+		throw invalidSource("Bản dịch cần phiên bản gốc và thông báo trách nhiệm bản dịch.");
+}
+
+/** Shared eligibility for ingestion, retrieval and approved offline guidance. */
+export function isEligiblePublishedSource(
+	version: SourceVersion | undefined,
+	currentId: string | null
+): boolean {
+	if (
+		!version ||
+		version.status !== DocumentStatus.PUBLISHED ||
+		version.id !== currentId ||
+		!version.publishedBy ||
+		!version.publishedAt ||
+		!version.fileRef ||
+		version.contentType !== "application/pdf" ||
+		!/^[a-f0-9]{64}$/.test(version.checksum)
+	)
+		return false;
+	return isEligibleSourceContent(version);
+}
+
+export function sourceContentIssue({ metadata, rights, checksum }: SourceVersion): string | null {
+	try {
+		validatePublishedSourceMetadata(metadata);
+	} catch {
+		return "Thông tin nguồn PDF không hợp lệ.";
+	}
+	try {
+		assertApprovedSource({ metadata, checksum });
+	} catch {
+		return SOURCE_NOT_APPROVED;
+	}
+	const medical = [Classification.FIRST_AID, Classification.MEDICAL_REFERENCE].includes(
+		metadata.classification
+	);
+	if (
+		!rights ||
+		![RightsStatus.NOT_REVIEWED, RightsStatus.PERMITTED].includes(rights.rightsReviewStatus)
+	)
+		return "Nguồn PDF đang bị hạn chế sử dụng.";
+	if (medical && rights.medicalContentReviewStatus !== MedicalStatus.APPROVED)
+		return "Nguồn sơ cứu hoặc y tế cần được xác nhận chuyên môn.";
+	if (isTranslation(metadata) && rights.translationAllowed !== true)
+		return "Phiên bản dịch chưa có xác nhận quyền dịch hoặc chuyển thể.";
+	return null;
+}
+
+export function isEligibleSourceContent(version: SourceVersion): boolean {
+	return sourceContentIssue(version) === null;
+}
+
+export function validatePublicationMetadata(metadata: SourceMetadata): void {
+	validatePublishedSourceMetadata(metadata);
 	if (
 		!metadata.licenseType?.trim() ||
 		!metadata.permissionEvidence?.trim() ||
 		!metadata.attribution?.trim()
 	)
 		throw invalidSource("Cần giấy phép, minh chứng quyền sử dụng và ghi công trước khi xuất bản.");
-	if (isTranslation(metadata) && (!metadata.originalVersionId || !metadata.adaptationDisclaimer))
-		throw invalidSource("Bản dịch cần phiên bản gốc và thông báo trách nhiệm bản dịch.");
 }
 export function assertRights(
 	metadata: SourceMetadata,

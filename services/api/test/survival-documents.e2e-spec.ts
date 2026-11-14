@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import { rm } from "node:fs/promises";
 import type { INestApplication } from "@nestjs/common";
 import request from "supertest";
+import { KnowledgeChunksProvider } from "../src/modules/knowledge-chunks/knowledge-chunks.provider";
+import { KnowledgeChunksRepository } from "../src/modules/knowledge-chunks/knowledge-chunks.repository";
 import { DocumentStatus } from "../src/modules/survival-documents/survival-documents.types";
 import {
 	createSurvivalE2eApp,
@@ -11,7 +13,6 @@ import {
 import {
 	type SourceTestDetail,
 	fictionalMetadata,
-	fictionalRights,
 	uniqueFictionalPdf,
 } from "./support/survival-source-fixture";
 
@@ -51,11 +52,43 @@ describe("CTMS-050 HTTP E2E with real login", () => {
 			await request(app.getHttpServer())
 				.post(`${endpoint}/${doc.id}/versions/${id}/publish`)
 				.set("Authorization", bearer)
-				.send({ expectedRevision: doc.versions[0].revision, rights: fictionalRights })
+				.send({ expectedRevision: doc.versions[0].revision })
 				.expect(201)
 		).body as SourceTestDetail;
 		expect(doc.currentPublishedVersionId).toBe(id);
 		expect(doc.versions[0].rights.offlineRedistributionAllowed).toBe(false);
+		expect(doc.versions[0].reviewedBy).toBeNull();
+		const chunkSets = `${endpoint}/${doc.id}/versions/${id}/chunk-sets`;
+		const repo = app.get(KnowledgeChunksRepository);
+		const provider = app.get(KnowledgeChunksProvider);
+		const [event]: Array<{ id: string; payload: { regenerationNeeded: boolean } }> =
+			await repo.db.query(
+				"SELECT id,payload FROM survival_document_outbox WHERE version_id=$1 AND event_type='published_version_changed'",
+				[id]
+			);
+		expect(event?.payload.regenerationNeeded).toBe(true);
+		const [{ pending }]: Array<{ pending: number }> = await repo.db.query(
+			`SELECT count(*)::int AS pending FROM survival_document_outbox e
+			 WHERE (e.created_at,e.id) <= (
+			   SELECT created_at,id FROM survival_document_outbox WHERE id=$1
+			 ) AND NOT EXISTS (
+			   SELECT 1 FROM knowledge_chunk_event_receipts r WHERE r.event_id=e.id
+			 )`,
+			[event.id]
+		);
+		// Other suites can leave earlier events on the shared test DB. Drain real batches.
+		const configuration = provider.configuration();
+		for (let batch = 0; batch < pending; batch++) {
+			await repo.consumeEvents(configuration);
+			if ((await repo.status(doc.id, id)).length > 0) break;
+		}
+		const queued = await request(app.getHttpServer())
+			.get(chunkSets)
+			.set("Authorization", bearer)
+			.expect(200);
+		expect(queued.body).toEqual([
+			expect.objectContaining({ document_version_id: id, status: "PENDING", active: false }),
+		]);
 		await request(app.getHttpServer()).get(`${endpoint}/${doc.id}/versions/${id}/file`).expect(401);
 		const bytes = await request(app.getHttpServer())
 			.get(`${endpoint}/${doc.id}/versions/${id}/file`)

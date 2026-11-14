@@ -68,6 +68,7 @@ export interface DocumentListItem extends SurvivalDocument {
 	latestVersion: SourceVersion;
 }
 export interface DocumentDetail extends SurvivalDocument {
+	processingBlockedReason?: string | null;
 	versions: SourceVersion[];
 	history: Array<{
 		id: string;
@@ -93,4 +94,19 @@ export interface SourceDecision {
 	expectedRevision: number;
 	reason?: string;
 	rights?: SourceRights;
+}
+export type ChunkSetStatus =
+	| "PENDING"
+	| "RUNNING"
+	| "READY"
+	| "FAILED"
+	| "NEEDS_REVIEW"
+	| "OBSOLETE";
+
+export interface SourceChunkSet {
+	status: ChunkSetStatus;
+	active: boolean;
+	chunk_count: number;
+	error_code: string | null;
+	quality_report: { issues: string[] } | null;
 }

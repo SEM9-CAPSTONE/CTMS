@@ -165,7 +165,7 @@ export class PdfSourceService {
 		return { ...(await validatePdf(file.buffer, filename)), bytes: file.buffer };
 	}
 
-	async fromUrl(value: string): Promise<PdfSource> {
+	async fromUrl(value: string): Promise<PdfSource & { finalSourceUrl?: string }> {
 		const signal = AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS);
 		const limit = sourceMaxBytes();
 		try {
@@ -177,7 +177,9 @@ export class PdfSourceService {
 				if (!REDIRECT_STATUSES.has(response.statusCode ?? 0)) {
 					const bytes = await readPdfResponse(response, limit);
 					const filename = pdfFilenameFromUrl(url) ?? requestedFilename ?? null;
-					return { ...(await validatePdf(bytes, filename)), bytes };
+					// Redirect targets can carry temporary download credentials in their query string.
+					const finalSourceUrl = redirects ? `${url.origin}${url.pathname}` : value;
+					return { ...(await validatePdf(bytes, filename)), bytes, finalSourceUrl };
 				}
 
 				const location = response.headers.location;

@@ -56,6 +56,7 @@ async function fillSource(
 		.getByLabel("Tệp PDF")
 		.setInputFiles({ name: filename, mimeType: "application/pdf", buffer });
 	await form.getByLabel(/Tên tài liệu/).fill(title);
+	await form.getByLabel("URL nguồn tham khảo").fill("https://example.org/manual");
 	await form.getByRole("button", { name: action, exact: true }).click();
 }
 async function openDuplicate(

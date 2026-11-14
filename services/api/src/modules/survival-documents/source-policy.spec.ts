@@ -6,7 +6,12 @@ import { fictionalPdf as pdf } from "../../../test/support/survival-source-fixtu
 import { parseMetadata } from "./dto/source.dto";
 import { PdfSourceService } from "./pdf-source.service";
 import { SourceFilesService } from "./source-files.service";
-import { assertRights, validatePublicationMetadata, validateSourceMetadata } from "./source-policy";
+import {
+	assertApprovedSource,
+	assertRights,
+	validatePublicationMetadata,
+	validateSourceMetadata,
+} from "./source-policy";
 import {
 	Classification,
 	MedicalStatus,
@@ -44,6 +49,26 @@ const file = (changes: Partial<Express.Multer.File> = {}) =>
 	}) as Express.Multer.File;
 
 describe("CTMS-050 source policy and private storage", () => {
+	it("matches only approved exact hostnames and permits an uploaded PDF by exact checksum", () => {
+		const checksum = createHash("sha256").update(pdf).digest("hex");
+		const source = (sourceUrl?: string, hash = checksum) => ({
+			metadata: { ...metadata, sourceUrl },
+			checksum: hash,
+		});
+		expect(() => assertApprovedSource(source("https://example.org/manual.pdf"))).not.toThrow();
+		expect(() => assertApprovedSource(source("http://example.org/manual.pdf"))).toThrow();
+		for (const host of ["sub.example.org", "example.org.other.com", "unlisted.example.com"])
+			expect(() => assertApprovedSource(source(`https://${host}/manual.pdf`))).toThrow();
+		expect(() => assertApprovedSource(source())).toThrow();
+		const previous = process.env.SURVIVAL_KNOWLEDGE_APPROVED_SHA256;
+		try {
+			process.env.SURVIVAL_KNOWLEDGE_APPROVED_SHA256 = checksum.toUpperCase();
+			expect(() => assertApprovedSource(source())).not.toThrow();
+			expect(() => assertApprovedSource(source(undefined, "0".repeat(64)))).toThrow();
+		} finally {
+			process.env.SURVIVAL_KNOWLEDGE_APPROVED_SHA256 = previous ?? "";
+		}
+	});
 	it("accepts today's Vietnam calendar date before UTC midnight, but rejects tomorrow", () => {
 		jest.useFakeTimers().setSystemTime(new Date("2026-11-03T18:00:00Z"));
 		try {

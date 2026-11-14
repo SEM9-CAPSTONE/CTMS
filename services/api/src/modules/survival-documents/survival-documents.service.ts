@@ -10,7 +10,6 @@ import {
 	type UploadSourceDto,
 	invalidSource,
 	parseMetadata,
-	validateMetadata,
 } from "./dto/source.dto";
 import { sourceMaxBytes } from "./pdf-file-validator";
 // biome-ignore lint/style/useImportType: Nest injection
@@ -18,9 +17,13 @@ import { type PdfSource, PdfSourceService } from "./pdf-source.service";
 // biome-ignore lint/style/useImportType: Nest injection
 import { SourceFilesService } from "./source-files.service";
 import {
+	assertApprovedSource,
 	assertRights,
-	hasRecordedUseRights,
+	isEligiblePublishedSource,
+	isEligibleSourceContent,
+	sourceContentIssue,
 	validatePublicationMetadata,
+	validatePublishedSourceMetadata,
 	validateSourceMetadata,
 } from "./source-policy";
 // biome-ignore lint/style/useImportType: Nest injection
@@ -84,7 +87,10 @@ export class SurvivalDocumentsService {
 					...document,
 					publishedVersionNumber: published?.versionNumber ?? null,
 					latestVersion: publicVersion(versions[0]),
-					processingSyncStatus: hasRecordedUseRights(published)
+					processingSyncStatus: isEligiblePublishedSource(
+						published,
+						document.currentPublishedVersionId
+					)
 						? "REGENERATION_NEEDED"
 						: "NOT_PROCESSED",
 				});
@@ -117,15 +123,20 @@ export class SurvivalDocumentsService {
 				`SELECT id,actor_id AS "actorId",action,"before","after",reason,created_at AS "createdAt" FROM audit_logs WHERE target_type='survival_document' AND target_id=$1 ORDER BY created_at DESC,id`,
 				[id]
 			);
+			const published = versions.find(
+				(version) => version.id === document.currentPublishedVersionId
+			);
 			return {
 				...document,
 				versions: versions.map(publicVersion),
 				history,
-				processingSyncStatus: hasRecordedUseRights(
-					versions.find((version) => version.id === document.currentPublishedVersionId)
+				processingSyncStatus: isEligiblePublishedSource(
+					published,
+					document.currentPublishedVersionId
 				)
 					? ("REGENERATION_NEEDED" as const)
 					: ("NOT_PROCESSED" as const),
+				processingBlockedReason: published ? sourceContentIssue(published) : null,
 			};
 		});
 	}
@@ -160,10 +171,13 @@ export class SurvivalDocumentsService {
 		validateSourceMetadata(metadata);
 		this.requireDocumentRevision(id, dto.expectedDocumentRevision);
 		if (id) await this.repo.document(this.repo.db.manager, id);
+		const { finalSourceUrl, ...stored } = await this.pdf.fromUrl(dto.sourceUrl);
+		metadata.sourceUrl = finalSourceUrl ?? metadata.sourceUrl;
+		validateSourceMetadata(metadata);
 		return this.storeDraft(
 			actorId,
 			metadata,
-			await this.pdf.fromUrl(dto.sourceUrl),
+			stored,
 			"import_url",
 			id,
 			dto.expectedDocumentRevision
@@ -395,9 +409,9 @@ export class SurvivalDocumentsService {
 						validatePublicationMetadata(before.metadata);
 						assertRights(before.metadata, dto.rights);
 					} else {
-						validateMetadata(before.metadata);
-						validateSourceMetadata(before.metadata);
+						validatePublishedSourceMetadata(before.metadata);
 					}
+					assertApprovedSource(before);
 					await this.original(manager, before.metadata);
 					await this.files.read(before);
 					if (document.currentPublishedVersionId) {
@@ -439,7 +453,7 @@ export class SurvivalDocumentsService {
 						{ ...before, rights },
 						document.currentPublishedVersionId,
 						"published_version_changed",
-						!!dto.rights || hasRecordedUseRights(before)
+						isEligibleSourceContent({ ...before, rights })
 					);
 					break;
 				}
@@ -502,8 +516,8 @@ export class SurvivalDocumentsService {
 					checksum: version.checksum,
 					locale: version.metadata.locale,
 					regenerationNeeded: type !== "published_version_changed" || canProcess,
-					internalRagUseAllowed: canProcess,
-					offlineRedistributionAllowed: canProcess && version.rights.offlineRedistributionAllowed,
+					internalRagUseAllowed: version.rights.internalRagUseAllowed,
+					offlineRedistributionAllowed: version.rights.offlineRedistributionAllowed,
 				}),
 			]
 		);

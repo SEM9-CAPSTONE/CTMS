@@ -29,7 +29,7 @@ The service checks for conflicts before creating a storage reservation. Within a
 
 ## Publication and downstream use
 
-A draft holds a PDF and the minimum metadata. Admin can publish directly after the revision, metadata and stored PDF checks pass. The Admin form does not collect licence or permission evidence. Publishing without recorded rights leaves the version ineligible for downstream use. When API callers supply optional rights, those rights require exact-version licence, evidence and attribution. First-aid and medical sources additionally require recorded medical review for downstream use. Translation and offline redistribution require explicit grants.
+A draft holds a PDF and the minimum metadata. Publishing checks the draft revision, metadata, stored bytes and a configured HTTPS source hostname or exact PDF SHA-256. The source policy applies to new publications and downstream reads. URL imports record the final download URL. Eligible publications queue automatically. The optional API rights payload still requires exact-version licence, evidence and attribution. Medical and translation safeguards apply to downstream use. Separate grants are required to distribute or translate the original PDF.
 
 | Action | Transition | Effect |
 | --- | --- | --- |
@@ -39,9 +39,9 @@ A draft holds a PDF and the minimum metadata. Admin can publish directly after t
 | Stop use of the current publication | `PUBLISHED → ARCHIVED` | Requires a reason, clears the current publication and records a stop-use event. |
 | Permanently delete a document | Removes the document and all version rows | Requires confirmation and the current document revision. Retains audit and records a deletion event for documents with publication history. |
 
-Publication rejects older drafts when a newer version has already been published. Published, superseded and archived versions retain their original file, provenance and rights. Draft metadata changes clear previously recorded rights. An unchanged legacy draft can carry forward its recorded rights. Unverified publications emit a publication event with `regenerationNeeded: false` and report `NOT_PROCESSED`.
+Publication rejects older drafts when a newer version has already been published. Published, superseded and archived versions retain their original file, provenance and rights. Draft metadata changes clear previously recorded rights. An unchanged legacy draft can carry forward its recorded rights. Ineligible sources report `NOT_PROCESSED` with a reason in document detail. Actual chunking state and count come from the CTMS-051 status endpoint.
 
-`SurvivalSourceReader.readPublished(versionId, use)` is an in-process integration for `AI`, `OFFLINE` and `TRANSLATION`. It checks the current publication and relevant rights, then verifies and returns the private bytes with an exact-version manifest. `resolvePublishedProvenance(versionId)` returns provenance for previously published versions, including superseded or archived ones, with `historicalOnly: true`. Consumers must revalidate before committing outputs and record the version ID, checksum and language. CTMS-051/052 handle downstream event consumption, acknowledgement and artifact generation.
+`SurvivalSourceReader.readPublished(versionId, use)` checks current source eligibility for ingestion. `OFFLINE` and `TRANSLATION` additionally check recorded rights for the original PDF. The reader verifies bytes and returns the exact-version manifest. `resolvePublishedProvenance(versionId)` returns provenance for previously published versions, including superseded or archived ones, with `historicalOnly: true`. Consumers must revalidate before committing outputs and record the version ID, checksum and language.
 
 ## Data dictionary
 
