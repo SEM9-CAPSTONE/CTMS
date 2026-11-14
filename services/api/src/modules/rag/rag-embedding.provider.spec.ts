@@ -1,9 +1,17 @@
 import { ConfigService } from "@nestjs/config";
-import { EMBEDDING_DIMENSIONS, EMBEDDING_MODEL, EMBEDDING_REVISION } from "../knowledge-chunks/knowledge-chunks.types";
+import {
+	EMBEDDING_DIMENSIONS,
+	EMBEDDING_MODEL,
+	EMBEDDING_REVISION,
+} from "../knowledge-chunks/knowledge-chunks.types";
 import { RagEmbeddingProvider } from "./rag-embedding.provider";
 
 const vector = Array.from({ length: EMBEDDING_DIMENSIONS }, (_, index) => Number(index === 0));
-const identity = { model: EMBEDDING_MODEL, revision: EMBEDDING_REVISION, dimensions: EMBEDDING_DIMENSIONS };
+const identity = {
+	model: EMBEDDING_MODEL,
+	revision: EMBEDDING_REVISION,
+	dimensions: EMBEDDING_DIMENSIONS,
+};
 const config = new ConfigService({
 	KNOWLEDGE_SERVICE_TOKEN: "test-token",
 	KNOWLEDGE_SERVICE_URL: "http://localhost:8001",
@@ -15,13 +23,18 @@ describe("RagEmbeddingProvider", () => {
 	afterEach(() => jest.restoreAllMocks());
 
 	it("calls only the authenticated knowledge boundary and validates the pinned vector", async () => {
-		const fetchMock = jest.spyOn(globalThis, "fetch").mockResolvedValue(response({ ...identity, embedding: vector }));
+		const fetchMock = jest
+			.spyOn(globalThis, "fetch")
+			.mockResolvedValue(response({ ...identity, embedding: vector }));
 		expect(await provider.embed("question", 100)).toEqual(vector);
-		expect(fetchMock).toHaveBeenCalledWith("http://localhost:8001/query-embedding", expect.objectContaining({
-			headers: { "Content-Type": "application/json", "X-CTMS-Knowledge-Token": "test-token" },
-			body: '{"question":"question"}',
-			redirect: "error",
-		}));
+		expect(fetchMock).toHaveBeenCalledWith(
+			"http://localhost:8001/query-embedding",
+			expect.objectContaining({
+				headers: { "Content-Type": "application/json", "X-CTMS-Knowledge-Token": "test-token" },
+				body: '{"question":"question"}',
+				redirect: "error",
+			})
+		);
 	});
 
 	it.each([
@@ -51,7 +64,9 @@ describe("RagEmbeddingProvider", () => {
 		const fetchMock = jest.spyOn(globalThis, "fetch");
 		fetchMock.mockResolvedValueOnce(new Response(null, { status: 422 }));
 		fetchMock.mockResolvedValueOnce(new Response(null, { status: 503 }));
-		await expect(provider.embed("query", 100)).rejects.toMatchObject({ response: { code: "RAG_INVALID_QUERY" } });
+		await expect(provider.embed("query", 100)).rejects.toMatchObject({
+			response: { code: "RAG_INVALID_QUERY" },
+		});
 		await expect(provider.embed("query", 100)).rejects.toMatchObject({
 			response: { code: "RAG_EMBEDDING_UNAVAILABLE" },
 		});

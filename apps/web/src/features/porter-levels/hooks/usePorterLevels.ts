@@ -6,7 +6,12 @@ import { porterLevelsService as api } from "../services/porter-levels.service";
 import type { DecideLevelInput, LevelDefinition, PorterLevel } from "../types";
 
 const options = { staleTime: LEVEL_QUERY_STALE_TIME, refetchOnWindowFocus: false };
-export function useAdminPorterLevels(page: number, id: string | null, level: PorterLevel) {
+export function useAdminPorterLevels(
+	page: number,
+	id: string | null,
+	level: PorterLevel,
+	search = ""
+) {
 	const client = useQueryClient();
 	const policies = useQuery({
 		...options,
@@ -15,8 +20,8 @@ export function useAdminPorterLevels(page: number, id: string | null, level: Por
 	});
 	const qualifications = useQuery({
 		...options,
-		queryKey: queryKeys.porterLevels.qualifications(page),
-		queryFn: () => api.qualifications(page),
+		queryKey: queryKeys.porterLevels.qualifications(page, search),
+		queryFn: () => api.qualifications(page, search),
 	});
 	const comparison = useQuery({
 		...options,

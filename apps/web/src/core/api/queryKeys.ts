@@ -76,7 +76,8 @@ export const queryKeys = {
 		notifications: (userId: string) => ["porter-levels", "notifications", userId] as const,
 		all: ["porter-levels"] as const,
 		policies: ["porter-levels", "policies"] as const,
-		qualifications: (page: number) => ["porter-levels", "qualifications", page] as const,
+		qualifications: (page: number, search = "") =>
+			["porter-levels", "qualifications", page, search] as const,
 		comparison: (id: string | null, level: string) =>
 			["porter-levels", "comparison", id, level] as const,
 		history: (id: string | null) => ["porter-levels", "history", id] as const,

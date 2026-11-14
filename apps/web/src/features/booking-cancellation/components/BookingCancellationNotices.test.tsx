@@ -33,18 +33,24 @@ it("shows reason, an authorized Trip reference and marks read only after server 
 	const mark = vi.spyOn(bookingCancellationNoticesService, "markRead").mockResolvedValue(undefined);
 	render(<BookingCancellationNotices />);
 	fireEvent.click(screen.getByRole("button", { name: /Thông báo hủy đặt chỗ/ }));
-	expect(await screen.findByText("Lý do: Đổi ngày")).toBeVisible();
-	expect(screen.getByRole("link", { name: "Bidoup" })).toHaveAttribute("href", "/trips/trip");
-	expect(screen.getByText(/1 chưa đọc/)).toBeVisible();
+	expect(await screen.findByText("Bidoup · Đổi ngày")).toBeVisible();
+	expect(screen.getByRole("link", { name: /Camper A đã hủy đặt chỗ/ })).toHaveAttribute(
+		"href",
+		"/trips/trip"
+	);
+	expect(screen.getByLabelText("Chưa đọc")).toBeVisible();
 	list.mockResolvedValue([{ ...notice, readAt: "2030-01-01T01:00:00Z" }]);
-	fireEvent.click(screen.getByRole("button", { name: "Đánh dấu đã đọc" }));
+	fireEvent.click(screen.getByRole("button", { name: "Đánh dấu đã đọc tất cả" }));
 	await waitFor(() => expect(mark).toHaveBeenCalledWith("notice", expect.anything()));
-	expect(await screen.findByText(/0 chưa đọc/)).toBeVisible();
+	expect(
+		await screen.findByRole("button", { name: "Thông báo hủy đặt chỗ (0 chưa đọc)" })
+	).toBeVisible();
 });
 
 it("offers retry when the inbox request fails", async () => {
 	vi.spyOn(bookingCancellationNoticesService, "list").mockRejectedValue(new Error("offline"));
 	render(<BookingCancellationNotices />);
 	fireEvent.click(screen.getByRole("button", { name: /Thông báo hủy đặt chỗ/ }));
-	expect(await screen.findByRole("button", { name: /Không tải được thông báo/ })).toBeVisible();
+	expect(await screen.findByRole("alert")).toHaveTextContent("Chưa tải được thông báo");
+	expect(screen.getByRole("button", { name: "Thử lại" })).toBeVisible();
 });

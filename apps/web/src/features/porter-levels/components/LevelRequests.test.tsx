@@ -18,7 +18,7 @@ function detail(status: RequestStatus = "pending"): RequestDetail {
 			porterId: "porter-1",
 			routeId: "route-1",
 			routeName: "Sơn Trà",
-			porterName: "Porter A",
+			porterName: "người hỗ trợ A",
 			currentLevel: "learning",
 			currentVerified: false,
 			targetLevel: "expert",
@@ -35,7 +35,7 @@ function detail(status: RequestStatus = "pending"): RequestDetail {
 			porterId: "porter-1",
 			routeId: "route-1",
 			routeName: "Sơn Trà",
-			porterName: "Porter A",
+			porterName: "người hỗ trợ A",
 			proficiency: "learning",
 			timesLed: 3,
 			verifiedBy: null,
@@ -43,7 +43,7 @@ function detail(status: RequestStatus = "pending"): RequestDetail {
 		},
 		dossier: {
 			porterId: "porter-1",
-			porterName: "Porter A",
+			porterName: "người hỗ trợ A",
 			profileVersion: 1,
 			experienceYears: 2,
 			certifications: [],
@@ -96,7 +96,7 @@ function renderQuery(children: ReactNode) {
 		</QueryClientProvider>
 	);
 }
-describe("Porter upgrade request UI", () => {
+describe("người hỗ trợ upgrade request UI", () => {
 	beforeEach(() => {
 		vi.restoreAllMocks();
 		window.history.replaceState({}, "", "/admin/porter-levels");
@@ -110,7 +110,7 @@ describe("Porter upgrade request UI", () => {
 		vi.spyOn(porterLevelsService, "myEvidence").mockResolvedValue({ skills: [], version: 0 });
 		vi.spyOn(porterLevelsService, "myHistory").mockResolvedValue([]);
 	});
-	it("Porter chooses a higher target and submits reason plus an optional evidence file", async () => {
+	it("người hỗ trợ chooses a higher target and submits reason plus an optional evidence file", async () => {
 		const user = userEvent.setup();
 		const create = vi.spyOn(api, "create").mockResolvedValue({});
 		renderQuery(<PorterLevelRequestsPanel />);
@@ -136,7 +136,7 @@ describe("Porter upgrade request UI", () => {
 			})
 		);
 	});
-	it("Porter cannot choose a Route with an open request", async () => {
+	it("người hỗ trợ cannot choose a Route with an open request", async () => {
 		vi.mocked(api.qualifications).mockResolvedValue([
 			{ ...detail().qualification, openRequestId: "request-1" },
 		]);
@@ -172,10 +172,11 @@ describe("Porter upgrade request UI", () => {
 		const review = vi.spyOn(api, "review").mockResolvedValue({});
 		renderQuery(<AdminLevelRequestsPanel />);
 		await user.click(await screen.findByRole("button", { name: "Xem yêu cầu" }));
-		await user.type(await screen.findByLabelText("Lý do quyết định"), "Đã kiểm tra minh chứng gốc");
+		await user.click(await screen.findByRole("radio", { name: "Duyệt yêu cầu" }));
+		await user.type(screen.getByLabelText("Ghi chú xét cấp"), "Đã kiểm tra minh chứng gốc");
 		expect(screen.queryByText("Đạt", { exact: true })).not.toBeInTheDocument();
 		expect(screen.queryByText("Chưa đạt", { exact: true })).not.toBeInTheDocument();
-		await user.click(screen.getByRole("button", { name: "Xác nhận xử lý yêu cầu" }));
+		await user.click(screen.getByRole("button", { name: "Xác nhận" }));
 		await waitFor(() =>
 			expect(review).toHaveBeenCalledWith("request-1", {
 				action: "approve",
@@ -187,17 +188,57 @@ describe("Porter upgrade request UI", () => {
 			})
 		);
 	});
-	it("Admin needs-info request can only be rejected until Porter resubmits", async () => {
+	it("Admin needs-info request can only be rejected until người hỗ trợ resubmits", async () => {
 		const user = userEvent.setup();
 		vi.mocked(api.detail).mockResolvedValue(detail("needs_info"));
 		const review = vi.spyOn(api, "review").mockResolvedValue({});
 		renderQuery(<AdminLevelRequestsPanel />);
 		await user.click(await screen.findByRole("button", { name: "Xem yêu cầu" }));
-		const action = await screen.findByLabelText("Thao tác Admin");
-		expect(within(action).getAllByRole("option")).toHaveLength(1);
-		await user.click(screen.getByRole("button", { name: "Xác nhận xử lý yêu cầu" }));
+		expect(await screen.findAllByRole("radio")).toHaveLength(1);
+		await user.click(screen.getByRole("radio", { name: "Từ chối" }));
+		await user.click(screen.getByRole("button", { name: "Xác nhận" }));
 		expect(await screen.findByRole("alert")).toHaveTextContent("Vui lòng nhập lý do");
 		expect(review).not.toHaveBeenCalled();
+	});
+	it("requires an explicit action and sends rejection without approval fields", async () => {
+		const user = userEvent.setup();
+		const review = vi.spyOn(api, "review").mockResolvedValue({});
+		renderQuery(<AdminLevelRequestsPanel />);
+		await user.click(await screen.findByRole("button", { name: "Xem yêu cầu" }));
+		expect(await screen.findByRole("button", { name: "Xác nhận" })).toBeDisabled();
+		expect(screen.getByRole("radio", { name: "Duyệt yêu cầu" })).not.toBeChecked();
+		await user.click(screen.getByRole("radio", { name: "Từ chối" }));
+		await user.type(
+			screen.getByLabelText("Lý do từ chối"),
+			"Chưa có minh chứng về kinh nghiệm trên tuyến"
+		);
+		await user.click(screen.getByRole("button", { name: "Xác nhận" }));
+		await waitFor(() =>
+			expect(review).toHaveBeenCalledWith("request-1", {
+				action: "reject",
+				expectedVersion: 3,
+				reason: "Chưa có minh chứng về kinh nghiệm trên tuyến",
+			})
+		);
+	});
+	it("sends a request for additional information independently of approval", async () => {
+		const user = userEvent.setup();
+		const review = vi.spyOn(api, "review").mockResolvedValue({});
+		renderQuery(<AdminLevelRequestsPanel />);
+		await user.click(await screen.findByRole("button", { name: "Xem yêu cầu" }));
+		await user.click(await screen.findByRole("radio", { name: "Yêu cầu bổ sung" }));
+		await user.type(
+			screen.getByLabelText("Nội dung cần bổ sung"),
+			"Bổ sung thông tin các chuyến đã hỗ trợ"
+		);
+		await user.click(screen.getByRole("button", { name: "Xác nhận" }));
+		await waitFor(() =>
+			expect(review).toHaveBeenCalledWith("request-1", {
+				action: "request-info",
+				expectedVersion: 3,
+				reason: "Bổ sung thông tin các chuyến đã hỗ trợ",
+			})
+		);
 	});
 	it("direct level review is blocked with a link to the open request", () => {
 		render(
@@ -212,6 +253,6 @@ describe("Porter upgrade request UI", () => {
 			"href",
 			"?request=request-1"
 		);
-		expect(screen.getByRole("button", { name: "Lưu quyết định" })).toBeDisabled();
+		expect(screen.getByRole("button", { name: "Công nhận cấp" })).toBeDisabled();
 	});
 });

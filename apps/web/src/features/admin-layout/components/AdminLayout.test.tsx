@@ -80,7 +80,8 @@ describe("AdminLayout", () => {
 			"aria-current",
 			"page"
 		);
-		expect(screen.getByRole("link", { name: "Duyệt hồ sơ Porter" })).toBeVisible();
+		expect(screen.getByRole("link", { name: "Quản lý người hỗ trợ" })).toBeVisible();
+		expect(screen.queryByRole("link", { name: "Cấp độ người hỗ trợ" })).not.toBeInTheDocument();
 
 		await user.click(screen.getByRole("button", { name: "Thu gọn thanh điều hướng" }));
 		const collapsedGroup = screen.getByRole("button", { name: /Kiểm duyệt 7 mục chờ xử lý/ });

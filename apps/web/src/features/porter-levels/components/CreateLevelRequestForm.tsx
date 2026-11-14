@@ -112,11 +112,11 @@ export function CreateLevelRequestForm({
 						Tiêu chí {policy.definition.name} · v{policy.version}
 					</h3>
 					<p>
-						Kinh nghiệm: {policy.definition.minExperienceYears ?? "Chưa đặt"}; số lần dẫn tuyến:{" "}
-						{policy.definition.minTimesLed ?? "Chưa đặt"}
+						Kinh nghiệm: {policy.definition.minExperienceYears ?? "Chưa đạt"}; số lần dẫn tuyến:{" "}
+						{policy.definition.minTimesLed ?? "Chưa đạt"}
 					</p>
-					<p>Kỹ năng: {policy.definition.requiredSkills.join(", ") || "Chưa đặt"}</p>
-					<p>Chứng chỉ: {policy.definition.requiredCertifications.join(", ") || "Chưa đặt"}</p>
+					<p>Kỹ năng: {policy.definition.requiredSkills.join(", ") || "Chưa đạt"}</p>
+					<p>Chứng chỉ: {policy.definition.requiredCertifications.join(", ") || "Chưa đạt"}</p>
 					<p>Phạm vi: {policy.definition.responsibilities}</p>
 				</div>
 			) : (

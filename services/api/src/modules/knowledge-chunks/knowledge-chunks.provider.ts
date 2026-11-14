@@ -6,8 +6,8 @@ import {
 	type ChunkConfiguration,
 	type ChunkOutput,
 	type ChunkSet,
-	chunkConfiguration,
 	IngestionError,
+	chunkConfiguration,
 } from "./knowledge-chunks.types";
 
 @Injectable()

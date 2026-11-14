@@ -2,6 +2,7 @@ import { AlertCircle, BadgeCheck, CheckCircle, Loader2, RefreshCw } from "lucide
 import { Card, Pagination } from "../../../shared/components";
 import { AdminLayout } from "../../admin-layout/components/AdminLayout";
 import { PorterQualificationGuidance } from "../../porter-verification/components/PorterQualificationGuidance";
+import { PorterManagementTabs } from "../components/PorterManagementTabs";
 import { PorterVerificationDetailDialog } from "../components/PorterVerificationDetailDialog";
 import { PorterVerificationsFilters } from "../components/PorterVerificationsFilters";
 import { PorterVerificationsTable } from "../components/PorterVerificationsTable";
@@ -17,17 +18,14 @@ export function AdminPorterVerificationsPage({ onLogout }: AdminPorterVerificati
 	return (
 		<AdminLayout activeItem="porter-verifications" onLogout={onLogout}>
 			<div className="mx-auto max-w-7xl space-y-5 px-4 py-6 sm:px-6 lg:px-8">
-				<div>
-					<h1 className="flex items-center gap-3 text-2xl font-extrabold">
-						<BadgeCheck className="size-7 text-[#164027]" /> Duyệt hồ sơ Porter
-					</h1>
-					<p className="mt-1 text-sm text-[#667a6d]">
-						Kiểm tra chứng chỉ dẫn đường Porter đã tải lên và duyệt thủ công trước khi Porter nhận
-						yêu cầu dẫn đoàn.
-					</p>
-				</div>
+				<PorterManagementTabs active="profiles" />
 
-				<PorterQualificationGuidance />
+				<details className="text-sm text-muted-foreground">
+					<summary className="cursor-pointer font-semibold">Điều kiện duyệt hồ sơ</summary>
+					<div className="mt-3">
+						<PorterQualificationGuidance />
+					</div>
+				</details>
 				{state.errorMessage && (
 					<div
 						role="alert"

@@ -33,7 +33,10 @@ export function LevelPolicyForm({ policy, pending, error, onSave }: Props) {
 			minTimesLed: policy?.definition.minTimesLed?.toString() ?? "",
 			requiredSkills: policy?.definition.requiredSkills.join("\n") ?? "",
 			requiredCertifications: policy?.definition.requiredCertifications.join("\n") ?? "",
-			responsibilities: policy?.definition.responsibilities ?? "",
+			responsibilities:
+				policy?.definition.responsibilities === "Chưa cấu hình phạm vi phụ trách."
+					? ""
+					: (policy?.definition.responsibilities ?? ""),
 		},
 	});
 	return (
@@ -47,10 +50,7 @@ export function LevelPolicyForm({ policy, pending, error, onSave }: Props) {
 			})}
 			className="space-y-4"
 		>
-			<p className="text-sm text-[#627769]">
-				{policy ? `Tiêu chí phiên bản ${policy.version}` : "Chưa cấu hình tiêu chí cho cấp này."} Ô
-				số để trống nghĩa là chưa đặt điều kiện đó.
-			</p>
+			<p className="text-sm text-muted-foreground">Để trống nếu không yêu cầu.</p>
 			{FIELDS.map(({ key, label }) => (
 				<label key={key} className="block space-y-1 text-sm font-semibold">
 					{label}

@@ -102,15 +102,24 @@ export function SidebarFrame({
 		<aside
 			className={`sidebar-surface ${collapsed ? "w-[4.5rem]" : "w-72 max-w-[calc(100vw-2.5rem)]"}`}
 		>
-			<div className={`sidebar-header ${collapsed ? "justify-center px-2" : ""}`}>
+			<div className={`sidebar-header ${collapsed ? "flex-col justify-center px-2" : ""}`}>
 				<HomeLink
 					{...brandLink}
 					className={`sidebar-brand ${collapsed ? "justify-center" : "flex-1"}`}
 					onNavigate={onClose}
 				>
 					<img src="/ctms_logo.png" alt="" className="size-9 shrink-0 scale-150 object-contain" />
-					{!collapsed && <span className="sidebar-brand-title">{title}</span>}
+					{!collapsed && (
+						<span className="sidebar-brand-title whitespace-normal! overflow-visible! text-clip! text-sm! leading-snug">
+							{title}
+						</span>
+					)}
 				</HomeLink>
+				{notices && (
+					<div className={`flex shrink-0 items-center ${collapsed ? "flex-col" : ""}`}>
+						{notices}
+					</div>
+				)}
 				{onClose && (
 					<button
 						type="button"
@@ -136,11 +145,6 @@ export function SidebarFrame({
 			)}
 			{children}
 			<div className={`sidebar-footer ${collapsed ? "p-2" : ""}`}>
-				{notices && (
-					<div className={`flex items-center ${collapsed ? "flex-col" : "justify-end"}`}>
-						{notices}
-					</div>
-				)}
 				<SidebarAccountMenu key={String(collapsed)} account={account} collapsed={collapsed} />
 			</div>
 		</aside>

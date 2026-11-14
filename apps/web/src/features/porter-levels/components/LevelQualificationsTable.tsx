@@ -1,39 +1,51 @@
-import { Button } from "../../../shared/components";
+import { ClipboardCheck } from "lucide-react";
+import { Button, DataTable, StatusBadge } from "../../../shared/components";
 import { levelName } from "../constants";
 import type { LevelQualification } from "../types";
 
 export function LevelQualificationsTable({
 	items,
 	onReview,
-}: { items: LevelQualification[]; onReview: (id: string) => void }) {
+}: {
+	items: LevelQualification[];
+	onReview: (id: string) => void;
+}) {
 	return (
-		<div className="overflow-x-auto">
-			<table className="w-full text-left text-sm">
-				<thead>
-					<tr>
-						<th className="p-3">Porter</th>
-						<th>Tuyến</th>
-						<th>Cấp hiện tại</th>
-						<th>Trạng thái</th>
-						<th>
-							<span className="sr-only">Thao tác</span>
-						</th>
-					</tr>
-				</thead>
-				<tbody>
-					{items.map((item) => (
-						<tr key={item.id} className="border-t border-[#dfe8df]">
-							<td className="p-3">{item.porterName ?? "Chưa cập nhật tên người dẫn đường"}</td>
-							<td>{item.routeName}</td>
-							<td>{levelName(item.proficiency)}</td>
-							<td>{item.verifiedBy ? "Đã duyệt" : "Tự khai"}</td>
-							<td className="p-3 text-right">
-								<Button onClick={() => onReview(item.id)}>Xét cấp</Button>
-							</td>
-						</tr>
-					))}
-				</tbody>
-			</table>
-		</div>
+		<DataTable
+			ariaLabel="Cấp người hỗ trợ theo tuyến"
+			rows={items}
+			getRowKey={(item) => item.id}
+			columns={[
+				{
+					key: "porter",
+					header: "người hỗ trợ",
+					render: (item) => (
+						<span className="font-semibold">{item.porterName ?? "người hỗ trợ"}</span>
+					),
+				},
+				{ key: "route", header: "Tuyến", render: (item) => item.routeName },
+				{ key: "level", header: "Cấp hiện tại", render: (item) => levelName(item.proficiency) },
+				{
+					key: "status",
+					header: "Trạng thái",
+					render: (item) => (
+						<StatusBadge tone={item.verifiedBy ? "success" : "neutral"}>
+							{item.verifiedBy ? "Đã xác nhận" : "Tự khai"}
+						</StatusBadge>
+					),
+				},
+				{
+					key: "actions",
+					header: "Thao tác",
+					align: "right",
+					render: (item) => (
+						<Button variant="outline" onClick={() => onReview(item.id)}>
+							<ClipboardCheck className="size-4" />
+							Xét cấp
+						</Button>
+					),
+				},
+			]}
+		/>
 	);
 }

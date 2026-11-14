@@ -2,11 +2,17 @@ import type { RagSettings } from "./rag.config";
 import { MAX_BLOCK_BYTES, type RagChunk } from "./rag.types";
 
 const STOP_WORDS = new Set(
-	"the a an to how what which with i of in for on is it are do does can should you my me and or about please when if be need tell tôi cách làm sao thế nào như gì là về và của một có thể cần khi nếu cho với này đó đang được hãy giúp bạn bị trong không phải".split(" ")
+	"the a an to how what which with i of in for on is it are do does can should you my me and or about please when if be need tell tôi cách làm sao thế nào như gì là về và của một có thể cần khi nếu cho với này đó đang được hãy giúp bạn bị trong không phải".split(
+		" "
+	)
 );
 
 function terms(text: string): Set<string> {
-	const words = text.normalize("NFKC").toLowerCase().match(/[\p{L}\p{M}\p{N}]+/gu) ?? [];
+	const words =
+		text
+			.normalize("NFKC")
+			.toLowerCase()
+			.match(/[\p{L}\p{M}\p{N}]+/gu) ?? [];
 	return new Set(words.filter((word) => word.length > 1 && !STOP_WORDS.has(word)));
 }
 

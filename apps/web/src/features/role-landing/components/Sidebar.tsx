@@ -5,8 +5,9 @@ import { RoutePath } from "../../../routes/routes.config";
 import { type SidebarControls, SidebarFrame } from "../../../shared/components/SidebarFrame";
 import { SidebarPopover } from "../../../shared/components/SidebarPopover";
 import { LogoutActions } from "../../auth/components/LogoutActions";
-import { BookingCancellationNotices } from "../../booking-cancellation/components/BookingCancellationNotices";
+import { getStoredAuthUser } from "../../auth/utils/tokenStorage";
 import type { CamperProfileData } from "../../camper-profile/types";
+import { HostNotifications } from "../../offline-package-policy/components/HostNotifications";
 import { useHostSos } from "../../sos-handling/hooks/useHostSos";
 import { useMyPorterRequests } from "../../trips/hooks/usePorterRequests";
 import { WeatherChangeNotices } from "../../weather/components/WeatherChangeNotices";
@@ -71,6 +72,7 @@ export function Sidebar({
 	onLogout,
 }: SidebarProps) {
 	const porterMenuId = useId();
+	const actor = getStoredAuthUser()?.id;
 	const [porterMenuAnchor, setPorterMenuAnchor] = useState<HTMLButtonElement>();
 	const porterRequestsQuery = useMyPorterRequests(activeRole === "porter");
 	const pendingPorterRequestCount =
@@ -146,7 +148,7 @@ export function Sidebar({
 				activeRole === "host" && (
 					<>
 						<WeatherChangeNotices includeDecisions />
-						<BookingCancellationNotices />
+						{actor && <HostNotifications key={actor} actor={actor} />}
 					</>
 				)
 			}

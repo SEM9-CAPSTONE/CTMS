@@ -60,7 +60,7 @@ export class AdminPorterLevelsController {
 	@Get("qualifications")
 	@ApiOperation({ summary: "List Route-specific qualification claims for manual review" })
 	list(@Query() dto: ListLevelQualificationsDto) {
-		return this.levels.list(dto.page, dto.limit);
+		return this.levels.list(dto.page, dto.limit, dto.search);
 	}
 
 	@Get("qualifications/:id/comparison/:level")
