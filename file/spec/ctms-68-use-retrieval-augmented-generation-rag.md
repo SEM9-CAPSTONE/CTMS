@@ -89,7 +89,9 @@ User query
 
 ## 9. API / Integration Contract
 
-TBD — Technical Design.
+CTMS-069 imports `RagModule` and calls `RagRetrievalService.retrieve(actor, { question, locale })` with the actor resolved by backend authentication. The service requires an active Camper. It returns either `GROUNDED` with bounded context and provenance, or `INSUFFICIENT_CONTEXT` with empty evidence and an explicit reason. Operational errors remain distinguishable. There is no public retrieval or chat route in this story.
+
+See the [implementation and internal contract](../../docs/features/CTMS-068-Implementation.md) for settings, source and chunk fields, and Python endpoints.
 
 ## 10. Error & Edge Cases
 
@@ -98,7 +100,9 @@ TBD — Technical Design.
 | No relevant chunks                    | Do not invent source context          |
 | Too many relevant chunks              | Respect context limit                 |
 | Chunk lacks valid source provenance   | Do not present fabricated citation    |
-| Query tries to override business rule | Retrieval/AI cannot change hard state |
+| Query tries to override business rule | Read-only retrieval preserves authoritative state |
+| Current source is withdrawn during retrieval | Discard the affected result snapshot |
+| Model, database or corpus limit failure | Return a sanitized operational error |
 
 ## 11. Acceptance & Test Matrix
 
@@ -112,4 +116,4 @@ TBD — Technical Design.
 
 ## 12. Open Decisions
 
-Retrieval algorithm, embedding model, ranking method and context-token limit are Technical Design/configuration concerns unless separately fixed.
+Retrieval uses the current eligible CTMS-051 chunk sets and the same pinned multilingual E5 model. PostgreSQL ranks by exact cosine similarity. Configured score and exact-locale gates, lexical corroboration, deduplication and the context budget control selection. Keep complete chunks and reject incomplete source items. The server sets the relevance threshold after calibration on approved PDFs. CTMS-069 must validate the final prompt against its generation model's tokenizer.

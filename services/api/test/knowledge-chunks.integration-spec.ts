@@ -3,6 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type INestApplication, ValidationPipe } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
 import { Test } from "@nestjs/testing";
 import request from "supertest";
@@ -17,7 +18,11 @@ import {
 	ChunkSetStatus,
 } from "../src/modules/knowledge-chunks/knowledge-chunks.types";
 import { KnowledgeChunksWorker } from "../src/modules/knowledge-chunks/knowledge-chunks.worker";
+import { RagEmbeddingProvider } from "../src/modules/rag/rag-embedding.provider";
+import { RagRetrievalService } from "../src/modules/rag/rag-retrieval.service";
+import { RagConfig } from "../src/modules/rag/rag.config";
 import { Classification } from "../src/modules/survival-documents/survival-documents.types";
+import { UserRole, UserStatus } from "../src/modules/users/entities/user.entity";
 import { assertSafeTestDatabase } from "./support/assert-safe-test-database";
 import {
 	type SourceTestDetail,
@@ -33,6 +38,12 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 	let configuration: ChunkConfiguration;
 	let provider: KnowledgeChunksProvider;
 	let worker: KnowledgeChunksWorker;
+	let rag: RagRetrievalService;
+	let ragConfig: RagConfig;
+	const ragProvider = {
+		embed: jest.fn(),
+		countPrefixes: jest.fn(),
+	};
 	let root: string;
 	let auth: string;
 	let camperAuth: string;
@@ -44,7 +55,10 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 	beforeAll(async () => {
 		root = await mkdtemp(join(tmpdir(), "ctms51-"));
 		process.env.SURVIVAL_DOCUMENT_STORAGE_ROOT = root;
-		const module = await Test.createTestingModule({ imports: [AppModule] }).compile();
+		const module = await Test.createTestingModule({ imports: [AppModule] })
+			.overrideProvider(RagEmbeddingProvider)
+			.useValue(ragProvider)
+			.compile();
 		app = module.createNestApplication();
 		app.setGlobalPrefix("api");
 		app.useGlobalPipes(
@@ -57,6 +71,8 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 		provider = module.get(KnowledgeChunksProvider);
 		worker = module.get(KnowledgeChunksWorker);
 		configuration = provider.configuration();
+		rag = module.get(RagRetrievalService);
+		ragConfig = module.get(RagConfig);
 		const jwt = module.get(JwtService);
 		for (const [id, role] of [
 			[admin, "admin"],
@@ -506,4 +522,170 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 			await db.query("DROP TABLE ctms51_test_guidance_reference");
 		}
 	});
+	describe("CTMS-068 RAG service boundary", () => {
+		const question = { question: "Nguồn thử nghiệm", locale: "vi" };
+		const retrieve = () => rag.retrieve({ userId: camper, roles: [UserRole.CAMPER], status: UserStatus.ACTIVE }, question);
+
+		beforeEach(() => {
+			ragProvider.embed.mockReset().mockResolvedValue(
+				Array.from({ length: configuration.embedding_dimensions }, (_, index) => Number(index === 0))
+			);
+			ragProvider.countPrefixes.mockReset().mockResolvedValue([30]);
+			const settings = new RagConfig(new ConfigService({ RAG_MIN_SCORE: "0.8" })).settings();
+			jest.spyOn(ragConfig, "settings").mockReturnValue(settings);
+		});
+
+		afterEach(() => jest.restoreAllMocks());
+
+		async function ready(doc: SourceTestDetail) {
+			await enqueue(doc);
+			const set = await claim();
+			expect(set.document_version_id).toBe(doc.versions[0].id);
+			expect(await repo.finish(set, output(set))).toBe(true);
+			return set;
+		}
+
+		async function archive(doc: SourceTestDetail) {
+			await request(app.getHttpServer())
+				.post(`${endpoint}/${doc.id}/versions/${doc.versions[0].id}/archive`)
+				.set("Authorization", auth)
+				.send({ expectedRevision: doc.versions[0].revision, reason: "Withdraw fictional source" })
+				.expect(201);
+		}
+
+		it("serves only active READY versions with verified provenance, fencing V1 during V2 rebuild", async () => {
+			const v1 = await publish(await draft());
+			const s1 = await ready(v1);
+			const result = await retrieve();
+			expect(result).toMatchObject({
+				status: "GROUNDED", contextTokenCount: 30,
+				selectedChunks: [{ chunkIndex: 0, score: 1, locations: [{ page: 1, itemRef: "#/texts/0" }] }],
+				sources: [{ documentVersionId: v1.versions[0].id, sourceVersion: 1, checksum: s1.checksum }],
+			});
+			const v2 = await publish(await draft(v1));
+			await enqueue(v2);
+			expect(await retrieve()).toMatchObject({ status: "INSUFFICIENT_CONTEXT", reason: "NO_MATCH" });
+			await ready(v2);
+			expect(await retrieve()).toMatchObject({
+				status: "GROUNDED", sources: [{ documentVersionId: v2.versions[0].id, sourceVersion: 2 }],
+			});
+			await archive(v2);
+			expect(await retrieve()).toMatchObject({ status: "INSUFFICIENT_CONTEXT", sources: [] });
+		});
+
+		it("drops the entire snapshot if one selected publication is withdrawn during tokenization", async () => {
+			const first = await publish(await draft());
+			const second = await publish(await draft());
+			await ready(first);
+			await enqueue(second);
+			const set = await claim();
+			const generated = output(set);
+			generated.chunks[0].content += " nguồn thứ hai";
+			generated.chunks[0].embedding_text += " nguồn thứ hai";
+			expect(await repo.finish(set, generated)).toBe(true);
+			ragProvider.countPrefixes.mockImplementationOnce(async (blocks: string[]) => {
+				expect(blocks).toHaveLength(2);
+				await archive(first);
+				return [20, 40];
+			});
+			expect(await retrieve()).toMatchObject({
+				status: "INSUFFICIENT_CONTEXT", reason: "SOURCE_CHANGED", context: "", sources: [],
+			});
+		});
+
+		it("rejects partial source items, invalid locations and stale chunk counts", async () => {
+			const doc = await publish(await draft());
+			const set = await ready(doc);
+			await db.query(
+				"UPDATE knowledge_chunks SET metadata=jsonb_set(metadata,'{locations,0,item_ref}',to_jsonb($2::text)) WHERE chunk_set_id=$1 AND chunk_index=1",
+				[set.id, "#/texts/0"]
+			);
+			expect(await retrieve()).toMatchObject({ status: "INSUFFICIENT_CONTEXT", reason: "INCOMPLETE_EVIDENCE" });
+			await db.query(
+				"UPDATE knowledge_chunks SET metadata=jsonb_set(metadata,'{locations}','[]'::jsonb) WHERE chunk_set_id=$1 AND chunk_index=0",
+				[set.id]
+			);
+			expect(await retrieve()).toMatchObject({ status: "INSUFFICIENT_CONTEXT", reason: "NO_MATCH" });
+			await db.query("DELETE FROM knowledge_chunks WHERE chunk_set_id=$1 AND chunk_index=1", [set.id]);
+			expect(await retrieve()).toMatchObject({ status: "INSUFFICIENT_CONTEXT", reason: "NO_MATCH" });
+		});
+
+		it("fails closed when the approved-host policy is removed", async () => {
+			await ready(await publish(await draft()));
+			const hosts = process.env.SURVIVAL_KNOWLEDGE_APPROVED_HOSTS;
+			process.env.SURVIVAL_KNOWLEDGE_APPROVED_HOSTS = "";
+			try {
+				expect(await retrieve()).toMatchObject({ status: "INSUFFICIENT_CONTEXT", sources: [] });
+			} finally {
+				if (hosts === undefined) Reflect.deleteProperty(process.env, "SURVIVAL_KNOWLEDGE_APPROVED_HOSTS");
+				else process.env.SURVIVAL_KNOWLEDGE_APPROVED_HOSTS = hosts;
+			}
+		});
+
+		it("ranks deterministically and excludes malformed embeddings and incompatible sets", async () => {
+			const first = await ready(await publish(await draft()));
+			const second = await ready(await publish(await draft()));
+			const winner = [first.id, second.id].sort()[0];
+			expect(await retrieve()).toMatchObject({ status: "GROUNDED", sources: [{ chunkSetId: winner }] });
+			const loser = first.id === winner ? second.id : first.id;
+			await db.query(
+				"UPDATE knowledge_chunks SET embedding=ARRAY['NaN'::float8] || embedding[2:384] WHERE chunk_set_id=$1 AND chunk_index=0",
+				[winner]
+			);
+			expect(await retrieve()).toMatchObject({ status: "GROUNDED", sources: [{ chunkSetId: loser }] });
+			await db.query(
+				"UPDATE knowledge_chunk_sets SET configuration=jsonb_set(configuration,'{embedding_revision}',to_jsonb('other'::text)) WHERE id=$1",
+				[loser]
+			);
+			expect(await retrieve()).toMatchObject({ status: "INSUFFICIENT_CONTEXT", sources: [] });
+		});
+
+		const benchmark = process.env.RUN_RAG_BENCHMARK === "true" ? it : it.skip;
+		benchmark("reports synthetic latency and Node heap change for 2,000 vectors", async () => {
+			const doc = await publish(await draft());
+			await enqueue(doc);
+			const set = await claim();
+			const generated = output(set);
+			const sample = generated.chunks[0];
+			generated.chunks = Array.from({ length: 2000 }, (_, index) => ({
+				...sample,
+				chunk_index: index,
+				locations: sample.locations.map((location) => ({ ...location, item_ref: `#/texts/${index}` })),
+				content: `${sample.content} ${index}`,
+				embedding_text: `${sample.embedding_text} ${index}`,
+			}));
+			expect(await repo.finish(set, generated)).toBe(true);
+			ragProvider.countPrefixes.mockResolvedValue([20, 40, 60, 80, 100]);
+			const before = process.memoryUsage().heapUsed;
+			const durations: number[] = [];
+			for (let attempt = 0; attempt < 10; attempt++) {
+				const result = await retrieve();
+				expect(result).toMatchObject({ status: "GROUNDED", metrics: { candidateCount: 2000, selectedCount: 5 } });
+				durations.push(result.metrics.durationMs);
+			}
+			durations.sort((a, b) => a - b);
+			process.stdout.write(`${JSON.stringify({
+				fixtureChunks: 2000,
+				samples: durations.length,
+				p50Ms: durations[4],
+				p95Ms: durations[9],
+				heapDeltaBytes: process.memoryUsage().heapUsed - before,
+			})}\n`);
+		}, 30000);
+
+		it("treats a corpus limit as operational failure before embedding", async () => {
+			await ready(await publish(await draft()));
+			const settings = ragConfig.settings();
+			jest.spyOn(ragConfig, "settings").mockReturnValue({ ...settings, maxCandidates: 1 });
+			await expect(retrieve()).rejects.toMatchObject({ response: { code: "RAG_CORPUS_LIMIT" } });
+			expect(ragProvider.embed).not.toHaveBeenCalled();
+		});
+
+		it("exposes no public RAG or chat route", async () => {
+			for (const path of ["/api/rag/retrieve", "/api/ai/chat"]) {
+				await request(app.getHttpServer()).post(path).set("Authorization", camperAuth).send(question).expect(404);
+			}
+		});
+	});
+
 });

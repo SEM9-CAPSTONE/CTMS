@@ -8,7 +8,8 @@ from threading import Lock
 
 from app.knowledge_chunking import compare_pdf_text, low_extraction_confidence, split_document
 from app.knowledge_models import (
-    EMBEDDING_MODEL, EMBEDDING_REVISION, MAX_PAGES, MAX_PDF_BYTES, EmbeddedChunk,
+    EMBEDDING_DIMENSIONS, EMBEDDING_MODEL, EMBEDDING_REVISION, MAX_EMBEDDING_TOKENS,
+    MAX_PAGES, MAX_PDF_BYTES, EmbeddedChunk,
     IngestionRequest, IngestionResponse, QualityReport,
 )
 
@@ -21,6 +22,14 @@ class InvalidEmbedding(ValueError):
     pass
 
 
+class InvalidQuery(ValueError):
+    pass
+
+
+class ModelBusy(RuntimeError):
+    pass
+
+
 class KnowledgeIngestionService:
     """One conversion at a time per worker process bounds local model resource usage."""
 
@@ -29,11 +38,13 @@ class KnowledgeIngestionService:
         self._model = None
         self._converter = None
 
-    def _load(self):
+    def _load_model(self):
         if self._model is None:
             from sentence_transformers import SentenceTransformer
             self._model = SentenceTransformer(EMBEDDING_MODEL, revision=EMBEDDING_REVISION, device="cpu",
                                                trust_remote_code=False)
+    def _load(self):
+        self._load_model()
         if self._converter is None:
             from docling.datamodel.base_models import InputFormat
             from docling.datamodel.pipeline_options import LayoutObjectDetectionOptions, PdfPipelineOptions
@@ -42,6 +53,39 @@ class KnowledgeIngestionService:
             layout.model_spec = layout.model_spec.model_copy(update={"revision": "8f39ad3c0b4c58e9c2d2c84a38465abf757272d8"})
             options = PdfPipelineOptions(do_ocr=False, do_table_structure=True, layout_options=layout)
             self._converter = DocumentConverter(format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=options)})
+
+    def embed_query(self, question: str) -> list[float]:
+        question = question.strip()
+        if not question or "\0" in question:
+            raise InvalidQuery()
+        if not self._lock.acquire(blocking=False):
+            raise ModelBusy()
+        try:
+            self._load_model()
+            text = f"query: {question}"
+            if len(self._model.tokenizer.encode(text, add_special_tokens=True, truncation=False)) > MAX_EMBEDDING_TOKENS:
+                raise InvalidQuery()
+            vectors = self._model.encode([text], normalize_embeddings=True, show_progress_bar=False).tolist()
+            validate_embeddings(vectors, 1, EMBEDDING_DIMENSIONS)
+            if not math.isclose(math.hypot(*vectors[0]), 1.0, abs_tol=0.001):
+                raise InvalidEmbedding("invalid_query_embedding_norm")
+            return vectors[0]
+        finally:
+            self._lock.release()
+
+    def count_context_prefixes(self, blocks: list[str]) -> list[int]:
+        if not self._lock.acquire(blocking=False):
+            raise ModelBusy()
+        try:
+            self._load_model()
+            return [
+                len(self._model.tokenizer.encode(
+                    "[" + ",".join(blocks[:size]) + "]", add_special_tokens=False, truncation=False,
+                ))
+                for size in range(1, len(blocks) + 1)
+            ]
+        finally:
+            self._lock.release()
 
     def generate(self, request: IngestionRequest) -> IngestionResponse:
         try:

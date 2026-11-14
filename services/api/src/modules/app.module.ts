@@ -23,6 +23,7 @@ import { OverbookingEvaluationModule } from "./overbooking-evaluation/overbookin
 import { PerformanceReportsModule } from "./performance-reports/performance-reports.module";
 import { PorterLevelsModule } from "./porter-levels/porter-levels.module";
 import { ProfilesModule } from "./profiles/profiles.module";
+import { RagModule } from "./rag/rag.module";
 import { RealtimeEvaluationModule } from "./realtime-evaluation/realtime-evaluation.module";
 import { RealtimeModule } from "./realtime/realtime.module";
 import { ReviewAnalysisModule } from "./review-analysis/review-analysis.module";
@@ -88,6 +89,7 @@ import { WeatherModule } from "./weather/weather.module";
 		WeatherModule,
 		SurvivalDocumentsModule,
 		KnowledgeChunksModule,
+		RagModule,
 		OfflinePackagesModule,
 		OfflinePackageDownloadModule,
 	],
