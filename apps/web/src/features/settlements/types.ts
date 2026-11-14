@@ -103,3 +103,65 @@ export interface AdminPayoutsListResponse {
 	limit: number;
 	totalPages: number;
 }
+
+export type FinancialAdjustmentType = "post_settlement_refund" | "post_payout_recovery";
+export type FinancialAdjustmentStatus = "pending" | "resolved";
+
+export interface FinancialAdjustmentItem {
+	refundPaymentId?: string | null;
+	refundStatus?: "pending" | "succeeded" | "failed" | null;
+	id: string;
+	settlementId: string | null;
+	payoutId: string | null;
+	bookingId: string;
+	camperName: string;
+	bookingCreatedAt: string | null;
+	settledAt: string | null;
+	payoutRequestedAt: string | null;
+	tripId: string;
+	tripTitle: string;
+	hostId: string;
+	hostName: string;
+	type: FinancialAdjustmentType;
+	amount: string;
+	reason: string;
+	status: FinancialAdjustmentStatus;
+	actorId: string | null;
+	notes: string | null;
+	createdAt: string;
+	updatedAt: string;
+}
+
+export interface AdminAdjustmentsListResponse {
+	items: FinancialAdjustmentItem[];
+	total: number;
+	page: number;
+	limit: number;
+	totalPages: number;
+}
+
+export interface ReconcileExceptionPayload {
+	bookingId: string;
+	reason: string;
+	notes?: string;
+}
+
+export interface ReconciliationBookingOption {
+	id: string;
+	tripTitle: string;
+	camperName: string;
+	createdAt: string;
+	amount: string;
+}
+
+export interface ReconciliationBookingsResponse {
+	items: ReconciliationBookingOption[];
+	total: number;
+	page: number;
+	limit: number;
+	totalPages: number;
+}
+
+export interface ResolveAdjustmentPayload {
+	notes?: string;
+}

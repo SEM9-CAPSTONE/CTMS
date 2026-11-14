@@ -61,12 +61,10 @@ export function AdminSettlementsTable({
 									>
 										{item.tripTitle}
 									</p>
-									<p className="text-[11px] text-[#7d8d83] font-mono">#{item.tripId.slice(0, 8)}</p>
 								</div>
 							</td>
 							<td className="px-3.5 py-3 text-[#425048] whitespace-nowrap">
 								<p className="font-semibold text-xs text-[#10221b]">{item.hostName}</p>
-								<p className="text-[11px] text-[#7d8d83]">#{item.hostId.slice(0, 8)}</p>
 							</td>
 							<td className="px-3.5 py-3 text-right font-medium whitespace-nowrap text-[#10221b]">
 								{formatBookingMoney(item.settlementBase)}

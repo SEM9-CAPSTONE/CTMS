@@ -12,6 +12,7 @@ export interface AdminRefundsTableProps {
 	onOpenConfirm: (item: AdminRefundItem) => void;
 	onOpenReject: (item: AdminRefundItem) => void;
 	onOpenDetail: (item: AdminRefundItem) => void;
+	onOpenApprove?: (item: AdminRefundItem) => void;
 }
 
 export function AdminRefundsTable({
@@ -20,6 +21,7 @@ export function AdminRefundsTable({
 	onOpenConfirm,
 	onOpenReject,
 	onOpenDetail,
+	onOpenApprove,
 }: AdminRefundsTableProps) {
 	if (isLoading) {
 		return (
@@ -62,8 +64,12 @@ export function AdminRefundsTable({
 
 							<td className="px-4 py-3.5 whitespace-nowrap">
 								<p className="font-bold text-[#10221b]">{refund.camper.fullName}</p>
+								<p className="text-xs text-[#425048]">{refund.tripTitle}</p>
+								{refund.lateRequest && (
+									<p className="text-xs text-amber-800">Yêu cầu ngoài thời hạn</p>
+								)}
 								<p className="text-xs text-[#7d8d83]">
-									{refund.camper.email || refund.camper.phone || `#${refund.camper.id.slice(0, 8)}`}
+									{refund.camper.email || refund.camper.phone || "Chưa cập nhật liên hệ"}
 								</p>
 							</td>
 
@@ -88,7 +94,7 @@ export function AdminRefundsTable({
 							</td>
 
 							<td className="px-4 py-3.5 text-center whitespace-nowrap">
-								<RefundStateBadge status={refund.status} />
+								<RefundStateBadge status={refund.status} reviewStatus={refund.reviewStatus} />
 							</td>
 
 							<td className="px-4 py-3.5 text-right whitespace-nowrap">
@@ -96,7 +102,7 @@ export function AdminRefundsTable({
 									<button
 										type="button"
 										onClick={() => onOpenDetail(refund)}
-										aria-label={`Xem chi tiết hoàn tiền #${refund.id.slice(0, 8)}`}
+										aria-label={`Xem hoàn tiền của ${refund.camper.fullName} cho chuyến ${refund.tripTitle}`}
 										title="Xem chi tiết"
 										className="rounded-xl border border-[#dfe8df] p-2 text-[#164027] hover:bg-[#eef7f0] transition"
 									>
@@ -104,20 +110,33 @@ export function AdminRefundsTable({
 									</button>
 									{refund.status === "pending" && (
 										<>
-											<button
-												type="button"
-												onClick={() => onOpenReject(refund)}
-												className="rounded-xl border border-rose-200 px-3 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-50 transition"
-											>
-												Từ chối
-											</button>
-											<button
-												type="button"
-												onClick={() => onOpenConfirm(refund)}
-												className="rounded-xl bg-[#164027] px-3.5 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-[#11321f] transition"
-											>
-												Xác nhận chuyển
-											</button>
+											{refund.reviewStatus !== "approved" && (
+												<button
+													type="button"
+													onClick={() => onOpenReject(refund)}
+													className="rounded-xl border border-rose-200 px-3 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-50 transition"
+												>
+													Từ chối
+												</button>
+											)}
+											{refund.reviewStatus === "pending_review" && onOpenApprove && (
+												<button
+													type="button"
+													onClick={() => onOpenApprove(refund)}
+													className="rounded-xl bg-[#164027] px-3.5 py-1.5 text-xs font-bold text-white"
+												>
+													Duyệt hoàn tiền
+												</button>
+											)}
+											{refund.reviewStatus !== "pending_review" && (
+												<button
+													type="button"
+													onClick={() => onOpenConfirm(refund)}
+													className="rounded-xl bg-[#164027] px-3.5 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-[#11321f] transition"
+												>
+													Xác nhận chuyển
+												</button>
+											)}
 										</>
 									)}
 								</div>

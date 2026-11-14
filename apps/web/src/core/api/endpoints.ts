@@ -254,6 +254,7 @@ export const API_ENDPOINTS = {
 	},
 	ADMIN_REFUNDS: {
 		LIST: "/admin/refunds",
+		APPROVE: (obligationId: string) => `/admin/refunds/${obligationId}/approve`,
 		CONFIRM: (obligationId: string) => `/admin/refunds/${obligationId}/confirm`,
 		REJECT: (obligationId: string) => `/admin/refunds/${obligationId}/reject`,
 	},
@@ -266,6 +267,10 @@ export const API_ENDPOINTS = {
 		ADMIN_PAYOUTS: "/settlements/admin/payouts",
 		ADMIN_CONFIRM_PAYOUT: (id: string) => `/settlements/admin/payouts/${id}/confirm`,
 		ADMIN_REJECT_PAYOUT: (id: string) => `/settlements/admin/payouts/${id}/reject`,
+		ADMIN_RECONCILE: "/settlements/admin/reconcile",
+		ADMIN_RECONCILIATION_BOOKINGS: "/settlements/admin/reconciliation-bookings",
+		ADMIN_ADJUSTMENTS: "/settlements/admin/adjustments",
+		ADMIN_RESOLVE_ADJUSTMENT: (id: string) => `/settlements/admin/adjustments/${id}/resolve`,
 	},
 	BANK_ACCOUNTS: {
 		GET_ALL: "/profiles/me/bank-accounts",

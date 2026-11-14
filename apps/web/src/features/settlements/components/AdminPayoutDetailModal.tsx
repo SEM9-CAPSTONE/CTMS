@@ -57,9 +57,6 @@ export function AdminPayoutDetailModal({
 						<h2 id="payout-detail-modal-title" className="text-base font-extrabold text-[#10221b]">
 							Chi tiết yêu cầu rút tiền
 						</h2>
-						<p className="text-xs text-[#667a6d]">
-							#{payout.id.slice(0, 8)} • Host: {payout.hostName}
-						</p>
 					</div>
 					<button
 						type="button"
@@ -78,9 +75,6 @@ export function AdminPayoutDetailModal({
 						<div className="rounded-xl bg-[#f8faf7] p-2.5 border border-[#e8efe7]">
 							<span className="text-[#667a6d] text-[11px] block">Host yêu cầu</span>
 							<span className="font-bold text-[#10221b] truncate block">{payout.hostName}</span>
-							<span className="text-[10px] text-[#7d8d83] font-mono">
-								#{payout.hostId.slice(0, 8)}
-							</span>
 						</div>
 
 						<div className="rounded-xl bg-[#f8faf7] p-2.5 border border-[#e8efe7]">
@@ -123,13 +117,6 @@ export function AdminPayoutDetailModal({
 							<span className="text-[#667a6d] text-[11px] block">Cập nhật lúc</span>
 							<span className="font-bold text-[#10221b] block">
 								{new Date(payout.updatedAt).toLocaleString("vi-VN")}
-							</span>
-						</div>
-
-						<div className="rounded-xl bg-[#f8faf7] p-2.5 border border-[#e8efe7]">
-							<span className="text-[#667a6d] text-[11px] block">Mã ví Host</span>
-							<span className="font-bold text-[#10221b] font-mono block">
-								#{payout.walletId.slice(0, 8)}
 							</span>
 						</div>
 					</div>
