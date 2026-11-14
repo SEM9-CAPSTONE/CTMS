@@ -25,11 +25,8 @@ import {
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { HealthProfileRepository } from "../profiles/repositories/health-profile.repository";
 import { EventsGateway } from "../realtime/events.gateway";
-import {
-	TrekkingRoute,
-	TrekkingRouteStatus,
-} from "../trekking-routes/entities/trekking-route.entity";
-import { Trip, TripStatus } from "../trips/entities/trip.entity";
+import { TrekkingRoute } from "../trekking-routes/entities/trekking-route.entity";
+import { Trip } from "../trips/entities/trip.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { type LockedTripForBooking, TripsRepository } from "../trips/repositories/trips.repository";
 import { User, UserStatus } from "../users/entities/user.entity";
@@ -79,6 +76,7 @@ import {
 } from "./packing-list-builder";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { PaymentsService } from "./payments.service";
+import { evaluateTripBookingEligibility } from "./trip-booking-eligibility";
 
 const IDEMPOTENCY_KEY_MAX_LENGTH = 128;
 const IDEMPOTENCY_KEY_PATTERN = /^[A-Za-z0-9._:-]+$/;
@@ -1042,25 +1040,26 @@ export class BookingsService {
 		numPeople: number
 	): asserts trip is LockedTripForBooking {
 		if (!trip) throw new NotFoundException("Trip not found");
-		if (trip.status !== TripStatus.PUBLISHED) {
-			throw new ConflictException("Trip is not available for booking");
-		}
-		if (trip.weatherPausedAt) {
-			throw new ConflictException("Trip is paused by an Admin because of the weather");
-		}
-		const now = new Date();
-		if (trip.bookingDeadline <= now) throw new ConflictException("Booking deadline has passed");
-		if (trip.startsAt <= now) throw new ConflictException("Trip has already started");
-		if (trip.routeStatus !== TrekkingRouteStatus.ACTIVE) {
-			throw new ConflictException("Trip route is not active");
-		}
-		if (!Number.isSafeInteger(numPeople) || numPeople < 1) {
-			throw this.validationError("numPeople", "numPeople must be a positive integer");
-		}
-		if (trip.capacityMax !== null && trip.seatsTaken + numPeople > trip.capacityMax) {
-			throw new ConflictException(
-				`Trip has only ${trip.capacityMax - trip.seatsTaken} seat(s) remaining`
-			);
+		const ineligibility = evaluateTripBookingEligibility(trip, numPeople);
+		switch (ineligibility) {
+			case null:
+				return;
+			case "not_published":
+				throw new ConflictException("Trip is not available for booking");
+			case "weather_paused":
+				throw new ConflictException("Trip is paused by an Admin because of the weather");
+			case "booking_closed":
+				throw new ConflictException("Booking deadline has passed");
+			case "already_started":
+				throw new ConflictException("Trip has already started");
+			case "route_inactive":
+				throw new ConflictException("Trip route is not active");
+			case "invalid_party_size":
+				throw this.validationError("numPeople", "numPeople must be a positive integer");
+			case "insufficient_seats":
+				throw new ConflictException(
+					`Trip has only ${(trip.capacityMax ?? 0) - trip.seatsTaken} seat(s) remaining`
+				);
 		}
 	}
 

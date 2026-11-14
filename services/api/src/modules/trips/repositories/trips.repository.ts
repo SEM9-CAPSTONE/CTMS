@@ -273,6 +273,37 @@ interface TripWaypointRow {
 	metadata: Record<string, unknown> | null;
 }
 
+const TRIP_SUMMARY_SELECT = `
+			SELECT
+				trip."id",
+				trip."title",
+				trip."description",
+				trip."cover_image_url" AS "coverImageUrl",
+				trip."trip_type" AS "tripType",
+				trip."duration_nights" AS "durationNights",
+				trip."starts_at" AS "startsAt",
+				trip."ends_at" AS "endsAt",
+				ST_AsGeoJSON(trip."meeting_point"::geometry)::json AS "meetingPoint",
+				trip."meeting_at" AS "meetingAt",
+				trip."booking_deadline" AS "bookingDeadline",
+				trip."capacity_min" AS "capacityMin",
+				trip."capacity_max" AS "capacityMax",
+				trip."seats_taken" AS "seatsTaken",
+				trip."price_per_person" AS "pricePerPerson",
+				trip."status",
+				trip."created_at" AS "createdAt",
+				trip."updated_at" AS "updatedAt",
+				route."difficulty" AS "difficulty",
+				route."status" AS "routeStatus",
+				(
+					SELECT wra."risk_level"
+					FROM "weather_risk_assessments" wra
+					WHERE wra."route_id" = trip."route_id"
+					ORDER BY wra."created_at" DESC
+					LIMIT 1
+				) AS "weatherRiskLevel"
+`;
+
 function computeIsBookable(
 	status: TripStatus,
 	routeStatus: TrekkingRouteStatus | null,
@@ -1817,34 +1848,7 @@ export class TripsRepository extends Repository<Trip> {
 
 		const rows = (await this.query(
 			`
-			SELECT
-				trip."id",
-				trip."title",
-				trip."description",
-				trip."cover_image_url" AS "coverImageUrl",
-				trip."trip_type" AS "tripType",
-				trip."duration_nights" AS "durationNights",
-				trip."starts_at" AS "startsAt",
-				trip."ends_at" AS "endsAt",
-				ST_AsGeoJSON(trip."meeting_point"::geometry)::json AS "meetingPoint",
-				trip."meeting_at" AS "meetingAt",
-				trip."booking_deadline" AS "bookingDeadline",
-				trip."capacity_min" AS "capacityMin",
-				trip."capacity_max" AS "capacityMax",
-				trip."seats_taken" AS "seatsTaken",
-				trip."price_per_person" AS "pricePerPerson",
-				trip."status",
-				trip."created_at" AS "createdAt",
-				trip."updated_at" AS "updatedAt",
-				route."difficulty" AS "difficulty",
-				route."status" AS "routeStatus",
-				(
-					SELECT wra."risk_level"
-					FROM "weather_risk_assessments" wra
-					WHERE wra."route_id" = trip."route_id"
-					ORDER BY wra."created_at" DESC
-					LIMIT 1
-				) AS "weatherRiskLevel"
+			${TRIP_SUMMARY_SELECT}
 			FROM "trips" trip
 			LEFT JOIN "trekking_routes" route ON route."id" = trip."route_id"
 			${whereClause}
@@ -1858,6 +1862,28 @@ export class TripsRepository extends Repository<Trip> {
 			items: rows.map(toTripSummaryResponse),
 			total,
 		};
+	}
+
+	/**
+	 * Card data for published Trips, in the order of `tripIds` (missing or unpublished ids are
+	 * skipped). Same projection as the search list so recommendation cards match search cards.
+	 */
+	async findPublishedSummariesByIds(tripIds: string[]): Promise<TripSummaryResponseDto[]> {
+		if (tripIds.length === 0) return [];
+		const rows = (await this.query(
+			`
+			${TRIP_SUMMARY_SELECT}
+			FROM "trips" trip
+			LEFT JOIN "trekking_routes" route ON route."id" = trip."route_id"
+			WHERE trip."id" = ANY($1::uuid[]) AND trip."status" = 'published'
+			`,
+			[tripIds]
+		)) as TripSummaryRow[];
+		const byId = new Map(rows.map((row) => [row.id, toTripSummaryResponse(row)]));
+		return tripIds.flatMap((id) => {
+			const summary = byId.get(id);
+			return summary ? [summary] : [];
+		});
 	}
 
 	/**

@@ -57,6 +57,12 @@ export class ProfileResponseDto {
 	@ApiProperty({ type: String, nullable: true })
 	bio!: string | null;
 
+	@ApiProperty({ type: Number, nullable: true })
+	campingExperienceYears!: number | null;
+
+	@ApiProperty({ type: String, nullable: true })
+	trekkingExperienceDetails!: string | null;
+
 	@ApiProperty({ type: [EmergencyContactResponseDto] })
 	emergencyContacts!: EmergencyContactResponseDto[];
 
@@ -95,6 +101,8 @@ export function toProfileResponse(
 		gender: user.gender,
 		address: user.address,
 		bio: user.bio,
+		campingExperienceYears: user.campingExperienceYears ?? null,
+		trekkingExperienceDetails: user.trekkingExperienceDetails ?? null,
 		emergencyContacts: emergencyContacts.map(toEmergencyContactResponse),
 		createdAt: user.createdAt,
 		updatedAt: user.updatedAt,

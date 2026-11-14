@@ -39,6 +39,7 @@ describe("Trip Availability Realtime Updates (CTMS-83)", () => {
 			hostId: "host-1",
 			status: TripStatus.PUBLISHED,
 			startsAt: new Date(Date.now() + 86400000),
+			bookingDeadline: new Date(Date.now() + 43200000),
 			capacityMax: 10,
 			seatsTaken: 6,
 			pricePerPerson: "100.00",

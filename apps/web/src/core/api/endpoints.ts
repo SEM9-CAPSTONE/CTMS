@@ -216,6 +216,11 @@ export const API_ENDPOINTS = {
 	PROFILE: {
 		ME: "/profiles/me",
 	},
+	TRIP_RECOMMENDATIONS: {
+		LIST: "/trip-recommendations",
+		PREFERENCES: "/profiles/me/trip-preferences",
+		EXPLANATION: (tripId: string) => `/trip-recommendations/trips/${tripId}/explanation`,
+	},
 	USERS: {
 		LIST: "/users",
 		DETAIL: (userId: string) => `/users/${userId}`,

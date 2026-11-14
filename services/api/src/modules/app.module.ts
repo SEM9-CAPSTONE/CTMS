@@ -37,6 +37,7 @@ import { SosModule } from "./sos/sos.module";
 import { SurvivalDocumentsModule } from "./survival-documents/survival-documents.module";
 import { SyncEvaluationModule } from "./sync-evaluation/sync-evaluation.module";
 import { TrekkingRoutesModule } from "./trekking-routes/trekking-routes.module";
+import { TripRecommendationsModule } from "./trip-recommendations/trip-recommendations.module";
 import { TripReviewModerationModule } from "./trip-review-moderation/trip-review-moderation.module";
 import { TripReviewsModule } from "./trip-reviews/trip-reviews.module";
 import { TripsModule } from "./trips/trips.module";
@@ -83,6 +84,7 @@ import { WeatherModule } from "./weather/weather.module";
 		UsersModule,
 		TrekkingRoutesModule,
 		TripsModule,
+		TripRecommendationsModule,
 		TripReviewsModule,
 		TripReviewModerationModule,
 		ReviewAnalysisModule,

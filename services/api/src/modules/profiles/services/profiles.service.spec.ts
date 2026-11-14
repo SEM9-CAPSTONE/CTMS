@@ -37,6 +37,8 @@ function buildUser(overrides: Partial<User> = {}): User {
 		gender: null,
 		address: null,
 		bio: null,
+		campingExperienceYears: null,
+		trekkingExperienceDetails: null,
 		createdAt: FIXED_DATE,
 		updatedAt: FIXED_DATE,
 		...overrides,
@@ -150,6 +152,39 @@ describe("ProfilesService", () => {
 	});
 
 	describe("updateMyProfile", () => {
+		it("saves and returns the trekking experience, clearing an emptied description", async () => {
+			transactionalUsersRepository.findOneBy.mockResolvedValue(buildUser());
+			transactionalUsersRepository.findOneByOrFail.mockResolvedValue(
+				buildUser({
+					campingExperienceYears: 3,
+					trekkingExperienceDetails: "Đã trekking Sơn Trà và đèo Hải Vân",
+				})
+			);
+			transactionalContactsRepository.findByUserId.mockResolvedValue([]);
+
+			const result = await service.updateMyProfile(USER_ID, {
+				campingExperienceYears: 3,
+				trekkingExperienceDetails: "Đã trekking Sơn Trà và đèo Hải Vân",
+			});
+			expect(transactionalUsersRepository.update).toHaveBeenCalledWith(
+				USER_ID,
+				expect.objectContaining({
+					campingExperienceYears: 3,
+					trekkingExperienceDetails: "Đã trekking Sơn Trà và đèo Hải Vân",
+				})
+			);
+			expect(result).toMatchObject({
+				campingExperienceYears: 3,
+				trekkingExperienceDetails: "Đã trekking Sơn Trà và đèo Hải Vân",
+			});
+
+			await service.updateMyProfile(USER_ID, { trekkingExperienceDetails: "   " });
+			expect(transactionalUsersRepository.update).toHaveBeenLastCalledWith(
+				USER_ID,
+				expect.objectContaining({ trekkingExperienceDetails: null })
+			);
+		});
+
 		it("updates profile fields and replaces emergency contacts in one transaction", async () => {
 			const existingUser = buildUser();
 			const updatedUser = buildUser({

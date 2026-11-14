@@ -76,6 +76,12 @@ export class User {
 	@Column({ type: "varchar", length: 500, nullable: true })
 	bio!: string | null;
 
+	@Column({ name: "camping_experience_years", type: "smallint", nullable: true })
+	campingExperienceYears!: number | null;
+
+	@Column({ name: "trekking_experience_details", type: "varchar", length: 300, nullable: true })
+	trekkingExperienceDetails!: string | null;
+
 	@CreateDateColumn({ name: "created_at", type: "timestamptz" })
 	createdAt!: Date;
 

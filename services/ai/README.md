@@ -28,6 +28,41 @@ queue/retry behavior, API contract and validation limits.
 
 ### Gemini provider support (2026-11-05)
 
+### Personalized Trip recommendations (CTMS-106)
+
+Trip recommendations use a separate Gemini client, independently of review analysis:
+
+```env
+GEMINI_API_KEY=your_google_ai_studio_key
+TRIP_RECOMMENDATION_PROVIDER=gemini
+TRIP_RECOMMENDATION_MODEL=gemini-3.1-flash-lite
+TRIP_RECOMMENDATION_AI_ENABLED=true
+TRIP_RECOMMENDATION_CACHE_HOURS=24
+```
+
+Create a key at https://aistudio.google.com/apikey using a Free Tier project.
+Keep the key only in the AI service environment (or the root Docker Compose `.env`), never in
+web/mobile configuration or Git. Keep `AI_REVIEW_SERVICE_TOKEN` identical in API and AI services.
+Provider/model settings must match in API and AI; Docker Compose passes them to both.
+Restart both services after configuration changes. Existing review/weather providers are unchanged.
+
+The OpenAI SDK connects to Google's fixed compatibility endpoint; no OpenAI key is required
+for recommendations. `gemini-3.1-flash-lite` has free input/output within Google's project limits:
+https://ai.google.dev/gemini-api/docs/pricing#gemini-3.1-flash-lite.
+Actual quotas are shown in AI Studio, and paid projects may be billed; configuration cannot
+detect your project's billing tier. No paid-model or alternate-provider fallback is automatic.
+
+Only structured candidate attributes and aggregated permitted signals are sent. Google may use
+Free Tier content to improve products. Cached AI order lasts at most 24 hours with unchanged
+signals/configuration; current availability is always checked again. Concurrent identical
+requests from one Camper share a pending rank call in the API process. A 429 triggers a
+cooldown across all Campers in the AI service process, respecting Retry-After or defaulting
+to 60 seconds. The current Docker service runs one worker; multiple AI replicas would need
+a shared cooldown store. Missing keys, quota errors, invalid JSON and timeouts use rule ranking.
+Python has a 4-second timeout without SDK retries; API has a 5-second timeout.
+
+### Review analysis configuration
+
 Review analysis supports `REVIEW_ANALYSIS_PROVIDER=openai|gemini` (default `openai`).
 For Gemini, set `GEMINI_API_KEY`, `REVIEW_ANALYSIS_PROVIDER=gemini`,
 `REVIEW_ANALYSIS_MODEL=gemini-3.1-flash-lite`, and

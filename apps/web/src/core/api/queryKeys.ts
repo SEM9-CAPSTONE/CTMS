@@ -1,4 +1,11 @@
 export const queryKeys = {
+	tripRecommendations: {
+		all: ["trip-recommendations"] as const,
+		list: (user: string) => ["trip-recommendations", user, "list"] as const,
+		preferences: (user: string) => ["trip-recommendations", user, "preferences"] as const,
+		explanation: (user: string, trip: string) =>
+			["trip-recommendations", user, "explanation", trip] as const,
+	},
 	packageDeparture: {
 		status: (actor: string, trip: string) => ["package-departure", actor, trip, "status"] as const,
 		inbox: (actor: string) => ["package-departure", actor, "inbox"] as const,
