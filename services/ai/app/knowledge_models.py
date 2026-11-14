@@ -8,6 +8,12 @@ from pydantic import BaseModel, ConfigDict, Field
 PIPELINE_VERSION = "ctms-hybrid-v1"
 EMBEDDING_MODEL = "intfloat/multilingual-e5-small"
 EMBEDDING_REVISION = "614241f622f53c4eeff9890bdc4f31cfecc418b3"
+EMBEDDING_DIMENSIONS = 384
+MAX_EMBEDDING_TOKENS = 480
+CONTEXT_TOKENIZER = "e5-sentencepiece"
+MAX_QUERY_LENGTH = 2_000
+MAX_CONTEXT_BLOCKS = 10
+MAX_CONTEXT_BLOCK_BYTES = 16_384
 MAX_PDF_BYTES = 52_428_800
 MAX_CHUNKS = 10_000
 MAX_PAGES = 1_000
@@ -18,8 +24,8 @@ class IngestionConfiguration(BaseModel):
     pipeline_version: Literal["ctms-hybrid-v1"] = PIPELINE_VERSION
     embedding_model: Literal["intfloat/multilingual-e5-small"] = EMBEDDING_MODEL
     embedding_revision: Literal["614241f622f53c4eeff9890bdc4f31cfecc418b3"] = EMBEDDING_REVISION
-    embedding_dimensions: Literal[384] = 384
-    max_tokens: Literal[480] = 480
+    embedding_dimensions: Literal[384] = EMBEDDING_DIMENSIONS
+    max_tokens: Literal[480] = MAX_EMBEDDING_TOKENS
 
 
 class IngestionRequest(BaseModel):
@@ -74,3 +80,27 @@ class IngestionResponse(BaseModel):
     configuration: IngestionConfiguration
     quality: QualityReport
     chunks: list[EmbeddedChunk]
+
+
+class QueryEmbeddingRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
+    question: str = Field(min_length=1, max_length=MAX_QUERY_LENGTH)
+
+
+class QueryEmbeddingResponse(BaseModel):
+    model: str = EMBEDDING_MODEL
+    revision: str = EMBEDDING_REVISION
+    dimensions: int = EMBEDDING_DIMENSIONS
+    embedding: list[float]
+
+
+class ContextTokenRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
+    blocks: list[str] = Field(min_length=1, max_length=MAX_CONTEXT_BLOCKS)
+
+
+class ContextTokenResponse(BaseModel):
+    model: str = EMBEDDING_MODEL
+    revision: str = EMBEDDING_REVISION
+    tokenizer: str = CONTEXT_TOKENIZER
+    counts: list[int]
