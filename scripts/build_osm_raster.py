@@ -8,6 +8,7 @@ import hashlib
 import io
 import json
 import math
+import os
 from pathlib import Path
 import sqlite3
 import urllib.parse
@@ -16,7 +17,7 @@ from datetime import datetime, timezone
 from PIL import Image, ImageDraw, ImageFont
 
 BOUNDS = (108.225, 16.065, 108.335, 16.165)
-ENDPOINT = 'https://overpass-api.de/api/interpreter'
+ENDPOINT = os.environ.get('OFFLINE_BASEMAP_OSM_URL', 'https://overpass-api.de/api/interpreter')
 ATTRIBUTION = '© OpenStreetMap contributors'
 LICENSE = 'https://www.openstreetmap.org/copyright'
 
@@ -32,13 +33,27 @@ def tile_range(bounds, zoom):
     x1, y1 = project(east, south, zoom)
     return range(int(x0 // 256), int(x1 // 256) + 1), range(int(y0 // 256), int(y1 // 256) + 1)
 
+def preflight(bounds):
+    if len(bounds) != 4 or not all(math.isfinite(v) for v in bounds):
+        raise RuntimeError('BOUNDS_INVALID')
+    w,s,e,n = bounds
+    if not (-180<=w<e<=180 and -85<s<n<85):
+        raise RuntimeError('REGION_UNSUPPORTED')
+    width = (e-w)*111320*math.cos(math.radians(0 if s<=0<=n else min(abs(s),abs(n))))
+    if (n-s)*111320>50000 or width>50000:
+        raise RuntimeError('REGION_TOO_LARGE')
+    counts = {z:len(tile_range(bounds,z)[0])*len(tile_range(bounds,z)[1]) for z in range(12,17)}
+    if sum(counts.values())>5000:
+        raise RuntimeError('TILE_LIMIT_EXCEEDED')
+    return counts
+
 def download(path):
     # Larger extract prevents polygon edges being mistaken for clipping boundaries.
     w,s,e,n = BOUNDS
     query = f'[out:json][timeout:180];(way({s-.03},{w-.03},{n+.03},{e+.03}););out geom;'
     request = urllib.request.Request(ENDPOINT,
         data=urllib.parse.urlencode({'data': query}).encode(),
-        headers={'User-Agent': 'CTMS-local-offline-map-spike/1.0', 'Accept': 'application/json'})
+        headers={'User-Agent': 'CTMS-offline-basemap-worker/1.0', 'Accept': 'application/json'})
     with urllib.request.urlopen(request, timeout=210) as response:
         payload = response.read(64 * 1024 * 1024 + 1)
     if len(payload) > 64 * 1024 * 1024:
@@ -55,7 +70,8 @@ def download(path):
     }, indent=2), encoding='utf-8')
 
 def font(size):
-    for candidate in ['C:/Windows/Fonts/arial.ttf', '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf']:
+    for candidate in ['C:/Windows/Fonts/arial.ttf', '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+                      '/usr/share/fonts/ttf-dejavu/DejaVuSans.ttf']:
         if Path(candidate).exists():
             return ImageFont.truetype(candidate, size)
     return ImageFont.load_default()
@@ -86,6 +102,7 @@ def dashed_line(draw, points, fill, width):
             position+=step; phase+=step
 
 def render(data, output):
+    preflight(BOUNDS)
     ways = [e for e in data['elements'] if e.get('type') == 'way' and len(e.get('geometry', [])) > 1]
     counts = collections.Counter(e.get('tags', {}).get('highway') for e in ways if 'highway' in e.get('tags', {}))
     temp = output.with_suffix('.partial')
@@ -160,6 +177,8 @@ def render(data, output):
     print(json.dumps(report,ensure_ascii=False),flush=True)
 
 def validate(path):
+    preflight(BOUNDS)
+    if path.stat().st_size>100*1024*1024: raise RuntimeError('ARTIFACT_TOO_LARGE')
     with closing(sqlite3.connect(f'file:{path.as_posix()}?mode=ro',uri=True)) as db:
         if db.execute('PRAGMA integrity_check').fetchone()[0]!='ok': raise RuntimeError('SQLite invalid')
         hashes=collections.Counter(); actual={}
@@ -171,11 +190,17 @@ def validate(path):
             actual[z]=len(rows)
             for x,y,payload in rows:
                 with Image.open(io.BytesIO(payload)) as im:
-                    if im.size!=(256,256): raise RuntimeError('Unexpected tile size')
+                    if im.size!=(256,256) or im.format!='PNG': raise RuntimeError('Unexpected tile format or size')
                     im.verify()
                 hashes[hashlib.sha256(payload).hexdigest()]+=1
     total=sum(actual.values()); dominant=max(hashes.values())/total
     if dominant>=0.95: raise RuntimeError('Placeholder suspected: >=95% tiles identical')
+    with closing(sqlite3.connect(f'file:{path.as_posix()}?mode=ro',uri=True)) as db:
+        metadata=dict(db.execute('SELECT name,value FROM metadata'))
+        if (metadata.get('format')!='png' or metadata.get('minzoom')!='12' or metadata.get('maxzoom')!='16'
+            or metadata.get('attribution')!=ATTRIBUTION or metadata.get('license')!=LICENSE
+            or tuple(map(float,metadata.get('bounds','').split(',')))!=tuple(BOUNDS)):
+            raise RuntimeError('METADATA_INVALID')
     return {'bytes':path.stat().st_size,'sha256':hashlib.sha256(path.read_bytes()).hexdigest(),
         'tiles':total,'perZoom':actual,'uniqueTileHashes':len(hashes),'dominantHashFraction':dominant,
         'bounds':BOUNDS,'attribution':ATTRIBUTION,'license':LICENSE,'coverage':'Every tile cell in bounds exists; not proof that OSM features are complete'}
@@ -186,10 +211,8 @@ if __name__=='__main__':
     p.add_argument('--output',type=Path,default=Path('artifacts/osm-offline/son_tra.mbtiles'))
     p.add_argument('--bounds',type=float,nargs=4,metavar=('WEST','SOUTH','EAST','NORTH'),default=BOUNDS)
     a=p.parse_args(); BOUNDS=tuple(a.bounds)
-    if not (-180<=BOUNDS[0]<BOUNDS[2]<=180 and -85<BOUNDS[1]<BOUNDS[3]<85):
-        p.error('Invalid bounds')
-    if sum(len(tile_range(BOUNDS,z)[0])*len(tile_range(BOUNDS,z)[1]) for z in range(12,17))>5000:
-        p.error('Region too large for this local renderer (5000 tile limit)')
+    try: preflight(BOUNDS)
+    except RuntimeError as error: p.error(str(error))
     a.output.parent.mkdir(parents=True,exist_ok=True)
     if a.validate: print(json.dumps(validate(a.output),indent=2))
     else:

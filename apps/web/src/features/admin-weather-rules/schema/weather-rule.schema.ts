@@ -1,4 +1,9 @@
 import { z } from "zod";
+import {
+	WEATHER_RULE_LIMITS,
+	WEATHER_RULE_MAX_WEIGHT,
+	WEATHER_RULE_WEIGHT_LABELS,
+} from "../utils/rule-limits";
 
 export const weatherRuleSchema = z
 	.object({
@@ -102,6 +107,36 @@ export const weatherRuleSchema = z
 				"Tổng các trọng số tiêu chí (mưa, gió, nhiệt độ, tầm nhìn, dông sét) phải đúng bằng 1.0",
 			path: ["rainfallWeight"],
 		}
-	);
+	)
+	// Sensible bounds: an obviously wrong threshold would block bookings and penalise Hosts.
+	.superRefine((data, ctx) => {
+		for (const [field, limit] of Object.entries(WEATHER_RULE_LIMITS)) {
+			const value = data[field as keyof typeof WEATHER_RULE_LIMITS];
+			if (value < limit.min || value > limit.max) {
+				const unit = limit.unit ? ` ${limit.unit}` : "";
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					path: [field],
+					message: `${limit.label} phải từ ${limit.min} đến ${limit.max}${unit}`,
+				});
+			}
+		}
+		for (const [field, label] of Object.entries(WEATHER_RULE_WEIGHT_LABELS)) {
+			if (data[field as keyof typeof WEATHER_RULE_WEIGHT_LABELS] > WEATHER_RULE_MAX_WEIGHT) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					path: [field],
+					message: `Trọng số ${label} không được lớn hơn ${WEATHER_RULE_MAX_WEIGHT}`,
+				});
+			}
+		}
+		if (!data.thunderstormYellow && !data.thunderstormRed) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				path: ["thunderstormYellow"],
+				message: "Dông sét phải được tính ít nhất ở Mức Vàng",
+			});
+		}
+	});
 
 export type WeatherRuleFormValues = z.infer<typeof weatherRuleSchema>;

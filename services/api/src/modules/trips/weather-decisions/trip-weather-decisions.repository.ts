@@ -152,7 +152,8 @@ export class TripWeatherDecisionsRepository {
 			tripId: string;
 			forecastId: string | null;
 			riskLevel: WeatherRiskLevelValue | null;
-			decidedBy: string;
+			/** NULL for a decision taken by the system itself (T-6h auto-cancel). */
+			decidedBy: string | null;
 			deciderRole: WeatherDeciderRole;
 			decision: WeatherDecision;
 			reason: string;
@@ -250,6 +251,34 @@ export class TripWeatherDecisionsRepository {
 			 LIMIT $3::int`,
 			[now, windowMs, limit]
 		)) as RedTripCandidate[];
+	}
+
+	/**
+	 * Published Trips starting within `windowMs` whose newest forecast is Red and that nobody kept,
+	 * rescheduled, cancelled or resumed for the current schedule (a pause alone does not count).
+	 * The service re-checks each one under a lock before cancelling.
+	 */
+	async findAutoCancelCandidateIds(now: Date, windowMs: number, limit: number): Promise<string[]> {
+		const rows = (await this.dataSource.query(
+			`SELECT trip."id" FROM "trips" trip
+			 JOIN LATERAL (
+			   SELECT f."risk_level" FROM "trip_weather_forecasts" f
+			   WHERE f."trip_id" = trip."id" ORDER BY f."created_at" DESC, f."id" DESC LIMIT 1
+			 ) latest ON true
+			 WHERE trip."status" = 'published'
+			   AND trip."starts_at" > $1::timestamptz
+			   AND trip."starts_at" <= $1::timestamptz + ($2::bigint * interval '1 millisecond')
+			   AND latest."risk_level" = 'red'
+			   AND NOT EXISTS (
+			     SELECT 1 FROM "trip_weather_decisions" d
+			     WHERE d."trip_id" = trip."id" AND d."trip_starts_at" = trip."starts_at"
+			       AND d."decision" IN ('keep', 'reschedule', 'cancel', 'resume')
+			   )
+			 ORDER BY trip."starts_at" ASC, trip."id" ASC
+			 LIMIT $3::int`,
+			[now, windowMs, limit]
+		)) as Array<{ id: string }>;
+		return rows.map((row) => row.id);
 	}
 
 	/** Stores reminders; one per (Trip, schedule, recipient, milestone). Returns only new ones. */

@@ -1,0 +1,23 @@
+# Restrict backend build context; Windows may deny traversal of unrelated Python caches.
+**
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!tsconfig.base.json
+!apps/
+!apps/web/
+!apps/web/package.json
+!services/
+!services/api/
+!services/api/**
+!scripts/
+!scripts/build_osm_raster.py
+**/node_modules
+**/dist
+**/coverage
+**/*.tsbuildinfo
+**/*.log
+**/.env
+**/.env.*
+**/.private-*
+**/__pycache__

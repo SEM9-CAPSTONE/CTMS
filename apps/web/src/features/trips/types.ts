@@ -128,6 +128,15 @@ export interface TripWeatherWorstReading {
 	hoursCovered: number;
 }
 
+export interface TripWeatherAiReview {
+	level: RiskLevel;
+	reason: string;
+	confidence: number;
+	reviewedAt: string;
+	matchesRule: boolean;
+	acknowledgedAt: string | null;
+}
+
 /** Weather forecast over a Trip's own schedule (not today's weather). */
 export interface TripWeatherForecast {
 	id: string;
@@ -143,6 +152,8 @@ export interface TripWeatherForecast {
 	compositeScore: number | null;
 	criteriaScores: WeatherCriteriaScores | null;
 	advice: { text: string; actions: string[]; generatedAt: string } | null;
+	/** Independent AI opinion on the same readings (Host/Admin only); `riskLevel` stays official. */
+	aiReview?: TripWeatherAiReview | null;
 	horizonDays: number;
 	createdAt: string;
 	/** Last time the monitor confirmed this forecast (CTMS-93); older payloads may omit it. */

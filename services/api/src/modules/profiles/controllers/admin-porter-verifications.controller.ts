@@ -23,6 +23,7 @@ import {
 } from "../dto/admin-porter-verification.dto";
 // biome-ignore lint/style/useImportType: @Query()/@Body() parameter types need runtime metadata for validation
 import {
+	ApprovePorterVerificationDto,
 	ListPorterVerificationsQueryDto,
 	RejectPorterVerificationDto,
 } from "../dto/admin-porter-verification.dto";
@@ -70,11 +71,16 @@ export class AdminPorterVerificationsController {
 	@ApiOperation({ summary: "Approve a Porter's guide certificate documents" })
 	@ApiResponse({ status: 200, type: AdminPorterVerificationDetailDto })
 	@ApiResponse({ status: 409, description: "Verification is not pending review" })
+	@ApiResponse({
+		status: 422,
+		description: "The official registry (huongdanvien.vn) check was not confirmed",
+	})
 	approve(
 		@Req() request: AuthenticatedRequest,
-		@Param("porterId", PORTER_ID_PIPE) porterId: string
+		@Param("porterId", PORTER_ID_PIPE) porterId: string,
+		@Body() dto: ApprovePorterVerificationDto
 	): Promise<AdminPorterVerificationDetailDto> {
-		return this.porterVerificationsService.approve(request.user.userId, porterId);
+		return this.porterVerificationsService.approve(request.user.userId, porterId, dto);
 	}
 
 	@Patch(":porterId/reject")

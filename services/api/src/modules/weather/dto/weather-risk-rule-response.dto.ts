@@ -70,6 +70,13 @@ export class WeatherRiskRuleResponseDto {
 	@ApiPropertyOptional({ description: "UUID of the user who created this rule version" })
 	createdBy?: string | null;
 
+	@ApiPropertyOptional({
+		type: String,
+		nullable: true,
+		description: "Full name of the Admin who created this rule version",
+	})
+	createdByName?: string | null;
+
 	@ApiProperty({ description: "Creation timestamp" })
 	createdAt!: Date;
 }

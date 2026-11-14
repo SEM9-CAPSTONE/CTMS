@@ -1,5 +1,28 @@
 # mobile
 
+## Kết nối API khi test trên iPhone
+
+Bản iOS chạy từ Xcode mặc định gọi `https://ditrek.io.vn/api`. Để test với
+backend đang chạy trên Windows, cho iPhone và máy Windows vào cùng mạng,
+mở `http://IP_WINDOWS:3000/api/health` bằng Safari trên iPhone, rồi chạy
+từ thư mục `apps/mobile` trên Mac:
+
+```sh
+flutter devices
+flutter run -d 'ID_IPHONE' --dart-define=API_BASE_URL=http://IP_WINDOWS:3000/api
+```
+
+Thay `ID_IPHONE` bằng ID từ `flutter devices` và `IP_WINDOWS` bằng địa chỉ
+LAN thực tế. Dùng đúng cổng backend công bố.
+Cho phép ứng dụng truy cập mạng nội bộ nếu iOS hỏi. `API_BASE_URL` được
+chọn khi build app, nên chạy lại lệnh nếu IP thay đổi.
+
+Để test cùng dữ liệu với web admin, dùng cùng backend cho web và iPhone.
+Đăng nhập lại bằng tài khoản Camper của môi trường đó khi đổi API. Trong
+app, vào **Khám phá → Xem chi tiết → Dữ liệu ngoại tuyến**. Để tải gói mới,
+Camper phải có tên trong booking đã xác nhận, chuyến phải đang công khai và
+gói ngoại tuyến phải ở trạng thái `READY`.
+
 ## Android build requirements
 
 Install JDK 17 and the Android SDK. The project pins the Gradle daemon to

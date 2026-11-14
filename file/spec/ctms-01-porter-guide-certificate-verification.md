@@ -172,3 +172,41 @@ Acceptance Criteria:
 - [x] Audit log written for submit, approve and reject.
 - [x] Screenshots of the running app captured.
 - [x] Jira key confirmed (CTMS-1) and file renamed.
+
+## 16. Extension — Tour-guide card with automatic check (bug-list item #4, Jira CTMS-138)
+
+Decisions with the user (2026-11-01/02 and 2026-11-13): a Porter guides customers in the mountains, so under the Tourism Law 2017 (Art. 58) they need a tour-guide card. CTMS operates in Vietnam (mainly Đà Nẵng), so a **domestic (nội địa)** or **international (quốc tế)** card is required; **site-only (tại điểm)** cards are not accepted. The existing "Mã mời / Thẻ chứng chỉ Porter" registration field is kept. Approval stays with a person: the system reads and checks the card photo, labels findings, auto-rejects only an expired or site-only card, and an Admin approves after checking the official registry.
+
+**Official registry.** huongdanvien.vn (Cục Du lịch Quốc gia Việt Nam) has a public search by card number but no API and no stated terms for automated access, so the system does not query it. The Admin opens it from the review dialog and must tick the confirmation before approving.
+
+**Business rules (in addition to BR-1…BR-7).**
+- BR-8: Before submitting, the Porter declares the card: type `noi_dia` / `quoc_te`, number of exactly 9 digits, "valid through" date not before today (Vietnam calendar). Editable only in `pending_documents` / `rejected`.
+- BR-9: Each image document (JPG/PNG/WEBP) is read by the AI service at upload; PDFs are not read. A failing or unconfigured AI service never blocks the upload (the reading is stored as unavailable).
+- BR-10: On submit the newest readable card photo is compared with the declaration and the account name (diacritics and case ignored). Labels: `CARD_EXPIRED`, `CARD_TYPE_SITE_ONLY`, `CARD_NOT_READ`, `NAME_MISMATCH`, `ACCOUNT_NAME_MISSING`, `NUMBER_MISMATCH`, `TYPE_MISMATCH`, `EXPIRY_MISMATCH`.
+- BR-11: `CARD_EXPIRED` or `CARD_TYPE_SITE_ONLY` (as read on the photo) → the system rejects immediately with a reason shown to the Porter (`reviewed_by` NULL, audit `porter_verification.auto_rejected` with no actor). Every other label only informs the Admin.
+- BR-12: Approval requires `officialRegistryChecked = true`; the approving Admin and time are stored as `registry_checked_by` / `registry_checked_at`.
+- BR-13: An approved Porter whose declared card has expired is treated as not approved for availability, available Porter search, request creation and acceptance (same predicate everywhere). Porters approved before this change have no card on file and stay eligible (transition; see Pending Decision).
+
+**Data.** Migration `1795800000000-AddPorterGuideCard`: `porter_verifications` gains `guide_card_type` (CHECK `noi_dia`/`quoc_te`), `guide_card_number` (CHECK 9 digits), `guide_card_expires_on` (date), `card_check` (jsonb: labels, reading, autoRejected), `card_checked_at`, `registry_checked_by` (FK users, SET NULL), `registry_checked_at` (CHECK both or neither); `porter_verification_documents` gains `extraction` (jsonb). "A submitted verification has a card" is enforced by the service, not a CHECK, so rows already pending review do not block the migration.
+
+**API.**
+| Method | Path | Change |
+| --- | --- | --- |
+| PUT | `/api/porter/verification/card` | New. Body `{ cardType, cardNumber, expiresOn }`; 422 invalid or expired; 409 when locked. Audit `porter_verification.card_updated`. |
+| POST | `/api/porter/verification/submit` | 422 when no card or the declared card expired; may return `rejected` (auto-rejection). |
+| PATCH | `/api/admin/porter-verifications/:porterId/approve` | Body `{ officialRegistryChecked: true }` required (422 otherwise). |
+| GET | Porter / Admin detail | `guideCard`; Admin detail adds `cardCheck`, `cardCheckedAt`, `registryCheckedBy`, `registryCheckedAt`. |
+
+AI service: `POST /guide-card-extraction` (`X-CTMS-AI-Token`), body `{ image_base64, mime_type }` → `{ is_guide_card, full_name, card_number, card_type, expires_on, confidence, model, prompt_version }`. It only transcribes the card; prompt v1, temperature 0, JSON output validated by Pydantic; model `GUIDE_CARD_EXTRACTION_MODEL` or the provider default (Gemini / OpenAI through `build_analysis_client()`).
+
+**Code.** API: `providers/guide-card-extraction.provider.ts` (never throws), `utils/guide-card-check.ts` (pure check, reuses `normalizeVietnameseName`), `PorterVerificationsService` (`updateGuideCard`, reading at upload, check and auto-rejection at submit, registry confirmation at approve), `APPROVED_PORTER_VERIFICATION_SQL` and `isApproved` (expiry). Web: `GuideCardForm` on the Porter verification page (submit disabled until the card is saved; own validation messages), `GuideCardReview` in the Admin dialog (declared vs read table, labels, "Mở huongdanvien.vn", copy number, confirmation checkbox; "Duyệt hồ sơ" disabled until ticked).
+
+**Test evidence.**
+- AI service pytest: 101 passed (new `test_guide_card_extraction_service.py`).
+- API unit: `guide-card-check.spec.ts`, updated `porter-verifications.service.spec.ts` (card required, auto-rejections, labels, registry confirmation). API jest 213 suites, 2 547 tests passed.
+- API integration (real Postgres; the AI reader mocked at its HTTP boundary like Cloudinary): `porter-verifications`, `trips.available-porters`, `trips.porter-requests`, `porter-profile-qualifications`: 4 suites, 44 tests passed, including card validation, approval only with the registry confirmation, expired card losing availability, auto-rejection of expired / site-only photos with a system audit, and mismatch labels.
+- Web vitest (porter-verification, admin-porter-verifications, routes): 18 passed. `lint:all` 0 errors, `build:all` passes.
+- Screenshots (real UI, mocked API): Porter card form; Admin dialog with labels before the tick; approve enabled after the tick.
+
+**Pending Decision.**
+- Porters approved before this change have no card on file and remain eligible. The leader should decide a deadline after which they must declare a card (then BR-13 would also block a missing card).

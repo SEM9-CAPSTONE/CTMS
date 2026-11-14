@@ -9,7 +9,7 @@ import '../../../core/widgets/ctms_section_card.dart';
 import '../application/offline_trip_providers.dart';
 import '../application/package_download_controller.dart';
 import '../domain/offline_trip.dart';
-import 'offline_route_diagram.dart';
+import '../../offline_map/presentation/widgets/offline_map_canvas.dart';
 
 class OfflineTripScreen extends ConsumerWidget {
   const OfflineTripScreen({super.key, required this.selection, this.tripTitle});
@@ -44,7 +44,7 @@ class OfflineTripScreen extends ConsumerWidget {
               subtitle: tripTitle,
               body: const _UnavailableTrip(),
             )
-          : _TripTabs(trip: data, tripTitle: tripTitle),
+          : _TripTabs(trip: data, tripTitle: tripTitle, selection: selection),
     );
   }
 }
@@ -61,10 +61,15 @@ class _UnavailableTrip extends StatelessWidget {
 }
 
 class _TripTabs extends StatelessWidget {
-  const _TripTabs({required this.trip, required this.tripTitle});
+  const _TripTabs({
+    required this.trip,
+    required this.tripTitle,
+    required this.selection,
+  });
 
   final OfflineTrip trip;
   final String? tripTitle;
+  final OfflineTripSelection selection;
   static final _sourceDate = DateFormat('dd/MM/yyyy HH:mm');
 
   @override
@@ -86,15 +91,26 @@ class _TripTabs extends StatelessWidget {
             padding: const EdgeInsets.all(AppSpacing.lg),
             children: [
               CtmsSectionCard(
-                title: 'Sơ đồ tuyến đường',
+                title: 'Bản đồ tuyến đường',
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    OfflineRouteDiagram(trip: trip),
+                    _SavedRouteMap(selection: selection),
                     const SizedBox(height: AppSpacing.sm),
                     const Text(
-                      'Sơ đồ không có bản đồ nền. Chấm xanh là điểm dừng.',
+                      'Các điểm đánh số là điểm dừng trong gói đã lưu.',
                     ),
+                    for (
+                      var index = 0;
+                      index < trip.checkpoints.length;
+                      index++
+                    ) ...[
+                      const SizedBox(height: AppSpacing.sm),
+                      _CheckpointCard(
+                        index: index,
+                        checkpoint: trip.checkpoints[index],
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -153,6 +169,34 @@ class _TripTabs extends StatelessWidget {
       ),
     ),
   );
+}
+
+class _SavedRouteMap extends ConsumerWidget {
+  const _SavedRouteMap({required this.selection});
+  final OfflineTripSelection selection;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => ref
+      .watch(savedTripMapProvider(selection))
+      .when(
+        loading: () => const SizedBox(
+          height: 320,
+          child: Center(child: CircularProgressIndicator()),
+        ),
+        error: (_, _) => const Text(
+          'Không thể mở bản đồ của gói đã lưu. Hãy kiểm tra lại gói dữ liệu.',
+        ),
+        data: (map) => map == null
+            ? const Text(
+                'Gói đang xem không còn khả dụng. Hãy quay lại và mở gói hiện tại.',
+              )
+            : OfflineMapCanvas(
+                route: map.context.route,
+                checkpoints: map.context.checkpoints,
+                mbtilesPath: map.basemapPath,
+                height: 360,
+              ),
+      );
 }
 
 class _CheckpointCard extends StatelessWidget {

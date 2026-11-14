@@ -5,6 +5,7 @@ import { RolesGuard } from "../auth/guards/roles.guard";
 import { RealtimeModule } from "../realtime/realtime.module";
 import { RouteRegistrationRiskController } from "./controllers/route-registration-risk.controller";
 import { TripWeatherForecastController } from "./controllers/trip-weather-forecast.controller";
+import { WeatherAiReviewController } from "./controllers/weather-ai-review.controller";
 import { WeatherChangeNoticesController } from "./controllers/weather-change-notices.controller";
 import { WeatherRiskRulesController } from "./controllers/weather-risk-rules.controller";
 import { WeatherController } from "./controllers/weather.controller";
@@ -16,12 +17,17 @@ import { HttpWeatherAdviceProvider } from "./providers/http-weather-advice.provi
 import { OpenMeteoWeatherProvider } from "./providers/open-meteo-weather.provider";
 import { WEATHER_ADVICE_PROVIDER } from "./providers/weather-advice-provider.interface";
 import { WEATHER_PROVIDER } from "./providers/weather-provider.interface";
+import {
+	HttpWeatherRiskReviewProvider,
+	WEATHER_RISK_REVIEW_PROVIDER,
+} from "./providers/weather-risk-review.provider";
 import { TripWeatherChangeNoticesRepository } from "./repositories/trip-weather-change-notices.repository";
 import { TripWeatherForecastsRepository } from "./repositories/trip-weather-forecasts.repository";
 import { WeatherAdviceRepository } from "./repositories/weather-advice.repository";
 import { WeatherRiskRepository } from "./repositories/weather-risk.repository";
 import { WeatherSnapshotsRepository } from "./repositories/weather-snapshots.repository";
 import { RouteRegistrationRiskService } from "./services/route-registration-risk.service";
+import { TripWeatherAiReviewService } from "./services/trip-weather-ai-review.service";
 import { TripWeatherChangeNotifier } from "./services/trip-weather-change-notifier.service";
 import { TripWeatherForecastService } from "./services/trip-weather-forecast.service";
 import { TripWeatherMonitorService } from "./services/trip-weather-monitor.service";
@@ -40,6 +46,7 @@ import { WeatherService } from "./services/weather.service";
 		WeatherRiskRulesController,
 		TripWeatherForecastController,
 		WeatherChangeNoticesController,
+		WeatherAiReviewController,
 	],
 	providers: [
 		WeatherService,
@@ -51,6 +58,7 @@ import { WeatherService } from "./services/weather.service";
 		TripWeatherChangeNotifier,
 		TripWeatherMonitorService,
 		TripWeatherMonitorWorker,
+		TripWeatherAiReviewService,
 		{
 			provide: RouteRegistrationRiskService,
 			useFactory: (
@@ -69,6 +77,7 @@ import { WeatherService } from "./services/weather.service";
 		RolesGuard,
 		{ provide: WEATHER_PROVIDER, useClass: OpenMeteoWeatherProvider },
 		{ provide: WEATHER_ADVICE_PROVIDER, useClass: HttpWeatherAdviceProvider },
+		{ provide: WEATHER_RISK_REVIEW_PROVIDER, useClass: HttpWeatherRiskReviewProvider },
 		{
 			provide: WeatherSnapshotsRepository,
 			useFactory: (dataSource: DataSource) =>

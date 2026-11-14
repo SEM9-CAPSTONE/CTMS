@@ -1,4 +1,9 @@
 export const API_ENDPOINTS = {
+	PACKAGE_DEPARTURE_NOTIFICATIONS: {
+		LIST: "/offline-package-notifications",
+		READ: (id: string) => `/offline-package-notifications/${id}/read`,
+	},
+	ADMIN_MODERATION_COUNTS: "/admin/moderation/counts",
 	DEMAND_INSIGHTS: {
 		PERIODS: "/host/demand-insights",
 		REPORT: (month: string) => `/host/demand-insights/${month}`,
@@ -176,6 +181,9 @@ export const API_ENDPOINTS = {
 		DECISION_ALERTS: "/me/weather-decision-alerts",
 		READ_DECISION_ALERT: (alertId: string) => `/me/weather-decision-alerts/${alertId}/read`,
 		ADMIN_INTERVENTIONS: "/admin/weather-interventions",
+		ADMIN_AI_MISMATCHES: "/admin/weather/ai-mismatches",
+		ADMIN_AI_MISMATCH_ACKNOWLEDGE: (forecastId: string) =>
+			`/admin/weather/ai-mismatches/${forecastId}/acknowledge`,
 		RESCHEDULE_RESPONSE: (bookingId: string) =>
 			`/bookings/${bookingId}/weather-reschedule-response`,
 		MY_PENALTIES: "/me/weather-penalties",
@@ -230,6 +238,7 @@ export const API_ENDPOINTS = {
 		VERIFICATION_DOCUMENTS: "/porter/verification/documents",
 		VERIFICATION_DOCUMENT: (documentId: string) => `/porter/verification/documents/${documentId}`,
 		VERIFICATION_SUBMIT: "/porter/verification/submit",
+		VERIFICATION_CARD: "/porter/verification/card",
 		ROUTE_QUALIFICATIONS: "/porter/route-qualifications",
 		ROUTE_QUALIFICATION_BY_ROUTE: (routeId: string) => `/porter/route-qualifications/${routeId}`,
 	},

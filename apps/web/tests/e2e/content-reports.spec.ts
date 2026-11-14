@@ -55,9 +55,18 @@ test.describe("Content Reports (real backend and PostgreSQL)", () => {
 		request,
 	}, testInfo) => {
 		const session = await login(request, page, fixtures.adminEmail);
+		const headers = { Authorization: `Bearer ${session.accessToken}` };
+		const before = await request.get(`${api}/admin/moderation/counts`, { headers });
+		expect(before.ok()).toBeTruthy();
+		const { contentReports: pendingReports } = (await before.json()) as { contentReports: number };
 		await page.goto("/admin/users");
-		await page.getByRole("button", { name: "Báo cáo nội dung", exact: true }).click();
+		await page.getByRole("button", { name: /^Kiểm duyệt/ }).click();
+		await page.getByRole("link", { name: /^Báo cáo từ người dùng/ }).click();
 		await expect(page).toHaveURL(/\/admin\/content-reports$/);
+		const reportsLink = page.getByRole("link", { name: /^Báo cáo từ người dùng/ });
+		await expect(reportsLink).toHaveAccessibleName(
+			`Báo cáo từ người dùng ${pendingReports} mục chờ xử lý`
+		);
 		const id = fixtures.reportIds[0];
 		const row = page
 			.getByRole("row")
@@ -88,9 +97,13 @@ test.describe("Content Reports (real backend and PostgreSQL)", () => {
 		await expect(panel.getByText("Đã xử lý", { exact: true })).toBeVisible();
 		await expect(row.getByText("Đã xử lý", { exact: true })).toBeVisible();
 		await expect(panel.getByRole("button", { name: "Chuyển sang xem xét" })).toHaveCount(0);
-		const detail = await request.get(`${api}/content-reports/${id}`, {
-			headers: { Authorization: `Bearer ${session.accessToken}` },
-		});
+		const remainingReports = pendingReports - 1;
+		await expect(reportsLink).toHaveAccessibleName(
+			remainingReports > 0
+				? `Báo cáo từ người dùng ${remainingReports} mục chờ xử lý`
+				: "Báo cáo từ người dùng"
+		);
+		const detail = await request.get(`${api}/content-reports/${id}`, { headers });
 		expect((await detail.json()).status).toBe("actioned");
 	});
 	test("stale report produces real 409 and refreshes without retrying mutation", async ({
@@ -136,7 +149,11 @@ test.describe("Content Reports (real backend and PostgreSQL)", () => {
 		await expect(page.getByRole("heading", { name: "Không có quyền truy cập" })).toBeVisible();
 		expect(await page.getByRole("button", { name: "Chuyển sang xem xét" }).count()).toBe(0);
 		const headers = { Authorization: `Bearer ${session.accessToken}` };
-		for (const endpoint of ["content-reports", `content-reports/${fixtures.reportIds[0]}`])
+		for (const endpoint of [
+			"content-reports",
+			`content-reports/${fixtures.reportIds[0]}`,
+			"admin/moderation/counts",
+		])
 			expect((await request.get(`${api}/${endpoint}`, { headers })).status()).toBe(403);
 		expect(
 			(
@@ -147,6 +164,7 @@ test.describe("Content Reports (real backend and PostgreSQL)", () => {
 			).status()
 		).toBe(403);
 		expect((await request.get(`${api}/content-reports`)).status()).toBe(401);
+		expect((await request.get(`${api}/admin/moderation/counts`)).status()).toBe(401);
 	});
 	for (const [index, status, label, finalLabel] of [
 		[2, "actioned", "Đánh dấu đã xử lý", "Đã xử lý"],

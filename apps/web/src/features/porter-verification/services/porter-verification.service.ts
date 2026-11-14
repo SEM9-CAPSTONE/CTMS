@@ -1,5 +1,5 @@
 import { API_ENDPOINTS, httpClient } from "../../../core/api";
-import type { PorterVerification, PorterVerificationDocument } from "../types";
+import type { GuideCard, PorterVerification, PorterVerificationDocument } from "../types";
 
 export const porterVerificationService = {
 	getMine: (): Promise<PorterVerification> =>
@@ -16,6 +16,9 @@ export const porterVerificationService = {
 
 	deleteDocument: (documentId: string): Promise<void> =>
 		httpClient.delete<void>(API_ENDPOINTS.PORTER.VERIFICATION_DOCUMENT(documentId)),
+
+	updateGuideCard: (card: GuideCard): Promise<PorterVerification> =>
+		httpClient.put<PorterVerification>(API_ENDPOINTS.PORTER.VERIFICATION_CARD, card),
 
 	submit: (): Promise<PorterVerification> =>
 		httpClient.post<PorterVerification>(API_ENDPOINTS.PORTER.VERIFICATION_SUBMIT),

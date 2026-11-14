@@ -31,11 +31,13 @@ import {
 	toTripWeatherDecisionDto,
 } from "./trip-weather-decision.dto";
 import {
+	WEATHER_AUTO_CANCEL_MS,
 	WEATHER_DECISION_WINDOW_MS,
 	type WeatherDeciderRole,
 	type WeatherDecision,
 	compareUrgency,
 	interventionUrgency,
+	isAutoCancelDue,
 	isLateHostDecision,
 	isWithinDecisionWindow,
 	needsAdminIntervention,
@@ -51,6 +53,13 @@ import {
 const DECISION_LOG_LIMIT = 50;
 const INTERVENTION_LIMIT = 200;
 const DECLINE_REASON = "Không nhận ngày mới sau khi Trip dời lịch vì thời tiết";
+export const AUTO_CANCEL_WEATHER_REASON =
+	"Hệ thống tự huỷ: dự báo Đỏ và chưa có quyết định Giữ / Dời / Huỷ trước giờ đi 6 giờ";
+
+export type WeatherAutoCancelOutcome = "cancelled" | "skipped";
+
+/** Thrown inside the cancel transaction when a Host/Admin decided meanwhile; rolls it back. */
+class DecidedMeanwhileError extends Error {}
 
 interface DecisionContext {
 	trip: WeatherDecisionTrip;
@@ -165,6 +174,122 @@ export class TripWeatherDecisionService {
 		const saved = await this.apply(context, adminId, dto, recordWithPenalty, true);
 		if (penalty) this.penalties.notifyCreated(penalty);
 		return saved;
+	}
+
+	/**
+	 * T-6h auto-cancel (leader decision 2026-11-12): one worker pass over published Red Trips with
+	 * no final decision. A failure on one Trip is returned in `failed` and does not stop the others.
+	 */
+	async autoCancelDueTrips(
+		now: Date,
+		limit: number
+	): Promise<{ checked: number; cancelled: number; failed: number }> {
+		const ids = await this.decisions.findAutoCancelCandidateIds(now, WEATHER_AUTO_CANCEL_MS, limit);
+		let cancelled = 0;
+		let failed = 0;
+		for (const tripId of ids) {
+			try {
+				if ((await this.autoCancel(tripId, now)) === "cancelled") cancelled += 1;
+			} catch {
+				failed += 1;
+			}
+		}
+		return { checked: ids.length, cancelled, failed };
+	}
+
+	/**
+	 * Cancels one Trip for the weather on behalf of the system: Campers get the usual 100% refund
+	 * obligation (same path as a Host cancel), the Host is penalised exactly as for a first Admin
+	 * decision after T-24h, and the Host and every Admin get an `auto_cancelled` notice.
+	 * Re-checks every condition first, so a decision taken meanwhile wins.
+	 */
+	async autoCancel(tripId: string, now: Date): Promise<WeatherAutoCancelOutcome> {
+		const context = await this.loadContext(tripId, now);
+		if (context.trip.status !== TripStatus.PUBLISHED) return "skipped";
+		const schedule = await this.decisions.findDecisionsForSchedule(tripId, context.trip.startsAt);
+		const due = isAutoCancelDue(
+			{
+				startsAt: context.trip.startsAt,
+				riskLevel: context.forecast?.riskLevel ?? null,
+				decisions: schedule.map((decision) => decision.decision),
+			},
+			now
+		);
+		if (!due) return "skipped";
+
+		const penaltyDue = isPenaltyDue({
+			startsAt: context.trip.startsAt,
+			now,
+			adminAlreadyDecided: schedule.some((decision) => decision.deciderRole !== "host"),
+			hostAnsweredOnTime: schedule.some(
+				(decision) => decision.deciderRole === "host" && !decision.late
+			),
+		});
+		const bookingValue = penaltyDue ? await this.penalties.paidBookingValue(tripId) : null;
+		const record = this.recorder(context, null, "system", "cancel", AUTO_CANCEL_WEATHER_REASON, {
+			safetyPlan: null,
+			late: false,
+		});
+		let penalty: HostWeatherPenaltyDto | null = null;
+		try {
+			await this.tripsService.cancel(
+				context.trip.hostId,
+				tripId,
+				{ reason: `Huỷ vì thời tiết: ${AUTO_CANCEL_WEATHER_REASON}` },
+				{
+					actingAsAdmin: true,
+					auditActorId: null,
+					withinTransaction: async (manager) => {
+						// The Trip row is locked now; a Host/Admin decision that landed meanwhile wins.
+						const latest = await this.decisions.findDecisionsForSchedule(
+							tripId,
+							context.trip.startsAt,
+							manager
+						);
+						const stillDue = isAutoCancelDue(
+							{
+								startsAt: context.trip.startsAt,
+								riskLevel: context.forecast?.riskLevel ?? null,
+								decisions: latest.map((decision) => decision.decision),
+							},
+							now
+						);
+						if (!stillDue) throw new DecidedMeanwhileError();
+						await this.decisions.setPause(manager, tripId, null, null);
+						const saved = await record(manager);
+						if (bookingValue !== null) {
+							penalty = await this.penalties.createInTransaction(manager, {
+								trip: {
+									id: tripId,
+									hostId: context.trip.hostId,
+									title: context.trip.title,
+									startsAt: context.trip.startsAt,
+								},
+								decisionId: saved.id,
+								adminId: null,
+								bookingValue,
+								now,
+							});
+						}
+					},
+				}
+			);
+		} catch (error) {
+			if (error instanceof DecidedMeanwhileError) return "skipped";
+			throw error;
+		}
+		if (penalty) this.penalties.notifyCreated(penalty);
+		await this.alerts.send(
+			{
+				tripId,
+				hostId: context.trip.hostId,
+				title: context.trip.title,
+				startsAt: context.trip.startsAt,
+				forecastId: context.forecast?.id ?? null,
+			},
+			["auto_cancelled"]
+		);
+		return "cancelled";
 	}
 
 	async getDecisionLog(
@@ -327,7 +452,7 @@ export class TripWeatherDecisionService {
 
 	private recorder(
 		context: DecisionContext,
-		actorId: string,
+		actorId: string | null,
 		role: WeatherDeciderRole,
 		decision: WeatherDecision,
 		reason: string,
@@ -421,7 +546,7 @@ export class TripWeatherDecisionService {
 
 	private async audit(
 		manager: EntityManager,
-		actorId: string,
+		actorId: string | null,
 		action: string,
 		targetType: string,
 		targetId: string,

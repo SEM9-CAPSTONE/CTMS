@@ -1,4 +1,4 @@
-import { AlertTriangle, CalendarDays, LayoutDashboard, Menu } from "lucide-react";
+import { AlertTriangle, CalendarDays, LayoutDashboard } from "lucide-react";
 import type React from "react";
 import { useEffect, useMemo, useState } from "react";
 import { type RoleBearingUser, getGrantedRoles } from "../../auth/utils/permissions";
@@ -7,18 +7,21 @@ import { camperProfileService } from "../../camper-profile/services/camper-profi
 import type { CamperProfileData } from "../../camper-profile/types";
 import { HostDashboardHeader } from "../../host-overview/components/HostDashboardHeader";
 import { HostDashboardOverview } from "../../host-overview/components/HostDashboardOverview";
+import { DepartureInbox } from "../../offline-package-policy/components/DepartureInbox";
 import { CamperOperationalMap } from "../components/CamperOperationalMap";
 import { CamperTripPager } from "../components/CamperTripPager";
 import { HostOperationalOverview } from "../components/HostOperationalOverview";
 import { PorterOperationalMap } from "../components/PorterOperationalMap";
 import { useCamperTripCarousel } from "../hooks/useCamperTripCarousel";
 
-import { Collapse } from "../../../shared/components/Collapse";
+import { Button } from "../../../shared/components/Button";
+import { SidebarLayout } from "../../../shared/components/SidebarLayout";
+import { AdminLayout } from "../../admin-layout/components/AdminLayout";
 import { CamperSidebar } from "../../camper-profile/components/CamperSidebar";
-import { HostSosRealtimeProvider } from "../../sos-handling/components/HostSosRealtimeProvider";
 import { MetricCard } from "../components/MetricCard";
+import { OperationalSidebarLayout } from "../components/OperationalSidebarLayout";
 import { QuickTasksPanel } from "../components/QuickTasksPanel";
-import { Sidebar } from "../components/Sidebar";
+import { DashboardRoleSwitcher } from "../components/Sidebar";
 import { alertClasses, dashboards } from "../constants";
 import type { DashboardConfig, RoleKey, RoleLandingPageProps } from "../types";
 
@@ -95,7 +98,6 @@ function DashboardMain({
 	user,
 	profile,
 	onOpenProfile,
-	onOpenAdminUsers,
 	onCreateTrip,
 	onCreateTrekkingRoute,
 	onViewTrekkingRoutes,
@@ -106,7 +108,6 @@ function DashboardMain({
 	user: StoredAuthUser;
 	profile: CamperProfileData | null;
 	onOpenProfile?: () => void;
-	onOpenAdminUsers?: () => void;
 	onCreateTrip?: () => void;
 	onCreateTrekkingRoute?: () => void;
 	onViewTrekkingRoutes?: () => void;
@@ -331,7 +332,6 @@ function DashboardMain({
 
 								<QuickTasksPanel
 									config={config}
-									onOpenAdminUsers={onOpenAdminUsers}
 									onCreateTrip={onCreateTrip}
 									onCreateTrekkingRoute={onCreateTrekkingRoute}
 									onViewTrekkingRoutes={onViewTrekkingRoutes}
@@ -343,7 +343,6 @@ function DashboardMain({
 							<section>
 								<QuickTasksPanel
 									config={config}
-									onOpenAdminUsers={onOpenAdminUsers}
 									onCreateTrip={onCreateTrip}
 									onCreateTrekkingRoute={onCreateTrekkingRoute}
 									onViewTrekkingRoutes={onViewTrekkingRoutes}
@@ -391,17 +390,50 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 			? historyActiveRole
 			: (normalizedRoles[0] ?? "camper");
 	});
-	const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 	const activeRole = normalizedRoles.includes(selectedRole)
 		? selectedRole
 		: (normalizedRoles[0] ?? "camper");
-	const config = dashboards[activeRole];
-	const handleOpenProfile = () => onOpenProfile?.(activeRole);
 	const handleRoleChange = (role: RoleKey) => {
 		window.history.replaceState({ ...window.history.state, activeRole: role }, "");
 		setSelectedRole(role);
 	};
+
+	if (activeRole === "admin") {
+		return (
+			<AdminLayout
+				activeItem="dashboard"
+				allowMobile
+				profile={profile}
+				onLogout={onLogout}
+				roleSwitcher={
+					<DashboardRoleSwitcher
+						grantedRoles={normalizedRoles}
+						activeRole={activeRole}
+						onRoleChange={handleRoleChange}
+					/>
+				}
+			>
+				<section className="m-4 flex flex-wrap items-center justify-between gap-4 rounded-[28px] border border-[#dfe8df] bg-white p-6 shadow-sm sm:m-6 lg:m-8">
+					<div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+						<h1 className="text-2xl font-extrabold text-brand-dark sm:text-3xl">
+							Trung tâm quản trị
+						</h1>
+						<span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800">
+							Coming soon
+						</span>
+					</div>
+					{onOpenAdminUsers && (
+						<Button onClick={onOpenAdminUsers} variant="outline">
+							Quản lý người dùng
+						</Button>
+					)}
+				</section>
+			</AdminLayout>
+		);
+	}
+
+	const config = dashboards[activeRole];
+	const handleOpenProfile = () => onOpenProfile?.(activeRole);
 	const handleCamperNav = (navKey: string) => {
 		if (navKey === "profile") {
 			handleOpenProfile();
@@ -424,121 +456,77 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 			}
 		}
 	};
+	const dashboardContent = (
+		<DashboardMain
+			config={config}
+			user={user}
+			profile={profile}
+			onOpenProfile={handleOpenProfile}
+			onCreateTrip={onCreateTrip}
+			onCreateTrekkingRoute={onCreateTrekkingRoute}
+			onViewTrekkingRoutes={onViewTrekkingRoutes}
+			onNavigateToTrips={onNavigateToTrips}
+			onNavigateToTripDetail={
+				activeRole === "host"
+					? (onNavigateToHostTripDetail ?? onNavigateToTripDetail)
+					: onNavigateToTripDetail
+			}
+		/>
+	);
+
+	if (activeRole !== "camper") {
+		return (
+			<OperationalSidebarLayout
+				config={config}
+				grantedRoles={normalizedRoles}
+				activeRole={activeRole}
+				onRoleChange={handleRoleChange}
+				profile={profile}
+				onOpenProfile={handleOpenProfile}
+				onNavigateToTrips={onNavigateToTrips}
+				onLogout={onLogout}
+				allowMobile
+				fixedViewport={activeRole === "host"}
+			>
+				{activeRole === "host" && grantedRoles.includes("host") && (
+					<DepartureInbox key={user.id} actor={user.id} />
+				)}
+				{dashboardContent}
+			</OperationalSidebarLayout>
+		);
+	}
 
 	return (
-		<div className="min-h-screen bg-[#f4f7f2] font-sans text-[#10221b] antialiased">
-			<div className="fixed inset-y-0 left-0 z-30 hidden h-dvh lg:flex">
-				<Collapse
-					isCollapsed={isSidebarCollapsed}
-					onToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-					widthClass={activeRole === "camper" ? "w-64" : "w-72"}
-				>
-					{activeRole === "camper" ? (
-						<CamperSidebar
-							profile={profile}
-							activeNav="overview"
-							onNavigate={handleCamperNav}
-							onLogout={onLogout}
-							className="h-full w-full"
-						/>
-					) : (
-						<Sidebar
-							config={config}
-							grantedRoles={normalizedRoles}
-							activeRole={activeRole}
-							onRoleChange={handleRoleChange}
-							profile={profile}
-							onOpenProfile={handleOpenProfile}
-							onNavigateToTrips={onNavigateToTrips}
-							onLogout={onLogout}
-						/>
-					)}
-				</Collapse>
-			</div>
-
-			{mobileMenuOpen && (
-				<div className="fixed inset-0 z-50 lg:hidden">
-					<button
-						type="button"
-						aria-label="Đóng menu dashboard"
-						onClick={() => setMobileMenuOpen(false)}
-						className="absolute inset-0 bg-[#10221b]/45"
-					/>
-					<div className="relative z-10 h-full shadow-2xl">
-						{activeRole === "camper" ? (
-							<CamperSidebar
-								profile={profile}
-								activeNav="overview"
-								onLogout={onLogout}
-								onNavigate={(navKey) => {
-									handleCamperNav(navKey);
-									setMobileMenuOpen(false);
-								}}
-							/>
-						) : (
-							<Sidebar
-								config={config}
-								grantedRoles={normalizedRoles}
-								activeRole={activeRole}
-								onRoleChange={(role) => {
-									handleRoleChange(role);
-									setMobileMenuOpen(false);
-								}}
-								onClose={() => setMobileMenuOpen(false)}
-								profile={profile}
-								onOpenProfile={handleOpenProfile}
-								onNavigateToTrips={onNavigateToTrips}
-								onLogout={onLogout}
-							/>
-						)}
-					</div>
-				</div>
-			)}
-
-			<div
-				className={`${activeRole === "host" ? "flex h-dvh flex-col overflow-hidden" : "min-h-screen"} transition-all duration-300 ${
-					isSidebarCollapsed ? "lg:pl-0" : activeRole === "camper" ? "lg:pl-64" : "lg:pl-72"
-				}`}
-			>
-				<header className="sticky top-0 z-20 flex shrink-0 items-center gap-3 border-b border-[#dfe8df] bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
-					<button
-						type="button"
-						onClick={() => setMobileMenuOpen(true)}
-						aria-label="Mở menu dashboard"
-						className="rounded-xl border border-[#dfe8df] p-2.5 text-[#164027] transition hover:bg-[#f1f5f0]"
+		<SidebarLayout
+			title={config.productLabel}
+			storageKey="ctms:camper-sidebar-collapsed"
+			collapseMode="hide"
+			allowMobile
+			mobileBrand={
+				<div className="flex items-center gap-2.5">
+					<div
+						className="flex size-9 items-center justify-center rounded-lg text-white"
+						style={{ backgroundColor: config.accent }}
 					>
-						<Menu className="size-5" />
-					</button>
-					<div className="flex items-center gap-2.5">
-						<div
-							className="flex size-9 items-center justify-center rounded-lg text-white"
-							style={{ backgroundColor: config.accent }}
-						>
-							<LayoutDashboard className="size-5" />
-						</div>
-						<p className="font-extrabold">{config.productLabel}</p>
+						<LayoutDashboard aria-hidden="true" className="size-5" />
 					</div>
-				</header>
-
-				<HostSosRealtimeProvider enabled={activeRole === "host"}>
-					<DashboardMain
-						config={config}
-						user={user}
-						profile={profile}
-						onOpenProfile={handleOpenProfile}
-						onOpenAdminUsers={onOpenAdminUsers}
-						onCreateTrip={onCreateTrip}
-						onCreateTrekkingRoute={onCreateTrekkingRoute}
-						onViewTrekkingRoutes={onViewTrekkingRoutes}
-						onNavigateToTrips={onNavigateToTrips}
-						onNavigateToTripDetail={
-							config.role === "host"
-								? (onNavigateToHostTripDetail ?? onNavigateToTripDetail)
-								: onNavigateToTripDetail
-						}
-					/>
-				</HostSosRealtimeProvider>
-			</div>
-		</div>
+					<p className="font-extrabold">{config.productLabel}</p>
+				</div>
+			}
+			renderSidebar={({ onClose }) => (
+				<CamperSidebar
+					profile={profile}
+					activeNav="overview"
+					onLogout={onLogout}
+					onNavigate={(navKey) => {
+						handleCamperNav(navKey);
+						onClose?.();
+					}}
+					className="h-full w-full"
+				/>
+			)}
+		>
+			{dashboardContent}
+		</SidebarLayout>
 	);
 };

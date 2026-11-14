@@ -4,7 +4,6 @@ import type { DashboardConfig } from "../types";
 
 export interface QuickTasksPanelProps {
 	config: DashboardConfig;
-	onOpenAdminUsers?: () => void;
 	onCreateTrip?: () => void;
 	onCreateTrekkingRoute?: () => void;
 	onViewTrekkingRoutes?: () => void;
@@ -16,12 +15,10 @@ const roleSubtitles: Record<string, string> = {
 	host: "Các thao tác nhanh hỗ trợ vận hành và quản lý chuyến đi.",
 	camper: "Tiện ích chuẩn bị hành trình và theo dõi chuyến đi.",
 	porter: "Các tác vụ điểm danh và hỗ trợ đoàn trekking.",
-	admin: "Quản lý hệ thống và tài khoản người dùng.",
 };
 
 export function QuickTasksPanel({
 	config,
-	onOpenAdminUsers,
 	onCreateTrip,
 	onViewTrekkingRoutes,
 	onNavigateToTrips,
@@ -36,12 +33,6 @@ export function QuickTasksPanel({
 						{roleSubtitles[config.role] || "Truy cập nhanh các chức năng và tiện ích chính."}
 					</p>
 				</div>
-				{config.role === "admin" && onOpenAdminUsers && (
-					<Button onClick={onOpenAdminUsers} className="gap-2">
-						<span>Quản lý user</span>
-						<ArrowRight className="size-4" />
-					</Button>
-				)}
 				{config.role === "camper" && (
 					<Button
 						onClick={onExploreTrip ?? onNavigateToTrips}

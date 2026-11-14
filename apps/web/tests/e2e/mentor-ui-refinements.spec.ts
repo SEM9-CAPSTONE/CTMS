@@ -40,6 +40,10 @@ async function setup(page: Page, role: string) {
 				body = { porterId: "ui-test", status: "approved", version: 1, documents: [] };
 			if (path === "/api/users")
 				body = { items: [], pagination: { total: 0, page: 1, limit: 20, totalPages: 0 } };
+			if (path === "/api/admin/moderation/counts")
+				body = { trips: 4, trekkingRoutes: 2, porterVerifications: 0, contentReports: 1 };
+			if (path === "/api/content-reports")
+				body = { items: [], pagination: { total: 0, page: 1, limit: 20, totalPages: 0 } };
 			if (path === "/api/bookings")
 				body = [
 					{
@@ -123,6 +127,7 @@ test("admin logout remains inside viewport at short desktop heights", async ({ p
 	await page.setViewportSize({ width: 1280, height: 600 });
 	await setup(page, "admin");
 	await page.goto("/admin/users");
+	await page.getByRole("button", { name: "Tài khoản quản trị" }).click();
 	const logout = page.getByRole("button", { name: "Đăng xuất", exact: true });
 	await expect(logout).toBeVisible();
 	const box = await logout.boundingBox();
@@ -130,6 +135,31 @@ test("admin logout remains inside viewport at short desktop heights", async ({ p
 	expect(box.y + box.height).toBeLessThanOrEqual(600);
 	await expect(page.locator("aside nav")).toHaveCSS("overflow-y", "auto");
 	await page.screenshot({ path: "test-results/mentor-admin-sidebar.png" });
+});
+test("admin moderation stays usable in the collapsed rail", async ({ page }, testInfo) => {
+	await page.setViewportSize({ width: 1280, height: 600 });
+	await setup(page, "admin");
+	await page.goto("/admin/users");
+	const group = page.getByRole("button", { name: "Kiểm duyệt 7 mục chờ xử lý" });
+	await expect(group).toBeVisible();
+	await group.click();
+	await expect(page.getByRole("link", { name: "Duyệt hồ sơ Porter", exact: true })).toBeVisible();
+	await page.screenshot({ path: testInfo.outputPath("sidebar-expanded.png") });
+
+	await page.getByRole("button", { name: "Thu gọn thanh điều hướng" }).click();
+	await expect(group).toHaveAttribute("aria-expanded", "false");
+	await group.click();
+	const reports = page.getByRole("link", { name: "Báo cáo từ người dùng 1 mục chờ xử lý" });
+	await expect(reports).toBeInViewport();
+	const groupBox = await group.boundingBox();
+	const reportBox = await reports.boundingBox();
+	expect(groupBox && reportBox && reportBox.x > groupBox.x + groupBox.width).toBeTruthy();
+	await page.screenshot({ path: testInfo.outputPath("sidebar-collapsed.png") });
+
+	await reports.click();
+	await expect(page).toHaveURL(/\/admin\/content-reports$/);
+	await expect(page.getByRole("button", { name: "Mở rộng thanh điều hướng" })).toBeVisible();
+	await expect(reports).toHaveCount(0);
 });
 test("camper renders a real geographic map from confirmed booking data", async ({ page }) => {
 	await setup(page, "camper");
