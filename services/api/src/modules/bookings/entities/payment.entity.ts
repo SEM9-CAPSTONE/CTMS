@@ -28,6 +28,12 @@ export enum PaymentTransactionStatus {
 	FAILED = "failed",
 }
 
+export enum RefundReviewStatus {
+	PENDING = "pending_review",
+	APPROVED = "approved",
+	REJECTED = "rejected",
+}
+
 /**
  * CTMS-032-T01. Authoritative ledger record for a Booking charge or refund.
  *
@@ -64,6 +70,9 @@ export class Payment {
 
 	@Column({ type: "enum", enum: PaymentStatus, enumName: "payment_status" })
 	status!: PaymentStatus;
+
+	@Column({ name: "review_status", type: "varchar", length: 32, nullable: true })
+	reviewStatus!: RefundReviewStatus | null;
 
 	/** Camper-supplied, scoped to booking_id. Enforced unique by DB index (BR-178). */
 	@Column({ name: "idempotency_key", type: "varchar", length: 128, nullable: true })

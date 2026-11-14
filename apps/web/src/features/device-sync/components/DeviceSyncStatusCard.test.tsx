@@ -3,6 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { HttpError } from "../../../core/api";
 import { deviceSyncService } from "../services/device-sync.service";
 import { createMemoryGpsQueueStore } from "../storage/gps-queue.store";
 import { DeviceSyncState, type LocalGpsLogRecord } from "../types";
@@ -108,6 +109,43 @@ describe("DeviceSyncStatusCard (CTMS-067)", () => {
 			expect(screen.getByTestId("sync-error-banner")).toBeInTheDocument();
 		});
 		expect(screen.getByText("Không có kết nối mạng tới máy chủ.")).toBeInTheDocument();
+	});
+
+	it("shows a Vietnamese permission message instead of the upstream English response", async () => {
+		const upstreamMessage = "You are not authorized to view synchronization status for this Trip";
+		vi.spyOn(deviceSyncService, "getServerStatus").mockRejectedValue(
+			new HttpError(upstreamMessage, 403, {})
+		);
+		render(
+			<DeviceSyncStatusCard
+				tripId="trip-1"
+				userId="user-1"
+				gpsStore={createMemoryGpsQueueStore([])}
+			/>,
+			{ wrapper: createWrapper() }
+		);
+		expect(
+			await screen.findByText("Bạn không có quyền xem trạng thái đồng bộ của chuyến đi này.")
+		).toBeVisible();
+		expect(screen.queryByText(upstreamMessage)).not.toBeInTheDocument();
+	});
+
+	it("does not expose server details when synchronization status cannot load", async () => {
+		vi.spyOn(deviceSyncService, "getServerStatus").mockRejectedValue(
+			new HttpError("Internal database connection error", 500, {})
+		);
+		render(
+			<DeviceSyncStatusCard
+				tripId="trip-1"
+				userId="user-1"
+				gpsStore={createMemoryGpsQueueStore([])}
+			/>,
+			{ wrapper: createWrapper() }
+		);
+		expect(
+			await screen.findByText("Máy chủ tạm thời không phản hồi. Vui lòng thử lại sau.")
+		).toBeVisible();
+		expect(screen.queryByText("Internal database connection error")).not.toBeInTheDocument();
 	});
 
 	it("disables retry button when there are no pending or failed items (PB AC-5)", async () => {

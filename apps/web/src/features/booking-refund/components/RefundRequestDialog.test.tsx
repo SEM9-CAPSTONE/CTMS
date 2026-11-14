@@ -65,12 +65,12 @@ describe("RefundRequestDialog", () => {
 			/>
 		);
 
-		expect(screen.getByText("Yêu cầu hoàn tiền & Khiếu nại")).toBeInTheDocument();
+		expect(screen.getByText("Yêu cầu hoàn tiền")).toBeInTheDocument();
 		expect(await screen.findByText("Vietcombank")).toBeInTheDocument();
 		expect(screen.getByText("1029384756")).toBeInTheDocument();
 		expect(screen.getByText("CAMPER NGUYEN VAN AN")).toBeInTheDocument();
 
-		const reasonInput = screen.getByPlaceholderText(/Mô tả chi tiết lý do yêu cầu hoàn tiền/i);
+		const reasonInput = screen.getByRole("textbox");
 		await user.type(reasonInput, "Chuyến đi bị hoãn do thiên tai bất khả kháng");
 
 		const submitBtn = screen.getByTestId("submit-refund-button");
@@ -138,7 +138,7 @@ describe("RefundRequestDialog", () => {
 			/>
 		);
 
-		const reasonInput = screen.getByPlaceholderText(/Mô tả chi tiết lý do yêu cầu hoàn tiền/i);
+		const reasonInput = screen.getByRole("textbox");
 		await user.type(reasonInput, "Lỗi");
 
 		const submitBtn = screen.getByTestId("submit-refund-button");
@@ -230,16 +230,16 @@ describe("RefundRequestDialog", () => {
 			/>
 		);
 
-		expect(screen.getByText("Số tiền hoàn toàn bộ (100%)")).toBeInTheDocument();
+		expect(screen.getByText("Số tiền đề nghị hoàn")).toBeInTheDocument();
 		expect(screen.getByText("500.000 ₫")).toBeInTheDocument();
-		expect(screen.getByText("Rút hết")).toBeInTheDocument();
+		expect(screen.queryByText("Rút hết")).not.toBeInTheDocument();
 		expect(screen.queryByLabelText(/Số tiền yêu cầu hoàn/i)).not.toBeInTheDocument();
 
 		// Auto filled default bank account
 		expect(await screen.findByText("1903678910")).toBeInTheDocument();
 		expect(screen.getByText("NGUYEN VAN CAMPER")).toBeInTheDocument();
 
-		const reasonInput = screen.getByPlaceholderText(/Mô tả chi tiết lý do yêu cầu hoàn tiền/i);
+		const reasonInput = screen.getByRole("textbox");
 		await user.type(reasonInput, "Lý do hủy hoàn tất chuyến đi");
 
 		const submitBtn = screen.getByTestId("submit-refund-button");

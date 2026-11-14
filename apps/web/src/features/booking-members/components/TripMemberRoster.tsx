@@ -495,7 +495,7 @@ export function TripMemberRoster({
 																variant="outline"
 																disabled={completingBookingId === group.bookingId}
 																onClick={() => void handleCompleteSingleBooking(group.bookingId)}
-																aria-label={`Hoàn tất đơn đặt chỗ ${group.bookingId}`}
+																aria-label={`Hoàn tất đơn đặt chỗ của ${memberIdentity(primary)}`}
 																className="gap-1 border-emerald-300 text-emerald-800 hover:bg-emerald-50 text-xs h-8 px-2.5"
 															>
 																{completingBookingId === group.bookingId ? (

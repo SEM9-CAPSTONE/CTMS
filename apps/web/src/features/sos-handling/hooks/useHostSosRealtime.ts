@@ -106,10 +106,7 @@ export function useHostSosRealtime({
 			if (!markSeen(`created:${payload.eventId || payload.sosId}`)) return;
 			reloadAuthoritativeSos();
 			const label = EMERGENCY_LABELS[payload.emergencyType] || "Yêu cầu cứu trợ";
-			toast.error(
-				`${label} · Mã chuyến: ${payload.tripId.slice(0, 8)}`,
-				"Yêu cầu cứu trợ khẩn cấp"
-			);
+			toast.error(label, "Yêu cầu cứu trợ khẩn cấp");
 		},
 		enabled,
 		connection

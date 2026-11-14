@@ -29,17 +29,15 @@ export function ReportQueueTable({ data, disabled, onOpen, onPage }: Props) {
 							</tr>
 						</thead>
 						<tbody className="divide-y divide-[#e8efe7]">
-							{data.items.map((report) => (
+							{data.items.map((report, index) => (
 								<tr key={report.id} className="hover:bg-[#f8faf7] transition align-top">
 									<td className="px-4 py-4">
 										<p className="font-bold text-[#10221b]">
 											{report.reporter.fullName || "Chưa cập nhật họ tên"}
 										</p>
-										<p className="mt-1 break-all text-xs text-[#667a6d]">{report.reporter.id}</p>
 									</td>
 									<td className="px-4 py-4">
 										<p className="font-semibold text-[#10221b]">{report.targetType}</p>
-										<p className="mt-1 break-all text-xs text-[#667a6d]">{report.targetId}</p>
 									</td>
 									<td className="min-w-40 max-w-xs break-words px-4 py-4">
 										<p className="line-clamp-3 whitespace-pre-wrap text-xs text-[#10221b]">
@@ -59,7 +57,7 @@ export function ReportQueueTable({ data, disabled, onOpen, onPage }: Props) {
 											type="button"
 											disabled={disabled}
 											onClick={() => onOpen(report.id)}
-											aria-label={`Xem báo cáo ${report.id}`}
+											aria-label={`Xem báo cáo ${index + 1} của ${report.reporter.fullName || "người dùng"} ngày ${new Date(report.createdAt).toLocaleString("vi-VN")}`}
 											className="rounded-xl border border-[#dfe8df] bg-white px-3 py-1.5 text-xs font-bold text-[#164027] shadow-xs hover:bg-[#edf4eb] disabled:opacity-50"
 										>
 											Xem

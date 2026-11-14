@@ -37,12 +37,6 @@ export function PaymentResultCard({ result }: PaymentResultCardProps) {
 
 			<dl className="mt-3.5 grid gap-2 border-t border-emerald-200 pt-3 text-xs">
 				<div className="flex justify-between gap-3">
-					<dt className="text-emerald-800">Mã thanh toán</dt>
-					<dd data-testid="authoritative-payment-id" className="break-all font-mono font-bold">
-						{result.paymentId}
-					</dd>
-				</div>
-				<div className="flex justify-between gap-3">
 					<dt className="text-emerald-800">Số tiền đã thanh toán</dt>
 					<dd
 						data-testid="authoritative-payment-amount"

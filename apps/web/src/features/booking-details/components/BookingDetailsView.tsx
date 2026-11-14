@@ -53,7 +53,6 @@ export function BookingDetailsView({
 				<header className="rounded-3xl bg-[#164027] p-6 text-white shadow-sm sm:p-8">
 					<p className="text-xs font-bold uppercase tracking-wider text-emerald-100">Đơn đặt chỗ</p>
 					<h1 className="mt-2 text-2xl font-extrabold sm:text-3xl">Chi tiết đơn đặt chỗ</h1>
-					<p className="mt-2 break-all text-sm text-emerald-100">Mã: {booking.id}</p>
 					<div className="mt-5 flex flex-wrap gap-2">
 						<BookingStatusBadge
 							status={booking.status}
@@ -138,6 +137,7 @@ export function BookingDetailsView({
 						</dl>
 					</section>
 
+					{cancellationPanel && <div className="lg:col-span-2">{cancellationPanel}</div>}
 					<BookingMembersSection members={booking.members} />
 					<BookingEquipmentSection items={booking.equipmentItems} />
 
@@ -162,38 +162,40 @@ export function BookingDetailsView({
 						</dl>
 					</section>
 
-					<section
-						aria-labelledby="booking-cancellation-heading"
-						className="rounded-3xl bg-white p-6 shadow-sm"
-					>
-						<h2
-							id="booking-cancellation-heading"
-							className="flex items-center gap-2 text-lg font-extrabold"
+					{booking.status !== "completed" && (
+						<section
+							aria-labelledby="booking-cancellation-heading"
+							className="rounded-3xl bg-white p-6 shadow-sm"
 						>
-							<FileText className="size-5 text-[#164027]" /> Chính sách hủy
-						</h2>
-						{policyRules ? (
-							<ul className="mt-4 space-y-2 text-sm text-[#52665b]">
-								{policyRules.map((rule) => (
-									<li key={rule} className="rounded-xl bg-[#f4f7f2] px-4 py-3">
-										{rule}
-									</li>
-								))}
-							</ul>
-						) : (
-							<p className="mt-4 text-sm text-[#667a6d]">
-								Chính sách hủy sẽ được hệ thống kiểm tra khi bạn gửi yêu cầu.
+							<h2
+								id="booking-cancellation-heading"
+								className="flex items-center gap-2 text-lg font-extrabold"
+							>
+								<FileText className="size-5 text-[#164027]" /> Chính sách hủy
+							</h2>
+							{policyRules ? (
+								<ul className="mt-4 space-y-2 text-sm text-[#52665b]">
+									{policyRules.map((rule) => (
+										<li key={rule} className="rounded-xl bg-[#f4f7f2] px-4 py-3">
+											{rule}
+										</li>
+									))}
+								</ul>
+							) : (
+								<p className="mt-4 text-sm text-[#667a6d]">
+									Chính sách hủy sẽ được hệ thống kiểm tra khi bạn gửi yêu cầu.
+								</p>
+							)}
+							<p className="mt-3 text-xs text-[#667a6d]">
+								Điều kiện hủy và số tiền hoàn được kiểm tra theo chính sách áp dụng cho đơn này.
 							</p>
-						)}
-						<p className="mt-3 text-xs text-[#667a6d]">
-							Quyền hủy và số tiền hoàn thực tế được máy chủ xác định tại thời điểm gửi yêu cầu.
-						</p>
-						{booking.paymentStatus === "not_required" && (
-							<p className="mt-3 rounded-xl bg-sky-50 px-4 py-3 text-sm text-sky-900">
-								Đơn đặt chỗ này không yêu cầu thanh toán nên không phát sinh khoản hoàn tiền.
-							</p>
-						)}
-					</section>
+							{booking.paymentStatus === "not_required" && (
+								<p className="mt-3 rounded-xl bg-sky-50 px-4 py-3 text-sm text-sky-900">
+									Đơn đặt chỗ này không yêu cầu thanh toán nên không phát sinh khoản hoàn tiền.
+								</p>
+							)}
+						</section>
+					)}
 				</div>
 
 				{/* Weather reschedule (CTMS-58 flag): keep the new date or cancel with a full refund */}
@@ -230,7 +232,6 @@ export function BookingDetailsView({
 					<DeviceSyncStatusCard tripId={booking.tripId} />
 				</div>
 
-				{cancellationPanel}
 				<section
 					aria-labelledby="booking-schedule-note-heading"
 					className="mt-6 rounded-3xl border border-emerald-200 bg-emerald-50 p-5"

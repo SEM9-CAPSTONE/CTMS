@@ -69,7 +69,7 @@ export function BookingCancellationNotices() {
 								</button>
 							)}
 							<p className="mt-1 text-xs text-slate-600">
-								Mã đơn: {notice.bookingId} · {new Date(notice.createdAt).toLocaleString("vi-VN")}
+								{new Date(notice.createdAt).toLocaleString("vi-VN")}
 							</p>
 						</li>
 					))}

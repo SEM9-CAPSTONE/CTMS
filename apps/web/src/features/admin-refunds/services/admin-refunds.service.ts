@@ -8,6 +8,11 @@ import type {
 } from "../types";
 
 export const adminRefundsService = {
+	approve: (obligationId: string, payload: { note?: string }): Promise<ProcessRefundResponse> =>
+		httpClient.post<ProcessRefundResponse>(
+			API_ENDPOINTS.ADMIN_REFUNDS.APPROVE(obligationId),
+			payload
+		),
 	getRefunds: (filter: AdminRefundFilter): Promise<AdminRefundListResponse> =>
 		httpClient.get<AdminRefundListResponse>(API_ENDPOINTS.ADMIN_REFUNDS.LIST, {
 			page: filter.page,

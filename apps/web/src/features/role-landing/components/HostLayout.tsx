@@ -95,9 +95,9 @@ export function HostLayout({
 				allowMobile={allowMobile || currentRole === "porter"}
 			>
 				{currentRole === "host" && storedUser && grantedRoles.includes("host") && (
- <DepartureInbox key={storedUser.id} actor={storedUser.id} />
-)}
-<main>{children}</main>
+					<DepartureInbox key={storedUser.id} actor={storedUser.id} />
+				)}
+				<main>{children}</main>
 			</OperationalSidebarLayout>
 		);
 	}

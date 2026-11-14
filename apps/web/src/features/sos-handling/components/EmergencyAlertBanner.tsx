@@ -79,9 +79,7 @@ export function EmergencyAlertBanner({
 									</>
 								)}
 								{" · "}
-								<span className="text-red-700">
-									{tripTitle ? tripTitle : `Mã chuyến: ${latest.tripId.slice(0, 8)}`}
-								</span>
+								<span className="text-red-700">{tripTitle || "Chưa cập nhật tên chuyến đi"}</span>
 							</p>
 						</div>
 					</div>

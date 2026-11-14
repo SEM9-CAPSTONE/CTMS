@@ -22,7 +22,7 @@ export function OverviewWeather({
 	timeZone,
 }: { weather: Weather; routeName?: string; canViewRoute: boolean; timeZone: string }) {
 	const current = weather.state === "available";
-	const name = routeName ?? `Tuyến #${weather.routeId.slice(0, 8)}`;
+	const name = routeName ?? "Chưa cập nhật tên tuyến";
 	let badge = "bg-[#f0f3ef] text-[#748177]";
 	if (weather.state === "stale") badge = "bg-amber-50 text-amber-700";
 	if (current && weather.riskLevel === "red") badge = "bg-red-50 text-red-700";

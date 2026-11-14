@@ -64,7 +64,7 @@ it("lists the waiver requests waiting first and switches filters", async () => {
 	const api = service([penalty()]);
 	render(<WeatherPenaltiesPanel service={api} />);
 	const row = await screen.findByTestId("weather-penalty-row");
-	expect(row).toHaveTextContent("Host Host A");
+	expect(row).toHaveTextContent("Host A");
 	expect(row).toHaveTextContent("Chờ duyệt miễn");
 	expect(row).toHaveTextContent("Cần xem trước 17/01/2099");
 	expect(api.listForAdmin).toHaveBeenCalledWith("waiver_pending");

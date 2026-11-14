@@ -2,6 +2,7 @@ import { CalendarDays, FileJson, ShieldAlert, X } from "lucide-react";
 import { useEffect } from "react";
 import { ACTION_LABELS, TARGET_TYPE_LABELS } from "../constants";
 import type { AuditLogSummary } from "../types";
+import { displayAuditSnapshot, displayAuditText } from "../utils/audit-display";
 
 export interface AuditLogDetailsDialogProps {
 	open: boolean;
@@ -20,6 +21,9 @@ export function AuditLogDetailsDialog({ open, log, onClose }: AuditLogDetailsDia
 	}, [open, onClose]);
 
 	if (!open || !log) return null;
+	const reason =
+		displayAuditText(log.reason || "") ||
+		(typeof log.after?.reason === "string" ? displayAuditText(log.after.reason) : "");
 
 	return (
 		// biome-ignore lint/a11y/useSemanticElements: custom modal overlay
@@ -68,9 +72,8 @@ export function AuditLogDetailsDialog({ open, log, onClose }: AuditLogDetailsDia
 						<DetailField
 							label="Người thực hiện"
 							value={
-								log.actorName
-									? `${log.actorName} (${log.actorId || ""})`
-									: log.actorId || "System / Khách vãng lai"
+								log.actorName ||
+								(log.actorId ? "Người dùng chưa cập nhật tên" : "Hệ thống / Khách vãng lai")
 							}
 						/>
 						<DetailField
@@ -78,15 +81,10 @@ export function AuditLogDetailsDialog({ open, log, onClose }: AuditLogDetailsDia
 							value={TARGET_TYPE_LABELS[log.targetType] ?? log.targetType}
 							subValue={log.targetType}
 						/>
-						<DetailField
-							label="Đối tượng (Target ID)"
-							value={log.targetId}
-							className="sm:col-span-2 font-mono text-xs"
-						/>
-						{log.reason && (
+						{reason && (
 							<DetailField
 								label="Lý do"
-								value={log.reason}
+								value={reason}
 								className="sm:col-span-2 bg-[#fdfaf2] border-amber-200"
 							/>
 						)}
@@ -99,7 +97,7 @@ export function AuditLogDetailsDialog({ open, log, onClose }: AuditLogDetailsDia
 							</p>
 							{log.before ? (
 								<pre className="text-xs bg-[#10221b] text-emerald-400 p-4 rounded-xl overflow-x-auto font-mono max-h-[300px]">
-									{JSON.stringify(log.before, null, 2)}
+									{displayAuditSnapshot(log.before)}
 								</pre>
 							) : (
 								<div className="text-sm italic text-[#788c7e] p-4 bg-[#f4f7f2] rounded-xl text-center">
@@ -114,7 +112,7 @@ export function AuditLogDetailsDialog({ open, log, onClose }: AuditLogDetailsDia
 							</p>
 							{log.after ? (
 								<pre className="text-xs bg-[#10221b] text-emerald-400 p-4 rounded-xl overflow-x-auto font-mono max-h-[300px]">
-									{JSON.stringify(log.after, null, 2)}
+									{displayAuditSnapshot(log.after)}
 								</pre>
 							) : (
 								<div className="text-sm italic text-[#788c7e] p-4 bg-[#f4f7f2] rounded-xl text-center">

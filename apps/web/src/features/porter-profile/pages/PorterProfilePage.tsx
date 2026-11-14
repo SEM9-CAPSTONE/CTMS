@@ -77,7 +77,7 @@ export function PorterProfilePage({
 				setAvailableRoutes(list);
 			})
 			.catch(() => {
-				// non-fatal, fallback to manual Route ID
+				// Existing qualifications remain available; creation waits for named route choices.
 			});
 
 		return () => {

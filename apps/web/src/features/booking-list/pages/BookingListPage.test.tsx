@@ -55,6 +55,7 @@ describe("BookingListPage", () => {
 			retry: vi.fn(),
 		});
 		render(<BookingListPage onViewDetails={() => {}} />);
-		expect(screen.getByText("Mã: booking-1")).toBeVisible();
+		expect(screen.getByText("Chuyến đi không còn thông tin hiển thị")).toBeVisible();
+		expect(screen.queryByText("Mã: booking-1")).not.toBeInTheDocument();
 	});
 });

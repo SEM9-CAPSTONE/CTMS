@@ -18,6 +18,13 @@ import type { AuthenticatedUser } from "../auth/jwt.strategy";
 import { UserRole } from "../users/entities/user.entity";
 // biome-ignore lint/style/useImportType: decorated NestJS DTO requires runtime metadata
 import { AdminSettlementQueryDto } from "./dto/admin-settlement-query.dto";
+// biome-ignore lint/style/useImportType: decorated NestJS DTO requires runtime metadata
+import {
+	AdjustmentQueryDto,
+	FinancialAdjustmentResponseDto,
+	ReconciliationBookingsQueryDto,
+	ResolveAdjustmentDto,
+} from "./dto/financial-adjustment.dto";
 // biome-ignore lint/style/useImportType: DTO classes used with @Body() must be imported as values for NestJS validation metadata
 import {
 	ConfirmHostPayoutDto,
@@ -25,6 +32,8 @@ import {
 	RejectHostPayoutDto,
 	RequestHostPayoutDto,
 } from "./dto/host-payout.dto";
+// biome-ignore lint/style/useImportType: decorated NestJS DTO requires runtime metadata
+import { ReconcileFinancialExceptionDto } from "./dto/reconcile-financial-exception.dto";
 import {
 	SettlementResponseDto,
 	TripSettlementEvaluationDto,
@@ -185,5 +194,70 @@ export class SettlementsController {
 		@Body() dto: RejectHostPayoutDto
 	) {
 		return this.settlementsService.rejectHostPayout(payoutId, request.user.userId, dto);
+	}
+
+	@Post("admin/reconcile")
+	@ApiBearerAuth()
+	@UseGuards(JwtAuthGuard, RolesGuard)
+	@Roles(UserRole.ADMIN)
+	@ApiOperation({
+		summary: "Reconcile financial exceptions after settlement or payout (CTMS-114)",
+	})
+	@ApiResponse({ status: 201, type: FinancialAdjustmentResponseDto })
+	@ApiResponse({ status: 401, description: "Authentication required" })
+	@ApiResponse({ status: 403, description: "Admin role required" })
+	@ApiResponse({ status: 404, description: "Booking or charge not found" })
+	@ApiResponse({ status: 409, description: "No settlement exists or no refundable balance left" })
+	reconcileFinancialException(
+		@Req() request: { user: AuthenticatedUser },
+		@Body() dto: ReconcileFinancialExceptionDto
+	): Promise<FinancialAdjustmentResponseDto> {
+		return this.settlementsService.reconcileFinancialException(
+			dto.bookingId,
+			request.user.userId,
+			dto
+		);
+	}
+
+	@Get("admin/reconciliation-bookings")
+	@ApiBearerAuth()
+	@UseGuards(JwtAuthGuard, RolesGuard)
+	@Roles(UserRole.ADMIN)
+	@ApiOperation({ summary: "Find settled bookings by customer or trip for financial adjustment" })
+	listReconciliationBookings(@Query() query: ReconciliationBookingsQueryDto) {
+		return this.settlementsService.listReconciliationBookings(query);
+	}
+
+	@Get("admin/adjustments")
+	@ApiBearerAuth()
+	@UseGuards(JwtAuthGuard, RolesGuard)
+	@Roles(UserRole.ADMIN)
+	@ApiOperation({
+		summary: "List financial adjustments with filters and pagination (CTMS-114)",
+	})
+	@ApiResponse({ status: 200, description: "List of financial adjustments" })
+	listFinancialAdjustments(@Query() query: AdjustmentQueryDto) {
+		return this.settlementsService.listFinancialAdjustments(query);
+	}
+
+	@Post("admin/adjustments/:id/resolve")
+	@ApiBearerAuth()
+	@UseGuards(JwtAuthGuard, RolesGuard)
+	@Roles(UserRole.ADMIN)
+	@ApiOperation({
+		summary: "Resolve a pending financial adjustment (CTMS-114)",
+	})
+	@ApiResponse({ status: 200, type: FinancialAdjustmentResponseDto })
+	@ApiResponse({ status: 401, description: "Authentication required" })
+	@ApiResponse({ status: 403, description: "Admin role required" })
+	@ApiResponse({ status: 404, description: "Adjustment not found" })
+	@ApiResponse({ status: 409, description: "Adjustment already resolved" })
+	resolveFinancialAdjustment(
+		@Req() request: { user: AuthenticatedUser },
+		@Param("id", new ParseUUIDPipe({ errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY }))
+		id: string,
+		@Body() dto: ResolveAdjustmentDto
+	): Promise<FinancialAdjustmentResponseDto> {
+		return this.settlementsService.resolveFinancialAdjustment(id, request.user.userId, dto);
 	}
 }

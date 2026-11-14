@@ -5,9 +5,9 @@ import { type RoleBearingUser, getGrantedRoles } from "../../auth/utils/permissi
 import type { StoredAuthUser } from "../../auth/utils/tokenStorage";
 import { camperProfileService } from "../../camper-profile/services/camper-profile.service";
 import type { CamperProfileData } from "../../camper-profile/types";
-import { DepartureInbox } from "../../offline-package-policy/components/DepartureInbox";
 import { HostDashboardHeader } from "../../host-overview/components/HostDashboardHeader";
 import { HostDashboardOverview } from "../../host-overview/components/HostDashboardOverview";
+import { DepartureInbox } from "../../offline-package-policy/components/DepartureInbox";
 import { CamperOperationalMap } from "../components/CamperOperationalMap";
 import { CamperTripPager } from "../components/CamperTripPager";
 import { HostOperationalOverview } from "../components/HostOperationalOverview";
@@ -49,7 +49,7 @@ function getHistoryActiveRole(): RoleKey | null {
 }
 
 function getDisplayName(user: StoredAuthUser): string {
-	return user.email || user.phone || user.id;
+	return user.fullName || user.email || user.phone || "Người dùng";
 }
 
 function getTimeOfDay(date = new Date()) {
@@ -489,9 +489,9 @@ export const RoleLandingPage: React.FC<RoleLandingPageProps> = ({
 				fixedViewport={activeRole === "host"}
 			>
 				{activeRole === "host" && grantedRoles.includes("host") && (
- <DepartureInbox key={user.id} actor={user.id} />
-)}
-{dashboardContent}
+					<DepartureInbox key={user.id} actor={user.id} />
+				)}
+				{dashboardContent}
 			</OperationalSidebarLayout>
 		);
 	}

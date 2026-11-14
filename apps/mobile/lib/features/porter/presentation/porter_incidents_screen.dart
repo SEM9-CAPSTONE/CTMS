@@ -56,7 +56,7 @@ class _PorterIncidentsScreenState extends ConsumerState<PorterIncidentsScreen> {
         trips.add(
           IncidentTrip(
             id: record.tripId,
-            title: 'Chuyến đi đã lưu · ${record.tripId}',
+            title: 'Chuyến đi đã lưu',
             status: 'ongoing',
           ),
         );

@@ -349,7 +349,7 @@ function HostAssignedPortersList({ trip }: { trip: HostPorterAssignmentTrip }) {
 								</div>
 								<div className="min-w-0">
 									<h3 className="truncate text-sm font-extrabold text-[#10221b]">
-										{assignment.displayName?.trim() || `Porter ${assignment.porterId.slice(0, 8)}`}
+										{assignment.displayName?.trim() || "Chưa cập nhật tên người dẫn đường"}
 									</h3>
 									{assignment.email && (
 										<span className="mt-1 block truncate text-xs font-semibold text-[#667a6d]">

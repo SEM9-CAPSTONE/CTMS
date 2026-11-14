@@ -7,11 +7,6 @@ export interface AuditLogsTableProps {
 	onView: (log: AuditLogSummary) => void;
 }
 
-function shortenId(id: string): string {
-	if (id.length <= 12) return id;
-	return `${id.slice(0, 8)}…${id.slice(-4)}`;
-}
-
 export function AuditLogsTable({ logs, onView }: AuditLogsTableProps) {
 	return (
 		<div className="overflow-x-auto">
@@ -27,18 +22,14 @@ export function AuditLogsTable({ logs, onView }: AuditLogsTableProps) {
 				</thead>
 				<tbody className="divide-y divide-[#e8efe7]">
 					{logs.map((log) => {
-						const displayActor = log.actorName || log.actorId || "Hệ thống";
+						const displayActor =
+							log.actorName || (log.actorId ? "Người dùng chưa cập nhật tên" : "Hệ thống");
 						const actionLabel = ACTION_LABELS[log.action] ?? log.action;
 						const targetTypeLabel = TARGET_TYPE_LABELS[log.targetType] ?? log.targetType;
 						return (
 							<tr key={log.id} className="hover:bg-[#f8faf7]">
 								<td className="px-4 py-4 text-[#425048]">
 									<p className="font-semibold text-[#10221b]">{displayActor}</p>
-									{log.actorName && log.actorId && (
-										<p className="mt-1 text-xs text-[#788c7e] font-mono">
-											{shortenId(log.actorId)}
-										</p>
-									)}
 								</td>
 								<td className="px-4 py-4">
 									<span className="inline-flex items-center rounded-full bg-[#eef7f0] px-2.5 py-1 text-xs font-semibold text-[#164027]">
@@ -60,7 +51,7 @@ export function AuditLogsTable({ logs, onView }: AuditLogsTableProps) {
 										<button
 											type="button"
 											onClick={() => onView(log)}
-											aria-label={`Xem chi tiết log ${log.id}`}
+											aria-label={`Xem nhật ký ${actionLabel} ngày ${new Date(log.createdAt).toLocaleString("vi-VN")}`}
 											title="Xem chi tiết"
 											className="rounded-lg border border-[#dfe8df] p-2 text-[#164027] hover:bg-[#eef7f0] transition"
 										>

@@ -13,6 +13,7 @@ export interface RefundDetailsModalProps {
 	onClose: () => void;
 	onOpenConfirm?: (refund: AdminRefundItem) => void;
 	onOpenReject?: (refund: AdminRefundItem) => void;
+	onOpenApprove?: (refund: AdminRefundItem) => void;
 }
 
 export function RefundDetailsModal({
@@ -21,6 +22,7 @@ export function RefundDetailsModal({
 	onClose,
 	onOpenConfirm,
 	onOpenReject,
+	onOpenApprove,
 }: RefundDetailsModalProps) {
 	const dialogRef = useRef<HTMLDialogElement>(null);
 	const [copiedField, setCopiedField] = useState<string | null>(null);
@@ -86,15 +88,15 @@ export function RefundDetailsModal({
 				{/* Overview Bar */}
 				<div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-[#f4f7f2] p-4">
 					<div>
-						<p className="text-xs text-[#667a6d]">Mã yêu cầu hoàn tiền</p>
-						<p className="font-mono text-sm font-bold text-[#10221b]">#{refund.id}</p>
+						<p className="text-xs text-[#667a6d]">Khách yêu cầu</p>
+						<p className="text-sm font-bold text-[#10221b]">{refund.camper.fullName}</p>
 					</div>
 					<div className="text-right">
 						<p className="text-xs text-[#667a6d]">Số tiền hoàn</p>
 						<p className="text-lg font-black text-[#164027]">{formatBookingMoney(refund.amount)}</p>
 					</div>
 					<div>
-						<RefundStateBadge status={refund.status} />
+						<RefundStateBadge status={refund.status} reviewStatus={refund.reviewStatus} />
 					</div>
 				</div>
 
@@ -109,8 +111,10 @@ export function RefundDetailsModal({
 							<p className="font-semibold text-[#10221b]">{refund.tripTitle || "—"}</p>
 						</div>
 						<div>
-							<span className="text-[#667a6d]">Mã đơn đặt (Booking ID):</span>
-							<p className="font-mono font-medium text-[#10221b]">#{refund.bookingId}</p>
+							<span className="text-[#667a6d]">Ngày yêu cầu:</span>
+							<p className="font-medium text-[#10221b]">
+								{new Date(refund.createdAt).toLocaleString("vi-VN")}
+							</p>
 						</div>
 					</div>
 				</div>
@@ -238,7 +242,7 @@ export function RefundDetailsModal({
 				>
 					Đóng
 				</button>
-				{isPending && onOpenReject && (
+				{isPending && refund.reviewStatus !== "approved" && onOpenReject && (
 					<button
 						type="button"
 						onClick={() => onOpenReject(refund)}
@@ -247,7 +251,16 @@ export function RefundDetailsModal({
 						Từ chối
 					</button>
 				)}
-				{isPending && onOpenConfirm && (
+				{isPending && refund.reviewStatus === "pending_review" && onOpenApprove && (
+					<button
+						type="button"
+						onClick={() => onOpenApprove(refund)}
+						className="rounded-xl bg-[#164027] px-5 py-2 text-sm font-bold text-white"
+					>
+						Duyệt hoàn tiền
+					</button>
+				)}
+				{isPending && refund.reviewStatus !== "pending_review" && onOpenConfirm && (
 					<button
 						type="button"
 						onClick={() => onOpenConfirm(refund)}

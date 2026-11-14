@@ -489,7 +489,7 @@ export class PaymentsService {
 	 * PayOS payment link and QR code. Otherwise falls back to the synthetic stub.
 	 */
 	private async chargeViaProvider(
-		bookingId: string,
+		_bookingId: string,
 		amount: string,
 		_method: string,
 		mockProvider = false
@@ -508,7 +508,7 @@ export class PaymentsService {
 				const paymentLink = await this.payosService.createPaymentLink({
 					orderCode,
 					amount: numericAmount,
-					description: `CTMS ${bookingId.slice(0, 8)}`,
+					description: `CTMS ${orderCode}`,
 				});
 				return {
 					succeeded: true,

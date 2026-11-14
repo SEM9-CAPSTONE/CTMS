@@ -125,7 +125,7 @@ function BookingResult({
 
 	const handleCopyId = async () => {
 		try {
-			await navigator.clipboard.writeText(booking.id);
+			await navigator.clipboard.writeText(`${window.location.origin}/bookings/${booking.id}`);
 			setCopied(true);
 			setTimeout(() => setCopied(false), 2000);
 		} catch {
@@ -167,21 +167,11 @@ function BookingResult({
 					</h3>
 				</div>
 				<div className="flex items-center gap-1 font-bold">
-					<span
-						data-testid="booking-code-badge"
-						title={`Mã đặt chỗ đầy đủ: ${booking.id}`}
-						className={`rounded-md border bg-white px-1.5 py-0.5 font-mono text-[11px] font-extrabold shadow-2xs ${
-							isExpired ? "border-rose-200 text-rose-900" : "border-emerald-200 text-[#164027]"
-						}`}
-					>
-						#{booking.id.slice(0, 8).toUpperCase()}
-					</span>
-					<span className="sr-only">{booking.id}</span>
 					<button
 						type="button"
 						onClick={handleCopyId}
-						title={copied ? "Đã sao chép mã đầy đủ" : "Sao chép mã UUID"}
-						aria-label="Sao chép mã đặt chỗ"
+						title={copied ? "Đã sao chép liên kết" : "Sao chép liên kết đơn đặt chỗ"}
+						aria-label="Sao chép liên kết đơn đặt chỗ"
 						className={`rounded p-0.5 transition ${
 							isExpired
 								? "text-rose-800 hover:bg-rose-100 hover:text-rose-950"

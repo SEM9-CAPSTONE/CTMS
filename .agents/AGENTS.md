@@ -162,6 +162,8 @@ const { t } = useTranslation("featureName");
 
 ### 3.7 Styling & UI
 
+- **Tên seed & mã hiển thị**: Tuân thủ [quy tắc tại AGENTS.md của repo](../AGENTS.md): tên người và chuyến đi phải tự nhiên, không có tiền tố mẫu hoặc trạng thái ghép vào tên; không đưa UUID thô hay UUID cắt ngắn lên giao diện.
+
 - **MANDATORY IMPECCABLE STANDARDS ON ALL NEW UI / SCREENS (Bắt buộc 100% khi sinh Màn hình & UI mới)**:
   - Khi sinh bất kỳ màn hình, trang (`Page`), dialog, modal, drawer, filter bar, bảng dữ liệu (`DataTable`), hoặc component UI mới nào, BẮT BUỘC PHẢI áp dụng 100% chuẩn Impeccable ngay từ đầu (Default by Design, tuyệt đối không code cẩu thả/AI slop rồi chờ người dùng nhắc refactor sau).
   - Không lồng Card trong Card. Không chèn icon trang trí cạnh nhãn số liệu. Phân cấp 3 tầng typography chuẩn (Label nhỏ + Số lớn + Chú thích ngắn). Khoảng cách nhịp 4px (`gap-3`, `gap-4`, `p-4`, `p-6`). Không gradient lòe loẹt. Dùng semantic tokens và bảng màu camping `#164027`. 100% tiếng Việt tự nhiên.

@@ -23,7 +23,7 @@ export function LevelQualificationsTable({
 				<tbody>
 					{items.map((item) => (
 						<tr key={item.id} className="border-t border-[#dfe8df]">
-							<td className="p-3">{item.porterName ?? item.porterId}</td>
+							<td className="p-3">{item.porterName ?? "Chưa cập nhật tên người dẫn đường"}</td>
 							<td>{item.routeName}</td>
 							<td>{levelName(item.proficiency)}</td>
 							<td>{item.verifiedBy ? "Đã duyệt" : "Tự khai"}</td>

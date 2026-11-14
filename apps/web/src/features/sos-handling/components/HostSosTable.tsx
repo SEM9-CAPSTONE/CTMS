@@ -114,7 +114,7 @@ export function HostSosTable({
 									</td>
 									<td className="px-3 py-3 max-w-[200px]">
 										<p className="font-semibold line-clamp-1">
-											{item.tripTitle || `Chuyến đi (${item.tripId.slice(0, 8)})`}
+											{item.tripTitle || "Chưa cập nhật tên chuyến đi"}
 										</p>
 									</td>
 									<td className="px-3 py-3 whitespace-nowrap">

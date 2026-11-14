@@ -60,7 +60,7 @@ export function CancelBookingDialog({
 		>
 			<div className="flex items-center justify-between gap-3">
 				<h2 id="cancel-booking-title" className="text-xl font-extrabold text-[#10221b]">
-					Xác nhận hủy đơn đặt chỗ
+					Hủy đặt chỗ trước chuyến đi
 				</h2>
 				<button
 					type="button"
@@ -77,13 +77,13 @@ export function CancelBookingDialog({
 				quyền tham gia chuyến đi.
 			</p>
 			<p className="mt-2 text-sm">
-				Tiền hoàn được tính theo chính sách đã lưu trong đơn tại thời điểm đặt chỗ. Chưa có báo giá
-				hoàn tiền trước khi xác nhận. Host và quản trị viên sẽ nhận được thông báo kèm lý do hủy của
-				bạn. Bạn có thể đặt lại chuyến sau khi hủy nếu còn chỗ.
+				Tiền hoàn được tính theo chính sách áp dụng cho đơn này. Số tiền hoàn chính thức sẽ hiển thị
+				sau khi yêu cầu hủy được chấp nhận. Người tổ chức và quản trị viên sẽ nhận được lý do hủy
+				của bạn. Bạn có thể đặt lại chuyến sau khi hủy nếu còn chỗ.
 			</p>
 			<form onSubmit={handleSubmit(onSubmit)} className="mt-4 space-y-3">
 				<label htmlFor="cancel-booking-reason" className="block text-sm font-bold">
-					Lý do hủy chuyến (bắt buộc)
+					Lý do hủy đặt chỗ (bắt buộc)
 				</label>
 				<textarea
 					{...register("reason")}
