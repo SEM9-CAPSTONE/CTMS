@@ -36,7 +36,7 @@ export function Pagination({
 					onClick={() => onPageChange(currentPage - 1)}
 					className="text-xs"
 				>
-					Trở trước
+					Trước
 				</Button>
 				<span className="text-xs font-bold text-[#164027] px-2">
 					Trang {currentPage} / {totalPages}

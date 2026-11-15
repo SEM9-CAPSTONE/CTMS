@@ -1,14 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { queryKeys } from "../../core/api/queryKeys";
+import { ReportAction } from "../content-reports/components/ReportAction";
 import { analysisService } from "./service";
 import { friendlyError } from "./useReviewAnalysis";
 export function ReviewSource({
 	actor,
 	tripId,
+	tripTitle,
 	reviewId,
 	revision,
-}: { actor: string; tripId: string; reviewId: string; revision: number }) {
+}: { actor: string; tripId: string; tripTitle?: string; reviewId: string; revision: number }) {
 	const [open, setOpen] = useState(false);
 	const source = useQuery({
 		queryKey: queryKeys.reviewAnalysis.source(actor, tripId, reviewId, revision),
@@ -40,6 +42,19 @@ export function ReviewSource({
 								<p className="font-semibold">
 									Đánh giá của người tham gia · {source.data.rating}/5 sao
 								</p>
+								{source.data.currentRevision === source.data.revision && (
+									<ReportAction
+										actor={actor}
+										context={{
+											targetId: reviewId,
+											label: tripTitle
+												? `Đánh giá chuyến đi · ${tripTitle}`
+												: "Đánh giá chuyến đi của người tham gia",
+											comment: source.data.comment,
+											createdAt: source.data.createdAt,
+										}}
+									/>
+								)}
 								<p className="mt-2 whitespace-pre-wrap break-words">
 									{source.data.comment || "Không có nhận xét."}
 								</p>

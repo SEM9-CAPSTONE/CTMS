@@ -1,4 +1,9 @@
 export const queryKeys = {
+	myContentReports: {
+		all: (actor: string) => ["my-content-reports", actor] as const,
+		list: (actor: string, page: number) => ["my-content-reports", actor, "list", page] as const,
+		detail: (actor: string, id: string) => ["my-content-reports", actor, "detail", id] as const,
+	},
 	tripRecommendations: {
 		all: ["trip-recommendations"] as const,
 		list: (user: string) => ["trip-recommendations", user, "list"] as const,

@@ -131,7 +131,8 @@ describe("CTMS-412 review analysis UI", () => {
 		);
 		open();
 		await screen.findByText("Cảnh đẹp. <img src=x onerror=alert(1)>");
-		fireEvent.change(screen.getByRole("combobox"), { target: { value: other } });
+		await userEvent.click(screen.getByText("Sơn Trà", { selector: "summary > span" }));
+		await userEvent.click(screen.getByRole("button", { name: "Hải Vân" }));
 		await waitFor(() =>
 			expect(screen.queryByText("Cảnh đẹp. <img src=x onerror=alert(1)>")).not.toBeInTheDocument()
 		);
@@ -200,23 +201,48 @@ describe("CTMS-412 review analysis UI", () => {
 		fireEvent.click(button);
 		await waitFor(() => expect(edge.insights.mock.calls.length).toBeGreaterThan(calls));
 	});
-	it("loads more Trips from the selector without adding Trip pagination controls", async () => {
+	it("loads more trips and filters their names without accents", async () => {
 		const user = userEvent.setup();
 		edge.trips.mockImplementation(async (page) => ({
 			items: [
+				...(page === 1
+					? Array.from({ length: 9 }, (_, index) => ({
+							id: `trip-${index}`,
+							title: `Chuyến đi ${index + 1}`,
+							status: "completed",
+						}))
+					: []),
 				{
 					id: page === 1 ? tripId : "other",
 					title: page === 1 ? "Sơn Trà" : "Chuyến khác",
 					status: "completed",
 				},
 			],
-			pagination: { page, total: 2, totalPages: 2 },
+			pagination: { page, total: 11, totalPages: 2 },
 		}));
 		open();
-		await screen.findByRole("option", { name: "Tải thêm chuyến đi…" });
-		await user.selectOptions(screen.getByRole("combobox"), "load-more-trips");
-		await screen.findByRole("option", { name: "Chuyến khác" });
-		expect(screen.queryByRole("navigation", { name: "Phân trang chuyến đi" })).toBeNull();
+		await user.click(await screen.findByText("Sơn Trà", { selector: "summary > span" }));
+		expect(screen.queryByRole("button", { name: "Chuyến đi 7" })).toBeNull();
+		const previous = screen.getByRole("button", { name: "Trước" });
+		expect(previous).toHaveAttribute("aria-disabled", "true");
+		await user.click(previous);
+		expect(screen.getByRole("searchbox")).toBeVisible();
+		await user.click(screen.getByRole("button", { name: "Tiếp theo" }));
+		await screen.findByRole("button", { name: "Chuyến đi 7" });
+		await user.click(screen.getByRole("button", { name: "Tiếp theo" }));
+		await screen.findByText("Trang 2");
+		await screen.findByRole("button", { name: "Chuyến khác" });
+		expect(screen.getByRole("searchbox", { name: "Tìm chuyến đi theo tên" })).toHaveFocus();
+		await user.type(
+			screen.getByRole("searchbox", { name: "Tìm chuyến đi theo tên" }),
+			"chuyen khac"
+		);
+		expect(screen.getByRole("button", { name: "Chuyến khác" })).toBeVisible();
+		expect(screen.queryByRole("button", { name: "Chuyến đi 1" })).toBeNull();
+		await user.click(screen.getByRole("button", { name: "Đóng danh sách chuyến đi" }));
+		expect(
+			screen.getByText("Sơn Trà", { selector: "summary > span" }).closest("details")
+		).not.toHaveAttribute("open");
 	});
 	it("displays partial completion and individual failures separately from successes", async () => {
 		edge.insights.mockResolvedValue({
