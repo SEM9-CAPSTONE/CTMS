@@ -133,3 +133,52 @@ TBD — Technical Design.
 ## 12. Open Decisions
 
 Exact supported report-type and target-type catalogs must follow authoritative configuration/domain definitions.
+
+## 13. Approved CTMS-391 Submission Contract (2026-11-15)
+
+The following decisions were approved by LD for the Preparation + Logic subtask.
+
+### Catalog and authorization
+
+- Report types: `inaccurate_information`, `dangerous_content`. Clients translate these stable codes.
+- New submissions support only the canonical `trip_review` target (Trip/Host review identity).
+- AI-answer unsafe feedback remains in CTMS-072/073.
+- The actual Trip Host with a current Host role, or a current Camper with a `joined` Booking Member on that Trip and no `left_at`, may report.
+- Membership is evaluated when a new report is submitted, even if the review was published before the member left. Registered, removed, left, and no-show members are ineligible.
+- The author cannot report their own review, including when they also hold an otherwise eligible role.
+- Backend data determines roles, reviewer identity, Trip ownership and membership. Client claims cannot grant access.
+- Missing and inaccessible targets produce identical 404 responses (`REPORT_TARGET_NOT_FOUND`).
+
+### Retry and duplicate policy
+
+1. Require an authenticated active account and validate the request.
+2. Look up `(reporter_id, idempotency_key)` before target-access or open-target checks.
+3. Same key and normalized content returns the original report with its current state, including after the reporter leaves the Trip or the report is resolved. Changed content returns HTTP 409 `REPORT_IDEMPOTENCY_CONFLICT`.
+4. For a new key, validate target authorization and attempt a transactional insert.
+5. A partial unique index on `(reporter_id, target_type, target_id)` for `pending`/`reviewing` prevents concurrent open duplicates. A different key against an open report returns HTTP 409 `REPORT_ALREADY_OPEN`.
+6. After `actioned` or `rejected`, another key may create a report if the actor still satisfies authorization.
+7. Unique-violation recovery runs after rollback and checks the idempotency key again before returning an open-target conflict. Concurrent retries produce one record and one creation audit.
+
+The SHA-256 request hash uses ordered report type, target type, lowercase target UUID and trimmed description. The key and hash are private server metadata, never public labels.
+
+### API
+
+| Method | Path | Behavior |
+| --- | --- | --- |
+| POST | `/api/me/content-reports` | Submit or replay; HTTP 200 for both |
+| GET | `/api/me/content-reports?page=1&limit=20` | Paginated reports submitted through this workflow by the caller; limit 1–100 |
+| GET | `/api/me/content-reports/:reportId` | Caller-owned report; identical 404 for missing or another owner's report |
+
+POST fields: `idempotencyKey` (UUID v4), `reportType`, `targetType`, `targetId` (UUID), `description` (trimmed nonempty text, at most 1,000 characters, no NUL). Unknown fields, including `reporterId` and `status`, are rejected. Reporter comes from the authenticated session.
+
+Owner responses contain `id`, `reportType`, `targetType`, `targetId`, `description`, `status`, `createdAt`, `updatedAt`; timestamps include timezone. They exclude reporter identity, idempotency/hash metadata and internal moderation/audit context. UUIDs are internal API references; CTMS-392 must display meaningful names or a missing-information state.
+
+Existing Admin endpoints remain unchanged in behavior. Their response optionally includes `reportType` for new reports. Legacy reports without submission metadata remain available to Admin without fabricated classifications.
+
+### Persistence and scope
+
+Migration `1796200000000-AddContentReportSubmission` adds nullable `report_type`, `idempotency_key`, `request_hash`; a CHECK constraint requires either all submission metadata absent (legacy) or valid complete metadata. It adds unique indexes for reporter/key and open reporter/target.
+
+No existing report is renamed, reclassified, deleted or resolved by migration. Deployments must check for duplicate open legacy reporter/target groups before migrating; such groups require resolution through the existing authorized moderation workflow. Migration fails atomically rather than silently rewriting history.
+
+Creation and `content_report.created` audit commit together. Creation never changes source content or moderation state. Existing CTMS-105 transitions, target-specific moderation, Route/Trip business logic and UI are outside CTMS-391.
