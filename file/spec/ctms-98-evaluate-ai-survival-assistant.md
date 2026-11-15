@@ -138,11 +138,14 @@ TBD — Technical Design.
 | BR-279 | P95 ≤5s            | Pass                              | Performance  |
 | BR-279 | Offline coverage   | Reported by package/version       | Metrics      |
 | BR-282 | Report             | Versions/thresholds/result stored | Traceability |
-
-## Offline model evaluation plan
-
-On physical iOS and Android, record model revision and digest, runtime version, device, OS, ABI, artifact size, observed peak memory, first-token latency, throughput, verified package version where present, Vietnamese response quality, emergency handling and traffic captured during a network-denied turn. Include an airplane-mode case without a Trip package. Run unsupported, failed activation and corrupted model cases. Distinguish snapshot-supported and pretrained-only replies. Keep BR-279 and BR-282's existing gates and reporting semantics. Local measurements are observational until a threshold is separately approved.
+| Jira CTMS-257 AC-5 | Physical iOS and Android with network blocked | Record inference outcome and any traffic attributable to the turn | Device trial |
+| Jira CTMS-257 AC-6 | Evaluate with a verified package and without a saved Trip | Record the evidence mode and package version where applicable | Device trial |
+| Jira CTMS-257 AC-7 | Missing, corrupt or unsupported local model | Record recovery behavior and any failed activation | Device trial |
 
 ## 12. Open Decisions
 
 Offline coverage has no approved numeric V3 release threshold.
+
+For on-device trials, report the runtime and model revision, artifact digest and size,
+device/OS/ABI, peak memory, first-token latency, throughput, Vietnamese answer quality,
+and emergency-handling results. These observations do not change BR-279 or BR-282.

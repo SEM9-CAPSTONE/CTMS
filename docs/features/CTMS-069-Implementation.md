@@ -27,7 +27,7 @@ The 0.5B release URL pins the upstream revision and its SHA-256 in app source. T
 | Python generation and policy | 30 passed using HTTPX provider mocks and an in-process event loop for the Windows sandbox. Normal Windows TestClient startup stalls on loopback socket creation |
 | Model artifact lifecycle | Standalone Dart exercise passed for staging, digest, size, runtime probe rejection, successful replacement and recovery with the previous artifact. It did not execute native inference |
 | PostgreSQL integration and API E2E | Attempted against local loopback. Sandbox denies the connection to port 5432 |
-| Flutter analysis and regression | The SDK cache requires write access and the pub.dev dependency could not be fetched from this environment. `pubspec.lock` needs normal dependency resolution. Widget tests and CTMS-224 regression remain unverified |
+| Flutter analysis and regression | At the time of the recorded local run, SDK cache permissions and pub.dev connectivity blocked verification. The branch now includes a `pubspec.lock` entry for `fllama`. Flutter widget tests and CTMS-224 regression results remain unverified here |
 | iOS/Android inference and CTMS-098 evaluation | Unverified on physical devices. No provider calls with real keys or live corpus were made |
 | Repository commands and CI | `pnpm lint:all`, `pnpm build:all` and `pnpm test:all` stop at Corepack dependency resolution. Remote CI has no run for this working-tree change |
 

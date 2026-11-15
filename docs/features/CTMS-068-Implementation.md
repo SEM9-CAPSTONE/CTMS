@@ -82,4 +82,4 @@ Set `RUN_RAG_BENCHMARK=true` before running the integration suite to run 10 requ
 
 Use 30–50 distinct labelled questions from approved PDFs for release evaluation. Label exact version, page, item and source excerpt. The existing CTMS-051 evaluator measures raw embedding ranking. For CTMS-098 release evidence, also evaluate final selected chunks through this runtime retrieval service so the score threshold, lexical gate and context budget affect the measured Hit@5. The corpus threshold, actual Hit@5 and operational latency remain unmeasured until that evaluation runs.
 
-CTMS-069 owns online synthesis and on-device inference. For the current retrieval rule definitions and split of BR-248, see the [CTMS-257 audit](../business-rules/ctms-257-hybrid-chat.md).
+CTMS-069 owns online synthesis and on-device inference. BR-248 continues to govern relevance, context limits and source references across CTMS-068, CTMS-069 and CTMS-071.

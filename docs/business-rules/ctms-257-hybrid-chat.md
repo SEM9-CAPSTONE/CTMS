@@ -1,79 +1,63 @@
 # CTMS-257 Business Rule audit
 
-Reviewed against clean `develop` at `fefca4e5`. Jira was read to confirm CTMS-257 AC1–AC10 and the status of CTMS-258, 335–338. CTMS-257 is the Jira key for spec CTMS-069.
+CTMS-257 extends story spec CTMS-069. The pre-hybrid baseline is commit `fefca4e5`. The [current planning reference](../planning/ctms-257-hybrid-reference.md) identifies live consumers. The historical planning CSVs retain their original mappings.
 
-## Allocation and reference history
+## Shared rules and consumers
 
-- Searched tracked and untracked text in the checkout with `git grep --untracked -I -o -h -E 'BR-[0-9]+'`, including source, tests, archived specs and planning exports. Also searched reachable history with `git log --all -G 'BR-4(8[6-9]|9[0-9])|BR-[5-9][0-9]{2}'`. The baseline has 432 distinct numeric keys. The highest was BR-485, defined by CTMS-050. No occurrence in the 25-key allocation range was found in the baseline or reachable history. Retired or missing lower numbers are intentionally skipped.
-- Active definitions are the current `file/spec` amendments and files under `docs/business-rules`. The two planning reference CSVs are historical exports with the same old Story mapping, including unrelated owners for numbers reused before the current baseline. For example the older import uses BR-216 for credential handling and BR-233 for pagination. Preserve these exports as evidence. [Current mapping](../planning/ctms-257-hybrid-reference.md) supersedes them where applicable.
-- BR-248 owns relevance, BR-486 owns context size, BR-487 owns the retrieval-to-generation evidence identity, and BR-251 owns display eligibility. BR-487 consumes the immutable storage provenance of BR-228. BR-249 concerns evidence support, BR-488 concerns synthesis, and BR-489 concerns operational safety, even when the evidence is eligible. Online release latency continues to be governed by BR-279. Package verification and viewing stay with BR-232/233. BR-498 governs the separate chat consumer of that boundary.
+Compare definitions with the baseline before adding a key. In particular, CTMS-068, CTMS-069 and CTMS-071 all use the full BR-248 wording. CTMS-075 owns the full BR-255 emergency flow and CTMS-069 uses it in both modes. Citations under BR-251 and how a reply represents its verification status under BR-497 are separate checks.
 
-## Existing rules
+| BR | Scope and impact | Valid path | Violation path |
+| --- | --- | --- | --- |
+| BR-172 | CTMS-006 and its API access consumers. Referenced by CTMS-069. | Allow a Camper to read their own answer sources. | Reject protected source access by another user. |
+| BR-178 | Shared retry invariant in CTMS-033/034/035 and other consumers. CTMS-069 applies the same invariant to an answer request. | An online retry with the same request ID returns the stored result. | A late response or repeated submission cannot create a second visible answer for the same request. |
+| BR-216 | Advisory behavior in CTMS-068/069/075. Authoritative workflows keep their existing ownership. | Explain a rule using approved evidence. | An AI reply cannot reopen a route or initiate SOS. |
+| BR-227 / BR-228 / BR-484 | CTMS-050/051 source eligibility and chunk provenance consumed by CTMS-068/069. | Retrieve a currently eligible source with traceable chunk identity. | Reject withdrawn sources or mismatched document/chunk identity. |
+| BR-232 / BR-233 | CTMS-054/055 package verification and exact Trip/version. CTMS-069 uses the same account-scoped reader. | Use the selected Camper's verified active snapshot. | Do not read a corrupt package or a mismatched account, Trip or version. |
+| BR-248 | Defined by CTMS-068 and used by CTMS-069/071. Keep relevance, context limit and source references together under the existing definition. | Retrieve bounded, relevant evidence with intact provenance. | Exclude unrelated or over-limit evidence and reject missing provenance. |
+| BR-249 | Original CTMS-069 wording. Apply the knowledge-base and latency clauses online and the safety clause in both modes. CTMS-098 owns release gate measurement. | Return an online answer grounded in approved evidence. Apply safety policy before showing either mode's reply. | Withhold unsafe output even when evidence is available. |
+| BR-251 | Defined by CTMS-071 and consumed by CTMS-069. Covers actual used sources and categories. | Show the source actually used by the answer. | Exclude an unused or invented source. Pretrained-only replies have no source. |
+| BR-255 | CTMS-075 retains signal detection, priority guidance and SOS/location actions. CTMS-069 invokes that flow before selecting an inference engine. | A configured danger signal triggers priority guidance and the applicable emergency actions in either mode. | Ordinary questions follow their usual path. An unavailable engine must not suppress emergency handling. |
+| BR-279 / BR-282 | CTMS-098 owns AI release thresholds. BR-282 remains shared with other evaluation specs. | Store results with the approved thresholds and versions. Record offline coverage as observational. | An out-of-range gate fails. An observational metric alone cannot fail the release. |
+| BR-212 / BR-213 | Documentation and validation requirements in CTMS-071 and other consumers. | Spec, contract and verification cover the changed behavior with valid and violation cases. | Missing or stale coverage keeps the changed behavior unverified. |
 
-| BR | Before | Decision | Active result | Affected references |
-| --- | --- | --- | --- | --- |
-| BR-172, BR-202 | Server authorization and active-account eligibility | KEEP | Existing protection on answer creation and source ownership | 069, AI controller/service, E2E |
-| BR-212, BR-213 | Maintain contracts and evidence for both rule paths | KEEP | Current spec, data contract and coverage matrix | 069, 071, this audit, data dictionary |
-| BR-216 | Advisory AI cannot override authoritative state | KEEP | Same invariant through both inference modes | 068, 069, 075, AI service policy |
-| BR-227, BR-228, BR-484 | Current publication, exact chunk provenance and eligible sources | KEEP | Existing retrieval and transactional revalidation | 050, 051, 068, RAG repository, knowledge chunk integration |
-| BR-232, BR-233 | Verified package use and exact Trip/version available offline | KEEP | Existing viewer and authorization boundary | 054, 055, 069, Flutter offline package regression |
-| BR-248 | Relevance, budget, provenance and unrelated chunk exclusion | UPDATE | Relevance only. Move budget to BR-486 and provenance to BR-487 | 068 defines all three. 069 consumes them. 071 uses BR-487 for traceability |
-| BR-249 | Knowledge-base grounding, response latency and safe output | UPDATE | Approved CTMS grounding for online answers. BR-489 owns safety. BR-279 owns release latency | 069, 098, NestJS and Python generation tests |
-| BR-250 | Local keyword/full-text search over the downloaded package | RETIRE | Withdraw from active scope with CTMS-258, 337 and 338 | 070 and its sequence diagram retained as history. No current source or test consumer found |
-| BR-251 | Cite actual used sources and categories | KEEP | Same provenance requirement. A pretrained reply has no cited source | 069, 071, source ownership and UI tests |
-| BR-255 | Signal recognition, priority guidance and SOS/location actions | UPDATE | Signal recognition. Priority response and the two independent UI actions have BR-508, BR-509 and BR-510 | 075, 069, emergency regression plan |
-| BR-279, BR-282 | Approved AI release gates and traceable evaluation | KEEP | Thresholds and observational offline coverage are unchanged | 098, shared evaluation stories |
+## Active hybrid-specific keys
 
-## New keys and acceptance paths
+The baseline has 432 distinct numeric BR keys with BR-485 as the highest. The earlier allocation scan covered tracked and untracked text and reachable Git history. This review keeps 15 of the 25 allocated IDs. Withdrawn IDs stay reserved. CTMS-069 §5 defines the active rules and §11 keeps the existing test matrix format.
 
-| BR | Invariant | Owner | Valid path | Violation path | CTMS-257 |
+| BR | Invariant | CTMS-257 | Valid path | Violation path | Test type |
 | --- | --- | --- | --- | --- | --- |
-| BR-486 | Online retrieval context stays within its configured budget. | 068 | A bounded context reaches the provider. | An oversized context is excluded. | AC2 AC10 |
-| BR-487 | Each retrieved chunk retains its exact document-version and location provenance. | 068 | A candidate carries its original version and location. | A candidate with missing source identity is rejected. | AC2 AC9 AC10 |
-| BR-488 | A grounded online response is synthesized in natural language. | 069 | A paraphrase preserves the meaning of approved evidence. | A provider response containing only IDs cannot produce a new answer. | AC2 AC10 |
-| BR-489 | An answer that fails the applicable safety policy is withheld. | 069 | Allowed general guidance is returned. | Unsafe treatment advice is withheld. | AC3 AC7 AC9 AC10 |
-| BR-490 | Both inference modes use the existing Camper chat screen. | 069 | Alternating modes renders two turns in one transcript. | Changing mode does not route to a second chat. | AC1 AC8 |
-| BR-491 | Only a compatible device can use the installed model. | 069 | A supported native runtime loads the candidate. | An unsupported platform cannot infer. | AC3 AC7 |
-| BR-492 | A local model may be activated only when its artifact matches the trusted release digest. | 069 | An exact digest permits activation. | A truncated or tampered artifact cannot activate. | AC3 AC7 |
-| BR-493 | Local inference uses only the currently active model. | 069 | An active verified artifact produces a reply. | An incomplete staged artifact cannot be used. | AC3 AC7 |
-| BR-494 | General offline answers are available independently of the Trip package. | 069 | A general question works with an installed model and no package. | Fail the case if the same question is blocked after removing the Trip package. | AC3 AC4 |
-| BR-495 | A local inference turn operates without remote requests. | 069 | A turn completes in airplane mode. | The test fails if it observes remote API, RAG or telemetry calls for the turn. | AC3 AC5 |
-| BR-496 | A model download starts only after an explicit user action. | 069 | The download begins after the Camper requests it. | A mode change or offline question cannot start a download. | AC5 AC7 |
-| BR-497 | Pretrained-only replies are represented as general AI guidance. | 069 | The transcript marks the answer as general guidance. | A pretrained-only turn has no verified CTMS label. | AC3 AC9 |
-| BR-498 | Optional Trip grounding is consumed through the verified active package boundary. | 069 | The selected account and Trip receive their active snapshot. | A wrong account, Trip or version yields no Trip context. | AC6 AC9 |
-| BR-499 | Automatic offline fallback is limited to a confirmed transport failure. | 069 | A connection failure before acceptance can select local inference. | 401, 403, policy results and ambiguous timeouts do not trigger local fallback. | AC7 AC8 AC10 |
-| BR-500 | A completed turn survives a change in network availability. | 069 | An online answer remains when the next question runs offline. | Reconnection cannot clear completed local turns. | AC8 |
-| BR-501 | A submitted turn has at most one displayed answer. | 069 | Retry updates the existing turn. | A late response cannot append a second answer. | AC8 AC10 |
-| BR-502 | The chat transcript is scoped to the authenticated Camper account on the device. | 069 | The same active account retains its transcript across modes. | Another account and a signed-out session cannot see the transcript. | AC8 AC9 |
-| BR-503 | Device conversation history is never automatically uploaded. | 069 | A separately entered online question is sent on demand. | Reconnection cannot resend offline questions or replies. | AC5 AC8 |
-| BR-504 | A failed model replacement preserves a working active model. | 069 | An intact replacement becomes active. | A corrupt or interrupted replacement leaves the working model usable. | AC3 AC7 |
-| BR-505 | A model install requires sufficient free device storage for staging. | 069 | The device stages the candidate alongside its active model. | Insufficient space fails before creating a usable artifact. | AC7 |
-| BR-506 | Unavailable local inference returns a recoverable chat state. | 069 | The Camper can retry after addressing a transient failure. | An absent model, unsupported runtime or OOM cannot produce a fake successful turn. | AC7 |
-| BR-507 | An AI reply may assert current operational conditions only with live authoritative evidence. | 069 | Live data is attributed to its authoritative workflow. | A Trip snapshot or model memory cannot establish current weather, hazards, location, Trip state or SOS delivery. | AC6 AC9 |
-| BR-508 | A detected emergency receives priority guidance before ordinary inference. | 075 | Configured danger signals receive immediate priority guidance. | An ordinary question follows normal inference and a slow engine cannot delay an emergency response. | AC7 AC9 |
-| BR-509 | A detected emergency surfaces the existing SOS action when available. | 075 | An eligible Trip shows the SOS action. | Without eligible Trip context the interface never offers to send SOS directly. | AC7 AC9 |
-| BR-510 | A detected emergency surfaces the current-location action when applicable. | 075 | An available location action is offered for a detected emergency. | An unavailable location cannot be presented as known. | AC7 AC9 |
+| BR-488 | A grounded online answer must synthesize the evidence in natural language. | Jira AC-2, AC-10 | A generated paraphrase preserves the meaning and warnings of approved evidence. | A provider response containing only evidence IDs cannot produce a new answer. | API unit / Python |
+| BR-491 | On-device inference requires a supported device. | Jira AC-3, AC-7 | A supported device can use the local engine. | An unsupported device is excluded before inference. | Device trial |
+| BR-492 | A model artifact must match its trusted release checksum before activation. | Jira AC-3, AC-7 | A matching file passes checksum verification. | A tampered file is rejected. | Flutter unit |
+| BR-493 | Local inference may read only an active model artifact. | Jira AC-3, AC-7 | Inference opens the active artifact. | A verified file still in staging cannot be opened for inference. | Flutter unit / device trial |
+| BR-494 | General offline chat must remain usable without a Trip package. | Jira AC-4 | An eligible general question is answered without a saved Trip. | Removing a Trip package cannot disable general local inference. | Flutter widget / device trial |
+| BR-495 | An offline inference turn must make no remote requests. | Jira AC-5 | Offline inference completes with outbound connectivity blocked. | A network trace with a remote request attributable to the turn fails this check. | Device trial |
+| BR-496 | A model download must start only on an explicit Camper action. | Jira AC-7 | Tapping the download action starts staging online. | Changing modes or submitting an offline question does not start a download. | Flutter widget |
+| BR-497 | An answer based solely on pretrained knowledge must not be presented as verified CTMS guidance. | Jira AC-9 | An on-device answer is shown as a general AI suggestion. | A pretrained-only reply is rejected if labeled as CTMS-verified guidance. | Flutter widget / content evaluation |
+| BR-499 | Automatic fallback after an attempted online request is allowed only when the connection failed before the request could reach the service. | Jira AC-7, AC-10 | A confirmed connection failure routes an eligible new turn to the local engine. | An HTTP error, a refusal or an ambiguous timeout cannot route that turn to the local engine. | Flutter widget |
+| BR-500 | Completed turns must be retained when the chat changes inference mode. | Jira AC-8 | Online and offline replies remain visible across connectivity changes. | A mode switch must not clear previous answers. | Flutter widget |
+| BR-502 | The local chat transcript must be accessible only to its originating Camper account. | Jira AC-8 | The same Camper can view existing turns throughout a session. | After logout or account change, prior turns and late replies are hidden. | Flutter widget |
+| BR-503 | Reconnection must not upload local conversation history automatically. | Jira AC-5, AC-8 | A newly submitted online question is sent on demand. | Reconnection does not send earlier offline questions or answers. | Flutter widget / device trial |
+| BR-504 | A failed model replacement must preserve the previously usable active artifact. | Jira AC-7 | The current model stays active while a replacement is staged. | A failed or interrupted update cannot invalidate the current working model. | Flutter unit |
+| BR-505 | A model install may stage a download only when sufficient device storage is available. | Jira AC-7 | With sufficient space the candidate is staged. | Insufficient space prevents the download from starting. | Flutter unit |
+| BR-507 | An AI answer may present operational conditions as current only with live authoritative evidence. | Jira AC-6, AC-9 | A reply with live authoritative evidence may state the supported status. Without that evidence, direct the Camper to its authoritative screen. | Model memory or a saved snapshot cannot establish live weather, hazards or SOS status. | Content evaluation |
 
-## Existing rule acceptance paths
+The matrix records acceptance scenarios. See the [implementation evidence](../features/CTMS-069-Implementation.md) for what was executed and the remaining device and integration checks.
 
-| BR | Active meaning in this story | Valid path | Violation path | CTMS-257 |
-| --- | --- | --- | --- | --- |
-| BR-172 | Backend authorization checks role, ownership and business scope. | Active Camper reads their own sources. | Other account or invalid role cannot read the sources. | AC1 AC10 |
-| BR-202 | Inactive accounts are ineligible for protected features. | Active Camper session can submit. | Suspended session cannot submit. | AC1 AC7 AC10 |
-| BR-212 | Keep specifications, tests and data contracts synchronized. | Contract change has corresponding spec, tests and data description. | A change lacking one of those is incomplete. | AC10 |
-| BR-213 | Exercise every rule with valid and violation paths at the appropriate test level. | An isolation rule is exercised in integration. | A success-only case does not demonstrate the violation path. | AC10 |
-| BR-216 | AI output is advisory and cannot override authoritative rules or state. | An answer explains a documented rule. | A prompt cannot reopen a closed route or dispatch SOS. | AC9 AC10 |
-| BR-227 | Read current eligible document publications. | Published current source is retrieved. | Superseded or withdrawn version cannot ground a new reply. | AC2 AC10 |
-| BR-228 | Knowledge chunks retain versioned extraction provenance. | A current chunk references its original source item. | A wrong checksum, version or set is rejected. | AC2 AC9 AC10 |
-| BR-232 | Verify a package before use. | A matching verified ZIP opens. | Corrupt ZIP is rejected. | AC6 |
-| BR-233 | The exact Trip/package version remains usable offline in the viewer. | The verified viewer works with AI absent. | Wrong version cannot be displayed. | AC4 AC6 AC10 |
-| BR-248 | Online RAG selects only relevant evidence. | A relevant chunk is selected. | An unrelated chunk is excluded. | AC2 AC10 |
-| BR-249 | Published online answers must be grounded in the approved CTMS knowledge base. | The generated claims are supported by cited approved excerpts. | An unsupported claim or withdrawn evidence prevents publication. | AC2 AC9 AC10 |
-| BR-251 | Only actual sources used can be displayed as citations. | The used source is displayed. | Unused, fabricated or pretrained-only references are excluded. | AC6 AC9 AC10 |
-| BR-255 | Recognize configured danger signals in chat questions. | Known danger text is detected in both modes. | Ordinary question is not classified as an emergency. | AC7 AC9 |
-| BR-279 | Keep approved release metrics and observational package coverage. | Online metrics pass and offline coverage is recorded. | A gate outside its range fails while coverage alone does not decide release. | AC10 |
-| BR-282 | Retain traceable evaluation reports. | Versioned report stores values and decisions. | An unversioned report cannot establish a gate result. | AC10 |
-| BR-484 | Only CTMS-050 eligible sources feed downstream retrieval. | Approved eligible publication becomes retrievable. | Restricted or unapproved material is excluded. | AC2 AC10 |
+## Retired and withdrawn keys
 
-Test location and level: online rules use `test_survival_answers.py`, `ai-answers.service.spec.ts`, `rag-retrieval.service.spec.ts`, HTTP `ai-answers.e2e-spec.ts` and PostgreSQL `knowledge-chunks.integration-spec.ts`. Chat, model lifecycle and emergency behavior use the Flutter controller, model-store and widget suites. Verify real inference, transport isolation, compatibility, memory and Vietnamese quality on physical iOS and Android devices. The table specifies expected acceptance evidence, not results.
+`BR-250` remains retired with CTMS-070/CTMS-258. The retired spec and its diagram retain the old keyword-search requirement. CTMS-055 still owns the independent offline viewer.
+
+| Key | Earlier allocation | Active requirement |
+| --- | --- | --- |
+| BR-486 | RAG context size | Already required by BR-248 in CTMS-068/069/071. |
+| BR-487 | Retrieved chunk identity and source location | Use BR-248 to preserve references and BR-228 for immutable chunk provenance. |
+| BR-489 | Withhold answers that fail safety policy | BR-249 already requires compliance with the answer safety policy. Its relevant safety checks apply in both inference modes. |
+| BR-490 | Use one Camper chat screen | Keep the existing-screen obligation in CTMS-069 Jira AC-1 and the flow. It does not need another BR key. |
+| BR-498 | Read the verified active Trip package | Use the existing account-scoped CTMS-054/055 boundary under BR-232 and BR-233. CTMS-069 describes the consumer in prerequisites and flow. |
+| BR-501 | Show one answer per retryable turn | Apply the shared BR-178 retry invariant and keep single-turn rendering in the CTMS-069 contract and test matrix. |
+| BR-506 | Show recovery when local inference fails | Keep recovery behavior in CTMS-069 Jira AC-7 and its error matrix. Eligibility and activation have separate rules. |
+| BR-508 | Show priority guidance in an emergency | BR-255 covers guidance. Running the handler before engine selection belongs to the CTMS-075 integration contract. |
+| BR-509 | Offer the eligible SOS action | BR-255 already covers surfacing SOS. CTMS-074/076 retain ownership of SOS creation and delivery. |
+| BR-510 | Offer the applicable current-location action | BR-255 already covers the current-location action. |
 

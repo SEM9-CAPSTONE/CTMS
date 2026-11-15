@@ -52,14 +52,14 @@ Dependencies:
 - CTMS-068.
 - CTMS-069.
 
-AI answer and corresponding retrieval metadata exist.
+For source display, an accessible AI answer and corresponding evidence metadata exist. A pretrained-only local reply has no source metadata.
 
 ## 5. Business Rules
 
 | BR     | Rule                                                                                                                                                                                  |
 | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | BR-251 | An AI answer must display the actual document/source category present in retrieval metadata and must not invent or cite a source that was not used.                                   |
-| BR-487 | Each retrieved chunk retains its exact document-version and location provenance. |
+| BR-248 | RAG may retrieve only relevant knowledge chunks within the configured context limit, must preserve source references, and must not send unrelated knowledge to the language model.    |
 | BR-212 | Any change to a Business Rule, enum, state transition, or API contract must be reflected in the specification, test cases, and data documentation before the work is considered Done. |
 | BR-213 | Every Business Rule must have at least one valid-path test and one violation-path test. Concurrency, idempotency, and transaction rules require integration or E2E coverage.          |
 
@@ -92,11 +92,11 @@ Invariant:
 
 A source must never be invented merely to make an answer appear grounded.
 
-For a pretrained-only local answer the source list is empty and the server source endpoint is not called. Optional snapshot citations require verified local evidence actually used, including exact package and document provenance. Preserve citations for existing server answers for the contracted owner and retention period.
+A saved-package citation, when supported, must come from verified evidence actually used and carry its exact package and document provenance.
 
 ## 9. API / Integration Contract
 
-Evaluate emergency signals before choosing online or offline inference. An unavailable engine cannot suppress the emergency path. Only the existing CTMS-074/076 workflow may record or send SOS and expose its resulting state.
+For online answers, the owner can read recorded citations through `GET /api/ai/answers/:answerId/sources` within the retention period defined in CTMS-069. Pretrained-only replies have an empty source list and never use the server source endpoint.
 
 ## 10. Error & Edge Cases
 
@@ -110,12 +110,13 @@ Evaluate emergency signals before choosing online or offline inference. An unava
 
 ## 11. Acceptance & Test Matrix
 
-| Rule | Valid path | Violation path |
-| --- | --- | --- |
-| BR-251 | Display actual sources used | Hide unused or invented sources and sources for pretrained-only replies |
-| BR-487 | Keep traceable version and location | Reject references without source identity |
-| BR-212 | Update spec, tests and data documentation with changed contract | Fail review if a required contract artifact is stale |
-| BR-213 | Exercise authorized and forbidden reads | Reject coverage that lacks one of the rule paths |
+| Source | Scenario                            | Expected Result                    | Test Type    |
+| ------ | ----------------------------------- | ---------------------------------- | ------------ |
+| BR-251 | Answer grounded by source A         | Source A displayed                 | Integration  |
+| BR-251 | Source B exists but unused          | Source B not displayed as evidence | Negative     |
+| BR-251 | Retrieval metadata absent           | No fabricated source               | Safety       |
+| BR-248 | Retrieved chunks contain references | Provenance preserved               | Traceability |
+| BR-251 | Pretrained-only reply               | No CTMS source is displayed         | Flutter widget |
 
 ## 12. Open Decisions
 
