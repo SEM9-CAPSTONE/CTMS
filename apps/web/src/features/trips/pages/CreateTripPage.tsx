@@ -3,6 +3,7 @@ import { ArrowLeft, CalendarPlus, CheckCircle2 } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { HttpError, queryKeys } from "../../../core/api";
 import { toast } from "../../../shared/components/Toast";
+import { useGeoAreas } from "../../revenue-analytics/hooks/useRevenueAnalytics";
 import { useTrekkingRoutes } from "../../trekking-routes/hooks/useTrekkingRoutes";
 import { ConfigureTripWaypointsPanel } from "../components/ConfigureTripWaypointsPanel";
 import { CreateTripForm, type CreateTripFormHandle } from "../components/CreateTripForm";
@@ -52,6 +53,7 @@ export function CreateTripPage({
 	const creation = useCreateTrip();
 	const updateDraft = useUpdateTripDraft(editTripId);
 	const routes = useTrekkingRoutes();
+	const geoAreas = useGeoAreas();
 	const isEditMode = Boolean(editTripId);
 	const session = useTripDraftSession(formDraftId, !isEditMode);
 	const formDraft = useTripFormDraft(session.remoteId);
@@ -432,6 +434,7 @@ export function CreateTripPage({
 				<CreateTripForm
 					draftHandle={draftForm}
 					activeRoutes={activeRoutes}
+					areas={geoAreas.data ?? []}
 					isRouteLoading={routes.isLoading}
 					routeError={routes.error}
 					isSubmitting={

@@ -46,6 +46,8 @@ export enum RoutePath {
 	ADMIN_SETTLEMENTS = "/admin/settlements",
 	ADMIN_PERFORMANCE_REPORTS = "/admin/reports/performance",
 	HOST_PERFORMANCE_REPORTS = "/host/reports/performance",
+	ADMIN_REVENUE_ANALYTICS = "/admin/reports/revenue",
+	HOST_REVENUE_ANALYTICS = "/host/reports/revenue",
 	UNAUTHORIZED = "/unauthorized",
 	ERROR = "/error",
 	OFFLINE = "/offline",

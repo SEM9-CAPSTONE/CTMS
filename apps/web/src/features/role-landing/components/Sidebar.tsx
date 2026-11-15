@@ -234,6 +234,7 @@ export function Sidebar({
 							(item.key === "sos" && isPathSos) ||
 							(item.key === "equipment" && isPathEquipment) ||
 							(item.key === "wallet" && isPathWallet) ||
+							(item.key === "reports" && currentPath.startsWith("/host/reports/")) ||
 							(item.key === "porters" && isPathPorter) ||
 							(item.key === "campers" && isPathCampers) ||
 							(item.key === "requests" && isPathPorterRequests) ||
@@ -289,6 +290,8 @@ export function Sidebar({
 											navigate("/host/equipment-catalog");
 										} else if (item.key === "wallet") {
 											navigate("/host/wallet");
+										} else if (item.key === "reports") {
+											navigate(RoutePath.HOST_PERFORMANCE_REPORTS);
 										} else if (item.key === "porters") {
 											navigate(`${RoutePath.HOST_PORTER}?view=find`);
 										} else if (item.key === "campers") {

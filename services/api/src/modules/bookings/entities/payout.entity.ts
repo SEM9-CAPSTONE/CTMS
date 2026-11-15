@@ -63,6 +63,19 @@ export class Payout {
 	@Column({ name: "admin_notes", type: "text", nullable: true })
 	adminNotes!: string | null;
 
+	/**
+	 * CTMS-110 / BR-326. Moment the transfer was confirmed. Maintained by the
+	 * `TRG_payouts_succeeded_at` trigger, never written by application code.
+	 */
+	@Column({
+		name: "succeeded_at",
+		type: "timestamptz",
+		nullable: true,
+		insert: false,
+		update: false,
+	})
+	succeededAt!: Date | null;
+
 	@CreateDateColumn({ name: "created_at", type: "timestamptz" })
 	createdAt!: Date;
 

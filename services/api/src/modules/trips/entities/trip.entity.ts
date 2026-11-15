@@ -132,6 +132,19 @@ export class Trip {
 	@Column({ name: "participation_evaluated_at", type: "timestamptz", nullable: true })
 	participationEvaluatedAt!: Date | null;
 
+	/** CTMS-110 / BR-319. Area snapshot copied from `geo_areas` while the Trip is a draft. */
+	@Column({ name: "province_code", type: "varchar", length: 16, nullable: true })
+	provinceCode!: string | null;
+
+	@Column({ name: "province_name", type: "varchar", length: 100, nullable: true })
+	provinceName!: string | null;
+
+	@Column({ name: "area_code", type: "varchar", length: 32, nullable: true })
+	areaCode!: string | null;
+
+	@Column({ name: "area_name", type: "varchar", length: 100, nullable: true })
+	areaName!: string | null;
+
 	@CreateDateColumn({ name: "created_at", type: "timestamptz" })
 	createdAt!: Date;
 
