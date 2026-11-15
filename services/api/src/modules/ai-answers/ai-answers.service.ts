@@ -137,7 +137,7 @@ export class AiAnswersService {
 			const validateAndSave = async () => {
 				const verified =
 					generation.status === "ANSWERED"
-						? groundedAnswer(generation.chunkIds, rag.selectedChunks, locale)
+						? groundedAnswer(generation, rag.selectedChunks, locale)
 						: null;
 				if (!verified || generation.status !== "ANSWERED")
 					return unavailableAnswer("AI_SAFETY_REFUSAL");
