@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -183,7 +185,19 @@ class ApiClient {
         ApiExceptionKind.network => 'Không có kết nối mạng. Vui lòng kiểm tra và thử lại.',
         _ => error.message ?? 'Đã xảy ra lỗi không xác định',
       };
-      throw ApiException(message, kind: kind);
+      final socketError = error.error;
+      // An explicit connection failure is different from a mid-request reset.
+      final connectionNotEstablished =
+          error.type == DioExceptionType.connectionError &&
+          error.requestOptions.extra['isRetryAfterRefresh'] != true &&
+          socketError is SocketException &&
+          const {51, 61, 65, 101, 111, 113, 10051, 10061, 10065}
+              .contains(socketError.osError?.errorCode);
+      throw ApiException(
+        message,
+        kind: kind,
+        connectionNotEstablished: connectionNotEstablished,
+      );
     }
   }
 }

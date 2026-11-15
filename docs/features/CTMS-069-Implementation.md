@@ -1,5 +1,47 @@
 # CTMS-069 · Online first aid and survival
 
+> **Historical baseline:** the extractive CTMS-335/336 implementation and its original AC numbers below are retained for audit. Current requirements are in the [hybrid spec](../../file/spec/ctms-69-ask-ai-about-first-aid-and-survival.md) and [BR audit](../business-rules/ctms-257-hybrid-chat.md).
+
+## CTMS-257 hybrid extension
+
+The baseline used `ctms-069-extractive-v1`. Python returned selected chunk IDs, then NestJS joined the PDF excerpts. New answers use `ctms-069-grounded-v2`. Python asks the configured provider for a natural-language draft and the evidence IDs used, then submits the draft to a separate verification pass using only those cited chunks. The verifier can decline unsupported claims, lost warnings or unsafe advice. NestJS checks the private response contract, bounds and cite allowlist, screens the draft and cited text, and revalidates eligible source snapshots transactionally. `POST /api/ai/answers` and the owned source endpoint retain their public shapes. Legacy rows keep their stored content. Deploy NestJS and Python together because the internal response contract changes.
+
+The same Camper screen keeps the current session's transcript across modes. With the local experiment enabled, the client skips the HTTP path when the platform reports no network and can fall back on confirmed connection failure. Ambiguous failures keep the same online request identity on retry. An authorization denial prevents local fallback and is remembered until an authorized online response or a session change. Local replies have no server answer ID. General offline questions are independent of saved Trips. The priority emergency path runs before engine selection and offers navigation to the existing Trip SOS workflow and a GPS action. It makes no claim of dispatch.
+
+### Device runtime decision
+
+| Candidate | Artifact | Role |
+| --- | --- | --- |
+| [Qwen2.5 0.5B Instruct](https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/blob/main/qwen2.5-0.5b-instruct-q4_k_m.gguf) | GGUF Q4_K_M, 491,400,032 bytes, Apache 2.0 | First candidate because of lower download size |
+| [Qwen2.5 1.5B Instruct](https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/blob/main/qwen2.5-1.5b-instruct-q4_k_m.gguf) | GGUF Q4_K_M, about 1.12 GB, Apache 2.0 | Compare on the same Vietnamese corpus and devices |
+
+Use [fllama 0.0.1](https://pub.dev/packages/fllama/versions/0.0.1), a MIT-licensed Flutter binding to llama.cpp. Its documented iOS minimum fits the existing CTMS iOS 15 target. The prototype limits eligibility to native arm64, uses CPU inference with two threads and a 2,048-token context, and keeps inference in process. Android's plugin toolchain lists SDK 35, CMake 3.31 and NDK 28.0.12433566. This checkout has SDK 35 but a different NDK and CMake version. Native compatibility needs device builds before rollout.
+
+The 0.5B release URL pins the upstream revision and its SHA-256 in app source. The user starts a separate download in chat, after a size disclosure. Verify staged bytes and probe the runtime before the final atomic rename. Keep earlier compatible release files eligible if a newer install fails. Models are app-private and separate from the package ZIP. Only the current approved release is configured so far. Local inference is opt-in via `--dart-define=CTMS_ENABLE_LOCAL_AI=true` for device evaluation. The pilot allows lower-risk preparation and equipment questions and withholds unverified live claims, first-aid procedures, and water or food safety guidance. Profile peak RAM, response quality in Vietnamese, initial token latency and throughput before enabling broader general use. The lexical filters and model verification pass do not establish safety or groundedness on their own.
+
+### Validation and pending scope
+
+| Check | Evidence |
+| --- | --- |
+| NestJS and RAG unit tests | 39 passed using local Jest. API TypeScript check and Biome on edited TypeScript passed |
+| Python generation and policy | 30 passed using HTTPX provider mocks and an in-process event loop for the Windows sandbox. Normal Windows TestClient startup stalls on loopback socket creation |
+| Model artifact lifecycle | Standalone Dart exercise passed for staging, digest, size, runtime probe rejection, successful replacement and recovery with the previous artifact. It did not execute native inference |
+| PostgreSQL integration and API E2E | Attempted against local loopback. Sandbox denies the connection to port 5432 |
+| Flutter analysis and regression | At the time of the recorded local run, SDK cache permissions and pub.dev connectivity blocked verification. The branch now includes a `pubspec.lock` entry for `fllama`. Flutter widget tests and CTMS-224 regression results remain unverified here |
+| iOS/Android inference and CTMS-098 evaluation | Unverified on physical devices. No provider calls with real keys or live corpus were made |
+| Repository commands and CI | `pnpm lint:all`, `pnpm build:all` and `pnpm test:all` stop at Corepack dependency resolution. Remote CI has no run for this working-tree change |
+
+AC6 has a limited offline path from the existing viewer into the same chat. A recognized checkpoint count question reads the exact account's verified active Trip package and labels the answer with its snapshot version. This factual lookup is deterministic. Open-ended Trip generation and document citations from local guidance remain pending. The emergency shortcut leads to the user's Trip list. Keep the hybrid feature unqualified for release until local inference, physical-device isolation, Vietnamese safety, and release gates are measured.
+
+### Commands and working-tree review
+
+- From `services/api`, run `node node_modules/jest/bin/jest.js --runInBand --runTestsByPath src/modules/ai-answers/ai-answers.service.spec.ts src/modules/rag/rag-retrieval.service.spec.ts` and `node node_modules/typescript/bin/tsc --noEmit --incremental false`. The PostgreSQL attempts used `test/jest-integration.json` for the CTMS-069 cases in `test/knowledge-chunks.integration-spec.ts` and `test/jest-e2e.json` for `test/ai-answers.e2e-spec.ts`.
+- From `services/ai`, run `python -m pytest app/test_survival_answers.py app/test_survival_answers_policy.py -q` in an environment with a working event loop.
+- From `apps/mobile`, resolve the dependency with `flutter pub get`, then run `flutter analyze` and `flutter test test/features/camper/survival_chat_test.dart test/features/camper/survival_model_store_test.dart test/features/offline_packages/offline_trip_test.dart test/features/offline_packages/offline_package_panel_test.dart`.
+- Use `git status --short --branch` to list the edited and new local files and `git diff --check` for tracked whitespace changes. The implementation started at `develop` commit `fefca4e5`.
+
+## Earlier online baseline
+
 Story CTMS-257 · Backend CTMS-335 · Flutter CTMS-336 · Epic CTMS-448.
 Baseline CTMS-068 was merged in PR #887. Jira AC1–AC5 and repository PB AC1–AC6 use
 different numbering. The mapping below follows Jira and includes the additional repository rules.

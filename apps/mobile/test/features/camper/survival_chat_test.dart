@@ -10,7 +10,41 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/core/api/api_client.dart';
 import 'package:mobile/core/storage/token_storage.dart';
 import 'package:mobile/features/camper/application/survival_chat_controller.dart';
+import 'package:mobile/features/camper/data/survival_local_model.dart';
 import 'package:mobile/features/camper/presentation/camper_ai_assistant_screen.dart';
+import 'package:mobile/features/offline_packages/application/offline_trip_providers.dart';
+import 'package:mobile/features/offline_packages/domain/offline_trip.dart';
+import 'package:mobile/features/sync/application/connectivity_source.dart';
+
+class _Connection implements ConnectivitySource {
+  bool online = true;
+
+  @override
+  Future<bool> isConnected() async => online;
+
+  @override
+  Stream<bool> get onConnectivityChanged => const Stream.empty();
+}
+
+class _LocalModel extends SurvivalLocalModel {
+  _LocalModel() : super(enabled: true);
+
+  int requests = 0;
+
+  @override
+  bool get supported => true;
+
+  @override
+  Future<bool> latestReady() async => true;
+
+  @override
+  Future<String> generate(String question) async {
+    requests++;
+    return 'Xếp đồ nặng gần lưng và để áo mưa ở ngăn dễ lấy.';
+  }
+}
+
+final _account = StateProvider<String?>((ref) => 'camper-a');
 
 class _Tokens extends TokenStorage {
   _Tokens() : super(const FlutterSecureStorage());
@@ -78,12 +112,27 @@ const answered = {
 void main() {
   late _Transport transport;
   late ProviderContainer container;
+  late _Connection network;
 
-  Future<void> open(WidgetTester tester) async {
+  Future<void> open(
+    WidgetTester tester, {
+    _LocalModel? model,
+    Future<OfflineTrip?> Function(OfflineTripSelection)? snapshot,
+  }) async {
     transport = _Transport();
+    network = _Connection();
     final client = ApiClient(_Tokens())..dio.httpClientAdapter = transport;
     container = ProviderContainer(
-      overrides: [apiClientProvider.overrideWithValue(client)],
+      overrides: [
+        apiClientProvider.overrideWithValue(client),
+        survivalChatAccountProvider.overrideWith((ref) => ref.watch(_account)),
+        connectivitySourceProvider.overrideWithValue(network),
+        if (model != null) survivalLocalModelProvider.overrideWithValue(model),
+        if (snapshot != null)
+          survivalChatSnapshotProvider.overrideWith(
+            (ref, selection) => snapshot(selection),
+          ),
+      ],
     );
     addTearDown(container.dispose);
     await tester.pumpWidget(
@@ -208,4 +257,136 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('keeps turns across modes and does not send local history', (
+    tester,
+  ) async {
+    final model = _LocalModel();
+    await open(tester, model: model);
+    await send(tester);
+    transport.reply(0, answered);
+    await tester.pumpAndSettle();
+    network.online = false;
+    final controller = container.read(survivalChatControllerProvider.notifier);
+    expect(controller.send('Nên xếp đồ vào ba lô thế nào?'), isTrue);
+    await tester.pumpAndSettle();
+    expect(transport.requests, hasLength(1));
+    expect(model.requests, 1);
+    final turns = container.read(survivalChatControllerProvider);
+    expect(turns.first.answer?.id, 'answer-identifier');
+    expect(turns.last.answer?.isLocal, isTrue);
+    expect(turns.last.answer?.sources, isEmpty);
+    network.online = true;
+    await send(tester);
+    expect(transport.requests, hasLength(2));
+    expect(transport.requests.last.data, containsPair('question', question));
+    transport.reply(1, answered);
+    await tester.pumpAndSettle();
+    expect(container.read(survivalChatControllerProvider), hasLength(3));
+  });
+
+  testWidgets(
+    'an authorization denial prevents later offline use in that session',
+    (tester) async {
+      final model = _LocalModel();
+      await open(tester, model: model);
+      await send(tester);
+      transport.reply(0, {'code': 'AI_FORBIDDEN'}, status: 403);
+      await tester.pumpAndSettle();
+      network.online = false;
+      final controller = container.read(
+        survivalChatControllerProvider.notifier,
+      );
+      expect(controller.send('Nên xếp đồ vào ba lô thế nào?'), isTrue);
+      await tester.pumpAndSettle();
+      expect(model.requests, 0);
+      expect(transport.requests, hasLength(1));
+      expect(
+        container.read(survivalChatControllerProvider).last.answer,
+        isNull,
+      );
+    },
+  );
+
+  testWidgets(
+    'clears prior transcript and ignores a stale response on account change',
+    (tester) async {
+      await open(tester);
+      await send(tester);
+      container.read(_account.notifier).state = 'camper-b';
+      await tester.pumpAndSettle();
+      transport.reply(0, answered);
+      await tester.pumpAndSettle();
+      expect(container.read(survivalChatControllerProvider), isEmpty);
+      expect(find.text(answerText), findsNothing);
+    },
+  );
+
+  testWidgets('prioritizes an emergency before either inference path', (
+    tester,
+  ) async {
+    final model = _LocalModel();
+    await open(tester, model: model);
+    final controller = container.read(survivalChatControllerProvider.notifier);
+    expect(controller.send('Bạn tôi bất tỉnh.'), isTrue);
+    await tester.pumpAndSettle();
+    expect(transport.requests, isEmpty);
+    expect(model.requests, 0);
+    expect(find.text('Xem vị trí hiện tại'), findsOneWidget);
+  });
+
+  testWidgets(
+    'uses the selected snapshot only for its owner and exact version',
+    (tester) async {
+      const selection = (accountId: 'camper-a', tripId: 'trip-a', version: 2);
+      final reads = <OfflineTripSelection>[];
+      final model = _LocalModel();
+      await open(
+        tester,
+        model: model,
+        snapshot: (requested) async {
+          reads.add(requested);
+          if (requested != selection) return null;
+          return const OfflineTrip(
+            route: [],
+            checkpoints: [],
+            guides: [],
+            hazardSources: [],
+          );
+        },
+      );
+      network.online = false;
+      final controller = container.read(
+        survivalChatControllerProvider.notifier,
+      );
+      const question = 'Gói đã lưu có bao nhiêu điểm dừng?';
+      expect(
+        controller.send(
+          question,
+          trip: (accountId: 'camper-b', tripId: 'trip-a', version: 2),
+        ),
+        isFalse,
+      );
+      expect(controller.send(question, trip: selection), isTrue);
+      await tester.pumpAndSettle();
+      final answer = container.read(survivalChatControllerProvider).last.answer;
+      expect(answer?.snapshotVersion, 2);
+      expect(answer?.text, 'Trong gói đã lưu có 0 điểm dừng.');
+      expect(
+        controller.send(
+          question,
+          trip: (accountId: 'camper-a', tripId: 'trip-a', version: 1),
+        ),
+        isTrue,
+      );
+      await tester.pumpAndSettle();
+      expect(reads.map((item) => item.version), [2, 1]);
+      expect(
+        container.read(survivalChatControllerProvider).last.answer,
+        isNull,
+      );
+      expect(model.requests, 0);
+      expect(transport.requests, isEmpty);
+    },
+  );
 }

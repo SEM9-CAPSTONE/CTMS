@@ -3,7 +3,7 @@ import { Injectable, ServiceUnavailableException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { aiUnavailable, parseGeneration } from "./ai-answers.policy";
 
-const MAX_INTERNAL_RESPONSE_BYTES = 4096;
+const MAX_INTERNAL_RESPONSE_BYTES = 8192;
 const DEFAULT_PROVIDER_TIMEOUT_MS = 3500;
 
 @Injectable()

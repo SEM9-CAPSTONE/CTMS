@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/ctms_scaffold.dart';
+import '../../gps_tracking/application/gps_location_source.dart';
+import '../../offline_packages/application/offline_trip_providers.dart';
+import '../../sync/application/connectivity_source.dart';
 import '../application/survival_chat_controller.dart';
 import '../data/survival_chat_api.dart';
+import '../data/survival_local_model.dart';
 
 class _ChatMessage {
   const _ChatMessage({
@@ -22,7 +27,9 @@ class _ChatMessage {
 }
 
 class CamperAiAssistantScreen extends ConsumerStatefulWidget {
-  const CamperAiAssistantScreen({super.key});
+  const CamperAiAssistantScreen({super.key, this.trip});
+
+  final OfflineTripSelection? trip;
 
   @override
   ConsumerState<CamperAiAssistantScreen> createState() =>
@@ -35,6 +42,79 @@ class _CamperAiAssistantScreenState
   final _scrollController = ScrollController();
 
   String? _inputError;
+  String? _modelError;
+  int? _downloadBytes;
+
+  Future<void> _showCurrentLocation() async {
+    const gps = GeolocatorLocationSource();
+    var message = 'Không lấy được vị trí hiện tại. Hãy kiểm tra quyền vị trí.';
+    try {
+      var permission = await gps.checkPermission();
+      if (permission == GpsPermissionState.denied) {
+        permission = await gps.requestPermission();
+      }
+      if (permission == GpsPermissionState.granted) {
+        final fix = await gps.currentSample(
+          timeLimit: const Duration(seconds: 8),
+        );
+        if (DateTime.now().difference(fix.capturedAt).abs() <=
+            const Duration(seconds: 30)) {
+          message =
+              'Vĩ độ ${fix.latitude.toStringAsFixed(5)}\n'
+              'Kinh độ ${fix.longitude.toStringAsFixed(5)}';
+        }
+      }
+    } catch (_) {
+      // Missing GPS and permission failures do not block the SOS workflow.
+    }
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Vị trí hiện tại'),
+        content: SelectableText(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Đóng'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _downloadModel(SurvivalLocalModel model) async {
+    if (_downloadBytes != null) return;
+    setState(() {
+      _downloadBytes = 0;
+      _modelError = null;
+    });
+    try {
+      if (!await ref.read(connectivitySourceProvider).isConnected()) {
+        if (mounted) {
+          setState(() => _modelError = 'Hãy kết nối mạng để tải trợ lý.');
+        }
+        return;
+      }
+      await model.download((bytes) {
+        final previous = _downloadBytes;
+        if (mounted && previous != null && bytes - previous >= 1024 * 1024) {
+          setState(() => _downloadBytes = bytes);
+        }
+      });
+      if (mounted) ref.invalidate(survivalLocalModelReadyProvider);
+    } on LocalModelFailure catch (error) {
+      if (mounted) {
+        setState(() {
+          _modelError = error == LocalModelFailure.storage
+              ? 'Thiết bị không đủ dung lượng để tải trợ lý.'
+              : 'Chưa tải được trợ lý. Bạn có thể thử lại.';
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _downloadBytes = null);
+    }
+  }
 
   static const _quickPrompts = [
     'Cần chuẩn bị gì cho cung Tà Năng 3 ngày?',
@@ -62,7 +142,11 @@ class _CamperAiAssistantScreenState
       });
       return;
     }
-    if (ref.read(survivalChatControllerProvider.notifier).send(question)) {
+    final account = ref.read(survivalChatAccountProvider);
+    final trip = widget.trip;
+    if (ref
+        .read(survivalChatControllerProvider.notifier)
+        .send(question, trip: trip?.accountId == account ? trip : null)) {
       _inputController.clear();
       setState(() => _inputError = null);
     }
@@ -83,8 +167,22 @@ class _CamperAiAssistantScreenState
   @override
   Widget build(BuildContext context) {
     final turns = ref.watch(survivalChatControllerProvider);
+    final account = ref.watch(survivalChatAccountProvider);
+    final model = ref.watch(survivalLocalModelProvider);
+    final modelReady =
+        model.supported &&
+        (ref.watch(survivalLocalModelReadyProvider).valueOrNull ?? false);
     final pending = turns.any((turn) => turn.pending);
     ref.listen(survivalChatControllerProvider, (_, _) => _scrollToBottom());
+    ref.listen(survivalChatAccountProvider, (previous, next) {
+      if (previous != next) {
+        _inputController.clear();
+        setState(() {
+          _inputError = null;
+          _modelError = null;
+        });
+      }
+    });
     return CtmsScaffold(
       title: 'Trợ lý AI',
       subtitle: 'Sơ cứu và sinh tồn khi đi trekking',
@@ -136,15 +234,27 @@ class _CamperAiAssistantScreenState
                                     color: AppColors.textPrimary,
                                   ),
                                 ),
-                                const Text(
-                                  'Cần kết nối mạng để gửi câu hỏi',
-                                  style: AppTypography.caption,
-                                ),
                               ],
                             ),
                           ),
                         ],
                       ),
+                      if (account != null && model.supported && !modelReady)
+                        TextButton(
+                          onPressed: pending || _downloadBytes != null
+                              ? null
+                              : () => _downloadModel(model),
+                          child: const Text(
+                            'Tải trợ lý để dùng khi mất mạng · 491 MB',
+                          ),
+                        ),
+                      if (_downloadBytes case final bytes?)
+                        LinearProgressIndicator(
+                          value: bytes / survivalModelRelease.byteLength,
+                          semanticsLabel: 'Đang tải trợ lý',
+                        ),
+                      if (_modelError case final message?)
+                        Text(message, style: AppTypography.caption),
                       const SizedBox(height: AppSpacing.md),
                       const Text(
                         'Chọn câu hỏi gợi ý hoặc nhập câu hỏi của bạn.',
@@ -154,30 +264,38 @@ class _CamperAiAssistantScreenState
                       Wrap(
                         spacing: 8,
                         runSpacing: 8,
-                        children: _quickPrompts.map((prompt) {
-                          return GestureDetector(
-                            onTap: pending ? null : () => _sendMessage(prompt),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 7,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppColors.brandBg,
-                                borderRadius: AppRadius.pillBorderRadius,
-                                border: Border.all(color: AppColors.border),
-                              ),
-                              child: Text(
-                                prompt,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.textPrimary,
+                        children:
+                            [
+                              if (widget.trip?.accountId == account &&
+                                  widget.trip != null)
+                                'Gói đã lưu có bao nhiêu điểm dừng?',
+                              ..._quickPrompts,
+                            ].map((prompt) {
+                              return GestureDetector(
+                                onTap: pending
+                                    ? null
+                                    : () => _sendMessage(prompt),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 7,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.brandBg,
+                                    borderRadius: AppRadius.pillBorderRadius,
+                                    border: Border.all(color: AppColors.border),
+                                  ),
+                                  child: Text(
+                                    prompt,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.textPrimary,
+                                    ),
+                                  ),
                                 ),
-                              ),
-                            ),
-                          );
-                        }).toList(),
+                              );
+                            }).toList(),
                       ),
                     ],
                   ),
@@ -203,7 +321,10 @@ class _CamperAiAssistantScreenState
                           message: _ChatMessage(
                             text: answer.text,
                             isUser: false,
-                            timestamp: 'Trợ lý AI',
+                            timestamp: switch (answer.snapshotVersion) {
+                              final version? => 'Gói đã lưu · Bản $version',
+                              _ => answer.isLocal ? 'Gợi ý từ AI' : 'Trợ lý AI',
+                            },
                           ),
                         ),
                       if (turn.pending)
@@ -231,6 +352,20 @@ class _CamperAiAssistantScreenState
                                   failure.message,
                                   style: AppTypography.body,
                                 ),
+                                if (failure.emergency &&
+                                    GoRouter.maybeOf(context) != null)
+                                  TextButton(
+                                    onPressed: () =>
+                                        context.go('/camper/trips'),
+                                    child: const Text(
+                                      'Mở chuyến đi để gửi SOS',
+                                    ),
+                                  ),
+                                if (failure.emergency)
+                                  TextButton(
+                                    onPressed: _showCurrentLocation,
+                                    child: const Text('Xem vị trí hiện tại'),
+                                  ),
                                 if (failure.retryable)
                                   TextButton(
                                     onPressed: pending

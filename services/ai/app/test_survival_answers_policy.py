@@ -4,15 +4,15 @@ import pytest
 from fastapi import HTTPException
 from pydantic import ValidationError
 
-from app.survival_answers import GenerationInput, Selection, provider_config, require_token
+from app.survival_answers import GenerationInput, Draft, provider_config, require_token
 
 
 def test_selection_requires_distinct_ids_and_consistent_status():
     chunk_id = uuid4()
-    assert Selection(status="ANSWERED", chunkIds=[chunk_id]).chunkIds == [chunk_id]
+    assert Draft(status="ANSWERED", answerText="Supported answer", usedEvidenceIds=[chunk_id]).usedEvidenceIds == [chunk_id]
     for status, ids in [("ANSWERED", []), ("ANSWERED", [chunk_id, chunk_id]), ("REFUSED", [chunk_id])]:
         with pytest.raises(ValidationError):
-            Selection(status=status, chunkIds=ids)
+            Draft(status=status, answerText="Supported answer", usedEvidenceIds=ids)
 
 
 def test_input_preserves_vietnamese_evidence_and_rejects_duplicate_chunks():

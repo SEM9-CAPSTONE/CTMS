@@ -60,7 +60,6 @@ Dependencies:
 
 - CTMS-068.
 - CTMS-069.
-- CTMS-070.
 - CTMS-071.
 
 Versioned evaluation dataset and applicable model/RAG/package versions exist.
@@ -139,7 +138,14 @@ TBD — Technical Design.
 | BR-279 | P95 ≤5s            | Pass                              | Performance  |
 | BR-279 | Offline coverage   | Reported by package/version       | Metrics      |
 | BR-282 | Report             | Versions/thresholds/result stored | Traceability |
+| Jira CTMS-257 AC-5 | Physical iOS and Android with network blocked | Record inference outcome and any traffic attributable to the turn | Device trial |
+| Jira CTMS-257 AC-6 | Evaluate with a verified package and without a saved Trip | Record the evidence mode and package version where applicable | Device trial |
+| Jira CTMS-257 AC-7 | Missing, corrupt or unsupported local model | Record recovery behavior and any failed activation | Device trial |
 
 ## 12. Open Decisions
 
 Offline coverage has no approved numeric V3 release threshold.
+
+For on-device trials, report the runtime and model revision, artifact digest and size,
+device/OS/ABI, peak memory, first-token latency, throughput, Vietnamese answer quality,
+and emergency-handling results. These observations do not change BR-279 or BR-282.
