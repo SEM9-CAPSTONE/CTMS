@@ -3,7 +3,7 @@ import { BadRequestException } from "@nestjs/common";
 import type { EntityManager } from "typeorm";
 import { contextBlocks } from "../rag/rag-context";
 import type { RagRetrievalService } from "../rag/rag-retrieval.service";
-import type { RagRepository } from "../rag/rag.repository";
+import { type RagRepository, evidenceRef } from "../rag/rag.repository";
 import type { RagChunk, RagResult } from "../rag/rag.types";
 import { Classification } from "../survival-documents/survival-documents.types";
 import { UserRole, UserStatus } from "../users/entities/user.entity";
@@ -85,6 +85,91 @@ function setup() {
 	);
 	return { service, repo, rag, evidence, provider };
 }
+
+describe("CTMS-071 recorded answer sources", () => {
+	it("returns only cited chunks for the requested answer, including multiple documents", async () => {
+		const { service, repo, rag, evidence } = setup();
+		const sameDocument = {
+			...chunk,
+			chunkId: randomUUID(),
+			chunkIndex: 3,
+			locations: [{ page: 4, itemRef: "#/texts/4" }],
+		};
+		const otherDocument = {
+			...chunk,
+			chunkId: randomUUID(),
+			source: {
+				...chunk.source,
+				documentId: randomUUID(),
+				documentVersionId: randomUUID(),
+				chunkSetId: randomUUID(),
+				sourceTitle: "Hướng dẫn định hướng",
+				sourceVersion: 1,
+			},
+		};
+		const answerId = randomUUID();
+		repo.findForOwner.mockResolvedValueOnce({
+			id: answerId,
+			locale: "vi",
+			retrieved_evidence: [chunk, unused, sameDocument, otherDocument].map(evidenceRef),
+			cited_chunk_ids: [otherDocument.chunkId, chunk.chunkId, sameDocument.chunkId],
+		});
+		await expect(service.sources(actor, answerId)).resolves.toEqual({
+			answerId,
+			sources: [otherDocument, chunk, sameDocument].map((entry) => ({
+				documentId: entry.source.documentId,
+				documentVersionId: entry.source.documentVersionId,
+				sourceVersion: entry.source.sourceVersion,
+				chunkSetId: entry.source.chunkSetId,
+				chunkId: entry.chunkId,
+				chunkIndex: entry.chunkIndex,
+				title: entry.source.sourceTitle,
+				classification: entry.source.classification,
+				locale: entry.source.locale,
+				locations: entry.locations,
+			})),
+		});
+		expect(repo.findForOwner).toHaveBeenCalledWith(actor.userId, answerId);
+		expect(rag.retrieve).not.toHaveBeenCalled();
+		expect(evidence.withCurrentEvidence).not.toHaveBeenCalled();
+	});
+
+	it("omits unresolved and malformed cited snapshots while retaining valid citations", async () => {
+		const { service, repo } = setup();
+		const answerId = randomUUID();
+		const malformed = { ...evidenceRef(unused), locations: [{ page: 0, itemRef: "" }] };
+		const missingSource = { ...evidenceRef(unused), chunkId: randomUUID(), source: null };
+		const row = {
+			id: answerId,
+			locale: "vi",
+			retrieved_evidence: [null, malformed, missingSource, evidenceRef(chunk)],
+			cited_chunk_ids: [randomUUID(), malformed.chunkId, missingSource.chunkId],
+		};
+		repo.findForOwner.mockResolvedValueOnce(row).mockResolvedValueOnce({
+			...row,
+			cited_chunk_ids: [...row.cited_chunk_ids, chunk.chunkId],
+		});
+		await expect(service.sources(actor, answerId)).resolves.toEqual({ answerId, sources: [] });
+		await expect(service.sources(actor, answerId)).resolves.toMatchObject({
+			answerId,
+			sources: [{ chunkId: chunk.chunkId, title: chunk.source.sourceTitle }],
+		});
+	});
+
+	it("requires an active Camper and an owned answer within retention", async () => {
+		const { service, repo } = setup();
+		const answerId = randomUUID();
+		await expect(
+			service.sources({ ...actor, roles: [UserRole.HOST] }, answerId)
+		).rejects.toMatchObject({ status: 403 });
+		await expect(
+			service.sources({ ...actor, status: UserStatus.SUSPENDED }, answerId)
+		).rejects.toMatchObject({ status: 403 });
+		expect(repo.findForOwner).not.toHaveBeenCalled();
+		await expect(service.sources(actor, answerId)).rejects.toMatchObject({ status: 404 });
+		expect(repo.findForOwner).toHaveBeenCalledWith(actor.userId, answerId);
+	});
+});
 
 describe("CTMS-069 survival answers", () => {
 	it("returns a verified synthesis and stores both retrieved and cited references", async () => {
@@ -235,6 +320,20 @@ describe("CTMS-069 survival answers", () => {
 		await expect(service.ask(actor, { ...input, question: "Câu hỏi khác" })).rejects.toMatchObject({
 			status: 409,
 		});
+		expect(provider.generate).toHaveBeenCalledTimes(1);
+	});
+
+	it("withholds a replay when a recorded citation cannot be resolved", async () => {
+		const { service, repo, evidence, provider } = setup();
+		await service.ask(actor, input);
+		const saved = await repo.save.mock.results[0].value;
+		repo.findByRequest.mockResolvedValue({ ...saved, retrieved_evidence: [] });
+		evidence.withCurrentEvidence.mockClear();
+		await expect(service.ask(actor, input)).resolves.toMatchObject({
+			status: "INSUFFICIENT_CONTEXT",
+			sources: [],
+		});
+		expect(evidence.withCurrentEvidence).not.toHaveBeenCalled();
 		expect(provider.generate).toHaveBeenCalledTimes(1);
 	});
 
