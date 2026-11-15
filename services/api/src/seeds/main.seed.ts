@@ -50,6 +50,7 @@ import {
 	backfillTripAreaSnapshots,
 	seedRevenueAnalyticsScenarios,
 } from "./revenue-analytics.seed";
+import { seedSafetyHotspotScenarios } from "./safety-hotspots.seed";
 
 const BCRYPT_COST_FACTOR = 10;
 export const DEMO_SYNC_TRIP_ID = "a1736fee-62be-4991-9478-a62288e9b80a";
@@ -6804,6 +6805,15 @@ export async function runMasterSeed(): Promise<void> {
 		}
 		return;
 	}
+	if (process.argv.includes("--safety-hotspots-only")) {
+		try {
+			if (!dataSource.isInitialized) await dataSource.initialize();
+			await seedSafetyHotspotScenarios(dataSource);
+		} finally {
+			if (dataSource.isInitialized) await dataSource.destroy();
+		}
+		return;
+	}
 	if (process.argv.includes("--performance-reports-only")) {
 		try {
 			await seedPerformanceReportsScenarios(dataSource);
@@ -6997,6 +7007,12 @@ export async function runMasterSeed(): Promise<void> {
 		console.log("👉 [15/15] Seeding revenue analytics history and Trip areas (CTMS-110)...");
 		await seedRevenueAnalyticsScenarios(dataSource);
 		console.log("✅ Step 15 completed.\n");
+
+		// Step 16: Safety hotspots on the Sơn Trà route (CTMS-116/117/118). Runs last so the
+		// completed Trips and their members already exist.
+		console.log("👉 [16/16] Seeding safety hotspots (CTMS-116/117/118)...");
+		await seedSafetyHotspotScenarios(dataSource);
+		console.log("✅ Step 16 completed.\n");
 
 		const elapsedSec = ((Date.now() - startTime) / 1000).toFixed(2);
 
