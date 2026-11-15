@@ -48,6 +48,11 @@ const SurvivalDocumentsPage = lazy(() =>
 		default: module.SurvivalDocumentsPage,
 	}))
 );
+const AdminSafetyHotspotsPage = lazy(() =>
+	import("../features/admin-safety-hotspots/pages/AdminSafetyHotspotsPage").then((module) => ({
+		default: module.AdminSafetyHotspotsPage,
+	}))
+);
 const AdminContentReportsPage = lazy(() =>
 	import("../features/admin-content-reports/pages/AdminContentReportsPage").then((module) => ({
 		default: module.AdminContentReportsPage,
@@ -1137,6 +1142,17 @@ function AppRouteContent() {
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
 					<SurvivalDocumentsPage onLogout={handleLogout} />
+				</AppRoleGuard>
+			);
+		case RoutePath.ADMIN_SAFETY_HOTSPOTS:
+			return (
+				<AppRoleGuard
+					allowedRoles={["admin"]}
+					currentRoles={currentRoles}
+					fallback={unauthorizedFallback}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<AdminSafetyHotspotsPage onLogout={handleLogout} />
 				</AppRoleGuard>
 			);
 		case RoutePath.ADMIN_AUDIT_LOGS:

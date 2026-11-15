@@ -8,6 +8,11 @@ export const API_ENDPOINTS = {
 		READ: (id: string) => `/offline-package-notifications/${id}/read`,
 	},
 	ADMIN_MODERATION_COUNTS: "/admin/moderation/counts",
+	SAFETY_HOTSPOTS: {
+		LIST: "/admin/safety-hotspots",
+		TARGETS: (id: string) => `/admin/safety-hotspots/${id}/corrective-targets`,
+		ACTIONS: (id: string) => `/admin/safety-hotspots/${id}/corrective-actions`,
+	},
 	DEMAND_INSIGHTS: {
 		PERIODS: "/host/demand-insights",
 		REPORT: (month: string) => `/host/demand-insights/${month}`,
