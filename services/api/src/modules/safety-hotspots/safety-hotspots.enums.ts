@@ -15,3 +15,21 @@ export enum SafetyHotspotSkipReason {
 	/** The exact same evidence already produced a candidate. */
 	DUPLICATE_EVIDENCE = "DUPLICATE_EVIDENCE",
 }
+
+/**
+ * CTMS-118 corrective-action types (BR-423). Route geometry and checkpoint position changes are
+ * deliberately absent: Routes with Trips have no version snapshots yet, so they cannot change in place.
+ */
+export enum CorrectiveActionType {
+	ADD_HAZARD_AREA = "ADD_HAZARD_AREA",
+	UPDATE_HAZARD_AREA = "UPDATE_HAZARD_AREA",
+	UPDATE_CHECKPOINT_INSTRUCTIONS = "UPDATE_CHECKPOINT_INSTRUCTIONS",
+	NO_DATA_CHANGE = "NO_DATA_CHANGE",
+	OTHER = "OTHER",
+}
+
+/** Whether a corrective action changes Offline Safety Package content (BR-359). */
+export enum PackageImpact {
+	AFFECTED = "AFFECTED",
+	NOT_AFFECTED = "NOT_AFFECTED",
+}

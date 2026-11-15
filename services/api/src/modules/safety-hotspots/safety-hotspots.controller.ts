@@ -1,4 +1,5 @@
 import {
+	Body,
 	Controller,
 	Get,
 	HttpCode,
@@ -16,8 +17,16 @@ import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import type { AuthenticatedUser } from "../auth/jwt.strategy";
 import { UserRole } from "../users/entities/user.entity";
+// biome-ignore lint/style/useImportType: ValidationPipe needs the DTO class at runtime to validate the body
+import { CreateCorrectiveActionDto } from "./dto/corrective-action.dto";
 // biome-ignore lint/style/useImportType: ValidationPipe needs the DTO class at runtime to validate the query
 import { ListSafetyHotspotsQueryDto } from "./dto/safety-hotspots.dto";
+import type {
+	CorrectiveActionRow,
+	RouteSafetyTargets,
+} from "./hotspot-corrective-actions.repository";
+// biome-ignore lint/style/useImportType: Nest runtime DI metadata
+import { HotspotCorrectiveActionsService } from "./hotspot-corrective-actions.service";
 import type { SafetyHotspotRow } from "./safety-hotspots.repository";
 // biome-ignore lint/style/useImportType: Nest runtime DI metadata
 import { type HotspotDetectionResult, SafetyHotspotsService } from "./safety-hotspots.service";
@@ -38,7 +47,10 @@ interface AuthenticatedRequest {
 @ApiResponse({ status: 401, description: "Authentication required" })
 @ApiResponse({ status: 403, description: "Admin role required" })
 export class SafetyHotspotsController {
-	constructor(private readonly hotspots: SafetyHotspotsService) {}
+	constructor(
+		private readonly hotspots: SafetyHotspotsService,
+		private readonly correctiveActions: HotspotCorrectiveActionsService
+	) {}
 
 	@Post("detect")
 	@HttpCode(HttpStatus.OK)
@@ -65,5 +77,52 @@ export class SafetyHotspotsController {
 		id: string
 	): Promise<SafetyHotspotRow> {
 		return this.hotspots.getById(id);
+	}
+
+	@Get(":id/corrective-targets")
+	@ApiOperation({
+		summary: "Checkpoints and hazard areas of the hotspot's Route that a correction may change",
+	})
+	@ApiResponse({ status: 404, description: "Hotspot not found" })
+	async correctiveTargets(
+		@Param("id", new ParseUUIDPipe({ errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY }))
+		id: string
+	): Promise<RouteSafetyTargets> {
+		const hotspot = await this.hotspots.getById(id);
+		return this.correctiveActions.targets(hotspot.routeId);
+	}
+
+	@Get(":id/corrective-actions")
+	@ApiOperation({ summary: "Corrective actions already taken from this hotspot, newest first" })
+	@ApiResponse({ status: 404, description: "Hotspot not found" })
+	async listCorrectiveActions(
+		@Param("id", new ParseUUIDPipe({ errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY }))
+		id: string
+	): Promise<CorrectiveActionRow[]> {
+		await this.hotspots.getById(id);
+		return this.correctiveActions.listByHotspot(id);
+	}
+
+	@Post(":id/corrective-actions")
+	@HttpCode(HttpStatus.CREATED)
+	@ApiOperation({
+		summary:
+			"Apply a corrective action to authoritative Route safety data from a CONFIRMED hotspot",
+		description:
+			"Only CONFIRMED hotspots qualify (BR-358). Targets are resolved on the hotspot's own Route. The change, audit entry and hotspot evidence link are written together (BR-191, BR-419); a package-affecting change requests a new Offline Safety Package version for published Trips (BR-359).",
+	})
+	@ApiResponse({
+		status: 404,
+		description: "Hotspot, checkpoint or hazard area not found on this Route",
+	})
+	@ApiResponse({ status: 409, description: "Hotspot not CONFIRMED or Route closed" })
+	@ApiResponse({ status: 422, description: "Invalid corrective action" })
+	createCorrectiveAction(
+		@Req() request: AuthenticatedRequest,
+		@Param("id", new ParseUUIDPipe({ errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY }))
+		id: string,
+		@Body() dto: CreateCorrectiveActionDto
+	): Promise<CorrectiveActionRow> {
+		return this.correctiveActions.create(request.user.userId, id, dto);
 	}
 }

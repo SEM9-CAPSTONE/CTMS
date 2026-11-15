@@ -54,7 +54,8 @@ export interface NewHotspot {
 }
 
 /** Fields exposed to Admins: aggregates and evidence ids only, no member ids or member points. */
-const HOTSPOT_COLUMNS = `hotspot."id", hotspot."route_id" AS "routeId", hotspot."route_version" AS "routeVersion",
+const HOTSPOT_COLUMNS = `hotspot."id", hotspot."route_id" AS "routeId", route."name" AS "routeName",
+	route."status" AS "routeStatus", hotspot."route_version" AS "routeVersion",
 	hotspot."status", hotspot."status_changed_at" AS "statusChangedAt",
 	hotspot."analysis_version" AS "analysisVersion", hotspot."config_version" AS "configVersion",
 	hotspot."criteria", hotspot."window_start" AS "windowStart", hotspot."window_end" AS "windowEnd",
@@ -73,7 +74,12 @@ export type SafetyHotspotRow = Omit<NewHotspot, "centerLng" | "centerLat"> & {
 	statusChangedAt: Date;
 	centerLat: number;
 	centerLng: number;
+	routeName: string;
+	routeStatus: string;
 };
+
+const HOTSPOT_FROM = `"potential_safety_hotspots" hotspot
+	INNER JOIN "trekking_routes" route ON route."id" = hotspot."route_id"`;
 
 /** CTMS-116: reads RouteDeviationEvents and writes only hotspot tables (BR-356). */
 @Injectable()
@@ -253,7 +259,7 @@ export class SafetyHotspotsRepository {
 
 	async findById(id: string): Promise<SafetyHotspotRow | null> {
 		const rows = (await this.dataSource.query(
-			`SELECT ${HOTSPOT_COLUMNS} FROM "potential_safety_hotspots" hotspot WHERE hotspot."id" = $1`,
+			`SELECT ${HOTSPOT_COLUMNS} FROM ${HOTSPOT_FROM} WHERE hotspot."id" = $1`,
 			[id]
 		)) as SafetyHotspotRow[];
 		return rows[0] ?? null;
@@ -276,7 +282,7 @@ export class SafetyHotspotsRepository {
 		}
 		params.push(filter.limit);
 		return (await this.dataSource.query(
-			`SELECT ${HOTSPOT_COLUMNS} FROM "potential_safety_hotspots" hotspot
+			`SELECT ${HOTSPOT_COLUMNS} FROM ${HOTSPOT_FROM}
 			 ${conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : ""}
 			 ORDER BY hotspot."detected_at" DESC, hotspot."id" DESC
 			 LIMIT $${params.length}`,
