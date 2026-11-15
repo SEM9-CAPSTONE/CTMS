@@ -306,7 +306,7 @@ class _CamperAiAssistantScreenState
                 // Message bubbles
                 for (final turn in turns)
                   Column(
-                    key: ValueKey(turn.id),
+                    key: PageStorageKey(turn.id),
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _ChatBubble(
@@ -318,6 +318,7 @@ class _CamperAiAssistantScreenState
                       ),
                       if (turn.answer case final answer?)
                         _ChatBubble(
+                          sources: answer.isLocal ? null : answer.sources,
                           message: _ChatMessage(
                             text: answer.text,
                             isUser: false,
@@ -476,9 +477,10 @@ class _CamperAiAssistantScreenState
 }
 
 class _ChatBubble extends StatelessWidget {
-  const _ChatBubble({required this.message});
+  const _ChatBubble({required this.message, this.sources});
 
   final _ChatMessage message;
+  final List<SurvivalChatSource>? sources;
 
   @override
   Widget build(BuildContext context) {
@@ -535,6 +537,8 @@ class _ChatBubble extends StatelessWidget {
                       height: 1.45,
                     ),
                   ),
+                  if (sources case final sources?)
+                    _AnswerSources(sources: sources),
                   const SizedBox(height: 4),
                   Align(
                     alignment: Alignment.bottomRight,
@@ -554,6 +558,77 @@ class _ChatBubble extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _AnswerSources extends StatelessWidget {
+  const _AnswerSources({required this.sources});
+
+  final List<SurvivalChatSource> sources;
+
+  @override
+  Widget build(BuildContext context) {
+    final detailStyle = AppTypography.caption.copyWith(
+      color: AppColors.textSecondary,
+    );
+    if (sources.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.only(top: AppSpacing.sm),
+        child: Text('Không có thông tin nguồn', style: detailStyle),
+      );
+    }
+
+    final groups = <(String, String), List<SurvivalChatSource>>{};
+    for (final source in sources) {
+      groups
+          .putIfAbsent((source.documentId, source.documentVersionId), () => [])
+          .add(source);
+    }
+    return ExpansionTile(
+      tilePadding: EdgeInsets.zero,
+      minTileHeight: 48,
+      childrenPadding: const EdgeInsets.only(bottom: AppSpacing.xs),
+      expandedCrossAxisAlignment: CrossAxisAlignment.start,
+      shape: const Border(),
+      collapsedShape: const Border(),
+      textColor: AppColors.brandPrimary,
+      iconColor: AppColors.brandPrimary,
+      collapsedTextColor: AppColors.brandPrimary,
+      collapsedIconColor: AppColors.brandPrimary,
+      title: Text(
+        'Nguồn tham khảo (${groups.length})',
+        style: AppTypography.caption,
+      ),
+      children: [
+        for (final group in groups.values)
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+            child: _sourceDetails(group, detailStyle),
+          ),
+      ],
+    );
+  }
+
+  Widget _sourceDetails(List<SurvivalChatSource> group, TextStyle detailStyle) {
+    final versions = group
+        .map((source) => source.sourceVersion)
+        .nonNulls
+        .toSet();
+    final pages = {
+      for (final source in group)
+        for (final location in source.locations) location.page,
+    }.toList()..sort();
+    final details = [
+      if (versions.length == 1) 'Phiên bản ${versions.single}',
+      if (pages.isNotEmpty) 'Trang ${pages.join(', ')}',
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(group.first.title, style: AppTypography.body),
+        if (details.isNotEmpty) Text(details.join(' · '), style: detailStyle),
+      ],
     );
   }
 }

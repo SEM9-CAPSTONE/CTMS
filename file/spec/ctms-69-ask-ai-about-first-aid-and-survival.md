@@ -166,6 +166,11 @@ and `REFUSED` return empty sources and no answer. Operational failures use stabl
 error codes. The answer owner can read recorded source metadata for 30 days through
 `GET /api/ai/answers/:answerId/sources`.
 
+The [source panel in CTMS-071](ctms-71-view-knowledge-sources-for-ai-answers.md)
+uses the citations returned with the completed chat reply. The source endpoint reads
+historical snapshots for the owner and omits entries with unavailable provenance.
+A POST replay with incomplete cited provenance returns `INSUFFICIENT_CONTEXT`.
+
 A local reply uses the local turn identity and has no server answer ID. Pretrained-only
 replies carry no CTMS citation. Answers using verified snapshot evidence may show
 only provenance for content actually used. Local answers do not call server

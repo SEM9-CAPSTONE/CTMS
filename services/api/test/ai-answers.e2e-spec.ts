@@ -111,7 +111,7 @@ describe("CTMS-069 public HTTP contract", () => {
 		});
 	});
 
-	it("does not disclose another Camper's saved answer, or any expired answer", async () => {
+	it("reports unavailable provenance and protects unknown, expired and other owners' answers", async () => {
 		// Treat the existing Host fixture as a second Camper for the duration of this scenario.
 		const db = app.get(DataSource);
 		const [other]: Array<{ id: string }> = await db.query("SELECT id FROM users WHERE email=$1", [
@@ -120,11 +120,26 @@ describe("CTMS-069 public HTTP contract", () => {
 		const [row]: Array<{ id: string }> = await db.query(
 			`INSERT INTO ai_answers(user_id,request_id,request_hash,locale,answer,retrieved_evidence,
 			 cited_chunk_ids,generation,retrieval_config_version)
-			 VALUES($1,$2,$3,'vi','Đọc chú giải bản đồ.','[]','{}','{}','test') RETURNING id`,
-			[camperId, randomUUID(), "a".repeat(64)]
+			 VALUES($1,$2,$3,'vi','Đọc chú giải bản đồ.','[]',$4::uuid[],'{}','test') RETURNING id`,
+			[camperId, randomUUID(), "a".repeat(64), [randomUUID()]]
 		);
 		const sources = `${endpoint}/${row.id}/sources`;
 		try {
+			await request(app.getHttpServer()).get(sources).expect(401);
+			await request(app.getHttpServer())
+				.get(sources)
+				.auth(hostToken, { type: "bearer" })
+				.expect(403);
+			const owner = await request(app.getHttpServer())
+				.get(sources)
+				.auth(camperToken, { type: "bearer" })
+				.expect(200);
+			expect(owner.headers["cache-control"]).toBe("no-store");
+			expect(owner.body).toEqual({ answerId: row.id, sources: [] });
+			await request(app.getHttpServer())
+				.get(`${endpoint}/${randomUUID()}/sources`)
+				.auth(camperToken, { type: "bearer" })
+				.expect(404);
 			await db.query("INSERT INTO user_roles(user_id,role) VALUES($1,'camper')", [other.id]);
 			await request(app.getHttpServer())
 				.get(sources)

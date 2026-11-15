@@ -627,13 +627,22 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 					.set("Authorization", camperAuth)
 					.expect(200);
 				expect(ownerSources.body.sources).toEqual(retry.body.sources);
-				await archive(doc);
+				const v2 = await publish(await draft(doc));
+				await ready(v2);
+				expect(v2.versions[0].id).not.toBe(doc.versions[0].id);
 				const withdrawn = await postAnswer(requestId).expect(200);
 				expect(withdrawn.body).toMatchObject({ status: "INSUFFICIENT_CONTEXT", sources: [] });
-				await request(app.getHttpServer())
+				const supersededSources = await request(app.getHttpServer())
 					.get(sources)
 					.set("Authorization", camperAuth)
 					.expect(200);
+				expect(supersededSources.body).toEqual(ownerSources.body);
+				await archive(v2);
+				const archivedSources = await request(app.getHttpServer())
+					.get(sources)
+					.set("Authorization", camperAuth)
+					.expect(200);
+				expect(archivedSources.body).toEqual(ownerSources.body);
 			});
 
 			it("rejects a selection that leaves out part of a PDF item", async () => {
