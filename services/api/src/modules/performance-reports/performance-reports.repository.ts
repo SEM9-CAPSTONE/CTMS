@@ -3,10 +3,7 @@ import { Injectable } from "@nestjs/common";
 import { DataSource } from "typeorm";
 import { BookingStatus } from "../profiles/entities/booking.entity";
 import { TripStatus } from "../trips/entities/trip.entity";
-import {
-	type GetPerformanceReportQueryDto,
-	ReportPeriodPreset,
-} from "./dto/get-performance-report-query.dto";
+import type { GetPerformanceReportQueryDto } from "./dto/get-performance-report-query.dto";
 import type {
 	BookingMetricsDto,
 	PerformanceReportResponseDto,
@@ -16,11 +13,9 @@ import type {
 	TripMetricsDto,
 } from "./dto/performance-report-response.dto";
 
-export interface ResolvedTimeWindow {
-	from: Date;
-	to: Date;
-	preset?: string;
-}
+import { type ResolvedTimeWindow, resolveReportTimeWindow } from "./report-time-window";
+
+export type { ResolvedTimeWindow } from "./report-time-window";
 
 export interface ReportUserScope {
 	role: string;
@@ -32,48 +27,7 @@ export class PerformanceReportsRepository {
 	constructor(private readonly dataSource: DataSource) {}
 
 	resolveTimeWindow(query: GetPerformanceReportQueryDto): ResolvedTimeWindow {
-		const now = new Date();
-
-		if (query.from && query.to) {
-			return {
-				from: new Date(query.from),
-				to: new Date(query.to),
-				preset: undefined,
-			};
-		}
-
-		const preset = query.period ?? ReportPeriodPreset.DAYS_30;
-		switch (preset) {
-			case ReportPeriodPreset.DAYS_7: {
-				const from = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-				return { from, to: now, preset };
-			}
-			case ReportPeriodPreset.DAYS_30: {
-				const from = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-				return { from, to: now, preset };
-			}
-			case ReportPeriodPreset.DAYS_90: {
-				const from = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-				return { from, to: now, preset };
-			}
-			case ReportPeriodPreset.MONTHS_12: {
-				const from = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
-				return { from, to: now, preset };
-			}
-			case ReportPeriodPreset.THIS_MONTH: {
-				const from = new Date(now.getFullYear(), now.getMonth(), 1);
-				return { from, to: now, preset };
-			}
-			case ReportPeriodPreset.LAST_MONTH: {
-				const from = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-				const to = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
-				return { from, to, preset };
-			}
-			default: {
-				const from = new Date(2020, 0, 1);
-				return { from, to: now, preset };
-			}
-		}
+		return resolveReportTimeWindow(query);
 	}
 
 	async generateReport(
@@ -101,18 +55,22 @@ export class PerformanceReportsRepository {
 			tripConditions.push(`trip.id = $${tripParams.length}`);
 		}
 
+		// CTMS-110 / BR-319: area filters read the Trip's stored area snapshot, never its title.
+		if (query.areaCode) {
+			tripParams.push(query.areaCode);
+			tripConditions.push(`trip.area_code = $${tripParams.length}`);
+		}
+
 		if (query.province) {
-			tripParams.push(`%${query.province}%`);
+			tripParams.push(query.province);
 			tripConditions.push(
-				`(trip.title ILIKE $${tripParams.length} OR trip.description ILIKE $${tripParams.length})`
+				`(trip.province_code = $${tripParams.length} OR trip.province_name ILIKE $${tripParams.length})`
 			);
 		}
 
 		if (query.city) {
-			tripParams.push(`%${query.city}%`);
-			tripConditions.push(
-				`(trip.title ILIKE $${tripParams.length} OR trip.description ILIKE $${tripParams.length})`
-			);
+			tripParams.push(query.city);
+			tripConditions.push(`trip.area_name ILIKE $${tripParams.length}`);
 		}
 
 		const tripWhereClause = `WHERE ${tripConditions.join(" AND ")}`;
@@ -165,18 +123,22 @@ export class PerformanceReportsRepository {
 			bookingConditions.push(`b.trip_id = $${bookingParams.length}`);
 		}
 
+		// CTMS-110 / BR-319: area filters read the Trip's stored area snapshot, never its title.
+		if (query.areaCode) {
+			bookingParams.push(query.areaCode);
+			bookingConditions.push(`t.area_code = $${bookingParams.length}`);
+		}
+
 		if (query.province) {
-			bookingParams.push(`%${query.province}%`);
+			bookingParams.push(query.province);
 			bookingConditions.push(
-				`(t.title ILIKE $${bookingParams.length} OR t.description ILIKE $${bookingParams.length})`
+				`(t.province_code = $${bookingParams.length} OR t.province_name ILIKE $${bookingParams.length})`
 			);
 		}
 
 		if (query.city) {
-			bookingParams.push(`%${query.city}%`);
-			bookingConditions.push(
-				`(t.title ILIKE $${bookingParams.length} OR t.description ILIKE $${bookingParams.length})`
-			);
+			bookingParams.push(query.city);
+			bookingConditions.push(`t.area_name ILIKE $${bookingParams.length}`);
 		}
 
 		const bookingsRaw = await this.dataSource.query(

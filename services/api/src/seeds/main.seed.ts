@@ -45,6 +45,11 @@ import { CheckpointType } from "../modules/trekking-routes/entities/checkpoint.e
 import { WaypointType } from "../modules/trips/entities/trip-waypoint.entity";
 import { TripStatus, TripType } from "../modules/trips/entities/trip.entity";
 import { AUTO_CANCEL_WEATHER_REASON } from "../modules/trips/weather-decisions/trip-weather-decision.service";
+import {
+	DA_NANG_TRIP_MOVES,
+	backfillTripAreaSnapshots,
+	seedRevenueAnalyticsScenarios,
+} from "./revenue-analytics.seed";
 
 const BCRYPT_COST_FACTOR = 10;
 export const DEMO_SYNC_TRIP_ID = "a1736fee-62be-4991-9478-a62288e9b80a";
@@ -5738,7 +5743,15 @@ export async function seedDemandInsightScenarios(ds = dataSource): Promise<void>
 	);
 }
 
+/** Host 1 Trips moved to real Đà Nẵng places (CTMS-110); old titles stay listed for cleanup. */
+function daNangMove(from: string): (typeof DA_NANG_TRIP_MOVES)[number] {
+	const move = DA_NANG_TRIP_MOVES.find((item) => item.from === from);
+	if (!move) throw new Error(`Missing Đà Nẵng mapping for ${from}`);
+	return move;
+}
+
 export const SEED_PERF_TRIP_TITLES = [
+	...DA_NANG_TRIP_MOVES.map((move) => move.title),
 	"Trekking Tà Năng - Phan Dũng (Lâm Đồng)",
 	"Chinh phục đỉnh Fansipan 3N2Đ Chạm Đỉnh Mây (Lào Cai)",
 	"Cung đường săn mây Tà Xùa (Sơn La)",
@@ -5824,6 +5837,19 @@ export async function seedPerformanceReportsScenarios(ds: DataSource = dataSourc
 	}
 	const route2Id = route2Rows[0].id;
 
+	// Host 1 Trips run on real Đà Nẵng routes; fall back to route 1 on a fresh database.
+	const daNangRouteId = async (name: string): Promise<string> =>
+		(
+			(await ds.query('SELECT id FROM "trekking_routes" WHERE name = $1 LIMIT 1', [
+				name,
+			])) as Array<{
+				id: string;
+			}>
+		)[0]?.id ?? route1Id;
+	const hoaBacRouteId = await daNangRouteId("Khe Ram - Suối Mơ - Rừng Hòa Bắc");
+	const baNaRouteId = await daNangRouteId("Rừng Nguyên Sinh Bà Nà - Núi Chúa");
+	const sonTraRouteId = await daNangRouteId("Bán Đảo Sơn Trà Discovery");
+
 	// 3. Clean up previously seeded CTMS-101 trips & bookings & settlements for idempotency
 	const oldTrips = await ds.query('SELECT id FROM "trips" WHERE title = ANY($1)', [
 		SEED_PERF_TRIP_TITLES,
@@ -5885,10 +5911,9 @@ export async function seedPerformanceReportsScenarios(ds: DataSource = dataSourc
 		// Trip 1 (Host 1, Lâm Đồng)
 		{
 			hostId: host1Id,
-			routeId: route1Id,
-			title: "Trekking Tà Năng - Phan Dũng (Lâm Đồng)",
-			description:
-				"Chuyến trekking xuyên rừng thông Lâm Đồng, ngắm bình minh trên đồi cỏ đại ngàn.",
+			routeId: hoaBacRouteId,
+			title: daNangMove("Trekking Tà Năng - Phan Dũng (Lâm Đồng)").title,
+			description: daNangMove("Trekking Tà Năng - Phan Dũng (Lâm Đồng)").description,
 			tripType: "overnight",
 			durationNights: 2,
 			createdDaysAgo: 28,
@@ -5984,9 +6009,9 @@ export async function seedPerformanceReportsScenarios(ds: DataSource = dataSourc
 		// Trip 4 (Host 1, An Giang)
 		{
 			hostId: host1Id,
-			routeId: route1Id,
-			title: "Khám phá Rừng Tràm Trà Sư (An Giang)",
-			description: "Xuôi thuyền tắc ráng xuyên qua thảm bèo xanh mướt miền Tây sông nước.",
+			routeId: hoaBacRouteId,
+			title: daNangMove("Khám phá Rừng Tràm Trà Sư (An Giang)").title,
+			description: daNangMove("Khám phá Rừng Tràm Trà Sư (An Giang)").description,
 			tripType: "day_trip",
 			durationNights: 0,
 			createdDaysAgo: 19,
@@ -6048,9 +6073,9 @@ export async function seedPerformanceReportsScenarios(ds: DataSource = dataSourc
 		// Trip 6 (Host 1, Lâm Đồng)
 		{
 			hostId: host1Id,
-			routeId: route1Id,
-			title: "Chinh phục đỉnh Bidoup Núi Bà (Lâm Đồng)",
-			description: "Khám phá nóc nhà tỉnh Lâm Đồng giữa sương mây đại ngàn.",
+			routeId: baNaRouteId,
+			title: daNangMove("Chinh phục đỉnh Bidoup Núi Bà (Lâm Đồng)").title,
+			description: daNangMove("Chinh phục đỉnh Bidoup Núi Bà (Lâm Đồng)").description,
 			tripType: "overnight",
 			durationNights: 2,
 			createdDaysAgo: 12,
@@ -6147,9 +6172,9 @@ export async function seedPerformanceReportsScenarios(ds: DataSource = dataSourc
 		// Trip 10 (Host 1, Đồng Nai)
 		{
 			hostId: host1Id,
-			routeId: route1Id,
-			title: "Khám phá VQG Cát Tiên (Đồng Nai)",
-			description: "Đi bộ xuyên rừng già nguyên sinh, ngắm Bàu Sấu và thú ăn đêm hoang dã.",
+			routeId: sonTraRouteId,
+			title: daNangMove("Khám phá VQG Cát Tiên (Đồng Nai)").title,
+			description: daNangMove("Khám phá VQG Cát Tiên (Đồng Nai)").description,
 			tripType: "day_trip",
 			durationNights: 0,
 			createdDaysAgo: 2,
@@ -6243,6 +6268,9 @@ export async function seedPerformanceReportsScenarios(ds: DataSource = dataSourc
 			);
 		}
 	}
+
+	// CTMS-110: recreated Trips get their Đà Nẵng area snapshot straight away.
+	await backfillTripAreaSnapshots(ds);
 
 	console.log(
 		`[seed:performance-reports] ✅ Seeded ${tripConfigs.length} demo trips with ${totalBookingsCreated} bookings & settlements across 18 dates.`
@@ -6768,6 +6796,14 @@ export async function seedRouteRecoveryDemo(
 }
 
 export async function runMasterSeed(): Promise<void> {
+	if (process.argv.includes("--revenue-analytics-only")) {
+		try {
+			await seedRevenueAnalyticsScenarios(dataSource);
+		} finally {
+			if (dataSource.isInitialized) await dataSource.destroy();
+		}
+		return;
+	}
 	if (process.argv.includes("--performance-reports-only")) {
 		try {
 			await seedPerformanceReportsScenarios(dataSource);
@@ -6955,6 +6991,12 @@ export async function runMasterSeed(): Promise<void> {
 		console.log("👉 [14/14] Seeding Camper trip preferences (CTMS-106)...");
 		await seedCamperTripPreferences(dataSource);
 		console.log("✅ Step 14 completed.\n");
+
+		// Step 15: Revenue analytics history and Trip area snapshots (CTMS-110). Runs after the
+		// performance-report seed because that step recreates its own Trips.
+		console.log("👉 [15/15] Seeding revenue analytics history and Trip areas (CTMS-110)...");
+		await seedRevenueAnalyticsScenarios(dataSource);
+		console.log("✅ Step 15 completed.\n");
 
 		const elapsedSec = ((Date.now() - startTime) / 1000).toFixed(2);
 

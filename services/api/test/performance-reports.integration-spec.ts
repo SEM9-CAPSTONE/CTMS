@@ -205,6 +205,21 @@ describe("Performance Reports API (CTMS-101, BR-283, BR-211, integration, real P
 		await request(app.getHttpServer()).get("/api/reports/performance").expect(401);
 	});
 
+	it("filters by the stored Trip area snapshot, not the title (CTMS-110, BR-319)", async () => {
+		await dataSource.query(
+			`UPDATE "trips" SET "area_code" = 'DNG-SON-TRA', "area_name" = 'Sơn Trà', "province_code" = 'DNG', "province_name" = 'Đà Nẵng' WHERE "id" = $1`,
+			[cleanupTripIds[0]]
+		);
+		const res = await request(app.getHttpServer())
+			.get("/api/reports/performance")
+			.query({ areaCode: "DNG-SON-TRA" })
+			.set("Authorization", `Bearer ${host.accessToken}`)
+			.expect(200);
+
+		const titles = res.body.breakdown.map((t: { title: string }) => t.title);
+		expect(titles).toEqual(["Chuyến Trekking Tà Năng Lâm Đồng"]);
+	});
+
 	it("filters by province snapshot keyword (PB AC-2)", async () => {
 		const res = await request(app.getHttpServer())
 			.get("/api/reports/performance")

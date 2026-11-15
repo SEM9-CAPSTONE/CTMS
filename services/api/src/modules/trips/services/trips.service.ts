@@ -308,6 +308,8 @@ export class TripsService {
 				]);
 			}
 
+			await this.assertActiveArea(repository, dto.areaCode);
+
 			const trip = await repository.createDraft({
 				hostId,
 				routeId: dto.routeId,
@@ -331,6 +333,8 @@ export class TripsService {
 					string,
 					unknown
 				>,
+				areaCode: dto.areaCode,
+
 				waypoints: sortWaypointsByPlannedAt(dto.waypoints).map((waypoint, index) =>
 					toWaypointInput(waypoint, index, schedule.startsAt)
 				),
@@ -430,6 +434,8 @@ export class TripsService {
 				]);
 			}
 
+			await this.assertActiveArea(repository, dto.areaCode);
+
 			const updated = await repository.updateDraft(tripId, {
 				hostId,
 				routeId: dto.routeId,
@@ -453,6 +459,7 @@ export class TripsService {
 					string,
 					unknown
 				>,
+				areaCode: dto.areaCode,
 				waypoints: toDraftWaypointInputs(
 					final
 						? dto.waypoints.map((w) => fromWaypointDto(w, w.id))
@@ -1272,6 +1279,17 @@ export class TripsService {
 	async releaseSeats(tripId: string, manager: EntityManager): Promise<void> {
 		const repository = manager.withRepository(this.tripsRepository);
 		await repository.recomputeSeatsTaken(tripId);
+	}
+
+	/** CTMS-110 / BR-319. The area snapshot may only come from an active `geo_areas` row. */
+	private async assertActiveArea(repository: TripsRepository, areaCode?: string): Promise<void> {
+		if (areaCode === undefined) return;
+		const area = await repository.findActiveArea(areaCode);
+		if (!area) {
+			throw this.validationException([
+				{ field: "areaCode", errors: ["INVALID_AREA: area must be an active reporting area"] },
+			]);
+		}
 	}
 
 	private assertCreateTripPayload(dto: CreateTripDto): {

@@ -9,6 +9,7 @@ import {
 	Flag,
 	Landmark,
 	LayoutDashboard,
+	LineChart,
 	type LucideIcon,
 	MessageSquareText,
 	Route,
@@ -29,6 +30,11 @@ const items = {
 		label: "Báo cáo hiệu suất",
 		icon: BarChart3,
 		path: RoutePath.ADMIN_PERFORMANCE_REPORTS,
+	},
+	"revenue-analytics": {
+		label: "Báo cáo doanh thu",
+		icon: LineChart,
+		path: RoutePath.ADMIN_REVENUE_ANALYTICS,
 	},
 	"trip-review": {
 		label: "Duyệt chuyến đi",
@@ -88,7 +94,11 @@ export interface AdminNavLinkConfig {
 
 export type AdminNavigationItem = keyof typeof items;
 export const ADMIN_NAV_ITEMS: Record<AdminNavigationItem, AdminNavLinkConfig> = items;
-export const ADMIN_NAV_TOP_LEVEL = ["dashboard", "performance-reports"] as const;
+export const ADMIN_NAV_TOP_LEVEL = [
+	"dashboard",
+	"performance-reports",
+	"revenue-analytics",
+] as const;
 
 export const ADMIN_NAV_GROUPS = [
 	{

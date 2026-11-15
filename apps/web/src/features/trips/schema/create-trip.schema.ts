@@ -52,6 +52,10 @@ export const createCreateTripFormSchema = () =>
 				.min(1, "Tên trip là bắt buộc")
 				.max(150, "Tên trip không được vượt quá 150 ký tự"),
 			description: z.string().trim(),
+			areaCode: z
+				.string({ required_error: "Chọn khu vực của chuyến đi" })
+				.trim()
+				.min(1, "Chọn khu vực của chuyến đi"),
 			coverImageUrl: z
 				.string()
 				.trim()
@@ -168,6 +172,7 @@ export const CREATE_TRIP_DEFAULT_VALUES: CreateTripFormValues = {
 	routeId: "",
 	title: "",
 	description: "",
+	areaCode: "",
 	coverImageUrl: "",
 	tripType: "day_trip",
 	startsAt: "",
@@ -213,6 +218,7 @@ export function toCreateTripFormValues(trip: Trip): CreateTripFormValues {
 		routeId: trip.routeId,
 		title: trip.title,
 		description: trip.description ?? "",
+		areaCode: trip.area?.code ?? "",
 		coverImageUrl: trip.coverImageUrl ?? "",
 		tripType: trip.tripType,
 		startsAt: toDateTimeLocalValue(trip.startsAt),
@@ -242,6 +248,7 @@ export function toCreateTripInput(values: CreateTripFormValues): CreateTripInput
 		title: values.title.trim(),
 		...(description ? { description } : {}),
 		...(coverImageUrl ? { coverImageUrl } : {}),
+		...(values.areaCode?.trim() ? { areaCode: values.areaCode.trim() } : {}),
 		tripType: inferTripTypeFromSchedule(values.startsAt, values.endsAt),
 		startsAt: toIsoString(values.startsAt),
 		endsAt: toIsoString(values.endsAt),

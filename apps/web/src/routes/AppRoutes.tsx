@@ -167,9 +167,14 @@ const AdminPerformanceReportsPage = lazy(() =>
 		default: module.AdminPerformanceReportsPage,
 	}))
 );
-const HostPerformanceReportsPage = lazy(() =>
-	import("../features/performance-reports/pages/PerformanceReportsPage").then((module) => ({
-		default: module.PerformanceReportsPage,
+const AdminRevenueAnalyticsPage = lazy(() =>
+	import("../features/revenue-analytics/pages/AdminRevenueAnalyticsPage").then((module) => ({
+		default: module.AdminRevenueAnalyticsPage,
+	}))
+);
+const HostReportsPage = lazy(() =>
+	import("../features/host-reports/pages/HostReportsPage").then((module) => ({
+		default: module.HostReportsPage,
 	}))
 );
 const HostWalletPage = lazy(() =>
@@ -1221,7 +1226,53 @@ function AppRouteContent() {
 					fallback={unauthorizedFallback}
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
-					<HostPerformanceReportsPage />
+					<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
+						<HostReportsPage
+							activeTab="performance"
+							onTabChange={(tab) =>
+								navigateTo(
+									tab === "revenue"
+										? RoutePath.HOST_REVENUE_ANALYTICS
+										: RoutePath.HOST_PERFORMANCE_REPORTS
+								)
+							}
+						/>
+					</HostLayout>
+				</AppRoleGuard>
+			);
+
+		case RoutePath.ADMIN_REVENUE_ANALYTICS:
+			return (
+				<AppRoleGuard
+					allowedRoles={["admin"]}
+					currentRoles={currentRoles}
+					fallback={unauthorizedFallback}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<AdminRevenueAnalyticsPage onLogout={handleLogout} />
+				</AppRoleGuard>
+			);
+
+		case RoutePath.HOST_REVENUE_ANALYTICS:
+			return (
+				<AppRoleGuard
+					allowedRoles={["host"]}
+					currentRoles={currentRoles}
+					fallback={unauthorizedFallback}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
+						<HostReportsPage
+							activeTab="revenue"
+							onTabChange={(tab) =>
+								navigateTo(
+									tab === "revenue"
+										? RoutePath.HOST_REVENUE_ANALYTICS
+										: RoutePath.HOST_PERFORMANCE_REPORTS
+								)
+							}
+						/>
+					</HostLayout>
 				</AppRoleGuard>
 			);
 

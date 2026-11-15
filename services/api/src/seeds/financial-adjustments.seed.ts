@@ -12,8 +12,13 @@ import { consolidateFinancialHosts } from "./consolidate-financial-hosts";
 const scenarios = [
 	{
 		index: 1,
-		title: "Trekking vườn quốc gia Bạch Mã",
-		description: "Khám phá các cung đường rừng và điểm ngắm cảnh tại vườn quốc gia Bạch Mã.",
+		title: "Cắm trại suối Lương – Chân đèo Hải Vân",
+		previousTitle: "Trekking vườn quốc gia Bạch Mã",
+		description:
+			"Cắm trại bên dòng suối Lương dưới chân đèo Hải Vân, tắm suối và nướng cá buổi tối.",
+		previousDescription:
+			"Khám phá các cung đường rừng và điểm ngắm cảnh tại vườn quốc gia Bạch Mã.",
+		path: "108.1290 16.1405,108.1262 16.1428,108.1243 16.1449",
 		notes: "Khoản thu thừa đã được xác minh và chuyển xử lý hoàn tiền sau quyết toán.",
 		amount: 600000,
 		bookings: 1,
@@ -22,9 +27,12 @@ const scenarios = [
 	},
 	{
 		index: 2,
+		previousTitle: null,
 		title: "Khám phá bán đảo Sơn Trà",
 		description:
 			"Đi bộ khám phá bán đảo Sơn Trà, ngắm biển và tìm hiểu hệ sinh thái rừng ven biển.",
+		previousDescription: null,
+		path: "108.2700 16.1000,108.2780 16.1110,108.2870 16.1180",
 		notes: "Đã xác định khoản cần thu hồi từ người tổ chức để xử lý yêu cầu hoàn tiền cho khách.",
 		amount: 900000,
 		bookings: 1,
@@ -33,9 +41,12 @@ const scenarios = [
 	},
 	{
 		index: 3,
+		previousTitle: null,
 		title: "Chinh phục đèo Hải Vân",
 		description:
 			"Chuyến đi trong ngày qua cung đường đèo Hải Vân, dừng ngắm cảnh vịnh Đà Nẵng và Lăng Cô.",
+		previousDescription: null,
+		path: "108.1280 16.1580,108.1270 16.1800,108.1325 16.1945",
 		notes: "Khoản thu thừa đã được đối chiếu và khấu trừ từ số dư ví người tổ chức.",
 		amount: 250000,
 		bookings: 2,
@@ -44,8 +55,12 @@ const scenarios = [
 	},
 	{
 		index: 4,
-		title: "Săn mây trên đỉnh Langbiang",
-		description: "Hành trình lên đỉnh Langbiang, ngắm biển mây và toàn cảnh cao nguyên.",
+		title: "Săn mây đỉnh Bàn Cờ – Sơn Trà",
+		previousTitle: "Săn mây trên đỉnh Langbiang",
+		description:
+			"Leo đỉnh Bàn Cờ trước bình minh, ngắm mây phủ bán đảo Sơn Trà và toàn cảnh vịnh Đà Nẵng.",
+		previousDescription: "Hành trình lên đỉnh Langbiang, ngắm biển mây và toàn cảnh cao nguyên.",
+		path: "108.2560 16.1110,108.2610 16.1145,108.2650 16.1170",
 		notes: null,
 		amount: 450000,
 		bookings: 2,
@@ -103,9 +118,15 @@ export async function seedFinancialAdjustments(): Promise<void> {
 				`INSERT INTO trekking_routes
 				 (id, host_id, name, description, route_geom, length_meters, difficulty, expected_duration_minutes, status)
 				 VALUES ($1, $2, $3, $4,
-				 ST_GeogFromText('SRID=4326;LINESTRING(108.45 11.94,108.47 11.95)'), 3000, 'moderate', 240, 'active')
-				 ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name`,
-				[routeId, hostId, scenario.title, scenario.description]
+				 ST_GeogFromText($5), 3000, 'moderate', 240, 'active')
+				 ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, route_geom = EXCLUDED.route_geom`,
+				[
+					routeId,
+					hostId,
+					scenario.title,
+					scenario.description,
+					`SRID=4326;LINESTRING(${scenario.path})`,
+				]
 			);
 			await manager.query(
 				`INSERT INTO trips (id, host_id, route_id, title, description, trip_type, duration_nights,
@@ -113,18 +134,32 @@ export async function seedFinancialAdjustments(): Promise<void> {
 				 price_per_person, status)
 				 VALUES ($1, $2, $3, $4, $7, 'day_trip', 0,
 				 now() - interval '8 days', now() - interval '7 days',
-				 ST_GeogFromText('SRID=4326;POINT(108.45 11.94)'), now() - interval '9 days', 1, 10, $5, $6, 'completed')
-				 ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title`,
-				[tripId, hostId, routeId, scenario.title, bookings, amount.toFixed(2), scenario.description]
+				 ST_GeogFromText($8), now() - interval '9 days', 1, 10, $5, $6, 'completed')
+				 ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, meeting_point = EXCLUDED.meeting_point`,
+				[
+					tripId,
+					hostId,
+					routeId,
+					scenario.title,
+					bookings,
+					amount.toFixed(2),
+					scenario.description,
+					`SRID=4326;POINT(${scenario.path.split(",")[0]})`,
+				]
 			);
-			await manager.query("UPDATE trips SET description = $1 WHERE id = $2 AND description = $3", [
-				scenario.description,
-				tripId,
+			// Replace only text this seed wrote earlier; descriptions a Host edited stay as they are.
+			const replaceableDescriptions = [
 				LEGACY_TRIP_DESCRIPTION,
-			]);
+				LEGACY_ROUTE_DESCRIPTION,
+				scenario.previousDescription,
+			].filter((text): text is string => Boolean(text));
 			await manager.query(
-				"UPDATE trekking_routes SET description = $1 WHERE id = $2 AND description = $3",
-				[scenario.description, routeId, LEGACY_ROUTE_DESCRIPTION]
+				"UPDATE trips SET description = $1 WHERE id = $2 AND description = ANY($3)",
+				[scenario.description, tripId, replaceableDescriptions]
+			);
+			await manager.query(
+				"UPDATE trekking_routes SET description = $1 WHERE id = $2 AND description = ANY($3)",
+				[scenario.description, routeId, replaceableDescriptions]
 			);
 			if (scenario.notes) {
 				await manager.query(
@@ -190,6 +225,18 @@ export async function seedFinancialAdjustments(): Promise<void> {
 					]
 				);
 			}
+			// Wallet entries written by older versions of this seed carried the former Trip name or a
+			// "[Mẫu] …" fixture label. Rename only that seed-written text; amounts stay untouched.
+			await manager.query(
+				`UPDATE wallet_transactions SET description = $1
+				 WHERE id = $2 AND (description = $3 OR description LIKE '[Mẫu]%')`,
+				[scenario.title, fixtureId(8, index), scenario.previousTitle ?? scenario.title]
+			);
+			await manager.query(
+				`UPDATE wallet_transactions SET description = 'Rút tiền về tài khoản ngân hàng'
+				 WHERE id = $1 AND description = 'Rút toàn bộ số dư ví mẫu'`,
+				[fixtureId(8, index + 100)]
+			);
 			if (paidOut) {
 				const payoutId = fixtureId(9, index);
 				const priorPayouts: Array<{ id: string }> = await manager.query(
