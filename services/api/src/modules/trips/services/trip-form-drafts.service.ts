@@ -35,6 +35,8 @@ const FIELDS = [
 	"capacityMax",
 	"pricePerPerson",
 ];
+/** Fields added later; drafts saved before they existed may omit them. */
+const OPTIONAL_FIELDS = ["areaCode"];
 @Injectable()
 export class TripFormDraftsService {
 	constructor(private readonly db: DataSource) {}
@@ -49,7 +51,14 @@ export class TripFormDraftsService {
 			throw new UnprocessableEntityException("Invalid draft values");
 		const values = value as Record<string, unknown>;
 		if (
-			Object.keys(values).some((key) => !FIELDS.includes(key) && key !== "waypoints") ||
+			Object.keys(values).some(
+				(key) => !FIELDS.includes(key) && !OPTIONAL_FIELDS.includes(key) && key !== "waypoints"
+			) ||
+			OPTIONAL_FIELDS.some(
+				(key) =>
+					values[key] !== undefined &&
+					(typeof values[key] !== "string" || (values[key] as string).length > 32)
+			) ||
 			FIELDS.some(
 				(key) =>
 					typeof values[key] !== "string" ||

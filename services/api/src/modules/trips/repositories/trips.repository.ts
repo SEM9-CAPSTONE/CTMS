@@ -18,6 +18,7 @@ import type {
 import type {
 	AdminTripReviewResponseDto,
 	SubmittedWeatherForecastSummaryDto,
+	TripAreaDto,
 	TripRegistrationRiskResponseDto,
 	TripResponseDto,
 	TripSummaryResponseDto,
@@ -71,6 +72,11 @@ export interface CreateTripInput {
 	capacityMax: number | null;
 	pricePerPerson: number;
 	cancellationPolicy: Record<string, unknown> | null;
+	/**
+	 * CTMS-110 / BR-319. Area code chosen by the Host; names are copied from `geo_areas` into the
+	 * Trip snapshot. `undefined` on update keeps the stored snapshot.
+	 */
+	areaCode?: string;
 	waypoints: CreateTripWaypointInput[];
 }
 
@@ -256,6 +262,7 @@ interface TripRow extends TripSummaryRow {
 	cancellationPolicy: Record<string, unknown> | null;
 	cancellationReason: string | null;
 	cancelledAt: Date | null;
+	area: TripAreaDto | null;
 	waypoints: TripWaypointRow[];
 }
 
@@ -412,6 +419,7 @@ function toTripResponse(row: TripRow): TripResponseDto {
 		status: row.status,
 		cancellationReason: row.cancellationReason,
 		cancelledAt: row.cancelledAt,
+		area: row.area ?? null,
 		difficulty: row.difficulty ?? null,
 		weatherRiskLevel: row.weatherRiskLevel ?? null,
 		registrationRisk,
@@ -506,6 +514,15 @@ function buildTripSelect(reviewColumns = "", reviewJoin = ""): string {
 		trip."status",
 		${reviewColumns}
 		trip."cancellation_reason" AS "cancellationReason",
+		CASE
+			WHEN trip."area_code" IS NOT NULL THEN jsonb_build_object(
+				'code', trip."area_code",
+				'name', trip."area_name",
+				'provinceCode', trip."province_code",
+				'provinceName', trip."province_name"
+			)
+			ELSE NULL
+		END AS "area",
 		trip."cancelled_at" AS "cancelledAt",
 		trip."created_at" AS "createdAt",
 		trip."updated_at" AS "updatedAt",
@@ -681,6 +698,16 @@ export class TripsRepository extends Repository<Trip> {
 		return rows.map((row) => row.checkpointId);
 	}
 
+	/** CTMS-110. Active reporting area, or null when the code is unknown or retired. */
+	async findActiveArea(code: string): Promise<TripAreaDto | null> {
+		const rows = (await this.query(
+			`SELECT "code", "name", "province_code" AS "provinceCode", "province_name" AS "provinceName"
+			 FROM "geo_areas" WHERE "code" = $1 AND "active" = true`,
+			[code]
+		)) as TripAreaDto[];
+		return rows[0] ?? null;
+	}
+
 	async createDraft(input: CreateTripInput): Promise<TripResponseDto> {
 		const tripRows = (await this.query(
 			`
@@ -705,12 +732,20 @@ export class TripsRepository extends Repository<Trip> {
 				"seats_taken",
 				"price_per_person",
 				"cancellation_policy",
-				"status"
+				"status",
+				"area_code",
+				"area_name",
+				"province_code",
+				"province_name"
 			)
 			VALUES (
 				$1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8::jsonb, $9, $10,
 				$11, $12, ST_SetSRID(ST_GeomFromGeoJSON($13), 4326)::geography, $14,
-				$15, $16, $17, 0, $18, $19::jsonb, $20
+				$15, $16, $17, 0, $18, $19::jsonb, $20,
+				(SELECT ga."code" FROM "geo_areas" ga WHERE ga."code" = $21),
+				(SELECT ga."name" FROM "geo_areas" ga WHERE ga."code" = $21),
+				(SELECT ga."province_code" FROM "geo_areas" ga WHERE ga."code" = $21),
+				(SELECT ga."province_name" FROM "geo_areas" ga WHERE ga."code" = $21)
 			)
 			RETURNING "id"
 			`,
@@ -735,6 +770,7 @@ export class TripsRepository extends Repository<Trip> {
 				input.pricePerPerson,
 				JSON.stringify(input.cancellationPolicy),
 				TripStatus.DRAFT,
+				input.areaCode ?? null,
 			]
 		)) as Array<{ id: string }>;
 
@@ -804,6 +840,10 @@ export class TripsRepository extends Repository<Trip> {
 				"capacity_max" = $17,
 				"price_per_person" = $18,
 				"cancellation_policy" = $19::jsonb,
+				"area_code" = COALESCE((SELECT ga."code" FROM "geo_areas" ga WHERE ga."code" = $20), "area_code"),
+				"area_name" = COALESCE((SELECT ga."name" FROM "geo_areas" ga WHERE ga."code" = $20), "area_name"),
+				"province_code" = COALESCE((SELECT ga."province_code" FROM "geo_areas" ga WHERE ga."code" = $20), "province_code"),
+				"province_name" = COALESCE((SELECT ga."province_name" FROM "geo_areas" ga WHERE ga."code" = $20), "province_name"),
 				"updated_at" = GREATEST(date_trunc('milliseconds', clock_timestamp()), "updated_at" + interval '1 millisecond')
 			WHERE "id" = $1
 			`,
@@ -827,6 +867,7 @@ export class TripsRepository extends Repository<Trip> {
 				input.capacityMax,
 				input.pricePerPerson,
 				JSON.stringify(input.cancellationPolicy),
+				input.areaCode ?? null,
 			]
 		);
 

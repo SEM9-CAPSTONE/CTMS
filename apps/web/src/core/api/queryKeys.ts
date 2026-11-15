@@ -212,4 +212,12 @@ export const queryKeys = {
 		report: (filters?: Record<string, unknown>) =>
 			["performance-reports", "report", filters] as const,
 	},
+	revenueAnalytics: {
+		all: ["revenue-analytics"] as const,
+		report: (filters?: Record<string, unknown>) =>
+			["revenue-analytics", "report", filters] as const,
+	},
+	geoAreas: {
+		all: ["geo-areas"] as const,
+	},
 };

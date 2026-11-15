@@ -1,4 +1,3 @@
-import { BarChart3 } from "lucide-react";
 import { type ReactNode, Suspense, lazy, useCallback, useEffect, useState } from "react";
 import { HttpError } from "../core/api";
 import { clearAuthSessionAndRedirect } from "../core/api/authSessionSync";
@@ -15,6 +14,7 @@ import {
 	EmergencyBroadcastAlerts,
 	useEmergencyBroadcastListener,
 } from "../features/emergency-broadcasts";
+import type { HostReportTab } from "../features/host-reports/pages/HostReportsPage";
 import type { RoleKey } from "../features/role-landing/types";
 import { PageSkeleton } from "../shared/components/PageSkeleton";
 import { AppRoleGuard } from "./AppRoleGuard";
@@ -32,61 +32,6 @@ const MyReportsPage = lazy(() =>
 	}))
 );
 
-function HostReportNavigation({
-	current,
-	onNavigate,
-}: {
-	current: "performance" | "submitted";
-	onNavigate: (href: string) => void;
-}) {
-	const sections = [
-		{ key: "performance", label: "Hiệu suất hoạt động", href: RoutePath.HOST_PERFORMANCE_REPORTS },
-		{ key: "submitted", label: "Báo cáo đánh giá", href: "/host/content-reports" },
-	];
-	return (
-		<>
-			<header className="border-b border-[#dfe8df] bg-white">
-				<div className="flex items-center gap-3 px-4 py-4 sm:px-6">
-					<span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-emerald-50 text-[#164027]">
-						<BarChart3 className="size-5" aria-hidden="true" />
-					</span>
-					<div>
-						<p className="text-lg font-black text-[#10221b] sm:text-xl">Báo cáo</p>
-						<p className="text-xs font-semibold text-[#55685a]">
-							Xem hiệu suất chuyến đi và theo dõi báo cáo đánh giá đã gửi
-						</p>
-					</div>
-				</div>
-			</header>
-			<nav aria-label="Báo cáo của chủ chuyến" className="px-4 pt-4 sm:px-6">
-				<div className="flex flex-wrap gap-2 border-b border-[#dfe8df] pb-3">
-					{sections.map(({ key, label, href }) => (
-						<a
-							key={key}
-							href={href}
-							onClick={(event) => {
-								if (
-									event.button !== 0 ||
-									event.metaKey ||
-									event.ctrlKey ||
-									event.shiftKey ||
-									event.altKey
-								)
-									return;
-								event.preventDefault();
-								if (current !== key) onNavigate(href);
-							}}
-							aria-current={current === key ? "page" : undefined}
-							className="rounded-full border border-[#dfe8df] px-4 py-2 text-sm font-semibold text-[#164027] hover:bg-[#edf3ed] aria-[current=page]:border-[#164027] aria-[current=page]:bg-[#164027] aria-[current=page]:text-white"
-						>
-							{label}
-						</a>
-					))}
-				</div>
-			</nav>
-		</>
-	);
-}
 const DemandInsightsPage = lazy(() =>
 	import("../features/demand-insights/DemandInsightsPage").then((module) => ({
 		default: module.DemandInsightsPage,
@@ -229,9 +174,20 @@ const AdminPerformanceReportsPage = lazy(() =>
 		default: module.AdminPerformanceReportsPage,
 	}))
 );
-const HostPerformanceReportsPage = lazy(() =>
-	import("../features/performance-reports/pages/PerformanceReportsPage").then((module) => ({
-		default: module.PerformanceReportsPage,
+const AdminRevenueAnalyticsPage = lazy(() =>
+	import("../features/revenue-analytics/pages/AdminRevenueAnalyticsPage").then((module) => ({
+		default: module.AdminRevenueAnalyticsPage,
+	}))
+);
+const hostReportPaths = {
+	performance: RoutePath.HOST_PERFORMANCE_REPORTS,
+	revenue: RoutePath.HOST_REVENUE_ANALYTICS,
+	submitted: "/host/content-reports",
+} satisfies Record<HostReportTab, string>;
+
+const HostReportsPage = lazy(() =>
+	import("../features/host-reports/pages/HostReportsPage").then((module) => ({
+		default: module.HostReportsPage,
 	}))
 );
 const HostWalletPage = lazy(() =>
@@ -585,6 +541,7 @@ function AppRouteContent() {
 			</AppRoleGuard>
 		);
 	}
+	const navigateToHostReport = (tab: HostReportTab) => navigateTo(hostReportPaths[tab]);
 	if (currentPath === "/host/content-reports") {
 		return (
 			<AppRoleGuard
@@ -593,8 +550,9 @@ function AppRouteContent() {
 				onNavigateHome={() => navigateTo(RoutePath.HOME)}
 			>
 				<HostLayout allowMobile onLogout={handleLogout}>
-					<HostReportNavigation current="submitted" onNavigate={navigateTo} />
-					<MyReportsPage actor={storedUser?.id ?? ""} />
+					<HostReportsPage activeTab="submitted" onTabChange={navigateToHostReport}>
+						<MyReportsPage actor={storedUser?.id ?? ""} />
+					</HostReportsPage>
 				</HostLayout>
 			</AppRoleGuard>
 		);
@@ -1297,9 +1255,34 @@ function AppRouteContent() {
 					fallback={unauthorizedFallback}
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
-					<HostLayout allowMobile onLogout={handleLogout}>
-						<HostReportNavigation current="performance" onNavigate={navigateTo} />
-						<HostPerformanceReportsPage />
+					<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
+						<HostReportsPage activeTab="performance" onTabChange={navigateToHostReport} />
+					</HostLayout>
+				</AppRoleGuard>
+			);
+
+		case RoutePath.ADMIN_REVENUE_ANALYTICS:
+			return (
+				<AppRoleGuard
+					allowedRoles={["admin"]}
+					currentRoles={currentRoles}
+					fallback={unauthorizedFallback}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<AdminRevenueAnalyticsPage onLogout={handleLogout} />
+				</AppRoleGuard>
+			);
+
+		case RoutePath.HOST_REVENUE_ANALYTICS:
+			return (
+				<AppRoleGuard
+					allowedRoles={["host"]}
+					currentRoles={currentRoles}
+					fallback={unauthorizedFallback}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
+						<HostReportsPage activeTab="revenue" onTabChange={navigateToHostReport} />
 					</HostLayout>
 				</AppRoleGuard>
 			);

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { camperProfileService } from "../../camper-profile/services/camper-profile.service";
 import { HostLayout } from "./HostLayout";
@@ -73,6 +73,36 @@ describe("HostLayout Booking navigation", () => {
 		expect(window.location.pathname).toBe("/host/porter");
 		await waitFor(() => expect(camperProfileService.getProfile).toHaveBeenCalledTimes(1));
 	});
+
+	it("places Host reports right below the operations overview and opens the report tabs", async () => {
+		localStorage.clear();
+		storeHost();
+		window.history.replaceState({}, "", "/dashboard");
+		render(<HostLayout>Content</HostLayout>);
+
+		const labels = within(screen.getByRole("navigation", { name: "Dashboard navigation" }))
+			.getAllByRole("button")
+			.map((button) => button.textContent?.trim());
+		expect(labels.indexOf("Báo cáo tổng quan")).toBe(labels.indexOf("Tổng quan vận hành") + 1);
+
+		fireEvent.click(screen.getByRole("button", { name: "Báo cáo tổng quan" }));
+		expect(window.location.pathname).toBe("/host/reports/performance");
+		await waitFor(() => expect(camperProfileService.getProfile).toHaveBeenCalled());
+	});
+
+	it.each(["/host/reports/performance", "/host/reports/revenue"])(
+		"keeps Báo cáo tổng quan active on %s",
+		(path) => {
+			localStorage.clear();
+			storeHost();
+			window.history.replaceState({}, "", path);
+			render(<HostLayout>Content</HostLayout>);
+			expect(screen.getByRole("button", { name: "Báo cáo tổng quan" })).toHaveAttribute(
+				"aria-current",
+				"page"
+			);
+		}
+	);
 
 	it.each(["host", "porter"] as const)("keeps the %s icon rail after remounting", (role) => {
 		storeHost();

@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/ctms_empty_state.dart';
 import '../../../core/widgets/ctms_scaffold.dart';
 import '../../../core/widgets/ctms_section_card.dart';
+import '../../camper/application/survival_chat_controller.dart';
 import '../application/offline_trip_providers.dart';
 import '../application/package_download_controller.dart';
 import '../domain/offline_trip.dart';
@@ -60,7 +62,7 @@ class _UnavailableTrip extends StatelessWidget {
   );
 }
 
-class _TripTabs extends StatelessWidget {
+class _TripTabs extends ConsumerWidget {
   const _TripTabs({
     required this.trip,
     required this.tripTitle,
@@ -73,11 +75,20 @@ class _TripTabs extends StatelessWidget {
   static final _sourceDate = DateFormat('dd/MM/yyyy HH:mm');
 
   @override
-  Widget build(BuildContext context) => DefaultTabController(
+  Widget build(BuildContext context, WidgetRef ref) => DefaultTabController(
     length: 3,
     child: CtmsScaffold(
       title: 'Dữ liệu ngoại tuyến',
       subtitle: tripTitle,
+      actions: [
+        if (ref.watch(survivalChatAccountProvider) == selection.accountId &&
+            GoRouter.maybeOf(context) != null)
+          IconButton(
+            tooltip: 'Hỏi trợ lý về gói đã lưu',
+            onPressed: () => context.go('/camper/ai', extra: selection),
+            icon: const Icon(Icons.chat_bubble_outline),
+          ),
+      ],
       bottom: const TabBar(
         tabs: [
           Tab(text: 'Tuyến đường'),

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -128,8 +130,12 @@ class ApiClient {
   Future<Response<T>> get<T>(String path, {Map<String, dynamic>? queryParameters}) =>
       _guard(() => dio.get<T>(path, queryParameters: queryParameters));
 
-  Future<Response<T>> post<T>(String path, {Object? data}) =>
-      _guard(() => dio.post<T>(path, data: data));
+  /// [headers] is optional and only used by endpoints that need extra
+  /// request headers (e.g. `Idempotency-Key` on Booking create/pay/refund).
+  Future<Response<T>> post<T>(String path, {Object? data, Map<String, Object?>? headers}) =>
+      _guard(
+        () => dio.post<T>(path, data: data, options: headers == null ? null : Options(headers: headers)),
+      );
 
   Future<Response<T>> put<T>(String path, {Object? data}) =>
       _guard(() => dio.put<T>(path, data: data));
@@ -179,7 +185,19 @@ class ApiClient {
         ApiExceptionKind.network => 'Không có kết nối mạng. Vui lòng kiểm tra và thử lại.',
         _ => error.message ?? 'Đã xảy ra lỗi không xác định',
       };
-      throw ApiException(message, kind: kind);
+      final socketError = error.error;
+      // An explicit connection failure is different from a mid-request reset.
+      final connectionNotEstablished =
+          error.type == DioExceptionType.connectionError &&
+          error.requestOptions.extra['isRetryAfterRefresh'] != true &&
+          socketError is SocketException &&
+          const {51, 61, 65, 101, 111, 113, 10051, 10061, 10065}
+              .contains(socketError.osError?.errorCode);
+      throw ApiException(
+        message,
+        kind: kind,
+        connectionNotEstablished: connectionNotEstablished,
+      );
     }
   }
 }

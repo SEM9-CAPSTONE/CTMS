@@ -3,7 +3,7 @@ import { BadRequestException } from "@nestjs/common";
 import type { EntityManager } from "typeorm";
 import { contextBlocks } from "../rag/rag-context";
 import type { RagRetrievalService } from "../rag/rag-retrieval.service";
-import type { RagRepository } from "../rag/rag.repository";
+import { type RagRepository, evidenceRef } from "../rag/rag.repository";
 import type { RagChunk, RagResult } from "../rag/rag.types";
 import { Classification } from "../survival-documents/survival-documents.types";
 import { UserRole, UserStatus } from "../users/entities/user.entity";
@@ -51,7 +51,8 @@ const grounded = (...selectedChunks: RagChunk[]): RagResult => ({
 });
 const selection = {
 	status: "ANSWERED",
-	chunkIds: [chunk.chunkId],
+	answerText: "Hãy xem phần chú giải để hiểu ký hiệu trên bản đồ.",
+	usedEvidenceIds: [chunk.chunkId],
 	provider: "openai",
 	model: "gpt-4.1-mini",
 	promptVersion: AI_PROMPT_VERSION,
@@ -85,19 +86,104 @@ function setup() {
 	return { service, repo, rag, evidence, provider };
 }
 
+describe("CTMS-071 recorded answer sources", () => {
+	it("returns only cited chunks for the requested answer, including multiple documents", async () => {
+		const { service, repo, rag, evidence } = setup();
+		const sameDocument = {
+			...chunk,
+			chunkId: randomUUID(),
+			chunkIndex: 3,
+			locations: [{ page: 4, itemRef: "#/texts/4" }],
+		};
+		const otherDocument = {
+			...chunk,
+			chunkId: randomUUID(),
+			source: {
+				...chunk.source,
+				documentId: randomUUID(),
+				documentVersionId: randomUUID(),
+				chunkSetId: randomUUID(),
+				sourceTitle: "Hướng dẫn định hướng",
+				sourceVersion: 1,
+			},
+		};
+		const answerId = randomUUID();
+		repo.findForOwner.mockResolvedValueOnce({
+			id: answerId,
+			locale: "vi",
+			retrieved_evidence: [chunk, unused, sameDocument, otherDocument].map(evidenceRef),
+			cited_chunk_ids: [otherDocument.chunkId, chunk.chunkId, sameDocument.chunkId],
+		});
+		await expect(service.sources(actor, answerId)).resolves.toEqual({
+			answerId,
+			sources: [otherDocument, chunk, sameDocument].map((entry) => ({
+				documentId: entry.source.documentId,
+				documentVersionId: entry.source.documentVersionId,
+				sourceVersion: entry.source.sourceVersion,
+				chunkSetId: entry.source.chunkSetId,
+				chunkId: entry.chunkId,
+				chunkIndex: entry.chunkIndex,
+				title: entry.source.sourceTitle,
+				classification: entry.source.classification,
+				locale: entry.source.locale,
+				locations: entry.locations,
+			})),
+		});
+		expect(repo.findForOwner).toHaveBeenCalledWith(actor.userId, answerId);
+		expect(rag.retrieve).not.toHaveBeenCalled();
+		expect(evidence.withCurrentEvidence).not.toHaveBeenCalled();
+	});
+
+	it("omits unresolved and malformed cited snapshots while retaining valid citations", async () => {
+		const { service, repo } = setup();
+		const answerId = randomUUID();
+		const malformed = { ...evidenceRef(unused), locations: [{ page: 0, itemRef: "" }] };
+		const missingSource = { ...evidenceRef(unused), chunkId: randomUUID(), source: null };
+		const row = {
+			id: answerId,
+			locale: "vi",
+			retrieved_evidence: [null, malformed, missingSource, evidenceRef(chunk)],
+			cited_chunk_ids: [randomUUID(), malformed.chunkId, missingSource.chunkId],
+		};
+		repo.findForOwner.mockResolvedValueOnce(row).mockResolvedValueOnce({
+			...row,
+			cited_chunk_ids: [...row.cited_chunk_ids, chunk.chunkId],
+		});
+		await expect(service.sources(actor, answerId)).resolves.toEqual({ answerId, sources: [] });
+		await expect(service.sources(actor, answerId)).resolves.toMatchObject({
+			answerId,
+			sources: [{ chunkId: chunk.chunkId, title: chunk.source.sourceTitle }],
+		});
+	});
+
+	it("requires an active Camper and an owned answer within retention", async () => {
+		const { service, repo } = setup();
+		const answerId = randomUUID();
+		await expect(
+			service.sources({ ...actor, roles: [UserRole.HOST] }, answerId)
+		).rejects.toMatchObject({ status: 403 });
+		await expect(
+			service.sources({ ...actor, status: UserStatus.SUSPENDED }, answerId)
+		).rejects.toMatchObject({ status: 403 });
+		expect(repo.findForOwner).not.toHaveBeenCalled();
+		await expect(service.sources(actor, answerId)).rejects.toMatchObject({ status: 404 });
+		expect(repo.findForOwner).toHaveBeenCalledWith(actor.userId, answerId);
+	});
+});
+
 describe("CTMS-069 survival answers", () => {
-	it("builds answers from the selected whole excerpt and stores both retrieved and cited references", async () => {
+	it("returns a verified synthesis and stores both retrieved and cited references", async () => {
 		const { service, repo, provider } = setup();
 		const result = await service.ask(actor, input);
 		expect(result).toMatchObject({
 			status: "ANSWERED",
 			answerId: expect.any(String),
-			answer: expect.stringContaining(chunk.content),
+			answer: expect.stringContaining(selection.answerText),
 			sources: [
 				{ title: chunk.source.sourceTitle, chunkId: chunk.chunkId, locations: chunk.locations },
 			],
 		});
-		expect(result.answer).not.toContain(unused.content);
+		expect(result.answer).not.toContain(chunk.content);
 		expect(repo.save.mock.calls[0][4]).toMatchObject({
 			retrieved_evidence: [{ chunkId: chunk.chunkId }, { chunkId: unused.chunkId }],
 			cited_chunk_ids: [chunk.chunkId],
@@ -126,15 +212,15 @@ describe("CTMS-069 survival answers", () => {
 		expect(repo.save).not.toHaveBeenCalled();
 	});
 
-	it("keeps PDF order within a source and stores citations in display order", async () => {
+	it("keeps synthesis and citations in provider order", async () => {
 		const { service, provider, repo } = setup();
 		provider.generate.mockResolvedValue({
 			...selection,
-			chunkIds: [unused.chunkId, chunk.chunkId],
+			usedEvidenceIds: [unused.chunkId, chunk.chunkId],
 		});
 		const result = await service.ask(actor, input);
-		expect(result.answer).toContain(`${chunk.content}\n\n${unused.content}`);
-		expect(repo.save.mock.calls[0][4].cited_chunk_ids).toEqual([chunk.chunkId, unused.chunkId]);
+		expect(result.answer).toContain(selection.answerText);
+		expect(repo.save.mock.calls[0][4].cited_chunk_ids).toEqual([unused.chunkId, chunk.chunkId]);
 	});
 
 	it("returns insufficient knowledge when the full model input exceeds its token budget", async () => {
@@ -168,7 +254,7 @@ describe("CTMS-069 survival answers", () => {
 
 	it("fails closed on a fabricated citation", async () => {
 		const { service, provider, repo } = setup();
-		provider.generate.mockResolvedValue({ ...selection, chunkIds: [randomUUID()] });
+		provider.generate.mockResolvedValue({ ...selection, usedEvidenceIds: [randomUUID()] });
 		await expect(service.ask(actor, input)).rejects.toMatchObject({
 			response: { code: "AI_UNAVAILABLE" },
 		});
@@ -188,6 +274,13 @@ describe("CTMS-069 survival answers", () => {
 			answer: null,
 			sources: [],
 		});
+		expect(repo.save).not.toHaveBeenCalled();
+	});
+
+	it("refuses a generated answer claiming that SOS was sent", async () => {
+		const { service, provider, repo } = setup();
+		provider.generate.mockResolvedValue({ ...selection, answerText: "Hệ thống đã gửi SOS." });
+		expect(await service.ask(actor, input)).toMatchObject({ status: "REFUSED", sources: [] });
 		expect(repo.save).not.toHaveBeenCalled();
 	});
 
@@ -230,6 +323,20 @@ describe("CTMS-069 survival answers", () => {
 		expect(provider.generate).toHaveBeenCalledTimes(1);
 	});
 
+	it("withholds a replay when a recorded citation cannot be resolved", async () => {
+		const { service, repo, evidence, provider } = setup();
+		await service.ask(actor, input);
+		const saved = await repo.save.mock.results[0].value;
+		repo.findByRequest.mockResolvedValue({ ...saved, retrieved_evidence: [] });
+		evidence.withCurrentEvidence.mockClear();
+		await expect(service.ask(actor, input)).resolves.toMatchObject({
+			status: "INSUFFICIENT_CONTEXT",
+			sources: [],
+		});
+		expect(evidence.withCurrentEvidence).not.toHaveBeenCalled();
+		expect(provider.generate).toHaveBeenCalledTimes(1);
+	});
+
 	it("withholds the answer if final source revalidation fails", async () => {
 		const { service, evidence, repo } = setup();
 		evidence.withCurrentEvidence.mockResolvedValue(null);
@@ -239,9 +346,10 @@ describe("CTMS-069 survival answers", () => {
 
 	it.each([
 		{ ...selection, page: 12 },
+		{ ...selection, answerText: " " },
 		{ ...selection, url: "https://example.org" },
-		{ ...selection, chunkIds: [] },
-		{ ...selection, chunkIds: [chunk.chunkId, chunk.chunkId] },
+		{ ...selection, usedEvidenceIds: [] },
+		{ ...selection, usedEvidenceIds: [chunk.chunkId, chunk.chunkId] },
 		{ ...selection, promptVersion: "unknown" },
 	])("rejects an invalid provider envelope", (value) => {
 		expect(() => parseGeneration(value)).toThrow();

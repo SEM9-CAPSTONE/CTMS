@@ -57,10 +57,19 @@ export interface ConfigureTripWaypointsInput {
 	waypoints: CreateTripWaypointInput[];
 }
 
+/** CTMS-110. Area snapshot stored on the Trip for reporting. */
+export interface TripArea {
+	code: string;
+	name: string;
+	provinceCode: string;
+	provinceName: string;
+}
+
 export interface CreateTripInput {
 	routeId: string;
 	title: string;
 	description?: string;
+	areaCode?: string;
 	coverImageUrl?: string;
 	tripType: TripType;
 	startsAt: string;
@@ -190,6 +199,7 @@ export interface Trip {
 	createdAt: string;
 	updatedAt: string;
 	waypoints: TripWaypoint[];
+	area?: TripArea | null;
 	/** Only on the Admin pending-review list. */
 	submittedWeatherForecast?: SubmittedWeatherForecastSummary | null;
 }

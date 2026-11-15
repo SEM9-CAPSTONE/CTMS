@@ -17,15 +17,17 @@ sealed class SurvivalChatResult {
         if (id is! String ||
             id.isEmpty ||
             text is! String ||
-            text.trim().isEmpty ||
-            sources is! List ||
-            sources.isEmpty) {
+            text.trim().isEmpty) {
           throw const FormatException('Invalid answer');
         }
         return SurvivalChatAnswer(
           id: id,
           text: text,
-          sources: List.unmodifiable(sources.map(SurvivalChatSource.fromJson)),
+          sources: sources is List
+              ? List.unmodifiable(
+                  sources.map(SurvivalChatSource.tryParse).nonNulls,
+                )
+              : const [],
         );
       case 'INSUFFICIENT_CONTEXT' || 'REFUSED':
         if (json['answer'] != null || sources is! List || sources.isNotEmpty) {
@@ -43,11 +45,18 @@ class SurvivalChatAnswer extends SurvivalChatResult {
     required this.id,
     required this.text,
     required this.sources,
-  });
+  }) : snapshotVersion = null;
 
-  final String id;
+  const SurvivalChatAnswer.local(this.text, {this.snapshotVersion})
+    : id = null,
+      sources = const [];
+
+  final String? id;
   final String text;
   final List<SurvivalChatSource> sources;
+  final int? snapshotVersion;
+
+  bool get isLocal => id == null;
 }
 
 class SurvivalChatUnavailable extends SurvivalChatResult {
@@ -70,41 +79,64 @@ class SurvivalChatSource {
     required this.locations,
   });
 
-  factory SurvivalChatSource.fromJson(Object? json) {
-    if (json is! Map<String, dynamic>) {
-      throw const FormatException('Invalid source');
+  static final _uuid = RegExp(
+    r'^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$',
+    caseSensitive: false,
+  );
+
+  static SurvivalChatSource? tryParse(Object? json) {
+    if (json is! Map<String, dynamic>) return null;
+    if (json
+        case {
+          'documentId': final String documentId,
+          'documentVersionId': final String documentVersionId,
+          'chunkSetId': final String chunkSetId,
+          'chunkId': final String chunkId,
+          'chunkIndex': final int chunkIndex,
+          'title': final String title,
+          'classification': final String classification,
+          'locale': final String locale,
+        }
+        when [
+              documentId,
+              documentVersionId,
+              chunkSetId,
+              chunkId,
+            ].every(_uuid.hasMatch) &&
+            chunkIndex >= 0 &&
+            title.trim().isNotEmpty &&
+            !_uuid.hasMatch(title.trim()) &&
+            classification.trim().isNotEmpty &&
+            locale.trim().isNotEmpty) {
+      final version = json['sourceVersion'];
+      final locations = json['locations'];
+      return SurvivalChatSource(
+        documentId: documentId,
+        documentVersionId: documentVersionId,
+        sourceVersion: version is int && version > 0 ? version : null,
+        chunkSetId: chunkSetId,
+        chunkId: chunkId,
+        chunkIndex: chunkIndex,
+        title: title.trim(),
+        classification: classification,
+        locale: locale,
+        locations: List.unmodifiable([
+          if (locations is List)
+            for (final location in locations)
+              if (location case {
+                'page': final int page,
+                'itemRef': final String itemRef,
+              } when page > 0 && itemRef.trim().isNotEmpty)
+                (page: page, itemRef: itemRef),
+        ]),
+      );
     }
-    final locations = json['locations'];
-    if (locations is! List || locations.isEmpty) {
-      throw const FormatException('Missing source locations');
-    }
-    return SurvivalChatSource(
-      documentId: json['documentId'] as String,
-      documentVersionId: json['documentVersionId'] as String,
-      sourceVersion: json['sourceVersion'] as int,
-      chunkSetId: json['chunkSetId'] as String,
-      chunkId: json['chunkId'] as String,
-      chunkIndex: json['chunkIndex'] as int,
-      title: json['title'] as String,
-      classification: json['classification'] as String,
-      locale: json['locale'] as String,
-      locations: List.unmodifiable(
-        locations.map((location) {
-          if (location is! Map<String, dynamic>) {
-            throw const FormatException('Invalid source location');
-          }
-          return (
-            page: location['page'] as int,
-            itemRef: location['itemRef'] as String,
-          );
-        }),
-      ),
-    );
+    return null;
   }
 
   final String documentId;
   final String documentVersionId;
-  final int sourceVersion;
+  final int? sourceVersion;
   final String chunkSetId;
   final String chunkId;
   final int chunkIndex;

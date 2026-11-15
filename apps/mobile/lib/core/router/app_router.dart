@@ -15,6 +15,7 @@ import '../../features/camper/overview/presentation/camper_overview_screen.dart'
 import '../../features/camper/presentation/camper_profile_screen.dart';
 import '../../features/camper/presentation/camper_shell_screen.dart';
 import '../../features/camper/presentation/camper_trips_screen.dart';
+import '../../features/offline_packages/application/offline_trip_providers.dart';
 import '../../features/porter/presentation/porter_alerts_screen.dart';
 import '../../features/porter/presentation/porter_incidents_screen.dart';
 import '../../features/porter/presentation/porter_map_screen.dart';
@@ -128,7 +129,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: '/camper/ai',
-                builder: (context, state) => const CamperAiAssistantScreen(),
+                builder: (context, state) => CamperAiAssistantScreen(
+                  trip: switch (state.extra) {
+                    final OfflineTripSelection selection => selection,
+                    _ => null,
+                  },
+                ),
               ),
             ],
           ),

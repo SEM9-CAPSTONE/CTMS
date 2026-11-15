@@ -10,7 +10,15 @@ import { DEFAULT_REPORT_PERIOD } from "../constants";
 import { usePerformanceReport } from "../hooks/usePerformanceReport";
 import type { PerformanceReportFilterParams } from "../types";
 
-export const PerformanceReportsPage: React.FC = () => {
+export interface PerformanceReportsPageProps {
+	/** Rendered as a tab inside "Báo cáo tổng quan": no outer padding, title becomes a sub-heading. */
+	embedded?: boolean;
+}
+
+export const PerformanceReportsPage: React.FC<PerformanceReportsPageProps> = ({
+	embedded = false,
+}) => {
+	const Heading = embedded ? "h2" : "h1";
 	const [filters, setFilters] = useState<PerformanceReportFilterParams>({
 		period: DEFAULT_REPORT_PERIOD,
 	});
@@ -22,12 +30,14 @@ export const PerformanceReportsPage: React.FC = () => {
 	}
 
 	return (
-		<div className="flex flex-col gap-6 p-6">
+		<div className={`flex flex-col gap-6 ${embedded ? "" : "p-6"}`}>
 			{/* Page Header */}
 			<div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-				<h1 className="text-xl font-extrabold tracking-tight text-gray-900 sm:text-2xl">
+				<Heading
+					className={`font-extrabold tracking-tight text-gray-900 ${embedded ? "text-lg" : "text-xl sm:text-2xl"}`}
+				>
 					Báo cáo hiệu suất hoạt động
-				</h1>
+				</Heading>
 				{data?.scope && (
 					<div className="self-start sm:self-auto">
 						<StatusBadge tone={data.scope.role === "admin" ? "info" : "success"}>

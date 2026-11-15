@@ -305,5 +305,7 @@ export const API_ENDPOINTS = {
 	},
 	REPORTS: {
 		PERFORMANCE: "/reports/performance",
+		REVENUE: "/reports/revenue",
 	},
+	GEO_AREAS: "/geo-areas",
 } as const;

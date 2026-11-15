@@ -137,7 +137,7 @@ export class AiAnswersService {
 			const validateAndSave = async () => {
 				const verified =
 					generation.status === "ANSWERED"
-						? groundedAnswer(generation.chunkIds, rag.selectedChunks, locale)
+						? groundedAnswer(generation, rag.selectedChunks, locale)
 						: null;
 				if (!verified || generation.status !== "ANSWERED")
 					return unavailableAnswer("AI_SAFETY_REFUSAL");
@@ -232,6 +232,10 @@ export class AiAnswersService {
 		if (row.request_hash !== requestHash) {
 			throw new ConflictException({ code: "AI_REQUEST_ID_CONFLICT" });
 		}
+		const cited = citedEvidence(row);
+		if (cited.length === 0 || cited.length !== row.cited_chunk_ids.length) {
+			return unavailableAnswer("AI_KNOWLEDGE_INSUFFICIENT");
+		}
 		return (
 			(await withinDeadline(
 				this.evidence.withCurrentEvidence(
@@ -239,7 +243,7 @@ export class AiAnswersService {
 					row.locale,
 					1500,
 					async () => answered(row),
-					citedEvidence(row)
+					cited
 				),
 				signal
 			)) ?? unavailableAnswer("AI_KNOWLEDGE_INSUFFICIENT")

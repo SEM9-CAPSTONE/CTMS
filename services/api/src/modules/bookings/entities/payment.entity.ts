@@ -103,6 +103,19 @@ export class Payment {
 	)
 	transactions!: PaymentTransaction[];
 
+	/**
+	 * CTMS-110 / BR-326. First moment the Payment reached `succeeded`. Maintained by the
+	 * `TRG_payments_succeeded_at` trigger, never written by application code.
+	 */
+	@Column({
+		name: "succeeded_at",
+		type: "timestamptz",
+		nullable: true,
+		insert: false,
+		update: false,
+	})
+	succeededAt!: Date | null;
+
 	@CreateDateColumn({ name: "created_at", type: "timestamptz" })
 	createdAt!: Date;
 

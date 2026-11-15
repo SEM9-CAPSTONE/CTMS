@@ -46,6 +46,8 @@ export interface CreateTripFormHandle {
 interface Props {
 	draftHandle?: Ref<CreateTripFormHandle>;
 	activeRoutes: CreatedTrekkingRoute[];
+	/** CTMS-110. Reporting areas from GET /geo-areas. */
+	areas?: ReadonlyArray<{ code: string; name: string; provinceName: string }>;
 	isRouteLoading: boolean;
 	routeError: string;
 	isSubmitting: boolean;
@@ -145,7 +147,8 @@ function readPersistedDraft(storageKey: string | undefined): CreateTripFormValue
 		const rawDraft = window.localStorage.getItem(storageKey);
 		if (!rawDraft) return null;
 		const parsed = JSON.parse(rawDraft) as unknown;
-		return isCreateTripFormValues(parsed) ? parsed : null;
+		// Drafts saved before the area field existed start with no area selected.
+		return isCreateTripFormValues(parsed) ? { ...parsed, areaCode: parsed.areaCode ?? "" } : null;
 	} catch {
 		return null;
 	}
@@ -225,6 +228,7 @@ function withRouteEndpointWaypoints(
 
 export function CreateTripForm({
 	activeRoutes,
+	areas = [],
 	isRouteLoading,
 	routeError,
 	isSubmitting,
@@ -622,6 +626,27 @@ export function CreateTripForm({
 								/>
 								{errors.title && (
 									<span className="mt-1 block text-xs text-red-600">{errors.title.message}</span>
+								)}
+							</label>
+							<label className="text-sm font-bold text-[#34483b] sm:col-span-2">
+								Khu vực
+								<RequiredFieldMark />
+								<select
+									aria-label="Khu vực"
+									aria-required="true"
+									disabled={isSubmitting}
+									className={inputClass}
+									{...register("areaCode")}
+								>
+									<option value="">Chọn quận, huyện nơi diễn ra chuyến đi</option>
+									{areas.map((area) => (
+										<option key={area.code} value={area.code}>
+											{area.name}, {area.provinceName}
+										</option>
+									))}
+								</select>
+								{errors.areaCode && (
+									<span className="mt-1 block text-xs text-red-600">{errors.areaCode.message}</span>
 								)}
 							</label>
 						</TripFormSection>

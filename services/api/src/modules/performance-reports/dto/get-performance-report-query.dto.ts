@@ -38,8 +38,17 @@ export class GetPerformanceReportQueryDto {
 	period?: ReportPeriodPreset;
 
 	@ApiPropertyOptional({
-		description: "Filter trips by province snapshot keyword",
-		example: "Lâm Đồng",
+		description: "Filter by the Trip's stored area code snapshot (CTMS-110, BR-319)",
+		example: "DNG-SON-TRA",
+	})
+	@IsOptional()
+	@IsString()
+	@MaxLength(32)
+	areaCode?: string;
+
+	@ApiPropertyOptional({
+		description: "Filter by the Trip's stored province snapshot (code or name)",
+		example: "Đà Nẵng",
 	})
 	@IsOptional()
 	@IsString()
@@ -47,8 +56,8 @@ export class GetPerformanceReportQueryDto {
 	province?: string;
 
 	@ApiPropertyOptional({
-		description: "Filter trips by city snapshot keyword",
-		example: "Đà Lạt",
+		description: "Filter by the Trip's stored area (district) name snapshot",
+		example: "Sơn Trà",
 	})
 	@IsOptional()
 	@IsString()

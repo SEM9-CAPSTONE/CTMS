@@ -1,5 +1,9 @@
 # Database Table Descriptions
 
+## CTMS-069 answer storage
+
+Online answers use `ai_answers`, keyed by account and request ID. A persisted row carries its answer text, retrieval snapshot, used chunk IDs, provider and model revision, prompt version, and retrieval configuration version. Legacy extractive rows remain readable under the existing owner and expiry policy. For `ctms-069-grounded-v2`, the answer column contains verified synthesis and the source response resolves its actual cited IDs from retained metadata. The request lease remains in `ai_answer_request_limits`. The Flutter chat keeps its transcript in memory under the current Camper session. A local turn has no server answer ID and creates no server answer row. Verified model files live separately from Trip packages in private application support storage.
+
 The following baseline table provides technical and functional descriptions for the CTMS schema. Feature-specific additions are documented below and must be read together with their migrations.
 
 | No | Table | Description |

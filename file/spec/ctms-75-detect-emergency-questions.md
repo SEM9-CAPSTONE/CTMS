@@ -90,7 +90,7 @@ Detection alone does not establish that an SOS alert has been persisted.
 
 ## 9. API / Integration Contract
 
-TBD — Technical Design.
+Evaluate emergency signals before choosing online or on-device inference under CTMS-069. Engine availability does not change this path. Use the existing CTMS-074/076 workflow to create or send an SOS and display its resulting state.
 
 ## 10. Error & Edge Cases
 
@@ -111,6 +111,7 @@ TBD — Technical Design.
 | BR-255 | Emergency detected       | Concise guidance       | Safety         |
 | BR-255 | Emergency detected       | SOS action visible     | UI             |
 | BR-255 | Detection only           | No false persisted SOS | State          |
+| BR-255 | Local or online engine unavailable | Emergency handling remains available | Flutter widget |
 
 ## 12. Open Decisions
 

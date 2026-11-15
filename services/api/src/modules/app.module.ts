@@ -11,6 +11,7 @@ import { DemandInsightsModule } from "./demand-insights/demand-insights.module";
 import { DeviceSyncModule } from "./device-sync/device-sync.module";
 import { EmergencyBroadcastsModule } from "./emergency-broadcasts/emergency-broadcasts.module";
 import { EquipmentCatalogModule } from "./equipment-catalog/equipment-catalog.module";
+import { GeoAreasModule } from "./geo-areas/geo-areas.module";
 import { GpsTrackingModule } from "./gps-tracking/gps-tracking.module";
 import { HealthController } from "./health/health.controller";
 import { HostOverviewModule } from "./host-overview/host-overview.module";
@@ -27,6 +28,7 @@ import { ProfilesModule } from "./profiles/profiles.module";
 import { RagModule } from "./rag/rag.module";
 import { RealtimeEvaluationModule } from "./realtime-evaluation/realtime-evaluation.module";
 import { RealtimeModule } from "./realtime/realtime.module";
+import { RevenueAnalyticsModule } from "./revenue-analytics/revenue-analytics.module";
 import { ReviewAnalysisModule } from "./review-analysis/review-analysis.module";
 import { RouteDeviationAnalysisModule } from "./route-deviation-analysis/route-deviation-analysis.module";
 import { RouteSafetyModule } from "./route-safety/route-safety.module";
@@ -80,6 +82,8 @@ import { WeatherModule } from "./weather/weather.module";
 		RouteDeviationAnalysisModule,
 		SafetyHotspotsModule,
 		PerformanceReportsModule,
+		RevenueAnalyticsModule,
+		GeoAreasModule,
 		SyncEvaluationModule,
 		UsersModule,
 		TrekkingRoutesModule,
