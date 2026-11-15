@@ -450,6 +450,11 @@ export function ReviewAnalysisPage({
 																key={item.id}
 																actor={actor}
 																tripId={tripId}
+																tripTitle={
+																	trips.data?.pages
+																		.flatMap((entry) => entry.items)
+																		.find((trip) => trip.id === tripId)?.title
+																}
 																item={item}
 																index={
 																	(data.pagination.page - 1) * data.pagination.limit + index + 1

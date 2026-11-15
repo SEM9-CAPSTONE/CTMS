@@ -1,4 +1,8 @@
 export const API_ENDPOINTS = {
+	MY_CONTENT_REPORTS: {
+		LIST: "/me/content-reports",
+		DETAIL: (id: string) => `/me/content-reports/${id}`,
+	},
 	PACKAGE_DEPARTURE_NOTIFICATIONS: {
 		LIST: "/offline-package-notifications",
 		READ: (id: string) => `/offline-package-notifications/${id}/read`,

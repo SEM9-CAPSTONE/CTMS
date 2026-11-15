@@ -230,6 +230,10 @@ export function Sidebar({
 							(item.key === "demand-insights" && currentPath === "/host/demand-insights") ||
 							(item.key === "explore" && isPathTrips) ||
 							(item.key === "review-analysis" && currentPath === "/host/review-analysis") ||
+							(item.key === "reports" &&
+								activeRole === "host" &&
+								(currentPath === "/host/content-reports" ||
+									currentPath === RoutePath.HOST_PERFORMANCE_REPORTS)) ||
 							(item.key === "overview" && isPathDashboard) ||
 							(item.key === "sos" && isPathSos) ||
 							(item.key === "equipment" && isPathEquipment) ||
@@ -265,6 +269,8 @@ export function Sidebar({
 											navigate("/host/demand-insights");
 										} else if (item.key === "review-analysis") {
 											navigate("/host/review-analysis");
+										} else if (item.key === "reports" && activeRole === "host") {
+											navigate(RoutePath.HOST_PERFORMANCE_REPORTS);
 										} else if (item.key === "overview") {
 											navigate("/dashboard");
 										} else if (item.key === "sos") {

@@ -8,8 +8,9 @@ export function InsightCard({
 	item,
 	actor,
 	tripId,
+	tripTitle,
 	index,
-}: { item: Insight; actor: string; tripId: string; index: number }) {
+}: { item: Insight; actor: string; tripId: string; tripTitle?: string; index: number }) {
 	const [expanded, setExpanded] = useState(false);
 	const topics = expanded ? item.topics : item.topics.slice(0, 2);
 	return (
@@ -89,6 +90,7 @@ export function InsightCard({
 					<ReviewSource
 						actor={actor}
 						tripId={tripId}
+						tripTitle={tripTitle}
 						reviewId={item.reviewId}
 						revision={item.sourceRevision}
 					/>

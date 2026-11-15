@@ -14,6 +14,7 @@ import {
 	EmergencyBroadcastAlerts,
 	useEmergencyBroadcastListener,
 } from "../features/emergency-broadcasts";
+import type { HostReportTab } from "../features/host-reports/pages/HostReportsPage";
 import type { RoleKey } from "../features/role-landing/types";
 import { PageSkeleton } from "../shared/components/PageSkeleton";
 import { AppRoleGuard } from "./AppRoleGuard";
@@ -25,6 +26,12 @@ const ReviewAnalysisPage = lazy(() =>
 		default: module.ReviewAnalysisPage,
 	}))
 );
+const MyReportsPage = lazy(() =>
+	import("../features/content-reports/pages/MyReportsPage").then((module) => ({
+		default: module.MyReportsPage,
+	}))
+);
+
 const DemandInsightsPage = lazy(() =>
 	import("../features/demand-insights/DemandInsightsPage").then((module) => ({
 		default: module.DemandInsightsPage,
@@ -172,6 +179,12 @@ const AdminRevenueAnalyticsPage = lazy(() =>
 		default: module.AdminRevenueAnalyticsPage,
 	}))
 );
+const hostReportPaths = {
+	performance: RoutePath.HOST_PERFORMANCE_REPORTS,
+	revenue: RoutePath.HOST_REVENUE_ANALYTICS,
+	submitted: "/host/content-reports",
+} satisfies Record<HostReportTab, string>;
+
 const HostReportsPage = lazy(() =>
 	import("../features/host-reports/pages/HostReportsPage").then((module) => ({
 		default: module.HostReportsPage,
@@ -524,6 +537,22 @@ function AppRouteContent() {
 			>
 				<HostLayout allowMobile onLogout={handleLogout}>
 					<DemandInsightsPage actor={storedUser?.id ?? ""} />
+				</HostLayout>
+			</AppRoleGuard>
+		);
+	}
+	const navigateToHostReport = (tab: HostReportTab) => navigateTo(hostReportPaths[tab]);
+	if (currentPath === "/host/content-reports") {
+		return (
+			<AppRoleGuard
+				allowedRoles={["host"]}
+				currentRoles={currentRoles}
+				onNavigateHome={() => navigateTo(RoutePath.HOME)}
+			>
+				<HostLayout allowMobile onLogout={handleLogout}>
+					<HostReportsPage activeTab="submitted" onTabChange={navigateToHostReport}>
+						<MyReportsPage actor={storedUser?.id ?? ""} />
+					</HostReportsPage>
 				</HostLayout>
 			</AppRoleGuard>
 		);
@@ -1227,16 +1256,7 @@ function AppRouteContent() {
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
 					<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
-						<HostReportsPage
-							activeTab="performance"
-							onTabChange={(tab) =>
-								navigateTo(
-									tab === "revenue"
-										? RoutePath.HOST_REVENUE_ANALYTICS
-										: RoutePath.HOST_PERFORMANCE_REPORTS
-								)
-							}
-						/>
+						<HostReportsPage activeTab="performance" onTabChange={navigateToHostReport} />
 					</HostLayout>
 				</AppRoleGuard>
 			);
@@ -1262,16 +1282,7 @@ function AppRouteContent() {
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
 					<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
-						<HostReportsPage
-							activeTab="revenue"
-							onTabChange={(tab) =>
-								navigateTo(
-									tab === "revenue"
-										? RoutePath.HOST_REVENUE_ANALYTICS
-										: RoutePath.HOST_PERFORMANCE_REPORTS
-								)
-							}
-						/>
+						<HostReportsPage activeTab="revenue" onTabChange={navigateToHostReport} />
 					</HostLayout>
 				</AppRoleGuard>
 			);

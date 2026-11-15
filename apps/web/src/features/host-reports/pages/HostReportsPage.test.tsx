@@ -41,5 +41,19 @@ describe("HostReportsPage", () => {
 		expect(onTabChange).not.toHaveBeenCalled();
 		fireEvent.click(screen.getByRole("tab", { name: "Báo cáo hiệu suất" }));
 		expect(onTabChange).toHaveBeenCalledWith("performance");
+		fireEvent.click(screen.getByRole("tab", { name: "Báo cáo đánh giá" }));
+		expect(onTabChange).toHaveBeenLastCalledWith("submitted");
+	});
+
+	it("shows the review report content in the submitted tab", () => {
+		render(
+			<HostReportsPage activeTab="submitted" onTabChange={vi.fn()}>
+				Danh sách báo cáo đã gửi
+			</HostReportsPage>
+		);
+
+		expect(screen.getByRole("tabpanel", { name: "Báo cáo đánh giá" })).toHaveTextContent(
+			"Danh sách báo cáo đã gửi"
+		);
 	});
 });

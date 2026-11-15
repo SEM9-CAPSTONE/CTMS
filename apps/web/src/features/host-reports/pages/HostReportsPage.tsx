@@ -1,23 +1,29 @@
-import { FileClock, LineChart, PieChart } from "lucide-react";
+import { FileClock, Flag, LineChart, PieChart } from "lucide-react";
 import type React from "react";
 import { PerformanceReportsPage } from "../../performance-reports/pages/PerformanceReportsPage";
 import { RevenueAnalyticsPage } from "../../revenue-analytics/pages/RevenueAnalyticsPage";
 
-export type HostReportTab = "performance" | "revenue";
+export type HostReportTab = "performance" | "revenue" | "submitted";
 
 const TABS = [
 	{ key: "performance", label: "Báo cáo hiệu suất", icon: FileClock },
 	{ key: "revenue", label: "Báo cáo doanh thu", icon: LineChart },
+	{ key: "submitted", label: "Báo cáo đánh giá", icon: Flag },
 ] as const;
 
 export interface HostReportsPageProps {
 	activeTab: HostReportTab;
 	onTabChange: (tab: HostReportTab) => void;
+	children?: React.ReactNode;
 }
 
 /** Host "Báo cáo tổng quan": operational performance (CTMS-101) and revenue (CTMS-110) as tabs. */
-export const HostReportsPage: React.FC<HostReportsPageProps> = ({ activeTab, onTabChange }) => (
-	<div className="mx-auto max-w-7xl space-y-5 px-4 py-6 sm:px-6 lg:px-8">
+export const HostReportsPage: React.FC<HostReportsPageProps> = ({
+	activeTab,
+	onTabChange,
+	children,
+}) => (
+	<div className="mx-auto w-full space-y-5 px-4 py-6 sm:px-6 lg:px-8">
 		<h1 className="flex items-center gap-3 text-2xl font-extrabold text-[#10221b]">
 			<PieChart aria-hidden="true" className="size-7 text-[#164027]" /> Báo cáo tổng quan
 		</h1>
@@ -56,8 +62,10 @@ export const HostReportsPage: React.FC<HostReportsPageProps> = ({ activeTab, onT
 		<div role="tabpanel" id="host-report-panel" aria-labelledby={`host-report-tab-${activeTab}`}>
 			{activeTab === "performance" ? (
 				<PerformanceReportsPage embedded />
-			) : (
+			) : activeTab === "revenue" ? (
 				<RevenueAnalyticsPage embedded />
+			) : (
+				children
 			)}
 		</div>
 	</div>
