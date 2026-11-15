@@ -300,6 +300,27 @@ describe("Behind-schedule progress (CTMS-063 / Jira CTMS-319, integration, real 
 		expect(status.guidance).toBe(GUIDANCE.severelyBehind("CP water"));
 	});
 
+	it("reads current schedule alerts repeatedly without persisting warning history", async () => {
+		const trip = await createTrip();
+		const { account, memberId } = await trip.addCamper("monitoring");
+		await trip.porterConfirms("ridge", 61, [memberId]);
+		await trip.gps(account, 16.016, 20);
+
+		expect(await warningRows(trip.tripId, account.id)).toEqual([]);
+		for (let attempt = 0; attempt < 3; attempt++) {
+			const response = await request(app.getHttpServer())
+				.get(`/api/host/monitoring/active-trips/${trip.tripId}/alerts`)
+				.set("Authorization", `Bearer ${host.accessToken}`)
+				.expect(200);
+			expect(response.body.alerts).toMatchObject([
+				{ participantId: memberId, alertType: "BEHIND_SCHEDULE", severity: "SEVERELY_BEHIND" },
+			]);
+		}
+		expect(await warningRows(trip.tripId, account.id)).toEqual([]);
+		expect((await statusOf(trip.tripId, account)).status).toBe("SEVERELY_BEHIND");
+		expect(await warningRows(trip.tripId, account.id)).toHaveLength(2);
+	});
+
 	it("LOCATION_UNKNOWN, never behind, when the last VALID sample is older than 5 minutes", async () => {
 		const trip = await createTrip();
 		const { account, memberId } = await trip.addCamper("stale");

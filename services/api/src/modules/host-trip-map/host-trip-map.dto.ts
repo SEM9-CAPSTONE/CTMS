@@ -1,6 +1,25 @@
 import { ApiPropertyOptional } from "@nestjs/swagger";
 import { Type } from "class-transformer";
-import { IsInt, Max, Min } from "class-validator";
+import { IsEnum, IsInt, IsOptional, Max, Min } from "class-validator";
+
+import { BehindScheduleLevel } from "../schedule-progress/schedule-progress.evaluator";
+
+export enum HostTripAlertType {
+	OFF_ROUTE = "OFF_ROUTE",
+	BEHIND_SCHEDULE = "BEHIND_SCHEDULE",
+}
+
+export class HostTripAlertsQueryDto {
+	@ApiPropertyOptional({ enum: HostTripAlertType })
+	@IsOptional()
+	@IsEnum(HostTripAlertType)
+	alertType?: HostTripAlertType;
+
+	@ApiPropertyOptional({ enum: BehindScheduleLevel })
+	@IsOptional()
+	@IsEnum(BehindScheduleLevel)
+	severity?: BehindScheduleLevel;
+}
 
 export class HostTripMapQueryDto {
 	@ApiPropertyOptional({ default: 1, minimum: 1, maximum: 1000000 })
