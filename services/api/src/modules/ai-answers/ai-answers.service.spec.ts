@@ -51,7 +51,8 @@ const grounded = (...selectedChunks: RagChunk[]): RagResult => ({
 });
 const selection = {
 	status: "ANSWERED",
-	chunkIds: [chunk.chunkId],
+	answerText: "Hãy xem phần chú giải để hiểu ký hiệu trên bản đồ.",
+	usedEvidenceIds: [chunk.chunkId],
 	provider: "openai",
 	model: "gpt-4.1-mini",
 	promptVersion: AI_PROMPT_VERSION,
@@ -86,18 +87,18 @@ function setup() {
 }
 
 describe("CTMS-069 survival answers", () => {
-	it("builds answers from the selected whole excerpt and stores both retrieved and cited references", async () => {
+	it("returns a verified synthesis and stores both retrieved and cited references", async () => {
 		const { service, repo, provider } = setup();
 		const result = await service.ask(actor, input);
 		expect(result).toMatchObject({
 			status: "ANSWERED",
 			answerId: expect.any(String),
-			answer: expect.stringContaining(chunk.content),
+			answer: expect.stringContaining(selection.answerText),
 			sources: [
 				{ title: chunk.source.sourceTitle, chunkId: chunk.chunkId, locations: chunk.locations },
 			],
 		});
-		expect(result.answer).not.toContain(unused.content);
+		expect(result.answer).not.toContain(chunk.content);
 		expect(repo.save.mock.calls[0][4]).toMatchObject({
 			retrieved_evidence: [{ chunkId: chunk.chunkId }, { chunkId: unused.chunkId }],
 			cited_chunk_ids: [chunk.chunkId],
@@ -126,15 +127,15 @@ describe("CTMS-069 survival answers", () => {
 		expect(repo.save).not.toHaveBeenCalled();
 	});
 
-	it("keeps PDF order within a source and stores citations in display order", async () => {
+	it("keeps synthesis and citations in provider order", async () => {
 		const { service, provider, repo } = setup();
 		provider.generate.mockResolvedValue({
 			...selection,
-			chunkIds: [unused.chunkId, chunk.chunkId],
+			usedEvidenceIds: [unused.chunkId, chunk.chunkId],
 		});
 		const result = await service.ask(actor, input);
-		expect(result.answer).toContain(`${chunk.content}\n\n${unused.content}`);
-		expect(repo.save.mock.calls[0][4].cited_chunk_ids).toEqual([chunk.chunkId, unused.chunkId]);
+		expect(result.answer).toContain(selection.answerText);
+		expect(repo.save.mock.calls[0][4].cited_chunk_ids).toEqual([unused.chunkId, chunk.chunkId]);
 	});
 
 	it("returns insufficient knowledge when the full model input exceeds its token budget", async () => {
@@ -168,7 +169,7 @@ describe("CTMS-069 survival answers", () => {
 
 	it("fails closed on a fabricated citation", async () => {
 		const { service, provider, repo } = setup();
-		provider.generate.mockResolvedValue({ ...selection, chunkIds: [randomUUID()] });
+		provider.generate.mockResolvedValue({ ...selection, usedEvidenceIds: [randomUUID()] });
 		await expect(service.ask(actor, input)).rejects.toMatchObject({
 			response: { code: "AI_UNAVAILABLE" },
 		});
@@ -188,6 +189,13 @@ describe("CTMS-069 survival answers", () => {
 			answer: null,
 			sources: [],
 		});
+		expect(repo.save).not.toHaveBeenCalled();
+	});
+
+	it("refuses a generated answer claiming that SOS was sent", async () => {
+		const { service, provider, repo } = setup();
+		provider.generate.mockResolvedValue({ ...selection, answerText: "Hệ thống đã gửi SOS." });
+		expect(await service.ask(actor, input)).toMatchObject({ status: "REFUSED", sources: [] });
 		expect(repo.save).not.toHaveBeenCalled();
 	});
 
@@ -239,9 +247,10 @@ describe("CTMS-069 survival answers", () => {
 
 	it.each([
 		{ ...selection, page: 12 },
+		{ ...selection, answerText: " " },
 		{ ...selection, url: "https://example.org" },
-		{ ...selection, chunkIds: [] },
-		{ ...selection, chunkIds: [chunk.chunkId, chunk.chunkId] },
+		{ ...selection, usedEvidenceIds: [] },
+		{ ...selection, usedEvidenceIds: [chunk.chunkId, chunk.chunkId] },
 		{ ...selection, promptVersion: "unknown" },
 	])("rejects an invalid provider envelope", (value) => {
 		expect(() => parseGeneration(value)).toThrow();

@@ -6,6 +6,7 @@ import {
 	type GenerationResult,
 	MAX_AI_PAYLOAD_BYTES,
 	MAX_ANSWER_CHARS,
+	MAX_GENERATED_ANSWER_CHARS,
 } from "./ai-answers.types";
 
 const MODEL_NAME = /^[\w.:/-]{1,128}$/;
@@ -15,7 +16,7 @@ const GUIDANCE_NOTICE_VI =
 const GUIDANCE_NOTICE_EN =
 	"This guidance is for reference. If someone is in immediate danger, contact local emergency services or rescue personnel now.";
 
-// Whole excerpts preserve qualifications. Screen out unsafe passages even if the model selects them.
+// Defense in depth after semantic verification. Apply the same screen to the answer and its evidence.
 const UNSAFE_EXCERPT =
 	/https?:\/\/|www\.|ignore.{0,50}instructions|(?:bỏ qua|phớt lờ).{0,50}(?:chỉ dẫn|hướng dẫn|chỉ thị|quy tắc|yêu cầu)|(?:system|developer) prompt|(?:đã|vừa).{0,35}(?:gửi sos|gọi cấp cứu|điều cứu hộ|mở lại tuyến|đổi mức rủi ro|thay đổi quyền|chuyển tiền|hoàn tiền)|\b(?:sos dispatched|route is open|payment approved|access granted)\b|\b\d+(?:[.,]\d+)?\s*(?:mg|mcg|μg|ml|viên)\b|(?:tiêm tĩnh mạch|tiêm bắp|đặt nội khí quản|nắn khớp|rạch vết thương|hút nọc|gây nôn|inject|intubat\w*|induce vomiting)/iu;
 
@@ -59,52 +60,53 @@ export function parseGeneration(value: unknown): GenerationResult {
 		Object.keys(result).length === 1
 	)
 		return { status: result.status };
-	const { chunkIds, provider, model, promptVersion } = result;
+	const { answerText, usedEvidenceIds, provider, model, promptVersion } = result;
 	if (
 		result.status !== "ANSWERED" ||
-		Object.keys(result).length !== 5 ||
-		!Array.isArray(chunkIds) ||
-		chunkIds.length < 1 ||
-		chunkIds.length > MAX_CITED_CHUNKS ||
-		new Set(chunkIds).size !== chunkIds.length ||
-		!chunkIds.every((id): id is string => typeof id === "string" && /^[0-9a-f-]{36}$/.test(id)) ||
+		Object.keys(result).length !== 6 ||
+		typeof answerText !== "string" ||
+		!answerText.trim() ||
+		answerText.length > MAX_GENERATED_ANSWER_CHARS ||
+		answerText.includes("\0") ||
+		!Array.isArray(usedEvidenceIds) ||
+		usedEvidenceIds.length < 1 ||
+		usedEvidenceIds.length > MAX_CITED_CHUNKS ||
+		new Set(usedEvidenceIds).size !== usedEvidenceIds.length ||
+		!usedEvidenceIds.every(
+			(id): id is string =>
+				typeof id === "string" && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(id)
+		) ||
 		(provider !== "openai" && provider !== "gemini") ||
 		typeof model !== "string" ||
 		!MODEL_NAME.test(model) ||
 		promptVersion !== AI_PROMPT_VERSION
 	)
 		throw aiUnavailable();
-	return { status: "ANSWERED", chunkIds, provider, model, promptVersion };
+	return { status: "ANSWERED", answerText, usedEvidenceIds, provider, model, promptVersion };
 }
 
 export function groundedAnswer(
-	chunkIds: string[],
+	generation: Extract<GenerationResult, { status: "ANSWERED" }>,
 	chunks: Extract<RagResult, { status: "GROUNDED" }>["selectedChunks"],
 	locale: string
 ) {
 	const byId = new Map(chunks.map((chunk) => [chunk.chunkId, chunk]));
-	const cited = chunkIds.map((id) => {
+	const cited = generation.usedEvidenceIds.map((id) => {
 		const chunk = byId.get(id);
 		if (!chunk) throw aiUnavailable();
 		return chunk;
 	});
 	if (
-		cited.some(({ content }) =>
-			UNSAFE_EXCERPT.test(content.normalize("NFKC").replace(/\s+/gu, " "))
+		[generation.answerText, ...cited.map(({ content }) => content)].some((text) =>
+			UNSAFE_EXCERPT.test(text.normalize("NFKC").replace(/\s+/gu, " "))
+		) ||
+		/<[^>]+>|\[[^\]]+\]\([^)]*\)|\b[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\b/iu.test(
+			generation.answerText
 		)
 	) {
 		return null;
 	}
-	const bySource = new Map<string, typeof cited>();
-	for (const chunk of cited) {
-		const group = bySource.get(chunk.source.chunkSetId) ?? [];
-		group.push(chunk);
-		bySource.set(chunk.source.chunkSetId, group);
-	}
-	const ordered = [...bySource.values()].flatMap((group) =>
-		group.sort((left, right) => left.chunkIndex - right.chunkIndex)
-	);
 	const notice = locale.split("-")[0] === "en" ? GUIDANCE_NOTICE_EN : GUIDANCE_NOTICE_VI;
-	const answer = [notice, ...ordered.map(({ content }) => content.trim())].join("\n\n");
-	return answer.length <= MAX_ANSWER_CHARS ? { answer, cited: ordered } : null;
+	const answer = [notice, generation.answerText.trim()].join("\n\n");
+	return answer.length <= MAX_ANSWER_CHARS ? { answer, cited } : null;
 }

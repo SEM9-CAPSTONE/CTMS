@@ -583,7 +583,8 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 					const { evidence } = JSON.parse(raw) as { evidence: Array<{ chunkId: string }> };
 					return {
 						status: "ANSWERED",
-						chunkIds: [evidence[0].chunkId],
+						answerText: "Hãy xem chú giải để hiểu ký hiệu bản đồ.",
+						usedEvidenceIds: [evidence[0].chunkId],
 						provider: "openai",
 						model: "test-model",
 						promptVersion: AI_PROMPT_VERSION,

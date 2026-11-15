@@ -37,7 +37,7 @@ Acceptance Criteria:
 ### Out of Scope
 
 - Final AI answer — CTMS-069.
-- Offline keyword search — CTMS-070.
+- On-device inference — CTMS-069.
 - Knowledge ingestion — CTMS-051.
 
 ## 3. Actors & Authorization

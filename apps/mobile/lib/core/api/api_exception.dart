@@ -20,7 +20,13 @@ enum ApiExceptionKind {
 }
 
 class ApiException implements Exception {
-  ApiException(this.message, {this.statusCode, this.errorData, this.kind = ApiExceptionKind.unknown});
+  ApiException(
+    this.message, {
+    this.statusCode,
+    this.errorData,
+    this.kind = ApiExceptionKind.unknown,
+    this.connectionNotEstablished = false,
+  });
 
   final String message;
   final int? statusCode;
@@ -33,6 +39,9 @@ class ApiException implements Exception {
   final Object? errorData;
 
   final ApiExceptionKind kind;
+
+  /// A connection failed before the request could reach the service.
+  final bool connectionNotEstablished;
 
   @override
   String toString() => 'ApiException($statusCode): $message';

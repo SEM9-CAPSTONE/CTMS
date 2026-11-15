@@ -43,11 +43,18 @@ class SurvivalChatAnswer extends SurvivalChatResult {
     required this.id,
     required this.text,
     required this.sources,
-  });
+  }) : snapshotVersion = null;
 
-  final String id;
+  const SurvivalChatAnswer.local(this.text, {this.snapshotVersion})
+    : id = null,
+      sources = const [];
+
+  final String? id;
   final String text;
   final List<SurvivalChatSource> sources;
+  final int? snapshotVersion;
+
+  bool get isLocal => id == null;
 }
 
 class SurvivalChatUnavailable extends SurvivalChatResult {

@@ -52,7 +52,7 @@ Dependencies:
 - CTMS-068.
 - CTMS-069.
 
-AI answer and corresponding retrieval metadata exist.
+For source display, an accessible AI answer and corresponding evidence metadata exist. A pretrained-only local reply has no source metadata.
 
 ## 5. Business Rules
 
@@ -92,9 +92,11 @@ Invariant:
 
 A source must never be invented merely to make an answer appear grounded.
 
+A saved-package citation, when supported, must come from verified evidence actually used and carry its exact package and document provenance.
+
 ## 9. API / Integration Contract
 
-TBD — Technical Design.
+For online answers, the owner can read recorded citations through `GET /api/ai/answers/:answerId/sources` within the retention period defined in CTMS-069. Pretrained-only replies have an empty source list and never use the server source endpoint.
 
 ## 10. Error & Edge Cases
 
@@ -114,6 +116,7 @@ TBD — Technical Design.
 | BR-251 | Source B exists but unused          | Source B not displayed as evidence | Negative     |
 | BR-251 | Retrieval metadata absent           | No fabricated source               | Safety       |
 | BR-248 | Retrieved chunks contain references | Provenance preserved               | Traceability |
+| BR-251 | Pretrained-only reply               | No CTMS source is displayed         | Flutter widget |
 
 ## 12. Open Decisions
 

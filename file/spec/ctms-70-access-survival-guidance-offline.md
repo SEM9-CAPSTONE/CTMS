@@ -1,5 +1,7 @@
 # CTMS-070 — Access Survival Guidance Offline
 
+> **RETIRED — outside current MVP.** Jira CTMS-258 and subtasks CTMS-337/338 are Remove. The text below is the historical CTMS-070 scope and BR-250 is retired. [CTMS-055](ctms-55-view-route-checkpoints-and-survival-guides-offline.md) still owns the offline viewer. [CTMS-069](ctms-69-ask-ai-about-first-aid-and-survival.md) owns on-device chat.
+
 ## 1. Overview
 
 Story: CTMS-070

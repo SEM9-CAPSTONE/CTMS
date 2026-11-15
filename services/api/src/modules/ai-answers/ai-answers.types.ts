@@ -1,6 +1,7 @@
 import type { RagEvidenceRef } from "../rag/rag.types";
 
-export const AI_PROMPT_VERSION = "ctms-069-extractive-v1";
+export const AI_PROMPT_VERSION = "ctms-069-grounded-v2";
+export const MAX_GENERATED_ANSWER_CHARS = 2600;
 export const MAX_ANSWER_CHARS = 3000;
 export const MAX_AI_PAYLOAD_BYTES = 16384;
 export const MAX_ANSWER_REQUEST_MS = 8000;
@@ -10,7 +11,8 @@ export const AI_REQUEST_LEASE_MS = 12000;
 export type GenerationResult =
 	| {
 			status: "ANSWERED";
-			chunkIds: string[];
+			answerText: string;
+			usedEvidenceIds: string[];
 			provider: "openai" | "gemini";
 			model: string;
 			promptVersion: typeof AI_PROMPT_VERSION;
