@@ -37,7 +37,7 @@ Acceptance Criteria:
 ### Out of Scope
 
 - Final AI answer — CTMS-069.
-- Offline keyword search — CTMS-070.
+- On-device inference is owned by CTMS-069.
 - Knowledge ingestion — CTMS-051.
 
 ## 3. Actors & Authorization
@@ -56,7 +56,9 @@ Dependencies:
 
 | BR     | Rule                                                                                                                                                                                                                           |
 | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| BR-248 | RAG may retrieve only relevant knowledge chunks within the configured context limit, must preserve source references, and must not send unrelated knowledge to the language model.                                             |
+| BR-248 | Online RAG selects only relevant evidence. |
+| BR-486 | Online retrieval context stays within its configured budget. |
+| BR-487 | Each retrieved chunk retains its exact document-version and location provenance. |
 | BR-216 | AI/RAG may provide recommendations and explanations only. It must not override hard rules or authoritative state such as a closed/archived Route, Trip capacity, payment outcome, Weather Risk score/level, or access control. |
 
 ## 6. State & Lifecycle
@@ -106,13 +108,14 @@ See the [implementation and internal contract](../../docs/features/CTMS-068-Impl
 
 ## 11. Acceptance & Test Matrix
 
-| Source | Scenario                            | Expected Result           | Test Type    |
-| ------ | ----------------------------------- | ------------------------- | ------------ |
-| BR-248 | Relevant query                      | Relevant chunks retrieved | Retrieval    |
-| BR-248 | Irrelevant chunk                    | Excluded                  | Retrieval    |
-| BR-248 | Context exceeds limit               | Bounded                   | Boundary     |
-| BR-248 | Selected chunk                      | Source preserved          | Traceability |
-| BR-216 | AI request conflicts with hard rule | Hard rule unaffected      | Safety       |
+| Rule | Valid path | Violation path |
+| --- | --- | --- |
+| BR-248 | Select relevant chunks | Exclude an unrelated chunk |
+| BR-486 | Include evidence within budget | Do not send over-budget context |
+| BR-487 | Retain exact source version and PDF location | Reject missing traceability |
+| BR-216 | Explain the authoritative rule | Do not change the authoritative state |
+
+See the [BR matrix](../../docs/business-rules/ctms-257-hybrid-chat.md) for valid and violation paths. CTMS-069 owns synthesis and output policy. Retrieval supplies eligible evidence and immutable references.
 
 ## 12. Open Decisions
 

@@ -60,7 +60,6 @@ Dependencies:
 
 - CTMS-068.
 - CTMS-069.
-- CTMS-070.
 - CTMS-071.
 
 Versioned evaluation dataset and applicable model/RAG/package versions exist.
@@ -139,6 +138,10 @@ TBD — Technical Design.
 | BR-279 | P95 ≤5s            | Pass                              | Performance  |
 | BR-279 | Offline coverage   | Reported by package/version       | Metrics      |
 | BR-282 | Report             | Versions/thresholds/result stored | Traceability |
+
+## Offline model evaluation plan
+
+On physical iOS and Android, record model revision and digest, runtime version, device, OS, ABI, artifact size, observed peak memory, first-token latency, throughput, verified package version where present, Vietnamese response quality, emergency handling and traffic captured during a network-denied turn. Include an airplane-mode case without a Trip package. Run unsupported, failed activation and corrupted model cases. Distinguish snapshot-supported and pretrained-only replies. Keep BR-279 and BR-282's existing gates and reporting semantics. Local measurements are observational until a threshold is separately approved.
 
 ## 12. Open Decisions
 

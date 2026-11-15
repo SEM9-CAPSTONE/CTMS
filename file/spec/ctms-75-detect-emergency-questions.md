@@ -54,7 +54,10 @@ Configured danger signals exist.
 
 | BR     | Rule                                                                                                                                                                                                                           |
 | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| BR-255 | Emergency-question detection must recognize configured danger signals in the user's question, provide concise priority guidance, and surface SOS/current-location actions when an emergency is detected.                       |
+| BR-255 | Recognize configured danger signals in the user's question. |
+| BR-508 | A detected emergency receives priority guidance before ordinary inference. |
+| BR-509 | A detected emergency surfaces the existing SOS action when available. |
+| BR-510 | A detected emergency surfaces the current-location action when applicable. |
 | BR-216 | AI/RAG may provide recommendations and explanations only. It must not override hard rules or authoritative state such as a closed/archived Route, Trip capacity, payment outcome, Weather Risk score/level, or access control. |
 
 ## 6. State & Lifecycle
@@ -90,7 +93,7 @@ Detection alone does not establish that an SOS alert has been persisted.
 
 ## 9. API / Integration Contract
 
-TBD — Technical Design.
+Evaluate emergency signals before choosing online or offline inference. An unavailable engine cannot suppress the emergency path. Only the existing CTMS-074/076 workflow may record or send SOS and expose its resulting state.
 
 ## 10. Error & Edge Cases
 
@@ -104,13 +107,13 @@ TBD — Technical Design.
 
 ## 11. Acceptance & Test Matrix
 
-| Source | Scenario                 | Expected Result        | Test Type      |
-| ------ | ------------------------ | ---------------------- | -------------- |
-| BR-255 | Normal question          | Normal flow            | Classification |
-| BR-255 | Configured danger signal | Emergency detected     | Classification |
-| BR-255 | Emergency detected       | Concise guidance       | Safety         |
-| BR-255 | Emergency detected       | SOS action visible     | UI             |
-| BR-255 | Detection only           | No false persisted SOS | State          |
+| Rule | Valid path | Violation path |
+| --- | --- | --- |
+| BR-255 | Recognize a configured danger signal | Ordinary questions continue normally |
+| BR-508 | Show priority guidance without waiting for inference | An unavailable engine cannot prevent priority guidance |
+| BR-509 | Offer the existing SOS action when eligible | Detection alone cannot create or mark a notification sent |
+| BR-510 | Offer the current-location action when applicable | Never display an unknown location as known |
+| BR-216 | Present SOS workflow information | Never fabricate SOS delivery or change authoritative state |
 
 ## 12. Open Decisions
 

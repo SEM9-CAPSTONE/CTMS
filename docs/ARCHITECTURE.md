@@ -99,7 +99,7 @@ Backend authorization is authoritative. UI visibility is a usability layer only.
 | Porter Management | CTMS-043 to CTMS-048 |
 | Survival Content and Offline Package | CTMS-049 to CTMS-057 |
 | GPS and Safety Tracking | CTMS-058 to CTMS-067 |
-| AI Survival Assistant | CTMS-068 to CTMS-073 |
+| AI Survival Assistant | CTMS-068, CTMS-069, CTMS-071 to CTMS-073 |
 | SOS, WebSocket, Realtime Operations | CTMS-074 to CTMS-087 |
 | Notifications and Reviews | CTMS-088 to CTMS-094 |
 | Evaluation and Reports | CTMS-095 to CTMS-110 |

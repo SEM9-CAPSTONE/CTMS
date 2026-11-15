@@ -16,6 +16,8 @@ Priority: Must Have
 
 Goal: Make the downloaded Trip safety information usable without Internet access.
 
+The verified offline viewer runs independently of AI model installation and inference. Any related chat feature consumes the existing account-scoped verified and active boundary under CTMS-069.
+
 ## 2. Scope
 
 ### In Scope

@@ -59,7 +59,7 @@ AI answer and corresponding retrieval metadata exist.
 | BR     | Rule                                                                                                                                                                                  |
 | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | BR-251 | An AI answer must display the actual document/source category present in retrieval metadata and must not invent or cite a source that was not used.                                   |
-| BR-248 | RAG may retrieve only relevant knowledge chunks within the configured context limit, must preserve source references, and must not send unrelated knowledge to the language model.    |
+| BR-487 | Each retrieved chunk retains its exact document-version and location provenance. |
 | BR-212 | Any change to a Business Rule, enum, state transition, or API contract must be reflected in the specification, test cases, and data documentation before the work is considered Done. |
 | BR-213 | Every Business Rule must have at least one valid-path test and one violation-path test. Concurrency, idempotency, and transaction rules require integration or E2E coverage.          |
 
@@ -92,9 +92,11 @@ Invariant:
 
 A source must never be invented merely to make an answer appear grounded.
 
+For a pretrained-only local answer the source list is empty and the server source endpoint is not called. Optional snapshot citations require verified local evidence actually used, including exact package and document provenance. Preserve citations for existing server answers for the contracted owner and retention period.
+
 ## 9. API / Integration Contract
 
-TBD — Technical Design.
+Evaluate emergency signals before choosing online or offline inference. An unavailable engine cannot suppress the emergency path. Only the existing CTMS-074/076 workflow may record or send SOS and expose its resulting state.
 
 ## 10. Error & Edge Cases
 
@@ -108,12 +110,12 @@ TBD — Technical Design.
 
 ## 11. Acceptance & Test Matrix
 
-| Source | Scenario                            | Expected Result                    | Test Type    |
-| ------ | ----------------------------------- | ---------------------------------- | ------------ |
-| BR-251 | Answer grounded by source A         | Source A displayed                 | Integration  |
-| BR-251 | Source B exists but unused          | Source B not displayed as evidence | Negative     |
-| BR-251 | Retrieval metadata absent           | No fabricated source               | Safety       |
-| BR-248 | Retrieved chunks contain references | Provenance preserved               | Traceability |
+| Rule | Valid path | Violation path |
+| --- | --- | --- |
+| BR-251 | Display actual sources used | Hide unused or invented sources and sources for pretrained-only replies |
+| BR-487 | Keep traceable version and location | Reject references without source identity |
+| BR-212 | Update spec, tests and data documentation with changed contract | Fail review if a required contract artifact is stale |
+| BR-213 | Exercise authorized and forbidden reads | Reject coverage that lacks one of the rule paths |
 
 ## 12. Open Decisions
 
