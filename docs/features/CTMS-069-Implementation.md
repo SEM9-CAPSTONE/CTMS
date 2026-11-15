@@ -53,12 +53,15 @@ Both routes require a valid JWT and an active Camper role. Responses use `Cache-
 | Endpoint | Input | Result |
 | --- | --- | --- |
 | `POST /api/ai/answers` | JSON `{ question, locale, requestId }`, max 2,000 UTF-16 code units, UUID v4, locale from `RAG_LOCALES` | HTTP 200 with `ANSWERED`, `answerId`, `answer` and `sources`, or HTTP 200 with `INSUFFICIENT_CONTEXT` or `REFUSED`, `answer: null`, `sources: []` and the corresponding code |
-| `GET /api/ai/answers/:answerId/sources` | Answer UUID | HTTP 200 with `answerId` and recorded cited `sources`. Unknown, expired and other owners' answers return 404. |
+| `GET /api/ai/answers/:answerId/sources` | Answer UUID | HTTP 200 with `answerId` and recorded cited `sources` for the active Camper owner. Missing or malformed cited references are omitted. An accessible answer with no usable citations returns `sources: []`. Unknown, expired and other owners' answers return 404. |
 
 The Flutter client sends Vietnamese (`vi`). Unknown fields are rejected. Each source
 records `documentId`, `documentVersionId`, `sourceVersion`, `chunkSetId`, `chunkId`,
 `chunkIndex`, `title`, `classification`, `locale` and `locations[]` with `page` and
-`itemRef`. The existing chat keeps this metadata in state for subsequent stories.
+`itemRef`. The [CTMS-071 source panel](../../file/spec/ctms-71-view-knowledge-sources-for-ai-answers.md)
+uses the successful POST payload to show sources in the existing chat. It groups them
+by document and exact version. Source details are scoped to the completed turn and
+Camper session. Opening the panel does not issue another request.
 
 | HTTP | Code or condition | UI behavior |
 | --- | --- | --- |
@@ -71,7 +74,9 @@ records `documentId`, `documentVersionId`, `sourceVersion`, `chunkSetId`, `chunk
 | 503 | `RETRIEVAL_UNAVAILABLE`, `AI_UNAVAILABLE`, `AI_TIMEOUT` | Explanation and a retry action |
 
 A retry from the current chat reuses the same request ID and bubble. The API returns the
-same successful answer while its saved evidence remains current. Rate control is shared
+same successful answer while its saved evidence remains current and all cited references
+are valid. An owned GET can still read the recorded metadata after a source is superseded
+or withdrawn. Rate control is shared
 across API replicas via PostgreSQL and allows one generation in flight per Camper, with
 at least three seconds between accepted starts. The lease expires after 12 seconds.
 An unsuccessful request can call the provider again on retry. The provider can still bill
