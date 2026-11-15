@@ -1,10 +1,17 @@
-import { ForbiddenException, NotFoundException } from "@nestjs/common";
+import { ConflictException, ForbiddenException, NotFoundException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Test } from "@nestjs/testing";
 import { BookingMemberStatus } from "../bookings/booking-member-status.enum";
 import { GpsParticipantRole } from "../gps-tracking/gps-tracking.enums";
+import { SafetyEventType } from "../safety-events/safety-events.enums";
+import {
+	BehindScheduleLevel,
+	ScheduleStatus,
+} from "../schedule-progress/schedule-progress.evaluator";
+import { ScheduleProgressService } from "../schedule-progress/schedule-progress.service";
+import { TripStatus } from "../trips/entities/trip.entity";
 import { UserRole, UserStatus } from "../users/entities/user.entity";
-import { HostTripMapQueryDto } from "./host-trip-map.dto";
+import { HostTripAlertType, HostTripMapQueryDto } from "./host-trip-map.dto";
 import { HostTripMapRepository } from "./host-trip-map.repository";
 import { HostTripMapService } from "./host-trip-map.service";
 import { LocationFreshness, type MapParticipantRow, type MapTripRow } from "./host-trip-map.types";
@@ -12,6 +19,9 @@ import { LocationFreshness, type MapParticipantRow, type MapTripRow } from "./ho
 describe("HostTripMapService (CTMS-369)", () => {
 	const actor = { userId: "host", roles: [UserRole.HOST], status: UserStatus.ACTIVE };
 	const read = jest.fn();
+	const findOwnedTripStatus = jest.fn();
+	const readProgress = jest.fn();
+	const progress = { readProgress } as unknown as ScheduleProgressService;
 	let service: HostTripMapService;
 	const participant = (eventTime: string | null): MapParticipantRow => ({
 		id: "member",
@@ -47,10 +57,13 @@ describe("HostTripMapService (CTMS-369)", () => {
 	beforeEach(async () => {
 		jest.useFakeTimers().setSystemTime(new Date("2026-10-29T10:00:00Z"));
 		read.mockReset().mockResolvedValue({ total: 0, items: [] });
+		findOwnedTripStatus.mockReset().mockResolvedValue(TripStatus.ONGOING);
+		readProgress.mockReset().mockResolvedValue({ evaluatedAt: new Date(), members: [] });
 		const module = await Test.createTestingModule({
 			providers: [
 				HostTripMapService,
-				{ provide: HostTripMapRepository, useValue: { read } },
+				{ provide: ScheduleProgressService, useValue: progress },
+				{ provide: HostTripMapRepository, useValue: { read, findOwnedTripStatus } },
 				{
 					provide: ConfigService,
 					useValue: new ConfigService({ HOST_TRIP_MAP_FRESHNESS_MAX_AGE_SECONDS: 120 }),
@@ -106,6 +119,67 @@ describe("HostTripMapService (CTMS-369)", () => {
 			expect(read).toHaveBeenCalledWith(actor.userId, 9, 2, null);
 		});
 	});
+	describe("getAlerts (CTMS-373)", () => {
+		const withRoute = (type: SafetyEventType) => {
+			const member = participant("2026-10-29T09:57:00Z");
+			member.safety.route = {
+				type,
+				eventTime: "2026-10-29T09:57:00Z",
+				receivedAt: "2026-10-29T09:58:00Z",
+			};
+			read.mockResolvedValue({ total: 1, items: [trip([member])] });
+		};
+		it("hides missing and unauthorized trips before reading member data", async () => {
+			findOwnedTripStatus.mockResolvedValue(undefined);
+			await expect(service.getAlerts(actor, "trip", {})).rejects.toBeInstanceOf(NotFoundException);
+			expect(read).not.toHaveBeenCalled();
+			expect(readProgress).not.toHaveBeenCalled();
+		});
+		it("returns a conflict for an owned trip outside the ongoing state", async () => {
+			findOwnedTripStatus.mockResolvedValue(TripStatus.PUBLISHED);
+			await expect(service.getAlerts(actor, "trip", {})).rejects.toBeInstanceOf(ConflictException);
+			expect(read).not.toHaveBeenCalled();
+		});
+		it.each([ScheduleStatus.ON_TRACK, ScheduleStatus.LOCATION_UNKNOWN])(
+			"returns no alerts for a recovered member with progress %s",
+			async (status) => {
+				withRoute(SafetyEventType.ON_ROUTE_RECOVERED);
+				readProgress.mockResolvedValue({
+					evaluatedAt: new Date(),
+					members: [{ userId: "camper", status }],
+				});
+				expect((await service.getAlerts(actor, "trip", {})).alerts).toEqual([]);
+			}
+		);
+		it("returns two independently filterable alerts for the same member", async () => {
+			withRoute(SafetyEventType.OFF_ROUTE);
+			readProgress.mockResolvedValue({
+				evaluatedAt: new Date(),
+				members: [{ userId: "camper", status: ScheduleStatus.BEHIND }],
+			});
+			expect((await service.getAlerts(actor, "trip", {})).alerts).toMatchObject([
+				{
+					participantId: "member",
+					alertType: HostTripAlertType.OFF_ROUTE,
+					severity: null,
+					isStale: true,
+				},
+				{
+					participantId: "member",
+					alertType: HostTripAlertType.BEHIND_SCHEDULE,
+					severity: BehindScheduleLevel.BEHIND,
+				},
+			]);
+			expect(
+				(await service.getAlerts(actor, "trip", { severity: BehindScheduleLevel.BEHIND })).alerts
+			).toMatchObject([{ alertType: HostTripAlertType.BEHIND_SCHEDULE }]);
+			readProgress.mockClear();
+			expect(
+				(await service.getAlerts(actor, "trip", { alertType: HostTripAlertType.OFF_ROUTE })).alerts
+			).toMatchObject([{ alertType: HostTripAlertType.OFF_ROUTE }]);
+			expect(readProgress).not.toHaveBeenCalled();
+		});
+	});
 	describe("getParticipant", () => {
 		it("returns the same server-confirmed projection from the permitted Trip", async () => {
 			read.mockResolvedValue({ total: 1, items: [trip([participant(null)])] });
@@ -136,7 +210,8 @@ describe("HostTripMapService (CTMS-369)", () => {
 				() =>
 					new HostTripMapService(
 						{ read } as unknown as HostTripMapRepository,
-						new ConfigService({ HOST_TRIP_MAP_FRESHNESS_MAX_AGE_SECONDS: value })
+						new ConfigService({ HOST_TRIP_MAP_FRESHNESS_MAX_AGE_SECONDS: value }),
+						progress
 					)
 			).toThrow("positive safe integer");
 		}

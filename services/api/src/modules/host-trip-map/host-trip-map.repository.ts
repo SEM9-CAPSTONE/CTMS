@@ -14,6 +14,14 @@ import type { MapPage, MapTripRow } from "./host-trip-map.types";
 export class HostTripMapRepository {
 	constructor(private readonly db: DataSource) {}
 
+	async findOwnedTripStatus(hostId: string, tripId: string): Promise<TripStatus | undefined> {
+		const [trip] = await this.db.query<Array<{ status: TripStatus }>>(
+			"SELECT status FROM trips WHERE host_id = $1 AND id = $2",
+			[hostId, tripId]
+		);
+		return trip?.status;
+	}
+
 	async read(
 		hostId: string,
 		page: number,

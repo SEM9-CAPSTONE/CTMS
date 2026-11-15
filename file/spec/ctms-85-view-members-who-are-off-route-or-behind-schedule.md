@@ -97,7 +97,23 @@ Client must not create an authoritative OFF_ROUTE/behind-schedule state solely f
 
 ## 9. API / Integration Contract
 
-TBD — Technical Design.
+CTMS-373 exposes `GET /api/host/monitoring/active-trips/:tripId/alerts` for one owned
+ongoing Trip. A missing or foreign Trip returns 404. An owned non-ongoing Trip returns
+409. An authorized ongoing Trip without matching alerts returns 200 and `alerts: []`.
+
+- Each alert includes the participant ID and role for navigation to the existing map detail.
+  The alert type is `OFF_ROUTE` or `BEHIND_SCHEDULE`. Both may appear for the same member.
+- The latest synchronized route transition is selected by event time, with receipt time and
+  ID as tie-breakers. A recovery closes the off-route alert.
+- Schedule alerts use the current server evaluation. `ON_TRACK` and `LOCATION_UNKNOWN`
+  produce no schedule alert. Losing GPS can therefore remove a member from the schedule
+  alert list. Reading this endpoint does not persist warning history.
+- Severity is nullable. `OFF_ROUTE` has null severity; schedule alerts have `BEHIND` or
+  `SEVERELY_BEHIND`. Optional `alertType` and `severity` filters are combined with AND.
+  Applying a severity filter excludes off-route alerts.
+- `lastLocationAt` is the server-confirmed capture time or null. `freshness` distinguishes
+  fresh, stale and unavailable data; `isStale` is true for stale captures. The response
+  exposes the same freshness threshold as the Host map.
 
 ## 10. Error & Edge Cases
 
@@ -122,4 +138,4 @@ TBD — Technical Design.
 
 ## 12. Open Decisions
 
-Supported severity/status enums must follow authoritative alert-state definitions.
+CTMS-085 specification owner: confirm whether severity filtering must include off-route alerts and, if so, define their authoritative severity levels.

@@ -228,6 +228,14 @@ describe("CTMS-369 Host Trip map (PostgreSQL + HTTP)", () => {
 			behindSchedule: null,
 		});
 	});
+	it("uses the latest event time when an older off-route event arrived after recovery", async () => {
+		const response = await request(app.getHttpServer())
+			.get(`${endpoint}/${ongoing}/alerts?alertType=OFF_ROUTE`)
+			.set("Authorization", bearer())
+			.expect(200);
+		expect(response.body.alerts).toEqual([]);
+	});
+
 	it("provides authorized details and private no-store headers", async () => {
 		const response = await request(app.getHttpServer())
 			.get(detail())
