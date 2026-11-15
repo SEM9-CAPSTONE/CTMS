@@ -10,6 +10,7 @@ import '../../../core/widgets/ctms_alert_banner.dart';
 import '../../../core/widgets/ctms_button.dart';
 import '../../../core/widgets/ctms_scaffold.dart';
 import '../../../core/widgets/ctms_status_badge.dart';
+import '../../camper_bookings/presentation/booking_order_panel.dart';
 import '../../emergency_broadcasts/presentation/emergency_broadcasts_panel.dart';
 import '../../gps_tracking/presentation/gps_tracking_panel.dart';
 import '../../offline_map/presentation/offline_map_panel.dart';
@@ -788,8 +789,8 @@ class _CamperTripDetailScreenState
                       _buildInfoRow(
                         'Thanh toán:',
                         switch (widget.booking?.paymentStatus) {
-                          'completed' => 'Đã thanh toán',
-                          'pending' => 'Chờ thanh toán',
+                          'completed' || 'paid' => 'Đã thanh toán',
+                          'pending' || 'unpaid' => 'Chờ thanh toán',
                           'refunded' => 'Đã hoàn tiền',
                           'not_required' => 'Không yêu cầu',
                           _ => 'Đã xác nhận',
@@ -810,6 +811,9 @@ class _CamperTripDetailScreenState
                     ],
                   ),
                 ),
+
+                // Leader follow-up: pay an unpaid Booking and request a refund.
+                if (widget.booking != null) BookingOrderPanel(bookingId: widget.booking!.id),
 
                 if (widget.booking != null && widget.booking!.status == 'completed') ...[
                   Container(

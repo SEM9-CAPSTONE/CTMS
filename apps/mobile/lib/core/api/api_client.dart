@@ -130,8 +130,12 @@ class ApiClient {
   Future<Response<T>> get<T>(String path, {Map<String, dynamic>? queryParameters}) =>
       _guard(() => dio.get<T>(path, queryParameters: queryParameters));
 
-  Future<Response<T>> post<T>(String path, {Object? data}) =>
-      _guard(() => dio.post<T>(path, data: data));
+  /// [headers] is optional and only used by endpoints that need extra
+  /// request headers (e.g. `Idempotency-Key` on Booking create/pay/refund).
+  Future<Response<T>> post<T>(String path, {Object? data, Map<String, Object?>? headers}) =>
+      _guard(
+        () => dio.post<T>(path, data: data, options: headers == null ? null : Options(headers: headers)),
+      );
 
   Future<Response<T>> put<T>(String path, {Object? data}) =>
       _guard(() => dio.put<T>(path, data: data));

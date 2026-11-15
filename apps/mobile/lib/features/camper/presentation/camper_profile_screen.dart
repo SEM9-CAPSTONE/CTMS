@@ -14,6 +14,7 @@ import '../../../core/widgets/ctms_section_card.dart';
 import '../../../core/widgets/ctms_status_badge.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../auth/presentation/widgets/logout_actions.dart';
+import '../../camper_bookings/presentation/bank_accounts_screen.dart';
 import '../../push_notifications/presentation/push_notification_widgets.dart';
 import '../../sync/presentation/device_sync_status_screen.dart';
 import '../profile/application/camper_health_profile_controller.dart';
@@ -1130,6 +1131,11 @@ class _CamperProfileScreenState extends ConsumerState<CamperProfileScreen> {
                   },
                 ),
               ),
+
+              const SizedBox(height: AppSpacing.xl),
+
+              // Leader follow-up: receiving bank accounts for refunds
+              const CtmsSectionCard(title: 'Thanh toán & Hoàn tiền', child: BankAccountsEntryTile()),
 
               const SizedBox(height: AppSpacing.xl),
 

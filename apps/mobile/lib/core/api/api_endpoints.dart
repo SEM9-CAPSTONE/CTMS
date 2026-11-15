@@ -34,6 +34,14 @@ class BookingEndpoints {
   String getById(String id) => '/bookings/$id';
   String get create => '/bookings';
   String cancel(String id) => '/bookings/$id/cancel';
+  String items(String id) => '/bookings/$id/items';
+  String pay(String id) => '/bookings/$id/pay';
+  String syncPayment(String id) => '/bookings/$id/sync-payment';
+  String refunds(String id) => '/bookings/$id/refunds';
+  String equipmentForTrip(String tripId) => '/equipment-catalog/for-trip/$tripId';
+  String get bankAccounts => '/profiles/me/bank-accounts';
+  String bankAccount(String id) => '/profiles/me/bank-accounts/$id';
+  String defaultBankAccount(String id) => '/profiles/me/bank-accounts/$id/default';
   String payments(String id) => '/bookings/$id/payments';
   String complete(String id) => '/bookings/$id/complete';
   String reviewContext(String id) => '/bookings/$id/reviews/context';

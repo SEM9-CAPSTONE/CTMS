@@ -12,6 +12,7 @@ import '../../../core/widgets/ctms_button.dart';
 import '../../../core/widgets/ctms_empty_state.dart';
 import '../../../core/widgets/ctms_scaffold.dart';
 import '../../../core/widgets/ctms_status_badge.dart';
+import '../../camper_bookings/presentation/book_trip_screen.dart';
 import '../../offline_packages/application/package_download_controller.dart';
 import '../../offline_packages/presentation/offline_package_screen.dart';
 import '../data/camper_explore_api.dart';
@@ -451,6 +452,18 @@ class _PublishedTripDetails extends ConsumerWidget {
             title: Text(label, style: AppTypography.caption),
             subtitle: Text(value, style: AppTypography.bodyStrong),
           ),
+        // Leader follow-up: book the Trip, rent equipment and pay on mobile.
+        if (trip.isBookable) ...[
+          CtmsButton(
+            label: 'Đặt chỗ',
+            icon: Icons.event_seat_outlined,
+            size: CtmsButtonSize.lg,
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => BookTripScreen(trip: trip)),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+        ],
         if (accountId != null)
           CtmsButton(
             label: 'Dữ liệu ngoại tuyến',
