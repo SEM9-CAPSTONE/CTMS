@@ -7,12 +7,17 @@ import { ContentReportsController } from "./content-reports.controller";
 import { ContentReportsRepository } from "./content-reports.repository";
 import { ContentReportsService } from "./content-reports.service";
 import { ContentReport } from "./entities/content-report.entity";
+import { ReportSubmissionController } from "./report-submission.controller";
+import { ReportSubmissionRepository } from "./report-submission.repository";
+import { ReportSubmissionService } from "./report-submission.service";
 
 @Module({
 	imports: [UsersModule],
-	controllers: [ContentReportsController],
+	controllers: [ContentReportsController, ReportSubmissionController],
 	providers: [
 		ContentReportsService,
+		ReportSubmissionService,
+		ReportSubmissionRepository,
 		JwtAuthGuard,
 		RolesGuard,
 		{
