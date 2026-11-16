@@ -73,6 +73,7 @@ class AiFeedbackEntry {
     required this.updatedAt,
     required this.pending,
     this.rejected = false,
+    this.includesLocalTrace = false,
   });
 
   factory AiFeedbackEntry.fromJson(Map<String, dynamic> data) =>
@@ -86,6 +87,12 @@ class AiFeedbackEntry {
         updatedAt: DateTime.parse(data['updatedAt'] as String),
         pending: data['pending'] as Map<String, dynamic>?,
         rejected: data['rejected'] == true,
+        includesLocalTrace:
+            data['includesLocalTrace'] == true ||
+            (data['pending'] as Map<String, dynamic>?)?.containsKey(
+                  'localTrace',
+                ) ==
+                true,
       );
 
   final String id;
@@ -95,6 +102,7 @@ class AiFeedbackEntry {
   final DateTime updatedAt;
   final Map<String, dynamic>? pending;
   final bool rejected;
+  final bool includesLocalTrace;
 
   AiFeedbackEntry delivered({required bool rejected, required DateTime now}) =>
       AiFeedbackEntry(
@@ -105,6 +113,7 @@ class AiFeedbackEntry {
         updatedAt: now,
         pending: rejected ? pending : null,
         rejected: rejected,
+        includesLocalTrace: includesLocalTrace,
       );
 
   Map<String, Object?> toJson() => {
@@ -115,6 +124,7 @@ class AiFeedbackEntry {
     'updatedAt': updatedAt.toIso8601String(),
     'pending': pending,
     'rejected': rejected,
+    if (includesLocalTrace) 'includesLocalTrace': true,
   };
 }
 
