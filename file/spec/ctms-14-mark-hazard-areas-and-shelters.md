@@ -134,3 +134,9 @@ Exact distinction between hazard, shelter, water, overnight and checkpoint recor
 ## Route Safety v2 read integration
 
 CTMS-010 may surface these existing records through Route Safety Analysis. The current actor, ownership, write validation, audit and authoritative lifecycle in this story remain unchanged. See `docs/business-rules/route-safety-v2.md` BR-477 and BR-479. No duplicate safety observation or additional reporting permission is created.
+
+2026-11-16, BR-477 amendment: CTMS-010 can read nearby saved zones across the requesting Host's own Routes while drawing new geometry or editing an owned Route. The read retains origin name and UNVERIFIED status, excludes other Hosts' private zones, and does not copy records or loosen the CTMS-014 write boundary. Shared external evidence keeps its separate source/verification contract.
+
+Later 2026-11-16 amendment: hazards published by an applied Admin correction under CTMS-118, based on current CTMS-117 confirmation, automatically appear on shared web route maps by viewport, even without a Route/Trip or drawn line. They carry ADMIN_VERIFIED / VERIFIED and appear across Host boundaries without exposing private route or review data. Unpublished records retain the own-Host proximity rule above. Marker/details clicks do not edit geometry; duplicate published/persisted features render once. This read changes neither CTMS-014 writes nor mobile/offline package eligibility. See docs/business-rules/route-safety-v2.md.
+
+Subsequent user-confirmed UI amendment: map Point circles use a 5 m display radius while the recorded radius, approval snapshot and spatial analysis remain unchanged. Polygon boundaries retain their geometry. Marker/area clicks open the shared application Modal outside the map in both native and fallback modes, replacing in-map popups and panels. The modal shows full details and labels recorded radius separately from map decoration; it does not change geometry or stored data.

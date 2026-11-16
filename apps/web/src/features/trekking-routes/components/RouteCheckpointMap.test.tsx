@@ -17,6 +17,81 @@ const geometry = {
 };
 
 describe("RouteCheckpointMap fallback", () => {
+	const zone: RouteDangerZone = {
+		id: "11111111-1111-4111-8111-111111111111",
+		routeId: "22222222-2222-4222-8222-222222222222",
+		geometry: { type: "Point", coordinates: [108.46, 11.94] },
+		radiusMeters: 50,
+		description: "Lối mòn sát mép vực ở Dốc Vọng Cảnh",
+		severity: "high",
+		createdAt: "2026-11-16T00:00:00Z",
+		updatedAt: "2026-11-16T03:45:00Z",
+	};
+	it.each(["checkpoint", "hazard-point", "hazard-polygon"] as const)(
+		"opens marker details without placing a point in %s mode",
+		(mode) => {
+			const onSelectLocation = vi.fn();
+			const { container } = render(
+				<RouteCheckpointMap
+					geometry={geometry}
+					checkpoints={[]}
+					dangerZones={[zone]}
+					radiusMeters={0}
+					mode={mode}
+					onSelectLocation={onSelectLocation}
+				/>
+			);
+			const marker = screen.getByRole("button", {
+				name: `Điểm nguy hiểm mức cao: ${zone.description}`,
+			});
+			fireEvent.pointerDown(marker);
+			fireEvent.click(marker);
+			expect(screen.getByRole("dialog", { name: "Thông tin điểm nguy hiểm" })).toHaveTextContent(
+				"Cao"
+			);
+			expect(screen.getByText(zone.description)).toBeVisible();
+			expect(screen.getByText("50 m")).toBeVisible();
+			expect(container.textContent).not.toContain(zone.id);
+			expect(marker.getAttribute("aria-label")).not.toContain(zone.id);
+			expect(onSelectLocation).not.toHaveBeenCalled();
+			fireEvent.click(screen.getByRole("button", { name: "Đóng thông tin" }));
+			expect(screen.queryByText("Cao", { selector: "dd" })).not.toBeInTheDocument();
+			fireEvent.keyDown(marker, { key: "Enter" });
+			expect(screen.getByText("Cao", { selector: "dd" })).toBeVisible();
+		}
+	);
+	it("opens polygon details only in viewing mode", () => {
+		const polygon: RouteDangerZone = {
+			...zone,
+			geometry: {
+				type: "Polygon",
+				coordinates: [
+					[
+						[108.45, 11.94],
+						[108.46, 11.95],
+						[108.47, 11.94],
+						[108.45, 11.94],
+					],
+				],
+			},
+			radiusMeters: null,
+		};
+		const props = {
+			geometry,
+			checkpoints: [],
+			dangerZones: [polygon],
+			radiusMeters: 0,
+			onSelectLocation: vi.fn(),
+		};
+		const { rerender } = render(<RouteCheckpointMap {...props} />);
+		fireEvent.click(screen.getByTestId("persisted-hazard-polygon"));
+		expect(props.onSelectLocation).toHaveBeenCalledOnce();
+		expect(screen.queryByText("Cao", { selector: "dd" })).not.toBeInTheDocument();
+		rerender(<RouteCheckpointMap {...props} disabled />);
+		fireEvent.click(screen.getByTestId("persisted-hazard-polygon"));
+		expect(screen.getByText("Cao", { selector: "dd" })).toBeVisible();
+		expect(screen.queryByText(/Bán kính ghi nhận/)).not.toBeInTheDocument();
+	});
 	it("zooms with controls and the mouse wheel, preserves the view on rerender and resets on request", () => {
 		const props = {
 			geometry,

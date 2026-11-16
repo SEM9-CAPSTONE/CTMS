@@ -49,6 +49,16 @@ const SurvivalDocumentsPage = lazy(() =>
 		default: module.SurvivalDocumentsPage,
 	}))
 );
+const AdminSafetyHotspotsPage = lazy(() =>
+	import("../features/admin-safety-hotspots/pages/AdminSafetyHotspotsPage").then((module) => ({
+		default: module.AdminSafetyHotspotsPage,
+	}))
+);
+const AdminDangerZoneProposalsPage = lazy(() =>
+	import("../features/danger-zone-proposals/pages/AdminDangerZoneProposalsPage").then((module) => ({
+		default: module.AdminDangerZoneProposalsPage,
+	}))
+);
 const AdminContentReportsPage = lazy(() =>
 	import("../features/admin-content-reports/pages/AdminContentReportsPage").then((module) => ({
 		default: module.AdminContentReportsPage,
@@ -1155,6 +1165,28 @@ function AppRouteContent() {
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
 					<SurvivalDocumentsPage onLogout={handleLogout} />
+				</AppRoleGuard>
+			);
+		case RoutePath.ADMIN_SAFETY_HOTSPOTS:
+			return (
+				<AppRoleGuard
+					allowedRoles={["admin"]}
+					currentRoles={currentRoles}
+					fallback={unauthorizedFallback}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<AdminSafetyHotspotsPage onLogout={handleLogout} />
+				</AppRoleGuard>
+			);
+		case RoutePath.ADMIN_DANGER_ZONE_PROPOSALS:
+			return (
+				<AppRoleGuard
+					allowedRoles={["admin"]}
+					currentRoles={currentRoles}
+					fallback={unauthorizedFallback}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<AdminDangerZoneProposalsPage onLogout={handleLogout} />
 				</AppRoleGuard>
 			);
 		case RoutePath.ADMIN_AUDIT_LOGS:

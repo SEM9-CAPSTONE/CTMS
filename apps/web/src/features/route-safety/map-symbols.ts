@@ -1,3 +1,4 @@
+import type { GeoJsonPoint } from "../trekking-routes/types";
 import type { SafetyFeature, SafetySeverity } from "./types";
 
 export const SAFETY_COLORS: Record<SafetySeverity, string> = {
@@ -16,6 +17,12 @@ export const SYMBOL_PATHS = {
 	},
 };
 export type SafetySymbolKind = keyof typeof SYMBOL_PATHS;
+export function featureMarkerPoint(feature: SafetyFeature): GeoJsonPoint | undefined {
+	if (feature.geometry.type === "Point") return feature.geometry;
+	if (feature.properties.sourceType === "ADMIN_VERIFIED")
+		return feature.properties.labelPoint ?? undefined;
+	return undefined;
+}
 export const featureColor = (feature: SafetyFeature) =>
 	feature.properties.sourceType === "RESOURCE"
 		? WATER_COLOR

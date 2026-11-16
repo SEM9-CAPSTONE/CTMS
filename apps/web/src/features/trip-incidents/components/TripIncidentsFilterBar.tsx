@@ -33,6 +33,8 @@ const CATEGORY_OPTIONS: Array<{ key: "all" | IncidentCategory; label: string }> 
 	{ key: "lost_member", label: incidentCategoryLabels.lost_member },
 	{ key: "route_obstruction", label: incidentCategoryLabels.route_obstruction },
 	{ key: "wildlife", label: incidentCategoryLabels.wildlife },
+	{ key: "slippery_or_landslide", label: incidentCategoryLabels.slippery_or_landslide },
+	{ key: "damaged_barrier", label: incidentCategoryLabels.damaged_barrier },
 	{ key: "other", label: incidentCategoryLabels.other },
 ];
 

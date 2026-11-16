@@ -3,6 +3,7 @@ import { BookingMemberStatus } from "../bookings/booking-member-status.enum";
 import { GpsParticipantRole } from "../gps-tracking/gps-tracking.enums";
 import { SafetyEventType } from "../safety-events/safety-events.enums";
 import { CheckpointType } from "../trekking-routes/entities/checkpoint.entity";
+import { RouteDangerZoneSeverity } from "../trekking-routes/entities/route-danger-zone.entity";
 import { LocationFreshness } from "./host-trip-map.types";
 
 const uuid: SchemaObject = { type: "string", format: "uuid" };
@@ -95,6 +96,26 @@ export const HOST_TRIP_MAP_SCHEMA = object({
 						location: point,
 						radiusMeters: number,
 						routePosition: number,
+					})
+				),
+				dangerZones: array(
+					object({
+						id: uuid,
+						routeId: uuid,
+						geometry: {
+							oneOf: [
+								point,
+								object({
+									type: enumeration(["Polygon"]),
+									coordinates: array(array({ ...array(number), minItems: 2, maxItems: 2 })),
+								}),
+							],
+						},
+						radiusMeters: { ...number, nullable: true },
+						description: text,
+						severity: enumeration(Object.values(RouteDangerZoneSeverity)),
+						createdAt: timestamp,
+						updatedAt: timestamp,
 					})
 				),
 			}),

@@ -1,12 +1,20 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 import { Map as MapIcon, Maximize } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useMemo, useState } from "react";
+import { SafetyDetailsModal } from "../../route-safety/components/SafetyDetailsModal";
 import { SafetyMapFallback } from "../../route-safety/components/SafetyMapFallback";
+import { VerifiedDangerZonesLayer } from "../../route-safety/components/VerifiedDangerZonesLayer";
 import { useSafetyMapLayers } from "../../route-safety/hooks/useSafetyMapLayers";
 import type { SafetyCollection } from "../../route-safety/types";
+import {
+	excludeSafetyFeatures,
+	mapSafetyBounds,
+	projectFallbackPosition,
+} from "../../route-safety/utils/verified-zone-map";
 import { useRoutePreviewMap } from "../hooks/useRoutePreviewMap";
 import type { GeoJsonLineString, RouteCheckpoint, RouteDangerZone } from "../types";
 import { EMPTY_CHECKPOINTS, EMPTY_DANGER_ZONES, fallbackCoordinate } from "../utils/route-preview";
+import { DangerZoneDetailsModal } from "./DangerZoneDetailsModal";
 import { RoutePreviewFallback } from "./RoutePreviewFallback";
 import { RoutePreviewLegends } from "./RoutePreviewLegends";
 
@@ -35,7 +43,23 @@ export function RouteGeometryPreview({
 	variant = "card",
 }: RouteGeometryPreviewProps) {
 	const checkpoints = providedCheckpoints ?? EMPTY_CHECKPOINTS;
-	const dangerZones = providedDangerZones ?? EMPTY_DANGER_ZONES;
+	const originalDangerZones = providedDangerZones ?? EMPTY_DANGER_ZONES;
+	const [verifiedIds, setVerifiedIds] = useState<string[]>([]);
+	const dangerZones = useMemo(
+		() => originalDangerZones.filter((zone) => !verifiedIds.includes(`host:${zone.id}`)),
+		[originalDangerZones, verifiedIds]
+	);
+	const safetyMapFeatures = useMemo(() => {
+		if (!safetyFeatures) return undefined;
+		const persistedIds = new Set(dangerZones.map((zone) => `host:${zone.id}`));
+		return excludeSafetyFeatures(
+			{
+				...safetyFeatures,
+				features: safetyFeatures.features.filter((feature) => !persistedIds.has(feature.id)),
+			},
+			verifiedIds
+		);
+	}, [dangerZones, safetyFeatures, verifiedIds]);
 	const {
 		containerRef,
 		map,
@@ -46,8 +70,9 @@ export function RouteGeometryPreview({
 		fallback: useFallback,
 		bounds,
 		fitAll,
-	} = useRoutePreviewMap(geometry, checkpoints, dangerZones);
-	useSafetyMapLayers(map, mapReady && !useFallback, safetyFeatures);
+		dangerZoneDetails,
+	} = useRoutePreviewMap(geometry, checkpoints, dangerZones, originalDangerZones);
+	const details = useSafetyMapLayers(map, mapReady && !useFallback, safetyMapFeatures);
 
 	return (
 		<section
@@ -57,6 +82,12 @@ export function RouteGeometryPreview({
 					: undefined
 			}
 		>
+			{!useFallback && details.feature && (
+				<SafetyDetailsModal {...details} feature={details.feature} />
+			)}
+			{dangerZoneDetails.zone && (
+				<DangerZoneDetailsModal {...dangerZoneDetails} zone={dangerZoneDetails.zone} />
+			)}
 			{showTitle && (
 				<h2 className="flex items-center gap-2 font-extrabold text-[#10221b]">
 					<MapIcon className="size-5 text-[#34483b]" aria-hidden="true" />
@@ -77,6 +108,20 @@ export function RouteGeometryPreview({
 						bounds={bounds}
 					/>
 				)}
+				<VerifiedDangerZonesLayer
+					map={map}
+					ready={mapReady}
+					fallback={useFallback}
+					bounds={mapSafetyBounds(bounds)}
+					project={(position) =>
+						projectFallbackPosition(
+							fallbackCoordinate(position, bounds),
+							"0 0 100 100",
+							containerRef.current
+						)
+					}
+					onZoneIdsChange={setVerifiedIds}
+				/>
 				{!styleUrl && (
 					<span className="absolute top-3 left-3 rounded-lg bg-white/90 px-3 py-2 text-xs font-bold text-[#34483b]">
 						Bản đồ nền chưa khả dụng; đang hiển thị đường tuyến.
@@ -90,8 +135,14 @@ export function RouteGeometryPreview({
 				<RoutePreviewLegends checkpoints={checkpoints} dangerZones={dangerZones} />
 				{useFallback && (
 					<SafetyMapFallback
-						data={safetyFeatures}
-						project={(position) => fallbackCoordinate(position, bounds)}
+						data={safetyMapFeatures}
+						project={(position) =>
+							projectFallbackPosition(
+								fallbackCoordinate(position, bounds),
+								"0 0 100 100",
+								containerRef.current
+							)
+						}
 					/>
 				)}
 				{mapReady && !useFallback && (

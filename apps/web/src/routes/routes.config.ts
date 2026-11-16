@@ -36,6 +36,8 @@ export enum RoutePath {
 	ADMIN_PORTER_LEVELS = "/admin/porter-levels",
 	ADMIN_CONTENT_REPORTS = "/admin/content-reports",
 	ADMIN_AUDIT_LOGS = "/admin/audit-logs",
+	ADMIN_SAFETY_HOTSPOTS = "/admin/safety-hotspots",
+	ADMIN_DANGER_ZONE_PROPOSALS = "/admin/danger-zone-proposals",
 	ADMIN_TREKKING_ROUTES = "/admin/trekking-routes",
 	ADMIN_TRIPS = "/admin/trips",
 	ADMIN_WEATHER_RULES = "/admin/weather-rules",

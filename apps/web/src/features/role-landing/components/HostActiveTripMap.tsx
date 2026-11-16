@@ -79,6 +79,7 @@ export function HostActiveTripMap({
 				<RouteCheckpointMap
 					geometry={geometry}
 					checkpoints={trip.route.checkpoints}
+					dangerZones={trip.route.dangerZones}
 					monitoringMarkers={markers}
 					onMonitoringGroupsChange={handleGroupsChange}
 					monitoringFocus={focusRequest}

@@ -78,7 +78,7 @@ describe("Route Safety freshness and lifecycle BR-473", () => {
 });
 
 describe("RouteSafetyService", () => {
-	const repository = { findOwner: jest.fn(), candidates: jest.fn() };
+	const repository = { findOwner: jest.fn(), candidates: jest.fn(), verifiedZones: jest.fn() };
 	const liveSafety = { collect: jest.fn() };
 	const events = { collect: jest.fn() };
 	const water = { collect: jest.fn() };
@@ -110,6 +110,41 @@ describe("RouteSafetyService", () => {
 		});
 	});
 	afterEach(() => jest.useRealTimers());
+	it("loads published zones without geometry, ownership or external provider requests", async () => {
+		const bounds = { west: 107, south: 11, east: 109, north: 13 };
+		repository.verifiedZones.mockResolvedValue([
+			candidate({
+				sourceType: "ADMIN_VERIFIED",
+				observedAt: null,
+				issuedAt: "2020-01-01T00:00:00Z",
+				verificationStatus: "VERIFIED",
+			}),
+		]);
+		const result = await service.verifiedZones(bounds);
+		expect(repository.verifiedZones).toHaveBeenCalledWith(bounds);
+		expect(result.features[0].properties.lifecycleStatus).toBe("ACTIVE");
+		expect(result.generatedAt).toBe(NOW.toISOString());
+		expect(result.truncated).toBe(false);
+		expect(repository.findOwner).not.toHaveBeenCalled();
+		expect(liveSafety.collect).not.toHaveBeenCalled();
+		expect(events.collect).not.toHaveBeenCalled();
+		expect(water.collect).not.toHaveBeenCalled();
+	});
+	it("rejects inverted viewport bounds and reports capped results", async () => {
+		await expect(
+			service.verifiedZones({ west: 109, east: 107, south: 11, north: 13 })
+		).rejects.toThrow(UnprocessableEntityException);
+		await expect(
+			service.verifiedZones({ west: 107, east: 109, south: 13, north: 13 })
+		).rejects.toThrow(UnprocessableEntityException);
+		expect(repository.verifiedZones).not.toHaveBeenCalled();
+		repository.verifiedZones.mockResolvedValue(
+			Array.from({ length: 501 }, () => candidate({ sourceType: "ADMIN_VERIFIED" }))
+		);
+		const result = await service.verifiedZones({ west: 107, east: 109, south: 11, north: 13 });
+		expect(result.features).toHaveLength(500);
+		expect(result.truncated).toBe(true);
+	});
 	it("excludes stored water surfaces while retaining springs, streams and hazard polygons", async () => {
 		const polygon = {
 			type: "Polygon" as const,
@@ -189,6 +224,32 @@ describe("RouteSafetyService", () => {
 		expect(result.riskLevel).toBe("UNKNOWN");
 		expect(result.features.features).toEqual([]);
 		expect(result.coverage).toBe("PARTIAL");
+	});
+	it("retains nearby saved zone provenance for unsaved geometry when an external source is unavailable", async () => {
+		repository.candidates.mockResolvedValue([
+			candidate({
+				id: "host:zone",
+				sourceType: "HOST_DEFINED",
+				source: "CTMS",
+				sourceReference: "zone",
+				routeName: "Đường rừng ven suối",
+				verificationStatus: "UNVERIFIED",
+				radiusMeters: 50,
+			}),
+		]);
+		liveSafety.collect.mockResolvedValue({
+			source: { source: "NCHMF", status: "UNAVAILABLE" },
+			candidates: [],
+		});
+		const result = await service.analyze("host", { geometry });
+		expect(repository.findOwner).not.toHaveBeenCalled();
+		expect(result.features.features[0].properties).toMatchObject({
+			routeName: "Đường rừng ven suối",
+			verificationStatus: "UNVERIFIED",
+			radiusMeters: 50,
+		});
+		expect(result.summary.hostDefinedDangerZones).toBe(1);
+		expect(result.liveSource?.status).toBe("UNAVAILABLE");
 	});
 	it("fetches live warnings before spatial analysis and excludes stored current warnings", async () => {
 		const live = candidate({ id: "live:NCHMF:1:landslide" });

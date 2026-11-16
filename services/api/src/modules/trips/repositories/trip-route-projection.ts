@@ -1,3 +1,5 @@
+import { routeDangerZonesProjection } from "../../trekking-routes/route-danger-zone-projection";
+
 export const TRIP_ROUTE_PROJECTION_SQL = `CASE WHEN route."id" IS NULL THEN NULL ELSE jsonb_build_object(
   'id', route."id", 'name', route."name", 'status', route."status",
   'geometry', ST_AsGeoJSON(route."route_geom")::jsonb, 'updatedAt', route."updated_at",
@@ -8,9 +10,5 @@ export const TRIP_ROUTE_PROJECTION_SQL = `CASE WHEN route."id" IS NULL THEN NULL
    'nearbyWaterOrShelter', cp."nearby_water_or_shelter", 'routePosition', cp."route_position",
    'createdAt', cp."created_at", 'updatedAt', cp."updated_at"
   ) ORDER BY cp."route_position", cp."id") FROM "checkpoints" cp WHERE cp."route_id" = route."id"), '[]'::jsonb),
-  'dangerZones', COALESCE((SELECT jsonb_agg(jsonb_build_object(
-   'id', hazard."id", 'routeId', hazard."route_id", 'geometry', ST_AsGeoJSON(hazard."geom")::jsonb,
-   'radiusMeters', hazard."radius_m", 'description', hazard."description", 'severity', hazard."severity",
-   'createdAt', hazard."created_at", 'updatedAt', hazard."updated_at"
-  ) ORDER BY hazard."id") FROM "route_danger_zones" hazard WHERE hazard."route_id" = route."id"), '[]'::jsonb)
+  'dangerZones', ${routeDangerZonesProjection("route")}
  ) END`;

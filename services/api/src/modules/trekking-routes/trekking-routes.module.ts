@@ -42,6 +42,6 @@ import { TrekkingRoutesService } from "./services/trekking-routes.service";
 			inject: [DataSource],
 		},
 	],
-	exports: [TrekkingRoutesRepository],
+	exports: [TrekkingRoutesRepository, CheckpointsService, RouteDangerZonesService],
 })
 export class TrekkingRoutesModule {}

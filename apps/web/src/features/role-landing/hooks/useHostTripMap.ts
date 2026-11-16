@@ -8,13 +8,14 @@ export function useHostTripMap(hostId: string, routeId?: string) {
 		enabled: Boolean(routeId),
 		queryFn: async () => {
 			if (!routeId) throw new Error("Missing route");
-			const [routes, checkpoints] = await Promise.all([
+			const [routes, checkpoints, dangerZones] = await Promise.all([
 				trekkingRoutesService.listMine(),
 				trekkingRoutesService.listCheckpoints(routeId),
+				trekkingRoutesService.listRouteDangerZones(routeId),
 			]);
 			const route = routes.find((item) => item.id === routeId);
 			if (!route) throw new Error("Route not found");
-			return { route, checkpoints };
+			return { route, checkpoints, dangerZones };
 		},
 		retry: false,
 		staleTime: 60_000,

@@ -1,8 +1,10 @@
 # Cách vận hành cảnh báo và nguồn nước quanh tuyến
 
-Cập nhật: **31/10/2026**. Tài liệu mô tả mã nguồn hiện tại của luồng tạo, sửa và xem tuyến dành cho Host.
+Cập nhật: **16/11/2026**. Tài liệu mô tả mã nguồn hiện tại của luồng tạo, sửa và xem tuyến dành cho Host.
 
 Khi Host vẽ tuyến, hệ thống tự gọi các nguồn dữ liệu bên ngoài, lọc theo đường đã vẽ rồi đưa vùng nguy hiểm, điểm nguy hiểm và nguồn nước lên bản đồ. Không cần lưu tuyến trước để phân tích.
+
+Theo BR-477 cập nhật ngày 16/11/2026, bản đồ còn lấy các vùng nguy hiểm đã ghi nhận trên những tuyến khác thuộc cùng Host nếu gần đường đang vẽ. Không cần lưu tuyến mới trước. Điểm chưa xác minh được ghi rõ trong chi tiết, kèm tên tuyến gốc, mô tả, mức độ, bán kính và lần cập nhật. Dữ liệu riêng của Host khác không được chia sẻ qua luồng này; dữ liệu nguồn đã được phép chia sẻ vẫn giữ quy tắc hiện có.
 
 ## 1. Phạm vi của Route
 
@@ -143,8 +145,8 @@ Khung bao tuyến giúp giới hạn dữ liệu cần tải từ NCHMF/OSM. Đ�
 | Dữ liệu vừa lấy từ NCHMF, VNDMS, OSM | `ST_DWithin(feature, route, proximity)` cho mọi geometry được chấp nhận |
 | Dữ liệu nhập sẵn: Point | Cách tuyến không quá `proximity` |
 | Dữ liệu nhập sẵn: LineString/Polygon/MultiPolygon | Có giao với tuyến bằng `ST_Intersects` |
-| Vùng Host dạng Point | Thuộc route đang chọn và nằm trong khoảng `max(proximity, radius_m)` |
-| Vùng Host dạng đường/vùng | Thuộc route đang chọn và có giao với tuyến |
+| Vùng Host dạng Point | Thuộc bất kỳ tuyến nào của Host đang đăng nhập; tâm cách đường đang vẽ không quá `proximity + radius_m` |
+| Vùng Host dạng Polygon | Thuộc bất kỳ tuyến nào của Host đang đăng nhập; vùng cách đường đang vẽ không quá `proximity`, gồm cả trường hợp giao nhau |
 | Sự cố Trip | Có vị trí, thuộc Trip của Host và cách tuyến không quá `proximity`; nếu có `routeId` thì thêm điều kiện cùng route |
 
 `proximity` mặc định **300 m**, chỉnh được từ **1–5000 m**. Ví dụ, điểm sự kiện cách một đoạn ở giữa tuyến 200 m vẫn được chọn, dù cách hai đầu tuyến rất xa. Với nguồn live, một vùng cảnh báo cách tuyến 200 m cũng có thể xuất hiện dù tuyến chưa đi qua vùng.
@@ -189,6 +191,8 @@ Mức `LOW` có màu vàng ô-liu; chú giải chỉ thêm mức này khi kết 
 Điểm được vẽ bằng ký hiệu SVG tại tọa độ thật. Polygon/MultiPolygon và LineString được đưa vào nguồn GeoJSON `ctms-route-safety` của MapLibre, rồi cập nhật bằng `setData`.
 
 Bấm vào điểm để xem thông tin ngắn; di chuột lên vùng/đường để xem popup. Popup giữ tên nguồn, mức độ, hiệu lực và mốc thời gian nếu có. Bấm ký hiệu, popup, nút làm mới hoặc điều khiển bản đồ không thêm đỉnh vào tuyến.
+
+Khi chỉ xem bản đồ, có thể bấm vùng để mở chi tiết. Trong chế độ vẽ, bấm vùng vẫn thêm đỉnh như trước; bấm ký hiệu điểm hoặc bảng thông tin chỉ xem chi tiết. Khi dữ liệu tuyến đã lưu và kết quả phân tích cùng chứa một vùng nguy hiểm, bản đồ chỉ hiển thị một ký hiệu cho bản ghi đó. Đọc cảnh báo không tạo hay sao chép vùng nguy hiểm vào tuyến mới và không chặn lưu tuyến.
 
 Chú giải nằm góc dưới bên phải, chỉ chứa ký hiệu, màu và nút làm mới. Tên NCHMF/VNDMS/OSM, dòng trạng thái nguồn và phần giải thích dài đã bỏ khỏi chú giải. Không hiển thị thanh thông tin nguồn ở góc bản đồ. Bản đồ dùng nền vệ tinh và đường màu cam, với nút zoom và “Xem toàn tuyến”.
 

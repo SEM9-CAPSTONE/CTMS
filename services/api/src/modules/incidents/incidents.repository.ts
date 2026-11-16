@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { Injectable } from "@nestjs/common";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { DataSource } from "typeorm";
+import { insertIncidentProposal } from "../danger-zone-proposals/incident-proposal";
 import { TripPorterStatus } from "../profiles/entities/trip-porter.entity";
 import type { TripStatus } from "../trips/entities/trip.entity";
 import {
@@ -213,6 +214,8 @@ export class IncidentsRepository {
 					}),
 				]
 			);
+			// An eligible report with a fresh position waits for Admin review as a danger-zone proposal.
+			await insertIncidentProposal(manager, incident);
 			return true;
 		});
 	}

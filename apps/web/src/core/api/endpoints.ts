@@ -14,6 +14,20 @@ export const API_ENDPOINTS = {
 		READ: (id: string) => `/offline-package-notifications/${id}/read`,
 	},
 	ADMIN_MODERATION_COUNTS: "/admin/moderation/counts",
+	SAFETY_HOTSPOTS: {
+		LIST: "/admin/safety-hotspots",
+		EVIDENCE: (id: string) => `/admin/safety-hotspots/${id}/evidence`,
+		TARGETS: (id: string) => `/admin/safety-hotspots/${id}/corrective-targets`,
+		ACTIONS: (id: string) => `/admin/safety-hotspots/${id}/corrective-actions`,
+		REVIEW: (id: string) => `/admin/safety-hotspots/${id}/review`,
+		REVIEWS: (id: string) => `/admin/safety-hotspots/${id}/reviews`,
+	},
+	DANGER_ZONE_PROPOSALS: {
+		ADMIN_LIST: "/admin/danger-zone-proposals",
+		APPROVE: (id: string) => `/admin/danger-zone-proposals/${id}/approve`,
+		REJECT: (id: string) => `/admin/danger-zone-proposals/${id}/reject`,
+		FOR_ROUTE: (routeId: string) => `/trekking-routes/${routeId}/danger-zone-proposals`,
+	},
 	DEMAND_INSIGHTS: {
 		PERIODS: "/host/demand-insights",
 		REPORT: (month: string) => `/host/demand-insights/${month}`,
@@ -46,7 +60,11 @@ export const API_ENDPOINTS = {
 		VERSION: (id: string, versionId: string, suffix: string) =>
 			`/admin/survival-documents/${id}/versions/${versionId}/${suffix}`,
 	},
-	ROUTE_SAFETY: { ANALYZE: "/route-safety/analyze", TERRAIN: "/route-safety/terrain" },
+	ROUTE_SAFETY: {
+		ANALYZE: "/route-safety/analyze",
+		TERRAIN: "/route-safety/terrain",
+		VERIFIED_ZONES: "/route-safety/verified-zones",
+	},
 	HOST_OVERVIEW: "/host/monitoring/overview",
 	PORTER_LEVEL_REQUESTS: {
 		MINE: "/porter/level-requests",

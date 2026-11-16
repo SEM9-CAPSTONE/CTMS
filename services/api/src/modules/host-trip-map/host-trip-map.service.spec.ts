@@ -51,6 +51,7 @@ describe("HostTripMapService (CTMS-369)", () => {
 			name: "Route",
 			geometry: { type: "LineString", coordinates: [] },
 			checkpoints: [],
+			dangerZones: [],
 		},
 		participants,
 	});
@@ -74,6 +75,30 @@ describe("HostTripMapService (CTMS-369)", () => {
 	});
 	afterEach(() => jest.useRealTimers());
 	describe("getMap", () => {
+		it("preserves route danger zone details and empty collections", async () => {
+			const item = trip([]);
+			const zone = {
+				id: "zone",
+				routeId: item.route.id,
+				geometry: { type: "Point", coordinates: [108.3, 16.11] },
+				radiusMeters: 50,
+				description: "Lối mòn sát mép vực ở Dốc Vọng Cảnh",
+				severity: "high",
+				createdAt: "2026-10-29T00:00:00Z",
+				updatedAt: "2026-10-29T01:00:00Z",
+			};
+			read.mockResolvedValue({
+				total: 1,
+				items: [{ ...item, route: { ...item.route, dangerZones: [zone] } }],
+			});
+			expect(
+				(await service.getMap(actor, new HostTripMapQueryDto())).items[0].route.dangerZones
+			).toEqual([zone]);
+			read.mockResolvedValue({ total: 1, items: [item] });
+			expect(
+				(await service.getMap(actor, new HostTripMapQueryDto())).items[0].route.dangerZones
+			).toEqual([]);
+		});
 		it.each([UserRole.ADMIN, UserRole.CAMPER, UserRole.PORTER])(
 			"rejects %s before querying private data",
 			async (role) => {

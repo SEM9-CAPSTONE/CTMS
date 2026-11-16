@@ -59,6 +59,68 @@ export class RouteDangerZonesRepository extends Repository<RouteDangerZone> {
 		return rows.map(toResponse);
 	}
 
+	async findOneForUpdate(
+		routeId: string,
+		dangerZoneId: string
+	): Promise<RouteDangerZoneResponseDto | null> {
+		const rows = (await this.query(
+			`${DANGER_ZONE_SELECT}
+			WHERE "route_id" = $1 AND "id" = $2
+			FOR UPDATE`,
+			[routeId, dangerZoneId]
+		)) as RouteDangerZoneRow[];
+		return rows[0] ? toResponse(rows[0]) : null;
+	}
+
+	/** CTMS-118: replaces geometry, radius, description and severity of one hazard area. */
+	async updateForRoute(
+		dangerZoneId: string,
+		input: CreateRouteDangerZoneInput
+	): Promise<RouteDangerZoneResponseDto> {
+		const rows = (await this.query(
+			`
+			WITH danger_zone_input AS (
+				SELECT ST_SetSRID(ST_GeomFromGeoJSON($3), 4326) AS geom
+			), validated AS (
+				SELECT geom
+				FROM danger_zone_input
+				WHERE GeometryType(geom) IN ('POINT', 'POLYGON')
+					AND ST_SRID(geom) = 4326
+					AND ST_IsValid(geom)
+					AND NOT ST_IsEmpty(geom)
+			), updated AS (
+				UPDATE "route_danger_zones" zone
+				SET "geom" = validated.geom::geography, "radius_m" = $4, "description" = $5,
+					"severity" = $6, "updated_at" = now()
+				FROM validated
+				WHERE zone."route_id" = $1 AND zone."id" = $2
+				RETURNING zone.*
+			)
+			SELECT
+				"id",
+				"route_id" AS "routeId",
+				ST_AsGeoJSON("geom"::geometry)::json AS "geometry",
+				"radius_m" AS "radiusMeters",
+				"description",
+				"severity",
+				"created_at" AS "createdAt",
+				"updated_at" AS "updatedAt"
+			FROM updated
+			`,
+			[
+				input.routeId,
+				dangerZoneId,
+				JSON.stringify(input.geometry),
+				input.radiusMeters,
+				input.description,
+				input.severity,
+			]
+		)) as RouteDangerZoneRow[];
+
+		if (!rows[0]) throw invalidGeometry();
+		return toResponse(rows[0]);
+	}
+
 	async createForRoute(input: CreateRouteDangerZoneInput): Promise<RouteDangerZoneResponseDto> {
 		const rows = (await this.query(
 			`
@@ -100,19 +162,21 @@ export class RouteDangerZonesRepository extends Repository<RouteDangerZone> {
 		)) as RouteDangerZoneRow[];
 
 		const dangerZone = rows[0];
-		if (!dangerZone) {
-			throw new UnprocessableEntityException({
-				statusCode: 422,
-				error: "Unprocessable Entity",
-				message: [
-					{
-						field: "geometry",
-						errors: ["geometry must be a valid, non-empty Point or Polygon"],
-					},
-				],
-			});
-		}
+		if (!dangerZone) throw invalidGeometry();
 
 		return toResponse(dangerZone);
 	}
+}
+
+function invalidGeometry(): UnprocessableEntityException {
+	return new UnprocessableEntityException({
+		statusCode: 422,
+		error: "Unprocessable Entity",
+		message: [
+			{
+				field: "geometry",
+				errors: ["geometry must be a valid, non-empty Point or Polygon"],
+			},
+		],
+	});
 }

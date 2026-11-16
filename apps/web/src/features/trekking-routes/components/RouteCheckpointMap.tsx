@@ -4,6 +4,12 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { Maximize } from "lucide-react";
 import type { Map as MapLibreMap, Marker } from "maplibre-gl";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { VerifiedDangerZonesLayer } from "../../route-safety/components/VerifiedDangerZonesLayer";
+import {
+	mapSafetyBounds,
+	projectFallbackPosition,
+} from "../../route-safety/utils/verified-zone-map";
+import { useDangerZoneMapDetails } from "../hooks/useDangerZoneMapDetails";
 import { useMapViewport } from "../hooks/useMapViewport";
 import type {
 	GeoJsonLineString,
@@ -12,7 +18,6 @@ import type {
 	RouteCheckpoint,
 	RouteDangerZone,
 	RouteDangerZoneGeometry,
-	RouteDangerZoneSeverity,
 	RouteMapMode,
 } from "../types";
 import {
@@ -22,12 +27,15 @@ import {
 	routeBounds,
 } from "../utils/checkpoint-map";
 import {
+	DANGER_ZONE_MAP_RADIUS_METERS,
 	dangerZoneFeatureCollection,
 	dangerZonePolygon,
 	dangerZonePositions,
 	pointHazardPolygon,
 } from "../utils/danger-zone-map";
 import { DEFAULT_ROUTE_CENTER, getRouteMapStyleUrl } from "../utils/route-map";
+import { dangerZoneDescription, severityColors } from "../utils/route-preview";
+import { DangerZoneDetailsModal } from "./DangerZoneDetailsModal";
 
 interface MonitoringMarker {
 	code: string;
@@ -59,14 +67,8 @@ interface Props {
 	onSelectLocation: (location: GeoJsonPoint) => void;
 }
 
-const severityColors = { low: "#ca8a04", medium: "#ea580c", high: "#dc2626" } as const;
 const EMPTY_DANGER_ZONES: RouteDangerZone[] = [];
 const EMPTY_VERTICES: Position[] = [];
-const severityLabels: Record<RouteDangerZoneSeverity, string> = {
-	low: "thấp",
-	medium: "trung bình",
-	high: "cao",
-};
 
 function fitRoute(map: MapLibreMap, coordinates: Position[]): void {
 	if (coordinates.length < 2) return;
@@ -86,12 +88,11 @@ export function RouteCheckpointMap({
 	monitoringMarkers = EMPTY_MONITORING_MARKERS,
 	monitoringFocus,
 	onMonitoringGroupsChange,
-	dangerZones = EMPTY_DANGER_ZONES,
+	dangerZones: providedDangerZones = EMPTY_DANGER_ZONES,
 	mode = "checkpoint",
 	selectedLocation,
 	radiusMeters,
 	proposedHazard,
-	proposedHazardRadiusMeters = 0,
 	polygonVertices = EMPTY_VERTICES,
 	disabled,
 	showFitRouteControl = true,
@@ -105,20 +106,43 @@ export function RouteCheckpointMap({
 	const disabledRef = useRef(disabled);
 	const [mapError, setMapError] = useState("");
 	const [mapReady, setMapReady] = useState(false);
+	const [selectedDangerZoneId, setSelectedDangerZoneId] = useState<string>();
+	const [verifiedIds, setVerifiedIds] = useState<string[]>([]);
+	const dangerZones = useMemo(
+		() => providedDangerZones.filter((zone) => !verifiedIds.includes(`host:${zone.id}`)),
+		[providedDangerZones, verifiedIds]
+	);
+	const selectedDangerZone = dangerZones.find((zone) => zone.id === selectedDangerZoneId);
 
 	const styleUrl = getRouteMapStyleUrl(import.meta.env.VITE_MAPTILER_API_KEY as string | undefined);
 	const useFallback = !styleUrl || Boolean(mapError);
+	const dangerZoneDetails = useDangerZoneMapDetails(
+		mapRef.current,
+		mapReady && !useFallback,
+		dangerZones,
+		"route-hazards-fill",
+		Boolean(disabled)
+	);
 	const viewport = useMapViewport(useFallback, Boolean(disabled));
 	const safetyPositions = useMemo(
 		() => [
 			...geometry.coordinates,
 			...checkpoints.map((checkpoint) => checkpoint.location.coordinates),
-			...dangerZonePositions(dangerZones),
+			...dangerZonePositions(providedDangerZones),
 			...polygonVertices,
 		],
-		[checkpoints, dangerZones, geometry.coordinates, polygonVertices]
+		[checkpoints, providedDangerZones, geometry.coordinates, polygonVertices]
 	);
 	const bounds = useMemo(() => routeBounds(safetyPositions), [safetyPositions]);
+	const visibleBounds = useMemo(() => {
+		const [x, y, width, height] = viewport.viewBox.split(" ").map(Number);
+		return mapSafetyBounds(
+			routeBounds(
+				[percentToCoordinate([x, y + height], bounds), percentToCoordinate([x + width, y], bounds)],
+				0
+			)
+		);
+	}, [bounds, viewport.viewBox]);
 	const focusAt = viewport.focusAt;
 	useEffect(() => {
 		if (!monitoringFocus) return;
@@ -158,10 +182,10 @@ export function RouteCheckpointMap({
 		() =>
 			proposedHazard
 				? proposedHazard.type === "Point"
-					? pointHazardPolygon(proposedHazard, proposedHazardRadiusMeters)
+					? pointHazardPolygon(proposedHazard, DANGER_ZONE_MAP_RADIUS_METERS)
 					: proposedHazard
 				: undefined,
-		[proposedHazard, proposedHazardRadiusMeters]
+		[proposedHazard]
 	);
 	const proposedHazardFeature = useMemo(() => {
 		if (!proposedHazardPolygon) return { type: "FeatureCollection" as const, features: [] };
@@ -218,6 +242,12 @@ export function RouteCheckpointMap({
 				trackMapRenderReadiness(map, containerRef.current);
 				map.addControl(new maplibre.NavigationControl({ showCompass: false }), "top-right");
 				map.on("click", (event) => {
+					const target = event.originalEvent?.target;
+					if (
+						target instanceof Element &&
+						target.closest("[data-safety-ui], .maplibregl-popup, .maplibregl-ctrl")
+					)
+						return;
 					if (!disabledRef.current) {
 						selectRef.current({ type: "Point", coordinates: [event.lngLat.lng, event.lngLat.lat] });
 					}
@@ -351,8 +381,6 @@ export function RouteCheckpointMap({
 				label: string;
 				shelter: boolean;
 				vertex: boolean;
-				hazardSeverity?: RouteDangerZoneSeverity;
-				hazardDescription?: string;
 			}> = checkpoints.map((item, index) => ({
 				point: item.location.coordinates,
 				proposed: false,
@@ -369,18 +397,6 @@ export function RouteCheckpointMap({
 					vertex: false,
 				});
 			}
-			for (const zone of dangerZones) {
-				if (zone.geometry.type !== "Point") continue;
-				locations.push({
-					point: zone.geometry.coordinates,
-					proposed: false,
-					label: "!",
-					shelter: false,
-					vertex: false,
-					hazardSeverity: zone.severity,
-					hazardDescription: zone.description,
-				});
-			}
 			for (const [index, point] of polygonVertices.entries()) {
 				locations.push({
 					point,
@@ -390,42 +406,28 @@ export function RouteCheckpointMap({
 					vertex: true,
 				});
 			}
-			markersRef.current = locations.map(
-				({ point, proposed, label, shelter, vertex, hazardSeverity, hazardDescription }) => {
-					const element = document.createElement("div");
-					if (hazardSeverity) {
-						element.className =
-							"flex size-8 items-center justify-center rounded-full border-[3px] border-white text-base font-black text-white shadow-[0_0_0_2px_#172554]";
-						element.style.backgroundColor = severityColors[hazardSeverity];
-						element.dataset.hazardPointMarker = "persisted";
-						element.dataset.severity = hazardSeverity;
-					} else if (vertex) {
-						element.className =
-							"flex size-5 items-center justify-center rounded-full border-2 border-white bg-violet-700 text-[10px] font-extrabold text-white shadow";
-					} else if (proposed) {
-						element.className = "size-4 rounded-full border-2 border-white bg-teal-700 shadow";
-					} else if (shelter) {
-						element.className =
-							"flex size-7 items-center justify-center rounded-md border-2 border-white bg-sky-700 text-xs font-extrabold text-white shadow";
-					} else {
-						element.className =
-							"flex size-6 items-center justify-center rounded-full border-2 border-white bg-orange-600 text-xs font-extrabold text-white shadow";
-					}
-					element.textContent = hazardSeverity ? "!" : shelter ? "S" : label;
-					if (shelter) element.setAttribute("aria-label", `Nơi trú ẩn ${label}`);
-					if (vertex) element.setAttribute("aria-label", `Đỉnh khu vực ${label}`);
-					if (hazardSeverity) {
-						const accessibleLabel = `Điểm nguy hiểm mức ${severityLabels[hazardSeverity]}: ${hazardDescription}`;
-						element.setAttribute("aria-label", accessibleLabel);
-						element.setAttribute("title", accessibleLabel);
-					}
-					return new MapMarker({ element }).setLngLat(point).addTo(map);
+			markersRef.current = locations.map(({ point, proposed, label, shelter, vertex }) => {
+				const element = document.createElement("div");
+				if (vertex) {
+					element.className =
+						"flex size-5 items-center justify-center rounded-full border-2 border-white bg-violet-700 text-[10px] font-extrabold text-white shadow";
+				} else if (proposed) {
+					element.className = "size-4 rounded-full border-2 border-white bg-teal-700 shadow";
+				} else if (shelter) {
+					element.className =
+						"flex size-7 items-center justify-center rounded-md border-2 border-white bg-sky-700 text-xs font-extrabold text-white shadow";
+				} else {
+					element.className =
+						"flex size-6 items-center justify-center rounded-full border-2 border-white bg-orange-600 text-xs font-extrabold text-white shadow";
 				}
-			);
+				element.textContent = shelter ? "S" : label;
+				if (shelter) element.setAttribute("aria-label", `Nơi trú ẩn ${label}`);
+				if (vertex) element.setAttribute("aria-label", `Đỉnh khu vực ${label}`);
+				return new MapMarker({ element }).setLngLat(point).addTo(map);
+			});
 		});
 	}, [
 		checkpoints,
-		dangerZones,
 		draftPolygonFeature,
 		mapReady,
 		mode,
@@ -590,6 +592,11 @@ export function RouteCheckpointMap({
 							<polygon
 								key={zone.id}
 								data-testid={`persisted-hazard-${zone.geometry.type.toLowerCase()}`}
+								onClick={(event) => {
+									if (!disabled) return;
+									event.stopPropagation();
+									setSelectedDangerZoneId(zone.id);
+								}}
 								data-severity={zone.severity}
 								points={dangerZonePolygon(zone)
 									.coordinates[0].map((point) => coordinateToPercent(point, bounds).join(","))
@@ -686,12 +693,27 @@ export function RouteCheckpointMap({
 					{dangerZones.map((zone) => {
 						if (zone.geometry.type !== "Point") return null;
 						const [x, y] = coordinateToPercent(zone.geometry.coordinates, bounds);
-						const accessibleLabel = `Điểm nguy hiểm mức ${severityLabels[zone.severity]}: ${zone.description}`;
+						const accessibleLabel = dangerZoneDescription(zone);
 						return (
 							<g
 								key={`point-marker-${zone.id}`}
 								data-testid={`persisted-hazard-point-marker-${zone.id}`}
 								data-severity={zone.severity}
+								// biome-ignore lint/a11y/useSemanticElements: A focusable SVG group preserves marker coordinates.
+								role="button"
+								tabIndex={0}
+								className="cursor-pointer hover:opacity-80 focus-visible:outline"
+								onPointerDown={(event) => event.stopPropagation()}
+								onClick={(event) => {
+									event.stopPropagation();
+									setSelectedDangerZoneId(zone.id);
+								}}
+								onKeyDown={(event) => {
+									if (event.key !== "Enter" && event.key !== " ") return;
+									event.preventDefault();
+									event.stopPropagation();
+									setSelectedDangerZoneId(zone.id);
+								}}
 								aria-label={accessibleLabel}
 							>
 								<title>{accessibleLabel}</title>
@@ -777,6 +799,30 @@ export function RouteCheckpointMap({
 						);
 					})}
 				</svg>
+			)}
+			<VerifiedDangerZonesLayer
+				map={mapRef.current}
+				ready={mapReady}
+				fallback={useFallback}
+				bounds={visibleBounds}
+				project={(position) =>
+					projectFallbackPosition(
+						coordinateToPercent(position, bounds),
+						viewport.viewBox,
+						containerRef.current
+					)
+				}
+				areaClicksEnabled={Boolean(disabled)}
+				onZoneIdsChange={setVerifiedIds}
+			/>
+			{dangerZoneDetails.zone && (
+				<DangerZoneDetailsModal {...dangerZoneDetails} zone={dangerZoneDetails.zone} />
+			)}
+			{useFallback && selectedDangerZone && (
+				<DangerZoneDetailsModal
+					zone={selectedDangerZone}
+					onClose={() => setSelectedDangerZoneId(undefined)}
+				/>
 			)}
 			<div
 				className={`absolute right-3 z-10 flex flex-col gap-1 ${useFallback ? "top-3" : "top-24"}`}

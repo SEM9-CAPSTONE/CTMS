@@ -146,10 +146,7 @@ export function AdminSidebarNavigation({
 					return sum + (countKey ? (counts?.[countKey] ?? 0) : 0);
 				}, 0);
 				return (
-					<div
-						key={group.key}
-						className={group.key === "users" ? "mt-2 border-t border-[#e7eee7] pt-2" : undefined}
-					>
+					<div key={group.key}>
 						<button
 							type="button"
 							title={collapsed ? group.label : undefined}
