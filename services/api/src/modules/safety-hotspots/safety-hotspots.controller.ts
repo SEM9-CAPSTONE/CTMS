@@ -19,6 +19,8 @@ import type { AuthenticatedUser } from "../auth/jwt.strategy";
 import { UserRole } from "../users/entities/user.entity";
 // biome-ignore lint/style/useImportType: ValidationPipe needs the DTO class at runtime to validate the body
 import { CreateCorrectiveActionDto } from "./dto/corrective-action.dto";
+// biome-ignore lint/style/useImportType: ValidationPipe needs the DTO class at runtime to validate the body
+import { ReviewSafetyHotspotDto } from "./dto/review-safety-hotspot.dto";
 // biome-ignore lint/style/useImportType: ValidationPipe needs the DTO class at runtime to validate the query
 import { ListSafetyHotspotsQueryDto } from "./dto/safety-hotspots.dto";
 import type {
@@ -27,6 +29,8 @@ import type {
 } from "./hotspot-corrective-actions.repository";
 // biome-ignore lint/style/useImportType: Nest runtime DI metadata
 import { HotspotCorrectiveActionsService } from "./hotspot-corrective-actions.service";
+// biome-ignore lint/style/useImportType: Nest runtime DI metadata
+import { type HotspotReviewRow, HotspotReviewService } from "./hotspot-review.service";
 import type { HotspotEvidenceEvent, SafetyHotspotRow } from "./safety-hotspots.repository";
 // biome-ignore lint/style/useImportType: Nest runtime DI metadata
 import { type HotspotDetectionResult, SafetyHotspotsService } from "./safety-hotspots.service";
@@ -49,8 +53,39 @@ interface AuthenticatedRequest {
 export class SafetyHotspotsController {
 	constructor(
 		private readonly hotspots: SafetyHotspotsService,
-		private readonly correctiveActions: HotspotCorrectiveActionsService
+		private readonly correctiveActions: HotspotCorrectiveActionsService,
+		private readonly reviews: HotspotReviewService
 	) {}
+
+	@Post(":id/review")
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({
+		summary: "Move a hotspot through review: DETECTED → UNDER_REVIEW → CONFIRMED or DISMISSED",
+		description:
+			"Human Admin decision with a reason (BR-357, BR-424). Review never changes Route safety data.",
+	})
+	@ApiResponse({ status: 404, description: "Hotspot not found" })
+	@ApiResponse({ status: 409, description: "Transition not allowed from the current status" })
+	async review(
+		@Req() request: AuthenticatedRequest,
+		@Param("id", new ParseUUIDPipe({ errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY }))
+		id: string,
+		@Body() dto: ReviewSafetyHotspotDto
+	): Promise<SafetyHotspotRow> {
+		await this.reviews.review(request.user.userId, id, dto);
+		return this.hotspots.getById(id);
+	}
+
+	@Get(":id/reviews")
+	@ApiOperation({ summary: "Review decisions on a hotspot, newest first" })
+	@ApiResponse({ status: 404, description: "Hotspot not found" })
+	async listReviews(
+		@Param("id", new ParseUUIDPipe({ errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY }))
+		id: string
+	): Promise<HotspotReviewRow[]> {
+		await this.hotspots.getById(id);
+		return this.reviews.list(id);
+	}
 
 	@Post("detect")
 	@HttpCode(HttpStatus.OK)

@@ -7,6 +7,7 @@ import { AuthModule } from "./auth/auth.module";
 import { BookingsModule } from "./bookings/bookings.module";
 import { CheckpointArrivalsModule } from "./checkpoint-arrivals/checkpoint-arrivals.module";
 import { ContentReportsModule } from "./content-reports/content-reports.module";
+import { DangerZoneProposalsModule } from "./danger-zone-proposals/danger-zone-proposals.module";
 import { DemandInsightsModule } from "./demand-insights/demand-insights.module";
 import { DeviceSyncModule } from "./device-sync/device-sync.module";
 import { EmergencyBroadcastsModule } from "./emergency-broadcasts/emergency-broadcasts.module";
@@ -81,6 +82,7 @@ import { WeatherModule } from "./weather/weather.module";
 		RealtimeEvaluationModule,
 		RouteDeviationAnalysisModule,
 		SafetyHotspotsModule,
+		DangerZoneProposalsModule,
 		PerformanceReportsModule,
 		RevenueAnalyticsModule,
 		GeoAreasModule,

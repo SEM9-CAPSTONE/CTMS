@@ -5,6 +5,7 @@ import { HotspotCorrectiveActionsRepository } from "./hotspot-corrective-actions
 import { HotspotCorrectiveActionsService } from "./hotspot-corrective-actions.service";
 import { HotspotPackageImpactDispatcher } from "./hotspot-package-impact.dispatcher";
 import { HotspotPackageImpactWorker } from "./hotspot-package-impact.worker";
+import { HotspotReviewService } from "./hotspot-review.service";
 import { SafetyHotspotsController } from "./safety-hotspots.controller";
 import { SafetyHotspotsRepository } from "./safety-hotspots.repository";
 import { SafetyHotspotsService } from "./safety-hotspots.service";
@@ -25,6 +26,7 @@ import { SafetyHotspotsWorker } from "./safety-hotspots.worker";
 		HotspotCorrectiveActionsService,
 		HotspotPackageImpactDispatcher,
 		HotspotPackageImpactWorker,
+		HotspotReviewService,
 	],
 	exports: [SafetyHotspotsService, SafetyHotspotsRepository],
 })
