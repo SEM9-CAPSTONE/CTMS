@@ -23,7 +23,8 @@ export function safetyLifecycle(
 	if (candidate.sourceType === "BASE_HISTORICAL") return "HISTORICAL";
 	if (candidate.validFrom && Date.parse(candidate.validFrom) > now.getTime()) return "SCHEDULED";
 	if (candidate.validUntil && Date.parse(candidate.validUntil) <= now.getTime()) return "EXPIRED";
-	if (candidate.sourceType === "HOST_DEFINED") return "ACTIVE";
+	if (candidate.sourceType === "HOST_DEFINED" || candidate.sourceType === "ADMIN_VERIFIED")
+		return "ACTIVE";
 	if (candidate.validUntil) return "ACTIVE";
 	const anchor = candidate.issuedAt ?? candidate.observedAt;
 	if (!anchor || !Number.isFinite(Date.parse(anchor))) return "UNKNOWN";

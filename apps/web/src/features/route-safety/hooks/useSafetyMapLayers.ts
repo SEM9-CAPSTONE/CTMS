@@ -5,11 +5,15 @@ import { SAFETY_COLORS, WATER_COLOR, isDisplayableFeature } from "../map-symbols
 import type { SafetyCollection } from "../types";
 import { useSafetyMapSymbols } from "./useSafetyMapSymbols";
 
-export function setSafetyMapData(map: MapLibreMap, data: SafetyCollection) {
+export function setSafetyMapData(
+	map: MapLibreMap,
+	data: SafetyCollection,
+	sourceId = SAFETY_SOURCE_ID
+) {
 	const visibleData = { ...data, features: data.features.filter(isDisplayableFeature) };
-	let source = map.getSource(SAFETY_SOURCE_ID) as GeoJSONSource | undefined;
+	let source = map.getSource(sourceId) as GeoJSONSource | undefined;
 	if (!source) {
-		map.addSource(SAFETY_SOURCE_ID, { type: "geojson", data: visibleData });
+		map.addSource(sourceId, { type: "geojson", data: visibleData });
 		const color: ExpressionSpecification = [
 			"case",
 			["==", ["get", "sourceType"], "RESOURCE"],
@@ -29,9 +33,9 @@ export function setSafetyMapData(map: MapLibreMap, data: SafetyCollection) {
 			],
 		];
 		map.addLayer({
-			id: `${SAFETY_SOURCE_ID}-fill`,
+			id: `${sourceId}-fill`,
 			type: "fill",
-			source: SAFETY_SOURCE_ID,
+			source: sourceId,
 			filter: ["==", ["geometry-type"], "Polygon"],
 			paint: {
 				"fill-color": color,
@@ -46,9 +50,9 @@ export function setSafetyMapData(map: MapLibreMap, data: SafetyCollection) {
 			},
 		});
 		map.addLayer({
-			id: `${SAFETY_SOURCE_ID}-line`,
+			id: `${sourceId}-line`,
 			type: "line",
-			source: SAFETY_SOURCE_ID,
+			source: sourceId,
 			filter: ["!=", ["geometry-type"], "Point"],
 			paint: {
 				"line-color": color,
@@ -63,7 +67,7 @@ export function setSafetyMapData(map: MapLibreMap, data: SafetyCollection) {
 				],
 			},
 		});
-		source = map.getSource(SAFETY_SOURCE_ID) as GeoJSONSource | undefined;
+		source = map.getSource(sourceId) as GeoJSONSource | undefined;
 	}
 	source?.setData(visibleData);
 }
@@ -72,10 +76,11 @@ export function useSafetyMapLayers(
 	map: MapLibreMap | null,
 	ready: boolean,
 	data?: SafetyCollection,
-	areaClicksEnabled = true
+	areaClicksEnabled = true,
+	sourceId = SAFETY_SOURCE_ID
 ) {
-	useSafetyMapSymbols(map, ready, data, areaClicksEnabled);
+	useSafetyMapSymbols(map, ready, data, areaClicksEnabled, sourceId);
 	useEffect(() => {
-		if (map && ready) setSafetyMapData(map, data ?? EMPTY_SAFETY_COLLECTION);
-	}, [map, ready, data]);
+		if (map && ready) setSafetyMapData(map, data ?? EMPTY_SAFETY_COLLECTION, sourceId);
+	}, [map, ready, data, sourceId]);
 }

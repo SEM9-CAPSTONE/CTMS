@@ -141,3 +141,9 @@ For reproducible configuration, schema, API examples and operational limits, see
 ## Scope completion amendment — 2026-10-30
 
 Host route creation must show three independent groups: dangerous areas, nearby hazard points, and nearby mapped water. Sources are NCHMF, VNDMS and OpenStreetMap respectively. Results retain real source geometries and source times, include distance to the full route, and refresh after geometry changes. Water data is unverified map context; ended VNDMS events are labeled as ended/history. A failed source must be visible independently of successful sources. The same behavior applies to unsaved edits; ownership checks precede all provider calls.
+
+## Shared published danger layer amendment — 2026-11-16
+
+Admin-published danger zones automatically appear in the visible map area before any vertex, Route or Trip is selected, including zones originating on another Host's route. They remain visible during drawing, preview and Trip use. GET /api/route-safety/verified-zones refreshes after pan/zoom and every 15 seconds independently of route analysis. Pending/rejected candidates and unpublished private zones are excluded. Publication requires a CTMS-118 applied hazard correction based on current CTMS-117 confirmation; CONFIRMED alone does not publish.
+
+Display VERIFIED provenance and full severity, description, radius and update details through a 44 px marker, including an interior marker for polygons. Marker/details clicks cannot change route geometry. Own-Host unpublished zones retain proximity analysis and UNVERIFIED labels. Published zones from multiple paths render once. Failures offer retry without blocking form actions; truncation asks the user to zoom in. See docs/business-rules/route-safety-v2.md, amended BR-475/477, for publication and privacy rules. Mobile/offline eligibility is unchanged.

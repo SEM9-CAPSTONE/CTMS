@@ -46,7 +46,11 @@ export const API_ENDPOINTS = {
 		VERSION: (id: string, versionId: string, suffix: string) =>
 			`/admin/survival-documents/${id}/versions/${versionId}/${suffix}`,
 	},
-	ROUTE_SAFETY: { ANALYZE: "/route-safety/analyze", TERRAIN: "/route-safety/terrain" },
+	ROUTE_SAFETY: {
+		ANALYZE: "/route-safety/analyze",
+		TERRAIN: "/route-safety/terrain",
+		VERIFIED_ZONES: "/route-safety/verified-zones",
+	},
 	HOST_OVERVIEW: "/host/monitoring/overview",
 	PORTER_LEVEL_REQUESTS: {
 		MINE: "/porter/level-requests",

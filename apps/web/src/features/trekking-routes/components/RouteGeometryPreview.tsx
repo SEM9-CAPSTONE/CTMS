@@ -1,9 +1,15 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 import { Map as MapIcon, Maximize } from "lucide-react";
-import { type ReactNode, useMemo } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 import { SafetyMapFallback } from "../../route-safety/components/SafetyMapFallback";
+import { VerifiedDangerZonesLayer } from "../../route-safety/components/VerifiedDangerZonesLayer";
 import { useSafetyMapLayers } from "../../route-safety/hooks/useSafetyMapLayers";
 import type { SafetyCollection } from "../../route-safety/types";
+import {
+	excludeSafetyFeatures,
+	mapSafetyBounds,
+	projectFallbackPosition,
+} from "../../route-safety/utils/verified-zone-map";
 import { useRoutePreviewMap } from "../hooks/useRoutePreviewMap";
 import type { GeoJsonLineString, RouteCheckpoint, RouteDangerZone } from "../types";
 import { EMPTY_CHECKPOINTS, EMPTY_DANGER_ZONES, fallbackCoordinate } from "../utils/route-preview";
@@ -35,15 +41,23 @@ export function RouteGeometryPreview({
 	variant = "card",
 }: RouteGeometryPreviewProps) {
 	const checkpoints = providedCheckpoints ?? EMPTY_CHECKPOINTS;
-	const dangerZones = providedDangerZones ?? EMPTY_DANGER_ZONES;
+	const originalDangerZones = providedDangerZones ?? EMPTY_DANGER_ZONES;
+	const [verifiedIds, setVerifiedIds] = useState<string[]>([]);
+	const dangerZones = useMemo(
+		() => originalDangerZones.filter((zone) => !verifiedIds.includes(`host:${zone.id}`)),
+		[originalDangerZones, verifiedIds]
+	);
 	const safetyMapFeatures = useMemo(() => {
 		if (!safetyFeatures) return undefined;
 		const persistedIds = new Set(dangerZones.map((zone) => `host:${zone.id}`));
-		return {
-			...safetyFeatures,
-			features: safetyFeatures.features.filter((feature) => !persistedIds.has(feature.id)),
-		};
-	}, [dangerZones, safetyFeatures]);
+		return excludeSafetyFeatures(
+			{
+				...safetyFeatures,
+				features: safetyFeatures.features.filter((feature) => !persistedIds.has(feature.id)),
+			},
+			verifiedIds
+		);
+	}, [dangerZones, safetyFeatures, verifiedIds]);
 	const {
 		containerRef,
 		map,
@@ -54,7 +68,7 @@ export function RouteGeometryPreview({
 		fallback: useFallback,
 		bounds,
 		fitAll,
-	} = useRoutePreviewMap(geometry, checkpoints, dangerZones);
+	} = useRoutePreviewMap(geometry, checkpoints, dangerZones, originalDangerZones);
 	useSafetyMapLayers(map, mapReady && !useFallback, safetyMapFeatures);
 
 	return (
@@ -85,6 +99,20 @@ export function RouteGeometryPreview({
 						bounds={bounds}
 					/>
 				)}
+				<VerifiedDangerZonesLayer
+					map={map}
+					ready={mapReady}
+					fallback={useFallback}
+					bounds={mapSafetyBounds(bounds)}
+					project={(position) =>
+						projectFallbackPosition(
+							fallbackCoordinate(position, bounds),
+							"0 0 100 100",
+							containerRef.current
+						)
+					}
+					onZoneIdsChange={setVerifiedIds}
+				/>
 				{!styleUrl && (
 					<span className="absolute top-3 left-3 rounded-lg bg-white/90 px-3 py-2 text-xs font-bold text-[#34483b]">
 						Bản đồ nền chưa khả dụng; đang hiển thị đường tuyến.
@@ -99,7 +127,13 @@ export function RouteGeometryPreview({
 				{useFallback && (
 					<SafetyMapFallback
 						data={safetyMapFeatures}
-						project={(position) => fallbackCoordinate(position, bounds)}
+						project={(position) =>
+							projectFallbackPosition(
+								fallbackCoordinate(position, bounds),
+								"0 0 100 100",
+								containerRef.current
+							)
+						}
 					/>
 				)}
 				{mapReady && !useFallback && (

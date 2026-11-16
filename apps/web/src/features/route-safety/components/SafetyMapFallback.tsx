@@ -1,6 +1,12 @@
 import { useState } from "react";
 import type { Position } from "../../trekking-routes/types";
-import { featureColor, isDisplayableFeature, isMutedFeature } from "../map-symbols";
+import {
+	featureColor,
+	featureMarkerPoint,
+	isDisplayableFeature,
+	isMutedFeature,
+} from "../map-symbols";
+import { safetyText } from "../messages";
 import { safetyPopupContent } from "../safety-popup";
 import type { SafetyCollection } from "../types";
 import { SafetySymbol } from "./SafetySymbol";
@@ -77,21 +83,22 @@ export function SafetyMapFallback({
 				})}
 			</svg>
 			{features.map((feature) => {
-				if (feature.geometry.type !== "Point") return null;
-				const [x, y] = project(feature.geometry.coordinates);
+				const point = featureMarkerPoint(feature);
+				if (!point) return null;
+				const [x, y] = project(point.coordinates);
 				return (
 					<button
 						data-safety-ui
 						data-safety-symbol={feature.properties.sourceType === "RESOURCE" ? "water" : "hazard"}
 						key={feature.id}
 						type="button"
-						aria-label={feature.properties.description.split(" — ")[0]}
+						aria-label={`${feature.properties.sourceType === "ADMIN_VERIFIED" ? `${safetyText.verifiedZone.title}: ` : ""}${feature.properties.description.split(" — ")[0]}`}
 						onPointerDown={(event) => event.stopPropagation()}
 						onClick={(event) => {
 							event.stopPropagation();
 							setSelectedId(feature.id);
 						}}
-						className={`pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 drop-shadow-md ${feature.properties.sourceType === "HOST_DEFINED" ? "z-20" : "z-10"}`}
+						className={`pointer-events-auto absolute flex size-11 touch-manipulation -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-white bg-white/95 p-1 shadow-sm ${feature.properties.sourceType === "HOST_DEFINED" || feature.properties.sourceType === "ADMIN_VERIFIED" ? "z-20" : "z-10"}`}
 						style={{ left: `${x}%`, top: `${y}%`, opacity: isMutedFeature(feature) ? 0.45 : 1 }}
 					>
 						<SafetySymbol
@@ -105,7 +112,7 @@ export function SafetyMapFallback({
 				<aside
 					data-safety-ui
 					aria-label="Thông tin bản đồ"
-					className="pointer-events-auto absolute top-12 left-3 z-30 max-w-60 rounded-lg bg-white p-3 pr-7 shadow-lg"
+					className="pointer-events-auto absolute top-12 left-3 z-30 max-h-[calc(100%_-_4rem)] max-w-60 overflow-y-auto rounded-lg bg-white p-3 pr-7 shadow-lg"
 				>
 					<button
 						type="button"

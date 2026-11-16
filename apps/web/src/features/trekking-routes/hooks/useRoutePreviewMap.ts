@@ -16,7 +16,8 @@ import { useRouteMapSurface } from "./useRouteMapSurface";
 export function useRoutePreviewMap(
 	geometry: GeoJsonLineString,
 	checkpoints: RouteCheckpoint[],
-	dangerZones: RouteDangerZone[]
+	dangerZones: RouteDangerZone[],
+	fitDangerZones: RouteDangerZone[] = dangerZones
 ) {
 	const geometryRef = useRef(geometry);
 	const positionsRef = useRef(geometry.coordinates);
@@ -25,9 +26,9 @@ export function useRoutePreviewMap(
 		() => [
 			...geometry.coordinates,
 			...checkpoints.map((checkpoint) => checkpoint.location.coordinates),
-			...dangerZonePositions(dangerZones),
+			...dangerZonePositions(fitDangerZones),
 		],
-		[checkpoints, dangerZones, geometry.coordinates]
+		[checkpoints, fitDangerZones, geometry.coordinates]
 	);
 	const persistedHazards = useMemo(() => {
 		const collection = dangerZoneFeatureCollection(dangerZones);

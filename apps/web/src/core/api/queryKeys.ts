@@ -59,6 +59,8 @@ export const queryKeys = {
 			["survival-documents", "chunk-sets", id, versionId] as const,
 	},
 	routeSafety: {
+		verifiedZones: (userId: string, west: number, south: number, east: number, north: number) =>
+			["verified-danger-zones", userId, west, south, east, north] as const,
 		terrain: (hostId: string, geometry: string, version: string) =>
 			["route-terrain", version, hostId, geometry] as const,
 		analyze: (hostId: string, routeId: string | undefined, geometry: string, source?: string) =>

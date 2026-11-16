@@ -10,6 +10,7 @@ export type SafetySourceType =
 	| "OFFICIAL_CURRENT"
 	| "BASE_HISTORICAL"
 	| "HOST_DEFINED"
+	| "ADMIN_VERIFIED"
 	| "FIELD_OBSERVATION"
 	| "RESOURCE";
 export type SafetyLifecycle =
@@ -33,6 +34,7 @@ export interface SafetyFeature {
 		source: string;
 		sourceReference: string;
 		routeName?: string | null;
+		labelPoint?: GeoJsonPoint | null;
 		hazardType: string;
 		severity: SafetySeverity;
 		geometryRole: string;
@@ -54,6 +56,17 @@ export interface SafetyFeature {
 export interface SafetyCollection {
 	type: "FeatureCollection";
 	features: SafetyFeature[];
+}
+
+export interface MapSafetyBounds {
+	west: number;
+	south: number;
+	east: number;
+	north: number;
+}
+export interface VerifiedZoneCollection extends SafetyCollection {
+	generatedAt: string;
+	truncated: boolean;
 }
 export interface RouteSafetyResult {
 	sources?: LiveSafetySource[];

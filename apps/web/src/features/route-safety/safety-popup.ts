@@ -6,12 +6,14 @@ export function safetyPopupContent(feature: SafetyFeature): HTMLDivElement {
 	const container = document.createElement("div");
 	container.className = "grid max-w-60 gap-1 text-xs text-slate-800";
 	const title = document.createElement("strong");
-	const savedZone = p.sourceType === "HOST_DEFINED";
+	const verifiedZone = p.sourceType === "ADMIN_VERIFIED";
+	const savedZone = p.sourceType === "HOST_DEFINED" || verifiedZone;
 	title.textContent = savedZone ? t.savedZone.title : p.description.split(" — ")[0].slice(0, 160);
+	if (verifiedZone) title.textContent = t.verifiedZone.title;
 	container.append(title);
 	const rows = savedZone
 		? [
-				t.savedZone.source,
+				verifiedZone ? t.verifiedZone.source : t.savedZone.source,
 				...(p.routeName ? [`${t.savedZone.route}: ${p.routeName}`] : []),
 				`${t.savedZone.severity}: ${t.severity[p.severity]}`,
 				`${t.savedZone.verification}: ${t.verification[p.verificationStatus]}`,

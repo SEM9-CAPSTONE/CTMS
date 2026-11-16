@@ -78,7 +78,7 @@ describe("Route Safety freshness and lifecycle BR-473", () => {
 });
 
 describe("RouteSafetyService", () => {
-	const repository = { findOwner: jest.fn(), candidates: jest.fn() };
+	const repository = { findOwner: jest.fn(), candidates: jest.fn(), verifiedZones: jest.fn() };
 	const liveSafety = { collect: jest.fn() };
 	const events = { collect: jest.fn() };
 	const water = { collect: jest.fn() };
@@ -110,6 +110,41 @@ describe("RouteSafetyService", () => {
 		});
 	});
 	afterEach(() => jest.useRealTimers());
+	it("loads published zones without geometry, ownership or external provider requests", async () => {
+		const bounds = { west: 107, south: 11, east: 109, north: 13 };
+		repository.verifiedZones.mockResolvedValue([
+			candidate({
+				sourceType: "ADMIN_VERIFIED",
+				observedAt: null,
+				issuedAt: "2020-01-01T00:00:00Z",
+				verificationStatus: "VERIFIED",
+			}),
+		]);
+		const result = await service.verifiedZones(bounds);
+		expect(repository.verifiedZones).toHaveBeenCalledWith(bounds);
+		expect(result.features[0].properties.lifecycleStatus).toBe("ACTIVE");
+		expect(result.generatedAt).toBe(NOW.toISOString());
+		expect(result.truncated).toBe(false);
+		expect(repository.findOwner).not.toHaveBeenCalled();
+		expect(liveSafety.collect).not.toHaveBeenCalled();
+		expect(events.collect).not.toHaveBeenCalled();
+		expect(water.collect).not.toHaveBeenCalled();
+	});
+	it("rejects inverted viewport bounds and reports capped results", async () => {
+		await expect(
+			service.verifiedZones({ west: 109, east: 107, south: 11, north: 13 })
+		).rejects.toThrow(UnprocessableEntityException);
+		await expect(
+			service.verifiedZones({ west: 107, east: 109, south: 13, north: 13 })
+		).rejects.toThrow(UnprocessableEntityException);
+		expect(repository.verifiedZones).not.toHaveBeenCalled();
+		repository.verifiedZones.mockResolvedValue(
+			Array.from({ length: 501 }, () => candidate({ sourceType: "ADMIN_VERIFIED" }))
+		);
+		const result = await service.verifiedZones({ west: 107, east: 109, south: 11, north: 13 });
+		expect(result.features).toHaveLength(500);
+		expect(result.truncated).toBe(true);
+	});
 	it("excludes stored water surfaces while retaining springs, streams and hazard polygons", async () => {
 		const polygon = {
 			type: "Polygon" as const,

@@ -4,6 +4,11 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { Maximize } from "lucide-react";
 import type { Map as MapLibreMap, Marker } from "maplibre-gl";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { VerifiedDangerZonesLayer } from "../../route-safety/components/VerifiedDangerZonesLayer";
+import {
+	mapSafetyBounds,
+	projectFallbackPosition,
+} from "../../route-safety/utils/verified-zone-map";
 import { useDangerZoneMapDetails } from "../hooks/useDangerZoneMapDetails";
 import { useMapViewport } from "../hooks/useMapViewport";
 import type {
@@ -82,7 +87,7 @@ export function RouteCheckpointMap({
 	monitoringMarkers = EMPTY_MONITORING_MARKERS,
 	monitoringFocus,
 	onMonitoringGroupsChange,
-	dangerZones = EMPTY_DANGER_ZONES,
+	dangerZones: providedDangerZones = EMPTY_DANGER_ZONES,
 	mode = "checkpoint",
 	selectedLocation,
 	radiusMeters,
@@ -102,6 +107,11 @@ export function RouteCheckpointMap({
 	const [mapError, setMapError] = useState("");
 	const [mapReady, setMapReady] = useState(false);
 	const [selectedDangerZoneId, setSelectedDangerZoneId] = useState<string>();
+	const [verifiedIds, setVerifiedIds] = useState<string[]>([]);
+	const dangerZones = useMemo(
+		() => providedDangerZones.filter((zone) => !verifiedIds.includes(`host:${zone.id}`)),
+		[providedDangerZones, verifiedIds]
+	);
 	const selectedDangerZone = dangerZones.find((zone) => zone.id === selectedDangerZoneId);
 
 	const styleUrl = getRouteMapStyleUrl(import.meta.env.VITE_MAPTILER_API_KEY as string | undefined);
@@ -118,12 +128,21 @@ export function RouteCheckpointMap({
 		() => [
 			...geometry.coordinates,
 			...checkpoints.map((checkpoint) => checkpoint.location.coordinates),
-			...dangerZonePositions(dangerZones),
+			...dangerZonePositions(providedDangerZones),
 			...polygonVertices,
 		],
-		[checkpoints, dangerZones, geometry.coordinates, polygonVertices]
+		[checkpoints, providedDangerZones, geometry.coordinates, polygonVertices]
 	);
 	const bounds = useMemo(() => routeBounds(safetyPositions), [safetyPositions]);
+	const visibleBounds = useMemo(() => {
+		const [x, y, width, height] = viewport.viewBox.split(" ").map(Number);
+		return mapSafetyBounds(
+			routeBounds(
+				[percentToCoordinate([x, y + height], bounds), percentToCoordinate([x + width, y], bounds)],
+				0
+			)
+		);
+	}, [bounds, viewport.viewBox]);
 	const focusAt = viewport.focusAt;
 	useEffect(() => {
 		if (!monitoringFocus) return;
@@ -223,6 +242,12 @@ export function RouteCheckpointMap({
 				trackMapRenderReadiness(map, containerRef.current);
 				map.addControl(new maplibre.NavigationControl({ showCompass: false }), "top-right");
 				map.on("click", (event) => {
+					const target = event.originalEvent?.target;
+					if (
+						target instanceof Element &&
+						target.closest("[data-safety-ui], .maplibregl-popup, .maplibregl-ctrl")
+					)
+						return;
 					if (!disabledRef.current) {
 						selectRef.current({ type: "Point", coordinates: [event.lngLat.lng, event.lngLat.lat] });
 					}
@@ -775,6 +800,21 @@ export function RouteCheckpointMap({
 					})}
 				</svg>
 			)}
+			<VerifiedDangerZonesLayer
+				map={mapRef.current}
+				ready={mapReady}
+				fallback={useFallback}
+				bounds={visibleBounds}
+				project={(position) =>
+					projectFallbackPosition(
+						coordinateToPercent(position, bounds),
+						viewport.viewBox,
+						containerRef.current
+					)
+				}
+				areaClicksEnabled={Boolean(disabled)}
+				onZoneIdsChange={setVerifiedIds}
+			/>
 			{useFallback && selectedDangerZone && (
 				<DangerZoneDetailsPanel
 					zone={selectedDangerZone}

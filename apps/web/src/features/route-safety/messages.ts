@@ -49,6 +49,12 @@ export const safetyText = {
 	wait: "Vẽ ít nhất hai điểm khác nhau để kiểm tra tuyến.",
 	retry: "Kiểm tra lại",
 	close: "Đóng thông tin",
+	verifiedZone: {
+		truncated: "Khu vực này có nhiều điểm nguy hiểm. Phóng to bản đồ để xem đầy đủ hơn.",
+		title: "Điểm nguy hiểm đã xác nhận",
+		source: "Nguồn: Quản trị viên xác nhận",
+		error: "Không tải được các điểm nguy hiểm đã xác nhận.",
+	},
 	savedZone: {
 		title: "Điểm nguy hiểm",
 		source: "Nguồn: Ghi nhận trên tuyến của bạn",
@@ -62,6 +68,7 @@ export const safetyText = {
 		OFFICIAL_CURRENT: "Cảnh báo nguồn chính thức",
 		BASE_HISTORICAL: "Dữ liệu lịch sử",
 		HOST_DEFINED: "Nguy hiểm do Host đánh dấu",
+		ADMIN_VERIFIED: "Nguy hiểm đã được quản trị viên xác nhận",
 		FIELD_OBSERVATION: "Sự cố Trip CTMS",
 		RESOURCE: "Nguồn nước / tài nguyên địa lý",
 	},

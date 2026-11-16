@@ -21,6 +21,8 @@ describe("Route Safety v2 PostGIS and authorization", () => {
 	const other = randomUUID();
 	const admin = randomUUID();
 	const route = randomUUID();
+	const publishedZone = randomUUID();
+	const publishedHotspot = randomUUID();
 	const source = `TEST_${randomUUID().replaceAll("-", "").toUpperCase()}`;
 	const tripIds: string[] = [];
 	let liveCandidates: SafetyCandidate[] = [];
@@ -88,6 +90,29 @@ describe("Route Safety v2 PostGIS and authorization", () => {
 		 VALUES ($1,$2,'Safety test',ST_GeomFromGeoJSON($3)::geography,1100,'easy',60,'draft')`,
 			[route, host, JSON.stringify(line)]
 		);
+		await db.query(
+			`INSERT INTO route_danger_zones(id,route_id,geom,radius_m,description,severity)
+		 VALUES($1,$2,ST_SetSRID(ST_Point(105,20),4326)::geography,50,'Lối mòn sát mép vực, đi theo cọc tiêu đỏ.','high')`,
+			[publishedZone, route]
+		);
+		await db.query(
+			`INSERT INTO potential_safety_hotspots(id,route_id,route_version,status,status_changed_at,
+		 analysis_version,config_version,criteria,window_start,window_end,center,radius_meters,anchor_event_id,
+		 route_fraction_min,route_fraction_max,event_count,distinct_trip_count,distinct_member_count,evidence_event_ids,
+		 evidence_hash,first_event_at,last_event_at,detected_at)
+		 VALUES($1,$2,'route-version','CONFIRMED','2026-11-10T12:00:00Z','analysis','config','{}',
+		 '2026-11-01','2026-11-10',ST_SetSRID(ST_Point(105,20),4326)::geography,50,$3,0,1,1,1,1,ARRAY[$3::uuid],$4,
+		 '2026-11-02','2026-11-02','2026-11-10')`,
+			[publishedHotspot, route, randomUUID(), "a".repeat(64)]
+		);
+		await db.query(
+			`INSERT INTO hotspot_corrective_actions(hotspot_id,route_id,action_type,target_type,target_id,reason,
+		 "after",hotspot_status_changed_at,hotspot_evidence_hash,hotspot_route_version,package_impact,actor_id)
+		 SELECT $1,z.route_id,'ADD_HAZARD_AREA','trekking_route_danger_zone',z.id,'Vách đá sạt sau mưa, cần cảnh báo người đi bộ.',
+		 jsonb_build_object('geometry',ST_AsGeoJSON(z.geom::geometry)::jsonb,'radiusMeters',z.radius_m,'description',z.description,'severity',z.severity),
+		 '2026-11-10T12:00:00Z',$3,'route-version','NOT_AFFECTED',$4 FROM route_danger_zones z WHERE z.id=$2`,
+			[publishedHotspot, publishedZone, "a".repeat(64), admin]
+		);
 	}, 60000);
 	afterAll(async () => {
 		if (db) {
@@ -98,6 +123,10 @@ describe("Route Safety v2 PostGIS and authorization", () => {
 			]);
 			await db.query("DELETE FROM safety_import_rejections WHERE source=$1", [source]);
 			await db.query("DELETE FROM external_safety_features WHERE source=$1", [source]);
+			await db.query("DELETE FROM hotspot_corrective_actions WHERE hotspot_id=$1", [
+				publishedHotspot,
+			]);
+			await db.query("DELETE FROM potential_safety_hotspots WHERE id=$1", [publishedHotspot]);
 			await db.query("DELETE FROM route_danger_zones WHERE route_id=$1", [route]);
 			await db.query("DELETE FROM trekking_routes WHERE id=$1", [route]);
 			await db.query("DELETE FROM user_roles WHERE user_id=ANY($1::uuid[])", [
@@ -122,6 +151,113 @@ describe("Route Safety v2 PostGIS and authorization", () => {
 		lifecycleStatus: "ACTIVE",
 		verificationStatus: "SOURCE_PROVIDED",
 		...patch,
+	});
+	const publishedBounds = { west: 104.9, south: 19.9, east: 105.1, north: 20.1 };
+	const readPublished = (user = other, role = "host", bounds = publishedBounds) =>
+		request(app.getHttpServer())
+			.get("/api/route-safety/verified-zones")
+			.set("Authorization", `Bearer ${token(user, role)}`)
+			.query(bounds);
+	it("automatically exposes approved safety facts across Hosts and roles without a route or trip", async () => {
+		for (const role of ["host", "admin", "camper", "porter"]) {
+			const response = await readPublished(other, role).expect(200);
+			expect(response.headers["cache-control"]).toBe("private, no-store");
+			expect(response.body.features).toHaveLength(1);
+			const feature = response.body.features[0];
+			expect(feature.id).toBe(`host:${publishedZone}`);
+			expect(feature.properties).toMatchObject({
+				sourceType: "ADMIN_VERIFIED",
+				verificationStatus: "VERIFIED",
+				routeName: null,
+				radiusMeters: 50,
+				labelPoint: { type: "Point", coordinates: [105, 20] },
+			});
+			expect(JSON.stringify(feature)).not.toMatch(/actor_id|evidence_hash|Vách đá sạt|Safety test/);
+		}
+		expect(
+			(
+				await readPublished(other, "host", { west: 106, south: 21, east: 107, north: 22 }).expect(
+					200
+				)
+			).body.features
+		).toEqual([]);
+	});
+	it("requires authentication and validates every viewport bound", async () => {
+		await request(app.getHttpServer())
+			.get("/api/route-safety/verified-zones")
+			.query(publishedBounds)
+			.expect(401);
+		await readPublished(other, "host", { ...publishedBounds, west: 106 }).expect(422);
+		await readPublished(other, "host", { ...publishedBounds, north: 91 }).expect(422);
+		await request(app.getHttpServer())
+			.get("/api/route-safety/verified-zones")
+			.set("Authorization", `Bearer ${token(other)}`)
+			.query({ west: "invalid" })
+			.expect(422);
+	});
+	it("withdraws unconfirmed, changed evidence and edits that were not published by Admin", async () => {
+		try {
+			for (const status of ["DETECTED", "UNDER_REVIEW", "DISMISSED"]) {
+				await db.query("UPDATE potential_safety_hotspots SET status=$1 WHERE id=$2", [
+					status,
+					publishedHotspot,
+				]);
+				expect((await readPublished().expect(200)).body.features).toEqual([]);
+			}
+			await db.query(
+				"UPDATE potential_safety_hotspots SET status='CONFIRMED',evidence_hash=$1 WHERE id=$2",
+				["b".repeat(64), publishedHotspot]
+			);
+			expect((await readPublished().expect(200)).body.features).toEqual([]);
+			await db.query("UPDATE potential_safety_hotspots SET evidence_hash=$1 WHERE id=$2", [
+				"a".repeat(64),
+				publishedHotspot,
+			]);
+			await db.query("UPDATE route_danger_zones SET radius_m=75 WHERE id=$1", [publishedZone]);
+			expect((await readPublished().expect(200)).body.features).toEqual([]);
+		} finally {
+			await db.query(
+				"UPDATE potential_safety_hotspots SET status='CONFIRMED',evidence_hash=$1 WHERE id=$2",
+				["a".repeat(64), publishedHotspot]
+			);
+			await db.query("UPDATE route_danger_zones SET radius_m=50 WHERE id=$1", [publishedZone]);
+		}
+	});
+	it("does not publish a confirmed candidate whose only decision is no data change", async () => {
+		try {
+			await db.query(
+				"UPDATE hotspot_corrective_actions SET action_type='NO_DATA_CHANGE',target_type=NULL,target_id=NULL WHERE hotspot_id=$1",
+				[publishedHotspot]
+			);
+			expect((await readPublished().expect(200)).body.features).toEqual([]);
+		} finally {
+			await db.query(
+				"UPDATE hotspot_corrective_actions SET action_type='ADD_HAZARD_AREA',target_type='trekking_route_danger_zone',target_id=$2 WHERE hotspot_id=$1",
+				[publishedHotspot, publishedZone]
+			);
+		}
+	});
+	it("includes the published zone once in analysis even for a different Host", async () => {
+		for (const user of [host, other]) {
+			const response = await request(app.getHttpServer())
+				.post("/api/route-safety/analyze")
+				.set("Authorization", `Bearer ${token(user)}`)
+				.send({
+					geometry: {
+						type: "LineString",
+						coordinates: [
+							[104.999, 20],
+							[105.001, 20],
+						],
+					},
+				})
+				.expect(201);
+			const matches = response.body.features.features.filter(
+				(feature: { id: string }) => feature.id === `host:${publishedZone}`
+			);
+			expect(matches).toHaveLength(1);
+			expect(matches[0].properties.sourceType).toBe("ADMIN_VERIFIED");
+		}
 	});
 	it("authorizes Host only and checks saved route ownership", async () => {
 		await request(app.getHttpServer())

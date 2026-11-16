@@ -137,3 +137,7 @@ TBD — Technical Design.
 ## 12. Open Decisions
 
 The exact corrective action depends on confirmed evidence; this story does not require every hotspot to modify Route geometry specifically.
+
+## Web map publication amendment — 2026-11-16
+
+Applied ADD_HAZARD_AREA / UPDATE_HAZARD_AREA decisions publish matching authoritative hazards to authenticated web route maps across Host boundaries. The viewport layer appears before Route/Trip creation, updates on pan/zoom and every 15 seconds, and carries ADMIN_VERIFIED / VERIFIED provenance. Current CONFIRMED evidence and matching geometry, severity, description and radius are required; invalidated evidence and unapproved edits are excluded. NO_DATA_CHANGE, OTHER and checkpoint instruction actions do not publish hazards. Public reads omit private route names, actors, reasons and review/member evidence. Corrective-action authorization, immutable audit history and package eligibility remain unchanged. See docs/business-rules/route-safety-v2.md, amended BR-475/477.
