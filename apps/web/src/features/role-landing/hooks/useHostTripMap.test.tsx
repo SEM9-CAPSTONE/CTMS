@@ -3,11 +3,15 @@ import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { trekkingRoutesService } from "../../trekking-routes/services/trekking-routes.service";
-import type { CreatedTrekkingRoute } from "../../trekking-routes/types";
+import type { CreatedTrekkingRoute, RouteDangerZone } from "../../trekking-routes/types";
 import { useHostTripMap } from "./useHostTripMap";
 
 vi.mock("../../trekking-routes/services/trekking-routes.service", () => ({
-	trekkingRoutesService: { listMine: vi.fn(), listCheckpoints: vi.fn() },
+	trekkingRoutesService: {
+		listMine: vi.fn(),
+		listCheckpoints: vi.fn(),
+		listRouteDangerZones: vi.fn(),
+	},
 }));
 
 const route: CreatedTrekkingRoute = {
@@ -29,6 +33,17 @@ const route: CreatedTrekkingRoute = {
 	updatedAt: "2026-10-01T00:00:00Z",
 };
 
+const dangerZone: RouteDangerZone = {
+	id: "zone",
+	routeId: "route",
+	geometry: { type: "Point", coordinates: [108.005, 16.005] },
+	radiusMeters: 50,
+	description: "Lối mòn sát mép vực, trơn trượt sau mưa",
+	severity: "high",
+	createdAt: "2026-11-16T00:00:00Z",
+	updatedAt: "2026-11-16T00:00:00Z",
+};
+
 function createWrapper() {
 	const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
 	return ({ children }: { children: ReactNode }) => (
@@ -38,15 +53,18 @@ function createWrapper() {
 
 describe("useHostTripMap", () => {
 	beforeEach(() => vi.resetAllMocks());
-	it("loads the selected trip's real route geometry and checkpoints", async () => {
+	it("loads the selected trip's real route geometry, checkpoints and danger zones", async () => {
 		vi.mocked(trekkingRoutesService.listMine).mockResolvedValue([{ ...route, id: "other" }, route]);
 		vi.mocked(trekkingRoutesService.listCheckpoints).mockResolvedValue([]);
+		vi.mocked(trekkingRoutesService.listRouteDangerZones).mockResolvedValue([dangerZone]);
 		const { result } = renderHook(() => useHostTripMap("host", "route"), {
 			wrapper: createWrapper(),
 		});
 		await waitFor(() => expect(result.current.isSuccess).toBe(true));
 		expect(result.current.data?.route).toEqual(route);
 		expect(trekkingRoutesService.listCheckpoints).toHaveBeenCalledWith("route");
+		expect(trekkingRoutesService.listRouteDangerZones).toHaveBeenCalledWith("route");
+		expect(result.current.data?.dangerZones).toEqual([dangerZone]);
 	});
 	it("does not fetch when the trip has no route", () => {
 		renderHook(() => useHostTripMap("host"), { wrapper: createWrapper() });
@@ -56,6 +74,7 @@ describe("useHostTripMap", () => {
 	it("reports missing geometry instead of substituting a different route", async () => {
 		vi.mocked(trekkingRoutesService.listMine).mockResolvedValue([{ ...route, id: "other" }]);
 		vi.mocked(trekkingRoutesService.listCheckpoints).mockResolvedValue([]);
+		vi.mocked(trekkingRoutesService.listRouteDangerZones).mockResolvedValue([]);
 		const { result } = renderHook(() => useHostTripMap("host", "route"), {
 			wrapper: createWrapper(),
 		});

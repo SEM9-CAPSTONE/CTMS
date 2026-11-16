@@ -29,6 +29,7 @@ export function HostTripMap({
 			<RouteCheckpointMap
 				geometry={mapQuery.data.route.geometry}
 				checkpoints={mapQuery.data.checkpoints}
+				dangerZones={mapQuery.data.dangerZones}
 				selectedLocation={trip.meetingPoint}
 				radiusMeters={0}
 				disabled
