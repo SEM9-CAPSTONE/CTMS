@@ -1,6 +1,12 @@
-import { BadRequestException, ServiceUnavailableException } from "@nestjs/common";
+import {
+	BadRequestException,
+	ForbiddenException,
+	ServiceUnavailableException,
+} from "@nestjs/common";
+import type { AuthenticatedUser } from "../auth/jwt.strategy";
 import { contextBlocks } from "../rag/rag-context";
 import { MAX_CONTEXT_BLOCKS, type RagResult } from "../rag/rag.types";
+import { UserRole, UserStatus } from "../users/entities/user.entity";
 import {
 	AI_PROMPT_VERSION,
 	type GenerationResult,
@@ -22,6 +28,12 @@ const UNSAFE_EXCERPT =
 
 export function invalidQuery() {
 	return new BadRequestException({ code: "AI_INVALID_QUESTION" });
+}
+
+export function ensureCamper(actor: AuthenticatedUser) {
+	if (actor.status !== UserStatus.ACTIVE || !actor.roles.includes(UserRole.CAMPER)) {
+		throw new ForbiddenException({ code: "AI_FORBIDDEN" });
+	}
 }
 
 export function aiUnavailable(code = "AI_UNAVAILABLE") {

@@ -38,9 +38,13 @@ class _LocalModel extends SurvivalLocalModel {
   Future<bool> latestReady() async => true;
 
   @override
-  Future<String> generate(String question) async {
+  Future<SurvivalLocalReply> generate(String question) async {
     requests++;
-    return 'Xếp đồ nặng gần lưng và để áo mưa ở ngăn dễ lấy.';
+    return (
+      text: 'Xếp đồ nặng gần lưng và để áo mưa ở ngăn dễ lấy.',
+      modelId: 'packing-model',
+      modelVersion: '1',
+    );
   }
 }
 

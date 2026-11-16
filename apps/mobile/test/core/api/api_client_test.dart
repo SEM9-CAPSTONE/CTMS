@@ -131,6 +131,35 @@ void main() {
     client.dio.httpClientAdapter = adapter;
   });
 
+  group('Account-bound feedback', () {
+    String tokenFor(String user) => 'header.${base64Url.encode(utf8.encode(jsonEncode({'sub': user})))}.signature';
+
+    test('does not send feedback with a different account bearer', () async {
+      tokenStorage.accessToken = tokenFor('camper-b');
+      adapter.onFetch = (_) => _jsonResponse({}, 200);
+      await expectLater(
+        client.post('/ai/answers/feedback', expectedUserId: 'camper-a', data: {'rating': 'USEFUL'}),
+        throwsA(isA<ApiException>().having((error) => error.statusCode, 'status', 401)),
+      );
+      expect(adapter.requests, isEmpty);
+      expect(coordinator.callCount, 0);
+    });
+
+    test('does not replay feedback when refresh returns a different account', () async {
+      final oldToken = tokenFor('camper-a');
+      tokenStorage.accessToken = oldToken;
+      coordinator.nextAccessToken = tokenFor('camper-b');
+      adapter.onFetch = (_) => _errorResponse(401, 'Expired');
+      await expectLater(
+        client.post('/ai/answers/feedback', expectedUserId: 'camper-a'),
+        throwsA(isA<ApiException>()),
+      );
+      expect(adapter.authHeaderSnapshots, ['Bearer $oldToken']);
+      expect(coordinator.callCount, 1);
+      expect(onSessionExpiredCallCount, 0);
+    });
+  });
+
   group('ApiClient -- public (unauthenticated) requests', () {
     test('a 401 with no Authorization header is never sent to the refresh coordinator', () async {
       // No access token stored -- onRequest attaches no Authorization

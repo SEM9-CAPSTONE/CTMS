@@ -8,5 +8,6 @@ class OfflineTripRepository {
   final PackageIntegrityService _integrity;
 
   Future<OfflineTrip?> read(String tripId, int version) =>
-      _integrity.readActive(tripId, version, decodeOfflineTrip);
+      _integrity.readActive(tripId, version, (files, package) =>
+          decodeOfflineTrip(files, packageId: package.id));
 }

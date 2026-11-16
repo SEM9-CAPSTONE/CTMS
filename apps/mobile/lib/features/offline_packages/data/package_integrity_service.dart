@@ -131,11 +131,11 @@ class PackageIntegrityService {
   Future<T?> readActive<T>(
     String tripId,
     int version,
-    T Function(Map<String, Uint8List>) decode,
+    T Function(Map<String, Uint8List>, OfflinePackage) decode,
   ) => _readActive(
     tripId,
     version,
-    (package, path) => verifier.read(package, path, decode),
+    (package, path) => verifier.read(package, path, (files) => decode(files, package)),
   );
 
   Future<T?> _readActive<T>(

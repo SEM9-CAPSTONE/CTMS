@@ -124,6 +124,18 @@ void main() {
   });
 
   group('AuthRefreshCoordinator.refresh -- failure', () {
+    test('discards a rotated pair for a session that changed in flight', () async {
+      final reply = Completer<ResponseBody>();
+      adapter.holdResponse = reply;
+      final pending = coordinator.refresh();
+      final checked = expectLater(pending, throwsA(isA<StateError>()));
+      await pumpEventQueue();
+      tokenStorage.refreshToken = 'other-account-refresh';
+      reply.complete(_jsonResponse({'accessToken': 'stale-access', 'refreshToken': 'stale-refresh'}, 200));
+      await checked;
+      expect(tokenStorage.saveTokensCallCount, 0);
+    });
+
     test('rejects without ever calling the network when no refresh token is stored', () async {
       tokenStorage.refreshToken = null;
 
