@@ -46,6 +46,24 @@ async function openDetail() {
 describe("AdminSafetyHotspotsPage (CTMS-118)", () => {
 	beforeEach(() => {
 		vi.spyOn(safetyHotspotsService, "list").mockResolvedValue([confirmed]);
+		vi.spyOn(safetyHotspotsService, "evidence").mockResolvedValue([
+			{
+				id: "event-1",
+				tripTitle: "Khám phá bán đảo Sơn Trà",
+				tripStartsAt: "2026-10-20T00:00:00Z",
+				startedAt: "2026-10-20T02:00:00Z",
+				endedAt: "2026-10-20T02:09:00Z",
+				maxDistanceMeters: 72,
+			},
+			{
+				id: "event-2",
+				tripTitle: "Khám phá bán đảo Sơn Trà",
+				tripStartsAt: "2026-11-08T00:00:00Z",
+				startedAt: "2026-11-08T02:00:00Z",
+				endedAt: "2026-11-08T02:12:00Z",
+				maxDistanceMeters: 90,
+			},
+		]);
 		vi.spyOn(safetyHotspotsService, "targets").mockResolvedValue(targets);
 		vi.spyOn(safetyHotspotsService, "actions").mockResolvedValue([]);
 		vi.spyOn(safetyHotspotsService, "createAction").mockResolvedValue({
@@ -79,6 +97,8 @@ describe("AdminSafetyHotspotsPage (CTMS-118)", () => {
 		await waitFor(() =>
 			expect(safetyHotspotsService.list).toHaveBeenLastCalledWith("UNDER_REVIEW")
 		);
+		await userEvent.click(screen.getByRole("button", { name: "Tất cả" }));
+		await waitFor(() => expect(safetyHotspotsService.list).toHaveBeenLastCalledWith("ALL"));
 	});
 
 	it("does not offer a safety update for a hotspot that is not confirmed", async () => {
@@ -91,6 +111,39 @@ describe("AdminSafetyHotspotsPage (CTMS-118)", () => {
 		).toBeInTheDocument();
 		expect(dialog.queryByRole("button", { name: "Cập nhật dữ liệu an toàn" })).toBeNull();
 		expect(safetyHotspotsService.targets).not.toHaveBeenCalled();
+	});
+
+	it("lists each deviation with its Trip and time, without member data", async () => {
+		const dialog = await openDetail();
+		const section = within(await dialog.findByRole("region", { name: "Các lần lệch tuyến" }));
+		expect(
+			await section.findByText(/Khám phá bán đảo Sơn Trà · khởi hành 20\/10\//)
+		).toBeInTheDocument();
+		expect(section.getByText(/Khám phá bán đảo Sơn Trà · khởi hành 0?8\/11\//)).toBeInTheDocument();
+		expect(section.getByText(/lệch 9 phút, xa nhất 72 m/)).toBeInTheDocument();
+		expect(section.getByText(/lệch 12 phút, xa nhất 90 m/)).toBeInTheDocument();
+	});
+
+	it("shows the correction history as a table", async () => {
+		vi.mocked(safetyHotspotsService.actions).mockResolvedValue([
+			{
+				id: "action-0",
+				actionType: "UPDATE_CHECKPOINT_INSTRUCTIONS",
+				targetName: "Ngã ba suối Đá",
+				reason: "Nhiều đoàn rẽ nhầm tại ngã ba suối, cần chỉ rõ hướng rẽ trái.",
+				packageImpact: "AFFECTED",
+				impactTripCount: 2,
+				actorName: "Trần Minh Quân",
+				createdAt: "2026-11-15T03:00:00Z",
+			},
+		]);
+		const dialog = await openDetail();
+		const table = await dialog.findByRole("table", { name: "Lịch sử cập nhật dữ liệu an toàn" });
+		const row = within(table).getAllByRole("row")[1];
+		expect(within(row).getByText("Cập nhật hướng dẫn an toàn tại điểm dừng")).toBeInTheDocument();
+		expect(within(row).getByText("Ngã ba suối Đá")).toBeInTheDocument();
+		expect(within(row).getByText("Trần Minh Quân")).toBeInTheDocument();
+		expect(within(row).getByText("Phiên bản mới cho 2 chuyến")).toBeInTheDocument();
 	});
 
 	it("updates checkpoint instructions after confirmation and reports the package impact", async () => {

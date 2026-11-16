@@ -68,6 +68,16 @@ const HOTSPOT_COLUMNS = `hotspot."id", hotspot."route_id" AS "routeId", route."n
 	hotspot."last_event_at" AS "lastEventAt", hotspot."previous_hotspot_id" AS "previousHotspotId",
 	hotspot."detection_run_id" AS "detectionRunId", hotspot."detected_at" AS "detectedAt"`;
 
+/** One deviation behind a hotspot: which Trip and when; never which member (BR-361). */
+export interface HotspotEvidenceEvent {
+	id: string;
+	tripTitle: string;
+	tripStartsAt: Date;
+	startedAt: Date;
+	endedAt: Date;
+	maxDistanceMeters: number;
+}
+
 export type SafetyHotspotRow = Omit<NewHotspot, "centerLng" | "centerLat"> & {
 	id: string;
 	status: SafetyHotspotStatus;
@@ -263,6 +273,25 @@ export class SafetyHotspotsRepository {
 			[id]
 		)) as SafetyHotspotRow[];
 		return rows[0] ?? null;
+	}
+
+	/** The deviation events a hotspot was detected from, oldest first, with their Trip. */
+	async findEvidence(hotspotId: string): Promise<HotspotEvidenceEvent[]> {
+		const rows = (await this.dataSource.query(
+			`SELECT event."id", trip."title" AS "tripTitle", trip."starts_at" AS "tripStartsAt",
+			        event."started_at" AS "startedAt", event."ended_at" AS "endedAt",
+			        event."max_distance_meters" AS "maxDistanceMeters"
+			 FROM "potential_safety_hotspots" hotspot
+			 INNER JOIN "route_deviation_events" event ON event."id" = ANY(hotspot."evidence_event_ids")
+			 INNER JOIN "trips" trip ON trip."id" = event."trip_id"
+			 WHERE hotspot."id" = $1
+			 ORDER BY event."started_at", event."id"`,
+			[hotspotId]
+		)) as HotspotEvidenceEvent[];
+		return rows.map((row) => ({
+			...row,
+			maxDistanceMeters: Math.round(Number(row.maxDistanceMeters)),
+		}));
 	}
 
 	async list(filter: {

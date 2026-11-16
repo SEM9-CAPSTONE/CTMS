@@ -1,5 +1,7 @@
 export type HotspotStatus = "DETECTED" | "UNDER_REVIEW" | "CONFIRMED" | "DISMISSED";
 
+export type HotspotStatusFilter = HotspotStatus | "ALL";
+
 export type CorrectiveActionType =
 	| "ADD_HAZARD_AREA"
 	| "UPDATE_HAZARD_AREA"
@@ -24,6 +26,16 @@ export interface SafetyHotspot {
 	firstEventAt: string;
 	lastEventAt: string;
 	detectedAt: string;
+}
+
+/** One deviation behind a hotspot; the API never sends which member it was. */
+export interface HotspotEvidenceEvent {
+	id: string;
+	tripTitle: string;
+	tripStartsAt: string;
+	startedAt: string;
+	endedAt: string;
+	maxDistanceMeters: number;
 }
 
 export interface CheckpointTarget {

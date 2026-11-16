@@ -278,6 +278,27 @@ describe("Detect potential safety hotspots (CTMS-116, real Postgres/PostGIS)", (
 		).expect(200);
 		expect(listed.body.map((h: { id: string }) => h.id)).toEqual([hotspot.id]);
 
+		// Each deviation with its Trip and time, oldest first; still no member ids (BR-361).
+		const evidenceRes = await asAdmin(
+			api().get(`/api/admin/safety-hotspots/${hotspot.id}/evidence`)
+		).expect(200);
+		expect(evidenceRes.body).toHaveLength(5);
+		expect([...evidenceRes.body.map((e: { id: string }) => e.id)].sort()).toEqual(
+			[...evidence].sort()
+		);
+		expect(evidenceRes.body[0]).toEqual({
+			id: expect.any(String),
+			tripTitle: expect.any(String),
+			tripStartsAt: expect.any(String),
+			startedAt: expect.any(String),
+			endedAt: expect.any(String),
+			maxDistanceMeters: expect.any(Number),
+		});
+		const starts = evidenceRes.body.map((e: { startedAt: string }) => Date.parse(e.startedAt));
+		expect(starts).toEqual([...starts].sort((a, b) => a - b));
+		expect(JSON.stringify(evidenceRes.body)).not.toContain(c1.id);
+		await asAdmin(api().get(`/api/admin/safety-hotspots/${randomUUID()}/evidence`)).expect(404);
+
 		// Re-running finds the same place already covered: no duplicate.
 		const again = await detect();
 		expect(again.body.skipped.ALREADY_COVERED).toBeGreaterThanOrEqual(1);

@@ -5,12 +5,14 @@ import type {
 	CorrectiveAction,
 	CorrectiveTargets,
 	CreateCorrectiveActionPayload,
+	HotspotEvidenceEvent,
 	SafetyHotspot,
 } from "../types";
 import { hotspotErrorMessage } from "../utils/hotspot-errors";
 
-/** History and selectable targets of one hotspot, plus submitting a corrective action. */
+/** Deviation evidence, history and selectable targets of one hotspot, plus submitting a corrective action. */
 export function useHotspotCorrections(hotspot: SafetyHotspot | null, onChanged: () => void) {
+	const [evidence, setEvidence] = useState<HotspotEvidenceEvent[]>([]);
 	const [history, setHistory] = useState<CorrectiveAction[]>([]);
 	const [targets, setTargets] = useState<CorrectiveTargets | null>(null);
 	const [loading, setLoading] = useState(false);
@@ -26,11 +28,13 @@ export function useHotspotCorrections(hotspot: SafetyHotspot | null, onChanged: 
 		setLoading(true);
 		setError(null);
 		try {
-			const [nextHistory, nextTargets] = await Promise.all([
+			const [nextEvidence, nextHistory, nextTargets] = await Promise.all([
+				safetyHotspotsService.evidence(hotspotId),
 				safetyHotspotsService.actions(hotspotId),
 				confirmed ? safetyHotspotsService.targets(hotspotId) : Promise.resolve(null),
 			]);
 			if (request !== sequence.current) return;
+			setEvidence(nextEvidence);
 			setHistory(nextHistory);
 			setTargets(nextTargets);
 		} catch (failure) {
@@ -41,6 +45,7 @@ export function useHotspotCorrections(hotspot: SafetyHotspot | null, onChanged: 
 	}, [hotspotId, confirmed]);
 
 	useEffect(() => {
+		setEvidence([]);
 		setHistory([]);
 		setTargets(null);
 		void load();
@@ -70,5 +75,5 @@ export function useHotspotCorrections(hotspot: SafetyHotspot | null, onChanged: 
 		}
 	};
 
-	return { history, targets, loading, error, submitting, reload: load, submit };
+	return { evidence, history, targets, loading, error, submitting, reload: load, submit };
 }

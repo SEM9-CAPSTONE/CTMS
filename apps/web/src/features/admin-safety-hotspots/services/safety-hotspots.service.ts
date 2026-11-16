@@ -3,13 +3,19 @@ import type {
 	CorrectiveAction,
 	CorrectiveTargets,
 	CreateCorrectiveActionPayload,
-	HotspotStatus,
+	HotspotEvidenceEvent,
+	HotspotStatusFilter,
 	SafetyHotspot,
 } from "../types";
 
 export const safetyHotspotsService = {
-	list: (status: HotspotStatus): Promise<SafetyHotspot[]> =>
-		httpClient.get<SafetyHotspot[]>(API_ENDPOINTS.SAFETY_HOTSPOTS.LIST, { status, limit: 200 }),
+	list: (status: HotspotStatusFilter): Promise<SafetyHotspot[]> =>
+		httpClient.get<SafetyHotspot[]>(
+			API_ENDPOINTS.SAFETY_HOTSPOTS.LIST,
+			status === "ALL" ? { limit: 200 } : { status, limit: 200 }
+		),
+	evidence: (id: string): Promise<HotspotEvidenceEvent[]> =>
+		httpClient.get<HotspotEvidenceEvent[]>(API_ENDPOINTS.SAFETY_HOTSPOTS.EVIDENCE(id)),
 	targets: (id: string): Promise<CorrectiveTargets> =>
 		httpClient.get<CorrectiveTargets>(API_ENDPOINTS.SAFETY_HOTSPOTS.TARGETS(id)),
 	actions: (id: string): Promise<CorrectiveAction[]> =>

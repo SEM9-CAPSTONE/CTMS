@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { safetyHotspotsService } from "../services/safety-hotspots.service";
-import type { HotspotStatus, SafetyHotspot } from "../types";
+import type { HotspotStatusFilter, SafetyHotspot } from "../types";
 import { hotspotErrorMessage } from "../utils/hotspot-errors";
 
-export function useSafetyHotspots(status: HotspotStatus) {
+export function useSafetyHotspots(status: HotspotStatusFilter) {
 	const [items, setItems] = useState<SafetyHotspot[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);

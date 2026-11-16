@@ -10,6 +10,7 @@ export const API_ENDPOINTS = {
 	ADMIN_MODERATION_COUNTS: "/admin/moderation/counts",
 	SAFETY_HOTSPOTS: {
 		LIST: "/admin/safety-hotspots",
+		EVIDENCE: (id: string) => `/admin/safety-hotspots/${id}/evidence`,
 		TARGETS: (id: string) => `/admin/safety-hotspots/${id}/corrective-targets`,
 		ACTIONS: (id: string) => `/admin/safety-hotspots/${id}/corrective-actions`,
 	},

@@ -1,5 +1,10 @@
 import type { StatusBadgeTone } from "../../shared/components";
-import type { CorrectiveActionType, HazardSeverity, HotspotStatus } from "./types";
+import type {
+	CorrectiveActionType,
+	HazardSeverity,
+	HotspotStatus,
+	HotspotStatusFilter,
+} from "./types";
 
 export const HOTSPOT_PAGE_SIZE = 10;
 
@@ -17,7 +22,8 @@ export const HOTSPOT_STATUS_TONES: Record<HotspotStatus, StatusBadgeTone> = {
 	DISMISSED: "neutral",
 };
 
-export const HOTSPOT_STATUS_FILTERS: Array<{ value: HotspotStatus; label: string }> = [
+export const HOTSPOT_STATUS_FILTERS: Array<{ value: HotspotStatusFilter; label: string }> = [
+	{ value: "ALL", label: "Tất cả" },
 	{ value: "CONFIRMED", label: HOTSPOT_STATUS_LABELS.CONFIRMED },
 	{ value: "UNDER_REVIEW", label: HOTSPOT_STATUS_LABELS.UNDER_REVIEW },
 	{ value: "DETECTED", label: HOTSPOT_STATUS_LABELS.DETECTED },

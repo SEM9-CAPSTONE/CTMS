@@ -1,13 +1,10 @@
 import { Button, Modal, StatusBadge } from "../../../shared/components";
-import {
-	CORRECTIVE_ACTION_LABELS,
-	HOTSPOT_STATUS_LABELS,
-	HOTSPOT_STATUS_TONES,
-} from "../constants";
+import { HOTSPOT_STATUS_LABELS, HOTSPOT_STATUS_TONES } from "../constants";
 import { useHotspotCorrections } from "../hooks/useHotspotCorrections";
-import type { SafetyHotspot } from "../types";
-import { formatDate, formatDateTime } from "../utils/format";
+import type { HotspotEvidenceEvent, SafetyHotspot } from "../types";
+import { formatDate, formatDateTime, formatTime } from "../utils/format";
 import { CorrectiveActionForm } from "./CorrectiveActionForm";
+import { HotspotHistoryTable } from "./HotspotHistoryTable";
 
 interface Props {
 	hotspot: SafetyHotspot;
@@ -15,9 +12,35 @@ interface Props {
 	onChanged: () => void;
 }
 
+interface TripEvidence {
+	title: string;
+	startsAt: string;
+	events: HotspotEvidenceEvent[];
+}
+
+/** Events arrive oldest first; keeps that order for the Trips and inside each Trip. */
+function groupByTrip(events: HotspotEvidenceEvent[]): TripEvidence[] {
+	const trips = new Map<string, TripEvidence>();
+	for (const event of events) {
+		const key = `${event.tripTitle}|${event.tripStartsAt}`;
+		const trip = trips.get(key) ?? {
+			title: event.tripTitle,
+			startsAt: event.tripStartsAt,
+			events: [],
+		};
+		trip.events.push(event);
+		trips.set(key, trip);
+	}
+	return [...trips.values()];
+}
+
+const minutesBetween = (from: string, to: string) =>
+	Math.max(1, Math.round((new Date(to).getTime() - new Date(from).getTime()) / 60_000));
+
 export function HotspotDetailModal({ hotspot, onClose, onChanged }: Props) {
 	const corrections = useHotspotCorrections(hotspot, onChanged);
 	const confirmed = hotspot.status === "CONFIRMED";
+	const evidenceByTrip = groupByTrip(corrections.evidence);
 	const facts: Array<[string, string]> = [
 		["Tuyến", hotspot.routeName],
 		["Bằng chứng", `${hotspot.eventCount} lần lệch tuyến từ ${hotspot.distinctTripCount} chuyến`],
@@ -65,6 +88,38 @@ export function HotspotDetailModal({ hotspot, onClose, onChanged }: Props) {
 
 				<section
 					className="space-y-3 border-t border-[#e8efe7] pt-4"
+					aria-labelledby="hotspot-evidence-title"
+				>
+					<h3 id="hotspot-evidence-title" className="text-lg font-semibold text-[#10221b]">
+						Các lần lệch tuyến
+					</h3>
+					{evidenceByTrip.length === 0 && !corrections.loading && !corrections.error && (
+						<p className="text-sm text-[#667a6d]">
+							Không còn dữ liệu lệch tuyến của điểm nóng này.
+						</p>
+					)}
+					<ul className="divide-y divide-[#e8efe7]">
+						{evidenceByTrip.map((trip) => (
+							<li key={`${trip.title}|${trip.startsAt}`} className="space-y-1 py-3 text-sm">
+								<p className="font-semibold text-[#10221b]">
+									{trip.title} · khởi hành {formatDate(trip.startsAt)}
+								</p>
+								<ul className="space-y-0.5 text-[#10221b]">
+									{trip.events.map((event) => (
+										<li key={event.id}>
+											{formatDateTime(event.startedAt)} – {formatTime(event.endedAt)} · lệch{" "}
+											{minutesBetween(event.startedAt, event.endedAt)} phút, xa nhất{" "}
+											{event.maxDistanceMeters} m
+										</li>
+									))}
+								</ul>
+							</li>
+						))}
+					</ul>
+				</section>
+
+				<section
+					className="space-y-3 border-t border-[#e8efe7] pt-4"
 					aria-labelledby="hotspot-update-title"
 				>
 					<h3 id="hotspot-update-title" className="text-lg font-semibold text-[#10221b]">
@@ -97,26 +152,7 @@ export function HotspotDetailModal({ hotspot, onClose, onChanged }: Props) {
 					<h3 id="hotspot-history-title" className="text-lg font-semibold text-[#10221b]">
 						Lịch sử
 					</h3>
-					{corrections.history.length === 0 && !corrections.loading && (
-						<p className="text-sm text-[#667a6d]">Chưa có cập nhật nào từ điểm nóng này.</p>
-					)}
-					<ul className="divide-y divide-[#e8efe7]">
-						{corrections.history.map((action) => (
-							<li key={action.id} className="space-y-1 py-3 text-sm">
-								<p className="font-semibold text-[#10221b]">
-									{CORRECTIVE_ACTION_LABELS[action.actionType]}
-									{action.targetName ? ` · ${action.targetName}` : ""}
-								</p>
-								<p className="whitespace-pre-wrap text-[#10221b]">{action.reason}</p>
-								<p className="text-xs text-[#667a6d]/80">
-									{action.actorName ?? "Quản trị viên"} · {formatDateTime(action.createdAt)}
-									{action.packageImpact === "AFFECTED" && action.impactTripCount > 0
-										? ` · Tạo phiên bản gói an toàn mới cho ${action.impactTripCount} chuyến`
-										: ""}
-								</p>
-							</li>
-						))}
-					</ul>
+					{!corrections.loading && <HotspotHistoryTable rows={corrections.history} />}
 				</section>
 			</div>
 		</Modal>

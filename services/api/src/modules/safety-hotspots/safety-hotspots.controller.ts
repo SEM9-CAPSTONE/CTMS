@@ -27,7 +27,7 @@ import type {
 } from "./hotspot-corrective-actions.repository";
 // biome-ignore lint/style/useImportType: Nest runtime DI metadata
 import { HotspotCorrectiveActionsService } from "./hotspot-corrective-actions.service";
-import type { SafetyHotspotRow } from "./safety-hotspots.repository";
+import type { HotspotEvidenceEvent, SafetyHotspotRow } from "./safety-hotspots.repository";
 // biome-ignore lint/style/useImportType: Nest runtime DI metadata
 import { type HotspotDetectionResult, SafetyHotspotsService } from "./safety-hotspots.service";
 
@@ -77,6 +77,18 @@ export class SafetyHotspotsController {
 		id: string
 	): Promise<SafetyHotspotRow> {
 		return this.hotspots.getById(id);
+	}
+
+	@Get(":id/evidence")
+	@ApiOperation({
+		summary: "Deviation events behind the hotspot: Trip and time of each, no member data (BR-361)",
+	})
+	@ApiResponse({ status: 404, description: "Hotspot not found" })
+	evidence(
+		@Param("id", new ParseUUIDPipe({ errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY }))
+		id: string
+	): Promise<HotspotEvidenceEvent[]> {
+		return this.hotspots.evidence(id);
 	}
 
 	@Get(":id/corrective-targets")
