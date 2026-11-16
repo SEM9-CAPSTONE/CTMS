@@ -135,7 +135,7 @@ carried into a later rating revision.
 | Mode | Target and evidence |
 | ---- | ------------------- |
 | `ONLINE` | `answerId` only. The server resolves evidence from the owned, retained answer. |
-| `LOCAL` | `installationId`, `localAnswerId`, exact nonblank `question` and `answer`. Optional `modelId`, `modelVersion`, `packageId` and `packageVersion` when actually used. |
+| `LOCAL` | `installationId`, `localAnswerId`, exact nonblank `question` and `answer`. Optional `modelId`, `modelVersion`, `packageId`, `packageVersion` and `localTrace` from the evaluated turn. |
 
 IDs are UUIDs. Limits are 2,000 characters for question, 3,000 for answer,
 1,000 for reason, and 128 for each model field. The server returns HTTP 200
@@ -148,7 +148,7 @@ at 60 seconds while connected. Pending delivery also resumes on reconnect.
 Raw feedback content is stored as text. The downstream review UI must render it
 as text.
 
-The current allowlist already identifies the exact turn and its available model or package. The planned compatible delta is an optional versioned Local trace extension for the missing inference time, executed path, runtime/config identity and genuine source references if a supported Local path actually uses them. Reuse existing identity, text, model and package fields. See the [technical contract](../../docs/features/CTMS-069-Implementation.md#inference-trace-extension-design). Old clients and pending payloads remain valid with missing fields. Deploy server acceptance before clients send the extension, because current validators reject unknown keys. Reuse the frozen evidence shape for later ratings, Unsafe actions and replays of the same turn. Evidence from a previous payload may not be inferred or backfilled from current device settings. Online request and acknowledgment shapes stay the same.
+`localTrace`, when present, uses `schemaVersion: 1` and includes UTC `observedAt`, the executed `path` (`PRETRAINED` or `SAVED_TRIP_CHECKPOINT_COUNT`) and `safetyPolicyVersion`. `runtimeConfigVersion` is optional for `PRETRAINED`. The saved-checkpoint path uses the existing package fields, requires `packageVersion`, and carries no model or runtime configuration. See the [technical contract](../../docs/features/CTMS-069-Implementation.md#inference-trace-extension-design). Old clients and pending payloads may omit `localTrace`. Deploy server acceptance before clients send the extension. Reuse the frozen evidence shape for later ratings, Unsafe actions and replays of the same turn. Evidence from a previous payload may not be inferred or backfilled from current device settings. Online request and acknowledgment shapes stay the same.
 
 ## 10. Error & Edge Cases
 
@@ -177,7 +177,8 @@ The current allowlist already identifies the exact turn and its available model 
 | BR-178 | Replay, conflict and out-of-order revisions | One authoritative row and no stale overwrite | PostgreSQL integration |
 | BR-502 / BR-226 | Account switch with an in-flight send | Account-isolated payload and delivery state | Flutter integration |
 | CTMS-069 / CTMS-071 / CTMS-065 | Online RAG, Local inference, citation and safety sync | Existing behavior and safety priority preserved | Regression |
-| Trace AC-1 / BR-513 / BR-514 / BR-178 | Old Local payload, new Local extension and retry or later rating for the same turn | Both shapes are accepted by the extended server. Only frozen selected-turn evidence is delivered. Changed or unrelated evidence is rejected. | HTTP E2E / PostgreSQL integration / Flutter |
+| Trace AC-1 / BR-513 / BR-514 / BR-178 | Legacy or traced Local payload, model or package change, and retry or later rating for the same turn | Both payload shapes are accepted. The original selected-turn evidence is preserved. Changed or unrelated evidence is rejected. | HTTP E2E / PostgreSQL integration / Flutter |
+| §7 / BR-514 | Open the Local rating picker or Unsafe dialog | Disclose the question, answer and available technical metadata before the Camper commits feedback. | Flutter widget |
 | Trace AC-1 / BR-172 | Online feedback includes an owned answer or attempts to supply client-origin trace | Resolve the trace by answer ID. Reject client-supplied Online evidence. | HTTP E2E |
 
 ## 12. Open Decisions

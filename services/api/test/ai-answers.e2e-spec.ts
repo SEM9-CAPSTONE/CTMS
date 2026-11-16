@@ -227,25 +227,19 @@ describe("CTMS-069 public HTTP contract", () => {
 		}
 	);
 
-	it("links Online feedback only to an owned answer in retention", async () => {
+	it.each(["traced", "legacy"])("links %s Online feedback to its answer", async (variant) => {
 		const db = app.get(DataSource);
+		const question = variant === "traced" ? body.question : null;
 		const generation = {
 			provider: "openai",
 			model: "test-model",
-			trace: providerInferenceTraceFixture,
+			...(variant === "traced" ? { trace: providerInferenceTraceFixture } : {}),
 		};
 		const [row]: Array<{ id: string }> = await db.query(
 			`INSERT INTO ai_answers(user_id,request_id,request_hash,locale,question,answer,retrieved_evidence,
 			 cited_chunk_ids,generation,retrieval_config_version)
 			 VALUES($1,$2,$3,'vi',$4,$5,'[]','{}',$6::jsonb,'test') RETURNING id`,
-			[
-				camperId,
-				randomUUID(),
-				"b".repeat(64),
-				body.question,
-				answerFixture,
-				JSON.stringify(generation),
-			]
+			[camperId, randomUUID(), "b".repeat(64), question, answerFixture, JSON.stringify(generation)]
 		);
 		const payload = {
 			clientFeedbackId: randomUUID(),
@@ -271,17 +265,42 @@ describe("CTMS-069 public HTTP contract", () => {
 			await send({ ...payload, answer: "Nội dung khác" }).expect(422);
 			await send({ ...payload, localTrace: localInferenceTraceFixture }).expect(422);
 			const accepted = await send(payload).expect(200);
+			expect(accepted.body).toMatchObject({
+				revision: 1,
+				rating: "USEFUL",
+				reportedUnsafe: false,
+			});
+			const change = {
+				...payload,
+				revision: 2,
+				clientMutationId: randomUUID(),
+				rating: "NOT_USEFUL",
+			};
+			const updated = await send(change).expect(200);
+			expect(updated.body).toEqual({
+				feedbackId: accepted.body.feedbackId,
+				revision: 2,
+				rating: "NOT_USEFUL",
+				reportedUnsafe: false,
+			});
+			expect((await send(change).expect(200)).body).toEqual(updated.body);
 			expect(
 				await db.query(
-					`SELECT a.question,a.answer,a.generation,f.local_evidence FROM ai_answer_feedback f
+					`SELECT a.question,a.answer,a.generation,f.rating,f.local_evidence FROM ai_answer_feedback f
 				 JOIN ai_answers a ON a.id=f.answer_id WHERE f.id=$1`,
 					[accepted.body.feedbackId]
 				)
 			).toEqual([
-				{ question: body.question, answer: answerFixture, generation, local_evidence: null },
+				{
+					question,
+					answer: answerFixture,
+					generation,
+					rating: "NOT_USEFUL",
+					local_evidence: null,
+				},
 			]);
 			await db.query("UPDATE ai_answers SET expires_at=clock_timestamp() WHERE id=$1", [row.id]);
-			await send({ ...payload, revision: 2, clientMutationId: randomUUID() }).expect(404);
+			await send({ ...payload, revision: 3, clientMutationId: randomUUID() }).expect(404);
 		} finally {
 			await db.query("DELETE FROM user_roles WHERE user_id=$1 AND role='camper'", [other.id]);
 			await db.query("DELETE FROM ai_answers WHERE id=$1", [row.id]);

@@ -32,6 +32,7 @@ class _LocalModel extends SurvivalLocalModel {
   _LocalModel() : super(enabled: true);
 
   int requests = 0;
+  String modelVersion = '1';
 
   @override
   bool get supported => true;
@@ -45,7 +46,7 @@ class _LocalModel extends SurvivalLocalModel {
     return (
       text: 'Xếp đồ nặng gần lưng và để áo mưa ở ngăn dễ lấy.',
       modelId: 'packing-model',
-      modelVersion: '1',
+      modelVersion: modelVersion,
       observedAt: DateTime.utc(2026, 11, 16),
       runtimeConfigVersion: localRuntimeConfigV1,
     );
@@ -369,6 +370,57 @@ void main() {
     expect(find.byType(SnackBar), findsNothing);
   });
 
+  testWidgets('discloses Local trace before rating or reporting Unsafe', (
+    tester,
+  ) async {
+    final model = _LocalModel();
+    await open(tester, model: model);
+    network.online = false;
+    final controller = container.read(survivalChatControllerProvider.notifier);
+    expect(controller.send('Nên xếp đồ vào ba lô thế nào?'), isTrue);
+    await tester.pumpAndSettle();
+    final turn = container.read(survivalChatControllerProvider).single;
+    final queue = container.read(aiFeedbackQueueProvider)!;
+    expect(queue.forTurn(turn), isNull);
+    model.modelVersion = '2';
+
+    final disclosure = find.text(
+      'Khi gửi phản hồi, CTMS sẽ nhận câu hỏi, câu trả lời và thông tin kỹ thuật '
+      'của lượt này (nếu có).',
+    );
+    final rating = find.byKey(const ValueKey('ai-answer-rating'));
+    await scrollToSource(tester, rating);
+    await tester.tap(rating);
+    await tester.pumpAndSettle();
+    expect(disclosure, findsOneWidget);
+    expect(queue.forTurn(turn), isNull);
+    await tester.tap(find.text('Không hữu ích'));
+    await tester.pumpAndSettle();
+
+    final options = find.byTooltip('Tùy chọn câu trả lời');
+    await scrollToSource(tester, options);
+    await tester.tap(options);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Báo cáo câu trả lời không an toàn'));
+    await tester.pumpAndSettle();
+    expect(disclosure, findsOneWidget);
+    expect(queue.forTurn(turn)?.reportedUnsafe, isFalse);
+    await tester.tap(find.text('Gửi báo cáo'));
+    await tester.pumpAndSettle();
+
+    expect(queue.forTurn(turn)?.pending, containsPair('reportedUnsafe', true));
+    expect(queue.forTurn(turn)?.pending, containsPair('modelVersion', '1'));
+    expect(
+      queue.forTurn(turn)?.pending,
+      containsPair('localAnswerId', turn.id),
+    );
+    expect(
+      queue.forTurn(turn)?.pending,
+      containsPair('localTrace', turn.answer!.localTrace!.toJson()),
+    );
+    expect(transport.requests, isEmpty);
+  });
+
   testWidgets('validates empty and over-limit questions before the API', (
     tester,
   ) async {
@@ -586,6 +638,9 @@ void main() {
     'uses the selected snapshot only for its owner and exact version',
     (tester) async {
       const selection = (accountId: 'camper-a', tripId: 'trip-a', version: 2);
+      const replacement = (accountId: 'camper-a', tripId: 'trip-a', version: 3);
+      const packageId = '81fe4e3a-7758-4244-91ab-5b4987037179';
+      const replacementId = 'c77b57b0-3454-4d41-beee-58eb3606028b';
       final reads = <OfflineTripSelection>[];
       final model = _LocalModel();
       await open(
@@ -593,13 +648,13 @@ void main() {
         model: model,
         snapshot: (requested) async {
           reads.add(requested);
-          if (requested != selection) return null;
-          return const OfflineTrip(
+          if (requested != selection && requested != replacement) return null;
+          return OfflineTrip(
             route: [],
             checkpoints: [],
             guides: [],
             hazardSources: [],
-            packageId: '81fe4e3a-7758-4244-91ab-5b4987037179',
+            packageId: requested == selection ? packageId : replacementId,
           );
         },
       );
@@ -617,9 +672,10 @@ void main() {
       );
       expect(controller.send(question, trip: selection), isTrue);
       await tester.pumpAndSettle();
-      final answer = container.read(survivalChatControllerProvider).last.answer;
+      final turn = container.read(survivalChatControllerProvider).last;
+      final answer = turn.answer;
       expect(answer?.snapshotVersion, 2);
-      expect(answer?.packageId, '81fe4e3a-7758-4244-91ab-5b4987037179');
+      expect(answer?.packageId, packageId);
       expect(answer?.localTrace?.path, 'SAVED_TRIP_CHECKPOINT_COUNT');
       expect(answer?.localTrace?.observedAt.isUtc, isTrue);
       expect(answer?.localTrace?.runtimeConfigVersion, isNull);
@@ -635,11 +691,24 @@ void main() {
         isTrue,
       );
       await tester.pumpAndSettle();
-      expect(reads.map((item) => item.version), [2, 1]);
       expect(
         container.read(survivalChatControllerProvider).last.answer,
         isNull,
       );
+
+      final queue = container.read(aiFeedbackQueueProvider)!;
+      await queue.commit(turn, rating: AiAnswerRating.notUseful);
+      final pending = queue.forTurn(turn)?.pending;
+      expect(pending, containsPair('packageId', packageId));
+      expect(pending, containsPair('packageVersion', 2));
+      expect(pending, containsPair('localTrace', answer!.localTrace!.toJson()));
+      expect(controller.send(question, trip: replacement), isTrue);
+      await tester.pumpAndSettle();
+      final latest = container.read(survivalChatControllerProvider).last;
+      expect(latest.answer?.packageId, replacementId);
+      expect(queue.forTurn(latest), isNull);
+      expect(queue.forTurn(turn)?.pending, pending);
+      expect(reads.map((item) => item.version), [2, 1, 3]);
       expect(model.requests, 0);
       expect(transport.requests, isEmpty);
     },
