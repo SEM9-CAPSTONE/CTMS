@@ -1,4 +1,5 @@
 import { Eye, MoreHorizontal, Pencil } from "lucide-react";
+import { RouteDangerZoneProposals } from "../../danger-zone-proposals/components/RouteDangerZoneProposals";
 import type { CreatedTrekkingRoute } from "../types";
 import { RouteMetadata } from "./RouteMetadata";
 import { RouteSafetyPreview } from "./RouteSafetyPreview";
@@ -71,6 +72,7 @@ export function HostRouteDetail({ route, onEdit, onDetail }: Props) {
 				showMapTitle={false}
 				mapHeightClassName="h-[54dvh] min-h-96 max-h-[34rem]"
 			/>
+			<RouteDangerZoneProposals route={route} />
 		</section>
 	);
 }

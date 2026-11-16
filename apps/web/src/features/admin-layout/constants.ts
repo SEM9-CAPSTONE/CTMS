@@ -11,6 +11,7 @@ import {
 	LayoutDashboard,
 	LineChart,
 	type LucideIcon,
+	MapPinned,
 	MessageSquareText,
 	Route,
 	Settings,
@@ -83,6 +84,11 @@ const items = {
 		icon: ShieldAlert,
 		path: RoutePath.ADMIN_SAFETY_HOTSPOTS,
 	},
+	"danger-zone-proposals": {
+		label: "Đề xuất điểm nguy hiểm",
+		icon: MapPinned,
+		path: RoutePath.ADMIN_DANGER_ZONE_PROPOSALS,
+	},
 	"review-analysis": {
 		label: "Phân tích đánh giá AI",
 		icon: MessageSquareText,
@@ -123,6 +129,7 @@ export const ADMIN_NAV_GROUPS = [
 			"survival-documents",
 			"weather-management",
 			"safety-hotspots",
+			"danger-zone-proposals",
 			"review-analysis",
 			"audit-logs",
 		],

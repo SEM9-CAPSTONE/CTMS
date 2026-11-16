@@ -134,3 +134,7 @@ None for the approved hotspot lifecycle.
 ## Web map consumer amendment — 2026-11-16
 
 CONFIRMED establishes eligible evidence; it does not itself publish a map hazard. Once Admin applies ADD_HAZARD_AREA or UPDATE_HAZARD_AREA under CTMS-118, the matching authoritative hazard becomes visible through the shared viewport layer without a selected Route, Trip or drawn geometry. Current confirmation, evidence and applied hazard snapshot must match. Pending/rejected/reopened evidence is excluded. Public reads expose safety facts and verification, never review reasons, evidence or member data. See docs/business-rules/route-safety-v2.md, amended BR-475/477. No automatic review or corrective write is introduced.
+
+## Review transitions and danger-zone proposals — 2026-11-16
+
+API: POST /api/admin/safety-hotspots/:id/review {status, reason} performs one BR-357 step (DETECTED→UNDER_REVIEW, UNDER_REVIEW→CONFIRMED|DISMISSED); any other step returns 409 INVALID_TRANSITION. GET /api/admin/safety-hotspots/:id/reviews lists the stored decisions. The Admin hotspot page offers "Bắt đầu xem xét", "Xác nhận điểm nóng" and "Bác bỏ". Host and field-incident danger-zone proposals are a separate queue with their own Admin review page ("Đề xuất điểm nguy hiểm"); they do not create or confirm hotspots. See docs/business-rules/route-safety-v2.md, "Danger-zone proposals and Admin review".

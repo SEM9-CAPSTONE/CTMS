@@ -2,6 +2,7 @@ import type { StatusBadgeTone } from "../../shared/components";
 import type {
 	CorrectiveActionType,
 	HazardSeverity,
+	HotspotReviewTarget,
 	HotspotStatus,
 	HotspotStatusFilter,
 } from "./types";
@@ -47,3 +48,9 @@ export const HAZARD_SEVERITY_OPTIONS: Array<{ value: HazardSeverity; label: stri
 	{ value: "medium", label: "Trung bình" },
 	{ value: "low", label: "Thấp" },
 ];
+
+export const HOTSPOT_REVIEW_TOASTS: Record<HotspotReviewTarget, string> = {
+	UNDER_REVIEW: "Đã chuyển điểm nóng sang đang xem xét.",
+	CONFIRMED: "Đã xác nhận điểm nóng. Bạn có thể cập nhật dữ liệu an toàn của tuyến.",
+	DISMISSED: "Đã bác bỏ điểm nóng.",
+};

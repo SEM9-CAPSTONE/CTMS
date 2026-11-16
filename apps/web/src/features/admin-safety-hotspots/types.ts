@@ -84,3 +84,14 @@ export interface CreateCorrectiveActionPayload {
 		severity: HazardSeverity;
 	};
 }
+
+export type HotspotReviewTarget = Exclude<HotspotStatus, "DETECTED">;
+
+export interface HotspotReview {
+	id: string;
+	fromStatus: HotspotStatus;
+	toStatus: HotspotStatus;
+	reason: string;
+	actorName: string;
+	createdAt: string;
+}

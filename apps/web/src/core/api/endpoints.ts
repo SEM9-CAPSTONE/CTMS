@@ -19,6 +19,14 @@ export const API_ENDPOINTS = {
 		EVIDENCE: (id: string) => `/admin/safety-hotspots/${id}/evidence`,
 		TARGETS: (id: string) => `/admin/safety-hotspots/${id}/corrective-targets`,
 		ACTIONS: (id: string) => `/admin/safety-hotspots/${id}/corrective-actions`,
+		REVIEW: (id: string) => `/admin/safety-hotspots/${id}/review`,
+		REVIEWS: (id: string) => `/admin/safety-hotspots/${id}/reviews`,
+	},
+	DANGER_ZONE_PROPOSALS: {
+		ADMIN_LIST: "/admin/danger-zone-proposals",
+		APPROVE: (id: string) => `/admin/danger-zone-proposals/${id}/approve`,
+		REJECT: (id: string) => `/admin/danger-zone-proposals/${id}/reject`,
+		FOR_ROUTE: (routeId: string) => `/trekking-routes/${routeId}/danger-zone-proposals`,
 	},
 	DEMAND_INSIGHTS: {
 		PERIODS: "/host/demand-insights",

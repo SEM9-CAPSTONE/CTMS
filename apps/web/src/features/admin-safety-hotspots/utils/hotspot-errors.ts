@@ -6,6 +6,7 @@ const CODE_MESSAGES: Record<string, string> = {
 	ROUTE_CLOSED: "Tuyến đã đóng nên không thể cập nhật dữ liệu an toàn.",
 	TARGET_NOT_ON_ROUTE: "Điểm dừng hoặc vùng nguy hiểm đã chọn không còn thuộc tuyến này.",
 	HOTSPOT_NOT_FOUND: "Không tìm thấy điểm nóng này.",
+	INVALID_TRANSITION: "Điểm nóng đã được người khác xử lý. Vui lòng tải lại danh sách.",
 };
 
 const STATUS_MESSAGES: Record<number, string> = {

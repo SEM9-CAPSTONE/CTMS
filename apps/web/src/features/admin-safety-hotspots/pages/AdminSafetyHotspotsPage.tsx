@@ -71,6 +71,10 @@ export function AdminSafetyHotspotsPage({
 					hotspot={selected}
 					onClose={() => setSelected(null)}
 					onChanged={() => void hotspots.reload()}
+					onReviewed={(next) => {
+						setSelected(next);
+						void hotspots.reload();
+					}}
 				/>
 			)}
 		</AdminLayout>

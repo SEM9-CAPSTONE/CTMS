@@ -1,15 +1,19 @@
 import { Button, Modal, StatusBadge } from "../../../shared/components";
 import { HOTSPOT_STATUS_LABELS, HOTSPOT_STATUS_TONES } from "../constants";
 import { useHotspotCorrections } from "../hooks/useHotspotCorrections";
+import { useHotspotReview } from "../hooks/useHotspotReview";
 import type { HotspotEvidenceEvent, SafetyHotspot } from "../types";
 import { formatDate, formatDateTime, formatTime } from "../utils/format";
 import { CorrectiveActionForm } from "./CorrectiveActionForm";
 import { HotspotHistoryTable } from "./HotspotHistoryTable";
+import { HotspotReviewForm } from "./HotspotReviewForm";
+import { HotspotReviewTable } from "./HotspotReviewTable";
 
 interface Props {
 	hotspot: SafetyHotspot;
 	onClose: () => void;
 	onChanged: () => void;
+	onReviewed: (next: SafetyHotspot) => void;
 }
 
 interface TripEvidence {
@@ -37,9 +41,11 @@ function groupByTrip(events: HotspotEvidenceEvent[]): TripEvidence[] {
 const minutesBetween = (from: string, to: string) =>
 	Math.max(1, Math.round((new Date(to).getTime() - new Date(from).getTime()) / 60_000));
 
-export function HotspotDetailModal({ hotspot, onClose, onChanged }: Props) {
+export function HotspotDetailModal({ hotspot, onClose, onChanged, onReviewed }: Props) {
 	const corrections = useHotspotCorrections(hotspot, onChanged);
+	const review = useHotspotReview(hotspot.id, onReviewed);
 	const confirmed = hotspot.status === "CONFIRMED";
+	const reviewable = hotspot.status === "DETECTED" || hotspot.status === "UNDER_REVIEW";
 	const evidenceByTrip = groupByTrip(corrections.evidence);
 	const facts: Array<[string, string]> = [
 		["Tuyến", hotspot.routeName],
@@ -60,7 +66,7 @@ export function HotspotDetailModal({ hotspot, onClose, onChanged }: Props) {
 			onClose={onClose}
 			title="Điểm nóng an toàn"
 			size="xl"
-			isCloseDisabled={corrections.submitting}
+			isCloseDisabled={corrections.submitting || review.submitting}
 		>
 			<div className="space-y-6">
 				<div className="space-y-3">
@@ -118,6 +124,22 @@ export function HotspotDetailModal({ hotspot, onClose, onChanged }: Props) {
 					</ul>
 				</section>
 
+				{reviewable && (
+					<section
+						className="space-y-3 border-t border-[#e8efe7] pt-4"
+						aria-labelledby="hotspot-review-title"
+					>
+						<h3 id="hotspot-review-title" className="text-lg font-semibold text-[#10221b]">
+							Xét duyệt
+						</h3>
+						<HotspotReviewForm
+							hotspot={hotspot}
+							submitting={review.submitting}
+							onReview={review.review}
+						/>
+					</section>
+				)}
+
 				<section
 					className="space-y-3 border-t border-[#e8efe7] pt-4"
 					aria-labelledby="hotspot-update-title"
@@ -152,6 +174,7 @@ export function HotspotDetailModal({ hotspot, onClose, onChanged }: Props) {
 					<h3 id="hotspot-history-title" className="text-lg font-semibold text-[#10221b]">
 						Lịch sử
 					</h3>
+					<HotspotReviewTable rows={review.reviews} />
 					{!corrections.loading && <HotspotHistoryTable rows={corrections.history} />}
 				</section>
 			</div>

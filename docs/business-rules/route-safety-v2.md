@@ -66,3 +66,16 @@ NCHMF live collection is enabled by default through server-side configuration. E
 User-confirmed scope, 2026-10-30: the route preview includes dangerous areas, nearby dangerous/event points and nearby water. Live points, lines and polygons are filtered by meter distance to the entire route. Historical/ended events remain labeled context; mapped water has no implied current availability or potability. VNDMS risk levels are preserved without inventing CTMS severity.
 
 Scope clarification, 2026-10-30: Route supplies reusable geometry with automatic nearby hazard and water context. Route creation/editing/submission/approval neither requires nor generates start/finish checkpoints or waypoints. Those belong to Trip planning, whose refactor is deferred. Existing ownership and lifecycle restrictions still apply.
+
+## Danger-zone proposals and Admin review — 2026-11-16
+
+User-approved amendment. A danger zone becomes public only through an authorized Admin decision. Besides CTMS-118 hazard corrections from a CONFIRMED hotspot, an Admin may now approve a danger-zone proposal from two sources:
+
+- **Host proposal.** The owning Host proposes a Point (with radius) or Polygon on one of their Routes, in any Route status, with hazard type, severity and description. The CTMS-014 DRAFT-only direct creation is unchanged.
+- **Field incident.** In the same transaction as the incident insert, a report in category route_obstruction, lost_member, slippery_or_landslide or damaged_barrier whose position the server classified FRESH opens a PENDING proposal at that point. The radius is the GPS accuracy, kept between 30 m and 200 m; incident severity maps low/medium/high, with critical mapped to high. Other categories, STALE/UNAVAILABLE positions and reports without coordinates open none. A lost-member report records where the member went missing for review; it is never treated as a hazard automatically. Incident handling status (open/investigating/resolved/closed) does not affect the proposal.
+
+Lifecycle: PENDING → APPROVED or REJECTED, decided once. Rejection needs a reason of at least 10 characters. Approval sets the public severity, description and, for a Point, the recorded radius; the position stays as proposed. Field-report text may name members, so the Admin writes the public description rather than copying it. Approval creates the route_danger_zones row and stores the approved snapshot read back from that row, in one audited transaction. The shared layer (BR-475/477 amendment above) publishes the zone while the most recent Admin decision on it, approved proposal or hotspot correction, still matches the stored zone. Rejected and pending proposals are never published, and public reads still omit route names, proposer, reviewer, reasons and incident data.
+
+CTMS-117 hotspot review: an Admin moves a hotspot DETECTED → UNDER_REVIEW → CONFIRMED or DISMISSED, one step at a time, with a reason of at least 10 characters. Each step stores actor, from/to status, reason, time and the evidence hash, and is audited (BR-357, BR-424). Review alone changes no safety data.
+
+Porter incident categories gain slippery_or_landslide ("Trơn trượt, sạt lở") and damaged_barrier ("Hư rào chắn"). Offline packages and Camper mobile remain out of scope.

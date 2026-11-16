@@ -7,6 +7,8 @@ export const INCIDENT_CATEGORIES = [
 	"weather_hazard",
 	"route_obstruction",
 	"wildlife",
+	"slippery_or_landslide",
+	"damaged_barrier",
 	"other",
 ] as const;
 export type IncidentCategory = (typeof INCIDENT_CATEGORIES)[number];
