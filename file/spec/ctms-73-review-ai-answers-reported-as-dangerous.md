@@ -56,6 +56,11 @@ Dependency:
 
 Feedback exists with `reported_unsafe = true`.
 
+CTMS-072 accepts an Unsafe report independently of a usefulness rating. Local
+reports contain the evaluated question and answer. Online reports reference the
+retained answer and its available server-recorded evidence. A historical Online
+answer may lack the original question. Render the reported content as text.
+
 ## 5. Business Rules
 
 | BR         | Rule                                                                                                                                                                                                                                                                           |

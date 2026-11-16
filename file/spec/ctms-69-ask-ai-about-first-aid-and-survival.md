@@ -173,8 +173,11 @@ A POST replay with incomplete cited provenance returns `INSUFFICIENT_CONTEXT`.
 
 A local reply uses the local turn identity and has no server answer ID. Pretrained-only
 replies carry no CTMS citation. Answers using verified snapshot evidence may show
-only provenance for content actually used. Local answers do not call server
-source or feedback endpoints.
+only provenance for content actually used. Local answers do not call the server's
+source endpoint. When the Camper submits feedback under [CTMS-072](ctms-72-rate-ai-answers.md),
+only the selected turn's question and answer are eligible for feedback delivery.
+BR-503 continues to apply to the chat transcript. New Online answers retain the
+question with their existing, time-limited server answer record for authorized review.
 
 See the [implementation and verification contract](../../docs/features/CTMS-069-Implementation.md).
 
