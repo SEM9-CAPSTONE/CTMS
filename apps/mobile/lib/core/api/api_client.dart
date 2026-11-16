@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -15,6 +16,16 @@ import 'auth_refresh_coordinator.dart';
 /// apps/web/src/core/api/httpClient.ts's `SESSION_EXPIRED_MESSAGE`, for
 /// consistent product copy across platforms.
 const _sessionExpiredMessage = 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
+
+String? _accessTokenSubject(String? token) {
+  if (token == null) return null;
+  try {
+    final claims = jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(token.split('.')[1]))));
+    return claims is Map ? claims['sub'] as String? : null;
+  } catch (_) {
+    return null;
+  }
+}
 
 /// A synthetic `DioException` carrying only the shared generic message --
 /// routed through `_guard`'s existing response-mapping logic (below)
@@ -55,6 +66,11 @@ class ApiClient {
       InterceptorsWrapper(
         onRequest: (options, handler) async {
           final token = await _tokenStorage.readAccessToken();
+          final owner = options.extra['expectedUserId'];
+          if (owner != null && _accessTokenSubject(token) != owner) {
+            handler.reject(_sessionExpiredError(options));
+            return;
+          }
           if (token != null) {
             options.headers['Authorization'] = 'Bearer $token';
           }
@@ -91,6 +107,7 @@ class ApiClient {
   ///   error path, not a second refresh/auto-logout.
   Future<void> _handleError(DioException err, ErrorInterceptorHandler handler) async {
     final statusCode = err.response?.statusCode;
+    final owner = err.requestOptions.extra['expectedUserId'];
     final hadAuthHeader = err.requestOptions.headers.containsKey('Authorization');
     final isRetry = err.requestOptions.extra['isRetryAfterRefresh'] == true;
 
@@ -99,11 +116,27 @@ class ApiClient {
       return;
     }
 
+    if (owner != null &&
+        (err.requestOptions.cancelToken?.isCancelled == true ||
+         _accessTokenSubject(await _tokenStorage.readAccessToken()) != owner)) {
+      handler.reject(_sessionExpiredError(err.requestOptions));
+      return;
+    }
+
     final String newAccessToken;
     try {
       newAccessToken = await _refreshCoordinator.refresh();
     } catch (_) {
-      await onSessionExpired?.call();
+      if (owner == null ||
+          (err.requestOptions.cancelToken?.isCancelled != true &&
+           _accessTokenSubject(await _tokenStorage.readAccessToken()) == owner)) {
+        await onSessionExpired?.call();
+      }
+      handler.reject(_sessionExpiredError(err.requestOptions));
+      return;
+    }
+
+    if (owner != null && _accessTokenSubject(newAccessToken) != owner) {
       handler.reject(_sessionExpiredError(err.requestOptions));
       return;
     }
@@ -132,9 +165,19 @@ class ApiClient {
 
   /// [headers] is optional and only used by endpoints that need extra
   /// request headers (e.g. `Idempotency-Key` on Booking create/pay/refund).
-  Future<Response<T>> post<T>(String path, {Object? data, Map<String, Object?>? headers}) =>
+  Future<Response<T>> post<T>(String path, {
+    Object? data,
+    Map<String, Object?>? headers,
+    String? expectedUserId,
+    CancelToken? cancelToken,
+  }) =>
       _guard(
-        () => dio.post<T>(path, data: data, options: headers == null ? null : Options(headers: headers)),
+        () => dio.post<T>(
+          path,
+          data: data,
+          cancelToken: cancelToken,
+          options: Options(headers: headers, extra: {'expectedUserId': expectedUserId}),
+        ),
       );
 
   Future<Response<T>> put<T>(String path, {Object? data}) =>

@@ -102,6 +102,9 @@ Same UUID uploaded again:
 11. Never recreate already accepted UUID.
 12. Apply consent invalidation/purge where required.
 
+The coordinator delivers committed [CTMS-072 feedback](ctms-72-rate-ai-answers.md)
+after the safety and telemetry attempts. Feedback does not add chat history to the safety queue.
+
 ## 8. Data & Invariants
 
 Each synchronized event preserves:

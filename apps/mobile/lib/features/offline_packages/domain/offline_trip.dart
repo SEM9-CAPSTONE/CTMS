@@ -6,12 +6,14 @@ class OfflineTrip {
     required this.checkpoints,
     required this.guides,
     required this.hazardSources,
+    this.packageId,
   });
 
   final List<OfflinePosition> route;
   final List<OfflineCheckpoint> checkpoints;
   final List<OfflineGuide> guides;
   final List<OfflineHazardSource> hazardSources;
+  final String? packageId;
 }
 
 class OfflineCheckpoint {

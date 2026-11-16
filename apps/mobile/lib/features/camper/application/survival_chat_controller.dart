@@ -1,8 +1,7 @@
-import 'dart:math';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/api_exception.dart';
+import '../../../core/api/client_uuid.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../auth/domain/user_role.dart';
 import '../../offline_packages/application/offline_trip_providers.dart';
@@ -169,7 +168,7 @@ class SurvivalChatController extends Notifier<List<SurvivalChatTurn>> {
         state.any((turn) => turn.pending)) {
       return false;
     }
-    final turn = SurvivalChatTurn(_requestId(), question, trip: trip);
+    final turn = SurvivalChatTurn(newClientUuid(), question, trip: trip);
     state = [...state, turn];
     _request(turn);
     return true;
@@ -337,6 +336,7 @@ class SurvivalChatController extends Notifier<List<SurvivalChatTurn>> {
       return SurvivalChatAnswer.local(
         'Trong gói đã lưu có $count điểm dừng.',
         snapshotVersion: trip.version,
+        packageId: snapshot.packageId,
       );
     }
     if (!_generalLocal.hasMatch(question) ||
@@ -344,14 +344,15 @@ class SurvivalChatController extends Notifier<List<SurvivalChatTurn>> {
         _tripOrLive.hasMatch(question)) {
       return const SurvivalChatUnavailable(refused: true);
     }
-    final text = await model.generate(question);
+    final reply = await model.generate(question);
+    final text = reply.text;
     if (text.length > 2600 ||
         !_generalLocal.hasMatch(text) ||
         _unsafeLocal.hasMatch(text) ||
         _tripOrLive.hasMatch(text)) {
       return const SurvivalChatUnavailable(refused: true);
     }
-    return SurvivalChatAnswer.local(text);
+    return SurvivalChatAnswer.local(text, modelId: reply.modelId, modelVersion: reply.modelVersion);
   }
 
   void _replace(SurvivalChatTurn turn) {
@@ -360,17 +361,6 @@ class SurvivalChatController extends Notifier<List<SurvivalChatTurn>> {
         if (item.id == turn.id) turn else item,
     ];
   }
-}
-
-String _requestId() {
-  final random = Random.secure();
-  final bytes = List.generate(16, (_) => random.nextInt(256));
-  bytes[6] = (bytes[6] & 0x0f) | 0x40;
-  bytes[8] = (bytes[8] & 0x3f) | 0x80;
-  final hex = bytes
-      .map((byte) => byte.toRadixString(16).padLeft(2, '0'))
-      .join();
-  return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
 }
 
 final survivalChatControllerProvider =

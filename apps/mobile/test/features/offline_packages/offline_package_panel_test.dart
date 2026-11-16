@@ -57,6 +57,7 @@ void main() {
           ).overrideWith((ref) => controller),
         ],
         child: MaterialApp(
+          theme: ThemeData(splashFactory: InkRipple.splashFactory),
           home: Scaffold(
             body: OfflinePackagePanel(
               tripId: testTripId,

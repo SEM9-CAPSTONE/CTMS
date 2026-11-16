@@ -123,7 +123,7 @@ class AiEndpoints {
   String get conversations => '/ai/conversations';
   String messages(String conversationId) =>
       '/ai/conversations/$conversationId/messages';
-  String get feedback => '/ai/messages/feedback';
+  String get feedback => '/ai/answers/feedback';
 }
 
 class SosEndpoints {

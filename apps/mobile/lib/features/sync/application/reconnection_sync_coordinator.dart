@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/api_client.dart';
 import '../../auth/application/auth_controller.dart';
+import '../../camper/application/ai_feedback_queue.dart';
 import '../../camper/profile/data/camper_health_profile_repository.dart';
 import '../../checkpoint_arrivals/application/checkpoint_arrival_controller.dart';
 import '../../checkpoint_arrivals/application/checkpoint_arrival_sync.dart';
@@ -53,10 +54,13 @@ class ReconnectionSyncCoordinator extends ChangeNotifier {
     this.checkpointApi,
     this.medicalStore,
     this.healthProfileRepository,
+    this.feedbackQueue,
     DateTime Function()? clock,
     bool autoStart = true,
   }) : _clock = clock ?? DateTime.now {
     _connectivitySub = connectivitySource.onConnectivityChanged.listen(_handleConnectivityChange);
+    _feedbackCommits = feedbackQueue?.commits ?? 0;
+    feedbackQueue?.addListener(_onFeedbackChanged);
     if (autoStart) {
       _init();
     }
@@ -75,12 +79,16 @@ class ReconnectionSyncCoordinator extends ChangeNotifier {
   final CheckpointArrivalApi? checkpointApi;
   final OfflineMedicalStore? medicalStore;
   final CamperHealthProfileRepository? healthProfileRepository;
+  final AiFeedbackQueue? feedbackQueue;
   final DateTime Function() _clock;
 
   bool _isOnline = false;
   bool _isSyncing = false;
   bool _disposed = false;
   int _consecutiveFailures = 0;
+  int _feedbackFailures = 0;
+  int _feedbackCommits = 0;
+  bool _feedbackRequested = false;
   DateTime? _lastSyncAt;
   String? _lastError;
   Timer? _retryTimer;
@@ -118,6 +126,7 @@ class ReconnectionSyncCoordinator extends ChangeNotifier {
       // Reconnection detected: cancel any pending backoff timer and sync immediately
       _cancelRetryTimer();
       _consecutiveFailures = 0;
+      _feedbackFailures = 0;
       unawaited(synchronizeAll());
     }
   }
@@ -134,21 +143,37 @@ class ReconnectionSyncCoordinator extends ChangeNotifier {
     _retryTimer = null;
   }
 
-  void _scheduleRetry() {
+  void _scheduleRetry({bool feedbackPending = false}) {
     if (_disposed || !_isOnline) return;
-    if (_consecutiveFailures >= maxConsecutiveRetries) {
+    if (_consecutiveFailures >= maxConsecutiveRetries && !feedbackPending) {
       _lastError = 'Đã vượt quá số lần thử lại tối đa. Vui lòng thử lại thủ công.';
       _changed();
       return;
     }
 
     _cancelRetryTimer();
-    final delay = calculateBackoff(_consecutiveFailures);
+    final delay = feedbackPending
+        ? Duration(seconds: min(60, calculateBackoff(_feedbackFailures).inSeconds))
+        : calculateBackoff(_consecutiveFailures);
     _retryTimer = Timer(delay, () {
       if (!_disposed && _isOnline) {
         unawaited(synchronizeAll());
       }
     });
+  }
+
+  /// A newly committed feedback can arrive while safety sync is in flight.
+  void _requestFeedbackSync() {
+    if (_disposed || !_isOnline) return;
+    _feedbackRequested = true;
+    if (!_isSyncing) unawaited(synchronizeAll());
+  }
+
+  void _onFeedbackChanged() {
+    final commits = feedbackQueue?.commits ?? 0;
+    if (commits == _feedbackCommits) return;
+    _feedbackCommits = commits;
+    _requestFeedbackSync();
   }
 
   /// Enforces BR-230 / PB AC-8: Sensitive medical data invalidated by revoked consent
@@ -182,6 +207,7 @@ class ReconnectionSyncCoordinator extends ChangeNotifier {
   Future<void> synchronizeAll({bool force = false}) async {
     if (_isSyncing || _disposed) return;
     _isSyncing = true;
+    _feedbackRequested = false;
     _changed();
 
     bool hasErrors = false;
@@ -340,15 +366,30 @@ class ReconnectionSyncCoordinator extends ChangeNotifier {
         }
       }
 
+      // Ratings and unsafe reports are delivered after SOS and safety telemetry.
+      final feedback = _isOnline && !_disposed ? await feedbackQueue?.flush() : null;
+      final feedbackPending = feedback?.retry == true;
+      if (feedbackPending) {
+        _feedbackFailures++;
+      } else {
+        _feedbackFailures = 0;
+      }
+      if (feedback?.rejected == true) {
+        latestError ??= 'Có phản hồi về câu trả lời AI không gửi được.';
+      }
       if (hasErrors) {
         _consecutiveFailures++;
         _lastError = latestError ?? 'Không thể hoàn tất đồng bộ.';
-        _scheduleRetry();
+        _scheduleRetry(feedbackPending: feedbackPending);
       } else {
         _consecutiveFailures = 0;
         _lastSyncAt = _clock();
-        _lastError = null;
-        _cancelRetryTimer();
+        _lastError = latestError;
+        if (feedbackPending) {
+          _scheduleRetry(feedbackPending: true);
+        } else {
+          _cancelRetryTimer();
+        }
       }
     } catch (e) {
       _consecutiveFailures++;
@@ -357,6 +398,7 @@ class ReconnectionSyncCoordinator extends ChangeNotifier {
     } finally {
       _isSyncing = false;
       _changed();
+      if (_feedbackRequested) _requestFeedbackSync();
     }
   }
 
@@ -462,6 +504,7 @@ class ReconnectionSyncCoordinator extends ChangeNotifier {
     } finally {
       _isSyncing = false;
       _changed();
+      if (_feedbackRequested) _requestFeedbackSync();
     }
   }
 
@@ -470,6 +513,7 @@ class ReconnectionSyncCoordinator extends ChangeNotifier {
     _disposed = true;
     _cancelRetryTimer();
     _connectivitySub?.cancel();
+    feedbackQueue?.removeListener(_onFeedbackChanged);
     super.dispose();
   }
 }
@@ -505,6 +549,7 @@ final reconnectionSyncCoordinatorProvider = Provider<ReconnectionSyncCoordinator
     checkpointApi: checkpointApi,
     medicalStore: medicalStore,
     healthProfileRepository: healthRepo,
+    feedbackQueue: ref.watch(aiFeedbackQueueProvider.notifier),
   );
 
   ref.onDispose(coordinator.dispose);

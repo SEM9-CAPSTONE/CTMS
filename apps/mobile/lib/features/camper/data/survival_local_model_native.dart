@@ -68,12 +68,15 @@ class SurvivalLocalModel {
     }
   }
 
-  Future<String> generate(String question) async {
+  Future<SurvivalLocalReply> generate(String question) async {
     if (!supported || _busy) throw LocalModelFailure.unavailable;
     _busy = true;
     try {
       final file = await (await _store()).active(_trustedSurvivalReleases);
       if (file == null) throw LocalModelFailure.unavailable;
+      final release = _trustedSurvivalReleases.firstWhere(
+        (release) => file.uri.pathSegments.last == '${release.digest}.gguf',
+      );
       return await _withContext(file.path, (runtime, context) async {
         final input = question.replaceAll('<|', '‹|').replaceAll('|>', '|›');
         final prompt =
@@ -110,7 +113,7 @@ class SurvivalLocalModel {
         if (value is! String || value.trim().isEmpty) {
           throw LocalModelFailure.inference;
         }
-        return value.trim();
+        return (text: value.trim(), modelId: release.modelId, modelVersion: release.digest);
       });
     } on LocalModelFailure {
       rethrow;

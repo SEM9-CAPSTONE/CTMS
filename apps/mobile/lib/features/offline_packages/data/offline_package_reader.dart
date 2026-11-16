@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import '../domain/offline_trip.dart';
 
 /// Decodes schema 1 entries inside the integrity verifier's worker isolate.
-OfflineTrip decodeOfflineTrip(Map<String, Uint8List> files) {
+OfflineTrip decodeOfflineTrip(Map<String, Uint8List> files, {String? packageId}) {
   Object? decode(String path) => jsonDecode(utf8.decode(files[path]!));
 
   final manifest = _object(decode('manifest.json'));
@@ -40,6 +40,7 @@ OfflineTrip decodeOfflineTrip(Map<String, Uint8List> files) {
 
   final guides = _list(decode('guidance.json')).map(_guide);
   return OfflineTrip(
+    packageId: packageId,
     route: List.unmodifiable(positions),
     checkpoints: List.unmodifiable(checkpoints),
     guides: List.unmodifiable(guides),

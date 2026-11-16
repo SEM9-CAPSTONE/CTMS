@@ -13,6 +13,7 @@ import '../../sync/application/connectivity_source.dart';
 import '../application/survival_chat_controller.dart';
 import '../data/survival_chat_api.dart';
 import '../data/survival_local_model.dart';
+import 'widgets/ai_answer_feedback_actions.dart';
 
 class _ChatMessage {
   const _ChatMessage({
@@ -318,6 +319,7 @@ class _CamperAiAssistantScreenState
                       ),
                       if (turn.answer case final answer?)
                         _ChatBubble(
+                          feedback: AiAnswerFeedbackActions(turn: turn),
                           sources: answer.isLocal ? null : answer.sources,
                           message: _ChatMessage(
                             text: answer.text,
@@ -477,10 +479,11 @@ class _CamperAiAssistantScreenState
 }
 
 class _ChatBubble extends StatelessWidget {
-  const _ChatBubble({required this.message, this.sources});
+  const _ChatBubble({required this.message, this.sources, this.feedback});
 
   final _ChatMessage message;
   final List<SurvivalChatSource>? sources;
+  final Widget? feedback;
 
   @override
   Widget build(BuildContext context) {
@@ -539,6 +542,7 @@ class _ChatBubble extends StatelessWidget {
                   ),
                   if (sources case final sources?)
                     _AnswerSources(sources: sources),
+                  ?feedback,
                   const SizedBox(height: 4),
                   Align(
                     alignment: Alignment.bottomRight,

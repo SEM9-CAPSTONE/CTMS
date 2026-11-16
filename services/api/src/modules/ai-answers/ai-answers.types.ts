@@ -25,6 +25,7 @@ export type StoredAnswer = {
 	id: string;
 	request_hash: string;
 	locale: string;
+	question?: string | null;
 	answer: string;
 	retrieved_evidence: RagEvidenceRef[];
 	cited_chunk_ids: string[];

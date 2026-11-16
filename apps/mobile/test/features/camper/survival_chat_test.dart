@@ -9,6 +9,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/core/api/api_client.dart';
 import 'package:mobile/core/storage/token_storage.dart';
+import 'package:mobile/features/camper/application/ai_feedback_queue.dart';
 import 'package:mobile/features/camper/application/survival_chat_controller.dart';
 import 'package:mobile/features/camper/data/survival_local_model.dart';
 import 'package:mobile/features/camper/presentation/camper_ai_assistant_screen.dart';
@@ -38,9 +39,13 @@ class _LocalModel extends SurvivalLocalModel {
   Future<bool> latestReady() async => true;
 
   @override
-  Future<String> generate(String question) async {
+  Future<SurvivalLocalReply> generate(String question) async {
     requests++;
-    return 'Xếp đồ nặng gần lưng và để áo mưa ở ngăn dễ lấy.';
+    return (
+      text: 'Xếp đồ nặng gần lưng và để áo mưa ở ngăn dễ lấy.',
+      modelId: 'packing-model',
+      modelVersion: '1',
+    );
   }
 }
 
@@ -118,6 +123,7 @@ void main() {
     _LocalModel? model,
     Future<OfflineTrip?> Function(OfflineTripSelection)? snapshot,
   }) async {
+    FlutterSecureStorage.setMockInitialValues({});
     transport = _Transport();
     network = _Connection();
     final client = ApiClient(_Tokens())..dio.httpClientAdapter = transport;
@@ -137,7 +143,10 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: const MaterialApp(home: CamperAiAssistantScreen()),
+        child: MaterialApp(
+          theme: ThemeData(splashFactory: InkRipple.splashFactory),
+          home: const CamperAiAssistantScreen(),
+        ),
       ),
     );
   }
@@ -285,6 +294,77 @@ void main() {
       expect(transport.requests, hasLength(1));
     });
   }
+
+  testWidgets('commits only a selected thumb and shows the chosen icon', (
+    tester,
+  ) async {
+    await open(tester);
+    await send(tester);
+    transport.reply(0, answered);
+    await tester.pumpAndSettle();
+    final control = find.byKey(const ValueKey('ai-answer-rating'));
+    await scrollToSource(tester, control);
+    final turn = container.read(survivalChatControllerProvider).single;
+    final queue = container.read(aiFeedbackQueueProvider)!;
+    expect(queue.forTurn(turn), isNull);
+
+    await tester.longPress(control);
+    await tester.pumpAndSettle();
+    expect(find.text('Hữu ích'), findsOneWidget);
+    expect(find.text('Không hữu ích'), findsOneWidget);
+    await tester.tapAt(const Offset(5, 5));
+    await tester.pumpAndSettle();
+    expect(queue.forTurn(turn), isNull);
+
+    await tester.longPress(control);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Không hữu ích'));
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(of: control, matching: find.byIcon(Icons.thumb_down)),
+      findsOneWidget,
+    );
+    expect(find.byType(SnackBar), findsNothing);
+    expect(find.text('Không hữu ích'), findsNothing);
+    expect(
+      queue.forTurn(turn)?.pending,
+      containsPair('answerId', answered['answerId']),
+    );
+    expect(queue.forTurn(turn)?.pending?.containsKey('question'), isFalse);
+
+    await tester.tap(control);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Hữu ích'));
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(of: control, matching: find.byIcon(Icons.thumb_up)),
+      findsOneWidget,
+    );
+    expect(queue.forTurn(turn)?.revision, 2);
+  });
+
+  testWidgets('reports Unsafe independently with an empty reason', (
+    tester,
+  ) async {
+    await open(tester);
+    await send(tester);
+    transport.reply(0, answered);
+    await tester.pumpAndSettle();
+    final options = find.byTooltip('Tùy chọn câu trả lời');
+    await scrollToSource(tester, options);
+    await tester.tap(options);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Báo cáo câu trả lời không an toàn'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Gửi báo cáo'));
+    await tester.pumpAndSettle();
+    final turn = container.read(survivalChatControllerProvider).single;
+    final entry = container.read(aiFeedbackQueueProvider)!.forTurn(turn)!;
+    expect(entry.rating, isNull);
+    expect(entry.pending, containsPair('reportedUnsafe', true));
+    expect(entry.pending, containsPair('reason', null));
+    expect(find.byType(SnackBar), findsNothing);
+  });
 
   testWidgets('validates empty and over-limit questions before the API', (
     tester,

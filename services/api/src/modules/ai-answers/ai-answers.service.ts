@@ -2,7 +2,6 @@ import { createHash } from "node:crypto";
 import {
 	BadRequestException,
 	ConflictException,
-	ForbiddenException,
 	HttpException,
 	HttpStatus,
 	Injectable,
@@ -15,8 +14,13 @@ import { RagRetrievalService } from "../rag/rag-retrieval.service";
 // biome-ignore lint/style/useImportType: Nest injection
 import { RagRepository, evidenceRef } from "../rag/rag.repository";
 import { MAX_QUERY_LENGTH } from "../rag/rag.types";
-import { UserRole, UserStatus } from "../users/entities/user.entity";
-import { aiUnavailable, generationInput, groundedAnswer, invalidQuery } from "./ai-answers.policy";
+import {
+	aiUnavailable,
+	ensureCamper,
+	generationInput,
+	groundedAnswer,
+	invalidQuery,
+} from "./ai-answers.policy";
 // biome-ignore lint/style/useImportType: Nest injection
 import { AiAnswersRepository } from "./ai-answers.repository";
 import {
@@ -28,12 +32,6 @@ import {
 } from "./ai-answers.types";
 // biome-ignore lint/style/useImportType: Nest injection
 import { AiGenerationProvider } from "./ai-generation.provider";
-
-function ensureCamper(actor: AuthenticatedUser) {
-	if (actor.status !== UserStatus.ACTIVE || !actor.roles.includes(UserRole.CAMPER)) {
-		throw new ForbiddenException({ code: "AI_FORBIDDEN" });
-	}
-}
 
 function withinDeadline<T>(task: Promise<T>, signal: AbortSignal): Promise<T> {
 	return new Promise((resolve, reject) => {
@@ -157,6 +155,7 @@ export class AiAnswersService {
 							{
 								request_hash: requestHash,
 								locale,
+								question,
 								answer: verified.answer,
 								retrieved_evidence: retrieved,
 								cited_chunk_ids: cited.map(({ chunkId }) => chunkId),

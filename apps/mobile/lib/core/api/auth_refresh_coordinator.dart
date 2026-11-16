@@ -76,6 +76,9 @@ class AuthRefreshCoordinator {
     final newAccessToken = data['accessToken'] as String;
     final newRefreshToken = data['refreshToken'] as String;
 
+    if (await _tokenStorage.readRefreshToken() != refreshToken) {
+      throw StateError('Session changed during refresh');
+    }
     await _tokenStorage.saveTokens(accessToken: newAccessToken, refreshToken: newRefreshToken);
 
     return newAccessToken;

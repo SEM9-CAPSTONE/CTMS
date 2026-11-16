@@ -10,6 +10,6 @@ class SurvivalLocalModel {
   Future<void> download(void Function(int) progress) async =>
       throw LocalModelFailure.unavailable;
 
-  Future<String> generate(String question) async =>
+  Future<SurvivalLocalReply> generate(String question) async =>
       throw LocalModelFailure.unavailable;
 }

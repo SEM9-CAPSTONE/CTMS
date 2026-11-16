@@ -47,6 +47,18 @@ export class AiAnswersRepository {
 		);
 	}
 
+	async purgeExpired(manager = this.db.manager, limit = 100): Promise<void> {
+		// Bound cleanup work and skip rows another API instance is already purging.
+		await manager.query(
+			`
+			DELETE FROM ai_answers WHERE id IN (
+				SELECT id FROM ai_answers WHERE expires_at<=clock_timestamp()
+				ORDER BY expires_at LIMIT $1 FOR UPDATE SKIP LOCKED
+			)`,
+			[limit]
+		);
+	}
+
 	async save(
 		manager: EntityManager,
 		userId: string,
@@ -62,20 +74,15 @@ export class AiAnswersRepository {
 			[userId, leaseId]
 		);
 		if (!lease) throw new Error("AI answer request lease expired");
-		// Bound cleanup work and skip rows another API instance is already purging.
-		await manager.query(`
-			DELETE FROM ai_answers WHERE id IN (
-				SELECT id FROM ai_answers WHERE expires_at<=clock_timestamp()
-				ORDER BY expires_at LIMIT 100 FOR UPDATE SKIP LOCKED
-			)`);
+		await this.purgeExpired(manager);
 		await manager.query(
 			"DELETE FROM ai_answers WHERE user_id=$1 AND request_id=$2 AND expires_at<=clock_timestamp()",
 			[userId, requestId]
 		);
 		const [saved]: StoredAnswer[] = await manager.query(
 			`INSERT INTO ai_answers(user_id,request_id,request_hash,locale,answer,retrieved_evidence,
-			 cited_chunk_ids,generation,retrieval_config_version)
-			 VALUES($1,$2,$3,$4,$5,$6::jsonb,$7::uuid[],$8::jsonb,$9) RETURNING *`,
+			 cited_chunk_ids,generation,retrieval_config_version,question)
+			 VALUES($1,$2,$3,$4,$5,$6::jsonb,$7::uuid[],$8::jsonb,$9,$10) RETURNING *`,
 			[
 				userId,
 				requestId,
@@ -86,6 +93,7 @@ export class AiAnswersRepository {
 				row.cited_chunk_ids,
 				JSON.stringify(generation),
 				retrievalConfigVersion,
+				row.question,
 			]
 		);
 		return saved;

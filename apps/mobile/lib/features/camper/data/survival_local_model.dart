@@ -5,7 +5,7 @@ import 'survival_local_model_native.dart'
 
 export 'survival_local_model_native.dart'
     if (dart.library.js_interop) 'survival_local_model_web.dart';
-export 'survival_model_store.dart' show LocalModelFailure, survivalModelRelease;
+export 'survival_model_store.dart' show LocalModelFailure, SurvivalLocalReply, survivalModelRelease;
 
 final survivalLocalModelProvider = Provider<SurvivalLocalModel>(
   (ref) => SurvivalLocalModel(

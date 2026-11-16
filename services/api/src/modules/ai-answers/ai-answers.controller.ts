@@ -21,6 +21,8 @@ import { MAX_QUERY_LENGTH } from "../rag/rag.types";
 import { UserRole } from "../users/entities/user.entity";
 // biome-ignore lint/style/useImportType: Nest injection
 import { AiAnswersService } from "./ai-answers.service";
+// biome-ignore lint/style/useImportType: Nest injection
+import { AiFeedbackService } from "./ai-feedback.service";
 
 class AskSurvivalQuestionDto {
 	@IsUUID("4")
@@ -41,7 +43,10 @@ class AskSurvivalQuestionDto {
 @Roles(UserRole.CAMPER)
 @Controller("ai/answers")
 export class AiAnswersController {
-	constructor(private readonly service: AiAnswersService) {}
+	constructor(
+		private readonly service: AiAnswersService,
+		private readonly feedbackService: AiFeedbackService
+	) {}
 
 	@Post()
 	@HttpCode(HttpStatus.OK)
@@ -49,6 +54,14 @@ export class AiAnswersController {
 	@ApiOperation({ summary: "Ask an online first-aid or survival question" })
 	ask(@CurrentUser() actor: AuthenticatedUser, @Body() body: AskSurvivalQuestionDto) {
 		return this.service.ask(actor, body);
+	}
+
+	@Post("feedback")
+	@HttpCode(HttpStatus.OK)
+	@Header("Cache-Control", "no-store")
+	@ApiOperation({ summary: "Submit feedback on a completed Online or Local answer" })
+	feedback(@CurrentUser() actor: AuthenticatedUser, @Body() body: unknown) {
+		return this.feedbackService.submit(actor, body);
 	}
 
 	@Get(":answerId/sources")

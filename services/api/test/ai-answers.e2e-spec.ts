@@ -17,6 +17,7 @@ describe("CTMS-069 public HTTP contract", () => {
 	let camperId: string;
 	let hostToken: string;
 	const endpoint = "/api/ai/answers";
+	const answerFixture = "Đọc chú giải trên bản đồ.";
 	const body = { question: "Làm sao đọc bản đồ địa hình?", locale: "vi", requestId: randomUUID() };
 	const locale = "vi-XX";
 	const noKnowledge = { ...body, locale };
@@ -150,6 +151,113 @@ describe("CTMS-069 public HTTP contract", () => {
 				.get(sources)
 				.auth(camperToken, { type: "bearer" })
 				.expect(404);
+		} finally {
+			await db.query("DELETE FROM user_roles WHERE user_id=$1 AND role='camper'", [other.id]);
+			await db.query("DELETE FROM ai_answers WHERE id=$1", [row.id]);
+		}
+	});
+
+	it("accepts a Local Unsafe-only report and never treats a reply as a transcript", async () => {
+		const payload = {
+			clientFeedbackId: randomUUID(),
+			clientMutationId: randomUUID(),
+			installationId: randomUUID(),
+			localAnswerId: randomUUID(),
+			revision: 1,
+			createdAt: new Date().toISOString(),
+			inferenceMode: "LOCAL",
+			question: "  Chuẩn bị gì khi đi trekking? ",
+			answer: "Mang áo mưa và bản đồ.\n",
+			modelVersion: "1",
+			rating: null,
+			reportedUnsafe: true,
+		};
+		const send = (body: object, token = camperToken) =>
+			request(app.getHttpServer())
+				.post(`${endpoint}/feedback`)
+				.auth(token, { type: "bearer" })
+				.send(body);
+		await request(app.getHttpServer()).post(`${endpoint}/feedback`).send(payload).expect(401);
+		await send(payload, hostToken).expect(403);
+		await send({ ...payload, reportedUnsafe: false }).expect(422);
+		await send({ ...payload, question: undefined }).expect(422);
+		await send({ ...payload, transcript: [answerFixture] }).expect(422);
+		const accepted = await send(payload).expect(200);
+		const db = app.get(DataSource);
+		try {
+			expect(accepted.headers["cache-control"]).toBe("no-store");
+			expect(accepted.body).toEqual({
+				feedbackId: expect.any(String),
+				revision: 1,
+				rating: null,
+				reportedUnsafe: true,
+			});
+			expect((await send(payload).expect(200)).body).toEqual(accepted.body);
+			await send({ ...payload, reason: "Cần kiểm tra lại" }).expect(409);
+			expect(
+				await db.query(
+					"SELECT local_evidence,reason,review_status FROM ai_answer_feedback WHERE user_id=$1 AND local_answer_id=$2",
+					[camperId, payload.localAnswerId]
+				)
+			).toEqual([
+				{
+					local_evidence: {
+						question: payload.question,
+						answer: payload.answer,
+						modelId: null,
+						modelVersion: "1",
+						packageId: null,
+						packageVersion: null,
+					},
+					reason: null,
+					review_status: "pending",
+				},
+			]);
+		} finally {
+			await db.query("DELETE FROM ai_answer_feedback WHERE id=$1", [accepted.body.feedbackId]);
+		}
+	});
+
+	it("links Online feedback only to an owned answer in retention", async () => {
+		const db = app.get(DataSource);
+		const [row]: Array<{ id: string }> = await db.query(
+			`INSERT INTO ai_answers(user_id,request_id,request_hash,locale,question,answer,retrieved_evidence,
+			 cited_chunk_ids,generation,retrieval_config_version)
+			 VALUES($1,$2,$3,'vi',$4,$5,'[]','{}','{}','test') RETURNING id`,
+			[camperId, randomUUID(), "b".repeat(64), body.question, answerFixture]
+		);
+		const payload = {
+			clientFeedbackId: randomUUID(),
+			clientMutationId: randomUUID(),
+			revision: 1,
+			createdAt: new Date().toISOString(),
+			inferenceMode: "ONLINE",
+			answerId: row.id,
+			rating: "USEFUL",
+			reportedUnsafe: false,
+		};
+		const send = (data: object, token = camperToken) =>
+			request(app.getHttpServer())
+				.post(`${endpoint}/feedback`)
+				.auth(token, { type: "bearer" })
+				.send(data);
+		const [other]: Array<{ id: string }> = await db.query("SELECT id FROM users WHERE email=$1", [
+			sourceTestEmail("host"),
+		]);
+		try {
+			await db.query("INSERT INTO user_roles(user_id,role) VALUES($1,'camper')", [other.id]);
+			await send(payload, hostToken).expect(404);
+			await send({ ...payload, answer: "Nội dung khác" }).expect(422);
+			const accepted = await send(payload).expect(200);
+			expect(
+				await db.query(
+					`SELECT a.question,a.answer,f.local_evidence FROM ai_answer_feedback f
+				 JOIN ai_answers a ON a.id=f.answer_id WHERE f.id=$1`,
+					[accepted.body.feedbackId]
+				)
+			).toEqual([{ question: body.question, answer: answerFixture, local_evidence: null }]);
+			await db.query("UPDATE ai_answers SET expires_at=clock_timestamp() WHERE id=$1", [row.id]);
+			await send({ ...payload, revision: 2, clientMutationId: randomUUID() }).expect(404);
 		} finally {
 			await db.query("DELETE FROM user_roles WHERE user_id=$1 AND role='camper'", [other.id]);
 			await db.query("DELETE FROM ai_answers WHERE id=$1", [row.id]);
