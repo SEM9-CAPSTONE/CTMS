@@ -6,12 +6,11 @@ import {
 	checkpointDescription,
 	checkpointMarkerColor,
 	checkpointMarkerLabel,
-	dangerZoneDescription,
 	fitRoute,
 	previewBounds,
-	severityColors,
 } from "../utils/route-preview";
 import { addRoutePreviewLayers } from "../utils/route-preview-layers";
+import { useDangerZoneMapDetails } from "./useDangerZoneMapDetails";
 import { useRouteMapSurface } from "./useRouteMapSurface";
 
 export function useRoutePreviewMap(
@@ -57,6 +56,12 @@ export function useRoutePreviewMap(
 		geometry.coordinates[0]
 	);
 	const { map, mapReady } = surface;
+	useDangerZoneMapDetails(
+		map,
+		mapReady && !surface.fallback,
+		dangerZones,
+		"route-preview-hazards-fill"
+	);
 	useEffect(() => {
 		if (!map || !mapReady) return;
 		const source = map.getSource("route-preview") as
@@ -92,22 +97,6 @@ export function useRoutePreviewMap(
 				element.setAttribute("title", description);
 				return new MapMarker({ element }).setLngLat(checkpoint.location.coordinates).addTo(map);
 			});
-			for (const dangerZone of dangerZones) {
-				if (dangerZone.geometry.type !== "Point") continue;
-				const element = document.createElement("div");
-				element.className =
-					"flex size-8 items-center justify-center rounded-full border-[3px] border-white text-base font-black text-white shadow-[0_0_0_2px_#172554]";
-				element.style.backgroundColor = severityColors[dangerZone.severity];
-				element.textContent = "!";
-				element.dataset.hazardPointMarker = "persisted";
-				element.dataset.severity = dangerZone.severity;
-				const description = dangerZoneDescription(dangerZone);
-				element.setAttribute("aria-label", description);
-				element.setAttribute("title", description);
-				markersRef.current.push(
-					new MapMarker({ element }).setLngLat(dangerZone.geometry.coordinates).addTo(map)
-				);
-			}
 		});
 
 		return () => {
@@ -115,7 +104,7 @@ export function useRoutePreviewMap(
 			for (const marker of markersRef.current) marker.remove();
 			markersRef.current = [];
 		};
-	}, [checkpoints, dangerZones, map, mapReady]);
+	}, [checkpoints, map, mapReady]);
 
 	return {
 		...surface,

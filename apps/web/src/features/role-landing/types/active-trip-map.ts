@@ -1,4 +1,8 @@
-import type { GeoJsonLineString, RouteCheckpoint } from "../../trekking-routes/types";
+import type {
+	GeoJsonLineString,
+	RouteCheckpoint,
+	RouteDangerZone,
+} from "../../trekking-routes/types";
 
 export interface ParticipantSelection {
 	tripId: string;
@@ -25,6 +29,7 @@ export interface ActiveTripMap {
 		name: string;
 		geometry: GeoJsonLineString;
 		checkpoints: Pick<RouteCheckpoint, "id" | "type" | "location">[];
+		dangerZones: RouteDangerZone[];
 	};
 	participants: MapParticipant[];
 }

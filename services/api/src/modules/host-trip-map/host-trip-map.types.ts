@@ -3,6 +3,7 @@ import type { GpsParticipantRole } from "../gps-tracking/gps-tracking.enums";
 import type { SafetyEventType } from "../safety-events/safety-events.enums";
 import type { CheckpointType, GeoPoint } from "../trekking-routes/entities/checkpoint.entity";
 import type { GeoLineString } from "../trekking-routes/entities/trekking-route.entity";
+import type { HostTripMapDangerZoneDto } from "./host-trip-map.dto";
 
 export enum LocationFreshness {
 	FRESH = "fresh",
@@ -55,6 +56,7 @@ export interface MapTripRow {
 		id: string;
 		name: string;
 		geometry: GeoLineString;
+		dangerZones: HostTripMapDangerZoneDto[];
 		checkpoints: Array<{
 			id: string;
 			name: string;

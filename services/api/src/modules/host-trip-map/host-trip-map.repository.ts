@@ -6,6 +6,7 @@ import { GpsParticipantRole } from "../gps-tracking/gps-tracking.enums";
 import { BookingStatus } from "../profiles/entities/booking.entity";
 import { TripPorterStatus } from "../profiles/entities/trip-porter.entity";
 import { SafetyEventType } from "../safety-events/safety-events.enums";
+import { routeDangerZonesProjection } from "../trekking-routes/route-danger-zone-projection";
 import { TripStatus } from "../trips/entities/trip.entity";
 import type { MapPage, MapTripRow } from "./host-trip-map.types";
 
@@ -40,7 +41,8 @@ export class HostTripMapRepository {
 			 'checkpoints',COALESCE((SELECT jsonb_agg(jsonb_build_object(
 			 'id',c.id,'name',c.name,'type',c.type,'location',ST_AsGeoJSON(c.location::geometry)::jsonb,
 			 'radiusMeters',c.radius_m,'routePosition',c.route_position) ORDER BY c.route_position,c.id)
-			 FROM checkpoints c WHERE c.route_id=r.id),'[]'::jsonb)) AS route,
+			 FROM checkpoints c WHERE c.route_id=r.id),'[]'::jsonb),
+			 'dangerZones',${routeDangerZonesProjection("r")}) AS route,
 			 COALESCE((SELECT jsonb_agg(jsonb_build_object(
 			 'id',p.id,'userId',p.user_id,'name',u.full_name,'role',p.role,'memberStatus',p.member_status,
 			 'location',(SELECT jsonb_build_object('id',g.id,'latitude',ST_Y(g.location::geometry),
