@@ -27,6 +27,7 @@ import {
 	routeBounds,
 } from "../utils/checkpoint-map";
 import {
+	DANGER_ZONE_MAP_RADIUS_METERS,
 	dangerZoneFeatureCollection,
 	dangerZonePolygon,
 	dangerZonePositions,
@@ -34,7 +35,7 @@ import {
 } from "../utils/danger-zone-map";
 import { DEFAULT_ROUTE_CENTER, getRouteMapStyleUrl } from "../utils/route-map";
 import { dangerZoneDescription, severityColors } from "../utils/route-preview";
-import { DangerZoneDetailsPanel } from "./DangerZoneDetailsPanel";
+import { DangerZoneDetailsModal } from "./DangerZoneDetailsModal";
 
 interface MonitoringMarker {
 	code: string;
@@ -92,7 +93,6 @@ export function RouteCheckpointMap({
 	selectedLocation,
 	radiusMeters,
 	proposedHazard,
-	proposedHazardRadiusMeters = 0,
 	polygonVertices = EMPTY_VERTICES,
 	disabled,
 	showFitRouteControl = true,
@@ -116,7 +116,7 @@ export function RouteCheckpointMap({
 
 	const styleUrl = getRouteMapStyleUrl(import.meta.env.VITE_MAPTILER_API_KEY as string | undefined);
 	const useFallback = !styleUrl || Boolean(mapError);
-	useDangerZoneMapDetails(
+	const dangerZoneDetails = useDangerZoneMapDetails(
 		mapRef.current,
 		mapReady && !useFallback,
 		dangerZones,
@@ -182,10 +182,10 @@ export function RouteCheckpointMap({
 		() =>
 			proposedHazard
 				? proposedHazard.type === "Point"
-					? pointHazardPolygon(proposedHazard, proposedHazardRadiusMeters)
+					? pointHazardPolygon(proposedHazard, DANGER_ZONE_MAP_RADIUS_METERS)
 					: proposedHazard
 				: undefined,
-		[proposedHazard, proposedHazardRadiusMeters]
+		[proposedHazard]
 	);
 	const proposedHazardFeature = useMemo(() => {
 		if (!proposedHazardPolygon) return { type: "FeatureCollection" as const, features: [] };
@@ -815,8 +815,11 @@ export function RouteCheckpointMap({
 				areaClicksEnabled={Boolean(disabled)}
 				onZoneIdsChange={setVerifiedIds}
 			/>
+			{dangerZoneDetails.zone && (
+				<DangerZoneDetailsModal {...dangerZoneDetails} zone={dangerZoneDetails.zone} />
+			)}
 			{useFallback && selectedDangerZone && (
-				<DangerZoneDetailsPanel
+				<DangerZoneDetailsModal
 					zone={selectedDangerZone}
 					onClose={() => setSelectedDangerZoneId(undefined)}
 				/>

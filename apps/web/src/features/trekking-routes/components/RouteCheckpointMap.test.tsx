@@ -46,18 +46,18 @@ describe("RouteCheckpointMap fallback", () => {
 			});
 			fireEvent.pointerDown(marker);
 			fireEvent.click(marker);
-			expect(
-				screen.getByRole("complementary", { name: "Thông tin điểm nguy hiểm" })
-			).toHaveTextContent("Mức độ: Cao");
+			expect(screen.getByRole("dialog", { name: "Thông tin điểm nguy hiểm" })).toHaveTextContent(
+				"Cao"
+			);
 			expect(screen.getByText(zone.description)).toBeVisible();
-			expect(screen.getByText("Bán kính: 50 m")).toBeVisible();
+			expect(screen.getByText("50 m")).toBeVisible();
 			expect(container.textContent).not.toContain(zone.id);
 			expect(marker.getAttribute("aria-label")).not.toContain(zone.id);
 			expect(onSelectLocation).not.toHaveBeenCalled();
-			fireEvent.click(screen.getByRole("button", { name: "Đóng thông tin điểm nguy hiểm" }));
-			expect(screen.queryByText("Mức độ: Cao")).not.toBeInTheDocument();
+			fireEvent.click(screen.getByRole("button", { name: "Đóng thông tin" }));
+			expect(screen.queryByText("Cao", { selector: "dd" })).not.toBeInTheDocument();
 			fireEvent.keyDown(marker, { key: "Enter" });
-			expect(screen.getByText("Mức độ: Cao")).toBeVisible();
+			expect(screen.getByText("Cao", { selector: "dd" })).toBeVisible();
 		}
 	);
 	it("opens polygon details only in viewing mode", () => {
@@ -86,11 +86,11 @@ describe("RouteCheckpointMap fallback", () => {
 		const { rerender } = render(<RouteCheckpointMap {...props} />);
 		fireEvent.click(screen.getByTestId("persisted-hazard-polygon"));
 		expect(props.onSelectLocation).toHaveBeenCalledOnce();
-		expect(screen.queryByText("Mức độ: Cao")).not.toBeInTheDocument();
+		expect(screen.queryByText("Cao", { selector: "dd" })).not.toBeInTheDocument();
 		rerender(<RouteCheckpointMap {...props} disabled />);
 		fireEvent.click(screen.getByTestId("persisted-hazard-polygon"));
-		expect(screen.getByText("Mức độ: Cao")).toBeVisible();
-		expect(screen.queryByText(/Bán kính:/)).not.toBeInTheDocument();
+		expect(screen.getByText("Cao", { selector: "dd" })).toBeVisible();
+		expect(screen.queryByText(/Bán kính ghi nhận/)).not.toBeInTheDocument();
 	});
 	it("zooms with controls and the mouse wheel, preserves the view on rerender and resets on request", () => {
 		const props = {

@@ -57,7 +57,7 @@ export function useRoutePreviewMap(
 		geometry.coordinates[0]
 	);
 	const { map, mapReady } = surface;
-	useDangerZoneMapDetails(
+	const dangerZoneDetails = useDangerZoneMapDetails(
 		map,
 		mapReady && !surface.fallback,
 		dangerZones,
@@ -109,6 +109,7 @@ export function useRoutePreviewMap(
 
 	return {
 		...surface,
+		dangerZoneDetails,
 		bounds,
 		fitAll: () => {
 			if (map) fitRoute(map, previewPositions);

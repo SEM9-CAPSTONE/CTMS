@@ -10,6 +10,7 @@ import { useVerifiedDangerZones } from "../hooks/useVerifiedDangerZones";
 import { safetyText } from "../messages";
 import type { MapSafetyBounds } from "../types";
 import { publishedZoneShape } from "../utils/verified-zone-map";
+import { SafetyDetailsModal } from "./SafetyDetailsModal";
 import { SafetyMapFallback } from "./SafetyMapFallback";
 
 interface Props {
@@ -58,9 +59,18 @@ function VerifiedDangerZonesLayerContent({
 	useEffect(() => {
 		onZoneIdsChange?.(ids ? ids.split(",") : []);
 	}, [ids, onZoneIdsChange]);
-	useSafetyMapLayers(map, ready && !fallback, data, areaClicksEnabled, VERIFIED_ZONE_SOURCE_ID);
+	const details = useSafetyMapLayers(
+		map,
+		ready && !fallback,
+		data,
+		areaClicksEnabled,
+		VERIFIED_ZONE_SOURCE_ID
+	);
 	return (
 		<>
+			{!fallback && details.feature && (
+				<SafetyDetailsModal {...details} feature={details.feature} />
+			)}
 			{fallback && (
 				<SafetyMapFallback data={data} project={project} areaClicksEnabled={areaClicksEnabled} />
 			)}

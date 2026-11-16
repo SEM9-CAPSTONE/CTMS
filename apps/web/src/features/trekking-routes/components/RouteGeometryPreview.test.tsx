@@ -49,12 +49,12 @@ describe("RouteGeometryPreview", () => {
 		fireEvent.click(
 			screen.getByRole("button", { name: "Điểm nguy hiểm mức cao: Lối mòn sát mép vực" })
 		);
-		expect(screen.getByText("Mức độ: Cao")).toBeVisible();
-		expect(screen.getByText("Bán kính: 50 m")).toBeVisible();
+		expect(screen.getByText("Cao", { selector: "dd" })).toBeVisible();
+		expect(screen.getByText("50 m")).toBeVisible();
 		fireEvent.click(screen.getByTestId("route-preview-hazard-polygon"));
-		expect(screen.getByText("Mức độ: Trung bình")).toBeVisible();
+		expect(screen.getByText("Trung bình", { selector: "dd" })).toBeVisible();
 		expect(screen.getByText("Đá dễ sạt lở")).toBeVisible();
-		expect(screen.queryByText(/Bán kính:/)).not.toBeInTheDocument();
+		expect(screen.queryByText(/Bán kính ghi nhận/)).not.toBeInTheDocument();
 	});
 	afterEach(() => vi.unstubAllEnvs());
 

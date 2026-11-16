@@ -1,6 +1,9 @@
 import type { GeoJsonPoint, GeoJsonPolygon, Position, RouteDangerZone } from "../types";
 import { geodesicCircle } from "./checkpoint-map";
 
+/** Map decoration only; recorded hazard radius and spatial analysis remain authoritative. */
+export const DANGER_ZONE_MAP_RADIUS_METERS = 5;
+
 export function closePolygonRing(vertices: Position[]): GeoJsonPolygon | undefined {
 	const distinct = new Set(vertices.map(([longitude, latitude]) => `${longitude},${latitude}`));
 	if (distinct.size < 3) return undefined;
@@ -11,7 +14,7 @@ export function closePolygonRing(vertices: Position[]): GeoJsonPolygon | undefin
 
 export function dangerZonePolygon(zone: RouteDangerZone): GeoJsonPolygon {
 	if (zone.geometry.type === "Polygon") return zone.geometry;
-	return geodesicCircle(zone.geometry, zone.radiusMeters ?? 0).geometry;
+	return geodesicCircle(zone.geometry, DANGER_ZONE_MAP_RADIUS_METERS).geometry;
 }
 
 export function pointHazardPolygon(point: GeoJsonPoint, radiusMeters: number): GeoJsonPolygon {

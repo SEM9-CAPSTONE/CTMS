@@ -8,7 +8,7 @@ import {
 	fallbackPoints,
 	severityColors,
 } from "../utils/route-preview";
-import { DangerZoneDetailsPanel } from "./DangerZoneDetailsPanel";
+import { DangerZoneDetailsModal } from "./DangerZoneDetailsModal";
 import { RoutePreviewCheckpoint } from "./RoutePreviewCheckpoint";
 interface Props {
 	geometry: GeoJsonLineString;
@@ -115,7 +115,7 @@ export function RoutePreviewFallback({ geometry, checkpoints, dangerZones, bound
 				})}
 			</svg>
 			{selected && (
-				<DangerZoneDetailsPanel zone={selected} onClose={() => setSelectedId(undefined)} />
+				<DangerZoneDetailsModal zone={selected} onClose={() => setSelectedId(undefined)} />
 			)}
 		</>
 	);

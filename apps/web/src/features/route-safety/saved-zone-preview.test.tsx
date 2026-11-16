@@ -1,12 +1,12 @@
-import { act, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { MapLayerMouseEvent, Map as MapLibreMap } from "maplibre-gl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RouteGeometryEditor } from "../trekking-routes/components/RouteGeometryEditor";
 import { RouteGeometryPreview } from "../trekking-routes/components/RouteGeometryPreview";
 import type { GeoJsonLineString, RouteDangerZone } from "../trekking-routes/types";
+import { SafetyDetailsModal } from "./components/SafetyDetailsModal";
 import { SafetyMapFallback } from "./components/SafetyMapFallback";
 import { useSafetyMapSymbols } from "./hooks/useSafetyMapSymbols";
-import { safetyPopupContent } from "./safety-popup";
 import type { SafetyFeature } from "./types";
 
 vi.mock("maplibre-gl", () => ({
@@ -113,23 +113,27 @@ afterEach(() => vi.unstubAllEnvs());
 
 describe("nearby saved route zones", () => {
 	it("shows complete provenance and local update time without exposing identifiers or interpreting HTML", () => {
-		const content = safetyPopupContent({
+		const feature: SafetyFeature = {
 			...point,
 			properties: {
 				...point.properties,
 				description: `${point.properties.description}<img src=x onerror="alert(1)">`,
 			},
-		});
-		expect(content).toHaveTextContent("Điểm nguy hiểm");
-		expect(content).toHaveTextContent("Tuyến: Đường rừng ven suối");
-		expect(content).toHaveTextContent("Mức độ: Cao");
-		expect(content).toHaveTextContent("Xác minh: Chưa xác minh");
-		expect(content).toHaveTextContent("Bán kính: 50 m");
-		expect(content).toHaveTextContent("Cập nhật: 16/11/2026 10:45");
+		};
+		const view = render(<SafetyDetailsModal feature={feature} onClose={vi.fn()} />);
+		const content = screen.getByRole("dialog");
+		expect(content).toHaveTextContent("Thông tin điểm nguy hiểm");
+		expect(content).toHaveTextContent("Đường rừng ven suối");
+		expect(content).toHaveTextContent("Cao");
+		expect(content).toHaveTextContent("Chưa xác minh");
+		expect(content).toHaveTextContent("50 m");
+		expect(content).toHaveTextContent("16/11/2026");
+		expect(content).toHaveTextContent("10:45");
 		expect(content.textContent).toContain(point.properties.description);
 		expect(content.querySelector("img")).toBeNull();
 		expect(content.outerHTML).not.toContain(point.properties.sourceReference);
-		expect(safetyPopupContent(polygon)).not.toHaveTextContent("Bán kính:");
+		view.rerender(<SafetyDetailsModal feature={polygon} onClose={vi.fn()} />);
+		expect(screen.getByRole("dialog")).not.toHaveTextContent("Bán kính ghi nhận");
 	});
 	it("opens saved marker details in the route editor without adding or moving a vertex", () => {
 		const onChange = vi.fn();
@@ -137,9 +141,7 @@ describe("nearby saved route zones", () => {
 		const marker = screen.getByRole("button", { name: /Lối mòn sát mép vực ở Dốc Vọng Cảnh/ });
 		fireEvent.pointerDown(marker);
 		fireEvent.click(marker);
-		expect(screen.getByRole("complementary", { name: "Thông tin bản đồ" })).toHaveTextContent(
-			"Tuyến: Đường rừng ven suối"
-		);
+		expect(screen.getByRole("dialog")).toHaveTextContent("Đường rừng ven suối");
 		expect(onChange).not.toHaveBeenCalled();
 		fireEvent.click(screen.getByRole("button", { name: "Đóng thông tin" }));
 		expect(onChange).not.toHaveBeenCalled();
@@ -153,7 +155,7 @@ describe("nearby saved route zones", () => {
 		};
 		const { rerender } = render(<SafetyMapFallback {...props} />);
 		fireEvent.click(screen.getByRole("button", { name: polygon.properties.description }));
-		expect(screen.getByRole("complementary")).toHaveTextContent("Chưa xác minh");
+		expect(screen.getByRole("dialog")).toHaveTextContent("Chưa xác minh");
 		fireEvent.click(screen.getByRole("button", { name: "Đóng thông tin" }));
 		rerender(<SafetyMapFallback {...props} areaClicksEnabled={false} />);
 		expect(
@@ -200,14 +202,18 @@ describe("nearby saved route zones", () => {
 				>(),
 				off: vi.fn(),
 			};
-			const view = renderHook(() =>
-				useSafetyMapSymbols(
+			function NativeDetails() {
+				const details = useSafetyMapSymbols(
 					native as unknown as MapLibreMap,
 					true,
 					{ type: "FeatureCollection", features: [point, polygon] },
 					areaClicksEnabled
-				)
-			);
+				);
+				return details.feature ? (
+					<SafetyDetailsModal feature={details.feature} onClose={details.onClose} />
+				) : null;
+			}
+			const view = render(<NativeDetails />);
 			try {
 				await waitFor(() =>
 					expect(container.querySelector("button[data-safety-symbol]")).not.toBeNull()
@@ -217,7 +223,8 @@ describe("nearby saved route zones", () => {
 				fireEvent.pointerDown(marker);
 				fireEvent.click(marker);
 				expect(draw).not.toHaveBeenCalled();
-				expect(container).toHaveTextContent("Tuyến: Đường rừng ven suối");
+				expect(screen.getByRole("dialog")).toHaveTextContent("Đường rừng ven suối");
+				expect(container.querySelector('[role="dialog"]')).toBeNull();
 				expect(screen.getByRole("button", { name: "Đóng thông tin" })).toBeInTheDocument();
 				const click = native.on.mock.calls.find(
 					([event, layer]) => event === "click" && layer.endsWith("-fill")
@@ -230,7 +237,7 @@ describe("nearby saved route zones", () => {
 							lngLat: { lng: 108.005, lat: 12.001 },
 						} as unknown as MapLayerMouseEvent)
 					);
-					expect(container).toHaveTextContent(polygon.properties.description);
+					expect(screen.getByRole("dialog")).toHaveTextContent(polygon.properties.description);
 				} else expect(click).toBeUndefined();
 			} finally {
 				view.unmount();

@@ -79,8 +79,9 @@ export function useSafetyMapLayers(
 	areaClicksEnabled = true,
 	sourceId = SAFETY_SOURCE_ID
 ) {
-	useSafetyMapSymbols(map, ready, data, areaClicksEnabled, sourceId);
+	const details = useSafetyMapSymbols(map, ready, data, areaClicksEnabled, sourceId);
 	useEffect(() => {
 		if (map && ready) setSafetyMapData(map, data ?? EMPTY_SAFETY_COLLECTION, sourceId);
 	}, [map, ready, data, sourceId]);
+	return details;
 }

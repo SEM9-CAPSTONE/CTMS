@@ -5,6 +5,7 @@ import {
 	dangerZoneFeatureCollection,
 	dangerZonePolygon,
 } from "./danger-zone-map";
+import { approximateLengthMeters } from "./route-import";
 
 const base = {
 	id: "zone-id",
@@ -45,6 +46,14 @@ describe("danger-zone map utilities", () => {
 			radiusMeters: null,
 		};
 		expect(dangerZonePolygon(point).type).toBe("Polygon");
+		if (point.geometry.type !== "Point") throw new Error("Expected point geometry");
+		expect(
+			approximateLengthMeters([
+				point.geometry.coordinates,
+				dangerZonePolygon(point).coordinates[0][0],
+			])
+		).toBeCloseTo(5, 2);
+		expect(point.radiusMeters).toBe(50);
 		expect(dangerZonePolygon(polygon)).toBe(polygonGeometry);
 		expect(dangerZoneFeatureCollection([point, polygon]).features).toHaveLength(2);
 	});

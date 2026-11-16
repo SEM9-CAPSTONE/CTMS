@@ -4,6 +4,7 @@ import type { Map as MapLibreMap } from "maplibre-gl";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RouteGeometryEditor } from "../trekking-routes/components/RouteGeometryEditor";
+import { approximateLengthMeters } from "../trekking-routes/utils/route-import";
 import { SafetyMapFallback } from "./components/SafetyMapFallback";
 import { VERIFIED_ZONE_REFRESH_MS, VERIFIED_ZONE_VIEW_DEBOUNCE_MS } from "./constants";
 import { useVerifiedDangerZones } from "./hooks/useVerifiedDangerZones";
@@ -92,9 +93,9 @@ describe("automatically published map danger zones", () => {
 		expect(marker).toHaveClass("size-11");
 		fireEvent.pointerDown(marker);
 		fireEvent.click(marker);
-		expect(screen.getByLabelText("Thông tin bản đồ")).toHaveTextContent("50 m");
-		expect(screen.getByLabelText("Thông tin bản đồ")).toHaveTextContent("Quản trị viên xác nhận");
-		expect(screen.getByLabelText("Thông tin bản đồ")).not.toHaveTextContent("internal-zone");
+		expect(screen.getByRole("dialog")).toHaveTextContent("50 m");
+		expect(screen.getByRole("dialog")).toHaveTextContent("Quản trị viên xác nhận");
+		expect(screen.getByRole("dialog")).not.toHaveTextContent("internal-zone");
 		expect(onChange).not.toHaveBeenCalled();
 	});
 	it("keeps polygon details accessible while drawing without intercepting polygon area clicks", () => {
@@ -122,9 +123,7 @@ describe("automatically published map danger zones", () => {
 		);
 		expect(container.querySelector("path")).not.toHaveAttribute("role", "button");
 		fireEvent.click(screen.getByRole("button", { name: /Điểm nguy hiểm đã xác nhận:/ }));
-		expect(screen.getByLabelText("Thông tin bản đồ")).toHaveTextContent(
-			zone.properties.description
-		);
+		expect(screen.getByRole("dialog")).toHaveTextContent(zone.properties.description);
 	});
 	it("loads the viewport on open and reloads after a pan without a route id", async () => {
 		let moved: () => void = () => {};
@@ -193,6 +192,12 @@ describe("automatically published map danger zones", () => {
 	it("removes duplicate raw features and aligns fallback markers with letterboxed SVG", () => {
 		const rendered = publishedZoneShape(zone);
 		expect(rendered.geometry.type).toBe("Polygon");
+		if (rendered.geometry.type !== "Polygon" || zone.geometry.type !== "Point")
+			throw new Error("Expected a point display circle");
+		expect(
+			approximateLengthMeters([zone.geometry.coordinates, rendered.geometry.coordinates[0][0]])
+		).toBeCloseTo(5, 2);
+		expect(rendered.properties.radiusMeters).toBe(50);
 		expect(rendered.properties.labelPoint).toEqual(zone.geometry);
 		expect(excludeSafetyFeatures(collection(), [zone.id])?.features).toEqual([]);
 		const container = document.createElement("div");

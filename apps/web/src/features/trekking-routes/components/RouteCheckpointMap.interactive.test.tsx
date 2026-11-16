@@ -160,9 +160,9 @@ describe("interactive danger zone details", () => {
 			});
 			fireEvent.mouseDown(marker);
 			fireEvent.click(marker);
-			expect(screen.getByText("Mức độ: Cao")).toBeVisible();
+			expect(screen.getByText("Cao", { selector: "dd" })).toBeVisible();
 			expect(screen.getByText(point.description)).toBeVisible();
-			expect(screen.getByText("Bán kính: 50 m")).toBeVisible();
+			expect(screen.getByText("50 m")).toBeVisible();
 			expect(container.innerHTML).not.toContain(point.id);
 			expect(container.innerHTML).not.toContain(point.routeId);
 			expect(onSelectLocation).not.toHaveBeenCalled();
@@ -173,7 +173,7 @@ describe("interactive danger zone details", () => {
 						lngLat: { lng: 108.29, lat: 16.11 },
 					});
 			});
-			expect(screen.queryByText("Mức độ: Trung bình")).not.toBeInTheDocument();
+			expect(screen.queryByText("Trung bình", { selector: "dd" })).not.toBeInTheDocument();
 			unmount();
 			expect(map.off).toHaveBeenCalledWith("click", "route-hazards-fill", expect.any(Function));
 		}
@@ -200,7 +200,7 @@ describe("interactive danger zone details", () => {
 			fireEvent.click(
 				screen.getByRole("button", { name: `Điểm nguy hiểm mức cao: ${point.description}` })
 			);
-			expect(screen.getByText("Bán kính: 50 m")).toBeVisible();
+			expect(screen.getByText("50 m")).toBeVisible();
 			const lngLat = { lng: 108.29, lat: 16.11 };
 			const layer = surface === "preview" ? "route-preview-hazards-fill" : "route-hazards-fill";
 			await waitFor(() => expect(map.handlers.get(`click:${layer}`)).toHaveLength(1));
@@ -208,10 +208,10 @@ describe("interactive danger zone details", () => {
 				for (const handler of map.handlers.get(`click:${layer}`) ?? [])
 					handler({ features: [{ properties: { id: polygon.id } }], lngLat });
 			});
-			expect(screen.getByText("Mức độ: Trung bình")).toBeVisible();
+			expect(screen.getByText("Trung bình", { selector: "dd" })).toBeVisible();
 			expect(screen.getByText(polygon.description)).toBeVisible();
-			expect(screen.queryByText("Bán kính: 50 m")).not.toBeInTheDocument();
-			expect(mocks.popupPositions.at(-1)).toEqual(lngLat);
+			expect(screen.queryByText("50 m")).not.toBeInTheDocument();
+			expect(mocks.popupPositions).toEqual([]);
 			view.unmount();
 			expect(map.off).toHaveBeenCalledWith("click", layer, expect.any(Function));
 		}

@@ -1,6 +1,7 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useMemo, useState } from "react";
 import { RouteSafetyPanel } from "../../route-safety/components/RouteSafetyPanel";
+import { SafetyDetailsModal } from "../../route-safety/components/SafetyDetailsModal";
 import { SafetyMapFallback } from "../../route-safety/components/SafetyMapFallback";
 import { VerifiedDangerZonesLayer } from "../../route-safety/components/VerifiedDangerZonesLayer";
 import { useRouteSafety } from "../../route-safety/hooks/useRouteSafety";
@@ -28,9 +29,17 @@ export function RouteGeometryEditor({ value, disabled = false, onChange, routeId
 		() => excludeSafetyFeatures(safety.data?.features, verifiedIds),
 		[safety.data?.features, verifiedIds]
 	);
-	useSafetyMapLayers(map.map, map.mapReady && !map.fallback, analyzedFeatures, false);
+	const details = useSafetyMapLayers(
+		map.map,
+		map.mapReady && !map.fallback,
+		analyzedFeatures,
+		false
+	);
 	return (
 		<section className="rounded-2xl border border-[#e0ebe0] bg-white p-5 shadow-sm">
+			{!map.fallback && details.feature && (
+				<SafetyDetailsModal {...details} feature={details.feature} />
+			)}
 			<div className="flex flex-wrap items-center justify-between gap-3">
 				<div>
 					<h2 className="font-extrabold text-[#10221b]">Vẽ tuyến đường</h2>

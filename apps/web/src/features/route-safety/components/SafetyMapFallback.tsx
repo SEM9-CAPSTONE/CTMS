@@ -7,8 +7,8 @@ import {
 	isMutedFeature,
 } from "../map-symbols";
 import { safetyText } from "../messages";
-import { safetyPopupContent } from "../safety-popup";
 import type { SafetyCollection } from "../types";
+import { SafetyDetailsModal } from "./SafetyDetailsModal";
 import { SafetySymbol } from "./SafetySymbol";
 
 export function SafetyMapFallback({
@@ -109,25 +109,7 @@ export function SafetyMapFallback({
 				);
 			})}
 			{selected && (
-				<aside
-					data-safety-ui
-					aria-label="Thông tin bản đồ"
-					className="pointer-events-auto absolute top-12 left-3 z-30 max-h-[calc(100%_-_4rem)] max-w-60 overflow-y-auto rounded-lg bg-white p-3 pr-7 shadow-lg"
-				>
-					<button
-						type="button"
-						aria-label="Đóng thông tin"
-						onClick={() => setSelectedId(undefined)}
-						className="absolute top-1 right-2 text-lg"
-					>
-						×
-					</button>
-					<div
-						ref={(element) => {
-							element?.replaceChildren(safetyPopupContent(selected));
-						}}
-					/>
-				</aside>
+				<SafetyDetailsModal feature={selected} onClose={() => setSelectedId(undefined)} />
 			)}
 		</div>
 	);

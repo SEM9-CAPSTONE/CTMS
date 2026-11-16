@@ -1,6 +1,7 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 import { Map as MapIcon, Maximize } from "lucide-react";
 import { type ReactNode, useMemo, useState } from "react";
+import { SafetyDetailsModal } from "../../route-safety/components/SafetyDetailsModal";
 import { SafetyMapFallback } from "../../route-safety/components/SafetyMapFallback";
 import { VerifiedDangerZonesLayer } from "../../route-safety/components/VerifiedDangerZonesLayer";
 import { useSafetyMapLayers } from "../../route-safety/hooks/useSafetyMapLayers";
@@ -13,6 +14,7 @@ import {
 import { useRoutePreviewMap } from "../hooks/useRoutePreviewMap";
 import type { GeoJsonLineString, RouteCheckpoint, RouteDangerZone } from "../types";
 import { EMPTY_CHECKPOINTS, EMPTY_DANGER_ZONES, fallbackCoordinate } from "../utils/route-preview";
+import { DangerZoneDetailsModal } from "./DangerZoneDetailsModal";
 import { RoutePreviewFallback } from "./RoutePreviewFallback";
 import { RoutePreviewLegends } from "./RoutePreviewLegends";
 
@@ -68,8 +70,9 @@ export function RouteGeometryPreview({
 		fallback: useFallback,
 		bounds,
 		fitAll,
+		dangerZoneDetails,
 	} = useRoutePreviewMap(geometry, checkpoints, dangerZones, originalDangerZones);
-	useSafetyMapLayers(map, mapReady && !useFallback, safetyMapFeatures);
+	const details = useSafetyMapLayers(map, mapReady && !useFallback, safetyMapFeatures);
 
 	return (
 		<section
@@ -79,6 +82,12 @@ export function RouteGeometryPreview({
 					: undefined
 			}
 		>
+			{!useFallback && details.feature && (
+				<SafetyDetailsModal {...details} feature={details.feature} />
+			)}
+			{dangerZoneDetails.zone && (
+				<DangerZoneDetailsModal {...dangerZoneDetails} zone={dangerZoneDetails.zone} />
+			)}
 			{showTitle && (
 				<h2 className="flex items-center gap-2 font-extrabold text-[#10221b]">
 					<MapIcon className="size-5 text-[#34483b]" aria-hidden="true" />
