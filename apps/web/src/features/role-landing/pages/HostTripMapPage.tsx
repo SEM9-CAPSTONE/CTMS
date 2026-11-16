@@ -7,7 +7,7 @@ export function HostTripMapPage({ hostId }: { hostId: string }) {
 	const { refresh, isRefreshing } = useRefreshHostMonitoring(hostId);
 	return (
 		<div className="min-h-screen bg-[#f4f7f2] text-[#10221b]">
-			<header className="border-b border-[#dfe8df] bg-white">
+			<header className="sticky top-0 z-50 border-b border-[#dfe8df] bg-white">
 				<div className="mx-auto flex min-h-20 max-w-7xl items-center gap-3 px-4 py-3 sm:px-6">
 					<div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-[#e7eeea] text-[#164027]">
 						<MapPinned className="size-5" aria-hidden="true" />

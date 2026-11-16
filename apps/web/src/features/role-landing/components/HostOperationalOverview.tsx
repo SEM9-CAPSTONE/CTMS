@@ -93,6 +93,7 @@ export function HostOperationalOverview({
 	const filteredTrips = data.operationalTrips.filter((item) => item.displayStatus === activeStatus);
 	const trip = filteredTrips.find((item) => item.id === selectedTripId) ?? filteredTrips[0];
 	const handleStatusChange = (status: OperationalStatus) => {
+		setParticipantSelection(undefined);
 		setStatusFilter(status);
 		setSelectedTripId(data.operationalTrips.find((item) => item.displayStatus === status)?.id);
 	};
@@ -126,7 +127,9 @@ export function HostOperationalOverview({
 				>
 					<div className={monitorParticipants ? "min-w-0 space-y-4 xl:sticky xl:top-4" : "min-w-0"}>
 						<div className="flex items-center justify-between gap-2">
-							<h2 className="text-xl font-extrabold">{getOperationalTripHeading(trip)}</h2>
+							<h2 className="text-xl font-extrabold">
+								{monitorParticipants ? "Chuyến đi cần theo dõi" : getOperationalTripHeading(trip)}
+							</h2>
 							{!showToolbar && !monitorParticipants && (
 								<Button
 									size="sm"
@@ -152,7 +155,10 @@ export function HostOperationalOverview({
 									status={activeStatus}
 									onStatusChange={handleStatusChange}
 									selectedTripId={trip?.id}
-									onSelect={setSelectedTripId}
+									onSelect={(id) => {
+										setParticipantSelection(undefined);
+										setSelectedTripId(id);
+									}}
 								/>
 								{trip && onNavigateToTripDetail && (
 									<Button
@@ -180,6 +186,7 @@ export function HostOperationalOverview({
 									rosterContainer={rosterContainer}
 									selection={participantSelection}
 									onSelect={setParticipantSelection}
+									onRefreshTrips={data.refresh}
 								/>
 							) : (
 								<HostTripMap key={trip.id} hostId={hostId} trip={trip} />

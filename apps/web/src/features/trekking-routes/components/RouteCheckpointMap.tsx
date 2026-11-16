@@ -45,6 +45,7 @@ interface Props {
 	geometry: GeoJsonLineString;
 	checkpoints: Pick<RouteCheckpoint, "id" | "type" | "location">[];
 	monitoringMarkers?: MonitoringMarker[];
+	monitoringFocus?: { point: Position; sequence: number };
 	onMonitoringGroupsChange?: (sizes: number[]) => void;
 	dangerZones?: RouteDangerZone[];
 	mode?: RouteMapMode;
@@ -83,6 +84,7 @@ export function RouteCheckpointMap({
 	geometry,
 	checkpoints,
 	monitoringMarkers = EMPTY_MONITORING_MARKERS,
+	monitoringFocus,
 	onMonitoringGroupsChange,
 	dangerZones = EMPTY_DANGER_ZONES,
 	mode = "checkpoint",
@@ -117,6 +119,16 @@ export function RouteCheckpointMap({
 		[checkpoints, dangerZones, geometry.coordinates, polygonVertices]
 	);
 	const bounds = useMemo(() => routeBounds(safetyPositions), [safetyPositions]);
+	const focusAt = viewport.focusAt;
+	useEffect(() => {
+		if (!monitoringFocus) return;
+		if (useFallback) {
+			const [x, y] = coordinateToPercent(monitoringFocus.point, bounds);
+			focusAt(x, y);
+		} else if (mapReady) {
+			mapRef.current?.flyTo({ center: monitoringFocus.point, zoom: 14, duration: 500 });
+		}
+	}, [monitoringFocus, useFallback, mapReady, bounds, focusAt]);
 	const routePoints = useMemo(
 		() =>
 			geometry.coordinates.map((point) => coordinateToPercent(point, bounds).join(",")).join(" "),
@@ -464,15 +476,18 @@ export function RouteCheckpointMap({
 								] as [number, number])
 							: marker.point;
 					const pin = document.createElement("span");
-					pin.className = `absolute left-2.5 top-2.5 size-3 rounded-full border-2 border-white shadow ${marker.stale ? "bg-amber-800" : "bg-emerald-800"} ${selected ? "ring-2 ring-slate-900" : ""}`;
+					pin.className = `absolute rounded-full border-2 border-white shadow ${selected ? "left-2 top-2 size-4 ring-4 ring-emerald-600/50" : "left-2.5 top-2.5 size-3"} ${marker.stale ? "bg-amber-800" : "bg-emerald-800"}`;
 					element.append(pin);
 					if (group.length > 1 || selected || map.getZoom() >= 12) {
 						const badge = document.createElement("span");
 						badge.className =
 							group.length > 1
 								? "absolute -left-2 -top-2 flex size-7 items-center justify-center rounded-full border-2 border-white bg-slate-800 text-xs font-bold text-white shadow"
-								: `absolute left-6 top-0 rounded-md border-2 px-1 text-xs font-bold shadow ${marker.stale ? "border-dashed border-slate-700 bg-slate-100 text-slate-900" : "border-white bg-emerald-900 text-white"}`;
-						badge.textContent = group.length > 1 ? String(group.length) : marker.code;
+								: `absolute left-6 top-0 whitespace-nowrap rounded-md border-2 px-2 py-1 font-bold shadow ${selected ? "border-white bg-emerald-900 text-sm text-white" : marker.stale ? "border-dashed border-slate-700 bg-slate-100 text-xs text-slate-900" : "border-white bg-emerald-900 text-xs text-white"}`;
+						badge.textContent =
+							group.length > 1
+								? String(group.length)
+								: `${marker.code}${selected ? " · Đang chọn" : ""}`;
 						element.append(badge);
 					}
 					element.title = group.length > 1 ? `Phóng to cụm ${group.length} người` : marker.label;

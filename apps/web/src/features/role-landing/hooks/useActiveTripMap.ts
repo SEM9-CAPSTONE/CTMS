@@ -6,6 +6,15 @@ import type { ParticipantSelection } from "../types/active-trip-map";
 
 const REFRESH_INTERVAL = 30_000;
 
+export function useTripMonitoring(hostId: string, tripId: string) {
+	return useQuery({
+		queryKey: queryKeys.trekking.tripMonitoring(hostId, tripId),
+		queryFn: ({ signal }) => activeTripMapService.monitoring(tripId, signal),
+		refetchInterval: REFRESH_INTERVAL,
+		retry: false,
+	});
+}
+
 export function useActiveTripMaps(hostId: string, enabled: boolean) {
 	return useQuery({
 		queryKey: queryKeys.trekking.activeTripMaps(hostId),
@@ -16,8 +25,12 @@ export function useActiveTripMaps(hostId: string, enabled: boolean) {
 	});
 }
 
-export function useMapParticipant(hostId: string, selection?: ParticipantSelection) {
-	return useQuery({
+export function useMapParticipant(
+	hostId: string,
+	selection?: ParticipantSelection,
+	synchronizedAt?: number
+) {
+	const query = useQuery({
 		queryKey: queryKeys.trekking.mapParticipant(
 			hostId,
 			selection?.tripId,
@@ -27,9 +40,15 @@ export function useMapParticipant(hostId: string, selection?: ParticipantSelecti
 		queryFn: selection
 			? ({ signal }) => activeTripMapService.participant(selection, signal)
 			: skipToken,
-		refetchInterval: selection ? REFRESH_INTERVAL : false,
+		refetchInterval: selection && synchronizedAt === undefined ? REFRESH_INTERVAL : false,
 		retry: false,
 	});
+	const refetch = query.refetch;
+	const participantId = selection?.participantId;
+	useEffect(() => {
+		if (synchronizedAt && participantId) void refetch();
+	}, [synchronizedAt, participantId, refetch]);
+	return query;
 }
 
 export function usePositionClock() {

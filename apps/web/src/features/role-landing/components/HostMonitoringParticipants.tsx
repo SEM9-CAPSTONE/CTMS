@@ -11,10 +11,10 @@ import {
 	participantRoleLabel,
 	relativePositionTime,
 } from "../utils/participant-position";
+import { type ParticipantSort, sortMapParticipants } from "../utils/participant-sort";
 
 type Participant = MapParticipant & { outsideRouteArea: boolean };
 const PAGE_SIZE = 6;
-const freshnessOrder = { unavailable: 0, stale: 1, fresh: 2 };
 const normalizeName = (value: string) =>
 	value.normalize("NFD").replace(/\p{M}/gu, "").replace(/[đĐ]/g, "d").toLocaleLowerCase("vi");
 
@@ -36,14 +36,8 @@ export function HostMonitoringParticipants({
 	const [search, setSearch] = useState("");
 	const [role, setRole] = useState("all");
 	const [freshness, setFreshness] = useState("all");
-	const all = participants
-		.map((participant, index) => ({ participant, index }))
-		.sort(
-			(a, b) =>
-				freshnessOrder[a.participant.freshness] - freshnessOrder[b.participant.freshness] ||
-				participantLabel(a.participant).localeCompare(participantLabel(b.participant), "vi") ||
-				a.index - b.index
-		);
+	const [sort, setSort] = useState<ParticipantSort>("attention");
+	const all = sortMapParticipants(participants, sort);
 	const filtered = all.filter(
 		({ participant }) =>
 			(role === "all" || participant.role === role) &&
@@ -126,6 +120,22 @@ export function HostMonitoringParticipants({
 					<option value="stale">Vị trí cũ</option>
 					<option value="fresh">Vị trí mới</option>
 				</select>
+				<label className="flex min-w-0 basis-full items-center gap-2 text-sm">
+					<span>Sắp xếp</span>
+					<select
+						aria-label="Sắp xếp thành viên"
+						value={sort}
+						onChange={(event) => {
+							setSort(event.target.value as ParticipantSort);
+							resetPage();
+						}}
+						className="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm"
+					>
+						<option value="attention">Cần chú ý trước</option>
+						<option value="name">Họ tên A–Z</option>
+						<option value="code">Mã C/P tăng dần</option>
+					</select>
+				</label>
 			</div>
 			{pinned && (
 				<div className="rounded-lg border border-emerald-700 bg-emerald-50 px-3 py-2 text-sm">

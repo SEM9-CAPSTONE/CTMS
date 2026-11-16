@@ -113,6 +113,16 @@ for (const scenario of ["normal", "far", "many"]) {
 					return request.fulfill({ json: overviewFixture() });
 				if (path.endsWith("/auth/me") || path.includes("/profile"))
 					return request.fulfill({ json: host });
+				if (path.endsWith("/alerts"))
+					return request.fulfill({
+						json: {
+							tripId: "son-tra",
+							generatedAt: new Date().toISOString(),
+							freshnessMaxAgeSeconds: 120,
+							locationSource: "server_confirmed",
+							alerts: [],
+						},
+					});
 				if (path.endsWith("/trips/mine")) return request.fulfill({ json: trips });
 				if (path.endsWith("/active-trips"))
 					return request.fulfill({
