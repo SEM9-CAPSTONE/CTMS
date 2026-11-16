@@ -125,7 +125,17 @@ describe("AdminSafetyHotspotsPage (CTMS-118)", () => {
 		expect(section.getByText(/lệch 12 phút, xa nhất 90 m/)).toBeInTheDocument();
 	});
 
-	it("shows the correction history as a table", async () => {
+	it("shows review decisions and data updates in one history table, newest first", async () => {
+		vi.mocked(safetyHotspotsService.reviews).mockResolvedValue([
+			{
+				id: "review-1",
+				fromStatus: "UNDER_REVIEW",
+				toStatus: "CONFIRMED",
+				reason: "Năm đoàn cùng lệch tuyến ở ngã ba suối Đá.",
+				actorName: "Trần Minh Quân",
+				createdAt: "2026-11-14T03:00:00Z",
+			},
+		]);
 		vi.mocked(safetyHotspotsService.actions).mockResolvedValue([
 			{
 				id: "action-0",
@@ -139,12 +149,21 @@ describe("AdminSafetyHotspotsPage (CTMS-118)", () => {
 			},
 		]);
 		const dialog = await openDetail();
-		const table = await dialog.findByRole("table", { name: "Lịch sử cập nhật dữ liệu an toàn" });
-		const row = within(table).getAllByRole("row")[1];
-		expect(within(row).getByText("Cập nhật hướng dẫn an toàn tại điểm dừng")).toBeInTheDocument();
-		expect(within(row).getByText("Ngã ba suối Đá")).toBeInTheDocument();
-		expect(within(row).getByText("Trần Minh Quân")).toBeInTheDocument();
-		expect(within(row).getByText("Phiên bản mới cho 2 chuyến")).toBeInTheDocument();
+		expect(dialog.getAllByRole("table")).toHaveLength(1);
+		const table = await dialog.findByRole("table", { name: "Lịch sử điểm nóng" });
+		await within(table).findByText("Đã xác nhận");
+		const [, newest, older] = within(table).getAllByRole("row");
+		expect(
+			within(newest).getByText("Cập nhật hướng dẫn an toàn tại điểm dừng")
+		).toBeInTheDocument();
+		expect(
+			within(newest).getByText("Ngã ba suối Đá · Gói an toàn mới cho 2 chuyến")
+		).toBeInTheDocument();
+		expect(within(newest).getByText("Trần Minh Quân")).toBeInTheDocument();
+		expect(within(older).getByText("Đã xác nhận")).toBeInTheDocument();
+		expect(
+			within(older).getByText("Năm đoàn cùng lệch tuyến ở ngã ba suối Đá.")
+		).toBeInTheDocument();
 	});
 
 	it("updates checkpoint instructions after confirmation and reports the package impact", async () => {

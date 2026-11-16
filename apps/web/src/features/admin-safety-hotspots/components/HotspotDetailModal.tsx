@@ -7,7 +7,6 @@ import { formatDate, formatDateTime, formatTime } from "../utils/format";
 import { CorrectiveActionForm } from "./CorrectiveActionForm";
 import { HotspotHistoryTable } from "./HotspotHistoryTable";
 import { HotspotReviewForm } from "./HotspotReviewForm";
-import { HotspotReviewTable } from "./HotspotReviewTable";
 
 interface Props {
 	hotspot: SafetyHotspot;
@@ -174,8 +173,9 @@ export function HotspotDetailModal({ hotspot, onClose, onChanged, onReviewed }: 
 					<h3 id="hotspot-history-title" className="text-lg font-semibold text-[#10221b]">
 						Lịch sử
 					</h3>
-					<HotspotReviewTable rows={review.reviews} />
-					{!corrections.loading && <HotspotHistoryTable rows={corrections.history} />}
+					{!corrections.loading && (
+						<HotspotHistoryTable reviews={review.reviews} actions={corrections.history} />
+					)}
 				</section>
 			</div>
 		</Modal>
