@@ -4,7 +4,7 @@
 
 ## 1. Overview
 
-Story: CTMS-070
+Story: CTMS-070 ( REMOVE)
 
 Epic: EPIC 11. AI Survival Assistant and RAG
 

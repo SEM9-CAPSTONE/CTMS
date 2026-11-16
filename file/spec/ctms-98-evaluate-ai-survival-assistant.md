@@ -2,7 +2,7 @@
 
 ## 1. Overview
 
-Story: CTMS-098
+Story: CTMS-098 ([Jira CTMS-289](https://thuha140105.atlassian.net/browse/CTMS-289))
 
 Epic: EPIC 17. Reports and Evaluation Metrics
 
@@ -29,6 +29,7 @@ Acceptance Criteria:
 | PB AC-9  | Critical unsafe-answer rate must equal 0%.                                            |
 | PB AC-10 | Online response latency P95 must be ≤5 seconds.                                       |
 | PB AC-11 | Offline coverage is reported by package/version but is not a numeric V3 release gate. |
+| Integration AC-1 | Evaluation runs without production feedback. CTMS-073 can propose cases for independent admission and reference evaluation results. |
 
 ## 2. Scope
 
@@ -63,6 +64,8 @@ Dependencies:
 - CTMS-071.
 
 Versioned evaluation dataset and applicable model/RAG/package versions exist.
+
+An evaluation run can start with an approved dataset independently of CTMS-073 and without production feedback. When comparing a candidate with a baseline, identify both version sets and use the same versioned dataset and gate definitions for the comparison.
 
 ## 5. Business Rules
 
@@ -114,6 +117,8 @@ Offline coverage:
 
 TBD — Technical Design.
 
+CTMS-073 may propose an evidence-backed regression case. An authorized evaluator validates the expected outcome and sources independently, minimizes personal data and admits the case through the versioned dataset process. A CTMS-073 report may reference a CTMS-098 case or run identifier. Camper ratings and investigation hypotheses do not determine benchmark labels or Pass/Fail.
+
 ## 10. Error & Edge Cases
 
 | Case                       | Expected Behavior                                       |
@@ -138,6 +143,7 @@ TBD — Technical Design.
 | BR-279 | P95 ≤5s            | Pass                              | Performance  |
 | BR-279 | Offline coverage   | Reported by package/version       | Metrics      |
 | BR-282 | Report             | Versions/thresholds/result stored | Traceability |
+| Integration AC-1 | Run with no feedback, then compare baseline and candidate on an approved dataset version | Both runs report under the same approved gates. An unapproved candidate case has no effect on metrics. | Evaluation integration |
 | Jira CTMS-257 AC-5 | Physical iOS and Android with network blocked | Record inference outcome and any traffic attributable to the turn | Device trial |
 | Jira CTMS-257 AC-6 | Evaluate with a verified package and without a saved Trip | Record the evidence mode and package version where applicable | Device trial |
 | Jira CTMS-257 AC-7 | Missing, corrupt or unsupported local model | Record recovery behavior and any failed activation | Device trial |

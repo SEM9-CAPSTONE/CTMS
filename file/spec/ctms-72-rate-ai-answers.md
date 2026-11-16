@@ -2,7 +2,7 @@
 
 ## 1. Overview
 
-Story: CTMS-072
+Story: CTMS-072 ([Jira CTMS-260](https://thuha140105.atlassian.net/browse/CTMS-260))
 
 Epic: EPIC 11. AI Survival Assistant and RAG
 
@@ -25,6 +25,7 @@ Acceptance Criteria:
 | Jira AC5 | Repeated synchronization or lost acknowledgments do not create duplicate authoritative feedback. |
 | Jira AC6 | Local feedback contains the exact selected question and answer, the local answer identity, and available model metadata. Unrelated chat turns are excluded. Online feedback uses the authoritative `answerId`. |
 | Jira AC7 | The Camper long-presses the rating icon to choose Useful or Not Useful. The answer displays only the chosen rating icon. There is no rating-success toast, confirmation text, draft, or extra Submit button. |
+| Trace AC-1 / BR-513 / BR-514 | Resolve the Online trace from the accepted `answerId`. For Local, carry only allowlisted missing trace facts from the evaluated turn when available. Accept legacy Local snapshots. |
 
 ## 2. Scope
 
@@ -33,11 +34,11 @@ Acceptance Criteria:
 - Useful and Not Useful ratings on completed Online and Local answers.
 - Independent Unsafe report with an optional reason.
 - Durable offline feedback and automatic synchronization.
-- Evidence for CTMS-073 review of accepted Unsafe reports.
+- Answer linkage and selected-turn evidence for CTMS-073 analysis of accepted feedback.
 
 ### Out of Scope
 
-- Admin unsafe-review workflow - CTMS-073.
+- Automated analysis, investigation, evidence retention and Admin unsafe review (CTMS-073).
 - AI answer regeneration.
 - Automatic modification of the knowledge base or model training.
 - Upload of the local conversation transcript on reconnect.
@@ -56,7 +57,7 @@ Client-reported Local provenance does not attest to the model's output.
 
 - CTMS-069 supplies the completed Online or Local answer. CTMS-071 supplies genuine citation metadata for Online answers.
 - Integrate with the CTMS-065 reconnection coordinator after safety and telemetry delivery.
-- CTMS-073 consumes eligible Unsafe feedback. CTMS-341 implements logic before CTMS-342 implements the UI.
+- The planned CTMS-073 analyzer consumes accepted feedback. Unsafe-only moderation remains part of CTMS-073. CTMS-341 implements logic before CTMS-342 implements the UI.
 
 ## 5. Business Rules
 
@@ -96,10 +97,10 @@ eligible for CTMS-073 moderation.
 2. The client durably commits the action. For Online it records the authoritative answer ID. For Local it snapshots the exact displayed question and answer and available provenance.
 3. The coordinator sends pending feedback after safety synchronization. It retries on reconnect, startup, and temporary service failure using the same mutation identity.
 4. The API validates the active Camper, target, feedback shape and ordering, and acknowledges durable acceptance.
-5. The client marks the accepted operation synchronized. Only Unsafe feedback is eligible for authorized moderation.
+5. The client marks the accepted operation synchronized. The accepted state is the input to the planned CTMS-073 analysis. Only Unsafe feedback is eligible for the Unsafe moderation workflow.
 
-Explain before the selection that feedback on a Local answer sends that question
-and answer to CTMS. Unselected turns stay local. A usefulness change preserves an
+Explain before the selection that feedback on a Local answer sends that question,
+answer and available technical metadata of that turn to CTMS. Unselected turns stay local. A usefulness change preserves an
 existing Unsafe report. Reopening the same account resumes its pending delivery.
 
 ## 8. Data & Invariants
@@ -114,7 +115,7 @@ the same Online answer update the same server record in acceptance order.
 
 The Local target is the original account, installation ID and local answer ID.
 A Local snapshot is immutable and carries the genuine model ID/version or verified
-package ID/version when available. The backend resolves Online evidence by
+package ID/version when available. The backend resolves Online evidence and trace by
 answer ID. Historical Online answers can lack the original question. Their
 stored answer and genuine citations remain usable while the answer is retained.
 
@@ -147,6 +148,8 @@ at 60 seconds while connected. Pending delivery also resumes on reconnect.
 Raw feedback content is stored as text. The downstream review UI must render it
 as text.
 
+The current allowlist already identifies the exact turn and its available model or package. The planned compatible delta is an optional versioned Local trace extension for the missing inference time, executed path, runtime/config identity and genuine source references if a supported Local path actually uses them. Reuse existing identity, text, model and package fields. See the [technical contract](../../docs/features/CTMS-069-Implementation.md#inference-trace-extension-design). Old clients and pending payloads remain valid with missing fields. Deploy server acceptance before clients send the extension, because current validators reject unknown keys. Reuse the frozen evidence shape for later ratings, Unsafe actions and replays of the same turn. Evidence from a previous payload may not be inferred or backfilled from current device settings. Online request and acknowledgment shapes stay the same.
+
 ## 10. Error & Edge Cases
 
 | Case | Expected Behavior |
@@ -174,6 +177,8 @@ as text.
 | BR-178 | Replay, conflict and out-of-order revisions | One authoritative row and no stale overwrite | PostgreSQL integration |
 | BR-502 / BR-226 | Account switch with an in-flight send | Account-isolated payload and delivery state | Flutter integration |
 | CTMS-069 / CTMS-071 / CTMS-065 | Online RAG, Local inference, citation and safety sync | Existing behavior and safety priority preserved | Regression |
+| Trace AC-1 / BR-513 / BR-514 / BR-178 | Old Local payload, new Local extension and retry or later rating for the same turn | Both shapes are accepted by the extended server. Only frozen selected-turn evidence is delivered. Changed or unrelated evidence is rejected. | HTTP E2E / PostgreSQL integration / Flutter |
+| Trace AC-1 / BR-172 | Online feedback includes an owned answer or attempts to supply client-origin trace | Resolve the trace by answer ID. Reject client-supplied Online evidence. | HTTP E2E |
 
 ## 12. Open Decisions
 

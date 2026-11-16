@@ -34,7 +34,7 @@ The Application Layer acts as the central business execution engine, orchestrati
 * **AI & Weather Risk Microservice (Python FastAPI):**
   * **Technology:** Implemented as a high-performance Python microservice using **FastAPI**, **Pydantic**, and the official **OpenAI SDK**.
   * **Multi-Criteria Weather Risk Engine:** Evaluates composite meteorological thresholds (precipitation, wind speed, ambient temperature, visibility, thunderstorm WMO codes) against configurable safety rules to compute standardized color-coded risk levels (Green, Yellow, Red) and enforce booking suspension when routes exceed danger limits.
-  * **Survival Assistant (RAG Engine):** Powers the offline/online wilderness survival assistant by ingesting curated first-aid guides, segmenting text into knowledge chunks, and using **OpenAI (GPT-4o-mini)** to generate clear, actionable, hallucination-free emergency advice with referenced sources.
+  * **Survival Assistant (RAG Engine):** Ingests curated guides as traceable knowledge chunks. The Online assistant uses eligible RAG evidence and the configured OpenAI or Gemini model. The mobile app handles Local inference separately using an active device model or a supported verified package lookup. CTMS-075 handles emergency detection and actions. The [trace design](../features/CTMS-069-Implementation.md#inference-trace-extension-design) extends the evidence available for investigation and records where it is incomplete.
 
 * **Third-Party External Services & Integrations:**
   * **Payment Gateway (PayOS):** Integrates PayOS via `@payos/node` for domestic bank transfer QR payments with instant payment webhook synchronization, ensuring immediate reservation confirmation and verifiable payment records.

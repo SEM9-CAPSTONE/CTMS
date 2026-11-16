@@ -37,6 +37,8 @@ Search work is proportional to eligible vector count × 384, plus ranking and pu
 | Chunk UUID/index, headings, content, one-based page and original item reference | Selected CTMS-051 chunk |
 | Score, tokenizer count, result status/reason, retrieval configuration hash | CTMS-068 request computation |
 
+For the planned CTMS-069 Inference Trace, the configuration identity must resolve to the effective immutable retrieval settings. Preserve the order of selected blocks used in the generation input. Raw candidates, current-source eligibility and client-visible citations remain separate. The [trace contract](CTMS-069-Implementation.md#inference-trace-extension-design) defines which evidence is persisted and how unavailable historical artifacts are represented.
+
 ## Settings
 
 | Variable | Default | Valid range or policy |
