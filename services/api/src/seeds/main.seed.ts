@@ -6795,7 +6795,204 @@ export async function seedRouteRecoveryDemo(
 	);
 }
 
+/** CTMS-370: refresh only the existing Host monitoring fixture, retaining source history. */
+/** Opt-in local monitoring fixture reusing existing accounts and preserving existing transactions. */
+export async function seedHostMonitoringGroup(ds: DataSource): Promise<void> {
+	if (!ds.isInitialized) await ds.initialize();
+	await ds.transaction(async (manager) => {
+		const [source] = await manager.query<
+			Array<{ hostId: string; routeId: string; porterId: string }>
+		>(`
+ SELECT t.host_id AS "hostId",t.route_id AS "routeId",p.porter_id AS "porterId"
+ FROM trips t JOIN users u ON u.id=t.host_id JOIN trip_porters p ON p.trip_id=t.id AND p.status='assigned'
+ WHERE u.email='host@ctms.local' AND t.title='Chinh phục đèo Hải Vân' LIMIT 1`);
+		if (!source) throw new Error("Existing Host monitoring Trip and assigned Porter are required");
+		const accounts = await manager.query<Array<{ id: string; name: string }>>(`
+ SELECT id,full_name AS name FROM users WHERE role='camper'
+ AND (email='camper@ctms.local' OR full_name ~ '^Camper Demo [0-9]+$'
+ OR id IN (SELECT user_id FROM booking_members WHERE booking_id=md5('ctms-370-group-booking')::uuid))
+ ORDER BY (email='camper@ctms.local') DESC,id LIMIT 24`);
+		if (accounts.length !== 24) throw new Error("24 existing Camper accounts are required");
+		const names = [
+			"Nguyễn Văn An",
+			"Trần Quốc Huy",
+			"Lê Thanh Mai",
+			"Phạm Thanh Bình",
+			"Nguyễn Minh Anh",
+			"Đặng Ngọc Lan",
+			"Võ Hoàng Nam",
+			"Bùi Thu Hà",
+			"Đỗ Minh Khang",
+			"Hồ Phương Thảo",
+			"Ngô Đức Anh",
+			"Dương Thị Hương",
+			"Lý Quang Huy",
+			"Phan Bảo Ngọc",
+			"Trịnh Hải Đăng",
+			"Mai Khánh Linh",
+			"Đinh Tuấn Kiệt",
+			"Tạ Minh Châu",
+			"Cao Thanh Tùng",
+			"Lương Ngọc Ánh",
+			"Vũ Gia Bảo",
+			"Đoàn Thảo Nguyên",
+			"Trương Hoài An",
+			"Huỳnh Bích Trâm",
+		];
+		for (const [index, account] of accounts.entries()) {
+			await manager.query(
+				"UPDATE users SET full_name=$2 WHERE id=$1 AND full_name ~ '^Camper Demo [0-9]+$'",
+				[account.id, names[index]]
+			);
+		}
+		const [trip] = await manager.query<Array<{ id: string }>>(
+			`
+ INSERT INTO trips(id,host_id,route_id,title,description,trip_type,duration_nights,starts_at,ends_at,
+ meeting_point,booking_deadline,capacity_min,capacity_max,seats_taken,price_per_person,status)
+ SELECT md5('ctms-370-group-trip')::uuid,$1,$2,'Hành trình xanh Hải Vân',
+ 'Cùng khám phá đèo Hải Vân và thu gom rác dọc tuyến, góp phần giữ gìn cảnh quan thiên nhiên.',
+ 'day_trip',0,now()-interval '1 hour',now()+interval '6 hours',
+ ST_StartPoint(r.route_geom::geometry)::geography,now()-interval '2 hours',1,30,24,0,'ongoing'
+ FROM trekking_routes r WHERE r.id=$2
+ ON CONFLICT(id) DO UPDATE SET title=EXCLUDED.title,description=EXCLUDED.description RETURNING id`,
+			[source.hostId, source.routeId]
+		);
+		await manager.query(
+			`INSERT INTO bookings(id,trip_id,user_id,num_people,status,payment_status,base_price,total_amount)
+ VALUES(md5('ctms-370-group-booking')::uuid,$1,$2,24,'confirmed','not_required',0,0)
+ ON CONFLICT(id) DO NOTHING`,
+			[trip.id, accounts[0].id]
+		);
+		await manager.query(
+			`INSERT INTO trip_porters(trip_id,porter_id,status) VALUES($1,$2,'assigned') ON CONFLICT DO NOTHING`,
+			[trip.id, source.porterId]
+		);
+		for (const [index, account] of accounts.entries()) {
+			await manager.query(
+				`INSERT INTO booking_members(id,booking_id,user_id,is_primary,member_status,checked_in_at)
+ VALUES(md5('ctms-370-group-member:' || $1::text)::uuid,md5('ctms-370-group-booking')::uuid,$1::uuid,$2,'joined',now()-interval '1 hour')
+ ON CONFLICT(id) DO NOTHING`,
+				[account.id, index === 0]
+			);
+		}
+		const positioned = [
+			...accounts.slice(0, 23).map((account) => ({ id: account.id, role: "camper" })),
+			{ id: source.porterId, role: "porter" },
+		];
+		for (const [index, person] of positioned.entries()) {
+			await manager.query(
+				`INSERT INTO gps_logs(id,trip_id,user_id,participant_role,event_time,location,accuracy_meters,config_version,received_at)
+ SELECT md5('ctms-370-group-gps:' || $1::text || ':' || $2::text)::uuid,$1::uuid,$2::uuid,$3::gps_participant_role,
+ now()-make_interval(secs=>$4),ST_LineInterpolatePoint(r.route_geom::geometry,$5)::geography,5,'v3',now()
+ FROM trekking_routes r WHERE r.id=$6
+ ON CONFLICT(id) DO UPDATE SET event_time=EXCLUDED.event_time,received_at=EXCLUDED.received_at`,
+				[
+					trip.id,
+					person.id,
+					person.role,
+					index === 23 ? 1200 : 30,
+					index < 18 ? 0.35 : 0.55,
+					source.routeId,
+				]
+			);
+		}
+	});
+	console.log("[seed:host-monitoring] Existing-account group Trip prepared");
+}
+
+export async function seedHostTripMonitoring(ds: DataSource = dataSource): Promise<void> {
+	if (!ds.isInitialized) await ds.initialize();
+	await ds.transaction(async (manager) => {
+		const trips = await manager.query<Array<{ id: string; routeId: string }>>(
+			`SELECT t.id,t.route_id AS "routeId" FROM trips t JOIN users u ON u.id=t.host_id
+			 JOIN trekking_routes r ON r.id=t.route_id
+			 WHERE u.email='host@ctms.local' AND t.status='ongoing'
+			 AND t.title IN ('Trekking Sơn Trà Hoàn Thành - Demo Khiếu Nại','Chinh phục đèo Hải Vân')
+			 AND r.name='Hải Vân Pass - Nam Hải Vân Trail' ORDER BY t.id LIMIT 1`
+		);
+		const trip = trips[0];
+		if (!trip) throw new Error("Existing Host monitoring Trip is required");
+		await manager.query("UPDATE trips SET title='Chinh phục đèo Hải Vân' WHERE id=$1", [trip.id]);
+		await manager.query(
+			`UPDATE trips SET title=CASE title
+ WHEN '[DEMO CTMS-316] Sơn Trà - Quay lại tuyến' THEN 'Khám phá cung đường Sơn Trà'
+ WHEN 'Sơn Trà - Nền mới' THEN 'Khám phá đỉnh Bàn Cờ' END
+ WHERE host_id=(SELECT host_id FROM trips WHERE id=$1)
+ AND title IN ('[DEMO CTMS-316] Sơn Trà - Quay lại tuyến','Sơn Trà - Nền mới')`,
+			[trip.id]
+		);
+		const participants = await manager.query<Array<{ userId: string; role: string }>>(
+			`SELECT DISTINCT m.user_id AS "userId",'camper' AS role FROM booking_members m
+			 JOIN bookings b ON b.id=m.booking_id JOIN users u ON u.id=m.user_id
+			 WHERE b.trip_id=$1 AND m.member_status='joined'
+			 AND b.status IN ('confirmed','completed') AND u.email='camper@ctms.local'
+			 UNION ALL SELECT porter_id,'porter' FROM trip_porters WHERE trip_id=$1 AND status='assigned'`,
+			[trip.id]
+		);
+		if (participants.length === 0) throw new Error("Existing monitoring participants are required");
+		for (const participant of participants) {
+			const isCamper = participant.role === "camper";
+			const farLocation = isCamper && process.argv.includes("--host-monitoring-far-location");
+			const ageSeconds = isCamper ? 30 : 1200;
+			const fraction = isCamper ? 0.35 : 0.55;
+			for (let sample = 0; sample < 3; sample++) {
+				await manager.query(
+					`INSERT INTO gps_logs(id,trip_id,user_id,participant_role,event_time,location,
+					 accuracy_meters,config_version,received_at)
+					 SELECT md5('ctms-370-gps:' || $1::text || ':' || $2::text || ':' || $3::text || ':' || $6::text)::uuid,
+					 $1::uuid,$2::uuid,$3::gps_participant_role,now()-($4::int+(2-$6::int)*10)*interval '1 second',
+					 CASE WHEN $8::boolean THEN ST_SetSRID(ST_MakePoint(-122.084,37.4219983),4326)::geography
+					 ELSE ST_LineInterpolatePoint(r.route_geom::geometry,$5::double precision)::geography END,5,'v3',now()
+					 FROM trekking_routes r WHERE r.id=$7
+					 ON CONFLICT(id) DO UPDATE SET event_time=EXCLUDED.event_time,location=EXCLUDED.location,
+					 accuracy_meters=EXCLUDED.accuracy_meters,received_at=EXCLUDED.received_at`,
+					[
+						trip.id,
+						participant.userId,
+						participant.role,
+						ageSeconds,
+						fraction,
+						sample,
+						trip.routeId,
+						farLocation,
+					]
+				);
+			}
+			if (isCamper) {
+				await manager.query(
+					`INSERT INTO safety_events(id,trip_id,user_id,participant_role,event_type,event_time,
+					 location,accuracy_meters,distance_to_route_meters,consecutive_valid_samples,
+					 route_id,route_version,config_version,received_at)
+					 SELECT md5((CASE WHEN $4::boolean THEN 'ctms-370-far:' ELSE 'ctms-370-recovery:' END) || $1::text || ':' || $2::text)::uuid,
+					 $1::uuid,$2::uuid,'camper',
+					 CASE WHEN $4::boolean THEN 'OFF_ROUTE'::safety_event_type ELSE 'ON_ROUTE_RECOVERED'::safety_event_type END,
+					 now()-interval '30 seconds',g.location,5,ST_Distance(g.location,r.route_geom),3,r.id,
+					 COALESCE((SELECT route_version FROM safety_events WHERE trip_id=$1::uuid AND route_id=r.id
+					 ORDER BY event_time DESC LIMIT 1),'v3'),'v3',now()
+					 FROM trekking_routes r CROSS JOIN LATERAL (
+					 SELECT CASE WHEN $4::boolean THEN ST_SetSRID(ST_MakePoint(-122.084,37.4219983),4326)::geography
+					 ELSE ST_LineInterpolatePoint(r.route_geom::geometry,0.35)::geography END AS location
+					 ) g WHERE r.id=$3
+					 ON CONFLICT(id) DO UPDATE SET event_time=EXCLUDED.event_time,received_at=EXCLUDED.received_at`,
+					[trip.id, participant.userId, trip.routeId, farLocation]
+				);
+			}
+		}
+	});
+	console.log("[seed:host-monitoring] Existing Trip locations refreshed");
+}
+
 export async function runMasterSeed(): Promise<void> {
+	if (process.argv.includes("--host-monitoring-only")) {
+		try {
+			await seedHostTripMonitoring(dataSource);
+			if (process.argv.includes("--host-monitoring-group"))
+				await seedHostMonitoringGroup(dataSource);
+		} finally {
+			if (dataSource.isInitialized) await dataSource.destroy();
+		}
+		return;
+	}
 	if (process.argv.includes("--revenue-analytics-only")) {
 		try {
 			await seedRevenueAnalyticsScenarios(dataSource);

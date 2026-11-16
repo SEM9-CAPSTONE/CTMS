@@ -74,7 +74,7 @@ describe("HostLayout Booking navigation", () => {
 		await waitFor(() => expect(camperProfileService.getProfile).toHaveBeenCalledTimes(1));
 	});
 
-	it("places Host reports right below the operations overview and opens the report tabs", async () => {
+	it("places Host monitoring after the operations overview and opens the report tabs", async () => {
 		localStorage.clear();
 		storeHost();
 		window.history.replaceState({}, "", "/dashboard");
@@ -83,7 +83,8 @@ describe("HostLayout Booking navigation", () => {
 		const labels = within(screen.getByRole("navigation", { name: "Dashboard navigation" }))
 			.getAllByRole("button")
 			.map((button) => button.textContent?.trim());
-		expect(labels.indexOf("Báo cáo tổng quan")).toBe(labels.indexOf("Tổng quan vận hành") + 1);
+		expect(labels.indexOf("Giám sát chuyến đi")).toBe(labels.indexOf("Tổng quan vận hành") + 1);
+		expect(labels.indexOf("Báo cáo tổng quan")).toBe(labels.indexOf("Giám sát chuyến đi") + 1);
 
 		fireEvent.click(screen.getByRole("button", { name: "Báo cáo tổng quan" }));
 		expect(window.location.pathname).toBe("/host/reports/performance");

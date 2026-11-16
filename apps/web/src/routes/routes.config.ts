@@ -21,6 +21,7 @@ export enum RoutePath {
 	HOST_EQUIPMENT_CATALOG = "/host/equipment-catalog",
 	HOST_WALLET = "/host/wallet",
 	HOST_SOS = "/host/sos",
+	HOST_TRIP_MAP = "/host/trip-map",
 	TREKKING = "/trekking",
 	SAFETY = "/safety",
 	CAMPER_PROFILE = "/camper/profile",

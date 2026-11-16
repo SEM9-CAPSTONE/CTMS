@@ -15,6 +15,7 @@ import {
 	useEmergencyBroadcastListener,
 } from "../features/emergency-broadcasts";
 import type { HostReportTab } from "../features/host-reports/pages/HostReportsPage";
+import { HostTripMapPage } from "../features/role-landing/pages/HostTripMapPage";
 import type { RoleKey } from "../features/role-landing/types";
 import { PageSkeleton } from "../shared/components/PageSkeleton";
 import { AppRoleGuard } from "./AppRoleGuard";
@@ -1045,6 +1046,23 @@ function AppRouteContent() {
 				>
 					<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
 						<HostSosPage />
+					</HostLayout>
+				</AppRoleGuard>
+			);
+
+		case RoutePath.HOST_TRIP_MAP:
+			return (
+				<AppRoleGuard
+					allowedRoles={["host"]}
+					currentRoles={currentRoles}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<HostLayout
+						activeRole="host"
+						onLogout={handleLogout}
+						onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}
+					>
+						<HostTripMapPage hostId={storedUser?.id ?? ""} />
 					</HostLayout>
 				</AppRoleGuard>
 			);

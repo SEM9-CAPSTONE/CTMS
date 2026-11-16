@@ -1,4 +1,5 @@
 import { trackMapRenderReadiness } from "../utils/map-render-readiness";
+import { MONITORING_CLUSTER, groupMonitoringMarkers } from "../utils/monitoring-marker-groups";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { Maximize } from "lucide-react";
 import type { Map as MapLibreMap, Marker } from "maplibre-gl";
@@ -28,9 +29,23 @@ import {
 } from "../utils/danger-zone-map";
 import { DEFAULT_ROUTE_CENTER, getRouteMapStyleUrl } from "../utils/route-map";
 
+interface MonitoringMarker {
+	code: string;
+	id: string;
+	point: Position;
+	label: string;
+	stale: boolean;
+	selected: boolean;
+	onSelect: () => void;
+}
+
+const EMPTY_MONITORING_MARKERS: MonitoringMarker[] = [];
+
 interface Props {
 	geometry: GeoJsonLineString;
-	checkpoints: RouteCheckpoint[];
+	checkpoints: Pick<RouteCheckpoint, "id" | "type" | "location">[];
+	monitoringMarkers?: MonitoringMarker[];
+	onMonitoringGroupsChange?: (sizes: number[]) => void;
 	dangerZones?: RouteDangerZone[];
 	mode?: RouteMapMode;
 	selectedLocation?: GeoJsonPoint;
@@ -67,6 +82,8 @@ function fitRoute(map: MapLibreMap, coordinates: Position[]): void {
 export function RouteCheckpointMap({
 	geometry,
 	checkpoints,
+	monitoringMarkers = EMPTY_MONITORING_MARKERS,
+	onMonitoringGroupsChange,
 	dangerZones = EMPTY_DANGER_ZONES,
 	mode = "checkpoint",
 	selectedLocation,
@@ -81,10 +98,12 @@ export function RouteCheckpointMap({
 	const containerRef = useRef<HTMLDivElement | null>(null);
 	const mapRef = useRef<MapLibreMap | null>(null);
 	const markersRef = useRef<Marker[]>([]);
+
 	const selectRef = useRef(onSelectLocation);
 	const disabledRef = useRef(disabled);
 	const [mapError, setMapError] = useState("");
 	const [mapReady, setMapReady] = useState(false);
+
 	const styleUrl = getRouteMapStyleUrl(import.meta.env.VITE_MAPTILER_API_KEY as string | undefined);
 	const useFallback = !styleUrl || Boolean(mapError);
 	const viewport = useMapViewport(useFallback, Boolean(disabled));
@@ -170,6 +189,7 @@ export function RouteCheckpointMap({
 
 	useEffect(() => {
 		if (!styleUrl || !containerRef.current) return;
+
 		setMapReady(false);
 		setMapError("");
 		let disposed = false;
@@ -404,6 +424,127 @@ export function RouteCheckpointMap({
 		selectedLocation,
 	]);
 
+	useEffect(() => {
+		const map = mapRef.current;
+		if (!map || !mapReady) return;
+		if (monitoringMarkers.length === 0) {
+			onMonitoringGroupsChange?.([]);
+			return;
+		}
+		let disposed = false;
+		const markers: Marker[] = [];
+
+		let redraw = () => {};
+		void import("maplibre-gl").then(({ Marker: MapMarker }) => {
+			if (disposed || mapRef.current !== map) return;
+			redraw = () => {
+				for (const marker of markers) marker.remove();
+				markers.length = 0;
+
+				const selected = monitoringMarkers.find((marker) => marker.selected);
+				const groups = groupMonitoringMarkers(
+					monitoringMarkers.filter((marker) => !marker.selected),
+					(marker) => map.project(marker.point)
+				);
+				onMonitoringGroupsChange?.(
+					groups.filter((group) => group.length > 1).map((group) => group.length)
+				);
+				const addMarker = (group: MonitoringMarker[], selected: boolean) => {
+					const marker = group[0];
+					const element = document.createElement("button");
+					element.type = "button";
+					element.style.zIndex = selected ? "30" : "20";
+					element.className =
+						"relative size-8 rounded-full bg-transparent focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900";
+					const point =
+						group.length > 1
+							? ([
+									group.reduce((sum, item) => sum + item.point[0], 0) / group.length,
+									group.reduce((sum, item) => sum + item.point[1], 0) / group.length,
+								] as [number, number])
+							: marker.point;
+					const pin = document.createElement("span");
+					pin.className = `absolute left-2.5 top-2.5 size-3 rounded-full border-2 border-white shadow ${marker.stale ? "bg-amber-800" : "bg-emerald-800"} ${selected ? "ring-2 ring-slate-900" : ""}`;
+					element.append(pin);
+					if (group.length > 1 || selected || map.getZoom() >= 12) {
+						const badge = document.createElement("span");
+						badge.className =
+							group.length > 1
+								? "absolute -left-2 -top-2 flex size-7 items-center justify-center rounded-full border-2 border-white bg-slate-800 text-xs font-bold text-white shadow"
+								: `absolute left-6 top-0 rounded-md border-2 px-1 text-xs font-bold shadow ${marker.stale ? "border-dashed border-slate-700 bg-slate-100 text-slate-900" : "border-white bg-emerald-900 text-white"}`;
+						badge.textContent = group.length > 1 ? String(group.length) : marker.code;
+						element.append(badge);
+					}
+					element.title = group.length > 1 ? `Phóng to cụm ${group.length} người` : marker.label;
+					element.setAttribute("aria-label", element.title);
+					element.setAttribute("aria-pressed", String(selected));
+					element.onclick = (event) => {
+						event.stopPropagation();
+						if (group.length === 1) {
+							marker.onSelect();
+							return;
+						}
+						map.flyTo({
+							center: point,
+							zoom: Math.min(map.getZoom() + 2, MONITORING_CLUSTER.maxZoom),
+							duration: 400,
+						});
+					};
+					markers.push(
+						new MapMarker({
+							element,
+							anchor: "center",
+							offset: [0, 0],
+						})
+							.setLngLat(point)
+							.addTo(map)
+					);
+				};
+				if (selected) addMarker([selected], true);
+				for (const group of groups) addMarker(group, false);
+			};
+			redraw();
+			map.on("moveend", redraw);
+		});
+		return () => {
+			disposed = true;
+			map.off("moveend", redraw);
+
+			for (const marker of markers) marker.remove();
+		};
+	}, [mapReady, monitoringMarkers, onMonitoringGroupsChange]);
+
+	const selectedMonitoringMarker = monitoringMarkers.find((marker) => marker.selected);
+	const fallbackGroups = groupMonitoringMarkers(
+		monitoringMarkers.filter((marker) => !marker.selected),
+		(marker) => {
+			const [x, y] = coordinateToPercent(marker.point, bounds);
+			return { x, y };
+		},
+		MONITORING_CLUSTER.fallbackCellSize
+	);
+	if (selectedMonitoringMarker) fallbackGroups.unshift([selectedMonitoringMarker]);
+	const fallbackSizes = fallbackGroups
+		.filter((group) => group.length > 1)
+		.map((group) => group.length)
+		.join(",");
+	useEffect(() => {
+		if (useFallback)
+			onMonitoringGroupsChange?.(fallbackSizes ? fallbackSizes.split(",").map(Number) : []);
+	}, [useFallback, fallbackSizes, onMonitoringGroupsChange]);
+
+	const fallbackBadges = fallbackGroups.map((group) => {
+		const point: Position =
+			group.length > 1
+				? [
+						group.reduce((sum, item) => sum + item.point[0], 0) / group.length,
+						group.reduce((sum, item) => sum + item.point[1], 0) / group.length,
+					]
+				: group[0].point;
+		const [x, y] = coordinateToPercent(point, bounds);
+		return { group, x, y };
+	});
+
 	return (
 		<div
 			ref={containerRef}
@@ -574,6 +715,37 @@ export function RouteCheckpointMap({
 								/>
 							);
 						})()}
+					{fallbackBadges.map(({ group, x, y }) => {
+						const marker = group[0];
+						return (
+							<g key={marker.id}>
+								<circle
+									cx={x}
+									cy={y}
+									r={marker.selected ? 1.2 : 0.8}
+									fill={marker.stale ? "#92400e" : "#065f46"}
+									stroke="white"
+									strokeWidth="0.4"
+								/>
+								<foreignObject x={x + 1} y={y - 3} width={10} height={8}>
+									<button
+										type="button"
+										title={marker.label}
+										aria-label={
+											group.length > 1 ? `Phóng to cụm ${group.length} người` : marker.label
+										}
+										aria-pressed={marker.selected}
+										onPointerDown={(event) => event.stopPropagation()}
+										onClick={() => (group.length > 1 ? viewport.focusAt(x, y) : marker.onSelect())}
+										className={`block size-full ${group.length > 1 ? "rounded-full" : "rounded-md"} border text-[3px] font-bold ${marker.stale ? "border-dashed border-slate-700 bg-slate-100 text-slate-900" : "border-white bg-[#164027] text-white"} ${marker.selected ? "outline outline-1 outline-slate-900" : ""}`}
+									>
+										{group.length > 1 ? String(group.length) : marker.code}
+									</button>
+								</foreignObject>
+							</g>
+						);
+					})}
+
 					{polygonVertices.map((point, index) => {
 						const [x, y] = coordinateToPercent(point, bounds);
 						return (
@@ -629,8 +801,42 @@ export function RouteCheckpointMap({
 					</button>
 				)}
 			</div>
+			{monitoringMarkers.length > 0 && (
+				<button
+					type="button"
+					className="absolute top-3 left-3 z-40 rounded-lg bg-white px-3 py-2 text-sm font-semibold shadow"
+					onClick={() => {
+						if (useFallback) viewport.reset();
+						else if (mapRef.current) fitRoute(mapRef.current, safetyPositions);
+					}}
+				>
+					Quay lại tuyến
+				</button>
+			)}
+			{selectedMonitoringMarker && (
+				<button
+					type="button"
+					className="absolute bottom-3 left-3 z-40 rounded-lg bg-white px-3 py-2 text-xs font-bold shadow"
+					onClick={() => {
+						if (useFallback) {
+							const [x, y] = coordinateToPercent(selectedMonitoringMarker.point, bounds);
+							viewport.focusAt(x, y);
+						} else {
+							mapRef.current?.flyTo({
+								center: selectedMonitoringMarker.point,
+								zoom: 14,
+								duration: 500,
+							});
+						}
+					}}
+				>
+					Đến vị trí thành viên đã chọn
+				</button>
+			)}
 			{!styleUrl && (
-				<span className="absolute top-3 left-3 rounded-lg bg-white/90 px-3 py-2 text-xs font-bold">
+				<span
+					className={`absolute ${monitoringMarkers.length ? "top-14" : "top-3"} left-3 rounded-lg bg-white/90 px-3 py-2 text-xs font-bold`}
+				>
 					{disabled
 						? "Sơ đồ tuyến trekking · Bản đồ nền chưa khả dụng"
 						: mode === "checkpoint"
@@ -646,7 +852,7 @@ export function RouteCheckpointMap({
 				</span>
 			)}
 			<div
-				className="absolute right-3 bottom-3 flex flex-wrap gap-2 rounded-lg bg-white/90 px-3 py-2 text-[11px] font-bold"
+				className="absolute right-3 bottom-3 z-10 flex flex-wrap gap-2 rounded-lg bg-white/90 px-3 py-2 text-[11px] font-bold"
 				aria-label="Chú giải an toàn"
 			>
 				<span className="text-sky-800">S: Nơi trú ẩn</span>

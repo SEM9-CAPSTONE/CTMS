@@ -69,6 +69,7 @@ export function useMapViewport(enabled: boolean, canDrag: boolean) {
 		zoomIn: () => zoom(0.8),
 		zoomOut: () => zoom(1.25),
 		reset,
+		focusAt: (x: number, y: number) => setView({ x: x - 25, y: y - 25, size: 50 }),
 		toMapPoint,
 		onPointerDown,
 		onPointerMove,

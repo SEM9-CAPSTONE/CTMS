@@ -235,6 +235,7 @@ export function Sidebar({
 								(currentPath === "/host/content-reports" ||
 									currentPath === RoutePath.HOST_PERFORMANCE_REPORTS)) ||
 							(item.key === "overview" && isPathDashboard) ||
+							(item.key === "trip-map" && currentPath === RoutePath.HOST_TRIP_MAP) ||
 							(item.key === "sos" && isPathSos) ||
 							(item.key === "equipment" && isPathEquipment) ||
 							(item.key === "wallet" && isPathWallet) ||
@@ -271,6 +272,8 @@ export function Sidebar({
 											navigate("/host/review-analysis");
 										} else if (item.key === "reports" && activeRole === "host") {
 											navigate(RoutePath.HOST_PERFORMANCE_REPORTS);
+										} else if (item.key === "trip-map") {
+											navigate(RoutePath.HOST_TRIP_MAP);
 										} else if (item.key === "overview") {
 											navigate("/dashboard");
 										} else if (item.key === "sos") {
