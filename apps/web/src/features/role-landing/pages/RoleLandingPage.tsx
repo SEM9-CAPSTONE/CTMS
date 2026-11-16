@@ -163,9 +163,12 @@ function DashboardMain({
 			>
 				{config.role === "host" ? (
 					<div className="sticky top-0 z-20 shrink-0 bg-[#f4f7f2]">
-						<div className="mx-auto w-full max-w-[1504px] space-y-4 px-4 pt-4 sm:px-6 sm:pt-6 lg:px-8 lg:pt-8">
-							<HostDashboardHeader name={displayName} onCreateTrip={onCreateTrip} />
-							<HostDashboardOverview key={user.id} hostId={user.id} />
+						<div className="mx-auto w-full max-w-[1504px] px-4 pt-4 sm:px-6 sm:pt-6 lg:px-8 lg:pt-8">
+							<HostDashboardHeader
+								name={displayName}
+								onCreateTrip={onCreateTrip}
+								onViewTrekkingRoutes={onViewTrekkingRoutes}
+							/>
 						</div>
 					</div>
 				) : (
@@ -200,6 +203,7 @@ function DashboardMain({
 					>
 						{config.role === "host" ? (
 							<>
+								<HostDashboardOverview key={user.id} hostId={user.id} />
 								<HostOperationalOverview
 									key={`operations-${user.id}`}
 									hostId={user.id}
