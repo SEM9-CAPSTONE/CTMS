@@ -162,7 +162,9 @@ Future<_Adapter> _pump(WidgetTester tester, {_Adapter? adapter}) async {
         ),
       ],
       child: MaterialApp(
-        theme: AppTheme.light(),
+        theme: AppTheme.light().copyWith(
+          splashFactory: InkRipple.splashFactory,
+        ),
         home: const CamperExploreScreen(),
       ),
     ),
@@ -280,7 +282,7 @@ void main() {
     );
     await tester.tap(sheetDetails);
     await tester.pumpAndSettle();
-    await tester.pageBack();
+    await tester.tap(find.byTooltip('Quay lại'));
     await tester.pumpAndSettle();
     expect(adapter.recommendationCalls, 2);
     expect(

@@ -100,7 +100,9 @@ void main() {
           ),
         ],
         child: MaterialApp(
-          theme: AppTheme.light(),
+          theme: AppTheme.light().copyWith(
+            splashFactory: InkRipple.splashFactory,
+          ),
           home: const CamperExploreScreen(),
         ),
       ),
