@@ -16,7 +16,7 @@ export const formatTime = new Intl.DateTimeFormat("vi-VN", {
 	timeZone: "Asia/Ho_Chi_Minh",
 });
 
-export function participantLabel(participant: MapParticipant) {
+export function participantLabel(participant: Pick<MapParticipant, "name" | "role">) {
 	return (
 		participant.name?.replace(/^(?:Camper|Porter)\s+/i, "").trim() ||
 		(participant.role === "porter" ? "Người hỗ trợ chưa có tên" : "Thành viên chưa có tên")

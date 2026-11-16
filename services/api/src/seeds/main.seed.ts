@@ -6982,12 +6982,86 @@ export async function seedHostTripMonitoring(ds: DataSource = dataSource): Promi
 	console.log("[seed:host-monitoring] Existing Trip locations refreshed");
 }
 
+/** Opt-in operational alerts, sourced from GPS and Porter confirmations rather than warning rows. */
+export async function seedHostMonitoringAlerts(ds: DataSource): Promise<void> {
+	await ds.transaction(async (manager) => {
+		const [trip] = await manager.query<Array<{ id: string; routeId: string; porterId: string }>>(`
+ SELECT t.id,t.route_id AS "routeId",p.porter_id AS "porterId" FROM trips t
+ JOIN trip_porters p ON p.trip_id=t.id AND p.status='assigned'
+ WHERE t.id=md5('ctms-370-group-trip')::uuid AND t.status='ongoing' LIMIT 1`);
+		if (!trip) throw new Error("Existing ongoing group Trip is required for alerts");
+		const members = await manager.query<Array<{ id: string; userId: string }>>(`
+ SELECT m.id,m.user_id AS "userId" FROM booking_members m JOIN users u ON u.id=m.user_id
+ WHERE m.booking_id=md5('ctms-370-group-booking')::uuid AND m.member_status='joined'
+ ORDER BY (u.email='camper@ctms.local') DESC,u.id`);
+		const checkpoints = await manager.query<Array<{ id: string; fraction: number }>>(
+			`
+ SELECT c.id,ST_LineLocatePoint(r.route_geom::geometry,c.location::geometry) AS fraction
+ FROM checkpoints c JOIN trekking_routes r ON r.id=c.route_id WHERE r.id=$1
+ ORDER BY fraction DESC LIMIT 2`,
+			[trip.routeId]
+		);
+		if (members.length < 3 || checkpoints.length !== 2 || Number(checkpoints[1].fraction) <= 0.55)
+			throw new Error("Existing group members and two later Route checkpoints are required");
+		const [finish, reference] = checkpoints;
+		for (const [checkpoint, age] of [
+			[reference, 65],
+			[finish, 40],
+		] as const) {
+			await manager.query(
+				`
+ INSERT INTO checkpoint_visits(id,trip_id,checkpoint_id,member_id,confirmed_by_id,arrived_at,location)
+ SELECT md5('ctms-374-visit:' || $1::text || ':' || $2::text)::uuid,$1::uuid,$2::uuid,$3::uuid,$4::uuid,
+ now()-make_interval(mins=>$5::int),location FROM checkpoints WHERE id=$2::uuid
+ ON CONFLICT(id) DO UPDATE SET arrived_at=EXCLUDED.arrived_at`,
+				[trip.id, checkpoint.id, members[0].id, trip.porterId, age]
+			);
+		}
+		for (const [index, member] of members.slice(0, 3).entries()) {
+			const fraction =
+				index === 0
+					? 0.35
+					: index === 1
+						? (Number(reference.fraction) + Number(finish.fraction)) / 2
+						: 1;
+			await manager.query(
+				`
+ INSERT INTO gps_logs(id,trip_id,user_id,participant_role,event_time,location,accuracy_meters,config_version,received_at)
+ SELECT md5('ctms-374-gps:' || $1::text || ':' || $2::text)::uuid,$1::uuid,$2::uuid,'camper',now()-interval '30 seconds',
+ CASE WHEN $4::boolean THEN ST_Project(ST_LineInterpolatePoint(r.route_geom::geometry,$3)::geography,120,pi()/2)
+ ELSE ST_LineInterpolatePoint(r.route_geom::geometry,$3)::geography END,5,'v3',now()
+ FROM trekking_routes r WHERE r.id=$5
+ ON CONFLICT(id) DO UPDATE SET event_time=EXCLUDED.event_time,location=EXCLUDED.location,received_at=EXCLUDED.received_at`,
+				[trip.id, member.userId, fraction, index === 0, trip.routeId]
+			);
+			if (index === 1) continue;
+			for (const recovered of index === 2 ? [false, true] : [false]) {
+				await manager.query(
+					`
+ INSERT INTO safety_events(id,trip_id,user_id,participant_role,event_type,event_time,location,
+ accuracy_meters,distance_to_route_meters,consecutive_valid_samples,route_id,route_version,config_version,received_at)
+ SELECT md5('ctms-374-route:' || $1::text || ':' || $2::text || ':' || $3::text)::uuid,$1::uuid,$2::uuid,'camper',
+ CASE WHEN $3::boolean THEN 'ON_ROUTE_RECOVERED'::safety_event_type ELSE 'OFF_ROUTE'::safety_event_type END,
+ now()-make_interval(secs=>CASE WHEN $3::boolean THEN 30 ELSE 90 END),g.location,5,
+ CASE WHEN $3::boolean THEN 0 ELSE 120 END,3,r.id,md5(ST_AsBinary(r.route_geom)),'v3',now()
+ FROM trekking_routes r JOIN gps_logs g ON g.id=md5('ctms-374-gps:' || $1::text || ':' || $2::text)::uuid WHERE r.id=$4
+ ON CONFLICT(id) DO UPDATE SET event_time=EXCLUDED.event_time,location=EXCLUDED.location,received_at=EXCLUDED.received_at`,
+					[trip.id, member.userId, recovered, trip.routeId]
+				);
+			}
+		}
+	});
+	console.log("[seed:host-monitoring] GPS, recovery and Porter checkpoint confirmations prepared");
+}
+
 export async function runMasterSeed(): Promise<void> {
 	if (process.argv.includes("--host-monitoring-only")) {
 		try {
 			await seedHostTripMonitoring(dataSource);
 			if (process.argv.includes("--host-monitoring-group"))
 				await seedHostMonitoringGroup(dataSource);
+			if (process.argv.includes("--host-monitoring-alerts"))
+				await seedHostMonitoringAlerts(dataSource);
 		} finally {
 			if (dataSource.isInitialized) await dataSource.destroy();
 		}

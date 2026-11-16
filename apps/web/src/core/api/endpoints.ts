@@ -1,5 +1,6 @@
 export const API_ENDPOINTS = {
 	HOST_MONITORING: {
+		ALERTS: (tripId: string) => `/host/monitoring/active-trips/${tripId}/alerts`,
 		ACTIVE_TRIPS: "/host/monitoring/active-trips",
 		PARTICIPANT: (tripId: string, role: string, participantId: string) =>
 			`/host/monitoring/active-trips/${tripId}/participants/${role}/${participantId}`,
