@@ -175,6 +175,41 @@ export class CheckpointsRepository extends Repository<Checkpoint> {
 		return rows[0] ? toResponse(rows[0]) : null;
 	}
 
+	/** CTMS-118: changes only the safety instructions; name, location and order stay as published. */
+	async updateInstructions(
+		routeId: string,
+		checkpointId: string,
+		instructions: string
+	): Promise<CheckpointResponseDto | null> {
+		const rows = (await this.query(
+			`
+			WITH updated AS (
+				UPDATE "checkpoints"
+				SET "instructions" = $3, "updated_at" = now()
+				WHERE "route_id" = $1 AND "id" = $2
+				RETURNING *
+			)
+			SELECT
+				"id",
+				"route_id" AS "routeId",
+				"name",
+				ST_AsGeoJSON("location"::geometry)::json AS "location",
+				"radius_m" AS "radiusMeters",
+				"type",
+				"expected_arrival_offset" AS "expectedArrivalOffset",
+				"instructions",
+				"nearby_water_or_shelter" AS "nearbyWaterOrShelter",
+				"route_position" AS "routePosition",
+				"created_at" AS "createdAt",
+				"updated_at" AS "updatedAt"
+			FROM updated
+			`,
+			[routeId, checkpointId, instructions]
+		)) as CheckpointRow[];
+
+		return rows[0] ? toResponse(rows[0]) : null;
+	}
+
 	async updateForRoute(input: UpdateCheckpointInput): Promise<CheckpointResponseDto> {
 		const rows = (await this.query(
 			`

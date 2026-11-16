@@ -54,7 +54,8 @@ export interface NewHotspot {
 }
 
 /** Fields exposed to Admins: aggregates and evidence ids only, no member ids or member points. */
-const HOTSPOT_COLUMNS = `hotspot."id", hotspot."route_id" AS "routeId", hotspot."route_version" AS "routeVersion",
+const HOTSPOT_COLUMNS = `hotspot."id", hotspot."route_id" AS "routeId", route."name" AS "routeName",
+	route."status" AS "routeStatus", hotspot."route_version" AS "routeVersion",
 	hotspot."status", hotspot."status_changed_at" AS "statusChangedAt",
 	hotspot."analysis_version" AS "analysisVersion", hotspot."config_version" AS "configVersion",
 	hotspot."criteria", hotspot."window_start" AS "windowStart", hotspot."window_end" AS "windowEnd",
@@ -67,13 +68,28 @@ const HOTSPOT_COLUMNS = `hotspot."id", hotspot."route_id" AS "routeId", hotspot.
 	hotspot."last_event_at" AS "lastEventAt", hotspot."previous_hotspot_id" AS "previousHotspotId",
 	hotspot."detection_run_id" AS "detectionRunId", hotspot."detected_at" AS "detectedAt"`;
 
+/** One deviation behind a hotspot: which Trip and when; never which member (BR-361). */
+export interface HotspotEvidenceEvent {
+	id: string;
+	tripTitle: string;
+	tripStartsAt: Date;
+	startedAt: Date;
+	endedAt: Date;
+	maxDistanceMeters: number;
+}
+
 export type SafetyHotspotRow = Omit<NewHotspot, "centerLng" | "centerLat"> & {
 	id: string;
 	status: SafetyHotspotStatus;
 	statusChangedAt: Date;
 	centerLat: number;
 	centerLng: number;
+	routeName: string;
+	routeStatus: string;
 };
+
+const HOTSPOT_FROM = `"potential_safety_hotspots" hotspot
+	INNER JOIN "trekking_routes" route ON route."id" = hotspot."route_id"`;
 
 /** CTMS-116: reads RouteDeviationEvents and writes only hotspot tables (BR-356). */
 @Injectable()
@@ -253,10 +269,29 @@ export class SafetyHotspotsRepository {
 
 	async findById(id: string): Promise<SafetyHotspotRow | null> {
 		const rows = (await this.dataSource.query(
-			`SELECT ${HOTSPOT_COLUMNS} FROM "potential_safety_hotspots" hotspot WHERE hotspot."id" = $1`,
+			`SELECT ${HOTSPOT_COLUMNS} FROM ${HOTSPOT_FROM} WHERE hotspot."id" = $1`,
 			[id]
 		)) as SafetyHotspotRow[];
 		return rows[0] ?? null;
+	}
+
+	/** The deviation events a hotspot was detected from, oldest first, with their Trip. */
+	async findEvidence(hotspotId: string): Promise<HotspotEvidenceEvent[]> {
+		const rows = (await this.dataSource.query(
+			`SELECT event."id", trip."title" AS "tripTitle", trip."starts_at" AS "tripStartsAt",
+			        event."started_at" AS "startedAt", event."ended_at" AS "endedAt",
+			        event."max_distance_meters" AS "maxDistanceMeters"
+			 FROM "potential_safety_hotspots" hotspot
+			 INNER JOIN "route_deviation_events" event ON event."id" = ANY(hotspot."evidence_event_ids")
+			 INNER JOIN "trips" trip ON trip."id" = event."trip_id"
+			 WHERE hotspot."id" = $1
+			 ORDER BY event."started_at", event."id"`,
+			[hotspotId]
+		)) as HotspotEvidenceEvent[];
+		return rows.map((row) => ({
+			...row,
+			maxDistanceMeters: Math.round(Number(row.maxDistanceMeters)),
+		}));
 	}
 
 	async list(filter: {
@@ -276,7 +311,7 @@ export class SafetyHotspotsRepository {
 		}
 		params.push(filter.limit);
 		return (await this.dataSource.query(
-			`SELECT ${HOTSPOT_COLUMNS} FROM "potential_safety_hotspots" hotspot
+			`SELECT ${HOTSPOT_COLUMNS} FROM ${HOTSPOT_FROM}
 			 ${conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : ""}
 			 ORDER BY hotspot."detected_at" DESC, hotspot."id" DESC
 			 LIMIT $${params.length}`,

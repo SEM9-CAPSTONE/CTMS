@@ -12,6 +12,7 @@ import {
 import { SafetyHotspotSkipReason, SafetyHotspotStatus } from "./safety-hotspots.enums";
 import {
 	type EligibleDeviationEvent,
+	type HotspotEvidenceEvent,
 	type NearbyHotspot,
 	type SafetyHotspotRow,
 	// biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
@@ -199,6 +200,11 @@ export class SafetyHotspotsService {
 		const hotspot = await this.repository.findById(id);
 		if (!hotspot) throw new NotFoundException("Hotspot not found");
 		return hotspot;
+	}
+
+	async evidence(id: string): Promise<HotspotEvidenceEvent[]> {
+		await this.getById(id);
+		return this.repository.findEvidence(id);
 	}
 
 	list(filter: { routeId?: string; status?: SafetyHotspotStatus; limit?: number }): Promise<
