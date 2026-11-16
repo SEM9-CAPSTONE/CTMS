@@ -7,24 +7,16 @@ import type { AuthenticatedUser } from "../auth/jwt.strategy";
 import { contextBlocks } from "../rag/rag-context";
 import { MAX_CONTEXT_BLOCKS, type RagResult } from "../rag/rag.types";
 import { UserRole, UserStatus } from "../users/entities/user.entity";
+import { answerSafetyV1 } from "./ai-answer-safety-v1";
 import {
 	AI_PROMPT_VERSION,
 	type GenerationResult,
 	MAX_AI_PAYLOAD_BYTES,
-	MAX_ANSWER_CHARS,
 	MAX_GENERATED_ANSWER_CHARS,
 } from "./ai-answers.types";
+import { MODEL_IDENTIFIER, parseProviderInferenceTrace } from "./ai-inference-trace";
 
-const MODEL_NAME = /^[\w.:/-]{1,128}$/;
 const MAX_CITED_CHUNKS = 5;
-const GUIDANCE_NOTICE_VI =
-	"Hướng dẫn chỉ dùng để tham khảo. Nếu có người đang gặp nguy hiểm, hãy liên hệ cấp cứu hoặc lực lượng cứu hộ tại chỗ ngay.";
-const GUIDANCE_NOTICE_EN =
-	"This guidance is for reference. If someone is in immediate danger, contact local emergency services or rescue personnel now.";
-
-// Defense in depth after semantic verification. Apply the same screen to the answer and its evidence.
-const UNSAFE_EXCERPT =
-	/https?:\/\/|www\.|ignore.{0,50}instructions|(?:bỏ qua|phớt lờ).{0,50}(?:chỉ dẫn|hướng dẫn|chỉ thị|quy tắc|yêu cầu)|(?:system|developer) prompt|(?:đã|vừa).{0,35}(?:gửi sos|gọi cấp cứu|điều cứu hộ|mở lại tuyến|đổi mức rủi ro|thay đổi quyền|chuyển tiền|hoàn tiền)|\b(?:sos dispatched|route is open|payment approved|access granted)\b|\b\d+(?:[.,]\d+)?\s*(?:mg|mcg|μg|ml|viên)\b|(?:tiêm tĩnh mạch|tiêm bắp|đặt nội khí quản|nắn khớp|rạch vết thương|hút nọc|gây nôn|inject|intubat\w*|induce vomiting)/iu;
 
 export function invalidQuery() {
 	return new BadRequestException({ code: "AI_INVALID_QUESTION" });
@@ -75,7 +67,7 @@ export function parseGeneration(value: unknown): GenerationResult {
 	const { answerText, usedEvidenceIds, provider, model, promptVersion } = result;
 	if (
 		result.status !== "ANSWERED" ||
-		Object.keys(result).length !== 6 ||
+		Object.keys(result).length !== 7 ||
 		typeof answerText !== "string" ||
 		!answerText.trim() ||
 		answerText.length > MAX_GENERATED_ANSWER_CHARS ||
@@ -90,11 +82,13 @@ export function parseGeneration(value: unknown): GenerationResult {
 		) ||
 		(provider !== "openai" && provider !== "gemini") ||
 		typeof model !== "string" ||
-		!MODEL_NAME.test(model) ||
+		!MODEL_IDENTIFIER.test(model) ||
 		promptVersion !== AI_PROMPT_VERSION
 	)
 		throw aiUnavailable();
-	return { status: "ANSWERED", answerText, usedEvidenceIds, provider, model, promptVersion };
+	const trace = parseProviderInferenceTrace(result.trace, provider);
+	if (!trace) throw aiUnavailable();
+	return { status: "ANSWERED", answerText, usedEvidenceIds, provider, model, promptVersion, trace };
 }
 
 export function groundedAnswer(
@@ -108,17 +102,10 @@ export function groundedAnswer(
 		if (!chunk) throw aiUnavailable();
 		return chunk;
 	});
-	if (
-		[generation.answerText, ...cited.map(({ content }) => content)].some((text) =>
-			UNSAFE_EXCERPT.test(text.normalize("NFKC").replace(/\s+/gu, " "))
-		) ||
-		/<[^>]+>|\[[^\]]+\]\([^)]*\)|\b[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\b/iu.test(
-			generation.answerText
-		)
-	) {
-		return null;
-	}
-	const notice = locale.split("-")[0] === "en" ? GUIDANCE_NOTICE_EN : GUIDANCE_NOTICE_VI;
-	const answer = [notice, generation.answerText.trim()].join("\n\n");
-	return answer.length <= MAX_ANSWER_CHARS ? { answer, cited } : null;
+	const answer = answerSafetyV1.apply(
+		generation.answerText,
+		cited.map(({ content }) => content),
+		locale
+	);
+	return answer === null ? null : { answer, cited };
 }

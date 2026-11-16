@@ -89,6 +89,7 @@ export class RagRetrievalService {
 		if (eligibility !== "CURRENT") return insufficient(eligibility);
 
 		const resultMetrics = metrics(selectedCount);
+		const { version, ...retrievalSettings } = settings;
 		this.logger.debug({ status: "GROUNDED", ...resultMetrics });
 		return {
 			status: "GROUNDED",
@@ -96,7 +97,8 @@ export class RagRetrievalService {
 			selectedChunks,
 			sources,
 			contextTokenCount: counts[selectedCount - 1],
-			retrievalConfigVersion: settings.version,
+			retrievalConfigVersion: version,
+			retrievalSettings,
 			metrics: resultMetrics,
 		};
 	}

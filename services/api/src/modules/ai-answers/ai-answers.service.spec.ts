@@ -1,17 +1,26 @@
 import { randomUUID } from "node:crypto";
 import { BadRequestException } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import type { EntityManager } from "typeorm";
+import { providerInferenceTraceFixture } from "../../../test/support/inference-trace-fixture";
 import { contextBlocks } from "../rag/rag-context";
 import type { RagRetrievalService } from "../rag/rag-retrieval.service";
+import { RagConfig } from "../rag/rag.config";
 import { type RagRepository, evidenceRef } from "../rag/rag.repository";
 import type { RagChunk, RagResult } from "../rag/rag.types";
 import { Classification } from "../survival-documents/survival-documents.types";
 import { UserRole, UserStatus } from "../users/entities/user.entity";
+import { answerSafetyV1, resolveAnswerSafetyArtifact } from "./ai-answer-safety-v1";
 import { parseGeneration } from "./ai-answers.policy";
 import type { AiAnswersRepository } from "./ai-answers.repository";
 import { AiAnswersService } from "./ai-answers.service";
-import { AI_PROMPT_VERSION, type StoredAnswer } from "./ai-answers.types";
-import type { AiGenerationProvider } from "./ai-generation.provider";
+import {
+	AI_PROMPT_VERSION,
+	type StoredAnswer,
+	type StoredGeneration,
+	recordedInferenceTrace,
+} from "./ai-answers.types";
+import { AiGenerationProvider } from "./ai-generation.provider";
 
 const input = { requestId: randomUUID(), question: "Đọc bản đồ địa hình thế nào?", locale: "vi" };
 const actor = { userId: randomUUID(), roles: [UserRole.CAMPER], status: UserStatus.ACTIVE };
@@ -40,13 +49,17 @@ const chunk: RagChunk = {
 };
 const unused = { ...chunk, chunkId: randomUUID(), chunkIndex: 3, content: "Đường đồng mức" };
 const metrics = { candidateCount: 2, selectedCount: 2, durationMs: 5 };
+const { version: retrievalConfigVersion, ...retrievalSettings } = new RagConfig(
+	new ConfigService({ RAG_MIN_SCORE: "0.87", RAG_TOP_K: "2" })
+).settings();
 const grounded = (...selectedChunks: RagChunk[]): RagResult => ({
 	status: "GROUNDED",
 	selectedChunks,
 	context: `[${contextBlocks(selectedChunks).join(",")}]`,
 	sources: [chunk.source],
 	contextTokenCount: 80,
-	retrievalConfigVersion: "rag-test",
+	retrievalConfigVersion,
+	retrievalSettings,
 	metrics,
 });
 const selection = {
@@ -56,8 +69,35 @@ const selection = {
 	provider: "openai",
 	model: "gpt-4.1-mini",
 	promptVersion: AI_PROMPT_VERSION,
+	trace: providerInferenceTraceFixture,
 };
 const manager = {} as EntityManager;
+
+it("requests trace metadata over the authenticated internal generation contract", async () => {
+	const adapter = new AiGenerationProvider(
+		new ConfigService({
+			AI_SERVICE_URL: "http://localhost:8000",
+			AI_SURVIVAL_SERVICE_TOKEN: "test-token",
+		})
+	);
+	const request = jest
+		.spyOn(globalThis, "fetch")
+		.mockResolvedValue(new Response(JSON.stringify(selection)));
+	try {
+		await expect(adapter.generate("{}", new AbortController().signal)).resolves.toEqual(selection);
+		expect(request).toHaveBeenCalledWith(
+			"http://localhost:8000/internal/survival-answer",
+			expect.objectContaining({
+				headers: expect.objectContaining({
+					"X-CTMS-Survival-Token": "test-token",
+					"X-CTMS-Inference-Trace": "1",
+				}),
+			})
+		);
+	} finally {
+		request.mockRestore();
+	}
+});
 
 function setup() {
 	const rag = { retrieve: jest.fn().mockResolvedValue(grounded(chunk, unused)) };
@@ -72,10 +112,22 @@ function setup() {
 		findForOwner: jest.fn().mockResolvedValue(undefined),
 		acquire: jest.fn().mockResolvedValue("lease"),
 		release: jest.fn().mockResolvedValue(undefined),
-		save: jest.fn(async (_tx, _owner, _lease, _id, row: Omit<StoredAnswer, "id">) => ({
-			...row,
-			id: randomUUID(),
-		})),
+		save: jest.fn(
+			async (
+				_tx,
+				_owner,
+				_lease,
+				_id,
+				row: Omit<StoredAnswer, "id">,
+				generation: StoredGeneration,
+				retrievalVersion: string
+			) => ({
+				...row,
+				id: randomUUID(),
+				generation,
+				retrieval_config_version: retrievalVersion,
+			})
+		),
 	};
 	const service = new AiAnswersService(
 		rag as unknown as RagRetrievalService,
@@ -184,6 +236,21 @@ describe("CTMS-069 survival answers", () => {
 			],
 		});
 		expect(result.answer).not.toContain(chunk.content);
+		expect(result).not.toHaveProperty("trace");
+		const saved = await repo.save.mock.results[0].value;
+		expect(recordedInferenceTrace(saved)).toEqual({
+			...providerInferenceTraceFixture,
+			schemaVersion: 1,
+			retrievalSettings,
+			safetyPolicyVersion: answerSafetyV1.version,
+		});
+		expect(saved.retrieval_config_version).toBe(retrievalConfigVersion);
+		expect(resolveAnswerSafetyArtifact(saved.generation.trace.safetyPolicyVersion)).toBe(
+			answerSafetyV1
+		);
+		expect(resolveAnswerSafetyArtifact("historical-unavailable")).toBeUndefined();
+		expect(JSON.stringify(saved.generation)).not.toContain(input.question);
+		expect(JSON.stringify(saved.generation)).not.toContain(chunk.content);
 		expect(repo.save.mock.calls[0][4]).toMatchObject({
 			retrieved_evidence: [{ chunkId: chunk.chunkId }, { chunkId: unused.chunkId }],
 			cited_chunk_ids: [chunk.chunkId],
@@ -321,6 +388,14 @@ describe("CTMS-069 survival answers", () => {
 			status: 409,
 		});
 		expect(provider.generate).toHaveBeenCalledTimes(1);
+		expect(repo.save).toHaveBeenCalledTimes(1);
+	});
+
+	it("keeps legacy metadata unavailable and accepts a provider-opaque verification model", () => {
+		expect(recordedInferenceTrace({ generation: { model: selection.model } })).toBeNull();
+		expect(
+			parseGeneration({ ...selection, trace: { ...selection.trace, verificationModel: null } })
+		).toMatchObject({ trace: { verificationModel: null } });
 	});
 
 	it("withholds a replay when a recorded citation cannot be resolved", async () => {
@@ -351,6 +426,12 @@ describe("CTMS-069 survival answers", () => {
 		{ ...selection, usedEvidenceIds: [] },
 		{ ...selection, usedEvidenceIds: [chunk.chunkId, chunk.chunkId] },
 		{ ...selection, promptVersion: "unknown" },
+		{ ...selection, trace: undefined },
+		{ ...selection, trace: { ...selection.trace, apiKey: "example-secret" } },
+		{
+			...selection,
+			trace: { ...selection.trace, draft: { ...selection.trace.draft, promptSha256: "invalid" } },
+		},
 	])("rejects an invalid provider envelope", (value) => {
 		expect(() => parseGeneration(value)).toThrow();
 	});

@@ -14,6 +14,7 @@ import { RagRetrievalService } from "../rag/rag-retrieval.service";
 // biome-ignore lint/style/useImportType: Nest injection
 import { RagRepository, evidenceRef } from "../rag/rag.repository";
 import { MAX_QUERY_LENGTH } from "../rag/rag.types";
+import { answerSafetyV1 } from "./ai-answer-safety-v1";
 import {
 	aiUnavailable,
 	ensureCamper,
@@ -32,6 +33,7 @@ import {
 } from "./ai-answers.types";
 // biome-ignore lint/style/useImportType: Nest injection
 import { AiGenerationProvider } from "./ai-generation.provider";
+import { TRACE_SCHEMA_VERSION } from "./ai-inference-trace";
 
 function withinDeadline<T>(task: Promise<T>, signal: AbortSignal): Promise<T> {
 	return new Promise((resolve, reject) => {
@@ -164,6 +166,12 @@ export class AiAnswersService {
 								provider: generation.provider,
 								model: generation.model,
 								promptVersion: generation.promptVersion,
+								trace: {
+									...generation.trace,
+									schemaVersion: TRACE_SCHEMA_VERSION,
+									retrievalSettings: rag.retrievalSettings,
+									safetyPolicyVersion: answerSafetyV1.version,
+								},
 							},
 							rag.retrievalConfigVersion
 						);

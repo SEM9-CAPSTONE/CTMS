@@ -2,7 +2,12 @@ import { randomUUID } from "node:crypto";
 import { Injectable } from "@nestjs/common";
 // biome-ignore lint/style/useImportType: Nest injection
 import { DataSource, type EntityManager } from "typeorm";
-import { AI_REQUEST_LEASE_MS, AI_REQUEST_LIMIT_MS, type StoredAnswer } from "./ai-answers.types";
+import {
+	AI_REQUEST_LEASE_MS,
+	AI_REQUEST_LIMIT_MS,
+	type StoredAnswer,
+	type StoredGeneration,
+} from "./ai-answers.types";
 
 @Injectable()
 export class AiAnswersRepository {
@@ -64,8 +69,8 @@ export class AiAnswersRepository {
 		userId: string,
 		leaseId: string,
 		requestId: string,
-		row: Omit<StoredAnswer, "id">,
-		generation: { provider: string; model: string; promptVersion: string },
+		row: Omit<StoredAnswer, "id" | "generation" | "retrieval_config_version">,
+		generation: StoredGeneration,
 		retrievalConfigVersion: string
 	): Promise<StoredAnswer> {
 		const [lease]: Array<{ lease_id: string }> = await manager.query(
