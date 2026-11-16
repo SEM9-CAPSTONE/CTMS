@@ -29,6 +29,21 @@ void main() {
       sources: [],
     ),
   );
+  final observedAt = DateTime.utc(2026, 11, 16);
+  final trace = SurvivalLocalTrace.pretrained(
+    observedAt,
+    'ctms-069-local-fllama-v1',
+  );
+  final tracedTurn = SurvivalChatTurn(
+    turn.id,
+    turn.question,
+    answer: SurvivalChatAnswer.local(
+      turn.answer!.text,
+      modelId: turn.answer!.modelId,
+      modelVersion: turn.answer!.modelVersion,
+      localTrace: trace,
+    ),
+  );
   late AiFeedbackStore store;
 
   setUp(() {
@@ -56,7 +71,7 @@ void main() {
         store: store,
         send: send,
       );
-      await original.commit(turn, rating: AiAnswerRating.notUseful);
+      await original.commit(tracedTurn, rating: AiAnswerRating.notUseful);
       final operation = original.forTurn(turn)?.pending;
       original.dispose();
 
@@ -73,6 +88,9 @@ void main() {
       expect(requests.first, containsPair('question', turn.question));
       expect(requests.first, containsPair('answer', turn.answer!.text));
       expect(requests.first, containsPair('modelVersion', '1'));
+      expect(requests.first, containsPair('localAnswerId', tracedTurn.id));
+      expect(requests.first, containsPair('localTrace', trace.toJson()));
+      expect(requests.first.containsKey('packageId'), isFalse);
       expect(requests.first.containsKey('transcript'), isFalse);
       expect(restored.forTurn(online), isNull);
       expect(restored.forTurn(turn)?.pending, isNull);
@@ -84,6 +102,33 @@ void main() {
       expect(saved, isNot(contains(turn.answer!.text.trim())));
       await restored.flush();
       expect(requests, hasLength(2));
+      await restored.commit(tracedTurn, rating: AiAnswerRating.useful);
+      await restored.flush();
+      expect(requests.last, containsPair('localTrace', trace.toJson()));
+    },
+  );
+
+  test(
+    'continues a legacy pending stream with its original evidence shape',
+    () async {
+      final requests = <Map<String, dynamic>>[];
+      final queue = AiFeedbackQueue(
+        account: 'camper-a',
+        store: store,
+        send: (_, payload, _) async => requests.add(payload),
+      );
+      addTearDown(queue.dispose);
+      await queue.commit(turn, rating: AiAnswerRating.useful);
+      await queue.commit(tracedTurn, rating: AiAnswerRating.notUseful);
+      await queue.flush();
+      await queue.commit(tracedTurn, reportUnsafe: true);
+      await queue.flush();
+      expect(requests, hasLength(2));
+      expect(
+        requests.every((payload) => !payload.containsKey('localTrace')),
+        isTrue,
+      );
+      expect(requests.map((payload) => payload['revision']), [2, 3]);
     },
   );
 
@@ -114,7 +159,10 @@ void main() {
       await delivery;
       expect(queue.forTurn(turn)?.rating, AiAnswerRating.useful);
       expect(queue.forTurn(turn)?.pending, containsPair('revision', 2));
-      expect(queue.forTurn(turn)?.pending, containsPair('reportedAt', report['createdAt']));
+      expect(
+        queue.forTurn(turn)?.pending,
+        containsPair('reportedAt', report['createdAt']),
+      );
       expect(
         queue.forTurn(turn)?.pending,
         containsPair('reportedUnsafe', true),

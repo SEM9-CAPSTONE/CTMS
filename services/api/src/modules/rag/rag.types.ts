@@ -1,4 +1,5 @@
 import type { Classification } from "../survival-documents/survival-documents.types";
+import type { RagSettings } from "./rag.config";
 
 export const MAX_QUERY_LENGTH = 2000;
 export const MAX_CONTEXT_BLOCKS = 10;
@@ -51,7 +52,13 @@ export type RagResult = {
 	retrievalConfigVersion: string;
 	metrics: { candidateCount: number; selectedCount: number; durationMs: number };
 } & (
-	| { status: "GROUNDED"; context: string; selectedChunks: RagChunk[]; sources: RagSource[] }
+	| {
+			status: "GROUNDED";
+			context: string;
+			selectedChunks: RagChunk[];
+			sources: RagSource[];
+			retrievalSettings: Omit<RagSettings, "version">;
+	  }
 	| {
 			status: "INSUFFICIENT_CONTEXT";
 			reason: InsufficientReason;

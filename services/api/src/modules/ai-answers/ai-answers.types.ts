@@ -1,10 +1,13 @@
 import { isEnum, isUUID } from "class-validator";
+import type { RagSettings } from "../rag/rag.config";
 import type { RagEvidenceRef } from "../rag/rag.types";
 import { Classification } from "../survival-documents/survival-documents.types";
+import { answerSafetyV1 } from "./ai-answer-safety-v1";
+import { type ProviderInferenceTrace, TRACE_SCHEMA_VERSION } from "./ai-inference-trace";
 
 export const AI_PROMPT_VERSION = "ctms-069-grounded-v2";
 export const MAX_GENERATED_ANSWER_CHARS = 2600;
-export const MAX_ANSWER_CHARS = 3000;
+export const MAX_ANSWER_CHARS = answerSafetyV1.maxAnswerChars;
 export const MAX_AI_PAYLOAD_BYTES = 16384;
 export const MAX_ANSWER_REQUEST_MS = 8000;
 export const AI_REQUEST_LIMIT_MS = 3000;
@@ -18,8 +21,20 @@ export type GenerationResult =
 			provider: "openai" | "gemini";
 			model: string;
 			promptVersion: typeof AI_PROMPT_VERSION;
+			trace: ProviderInferenceTrace;
 	  }
 	| { status: "REFUSED" | "INSUFFICIENT_CONTEXT" };
+
+export type StoredGeneration = Pick<
+	Extract<GenerationResult, { status: "ANSWERED" }>,
+	"provider" | "model" | "promptVersion"
+> & {
+	trace: ProviderInferenceTrace & {
+		schemaVersion: typeof TRACE_SCHEMA_VERSION;
+		retrievalSettings: Omit<RagSettings, "version">;
+		safetyPolicyVersion: string;
+	};
+};
 
 export type StoredAnswer = {
 	id: string;
@@ -29,7 +44,15 @@ export type StoredAnswer = {
 	answer: string;
 	retrieved_evidence: RagEvidenceRef[];
 	cited_chunk_ids: string[];
+	generation?: Partial<StoredGeneration>;
+	retrieval_config_version?: string;
 };
+
+/** Internal consumers can distinguish historical answers from captured traces. */
+export function recordedInferenceTrace(answer: Pick<StoredAnswer, "generation">) {
+	const trace = answer.generation?.trace;
+	return trace?.schemaVersion === TRACE_SCHEMA_VERSION ? trace : null;
+}
 
 export function citedEvidence(row: StoredAnswer): RagEvidenceRef[] {
 	// Historical JSONB may lack fields that are required for newly verified evidence.

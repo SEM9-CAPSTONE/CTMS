@@ -95,12 +95,21 @@ class AiFeedbackQueue extends ChangeNotifier {
       final now = _clock().toUtc();
       final unsafe = reportUnsafe || prior?.reportedUnsafe == true;
       final selected = rating ?? prior?.rating;
+      // Keep the first payload's evidence shape across retries and later ratings.
+      final localTrace = switch (prior) {
+        null => answer.localTrace?.toJson(),
+        AiFeedbackEntry(pending: final pending?) => pending['localTrace'],
+        AiFeedbackEntry(includesLocalTrace: true) =>
+          answer.localTrace?.toJson(),
+        _ => null,
+      };
       entries[key] = AiFeedbackEntry(
         id: id,
         revision: revision,
         rating: selected,
         reportedUnsafe: unsafe,
         updatedAt: now,
+        includesLocalTrace: localTrace != null,
         pending: {
           'clientFeedbackId': id,
           'clientMutationId': newClientUuid(),
@@ -124,6 +133,7 @@ class AiFeedbackQueue extends ChangeNotifier {
             if (answer.packageId != null) 'packageId': answer.packageId,
             if (answer.snapshotVersion != null)
               'packageVersion': answer.snapshotVersion,
+            'localTrace': ?localTrace,
           } else ...{
             'inferenceMode': 'ONLINE',
             'answerId': answer.id,

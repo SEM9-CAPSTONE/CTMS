@@ -22,7 +22,11 @@ export class AiGenerationProvider {
 			const base = this.config.get<string>("AI_SERVICE_URL") ?? "http://localhost:8000";
 			const response = await fetch(`${base.replace(/\/$/, "")}/internal/survival-answer`, {
 				method: "POST",
-				headers: { "Content-Type": "application/json", "X-CTMS-Survival-Token": token },
+				headers: {
+					"Content-Type": "application/json",
+					"X-CTMS-Survival-Token": token,
+					"X-CTMS-Inference-Trace": "1",
+				},
 				body,
 				signal: AbortSignal.any([signal, AbortSignal.timeout(timeout)]),
 				redirect: "error",

@@ -8,6 +8,7 @@ import { JwtService } from "@nestjs/jwt";
 import { Test } from "@nestjs/testing";
 import request from "supertest";
 import { DataSource } from "typeorm";
+import { AiAnswersRepository } from "../src/modules/ai-answers/ai-answers.repository";
 import { AI_PROMPT_VERSION } from "../src/modules/ai-answers/ai-answers.types";
 import { AiGenerationProvider } from "../src/modules/ai-answers/ai-generation.provider";
 import { AppModule } from "../src/modules/app.module";
@@ -26,6 +27,7 @@ import { RagConfig } from "../src/modules/rag/rag.config";
 import { Classification } from "../src/modules/survival-documents/survival-documents.types";
 import { UserRole, UserStatus } from "../src/modules/users/entities/user.entity";
 import { assertSafeTestDatabase } from "./support/assert-safe-test-database";
+import { providerInferenceTraceFixture } from "./support/inference-trace-fixture";
 import {
 	type SourceTestDetail,
 	fictionalMetadata,
@@ -588,6 +590,7 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 						provider: "openai",
 						model: "test-model",
 						promptVersion: AI_PROMPT_VERSION,
+						trace: providerInferenceTraceFixture,
 					};
 				});
 			});
@@ -612,14 +615,33 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 				});
 				const retry = await postAnswer(requestId).expect(200);
 				expect(retry.body).toEqual(success?.body);
+				expect(retry.body).not.toHaveProperty("generation");
+				expect(retry.body).not.toHaveProperty("trace");
 				expect(generationProvider.generate).toHaveBeenCalledTimes(1);
 				await postAnswer(requestId, camperAuth, "Một câu hỏi khác").expect(409);
-				const rows: Array<{ retrieved_evidence: unknown[] }> = await db.query(
-					"SELECT retrieved_evidence FROM ai_answers WHERE user_id=$1 AND request_id=$2",
+				const rows: Array<{
+					retrieved_evidence: unknown[];
+					generation: unknown;
+					retention_days: number;
+				}> = await db.query(
+					`SELECT retrieved_evidence, generation,
+					 FLOOR(EXTRACT(epoch FROM (expires_at - created_at)) / 86400 + 0.5)::int AS retention_days
+					 FROM ai_answers WHERE user_id=$1 AND request_id=$2`,
 					[camper, requestId]
 				);
 				expect(rows).toHaveLength(1);
 				expect(rows[0].retrieved_evidence).toMatchObject([{ source: { checksum: set.checksum } }]);
+				expect(rows[0]).toMatchObject({
+					generation: {
+						trace: {
+							...providerInferenceTraceFixture,
+							schemaVersion: 1,
+							retrievalSettings: { minScore: 0.8 },
+							safetyPolicyVersion: "ctms-069-answer-safety-v1",
+						},
+					},
+					retention_days: 30,
+				});
 				const sources = `/api/ai/answers/${retry.body.answerId}/sources`;
 				await request(app.getHttpServer()).get(sources).set("Authorization", auth).expect(403);
 				const ownerSources = await request(app.getHttpServer())
@@ -661,6 +683,21 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 				const result = await postAnswer(randomUUID()).expect(200);
 				expect(generationProvider.generate).toHaveBeenCalledTimes(1);
 				expect(result.body).toMatchObject({ status: "INSUFFICIENT_CONTEXT", sources: [] });
+			});
+
+			it("rolls back the answer and trace when the write transaction fails", async () => {
+				await ready(await publish(await draft()));
+				const answers = app.get(AiAnswersRepository);
+				const save = answers.save.bind(answers);
+				jest.spyOn(answers, "save").mockImplementationOnce(async (...args) => {
+					await save(...args);
+					throw new Error("Simulate failure before commit");
+				});
+				const requestId = randomUUID();
+				await postAnswer(requestId).expect(503);
+				expect(
+					await db.query("SELECT id FROM ai_answers WHERE request_id=$1", [requestId])
+				).toEqual([]);
 			});
 
 			it.each(["supersede", "archive", "delete"])(

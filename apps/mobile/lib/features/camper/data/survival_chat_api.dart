@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/api_client.dart';
+import 'survival_local_policy_v1.dart';
 
 const survivalQuestionLimit = 2000;
 
@@ -45,11 +46,21 @@ class SurvivalChatAnswer extends SurvivalChatResult {
     required this.id,
     required this.text,
     required this.sources,
-  }) : snapshotVersion = null, packageId = null, modelId = null, modelVersion = null;
+  }) : snapshotVersion = null,
+       packageId = null,
+       modelId = null,
+       modelVersion = null,
+       localTrace = null;
 
-  const SurvivalChatAnswer.local(this.text, {this.snapshotVersion, this.packageId, this.modelId, this.modelVersion})
-    : id = null,
-      sources = const [];
+  const SurvivalChatAnswer.local(
+    this.text, {
+    this.snapshotVersion,
+    this.packageId,
+    this.modelId,
+    this.modelVersion,
+    this.localTrace,
+  }) : id = null,
+       sources = const [];
 
   final String? id;
   final String text;
@@ -58,8 +69,32 @@ class SurvivalChatAnswer extends SurvivalChatResult {
   final String? packageId;
   final String? modelId;
   final String? modelVersion;
+  final SurvivalLocalTrace? localTrace;
 
   bool get isLocal => id == null;
+}
+
+class SurvivalLocalTrace {
+  const SurvivalLocalTrace.pretrained(
+    this.observedAt,
+    this.runtimeConfigVersion,
+  ) : path = 'PRETRAINED';
+
+  const SurvivalLocalTrace.savedCheckpointCount(this.observedAt)
+    : path = 'SAVED_TRIP_CHECKPOINT_COUNT',
+      runtimeConfigVersion = null;
+
+  final DateTime observedAt;
+  final String path;
+  final String? runtimeConfigVersion;
+
+  Map<String, Object> toJson() => {
+    'schemaVersion': 1,
+    'observedAt': observedAt.toUtc().toIso8601String(),
+    'path': path,
+    'safetyPolicyVersion': localSafetyPolicyV1,
+    'runtimeConfigVersion': ?runtimeConfigVersion,
+  };
 }
 
 class SurvivalChatUnavailable extends SurvivalChatResult {

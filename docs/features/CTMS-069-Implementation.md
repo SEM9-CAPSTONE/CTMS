@@ -42,6 +42,15 @@ AC6 has a limited offline path from the existing viewer into the same chat. A re
 
 ## Inference Trace extension design
 
+### Implemented trace contract
+
+- Online capture writes `generation.trace` in the same insert as the answer. The private Python response supplies the generation start time, requested model, provider-reported verifier model when available, both prompt digests and executed settings. The original `generation.model` is the provider-reported draft model identifier. A separate served revision is unavailable when the provider only returns an identifier or alias. `recordedInferenceTrace` returns `null` for answers without a supported captured trace.
+- `resolve_prompt_artifact` matches the stored prompt version, stage and SHA-256 against retained versioned Python templates. The stored `retrievalSettings` resolve the effective settings for the row's `retrieval_config_version`. `resolveAnswerSafetyArtifact` resolves the recorded API safety revision. Retain versioned source artifacts on future changes. The stored `retrieved_evidence` and `cited_chunk_ids` remain the provenance and cited subset and follow existing source availability rules.
+- Local capture binds the device-observed time and either `PRETRAINED` or `SAVED_TRIP_CHECKPOINT_COUNT` to the completed turn. The runtime and Local safety revisions identify `survival_local_runtime_v1.dart` and `survival_local_policy_v1.dart`. Local model and package identifiers remain in their existing fields. A Local feedback payload may carry `localTrace` in schema version 1. The backend treats it as client-reported and stores it within the existing immutable `local_evidence`. Pending legacy bodies and later revisions preserve their original evidence shape.
+- Deploy the Python service first. It includes the extended metadata only when NestJS sends `X-CTMS-Inference-Trace: 1` on the private request. Deploy the NestJS validator before distributing Flutter builds that send `localTrace`. The public answer and source endpoints retain their original responses. Both trace extensions use existing JSONB columns and follow the original 30-day retention and cleanup.
+
+### Design baseline
+
 This section specifies planned additions to the fields already recorded by CTMS-069 and CTMS-072. Capture runs on the path that produces a rateable reply. CTMS-075 retains emergency detection and SOS action ownership. CTMS-073 consumes selected evidence for investigation, and CTMS-098 independently evaluates releases.
 
 | Evidence | Online today | Online design delta | Local today | Local design delta |

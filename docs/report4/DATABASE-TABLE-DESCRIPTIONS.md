@@ -11,11 +11,11 @@ Online answers use `ai_answers`, unique by account and request ID. A persisted r
 | `ai_answer_feedback` | One row per owner and Online `answer_id`, or per owner, installation and Local answer ID. Stores rating, Unsafe flag, optional reason, report time and review status for Unsafe. Only Local rows carry `local_evidence` with exact question/answer and optional model or used-package identifiers. Online rows follow answer expiry. Local rows expire 30 days from initial acceptance. |
 | `ai_answer_feedback_mutations` | Idempotency and revision receipts keyed by owner and mutation ID, with unique owner/client feedback/revision. Holds accepted acknowledgment and request hash. Deleting the feedback cascades to its receipts. |
 
-## Planned trace and investigation data
+## Inference trace and planned investigation data
 
 | Logical record | Description |
 | --- | --- |
-| Inference Trace (CTMS-069) | Reuse answer and versioned provenance fields. Add actual inference time, model/runtime identity when observable, resolvable configuration and prompt/policy references. Online follows answer expiry. Only voluntarily evaluated Local turns send their allowlisted trace through CTMS-072. |
+| Inference Trace (CTMS-069) | `ai_answers.generation.trace` stores Online execution details and shares answer expiry. For Local turns, CTMS-072 stores the optional trace of the selected turn in `ai_answer_feedback.local_evidence.localTrace`. A missing trace on a legacy row represents unavailable metadata. |
 | Investigation Snapshot and report (CTMS-073) | Preserve minimum evidence and original identities outside the raw answer/feedback cascade. Case, report, issue-group membership, review and technical disposition retain traceable links. The investigation has a separate retention and cleanup policy with duration still open. These are logical records and have no physical schema in the current migrations. |
 
 See the [trace data contract](../features/CTMS-069-Implementation.md#inference-trace-extension-design) and [investigation storage design](../features/CTMS-073-Investigation-Design.md#investigation-snapshot-and-retention).

@@ -9,6 +9,7 @@ import '../../offline_packages/domain/offline_trip.dart';
 import '../../sync/application/connectivity_source.dart';
 import '../data/survival_chat_api.dart';
 import '../data/survival_local_model.dart';
+import '../data/survival_local_policy_v1.dart';
 
 class SurvivalChatTurn {
   const SurvivalChatTurn(
@@ -109,37 +110,6 @@ final _emergency = RegExp(
   r'\b(?:unconscious|not breathing|severe bleeding|choking)\b',
   caseSensitive: false,
 );
-final _unsafeLocal = RegExp(
-  r'http[s]?://|www\.|<[^>]+>|chẩn đoán|kê đơn|liều (?:dùng|thuốc)|'
-  r'\d+\s*(?:mg|mcg|µg|ml|viên)\b|tiêm|khâu|nắn khớp|gây nôn|'
-  r'đã (?:gửi|gọi|điều động)|đã được (?:kiểm chứng|kiểm duyệt)|'
-  r'hiện tại|hôm nay|lúc này|đang có cảnh báo|từ chối|'
-  r'cấp cứu|tai nạn|chấn thương|bị thương|nhiễm độc|ngộ độc|'
-  r'rắn cắn|xuất huyết|sơ cứu|điều trị|'
-  r'nước (?:uống|suối)|lọc nước|thực phẩm rừng|nấm|cây ăn được|'
-  r'prescri(?:be|ption)|medication|inject|treatment|diagnos(?:e|is)|'
-  r'ignore.{0,50}instructions|(?:bỏ qua|phớt lờ).{0,50}(?:chỉ dẫn|hướng dẫn)|'
-  r'\b[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}\b',
-  caseSensitive: false,
-);
-final _generalLocal = RegExp(
-  r'ba lô|đóng gói|hành lý|trang bị|chuẩn bị|'
-  r'giày|tất|áo khoác|áo mưa|túi ngủ|lều|đọc bản đồ|la bàn|'
-  r'checklist|backpack|packing|camping gear',
-  caseSensitive: false,
-);
-final _tripOrLive = RegExp(
-  r'chuyến (?:đi|này)|cung |trạm |điểm hẹn|checkpoints?|tọa độ|'
-  r'vị trí|thời tiết|dự báo|sạt lở|lũ quét|đường (?:mở|đóng)|'
-  r'cảnh báo|hôm (?:nay|qua)|bây giờ|ngày mai|đã gửi|trạng thái|\bsos\b',
-  caseSensitive: false,
-);
-final _snapshotCount = RegExp(
-  r'^(?:gói (?:đã lưu|ngoại tuyến) |chuyến này )?có '
-  r'(?:bao nhiêu|mấy) (?:điểm dừng|checkpoint)(?: trong gói (?:đã lưu|ngoại tuyến))?[.?!]*$',
-  caseSensitive: false,
-);
-
 final survivalChatSnapshotProvider = Provider.autoDispose
     .family<Future<OfflineTrip?>, OfflineTripSelection>(
       (ref, trip) => ref.watch(offlineTripProvider(trip).future),
@@ -220,7 +190,8 @@ class SurvivalChatController extends Notifier<List<SurvivalChatTurn>> {
       if (!current()) return;
       SurvivalChatResult reply;
       final hasSnapshotQuestion =
-          pending.trip != null && _snapshotCount.hasMatch(pending.question);
+          pending.trip != null &&
+          savedCheckpointQuestionV1.hasMatch(pending.question);
       if (!connected) {
         if (_offlineAccessDenied) {
           throw ApiException(
@@ -324,7 +295,7 @@ class SurvivalChatController extends Notifier<List<SurvivalChatTurn>> {
     String question, {
     OfflineTripSelection? trip,
   }) async {
-    if (trip != null && _snapshotCount.hasMatch(question)) {
+    if (trip != null && savedCheckpointQuestionV1.hasMatch(question)) {
       final provider = survivalChatSnapshotProvider(trip);
       ref.invalidate(offlineTripProvider(trip));
       final snapshot = await ref.read(provider);
@@ -337,22 +308,28 @@ class SurvivalChatController extends Notifier<List<SurvivalChatTurn>> {
         'Trong gói đã lưu có $count điểm dừng.',
         snapshotVersion: trip.version,
         packageId: snapshot.packageId,
+        localTrace: SurvivalLocalTrace.savedCheckpointCount(
+          DateTime.now().toUtc(),
+        ),
       );
     }
-    if (!_generalLocal.hasMatch(question) ||
-        _unsafeLocal.hasMatch(question) ||
-        _tripOrLive.hasMatch(question)) {
+    if (!allowsLocalModelTextV1(question)) {
       return const SurvivalChatUnavailable(refused: true);
     }
     final reply = await model.generate(question);
     final text = reply.text;
-    if (text.length > 2600 ||
-        !_generalLocal.hasMatch(text) ||
-        _unsafeLocal.hasMatch(text) ||
-        _tripOrLive.hasMatch(text)) {
+    if (!allowsLocalModelAnswerV1(text)) {
       return const SurvivalChatUnavailable(refused: true);
     }
-    return SurvivalChatAnswer.local(text, modelId: reply.modelId, modelVersion: reply.modelVersion);
+    return SurvivalChatAnswer.local(
+      text,
+      modelId: reply.modelId,
+      modelVersion: reply.modelVersion,
+      localTrace: SurvivalLocalTrace.pretrained(
+        reply.observedAt,
+        reply.runtimeConfigVersion,
+      ),
+    );
   }
 
   void _replace(SurvivalChatTurn turn) {

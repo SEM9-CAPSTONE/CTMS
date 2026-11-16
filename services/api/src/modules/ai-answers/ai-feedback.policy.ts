@@ -2,6 +2,7 @@ import { UnprocessableEntityException } from "@nestjs/common";
 import { isISO8601, isUUID } from "class-validator";
 import { MAX_QUERY_LENGTH } from "../rag/rag.types";
 import { MAX_ANSWER_CHARS } from "./ai-answers.types";
+import { TRACE_SCHEMA_VERSION } from "./ai-inference-trace";
 
 export type FeedbackRating = "USEFUL" | "NOT_USEFUL";
 
@@ -25,6 +26,7 @@ const localKeys = [
 	"modelVersion",
 	"packageId",
 	"packageVersion",
+	"localTrace",
 ];
 const retentionMs = 30 * 24 * 60 * 60 * 1000;
 
@@ -73,6 +75,39 @@ function utcTimestamp(value: unknown): number {
 	return timestamp;
 }
 
+function parseLocalTrace(
+	value: unknown,
+	usesModel: boolean,
+	usesPackage: boolean,
+	hasPackageVersion: boolean
+) {
+	if (!value || typeof value !== "object" || Array.isArray(value)) invalid();
+	const payload = value as Record<string, unknown>;
+	const { schemaVersion, observedAt, path, safetyPolicyVersion, runtimeConfigVersion } = payload;
+	const hasRuntimeConfig = Object.hasOwn(payload, "runtimeConfigVersion");
+	if (
+		schemaVersion !== TRACE_SCHEMA_VERSION ||
+		Object.keys(payload).length !== (hasRuntimeConfig ? 5 : 4) ||
+		typeof safetyPolicyVersion !== "string" ||
+		!/^ctms-069-local-safety-v[1-9]\d{0,3}$/.test(safetyPolicyVersion) ||
+		(path !== "PRETRAINED" && path !== "SAVED_TRIP_CHECKPOINT_COUNT") ||
+		(path === "PRETRAINED" && usesPackage) ||
+		(path === "SAVED_TRIP_CHECKPOINT_COUNT" &&
+			(usesModel || !hasPackageVersion || hasRuntimeConfig)) ||
+		(hasRuntimeConfig &&
+			(typeof runtimeConfigVersion !== "string" ||
+				!/^ctms-069-local-fllama-v[1-9]\d{0,3}$/.test(runtimeConfigVersion)))
+	)
+		invalid();
+	return {
+		schemaVersion,
+		observedAt: new Date(utcTimestamp(observedAt)).toISOString(),
+		path,
+		safetyPolicyVersion,
+		...(hasRuntimeConfig ? { runtimeConfigVersion } : {}),
+	};
+}
+
 export function feedbackInput(value: unknown, now = Date.now()) {
 	if (typeof value !== "object" || !value || Array.isArray(value)) invalid();
 	const body = value as Record<string, unknown>;
@@ -108,6 +143,18 @@ export function feedbackInput(value: unknown, now = Date.now()) {
 	if (inferenceMode === "ONLINE") {
 		return { ...common, inferenceMode: "ONLINE" as const, answerId: uuid(body.answerId) };
 	}
+	const modelId = optionalText(body.modelId, 128);
+	const modelVersion = optionalText(body.modelVersion, 128);
+	const packageId = body.packageId == null ? null : uuid(body.packageId);
+	const packageVersion = body.packageVersion == null ? null : positiveInteger(body.packageVersion);
+	const localTrace = Object.hasOwn(body, "localTrace")
+		? parseLocalTrace(
+				body.localTrace,
+				modelId !== null || modelVersion !== null,
+				packageId !== null || packageVersion !== null,
+				packageVersion !== null
+			)
+		: undefined;
 	return {
 		...common,
 		inferenceMode: "LOCAL" as const,
@@ -116,10 +163,11 @@ export function feedbackInput(value: unknown, now = Date.now()) {
 		evidence: {
 			question: requiredText(body.question, MAX_QUERY_LENGTH),
 			answer: requiredText(body.answer, MAX_ANSWER_CHARS),
-			modelId: optionalText(body.modelId, 128),
-			modelVersion: optionalText(body.modelVersion, 128),
-			packageId: body.packageId == null ? null : uuid(body.packageId),
-			packageVersion: body.packageVersion == null ? null : positiveInteger(body.packageVersion),
+			modelId,
+			modelVersion,
+			packageId,
+			packageVersion,
+			...(localTrace ? { localTrace } : {}),
 		},
 	};
 }

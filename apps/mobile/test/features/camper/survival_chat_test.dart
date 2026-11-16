@@ -12,6 +12,7 @@ import 'package:mobile/core/storage/token_storage.dart';
 import 'package:mobile/features/camper/application/ai_feedback_queue.dart';
 import 'package:mobile/features/camper/application/survival_chat_controller.dart';
 import 'package:mobile/features/camper/data/survival_local_model.dart';
+import 'package:mobile/features/camper/data/survival_local_runtime_v1.dart';
 import 'package:mobile/features/camper/presentation/camper_ai_assistant_screen.dart';
 import 'package:mobile/features/offline_packages/application/offline_trip_providers.dart';
 import 'package:mobile/features/offline_packages/domain/offline_trip.dart';
@@ -45,6 +46,8 @@ class _LocalModel extends SurvivalLocalModel {
       text: 'Xếp đồ nặng gần lưng và để áo mưa ở ngăn dễ lấy.',
       modelId: 'packing-model',
       modelVersion: '1',
+      observedAt: DateTime.utc(2026, 11, 16),
+      runtimeConfigVersion: localRuntimeConfigV1,
     );
   }
 }
@@ -457,8 +460,24 @@ void main() {
     expect(model.requests, 1);
     final turns = container.read(survivalChatControllerProvider);
     expect(turns.first.answer?.id, 'answer-identifier');
+    expect(turns.first.answer?.localTrace, isNull);
     expect(turns.last.answer?.isLocal, isTrue);
     expect(turns.last.answer?.sources, isEmpty);
+    expect(turns.last.answer?.localTrace?.path, 'PRETRAINED');
+    expect(
+      turns.last.answer?.localTrace?.observedAt,
+      DateTime.utc(2026, 11, 16),
+    );
+    expect(
+      turns.last.answer?.localTrace?.runtimeConfigVersion,
+      localRuntimeConfigV1,
+    );
+    expect(turns.last.answer?.modelVersion, '1');
+    expect(turns.last.answer?.packageId, isNull);
+    expect(
+      container.read(aiFeedbackQueueProvider)?.forTurn(turns.last),
+      isNull,
+    );
     expect(find.text('Gợi ý từ AI'), findsOneWidget);
     expect(find.text('Không có thông tin nguồn'), findsNothing);
     Finder sourcesFor(SurvivalChatTurn turn) => find.descendant(
@@ -580,6 +599,7 @@ void main() {
             checkpoints: [],
             guides: [],
             hazardSources: [],
+            packageId: '81fe4e3a-7758-4244-91ab-5b4987037179',
           );
         },
       );
@@ -599,6 +619,11 @@ void main() {
       await tester.pumpAndSettle();
       final answer = container.read(survivalChatControllerProvider).last.answer;
       expect(answer?.snapshotVersion, 2);
+      expect(answer?.packageId, '81fe4e3a-7758-4244-91ab-5b4987037179');
+      expect(answer?.localTrace?.path, 'SAVED_TRIP_CHECKPOINT_COUNT');
+      expect(answer?.localTrace?.observedAt.isUtc, isTrue);
+      expect(answer?.localTrace?.runtimeConfigVersion, isNull);
+      expect(answer?.modelVersion, isNull);
       expect(answer?.text, 'Trong gói đã lưu có 0 điểm dừng.');
       expect(find.textContaining('Nguồn tham khảo'), findsNothing);
       expect(find.text('Không có thông tin nguồn'), findsNothing);

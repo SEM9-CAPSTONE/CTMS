@@ -4,10 +4,21 @@ import 'package:crypto/crypto.dart';
 
 enum LocalModelFailure { unavailable, storage, download, inference }
 
-typedef SurvivalLocalReply = ({String text, String? modelId, String? modelVersion});
+typedef SurvivalLocalReply = ({
+  String text,
+  String? modelId,
+  String? modelVersion,
+  DateTime observedAt,
+  String? runtimeConfigVersion,
+});
 
 class SurvivalModelRelease {
-  const SurvivalModelRelease(this.url, this.byteLength, this.digest, {this.modelId});
+  const SurvivalModelRelease(
+    this.url,
+    this.byteLength,
+    this.digest, {
+    this.modelId,
+  });
 
   final String url;
   final int byteLength;

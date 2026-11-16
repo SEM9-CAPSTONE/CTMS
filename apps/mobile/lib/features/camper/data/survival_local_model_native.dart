@@ -7,6 +7,7 @@ import 'package:fllama/fllama.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../offline_packages/data/device_package_storage_capacity.dart';
+import 'survival_local_runtime_v1.dart';
 import 'survival_model_store.dart';
 
 // Keep compatible previous releases in this list when shipping a replacement.
@@ -78,25 +79,17 @@ class SurvivalLocalModel {
         (release) => file.uri.pathSegments.last == '${release.digest}.gguf',
       );
       return await _withContext(file.path, (runtime, context) async {
-        final input = question.replaceAll('<|', '‹|').replaceAll('|>', '|›');
-        final prompt =
-            '<|im_start|>system\n'
-            'Trả lời ngắn gọn bằng tiếng Việt. Chỉ đưa lời khuyên chuẩn bị '
-            'trekking và sinh tồn phổ thông. Không chẩn đoán, kê thuốc, '
-            'hướng dẫn thủ thuật hay khẳng định tình trạng thực tế. '
-            'Không nhận là CTMS đã kiểm chứng. Nếu không an toàn, chỉ trả '
-            'lời TỪ CHỐI.<|im_end|>\n'
-            '<|im_start|>user\n$input<|im_end|>\n<|im_start|>assistant\n';
+        final observedAt = DateTime.now().toUtc();
         final completion = runtime.completion(
           context,
-          prompt: prompt,
-          nPredict: 220,
-          nThreads: 2,
-          temperature: 0.2,
-          stop: const ['<|im_end|>', '<|endoftext|>'],
+          prompt: renderLocalPromptV1(question),
+          nPredict: localOutputTokensV1,
+          nThreads: localThreadsV1,
+          temperature: localTemperatureV1,
+          stop: localStopV1,
         );
         final result = await completion.timeout(
-          const Duration(seconds: 45),
+          localTimeoutV1,
           onTimeout: () async {
             try {
               await runtime.stopCompletion(contextId: context);
@@ -113,7 +106,13 @@ class SurvivalLocalModel {
         if (value is! String || value.trim().isEmpty) {
           throw LocalModelFailure.inference;
         }
-        return (text: value.trim(), modelId: release.modelId, modelVersion: release.digest);
+        return (
+          text: value.trim(),
+          modelId: release.modelId,
+          modelVersion: release.digest,
+          observedAt: observedAt,
+          runtimeConfigVersion: localRuntimeConfigV1,
+        );
       });
     } on LocalModelFailure {
       rethrow;
@@ -132,10 +131,10 @@ class SurvivalLocalModel {
     if (runtime == null) throw LocalModelFailure.unavailable;
     final result = await runtime.initContext(
       path,
-      nCtx: 2048,
-      nBatch: 128,
-      nThreads: 2,
-      useMlock: false,
+      nCtx: localContextTokensV1,
+      nBatch: localBatchTokensV1,
+      nThreads: localThreadsV1,
+      useMlock: localUseMlockV1,
     );
     final id = double.tryParse('${result?['contextId']}');
     if (id == null || !id.isFinite || id <= 0) {

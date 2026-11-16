@@ -4,6 +4,7 @@ import { ConflictException, type INestApplication } from "@nestjs/common";
 import { DataSource } from "typeorm";
 import { AiFeedbackService } from "../src/modules/ai-answers/ai-feedback.service";
 import { UserRole, UserStatus } from "../src/modules/users/entities/user.entity";
+import { localInferenceTraceFixture } from "./support/inference-trace-fixture";
 import { createSurvivalE2eApp, sourceTestEmail } from "./support/survival-e2e-app";
 
 describe("CTMS-341 feedback PostgreSQL integration", () => {
@@ -104,6 +105,42 @@ describe("CTMS-341 feedback PostgreSQL integration", () => {
 				question: "Một câu khác",
 			})
 		).rejects.toBeInstanceOf(ConflictException);
+	});
+
+	it("keeps a captured Local trace immutable across revisions and removes it with its original feedback", async () => {
+		const first = { ...local(), localTrace: localInferenceTraceFixture };
+		const accepted = await service.submit(actor, first);
+		feedbackIds.push(accepted.feedbackId);
+		const second = { ...first, revision: 2, clientMutationId: randomUUID(), rating: "NOT_USEFUL" };
+		await expect(service.submit(actor, second)).resolves.toMatchObject({
+			feedbackId: accepted.feedbackId,
+			revision: 2,
+		});
+		await expect(service.submit(actor, first)).resolves.toEqual(accepted);
+		await expect(
+			service.submit(actor, {
+				...second,
+				revision: 3,
+				clientMutationId: randomUUID(),
+				localTrace: {
+					...localInferenceTraceFixture,
+					runtimeConfigVersion: "ctms-069-local-fllama-v2",
+				},
+			})
+		).rejects.toBeInstanceOf(ConflictException);
+		expect(
+			await db.query(
+				"SELECT local_evidence->'localTrace' AS trace FROM ai_answer_feedback WHERE id=$1",
+				[accepted.feedbackId]
+			)
+		).toEqual([{ trace: localInferenceTraceFixture }]);
+		await db.query("UPDATE ai_answer_feedback SET expires_at=clock_timestamp() WHERE id=$1", [
+			accepted.feedbackId,
+		]);
+		await service.purgeExpired();
+		expect(
+			await db.query("SELECT id FROM ai_answer_feedback WHERE id=$1", [accepted.feedbackId])
+		).toEqual([]);
 	});
 
 	it("preserves independent review evidence for a delayed Unsafe-only report and purges receipts with expiry", async () => {
