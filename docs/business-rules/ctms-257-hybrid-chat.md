@@ -2,6 +2,8 @@
 
 CTMS-257 extends story spec CTMS-069. The pre-hybrid baseline is commit `fefca4e5`. The [current planning reference](../planning/ctms-257-hybrid-reference.md) identifies live consumers. The historical planning CSVs retain their original mappings.
 
+The later Inference Trace design adds BR-517–BR-519 in [CTMS-069 §5](../../file/spec/ctms-69-ask-ai-about-first-aid-and-survival.md#5-business-rules), with valid and violation cases in §11. CTMS-072 reuses its existing answer linkage and selected-turn feedback rules. [CTMS-073 §5](../../file/spec/ctms-73-review-ai-answers-reported-as-dangerous.md#5-business-rules) limits BR-253 to Unsafe moderation authorization, defines the separate transition requirements and reuses BR-191/192 for audit. BR-279 and BR-282 continue to govern CTMS-098 evaluation.
+
 ## Shared rules and consumers
 
 Compare definitions with the baseline before adding a key. In particular, CTMS-068, CTMS-069 and CTMS-071 all use the full BR-248 wording. CTMS-075 owns the full BR-255 emergency flow and CTMS-069 uses it in both modes. Citations under BR-251 and how a reply represents its verification status under BR-497 are separate checks.

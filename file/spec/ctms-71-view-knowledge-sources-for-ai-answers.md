@@ -101,6 +101,8 @@ For online answers, `POST /api/ai/answers` returns `answerId` and any verified `
 
 `GET /api/ai/answers/:answerId/sources` returns `{ answerId, sources }` to the active Camper who owns the answer during the 30-day retention period. It reads the saved citation snapshot. Each source contains `documentId`, `documentVersionId`, `sourceVersion`, `chunkSetId`, `chunkId`, `chunkIndex`, `title`, `classification`, `locale` and `locations` with `page` and `itemRef`. Omit citations with missing or invalid stored provenance. If none remain, return `sources: []`.
 
+The planned CTMS-069 Inference Trace and CTMS-073 Investigation Snapshot are restricted evidence. The source endpoint keeps its existing owner, expiry, and cited-source projection. Retrieval-only chunks, internal inference metadata and investigation records stay outside that projection.
+
 ## 10. Error & Edge Cases
 
 | Case                                          | Expected Behavior                 |
@@ -127,4 +129,9 @@ For online answers, `POST /api/ai/answers` returns `answerId` and any verified `
 | BR-251 | Equal titles, repeated pages and distinct versions | Keep exact document/version groups and show each page once per group | Flutter widget |
 | BR-251 / BR-497 | Pretrained-only reply or Trip checkpoint lookup | Preserve the existing local reply label with no CTMS citations | Flutter widget |
 | BR-500 / BR-502 / BR-503 | Change mode or account with an in-flight reply | Sources stay with their answer across modes. A stale reply cannot repopulate a different account's transcript. | Flutter widget |
+| BR-172 / BR-251 | Answer has internal trace evidence or an investigation survives original expiry | Show only valid cited metadata for the retained answer owner. An investigation does not extend source endpoint access. | HTTP E2E |
+
+## 12. Open Decisions
+
+No source-display change is required for the trace extension. CTMS-069 and CTMS-073 own the open decisions for internal evidence access.
 

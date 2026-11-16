@@ -34,6 +34,9 @@ Acceptance Criteria:
 | Jira AC-8 | The Camper's conversation history survives online/offline transitions. |
 | Jira AC-9 | AI-generated responses must not be falsely presented as verified CTMS guidance. |
 | Jira AC-10 | Existing online chat and RAG behavior continue to work. |
+| Trace AC-1 / BR-517 | Each completed Online answer keeps the trace of the inference that produced it. |
+| Trace AC-2 / BR-518 | A trace resolves exact versioned inputs when available and identifies evidence that cannot be resolved. |
+| Trace AC-3 / BR-519 | Each completed Local reply records the conditions of that turn on the device. |
 
 ## 2. Scope
 
@@ -47,6 +50,7 @@ Acceptance Criteria:
 - Conversation continuity during online/offline transitions.
 - Safety constraints.
 - Source provenance.
+- Inference Trace capture for completed Online and Local answers. The trace extension is a design requirement described in §8–9.
 - Operational latency target.
 
 ### Out of Scope
@@ -55,6 +59,7 @@ Acceptance Criteria:
 - Standalone keyword/full-text search from the retired CTMS-070 scope.
 - Model training, fine-tuning or a separate offline chat screen.
 - Changing Weather Risk, Route or Trip state.
+- Feedback collection and sync (CTMS-072), investigation and evidence retention (CTMS-073), and release evaluation (CTMS-098).
 
 ## 3. Actors & Authorization
 
@@ -102,6 +107,9 @@ On-device generation requires an active model installed on a compatible device. 
 | BR-504 | A failed model replacement must preserve the previously usable active artifact. |
 | BR-505 | A model install may stage a download only when sufficient device storage is available. |
 | BR-507 | An AI answer may present operational conditions as current only with live authoritative evidence. |
+| BR-517 | Each newly persisted Online answer must record the actual inference conditions that produced that answer. |
+| BR-518 | A versioned input referenced by an Inference Trace must resolve to its exact immutable artifact or be marked unavailable. |
+| BR-519 | Each completed Local turn must capture its actual inference conditions on-device as part of that turn. |
 
 BR-249's knowledge-base and operational latency requirements apply to the online path.
 Its safety requirements apply in both modes. CTMS-098 owns the approved release thresholds.
@@ -138,6 +146,8 @@ No authoritative business-state transition occurs.
 6. For an eligible offline turn, use the active on-device model for general questions. If the turn requests supported saved Trip context, use the verified active package for the selected Camper, Trip and version. Keep saved-package facts labeled as snapshot data.
 7. Show the reply or a recovery action in the same transcript. A completed turn remains visible when the next turn switches modes.
 
+The trace extension records Online evidence with the successful answer write and Local evidence at turn completion. Online replays return the original result under the existing replay checks. A failed or refused turn without a completed answer remains outside the rateable-answer contract. Emergency handling still runs through CTMS-075.
+
 When a model is missing, the Camper may start the model download while online. Show the download size and progress. Check available storage, verify the staged artifact and test runtime compatibility before activation.
 
 ## 8. Data & Invariants
@@ -150,6 +160,9 @@ When a model is missing, the Camper may start the model download while online. S
 - Lack of grounding must not be hidden with fabricated source.
 - Model artifacts are stored separately from Trip packages. The device transcript is scoped to the current Camper session and does not sync automatically on reconnect.
 - Saved Trip metadata identifies the snapshot. Live route, hazard, weather and SOS status remain with their authoritative workflows.
+- Reuse the accepted question, displayed answer, retrieved evidence and cited IDs as the trace's answer link. Record the actual provider/model and revision when exposed, generation and verification prompt artifacts, effective settings, retrieval configuration and safety policy versions. Use immutable version references and record missing evidence explicitly. `created_at` is the existing persistence time. Capture inference time separately in the trace extension.
+- A Local trace is bound to the selected account and turn. Capture the active model and observed runtime/configuration on the inference path. A verified package lookup records the package ID/version only if it was used. Lookup-only replies have no model invocation. Pretrained-only replies carry no CTMS citation.
+- Reproducibility means reconstructing the recorded conditions and attempting a rerun. Hosted revisions, removed artifacts and nondeterministic generation may limit what can be reconstructed or reproduced.
 
 ## 9. API / Integration Contract
 
@@ -175,9 +188,11 @@ A local reply uses the local turn identity and has no server answer ID. Pretrain
 replies carry no CTMS citation. Answers using verified snapshot evidence may show
 only provenance for content actually used. Local answers do not call the server's
 source endpoint. When the Camper submits feedback under [CTMS-072](ctms-72-rate-ai-answers.md),
-only the selected turn's question and answer are eligible for feedback delivery.
+only the selected turn's question, answer and permitted trace metadata are eligible for feedback delivery.
 BR-503 continues to apply to the chat transcript. New Online answers retain the
 question with their existing, time-limited server answer record for authorized review.
+
+The Online public response and source endpoints keep their existing shape. CTMS-072 resolves the Online trace internally by `answerId`. The [Inference Trace data contract](../../docs/features/CTMS-069-Implementation.md#inference-trace-extension-design) distinguishes current fields from planned additions and specifies the 30-day Online boundary, Local compatibility and handoff to CTMS-073.
 
 See the [implementation and verification contract](../../docs/features/CTMS-069-Implementation.md).
 
@@ -195,6 +210,7 @@ See the [implementation and verification contract](../../docs/features/CTMS-069-
 | Wrong account, Trip or package version | Do not use the snapshot as chat context |
 | No connection can be established | Use local inference if the session and model are eligible |
 | 401, 403, explicit refusal or ambiguous timeout | Preserve the original outcome and online retry identity |
+| Historical answer, opaque provider revision or expired artifact | Use valid retained evidence and identify what is missing. Preserve the stored answer and existing source visibility. |
 
 ## 11. Acceptance & Test Matrix
 
@@ -226,6 +242,9 @@ See the [implementation and verification contract](../../docs/features/CTMS-069-
 | Jira AC-10 / BR-178 | Replay the same online request ID | Return a single stored result under the existing contract | PostgreSQL integration |
 | Jira AC-10 / BR-499 | The server returns 401 or 403, refuses, or times out ambiguously | Keep the online outcome without automatic fallback | Flutter widget |
 | BR-255 | Configured emergency signal with either engine unavailable | Prioritize CTMS-075 handling independently of generation | Flutter widget |
+| BR-517 | New Online answer, request replay, or persistence failure | Write trace with the original answer using actual conditions. Replay keeps that trace and a failed write leaves no partial trace. | PostgreSQL integration / provider contract |
+| BR-518 | Artifact changes, source is withdrawn, or a legacy reference cannot resolve | Resolve the original immutable artifact when permitted. Record unavailability and reject a different revision as evidence. | Contract / integration |
+| BR-519 / BR-495 / BR-503 | Native inference, checkpoint lookup, missing runtime metadata and reconnect without feedback | Bind observed facts to the exact turn. Track only a used package, omit unavailable model/runtime facts and make no inference call or transcript upload over the network. | Flutter integration / device trial |
 
 The [BR audit](../../docs/business-rules/ctms-257-hybrid-chat.md#active-hybrid-specific-keys)
 records a valid and violation case for each hybrid-specific rule.
@@ -240,3 +259,5 @@ network access blocked on physical iOS and Android. Record model version, downlo
 size, memory, latency, throughput, Vietnamese response quality and safety results under
 CTMS-098. The current Trip lookup covers checkpoint count. Open-ended synthesis and
 citations from saved Survival Guidance remain outside the verified behavior.
+
+Confirm which exact revision, seed, runtime build and effective parameters each provider or native runtime exposes. Choose artifact storage and disappearance handling under existing source rights. See the technical contract for the remaining decisions.

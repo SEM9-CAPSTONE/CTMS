@@ -46,8 +46,10 @@ AI chain:
 Curated Survival Documents
   -> Knowledge Chunks
   -> RAG Retrieval
-  -> AI Answer / Sources / Feedback / Moderation
+  -> Online AI Answer / Cited Sources
 ```
+
+Online answers and completed on-device replies can receive CTMS-072 feedback. CTMS-069's trace extension records how each answer was produced. CTMS-073's planned investigation consumes accepted feedback and preserves case evidence independently of original answer/feedback expiry. CTMS-098 evaluates versioned releases through its own benchmark.
 
 ## 2. Role Model
 
@@ -86,7 +88,7 @@ Backend authorization is authoritative. UI visibility is a usability layer only.
 | `held_funds`, `settlements`, `payouts`, `adjustments` | Financial ledger and reconciliation records |
 | `audit_logs` | Append-only evidence for critical actions |
 | `survival_documents`, `knowledge_chunks` | AI/RAG source material |
-| `ai_answers`, `ai_feedback` | AI output, user feedback, unsafe reports, and moderation hooks |
+| `ai_answers`, `ai_answer_feedback`, `ai_answer_feedback_mutations` | Retained Online answers and provenance, Online/Local feedback, Unsafe intake state, and revision receipts |
 | `potential_safety_hotspots` | Analytics-derived candidate hotspots for review |
 
 ## 4. Product Modules
@@ -144,7 +146,7 @@ NestJS backend responsible for authentication, RBAC, product workflow validation
 
 ### `services/ai`
 
-AI/RAG service responsible for survival document chunking, retrieval, answer generation with sources, unsafe report handling, and advisory analytics. It does not mutate authoritative state.
+AI/RAG service responsible for survival document chunking, embedding and answer generation with source evidence. NestJS owns retrieval selection, authorization, answer persistence and feedback acceptance. The planned [CTMS-073 investigation](features/CTMS-073-Investigation-Design.md) uses analysis as evidence for Admin review. The analyzer does not perform review transitions or change authoritative content.
 
 ## 7. Data and Infrastructure
 

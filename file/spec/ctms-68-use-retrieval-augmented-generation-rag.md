@@ -91,6 +91,8 @@ User query
 
 CTMS-069 imports `RagModule` and calls `RagRetrievalService.retrieve(actor, { question, locale })` with the actor resolved by backend authentication. The service requires an active Camper. It returns either `GROUNDED` with bounded context and provenance, or `INSUFFICIENT_CONTEXT` with empty evidence and an explicit reason. Operational errors remain distinguishable. There is no public retrieval or chat route in this story.
 
+For the planned CTMS-069 trace extension, expose the effective retrieval configuration as a resolvable immutable version and preserve the ordered evidence actually sent to generation. CTMS-069 persists the per-answer reference and distinguishes the generation input from the subset cited. A historical reference follows CTMS-050/051 retention and access rules and does not make a withdrawn source eligible for current retrieval.
+
 See the [implementation and internal contract](../../docs/features/CTMS-068-Implementation.md) for settings, source and chunk fields, and Python endpoints.
 
 ## 10. Error & Edge Cases
@@ -113,6 +115,7 @@ See the [implementation and internal contract](../../docs/features/CTMS-068-Impl
 | BR-248 | Context exceeds limit               | Bounded                   | Boundary     |
 | BR-248 | Selected chunk                      | Source preserved          | Traceability |
 | BR-216 | AI request conflicts with hard rule | Hard rule unaffected      | Safety       |
+| CTMS-069 Trace AC-2 / BR-518 | Resolve effective settings and ordered inputs after retrieval settings change or a chunk set expires | Resolve the recorded version and evidence where available. Report missing inputs without substituting current chunks. | Internal contract / integration |
 
 ## 12. Open Decisions
 
