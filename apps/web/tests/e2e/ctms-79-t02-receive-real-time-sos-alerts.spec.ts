@@ -95,14 +95,23 @@ test.afterAll(async () => {
 async function signInHost(browser: Browser, email: string): Promise<Page> {
 	const context = await browser.newContext();
 	const page = await context.newPage();
+	let socketAuthenticated = false;
+	page.on("websocket", (socket) => {
+		if (!socket.url().includes("/socket.io/")) return;
+		socket.on("framereceived", ({ payload }) => {
+			if (typeof payload === "string" && /^42\["connected",.*"authenticated":true/.test(payload)) {
+				socketAuthenticated = true;
+			}
+		});
+	});
 	// External tiles/media are not part of SOS delivery.
 	await page.route("https://**/*", (route) => route.abort());
 	await page.goto("/login");
 	await page.locator('input[type="text"]').first().fill(email);
 	await page.locator('input[type="password"]').fill(password);
 	await page.locator('form button[type="submit"]').click();
-	// The develop dashboard currently renders the overview twice (header + body); either copy works.
-	await expect(page.getByTestId("host-dashboard-overview").first()).toBeVisible();
+	await expect(page.getByTestId("host-dashboard-overview")).toBeVisible();
+	await expect.poll(() => socketAuthenticated).toBe(true);
 	return page;
 }
 
@@ -136,8 +145,8 @@ test("authorized Host gets the SOS in real time with attention signal and acknow
 }, testInfo) => {
 	const host = await signInHost(browser, hostEmail);
 	const otherHost = await signInHost(browser, otherHostEmail);
-	await expect(realtimeStatus(host)).toHaveAttribute("data-state", "connected");
-	await expect(realtimeStatus(otherHost)).toHaveAttribute("data-state", "connected");
+	await expect(realtimeStatus(host)).toHaveCount(0);
+	await expect(realtimeStatus(otherHost)).toHaveCount(0);
 	await expect(host.getByTestId("emergency-alert-banner")).toHaveCount(0);
 
 	const sos = await raiseSos("injury");
