@@ -153,6 +153,7 @@ export const dashboards: Record<DashboardConfig["role"], DashboardConfig> = {
 		soft: "#f2f7ef",
 		navItems: [
 			{ key: "overview", label: "Tổng quan vận hành", icon: LayoutDashboard },
+			{ key: "trip-map", label: "Giám sát chuyến đi", icon: MapPinned },
 			{ key: "reports", label: "Báo cáo tổng quan", icon: PieChart },
 			{ key: "sos", label: "Cứu trợ khẩn cấp", icon: ShieldAlert },
 			{ key: "wallet", label: "Ví & Doanh thu", icon: Wallet },

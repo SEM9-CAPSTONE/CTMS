@@ -4,7 +4,9 @@ import { Button } from "../../../shared/components/Button";
 import { Card } from "../../../shared/components/Card";
 import { useHostOperationalOverview } from "../hooks/useHostOperationalOverview";
 import type { Metric } from "../types";
+import type { ParticipantSelection } from "../types/active-trip-map";
 import { getOperationalTripHeading } from "../utils/host-operational-overview";
+import { HostActiveTripMap } from "./HostActiveTripMap";
 import { HostOperationalTripSelector, type OperationalStatus } from "./HostOperationalTripSelector";
 import { HostTripMap } from "./HostTripMap";
 import { MetricCard } from "./MetricCard";
@@ -24,15 +26,21 @@ export function HostOperationalOverview({
 	onNavigateToTripDetail,
 	showMetrics = true,
 	showToolbar = true,
+	initialStatus,
+	monitorParticipants = false,
 }: {
 	hostId: string;
 	onNavigateToTripDetail?: (tripId: string) => void;
 	showMetrics?: boolean;
 	showToolbar?: boolean;
+	initialStatus?: OperationalStatus;
+	monitorParticipants?: boolean;
 }) {
 	const data = useHostOperationalOverview(hostId);
+	const [rosterContainer, setRosterContainer] = useState<HTMLDivElement | null>(null);
+	const [participantSelection, setParticipantSelection] = useState<ParticipantSelection>();
 	const [selectedTripId, setSelectedTripId] = useState<string>();
-	const [statusFilter, setStatusFilter] = useState<OperationalStatus>();
+	const [statusFilter, setStatusFilter] = useState<OperationalStatus | undefined>(initialStatus);
 	if (data.isLoading) return <output>Đang tải tổng quan vận hành...</output>;
 	if (data.isError)
 		return (
@@ -101,7 +109,7 @@ export function HostOperationalOverview({
 						className="inline-flex items-center gap-2 font-bold disabled:opacity-50"
 					>
 						<RefreshCw className="size-4" />
-						Làm mới dữ liệu
+						Làm mới danh sách chuyến
 					</Button>
 				</div>
 			)}
@@ -112,12 +120,14 @@ export function HostOperationalOverview({
 					))}
 				</section>
 			)}
-			<section>
-				<Card className="grid items-start gap-6 rounded-[28px] border-[#dfe8df] lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
-					<div className="min-w-0">
+			<section aria-label={monitorParticipants ? "Bản đồ giám sát chuyến đi" : undefined}>
+				<Card
+					className={`grid min-w-0 items-start gap-6 rounded-[28px] border-[#dfe8df] ${monitorParticipants ? "xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]" : "lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]"}`}
+				>
+					<div className={monitorParticipants ? "min-w-0 space-y-4 xl:sticky xl:top-4" : "min-w-0"}>
 						<div className="flex items-center justify-between gap-2">
 							<h2 className="text-xl font-extrabold">{getOperationalTripHeading(trip)}</h2>
-							{!showToolbar && (
+							{!showToolbar && !monitorParticipants && (
 								<Button
 									size="sm"
 									variant="ghost"
@@ -129,7 +139,7 @@ export function HostOperationalOverview({
 								</Button>
 							)}
 						</div>
-						{!showToolbar && (
+						{!showToolbar && !monitorParticipants && (
 							<p className="mt-1 text-[11px] text-[#829087]">
 								Cập nhật bản đồ: {formatDateTime(data.updatedAt)}
 							</p>
@@ -137,6 +147,7 @@ export function HostOperationalOverview({
 						{data.operationalTrips.length ? (
 							<>
 								<HostOperationalTripSelector
+									compact={monitorParticipants}
 									trips={data.operationalTrips}
 									status={activeStatus}
 									onStatusChange={handleStatusChange}
@@ -155,10 +166,24 @@ export function HostOperationalOverview({
 						) : (
 							<p className="mt-5 text-[#667a6d]">Chưa có chuyến sắp khởi hành hoặc đang diễn ra.</p>
 						)}
+						{monitorParticipants && trip?.displayStatus === "ongoing" && (
+							<div ref={setRosterContainer} className="min-w-0 border-t border-slate-200 pt-4" />
+						)}
 					</div>
 					{trip && (
 						<div className="min-w-0">
-							<HostTripMap key={trip.id} hostId={hostId} trip={trip} />
+							{monitorParticipants && trip.displayStatus === "ongoing" ? (
+								<HostActiveTripMap
+									key={hostId + trip.id}
+									hostId={hostId}
+									tripId={trip.id}
+									rosterContainer={rosterContainer}
+									selection={participantSelection}
+									onSelect={setParticipantSelection}
+								/>
+							) : (
+								<HostTripMap key={trip.id} hostId={hostId} trip={trip} />
+							)}
 						</div>
 					)}
 				</Card>

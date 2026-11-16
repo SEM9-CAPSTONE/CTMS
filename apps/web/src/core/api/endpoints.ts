@@ -1,4 +1,9 @@
 export const API_ENDPOINTS = {
+	HOST_MONITORING: {
+		ACTIVE_TRIPS: "/host/monitoring/active-trips",
+		PARTICIPANT: (tripId: string, role: string, participantId: string) =>
+			`/host/monitoring/active-trips/${tripId}/participants/${role}/${participantId}`,
+	},
 	MY_CONTENT_REPORTS: {
 		LIST: "/me/content-reports",
 		DETAIL: (id: string) => `/me/content-reports/${id}`,

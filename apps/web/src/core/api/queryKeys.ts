@@ -104,6 +104,9 @@ export const queryKeys = {
 	trekking: {
 		hostList: (hostId: string, filters: Record<string, string | number>) =>
 			["trekking-routes", "host-list", hostId, filters] as const,
+		activeTripMaps: (hostId: string) => ["host-monitoring", hostId, "active-trips"] as const,
+		mapParticipant: (hostId: string, tripId?: string, role?: string, id?: string) =>
+			["host-monitoring", hostId, "participant", tripId, role, id] as const,
 		hostTripMap: (hostId: string, routeId: string) =>
 			["trekking-routes", "host-trip-map", hostId, routeId] as const,
 		all: ["trekking-routes"] as const,
