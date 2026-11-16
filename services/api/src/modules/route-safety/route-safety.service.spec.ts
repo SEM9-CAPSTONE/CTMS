@@ -190,6 +190,32 @@ describe("RouteSafetyService", () => {
 		expect(result.features.features).toEqual([]);
 		expect(result.coverage).toBe("PARTIAL");
 	});
+	it("retains nearby saved zone provenance for unsaved geometry when an external source is unavailable", async () => {
+		repository.candidates.mockResolvedValue([
+			candidate({
+				id: "host:zone",
+				sourceType: "HOST_DEFINED",
+				source: "CTMS",
+				sourceReference: "zone",
+				routeName: "Đường rừng ven suối",
+				verificationStatus: "UNVERIFIED",
+				radiusMeters: 50,
+			}),
+		]);
+		liveSafety.collect.mockResolvedValue({
+			source: { source: "NCHMF", status: "UNAVAILABLE" },
+			candidates: [],
+		});
+		const result = await service.analyze("host", { geometry });
+		expect(repository.findOwner).not.toHaveBeenCalled();
+		expect(result.features.features[0].properties).toMatchObject({
+			routeName: "Đường rừng ven suối",
+			verificationStatus: "UNVERIFIED",
+			radiusMeters: 50,
+		});
+		expect(result.summary.hostDefinedDangerZones).toBe(1);
+		expect(result.liveSource?.status).toBe("UNAVAILABLE");
+	});
 	it("fetches live warnings before spatial analysis and excludes stored current warnings", async () => {
 		const live = candidate({ id: "live:NCHMF:1:landslide" });
 		liveSafety.collect.mockResolvedValueOnce({

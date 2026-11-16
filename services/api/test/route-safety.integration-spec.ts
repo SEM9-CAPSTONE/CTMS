@@ -425,4 +425,107 @@ describe("Route Safety v2 PostGIS and authorization", () => {
 		expect(fields).toHaveLength(1);
 		expect(fields[0].properties.verificationStatus).toBe("UNVERIFIED");
 	});
+	it.each([false, true])(
+		"reads nearby zones across own routes for saved=%s without changing source data",
+		async (saved) => {
+			const ownOrigin = randomUUID();
+			const privateOrigin = randomUUID();
+			const origins = [ownOrigin, privateOrigin];
+			const nearPoint = randomUUID();
+			const radiusOverlap = randomUUID();
+			const nearPolygon = randomUUID();
+			const farPoint = randomUUID();
+			const farPolygon = randomUUID();
+			const privatePoint = randomUUID();
+			try {
+				for (const [id, owner, name] of [
+					[ownOrigin, host, "Đường rừng ven suối"],
+					[privateOrigin, other, "Lối mòn phía tây"],
+				]) {
+					await db.query(
+						`INSERT INTO trekking_routes(id,host_id,name,route_geom,length_meters,difficulty,expected_duration_minutes,status)
+				 VALUES($1,$2,$3,ST_GeomFromGeoJSON($4)::geography,1100,'easy',60,'draft')`,
+						[id, owner, name, JSON.stringify(line)]
+					);
+				}
+				await db.query(
+					`INSERT INTO route_danger_zones(id,route_id,geom,radius_m,description,severity) VALUES
+			 ($1,$7,ST_GeogFromText('SRID=4326;POINT(108.005 12.001)'),30,'Lối mòn trơn trượt sau mưa','high'),
+			 ($2,$7,ST_GeogFromText('SRID=4326;POINT(108.005 12.003)'),80,'Vành đai đá có nguy cơ rơi','medium'),
+			 ($3,$7,ST_GeogFromText('SRID=4326;POLYGON((108.004 12.001,108.006 12.001,108.006 12.002,108.004 12.001))'),NULL,'Sườn dốc dễ sạt lở','high'),
+			 ($4,$7,ST_GeogFromText('SRID=4326;POINT(109 13)'),30,'Đá lở ở đoạn đường phía bắc','high'),
+			 ($5,$7,ST_GeogFromText('SRID=4326;POLYGON((109 13,109.01 13,109.01 13.01,109 13))'),NULL,'Khu vực đất yếu ven suối','high'),
+			 ($6,$8,ST_GeogFromText('SRID=4326;POINT(108.005 12)'),30,'Đường dốc có nhiều đá vụn','high')`,
+					[
+						nearPoint,
+						radiusOverlap,
+						nearPolygon,
+						farPoint,
+						farPolygon,
+						privatePoint,
+						ownOrigin,
+						privateOrigin,
+					]
+				);
+				const snapshot = () =>
+					db.query("SELECT * FROM route_danger_zones WHERE route_id=ANY($1::uuid[]) ORDER BY id", [
+						origins,
+					]);
+				const before = await snapshot();
+				const response = await request(app.getHttpServer())
+					.post("/api/route-safety/analyze")
+					.set("Authorization", `Bearer ${token(host)}`)
+					.send({ geometry: line, ...(saved ? { routeId: route } : {}), source: "NCHMF" })
+					.expect(201);
+				const features = response.body.features.features as Array<{
+					id: string;
+					properties: {
+						routeName: string;
+						verificationStatus: string;
+						distanceMeters: number;
+						intersects: boolean;
+					};
+				}>;
+				for (const id of [nearPoint, radiusOverlap, nearPolygon]) {
+					expect(features.find((feature) => feature.id === `host:${id}`)?.properties).toMatchObject(
+						{
+							routeName: "Đường rừng ven suối",
+							verificationStatus: "UNVERIFIED",
+							intersects: false,
+						}
+					);
+				}
+				expect(
+					features.find((feature) => feature.id === `host:${radiusOverlap}`)?.properties
+						.distanceMeters
+				).toBeGreaterThan(300);
+				for (const id of [farPoint, farPolygon, privatePoint])
+					expect(features.map((feature) => feature.id)).not.toContain(`host:${id}`);
+				expect(await snapshot()).toEqual(before);
+				const moved = await request(app.getHttpServer())
+					.post("/api/route-safety/analyze")
+					.set("Authorization", `Bearer ${token(host)}`)
+					.send({
+						geometry: {
+							type: "LineString",
+							coordinates: [
+								[110, 14],
+								[110.01, 14],
+							],
+						},
+						source: "NCHMF",
+					})
+					.expect(201);
+				expect(
+					moved.body.features.features.filter(
+						(feature: { properties: { sourceType: string } }) =>
+							feature.properties.sourceType === "HOST_DEFINED"
+					)
+				).toEqual([]);
+			} finally {
+				await db.query("DELETE FROM route_danger_zones WHERE route_id=ANY($1::uuid[])", [origins]);
+				await db.query("DELETE FROM trekking_routes WHERE id=ANY($1::uuid[])", [origins]);
+			}
+		}
+	);
 });

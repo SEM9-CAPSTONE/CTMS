@@ -134,3 +134,5 @@ Exact distinction between hazard, shelter, water, overnight and checkpoint recor
 ## Route Safety v2 read integration
 
 CTMS-010 may surface these existing records through Route Safety Analysis. The current actor, ownership, write validation, audit and authoritative lifecycle in this story remain unchanged. See `docs/business-rules/route-safety-v2.md` BR-477 and BR-479. No duplicate safety observation or additional reporting permission is created.
+
+2026-11-16, BR-477 amendment: CTMS-010 can read nearby saved zones across the requesting Host's own Routes while drawing new geometry or editing an owned Route. The read retains origin name and UNVERIFIED status, excludes other Hosts' private zones, and does not copy records or loosen the CTMS-014 write boundary. Shared external evidence keeps its separate source/verification contract.

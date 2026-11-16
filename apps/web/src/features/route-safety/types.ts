@@ -32,6 +32,7 @@ export interface SafetyFeature {
 		sourceType: SafetySourceType;
 		source: string;
 		sourceReference: string;
+		routeName?: string | null;
 		hazardType: string;
 		severity: SafetySeverity;
 		geometryRole: string;

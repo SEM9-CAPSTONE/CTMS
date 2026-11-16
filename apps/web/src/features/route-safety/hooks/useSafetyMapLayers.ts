@@ -71,9 +71,10 @@ export function setSafetyMapData(map: MapLibreMap, data: SafetyCollection) {
 export function useSafetyMapLayers(
 	map: MapLibreMap | null,
 	ready: boolean,
-	data?: SafetyCollection
+	data?: SafetyCollection,
+	areaClicksEnabled = true
 ) {
-	useSafetyMapSymbols(map, ready, data);
+	useSafetyMapSymbols(map, ready, data, areaClicksEnabled);
 	useEffect(() => {
 		if (map && ready) setSafetyMapData(map, data ?? EMPTY_SAFETY_COLLECTION);
 	}, [map, ready, data]);

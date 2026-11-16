@@ -29,7 +29,7 @@ export class RouteSafetyController {
 	@Roles(UserRole.HOST)
 	@ApiOperation({
 		summary:
-			"Fetch current NCHMF warnings and analyze an owned or unsaved route; source availability is explicit",
+			"Analyze drawn geometry with current warnings and nearby saved zones across the Host's own routes; source availability is explicit",
 	})
 	@ApiResponse({
 		status: 201,

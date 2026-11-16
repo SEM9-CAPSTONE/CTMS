@@ -48,6 +48,16 @@ export const safetyText = {
 	truncated: "Có nhiều kết quả hơn giới hạn hiển thị; phân tích hiện tại chưa đầy đủ.",
 	wait: "Vẽ ít nhất hai điểm khác nhau để kiểm tra tuyến.",
 	retry: "Kiểm tra lại",
+	close: "Đóng thông tin",
+	savedZone: {
+		title: "Điểm nguy hiểm",
+		source: "Nguồn: Ghi nhận trên tuyến của bạn",
+		route: "Tuyến",
+		severity: "Mức độ",
+		verification: "Xác minh",
+		radius: "Bán kính",
+		updatedAt: "Cập nhật",
+	},
 	sourceType: {
 		OFFICIAL_CURRENT: "Cảnh báo nguồn chính thức",
 		BASE_HISTORICAL: "Dữ liệu lịch sử",

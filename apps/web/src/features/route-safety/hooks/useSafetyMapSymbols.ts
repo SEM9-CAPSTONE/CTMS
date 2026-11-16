@@ -7,13 +7,15 @@ import {
 	isDisplayableFeature,
 	isMutedFeature,
 } from "../map-symbols";
+import { safetyText } from "../messages";
 import { safetyPopupContent } from "../safety-popup";
 import type { SafetyCollection } from "../types";
 
 export function useSafetyMapSymbols(
 	map: MapLibreMap | null,
 	ready: boolean,
-	data?: SafetyCollection
+	data?: SafetyCollection,
+	areaClicksEnabled = true
 ) {
 	useEffect(() => {
 		if (!map || !ready) return;
@@ -24,6 +26,24 @@ export function useSafetyMapSymbols(
 		const features = data?.features.filter(isDisplayableFeature) ?? [];
 		const byId = new Map(features.map((feature) => [String(feature.id), feature]));
 		const layers = [`${SAFETY_SOURCE_ID}-fill`, `${SAFETY_SOURCE_ID}-line`];
+		const selectArea = (event: MapLayerMouseEvent) => {
+			if (!areaClicksEnabled) return;
+			const id = event.features?.[0]?.id;
+			const feature = id === undefined ? undefined : byId.get(String(id));
+			if (!feature) return;
+			hoverPopup?.remove();
+			pointPopup?.setLngLat(event.lngLat).setDOMContent(safetyPopupContent(feature)).addTo(map);
+			localizeCloseButton();
+		};
+		const localizeCloseButton = () => {
+			const button = pointPopup
+				?.getElement()
+				?.querySelector<HTMLButtonElement>(".maplibregl-popup-close-button");
+			if (button) {
+				button.ariaLabel = safetyText.close;
+				button.title = button.ariaLabel;
+			}
+		};
 		const hover = (event: MapLayerMouseEvent) => {
 			const id = event.features?.[0]?.id;
 			const feature = id === undefined ? undefined : byId.get(String(id));
@@ -35,8 +55,18 @@ export function useSafetyMapSymbols(
 		};
 		void import("maplibre-gl").then(({ Marker: MapMarker, Popup: MapPopup }) => {
 			if (disposed) return;
-			pointPopup = new MapPopup({ closeButton: true, closeOnClick: true, offset: 18 });
-			hoverPopup = new MapPopup({ closeButton: false, closeOnClick: false, offset: 12 });
+			pointPopup = new MapPopup({
+				closeButton: true,
+				closeOnClick: true,
+				offset: 18,
+				className: "z-30",
+			});
+			hoverPopup = new MapPopup({
+				closeButton: false,
+				closeOnClick: false,
+				offset: 12,
+				className: "z-30",
+			});
 			for (const feature of features) {
 				if (feature.geometry.type !== "Point") continue;
 				const element = document.createElement("button");
@@ -44,12 +74,13 @@ export function useSafetyMapSymbols(
 				element.type = "button";
 				element.dataset.safetySymbol = kind;
 				element.dataset.safetyUi = "";
-				element.className = "cursor-pointer rounded bg-transparent p-0 drop-shadow-md";
+				element.className = `cursor-pointer rounded bg-transparent p-0 drop-shadow-md ${feature.properties.sourceType === "HOST_DEFINED" ? "z-[11]" : ""}`;
 				element.style.opacity = isMutedFeature(feature) ? "0.45" : "1";
 				element.ariaLabel = feature.properties.description.split(" — ")[0].slice(0, 160);
 				element.title = element.ariaLabel;
 				element.append(createSafetySymbol(kind, featureColor(feature)));
 				element.addEventListener("mousedown", (event) => event.stopPropagation());
+				element.addEventListener("pointerdown", (event) => event.stopPropagation());
 				element.onclick = (event) => {
 					event.stopPropagation();
 					hoverPopup?.remove();
@@ -58,6 +89,7 @@ export function useSafetyMapSymbols(
 							?.setLngLat(feature.geometry.coordinates)
 							.setDOMContent(safetyPopupContent(feature))
 							.addTo(map);
+					localizeCloseButton();
 				};
 				markers.push(
 					new MapMarker({ element, anchor: "center" })
@@ -68,6 +100,7 @@ export function useSafetyMapSymbols(
 			for (const layer of layers) {
 				map.on("mousemove", layer, hover);
 				map.on("mouseleave", layer, leave);
+				if (areaClicksEnabled) map.on("click", layer, selectArea);
 			}
 		});
 		return () => {
@@ -78,7 +111,8 @@ export function useSafetyMapSymbols(
 			for (const layer of layers) {
 				map.off("mousemove", layer, hover);
 				map.off("mouseleave", layer, leave);
+				if (areaClicksEnabled) map.off("click", layer, selectArea);
 			}
 		};
-	}, [map, ready, data]);
+	}, [map, ready, data, areaClicksEnabled]);
 }

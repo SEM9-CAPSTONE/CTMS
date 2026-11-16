@@ -21,7 +21,7 @@ export function RouteGeometryEditor({ value, disabled = false, onChange, routeId
 	const [selected, setSelected] = useState<number | null>(null);
 	const map = useRouteGeometryMap(value, disabled, onChange, setSelected);
 	const safety = useRouteSafety(value, routeId);
-	useSafetyMapLayers(map.map, map.mapReady && !map.fallback, safety.data?.features);
+	useSafetyMapLayers(map.map, map.mapReady && !map.fallback, safety.data?.features, false);
 	return (
 		<section className="rounded-2xl border border-[#e0ebe0] bg-white p-5 shadow-sm">
 			<div className="flex flex-wrap items-center justify-between gap-3">
@@ -54,6 +54,7 @@ export function RouteGeometryEditor({ value, disabled = false, onChange, routeId
 				)}
 				{map.fallback && (
 					<SafetyMapFallback
+						areaClicksEnabled={false}
 						data={safety.data?.features}
 						project={([lng, lat]) => [((lng + 180) / 360) * 100, ((90 - lat) / 180) * 100]}
 					/>

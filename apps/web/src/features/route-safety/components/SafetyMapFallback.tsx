@@ -8,14 +8,19 @@ import { SafetySymbol } from "./SafetySymbol";
 export function SafetyMapFallback({
 	data,
 	project,
-}: { data?: SafetyCollection; project: (position: Position) => Position }) {
+	areaClicksEnabled = true,
+}: {
+	data?: SafetyCollection;
+	project: (position: Position) => Position;
+	areaClicksEnabled?: boolean;
+}) {
 	const [selectedId, setSelectedId] = useState<string>();
 	const features = data?.features.filter(isDisplayableFeature) ?? [];
 	const selected = features.find((feature) => feature.id === selectedId);
 	return (
 		<div className="pointer-events-none absolute inset-0">
 			<svg
-				aria-hidden="true"
+				aria-hidden={areaClicksEnabled ? undefined : true}
 				viewBox="0 0 100 100"
 				preserveAspectRatio="none"
 				className="absolute inset-0 h-full w-full"
@@ -44,6 +49,20 @@ export function SafetyMapFallback({
 					return polygons.map((polygon, index) => (
 						<path
 							key={`${feature.id}:${index}`}
+							role={areaClicksEnabled ? "button" : undefined}
+							tabIndex={areaClicksEnabled ? 0 : undefined}
+							aria-label={areaClicksEnabled ? feature.properties.description : undefined}
+							className={areaClicksEnabled ? "pointer-events-auto cursor-pointer" : undefined}
+							onClick={(event) => {
+								if (!areaClicksEnabled) return;
+								event.stopPropagation();
+								setSelectedId(feature.id);
+							}}
+							onKeyDown={(event) => {
+								if (!areaClicksEnabled || (event.key !== "Enter" && event.key !== " ")) return;
+								event.preventDefault();
+								setSelectedId(feature.id);
+							}}
 							d={polygon
 								.map((ring) => `M${ring.map((point) => project(point).join(",")).join(" L")}Z`)
 								.join(" ")}
@@ -67,8 +86,12 @@ export function SafetyMapFallback({
 						key={feature.id}
 						type="button"
 						aria-label={feature.properties.description.split(" — ")[0]}
-						onClick={() => setSelectedId(feature.id)}
-						className="pointer-events-auto absolute z-10 -translate-x-1/2 -translate-y-1/2 drop-shadow-md"
+						onPointerDown={(event) => event.stopPropagation()}
+						onClick={(event) => {
+							event.stopPropagation();
+							setSelectedId(feature.id);
+						}}
+						className={`pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 drop-shadow-md ${feature.properties.sourceType === "HOST_DEFINED" ? "z-20" : "z-10"}`}
 						style={{ left: `${x}%`, top: `${y}%`, opacity: isMutedFeature(feature) ? 0.45 : 1 }}
 					>
 						<SafetySymbol

@@ -27,6 +27,7 @@ export interface SafetyCandidate {
 	sourceType: SafetySourceType;
 	source: string;
 	sourceReference: string;
+	routeName?: string | null;
 	hazardType: string;
 	severity: SafetySeverity;
 	geometry: SafetyGeometry;
