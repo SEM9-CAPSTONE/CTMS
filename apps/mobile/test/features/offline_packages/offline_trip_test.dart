@@ -211,8 +211,9 @@ void main() {
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
-          child: const MaterialApp(
-            home: Scaffold(body: SavedOfflinePackagesButton()),
+          child: MaterialApp(
+            theme: ThemeData(splashFactory: InkRipple.splashFactory),
+            home: const Scaffold(body: SavedOfflinePackagesButton()),
           ),
         ),
       );
