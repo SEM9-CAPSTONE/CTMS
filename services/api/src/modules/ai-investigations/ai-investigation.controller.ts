@@ -16,7 +16,7 @@ import {
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
 import { Type } from "class-transformer";
-import { IsIn, IsInt, IsOptional, IsUUID, Max, Min } from "class-validator";
+import { IsIn, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from "class-validator";
 import { CurrentUser } from "../auth/decorators/current-user.decorator";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
@@ -27,9 +27,10 @@ import { AiInvestigationAdminService } from "./ai-investigation-admin.service";
 import { Review } from "./ai-investigation.types";
 
 export class ListAiInvestigationsQuery {
-	@IsOptional() @IsIn(["ALL", "UNSAFE"]) scope?: "ALL" | "UNSAFE";
+	@IsOptional() @IsIn(["ALL", "UNSAFE", "NOT_USEFUL"]) scope?: "ALL" | "UNSAFE" | "NOT_USEFUL";
 	@IsOptional() @IsIn(Object.values(Review)) reviewStatus?: Review;
 	@IsOptional() @IsUUID("4") groupId?: string;
+	@IsOptional() @IsString() @MaxLength(180) q?: string;
 	@IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(10000) page?: number;
 	@IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(50) limit?: number;
 }
@@ -55,7 +56,7 @@ export class AiInvestigationController {
 
 	@Get()
 	@Header("Cache-Control", "no-store")
-	@ApiOperation({ summary: "List investigation cases or the Unsafe review queue" })
+	@ApiOperation({ summary: "List investigation cases by feedback category and review status" })
 	list(@CurrentUser() actor: AuthenticatedUser, @Query() query: ListAiInvestigationsQuery) {
 		return this.respond(this.service.list(actor, query));
 	}

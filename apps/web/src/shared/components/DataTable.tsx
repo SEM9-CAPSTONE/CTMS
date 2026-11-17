@@ -18,6 +18,8 @@ export interface DataTableProps<T> {
 	emptyMessage?: ReactNode;
 	/** Below this width the table scrolls horizontally instead of squashing columns. */
 	minWidthClassName?: string;
+	compact?: boolean;
+	selectedRowKey?: string | null;
 }
 
 const alignStyles = {
@@ -35,9 +37,14 @@ export function DataTable<T>({
 	ariaLabel,
 	emptyMessage = "Không có dữ liệu",
 	minWidthClassName = "min-w-[720px]",
+	compact = false,
+	selectedRowKey,
 }: DataTableProps<T>) {
+	const cellPadding = compact ? "px-2 py-2" : "px-4 py-3";
 	return (
-		<div className="overflow-hidden rounded-2xl border border-[#dfe8df] bg-white shadow-sm">
+		<div
+			className={`overflow-hidden border border-[#dfe8df] bg-white ${compact ? "rounded-xl" : "rounded-2xl shadow-sm"}`}
+		>
 			<div className="overflow-x-auto">
 				<table aria-label={ariaLabel} className={`w-full text-sm ${minWidthClassName}`}>
 					<thead className="bg-[#f4f7f2] text-xs uppercase tracking-wide text-[#667a6d]">
@@ -46,7 +53,7 @@ export function DataTable<T>({
 								<th
 									key={column.key}
 									scope="col"
-									className={`whitespace-nowrap px-4 py-3 font-extrabold ${alignStyles[column.align ?? "left"]} ${column.className ?? ""}`}
+									className={`whitespace-nowrap ${cellPadding} font-extrabold ${alignStyles[column.align ?? "left"]} ${column.className ?? ""}`}
 								>
 									{column.header}
 								</th>
@@ -68,12 +75,15 @@ export function DataTable<T>({
 								<tr
 									key={getRowKey(row)}
 									data-testid={getRowTestId?.(row)}
-									className="hover:bg-[#f8faf7]"
+									data-selected={
+										selectedRowKey == null ? undefined : selectedRowKey === getRowKey(row)
+									}
+									className={`${compact ? "relative " : ""}hover:bg-[#f8faf7] data-[selected=true]:bg-[#eaf4e9]`}
 								>
 									{columns.map((column) => (
 										<td
 											key={column.key}
-											className={`px-4 py-3 align-middle ${alignStyles[column.align ?? "left"]} ${column.className ?? ""}`}
+											className={`${cellPadding} align-middle ${alignStyles[column.align ?? "left"]} ${column.className ?? ""}`}
 										>
 											{column.render(row)}
 										</td>

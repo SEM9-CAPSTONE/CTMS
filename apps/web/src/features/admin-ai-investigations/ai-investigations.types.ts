@@ -11,10 +11,13 @@ export type IssueClassification =
 	| "SAFETY"
 	| "UNDETERMINED";
 
+export type InvestigationScope = "ALL" | "UNSAFE" | "NOT_USEFUL";
+
 export type InvestigationFilters = {
-	scope: "ALL" | "UNSAFE";
+	scope: InvestigationScope;
 	reviewStatus?: ReviewStatus;
 	groupId?: string;
+	q?: string;
 	page: number;
 };
 
@@ -38,9 +41,15 @@ export type IssueGroup = {
 };
 
 export type InvestigationList = {
-	items: InvestigationSummary[];
+	items: Array<InvestigationSummary & { questionPreview?: string | null }>;
 	pagination: { page: number; limit: number; total: number; totalPages: number };
 	group: { classification: IssueClassification } | null;
+	summary?: {
+		totalCases: number;
+		unsafeCases: number;
+		notUsefulCases: number;
+		resolvedCases: number;
+	};
 };
 
 export type InvestigationIssue = {

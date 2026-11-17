@@ -64,7 +64,7 @@ const items = {
 		countKey: "contentReports",
 	},
 	"ai-investigations": {
-		label: "Điều tra phản hồi AI",
+		label: "Phân tích & xử lý phản hồi AI",
 		icon: MessageSquareWarning,
 		path: RoutePath.ADMIN_AI_INVESTIGATIONS,
 	},

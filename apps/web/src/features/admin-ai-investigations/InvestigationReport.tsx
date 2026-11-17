@@ -128,7 +128,7 @@ export function InvestigationReport({
 				: "Chưa có báo cáo phân tích.";
 	return (
 		<section className="space-y-3">
-			<h3 className={sectionTitle}>Báo cáo điều tra</h3>
+			<h3 className={sectionTitle}>Kết quả phân tích AI</h3>
 			{issues.length > 0 ? (
 				<>
 					<p className={muted}>Các phát hiện dưới đây cần được xác minh trước khi ghi kết luận.</p>
@@ -147,7 +147,8 @@ export function InvestigationReport({
 			)}
 			{detail.observations.unmatchedCitation && (
 				<p className={readableText}>
-					Dấu vết ghi nhận có trích dẫn nằm ngoài tập nguồn đã truy xuất.
+					<strong className="font-semibold">Đối chiếu dấu vết</strong>
+					{" · "}Có trích dẫn nằm ngoài tập nguồn đã truy xuất.
 				</p>
 			)}
 			{!detail.reportRestricted && detail.groups.length > 0 && (
@@ -171,8 +172,58 @@ export function InvestigationReport({
 	);
 }
 
+export function InvestigationFeedback({ detail }: { detail: InvestigationDetail }) {
+	const { evidence, evidenceRemovedAt, reason } = detail;
+	return (
+		<section className="space-y-3">
+			<h3 className={sectionTitle}>Nội dung phản hồi</h3>
+			<dl className="space-y-3 rounded-xl bg-[#f4f7f2] p-3">
+				{evidence ? (
+					<>
+						<div>
+							<dt className="text-sm font-semibold">Câu hỏi</dt>
+							<dd className={readableText}>
+								{evidence.question || "Không có câu hỏi trong bản ghi."}
+							</dd>
+						</div>
+						<div>
+							<dt className="text-sm font-semibold">Câu trả lời</dt>
+							<dd className={readableText}>
+								{evidence.answer || "Không có câu trả lời trong bản ghi."}
+							</dd>
+						</div>
+						<div>
+							<dt className="text-sm font-semibold">Ghi nhận bằng chứng</dt>
+							<dd className={muted}>
+								{evidence.provenance === "CLIENT_REPORTED"
+									? "Do thiết bị gửi kèm phản hồi"
+									: "Do hệ thống ghi nhận"}
+							</dd>
+						</div>
+					</>
+				) : (
+					<div>
+						<dt className="sr-only">Tình trạng bằng chứng</dt>
+						<dd className={muted}>
+							{evidenceRemovedAt
+								? `Bằng chứng đã được dọn theo chính sách lưu giữ vào ${formatInvestigationDate(evidenceRemovedAt)}.`
+								: "Hồ sơ chưa có dữ liệu bằng chứng."}
+						</dd>
+					</div>
+				)}
+				{reason && (
+					<div>
+						<dt className="text-sm font-semibold">Lý do phản hồi</dt>
+						<dd className={readableText}>{reason}</dd>
+					</div>
+				)}
+			</dl>
+		</section>
+	);
+}
+
 export function InvestigationEvidence({ detail }: { detail: InvestigationDetail }) {
-	const { evidence, evidenceRemovedAt, sources } = detail;
+	const { evidence, sources } = detail;
 	const traceAt = evidence?.trace?.inferenceStartedAt ?? evidence?.trace?.observedAt;
 	const technicalFields = [
 		["Mô hình trả lời", evidence?.modelId],
@@ -187,41 +238,9 @@ export function InvestigationEvidence({ detail }: { detail: InvestigationDetail 
 	].filter(([, value]) => value != null && value !== "");
 	return (
 		<section className="space-y-3">
-			<h3 className={sectionTitle}>Bằng chứng</h3>
-			{evidence ? (
-				<div className="space-y-3 rounded-xl bg-[#f4f7f2] p-4">
-					<p className={muted}>
-						{evidence.provenance === "CLIENT_REPORTED"
-							? "Do thiết bị gửi kèm phản hồi"
-							: "Do hệ thống ghi nhận"}
-					</p>
-					<dl className="space-y-3">
-						<div>
-							<dt className="text-sm font-semibold">Câu hỏi</dt>
-							<dd className={readableText}>
-								{evidence.question || "Không có câu hỏi trong bản ghi."}
-							</dd>
-						</div>
-						<div>
-							<dt className="text-sm font-semibold">Câu trả lời</dt>
-							<dd className={readableText}>
-								{evidence.answer || "Không có câu trả lời trong bản ghi."}
-							</dd>
-						</div>
-						{detail.reason && (
-							<div>
-								<dt className="text-sm font-semibold">Lý do phản hồi</dt>
-								<dd className={readableText}>{detail.reason}</dd>
-							</div>
-						)}
-					</dl>
-				</div>
-			) : (
-				<p className={muted}>
-					{evidenceRemovedAt
-						? `Bằng chứng đã được dọn theo chính sách lưu giữ vào ${formatInvestigationDate(evidenceRemovedAt)}.`
-						: "Hồ sơ chưa có dữ liệu bằng chứng."}
-				</p>
+			<h3 className={sectionTitle}>Nguồn và bằng chứng</h3>
+			{!evidence && sources.length === 0 && (
+				<p className={muted}>Không có nguồn hoặc dấu vết suy luận để hiển thị.</p>
 			)}
 			{evidence && detail.mode === "ONLINE" && sources.length === 0 && (
 				<p className={muted}>Không có thông tin nguồn trong hồ sơ.</p>
@@ -232,7 +251,7 @@ export function InvestigationEvidence({ detail }: { detail: InvestigationDetail 
 						<li
 							key={evidenceId}
 							id={`ai-investigation-source-${evidenceId}`}
-							className="space-y-1 py-2"
+							className="scroll-mt-16 space-y-1 py-2"
 						>
 							<p className={readableText}>
 								Nguồn {evidenceId} ·{" "}
@@ -271,19 +290,22 @@ export function InvestigationEvidence({ detail }: { detail: InvestigationDetail 
 }
 
 const historyLabels: Record<string, string> = {
-	AI_INVESTIGATION_START_REVIEW: "Tiếp nhận xem xét",
-	AI_INVESTIGATION_HANDOFF: "Ghi nhận bàn giao",
-	AI_INVESTIGATION_RESOLVE: "Ghi kết luận",
+	AI_INVESTIGATION_START_REVIEW: "Bắt đầu xem xét",
+	AI_INVESTIGATION_HANDOFF: "Bàn giao kỹ thuật",
+	AI_INVESTIGATION_RESOLVE: "Xác nhận kết quả xử lý",
 };
 
 export function InvestigationHistory({ detail }: { detail: InvestigationDetail }) {
-	if (!detail.history.length) return null;
 	return (
 		<section className="space-y-3">
 			<h3 className={sectionTitle}>Lịch sử xử lý</h3>
-			<ol className="divide-y divide-[#e0ebe0]">
-				{detail.history.map((entry) => (
-					<li key={entry.version} className="space-y-1 py-3">
+			{detail.history.length === 0 && <p className={muted}>Chưa ghi nhận thao tác xử lý.</p>}
+			<ol className="space-y-3 border-l border-[#dfe8df] pl-4">
+				{[...detail.history].reverse().map((entry) => (
+					<li
+						key={entry.version}
+						className="relative space-y-1 before:absolute before:top-1.5 before:-left-[1.28rem] before:size-2 before:rounded-full before:bg-[#2d5a27]"
+					>
 						<h4 className="text-sm font-semibold text-[#10221b]">
 							{historyLabels[entry.action] ?? "Cập nhật hồ sơ"}
 						</h4>

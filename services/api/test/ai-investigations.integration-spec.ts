@@ -169,6 +169,55 @@ describe("CTMS-073 PostgreSQL investigation workflow", () => {
 		]);
 	});
 
+	it("filters Not Useful before pagination and projects only a bounded question preview", async () => {
+		const longQuestion = `Đọc bản đồ\n\t${"đường mòn ".repeat(30)}ở đâu?`;
+		const older = await feedback.submit(camper, {
+			...local("NOT_USEFUL"),
+			question: longQuestion,
+			answer: "Đối chiếu tín hiệu GPS.",
+		});
+		const newer = await feedback.submit(camper, local("NOT_USEFUL"));
+		const unsafe = await feedback.submit(camper, local("NOT_USEFUL", true));
+		await feedback.submit(camper, local("USEFUL"));
+		const olderId = await caseFor(older.feedbackId);
+		const newerId = await caseFor(newer.feedbackId);
+		const unsafeId = await caseFor(unsafe.feedbackId);
+		await db.query("UPDATE ai_investigation_cases SET created_at='2026-10-01' WHERE id=$1", [
+			olderId,
+		]);
+		const first = await review.list(admin, { scope: "NOT_USEFUL", page: 1, limit: 1 });
+		expect(first.summary).toEqual({
+			totalCases: 3,
+			unsafeCases: 1,
+			notUsefulCases: 2,
+			resolvedCases: 0,
+		});
+		expect(first.pagination).toEqual({ page: 1, limit: 1, total: 2, totalPages: 2 });
+		expect(first.items).toEqual([expect.objectContaining({ id: newerId, reviewStatus: null })]);
+		const second = await review.list(admin, { scope: "NOT_USEFUL", page: 2, limit: 1 });
+		expect(second.items).toEqual([
+			expect.objectContaining({
+				id: olderId,
+				questionPreview: longQuestion.replace(/\s+/g, " ").slice(0, 180),
+			}),
+		]);
+		expect(second.items[0]).not.toHaveProperty("snapshot");
+		expect(second.items[0]).not.toHaveProperty("answer");
+		for (const q of ["  đường mòn  ", "gps"]) {
+			const result = await review.list(admin, { scope: "NOT_USEFUL", q, limit: 1 });
+			expect(result.items.map(({ id }) => id)).toEqual([olderId]);
+			expect(result.pagination.total).toBe(1);
+			expect(result.summary).toEqual(first.summary);
+		}
+		expect((await review.list(admin, { q: "%" })).items).toEqual([]);
+		expect((await review.list(admin, { scope: "UNSAFE" })).items.map(({ id }) => id)).toEqual([
+			unsafeId,
+		]);
+		expect(
+			await db.query("SELECT id FROM audit_logs WHERE action='AI_INVESTIGATION_VIEW'")
+		).toEqual([]);
+	});
+
 	it("rolls back the feedback and receipt if durable capture fails", async () => {
 		const input = local("NOT_USEFUL");
 		await db.query(
@@ -239,8 +288,8 @@ describe("CTMS-073 PostgreSQL investigation workflow", () => {
 	it("retains an expired Online case and persists one of two concurrent reviews, handoff and audit", async () => {
 		const [answer]: Array<{ id: string }> = await db.query(
 			`INSERT INTO ai_answers
-			(user_id,request_id,request_hash,locale,answer,retrieved_evidence,cited_chunk_ids,generation,retrieval_config_version)
-			VALUES($1,$2,$3,'vi','Đối chiếu bản đồ.','[]','{}','{}','v1') RETURNING id`,
+			(user_id,request_id,request_hash,locale,question,answer,retrieved_evidence,cited_chunk_ids,generation,retrieval_config_version)
+			VALUES($1,$2,$3,'vi','Nên kiểm tra đường đi thế nào?','Đối chiếu bản đồ.','[]','{}','{}','v1') RETURNING id`,
 			[camper.userId, randomUUID(), "a".repeat(64)]
 		);
 		const accepted = await feedback.submit(camper, {
@@ -274,9 +323,16 @@ describe("CTMS-073 PostgreSQL investigation workflow", () => {
 		expect(await review.detail(admin, id)).toMatchObject({
 			answerId: answer.id,
 			feedbackId: accepted.feedbackId,
-			evidence: { question: null, answer: "Đối chiếu bản đồ.", trace: null },
+			evidence: {
+				question: "Nên kiểm tra đường đi thế nào?",
+				answer: "Đối chiếu bản đồ.",
+				trace: null,
+			},
 			reviewerId: admin.userId,
 		});
+		expect(await cases()).toEqual([
+			expect.objectContaining({ id, questionPreview: "Nên kiểm tra đường đi thế nào?" }),
+		]);
 		const justification = {
 			reference: "CTMS-261",
 			verification: "Đối chiếu bản ghi phát hành và biên bản tái hiện.",
@@ -302,6 +358,15 @@ describe("CTMS-073 PostgreSQL investigation workflow", () => {
 		expect((await review.detail(admin, id)).evidence).not.toBeNull();
 		await db.query("UPDATE ai_investigation_cases SET retention_hold=false WHERE id=$1", [id]);
 		await worker.purgeClosedEvidence();
+		expect(await cases()).toEqual([expect.objectContaining({ id, questionPreview: null })]);
+		const afterPurge = await review.list(admin, { q: "kiểm tra đường đi" });
+		expect(afterPurge.items).toEqual([]);
+		expect(afterPurge.summary).toEqual({
+			totalCases: 1,
+			unsafeCases: 1,
+			notUsefulCases: 0,
+			resolvedCases: 1,
+		});
 		expect(await review.detail(admin, id)).toMatchObject({
 			reviewStatus: "actioned",
 			evidence: null,

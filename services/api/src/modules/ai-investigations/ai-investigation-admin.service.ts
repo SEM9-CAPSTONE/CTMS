@@ -28,6 +28,11 @@ const AUDIT_TARGET = "AI_INVESTIGATION";
 const summarySelect = `c.id, c.mode, c.created_at AS "createdAt", c.reported_at AS "reportedAt",
 	c.review_status AS "reviewStatus", c.technical_status AS "technicalStatus", c.closed_at AS "closedAt",
 	j.status AS "processingStatus", j.rating`;
+const retainedTurn = `(CASE c.mode WHEN 'LOCAL' THEN c.snapshot->'local' ELSE c.snapshot->'online' END)`;
+const questionPreview = `left(nullif(btrim(regexp_replace(${retainedTurn}->>'question',
+	'[[:space:]]+', ' ', 'g')), ''), 180) AS "questionPreview"`;
+const unsafeCase = "c.review_status IS NOT NULL";
+const notUsefulCase = "c.review_status IS NULL AND j.rating='NOT_USEFUL'";
 
 type Summary = {
 	id: string;
@@ -83,11 +88,21 @@ export class AiInvestigationAdminService {
 		ensureInvestigationAdmin(actor);
 		const page = query.page ?? 1;
 		const limit = query.limit ?? 20;
-		const filters = [query.scope ?? "ALL", query.reviewStatus ?? null, query.groupId ?? null];
-		const from = `FROM ai_investigation_cases c JOIN ai_investigation_jobs j ON j.id=c.latest_job_id
-		 WHERE ($1='ALL' OR c.review_status IS NOT NULL) AND ($2::varchar IS NULL OR c.review_status=$2)
+		const filters = [
+			query.scope ?? "ALL",
+			query.reviewStatus ?? null,
+			query.groupId ?? null,
+			query.q?.trim() || null,
+		];
+		const from =
+			"FROM ai_investigation_cases c JOIN ai_investigation_jobs j ON j.id=c.latest_job_id";
+		const matches = `($1='ALL' OR ($1='UNSAFE' AND ${unsafeCase})
+		 OR ($1='NOT_USEFUL' AND ${notUsefulCase}))
+		 AND ($2::varchar IS NULL OR c.review_status=$2)
 		 AND ($3::uuid IS NULL OR ((c.report IS NOT NULL OR c.evidence_removed_at IS NOT NULL) AND EXISTS (
-			SELECT 1 FROM ai_investigation_members WHERE case_id=c.id AND group_id=$3)))`;
+			SELECT 1 FROM ai_investigation_members WHERE case_id=c.id AND group_id=$3)))
+		 AND ($4::text IS NULL OR strpos(lower(${retainedTurn}->>'question'), lower($4)) > 0
+		 OR strpos(lower(${retainedTurn}->>'answer'), lower($4)) > 0)`;
 		return this.db.transaction("REPEATABLE READ", async (manager) => {
 			const [group]: Array<{ classification: Classification }> = query.groupId
 				? await manager.query("SELECT classification FROM ai_investigation_groups WHERE id=$1", [
@@ -95,21 +110,32 @@ export class AiInvestigationAdminService {
 					])
 				: [];
 			if (query.groupId && !group) notFound();
-			const [count]: Array<{ total: number }> = await manager.query(
-				`SELECT count(*)::int AS total ${from}`,
+			const [{ total, ...summary }]: Array<{
+				total: number;
+				totalCases: number;
+				unsafeCases: number;
+				notUsefulCases: number;
+				resolvedCases: number;
+			}> = await manager.query(
+				`SELECT (count(*) FILTER (WHERE ${matches}))::int AS total,
+				 count(*)::int AS "totalCases",
+				 (count(*) FILTER (WHERE ${unsafeCase}))::int AS "unsafeCases",
+				 (count(*) FILTER (WHERE ${notUsefulCase}))::int AS "notUsefulCases",
+				 (count(*) FILTER (WHERE c.closed_at IS NOT NULL))::int AS "resolvedCases" ${from}`,
 				filters
 			);
-			const items: Summary[] = await manager.query(
-				`SELECT ${summarySelect} ${from}
+			const items: (Summary & { questionPreview: string | null })[] = await manager.query(
+				`SELECT ${summarySelect}, ${questionPreview} ${from} WHERE ${matches}
 				 ORDER BY CASE WHEN $1='UNSAFE' THEN CASE c.review_status WHEN 'pending' THEN 0
 				 WHEN 'reviewing' THEN 1 ELSE 2 END END, coalesce(c.reported_at,c.created_at) DESC,c.id DESC
-				 LIMIT $4 OFFSET $5`,
+				 LIMIT $5 OFFSET $6`,
 				[...filters, limit, (page - 1) * limit]
 			);
 			return {
 				items,
 				group: group ?? null,
-				pagination: { page, limit, total: count.total, totalPages: Math.ceil(count.total / limit) },
+				summary,
+				pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
 			};
 		});
 	}

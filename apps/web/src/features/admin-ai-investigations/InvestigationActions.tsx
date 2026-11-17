@@ -35,7 +35,7 @@ export function InvestigationActions({
 				disabled={busy}
 				onClick={() => void onSave({ action: "START_REVIEW", version: detail.version })}
 			>
-				Tiếp nhận xem xét
+				Bắt đầu xem xét
 			</Button>
 		);
 	}
@@ -84,10 +84,10 @@ export function InvestigationActions({
 		return (
 			<div className="flex flex-wrap gap-2">
 				<Button disabled={busy} variant="outline" onClick={() => open("HANDOFF")}>
-					Ghi nhận bàn giao
+					Bàn giao kỹ thuật
 				</Button>
 				<Button disabled={busy} onClick={() => open("RESOLVE")}>
-					Ghi kết luận
+					Xác nhận kết quả xử lý
 				</Button>
 			</div>
 		);
@@ -110,7 +110,7 @@ export function InvestigationActions({
 		>
 			<fieldset disabled={busy} className="space-y-3 disabled:opacity-60">
 				<legend className="mb-2 text-base font-bold text-[#10221b]">
-					{isResolve ? "Ghi kết luận xử lý" : "Ghi nhận bàn giao kỹ thuật"}
+					{isResolve ? "Kết quả xử lý" : "Bàn giao kỹ thuật"}
 				</legend>
 				{isResolve && (
 					<div className="space-y-1 text-sm font-medium">

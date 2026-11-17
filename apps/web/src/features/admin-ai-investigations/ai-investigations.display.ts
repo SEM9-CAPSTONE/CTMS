@@ -23,7 +23,7 @@ export const processingLabels = {
 
 export const technicalLabels = {
 	OPEN: ["Chưa có kết luận", "neutral"],
-	HANDED_OFF: ["Đã ghi nhận bàn giao", "info"],
+	HANDED_OFF: ["Đã bàn giao", "info"],
 	VERIFIED_FIX: ["Đã xác minh bản sửa", "success"],
 	JUSTIFIED_NO_FIX: ["Có căn cứ để không sửa", "success"],
 } as const satisfies Record<TechnicalStatus, readonly [string, StatusBadgeTone]>;
@@ -46,7 +46,7 @@ export function formatInvestigationDate(value: string) {
 	return dateTime.format(new Date(value));
 }
 
-export function investigationTitle(item: InvestigationSummary) {
-	if (item.reviewStatus !== null) return "Báo cáo nguy hiểm";
-	return item.rating === "NOT_USEFUL" ? "Phản hồi chưa hữu ích" : "Phản hồi câu trả lời AI";
+export function investigationCategory(item: InvestigationSummary) {
+	// The database requires reportedAt and reviewStatus to be present together on Unsafe cases.
+	return item.reportedAt !== null ? "UNSAFE" : "NOT_USEFUL";
 }

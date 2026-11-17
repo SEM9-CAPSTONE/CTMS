@@ -68,6 +68,26 @@ export const investigationFixture: InvestigationDetail = {
 	history: [],
 };
 
+export const notUsefulInvestigationFixture: InvestigationDetail = {
+	...investigationFixture,
+	id: "fa381c48-aac4-4f1e-bd45-6408c215da42",
+	mode: "LOCAL",
+	reviewStatus: null,
+	reportedAt: null,
+	processingStatus: "FAILED",
+	technicalStatus: "HANDED_OFF",
+	evidence: {
+		question: "Nên chuẩn bị bản đồ trước chuyến đi thế nào?",
+		answer: "Hãy tải bản đồ về thiết bị.",
+		provenance: "CLIENT_REPORTED",
+		trace: null,
+	},
+	report: null,
+	sources: [],
+	groups: [],
+	observations: { unmatchedCitation: false },
+};
+
 export function investigationList(
 	fixture: InvestigationDetail = investigationFixture
 ): InvestigationList {
@@ -94,9 +114,16 @@ export function investigationList(
 				closedAt,
 				processingStatus,
 				rating,
+				questionPreview: fixture.evidence?.question ?? null,
 			},
 		],
 		pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
 		group: null,
+		summary: {
+			totalCases: 1,
+			unsafeCases: reportedAt !== null ? 1 : 0,
+			notUsefulCases: reportedAt === null && rating === "NOT_USEFUL" ? 1 : 0,
+			resolvedCases: closedAt !== null ? 1 : 0,
+		},
 	};
 }

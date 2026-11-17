@@ -109,6 +109,10 @@ describe("CTMS-073 investigation HTTP contract", () => {
 		const id = randomUUID();
 		await request(app.getHttpServer()).get(endpoint).expect(401);
 		await request(app.getHttpServer())
+			.get(`${endpoint}?scope=NOT_USEFUL`)
+			.auth(camper, { type: "bearer" })
+			.expect(403);
+		await request(app.getHttpServer())
 			.get(`${endpoint}/${id}`)
 			.auth(camper, { type: "bearer" })
 			.expect(403);
@@ -119,6 +123,7 @@ describe("CTMS-073 investigation HTTP contract", () => {
 			.expect(403);
 		await get(`${endpoint}/${id}`).expect(404);
 		await get(`${endpoint}?scope=unknown`).expect(422);
+		await get(`${endpoint}?q=${"a".repeat(181)}`).expect(422);
 	});
 
 	it("keeps Unsafe available when analysis is unavailable and enforces substantiated completion", async () => {
@@ -143,11 +148,36 @@ describe("CTMS-073 investigation HTTP contract", () => {
 		);
 		const queue = await get(`${endpoint}?scope=UNSAFE&reviewStatus=pending&limit=50`).expect(200);
 		expect(queue.body.items).toEqual(
-			expect.arrayContaining([expect.objectContaining({ id, processingStatus: "FAILED" })])
+			expect.arrayContaining([
+				expect.objectContaining({
+					id,
+					processingStatus: "FAILED",
+					questionPreview: local(true).question,
+				}),
+			])
 		);
 		expect(queue.body.items).not.toEqual(
 			expect.arrayContaining([expect.objectContaining({ id: notUseful })])
 		);
+		const lower = await get(`${endpoint}?scope=NOT_USEFUL&limit=50`).expect(200);
+		expect(lower.body.items).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					id: notUseful,
+					reviewStatus: null,
+					questionPreview: local(false).question,
+				}),
+				expect.objectContaining({ id: legacyId, questionPreview: null }),
+			])
+		);
+		expect(lower.body.items).not.toEqual(expect.arrayContaining([expect.objectContaining({ id })]));
+		const search = await get(
+			`${endpoint}?scope=NOT_USEFUL&q=${encodeURIComponent("Đối chiếu bản đồ")}&limit=50`
+		).expect(200);
+		expect(search.body.items).toEqual(
+			expect.arrayContaining([expect.objectContaining({ id: legacyId })])
+		);
+		expect(search.body.summary).toEqual(lower.body.summary);
 		expect((await get(`${endpoint}/${legacyId}`).expect(200)).body).toMatchObject({
 			reviewStatus: null,
 			evidence: { provenance: "SERVER_RECORDED", question: null, trace: null },
