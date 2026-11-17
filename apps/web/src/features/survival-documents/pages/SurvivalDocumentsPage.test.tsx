@@ -42,7 +42,12 @@ const doc: DocumentDetail = {
 			versionNumber: 1,
 			revision: 1,
 			status: "DRAFT",
-			metadata,
+			metadata: {
+				...metadata,
+				licenseType: undefined,
+				permissionEvidence: undefined,
+				attribution: undefined,
+			},
 			rights: {
 				rightsReviewStatus: "NOT_REVIEWED",
 				sourceReviewConfirmed: false,
@@ -106,24 +111,47 @@ describe("CTMS-050 Admin source management", () => {
 		processingSyncStatus: "REGENERATION_NEEDED",
 		versions: [{ ...doc.versions[0], status: "PUBLISHED" }],
 	};
-	const chunkSet = { active: false, chunk_count: 0, error_code: null, quality_report: null };
+	const chunkSet = {
+		active: false,
+		chunk_count: 0,
+		error_code: null,
+		quality_report: null,
+		automatic_recovery_pending: false,
+	};
 
-	it("shows a technical failure and refreshes the current active count after retry", async () => {
+	it("polls for active chunks after publication without a start button", async () => {
 		vi.mocked(service.detail).mockResolvedValue(published);
 		vi.spyOn(service, "chunkSets")
-			.mockResolvedValueOnce([{ ...chunkSet, status: "FAILED", error_code: "ingestion_transport" }])
+			.mockResolvedValueOnce([])
 			.mockResolvedValue([{ ...chunkSet, status: "READY", active: true, chunk_count: 8 }]);
-		const retry = vi
-			.spyOn(service, "retryChunking")
-			.mockResolvedValue({ ...chunkSet, status: "PENDING" });
 		const panel = await detail();
-		expect(await panel.findByText("Xử lý thất bại")).toBeInTheDocument();
-		await userEvent.click(panel.getByRole("button", { name: "Thử lại xử lý" }));
-		expect(retry).toHaveBeenCalledWith(doc.id, doc.versions[0].id);
-		expect(await panel.findByText("Tri thức đã sẵn sàng · 8 đoạn trích")).toBeInTheDocument();
+		expect(await panel.findByText("Đang chờ xử lý tự động")).toBeInTheDocument();
+		expect(panel.queryByRole("button", { name: "Bắt đầu xử lý" })).toBeNull();
+		expect(
+			await panel.findByText("Dữ liệu tri thức đã sẵn sàng · 8 đoạn trích", {}, { timeout: 4500 })
+		).toBeInTheDocument();
 	});
 
-	it("explains incomplete extraction and directs Admin to replace the PDF", async () => {
+	it.each([
+		[true, "Tạm thời chưa thể xử lý"],
+		[false, "Không thể hoàn tất xử lý"],
+	])("shows whether a technical failure awaits recovery", async (pending, label) => {
+		vi.mocked(service.detail).mockResolvedValue(published);
+		vi.spyOn(service, "chunkSets").mockResolvedValue([
+			{
+				...chunkSet,
+				status: "FAILED",
+				error_code: "ingestion_transport",
+				automatic_recovery_pending: pending,
+			},
+		]);
+		const panel = await detail();
+		expect(await panel.findByText(label)).toBeInTheDocument();
+		expect(panel.queryByRole("button", { name: "Thử lại xử lý" })).toBeNull();
+		expect(Boolean(panel.queryByText(/sẽ tự động thử lại/))).toBe(pending);
+	});
+
+	it("explains an extraction omission without blaming the PDF", async () => {
 		vi.mocked(service.detail).mockResolvedValue(published);
 		vi.spyOn(service, "chunkSets").mockResolvedValue([
 			{
@@ -133,26 +161,26 @@ describe("CTMS-050 Admin source management", () => {
 			},
 		]);
 		const panel = await detail();
-		expect(await panel.findByText(/Thiếu nội dung quan trọng/)).toBeInTheDocument();
+		expect(
+			await panel.findByText(/cảnh báo hoặc hướng dẫn an toàn bị thiếu sau khi trích xuất/)
+		).toBeInTheDocument();
+		expect(panel.queryByText(/tải lên bản PDF/)).toBeNull();
 		expect(panel.queryByRole("button", { name: "Thử lại xử lý" })).toBeNull();
 	});
 
-	it("lets Admin approve the exact version of a blocked legacy publication", async () => {
+	it("shows why a published source is ineligible without an approval control", async () => {
 		const reason = "Nguồn PDF chưa được xác nhận để xử lý cho Trợ lý AI.";
 		vi.mocked(service.detail).mockResolvedValue({
 			...published,
 			processingSyncStatus: "NOT_PROCESSED",
 			processingBlockedReason: reason,
-			canApproveProcessing: true,
 		});
 		vi.mocked(service.action).mockResolvedValue(published);
 		vi.spyOn(service, "chunkSets").mockResolvedValue([]);
 		const panel = await detail();
 		expect(await panel.findByText(reason)).toBeInTheDocument();
-		await userEvent.click(panel.getByRole("button", { name: "Cho phép xử lý" }));
-		expect(service.action).toHaveBeenCalledWith(doc.id, doc.versions[0].id, "approve-processing", {
-			expectedRevision: doc.versions[0].revision,
-		});
+		expect(panel.queryByRole("button", { name: "Cho phép xử lý" })).toBeNull();
+		expect(service.action).not.toHaveBeenCalled();
 	});
 	it("shows loading until authoritative list arrives", async () => {
 		vi.mocked(service.list).mockReturnValue(new Promise(() => {}));
@@ -237,7 +265,6 @@ describe("CTMS-050 Admin source management", () => {
 		await waitFor(() =>
 			expect(service.action).toHaveBeenCalledWith(doc.id, doc.versions[0].id, "publish", {
 				expectedRevision: doc.versions[0].revision,
-				approveProcessing: true,
 			})
 		);
 		await waitFor(() => expect(notify).toHaveBeenCalledWith("Đã xuất bản tài liệu."));
@@ -349,7 +376,28 @@ describe("CTMS-050 Admin source management", () => {
 		await waitFor(() =>
 			expect(service.action).toHaveBeenCalledWith(doc.id, doc.versions[0].id, "publish", {
 				expectedRevision: doc.versions[0].revision,
-				approveProcessing: true,
+			})
+		);
+	});
+	it("records documented source and usage rights in the existing publication action", async () => {
+		vi.mocked(service.detail).mockResolvedValue({
+			...doc,
+			versions: [{ ...doc.versions[0], metadata }],
+		});
+		const panel = await detail();
+		await userEvent.click(panel.getByRole("button", { name: "Xuất bản" }));
+		await waitFor(() =>
+			expect(service.action).toHaveBeenCalledWith(doc.id, doc.versions[0].id, "publish", {
+				expectedRevision: doc.versions[0].revision,
+				rights: {
+					rightsReviewStatus: "PERMITTED",
+					sourceReviewConfirmed: true,
+					internalRagUseAllowed: true,
+					offlineRedistributionAllowed: false,
+					translationAllowed: false,
+					medicalContentReviewStatus: "NOT_REVIEWED",
+					evidence: metadata.permissionEvidence,
+				},
 			})
 		);
 	});

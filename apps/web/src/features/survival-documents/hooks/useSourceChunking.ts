@@ -1,22 +1,19 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { queryKeys } from "../../../core/api/queryKeys";
 import { CHUNK_STATUS_POLL_MS } from "../constants";
 import { survivalDocumentsService as service } from "../services/survival-documents.service";
 
-export function useSourceChunking(documentId: string, versionId: string) {
-	const client = useQueryClient();
-	const queryKey = queryKeys.survivalDocuments.chunkSets(documentId, versionId);
-	const query = useQuery({
-		queryKey,
+export function useSourceChunking(documentId: string, versionId: string, enabled: boolean) {
+	return useQuery({
+		enabled,
+		queryKey: queryKeys.survivalDocuments.chunkSets(documentId, versionId),
 		queryFn: () => service.chunkSets(documentId, versionId),
 		refetchInterval: ({ state }) => {
-			const status = state.data?.[0]?.status;
-			return !status || status === "PENDING" || status === "RUNNING" ? CHUNK_STATUS_POLL_MS : false;
+			const set = state.data?.[0];
+			if (set?.status === "FAILED" && set.automatic_recovery_pending) return 60_000;
+			return !set || set.status === "PENDING" || set.status === "RUNNING"
+				? CHUNK_STATUS_POLL_MS
+				: false;
 		},
 	});
-	const retry = useMutation({
-		mutationFn: () => service.retryChunking(documentId, versionId),
-		onSuccess: () => client.invalidateQueries({ queryKey }),
-	});
-	return { query, retry };
 }

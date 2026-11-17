@@ -73,6 +73,7 @@ def split_document(document: "DoclingDocument", chunker: "HybridChunker", tokeni
             for provenance in item.prov:
                 if not 1 <= provenance.page_no <= page_count:
                     issues.add("invalid_source_page")
+                    continue
                 locations.append(SourceLocation(page=provenance.page_no, item_ref=item.self_ref,
                                                 bbox=provenance.bbox.model_dump()))
         if not locations:

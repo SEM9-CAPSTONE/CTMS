@@ -364,7 +364,7 @@ describe("CTMS-050 PostgreSQL integration + real guarded HTTP", () => {
 			acquisition.mockRestore();
 		}
 	});
-	it("requires Admin approval for unlisted sources and queues the exact approved version", async () => {
+	it("requires exact-source evidence for unlisted PDFs and queues ingestion at publication", async () => {
 		for (const sourceUrl of [undefined, "https://unlisted.example.com/manual.pdf"]) {
 			const doc = await create({ ...fictionalMetadata, sourceUrl }, uniqueFictionalPdf());
 			const failure = await action(doc, "publish", {}, 422);
@@ -377,14 +377,15 @@ describe("CTMS-050 PostgreSQL integration + real guarded HTTP", () => {
 			expect(
 				await db.query("SELECT id FROM survival_document_outbox WHERE document_id=$1", [doc.id])
 			).toEqual([]);
-			const publication = await action(doc, "publish", { approveProcessing: true });
+			await action(doc, "publish", { approveProcessing: true }, 422);
+			const publication = await action(doc, "publish", { rights: fictionalRights });
 			expect(publication.body).toMatchObject({
 				processingSyncStatus: "REGENERATION_NEEDED",
 				versions: [
 					{
 						status: DocumentStatus.PUBLISHED,
 						checksum: doc.versions[0].checksum,
-						processingApprovedAt: expect.any(String),
+						processingApprovedAt: null,
 						rights: { offlineRedistributionAllowed: false, translationAllowed: false },
 					},
 				],

@@ -4,7 +4,7 @@ import hmac
 import os
 from functools import lru_cache
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
 from pydantic import ValidationError
 
 from app.knowledge_ingestion import InvalidEmbedding, InvalidPdf, InvalidQuery, KnowledgeIngestionService, ModelBusy
@@ -34,12 +34,20 @@ def health() -> dict[str, str]:
     return {"service": "ctms-knowledge-ingestion", "status": "ok"}
 
 
+@app.get("/readiness", status_code=204, dependencies=[Depends(require_token)])
+def readiness() -> Response:
+    return Response(status_code=204)
+
+
 @app.post("/knowledge-chunks", response_model=IngestionResponse, dependencies=[Depends(require_token)])
 def ingest(request: IngestionRequest, service: KnowledgeIngestionService = Depends(get_service)) -> IngestionResponse:
     try:
         return service.generate(request)
-    except InvalidPdf:
-        raise HTTPException(422, detail={"code": "invalid_pdf"}) from None
+    except InvalidPdf as error:
+        detail = {"code": "invalid_pdf"}
+        if str(error) in {"pdf_encrypted", "pdf_no_pages", "pdf_page_limit_exceeded", "pdf_text_read_failed"}:
+            detail["issue"] = str(error)
+        raise HTTPException(422, detail=detail) from None
     except InvalidEmbedding:
         raise HTTPException(502, detail={"code": "invalid_embedding"}) from None
     except Exception:

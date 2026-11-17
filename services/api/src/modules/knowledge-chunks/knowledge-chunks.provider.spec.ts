@@ -17,6 +17,7 @@ describe("Knowledge ingestion provider boundary", () => {
 		config_hash: "hash",
 		status: ChunkSetStatus.RUNNING,
 		attempts: 1,
+		recovery_round: 0,
 		lease_token: "token",
 	};
 	afterEach(() => jest.restoreAllMocks());
@@ -56,7 +57,7 @@ describe("Knowledge ingestion provider boundary", () => {
 	});
 	it.each([
 		[422, false],
-		[401, false],
+		[401, true],
 		[429, true],
 		[502, true],
 	])("classifies HTTP %i retryability", async (status, retryable) => {
@@ -64,6 +65,12 @@ describe("Knowledge ingestion provider boundary", () => {
 		await expect(
 			provider.generate(set, Buffer.from("pdf"), "Title", new AbortController().signal)
 		).rejects.toMatchObject({ code: `ingestion_http_${status}`, retryable });
+	});
+	it("classifies a failed network connection as transient", async () => {
+		jest.spyOn(globalThis, "fetch").mockRejectedValue(new Error("connection refused"));
+		await expect(
+			provider.generate(set, Buffer.from("pdf"), "Title", new AbortController().signal)
+		).rejects.toMatchObject({ code: "ingestion_transport", retryable: true });
 	});
 	it("fails explicitly when unconfigured and rejects mismatched worker output", async () => {
 		const fetcher = jest
@@ -76,10 +83,40 @@ describe("Knowledge ingestion provider boundary", () => {
 				"Title",
 				new AbortController().signal
 			)
-		).rejects.toMatchObject({ code: "ingestion_not_configured", retryable: false });
+		).rejects.toMatchObject({ code: "ingestion_not_configured", retryable: true });
 		expect(fetcher).not.toHaveBeenCalled();
 		await expect(
 			provider.generate(set, Buffer.from("pdf"), "Title", new AbortController().signal)
 		).rejects.toMatchObject({ code: "invalid_ingestion_output", retryable: false });
+	});
+	it("persists the reported PDF issue without guessing a page count or retrying", async () => {
+		jest.spyOn(globalThis, "fetch").mockResolvedValue(
+			new Response(
+				JSON.stringify({
+					detail: { code: "invalid_pdf", issue: "pdf_text_read_failed" },
+				}),
+				{ status: 422 }
+			)
+		);
+		await expect(
+			provider.generate(set, Buffer.from("pdf"), "Title", new AbortController().signal)
+		).rejects.toMatchObject({
+			retryable: false,
+			quality: { status: "NEEDS_REVIEW", issues: ["pdf_text_read_failed"], page_count: null },
+		});
+	});
+	it("probes the service with the ingestion token and treats a wrong token as unavailable", async () => {
+		const fetcher = jest
+			.spyOn(globalThis, "fetch")
+			.mockResolvedValueOnce(new Response(null, { status: 401 }))
+			.mockResolvedValueOnce(new Response(null, { status: 204 }));
+		await expect(provider.isAvailable()).resolves.toBe(false);
+		await expect(provider.isAvailable()).resolves.toBe(true);
+		expect(fetcher).toHaveBeenCalledWith(
+			"http://localhost:8001/readiness",
+			expect.objectContaining({
+				headers: { "X-CTMS-Knowledge-Token": "internal-test-token" },
+			})
+		);
 	});
 });

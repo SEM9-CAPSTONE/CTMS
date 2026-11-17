@@ -61,10 +61,15 @@ describe("CTMS-050 source policy and private storage", () => {
 		for (const host of ["sub.example.org", "example.org.other.com", "unlisted.example.com"])
 			expect(() => assertApprovedSource(source(`https://${host}/manual.pdf`))).toThrow();
 		expect(() => assertApprovedSource(source())).toThrow();
+		const legacy = { ...source(), processingApprovedAt: "2026-11-17T12:00:00Z" };
+		expect(() => assertApprovedSource(legacy)).toThrow();
+		expect(() => assertApprovedSource({ ...legacy, rights: permitted })).toThrow();
 		expect(() =>
 			assertApprovedSource({
-				...source(),
-				processingApprovedAt: "2026-11-17T12:00:00Z",
+				...legacy,
+				rights: permitted,
+				reviewedBy: "admin",
+				reviewedAt: "2026-11-17T12:00:00Z",
 			})
 		).not.toThrow();
 		const previous = process.env.SURVIVAL_KNOWLEDGE_APPROVED_SHA256;
