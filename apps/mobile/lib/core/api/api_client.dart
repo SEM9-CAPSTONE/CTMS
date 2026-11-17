@@ -160,8 +160,13 @@ class ApiClient {
     }
   }
 
-  Future<Response<T>> get<T>(String path, {Map<String, dynamic>? queryParameters}) =>
-      _guard(() => dio.get<T>(path, queryParameters: queryParameters));
+  Future<Response<T>> get<T>(String path, {
+    Map<String, dynamic>? queryParameters,
+    String? expectedUserId,
+    CancelToken? cancelToken,
+  }) => _guard(() => dio.get<T>(path, queryParameters: queryParameters,
+    cancelToken: cancelToken,
+    options: Options(extra: {'expectedUserId': expectedUserId})));
 
   /// [headers] is optional and only used by endpoints that need extra
   /// request headers (e.g. `Idempotency-Key` on Booking create/pay/refund).
@@ -183,8 +188,13 @@ class ApiClient {
   Future<Response<T>> put<T>(String path, {Object? data}) =>
       _guard(() => dio.put<T>(path, data: data));
 
-  Future<Response<T>> patch<T>(String path, {Object? data}) =>
-      _guard(() => dio.patch<T>(path, data: data));
+  Future<Response<T>> patch<T>(String path, {
+    Object? data,
+    String? expectedUserId,
+    CancelToken? cancelToken,
+  }) => _guard(() => dio.patch<T>(path, data: data,
+    cancelToken: cancelToken,
+    options: Options(extra: {'expectedUserId': expectedUserId})));
 
   Future<Response<T>> delete<T>(String path, {Object? data}) =>
       _guard(() => dio.delete<T>(path, data: data));

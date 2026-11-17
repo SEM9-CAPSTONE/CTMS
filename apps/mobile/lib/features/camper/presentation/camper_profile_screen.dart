@@ -16,6 +16,7 @@ import '../../auth/application/auth_controller.dart';
 import '../../auth/presentation/widgets/logout_actions.dart';
 import '../../camper_bookings/presentation/bank_accounts_screen.dart';
 import '../../push_notifications/presentation/push_notification_widgets.dart';
+import '../../notification_preferences/notification_preferences_card.dart';
 import '../../sync/presentation/device_sync_status_screen.dart';
 import '../profile/application/camper_health_profile_controller.dart';
 import '../profile/application/camper_profile_controller.dart';
@@ -1141,6 +1142,8 @@ class _CamperProfileScreenState extends ConsumerState<CamperProfileScreen> {
 
               // CTMS-090-T02: background push status and retry
               const PushNotificationsSettingsCard(),
+              const SizedBox(height: AppSpacing.lg),
+              const NotificationPreferencesCard(),
 
               const SizedBox(height: AppSpacing.xl),
 
