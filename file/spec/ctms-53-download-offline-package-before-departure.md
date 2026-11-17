@@ -93,6 +93,10 @@ Insufficient storage must not become completed.
 
 ## 9. API / Integration Contract
 
+The default version resolves to the applicable requirement before departure and the recorded
+lock after departure, when present. Explicit versioned and ranged reads keep their existing
+authorization and immutable byte semantics.
+
 ### CTMS-222 implementation contract - 2026-11-08
 
 CTMS-222 implements business story CTMS-053. It consumes the immutable READY artifact from CTMS-052; it neither requests generation nor verifies or activates a local safety dataset. The client transports an opaque ZIP. A ZIP decoder belongs with the CTMS-054 archive verification boundary and is not required for byte transfer.

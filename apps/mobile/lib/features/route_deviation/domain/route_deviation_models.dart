@@ -11,6 +11,9 @@ class RouteDeviationContext {
     required this.routeVersion,
     required this.coordinates,
     required this.configVersion,
+    this.packageId,
+    this.packageVersion,
+    this.lockedPackageId,
   });
 
   final String tripId;
@@ -19,6 +22,9 @@ class RouteDeviationContext {
   final String participantRole;
   final String routeId;
   final String routeVersion;
+  final String? packageId;
+  final String? packageVersion;
+  final String? lockedPackageId;
 
   /// GeoJSON LineString positions as `[longitude, latitude]`.
   final List<List<double>> coordinates;
@@ -33,6 +39,9 @@ class RouteDeviationContext {
       participantRole: json['participantRole'] as String,
       routeId: json['routeId'] as String,
       routeVersion: json['routeVersion'] as String,
+      packageId: json['packageId'] as String?,
+      packageVersion: json['packageVersion'] as String?,
+      lockedPackageId: json['lockedPackageId'] as String?,
       coordinates: [
         for (final position in geometry['coordinates'] as List)
           [for (final value in position as List) (value as num).toDouble()],
@@ -48,6 +57,9 @@ class RouteDeviationContext {
     'participantRole': participantRole,
     'routeId': routeId,
     'routeVersion': routeVersion,
+    if (packageId != null) 'packageId': packageId,
+    if (packageVersion != null) 'packageVersion': packageVersion,
+    if (lockedPackageId != null) 'lockedPackageId': lockedPackageId,
     'geometry': {'type': 'LineString', 'coordinates': coordinates},
     'configVersion': configVersion,
   };

@@ -16,7 +16,7 @@ import {
 export class OfflinePackagesRepository {
 	constructor(private readonly db: DataSource) {}
 
-	async request(tripId: string, requestKey: string): Promise<PackageJob> {
+	async request(tripId: string, requestKey: string, sourceReference?: string): Promise<PackageJob> {
 		return this.db.transaction(async (manager) => {
 			const trips: { status: string }[] = await manager.query(
 				"SELECT status FROM trips WHERE id=$1 FOR SHARE",
@@ -32,9 +32,34 @@ export class OfflinePackagesRepository {
 				"SELECT * FROM offline_package_jobs WHERE trip_id=$1 AND request_key=$2",
 				[tripId, requestKey]
 			);
+			if (sourceReference) {
+				await manager.query(
+					`INSERT INTO offline_package_impacts(trip_id,source_reference,job_id)
+					 VALUES($1,$2,$3) ON CONFLICT(trip_id,source_reference)
+					 DO UPDATE SET job_id=EXCLUDED.job_id WHERE offline_package_impacts.job_id IS NULL`,
+					[tripId, sourceReference, jobs[0].id]
+				);
+			}
 			return jobs[0];
 		});
 	}
+
+	async hasImpact(manager: EntityManager, jobId: string): Promise<boolean> {
+		const rows: unknown[] = await manager.query(
+			"SELECT 1 FROM offline_package_impacts WHERE job_id=$1 LIMIT 1",
+			[jobId]
+		);
+		return rows.length > 0;
+	}
+
+	async pendingImpacts(): Promise<Array<{ trip_id: string; source_reference: string }>> {
+		return this.db.query(
+			`SELECT i.trip_id,i.source_reference FROM offline_package_impacts i
+			 JOIN trips t ON t.id=i.trip_id WHERE i.job_id IS NULL AND t.status='published'
+			 ORDER BY i.recorded_at,i.trip_id,i.source_reference LIMIT 50`
+		);
+	}
+
 	async claim(): Promise<PackageJob | null> {
 		return this.db.transaction(async (manager) => {
 			const exhausted: PackageJob[] = await manager.query(

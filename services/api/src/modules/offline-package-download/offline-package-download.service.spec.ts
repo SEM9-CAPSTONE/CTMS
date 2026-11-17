@@ -26,7 +26,7 @@ describe("CTMS-053 range and private download policy", () => {
 		generatedAt: new Date().toISOString(),
 		contentType: "application/zip",
 	};
-	const access = { downloadableTripStatus: jest.fn() };
+	const access = { downloadableTripStatus: jest.fn(), applicableVersion: jest.fn() };
 	const packages = { getReadyMetadata: jest.fn(), readArtifact: jest.fn() };
 	let service: OfflinePackageDownloadService;
 	beforeEach(() => {
@@ -65,6 +65,19 @@ describe("CTMS-053 range and private download policy", () => {
 		expect(result.sizeBytes).toBe(bytes.length);
 		expect(result.activationAllowed).toBe(true);
 		expect(result).not.toHaveProperty("generationKey");
+	});
+	it("resolves the applicable version by default and disallows activation of older explicit versions", async () => {
+		access.applicableVersion.mockResolvedValue(2);
+		packages.getReadyMetadata.mockResolvedValueOnce({ ...metadata, packageVersion: 2 });
+		await expect(service.metadata(userId, tripId)).resolves.toMatchObject({
+			packageVersion: 2,
+			activationAllowed: true,
+		});
+		expect(packages.getReadyMetadata).toHaveBeenCalledWith(tripId, 2);
+		await expect(service.metadata(userId, tripId, 1)).resolves.toMatchObject({
+			packageVersion: 1,
+			activationAllowed: false,
+		});
 	});
 	it("allows ongoing Trip transfer without allowing activation", async () => {
 		access.downloadableTripStatus.mockResolvedValue("ongoing");

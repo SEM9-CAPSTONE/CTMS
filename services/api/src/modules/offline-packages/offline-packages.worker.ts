@@ -47,6 +47,7 @@ export class OfflinePackagesWorker implements OnModuleInit, OnModuleDestroy {
 	}
 	private async runTick(): Promise<void> {
 		await this.processOne();
+		await this.packages.dispatchPendingImpacts();
 		await this.packages.cleanupOrphans();
 	}
 	async processOne(): Promise<boolean> {

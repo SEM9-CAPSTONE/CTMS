@@ -95,6 +95,11 @@ class PackagePolicyClient {
         },
       );
     }
+    final afterReport = await context(package);
+    if (!afterReport.replaceAllowed ||
+        (afterReport.hasRequirement && afterReport.requiredId != package.id)) {
+      throw const FormatException('Chính sách gói đã thay đổi. Vui lòng kiểm tra lại.');
+    }
     // Keep the marker until the local activation has also committed.
   }
 

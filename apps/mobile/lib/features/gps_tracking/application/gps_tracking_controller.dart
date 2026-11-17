@@ -69,6 +69,8 @@ class GpsTrackingController extends ChangeNotifier {
   Timer? _recheckTimer;
   bool _disposed = false;
   bool _sampling = false;
+  String? evidencePackageVersion;
+  String? _samplePackageVersion;
 
   int get pendingCount =>
       logs.where((log) => log.syncState == GpsLogSyncState.pending).length;
@@ -190,7 +192,11 @@ class GpsTrackingController extends ChangeNotifier {
     }
     _sampling = true;
     try {
+      final packageAtSampleStart = evidencePackageVersion;
       lastSample = await location.currentSample(timeLimit: gpsSampleTimeLimit);
+      _samplePackageVersion = packageAtSampleStart == evidencePackageVersion
+          ? packageAtSampleStart
+          : null;
       lastSampleFailureAt = null;
     } catch (_) {
       lastSampleFailureAt = _clock();
@@ -231,6 +237,7 @@ class GpsTrackingController extends ChangeNotifier {
         tripId: tripId,
         sample: sample,
         configVersion: current.configVersion,
+        packageVersion: _samplePackageVersion,
       );
       logs = await store.update(tripId, (current) => [...current, log]);
     }

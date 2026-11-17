@@ -149,6 +149,10 @@ Sensitive information cannot remain authorized merely because it was downloaded 
 
 ## 9. API / Integration Contract
 
+CTMS-119 reuses the existing worker and final integrity/source gates. For a traced material
+replacement, job completion and required-version promotion share the READY transaction.
+The initial publication trigger continues to enqueue the first version.
+
 TBD — Technical Design.
 
 ## 10. Error & Edge Cases

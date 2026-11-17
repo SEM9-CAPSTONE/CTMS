@@ -7,6 +7,7 @@ import { UnavailableOfflineSafetySources } from "./offline-safety-sources";
 import { PackageActivationService } from "./package-activation.service";
 import { PackageArtifactBuilder } from "./package-artifact.builder";
 import { LocalPackageArtifactStorage, PackageArtifactStorage } from "./package-artifact.storage";
+import { PackageCamperPreparationService } from "./package-camper-preparation.service";
 import { PackageCoreReader } from "./package-core.reader";
 import { PackageDepartureNotificationsService } from "./package-departure-notifications.service";
 import {
@@ -22,6 +23,7 @@ import {
 
 @Module({
 	providers: [
+		PackageCamperPreparationService,
 		PackageDepartureNotificationsService,
 		PackageActivationService,
 		{ provide: PackageFreshnessSource, useClass: UnavailablePackageFreshnessSource },
@@ -37,6 +39,11 @@ import {
 		{ provide: OfflineSafetySources, useClass: UnavailableOfflineSafetySources },
 		{ provide: PackageArtifactStorage, useClass: LocalPackageArtifactStorage },
 	],
-	exports: [OfflinePackagesService, PackageActivationService, PackageDepartureNotificationsService],
+	exports: [
+		OfflinePackagesService,
+		PackageActivationService,
+		PackageDepartureNotificationsService,
+		PackageCamperPreparationService,
+	],
 })
 export class OfflinePackagesModule {}

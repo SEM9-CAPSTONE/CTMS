@@ -61,7 +61,10 @@ export class SafetyEventsService {
 		const { trip, participant } = await resolveTripParticipant(this.participation, userId, tripId);
 		const route = await this.requireTripRoute(tripId);
 		const reason = liveIneligibilityReason(trip, participant);
+		const lockedPackageId =
+			reason === null ? await this.safetyEvents.lockedPackageId(tripId) : null;
 		return {
+			...(lockedPackageId ? { lockedPackageId } : {}),
 			tripId,
 			eligible: reason === null,
 			reason,
@@ -91,7 +94,19 @@ export class SafetyEventsService {
 		dto: CreateSafetyEventsDto
 	): Promise<SafetyEventIngestResponseDto> {
 		const { trip, participant } = await resolveTripParticipant(this.participation, userId, tripId);
-		const route = await this.requireTripRoute(tripId);
+		const packageVersions = [
+			...new Set(
+				dto.events.flatMap((event) =>
+					isPackageEvidence(event) && event.packageVersion ? [event.packageVersion] : []
+				)
+			),
+		];
+		const packageRoutes = packageVersions.length
+			? await this.safetyEvents.findPackageRoutes(tripId, packageVersions)
+			: new Map<string, Pick<TripRoute, "routeId" | "routeVersion">>();
+		const legacyRoute = dto.events.some((event) => !isPackageEvidence(event))
+			? await this.requireTripRoute(tripId)
+			: null;
 		const outcomeById = new Map<string, SafetyEventIngestResultDto>();
 		const candidates: NewSafetyEvent[] = [];
 		const seenIds = new Set<string>();
@@ -103,11 +118,17 @@ export class SafetyEventsService {
 			}
 			seenIds.add(event.id);
 			const participationIssue = participationRejection(trip, participant, event.eventTime);
+			const route = isPackageEvidence(event)
+				? packageRoutes.get(event.packageVersion ?? "")
+				: legacyRoute;
 			const rejection = participationIssue
 				? PARTICIPATION_REJECTIONS[participationIssue]
 				: integrityRejection(event, route);
-			if (rejection) {
-				outcomeById.set(event.id, rejected(event.id, rejection));
+			if (rejection || !route) {
+				outcomeById.set(
+					event.id,
+					rejected(event.id, rejection ?? SafetyEventRejectionReason.ROUTE_VERSION_MISMATCH)
+				);
 				continue;
 			}
 			candidates.push(toNewSafetyEvent(event, tripId, userId, participant.role, route));
@@ -154,11 +175,17 @@ export class SafetyEventsService {
  * BR-360/363 and the fixed V3 thresholds: an event is authoritative only if it was
  * detected against the Trip's Route and its own context supports the transition.
  */
+function isPackageEvidence(event: SafetyEventInputDto): boolean {
+	// New clients use the verified manifest's SHA-256 geometry fingerprint.
+	// Older clients shipped the live Route MD5, sometimes with opaque package labels.
+	return /^[a-f0-9]{64}$/.test(event.routeVersion);
+}
+
 function integrityRejection(
 	event: SafetyEventInputDto,
-	route: TripRoute
+	route: Pick<TripRoute, "routeVersion"> | null | undefined
 ): SafetyEventRejectionReason | null {
-	if (event.routeVersion !== route.routeVersion) {
+	if (!route || event.routeVersion !== route.routeVersion) {
 		return SafetyEventRejectionReason.ROUTE_VERSION_MISMATCH;
 	}
 	return meetsThresholds(event) ? null : SafetyEventRejectionReason.THRESHOLD_NOT_MET;
@@ -202,7 +229,7 @@ function toNewSafetyEvent(
 	tripId: string,
 	userId: string,
 	participantRole: GpsParticipantRole,
-	route: TripRoute
+	route: Pick<TripRoute, "routeId">
 ): NewSafetyEvent {
 	return {
 		id: event.id,

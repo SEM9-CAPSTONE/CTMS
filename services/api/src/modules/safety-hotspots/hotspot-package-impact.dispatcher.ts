@@ -1,7 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { OfflinePackagesService } from "../offline-packages/offline-packages.service";
-import { PackageFailure } from "../offline-packages/offline-packages.types";
+import { PackageFailure, PackageReason } from "../offline-packages/offline-packages.types";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { HotspotCorrectiveActionsRepository } from "./hotspot-corrective-actions.repository";
 
@@ -34,7 +34,11 @@ export class HotspotPackageImpactDispatcher {
 				await this.packages.requestImpact(tripId, correctionImpactId(actionId));
 			} catch (error) {
 				// A Trip that stopped being published keeps its activated/historic version; nothing to do.
-				if (error instanceof PackageFailure) continue;
+				if (
+					error instanceof PackageFailure &&
+					error.reasons.includes(PackageReason.TRIP_NOT_PUBLISHED)
+				)
+					continue;
 				const message = error instanceof Error ? error.message : "unknown error";
 				this.logger.warn(`Package impact request for correction ${actionId} deferred: ${message}`);
 				return false;

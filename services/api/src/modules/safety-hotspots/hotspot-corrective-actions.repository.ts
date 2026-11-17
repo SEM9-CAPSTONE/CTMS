@@ -131,6 +131,15 @@ export class HotspotCorrectiveActionsRepository {
 		return id;
 	}
 
+	async recordPackageImpacts(manager: EntityManager, tripIds: string[], sourceReference: string) {
+		if (tripIds.length === 0) return;
+		await manager.query(
+			`INSERT INTO offline_package_impacts(trip_id,source_reference)
+			 SELECT unnest($1::uuid[]),$2 ON CONFLICT DO NOTHING`,
+			[tripIds, sourceReference]
+		);
+	}
+
 	async markImpactRequested(actionId: string, at: Date): Promise<void> {
 		await this.dataSource.query(
 			`UPDATE "hotspot_corrective_actions" SET "impact_requested_at" = $2

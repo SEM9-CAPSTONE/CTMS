@@ -33,7 +33,7 @@ function hotspot(status: SafetyHotspotStatus): LockedHotspot {
 
 function setup(options: { status?: SafetyHotspotStatus; routeStatus?: string | null } = {}) {
 	const auditSave = jest.fn().mockResolvedValue(undefined);
-	const manager = { getRepository: jest.fn(() => ({ save: auditSave })) };
+	const manager = { query: jest.fn(), getRepository: jest.fn(() => ({ save: auditSave })) };
 	const repository = {
 		transaction: jest.fn((work: (m: unknown) => Promise<unknown>) => work(manager)),
 		lockHotspot: jest
@@ -44,6 +44,7 @@ function setup(options: { status?: SafetyHotspotStatus; routeStatus?: string | n
 			.mockResolvedValue(options.routeStatus === undefined ? "active" : options.routeStatus),
 		findPublishedTripIds: jest.fn().mockResolvedValue(["trip-1", "trip-2"]),
 		insert: jest.fn().mockResolvedValue("action-1"),
+		recordPackageImpacts: jest.fn(),
 		findById: jest.fn().mockResolvedValue({ id: "action-1" }),
 	};
 	const checkpoints = {
@@ -156,6 +157,18 @@ describe("HotspotCorrectiveActionsService (CTMS-118)", () => {
 			["trip-1", "trip-2"],
 			expect.any(Date)
 		);
+	});
+
+	it("does not enqueue a correction with unchanged instructions", async () => {
+		const { service, checkpoints, repository, impacts } = setup();
+		checkpoints.updateSafetyInstructionsCorrective.mockResolvedValue({
+			result: { id: CHECKPOINT },
+			before: { instructions: "Keep to the marked trail" },
+			after: { instructions: "Keep to the marked trail" },
+		});
+		await service.create(ACTOR, HOTSPOT, instructionsDto());
+		expect(repository.recordPackageImpacts).not.toHaveBeenCalled();
+		expect(impacts.dispatch).not.toHaveBeenCalled();
 	});
 
 	it("records a no-data-change decision without touching Route data or packages (BR-423)", async () => {

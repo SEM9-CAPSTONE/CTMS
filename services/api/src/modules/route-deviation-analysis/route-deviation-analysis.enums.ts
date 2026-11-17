@@ -18,4 +18,5 @@ export enum RouteDeviationExclusionReason {
 	OUTSIDE_PARTICIPATION = "OUTSIDE_PARTICIPATION",
 	/** The user no longer holds an eligible Camper or Porter role on the Trip. */
 	PARTICIPATION_NOT_ELIGIBLE = "PARTICIPATION_NOT_ELIGIBLE",
+	PACKAGE_GEOMETRY_UNAVAILABLE = "PACKAGE_GEOMETRY_UNAVAILABLE",
 }

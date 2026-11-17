@@ -13,6 +13,7 @@ import { PackageFreshnessController } from "../src/modules/offline-package-downl
 import { PackageActivationService } from "../src/modules/offline-packages/package-activation.service";
 import { PackageArtifactBuilder } from "../src/modules/offline-packages/package-artifact.builder";
 import { PackageArtifactStorage } from "../src/modules/offline-packages/package-artifact.storage";
+import { PackageCamperPreparationService } from "../src/modules/offline-packages/package-camper-preparation.service";
 import { PackageDepartureNotificationsService } from "../src/modules/offline-packages/package-departure-notifications.service";
 import type { PackageSourceFreshness } from "../src/modules/offline-packages/package-freshness.source";
 import { Trip, TripStatus } from "../src/modules/trips/entities/trip.entity";
@@ -46,8 +47,9 @@ describe("CTMS-305 real PostgreSQL policy, HTTP validation and atomic departure"
 	const hostId = randomUUID();
 	const outsider = randomUUID();
 	const deviceId = randomUUID();
-	const first = recoveryFixture(tripId);
-	const second = recoveryFixture(tripId, first.metadata.manifest.route.routeId, 2);
+	const routeId = randomUUID();
+	const first = recoveryFixture(tripId, routeId);
+	const second = recoveryFixture(tripId, routeId, 2);
 	let db: DataSource;
 	let app: INestApplication;
 	let service: PackageActivationService;
@@ -99,6 +101,10 @@ describe("CTMS-305 real PostgreSQL policy, HTTP validation and atomic departure"
 			controllers: [PackageFreshnessController, PackageDepartureNotificationsController],
 			providers: [
 				{ provide: PackageActivationService, useValue: service },
+				{
+					provide: PackageCamperPreparationService,
+					useValue: new PackageCamperPreparationService(db),
+				},
 				{
 					provide: PackageDepartureNotificationsService,
 					useValue: new PackageDepartureNotificationsService(db),

@@ -18,6 +18,8 @@ import 'package_integrity_fixture.dart';
 class _Server implements HttpClientAdapter {
   final reports = <String>[];
   bool offline = false;
+  bool departOnActive = false;
+  bool ongoing = false;
   int denied = 0;
   late String selectedId;
   int selectedVersion = 1;
@@ -52,10 +54,10 @@ class _Server implements HttpClientAdapter {
       final version = versions[selected] ?? selectedVersion;
       response = {
         'tripId': testTripId,
-        'tripStatus': 'published',
+        'tripStatus': ongoing ? 'ongoing' : 'published',
         'checkedAt': '2026-11-12T00:00:00Z',
         'selected': {'packageId': selected, 'version': version},
-        'replaceAllowed': true,
+        'replaceAllowed': !ongoing,
         'publication': {
           'requiredPackageId': requiredId ?? selected,
           'requiredVersion': versions[requiredId] ?? 1,
@@ -65,7 +67,9 @@ class _Server implements HttpClientAdapter {
         'sourceFreshness': {'state': 'unknown'},
       };
     } else {
-      reports.add((options.data as Map)['status'] as String);
+      final status = (options.data as Map)['status'] as String;
+      reports.add(status);
+      if (status == 'active' && departOnActive) ongoing = true;
     }
     return ResponseBody.fromString(
       jsonEncode(response),
@@ -172,6 +176,20 @@ void main() {
       expect(controller.policy?.section('selected')['packageId'], next.id);
       expect(controller.policyOffline, isFalse);
       controller.dispose();
+    },
+  );
+
+  test(
+    'departure during report round trip leaves local replacement pending',
+    () async {
+      server.departOnActive = true;
+      final client = PackagePolicyClient(api, root);
+      await expectLater(
+        client.acceptActivation(package),
+        throwsFormatException,
+      );
+      expect(server.reports, ['downloaded', 'verified', 'active']);
+      expect((await client.cached(package))?.tripStatus, 'ongoing');
     },
   );
 

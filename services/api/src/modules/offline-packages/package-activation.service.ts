@@ -297,9 +297,18 @@ export class PackageActivationService {
 		]);
 		if (!trip) throw new NotFoundException({ code: "TRIP_NOT_ACCESSIBLE" });
 		this.assertMutable(trip);
-		await this.exact(m, tripId, packageId);
+		const candidate = await this.exact(m, tripId, packageId);
+		const [required]: Array<{ package_version: number }> = await m.query(
+			`SELECT p.package_version FROM offline_package_requirements r
+			 JOIN offline_packages p ON p.id=r.package_id AND p.trip_id=r.trip_id
+			 WHERE r.trip_id=$1`,
+			[tripId]
+		);
+		if (required && required.package_version >= candidate.package_version) return;
 		await m.query(
-			"INSERT INTO offline_package_requirements(trip_id,package_id) VALUES($1,$2) ON CONFLICT(trip_id) DO UPDATE SET last_checked_at=CASE WHEN offline_package_requirements.package_id=EXCLUDED.package_id THEN offline_package_requirements.last_checked_at END,last_reason_code=CASE WHEN offline_package_requirements.package_id=EXCLUDED.package_id THEN offline_package_requirements.last_reason_code END,package_id=EXCLUDED.package_id,required_at=CASE WHEN offline_package_requirements.package_id=EXCLUDED.package_id THEN offline_package_requirements.required_at ELSE now() END",
+			`INSERT INTO offline_package_requirements(trip_id,package_id) VALUES($1,$2)
+			 ON CONFLICT(trip_id) DO UPDATE SET package_id=EXCLUDED.package_id,
+			 required_at=now(),last_checked_at=NULL,last_reason_code=NULL`,
 			[tripId, packageId]
 		);
 	}

@@ -74,6 +74,8 @@ describe("SafetyEventsService", () => {
 	};
 	let repository: {
 		findTripRoute: jest.Mock;
+		lockedPackageId: jest.Mock;
+		findPackageRoutes: jest.Mock;
 		insertIgnoringExisting: jest.Mock;
 		findOwners: jest.Mock;
 	};
@@ -86,6 +88,8 @@ describe("SafetyEventsService", () => {
 			findPorterAssignment: jest.fn().mockResolvedValue(null),
 		};
 		repository = {
+			lockedPackageId: jest.fn().mockResolvedValue(null),
+			findPackageRoutes: jest.fn().mockResolvedValue(new Map()),
 			findTripRoute: jest
 				.fn()
 				.mockResolvedValue({ routeId: ROUTE_ID, routeVersion: ROUTE_VERSION, geometry: GEOMETRY }),
@@ -171,6 +175,31 @@ describe("SafetyEventsService", () => {
 				routeId: ROUTE_ID,
 				routeVersion: ROUTE_VERSION,
 				packageVersion: null,
+			});
+		});
+
+		it("keeps the immutable package geometry identity even when the live Route has changed", async () => {
+			const fingerprint = "a".repeat(64);
+			repository.findPackageRoutes.mockResolvedValue(
+				new Map([["2", { packageVersion: "2", routeId: ROUTE_ID, routeVersion: fingerprint }]])
+			);
+			await expect(
+				ingestOne(offRoute({ routeVersion: fingerprint, packageVersion: "2" }))
+			).resolves.toMatchObject({
+				status: SafetyEventIngestStatus.ACCEPTED,
+			});
+			expect(repository.findTripRoute).not.toHaveBeenCalled();
+			expect(repository.insertIgnoringExisting).toHaveBeenCalledWith([
+				expect.objectContaining({ packageVersion: "2", routeVersion: fingerprint }),
+			]);
+		});
+
+		it("rejects package evidence when the locked package and geometry do not match", async () => {
+			await expect(
+				ingestOne(offRoute({ routeVersion: "a".repeat(64), packageVersion: "3" }))
+			).resolves.toMatchObject({
+				status: SafetyEventIngestStatus.REJECTED,
+				reason: SafetyEventRejectionReason.ROUTE_VERSION_MISMATCH,
 			});
 		});
 

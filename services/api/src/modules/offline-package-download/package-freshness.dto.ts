@@ -1,5 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { IsIn, IsOptional, IsUUID, Matches } from "class-validator";
+import {
+	Equals,
+	IsIn,
+	IsOptional,
+	IsString,
+	IsUUID,
+	Matches,
+	MaxLength,
+	ValidateIf,
+} from "class-validator";
 
 export class PackageDeviceQueryDto {
 	@ApiProperty({
@@ -18,4 +27,20 @@ export class PackageDeviceReportDto extends PackageDeviceQueryDto {
 	@IsOptional()
 	@Matches(/^[a-f0-9]{64}$/)
 	sha256?: string;
+}
+
+export class CamperPreparationAcknowledgementDto {
+	@ApiProperty({ format: "uuid", nullable: true })
+	@ValidateIf((_, value) => value !== null)
+	@IsUUID()
+	packageId!: string | null;
+
+	@ApiProperty()
+	@IsString()
+	@MaxLength(64)
+	policyVersion!: string;
+
+	@ApiProperty({ enum: [true] })
+	@Equals(true)
+	acknowledged!: true;
 }

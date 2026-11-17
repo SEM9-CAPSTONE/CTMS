@@ -74,6 +74,9 @@ Downloaded
 
 ## 8. Data & Invariants
 
+Replacement activation refreshes policy after server reporting and before committing the local
+active pointer. A changed requirement or ongoing lock preserves the previous active artifact.
+
 - Integrity verified before use.
 - Checksum mismatch cannot be treated as success.
 - Failed package cannot be silently activated.

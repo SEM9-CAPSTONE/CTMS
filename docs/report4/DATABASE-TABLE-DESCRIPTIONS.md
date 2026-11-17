@@ -24,6 +24,13 @@ Online answers use `ai_answers`, unique by account and request ID. A persisted r
 
 See the [trace data contract](../features/CTMS-069-Implementation.md#inference-trace-extension-design) and [investigation storage design](../features/CTMS-073-Investigation-Design.md#investigation-snapshot-and-retention).
 
+## CTMS-119 package publication and Camper preparation
+
+| Table | Description |
+| --- | --- |
+| `offline_package_impacts` | Durable source-change references unique per Trip. Core changes retain entity and transaction context. Hotspot references identify the audited corrective action. The impact links to the existing generation job, which records its outcome and references the immutable READY package when successful. |
+| `offline_package_camper_acknowledgements` | One authenticated Camper confirmation per Trip, applicable required or locked package identity, and notice policy version. A null package identity represents the context without a requirement or lock. Stores server confirmation time and links to the Camper, Trip and applicable package. Confirmation is audited independently of device reports and departure state. |
+
 The following baseline table provides technical and functional descriptions for the CTMS schema. Feature-specific additions are documented below and must be read together with their migrations.
 
 | No | Table | Description |
