@@ -12,6 +12,9 @@ import { DataSource, type EntityManager } from "typeorm";
 import { AuditLog } from "../../auth/entities/audit-log.entity";
 import type { AuthenticatedUser } from "../../auth/jwt.strategy";
 import { DEFAULT_CANCELLATION_POLICY } from "../../bookings/cancellation-policy";
+import { InAppNotificationType } from "../../in-app-notifications/in-app-notification.entity";
+// biome-ignore lint/style/useImportType: Nest injection metadata
+import { InAppNotificationsService } from "../../in-app-notifications/in-app-notifications.service";
 import { publishBookingUpdates } from "../../realtime/booking-updates";
 // biome-ignore lint/style/useImportType: Nest constructor injection requires runtime metadata
 import { EventsGateway } from "../../realtime/events.gateway";
@@ -102,7 +105,8 @@ export class TripsService {
 		/** Forecast for each Trip's own dates on the search list; optional for unit fixtures. */
 		@Optional()
 		@Inject(TripWeatherForecastService)
-		private readonly tripWeatherForecasts?: TripWeatherForecastService
+		private readonly tripWeatherForecasts?: TripWeatherForecastService,
+		@Optional() private readonly inAppNotifications?: InAppNotificationsService
 	) {}
 
 	async search(query: SearchTripsQueryDto, viewerId?: string): Promise<PaginatedTripsResponseDto> {
@@ -593,10 +597,17 @@ export class TripsService {
 					reason: "host_configure_trip_waypoints",
 				});
 
-				return {
-					trip: updated,
-					submittedForReview: lockedTrip.status !== TripStatus.PENDING_APPROVAL,
-				};
+				const submittedForReview = lockedTrip.status !== TripStatus.PENDING_APPROVAL;
+				if (submittedForReview) {
+					await this.inAppNotifications?.enqueueTripReview(
+						manager,
+						tripId,
+						InAppNotificationType.REVIEW_REQUESTED,
+						new Date(updated.updatedAt).toISOString(),
+						new Date(updated.updatedAt)
+					);
+				}
+				return { trip: updated, submittedForReview };
 			}
 		);
 		if (result.submittedForReview) this.emitTripReviewRequested(result.trip);
@@ -702,6 +713,13 @@ export class TripsService {
 				after: { ...this.buildWaypointAuditSnapshot(updated), weatherForecast: weather },
 				reason: "host_submit_trip_for_approval",
 			});
+			await this.inAppNotifications?.enqueueTripReview(
+				manager,
+				tripId,
+				InAppNotificationType.REVIEW_REQUESTED,
+				new Date(updated.updatedAt).toISOString(),
+				new Date(updated.updatedAt)
+			);
 			return { trip: updated, submitted: true };
 		});
 		if (result.submitted) this.emitTripReviewRequested(result.trip);
@@ -965,7 +983,30 @@ export class TripsService {
 		);
 		let reminded = 0;
 		for (const trip of reminders) {
-			await this.dataSource.transaction(async (manager: EntityManager) => {
+			const sent = await this.dataSource.transaction(async (manager: EntityManager) => {
+				if (this.inAppNotifications) {
+					const locked = await manager
+						.withRepository(this.tripsRepository)
+						.findByIdForReview(trip.id);
+					if (
+						!locked ||
+						locked.status !== TripStatus.PENDING_APPROVAL ||
+						new Date(locked.trip.updatedAt).getTime() !== new Date(trip.updatedAt).getTime()
+					)
+						return false;
+					const existing: { id: string }[] = await manager.query(
+						`SELECT id FROM audit_logs WHERE target_id = $1 AND action = 'trip.review.reminder_sent'
+						 AND created_at >= COALESCE((
+							SELECT submitted.created_at FROM audit_logs submitted
+							WHERE submitted.target_type = 'trip' AND submitted.target_id = $1
+							 AND (submitted.action = 'trip.submitted_for_approval' OR
+								(submitted.action = 'trip_waypoints.configured' AND submitted."before"->>'status' = 'draft'))
+							ORDER BY submitted.created_at DESC, submitted.id DESC LIMIT 1
+						), $2::timestamptz) LIMIT 1`,
+						[trip.id, trip.updatedAt]
+					);
+					if (existing.length > 0) return false;
+				}
 				await manager.getRepository(AuditLog).save({
 					actorId: null,
 					action: "trip.review.reminder_sent",
@@ -979,7 +1020,16 @@ export class TripsService {
 					},
 					reason: "admin_review_deadline_reminder",
 				});
+				await this.inAppNotifications?.enqueueTripReview(
+					manager,
+					trip.id,
+					InAppNotificationType.REVIEW_REMINDER,
+					new Date(trip.updatedAt).toISOString(),
+					now
+				);
+				return true;
 			});
+			if (!sent) continue;
 			reminded += 1;
 			this.emitTripReviewReminder(trip);
 		}
@@ -1081,6 +1131,13 @@ export class TripsService {
 				},
 				reason: TRIP_REVIEW_AUTO_REJECT_REASON,
 			});
+			await this.inAppNotifications?.enqueueTripReview(
+				manager,
+				tripId,
+				InAppNotificationType.AUTO_REJECTED,
+				new Date(locked.trip.updatedAt).toISOString(),
+				rejectedAt
+			);
 			return updated;
 		});
 	}

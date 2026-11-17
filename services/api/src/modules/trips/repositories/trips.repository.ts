@@ -1151,6 +1151,13 @@ export class TripsRepository extends Repository<Trip> {
 					WHERE audit."target_type" = 'trip'
 						AND audit."target_id" = trip."id"
 						AND audit."action" = 'trip.review.reminder_sent'
+						AND audit."created_at" >= COALESCE((
+							SELECT submitted.created_at FROM audit_logs submitted
+							WHERE submitted.target_type = 'trip' AND submitted.target_id = trip.id
+							 AND (submitted.action = 'trip.submitted_for_approval' OR
+								(submitted.action = 'trip_waypoints.configured' AND submitted."before"->>'status' = 'draft'))
+							ORDER BY submitted.created_at DESC, submitted.id DESC LIMIT 1
+						), trip."updated_at")
 				)
 			ORDER BY trip."updated_at" ASC, trip."id" ASC
 			`,

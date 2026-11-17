@@ -108,7 +108,16 @@ Trip review notifications must reference the related Trip and must not be visibl
 
 ## 9. API / Integration Contract
 
-TBD — Technical Design.
+CTMS-379 backend contract: authenticated recipient-only
+`GET /api/in-app-notifications` (cursor pagination and optional read-state filter),
+`GET /api/in-app-notifications/unread-count`, and
+`PATCH /api/in-app-notifications/:id/read` (idempotent first-read timestamp).
+Unavailable related content is represented by a null target without leaking its
+title or identity. The private `notification.created` realtime invalidation carries
+only notification identity and event time; clients refetch the authorized inbox.
+
+See [CTMS-379 technical design](../../docs/features/CTMS-379-In-App-Notifications.md)
+for schemas, authorization, transactional outbox semantics, retries, and boundaries.
 
 ## 10. Error & Edge Cases
 
