@@ -104,7 +104,54 @@ A general preference must not override a stronger safety rule.
 
 ## 9. API / Integration Contract
 
-TBD — Technical Design.
+CTMS-385 controls push delivery. In-app history and recovery remain available.
+All authenticated roles share the same server-defined catalog. CTMS-386 must label
+the controls as push preferences (Vietnamese: “Thông báo đẩy”).
+
+`GET /api/notification-preferences` returns `{ channel: "push", version, categories }`.
+Each category contains `category`, `label`, `configurable`, `enabled` and
+`effectiveEnabled`. Defaults are explicitly returned as enabled with collection
+version `0` when the account has no saved settings. GET does not create rows.
+
+| Category | Configurable | Mandatory behavior |
+| --- | --- | --- |
+| `booking` | Yes | Ordinary push |
+| `porter_assignment` | Yes | Ordinary push |
+| `weather` | Yes | `mandatoryOverride: "red_weather"`; the existing backend policy always sends mandatory Red weather pushes regardless of the ordinary preference |
+| `sos` | No | Enabled and locked, following existing mandatory delivery policy |
+| `emergency` | No | Enabled and locked, following existing mandatory delivery policy |
+
+`effectiveEnabled` describes ordinary delivery for configurable categories. The
+weather override still applies when ordinary weather is disabled. The client
+never decides weather severity or mandatory status. SOS and emergency are locked
+for every account under the existing policy, including outside an active Trip.
+
+`PATCH /api/notification-preferences` accepts a partial category update:
+
+```json
+{"version":0,"changes":[{"category":"booking","enabled":false}]}
+```
+
+Only the authenticated account is addressed; a caller-supplied account ID is
+rejected. Unspecified categories retain their values. The collection version is
+locked and incremented once for the complete successful update. Concurrent writes
+using one version allow only one success. Responses return the authoritative
+collection after commit. No partial update is persisted if any item is invalid.
+
+- `401`: authentication required.
+- `422`: malformed fields or unknown request properties, using the shared field-validation response.
+- `409`, `PREFERENCE_VERSION_CONFLICT`: stale collection version; reload before saving.
+- `422`, `MANDATORY_NOTIFICATION_TYPE`: an attempt to edit a locked category.
+- `422`, `UNSUPPORTED_NOTIFICATION_TYPE`: unsupported category.
+- `422`, `INVALID_PREFERENCE_CHANGE`: duplicate categories or invalid changes.
+
+The push worker loads one fresh database snapshot for all ordinary recipients
+at the start of each delivery pass, with no cross-pass cache. Preferences changed
+after that snapshot apply in the next pass. Already sent pushes remain sent.
+Mandatory rows bypass preference filtering. A preference lookup failure is logged
+and defaults ordinary pushes to enabled for that pass. Eligibility checks and
+delivery retry behavior still apply. Storage has a unique `(user_id, category)`
+key and foreign keys cascade on account deletion.
 
 ## 10. Error & Edge Cases
 
@@ -129,4 +176,4 @@ TBD — Technical Design.
 
 ## 12. Open Decisions
 
-Exact list of configurable noncritical notification types belongs to authoritative notification configuration.
+The initial configurable catalog and push-only channel are approved above.
