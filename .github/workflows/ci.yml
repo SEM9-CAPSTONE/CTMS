@@ -53,7 +53,7 @@ jobs:
 
       - name: Test survival answer provider contract
         working-directory: services/ai
-        run: python -m pytest app/test_survival_answers.py app/test_survival_answers_policy.py -q
+        run: python -m pytest app/test_survival_answers.py app/test_survival_answers_policy.py app/test_feedback_investigation.py -q
 
   survival-answer-api:
     name: Survival Answers API Tests
@@ -85,9 +85,9 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --no-frozen-lockfile
-      - run: pnpm --filter @ctms/api exec jest --runInBand ai-answers rag knowledge-chunks
-      - run: pnpm --filter @ctms/api test:integration knowledge-chunks.integration-spec.ts survival-documents.integration-spec.ts auth.login.integration-spec.ts auth.refresh.integration-spec.ts
-      - run: pnpm --filter @ctms/api test:e2e ai-answers.e2e-spec.ts survival-documents.e2e-spec.ts
+      - run: pnpm --filter @ctms/api exec jest --runInBand ai-answers ai-investigations rag knowledge-chunks
+      - run: pnpm --filter @ctms/api test:integration ai-investigations.integration-spec.ts ai-feedback.integration-spec.ts knowledge-chunks.integration-spec.ts survival-documents.integration-spec.ts auth.login.integration-spec.ts auth.refresh.integration-spec.ts
+      - run: pnpm --filter @ctms/api test:e2e ai-investigations.e2e-spec.ts ai-answers.e2e-spec.ts survival-documents.e2e-spec.ts
 
   survival-answer-mobile:
     name: Camper AI Chat Widget Tests
