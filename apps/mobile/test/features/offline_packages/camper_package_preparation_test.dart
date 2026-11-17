@@ -48,6 +48,7 @@ void main() {
   ) async {
     await tester.pumpWidget(
       MaterialApp(
+        theme: ThemeData(splashFactory: InkRipple.splashFactory),
         home: Scaffold(
           body: Builder(
             builder: (context) => TextButton(
@@ -92,6 +93,7 @@ void main() {
             ),
           ],
           child: MaterialApp(
+            theme: ThemeData(splashFactory: InkRipple.splashFactory),
             home: Scaffold(
               body: CamperPackagePreparationPanel(
                 tripId: tripId,

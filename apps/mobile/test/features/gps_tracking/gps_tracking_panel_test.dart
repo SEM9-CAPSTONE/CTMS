@@ -31,7 +31,7 @@ void main() {
       ProviderScope(
         overrides: [gpsTrackingControllerProvider.overrideWith((ref, id) => controller)],
         child: MaterialApp(
-          theme: theme ?? AppTheme.light(),
+          theme: (theme ?? AppTheme.light()).copyWith(splashFactory: InkRipple.splashFactory),
           home: Scaffold(
             body: SingleChildScrollView(
               child: GpsTrackingPanel(tripId: tripId, now: () => now),
@@ -40,7 +40,7 @@ void main() {
         ),
       ),
     );
-    await tester.runAsync(controller.start);
+    await controller.start();
     await tester.pump();
     return controller;
   }
@@ -86,7 +86,6 @@ void main() {
 
     expect(find.text('Chưa cấp quyền'), findsOneWidget);
     await tester.tap(find.byKey(const Key('gps-request-permission')));
-    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
     await tester.pump();
 
     expect(location.requestCalls, 1);
