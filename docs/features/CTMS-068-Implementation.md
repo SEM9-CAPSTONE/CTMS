@@ -4,11 +4,11 @@ Story [CTMS-256](https://thuha140105.atlassian.net/browse/CTMS-256), implementat
 
 ## Consumer contract
 
-Import `RagModule` in the CTMS-069 consumer module. Inject `RagRetrievalService` and call `retrieve(actor, { question, locale })`. Supply the actor from CTMS's authenticated user context. The internal service requires an active Camper and accepts no client-selected source IDs, model, scope or budget. Locale matching is exact across the server allowlist, so a query with `vi-VN` searches a `vi-VN` corpus. Use the corpus locale when the consumer resolves regional preferences.
+Import `RagModule` in the CTMS-069 consumer module. Inject `RagRetrievalService` and call `retrieve(actor, { question, locale })`. Supply the actor from CTMS's authenticated user context. The internal service requires an active Camper. The request locale selects the response language. The server independently controls eligible source locales, source IDs, model and budget.
 
 | Result | Meaning |
 | --- | --- |
-| `GROUNDED` | `context` is JSON text containing selected chunk IDs, heading paths and complete chunk contents in ranked order. `selectedChunks` and `sources` describe exactly that evidence. |
+| `GROUNDED` | `context` is JSON text containing selected chunk IDs, original source locales, heading paths and complete chunk contents in ranked order. `selectedChunks` and `sources` describe exactly that evidence. |
 | `INSUFFICIENT_CONTEXT / NO_MATCH` | No candidate passed eligibility, provenance and relevance. |
 | `INSUFFICIENT_CONTEXT / CONTEXT_BUDGET` | The first relevant block could not fit intact. |
 | `INSUFFICIENT_CONTEXT / INCOMPLETE_EVIDENCE` | Selection omitted another chunk belonging to a selected PDF item. |
@@ -24,9 +24,9 @@ The evidence is untrusted data. The CTMS-069 consumer must pass it to the genera
 
 A bounded eligibility preflight skips the model for an empty corpus. A PostgreSQL read-only repeatable-read search snapshot then intersects the CTMS-050 current publication with the CTMS-051 active pointer, READY status, passed extraction report and compatible configuration. The repository checks version number, version UUID, SHA-256, locale, configuration identity and contiguous chunk count. It applies the existing `isEligiblePublishedSource` policy, including the CTMS-219/220/221 allowlist and medical/translation gates. It validates page/item references against the recorded page count and checks the stored title against source metadata.
 
-PostgreSQL scores the bounded eligible corpus using exact cosine similarity on the existing arrays. It rejects malformed vectors and returns at most 128 ranked rows, tied by set UUID, chunk index and chunk UUID. NestJS uses lexical corroboration on the heading and content, deduplicates normalized content, and enforces the configured limits. Lexical corroboration is deliberately conservative and can omit paraphrases. Whole chunks retain the warnings and conditions supplied by CTMS-051. A fresh read-only snapshot after token counting revalidates selected pointers, source rights, version, checksum, configuration, selected chunks and source-item completeness. A commit visible to that snapshot can revoke evidence. A change after that decision point requires a new retrieval before reuse. This path performs no business writes.
+PostgreSQL scores the combined eligible corpus using exact cosine similarity on the existing arrays. It rejects malformed vectors and returns at most 128 ranked rows, tied by set UUID, chunk index and chunk UUID. NestJS applies the same-language lexical check to matching primary language tags. For Vietnamese and English cross-language candidates, NestJS applies the separate cosine threshold and requires all recognized query concepts to be corroborated by aliases in the original passage body. An unsupported language pair or a query without a recognized concept yields no cross-language evidence. Ranking and deduplication apply across languages. Whole chunks retain the warnings and conditions supplied by CTMS-051. A fresh read-only snapshot after token counting revalidates selected pointers, exact source locales, source rights, checksum, configuration, selected chunks and source-item completeness. A commit visible to that snapshot can revoke evidence. A change after that decision point requires a new retrieval before reuse.
 
-Search work is proportional to eligible vector count × 384, plus ranking and publication validation. The default scan limit is 5,000 vectors per locale. Over-limit requests fail closed. No migration or extension is needed. The 128-row rank window bounds Node memory and can reduce recall where many high-scoring rows fail the lexical gate.
+Search work is proportional to eligible vector count × 384, plus ranking and publication validation. The default scan limit is 5,000 vectors across the entire source allowlist. Over-limit requests fail closed. The 128-row rank window bounds Node memory and can reduce recall where many high-scoring rows fail corroboration.
 
 ## Data dictionary
 
@@ -43,8 +43,10 @@ For the planned CTMS-069 Inference Trace, the configuration identity must resolv
 
 | Variable | Default | Valid range or policy |
 | --- | --- | --- |
-| `RAG_MIN_SCORE` | Required | 0.01–1, calibrated on approved PDFs |
-| `RAG_LOCALES` | `vi,vi-VN,en` | Up to 20 canonical locale identifiers |
+| `RAG_MIN_SCORE` | Required | 0.01–1, same-language score threshold |
+| `RAG_LOCALES` | `vi,vi-VN,en` | Up to 20 canonical query and response locale identifiers |
+| `RAG_SOURCE_LOCALES` | Inherits `RAG_LOCALES` | Up to 20 exact eligible source locales, with independent source and rights checks |
+| `RAG_CROSS_LINGUAL_MIN_SCORE` | 0.74 | 0.01–1, cross-language score threshold. Pilot value pending approved-corpus validation. |
 | `RAG_TOP_K` | 5 | 1–10 chunks |
 | `RAG_MAX_SOURCES` | 3 | 1–10 documents |
 | `RAG_MAX_CANDIDATES` | 5000 | 1–10000 vectors |
@@ -66,23 +68,31 @@ The existing `KNOWLEDGE_SERVICE_URL` and `KNOWLEDGE_SERVICE_TOKEN` configure the
 | Ingestion regression | Existing CTMS-051 Jest and Python suites |
 
 ```powershell
-pnpm --filter @ctms/api exec jest --runInBand rag knowledge-chunks
+Push-Location services/api
+$unitTests = Get-ChildItem -Recurse src/modules/rag,src/modules/ai-answers,src/modules/ai-investigations,src/modules/knowledge-chunks,src/modules/survival-documents,src/modules/offline-packages -Filter '*.spec.ts' | ForEach-Object FullName
+.\node_modules\.bin\jest.cmd --runInBand --runTestsByPath @unitTests
+Pop-Location
 docker compose -f docker-compose.test.yml up -d --wait
 $env:TEST_DATABASE_URL='postgresql://ctms:ctms@127.0.0.1:55451/ctms_test'
-pnpm --filter @ctms/api test:integration knowledge-chunks.integration-spec.ts survival-documents.integration-spec.ts
-pnpm --filter @ctms/api test:e2e survival-documents.e2e-spec.ts
+pnpm --filter @ctms/api run test:integration --runTestsByPath test/knowledge-chunks.integration-spec.ts test/survival-documents.integration-spec.ts test/ai-investigations.integration-spec.ts test/offline-packages.integration-spec.ts test/package-activation.integration-spec.ts
+pnpm --filter @ctms/api run test:e2e --runTestsByPath test/ai-answers.e2e-spec.ts test/survival-documents.e2e-spec.ts test/offline-packages.e2e-spec.ts
 
 pnpm lint:all
 pnpm build:all
 pnpm test:all
 
 # From services/ai with the ingestion environment active
-python -m pytest app/test_rag_knowledge_api.py app/test_knowledge_api.py app/test_knowledge_chunking.py app/test_knowledge_recall.py -q
+python -m pytest -q app/test_knowledge_recall.py app/test_knowledge_chunking.py app/test_survival_answers.py -k 'test_knowledge_recall or test_knowledge_chunking or prompt_artifact or evidence_locale'
+python -m pytest -q app/test_rag_knowledge_api.py app/test_knowledge_api.py app/test_survival_answers.py app/test_feedback_investigation.py
 ```
 
 Set `RUN_RAG_BENCHMARK=true` before running the integration suite to run 10 requests over 2,000 synthetic vectors. This measures the local service and database with the embedding provider stubbed. Treat heap delta as an observation rather than peak memory.
 
-Use 30–50 distinct labelled questions from approved PDFs for release evaluation. Label exact version, page, item and source excerpt. The existing CTMS-051 evaluator measures raw embedding ranking. For CTMS-098 release evidence, also evaluate final selected chunks through this runtime retrieval service so the score threshold, lexical gate and context budget affect the measured Hit@5. The corpus threshold, actual Hit@5 and operational latency remain unmeasured until that evaluation runs.
+Use 30–50 distinct labelled questions from approved PDFs for release evaluation. Label exact version, page, item and source excerpt. The CTMS-051 evaluator measures raw embedding Recall@5 by query-to-source language direction. Include the original excerpt and optionally its `locale` in `expected_sources`. Use `--source-locales vi vi-VN en` to mirror the server allowlist. For CTMS-098 release evidence, also evaluate final selected chunks through the runtime service so the score thresholds, relevance checks and context budget affect Hit@5. Include negative queries with no supporting excerpt.
+
+The pilot used the pinned E5 model, 30 labelled positive queries and 10 negative queries on seven paraphrased passages from public PDFs and two fictional distractors. At a same-language floor of 0.80 and cross-language floor of 0.74, selection found the labelled passage for 6/9 Vietnamese-to-English, 9/9 English-to-Vietnamese and 12/12 same-language questions. The original same-language policy also found 12/12. Two negative questions produced same-language candidates under both policies. At the same thresholds, cosine alone admitted foreign-language candidates on four negatives and the bilingual gate admitted none. Local CPU query encoding p95 was 23.5 ms. The 128-candidate selection replay took about 0.4 ms p95. Release evaluation still needs published READY snapshots, PostgreSQL latency and live answer verification.
+
+Pilot references include the [NPS Trip Planning Guide](https://www.nps.gov/subjects/healthandsafety/upload/Trip-Planning-Guide-Package-508c.pdf), [NWS Lightning Safety](https://www.weather.gov/media/tbw/brochures/LightningSafety.pdf), and [Vietnamese flash flood and landslide guidance](https://pctt.danang.gov.vn/images/VanBan/eIzjnqF720SrzIgu2020._Huong_dan_ky_thuat_pc_lu_quet_sat_lo_dat.pdf).
 
 CTMS-069 owns online synthesis and on-device inference. BR-248 continues to govern relevance, context limits and source references across CTMS-068, CTMS-069 and CTMS-071.
 CTMS-071 uses the verified cited subset recorded for each answer. CTMS-068's
