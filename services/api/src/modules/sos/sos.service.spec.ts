@@ -120,7 +120,7 @@ describe("SosService", () => {
 		};
 
 		auditRepository = {
-			save: jest.fn().mockResolvedValue(undefined),
+			save: jest.fn().mockResolvedValue({ id: "sos-transition-audit" }),
 		};
 
 		alertRepositoryMock = {

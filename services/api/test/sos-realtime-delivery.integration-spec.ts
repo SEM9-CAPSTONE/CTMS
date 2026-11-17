@@ -14,6 +14,7 @@ import type {
 	SosCreatedPayload,
 	SosStateChangedPayload,
 } from "../src/modules/realtime/events.gateway";
+import { RealtimeEventsService } from "../src/modules/realtime/realtime-events.service";
 import { SosAlert } from "../src/modules/sos/entities/sos-alert.entity";
 import { EmergencyType, SosStatus } from "../src/modules/sos/sos.enums";
 import { TrekkingRouteStatus } from "../src/modules/trekking-routes/entities/trekking-route.entity";
@@ -378,5 +379,62 @@ describe("Real-time SOS delivery (CTMS-079, BR-259/BR-260, integration, real Pos
 		expect(camperEvents).toHaveLength(1);
 		expect(otherHostEvents).toHaveLength(0);
 		expect(anonymousEvents).toHaveLength(0);
+	});
+
+	it("recovers distinct SOS transitions using the original live audit identities", async () => {
+		const sosId = await createSos();
+		const socket = await connect(camper.accessToken);
+		const live = collect<SosStateChangedPayload>(socket, "sos.state_changed");
+		const realtime = app.get(RealtimeEventsService);
+		const afterSequence = await realtime.latestSequence();
+		const transition = (action: string) =>
+			request(app.getHttpServer())
+				.patch(`/api/trips/${tripId}/sos/${sosId}/${action}`)
+				.set("Authorization", `Bearer ${host.accessToken}`);
+		await transition("acknowledge").expect(200);
+		await waitUntil(() => live.length === 1, SOS_DELIVERY_BUDGET_MS);
+		await transition("close")
+			.send({ resolutionNote: "Người tham gia đã được hỗ trợ an toàn." })
+			.expect(200);
+		await waitUntil(() => live.length === 2, SOS_DELIVERY_BUDGET_MS);
+
+		const list = (accessToken: string) =>
+			request(app.getHttpServer())
+				.get("/api/missed-alerts")
+				.set("Authorization", `Bearer ${accessToken}`);
+		const { body } = await list(camper.accessToken).expect(200);
+		expect(body.failedSources).toEqual([]);
+		expect(
+			body.items.filter((item: { details: { sosId?: string } }) => item.details.sosId === sosId)
+		).toEqual(
+			[1, 0].map((index) => ({
+				source: "sos",
+				sourceId: live[index].transitionId,
+				dedupKey: `sos:${live[index].transitionId}`,
+				occurredAt: live[index].occurredAt,
+				details: { sosId, transition: index === 0 ? "SOS_ACKNOWLEDGED" : "SOS_CLOSED" },
+			}))
+		);
+		expect(live[0].transitionId).toBeDefined();
+		expect(live[1].transitionId).not.toBe(live[0].transitionId);
+		const legacy = await realtime.record(
+			"sos.state_changed",
+			{ sosId, tripId, senderId: camper.id, status: SosStatus.ACKNOWLEDGED },
+			{ userIds: [camper.id], roles: [], tripId: null }
+		);
+		const replay = await realtime.recover({
+			afterSequence,
+			userId: camper.id,
+			roles: ["camper"],
+			isTripMember: async () => true,
+		});
+		expect(replay.events.map(({ meta }) => meta.eventId)).toEqual([
+			live[0].transitionId,
+			live[1].transitionId,
+			legacy.eventId,
+		]);
+		expect(replay.events.at(-1)?.payload).not.toHaveProperty("transitionId");
+		expect(body.items).not.toContainEqual(expect.objectContaining({ sourceId: legacy.eventId }));
+		await list(host.accessToken).expect(403);
 	});
 });
