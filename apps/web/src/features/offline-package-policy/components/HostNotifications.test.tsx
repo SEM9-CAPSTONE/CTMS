@@ -4,6 +4,14 @@ import { expect, it, vi } from "vitest";
 import { packagePolicyService } from "../services/package-policy.service";
 import { HostNotifications } from "./HostNotifications";
 
+vi.mock("../../in-app-notifications/hooks/useInAppNotifications", () => ({
+	useInAppNotifications: () => ({
+		list: { isPending: false },
+		count: { data: { unreadCount: 0 } },
+		items: [],
+		refresh: vi.fn(),
+	}),
+}));
 vi.mock("../../booking-cancellation/hooks/useBookingCancellationNotices", () => ({
 	useBookingCancellationNotices: () => ({
 		query: {
@@ -52,7 +60,8 @@ it("uses one bell for booking and departure notices without a standalone banner"
 	expect(screen.queryByRole("button", { name: /Thông báo khởi hành/ })).not.toBeInTheDocument();
 	expect(screen.queryByText("Chuyến Sơn Trà")).not.toBeInTheDocument();
 	fireEvent.click(bell);
+	fireEvent.click(screen.getByRole("tab", { name: "Hoạt động khác" }));
 	expect(await screen.findByText("Chuyến Sơn Trà")).toBeVisible();
-	expect(screen.getByRole("button", { name: "Đánh dấu đã đọc tất cả" })).toBeVisible();
+	expect(screen.getByRole("button", { name: "Đọc các mục đã tải" })).toBeVisible();
 	expect(screen.getByText("Mai đã hủy đặt chỗ")).toBeVisible();
 });
